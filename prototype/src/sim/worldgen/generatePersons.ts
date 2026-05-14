@@ -3,7 +3,7 @@ import type { HouseId, CountryId, ProvinceId } from '../types/ids'
 import type { Person, Sex } from '../types/person'
 import { createPersonId } from '../types/ids'
 import { randomFloat, randomInt } from '../rng/rng'
-import { personNamePool, pickName } from './nameGenerators'
+import { maleNamePool, femaleNamePool, pickName } from './nameGenerators'
 
 export function generatePersons(
   houseProvinces: Map<HouseId, ProvinceId[]>,
@@ -13,7 +13,8 @@ export function generatePersons(
   const persons: Person[] = []
   let globalIndex = 0
 
-  const pool = personNamePool()
+  const malePool = maleNamePool()
+  const femalePool = femaleNamePool()
 
   const sortedHouseIds = Array.from(houseProvinces.keys()).sort()
 
@@ -48,14 +49,26 @@ export function generatePersons(
     const { value: relativeAge, rng: rngR2 } = randomInt(rngR1, 15, 35)
     rng = rngR2
 
-    const oldFatherName = pickName(pool, rng).name
-    const { name: oldMotherName, rng: rngOldM } = pickName(pool, rng)
-    const { name: headName, rng: rngH2 } = pickName(pool, rngOldM)
-    const { name: siblingName, rng: rngS3 } = pickName(pool, rngH2)
-    const { name: spouseName, rng: rngSp2 } = pickName(pool, rngS3)
-    const { name: child1Name, rng: rngC5 } = pickName(pool, rngSp2)
-    const { name: child2Name, rng: rngC6 } = pickName(pool, rngC5)
-    const { name: relativeName, rng: rngR3 } = pickName(pool, rngC6)
+    const oldFatherName = pickName(malePool, rng).name
+    const { name: oldMotherName, rng: rngOldM } = pickName(femalePool, rng)
+    const { name: headName, rng: rngH2 } = pickName(malePool, rngOldM)
+    const { name: siblingName, rng: rngS3 } = pickName(
+      siblingSexVal === 'male' ? malePool : femalePool,
+      rngH2,
+    )
+    const { name: spouseName, rng: rngSp2 } = pickName(femalePool, rngS3)
+    const { name: child1Name, rng: rngC5 } = pickName(
+      child1SexVal === 'male' ? malePool : femalePool,
+      rngSp2,
+    )
+    const { name: child2Name, rng: rngC6 } = pickName(
+      child2SexVal === 'male' ? malePool : femalePool,
+      rngC5,
+    )
+    const { name: relativeName, rng: rngR3 } = pickName(
+      relativeSexVal === 'male' ? malePool : femalePool,
+      rngC6,
+    )
     rng = rngR3
 
     const oldFatherId = createPersonId('pe', globalIndex)

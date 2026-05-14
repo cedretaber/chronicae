@@ -44,7 +44,7 @@ export const HOUSE_NAMES: string[] = [
   'House Oswick',
 ]
 
-export const PERSON_NAMES: string[] = [
+export const MALE_NAMES: string[] = [
   'Adalbert',
   'Alaric',
   'Baldwin',
@@ -71,10 +71,43 @@ export const PERSON_NAMES: string[] = [
   'Ekkehard',
   'Gerhard',
   'Hildebrand',
-  'Irmfried',
   'Johannes',
   'Klaus',
   'Lorenz',
+  'Arnulf',
+]
+
+export const FEMALE_NAMES: string[] = [
+  'Adelheid',
+  'Agnes',
+  'Beatrix',
+  'Bertha',
+  'Clara',
+  'Dorothea',
+  'Elisabeth',
+  'Gisela',
+  'Hedwig',
+  'Hildegard',
+  'Irmgard',
+  'Johanna',
+  'Katharina',
+  'Kunigunde',
+  'Liutgard',
+  'Mathilde',
+  'Mechthild',
+  'Richardis',
+  'Sophia',
+  'Ursula',
+  'Walburga',
+  'Wilhemina',
+  'Adelinde',
+  'Berta',
+  'Crescentia',
+  'Ermengard',
+  'Felizitas',
+  'Gertrude',
+  'Hadwig',
+  'Isolde',
 ]
 
 export const PROVINCE_NAMES: string[] = [
