@@ -151,6 +151,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       adminPower,
       stability,
       roleAssignments: {},
+      active: true,
     }
 
     countries.push(country)

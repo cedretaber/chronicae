@@ -28,6 +28,7 @@ export function runGovernanceSystem(ctx: TickContext): TickContext {
   for (const countryId of countryIds) {
     const country = currentCtx.state.countries[countryId as CountryId]
     if (!country) continue
+    if (!country.active) continue
 
     const chancellorAdmin = getRoleAdminPower(country, 'chancellor', currentCtx.state)
     const treasurerAdmin = getRoleAdminPower(country, 'treasurer', currentCtx.state)

@@ -31,6 +31,7 @@ export function runEconomySystem(ctx: TickContext): TickContext {
   for (const countryId of Object.keys(ctx.state.countries).sort()) {
     const country = newCountries[countryId as CountryId]
     if (!country) continue
+    if (!country.active) continue
     const delta = treasuryDeltas.get(countryId as CountryId) ?? 0
     newCountries[countryId as CountryId] = { ...country, treasury: country.treasury + delta }
   }

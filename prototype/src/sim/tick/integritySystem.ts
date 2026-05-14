@@ -9,6 +9,7 @@ export function runIntegrityCheck(ctx: TickContext): TickContext {
   for (const countryId of Object.keys(state.countries).sort()) {
     const country = state.countries[countryId as CountryId]
     if (!country) continue
+    if (!country.active) continue
 
     for (const role of ['chancellor', 'general', 'treasurer'] as RoleType[]) {
       const personId = country.roleAssignments[role]
@@ -87,6 +88,7 @@ export function runIntegrityCheck(ctx: TickContext): TickContext {
   for (const countryId of Object.keys(state.countries).sort()) {
     const country = state.countries[countryId as CountryId]
     if (!country) continue
+    if (!country.active) continue
 
     const house = state.houses[country.rulerHouseId]
     if (!house || !house.active) {

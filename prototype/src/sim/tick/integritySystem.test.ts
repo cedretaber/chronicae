@@ -126,6 +126,7 @@ describe('runIntegrityCheck', () => {
       adminPower: 50,
       stability: 60,
       roleAssignments: { chancellor: personId },
+      active: true,
     }
 
     const world: WorldState = {
@@ -359,6 +360,7 @@ describe('runIntegrityCheck', () => {
       adminPower: 50,
       stability: 60,
       roleAssignments: {},
+      active: true,
     }
 
     const world: WorldState = {

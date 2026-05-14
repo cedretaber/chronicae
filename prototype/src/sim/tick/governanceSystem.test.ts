@@ -89,6 +89,7 @@ function makeCtx({
         adminPower: 30,
         stability,
         roleAssignments,
+        active: true,
       },
     },
     houses: {

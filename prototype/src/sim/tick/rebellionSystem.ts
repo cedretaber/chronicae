@@ -5,19 +5,9 @@ import { clamp, clamp100 } from '../utils/math'
 import { calcAmbitionScores } from './ambitionSystem'
 import { changeRulerHouse } from '../mutations/changeRulerHouse'
 import { createCountryFromHouse } from '../mutations/createCountry'
+import { calcHouseMilitaryPower } from '../selectors/militarySelectors'
 import type { CountryId } from '../types/ids'
-import type { House } from '../types/house'
 import type { SimEvent } from '../types/event'
-
-function houseMilitaryPower(h: House, currentCtx: TickContext): number {
-  const provinceManpower = h.provinceIds.reduce((sum, pId) => {
-    const province = currentCtx.state.provinces[pId]
-    return sum + (province?.manpower ?? 0)
-  }, 0)
-  const martials = h.memberIds.map((pid) => currentCtx.state.persons[pid]?.stats.martial ?? 0)
-  const bestMartial = martials.length > 0 ? Math.max(...martials) : 0
-  return provinceManpower + bestMartial * 2 + h.wealth / 20
-}
 
 export function runRebellionSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -25,6 +15,7 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
   for (const countryId of Object.keys(currentCtx.state.countries).sort()) {
     const country = currentCtx.state.countries[countryId as CountryId]
     if (!country) continue
+    if (!country.active) continue
 
     const houseIdsSnapshot = country.houseIds
       .filter((hid) => hid !== country.rulerHouseId)
@@ -42,6 +33,8 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
       if (!house || !house.active) continue
 
       if (house.countryId !== countryId) continue
+
+      if (house.provinceIds.length === 0) continue
 
       const { rebellionTendency } = calcAmbitionScores(currentCtx.state, houseId)
 
@@ -67,7 +60,7 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
       }
       currentCtx = { ...currentCtx, state: stateWithPenalties }
 
-      const rebelPower = houseMilitaryPower(house, currentCtx)
+      const rebelPower = calcHouseMilitaryPower(currentCtx.state, house.id)
 
       const updatedCountry = currentCtx.state.countries[countryId as CountryId]
       if (!updatedCountry) continue
@@ -80,7 +73,7 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
         if (otherHouseId === houseId) continue
         const otherHouse = currentCtx.state.houses[otherHouseId]
         if (!otherHouse || !otherHouse.active) continue
-        loyalistPower += houseMilitaryPower(otherHouse, currentCtx)
+        loyalistPower += calcHouseMilitaryPower(currentCtx.state, otherHouseId)
       }
 
       const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)

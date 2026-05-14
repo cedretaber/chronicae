@@ -3,22 +3,11 @@ import { createCountryId, createHouseId, createPersonId } from '../types/ids'
 import type { CountryId, HouseId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
+import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { createTickContext, toResult } from './context'
 import { runAppointmentSystem } from './appointmentSystem'
 import type { SimEvent } from '../types/event'
-
-const defaultConfig: SimulationConfig = {
-  minLivingMembersPerHouse: 4,
-  maxNewPersonsPerHousePerYear: 2,
-  basePlotSuccess: 0.35,
-  rebellionThreshold: 70,
-  plotThreshold: 65,
-  replacementThreshold: 15,
-  rebellionSuccessMode: 'independence',
-  maxRawEvents: 10000,
-  maxChronicleEvents: 1000,
-}
 
 function makeBaseState(): {
   state: WorldState
@@ -49,6 +38,7 @@ function makeBaseState(): {
         adminPower: 10,
         stability: 0,
         roleAssignments: {},
+        active: true,
       },
     },
     houses: {

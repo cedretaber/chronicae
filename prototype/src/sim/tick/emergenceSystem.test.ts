@@ -5,6 +5,7 @@ import type { Person } from '../types/person'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { PersonId, HouseId, CountryId } from '../types/ids'
 import { createRng } from '../rng/rng'
+import { defaultConfig } from '../config/defaultConfig'
 import { runEmergenceSystem } from './emergenceSystem'
 
 function makeEmergenceState(
@@ -34,17 +35,7 @@ function makeEmergenceState(
   const houseId = 'h-0' as HouseId
   const countryId = 'c-0' as CountryId
 
-  const cfg = config ?? {
-    minLivingMembersPerHouse: 4,
-    maxNewPersonsPerHousePerYear: 2,
-    basePlotSuccess: 0.35,
-    rebellionThreshold: 70,
-    plotThreshold: 65,
-    replacementThreshold: 15,
-    rebellionSuccessMode: 'independence',
-    maxRawEvents: 10000,
-    maxChronicleEvents: 1000,
-  }
+  const cfg = config ?? { ...defaultConfig }
 
   return {
     state: {
@@ -62,6 +53,7 @@ function makeEmergenceState(
           adminPower: 50,
           stability: 60,
           roleAssignments: {},
+          active: true,
         },
       },
       houses: {

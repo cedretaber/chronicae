@@ -156,7 +156,12 @@ function CountryDetail({
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-lg font-bold">{country.name}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-bold">{country.name}</span>
+          {!country.active && (
+            <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">Annexed</span>
+          )}
+        </div>
         <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(country.id)} />
       </div>
 

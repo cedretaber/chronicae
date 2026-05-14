@@ -2,24 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId, createPlotId } from '../types/ids'
 import type { CountryId, HouseId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import type { SimulationConfig } from '../config/defaultConfig'
+import { defaultConfig } from '../config/defaultConfig'
 import type { Plot } from '../types/plot'
 import { createRng } from '../rng/rng'
 import { createTickContext, toResult } from './context'
 import { runPlotSystem } from './plotSystem'
 import type { SimEvent } from '../types/event'
-
-const defaultConfig: SimulationConfig = {
-  minLivingMembersPerHouse: 4,
-  maxNewPersonsPerHousePerYear: 2,
-  basePlotSuccess: 0.35,
-  rebellionThreshold: 70,
-  plotThreshold: 65,
-  replacementThreshold: 15,
-  rebellionSuccessMode: 'independence',
-  maxRawEvents: 10000,
-  maxChronicleEvents: 1000,
-}
 
 function makeBaseState(): {
   state: WorldState
@@ -46,6 +34,7 @@ function makeBaseState(): {
         adminPower: 10,
         stability: 0,
         roleAssignments: {},
+        active: true,
       },
     },
     houses: {

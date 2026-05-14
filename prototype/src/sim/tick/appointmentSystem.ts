@@ -42,6 +42,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
   for (const countryId of countryIds) {
     const country = currentCtx.state.countries[countryId as CountryId]
     if (!country) continue
+    if (!country.active) continue
 
     for (const role of ALL_ROLES) {
       // Always read fresh country state from currentCtx

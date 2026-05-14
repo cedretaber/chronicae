@@ -12,6 +12,7 @@ export function runStabilitySystem(ctx: TickContext): TickContext {
   for (const countryId of countryIds) {
     const country = currentCtx.state.countries[countryId as CountryId]
     if (!country) continue
+    if (!country.active) continue
 
     newCountries[countryId as CountryId] = {
       ...country,

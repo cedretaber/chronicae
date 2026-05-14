@@ -182,7 +182,9 @@ export function Sidebar() {
   const persons = session?.currentState.persons
 
   const sortedCountries: Country[] = countries
-    ? Object.values(countries).sort((a, b) => b.legitimacy - a.legitimacy)
+    ? Object.values(countries)
+        .filter((c) => c.active)
+        .sort((a, b) => b.legitimacy - a.legitimacy)
     : []
 
   const countryColorMap = useMemo(

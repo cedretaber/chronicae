@@ -21,6 +21,15 @@ export type EventType =
   | 'FAMINE'
   | 'BOUNTIFUL_HARVEST'
   | 'PLAGUE'
+  | 'WAR_DECLARED'
+  | 'WAR_WON'
+  | 'WAR_LOST'
+  | 'PROVINCE_CONQUERED'
+  | 'COUNTRY_ANNEXED'
+  | 'DISASTER_RELIEF_FUNDED'
+  | 'DISASTER_RELIEF_FAILED'
+  | 'MONUMENT_BUILT'
+  | 'ALMS_DISTRIBUTED'
 
 export type EventReason = {
   label: string

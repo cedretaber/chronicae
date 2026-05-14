@@ -28,6 +28,7 @@ export function createCountryFromHouse(
     adminPower: 30,
     stability: 40,
     roleAssignments: {},
+    active: true,
   }
 
   // Step 4: Add newCountry to state

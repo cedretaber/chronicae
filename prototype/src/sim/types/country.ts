@@ -11,4 +11,6 @@ export type Country = {
   adminPower: number // 0..100
   stability: number // 0..100
   roleAssignments: Partial<Record<RoleType, PersonId>>
+  active: boolean
+  lastWarMonth?: number
 }

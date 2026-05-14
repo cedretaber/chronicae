@@ -40,6 +40,7 @@ function makeEconomyState(baseTax: number, unrest: number): WorldState {
         adminPower: 50,
         stability: 60,
         roleAssignments: {},
+        active: true,
       },
     },
     houses: {
@@ -152,6 +153,7 @@ describe('runEconomySystem', () => {
           adminPower: 50,
           stability: 60,
           roleAssignments: {},
+          active: true,
         },
       },
       houses: {

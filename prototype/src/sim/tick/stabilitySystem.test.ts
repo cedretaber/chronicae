@@ -27,6 +27,7 @@ function makeCtx(
       adminPower: number
       stability: number
       roleAssignments: Record<string, never>
+      active: boolean
     }
   > = {
     [country1Id]: {
@@ -39,6 +40,7 @@ function makeCtx(
       adminPower: 50,
       stability,
       roleAssignments: {},
+      active: true,
     },
   }
 
@@ -53,6 +55,7 @@ function makeCtx(
       adminPower: 50,
       stability: vals.stability,
       roleAssignments: {},
+      active: true,
     }
   }
 
