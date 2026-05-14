@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Vite
+.vite/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage/

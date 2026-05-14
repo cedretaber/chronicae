@@ -1,0 +1,21 @@
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js
+node_modules/
+dist/
+*.local
+
+# Environment
+.env
+.env.*
+
+# Claude Code (personal settings)
+.claude/settings.local.json

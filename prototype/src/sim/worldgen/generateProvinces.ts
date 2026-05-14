@@ -1,0 +1,48 @@
+import type { ProvinceId, HouseId, CountryId } from '../types/ids'
+import type { Province } from '../types/province'
+import { createProvinceId } from '../types/ids'
+import { provinceName } from './nameGenerators'
+
+const COLS = 8
+const ROWS = 5
+
+export function generateProvinces(): Province[] {
+  const provinces: Province[] = []
+
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const index = row * COLS + col
+      const id = createProvinceId('p', index)
+
+      const neighbors: ProvinceId[] = []
+
+      if (col > 0) {
+        neighbors.push(createProvinceId('p', index - 1))
+      }
+      if (col < COLS - 1) {
+        neighbors.push(createProvinceId('p', index + 1))
+      }
+      if (row > 0) {
+        neighbors.push(createProvinceId('p', index - COLS))
+      }
+      if (row < ROWS - 1) {
+        neighbors.push(createProvinceId('p', index + COLS))
+      }
+
+      provinces.push({
+        id,
+        name: provinceName(index),
+        x: col * 100,
+        y: row * 100,
+        neighbors,
+        ownerHouseId: '' as HouseId,
+        countryId: '' as CountryId,
+        baseTax: 0,
+        manpower: 0,
+        unrest: 0,
+      })
+    }
+  }
+
+  return provinces
+}
