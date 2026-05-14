@@ -41,6 +41,29 @@ export type SimulationConfig = {
   famineReliefDevelopmentRecovery: number
   plagueDevastation: number
   bountifulHarvestDevelopmentGain: number
+  // Control system
+  controlMaxDistancePenalty: number
+  controlMaxMinimum: number
+  controlGrowthPerMonth: number
+  controlDecayPerMonth: number
+  disconnectedControlDecayPerMonth: number
+  // Monument (v0.5 changes)
+  monumentCountryControlGain: number
+  monumentLegitimacyGain: number
+  // Land development (v0.5 additions)
+  landDevelopmentHouseControlGain: number
+  landDevelopmentUnrestReduction: number
+  // Lordship transition
+  lordshipAbsorptionTargetThreshold: number
+  lordshipAbsorptionSourceMinimum: number
+  lordshipAbsorptionRatio: number
+  lordshipAbsorptionMonthlyChance: number
+  lordshipAbsorptionNewControlMin: number
+  lordshipAbsorptionNewControlMax: number
+  lordshipAbsorptionNewControlPenalty: number
+  // Annexation
+  annexedCountryControl: number
+  newRulerHouseControl: number
   // Country land development
   countryLandDevelopmentBaseCost: number
   countryLandDevelopmentGain: number
@@ -95,4 +118,27 @@ export const defaultConfig: SimulationConfig = {
   houseLandDevelopmentBaseCost: 40,
   houseLandDevelopmentGain: 6,
   houseWealthReserve: 50,
+  // Control system
+  controlMaxDistancePenalty: 10,
+  controlMaxMinimum: 40,
+  controlGrowthPerMonth: 2,
+  controlDecayPerMonth: 1,
+  disconnectedControlDecayPerMonth: 5,
+  // Monument (v0.5 changes)
+  monumentCountryControlGain: 10,
+  monumentLegitimacyGain: 5,
+  // Land development (v0.5 additions)
+  landDevelopmentHouseControlGain: 5,
+  landDevelopmentUnrestReduction: 1,
+  // Lordship transition
+  lordshipAbsorptionTargetThreshold: 50,
+  lordshipAbsorptionSourceMinimum: 60,
+  lordshipAbsorptionRatio: 2,
+  lordshipAbsorptionMonthlyChance: 0.05,
+  lordshipAbsorptionNewControlMin: 50,
+  lordshipAbsorptionNewControlMax: 70,
+  lordshipAbsorptionNewControlPenalty: 10,
+  // Annexation
+  annexedCountryControl: 35,
+  newRulerHouseControl: 35,
 }

@@ -1,5 +1,5 @@
 import type { RngState } from '../rng/rng'
-import type { HouseId, CountryId } from '../types/ids'
+import type { HouseId, CountryId, ProvinceId } from '../types/ids'
 import type { Person } from '../types/person'
 import { createPersonId } from '../types/ids'
 import { randomFloat, randomInt } from '../rng/rng'

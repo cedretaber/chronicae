@@ -39,7 +39,11 @@ export function chooseOne<T>(rng: RngState, items: readonly T[]): RngResult<T> {
     throw new Error('Cannot choose from an empty array')
   }
   const { value: index, rng: indexRng } = randomInt(rng, 0, items.length - 1)
-  return { value: items[index], rng: indexRng }
+  const value = items[index]
+  if (value === undefined) {
+    throw new Error('Unexpected undefined value from array access')
+  }
+  return { value, rng: indexRng }
 }
 
 export function shuffle<T>(rng: RngState, items: readonly T[]): RngResult<T[]> {
@@ -47,7 +51,10 @@ export function shuffle<T>(rng: RngState, items: readonly T[]): RngResult<T[]> {
   for (let i = array.length - 1; i > 0; i--) {
     const { value: index, rng: stepRng } = randomInt(rng, 0, i)
     const temp = array[i]
-    array[i] = array[index]
+    if (temp === undefined) continue
+    const swap = array[index]
+    if (swap === undefined) continue
+    array[i] = swap
     array[index] = temp
     rng = stepRng
   }

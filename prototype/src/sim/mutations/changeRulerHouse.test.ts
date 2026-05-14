@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId } from '../types/ids'
-import type { CountryId, HouseId } from '../types/ids'
+import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { changeRulerHouse } from './changeRulerHouse'
 
@@ -42,6 +42,8 @@ function makeFixture({
         adminPower: 10,
         stability: countryStability,
         roleAssignments: {},
+        active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
       [country2Id]: {
         id: country2Id,
@@ -53,6 +55,8 @@ function makeFixture({
         adminPower: 10,
         stability: 0,
         roleAssignments: {},
+        active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
     },
     houses: {
@@ -68,6 +72,7 @@ function makeFixture({
         cohesion: 50,
         loyaltyToCountry: rulerHouseLoyalty,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
       [house2Id]: {
         id: house2Id,
@@ -81,6 +86,7 @@ function makeFixture({
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
     },
     persons: {},
@@ -89,8 +95,8 @@ function makeFixture({
   return { state, country1Id, house1Id, house2Id }
 }
 
-function createPersonId(prefix: string, n: number): HouseId {
-  return (prefix + '-' + n) as unknown as HouseId
+function createPersonId(prefix: string, n: number): PersonId {
+  return (prefix + '-' + n) as unknown as PersonId
 }
 
 describe('changeRulerHouse', () => {
@@ -98,28 +104,28 @@ describe('changeRulerHouse', () => {
     const { state, country1Id, house2Id } = makeFixture()
     const result = changeRulerHouse(state, country1Id, house2Id)
 
-    expect(result.countries[country1Id].rulerHouseId).toBe(house2Id)
+    expect(result.countries[country1Id]!.rulerHouseId).toBe(house2Id)
   })
 
   it('country legitimacy decreases by 15 (clamped to 0)', () => {
     const { state, country1Id, house2Id } = makeFixture({ countryLegitimacy: 10 })
     const result = changeRulerHouse(state, country1Id, house2Id)
 
-    expect(result.countries[country1Id].legitimacy).toBe(0)
+    expect(result.countries[country1Id]!.legitimacy).toBe(0)
   })
 
   it('country stability decreases by 20 (clamped to 0)', () => {
     const { state, country1Id, house2Id } = makeFixture({ countryStability: 10 })
     const result = changeRulerHouse(state, country1Id, house2Id)
 
-    expect(result.countries[country1Id].stability).toBe(0)
+    expect(result.countries[country1Id]!.stability).toBe(0)
   })
 
   it('country roleAssignments is reset to empty', () => {
     const { state, country1Id, house2Id } = makeFixture()
     const result = changeRulerHouse(state, country1Id, house2Id)
 
-    expect(result.countries[country1Id].roleAssignments).toEqual({})
+    expect(result.countries[country1Id]!.roleAssignments).toEqual({})
   })
 
   it('newRulerHouse prestige increases by 20 (clamped to 100)', () => {
@@ -141,6 +147,7 @@ describe('changeRulerHouse', () => {
           cohesion: 50,
           loyaltyToCountry: 50,
           wealth: 0,
+          seatProvinceId: '' as ProvinceId,
         },
       },
       countries: {
@@ -155,12 +162,14 @@ describe('changeRulerHouse', () => {
           adminPower: 10,
           stability: 0,
           roleAssignments: {},
+          active: true,
+          capitalProvinceId: '' as ProvinceId,
         },
       },
     }
     const result = changeRulerHouse(stateWithNewHouse, country1Id, newHouseId)
 
-    expect(result.houses[newHouseId].prestige).toBe(100)
+    expect(result.houses[newHouseId]!.prestige).toBe(100)
   })
 
   it('oldRulerHouse prestige decreases by 25 (clamped to 0)', () => {
@@ -169,7 +178,7 @@ describe('changeRulerHouse', () => {
     })
     const result = changeRulerHouse(state, country1Id, house2Id)
 
-    expect(result.houses[house1Id].prestige).toBe(0)
+    expect(result.houses[house1Id]!.prestige).toBe(0)
   })
 
   it('oldRulerHouse loyaltyToCountry decreases by 20 (clamped to 0)', () => {
@@ -178,7 +187,7 @@ describe('changeRulerHouse', () => {
     })
     const result = changeRulerHouse(state, country1Id, house2Id)
 
-    expect(result.houses[house1Id].loyaltyToCountry).toBe(0)
+    expect(result.houses[house1Id]!.loyaltyToCountry).toBe(0)
   })
 
   it('Original state is not mutated', () => {

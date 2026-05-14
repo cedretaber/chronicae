@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId } from '../types/ids'
-import type { CountryId, HouseId, PersonId } from '../types/ids'
+import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { createCountryFromHouse } from './createCountry'
 
@@ -33,6 +33,8 @@ function makeFixture(): {
         adminPower: 50,
         stability: 60,
         roleAssignments: {},
+        active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
       [country2Id]: {
         id: country2Id,
@@ -44,6 +46,8 @@ function makeFixture(): {
         adminPower: 50,
         stability: 60,
         roleAssignments: {},
+        active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
     },
     houses: {
@@ -59,6 +63,7 @@ function makeFixture(): {
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 1000,
+        seatProvinceId: '' as ProvinceId,
       },
       [house2Id]: {
         id: house2Id,
@@ -72,6 +77,7 @@ function makeFixture(): {
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 200,
+        seatProvinceId: '' as ProvinceId,
       },
     },
     persons: {
@@ -122,22 +128,22 @@ describe('createCountryFromHouse', () => {
 
     const result = createCountryFromHouse(state, house1Id, newCountryId)
 
-    expect(result.houses[house1Id].countryId).toBe(newCountryId)
-    expect(result.countries[country1Id].houseIds).not.toContain(house1Id)
+    expect(result.houses[house1Id]!.countryId).toBe(newCountryId)
+    expect(result.countries[country1Id]!.houseIds).not.toContain(house1Id)
   })
 
   it('old country receives penalties', () => {
     const { state, house1Id, country1Id } = makeFixture()
     const newCountryId = createCountryId('c', 10)
 
-    const oldCountry = state.countries[country1Id]
+    const oldCountry = state.countries[country1Id]!
     const oldLegitimacy = oldCountry.legitimacy
     const oldStability = oldCountry.stability
     const oldAdminPower = oldCountry.adminPower
 
     const result = createCountryFromHouse(state, house1Id, newCountryId)
 
-    const updatedOldCountry = result.countries[country1Id]
+    const updatedOldCountry = result.countries[country1Id]!
     expect(updatedOldCountry.legitimacy).toBe(Math.max(0, oldLegitimacy - 10))
     expect(updatedOldCountry.stability).toBe(Math.max(0, oldStability - 15))
     expect(updatedOldCountry.adminPower).toBe(Math.max(0, oldAdminPower - 5))

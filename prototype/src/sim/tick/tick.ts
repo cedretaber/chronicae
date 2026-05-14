@@ -10,6 +10,8 @@ import { runAppointmentSystem } from './appointmentSystem'
 import { runAmbitionSystem } from './ambitionSystem'
 import { runPublicSpendingSystem } from './publicSpendingSystem'
 import { runHouseDevelopmentSystem } from './houseDevelopmentSystem'
+import { runControlSystem } from './controlSystem'
+import { runLordshipTransitionSystem } from './lordshipTransitionSystem'
 import { runPlotSystem } from './plotSystem'
 import { runWarSystem } from './warSystem'
 import { runRebellionSystem } from './rebellionSystem'
@@ -21,6 +23,8 @@ export function tick(input: TickInput): TickResult {
   let ctx = createTickContext(input)
   ctx = advanceTime(ctx)
   ctx = runDevelopmentSystem(ctx)
+  ctx = runControlSystem(ctx)
+  ctx = runLordshipTransitionSystem(ctx)
   ctx = runEconomySystem(ctx)
   ctx = runDisasterSystem(ctx)
   ctx = runMortalitySystem(ctx)

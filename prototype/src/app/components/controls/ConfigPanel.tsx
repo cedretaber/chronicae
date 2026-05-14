@@ -224,6 +224,98 @@ export function ConfigPanel() {
             displayValue={String(config.houseLandDevelopmentBaseCost)}
             onChange={(v) => setConfig({ houseLandDevelopmentBaseCost: v })}
           />
+          <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Control System</div>
+          <ConfigRow
+            label="Distance Penalty"
+            value={config.controlMaxDistancePenalty}
+            min={5}
+            max={20}
+            step={1}
+            displayValue={String(config.controlMaxDistancePenalty)}
+            onChange={(v) => setConfig({ controlMaxDistancePenalty: v })}
+          />
+          <ConfigRow
+            label="Control Minimum"
+            value={config.controlMaxMinimum}
+            min={10}
+            max={60}
+            step={5}
+            displayValue={String(config.controlMaxMinimum)}
+            onChange={(v) => setConfig({ controlMaxMinimum: v })}
+          />
+          <ConfigRow
+            label="Growth/mo"
+            value={config.controlGrowthPerMonth}
+            min={0.5}
+            max={5}
+            step={0.5}
+            displayValue={String(config.controlGrowthPerMonth)}
+            onChange={(v) => setConfig({ controlGrowthPerMonth: v })}
+          />
+          <ConfigRow
+            label="Decay/mo"
+            value={config.controlDecayPerMonth}
+            min={0.5}
+            max={5}
+            step={0.5}
+            displayValue={String(config.controlDecayPerMonth)}
+            onChange={(v) => setConfig({ controlDecayPerMonth: v })}
+          />
+          <ConfigRow
+            label="Disconnected Decay/mo"
+            value={config.disconnectedControlDecayPerMonth}
+            min={1}
+            max={10}
+            step={1}
+            displayValue={String(config.disconnectedControlDecayPerMonth)}
+            onChange={(v) => setConfig({ disconnectedControlDecayPerMonth: v })}
+          />
+          <ConfigRow
+            label="Monument Control Gain"
+            value={config.monumentCountryControlGain}
+            min={5}
+            max={20}
+            step={5}
+            displayValue={String(config.monumentCountryControlGain)}
+            onChange={(v) => setConfig({ monumentCountryControlGain: v })}
+          />
+          <ConfigRow
+            label="Dev House Control Gain"
+            value={config.landDevelopmentHouseControlGain}
+            min={1}
+            max={10}
+            step={1}
+            displayValue={String(config.landDevelopmentHouseControlGain)}
+            onChange={(v) => setConfig({ landDevelopmentHouseControlGain: v })}
+          />
+          <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Lordship Transition</div>
+          <ConfigRow
+            label="Target Threshold"
+            value={config.lordshipAbsorptionTargetThreshold}
+            min={10}
+            max={70}
+            step={5}
+            displayValue={String(config.lordshipAbsorptionTargetThreshold)}
+            onChange={(v) => setConfig({ lordshipAbsorptionTargetThreshold: v })}
+          />
+          <ConfigRow
+            label="Source Minimum"
+            value={config.lordshipAbsorptionSourceMinimum}
+            min={40}
+            max={80}
+            step={5}
+            displayValue={String(config.lordshipAbsorptionSourceMinimum)}
+            onChange={(v) => setConfig({ lordshipAbsorptionSourceMinimum: v })}
+          />
+          <ConfigRow
+            label="Monthly Chance"
+            value={config.lordshipAbsorptionMonthlyChance}
+            min={0.01}
+            max={0.2}
+            step={0.01}
+            displayValue={`${(config.lordshipAbsorptionMonthlyChance * 100).toFixed(0)}%`}
+            onChange={(v) => setConfig({ lordshipAbsorptionMonthlyChance: v })}
+          />
         </div>
       )}
     </div>

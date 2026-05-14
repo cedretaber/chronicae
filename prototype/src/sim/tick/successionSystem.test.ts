@@ -86,6 +86,8 @@ function makeSuccessionCtx(
           adminPower: 50,
           stability: 60,
           roleAssignments: {},
+          active: true,
+          capitalProvinceId: '' as ProvinceId,
         },
       },
       houses: {
@@ -101,6 +103,7 @@ function makeSuccessionCtx(
           cohesion: 60,
           loyaltyToCountry: 70,
           wealth: 100,
+          seatProvinceId: '' as ProvinceId,
         },
       },
       persons: allPersons,
@@ -117,7 +120,7 @@ function makeSuccessionCtx(
 describe('runSuccessionSystem', () => {
   it('alive head: no succession occurs, headId unchanged', () => {
     const ctx = makeSuccessionCtx(true, [])
-    const originalHeadId = ctx.state.houses['h-0' as HouseId].headId
+    const originalHeadId = ctx.state.houses['h-0' as HouseId]!.headId
 
     const result = runSuccessionSystem(ctx)
 
@@ -145,7 +148,7 @@ describe('runSuccessionSystem', () => {
     const newHouse = result.state.houses['h-0' as HouseId]
     expect(newHouse?.headId).toBe('pe-1' as PersonId)
     expect(result.events.length).toBeGreaterThan(0)
-    expect(result.events[0].type).toBe('HOUSE_HEAD_CHANGED')
+    expect(result.events[0]!.type).toBe('HOUSE_HEAD_CHANGED')
   })
 
   it('dead head + no alive members: HOUSE_EXTINCT event emitted, house.active=false', () => {
@@ -157,6 +160,7 @@ describe('runSuccessionSystem', () => {
     expect(newHouse?.active).toBe(false)
     expect(result.events.length).toBeGreaterThan(0)
     const event = result.events[0]
+    if (!event) throw new Error('event is undefined')
     expect(event.type).toBe('HOUSE_EXTINCT')
     expect(event.importance).toBe('major')
   })
@@ -182,6 +186,9 @@ describe('runSuccessionSystem', () => {
             baseTax: 5,
             manpower: 5,
             unrest: 0,
+            development: 0,
+            countryControl: 100,
+            houseControl: 100,
           },
         },
         countries: {
@@ -195,6 +202,8 @@ describe('runSuccessionSystem', () => {
             adminPower: 50,
             stability: 60,
             roleAssignments: {},
+            active: true,
+            capitalProvinceId: provinceId,
           },
         },
         houses: {
@@ -210,6 +219,7 @@ describe('runSuccessionSystem', () => {
             cohesion: 60,
             loyaltyToCountry: 70,
             wealth: 100,
+            seatProvinceId: provinceId,
           },
         },
         persons: {},
@@ -286,6 +296,8 @@ describe('runSuccessionSystem', () => {
             adminPower: 50,
             stability: 60,
             roleAssignments: {},
+            active: true,
+            capitalProvinceId: '' as ProvinceId,
           },
         },
         houses: {
@@ -301,6 +313,7 @@ describe('runSuccessionSystem', () => {
             cohesion: 60,
             loyaltyToCountry: 70,
             wealth: 100,
+            seatProvinceId: '' as ProvinceId,
           },
         },
         persons,
@@ -339,6 +352,8 @@ describe('runSuccessionSystem', () => {
     expect(headChangedEvents.length).toBeGreaterThan(0)
 
     const event = headChangedEvents[0]
+    expect(event).toBeDefined()
+    if (!event) throw new Error('event is undefined')
     expect(event.year).toBe(1)
     expect(event.month).toBe(1)
     expect(event.importance).toBe('normal')

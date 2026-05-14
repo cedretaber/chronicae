@@ -508,8 +508,22 @@ lordshipAbsorptionMonthlyChance = 0.05
 1. 月初の Province 状態をスナップショットする
 2. 吸収候補を列挙する（スナップショット基準）
 3. 確率判定を行う
-4. 最後に ownerHouseId と houseControl をまとめて更新する
+4. 最後に以下をまとめて更新する（targetProvinceId で一意化する）
 ```
+
+反映フェーズで同時に行う更新：
+
+```text
+- target.ownerHouseId を oldHouseId から newHouseId に変更する
+- target.houseControl を新しい値に変更する
+- oldHouse.provinceIds から target.id を削除する
+- newHouse.provinceIds に target.id を追加する
+- LORDSHIP_TRANSFERRED イベントを記録する
+```
+
+`Province.ownerHouseId` と `House.provinceIds` の双方向整合性は、反映後の state で必ず一致している前提とする。
+
+同月内に複数の吸収が発生する場合も、target Province ごとに最大1回の更新であることを保証するため、反映リストを `targetProvinceId` で一意化する。
 
 ### 12.7 クールダウンは導入しない
 

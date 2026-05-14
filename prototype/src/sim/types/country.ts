@@ -1,4 +1,4 @@
-import type { CountryId, HouseId, PersonId } from './ids'
+import type { CountryId, HouseId, PersonId, ProvinceId } from './ids'
 import type { RoleType } from './role'
 
 export type Country = {
@@ -13,4 +13,5 @@ export type Country = {
   roleAssignments: Partial<Record<RoleType, PersonId>>
   active: boolean
   lastWarMonth?: number
+  capitalProvinceId: ProvinceId
 }

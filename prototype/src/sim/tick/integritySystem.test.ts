@@ -40,6 +40,7 @@ function makeMinimalWorldWithHouse(
     cohesion: 60,
     loyaltyToCountry: 70,
     wealth: 100,
+    seatProvinceId: '' as ProvinceId,
   }
 
   const headPerson: Person = {
@@ -69,6 +70,8 @@ function makeMinimalWorldWithHouse(
         adminPower: 50,
         stability: 60,
         roleAssignments: {},
+        active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
     },
     houses: { [houseId]: house },
@@ -114,6 +117,7 @@ describe('runIntegrityCheck', () => {
       cohesion: 60,
       loyaltyToCountry: 70,
       wealth: 100,
+      seatProvinceId: '' as ProvinceId,
     }
 
     const country: Country = {
@@ -127,6 +131,7 @@ describe('runIntegrityCheck', () => {
       stability: 60,
       roleAssignments: { chancellor: personId },
       active: true,
+      capitalProvinceId: '' as ProvinceId,
     }
 
     const world: WorldState = {
@@ -174,6 +179,7 @@ describe('runIntegrityCheck', () => {
       cohesion: 60,
       loyaltyToCountry: 70,
       wealth: 100,
+      seatProvinceId: '' as ProvinceId,
     }
 
     const province: Province = {
@@ -187,6 +193,9 @@ describe('runIntegrityCheck', () => {
       baseTax: 5,
       manpower: 5,
       unrest: 0,
+      development: 0,
+      countryControl: 100,
+      houseControl: 100,
     }
 
     const headPerson: Person = {
@@ -213,6 +222,7 @@ describe('runIntegrityCheck', () => {
       cohesion: 60,
       loyaltyToCountry: 70,
       wealth: 100,
+      seatProvinceId: '' as ProvinceId,
     }
 
     const country: Country = {
@@ -225,6 +235,8 @@ describe('runIntegrityCheck', () => {
       adminPower: 50,
       stability: 60,
       roleAssignments: {},
+      active: true,
+      capitalProvinceId: '' as ProvinceId,
     }
 
     const world: WorldState = {
@@ -262,6 +274,9 @@ describe('runIntegrityCheck', () => {
       baseTax: 5,
       manpower: 5,
       unrest: 0,
+      development: 0,
+      countryControl: 100,
+      houseControl: 100,
     }
 
     const headPerson: Person = {
@@ -288,6 +303,7 @@ describe('runIntegrityCheck', () => {
       cohesion: 60,
       loyaltyToCountry: 70,
       wealth: 100,
+      seatProvinceId: '' as ProvinceId,
     }
 
     const country: Country = {
@@ -300,6 +316,8 @@ describe('runIntegrityCheck', () => {
       adminPower: 50,
       stability: 60,
       roleAssignments: {},
+      active: true,
+      capitalProvinceId: '' as ProvinceId,
     }
 
     const wrongCountry: Country = {
@@ -312,6 +330,8 @@ describe('runIntegrityCheck', () => {
       adminPower: 50,
       stability: 60,
       roleAssignments: {},
+      active: true,
+      capitalProvinceId: '' as ProvinceId,
     }
 
     const world: WorldState = {
@@ -348,6 +368,7 @@ describe('runIntegrityCheck', () => {
       cohesion: 60,
       loyaltyToCountry: 70,
       wealth: 100,
+      seatProvinceId: '' as ProvinceId,
     }
 
     const country: Country = {
@@ -361,6 +382,7 @@ describe('runIntegrityCheck', () => {
       stability: 60,
       roleAssignments: {},
       active: true,
+      capitalProvinceId: '' as ProvinceId,
     }
 
     const world: WorldState = {

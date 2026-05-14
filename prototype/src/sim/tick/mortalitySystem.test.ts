@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { WorldState } from '../types/world'
-import type { PersonId, HouseId, CountryId } from '../types/ids'
+import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
 import type { TickContext } from './context'
 import type { Person } from '../types/person'
 import { defaultConfig } from '../config/defaultConfig'
@@ -41,6 +41,8 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
           adminPower: 50,
           stability: 60,
           roleAssignments: {},
+          active: true,
+          capitalProvinceId: '' as ProvinceId,
         },
       },
       houses: {
@@ -56,6 +58,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
           cohesion: 60,
           loyaltyToCountry: 70,
           wealth: 100,
+          seatProvinceId: '' as ProvinceId,
         },
       },
       persons: personsRecord,
@@ -138,6 +141,8 @@ describe('runMortalitySystem', () => {
               adminPower: 50,
               stability: 60,
               roleAssignments: {},
+              active: true,
+              capitalProvinceId: '' as ProvinceId,
             },
           },
           houses: {
@@ -153,6 +158,7 @@ describe('runMortalitySystem', () => {
               cohesion: 60,
               loyaltyToCountry: 70,
               wealth: 100,
+              seatProvinceId: '' as ProvinceId,
             },
           },
           persons: personsRecord,
@@ -168,7 +174,7 @@ describe('runMortalitySystem', () => {
       const result = runMortalitySystem(ctx)
 
       if (result.events.length > 0) {
-        const event = result.events[0]
+        const event = result.events[0]!
         expect(event.type).toBe('PERSON_DIED')
         // pe-0 (the head) is processed first (sorted by ID). If it dies, importance is 'normal'.
         // If only pe-1 dies, importance is 'minor'. Both are valid outcomes.

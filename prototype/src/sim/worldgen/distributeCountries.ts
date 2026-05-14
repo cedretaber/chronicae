@@ -50,15 +50,15 @@ export function distributeCountries(
   }
 
   if (!seeds) {
-    seeds = [provinces[0].id, provinces[1].id, provinces[2].id]
+    seeds = [provinces[0]!.id, provinces[1]!.id, provinces[2]!.id]
   }
 
   const assignments = new Map<ProvinceId, CountryId>()
   const countryProvinces = new Map<ProvinceId, ProvinceId>()
 
   for (let i = 0; i < 3; i++) {
-    assignments.set(seeds[i], countryIds[i])
-    countryProvinces.set(seeds[i], seeds[i])
+    assignments.set(seeds[i]!, countryIds[i]!)
+    countryProvinces.set(seeds[i]!, seeds[i]!)
   }
 
   let round = 0
@@ -75,8 +75,8 @@ export function distributeCountries(
           .sort((a, b) => a.localeCompare(b))
 
         if (unassignedNeighbors.length > 0) {
-          const nextId = unassignedNeighbors[0]
-          assignments.set(nextId, countryId)
+          const nextId = unassignedNeighbors[0]!
+          assignments.set(nextId, countryId!)
         }
       }
     }

@@ -10,13 +10,21 @@ export function runEconomySystem(ctx: TickContext): TickContext {
     const province = ctx.state.provinces[provinceId as ProvinceId]
     if (!province) continue
 
-    const effectiveTax = getEffectiveProvinceTax(province)
+    const provinceIncome = getEffectiveProvinceTax(province)
+    const cc = province.countryControl / 100
+    const hc = province.houseControl / 100
+    const totalControl = cc + hc
+
+    if (totalControl <= 0) continue
+
+    const countryIncome = provinceIncome * (cc / totalControl) * cc
+    const houseIncome = provinceIncome * (hc / totalControl) * hc
 
     const houseKey = province.ownerHouseId
-    wealthDeltas.set(houseKey, (wealthDeltas.get(houseKey) ?? 0) + effectiveTax * 0.6)
+    wealthDeltas.set(houseKey, (wealthDeltas.get(houseKey) ?? 0) + houseIncome)
 
     const countryKey = province.countryId
-    treasuryDeltas.set(countryKey, (treasuryDeltas.get(countryKey) ?? 0) + effectiveTax * 0.4)
+    treasuryDeltas.set(countryKey, (treasuryDeltas.get(countryKey) ?? 0) + countryIncome)
   }
 
   const newHouses = { ...ctx.state.houses }

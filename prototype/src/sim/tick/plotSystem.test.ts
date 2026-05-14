@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId, createPlotId } from '../types/ids'
-import type { CountryId, HouseId, PersonId } from '../types/ids'
+import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { defaultConfig } from '../config/defaultConfig'
 import type { Plot } from '../types/plot'
@@ -35,6 +35,7 @@ function makeBaseState(): {
         stability: 0,
         roleAssignments: {},
         active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
     },
     houses: {
@@ -50,6 +51,7 @@ function makeBaseState(): {
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
     },
     persons: {
@@ -106,7 +108,7 @@ describe('runPlotSystem', () => {
 
     const result = toResult(runPlotSystem(ctx))
 
-    const resolvedPlot = result.state.activePlots[plot.id]
+    const resolvedPlot = result.state.activePlots[plot.id]!
     expect(resolvedPlot.status).toBe('active')
     expect(resolvedPlot.elapsedMonths).toBe(1)
     expect(countEvents(result.events, 'PLOT_SUCCEEDED')).toBe(0)
@@ -143,7 +145,7 @@ describe('runPlotSystem', () => {
 
     const result = toResult(runPlotSystem(ctx))
 
-    const resolvedPlot = result.state.activePlots[plot.id]
+    const resolvedPlot = result.state.activePlots[plot.id]!
     expect(resolvedPlot.status).not.toBe('active')
     expect(resolvedPlot.status).toMatch(/^(succeeded|failed)$/)
     const plotEvents = result.events.filter(

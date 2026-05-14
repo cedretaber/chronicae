@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId } from '../types/ids'
-import type { CountryId, HouseId } from '../types/ids'
+import type { CountryId, ProvinceId } from '../types/ids'
+import type { Country } from '../types/country'
 import type { TickContext } from './context'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
@@ -15,21 +16,7 @@ function makeCtx(
   const house1Id = createHouseId('h', 0)
   const person1Id = createPersonId('pe', 0)
 
-  const countries: Record<
-    CountryId,
-    {
-      id: CountryId
-      name: string
-      rulerHouseId: HouseId
-      houseIds: HouseId[]
-      treasury: number
-      legitimacy: number
-      adminPower: number
-      stability: number
-      roleAssignments: Record<string, never>
-      active: boolean
-    }
-  > = {
+  const countries: Record<CountryId, Country> = {
     [country1Id]: {
       id: country1Id,
       name: 'C0',
@@ -41,6 +28,7 @@ function makeCtx(
       stability,
       roleAssignments: {},
       active: true,
+      capitalProvinceId: '' as ProvinceId,
     },
   }
 
@@ -56,6 +44,7 @@ function makeCtx(
       stability: vals.stability,
       roleAssignments: {},
       active: true,
+      capitalProvinceId: '' as ProvinceId,
     }
   }
 
@@ -77,6 +66,7 @@ function makeCtx(
         cohesion: 60,
         loyaltyToCountry: 70,
         wealth: 100,
+        seatProvinceId: '' as ProvinceId,
       },
     },
     persons: {
@@ -110,7 +100,7 @@ describe('runStabilitySystem', () => {
     const ctx = makeCtx(50.0, 50.0)
     const result = runStabilitySystem(ctx)
 
-    const country = result.state.countries[createCountryId('c', 0)]
+    const country = result.state.countries[createCountryId('c', 0)]!
     expect(country.stability).toBe(50.2)
     expect(country.legitimacy).toBe(50.05)
   })
@@ -119,7 +109,7 @@ describe('runStabilitySystem', () => {
     const ctx = makeCtx(99.9, 99.98)
     const result = runStabilitySystem(ctx)
 
-    const country = result.state.countries[createCountryId('c', 0)]
+    const country = result.state.countries[createCountryId('c', 0)]!
     expect(country.stability).toBe(100)
     expect(country.legitimacy).toBe(100)
   })
@@ -131,8 +121,8 @@ describe('runStabilitySystem', () => {
     })
     const result = runStabilitySystem(ctx)
 
-    const c0 = result.state.countries[createCountryId('c', 0)]
-    const c1 = result.state.countries[country2Id]
+    const c0 = result.state.countries[createCountryId('c', 0)]!
+    const c1 = result.state.countries[country2Id]!
     expect(c0.stability).toBe(50.2)
     expect(c0.legitimacy).toBe(50.05)
     expect(c1.stability).toBe(60.2)

@@ -12,4 +12,5 @@ export type House = {
   cohesion: number // 0..100
   loyaltyToCountry: number // 0..100
   wealth: number // >= 0
+  seatProvinceId: ProvinceId
 }

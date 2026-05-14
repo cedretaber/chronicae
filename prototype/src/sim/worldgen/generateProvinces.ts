@@ -40,6 +40,9 @@ export function generateProvinces(): Province[] {
         baseTax: 0,
         manpower: 0,
         unrest: 0,
+        development: 0,
+        countryControl: 0,
+        houseControl: 0,
       })
     }
   }

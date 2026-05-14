@@ -1,4 +1,4 @@
-import type { HouseId, CountryId } from '../types/ids'
+import type { HouseId, CountryId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 
 export function moveHouseToCountry(
@@ -35,13 +35,10 @@ export function moveHouseToCountry(
 
   const newProvinces = { ...state.provinces } as typeof state.provinces
   for (const provinceId of Object.keys(state.provinces).sort()) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const province = state.provinces[provinceId]
+    const province = state.provinces[provinceId as ProvinceId]
     if (!province) continue
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (province.ownerHouseId === houseId) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      newProvinces[provinceId] = {
+      newProvinces[provinceId as ProvinceId] = {
         ...province,
         countryId: newCountryId,
       }
@@ -50,13 +47,10 @@ export function moveHouseToCountry(
 
   const newPersons = { ...state.persons } as typeof state.persons
   for (const personId of Object.keys(state.persons).sort()) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const person = state.persons[personId]
+    const person = state.persons[personId as PersonId]
     if (!person) continue
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (person.houseId === houseId) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      newPersons[personId] = {
+      newPersons[personId as PersonId] = {
         ...person,
         countryId: newCountryId,
       }

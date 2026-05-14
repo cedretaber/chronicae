@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId } from '../types/ids'
-import type { CountryId, HouseId, PersonId, RoleType } from '../types/ids'
+import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import type { RoleType } from '../types/role'
 import type { WorldState } from '../types/world'
 import { assignRole, revokeRole } from './assignRole'
 
 function makeFixture({
-  roleAssignments = {} as Partial<Record<RoleType, PersonId>>,
+  roleAssignments = {},
 }: {
   roleAssignments?: Partial<Record<RoleType, PersonId>>
 } = {}): {
@@ -37,6 +38,8 @@ function makeFixture({
         adminPower: 10,
         stability: 0,
         roleAssignments,
+        active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
       [country2Id]: {
         id: country2Id,
@@ -48,6 +51,8 @@ function makeFixture({
         adminPower: 10,
         stability: 0,
         roleAssignments: {},
+        active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
     },
     houses: {
@@ -63,6 +68,7 @@ function makeFixture({
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
       [house2Id]: {
         id: house2Id,
@@ -76,6 +82,7 @@ function makeFixture({
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
     },
     persons: {
@@ -108,7 +115,7 @@ describe('assignRole', () => {
     const { state, country1Id, person1Id } = makeFixture()
     const result = assignRole(state, country1Id, 'chancellor', person1Id)
 
-    expect(result.countries[country1Id].roleAssignments['chancellor']).toBe(person1Id)
+    expect(result.countries[country1Id]!.roleAssignments['chancellor']).toBe(person1Id)
   })
 
   it('assignRole throws if person does not exist', () => {
@@ -179,6 +186,7 @@ describe('assignRole', () => {
           cohesion: 50,
           loyaltyToCountry: 50,
           wealth: 0,
+          seatProvinceId: '' as ProvinceId,
         },
       },
     }
@@ -240,7 +248,7 @@ describe('revokeRole', () => {
     }
     const result = revokeRole(stateWithRole, country1Id, 'chancellor')
 
-    expect(result.countries[country1Id].roleAssignments).not.toHaveProperty('chancellor')
+    expect(result.countries[country1Id]!.roleAssignments).not.toHaveProperty('chancellor')
   })
 
   it('Original state is not mutated after assignRole and revokeRole', () => {
@@ -249,6 +257,6 @@ describe('revokeRole', () => {
     const result = revokeRole(withRole, country1Id, 'chancellor')
 
     expect(result).not.toBe(state)
-    expect(result.countries[country1Id].roleAssignments).toEqual({})
+    expect(result.countries[country1Id]!.roleAssignments).toEqual({})
   })
 })

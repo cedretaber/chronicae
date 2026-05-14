@@ -4,7 +4,11 @@ export function buildCountryColorMap(countryIds: string[]): Record<string, strin
   const sorted = [...countryIds].sort()
   const map: Record<string, string> = {}
   for (let i = 0; i < sorted.length; i++) {
-    map[sorted[i]] = COUNTRY_COLORS[i % COUNTRY_COLORS.length]
+    const id = sorted[i]
+    if (id === undefined) continue
+    const color = COUNTRY_COLORS[i % COUNTRY_COLORS.length]
+    if (color === undefined) continue
+    map[id] = color
   }
   return map
 }

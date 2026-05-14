@@ -29,6 +29,7 @@ export function createCountryFromHouse(
     stability: 40,
     roleAssignments: {},
     active: true,
+    capitalProvinceId: rebelHouse.seatProvinceId,
   }
 
   // Step 4: Add newCountry to state

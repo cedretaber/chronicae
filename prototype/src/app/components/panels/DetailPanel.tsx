@@ -171,6 +171,10 @@ function CountryDetail({
 
       <div className="text-sm">
         <div className="flex justify-between">
+          <span className="text-gray-400">Capital:</span>
+          <span>{currentState?.provinces?.[country.capitalProvinceId]?.name ?? '—'}</span>
+        </div>
+        <div className="flex justify-between">
           <span className="text-gray-400">Treasury:</span>
           <span>{country.treasury}</span>
         </div>
@@ -277,6 +281,10 @@ function HouseDetail({
             countries={currentState?.countries ?? {}}
             onClick={onCountryClick}
           />
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Seat:</span>
+          <span>{currentState?.provinces?.[house.seatProvinceId]?.name ?? '—'}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Prestige:</span>
@@ -528,6 +536,33 @@ function ProvinceDetail({
           <span className="text-gray-400">Eff.Manpower:</span>
           <span>{effectiveManpower.toFixed(2)}</span>
         </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Country Control:</span>
+          <span>{province.countryControl}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">House Control:</span>
+          <span>{province.houseControl}</span>
+        </div>
+        {(() => {
+          const cc = province.countryControl / 100
+          const hc = province.houseControl / 100
+          const totalControl = cc + hc
+          const countryIncome = totalControl > 0 ? effectiveTax * (cc / totalControl) * cc : 0
+          const houseIncome = totalControl > 0 ? effectiveTax * (hc / totalControl) * hc : 0
+          return (
+            <>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Est. Country Income:</span>
+                <span>{countryIncome.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Est. House Income:</span>
+                <span>{houseIncome.toFixed(2)}</span>
+              </div>
+            </>
+          )
+        })()}
       </div>
     </div>
   )

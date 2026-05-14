@@ -35,6 +35,9 @@ function makeFixture(): {
         baseTax: 5,
         manpower: 5,
         unrest: 0,
+        development: 0,
+        countryControl: 100,
+        houseControl: 100,
       },
     },
     countries: {
@@ -48,6 +51,8 @@ function makeFixture(): {
         adminPower: 10,
         stability: 0,
         roleAssignments: {},
+        active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
       [country2Id]: {
         id: country2Id,
@@ -59,6 +64,8 @@ function makeFixture(): {
         adminPower: 10,
         stability: 0,
         roleAssignments: {},
+        active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
     },
     houses: {
@@ -74,6 +81,7 @@ function makeFixture(): {
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
       [house2Id]: {
         id: house2Id,
@@ -87,6 +95,7 @@ function makeFixture(): {
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
     },
     persons: {
@@ -120,35 +129,35 @@ describe('moveHouseToCountry', () => {
     const { state, house1Id, country2Id } = makeFixture()
     const result = moveHouseToCountry(state, house1Id, country2Id)
 
-    expect(result.houses[house1Id].countryId).toBe(country2Id)
+    expect(result.houses[house1Id]!.countryId).toBe(country2Id)
   })
 
   it('Old country houseIds no longer contains the houseId', () => {
     const { state, house1Id, country1Id, country2Id } = makeFixture()
     const result = moveHouseToCountry(state, house1Id, country2Id)
 
-    expect(result.countries[country1Id].houseIds).not.toContain(house1Id)
+    expect(result.countries[country1Id]!.houseIds).not.toContain(house1Id)
   })
 
   it('New country houseIds contains the houseId', () => {
     const { state, house1Id, country2Id } = makeFixture()
     const result = moveHouseToCountry(state, house1Id, country2Id)
 
-    expect(result.countries[country2Id].houseIds).toContain(house1Id)
+    expect(result.countries[country2Id]!.houseIds).toContain(house1Id)
   })
 
   it('All provinces owned by the house have updated countryId', () => {
     const { state, house1Id, provinceId, country2Id } = makeFixture()
     const result = moveHouseToCountry(state, house1Id, country2Id)
 
-    expect(result.provinces[provinceId].countryId).toBe(country2Id)
+    expect(result.provinces[provinceId]!.countryId).toBe(country2Id)
   })
 
   it('All persons in the house have updated countryId', () => {
     const { state, house1Id, person1Id, country2Id } = makeFixture()
     const result = moveHouseToCountry(state, house1Id, country2Id)
 
-    expect(result.persons[person1Id].countryId).toBe(country2Id)
+    expect(result.persons[person1Id]!.countryId).toBe(country2Id)
   })
 
   it('Original state is not mutated', () => {

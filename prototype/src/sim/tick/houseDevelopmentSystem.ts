@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { clamp } from '../utils/math'
+import { clamp, clamp100 } from '../utils/math'
 import type { HouseId, ProvinceId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { SimEvent } from '../types/event'
@@ -62,10 +62,22 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
       currentCtx.config.houseLandDevelopmentGain *
       (1 - Math.max(0, targetProvince.development) / 100)
     const newDevelopment = clamp(targetProvince.development + effectiveGain, -100, 100)
+    const newHouseControl = clamp100(
+      targetProvince.houseControl + currentCtx.config.landDevelopmentHouseControlGain,
+    )
+    const newUnrest = Math.max(
+      0,
+      targetProvince.unrest - currentCtx.config.landDevelopmentUnrestReduction,
+    )
 
     const newProvinces = {
       ...currentCtx.state.provinces,
-      [bestProvinceId]: { ...targetProvince, development: newDevelopment },
+      [bestProvinceId]: {
+        ...targetProvince,
+        development: newDevelopment,
+        houseControl: newHouseControl,
+        unrest: newUnrest,
+      },
     }
     const newHouse = {
       ...house,

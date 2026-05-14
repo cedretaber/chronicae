@@ -3,7 +3,7 @@ import type { WorldState } from '../types/world'
 import type { TickContext } from './context'
 import type { Person } from '../types/person'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PersonId, HouseId, CountryId } from '../types/ids'
+import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runEmergenceSystem } from './emergenceSystem'
@@ -54,6 +54,7 @@ function makeEmergenceState(
           stability: 60,
           roleAssignments: {},
           active: true,
+          capitalProvinceId: '' as ProvinceId,
         },
       },
       houses: {
@@ -69,6 +70,7 @@ function makeEmergenceState(
           cohesion: 60,
           loyaltyToCountry: 70,
           wealth: 100,
+          seatProvinceId: '' as ProvinceId,
         },
       },
       persons,
@@ -88,11 +90,11 @@ describe('runEmergenceSystem', () => {
 
     const result = runEmergenceSystem(ctx)
 
-    const house = result.state.houses['h-0' as HouseId]
+    const house = result.state.houses['h-0' as HouseId]!
     expect(house).toBeDefined()
     expect(house?.memberIds.length).toBeGreaterThan(0)
     expect(result.events.length).toBeGreaterThan(0)
-    expect(result.events[0].type).toBe('PERSON_EMERGED')
+    expect(result.events[0]!.type).toBe('PERSON_EMERGED')
   })
 
   it('inactive house is skipped in immediate replenishment', () => {
@@ -115,6 +117,8 @@ describe('runEmergenceSystem', () => {
             adminPower: 50,
             stability: 60,
             roleAssignments: {},
+            active: true,
+            capitalProvinceId: '' as ProvinceId,
           },
         },
         houses: {
@@ -130,6 +134,7 @@ describe('runEmergenceSystem', () => {
             cohesion: 60,
             loyaltyToCountry: 70,
             wealth: 100,
+            seatProvinceId: '' as ProvinceId,
           },
         },
         persons: {},
@@ -143,9 +148,60 @@ describe('runEmergenceSystem', () => {
         rebellionThreshold: 70,
         plotThreshold: 65,
         replacementThreshold: 15,
-        rebellionSuccessMode: 'independence',
+        rebellionSuccessMode: 'independence' as const,
         maxRawEvents: 10000,
         maxChronicleEvents: 1000,
+        warEnabled: true,
+        warCostPerProvince: 20,
+        maxProvincesPerWar: 3,
+        maxWarsPerTick: 1,
+        warCooldownMonths: 24,
+        minAttackerWinChanceToDeclare: 0.45,
+        disasterEnabled: true,
+        famineBaseChancePerYear: 0.08,
+        plagueBaseChancePerYear: 0.03,
+        bountifulHarvestBaseChancePerYear: 0.05,
+        disasterReliefCostPerProvince: 20,
+        publicSpendingEnabled: true,
+        monumentBaseCost: 120,
+        publicSpendingYearlyChance: 0.35,
+        developmentPositiveMonthlyDecay: 0.1,
+        developmentNegativeMonthlyRecovery: 0.25,
+        warConqueredProvinceDevastation: 8,
+        warBorderProvinceDevastation: 3,
+        failedWarBorderDevastation: 3,
+        rebellionStartedDevastation: 2,
+        rebellionSucceededDevastation: 3,
+        rebellionFailedDevastation: 5,
+        famineDevastation: 5,
+        famineReliefDevelopmentRecovery: 2,
+        plagueDevastation: 8,
+        bountifulHarvestDevelopmentGain: 3,
+        countryLandDevelopmentBaseCost: 70,
+        countryLandDevelopmentGain: 8,
+        houseDevelopmentEnabled: true,
+        houseDevelopmentYearlyChance: 0.25,
+        houseLandDevelopmentBaseCost: 40,
+        houseLandDevelopmentGain: 6,
+        houseWealthReserve: 50,
+        controlMaxDistancePenalty: 10,
+        controlMaxMinimum: 40,
+        controlGrowthPerMonth: 2,
+        controlDecayPerMonth: 1,
+        disconnectedControlDecayPerMonth: 5,
+        monumentCountryControlGain: 10,
+        monumentLegitimacyGain: 5,
+        landDevelopmentHouseControlGain: 5,
+        landDevelopmentUnrestReduction: 1,
+        lordshipAbsorptionTargetThreshold: 50,
+        lordshipAbsorptionSourceMinimum: 60,
+        lordshipAbsorptionRatio: 2,
+        lordshipAbsorptionMonthlyChance: 0.05,
+        lordshipAbsorptionNewControlMin: 50,
+        lordshipAbsorptionNewControlMax: 70,
+        lordshipAbsorptionNewControlPenalty: 10,
+        annexedCountryControl: 35,
+        newRulerHouseControl: 35,
       },
       events: [],
       nextEventIndex: 0,
@@ -154,7 +210,7 @@ describe('runEmergenceSystem', () => {
 
     const result = runEmergenceSystem(ctx)
 
-    const house = result.state.houses[houseId]
+    const house = result.state.houses[houseId]!
     expect(house?.memberIds.length).toBe(0)
     expect(result.events.length).toBe(0)
   })
@@ -162,7 +218,7 @@ describe('runEmergenceSystem', () => {
   it('normal replenishment runs only in January (month=1)', () => {
     const ctx = makeEmergenceState(1, 2)
     const originalPersonCount = Object.keys(ctx.state.persons).length
-    const originalMemberCount = ctx.state.houses['h-0' as HouseId].memberIds.length
+    const originalMemberCount = ctx.state.houses['h-0' as HouseId]!.memberIds.length
 
     const result = runEmergenceSystem(ctx)
 
@@ -218,8 +274,7 @@ describe('runEmergenceSystem', () => {
     // But we need to check the last person added
     const personKeys = Object.keys(result.state.persons).sort()
     const lastPersonKey = personKeys[personKeys.length - 1]
-    const lastPerson = result.state.persons[lastPersonKey as PersonId]
-
+    const lastPerson = result.state.persons[lastPersonKey as PersonId]!
     if (lastPerson) {
       expect(lastPerson.houseId).toBe(houseId)
       expect(lastPerson.countryId).toBe(countryId)

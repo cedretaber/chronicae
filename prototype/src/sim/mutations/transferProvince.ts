@@ -23,9 +23,15 @@ export function transferProvinceToHouse(
   }
 
   const newHouses = { ...state.houses }
+  const newOldHouseProvinceIds = oldHouse.provinceIds.filter((id) => id !== provinceId)
+  const newSeatProvinceId =
+    oldHouse.seatProvinceId === provinceId
+      ? (newOldHouseProvinceIds[0] ?? ('' as ProvinceId))
+      : oldHouse.seatProvinceId
   newHouses[oldHouse.id] = {
     ...oldHouse,
-    provinceIds: oldHouse.provinceIds.filter((id) => id !== provinceId),
+    provinceIds: newOldHouseProvinceIds,
+    seatProvinceId: newSeatProvinceId,
   }
   newHouses[newOwnerHouse.id] = {
     ...newOwnerHouse,

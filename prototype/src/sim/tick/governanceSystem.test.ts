@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId } from '../types/ids'
-import type { CountryId, HouseId, PersonId, RoleType } from '../types/ids'
+import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import type { RoleType } from '../types/role'
 import type { TickContext } from './context'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
@@ -49,7 +50,7 @@ function makeCtx({
 }): TickContext {
   const countryId = createCountryId('c', 0)
   const houseId = createHouseId('h', 0)
-  const chancellorPersonId = chancellorId ?? createPersonId('pe', 0)
+  const chancellorPersonId = createPersonId('pe', 0)
   const treasurerPersonId = treasurerId ?? createPersonId('pe', 1)
   const headPersonId = createPersonId('pe', 2)
 
@@ -90,6 +91,7 @@ function makeCtx({
         stability,
         roleAssignments,
         active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
     },
     houses: {
@@ -105,6 +107,7 @@ function makeCtx({
         cohesion: 60,
         loyaltyToCountry: 70,
         wealth: 100,
+        seatProvinceId: '' as ProvinceId,
       },
     },
     persons,
@@ -138,7 +141,7 @@ describe('runGovernanceSystem', () => {
 
     // Expected: clamp100(30 + 8*3 + 6*2 + 60*0.2 + 40*0.1 + clamp(200/100, 0, 10))
     // = clamp100(30 + 24 + 12 + 12 + 4 + 2) = clamp100(84) = 84
-    const country = result.state.countries[createCountryId('c', 0)]
+    const country = result.state.countries[createCountryId('c', 0)]!
     expect(country.adminPower).toBe(84)
   })
 
@@ -154,14 +157,13 @@ describe('runGovernanceSystem', () => {
 
     const result = runGovernanceSystem(ctx)
 
-    const country = result.state.countries[createCountryId('c', 0)]
+    const country = result.state.countries[createCountryId('c', 0)]!
     expect(country.adminPower).toBe(30)
   })
 
   it('uses 0 for vacant chancellor', () => {
     const treasurerId = createPersonId('pe', 1)
     const ctx = makeCtx({
-      chancellorId: undefined,
       treasurerId,
       stability: 60,
       treasury: 200,
@@ -173,7 +175,7 @@ describe('runGovernanceSystem', () => {
 
     // Expected: clamp100(30 + 0*3 + 6*2 + 60*0.2 + 40*0.1 + clamp(200/100, 0, 10))
     // = clamp100(30 + 0 + 12 + 12 + 4 + 2) = clamp100(60) = 60
-    const country = result.state.countries[createCountryId('c', 0)]
+    const country = result.state.countries[createCountryId('c', 0)]!
     expect(country.adminPower).toBe(60)
   })
 
@@ -194,7 +196,7 @@ describe('runGovernanceSystem', () => {
 
     const result = runGovernanceSystem(ctx)
 
-    const country = result.state.countries[createCountryId('c', 0)]
+    const country = result.state.countries[createCountryId('c', 0)]!
     expect(country.adminPower).toBe(100)
   })
 })

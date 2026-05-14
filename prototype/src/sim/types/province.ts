@@ -12,4 +12,6 @@ export type Province = {
   manpower: number // 1..10
   unrest: number // 0..100
   development: number // -100..100
+  countryControl: number // 0..100
+  houseControl: number // 0..100
 }

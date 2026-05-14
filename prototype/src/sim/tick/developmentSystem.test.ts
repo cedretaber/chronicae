@@ -28,6 +28,8 @@ function makeProvinceState(development: number): WorldState {
         manpower: 5,
         unrest: 0,
         development,
+        countryControl: 100,
+        houseControl: 100,
       },
     },
     countries: {
@@ -42,6 +44,7 @@ function makeProvinceState(development: number): WorldState {
         stability: 60,
         roleAssignments: {},
         active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
     },
     houses: {
@@ -57,6 +60,7 @@ function makeProvinceState(development: number): WorldState {
         cohesion: 60,
         loyaltyToCountry: 70,
         wealth: 100,
+        seatProvinceId: '' as ProvinceId,
       },
     },
     persons: {},
@@ -82,7 +86,7 @@ describe('runDevelopmentSystem', () => {
 
     const result = runDevelopmentSystem(ctx)
 
-    expect(result.state.provinces['p-0' as ProvinceId].development).toBe(9.9)
+    expect(result.state.provinces['p-0' as ProvinceId]!.development).toBe(9.9)
   })
 
   it('negative development recovers toward 0 by developmentNegativeMonthlyRecovery per month', () => {
@@ -91,7 +95,7 @@ describe('runDevelopmentSystem', () => {
 
     const result = runDevelopmentSystem(ctx)
 
-    expect(result.state.provinces['p-0' as ProvinceId].development).toBe(-9.75)
+    expect(result.state.provinces['p-0' as ProvinceId]!.development).toBe(-9.75)
   })
 
   it('development = 0 stays at 0', () => {
@@ -100,7 +104,7 @@ describe('runDevelopmentSystem', () => {
 
     const result = runDevelopmentSystem(ctx)
 
-    expect(result.state.provinces['p-0' as ProvinceId].development).toBe(0)
+    expect(result.state.provinces['p-0' as ProvinceId]!.development).toBe(0)
   })
 
   it('positive development does NOT go below 0', () => {
@@ -109,7 +113,7 @@ describe('runDevelopmentSystem', () => {
 
     const result = runDevelopmentSystem(ctx)
 
-    expect(result.state.provinces['p-0' as ProvinceId].development).toBe(0)
+    expect(result.state.provinces['p-0' as ProvinceId]!.development).toBe(0)
   })
 
   it('negative development does NOT go above 0', () => {
@@ -118,7 +122,7 @@ describe('runDevelopmentSystem', () => {
 
     const result = runDevelopmentSystem(ctx)
 
-    expect(result.state.provinces['p-0' as ProvinceId].development).toBe(0)
+    expect(result.state.provinces['p-0' as ProvinceId]!.development).toBe(0)
   })
 
   it('original state is not mutated (immutability)', () => {

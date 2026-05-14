@@ -79,21 +79,54 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
     if (monumentScore > landDevelopmentScore) {
       if (country.treasury < ctx.config.monumentBaseCost) continue
 
-      const currentCountries = currentCtx.state.countries
+      const qualifyingProvinceIds = Object.keys(currentCtx.state.provinces).filter((pid) => {
+        const p = currentCtx.state.provinces[pid as ProvinceId]
+        return p?.countryId === countryId && p.countryControl > 0 && p.countryControl < 100
+      }) as ProvinceId[]
+
+      if (qualifyingProvinceIds.length === 0) continue
+
+      let bestProvinceId: ProvinceId = qualifyingProvinceIds[0]!
+      let bestScore = -Infinity
+      for (const pid of qualifyingProvinceIds) {
+        const p = currentCtx.state.provinces[pid]
+        if (!p) continue
+        const score = (100 - p.countryControl) * 1.0 + p.development * 0.5 - p.unrest * 0.5
+        if (score > bestScore) {
+          bestScore = score
+          bestProvinceId = pid
+        }
+      }
+
+      const targetProvince = currentCtx.state.provinces[bestProvinceId]
+      if (!targetProvince) continue
+
+      const newProvinces = {
+        ...currentCtx.state.provinces,
+        [bestProvinceId]: {
+          ...targetProvince,
+          countryControl: clamp100(
+            targetProvince.countryControl + ctx.config.monumentCountryControlGain,
+          ),
+        },
+      }
+
       const updatedCountry = {
         ...country,
         treasury: country.treasury - ctx.config.monumentBaseCost,
-        legitimacy: clamp100(country.legitimacy + 10),
+        legitimacy: clamp100(country.legitimacy + ctx.config.monumentLegitimacyGain),
       }
+
       const currentHouse = currentCtx.state.houses[country.rulerHouseId]
       if (!currentHouse) continue
-      const updatedHouse = { ...currentHouse, prestige: clamp100(currentHouse.prestige + 5) }
+      const updatedHouse = { ...currentHouse, prestige: clamp100(currentHouse.prestige + 2) }
 
       currentCtx = {
         ...currentCtx,
         state: {
           ...currentState,
-          countries: { ...currentCountries, [countryId]: updatedCountry },
+          provinces: newProvinces,
+          countries: { ...currentCtx.state.countries, [countryId]: updatedCountry },
           houses: { ...currentCtx.state.houses, [country.rulerHouseId]: updatedHouse },
         },
       }
@@ -108,7 +141,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
         actorIds: [],
         houseIds: [country.rulerHouseId],
         countryIds: [countryId as CountryId],
-        provinceIds: [],
+        provinceIds: [bestProvinceId],
         summary: `${country.name} built a great monument.`,
         reasons: [],
         effects: [],
@@ -150,9 +183,21 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
         -100,
         100,
       )
+      const newHouseControl = clamp100(
+        targetProvince.houseControl + ctx.config.landDevelopmentHouseControlGain,
+      )
+      const newUnrest = Math.max(
+        0,
+        targetProvince.unrest - ctx.config.landDevelopmentUnrestReduction,
+      )
       const newProvinces = {
         ...currentCtx.state.provinces,
-        [bestProvinceId]: { ...targetProvince, development: newDevelopment },
+        [bestProvinceId]: {
+          ...targetProvince,
+          development: newDevelopment,
+          houseControl: newHouseControl,
+          unrest: newUnrest,
+        },
       }
 
       const updatedCountry = {

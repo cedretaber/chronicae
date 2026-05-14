@@ -38,6 +38,7 @@ function makeBaseState(): {
         stability: 50,
         roleAssignments: {},
         active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
     },
     houses: {
@@ -53,6 +54,7 @@ function makeBaseState(): {
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
       [houseVassalId]: {
         id: houseVassalId,
@@ -66,6 +68,7 @@ function makeBaseState(): {
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
     },
     persons: {
@@ -148,7 +151,7 @@ describe('runRebellionSystem', () => {
 
     expect(countEvents(result.events, 'REBELLION_STARTED')).toBe(0)
     // No stability/legitimacy changes
-    const country = result.state.countries[countryId]
+    const country = result.state.countries[countryId]!
     expect(country.stability).toBe(state.countries[countryId]!.stability)
     expect(country.legitimacy).toBe(state.countries[countryId]!.legitimacy)
   })
@@ -234,7 +237,7 @@ describe('runRebellionSystem', () => {
 
     const hasRebellionStarted = countEvents(result.events, 'REBELLION_STARTED') > 0
     if (hasRebellionStarted) {
-      const country = result.state.countries[countryId]
+      const country = result.state.countries[countryId]!
       expect(country.stability).toBeLessThan(initialStability)
     }
   })
@@ -270,6 +273,9 @@ describe('runRebellionSystem', () => {
             baseTax: 5,
             manpower: 10,
             unrest: 0,
+            development: 0,
+            countryControl: 100,
+            houseControl: 100,
           },
         ]),
       ),
@@ -285,6 +291,7 @@ describe('runRebellionSystem', () => {
           stability: 0,
           roleAssignments: {},
           active: true,
+          capitalProvinceId: '' as ProvinceId,
         },
       },
       houses: {
@@ -300,6 +307,7 @@ describe('runRebellionSystem', () => {
           cohesion: 10,
           loyaltyToCountry: 50,
           wealth: 0,
+          seatProvinceId: '' as ProvinceId,
         },
         [houseVassalId]: {
           id: houseVassalId,
@@ -313,6 +321,7 @@ describe('runRebellionSystem', () => {
           cohesion: 50,
           loyaltyToCountry: 0,
           wealth: 0,
+          seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
         },
       },
       persons: {
@@ -342,7 +351,11 @@ describe('runRebellionSystem', () => {
       activePlots: {},
     }
 
-    const config = { ...defaultConfig, rebellionThreshold: 0, rebellionSuccessMode: 'independence' }
+    const config = {
+      ...defaultConfig,
+      rebellionThreshold: 0,
+      rebellionSuccessMode: 'independence' as const,
+    }
     const ctx = createTickContext({ state, rng: createRng('rebellion-split-test'), config })
 
     const result = toResult(runRebellionSystem(ctx))

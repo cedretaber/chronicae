@@ -31,6 +31,7 @@ export type EventType =
   | 'MONUMENT_BUILT'
   | 'COUNTRY_LAND_DEVELOPED'
   | 'HOUSE_LAND_DEVELOPED'
+  | 'LORDSHIP_TRANSFERRED'
 
 export type EventReason = {
   label: string

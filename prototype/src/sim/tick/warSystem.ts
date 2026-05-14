@@ -4,7 +4,7 @@ import { randomFloat, randomInt } from '../rng/rng'
 import { clamp, clamp100 } from '../utils/math'
 import { calcCountryMilitaryPower } from '../selectors/militarySelectors'
 import { transferProvinceToHouse } from '../mutations/transferProvince'
-import { moveHouseToCountry } from '../mutations/moveHouse'
+import { annexCountry } from '../mutations/annexCountry'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 
@@ -167,6 +167,10 @@ export function runWarSystem(ctx: TickContext): TickContext {
         if (!province || province.countryId !== defenderCountryId) {
           continue
         }
+        const ownerHouse = currentState.houses[province.ownerHouseId]
+        if (ownerHouse && ownerHouse.seatProvinceId === provinceId) {
+          continue
+        }
         if (province.neighbors.some((nid) => attackerProvinceSet.has(nid))) {
           borderProvinceIds.push(provinceId)
         }
@@ -186,9 +190,12 @@ export function runWarSystem(ctx: TickContext): TickContext {
       warsThisTick++
 
       const updatedAttacker = { ...attackerCountry, lastWarMonth: currentAbsoluteMonth }
-      currentCtx.state = {
-        ...currentCtx.state,
-        countries: { ...currentCtx.state.countries, [attackerCountryId]: updatedAttacker },
+      currentCtx = {
+        ...currentCtx,
+        state: {
+          ...currentCtx.state,
+          countries: { ...currentCtx.state.countries, [attackerCountryId]: updatedAttacker },
+        },
       }
 
       currentCtx = emitWarEvent(
@@ -218,11 +225,14 @@ export function runWarSystem(ctx: TickContext): TickContext {
 
         const newAttackerTreasury = Math.max(0, attackerCountry.treasury - totalCost)
         const treasuryUpdatedAttacker = { ...attackerCountry, treasury: newAttackerTreasury }
-        currentCtx.state = {
-          ...currentCtx.state,
-          countries: {
-            ...currentCtx.state.countries,
-            [attackerCountryId]: treasuryUpdatedAttacker,
+        currentCtx = {
+          ...currentCtx,
+          state: {
+            ...currentCtx.state,
+            countries: {
+              ...currentCtx.state.countries,
+              [attackerCountryId]: treasuryUpdatedAttacker,
+            },
           },
         }
 
@@ -258,7 +268,10 @@ export function runWarSystem(ctx: TickContext): TickContext {
               ),
             }
           }
-          currentCtx.state = { ...currentCtx.state, provinces: devastatedProvinces }
+          currentCtx = {
+            ...currentCtx,
+            state: { ...currentCtx.state, provinces: devastatedProvinces },
+          }
         }
 
         for (const provinceId of provincesToTake) {
@@ -268,7 +281,10 @@ export function runWarSystem(ctx: TickContext): TickContext {
             continue
           }
 
-          currentCtx.state = transferProvinceToHouse(currentCtx.state, provinceId, rulerHouseId)
+          currentCtx = {
+            ...currentCtx,
+            state: transferProvinceToHouse(currentCtx.state, provinceId, rulerHouseId),
+          }
 
           const provinceName = currentState.provinces[provinceId]?.name ?? provinceId
           currentCtx = emitProvinceConquered(
@@ -286,47 +302,60 @@ export function runWarSystem(ctx: TickContext): TickContext {
         const currentAttacker = currentCtx.state.countries[attackerCountryId]
         if (currentAttacker) {
           const boostedLegitimacy = clamp100(currentAttacker.legitimacy + 5)
-          currentCtx.state = {
-            ...currentCtx.state,
-            countries: {
-              ...currentCtx.state.countries,
-              [attackerCountryId]: { ...currentAttacker, legitimacy: boostedLegitimacy },
+          currentCtx = {
+            ...currentCtx,
+            state: {
+              ...currentCtx.state,
+              countries: {
+                ...currentCtx.state.countries,
+                [attackerCountryId]: { ...currentAttacker, legitimacy: boostedLegitimacy },
+              },
             },
+          }
+        }
+
+        {
+          const defenderCheck = currentCtx.state.countries[defenderCountryId]
+          if (defenderCheck) {
+            const capProv = currentCtx.state.provinces[defenderCheck.capitalProvinceId]
+            if (!capProv || capProv.countryId !== defenderCountryId) {
+              const newCap = Object.values(currentCtx.state.provinces).find(
+                (p) => p.countryId === defenderCountryId,
+              )
+              currentCtx = {
+                ...currentCtx,
+                state: {
+                  ...currentCtx.state,
+                  countries: {
+                    ...currentCtx.state.countries,
+                    [defenderCountryId]: {
+                      ...defenderCheck,
+                      capitalProvinceId: newCap?.id ?? ('' as ProvinceId),
+                    },
+                  },
+                },
+              }
+            }
           }
         }
 
         currentState = currentCtx.state
         const defenderAfterTransfers = currentState.countries[defenderCountryId]
         if (defenderAfterTransfers) {
-          const defenderProvinceCount = Object.values(currentState.provinces).filter(
-            (p) => p.countryId === defenderCountryId,
-          ).length
-          if (defenderProvinceCount === 0) {
-            const defenderHouseIds = [...defenderAfterTransfers.houseIds]
-            for (const houseId of defenderHouseIds) {
-              currentState = currentCtx.state
-              const defenderCountry = currentState.countries[defenderCountryId]
-              if (!defenderCountry) {
-                break
-              }
-              currentCtx.state = moveHouseToCountry(currentCtx.state, houseId, attackerCountryId)
-            }
-
-            currentState = currentCtx.state
-            const finalDefender = currentState.countries[defenderCountryId]
-            if (finalDefender) {
-              currentCtx.state = {
-                ...currentCtx.state,
-                countries: {
-                  ...currentCtx.state.countries,
-                  [defenderCountryId]: { ...finalDefender, active: false },
-                },
-              }
+          const defenderNonSeatProvinceCount = Object.values(currentState.provinces).filter((p) => {
+            if (p.countryId !== defenderCountryId) return false
+            const ownerHouse = currentState.houses[p.ownerHouseId]
+            return ownerHouse?.seatProvinceId !== p.id
+          }).length
+          if (defenderNonSeatProvinceCount === 0) {
+            currentCtx = {
+              ...currentCtx,
+              state: annexCountry(currentCtx.state, defenderCountryId, attackerCountryId),
             }
 
             const attackerName =
               currentCtx.state.countries[attackerCountryId]?.name ?? attackerCountry.name
-            const defenderName = finalDefender?.name ?? defenderCountry.name
+            const defenderName = defenderAfterTransfers.name
             currentCtx = emitCountryAnnexed(
               currentCtx,
               generalId,
@@ -357,15 +386,18 @@ export function runWarSystem(ctx: TickContext): TickContext {
           )
           const newStability = clamp100(currentAttacker.stability - 10)
           const newLegitimacy = clamp100(currentAttacker.legitimacy - 8)
-          currentCtx.state = {
-            ...currentCtx.state,
-            countries: {
-              ...currentCtx.state.countries,
-              [attackerCountryId]: {
-                ...currentAttacker,
-                treasury: newTreasury,
-                stability: newStability,
-                legitimacy: newLegitimacy,
+          currentCtx = {
+            ...currentCtx,
+            state: {
+              ...currentCtx.state,
+              countries: {
+                ...currentCtx.state.countries,
+                [attackerCountryId]: {
+                  ...currentAttacker,
+                  treasury: newTreasury,
+                  stability: newStability,
+                  legitimacy: newLegitimacy,
+                },
               },
             },
           }
@@ -401,7 +433,10 @@ export function runWarSystem(ctx: TickContext): TickContext {
               ),
             }
           }
-          currentCtx.state = { ...currentCtx.state, provinces: devastatedProvinces }
+          currentCtx = {
+            ...currentCtx,
+            state: { ...currentCtx.state, provinces: devastatedProvinces },
+          }
         }
 
         currentCtx = emitWarEvent(

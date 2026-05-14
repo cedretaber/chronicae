@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId } from '../types/ids'
-import type { CountryId, HouseId, PersonId } from '../types/ids'
+import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { defaultConfig } from '../config/defaultConfig'
@@ -39,6 +39,7 @@ function makeBaseState(): {
         stability: 0,
         roleAssignments: {},
         active: true,
+        capitalProvinceId: '' as ProvinceId,
       },
     },
     houses: {
@@ -54,6 +55,7 @@ function makeBaseState(): {
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
       [houseVassalId]: {
         id: houseVassalId,
@@ -67,6 +69,7 @@ function makeBaseState(): {
         cohesion: 50,
         loyaltyToCountry: 50,
         wealth: 0,
+        seatProvinceId: '' as ProvinceId,
       },
     },
     persons: {
@@ -122,7 +125,7 @@ describe('runAppointmentSystem', () => {
 
     const result = toResult(runAppointmentSystem(ctx))
 
-    const country = result.state.countries[countryId]
+    const country = result.state.countries[countryId]!
     // p-1 has higher chancellorScore (100 > 78), so p-1 gets chancellor
     expect(country.roleAssignments.chancellor).toBe(personVassalId)
     // System also assigns general to p-0 (only candidate after chancellor is taken)
@@ -146,9 +149,8 @@ describe('runAppointmentSystem', () => {
 
     const result = toResult(runAppointmentSystem(ctx))
 
-    const country = result.state.countries[countryId]
+    const country = result.state.countries[countryId]!
     expect(country.roleAssignments.chancellor).toBe(personRulerId)
-    // p-1 gets general role (only candidate since p-0 has chancellor)
     expect(countEvents(result.events, 'ROLE_ASSIGNED')).toBe(1)
     expect(countEvents(result.events, 'ROLE_REVOKED')).toBe(0)
   })
@@ -170,7 +172,7 @@ describe('runAppointmentSystem', () => {
 
     const result = toResult(runAppointmentSystem(ctx))
 
-    const country = result.state.countries[countryId]
+    const country = result.state.countries[countryId]!
     expect(country.roleAssignments.chancellor).toBe(personVassalId)
     expect(countEvents(result.events, 'ROLE_REVOKED')).toBe(1)
     // ROLE_ASSIGNED for chancellor replacement + ROLE_ASSIGNED for general (p-0)
@@ -195,7 +197,7 @@ describe('runAppointmentSystem', () => {
 
     const result = toResult(runAppointmentSystem(ctx))
 
-    const country = result.state.countries[countryId]
+    const country = result.state.countries[countryId]!
     expect(country.roleAssignments.chancellor).toBe(personRulerId)
     // p-1 gets general (only candidate since p-0 has chancellor)
     expect(countEvents(result.events, 'ROLE_ASSIGNED')).toBe(1)
@@ -223,7 +225,7 @@ describe('runAppointmentSystem', () => {
 
     const result = toResult(runAppointmentSystem(ctx))
 
-    const country = result.state.countries[countryId]
+    const country = result.state.countries[countryId]!
     expect(country.roleAssignments.chancellor).toBe(personVassalId)
     // Dead person revocation does not emit ROLE_REVOKED event (only replacement does)
     expect(countEvents(result.events, 'ROLE_REVOKED')).toBe(0)

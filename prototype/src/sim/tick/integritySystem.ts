@@ -109,5 +109,58 @@ export function runIntegrityCheck(ctx: TickContext): TickContext {
     }
   }
 
+  // 8. Country.capitalProvinceId belongs to that country
+  for (const countryId of Object.keys(state.countries).sort()) {
+    const country = state.countries[countryId as CountryId]
+    if (!country || !country.active) continue
+    if (country.capitalProvinceId === ('' as ProvinceId)) continue
+
+    const province = state.provinces[country.capitalProvinceId]
+    if (!province || province.countryId !== country.id) {
+      throw new Error(
+        'Country ' +
+          countryId +
+          ' capitalProvinceId ' +
+          country.capitalProvinceId +
+          ' does not belong to this country',
+      )
+    }
+  }
+
+  // 9. House.seatProvinceId is in house.provinceIds
+  for (const houseId of Object.keys(state.houses).sort()) {
+    const house = state.houses[houseId as HouseId]
+    if (!house || !house.active) continue
+    if (house.seatProvinceId === ('' as ProvinceId)) continue
+
+    if (!house.provinceIds.includes(house.seatProvinceId)) {
+      throw new Error(
+        'House ' + houseId + ' seatProvinceId ' + house.seatProvinceId + ' not in provinceIds',
+      )
+    }
+  }
+
+  // 10. Province.countryControl is in 0..100
+  for (const provinceId of Object.keys(state.provinces).sort()) {
+    const province = state.provinces[provinceId as ProvinceId]
+    if (!province) continue
+    if (province.countryControl < 0 || province.countryControl > 100) {
+      throw new Error(
+        'Province ' + provinceId + ' countryControl out of range: ' + province.countryControl,
+      )
+    }
+  }
+
+  // 11. Province.houseControl is in 0..100
+  for (const provinceId of Object.keys(state.provinces).sort()) {
+    const province = state.provinces[provinceId as ProvinceId]
+    if (!province) continue
+    if (province.houseControl < 0 || province.houseControl > 100) {
+      throw new Error(
+        'Province ' + provinceId + ' houseControl out of range: ' + province.houseControl,
+      )
+    }
+  }
+
   return ctx
 }

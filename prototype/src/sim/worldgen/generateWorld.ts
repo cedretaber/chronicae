@@ -12,6 +12,8 @@ import { distributeCountries } from './distributeCountries'
 import { distributeHouses } from './distributeHouses'
 import { generatePersons } from './generatePersons'
 import { houseName, countryName } from './nameGenerators'
+import { defaultConfig } from '../config/defaultConfig'
+import { clamp } from '../utils/math'
 
 export function generateWorld(seedText: string): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
@@ -65,6 +67,13 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   const houses: House[] = []
   const sortedHouseIds = Array.from(houseProvinces.keys()).sort()
 
+  const provinceMap = new Map<ProvinceId, Province>()
+  for (const p of finalProvinces) {
+    provinceMap.set(p.id, p)
+  }
+
+  const { controlMaxDistancePenalty, controlMaxMinimum } = defaultConfig
+
   for (const houseId of sortedHouseIds) {
     const { value: prestige, rng: r1 } = randomInt(rng, 20, 80)
     const { value: cohesion, rng: r2 } = randomInt(r1, 40, 80)
@@ -78,6 +87,24 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       .map((p) => p.id)
 
     const provinceIds = houseProvinces.get(houseId) ?? []
+
+    let seatProvinceId: ProvinceId = '' as ProvinceId
+    if (provinceIds.length > 0) {
+      const sortedProvinceIds = [...provinceIds].sort()
+      const firstId = sortedProvinceIds[0]!
+      let bestId = firstId
+      let bestDev = provinceMap.get(firstId)!.development
+      for (let i = 1; i < sortedProvinceIds.length; i++) {
+        const pid = sortedProvinceIds[i]!
+        const prov = provinceMap.get(pid)
+        if (!prov) continue
+        if (prov.development > bestDev) {
+          bestDev = prov.development
+          bestId = pid
+        }
+      }
+      seatProvinceId = bestId
+    }
 
     const countryId = houseCountry.get(houseId)
 
@@ -120,6 +147,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       cohesion,
       loyaltyToCountry,
       wealth,
+      seatProvinceId,
     }
 
     houses.push(house)
@@ -143,6 +171,9 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
 
     const rulerHouseId = houseIds[0] ?? ('' as HouseId)
 
+    const rulerHouse = houses.find((h) => h.id === rulerHouseId)
+    const capitalProvinceId = rulerHouse?.seatProvinceId ?? ('' as ProvinceId)
+
     const country: Country = {
       id: countryId,
       name: countryName(countryIndex),
@@ -154,9 +185,131 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       stability,
       roleAssignments: {},
       active: true,
+      capitalProvinceId,
     }
 
     countries.push(country)
+  }
+
+  const visited = new Set<ProvinceId>()
+  const queue = new Array<string>()
+
+  for (const country of countries) {
+    const capProv = provinceMap.get(country.capitalProvinceId)
+    if (!capProv) {
+      for (const p of finalProvinces) {
+        if (p.countryId === country.id) {
+          p.countryControl = 30
+        }
+      }
+      continue
+    }
+
+    for (const p of finalProvinces) {
+      if (p.countryId === country.id) {
+        p.countryControl = 30
+      }
+    }
+
+    const distMap = new Map<ProvinceId, number>()
+    distMap.set(capProv.id, 0)
+    capProv.countryControl = 100
+
+    visited.clear()
+    visited.add(capProv.id)
+    queue.length = 0
+    queue.push(capProv.id)
+
+    while (queue.length > 0) {
+      const nextQueue: string[] = []
+      for (const currentIdStr of queue) {
+        const currentId = currentIdStr as ProvinceId
+        const currentDist = distMap.get(currentId) ?? 0
+        const currentProv = provinceMap.get(currentId)
+        if (!currentProv) continue
+        for (const neighborId of currentProv.neighbors) {
+          if (visited.has(neighborId)) continue
+          const neighborProv = provinceMap.get(neighborId)
+          if (!neighborProv) continue
+          if (neighborProv.countryId !== country.id) continue
+          visited.add(neighborId)
+          const neighborDist = currentDist + 1
+          distMap.set(neighborId, neighborDist)
+          const maxControl = clamp(
+            100 - neighborDist * controlMaxDistancePenalty,
+            controlMaxMinimum,
+            100,
+          )
+          neighborProv.countryControl = maxControl
+          nextQueue.push(neighborId)
+        }
+      }
+      queue.length = 0
+      for (const n of nextQueue) {
+        queue.push(n)
+      }
+    }
+  }
+
+  for (const house of houses) {
+    const seatProv = provinceMap.get(house.seatProvinceId)
+    if (!seatProv) {
+      for (const p of finalProvinces) {
+        if (p.ownerHouseId === house.id) {
+          p.houseControl = 30
+        }
+      }
+      continue
+    }
+
+    const houseDistMap = new Map<ProvinceId, number>()
+    houseDistMap.set(seatProv.id, 0)
+    if (seatProv.ownerHouseId === house.id) {
+      seatProv.houseControl = 100
+    }
+
+    visited.clear()
+    visited.add(seatProv.id)
+    queue.length = 0
+    queue.push(seatProv.id)
+
+    while (queue.length > 0) {
+      const nextQueue: string[] = []
+      for (const currentIdStr of queue) {
+        const currentId = currentIdStr as ProvinceId
+        const currentDist = houseDistMap.get(currentId) ?? 0
+        const currentProv = provinceMap.get(currentId)
+        if (!currentProv) continue
+        for (const neighborId of currentProv.neighbors) {
+          if (visited.has(neighborId)) continue
+          const neighborProv = provinceMap.get(neighborId)
+          if (!neighborProv) continue
+          if (neighborProv.countryId !== house.countryId) continue
+          visited.add(neighborId)
+          const neighborDist = currentDist + 1
+          houseDistMap.set(neighborId, neighborDist)
+          if (neighborProv.ownerHouseId === house.id) {
+            const maxControl = clamp(
+              100 - neighborDist * controlMaxDistancePenalty,
+              controlMaxMinimum,
+              100,
+            )
+            neighborProv.houseControl = maxControl
+          }
+          nextQueue.push(neighborId)
+        }
+      }
+      queue.length = 0
+      for (const n of nextQueue) {
+        queue.push(n)
+      }
+    }
+
+    for (const p of finalProvinces) {
+      if (p.ownerHouseId === house.id && !visited.has(p.id)) {
+        p.houseControl = 30
+      }
+    }
   }
 
   const provincesRecord: Record<ProvinceId, Province> = {}

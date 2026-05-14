@@ -19,6 +19,8 @@ function makeProvince(overrides: Partial<Province>): Province {
     manpower: 4,
     unrest: 0,
     development: 0,
+    countryControl: 0,
+    houseControl: 0,
     ...overrides,
   }
 }
