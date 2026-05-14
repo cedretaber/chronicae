@@ -20,3 +20,6 @@ dist/
 # Claude Code (personal settings)
 .claude/settings.local.json
 .claude/CLAUDE.local.md
+
+# Draft documents
+docs/drafts/
