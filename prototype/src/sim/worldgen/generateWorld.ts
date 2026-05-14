@@ -24,7 +24,8 @@ import { clamp } from '../utils/math'
 export function generateWorld(seedText: string): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
 
-  const provinces = generateProvinces()
+  const { provinces, rng: rng0 } = generateProvinces(rng)
+  rng = rng0
 
   const { assignments, rng: rng1 } = distributeCountries(provinces, rng)
   rng = rng1

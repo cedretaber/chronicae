@@ -1,13 +1,17 @@
 import type { ProvinceId, HouseId, CountryId } from '../types/ids'
 import type { Province } from '../types/province'
+import type { RngState } from '../rng/rng'
 import { createProvinceId } from '../types/ids'
-import { provinceName } from './nameGenerators'
+import { pickUniqueName, provinceName, provinceNamePool } from './nameGenerators'
 
 const COLS = 8
 const ROWS = 5
 
-export function generateProvinces(): Province[] {
+export function generateProvinces(rng: RngState): { provinces: Province[]; rng: RngState } {
   const provinces: Province[] = []
+  const usedNames = new Set<string>()
+  const pool = provinceNamePool()
+  let currentRng = rng
 
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
@@ -29,9 +33,18 @@ export function generateProvinces(): Province[] {
         neighbors.push(createProvinceId('p', index + COLS))
       }
 
+      const { name, rng: nextRng } = pickUniqueName(
+        pool,
+        usedNames,
+        provinceName,
+        index,
+        currentRng,
+      )
+      currentRng = nextRng
+
       provinces.push({
         id,
-        name: provinceName(index),
+        name,
         x: col * 100,
         y: row * 100,
         neighbors,
@@ -47,5 +60,5 @@ export function generateProvinces(): Province[] {
     }
   }
 
-  return provinces
+  return { provinces, rng: currentRng }
 }
