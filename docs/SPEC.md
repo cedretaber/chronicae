@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-14（v0.5 時点）
+最終更新: 2026-05-14（v0.6 時点）
 
 ---
 
@@ -220,18 +220,26 @@ development < 0 → development = min(0, development + developmentNegativeMonthl
 
 Country ごとに首都から BFS、House ごとに本拠地から BFS を行い、各 Province の支配力を更新する。
 
-**支配力上限**:
+**支配力上限（二段階 clamp）**:
 
 ```ts
-maxControl = clamp(100 - distance * controlMaxDistancePenalty, controlMaxMinimum, 100)
+// 距離ベースの上限
+baseMaxControl = clamp(100 - distance * controlMaxDistancePenalty, controlMaxMinimum, 100)
+// 能力補正後の上限（能力最低床を別途設定）
+maxControl = clamp(baseMaxControl + maxControlBonus, controlAbilityMinimumFloor, 100)
+// 首都 / 本拠地は常に上限 100
 ```
+
+`maxControlBonus` は宰相（countryControl）・家長（houseControl）の admin stat から算出される（§14 参照）。
 
 **到達可能な Province**:
 
 ```ts
-if (control < maxControl) control = Math.min(control + controlGrowthPerMonth, maxControl)
+if (control < maxControl) control = Math.min(control + effectiveGrowth, maxControl)
 if (control > maxControl) control = Math.max(control - controlDecayPerMonth, maxControl)
 ```
+
+`effectiveGrowth = controlGrowthPerMonth * growthModifier`（宰相・家長の admin stat による）。
 
 **到達不能な Province**（飛び地など）:
 
@@ -286,8 +294,10 @@ const countryIncome = provinceIncome * (cc / totalControl) * cc
 const houseIncome   = provinceIncome * (hc / totalControl) * hc
 ```
 
+国庫への収入には財務官の能力補正（`taxEfficiency`）が乗算される（§14 参照）。家収入への補正はない。
+
 例（Province 収入 100 の場合）:
-| countryControl | houseControl | 国収入 | 家収入 | ロス |
+| countryControl | houseControl | 国収入（taxEfficiency=1） | 家収入 | ロス |
 |---|---|---|---|---|
 | 100 | 100 | 50 | 50 | 0 |
 | 100 | 50 | 66.7 | 16.7 | 16.6 |
@@ -330,6 +340,12 @@ const houseIncome   = provinceIncome * (hc / totalControl) * hc
 
 `publicSpendingYearlyChance`（35%）で発動。monumentScore vs landDevelopmentScore を比較し実行：
 
+スコア計算に宰相の ability 補正が加算される（§14 参照）:
+```
+monumentScore      += chancellorAmbitionMonumentScoreBonus + chancellorCautionMonumentScoreBonus
+landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorAmbitionLandDevelopmentScoreBonus
+```
+
 **記念碑建設（MONUMENT_BUILT）**:
 - 条件: monumentScore > landDevelopmentScore かつ treasury >= monumentBaseCost
 - 対象 Province: 首都から接続済み、countryControl < 100 の中から以下スコアで選択:
@@ -339,8 +355,8 @@ const houseIncome   = provinceIncome * (hc / totalControl) * hc
 - 効果: treasury -= monumentBaseCost、**countryControl += monumentCountryControlGain**、legitimacy += monumentLegitimacyGain、rulerHouse.prestige += 2
 
 **国家土地開発（COUNTRY_LAND_DEVELOPED）**:
-- 条件: treasury >= countryLandDevelopmentBaseCost
-- 効果: development += gain（clamp）、**houseControl += landDevelopmentHouseControlGain**、**unrest -= landDevelopmentUnrestReduction**、stability +2、treasury -= cost
+- 条件: treasury >= effectiveCost（財務官 admin による割引あり）
+- 効果: development += gain（clamp）、**houseControl += landDevelopmentHouseControlGain**、**unrest -= landDevelopmentUnrestReduction**、stability +2、treasury -= effectiveCost
 
 ### 6.12 HouseDevelopmentSystem（毎年1月）
 
@@ -349,7 +365,9 @@ const houseIncome   = provinceIncome * (hc / totalControl) * hc
 - 条件: `house.wealth >= houseLandDevelopmentBaseCost + houseWealthReserve`
 - 発動確率:
   ```
-  chance = houseDevelopmentYearlyChance + clamp((wealth - cost - reserve) / 300, 0, 0.25)
+  chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 0, 1)
+  wealthBonus      = clamp((wealth - cost - reserve) / 300, 0, 0.25)
+  abilityChanceBonus = 家長 admin / caution による補正（§14 参照）
   ```
 - 効果:
   ```
@@ -369,7 +387,8 @@ const houseIncome   = provinceIncome * (hc / totalControl) * hc
 
 `warEnabled` が true のとき動作。国家が他国に宣戦布告し、Province を奪取する。
 
-- 宣戦条件: `minAttackerWinChanceToDeclare` 以上の勝率見込み、warCooldown 明け
+- 宣戦条件: `effectiveMinWinChanceToDeclare`（将軍の ambition/caution で変動、§14 参照）以上の勝率見込み、warCooldown 明け
+- 軍事力: `baseMilitaryPower * warPowerModifier`（将軍 martial stat による、§14 参照）
 - **本拠地保護**: `seatProvinceId` の Province は征服対象から除外する
 - 征服後、defender の非 seat Province がすべてなくなった場合（seat のみ残存）に `annexCountry` を呼び出す
 - 荒廃効果（攻撃側勝利時）:
@@ -446,6 +465,13 @@ houseControl   = maxControl(seatProvinceId からの BFS 距離)
 ```
 
 接続不能な Province: `countryControl = 30`、`houseControl = 30`
+
+### 7.4 エンティティ名称の生成
+
+Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` に定義された名前プールから seed 付き RNG で選択する。
+
+- Country・House・Province: `pickUniqueName` による重複回避。プール不足時は `Country-N` / `House-N` / `Province-N` にフォールバック
+- Person（worldgen 初期生成・EmergenceSystem による補充ともに）: `pickName` による重複あり選択（中世欧州風に同名人物が複数存在し得る）
 
 ---
 
@@ -543,12 +569,35 @@ houseControl   = maxControl(seatProvinceId からの BFS 距離)
 | controlGrowthPerMonth | 2 | 支配力月次増加量 |
 | controlDecayPerMonth | 1 | 支配力月次減少量（上限超過時） |
 | disconnectedControlDecayPerMonth | 5 | 接続不能 Province の月次減衰量 |
-| **Monument（v0.5）** | | |
+| **Monument** | | |
 | monumentCountryControlGain | 10 | 記念碑による countryControl 上昇量 |
 | monumentLegitimacyGain | 5 | 記念碑による legitimacy 上昇量 |
-| **Land Development（v0.5）** | | |
+| **Land Development** | | |
 | landDevelopmentHouseControlGain | 5 | 土地開発による houseControl 上昇量 |
 | landDevelopmentUnrestReduction | 1 | 土地開発による unrest 低下量 |
+| **Person Ability Effects（v0.6）** | | |
+| personAbilityEffectsEnabled | true | 人物能力効果の有効/無効 |
+| chancellorAdminControlGrowthEffect | 0.25 | 宰相 admin による支配力成長補正係数 |
+| chancellorAdminControlMaxBonusPerAdmin | 1 | 宰相 admin 1 点あたりの支配力上限ボーナス |
+| houseHeadAdminControlGrowthEffect | 0.25 | 家長 admin による家支配力成長補正係数 |
+| houseHeadAdminControlMaxBonusPerAdmin | 1 | 家長 admin 1 点あたりの家支配力上限ボーナス |
+| controlAbilityMinimumFloor | 35 | 能力補正後の支配力上限最低値 |
+| treasurerAdminTaxEfficiencyEffect | 0.15 | 財務官 admin による税収効率補正係数 |
+| treasurerCautionTaxEfficiencyEffect | 0.10 | 財務官 caution による税収効率補正係数 |
+| treasurerTaxEfficiencyMin | 0.8 | 税収効率の最小値 |
+| treasurerTaxEfficiencyMax | 1.2 | 税収効率の最大値 |
+| treasurerAdminDevelopmentCostEffect | 0.10 | 財務官 admin による開発コスト削減係数 |
+| generalMartialWarPowerEffect | 0.15 | 将軍 martial による戦闘力補正係数 |
+| generalAmbitionDeclareThresholdEffect | 0.10 | 将軍 ambition による宣戦閾値変動係数 |
+| generalCautionDeclareThresholdEffect | 0.10 | 将軍 caution による宣戦閾値変動係数 |
+| minWarDeclareThreshold | 0.30 | 宣戦閾値の下限 |
+| maxWarDeclareThreshold | 0.75 | 宣戦閾値の上限 |
+| chancellorAmbitionMonumentScoreEffect | 20 | 宰相 ambition による monumentScore 補正係数 |
+| chancellorCautionMonumentScoreEffect | 10 | 宰相 caution による monumentScore 補正係数（低 caution が正に働く） |
+| chancellorAmbitionLandDevelopmentScoreEffect | 10 | 宰相 ambition による landDevelopmentScore 補正係数（低 ambition が正に働く） |
+| chancellorCautionLandDevelopmentScoreEffect | 20 | 宰相 caution による landDevelopmentScore 補正係数 |
+| houseHeadAdminDevelopmentChanceEffect | 0.10 | 家長 admin による開発確率補正係数 |
+| houseHeadCautionDevelopmentChanceEffect | 0.10 | 家長 caution による開発確率補正係数 |
 | **Lordship Transition** | | |
 | lordshipAbsorptionTargetThreshold | 50 | 吸収対象となる houseControl の上限 |
 | lordshipAbsorptionSourceMinimum | 60 | 吸収源となるための最低 houseControl |
@@ -563,7 +612,114 @@ houseControl   = maxControl(seatProvinceId からの BFS 距離)
 
 ---
 
-## 10. UI 構成
+## 10. 人物能力効果（v0.6）
+
+`personAbilityEffectsEnabled` が false の場合、全関数は中立値（倍率 1.0、ボーナス 0）を返す。
+
+### 10.1 正規化関数
+
+```ts
+normalizedStat(value: number): number   // (value - 5) / 5  → -1.0 (stat=0) .. 0 (stat=5) .. +1.0 (stat=10)
+normalizedTrait(value: number): number  // value - 0.5      → -0.5 (trait=0.0) .. 0 (trait=0.5) .. +0.5 (trait=1.0)
+```
+
+### 10.2 Trait の解釈（価値中立な軸）
+
+| Trait | 低値（0.0側） | 高値（1.0側） |
+|---|---|---|
+| ambition | 忠実・現状維持 | 野心的・栄光志向 |
+| caution | 大胆・即断 | 慎重・堅実 |
+
+どちらの極も状況によって有利・不利が生じる。
+
+### 10.3 ControlSystem への効果
+
+**宰相（chancellor）→ countryControl**:
+```ts
+growthModifier = 1 + normalizedStat(admin) * chancellorAdminControlGrowthEffect
+maxControlBonus = normalizedStat(admin) * chancellorAdminControlMaxBonusPerAdmin * 10
+```
+
+**家長（house head）→ houseControl**:
+```ts
+growthModifier = 1 + normalizedStat(admin) * houseHeadAdminControlGrowthEffect
+maxControlBonus = normalizedStat(admin) * houseHeadAdminControlMaxBonusPerAdmin * 10
+```
+
+支配力上限は二段階 clamp:
+```ts
+baseMaxControl = clamp(100 - distance * controlMaxDistancePenalty, controlMaxMinimum, 100)
+maxControl     = clamp(baseMaxControl + maxControlBonus, controlAbilityMinimumFloor, 100)
+// 首都 / 本拠地は 100 固定
+```
+
+### 10.4 EconomySystem への効果
+
+**財務官（treasurer）→ 国庫税収効率**:
+```ts
+taxEfficiency = clamp(
+  1 + normalizedStat(admin) * treasurerAdminTaxEfficiencyEffect
+    + normalizedTrait(caution) * treasurerCautionTaxEfficiencyEffect,
+  treasurerTaxEfficiencyMin,
+  treasurerTaxEfficiencyMax,
+)
+// 国庫収入 *= taxEfficiency。家収入への影響なし
+```
+
+**財務官（treasurer）→ 国家土地開発コスト**:
+```ts
+costModifier = 1 - normalizedStat(admin) * treasurerAdminDevelopmentCostEffect
+effectiveCost = max(1, round(countryLandDevelopmentBaseCost * costModifier))
+```
+
+### 10.5 WarSystem への効果
+
+**将軍（general）→ 戦闘力**:
+```ts
+warPowerModifier = 1 + normalizedStat(martial) * generalMartialWarPowerEffect
+// 攻撃側・防衛側それぞれ独立して適用
+```
+
+**将軍（general）→ 宣戦閾値**:
+```ts
+// ambition 高（野心的）→ 閾値を下げる（積極的に開戦）
+// caution 高（慎重）→ 閾値を上げる（消極的）
+effectiveThreshold = clamp(
+  minAttackerWinChanceToDeclare
+    - normalizedTrait(ambition) * generalAmbitionDeclareThresholdEffect
+    + normalizedTrait(caution)  * generalCautionDeclareThresholdEffect,
+  minWarDeclareThreshold,
+  maxWarDeclareThreshold,
+)
+```
+
+### 10.6 PublicSpendingSystem への効果
+
+**宰相（chancellor）→ スコア補正**:
+```ts
+// ambition 高 → monumentScore 上昇（栄光志向）
+// caution 低（大胆）→ monumentScore 上昇（果断な建設）
+monumentScoreBonus = normalizedTrait(ambition) * chancellorAmbitionMonumentScoreEffect
+                   - normalizedTrait(caution)  * chancellorCautionMonumentScoreEffect
+
+// caution 高 → landDevelopmentScore 上昇（堅実な内政）
+// ambition 低 → landDevelopmentScore 上昇（現状維持志向）
+landDevelopmentScoreBonus = normalizedTrait(caution)  * chancellorCautionLandDevelopmentScoreEffect
+                           - normalizedTrait(ambition) * chancellorAmbitionLandDevelopmentScoreEffect
+```
+
+### 10.7 HouseDevelopmentSystem への効果
+
+**家長（house head）→ 開発発動確率**:
+```ts
+abilityChanceBonus = normalizedStat(admin)    * houseHeadAdminDevelopmentChanceEffect
+                   + normalizedTrait(caution) * houseHeadCautionDevelopmentChanceEffect
+chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 0, 1)
+```
+
+---
+
+## 11. UI 構成
 
 - **MapPanel**: Province を SVG で描画。クリックで Province 選択
 - **Sidebar**: 人物一覧。重要度スコア順。ウォッチリスト対応
@@ -576,7 +732,7 @@ houseControl   = maxControl(seatProvinceId からの BFS 距離)
 
 ---
 
-## 11. 今後の課題（未実装）
+## 12. 今後の課題（未実装）
 
 - **首都・本拠地移転**: 征服・滅亡・特別イベントによる移転
 - **支配力による反乱・独立**: countryControl / houseControl が閾値を下回る Province での反乱
@@ -587,5 +743,4 @@ houseControl   = maxControl(seatProvinceId からの BFS 距離)
 - **施設システム**: 城塞・道路・港・市場
 - **詳細外交**: 同盟・条約・婚姻
 - **血縁・婚姻関係**: 継承権・請求権
-- **人物能力による支配力補正**: 優秀な国王時代の急拡大と崩御後の崩壊
 - **House の多国所領**: House が複数 Country に所領を持つ仕組み
