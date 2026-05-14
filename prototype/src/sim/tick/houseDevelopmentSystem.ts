@@ -2,6 +2,7 @@ import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
 import { clamp, clamp100 } from '../utils/math'
+import { calcHouseHeadDevelopmentChanceBonus } from '../selectors/personAbilityEffects'
 import type { HouseId, ProvinceId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { SimEvent } from '../types/event'
@@ -33,11 +34,14 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
     currentCtx = { ...currentCtx, rng: nextRng }
 
     const excessWealth = house.wealth - minWealth
-    const chance = clamp(
-      currentCtx.config.houseDevelopmentYearlyChance + excessWealth / 300,
-      0,
-      currentCtx.config.houseDevelopmentYearlyChance + 0.25,
+    const baseChance = currentCtx.config.houseDevelopmentYearlyChance
+    const wealthBonus = clamp(excessWealth / 300, 0, 0.25)
+    const abilityChanceBonus = calcHouseHeadDevelopmentChanceBonus(
+      currentCtx.state,
+      house,
+      currentCtx.config,
     )
+    const chance = clamp(baseChance + wealthBonus + abilityChanceBonus, 0, 1)
 
     if (roll >= chance) continue
 

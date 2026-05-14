@@ -5,6 +5,11 @@ import { clamp, clamp100 } from '../utils/math'
 import type { CountryId, HouseId, ProvinceId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { SimEvent } from '../types/event'
+import {
+  calcChancellorMonumentScoreBonus,
+  calcChancellorLandDevelopmentScoreBonus,
+  calcTreasurerDevelopmentCostModifier,
+} from '../selectors/personAbilityEffects'
 
 function scoreLandDevelopmentProvince(province: Province, rulerHouseId: HouseId): number {
   const recoveryBonus = Math.max(0, -province.development) * 1.0
@@ -59,7 +64,8 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       rulerHouse.prestige * 0.1 +
       treasurySurplus -
       rulerHead.traits.caution * 25 +
-      treasurerAdmin * 2
+      treasurerAdmin * 2 +
+      calcChancellorMonumentScoreBonus(currentCtx.state, country, currentCtx.config)
 
     const landDevelopmentScore =
       (100 - country.stability) * 0.4 +
@@ -67,7 +73,8 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       rulerHead.traits.loyaltyToCountry * 20 +
       rulerHead.traits.caution * 10 -
       treasuryShortage +
-      chancellorAdmin * 2
+      chancellorAdmin * 2 +
+      calcChancellorLandDevelopmentScoreBonus(currentCtx.state, country, currentCtx.config)
 
     const { value: roll, rng: nextRng } = randomFloat(currentCtx.rng)
     currentCtx = { ...currentCtx, rng: nextRng }
@@ -152,7 +159,16 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
         events: [...eventCtx.events, event],
       }
     } else {
-      if (country.treasury < ctx.config.countryLandDevelopmentBaseCost) continue
+      const costModifier = calcTreasurerDevelopmentCostModifier(
+        currentCtx.state,
+        country,
+        currentCtx.config,
+      )
+      const effectiveCost = Math.max(
+        1,
+        Math.round(ctx.config.countryLandDevelopmentBaseCost * costModifier),
+      )
+      if (country.treasury < effectiveCost) continue
 
       const sortedProvinceIds = Object.keys(currentCtx.state.provinces)
         .filter((pid) => {
@@ -202,7 +218,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
 
       const updatedCountry = {
         ...country,
-        treasury: country.treasury - ctx.config.countryLandDevelopmentBaseCost,
+        treasury: country.treasury - effectiveCost,
         stability: clamp100(country.stability + 2),
       }
 

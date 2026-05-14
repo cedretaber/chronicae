@@ -73,6 +73,29 @@ export type SimulationConfig = {
   houseLandDevelopmentBaseCost: number
   houseLandDevelopmentGain: number
   houseWealthReserve: number
+  // v0.6 Person Ability Effects
+  personAbilityEffectsEnabled: boolean
+  chancellorAdminControlGrowthEffect: number
+  chancellorAdminControlMaxBonusPerAdmin: number
+  houseHeadAdminControlGrowthEffect: number
+  houseHeadAdminControlMaxBonusPerAdmin: number
+  treasurerAdminTaxEfficiencyEffect: number
+  treasurerCautionTaxEfficiencyEffect: number
+  treasurerTaxEfficiencyMin: number
+  treasurerTaxEfficiencyMax: number
+  treasurerAdminDevelopmentCostEffect: number
+  generalMartialWarPowerEffect: number
+  generalAmbitionDeclareThresholdEffect: number
+  generalCautionDeclareThresholdEffect: number
+  minWarDeclareThreshold: number
+  maxWarDeclareThreshold: number
+  chancellorAmbitionMonumentScoreEffect: number
+  chancellorCautionMonumentScoreEffect: number
+  chancellorAmbitionLandDevelopmentScoreEffect: number
+  chancellorCautionLandDevelopmentScoreEffect: number
+  houseHeadAdminDevelopmentChanceEffect: number
+  houseHeadCautionDevelopmentChanceEffect: number
+  controlAbilityMinimumFloor: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -141,4 +164,27 @@ export const defaultConfig: SimulationConfig = {
   // Annexation
   annexedCountryControl: 35,
   newRulerHouseControl: 35,
+  // v0.6 Person Ability Effects
+  personAbilityEffectsEnabled: true,
+  chancellorAdminControlGrowthEffect: 0.25,
+  chancellorAdminControlMaxBonusPerAdmin: 1,
+  houseHeadAdminControlGrowthEffect: 0.25,
+  houseHeadAdminControlMaxBonusPerAdmin: 1,
+  treasurerAdminTaxEfficiencyEffect: 0.15,
+  treasurerCautionTaxEfficiencyEffect: 0.1,
+  treasurerTaxEfficiencyMin: 0.8,
+  treasurerTaxEfficiencyMax: 1.2,
+  treasurerAdminDevelopmentCostEffect: 0.1,
+  generalMartialWarPowerEffect: 0.15,
+  generalAmbitionDeclareThresholdEffect: 0.1,
+  generalCautionDeclareThresholdEffect: 0.1,
+  minWarDeclareThreshold: 0.3,
+  maxWarDeclareThreshold: 0.75,
+  chancellorAmbitionMonumentScoreEffect: 20,
+  chancellorCautionMonumentScoreEffect: 10,
+  chancellorAmbitionLandDevelopmentScoreEffect: 10,
+  chancellorCautionLandDevelopmentScoreEffect: 20,
+  houseHeadAdminDevelopmentChanceEffect: 0.1,
+  houseHeadCautionDevelopmentChanceEffect: 0.1,
+  controlAbilityMinimumFloor: 35,
 }

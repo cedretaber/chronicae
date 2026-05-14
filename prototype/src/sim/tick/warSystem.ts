@@ -3,6 +3,10 @@ import { makeEventId } from './context'
 import { randomFloat, randomInt } from '../rng/rng'
 import { clamp, clamp100 } from '../utils/math'
 import { calcCountryMilitaryPower } from '../selectors/militarySelectors'
+import {
+  calcGeneralWarPowerModifier,
+  calcGeneralDeclareThreshold,
+} from '../selectors/personAbilityEffects'
 import { transferProvinceToHouse } from '../mutations/transferProvince'
 import { annexCountry } from '../mutations/annexCountry'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
@@ -135,7 +139,9 @@ export function runWarSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    const attackerPower = calcCountryMilitaryPower(currentState, attackerCountryId)
+    const attackerPower =
+      calcCountryMilitaryPower(currentState, attackerCountryId) *
+      calcGeneralWarPowerModifier(currentState, attackerCountry, currentCtx.config)
 
     const attackerProvinceSet = new Set<ProvinceId>()
     for (const houseId of attackerCountry.houseIds) {
@@ -180,10 +186,20 @@ export function runWarSystem(ctx: TickContext): TickContext {
         continue
       }
 
-      const defenderPower = calcCountryMilitaryPower(currentState, defenderCountryId)
+      const defenderCountryObj = currentState.countries[defenderCountryId]
+      const defenderPower =
+        calcCountryMilitaryPower(currentState, defenderCountryId) *
+        (defenderCountryObj
+          ? calcGeneralWarPowerModifier(currentState, defenderCountryObj, currentCtx.config)
+          : 1)
       const winChance = attackerPower / (attackerPower + defenderPower + 1)
 
-      if (winChance < currentCtx.config.minAttackerWinChanceToDeclare) {
+      const declareThreshold = calcGeneralDeclareThreshold(
+        currentState,
+        attackerCountry,
+        currentCtx.config,
+      )
+      if (winChance < declareThreshold) {
         continue
       }
 

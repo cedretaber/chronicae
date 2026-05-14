@@ -14,6 +14,8 @@ Chronicae/
 
 すべての npm コマンドは `prototype/` ディレクトリ内で実行する。
 
+`npx` は使わず、常に `npm run <script>` を使う。
+
 ## 検証コマンド
 
 ```bash

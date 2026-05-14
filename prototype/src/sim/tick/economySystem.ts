@@ -1,6 +1,7 @@
 import type { TickContext } from './context'
 import type { ProvinceId, HouseId, CountryId } from '../types/ids'
 import { getEffectiveProvinceTax } from '../selectors/developmentSelectors'
+import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
 
 export function runEconomySystem(ctx: TickContext): TickContext {
   const wealthDeltas = new Map<HouseId, number>()
@@ -40,8 +41,12 @@ export function runEconomySystem(ctx: TickContext): TickContext {
     const country = newCountries[countryId as CountryId]
     if (!country) continue
     if (!country.active) continue
+    const taxEfficiency = calcTreasurerTaxEfficiency(ctx.state, country, ctx.config)
     const delta = treasuryDeltas.get(countryId as CountryId) ?? 0
-    newCountries[countryId as CountryId] = { ...country, treasury: country.treasury + delta }
+    newCountries[countryId as CountryId] = {
+      ...country,
+      treasury: country.treasury + delta * taxEfficiency,
+    }
   }
 
   return {

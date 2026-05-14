@@ -2,6 +2,12 @@ import type { TickContext } from './context'
 import type { ProvinceId } from '../types/ids'
 import type { Province } from '../types/province'
 import { clamp } from '../utils/math'
+import {
+  calcChancellorControlGrowthModifier,
+  calcChancellorControlMaxBonus,
+  calcHouseHeadControlGrowthModifier,
+  calcHouseHeadControlMaxBonus,
+} from '../selectors/personAbilityEffects'
 
 function bfs(
   startId: ProvinceId,
@@ -37,21 +43,12 @@ function bfs(
 
 function applyControl(
   current: number,
-  distance: number,
-  config: {
-    controlMaxDistancePenalty: number
-    controlMaxMinimum: number
-    controlGrowthPerMonth: number
-    controlDecayPerMonth: number
-  },
+  maxControl: number,
+  effectiveGrowth: number,
+  config: { controlDecayPerMonth: number },
 ): number {
-  const maxControl = clamp(
-    100 - distance * config.controlMaxDistancePenalty,
-    config.controlMaxMinimum,
-    100,
-  )
   if (current < maxControl) {
-    return Math.min(current + config.controlGrowthPerMonth, maxControl)
+    return Math.min(current + effectiveGrowth, maxControl)
   }
   if (current > maxControl) {
     return Math.max(current - config.controlDecayPerMonth, maxControl)
@@ -74,6 +71,10 @@ export function runControlSystem(ctx: TickContext): TickContext {
     const country = countries[countryId]
     if (!country || !country.active) continue
 
+    const growthModifier = calcChancellorControlGrowthModifier(ctx.state, country, config)
+    const maxControlBonus = calcChancellorControlMaxBonus(ctx.state, country, config)
+    const effectiveGrowth = config.controlGrowthPerMonth * growthModifier
+
     const distMap = bfs(
       country.capitalProvinceId,
       provinces,
@@ -89,7 +90,16 @@ export function runControlSystem(ctx: TickContext): TickContext {
       const dist = distMap.get(provinceId)
 
       if (dist !== undefined) {
-        newProvince.countryControl = applyControl(current, dist, config)
+        const baseMaxControl = clamp(
+          100 - dist * config.controlMaxDistancePenalty,
+          config.controlMaxMinimum,
+          100,
+        )
+        const isCapital = provinceId === country.capitalProvinceId
+        const maxControl = isCapital
+          ? 100
+          : clamp(baseMaxControl + maxControlBonus, config.controlAbilityMinimumFloor, 100)
+        newProvince.countryControl = applyControl(current, maxControl, effectiveGrowth, config)
       } else {
         newProvince.countryControl = Math.max(0, current - config.disconnectedControlDecayPerMonth)
       }
@@ -99,6 +109,10 @@ export function runControlSystem(ctx: TickContext): TickContext {
   for (const houseId of Object.keys(houses) as Array<keyof typeof houses>) {
     const house = houses[houseId]
     if (!house || !house.active) continue
+
+    const growthModifier = calcHouseHeadControlGrowthModifier(ctx.state, house, config)
+    const maxControlBonus = calcHouseHeadControlMaxBonus(ctx.state, house, config)
+    const effectiveGrowth = config.controlGrowthPerMonth * growthModifier
 
     const distMap = bfs(
       house.seatProvinceId,
@@ -115,7 +129,16 @@ export function runControlSystem(ctx: TickContext): TickContext {
       const dist = distMap.get(provinceId)
 
       if (dist !== undefined) {
-        newProvince.houseControl = applyControl(current, dist, config)
+        const baseMaxControl = clamp(
+          100 - dist * config.controlMaxDistancePenalty,
+          config.controlMaxMinimum,
+          100,
+        )
+        const isSeat = provinceId === house.seatProvinceId
+        const maxControl = isSeat
+          ? 100
+          : clamp(baseMaxControl + maxControlBonus, config.controlAbilityMinimumFloor, 100)
+        newProvince.houseControl = applyControl(current, maxControl, effectiveGrowth, config)
       } else {
         newProvince.houseControl = Math.max(0, current - config.disconnectedControlDecayPerMonth)
       }
