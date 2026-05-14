@@ -84,7 +84,18 @@ export function runIntegrityCheck(ctx: TickContext): TickContext {
     }
   }
 
-  // 6. Country.rulerHouseId points to active house
+  // 6. Province.development is in range -100..100
+  for (const provinceId of Object.keys(state.provinces).sort()) {
+    const province = state.provinces[provinceId as ProvinceId]
+    if (!province) continue
+    if (province.development < -100 || province.development > 100) {
+      throw new Error(
+        'Province ' + provinceId + ' development out of range: ' + province.development,
+      )
+    }
+  }
+
+  // 7. Country.rulerHouseId points to active house
   for (const countryId of Object.keys(state.countries).sort()) {
     const country = state.countries[countryId as CountryId]
     if (!country) continue

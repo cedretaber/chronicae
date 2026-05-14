@@ -29,7 +29,8 @@ export type EventType =
   | 'DISASTER_RELIEF_FUNDED'
   | 'DISASTER_RELIEF_FAILED'
   | 'MONUMENT_BUILT'
-  | 'ALMS_DISTRIBUTED'
+  | 'COUNTRY_LAND_DEVELOPED'
+  | 'HOUSE_LAND_DEVELOPED'
 
 export type EventReason = {
   label: string

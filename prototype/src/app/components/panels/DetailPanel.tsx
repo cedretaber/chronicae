@@ -1,5 +1,9 @@
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { getPersonRole } from '@/sim/selectors/roleSelectors'
+import {
+  getEffectiveProvinceTax,
+  getEffectiveProvinceManpower,
+} from '@/sim/selectors/developmentSelectors'
 import type { Country } from '@/sim/types/country'
 import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
@@ -454,6 +458,14 @@ function PersonDetail({
   )
 }
 
+function getDevelopmentLabel(d: number): string {
+  if (d <= -50) return '荒廃'
+  if (d <= -10) return '衰退'
+  if (d < 10) return '通常'
+  if (d < 50) return '発展'
+  return '繁栄'
+}
+
 function ProvinceDetail({
   province,
   session,
@@ -466,6 +478,8 @@ function ProvinceDetail({
   onHouseClick: ClickHandler
 }) {
   const currentState = session?.currentState
+  const effectiveTax = getEffectiveProvinceTax(province)
+  const effectiveManpower = getEffectiveProvinceManpower(province)
 
   return (
     <div className="flex flex-col gap-1 p-3">
@@ -499,6 +513,20 @@ function ProvinceDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">Unrest:</span>
           <span>{province.unrest}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Development:</span>
+          <span>
+            {province.development} {getDevelopmentLabel(province.development)}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Eff.Tax:</span>
+          <span>{effectiveTax.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Eff.Manpower:</span>
+          <span>{effectiveManpower.toFixed(2)}</span>
         </div>
       </div>
     </div>

@@ -6,7 +6,7 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runEconomySystem } from './economySystem'
 
-function makeEconomyState(baseTax: number, unrest: number): WorldState {
+function makeEconomyState(baseTax: number, unrest: number, development: number = 0): WorldState {
   const provinceId = 'p-0' as ProvinceId
   const houseId = 'h-0' as HouseId
   const countryId = 'c-0' as CountryId
@@ -27,6 +27,7 @@ function makeEconomyState(baseTax: number, unrest: number): WorldState {
         baseTax,
         manpower: 5,
         unrest,
+        development,
       },
     },
     countries: {
@@ -140,6 +141,7 @@ describe('runEconomySystem', () => {
           baseTax: 10,
           manpower: 5,
           unrest: 0,
+          development: 0,
         },
       },
       countries: {
@@ -199,5 +201,47 @@ describe('runEconomySystem', () => {
     expect(world.provinces).toBe(originalProvinces)
     expect(world.countries).toBe(originalCountries)
     expect(world.houses).toBe(originalHouses)
+  })
+
+  it('development=-100: income is 0 (development multiplier = 0)', () => {
+    const baseTax = 10
+    const world = makeEconomyState(baseTax, 0, -100)
+    const ctx = makeCtx(world)
+
+    const result = runEconomySystem(ctx)
+
+    const house = result.state.houses['h-0' as HouseId]
+    expect(house?.wealth).toBe(100)
+
+    const country = result.state.countries['c-0' as CountryId]
+    expect(country?.treasury).toBe(100)
+  })
+
+  it('development=100: income is double the normal baseTax amount', () => {
+    const baseTax = 10
+    const world = makeEconomyState(baseTax, 0, 100)
+    const ctx = makeCtx(world)
+
+    const result = runEconomySystem(ctx)
+
+    const house = result.state.houses['h-0' as HouseId]
+    expect(house?.wealth).toBe(112)
+
+    const country = result.state.countries['c-0' as CountryId]
+    expect(country?.treasury).toBe(108)
+  })
+
+  it('unrest=50, development=50: combined effect', () => {
+    const baseTax = 10
+    const world = makeEconomyState(baseTax, 50, 50)
+    const ctx = makeCtx(world)
+
+    const result = runEconomySystem(ctx)
+
+    const house = result.state.houses['h-0' as HouseId]
+    expect(house?.wealth).toBeCloseTo(104.5, 1)
+
+    const country = result.state.countries['c-0' as CountryId]
+    expect(country?.treasury).toBeCloseTo(103, 1)
   })
 })

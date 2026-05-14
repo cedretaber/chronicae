@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat, randomInt } from '../rng/rng'
-import { clamp100 } from '../utils/math'
+import { clamp, clamp100 } from '../utils/math'
 import { calcCountryMilitaryPower } from '../selectors/militarySelectors'
 import { transferProvinceToHouse } from '../mutations/transferProvince'
 import { moveHouseToCountry } from '../mutations/moveHouse'
@@ -228,6 +228,39 @@ export function runWarSystem(ctx: TickContext): TickContext {
 
         const rulerHouseId = attackerCountry.rulerHouseId
 
+        const remainingBorderProvinceIds = borderProvinceIds.filter(
+          (id) => !provincesToTake.includes(id),
+        )
+
+        {
+          const devastatedProvinces = { ...currentCtx.state.provinces }
+          for (const pid of provincesToTake) {
+            const p = devastatedProvinces[pid]
+            if (!p) continue
+            devastatedProvinces[pid] = {
+              ...p,
+              development: clamp(
+                p.development - currentCtx.config.warConqueredProvinceDevastation,
+                -100,
+                100,
+              ),
+            }
+          }
+          for (const pid of remainingBorderProvinceIds) {
+            const p = devastatedProvinces[pid]
+            if (!p) continue
+            devastatedProvinces[pid] = {
+              ...p,
+              development: clamp(
+                p.development - currentCtx.config.warBorderProvinceDevastation,
+                -100,
+                100,
+              ),
+            }
+          }
+          currentCtx.state = { ...currentCtx.state, provinces: devastatedProvinces }
+        }
+
         for (const provinceId of provincesToTake) {
           currentState = currentCtx.state
           const province = currentState.provinces[provinceId]
@@ -336,6 +369,39 @@ export function runWarSystem(ctx: TickContext): TickContext {
               },
             },
           }
+        }
+
+        {
+          const defenderProvinceSet = new Set<ProvinceId>()
+          for (const houseId of defenderCountry.houseIds) {
+            const h = currentCtx.state.houses[houseId]
+            if (!h) continue
+            for (const pid of h.provinceIds) {
+              defenderProvinceSet.add(pid)
+            }
+          }
+          const attackerBorderProvinces: ProvinceId[] = []
+          for (const pid of Object.keys(currentCtx.state.provinces)) {
+            const p = currentCtx.state.provinces[pid as ProvinceId]
+            if (!p || p.countryId !== attackerCountryId) continue
+            if (p.neighbors.some((nid) => defenderProvinceSet.has(nid))) {
+              attackerBorderProvinces.push(pid as ProvinceId)
+            }
+          }
+          const devastatedProvinces = { ...currentCtx.state.provinces }
+          for (const pid of attackerBorderProvinces) {
+            const p = devastatedProvinces[pid]
+            if (!p) continue
+            devastatedProvinces[pid] = {
+              ...p,
+              development: clamp(
+                p.development - currentCtx.config.failedWarBorderDevastation,
+                -100,
+                100,
+              ),
+            }
+          }
+          currentCtx.state = { ...currentCtx.state, provinces: devastatedProvinces }
         }
 
         currentCtx = emitWarEvent(

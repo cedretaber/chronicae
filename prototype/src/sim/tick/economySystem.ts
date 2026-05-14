@@ -1,5 +1,6 @@
 import type { TickContext } from './context'
 import type { ProvinceId, HouseId, CountryId } from '../types/ids'
+import { getEffectiveProvinceTax } from '../selectors/developmentSelectors'
 
 export function runEconomySystem(ctx: TickContext): TickContext {
   const wealthDeltas = new Map<HouseId, number>()
@@ -9,8 +10,7 @@ export function runEconomySystem(ctx: TickContext): TickContext {
     const province = ctx.state.provinces[provinceId as ProvinceId]
     if (!province) continue
 
-    const unrestPenalty = province.unrest / 100
-    const effectiveTax = province.baseTax * (1 - unrestPenalty)
+    const effectiveTax = getEffectiveProvinceTax(province)
 
     const houseKey = province.ownerHouseId
     wealthDeltas.set(houseKey, (wealthDeltas.get(houseKey) ?? 0) + effectiveTax * 0.6)

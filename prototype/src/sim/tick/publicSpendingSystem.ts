@@ -1,9 +1,18 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { clamp100 } from '../utils/math'
-import type { CountryId, ProvinceId } from '../types/ids'
+import { clamp, clamp100 } from '../utils/math'
+import type { CountryId, HouseId, ProvinceId } from '../types/ids'
+import type { Province } from '../types/province'
 import type { SimEvent } from '../types/event'
+
+function scoreLandDevelopmentProvince(province: Province, rulerHouseId: HouseId): number {
+  const recoveryBonus = Math.max(0, -province.development) * 1.0
+  const highValueBonus = province.baseTax * 4 + province.manpower * 2
+  const rulerHouseProvinceBonus = province.ownerHouseId === rulerHouseId ? 15 : 0
+  const unrestPenalty = province.unrest * 0.4
+  return recoveryBonus + highValueBonus + rulerHouseProvinceBonus - unrestPenalty
+}
 
 export function runPublicSpendingSystem(ctx: TickContext): TickContext {
   if (!ctx.config.publicSpendingEnabled) return ctx
@@ -39,7 +48,10 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
         : 0
 
     const treasurySurplus = Math.max(0, country.treasury - ctx.config.monumentBaseCost)
-    const treasuryShortage = Math.max(0, ctx.config.almsBaseCost - country.treasury)
+    const treasuryShortage = Math.max(
+      0,
+      ctx.config.countryLandDevelopmentBaseCost - country.treasury,
+    )
 
     const monumentScore =
       (100 - country.legitimacy) * 0.3 +
@@ -49,7 +61,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       rulerHead.traits.caution * 25 +
       treasurerAdmin * 2
 
-    const almsScore =
+    const landDevelopmentScore =
       (100 - country.stability) * 0.4 +
       avgUnrest * 0.5 +
       rulerHead.traits.loyaltyToCountry * 20 +
@@ -64,7 +76,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
 
     const currentState = currentCtx.state
 
-    if (monumentScore > almsScore) {
+    if (monumentScore > landDevelopmentScore) {
       if (country.treasury < ctx.config.monumentBaseCost) continue
 
       const currentCountries = currentCtx.state.countries
@@ -95,7 +107,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
         importance: 'major',
         actorIds: [],
         houseIds: [country.rulerHouseId],
-        countryIds: [countryId],
+        countryIds: [countryId as CountryId],
         provinceIds: [],
         summary: `${country.name} built a great monument.`,
         reasons: [],
@@ -107,23 +119,46 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
         events: [...eventCtx.events, event],
       }
     } else {
-      if (country.treasury < ctx.config.almsBaseCost) continue
+      if (country.treasury < ctx.config.countryLandDevelopmentBaseCost) continue
 
-      const newProvinces = { ...currentCtx.state.provinces }
-      for (const pid of Object.keys(currentCtx.state.provinces)) {
-        const province = currentCtx.state.provinces[pid as ProvinceId]
-        if (!province || province.countryId !== countryId) continue
-        newProvinces[pid as ProvinceId] = {
-          ...province,
-          unrest: Math.max(0, province.unrest - 5),
+      const sortedProvinceIds = Object.keys(currentCtx.state.provinces)
+        .filter((pid) => {
+          const p = currentCtx.state.provinces[pid as ProvinceId]
+          return p?.countryId === countryId
+        })
+        .sort() as ProvinceId[]
+
+      if (sortedProvinceIds.length === 0) continue
+
+      let bestProvinceId: ProvinceId = sortedProvinceIds[0]!
+      let bestScore = -Infinity
+      for (const pid of sortedProvinceIds) {
+        const p = currentCtx.state.provinces[pid]
+        if (!p) continue
+        const score = scoreLandDevelopmentProvince(p, country.rulerHouseId)
+        if (score > bestScore) {
+          bestScore = score
+          bestProvinceId = pid
         }
       }
 
-      const currentCountries = currentCtx.state.countries
+      const targetProvince = currentCtx.state.provinces[bestProvinceId]
+      if (!targetProvince) continue
+
+      const newDevelopment = clamp(
+        targetProvince.development + ctx.config.countryLandDevelopmentGain,
+        -100,
+        100,
+      )
+      const newProvinces = {
+        ...currentCtx.state.provinces,
+        [bestProvinceId]: { ...targetProvince, development: newDevelopment },
+      }
+
       const updatedCountry = {
         ...country,
-        treasury: country.treasury - ctx.config.almsBaseCost,
-        stability: clamp100(country.stability + 8),
+        treasury: country.treasury - ctx.config.countryLandDevelopmentBaseCost,
+        stability: clamp100(country.stability + 2),
       }
 
       currentCtx = {
@@ -131,7 +166,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
         state: {
           ...currentState,
           provinces: newProvinces,
-          countries: { ...currentCountries, [countryId]: updatedCountry },
+          countries: { ...currentCtx.state.countries, [countryId as CountryId]: updatedCountry },
         },
       }
 
@@ -140,13 +175,13 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
         id: eventId,
         year: eventCtx.state.currentYear,
         month: eventCtx.state.currentMonth,
-        type: 'ALMS_DISTRIBUTED',
+        type: 'COUNTRY_LAND_DEVELOPED',
         importance: 'normal',
         actorIds: [],
         houseIds: [],
-        countryIds: [countryId],
-        provinceIds: [],
-        summary: `${country.name} distributed alms to its people.`,
+        countryIds: [countryId as CountryId],
+        provinceIds: [bestProvinceId],
+        summary: `${country.name} invested in land development in ${targetProvince.name}.`,
         reasons: [],
         effects: [],
       }

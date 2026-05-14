@@ -46,7 +46,8 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     const { value: baseTax, rng: r1 } = randomInt(rng, 1, 10)
     const { value: manpower, rng: r2 } = randomInt(r1, 1, 10)
     const { value: unrest, rng: r3 } = randomInt(r2, 0, 20)
-    rng = r3
+    const { value: development, rng: r4 } = randomInt(r3, -10, 10)
+    rng = r4
 
     const ownerHouseId = provinceToHouse.get(province.id)
 
@@ -57,6 +58,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       baseTax,
       manpower,
       unrest,
+      development,
     })
   }
 

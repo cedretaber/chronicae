@@ -6,7 +6,7 @@ import { calcAmbitionScores } from './ambitionSystem'
 import { changeRulerHouse } from '../mutations/changeRulerHouse'
 import { createCountryFromHouse } from '../mutations/createCountry'
 import { calcHouseMilitaryPower } from '../selectors/militarySelectors'
-import type { CountryId } from '../types/ids'
+import type { CountryId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 
 export function runRebellionSystem(ctx: TickContext): TickContext {
@@ -97,6 +97,28 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
         events: [...eventCtx.events, event],
       }
 
+      const rebelProvinceIds: ProvinceId[] = [...house.provinceIds]
+
+      {
+        const devastatedProvinces = { ...currentCtx.state.provinces }
+        for (const pid of rebelProvinceIds) {
+          const p = devastatedProvinces[pid]
+          if (!p) continue
+          devastatedProvinces[pid] = {
+            ...p,
+            development: clamp(
+              p.development - currentCtx.config.rebellionStartedDevastation,
+              -100,
+              100,
+            ),
+          }
+        }
+        currentCtx = {
+          ...currentCtx,
+          state: { ...currentCtx.state, provinces: devastatedProvinces },
+        }
+      }
+
       const { value: roll2, rng: rng2 } = randomFloat(currentCtx.rng)
       currentCtx = { ...currentCtx, rng: rng2 }
 
@@ -155,6 +177,26 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
             state: currentCtx.state,
             events: [...splitEventCtx.events, splitEvent],
           }
+
+          {
+            const devastatedProvinces = { ...currentCtx.state.provinces }
+            for (const pid of rebelProvinceIds) {
+              const p = devastatedProvinces[pid]
+              if (!p) continue
+              devastatedProvinces[pid] = {
+                ...p,
+                development: clamp(
+                  p.development - currentCtx.config.rebellionSucceededDevastation,
+                  -100,
+                  100,
+                ),
+              }
+            }
+            currentCtx = {
+              ...currentCtx,
+              state: { ...currentCtx.state, provinces: devastatedProvinces },
+            }
+          }
         } else {
           const newState = changeRulerHouse(currentCtx.state, countryId as CountryId, houseId)
           currentCtx = { ...currentCtx, state: newState }
@@ -202,6 +244,26 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
             ...rulerEventCtx,
             state: currentCtx.state,
             events: [...rulerEventCtx.events, rulerEvent],
+          }
+
+          {
+            const devastatedProvinces = { ...currentCtx.state.provinces }
+            for (const pid of rebelProvinceIds) {
+              const p = devastatedProvinces[pid]
+              if (!p) continue
+              devastatedProvinces[pid] = {
+                ...p,
+                development: clamp(
+                  p.development - currentCtx.config.rebellionSucceededDevastation,
+                  -100,
+                  100,
+                ),
+              }
+            }
+            currentCtx = {
+              ...currentCtx,
+              state: { ...currentCtx.state, provinces: devastatedProvinces },
+            }
           }
         }
       } else {
@@ -253,6 +315,26 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
           ...failEventCtx,
           state: newState,
           events: [...failEventCtx.events, failEvent],
+        }
+
+        {
+          const devastatedProvinces = { ...currentCtx.state.provinces }
+          for (const pid of rebelProvinceIds) {
+            const p = devastatedProvinces[pid]
+            if (!p) continue
+            devastatedProvinces[pid] = {
+              ...p,
+              development: clamp(
+                p.development - currentCtx.config.rebellionFailedDevastation,
+                -100,
+                100,
+              ),
+            }
+          }
+          currentCtx = {
+            ...currentCtx,
+            state: { ...currentCtx.state, provinces: devastatedProvinces },
+          }
         }
       }
     }

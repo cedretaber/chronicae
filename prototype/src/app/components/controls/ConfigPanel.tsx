@@ -182,14 +182,47 @@ export function ConfigPanel() {
             displayValue={String(config.monumentBaseCost)}
             onChange={(v) => setConfig({ monumentBaseCost: v })}
           />
+          <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Development</div>
+          <ToggleRow
+            label="House Development"
+            value={config.houseDevelopmentEnabled}
+            onChange={(v) => setConfig({ houseDevelopmentEnabled: v })}
+          />
           <ConfigRow
-            label="Alms Cost"
-            value={config.almsBaseCost}
+            label="Positive Decay/mo"
+            value={config.developmentPositiveMonthlyDecay}
+            min={0}
+            max={0.5}
+            step={0.05}
+            displayValue={String(config.developmentPositiveMonthlyDecay)}
+            onChange={(v) => setConfig({ developmentPositiveMonthlyDecay: v })}
+          />
+          <ConfigRow
+            label="Negative Recovery/mo"
+            value={config.developmentNegativeMonthlyRecovery}
+            min={0}
+            max={0.5}
+            step={0.05}
+            displayValue={String(config.developmentNegativeMonthlyRecovery)}
+            onChange={(v) => setConfig({ developmentNegativeMonthlyRecovery: v })}
+          />
+          <ConfigRow
+            label="Country Dev Cost"
+            value={config.countryLandDevelopmentBaseCost}
+            min={30}
+            max={200}
+            step={10}
+            displayValue={String(config.countryLandDevelopmentBaseCost)}
+            onChange={(v) => setConfig({ countryLandDevelopmentBaseCost: v })}
+          />
+          <ConfigRow
+            label="House Dev Cost"
+            value={config.houseLandDevelopmentBaseCost}
             min={20}
             max={150}
             step={5}
-            displayValue={String(config.almsBaseCost)}
-            onChange={(v) => setConfig({ almsBaseCost: v })}
+            displayValue={String(config.houseLandDevelopmentBaseCost)}
+            onChange={(v) => setConfig({ houseLandDevelopmentBaseCost: v })}
           />
         </div>
       )}

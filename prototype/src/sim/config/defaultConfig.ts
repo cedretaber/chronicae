@@ -24,8 +24,32 @@ export type SimulationConfig = {
   // Public Spending
   publicSpendingEnabled: boolean
   monumentBaseCost: number
-  almsBaseCost: number
   publicSpendingYearlyChance: number
+  // Development decay/recovery
+  developmentPositiveMonthlyDecay: number
+  developmentNegativeMonthlyRecovery: number
+  // War devastation
+  warConqueredProvinceDevastation: number
+  warBorderProvinceDevastation: number
+  failedWarBorderDevastation: number
+  // Rebellion devastation
+  rebellionStartedDevastation: number
+  rebellionSucceededDevastation: number
+  rebellionFailedDevastation: number
+  // Disaster development effects
+  famineDevastation: number
+  famineReliefDevelopmentRecovery: number
+  plagueDevastation: number
+  bountifulHarvestDevelopmentGain: number
+  // Country land development
+  countryLandDevelopmentBaseCost: number
+  countryLandDevelopmentGain: number
+  // House land development
+  houseDevelopmentEnabled: boolean
+  houseDevelopmentYearlyChance: number
+  houseLandDevelopmentBaseCost: number
+  houseLandDevelopmentGain: number
+  houseWealthReserve: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -51,6 +75,24 @@ export const defaultConfig: SimulationConfig = {
   disasterReliefCostPerProvince: 20,
   publicSpendingEnabled: true,
   monumentBaseCost: 120,
-  almsBaseCost: 50,
   publicSpendingYearlyChance: 0.35,
+  developmentPositiveMonthlyDecay: 0.1,
+  developmentNegativeMonthlyRecovery: 0.25,
+  warConqueredProvinceDevastation: 8,
+  warBorderProvinceDevastation: 3,
+  failedWarBorderDevastation: 3,
+  rebellionStartedDevastation: 2,
+  rebellionSucceededDevastation: 3,
+  rebellionFailedDevastation: 5,
+  famineDevastation: 5,
+  famineReliefDevelopmentRecovery: 2,
+  plagueDevastation: 8,
+  bountifulHarvestDevelopmentGain: 3,
+  countryLandDevelopmentBaseCost: 70,
+  countryLandDevelopmentGain: 8,
+  houseDevelopmentEnabled: true,
+  houseDevelopmentYearlyChance: 0.25,
+  houseLandDevelopmentBaseCost: 40,
+  houseLandDevelopmentGain: 6,
+  houseWealthReserve: 50,
 }

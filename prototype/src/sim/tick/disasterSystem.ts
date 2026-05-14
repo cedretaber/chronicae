@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { clamp100 } from '../utils/math'
+import { clamp, clamp100 } from '../utils/math'
 import type { CountryId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 
@@ -22,10 +22,18 @@ function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
   const unrestDelta = canAffordRelief ? 5 : 15
   const newProvinces = { ...ctx.state.provinces }
 
+  const developmentDelta = canAffordRelief
+    ? ctx.config.famineDevastation - ctx.config.famineReliefDevelopmentRecovery
+    : ctx.config.famineDevastation
+
   for (const pid of countryProvinceIds) {
     const province = newProvinces[pid]
     if (!province) continue
-    newProvinces[pid] = { ...province, unrest: clamp100(province.unrest + unrestDelta) }
+    newProvinces[pid] = {
+      ...province,
+      unrest: clamp100(province.unrest + unrestDelta),
+      development: clamp(province.development - developmentDelta, -100, 100),
+    }
   }
 
   const treasuryAfterRelief = canAffordRelief
@@ -104,7 +112,11 @@ function applyPlague(ctx: TickContext, countryId: CountryId): TickContext {
   for (const pid of countryProvinceIds) {
     const province = newProvinces[pid]
     if (!province) continue
-    newProvinces[pid] = { ...province, unrest: clamp100(province.unrest + 10) }
+    newProvinces[pid] = {
+      ...province,
+      unrest: clamp100(province.unrest + 10),
+      development: clamp(province.development - ctx.config.plagueDevastation, -100, 100),
+    }
   }
 
   const updatedCountry = { ...country, stability: clamp100(country.stability - 8) }
@@ -152,7 +164,15 @@ function applyBountifulHarvest(ctx: TickContext, countryId: CountryId): TickCont
     const province = ctx.state.provinces[pid as ProvinceId]
     if (!province || province.countryId !== countryId) continue
     countryProvinceIds.push(pid as ProvinceId)
-    newProvinces[pid as ProvinceId] = { ...province, unrest: Math.max(0, province.unrest - 5) }
+    newProvinces[pid as ProvinceId] = {
+      ...province,
+      unrest: Math.max(0, province.unrest - 5),
+      development: clamp(
+        province.development + ctx.config.bountifulHarvestDevelopmentGain,
+        -100,
+        100,
+      ),
+    }
   }
 
   const updatedCountry = {
