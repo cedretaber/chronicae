@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId } from '../types/ids'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import type { Person } from '../types/person'
 import type { RoleType } from '../types/role'
 import type { TickContext } from './context'
 import { defaultConfig } from '../config/defaultConfig'
@@ -11,26 +12,17 @@ function makePerson(id: PersonId, admin: number): Person {
   return {
     id,
     name: 'Person-' + id,
+    sex: 'male',
     age: 30,
     alive: true,
     houseId: 'h-0' as HouseId,
     countryId: 'c-0' as CountryId,
+    childIds: [],
+    birthStatus: 'unknown',
     stats: { admin, martial: 5 },
     traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
     prestige: 10,
   }
-}
-
-type Person = {
-  id: PersonId
-  name: string
-  age: number
-  alive: boolean
-  houseId: HouseId
-  countryId: CountryId
-  stats: { admin: number; martial: number }
-  traits: { ambition: number; loyaltyToCountry: number; caution: number }
-  prestige: number
 }
 
 function makeCtx({
@@ -103,6 +95,7 @@ function makeCtx({
         provinceIds: [],
         memberIds: [headPersonId],
         headId: headPersonId,
+        cadetHouseIds: [],
         prestige: rulerHousePrestige,
         cohesion: 60,
         loyaltyToCountry: 70,

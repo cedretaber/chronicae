@@ -1,6 +1,6 @@
 import type { RngState } from '../rng/rng'
 import type { HouseId, CountryId, ProvinceId } from '../types/ids'
-import type { Person } from '../types/person'
+import type { Person, Sex } from '../types/person'
 import { createPersonId } from '../types/ids'
 import { randomFloat, randomInt } from '../rng/rng'
 import { personNamePool, pickName } from './nameGenerators'
@@ -23,64 +23,265 @@ export function generatePersons(
       continue
     }
 
-    for (let i = 0; i < 6; i++) {
-      const id = createPersonId('pe', globalIndex)
+    const { value: oldFatherAge, rng: rngF2 } = randomInt(rng, 55, 75)
 
-      const { value: ageRoll, rng: rollRng } = randomFloat(rng)
-      const rngAfterRoll = rollRng
+    const { value: oldMotherAge, rng: rngM2 } = randomInt(rngF2, 50, 70)
 
-      let age: number
-      if (ageRoll < 0.25) {
-        const result = randomInt(rngAfterRoll, 16, 25)
-        age = result.value
-        rng = result.rng
-      } else if (ageRoll < 0.6) {
-        const result = randomInt(rngAfterRoll, 26, 40)
-        age = result.value
-        rng = result.rng
-      } else if (ageRoll < 0.9) {
-        const result = randomInt(rngAfterRoll, 41, 60)
-        age = result.value
-        rng = result.rng
-      } else {
-        const result = randomInt(rngAfterRoll, 61, 75)
-        age = result.value
-        rng = result.rng
-      }
+    const { value: headAge, rng: rngH1 } = randomInt(rngM2, 30, 50)
 
-      const { value: admin, rng: adminRng } = randomInt(rng, 0, 10)
-      const { value: martial, rng: martialRng } = randomInt(adminRng, 0, 10)
-      const { value: ambition, rng: t1Rng } = randomFloat(martialRng)
-      const { value: loyaltyToCountry, rng: t2Rng } = randomFloat(t1Rng)
-      const { value: caution, rng: t3Rng } = randomFloat(t2Rng)
-      const { value: prestige, rng: finalRng } = randomInt(t3Rng, 0, 30)
-      rng = finalRng
+    const { value: siblingSexRoll, rng: rngS1 } = randomFloat(rngH1)
+    const siblingSexVal: Sex = siblingSexRoll < 0.52 ? 'male' : 'female'
+    const { value: siblingAge, rng: rngS2 } = randomInt(rngS1, 25, 45)
 
-      const { name: pName, rng: nameRng } = pickName(pool, rng)
-      rng = nameRng
+    const { value: spouseAge, rng: rngSp1 } = randomInt(rngS2, 25, 45)
 
-      const person: Person = {
-        id,
-        name: pName,
-        age,
-        alive: true,
-        houseId,
-        countryId,
-        stats: {
-          admin,
-          martial,
-        },
-        traits: {
-          ambition,
-          loyaltyToCountry,
-          caution,
-        },
-        prestige,
-      }
+    const { value: child1SexRoll, rng: rngC1 } = randomFloat(rngSp1)
+    const child1SexVal: Sex = child1SexRoll < 0.52 ? 'male' : 'female'
+    const { value: child1Age, rng: rngC2 } = randomInt(rngC1, 5, 20)
 
-      persons.push(person)
-      globalIndex++
+    const { value: child2SexRoll, rng: rngC3 } = randomFloat(rngC2)
+    const child2SexVal: Sex = child2SexRoll < 0.52 ? 'male' : 'female'
+    const { value: child2Age, rng: rngC4 } = randomInt(rngC3, 0, 18)
+
+    const { value: relativeSexRoll, rng: rngR1 } = randomFloat(rngC4)
+    const relativeSexVal: Sex = relativeSexRoll < 0.52 ? 'male' : 'female'
+    const { value: relativeAge, rng: rngR2 } = randomInt(rngR1, 15, 35)
+    rng = rngR2
+
+    const oldFatherName = pickName(pool, rng).name
+    const { name: oldMotherName, rng: rngOldM } = pickName(pool, rng)
+    const { name: headName, rng: rngH2 } = pickName(pool, rngOldM)
+    const { name: siblingName, rng: rngS3 } = pickName(pool, rngH2)
+    const { name: spouseName, rng: rngSp2 } = pickName(pool, rngS3)
+    const { name: child1Name, rng: rngC5 } = pickName(pool, rngSp2)
+    const { name: child2Name, rng: rngC6 } = pickName(pool, rngC5)
+    const { name: relativeName, rng: rngR3 } = pickName(pool, rngC6)
+    rng = rngR3
+
+    const oldFatherId = createPersonId('pe', globalIndex)
+    globalIndex++
+    const oldMotherId = createPersonId('pe', globalIndex)
+    globalIndex++
+    const headId = createPersonId('pe', globalIndex)
+    globalIndex++
+    const siblingId = createPersonId('pe', globalIndex)
+    globalIndex++
+    const spouseId = createPersonId('pe', globalIndex)
+    globalIndex++
+    const child1Id = createPersonId('pe', globalIndex)
+    globalIndex++
+    const child2Id = createPersonId('pe', globalIndex)
+    globalIndex++
+    const relativeId = createPersonId('pe', globalIndex)
+    globalIndex++
+
+    const oldFather: Person = {
+      id: oldFatherId,
+      name: oldFatherName,
+      sex: 'male',
+      age: oldFatherAge,
+      alive: true,
+      houseId,
+      countryId,
+      childIds: [],
+      birthStatus: 'unknown' as const,
+      stats: {
+        admin: 0,
+        martial: 0,
+      },
+      traits: {
+        ambition: 0,
+        loyaltyToCountry: 0,
+        caution: 0,
+      },
+      prestige: 0,
     }
+
+    const oldMother: Person = {
+      id: oldMotherId,
+      name: oldMotherName,
+      sex: 'female',
+      age: oldMotherAge,
+      alive: true,
+      houseId,
+      countryId,
+      childIds: [],
+      birthStatus: 'unknown' as const,
+      stats: {
+        admin: 0,
+        martial: 0,
+      },
+      traits: {
+        ambition: 0,
+        loyaltyToCountry: 0,
+        caution: 0,
+      },
+      prestige: 0,
+    }
+
+    const head: Person = {
+      id: headId,
+      name: headName,
+      sex: 'male' as const,
+      age: headAge,
+      alive: true,
+      houseId,
+      countryId,
+      fatherId: oldFatherId,
+      motherId: oldMotherId,
+      childIds: [],
+      birthStatus: 'unknown' as const,
+      stats: {
+        admin: 0,
+        martial: 0,
+      },
+      traits: {
+        ambition: 0,
+        loyaltyToCountry: 0,
+        caution: 0,
+      },
+      prestige: 0,
+    }
+
+    const sibling: Person = {
+      id: siblingId,
+      name: siblingName,
+      sex: siblingSexVal,
+      age: siblingAge,
+      alive: true,
+      houseId,
+      countryId,
+      fatherId: oldFatherId,
+      motherId: oldMotherId,
+      childIds: [],
+      birthStatus: 'unknown' as const,
+      stats: {
+        admin: 0,
+        martial: 0,
+      },
+      traits: {
+        ambition: 0,
+        loyaltyToCountry: 0,
+        caution: 0,
+      },
+      prestige: 0,
+    }
+
+    const spouse: Person = {
+      id: spouseId,
+      name: spouseName,
+      sex: 'female' as const,
+      age: spouseAge,
+      alive: true,
+      houseId,
+      countryId,
+      childIds: [],
+      birthStatus: 'unknown' as const,
+      stats: {
+        admin: 0,
+        martial: 0,
+      },
+      traits: {
+        ambition: 0,
+        loyaltyToCountry: 0,
+        caution: 0,
+      },
+      prestige: 0,
+    }
+
+    const child1: Person = {
+      id: child1Id,
+      name: child1Name,
+      sex: child1SexVal,
+      age: child1Age,
+      alive: true,
+      houseId,
+      countryId,
+      fatherId: headId,
+      motherId: spouseId,
+      childIds: [],
+      birthStatus: 'legitimate' as const,
+      stats: {
+        admin: 0,
+        martial: 0,
+      },
+      traits: {
+        ambition: 0,
+        loyaltyToCountry: 0,
+        caution: 0,
+      },
+      prestige: 0,
+    }
+
+    const child2: Person = {
+      id: child2Id,
+      name: child2Name,
+      sex: child2SexVal,
+      age: child2Age,
+      alive: true,
+      houseId,
+      countryId,
+      fatherId: headId,
+      motherId: spouseId,
+      childIds: [],
+      birthStatus: 'legitimate' as const,
+      stats: {
+        admin: 0,
+        martial: 0,
+      },
+      traits: {
+        ambition: 0,
+        loyaltyToCountry: 0,
+        caution: 0,
+      },
+      prestige: 0,
+    }
+
+    const relative: Person = {
+      id: relativeId,
+      name: relativeName,
+      sex: relativeSexVal,
+      age: relativeAge,
+      alive: true,
+      houseId,
+      countryId,
+      childIds: [],
+      birthStatus: 'unknown' as const,
+      stats: {
+        admin: 0,
+        martial: 0,
+      },
+      traits: {
+        ambition: 0,
+        loyaltyToCountry: 0,
+        caution: 0,
+      },
+      prestige: 0,
+    }
+
+    const housePersons = [oldFather, oldMother, head, sibling, spouse, child1, child2, relative]
+    if (
+      !oldFather ||
+      !oldMother ||
+      !head ||
+      !sibling ||
+      !spouse ||
+      !child1 ||
+      !child2 ||
+      !relative
+    ) {
+      throw new Error('Failed to generate house persons')
+    }
+
+    // Set bidirectional relationships
+    head.spouseId = spouse.id
+    spouse.spouseId = head.id
+    head.childIds = [child1.id, child2.id]
+    spouse.childIds = [child1.id, child2.id]
+    oldFather.childIds = [head.id, sibling.id]
+    oldMother.childIds = [head.id, sibling.id]
+
+    persons.push(...housePersons)
   }
 
   return { persons, rng }

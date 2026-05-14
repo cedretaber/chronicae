@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId } from '../types/ids'
 import type { CountryId, ProvinceId } from '../types/ids'
 import type { Country } from '../types/country'
+import type { WorldState } from '../types/world'
 import type { TickContext } from './context'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
@@ -48,7 +49,7 @@ function makeCtx(
     }
   }
 
-  const state = {
+  const state: WorldState = {
     currentYear: 1,
     currentMonth: 1,
     provinces: {},
@@ -62,6 +63,7 @@ function makeCtx(
         provinceIds: [],
         memberIds: [person1Id],
         headId: person1Id,
+        cadetHouseIds: [],
         prestige: 50,
         cohesion: 60,
         loyaltyToCountry: 70,
@@ -73,10 +75,13 @@ function makeCtx(
       [person1Id]: {
         id: person1Id,
         name: 'P0',
+        sex: 'male',
         age: 30,
         alive: true,
         houseId: house1Id,
         countryId: country1Id,
+        childIds: [],
+        birthStatus: 'unknown',
         stats: { admin: 5, martial: 5 },
         traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
         prestige: 10,

@@ -8,6 +8,10 @@ export type House = {
   provinceIds: ProvinceId[]
   memberIds: PersonId[]
   headId: PersonId
+  founderId?: PersonId
+  parentHouseId?: HouseId
+  cadetHouseIds: HouseId[]
+  nameSource?: 'pool' | 'province' | 'founder' | 'fallback'
   prestige: number // 0..100
   cohesion: number // 0..100
   loyaltyToCountry: number // 0..100

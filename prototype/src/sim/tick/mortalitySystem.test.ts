@@ -10,10 +10,13 @@ function makePerson(id: PersonId, age: number, alive: boolean): Person {
   return {
     id,
     name: 'Person-' + id,
+    sex: 'male',
     age,
     alive,
     houseId: 'h-0' as HouseId,
     countryId: 'c-0' as CountryId,
+    childIds: [],
+    birthStatus: 'unknown',
     stats: { admin: 5, martial: 5 },
     traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
     prestige: 10,
@@ -54,6 +57,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
           provinceIds: [],
           memberIds: [person.id],
           headId: person.id,
+          cadetHouseIds: [],
           prestige: 50,
           cohesion: 60,
           loyaltyToCountry: 70,
@@ -154,6 +158,7 @@ describe('runMortalitySystem', () => {
               provinceIds: [],
               memberIds: [head.id, member.id],
               headId: head.id,
+              cadetHouseIds: [],
               prestige: 50,
               cohesion: 60,
               loyaltyToCountry: 70,
@@ -216,6 +221,87 @@ describe('runMortalitySystem', () => {
     }
 
     // If no death occurred with any seed, verify the system ran without error
+    expect(true).toBe(true)
+  })
+
+  it('clears spouse spouseId when person dies', () => {
+    const seedsToTry = Array.from({ length: 101 }, (_, i) => i)
+
+    for (const seed of seedsToTry) {
+      const husband: Person = {
+        ...makePerson('pe-0' as PersonId, 70, true),
+        spouseId: 'pe-1' as PersonId,
+      }
+      const wife: Person = {
+        ...makePerson('pe-1' as PersonId, 60, true),
+        spouseId: 'pe-0' as PersonId,
+      }
+
+      const countryId = 'c-0' as CountryId
+      const houseId = 'h-0' as HouseId
+
+      const personsRecord: Record<PersonId, Person> = {
+        [husband.id]: husband,
+        [wife.id]: wife,
+      }
+
+      const ctx = {
+        state: {
+          currentYear: 1,
+          currentMonth: 1,
+          provinces: {},
+          countries: {
+            [countryId]: {
+              id: countryId,
+              name: 'C0',
+              rulerHouseId: houseId,
+              houseIds: [houseId],
+              treasury: 100,
+              legitimacy: 70,
+              adminPower: 50,
+              stability: 60,
+              roleAssignments: {},
+              active: true,
+              capitalProvinceId: '' as ProvinceId,
+            },
+          },
+          houses: {
+            [houseId]: {
+              id: houseId,
+              name: 'H0',
+              active: true,
+              countryId,
+              provinceIds: [],
+              memberIds: [husband.id, wife.id],
+              headId: husband.id,
+              cadetHouseIds: [],
+              prestige: 50,
+              cohesion: 60,
+              loyaltyToCountry: 70,
+              wealth: 100,
+              seatProvinceId: '' as ProvinceId,
+            },
+          },
+          persons: personsRecord,
+          activePlots: {},
+        } as WorldState,
+        rng: { seedText: 'test', state: seed },
+        config: defaultConfig,
+        events: [],
+        nextEventIndex: 0,
+        nextPersonIndex: 0,
+      }
+
+      const result = runMortalitySystem(ctx)
+
+      const husbandResult = result.state.persons['pe-0' as PersonId]
+      if (husbandResult && !husbandResult.alive) {
+        const wifeResult = result.state.persons['pe-1' as PersonId]
+        expect(wifeResult?.spouseId).toBeUndefined()
+        return
+      }
+    }
+
     expect(true).toBe(true)
   })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import type { Person } from '../types/person'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import { defaultConfig } from '../config/defaultConfig'
@@ -16,26 +17,17 @@ function makePerson(
   return {
     id,
     name: 'Person-' + id,
+    sex: 'male',
     age: 30,
     alive: true,
     houseId: 'h-0' as HouseId,
     countryId: 'c-0' as CountryId,
+    childIds: [],
+    birthStatus: 'unknown',
     stats: { admin: 5, martial: 5 },
     traits: { ambition, loyaltyToCountry, caution },
     prestige: 10,
   }
-}
-
-type Person = {
-  id: PersonId
-  name: string
-  age: number
-  alive: boolean
-  houseId: HouseId
-  countryId: CountryId
-  stats: { admin: number; martial: number }
-  traits: { ambition: number; loyaltyToCountry: number; caution: number }
-  prestige: number
 }
 
 function makeFixture(): {
@@ -114,6 +106,7 @@ function makeFixture(): {
         provinceIds: [province1Id, province2Id],
         memberIds: [headId],
         headId,
+        cadetHouseIds: [],
         prestige: 40,
         cohesion: 60,
         loyaltyToCountry: 60,

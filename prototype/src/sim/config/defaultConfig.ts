@@ -73,7 +73,7 @@ export type SimulationConfig = {
   houseLandDevelopmentBaseCost: number
   houseLandDevelopmentGain: number
   houseWealthReserve: number
-  // v0.6 Person Ability Effects
+  // v0.7 Person Ability Effects
   personAbilityEffectsEnabled: boolean
   chancellorAdminControlGrowthEffect: number
   chancellorAdminControlMaxBonusPerAdmin: number
@@ -96,6 +96,70 @@ export type SimulationConfig = {
   houseHeadAdminDevelopmentChanceEffect: number
   houseHeadCautionDevelopmentChanceEffect: number
   controlAbilityMinimumFloor: number
+  // v0.7 Marriage
+  marriageEnabled: boolean
+  marriageMaleMinAge: number
+  marriageMaleMaxAge: number
+  marriageFemaleMinAge: number
+  marriageFemaleMaxAge: number
+  marriageYearlyChance: number
+  sameCountryMarriageBonus: number
+  differentCountryMarriagePenalty: number
+  // v0.7 Birth
+  birthEnabled: boolean
+  fatherMinChildAge: number
+  fatherMaxChildAge: number
+  motherMinChildAge: number
+  motherMaxChildAge: number
+  baseBirthChancePerMalePerYear: number
+  spouseMotherChance: number
+  maleBirthChance: number
+  maleBirthChanceWhenAdultMaleShortage: number
+  targetLivingPersons: number
+  criticalLivingPersons: number
+  lowPopulationBirthMultiplier: number
+  criticalPopulationBirthMultiplier: number
+  // v0.7 Succession
+  adultAge: number
+  allowFemaleHouseHeadWhenNoMaleHeir: boolean
+  minorHeadCohesionPenaltyPerMonth: number
+  minorHeadLoyaltyPenaltyPerMonth: number
+  prestigeSuccessionWeight: number
+  adminSuccessionWeight: number
+  martialSuccessionWeight: number
+  ambitionSuccessionWeight: number
+  randomSuccessionNoiseMax: number
+  illegitimateSuccessionPenalty: number
+  unknownBirthStatusSuccessionPenalty: number
+  successionCrisisScoreGap: number
+  // v0.7 House Split
+  houseSplitEnabled: boolean
+  minProvincesForHouseSplit: number
+  houseSplitCohesionThreshold: number
+  baseHouseSplitChance: number
+  houseSplitAmbitionFactor: number
+  houseSplitPrestigeFactor: number
+  houseSplitMartialFactor: number
+  houseSplitCohesionFactor: number
+  houseSplitControlMultiplier: number
+  houseSplitControlMin: number
+  houseSplitControlMax: number
+  houseSplitUnrestGain: number
+  houseSplitWealthShare: number
+  // v0.7 House Extinction
+  houseExtinctionEnabled: boolean
+  inheritedProvinceHouseControl: number
+  extinctionUnrestGain: number
+  rulerHouseExtinctionEnabled: boolean
+  rulerHouseExtinctionLegitimacyLoss: number
+  rulerHouseExtinctionStabilityLoss: number
+  annexByRulerExtinctionCountryControl: number
+  rulerExtinctionAnnexSharedBorderWeight: number
+  rulerExtinctionAnnexPowerWeight: number
+  rulerExtinctionAnnexLegitimacyWeight: number
+  rulerExtinctionAnnexStabilityWeight: number
+  // v0.7 Role
+  allowFemaleRolesWhenNoMaleCandidate: boolean
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -187,4 +251,68 @@ export const defaultConfig: SimulationConfig = {
   houseHeadAdminDevelopmentChanceEffect: 0.1,
   houseHeadCautionDevelopmentChanceEffect: 0.1,
   controlAbilityMinimumFloor: 35,
+  // v0.7 Marriage
+  marriageEnabled: true,
+  marriageMaleMinAge: 16,
+  marriageMaleMaxAge: 60,
+  marriageFemaleMinAge: 15,
+  marriageFemaleMaxAge: 45,
+  marriageYearlyChance: 0.08,
+  sameCountryMarriageBonus: 0.1,
+  differentCountryMarriagePenalty: 0.05,
+  // v0.7 Birth
+  birthEnabled: true,
+  fatherMinChildAge: 15,
+  fatherMaxChildAge: 60,
+  motherMinChildAge: 15,
+  motherMaxChildAge: 45,
+  baseBirthChancePerMalePerYear: 0.06,
+  spouseMotherChance: 0.9,
+  maleBirthChance: 0.52,
+  maleBirthChanceWhenAdultMaleShortage: 0.65,
+  targetLivingPersons: 180,
+  criticalLivingPersons: 90,
+  lowPopulationBirthMultiplier: 1.5,
+  criticalPopulationBirthMultiplier: 3.0,
+  // v0.7 Succession
+  adultAge: 15,
+  allowFemaleHouseHeadWhenNoMaleHeir: true,
+  minorHeadCohesionPenaltyPerMonth: 0.5,
+  minorHeadLoyaltyPenaltyPerMonth: 0.3,
+  prestigeSuccessionWeight: 1.0,
+  adminSuccessionWeight: 2.0,
+  martialSuccessionWeight: 1.0,
+  ambitionSuccessionWeight: 10.0,
+  randomSuccessionNoiseMax: 10.0,
+  illegitimateSuccessionPenalty: 20,
+  unknownBirthStatusSuccessionPenalty: 10,
+  successionCrisisScoreGap: 10,
+  // v0.7 House Split
+  houseSplitEnabled: true,
+  minProvincesForHouseSplit: 3,
+  houseSplitCohesionThreshold: 60,
+  baseHouseSplitChance: 0.1,
+  houseSplitAmbitionFactor: 0.25,
+  houseSplitPrestigeFactor: 0.002,
+  houseSplitMartialFactor: 0.02,
+  houseSplitCohesionFactor: 0.003,
+  houseSplitControlMultiplier: 0.7,
+  houseSplitControlMin: 30,
+  houseSplitControlMax: 80,
+  houseSplitUnrestGain: 5,
+  houseSplitWealthShare: 0.25,
+  // v0.7 House Extinction
+  houseExtinctionEnabled: true,
+  inheritedProvinceHouseControl: 35,
+  extinctionUnrestGain: 8,
+  rulerHouseExtinctionEnabled: true,
+  rulerHouseExtinctionLegitimacyLoss: 15,
+  rulerHouseExtinctionStabilityLoss: 10,
+  annexByRulerExtinctionCountryControl: 30,
+  rulerExtinctionAnnexSharedBorderWeight: 20,
+  rulerExtinctionAnnexPowerWeight: 0.5,
+  rulerExtinctionAnnexLegitimacyWeight: 0.2,
+  rulerExtinctionAnnexStabilityWeight: 0.2,
+  // v0.7 Role
+  allowFemaleRolesWhenNoMaleCandidate: true,
 }

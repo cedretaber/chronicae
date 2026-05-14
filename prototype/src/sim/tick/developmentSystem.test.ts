@@ -56,6 +56,7 @@ function makeProvinceState(development: number): WorldState {
         provinceIds: [provinceId],
         memberIds: [],
         headId,
+        cadetHouseIds: [],
         prestige: 50,
         cohesion: 60,
         loyaltyToCountry: 70,

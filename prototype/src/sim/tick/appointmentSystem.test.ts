@@ -51,6 +51,7 @@ function makeBaseState(): {
         provinceIds: [],
         memberIds: [personRulerId],
         headId: personRulerId,
+        cadetHouseIds: [],
         prestige: 50,
         cohesion: 50,
         loyaltyToCountry: 50,
@@ -65,6 +66,7 @@ function makeBaseState(): {
         provinceIds: [],
         memberIds: [personVassalId],
         headId: personVassalId,
+        cadetHouseIds: [],
         prestige: 50,
         cohesion: 50,
         loyaltyToCountry: 50,
@@ -76,10 +78,13 @@ function makeBaseState(): {
       [personRulerId]: {
         id: personRulerId,
         name: 'Ruler Person',
+        sex: 'male',
         age: 30,
         alive: true,
         houseId: houseRulerId,
         countryId,
+        childIds: [],
+        birthStatus: 'unknown',
         stats: { admin: 7, martial: 5 },
         traits: { ambition: 0.3, loyaltyToCountry: 0.8, caution: 0.5 },
         prestige: 30,
@@ -87,10 +92,13 @@ function makeBaseState(): {
       [personVassalId]: {
         id: personVassalId,
         name: 'Vassal Person',
+        sex: 'male',
         age: 35,
         alive: true,
         houseId: houseVassalId,
         countryId,
+        childIds: [],
+        birthStatus: 'unknown',
         stats: { admin: 9, martial: 6 },
         traits: { ambition: 0.2, loyaltyToCountry: 0.9, caution: 0.6 },
         prestige: 40,
@@ -231,5 +239,80 @@ describe('runAppointmentSystem', () => {
     expect(countEvents(result.events, 'ROLE_REVOKED')).toBe(0)
     // p-1 gets chancellor (only alive candidate)
     expect(countEvents(result.events, 'ROLE_ASSIGNED')).toBe(1)
+  })
+
+  it('prefers male candidates over female candidates', () => {
+    const base = makeBaseState()
+    const state: WorldState = {
+      ...base.state,
+      persons: {
+        ...base.state.persons,
+        [base.personVassalId]: {
+          ...base.state.persons[base.personVassalId]!,
+          sex: 'female',
+        },
+        [base.personRulerId]: {
+          ...base.state.persons[base.personRulerId]!,
+          stats: { admin: 10, martial: 5 },
+        },
+      },
+    }
+    const config = { ...defaultConfig }
+    const ctx = buildCtx(state, config)
+
+    const result = toResult(runAppointmentSystem(ctx))
+
+    const country = result.state.countries[base.countryId]!
+    expect(country.roleAssignments.chancellor).toBe(base.personRulerId)
+  })
+
+  it('uses female candidates when no male candidates and allowFemaleRolesWhenNoMaleCandidate=true', () => {
+    const base = makeBaseState()
+    const state: WorldState = {
+      ...base.state,
+      persons: {
+        ...base.state.persons,
+        [base.personRulerId]: {
+          ...base.state.persons[base.personRulerId]!,
+          sex: 'female',
+        },
+        [base.personVassalId]: {
+          ...base.state.persons[base.personVassalId]!,
+          sex: 'female',
+        },
+      },
+    }
+    const config = { ...defaultConfig, allowFemaleRolesWhenNoMaleCandidate: true }
+    const ctx = buildCtx(state, config)
+
+    const result = toResult(runAppointmentSystem(ctx))
+
+    const country = result.state.countries[base.countryId]!
+    expect(country.roleAssignments.chancellor).toBe(base.personVassalId)
+  })
+
+  it('excludes female candidates when allowFemaleRolesWhenNoMaleCandidate=false', () => {
+    const base = makeBaseState()
+    const state: WorldState = {
+      ...base.state,
+      persons: {
+        ...base.state.persons,
+        [base.personRulerId]: {
+          ...base.state.persons[base.personRulerId]!,
+          sex: 'female',
+        },
+        [base.personVassalId]: {
+          ...base.state.persons[base.personVassalId]!,
+          sex: 'female',
+        },
+      },
+    }
+    const config = { ...defaultConfig, allowFemaleRolesWhenNoMaleCandidate: false }
+    const ctx = buildCtx(state, config)
+
+    const result = toResult(runAppointmentSystem(ctx))
+
+    const country = result.state.countries[base.countryId]!
+    expect(country.roleAssignments.chancellor).toBeUndefined()
   })
 })

@@ -162,5 +162,89 @@ export function runIntegrityCheck(ctx: TickContext): TickContext {
     }
   }
 
+  // 12. sex field is valid
+  for (const personId of Object.keys(state.persons).sort()) {
+    const person = state.persons[personId as PersonId]
+    if (!person) continue
+    if (person.sex !== 'male' && person.sex !== 'female') {
+      throw new Error('Person ' + personId + ' has invalid sex: ' + (person.sex as string))
+    }
+  }
+
+  // 13. spouse relationship is bidirectional and valid (alive persons only)
+  for (const personId of Object.keys(state.persons).sort()) {
+    const person = state.persons[personId as PersonId]
+    if (!person || !person.alive || person.spouseId === undefined) continue
+
+    if ((person.id as string) === (person.spouseId as string)) {
+      throw new Error('Person ' + personId + ' is their own spouse')
+    }
+    const spouse = state.persons[person.spouseId]
+    if (!spouse) {
+      throw new Error('Person ' + personId + ' spouseId ' + person.spouseId + ' not found')
+    }
+    if ((spouse.spouseId as string | undefined) !== (person.id as string)) {
+      throw new Error('Person ' + personId + ' spouse ' + person.spouseId + ' does not point back')
+    }
+  }
+
+  // 14. living person's spouseId does not point to a dead person
+  for (const personId of Object.keys(state.persons).sort()) {
+    const person = state.persons[personId as PersonId]
+    if (!person || !person.alive) continue
+    if (person.spouseId === undefined) continue
+
+    const spouse = state.persons[person.spouseId]
+    if (spouse && !spouse.alive) {
+      throw new Error('Alive person ' + personId + ' spouseId ' + person.spouseId + ' is dead')
+    }
+  }
+
+  // 15. parent-child relationships are bidirectional
+  for (const personId of Object.keys(state.persons).sort()) {
+    const person = state.persons[personId as PersonId]
+    if (!person) continue
+
+    if (person.fatherId !== undefined) {
+      const father = state.persons[person.fatherId]
+      if (!father) {
+        throw new Error('Person ' + personId + ' fatherId ' + person.fatherId + ' not found')
+      }
+      if (father.sex !== 'male') {
+        throw new Error('Person ' + personId + ' father is not male')
+      }
+      if (!father.childIds.some((cid) => (cid as string) === (person.id as string))) {
+        throw new Error('Father ' + person.fatherId + ' missing child ' + personId)
+      }
+    }
+
+    if (person.motherId !== undefined) {
+      const mother = state.persons[person.motherId]
+      if (!mother) {
+        throw new Error('Person ' + personId + ' motherId ' + person.motherId + ' not found')
+      }
+      if (mother.sex !== 'female') {
+        throw new Error('Person ' + personId + ' mother is not female')
+      }
+      if (!mother.childIds.some((cid) => (cid as string) === (person.id as string))) {
+        throw new Error('Mother ' + person.motherId + ' missing child ' + personId)
+      }
+    }
+  }
+
+  // 16. house cadet relationships are bidirectional
+  for (const houseId of Object.keys(state.houses).sort()) {
+    const house = state.houses[houseId as HouseId]
+    if (!house || house.parentHouseId === undefined) continue
+
+    const parent = state.houses[house.parentHouseId]
+    if (!parent) {
+      throw new Error('House ' + houseId + ' parentHouseId ' + house.parentHouseId + ' not found')
+    }
+    if (!parent.cadetHouseIds.some((cid) => (cid as string) === houseId)) {
+      throw new Error('Parent house ' + house.parentHouseId + ' missing cadet ' + houseId)
+    }
+  }
+
   return ctx
 }

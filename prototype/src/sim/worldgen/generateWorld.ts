@@ -118,15 +118,19 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
 
     const countryId = houseCountry.get(houseId)
 
-    const candidates = persons
-      .filter((p) => p.houseId === houseId && p.alive && p.age >= 30)
+    // First try adult males
+    const adultMaleCandidates = persons
+      .filter(
+        (p) =>
+          p.houseId === houseId && p.alive && p.sex === 'male' && p.age >= defaultConfig.adultAge,
+      )
       .sort((a, b) => a.id.localeCompare(b.id))
 
     let headId: PersonId | undefined
-    if (candidates.length > 0) {
+    if (adultMaleCandidates.length > 0) {
       let bestScore = -Infinity
       let bestPerson: Person | undefined
-      for (const c of candidates) {
+      for (const c of adultMaleCandidates) {
         const score = c.prestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
         if (score > bestScore) {
           bestScore = score
@@ -136,6 +140,33 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       headId = bestPerson?.id
     }
 
+    // Then adult females
+    if (!headId) {
+      const adultFemaleCandidates = persons
+        .filter(
+          (p) =>
+            p.houseId === houseId &&
+            p.alive &&
+            p.sex === 'female' &&
+            p.age >= defaultConfig.adultAge,
+        )
+        .sort((a, b) => a.id.localeCompare(b.id))
+
+      if (adultFemaleCandidates.length > 0) {
+        let bestScore = -Infinity
+        let bestPerson: Person | undefined
+        for (const c of adultFemaleCandidates) {
+          const score = c.prestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+          if (score > bestScore) {
+            bestScore = score
+            bestPerson = c
+          }
+        }
+        headId = bestPerson?.id
+      }
+    }
+
+    // Then oldest
     if (!headId) {
       const allPersons = persons
         .filter((p) => p.houseId === houseId)
@@ -162,6 +193,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       provinceIds,
       memberIds,
       headId: headId ?? memberIds[0] ?? ('' as PersonId),
+      cadetHouseIds: [],
       prestige,
       cohesion,
       loyaltyToCountry,

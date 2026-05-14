@@ -1,12 +1,21 @@
 import type { PersonId, HouseId, CountryId } from './ids'
 
+export type Sex = 'male' | 'female'
+export type BirthStatus = 'legitimate' | 'illegitimate' | 'unknown'
+
 export type Person = {
   id: PersonId
   name: string
+  sex: Sex
   age: number
   alive: boolean
   houseId: HouseId
   countryId: CountryId
+  fatherId?: PersonId
+  motherId?: PersonId
+  spouseId?: PersonId
+  childIds: PersonId[]
+  birthStatus: BirthStatus
   stats: {
     admin: number // 0..10
     martial: number // 0..10

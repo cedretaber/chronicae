@@ -67,18 +67,31 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
       const currentRoleHolderId = updatedCountry.roleAssignments[role]
 
       // Step 3b: Find candidates
-      const candidateIds: string[] = []
+      const maleCandidateIds: string[] = []
+      const femaleCandidateIds: string[] = []
       for (const personId of Object.keys(currentCtx.state.persons).sort()) {
         const person = currentCtx.state.persons[personId as PersonId]
         if (!person) continue
         if (person.countryId !== updatedCountry.id) continue
         if (!person.alive) continue
+        if (person.age < currentCtx.config.adultAge) continue
         const house = currentCtx.state.houses[person.houseId]
         if (!house || !house.active) continue
         const existingRole = getPersonRole(currentCtx.state, person.id)
         if (existingRole !== null) continue
-        candidateIds.push(personId)
+        if (person.sex === 'male') {
+          maleCandidateIds.push(personId)
+        } else {
+          femaleCandidateIds.push(personId)
+        }
       }
+
+      const candidateIds: string[] =
+        maleCandidateIds.length > 0
+          ? maleCandidateIds
+          : currentCtx.config.allowFemaleRolesWhenNoMaleCandidate
+            ? femaleCandidateIds
+            : []
 
       // Compute scores for candidates
       let bestCandidateId: PersonId | null = null

@@ -1,120 +1,161 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
-import { transferProvinceToHouse } from '../mutations/transferProvince'
-import type { HouseId, PersonId } from '../types/ids'
+import {
+  needsSuccession,
+  getAdultSuccessionCandidates,
+  getMinorSuccessionCandidates,
+  chooseSuccessor,
+} from '../selectors/successionSelectors'
+import { setHouseHead } from '../mutations/houseMutations'
+import { maybeSplitHouseAfterSuccession } from './houseSplitSystem'
+import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
+import type { HouseId } from '../types/ids'
 import type { SimEvent } from '../types/event'
+import type { SuccessionCandidate } from '../selectors/successionSelectors'
 
 export function runSuccessionSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
-  for (const houseId of Object.keys(ctx.state.houses).sort()) {
+  for (const houseId of Object.keys(currentCtx.state.houses).sort()) {
     const house = currentCtx.state.houses[houseId as HouseId]
     if (!house || !house.active) continue
 
-    const headPerson = currentCtx.state.persons[house.headId]
-    if (headPerson && headPerson.alive) continue
+    if (!needsSuccession(currentCtx.state, house)) continue
 
-    const candidates = house.memberIds
-      .filter((id: PersonId) => currentCtx.state.persons[id]?.alive === true)
-      .sort()
+    currentCtx = resolveHouseSuccession(currentCtx, houseId as HouseId)
+  }
 
-    if (candidates.length === 0) {
-      const country = currentCtx.state.countries[house.countryId]
-      if (!country) continue
+  return currentCtx
+}
 
-      const rulerHouseId = country.rulerHouseId
-      const sortedProvinceIds = house.provinceIds.slice().sort()
+function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext {
+  const house = ctx.state.houses[houseId]
+  if (!house) return ctx
 
-      let chainState = currentCtx.state
-      for (const pid of sortedProvinceIds) {
-        chainState = transferProvinceToHouse(chainState, pid, rulerHouseId)
-      }
+  const adultCandidates = getAdultSuccessionCandidates(ctx.state, house, ctx.config)
 
-      const newHouses = { ...chainState.houses }
-      const extinctHouse = newHouses[house.id]
-      if (!extinctHouse) continue
-      newHouses[house.id] = { ...extinctHouse, active: false }
+  if (adultCandidates.length === 0) {
+    const minorCandidates = getMinorSuccessionCandidates(ctx.state, house, ctx.config)
 
-      const newCountries = { ...chainState.countries }
-      const targetCountry = newCountries[house.countryId]
-      if (targetCountry) {
-        newCountries[house.countryId] = {
-          ...targetCountry,
-          houseIds: targetCountry.houseIds.filter((id: HouseId) => id !== house.id),
-        }
-      }
+    if (minorCandidates.length > 0) {
+      const oldestMinor = minorCandidates[0]
+      if (!oldestMinor) return extinctHouseAfterFailedSuccession(ctx, houseId)
 
-      const newState = { ...chainState, houses: newHouses, countries: newCountries }
-
-      const { id: eventId, ctx: eventCtx } = makeEventId({ ...currentCtx, state: newState })
-      const event: SimEvent = {
-        id: eventId,
-        year: newState.currentYear,
-        month: newState.currentMonth,
-        type: 'HOUSE_EXTINCT',
-        importance: 'major',
-        actorIds: [],
-        houseIds: [house.id],
-        countryIds: [house.countryId],
-        provinceIds: [...house.provinceIds],
-        summary: house.name + ' has become extinct.',
-        reasons: [],
-        effects: [],
-      }
-
-      currentCtx = { ...eventCtx, state: newState, events: [...eventCtx.events, event] }
-      continue
-    }
-
-    let bestCandidate: PersonId | null = null
-    let bestScore = -Infinity
-
-    for (const candidateId of candidates) {
-      const candidate = currentCtx.state.persons[candidateId]
-      if (!candidate) continue
-
-      const score =
-        candidate.age * 0.2 +
-        candidate.prestige * 0.5 +
-        candidate.stats.admin * 2 +
-        candidate.stats.martial * 2 +
-        candidate.traits.ambition * 5
-
-      if (score > bestScore) {
-        bestScore = score
-        bestCandidate = candidateId
-      }
-    }
-
-    if (bestCandidate !== null) {
-      const bestPerson = currentCtx.state.persons[bestCandidate]
-      if (!bestPerson) continue
-
-      const newHouses = { ...currentCtx.state.houses }
-      const updatedHouse = newHouses[house.id]
-      if (!updatedHouse) continue
-      newHouses[house.id] = { ...updatedHouse, headId: bestCandidate }
-
-      const newState = { ...currentCtx.state, houses: newHouses }
-
-      const { id: eventId, ctx: eventCtx } = makeEventId({ ...currentCtx, state: newState })
+      const newState = setHouseHead(ctx.state, houseId, oldestMinor.id)
+      const { id: eventId, ctx: eventCtx } = makeEventId({ ...ctx, state: newState })
       const event: SimEvent = {
         id: eventId,
         year: newState.currentYear,
         month: newState.currentMonth,
         type: 'HOUSE_HEAD_CHANGED',
         importance: 'normal',
-        actorIds: [bestCandidate],
-        houseIds: [house.id],
+        actorIds: [oldestMinor.id],
+        houseIds: [houseId],
         countryIds: [house.countryId],
         provinceIds: [],
-        summary: bestPerson.name + ' has become the new head of ' + house.name + '.',
+        summary: oldestMinor.name + ' has become the new head of ' + house.name + '.',
         reasons: [],
         effects: [],
       }
 
-      currentCtx = { ...eventCtx, state: newState, events: [...eventCtx.events, event] }
+      return { ...eventCtx, state: newState, events: [...eventCtx.events, event] }
     }
+
+    return extinctHouseAfterFailedSuccession(ctx, houseId)
+  }
+
+  const successor = chooseSuccessor(adultCandidates)
+
+  const newStateAfterHead = setHouseHead(ctx.state, houseId, successor.person.id)
+  const { id: eventId, ctx: eventCtx } = makeEventId({ ...ctx, state: newStateAfterHead })
+  const event: SimEvent = {
+    id: eventId,
+    year: newStateAfterHead.currentYear,
+    month: newStateAfterHead.currentMonth,
+    type: 'HOUSE_HEAD_CHANGED',
+    importance: 'normal',
+    actorIds: [successor.person.id],
+    houseIds: [houseId],
+    countryIds: [house.countryId],
+    provinceIds: [],
+    summary: successor.person.name + ' has become the new head of ' + house.name + '.',
+    reasons: [],
+    effects: [],
+  }
+
+  let resultCtx: TickContext = {
+    ...eventCtx,
+    state: newStateAfterHead,
+    events: [...eventCtx.events, event],
+  }
+
+  if (adultCandidates.length >= 2) {
+    const secondCandidate = adultCandidates[1]
+    if (
+      secondCandidate &&
+      successor.score - secondCandidate.score <= ctx.config.successionCrisisScoreGap
+    ) {
+      const { id: crisisId, ctx: crisisCtx } = makeEventId(resultCtx)
+      const crisisEvent: SimEvent = {
+        id: crisisId,
+        year: resultCtx.state.currentYear,
+        month: resultCtx.state.currentMonth,
+        type: 'SUCCESSION_CRISIS',
+        importance: 'major',
+        actorIds: [successor.person.id],
+        houseIds: [houseId],
+        countryIds: [house.countryId],
+        provinceIds: [],
+        summary: 'A succession crisis has erupted in ' + house.name + '!',
+        reasons: [],
+        effects: [],
+      }
+      resultCtx = {
+        ...crisisCtx,
+        state: resultCtx.state,
+        events: [...crisisCtx.events, crisisEvent],
+      }
+    }
+  }
+
+  const splitCandidates: SuccessionCandidate[] = adultCandidates.filter(
+    (c) => c.person.id !== successor.person.id,
+  )
+
+  return maybeSplitHouseAfterSuccession(resultCtx, {
+    houseId,
+    successorId: successor.person.id,
+    splitCandidates,
+  })
+}
+
+export function applyMinorHeadPenalties(ctx: TickContext): TickContext {
+  let currentCtx = ctx
+
+  for (const houseId of Object.keys(currentCtx.state.houses).sort()) {
+    const house = currentCtx.state.houses[houseId as HouseId]
+    if (!house || !house.active || !house.headId) continue
+
+    const headPerson = currentCtx.state.persons[house.headId]
+    if (!headPerson || headPerson.age >= currentCtx.config.adultAge) continue
+
+    const newCohesion = Math.max(
+      0,
+      house.cohesion - currentCtx.config.minorHeadCohesionPenaltyPerMonth,
+    )
+    const newLoyalty = Math.max(
+      0,
+      house.loyaltyToCountry - currentCtx.config.minorHeadLoyaltyPenaltyPerMonth,
+    )
+
+    const newHouses = { ...currentCtx.state.houses }
+    newHouses[houseId as HouseId] = {
+      ...house,
+      cohesion: newCohesion,
+      loyaltyToCountry: newLoyalty,
+    }
+
+    currentCtx = { ...currentCtx, state: { ...currentCtx.state, houses: newHouses } }
   }
 
   return currentCtx

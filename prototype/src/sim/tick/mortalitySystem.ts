@@ -21,6 +21,17 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
     if (deathCheck < deathRate) {
       const newPersons = { ...currentCtx.state.persons }
       newPersons[personId as PersonId] = { ...person, alive: false }
+
+      if (person.spouseId !== undefined) {
+        const spouseId = person.spouseId
+        const spouse = newPersons[spouseId]
+        if (spouse && spouse.alive) {
+          const { spouseId: _sid, ...spouseRest } = spouse
+          void _sid
+          newPersons[spouseId] = spouseRest
+        }
+      }
+
       let currentState = { ...currentCtx.state, persons: newPersons }
 
       let roleFound: { countryId: CountryId; role: 'chancellor' | 'general' | 'treasurer' } | null =

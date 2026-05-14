@@ -15,11 +15,10 @@ describe('generateWorld', () => {
     expect(Object.keys(world.houses).length).toEqual(15)
   })
 
-  it('has correct person count: 90 persons', () => {
+  it('has correct person count: 120 persons (8 per house)', () => {
     const { world } = generateWorld('test-seed')
     const count = Object.keys(world.persons).length
-    expect(count).toBeGreaterThanOrEqual(85)
-    expect(count).toBeLessThanOrEqual(95)
+    expect(count).toBe(120)
   })
 
   describe('consistency checks', () => {

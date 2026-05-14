@@ -4,8 +4,9 @@ import { runDevelopmentSystem } from './developmentSystem'
 import { runEconomySystem } from './economySystem'
 import { runDisasterSystem } from './disasterSystem'
 import { runMortalitySystem } from './mortalitySystem'
-import { runEmergenceSystem } from './emergenceSystem'
 import { runSuccessionSystem } from './successionSystem'
+import { runMarriageSystem } from './marriageSystem'
+import { runBirthSystem } from './birthSystem'
 import { runAppointmentSystem } from './appointmentSystem'
 import { runAmbitionSystem } from './ambitionSystem'
 import { runPublicSpendingSystem } from './publicSpendingSystem'
@@ -28,8 +29,9 @@ export function tick(input: TickInput): TickResult {
   ctx = runEconomySystem(ctx)
   ctx = runDisasterSystem(ctx)
   ctx = runMortalitySystem(ctx)
-  ctx = runEmergenceSystem(ctx)
   ctx = runSuccessionSystem(ctx)
+  ctx = runMarriageSystem(ctx)
+  ctx = runBirthSystem(ctx)
   ctx = runAppointmentSystem(ctx)
   ctx = runAmbitionSystem(ctx)
   ctx = runPublicSpendingSystem(ctx)

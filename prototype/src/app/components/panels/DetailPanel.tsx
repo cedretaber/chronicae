@@ -339,6 +339,25 @@ function HouseDetail({
         </div>
       </div>
 
+      {house.founderId !== undefined && (
+        <div className="flex justify-between">
+          <span className="text-gray-400">Founder:</span>
+          <span>{currentState?.persons?.[house.founderId]?.name ?? house.founderId}</span>
+        </div>
+      )}
+      {house.parentHouseId !== undefined && (
+        <div className="flex justify-between">
+          <span className="text-gray-400">Parent House:</span>
+          <span>{currentState?.houses?.[house.parentHouseId]?.name ?? house.parentHouseId}</span>
+        </div>
+      )}
+      {house.cadetHouseIds.length > 0 && (
+        <div className="flex justify-between">
+          <span className="text-gray-400">Cadet Houses:</span>
+          <span>{house.cadetHouseIds.length}</span>
+        </div>
+      )}
+
       {recentEvents.length > 0 && (
         <div>
           <div className="text-sm font-semibold text-gray-300">Recent Events:</div>
@@ -423,6 +442,20 @@ function PersonDetail({
           />
         </div>
         <div className="flex justify-between">
+          <span className="text-gray-400">Sex:</span>
+          <span>{person.sex === 'male' ? 'Male' : person.sex === 'female' ? 'Female' : '—'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Birth Status:</span>
+          <span>
+            {person.birthStatus === 'legitimate'
+              ? 'Legitimate'
+              : person.birthStatus === 'illegitimate'
+                ? 'Illegitimate'
+                : 'Unknown'}
+          </span>
+        </div>
+        <div className="flex justify-between">
           <span className="text-gray-400">Role:</span>
           <span>{role ? roleLabels[role] : <span className="text-gray-500">\u2014</span>}</span>
         </div>
@@ -461,6 +494,40 @@ function PersonDetail({
           <span className="text-gray-400">Caution:</span>
           <span>{person.traits.caution.toFixed(2)}</span>
         </div>
+      </div>
+
+      <div className="text-sm font-semibold text-gray-300">Family:</div>
+      <div className="text-sm">
+        {person.fatherId !== undefined && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Father:</span>
+            <span>{currentState?.persons?.[person.fatherId]?.name ?? person.fatherId}</span>
+          </div>
+        )}
+        {person.motherId !== undefined && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Mother:</span>
+            <span>{currentState?.persons?.[person.motherId]?.name ?? person.motherId}</span>
+          </div>
+        )}
+        {person.spouseId !== undefined && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Spouse:</span>
+            <span>{currentState?.persons?.[person.spouseId]?.name ?? person.spouseId}</span>
+          </div>
+        )}
+        {person.childIds.length > 0 && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Children:</span>
+            <span>
+              {person.childIds
+                .slice(0, 3)
+                .map((cid) => currentState?.persons?.[cid]?.name ?? cid)
+                .join(', ')}
+              {person.childIds.length > 3 ? ` +${person.childIds.length - 3}` : ''}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )
