@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import { makeEventId, makePersonId } from './context'
 import { randomFloat, randomInt } from '../rng/rng'
-import { personName } from '../worldgen/nameGenerators'
+import { personNamePool, pickName } from '../worldgen/nameGenerators'
 import type { Person } from '../types/person'
 import type { PersonId, HouseId, CountryId } from '../types/ids'
 import type { SimEvent } from '../types/event'
@@ -61,14 +61,14 @@ export function runEmergenceSystem(ctx: TickContext): TickContext {
     const { value: rngLoyalty, rng: rng5 } = randomFloat(rng4)
     const { value: rngCautious, rng: rng6 } = randomFloat(rng5)
     const { value: rngPrestige, rng: rng7 } = randomInt(rng6, 10, 25)
+    const { name, rng: rng8 } = pickName(personNamePool(), rng7)
 
-    const name = personName(currentCtx.nextPersonIndex)
     const {
       person,
       personId,
       updatedCtx: updatedCtx1,
     } = createPerson(
-      currentCtx,
+      { ...currentCtx, rng: rng8 },
       name,
       rngAge,
       rngAdmin,
@@ -133,14 +133,14 @@ export function runEmergenceSystem(ctx: TickContext): TickContext {
         const { value: rngLoyalty, rng: rng5 } = randomFloat(rng4)
         const { value: rngCautious, rng: rng6 } = randomFloat(rng5)
         const { value: rngPrestige, rng: rng7 } = randomInt(rng6, 0, 10)
+        const { name, rng: rng8 } = pickName(personNamePool(), rng7)
 
-        const name = personName(currentCtx.nextPersonIndex)
         const {
           person,
           personId,
           updatedCtx: updatedCtx1,
         } = createPerson(
-          currentCtx,
+          { ...currentCtx, rng: rng8 },
           name,
           rngAge,
           rngAdmin,
