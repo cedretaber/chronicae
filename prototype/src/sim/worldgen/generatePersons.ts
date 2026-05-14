@@ -3,7 +3,7 @@ import type { HouseId, CountryId, ProvinceId } from '../types/ids'
 import type { Person } from '../types/person'
 import { createPersonId } from '../types/ids'
 import { randomFloat, randomInt } from '../rng/rng'
-import { personName } from './nameGenerators'
+import { personNamePool, pickName } from './nameGenerators'
 
 export function generatePersons(
   houseProvinces: Map<HouseId, ProvinceId[]>,
@@ -12,6 +12,8 @@ export function generatePersons(
 ): { persons: Person[]; rng: RngState } {
   const persons: Person[] = []
   let globalIndex = 0
+
+  const pool = personNamePool()
 
   const sortedHouseIds = Array.from(houseProvinces.keys()).sort()
 
@@ -52,10 +54,14 @@ export function generatePersons(
       const { value: loyaltyToCountry, rng: t2Rng } = randomFloat(t1Rng)
       const { value: caution, rng: t3Rng } = randomFloat(t2Rng)
       const { value: prestige, rng: finalRng } = randomInt(t3Rng, 0, 30)
+      rng = finalRng
+
+      const { name: pName, rng: nameRng } = pickName(pool, rng)
+      rng = nameRng
 
       const person: Person = {
         id,
-        name: personName(globalIndex),
+        name: pName,
         age,
         alive: true,
         houseId,
@@ -74,7 +80,6 @@ export function generatePersons(
 
       persons.push(person)
       globalIndex++
-      rng = finalRng
     }
   }
 

@@ -11,7 +11,13 @@ import { generateProvinces } from './generateProvinces'
 import { distributeCountries } from './distributeCountries'
 import { distributeHouses } from './distributeHouses'
 import { generatePersons } from './generatePersons'
-import { houseName, countryName } from './nameGenerators'
+import {
+  houseName,
+  countryName,
+  pickUniqueName,
+  houseNamePool,
+  countryNamePool,
+} from './nameGenerators'
 import { defaultConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 
@@ -66,6 +72,9 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
 
   const houses: House[] = []
   const sortedHouseIds = Array.from(houseProvinces.keys()).sort()
+
+  const usedCountryNames = new Set<string>()
+  const usedHouseNames = new Set<string>()
 
   const provinceMap = new Map<ProvinceId, Province>()
   for (const p of finalProvinces) {
@@ -135,9 +144,18 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
 
     const houseIndex = parseInt(houseId.split('-')[1] ?? '0', 10)
 
+    const { name: hName, rng: rng5 } = pickUniqueName(
+      houseNamePool(),
+      usedHouseNames,
+      houseName,
+      houseIndex,
+      rng,
+    )
+    rng = rng5
+
     const house: House = {
       id: houseId,
-      name: houseName(houseIndex),
+      name: hName,
       active: true,
       countryId: countryId ?? ('' as CountryId),
       provinceIds,
@@ -164,6 +182,15 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     const { value: stability, rng: r4 } = randomInt(r3, 45, 80)
     rng = r4
 
+    const { name: cName, rng: rAfterName } = pickUniqueName(
+      countryNamePool(),
+      usedCountryNames,
+      countryName,
+      countryIndex,
+      rng,
+    )
+    rng = rAfterName
+
     const houseIds = houses
       .filter((h) => h.countryId === countryId)
       .sort((a, b) => a.id.localeCompare(b.id))
@@ -176,7 +203,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
 
     const country: Country = {
       id: countryId,
-      name: countryName(countryIndex),
+      name: cName,
       rulerHouseId,
       houseIds,
       treasury,
