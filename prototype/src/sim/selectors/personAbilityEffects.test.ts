@@ -63,9 +63,8 @@ function makeWorldState(
     neighbors: [],
     ownerHouseId: house1Id,
     countryId: country1Id,
-    baseTax: 5,
-    manpower: 5,
-    unrest: 0,
+    habitability: 50,
+    popGroupIds: [],
     development: 50,
     countryControl: 50,
     houseControl: 50,
@@ -113,6 +112,7 @@ function makeWorldState(
       [personId]: person,
     },
     activePlots: {},
+    popGroups: {},
   }
   const country = state.countries[country1Id]!
   const house = state.houses[house1Id]!

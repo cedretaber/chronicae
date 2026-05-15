@@ -13,10 +13,8 @@ import {
 
 function scoreLandDevelopmentProvince(province: Province, rulerHouseId: HouseId): number {
   const recoveryBonus = Math.max(0, -province.development) * 1.0
-  const highValueBonus = province.baseTax * 4 + province.manpower * 2
   const rulerHouseProvinceBonus = province.ownerHouseId === rulerHouseId ? 15 : 0
-  const unrestPenalty = province.unrest * 0.4
-  return recoveryBonus + highValueBonus + rulerHouseProvinceBonus - unrestPenalty
+  return recoveryBonus + rulerHouseProvinceBonus
 }
 
 export function runPublicSpendingSystem(ctx: TickContext): TickContext {
@@ -44,14 +42,6 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       ? (currentCtx.state.persons[treasurerId]?.stats.admin ?? 0)
       : 0
 
-    const countryProvinces = Object.values(currentCtx.state.provinces).filter(
-      (p) => p.countryId === countryId,
-    )
-    const avgUnrest =
-      countryProvinces.length > 0
-        ? countryProvinces.reduce((sum, p) => sum + p.unrest, 0) / countryProvinces.length
-        : 0
-
     const treasurySurplus = Math.max(0, country.treasury - ctx.config.monumentBaseCost)
     const treasuryShortage = Math.max(
       0,
@@ -69,7 +59,6 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
 
     const landDevelopmentScore =
       (100 - country.stability) * 0.4 +
-      avgUnrest * 0.5 +
       rulerHead.traits.loyaltyToCountry * 20 +
       rulerHead.traits.caution * 10 -
       treasuryShortage +
@@ -98,7 +87,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       for (const pid of qualifyingProvinceIds) {
         const p = currentCtx.state.provinces[pid]
         if (!p) continue
-        const score = (100 - p.countryControl) * 1.0 + p.development * 0.5 - p.unrest * 0.5
+        const score = (100 - p.countryControl) * 1.0 + p.development * 0.5
         if (score > bestScore) {
           bestScore = score
           bestProvinceId = pid
@@ -202,17 +191,12 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       const newHouseControl = clamp100(
         targetProvince.houseControl + ctx.config.landDevelopmentHouseControlGain,
       )
-      const newUnrest = Math.max(
-        0,
-        targetProvince.unrest - ctx.config.landDevelopmentUnrestReduction,
-      )
       const newProvinces = {
         ...currentCtx.state.provinces,
         [bestProvinceId]: {
           ...targetProvince,
           development: newDevelopment,
           houseControl: newHouseControl,
-          unrest: newUnrest,
         },
       }
 

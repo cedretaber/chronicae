@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import type { RoleType } from '../types/role'
-import type { CountryId, HouseId, ProvinceId, PersonId } from '../types/ids'
+import type { CountryId, HouseId, ProvinceId, PersonId, PopGroupId } from '../types/ids'
 
 export function runIntegrityCheck(ctx: TickContext): TickContext {
   const state = ctx.state
@@ -243,6 +243,86 @@ export function runIntegrityCheck(ctx: TickContext): TickContext {
     }
     if (!parent.cadetHouseIds.some((cid) => (cid as string) === houseId)) {
       throw new Error('Parent house ' + house.parentHouseId + ' missing cadet ' + houseId)
+    }
+  }
+
+  // POP-1: PopGroup.provinceId points to valid Province
+  for (const popGroupId of Object.keys(state.popGroups).sort()) {
+    const pop = state.popGroups[popGroupId as PopGroupId]
+    if (!pop) continue
+    const province = state.provinces[pop.provinceId]
+    if (!province) {
+      throw new Error('PopGroup ' + popGroupId + ' provinceId ' + pop.provinceId + ' not found')
+    }
+  }
+
+  // POP-2 & POP-3: Province.popGroupIds <-> PopGroup.provinceId bidirectional
+  for (const provinceId of Object.keys(state.provinces).sort()) {
+    const province = state.provinces[provinceId as ProvinceId]
+    if (!province) continue
+    for (const popGroupId of province.popGroupIds) {
+      const pop = state.popGroups[popGroupId]
+      if (!pop) {
+        throw new Error('Province ' + provinceId + ' popGroupId ' + popGroupId + ' not found')
+      }
+      if ((pop.provinceId as string) !== provinceId) {
+        throw new Error(
+          'PopGroup ' + popGroupId + ' provinceId mismatch with province ' + provinceId,
+        )
+      }
+    }
+  }
+
+  // POP-4: Each Province has exactly one of each class
+  for (const provinceId of Object.keys(state.provinces).sort()) {
+    const province = state.provinces[provinceId as ProvinceId]
+    if (!province) continue
+    const classCounts: Record<string, number> = {}
+    for (const popGroupId of province.popGroupIds) {
+      const pop = state.popGroups[popGroupId]
+      if (!pop) continue
+      classCounts[pop.class] = (classCounts[pop.class] ?? 0) + 1
+    }
+    for (const cls of ['peasants', 'townsmen', 'nobles'] as const) {
+      if (classCounts[cls] !== 1) {
+        throw new Error(
+          'Province ' +
+            provinceId +
+            ' has ' +
+            (classCounts[cls] ?? 0) +
+            ' ' +
+            cls +
+            ' pops, expected 1',
+        )
+      }
+    }
+  }
+
+  // POP-5: PopGroup.size >= minPopSizeByClass
+  for (const popGroupId of Object.keys(state.popGroups).sort()) {
+    const pop = state.popGroups[popGroupId as PopGroupId]
+    if (!pop) continue
+    const minSize = ctx.config.minPopSizeByClass[pop.class]
+    if (pop.size < minSize) {
+      throw new Error('PopGroup ' + popGroupId + ' size ' + pop.size + ' below minimum ' + minSize)
+    }
+  }
+
+  // POP-6: PopGroup.wealth in 0..100
+  for (const popGroupId of Object.keys(state.popGroups).sort()) {
+    const pop = state.popGroups[popGroupId as PopGroupId]
+    if (!pop) continue
+    if (pop.wealth < 0 || pop.wealth > 100) {
+      throw new Error('PopGroup ' + popGroupId + ' wealth out of range: ' + pop.wealth)
+    }
+  }
+
+  // POP-7: PopGroup.unrest in 0..100
+  for (const popGroupId of Object.keys(state.popGroups).sort()) {
+    const pop = state.popGroups[popGroupId as PopGroupId]
+    if (!pop) continue
+    if (pop.unrest < 0 || pop.unrest > 100) {
+      throw new Error('PopGroup ' + popGroupId + ' unrest out of range: ' + pop.unrest)
     }
   }
 

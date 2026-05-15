@@ -83,9 +83,8 @@ function makeNormalExtinctionCtx(): TickContext {
     neighbors: [],
     ownerHouseId: houseId,
     countryId,
-    baseTax: 5,
-    manpower: 5,
-    unrest: 0,
+    habitability: 50,
+    popGroupIds: [],
     development: 0,
     countryControl: 100,
     houseControl: 100,
@@ -98,9 +97,8 @@ function makeNormalExtinctionCtx(): TickContext {
     neighbors: [],
     ownerHouseId: houseId,
     countryId,
-    baseTax: 5,
-    manpower: 5,
-    unrest: 0,
+    habitability: 50,
+    popGroupIds: [],
     development: 0,
     countryControl: 100,
     houseControl: 100,
@@ -160,6 +158,7 @@ function makeNormalExtinctionCtx(): TickContext {
       },
       persons: allPersons,
       activePlots: {},
+      popGroups: {},
     },
     rng: createRng('extinction-test'),
     config: defaultConfig,
@@ -211,14 +210,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
       expect(country?.houseIds).not.toContain('h-0' as HouseId)
     })
 
-    it('province unrest increased', () => {
-      const ctx = makeNormalExtinctionCtx()
-      const result = extinctHouseAfterFailedSuccession(ctx, 'h-0' as HouseId)
-
-      const province = result.state.provinces['p-0' as ProvinceId]
-      expect(province?.unrest).toBeGreaterThan(0)
-    })
-
     it('province houseControl set to inherited value', () => {
       const ctx = makeNormalExtinctionCtx()
       const result = extinctHouseAfterFailedSuccession(ctx, 'h-0' as HouseId)
@@ -257,9 +248,8 @@ describe('extinctHouseAfterFailedSuccession', () => {
         neighbors: [],
         ownerHouseId: houseId,
         countryId,
-        baseTax: 5,
-        manpower: 5,
-        unrest: 0,
+        habitability: 50,
+        popGroupIds: [],
         development: 0,
         countryControl: 100,
         houseControl: 100,
@@ -304,6 +294,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
           },
           persons,
           activePlots: {},
+          popGroups: {},
         },
         rng: createRng('ruler-extinction-test'),
         config: defaultConfig,
@@ -349,9 +340,8 @@ describe('extinctHouseAfterFailedSuccession', () => {
         neighbors: [],
         ownerHouseId: houseId,
         countryId,
-        baseTax: 5,
-        manpower: 5,
-        unrest: 0,
+        habitability: 50,
+        popGroupIds: [],
         development: 0,
         countryControl: 100,
         houseControl: 100,
@@ -396,6 +386,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
           },
           persons,
           activePlots: {},
+          popGroups: {},
         },
         rng: createRng('ruler-extinction-test'),
         config: defaultConfig,
@@ -441,9 +432,8 @@ describe('extinctHouseAfterFailedSuccession', () => {
         neighbors: [],
         ownerHouseId: houseId,
         countryId,
-        baseTax: 5,
-        manpower: 5,
-        unrest: 0,
+        habitability: 50,
+        popGroupIds: [],
         development: 0,
         countryControl: 100,
         houseControl: 100,
@@ -488,6 +478,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
           },
           persons,
           activePlots: {},
+          popGroups: {},
         },
         rng: createRng('ruler-extinction-test'),
         config: defaultConfig,

@@ -63,6 +63,7 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     houses,
     persons,
     activePlots: {},
+    popGroups: {},
   }
 }
 

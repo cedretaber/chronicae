@@ -11,6 +11,11 @@ import { transferProvinceToHouse } from '../mutations/transferProvince'
 import { annexCountry } from '../mutations/annexCountry'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
+import {
+  adjustProvincePopWealth,
+  adjustProvincePopUnrest,
+  adjustProvincePopSizeByClass,
+} from '../mutations/popMutations'
 
 function emitWarEvent(
   ctx: TickContext,
@@ -290,6 +295,33 @@ export function runWarSystem(ctx: TickContext): TickContext {
           }
         }
 
+        let stateWithPopEffects = currentCtx.state
+        for (const pid of provincesToTake) {
+          stateWithPopEffects = adjustProvincePopWealth(
+            stateWithPopEffects,
+            pid,
+            -currentCtx.config.warWealthDamage,
+          )
+          stateWithPopEffects = adjustProvincePopUnrest(
+            stateWithPopEffects,
+            pid,
+            currentCtx.config.warUnrestDamage,
+          )
+          stateWithPopEffects = adjustProvincePopSizeByClass(
+            stateWithPopEffects,
+            pid,
+            'peasants',
+            -currentCtx.config.warPeasantSizeDamage,
+          )
+          stateWithPopEffects = adjustProvincePopSizeByClass(
+            stateWithPopEffects,
+            pid,
+            'townsmen',
+            -currentCtx.config.warTownsmanSizeDamage,
+          )
+        }
+        currentCtx = { ...currentCtx, state: stateWithPopEffects }
+
         for (const provinceId of provincesToTake) {
           currentState = currentCtx.state
           const province = currentState.provinces[provinceId]
@@ -453,6 +485,21 @@ export function runWarSystem(ctx: TickContext): TickContext {
             ...currentCtx,
             state: { ...currentCtx.state, provinces: devastatedProvinces },
           }
+
+          let stateWithPopEffectsLost = currentCtx.state
+          for (const pid of attackerBorderProvinces) {
+            stateWithPopEffectsLost = adjustProvincePopWealth(
+              stateWithPopEffectsLost,
+              pid,
+              -currentCtx.config.warWealthDamage,
+            )
+            stateWithPopEffectsLost = adjustProvincePopUnrest(
+              stateWithPopEffectsLost,
+              pid,
+              currentCtx.config.warUnrestDamage,
+            )
+          }
+          currentCtx = { ...currentCtx, state: stateWithPopEffectsLost }
         }
 
         currentCtx = emitWarEvent(

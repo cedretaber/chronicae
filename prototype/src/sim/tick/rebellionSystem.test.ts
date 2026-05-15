@@ -41,6 +41,7 @@ function makeBaseState(): {
         capitalProvinceId: '' as ProvinceId,
       },
     },
+    popGroups: {},
     houses: {
       [houseRulerId]: {
         id: houseRulerId,
@@ -278,10 +279,9 @@ describe('runRebellionSystem', () => {
             neighbors: [],
             ownerHouseId: houseVassalId,
             countryId,
-            baseTax: 5,
-            manpower: 10,
-            unrest: 0,
+            habitability: 50,
             development: 0,
+            popGroupIds: [],
             countryControl: 100,
             houseControl: 100,
           },
@@ -365,6 +365,7 @@ describe('runRebellionSystem', () => {
         },
       },
       activePlots: {},
+      popGroups: {},
     }
 
     const config = {

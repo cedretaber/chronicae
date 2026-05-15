@@ -161,6 +161,50 @@ export type SimulationConfig = {
   rulerExtinctionAnnexStabilityWeight: number
   // v0.7 Role
   allowFemaleRolesWhenNoMaleCandidate: boolean
+  // v0.8 POP system
+  popSystemEnabled: boolean
+  minPopSizeByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  populationCapacityPerHabitability: number
+  minProvinceCarryingCapacity: number
+  productivityByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  manpowerFactorByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  baseMonthlyGrowthByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  populationPressureThreshold: number
+  populationPressureWealthPenalty: number
+  populationPressureUnrestGain: number
+  povertyWealthThreshold: number
+  povertyUnrestGain: number
+  prosperityWealthThreshold: number
+  prosperityUnrestReduction: number
+  retainedWealthGainByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  overExtractionThreshold: number
+  overExtractionWealthSafeThreshold: number
+  overExtractionUnrestSafeThreshold: number
+  overExtractionWealthPenalty: number
+  overExtractionUnrestGain: number
+  bountifulHarvestPeasantWealthGain: number
+  bountifulHarvestPeasantUnrestReduction: number
+  bountifulHarvestTownsmanWealthGain: number
+  bountifulHarvestTownsmanUnrestReduction: number
+  popDevelopmentEnabled: boolean
+  popDevelopmentMonthlyChance: number
+  popDevelopmentMaxMonthlyChance: number
+  popDevelopmentWealthThreshold: number
+  popDevelopmentUnrestMax: number
+  popDevelopmentWealthChanceFactor: number
+  popDevelopmentUnrestPenaltyFactor: number
+  popDevelopmentCost: number
+  popDevelopmentGain: number
+  popDevelopmentMaxDevelopment: number
+  warWealthDamage: number
+  warUnrestDamage: number
+  warPeasantSizeDamage: number
+  warTownsmanSizeDamage: number
+  famineWealthPenalty: number
+  famineSizeDamage: number
+  famineReliefDamageMultiplier: number
+  plagueWealthPenalty: number
+  plagueSizeDamage: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -317,4 +361,48 @@ export const defaultConfig: SimulationConfig = {
   rulerExtinctionAnnexStabilityWeight: 0.2,
   // v0.7 Role
   allowFemaleRolesWhenNoMaleCandidate: true,
+  // v0.8 POP system
+  popSystemEnabled: true,
+  minPopSizeByClass: { peasants: 5, townsmen: 1, nobles: 1 },
+  populationCapacityPerHabitability: 10,
+  minProvinceCarryingCapacity: 50,
+  productivityByClass: { peasants: 1.0, townsmen: 1.5, nobles: 0.6 },
+  manpowerFactorByClass: { peasants: 0.03, townsmen: 0.01, nobles: 0.06 },
+  baseMonthlyGrowthByClass: { peasants: 0.001, townsmen: 0.0008, nobles: 0.0004 },
+  populationPressureThreshold: 0.9,
+  populationPressureWealthPenalty: 0.2,
+  populationPressureUnrestGain: 0.3,
+  povertyWealthThreshold: 25,
+  povertyUnrestGain: 0.02,
+  prosperityWealthThreshold: 70,
+  prosperityUnrestReduction: 0.01,
+  retainedWealthGainByClass: { peasants: 0.3, townsmen: 0.45, nobles: 0.25 },
+  overExtractionThreshold: 0.95,
+  overExtractionWealthSafeThreshold: 55,
+  overExtractionUnrestSafeThreshold: 45,
+  overExtractionWealthPenalty: 1.0,
+  overExtractionUnrestGain: 1.5,
+  bountifulHarvestPeasantWealthGain: 10,
+  bountifulHarvestPeasantUnrestReduction: 5,
+  bountifulHarvestTownsmanWealthGain: 2,
+  bountifulHarvestTownsmanUnrestReduction: 1,
+  popDevelopmentEnabled: true,
+  popDevelopmentMonthlyChance: 0.02,
+  popDevelopmentMaxMonthlyChance: 0.08,
+  popDevelopmentWealthThreshold: 65,
+  popDevelopmentUnrestMax: 35,
+  popDevelopmentWealthChanceFactor: 0.001,
+  popDevelopmentUnrestPenaltyFactor: 0.0005,
+  popDevelopmentCost: 3,
+  popDevelopmentGain: 0.25,
+  popDevelopmentMaxDevelopment: 40,
+  warWealthDamage: 8,
+  warUnrestDamage: 10,
+  warPeasantSizeDamage: 0.5,
+  warTownsmanSizeDamage: 0.3,
+  famineWealthPenalty: 15,
+  famineSizeDamage: 2,
+  famineReliefDamageMultiplier: 0.3,
+  plagueWealthPenalty: 10,
+  plagueSizeDamage: 3,
 }

@@ -83,6 +83,7 @@ function makeFixture(): {
       },
     },
     activePlots: {},
+    popGroups: {},
   }
   return { state, house1Id, person1Id, person2Id, country1Id }
 }

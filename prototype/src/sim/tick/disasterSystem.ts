@@ -4,6 +4,13 @@ import { randomFloat } from '../rng/rng'
 import { clamp, clamp100 } from '../utils/math'
 import type { CountryId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
+import {
+  adjustProvincePopWealthByClass,
+  adjustProvincePopSizeByClass,
+  adjustProvincePopWealth,
+  adjustProvincePopSize,
+  adjustProvincePopUnrestByClass,
+} from '../mutations/popMutations'
 
 function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
   const country = ctx.state.countries[countryId]
@@ -19,7 +26,6 @@ function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
   const reliefCost = countryProvinceIds.length * ctx.config.disasterReliefCostPerProvince
   const canAffordRelief = country.treasury >= reliefCost
 
-  const unrestDelta = canAffordRelief ? 5 : 15
   const newProvinces = { ...ctx.state.provinces }
 
   const developmentDelta = canAffordRelief
@@ -31,7 +37,6 @@ function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
     if (!province) continue
     newProvinces[pid] = {
       ...province,
-      unrest: clamp100(province.unrest + unrestDelta),
       development: clamp(province.development - developmentDelta, -100, 100),
     }
   }
@@ -57,7 +62,28 @@ function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
     },
   }
 
-  const { id: eventId, ctx: eventCtx } = makeEventId(nextCtx)
+  const wealthDamage =
+    ctx.config.famineWealthPenalty * (canAffordRelief ? ctx.config.famineReliefDamageMultiplier : 1)
+  const sizeDamage =
+    ctx.config.famineSizeDamage * (canAffordRelief ? ctx.config.famineReliefDamageMultiplier : 1)
+  let stateWithPopEffects = nextCtx.state
+  for (const pid of countryProvinceIds) {
+    stateWithPopEffects = adjustProvincePopWealthByClass(
+      stateWithPopEffects,
+      pid,
+      'peasants',
+      -wealthDamage,
+    )
+    stateWithPopEffects = adjustProvincePopSizeByClass(
+      stateWithPopEffects,
+      pid,
+      'peasants',
+      -sizeDamage,
+    )
+  }
+
+  const eventSourceCtx = { ...nextCtx, state: stateWithPopEffects }
+  const { id: eventId, ctx: eventCtx } = makeEventId(eventSourceCtx)
   const event: SimEvent = {
     id: eventId,
     year: eventCtx.state.currentYear,
@@ -72,7 +98,11 @@ function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
     reasons: [],
     effects: [],
   }
-  const eventUpdatedCtx = { ...eventCtx, state: nextCtx.state, events: [...eventCtx.events, event] }
+  const eventUpdatedCtx = {
+    ...eventCtx,
+    state: eventSourceCtx.state,
+    events: [...eventCtx.events, event],
+  }
 
   const reliefEventType = canAffordRelief ? 'DISASTER_RELIEF_FUNDED' : 'DISASTER_RELIEF_FAILED'
   const reliefSummary = canAffordRelief
@@ -114,7 +144,6 @@ function applyPlague(ctx: TickContext, countryId: CountryId): TickContext {
     if (!province) continue
     newProvinces[pid] = {
       ...province,
-      unrest: clamp100(province.unrest + 10),
       development: clamp(province.development - ctx.config.plagueDevastation, -100, 100),
     }
   }
@@ -130,7 +159,21 @@ function applyPlague(ctx: TickContext, countryId: CountryId): TickContext {
     },
   }
 
-  const { id: eventId, ctx: eventCtx } = makeEventId(nextCtx)
+  let stateWithPopEffects = nextCtx.state
+  for (const pid of countryProvinceIds) {
+    stateWithPopEffects = adjustProvincePopWealth(
+      stateWithPopEffects,
+      pid,
+      -ctx.config.plagueWealthPenalty,
+    )
+    stateWithPopEffects = adjustProvincePopSize(
+      stateWithPopEffects,
+      pid,
+      -ctx.config.plagueSizeDamage,
+    )
+  }
+
+  const { id: eventId, ctx: eventCtx } = makeEventId({ ...nextCtx, state: stateWithPopEffects })
   const event: SimEvent = {
     id: eventId,
     year: eventCtx.state.currentYear,
@@ -145,17 +188,12 @@ function applyPlague(ctx: TickContext, countryId: CountryId): TickContext {
     reasons: [],
     effects: [],
   }
-  return { ...eventCtx, state: nextCtx.state, events: [...eventCtx.events, event] }
+  return { ...eventCtx, state: stateWithPopEffects, events: [...eventCtx.events, event] }
 }
 
 function applyBountifulHarvest(ctx: TickContext, countryId: CountryId): TickContext {
   const country = ctx.state.countries[countryId]
   if (!country) return ctx
-
-  const countryProvinces = Object.values(ctx.state.provinces).filter(
-    (p) => p.countryId === countryId,
-  )
-  const taxBonus = countryProvinces.reduce((sum, p) => sum + p.baseTax, 0) * 0.5
 
   const newProvinces = { ...ctx.state.provinces }
   const countryProvinceIds: ProvinceId[] = []
@@ -166,7 +204,6 @@ function applyBountifulHarvest(ctx: TickContext, countryId: CountryId): TickCont
     countryProvinceIds.push(pid as ProvinceId)
     newProvinces[pid as ProvinceId] = {
       ...province,
-      unrest: Math.max(0, province.unrest - 5),
       development: clamp(
         province.development + ctx.config.bountifulHarvestDevelopmentGain,
         -100,
@@ -177,7 +214,6 @@ function applyBountifulHarvest(ctx: TickContext, countryId: CountryId): TickCont
 
   const updatedCountry = {
     ...country,
-    treasury: country.treasury + taxBonus,
     stability: clamp100(country.stability + 5),
   }
 
@@ -190,7 +226,38 @@ function applyBountifulHarvest(ctx: TickContext, countryId: CountryId): TickCont
     },
   }
 
-  const { id: eventId, ctx: eventCtx } = makeEventId(nextCtxHarvest)
+  let stateWithPopEffects = nextCtxHarvest.state
+  for (const pid of countryProvinceIds) {
+    stateWithPopEffects = adjustProvincePopWealthByClass(
+      stateWithPopEffects,
+      pid,
+      'peasants',
+      ctx.config.bountifulHarvestPeasantWealthGain,
+    )
+    stateWithPopEffects = adjustProvincePopUnrestByClass(
+      stateWithPopEffects,
+      pid,
+      'peasants',
+      -ctx.config.bountifulHarvestPeasantUnrestReduction,
+    )
+    stateWithPopEffects = adjustProvincePopWealthByClass(
+      stateWithPopEffects,
+      pid,
+      'townsmen',
+      ctx.config.bountifulHarvestTownsmanWealthGain,
+    )
+    stateWithPopEffects = adjustProvincePopUnrestByClass(
+      stateWithPopEffects,
+      pid,
+      'townsmen',
+      -ctx.config.bountifulHarvestTownsmanUnrestReduction,
+    )
+  }
+
+  const { id: eventId, ctx: eventCtx } = makeEventId({
+    ...nextCtxHarvest,
+    state: stateWithPopEffects,
+  })
   const event: SimEvent = {
     id: eventId,
     year: eventCtx.state.currentYear,
@@ -205,7 +272,7 @@ function applyBountifulHarvest(ctx: TickContext, countryId: CountryId): TickCont
     reasons: [],
     effects: [],
   }
-  return { ...eventCtx, state: nextCtxHarvest.state, events: [...eventCtx.events, event] }
+  return { ...eventCtx, state: stateWithPopEffects, events: [...eventCtx.events, event] }
 }
 
 export function runDisasterSystem(ctx: TickContext): TickContext {

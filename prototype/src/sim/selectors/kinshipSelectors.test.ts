@@ -51,6 +51,7 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
     },
     persons,
     activePlots: {},
+    popGroups: {},
   }
 }
 

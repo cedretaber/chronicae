@@ -99,6 +99,7 @@ function makeFixture(): {
       },
     },
     activePlots: {},
+    popGroups: {},
   }
   return {
     state,

@@ -32,9 +32,8 @@ function makeFixture(): {
         neighbors: [],
         ownerHouseId: house1Id,
         countryId: country1Id,
-        baseTax: 5,
-        manpower: 5,
-        unrest: 0,
+        habitability: 50,
+        popGroupIds: [],
         development: 0,
         countryControl: 100,
         houseControl: 100,
@@ -117,6 +116,7 @@ function makeFixture(): {
       },
     },
     activePlots: {},
+    popGroups: {},
   }
   return {
     state,

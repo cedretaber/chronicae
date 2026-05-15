@@ -19,6 +19,8 @@ import { runRebellionSystem } from './rebellionSystem'
 import { runStabilitySystem } from './stabilitySystem'
 import { runGovernanceSystem } from './governanceSystem'
 import { runIntegrityCheck } from './integritySystem'
+import { runPopSystem, normalizePopSizes } from './popSystem'
+import { runPopDevelopmentSystem } from './popDevelopmentSystem'
 import { createLogger } from '../debug/logger'
 
 export function tick(input: TickInput): TickResult {
@@ -27,6 +29,7 @@ export function tick(input: TickInput): TickResult {
   ctx = runDevelopmentSystem(ctx)
   ctx = runControlSystem(ctx)
   ctx = runLordshipTransitionSystem(ctx)
+  ctx = runPopSystem(ctx)
   ctx = runEconomySystem(ctx)
   ctx = runDisasterSystem(ctx)
   ctx = runMortalitySystem(ctx)
@@ -37,11 +40,13 @@ export function tick(input: TickInput): TickResult {
   ctx = runAmbitionSystem(ctx)
   ctx = runPublicSpendingSystem(ctx)
   ctx = runHouseDevelopmentSystem(ctx)
+  ctx = runPopDevelopmentSystem(ctx)
   ctx = runPlotSystem(ctx)
   ctx = runWarSystem(ctx)
   ctx = runRebellionSystem(ctx)
   ctx = runStabilitySystem(ctx)
   ctx = runGovernanceSystem(ctx)
+  ctx = normalizePopSizes(ctx)
   if (ctx.config.debug) {
     const log = createLogger(true)
     try {

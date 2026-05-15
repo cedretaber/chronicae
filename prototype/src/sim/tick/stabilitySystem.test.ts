@@ -88,6 +88,7 @@ function makeCtx(
       },
     },
     activePlots: {},
+    popGroups: {},
   }
 
   return {

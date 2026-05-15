@@ -36,6 +36,11 @@ export type EventType =
   | 'COUNTRY_LAND_DEVELOPED'
   | 'HOUSE_LAND_DEVELOPED'
   | 'LORDSHIP_TRANSFERRED'
+  | 'POP_LAND_DEVELOPED'
+  | 'POP_HARDSHIP'
+  | 'POP_PROSPERITY'
+  | 'POP_UNREST_RISING'
+  | 'POP_DECLINED'
 
 export type EventReason = {
   label: string

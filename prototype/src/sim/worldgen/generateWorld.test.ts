@@ -81,18 +81,15 @@ describe('generateWorld', () => {
   })
 
   describe('parameter bounds', () => {
-    it('provinces: baseTax in [1,10], manpower in [1,10], unrest in [0,20]', () => {
+    it('provinces: habitability in [30,90], popGroupIds has 3 entries', () => {
       const { world } = generateWorld('test-seed')
 
       const provinceKeys = Object.keys(world.provinces).sort()
       for (const pk of provinceKeys) {
         const province = world.provinces[pk as keyof typeof world.provinces]
-        expect(province?.baseTax).toBeGreaterThanOrEqual(1)
-        expect(province?.baseTax).toBeLessThanOrEqual(10)
-        expect(province?.manpower).toBeGreaterThanOrEqual(1)
-        expect(province?.manpower).toBeLessThanOrEqual(10)
-        expect(province?.unrest).toBeGreaterThanOrEqual(0)
-        expect(province?.unrest).toBeLessThanOrEqual(20)
+        expect(province?.habitability).toBeGreaterThanOrEqual(30)
+        expect(province?.habitability).toBeLessThanOrEqual(90)
+        expect(province?.popGroupIds).toHaveLength(3)
       }
     })
 

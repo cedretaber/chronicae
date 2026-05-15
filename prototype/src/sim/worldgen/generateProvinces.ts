@@ -1,4 +1,4 @@
-import type { ProvinceId, HouseId, CountryId } from '../types/ids'
+import type { ProvinceId, HouseId, CountryId, PopGroupId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { RngState } from '../rng/rng'
 import { createProvinceId } from '../types/ids'
@@ -50,12 +50,11 @@ export function generateProvinces(rng: RngState): { provinces: Province[]; rng: 
         neighbors,
         ownerHouseId: '' as HouseId,
         countryId: '' as CountryId,
-        baseTax: 0,
-        manpower: 0,
-        unrest: 0,
+        habitability: 0,
         development: 0,
         countryControl: 0,
         houseControl: 0,
+        popGroupIds: [] as PopGroupId[],
       })
     }
   }

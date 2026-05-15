@@ -1,10 +1,12 @@
 import type { WorldState } from '../types/world'
 import type { RngState } from '../rng/rng'
-import type { ProvinceId, HouseId, CountryId, PersonId } from '../types/ids'
+import type { ProvinceId, HouseId, CountryId, PersonId, PopGroupId } from '../types/ids'
+import { newPopGroupId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Country } from '../types/country'
 import type { Person } from '../types/person'
+import type { PopGroup } from '../types/popGroup'
 import { createRng } from '../rng/rng'
 import { randomInt } from '../rng/rng'
 import { generateProvinces } from './generateProvinces'
@@ -52,11 +54,9 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
 
   const finalProvinces: Province[] = []
   for (const province of provinceList) {
-    const { value: baseTax, rng: r1 } = randomInt(rng, 1, 10)
-    const { value: manpower, rng: r2 } = randomInt(r1, 1, 10)
-    const { value: unrest, rng: r3 } = randomInt(r2, 0, 20)
-    const { value: development, rng: r4 } = randomInt(r3, -10, 10)
-    rng = r4
+    const { value: habitability, rng: r1 } = randomInt(rng, 30, 90)
+    const { value: development, rng: r2 } = randomInt(r1, -10, 10)
+    rng = r2
 
     const ownerHouseId = provinceToHouse.get(province.id)
 
@@ -64,10 +64,9 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       ...province,
       ownerHouseId: ownerHouseId ?? ('' as HouseId),
       countryId: assignments.get(province.id) ?? ('' as CountryId),
-      baseTax,
-      manpower,
-      unrest,
+      habitability,
       development,
+      popGroupIds: [],
     })
   }
 
@@ -372,6 +371,59 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     }
   }
 
+  const popGroupsRecord: Record<PopGroupId, PopGroup> = {}
+  const { populationCapacityPerHabitability, minProvinceCarryingCapacity, minPopSizeByClass } =
+    defaultConfig
+
+  for (const province of finalProvinces) {
+    const baseCapacity = province.habitability * populationCapacityPerHabitability
+    const devMod = Math.min(1.5, Math.max(0.5, 1 + province.development / 200))
+    const capacity = Math.max(minProvinceCarryingCapacity, baseCapacity * devMod)
+
+    const { value: peasantSizePct, rng: rp1 } = randomInt(rng, 55, 75)
+    const { value: townsmanSizePct, rng: rp2 } = randomInt(rp1, 5, 15)
+    const { value: noblesSizePct, rng: rp3 } = randomInt(rp2, 2, 5)
+    const { value: peasantWealth, rng: rp4 } = randomInt(rp3, 35, 60)
+    const { value: townsmanWealth, rng: rp5 } = randomInt(rp4, 45, 70)
+    const { value: noblesWealth, rng: rp6 } = randomInt(rp5, 50, 80)
+    const { value: peasantUnrest, rng: rp7 } = randomInt(rp6, 10, 30)
+    const { value: townsmanUnrest, rng: rp8 } = randomInt(rp7, 10, 25)
+    const { value: noblesUnrest, rng: rp9 } = randomInt(rp8, 5, 25)
+    rng = rp9
+
+    const pid = province.id
+    const peasantsId = newPopGroupId(`pop-${pid}-peasants`)
+    const townsmanId = newPopGroupId(`pop-${pid}-townsmen`)
+    const noblesId = newPopGroupId(`pop-${pid}-nobles`)
+
+    popGroupsRecord[peasantsId] = {
+      id: peasantsId,
+      provinceId: pid,
+      class: 'peasants',
+      size: Math.max(minPopSizeByClass.peasants, (capacity * peasantSizePct) / 100),
+      wealth: peasantWealth,
+      unrest: peasantUnrest,
+    }
+    popGroupsRecord[townsmanId] = {
+      id: townsmanId,
+      provinceId: pid,
+      class: 'townsmen',
+      size: Math.max(minPopSizeByClass.townsmen, (capacity * townsmanSizePct) / 100),
+      wealth: townsmanWealth,
+      unrest: townsmanUnrest,
+    }
+    popGroupsRecord[noblesId] = {
+      id: noblesId,
+      provinceId: pid,
+      class: 'nobles',
+      size: Math.max(minPopSizeByClass.nobles, (capacity * noblesSizePct) / 100),
+      wealth: noblesWealth,
+      unrest: noblesUnrest,
+    }
+
+    province.popGroupIds = [peasantsId, townsmanId, noblesId]
+  }
+
   const provincesRecord: Record<ProvinceId, Province> = {}
   for (const p of finalProvinces) {
     provincesRecord[p.id] = p
@@ -400,6 +452,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     houses: housesRecord,
     persons: personsRecord,
     activePlots: {},
+    popGroups: popGroupsRecord,
   }
 
   return { world, rng }

@@ -28,10 +28,6 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     houseSplitPrestigeFactor,
     houseSplitMartialFactor,
     houseSplitCohesionFactor,
-    houseSplitControlMin,
-    houseSplitControlMax,
-    houseSplitWealthShare,
-    houseSplitUnrestGain,
   } = ctx.config
 
   const log = createLogger(ctx.config.debug)
@@ -77,8 +73,8 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     return { ...ctx, rng: rngAfter }
   }
 
-  const controlMin = houseSplitControlMin / 100
-  const controlMax = houseSplitControlMax / 100
+  const controlMin = ctx.config.houseSplitControlMin / 100
+  const controlMax = ctx.config.houseSplitControlMax / 100
   const { value: controlFraction, rng: rngAfterControl } = randomFloat(rngAfter)
   const F = controlMin + controlFraction * (controlMax - controlMin)
 
@@ -106,7 +102,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     }
   }
 
-  const newHouseWealth = Math.floor(house.wealth * houseSplitWealthShare)
+  const newHouseWealth = Math.floor(house.wealth * ctx.config.houseSplitWealthShare)
   const firstSplitProvince = splitProvinces[0] ?? house.seatProvinceId
 
   const newHouse: import('../types/house').House = {
@@ -163,16 +159,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     chainState = transferProvinceToHouse(chainState, pid, newHouseId)
   }
 
-  let unrestChainState = chainState
-  for (const pid of splitProvinces.sort()) {
-    const province = unrestChainState.provinces[pid]
-    if (!province) continue
-    const newUnrest = Math.min(100, province.unrest + houseSplitUnrestGain)
-    const newProvinces = { ...unrestChainState.provinces }
-    newProvinces[pid] = { ...province, unrest: newUnrest }
-    unrestChainState = { ...unrestChainState, provinces: newProvinces }
-  }
-  resultCtx = { ...resultCtx, state: unrestChainState }
+  resultCtx = { ...resultCtx, state: chainState }
 
   const splitterPersonCurrent = resultCtx.state.persons[splitterPerson.id]
   if (splitterPersonCurrent) {

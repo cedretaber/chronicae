@@ -6,6 +6,7 @@ export type HouseId = Branded<string, 'HouseId'>
 export type PersonId = Branded<string, 'PersonId'>
 export type PlotId = Branded<string, 'PlotId'>
 export type EventId = Branded<string, 'EventId'>
+export type PopGroupId = Branded<string, 'PopGroupId'>
 
 export function createProvinceId(prefix: string, n: number): ProvinceId {
   return (prefix + '-' + n) as ProvinceId
@@ -29,4 +30,8 @@ export function createPlotId(prefix: string, n: number): PlotId {
 
 export function createEventId(prefix: string, n: number): EventId {
   return (prefix + '-' + n) as EventId
+}
+
+export function newPopGroupId(value: string): PopGroupId {
+  return value as PopGroupId
 }

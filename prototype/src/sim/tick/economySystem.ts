@@ -1,43 +1,112 @@
 import type { TickContext } from './context'
 import type { ProvinceId, HouseId, CountryId } from '../types/ids'
-import { getEffectiveProvinceTax } from '../selectors/developmentSelectors'
+import type { PopClass } from '../types/popGroup'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
+import { getProvinceProduction } from '../selectors/popEconomySelectors'
+import { getProvinceAveragePopWealth, getProvinceUnrest } from '../selectors/popSelectors'
+import {
+  adjustProvincePopWealth,
+  adjustProvincePopUnrest,
+  adjustProvincePopWealthByClass,
+} from '../mutations/popMutations'
 
 export function runEconomySystem(ctx: TickContext): TickContext {
   const wealthDeltas = new Map<HouseId, number>()
   const treasuryDeltas = new Map<CountryId, number>()
 
+  let currentState = ctx.state
+
   for (const provinceId of Object.keys(ctx.state.provinces).sort()) {
     const province = ctx.state.provinces[provinceId as ProvinceId]
     if (!province) continue
 
-    const provinceIncome = getEffectiveProvinceTax(province)
+    const production = getProvinceProduction(ctx.state, ctx.config, province.id)
     const cc = province.countryControl / 100
     const hc = province.houseControl / 100
     const totalControl = cc + hc
 
-    if (totalControl <= 0) continue
+    let countryIncome: number
+    let houseIncome: number
 
-    const countryIncome = provinceIncome * (cc / totalControl) * cc
-    const houseIncome = provinceIncome * (hc / totalControl) * hc
+    if (totalControl > 0) {
+      countryIncome = production * (cc / totalControl) * cc
+      houseIncome = production * (hc / totalControl) * hc
+    } else {
+      countryIncome = 0
+      houseIncome = 0
+    }
 
-    const houseKey = province.ownerHouseId
-    wealthDeltas.set(houseKey, (wealthDeltas.get(houseKey) ?? 0) + houseIncome)
+    const extracted = countryIncome + houseIncome
+    const retained = Math.max(0, production - extracted)
 
-    const countryKey = province.countryId
-    treasuryDeltas.set(countryKey, (treasuryDeltas.get(countryKey) ?? 0) + countryIncome)
+    // Apply taxEfficiency to country treasury
+    treasuryDeltas.set(
+      province.countryId,
+      (treasuryDeltas.get(province.countryId) ?? 0) + countryIncome,
+    )
+
+    // Apply house income
+    wealthDeltas.set(
+      province.ownerHouseId,
+      (wealthDeltas.get(province.ownerHouseId) ?? 0) + houseIncome,
+    )
+
+    // Apply retained wealth to POPs
+    const retainedRatio = production > 0 ? retained / production : 0
+    const retainedWealthGainByClass = ctx.config.retainedWealthGainByClass
+    const popClasses: PopClass[] = ['peasants', 'townsmen', 'nobles']
+
+    for (const popClass of popClasses) {
+      const delta = retainedRatio * retainedWealthGainByClass[popClass]
+      currentState = adjustProvincePopWealthByClass(currentState, province.id, popClass, delta)
+    }
+
+    // Over-extraction penalty
+    const extractionRatio = production > 0 ? extracted / production : 0
+    const overExtractionThreshold = ctx.config.overExtractionThreshold
+    const overExtractionWealthSafeThreshold = ctx.config.overExtractionWealthSafeThreshold
+    const overExtractionUnrestSafeThreshold = ctx.config.overExtractionUnrestSafeThreshold
+    const overExtractionWealthPenalty = ctx.config.overExtractionWealthPenalty
+    const overExtractionUnrestGain = ctx.config.overExtractionUnrestGain
+
+    if (extractionRatio > overExtractionThreshold) {
+      const averageWealth = getProvinceAveragePopWealth(ctx.state, province.id)
+      const provinceUnrest = getProvinceUnrest(ctx.state, province.id)
+
+      if (
+        averageWealth < overExtractionWealthSafeThreshold ||
+        provinceUnrest > overExtractionUnrestSafeThreshold
+      ) {
+        const over = extractionRatio - overExtractionThreshold
+        currentState = adjustProvincePopWealth(
+          currentState,
+          province.id,
+          -over * overExtractionWealthPenalty,
+        )
+        currentState = adjustProvincePopUnrest(
+          currentState,
+          province.id,
+          over * overExtractionUnrestGain,
+        )
+      }
+    }
   }
 
-  const newHouses = { ...ctx.state.houses }
-  for (const houseId of Object.keys(ctx.state.houses).sort()) {
+  // Apply house wealth deltas
+  const newHouses = { ...currentState.houses }
+  for (const houseId of Object.keys(currentState.houses).sort()) {
     const house = newHouses[houseId as HouseId]
     if (!house) continue
     const delta = wealthDeltas.get(houseId as HouseId) ?? 0
-    newHouses[houseId as HouseId] = { ...house, wealth: Math.max(0, house.wealth + delta) }
+    newHouses[houseId as HouseId] = {
+      ...house,
+      wealth: Math.max(0, house.wealth + delta),
+    }
   }
 
-  const newCountries = { ...ctx.state.countries }
-  for (const countryId of Object.keys(ctx.state.countries).sort()) {
+  // Apply country treasury deltas
+  const newCountries = { ...currentState.countries }
+  for (const countryId of Object.keys(currentState.countries).sort()) {
     const country = newCountries[countryId as CountryId]
     if (!country) continue
     if (!country.active) continue
@@ -52,7 +121,7 @@ export function runEconomySystem(ctx: TickContext): TickContext {
   return {
     ...ctx,
     state: {
-      ...ctx.state,
+      ...currentState,
       houses: newHouses,
       countries: newCountries,
     },

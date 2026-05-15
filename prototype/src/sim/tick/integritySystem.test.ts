@@ -81,6 +81,7 @@ function makeMinimalWorldWithHouse(
     houses: { [houseId]: house },
     persons: { [headId]: headPerson },
     activePlots: {},
+    popGroups: {},
   }
 }
 
@@ -150,6 +151,7 @@ describe('runIntegrityCheck', () => {
       houses: { [houseId]: house },
       persons: { [personId]: person },
       activePlots: {},
+      popGroups: {},
     }
 
     const ctx = makeCtx(world)
@@ -199,12 +201,11 @@ describe('runIntegrityCheck', () => {
       neighbors: [],
       ownerHouseId: otherHouseId,
       countryId,
-      baseTax: 5,
-      manpower: 5,
-      unrest: 0,
+      habitability: 50,
       development: 0,
       countryControl: 100,
       houseControl: 100,
+      popGroupIds: [],
     }
 
     const headPerson: Person = {
@@ -263,6 +264,7 @@ describe('runIntegrityCheck', () => {
       },
       persons: { ['pe-0' as PersonId]: headPerson },
       activePlots: {},
+      popGroups: {},
     }
 
     const ctx = makeCtx(world)
@@ -284,12 +286,11 @@ describe('runIntegrityCheck', () => {
       neighbors: [],
       ownerHouseId: houseId,
       countryId: wrongCountryId,
-      baseTax: 5,
-      manpower: 5,
-      unrest: 0,
+      habitability: 50,
       development: 0,
       countryControl: 100,
       houseControl: 100,
+      popGroupIds: [],
     }
 
     const headPerson: Person = {
@@ -362,6 +363,7 @@ describe('runIntegrityCheck', () => {
       houses: { [houseId]: house },
       persons: { ['pe-0' as PersonId]: headPerson },
       activePlots: {},
+      popGroups: {},
     }
 
     const ctx = makeCtx(world)
@@ -411,6 +413,7 @@ describe('runIntegrityCheck', () => {
       houses: { [houseId]: house },
       persons: {},
       activePlots: {},
+      popGroups: {},
     }
 
     const ctx = makeCtx(world)
@@ -476,6 +479,7 @@ describe('runIntegrityCheck', () => {
       houses: { [houseId]: house },
       persons: { [personId]: person },
       activePlots: {},
+      popGroups: {},
     }
 
     const ctx = makeCtx(world)
@@ -558,6 +562,7 @@ describe('runIntegrityCheck', () => {
       houses: { [houseId]: house },
       persons: { [personAId]: personA, [personBId]: personB },
       activePlots: {},
+      popGroups: {},
     }
 
     const ctx = makeCtx(world)
@@ -624,6 +629,7 @@ describe('runIntegrityCheck', () => {
       houses: { [houseId]: house },
       persons: { [personId]: person },
       activePlots: {},
+      popGroups: {},
     }
 
     const ctx = makeCtx(world)
@@ -707,6 +713,7 @@ describe('runIntegrityCheck', () => {
       houses: { [houseId]: house },
       persons: { [personAId]: personA, [personBId]: personB },
       activePlots: {},
+      popGroups: {},
     }
 
     const ctx = makeCtx(world)
@@ -788,6 +795,7 @@ describe('runIntegrityCheck', () => {
       houses: { ['h-0' as HouseId]: house },
       persons: { [childId]: child, [fatherId]: father },
       activePlots: {},
+      popGroups: {},
     }
 
     const ctx = makeCtx(world)
@@ -871,6 +879,7 @@ describe('runIntegrityCheck', () => {
       houses: { [parentHouseId]: parentHouse, [cadetHouseId]: cadetHouse },
       persons: { [headPersonId]: headPerson },
       activePlots: {},
+      popGroups: {},
     }
 
     const ctx = makeCtx(world)

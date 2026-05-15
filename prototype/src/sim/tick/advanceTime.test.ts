@@ -14,6 +14,7 @@ function makeCtx(year: number, month: number): TickContext {
       houses: {},
       persons: {},
       activePlots: {},
+      popGroups: {},
     },
     rng: createRng('test'),
     config: defaultConfig,

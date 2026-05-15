@@ -72,6 +72,7 @@ function makeBaseState(): {
       },
     },
     activePlots: {},
+    popGroups: {},
   }
 
   return { state, countryId, houseId, personId }

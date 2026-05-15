@@ -24,9 +24,8 @@ function makeProvinceState(development: number): WorldState {
         neighbors: [],
         ownerHouseId: houseId,
         countryId,
-        baseTax: 5,
-        manpower: 5,
-        unrest: 0,
+        habitability: 50,
+        popGroupIds: [],
         development,
         countryControl: 100,
         houseControl: 100,
@@ -66,6 +65,7 @@ function makeProvinceState(development: number): WorldState {
     },
     persons: {},
     activePlots: {},
+    popGroups: {},
   }
 }
 

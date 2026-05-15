@@ -29,7 +29,6 @@ export function ProvinceMap() {
       data: {
         label: province.name,
         countryId: province.countryId,
-        unrest: province.unrest,
         selected: selectedId === province.id,
       },
       style: {
@@ -40,9 +39,7 @@ export function ProvinceMap() {
             ? '3px solid yellow'
             : highlightedCountryId === province.countryId
               ? '2px solid white'
-              : province.unrest > 50
-                ? '2px solid red'
-                : '1px solid #666',
+              : '1px solid #666',
         opacity: highlightedCountryId && highlightedCountryId !== province.countryId ? 0.4 : 1,
         borderRadius: '6px',
         padding: '4px 8px',

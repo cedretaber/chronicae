@@ -1,9 +1,16 @@
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { getPersonRole } from '@/sim/selectors/roleSelectors'
+import { getProvinceDevelopmentMultiplier } from '@/sim/selectors/developmentSelectors'
 import {
-  getEffectiveProvinceTax,
-  getEffectiveProvinceManpower,
-} from '@/sim/selectors/developmentSelectors'
+  getProvincePops,
+  getProvinceCarryingCapacity,
+  getProvincePopulation,
+  getProvincePopulationPressure,
+  getProvinceAveragePopWealth,
+  getProvinceUnrest,
+} from '@sim/selectors/popSelectors'
+import { getProvinceProduction, getProvinceManpowerBase } from '@sim/selectors/popEconomySelectors'
+import { defaultConfig } from '@sim/config/defaultConfig'
 import type { Country } from '@/sim/types/country'
 import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
@@ -248,6 +255,7 @@ function HouseDetail({
         houses: currentState.houses,
         persons: currentState.persons,
         activePlots: currentState.activePlots,
+        popGroups: currentState.popGroups ?? {},
       }
     : null
 
@@ -399,6 +407,7 @@ function PersonDetail({
     houses: currentState?.houses ?? {},
     persons: currentState?.persons ?? {},
     activePlots: currentState?.activePlots ?? {},
+    popGroups: currentState?.popGroups ?? {},
   }
   const role = getPersonRole(worldState, person.id)
   const importanceScore = calcPersonImportanceScore(worldState, person.id, eventHistory)
@@ -553,8 +562,24 @@ function ProvinceDetail({
   onHouseClick: ClickHandler
 }) {
   const currentState = session?.currentState
-  const effectiveTax = getEffectiveProvinceTax(province)
-  const effectiveManpower = getEffectiveProvinceManpower(province)
+  const developmentMultiplier = getProvinceDevelopmentMultiplier(province)
+
+  const pops = currentState ? getProvincePops(currentState, province.id) : []
+  const carryingCapacity = currentState
+    ? getProvinceCarryingCapacity(currentState, defaultConfig, province.id)
+    : 0
+  const totalPopulation = currentState ? getProvincePopulation(currentState, province.id) : 0
+  const populationPressure = currentState
+    ? getProvincePopulationPressure(currentState, defaultConfig, province.id)
+    : 0
+  const avgWealth = currentState ? getProvinceAveragePopWealth(currentState, province.id) : 0
+  const derivedUnrest = currentState ? getProvinceUnrest(currentState, province.id) : 0
+  const derivedProduction = currentState
+    ? getProvinceProduction(currentState, defaultConfig, province.id)
+    : 0
+  const derivedManpower = currentState
+    ? getProvinceManpowerBase(currentState, defaultConfig, province.id)
+    : 0
 
   return (
     <div className="flex flex-col gap-1 p-3">
@@ -578,16 +603,8 @@ function ProvinceDetail({
           />
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">BaseTax:</span>
-          <span>{province.baseTax}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Manpower:</span>
-          <span>{province.manpower}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Unrest:</span>
-          <span>{province.unrest}</span>
+          <span className="text-gray-400">Habitability:</span>
+          <span>{province.habitability}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Development:</span>
@@ -596,12 +613,8 @@ function ProvinceDetail({
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Eff.Tax:</span>
-          <span>{effectiveTax.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Eff.Manpower:</span>
-          <span>{effectiveManpower.toFixed(2)}</span>
+          <span className="text-gray-400">Dev. Multiplier:</span>
+          <span>{developmentMultiplier.toFixed(2)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Country Control:</span>
@@ -611,26 +624,68 @@ function ProvinceDetail({
           <span className="text-gray-400">House Control:</span>
           <span>{province.houseControl}</span>
         </div>
-        {(() => {
-          const cc = province.countryControl / 100
-          const hc = province.houseControl / 100
-          const totalControl = cc + hc
-          const countryIncome = totalControl > 0 ? effectiveTax * (cc / totalControl) * cc : 0
-          const houseIncome = totalControl > 0 ? effectiveTax * (hc / totalControl) * hc : 0
-          return (
-            <>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Est. Country Income:</span>
-                <span>{countryIncome.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Est. House Income:</span>
-                <span>{houseIncome.toFixed(2)}</span>
-              </div>
-            </>
-          )
-        })()}
       </div>
+
+      <div className="text-sm font-semibold text-gray-300">Population</div>
+      <div className="text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-400">Carrying Capacity:</span>
+          <span>{carryingCapacity.toFixed(0)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Total Population:</span>
+          <span>{totalPopulation.toFixed(1)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Pop. Pressure:</span>
+          <span className={populationPressure > 0.9 ? 'text-red-400' : 'text-gray-200'}>
+            {(populationPressure * 100).toFixed(1)}%
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Avg Wealth:</span>
+          <span>{avgWealth.toFixed(1)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Unrest:</span>
+          <span className={derivedUnrest > 60 ? 'text-red-400' : 'text-gray-200'}>
+            {derivedUnrest.toFixed(1)}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Production:</span>
+          <span>{derivedProduction.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Manpower:</span>
+          <span>{derivedManpower.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {pops.length > 0 && (
+        <>
+          <div className="text-sm font-semibold text-gray-300">POP Groups</div>
+          {pops.map((pop) => (
+            <div key={pop.id} className="rounded bg-gray-700 p-1.5 text-xs">
+              <div className="font-medium text-gray-300 capitalize">{pop.class}</div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Size:</span>
+                <span>{pop.size.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Wealth:</span>
+                <span>{pop.wealth.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Unrest:</span>
+                <span className={pop.unrest > 60 ? 'text-red-400' : 'text-gray-200'}>
+                  {pop.unrest.toFixed(1)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }

@@ -46,6 +46,7 @@ function makeBaseCtx(
       houses,
       persons,
       activePlots: {},
+      popGroups: {},
     },
     rng: { seedText: 'test', state: 42 },
     config: defaultConfig,

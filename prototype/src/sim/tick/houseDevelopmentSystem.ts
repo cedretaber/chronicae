@@ -10,9 +10,7 @@ import type { SimEvent } from '../types/event'
 function scoreHouseLandDevelopmentProvince(province: Province): number {
   const recoveryBonus = Math.max(0, -province.development) * 1.0
   const developmentPotentialBonus = (100 - Math.max(0, province.development)) * 0.3
-  const highValueBonus = province.baseTax * 4 + province.manpower * 2
-  const unrestPenalty = province.unrest * 0.4
-  return recoveryBonus + developmentPotentialBonus + highValueBonus - unrestPenalty
+  return recoveryBonus + developmentPotentialBonus
 }
 
 export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
@@ -69,10 +67,6 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
     const newHouseControl = clamp100(
       targetProvince.houseControl + currentCtx.config.landDevelopmentHouseControlGain,
     )
-    const newUnrest = Math.max(
-      0,
-      targetProvince.unrest - currentCtx.config.landDevelopmentUnrestReduction,
-    )
 
     const newProvinces = {
       ...currentCtx.state.provinces,
@@ -80,7 +74,6 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
         ...targetProvince,
         development: newDevelopment,
         houseControl: newHouseControl,
-        unrest: newUnrest,
       },
     }
     const newHouse = {

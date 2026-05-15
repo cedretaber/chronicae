@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-15（v0.7 時点）
+最終更新: 2026-05-15（v0.8 時点）
 
 ---
 
@@ -76,21 +76,47 @@ type Province = {
   neighbors: ProvinceId[]
   ownerHouseId: HouseId
   countryId: CountryId
-  baseTax: number        // 1..10
-  manpower: number       // 1..10
-  unrest: number         // 0..100
-  development: number    // -100..100
-  countryControl: number // 0..100
-  houseControl: number   // 0..100
+  habitability: number    // 0..100
+  development: number     // -100..100
+  countryControl: number  // 0..100
+  houseControl: number    // 0..100
+  popGroupIds: PopGroupId[]
 }
 ```
 
+- `habitability`: Province の基礎的な居住性・土地ポテンシャル。0 = ほぼ居住不能、100 = 非常に居住・生産に適した土地
 - `development`: 土地の荒廃・発展。-100 = 完全荒廃、0 = 通常、+100 = 高度発展
 - `countryControl`: 国家による実効支配力
 - `houseControl`: 領主 House による実効支配力
 - 名目所有（`countryId` / `ownerHouseId`）は支配力が 0 になっても変わらない
+- `baseTax` / `manpower` / `unrest` は v0.8 で廃止。これらは POP から selector で算出する
 
-### 3.2 Country（国家）
+### 3.2 PopClass / PopGroup（民衆集団）
+
+```ts
+type PopClass = 'peasants' | 'townsmen' | 'nobles'
+
+type PopGroup = {
+  id: PopGroupId
+  provinceId: ProvinceId
+  class: PopClass
+  size: number    // 抽象人口規模（実人数ではない）
+  wealth: number  // 0..100（豊かさ指数。金額ではない）
+  unrest: number  // 0..100
+}
+```
+
+| class | 意味 | 主な役割 |
+|-------|------|----------|
+| peasants | 農民・村落民 | 人口・基礎生産・兵力の中心 |
+| townsmen | 都市民・商工民 | 税収・富・都市的発展 |
+| nobles | 在地貴族・有力者 | 兵力・家支配・貴族的不満 |
+
+各 Province は必ず peasants / townsmen / nobles の 3 PopGroup を持つ。PopGroup は消滅しない（`minPopSizeByClass` で下限保証）。
+
+Province の unrest は POP unrest の人口加重平均として selector で算出する（§4 参照）。
+
+### 3.3 Country（国家）
 
 ```ts
 type Country = {
@@ -111,7 +137,7 @@ type Country = {
 
 - `capitalProvinceId`: 国家支配力の中心。その Country に属する Province でなければならない
 
-### 3.3 House（家）
+### 3.4 House（家）
 
 ```ts
 type House = {
@@ -136,7 +162,7 @@ type House = {
 - `seatProvinceId`: 家支配力の中心。その House が所有する Province でなければならない
 - House は常に本拠地を保持する（本拠地移転・喪失は今後の課題）
 
-### 3.4 Person（人物）
+### 3.5 Person（人物）
 
 ```ts
 export type Sex = 'male' | 'female'
@@ -169,9 +195,9 @@ type Person = {
 ```
 
 - `spouseId`: 生存中の配偶者のみを指す。配偶者が死亡した場合は `undefined` に戻る
-- 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §5.17 参照）
+- 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §6.23 参照）
 
-### 3.5 役職（RoleType）
+### 3.6 役職（RoleType）
 
 `chancellor`（宰相）、`general`（将軍）、`treasurer`（財務官）の 3 種。国家ごとに 1 名ずつ任命可能。
 
@@ -185,12 +211,48 @@ type Person = {
 // development multiplier: clamp(1 + development / 100, 0, 2)
 // development -100 → 0倍、0 → 1倍、+100 → 2倍
 function getProvinceDevelopmentMultiplier(province: Province): number
+```
 
-// 実効税収: baseTax * (1 - unrest/100) * multiplier
-function getEffectiveProvinceTax(province: Province): number
+`getEffectiveProvinceTax` / `getEffectiveProvinceManpower` は v0.8 で廃止。代わりに POP Economy セレクターを使用する。
 
-// 実効兵力: manpower * (1 - unrest/200) * multiplier
-function getEffectiveProvinceManpower(province: Province): number
+### 4.2 POP セレクター
+
+```ts
+// Province の全 PopGroup を返す
+function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[]
+
+// POP size の合計（総人口）
+function getProvincePopulation(state: WorldState, provinceId: ProvinceId): number
+
+// POP wealth の人口加重平均
+function getProvinceAveragePopWealth(state: WorldState, provinceId: ProvinceId): number
+
+// POP unrest の人口加重平均
+function getProvinceUnrest(state: WorldState, provinceId: ProvinceId): number
+
+// carrying capacity: max(minProvinceCarryingCapacity, habitability * populationCapacityPerHabitability * devMod)
+// devMod = clamp(1 + development / 200, 0.5, 1.5)
+function getProvinceCarryingCapacity(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+
+// population pressure: clamp(population / carryingCapacity, 0, 2)
+function getProvincePopulationPressure(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+```
+
+### 4.3 POP Economy セレクター
+
+```ts
+// POP 1件の生産量
+// pop.size * productivityByClass[pop.class] * (pop.wealth / 100) * (province.countryControl / 100)
+function getPopProduction(state: WorldState, config: SimulationConfig, popId: PopGroupId): number
+
+// Province の総生産量（全 POP の生産量合計）
+function getProvinceProduction(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+
+// Province の税基盤: getProvinceProduction * (houseControl / 100)
+function getProvinceTaxBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+
+// Province の兵力基盤: sum(pop.size * manpowerFactorByClass[pop.class] * (countryControl / 100))
+function getProvinceManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 ```
 
 ---
@@ -205,24 +267,26 @@ function getEffectiveProvinceManpower(province: Province): number
 | 2 | DevelopmentSystem | 毎月 |
 | 3 | ControlSystem | 毎月 |
 | 4 | LordshipTransitionSystem | 毎月 |
-| 5 | EconomySystem | 毎月 |
-| 6 | DisasterSystem | 毎年1月 |
-| 7 | MortalitySystem | 毎月 |
-| 8 | SuccessionSystem | 毎月 |
-| 9 | MarriageSystem | 毎年1月 |
-| 10 | BirthSystem | 毎年1月 |
-| 11 | AppointmentSystem | 毎年1月 |
-| 12 | AmbitionSystem | 毎月 |
-| 13 | PublicSpendingSystem | 毎年1月 |
-| 14 | HouseDevelopmentSystem | 毎年1月 |
-| 15 | PlotSystem | 毎月 |
-| 16 | WarSystem | 毎月 |
-| 17 | RebellionSystem | 毎月 |
-| 18 | StabilitySystem | 毎月 |
-| 19 | GovernanceSystem | 毎月 |
-| 20 | IntegrityCheck | 毎月 |
+| 5 | **PopSystem** | 毎月 |
+| 6 | EconomySystem | 毎月 |
+| 7 | DisasterSystem | 毎年1月 |
+| 8 | MortalitySystem | 毎月 |
+| 9 | SuccessionSystem | 毎月 |
+| 10 | MarriageSystem | 毎年1月 |
+| 11 | BirthSystem | 毎年1月 |
+| 12 | AppointmentSystem | 毎年1月 |
+| 13 | AmbitionSystem | 毎月 |
+| 14 | PublicSpendingSystem | 毎年1月 |
+| 15 | HouseDevelopmentSystem | 毎年1月 |
+| 16 | **PopDevelopmentSystem** | 毎月 |
+| 17 | PlotSystem | 毎月 |
+| 18 | WarSystem | 毎月 |
+| 19 | RebellionSystem | 毎月 |
+| 20 | StabilitySystem | 毎月 |
+| 21 | GovernanceSystem | 毎月 |
+| 22 | IntegrityCheck | 毎月 |
 
-順序の理由：DevelopmentSystem → ControlSystem の順で development 変化を支配力計算に反映し、LordshipTransition 後の ownerHouseId に基づいて EconomySystem が収入を計算する。
+順序の理由：PopSystem を EconomySystem より前に置くことで、当月の POP 状態変化（人口成長・pressure・wealth/unrest）を反映して生産量を計算する。PopDevelopmentSystem を Country/House 開発システムより後に置くことで、当月の収入分配後に POP に残った余剰富による地元の自主開発を表現する。
 
 ---
 
@@ -252,7 +316,7 @@ maxControl = clamp(baseMaxControl + maxControlBonus, controlAbilityMinimumFloor,
 // 首都 / 本拠地は常に上限 100
 ```
 
-`maxControlBonus` は宰相（countryControl）・家長（houseControl）の admin stat から算出される（§14 参照）。
+`maxControlBonus` は宰相（countryControl）・家長（houseControl）の admin stat から算出される（§10 参照）。
 
 **到達可能な Province**:
 
@@ -300,49 +364,159 @@ target.houseControl = clamp(neighbor.houseControl - penalty, newControlMin, newC
 summary: "${新House.name} absorbed ${province.name} from ${旧House.name}."
 ```
 
-### 6.4 EconomySystem（毎月）
+### 6.4 PopSystem（毎月）
 
-Province ごとに支配力に基づいて収入を分配する。支配力不足により収入ロスが発生する。
+POP の月次自然変化を処理する。Province の carrying capacity に基づいた人口圧制御、wealth/unrest の自然変化を担当する。
+
+**6.4.1 人口成長**
 
 ```ts
-const provinceIncome = getEffectiveProvinceTax(province)
+const pressure = getProvincePopulationPressure(state, config, province.id)
+const growthFactor = clamp(1 - pressure, -0.5, 1.0)
+const baseGrowth = config.baseMonthlyGrowthByClass[pop.class]
+const wealthFactor = clamp(0.5 + pop.wealth / 100, 0.5, 1.5)
+const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)
+const delta = pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor
+```
+
+**6.4.2 population pressure の影響**
+
+pressure が閾値を超えると土地不足・過密に相当する影響が発生する：
+
+```ts
+if (pressure > config.populationPressureThreshold) {
+  const excess = pressure - config.populationPressureThreshold
+  pop.wealth -= excess * config.populationPressureWealthPenalty
+  pop.unrest += excess * config.populationPressureUnrestGain
+}
+```
+
+**6.4.3 poverty / prosperity 効果**
+
+```ts
+// 貧困: wealth が低い POP は不満が上がりやすい
+if (pop.wealth < config.povertyWealthThreshold) {
+  pop.unrest += (config.povertyWealthThreshold - pop.wealth) * config.povertyUnrestGain
+}
+// 繁栄: wealth が高い POP は不満が下がりやすい
+if (pop.wealth > config.prosperityWealthThreshold) {
+  pop.unrest -= (pop.wealth - config.prosperityWealthThreshold) * config.prosperityUnrestReduction
+}
+```
+
+**6.4.4 clamp**
+
+```ts
+pop.size = Math.max(config.minPopSizeByClass[pop.class], pop.size + delta)
+pop.wealth = clamp(pop.wealth, 0, 100)
+pop.unrest = clamp(pop.unrest, 0, 100)
+```
+
+**normalizePopSizes**（IntegrityCheck 直前）: 全 POP について `size < minPopSizeByClass[class]` の場合、最低値に切り上げる。疫病・戦争などでサイズが最低値を下回った場合のフェイルセーフ。
+
+### 6.5 EconomySystem（毎月）
+
+Province ごとに POP の生産量を算出し、支配力に基づいて国・家・POP に富を分配する。
+
+**6.5.1 生産量算出**
+
+```ts
+const production = getProvinceProduction(state, config, province.id)
+// = sum(pop.size * productivityByClass[pop.class] * (pop.wealth/100) * (countryControl/100))
+```
+
+**6.5.2 回収式**
+
+支配力不足によるロスの思想は維持する。ロス分は POP に残る富となる。
+
+```ts
 const cc = province.countryControl / 100
 const hc = province.houseControl / 100
 const totalControl = cc + hc
 
-if (totalControl <= 0) continue  // 収入なし
+if (totalControl > 0) {
+  countryIncome = production * (cc / totalControl) * cc
+  houseIncome   = production * (hc / totalControl) * hc
+}
 
-const countryIncome = provinceIncome * (cc / totalControl) * cc
-const houseIncome   = provinceIncome * (hc / totalControl) * hc
+const extracted = countryIncome + houseIncome
+const retained  = Math.max(0, production - extracted)
 ```
 
-国庫への収入には財務官の能力補正（`taxEfficiency`）が乗算される（§14 参照）。家収入への補正はない。
-
-例（Province 収入 100 の場合）:
-| countryControl | houseControl | 国収入（taxEfficiency=1） | 家収入 | ロス |
+支配力の例（Province 生産量 100 の場合）:
+| countryControl | houseControl | 国収入（taxEfficiency=1） | 家収入 | POP 残留 |
 |---|---|---|---|---|
 | 100 | 100 | 50 | 50 | 0 |
 | 100 | 50 | 66.7 | 16.7 | 16.6 |
 | 50 | 50 | 25 | 25 | 50 |
 | 100 | 0 | 100 | 0 | 0 |
 
-### 6.5 DisasterSystem（毎年1月）
+**6.5.3 財務官の taxEfficiency**
+
+国庫収入には財務官の能力補正が乗算される（§10 参照）。POP から余分に徴収するのではなく、徴収・輸送・汚職抑制の効率を表す。
+
+```ts
+country.treasury += countryIncome * taxEfficiency
+house.wealth     += houseIncome
+```
+
+**6.5.4 retained wealth の POP 反映**
+
+回収されなかった富は `retainedRatio * retainedWealthGainByClass[class]` として POP wealth に反映される：
+
+```ts
+const retainedRatio = production > 0 ? retained / production : 0
+// POP class ごとに adjustProvincePopWealthByClass で適用
+```
+
+**6.5.5 過剰徴収ペナルティ**
+
+高支配地域での高徴収は正常だが、POP が貧しく不満を抱えている場合にのみペナルティが発生する：
+
+```ts
+if (
+  extractionRatio > config.overExtractionThreshold &&
+  (averageWealth < config.overExtractionWealthSafeThreshold ||
+   provinceUnrest > config.overExtractionUnrestSafeThreshold)
+) {
+  const over = extractionRatio - config.overExtractionThreshold
+  adjustProvincePopWealth(state, province.id, -over * config.overExtractionWealthPenalty)
+  adjustProvincePopUnrest(state, province.id, over * config.overExtractionUnrestGain)
+}
+```
+
+### 6.6 DisasterSystem（毎年1月）
 
 国家ごとに独立して判定。同一国に複数の災害が同時発生し得る。
 
 | 災害 | 確率 | 効果 |
 |------|------|------|
-| Famine（飢饉） | `famineBaseChancePerYear` (8%) | 救済あり: dev -= (devastation - relief)、unrest +5、stability -10、legitimacy +5<br>救済なし: dev -= devastation、unrest +15、stability -10、legitimacy -8 |
-| Plague（疫病） | `plagueBaseChancePerYear` (3%) | dev -= plagueDevastation、unrest +10、stability -8 |
-| BountifulHarvest（豊作） | `bountifulHarvestBaseChancePerYear` (5%) | dev += gain、unrest -5、stability +5 |
+| Famine（飢饉） | `famineBaseChancePerYear` (8%) | Province dev 低下、stability -10、treasury 消費（救済）、peasants wealth/size 低下 |
+| Plague（疫病） | `plagueBaseChancePerYear` (3%) | Province dev 低下、stability -8、全 POP wealth/size 低下 |
+| BountifulHarvest（豊作） | `bountifulHarvestBaseChancePerYear` (5%) | Province dev 上昇、stability +5、peasants/townsmen wealth 上昇・unrest 低下 |
 
-飢饉救済判定: `country.treasury >= countryProvinceCount * disasterReliefCostPerProvince`
+**Famine の詳細**:
+- 救済判定: `country.treasury >= countryProvinceCount * disasterReliefCostPerProvince`
+- 救済あり: dev -= (famineDevastation - famineReliefDevelopmentRecovery)、legitimacy +5、POP 効果を `famineReliefDamageMultiplier`（0.3）倍に軽減
+- 救済なし: dev -= famineDevastation、legitimacy -8、POP 効果フル適用
+- POP 効果: `adjustProvincePopWealthByClass(state, pid, 'peasants', -famineWealthPenalty * multiplier)` / `adjustProvincePopSizeByClass(state, pid, 'peasants', -famineSizeDamage * multiplier)`
 
-### 6.6 MortalitySystem（毎月）
+**Plague の詳細**:
+- `adjustProvincePopWealth(state, pid, -plagueWealthPenalty)`（全 POP）
+- `adjustProvincePopSize(state, pid, -plagueSizeDamage)`（全 POP）
+
+**BountifulHarvest の詳細**:
+- treasury への直接加算なし。翌月以降の EconomySystem で POP production 上昇により国庫が増加する
+- `adjustProvincePopWealthByClass(state, pid, 'peasants', +bountifulHarvestPeasantWealthGain)`
+- `adjustProvincePopUnrestByClass(state, pid, 'peasants', -bountifulHarvestPeasantUnrestReduction)`
+- `adjustProvincePopWealthByClass(state, pid, 'townsmen', +bountifulHarvestTownsmanWealthGain)`
+- `adjustProvincePopUnrestByClass(state, pid, 'townsmen', -bountifulHarvestTownsmanUnrestReduction)`
+
+### 6.7 MortalitySystem（毎月）
 
 人物の自然死亡を処理。死亡した人物が役職・家長を担っていた場合は後継処理へ。
 
-### 6.7 MarriageSystem（毎年1月）
+### 6.8 MarriageSystem（毎年1月）
 
 `marriageEnabled` が true のとき動作。未婚の男性候補を一覧し、それぞれに対して婚姻判定を行う。
 
@@ -359,7 +533,7 @@ const houseIncome   = provinceIncome * (hc / totalControl) * hc
 
 イベント: `MARRIAGE_FORMED`（importance: `normal`）
 
-### 6.8 BirthSystem（毎年1月）
+### 6.9 BirthSystem（毎年1月）
 
 `birthEnabled` が true のとき動作。対象年齢（`fatherMinChildAge`〜`fatherMaxChildAge`）の生存男性を走査し、出生判定を行う。
 
@@ -387,7 +561,7 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 
 イベント: `CHILD_BORN`（importance: `minor`）
 
-### 6.9 SuccessionSystem（毎月）
+### 6.10 SuccessionSystem（毎月）
 
 家長が死亡または存在しない場合、生存メンバーから新家長を選出。
 
@@ -395,15 +569,15 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 - `getAdultSuccessionCandidates` で成人（age >= `adultAge`）かつ生存の家メンバーを列挙
 - スコアが最高の候補を後継者に選ぶ
 - スコア 2 位との差が `successionCrisisScoreGap` を超える場合、`SUCCESSION_CRISIS` イベントを発火
-- 継承後に `maybeSplitHouseAfterSuccession` を呼び出す（§6.10 参照）
+- 継承後に `maybeSplitHouseAfterSuccession` を呼び出す（§6.11 参照）
 
 **後継者選出（未成年のみ）**:
 - 最年長の未成年を仮の家長に任命
-- 未成年当主ペナルティ（§6.11 参照）が以後毎月適用される
+- 未成年当主ペナルティ（§6.12 参照）が以後毎月適用される
 
-**後継者なし**: `extinctHouseAfterFailedSuccession`（§6.12 参照）を呼び出す。
+**後継者なし**: `extinctHouseAfterFailedSuccession`（§6.13 参照）を呼び出す。
 
-### 6.10 HouseSplitSystem（SuccessionSystem から呼び出し）
+### 6.11 HouseSplitSystem（SuccessionSystem から呼び出し）
 
 継承が発生した際に、分裂条件を満たせば家の分裂を実行する。
 
@@ -427,7 +601,6 @@ splitChance = baseHouseSplitChance
 - 分裂者・その配偶者・子を新 House の `memberIds` に設定
 - Province の一部（`houseSplitControlMin`〜`houseSplitControlMax` の割合）を新 House に移管
 - 元 House の `cadetHouseIds` に追加、新 House の `parentHouseId` を設定
-- 分裂した Province に `unrest += houseSplitUnrestGain`
 - 国の `houseIds` に新 House を追加
 
 イベント: `HOUSE_SPLIT`（importance: `major`）+ `SUCCESSION_CRISIS`（importance: `major`）
@@ -435,9 +608,9 @@ splitChance = baseHouseSplitChance
 **cohesion の変動**:
 - 初期値: worldgen 時に `randomInt(40, 80)`
 - 低下: 未成年当主時に毎月 `-minorHeadCohesionPenaltyPerMonth`（0.5）、陰謀成功時に -10 または -5
-- 回復: なし（v0.7 時点）
+- 回復: なし（v0.8 時点）
 
-### 6.11 未成年当主ペナルティ（SuccessionSystem 内）
+### 6.12 未成年当主ペナルティ（SuccessionSystem 内）
 
 当主が未成年（age < `adultAge`）の間、毎月適用：
 ```
@@ -445,7 +618,7 @@ cohesion       = max(0, cohesion - minorHeadCohesionPenaltyPerMonth)
 loyaltyToCountry = max(0, loyaltyToCountry - minorHeadLoyaltyPenaltyPerMonth)
 ```
 
-### 6.12 HouseExtinctionSystem（SuccessionSystem から呼び出し）
+### 6.13 HouseExtinctionSystem（SuccessionSystem から呼び出し）
 
 後継者が存在しない家（生存メンバーが 0 または全員未成年かつ成人後継者なし）に対して断絶処理を行う。
 
@@ -455,7 +628,6 @@ loyaltyToCountry = max(0, loyaltyToCountry - minorHeadLoyaltyPenaltyPerMonth)
 - 断絶家の Province を継承先に `transferProvinceToHouse` で移管
 - 断絶家を `active: false`、`memberIds: []` に設定
 - 国の `houseIds` から除外
-- 継承先 Province に `unrest += extinctionUnrestGain`
 
 **支配家の断絶（rulerHouse）**:
 - 同国内に別の active House がある場合:
@@ -469,19 +641,19 @@ loyaltyToCountry = max(0, loyaltyToCountry - minorHeadLoyaltyPenaltyPerMonth)
 
 イベント: `HOUSE_EXTINCT`（importance: `major`）または `RULER_HOUSE_EXTINCT`（importance: `critical`）
 
-### 6.13 AppointmentSystem（毎年1月）
+### 6.14 AppointmentSystem（毎年1月）
 
 国家の各役職に対して、スコアの低い担当者を `replacementThreshold` 未満で交代。
 
-### 6.14 AmbitionSystem（毎月）
+### 6.15 AmbitionSystem（毎月）
 
 人物・家ごとに野心スコアを計算し、将来の陰謀・反乱の素地を作る。
 
-### 6.15 PublicSpendingSystem（毎年1月）
+### 6.16 PublicSpendingSystem（毎年1月）
 
 `publicSpendingYearlyChance`（35%）で発動。monumentScore vs landDevelopmentScore を比較し実行：
 
-スコア計算に宰相の ability 補正が加算される（§14 参照）:
+スコア計算に宰相の ability 補正が加算される（§10 参照）:
 ```
 monumentScore      += chancellorAmbitionMonumentScoreBonus + chancellorCautionMonumentScoreBonus
 landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorAmbitionLandDevelopmentScoreBonus
@@ -489,17 +661,14 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
 
 **記念碑建設（MONUMENT_BUILT）**:
 - 条件: monumentScore > landDevelopmentScore かつ treasury >= monumentBaseCost
-- 対象 Province: 首都から接続済み、countryControl < 100 の中から以下スコアで選択:
-  ```
-  score = (100 - countryControl) * 1.0 + development * 0.5 - unrest * 0.5
-  ```
+- 対象 Province: 首都から接続済み、countryControl < 100 の中から最高スコアで選択
 - 効果: treasury -= monumentBaseCost、**countryControl += monumentCountryControlGain**、legitimacy += monumentLegitimacyGain、rulerHouse.prestige += 2
 
 **国家土地開発（COUNTRY_LAND_DEVELOPED）**:
 - 条件: treasury >= effectiveCost（財務官 admin による割引あり）
-- 効果: development += gain（clamp）、**houseControl += landDevelopmentHouseControlGain**、**unrest -= landDevelopmentUnrestReduction**、stability +2、treasury -= effectiveCost
+- 効果: development += gain（clamp）、**houseControl += landDevelopmentHouseControlGain**、stability +2、treasury -= effectiveCost
 
-### 6.16 HouseDevelopmentSystem（毎年1月）
+### 6.17 HouseDevelopmentSystem（毎年1月）
 
 `houseDevelopmentEnabled` が true のとき動作。全 active House に対して：
 
@@ -508,35 +677,77 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
   ```
   chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 0, 1)
   wealthBonus      = clamp((wealth - cost - reserve) / 300, 0, 0.25)
-  abilityChanceBonus = 家長 admin / caution による補正（§14 参照）
+  abilityChanceBonus = 家長 admin / caution による補正（§10 参照）
   ```
 - 効果:
   ```
   effectiveGain = houseLandDevelopmentGain * (1 - max(0, development) / 100)
   development += effectiveGain（clamp）
   houseControl += landDevelopmentHouseControlGain（clamp）
-  unrest -= landDevelopmentUnrestReduction（clamp）
   house.wealth -= houseLandDevelopmentBaseCost
   ```
 - イベント: `HOUSE_LAND_DEVELOPED`
 
-### 6.17 PlotSystem（毎月）
+### 6.18 PopDevelopmentSystem（毎月）
+
+`popDevelopmentEnabled` が true のとき動作。地元共同体・都市民・在地有力者による小規模な土地改善を表す。
+
+POP 自主開発は Country / House 開発より明確に弱く、局所的・低効率に留める：
+
+| 開発主体 | development gain | 財源 |
+|----------|-----------------|------|
+| POP | +0.25（微少） | Province に残った POP wealth |
+| House | +6 | House wealth |
+| Country | +8 以上 | Country treasury |
+
+**発動条件**:
+```ts
+if (averageWealth < config.popDevelopmentWealthThreshold) continue
+if (unrest > config.popDevelopmentUnrestMax) continue
+if (province.development >= config.popDevelopmentMaxDevelopment) continue
+```
+
+**発動確率**:
+```ts
+chance = clamp(
+  popDevelopmentMonthlyChance
+    + (averageWealth - popDevelopmentWealthThreshold) * popDevelopmentWealthChanceFactor
+    - unrest * popDevelopmentUnrestPenaltyFactor,
+  0,
+  popDevelopmentMaxMonthlyChance,
+)
+```
+
+**効果**:
+```ts
+province.development += popDevelopmentGain  // clamp(-100, 100)
+adjustProvincePopWealth(state, province.id, -popDevelopmentCost)
+```
+
+countryControl / houseControl には影響しない。
+
+イベント: `POP_LAND_DEVELOPED`（importance: `minor`）
+```
+summary: "The people of ${province.name} improved their lands."
+```
+
+### 6.19 PlotSystem（毎月）
 
 野心スコアが `plotThreshold` を超えた人物が陰謀を実行。成功率 `basePlotSuccess`。
 
-### 6.18 WarSystem（毎月）
+### 6.20 WarSystem（毎月）
 
 `warEnabled` が true のとき動作。国家が他国に宣戦布告し、Province を奪取する。
 
-- 宣戦条件: `effectiveMinWinChanceToDeclare`（将軍の ambition/caution で変動、§14 参照）以上の勝率見込み、warCooldown 明け
-- 軍事力: `baseMilitaryPower * warPowerModifier`（将軍 martial stat による、§14 参照）
+- 宣戦条件: `effectiveMinWinChanceToDeclare`（将軍の ambition/caution で変動、§10 参照）以上の勝率見込み、warCooldown 明け
+- 軍事力: `baseMilitaryPower * warPowerModifier`（将軍 martial stat による、§10 参照）
 - **本拠地保護**: `seatProvinceId` の Province は征服対象から除外する
 - 征服後、defender の非 seat Province がすべてなくなった場合（seat のみ残存）に `annexCountry` を呼び出す
-- 荒廃効果（攻撃側勝利時）:
-  - 征服 Province: development -= warConqueredProvinceDevastation
-  - 境界 Province（非征服）: development -= warBorderProvinceDevastation
-- 荒廃効果（攻撃側敗北時）:
-  - 攻撃側の境界 Province: development -= failedWarBorderDevastation
+
+**荒廃・POP 効果**:
+- 攻撃側勝利時（征服 Province）: development -= warConqueredProvinceDevastation、全 POP wealth 低下・unrest 上昇・peasants/townsmen size 軽度減少
+- 攻撃側勝利時（境界 Province）: development -= warBorderProvinceDevastation、全 POP wealth 低下・unrest 上昇
+- 攻撃側敗北時（攻撃側境界 Province）: development -= failedWarBorderDevastation、全 POP wealth 低下・unrest 上昇
 
 **annexCountry mutation**:
 
@@ -552,9 +763,11 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
 9. defeatedCountry.active = false
 ```
 
-### 6.19 RebellionSystem（毎月）
+### 6.21 RebellionSystem（毎月）
 
 反乱傾向が `rebellionThreshold` を超えた家が反乱を起こす。
+
+Province の unrest 参照はすべて `getProvinceUnrest(state, province.id)` を使用する。
 
 - 荒廃効果:
   - 反乱開始時: rebelProvinces に development -= rebellionStartedDevastation
@@ -564,11 +777,11 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
   - `independence`: 反乱家が独立国を形成（国名: `{house.name}領`）
   - `ruler_change`: 反乱家が支配家に就く
 
-### 6.20 StabilitySystem / GovernanceSystem（毎月）
+### 6.22 StabilitySystem / GovernanceSystem（毎月）
 
 各国の Stability・Legitimacy の自然回復と行政処理。
 
-### 6.21 IntegrityCheck（毎月）
+### 6.23 IntegrityCheck（毎月）
 
 以下を検証し、違反があれば例外を投げる（`debug` モード時は警告のみ）：
 
@@ -588,20 +801,63 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
 14. 生存 Person の spouseId が死亡者を指さない
 15. 親子関係の双方向整合性（fatherId/motherId と childIds の相互参照）
 16. House の cadet 関係の双方向整合性（parentHouseId と cadetHouseIds の相互参照）
+17. PopGroup.provinceId が有効な Province を指している
+18. Province.popGroupIds の全 ID が有効な PopGroup を指している
+19. Province.popGroupIds と PopGroup.provinceId の双方向整合性
+20. 各 Province が peasants / townsmen / nobles を 1 つずつ持つ
+21. PopGroup.size >= minPopSizeByClass[class]
+22. PopGroup.wealth が 0..100 の範囲内
+23. PopGroup.unrest が 0..100 の範囲内
 
 ---
 
 ## 7. Worldgen 初期化
 
-### 7.1 seatProvinceId の決定
+### 7.1 Province habitability の生成
+
+worldgen 時に各 Province に `habitability` を乱数で生成する：
+
+```ts
+habitability = randomInt(30, 90)
+```
+
+将来的には地形・沿岸・河川・気候などで補正する。
+
+### 7.2 PopGroup 初期生成
+
+各 Province に peasants / townsmen / nobles の 3 PopGroup を生成する。
+
+**size の初期値**（carrying capacity に基づく）:
+```ts
+const capacity = max(minProvinceCarryingCapacity, habitability * populationCapacityPerHabitability * devMod)
+peasants.size  = capacity * randomInt(55, 75) / 100
+townsmen.size  = capacity * randomInt(5, 15) / 100
+nobles.size    = capacity * randomInt(2, 5) / 100
+```
+
+**wealth の初期値**（class ごとに差をつける）:
+```ts
+peasants.wealth  = randomInt(35, 60)
+townsmen.wealth  = randomInt(45, 70)
+nobles.wealth    = randomInt(50, 80)
+```
+
+**unrest の初期値**（低〜中程度）:
+```ts
+peasants.unrest  = randomInt(10, 30)
+townsmen.unrest  = randomInt(10, 25)
+nobles.unrest    = randomInt(5, 25)
+```
+
+### 7.3 seatProvinceId の決定
 
 各 House の本拠地は、その House が所有する Province のうち `development` が最も高いもの。同値は Province ID 昇順。
 
-### 7.2 capitalProvinceId の決定
+### 7.4 capitalProvinceId の決定
 
 各 Country の首都は、支配家（rulerHouse）の `seatProvinceId`。
 
-### 7.3 countryControl / houseControl の初期値
+### 7.5 countryControl / houseControl の初期値
 
 ControlSystem と同じ距離上限計算で初期化する。
 
@@ -612,7 +868,7 @@ houseControl   = maxControl(seatProvinceId からの BFS 距離)
 
 接続不能な Province: `countryControl = 30`、`houseControl = 30`
 
-### 7.4 エンティティ名称の生成
+### 7.6 エンティティ名称の生成
 
 Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` に定義された名前プールから seed 付き RNG で選択する。
 
@@ -661,6 +917,13 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発 |
 | HOUSE_LAND_DEVELOPED | normal | 家による土地開発 |
 | LORDSHIP_TRANSFERRED | minor | 隣接吸収による領主交代 |
+| POP_LAND_DEVELOPED | minor | POP 自主開発（§6.18） |
+| POP_HARDSHIP | minor | POP の困窮（将来実装） |
+| POP_PROSPERITY | minor | POP の繁栄（将来実装） |
+| POP_UNREST_RISING | normal | Province unrest 上昇警告（将来実装） |
+| POP_DECLINED | normal | Province 人口大幅低下（将来実装） |
+
+POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は v0.8 時点で EventType 宣言のみ。実際の発火ロジックは v0.9 以降に実装する。
 
 ---
 
@@ -714,8 +977,8 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | houseSplitControlMin | 30 | 分裂 Province 割合の下限（%） |
 | houseSplitControlMax | 80 | 分裂 Province 割合の上限（%） |
 | houseSplitWealthShare | 0.25 | 分裂時に新 House が受け取る wealth 割合 |
-| houseSplitUnrestGain | 5 | 分裂 Province への unrest 増加量 |
-| extinctionUnrestGain | 8 | 家断絶後の継承 Province への unrest 増加量 |
+| houseSplitUnrestGain | 5 | 分裂 Province への POP unrest 増加量（PopMutation 経由） |
+| extinctionUnrestGain | 8 | 家断絶後の継承 Province への POP unrest 増加量 |
 | **War** | | |
 | warEnabled | true | 戦争有効 |
 | warCostPerProvince | 20 | Province あたり戦費 |
@@ -723,12 +986,25 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | maxWarsPerTick | 1 | 1 tick あたり最大宣戦数 |
 | warCooldownMonths | 24 | 戦争クールダウン（月） |
 | minAttackerWinChanceToDeclare | 0.45 | 宣戦布告に必要な最低勝率 |
+| warWealthDamage | 8 | 戦争時の全 POP wealth 低下量 |
+| warUnrestDamage | 10 | 戦争時の全 POP unrest 上昇量 |
+| warPeasantSizeDamage | 0.5 | 戦争時の peasants size 減少量 |
+| warTownsmanSizeDamage | 0.3 | 戦争時の townsmen size 減少量 |
 | **Disaster** | | |
 | disasterEnabled | true | 災害有効 |
 | famineBaseChancePerYear | 0.08 | 飢饉発生率/年 |
 | plagueBaseChancePerYear | 0.03 | 疫病発生率/年 |
 | bountifulHarvestBaseChancePerYear | 0.05 | 豊作発生率/年 |
 | disasterReliefCostPerProvince | 20 | 救済費用/Province |
+| famineWealthPenalty | 15 | 飢饉による peasants wealth 低下量 |
+| famineSizeDamage | 2 | 飢饉による peasants size 減少量 |
+| famineReliefDamageMultiplier | 0.3 | 救済成功時の POP 効果軽減係数 |
+| plagueWealthPenalty | 10 | 疫病による全 POP wealth 低下量 |
+| plagueSizeDamage | 3 | 疫病による全 POP size 減少量 |
+| bountifulHarvestPeasantWealthGain | 10 | 豊作による peasants wealth 上昇量 |
+| bountifulHarvestPeasantUnrestReduction | 5 | 豊作による peasants unrest 低下量 |
+| bountifulHarvestTownsmanWealthGain | 2 | 豊作による townsmen wealth 上昇量 |
+| bountifulHarvestTownsmanUnrestReduction | 1 | 豊作による townsmen unrest 低下量 |
 | **Public Spending** | | |
 | publicSpendingEnabled | true | 公共支出有効 |
 | monumentBaseCost | 120 | 記念碑建設コスト |
@@ -764,7 +1040,7 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | monumentLegitimacyGain | 5 | 記念碑による legitimacy 上昇量 |
 | **Land Development** | | |
 | landDevelopmentHouseControlGain | 5 | 土地開発による houseControl 上昇量 |
-| landDevelopmentUnrestReduction | 1 | 土地開発による unrest 低下量 |
+| landDevelopmentUnrestReduction | 1 | 土地開発によるスコア評価に用いる unrest 低下量 |
 | **Person Ability Effects（v0.6）** | | |
 | personAbilityEffectsEnabled | true | 人物能力効果の有効/無効 |
 | chancellorAdminControlGrowthEffect | 0.25 | 宰相 admin による支配力成長補正係数 |
@@ -799,6 +1075,38 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | **Annexation** | | |
 | annexedCountryControl | 35 | 併合後の Province countryControl |
 | newRulerHouseControl | 35 | 征服国 rulerHouse に割当られた Province の houseControl |
+| **POP システム（v0.8）** | | |
+| popSystemEnabled | true | POP システム有効 |
+| minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別） |
+| populationCapacityPerHabitability | 10 | habitability 1 あたりの人口キャパシティ |
+| minProvinceCarryingCapacity | 50 | Province の最小 carrying capacity |
+| productivityByClass | {peasants:1.0, townsmen:1.5, nobles:0.6} | POP 生産性係数（class 別） |
+| manpowerFactorByClass | {peasants:0.03, townsmen:0.01, nobles:0.06} | 兵力換算係数（class 別） |
+| baseMonthlyGrowthByClass | {peasants:0.0010, townsmen:0.0008, nobles:0.0004} | 月次基本成長率（class 別） |
+| populationPressureThreshold | 0.90 | pressure がこれを超えると wealth/unrest に影響 |
+| populationPressureWealthPenalty | 0.2 | pressure 超過時の wealth 低下係数 |
+| populationPressureUnrestGain | 0.3 | pressure 超過時の unrest 上昇係数 |
+| povertyWealthThreshold | 25 | 貧困閾値（これ未満で unrest 上昇） |
+| povertyUnrestGain | 0.02 | 貧困による unrest 上昇係数 |
+| prosperityWealthThreshold | 70 | 繁栄閾値（これ超過で unrest 低下） |
+| prosperityUnrestReduction | 0.01 | 繁栄による unrest 低下係数 |
+| retainedWealthGainByClass | {peasants:0.30, townsmen:0.45, nobles:0.25} | 残留富 1 に対する wealth 増加量（class 別） |
+| overExtractionThreshold | 0.95 | 過剰徴収判定の回収率閾値 |
+| overExtractionWealthSafeThreshold | 55 | この wealth 以上ならペナルティ回避 |
+| overExtractionUnrestSafeThreshold | 45 | この unrest 以下ならペナルティ回避 |
+| overExtractionWealthPenalty | 1.0 | 過剰徴収による wealth 低下係数 |
+| overExtractionUnrestGain | 1.5 | 過剰徴収による unrest 上昇係数 |
+| **POP 自主開発（v0.8）** | | |
+| popDevelopmentEnabled | true | POP 自主開発有効 |
+| popDevelopmentMonthlyChance | 0.02 | 月次発動基本確率 |
+| popDevelopmentMaxMonthlyChance | 0.08 | 月次発動確率の上限 |
+| popDevelopmentWealthThreshold | 65 | 発動に必要な最低 avgWealth |
+| popDevelopmentUnrestMax | 35 | 発動を阻害する unrest 上限 |
+| popDevelopmentWealthChanceFactor | 0.001 | wealth による確率上昇係数 |
+| popDevelopmentUnrestPenaltyFactor | 0.0005 | unrest による確率低下係数 |
+| popDevelopmentCost | 3 | 発動時の全 POP wealth 低下量 |
+| popDevelopmentGain | 0.25 | 発動時の development 上昇量 |
+| popDevelopmentMaxDevelopment | 40 | POP 自主開発の development 上限 |
 
 ---
 
@@ -853,7 +1161,7 @@ taxEfficiency = clamp(
   treasurerTaxEfficiencyMin,
   treasurerTaxEfficiencyMax,
 )
-// 国庫収入 *= taxEfficiency。家収入への影響なし
+// 国庫収入 *= taxEfficiency。家収入・POP wealth への影響なし
 ```
 
 **財務官（treasurer）→ 国家土地開発コスト**:
@@ -914,7 +1222,9 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 - **MapPanel**: Province を SVG で描画。クリックで Province 選択
 - **Sidebar**: 人物一覧。重要度スコア順。ウォッチリスト対応
 - **DetailPanel**: 選択エンティティ（Province / Country / House / Person）の詳細表示
-  - ProvinceDetail: development / countryControl / houseControl / 収入見込み
+  - ProvinceDetail:
+    - **Population** セクション: habitability / Carrying Capacity / Total Population / Pop. Pressure（90% 超で赤表示）/ Avg Wealth / Unrest（60 超で赤表示）/ Production / Manpower
+    - **POP Groups** セクション: class 別に size / wealth / unrest（60 超で赤表示）を一覧表示
   - CountryDetail: 首都名（capitalProvinceId）/ legitimacy / treasury
   - HouseDetail: 本拠地名（seatProvinceId）/ Province 数 / wealth / prestige
 - **EventLog**: Chronicle（major/critical）と全イベントの 2 ビュー
@@ -924,12 +1234,15 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 
 ## 12. 今後の課題（未実装）
 
+- **大国の分裂**: 国土が広すぎると支配力が維持できず、継承・内乱・反乱で分裂する仕組み。現状は全土が 1 国 1 家に収束しやすいため、国家規模へのペナルティや継承危機の強化が必要
 - **家の分裂の作り込み**: cohesion 回復メカニズム、分裂閾値の調整、一強状態でも分裂が自然発生する仕組み
+- **POP 階層別反乱**: peasants unrest → 農民反乱、townsmen unrest → 都市暴動、nobles unrest → 貴族反乱 / House 反乱
+- **POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED イベントの発火ロジック**: 閾値超過時のみ発火する条件付きイベント（EventType 宣言のみ実装済み）
 - **首都・本拠地移転**: 征服・滅亡・特別イベントによる移転
-- **支配力による反乱・独立**: countryControl / houseControl が閾値を下回る Province での反乱
 - **記念碑エンティティ化**: 建設場所、継続効果、破壊、monumentLevel
-- **一強状態への対策**: 大国ペナルティ、継承問題、外部新興勢力
-- **POP システム**: 社会階層・文化・宗教・支持対象
+- **POP の移住**: population pressure・wealth・unrest・戦争荒廃に応じた Province 間移動
+- **文化・宗教**: PopGroup への cultureId / religionId 追加、同化・改宗・弾圧・寛容政策
+- **食料生産**: carrying capacity / population pressure を foodProduction / foodDemand に拡張
 - **詳細な戦争**: War エンティティ、戦場、包囲戦
 - **施設システム**: 城塞・道路・港・市場
 - **詳細外交**: 同盟・条約・婚姻

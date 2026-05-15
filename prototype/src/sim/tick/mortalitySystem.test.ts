@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import type { WorldState } from '../types/world'
 import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
 import type { TickContext } from './context'
 import type { Person } from '../types/person'
@@ -67,6 +66,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
       },
       persons: personsRecord,
       activePlots: {},
+      popGroups: {},
     },
     rng: { seedText: 'test', state: rngSeed },
     config: defaultConfig,
@@ -168,13 +168,14 @@ describe('runMortalitySystem', () => {
           },
           persons: personsRecord,
           activePlots: {},
-        } as WorldState,
+          popGroups: {},
+        },
         rng: { seedText: 'test', state: seed },
         config: defaultConfig,
         events: [],
         nextEventIndex: 0,
         nextPersonIndex: 0,
-      }
+      } as unknown as TickContext
 
       const result = runMortalitySystem(ctx)
 
@@ -284,13 +285,14 @@ describe('runMortalitySystem', () => {
           },
           persons: personsRecord,
           activePlots: {},
-        } as WorldState,
+          popGroups: {},
+        },
         rng: { seedText: 'test', state: seed },
         config: defaultConfig,
         events: [],
         nextEventIndex: 0,
         nextPersonIndex: 0,
-      }
+      } as unknown as TickContext
 
       const result = runMortalitySystem(ctx)
 

@@ -105,6 +105,7 @@ function makeCtx({
     },
     persons,
     activePlots: {},
+    popGroups: {},
   }
 
   return {

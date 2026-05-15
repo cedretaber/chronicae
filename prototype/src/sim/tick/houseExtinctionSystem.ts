@@ -94,20 +94,9 @@ function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickCo
     chainState = transferProvinceToHouse(chainState, pid, receiverHouseId)
   }
 
-  const extinctionUnrestGain = resultCtx.config.extinctionUnrestGain
   const inheritedControl = resultCtx.config.inheritedProvinceHouseControl
 
-  let unrestChainState = chainState
-  for (const pid of sortedProvinceIds) {
-    const province = unrestChainState.provinces[pid]
-    if (!province) continue
-    const newUnrest = Math.min(100, province.unrest + extinctionUnrestGain)
-    const newProvinces = { ...unrestChainState.provinces }
-    newProvinces[pid] = { ...province, unrest: newUnrest }
-    unrestChainState = { ...unrestChainState, provinces: newProvinces }
-  }
-
-  let controlChainState = unrestChainState
+  let controlChainState = chainState
   for (const pid of sortedProvinceIds) {
     const province = controlChainState.provinces[pid]
     if (!province) continue
@@ -261,18 +250,8 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
       transferChainState = transferProvinceToHouse(transferChainState, pid, newRulerHouseId)
     }
 
-    let unrestChainState = transferChainState
-    for (const pid of sortedProvinceIds) {
-      const province = unrestChainState.provinces[pid]
-      if (!province) continue
-      const newUnrest = Math.min(100, province.unrest + resultCtx.config.extinctionUnrestGain)
-      const newProvinces = { ...unrestChainState.provinces }
-      newProvinces[pid] = { ...province, unrest: newUnrest }
-      unrestChainState = { ...unrestChainState, provinces: newProvinces }
-    }
-
     const inheritedControl = resultCtx.config.inheritedProvinceHouseControl
-    let controlChainState = unrestChainState
+    let controlChainState = transferChainState
     for (const pid of sortedProvinceIds) {
       const province = controlChainState.provinces[pid]
       if (!province) continue

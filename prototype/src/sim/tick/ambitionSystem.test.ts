@@ -59,9 +59,8 @@ function makeFixture(): {
         neighbors: [],
         ownerHouseId: houseId,
         countryId,
-        baseTax: 5,
-        manpower: 5,
-        unrest: 0,
+        habitability: 50,
+        popGroupIds: [],
         development: 0,
         countryControl: 100,
         houseControl: 100,
@@ -74,9 +73,8 @@ function makeFixture(): {
         neighbors: [],
         ownerHouseId: houseId,
         countryId,
-        baseTax: 5,
-        manpower: 5,
-        unrest: 0,
+        habitability: 50,
+        popGroupIds: [],
         development: 0,
         countryControl: 100,
         houseControl: 100,
@@ -118,6 +116,7 @@ function makeFixture(): {
       [headId]: headPerson,
     },
     activePlots: {},
+    popGroups: {},
   }
 
   const ctx: TickContext = {

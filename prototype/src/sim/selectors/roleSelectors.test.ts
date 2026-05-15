@@ -104,6 +104,7 @@ function makeFixture({
       },
     },
     activePlots: {},
+    popGroups: {},
   }
   return {
     state,
@@ -244,6 +245,7 @@ describe('getPersonRole', () => {
         },
       },
       activePlots: {},
+      popGroups: {},
     }
 
     expect(getPersonRole(state, person1Id)).toBe('general')
