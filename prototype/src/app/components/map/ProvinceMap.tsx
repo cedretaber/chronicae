@@ -3,51 +3,102 @@ import { ReactFlow, Background, Controls, type Node, type Edge } from '@xyflow/r
 import '@xyflow/react/dist/style.css'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { buildCountryColorMap } from '@/app/utils/countryColors'
+import type { CountryId, HouseId, ProvinceId } from '@/sim/types/ids'
 
 export function ProvinceMap() {
   const session = useSimulationStore((s) => s.session)
   const selectedId = useSimulationStore((s) => s.selectedId)
   const selectedType = useSimulationStore((s) => s.selectedType)
   const setSelected = useSimulationStore((s) => s.setSelected)
+  const clearSelected = useSimulationStore((s) => s.clearSelected)
 
   const provinces = session?.currentState.provinces
   const countries = session?.currentState.countries
+  const houses = session?.currentState.houses
 
   const countryColorMap = useMemo(() => {
     if (!countries) return {}
     return buildCountryColorMap(Object.keys(countries))
   }, [countries])
 
-  const highlightedCountryId = selectedType === 'country' && selectedId ? selectedId : null
-
   // Convert provinces to React Flow nodes
   const nodes: Node[] = useMemo(() => {
     if (!provinces) return []
-    return Object.values(provinces).map((province) => ({
-      id: province.id,
-      position: { x: province.x, y: province.y },
-      data: {
-        label: province.name,
-        countryId: province.countryId,
-        selected: selectedId === province.id,
-      },
-      style: {
-        background: countryColorMap[province.countryId] ?? '#888',
-        color: '#fff',
-        border:
-          selectedId === province.id
-            ? '3px solid yellow'
-            : highlightedCountryId === province.countryId
-              ? '2px solid white'
-              : '1px solid #666',
-        opacity: highlightedCountryId && highlightedCountryId !== province.countryId ? 0.4 : 1,
-        borderRadius: '6px',
-        padding: '4px 8px',
-        fontSize: '11px',
-        width: 90,
-      },
-    }))
-  }, [provinces, countryColorMap, selectedId, highlightedCountryId])
+
+    const isCountrySelected = selectedType === 'country'
+    const isHouseSelected = selectedType === 'house'
+    const anyEntityHighlighted = isCountrySelected || isHouseSelected
+
+    const selectedCountry =
+      isCountrySelected && selectedId && countries
+        ? countries[selectedId as unknown as CountryId]
+        : undefined
+    const selectedHouse =
+      isHouseSelected && selectedId && houses ? houses[selectedId as unknown as HouseId] : undefined
+
+    const houseProvinceSet = new Set(
+      (selectedHouse?.provinceIds ?? []).map((id: ProvinceId) => id as string),
+    )
+    const capitalProvinceId = selectedCountry?.capitalProvinceId
+    const seatProvinceId = selectedHouse?.seatProvinceId
+
+    return Object.values(provinces).map((province) => {
+      // Determine style based on priority
+      let border = '1px solid #666'
+      let opacity = 1
+
+      if (selectedId === province.id && selectedType === 'province') {
+        // Priority 1: explicitly selected province
+        border = '3px solid yellow'
+        opacity = 1
+      } else if (isCountrySelected && province.id === capitalProvinceId) {
+        // Priority 2a: capital of highlighted country
+        border = '3px solid #ffd700'
+        opacity = 1
+      } else if (isHouseSelected && province.id === seatProvinceId) {
+        // Priority 2b: seat of highlighted house
+        border = '3px solid #ffd700'
+        opacity = 1
+      } else if (isCountrySelected && province.countryId === selectedId) {
+        // Priority 3: in highlighted country
+        border = '2px solid white'
+        opacity = 1
+      } else if (isHouseSelected && houseProvinceSet.has(province.id)) {
+        // Priority 4: in highlighted house
+        border = '2px solid #22d3ee'
+        opacity = 1
+      } else if (anyEntityHighlighted) {
+        // Priority 5: dimmed due to active highlight
+        border = '1px solid #666'
+        opacity = 0.4
+      }
+
+      const label =
+        province.id === capitalProvinceId || province.id === seatProvinceId
+          ? `★ ${province.name}`
+          : province.name
+
+      return {
+        id: province.id,
+        position: { x: province.x, y: province.y },
+        data: {
+          label,
+          countryId: province.countryId,
+          selected: selectedId === province.id,
+        },
+        style: {
+          background: countryColorMap[province.countryId] ?? '#888',
+          color: '#fff',
+          border,
+          opacity,
+          borderRadius: '6px',
+          padding: '4px 8px',
+          fontSize: '11px',
+          width: 90,
+        },
+      }
+    })
+  }, [provinces, countryColorMap, selectedId, selectedType, countries, houses])
 
   // Convert province neighbors to edges (deduplicate: only when a < b)
   const edges: Edge[] = useMemo(() => {
@@ -86,7 +137,15 @@ export function ProvinceMap() {
   }
 
   return (
-    <div className="h-full w-full">
+    <div className="relative h-full w-full">
+      {selectedId && (
+        <button
+          className="absolute top-2 right-2 z-10 rounded bg-gray-800/80 px-2 py-1 text-xs text-white hover:bg-gray-700"
+          onClick={clearSelected}
+        >
+          ✕ Clear
+        </button>
+      )}
       <ReactFlow nodes={nodes} edges={edges} fitView onNodeClick={handleNodeClick}>
         <Background />
         <Controls />

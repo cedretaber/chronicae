@@ -136,6 +136,7 @@ function CountryDetail({
   toggleWatchlist,
   onPersonClick,
   onHouseClick,
+  onProvinceClick,
 }: {
   country: Country
   session: SimulationSession | null
@@ -143,6 +144,7 @@ function CountryDetail({
   toggleWatchlist: (id: string) => void
   onPersonClick: ClickHandler
   onHouseClick: ClickHandler
+  onProvinceClick: (id: string) => void
 }) {
   const isWatching = watchlist.includes(country.id)
   const currentState = session?.currentState
@@ -179,7 +181,13 @@ function CountryDetail({
       <div className="text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">Capital:</span>
-          <span>{currentState?.provinces?.[country.capitalProvinceId]?.name ?? '—'}</span>
+          <button
+            className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+            onClick={() => onProvinceClick(country.capitalProvinceId)}
+          >
+            {currentState?.provinces?.[country.capitalProvinceId]?.name ??
+              country.capitalProvinceId}
+          </button>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Treasury:</span>
@@ -229,6 +237,7 @@ function HouseDetail({
   toggleWatchlist,
   onPersonClick,
   onCountryClick,
+  onProvinceClick,
   eventHistory,
 }: {
   house: House
@@ -237,6 +246,7 @@ function HouseDetail({
   toggleWatchlist: (id: string) => void
   onPersonClick: ClickHandler
   onCountryClick: ClickHandler
+  onProvinceClick: (id: string) => void
   eventHistory: SimEvent[]
 }) {
   const isWatching = watchlist.includes(house.id)
@@ -292,7 +302,12 @@ function HouseDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Seat:</span>
-          <span>{currentState?.provinces?.[house.seatProvinceId]?.name ?? '—'}</span>
+          <button
+            className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+            onClick={() => onProvinceClick(house.seatProvinceId)}
+          >
+            {currentState?.provinces?.[house.seatProvinceId]?.name ?? house.seatProvinceId}
+          </button>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Prestige:</span>
@@ -341,9 +356,24 @@ function HouseDetail({
             <span className="text-gray-500">\u2014</span>
           )}
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Members:</span>
-          <span>{aliveMembers} alive</span>
+        <div>
+          <div className="text-sm font-semibold text-gray-300">Members ({aliveMembers} alive):</div>
+          <div className="flex flex-col gap-0.5 text-sm">
+            {house.memberIds
+              .filter((pid) => currentState?.persons?.[pid]?.alive === true)
+              .slice(0, 8)
+              .map((pid) => (
+                <PersonLink
+                  key={pid}
+                  personId={pid}
+                  persons={currentState?.persons ?? {}}
+                  onClick={onPersonClick}
+                />
+              ))}
+            {aliveMembers > 8 && (
+              <span className="text-xs text-gray-500">+{aliveMembers - 8} more</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -387,6 +417,7 @@ function PersonDetail({
   toggleWatchlist,
   onHouseClick,
   onCountryClick,
+  onPersonClick,
   eventHistory,
 }: {
   person: Person
@@ -395,6 +426,7 @@ function PersonDetail({
   toggleWatchlist: (id: string) => void
   onHouseClick: ClickHandler
   onCountryClick: ClickHandler
+  onPersonClick: (id: string) => void
   eventHistory: SimEvent[]
 }) {
   const isWatching = watchlist.includes(person.id)
@@ -510,31 +542,49 @@ function PersonDetail({
         {person.fatherId !== undefined && (
           <div className="flex justify-between">
             <span className="text-gray-400">Father:</span>
-            <span>{currentState?.persons?.[person.fatherId]?.name ?? person.fatherId}</span>
+            <PersonLink
+              personId={person.fatherId}
+              persons={currentState?.persons ?? {}}
+              onClick={onPersonClick}
+            />
           </div>
         )}
         {person.motherId !== undefined && (
           <div className="flex justify-between">
             <span className="text-gray-400">Mother:</span>
-            <span>{currentState?.persons?.[person.motherId]?.name ?? person.motherId}</span>
+            <PersonLink
+              personId={person.motherId}
+              persons={currentState?.persons ?? {}}
+              onClick={onPersonClick}
+            />
           </div>
         )}
         {person.spouseId !== undefined && (
           <div className="flex justify-between">
             <span className="text-gray-400">Spouse:</span>
-            <span>{currentState?.persons?.[person.spouseId]?.name ?? person.spouseId}</span>
+            <PersonLink
+              personId={person.spouseId}
+              persons={currentState?.persons ?? {}}
+              onClick={onPersonClick}
+            />
           </div>
         )}
         {person.childIds.length > 0 && (
-          <div className="flex justify-between">
-            <span className="text-gray-400">Children:</span>
-            <span>
-              {person.childIds
-                .slice(0, 3)
-                .map((cid) => currentState?.persons?.[cid]?.name ?? cid)
-                .join(', ')}
-              {person.childIds.length > 3 ? ` +${person.childIds.length - 3}` : ''}
-            </span>
+          <div>
+            <div className="text-gray-400">Children:</div>
+            <div className="flex flex-col gap-0.5">
+              {person.childIds.slice(0, 8).map((cid) => (
+                <PersonLink
+                  key={cid}
+                  personId={cid}
+                  persons={currentState?.persons ?? {}}
+                  onClick={onPersonClick}
+                />
+              ))}
+              {person.childIds.length > 8 && (
+                <span className="text-xs text-gray-500">+{person.childIds.length - 8} more</span>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -713,6 +763,7 @@ export function DetailPanel() {
   const onPersonClick = (id: string) => setSelected(id, 'person')
   const onHouseClick = (id: string) => setSelected(id, 'house')
   const onCountryClick = (id: string) => setSelected(id, 'country')
+  const onProvinceClick = (id: string) => setSelected(id, 'province')
 
   const country =
     selectedType === 'country' && selectedId && currentState
@@ -747,6 +798,7 @@ export function DetailPanel() {
             toggleWatchlist={toggleWatchlist}
             onPersonClick={onPersonClick}
             onHouseClick={onHouseClick}
+            onProvinceClick={onProvinceClick}
           />
         ) : selectedType === 'house' && house ? (
           <HouseDetail
@@ -756,6 +808,7 @@ export function DetailPanel() {
             toggleWatchlist={toggleWatchlist}
             onPersonClick={onPersonClick}
             onCountryClick={onCountryClick}
+            onProvinceClick={onProvinceClick}
             eventHistory={eventHistory}
           />
         ) : selectedType === 'person' && person ? (
@@ -766,6 +819,7 @@ export function DetailPanel() {
             toggleWatchlist={toggleWatchlist}
             onHouseClick={onHouseClick}
             onCountryClick={onCountryClick}
+            onPersonClick={onPersonClick}
             eventHistory={eventHistory}
           />
         ) : selectedType === 'province' && province ? (
