@@ -1,6 +1,7 @@
 import type { TickContext } from './context'
 import { makeEventId, makePersonId } from './context'
 import { randomFloat, randomInt } from '../rng/rng'
+import { pickNameBySex, personName } from '../worldgen/nameGenerators'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { Person } from '../types/person'
@@ -73,13 +74,23 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     const { value: amb3, rng: rng3 } = randomFloat(rng2)
     const { value: adminStat, rng: rng4 } = randomInt(rng3, 1, 8)
     const { value: martialStat, rng: rng5 } = randomInt(rng4, 1, 8)
-    currentCtx = { ...currentCtx, rng: rng5 }
+    let childName: string
+    let rngAfterName: typeof rng5
+    if (currentCtx.config.debug) {
+      childName = personName(currentCtx.nextPersonIndex)
+      rngAfterName = rng5
+    } else {
+      const { name: n, rng: r } = pickNameBySex(childSex, rng5)
+      childName = n
+      rngAfterName = r
+    }
+    currentCtx = { ...currentCtx, rng: rngAfterName }
 
     const { id: childId, ctx: personCtx } = makePersonId(currentCtx)
 
     const childPerson: Person = {
       id: childId,
-      name: 'Child-' + childId,
+      name: childName,
       sex: childSex,
       age: 0,
       alive: true,
@@ -123,7 +134,16 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       }
     }
 
-    const newState = { ...personCtx.state, persons: newPersons }
+    const newHouses = { ...personCtx.state.houses }
+    const parentHouse = newHouses[person.houseId]
+    if (parentHouse) {
+      newHouses[person.houseId] = {
+        ...parentHouse,
+        memberIds: [...parentHouse.memberIds, childId],
+      }
+    }
+
+    const newState = { ...personCtx.state, persons: newPersons, houses: newHouses }
     currentCtx = { ...personCtx, state: newState }
 
     const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
@@ -138,8 +158,8 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       houseIds: [person.houseId],
       countryIds: [person.countryId],
       provinceIds: [],
-      summary: 'Child-' + childId + ' was born',
-      description: 'Child-' + childId + ' was born',
+      summary: childName + ' was born',
+      description: childName + ' was born',
       reasons: [],
       effects: [],
     }

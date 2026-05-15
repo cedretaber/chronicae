@@ -14,6 +14,8 @@ Options:
   --years <n>           Number of years to simulate (default: 10)
   --json                Output each tick as NDJSON
   --integrity-check     Run integrity check after every tick
+  --debug               Enable debug mode (sequential names, debug logging)
+  --dump-world          Dump full WorldState as JSON to stderr after simulation ends
   --help                Show this help message`)
 }
 
@@ -22,12 +24,16 @@ function parseArgs(argv: string[]): {
   years: number
   json: boolean
   integrityCheck: boolean
+  debug: boolean
+  dumpWorld: boolean
   showHelp: boolean
 } {
   let seed = 'chronicae-default'
   let years = 10
   let json = false
   let integrityCheck = false
+  let debug = false
+  let dumpWorld = false
   let showHelp = false
 
   let i = 2
@@ -49,13 +55,17 @@ function parseArgs(argv: string[]): {
       json = true
     } else if (arg === '--integrity-check') {
       integrityCheck = true
+    } else if (arg === '--debug') {
+      debug = true
+    } else if (arg === '--dump-world') {
+      dumpWorld = true
     } else if (arg === '--help') {
       showHelp = true
     }
     i++
   }
 
-  return { seed, years, json, integrityCheck, showHelp }
+  return { seed, years, json, integrityCheck, debug, dumpWorld, showHelp }
 }
 
 function countActiveCountries(state: WorldState): number {
@@ -139,7 +149,7 @@ if (args.showHelp) {
   process.exit(0)
 }
 
-const { world, rng: initialRng } = generateWorld(args.seed)
+const { world, rng: initialRng } = generateWorld(args.seed, args.debug)
 
 const initialCountryCount = countActiveCountries(world)
 const initialHouseCount = countActiveHouses(world)
@@ -155,6 +165,7 @@ let state: WorldState = world
 let currentRng = initialRng
 const allEvents: SimEvent[] = []
 const totalTicks = args.years * 12
+const config = args.debug ? { ...defaultConfig, debug: true } : defaultConfig
 
 if (!args.json) {
   console.log('Starting simulation with seed:', args.seed)
@@ -163,10 +174,10 @@ if (!args.json) {
 }
 
 for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
-  const result = tick({ state, rng: currentRng, config: defaultConfig })
+  const result = tick({ state, rng: currentRng, config })
 
   if (args.integrityCheck) {
-    const ctx = createTickContext({ state: result.state, rng: result.rng, config: defaultConfig })
+    const ctx = createTickContext({ state: result.state, rng: result.rng, config })
     runIntegrityCheck(ctx)
   }
 
@@ -245,6 +256,10 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
   for (const event of events) {
     allEvents.push(event)
   }
+}
+
+if (args.dumpWorld) {
+  process.stderr.write(JSON.stringify(state, null, 2) + '\n')
 }
 
 if (args.json) {

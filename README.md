@@ -55,6 +55,12 @@ npm run cli -- --seed test-seed --years 5 --integrity-check
 # NDJSON output (one JSON object per tick, for programmatic processing)
 npm run cli -- --json --years 3
 
+# Debug mode: sequential names + integrity warnings printed instead of thrown
+npm run cli -- --seed test-seed --years 20 --debug
+
+# Dump full WorldState as JSON to stderr after simulation ends
+npm run cli -- --seed test-seed --years 10 --dump-world 2>world.json
+
 # All options
 npm run cli -- --help
 ```
@@ -67,6 +73,41 @@ npm run cli -- --help
 | `--years <n>` | `10` | Number of years to simulate |
 | `--integrity-check` | off | Run data integrity checks after every tick |
 | `--json` | off | Output NDJSON instead of human-readable text |
+| `--debug` | off | Debug mode (see below) |
+| `--dump-world` | off | Dump full WorldState JSON to stderr after simulation ends |
+
+### Debug Mode (`--debug`)
+
+Debug mode is intended for investigating simulation bugs. It changes two things:
+
+**1. Sequential entity names**
+
+All entities are named with sequential IDs instead of drawing from the name pool:
+
+| Normal mode | Debug mode |
+|---|---|
+| `Estenmark`, `House Kirchberg`, `Irmela` | `Country-0`, `House-4`, `Person-78` |
+
+Because names in normal mode are drawn randomly, the same name can appear on multiple different people across generations, making it hard to track who is who in log output. Debug mode guarantees each entity has a unique, stable identifier for the lifetime of the simulation.
+
+**2. Non-fatal integrity errors**
+
+In normal mode, any integrity violation (e.g. a house head who is dead) causes an immediate crash. In debug mode, violations are printed to stdout as `[INTEGRITY FAIL] ...` warnings and the simulation continues, so you can observe the full state at the end of the run.
+
+### World Dump (`--dump-world`)
+
+Writes the complete `WorldState` as pretty-printed JSON to **stderr** after the simulation finishes. Redirect stderr to a file to capture it:
+
+```bash
+# Capture world state at year 14 with debug mode
+npm run cli -- --seed chronicae-default --years 14 --debug --dump-world 2>world.json 1>/dev/null
+
+# Inspect with any JSON tool, e.g. jq
+jq '.houses["h-4"]' world.json
+jq '.persons["pe-78"] | {name, alive, age, houseId}' world.json
+```
+
+Because the simulation is deterministic (same seed → same result), you can re-run with a different `--years` value to inspect the state at any point in time without replaying from scratch.
 
 ## Development
 

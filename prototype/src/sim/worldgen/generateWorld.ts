@@ -21,10 +21,13 @@ import {
 import { defaultConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 
-export function generateWorld(seedText: string): { world: WorldState; rng: RngState } {
+export function generateWorld(
+  seedText: string,
+  debugMode = false,
+): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
 
-  const { provinces, rng: rng0 } = generateProvinces(rng)
+  const { provinces, rng: rng0 } = generateProvinces(rng, debugMode)
   rng = rng0
 
   const { assignments, rng: rng1 } = distributeCountries(provinces, rng)
@@ -33,7 +36,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   const { houseProvinces, houseCountry, rng: rng2 } = distributeHouses(provinces, assignments, rng)
   rng = rng2
 
-  const { persons, rng: rng3 } = generatePersons(houseProvinces, houseCountry, rng)
+  const { persons, rng: rng3 } = generatePersons(houseProvinces, houseCountry, rng, debugMode)
   rng = rng3
 
   const personMap = new Map<PersonId, Person>()
@@ -176,14 +179,20 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
 
     const houseIndex = parseInt(houseId.split('-')[1] ?? '0', 10)
 
-    const { name: hName, rng: rng5 } = pickUniqueName(
-      houseNamePool(),
-      usedHouseNames,
-      houseName,
-      houseIndex,
-      rng,
-    )
-    rng = rng5
+    let hName: string
+    if (debugMode) {
+      hName = houseName(houseIndex)
+    } else {
+      const { name: n, rng: r } = pickUniqueName(
+        houseNamePool(),
+        usedHouseNames,
+        houseName,
+        houseIndex,
+        rng,
+      )
+      hName = n
+      rng = r
+    }
 
     const house: House = {
       id: houseId,
@@ -215,14 +224,20 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     const { value: stability, rng: r4 } = randomInt(r3, 45, 80)
     rng = r4
 
-    const { name: cName, rng: rAfterName } = pickUniqueName(
-      countryNamePool(),
-      usedCountryNames,
-      countryName,
-      countryIndex,
-      rng,
-    )
-    rng = rAfterName
+    let cName: string
+    if (debugMode) {
+      cName = countryName(countryIndex)
+    } else {
+      const { name: n, rng: r } = pickUniqueName(
+        countryNamePool(),
+        usedCountryNames,
+        countryName,
+        countryIndex,
+        rng,
+      )
+      cName = n
+      rng = r
+    }
 
     const houseIds = houses
       .filter((h) => h.countryId === countryId)

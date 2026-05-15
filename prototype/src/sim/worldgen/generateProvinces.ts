@@ -7,7 +7,10 @@ import { pickUniqueName, provinceName, provinceNamePool } from './nameGenerators
 const COLS = 8
 const ROWS = 5
 
-export function generateProvinces(rng: RngState): { provinces: Province[]; rng: RngState } {
+export function generateProvinces(
+  rng: RngState,
+  debugMode = false,
+): { provinces: Province[]; rng: RngState } {
   const provinces: Province[] = []
   const usedNames = new Set<string>()
   const pool = provinceNamePool()
@@ -33,14 +36,20 @@ export function generateProvinces(rng: RngState): { provinces: Province[]; rng: 
         neighbors.push(createProvinceId('p', index + COLS))
       }
 
-      const { name, rng: nextRng } = pickUniqueName(
-        pool,
-        usedNames,
-        provinceName,
-        index,
-        currentRng,
-      )
-      currentRng = nextRng
+      let name: string
+      if (debugMode) {
+        name = provinceName(index)
+      } else {
+        const { name: n, rng: nextRng } = pickUniqueName(
+          pool,
+          usedNames,
+          provinceName,
+          index,
+          currentRng,
+        )
+        name = n
+        currentRng = nextRng
+      }
 
       provinces.push({
         id,

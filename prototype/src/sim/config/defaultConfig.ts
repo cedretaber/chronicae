@@ -1,4 +1,5 @@
 export type SimulationConfig = {
+  debug: boolean
   minLivingMembersPerHouse: number
   maxNewPersonsPerHousePerYear: number
   basePlotSuccess: number
@@ -163,6 +164,7 @@ export type SimulationConfig = {
 }
 
 export const defaultConfig: SimulationConfig = {
+  debug: false,
   minLivingMembersPerHouse: 4,
   maxNewPersonsPerHousePerYear: 2,
   basePlotSuccess: 0.35,

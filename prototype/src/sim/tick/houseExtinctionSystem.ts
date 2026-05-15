@@ -3,6 +3,43 @@ import { makeEventId } from './context'
 import { transferProvinceToHouse } from '../mutations/transferProvince'
 import type { HouseId } from '../types/ids'
 import type { SimEvent } from '../types/event'
+import type { WorldState } from '../types/world'
+
+function moveLivingMembersToHouse(
+  state: WorldState,
+  fromHouseId: HouseId,
+  toHouseId: HouseId,
+): WorldState {
+  if (fromHouseId === toHouseId) return state
+
+  const fromHouse = state.houses[fromHouseId]
+  if (!fromHouse) return state
+
+  const toHouse = state.houses[toHouseId]
+  if (!toHouse) return state
+
+  const livingMemberIds = fromHouse.memberIds.filter((id) => {
+    const p = state.persons[id]
+    return p && p.alive
+  })
+
+  if (livingMemberIds.length === 0) return state
+
+  const newPersons = { ...state.persons }
+  for (const pid of livingMemberIds) {
+    const person = newPersons[pid]
+    if (!person) continue
+    newPersons[pid] = { ...person, houseId: toHouseId, countryId: toHouse.countryId }
+  }
+
+  const newHouses = { ...state.houses }
+  newHouses[toHouseId] = {
+    ...toHouse,
+    memberIds: [...toHouse.memberIds, ...livingMemberIds],
+  }
+
+  return { ...state, persons: newPersons, houses: newHouses }
+}
 
 export function extinctHouseAfterFailedSuccession(ctx: TickContext, houseId: HouseId): TickContext {
   const house = ctx.state.houses[houseId]
@@ -79,6 +116,9 @@ function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickCo
   }
 
   resultCtx = { ...resultCtx, state: controlChainState }
+
+  const stateAfterMove = moveLivingMembersToHouse(resultCtx.state, houseId, receiverHouseId)
+  resultCtx = { ...resultCtx, state: stateAfterMove }
 
   const newHouses = { ...resultCtx.state.houses }
   const extinctHouse = newHouses[houseId]
@@ -222,20 +262,26 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
       controlChainState = { ...controlChainState, provinces: newProvinces }
     }
 
-    const newHouses = { ...controlChainState.houses }
+    const stateAfterMemberMove = moveLivingMembersToHouse(
+      controlChainState,
+      houseId,
+      newRulerHouseId,
+    )
+
+    const newHouses = { ...stateAfterMemberMove.houses }
     const houseToExtinct = newHouses[houseId]
     if (houseToExtinct) {
       newHouses[houseId] = { ...houseToExtinct, active: false, memberIds: [], provinceIds: [] }
     }
 
-    const newCountry = controlChainState.countries[house.countryId]
+    const newCountry = stateAfterMemberMove.countries[house.countryId]
     if (newCountry) {
-      const newCountries2 = { ...controlChainState.countries }
+      const newCountries2 = { ...stateAfterMemberMove.countries }
       newCountries2[house.countryId] = {
         ...newCountry,
         houseIds: newCountry.houseIds.filter((id: HouseId) => id !== houseId),
       }
-      const finalState = { ...controlChainState, houses: newHouses, countries: newCountries2 }
+      const finalState = { ...stateAfterMemberMove, houses: newHouses, countries: newCountries2 }
 
       const { id: extEventId, ctx: extEventCtx } = makeEventId({ ...resultCtx, state: finalState })
       const extEvent: SimEvent = {
@@ -253,6 +299,185 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
         effects: [],
       }
       return { ...extEventCtx, state: finalState, events: [...extEventCtx.events, extEvent] }
+    }
+  }
+
+  const defunctProvinceIds: import('../types/ids').ProvinceId[] = Object.values(
+    resultCtx.state.provinces,
+  )
+    .filter((p): p is NonNullable<typeof p> => p !== null && p.countryId === house.countryId)
+    .map((p) => p.id)
+
+  const neighborCandidateMap = new Map<import('../types/ids').CountryId, number>()
+  for (const province of defunctProvinceIds) {
+    const prov = resultCtx.state.provinces[province]
+    if (!prov) continue
+    for (const neighborId of prov.neighbors) {
+      const neighbor = resultCtx.state.provinces[neighborId]
+      if (!neighbor) continue
+      const neighborCountryId = neighbor.countryId
+      if (neighborCountryId === house.countryId) continue
+      const existing = neighborCandidateMap.get(neighborCountryId) ?? 0
+      neighborCandidateMap.set(neighborCountryId, existing + 1)
+    }
+  }
+
+  const defunctCountryId = house.countryId
+  const defunctCountry = resultCtx.state.countries[defunctCountryId]
+  if (!defunctCountry) {
+    const collapseHouses = { ...resultCtx.state.houses }
+    const collapseHouse = collapseHouses[houseId]
+    if (collapseHouse) {
+      collapseHouses[houseId] = { ...collapseHouse, active: false, memberIds: [] }
+    }
+    const collapseCountries = { ...resultCtx.state.countries }
+    const collapseCountry = collapseCountries[house.countryId]
+    if (collapseCountry) {
+      collapseCountries[house.countryId] = { ...collapseCountry, active: false }
+    }
+    return {
+      ...resultCtx,
+      state: { ...resultCtx.state, houses: collapseHouses, countries: collapseCountries },
+    }
+  }
+
+  const provinceCountByCountry = new Map<import('../types/ids').CountryId, number>()
+  for (const province of Object.values(resultCtx.state.provinces)) {
+    if (!province) continue
+    const existing = provinceCountByCountry.get(province.countryId) ?? 0
+    provinceCountByCountry.set(province.countryId, existing + 1)
+  }
+
+  let annexerCountryId: import('../types/ids').CountryId | null = null
+  let annexerScore = -Infinity
+  for (const [candidateId, sharedBorderCount] of neighborCandidateMap.entries()) {
+    const candidateCountry = resultCtx.state.countries[candidateId]
+    if (!candidateCountry || !candidateCountry.active) continue
+    const totalProvinces = provinceCountByCountry.get(candidateId) ?? 0
+    const score =
+      sharedBorderCount * resultCtx.config.rulerExtinctionAnnexSharedBorderWeight +
+      totalProvinces * resultCtx.config.rulerExtinctionAnnexPowerWeight +
+      candidateCountry.legitimacy * resultCtx.config.rulerExtinctionAnnexLegitimacyWeight +
+      candidateCountry.stability * resultCtx.config.rulerExtinctionAnnexStabilityWeight
+    if (score > annexerScore) {
+      annexerScore = score
+      annexerCountryId = candidateId
+    }
+  }
+
+  if (annexerCountryId) {
+    const annexerCountry = resultCtx.state.countries[annexerCountryId]
+    if (!annexerCountry) {
+      const collapseHouses = { ...resultCtx.state.houses }
+      const collapseHouse = collapseHouses[houseId]
+      if (collapseHouse) {
+        collapseHouses[houseId] = { ...collapseHouse, active: false, memberIds: [] }
+      }
+      const collapseCountries = { ...resultCtx.state.countries }
+      const collapseCountry = collapseCountries[house.countryId]
+      if (collapseCountry) {
+        collapseCountries[house.countryId] = { ...collapseCountry, active: false }
+      }
+      return {
+        ...resultCtx,
+        state: { ...resultCtx.state, houses: collapseHouses, countries: collapseCountries },
+      }
+    }
+
+    let annexState = resultCtx
+
+    // Transfer the defunct house's provinces to the annexer's ruler house
+    const annexerRulerHouseId = annexerCountry.rulerHouseId
+    const extinctHouseProvinceIds = [...house.provinceIds].sort()
+    for (const pid of extinctHouseProvinceIds) {
+      annexState = {
+        ...annexState,
+        state: transferProvinceToHouse(annexState.state, pid, annexerRulerHouseId),
+      }
+    }
+
+    // Set countryControl on all provinces belonging to the defunct country
+    const newProvinces = { ...annexState.state.provinces }
+    for (const pid of defunctProvinceIds) {
+      const province = newProvinces[pid]
+      if (!province) continue
+      newProvinces[pid] = {
+        ...province,
+        countryId: annexerCountryId,
+        countryControl: resultCtx.config.annexByRulerExtinctionCountryControl,
+      }
+    }
+    annexState = { ...annexState, state: { ...annexState.state, provinces: newProvinces } }
+
+    // Move living members of the extinct house to the annexer's ruler house
+    annexState = {
+      ...annexState,
+      state: moveLivingMembersToHouse(annexState.state, houseId, annexerRulerHouseId),
+    }
+
+    // Move all non-defunct houses from the defunct country to the annexer
+    const newHouses: typeof annexState.state.houses = { ...annexState.state.houses }
+    for (const houseObj of Object.values(annexState.state.houses)) {
+      if (!houseObj || houseObj.countryId !== defunctCountryId) continue
+      if (houseObj.id === houseId) {
+        newHouses[houseObj.id] = {
+          ...houseObj,
+          active: false,
+          memberIds: [],
+          countryId: annexerCountryId,
+        }
+      } else {
+        newHouses[houseObj.id] = { ...houseObj, countryId: annexerCountryId }
+      }
+    }
+    annexState = { ...annexState, state: { ...annexState.state, houses: newHouses } }
+
+    const newPersons: typeof annexState.state.persons = { ...annexState.state.persons }
+    for (const person of Object.values(annexState.state.persons)) {
+      if (!person || person.countryId !== defunctCountryId) continue
+      if (person.alive) {
+        newPersons[person.id] = { ...person, countryId: annexerCountryId }
+      }
+    }
+    annexState = { ...annexState, state: { ...annexState.state, persons: newPersons } }
+
+    const updatedDefunctCountry = annexState.state.countries[defunctCountryId]
+    const newCountries1 = { ...annexState.state.countries }
+    if (updatedDefunctCountry) {
+      newCountries1[defunctCountryId] = { ...updatedDefunctCountry, active: false }
+    }
+    const updatedAnnexerCountry = annexState.state.countries[annexerCountryId]
+    const newCountries2 = { ...newCountries1 }
+    if (updatedAnnexerCountry) {
+      newCountries2[annexerCountryId] = {
+        ...updatedAnnexerCountry,
+        houseIds: [
+          ...updatedAnnexerCountry.houseIds,
+          ...defunctCountry.houseIds.filter((id) => id !== houseId),
+        ],
+      }
+    }
+    annexState = { ...annexState, state: { ...annexState.state, countries: newCountries2 } }
+
+    const { id: annexEventId, ctx: annexEventCtx } = makeEventId(annexState)
+    const annexEvent: import('../types/event').SimEvent = {
+      id: annexEventId,
+      year: annexState.state.currentYear,
+      month: annexState.state.currentMonth,
+      type: 'COUNTRY_ANNEXED',
+      importance: 'major',
+      actorIds: [],
+      houseIds: [],
+      countryIds: [defunctCountryId, annexerCountryId],
+      provinceIds: [],
+      summary: `${defunctCountry.name} has been annexed by ${annexerCountry.name}.`,
+      reasons: [],
+      effects: [],
+    }
+    return {
+      ...annexEventCtx,
+      state: annexState.state,
+      events: [...annexEventCtx.events, annexEvent],
     }
   }
 

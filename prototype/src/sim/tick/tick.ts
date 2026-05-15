@@ -41,6 +41,14 @@ export function tick(input: TickInput): TickResult {
   ctx = runRebellionSystem(ctx)
   ctx = runStabilitySystem(ctx)
   ctx = runGovernanceSystem(ctx)
-  ctx = runIntegrityCheck(ctx)
+  if (ctx.config.debug) {
+    try {
+      ctx = runIntegrityCheck(ctx)
+    } catch (e) {
+      process.stdout.write('[INTEGRITY FAIL] ' + String(e) + '\n')
+    }
+  } else {
+    ctx = runIntegrityCheck(ctx)
+  }
   return toResult(ctx)
 }

@@ -24,6 +24,13 @@ export function pickName(pool: string[], rng: RngState): { name: string; rng: Rn
   return { name: pool[idx]!, rng: nextRng }
 }
 
+export function pickNameBySex(
+  sex: 'male' | 'female',
+  rng: RngState,
+): { name: string; rng: RngState } {
+  return pickName(sex === 'male' ? MALE_NAMES : FEMALE_NAMES, rng)
+}
+
 export function countryNamePool(): string[] {
   return COUNTRY_NAMES
 }

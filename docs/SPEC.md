@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-14（v0.6 時点）
+最終更新: 2026-05-15（v0.7 時点）
 
 ---
 
@@ -54,6 +54,10 @@ npm run cli -- --seed <seed> --years <n> [--integrity-check] [--json]
 ```
 
 コーディングエージェントがバグ検出・動作確認に利用することを想定している。
+
+`--debug` フラグを追加すると `config.debug = true` で動作し、以下が変化する：
+- 全エンティティが連番 ID で命名される（`Country-0`, `House-0`, `Person-0` …）
+- IntegrityCheck 違反が例外ではなく標準出力への警告となる（シミュレーション継続）
 
 ---
 
@@ -114,8 +118,11 @@ type House = {
   active: boolean
   countryId: CountryId
   provinceIds: ProvinceId[]
-  memberIds: PersonId[]
+  memberIds: PersonId[]      // 生存・死亡を問わず登録されたすべてのメンバー
   headId: PersonId
+  founderId?: PersonId       // 家の創設者（分裂新設家のみ設定）
+  parentHouseId?: HouseId    // 分裂元の家
+  cadetHouseIds: HouseId[]   // 分裂で生まれた傍系家のリスト
   prestige: number           // 0..100
   cohesion: number           // 0..100
   loyaltyToCountry: number   // 0..100
@@ -125,18 +132,27 @@ type House = {
 ```
 
 - `seatProvinceId`: 家支配力の中心。その House が所有する Province でなければならない
-- House は常に本拠地を保持する（v0.5 では本拠地移転・喪失は扱わない）
+- House は常に本拠地を保持する（本拠地移転・喪失は今後の課題）
 
 ### 3.4 Person（人物）
 
 ```ts
+export type Sex = 'male' | 'female'
+export type BirthStatus = 'legitimate' | 'illegitimate' | 'unknown'
+
 type Person = {
   id: PersonId
   name: string
+  sex: Sex
   age: number
   alive: boolean
   houseId: HouseId
   countryId: CountryId
+  fatherId?: PersonId        // 父親（既知の場合）
+  motherId?: PersonId        // 母親（既知の場合）
+  spouseId?: PersonId        // 配偶者（婚姻中のみ）
+  childIds: PersonId[]       // 子のリスト
+  birthStatus: BirthStatus   // 嫡出・非嫡出・不明
   stats: {
     admin: number    // 0..10
     martial: number  // 0..10
@@ -149,6 +165,9 @@ type Person = {
   prestige: number  // 0..100
 }
 ```
+
+- `spouseId`: 生存中の配偶者のみを指す。配偶者が死亡した場合は `undefined` に戻る
+- 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §5.17 参照）
 
 ### 3.5 役職（RoleType）
 
@@ -187,18 +206,19 @@ function getEffectiveProvinceManpower(province: Province): number
 | 5 | EconomySystem | 毎月 |
 | 6 | DisasterSystem | 毎年1月 |
 | 7 | MortalitySystem | 毎月 |
-| 8 | EmergenceSystem | 毎年1月 |
-| 9 | SuccessionSystem | 毎月 |
-| 10 | AppointmentSystem | 毎年1月 |
-| 11 | AmbitionSystem | 毎月 |
-| 12 | PublicSpendingSystem | 毎年1月 |
-| 13 | HouseDevelopmentSystem | 毎年1月 |
-| 14 | PlotSystem | 毎月 |
-| 15 | WarSystem | 毎月 |
-| 16 | RebellionSystem | 毎月 |
-| 17 | StabilitySystem | 毎月 |
-| 18 | GovernanceSystem | 毎月 |
-| 19 | IntegrityCheck | 毎月 |
+| 8 | SuccessionSystem | 毎月 |
+| 9 | MarriageSystem | 毎年1月 |
+| 10 | BirthSystem | 毎年1月 |
+| 11 | AppointmentSystem | 毎年1月 |
+| 12 | AmbitionSystem | 毎月 |
+| 13 | PublicSpendingSystem | 毎年1月 |
+| 14 | HouseDevelopmentSystem | 毎年1月 |
+| 15 | PlotSystem | 毎月 |
+| 16 | WarSystem | 毎月 |
+| 17 | RebellionSystem | 毎月 |
+| 18 | StabilitySystem | 毎月 |
+| 19 | GovernanceSystem | 毎月 |
+| 20 | IntegrityCheck | 毎月 |
 
 順序の理由：DevelopmentSystem → ControlSystem の順で development 変化を支配力計算に反映し、LordshipTransition 後の ownerHouseId に基づいて EconomySystem が収入を計算する。
 
@@ -320,23 +340,142 @@ const houseIncome   = provinceIncome * (hc / totalControl) * hc
 
 人物の自然死亡を処理。死亡した人物が役職・家長を担っていた場合は後継処理へ。
 
-### 6.7 EmergenceSystem（毎年1月）
+### 6.7 MarriageSystem（毎年1月）
 
-家の生存メンバーが `minLivingMembersPerHouse` を下回る場合、新人物を補充（最大 `maxNewPersonsPerHousePerYear` 人/年）。
+`marriageEnabled` が true のとき動作。未婚の男性候補を一覧し、それぞれに対して婚姻判定を行う。
 
-### 6.8 SuccessionSystem（毎月）
+- **候補条件（男性）**: 生存・未婚・対象年齢（`marriageMaleMinAge`〜`marriageMaleMaxAge`）・所属家が active
+- **候補条件（女性）**: 生存・未婚・対象年齢（`marriageFemaleMinAge`〜`marriageFemaleMaxAge`）・所属家が active
+- **禁止組み合わせ**: 同一家・近親関係（`isForbiddenMarriagePair` によるチェック）
+- **国内婚ボーナス**: 同一国の女性には `sameCountryMarriageBonus`（+0.10）を加算
+- **異国婚ペナルティ**: 異なる国の女性には `differentCountryMarriagePenalty`（-0.05）を加算
+
+婚姻成立時の処理：
+- 女性が男性の家に `movePersonToHouse` で移動
+- `spouseId` を双方向に設定（`setSpouse`）
+- `house.memberIds` に女性を追加
+
+イベント: `MARRIAGE_FORMED`（importance: `normal`）
+
+### 6.8 BirthSystem（毎年1月）
+
+`birthEnabled` が true のとき動作。対象年齢（`fatherMinChildAge`〜`fatherMaxChildAge`）の生存男性を走査し、出生判定を行う。
+
+**出生確率補正**:
+```
+livingCount <= criticalLivingPersons → birthMultiplier = criticalPopulationBirthMultiplier (3.0)
+livingCount < targetLivingPersons   → birthMultiplier = lowPopulationBirthMultiplier (1.5)
+それ以外                              → birthMultiplier = 1.0
+birthChance = baseBirthChancePerMalePerYear * birthMultiplier
+```
+
+**母親の決定**:
+- 配偶者が対象年齢（`motherMinChildAge`〜`motherMaxChildAge`）の場合、`spouseMotherChance`（0.9）で嫡出子
+- それ以外は非嫡出子（`illegitimate`）として処理
+
+**性別の決定**:
+- 成人男性が全人口の 40% 未満の場合: `maleBirthChanceWhenAdultMaleShortage`（0.65）
+- それ以外: `maleBirthChance`（0.52）
+
+誕生した子：
+- `houseId` は父親と同じ
+- `fatherId` / `motherId` を設定（嫡出の場合）
+- 父・母の `childIds` に追加
+- `house.memberIds` に追加
+
+イベント: `CHILD_BORN`（importance: `minor`）
+
+### 6.9 SuccessionSystem（毎月）
 
 家長が死亡または存在しない場合、生存メンバーから新家長を選出。
 
-### 6.9 AppointmentSystem（毎年1月）
+**後継者選出（成人候補あり）**:
+- `getAdultSuccessionCandidates` で成人（age >= `adultAge`）かつ生存の家メンバーを列挙
+- スコアが最高の候補を後継者に選ぶ
+- スコア 2 位との差が `successionCrisisScoreGap` を超える場合、`SUCCESSION_CRISIS` イベントを発火
+- 継承後に `maybeSplitHouseAfterSuccession` を呼び出す（§6.10 参照）
+
+**後継者選出（未成年のみ）**:
+- 最年長の未成年を仮の家長に任命
+- 未成年当主ペナルティ（§6.11 参照）が以後毎月適用される
+
+**後継者なし**: `extinctHouseAfterFailedSuccession`（§6.12 参照）を呼び出す。
+
+### 6.10 HouseSplitSystem（SuccessionSystem から呼び出し）
+
+継承が発生した際に、分裂条件を満たせば家の分裂を実行する。
+
+**分裂条件（AND）**:
+1. `houseSplitEnabled: true`
+2. `house.provinceIds.length >= minProvincesForHouseSplit`（デフォルト 3）
+3. `splitCandidates.length >= 1`（後継者以外の成人候補が存在する）
+4. `house.cohesion < houseSplitCohesionThreshold`（デフォルト 60）
+
+**分裂確率**:
+```
+splitChance = baseHouseSplitChance
+            + splitter.ambition * houseSplitAmbitionFactor
+            + splitter.prestige * houseSplitPrestigeFactor
+            + splitter.martial  * houseSplitMartialFactor
+            - house.cohesion    * houseSplitCohesionFactor
+```
+
+分裂実行時の処理：
+- 新 House を生成（`id: h-{parentId}-{year}`）
+- 分裂者・その配偶者・子を新 House の `memberIds` に設定
+- Province の一部（`houseSplitControlMin`〜`houseSplitControlMax` の割合）を新 House に移管
+- 元 House の `cadetHouseIds` に追加、新 House の `parentHouseId` を設定
+- 分裂した Province に `unrest += houseSplitUnrestGain`
+- 国の `houseIds` に新 House を追加
+
+イベント: `HOUSE_SPLIT`（importance: `major`）+ `SUCCESSION_CRISIS`（importance: `major`）
+
+**cohesion の変動**:
+- 初期値: worldgen 時に `randomInt(40, 80)`
+- 低下: 未成年当主時に毎月 `-minorHeadCohesionPenaltyPerMonth`（0.5）、陰謀成功時に -10 または -5
+- 回復: なし（v0.7 時点）
+
+### 6.11 未成年当主ペナルティ（SuccessionSystem 内）
+
+当主が未成年（age < `adultAge`）の間、毎月適用：
+```
+cohesion       = max(0, cohesion - minorHeadCohesionPenaltyPerMonth)
+loyaltyToCountry = max(0, loyaltyToCountry - minorHeadLoyaltyPenaltyPerMonth)
+```
+
+### 6.12 HouseExtinctionSystem（SuccessionSystem から呼び出し）
+
+後継者が存在しない家（生存メンバーが 0 または全員未成年かつ成人後継者なし）に対して断絶処理を行う。
+
+**通常家の断絶（非支配家）**:
+- 同国内の別の active House を継承先に選択
+- `moveLivingMembersToHouse` で生存メンバーを継承先に移動
+- 断絶家の Province を継承先に `transferProvinceToHouse` で移管
+- 断絶家を `active: false`、`memberIds: []` に設定
+- 国の `houseIds` から除外
+- 継承先 Province に `unrest += extinctionUnrestGain`
+
+**支配家の断絶（rulerHouse）**:
+- 同国内に別の active House がある場合:
+  - 最も Province 数が多い House を新支配家に選択
+  - `changeRulerHouse` mutation で国の `rulerHouseId` を更新
+  - 生存メンバーを新支配家に移動・Province も移管
+  - `RULER_HOUSE_CHANGED` イベントを発火後に断絶処理
+- 同国内に House がない場合（完全孤立）:
+  - 隣接国の最大 House に Province・生存メンバーを移動し国ごと併合
+  - 内部的に `handleRulerHouseExtinction` のアネクサーパスを実行
+
+イベント: `HOUSE_EXTINCT`（importance: `major`）または `RULER_HOUSE_EXTINCT`（importance: `critical`）
+
+### 6.13 AppointmentSystem（毎年1月）
 
 国家の各役職に対して、スコアの低い担当者を `replacementThreshold` 未満で交代。
 
-### 6.10 AmbitionSystem（毎月）
+### 6.14 AmbitionSystem（毎月）
 
 人物・家ごとに野心スコアを計算し、将来の陰謀・反乱の素地を作る。
 
-### 6.11 PublicSpendingSystem（毎年1月）
+### 6.15 PublicSpendingSystem（毎年1月）
 
 `publicSpendingYearlyChance`（35%）で発動。monumentScore vs landDevelopmentScore を比較し実行：
 
@@ -358,7 +497,7 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
 - 条件: treasury >= effectiveCost（財務官 admin による割引あり）
 - 効果: development += gain（clamp）、**houseControl += landDevelopmentHouseControlGain**、**unrest -= landDevelopmentUnrestReduction**、stability +2、treasury -= effectiveCost
 
-### 6.12 HouseDevelopmentSystem（毎年1月）
+### 6.16 HouseDevelopmentSystem（毎年1月）
 
 `houseDevelopmentEnabled` が true のとき動作。全 active House に対して：
 
@@ -379,11 +518,11 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
   ```
 - イベント: `HOUSE_LAND_DEVELOPED`
 
-### 6.13 PlotSystem（毎月）
+### 6.17 PlotSystem（毎月）
 
 野心スコアが `plotThreshold` を超えた人物が陰謀を実行。成功率 `basePlotSuccess`。
 
-### 6.14 WarSystem（毎月）
+### 6.18 WarSystem（毎月）
 
 `warEnabled` が true のとき動作。国家が他国に宣戦布告し、Province を奪取する。
 
@@ -411,7 +550,7 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
 9. defeatedCountry.active = false
 ```
 
-### 6.15 RebellionSystem（毎月）
+### 6.19 RebellionSystem（毎月）
 
 反乱傾向が `rebellionThreshold` を超えた家が反乱を起こす。
 
@@ -423,13 +562,13 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
   - `independence`: 反乱家が独立国を形成（国名: `{house.name}領`）
   - `ruler_change`: 反乱家が支配家に就く
 
-### 6.16 StabilitySystem / GovernanceSystem（毎月）
+### 6.20 StabilitySystem / GovernanceSystem（毎月）
 
 各国の Stability・Legitimacy の自然回復と行政処理。
 
-### 6.17 IntegrityCheck（毎月）
+### 6.21 IntegrityCheck（毎月）
 
-以下を検証し、違反があれば例外を投げる：
+以下を検証し、違反があれば例外を投げる（`debug` モード時は警告のみ）：
 
 1. 死亡人物が役職を持たない
 2. 活動中の家の家長が生存している
@@ -442,6 +581,11 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
 9. House.seatProvinceId がその House の provinceIds に含まれている
 10. Province.countryControl が 0..100 の範囲内
 11. Province.houseControl が 0..100 の範囲内
+12. Person.sex が `'male'` または `'female'` のいずれか
+13. 生存 Person の spouseId が双方向かつ有効（相互参照の一致）
+14. 生存 Person の spouseId が死亡者を指さない
+15. 親子関係の双方向整合性（fatherId/motherId と childIds の相互参照）
+16. House の cadet 関係の双方向整合性（parentHouseId と cadetHouseIds の相互参照）
 
 ---
 
@@ -471,7 +615,8 @@ houseControl   = maxControl(seatProvinceId からの BFS 距離)
 Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` に定義された名前プールから seed 付き RNG で選択する。
 
 - Country・House・Province: `pickUniqueName` による重複回避。プール不足時は `Country-N` / `House-N` / `Province-N` にフォールバック
-- Person（worldgen 初期生成・EmergenceSystem による補充ともに）: `pickName` による重複あり選択（中世欧州風に同名人物が複数存在し得る）
+- Person（worldgen 初期生成・BirthSystem による出生ともに）: `pickNameBySex` による重複あり選択（中世欧州風に同名人物が複数存在し得る）
+- `debug` モード時は全エンティティが連番 ID（`Country-0`, `House-0`, `Province-0`, `Person-0` …）で命名される
 
 ---
 
@@ -483,9 +628,13 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | ROLE_REVOKED | normal | 役職解任 |
 | PERSON_DIED | normal | 人物死亡 |
 | IMPORTANT_PERSON_DIED | major | 重要人物死亡 |
-| PERSON_EMERGED | minor | 新人物出現 |
 | HOUSE_HEAD_CHANGED | normal | 家長交代 |
-| HOUSE_EXTINCT | major | 家の断絶 |
+| HOUSE_EXTINCT | major | 家の断絶（非支配家） |
+| RULER_HOUSE_EXTINCT | critical | 支配家の断絶 |
+| MARRIAGE_FORMED | normal | 婚姻成立 |
+| CHILD_BORN | minor | 子誕生 |
+| HOUSE_SPLIT | major | 家の分裂（傍系家の独立） |
+| SUCCESSION_CRISIS | major | 継承危機 |
 | PLOT_STARTED | normal | 陰謀開始 |
 | PLOT_SUCCEEDED | major | 陰謀成功 |
 | PLOT_FAILED | normal | 陰謀失敗 |
@@ -517,8 +666,7 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 
 | 項目 | デフォルト | 説明 |
 |------|-----------|------|
-| minLivingMembersPerHouse | 4 | 家の最低生存人数 |
-| maxNewPersonsPerHousePerYear | 2 | 年間最大補充人数 |
+| debug | false | デバッグモード（連番名・非致死的 IntegrityCheck） |
 | basePlotSuccess | 0.35 | 陰謀基本成功率 |
 | rebellionThreshold | 70 | 反乱発動閾値 |
 | plotThreshold | 65 | 陰謀発動閾値 |
@@ -526,6 +674,46 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | rebellionSuccessMode | 'independence' | 反乱成功時の処理 |
 | maxRawEvents | 10000 | 全イベント保持上限 |
 | maxChronicleEvents | 1000 | Chronicle イベント保持上限 |
+| **Marriage & Birth** | | |
+| marriageEnabled | true | 婚姻システム有効 |
+| marriageMaleMinAge | 16 | 婚姻可能最低年齢（男性） |
+| marriageMaleMaxAge | 60 | 婚姻可能最高年齢（男性） |
+| marriageFemaleMinAge | 15 | 婚姻可能最低年齢（女性） |
+| marriageFemaleMaxAge | 45 | 婚姻可能最高年齢（女性） |
+| marriageYearlyChance | 0.08 | 年間婚姻確率（基本） |
+| sameCountryMarriageBonus | 0.10 | 同国婚姻の確率ボーナス |
+| differentCountryMarriagePenalty | -0.05 | 異国婚姻の確率ペナルティ |
+| birthEnabled | true | 出生システム有効 |
+| fatherMinChildAge | 15 | 父親になれる最低年齢 |
+| fatherMaxChildAge | 60 | 父親になれる最高年齢 |
+| motherMinChildAge | 15 | 母親になれる最低年齢 |
+| motherMaxChildAge | 45 | 母親になれる最高年齢 |
+| baseBirthChancePerMalePerYear | 0.06 | 男性 1 人あたりの年間出生確率（基本） |
+| spouseMotherChance | 0.90 | 配偶者が母親になる確率 |
+| maleBirthChance | 0.52 | 男子出生確率（通常） |
+| maleBirthChanceWhenAdultMaleShortage | 0.65 | 男子出生確率（成人男性不足時） |
+| targetLivingPersons | 180 | 出生倍率 1.0 となる生存人数の目標 |
+| criticalLivingPersons | 90 | 危機的人口（出生倍率 3.0 が発動する閾値） |
+| lowPopulationBirthMultiplier | 1.5 | 人口不足時の出生倍率 |
+| criticalPopulationBirthMultiplier | 3.0 | 危機的人口時の出生倍率 |
+| adultAge | 15 | 成人年齢（継承・婚姻・出生の判定基準） |
+| **Succession & House Split** | | |
+| successionCrisisScoreGap | 10 | 後継者スコア差がこの値を超えると継承危機が発生 |
+| minorHeadCohesionPenaltyPerMonth | 0.5 | 未成年当主の月次 cohesion ペナルティ |
+| minorHeadLoyaltyPenaltyPerMonth | 0.3 | 未成年当主の月次 loyaltyToCountry ペナルティ |
+| houseSplitEnabled | true | 家の分裂有効 |
+| minProvincesForHouseSplit | 3 | 分裂に必要な最小 Province 数 |
+| houseSplitCohesionThreshold | 60 | 分裂条件の cohesion 上限（未満でないと不発） |
+| baseHouseSplitChance | 0.10 | 分裂基本確率 |
+| houseSplitAmbitionFactor | 0.25 | 分裂確率への野心補正係数 |
+| houseSplitPrestigeFactor | 0.002 | 分裂確率への prestige 補正係数 |
+| houseSplitMartialFactor | 0.02 | 分裂確率への martial 補正係数 |
+| houseSplitCohesionFactor | 0.003 | 分裂確率への cohesion 減少係数 |
+| houseSplitControlMin | 30 | 分裂 Province 割合の下限（%） |
+| houseSplitControlMax | 80 | 分裂 Province 割合の上限（%） |
+| houseSplitWealthShare | 0.25 | 分裂時に新 House が受け取る wealth 割合 |
+| houseSplitUnrestGain | 5 | 分裂 Province への unrest 増加量 |
+| extinctionUnrestGain | 8 | 家断絶後の継承 Province への unrest 増加量 |
 | **War** | | |
 | warEnabled | true | 戦争有効 |
 | warCostPerProvince | 20 | Province あたり戦費 |
@@ -734,6 +922,7 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 
 ## 12. 今後の課題（未実装）
 
+- **家の分裂の作り込み**: cohesion 回復メカニズム、分裂閾値の調整、一強状態でも分裂が自然発生する仕組み
 - **首都・本拠地移転**: 征服・滅亡・特別イベントによる移転
 - **支配力による反乱・独立**: countryControl / houseControl が閾値を下回る Province での反乱
 - **記念碑エンティティ化**: 建設場所、継続効果、破壊、monumentLevel
@@ -742,5 +931,5 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 - **詳細な戦争**: War エンティティ、戦場、包囲戦
 - **施設システム**: 城塞・道路・港・市場
 - **詳細外交**: 同盟・条約・婚姻
-- **血縁・婚姻関係**: 継承権・請求権
+- **継承権・請求権**: 血縁関係に基づく他家への継承権主張
 - **House の多国所領**: House が複数 Country に所領を持つ仕組み

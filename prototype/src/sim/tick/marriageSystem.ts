@@ -134,6 +134,7 @@ function collectUnmarriedFemaleCandidates(ctx: TickContext): PersonId[] {
     if (person.age > ctx.config.marriageFemaleMaxAge) continue
     const house = ctx.state.houses[person.houseId]
     if (!house || !house.active) continue
+    if (house.headId === person.id) continue
     femaleIds.push(personId as PersonId)
   }
   return femaleIds
