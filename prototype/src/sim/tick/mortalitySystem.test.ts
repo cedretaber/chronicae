@@ -73,6 +73,8 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
     events: [],
     nextEventIndex: 0,
     nextPersonIndex: 0,
+    nextHouseIndex: 0,
+    nextCountryIndex: 0,
   }
 }
 
@@ -175,6 +177,8 @@ describe('runMortalitySystem', () => {
         events: [],
         nextEventIndex: 0,
         nextPersonIndex: 0,
+        nextHouseIndex: 0,
+        nextCountryIndex: 0,
       } as unknown as TickContext
 
       const result = runMortalitySystem(ctx)
@@ -292,6 +296,8 @@ describe('runMortalitySystem', () => {
         events: [],
         nextEventIndex: 0,
         nextPersonIndex: 0,
+        nextHouseIndex: 0,
+        nextCountryIndex: 0,
       } as unknown as TickContext
 
       const result = runMortalitySystem(ctx)

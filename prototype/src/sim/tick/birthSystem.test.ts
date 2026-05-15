@@ -53,6 +53,8 @@ function makeBaseCtx(
     events: [],
     nextEventIndex: 0,
     nextPersonIndex: 0,
+    nextHouseIndex: 0,
+    nextCountryIndex: 0,
   }
 }
 
@@ -157,6 +159,8 @@ describe('runBirthSystem', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 2,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const result = runBirthSystem(ctx)
@@ -209,6 +213,8 @@ describe('runBirthSystem', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 2,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const result = runBirthSystem(ctx)
@@ -256,6 +262,8 @@ describe('runBirthSystem', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 2,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const result = runBirthSystem(ctx)
@@ -305,6 +313,8 @@ describe('runBirthSystem', () => {
         events: [],
         nextEventIndex: 0,
         nextPersonIndex: 1,
+        nextHouseIndex: 0,
+        nextCountryIndex: 0,
       }
 
       const result = runBirthSystem(ctx)
@@ -337,6 +347,8 @@ describe('runBirthSystem', () => {
         events: [],
         nextEventIndex: 0,
         nextPersonIndex: 1,
+        nextHouseIndex: 0,
+        nextCountryIndex: 0,
       }
 
       const result = runBirthSystem(ctx)

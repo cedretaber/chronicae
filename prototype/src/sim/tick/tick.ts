@@ -21,6 +21,7 @@ import { runControlSystem } from './controlSystem'
 import { runLordshipTransitionSystem } from './lordshipTransitionSystem'
 import { runPlotSystem } from './plotSystem'
 import { runWarSystem } from './warSystem'
+import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import { runRebellionSystem } from './rebellionSystem'
 import { runStabilitySystem } from './stabilitySystem'
 import { runGovernanceSystem } from './governanceSystem'
@@ -63,6 +64,7 @@ export function tick(input: TickInput): TickResult {
   run('popDevelopmentSystem', runPopDevelopmentSystem)
   run('plotSystem', runPlotSystem)
   run('warSystem', runWarSystem)
+  run('provinceRevoltSystem', runProvinceRevoltSystem)
   run('rebellionSystem', runRebellionSystem)
   run('stabilitySystem', runStabilitySystem)
   run('governanceSystem', runGovernanceSystem)

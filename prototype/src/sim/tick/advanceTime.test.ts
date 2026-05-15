@@ -21,6 +21,8 @@ function makeCtx(year: number, month: number): TickContext {
     events: [],
     nextEventIndex: 0,
     nextPersonIndex: 0,
+    nextHouseIndex: 0,
+    nextCountryIndex: 0,
   }
 }
 

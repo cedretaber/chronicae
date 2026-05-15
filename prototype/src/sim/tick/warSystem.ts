@@ -145,7 +145,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
     }
 
     const attackerPower =
-      calcCountryMilitaryPower(currentState, attackerCountryId) *
+      calcCountryMilitaryPower(currentState, currentCtx.config, attackerCountryId) *
       calcGeneralWarPowerModifier(currentState, attackerCountry, currentCtx.config)
 
     const attackerProvinceSet = new Set<ProvinceId>()
@@ -193,7 +193,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
 
       const defenderCountryObj = currentState.countries[defenderCountryId]
       const defenderPower =
-        calcCountryMilitaryPower(currentState, defenderCountryId) *
+        calcCountryMilitaryPower(currentState, currentCtx.config, defenderCountryId) *
         (defenderCountryObj
           ? calcGeneralWarPowerModifier(currentState, defenderCountryObj, currentCtx.config)
           : 1)

@@ -42,7 +42,7 @@ function makeFixture(): {
         active: true,
         countryId: country1Id,
         provinceIds: [],
-        memberIds: [person1Id],
+        memberIds: [person1Id, person2Id],
         headId: person1Id,
         cadetHouseIds: [],
         prestige: 50,

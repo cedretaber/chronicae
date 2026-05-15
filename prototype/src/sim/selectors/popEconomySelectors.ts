@@ -48,9 +48,9 @@ export function getProvinceTaxBase(
   return getProvinceProduction(state, config, provinceId) * (province.houseControl / 100)
 }
 
-// Province manpower base:
+// Province country manpower base:
 // sum over pops: pop.size * config.manpowerFactorByClass[pop.class] * (province.countryControl / 100)
-export function getProvinceManpowerBase(
+export function getProvinceCountryManpowerBase(
   state: WorldState,
   config: SimulationConfig,
   provinceId: ProvinceId,
@@ -66,4 +66,33 @@ export function getProvinceManpowerBase(
     total += pop.size * manpowerFactor * (province.countryControl / 100)
   }
   return total
+}
+
+// Province house manpower base:
+// sum over pops: pop.size * config.manpowerFactorByClass[pop.class] * (province.houseControl / 100)
+export function getProvinceHouseManpowerBase(
+  state: WorldState,
+  config: SimulationConfig,
+  provinceId: ProvinceId,
+): number {
+  const province = state.provinces[provinceId]
+  if (!province) return 0
+
+  let total = 0
+  for (const popId of province.popGroupIds) {
+    const pop = state.popGroups[popId]
+    if (!pop) continue
+    const manpowerFactor = config.manpowerFactorByClass[pop.class]
+    total += pop.size * manpowerFactor * (province.houseControl / 100)
+  }
+  return total
+}
+
+// Compatibility wrapper — delegates to getProvinceCountryManpowerBase
+export function getProvinceManpowerBase(
+  state: WorldState,
+  config: SimulationConfig,
+  provinceId: ProvinceId,
+): number {
+  return getProvinceCountryManpowerBase(state, config, provinceId)
 }

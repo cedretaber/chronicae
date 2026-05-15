@@ -1,5 +1,5 @@
 import type { WorldState } from '../types/world'
-import type { HouseId, CountryId } from '../types/ids'
+import type { HouseId, CountryId, ProvinceId } from '../types/ids'
 import type { Country } from '../types/country'
 import { clamp100 } from '../utils/math'
 import { moveHouseToCountry } from './moveHouse'
@@ -8,6 +8,7 @@ export function createCountryFromHouse(
   state: WorldState,
   rebelHouseId: HouseId,
   newCountryId: CountryId,
+  name?: string,
 ): WorldState {
   // Step 1: Look up rebelHouse
   const rebelHouse = state.houses[rebelHouseId]
@@ -17,10 +18,13 @@ export function createCountryFromHouse(
   const oldCountry = state.countries[rebelHouse.countryId]
   if (!oldCountry) return state
 
+  // Use provided name or fallback to default
+  const countryName = name ?? rebelHouse.name + '領'
+
   // Step 3: Build newCountry
   const newCountry: Country = {
     id: newCountryId,
-    name: rebelHouse.name + '領',
+    name: countryName,
     rulerHouseId: rebelHouseId,
     houseIds: [rebelHouseId],
     treasury: Math.floor(rebelHouse.wealth * 0.5),
@@ -51,11 +55,24 @@ export function createCountryFromHouse(
     adminPower: clamp100(updatedOldCountry.adminPower - 5),
   }
 
+  // Step 8: Fix capitalProvinceId if it was moved to the new country
+  const capProv = movedState.provinces[penalizedOldCountry.capitalProvinceId]
+  const finalOldCountry: Country =
+    penalizedOldCountry.capitalProvinceId !== ('' as ProvinceId) &&
+    (!capProv || capProv.countryId !== oldCountry.id)
+      ? {
+          ...penalizedOldCountry,
+          capitalProvinceId: (Object.values(movedState.provinces).find(
+            (p) => p !== undefined && p.countryId === oldCountry.id,
+          )?.id ?? '') as ProvinceId,
+        }
+      : penalizedOldCountry
+
   return {
     ...movedState,
     countries: {
       ...movedState.countries,
-      [oldCountry.id]: penalizedOldCountry,
+      [oldCountry.id]: finalOldCountry,
     },
   }
 }

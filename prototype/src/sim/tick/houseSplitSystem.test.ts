@@ -133,6 +133,8 @@ function makeSplitCtx(
     events: [],
     nextEventIndex: 0,
     nextPersonIndex: memberCount,
+    nextHouseIndex: 0,
+    nextCountryIndex: 0,
   }
 }
 
@@ -295,6 +297,8 @@ describe('maybeSplitHouseAfterSuccession', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 3,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const input: SplitInput = {
@@ -429,6 +433,8 @@ describe('maybeSplitHouseAfterSuccession', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 3,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const input: SplitInput = {
@@ -565,6 +571,8 @@ describe('maybeSplitHouseAfterSuccession', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 3,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const input: SplitInput = {

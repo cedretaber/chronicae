@@ -1,13 +1,16 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { makeCountryId, makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
 import { clamp, clamp100 } from '../utils/math'
 import { calcAmbitionScores } from './ambitionSystem'
 import { changeRulerHouse } from '../mutations/changeRulerHouse'
 import { createCountryFromHouse } from '../mutations/createCountry'
 import { calcHouseMilitaryPower } from '../selectors/militarySelectors'
+import { generateCountryName } from '../selectors/countryNamingService'
 import type { CountryId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
+import { getPopUnrestByClass } from '../selectors/popSelectors'
+import { getProvinceUnrest } from '../selectors/popSelectors'
 
 export function runRebellionSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -36,7 +39,32 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
 
       if (house.provinceIds.length === 0) continue
 
-      const { rebellionTendency } = calcAmbitionScores(currentCtx.state, houseId)
+      let { rebellionTendency } = calcAmbitionScores(currentCtx.state, houseId)
+
+      // POP-based rebellion modifiers
+      const houseForPop = currentCtx.state.houses[houseId]
+      if (houseForPop && houseForPop.provinceIds.length > 0) {
+        const provinceIds = houseForPop.provinceIds
+        const avgNoblesUnrest =
+          provinceIds.reduce(
+            (sum, pid) => sum + getPopUnrestByClass(currentCtx.state, pid, 'nobles'),
+            0,
+          ) / provinceIds.length
+        const avgProvinceUnrest =
+          provinceIds.reduce((sum, pid) => sum + getProvinceUnrest(currentCtx.state, pid), 0) /
+          provinceIds.length
+        const avgCountryControl =
+          provinceIds.reduce((sum, pid) => {
+            const p = currentCtx.state.provinces[pid]
+            return sum + (p?.countryControl ?? 0)
+          }, 0) / provinceIds.length
+
+        rebellionTendency += avgNoblesUnrest * currentCtx.config.houseRebellionNobleUnrestFactor
+        rebellionTendency +=
+          avgProvinceUnrest * currentCtx.config.houseRebellionProvinceUnrestFactor
+        rebellionTendency +=
+          (100 - avgCountryControl) * currentCtx.config.houseRebellionLowControlFactor
+      }
 
       if (rebellionTendency < currentCtx.config.rebellionThreshold) continue
 
@@ -60,20 +88,34 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
       }
       currentCtx = { ...currentCtx, state: stateWithPenalties }
 
-      const rebelPower = calcHouseMilitaryPower(currentCtx.state, house.id)
+      const rebelPower = calcHouseMilitaryPower(currentCtx.state, currentCtx.config, house.id)
 
       const updatedCountry = currentCtx.state.countries[countryId as CountryId]
       if (!updatedCountry) continue
 
-      let loyalistPower = (updatedCountry.adminPower ?? 0) * 0.5
-      loyalistPower += (updatedCountry.treasury ?? 0) / 50
+      let loyalistPower =
+        (updatedCountry.adminPower ?? 0) * currentCtx.config.countryAdminMilitaryFactor
+      loyalistPower +=
+        (updatedCountry.treasury ?? 0) / currentCtx.config.rebellionTreasuryPowerDivisor
 
       for (const otherHouseId of currentCountry.houseIds) {
-        if (otherHouseId === currentCountry.rulerHouseId) continue
-        if (otherHouseId === houseId) continue
+        if (otherHouseId === houseId) continue // skip the rebel house
         const otherHouse = currentCtx.state.houses[otherHouseId]
         if (!otherHouse || !otherHouse.active) continue
-        loyalistPower += calcHouseMilitaryPower(currentCtx.state, otherHouseId)
+        const otherHousePower = calcHouseMilitaryPower(
+          currentCtx.state,
+          currentCtx.config,
+          otherHouseId,
+        )
+        if (otherHouseId === currentCountry.rulerHouseId) {
+          loyalistPower += otherHousePower // ruler house contributes 100%
+        } else {
+          const loyaltyModifier = Math.max(
+            currentCtx.config.minHouseMilitaryContribution,
+            Math.min(1, otherHouse.loyaltyToCountry / 100),
+          )
+          loyalistPower += otherHousePower * loyaltyModifier
+        }
       }
 
       const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
@@ -129,11 +171,26 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
         const mode = currentCtx.config.rebellionSuccessMode
 
         if (mode === 'independence') {
-          const { id: rawId, ctx: afterIdCtx } = makeEventId(currentCtx)
-          currentCtx = afterIdCtx
-          const newCountryId = rawId.replace(/^e-/, 'ct-') as CountryId
+          const { id: newCountryId, ctx: afterCountryCtx } = makeCountryId(currentCtx)
+          currentCtx = afterCountryCtx
 
-          const newState = createCountryFromHouse(currentCtx.state, houseId, newCountryId)
+          const { name: newCountryName, rng: nameRng } = generateCountryName(
+            currentCtx.state,
+            currentCtx.config,
+            currentCtx.rng,
+            {
+              origin: 'house_independence',
+              rulingHouseId: houseId,
+            },
+          )
+          currentCtx = { ...currentCtx, rng: nameRng }
+
+          const newState = createCountryFromHouse(
+            currentCtx.state,
+            houseId,
+            newCountryId,
+            newCountryName,
+          )
           currentCtx = { ...currentCtx, state: newState }
 
           const { id: succeedEventId, ctx: succeedEventCtx } = makeEventId(currentCtx)

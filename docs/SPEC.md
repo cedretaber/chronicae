@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-15（v0.8 時点）
+最終更新: 2026-05-16（v0.9 時点）
 
 ---
 
@@ -236,6 +236,12 @@ function getProvinceCarryingCapacity(state: WorldState, config: SimulationConfig
 
 // population pressure: clamp(population / carryingCapacity, 0, 2)
 function getProvincePopulationPressure(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+
+// class 別の unrest を返す（該当 class の PopGroup の unrest 値。見つからない場合は 0）
+function getPopUnrestByClass(state: WorldState, provinceId: ProvinceId, popClass: PopClass): number
+
+// class 別の wealth を返す（該当 class の PopGroup の wealth 値。見つからない場合は 0）
+function getPopWealthByClass(state: WorldState, provinceId: ProvinceId, popClass: PopClass): number
 ```
 
 ### 4.3 POP Economy セレクター
@@ -251,8 +257,28 @@ function getProvinceProduction(state: WorldState, config: SimulationConfig, prov
 // Province の税基盤: getProvinceProduction * (houseControl / 100)
 function getProvinceTaxBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// Province の兵力基盤: sum(pop.size * manpowerFactorByClass[pop.class] * (countryControl / 100))
+// Country 用の Province 兵力基盤: sum(pop.size * manpowerFactorByClass[pop.class] * (countryControl / 100))
+function getProvinceCountryManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+
+// House 用の Province 兵力基盤: sum(pop.size * manpowerFactorByClass[pop.class] * (houseControl / 100))
+function getProvinceHouseManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+
+// 後方互換 wrapper: getProvinceCountryManpowerBase を呼ぶ
 function getProvinceManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+```
+
+### 4.4 Military セレクター
+
+```ts
+// House 軍事力: (levyPower + mercenaryPower) * commanderModifier
+//   levyPower       = sum(house.provinceIds.map(pid => getProvinceHouseManpowerBase(pid))) * houseManpowerPowerFactor
+//   mercenaryPower  = min(log1p(max(0, wealth - reserve)) * factor, levyPower * maxMercenaryPowerRatio)
+//   commanderModifier = clamp(1 + normalizedStat(bestMartial) * effect, min, max)
+function calcHouseMilitaryPower(state: WorldState, config: SimulationConfig, houseId: HouseId): number
+
+// Country 軍事力: adminPower * factor + sum(houseContributions)
+//   支配家門は 100% 寄与。非支配家門は clamp(loyaltyToCountry/100, min, 1) 倍
+function calcCountryMilitaryPower(state: WorldState, config: SimulationConfig, countryId: CountryId): number
 ```
 
 ---
@@ -281,12 +307,13 @@ function getProvinceManpowerBase(state: WorldState, config: SimulationConfig, pr
 | 16 | **PopDevelopmentSystem** | 毎月 |
 | 17 | PlotSystem | 毎月 |
 | 18 | WarSystem | 毎月 |
-| 19 | RebellionSystem | 毎月 |
-| 20 | StabilitySystem | 毎月 |
-| 21 | GovernanceSystem | 毎月 |
-| 22 | IntegrityCheck | 毎月 |
+| 19 | **ProvinceRevoltSystem** | 毎月 |
+| 20 | RebellionSystem | 毎月 |
+| 21 | StabilitySystem | 毎月 |
+| 22 | GovernanceSystem | 毎月 |
+| 23 | IntegrityCheck | 毎月 |
 
-順序の理由：PopSystem を EconomySystem より前に置くことで、当月の POP 状態変化（人口成長・pressure・wealth/unrest）を反映して生産量を計算する。PopDevelopmentSystem を Country/House 開発システムより後に置くことで、当月の収入分配後に POP に残った余剰富による地元の自主開発を表現する。
+順序の理由：PopSystem を EconomySystem より前に置くことで、当月の POP 状態変化（人口成長・pressure・wealth/unrest）を反映して生産量を計算する。PopDevelopmentSystem を Country/House 開発システムより後に置くことで、当月の収入分配後に POP に残った余剰富による地元の自主開発を表現する。ProvinceRevoltSystem を RebellionSystem の前に置くことで、Province / POP 起点の社会不安が House 反乱に波及する経路を表現する（ただし同一 tick での直接連鎖はしない）。
 
 ---
 
@@ -608,7 +635,7 @@ splitChance = baseHouseSplitChance
 **cohesion の変動**:
 - 初期値: worldgen 時に `randomInt(40, 80)`
 - 低下: 未成年当主時に毎月 `-minorHeadCohesionPenaltyPerMonth`（0.5）、陰謀成功時に -10 または -5
-- 回復: なし（v0.8 時点）
+- 回復: なし（v1.0 以降の課題）
 
 ### 6.12 未成年当主ペナルティ（SuccessionSystem 内）
 
@@ -765,23 +792,90 @@ summary: "The people of ${province.name} improved their lands."
 
 ### 6.21 RebellionSystem（毎月）
 
-反乱傾向が `rebellionThreshold` を超えた家が反乱を起こす。
+反乱傾向が `rebellionThreshold` を超えた House が反乱を起こす（HouseRebellionSystem）。Province / POP 起点の反乱は §6.22 ProvinceRevoltSystem が担当する。
 
-Province の unrest 参照はすべて `getProvinceUnrest(state, province.id)` を使用する。
+**反乱傾向の計算**:
 
-- 荒廃効果:
-  - 反乱開始時: rebelProvinces に development -= rebellionStartedDevastation
-  - 反乱成功時: rebelProvinces に development -= rebellionSucceededDevastation
-  - 反乱失敗時: rebelProvinces に development -= rebellionFailedDevastation
-- 成功時の処理（`rebellionSuccessMode` で分岐）:
-  - `independence`: 反乱家が独立国を形成（国名: `{house.name}領`）
-  - `ruler_change`: 反乱家が支配家に就く
+`calcAmbitionScores` による基本傾向に加え、POP 状態から以下を加算する。
 
-### 6.22 StabilitySystem / GovernanceSystem（毎月）
+```ts
+rebellionTendency += avgNoblesUnrest * houseRebellionNobleUnrestFactor
+rebellionTendency += avgProvinceUnrest * houseRebellionProvinceUnrestFactor
+rebellionTendency += (100 - avgCountryControl) * houseRebellionLowControlFactor
+```
+
+**戦力計算**:
+
+- 反乱側: `calcHouseMilitaryPower(state, config, rebelHouseId)`
+- 鎮圧側: 支配家門は 100% 寄与、非支配家門は `loyaltyToCountry` に応じた寄与 + `adminPower * factor` + `treasury / divisor`
+
+**荒廃効果**:
+- 反乱開始時: rebelProvinces に development -= rebellionStartedDevastation
+- 反乱成功時: rebelProvinces に development -= rebellionSucceededDevastation
+- 反乱失敗時: rebelProvinces に development -= rebellionFailedDevastation
+
+**成功時の処理**（`rebellionSuccessMode` で分岐）:
+- `independence`: 反乱家が独立国を形成（国名: `{house.name}領`）
+- `ruler_change`: 反乱家が支配家に就く
+
+### 6.22 ProvinceRevoltSystem（毎月）
+
+Province / POP を起点とする社会的反乱を処理する。
+
+毎月、全 active Province に対して POP class ごとの反乱傾向を評価し、最も傾向が高い class 1 つを候補とする。スナップショットパターンで実装（連鎖防止）。
+
+**反乱傾向**:
+
+```ts
+revoltTendency =
+  pop.unrest * provinceRevoltUnrestFactor
+  + (100 - houseControl) * provinceRevoltLowHouseControlFactor
+  + (100 - countryControl) * provinceRevoltLowCountryControlFactor
+  - country.stability * provinceRevoltStabilitySuppressionFactor
+  + [class 別補正]
+```
+
+class 別補正:
+
+| class | 補正内容 |
+|-------|----------|
+| peasants | 貧困 wealth ペナルティ + 人口圧力 |
+| townsmen | 低 wealth 時のみ搾取ペナルティ + 生産量補正 |
+| nobles | 低忠誠度補正 + 低正統性補正 |
+
+**発生判定**: `revoltTendency >= provinceRevoltThreshold` のとき、`clamp(tendency / chanceDivisor, 0, maxChance)` の確率で発生。
+
+**戦力比較**:
+- 反乱側: `pop.size * popRevoltPowerFactorByClass[class] * (0.5 + unrest/100)`
+- 鎮圧側: Province の house/country manpower + log1p(treasury) + log1p(houseWealth)
+
+**成功 outcome**:
+
+| outcome | 条件 | 効果 |
+|---------|------|------|
+| `concession` | 小幅成功 | 支配力低下・legitimacy 低下・house wealth 低下、不満低下 |
+| `lordship_change` | 中〜大成功 | 新 Person・新 House を生成し Province の領主を交代 |
+| `independence` | nobles 反乱かつ両支配力が極低値かつ大差勝利 | 新 Person・新 House・新 Country を生成し Province が独立 |
+
+**反乱失敗**: 反乱 POP の unrest 低下・Province 荒廃・反乱 POP wealth 低下、鎮圧側 legitimacy 上昇。他 class の unrest が collateral として小幅上昇。
+
+**イベント**:
+
+| 状況 | イベント |
+|------|---------|
+| 発生 | `PROVINCE_REVOLT_STARTED` |
+| concession 成功 | `PROVINCE_REVOLT_SUCCEEDED` |
+| lordship_change 成功 | `LORDSHIP_USURPED` |
+| independence 成功 | `REVOLT_COUNTRY_FOUNDED` |
+| 失敗 | `PROVINCE_REVOLT_FAILED` |
+
+**旧 ownerHouse の処置（lordship_change / independence）**: 領地がゼロになった House は即 inactive 化し、生存メンバーを rulerHouse に移動。`HOUSE_EXTINCT` イベントを発火。
+
+### 6.23 StabilitySystem / GovernanceSystem（毎月）
 
 各国の Stability・Legitimacy の自然回復と行政処理。
 
-### 6.23 IntegrityCheck（毎月）
+### 6.24 IntegrityCheck（毎月）
 
 以下を検証し、違反があれば例外を投げる（`debug` モード時は警告のみ）：
 
@@ -808,6 +902,8 @@ Province の unrest 参照はすべて `getProvinceUnrest(state, province.id)` �
 21. PopGroup.size >= minPopSizeByClass[class]
 22. PopGroup.wealth が 0..100 の範囲内
 23. PopGroup.unrest が 0..100 の範囲内
+24. active Country.houseIds に rulerHouseId が含まれる
+25. active House.memberIds に headId が含まれる
 
 ---
 
@@ -918,12 +1014,17 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | HOUSE_LAND_DEVELOPED | normal | 家による土地開発 |
 | LORDSHIP_TRANSFERRED | minor | 隣接吸収による領主交代 |
 | POP_LAND_DEVELOPED | minor | POP 自主開発（§6.18） |
+| PROVINCE_REVOLT_STARTED | normal | Province / POP 反乱が発生 |
+| PROVINCE_REVOLT_SUCCEEDED | major | Province 反乱が concession で成功 |
+| PROVINCE_REVOLT_FAILED | normal | Province 反乱が失敗・鎮圧 |
+| LORDSHIP_USURPED | major | 反乱により Province の ownerHouse が交代 |
+| REVOLT_COUNTRY_FOUNDED | critical | Province 反乱の独立により新 Country が成立 |
 | POP_HARDSHIP | minor | POP の困窮（将来実装） |
 | POP_PROSPERITY | minor | POP の繁栄（将来実装） |
 | POP_UNREST_RISING | normal | Province unrest 上昇警告（将来実装） |
 | POP_DECLINED | normal | Province 人口大幅低下（将来実装） |
 
-POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は v0.8 時点で EventType 宣言のみ。実際の発火ロジックは v0.9 以降に実装する。
+POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType 宣言のみ。実際の発火ロジックは v1.0 以降に実装する。
 
 ---
 
@@ -933,7 +1034,7 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は v0.8 時点
 |------|-----------|------|
 | debug | false | デバッグモード（イベント行への ID 付記・構造化デバッグログ・非致死的 IntegrityCheck） |
 | basePlotSuccess | 0.35 | 陰謀基本成功率 |
-| rebellionThreshold | 70 | 反乱発動閾値 |
+| rebellionThreshold | 90 | 反乱発動閾値 |
 | plotThreshold | 65 | 陰謀発動閾値 |
 | replacementThreshold | 15 | 役職交代閾値 |
 | rebellionSuccessMode | 'independence' | 反乱成功時の処理 |
@@ -1075,6 +1176,65 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は v0.8 時点
 | **Annexation** | | |
 | annexedCountryControl | 35 | 併合後の Province countryControl |
 | newRulerHouseControl | 35 | 征服国 rulerHouse に割当られた Province の houseControl |
+| **Military（v0.9）** | | |
+| houseManpowerPowerFactor | 1.0 | House manpower を軍事力へ変換する係数 |
+| houseMilitaryWealthReserve | 100 | 軍事力換算から除外する House wealth 予備 |
+| houseWealthMilitaryFactor | 8.0 | log1p(availableWealth) の軍事力換算係数 |
+| maxMercenaryPowerRatio | 0.5 | 傭兵力の上限（levyPower の 50%） |
+| houseCommanderMartialEffect | 0.25 | martial による軍事力倍率補正係数 |
+| minCommanderModifier | 0.75 | 指揮官補正の下限 |
+| maxCommanderModifier | 1.25 | 指揮官補正の上限 |
+| countryAdminMilitaryFactor | 0.3 | 国家 adminPower の軍事力寄与係数 |
+| minHouseMilitaryContribution | 0.25 | 非支配家門の最低軍事寄与率 |
+| **HouseRebellion（v0.9）** | | |
+| houseRebellionNobleUnrestFactor | 0.15 | nobles unrest の反乱傾向加算係数 |
+| houseRebellionProvinceUnrestFactor | 0.05 | Province 全体 unrest の反乱傾向加算係数 |
+| houseRebellionLowControlFactor | 0.10 | 低 countryControl による反乱傾向加算係数 |
+| rebellionTreasuryPowerDivisor | 50 | 国庫を鎮圧戦力へ換算する除数 |
+| **ProvinceRevolt（v0.9）** | | |
+| provinceRevoltThreshold | 90 | Province 反乱発動の傾向閾値 |
+| provinceRevoltChanceDivisor | 300 | 傾向値を月次確率へ変換する除数 |
+| provinceRevoltMaxChance | 0.35 | 月次発生確率の上限 |
+| provinceRevoltUnrestFactor | 0.8 | unrest の傾向加算係数 |
+| provinceRevoltLowHouseControlFactor | 0.2 | 低 houseControl の傾向加算係数 |
+| provinceRevoltLowCountryControlFactor | 0.2 | 低 countryControl の傾向加算係数 |
+| provinceRevoltStabilitySuppressionFactor | 0.2 | stability による傾向抑制係数 |
+| peasantRevoltPovertyFactor | 0.5 | peasants 貧困補正係数 |
+| peasantRevoltPressureFactor | 10 | peasants 人口圧補正係数 |
+| townsmenRevoltProductionFactor | 0.02 | townsmen 生産量補正係数 |
+| townsmenRevoltExtractionFactor | 5 | townsmen 搾取補正値 |
+| nobleRevoltHouseDisloyaltyFactor | 0.2 | nobles 低忠誠度補正係数 |
+| nobleRevoltLowLegitimacyFactor | 0.2 | nobles 低正統性補正係数 |
+| popRevoltPowerFactorByClass | {peasants:0.02, townsmen:0.015, nobles:0.08} | class 別反乱戦力係数 |
+| provinceRevoltHouseSuppressionFactor | 1.0 | House manpower の鎮圧力換算係数 |
+| provinceRevoltCountrySuppressionFactor | 0.8 | Country manpower の鎮圧力換算係数 |
+| provinceRevoltTreasurySuppressionFactor | 2.0 | log1p(treasury) の鎮圧力換算係数 |
+| provinceRevoltHouseWealthSuppressionFactor | 2.0 | log1p(houseWealth) の鎮圧力換算係数 |
+| provinceRevoltConcessionCountryControlLoss | 10 | 譲歩時の countryControl 低下量 |
+| provinceRevoltConcessionHouseControlLoss | 15 | 譲歩時の houseControl 低下量 |
+| provinceRevoltConcessionUnrestReduction | 20 | 譲歩時の反乱 POP unrest 低下量 |
+| provinceRevoltConcessionLegitimacyLoss | 3 | 譲歩時の legitimacy 低下量 |
+| provinceRevoltConcessionHouseWealthLoss | 20 | 譲歩時の House wealth 低下量 |
+| provinceRevoltLordshipChangeSuccessMargin | 0.15 | lordship_change に必要な最低 successMargin |
+| provinceRevoltLordshipChangeCountryControlLoss | 10 | 領主交代後の countryControl 低下量 |
+| provinceRevoltNewHouseControl | 50 | 新領主の初期 houseControl |
+| provinceRevoltIndependenceCountryControlMax | 10 | 独立条件: countryControl の上限 |
+| provinceRevoltIndependenceHouseControlMax | 10 | 独立条件: houseControl の上限 |
+| provinceRevoltIndependenceSuccessMargin | 0.20 | 独立に必要な最低 successMargin |
+| provinceRevoltNewCountryControl | 40 | 独立後の新国家 countryControl |
+| provinceRevoltFailedUnrestReduction | 10 | 反乱失敗時の反乱 POP unrest 低下量 |
+| provinceRevoltFailedDevastation | 4 | 反乱失敗時の Province 荒廃量 |
+| provinceRevoltFailedWealthPenalty | 8 | 反乱失敗時の反乱 POP wealth 低下量 |
+| provinceRevoltSuppressionLegitimacyGain | 2 | 鎮圧成功時の legitimacy 上昇量 |
+| provinceRevoltSuppressionCollateralUnrestGain | 2 | 鎮圧時の他 class への collateral unrest |
+| revoltHouseInitialPrestige | 10 | 反乱新設 House の初期 prestige |
+| revoltHouseInitialCohesion | 70 | 反乱新設 House の初期 cohesion |
+| revoltHouseInitialLoyaltyToCountry | 40 | 反乱新設 House の初期 loyaltyToCountry |
+| revoltHouseInitialWealth | 30 | 反乱新設 House の初期 wealth |
+| revoltCountryInitialTreasury | 50 | 独立新設 Country の初期 treasury |
+| revoltCountryInitialLegitimacy | 40 | 独立新設 Country の初期 legitimacy |
+| revoltCountryInitialAdminPower | 30 | 独立新設 Country の初期 adminPower |
+| revoltCountryInitialStability | 50 | 独立新設 Country の初期 stability |
 | **POP システム（v0.8）** | | |
 | popSystemEnabled | true | POP システム有効 |
 | minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別） |
@@ -1223,10 +1383,11 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 - **Sidebar**: 人物一覧。重要度スコア順。ウォッチリスト対応
 - **DetailPanel**: 選択エンティティ（Province / Country / House / Person）の詳細表示
   - ProvinceDetail:
-    - **Population** セクション: habitability / Carrying Capacity / Total Population / Pop. Pressure（90% 超で赤表示）/ Avg Wealth / Unrest（60 超で赤表示）/ Production / Manpower
+    - **Population** セクション: habitability / Carrying Capacity / Total Population / Pop. Pressure（90% 超で赤表示）/ Avg Wealth / Unrest（60 超で赤表示）/ Production / Country Manpower / House Manpower
     - **POP Groups** セクション: class 別に size / wealth / unrest（60 超で赤表示）を一覧表示
-  - CountryDetail: 首都名（capitalProvinceId）/ legitimacy / treasury
-  - HouseDetail: 本拠地名（seatProvinceId）/ Province 数 / wealth / prestige
+    - **Revolt Risk** セクション: class 別反乱傾向値（Peasants / Townsmen / Nobles）
+  - CountryDetail: 首都名（capitalProvinceId）/ legitimacy / treasury / Total Military Power（Ruler House / Loyalist 内訳）
+  - HouseDetail: 本拠地名（seatProvinceId）/ Province 数 / wealth / prestige / Military（Levy / Mercenary / Commander Modifier / Total）
 - **EventLog**: Chronicle（major/critical）と全イベントの 2 ビュー
 - **ConfigPanel**: シミュレーションパラメータをリアルタイム調整
 
@@ -1234,9 +1395,9 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 
 ## 12. 今後の課題（未実装）
 
-- **大国の分裂**: 国土が広すぎると支配力が維持できず、継承・内乱・反乱で分裂する仕組み。現状は全土が 1 国 1 家に収束しやすいため、国家規模へのペナルティや継承危機の強化が必要
+- **大分裂（House 独立）**: 全土統一後、国力が一定規模を超えると支配家から傍系家が独立し複数国家が成立する「中国史的分裂」メカニズム。現状は Province Revolt から新勢力が生まれるが、House 単位での大規模独立はまだ弱い
+- **国家規模ペナルティ**: Province 数・House 数が増えるほど legitimacy 維持が困難になり、大国が自重で崩れる仕組み
 - **家の分裂の作り込み**: cohesion 回復メカニズム、分裂閾値の調整、一強状態でも分裂が自然発生する仕組み
-- **POP 階層別反乱**: peasants unrest → 農民反乱、townsmen unrest → 都市暴動、nobles unrest → 貴族反乱 / House 反乱
 - **POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED イベントの発火ロジック**: 閾値超過時のみ発火する条件付きイベント（EventType 宣言のみ実装済み）
 - **首都・本拠地移転**: 征服・滅亡・特別イベントによる移転
 - **記念碑エンティティ化**: 建設場所、継続効果、破壊、monumentLevel

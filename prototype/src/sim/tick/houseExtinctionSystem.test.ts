@@ -165,6 +165,8 @@ function makeNormalExtinctionCtx(): TickContext {
     events: [],
     nextEventIndex: 0,
     nextPersonIndex: 11,
+    nextHouseIndex: 0,
+    nextCountryIndex: 0,
   }
 }
 
@@ -301,6 +303,8 @@ describe('extinctHouseAfterFailedSuccession', () => {
         events: [],
         nextEventIndex: 0,
         nextPersonIndex: 1,
+        nextHouseIndex: 0,
+        nextCountryIndex: 0,
       }
 
       const result = extinctHouseAfterFailedSuccession(ctx, houseId)
@@ -393,6 +397,8 @@ describe('extinctHouseAfterFailedSuccession', () => {
         events: [],
         nextEventIndex: 0,
         nextPersonIndex: 1,
+        nextHouseIndex: 0,
+        nextCountryIndex: 0,
       }
 
       const result = extinctHouseAfterFailedSuccession(ctx, houseId)
@@ -485,6 +491,8 @@ describe('extinctHouseAfterFailedSuccession', () => {
         events: [],
         nextEventIndex: 0,
         nextPersonIndex: 1,
+        nextHouseIndex: 0,
+        nextCountryIndex: 0,
       }
 
       const result = extinctHouseAfterFailedSuccession(ctx, houseId)

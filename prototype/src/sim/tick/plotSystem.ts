@@ -105,21 +105,34 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
     case 'replace_house_head': {
       const targetHouse = currentCtx.state.houses[plot.targetHouseId as HouseId]
       if (targetHouse) {
-        const newHouses = { ...state.houses }
-        newHouses[plot.targetHouseId as HouseId] = {
-          ...targetHouse,
-          headId: plot.leaderId,
-          cohesion: clamp100(targetHouse.cohesion - 10),
-        }
-        state = { ...state, houses: newHouses }
-      }
+        const currentHeadId = targetHouse.headId as string
+        // Find a new head from within the target house's existing members
+        const newHead = targetHouse.memberIds
+          .map((id) => state.persons[id])
+          .filter(
+            (p): p is NonNullable<typeof p> =>
+              p !== undefined &&
+              p.alive &&
+              p.age >= currentCtx.config.adultAge &&
+              (p.id as string) !== currentHeadId,
+          )
+          .sort((a, b) => b.prestige - a.prestige)[0]
 
-      if (targetHouse) {
-        const oldHead = state.persons[targetHouse.headId]
-        if (oldHead) {
-          const newPersons = { ...state.persons }
-          newPersons[oldHead.id] = { ...oldHead, prestige: clamp100(oldHead.prestige - 20) }
-          state = { ...state, persons: newPersons }
+        if (newHead) {
+          const oldHead = state.persons[targetHouse.headId]
+          if (oldHead) {
+            const newPersons = { ...state.persons }
+            newPersons[oldHead.id] = { ...oldHead, prestige: clamp100(oldHead.prestige - 20) }
+            state = { ...state, persons: newPersons }
+          }
+
+          const newHouses = { ...state.houses }
+          newHouses[plot.targetHouseId as HouseId] = {
+            ...targetHouse,
+            headId: newHead.id,
+            cohesion: clamp100(targetHouse.cohesion - 10),
+          }
+          state = { ...state, houses: newHouses }
         }
       }
 

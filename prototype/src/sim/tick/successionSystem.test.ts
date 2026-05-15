@@ -110,6 +110,8 @@ function makeCtx(
     events: [],
     nextEventIndex: 0,
     nextPersonIndex: members.length + 1,
+    nextHouseIndex: 0,
+    nextCountryIndex: 0,
   }
 }
 
@@ -286,6 +288,8 @@ describe('runSuccessionSystem', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 3,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const result = runSuccessionSystem(ctx)
@@ -384,6 +388,8 @@ describe('runSuccessionSystem', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 3,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const result = runSuccessionSystem(ctx)
@@ -456,6 +462,8 @@ describe('applyMinorHeadPenalties', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 1,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const result = applyMinorHeadPenalties(ctx)
@@ -528,6 +536,8 @@ describe('applyMinorHeadPenalties', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 1,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const result = applyMinorHeadPenalties(ctx)
@@ -606,6 +616,8 @@ describe('applyMinorHeadPenalties', () => {
       events: [],
       nextEventIndex: 0,
       nextPersonIndex: 1,
+      nextHouseIndex: 0,
+      nextCountryIndex: 0,
     }
 
     const result = applyMinorHeadPenalties(ctx)

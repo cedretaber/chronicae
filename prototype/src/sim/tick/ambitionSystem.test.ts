@@ -126,6 +126,8 @@ function makeFixture(): {
     events: [],
     nextEventIndex: 0,
     nextPersonIndex: 0,
+    nextHouseIndex: 0,
+    nextCountryIndex: 0,
   }
 
   return { ctx, state, houseId, countryId, headId, province1Id, province2Id }

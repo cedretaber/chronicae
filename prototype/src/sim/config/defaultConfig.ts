@@ -205,6 +205,71 @@ export type SimulationConfig = {
   famineReliefDamageMultiplier: number
   plagueWealthPenalty: number
   plagueSizeDamage: number
+  // Military v0.9
+  houseManpowerPowerFactor: number
+  houseMilitaryWealthReserve: number
+  houseWealthMilitaryFactor: number
+  maxMercenaryPowerRatio: number
+  houseCommanderMartialEffect: number
+  minCommanderModifier: number
+  maxCommanderModifier: number
+  countryAdminMilitaryFactor: number
+  minHouseMilitaryContribution: number
+  // HouseRebellion v0.9
+  houseRebellionNobleUnrestFactor: number
+  houseRebellionProvinceUnrestFactor: number
+  houseRebellionLowControlFactor: number
+  rebellionTreasuryPowerDivisor: number
+  // ProvinceRevolt tendency
+  provinceRevoltThreshold: number
+  provinceRevoltChanceDivisor: number
+  provinceRevoltMaxChance: number
+  provinceRevoltUnrestFactor: number
+  provinceRevoltLowHouseControlFactor: number
+  provinceRevoltLowCountryControlFactor: number
+  provinceRevoltStabilitySuppressionFactor: number
+  // ProvinceRevolt class-specific tendency
+  peasantRevoltPovertyFactor: number
+  peasantRevoltPressureFactor: number
+  townsmenRevoltProductionFactor: number
+  townsmenRevoltExtractionFactor: number
+  nobleRevoltHouseDisloyaltyFactor: number
+  nobleRevoltLowLegitimacyFactor: number
+  // ProvinceRevolt power
+  popRevoltPowerFactorByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  provinceRevoltHouseSuppressionFactor: number
+  provinceRevoltCountrySuppressionFactor: number
+  provinceRevoltTreasurySuppressionFactor: number
+  provinceRevoltHouseWealthSuppressionFactor: number
+  // ProvinceRevolt outcomes
+  provinceRevoltConcessionCountryControlLoss: number
+  provinceRevoltConcessionHouseControlLoss: number
+  provinceRevoltConcessionUnrestReduction: number
+  provinceRevoltConcessionLegitimacyLoss: number
+  provinceRevoltConcessionHouseWealthLoss: number
+  provinceRevoltLordshipChangeSuccessMargin: number
+  provinceRevoltLordshipChangeCountryControlLoss: number
+  provinceRevoltNewHouseControl: number
+  // ProvinceRevolt independence
+  provinceRevoltIndependenceCountryControlMax: number
+  provinceRevoltIndependenceHouseControlMax: number
+  provinceRevoltIndependenceSuccessMargin: number
+  provinceRevoltNewCountryControl: number
+  // ProvinceRevolt failure
+  provinceRevoltFailedUnrestReduction: number
+  provinceRevoltFailedDevastation: number
+  provinceRevoltFailedWealthPenalty: number
+  provinceRevoltSuppressionLegitimacyGain: number
+  provinceRevoltSuppressionCollateralUnrestGain: number
+  // ProvinceRevolt new entities
+  revoltHouseInitialPrestige: number
+  revoltHouseInitialCohesion: number
+  revoltHouseInitialLoyaltyToCountry: number
+  revoltHouseInitialWealth: number
+  revoltCountryInitialTreasury: number
+  revoltCountryInitialLegitimacy: number
+  revoltCountryInitialAdminPower: number
+  revoltCountryInitialStability: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -212,7 +277,7 @@ export const defaultConfig: SimulationConfig = {
   minLivingMembersPerHouse: 4,
   maxNewPersonsPerHousePerYear: 2,
   basePlotSuccess: 0.35,
-  rebellionThreshold: 70,
+  rebellionThreshold: 90,
   plotThreshold: 65,
   replacementThreshold: 15,
   rebellionSuccessMode: 'independence',
@@ -405,4 +470,69 @@ export const defaultConfig: SimulationConfig = {
   famineReliefDamageMultiplier: 0.3,
   plagueWealthPenalty: 10,
   plagueSizeDamage: 3,
+  // Military v0.9
+  houseManpowerPowerFactor: 1.0,
+  houseMilitaryWealthReserve: 100,
+  houseWealthMilitaryFactor: 8.0,
+  maxMercenaryPowerRatio: 0.5,
+  houseCommanderMartialEffect: 0.25,
+  minCommanderModifier: 0.75,
+  maxCommanderModifier: 1.25,
+  countryAdminMilitaryFactor: 0.3,
+  minHouseMilitaryContribution: 0.25,
+  // HouseRebellion v0.9
+  houseRebellionNobleUnrestFactor: 0.15,
+  houseRebellionProvinceUnrestFactor: 0.05,
+  houseRebellionLowControlFactor: 0.1,
+  rebellionTreasuryPowerDivisor: 50,
+  // ProvinceRevolt tendency
+  provinceRevoltThreshold: 90,
+  provinceRevoltChanceDivisor: 300,
+  provinceRevoltMaxChance: 0.35,
+  provinceRevoltUnrestFactor: 0.8,
+  provinceRevoltLowHouseControlFactor: 0.2,
+  provinceRevoltLowCountryControlFactor: 0.2,
+  provinceRevoltStabilitySuppressionFactor: 0.2,
+  // ProvinceRevolt class-specific tendency
+  peasantRevoltPovertyFactor: 0.5,
+  peasantRevoltPressureFactor: 10,
+  townsmenRevoltProductionFactor: 0.02,
+  townsmenRevoltExtractionFactor: 5,
+  nobleRevoltHouseDisloyaltyFactor: 0.2,
+  nobleRevoltLowLegitimacyFactor: 0.2,
+  // ProvinceRevolt power
+  popRevoltPowerFactorByClass: { peasants: 0.02, townsmen: 0.015, nobles: 0.08 },
+  provinceRevoltHouseSuppressionFactor: 1.0,
+  provinceRevoltCountrySuppressionFactor: 0.8,
+  provinceRevoltTreasurySuppressionFactor: 2.0,
+  provinceRevoltHouseWealthSuppressionFactor: 2.0,
+  // ProvinceRevolt outcomes
+  provinceRevoltConcessionCountryControlLoss: 10,
+  provinceRevoltConcessionHouseControlLoss: 15,
+  provinceRevoltConcessionUnrestReduction: 20,
+  provinceRevoltConcessionLegitimacyLoss: 3,
+  provinceRevoltConcessionHouseWealthLoss: 20,
+  provinceRevoltLordshipChangeSuccessMargin: 0.15,
+  provinceRevoltLordshipChangeCountryControlLoss: 10,
+  provinceRevoltNewHouseControl: 50,
+  // ProvinceRevolt independence
+  provinceRevoltIndependenceCountryControlMax: 10,
+  provinceRevoltIndependenceHouseControlMax: 10,
+  provinceRevoltIndependenceSuccessMargin: 0.2,
+  provinceRevoltNewCountryControl: 40,
+  // ProvinceRevolt failure
+  provinceRevoltFailedUnrestReduction: 10,
+  provinceRevoltFailedDevastation: 4,
+  provinceRevoltFailedWealthPenalty: 8,
+  provinceRevoltSuppressionLegitimacyGain: 2,
+  provinceRevoltSuppressionCollateralUnrestGain: 2,
+  // ProvinceRevolt new entities
+  revoltHouseInitialPrestige: 10,
+  revoltHouseInitialCohesion: 70,
+  revoltHouseInitialLoyaltyToCountry: 40,
+  revoltHouseInitialWealth: 30,
+  revoltCountryInitialTreasury: 50,
+  revoltCountryInitialLegitimacy: 40,
+  revoltCountryInitialAdminPower: 30,
+  revoltCountryInitialStability: 50,
 }

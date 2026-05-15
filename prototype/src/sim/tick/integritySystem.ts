@@ -326,5 +326,27 @@ export function runIntegrityCheck(ctx: TickContext): TickContext {
     }
   }
 
+  // Check: active Country.rulerHouseId is in Country.houseIds
+  for (const countryId of Object.keys(state.countries).sort()) {
+    const country = state.countries[countryId as CountryId]
+    if (!country || !country.active) continue
+
+    if (!country.houseIds.some((hid) => (hid as string) === (country.rulerHouseId as string))) {
+      throw new Error(
+        'Country ' + countryId + ' rulerHouseId ' + country.rulerHouseId + ' not in houseIds',
+      )
+    }
+  }
+
+  // Check: active House.headId is in House.memberIds
+  for (const houseId of Object.keys(state.houses).sort()) {
+    const house = state.houses[houseId as HouseId]
+    if (!house || !house.active) continue
+
+    if (!house.memberIds.some((mid) => (mid as string) === (house.headId as string))) {
+      throw new Error('House ' + houseId + ' headId ' + house.headId + ' not in memberIds')
+    }
+  }
+
   return ctx
 }

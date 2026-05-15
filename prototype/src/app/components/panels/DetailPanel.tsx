@@ -8,8 +8,14 @@ import {
   getProvincePopulationPressure,
   getProvinceAveragePopWealth,
   getProvinceUnrest,
+  getPopWealthByClass,
 } from '@sim/selectors/popSelectors'
-import { getProvinceProduction, getProvinceManpowerBase } from '@sim/selectors/popEconomySelectors'
+import {
+  getProvinceProduction,
+  getProvinceManpowerBase,
+  getProvinceCountryManpowerBase,
+  getProvinceHouseManpowerBase,
+} from '@sim/selectors/popEconomySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import type { Country } from '@/sim/types/country'
 import type { House } from '@/sim/types/house'
@@ -18,6 +24,9 @@ import type { Province } from '@/sim/types/province'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
+import { calcCountryMilitaryPower } from '@/sim/selectors/militarySelectors'
+import { normalizedStat } from '@/sim/selectors/personAbilityEffects'
+import { clamp } from '@/sim/utils/math'
 import type { SimEvent } from '@/sim/types/event'
 
 function getImportanceColor(importance: SimEvent['importance']): string {
@@ -151,6 +160,23 @@ function CountryDetail({
   const houses = currentState?.houses
   const persons = currentState?.persons
 
+  const worldState: WorldState | null = currentState
+    ? {
+        currentYear: currentState.currentYear,
+        currentMonth: currentState.currentMonth,
+        provinces: currentState.provinces,
+        countries: currentState.countries,
+        houses: currentState.houses,
+        persons: currentState.persons,
+        activePlots: currentState.activePlots ?? {},
+        popGroups: currentState.popGroups ?? {},
+      }
+    : null
+
+  const totalMilitaryPower = worldState
+    ? calcCountryMilitaryPower(worldState, defaultConfig, country.id)
+    : 0
+
   const roleLabels: Record<string, string> = {
     chancellor: 'Chancellor',
     general: 'General',
@@ -204,6 +230,10 @@ function CountryDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">Stability:</span>
           <span>{country.stability}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Military Power:</span>
+          <span>{totalMilitaryPower.toFixed(1)}</span>
         </div>
       </div>
 
@@ -273,6 +303,32 @@ function HouseDetail({
     ? calcAmbitionScores(worldState, house.id)
     : { rebellionTendency: 0, plotTendency: 0 }
 
+  const levyPower = worldState
+    ? house.provinceIds.reduce(
+        (sum, pid) => sum + getProvinceHouseManpowerBase(worldState, defaultConfig, pid),
+        0,
+      ) * defaultConfig.houseManpowerPowerFactor
+    : 0
+
+  const availableWarWealth = Math.max(0, house.wealth - defaultConfig.houseMilitaryWealthReserve)
+  const rawMercenaryPower = Math.log1p(availableWarWealth) * defaultConfig.houseWealthMilitaryFactor
+  const mercenaryPower = Math.min(
+    rawMercenaryPower,
+    levyPower * defaultConfig.maxMercenaryPowerRatio,
+  )
+
+  const bestMartial = worldState
+    ? Math.max(0, ...house.memberIds.map((pid) => worldState.persons[pid]?.stats.martial ?? 0))
+    : 0
+
+  const commanderModifier = clamp(
+    1 + normalizedStat(bestMartial) * defaultConfig.houseCommanderMartialEffect,
+    defaultConfig.minCommanderModifier,
+    defaultConfig.maxCommanderModifier,
+  )
+
+  const totalMilitaryPower = (levyPower + mercenaryPower) * commanderModifier
+
   const recentEvents = eventHistory
     .filter(
       (e) =>
@@ -340,6 +396,26 @@ function HouseDetail({
           <span className={plotTendency >= 65 ? 'text-yellow-400' : 'text-gray-200'}>
             {plotTendency.toFixed(1)}
           </span>
+        </div>
+      </div>
+
+      <div className="mt-1 text-sm font-semibold text-gray-300">Military</div>
+      <div className="text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-400">Levy Power:</span>
+          <span>{levyPower.toFixed(1)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Mercenary Power:</span>
+          <span>{mercenaryPower.toFixed(1)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Commander Mod:</span>
+          <span>{commanderModifier.toFixed(2)}x</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Total Military:</span>
+          <span className="font-medium">{totalMilitaryPower.toFixed(1)}</span>
         </div>
       </div>
 
@@ -631,6 +707,67 @@ function ProvinceDetail({
     ? getProvinceManpowerBase(currentState, defaultConfig, province.id)
     : 0
 
+  const countryManpower = currentState
+    ? getProvinceCountryManpowerBase(currentState, defaultConfig, province.id)
+    : 0
+  const houseManpower = currentState
+    ? getProvinceHouseManpowerBase(currentState, defaultConfig, province.id)
+    : 0
+
+  // Calculate revolt tendency per class
+  const calcRevoltTendencyForClass = (
+    ws: WorldState,
+    popClass: 'peasants' | 'townsmen' | 'nobles',
+  ): number => {
+    const country = ws.countries[province.countryId]
+    if (!country) return 0
+    const ownerHouse = ws.houses[province.ownerHouseId]
+    if (!ownerHouse) return 0
+
+    const pop = Object.values(ws.popGroups).find(
+      (p) => p?.provinceId === province.id && p?.class === popClass,
+    )
+    if (!pop) return 0
+
+    let tendency =
+      pop.unrest * defaultConfig.provinceRevoltUnrestFactor +
+      (100 - province.houseControl) * defaultConfig.provinceRevoltLowHouseControlFactor +
+      (100 - province.countryControl) * defaultConfig.provinceRevoltLowCountryControlFactor -
+      country.stability * defaultConfig.provinceRevoltStabilitySuppressionFactor
+
+    if (popClass === 'peasants') {
+      if (pop.wealth < defaultConfig.povertyWealthThreshold) {
+        tendency +=
+          (defaultConfig.povertyWealthThreshold - pop.wealth) *
+          defaultConfig.peasantRevoltPovertyFactor
+      }
+      const pressure = getProvincePopulationPressure(ws, defaultConfig, province.id)
+      tendency += pressure * defaultConfig.peasantRevoltPressureFactor
+    } else if (popClass === 'townsmen') {
+      const townsmenWealth = getPopWealthByClass(ws, province.id, 'townsmen')
+      if (townsmenWealth < defaultConfig.overExtractionWealthSafeThreshold) {
+        tendency += defaultConfig.townsmenRevoltExtractionFactor
+        tendency +=
+          Math.log1p(getProvinceProduction(ws, defaultConfig, province.id)) *
+          defaultConfig.townsmenRevoltProductionFactor
+      }
+    } else if (popClass === 'nobles') {
+      tendency +=
+        (100 - ownerHouse.loyaltyToCountry) * defaultConfig.nobleRevoltHouseDisloyaltyFactor
+      tendency += (100 - country.legitimacy) * defaultConfig.nobleRevoltLowLegitimacyFactor
+    }
+
+    return tendency
+  }
+
+  const peasantRevoltTendency = currentState
+    ? calcRevoltTendencyForClass(currentState, 'peasants')
+    : 0
+  const townsmenRevoltTendency = currentState
+    ? calcRevoltTendencyForClass(currentState, 'townsmen')
+    : 0
+  const noblesRevoltTendency = currentState ? calcRevoltTendencyForClass(currentState, 'nobles') : 0
+
   return (
     <div className="flex flex-col gap-1 p-3">
       <span className="text-lg font-bold">{province.name}</span>
@@ -710,6 +847,14 @@ function ProvinceDetail({
           <span className="text-gray-400">Manpower:</span>
           <span>{derivedManpower.toFixed(2)}</span>
         </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Country Manpower:</span>
+          <span>{countryManpower.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">House Manpower:</span>
+          <span>{houseManpower.toFixed(2)}</span>
+        </div>
       </div>
 
       {pops.length > 0 && (
@@ -736,6 +881,28 @@ function ProvinceDetail({
           ))}
         </>
       )}
+
+      <div className="text-sm font-semibold text-gray-300">Revolt Risk</div>
+      <div className="text-sm">
+        {(
+          [
+            ['Peasants', peasantRevoltTendency],
+            ['Townsmen', townsmenRevoltTendency],
+            ['Nobles', noblesRevoltTendency],
+          ] as const
+        ).map(([label, tendency]) => (
+          <div key={label} className="flex justify-between">
+            <span className="text-gray-400">{label}:</span>
+            <span
+              className={
+                tendency >= defaultConfig.provinceRevoltThreshold ? 'text-red-400' : 'text-gray-200'
+              }
+            >
+              {tendency.toFixed(1)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

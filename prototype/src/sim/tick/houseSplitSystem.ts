@@ -86,18 +86,30 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   const newHouseId = `h-${input.houseId}-${currentYear}` as HouseId
 
   const splitterPerson = splitter.person
+  // The current house head cannot be pulled into the cadet house — their headId would become stale
+  const parentHeadId = house.headId as string
   const newMemberIds: PersonId[] = [splitterPerson.id]
 
   if (splitterPerson.spouseId !== undefined) {
     const spouse = ctx.state.persons[splitterPerson.spouseId]
-    if (spouse && spouse.alive && spouse.houseId === input.houseId) {
+    if (
+      spouse &&
+      spouse.alive &&
+      spouse.houseId === input.houseId &&
+      (splitterPerson.spouseId as string) !== parentHeadId
+    ) {
       newMemberIds.push(spouse.id)
     }
   }
 
   for (const childId of splitterPerson.childIds) {
     const child = ctx.state.persons[childId]
-    if (child && child.alive && child.houseId === input.houseId) {
+    if (
+      child &&
+      child.alive &&
+      child.houseId === input.houseId &&
+      (childId as string) !== parentHeadId
+    ) {
       newMemberIds.push(childId)
     }
   }

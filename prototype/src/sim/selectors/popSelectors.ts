@@ -2,6 +2,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId } from '../types/ids'
 import type { PopGroup } from '../types/popGroup'
+import type { PopClass } from '../types/popGroup'
 import { clamp } from '../utils/math'
 
 // Returns all PopGroups for a province (empty array if none)
@@ -92,4 +93,36 @@ export function getProvinceUnrest(state: WorldState, provinceId: ProvinceId): nu
   }
   if (totalPopulation === 0) return 0
   return weightedSum / totalPopulation
+}
+
+// Returns the unrest value of the PopGroup with the given class in the province (0 if not found)
+export function getPopUnrestByClass(
+  state: WorldState,
+  provinceId: ProvinceId,
+  popClass: PopClass,
+): number {
+  const province = state.provinces[provinceId]
+  if (!province) return 0
+  for (const popId of province.popGroupIds) {
+    const pop = state.popGroups[popId]
+    if (!pop) continue
+    if (pop.class === popClass) return pop.unrest
+  }
+  return 0
+}
+
+// Returns the wealth value of the PopGroup with the given class in the province (0 if not found)
+export function getPopWealthByClass(
+  state: WorldState,
+  provinceId: ProvinceId,
+  popClass: PopClass,
+): number {
+  const province = state.provinces[provinceId]
+  if (!province) return 0
+  for (const popId of province.popGroupIds) {
+    const pop = state.popGroups[popId]
+    if (!pop) continue
+    if (pop.class === popClass) return pop.wealth
+  }
+  return 0
 }

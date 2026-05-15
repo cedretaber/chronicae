@@ -41,6 +41,11 @@ export type EventType =
   | 'POP_PROSPERITY'
   | 'POP_UNREST_RISING'
   | 'POP_DECLINED'
+  | 'PROVINCE_REVOLT_STARTED'
+  | 'PROVINCE_REVOLT_SUCCEEDED'
+  | 'PROVINCE_REVOLT_FAILED'
+  | 'LORDSHIP_USURPED'
+  | 'REVOLT_COUNTRY_FOUNDED'
 
 export type EventReason = {
   label: string
