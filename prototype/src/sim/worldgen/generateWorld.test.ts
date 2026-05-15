@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { generateWorld } from './generateWorld'
+import type { ProvinceId } from '../types/ids'
 
 describe('generateWorld', () => {
   it('is deterministic: same seed produces identical world', () => {
@@ -105,6 +106,84 @@ describe('generateWorld', () => {
         expect(country?.legitimacy).toBeLessThanOrEqual(80)
         expect(country?.stability).toBeGreaterThanOrEqual(45)
         expect(country?.stability).toBeLessThanOrEqual(80)
+      }
+    })
+  })
+
+  describe('graph structure (after link removal + jitter)', () => {
+    it('every province has at least 1 neighbor', () => {
+      const { world } = generateWorld('graph-test-seed')
+
+      const provinceKeys = Object.keys(world.provinces).sort() as ProvinceId[]
+      for (const id of provinceKeys) {
+        const province = world.provinces[id]
+        if (!province) continue
+        expect(province.neighbors.length).toBeGreaterThanOrEqual(1)
+      }
+    })
+
+    it('neighbor relationship is bidirectional', () => {
+      const { world } = generateWorld('bidirectional-test-seed')
+
+      const provinceKeys = Object.keys(world.provinces).sort() as ProvinceId[]
+      for (const id of provinceKeys) {
+        const province = world.provinces[id]
+        if (!province) continue
+        for (const neighborId of province.neighbors) {
+          const neighborProvince = world.provinces[neighborId]
+          if (!neighborProvince) continue
+          expect((neighborProvince.neighbors as string[]).includes(id as string)).toBe(true)
+        }
+      }
+    })
+
+    it('all provinces form a single connected component', () => {
+      const { world } = generateWorld('connected-test-seed')
+
+      const provinceKeys = Object.keys(world.provinces).sort() as ProvinceId[]
+      const startId = provinceKeys[0]!
+      const visited = new Set<ProvinceId>()
+      const queue: ProvinceId[] = [startId]
+
+      while (queue.length > 0) {
+        const current = queue.shift()!
+        if (visited.has(current)) continue
+        visited.add(current)
+        const currentProvince = world.provinces[current]
+        if (!currentProvince) continue
+        for (const neighborId of currentProvince.neighbors) {
+          if (!visited.has(neighborId)) {
+            queue.push(neighborId)
+          }
+        }
+      }
+
+      expect(visited.size).toEqual(40)
+    })
+
+    it('same seed produces same neighbor graph (determinism)', () => {
+      const { world: w1 } = generateWorld('determinism-test')
+      const { world: w2 } = generateWorld('determinism-test')
+
+      const provinceKeys = Object.keys(w1.provinces).sort() as ProvinceId[]
+      for (const id of provinceKeys) {
+        const n1 = w1.provinces[id]?.neighbors
+        const n2 = w2.provinces[id]?.neighbors
+        expect(n1?.sort()).toEqual(n2?.sort())
+      }
+    })
+
+    it('jitter: all province x/y coordinates within expected bounds', () => {
+      const { world } = generateWorld('jitter-test-seed')
+
+      const provinceKeys = Object.keys(world.provinces).sort() as ProvinceId[]
+      for (const id of provinceKeys) {
+        const province = world.provinces[id]
+        if (!province) continue
+        expect(province.x).toBeGreaterThanOrEqual(-25)
+        expect(province.x).toBeLessThanOrEqual(725)
+        expect(province.y).toBeGreaterThanOrEqual(-25)
+        expect(province.y).toBeLessThanOrEqual(425)
       }
     })
   })

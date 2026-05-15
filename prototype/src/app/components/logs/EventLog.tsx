@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import type { SimEvent } from '@/sim/types/event'
+import type { EventType } from '@/sim/types/event'
 
 type TabKey = 'raw' | 'chronicle' | 'timeline'
 
@@ -26,10 +27,41 @@ function getImportanceColor(importance: SimEvent['importance']): string {
   }
 }
 
-function getChronicleStars(importance: SimEvent['importance']): string {
-  if (importance === 'critical') return '★★'
-  if (importance === 'major') return '★'
-  return ''
+const EVENT_ICON: Partial<Record<EventType, string>> = {
+  WAR_DECLARED: '⚔',
+  WAR_WON: '⚔',
+  WAR_LOST: '⚔',
+  PROVINCE_CONQUERED: '⚔',
+  REBELLION_STARTED: '🔥',
+  REBELLION_SUCCEEDED: '🔥',
+  REBELLION_FAILED: '🔥',
+  PROVINCE_REVOLT_STARTED: '🔥',
+  PROVINCE_REVOLT_SUCCEEDED: '🔥',
+  PROVINCE_REVOLT_FAILED: '🔥',
+  LORDSHIP_USURPED: '🔥',
+  REVOLT_COUNTRY_FOUNDED: '🔥',
+  MONUMENT_BUILT: '▲',
+  PERSON_DIED: '✝',
+  IMPORTANT_PERSON_DIED: '✝',
+  CHILD_BORN: '✦',
+  BOUNTIFUL_HARVEST: '✦',
+  DISASTER_RELIEF_FUNDED: '✦',
+  MARRIAGE_FORMED: '◇',
+  HOUSE_HEAD_CHANGED: '♛',
+  SUCCESSION_CRISIS: '♛',
+  RULER_HOUSE_CHANGED: '♛',
+  HOUSE_EXTINCT: '♛',
+  RULER_HOUSE_EXTINCT: '♛',
+  COUNTRY_ANNEXED: '♛',
+  COUNTRY_SPLIT: '♛',
+  FAMINE: '⚠',
+  PLAGUE: '⚠',
+  DISASTER_RELIEF_FAILED: '⚠',
+  OMEN: '⚠',
+}
+
+function getEventIcon(type: EventType): string {
+  return EVENT_ICON[type] ?? '·'
 }
 
 function isWatchlistRelated(event: SimEvent, watchlist: string[]): boolean {
@@ -48,7 +80,7 @@ function RawLogRow({ event }: { event: SimEvent }) {
   return (
     <div className={`flex gap-2 py-0.5 text-xs ${colorClass}`}>
       <span className="text-gray-500">
-        [{event.year}/{event.month}] {typeLabel}
+        [{event.year}/{event.month}] {getEventIcon(event.type)} {typeLabel}
       </span>
       <span>{event.summary}</span>
     </div>
@@ -57,7 +89,7 @@ function RawLogRow({ event }: { event: SimEvent }) {
 
 function ChronicleRow({ event, isHighlighted }: { event: SimEvent; isHighlighted: boolean }) {
   const colorClass = getImportanceColor(event.importance)
-  const stars = getChronicleStars(event.importance)
+  const icon = getEventIcon(event.type)
 
   return (
     <div
@@ -66,7 +98,7 @@ function ChronicleRow({ event, isHighlighted }: { event: SimEvent; isHighlighted
       }`}
     >
       <span className="text-gray-500">
-        [{event.year}/{event.month}] {stars}
+        [{event.year}/{event.month}] {icon}
       </span>
       <span>{event.summary}</span>
     </div>

@@ -1,9 +1,15 @@
 import { useMemo } from 'react'
-import { ReactFlow, Background, Controls, type Node, type Edge } from '@xyflow/react'
+import { ReactFlow, Controls, type Node, type Edge, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { buildCountryColorMap } from '@/app/utils/countryColors'
 import type { CountryId, HouseId, ProvinceId } from '@/sim/types/ids'
+import { getProvincePops } from '@/sim/selectors/popSelectors'
+import { ProvinceNode, type ProvinceNodeData } from './ProvinceNode'
+import { MAP_ICON_CONFIG } from '@/app/constants/mapConstants'
+import mapBackground from '@/assets/map/map-background.png'
+
+const nodeTypes: NodeTypes = { province: ProvinceNode }
 
 export function ProvinceMap() {
   const session = useSimulationStore((s) => s.session)
@@ -22,9 +28,10 @@ export function ProvinceMap() {
   }, [countries])
 
   // Convert provinces to React Flow nodes
-  const nodes: Node[] = useMemo(() => {
+  const nodes = useMemo(() => {
     if (!provinces) return []
 
+    const popGroups = session?.currentState.popGroups
     const isCountrySelected = selectedType === 'country'
     const isHouseSelected = selectedType === 'house'
     const anyEntityHighlighted = isCountrySelected || isHouseSelected
@@ -36,6 +43,13 @@ export function ProvinceMap() {
     const selectedHouse =
       isHouseSelected && selectedId && houses ? houses[selectedId as unknown as HouseId] : undefined
 
+    const capitalProvinceIds = new Set<string>(
+      Object.values(countries ?? {}).map((c) => c.capitalProvinceId),
+    )
+    const seatProvinceIds = new Set<string>(
+      Object.values(houses ?? {}).map((h) => h.seatProvinceId),
+    )
+
     const houseProvinceSet = new Set(
       (selectedHouse?.provinceIds ?? []).map((id: ProvinceId) => id as string),
     )
@@ -43,62 +57,40 @@ export function ProvinceMap() {
     const seatProvinceId = selectedHouse?.seatProvinceId
 
     return Object.values(provinces).map((province) => {
-      // Determine style based on priority
-      let border = '1px solid #666'
-      let opacity = 1
+      const pops = popGroups ? getProvincePops(session.currentState, province.id) : []
+      const peasantsSize = pops.find((p) => p.class === 'peasants')?.size ?? 0
+      const townsmenSize = pops.find((p) => p.class === 'townsmen')?.size ?? 0
+      const urbanRatio =
+        peasantsSize + townsmenSize > 0 ? townsmenSize / (peasantsSize + townsmenSize) : 0
+      const isUrban = urbanRatio >= MAP_ICON_CONFIG.provinceUrbanIconThreshold
 
-      if (selectedId === province.id && selectedType === 'province') {
-        // Priority 1: explicitly selected province
-        border = '3px solid yellow'
-        opacity = 1
-      } else if (isCountrySelected && province.id === capitalProvinceId) {
-        // Priority 2a: capital of highlighted country
-        border = '3px solid #ffd700'
-        opacity = 1
-      } else if (isHouseSelected && province.id === seatProvinceId) {
-        // Priority 2b: seat of highlighted house
-        border = '3px solid #ffd700'
-        opacity = 1
-      } else if (isCountrySelected && province.countryId === selectedId) {
-        // Priority 3: in highlighted country
-        border = '2px solid white'
-        opacity = 1
-      } else if (isHouseSelected && houseProvinceSet.has(province.id)) {
-        // Priority 4: in highlighted house
-        border = '2px solid #22d3ee'
-        opacity = 1
-      } else if (anyEntityHighlighted) {
-        // Priority 5: dimmed due to active highlight
-        border = '1px solid #666'
-        opacity = 0.4
-      }
+      const isCapital = capitalProvinceIds.has(province.id)
+      const isSeat = seatProvinceIds.has(province.id)
 
-      const label =
-        province.id === capitalProvinceId || province.id === seatProvinceId
-          ? `★ ${province.name}`
-          : province.name
+      const isDimmed =
+        anyEntityHighlighted &&
+        province.id !== capitalProvinceId &&
+        province.id !== seatProvinceId &&
+        (isCountrySelected ? province.countryId !== selectedId : !houseProvinceSet.has(province.id))
+
+      const isSelected = selectedId === province.id && selectedType === 'province'
 
       return {
         id: province.id,
+        type: 'province',
         position: { x: province.x, y: province.y },
         data: {
-          label,
-          countryId: province.countryId,
-          selected: selectedId === province.id,
-        },
-        style: {
-          background: countryColorMap[province.countryId] ?? '#888',
-          color: '#fff',
-          border,
-          opacity,
-          borderRadius: '6px',
-          padding: '4px 8px',
-          fontSize: '11px',
-          width: 90,
-        },
+          label: province.name,
+          isUrban,
+          isCapital,
+          isSeat,
+          countryColor: countryColorMap[province.countryId] ?? '#888',
+          isDimmed,
+          isSelected,
+        } satisfies ProvinceNodeData,
       }
     })
-  }, [provinces, countryColorMap, selectedId, selectedType, countries, houses])
+  }, [provinces, countryColorMap, selectedId, selectedType, countries, houses, session])
 
   // Convert province neighbors to edges (deduplicate: only when a < b)
   const edges: Edge[] = useMemo(() => {
@@ -138,18 +130,37 @@ export function ProvinceMap() {
 
   return (
     <div className="relative h-full w-full">
+      {/* Background image layer */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0"
+        style={{
+          backgroundImage: `url(${mapBackground})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: MAP_ICON_CONFIG.backgroundOpacity,
+        }}
+      />
+      {/* Clear button */}
       {selectedId && (
         <button
-          className="absolute top-2 right-2 z-10 rounded bg-gray-800/80 px-2 py-1 text-xs text-white hover:bg-gray-700"
+          className="absolute top-2 right-2 z-20 rounded bg-gray-800/80 px-2 py-1 text-xs text-white hover:bg-gray-700"
           onClick={clearSelected}
         >
           ✕ Clear
         </button>
       )}
-      <ReactFlow nodes={nodes} edges={edges} fitView onNodeClick={handleNodeClick}>
-        <Background />
-        <Controls />
-      </ReactFlow>
+      {/* ReactFlow layer */}
+      <div className="relative z-10 h-full w-full">
+        <ReactFlow
+          nodeTypes={nodeTypes}
+          nodes={nodes}
+          edges={edges}
+          fitView
+          onNodeClick={handleNodeClick}
+        >
+          <Controls />
+        </ReactFlow>
+      </div>
     </div>
   )
 }

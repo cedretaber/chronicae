@@ -1,11 +1,15 @@
 import { useState, useMemo } from 'react'
 import { calcPersonImportanceScore } from '@sim/selectors/importanceSelectors'
+import { calcCountryMilitaryPower } from '@sim/selectors/militarySelectors'
 import type { SimEvent } from '@sim/types/event'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import type { Country } from '@/sim/types/country'
 import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
+import type { WorldState } from '@/sim/types/world'
 import { buildCountryColorMap } from '@/app/utils/countryColors'
+import { formatScore, formatPower } from '@/app/utils/format'
+import { defaultConfig } from '@/sim/config/defaultConfig'
 
 type TabKey = 'countries' | 'houses' | 'persons' | 'watchlist'
 
@@ -45,11 +49,13 @@ function inferWatchlistType(id: string): 'country' | 'house' | 'person' | null {
 function CountryRow({
   country,
   color,
+  militaryPower,
   isSelected,
   onClick,
 }: {
   country: Country
   color: string
+  militaryPower: number
   isSelected: boolean
   onClick: () => void
 }) {
@@ -65,7 +71,8 @@ function CountryRow({
         <span className="font-bold">{country.name}</span>
       </div>
       <div className="text-gray-300">
-        Leg: {country.legitimacy} | Stab: {country.stability}
+        Leg: {formatScore(country.legitimacy)} | Stab: {formatScore(country.stability)} | Mil:{' '}
+        {formatPower(militaryPower)}
       </div>
     </div>
   )
@@ -73,10 +80,14 @@ function CountryRow({
 
 function HouseRow({
   house,
+  countryName,
+  countryColor,
   isSelected,
   onClick,
 }: {
   house: House
+  countryName: string
+  countryColor: string
   isSelected: boolean
   onClick: () => void
 }) {
@@ -88,8 +99,15 @@ function HouseRow({
       onClick={onClick}
     >
       <div className="font-bold">{house.name}</div>
+      <div className="flex items-center gap-1.5 text-xs text-gray-400">
+        <span
+          className="inline-block h-2 w-2 shrink-0 rounded-sm"
+          style={{ background: countryColor }}
+        />
+        <span>{countryName}</span>
+      </div>
       <div className="text-gray-300">
-        Prestige: {house.prestige} | Provinces: {house.provinceIds.length}
+        Prestige: {formatScore(house.prestige)} | Provinces: {house.provinceIds.length}
       </div>
     </div>
   )
@@ -192,6 +210,27 @@ export function Sidebar() {
     [countries],
   )
 
+  const countryMilitaryPowers = useMemo(() => {
+    if (!session?.currentState) return {}
+    const state = session.currentState
+    const worldState: WorldState = {
+      currentYear: state.currentYear,
+      currentMonth: state.currentMonth,
+      provinces: state.provinces,
+      countries: state.countries,
+      houses: state.houses,
+      persons: state.persons,
+      activePlots: state.activePlots ?? {},
+      popGroups: state.popGroups ?? {},
+    }
+    return Object.fromEntries(
+      Object.values(state.countries ?? {}).map((c) => [
+        c.id,
+        calcCountryMilitaryPower(worldState, defaultConfig, c.id),
+      ]),
+    )
+  }, [session])
+
   const sortedHouses: House[] = houses
     ? Object.values(houses)
         .filter((h) => h.active)
@@ -234,6 +273,7 @@ export function Sidebar() {
               key={country.id}
               country={country}
               color={countryColorMap[country.id] ?? '#888'}
+              militaryPower={countryMilitaryPowers[country.id] ?? 0}
               isSelected={selectedId === country.id && selectedType === 'country'}
               onClick={() => setSelected(country.id, 'country')}
             />
@@ -244,6 +284,8 @@ export function Sidebar() {
             <HouseRow
               key={house.id}
               house={house}
+              countryName={countries?.[house.countryId]?.name ?? ''}
+              countryColor={countryColorMap[house.countryId] ?? '#888'}
               isSelected={selectedId === house.id && selectedType === 'house'}
               onClick={() => setSelected(house.id, 'house')}
             />

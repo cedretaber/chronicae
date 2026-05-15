@@ -1,4 +1,5 @@
 import { useSimulationStore } from '@/app/stores/simulationStore'
+import { formatScore, formatAmount, formatPower } from '@/app/utils/format'
 import { getPersonRole } from '@/sim/selectors/roleSelectors'
 import { getProvinceDevelopmentMultiplier } from '@/sim/selectors/developmentSelectors'
 import {
@@ -216,24 +217,28 @@ function CountryDetail({
           </button>
         </div>
         <div className="flex justify-between">
+          <span className="text-gray-400">Ruler House:</span>
+          <HouseLink houseId={country.rulerHouseId} houses={houses ?? {}} onClick={onHouseClick} />
+        </div>
+        <div className="flex justify-between">
           <span className="text-gray-400">Treasury:</span>
-          <span>{country.treasury}</span>
+          <span>{formatAmount(country.treasury)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Legitimacy:</span>
-          <span>{country.legitimacy}</span>
+          <span>{formatScore(country.legitimacy)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">AdminPower:</span>
-          <span>{country.adminPower}</span>
+          <span>{formatScore(country.adminPower)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Stability:</span>
-          <span>{country.stability}</span>
+          <span>{formatScore(country.stability)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Military Power:</span>
-          <span>{totalMilitaryPower.toFixed(1)}</span>
+          <span>{formatPower(totalMilitaryPower)}</span>
         </div>
       </div>
 
@@ -367,19 +372,19 @@ function HouseDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Prestige:</span>
-          <span>{house.prestige}</span>
+          <span>{formatScore(house.prestige)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Cohesion:</span>
-          <span>{house.cohesion}</span>
+          <span>{formatScore(house.cohesion)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Loyalty:</span>
-          <span>{house.loyaltyToCountry}</span>
+          <span>{formatScore(house.loyaltyToCountry)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Wealth:</span>
-          <span>{house.wealth}</span>
+          <span>{formatAmount(house.wealth)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Provinces:</span>
@@ -403,11 +408,11 @@ function HouseDetail({
       <div className="text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">Levy Power:</span>
-          <span>{levyPower.toFixed(1)}</span>
+          <span>{formatPower(levyPower)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Mercenary Power:</span>
-          <span>{mercenaryPower.toFixed(1)}</span>
+          <span>{formatPower(mercenaryPower)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Commander Mod:</span>
@@ -415,7 +420,7 @@ function HouseDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Total Military:</span>
-          <span className="font-medium">{totalMilitaryPower.toFixed(1)}</span>
+          <span className="font-medium">{formatPower(totalMilitaryPower)}</span>
         </div>
       </div>
 
@@ -589,7 +594,7 @@ function PersonDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Prestige:</span>
-          <span>{person.prestige}</span>
+          <span>{formatScore(person.prestige)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Importance:</span>
@@ -601,15 +606,15 @@ function PersonDetail({
       <div className="text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">Ambition:</span>
-          <span>{person.traits.ambition.toFixed(2)}</span>
+          <span>{formatScore(person.traits.ambition)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Loyalty:</span>
-          <span>{person.traits.loyaltyToCountry.toFixed(2)}</span>
+          <span>{formatScore(person.traits.loyaltyToCountry)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Caution:</span>
-          <span>{person.traits.caution.toFixed(2)}</span>
+          <span>{formatScore(person.traits.caution)}</span>
         </div>
       </div>
 
@@ -681,11 +686,13 @@ function ProvinceDetail({
   session,
   onCountryClick,
   onHouseClick,
+  onProvinceClick,
 }: {
   province: Province
   session: SimulationSession | null
   onCountryClick: ClickHandler
   onHouseClick: ClickHandler
+  onProvinceClick: (id: string) => void
 }) {
   const currentState = session?.currentState
   const developmentMultiplier = getProvinceDevelopmentMultiplier(province)
@@ -791,25 +798,25 @@ function ProvinceDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Habitability:</span>
-          <span>{province.habitability}</span>
+          <span>{formatScore(province.habitability)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Development:</span>
           <span>
-            {province.development} {getDevelopmentLabel(province.development)}
+            {formatScore(province.development)} {getDevelopmentLabel(province.development)}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Dev. Multiplier:</span>
-          <span>{developmentMultiplier.toFixed(2)}</span>
+          <span>{formatScore(developmentMultiplier)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Country Control:</span>
-          <span>{province.countryControl}</span>
+          <span>{formatPower(province.countryControl)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">House Control:</span>
-          <span>{province.houseControl}</span>
+          <span>{formatPower(province.houseControl)}</span>
         </div>
       </div>
 
@@ -903,6 +910,23 @@ function ProvinceDetail({
           </div>
         ))}
       </div>
+
+      {province.neighbors.length > 0 && (
+        <>
+          <div className="text-sm font-semibold text-gray-300">Neighbors</div>
+          <div className="flex flex-col gap-0.5 text-sm">
+            {province.neighbors.map((nid) => (
+              <button
+                key={nid}
+                className="text-left text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                onClick={() => onProvinceClick(nid)}
+              >
+                {currentState?.provinces?.[nid]?.name ?? nid}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -995,6 +1019,7 @@ export function DetailPanel() {
             session={session}
             onCountryClick={onCountryClick}
             onHouseClick={onHouseClick}
+            onProvinceClick={onProvinceClick}
           />
         ) : (
           <NoSelection />

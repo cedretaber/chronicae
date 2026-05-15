@@ -21,12 +21,13 @@ import {
   countryNamePool,
 } from './nameGenerators'
 import { defaultConfig } from '../config/defaultConfig'
+import { defaultMapConfig } from './mapConfig'
 import { clamp } from '../utils/math'
 
 export function generateWorld(seedText: string): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
 
-  const { provinces, rng: rng0 } = generateProvinces(rng)
+  const { provinces, rng: rng0 } = generateProvinces(rng, defaultMapConfig)
   rng = rng0
 
   const { assignments, rng: rng1 } = distributeCountries(provinces, rng)
