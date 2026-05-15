@@ -12,6 +12,7 @@ import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
 import type { HouseId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { SuccessionCandidate } from '../selectors/successionSelectors'
+import { createLogger } from '../debug/logger'
 
 export function runSuccessionSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -31,6 +32,9 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
 function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext {
   const house = ctx.state.houses[houseId]
   if (!house) return ctx
+
+  const log = createLogger(ctx.config.debug)
+  const oldHeadId = house.headId
 
   const adultCandidates = getAdultSuccessionCandidates(ctx.state, house, ctx.config)
 
@@ -58,6 +62,15 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
         effects: [],
       }
 
+      log.log('SUCCESSION', {
+        year: newState.currentYear,
+        month: newState.currentMonth,
+        house: houseId,
+        old_head: oldHeadId ?? '',
+        new_head: oldestMinor.id,
+        type: 'minor',
+      })
+
       return { ...eventCtx, state: newState, events: [...eventCtx.events, event] }
     }
 
@@ -82,6 +95,15 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
     reasons: [],
     effects: [],
   }
+
+  log.log('SUCCESSION', {
+    year: newStateAfterHead.currentYear,
+    month: newStateAfterHead.currentMonth,
+    house: houseId,
+    old_head: oldHeadId ?? '',
+    new_head: successor.person.id,
+    type: 'adult',
+  })
 
   let resultCtx: TickContext = {
     ...eventCtx,
@@ -110,6 +132,14 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
         reasons: [],
         effects: [],
       }
+      log.log('SUCCESSION_CRISIS', {
+        year: resultCtx.state.currentYear,
+        month: resultCtx.state.currentMonth,
+        house: houseId,
+        new_head: successor.person.id,
+        score: Math.round(successor.score),
+        runner_up_score: Math.round(secondCandidate.score),
+      })
       resultCtx = {
         ...crisisCtx,
         state: resultCtx.state,

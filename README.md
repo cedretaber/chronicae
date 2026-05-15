@@ -55,8 +55,8 @@ npm run cli -- --seed test-seed --years 5 --integrity-check
 # NDJSON output (one JSON object per tick, for programmatic processing)
 npm run cli -- --json --years 3
 
-# Debug mode: sequential names + integrity warnings printed instead of thrown
-npm run cli -- --seed test-seed --years 20 --debug
+# Debug mode: entity IDs in events (stdout) + structured debug log (stderr)
+npm run cli -- --seed test-seed --years 20 --debug 2>/tmp/debug.log
 
 # Dump full WorldState as JSON to stderr after simulation ends
 npm run cli -- --seed test-seed --years 10 --dump-world 2>world.json
@@ -80,19 +80,36 @@ npm run cli -- --help
 
 Debug mode is intended for investigating simulation bugs. It changes two things:
 
-**1. Sequential entity names**
+**1. Entity IDs in event output (stdout)**
 
-All entities are named with sequential IDs instead of drawing from the name pool:
+Each event line is annotated with the IDs of all involved entities:
 
-| Normal mode | Debug mode |
-|---|---|
-| `Estenmark`, `House Kirchberg`, `Irmela` | `Country-0`, `House-4`, `Person-78` |
+```
+PERSON_DIED: Irmela has died at age 35. [pe-42, h-3, c-0]
+HOUSE_HEAD_CHANGED: Gudrun has become the new head of House Kirchberg. [pe-67, h-3, c-0]
+```
 
-Because names in normal mode are drawn randomly, the same name can appear on multiple different people across generations, making it hard to track who is who in log output. Debug mode guarantees each entity has a unique, stable identifier for the lifetime of the simulation.
+Because names in normal mode are drawn randomly, the same name can appear on multiple different people across generations, making it hard to track who is who in log output. Entity IDs (e.g. `pe-42`) are unique and stable for the lifetime of the simulation, so you can track specific individuals across events.
 
-**2. Non-fatal integrity errors**
+**2. Structured debug log on stderr**
 
-In normal mode, any integrity violation (e.g. a house head who is dead) causes an immediate crash. In debug mode, violations are printed to stdout as `[INTEGRITY FAIL] ...` warnings and the simulation continues, so you can observe the full state at the end of the run.
+Key simulation decisions are written to **stderr** in a tagged `key=value` format:
+
+```
+[DEBUG:SUCCESSION] year=3 month=5 house=h-3 old_head=pe-42 new_head=pe-67 type=adult
+[DEBUG:BIRTH] year=3 month=1 child=pe-89 sex=male father=pe-12 status=legitimate mother=pe-34
+[DEBUG:MARRIAGE] year=4 month=1 husband=pe-39 wife=pe-108
+[DEBUG:HOUSE_SPLIT] year=5 month=6 house=h-3 cohesion=45 threshold=60 result=skipped reason=probability
+[DEBUG:HOUSE_EXTINCT] year=10 month=2 house=h-5 type=normal receiver=h-0
+[DEBUG:INTEGRITY] error="house h-3 head pe-42 is dead"
+[DEBUG:YEAR] year=5 persons=87 houses=6 countries=3
+```
+
+Tags can be extracted by script: `grep '\[DEBUG:SUCCESSION\]'`, `grep '\[DEBUG:YEAR\]'`, etc.
+
+**3. Non-fatal integrity errors**
+
+In normal mode, any integrity violation (e.g. a house head who is dead) causes an immediate crash. In debug mode, violations are printed to **stderr** as `[DEBUG:INTEGRITY] error=...` warnings and the simulation continues, so you can observe the full state at the end of the run.
 
 ### World Dump (`--dump-world`)
 

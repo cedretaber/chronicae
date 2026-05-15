@@ -3,6 +3,7 @@ import { tick } from '@sim/tick/tick'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { createTickContext } from '@sim/tick/context'
 import { runIntegrityCheck } from '@sim/tick/integritySystem'
+import { createLogger } from '@sim/debug/logger'
 import type { WorldState } from '@sim/types/world'
 import type { SimEvent } from '@sim/types/event'
 
@@ -14,7 +15,7 @@ Options:
   --years <n>           Number of years to simulate (default: 10)
   --json                Output each tick as NDJSON
   --integrity-check     Run integrity check after every tick
-  --debug               Enable debug mode (sequential names, debug logging)
+  --debug               Enable debug mode (entity IDs in events, structured debug log on stderr)
   --dump-world          Dump full WorldState as JSON to stderr after simulation ends
   --help                Show this help message`)
 }
@@ -149,7 +150,7 @@ if (args.showHelp) {
   process.exit(0)
 }
 
-const { world, rng: initialRng } = generateWorld(args.seed, args.debug)
+const { world, rng: initialRng } = generateWorld(args.seed)
 
 const initialCountryCount = countActiveCountries(world)
 const initialHouseCount = countActiveHouses(world)
@@ -211,13 +212,38 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
     } else {
       console.log('Year ' + year + ', Month ' + month)
       for (const event of events) {
-        console.log('  ' + event.type + ': ' + event.summary)
+        if (args.debug) {
+          const ids = [
+            ...(event.actorIds as string[]),
+            ...(event.houseIds as string[]),
+            ...(event.countryIds as string[]),
+            ...(event.provinceIds as string[]),
+          ]
+          const idStr = ids.length > 0 ? ' [' + ids.join(', ') + ']' : ''
+          console.log('  ' + event.type + ': ' + event.summary + idStr)
+        } else {
+          console.log('  ' + event.type + ': ' + event.summary)
+        }
       }
       console.log('')
     }
   }
 
   if (month === 12) {
+    if (args.debug) {
+      const debugLog = createLogger(true)
+      let livingPersons = 0
+      for (const p of Object.values(result.state.persons)) {
+        if (p?.alive) livingPersons++
+      }
+      debugLog.log('YEAR', {
+        year,
+        persons: livingPersons,
+        houses: activeHouses,
+        countries: activeCountries,
+      })
+    }
+
     if (args.json) {
       const output = {
         year,

@@ -1,7 +1,8 @@
 import type { TickContext } from './context'
 import { makeEventId, makePersonId } from './context'
 import { randomFloat, randomInt } from '../rng/rng'
-import { pickNameBySex, personName } from '../worldgen/nameGenerators'
+import { pickNameBySex } from '../worldgen/nameGenerators'
+import { createLogger } from '../debug/logger'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { Person } from '../types/person'
@@ -74,16 +75,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     const { value: amb3, rng: rng3 } = randomFloat(rng2)
     const { value: adminStat, rng: rng4 } = randomInt(rng3, 1, 8)
     const { value: martialStat, rng: rng5 } = randomInt(rng4, 1, 8)
-    let childName: string
-    let rngAfterName: typeof rng5
-    if (currentCtx.config.debug) {
-      childName = personName(currentCtx.nextPersonIndex)
-      rngAfterName = rng5
-    } else {
-      const { name: n, rng: r } = pickNameBySex(childSex, rng5)
-      childName = n
-      rngAfterName = r
-    }
+    const { name: childName, rng: rngAfterName } = pickNameBySex(childSex, rng5)
     currentCtx = { ...currentCtx, rng: rngAfterName }
 
     const { id: childId, ctx: personCtx } = makePersonId(currentCtx)
@@ -169,6 +161,18 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       state: newState,
       events: [...eventCtx.events, event],
     }
+
+    const log = createLogger(currentCtx.config.debug)
+    const birthFields: Record<string, string | number | boolean> = {
+      year: newState.currentYear,
+      month: newState.currentMonth,
+      child: childId,
+      sex: childSex,
+      father: person.id,
+      status: birthStatus,
+    }
+    if (motherId) birthFields['mother'] = motherId
+    log.log('BIRTH', birthFields)
   }
 
   return currentCtx

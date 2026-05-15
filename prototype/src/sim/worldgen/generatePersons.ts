@@ -3,13 +3,12 @@ import type { HouseId, CountryId, ProvinceId } from '../types/ids'
 import type { Person, Sex } from '../types/person'
 import { createPersonId } from '../types/ids'
 import { randomFloat, randomInt } from '../rng/rng'
-import { pickNameBySex, personName } from './nameGenerators'
+import { pickNameBySex } from './nameGenerators'
 
 export function generatePersons(
   houseProvinces: Map<HouseId, ProvinceId[]>,
   houseCountry: Map<HouseId, CountryId>,
   rng: RngState,
-  debugMode = false,
 ): { persons: Person[]; rng: RngState } {
   const persons: Person[] = []
   let globalIndex = 0
@@ -47,50 +46,15 @@ export function generatePersons(
     const { value: relativeAge, rng: rngR2 } = randomInt(rngR1, 15, 35)
     rng = rngR2
 
-    let oldFatherName: string
-    let oldMotherName: string
-    let headName: string
-    let siblingName: string
-    let spouseName: string
-    let child1Name: string
-    let child2Name: string
-    let relativeName: string
-
-    if (debugMode) {
-      oldFatherName = personName(globalIndex)
-      globalIndex++
-      oldMotherName = personName(globalIndex)
-      globalIndex++
-      headName = personName(globalIndex)
-      globalIndex++
-      siblingName = personName(globalIndex)
-      globalIndex++
-      spouseName = personName(globalIndex)
-      globalIndex++
-      child1Name = personName(globalIndex)
-      globalIndex++
-      child2Name = personName(globalIndex)
-      globalIndex++
-      relativeName = personName(globalIndex)
-      globalIndex++
-    } else {
-      oldFatherName = pickNameBySex('male', rng).name
-      const { name: _oldMotherName, rng: rngOldM } = pickNameBySex('female', rng)
-      oldMotherName = _oldMotherName
-      const { name: _headName, rng: rngH2 } = pickNameBySex('male', rngOldM)
-      headName = _headName
-      const { name: _siblingName, rng: rngS3 } = pickNameBySex(siblingSexVal, rngH2)
-      siblingName = _siblingName
-      const { name: _spouseName, rng: rngSp2 } = pickNameBySex('female', rngS3)
-      spouseName = _spouseName
-      const { name: _child1Name, rng: rngC5 } = pickNameBySex(child1SexVal, rngSp2)
-      child1Name = _child1Name
-      const { name: _child2Name, rng: rngC6 } = pickNameBySex(child2SexVal, rngC5)
-      child2Name = _child2Name
-      const { name: _relativeName, rng: rngR3 } = pickNameBySex(relativeSexVal, rngC6)
-      relativeName = _relativeName
-      rng = rngR3
-    }
+    const oldFatherName = pickNameBySex('male', rng).name
+    const { name: oldMotherName, rng: rngOldM } = pickNameBySex('female', rng)
+    const { name: headName, rng: rngH2 } = pickNameBySex('male', rngOldM)
+    const { name: siblingName, rng: rngS3 } = pickNameBySex(siblingSexVal, rngH2)
+    const { name: spouseName, rng: rngSp2 } = pickNameBySex('female', rngS3)
+    const { name: child1Name, rng: rngC5 } = pickNameBySex(child1SexVal, rngSp2)
+    const { name: child2Name, rng: rngC6 } = pickNameBySex(child2SexVal, rngC5)
+    const { name: relativeName, rng: rngR3 } = pickNameBySex(relativeSexVal, rngC6)
+    rng = rngR3
 
     const oldFatherId = createPersonId('pe', globalIndex)
     globalIndex++

@@ -19,6 +19,7 @@ import { runRebellionSystem } from './rebellionSystem'
 import { runStabilitySystem } from './stabilitySystem'
 import { runGovernanceSystem } from './governanceSystem'
 import { runIntegrityCheck } from './integritySystem'
+import { createLogger } from '../debug/logger'
 
 export function tick(input: TickInput): TickResult {
   let ctx = createTickContext(input)
@@ -42,10 +43,11 @@ export function tick(input: TickInput): TickResult {
   ctx = runStabilitySystem(ctx)
   ctx = runGovernanceSystem(ctx)
   if (ctx.config.debug) {
+    const log = createLogger(true)
     try {
       ctx = runIntegrityCheck(ctx)
     } catch (e) {
-      process.stdout.write('[INTEGRITY FAIL] ' + String(e) + '\n')
+      log.log('INTEGRITY', { error: String(e) })
     }
   } else {
     ctx = runIntegrityCheck(ctx)

@@ -4,6 +4,7 @@ import { transferProvinceToHouse } from '../mutations/transferProvince'
 import type { HouseId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
+import { createLogger } from '../debug/logger'
 
 function moveLivingMembersToHouse(
   state: WorldState,
@@ -157,6 +158,15 @@ function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickCo
     effects: [],
   }
 
+  const log = createLogger(ctx.config.debug)
+  log.log('HOUSE_EXTINCT', {
+    year: finalState.currentYear,
+    month: finalState.currentMonth,
+    house: houseId,
+    type: 'normal',
+    receiver: receiverHouseId,
+  })
+
   return { ...eventCtx, state: finalState, events: [...eventCtx.events, event] }
 }
 
@@ -192,6 +202,15 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
     state: resultCtx.state,
     events: [...rulerEventCtx.events, rulerEvent],
   }
+
+  const log = createLogger(ctx.config.debug)
+  log.log('HOUSE_EXTINCT', {
+    year: resultCtx.state.currentYear,
+    month: resultCtx.state.currentMonth,
+    house: houseId,
+    type: 'ruler',
+    country: house.countryId,
+  })
 
   const currentCountry = resultCtx.state.countries[house.countryId]
   if (!currentCountry) return resultCtx

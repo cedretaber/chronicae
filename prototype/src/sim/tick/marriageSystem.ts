@@ -6,6 +6,7 @@ import { setSpouse, movePersonToHouse } from '../mutations/personMutations'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import { isForbiddenMarriagePair } from '../selectors/kinshipSelectors'
+import { createLogger } from '../debug/logger'
 
 export function runMarriageSystem(ctx: TickContext): TickContext {
   if (ctx.state.currentMonth !== 1) return ctx
@@ -100,6 +101,14 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
       state: currentCtx.state,
       events: [...eventCtx.events, event],
     }
+
+    const log = createLogger(currentCtx.config.debug)
+    log.log('MARRIAGE', {
+      year: currentCtx.state.currentYear,
+      month: currentCtx.state.currentMonth,
+      husband: maleId,
+      wife: chosenFemaleId,
+    })
   }
 
   return currentCtx

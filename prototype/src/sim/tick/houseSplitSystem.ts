@@ -7,6 +7,7 @@ import type { HouseId, PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { SuccessionCandidate } from '../selectors/successionSelectors'
 import type { WorldState } from '../types/world'
+import { createLogger } from '../debug/logger'
 
 export type SplitInput = {
   houseId: HouseId
@@ -33,10 +34,23 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     houseSplitUnrestGain,
   } = ctx.config
 
+  const log = createLogger(ctx.config.debug)
+
   if (!houseSplitEnabled) return ctx
   if (house.provinceIds.length < minProvincesForHouseSplit) return ctx
   if (input.splitCandidates.length < 1) return ctx
-  if (house.cohesion >= houseSplitCohesionThreshold) return ctx
+  if (house.cohesion >= houseSplitCohesionThreshold) {
+    log.log('HOUSE_SPLIT', {
+      year: ctx.state.currentYear,
+      month: ctx.state.currentMonth,
+      house: input.houseId,
+      cohesion: Math.round(house.cohesion),
+      threshold: houseSplitCohesionThreshold,
+      result: 'skipped',
+      reason: 'cohesion_too_high',
+    })
+    return ctx
+  }
 
   const splitter = chooseSplitter(input.splitCandidates, ctx.config)
   if (!splitter) return ctx
@@ -49,7 +63,19 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     house.cohesion * houseSplitCohesionFactor
 
   const { value: roll, rng: rngAfter } = randomFloat(ctx.rng)
-  if (roll >= splitChance) return { ...ctx, rng: rngAfter }
+  if (roll >= splitChance) {
+    log.log('HOUSE_SPLIT', {
+      year: ctx.state.currentYear,
+      month: ctx.state.currentMonth,
+      house: input.houseId,
+      cohesion: Math.round(house.cohesion),
+      threshold: houseSplitCohesionThreshold,
+      split_chance: Math.round(splitChance * 100),
+      result: 'skipped',
+      reason: 'probability',
+    })
+    return { ...ctx, rng: rngAfter }
+  }
 
   const controlMin = houseSplitControlMin / 100
   const controlMax = houseSplitControlMax / 100
@@ -191,6 +217,16 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     effects: [],
   }
   resultCtx = { ...eventCtx, state: resultCtx.state, events: [...eventCtx.events, splitEvent] }
+
+  log.log('HOUSE_SPLIT', {
+    year: resultCtx.state.currentYear,
+    month: resultCtx.state.currentMonth,
+    house: input.houseId,
+    cohesion: Math.round(house.cohesion),
+    threshold: houseSplitCohesionThreshold,
+    result: 'split',
+    new_house: newHouseId,
+  })
 
   const { id: crisisId, ctx: crisisCtx } = makeEventId(resultCtx)
   const crisisEvent: SimEvent = {

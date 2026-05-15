@@ -56,8 +56,10 @@ npm run cli -- --seed <seed> --years <n> [--integrity-check] [--json]
 コーディングエージェントがバグ検出・動作確認に利用することを想定している。
 
 `--debug` フラグを追加すると `config.debug = true` で動作し、以下が変化する：
-- 全エンティティが連番 ID で命名される（`Country-0`, `House-0`, `Person-0` …）
-- IntegrityCheck 違反が例外ではなく標準出力への警告となる（シミュレーション継続）
+
+- **イベント出力（stdout）にエンティティ ID を付記**：`PERSON_DIED: Irmela has died at age 35. [pe-42, h-3, c-0]`
+- **構造化デバッグログを stderr に出力**：`[DEBUG:TAG] key=value ...` 形式（SUCCESSION / BIRTH / MARRIAGE / HOUSE_SPLIT / HOUSE_EXTINCT / INTEGRITY / YEAR）。タグ単位で `grep` による機械的抽出が可能
+- **IntegrityCheck 違反が非致死的**：例外の代わりに `[DEBUG:INTEGRITY] error=...` として stderr に出力し、シミュレーションを継続する
 
 ---
 
@@ -616,7 +618,7 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 
 - Country・House・Province: `pickUniqueName` による重複回避。プール不足時は `Country-N` / `House-N` / `Province-N` にフォールバック
 - Person（worldgen 初期生成・BirthSystem による出生ともに）: `pickNameBySex` による重複あり選択（中世欧州風に同名人物が複数存在し得る）
-- `debug` モード時は全エンティティが連番 ID（`Country-0`, `House-0`, `Province-0`, `Person-0` …）で命名される
+- `debug` モード時もエンティティ名は通常と同じ名前プールから生成される（連番 ID 方式は廃止）。デバッグ追跡はエンティティ固有 ID（`pe-42`, `h-3` 等）で行う
 
 ---
 
@@ -666,7 +668,7 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 
 | 項目 | デフォルト | 説明 |
 |------|-----------|------|
-| debug | false | デバッグモード（連番名・非致死的 IntegrityCheck） |
+| debug | false | デバッグモード（イベント行への ID 付記・構造化デバッグログ・非致死的 IntegrityCheck） |
 | basePlotSuccess | 0.35 | 陰謀基本成功率 |
 | rebellionThreshold | 70 | 反乱発動閾値 |
 | plotThreshold | 65 | 陰謀発動閾値 |

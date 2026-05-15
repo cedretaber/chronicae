@@ -1,13 +1,15 @@
 export type DebugLogger = {
-  log: (msg: string) => void
+  log: (tag: string, fields: Record<string, string | number | boolean>) => void
 }
 
 export function createLogger(debug: boolean): DebugLogger {
+  if (!debug) return { log: () => {} }
   return {
-    log: debug
-      ? (msg: string) => {
-          console.error('[DEBUG] ' + msg)
-        }
-      : () => {},
+    log: (tag: string, fields: Record<string, string | number | boolean>) => {
+      const pairs = Object.entries(fields)
+        .map(([k, v]) => `${k}=${String(v)}`)
+        .join(' ')
+      process.stderr.write(`[DEBUG:${tag}] ${pairs}\n`)
+    },
   }
 }
