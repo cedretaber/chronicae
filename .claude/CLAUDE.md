@@ -62,3 +62,17 @@ const id = person.id
 ```
 
 `app/` 配下から `sim/` を参照する際は `@sim/` を使う。
+
+## tick システムの追加規約
+
+`prototype/src/sim/tick/tick.ts` に新しいサブシステムを追加する際は、直接呼び出しではなく `run` ヘルパーを使うこと。
+
+```typescript
+// NG: PERF ログが出ない
+ctx = runNewSystem(ctx)
+
+// OK: debug モードで自動的に計測・ログ出力される
+run('newSystem', runNewSystem)
+```
+
+`run` ヘルパーは debug モード時のみ `performance.now()` で前後を計測し `[PERF:newSystem] ms=X.XXX` を stderr に出力する。非 debug モードではオーバーヘッドなし。

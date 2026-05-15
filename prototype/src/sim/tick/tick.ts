@@ -1,4 +1,10 @@
-import { type TickInput, type TickResult, createTickContext, toResult } from './context'
+import {
+  type TickInput,
+  type TickResult,
+  type TickContext,
+  createTickContext,
+  toResult,
+} from './context'
 import { advanceTime } from './advanceTime'
 import { runDevelopmentSystem } from './developmentSystem'
 import { runEconomySystem } from './economySystem'
@@ -25,37 +31,53 @@ import { createLogger } from '../debug/logger'
 
 export function tick(input: TickInput): TickResult {
   let ctx = createTickContext(input)
-  ctx = advanceTime(ctx)
-  ctx = runDevelopmentSystem(ctx)
-  ctx = runControlSystem(ctx)
-  ctx = runLordshipTransitionSystem(ctx)
-  ctx = runPopSystem(ctx)
-  ctx = runEconomySystem(ctx)
-  ctx = runDisasterSystem(ctx)
-  ctx = runMortalitySystem(ctx)
-  ctx = runSuccessionSystem(ctx)
-  ctx = runMarriageSystem(ctx)
-  ctx = runBirthSystem(ctx)
-  ctx = runAppointmentSystem(ctx)
-  ctx = runAmbitionSystem(ctx)
-  ctx = runPublicSpendingSystem(ctx)
-  ctx = runHouseDevelopmentSystem(ctx)
-  ctx = runPopDevelopmentSystem(ctx)
-  ctx = runPlotSystem(ctx)
-  ctx = runWarSystem(ctx)
-  ctx = runRebellionSystem(ctx)
-  ctx = runStabilitySystem(ctx)
-  ctx = runGovernanceSystem(ctx)
-  ctx = normalizePopSizes(ctx)
-  if (ctx.config.debug) {
-    const log = createLogger(true)
+  const log = createLogger(ctx.config.debug)
+  const debug = ctx.config.debug
+  const tickStart = performance.now()
+
+  const run = (label: string, fn: (c: TickContext) => TickContext): void => {
+    if (debug) {
+      const t0 = performance.now()
+      ctx = fn(ctx)
+      log.perf(label, performance.now() - t0)
+    } else {
+      ctx = fn(ctx)
+    }
+  }
+
+  run('advanceTime', advanceTime)
+  run('developmentSystem', runDevelopmentSystem)
+  run('controlSystem', runControlSystem)
+  run('lordshipTransitionSystem', runLordshipTransitionSystem)
+  run('popSystem', runPopSystem)
+  run('economySystem', runEconomySystem)
+  run('disasterSystem', runDisasterSystem)
+  run('mortalitySystem', runMortalitySystem)
+  run('successionSystem', runSuccessionSystem)
+  run('marriageSystem', runMarriageSystem)
+  run('birthSystem', runBirthSystem)
+  run('appointmentSystem', runAppointmentSystem)
+  run('ambitionSystem', runAmbitionSystem)
+  run('publicSpendingSystem', runPublicSpendingSystem)
+  run('houseDevelopmentSystem', runHouseDevelopmentSystem)
+  run('popDevelopmentSystem', runPopDevelopmentSystem)
+  run('plotSystem', runPlotSystem)
+  run('warSystem', runWarSystem)
+  run('rebellionSystem', runRebellionSystem)
+  run('stabilitySystem', runStabilitySystem)
+  run('governanceSystem', runGovernanceSystem)
+  run('normalizePopSizes', normalizePopSizes)
+
+  if (debug) {
     try {
-      ctx = runIntegrityCheck(ctx)
+      run('integrityCheck', runIntegrityCheck)
     } catch (e) {
       log.log('INTEGRITY', { error: String(e) })
     }
+    log.perf('tick:total', performance.now() - tickStart)
   } else {
     ctx = runIntegrityCheck(ctx)
   }
+
   return toResult(ctx)
 }
