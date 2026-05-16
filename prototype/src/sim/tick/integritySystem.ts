@@ -348,5 +348,116 @@ export function runIntegrityCheck(ctx: TickContext): TickContext {
     }
   }
 
+  // Check: House.memberIds has no duplicates
+  for (const houseId of Object.keys(state.houses).sort()) {
+    const house = state.houses[houseId as HouseId]
+    if (!house) continue
+    const seen = new Set<PersonId>()
+    for (const mid of house.memberIds) {
+      if (seen.has(mid)) {
+        throw new Error('House ' + houseId + ' memberIds has duplicate: ' + mid)
+      }
+      seen.add(mid)
+    }
+  }
+
+  // Check: House.provinceIds has no duplicates
+  for (const houseId of Object.keys(state.houses).sort()) {
+    const house = state.houses[houseId as HouseId]
+    if (!house) continue
+    const seenProvs = new Set<ProvinceId>()
+    for (const pid of house.provinceIds) {
+      if (seenProvs.has(pid)) {
+        throw new Error('House ' + houseId + ' provinceIds has duplicate: ' + pid)
+      }
+      seenProvs.add(pid)
+    }
+  }
+
+  // V0.11: Country.legacyPrestige in 0..100
+  for (const countryId of Object.keys(state.countries).sort()) {
+    const country = state.countries[countryId as CountryId]
+    if (!country) continue
+    if (country.legacyPrestige < 0 || country.legacyPrestige > 100) {
+      throw new Error(
+        'Country ' + countryId + ' legacyPrestige out of range: ' + country.legacyPrestige,
+      )
+    }
+  }
+
+  // V0.11: House.legacyPrestige in 0..100
+  for (const houseId of Object.keys(state.houses).sort()) {
+    const house = state.houses[houseId as HouseId]
+    if (!house) continue
+    if (house.legacyPrestige < 0 || house.legacyPrestige > 100) {
+      throw new Error('House ' + houseId + ' legacyPrestige out of range: ' + house.legacyPrestige)
+    }
+  }
+
+  // V0.11: Person.legacyPrestige in 0..100
+  for (const personId of Object.keys(state.persons).sort()) {
+    const person = state.persons[personId as PersonId]
+    if (!person) continue
+    if (person.legacyPrestige < 0 || person.legacyPrestige > 100) {
+      throw new Error(
+        'Person ' + personId + ' legacyPrestige out of range: ' + person.legacyPrestige,
+      )
+    }
+  }
+
+  // V0.11: Country.adminPower in 0..100
+  for (const countryId of Object.keys(state.countries).sort()) {
+    const country = state.countries[countryId as CountryId]
+    if (!country) continue
+    if (country.adminPower < 0 || country.adminPower > 100) {
+      throw new Error('Country ' + countryId + ' adminPower out of range: ' + country.adminPower)
+    }
+  }
+
+  // V0.11: Person attitudes: each Attitude's affection/respect in -100..100
+  for (const personId of Object.keys(state.persons).sort()) {
+    const person = state.persons[personId as PersonId]
+    if (!person) continue
+    for (const key of Object.keys(person.attitudes)) {
+      const att = person.attitudes[key]
+      if (!att) continue
+      if (att.affection < -100 || att.affection > 100) {
+        throw new Error(
+          'Person ' + personId + ' attitude ' + key + ' affection out of range: ' + att.affection,
+        )
+      }
+      if (att.respect < -100 || att.respect > 100) {
+        throw new Error(
+          'Person ' + personId + ' attitude ' + key + ' respect out of range: ' + att.respect,
+        )
+      }
+    }
+  }
+
+  // V0.11: PopGroup attitudes: each Attitude's affection/respect in -100..100
+  for (const popGroupId of Object.keys(state.popGroups).sort()) {
+    const pop = state.popGroups[popGroupId as PopGroupId]
+    if (!pop) continue
+    for (const key of Object.keys(pop.attitudes)) {
+      const att = pop.attitudes[key]
+      if (!att) continue
+      if (att.affection < -100 || att.affection > 100) {
+        throw new Error(
+          'PopGroup ' +
+            popGroupId +
+            ' attitude ' +
+            key +
+            ' affection out of range: ' +
+            att.affection,
+        )
+      }
+      if (att.respect < -100 || att.respect > 100) {
+        throw new Error(
+          'PopGroup ' + popGroupId + ' attitude ' + key + ' respect out of range: ' + att.respect,
+        )
+      }
+    }
+  }
+
   return ctx
 }

@@ -1,7 +1,12 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat, randomInt } from '../rng/rng'
-import { clamp, clamp100 } from '../utils/math'
+import { clamp } from '../utils/math'
+import {
+  adjustCountryLegacyPrestige,
+  adjustHouseLegacyPrestige,
+  adjustPersonLegacyPrestige,
+} from '../helpers/attitudeHelpers'
 import { calcCountryMilitaryPower } from '../selectors/militarySelectors'
 import {
   calcGeneralWarPowerModifier,
@@ -10,6 +15,7 @@ import {
 import { transferProvinceToHouse } from '../mutations/transferProvince'
 import { annexCountry } from '../mutations/annexCountry'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import type { WorldState } from '../types/world'
 import type { SimEvent } from '../types/event'
 import {
   adjustProvincePopWealth,
@@ -347,19 +353,15 @@ export function runWarSystem(ctx: TickContext): TickContext {
           )
         }
 
-        const currentAttacker = currentCtx.state.countries[attackerCountryId]
-        if (currentAttacker) {
-          const boostedLegitimacy = clamp100(currentAttacker.legitimacy + 5)
-          currentCtx = {
-            ...currentCtx,
-            state: {
-              ...currentCtx.state,
-              countries: {
-                ...currentCtx.state.countries,
-                [attackerCountryId]: { ...currentAttacker, legitimacy: boostedLegitimacy },
-              },
-            },
+        {
+          let winnerState = currentCtx.state
+          winnerState = adjustCountryLegacyPrestige(winnerState, attackerCountryId, 3)
+          const winnerRulerHouseId = winnerState.countries[attackerCountryId]?.rulerHouseId
+          if (winnerRulerHouseId) {
+            winnerState = adjustHouseLegacyPrestige(winnerState, winnerRulerHouseId, 2)
           }
+          winnerState = adjustPersonLegacyPrestige(winnerState, generalId, 4)
+          currentCtx = { ...currentCtx, state: winnerState }
         }
 
         {
@@ -426,28 +428,27 @@ export function runWarSystem(ctx: TickContext): TickContext {
 
         break
       } else {
-        const currentAttacker = currentCtx.state.countries[attackerCountryId]
-        if (currentAttacker) {
-          const newTreasury = Math.max(
-            0,
-            currentAttacker.treasury - currentCtx.config.warCostPerProvince,
-          )
-          const newStability = clamp100(currentAttacker.stability - 10)
-          const newLegitimacy = clamp100(currentAttacker.legitimacy - 8)
-          currentCtx = {
-            ...currentCtx,
-            state: {
+        {
+          const currentAttacker = currentCtx.state.countries[attackerCountryId]
+          if (currentAttacker) {
+            const newTreasury = Math.max(
+              0,
+              currentAttacker.treasury - currentCtx.config.warCostPerProvince,
+            )
+            let loserState: WorldState = {
               ...currentCtx.state,
               countries: {
                 ...currentCtx.state.countries,
-                [attackerCountryId]: {
-                  ...currentAttacker,
-                  treasury: newTreasury,
-                  stability: newStability,
-                  legitimacy: newLegitimacy,
-                },
+                [attackerCountryId]: { ...currentAttacker, treasury: newTreasury },
               },
-            },
+            }
+            loserState = adjustCountryLegacyPrestige(loserState, attackerCountryId, -3)
+            const loserRulerHouseId = loserState.countries[attackerCountryId]?.rulerHouseId
+            if (loserRulerHouseId) {
+              loserState = adjustHouseLegacyPrestige(loserState, loserRulerHouseId, -2)
+            }
+            loserState = adjustPersonLegacyPrestige(loserState, generalId, -4)
+            currentCtx = { ...currentCtx, state: loserState }
           }
         }
 

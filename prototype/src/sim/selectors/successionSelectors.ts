@@ -131,7 +131,7 @@ export function calcSuccessionScore(
 
   return (
     blood +
-    candidate.prestige * config.prestigeSuccessionWeight +
+    candidate.legacyPrestige * config.prestigeSuccessionWeight +
     candidate.stats.admin * config.adminSuccessionWeight +
     candidate.stats.martial * config.martialSuccessionWeight +
     candidate.traits.ambition * config.ambitionSuccessionWeight -

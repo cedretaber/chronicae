@@ -1,4 +1,5 @@
 import type { PersonId, HouseId, CountryId } from './ids'
+import type { AttitudeMap } from './attitude'
 
 export type Sex = 'male' | 'female'
 export type BirthStatus = 'legitimate' | 'illegitimate' | 'unknown'
@@ -22,8 +23,8 @@ export type Person = {
   }
   traits: {
     ambition: number // 0.0..1.0
-    loyaltyToCountry: number // 0.0..1.0
     caution: number // 0.0..1.0
   }
-  prestige: number // 0..100
+  legacyPrestige: number // 0..100
+  attitudes: AttitudeMap
 }

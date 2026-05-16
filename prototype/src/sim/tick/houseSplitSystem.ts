@@ -1,13 +1,13 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { transferProvinceToHouse } from '../mutations/transferProvince'
 import { movePersonToHouse } from '../mutations/personMutations'
-import type { HouseId, PersonId } from '../types/ids'
+import type { HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { SuccessionCandidate } from '../selectors/successionSelectors'
 import type { WorldState } from '../types/world'
 import { createLogger } from '../debug/logger'
+import { getHouseCohesion } from '../selectors/statusSelectors'
 
 export type SplitInput = {
   houseId: HouseId
@@ -35,12 +35,14 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   if (!houseSplitEnabled) return ctx
   if (house.provinceIds.length < minProvincesForHouseSplit) return ctx
   if (input.splitCandidates.length < 1) return ctx
-  if (house.cohesion >= houseSplitCohesionThreshold) {
+
+  const currentCohesion = getHouseCohesion(ctx.state, house.id)
+  if (currentCohesion >= houseSplitCohesionThreshold) {
     log.log('HOUSE_SPLIT', {
       year: ctx.state.currentYear,
       month: ctx.state.currentMonth,
       house: input.houseId,
-      cohesion: Math.round(house.cohesion),
+      cohesion: Math.round(currentCohesion),
       threshold: houseSplitCohesionThreshold,
       result: 'skipped',
       reason: 'cohesion_too_high',
@@ -54,9 +56,9 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   const splitChance =
     baseHouseSplitChance +
     splitter.person.traits.ambition * houseSplitAmbitionFactor +
-    splitter.person.prestige * houseSplitPrestigeFactor +
+    splitter.person.legacyPrestige * houseSplitPrestigeFactor +
     splitter.person.stats.martial * houseSplitMartialFactor -
-    house.cohesion * houseSplitCohesionFactor
+    currentCohesion * houseSplitCohesionFactor
 
   const { value: roll, rng: rngAfter } = randomFloat(ctx.rng)
   if (roll >= splitChance) {
@@ -64,7 +66,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
       year: ctx.state.currentYear,
       month: ctx.state.currentMonth,
       house: input.houseId,
-      cohesion: Math.round(house.cohesion),
+      cohesion: Math.round(currentCohesion),
       threshold: houseSplitCohesionThreshold,
       split_chance: Math.round(splitChance * 100),
       result: 'skipped',
@@ -123,13 +125,11 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     active: true,
     countryId: house.countryId,
     provinceIds: splitProvinces,
-    memberIds: newMemberIds,
+    memberIds: [splitterPerson.id],
     headId: splitterPerson.id,
     founderId: splitterPerson.id,
     cadetHouseIds: [],
-    prestige: Math.floor(house.prestige * 0.5),
-    cohesion: 50,
-    loyaltyToCountry: house.loyaltyToCountry,
+    legacyPrestige: Math.floor(house.legacyPrestige * 0.5),
     wealth: newHouseWealth,
     seatProvinceId: firstSplitProvince,
     parentHouseId: house.id,
@@ -146,18 +146,22 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   const parentHouse = resultCtx.state.houses[input.houseId]
   if (!parentHouse) return resultCtx
 
-  const newParentProvinceIds = parentHouse.provinceIds.filter(
-    (pid) => !(splitProvinces as string[]).includes(pid as string),
-  )
+  const splitProvincesSet = new Set<ProvinceId>(splitProvinces)
+  const newParentProvinceIds = parentHouse.provinceIds.filter((pid) => !splitProvincesSet.has(pid))
+  const newParentSeatProvinceId: ProvinceId = splitProvincesSet.has(parentHouse.seatProvinceId)
+    ? (newParentProvinceIds[0] ?? ('' as ProvinceId))
+    : parentHouse.seatProvinceId
   const newParentMemberIds = parentHouse.memberIds.filter((pid) => !familyPersonIds.has(pid))
   const newParentWealth = parentHouse.wealth - newHouseWealth
 
   const newParentHouse = {
     ...parentHouse,
     provinceIds: newParentProvinceIds,
+    seatProvinceId: newParentSeatProvinceId,
     memberIds: newParentMemberIds,
     wealth: newParentWealth,
     cadetHouseIds: [...parentHouse.cadetHouseIds, newHouseId],
+    legacyPrestige: Math.floor(parentHouse.legacyPrestige * 0.5),
   }
 
   const stateWithParentUpdate: WorldState = {
@@ -166,12 +170,18 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   }
   resultCtx = { ...resultCtx, state: stateWithParentUpdate }
 
-  let chainState = resultCtx.state
-  for (const pid of splitProvinces.sort()) {
-    chainState = transferProvinceToHouse(chainState, pid, newHouseId)
+  const newHouseCountryId = resultCtx.state.houses[newHouseId]?.countryId
+  const updatedProvs = { ...resultCtx.state.provinces }
+  for (const pid of splitProvinces) {
+    const prov = updatedProvs[pid]
+    if (!prov) continue
+    updatedProvs[pid] = {
+      ...prov,
+      ownerHouseId: newHouseId,
+      countryId: newHouseCountryId ?? prov.countryId,
+    }
   }
-
-  resultCtx = { ...resultCtx, state: chainState }
+  resultCtx = { ...resultCtx, state: { ...resultCtx.state, provinces: updatedProvs } }
 
   const splitterPersonCurrent = resultCtx.state.persons[splitterPerson.id]
   if (splitterPersonCurrent) {
@@ -221,7 +231,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     year: resultCtx.state.currentYear,
     month: resultCtx.state.currentMonth,
     house: input.houseId,
-    cohesion: Math.round(house.cohesion),
+    cohesion: Math.round(currentCohesion),
     threshold: houseSplitCohesionThreshold,
     result: 'split',
     new_house: newHouseId,
@@ -257,7 +267,7 @@ function chooseSplitter(
   for (const candidate of candidates) {
     const score =
       candidate.person.traits.ambition * config.houseSplitAmbitionFactor +
-      candidate.person.prestige * config.houseSplitPrestigeFactor +
+      candidate.person.legacyPrestige * config.houseSplitPrestigeFactor +
       candidate.person.stats.martial * config.houseSplitMartialFactor
 
     if (score > bestScore) {

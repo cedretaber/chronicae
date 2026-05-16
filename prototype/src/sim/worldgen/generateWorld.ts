@@ -23,6 +23,7 @@ import {
 import { defaultConfig } from '../config/defaultConfig'
 import { defaultMapConfig } from './mapConfig'
 import { clamp } from '../utils/math'
+import { countryAttitudeKey, houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
 
 export function generateWorld(seedText: string): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
@@ -36,7 +37,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   const { houseProvinces, houseCountry, rng: rng2 } = distributeHouses(provinces, assignments, rng)
   rng = rng2
 
-  const { persons, rng: rng3 } = generatePersons(houseProvinces, houseCountry, rng)
+  const { persons, rng: rng3 } = generatePersons(houseProvinces, houseCountry, defaultConfig, rng)
   rng = rng3
 
   const personMap = new Map<PersonId, Person>()
@@ -85,11 +86,9 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   const { controlMaxDistancePenalty, controlMaxMinimum } = defaultConfig
 
   for (const houseId of sortedHouseIds) {
-    const { value: prestige, rng: r1 } = randomInt(rng, 20, 80)
-    const { value: cohesion, rng: r2 } = randomInt(r1, 40, 80)
-    const { value: loyaltyToCountry, rng: r3 } = randomInt(r2, 40, 80)
-    const { value: wealth, rng: r4 } = randomInt(r3, 30, 150)
-    rng = r4
+    const { value: legacyPrestige, rng: r1 } = randomInt(rng, 20, 80)
+    const { value: wealth, rng: r2 } = randomInt(r1, 30, 150)
+    rng = r2
 
     const memberIds = persons
       .filter((p) => p.houseId === houseId)
@@ -131,7 +130,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       let bestScore = -Infinity
       let bestPerson: Person | undefined
       for (const c of adultMaleCandidates) {
-        const score = c.prestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+        const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
         if (score > bestScore) {
           bestScore = score
           bestPerson = c
@@ -156,7 +155,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
         let bestScore = -Infinity
         let bestPerson: Person | undefined
         for (const c of adultFemaleCandidates) {
-          const score = c.prestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+          const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
           if (score > bestScore) {
             bestScore = score
             bestPerson = c
@@ -194,9 +193,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       memberIds,
       headId: headId ?? memberIds[0] ?? ('' as PersonId),
       cadetHouseIds: [],
-      prestige,
-      cohesion,
-      loyaltyToCountry,
+      legacyPrestige,
       wealth,
       seatProvinceId,
     }
@@ -210,10 +207,8 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     const countryId = `c-${countryIndex}` as CountryId
 
     const { value: treasury, rng: r1 } = randomInt(rng, 100, 300)
-    const { value: legitimacy, rng: r2 } = randomInt(r1, 45, 80)
-    const { value: adminPower, rng: r3 } = randomInt(r2, 35, 70)
-    const { value: stability, rng: r4 } = randomInt(r3, 45, 80)
-    rng = r4
+    const { value: legacyPrestige, rng: r2 } = randomInt(r1, 20, 60)
+    rng = r2
 
     const { name: cName, rng: rC } = pickUniqueName(
       countryNamePool(),
@@ -240,9 +235,8 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       rulerHouseId,
       houseIds,
       treasury,
-      legitimacy,
-      adminPower,
-      stability,
+      legacyPrestige,
+      adminPower: 50,
       roleAssignments: {},
       active: true,
       capitalProvinceId,
@@ -404,6 +398,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       size: Math.max(minPopSizeByClass.peasants, (capacity * peasantSizePct) / 100),
       wealth: peasantWealth,
       unrest: peasantUnrest,
+      attitudes: {},
     }
     popGroupsRecord[townsmanId] = {
       id: townsmanId,
@@ -412,6 +407,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       size: Math.max(minPopSizeByClass.townsmen, (capacity * townsmanSizePct) / 100),
       wealth: townsmanWealth,
       unrest: townsmanUnrest,
+      attitudes: {},
     }
     popGroupsRecord[noblesId] = {
       id: noblesId,
@@ -420,9 +416,133 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       size: Math.max(minPopSizeByClass.nobles, (capacity * noblesSizePct) / 100),
       wealth: noblesWealth,
       unrest: noblesUnrest,
+      attitudes: {},
     }
 
     province.popGroupIds = [peasantsId, townsmanId, noblesId]
+  }
+
+  // §6.1 Person attitude initialization
+  const updatedPersons = persons.map((p) => {
+    if (!p.alive) return p
+    let attitudes = { ...p.attitudes }
+    const countryKey = countryAttitudeKey(p.countryId)
+    const { value: aff1, rng: r1 } = randomInt(rng, 20, 70)
+    const { value: res1, rng: r2 } = randomInt(r1, 20, 70)
+    rng = r2
+    attitudes = {
+      ...attitudes,
+      [countryKey]: { affection: aff1, respect: res1 },
+    }
+
+    const houseKey = houseAttitudeKey(p.houseId)
+    const { value: aff2, rng: r3 } = randomInt(rng, 30, 80)
+    const { value: res2, rng: r4 } = randomInt(r3, 20, 70)
+    rng = r4
+    attitudes = {
+      ...attitudes,
+      [houseKey]: { affection: aff2, respect: res2 },
+    }
+
+    const house = houses.find((h) => h.id === p.houseId)
+    if (house && p.id !== house.headId) {
+      const headKey = personAttitudeKey(house.headId)
+      const { value: aff3, rng: r5 } = randomInt(rng, 20, 80)
+      const { value: res3, rng: r6 } = randomInt(r5, 20, 80)
+      rng = r6
+      attitudes = {
+        ...attitudes,
+        [headKey]: { affection: aff3, respect: res3 },
+      }
+    }
+
+    return { ...p, attitudes }
+  })
+
+  // §6.2 PopGroup attitude initialization
+  for (const popGroupId of Object.keys(popGroupsRecord) as PopGroupId[]) {
+    const pop = popGroupsRecord[popGroupId]
+    if (!pop) continue
+    const province = provinceMap.get(pop.provinceId)
+    if (!province) continue
+
+    const countryKey = countryAttitudeKey(province.countryId)
+    const { value: aff1, rng: rp1 } = randomInt(rng, 10, 60)
+    const { value: res1, rng: rp2 } = randomInt(rp1, 20, 70)
+    rng = rp2
+    let attitudes = {
+      [countryKey]: { affection: aff1, respect: res1 },
+    }
+
+    const ownerHouseId = province.ownerHouseId
+    if (ownerHouseId) {
+      const houseKey = houseAttitudeKey(ownerHouseId)
+      const { value: aff2, rng: rp3 } = randomInt(rng, 10, 60)
+      const { value: res2, rng: rp4 } = randomInt(rp3, 20, 70)
+      rng = rp4
+      attitudes = {
+        ...attitudes,
+        [houseKey]: { affection: aff2, respect: res2 },
+      }
+    }
+
+    // Apply class adjustments
+    if (pop.class === 'peasants') {
+      const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
+      if (ownerHouseAttitude) {
+        attitudes = {
+          ...attitudes,
+          [houseAttitudeKey(ownerHouseId)]: {
+            ...ownerHouseAttitude,
+            respect: clamp(ownerHouseAttitude.respect + 5, -100, 100),
+          },
+        }
+      }
+    } else if (pop.class === 'townsmen') {
+      const countryAttitude = attitudes[countryKey]
+      if (countryAttitude) {
+        attitudes = {
+          ...attitudes,
+          [countryKey]: {
+            ...countryAttitude,
+            respect: clamp(countryAttitude.respect + 5, -100, 100),
+          },
+        }
+      }
+      const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
+      if (ownerHouseAttitude) {
+        attitudes = {
+          ...attitudes,
+          [houseAttitudeKey(ownerHouseId)]: {
+            ...ownerHouseAttitude,
+            respect: clamp(ownerHouseAttitude.respect - 5, -100, 100),
+          },
+        }
+      }
+    } else if (pop.class === 'nobles') {
+      const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
+      if (ownerHouseAttitude) {
+        attitudes = {
+          ...attitudes,
+          [houseAttitudeKey(ownerHouseId)]: {
+            ...ownerHouseAttitude,
+            respect: clamp(ownerHouseAttitude.respect + 10, -100, 100),
+          },
+        }
+      }
+      const countryAttitude = attitudes[countryKey]
+      if (countryAttitude) {
+        attitudes = {
+          ...attitudes,
+          [countryKey]: {
+            ...countryAttitude,
+            affection: clamp(countryAttitude.affection - 5, -100, 100),
+          },
+        }
+      }
+    }
+
+    popGroupsRecord[popGroupId] = { ...pop, attitudes: attitudes }
   }
 
   const provincesRecord: Record<ProvinceId, Province> = {}
@@ -436,7 +556,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   }
 
   const personsRecord: Record<PersonId, Person> = {}
-  for (const p of persons) {
+  for (const p of updatedPersons) {
     personsRecord[p.id] = p
   }
 

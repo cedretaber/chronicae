@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import { makeEventId, makePersonId, makeHouseId, makeCountryId } from './context'
-import { clamp, clamp100 } from '../utils/math'
+import { clamp } from '../utils/math'
 import { randomFloat, randomInt } from '../rng/rng'
 import type { ProvinceId, HouseId, CountryId, PersonId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
@@ -29,6 +29,15 @@ import {
   houseName as houseNameFn,
 } from '../worldgen/nameGenerators'
 import { generateCountryName } from '../selectors/countryNamingService'
+import {
+  getAttitudeOrDefault,
+  attitudeValueToScore,
+  houseAttitudeKey,
+  countryAttitudeKey,
+  adjustAttitude,
+  adjustCountryLegacyPrestige,
+} from '../helpers/attitudeHelpers'
+import { getCountryLegitimacy, getCountryStability } from '../selectors/statusSelectors'
 
 type RevoltCandidate = {
   provinceId: ProvinceId
@@ -66,7 +75,8 @@ function calcRevoltTendency(
     pop.unrest * config.provinceRevoltUnrestFactor +
     (100 - province.houseControl) * config.provinceRevoltLowHouseControlFactor +
     (100 - province.countryControl) * config.provinceRevoltLowCountryControlFactor -
-    country.stability * config.provinceRevoltStabilitySuppressionFactor
+    getCountryStability(state, config, province.countryId) *
+      config.provinceRevoltStabilitySuppressionFactor
 
   if (rebelClass === 'peasants') {
     if (pop.wealth < config.povertyWealthThreshold) {
@@ -83,8 +93,19 @@ function calcRevoltTendency(
         config.townsmenRevoltProductionFactor
     }
   } else if (rebelClass === 'nobles') {
-    tendency += (100 - ownerHouse.loyaltyToCountry) * config.nobleRevoltHouseDisloyaltyFactor
-    tendency += (100 - country.legitimacy) * config.nobleRevoltLowLegitimacyFactor
+    // Use the nobles pop's attitudes toward house and country
+    const a_house = getAttitudeOrDefault(state, pop, houseAttitudeKey(province.ownerHouseId))
+    const a_country = getAttitudeOrDefault(state, pop, countryAttitudeKey(province.countryId))
+    const houseScore =
+      attitudeValueToScore(a_house.affection) * 0.6 + attitudeValueToScore(a_house.respect) * 0.4
+    const countryScore =
+      attitudeValueToScore(a_country.affection) * 0.6 +
+      attitudeValueToScore(a_country.respect) * 0.4
+    const nobleDisloyalty = 100 - (0.5 * houseScore + 0.5 * countryScore)
+    tendency += nobleDisloyalty * config.nobleRevoltHouseDisloyaltyFactor
+    tendency +=
+      (100 - getCountryLegitimacy(state, province.countryId)) *
+      config.nobleRevoltLowLegitimacyFactor
   }
 
   return tendency
@@ -294,19 +315,11 @@ function resolveRevoltFailure(
     config.provinceRevoltSuppressionCollateralUnrestGain,
   )
 
-  // Country gains legitimacy
+  // Country gains legacyPrestige
   const country = newState.countries[countryId]
   if (country) {
-    newState = {
-      ...newState,
-      countries: {
-        ...newState.countries,
-        [countryId]: {
-          ...country,
-          legitimacy: clamp100(country.legitimacy + config.provinceRevoltSuppressionLegitimacyGain),
-        },
-      },
-    }
+    const stateWithLegitimacy = adjustCountryLegacyPrestige(newState, countryId, 1)
+    newState = stateWithLegitimacy
   }
 
   ctx = { ...ctx, state: newState }
@@ -374,19 +387,23 @@ function resolveRevoltConcession(
     -config.provinceRevoltConcessionUnrestReduction,
   )
 
-  // Country loses legitimacy
-  const country = newState.countries[countryId]
-  if (country) {
-    newState = {
-      ...newState,
-      countries: {
-        ...newState.countries,
-        [countryId]: {
-          ...country,
-          legitimacy: clamp100(country.legitimacy - config.provinceRevoltConcessionLegitimacyLoss),
-        },
-      },
+  // Rebel POP → Country: respect -4, affection +2
+  const currentProvince = newState.provinces[provinceId]
+  const rebelPop = (() => {
+    for (const popId of currentProvince?.popGroupIds ?? []) {
+      const p = newState.popGroups[popId]
+      if (p && p.class === rebelClass) return p
     }
+    return undefined
+  })()
+  if (rebelPop) {
+    const cKey = countryAttitudeKey(countryId)
+    const newPops = { ...newState.popGroups }
+    newPops[rebelPop.id] = {
+      ...rebelPop,
+      attitudes: adjustAttitude(rebelPop.attitudes, cKey, { respect: -4, affection: 2 }),
+    }
+    newState = { ...newState, popGroups: newPops }
   }
 
   // Owner house loses wealth
@@ -480,11 +497,9 @@ function resolveRevoltLordshipChange(
   ctx = { ...ctx, rng: rng4 }
   const { value: ambition, rng: rng5 } = randomInt(ctx.rng, 7, 10)
   ctx = { ...ctx, rng: rng5 }
-  const { value: loyalty, rng: rng6 } = randomInt(ctx.rng, 0, 30)
-  ctx = { ...ctx, rng: rng6 }
   const { value: caution, rng: rng7 } = randomInt(ctx.rng, 2, 7)
   ctx = { ...ctx, rng: rng7 }
-  const { value: prestige, rng: rng8 } = randomInt(ctx.rng, 5, 20)
+  const { value: legacyPrestige, rng: rng8 } = randomInt(ctx.rng, 5, 20)
   ctx = { ...ctx, rng: rng8 }
 
   const newLeader: Person = {
@@ -500,10 +515,10 @@ function resolveRevoltLordshipChange(
     stats: { admin, martial },
     traits: {
       ambition: ambition / 10,
-      loyaltyToCountry: loyalty / 100,
       caution: caution / 10,
     },
-    prestige,
+    legacyPrestige,
+    attitudes: {},
   }
 
   // Generate house name
@@ -526,14 +541,12 @@ function resolveRevoltLordshipChange(
     name: houseName2,
     active: true,
     countryId,
-    provinceIds: [provinceId],
+    provinceIds: [],
     memberIds: [newPersonId],
     headId: newPersonId,
     founderId: newPersonId,
     cadetHouseIds: [],
-    prestige: config.revoltHouseInitialPrestige,
-    cohesion: config.revoltHouseInitialCohesion,
-    loyaltyToCountry: config.revoltHouseInitialLoyaltyToCountry,
+    legacyPrestige: config.revoltHouseInitialLegacyPrestige,
     wealth: config.revoltHouseInitialWealth,
     seatProvinceId: provinceId,
   }
@@ -642,6 +655,27 @@ function resolveRevoltLordshipChange(
     ctx = { ...ctx, state: newState }
   }
 
+  // Rebel POP → new house: affection +8, respect +5
+  const rebelPopForAttitude = (() => {
+    for (const popId of province.popGroupIds) {
+      const p = ctx.state.popGroups[popId]
+      if (p && p.class === rebelClass) return p
+    }
+    return undefined
+  })()
+  if (rebelPopForAttitude) {
+    const nhKey = houseAttitudeKey(newHouseId)
+    const newPops = { ...ctx.state.popGroups }
+    newPops[rebelPopForAttitude.id] = {
+      ...rebelPopForAttitude,
+      attitudes: adjustAttitude(rebelPopForAttitude.attitudes, nhKey, {
+        affection: 8,
+        respect: 5,
+      }),
+    }
+    ctx = { ...ctx, state: { ...ctx.state, popGroups: newPops } }
+  }
+
   // Emit LORDSHIP_USURPED event
   const { id: eventId, ctx: ctx3 } = makeEventId(ctx)
   const currentProvince = ctx3.state.provinces[provinceId]
@@ -729,11 +763,9 @@ function resolveRevoltIndependence(
   ctx = { ...ctx, rng: rng4 }
   const { value: ambition, rng: rng5 } = randomInt(ctx.rng, 7, 10)
   ctx = { ...ctx, rng: rng5 }
-  const { value: loyalty, rng: rng6 } = randomInt(ctx.rng, 0, 30)
-  ctx = { ...ctx, rng: rng6 }
   const { value: caution, rng: rng7 } = randomInt(ctx.rng, 2, 7)
   ctx = { ...ctx, rng: rng7 }
-  const { value: prestige, rng: rng8 } = randomInt(ctx.rng, 5, 20)
+  const { value: legacyPrestige, rng: rng8 } = randomInt(ctx.rng, 5, 20)
   ctx = { ...ctx, rng: rng8 }
 
   const newLeader: Person = {
@@ -749,10 +781,10 @@ function resolveRevoltIndependence(
     stats: { admin, martial },
     traits: {
       ambition: ambition / 10,
-      loyaltyToCountry: loyalty / 100,
       caution: caution / 10,
     },
-    prestige,
+    legacyPrestige,
+    attitudes: {},
   }
 
   // Generate house name
@@ -780,9 +812,7 @@ function resolveRevoltIndependence(
     headId: newPersonId,
     founderId: newPersonId,
     cadetHouseIds: [],
-    prestige: config.revoltHouseInitialPrestige,
-    cohesion: config.revoltHouseInitialCohesion,
-    loyaltyToCountry: config.revoltHouseInitialLoyaltyToCountry,
+    legacyPrestige: config.revoltHouseInitialLegacyPrestige,
     wealth: config.revoltHouseInitialWealth,
     seatProvinceId: provinceId,
   }
@@ -793,9 +823,8 @@ function resolveRevoltIndependence(
     rulerHouseId: newHouseId,
     houseIds: [newHouseId],
     treasury: config.revoltCountryInitialTreasury,
-    legitimacy: config.revoltCountryInitialLegitimacy,
-    adminPower: config.revoltCountryInitialAdminPower,
-    stability: config.revoltCountryInitialStability,
+    legacyPrestige: config.revoltCountryInitialLegacyPrestige,
+    adminPower: 0,
     roleAssignments: {},
     active: true,
     capitalProvinceId: provinceId,
@@ -850,16 +879,10 @@ function resolveRevoltIndependence(
             ? (remainingHouseIds[0] ?? oldCountry.rulerHouseId)
             : oldCountry.rulerHouseId,
           active: !oldOwnerIsRuler || remainingHouseIds.length > 0,
-          legitimacy: clamp100(
-            oldCountry.legitimacy - config.provinceRevoltConcessionLegitimacyLoss,
-          ),
           capitalProvinceId: newOldCapProvinceId,
         }
       : {
           ...oldCountry,
-          legitimacy: clamp100(
-            oldCountry.legitimacy - config.provinceRevoltConcessionLegitimacyLoss,
-          ),
           capitalProvinceId: newOldCapProvinceId,
         }
 

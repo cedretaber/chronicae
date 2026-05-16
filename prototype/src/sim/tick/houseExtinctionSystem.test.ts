@@ -16,7 +16,7 @@ function makePerson(
   admin: number,
   martial: number,
   ambition: number,
-  prestige: number,
+  legacyPrestige: number,
   sex: Person['sex'] = 'male',
   birthStatus: Person['birthStatus'] = 'legitimate',
 ): Person {
@@ -31,8 +31,9 @@ function makePerson(
     childIds: [],
     birthStatus,
     stats: { admin, martial },
-    traits: { ambition, loyaltyToCountry: 0.5, caution: 0.5 },
-    prestige,
+    traits: { ambition, caution: 0.5 },
+    legacyPrestige,
+    attitudes: {},
   }
 }
 
@@ -116,9 +117,8 @@ function makeNormalExtinctionCtx(): TickContext {
           rulerHouseId: rulerHouseId,
           houseIds: [houseId, rulerHouseId],
           treasury: 100,
-          legitimacy: 70,
+          legacyPrestige: 50,
           adminPower: 50,
-          stability: 60,
           roleAssignments: {},
           active: true,
           capitalProvinceId: province0Id,
@@ -134,9 +134,7 @@ function makeNormalExtinctionCtx(): TickContext {
           memberIds: ['pe-0' as PersonId],
           headId: 'pe-0' as PersonId,
           cadetHouseIds: [],
-          prestige: 50,
-          cohesion: 60,
-          loyaltyToCountry: 70,
+          legacyPrestige: 50,
           wealth: 100,
           seatProvinceId: province0Id,
         },
@@ -149,9 +147,7 @@ function makeNormalExtinctionCtx(): TickContext {
           memberIds: ['pe-10' as PersonId],
           headId: 'pe-10' as PersonId,
           cadetHouseIds: [],
-          prestige: 80,
-          cohesion: 70,
-          loyaltyToCountry: 80,
+          legacyPrestige: 80,
           wealth: 200,
           seatProvinceId: province0Id,
         },
@@ -269,9 +265,8 @@ describe('extinctHouseAfterFailedSuccession', () => {
               rulerHouseId: houseId,
               houseIds: [houseId],
               treasury: 100,
-              legitimacy: 70,
+              legacyPrestige: 50,
               adminPower: 50,
-              stability: 60,
               roleAssignments: {},
               active: true,
               capitalProvinceId: province0Id,
@@ -287,9 +282,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
               memberIds: ['pe-0' as PersonId],
               headId: 'pe-0' as PersonId,
               cadetHouseIds: [],
-              prestige: 90,
-              cohesion: 60,
-              loyaltyToCountry: 70,
+              legacyPrestige: 90,
               wealth: 100,
               seatProvinceId: province0Id,
             },
@@ -316,7 +309,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
       expect(event.importance).toBe('major')
     })
 
-    it('legitimacy and stability reduced', () => {
+    it('legacyPrestige reduced', () => {
       const houseId = 'h-0' as HouseId
       const countryId = 'c-0' as CountryId
 
@@ -363,9 +356,8 @@ describe('extinctHouseAfterFailedSuccession', () => {
               rulerHouseId: houseId,
               houseIds: [houseId],
               treasury: 100,
-              legitimacy: 70,
+              legacyPrestige: 50,
               adminPower: 50,
-              stability: 60,
               roleAssignments: {},
               active: true,
               capitalProvinceId: province0Id,
@@ -381,9 +373,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
               memberIds: ['pe-0' as PersonId],
               headId: 'pe-0' as PersonId,
               cadetHouseIds: [],
-              prestige: 90,
-              cohesion: 60,
-              loyaltyToCountry: 70,
+              legacyPrestige: 90,
               wealth: 100,
               seatProvinceId: province0Id,
             },
@@ -405,8 +395,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
 
       const country = result.state.countries[countryId]
       if (country) {
-        expect(country.legitimacy).toBeLessThan(70)
-        expect(country.stability).toBeLessThan(60)
+        expect(country.legacyPrestige).toBeLessThan(50)
       }
     })
 
@@ -457,9 +446,8 @@ describe('extinctHouseAfterFailedSuccession', () => {
               rulerHouseId: houseId,
               houseIds: [houseId],
               treasury: 100,
-              legitimacy: 70,
+              legacyPrestige: 50,
               adminPower: 50,
-              stability: 60,
               roleAssignments: {},
               active: true,
               capitalProvinceId: province0Id,
@@ -475,9 +463,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
               memberIds: ['pe-0' as PersonId],
               headId: 'pe-0' as PersonId,
               cadetHouseIds: [],
-              prestige: 90,
-              cohesion: 60,
-              loyaltyToCountry: 70,
+              legacyPrestige: 90,
               wealth: 100,
               seatProvinceId: province0Id,
             },

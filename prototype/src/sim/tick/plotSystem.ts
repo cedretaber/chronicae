@@ -1,7 +1,15 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { clamp, clamp100 } from '../utils/math'
+import { clamp } from '../utils/math'
+import {
+  adjustPersonLegacyPrestige,
+  adjustHouseLegacyPrestige,
+  adjustAttitude,
+  personAttitudeKey,
+  countryAttitudeKey,
+} from '../helpers/attitudeHelpers'
+import { getHouseCohesion, getCountryStability } from '../selectors/statusSelectors'
 import { calcAmbitionScores } from './ambitionSystem'
 import { assignRole } from '../mutations/assignRole'
 import type { PlotId, HouseId, PersonId, CountryId } from '../types/ids'
@@ -57,7 +65,7 @@ function resolvePlot(currentCtx: TickContext, plot: Plot): ResolveResult {
   switch (plot.type) {
     case 'replace_house_head': {
       const th = currentCtx.state.houses[plot.targetHouseId as HouseId]
-      targetDefense = th?.cohesion ?? 0
+      targetDefense = th ? getHouseCohesion(currentCtx.state, th.id) : 0
       break
     }
     case 'seize_role': {
@@ -68,7 +76,7 @@ function resolvePlot(currentCtx: TickContext, plot: Plot): ResolveResult {
     case 'prepare_rebellion': {
       const tc = currentCtx.state.countries[plot.targetCountryId as CountryId]
       const adminPower = tc?.adminPower ?? 0
-      const stability = tc?.stability ?? 0
+      const stability = tc ? getCountryStability(currentCtx.state, currentCtx.config, tc.id) : 0
       targetDefense = adminPower * 0.5 + stability * 0.5
       break
     }
@@ -116,34 +124,34 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
               p.age >= currentCtx.config.adultAge &&
               (p.id as string) !== currentHeadId,
           )
-          .sort((a, b) => b.prestige - a.prestige)[0]
+          .sort((a, b) => b.legacyPrestige - a.legacyPrestige)[0]
 
         if (newHead) {
-          const oldHead = state.persons[targetHouse.headId]
-          if (oldHead) {
-            const newPersons = { ...state.persons }
-            newPersons[oldHead.id] = { ...oldHead, prestige: clamp100(oldHead.prestige - 20) }
-            state = { ...state, persons: newPersons }
-          }
-
+          // Update house with new head (no cohesion field anymore)
           const newHouses = { ...state.houses }
           newHouses[plot.targetHouseId as HouseId] = {
             ...targetHouse,
             headId: newHead.id,
-            cohesion: clamp100(targetHouse.cohesion - 10),
           }
           state = { ...state, houses: newHouses }
-        }
-      }
 
-      const updatedLeader = state.persons[plot.leaderId]
-      if (updatedLeader) {
-        const newPersons = { ...state.persons }
-        newPersons[plot.leaderId] = {
-          ...updatedLeader,
-          prestige: clamp100(updatedLeader.prestige + 15),
+          // Adjust target house member attitudes
+          const oldHeadKey = personAttitudeKey(targetHouse.headId)
+          const newHeadKey = personAttitudeKey(newHead.id)
+          const newPersons = { ...state.persons }
+          for (const memberId of targetHouse.memberIds) {
+            const m = newPersons[memberId]
+            if (!m || !m.alive) continue
+            let att = m.attitudes
+            att = adjustAttitude(att, oldHeadKey, { respect: -10 })
+            att = adjustAttitude(att, newHeadKey, { respect: 8 })
+            newPersons[memberId] = { ...m, attitudes: att }
+          }
+          state = { ...state, persons: newPersons }
         }
-        state = { ...state, persons: newPersons }
+
+        // Leader legacyPrestige +5
+        state = adjustPersonLegacyPrestige(state, plot.leaderId, 5)
       }
 
       const countryIds: CountryId[] = plot.targetCountryId
@@ -180,25 +188,8 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
         }
       }
 
-      const updatedLeader = state.persons[plot.leaderId]
-      if (updatedLeader) {
-        const newPersons = { ...state.persons }
-        newPersons[plot.leaderId] = {
-          ...updatedLeader,
-          prestige: clamp100(updatedLeader.prestige + 10),
-        }
-        state = { ...state, persons: newPersons }
-      }
-
-      const leaderHouse = state.houses[leader.houseId]
-      if (leaderHouse) {
-        const newHouses = { ...state.houses }
-        newHouses[leader.houseId] = {
-          ...leaderHouse,
-          prestige: clamp100(leaderHouse.prestige + 5),
-        }
-        state = { ...state, houses: newHouses }
-      }
+      state = adjustPersonLegacyPrestige(state, plot.leaderId, 5)
+      state = adjustHouseLegacyPrestige(state, leader.houseId, 2)
 
       const countryIds: CountryId[] = plot.targetCountryId
         ? [plot.targetCountryId]
@@ -218,12 +209,17 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
     case 'prepare_rebellion': {
       const leaderHouse = state.houses[leader.houseId]
       if (leaderHouse) {
-        const newHouses = { ...state.houses }
-        newHouses[leader.houseId] = {
-          ...leaderHouse,
-          loyaltyToCountry: clamp100(leaderHouse.loyaltyToCountry - 15),
+        const cKey = countryAttitudeKey(leader.countryId)
+        const newPersons = { ...state.persons }
+        for (const memberId of leaderHouse.memberIds) {
+          const m = newPersons[memberId]
+          if (!m || !m.alive) continue
+          newPersons[memberId] = {
+            ...m,
+            attitudes: adjustAttitude(m.attitudes, cKey, { affection: -8, respect: -5 }),
+          }
         }
-        state = { ...state, houses: newHouses }
+        state = { ...state, persons: newPersons }
       }
 
       const countryIds: CountryId[] = plot.targetCountryId
@@ -248,25 +244,7 @@ function applyPlotFailure(currentCtx: TickContext, plot: Plot, leader: Person): 
 
   switch (plot.type) {
     case 'replace_house_head': {
-      const updatedLeader = state.persons[plot.leaderId]
-      if (updatedLeader) {
-        const newPersons = { ...state.persons }
-        newPersons[plot.leaderId] = {
-          ...updatedLeader,
-          prestige: clamp100(updatedLeader.prestige - 15),
-        }
-        state = { ...state, persons: newPersons }
-      }
-
-      const targetHouse = state.houses[plot.targetHouseId as HouseId]
-      if (targetHouse) {
-        const newHouses = { ...state.houses }
-        newHouses[plot.targetHouseId as HouseId] = {
-          ...targetHouse,
-          cohesion: clamp100(targetHouse.cohesion - 5),
-        }
-        state = { ...state, houses: newHouses }
-      }
+      state = adjustPersonLegacyPrestige(state, plot.leaderId, -3)
 
       const countryIds: CountryId[] = plot.targetCountryId
         ? [plot.targetCountryId]
@@ -284,25 +262,7 @@ function applyPlotFailure(currentCtx: TickContext, plot: Plot, leader: Person): 
     }
 
     case 'seize_role': {
-      const updatedLeader = state.persons[plot.leaderId]
-      if (updatedLeader) {
-        const newPersons = { ...state.persons }
-        newPersons[plot.leaderId] = {
-          ...updatedLeader,
-          prestige: clamp100(updatedLeader.prestige - 10),
-        }
-        state = { ...state, persons: newPersons }
-      }
-
-      const leaderHouse = state.houses[leader.houseId]
-      if (leaderHouse) {
-        const newHouses = { ...state.houses }
-        newHouses[leader.houseId] = {
-          ...leaderHouse,
-          loyaltyToCountry: clamp100(leaderHouse.loyaltyToCountry - 5),
-        }
-        state = { ...state, houses: newHouses }
-      }
+      state = adjustPersonLegacyPrestige(state, plot.leaderId, -3)
 
       const countryIds: CountryId[] = plot.targetCountryId
         ? [plot.targetCountryId]
@@ -320,35 +280,7 @@ function applyPlotFailure(currentCtx: TickContext, plot: Plot, leader: Person): 
     }
 
     case 'prepare_rebellion': {
-      const updatedLeader = state.persons[plot.leaderId]
-      if (updatedLeader) {
-        const newPersons = { ...state.persons }
-        newPersons[plot.leaderId] = {
-          ...updatedLeader,
-          prestige: clamp100(updatedLeader.prestige - 10),
-        }
-        state = { ...state, persons: newPersons }
-      }
-
-      const leaderHouse = state.houses[leader.houseId]
-      if (leaderHouse) {
-        const newHouses = { ...state.houses }
-        newHouses[leader.houseId] = {
-          ...leaderHouse,
-          loyaltyToCountry: clamp100(leaderHouse.loyaltyToCountry - 10),
-        }
-        state = { ...state, houses: newHouses }
-      }
-
-      const targetCountry = state.countries[plot.targetCountryId as CountryId]
-      if (targetCountry) {
-        const newCountries = { ...state.countries }
-        newCountries[plot.targetCountryId as CountryId] = {
-          ...targetCountry,
-          stability: clamp100(targetCountry.stability - 5),
-        }
-        state = { ...state, countries: newCountries }
-      }
+      state = adjustPersonLegacyPrestige(state, plot.leaderId, -3)
 
       const countryIds: CountryId[] = plot.targetCountryId
         ? [plot.targetCountryId]

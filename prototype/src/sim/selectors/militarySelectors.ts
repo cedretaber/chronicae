@@ -4,6 +4,7 @@ import type { HouseId, CountryId } from '../types/ids'
 import { clamp } from '../utils/math'
 import { normalizedStat } from './personAbilityEffects'
 import { getProvinceHouseManpowerBase } from './popEconomySelectors'
+import { getHouseLoyaltyToCountry } from './statusSelectors'
 
 export function calcHouseMilitaryPower(
   state: WorldState,
@@ -57,7 +58,7 @@ export function calcCountryMilitaryPower(
       total += housePower
     } else {
       const loyaltyModifier = clamp(
-        house.loyaltyToCountry / 100,
+        getHouseLoyaltyToCountry(state, houseId) / 100,
         config.minHouseMilitaryContribution,
         1,
       )

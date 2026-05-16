@@ -29,9 +29,8 @@ function makeFixture(): {
         rulerHouseId: house1Id,
         houseIds: [house1Id, house2Id],
         treasury: 100,
-        legitimacy: 80,
+        legacyPrestige: 50,
         adminPower: 50,
-        stability: 60,
         roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
@@ -42,9 +41,8 @@ function makeFixture(): {
         rulerHouseId: createHouseId('h', 2),
         houseIds: [],
         treasury: 100,
-        legitimacy: 80,
+        legacyPrestige: 50,
         adminPower: 50,
-        stability: 60,
         roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
@@ -60,9 +58,7 @@ function makeFixture(): {
         memberIds: [person1Id],
         headId: person1Id,
         cadetHouseIds: [],
-        prestige: 50,
-        cohesion: 50,
-        loyaltyToCountry: 50,
+        legacyPrestige: 50,
         wealth: 1000,
         seatProvinceId: '' as ProvinceId,
       },
@@ -75,9 +71,7 @@ function makeFixture(): {
         memberIds: [],
         headId: createPersonId('pe', 1),
         cadetHouseIds: [],
-        prestige: 30,
-        cohesion: 50,
-        loyaltyToCountry: 50,
+        legacyPrestige: 30,
         wealth: 200,
         seatProvinceId: '' as ProvinceId,
       },
@@ -94,8 +88,9 @@ function makeFixture(): {
         childIds: [],
         birthStatus: 'unknown',
         stats: { admin: 5, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-        prestige: 50,
+        traits: { ambition: 0.5, caution: 0.5 },
+        legacyPrestige: 50,
+        attitudes: {},
       },
     },
     activePlots: {},
@@ -120,9 +115,8 @@ describe('createCountryFromHouse', () => {
 
     const newCountry = result.countries[newCountryId]
     expect(newCountry).toBeDefined()
-    expect(newCountry!.legitimacy).toBe(45)
-    expect(newCountry!.adminPower).toBe(30)
-    expect(newCountry!.stability).toBe(40)
+    expect(newCountry!.legacyPrestige).toBe(20)
+    expect(newCountry!.adminPower).toBe(0)
     expect(newCountry!.name).toBe('House 1領')
     expect(newCountry!.treasury).toBe(Math.floor(1000 * 0.5))
     expect(newCountry!.rulerHouseId).toBe(house1Id)
@@ -143,15 +137,13 @@ describe('createCountryFromHouse', () => {
     const newCountryId = createCountryId('c', 10)
 
     const oldCountry = state.countries[country1Id]!
-    const oldLegitimacy = oldCountry.legitimacy
-    const oldStability = oldCountry.stability
+    const oldLegacyPrestige = oldCountry.legacyPrestige
     const oldAdminPower = oldCountry.adminPower
 
     const result = createCountryFromHouse(state, house1Id, newCountryId)
 
     const updatedOldCountry = result.countries[country1Id]!
-    expect(updatedOldCountry.legitimacy).toBe(Math.max(0, oldLegitimacy - 10))
-    expect(updatedOldCountry.stability).toBe(Math.max(0, oldStability - 15))
+    expect(updatedOldCountry.legacyPrestige).toBe(Math.max(0, oldLegacyPrestige - 10))
     expect(updatedOldCountry.adminPower).toBe(Math.max(0, oldAdminPower - 5))
   })
 

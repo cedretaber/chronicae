@@ -94,7 +94,7 @@ describe('generateWorld', () => {
       }
     })
 
-    it('countries: treasury in [100,300], legitimacy in [45,80], stability in [45,80]', () => {
+    it('countries: treasury in [100,300], legacyPrestige in [20,60]', () => {
       const { world } = generateWorld('test-seed')
 
       const countryKeys = Object.keys(world.countries).sort()
@@ -102,10 +102,8 @@ describe('generateWorld', () => {
         const country = world.countries[ck as keyof typeof world.countries]
         expect(country?.treasury).toBeGreaterThanOrEqual(100)
         expect(country?.treasury).toBeLessThanOrEqual(300)
-        expect(country?.legitimacy).toBeGreaterThanOrEqual(45)
-        expect(country?.legitimacy).toBeLessThanOrEqual(80)
-        expect(country?.stability).toBeGreaterThanOrEqual(45)
-        expect(country?.stability).toBeLessThanOrEqual(80)
+        expect(country?.legacyPrestige).toBeGreaterThanOrEqual(20)
+        expect(country?.legacyPrestige).toBeLessThanOrEqual(60)
       }
     })
   })

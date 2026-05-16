@@ -20,8 +20,9 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 10,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 10,
+      attitudes: {},
     }
   }
   return {

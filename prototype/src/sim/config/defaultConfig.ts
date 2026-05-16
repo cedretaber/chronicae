@@ -50,7 +50,6 @@ export type SimulationConfig = {
   disconnectedControlDecayPerMonth: number
   // Monument (v0.5 changes)
   monumentCountryControlGain: number
-  monumentLegitimacyGain: number
   // Land development (v0.5 additions)
   landDevelopmentHouseControlGain: number
   landDevelopmentUnrestReduction: number
@@ -152,13 +151,11 @@ export type SimulationConfig = {
   inheritedProvinceHouseControl: number
   extinctionUnrestGain: number
   rulerHouseExtinctionEnabled: boolean
-  rulerHouseExtinctionLegitimacyLoss: number
-  rulerHouseExtinctionStabilityLoss: number
   annexByRulerExtinctionCountryControl: number
+  rulerHouseExtinctionPrestigeLoss: number
   rulerExtinctionAnnexSharedBorderWeight: number
   rulerExtinctionAnnexPowerWeight: number
-  rulerExtinctionAnnexLegitimacyWeight: number
-  rulerExtinctionAnnexStabilityWeight: number
+  rulerExtinctionAnnexPrestigeWeight: number
   // v0.7 Role
   allowFemaleRolesWhenNoMaleCandidate: boolean
   // v0.8 POP system
@@ -245,7 +242,6 @@ export type SimulationConfig = {
   provinceRevoltConcessionCountryControlLoss: number
   provinceRevoltConcessionHouseControlLoss: number
   provinceRevoltConcessionUnrestReduction: number
-  provinceRevoltConcessionLegitimacyLoss: number
   provinceRevoltConcessionHouseWealthLoss: number
   provinceRevoltLordshipChangeSuccessMargin: number
   provinceRevoltLordshipChangeCountryControlLoss: number
@@ -259,17 +255,20 @@ export type SimulationConfig = {
   provinceRevoltFailedUnrestReduction: number
   provinceRevoltFailedDevastation: number
   provinceRevoltFailedWealthPenalty: number
-  provinceRevoltSuppressionLegitimacyGain: number
   provinceRevoltSuppressionCollateralUnrestGain: number
+  // Legacy Prestige
+  attitudeMonthlyRetentionRate: number
+  initialCountryLegacyPrestigeMin: number
+  initialCountryLegacyPrestigeMax: number
+  initialHouseLegacyPrestigeMin: number
+  initialHouseLegacyPrestigeMax: number
+  initialPersonLegacyPrestigeMin: number
+  initialPersonLegacyPrestigeMax: number
   // ProvinceRevolt new entities
-  revoltHouseInitialPrestige: number
-  revoltHouseInitialCohesion: number
-  revoltHouseInitialLoyaltyToCountry: number
+  revoltHouseInitialLegacyPrestige: number
   revoltHouseInitialWealth: number
   revoltCountryInitialTreasury: number
-  revoltCountryInitialLegitimacy: number
-  revoltCountryInitialAdminPower: number
-  revoltCountryInitialStability: number
+  revoltCountryInitialLegacyPrestige: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -324,7 +323,6 @@ export const defaultConfig: SimulationConfig = {
   disconnectedControlDecayPerMonth: 5,
   // Monument (v0.5 changes)
   monumentCountryControlGain: 10,
-  monumentLegitimacyGain: 5,
   // Land development (v0.5 additions)
   landDevelopmentHouseControlGain: 5,
   landDevelopmentUnrestReduction: 1,
@@ -417,13 +415,11 @@ export const defaultConfig: SimulationConfig = {
   inheritedProvinceHouseControl: 35,
   extinctionUnrestGain: 8,
   rulerHouseExtinctionEnabled: true,
-  rulerHouseExtinctionLegitimacyLoss: 15,
-  rulerHouseExtinctionStabilityLoss: 10,
   annexByRulerExtinctionCountryControl: 30,
+  rulerHouseExtinctionPrestigeLoss: 10,
   rulerExtinctionAnnexSharedBorderWeight: 20,
   rulerExtinctionAnnexPowerWeight: 0.5,
-  rulerExtinctionAnnexLegitimacyWeight: 0.2,
-  rulerExtinctionAnnexStabilityWeight: 0.2,
+  rulerExtinctionAnnexPrestigeWeight: 0.3,
   // v0.7 Role
   allowFemaleRolesWhenNoMaleCandidate: true,
   // v0.8 POP system
@@ -510,7 +506,6 @@ export const defaultConfig: SimulationConfig = {
   provinceRevoltConcessionCountryControlLoss: 10,
   provinceRevoltConcessionHouseControlLoss: 15,
   provinceRevoltConcessionUnrestReduction: 20,
-  provinceRevoltConcessionLegitimacyLoss: 3,
   provinceRevoltConcessionHouseWealthLoss: 20,
   provinceRevoltLordshipChangeSuccessMargin: 0.15,
   provinceRevoltLordshipChangeCountryControlLoss: 10,
@@ -524,15 +519,18 @@ export const defaultConfig: SimulationConfig = {
   provinceRevoltFailedUnrestReduction: 10,
   provinceRevoltFailedDevastation: 4,
   provinceRevoltFailedWealthPenalty: 8,
-  provinceRevoltSuppressionLegitimacyGain: 2,
   provinceRevoltSuppressionCollateralUnrestGain: 2,
+  // Legacy Prestige
+  attitudeMonthlyRetentionRate: 0.995,
+  initialCountryLegacyPrestigeMin: 20,
+  initialCountryLegacyPrestigeMax: 60,
+  initialHouseLegacyPrestigeMin: 20,
+  initialHouseLegacyPrestigeMax: 80,
+  initialPersonLegacyPrestigeMin: 0,
+  initialPersonLegacyPrestigeMax: 20,
   // ProvinceRevolt new entities
-  revoltHouseInitialPrestige: 10,
-  revoltHouseInitialCohesion: 70,
-  revoltHouseInitialLoyaltyToCountry: 40,
+  revoltHouseInitialLegacyPrestige: 10,
   revoltHouseInitialWealth: 30,
   revoltCountryInitialTreasury: 50,
-  revoltCountryInitialLegitimacy: 40,
-  revoltCountryInitialAdminPower: 30,
-  revoltCountryInitialStability: 50,
+  revoltCountryInitialLegacyPrestige: 20,
 }

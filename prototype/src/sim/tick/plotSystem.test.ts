@@ -30,9 +30,8 @@ function makeBaseState(): {
         rulerHouseId: houseId,
         houseIds: [houseId],
         treasury: 100,
-        legitimacy: 80,
+        legacyPrestige: 50,
         adminPower: 10,
-        stability: 0,
         roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
@@ -48,9 +47,7 @@ function makeBaseState(): {
         memberIds: [personId],
         headId: personId,
         cadetHouseIds: [],
-        prestige: 50,
-        cohesion: 50,
-        loyaltyToCountry: 50,
+        legacyPrestige: 50,
         wealth: 0,
         seatProvinceId: '' as ProvinceId,
       },
@@ -67,8 +64,9 @@ function makeBaseState(): {
         childIds: [],
         birthStatus: 'unknown',
         stats: { admin: 5, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-        prestige: 50,
+        traits: { ambition: 0.5, caution: 0.5 },
+        legacyPrestige: 50,
+        attitudes: {},
       },
     },
     activePlots: {},
@@ -199,32 +197,25 @@ describe('runPlotSystem', () => {
   })
 
   it('starts new plot when plotTendency >= plotThreshold', () => {
-    const { state, countryId, houseId, personId } = makeBaseState()
+    const { state, countryId, personId } = makeBaseState()
 
-    // High plotTendency: ambition=0.9, loyaltyToCountry=0.1, caution=0.1
-    // prestige=80, country legitimacy=30, adminPower=20
+    // High plotTendency: ambition=0.9, caution=0.1, adminPower=20
+    // Set strongly negative country attitude → houseLoyalty=0, headCountryLoyalty=0
+    const countryKey = `country:${countryId as string}`
     const stateWithHighTendency: WorldState = {
       ...state,
       persons: {
         ...state.persons,
         [personId]: {
           ...state.persons[personId]!,
-          traits: { ambition: 0.9, loyaltyToCountry: 0.1, caution: 0.1 },
-        },
-      },
-      houses: {
-        ...state.houses,
-        [houseId]: {
-          ...state.houses[houseId]!,
-          prestige: 80,
-          loyaltyToCountry: 20,
+          traits: { ambition: 0.9, caution: 0.1 },
+          attitudes: { [countryKey]: { affection: -100, respect: -100 } },
         },
       },
       countries: {
         ...state.countries,
         [countryId]: {
           ...state.countries[countryId]!,
-          legitimacy: 30,
           adminPower: 20,
         },
       },

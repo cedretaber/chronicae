@@ -10,6 +10,14 @@ import {
   calcChancellorLandDevelopmentScoreBonus,
   calcTreasurerDevelopmentCostModifier,
 } from '../selectors/personAbilityEffects'
+import { getCountryLegitimacy, getCountryStability } from '../selectors/statusSelectors'
+import {
+  adjustCountryLegacyPrestige,
+  adjustHouseLegacyPrestige,
+  getAttitudeOrDefault,
+  attitudeValueToScore,
+  countryAttitudeKey,
+} from '../helpers/attitudeHelpers'
 
 function scoreLandDevelopmentProvince(province: Province, rulerHouseId: HouseId): number {
   const recoveryBonus = Math.max(0, -province.development) * 1.0
@@ -49,17 +57,28 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
     )
 
     const monumentScore =
-      (100 - country.legitimacy) * 0.3 +
+      (100 - getCountryLegitimacy(currentCtx.state, countryId as CountryId)) * 0.3 +
       rulerHead.traits.ambition * 30 +
-      rulerHouse.prestige * 0.1 +
+      rulerHouse.legacyPrestige * 0.1 +
       treasurySurplus -
       rulerHead.traits.caution * 25 +
       treasurerAdmin * 2 +
       calcChancellorMonumentScoreBonus(currentCtx.state, country, currentCtx.config)
 
+    const headCountryAtt = getAttitudeOrDefault(
+      currentCtx.state,
+      rulerHead,
+      countryAttitudeKey(countryId as CountryId),
+    )
+    const headCountryLoyalty =
+      (attitudeValueToScore(headCountryAtt.affection) * 0.55 +
+        attitudeValueToScore(headCountryAtt.respect) * 0.45) /
+      100
+
     const landDevelopmentScore =
-      (100 - country.stability) * 0.4 +
-      rulerHead.traits.loyaltyToCountry * 20 +
+      (100 - getCountryStability(currentCtx.state, currentCtx.config, countryId as CountryId)) *
+        0.4 +
+      headCountryLoyalty * 20 +
       rulerHead.traits.caution * 10 -
       treasuryShortage +
       chancellorAdmin * 2 +
@@ -110,22 +129,16 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       const updatedCountry = {
         ...country,
         treasury: country.treasury - ctx.config.monumentBaseCost,
-        legitimacy: clamp100(country.legitimacy + ctx.config.monumentLegitimacyGain),
       }
 
-      const currentHouse = currentCtx.state.houses[country.rulerHouseId]
-      if (!currentHouse) continue
-      const updatedHouse = { ...currentHouse, prestige: clamp100(currentHouse.prestige + 2) }
-
-      currentCtx = {
-        ...currentCtx,
-        state: {
-          ...currentState,
-          provinces: newProvinces,
-          countries: { ...currentCtx.state.countries, [countryId]: updatedCountry },
-          houses: { ...currentCtx.state.houses, [country.rulerHouseId]: updatedHouse },
-        },
+      let monumentState = {
+        ...currentState,
+        provinces: newProvinces,
+        countries: { ...currentCtx.state.countries, [countryId as CountryId]: updatedCountry },
       }
+      monumentState = adjustCountryLegacyPrestige(monumentState, countryId as CountryId, 3)
+      monumentState = adjustHouseLegacyPrestige(monumentState, country.rulerHouseId, 2)
+      currentCtx = { ...currentCtx, state: monumentState }
 
       const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
       const event: SimEvent = {
@@ -203,7 +216,6 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       const updatedCountry = {
         ...country,
         treasury: country.treasury - effectiveCost,
-        stability: clamp100(country.stability + 2),
       }
 
       currentCtx = {

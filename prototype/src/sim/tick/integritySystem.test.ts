@@ -39,9 +39,7 @@ function makeMinimalWorldWithHouse(
     memberIds: [headId],
     headId,
     cadetHouseIds: [],
-    prestige: 50,
-    cohesion: 60,
-    loyaltyToCountry: 70,
+    legacyPrestige: 50,
     wealth: 100,
     seatProvinceId: '' as ProvinceId,
   }
@@ -57,8 +55,9 @@ function makeMinimalWorldWithHouse(
     childIds: [],
     birthStatus: 'unknown',
     stats: { admin: 5, martial: 5 },
-    traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-    prestige: 30,
+    traits: { ambition: 0.5, caution: 0.5 },
+    legacyPrestige: 30,
+    attitudes: {},
   }
 
   return {
@@ -72,9 +71,8 @@ function makeMinimalWorldWithHouse(
         rulerHouseId: houseId,
         houseIds: [houseId],
         treasury: 100,
-        legitimacy: 70,
+        legacyPrestige: 50,
         adminPower: 50,
-        stability: 60,
         roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
@@ -111,8 +109,9 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 30,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 30,
+      attitudes: {},
     }
 
     const house: House = {
@@ -124,9 +123,7 @@ describe('runIntegrityCheck', () => {
       memberIds: [personId],
       headId: personId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -137,9 +134,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: houseId,
       houseIds: [houseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: { chancellor: personId },
       active: true,
       capitalProvinceId: '' as ProvinceId,
@@ -188,9 +184,7 @@ describe('runIntegrityCheck', () => {
       memberIds: [],
       headId: 'pe-0' as PersonId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -221,8 +215,9 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 30,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 30,
+      attitudes: {},
     }
 
     const house: House = {
@@ -234,9 +229,7 @@ describe('runIntegrityCheck', () => {
       memberIds: ['pe-0' as PersonId],
       headId: 'pe-0' as PersonId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -247,9 +240,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: houseId,
       houseIds: [houseId, otherHouseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
@@ -306,8 +298,9 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 30,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 30,
+      attitudes: {},
     }
 
     const house: House = {
@@ -319,9 +312,7 @@ describe('runIntegrityCheck', () => {
       memberIds: ['pe-0' as PersonId],
       headId: 'pe-0' as PersonId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -332,9 +323,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: houseId,
       houseIds: [houseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
@@ -346,9 +336,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: houseId,
       houseIds: [houseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
@@ -386,9 +375,7 @@ describe('runIntegrityCheck', () => {
       memberIds: [],
       headId: 'pe-0' as PersonId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -399,9 +386,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: houseId,
       houseIds: [houseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
@@ -439,8 +425,9 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 10,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 10,
+      attitudes: {},
     }
 
     const house: House = {
@@ -452,9 +439,7 @@ describe('runIntegrityCheck', () => {
       memberIds: [personId],
       headId: personId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -465,9 +450,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: houseId,
       houseIds: [houseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
@@ -506,9 +490,10 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 10,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 10,
       spouseId: personBId,
+      attitudes: {},
     }
 
     const personB: Person = {
@@ -522,8 +507,9 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 10,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 10,
+      attitudes: {},
     }
 
     const house: House = {
@@ -535,9 +521,7 @@ describe('runIntegrityCheck', () => {
       memberIds: [personAId, personBId],
       headId: personAId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -548,9 +532,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: houseId,
       houseIds: [houseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
@@ -588,9 +571,10 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 10,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 10,
       spouseId: personId,
+      attitudes: {},
     }
 
     const house: House = {
@@ -602,9 +586,7 @@ describe('runIntegrityCheck', () => {
       memberIds: [personId],
       headId: personId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -615,9 +597,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: houseId,
       houseIds: [houseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
@@ -656,9 +637,10 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 10,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 10,
       spouseId: personBId,
+      attitudes: {},
     }
 
     const personB: Person = {
@@ -672,9 +654,10 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 10,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 10,
       spouseId: personAId,
+      attitudes: {},
     }
 
     const house: House = {
@@ -686,9 +669,7 @@ describe('runIntegrityCheck', () => {
       memberIds: [personAId, personBId],
       headId: personAId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -699,9 +680,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: houseId,
       houseIds: [houseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
@@ -739,9 +719,10 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 0,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 0,
       fatherId,
+      attitudes: {},
     }
 
     const father: Person = {
@@ -755,8 +736,9 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 10,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 10,
+      attitudes: {},
     }
 
     const house: House = {
@@ -768,9 +750,7 @@ describe('runIntegrityCheck', () => {
       memberIds: [childId, fatherId],
       headId: fatherId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -781,9 +761,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: 'h-0' as HouseId,
       houseIds: ['h-0' as HouseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
@@ -822,8 +801,9 @@ describe('runIntegrityCheck', () => {
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-      prestige: 30,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 30,
+      attitudes: {},
     }
 
     const cadetHouse: House = {
@@ -835,9 +815,7 @@ describe('runIntegrityCheck', () => {
       memberIds: [],
       headId: headPersonId,
       cadetHouseIds: [],
-      prestige: 30,
-      cohesion: 50,
-      loyaltyToCountry: 50,
+      legacyPrestige: 30,
       wealth: 50,
       seatProvinceId: '' as ProvinceId,
       parentHouseId: parentHouseId,
@@ -852,9 +830,7 @@ describe('runIntegrityCheck', () => {
       memberIds: [headPersonId],
       headId: headPersonId,
       cadetHouseIds: [],
-      prestige: 50,
-      cohesion: 60,
-      loyaltyToCountry: 70,
+      legacyPrestige: 50,
       wealth: 100,
       seatProvinceId: '' as ProvinceId,
     }
@@ -865,9 +841,8 @@ describe('runIntegrityCheck', () => {
       rulerHouseId: parentHouseId,
       houseIds: [parentHouseId, cadetHouseId],
       treasury: 100,
-      legitimacy: 70,
+      legacyPrestige: 50,
       adminPower: 50,
-      stability: 60,
       roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,

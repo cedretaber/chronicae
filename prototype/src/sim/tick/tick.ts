@@ -23,7 +23,7 @@ import { runPlotSystem } from './plotSystem'
 import { runWarSystem } from './warSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import { runRebellionSystem } from './rebellionSystem'
-import { runStabilitySystem } from './stabilitySystem'
+import { runAttitudeDecaySystem } from './attitudeDecaySystem'
 import { runGovernanceSystem } from './governanceSystem'
 import { runIntegrityCheck } from './integritySystem'
 import { runPopSystem, normalizePopSizes } from './popSystem'
@@ -66,7 +66,7 @@ export function tick(input: TickInput): TickResult {
   run('warSystem', runWarSystem)
   run('provinceRevoltSystem', runProvinceRevoltSystem)
   run('rebellionSystem', runRebellionSystem)
-  run('stabilitySystem', runStabilitySystem)
+  run('attitudeDecaySystem', runAttitudeDecaySystem)
   run('governanceSystem', runGovernanceSystem)
   run('normalizePopSizes', normalizePopSizes)
 

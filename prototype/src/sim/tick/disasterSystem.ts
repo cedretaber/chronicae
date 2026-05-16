@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { clamp, clamp100 } from '../utils/math'
+import { clamp } from '../utils/math'
 import type { CountryId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import {
@@ -11,6 +11,11 @@ import {
   adjustProvincePopSize,
   adjustProvincePopUnrestByClass,
 } from '../mutations/popMutations'
+import {
+  adjustCountryLegacyPrestige,
+  adjustAttitude,
+  countryAttitudeKey,
+} from '../helpers/attitudeHelpers'
 
 function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
   const country = ctx.state.countries[countryId]
@@ -44,23 +49,57 @@ function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
   const treasuryAfterRelief = canAffordRelief
     ? Math.max(0, country.treasury - reliefCost)
     : country.treasury
-  const legitimacyDelta = canAffordRelief ? 5 : -8
 
   const updatedCountry = {
     ...country,
     treasury: treasuryAfterRelief,
-    stability: clamp100(country.stability - 10),
-    legitimacy: clamp100(country.legitimacy + legitimacyDelta),
   }
 
-  const nextCtx = {
-    ...ctx,
-    state: {
-      ...ctx.state,
-      provinces: newProvinces,
-      countries: { ...ctx.state.countries, [countryId]: updatedCountry },
-    },
+  const stateWithCountry = {
+    ...ctx.state,
+    provinces: newProvinces,
+    countries: { ...ctx.state.countries, [countryId]: updatedCountry },
   }
+
+  // Apply legacyPrestige and attitude changes based on relief
+  let nextCtxState = stateWithCountry
+  if (canAffordRelief) {
+    nextCtxState = adjustCountryLegacyPrestige(nextCtxState, countryId, 1)
+    // Affected provinces pop attitudes
+    for (const pid of countryProvinceIds) {
+      const prov = nextCtxState.provinces[pid]
+      if (!prov) continue
+      const cKey = countryAttitudeKey(countryId)
+      const newPops = { ...nextCtxState.popGroups }
+      for (const popId of prov.popGroupIds) {
+        const pop = newPops[popId]
+        if (!pop) continue
+        newPops[popId] = {
+          ...pop,
+          attitudes: adjustAttitude(pop.attitudes, cKey, { affection: 6, respect: 2 }),
+        }
+      }
+      nextCtxState = { ...nextCtxState, popGroups: newPops }
+    }
+  } else {
+    const cKey = countryAttitudeKey(countryId)
+    for (const pid of countryProvinceIds) {
+      const prov = nextCtxState.provinces[pid]
+      if (!prov) continue
+      const newPops = { ...nextCtxState.popGroups }
+      for (const popId of prov.popGroupIds) {
+        const pop = newPops[popId]
+        if (!pop) continue
+        newPops[popId] = {
+          ...pop,
+          attitudes: adjustAttitude(pop.attitudes, cKey, { affection: -8, respect: -4 }),
+        }
+      }
+      nextCtxState = { ...nextCtxState, popGroups: newPops }
+    }
+  }
+
+  const nextCtx = { ...ctx, state: nextCtxState }
 
   const wealthDamage =
     ctx.config.famineWealthPenalty * (canAffordRelief ? ctx.config.famineReliefDamageMultiplier : 1)
@@ -148,7 +187,7 @@ function applyPlague(ctx: TickContext, countryId: CountryId): TickContext {
     }
   }
 
-  const updatedCountry = { ...country, stability: clamp100(country.stability - 8) }
+  const updatedCountry = { ...country }
 
   const nextCtx = {
     ...ctx,
@@ -212,10 +251,7 @@ function applyBountifulHarvest(ctx: TickContext, countryId: CountryId): TickCont
     }
   }
 
-  const updatedCountry = {
-    ...country,
-    stability: clamp100(country.stability + 5),
-  }
+  const updatedCountry = { ...country }
 
   const nextCtxHarvest = {
     ...ctx,

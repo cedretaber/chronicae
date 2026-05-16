@@ -8,12 +8,7 @@ import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { calcAmbitionScores, runAmbitionSystem } from './ambitionSystem'
 
-function makePerson(
-  id: PersonId,
-  ambition: number,
-  loyaltyToCountry: number,
-  caution: number,
-): Person {
+function makePerson(id: PersonId, ambition: number, caution: number): Person {
   return {
     id,
     name: 'Person-' + id,
@@ -25,8 +20,9 @@ function makePerson(
     childIds: [],
     birthStatus: 'unknown',
     stats: { admin: 5, martial: 5 },
-    traits: { ambition, loyaltyToCountry, caution },
-    prestige: 10,
+    traits: { ambition, caution },
+    legacyPrestige: 10,
+    attitudes: {},
   }
 }
 
@@ -45,7 +41,7 @@ function makeFixture(): {
   const province1Id = createProvinceId('pr', 0)
   const province2Id = createProvinceId('pr', 1)
 
-  const headPerson = makePerson(headId, 0.8, 0.3, 0.2)
+  const headPerson = makePerson(headId, 0.8, 0.2)
 
   const state: WorldState = {
     currentYear: 1,
@@ -87,9 +83,8 @@ function makeFixture(): {
         rulerHouseId: houseId,
         houseIds: [houseId],
         treasury: 100,
-        legitimacy: 70,
+        legacyPrestige: 50,
         adminPower: 50,
-        stability: 60,
         roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
@@ -105,9 +100,7 @@ function makeFixture(): {
         memberIds: [headId],
         headId,
         cadetHouseIds: [],
-        prestige: 40,
-        cohesion: 60,
-        loyaltyToCountry: 60,
+        legacyPrestige: 50,
         wealth: 100,
         seatProvinceId: '' as ProvinceId,
       },
@@ -140,16 +133,16 @@ describe('calcAmbitionScores', () => {
     const scores = calcAmbitionScores(state, houseId)
 
     // rebellionTendency =
-    //   40 * 0.3          = 12
-    //   + 2 * 4           = 8
-    //   + 0.8 * 30        = 24
-    //   + (100-70) * 0.3  = 9
-    //   + (100-60) * 0.4  = 16
-    //   + (1.0-0.3) * 30  = 21
-    //   - 0.2 * 20        = -4
-    //   - 50 * 0.2        = -10
-    //   = 76
-    expect(scores.rebellionTendency).toBeCloseTo(76, 5)
+    //   50 * 0.3            = 15   (house.legacyPrestige)
+    //   + 2 * 4             = 8    (2 provinces)
+    //   + 0.8 * 30          = 24   (ambition)
+    //   + (100-50) * 0.3    = 15   (100 - legitimacy=50, derived from neutral attitudes)
+    //   + (100-50) * 0.4    = 20   (100 - houseLoyalty=50, derived from neutral attitudes)
+    //   + (1.0-0.5) * 30    = 15   (1 - headCountryLoyalty=0.5, derived from neutral attitudes)
+    //   - 0.2 * 20          = -4   (caution)
+    //   - 50 * 0.2          = -10  (adminPower)
+    //   = 83
+    expect(scores.rebellionTendency).toBeCloseTo(83, 5)
   })
 
   it('returns correct plotTendency', () => {
@@ -158,14 +151,14 @@ describe('calcAmbitionScores', () => {
     const scores = calcAmbitionScores(state, houseId)
 
     // plotTendency =
-    //   0.8 * 30          = 24
-    //   + 40 * 0.2        = 8
-    //   + (100-60) * 0.3  = 12
-    //   + (1.0-0.3) * 20  = 14
-    //   - 0.2 * 15        = -3
-    //   - 50 * 0.1        = -5
-    //   = 50
-    expect(scores.plotTendency).toBeCloseTo(50, 5)
+    //   0.8 * 30            = 24   (ambition)
+    //   + 50 * 0.2          = 10   (house.legacyPrestige)
+    //   + (100-50) * 0.3    = 15   (100 - houseLoyalty=50, derived from neutral attitudes)
+    //   + (1.0-0.5) * 20    = 10   (1 - headCountryLoyalty=0.5, neutral attitudes)
+    //   - 0.2 * 15          = -3   (caution)
+    //   - 50 * 0.1          = -5   (adminPower)
+    //   = 51
+    expect(scores.plotTendency).toBeCloseTo(51, 5)
   })
 
   it('returns zeros for unknown houseId', () => {

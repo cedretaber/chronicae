@@ -32,8 +32,9 @@ function makePerson(overrides: Partial<Person> = {}): Person {
     childIds: [],
     birthStatus: 'unknown',
     stats: { admin: 5, martial: 5 },
-    traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-    prestige: 50,
+    traits: { ambition: 0.5, caution: 0.5 },
+    legacyPrestige: 50,
+    attitudes: {},
     ...overrides,
   }
 }
@@ -83,9 +84,8 @@ function makeWorldState(
         rulerHouseId: house1Id,
         houseIds: [house1Id],
         treasury: 100,
-        legitimacy: 80,
+        legacyPrestige: 50,
         adminPower: 10,
-        stability: 0,
         roleAssignments,
         active: true,
         capitalProvinceId: provinceId,
@@ -101,9 +101,7 @@ function makeWorldState(
         memberIds: [personId],
         headId: personId,
         cadetHouseIds: [],
-        prestige: 50,
-        cohesion: 50,
-        loyaltyToCountry: 50,
+        legacyPrestige: 50,
         wealth: 0,
         seatProvinceId: provinceId,
       },
@@ -243,7 +241,7 @@ describe('calcTreasurerTaxEfficiency', () => {
     const { state, country } = makeWorldState(
       {
         stats: { admin: 10, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 1.0 },
+        traits: { ambition: 0.5, caution: 1.0 },
       },
       { treasurer: createPersonId('pe', 0) },
     )
@@ -256,7 +254,7 @@ describe('calcTreasurerTaxEfficiency', () => {
     const { state, country } = makeWorldState(
       {
         stats: { admin: 5, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
+        traits: { ambition: 0.5, caution: 0.5 },
       },
       { treasurer: createPersonId('pe', 0) },
     )
@@ -269,7 +267,7 @@ describe('calcTreasurerTaxEfficiency', () => {
     const { state, country } = makeWorldState(
       {
         stats: { admin: 0, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.0 },
+        traits: { ambition: 0.5, caution: 0.0 },
       },
       { treasurer: createPersonId('pe', 0) },
     )
@@ -289,7 +287,7 @@ describe('calcTreasurerTaxEfficiency', () => {
     const { state, country } = makeWorldState(
       {
         stats: { admin: 10, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 1.0 },
+        traits: { ambition: 0.5, caution: 1.0 },
       },
       { treasurer: createPersonId('pe', 0) },
     )
@@ -351,7 +349,7 @@ describe('calcGeneralWarPowerModifier', () => {
 describe('calcGeneralDeclareThreshold', () => {
   it('returns 0.40 with general ambition=1.0, caution=0.5', () => {
     const { state, country } = makeWorldState(
-      { traits: { ambition: 1.0, loyaltyToCountry: 0.5, caution: 0.5 } },
+      { traits: { ambition: 1.0, caution: 0.5 } },
       { general: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -361,7 +359,7 @@ describe('calcGeneralDeclareThreshold', () => {
 
   it('returns 0.50 with general ambition=0.5, caution=1.0', () => {
     const { state, country } = makeWorldState(
-      { traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 1.0 } },
+      { traits: { ambition: 0.5, caution: 1.0 } },
       { general: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -378,7 +376,7 @@ describe('calcGeneralDeclareThreshold', () => {
 
   it('returns 0.45 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
-      { traits: { ambition: 1.0, loyaltyToCountry: 0.5, caution: 0.5 } },
+      { traits: { ambition: 1.0, caution: 0.5 } },
       { general: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
@@ -390,7 +388,7 @@ describe('calcGeneralDeclareThreshold', () => {
 describe('calcChancellorMonumentScoreBonus', () => {
   it('returns 15 with chancellor ambition=1.0, caution=0.0', () => {
     const { state, country } = makeWorldState(
-      { traits: { ambition: 1.0, loyaltyToCountry: 0.5, caution: 0.0 } },
+      { traits: { ambition: 1.0, caution: 0.0 } },
       { chancellor: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -400,7 +398,7 @@ describe('calcChancellorMonumentScoreBonus', () => {
 
   it('returns 0 with chancellor ambition=0.5, caution=0.5', () => {
     const { state, country } = makeWorldState(
-      { traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 } },
+      { traits: { ambition: 0.5, caution: 0.5 } },
       { chancellor: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -410,7 +408,7 @@ describe('calcChancellorMonumentScoreBonus', () => {
 
   it('returns 0 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
-      { traits: { ambition: 1.0, loyaltyToCountry: 0.5, caution: 0.0 } },
+      { traits: { ambition: 1.0, caution: 0.0 } },
       { chancellor: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
@@ -424,7 +422,7 @@ describe('calcHouseHeadDevelopmentChanceBonus', () => {
     const { state, house } = makeWorldState(
       {
         stats: { admin: 10, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 1.0 },
+        traits: { ambition: 0.5, caution: 1.0 },
       },
       {},
     )
@@ -437,7 +435,7 @@ describe('calcHouseHeadDevelopmentChanceBonus', () => {
     const { state, house } = makeWorldState(
       {
         stats: { admin: 5, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
+        traits: { ambition: 0.5, caution: 0.5 },
       },
       {},
     )
@@ -450,7 +448,7 @@ describe('calcHouseHeadDevelopmentChanceBonus', () => {
     const { state, house } = makeWorldState(
       {
         stats: { admin: 10, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 1.0 },
+        traits: { ambition: 0.5, caution: 1.0 },
       },
       {},
     )

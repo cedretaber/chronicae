@@ -26,8 +26,9 @@ function makePerson(
     childIds: [],
     birthStatus: 'unknown',
     stats: { admin: 5, martial: 5 },
-    traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-    prestige: 10,
+    traits: { ambition: 0.5, caution: 0.5 },
+    legacyPrestige: 10,
+    attitudes: {},
   }
 }
 
@@ -68,9 +69,8 @@ function makeCountry(
     rulerHouseId: houseId,
     houseIds: [houseId],
     treasury: 100,
-    legitimacy: 70,
+    legacyPrestige: 50,
     adminPower: 50,
-    stability: 60,
     roleAssignments: {},
     active: true,
     capitalProvinceId: '' as ProvinceId,
@@ -87,9 +87,7 @@ function makeHouse(id: HouseId, countryId: CountryId): NonNullable<WorldState['h
     memberIds: [],
     headId: '' as PersonId,
     cadetHouseIds: [],
-    prestige: 50,
-    cohesion: 60,
-    loyaltyToCountry: 70,
+    legacyPrestige: 50,
     wealth: 100,
     seatProvinceId: '' as ProvinceId,
   }

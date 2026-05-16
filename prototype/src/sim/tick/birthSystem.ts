@@ -71,8 +71,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     const childSex = sexRoll < sex ? 'male' : 'female'
 
     const { value: amb1, rng: rng1 } = randomFloat(currentCtx.rng)
-    const { value: amb2, rng: rng2 } = randomFloat(rng1)
-    const { value: amb3, rng: rng3 } = randomFloat(rng2)
+    const { value: amb3, rng: rng3 } = randomFloat(rng1)
     const { value: adminStat, rng: rng4 } = randomInt(rng3, 1, 8)
     const { value: martialStat, rng: rng5 } = randomInt(rng4, 1, 8)
     const { name: childName, rng: rngAfterName } = pickNameBySex(childSex, rng5)
@@ -97,10 +96,10 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       },
       traits: {
         ambition: amb1,
-        loyaltyToCountry: amb2,
         caution: amb3,
       },
-      prestige: 0,
+      legacyPrestige: 0,
+      attitudes: {},
     }
 
     let newPersons: Record<PersonId, Person> = {

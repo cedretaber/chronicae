@@ -28,8 +28,9 @@ function makePerson(overrides: Partial<Person> = {}): Person {
     childIds: [],
     birthStatus: 'unknown',
     stats: { admin: 5, martial: 5 },
-    traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-    prestige: 50,
+    traits: { ambition: 0.5, caution: 0.5 },
+    legacyPrestige: 50,
+    attitudes: {},
     ...overrides,
   }
 }
@@ -45,9 +46,7 @@ function makeHouse(headId: Person, memberIds: Person[], overrides: Partial<House
     memberIds: memberIds.map((p) => p.id),
     headId: headId.id,
     cadetHouseIds: [],
-    prestige: 50,
-    cohesion: 50,
-    loyaltyToCountry: 50,
+    legacyPrestige: 50,
     wealth: 0,
     seatProvinceId: createProvinceId('pr', 0),
     ...overrides,
@@ -328,8 +327,8 @@ describe('calcSuccessionScore', () => {
 
 describe('chooseSuccessor', () => {
   it('returns the candidate with the highest score', () => {
-    const person1 = makePerson({ id: createPersonId('pe', 0), prestige: 80 })
-    const person2 = makePerson({ id: createPersonId('pe', 1), prestige: 90 })
+    const person1 = makePerson({ id: createPersonId('pe', 0), legacyPrestige: 80 })
+    const person2 = makePerson({ id: createPersonId('pe', 1), legacyPrestige: 90 })
     const candidates: SuccessionCandidate[] = [
       { person: person1, score: 100 },
       { person: person2, score: 120 },

@@ -2,6 +2,12 @@ import type { WorldState } from '../types/world'
 import type { HouseId } from '../types/ids'
 import type { PlotType } from '../types/plot'
 import type { EventReason, EventEffect } from '../types/event'
+import { getHouseLoyaltyToCountry } from '../selectors/statusSelectors'
+import {
+  getAttitudeOrDefault,
+  attitudeValueToScore,
+  countryAttitudeKey,
+} from '../helpers/attitudeHelpers'
 
 export function explainPlot(
   state: WorldState,
@@ -28,29 +34,35 @@ export function explainPlot(
     })
   }
 
-  const prestigeContribution = house.prestige * 0.2
+  const prestigeContribution = house.legacyPrestige * 0.2
   if (prestigeContribution > 2.0) {
     reasons.push({
       label: 'House prestige',
-      value: house.prestige,
+      value: house.legacyPrestige,
       contribution: prestigeContribution,
     })
   }
 
-  const loyaltyContribution = (100 - house.loyaltyToCountry) * 0.3
+  const houseLoyalty = getHouseLoyaltyToCountry(state, houseId)
+  const loyaltyContribution = (100 - houseLoyalty) * 0.3
   if (loyaltyContribution > 2.0) {
     reasons.push({
       label: 'Low house loyalty',
-      value: house.loyaltyToCountry,
+      value: houseLoyalty,
       contribution: loyaltyContribution,
     })
   }
 
-  const leaderLoyaltyContribution = (1.0 - head.traits.loyaltyToCountry) * 20
+  const headCountryAtt = getAttitudeOrDefault(state, head, countryAttitudeKey(house.countryId))
+  const headCountryLoyalty =
+    (attitudeValueToScore(headCountryAtt.affection) * 0.55 +
+      attitudeValueToScore(headCountryAtt.respect) * 0.45) /
+    100
+  const leaderLoyaltyContribution = (1.0 - headCountryLoyalty) * 20
   if (leaderLoyaltyContribution > 2.0) {
     reasons.push({
       label: 'Low leader loyalty',
-      value: head.traits.loyaltyToCountry,
+      value: headCountryLoyalty,
       contribution: leaderLoyaltyContribution,
     })
   }

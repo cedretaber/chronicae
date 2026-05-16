@@ -1,7 +1,7 @@
 import type { WorldState } from '../types/world'
 import type { HouseId, CountryId, ProvinceId } from '../types/ids'
 import type { Country } from '../types/country'
-import { clamp100 } from '../utils/math'
+import { clamp } from '../utils/math'
 import { moveHouseToCountry } from './moveHouse'
 
 export function createCountryFromHouse(
@@ -28,9 +28,8 @@ export function createCountryFromHouse(
     rulerHouseId: rebelHouseId,
     houseIds: [rebelHouseId],
     treasury: Math.floor(rebelHouse.wealth * 0.5),
-    legitimacy: 45,
-    adminPower: 30,
-    stability: 40,
+    legacyPrestige: 20,
+    adminPower: 0,
     roleAssignments: {},
     active: true,
     capitalProvinceId: rebelHouse.seatProvinceId,
@@ -50,9 +49,8 @@ export function createCountryFromHouse(
   // Step 7: Apply penalties to old country
   const penalizedOldCountry = {
     ...updatedOldCountry,
-    legitimacy: clamp100(updatedOldCountry.legitimacy - 10),
-    stability: clamp100(updatedOldCountry.stability - 15),
-    adminPower: clamp100(updatedOldCountry.adminPower - 5),
+    legacyPrestige: clamp(updatedOldCountry.legacyPrestige - 10, 0, 100),
+    adminPower: clamp(updatedOldCountry.adminPower - 5, 0, 100),
   }
 
   // Step 8: Fix capitalProvinceId if it was moved to the new country

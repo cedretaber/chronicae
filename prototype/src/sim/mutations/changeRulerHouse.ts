@@ -1,6 +1,12 @@
 import type { CountryId, HouseId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { clamp100 } from '../utils/math'
+import {
+  adjustCountryLegacyPrestige,
+  adjustHouseLegacyPrestige,
+  adjustAttitude,
+  countryAttitudeKey,
+  houseAttitudeKey,
+} from '../helpers/attitudeHelpers'
 
 export function changeRulerHouse(
   state: WorldState,
@@ -16,29 +22,37 @@ export function changeRulerHouse(
   const newRulerHouse = state.houses[newRulerHouseId]
   if (!newRulerHouse) throw new Error('New ruler house not found')
 
-  const newHouses = { ...state.houses }
-  newHouses[oldRulerHouse.id] = {
-    ...oldRulerHouse,
-    prestige: clamp100(oldRulerHouse.prestige - 25),
-    loyaltyToCountry: clamp100(oldRulerHouse.loyaltyToCountry - 20),
-  }
-  newHouses[newRulerHouse.id] = {
-    ...newRulerHouse,
-    prestige: clamp100(newRulerHouse.prestige + 20),
+  // Apply legacyPrestige changes
+  let newState = adjustHouseLegacyPrestige(state, oldRulerHouse.id, -10)
+  newState = adjustHouseLegacyPrestige(newState, newRulerHouse.id, 10)
+  newState = adjustCountryLegacyPrestige(newState, countryId, -5)
+
+  // Apply attitude changes for old ruler house members
+  const newPersons = { ...newState.persons }
+  const countryKey = countryAttitudeKey(countryId)
+  const newHouseKey = houseAttitudeKey(newRulerHouseId)
+  for (const memberId of oldRulerHouse.memberIds) {
+    const member = newPersons[memberId]
+    if (!member || !member.alive) continue
+
+    let memberAttitudes = member.attitudes
+    memberAttitudes = adjustAttitude(memberAttitudes, countryKey, { affection: -12, respect: -8 })
+    memberAttitudes = adjustAttitude(memberAttitudes, newHouseKey, { affection: -15, respect: 5 })
+    newPersons[memberId] = { ...member, attitudes: memberAttitudes }
   }
 
-  const newCountries = { ...state.countries }
+  const newCountries = { ...newState.countries }
+  const targetCountry = newCountries[countryId]
+  if (!targetCountry) throw new Error('Country not found after adjustment')
   newCountries[countryId] = {
-    ...country,
+    ...targetCountry,
     rulerHouseId: newRulerHouseId,
-    legitimacy: clamp100(country.legitimacy - 15),
-    stability: clamp100(country.stability - 20),
     roleAssignments: {},
   }
 
   return {
-    ...state,
-    houses: newHouses,
+    ...newState,
     countries: newCountries,
+    persons: newPersons,
   }
 }

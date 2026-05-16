@@ -24,6 +24,36 @@ cd prototype && npm run check
 
 `check` = `typecheck + lint + format:check + test` の一括実行。実装後は必ずこれを通す。
 
+## CLI 動作確認（実装完了後に必須）
+
+`npm run check` が通った後、必ず CLI で複数シード × 300年のシミュレーションを実行して整合性エラーがないことを確認する。
+
+```bash
+cd prototype
+npm run cli -- --years 300 --seed 1
+npm run cli -- --years 300 --seed 42
+npm run cli -- --years 300 --seed 123
+npm run cli -- --years 300 --seed 999
+```
+
+エラーなく完走すれば OK。`integritySystem` が検知した違反は `Error:` で即時終了する。
+
+### なぜ CLI 確認が必要か
+
+- 静的型チェックやユニットテストでは、長期シミュレーション中に蓄積する状態整合性バグを検出できない
+- Province 数の異常増加、memberIds 重複など、数十〜数百ターン後に初めて顕在化するバグがある
+- 異なるシードで確認することで、RNG 分岐の多様なパスをカバーできる
+
+### デバッグモードの活用
+
+整合性エラーが発生した場合、`--debug` フラグで原因システムを特定する：
+
+```bash
+cd prototype && npm run cli -- --years 50 --seed 1 --debug 2>&1 | grep INTEGRITY_VIOLATION | head -5
+```
+
+最初に `after=XXX` が出たシステムが原因。詳細は「状態整合性バグのデバッグ手法」を参照。
+
 ## TypeScript 厳格設定
 
 `prototype/tsconfig.app.json` で以下が有効：

@@ -20,22 +20,21 @@ function makePerson(id: PersonId, admin: number): Person {
     childIds: [],
     birthStatus: 'unknown',
     stats: { admin, martial: 5 },
-    traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-    prestige: 10,
+    traits: { ambition: 0.5, caution: 0.5 },
+    legacyPrestige: 10,
+    attitudes: {},
   }
 }
 
 function makeCtx({
   chancellorId,
   treasurerId,
-  stability,
   treasury,
   rulerHousePrestige,
   currentMonth = 1,
 }: {
   chancellorId?: PersonId
   treasurerId?: PersonId
-  stability: number
   treasury: number
   rulerHousePrestige: number
   currentMonth?: number
@@ -78,9 +77,8 @@ function makeCtx({
         rulerHouseId: houseId,
         houseIds: [houseId],
         treasury,
-        legitimacy: 70,
+        legacyPrestige: 50,
         adminPower: 30,
-        stability,
         roleAssignments,
         active: true,
         capitalProvinceId: '' as ProvinceId,
@@ -96,9 +94,7 @@ function makeCtx({
         memberIds: [headPersonId],
         headId: headPersonId,
         cadetHouseIds: [],
-        prestige: rulerHousePrestige,
-        cohesion: 60,
-        loyaltyToCountry: 70,
+        legacyPrestige: rulerHousePrestige,
         wealth: 100,
         seatProvinceId: '' as ProvinceId,
       },
@@ -127,7 +123,6 @@ describe('runGovernanceSystem', () => {
     const ctx = makeCtx({
       chancellorId,
       treasurerId,
-      stability: 60,
       treasury: 200,
       rulerHousePrestige: 40,
       currentMonth: 1,
@@ -135,17 +130,19 @@ describe('runGovernanceSystem', () => {
 
     const result = runGovernanceSystem(ctx)
 
-    // Expected: clamp100(30 + 8*3 + 6*2 + 60*0.2 + 40*0.1 + clamp(200/100, 0, 10))
-    // = clamp100(30 + 24 + 12 + 12 + 4 + 2) = clamp100(84) = 84
+    // Formula: 0.30*chancellorScore + 0.20*treasurerScore + 0.20*stability + 0.15*rulerPrestige + 0.15*treasuryScore
+    // chancellorScore = 8*10 = 80, treasurerScore = 6*10 = 60
+    // stability = 50 (no provinces → fallback), rulerPrestige = 40 (legacyPrestige, no explicit attitudes)
+    // treasuryScore = clamp(log1p(200)*10, 0, 100) ≈ 53.03
+    // adminPower ≈ 0.30*80 + 0.20*60 + 0.20*50 + 0.15*40 + 0.15*53.03 ≈ 59.95
     const country = result.state.countries[createCountryId('c', 0)]!
-    expect(country.adminPower).toBe(84)
+    expect(country.adminPower).toBeCloseTo(59.95, 1)
   })
 
   it('does not update adminPower on other months', () => {
     const ctx = makeCtx({
       chancellorId: createPersonId('pe', 0),
       treasurerId: createPersonId('pe', 1),
-      stability: 60,
       treasury: 200,
       rulerHousePrestige: 40,
       currentMonth: 2,
@@ -157,11 +154,10 @@ describe('runGovernanceSystem', () => {
     expect(country.adminPower).toBe(30)
   })
 
-  it('uses 0 for vacant chancellor', () => {
+  it('uses 50 for vacant chancellor', () => {
     const treasurerId = createPersonId('pe', 1)
     const ctx = makeCtx({
       treasurerId,
-      stability: 60,
       treasury: 200,
       rulerHousePrestige: 40,
       currentMonth: 1,
@@ -169,17 +165,17 @@ describe('runGovernanceSystem', () => {
 
     const result = runGovernanceSystem(ctx)
 
-    // Expected: clamp100(30 + 0*3 + 6*2 + 60*0.2 + 40*0.1 + clamp(200/100, 0, 10))
-    // = clamp100(30 + 0 + 12 + 12 + 4 + 2) = clamp100(60) = 60
+    // chancellorScore = 50 (vacant), treasurerScore = 60, stability = 50, rulerPrestige = 40
+    // treasuryScore ≈ 53.03
+    // adminPower ≈ 0.30*50 + 0.20*60 + 0.20*50 + 0.15*40 + 0.15*53.03 ≈ 50.95
     const country = result.state.countries[createCountryId('c', 0)]!
-    expect(country.adminPower).toBe(60)
+    expect(country.adminPower).toBeCloseTo(50.95, 1)
   })
 
-  it('caps adminPower at 100', () => {
+  it('computes adminPower correctly with high-end inputs', () => {
     const ctx = makeCtx({
       chancellorId: createPersonId('pe', 0),
       treasurerId: createPersonId('pe', 1),
-      stability: 100,
       treasury: 10000,
       rulerHousePrestige: 100,
       currentMonth: 1,
@@ -192,7 +188,11 @@ describe('runGovernanceSystem', () => {
 
     const result = runGovernanceSystem(ctx)
 
+    // chancellorScore = 100, treasurerScore = 100, stability = 50, rulerPrestige = 100
+    // treasuryScore = clamp(log1p(10000)*10, 0, 100) ≈ 92.10
+    // adminPower ≈ 0.30*100 + 0.20*100 + 0.20*50 + 0.15*100 + 0.15*92.10 ≈ 88.82
     const country = result.state.countries[createCountryId('c', 0)]!
-    expect(country.adminPower).toBe(100)
+    expect(country.adminPower).toBeCloseTo(88.82, 1)
+    expect(country.adminPower).toBeLessThanOrEqual(100)
   })
 })

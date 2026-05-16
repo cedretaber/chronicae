@@ -5,7 +5,7 @@ import { defaultConfig } from '@sim/config/defaultConfig'
 import type { SimulationSession } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 
-type SelectedType = 'country' | 'house' | 'person' | 'province'
+type SelectedType = 'country' | 'house' | 'person' | 'province' | 'popGroup'
 
 type SimState = {
   session: SimulationSession | null

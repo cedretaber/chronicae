@@ -7,9 +7,8 @@ export type Country = {
   rulerHouseId: HouseId
   houseIds: HouseId[]
   treasury: number // >= 0
-  legitimacy: number // 0..100
-  adminPower: number // 0..100
-  stability: number // 0..100
+  adminPower: number // 0..100, cache: recalculated each January
+  legacyPrestige: number // 0..100
   roleAssignments: Partial<Record<RoleType, PersonId>>
   active: boolean
   lastWarMonth?: number

@@ -18,7 +18,7 @@ export function calcPersonImportanceScore(
   if (!person || !person.alive) return 0
 
   const house = state.houses[person.houseId]
-  const housePrestige = house ? house.prestige : 0
+  const housePrestige = house ? house.legacyPrestige : 0
 
   const role = getPersonRole(state, personId)
   const roleBonus = role ? (ROLE_BONUS[role] ?? 0) : 0
@@ -34,7 +34,7 @@ export function calcPersonImportanceScore(
   return (
     roleBonus +
     housePrestige * 0.3 +
-    person.prestige +
+    person.legacyPrestige +
     person.stats.admin * 3 +
     person.stats.martial * 3 +
     person.traits.ambition * 20 +

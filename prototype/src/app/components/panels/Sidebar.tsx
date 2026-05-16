@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { calcPersonImportanceScore } from '@sim/selectors/importanceSelectors'
 import { calcCountryMilitaryPower } from '@sim/selectors/militarySelectors'
+import { getCountryLegitimacy, getCountryStability } from '@sim/selectors/statusSelectors'
 import type { SimEvent } from '@sim/types/event'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import type { Country } from '@/sim/types/country'
@@ -52,13 +53,17 @@ function CountryRow({
   militaryPower,
   isSelected,
   onClick,
+  worldState,
 }: {
   country: Country
   color: string
   militaryPower: number
   isSelected: boolean
   onClick: () => void
+  worldState: WorldState | null
 }) {
+  const legitimacy = worldState ? getCountryLegitimacy(worldState, country.id) : 50
+  const stability = worldState ? getCountryStability(worldState, defaultConfig, country.id) : 50
   return (
     <div
       className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
@@ -71,7 +76,7 @@ function CountryRow({
         <span className="font-bold">{country.name}</span>
       </div>
       <div className="text-gray-300">
-        Leg: {formatScore(country.legitimacy)} | Stab: {formatScore(country.stability)} | Mil:{' '}
+        Leg: {formatScore(legitimacy)} | Stab: {formatScore(stability)} | Mil:{' '}
         {formatPower(militaryPower)}
       </div>
     </div>
@@ -107,7 +112,7 @@ function HouseRow({
         <span>{countryName}</span>
       </div>
       <div className="text-gray-300">
-        Prestige: {formatScore(house.prestige)} | Provinces: {house.provinceIds.length}
+        Prestige: {formatScore(house.legacyPrestige)} | Provinces: {house.provinceIds.length}
       </div>
     </div>
   )
@@ -202,7 +207,7 @@ export function Sidebar() {
   const sortedCountries: Country[] = countries
     ? Object.values(countries)
         .filter((c) => c.active)
-        .sort((a, b) => b.legitimacy - a.legitimacy)
+        .sort((a, b) => b.legacyPrestige - a.legacyPrestige)
     : []
 
   const countryColorMap = useMemo(
@@ -234,7 +239,7 @@ export function Sidebar() {
   const sortedHouses: House[] = houses
     ? Object.values(houses)
         .filter((h) => h.active)
-        .sort((a, b) => b.prestige - a.prestige)
+        .sort((a, b) => b.legacyPrestige - a.legacyPrestige)
     : []
 
   const sortedPersons: { person: Person; score: number }[] = persons
@@ -268,16 +273,31 @@ export function Sidebar() {
 
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'countries' &&
-          sortedCountries.map((country) => (
-            <CountryRow
-              key={country.id}
-              country={country}
-              color={countryColorMap[country.id] ?? '#888'}
-              militaryPower={countryMilitaryPowers[country.id] ?? 0}
-              isSelected={selectedId === country.id && selectedType === 'country'}
-              onClick={() => setSelected(country.id, 'country')}
-            />
-          ))}
+          sortedCountries.map((country) => {
+            const worldState: WorldState | null = session?.currentState
+              ? {
+                  currentYear: session.currentState.currentYear,
+                  currentMonth: session.currentState.currentMonth,
+                  provinces: session.currentState.provinces,
+                  countries: session.currentState.countries,
+                  houses: session.currentState.houses,
+                  persons: session.currentState.persons,
+                  activePlots: session.currentState.activePlots ?? {},
+                  popGroups: session.currentState.popGroups ?? {},
+                }
+              : null
+            return (
+              <CountryRow
+                key={country.id}
+                country={country}
+                color={countryColorMap[country.id] ?? '#888'}
+                militaryPower={countryMilitaryPowers[country.id] ?? 0}
+                isSelected={selectedId === country.id && selectedType === 'country'}
+                onClick={() => setSelected(country.id, 'country')}
+                worldState={worldState}
+              />
+            )
+          })}
 
         {activeTab === 'houses' &&
           sortedHouses.map((house) => (

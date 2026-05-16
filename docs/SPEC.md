@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-16（v0.9 時点）
+最終更新: 2026-05-17（v0.11 時点）
 
 ---
 
@@ -100,9 +100,10 @@ type PopGroup = {
   id: PopGroupId
   provinceId: ProvinceId
   class: PopClass
-  size: number    // 抽象人口規模（実人数ではない）
-  wealth: number  // 0..100（豊かさ指数。金額ではない）
-  unrest: number  // 0..100
+  size: number       // 抽象人口規模（実人数ではない）
+  wealth: number     // 0..100（豊かさ指数。金額ではない）
+  unrest: number     // 0..100
+  attitudes: AttitudeMap  // 対 Country などへの態度（v0.11）
 }
 ```
 
@@ -125,9 +126,8 @@ type Country = {
   rulerHouseId: HouseId
   houseIds: HouseId[]
   treasury: number           // >= 0
-  legitimacy: number         // 0..100
-  adminPower: number         // 0..100
-  stability: number          // 0..100
+  adminPower: number         // 0..100（キャッシュ値。毎1月に GovernanceSystem が再計算）
+  legacyPrestige: number     // 0..100（歴史的権威・伝統の蓄積）
   roleAssignments: Partial<Record<RoleType, PersonId>>
   active: boolean
   lastWarMonth?: number
@@ -136,6 +136,8 @@ type Country = {
 ```
 
 - `capitalProvinceId`: 国家支配力の中心。その Country に属する Province でなければならない
+- `legitimacy`・`stability` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
+- `adminPower` はキャッシュ値として維持。毎1月に GovernanceSystem が `getCountryAdminPower` で再計算（§4.5 / §6.23 参照）
 
 ### 3.4 House（家）
 
@@ -151,9 +153,8 @@ type House = {
   founderId?: PersonId       // 家の創設者（分裂新設家のみ設定）
   parentHouseId?: HouseId    // 分裂元の家
   cadetHouseIds: HouseId[]   // 分裂で生まれた傍系家のリスト
-  prestige: number           // 0..100
-  cohesion: number           // 0..100
-  loyaltyToCountry: number   // 0..100
+  nameSource?: 'pool' | 'province' | 'founder' | 'fallback'
+  legacyPrestige: number     // 0..100（家の権威・伝統の蓄積）
   wealth: number             // >= 0
   seatProvinceId: ProvinceId
 }
@@ -161,6 +162,7 @@ type House = {
 
 - `seatProvinceId`: 家支配力の中心。その House が所有する Province でなければならない
 - House は常に本拠地を保持する（本拠地移転・喪失は今後の課題）
+- `prestige`・`cohesion`・`loyaltyToCountry` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
 
 ### 3.5 Person（人物）
 
@@ -186,16 +188,37 @@ type Person = {
     martial: number  // 0..10
   }
   traits: {
-    ambition: number          // 0.0..1.0
-    loyaltyToCountry: number  // 0.0..1.0
-    caution: number           // 0.0..1.0
+    ambition: number  // 0.0..1.0
+    caution: number   // 0.0..1.0
   }
-  prestige: number  // 0..100
+  legacyPrestige: number    // 0..100（個人の歴史的評価の蓄積）
+  attitudes: AttitudeMap    // 対 Country / House / Person への態度（v0.11）
 }
 ```
 
 - `spouseId`: 生存中の配偶者のみを指す。配偶者が死亡した場合は `undefined` に戻る
-- 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §6.23 参照）
+- 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §6.24 参照）
+- `prestige` / `traits.loyaltyToCountry` は v0.11 で削除。Attitude から動的計算（§4.5 参照）
+
+### 3.6 Attitude（態度）
+
+v0.11 追加。Person と PopGroup が持つ対エンティティへの態度を表す。
+
+```ts
+type Attitude = {
+  affection: number  // -100..100（感情的な好意・嫌悪）
+  respect: number    // -100..100（能力・権威への評価）
+}
+
+type AttitudeKey = string  // 形式: 'country:{id}' | 'house:{id}' | 'person:{id}'
+
+type AttitudeMap = Record<AttitudeKey, Attitude>
+```
+
+- `affection`: 感情的な好意（正）または嫌悪（負）
+- `respect`: 能力・権威への尊敬（正）または軽蔑（負）
+- エントリが存在しない場合は `{ affection: 0, respect: 0 }` として扱う
+- AttitudeDecaySystem により毎月 `attitudeMonthlyRetentionRate`（0.995）倍に減衰
 
 ### 3.6 役職（RoleType）
 
@@ -277,9 +300,48 @@ function getProvinceManpowerBase(state: WorldState, config: SimulationConfig, pr
 function calcHouseMilitaryPower(state: WorldState, config: SimulationConfig, houseId: HouseId): number
 
 // Country 軍事力: adminPower * factor + sum(houseContributions)
-//   支配家門は 100% 寄与。非支配家門は clamp(loyaltyToCountry/100, min, 1) 倍
+//   支配家門は 100% 寄与。非支配家門は getHouseLoyaltyToCountry に応じた寄与
 function calcCountryMilitaryPower(state: WorldState, config: SimulationConfig, countryId: CountryId): number
 ```
+
+### 4.5 Status セレクター（v0.11）
+
+v0.11 で legitimacy / stability / prestige / cohesion / loyaltyToCountry が格納フィールドから動的計算セレクターに移行した。
+
+```ts
+// Country 正統性: 0.35*personScore + 0.45*popScore + 0.2*legacyPrestige
+//   personScore: 国内 Person の対 Country attitude (affection*0.35 + respect*0.65) 平均
+//   popScore:    国内 PopGroup の対 Country attitude (affection*0.40 + respect*0.60) 人口加重平均
+function getCountryLegitimacy(state: WorldState, countryId: CountryId): number
+
+// Country 安定度: Province の安定度を首都からの距離で重み付け平均
+//   provinceStability = 0.70*(100-unrest) + 0.30*countryControl
+//   weight = 1 / (1 + distance)  ※到達不能は distance=5 扱い
+function getCountryStability(state: WorldState, config: SimulationConfig, countryId: CountryId): number
+
+// House 結束度: 家臣メンバーの家長への attitude 平均
+//   score = affection*0.45 + respect*0.55（attitudeValueToScore で 0..100 正規化）
+//   メンバーが 0 の場合は fallback 50
+function getHouseCohesion(state: WorldState, houseId: HouseId): number
+
+// House 忠誠度: 家メンバーの対 Country attitude 平均
+//   score = affection*0.55 + respect*0.45
+function getHouseLoyaltyToCountry(state: WorldState, houseId: HouseId): number
+
+// Prestige = 0.70 * legacyPrestige + 0.30 * averageRespectScore
+//   respectScore: 世界全体の Person/PopGroup からの attitude.respect 平均（attitudeValueToScore 正規化）
+function getCountryPrestige(state: WorldState, countryId: CountryId): number
+function getHousePrestige(state: WorldState, houseId: HouseId): number
+function getPersonPrestige(state: WorldState, personId: PersonId): number
+
+// Country 行政力: 毎1月 GovernanceSystem がキャッシュ
+//   0.30*chancellorAdmin*10 + 0.20*treasurerAdmin*10 + 0.20*stability + 0.20*rulerPrestige + 0.10*treasuryScore
+function getCountryAdminPower(state: WorldState, config: SimulationConfig, countryId: CountryId): number
+```
+
+**attitudeValueToScore の変換**:
+- affection / respect の値 (-100..100) → score (0..100)
+- 0 → 50、正 → 50+、負 → 50- の線形変換
 
 ---
 
@@ -309,11 +371,12 @@ function calcCountryMilitaryPower(state: WorldState, config: SimulationConfig, c
 | 18 | WarSystem | 毎月 |
 | 19 | **ProvinceRevoltSystem** | 毎月 |
 | 20 | RebellionSystem | 毎月 |
-| 21 | StabilitySystem | 毎月 |
-| 22 | GovernanceSystem | 毎月 |
-| 23 | IntegrityCheck | 毎月 |
+| 21 | **AttitudeDecaySystem** | 毎月 |
+| 22 | GovernanceSystem | 毎年1月 |
+| 23 | normalizePopSizes | 毎月 |
+| 24 | IntegrityCheck | 毎月 |
 
-順序の理由：PopSystem を EconomySystem より前に置くことで、当月の POP 状態変化（人口成長・pressure・wealth/unrest）を反映して生産量を計算する。PopDevelopmentSystem を Country/House 開発システムより後に置くことで、当月の収入分配後に POP に残った余剰富による地元の自主開発を表現する。ProvinceRevoltSystem を RebellionSystem の前に置くことで、Province / POP 起点の社会不安が House 反乱に波及する経路を表現する（ただし同一 tick での直接連鎖はしない）。
+順序の理由：PopSystem を EconomySystem より前に置くことで、当月の POP 状態変化（人口成長・pressure・wealth/unrest）を反映して生産量を計算する。PopDevelopmentSystem を Country/House 開発システムより後に置くことで、当月の収入分配後に POP に残った余剰富による地元の自主開発を表現する。ProvinceRevoltSystem を RebellionSystem の前に置くことで、Province / POP 起点の社会不安が House 反乱に波及する経路を表現する（ただし同一 tick での直接連鎖はしない）。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当月に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は1月のみ実行され、次の1年間の各システムで使われる。
 
 ---
 
@@ -518,14 +581,14 @@ if (
 
 | 災害 | 確率 | 効果 |
 |------|------|------|
-| Famine（飢饉） | `famineBaseChancePerYear` (8%) | Province dev 低下、stability -10、treasury 消費（救済）、peasants wealth/size 低下 |
-| Plague（疫病） | `plagueBaseChancePerYear` (3%) | Province dev 低下、stability -8、全 POP wealth/size 低下 |
-| BountifulHarvest（豊作） | `bountifulHarvestBaseChancePerYear` (5%) | Province dev 上昇、stability +5、peasants/townsmen wealth 上昇・unrest 低下 |
+| Famine（飢饉） | `famineBaseChancePerYear` (8%) | Province dev 低下、treasury 消費（救済）、peasants wealth/size 低下 |
+| Plague（疫病） | `plagueBaseChancePerYear` (3%) | Province dev 低下、全 POP wealth/size 低下 |
+| BountifulHarvest（豊作） | `bountifulHarvestBaseChancePerYear` (5%) | Province dev 上昇、peasants/townsmen wealth 上昇・unrest 低下 |
 
 **Famine の詳細**:
 - 救済判定: `country.treasury >= countryProvinceCount * disasterReliefCostPerProvince`
-- 救済あり: dev -= (famineDevastation - famineReliefDevelopmentRecovery)、legitimacy +5、POP 効果を `famineReliefDamageMultiplier`（0.3）倍に軽減
-- 救済なし: dev -= famineDevastation、legitimacy -8、POP 効果フル適用
+- 救済あり: dev -= (famineDevastation - famineReliefDevelopmentRecovery)、country.legacyPrestige +1、POP 効果を `famineReliefDamageMultiplier`（0.3）倍に軽減
+- 救済なし: dev -= famineDevastation、POP 効果フル適用
 - POP 効果: `adjustProvincePopWealthByClass(state, pid, 'peasants', -famineWealthPenalty * multiplier)` / `adjustProvincePopSizeByClass(state, pid, 'peasants', -famineSizeDamage * multiplier)`
 
 **Plague の詳細**:
@@ -612,15 +675,16 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 1. `houseSplitEnabled: true`
 2. `house.provinceIds.length >= minProvincesForHouseSplit`（デフォルト 3）
 3. `splitCandidates.length >= 1`（後継者以外の成人候補が存在する）
-4. `house.cohesion < houseSplitCohesionThreshold`（デフォルト 60）
+4. `getHouseCohesion(house) < houseSplitCohesionThreshold`（デフォルト 60）
 
 **分裂確率**:
 ```
+currentCohesion = getHouseCohesion(house)   // Attitude から動的計算（§4.5 参照）
 splitChance = baseHouseSplitChance
-            + splitter.ambition * houseSplitAmbitionFactor
-            + splitter.prestige * houseSplitPrestigeFactor
-            + splitter.martial  * houseSplitMartialFactor
-            - house.cohesion    * houseSplitCohesionFactor
+            + splitter.ambition        * houseSplitAmbitionFactor
+            + splitter.legacyPrestige  * houseSplitPrestigeFactor
+            + splitter.martial         * houseSplitMartialFactor
+            - currentCohesion          * houseSplitCohesionFactor
 ```
 
 分裂実行時の処理：
@@ -632,18 +696,13 @@ splitChance = baseHouseSplitChance
 
 イベント: `HOUSE_SPLIT`（importance: `major`）+ `SUCCESSION_CRISIS`（importance: `major`）
 
-**cohesion の変動**:
-- 初期値: worldgen 時に `randomInt(40, 80)`
-- 低下: 未成年当主時に毎月 `-minorHeadCohesionPenaltyPerMonth`（0.5）、陰謀成功時に -10 または -5
-- 回復: なし（v1.0 以降の課題）
+**cohesion（結束度）について**:
+- v0.11 より `house.cohesion` フィールドは廃止。`getHouseCohesion` セレクターで動的計算（§4.5 参照）
+- 結束度は家メンバーの家長への attitude から計算されるため、態度変化イベントにより自然に変動する
 
 ### 6.12 未成年当主ペナルティ（SuccessionSystem 内）
 
-当主が未成年（age < `adultAge`）の間、毎月適用：
-```
-cohesion       = max(0, cohesion - minorHeadCohesionPenaltyPerMonth)
-loyaltyToCountry = max(0, loyaltyToCountry - minorHeadLoyaltyPenaltyPerMonth)
-```
+当主が未成年（age < `adultAge`）の間、毎月適用。v0.11 以降は格納フィールドの直接変更ではなく、Attitude の調整を通じて cohesion・loyaltyToCountry に間接影響を与える（実装上は `minorHeadCohesionPenaltyPerMonth` / `minorHeadLoyaltyPenaltyPerMonth` の config 値が引き続き参照される）。
 
 ### 6.13 HouseExtinctionSystem（SuccessionSystem から呼び出し）
 
@@ -693,7 +752,7 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
 
 **国家土地開発（COUNTRY_LAND_DEVELOPED）**:
 - 条件: treasury >= effectiveCost（財務官 admin による割引あり）
-- 効果: development += gain（clamp）、**houseControl += landDevelopmentHouseControlGain**、stability +2、treasury -= effectiveCost
+- 効果: development += gain（clamp）、**houseControl += landDevelopmentHouseControlGain**、treasury -= effectiveCost
 
 ### 6.17 HouseDevelopmentSystem（毎年1月）
 
@@ -807,7 +866,7 @@ rebellionTendency += (100 - avgCountryControl) * houseRebellionLowControlFactor
 **戦力計算**:
 
 - 反乱側: `calcHouseMilitaryPower(state, config, rebelHouseId)`
-- 鎮圧側: 支配家門は 100% 寄与、非支配家門は `loyaltyToCountry` に応じた寄与 + `adminPower * factor` + `treasury / divisor`
+- 鎮圧側: 支配家門は 100% 寄与、非支配家門は `getHouseLoyaltyToCountry`（§4.5）に応じた寄与 + `adminPower * factor` + `treasury / divisor`
 
 **荒廃効果**:
 - 反乱開始時: rebelProvinces に development -= rebellionStartedDevastation
@@ -853,11 +912,11 @@ class 別補正:
 
 | outcome | 条件 | 効果 |
 |---------|------|------|
-| `concession` | 小幅成功 | 支配力低下・legitimacy 低下・house wealth 低下、不満低下 |
+| `concession` | 小幅成功 | 支配力低下・house wealth 低下、不満低下 |
 | `lordship_change` | 中〜大成功 | 新 Person・新 House を生成し Province の領主を交代 |
 | `independence` | nobles 反乱かつ両支配力が極低値かつ大差勝利 | 新 Person・新 House・新 Country を生成し Province が独立 |
 
-**反乱失敗**: 反乱 POP の unrest 低下・Province 荒廃・反乱 POP wealth 低下、鎮圧側 legitimacy 上昇。他 class の unrest が collateral として小幅上昇。
+**反乱失敗**: 反乱 POP の unrest 低下・Province 荒廃・反乱 POP wealth 低下、鎮圧側 country.legacyPrestige +1。他 class の unrest が collateral として小幅上昇。
 
 **イベント**:
 
@@ -871,9 +930,20 @@ class 別補正:
 
 **旧 ownerHouse の処置（lordship_change / independence）**: 領地がゼロになった House は即 inactive 化し、生存メンバーを rulerHouse に移動。`HOUSE_EXTINCT` イベントを発火。
 
-### 6.23 StabilitySystem / GovernanceSystem（毎月）
+### 6.23 AttitudeDecaySystem（毎月）
 
-各国の Stability・Legitimacy の自然回復と行政処理。
+全 Person および全 PopGroup の `attitudes` を毎月 `attitudeMonthlyRetentionRate`（0.995）倍に減衰させる。`affection` / `respect` どちらも同率で 0 に近づく。エントリを持たない（未設定の）態度への影響なし。
+
+### 6.23b GovernanceSystem（毎年1月）
+
+`getCountryAdminPower`（§4.5）で `adminPower` を再計算し、`country.adminPower` にキャッシュとして書き込む。
+
+```ts
+adminPower = 0.30*chancellorAdmin*10 + 0.20*treasurerAdmin*10
+           + 0.20*getCountryStability + 0.20*getHousePrestige(rulerHouse) + 0.10*clamp(log1p(treasury)*10, 0, 100)
+```
+
+旧 StabilitySystem は v0.11 で廃止。Stability は `getCountryStability` セレクターで毎回計算する。
 
 ### 6.24 IntegrityCheck（毎月）
 
@@ -904,6 +974,10 @@ class 別補正:
 23. PopGroup.unrest が 0..100 の範囲内
 24. active Country.houseIds に rulerHouseId が含まれる
 25. active House.memberIds に headId が含まれる
+26. House.memberIds に重複がない（v0.11）
+27. House.provinceIds に重複がない（v0.11）
+28. Country.legacyPrestige が 0..100 の範囲内（v0.11）
+29. House.legacyPrestige が 0..100 の範囲内（v0.11）
 
 ---
 
@@ -1065,14 +1139,14 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | adultAge | 15 | 成人年齢（継承・婚姻・出生の判定基準） |
 | **Succession & House Split** | | |
 | successionCrisisScoreGap | 10 | 後継者スコア差がこの値を超えると継承危機が発生 |
-| minorHeadCohesionPenaltyPerMonth | 0.5 | 未成年当主の月次 cohesion ペナルティ |
-| minorHeadLoyaltyPenaltyPerMonth | 0.3 | 未成年当主の月次 loyaltyToCountry ペナルティ |
+| minorHeadCohesionPenaltyPerMonth | 0.5 | 未成年当主の月次 cohesion 影響係数（Attitude 経由） |
+| minorHeadLoyaltyPenaltyPerMonth | 0.3 | 未成年当主の月次 loyaltyToCountry 影響係数（Attitude 経由） |
 | houseSplitEnabled | true | 家の分裂有効 |
 | minProvincesForHouseSplit | 3 | 分裂に必要な最小 Province 数 |
-| houseSplitCohesionThreshold | 60 | 分裂条件の cohesion 上限（未満でないと不発） |
+| houseSplitCohesionThreshold | 60 | 分裂条件の cohesion 上限（getHouseCohesion が未満でないと不発） |
 | baseHouseSplitChance | 0.10 | 分裂基本確率 |
 | houseSplitAmbitionFactor | 0.25 | 分裂確率への野心補正係数 |
-| houseSplitPrestigeFactor | 0.002 | 分裂確率への prestige 補正係数 |
+| houseSplitPrestigeFactor | 0.002 | 分裂確率への legacyPrestige 補正係数 |
 | houseSplitMartialFactor | 0.02 | 分裂確率への martial 補正係数 |
 | houseSplitCohesionFactor | 0.003 | 分裂確率への cohesion 減少係数 |
 | houseSplitControlMin | 30 | 分裂 Province 割合の下限（%） |
@@ -1138,7 +1212,7 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | disconnectedControlDecayPerMonth | 5 | 接続不能 Province の月次減衰量 |
 | **Monument** | | |
 | monumentCountryControlGain | 10 | 記念碑による countryControl 上昇量 |
-| monumentLegitimacyGain | 5 | 記念碑による legitimacy 上昇量 |
+| monumentLegacyPrestigeGain | 3 | 記念碑による rulerHouse.legacyPrestige 上昇量（v0.11） |
 | **Land Development** | | |
 | landDevelopmentHouseControlGain | 5 | 土地開発による houseControl 上昇量 |
 | landDevelopmentUnrestReduction | 1 | 土地開発によるスコア評価に用いる unrest 低下量 |
@@ -1225,16 +1299,11 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | provinceRevoltFailedUnrestReduction | 10 | 反乱失敗時の反乱 POP unrest 低下量 |
 | provinceRevoltFailedDevastation | 4 | 反乱失敗時の Province 荒廃量 |
 | provinceRevoltFailedWealthPenalty | 8 | 反乱失敗時の反乱 POP wealth 低下量 |
-| provinceRevoltSuppressionLegitimacyGain | 2 | 鎮圧成功時の legitimacy 上昇量 |
 | provinceRevoltSuppressionCollateralUnrestGain | 2 | 鎮圧時の他 class への collateral unrest |
-| revoltHouseInitialPrestige | 10 | 反乱新設 House の初期 prestige |
-| revoltHouseInitialCohesion | 70 | 反乱新設 House の初期 cohesion |
-| revoltHouseInitialLoyaltyToCountry | 40 | 反乱新設 House の初期 loyaltyToCountry |
+| revoltHouseInitialLegacyPrestige | 10 | 反乱新設 House の初期 legacyPrestige（v0.11） |
 | revoltHouseInitialWealth | 30 | 反乱新設 House の初期 wealth |
 | revoltCountryInitialTreasury | 50 | 独立新設 Country の初期 treasury |
-| revoltCountryInitialLegitimacy | 40 | 独立新設 Country の初期 legitimacy |
-| revoltCountryInitialAdminPower | 30 | 独立新設 Country の初期 adminPower |
-| revoltCountryInitialStability | 50 | 独立新設 Country の初期 stability |
+| revoltCountryInitialLegacyPrestige | 20 | 独立新設 Country の初期 legacyPrestige（v0.11） |
 | **POP システム（v0.8）** | | |
 | popSystemEnabled | true | POP システム有効 |
 | minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別） |
@@ -1267,6 +1336,16 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | popDevelopmentCost | 3 | 発動時の全 POP wealth 低下量 |
 | popDevelopmentGain | 0.25 | 発動時の development 上昇量 |
 | popDevelopmentMaxDevelopment | 40 | POP 自主開発の development 上限 |
+| **Attitude システム（v0.11）** | | |
+| attitudeMonthlyRetentionRate | 0.995 | 態度の月次保持率（1-rate が減衰率） |
+| initialCountryLegacyPrestigeMin | 20 | Country 初期 legacyPrestige の下限 |
+| initialCountryLegacyPrestigeMax | 60 | Country 初期 legacyPrestige の上限 |
+| initialHouseLegacyPrestigeMin | 20 | House 初期 legacyPrestige の下限 |
+| initialHouseLegacyPrestigeMax | 80 | House 初期 legacyPrestige の上限 |
+| initialPersonLegacyPrestigeMin | 0 | Person 初期 legacyPrestige の下限 |
+| initialPersonLegacyPrestigeMax | 20 | Person 初期 legacyPrestige の上限 |
+| rulerHouseExtinctionPrestigeLoss | 10 | 支配家断絶時の旧 Country legacyPrestige 低下量 |
+| rulerExtinctionAnnexPrestigeWeight | 0.3 | 支配家断絶・併合時の legacyPrestige 継承重み |
 
 ---
 
@@ -1381,13 +1460,15 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 
 - **MapPanel**: Province を SVG で描画。クリックで Province 選択
 - **Sidebar**: 人物一覧。重要度スコア順。ウォッチリスト対応
-- **DetailPanel**: 選択エンティティ（Province / Country / House / Person）の詳細表示
+- **DetailPanel**: 選択エンティティ（Province / Country / House / Person / PopGroup）の詳細表示
   - ProvinceDetail:
     - **Population** セクション: habitability / Carrying Capacity / Total Population / Pop. Pressure（90% 超で赤表示）/ Avg Wealth / Unrest（60 超で赤表示）/ Production / Country Manpower / House Manpower
-    - **POP Groups** セクション: class 別に size / wealth / unrest（60 超で赤表示）を一覧表示
+    - **POP Groups** セクション: class 別に size / wealth / unrest（60 超で赤表示）を一覧表示。各 POP カードはクリッカブルで PopGroupDetail へ遷移（v0.11）
     - **Revolt Risk** セクション: class 別反乱傾向値（Peasants / Townsmen / Nobles）
-  - CountryDetail: 首都名（capitalProvinceId）/ legitimacy / treasury / Total Military Power（Ruler House / Loyalist 内訳）
-  - HouseDetail: 本拠地名（seatProvinceId）/ Province 数 / wealth / prestige / Military（Levy / Mercenary / Commander Modifier / Total）
+  - CountryDetail: 首都名（capitalProvinceId）/ Legitimacy（セレクター値）/ treasury / Total Military Power（Ruler House / Loyalist 内訳）
+  - HouseDetail: 本拠地名（seatProvinceId）/ Province 数 / wealth / Prestige（セレクター値）/ Military（Levy / Mercenary / Commander Modifier / Total）
+  - PersonDetail: 基本情報 / Stats / Traits / Family リンク / **Attitudes セクション**（v0.11）: 対エンティティの affection/respect を色分け表示。エンティティ名クリックで遷移
+  - **PopGroupDetail**（v0.11）: size / wealth / unrest（60 超で赤表示）/ 所属 Province リンク / **Attitudes セクション**
 - **EventLog**: Chronicle（major/critical）と全イベントの 2 ビュー
 - **ConfigPanel**: シミュレーションパラメータをリアルタイム調整
 
@@ -1396,8 +1477,8 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 ## 12. 今後の課題（未実装）
 
 - **大分裂（House 独立）**: 全土統一後、国力が一定規模を超えると支配家から傍系家が独立し複数国家が成立する「中国史的分裂」メカニズム。現状は Province Revolt から新勢力が生まれるが、House 単位での大規模独立はまだ弱い
-- **国家規模ペナルティ**: Province 数・House 数が増えるほど legitimacy 維持が困難になり、大国が自重で崩れる仕組み
-- **家の分裂の作り込み**: cohesion 回復メカニズム、分裂閾値の調整、一強状態でも分裂が自然発生する仕組み
+- **国家規模ペナルティ**: Province 数・House 数が増えるほど Legitimacy（getCountryLegitimacy）が低下しやすくなり、大国が自重で崩れる仕組み
+- **家の分裂の作り込み**: Attitude 経由の cohesion 変動をより細かく制御、分裂閾値の調整、一強状態でも分裂が自然発生する仕組み
 - **POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED イベントの発火ロジック**: 閾値超過時のみ発火する条件付きイベント（EventType 宣言のみ実装済み）
 - **首都・本拠地移転**: 征服・滅亡・特別イベントによる移転
 - **記念碑エンティティ化**: 建設場所、継続効果、破壊、monumentLevel

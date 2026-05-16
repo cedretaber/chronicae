@@ -2,6 +2,11 @@ import type { WorldState } from '../types/world'
 import type { PersonId, CountryId } from '../types/ids'
 import type { RoleType } from '../types/role'
 import type { EventReason, EventEffect } from '../types/event'
+import {
+  getAttitudeOrDefault,
+  attitudeValueToScore,
+  countryAttitudeKey,
+} from '../helpers/attitudeHelpers'
 
 export function explainAppointment(
   state: WorldState,
@@ -17,6 +22,12 @@ export function explainAppointment(
 
   const reasons: EventReason[] = []
 
+  const personCountryAtt = getAttitudeOrDefault(state, person, countryAttitudeKey(countryId))
+  const personCountryLoyalty =
+    (attitudeValueToScore(personCountryAtt.affection) * 0.55 +
+      attitudeValueToScore(personCountryAtt.respect) * 0.45) /
+    100
+
   switch (role) {
     case 'chancellor': {
       const adminContribution = person.stats.admin * 8
@@ -28,20 +39,20 @@ export function explainAppointment(
         })
       }
 
-      const loyaltyContribution = person.traits.loyaltyToCountry * 20
+      const loyaltyContribution = personCountryLoyalty * 20
       if (loyaltyContribution > 0) {
         reasons.push({
           label: 'Loyalty to country',
-          value: person.traits.loyaltyToCountry,
+          value: personCountryLoyalty,
           contribution: loyaltyContribution,
         })
       }
 
-      const prestigeContribution = person.prestige * 0.3
+      const prestigeContribution = person.legacyPrestige * 0.3
       if (prestigeContribution > 0) {
         reasons.push({
           label: 'Prestige',
-          value: person.prestige,
+          value: person.legacyPrestige,
           contribution: prestigeContribution,
         })
       }
@@ -68,11 +79,11 @@ export function explainAppointment(
         })
       }
 
-      const prestigeContribution = person.prestige * 0.3
+      const prestigeContribution = person.legacyPrestige * 0.3
       if (prestigeContribution > 0) {
         reasons.push({
           label: 'Prestige',
-          value: person.prestige,
+          value: person.legacyPrestige,
           contribution: prestigeContribution,
         })
       }
@@ -99,11 +110,11 @@ export function explainAppointment(
         })
       }
 
-      const loyaltyContribution = person.traits.loyaltyToCountry * 25
+      const loyaltyContribution = personCountryLoyalty * 25
       if (loyaltyContribution > 0) {
         reasons.push({
           label: 'Loyalty to country',
-          value: person.traits.loyaltyToCountry,
+          value: personCountryLoyalty,
           contribution: loyaltyContribution,
         })
       }

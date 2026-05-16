@@ -19,8 +19,9 @@ function makePerson(overrides: Partial<Person> = {}): Person {
     childIds: [],
     birthStatus: 'unknown',
     stats: { admin: 5, martial: 5 },
-    traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-    prestige: 50,
+    traits: { ambition: 0.5, caution: 0.5 },
+    legacyPrestige: 50,
+    attitudes: {},
     ...overrides,
   }
 }
@@ -42,9 +43,7 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
         memberIds: Object.values(persons).map((p) => p.id),
         headId: Object.values(persons)[0]?.id ?? createPersonId('pe', 0),
         cadetHouseIds: [],
-        prestige: 50,
-        cohesion: 50,
-        loyaltyToCountry: 50,
+        legacyPrestige: 50,
         wealth: 0,
         seatProvinceId: createProvinceId('p', 0),
       },

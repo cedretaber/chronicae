@@ -57,13 +57,11 @@ export function createRevoltLeader(
 
   const { value: ambition, rng: rng5 } = randomInt(ctx5.rng, 7, 10)
   const ctx6 = { ...ctx5, rng: rng5 }
-  const { value: loyalty, rng: rng6 } = randomInt(ctx6.rng, 0, 30)
+  const { value: caution, rng: rng6 } = randomInt(ctx6.rng, 2, 7)
   const ctx7 = { ...ctx6, rng: rng6 }
-  const { value: caution, rng: rng7 } = randomInt(ctx7.rng, 2, 7)
-  const ctx8 = { ...ctx7, rng: rng7 }
 
-  const { value: prestige, rng: rng8 } = randomInt(ctx8.rng, 5, 20)
-  const finalCtx = { ...ctx8, rng: rng8 }
+  const { value: legacyPrestige, rng: rng7 } = randomInt(ctx7.rng, 5, 20)
+  const finalCtx = { ...ctx7, rng: rng7 }
 
   const person: Person = {
     id,
@@ -78,10 +76,10 @@ export function createRevoltLeader(
     stats: { admin, martial },
     traits: {
       ambition: ambition / 10,
-      loyaltyToCountry: loyalty / 100,
       caution: caution / 10,
     },
-    prestige,
+    legacyPrestige,
+    attitudes: {},
   }
 
   return { person, ctx: finalCtx }

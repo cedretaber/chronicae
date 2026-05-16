@@ -33,9 +33,8 @@ function makeBaseState(): {
         rulerHouseId: houseRulerId,
         houseIds: [houseRulerId, houseVassalId],
         treasury: 100,
-        legitimacy: 80,
+        legacyPrestige: 50,
         adminPower: 10,
-        stability: 50,
         roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
@@ -52,9 +51,7 @@ function makeBaseState(): {
         memberIds: [personRulerId],
         headId: personRulerId,
         cadetHouseIds: [],
-        prestige: 50,
-        cohesion: 50,
-        loyaltyToCountry: 50,
+        legacyPrestige: 50,
         wealth: 0,
         seatProvinceId: '' as ProvinceId,
       },
@@ -67,9 +64,7 @@ function makeBaseState(): {
         memberIds: [personVassalId],
         headId: personVassalId,
         cadetHouseIds: [],
-        prestige: 50,
-        cohesion: 50,
-        loyaltyToCountry: 50,
+        legacyPrestige: 50,
         wealth: 0,
         seatProvinceId: '' as ProvinceId,
       },
@@ -86,8 +81,9 @@ function makeBaseState(): {
         childIds: [],
         birthStatus: 'unknown',
         stats: { admin: 5, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-        prestige: 50,
+        traits: { ambition: 0.5, caution: 0.5 },
+        legacyPrestige: 50,
+        attitudes: {},
       },
       [personVassalId]: {
         id: personVassalId,
@@ -100,8 +96,9 @@ function makeBaseState(): {
         childIds: [],
         birthStatus: 'unknown',
         stats: { admin: 5, martial: 5 },
-        traits: { ambition: 0.5, loyaltyToCountry: 0.5, caution: 0.5 },
-        prestige: 50,
+        traits: { ambition: 0.5, caution: 0.5 },
+        legacyPrestige: 50,
+        attitudes: {},
       },
     },
     activePlots: {},
@@ -139,15 +136,14 @@ describe('runRebellionSystem', () => {
         ...state.houses,
         [houseVassalId]: {
           ...state.houses[houseVassalId]!,
-          prestige: 10,
-          loyaltyToCountry: 90,
+          legacyPrestige: 10,
         },
       },
       countries: {
         ...state.countries,
         [countryId]: {
           ...state.countries[countryId]!,
-          legitimacy: 80,
+          legacyPrestige: 80,
           adminPower: 80,
         },
       },
@@ -159,10 +155,9 @@ describe('runRebellionSystem', () => {
     const result = toResult(runRebellionSystem(ctx))
 
     expect(countEvents(result.events, 'REBELLION_STARTED')).toBe(0)
-    // No stability/legitimacy changes
+    // No legacyPrestige changes from stateWithLowTendency
     const country = result.state.countries[countryId]!
-    expect(country.stability).toBe(state.countries[countryId]!.stability)
-    expect(country.legitimacy).toBe(state.countries[countryId]!.legitimacy)
+    expect(country.legacyPrestige).toBe(stateWithLowTendency.countries[countryId]!.legacyPrestige)
   })
 
   it('rebellion may occur when rebellionTendency >= rebellionThreshold', () => {
@@ -182,15 +177,14 @@ describe('runRebellionSystem', () => {
         ...state.houses,
         [houseVassalId]: {
           ...state.houses[houseVassalId]!,
-          prestige: 30,
-          loyaltyToCountry: 20,
+          legacyPrestige: 30,
         },
       },
       countries: {
         ...state.countries,
         [countryId]: {
           ...state.countries[countryId]!,
-          legitimacy: 30,
+          legacyPrestige: 30,
           adminPower: 20,
         },
       },
@@ -210,35 +204,34 @@ describe('runRebellionSystem', () => {
   it('rebellion applies instant penalties before success/failure check', () => {
     const { state, countryId, houseVassalId, personVassalId } = makeBaseState()
 
-    // Maximize rebellionTendency: prestige=100, ambition=1.0, loyaltyToCountry=0, legitimacy=0, adminPower=0
+    // Maximize rebellionTendency: legacyPrestige=100, ambition=1.0, caution=0, legacyPrestige=0, adminPower=0
     const stateWithMaxTendency: WorldState = {
       ...state,
       persons: {
         ...state.persons,
         [personVassalId]: {
           ...state.persons[personVassalId]!,
-          traits: { ambition: 1.0, loyaltyToCountry: 0, caution: 0 },
+          traits: { ambition: 1.0, caution: 0 },
         },
       },
       houses: {
         ...state.houses,
         [houseVassalId]: {
           ...state.houses[houseVassalId]!,
-          prestige: 100,
-          loyaltyToCountry: 0,
+          legacyPrestige: 100,
         },
       },
       countries: {
         ...state.countries,
         [countryId]: {
           ...state.countries[countryId]!,
-          legitimacy: 0,
+          legacyPrestige: 0,
           adminPower: 0,
         },
       },
     }
 
-    const initialStability = state.countries[countryId]!.stability
+    const initialLegacyPrestige = state.countries[countryId]!.legacyPrestige
     const config = { ...defaultConfig, rebellionThreshold: 50 }
     const ctx = createTickContext({ state: stateWithMaxTendency, rng: createRng('test'), config })
 
@@ -247,7 +240,7 @@ describe('runRebellionSystem', () => {
     const hasRebellionStarted = countEvents(result.events, 'REBELLION_STARTED') > 0
     if (hasRebellionStarted) {
       const country = result.state.countries[countryId]!
-      expect(country.stability).toBeLessThan(initialStability)
+      expect(country.legacyPrestige).toBeLessThan(initialLegacyPrestige)
     }
   })
 
@@ -294,9 +287,8 @@ describe('runRebellionSystem', () => {
           rulerHouseId: houseRulerId,
           houseIds: [houseRulerId, houseVassalId],
           treasury: 0,
-          legitimacy: 0,
+          legacyPrestige: 0,
           adminPower: 0,
-          stability: 0,
           roleAssignments: {},
           active: true,
           capitalProvinceId: '' as ProvinceId,
@@ -312,9 +304,7 @@ describe('runRebellionSystem', () => {
           memberIds: [personRulerId],
           headId: personRulerId,
           cadetHouseIds: [],
-          prestige: 10,
-          cohesion: 10,
-          loyaltyToCountry: 50,
+          legacyPrestige: 10,
           wealth: 0,
           seatProvinceId: '' as ProvinceId,
         },
@@ -327,9 +317,7 @@ describe('runRebellionSystem', () => {
           memberIds: [personVassalId],
           headId: personVassalId,
           cadetHouseIds: [],
-          prestige: 100,
-          cohesion: 50,
-          loyaltyToCountry: 0,
+          legacyPrestige: 100,
           wealth: 0,
           seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
         },
@@ -346,8 +334,9 @@ describe('runRebellionSystem', () => {
           childIds: [],
           birthStatus: 'unknown',
           stats: { admin: 1, martial: 1 },
-          traits: { ambition: 0.1, loyaltyToCountry: 0.9, caution: 0.5 },
-          prestige: 10,
+          traits: { ambition: 0.1, caution: 0.5 },
+          legacyPrestige: 10,
+          attitudes: {},
         },
         [personVassalId]: {
           id: personVassalId,
@@ -360,8 +349,9 @@ describe('runRebellionSystem', () => {
           childIds: [],
           birthStatus: 'unknown',
           stats: { admin: 5, martial: 10 },
-          traits: { ambition: 1.0, loyaltyToCountry: 0, caution: 0 },
-          prestige: 100,
+          traits: { ambition: 1.0, caution: 0 },
+          legacyPrestige: 100,
+          attitudes: {},
         },
       },
       activePlots: {},

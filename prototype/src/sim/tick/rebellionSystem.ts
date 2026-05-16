@@ -1,9 +1,11 @@
 import type { TickContext } from './context'
 import { makeCountryId, makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { clamp, clamp100 } from '../utils/math'
+import { clamp } from '../utils/math'
+import { adjustCountryLegacyPrestige, adjustHouseLegacyPrestige } from '../helpers/attitudeHelpers'
 import { calcAmbitionScores } from './ambitionSystem'
 import { changeRulerHouse } from '../mutations/changeRulerHouse'
+import { getHouseLoyaltyToCountry } from '../selectors/statusSelectors'
 import { createCountryFromHouse } from '../mutations/createCountry'
 import { calcHouseMilitaryPower } from '../selectors/militarySelectors'
 import { generateCountryName } from '../selectors/countryNamingService'
@@ -74,19 +76,14 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
       const rebelChance = clamp(rebellionTendency / 200, 0, 1)
       if (roll1 >= rebelChance) continue
 
-      const penalizedCountry = {
-        ...currentCountry,
-        stability: clamp100(currentCountry.stability - 10),
-        legitimacy: clamp100(currentCountry.legitimacy - 5),
+      {
+        const penaltyState = adjustCountryLegacyPrestige(
+          currentCtx.state,
+          countryId as CountryId,
+          -5,
+        )
+        currentCtx = { ...currentCtx, state: penaltyState }
       }
-      const stateWithPenalties = {
-        ...currentCtx.state,
-        countries: {
-          ...currentCtx.state.countries,
-          [countryId as CountryId]: penalizedCountry,
-        },
-      }
-      currentCtx = { ...currentCtx, state: stateWithPenalties }
 
       const rebelPower = calcHouseMilitaryPower(currentCtx.state, currentCtx.config, house.id)
 
@@ -112,7 +109,7 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
         } else {
           const loyaltyModifier = Math.max(
             currentCtx.config.minHouseMilitaryContribution,
-            Math.min(1, otherHouse.loyaltyToCountry / 100),
+            Math.min(1, getHouseLoyaltyToCountry(currentCtx.state, otherHouseId) / 100),
           )
           loyalistPower += otherHousePower * loyaltyModifier
         }
@@ -255,10 +252,19 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
             }
           }
         } else {
-          const newState = changeRulerHouse(currentCtx.state, countryId as CountryId, houseId)
-          currentCtx = { ...currentCtx, state: newState }
+          let postRebellionState = changeRulerHouse(
+            currentCtx.state,
+            countryId as CountryId,
+            houseId,
+          )
+          postRebellionState = adjustHouseLegacyPrestige(postRebellionState, houseId, 8)
+          const oldRulerHouseId = currentCtx.state.countries[countryId as CountryId]?.rulerHouseId
+          if (oldRulerHouseId && oldRulerHouseId !== houseId) {
+            postRebellionState = adjustHouseLegacyPrestige(postRebellionState, oldRulerHouseId, -8)
+          }
+          currentCtx = { ...currentCtx, state: postRebellionState }
 
-          const updatedCountryAfter = newState.countries[countryId as CountryId]
+          const updatedCountryAfter = postRebellionState.countries[countryId as CountryId]
           const countryName = updatedCountryAfter?.name ?? updatedCountry.name
 
           const { id: succeedEventId, ctx: succeedEventCtx } = makeEventId(currentCtx)
@@ -324,31 +330,14 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
           }
         }
       } else {
-        const currentState = currentCtx.state
-        const updatedHouse = currentState.houses[houseId]
-        if (!updatedHouse) continue
-
-        const updatedCountryForPenalties = currentState.countries[countryId as CountryId]
-        if (!updatedCountryForPenalties) continue
-
-        const newHouse = {
-          ...updatedHouse,
-          prestige: clamp100(updatedHouse.prestige - 20),
-          loyaltyToCountry: clamp100(updatedHouse.loyaltyToCountry - 20),
-        }
-        const newCountry = {
-          ...updatedCountryForPenalties,
-          stability: clamp100(updatedCountryForPenalties.stability + 5),
-          legitimacy: clamp100(updatedCountryForPenalties.legitimacy + 3),
-        }
-        const newState = {
-          ...currentState,
-          houses: { ...currentState.houses, [houseId]: newHouse },
-          countries: {
-            ...currentState.countries,
-            [countryId as CountryId]: newCountry,
-          },
-        }
+        const failState = currentCtx.state
+        const failStateWithHouse = adjustHouseLegacyPrestige(failState, houseId, -8)
+        const failStateFinal = adjustCountryLegacyPrestige(
+          failStateWithHouse,
+          countryId as CountryId,
+          4,
+        )
+        const newState = failStateFinal
 
         const { id: failEventId, ctx: failEventCtx } = makeEventId({
           ...currentCtx,
@@ -364,7 +353,7 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
           houseIds: [houseId],
           countryIds: [countryId as CountryId],
           provinceIds: [],
-          summary: `${house.name}'s rebellion against ${newCountry.name} has failed.`,
+          summary: `${house.name}'s rebellion against ${updatedCountry.name} has failed.`,
           reasons: [],
           effects: [],
         }

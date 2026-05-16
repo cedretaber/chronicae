@@ -1,4 +1,5 @@
 import type { PopGroupId, ProvinceId } from './ids'
+import type { AttitudeMap } from './attitude'
 
 export type PopClass = 'peasants' | 'townsmen' | 'nobles'
 
@@ -9,4 +10,5 @@ export type PopGroup = {
   size: number
   wealth: number
   unrest: number
+  attitudes: AttitudeMap
 }

@@ -5,6 +5,7 @@ import type { HouseId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import { createLogger } from '../debug/logger'
+import { adjustCountryLegacyPrestige } from '../helpers/attitudeHelpers'
 
 function moveLivingMembersToHouse(
   state: WorldState,
@@ -71,7 +72,7 @@ function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickCo
           (h): h is import('../types/house').House =>
             h !== null && h.active && h.countryId === house.countryId && h.id !== houseId,
         )
-        .sort((a, b) => b.prestige - a.prestige)[0]?.id ?? null)
+        .sort((a, b) => b.legacyPrestige - a.legacyPrestige)[0]?.id ?? null)
 
   if (!receiverHouseId) {
     const newHouses = { ...ctx.state.houses }
@@ -204,30 +205,21 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
   const currentCountry = resultCtx.state.countries[house.countryId]
   if (!currentCountry) return resultCtx
 
-  const newLegitimacy = Math.max(
-    0,
-    currentCountry.legitimacy - resultCtx.config.rulerHouseExtinctionLegitimacyLoss,
-  )
-  const newStability = Math.max(
-    0,
-    currentCountry.stability - resultCtx.config.rulerHouseExtinctionStabilityLoss,
-  )
-
-  const newCountries = { ...resultCtx.state.countries }
-  newCountries[house.countryId] = {
-    ...currentCountry,
-    legitimacy: newLegitimacy,
-    stability: newStability,
+  {
+    const penaltyState = adjustCountryLegacyPrestige(
+      resultCtx.state,
+      house.countryId,
+      -resultCtx.config.rulerHouseExtinctionPrestigeLoss,
+    )
+    resultCtx = { ...resultCtx, state: penaltyState }
   }
-
-  resultCtx = { ...resultCtx, state: { ...resultCtx.state, countries: newCountries } }
 
   const candidateHouses = Object.values(resultCtx.state.houses)
     .filter(
       (h): h is import('../types/house').House =>
         h !== null && h.active && h.countryId === house.countryId && h.id !== houseId,
     )
-    .sort((a, b) => b.prestige - a.prestige)
+    .sort((a, b) => b.legacyPrestige - a.legacyPrestige)
 
   const newRulerHouse = candidateHouses[0]
   if (newRulerHouse) {
@@ -355,8 +347,7 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
     const score =
       sharedBorderCount * resultCtx.config.rulerExtinctionAnnexSharedBorderWeight +
       totalProvinces * resultCtx.config.rulerExtinctionAnnexPowerWeight +
-      candidateCountry.legitimacy * resultCtx.config.rulerExtinctionAnnexLegitimacyWeight +
-      candidateCountry.stability * resultCtx.config.rulerExtinctionAnnexStabilityWeight
+      candidateCountry.legacyPrestige * resultCtx.config.rulerExtinctionAnnexPrestigeWeight
     if (score > annexerScore) {
       annexerScore = score
       annexerCountryId = candidateId

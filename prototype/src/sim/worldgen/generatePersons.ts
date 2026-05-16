@@ -1,6 +1,7 @@
 import type { RngState } from '../rng/rng'
 import type { HouseId, CountryId, ProvinceId } from '../types/ids'
 import type { Person, Sex } from '../types/person'
+import type { SimulationConfig } from '../config/defaultConfig'
 import { createPersonId } from '../types/ids'
 import { randomFloat, randomInt } from '../rng/rng'
 import { pickNameBySex } from './nameGenerators'
@@ -8,6 +9,7 @@ import { pickNameBySex } from './nameGenerators'
 export function generatePersons(
   houseProvinces: Map<HouseId, ProvinceId[]>,
   houseCountry: Map<HouseId, CountryId>,
+  config: SimulationConfig,
   rng: RngState,
 ): { persons: Person[]; rng: RngState } {
   const persons: Person[] = []
@@ -44,7 +46,48 @@ export function generatePersons(
     const { value: relativeSexRoll, rng: rngR1 } = randomFloat(rngC4)
     const relativeSexVal: Sex = relativeSexRoll < 0.52 ? 'male' : 'female'
     const { value: relativeAge, rng: rngR2 } = randomInt(rngR1, 15, 35)
-    rng = rngR2
+
+    const { value: oldFatherLegacyPrestige, rng: rngP1 } = randomInt(
+      rngR2,
+      config.initialPersonLegacyPrestigeMin,
+      config.initialPersonLegacyPrestigeMax,
+    )
+    const { value: oldMotherLegacyPrestige, rng: rngP2 } = randomInt(
+      rngP1,
+      config.initialPersonLegacyPrestigeMin,
+      config.initialPersonLegacyPrestigeMax,
+    )
+    const { value: headLegacyPrestige, rng: rngP3 } = randomInt(
+      rngP2,
+      config.initialPersonLegacyPrestigeMin,
+      config.initialPersonLegacyPrestigeMax,
+    )
+    const { value: siblingLegacyPrestige, rng: rngP4 } = randomInt(
+      rngP3,
+      config.initialPersonLegacyPrestigeMin,
+      config.initialPersonLegacyPrestigeMax,
+    )
+    const { value: spouseLegacyPrestige, rng: rngP5 } = randomInt(
+      rngP4,
+      config.initialPersonLegacyPrestigeMin,
+      config.initialPersonLegacyPrestigeMax,
+    )
+    const { value: child1LegacyPrestige, rng: rngP6 } = randomInt(
+      rngP5,
+      config.initialPersonLegacyPrestigeMin,
+      config.initialPersonLegacyPrestigeMax,
+    )
+    const { value: child2LegacyPrestige, rng: rngP7 } = randomInt(
+      rngP6,
+      config.initialPersonLegacyPrestigeMin,
+      config.initialPersonLegacyPrestigeMax,
+    )
+    const { value: relativeLegacyPrestige, rng: rngP8 } = randomInt(
+      rngP7,
+      config.initialPersonLegacyPrestigeMin,
+      config.initialPersonLegacyPrestigeMax,
+    )
+    rng = rngP8
 
     const oldFatherName = pickNameBySex('male', rng).name
     const { name: oldMotherName, rng: rngOldM } = pickNameBySex('female', rng)
@@ -89,10 +132,10 @@ export function generatePersons(
       },
       traits: {
         ambition: 0,
-        loyaltyToCountry: 0,
         caution: 0,
       },
-      prestige: 0,
+      legacyPrestige: oldFatherLegacyPrestige,
+      attitudes: {},
     }
 
     const oldMother: Person = {
@@ -111,10 +154,10 @@ export function generatePersons(
       },
       traits: {
         ambition: 0,
-        loyaltyToCountry: 0,
         caution: 0,
       },
-      prestige: 0,
+      legacyPrestige: oldMotherLegacyPrestige,
+      attitudes: {},
     }
 
     const head: Person = {
@@ -135,10 +178,10 @@ export function generatePersons(
       },
       traits: {
         ambition: 0,
-        loyaltyToCountry: 0,
         caution: 0,
       },
-      prestige: 0,
+      legacyPrestige: headLegacyPrestige,
+      attitudes: {},
     }
 
     const sibling: Person = {
@@ -159,10 +202,10 @@ export function generatePersons(
       },
       traits: {
         ambition: 0,
-        loyaltyToCountry: 0,
         caution: 0,
       },
-      prestige: 0,
+      legacyPrestige: siblingLegacyPrestige,
+      attitudes: {},
     }
 
     const spouse: Person = {
@@ -181,10 +224,10 @@ export function generatePersons(
       },
       traits: {
         ambition: 0,
-        loyaltyToCountry: 0,
         caution: 0,
       },
-      prestige: 0,
+      legacyPrestige: spouseLegacyPrestige,
+      attitudes: {},
     }
 
     const child1: Person = {
@@ -205,10 +248,10 @@ export function generatePersons(
       },
       traits: {
         ambition: 0,
-        loyaltyToCountry: 0,
         caution: 0,
       },
-      prestige: 0,
+      legacyPrestige: child1LegacyPrestige,
+      attitudes: {},
     }
 
     const child2: Person = {
@@ -229,10 +272,10 @@ export function generatePersons(
       },
       traits: {
         ambition: 0,
-        loyaltyToCountry: 0,
         caution: 0,
       },
-      prestige: 0,
+      legacyPrestige: child2LegacyPrestige,
+      attitudes: {},
     }
 
     const relative: Person = {
@@ -251,10 +294,10 @@ export function generatePersons(
       },
       traits: {
         ambition: 0,
-        loyaltyToCountry: 0,
         caution: 0,
       },
-      prestige: 0,
+      legacyPrestige: relativeLegacyPrestige,
+      attitudes: {},
     }
 
     const housePersons = [oldFather, oldMother, head, sibling, spouse, child1, child2, relative]

@@ -7,27 +7,38 @@ import type { PersonId, CountryId } from '../types/ids'
 import type { RoleType } from '../types/role'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
+import {
+  getAttitudeOrDefault,
+  attitudeValueToScore,
+  countryAttitudeKey,
+} from '../helpers/attitudeHelpers'
 
 const ALL_ROLES: readonly RoleType[] = ['chancellor', 'general', 'treasurer']
 
-function computeScore(
-  person: NonNullable<WorldState['persons']>[PersonId],
-  role: RoleType,
-): number {
+function computeScore(state: WorldState, personId: PersonId, role: RoleType): number {
+  const person = state.persons[personId]
+  if (!person) return 0
+
+  const personCountryAtt = getAttitudeOrDefault(state, person, countryAttitudeKey(person.countryId))
+  const personCountryLoyalty =
+    (attitudeValueToScore(personCountryAtt.affection) * 0.55 +
+      attitudeValueToScore(personCountryAtt.respect) * 0.45) /
+    100
+
   switch (role) {
     case 'chancellor':
       return (
         person.stats.admin * 8 +
-        person.traits.loyaltyToCountry * 20 +
-        person.prestige * 0.3 -
+        personCountryLoyalty * 20 +
+        person.legacyPrestige * 0.3 -
         person.traits.ambition * 10
       )
     case 'general':
-      return person.stats.martial * 8 + person.prestige * 0.3 + person.traits.ambition * 5
+      return person.stats.martial * 8 + person.legacyPrestige * 0.3 + person.traits.ambition * 5
     case 'treasurer':
       return (
         person.stats.admin * 7 +
-        person.traits.loyaltyToCountry * 25 +
+        personCountryLoyalty * 25 +
         person.traits.caution * 10 -
         person.traits.ambition * 15
       )
@@ -100,7 +111,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
       for (const candidateId of candidateIds) {
         const candidate = currentCtx.state.persons[candidateId as PersonId]
         if (!candidate) continue
-        const score = computeScore(candidate, role)
+        const score = computeScore(currentCtx.state, candidateId as PersonId, role)
         if (score > bestCandidateScore) {
           bestCandidateScore = score
           bestCandidateId = candidate.id
@@ -149,7 +160,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
         if (currentCtx.state.currentMonth === 1) {
           const currentHolder = currentCtx.state.persons[currentRoleHolderId]
           if (currentHolder) {
-            const currentHolderScore = computeScore(currentHolder, role)
+            const currentHolderScore = computeScore(currentCtx.state, currentRoleHolderId, role)
             if (
               bestCandidateId !== null &&
               bestCandidateScore - currentHolderScore >= currentCtx.config.replacementThreshold
