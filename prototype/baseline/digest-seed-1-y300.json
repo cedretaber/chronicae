@@ -1,7 +1,3 @@
-
-> chronicae-prototype@0.1.0 cli
-> node src/cli/run.mjs --seed 1 --years 300 --digest
-
 {
   "seed": "1",
   "years": 300,

@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-17（v0.12 時点）
+最終更新: 2026-05-17（v0.13 時点）
 
 ---
 
@@ -214,12 +214,19 @@ type Attitude = {
 type AttitudeKey = string  // 形式: 'country:{id}' | 'house:{id}' | 'person:{id}'
 
 type AttitudeMap = Record<AttitudeKey, Attitude>
+
+// v0.13: Attitude を読み書きする際の唯一の対象指定型
+type AttitudeTarget =
+  | { kind: 'person'; id: PersonId }
+  | { kind: 'country'; id: CountryId }
+  | { kind: 'house'; id: HouseId }
 ```
 
 - `affection`: 感情的な好意（正）または嫌悪（負）
 - `respect`: 能力・権威への尊敬（正）または軽蔑（負）
 - エントリが存在しない場合は `{ affection: 0, respect: 0 }` として扱う
 - AttitudeDecaySystem により毎月 `attitudeMonthlyRetentionRate`（0.995）倍に減衰
+- **v0.13**: tick / selectors / explain / app からの Attitude 読み書きはすべて `AttitudeTarget` を経由する。`{country|house|person}AttitudeKey` 文字列ビルダーの直接使用は `attitudeMutations` 内部と worldgen に限定（§12 参照）
 
 ### 3.7 Office / Share システム（v0.12）
 
@@ -701,7 +708,13 @@ if (
 
 ### 6.7 MortalitySystem（毎月）
 
-人物の自然死亡を処理。死亡した人物が役職・家長を担っていた場合は後継処理へ。
+人物の自然死亡を処理。死亡が確定した Person について `markPersonDead` mutation を呼び、以下を一括で処理する（v0.13）：
+
+1. `person.alive = false`
+2. `clearSpouse` で配偶者側の `spouseId` も解除
+3. `revokeOfficesByHolder` で当人が保有する全 OfficeAssignment を inactive 化
+
+家長（house:leader）が死亡した場合の後継選出は SuccessionSystem（§6.10）が担当する。
 
 ### 6.8 MarriageSystem（毎年1月）
 
@@ -768,7 +781,7 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 
 ### 6.11 HouseSplitSystem（SuccessionSystem から呼び出し）
 
-継承が発生した際に、分裂条件を満たせば家の分裂を実行する。
+継承が発生した際に、分裂条件を満たせば家の分裂を実行する。実体の状態書き換えは `splitHouse` mutation（`worldStructureMutations.ts`）に集約されている（v0.13）。
 
 **分裂条件（AND）**:
 1. `houseSplitEnabled: true`
@@ -805,7 +818,7 @@ splitChance = baseHouseSplitChance
 
 ### 6.13 HouseExtinctionSystem（SuccessionSystem から呼び出し）
 
-後継者が存在しない家（生存メンバーが 0 または全員未成年かつ成人後継者なし）に対して断絶処理を行う。
+後継者が存在しない家（生存メンバーが 0 または全員未成年かつ成人後継者なし）に対して断絶処理を行う。実体の状態書き換えは `extinctHouse` mutation（`worldStructureMutations.ts`）に集約されている（v0.13）。
 
 **通常家の断絶（非支配家）**:
 - 同国内の別の active House を継承先に選択
@@ -1003,6 +1016,7 @@ summary: "The people of ${province.name} improved their lands."
 - 軍事力: `baseMilitaryPower * warPowerModifier`（Country military の martial stat による、§10 参照）
 - **本拠地保護**: `seatProvinceId` の Province は征服対象から除外する
 - 征服後、defender の非 seat Province がすべてなくなった場合（seat のみ残存）に `annexCountry` を呼び出す
+- **v0.13**: 征服 Province の引き渡し先は「勝者 Country に属し active な House」を線形検索で決定する。以前の `houseIds[0]` フォールバックは stale な `countryId` を持つ House に Province を渡してしまう潜在的状態破壊バグを含んでいたため修正された。valid House が存在しない場合は Province 獲得をスキップする
 
 **荒廃・POP 効果**:
 - 攻撃側勝利時（征服 Province）: development -= warConqueredProvinceDevastation、全 POP wealth 低下・unrest 上昇・peasants/townsmen size 軽度減少
@@ -1089,6 +1103,8 @@ class 別補正:
 | `concession` | 小幅成功 | 支配力低下・house wealth 低下、不満低下 |
 | `lordship_change` | 中〜大成功 | 新 Person・新 House を生成し Province の領主を交代 |
 | `independence` | nobles 反乱かつ両支配力が極低値かつ大差勝利 | 新 Person・新 House・新 Country を生成し Province が独立 |
+
+`independence` 実行時の状態書き換え（新 Country・新 House の生成、Province の `countryId` 付け替え、旧国側の生存メンバー移動、Share/Office の初期化等）は `foundRevoltCountry` mutation（`worldStructureMutations.ts`）に集約されている（v0.13）。
 
 **反乱失敗**: 反乱 POP の unrest 低下・Province 荒廃・反乱 POP wealth 低下、鎮圧側 country.legacyPrestige +1。他 class の unrest が collateral として小幅上昇。
 
@@ -1701,7 +1717,66 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 
 ---
 
-## 12. 今後の課題（未実装）
+## 12. アーキテクチャ原則（v0.13）
+
+シミュレーション層は以下の原則に従う。コード上の集約点を仕様レベルでも明示しておくことで、将来の機能追加でも同じ規律を維持する。
+
+### 12.1 WorldState はイミュータブル
+
+- `tick()` は純粋関数。`TickInput` を受け取り `TickResult` を返す
+- すべての状態書き換えはオブジェクト spread（`{ ...state, ... }`）で新オブジェクトを生成する
+- in-place 代入（`state.persons[id].alive = false` 等）は禁止
+
+### 12.2 状態書き換えは `sim/mutations/*` に集約
+
+`tick/` 配下のシステムは、状態書き換えを `sim/mutations/*` の関数経由でのみ行う。生フィールド（`Person.alive`, `House.memberIds`, `Province.countryId`, etc.）の直接書き換えは原則として禁止。
+
+主要 mutation の役割：
+
+| ファイル | 主な責務 |
+|---|---|
+| `worldStructureMutations.ts` | `splitHouse` / `extinctHouse` / `foundRevoltCountry` — 家分裂・断絶・反乱独立の高レベル一括処理 |
+| `personMutations.ts` | `markPersonDead`（§6.7）/ `movePersonToHouse` / `birthChild` |
+| `relationshipMutations.ts` | `setSpouse` / `clearSpouse` / `addChildToParents` |
+| `houseMutations.ts` | `createHouse` / `deactivateHouse` |
+| `countryMutations.ts` | `createCountry` / `deactivateCountry` / `moveHouseToCountry` / `annexCountry` / `createCountryFromHouse` / `createCountryFromProvinces` |
+| `provinceMutations.ts` | `transferProvinceToHouse` / `transferProvinceToCountry` / `adjustProvinceDevelopment` |
+| `popMutations.ts` | `adjustProvincePopWealth` / `adjustProvincePopUnrest` / `adjustProvincePopSize`（class 別バリアント含む）|
+| `officeMutations.ts` | `createOfficeAssignment` / `revokeOfficeAssignment` / `revokeOfficesByHolder` / `revokeOfficesByOrganization` / `assignOffice` |
+| `shareMutations.ts` | `createOrganizationShare` / `updateShareRawPower` / `removeOrganizationShare` / `transferShareRawPower` / `upsertOrganizationShare` / `deleteAllSharesForHolder` |
+| `attitudeMutations.ts` | `adjustPersonAttitude` / `adjustPopAttitude` / `adjustHouseMembersAttitude`（§12.3 参照）|
+| `plotMutations.ts` | `addPlot` / `removePlot` / `resolvePlot` |
+
+mutation 関数はおおむね `StateResult = SimResult<WorldState>` または `CtxResult<T>` を返す。失敗時は `err({code, message})` を返し、tick 側で握りつぶさない。エラーコードは `mutations/errors.ts` で集中管理する。
+
+例外：以下の「単純バッチ更新」は mutation 化のコストが見合わないため、直接 spread でも許容する（コード上 `// v013-residual: simple-batch` コメントで識別可能）：
+
+- 全 Person の `age += 1`（advanceTime）
+- 全 Person / PopGroup の attitudes 減衰（AttitudeDecaySystem）
+- Province development の月次自然減衰・回復（DevelopmentSystem）
+- House wealth / Country treasury / Country adminPower の月次バッチ更新（EconomySystem / GovernanceSystem）
+- ControlSystem の BFS と組み合わせた countryControl/houseControl 更新
+
+### 12.3 Attitude は `AttitudeTarget` で読み書きする
+
+`Person.attitudes` / `PopGroup.attitudes` は `AttitudeMap = Record<AttitudeKey, Attitude>` で実装されているが、tick / selectors / explain / app から扱う際は常に `AttitudeTarget`（§3.6）を経由する：
+
+- 書き込み: `adjustPersonAttitude(state, personId, target, delta)` / `adjustPopAttitude(state, popId, target, delta)` / `adjustHouseMembersAttitude(state, houseId, target, delta)`
+- 読み出し: `getAttitudeOrDefault(state, source, target): Attitude` / `getExplicitAttitude(attitudes, target): Attitude | undefined`
+
+`countryAttitudeKey(id)` / `houseAttitudeKey(id)` / `personAttitudeKey(id)` 文字列ビルダーは `attitudeHelpers.ts` の内部実装と `worldgen/` でのみ使用してよい。tick / selectors / explain / app からの直接呼び出しは禁止。
+
+低レベルの `adjustAttitude(map, key, delta)` ヘルパーは `mutations/attitudeMutations.ts` 内部と `worldgen/` でのみ使用する。tick からの直接 import は禁止。
+
+### 12.4 IntegrityCheck と mutation API の組み合わせによる契約検知
+
+`IntegrityCheck`（§6.24）は毎月末に WorldState を走査し、双方向整合性・範囲・参照整合性を検証する。mutation API が状態書き換えを独占することで、契約違反が混入する可能性のある箇所が mutation 関数の内部に限定され、違反の発生源を絞り込みやすい構造になっている。
+
+`debug` モード時は IntegrityCheck の違反が非致死的になり、`[DEBUG:INTEGRITY] error=...` として stderr に出力される（§2.2）。長期シミュレーションでの再現性確認に利用する。
+
+---
+
+## 13. 今後の課題（未実装）
 
 - **大分裂（House 独立）**: 全土統一後、国力が一定規模を超えると支配家から傍系家が独立し複数国家が成立する「中国史的分裂」メカニズム。現状は Province Revolt から新勢力が生まれるが、House 単位での大規模独立はまだ弱い
 - **国家規模ペナルティ**: Province 数・House 数が増えるほど Legitimacy（getCountryLegitimacy）が低下しやすくなり、大国が自重で崩れる仕組み
