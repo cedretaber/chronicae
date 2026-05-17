@@ -14,6 +14,7 @@ import { getHouseCohesion, getCountryStability } from '../selectors/statusSelect
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getAvailableOfficeRoles } from '../selectors/officeSelectors'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
+import { addPlot as addPlotMutation } from '../mutations/plotMutations'
 import type { OrganizationRef, OfficeRole } from '../types/office'
 import type { PlotId, HouseId, PersonId, CountryId } from '../types/ids'
 import type { Plot, PlotType } from '../types/plot'
@@ -423,8 +424,8 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
     ...(targetRole !== undefined ? { targetRole } : {}),
   }
 
-  const newActivePlots = { ...eventCtx.state.activePlots, [plotId]: newPlot }
-  const newState = { ...eventCtx.state, activePlots: newActivePlots }
+  const addResult = addPlotMutation(eventCtx.state, newPlot)
+  const newState = addResult.ok ? addResult.value : eventCtx.state
 
   // Emit PLOT_STARTED event
   const countryIds: CountryId[] = targetCountryId ? [targetCountryId] : [house.countryId]

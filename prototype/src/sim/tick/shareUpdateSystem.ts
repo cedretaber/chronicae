@@ -2,10 +2,9 @@ import type { TickContext } from './context'
 import type { CountryId, HouseId } from '@sim/types/ids'
 import type { OrganizationRef } from '@sim/types/office'
 import {
-  createOrganizationShare,
-  updateShareRawPower,
   removeOrganizationShare,
   transferShareRawPower,
+  upsertOrganizationShare,
 } from '@sim/mutations/shareMutations'
 import { getOrganizationShares } from '@sim/selectors/shareSelectors'
 import { getHouseLeader } from '@sim/selectors/officeSelectors'
@@ -24,14 +23,6 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
 
     const countryRef: OrganizationRef = { kind: 'country', id: countryId }
     const existingShares = getOrganizationShares(state, countryRef)
-
-    // Build map of existing shares by house holder
-    const shareByHouse = new Map<string, (typeof existingShares)[number]>()
-    for (const share of existingShares) {
-      if (share.holder.kind === 'house') {
-        shareByHouse.set(share.holder.id, share)
-      }
-    }
 
     // Compute new rawPower for each house in this country
     for (const houseId of country.houseIds) {
@@ -70,21 +61,12 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
 
       const newRawPower = calculatedRawPower * config.shareYearlyRetentionRate
 
-      const existing = shareByHouse.get(houseId)
-      if (existing) {
-        if (newRawPower <= 0) {
-          state = removeOrganizationShare(state, existing.id)
-        } else {
-          state = updateShareRawPower(state, existing.id, newRawPower)
-        }
-      } else if (newRawPower > 0) {
-        state = createOrganizationShare(
-          state,
-          countryRef,
-          { kind: 'house', id: houseId },
-          newRawPower,
-        )
-      }
+      const upsertResult = upsertOrganizationShare(state, {
+        organization: countryRef,
+        holder: { kind: 'house', id: houseId },
+        rawPower: newRawPower,
+      })
+      if (upsertResult.ok) state = upsertResult.value
     }
 
     // Delete shares for houses that are no longer in this country
@@ -103,13 +85,6 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
 
     const houseRef: OrganizationRef = { kind: 'house', id: houseId }
     const existingShares = getOrganizationShares(state, houseRef)
-
-    const shareByPerson = new Map<string, (typeof existingShares)[number]>()
-    for (const share of existingShares) {
-      if (share.holder.kind === 'person') {
-        shareByPerson.set(share.holder.id, share)
-      }
-    }
 
     const leaderId = getHouseLeader(state, houseId)
 
@@ -158,21 +133,12 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
         person.wealth * config.houseShareWealthFactor +
         (person.stats.admin + person.stats.martial) * config.houseShareStatFactor
 
-      const existing = shareByPerson.get(personId)
-      if (existing) {
-        if (newRawPower <= 0) {
-          state = removeOrganizationShare(state, existing.id)
-        } else {
-          state = updateShareRawPower(state, existing.id, newRawPower)
-        }
-      } else if (newRawPower > 0) {
-        state = createOrganizationShare(
-          state,
-          houseRef,
-          { kind: 'person', id: personId },
-          newRawPower,
-        )
-      }
+      const upsertResult = upsertOrganizationShare(state, {
+        organization: houseRef,
+        holder: { kind: 'person', id: personId },
+        rawPower: newRawPower,
+      })
+      if (upsertResult.ok) state = upsertResult.value
     }
   }
 

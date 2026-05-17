@@ -2,6 +2,7 @@ import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
 import { revokeOfficesByHolder } from '../mutations/officeMutations'
+import { clearSpouse } from '../mutations/relationshipMutations'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -20,24 +21,17 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
     currentCtx = { ...currentCtx, rng: nextRng }
 
     if (deathCheck < deathRate) {
-      const newPersons = { ...currentCtx.state.persons }
-      newPersons[personId as PersonId] = { ...person, alive: false }
-
-      if (person.spouseId !== undefined) {
-        const spouseId = person.spouseId
-        const spouse = newPersons[spouseId]
-        if (spouse && spouse.alive) {
-          const { spouseId: _sid, ...spouseRest } = spouse
-          void _sid
-          newPersons[spouseId] = spouseRest
-        }
-      }
-
       // Check if person was a house leader BEFORE revoking
       const houseLeaderBefore = getHouseLeader(currentCtx.state, person.houseId)
       const wasHouseLeader = houseLeaderBefore === (personId as PersonId)
 
+      const newPersons = { ...currentCtx.state.persons }
+      newPersons[personId as PersonId] = { ...person, alive: false }
       let currentState = { ...currentCtx.state, persons: newPersons }
+
+      const clearResult = clearSpouse(currentState, personId as PersonId)
+      if (clearResult.ok) currentState = clearResult.value
+
       currentState = revokeOfficesByHolder(currentState, personId as PersonId)
 
       const importance = wasHouseLeader ? 'normal' : 'minor'

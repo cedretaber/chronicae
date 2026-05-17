@@ -1,13 +1,13 @@
 import type { TickContext } from './context'
-import { makeEventId, makePersonId } from './context'
+import { makeEventId } from './context'
 import { randomFloat, randomInt } from '../rng/rng'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { createLogger } from '../debug/logger'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
-import type { Person } from '../types/person'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
+import { birthChild } from '../mutations/personMutations'
 
 export function runBirthSystem(ctx: TickContext): TickContext {
   if (ctx.state.currentMonth !== 1) return ctx
@@ -77,73 +77,29 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     const { name: childName, rng: rngAfterName } = pickNameBySex(childSex, rng5)
     currentCtx = { ...currentCtx, rng: rngAfterName }
 
-    const { id: childId, ctx: personCtx } = makePersonId(currentCtx)
-
-    const childPerson: Person = {
-      id: childId,
+    const birthResult = birthChild(currentCtx, {
+      fatherId: person.id,
+      ...(motherId !== undefined ? { motherId } : {}),
+      birthStatus,
       name: childName,
       sex: childSex,
-      age: 0,
-      alive: true,
-      houseId: person.houseId,
-      countryId: person.countryId,
-      fatherId: person.id,
-      birthStatus,
-      childIds: [],
-      stats: {
-        admin: adminStat,
-        martial: martialStat,
-      },
-      traits: {
-        ambition: amb1,
-        caution: amb3,
-      },
-      legacyPrestige: 0,
-      wealth: 0,
-      attitudes: {},
-    }
+      stats: { admin: adminStat, martial: martialStat },
+      traits: { ambition: amb1, caution: amb3 },
+    })
+    if (!birthResult.ok) continue
 
-    let newPersons: Record<PersonId, Person> = {
-      ...personCtx.state.persons,
-      [childId]: childPerson,
-    }
-
-    const newFather = newPersons[person.id]
-    if (newFather) {
-      newPersons = {
-        ...newPersons,
-        [person.id]: { ...newFather, childIds: [...newFather.childIds, childId] },
-      }
-    }
-
-    if (motherId) {
-      const newMother = newPersons[motherId]
-      if (newMother) {
-        newPersons = {
-          ...newPersons,
-          [motherId]: { ...newMother, childIds: [...newMother.childIds, childId] },
-        }
-      }
-    }
-
-    const newHouses = { ...personCtx.state.houses }
-    const parentHouse = newHouses[person.houseId]
-    if (parentHouse) {
-      newHouses[person.houseId] = {
-        ...parentHouse,
-        memberIds: [...parentHouse.memberIds, childId],
-      }
-    }
-
-    const newState = { ...personCtx.state, persons: newPersons, houses: newHouses }
-    currentCtx = { ...personCtx, state: newState }
+    const {
+      ctx: ctxAfterBirth,
+      value: { childId },
+    } = birthResult.value
+    currentCtx = ctxAfterBirth
 
     const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
 
     const event: SimEvent = {
       id: eventId,
-      year: newState.currentYear,
-      month: newState.currentMonth,
+      year: currentCtx.state.currentYear,
+      month: currentCtx.state.currentMonth,
       type: 'CHILD_BORN',
       importance: 'minor',
       actorIds: motherId ? [childId, person.id, motherId] : [childId, person.id],
@@ -156,16 +112,12 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       effects: [],
     }
 
-    currentCtx = {
-      ...eventCtx,
-      state: newState,
-      events: [...eventCtx.events, event],
-    }
+    currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }
 
     const log = createLogger(currentCtx.config.debug)
     const birthFields: Record<string, string | number | boolean> = {
-      year: newState.currentYear,
-      month: newState.currentMonth,
+      year: currentCtx.state.currentYear,
+      month: currentCtx.state.currentMonth,
       child: childId,
       sex: childSex,
       father: person.id,
