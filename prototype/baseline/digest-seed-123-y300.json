@@ -1,3 +1,7 @@
+
+> chronicae-prototype@0.1.0 cli
+> node src/cli/run.mjs --seed 123 --years 300 --digest
+
 {
   "seed": "123",
   "years": 300,
@@ -11,7 +15,7 @@
   "avgHouseControl": 70.1,
   "eventCounts": {
     "WAR_DECLARED": 69,
-    "PROVINCE_CONQUERED": 55,
+    "PROVINCE_CONQUERED": 48,
     "WAR_WON": 39,
     "WAR_LOST": 30,
     "PERSON_DIED": 1109,
@@ -43,5 +47,5 @@
     "COUNTRY_SPLIT": 2,
     "HOUSE_SPLIT": 1
   },
-  "totalEvents": 31581
+  "totalEvents": 31574
 }

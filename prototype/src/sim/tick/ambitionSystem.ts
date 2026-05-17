@@ -1,11 +1,7 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { HouseId } from '../types/ids'
-import {
-  attitudeValueToScore,
-  countryAttitudeKey,
-  getAttitudeOrDefault,
-} from '@sim/helpers/attitudeHelpers'
+import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
 import { getCountryLegitimacy, getHouseLoyaltyToCountry } from '@sim/selectors/statusSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 
@@ -25,7 +21,7 @@ export function calcAmbitionScores(state: WorldState, houseId: HouseId): Ambitio
   const head = headId ? state.persons[headId] : undefined
   if (!head) return { rebellionTendency: 0, plotTendency: 0 }
 
-  const headCountryAtt = getAttitudeOrDefault(state, head, countryAttitudeKey(house.countryId))
+  const headCountryAtt = getAttitudeOrDefault(state, head, { kind: 'country', id: house.countryId })
   const headCountryLoyalty =
     (attitudeValueToScore(headCountryAtt.affection) * 0.55 +
       attitudeValueToScore(headCountryAtt.respect) * 0.45) /

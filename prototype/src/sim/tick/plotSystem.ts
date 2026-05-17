@@ -3,12 +3,7 @@ import { makeEventId } from './context'
 import { calcAmbitionScores } from './ambitionSystem'
 import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
-import {
-  adjustPersonLegacyPrestige,
-  adjustHouseLegacyPrestige,
-  personAttitudeKey,
-  countryAttitudeKey,
-} from '../helpers/attitudeHelpers'
+import { adjustPersonLegacyPrestige, adjustHouseLegacyPrestige } from '../helpers/attitudeHelpers'
 import { getHouseCohesion, getCountryStability } from '../selectors/statusSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getAvailableOfficeRoles } from '../selectors/officeSelectors'
@@ -137,15 +132,23 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
           state = newState
 
           // Adjust target house member attitudes
-          const oldHeadKey = currentHeadId ? personAttitudeKey(currentHeadId) : ''
-          const newHeadKey = personAttitudeKey(newHead.id)
-          if (oldHeadKey) {
-            const r = adjustHouseMembersAttitude(state, targetHouse.id, oldHeadKey, {
-              respect: -10,
-            })
+          if (currentHeadId) {
+            const r = adjustHouseMembersAttitude(
+              state,
+              targetHouse.id,
+              { kind: 'person', id: currentHeadId },
+              {
+                respect: -10,
+              },
+            )
             if (r.ok) state = r.value
           }
-          const r2 = adjustHouseMembersAttitude(state, targetHouse.id, newHeadKey, { respect: 8 })
+          const r2 = adjustHouseMembersAttitude(
+            state,
+            targetHouse.id,
+            { kind: 'person', id: newHead.id },
+            { respect: 8 },
+          )
           if (r2.ok) state = r2.value
         }
 
@@ -198,11 +201,15 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
     }
 
     case 'prepare_rebellion': {
-      const cKey = countryAttitudeKey(leader.countryId)
-      const rr = adjustHouseMembersAttitude(state, leader.houseId, cKey, {
-        affection: -8,
-        respect: -5,
-      })
+      const rr = adjustHouseMembersAttitude(
+        state,
+        leader.houseId,
+        { kind: 'country', id: leader.countryId },
+        {
+          affection: -8,
+          respect: -5,
+        },
+      )
       if (rr.ok) state = rr.value
 
       const countryIds: CountryId[] = plot.targetCountryId

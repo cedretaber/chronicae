@@ -4,6 +4,7 @@ import type { CountryId, HouseId, PersonId } from '@sim/types/ids'
 import type { AttitudeKey, AttitudeMap, Attitude } from '@sim/types/attitude'
 import type { Person } from '@sim/types/person'
 import type { PopGroup } from '@sim/types/popGroup'
+import type { AttitudeTarget } from '@sim/mutations/attitudeMutations'
 
 // --- Key builders ---
 
@@ -31,9 +32,20 @@ export function attitudeValueToScore(v: number): number {
 // Returns the Attitude if it exists, undefined otherwise
 export function getExplicitAttitude(
   attitudes: AttitudeMap,
-  key: AttitudeKey,
+  target: AttitudeTarget,
 ): Attitude | undefined {
-  return attitudes[key]
+  return attitudes[attitudeTargetToKey(target)]
+}
+
+function attitudeTargetToKey(target: AttitudeTarget): AttitudeKey {
+  switch (target.kind) {
+    case 'person':
+      return personAttitudeKey(target.id)
+    case 'country':
+      return countryAttitudeKey(target.id)
+    case 'house':
+      return houseAttitudeKey(target.id)
+  }
 }
 
 // Returns the Attitude if it exists, or { affection: 0, respect: 0 } as default
@@ -41,8 +53,9 @@ export function getExplicitAttitude(
 export function getAttitudeOrDefault(
   _state: WorldState,
   source: Person | PopGroup,
-  key: AttitudeKey,
+  target: AttitudeTarget,
 ): Attitude {
+  const key = attitudeTargetToKey(target)
   return source.attitudes[key] ?? { affection: 0, respect: 0 }
 }
 

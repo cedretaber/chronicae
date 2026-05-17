@@ -3,8 +3,7 @@ import { makeEventId } from './context'
 import type { OfficeAssignmentId } from '@sim/types/ids'
 import type { SimEvent } from '@sim/types/event'
 import { getOfficeDefinition } from '@sim/config/officeDefinitions'
-import { adjustAttitude } from '@sim/helpers/attitudeHelpers'
-import { countryAttitudeKey, houseAttitudeKey } from '@sim/helpers/attitudeHelpers'
+import { adjustPersonAttitude } from '@sim/mutations/attitudeMutations'
 import type { WorldState } from '@sim/types/world'
 
 export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
@@ -83,22 +82,16 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
       const affPenalty = config.officeUnpaidAffectionPenalty * (1 - dignityReduction)
       const resPenalty = config.officeUnpaidRespectPenalty * (1 - dignityReduction)
 
-      const attKey = org.kind === 'country' ? countryAttitudeKey(org.id) : houseAttitudeKey(org.id)
+      const orgTarget =
+        org.kind === 'country'
+          ? { kind: 'country' as const, id: org.id }
+          : { kind: 'house' as const, id: org.id }
 
-      const currentPerson = state.persons[office.holderPersonId]
-      if (currentPerson) {
-        const updatedAttitudes = adjustAttitude(currentPerson.attitudes, attKey, {
-          affection: affPenalty,
-          respect: resPenalty,
-        })
-        state = {
-          ...state,
-          persons: {
-            ...state.persons,
-            [office.holderPersonId]: { ...currentPerson, attitudes: updatedAttitudes },
-          },
-        }
-      }
+      const r = adjustPersonAttitude(state, office.holderPersonId, orgTarget, {
+        affection: affPenalty,
+        respect: resPenalty,
+      })
+      if (r.ok) state = r.value
 
       // Emit OFFICE_SALARY_UNPAID or OFFICE_SALARY_PARTIALLY_PAID event
       const eventType = paid > 0 ? 'OFFICE_SALARY_PARTIALLY_PAID' : 'OFFICE_SALARY_UNPAID'

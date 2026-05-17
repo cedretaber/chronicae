@@ -7,12 +7,7 @@ import {
   getHouseCohesion,
   getHouseLoyaltyToCountry,
 } from '@sim/selectors/statusSelectors'
-import {
-  getAttitudeOrDefault,
-  attitudeValueToScore,
-  houseAttitudeKey,
-  countryAttitudeKey,
-} from '@sim/helpers/attitudeHelpers'
+import { getAttitudeOrDefault, attitudeValueToScore } from '@sim/helpers/attitudeHelpers'
 import {
   getCountryRulerHouse,
   getCountryRuler,
@@ -788,11 +783,10 @@ function PersonDetail({
   })
   const importanceScore = calcPersonImportanceScore(worldState, person.id, eventHistory)
 
-  const personCountryAtt = getAttitudeOrDefault(
-    worldState,
-    person,
-    countryAttitudeKey(person.countryId),
-  )
+  const personCountryAtt = getAttitudeOrDefault(worldState, person, {
+    kind: 'country',
+    id: person.countryId,
+  })
   const countryLoyalty =
     (attitudeValueToScore(personCountryAtt.affection) * 0.55 +
       attitudeValueToScore(personCountryAtt.respect) * 0.45) /
@@ -1162,12 +1156,14 @@ function ProvinceDetail({
         (p) => p?.provinceId === province.id && p?.class === 'nobles',
       )
       if (noblesPop) {
-        const a_house = getAttitudeOrDefault(ws, noblesPop, houseAttitudeKey(province.ownerHouseId))
-        const a_country = getAttitudeOrDefault(
-          ws,
-          noblesPop,
-          countryAttitudeKey(province.countryId),
-        )
+        const a_house = getAttitudeOrDefault(ws, noblesPop, {
+          kind: 'house',
+          id: province.ownerHouseId,
+        })
+        const a_country = getAttitudeOrDefault(ws, noblesPop, {
+          kind: 'country',
+          id: province.countryId,
+        })
         const houseScore =
           attitudeValueToScore(a_house.affection) * 0.6 +
           attitudeValueToScore(a_house.respect) * 0.4

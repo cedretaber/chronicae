@@ -8,13 +8,7 @@ import {
   getHouseCountrySharePercent,
   getPersonHouseSharePercent,
 } from '@sim/selectors/shareSelectors'
-import {
-  attitudeValueToScore,
-  getAttitudeOrDefault,
-  countryAttitudeKey,
-  houseAttitudeKey,
-  personAttitudeKey,
-} from '@sim/helpers/attitudeHelpers'
+import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
 import { weightedAverage } from '@sim/selectors/statusSelectors'
 
 function orgKey(org: OrganizationRef): string {
@@ -102,16 +96,14 @@ export function getOfficeHolderPower(state: WorldState, office: OfficeAssignment
     if (rulerId && rulerId !== office.holderPersonId) {
       const ruler = state.persons[rulerId]
       if (ruler) {
-        const rulerKey = personAttitudeKey(rulerId)
-        const att = getAttitudeOrDefault(state, person, rulerKey)
+        const att = getAttitudeOrDefault(state, person, { kind: 'person', id: rulerId })
         rulerRespectScore = attitudeValueToScore(att.respect) / 100
       }
     }
 
     let orgRespectScore = 0
     if (country) {
-      const countryKey = countryAttitudeKey(countryId)
-      const att = getAttitudeOrDefault(state, person, countryKey)
+      const att = getAttitudeOrDefault(state, person, { kind: 'country', id: countryId })
       orgRespectScore = attitudeValueToScore(att.respect) / 100
     }
 
@@ -139,16 +131,14 @@ export function getOfficeHolderPower(state: WorldState, office: OfficeAssignment
     if (leaderId && leaderId !== office.holderPersonId) {
       const leader = state.persons[leaderId]
       if (leader) {
-        const leaderKey = personAttitudeKey(leaderId)
-        const att = getAttitudeOrDefault(state, person, leaderKey)
+        const att = getAttitudeOrDefault(state, person, { kind: 'person', id: leaderId })
         leaderRespectScore = attitudeValueToScore(att.respect) / 100
       }
     }
 
     let orgRespectScore = 0
     if (house) {
-      const houseKey = houseAttitudeKey(houseId)
-      const att = getAttitudeOrDefault(state, person, houseKey)
+      const att = getAttitudeOrDefault(state, person, { kind: 'house', id: houseId })
       orgRespectScore = attitudeValueToScore(att.respect) / 100
     }
 

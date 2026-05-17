@@ -1,8 +1,7 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { revokeOfficesByHolder } from '../mutations/officeMutations'
-import { clearSpouse } from '../mutations/relationshipMutations'
+import { markPersonDead } from '../mutations/personMutations'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -25,15 +24,8 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
       const houseLeaderBefore = getHouseLeader(currentCtx.state, person.houseId)
       const wasHouseLeader = houseLeaderBefore === (personId as PersonId)
 
-      // v013-residual: simple-batch — alive=false フラグ単独更新（spouse/office は mutation 経由済み）
-      const newPersons = { ...currentCtx.state.persons }
-      newPersons[personId as PersonId] = { ...person, alive: false }
-      let currentState = { ...currentCtx.state, persons: newPersons }
-
-      const clearResult = clearSpouse(currentState, personId as PersonId)
-      if (clearResult.ok) currentState = clearResult.value
-
-      currentState = revokeOfficesByHolder(currentState, personId as PersonId)
+      const deadResult = markPersonDead(currentCtx.state, personId as PersonId)
+      const currentState = deadResult.ok ? deadResult.value : currentCtx.state
 
       const importance = wasHouseLeader ? 'normal' : 'minor'
 

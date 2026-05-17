@@ -11,11 +11,8 @@ import {
   adjustProvincePopUnrestByClass,
 } from '../mutations/popMutations'
 import { adjustProvinceDevelopment } from '../mutations/provinceMutations'
-import {
-  adjustCountryLegacyPrestige,
-  adjustAttitude,
-  countryAttitudeKey,
-} from '../helpers/attitudeHelpers'
+import { adjustCountryLegacyPrestige } from '../helpers/attitudeHelpers'
+import { adjustPopAttitude } from '../mutations/attitudeMutations'
 
 function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
   const country = ctx.state.countries[countryId]
@@ -57,39 +54,32 @@ function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
 
   // Apply legacyPrestige and attitude changes based on relief
   let nextCtxState = stateWithCountry
+  const countryTarget = { kind: 'country' as const, id: countryId }
   if (canAffordRelief) {
     nextCtxState = adjustCountryLegacyPrestige(nextCtxState, countryId, 1)
     // Affected provinces pop attitudes
     for (const pid of countryProvinceIds) {
       const prov = nextCtxState.provinces[pid]
       if (!prov) continue
-      const cKey = countryAttitudeKey(countryId)
-      const newPops = { ...nextCtxState.popGroups }
       for (const popId of prov.popGroupIds) {
-        const pop = newPops[popId]
-        if (!pop) continue
-        newPops[popId] = {
-          ...pop,
-          attitudes: adjustAttitude(pop.attitudes, cKey, { affection: 6, respect: 2 }),
-        }
+        const r = adjustPopAttitude(nextCtxState, popId, countryTarget, {
+          affection: 6,
+          respect: 2,
+        })
+        if (r.ok) nextCtxState = r.value
       }
-      nextCtxState = { ...nextCtxState, popGroups: newPops }
     }
   } else {
-    const cKey = countryAttitudeKey(countryId)
     for (const pid of countryProvinceIds) {
       const prov = nextCtxState.provinces[pid]
       if (!prov) continue
-      const newPops = { ...nextCtxState.popGroups }
       for (const popId of prov.popGroupIds) {
-        const pop = newPops[popId]
-        if (!pop) continue
-        newPops[popId] = {
-          ...pop,
-          attitudes: adjustAttitude(pop.attitudes, cKey, { affection: -8, respect: -4 }),
-        }
+        const r = adjustPopAttitude(nextCtxState, popId, countryTarget, {
+          affection: -8,
+          respect: -4,
+        })
+        if (r.ok) nextCtxState = r.value
       }
-      nextCtxState = { ...nextCtxState, popGroups: newPops }
     }
   }
 

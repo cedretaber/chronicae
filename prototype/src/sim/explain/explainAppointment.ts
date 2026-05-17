@@ -2,11 +2,7 @@ import type { WorldState } from '../types/world'
 import type { PersonId, CountryId } from '../types/ids'
 import type { OfficeRole } from '../types/office'
 import type { EventReason, EventEffect } from '../types/event'
-import {
-  getAttitudeOrDefault,
-  attitudeValueToScore,
-  countryAttitudeKey,
-} from '../helpers/attitudeHelpers'
+import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 
 export function explainAppointment(
   state: WorldState,
@@ -22,7 +18,7 @@ export function explainAppointment(
 
   const reasons: EventReason[] = []
 
-  const personCountryAtt = getAttitudeOrDefault(state, person, countryAttitudeKey(countryId))
+  const personCountryAtt = getAttitudeOrDefault(state, person, { kind: 'country', id: countryId })
   const personCountryLoyalty =
     (attitudeValueToScore(personCountryAtt.affection) * 0.55 +
       attitudeValueToScore(personCountryAtt.respect) * 0.45) /

@@ -16,7 +16,6 @@ export function runLordshipTransitionSystem(ctx: TickContext): TickContext {
 
   const candidates: Array<{
     targetId: ProvinceId
-    sourceNeighborId: ProvinceId
     sourceNeighbor: { houseControl: number; ownerHouseId: HouseId }
   }> = []
 
@@ -34,7 +33,6 @@ export function runLordshipTransitionSystem(ctx: TickContext): TickContext {
     if (target.id === ownerHouse.seatProvinceId) continue
 
     const neighborCandidates: Array<{
-      neighborId: ProvinceId
       neighbor: { houseControl: number; ownerHouseId: HouseId }
     }> = []
 
@@ -47,7 +45,6 @@ export function runLordshipTransitionSystem(ctx: TickContext): TickContext {
       if (neighbor.houseControl < target.houseControl * config.lordshipAbsorptionRatio) continue
 
       neighborCandidates.push({
-        neighborId,
         neighbor: { houseControl: neighbor.houseControl, ownerHouseId: neighbor.ownerHouseId },
       })
     }
@@ -57,7 +54,6 @@ export function runLordshipTransitionSystem(ctx: TickContext): TickContext {
     const first = neighborCandidates[0]
     if (!first) continue
     let bestNeighbor = first.neighbor
-    let bestNeighborId = first.neighborId
     if (neighborCandidates.length > 1) {
       const maxHouseControl = Math.max(...neighborCandidates.map((c) => c.neighbor.houseControl))
       const topCandidates = neighborCandidates.filter(
@@ -70,12 +66,10 @@ export function runLordshipTransitionSystem(ctx: TickContext): TickContext {
         const chosen = topCandidates[chosenIndex]
         if (!chosen) continue
         bestNeighbor = chosen.neighbor
-        bestNeighborId = chosen.neighborId
       } else {
         const top = topCandidates[0]
         if (!top) continue
         bestNeighbor = top.neighbor
-        bestNeighborId = top.neighborId
       }
     }
 
@@ -84,16 +78,12 @@ export function runLordshipTransitionSystem(ctx: TickContext): TickContext {
 
     if (chance >= config.lordshipAbsorptionMonthlyChance) continue
 
-    candidates.push({ targetId, sourceNeighborId: bestNeighborId, sourceNeighbor: bestNeighbor })
+    candidates.push({ targetId, sourceNeighbor: bestNeighbor })
   }
 
   const newEvents: SimEvent[] = []
-  const appliedTargets = new Set<string>()
 
   for (const candidate of candidates) {
-    if (appliedTargets.has(candidate.targetId)) continue
-    appliedTargets.add(candidate.targetId)
-
     const target = provinceSnapshot[candidate.targetId]
     if (!target) continue
 

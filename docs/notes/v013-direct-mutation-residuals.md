@@ -36,7 +36,6 @@ immutable update パターン。mutation API 化より直接記述のほうが�
 | `advanceTime.ts:8` | persons age +1 | 全員に1歳加算する単純ループ | `incrementAllPersonsAge(state)` |
 | `attitudeDecaySystem.ts:9` | persons attitudes decay | 全員の person attitudes を retention rate 倍 | `decayAllPersonAttitudes(state, rate)` |
 | `attitudeDecaySystem.ts:28` | popGroups attitudes decay | 全員の popGroup attitudes を retention rate 倍 | `decayAllPopAttitudes(state, rate)` |
-| `mortalitySystem.ts:29` | persons alive = false | 死亡フラグ設定（spouse/office clearing は mutation 経由済み） | `markPersonDead(state, personId)` |
 | `developmentSystem.ts:7` | provinces development decay | 全 province の development を decay/recover | `adjustProvinceDevelopment` で代替可。ループ単純なので現状維持 |
 | `economySystem.ts:97` | houses wealth | delta map 集約後の house wealth バッチ更新 | `adjustHouseWealth(state, houseId, delta)` で代替可だが delta 集約パターンが有用 |
 | `economySystem.ts:109` | countries treasury | taxEfficiency を乗じた treasury バッチ更新 | 上記と同様 |

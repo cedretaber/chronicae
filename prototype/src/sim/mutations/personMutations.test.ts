@@ -6,7 +6,9 @@ import type { TickContext } from '../tick/context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { collectIntegrityErrors } from '../tick/integritySystem'
-import { movePersonToHouse, birthChild } from './personMutations'
+import { movePersonToHouse, birthChild, markPersonDead } from './personMutations'
+import { setSpouse } from './relationshipMutations'
+import { createOfficeAssignment } from './officeMutations'
 
 function makeFixture(): {
   state: WorldState
@@ -129,6 +131,72 @@ function makeFixture(): {
     country2Id,
   }
 }
+
+describe('markPersonDead', () => {
+  it('sets alive to false', () => {
+    const { state, person1Id } = makeFixture()
+    const result = markPersonDead(state, person1Id)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.persons[person1Id]!.alive).toBe(false)
+  })
+
+  it('clears spouse relationship on both sides', () => {
+    const { state, person1Id, person2Id } = makeFixture()
+    const withSpouse = setSpouse(state, person1Id, person2Id)
+    expect(withSpouse.ok).toBe(true)
+    if (!withSpouse.ok) return
+    const result = markPersonDead(withSpouse.value, person1Id)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.persons[person1Id]!.spouseId).toBeUndefined()
+    expect(result.value.persons[person2Id]!.spouseId).toBeUndefined()
+  })
+
+  it('revokes active office assignments', () => {
+    const { state, person1Id, house1Id } = makeFixture()
+    const withOffice = createOfficeAssignment(
+      state,
+      { kind: 'house', id: house1Id },
+      'leader',
+      person1Id,
+    )
+    expect(Object.keys(withOffice.officeAssignments).length).toBe(1)
+    const result = markPersonDead(withOffice, person1Id)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const assignments = Object.values(result.value.officeAssignments)
+    expect(assignments.every((a) => !a.active)).toBe(true)
+  })
+
+  it('is a no-op when person is already dead', () => {
+    const { state, person1Id } = makeFixture()
+    const first = markPersonDead(state, person1Id)
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    const second = markPersonDead(first.value, person1Id)
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    expect(second.value).toBe(first.value)
+  })
+
+  it('returns PERSON_NOT_FOUND for unknown personId', () => {
+    const { state } = makeFixture()
+    const result = markPersonDead(state, createPersonId('pe', 99))
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('PERSON_NOT_FOUND')
+  })
+
+  it('passes integrity check after death', () => {
+    const { state, person1Id, person2Id } = makeFixture()
+    const withSpouse = setSpouse(state, person1Id, person2Id)
+    expect(withSpouse.ok).toBe(true)
+    if (!withSpouse.ok) return
+    const result = markPersonDead(withSpouse.value, person1Id)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(collectIntegrityErrors(result.value)).toEqual([])
+  })
+})
 
 describe('movePersonToHouse', () => {
   it('updates person.houseId to newHouseId', () => {

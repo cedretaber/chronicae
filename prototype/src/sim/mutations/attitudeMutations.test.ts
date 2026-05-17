@@ -4,7 +4,7 @@ import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import { adjustHouseMembersAttitude } from './attitudeMutations'
-import { houseAttitudeKey } from '../helpers/attitudeHelpers'
+import { houseAttitudeKey } from '../helpers/attitudeHelpers' // used for assertion key lookup only
 
 function makeFixture(): {
   state: WorldState
@@ -98,7 +98,12 @@ describe('adjustHouseMembersAttitude', () => {
   it('adjusts attitude for alive members only', () => {
     const { state, person1Id, person2Id, houseId } = makeFixture()
     const key = houseAttitudeKey(houseId)
-    const result = adjustHouseMembersAttitude(state, houseId, key, { respect: 10 })
+    const result = adjustHouseMembersAttitude(
+      state,
+      houseId,
+      { kind: 'house', id: houseId },
+      { respect: 10 },
+    )
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -122,10 +127,15 @@ describe('adjustHouseMembersAttitude', () => {
         },
       },
     }
-    const result = adjustHouseMembersAttitude(withInitial, houseId, key, {
-      affection: -5,
-      respect: 10,
-    })
+    const result = adjustHouseMembersAttitude(
+      withInitial,
+      houseId,
+      { kind: 'house', id: houseId },
+      {
+        affection: -5,
+        respect: 10,
+      },
+    )
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -136,10 +146,15 @@ describe('adjustHouseMembersAttitude', () => {
   it('clamps attitudes to -100..100', () => {
     const { state, person1Id, houseId } = makeFixture()
     const key = houseAttitudeKey(houseId)
-    const result = adjustHouseMembersAttitude(state, houseId, key, {
-      affection: 200,
-      respect: -200,
-    })
+    const result = adjustHouseMembersAttitude(
+      state,
+      houseId,
+      { kind: 'house', id: houseId },
+      {
+        affection: 200,
+        respect: -200,
+      },
+    )
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -149,9 +164,14 @@ describe('adjustHouseMembersAttitude', () => {
 
   it('returns err when house not found', () => {
     const { state } = makeFixture()
-    const result = adjustHouseMembersAttitude(state, createHouseId('h', 99), 'house:x', {
-      respect: 5,
-    })
+    const result = adjustHouseMembersAttitude(
+      state,
+      createHouseId('h', 99),
+      { kind: 'house', id: createHouseId('h', 99) },
+      {
+        respect: 5,
+      },
+    )
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
@@ -159,9 +179,14 @@ describe('adjustHouseMembersAttitude', () => {
 
   it('passes integrity check', () => {
     const { state, houseId } = makeFixture()
-    const result = adjustHouseMembersAttitude(state, houseId, houseAttitudeKey(houseId), {
-      respect: 5,
-    })
+    const result = adjustHouseMembersAttitude(
+      state,
+      houseId,
+      { kind: 'house', id: houseId },
+      {
+        respect: 5,
+      },
+    )
 
     expect(result.ok).toBe(true)
     if (!result.ok) return

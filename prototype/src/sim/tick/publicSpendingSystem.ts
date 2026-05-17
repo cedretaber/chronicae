@@ -21,7 +21,6 @@ import {
   adjustHouseLegacyPrestige,
   getAttitudeOrDefault,
   attitudeValueToScore,
-  countryAttitudeKey,
 } from '../helpers/attitudeHelpers'
 
 function scoreLandDevelopmentProvince(province: Province, rulerHouseId: HouseId): number {
@@ -75,11 +74,10 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       treasurerAdmin * 2 +
       calcChancellorMonumentScoreBonus(currentCtx.state, countryId as CountryId, currentCtx.config)
 
-    const headCountryAtt = getAttitudeOrDefault(
-      currentCtx.state,
-      rulerHead,
-      countryAttitudeKey(countryId as CountryId),
-    )
+    const headCountryAtt = getAttitudeOrDefault(currentCtx.state, rulerHead, {
+      kind: 'country',
+      id: countryId as CountryId,
+    })
     const headCountryLoyalty =
       (attitudeValueToScore(headCountryAtt.affection) * 0.55 +
         attitudeValueToScore(headCountryAtt.respect) * 0.45) /

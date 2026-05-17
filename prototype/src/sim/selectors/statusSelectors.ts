@@ -9,11 +9,9 @@ import {
   getHouseLeader,
 } from '@sim/selectors/officeSelectors'
 import {
-  countryAttitudeKey,
-  houseAttitudeKey,
-  personAttitudeKey,
   attitudeValueToScore,
   getAttitudeOrDefault,
+  getExplicitAttitude,
 } from '@sim/helpers/attitudeHelpers'
 
 // --- Utility ---
@@ -39,7 +37,7 @@ export function getCountryLegitimacy(state: WorldState, countryId: CountryId): n
   const country = state.countries[countryId]
   if (!country) return 50
 
-  const countryKey = countryAttitudeKey(countryId)
+  const countryTarget = { kind: 'country' as const, id: countryId }
 
   // Collect alive persons in this country
   const personScores: number[] = []
@@ -49,7 +47,7 @@ export function getCountryLegitimacy(state: WorldState, countryId: CountryId): n
     for (const memberId of house.memberIds) {
       const person = state.persons[memberId]
       if (!person || !person.alive) continue
-      const att = getAttitudeOrDefault(state, person, countryKey)
+      const att = getAttitudeOrDefault(state, person, countryTarget)
       // affection weight 0.35, respect weight 0.65
       const score =
         attitudeValueToScore(att.affection) * 0.35 + attitudeValueToScore(att.respect) * 0.65
@@ -67,7 +65,7 @@ export function getCountryLegitimacy(state: WorldState, countryId: CountryId): n
     for (const popId of province.popGroupIds) {
       const pop = state.popGroups[popId]
       if (!pop) continue
-      const att = getAttitudeOrDefault(state, pop, countryKey)
+      const att = getAttitudeOrDefault(state, pop, countryTarget)
       // affection weight 0.40, respect weight 0.60
       const score =
         attitudeValueToScore(att.affection) * 0.4 + attitudeValueToScore(att.respect) * 0.6
@@ -140,14 +138,14 @@ export function getHouseCohesion(state: WorldState, houseId: HouseId): number {
   const headId = getHouseLeader(state, houseId)
   if (!headId) return 50
 
-  const headKey = personAttitudeKey(headId)
+  const headTarget = { kind: 'person' as const, id: headId }
   const scores: number[] = []
 
   for (const memberId of house.memberIds) {
     if (memberId === headId) continue // exclude head
     const person = state.persons[memberId]
     if (!person || !person.alive) continue
-    const att = getAttitudeOrDefault(state, person, headKey)
+    const att = getAttitudeOrDefault(state, person, headTarget)
     // affection weight 0.45, respect weight 0.55
     const score =
       attitudeValueToScore(att.affection) * 0.45 + attitudeValueToScore(att.respect) * 0.55
@@ -164,13 +162,13 @@ export function getHouseLoyaltyToCountry(state: WorldState, houseId: HouseId): n
   const house = state.houses[houseId]
   if (!house) return 50
 
-  const countryKey = countryAttitudeKey(house.countryId)
+  const countryTarget = { kind: 'country' as const, id: house.countryId }
   const scores: number[] = []
 
   for (const memberId of house.memberIds) {
     const person = state.persons[memberId]
     if (!person || !person.alive) continue
-    const att = getAttitudeOrDefault(state, person, countryKey)
+    const att = getAttitudeOrDefault(state, person, countryTarget)
     // affection weight 0.55, respect weight 0.45
     const score =
       attitudeValueToScore(att.affection) * 0.55 + attitudeValueToScore(att.respect) * 0.45
@@ -188,14 +186,14 @@ export function getCountryPrestige(state: WorldState, countryId: CountryId): num
   const country = state.countries[countryId]
   if (!country) return 0
 
-  const key = countryAttitudeKey(countryId)
+  const countryTarget = { kind: 'country' as const, id: countryId }
   const respectScores: number[] = []
 
   // Collect respect from all Persons in the world
   for (const personId of Object.keys(state.persons) as PersonId[]) {
     const person = state.persons[personId]
     if (!person || !person.alive) continue
-    const att = person.attitudes[key]
+    const att = getExplicitAttitude(person.attitudes, countryTarget)
     if (att !== undefined) {
       respectScores.push(attitudeValueToScore(att.respect))
     }
@@ -204,7 +202,7 @@ export function getCountryPrestige(state: WorldState, countryId: CountryId): num
   for (const popId of Object.keys(state.popGroups) as PopGroupId[]) {
     const pop = state.popGroups[popId]
     if (!pop) continue
-    const att = pop.attitudes[key]
+    const att = getExplicitAttitude(pop.attitudes, countryTarget)
     if (att !== undefined) {
       respectScores.push(attitudeValueToScore(att.respect))
     }
@@ -222,13 +220,13 @@ export function getHousePrestige(state: WorldState, houseId: HouseId): number {
   const house = state.houses[houseId]
   if (!house) return 0
 
-  const key = houseAttitudeKey(houseId)
+  const houseTarget = { kind: 'house' as const, id: houseId }
   const respectScores: number[] = []
 
   for (const personId of Object.keys(state.persons) as PersonId[]) {
     const person = state.persons[personId]
     if (!person || !person.alive) continue
-    const att = person.attitudes[key]
+    const att = getExplicitAttitude(person.attitudes, houseTarget)
     if (att !== undefined) {
       respectScores.push(attitudeValueToScore(att.respect))
     }
@@ -236,7 +234,7 @@ export function getHousePrestige(state: WorldState, houseId: HouseId): number {
   for (const popId of Object.keys(state.popGroups) as PopGroupId[]) {
     const pop = state.popGroups[popId]
     if (!pop) continue
-    const att = pop.attitudes[key]
+    const att = getExplicitAttitude(pop.attitudes, houseTarget)
     if (att !== undefined) {
       respectScores.push(attitudeValueToScore(att.respect))
     }
@@ -254,14 +252,14 @@ export function getPersonPrestige(state: WorldState, personId: PersonId): number
   const person = state.persons[personId]
   if (!person) return 0
 
-  const key = personAttitudeKey(personId)
+  const personTarget = { kind: 'person' as const, id: personId }
   const respectScores: number[] = []
 
   for (const otherId of Object.keys(state.persons) as PersonId[]) {
     if (otherId === personId) continue
     const other = state.persons[otherId]
     if (!other || !other.alive) continue
-    const att = other.attitudes[key]
+    const att = getExplicitAttitude(other.attitudes, personTarget)
     if (att !== undefined) {
       respectScores.push(attitudeValueToScore(att.respect))
     }

@@ -29,11 +29,9 @@ import {
 import {
   getAttitudeOrDefault,
   attitudeValueToScore,
-  houseAttitudeKey,
-  countryAttitudeKey,
-  adjustAttitude,
   adjustCountryLegacyPrestige,
 } from '../helpers/attitudeHelpers'
+import { adjustPopAttitude } from '../mutations/attitudeMutations'
 import { getCountryLegitimacy, getCountryStability } from '../selectors/statusSelectors'
 import { getCountryRulerHouse } from '../selectors/officeSelectors'
 import { createOfficeAssignment } from '../mutations/officeMutations'
@@ -94,8 +92,8 @@ function calcRevoltTendency(
     }
   } else if (rebelClass === 'nobles') {
     // Use the nobles pop's attitudes toward house and country
-    const a_house = getAttitudeOrDefault(state, pop, houseAttitudeKey(province.ownerHouseId))
-    const a_country = getAttitudeOrDefault(state, pop, countryAttitudeKey(province.countryId))
+    const a_house = getAttitudeOrDefault(state, pop, { kind: 'house', id: province.ownerHouseId })
+    const a_country = getAttitudeOrDefault(state, pop, { kind: 'country', id: province.countryId })
     const houseScore =
       attitudeValueToScore(a_house.affection) * 0.6 + attitudeValueToScore(a_house.respect) * 0.4
     const countryScore =
@@ -397,13 +395,13 @@ function resolveRevoltConcession(
     return undefined
   })()
   if (rebelPop) {
-    const cKey = countryAttitudeKey(countryId)
-    const newPops = { ...newState.popGroups }
-    newPops[rebelPop.id] = {
-      ...rebelPop,
-      attitudes: adjustAttitude(rebelPop.attitudes, cKey, { respect: -4, affection: 2 }),
-    }
-    newState = { ...newState, popGroups: newPops }
+    const r = adjustPopAttitude(
+      newState,
+      rebelPop.id,
+      { kind: 'country', id: countryId },
+      { respect: -4, affection: 2 },
+    )
+    if (r.ok) newState = r.value
   }
 
   // Owner house loses wealth
@@ -673,16 +671,13 @@ function resolveRevoltLordshipChange(
     return undefined
   })()
   if (rebelPopForAttitude) {
-    const nhKey = houseAttitudeKey(newHouseId)
-    const newPops = { ...ctx.state.popGroups }
-    newPops[rebelPopForAttitude.id] = {
-      ...rebelPopForAttitude,
-      attitudes: adjustAttitude(rebelPopForAttitude.attitudes, nhKey, {
-        affection: 8,
-        respect: 5,
-      }),
-    }
-    ctx = { ...ctx, state: { ...ctx.state, popGroups: newPops } }
+    const r = adjustPopAttitude(
+      ctx.state,
+      rebelPopForAttitude.id,
+      { kind: 'house', id: newHouseId },
+      { affection: 8, respect: 5 },
+    )
+    if (r.ok) ctx = { ...ctx, state: r.value }
   }
 
   // Emit LORDSHIP_USURPED event

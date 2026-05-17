@@ -5,6 +5,8 @@ import type { Person, Sex, BirthStatus } from '../types/person'
 import type { WorldState } from '../types/world'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
+import { clearSpouse } from './relationshipMutations'
+import { revokeOfficesByHolder } from './officeMutations'
 
 export type BirthChildInput = {
   fatherId: PersonId
@@ -14,6 +16,25 @@ export type BirthChildInput = {
   sex: Sex
   stats: { admin: number; martial: number }
   traits: { ambition: number; caution: number }
+}
+
+export function markPersonDead(state: WorldState, personId: PersonId): StateResult {
+  const person = state.persons[personId]
+  if (!person)
+    return err({
+      code: 'PERSON_NOT_FOUND',
+      message: 'markPersonDead: person not found: ' + personId,
+    })
+  if (!person.alive) return ok(state)
+
+  let newState: WorldState = {
+    ...state,
+    persons: { ...state.persons, [personId]: { ...person, alive: false } },
+  }
+  const spouseResult = clearSpouse(newState, personId)
+  if (spouseResult.ok) newState = spouseResult.value
+  newState = revokeOfficesByHolder(newState, personId)
+  return ok(newState)
 }
 
 export function movePersonToHouse(

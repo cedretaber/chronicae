@@ -11,12 +11,7 @@ import {
   getPersonHouseSharePercent,
 } from '../selectors/shareSelectors'
 import { getPersonPrestige } from '../selectors/statusSelectors'
-import {
-  getAttitudeOrDefault,
-  attitudeValueToScore,
-  countryAttitudeKey,
-  houseAttitudeKey,
-} from '../helpers/attitudeHelpers'
+import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
 import type { PersonId, CountryId, HouseId } from '../types/ids'
 import type { OfficeRole, OrganizationRef } from '../types/office'
@@ -58,10 +53,10 @@ function computeCountryScore(
   const prestige = getPersonPrestige(state, personId)
   const rulerRespect = ruler
     ? attitudeValueToScore(
-        getAttitudeOrDefault(state, ruler, countryAttitudeKey(countryId)).respect,
+        getAttitudeOrDefault(state, ruler, { kind: 'country', id: countryId }).respect,
       ) / 100
     : 0
-  const countryAtt = getAttitudeOrDefault(state, person, countryAttitudeKey(countryId))
+  const countryAtt = getAttitudeOrDefault(state, person, { kind: 'country', id: countryId })
   const countryAffection = attitudeValueToScore(countryAtt.affection) / 100
   const houseSharePct = getHouseCountrySharePercent(state, countryId, person.houseId)
   const personSharePct = getPersonHouseSharePercent(state, person.houseId, personId)
@@ -93,10 +88,11 @@ function computeHouseScore(
 
   const prestige = getPersonPrestige(state, personId)
   const leaderRespect = leader
-    ? attitudeValueToScore(getAttitudeOrDefault(state, leader, houseAttitudeKey(houseId)).respect) /
-      100
+    ? attitudeValueToScore(
+        getAttitudeOrDefault(state, leader, { kind: 'house', id: houseId }).respect,
+      ) / 100
     : 0
-  const houseAtt = getAttitudeOrDefault(state, person, houseAttitudeKey(houseId))
+  const houseAtt = getAttitudeOrDefault(state, person, { kind: 'house', id: houseId })
   const houseAffection = attitudeValueToScore(houseAtt.affection) / 100
   const personSharePct = getPersonHouseSharePercent(state, houseId, personId)
 

@@ -67,7 +67,7 @@ export function adjustPopAttitude(
 export function adjustHouseMembersAttitude(
   state: WorldState,
   houseId: HouseId,
-  attitudeKey: string,
+  target: AttitudeTarget,
   delta: Partial<Attitude>,
 ): StateResult {
   const house = state.houses[houseId]
@@ -77,13 +77,14 @@ export function adjustHouseMembersAttitude(
       message: 'adjustHouseMembersAttitude: house not found: ' + houseId,
     })
 
+  const key = targetKey(target)
   const newPersons = { ...state.persons }
   for (const memberId of house.memberIds) {
     const person = newPersons[memberId]
     if (!person || !person.alive) continue
     newPersons[memberId] = {
       ...person,
-      attitudes: adjustAttitude(person.attitudes, attitudeKey, delta),
+      attitudes: adjustAttitude(person.attitudes, key, delta),
     }
   }
 

@@ -3,11 +3,7 @@ import type { HouseId } from '../types/ids'
 import type { EventReason, EventEffect } from '../types/event'
 import { getCountryLegitimacy, getHouseLoyaltyToCountry } from '../selectors/statusSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
-import {
-  getAttitudeOrDefault,
-  attitudeValueToScore,
-  countryAttitudeKey,
-} from '../helpers/attitudeHelpers'
+import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 
 export function explainRebellion(
   state: WorldState,
@@ -74,7 +70,7 @@ export function explainRebellion(
     })
   }
 
-  const headCountryAtt = getAttitudeOrDefault(state, head, countryAttitudeKey(house.countryId))
+  const headCountryAtt = getAttitudeOrDefault(state, head, { kind: 'country', id: house.countryId })
   const headCountryLoyalty =
     (attitudeValueToScore(headCountryAtt.affection) * 0.55 +
       attitudeValueToScore(headCountryAtt.respect) * 0.45) /
