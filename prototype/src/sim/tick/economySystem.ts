@@ -110,7 +110,7 @@ export function runEconomySystem(ctx: TickContext): TickContext {
     const country = newCountries[countryId as CountryId]
     if (!country) continue
     if (!country.active) continue
-    const taxEfficiency = calcTreasurerTaxEfficiency(ctx.state, country, ctx.config)
+    const taxEfficiency = calcTreasurerTaxEfficiency(ctx.state, country.id, ctx.config)
     const delta = treasuryDeltas.get(countryId as CountryId) ?? 0
     newCountries[countryId as CountryId] = {
       ...country,

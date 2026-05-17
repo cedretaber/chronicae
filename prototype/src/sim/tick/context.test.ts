@@ -22,6 +22,7 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
       stats: { admin: 5, martial: 5 },
       traits: { ambition: 0.5, caution: 0.5 },
       legacyPrestige: 10,
+      wealth: 0,
       attitudes: {},
     }
   }
@@ -34,6 +35,12 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
     persons,
     activePlots: {},
     popGroups: {},
+    organizationShares: {},
+    officeAssignments: {},
+    shareIndex: { byOrganization: {}, byHolder: {} },
+    officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 0,
   }
 }
 

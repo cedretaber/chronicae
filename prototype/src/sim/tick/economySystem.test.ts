@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { WorldState } from '../types/world'
-import type { ProvinceId, HouseId, CountryId, PersonId } from '../types/ids'
+import type { ProvinceId, HouseId, CountryId } from '../types/ids'
 import type { TickContext } from './context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
@@ -10,7 +10,6 @@ function makeEconomyState(_baseTax: number, _unrest: number, development: number
   const provinceId = 'p-0' as ProvinceId
   const houseId = 'h-0' as HouseId
   const countryId = 'c-0' as CountryId
-  const headId = 'pe-0' as PersonId
 
   return {
     currentYear: 1,
@@ -35,12 +34,10 @@ function makeEconomyState(_baseTax: number, _unrest: number, development: number
       [countryId]: {
         id: countryId,
         name: 'C0',
-        rulerHouseId: houseId,
         houseIds: [houseId],
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 50,
-        roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
       },
@@ -53,7 +50,6 @@ function makeEconomyState(_baseTax: number, _unrest: number, development: number
         countryId,
         provinceIds: [provinceId],
         memberIds: [],
-        headId: headId,
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 100,
@@ -63,6 +59,12 @@ function makeEconomyState(_baseTax: number, _unrest: number, development: number
     persons: {},
     activePlots: {},
     popGroups: {},
+    organizationShares: {},
+    officeAssignments: {},
+    shareIndex: { byOrganization: {}, byHolder: {} },
+    officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 0,
   }
 }
 
@@ -129,7 +131,6 @@ describe.skip('runEconomySystem', () => {
     const provinceId = 'p-0' as ProvinceId
     const houseId = 'h-0' as HouseId
     const countryId = 'c-0' as CountryId
-    const headId = 'pe-0' as PersonId
 
     const world = {
       currentYear: 1,
@@ -154,12 +155,10 @@ describe.skip('runEconomySystem', () => {
         [countryId]: {
           id: countryId,
           name: 'C0',
-          rulerHouseId: houseId,
           houseIds: [houseId],
           treasury: 100,
           legacyPrestige: 50,
           adminPower: 50,
-          roleAssignments: {},
           active: true,
           capitalProvinceId: '' as ProvinceId,
         },
@@ -172,7 +171,6 @@ describe.skip('runEconomySystem', () => {
           countryId,
           provinceIds: [provinceId],
           memberIds: [],
-          headId: headId,
           cadetHouseIds: [],
           legacyPrestige: 50,
           wealth: 0,
@@ -182,6 +180,12 @@ describe.skip('runEconomySystem', () => {
       persons: {},
       activePlots: {},
       popGroups: {},
+      organizationShares: {},
+      officeAssignments: {},
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 0,
     } as unknown as WorldState
 
     const ctx = makeCtx(world)

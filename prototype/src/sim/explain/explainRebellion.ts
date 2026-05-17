@@ -2,6 +2,7 @@ import type { WorldState } from '../types/world'
 import type { HouseId } from '../types/ids'
 import type { EventReason, EventEffect } from '../types/event'
 import { getCountryLegitimacy, getHouseLoyaltyToCountry } from '../selectors/statusSelectors'
+import { getHouseLeader } from '../selectors/officeSelectors'
 import {
   getAttitudeOrDefault,
   attitudeValueToScore,
@@ -20,7 +21,9 @@ export function explainRebellion(
   const country = state.countries[house.countryId]
   if (!country) return { reasons: [], effects: [] }
 
-  const head = state.persons[house.headId]
+  const headId = getHouseLeader(state, house.id)
+  if (!headId) return { reasons: [], effects: [] }
+  const head = state.persons[headId]
   if (!head) return { reasons: [], effects: [] }
 
   const reasons: EventReason[] = []

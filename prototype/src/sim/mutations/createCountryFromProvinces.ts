@@ -4,6 +4,7 @@ import type { ProvinceId, HouseId, CountryId, PersonId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
 import type { Country } from '../types/country'
 import { generateCountryName } from '../selectors/countryNamingService'
+import { createOfficeAssignment } from './officeMutations'
 
 export function createCountryFromProvinces(
   ctx: TickContext,
@@ -32,15 +33,25 @@ export function createCountryFromProvinces(
   const country: Country = {
     id,
     name,
-    rulerHouseId: params.rulerHouseId,
     houseIds: [params.rulerHouseId],
     treasury: finalCtx.config.revoltCountryInitialTreasury,
     legacyPrestige: finalCtx.config.revoltCountryInitialLegacyPrestige,
     adminPower: 0,
-    roleAssignments: {},
     active: true,
     capitalProvinceId: params.capitalProvinceId,
   }
 
-  return { country, ctx: finalCtx }
+  // Add country to state
+  const stateWithCountry = {
+    ...finalCtx.state,
+    countries: { ...finalCtx.state.countries, [id]: country },
+  }
+
+  // Set up leader office assignment
+  const leaderPersonId = params.founderPersonId
+  const stateWithLeader = leaderPersonId
+    ? createOfficeAssignment(stateWithCountry, { kind: 'country', id }, 'leader', leaderPersonId)
+    : stateWithCountry
+
+  return { country, ctx: { ...finalCtx, state: stateWithLeader } }
 }

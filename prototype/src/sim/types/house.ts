@@ -7,7 +7,6 @@ export type House = {
   countryId: CountryId
   provinceIds: ProvinceId[]
   memberIds: PersonId[]
-  headId: PersonId
   founderId?: PersonId
   parentHouseId?: HouseId
   cadetHouseIds: HouseId[]

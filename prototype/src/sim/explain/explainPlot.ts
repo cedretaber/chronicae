@@ -3,6 +3,7 @@ import type { HouseId } from '../types/ids'
 import type { PlotType } from '../types/plot'
 import type { EventReason, EventEffect } from '../types/event'
 import { getHouseLoyaltyToCountry } from '../selectors/statusSelectors'
+import { getHouseLeader } from '../selectors/officeSelectors'
 import {
   getAttitudeOrDefault,
   attitudeValueToScore,
@@ -20,7 +21,9 @@ export function explainPlot(
   const country = state.countries[house.countryId]
   if (!country) return { reasons: [], effects: [] }
 
-  const head = state.persons[house.headId]
+  const headId = getHouseLeader(state, house.id)
+  if (!headId) return { reasons: [], effects: [] }
+  const head = state.persons[headId]
   if (!head) return { reasons: [], effects: [] }
 
   const reasons: EventReason[] = []
@@ -71,10 +74,10 @@ export function explainPlot(
 
   const effects: EventEffect[] = (() => {
     switch (plotType) {
-      case 'replace_house_head':
+      case 'replace_house_leader':
         return [{ label: 'Targeting house leadership' }]
-      case 'seize_role':
-        return [{ label: 'Targeting a government role' }]
+      case 'seize_office':
+        return [{ label: 'Targeting a government office' }]
       case 'prepare_rebellion':
         return [{ label: 'Preparing for rebellion' }]
     }

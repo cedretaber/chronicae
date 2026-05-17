@@ -3,7 +3,11 @@ import type { WorldState } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { CountryId, HouseId, PersonId, ProvinceId, PopGroupId } from '@sim/types/ids'
 import { getProvinceUnrest } from '@sim/selectors/popSelectors'
-import { getAssignedLivingPerson } from '@sim/selectors/personAbilityEffects'
+import {
+  getEffectiveOfficeStat,
+  getAdministrativeEfficiency,
+  getHouseLeader,
+} from '@sim/selectors/officeSelectors'
 import {
   countryAttitudeKey,
   houseAttitudeKey,
@@ -133,11 +137,14 @@ export function getHouseCohesion(state: WorldState, houseId: HouseId): number {
   const house = state.houses[houseId]
   if (!house) return 50
 
-  const headKey = personAttitudeKey(house.headId)
+  const headId = getHouseLeader(state, houseId)
+  if (!headId) return 50
+
+  const headKey = personAttitudeKey(headId)
   const scores: number[] = []
 
   for (const memberId of house.memberIds) {
-    if (memberId === house.headId) continue // exclude head
+    if (memberId === headId) continue // exclude head
     const person = state.persons[memberId]
     if (!person || !person.alive) continue
     const att = getAttitudeOrDefault(state, person, headKey)
@@ -278,21 +285,25 @@ export function getCountryAdminPower(
   const country = state.countries[countryId]
   if (!country) return 0
 
-  // Look up role holders using getAssignedLivingPerson
-  const chancellor = getAssignedLivingPerson(state, country, 'chancellor')
-  const treasurer = getAssignedLivingPerson(state, country, 'treasurer')
-
-  const chancellorScore = chancellor ? chancellor.stats.admin * 10 : 50
-  const treasurerScore = treasurer ? treasurer.stats.admin * 10 : 50
+  const countryRef = { kind: 'country' as const, id: countryId }
   const stability = getCountryStability(state, config, countryId)
-  const rulerPrestige = getHousePrestige(state, country.rulerHouseId)
   const treasuryScore = clamp(Math.log1p(country.treasury) * 10, 0, 100)
+  const efficiency = getAdministrativeEfficiency(state, config, countryId)
+
+  const rulerContrib =
+    getEffectiveOfficeStat(state, config, countryRef, 'leader', 'admin') *
+    config.rulerAdminCapacityFactor
+  const adminContrib =
+    getEffectiveOfficeStat(state, config, countryRef, 'administrator', 'admin') *
+    config.administratorCapacityFactor
+  const treasurerContrib =
+    getEffectiveOfficeStat(state, config, countryRef, 'treasurer', 'admin') *
+    config.treasurerCapacityFactor
 
   return clamp100(
-    0.3 * chancellorScore +
-      0.2 * treasurerScore +
-      0.2 * stability +
-      0.15 * rulerPrestige +
-      0.15 * treasuryScore,
+    (rulerContrib + adminContrib + treasurerContrib) * efficiency * 0.5 +
+      stability * 0.2 +
+      country.legacyPrestige * 0.15 +
+      treasuryScore * 0.15,
   )
 }

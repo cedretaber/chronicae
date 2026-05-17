@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { WorldState } from '../types/world'
-import type { ProvinceId, HouseId, CountryId, PersonId } from '../types/ids'
+import type { ProvinceId, HouseId, CountryId } from '../types/ids'
 import type { TickContext } from './context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
@@ -10,7 +10,6 @@ function makeProvinceState(development: number): WorldState {
   const provinceId = 'p-0' as ProvinceId
   const houseId = 'h-0' as HouseId
   const countryId = 'c-0' as CountryId
-  const headId = 'pe-0' as PersonId
 
   return {
     currentYear: 1,
@@ -35,12 +34,10 @@ function makeProvinceState(development: number): WorldState {
       [countryId]: {
         id: countryId,
         name: 'C0',
-        rulerHouseId: houseId,
         houseIds: [houseId],
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 50,
-        roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
       },
@@ -53,7 +50,6 @@ function makeProvinceState(development: number): WorldState {
         countryId,
         provinceIds: [provinceId],
         memberIds: [],
-        headId,
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 100,
@@ -63,6 +59,12 @@ function makeProvinceState(development: number): WorldState {
     persons: {},
     activePlots: {},
     popGroups: {},
+    organizationShares: {},
+    officeAssignments: {},
+    shareIndex: { byOrganization: {}, byHolder: {} },
+    officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 0,
   }
 }
 

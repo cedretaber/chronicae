@@ -2,6 +2,7 @@ import type { Person } from '../types/person'
 import type { House } from '../types/house'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
+import { getHouseLeader } from './officeSelectors'
 
 export type SuccessionCandidate = {
   person: Person
@@ -9,7 +10,7 @@ export type SuccessionCandidate = {
 }
 
 export function needsSuccession(state: WorldState, house: House): boolean {
-  return house.active === true && state.persons[house.headId]?.alive !== true
+  return house.active === true && getHouseLeader(state, house.id) === undefined
 }
 
 export function getAdultSuccessionCandidates(
@@ -31,9 +32,18 @@ export function getAdultSuccessionCandidates(
     return []
   }
 
-  const deadHead = state.persons[house.headId]
+  // Find the dead/gone leader via any means — since headId is gone,
+  // look for a dead member of the house who was likely the leader
+  const deadHead =
+    house.memberIds
+      .map((id) => state.persons[id])
+      .find((p): p is Person => p !== undefined && !p.alive) ?? undefined
+
   if (!deadHead) {
-    return candidates.map((person) => ({ person, score: 0 }))
+    return candidates.map((person) => ({
+      person,
+      score: calcSuccessionScore(person, undefined, state, config),
+    }))
   }
 
   const result: SuccessionCandidate[] = candidates.map((person) => ({
@@ -117,11 +127,11 @@ export function getBloodScore(candidate: Person, deadHead: Person, state: WorldS
 
 export function calcSuccessionScore(
   candidate: Person,
-  deadHead: Person,
+  deadHead: Person | undefined,
   state: WorldState,
   config: SimulationConfig,
 ): number {
-  const blood = getBloodScore(candidate, deadHead, state)
+  const blood = deadHead ? getBloodScore(candidate, deadHead, state) : 50 // Default mid-range blood score when deadHead is unknown
   const birthPenalty =
     candidate.birthStatus === 'illegitimate'
       ? config.illegitimateSuccessionPenalty

@@ -26,5 +26,6 @@ export type Person = {
     caution: number // 0.0..1.0
   }
   legacyPrestige: number // 0..100
+  wealth: number // >= 0
   attitudes: AttitudeMap
 }

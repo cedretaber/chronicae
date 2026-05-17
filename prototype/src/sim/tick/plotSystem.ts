@@ -1,5 +1,6 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
+import { calcAmbitionScores } from './ambitionSystem'
 import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
 import {
@@ -10,10 +11,14 @@ import {
   countryAttitudeKey,
 } from '../helpers/attitudeHelpers'
 import { getHouseCohesion, getCountryStability } from '../selectors/statusSelectors'
-import { calcAmbitionScores } from './ambitionSystem'
-import { assignRole } from '../mutations/assignRole'
+import { getHouseLeader } from '../selectors/officeSelectors'
+import { getAvailableOfficeRoles } from '../selectors/officeSelectors'
+import {
+  createOfficeAssignment,
+  revokeAllOfficesForOrganization,
+} from '../mutations/officeMutations'
+import type { OrganizationRef, OfficeRole } from '../types/office'
 import type { PlotId, HouseId, PersonId, CountryId } from '../types/ids'
-import type { RoleType } from '../types/role'
 import type { Plot, PlotType } from '../types/plot'
 import type { SimEvent, EventType } from '../types/event'
 import type { Person } from '../types/person'
@@ -63,12 +68,12 @@ function resolvePlot(currentCtx: TickContext, plot: Plot): ResolveResult {
 
   let targetDefense: number
   switch (plot.type) {
-    case 'replace_house_head': {
+    case 'replace_house_leader': {
       const th = currentCtx.state.houses[plot.targetHouseId as HouseId]
       targetDefense = th ? getHouseCohesion(currentCtx.state, th.id) : 0
       break
     }
-    case 'seize_role': {
+    case 'seize_office': {
       const tc = currentCtx.state.countries[plot.targetCountryId as CountryId]
       targetDefense = tc?.adminPower ?? 0
       break
@@ -110,10 +115,10 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
   let state = currentCtx.state
 
   switch (plot.type) {
-    case 'replace_house_head': {
+    case 'replace_house_leader': {
       const targetHouse = currentCtx.state.houses[plot.targetHouseId as HouseId]
       if (targetHouse) {
-        const currentHeadId = targetHouse.headId as string
+        const currentHeadId = getHouseLeader(currentCtx.state, targetHouse.id)
         // Find a new head from within the target house's existing members
         const newHead = targetHouse.memberIds
           .map((id) => state.persons[id])
@@ -122,7 +127,7 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
               p !== undefined &&
               p.alive &&
               p.age >= currentCtx.config.adultAge &&
-              (p.id as string) !== currentHeadId,
+              (p.id as string) !== (currentHeadId ?? ''),
           )
           .sort((a, b) => b.legacyPrestige - a.legacyPrestige)[0]
 
@@ -131,19 +136,26 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
           const newHouses = { ...state.houses }
           newHouses[plot.targetHouseId as HouseId] = {
             ...targetHouse,
-            headId: newHead.id,
           }
           state = { ...state, houses: newHouses }
 
+          // Apply office mutation: revoke all offices for the organization, then assign to new leader
+          const targetOrgRef: OrganizationRef = { kind: 'house', id: targetHouse.id }
+          let newState = revokeAllOfficesForOrganization(currentCtx.state, targetOrgRef, 'leader')
+          newState = createOfficeAssignment(newState, targetOrgRef, 'leader', newHead.id)
+          state = newState
+
           // Adjust target house member attitudes
-          const oldHeadKey = personAttitudeKey(targetHouse.headId)
+          const oldHeadKey = currentHeadId ? personAttitudeKey(currentHeadId) : ''
           const newHeadKey = personAttitudeKey(newHead.id)
           const newPersons = { ...state.persons }
           for (const memberId of targetHouse.memberIds) {
             const m = newPersons[memberId]
             if (!m || !m.alive) continue
             let att = m.attitudes
-            att = adjustAttitude(att, oldHeadKey, { respect: -10 })
+            if (oldHeadKey) {
+              att = adjustAttitude(att, oldHeadKey, { respect: -10 })
+            }
             att = adjustAttitude(att, newHeadKey, { respect: 8 })
             newPersons[memberId] = { ...m, attitudes: att }
           }
@@ -169,31 +181,23 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
       )
     }
 
-    case 'seize_role': {
+    case 'seize_office': {
       const targetCountry = currentCtx.state.countries[plot.targetCountryId as CountryId]
       if (targetCountry) {
         const targetRole = plot.targetRole
         if (targetRole) {
-          try {
-            const assignedState = assignRole(
-              state,
-              plot.targetCountryId as CountryId,
-              targetRole,
-              plot.leaderId,
-            )
-            state = assignedState
-          } catch {
-            // On error, just mark succeeded without state changes
-          }
+          const targetCountryId = plot.targetCountryId
+          if (!targetCountryId) return currentCtx
+          const countryOrgRef: OrganizationRef = { kind: 'country', id: targetCountryId }
+          state = createOfficeAssignment(state, countryOrgRef, targetRole, plot.leaderId)
         }
       }
 
       state = adjustPersonLegacyPrestige(state, plot.leaderId, 5)
       state = adjustHouseLegacyPrestige(state, leader.houseId, 2)
 
-      const countryIds: CountryId[] = plot.targetCountryId
-        ? [plot.targetCountryId]
-        : [leader.countryId]
+      const targetCountryId = plot.targetCountryId
+      const countryIds: CountryId[] = targetCountryId ? [targetCountryId] : [leader.countryId]
 
       return emitEvent(
         { ...currentCtx, state, events: [...currentCtx.events] },
@@ -243,7 +247,7 @@ function applyPlotFailure(currentCtx: TickContext, plot: Plot, leader: Person): 
   let state = currentCtx.state
 
   switch (plot.type) {
-    case 'replace_house_head': {
+    case 'replace_house_leader': {
       state = adjustPersonLegacyPrestige(state, plot.leaderId, -3)
 
       const countryIds: CountryId[] = plot.targetCountryId
@@ -261,7 +265,7 @@ function applyPlotFailure(currentCtx: TickContext, plot: Plot, leader: Person): 
       )
     }
 
-    case 'seize_role': {
+    case 'seize_office': {
       state = adjustPersonLegacyPrestige(state, plot.leaderId, -3)
 
       const countryIds: CountryId[] = plot.targetCountryId
@@ -303,12 +307,15 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
   const house = currentCtx.state.houses[houseId]
   if (!house || !house.active) return currentCtx
 
-  const head = currentCtx.state.persons[house.headId]
+  const leaderId = getHouseLeader(currentCtx.state, houseId)
+  if (!leaderId) return currentCtx
+
+  const head = currentCtx.state.persons[leaderId]
   if (!head || !head.alive) return currentCtx
 
   // Check if house already has an active plot
   const hasActivePlot = Object.values(currentCtx.state.activePlots).some(
-    (p) => p.leaderId === house.headId && p.status === 'active',
+    (p) => p.leaderId === leaderId && p.status === 'active',
   )
   if (hasActivePlot) return currentCtx
 
@@ -325,9 +332,9 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
   if (typeRoll < 0.25 + rebelBias) {
     plotType = 'prepare_rebellion'
   } else if (typeRoll < 0.6) {
-    plotType = 'seize_role'
+    plotType = 'seize_office'
   } else {
-    plotType = 'replace_house_head'
+    plotType = 'replace_house_leader'
   }
 
   // Roll stats using 3 separate randomFloat calls
@@ -352,10 +359,10 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
   // Determine target fields based on plotType
   let targetHouseId: HouseId | undefined
   let targetCountryId: CountryId | undefined
-  let targetRole: RoleType | undefined
+  let targetRole: OfficeRole | undefined
 
   switch (plotType) {
-    case 'replace_house_head': {
+    case 'replace_house_leader': {
       const candidates: HouseId[] = []
       for (const cid of Object.keys(currentCtx.state.houses).sort()) {
         const candidateHouse = currentCtx.state.houses[cid as HouseId]
@@ -363,7 +370,9 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
         if (cid === houseId) continue
         if (!candidateHouse.active) continue
         if (candidateHouse.countryId !== house.countryId) continue
-        const candidateHead = currentCtx.state.persons[candidateHouse.headId]
+        const candidateHeadId = getHouseLeader(currentCtx.state, cid as HouseId)
+        if (!candidateHeadId) continue
+        const candidateHead = currentCtx.state.persons[candidateHeadId]
         if (!candidateHead || !candidateHead.alive) continue
         candidates.push(cid as HouseId)
       }
@@ -375,22 +384,17 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
       break
     }
 
-    case 'seize_role': {
+    case 'seize_office': {
       const country = currentCtx.state.countries[house.countryId]
       if (country) {
-        const allRoles: RoleType[] = ['chancellor', 'general', 'treasurer']
-        let vacantRole: RoleType | undefined
-        for (const role of allRoles) {
-          const assignment = country.roleAssignments[role]
-          if (!assignment) {
-            vacantRole = role
-            break
-          }
-        }
-        if (vacantRole) {
-          targetRole = vacantRole
-        } else {
-          targetRole = allRoles[0]
+        const countryOrgRef: OrganizationRef = { kind: 'country', id: house.countryId }
+        const availableRoles = getAvailableOfficeRoles(currentCtx.state, countryOrgRef)
+        // Pick a non-leader role if available, otherwise pick the first available
+        const nonLeaderRole = availableRoles.find((r) => r !== 'leader')
+        if (nonLeaderRole) {
+          targetRole = nonLeaderRole
+        } else if (availableRoles.length > 0) {
+          targetRole = availableRoles[0]
         }
       }
       targetCountryId = house.countryId
@@ -412,8 +416,8 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
     startedMonth: eventCtx.state.currentMonth,
     durationMonths,
     elapsedMonths: 0,
-    leaderId: house.headId,
-    participantIds: [house.headId],
+    leaderId: leaderId,
+    participantIds: [leaderId],
     power,
     secrecy,
     risk,
@@ -432,7 +436,7 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
     { ...eventCtx, state: newState, events: [...eventCtx.events] },
     'PLOT_STARTED',
     'normal',
-    [house.headId],
+    [leaderId],
     [houseId],
     countryIds,
     `${head.name} began a ${plotType} plot.`,
@@ -482,11 +486,14 @@ export function runPlotSystem(ctx: TickContext): TickContext {
     const house = currentCtx.state.houses[houseId as HouseId]
     if (!house || !house.active) continue
 
-    const head = currentCtx.state.persons[house.headId]
+    const leaderId = getHouseLeader(currentCtx.state, houseId as HouseId)
+    if (!leaderId) continue
+
+    const head = currentCtx.state.persons[leaderId]
     if (!head || !head.alive) continue
 
     const hasActivePlot = Object.values(currentCtx.state.activePlots).some(
-      (p) => p.leaderId === house.headId && p.status === 'active',
+      (p) => p.leaderId === leaderId && p.status === 'active',
     )
     if (hasActivePlot) continue
 

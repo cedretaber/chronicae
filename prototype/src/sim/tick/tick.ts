@@ -14,6 +14,8 @@ import { runSuccessionSystem } from './successionSystem'
 import { runMarriageSystem } from './marriageSystem'
 import { runBirthSystem } from './birthSystem'
 import { runAppointmentSystem } from './appointmentSystem'
+import { runShareUpdateSystem } from './shareUpdateSystem'
+import { runOfficeCompensationSystem } from './officeCompensationSystem'
 import { runAmbitionSystem } from './ambitionSystem'
 import { runPublicSpendingSystem } from './publicSpendingSystem'
 import { runHouseDevelopmentSystem } from './houseDevelopmentSystem'
@@ -25,7 +27,7 @@ import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import { runRebellionSystem } from './rebellionSystem'
 import { runAttitudeDecaySystem } from './attitudeDecaySystem'
 import { runGovernanceSystem } from './governanceSystem'
-import { runIntegrityCheck } from './integritySystem'
+import { runIntegritySystem } from './integritySystem'
 import { runPopSystem, normalizePopSizes } from './popSystem'
 import { runPopDevelopmentSystem } from './popDevelopmentSystem'
 import { createLogger } from '../debug/logger'
@@ -57,7 +59,9 @@ export function tick(input: TickInput): TickResult {
   run('successionSystem', runSuccessionSystem)
   run('marriageSystem', runMarriageSystem)
   run('birthSystem', runBirthSystem)
+  run('shareUpdateSystem', runShareUpdateSystem)
   run('appointmentSystem', runAppointmentSystem)
+  run('officeCompensationSystem', runOfficeCompensationSystem)
   run('ambitionSystem', runAmbitionSystem)
   run('publicSpendingSystem', runPublicSpendingSystem)
   run('houseDevelopmentSystem', runHouseDevelopmentSystem)
@@ -72,13 +76,13 @@ export function tick(input: TickInput): TickResult {
 
   if (debug) {
     try {
-      run('integrityCheck', runIntegrityCheck)
+      run('integrityCheck', runIntegritySystem)
     } catch (e) {
       log.log('INTEGRITY', { error: String(e) })
     }
     log.perf('tick:total', performance.now() - tickStart)
   } else {
-    ctx = runIntegrityCheck(ctx)
+    ctx = runIntegritySystem(ctx)
   }
 
   return toResult(ctx)

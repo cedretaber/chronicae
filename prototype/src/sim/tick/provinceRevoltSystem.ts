@@ -38,6 +38,8 @@ import {
   adjustCountryLegacyPrestige,
 } from '../helpers/attitudeHelpers'
 import { getCountryLegitimacy, getCountryStability } from '../selectors/statusSelectors'
+import { getCountryRulerHouse } from '../selectors/officeSelectors'
+import { createOfficeAssignment } from '../mutations/officeMutations'
 
 type RevoltCandidate = {
   provinceId: ProvinceId
@@ -518,6 +520,7 @@ function resolveRevoltLordshipChange(
       caution: caution / 10,
     },
     legacyPrestige,
+    wealth: 0,
     attitudes: {},
   }
 
@@ -543,7 +546,6 @@ function resolveRevoltLordshipChange(
     countryId,
     provinceIds: [],
     memberIds: [newPersonId],
-    headId: newPersonId,
     founderId: newPersonId,
     cadetHouseIds: [],
     legacyPrestige: config.revoltHouseInitialLegacyPrestige,
@@ -564,6 +566,14 @@ function resolveRevoltLordshipChange(
       },
     },
   }
+
+  // Assign house leader office for the new rebel house
+  newState = createOfficeAssignment(
+    newState,
+    { kind: 'house' as const, id: newHouseId },
+    'leader',
+    newPersonId,
+  )
 
   // Transfer province to new house
   newState = transferProvinceToHouse(newState, provinceId, newHouseId)
@@ -591,8 +601,9 @@ function resolveRevoltLordshipChange(
   const updatedOldHouse = newState.houses[oldOwnerHouseId]
   if (updatedOldHouse && updatedOldHouse.provinceIds.length === 0) {
     // If the old owner was the ruler, transfer rulership to the new house
-    const isOldOwnerRuler = (oldOwnerHouseId as string) === (country.rulerHouseId as string)
-    const targetHouseId = isOldOwnerRuler ? newHouseId : country.rulerHouseId
+    const isOldOwnerRuler = getCountryRulerHouse(state, countryId) === oldOwnerHouseId
+    const targetHouseId = isOldOwnerRuler ? newHouseId : getCountryRulerHouse(state, countryId)
+    if (targetHouseId === undefined) return ctx
     const targetHouse = newState.houses[targetHouseId]
     const updatedPersons: Record<PersonId, Person> = { ...newState.persons }
     const targetMemberIds = targetHouse ? [...targetHouse.memberIds] : []
@@ -624,7 +635,6 @@ function resolveRevoltLordshipChange(
             ...newState.countries,
             [countryId]: {
               ...updatedCountry,
-              rulerHouseId: isOldOwnerRuler ? newHouseId : updatedCountry.rulerHouseId,
               houseIds: updatedCountry.houseIds.filter(
                 (hid) => (hid as string) !== (oldOwnerHouseId as string),
               ),
@@ -784,6 +794,7 @@ function resolveRevoltIndependence(
       caution: caution / 10,
     },
     legacyPrestige,
+    wealth: 0,
     attitudes: {},
   }
 
@@ -809,7 +820,6 @@ function resolveRevoltIndependence(
     countryId: newCountryId,
     provinceIds: [provinceId],
     memberIds: [newPersonId],
-    headId: newPersonId,
     founderId: newPersonId,
     cadetHouseIds: [],
     legacyPrestige: config.revoltHouseInitialLegacyPrestige,
@@ -820,12 +830,10 @@ function resolveRevoltIndependence(
   const newCountry: Country = {
     id: newCountryId,
     name: newCountryName,
-    rulerHouseId: newHouseId,
     houseIds: [newHouseId],
     treasury: config.revoltCountryInitialTreasury,
     legacyPrestige: config.revoltCountryInitialLegacyPrestige,
     adminPower: 0,
-    roleAssignments: {},
     active: true,
     capitalProvinceId: provinceId,
   }
@@ -856,7 +864,7 @@ function resolveRevoltIndependence(
     : undefined
 
   // Remove old owner house from old country houseIds if it becomes landless
-  const oldOwnerIsRuler = (oldOwnerHouseId as string) === (oldCountry.rulerHouseId as string)
+  const oldOwnerIsRuler = getCountryRulerHouse(state, oldCountryId) === oldOwnerHouseId
   const remainingHouseIds = oldCountry.houseIds.filter(
     (hid) => (hid as string) !== (oldOwnerHouseId as string),
   )
@@ -874,10 +882,6 @@ function resolveRevoltIndependence(
       ? {
           ...oldCountry,
           houseIds: remainingHouseIds,
-          // If ruler becomes landless, transfer to first remaining house; deactivate if none left
-          rulerHouseId: oldOwnerIsRuler
-            ? (remainingHouseIds[0] ?? oldCountry.rulerHouseId)
-            : oldCountry.rulerHouseId,
           active: !oldOwnerIsRuler || remainingHouseIds.length > 0,
           capitalProvinceId: newOldCapProvinceId,
         }
@@ -903,10 +907,29 @@ function resolveRevoltIndependence(
     },
   }
 
+  // Assign leader offices for the new house and country
+  newState = createOfficeAssignment(
+    newState,
+    { kind: 'house' as const, id: newHouseId },
+    'leader',
+    newPersonId,
+  )
+  newState = createOfficeAssignment(
+    newState,
+    { kind: 'country' as const, id: newCountryId },
+    'leader',
+    newPersonId,
+  )
+
   // If old owner house became landless, deactivate and move members
   if (updatedOldOwnerHouse && updatedOldOwnerHouse.provinceIds.length === 0 && oldOwnerHouse) {
     const deactivatedOldHouse = { ...updatedOldOwnerHouse, active: false }
-    const rulerHouse = newState.houses[updatedOldCountry.rulerHouseId]
+    const rulerHouseId = getCountryRulerHouse(newState, oldCountryId)
+    if (!rulerHouseId) {
+      ctx = { ...ctx, state: newState }
+      return ctx
+    }
+    const rulerHouse = newState.houses[rulerHouseId]
     const updatedPersons: Record<PersonId, Person> = { ...newState.persons }
     const rulerMemberIds = rulerHouse ? [...rulerHouse.memberIds] : []
 
@@ -915,7 +938,7 @@ function resolveRevoltIndependence(
       if (member && member.alive) {
         updatedPersons[memberId] = {
           ...member,
-          houseId: updatedOldCountry.rulerHouseId,
+          houseId: rulerHouseId,
           countryId: oldCountryId,
         }
         rulerMemberIds.push(memberId)
@@ -925,7 +948,7 @@ function resolveRevoltIndependence(
     const updatedHouses: Record<HouseId, House> = { ...newState.houses }
     updatedHouses[oldOwnerHouseId] = deactivatedOldHouse
     if (rulerHouse) {
-      updatedHouses[updatedOldCountry.rulerHouseId] = { ...rulerHouse, memberIds: rulerMemberIds }
+      updatedHouses[rulerHouseId] = { ...rulerHouse, memberIds: rulerMemberIds }
     }
 
     newState = {

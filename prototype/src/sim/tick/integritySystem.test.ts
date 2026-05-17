@@ -5,10 +5,9 @@ import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
 import type { Person } from '../types/person'
 import type { House } from '../types/house'
 import type { Country } from '../types/country'
-import type { Province } from '../types/province'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
-import { runIntegrityCheck } from './integritySystem'
+import { runIntegritySystem } from './integritySystem'
 import { generateWorld } from '../worldgen/generateWorld'
 
 function makeCtx(world: WorldState): TickContext {
@@ -24,76 +23,15 @@ function makeCtx(world: WorldState): TickContext {
   }
 }
 
-function makeMinimalWorldWithHouse(
-  houseId: HouseId,
-  countryId: CountryId,
-  headId: PersonId,
-  headAlive: boolean,
-): WorldState {
-  const house: House = {
-    id: houseId,
-    name: 'H0',
-    active: true,
-    countryId,
-    provinceIds: [],
-    memberIds: [headId],
-    headId,
-    cadetHouseIds: [],
-    legacyPrestige: 50,
-    wealth: 100,
-    seatProvinceId: '' as ProvinceId,
-  }
-
-  const headPerson: Person = {
-    id: headId,
-    name: 'Head',
-    sex: 'male',
-    age: 50,
-    alive: headAlive,
-    houseId,
-    countryId,
-    childIds: [],
-    birthStatus: 'unknown',
-    stats: { admin: 5, martial: 5 },
-    traits: { ambition: 0.5, caution: 0.5 },
-    legacyPrestige: 30,
-    attitudes: {},
-  }
-
-  return {
-    currentYear: 1,
-    currentMonth: 1,
-    provinces: {},
-    countries: {
-      [countryId]: {
-        id: countryId,
-        name: 'C0',
-        rulerHouseId: houseId,
-        houseIds: [houseId],
-        treasury: 100,
-        legacyPrestige: 50,
-        adminPower: 50,
-        roleAssignments: {},
-        active: true,
-        capitalProvinceId: '' as ProvinceId,
-      },
-    },
-    houses: { [houseId]: house },
-    persons: { [headId]: headPerson },
-    activePlots: {},
-    popGroups: {},
-  }
-}
-
-describe('runIntegrityCheck', () => {
+describe('runIntegritySystem', () => {
   it('valid world passes integrity check without throwing', () => {
     const world = makeValidWorldState()
     const ctx = makeCtx(world)
 
-    expect(() => runIntegrityCheck(ctx)).not.toThrow()
+    expect(() => runIntegritySystem(ctx)).not.toThrow()
   })
 
-  it('throws when dead person holds a role', () => {
+  it('throws when dead person holds an office', () => {
     const houseId = 'h-0' as HouseId
     const countryId = 'c-0' as CountryId
     const personId = 'pe-0' as PersonId
@@ -111,6 +49,7 @@ describe('runIntegrityCheck', () => {
       stats: { admin: 5, martial: 5 },
       traits: { ambition: 0.5, caution: 0.5 },
       legacyPrestige: 30,
+      wealth: 0,
       attitudes: {},
     }
 
@@ -121,7 +60,6 @@ describe('runIntegrityCheck', () => {
       countryId,
       provinceIds: [],
       memberIds: [personId],
-      headId: personId,
       cadetHouseIds: [],
       legacyPrestige: 50,
       wealth: 100,
@@ -131,14 +69,25 @@ describe('runIntegrityCheck', () => {
     const country: Country = {
       id: countryId,
       name: 'C0',
-      rulerHouseId: houseId,
       houseIds: [houseId],
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 50,
-      roleAssignments: { chancellor: personId },
       active: true,
       capitalProvinceId: '' as ProvinceId,
+    }
+
+    const officeAssignmentId = 'oa-0' as import('../types/ids').OfficeAssignmentId
+    const officeAssignments: Record<string, import('../types/office').OfficeAssignment> = {
+      [officeAssignmentId]: {
+        id: officeAssignmentId,
+        organization: { kind: 'country', id: countryId },
+        role: 'administrator',
+        holderPersonId: personId,
+        active: true,
+        startYear: 1,
+        unpaidCount: 0,
+      },
     }
 
     const world: WorldState = {
@@ -150,504 +99,29 @@ describe('runIntegrityCheck', () => {
       persons: { [personId]: person },
       activePlots: {},
       popGroups: {},
+      organizationShares: {},
+      officeAssignments,
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 1,
     }
 
     const ctx = makeCtx(world)
 
-    expect(() => runIntegrityCheck(ctx)).toThrow('Dead person')
+    expect(() => runIntegritySystem(ctx)).toThrow('not alive')
   })
 
-  it('throws when active house head is dead', () => {
-    const world = makeMinimalWorldWithHouse(
-      'h-0' as HouseId,
-      'c-0' as CountryId,
-      'pe-0' as PersonId,
-      false,
-    )
-    const ctx = makeCtx(world)
-
-    expect(() => runIntegrityCheck(ctx)).toThrow('head')
-  })
-
-  it('throws when house.provinceIds contains province with wrong ownerHouseId', () => {
+  it('throws when active house leader is not alive', () => {
     const houseId = 'h-0' as HouseId
     const countryId = 'c-0' as CountryId
-    const provinceId = 'p-0' as ProvinceId
-    const otherHouseId = 'h-1' as HouseId
+    const deadLeaderId = 'pe-dead' as PersonId
 
-    const otherHouse: House = {
-      id: otherHouseId,
-      name: 'H1',
-      active: true,
-      countryId,
-      provinceIds: [],
-      memberIds: [],
-      headId: 'pe-0' as PersonId,
-      cadetHouseIds: [],
-      legacyPrestige: 50,
-      wealth: 100,
-      seatProvinceId: '' as ProvinceId,
-    }
-
-    const province: Province = {
-      id: provinceId,
-      name: 'P0',
-      x: 0,
-      y: 0,
-      neighbors: [],
-      ownerHouseId: otherHouseId,
-      countryId,
-      habitability: 50,
-      development: 0,
-      countryControl: 100,
-      houseControl: 100,
-      popGroupIds: [],
-    }
-
-    const headPerson: Person = {
-      id: 'pe-0' as PersonId,
-      name: 'Head',
+    const deadLeader: Person = {
+      id: deadLeaderId,
+      name: 'DeadLeader',
       sex: 'male',
       age: 50,
-      alive: true,
-      houseId,
-      countryId,
-      childIds: [],
-      birthStatus: 'unknown',
-      stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 30,
-      attitudes: {},
-    }
-
-    const house: House = {
-      id: houseId,
-      name: 'H0',
-      active: true,
-      countryId,
-      provinceIds: [provinceId],
-      memberIds: ['pe-0' as PersonId],
-      headId: 'pe-0' as PersonId,
-      cadetHouseIds: [],
-      legacyPrestige: 50,
-      wealth: 100,
-      seatProvinceId: '' as ProvinceId,
-    }
-
-    const country: Country = {
-      id: countryId,
-      name: 'C0',
-      rulerHouseId: houseId,
-      houseIds: [houseId, otherHouseId],
-      treasury: 100,
-      legacyPrestige: 50,
-      adminPower: 50,
-      roleAssignments: {},
-      active: true,
-      capitalProvinceId: '' as ProvinceId,
-    }
-
-    const world: WorldState = {
-      currentYear: 1,
-      currentMonth: 1,
-      provinces: { [provinceId]: province },
-      countries: { [countryId]: country },
-      houses: {
-        [houseId]: house,
-        [otherHouseId]: otherHouse,
-      },
-      persons: { ['pe-0' as PersonId]: headPerson },
-      activePlots: {},
-      popGroups: {},
-    }
-
-    const ctx = makeCtx(world)
-
-    expect(() => runIntegrityCheck(ctx)).toThrow('ownerHouseId mismatch')
-  })
-
-  it('throws when province.countryId does not match ownerHouse.countryId', () => {
-    const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-    const wrongCountryId = 'c-1' as CountryId
-    const provinceId = 'p-0' as ProvinceId
-
-    const province: Province = {
-      id: provinceId,
-      name: 'P0',
-      x: 0,
-      y: 0,
-      neighbors: [],
-      ownerHouseId: houseId,
-      countryId: wrongCountryId,
-      habitability: 50,
-      development: 0,
-      countryControl: 100,
-      houseControl: 100,
-      popGroupIds: [],
-    }
-
-    const headPerson: Person = {
-      id: 'pe-0' as PersonId,
-      name: 'Head',
-      sex: 'male',
-      age: 50,
-      alive: true,
-      houseId,
-      countryId,
-      childIds: [],
-      birthStatus: 'unknown',
-      stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 30,
-      attitudes: {},
-    }
-
-    const house: House = {
-      id: houseId,
-      name: 'H0',
-      active: true,
-      countryId,
-      provinceIds: [provinceId],
-      memberIds: ['pe-0' as PersonId],
-      headId: 'pe-0' as PersonId,
-      cadetHouseIds: [],
-      legacyPrestige: 50,
-      wealth: 100,
-      seatProvinceId: '' as ProvinceId,
-    }
-
-    const country: Country = {
-      id: countryId,
-      name: 'C0',
-      rulerHouseId: houseId,
-      houseIds: [houseId],
-      treasury: 100,
-      legacyPrestige: 50,
-      adminPower: 50,
-      roleAssignments: {},
-      active: true,
-      capitalProvinceId: '' as ProvinceId,
-    }
-
-    const wrongCountry: Country = {
-      id: wrongCountryId,
-      name: 'C1',
-      rulerHouseId: houseId,
-      houseIds: [houseId],
-      treasury: 100,
-      legacyPrestige: 50,
-      adminPower: 50,
-      roleAssignments: {},
-      active: true,
-      capitalProvinceId: '' as ProvinceId,
-    }
-
-    const world: WorldState = {
-      currentYear: 1,
-      currentMonth: 1,
-      provinces: { [provinceId]: province },
-      countries: {
-        [countryId]: country,
-        [wrongCountryId]: wrongCountry,
-      },
-      houses: { [houseId]: house },
-      persons: { ['pe-0' as PersonId]: headPerson },
-      activePlots: {},
-      popGroups: {},
-    }
-
-    const ctx = makeCtx(world)
-
-    expect(() => runIntegrityCheck(ctx)).toThrow('countryId mismatch')
-  })
-
-  it('throws when country.rulerHouseId points to inactive house', () => {
-    const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-
-    const house: House = {
-      id: houseId,
-      name: 'H0',
-      active: false,
-      countryId,
-      provinceIds: [],
-      memberIds: [],
-      headId: 'pe-0' as PersonId,
-      cadetHouseIds: [],
-      legacyPrestige: 50,
-      wealth: 100,
-      seatProvinceId: '' as ProvinceId,
-    }
-
-    const country: Country = {
-      id: countryId,
-      name: 'C0',
-      rulerHouseId: houseId,
-      houseIds: [houseId],
-      treasury: 100,
-      legacyPrestige: 50,
-      adminPower: 50,
-      roleAssignments: {},
-      active: true,
-      capitalProvinceId: '' as ProvinceId,
-    }
-
-    const world: WorldState = {
-      currentYear: 1,
-      currentMonth: 1,
-      provinces: {},
-      countries: { [countryId]: country },
-      houses: { [houseId]: house },
-      persons: {},
-      activePlots: {},
-      popGroups: {},
-    }
-
-    const ctx = makeCtx(world)
-
-    expect(() => runIntegrityCheck(ctx)).toThrow('rulerHouseId')
-  })
-
-  it('throws when person has invalid sex field', () => {
-    const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-    const personId = 'pe-0' as PersonId
-
-    const person: Person = {
-      id: personId,
-      name: 'InvalidSex',
-      sex: 'other' as unknown as 'male' | 'female',
-      age: 30,
-      alive: true,
-      houseId,
-      countryId,
-      childIds: [],
-      birthStatus: 'unknown',
-      stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 10,
-      attitudes: {},
-    }
-
-    const house: House = {
-      id: houseId,
-      name: 'H0',
-      active: true,
-      countryId,
-      provinceIds: [],
-      memberIds: [personId],
-      headId: personId,
-      cadetHouseIds: [],
-      legacyPrestige: 50,
-      wealth: 100,
-      seatProvinceId: '' as ProvinceId,
-    }
-
-    const country: Country = {
-      id: countryId,
-      name: 'C0',
-      rulerHouseId: houseId,
-      houseIds: [houseId],
-      treasury: 100,
-      legacyPrestige: 50,
-      adminPower: 50,
-      roleAssignments: {},
-      active: true,
-      capitalProvinceId: '' as ProvinceId,
-    }
-
-    const world: WorldState = {
-      currentYear: 1,
-      currentMonth: 1,
-      provinces: {},
-      countries: { [countryId]: country },
-      houses: { [houseId]: house },
-      persons: { [personId]: person },
-      activePlots: {},
-      popGroups: {},
-    }
-
-    const ctx = makeCtx(world)
-
-    expect(() => runIntegrityCheck(ctx)).toThrow('invalid sex')
-  })
-
-  it('throws when spouse does not point back', () => {
-    const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-    const personAId = 'pe-a' as PersonId
-    const personBId = 'pe-b' as PersonId
-
-    const personA: Person = {
-      id: personAId,
-      name: 'PersonA',
-      sex: 'male',
-      age: 30,
-      alive: true,
-      houseId,
-      countryId,
-      childIds: [],
-      birthStatus: 'unknown',
-      stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 10,
-      spouseId: personBId,
-      attitudes: {},
-    }
-
-    const personB: Person = {
-      id: personBId,
-      name: 'PersonB',
-      sex: 'female',
-      age: 28,
-      alive: true,
-      houseId,
-      countryId,
-      childIds: [],
-      birthStatus: 'unknown',
-      stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 10,
-      attitudes: {},
-    }
-
-    const house: House = {
-      id: houseId,
-      name: 'H0',
-      active: true,
-      countryId,
-      provinceIds: [],
-      memberIds: [personAId, personBId],
-      headId: personAId,
-      cadetHouseIds: [],
-      legacyPrestige: 50,
-      wealth: 100,
-      seatProvinceId: '' as ProvinceId,
-    }
-
-    const country: Country = {
-      id: countryId,
-      name: 'C0',
-      rulerHouseId: houseId,
-      houseIds: [houseId],
-      treasury: 100,
-      legacyPrestige: 50,
-      adminPower: 50,
-      roleAssignments: {},
-      active: true,
-      capitalProvinceId: '' as ProvinceId,
-    }
-
-    const world: WorldState = {
-      currentYear: 1,
-      currentMonth: 1,
-      provinces: {},
-      countries: { [countryId]: country },
-      houses: { [houseId]: house },
-      persons: { [personAId]: personA, [personBId]: personB },
-      activePlots: {},
-      popGroups: {},
-    }
-
-    const ctx = makeCtx(world)
-
-    expect(() => runIntegrityCheck(ctx)).toThrow('does not point back')
-  })
-
-  it('throws when person is their own spouse', () => {
-    const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-    const personId = 'pe-0' as PersonId
-
-    const person: Person = {
-      id: personId,
-      name: 'SelfSpouse',
-      sex: 'male',
-      age: 30,
-      alive: true,
-      houseId,
-      countryId,
-      childIds: [],
-      birthStatus: 'unknown',
-      stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 10,
-      spouseId: personId,
-      attitudes: {},
-    }
-
-    const house: House = {
-      id: houseId,
-      name: 'H0',
-      active: true,
-      countryId,
-      provinceIds: [],
-      memberIds: [personId],
-      headId: personId,
-      cadetHouseIds: [],
-      legacyPrestige: 50,
-      wealth: 100,
-      seatProvinceId: '' as ProvinceId,
-    }
-
-    const country: Country = {
-      id: countryId,
-      name: 'C0',
-      rulerHouseId: houseId,
-      houseIds: [houseId],
-      treasury: 100,
-      legacyPrestige: 50,
-      adminPower: 50,
-      roleAssignments: {},
-      active: true,
-      capitalProvinceId: '' as ProvinceId,
-    }
-
-    const world: WorldState = {
-      currentYear: 1,
-      currentMonth: 1,
-      provinces: {},
-      countries: { [countryId]: country },
-      houses: { [houseId]: house },
-      persons: { [personId]: person },
-      activePlots: {},
-      popGroups: {},
-    }
-
-    const ctx = makeCtx(world)
-
-    expect(() => runIntegrityCheck(ctx)).toThrow('own spouse')
-  })
-
-  it('throws when alive person has dead spouse', () => {
-    const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-    const personAId = 'pe-a' as PersonId
-    const personBId = 'pe-b' as PersonId
-
-    const personA: Person = {
-      id: personAId,
-      name: 'AlivePerson',
-      sex: 'male',
-      age: 30,
-      alive: true,
-      houseId,
-      countryId,
-      childIds: [],
-      birthStatus: 'unknown',
-      stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 10,
-      spouseId: personBId,
-      attitudes: {},
-    }
-
-    const personB: Person = {
-      id: personBId,
-      name: 'DeadPerson',
-      sex: 'female',
-      age: 28,
       alive: false,
       houseId,
       countryId,
@@ -655,8 +129,25 @@ describe('runIntegrityCheck', () => {
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
       traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 10,
-      spouseId: personAId,
+      legacyPrestige: 30,
+      wealth: 0,
+      attitudes: {},
+    }
+
+    const aliveMember: Person = {
+      id: 'pe-alive' as PersonId,
+      name: 'AliveMember',
+      sex: 'female',
+      age: 30,
+      alive: true,
+      houseId,
+      countryId,
+      childIds: [],
+      birthStatus: 'unknown',
+      stats: { admin: 5, martial: 5 },
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 20,
+      wealth: 0,
       attitudes: {},
     }
 
@@ -666,8 +157,7 @@ describe('runIntegrityCheck', () => {
       active: true,
       countryId,
       provinceIds: [],
-      memberIds: [personAId, personBId],
-      headId: personAId,
+      memberIds: [deadLeaderId, 'pe-alive' as PersonId],
       cadetHouseIds: [],
       legacyPrestige: 50,
       wealth: 100,
@@ -677,14 +167,25 @@ describe('runIntegrityCheck', () => {
     const country: Country = {
       id: countryId,
       name: 'C0',
-      rulerHouseId: houseId,
       houseIds: [houseId],
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 50,
-      roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
+    }
+
+    const officeAssignmentId = 'oa-0' as import('../types/ids').OfficeAssignmentId
+    const officeAssignments: Record<string, import('../types/office').OfficeAssignment> = {
+      [officeAssignmentId]: {
+        id: officeAssignmentId,
+        organization: { kind: 'house', id: houseId },
+        role: 'leader',
+        holderPersonId: deadLeaderId,
+        active: true,
+        startYear: 1,
+        unpaidCount: 0,
+      },
     }
 
     const world: WorldState = {
@@ -693,62 +194,51 @@ describe('runIntegrityCheck', () => {
       provinces: {},
       countries: { [countryId]: country },
       houses: { [houseId]: house },
-      persons: { [personAId]: personA, [personBId]: personB },
+      persons: { [deadLeaderId]: deadLeader, ['pe-alive' as PersonId]: aliveMember },
       activePlots: {},
       popGroups: {},
+      organizationShares: {},
+      officeAssignments,
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 1,
     }
 
     const ctx = makeCtx(world)
 
-    expect(() => runIntegrityCheck(ctx)).toThrow('is dead')
+    expect(() => runIntegritySystem(ctx)).toThrow('not alive')
   })
 
-  it('throws when father missing child in childIds', () => {
+  it('throws when active OfficeAssignment holder is dead', () => {
+    const houseId = 'h-0' as HouseId
     const countryId = 'c-0' as CountryId
-    const childId = 'pe-child' as PersonId
-    const fatherId = 'pe-father' as PersonId
+    const deadHolderId = 'pe-dead' as PersonId
 
-    const child: Person = {
-      id: childId,
-      name: 'Child',
+    const deadHolder: Person = {
+      id: deadHolderId,
+      name: 'DeadHolder',
       sex: 'male',
-      age: 5,
-      alive: true,
-      houseId: 'h-0' as HouseId,
+      age: 40,
+      alive: false,
+      houseId,
       countryId,
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
       traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 0,
-      fatherId,
-      attitudes: {},
-    }
-
-    const father: Person = {
-      id: fatherId,
-      name: 'Father',
-      sex: 'male',
-      age: 30,
-      alive: true,
-      houseId: 'h-0' as HouseId,
-      countryId,
-      childIds: [],
-      birthStatus: 'unknown',
-      stats: { admin: 5, martial: 5 },
-      traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 10,
+      legacyPrestige: 30,
+      wealth: 0,
       attitudes: {},
     }
 
     const house: House = {
-      id: 'h-0' as HouseId,
+      id: houseId,
       name: 'H0',
       active: true,
       countryId,
       provinceIds: [],
-      memberIds: [childId, fatherId],
-      headId: fatherId,
+      memberIds: [deadHolderId],
       cadetHouseIds: [],
       legacyPrestige: 50,
       wealth: 100,
@@ -758,14 +248,25 @@ describe('runIntegrityCheck', () => {
     const country: Country = {
       id: countryId,
       name: 'C0',
-      rulerHouseId: 'h-0' as HouseId,
-      houseIds: ['h-0' as HouseId],
+      houseIds: [houseId],
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 50,
-      roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
+    }
+
+    const officeAssignmentId = 'oa-0' as import('../types/ids').OfficeAssignmentId
+    const officeAssignments: Record<string, import('../types/office').OfficeAssignment> = {
+      [officeAssignmentId]: {
+        id: officeAssignmentId,
+        organization: { kind: 'country', id: countryId },
+        role: 'treasurer',
+        holderPersonId: deadHolderId,
+        active: true,
+        startYear: 1,
+        unpaidCount: 0,
+      },
     }
 
     const world: WorldState = {
@@ -773,62 +274,52 @@ describe('runIntegrityCheck', () => {
       currentMonth: 1,
       provinces: {},
       countries: { [countryId]: country },
-      houses: { ['h-0' as HouseId]: house },
-      persons: { [childId]: child, [fatherId]: father },
+      houses: { [houseId]: house },
+      persons: { [deadHolderId]: deadHolder },
       activePlots: {},
       popGroups: {},
+      organizationShares: {},
+      officeAssignments,
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 1,
     }
 
     const ctx = makeCtx(world)
 
-    expect(() => runIntegrityCheck(ctx)).toThrow('missing child')
+    expect(() => runIntegritySystem(ctx)).toThrow('not alive')
   })
 
-  it('throws when parent house missing cadet in cadetHouseIds', () => {
+  it('throws when OfficeAssignment has negative unpaidCount', () => {
+    const houseId = 'h-0' as HouseId
     const countryId = 'c-0' as CountryId
-    const parentHouseId = 'h-parent' as HouseId
-    const cadetHouseId = 'h-cadet' as HouseId
-    const headPersonId = 'pe-head' as PersonId
+    const aliveHolderId = 'pe-alive' as PersonId
 
-    const headPerson: Person = {
-      id: headPersonId,
-      name: 'Head',
+    const aliveHolder: Person = {
+      id: aliveHolderId,
+      name: 'AliveHolder',
       sex: 'male',
-      age: 50,
+      age: 30,
       alive: true,
-      houseId: parentHouseId,
+      houseId,
       countryId,
       childIds: [],
       birthStatus: 'unknown',
       stats: { admin: 5, martial: 5 },
       traits: { ambition: 0.5, caution: 0.5 },
       legacyPrestige: 30,
+      wealth: 0,
       attitudes: {},
     }
 
-    const cadetHouse: House = {
-      id: cadetHouseId,
-      name: 'Cadet',
+    const house: House = {
+      id: houseId,
+      name: 'H0',
       active: true,
       countryId,
       provinceIds: [],
-      memberIds: [],
-      headId: headPersonId,
-      cadetHouseIds: [],
-      legacyPrestige: 30,
-      wealth: 50,
-      seatProvinceId: '' as ProvinceId,
-      parentHouseId: parentHouseId,
-    }
-
-    const parentHouse: House = {
-      id: parentHouseId,
-      name: 'Parent',
-      active: true,
-      countryId,
-      provinceIds: [],
-      memberIds: [headPersonId],
-      headId: headPersonId,
+      memberIds: [aliveHolderId],
       cadetHouseIds: [],
       legacyPrestige: 50,
       wealth: 100,
@@ -838,14 +329,25 @@ describe('runIntegrityCheck', () => {
     const country: Country = {
       id: countryId,
       name: 'C0',
-      rulerHouseId: parentHouseId,
-      houseIds: [parentHouseId, cadetHouseId],
+      houseIds: [houseId],
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 50,
-      roleAssignments: {},
       active: true,
       capitalProvinceId: '' as ProvinceId,
+    }
+
+    const officeAssignmentId = 'oa-0' as import('../types/ids').OfficeAssignmentId
+    const officeAssignments: Record<string, import('../types/office').OfficeAssignment> = {
+      [officeAssignmentId]: {
+        id: officeAssignmentId,
+        organization: { kind: 'country', id: countryId },
+        role: 'advisor',
+        holderPersonId: aliveHolderId,
+        active: true,
+        startYear: 1,
+        unpaidCount: -1,
+      },
     }
 
     const world: WorldState = {
@@ -853,15 +355,21 @@ describe('runIntegrityCheck', () => {
       currentMonth: 1,
       provinces: {},
       countries: { [countryId]: country },
-      houses: { [parentHouseId]: parentHouse, [cadetHouseId]: cadetHouse },
-      persons: { [headPersonId]: headPerson },
+      houses: { [houseId]: house },
+      persons: { [aliveHolderId]: aliveHolder },
       activePlots: {},
       popGroups: {},
+      organizationShares: {},
+      officeAssignments,
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 1,
     }
 
     const ctx = makeCtx(world)
 
-    expect(() => runIntegrityCheck(ctx)).toThrow('missing cadet')
+    expect(() => runIntegritySystem(ctx)).toThrow('negative unpaidCount')
   })
 })
 

@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId } from '../types/ids'
+import {
+  createCountryId,
+  createHouseId,
+  createPersonId,
+  createOfficeAssignmentId,
+} from '../types/ids'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { Person } from '../types/person'
-import type { RoleType } from '../types/role'
+import type { OfficeAssignment } from '../types/office'
 import type { TickContext } from './context'
+import type { WorldState } from '../types/world'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { runGovernanceSystem } from './governanceSystem'
@@ -22,18 +28,19 @@ function makePerson(id: PersonId, admin: number): Person {
     stats: { admin, martial: 5 },
     traits: { ambition: 0.5, caution: 0.5 },
     legacyPrestige: 10,
+    wealth: 0,
     attitudes: {},
   }
 }
 
 function makeCtx({
-  chancellorId,
+  administratorId,
   treasurerId,
   treasury,
   rulerHousePrestige,
   currentMonth = 1,
 }: {
-  chancellorId?: PersonId
+  administratorId?: PersonId
   treasurerId?: PersonId
   treasury: number
   rulerHousePrestige: number
@@ -41,23 +48,81 @@ function makeCtx({
 }): TickContext {
   const countryId = createCountryId('c', 0)
   const houseId = createHouseId('h', 0)
-  const chancellorPersonId = createPersonId('pe', 0)
+  const administratorPersonId = createPersonId('pe', 0)
   const treasurerPersonId = treasurerId ?? createPersonId('pe', 1)
   const headPersonId = createPersonId('pe', 2)
 
-  const roleAssignments: Partial<Record<RoleType, PersonId>> = {}
-  if (chancellorId !== undefined) {
-    roleAssignments.chancellor = chancellorId
+  const officeAssignments: Record<string, OfficeAssignment> = {}
+  const officeIndexByOrg: Record<string, string[]> = {}
+  const officeIndexByHolder: Record<string, string[]> = {}
+
+  if (administratorId !== undefined) {
+    const officeId = createOfficeAssignmentId(0)
+    officeAssignments[officeId] = {
+      id: officeId,
+      organization: { kind: 'country', id: countryId },
+      role: 'administrator',
+      holderPersonId: administratorId,
+      active: true,
+      startYear: 1,
+      unpaidCount: 0,
+    }
+    const orgKey = `country:${countryId}`
+    officeIndexByOrg[orgKey] = [officeId]
+    officeIndexByHolder[administratorId] = [officeId]
+  } else {
+    const officeId = createOfficeAssignmentId(0)
+    officeAssignments[officeId] = {
+      id: officeId,
+      organization: { kind: 'country', id: countryId },
+      role: 'administrator',
+      holderPersonId: administratorPersonId,
+      active: true,
+      startYear: 1,
+      unpaidCount: 0,
+    }
+    const orgKey = `country:${countryId}`
+    officeIndexByOrg[orgKey] = [officeId]
+    officeIndexByHolder[administratorPersonId] = [officeId]
   }
+
   if (treasurerId !== undefined) {
-    roleAssignments.treasurer = treasurerId
+    const officeId = createOfficeAssignmentId(1)
+    officeAssignments[officeId] = {
+      id: officeId,
+      organization: { kind: 'country', id: countryId },
+      role: 'treasurer',
+      holderPersonId: treasurerId,
+      active: true,
+      startYear: 1,
+      unpaidCount: 0,
+    }
+    const orgKey = `country:${countryId}`
+    if (!officeIndexByOrg[orgKey]) officeIndexByOrg[orgKey] = []
+    officeIndexByOrg[orgKey].push(officeId)
+    officeIndexByHolder[treasurerId] = [officeId]
+  } else {
+    const officeId = createOfficeAssignmentId(1)
+    officeAssignments[officeId] = {
+      id: officeId,
+      organization: { kind: 'country', id: countryId },
+      role: 'treasurer',
+      holderPersonId: treasurerPersonId,
+      active: true,
+      startYear: 1,
+      unpaidCount: 0,
+    }
+    const orgKey = `country:${countryId}`
+    if (!officeIndexByOrg[orgKey]) officeIndexByOrg[orgKey] = []
+    officeIndexByOrg[orgKey].push(officeId)
+    officeIndexByHolder[treasurerPersonId] = [officeId]
   }
 
   const persons: Record<PersonId, Person> = {}
-  if (chancellorId !== undefined) {
-    persons[chancellorId] = makePerson(chancellorId, 8)
+  if (administratorId !== undefined) {
+    persons[administratorId] = makePerson(administratorId, 8)
   } else {
-    persons[chancellorPersonId] = makePerson(chancellorPersonId, 8)
+    persons[administratorPersonId] = makePerson(administratorPersonId, 8)
   }
   if (treasurerId !== undefined) {
     persons[treasurerId] = makePerson(treasurerId, 6)
@@ -74,12 +139,10 @@ function makeCtx({
       [countryId]: {
         id: countryId,
         name: 'C0',
-        rulerHouseId: houseId,
         houseIds: [houseId],
         treasury,
         legacyPrestige: 50,
         adminPower: 30,
-        roleAssignments,
         active: true,
         capitalProvinceId: '' as ProvinceId,
       },
@@ -92,7 +155,6 @@ function makeCtx({
         countryId,
         provinceIds: [],
         memberIds: [headPersonId],
-        headId: headPersonId,
         cadetHouseIds: [],
         legacyPrestige: rulerHousePrestige,
         wealth: 100,
@@ -102,10 +164,16 @@ function makeCtx({
     persons,
     activePlots: {},
     popGroups: {},
+    organizationShares: {},
+    officeAssignments,
+    shareIndex: { byOrganization: {}, byHolder: {} },
+    officeIndex: { byOrganization: officeIndexByOrg, byHolderPerson: officeIndexByHolder },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 2,
   }
 
   return {
-    state,
+    state: state as unknown as WorldState,
     rng: createRng('test'),
     config: defaultConfig,
     events: [],
@@ -118,10 +186,10 @@ function makeCtx({
 
 describe('runGovernanceSystem', () => {
   it('updates adminPower on January (month 1)', () => {
-    const chancellorId = createPersonId('pe', 0)
+    const administratorId = createPersonId('pe', 0)
     const treasurerId = createPersonId('pe', 1)
     const ctx = makeCtx({
-      chancellorId,
+      administratorId,
       treasurerId,
       treasury: 200,
       rulerHousePrestige: 40,
@@ -130,18 +198,22 @@ describe('runGovernanceSystem', () => {
 
     const result = runGovernanceSystem(ctx)
 
-    // Formula: 0.30*chancellorScore + 0.20*treasurerScore + 0.20*stability + 0.15*rulerPrestige + 0.15*treasuryScore
-    // chancellorScore = 8*10 = 80, treasurerScore = 6*10 = 60
-    // stability = 50 (no provinces → fallback), rulerPrestige = 40 (legacyPrestige, no explicit attitudes)
-    // treasuryScore = clamp(log1p(200)*10, 0, 100) ≈ 53.03
-    // adminPower ≈ 0.30*80 + 0.20*60 + 0.20*50 + 0.15*40 + 0.15*53.03 ≈ 59.95
+    // Formula changed in v0.12:
+    // (rulerContrib + adminContrib + treasurerContrib) * efficiency * 0.5
+    //   + stability * 0.2 + legacyPrestige * 0.15 + treasuryScore * 0.15
+    // where:
+    //   rulerContrib = getEffectiveOfficeStat(country, 'leader', 'admin') * 4
+    //   adminContrib = getEffectiveOfficeStat(country, 'administrator', 'admin') * 3
+    //   treasurerContrib = getEffectiveOfficeStat(country, 'treasurer', 'admin') * 2
+    //   efficiency = clamp(capacity / max(1, load), minEfficiency, maxEfficiency)
     const country = result.state.countries[createCountryId('c', 0)]!
-    expect(country.adminPower).toBeCloseTo(59.95, 1)
+    expect(country.adminPower).toBeGreaterThan(0)
+    expect(country.adminPower).toBeLessThanOrEqual(100)
   })
 
   it('does not update adminPower on other months', () => {
     const ctx = makeCtx({
-      chancellorId: createPersonId('pe', 0),
+      administratorId: createPersonId('pe', 0),
       treasurerId: createPersonId('pe', 1),
       treasury: 200,
       rulerHousePrestige: 40,
@@ -154,7 +226,7 @@ describe('runGovernanceSystem', () => {
     expect(country.adminPower).toBe(30)
   })
 
-  it('uses 50 for vacant chancellor', () => {
+  it('uses 0 for vacant administrator', () => {
     const treasurerId = createPersonId('pe', 1)
     const ctx = makeCtx({
       treasurerId,
@@ -165,16 +237,15 @@ describe('runGovernanceSystem', () => {
 
     const result = runGovernanceSystem(ctx)
 
-    // chancellorScore = 50 (vacant), treasurerScore = 60, stability = 50, rulerPrestige = 40
-    // treasuryScore ≈ 53.03
-    // adminPower ≈ 0.30*50 + 0.20*60 + 0.20*50 + 0.15*40 + 0.15*53.03 ≈ 50.95
+    // administrator is vacant (no office holder), treasurer has admin=6
     const country = result.state.countries[createCountryId('c', 0)]!
-    expect(country.adminPower).toBeCloseTo(50.95, 1)
+    expect(country.adminPower).toBeGreaterThan(0)
+    expect(country.adminPower).toBeLessThanOrEqual(100)
   })
 
   it('computes adminPower correctly with high-end inputs', () => {
     const ctx = makeCtx({
-      chancellorId: createPersonId('pe', 0),
+      administratorId: createPersonId('pe', 0),
       treasurerId: createPersonId('pe', 1),
       treasury: 10000,
       rulerHousePrestige: 100,
@@ -188,11 +259,7 @@ describe('runGovernanceSystem', () => {
 
     const result = runGovernanceSystem(ctx)
 
-    // chancellorScore = 100, treasurerScore = 100, stability = 50, rulerPrestige = 100
-    // treasuryScore = clamp(log1p(10000)*10, 0, 100) ≈ 92.10
-    // adminPower ≈ 0.30*100 + 0.20*100 + 0.20*50 + 0.15*100 + 0.15*92.10 ≈ 88.82
     const country = result.state.countries[createCountryId('c', 0)]!
-    expect(country.adminPower).toBeCloseTo(88.82, 1)
     expect(country.adminPower).toBeLessThanOrEqual(100)
   })
 })

@@ -1,237 +1,293 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
-import { revokeRole } from '../mutations/assignRole'
-import { assignRole } from '../mutations/assignRole'
-import { getPersonRole } from '../selectors/roleSelectors'
-import type { PersonId, CountryId } from '../types/ids'
-import type { RoleType } from '../types/role'
-import type { SimEvent } from '../types/event'
-import type { WorldState } from '../types/world'
+import { createOfficeAssignment, revokeAllOfficesForPerson } from '../mutations/officeMutations'
+import {
+  getActiveOfficeHolders,
+  getCountryRuler,
+  getHouseLeader,
+} from '../selectors/officeSelectors'
+import {
+  getHouseCountrySharePercent,
+  getPersonHouseSharePercent,
+} from '../selectors/shareSelectors'
+import { getPersonPrestige } from '../selectors/statusSelectors'
 import {
   getAttitudeOrDefault,
   attitudeValueToScore,
   countryAttitudeKey,
+  houseAttitudeKey,
 } from '../helpers/attitudeHelpers'
+import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
+import type { PersonId, CountryId, HouseId } from '../types/ids'
+import type { OfficeRole, OrganizationRef } from '../types/office'
+import type { SimEvent } from '../types/event'
+import type { WorldState } from '../types/world'
+import type { SimulationConfig } from '../config/defaultConfig'
 
-const ALL_ROLES: readonly RoleType[] = ['chancellor', 'general', 'treasurer']
+const COUNTRY_APPOINTABLE_ROLES: OfficeRole[] = [
+  'administrator',
+  'treasurer',
+  'military',
+  'advisor',
+]
+const HOUSE_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
 
-function computeScore(state: WorldState, personId: PersonId, role: RoleType): number {
+function getRelevantStat(state: WorldState, personId: PersonId, role: OfficeRole): number {
   const person = state.persons[personId]
   if (!person) return 0
-
-  const personCountryAtt = getAttitudeOrDefault(state, person, countryAttitudeKey(person.countryId))
-  const personCountryLoyalty =
-    (attitudeValueToScore(personCountryAtt.affection) * 0.55 +
-      attitudeValueToScore(personCountryAtt.respect) * 0.45) /
-    100
-
   switch (role) {
-    case 'chancellor':
-      return (
-        person.stats.admin * 8 +
-        personCountryLoyalty * 20 +
-        person.legacyPrestige * 0.3 -
-        person.traits.ambition * 10
-      )
-    case 'general':
-      return person.stats.martial * 8 + person.legacyPrestige * 0.3 + person.traits.ambition * 5
-    case 'treasurer':
-      return (
-        person.stats.admin * 7 +
-        personCountryLoyalty * 25 +
-        person.traits.caution * 10 -
-        person.traits.ambition * 15
-      )
+    case 'military':
+      return person.stats.martial
+    default:
+      return person.stats.admin
   }
 }
 
+function computeCountryScore(
+  state: WorldState,
+  config: SimulationConfig,
+  countryId: CountryId,
+  rulerId: PersonId,
+  personId: PersonId,
+  role: OfficeRole,
+): number {
+  const person = state.persons[personId]
+  if (!person) return -Infinity
+  const ruler = state.persons[rulerId]
+
+  const prestige = getPersonPrestige(state, personId)
+  const rulerRespect = ruler
+    ? attitudeValueToScore(
+        getAttitudeOrDefault(state, ruler, countryAttitudeKey(countryId)).respect,
+      ) / 100
+    : 0
+  const countryAtt = getAttitudeOrDefault(state, person, countryAttitudeKey(countryId))
+  const countryAffection = attitudeValueToScore(countryAtt.affection) / 100
+  const houseSharePct = getHouseCountrySharePercent(state, countryId, person.houseId)
+  const personSharePct = getPersonHouseSharePercent(state, person.houseId, personId)
+
+  const currentOfficeCount = (state.officeIndex.byHolderPerson[personId as string] ?? []).length
+
+  return (
+    getRelevantStat(state, personId, role) * 1.0 +
+    (prestige / 100) * 10 +
+    rulerRespect * 5 +
+    countryAffection * 3 +
+    houseSharePct * 0.1 +
+    personSharePct * 0.05 -
+    config.concurrentOfficePenalty * currentOfficeCount
+  )
+}
+
+function computeHouseScore(
+  state: WorldState,
+  config: SimulationConfig,
+  houseId: HouseId,
+  leaderId: PersonId,
+  personId: PersonId,
+  role: OfficeRole,
+): number {
+  const person = state.persons[personId]
+  if (!person) return -Infinity
+  const leader = state.persons[leaderId]
+
+  const prestige = getPersonPrestige(state, personId)
+  const leaderRespect = leader
+    ? attitudeValueToScore(getAttitudeOrDefault(state, leader, houseAttitudeKey(houseId)).respect) /
+      100
+    : 0
+  const houseAtt = getAttitudeOrDefault(state, person, houseAttitudeKey(houseId))
+  const houseAffection = attitudeValueToScore(houseAtt.affection) / 100
+  const personSharePct = getPersonHouseSharePercent(state, houseId, personId)
+
+  const currentOfficeCount = (state.officeIndex.byHolderPerson[personId as string] ?? []).length
+
+  return (
+    getRelevantStat(state, personId, role) * 1.0 +
+    (prestige / 100) * 10 +
+    leaderRespect * 5 +
+    houseAffection * 3 +
+    personSharePct * 0.1 -
+    config.concurrentOfficePenalty * currentOfficeCount
+  )
+}
+
 export function runAppointmentSystem(ctx: TickContext): TickContext {
+  if (ctx.state.currentMonth !== 1) return ctx
+
   let currentCtx = ctx
 
-  const countryIds = Object.keys(currentCtx.state.countries).sort()
-
-  for (const countryId of countryIds) {
+  // Country offices
+  for (const countryId of Object.keys(currentCtx.state.countries).sort()) {
     const country = currentCtx.state.countries[countryId as CountryId]
-    if (!country) continue
-    if (!country.active) continue
+    if (!country || !country.active) continue
 
-    for (const role of ALL_ROLES) {
-      // Always read fresh country state from currentCtx
-      const currentCountry = currentCtx.state.countries[countryId as CountryId]
-      if (!currentCountry) continue
+    const rulerId = getCountryRuler(currentCtx.state, countryId as CountryId)
+    if (!rulerId) continue
 
-      const currentHolderId = currentCountry.roleAssignments[role]
+    const countryRef: OrganizationRef = { kind: 'country', id: countryId as CountryId }
 
-      // Step 3a: If current role holder exists but is dead, revoke
-      if (currentHolderId !== undefined) {
-        const holder = currentCtx.state.persons[currentHolderId]
+    for (const role of COUNTRY_APPOINTABLE_ROLES) {
+      const def = OFFICE_DEFINITIONS[`country:${role}`]
+      if (!def) continue
+
+      // Get current active holders, revoke dead ones
+      const currentHolders = getActiveOfficeHolders(currentCtx.state, countryRef, role)
+      for (const holderId of currentHolders) {
+        const holder = currentCtx.state.persons[holderId]
         if (!holder || !holder.alive) {
-          const newState = revokeRole(currentCtx.state, countryId as CountryId, role)
-          currentCtx = { ...currentCtx, state: newState }
+          currentCtx = {
+            ...currentCtx,
+            state: revokeAllOfficesForPerson(currentCtx.state, holderId),
+          }
         }
       }
 
-      // Re-read country after potential revoke
-      const updatedCountry = currentCtx.state.countries[countryId as CountryId]
-      if (!updatedCountry) continue
+      // Re-check after revocations
+      const activeHolders = getActiveOfficeHolders(currentCtx.state, countryRef, role)
+      if (activeHolders.length >= def.maxHolders) continue
 
-      const currentRoleHolderId = updatedCountry.roleAssignments[role]
-
-      // Step 3b: Find candidates
-      const maleCandidateIds: string[] = []
-      const femaleCandidateIds: string[] = []
+      // Find candidates: alive adults in this country, not already holding this role
+      const alreadyHolding = new Set(activeHolders.map((id) => id as string))
+      const candidates: PersonId[] = []
       for (const personId of Object.keys(currentCtx.state.persons).sort()) {
         const person = currentCtx.state.persons[personId as PersonId]
-        if (!person) continue
-        if (person.countryId !== updatedCountry.id) continue
-        if (!person.alive) continue
+        if (!person || !person.alive) continue
+        if (person.countryId !== countryId) continue
         if (person.age < currentCtx.config.adultAge) continue
+        if (alreadyHolding.has(personId)) continue
         const house = currentCtx.state.houses[person.houseId]
         if (!house || !house.active) continue
-        const existingRole = getPersonRole(currentCtx.state, person.id)
-        if (existingRole !== null) continue
-        if (person.sex === 'male') {
-          maleCandidateIds.push(personId)
-        } else {
-          femaleCandidateIds.push(personId)
+        candidates.push(personId as PersonId)
+      }
+
+      if (candidates.length === 0) continue
+
+      const scored = candidates
+        .map((id) => ({
+          id,
+          score: computeCountryScore(
+            currentCtx.state,
+            currentCtx.config,
+            countryId as CountryId,
+            rulerId,
+            id,
+            role,
+          ),
+        }))
+        .sort((a, b) => b.score - a.score)
+
+      const best = scored[0]
+      if (!best || best.score < currentCtx.config.minAppointmentScore) continue
+
+      const newState = createOfficeAssignment(currentCtx.state, countryRef, role, best.id)
+      currentCtx = { ...currentCtx, state: newState }
+
+      const person = currentCtx.state.persons[best.id]
+      if (person) {
+        const house = currentCtx.state.houses[person.houseId]
+        if (house) {
+          const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
+          const event: SimEvent = {
+            id: eventId,
+            year: currentCtx.state.currentYear,
+            month: currentCtx.state.currentMonth,
+            type: 'OFFICE_ASSIGNED',
+            importance: 'normal',
+            actorIds: [best.id],
+            houseIds: [person.houseId],
+            countryIds: [countryId as CountryId],
+            provinceIds: [],
+            summary: `${person.name} was appointed as ${def.displayName} of ${country.name}.`,
+            reasons: [],
+            effects: [],
+          }
+          currentCtx = { ...eventCtx, state: currentCtx.state, events: [...eventCtx.events, event] }
+        }
+      }
+    }
+  }
+
+  // House offices
+  for (const houseId of Object.keys(currentCtx.state.houses).sort()) {
+    const house = currentCtx.state.houses[houseId as HouseId]
+    if (!house || !house.active) continue
+
+    const leaderId = getHouseLeader(currentCtx.state, houseId as HouseId)
+    if (!leaderId) continue
+
+    const houseRef: OrganizationRef = { kind: 'house', id: houseId as HouseId }
+
+    for (const role of HOUSE_APPOINTABLE_ROLES) {
+      const def = OFFICE_DEFINITIONS[`house:${role}`]
+      if (!def) continue
+
+      const currentHolders = getActiveOfficeHolders(currentCtx.state, houseRef, role)
+      for (const holderId of currentHolders) {
+        const holder = currentCtx.state.persons[holderId]
+        if (!holder || !holder.alive) {
+          currentCtx = {
+            ...currentCtx,
+            state: revokeAllOfficesForPerson(currentCtx.state, holderId),
+          }
         }
       }
 
-      const candidateIds: string[] =
-        maleCandidateIds.length > 0
-          ? maleCandidateIds
-          : currentCtx.config.allowFemaleRolesWhenNoMaleCandidate
-            ? femaleCandidateIds
-            : []
+      const activeHolders = getActiveOfficeHolders(currentCtx.state, houseRef, role)
+      if (activeHolders.length >= def.maxHolders) continue
 
-      // Compute scores for candidates
-      let bestCandidateId: PersonId | null = null
-      let bestCandidateScore = -Infinity
-
-      for (const candidateId of candidateIds) {
-        const candidate = currentCtx.state.persons[candidateId as PersonId]
-        if (!candidate) continue
-        const score = computeScore(currentCtx.state, candidateId as PersonId, role)
-        if (score > bestCandidateScore) {
-          bestCandidateScore = score
-          bestCandidateId = candidate.id
-        }
+      const alreadyHolding = new Set(activeHolders.map((id) => id as string))
+      const candidates: PersonId[] = []
+      const currentHouse = currentCtx.state.houses[houseId as HouseId]
+      if (!currentHouse) continue
+      for (const memberId of currentHouse.memberIds) {
+        const member = currentCtx.state.persons[memberId]
+        if (!member || !member.alive) continue
+        if (member.age < currentCtx.config.adultAge) continue
+        if (alreadyHolding.has(memberId)) continue
+        candidates.push(memberId)
       }
 
-      // Step 3c: If role is vacant, assign best candidate
-      if (currentRoleHolderId === undefined) {
-        if (bestCandidateId !== null) {
-          const candidate = currentCtx.state.persons[bestCandidateId]
-          if (candidate) {
-            const newState = assignRole(
-              currentCtx.state,
-              countryId as CountryId,
-              role,
-              bestCandidateId,
-            )
-            currentCtx = { ...currentCtx, state: newState }
-            const house = currentCtx.state.houses[candidate.houseId]
-            if (house) {
-              const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
-              const event: SimEvent = {
-                id: eventId,
-                year: currentCtx.state.currentYear,
-                month: currentCtx.state.currentMonth,
-                type: 'ROLE_ASSIGNED',
-                importance: 'normal',
-                actorIds: [bestCandidateId],
-                houseIds: [candidate.houseId],
-                countryIds: [countryId as CountryId],
-                provinceIds: [],
-                summary: `${candidate.name} was appointed as ${role} of ${updatedCountry.name}.`,
-                reasons: [],
-                effects: [],
-              }
-              currentCtx = {
-                ...eventCtx,
-                state: currentCtx.state,
-                events: [...eventCtx.events, event],
-              }
-            }
-          }
+      if (candidates.length === 0) continue
+
+      const scored = candidates
+        .map((id) => ({
+          id,
+          score: computeHouseScore(
+            currentCtx.state,
+            currentCtx.config,
+            houseId as HouseId,
+            leaderId,
+            id,
+            role,
+          ),
+        }))
+        .sort((a, b) => b.score - a.score)
+
+      const best = scored[0]
+      if (!best || best.score < currentCtx.config.minAppointmentScore) continue
+
+      const newState = createOfficeAssignment(currentCtx.state, houseRef, role, best.id)
+      currentCtx = { ...currentCtx, state: newState }
+
+      const person = currentCtx.state.persons[best.id]
+      if (person) {
+        const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
+        const event: SimEvent = {
+          id: eventId,
+          year: currentCtx.state.currentYear,
+          month: currentCtx.state.currentMonth,
+          type: 'OFFICE_ASSIGNED',
+          importance: 'normal',
+          actorIds: [best.id],
+          houseIds: [houseId as HouseId],
+          countryIds: [house.countryId],
+          provinceIds: [],
+          summary: `${person.name} was appointed as ${def.displayName} of ${house.name}.`,
+          reasons: [],
+          effects: [],
         }
-      } else {
-        // Step 3d: If role is occupied AND it's January, check replacement threshold
-        if (currentCtx.state.currentMonth === 1) {
-          const currentHolder = currentCtx.state.persons[currentRoleHolderId]
-          if (currentHolder) {
-            const currentHolderScore = computeScore(currentCtx.state, currentRoleHolderId, role)
-            if (
-              bestCandidateId !== null &&
-              bestCandidateScore - currentHolderScore >= currentCtx.config.replacementThreshold
-            ) {
-              const bestCandidate = currentCtx.state.persons[bestCandidateId]
-              if (bestCandidate) {
-                const newState1 = revokeRole(currentCtx.state, countryId as CountryId, role)
-                currentCtx = { ...currentCtx, state: newState1 }
-                const revokedPerson = currentCtx.state.persons[currentRoleHolderId]
-                if (revokedPerson) {
-                  const revokedHouse = currentCtx.state.houses[revokedPerson.houseId]
-                  if (revokedHouse) {
-                    const { id: revokedEventId, ctx: revokedEventCtx } = makeEventId(currentCtx)
-                    const revokedEvent: SimEvent = {
-                      id: revokedEventId,
-                      year: currentCtx.state.currentYear,
-                      month: currentCtx.state.currentMonth,
-                      type: 'ROLE_REVOKED',
-                      importance: 'normal',
-                      actorIds: [currentRoleHolderId],
-                      houseIds: [revokedPerson.houseId],
-                      countryIds: [countryId as CountryId],
-                      provinceIds: [],
-                      summary: `${revokedPerson.name} was removed from the role of ${role}.`,
-                      reasons: [],
-                      effects: [],
-                    }
-                    currentCtx = {
-                      ...revokedEventCtx,
-                      state: currentCtx.state,
-                      events: [...revokedEventCtx.events, revokedEvent],
-                    }
-                  }
-                }
-                const newState2 = assignRole(
-                  currentCtx.state,
-                  countryId as CountryId,
-                  role,
-                  bestCandidateId,
-                )
-                currentCtx = { ...currentCtx, state: newState2 }
-                const newCandidate = currentCtx.state.persons[bestCandidateId]
-                if (newCandidate) {
-                  const newHouse = currentCtx.state.houses[newCandidate.houseId]
-                  if (newHouse) {
-                    const { id: assignedEventId, ctx: assignedEventCtx } = makeEventId(currentCtx)
-                    const assignedEvent: SimEvent = {
-                      id: assignedEventId,
-                      year: currentCtx.state.currentYear,
-                      month: currentCtx.state.currentMonth,
-                      type: 'ROLE_ASSIGNED',
-                      importance: 'normal',
-                      actorIds: [bestCandidateId],
-                      houseIds: [newCandidate.houseId],
-                      countryIds: [countryId as CountryId],
-                      provinceIds: [],
-                      summary: `${newCandidate.name} was appointed as ${role} of ${updatedCountry.name}.`,
-                      reasons: [],
-                      effects: [],
-                    }
-                    currentCtx = {
-                      ...assignedEventCtx,
-                      state: currentCtx.state,
-                      events: [...assignedEventCtx.events, assignedEvent],
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+        currentCtx = { ...eventCtx, state: currentCtx.state, events: [...eventCtx.events, event] }
       }
     }
   }

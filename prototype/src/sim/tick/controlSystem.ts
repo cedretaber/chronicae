@@ -71,8 +71,8 @@ export function runControlSystem(ctx: TickContext): TickContext {
     const country = countries[countryId]
     if (!country || !country.active) continue
 
-    const growthModifier = calcChancellorControlGrowthModifier(ctx.state, country, config)
-    const maxControlBonus = calcChancellorControlMaxBonus(ctx.state, country, config)
+    const growthModifier = calcChancellorControlGrowthModifier(ctx.state, country.id, config)
+    const maxControlBonus = calcChancellorControlMaxBonus(ctx.state, country.id, config)
     const effectiveGrowth = config.controlGrowthPerMonth * growthModifier
 
     const distMap = bfs(

@@ -22,6 +22,7 @@ import {
   adjustProvincePopUnrest,
   adjustProvincePopSizeByClass,
 } from '../mutations/popMutations'
+import { getCountryRulerHouse, getActiveOfficeHolders } from '../selectors/officeSelectors'
 
 function emitWarEvent(
   ctx: TickContext,
@@ -135,7 +136,12 @@ export function runWarSystem(ctx: TickContext): TickContext {
       }
     }
 
-    const generalId = attackerCountry.roleAssignments.general
+    const militaryHolders = getActiveOfficeHolders(
+      currentState,
+      { kind: 'country', id: attackerCountryId },
+      'military',
+    )
+    const generalId = militaryHolders[0]
     if (generalId === undefined) {
       continue
     }
@@ -152,7 +158,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
 
     const attackerPower =
       calcCountryMilitaryPower(currentState, currentCtx.config, attackerCountryId) *
-      calcGeneralWarPowerModifier(currentState, attackerCountry, currentCtx.config)
+      calcGeneralWarPowerModifier(currentState, attackerCountryId, currentCtx.config)
 
     const attackerProvinceSet = new Set<ProvinceId>()
     for (const houseId of attackerCountry.houseIds) {
@@ -201,13 +207,13 @@ export function runWarSystem(ctx: TickContext): TickContext {
       const defenderPower =
         calcCountryMilitaryPower(currentState, currentCtx.config, defenderCountryId) *
         (defenderCountryObj
-          ? calcGeneralWarPowerModifier(currentState, defenderCountryObj, currentCtx.config)
+          ? calcGeneralWarPowerModifier(currentState, defenderCountryId, currentCtx.config)
           : 1)
       const winChance = attackerPower / (attackerPower + defenderPower + 1)
 
       const declareThreshold = calcGeneralDeclareThreshold(
         currentState,
-        attackerCountry,
+        attackerCountryId,
         currentCtx.config,
       )
       if (winChance < declareThreshold) {
@@ -263,7 +269,11 @@ export function runWarSystem(ctx: TickContext): TickContext {
           },
         }
 
-        const rulerHouseId = attackerCountry.rulerHouseId
+        const rulerHouseId =
+          getCountryRulerHouse(currentState, attackerCountryId) ?? attackerCountry.houseIds[0]
+        if (!rulerHouseId) {
+          continue
+        }
 
         const remainingBorderProvinceIds = borderProvinceIds.filter(
           (id) => !provincesToTake.includes(id),
@@ -356,7 +366,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
         {
           let winnerState = currentCtx.state
           winnerState = adjustCountryLegacyPrestige(winnerState, attackerCountryId, 3)
-          const winnerRulerHouseId = winnerState.countries[attackerCountryId]?.rulerHouseId
+          const winnerRulerHouseId = getCountryRulerHouse(winnerState, attackerCountryId)
           if (winnerRulerHouseId) {
             winnerState = adjustHouseLegacyPrestige(winnerState, winnerRulerHouseId, 2)
           }
@@ -443,7 +453,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
               },
             }
             loserState = adjustCountryLegacyPrestige(loserState, attackerCountryId, -3)
-            const loserRulerHouseId = loserState.countries[attackerCountryId]?.rulerHouseId
+            const loserRulerHouseId = getCountryRulerHouse(loserState, attackerCountryId)
             if (loserRulerHouseId) {
               loserState = adjustHouseLegacyPrestige(loserState, loserRulerHouseId, -2)
             }

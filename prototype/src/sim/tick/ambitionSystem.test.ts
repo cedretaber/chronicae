@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
+import {
+  createCountryId,
+  createHouseId,
+  createOfficeAssignmentId,
+  createPersonId,
+  createProvinceId,
+} from '../types/ids'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { Person } from '../types/person'
 import type { TickContext } from './context'
@@ -22,6 +28,7 @@ function makePerson(id: PersonId, ambition: number, caution: number): Person {
     stats: { admin: 5, martial: 5 },
     traits: { ambition, caution },
     legacyPrestige: 10,
+    wealth: 0,
     attitudes: {},
   }
 }
@@ -80,12 +87,10 @@ function makeFixture(): {
       [countryId]: {
         id: countryId,
         name: 'C0',
-        rulerHouseId: houseId,
         houseIds: [houseId],
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 50,
-        roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
       },
@@ -98,7 +103,6 @@ function makeFixture(): {
         countryId,
         provinceIds: [province1Id, province2Id],
         memberIds: [headId],
-        headId,
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 100,
@@ -110,10 +114,37 @@ function makeFixture(): {
     },
     activePlots: {},
     popGroups: {},
+    organizationShares: {},
+    officeAssignments: {},
+    shareIndex: { byOrganization: {}, byHolder: {} },
+    officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 0,
+  }
+
+  const officeId = createOfficeAssignmentId(0)
+  const stateWithLeader: WorldState = {
+    ...state,
+    officeAssignments: {
+      [officeId]: {
+        id: officeId,
+        organization: { kind: 'house', id: houseId },
+        role: 'leader',
+        holderPersonId: headId,
+        active: true,
+        startYear: 1,
+        unpaidCount: 0,
+      },
+    },
+    officeIndex: {
+      byOrganization: { [`house:${houseId as string}`]: [officeId] },
+      byHolderPerson: { [headId as string]: [officeId] },
+    },
+    nextOfficeAssignmentId: 1,
   }
 
   const ctx: TickContext = {
-    state,
+    state: stateWithLeader,
     rng: createRng('test'),
     config: defaultConfig,
     events: [],
@@ -123,7 +154,7 @@ function makeFixture(): {
     nextCountryIndex: 0,
   }
 
-  return { ctx, state, houseId, countryId, headId, province1Id, province2Id }
+  return { ctx, state: stateWithLeader, houseId, countryId, headId, province1Id, province2Id }
 }
 
 describe('calcAmbitionScores', () => {

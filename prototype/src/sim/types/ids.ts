@@ -35,3 +35,14 @@ export function createEventId(prefix: string, n: number): EventId {
 export function newPopGroupId(value: string): PopGroupId {
   return value as PopGroupId
 }
+
+export type OrganizationShareId = Branded<string, 'OrganizationShareId'>
+export type OfficeAssignmentId = Branded<string, 'OfficeAssignmentId'>
+
+export function createOrganizationShareId(n: number): OrganizationShareId {
+  return ('os-' + n) as OrganizationShareId
+}
+
+export function createOfficeAssignmentId(n: number): OfficeAssignmentId {
+  return ('of-' + n) as OfficeAssignmentId
+}

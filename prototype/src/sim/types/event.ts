@@ -1,17 +1,13 @@
 import type { EventId, PersonId, HouseId, CountryId, ProvinceId } from './ids'
 
 export type EventType =
-  | 'ROLE_ASSIGNED'
-  | 'ROLE_REVOKED'
   | 'PERSON_DIED'
   | 'IMPORTANT_PERSON_DIED'
-  | 'HOUSE_HEAD_CHANGED'
   | 'HOUSE_EXTINCT'
   | 'MARRIAGE_FORMED'
   | 'CHILD_BORN'
   | 'HOUSE_SPLIT'
   | 'SUCCESSION_CRISIS'
-  | 'RULER_HOUSE_EXTINCT'
   | 'PLOT_STARTED'
   | 'PLOT_SUCCEEDED'
   | 'PLOT_FAILED'
@@ -20,7 +16,6 @@ export type EventType =
   | 'REBELLION_SUCCEEDED'
   | 'REBELLION_FAILED'
   | 'COUNTRY_SPLIT'
-  | 'RULER_HOUSE_CHANGED'
   | 'OMEN'
   | 'FAMINE'
   | 'BOUNTIFUL_HARVEST'
@@ -46,6 +41,13 @@ export type EventType =
   | 'PROVINCE_REVOLT_FAILED'
   | 'LORDSHIP_USURPED'
   | 'REVOLT_COUNTRY_FOUNDED'
+  | 'OFFICE_ASSIGNED'
+  | 'OFFICE_REVOKED'
+  | 'OFFICE_SALARY_UNPAID'
+  | 'OFFICE_SALARY_PARTIALLY_PAID'
+  | 'RULER_CHANGED'
+  | 'HOUSE_LEADER_CHANGED'
+  | 'SHARE_SHIFTED'
 
 export type EventReason = {
   label: string

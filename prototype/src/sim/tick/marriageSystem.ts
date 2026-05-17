@@ -6,6 +6,7 @@ import { setSpouse, movePersonToHouse } from '../mutations/personMutations'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import { isForbiddenMarriagePair } from '../selectors/kinshipSelectors'
+import { getHouseLeader } from '../selectors/officeSelectors'
 import { createLogger } from '../debug/logger'
 
 export function runMarriageSystem(ctx: TickContext): TickContext {
@@ -143,7 +144,7 @@ function collectUnmarriedFemaleCandidates(ctx: TickContext): PersonId[] {
     if (person.age > ctx.config.marriageFemaleMaxAge) continue
     const house = ctx.state.houses[person.houseId]
     if (!house || !house.active) continue
-    if (house.headId === person.id) continue
+    if (getHouseLeader(ctx.state, house.id) === person.id) continue
     femaleIds.push(personId as PersonId)
   }
   return femaleIds

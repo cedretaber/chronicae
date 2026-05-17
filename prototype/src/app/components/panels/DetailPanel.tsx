@@ -13,7 +13,16 @@ import {
   houseAttitudeKey,
   countryAttitudeKey,
 } from '@sim/helpers/attitudeHelpers'
-import { getPersonRole } from '@/sim/selectors/roleSelectors'
+import {
+  getCountryRulerHouse,
+  getCountryRuler,
+  getHouseLeader,
+  getActiveOfficeHolders,
+  getAdministrativeCapacity,
+  getAdministrativeLoad,
+  getAdministrativeEfficiency,
+} from '@sim/selectors/officeSelectors'
+import { getDominantCountryHouse, getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getProvinceDevelopmentMultiplier } from '@/sim/selectors/developmentSelectors'
 import {
   getProvincePops,
@@ -43,6 +52,7 @@ import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { calcCountryMilitaryPower } from '@/sim/selectors/militarySelectors'
 import { normalizedStat } from '@/sim/selectors/personAbilityEffects'
+import { OFFICE_DEFINITIONS } from '@sim/config/officeDefinitions'
 import { clamp } from '@/sim/utils/math'
 import type { SimEvent } from '@/sim/types/event'
 
@@ -141,18 +151,32 @@ function CountryLink({
 
 function RoleDisplay({
   role,
-  roleAssignments,
+  countryId,
   persons,
   onClick,
+  currentState,
 }: {
   role: string
-  roleAssignments: Record<string, string>
+  countryId: string
   persons: Record<string, Person>
   onClick: ClickHandler
+  currentState: import('@sim/types/world').WorldState | null
 }) {
-  const personId = roleAssignments[role]
-  if (!personId) return <span className="text-gray-500">\u2014</span>
-  return <PersonLink personId={personId} persons={persons} onClick={onClick} />
+  const countryRef = {
+    kind: 'country' as const,
+    id: countryId as import('@sim/types/ids').CountryId,
+  }
+  if (!currentState) return <span className="text-gray-500">\u2014</span>
+  const holderIds = getActiveOfficeHolders(
+    currentState,
+    countryRef,
+    role as import('@sim/types/office').OfficeRole,
+  )
+  if (holderIds.length === 0) return <span className="text-gray-500">\u2014</span>
+  const personId = holderIds[0]
+  const person = persons[personId as string]
+  if (!person) return <span className="text-gray-500">\u2014</span>
+  return <PersonLink personId={personId as string} persons={persons} onClick={onClick} />
 }
 
 function AttitudeList({
@@ -267,18 +291,7 @@ function CountryDetail({
   const houses = currentState?.houses
   const persons = currentState?.persons
 
-  const worldState: WorldState | null = currentState
-    ? {
-        currentYear: currentState.currentYear,
-        currentMonth: currentState.currentMonth,
-        provinces: currentState.provinces,
-        countries: currentState.countries,
-        houses: currentState.houses,
-        persons: currentState.persons,
-        activePlots: currentState.activePlots ?? {},
-        popGroups: currentState.popGroups ?? {},
-      }
-    : null
+  const worldState: WorldState | null = currentState ?? null
 
   const totalMilitaryPower = worldState
     ? calcCountryMilitaryPower(worldState, defaultConfig, country.id)
@@ -288,14 +301,15 @@ function CountryDetail({
   const stability = worldState ? getCountryStability(worldState, defaultConfig, country.id) : 50
 
   const roleLabels: Record<string, string> = {
-    chancellor: 'Chancellor',
-    general: 'General',
+    leader: 'Ruler',
+    administrator: 'Administrator',
+    military: 'Military',
     treasurer: 'Treasurer',
   }
 
   const inHouseNames = country.houseIds
     .map((hid) => houses?.[hid])
-    .filter((h): h is House => !!h)
+    .filter((h): h is House => !!h && h.active && h.countryId === country.id)
     .map((h) => (
       <li key={h.id} className="mb-0.5">
         <HouseLink houseId={h.id} houses={houses!} onClick={onHouseClick} />
@@ -326,8 +340,33 @@ function CountryDetail({
           </button>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Ruler House:</span>
-          <HouseLink houseId={country.rulerHouseId} houses={houses ?? {}} onClick={onHouseClick} />
+          <span className="text-gray-400">Ruler:</span>
+          {(() => {
+            if (!currentState) return <span className="text-gray-500">\u2014</span>
+            const rulerId = getCountryRuler(currentState, country.id)
+            if (!rulerId) return <span className="text-gray-500">\u2014</span>
+            return <PersonLink personId={rulerId} persons={persons ?? {}} onClick={onPersonClick} />
+          })()}
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Royal House:</span>
+          {(() => {
+            if (!currentState) return <span className="text-gray-500">\u2014</span>
+            const rulerHouseId = getCountryRulerHouse(currentState, country.id)
+            if (!rulerHouseId) return <span className="text-gray-500">\u2014</span>
+            return <HouseLink houseId={rulerHouseId} houses={houses ?? {}} onClick={onHouseClick} />
+          })()}
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Dominant House:</span>
+          {(() => {
+            if (!currentState) return <span className="text-gray-500">\u2014</span>
+            const dominantHouseId = getDominantCountryHouse(currentState, country.id)
+            if (!dominantHouseId) return <span className="text-gray-500">\u2014</span>
+            return (
+              <HouseLink houseId={dominantHouseId} houses={houses ?? {}} onClick={onHouseClick} />
+            )
+          })()}
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Treasury:</span>
@@ -351,19 +390,74 @@ function CountryDetail({
         </div>
       </div>
 
+      <div className="text-sm font-semibold text-gray-300">Administration:</div>
+      <div className="text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-400">Capacity:</span>
+          <span>
+            {worldState
+              ? getAdministrativeCapacity(worldState, defaultConfig, country.id).toFixed(1)
+              : '—'}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Load:</span>
+          <span>
+            {worldState
+              ? getAdministrativeLoad(worldState, defaultConfig, country.id).toFixed(1)
+              : '—'}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Efficiency:</span>
+          <span>
+            {worldState
+              ? `x${getAdministrativeEfficiency(worldState, defaultConfig, country.id).toFixed(2)}`
+              : '—'}
+          </span>
+        </div>
+      </div>
+
       <div className="text-sm font-semibold text-gray-300">Roles:</div>
       <div className="text-sm">
-        {(['chancellor', 'general', 'treasurer'] as const).map((role) => (
+        {(['leader', 'administrator', 'military', 'treasurer'] as const).map((role) => (
           <div key={role} className="flex justify-between">
             <span className="text-gray-400">{roleLabels[role]}:</span>
             <RoleDisplay
               role={role}
-              roleAssignments={country.roleAssignments}
+              countryId={country.id}
               persons={persons!}
               onClick={onPersonClick}
+              currentState={session?.currentState ?? null}
             />
           </div>
         ))}
+      </div>
+
+      <div className="text-sm font-semibold text-gray-300">Top Shareholders:</div>
+      <div className="text-sm">
+        {worldState ? (
+          getTopShareholders(worldState, { kind: 'country', id: country.id }, 5).map(
+            ({ holder, percent }) => {
+              const name =
+                holder.kind === 'house'
+                  ? (currentState?.houses[holder.id]?.name ?? holder.id)
+                  : holder.id
+              return (
+                <div key={`${holder.kind}:${holder.id}`} className="flex justify-between">
+                  {holder.kind === 'house' ? (
+                    <HouseLink houseId={holder.id} houses={houses ?? {}} onClick={onHouseClick} />
+                  ) : (
+                    <span className="text-gray-400">{name}</span>
+                  )}
+                  <span className="text-gray-200">{percent.toFixed(1)}%</span>
+                </div>
+              )
+            },
+          )
+        ) : (
+          <span className="text-gray-500">—</span>
+        )}
       </div>
 
       <div className="text-sm font-semibold text-gray-300">Houses:</div>
@@ -395,23 +489,13 @@ function HouseDetail({
 }) {
   const isWatching = watchlist.includes(house.id)
   const currentState = session?.currentState
-  const head = currentState?.persons?.[house.headId]
+  const leaderId = currentState ? getHouseLeader(currentState, house.id) : undefined
+  const head = leaderId ? currentState?.persons?.[leaderId] : undefined
   const aliveMembers = house.memberIds.filter(
     (pid) => currentState?.persons?.[pid]?.alive === true,
   ).length
 
-  const worldState: WorldState | null = currentState
-    ? {
-        currentYear: currentState.currentYear,
-        currentMonth: currentState.currentMonth,
-        provinces: currentState.provinces,
-        countries: currentState.countries,
-        houses: currentState.houses,
-        persons: currentState.persons,
-        activePlots: currentState.activePlots,
-        popGroups: currentState.popGroups ?? {},
-      }
-    : null
+  const worldState: WorldState | null = currentState ?? null
 
   const { rebellionTendency, plotTendency } = worldState
     ? calcAmbitionScores(worldState, house.id)
@@ -538,15 +622,72 @@ function HouseDetail({
 
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Head:</span>
+          <span className="text-gray-400">Leader:</span>
           {head ? (
             <PersonLink
-              personId={house.headId}
+              personId={leaderId as string}
               persons={currentState?.persons ?? {}}
               onClick={onPersonClick}
             />
           ) : (
             <span className="text-gray-500">\u2014</span>
+          )}
+        </div>
+        <div className="mt-1 text-sm font-semibold text-gray-300">Offices</div>
+        <div className="text-sm">
+          {(['administrator', 'treasurer', 'military', 'advisor'] as const).map((role) => {
+            const houseRef = { kind: 'house' as const, id: house.id }
+            const holderIds = worldState ? getActiveOfficeHolders(worldState, houseRef, role) : []
+            const roleLabel =
+              role === 'administrator'
+                ? 'Steward'
+                : role === 'treasurer'
+                  ? 'Treasurer'
+                  : role === 'military'
+                    ? 'Guard Captain'
+                    : 'Advisor'
+            return (
+              <div key={role} className="flex justify-between">
+                <span className="text-gray-400">{roleLabel}:</span>
+                <div className="flex flex-col items-end gap-0.5">
+                  {holderIds.length === 0 ? (
+                    <span className="text-gray-500">—</span>
+                  ) : (
+                    holderIds.map((pid) => (
+                      <PersonLink
+                        key={pid as string}
+                        personId={pid as string}
+                        persons={currentState?.persons ?? {}}
+                        onClick={onPersonClick}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="mt-1 text-sm font-semibold text-gray-300">Top Shareholders</div>
+        <div className="text-sm">
+          {worldState ? (
+            getTopShareholders(worldState, { kind: 'house', id: house.id }, 5).map(
+              ({ holder, percent }) => (
+                <div key={`${holder.kind}:${holder.id}`} className="flex justify-between">
+                  {holder.kind === 'person' ? (
+                    <PersonLink
+                      personId={holder.id as string}
+                      persons={currentState?.persons ?? {}}
+                      onClick={onPersonClick}
+                    />
+                  ) : (
+                    <span className="text-gray-400">{holder.id}</span>
+                  )}
+                  <span className="text-gray-200">{percent.toFixed(1)}%</span>
+                </div>
+              ),
+            )
+          ) : (
+            <span className="text-gray-500">—</span>
           )}
         </div>
         <div>
@@ -624,17 +765,27 @@ function PersonDetail({
 }) {
   const isWatching = watchlist.includes(person.id)
   const currentState = session?.currentState
-  const worldState: WorldState = {
-    currentYear: currentState?.currentYear ?? 0,
-    currentMonth: currentState?.currentMonth ?? 0,
-    provinces: currentState?.provinces ?? {},
-    countries: currentState?.countries ?? {},
-    houses: currentState?.houses ?? {},
-    persons: currentState?.persons ?? {},
-    activePlots: currentState?.activePlots ?? {},
-    popGroups: currentState?.popGroups ?? {},
+  const worldState: WorldState = currentState ?? {
+    currentYear: 0,
+    currentMonth: 0,
+    provinces: {},
+    countries: {},
+    houses: {},
+    persons: {},
+    activePlots: {},
+    popGroups: {},
+    organizationShares: {},
+    officeAssignments: {},
+    shareIndex: { byOrganization: {}, byHolder: {} },
+    officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 0,
   }
-  const role = getPersonRole(worldState, person.id)
+  const allOfficeIds = worldState.officeIndex.byHolderPerson[person.id] ?? []
+  const allOffices = allOfficeIds.flatMap((id) => {
+    const o = worldState.officeAssignments[id]
+    return o && o.active ? [o] : []
+  })
   const importanceScore = calcPersonImportanceScore(worldState, person.id, eventHistory)
 
   const personCountryAtt = getAttitudeOrDefault(
@@ -647,11 +798,28 @@ function PersonDetail({
       attitudeValueToScore(personCountryAtt.respect) * 0.45) /
     100
 
-  const roleLabels: Record<string, string> = {
-    chancellor: 'Chancellor',
-    general: 'General',
-    treasurer: 'Treasurer',
+  const ROLE_ORDER = ['leader', 'administrator', 'treasurer', 'military', 'advisor']
+
+  function officeDisplayName(office: (typeof allOffices)[number]): string {
+    const key = `${office.organization.kind}:${office.role}` as const
+    return OFFICE_DEFINITIONS[key]?.displayName ?? office.role
   }
+
+  function officeOrgName(office: (typeof allOffices)[number]): string {
+    const org = office.organization
+    if (org.kind === 'country') {
+      return worldState.countries[org.id]?.name ?? org.id
+    }
+    return worldState.houses[org.id]?.name ?? org.id
+  }
+
+  const sortByRole = (a: (typeof allOffices)[number], b: (typeof allOffices)[number]) =>
+    ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)
+
+  const countryOffices = allOffices
+    .filter((o) => o.organization.kind === 'country')
+    .sort(sortByRole)
+  const houseOffices = allOffices.filter((o) => o.organization.kind === 'house').sort(sortByRole)
 
   return (
     <div className="flex flex-col gap-1 p-3">
@@ -699,9 +867,36 @@ function PersonDetail({
                 : 'Unknown'}
           </span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Role:</span>
-          <span>{role ? roleLabels[role] : <span className="text-gray-500">\u2014</span>}</span>
+        <div className="mt-1">
+          <span className="text-sm text-gray-400">Offices</span>
+          {allOffices.length === 0 ? (
+            <div className="ml-1 text-sm text-gray-500">—</div>
+          ) : (
+            <div className="ml-1 text-sm">
+              {countryOffices.length > 0 && (
+                <div>
+                  <span className="text-xs text-gray-500">Country</span>
+                  {countryOffices.map((o) => (
+                    <div key={o.id} className="flex justify-between gap-2">
+                      <span className="text-gray-300">{officeDisplayName(o)}</span>
+                      <span className="text-right text-gray-200">{officeOrgName(o)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {houseOffices.length > 0 && (
+                <div className={countryOffices.length > 0 ? 'mt-0.5' : ''}>
+                  <span className="text-xs text-gray-500">House</span>
+                  {houseOffices.map((o) => (
+                    <div key={o.id} className="flex justify-between gap-2">
+                      <span className="text-gray-300">{officeDisplayName(o)}</span>
+                      <span className="text-right text-gray-200">{officeOrgName(o)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -717,6 +912,10 @@ function PersonDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">Prestige:</span>
           <span>{formatScore(person.legacyPrestige)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Wealth:</span>
+          <span>{formatAmount(person.wealth)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Importance:</span>
@@ -830,16 +1029,7 @@ function PopGroupDetail({
   const currentState = session?.currentState
   const province = currentState?.provinces[popGroup.provinceId]
 
-  const worldState: WorldState = {
-    currentYear: currentState?.currentYear ?? 0,
-    currentMonth: currentState?.currentMonth ?? 0,
-    provinces: currentState?.provinces ?? {},
-    countries: currentState?.countries ?? {},
-    houses: currentState?.houses ?? {},
-    persons: currentState?.persons ?? {},
-    activePlots: currentState?.activePlots ?? {},
-    popGroups: currentState?.popGroups ?? {},
-  }
+  const worldState: WorldState | null = currentState ?? null
 
   return (
     <div className="flex flex-col gap-1 p-3">
@@ -878,7 +1068,7 @@ function PopGroupDetail({
       <div className="text-sm font-semibold text-gray-300">Attitudes:</div>
       <AttitudeList
         attitudes={popGroup.attitudes}
-        worldState={worldState}
+        worldState={worldState!}
         onCountryClick={onCountryClick}
         onHouseClick={onHouseClick}
         onPersonClick={onPersonClick}

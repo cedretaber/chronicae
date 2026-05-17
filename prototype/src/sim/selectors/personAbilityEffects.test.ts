@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
+import {
+  createCountryId,
+  createHouseId,
+  createOfficeAssignmentId,
+  createPersonId,
+  createProvinceId,
+} from '../types/ids'
 import type { CountryId, HouseId, PersonId } from '../types/ids'
-import type { RoleType } from '../types/role'
 import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
 import type { Province } from '../types/province'
 import type { Country } from '../types/country'
 import type { House } from '../types/house'
+import type { OfficeRole, OrganizationRef } from '../types/office'
 import { defaultConfig } from '../config/defaultConfig'
 import {
   normalizedStat,
@@ -34,14 +40,44 @@ function makePerson(overrides: Partial<Person> = {}): Person {
     stats: { admin: 5, martial: 5 },
     traits: { ambition: 0.5, caution: 0.5 },
     legacyPrestige: 50,
+    wealth: 0,
     attitudes: {},
     ...overrides,
   }
 }
 
+function makeOfficeAssignment(
+  state: WorldState,
+  organization: OrganizationRef,
+  role: OfficeRole,
+  holderPersonId: PersonId,
+): PersonId {
+  const id = createOfficeAssignmentId(state.nextOfficeAssignmentId)
+  state.nextOfficeAssignmentId += 1
+  state.officeAssignments[id] = {
+    id,
+    organization,
+    role,
+    holderPersonId,
+    active: true,
+    startYear: state.currentYear,
+    unpaidCount: 0,
+  }
+  const key = `${organization.kind}:${organization.id}`
+  if (!state.officeIndex.byOrganization[key]) {
+    state.officeIndex.byOrganization[key] = []
+  }
+  state.officeIndex.byOrganization[key].push(id)
+  if (!state.officeIndex.byHolderPerson[holderPersonId]) {
+    state.officeIndex.byHolderPerson[holderPersonId] = []
+  }
+  state.officeIndex.byHolderPerson[holderPersonId].push(id)
+  return holderPersonId
+}
+
 function makeWorldState(
   personOverrides: Partial<Person> = {},
-  roleAssignments: Partial<Record<RoleType, PersonId>> = {},
+  officeAssignments: Record<string, PersonId> = {},
   personId: PersonId = createPersonId('pe', 0),
 ): {
   state: WorldState
@@ -81,12 +117,10 @@ function makeWorldState(
       [country1Id]: {
         id: country1Id,
         name: 'Country 1',
-        rulerHouseId: house1Id,
         houseIds: [house1Id],
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
-        roleAssignments,
         active: true,
         capitalProvinceId: provinceId,
       },
@@ -99,7 +133,7 @@ function makeWorldState(
         countryId: country1Id,
         provinceIds: [provinceId],
         memberIds: [personId],
-        headId: personId,
+        founderId: personId,
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
@@ -111,9 +145,26 @@ function makeWorldState(
     },
     activePlots: {},
     popGroups: {},
+    organizationShares: {},
+    officeAssignments: {},
+    shareIndex: { byOrganization: {}, byHolder: {} },
+    officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 0,
   }
   const country = state.countries[country1Id]!
   const house = state.houses[house1Id]!
+
+  // Apply office assignments
+  const countryRef: OrganizationRef = { kind: 'country', id: country1Id }
+  for (const [role, pid] of Object.entries(officeAssignments)) {
+    makeOfficeAssignment(state, countryRef, role as OfficeRole, pid)
+  }
+
+  // Create a house leader office assignment so getHouseLeader works
+  const houseRef: OrganizationRef = { kind: 'house', id: house1Id }
+  makeOfficeAssignment(state, houseRef, 'leader', personId)
+
   return { state, country, house, country1Id, house1Id, personId }
 }
 
@@ -149,47 +200,47 @@ describe('calcChancellorControlGrowthModifier', () => {
   it('returns 1.25 with chancellor admin=10', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 10, martial: 5 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcChancellorControlGrowthModifier(state, country, config)
+    const result = calcChancellorControlGrowthModifier(state, country.id, config)
     expect(result).toBe(1.25)
   })
 
   it('returns 1 with chancellor admin=5', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 5, martial: 5 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcChancellorControlGrowthModifier(state, country, config)
+    const result = calcChancellorControlGrowthModifier(state, country.id, config)
     expect(result).toBe(1)
   })
 
   it('returns 0.75 with chancellor admin=0', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 0, martial: 5 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcChancellorControlGrowthModifier(state, country, config)
+    const result = calcChancellorControlGrowthModifier(state, country.id, config)
     expect(result).toBe(0.75)
   })
 
   it('returns 1 with no chancellor (vacant)', () => {
     const { state, country } = makeWorldState()
     const config = { ...defaultConfig }
-    const result = calcChancellorControlGrowthModifier(state, country, config)
+    const result = calcChancellorControlGrowthModifier(state, country.id, config)
     expect(result).toBe(1)
   })
 
   it('returns 1 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 10, martial: 5 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
-    const result = calcChancellorControlGrowthModifier(state, country, config)
+    const result = calcChancellorControlGrowthModifier(state, country.id, config)
     expect(result).toBe(1)
   })
 })
@@ -198,40 +249,40 @@ describe('calcChancellorControlMaxBonus', () => {
   it('returns 5 with chancellor admin=10', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 10, martial: 5 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcChancellorControlMaxBonus(state, country, config)
+    const result = calcChancellorControlMaxBonus(state, country.id, config)
     expect(result).toBe(5)
   })
 
   it('returns 0 with chancellor admin=5', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 5, martial: 5 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcChancellorControlMaxBonus(state, country, config)
+    const result = calcChancellorControlMaxBonus(state, country.id, config)
     expect(result).toBe(0)
   })
 
   it('returns -5 with chancellor admin=0', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 0, martial: 5 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcChancellorControlMaxBonus(state, country, config)
+    const result = calcChancellorControlMaxBonus(state, country.id, config)
     expect(result).toBe(-5)
   })
 
   it('returns 0 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 10, martial: 5 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
-    const result = calcChancellorControlMaxBonus(state, country, config)
+    const result = calcChancellorControlMaxBonus(state, country.id, config)
     expect(result).toBe(0)
   })
 })
@@ -246,7 +297,7 @@ describe('calcTreasurerTaxEfficiency', () => {
       { treasurer: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcTreasurerTaxEfficiency(state, country, config)
+    const result = calcTreasurerTaxEfficiency(state, country.id, config)
     expect(result).toBe(1.2)
   })
 
@@ -259,7 +310,7 @@ describe('calcTreasurerTaxEfficiency', () => {
       { treasurer: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcTreasurerTaxEfficiency(state, country, config)
+    const result = calcTreasurerTaxEfficiency(state, country.id, config)
     expect(result).toBe(1.0)
   })
 
@@ -272,14 +323,14 @@ describe('calcTreasurerTaxEfficiency', () => {
       { treasurer: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcTreasurerTaxEfficiency(state, country, config)
+    const result = calcTreasurerTaxEfficiency(state, country.id, config)
     expect(result).toBe(0.8)
   })
 
   it('returns 1.0 with no treasurer', () => {
     const { state, country } = makeWorldState()
     const config = { ...defaultConfig }
-    const result = calcTreasurerTaxEfficiency(state, country, config)
+    const result = calcTreasurerTaxEfficiency(state, country.id, config)
     expect(result).toBe(1.0)
   })
 
@@ -292,7 +343,7 @@ describe('calcTreasurerTaxEfficiency', () => {
       { treasurer: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
-    const result = calcTreasurerTaxEfficiency(state, country, config)
+    const result = calcTreasurerTaxEfficiency(state, country.id, config)
     expect(result).toBe(1.0)
   })
 })
@@ -301,47 +352,47 @@ describe('calcGeneralWarPowerModifier', () => {
   it('returns 1.15 with general martial=10', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 5, martial: 10 } },
-      { general: createPersonId('pe', 0) },
+      { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcGeneralWarPowerModifier(state, country, config)
+    const result = calcGeneralWarPowerModifier(state, country.id, config)
     expect(result).toBe(1.15)
   })
 
   it('returns 1 with general martial=5', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 5, martial: 5 } },
-      { general: createPersonId('pe', 0) },
+      { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcGeneralWarPowerModifier(state, country, config)
+    const result = calcGeneralWarPowerModifier(state, country.id, config)
     expect(result).toBe(1)
   })
 
   it('returns 0.85 with general martial=0', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 5, martial: 0 } },
-      { general: createPersonId('pe', 0) },
+      { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcGeneralWarPowerModifier(state, country, config)
+    const result = calcGeneralWarPowerModifier(state, country.id, config)
     expect(result).toBe(0.85)
   })
 
   it('returns 1 with no general', () => {
     const { state, country } = makeWorldState()
     const config = { ...defaultConfig }
-    const result = calcGeneralWarPowerModifier(state, country, config)
+    const result = calcGeneralWarPowerModifier(state, country.id, config)
     expect(result).toBe(1)
   })
 
   it('returns 1 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
       { stats: { admin: 5, martial: 10 } },
-      { general: createPersonId('pe', 0) },
+      { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
-    const result = calcGeneralWarPowerModifier(state, country, config)
+    const result = calcGeneralWarPowerModifier(state, country.id, config)
     expect(result).toBe(1)
   })
 })
@@ -350,37 +401,37 @@ describe('calcGeneralDeclareThreshold', () => {
   it('returns 0.40 with general ambition=1.0, caution=0.5', () => {
     const { state, country } = makeWorldState(
       { traits: { ambition: 1.0, caution: 0.5 } },
-      { general: createPersonId('pe', 0) },
+      { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcGeneralDeclareThreshold(state, country, config)
+    const result = calcGeneralDeclareThreshold(state, country.id, config)
     expect(result).toBe(0.4)
   })
 
   it('returns 0.50 with general ambition=0.5, caution=1.0', () => {
     const { state, country } = makeWorldState(
       { traits: { ambition: 0.5, caution: 1.0 } },
-      { general: createPersonId('pe', 0) },
+      { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcGeneralDeclareThreshold(state, country, config)
+    const result = calcGeneralDeclareThreshold(state, country.id, config)
     expect(result).toBe(0.5)
   })
 
   it('returns 0.45 with no general', () => {
     const { state, country } = makeWorldState()
     const config = { ...defaultConfig }
-    const result = calcGeneralDeclareThreshold(state, country, config)
+    const result = calcGeneralDeclareThreshold(state, country.id, config)
     expect(result).toBe(0.45)
   })
 
   it('returns 0.45 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
       { traits: { ambition: 1.0, caution: 0.5 } },
-      { general: createPersonId('pe', 0) },
+      { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
-    const result = calcGeneralDeclareThreshold(state, country, config)
+    const result = calcGeneralDeclareThreshold(state, country.id, config)
     expect(result).toBe(0.45)
   })
 })
@@ -389,30 +440,30 @@ describe('calcChancellorMonumentScoreBonus', () => {
   it('returns 15 with chancellor ambition=1.0, caution=0.0', () => {
     const { state, country } = makeWorldState(
       { traits: { ambition: 1.0, caution: 0.0 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcChancellorMonumentScoreBonus(state, country, config)
+    const result = calcChancellorMonumentScoreBonus(state, country.id, config)
     expect(result).toBe(15)
   })
 
   it('returns 0 with chancellor ambition=0.5, caution=0.5', () => {
     const { state, country } = makeWorldState(
       { traits: { ambition: 0.5, caution: 0.5 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
-    const result = calcChancellorMonumentScoreBonus(state, country, config)
+    const result = calcChancellorMonumentScoreBonus(state, country.id, config)
     expect(result).toBe(0)
   })
 
   it('returns 0 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
       { traits: { ambition: 1.0, caution: 0.0 } },
-      { chancellor: createPersonId('pe', 0) },
+      { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
-    const result = calcChancellorMonumentScoreBonus(state, country, config)
+    const result = calcChancellorMonumentScoreBonus(state, country.id, config)
     expect(result).toBe(0)
   })
 })

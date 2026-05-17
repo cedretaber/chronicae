@@ -99,6 +99,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
         caution: amb3,
       },
       legacyPrestige: 0,
+      wealth: 0,
       attitudes: {},
     }
 

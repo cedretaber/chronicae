@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId, createPlotId } from '../types/ids'
+import {
+  createCountryId,
+  createHouseId,
+  createOfficeAssignmentId,
+  createPersonId,
+  createPlotId,
+} from '../types/ids'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { defaultConfig } from '../config/defaultConfig'
@@ -27,12 +33,10 @@ function makeBaseState(): {
       [countryId]: {
         id: countryId,
         name: 'Country 1',
-        rulerHouseId: houseId,
         houseIds: [houseId],
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
-        roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
       },
@@ -45,7 +49,6 @@ function makeBaseState(): {
         countryId,
         provinceIds: [],
         memberIds: [personId],
-        headId: personId,
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
@@ -66,14 +69,42 @@ function makeBaseState(): {
         stats: { admin: 5, martial: 5 },
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 50,
+        wealth: 0,
         attitudes: {},
       },
     },
     activePlots: {},
     popGroups: {},
+    organizationShares: {},
+    officeAssignments: {},
+    shareIndex: { byOrganization: {}, byHolder: {} },
+    officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 0,
   }
 
-  return { state, countryId, houseId, personId }
+  const officeId = createOfficeAssignmentId(0)
+  const stateWithLeader: WorldState = {
+    ...state,
+    officeAssignments: {
+      [officeId]: {
+        id: officeId,
+        organization: { kind: 'house', id: houseId },
+        role: 'leader',
+        holderPersonId: personId,
+        active: true,
+        startYear: 1444,
+        unpaidCount: 0,
+      },
+    },
+    officeIndex: {
+      byOrganization: { [`house:${houseId as string}`]: [officeId] },
+      byHolderPerson: { [personId as string]: [officeId] },
+    },
+    nextOfficeAssignmentId: 1,
+  }
+
+  return { state: stateWithLeader, countryId, houseId, personId }
 }
 
 function countEvents(events: readonly SimEvent[], type: string): number {
@@ -86,7 +117,7 @@ describe('runPlotSystem', () => {
 
     const plot: Plot = {
       id: createPlotId('p', 0),
-      type: 'seize_role',
+      type: 'seize_office',
       status: 'active',
       startedYear: 1444,
       startedMonth: 1,
@@ -98,7 +129,7 @@ describe('runPlotSystem', () => {
       secrecy: 50,
       risk: 20,
       targetCountryId: countryId,
-      targetRole: 'chancellor',
+      targetRole: 'administrator',
     }
 
     const stateWithPlot: WorldState = {
@@ -123,7 +154,7 @@ describe('runPlotSystem', () => {
 
     const plot: Plot = {
       id: createPlotId('p', 0),
-      type: 'seize_role',
+      type: 'seize_office',
       status: 'active',
       startedYear: 1444,
       startedMonth: 1,
@@ -135,7 +166,7 @@ describe('runPlotSystem', () => {
       secrecy: 80,
       risk: 20,
       targetCountryId: countryId,
-      targetRole: 'chancellor',
+      targetRole: 'administrator',
     }
 
     const stateWithPlot: WorldState = {
@@ -236,7 +267,7 @@ describe('runPlotSystem', () => {
 
     const existingPlot: Plot = {
       id: createPlotId('p', 0),
-      type: 'seize_role',
+      type: 'seize_office',
       status: 'active',
       startedYear: 1444,
       startedMonth: 1,
@@ -248,7 +279,7 @@ describe('runPlotSystem', () => {
       secrecy: 50,
       risk: 20,
       targetCountryId: countryId,
-      targetRole: 'chancellor',
+      targetRole: 'administrator',
     }
 
     // High plotTendency to trigger start attempt

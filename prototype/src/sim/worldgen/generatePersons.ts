@@ -89,6 +89,16 @@ export function generatePersons(
     )
     rng = rngP8
 
+    const { value: headWealth, rng: rngW1 } = randomInt(rng, 20, 40)
+    const { value: oldFatherWealth, rng: rngW2 } = randomInt(rngW1, 15, 35)
+    const { value: oldMotherWealth, rng: rngW3 } = randomInt(rngW2, 15, 35)
+    const { value: siblingWealth, rng: rngW4 } = randomInt(rngW3, 10, 30)
+    const { value: spouseWealth, rng: rngW5 } = randomInt(rngW4, 10, 30)
+    const { value: child1Wealth, rng: rngW6 } = randomInt(rngW5, 0, 10)
+    const { value: child2Wealth, rng: rngW7 } = randomInt(rngW6, 0, 10)
+    const { value: relativeWealth, rng: rngW8 } = randomInt(rngW7, 10, 30)
+    rng = rngW8
+
     const oldFatherName = pickNameBySex('male', rng).name
     const { name: oldMotherName, rng: rngOldM } = pickNameBySex('female', rng)
     const { name: headName, rng: rngH2 } = pickNameBySex('male', rngOldM)
@@ -135,6 +145,7 @@ export function generatePersons(
         caution: 0,
       },
       legacyPrestige: oldFatherLegacyPrestige,
+      wealth: oldFatherWealth,
       attitudes: {},
     }
 
@@ -157,6 +168,7 @@ export function generatePersons(
         caution: 0,
       },
       legacyPrestige: oldMotherLegacyPrestige,
+      wealth: oldMotherWealth,
       attitudes: {},
     }
 
@@ -181,6 +193,7 @@ export function generatePersons(
         caution: 0,
       },
       legacyPrestige: headLegacyPrestige,
+      wealth: headWealth,
       attitudes: {},
     }
 
@@ -205,6 +218,7 @@ export function generatePersons(
         caution: 0,
       },
       legacyPrestige: siblingLegacyPrestige,
+      wealth: siblingWealth,
       attitudes: {},
     }
 
@@ -227,6 +241,7 @@ export function generatePersons(
         caution: 0,
       },
       legacyPrestige: spouseLegacyPrestige,
+      wealth: spouseWealth,
       attitudes: {},
     }
 
@@ -251,6 +266,7 @@ export function generatePersons(
         caution: 0,
       },
       legacyPrestige: child1LegacyPrestige,
+      wealth: child1Wealth,
       attitudes: {},
     }
 
@@ -275,6 +291,7 @@ export function generatePersons(
         caution: 0,
       },
       legacyPrestige: child2LegacyPrestige,
+      wealth: child2Wealth,
       attitudes: {},
     }
 
@@ -297,6 +314,7 @@ export function generatePersons(
         caution: 0,
       },
       legacyPrestige: relativeLegacyPrestige,
+      wealth: relativeWealth,
       attitudes: {},
     }
 

@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { PersonId, CountryId } from '../types/ids'
-import type { RoleType } from '../types/role'
+import type { OfficeRole } from '../types/office'
 import type { EventReason, EventEffect } from '../types/event'
 import {
   getAttitudeOrDefault,
@@ -11,7 +11,7 @@ import {
 export function explainAppointment(
   state: WorldState,
   countryId: CountryId,
-  role: RoleType,
+  role: OfficeRole,
   personId: PersonId,
 ): { reasons: EventReason[]; effects: EventEffect[] } {
   const country = state.countries[countryId]
@@ -29,7 +29,7 @@ export function explainAppointment(
     100
 
   switch (role) {
-    case 'chancellor': {
+    case 'administrator': {
       const adminContribution = person.stats.admin * 8
       if (adminContribution > 0) {
         reasons.push({
@@ -69,7 +69,7 @@ export function explainAppointment(
       break
     }
 
-    case 'general': {
+    case 'military': {
       const martialContribution = person.stats.martial * 8
       if (martialContribution > 0) {
         reasons.push({

@@ -79,6 +79,7 @@ export function createRevoltLeader(
       caution: caution / 10,
     },
     legacyPrestige,
+    wealth: 0,
     attitudes: {},
   }
 

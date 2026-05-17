@@ -2,7 +2,7 @@ import { generateWorld } from '@sim/worldgen/generateWorld'
 import { tick } from '@sim/tick/tick'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { createTickContext } from '@sim/tick/context'
-import { runIntegrityCheck } from '@sim/tick/integritySystem'
+import { runIntegritySystem } from '@sim/tick/integritySystem'
 import { createLogger } from '@sim/debug/logger'
 import type { WorldState } from '@sim/types/world'
 import type { SimEvent } from '@sim/types/event'
@@ -179,7 +179,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
 
   if (args.integrityCheck) {
     const ctx = createTickContext({ state: result.state, rng: result.rng, config })
-    runIntegrityCheck(ctx)
+    runIntegritySystem(ctx)
   }
 
   const year = result.state.currentYear

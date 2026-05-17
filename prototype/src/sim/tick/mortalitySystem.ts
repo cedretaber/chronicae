@@ -1,9 +1,10 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { revokeRole } from '../mutations/assignRole'
-import type { PersonId, CountryId } from '../types/ids'
+import { revokeAllOfficesForPerson } from '../mutations/officeMutations'
+import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
+import { getHouseLeader } from '../selectors/officeSelectors'
 
 export function runMortalitySystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -32,28 +33,14 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
         }
       }
 
+      // Check if person was a house leader BEFORE revoking
+      const houseLeaderBefore = getHouseLeader(currentCtx.state, person.houseId)
+      const wasHouseLeader = houseLeaderBefore === (personId as PersonId)
+
       let currentState = { ...currentCtx.state, persons: newPersons }
+      currentState = revokeAllOfficesForPerson(currentState, personId as PersonId)
 
-      let roleFound: { countryId: CountryId; role: 'chancellor' | 'general' | 'treasurer' } | null =
-        null
-      for (const cid of Object.keys(currentState.countries).sort()) {
-        const country = currentState.countries[cid as CountryId]
-        if (!country) continue
-        for (const role of ['chancellor', 'general', 'treasurer'] as const) {
-          if (country.roleAssignments[role] === (personId as PersonId)) {
-            roleFound = { countryId: cid as CountryId, role }
-            break
-          }
-        }
-        if (roleFound) break
-      }
-
-      if (roleFound) {
-        currentState = revokeRole(currentState, roleFound.countryId, roleFound.role)
-      }
-
-      const house = currentState.houses[person.houseId]
-      const importance = house?.headId === (personId as PersonId) ? 'normal' : 'minor'
+      const importance = wasHouseLeader ? 'normal' : 'minor'
 
       const { id: eventId, ctx: eventCtx } = makeEventId({ ...currentCtx, state: currentState })
 

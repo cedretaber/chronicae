@@ -3,6 +3,7 @@ import { makeHouseId } from '../tick/context'
 import type { PersonId, CountryId, ProvinceId, HouseId } from '../types/ids'
 import type { House } from '../types/house'
 import { pickUniqueName, houseNamePool, houseName } from '../worldgen/nameGenerators'
+import { createOfficeAssignment } from './officeMutations'
 
 export function createRevoltHouse(
   ctx: TickContext,
@@ -39,7 +40,6 @@ export function createRevoltHouse(
     countryId: params.countryId,
     provinceIds: [params.seatProvinceId],
     memberIds: [params.leaderId],
-    headId: params.leaderId,
     founderId: params.leaderId,
     cadetHouseIds: [],
     legacyPrestige: finalCtx.config.revoltHouseInitialLegacyPrestige,
@@ -48,5 +48,13 @@ export function createRevoltHouse(
     ...(params.parentHouseId !== undefined && { parentHouseId: params.parentHouseId }),
   }
 
-  return { house, ctx: finalCtx }
+  // Set up house leader office
+  const stateWithLeader = createOfficeAssignment(
+    finalCtx.state,
+    { kind: 'house', id },
+    'leader',
+    params.leaderId,
+  )
+
+  return { house, ctx: { ...finalCtx, state: stateWithLeader } }
 }

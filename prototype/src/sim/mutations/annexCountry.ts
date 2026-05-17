@@ -1,6 +1,7 @@
 import type { WorldState } from '../types/world'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import { defaultConfig } from '../config/defaultConfig'
+import { getCountryRulerHouse } from '../selectors/officeSelectors'
 
 export function annexCountry(
   state: WorldState,
@@ -13,8 +14,10 @@ export function annexCountry(
   const winnerCountry = state.countries[winnerCountryId]
   if (!winnerCountry || !winnerCountry.active) return state
 
-  const winnerRulerHouseId = winnerCountry.rulerHouseId
-  const defeatedRulerHouseId = defeatedCountry.rulerHouseId
+  const winnerRulerHouseId = getCountryRulerHouse(state, winnerCountryId)
+  const defeatedRulerHouseId = getCountryRulerHouse(state, defeatedCountryId)
+
+  if (!winnerRulerHouseId || !defeatedRulerHouseId) return state
 
   const newProvinces = { ...state.provinces } as typeof state.provinces
   for (const provinceId of Object.keys(state.provinces).sort() as ProvinceId[]) {

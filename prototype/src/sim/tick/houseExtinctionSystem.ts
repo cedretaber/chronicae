@@ -6,6 +6,14 @@ import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import { createLogger } from '../debug/logger'
 import { adjustCountryLegacyPrestige } from '../helpers/attitudeHelpers'
+import { getCountryRulerHouse } from '../selectors/officeSelectors'
+import { getHouseLeader } from '../selectors/officeSelectors'
+import { getDominantCountryHouse } from '../selectors/shareSelectors'
+import {
+  createOfficeAssignment,
+  revokeAllOfficesForOrganization,
+} from '../mutations/officeMutations'
+import type { CountryId, ProvinceId } from '../types/ids'
 
 function moveLivingMembersToHouse(
   state: WorldState,
@@ -43,6 +51,66 @@ function moveLivingMembersToHouse(
   return { ...state, persons: newPersons, houses: newHouses }
 }
 
+function transferOrphanProvincesToBestNeighbor(
+  state: WorldState,
+  orphanProvinceIds: ProvinceId[],
+  excludeCountryId: CountryId,
+): WorldState {
+  if (orphanProvinceIds.length === 0) return state
+
+  // For each orphan province, find the best active neighboring country
+  // (most shared borders), then transfer to its ruler/dominant house
+  const neighborCount = new Map<CountryId, number>()
+  for (const pid of orphanProvinceIds) {
+    const p = state.provinces[pid]
+    if (!p) continue
+    for (const neighborId of p.neighbors) {
+      const neighbor = state.provinces[neighborId]
+      if (!neighbor) continue
+      const cid = neighbor.countryId
+      if (cid === excludeCountryId) continue
+      const c = state.countries[cid]
+      if (!c || !c.active) continue
+      neighborCount.set(cid, (neighborCount.get(cid) ?? 0) + 1)
+    }
+  }
+
+  // Pick the best annexer (most shared border provinces)
+  let bestAnnexerId: CountryId | null = null
+  let bestScore = -1
+  for (const [cid, score] of neighborCount.entries()) {
+    if (score > bestScore) {
+      bestScore = score
+      bestAnnexerId = cid
+    }
+  }
+
+  // Fallback: largest active country by province count if no neighbors
+  if (!bestAnnexerId) {
+    let maxProvinces = -1
+    for (const [id, country] of Object.entries(state.countries)) {
+      if (!country || !country.active || id === excludeCountryId) continue
+      const count = Object.values(state.provinces).filter((p) => p?.countryId === id).length
+      if (count > maxProvinces) {
+        maxProvinces = count
+        bestAnnexerId = id as CountryId
+      }
+    }
+  }
+
+  if (!bestAnnexerId) return state // no active country exists, nothing to do
+
+  const receiverHouseId =
+    getCountryRulerHouse(state, bestAnnexerId) ?? getDominantCountryHouse(state, bestAnnexerId)
+  if (!receiverHouseId) return state
+
+  let result = state
+  for (const pid of orphanProvinceIds) {
+    result = transferProvinceToHouse(result, pid, receiverHouseId)
+  }
+  return result
+}
+
 export function extinctHouseAfterFailedSuccession(ctx: TickContext, houseId: HouseId): TickContext {
   const house = ctx.state.houses[houseId]
   if (!house) return ctx
@@ -50,7 +118,8 @@ export function extinctHouseAfterFailedSuccession(ctx: TickContext, houseId: Hou
   const country = ctx.state.countries[house.countryId]
   if (!country) return ctx
 
-  if (house.id === country.rulerHouseId) {
+  const rulerHouseId = getCountryRulerHouse(ctx.state, house.countryId)
+  if (house.id === rulerHouseId) {
     return handleRulerHouseExtinction(ctx, houseId)
   }
 
@@ -64,9 +133,10 @@ function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickCo
   const country = ctx.state.countries[house.countryId]
   if (!country) return ctx
 
-  const rulerHouse = ctx.state.houses[country.rulerHouseId]
+  const rulerHouseId = getCountryRulerHouse(ctx.state, house.countryId)
+  const rulerHouse = rulerHouseId ? ctx.state.houses[rulerHouseId] : undefined
   const receiverHouseId = rulerHouse?.active
-    ? country.rulerHouseId
+    ? rulerHouseId
     : (Object.values(ctx.state.houses)
         .filter(
           (h): h is import('../types/house').House =>
@@ -75,16 +145,38 @@ function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickCo
         .sort((a, b) => b.legacyPrestige - a.legacyPrestige)[0]?.id ?? null)
 
   if (!receiverHouseId) {
-    const newHouses = { ...ctx.state.houses }
+    let finalState = ctx.state
+    finalState = transferOrphanProvincesToBestNeighbor(
+      finalState,
+      house.provinceIds,
+      house.countryId,
+    )
+    const newHouses = { ...finalState.houses }
     const extinctHouse = newHouses[houseId]
     if (!extinctHouse) return ctx
-    newHouses[houseId] = { ...extinctHouse, active: false, memberIds: [] }
-    const newCountries = { ...ctx.state.countries }
+    newHouses[houseId] = { ...extinctHouse, active: false, memberIds: [], provinceIds: [] }
+    const newCountries = { ...finalState.countries }
     const extinctCountry = newCountries[house.countryId]
     if (extinctCountry) {
       newCountries[house.countryId] = { ...extinctCountry, active: false }
     }
-    return { ...ctx, state: { ...ctx.state, houses: newHouses, countries: newCountries } }
+    const finalStateWithExtinction = { ...finalState, houses: newHouses, countries: newCountries }
+    const { id: eventId, ctx: eventCtx } = makeEventId({ ...ctx, state: finalStateWithExtinction })
+    const event: SimEvent = {
+      id: eventId,
+      year: finalStateWithExtinction.currentYear,
+      month: finalStateWithExtinction.currentMonth,
+      type: 'HOUSE_EXTINCT',
+      importance: 'major',
+      actorIds: [],
+      houseIds: [houseId],
+      countryIds: [house.countryId],
+      provinceIds: [],
+      summary: `${house.name} has become extinct.`,
+      reasons: [],
+      effects: [],
+    }
+    return { ...eventCtx, state: finalStateWithExtinction, events: [...eventCtx.events, event] }
   }
 
   let resultCtx = ctx
@@ -169,30 +261,6 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
 
   let resultCtx = ctx
 
-  const { id: rulerEventId, ctx: rulerEventCtx } = makeEventId({
-    ...resultCtx,
-    state: resultCtx.state,
-  })
-  const rulerEvent: SimEvent = {
-    id: rulerEventId,
-    year: resultCtx.state.currentYear,
-    month: resultCtx.state.currentMonth,
-    type: 'RULER_HOUSE_EXTINCT',
-    importance: 'major',
-    actorIds: [],
-    houseIds: [houseId],
-    countryIds: [house.countryId],
-    provinceIds: [...house.provinceIds],
-    summary: `The ruler house ${house.name} has become extinct!`,
-    reasons: [],
-    effects: [],
-  }
-  resultCtx = {
-    ...rulerEventCtx,
-    state: resultCtx.state,
-    events: [...rulerEventCtx.events, rulerEvent],
-  }
-
   const log = createLogger(ctx.config.debug)
   log.log('HOUSE_EXTINCT', {
     year: resultCtx.state.currentYear,
@@ -231,10 +299,25 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
     if (updatedCountry) {
       newDomesticCountries[house.countryId] = {
         ...updatedCountry,
-        rulerHouseId: newRulerHouseId,
       }
     }
     domesticState = { ...domesticState, countries: newDomesticCountries }
+
+    // Set new leader via office system
+    const newLeaderId = getHouseLeader(domesticState, newRulerHouseId)
+    if (newLeaderId) {
+      domesticState = revokeAllOfficesForOrganization(
+        domesticState,
+        { kind: 'country', id: house.countryId },
+        'leader',
+      )
+      domesticState = createOfficeAssignment(
+        domesticState,
+        { kind: 'country', id: house.countryId },
+        'leader',
+        newLeaderId,
+      )
+    }
 
     const sortedProvinceIds = [...house.provinceIds].sort()
     let transferChainState = domesticState
@@ -315,19 +398,25 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
   const defunctCountryId = house.countryId
   const defunctCountry = resultCtx.state.countries[defunctCountryId]
   if (!defunctCountry) {
-    const collapseHouses = { ...resultCtx.state.houses }
+    let finalState = resultCtx.state
+    finalState = transferOrphanProvincesToBestNeighbor(
+      finalState,
+      defunctProvinceIds,
+      defunctCountryId,
+    )
+    const collapseHouses = { ...finalState.houses }
     const collapseHouse = collapseHouses[houseId]
     if (collapseHouse) {
-      collapseHouses[houseId] = { ...collapseHouse, active: false, memberIds: [] }
+      collapseHouses[houseId] = { ...collapseHouse, active: false, memberIds: [], provinceIds: [] }
     }
-    const collapseCountries = { ...resultCtx.state.countries }
+    const collapseCountries = { ...finalState.countries }
     const collapseCountry = collapseCountries[house.countryId]
     if (collapseCountry) {
       collapseCountries[house.countryId] = { ...collapseCountry, active: false }
     }
     return {
       ...resultCtx,
-      state: { ...resultCtx.state, houses: collapseHouses, countries: collapseCountries },
+      state: { ...finalState, houses: collapseHouses, countries: collapseCountries },
     }
   }
 
@@ -357,26 +446,67 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
   if (annexerCountryId) {
     const annexerCountry = resultCtx.state.countries[annexerCountryId]
     if (!annexerCountry) {
-      const collapseHouses = { ...resultCtx.state.houses }
+      let finalState = resultCtx.state
+      finalState = transferOrphanProvincesToBestNeighbor(
+        finalState,
+        house.provinceIds,
+        house.countryId,
+      )
+      const collapseHouses = { ...finalState.houses }
       const collapseHouse = collapseHouses[houseId]
       if (collapseHouse) {
-        collapseHouses[houseId] = { ...collapseHouse, active: false, memberIds: [] }
+        collapseHouses[houseId] = {
+          ...collapseHouse,
+          active: false,
+          memberIds: [],
+          provinceIds: [],
+        }
       }
-      const collapseCountries = { ...resultCtx.state.countries }
+      const collapseCountries = { ...finalState.countries }
       const collapseCountry = collapseCountries[house.countryId]
       if (collapseCountry) {
         collapseCountries[house.countryId] = { ...collapseCountry, active: false }
       }
       return {
         ...resultCtx,
-        state: { ...resultCtx.state, houses: collapseHouses, countries: collapseCountries },
+        state: { ...finalState, houses: collapseHouses, countries: collapseCountries },
       }
     }
 
     let annexState = resultCtx
 
     // Transfer the defunct house's provinces to the annexer's ruler house
-    const annexerRulerHouseId = annexerCountry.rulerHouseId
+    const annexerRulerHouseId =
+      getCountryRulerHouse(annexState.state, annexerCountryId) ??
+      getDominantCountryHouse(annexState.state, annexerCountryId)
+    if (!annexerRulerHouseId) {
+      let finalState = resultCtx.state
+      finalState = transferOrphanProvincesToBestNeighbor(
+        finalState,
+        house.provinceIds,
+        house.countryId,
+      )
+      const collapseHouses = { ...finalState.houses }
+      const collapseHouse = collapseHouses[houseId]
+      if (collapseHouse) {
+        collapseHouses[houseId] = {
+          ...collapseHouse,
+          active: false,
+          memberIds: [],
+          provinceIds: [],
+        }
+      }
+      const collapseCountries = { ...finalState.countries }
+      const collapseCountry = collapseCountries[house.countryId]
+      if (collapseCountry) {
+        collapseCountries[house.countryId] = { ...collapseCountry, active: false }
+      }
+      return {
+        ...resultCtx,
+        state: { ...finalState, houses: collapseHouses, countries: collapseCountries },
+      }
+    }
+
     const extinctHouseProvinceIds = [...house.provinceIds].sort()
     for (const pid of extinctHouseProvinceIds) {
       annexState = {
@@ -470,18 +600,26 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
     }
   }
 
-  const collapseHouses = { ...resultCtx.state.houses }
+  const defunctProvinces: import('../types/ids').ProvinceId[] = Object.values(
+    resultCtx.state.provinces,
+  )
+    .filter((p): p is NonNullable<typeof p> => p !== null && p.countryId === house.countryId)
+    .map((p) => p.id)
+
+  let finalState = resultCtx.state
+  finalState = transferOrphanProvincesToBestNeighbor(finalState, defunctProvinces, house.countryId)
+  const collapseHouses = { ...finalState.houses }
   const collapseHouse = collapseHouses[houseId]
   if (collapseHouse) {
-    collapseHouses[houseId] = { ...collapseHouse, active: false, memberIds: [] }
+    collapseHouses[houseId] = { ...collapseHouse, active: false, memberIds: [], provinceIds: [] }
   }
-  const collapseCountries = { ...resultCtx.state.countries }
+  const collapseCountries = { ...finalState.countries }
   const collapseCountry = collapseCountries[house.countryId]
   if (collapseCountry) {
     collapseCountries[house.countryId] = { ...collapseCountry, active: false }
   }
   return {
     ...resultCtx,
-    state: { ...resultCtx.state, houses: collapseHouses, countries: collapseCountries },
+    state: { ...finalState, houses: collapseHouses, countries: collapseCountries },
   }
 }

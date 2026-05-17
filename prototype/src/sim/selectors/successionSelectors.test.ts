@@ -30,12 +30,13 @@ function makePerson(overrides: Partial<Person> = {}): Person {
     stats: { admin: 5, martial: 5 },
     traits: { ambition: 0.5, caution: 0.5 },
     legacyPrestige: 50,
+    wealth: 0,
     attitudes: {},
     ...overrides,
   }
 }
 
-function makeHouse(headId: Person, memberIds: Person[], overrides: Partial<House> = {}): House {
+function makeHouse(memberIds: Person[], overrides: Partial<House> = {}): House {
   const houseId = overrides.id ?? createHouseId('h', 0)
   return {
     id: houseId,
@@ -44,7 +45,6 @@ function makeHouse(headId: Person, memberIds: Person[], overrides: Partial<House
     countryId: createCountryId('c', 0),
     provinceIds: [],
     memberIds: memberIds.map((p) => p.id),
-    headId: headId.id,
     cadetHouseIds: [],
     legacyPrestige: 50,
     wealth: 0,
@@ -63,6 +63,12 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     persons,
     activePlots: {},
     popGroups: {},
+    organizationShares: {},
+    officeAssignments: {},
+    shareIndex: { byOrganization: {}, byHolder: {} },
+    officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 0,
   }
 }
 
@@ -71,21 +77,39 @@ const testConfig: SimulationConfig = { ...defaultConfig }
 describe('needsSuccession', () => {
   it('returns true when house is active and head is dead', () => {
     const head = makePerson({ id: createPersonId('pe', 0), alive: false })
-    const house = makeHouse(head, [head])
+    const house = makeHouse([head])
     const state = makeState({ [head.id]: head }, { [house.id]: house })
     expect(needsSuccession(state, house)).toBe(true)
   })
 
   it('returns false when house is active and head is alive', () => {
     const head = makePerson({ id: createPersonId('pe', 0), alive: true })
-    const house = makeHouse(head, [head])
-    const state = makeState({ [head.id]: head }, { [house.id]: house })
+    const house = makeHouse([head])
+    const officeId = 'of-0' as import('../types/ids').OfficeAssignmentId
+    const state: WorldState = {
+      ...makeState({ [head.id]: head }, { [house.id]: house }),
+      officeAssignments: {
+        [officeId]: {
+          id: officeId,
+          organization: { kind: 'house' as const, id: house.id },
+          role: 'leader' as const,
+          holderPersonId: head.id,
+          active: true,
+          startYear: 1444,
+          unpaidCount: 0,
+        },
+      },
+      officeIndex: {
+        byOrganization: { [`house:${house.id}`]: [officeId] },
+        byHolderPerson: { [head.id]: [officeId] },
+      },
+    }
     expect(needsSuccession(state, house)).toBe(false)
   })
 
   it('returns false when house is inactive', () => {
     const head = makePerson({ id: createPersonId('pe', 0), alive: false })
-    const house = makeHouse(head, [head], { active: false })
+    const house = makeHouse([head], { active: false })
     const state = makeState({ [head.id]: head }, { [house.id]: house })
     expect(needsSuccession(state, house)).toBe(false)
   })
@@ -115,7 +139,7 @@ describe('getAdultSuccessionCandidates', () => {
       sex: 'male',
       houseId: head.houseId,
     })
-    const house = makeHouse(head, [head, adult1, adult2, deadMember])
+    const house = makeHouse([head, adult1, adult2, deadMember])
     const state = makeState(
       { [head.id]: head, [adult1.id]: adult1, [adult2.id]: adult2, [deadMember.id]: deadMember },
       { [house.id]: house },
@@ -140,7 +164,7 @@ describe('getAdultSuccessionCandidates', () => {
       sex: 'female',
       houseId: head.houseId,
     })
-    const house = makeHouse(head, [head, adultMale, adultFemale])
+    const house = makeHouse([head, adultMale, adultFemale])
     const state = makeState(
       { [head.id]: head, [adultMale.id]: adultMale, [adultFemale.id]: adultFemale },
       { [house.id]: house },
@@ -158,7 +182,7 @@ describe('getAdultSuccessionCandidates', () => {
       sex: 'female',
       houseId: head.houseId,
     })
-    const house = makeHouse(head, [head, adultFemale])
+    const house = makeHouse([head, adultFemale])
     const state = makeState(
       { [head.id]: head, [adultFemale.id]: adultFemale },
       { [house.id]: house },
@@ -177,7 +201,7 @@ describe('getAdultSuccessionCandidates', () => {
       sex: 'female',
       houseId: head.houseId,
     })
-    const house = makeHouse(head, [head, adultFemale])
+    const house = makeHouse([head, adultFemale])
     const state = makeState(
       { [head.id]: head, [adultFemale.id]: adultFemale },
       { [house.id]: house },
@@ -188,7 +212,7 @@ describe('getAdultSuccessionCandidates', () => {
 
   it('excludes dead head from candidates', () => {
     const head = makePerson({ id: createPersonId('pe', 0), age: 50, alive: false })
-    const house = makeHouse(head, [head])
+    const house = makeHouse([head])
     const state = makeState({ [head.id]: head }, { [house.id]: house })
     const result = getAdultSuccessionCandidates(state, house, testConfig)
     expect(result.length).toBe(0)
@@ -216,7 +240,7 @@ describe('getMinorSuccessionCandidates', () => {
       alive: false,
       houseId: head.houseId,
     })
-    const house = makeHouse(head, [head, minor1, minor2, deadMinor])
+    const house = makeHouse([head, minor1, minor2, deadMinor])
     const state = makeState(
       { [head.id]: head, [minor1.id]: minor1, [minor2.id]: minor2, [deadMinor.id]: deadMinor },
       { [house.id]: house },

@@ -1,9 +1,9 @@
-import type { PersonId } from '../types/ids'
+import type { PersonId, CountryId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
-import type { Country } from '../types/country'
 import type { House } from '../types/house'
-import type { RoleType } from '../types/role'
+import type { OfficeRole, OrganizationRef } from '../types/office'
+import { getActiveOfficeHolders, getHouseLeader } from './officeSelectors'
 import { clamp } from '../utils/math'
 import type { SimulationConfig } from '../config/defaultConfig'
 
@@ -15,16 +15,18 @@ export function normalizedTrait(value: number): number {
   return value - 0.5
 }
 
-export function getAssignedLivingPerson(
+function getFirstActiveLivingOfficeHolder(
   state: WorldState,
-  country: Country,
-  role: RoleType,
+  countryId: CountryId,
+  role: OfficeRole,
 ): Person | undefined {
-  const personId = country.roleAssignments[role]
-  if (!personId) return undefined
-  const person = state.persons[personId]
-  if (!person || !person.alive) return undefined
-  return person
+  const countryRef: OrganizationRef = { kind: 'country', id: countryId }
+  const holderIds = getActiveOfficeHolders(state, countryRef, role)
+  for (const id of holderIds) {
+    const p = state.persons[id]
+    if (p && p.alive) return p
+  }
+  return undefined
 }
 
 export function getLivingPerson(state: WorldState, personId: PersonId): Person | undefined {
@@ -35,23 +37,23 @@ export function getLivingPerson(state: WorldState, personId: PersonId): Person |
 
 export function calcChancellorControlGrowthModifier(
   state: WorldState,
-  country: Country,
+  countryId: CountryId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
-  const chancellor = getAssignedLivingPerson(state, country, 'chancellor')
-  const admin = chancellor?.stats.admin ?? 5
+  const administrator = getFirstActiveLivingOfficeHolder(state, countryId, 'administrator')
+  const admin = administrator?.stats.admin ?? 5
   return 1 + normalizedStat(admin) * config.chancellorAdminControlGrowthEffect
 }
 
 export function calcChancellorControlMaxBonus(
   state: WorldState,
-  country: Country,
+  countryId: CountryId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 0
-  const chancellor = getAssignedLivingPerson(state, country, 'chancellor')
-  const admin = chancellor?.stats.admin ?? 5
+  const administrator = getFirstActiveLivingOfficeHolder(state, countryId, 'administrator')
+  const admin = administrator?.stats.admin ?? 5
   return (admin - 5) * config.chancellorAdminControlMaxBonusPerAdmin
 }
 
@@ -61,7 +63,8 @@ export function calcHouseHeadControlGrowthModifier(
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
-  const head = state.persons[house.headId]
+  const headId = getHouseLeader(state, house.id)
+  const head = headId ? state.persons[headId] : undefined
   if (!head || !head.alive) {
     const admin = 5
     return 1 + normalizedStat(admin) * config.houseHeadAdminControlGrowthEffect
@@ -76,7 +79,8 @@ export function calcHouseHeadControlMaxBonus(
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 0
-  const head = state.persons[house.headId]
+  const headId = getHouseLeader(state, house.id)
+  const head = headId ? state.persons[headId] : undefined
   if (!head || !head.alive) {
     const admin = 5
     return (admin - 5) * config.houseHeadAdminControlMaxBonusPerAdmin
@@ -87,11 +91,11 @@ export function calcHouseHeadControlMaxBonus(
 
 export function calcTreasurerTaxEfficiency(
   state: WorldState,
-  country: Country,
+  countryId: CountryId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
-  const treasurer = getAssignedLivingPerson(state, country, 'treasurer')
+  const treasurer = getFirstActiveLivingOfficeHolder(state, countryId, 'treasurer')
   const admin = treasurer?.stats.admin ?? 5
   const caution = treasurer?.traits.caution ?? 0.5
   return clamp(
@@ -105,35 +109,35 @@ export function calcTreasurerTaxEfficiency(
 
 export function calcTreasurerDevelopmentCostModifier(
   state: WorldState,
-  country: Country,
+  countryId: CountryId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
-  const treasurer = getAssignedLivingPerson(state, country, 'treasurer')
+  const treasurer = getFirstActiveLivingOfficeHolder(state, countryId, 'treasurer')
   const admin = treasurer?.stats.admin ?? 5
   return 1 - normalizedStat(admin) * config.treasurerAdminDevelopmentCostEffect
 }
 
 export function calcGeneralWarPowerModifier(
   state: WorldState,
-  country: Country,
+  countryId: CountryId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
-  const general = getAssignedLivingPerson(state, country, 'general')
-  const martial = general?.stats.martial ?? 5
+  const military = getFirstActiveLivingOfficeHolder(state, countryId, 'military')
+  const martial = military?.stats.martial ?? 5
   return 1 + normalizedStat(martial) * config.generalMartialWarPowerEffect
 }
 
 export function calcGeneralDeclareThreshold(
   state: WorldState,
-  country: Country,
+  countryId: CountryId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return config.minAttackerWinChanceToDeclare
-  const general = getAssignedLivingPerson(state, country, 'general')
-  const ambition = general?.traits.ambition ?? 0.5
-  const caution = general?.traits.caution ?? 0.5
+  const military = getFirstActiveLivingOfficeHolder(state, countryId, 'military')
+  const ambition = military?.traits.ambition ?? 0.5
+  const caution = military?.traits.caution ?? 0.5
   return clamp(
     config.minAttackerWinChanceToDeclare -
       normalizedTrait(ambition) * config.generalAmbitionDeclareThresholdEffect +
@@ -145,13 +149,13 @@ export function calcGeneralDeclareThreshold(
 
 export function calcChancellorMonumentScoreBonus(
   state: WorldState,
-  country: Country,
+  countryId: CountryId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 0
-  const chancellor = getAssignedLivingPerson(state, country, 'chancellor')
-  const ambition = chancellor?.traits.ambition ?? 0.5
-  const caution = chancellor?.traits.caution ?? 0.5
+  const administrator = getFirstActiveLivingOfficeHolder(state, countryId, 'administrator')
+  const ambition = administrator?.traits.ambition ?? 0.5
+  const caution = administrator?.traits.caution ?? 0.5
   return (
     normalizedTrait(ambition) * config.chancellorAmbitionMonumentScoreEffect -
     normalizedTrait(caution) * config.chancellorCautionMonumentScoreEffect
@@ -160,13 +164,13 @@ export function calcChancellorMonumentScoreBonus(
 
 export function calcChancellorLandDevelopmentScoreBonus(
   state: WorldState,
-  country: Country,
+  countryId: CountryId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 0
-  const chancellor = getAssignedLivingPerson(state, country, 'chancellor')
-  const ambition = chancellor?.traits.ambition ?? 0.5
-  const caution = chancellor?.traits.caution ?? 0.5
+  const administrator = getFirstActiveLivingOfficeHolder(state, countryId, 'administrator')
+  const ambition = administrator?.traits.ambition ?? 0.5
+  const caution = administrator?.traits.caution ?? 0.5
   return (
     normalizedTrait(caution) * config.chancellorCautionLandDevelopmentScoreEffect -
     normalizedTrait(ambition) * config.chancellorAmbitionLandDevelopmentScoreEffect
@@ -179,7 +183,8 @@ export function calcHouseHeadDevelopmentChanceBonus(
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 0
-  const head = state.persons[house.headId]
+  const headId = getHouseLeader(state, house.id)
+  const head = headId ? state.persons[headId] : undefined
   if (!head || !head.alive) {
     const admin = 5
     const caution = 0.5

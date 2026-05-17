@@ -269,6 +269,44 @@ export type SimulationConfig = {
   revoltHouseInitialWealth: number
   revoltCountryInitialTreasury: number
   revoltCountryInitialLegacyPrestige: number
+  // v0.12 Administrative capacity
+  baseCountryInstitutionalCapacity: number
+  rulerAdminCapacityFactor: number
+  administratorCapacityFactor: number
+  treasurerCapacityFactor: number
+  // v0.12 Administrative load
+  adminLoadPerProvince: number
+  adminLoadPerCountryOffice: number
+  // v0.12 Office effectiveness
+  duplicateOfficeCoordinationPenalty: number
+  officeHouseDiversityPenalty: number
+  // v0.12 Office salary unpaid penalties
+  officeUnpaidAffectionPenalty: number
+  officeUnpaidRespectPenalty: number
+  officeDignityUnpaidPenaltyReduction: number
+  // v0.12 Share yearly update
+  shareYearlyRetentionRate: number
+  countryShareBase: number
+  countryShareProvinceFactor: number
+  countryShareMilitaryFactor: number
+  countryShareWealthFactor: number
+  countrySharePrestigeFactor: number
+  countryShareOfficeFactor: number
+  countryShareRulerHouseBonus: number
+  houseShareBase: number
+  houseShareLeaderBonus: number
+  houseShareOfficeBonus: number
+  houseSharePrestigeFactor: number
+  houseShareWealthFactor: number
+  houseShareStatFactor: number
+  // v0.12 Administrative efficiency
+  minAdministrativeEfficiency: number
+  maxAdministrativeEfficiency: number
+  // v0.12 Rebellion ruler house suppression
+  rulerHouseRebellionSuppression: number
+  // v0.12 Appointment — concurrent office limits
+  concurrentOfficePenalty: number
+  minAppointmentScore: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -533,4 +571,42 @@ export const defaultConfig: SimulationConfig = {
   revoltHouseInitialWealth: 30,
   revoltCountryInitialTreasury: 50,
   revoltCountryInitialLegacyPrestige: 20,
+  // v0.12 Administrative capacity
+  baseCountryInstitutionalCapacity: 20,
+  rulerAdminCapacityFactor: 4,
+  administratorCapacityFactor: 3,
+  treasurerCapacityFactor: 2,
+  // v0.12 Administrative load
+  adminLoadPerProvince: 2,
+  adminLoadPerCountryOffice: 1,
+  // v0.12 Office effectiveness
+  duplicateOfficeCoordinationPenalty: 0.5,
+  officeHouseDiversityPenalty: 0.3,
+  // v0.12 Office salary unpaid penalties
+  officeUnpaidAffectionPenalty: -3,
+  officeUnpaidRespectPenalty: -2,
+  officeDignityUnpaidPenaltyReduction: 0.5,
+  // v0.12 Share yearly update
+  shareYearlyRetentionRate: 0.85,
+  countryShareBase: 10,
+  countryShareProvinceFactor: 5,
+  countryShareMilitaryFactor: 0.1,
+  countryShareWealthFactor: 0.05,
+  countrySharePrestigeFactor: 0.2,
+  countryShareOfficeFactor: 3,
+  countryShareRulerHouseBonus: 30,
+  houseShareBase: 5,
+  houseShareLeaderBonus: 20,
+  houseShareOfficeBonus: 10,
+  houseSharePrestigeFactor: 0.3,
+  houseShareWealthFactor: 0.05,
+  houseShareStatFactor: 1,
+  // v0.12 Administrative efficiency
+  minAdministrativeEfficiency: 0.3,
+  maxAdministrativeEfficiency: 1.5,
+  // v0.12 Rebellion ruler house suppression
+  rulerHouseRebellionSuppression: 30,
+  // v0.12 Appointment — concurrent office limits
+  concurrentOfficePenalty: 8,
+  minAppointmentScore: 2,
 }

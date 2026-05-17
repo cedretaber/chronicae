@@ -28,6 +28,7 @@ function makePerson(
     stats: { admin: 5, martial: 5 },
     traits: { ambition: 0.5, caution: 0.5 },
     legacyPrestige: 10,
+    wealth: 0,
     attitudes: {},
   }
 }
@@ -48,6 +49,12 @@ function makeBaseCtx(
       persons,
       activePlots: {},
       popGroups: {},
+      organizationShares: {},
+      officeAssignments: {},
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 0,
     },
     rng: { seedText: 'test', state: 42 },
     config: defaultConfig,
@@ -66,12 +73,10 @@ function makeCountry(
   return {
     id,
     name: 'C',
-    rulerHouseId: houseId,
     houseIds: [houseId],
     treasury: 100,
     legacyPrestige: 50,
     adminPower: 50,
-    roleAssignments: {},
     active: true,
     capitalProvinceId: '' as ProvinceId,
   }
@@ -85,7 +90,6 @@ function makeHouse(id: HouseId, countryId: CountryId): NonNullable<WorldState['h
     countryId,
     provinceIds: [],
     memberIds: [],
-    headId: '' as PersonId,
     cadetHouseIds: [],
     legacyPrestige: 50,
     wealth: 100,
@@ -101,7 +105,6 @@ describe('runMarriageSystem', () => {
     const female = makePerson('pe-1' as PersonId, 'Jane', 'female', 18, true, houseId, countryId)
     const house = makeHouse(houseId, countryId)
     house.memberIds = [male.id, female.id]
-    house.headId = male.id
     const country = makeCountry(countryId, houseId)
 
     const ctx = makeBaseCtx(
@@ -124,7 +127,6 @@ describe('runMarriageSystem', () => {
     const female = makePerson('pe-1' as PersonId, 'Jane', 'female', 18, true, houseId, countryId)
     const house = makeHouse(houseId, countryId)
     house.memberIds = [male.id, female.id]
-    house.headId = male.id
     const country = makeCountry(countryId, houseId)
 
     const ctx = makeBaseCtx(
@@ -158,7 +160,6 @@ describe('runMarriageSystem', () => {
     const female = makePerson('pe-1' as PersonId, 'Jane', 'female', 18, true, houseId, countryId)
     const house = makeHouse(houseId, countryId)
     house.memberIds = [male.id, female.id]
-    house.headId = male.id
     const country = makeCountry(countryId, houseId)
 
     const ctx = makeBaseCtx(
@@ -185,7 +186,6 @@ describe('runMarriageSystem', () => {
     female.spouseId = 'pe-99' as PersonId
     const house = makeHouse(houseId, countryId)
     house.memberIds = [male.id, female.id]
-    house.headId = male.id
     const country = makeCountry(countryId, houseId)
 
     const ctx = makeBaseCtx(
@@ -211,7 +211,6 @@ describe('runMarriageSystem', () => {
     const female = makePerson('pe-1' as PersonId, 'Jane', 'female', 18, true, houseId, countryId)
     const house = makeHouse(houseId, countryId)
     house.memberIds = [male.id, female.id]
-    house.headId = male.id
     const country = makeCountry(countryId, houseId)
 
     const ctx = makeBaseCtx(
@@ -240,7 +239,6 @@ describe('runMarriageSystem', () => {
     child.motherId = mother.id
     const house = makeHouse(houseId, countryId)
     house.memberIds = [father.id, mother.id, child.id]
-    house.headId = father.id
     const country = makeCountry(countryId, houseId)
 
     const ctx = makeBaseCtx(

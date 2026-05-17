@@ -7,6 +7,7 @@ import {
   getAttitudeOrDefault,
 } from '@sim/helpers/attitudeHelpers'
 import { getCountryLegitimacy, getHouseLoyaltyToCountry } from '@sim/selectors/statusSelectors'
+import { getHouseLeader } from '../selectors/officeSelectors'
 
 export type AmbitionScores = {
   rebellionTendency: number
@@ -20,7 +21,8 @@ export function calcAmbitionScores(state: WorldState, houseId: HouseId): Ambitio
   const country = state.countries[house.countryId]
   if (!country) return { rebellionTendency: 0, plotTendency: 0 }
 
-  const head = state.persons[house.headId]
+  const headId = getHouseLeader(state, house.id)
+  const head = headId ? state.persons[headId] : undefined
   if (!head) return { rebellionTendency: 0, plotTendency: 0 }
 
   const headCountryAtt = getAttitudeOrDefault(state, head, countryAttitudeKey(house.countryId))

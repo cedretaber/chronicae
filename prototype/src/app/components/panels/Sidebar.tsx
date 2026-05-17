@@ -227,6 +227,12 @@ export function Sidebar() {
       persons: state.persons,
       activePlots: state.activePlots ?? {},
       popGroups: state.popGroups ?? {},
+      organizationShares: {},
+      officeAssignments: {},
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 0,
     }
     return Object.fromEntries(
       Object.values(state.countries ?? {}).map((c) => [
@@ -284,6 +290,12 @@ export function Sidebar() {
                   persons: session.currentState.persons,
                   activePlots: session.currentState.activePlots ?? {},
                   popGroups: session.currentState.popGroups ?? {},
+                  organizationShares: {},
+                  officeAssignments: {},
+                  shareIndex: { byOrganization: {}, byHolder: {} },
+                  officeIndex: { byOrganization: {}, byHolderPerson: {} },
+                  nextOrganizationShareId: 0,
+                  nextOfficeAssignmentId: 0,
                 }
               : null
             return (

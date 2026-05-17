@@ -38,6 +38,7 @@ function makePerson(
     stats: { admin, martial },
     traits: { ambition, caution: 0.5 },
     legacyPrestige,
+    wealth: 0,
     attitudes: {},
   }
   if (spouseId !== undefined) person.spouseId = spouseId
@@ -97,12 +98,10 @@ function makeSplitCtx(
         [countryId]: {
           id: countryId,
           name: 'C0',
-          rulerHouseId: houseId,
           houseIds: [houseId],
           treasury: 100,
           legacyPrestige: 50,
           adminPower: 50,
-          roleAssignments: {},
           active: true,
           capitalProvinceId: provinceIds[0] ?? ('' as ProvinceId),
         },
@@ -115,7 +114,6 @@ function makeSplitCtx(
           countryId,
           provinceIds,
           memberIds,
-          headId: 'pe-0' as PersonId,
           cadetHouseIds: [],
           legacyPrestige: 50,
           wealth: 100,
@@ -125,6 +123,12 @@ function makeSplitCtx(
       persons,
       activePlots: {},
       popGroups: {},
+      organizationShares: {},
+      officeAssignments: {},
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 0,
     },
     rng: createRng('split-test'),
     config,
@@ -258,12 +262,10 @@ describe('maybeSplitHouseAfterSuccession', () => {
           [countryId]: {
             id: countryId,
             name: 'C0',
-            rulerHouseId: houseId,
             houseIds: [houseId],
             treasury: 100,
             legacyPrestige: 50,
             adminPower: 50,
-            roleAssignments: {},
             active: true,
             capitalProvinceId: provinceIds[0] ?? ('' as ProvinceId),
           },
@@ -276,7 +278,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
             countryId,
             provinceIds,
             memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
-            headId: 'pe-0' as PersonId,
             cadetHouseIds: [],
             legacyPrestige: 50,
             wealth: 100,
@@ -286,6 +287,12 @@ describe('maybeSplitHouseAfterSuccession', () => {
         persons,
         activePlots: {},
         popGroups: {},
+        organizationShares: {},
+        officeAssignments: {},
+        shareIndex: { byOrganization: {}, byHolder: {} },
+        officeIndex: { byOrganization: {}, byHolderPerson: {} },
+        nextOrganizationShareId: 0,
+        nextOfficeAssignmentId: 0,
       },
       rng: createRng('split-deterministic'),
       config: highSplitConfig,
@@ -391,12 +398,10 @@ describe('maybeSplitHouseAfterSuccession', () => {
           [countryId]: {
             id: countryId,
             name: 'C0',
-            rulerHouseId: houseId,
             houseIds: [houseId],
             treasury: 100,
             legacyPrestige: 50,
             adminPower: 50,
-            roleAssignments: {},
             active: true,
             capitalProvinceId: provinceIds[0] ?? ('' as ProvinceId),
           },
@@ -409,7 +414,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
             countryId,
             provinceIds,
             memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
-            headId: 'pe-0' as PersonId,
             cadetHouseIds: [],
             legacyPrestige: 50,
             wealth: 100,
@@ -419,6 +423,12 @@ describe('maybeSplitHouseAfterSuccession', () => {
         persons,
         activePlots: {},
         popGroups: {},
+        organizationShares: {},
+        officeAssignments: {},
+        shareIndex: { byOrganization: {}, byHolder: {} },
+        officeIndex: { byOrganization: {}, byHolderPerson: {} },
+        nextOrganizationShareId: 0,
+        nextOfficeAssignmentId: 0,
       },
       rng: createRng('split-deterministic'),
       config: highSplitConfig,
@@ -442,7 +452,12 @@ describe('maybeSplitHouseAfterSuccession', () => {
 
     const newHouseId = newHouseIds[0] as HouseId
     const newHouse = result.state.houses[newHouseId]
-    expect(newHouse?.headId).toBe('pe-1' as PersonId)
+    const houseOrgKey = `house:${newHouseId}` as const
+    const officeIds = result.state.officeIndex.byOrganization[houseOrgKey] ?? []
+    const leaderOffice = officeIds
+      .map((id) => result.state.officeAssignments[id])
+      .find((o) => o?.active && o.role === 'leader')
+    expect(leaderOffice?.holderPersonId).toBe('pe-1' as PersonId)
     expect(newHouse?.memberIds).toContain('pe-1' as PersonId)
   })
 
@@ -526,12 +541,10 @@ describe('maybeSplitHouseAfterSuccession', () => {
           [countryId]: {
             id: countryId,
             name: 'C0',
-            rulerHouseId: houseId,
             houseIds: [houseId],
             treasury: 100,
             legacyPrestige: 50,
             adminPower: 50,
-            roleAssignments: {},
             active: true,
             capitalProvinceId: provinceIds[0] ?? ('' as ProvinceId),
           },
@@ -544,7 +557,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
             countryId,
             provinceIds,
             memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
-            headId: 'pe-0' as PersonId,
             cadetHouseIds: [],
             legacyPrestige: 50,
             wealth: 100,
@@ -554,6 +566,12 @@ describe('maybeSplitHouseAfterSuccession', () => {
         persons,
         activePlots: {},
         popGroups: {},
+        organizationShares: {},
+        officeAssignments: {},
+        shareIndex: { byOrganization: {}, byHolder: {} },
+        officeIndex: { byOrganization: {}, byHolderPerson: {} },
+        nextOrganizationShareId: 0,
+        nextOfficeAssignmentId: 0,
       },
       rng: createRng('split-deterministic'),
       config: highSplitConfig,

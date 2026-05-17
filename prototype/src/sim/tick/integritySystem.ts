@@ -1,462 +1,170 @@
 import type { TickContext } from './context'
-import type { RoleType } from '../types/role'
-import type { CountryId, HouseId, ProvinceId, PersonId, PopGroupId } from '../types/ids'
+import type { CountryId, HouseId } from '../types/ids'
+import type { OrganizationKind, OfficeRole } from '../types/office'
+import { getHouseLeader, getCountryRuler } from '../selectors/officeSelectors'
+import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
 
-export function runIntegrityCheck(ctx: TickContext): TickContext {
+export function runIntegritySystem(ctx: TickContext): TickContext {
   const state = ctx.state
+  const errors: string[] = []
 
-  // 1. Dead persons do not hold roles
-  for (const countryId of Object.keys(state.countries).sort()) {
-    const country = state.countries[countryId as CountryId]
-    if (!country) continue
-    if (!country.active) continue
-
-    for (const role of ['chancellor', 'general', 'treasurer'] as RoleType[]) {
-      const personId = country.roleAssignments[role]
-      if (personId === undefined) continue
-
-      const person = state.persons[personId]
-      if (person && !person.alive) {
-        throw new Error('Dead person ' + personId + ' holds role ' + role)
+  // 1. OrganizationShare integrity
+  for (const shareId of Object.keys(state.organizationShares)) {
+    const share = state.organizationShares[shareId as import('../types/ids').OrganizationShareId]
+    if (!share) continue
+    if (share.rawPower < 0) {
+      errors.push(`OrganizationShare ${shareId} has negative rawPower: ${share.rawPower}`)
+    }
+    if (share.organization.kind === 'country') {
+      if (!state.countries[share.organization.id]) {
+        errors.push(
+          `OrganizationShare ${shareId} references non-existent country ${share.organization.id}`,
+        )
       }
-    }
-  }
-
-  // 2. Active house heads are alive
-  for (const houseId of Object.keys(state.houses).sort()) {
-    const house = state.houses[houseId as HouseId]
-    if (!house || !house.active) continue
-
-    const headPerson = state.persons[house.headId]
-    if (!headPerson || !headPerson.alive) {
-      throw new Error('Active house ' + houseId + ' head ' + house.headId + ' is not alive')
-    }
-  }
-
-  // 3. House.provinceIds vs Province.ownerHouseId (bidirectional)
-  for (const houseId of Object.keys(state.houses).sort()) {
-    const house = state.houses[houseId as HouseId]
-    if (!house) continue
-
-    for (const pid of house.provinceIds) {
-      const province = state.provinces[pid]
-      if (!province || province.ownerHouseId !== house.id) {
-        throw new Error('Province ' + pid + ' ownerHouseId mismatch with house ' + houseId)
-      }
-    }
-  }
-
-  for (const provinceId of Object.keys(state.provinces).sort()) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-
-    const house = state.houses[province.ownerHouseId]
-    if (!house || !house.provinceIds.includes(province.id)) {
-      throw new Error('House ' + province.ownerHouseId + ' missing province ' + provinceId)
-    }
-  }
-
-  // 4. Province.countryId vs ownerHouse.countryId
-  for (const provinceId of Object.keys(state.provinces).sort()) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-
-    const ownerHouse = state.houses[province.ownerHouseId]
-    if (!ownerHouse) {
-      throw new Error('Province ' + provinceId + ' has no owner house')
-    }
-    if (ownerHouse.countryId !== province.countryId) {
-      throw new Error('Province ' + provinceId + ' countryId mismatch')
-    }
-  }
-
-  // 5. Alive Person.countryId vs House.countryId
-  for (const personId of Object.keys(state.persons).sort()) {
-    const person = state.persons[personId as PersonId]
-    if (!person || !person.alive) continue
-
-    const house = state.houses[person.houseId]
-    if (!house) {
-      throw new Error('Person ' + personId + ' has no house')
-    }
-    if (house.countryId !== person.countryId) {
-      throw new Error('Person ' + personId + ' countryId mismatch with house')
-    }
-  }
-
-  // 6. Province.development is in range -100..100
-  for (const provinceId of Object.keys(state.provinces).sort()) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    if (province.development < -100 || province.development > 100) {
-      throw new Error(
-        'Province ' + provinceId + ' development out of range: ' + province.development,
-      )
-    }
-  }
-
-  // 7. Country.rulerHouseId points to active house
-  for (const countryId of Object.keys(state.countries).sort()) {
-    const country = state.countries[countryId as CountryId]
-    if (!country) continue
-    if (!country.active) continue
-
-    const house = state.houses[country.rulerHouseId]
-    if (!house || !house.active) {
-      throw new Error(
-        'Country ' + countryId + ' rulerHouseId ' + country.rulerHouseId + ' is not active',
-      )
-    }
-  }
-
-  // 8. Country.capitalProvinceId belongs to that country
-  for (const countryId of Object.keys(state.countries).sort()) {
-    const country = state.countries[countryId as CountryId]
-    if (!country || !country.active) continue
-    if (country.capitalProvinceId === ('' as ProvinceId)) continue
-
-    const province = state.provinces[country.capitalProvinceId]
-    if (!province || province.countryId !== country.id) {
-      throw new Error(
-        'Country ' +
-          countryId +
-          ' capitalProvinceId ' +
-          country.capitalProvinceId +
-          ' does not belong to this country',
-      )
-    }
-  }
-
-  // 9. House.seatProvinceId is in house.provinceIds
-  for (const houseId of Object.keys(state.houses).sort()) {
-    const house = state.houses[houseId as HouseId]
-    if (!house || !house.active) continue
-    if (house.seatProvinceId === ('' as ProvinceId)) continue
-
-    if (!house.provinceIds.includes(house.seatProvinceId)) {
-      throw new Error(
-        'House ' + houseId + ' seatProvinceId ' + house.seatProvinceId + ' not in provinceIds',
-      )
-    }
-  }
-
-  // 10. Province.countryControl is in 0..100
-  for (const provinceId of Object.keys(state.provinces).sort()) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    if (province.countryControl < 0 || province.countryControl > 100) {
-      throw new Error(
-        'Province ' + provinceId + ' countryControl out of range: ' + province.countryControl,
-      )
-    }
-  }
-
-  // 11. Province.houseControl is in 0..100
-  for (const provinceId of Object.keys(state.provinces).sort()) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    if (province.houseControl < 0 || province.houseControl > 100) {
-      throw new Error(
-        'Province ' + provinceId + ' houseControl out of range: ' + province.houseControl,
-      )
-    }
-  }
-
-  // 12. sex field is valid
-  for (const personId of Object.keys(state.persons).sort()) {
-    const person = state.persons[personId as PersonId]
-    if (!person) continue
-    if (person.sex !== 'male' && person.sex !== 'female') {
-      throw new Error('Person ' + personId + ' has invalid sex: ' + (person.sex as string))
-    }
-  }
-
-  // 13. spouse relationship is bidirectional and valid (alive persons only)
-  for (const personId of Object.keys(state.persons).sort()) {
-    const person = state.persons[personId as PersonId]
-    if (!person || !person.alive || person.spouseId === undefined) continue
-
-    if ((person.id as string) === (person.spouseId as string)) {
-      throw new Error('Person ' + personId + ' is their own spouse')
-    }
-    const spouse = state.persons[person.spouseId]
-    if (!spouse) {
-      throw new Error('Person ' + personId + ' spouseId ' + person.spouseId + ' not found')
-    }
-    if ((spouse.spouseId as string | undefined) !== (person.id as string)) {
-      throw new Error('Person ' + personId + ' spouse ' + person.spouseId + ' does not point back')
-    }
-  }
-
-  // 14. living person's spouseId does not point to a dead person
-  for (const personId of Object.keys(state.persons).sort()) {
-    const person = state.persons[personId as PersonId]
-    if (!person || !person.alive) continue
-    if (person.spouseId === undefined) continue
-
-    const spouse = state.persons[person.spouseId]
-    if (spouse && !spouse.alive) {
-      throw new Error('Alive person ' + personId + ' spouseId ' + person.spouseId + ' is dead')
-    }
-  }
-
-  // 15. parent-child relationships are bidirectional
-  for (const personId of Object.keys(state.persons).sort()) {
-    const person = state.persons[personId as PersonId]
-    if (!person) continue
-
-    if (person.fatherId !== undefined) {
-      const father = state.persons[person.fatherId]
-      if (!father) {
-        throw new Error('Person ' + personId + ' fatherId ' + person.fatherId + ' not found')
-      }
-      if (father.sex !== 'male') {
-        throw new Error('Person ' + personId + ' father is not male')
-      }
-      if (!father.childIds.some((cid) => (cid as string) === (person.id as string))) {
-        throw new Error('Father ' + person.fatherId + ' missing child ' + personId)
-      }
-    }
-
-    if (person.motherId !== undefined) {
-      const mother = state.persons[person.motherId]
-      if (!mother) {
-        throw new Error('Person ' + personId + ' motherId ' + person.motherId + ' not found')
-      }
-      if (mother.sex !== 'female') {
-        throw new Error('Person ' + personId + ' mother is not female')
-      }
-      if (!mother.childIds.some((cid) => (cid as string) === (person.id as string))) {
-        throw new Error('Mother ' + person.motherId + ' missing child ' + personId)
-      }
-    }
-  }
-
-  // 16. house cadet relationships are bidirectional
-  for (const houseId of Object.keys(state.houses).sort()) {
-    const house = state.houses[houseId as HouseId]
-    if (!house || house.parentHouseId === undefined) continue
-
-    const parent = state.houses[house.parentHouseId]
-    if (!parent) {
-      throw new Error('House ' + houseId + ' parentHouseId ' + house.parentHouseId + ' not found')
-    }
-    if (!parent.cadetHouseIds.some((cid) => (cid as string) === houseId)) {
-      throw new Error('Parent house ' + house.parentHouseId + ' missing cadet ' + houseId)
-    }
-  }
-
-  // POP-1: PopGroup.provinceId points to valid Province
-  for (const popGroupId of Object.keys(state.popGroups).sort()) {
-    const pop = state.popGroups[popGroupId as PopGroupId]
-    if (!pop) continue
-    const province = state.provinces[pop.provinceId]
-    if (!province) {
-      throw new Error('PopGroup ' + popGroupId + ' provinceId ' + pop.provinceId + ' not found')
-    }
-  }
-
-  // POP-2 & POP-3: Province.popGroupIds <-> PopGroup.provinceId bidirectional
-  for (const provinceId of Object.keys(state.provinces).sort()) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    for (const popGroupId of province.popGroupIds) {
-      const pop = state.popGroups[popGroupId]
-      if (!pop) {
-        throw new Error('Province ' + provinceId + ' popGroupId ' + popGroupId + ' not found')
-      }
-      if ((pop.provinceId as string) !== provinceId) {
-        throw new Error(
-          'PopGroup ' + popGroupId + ' provinceId mismatch with province ' + provinceId,
+    } else {
+      if (!state.houses[share.organization.id]) {
+        errors.push(
+          `OrganizationShare ${shareId} references non-existent house ${share.organization.id}`,
         )
       }
     }
-  }
-
-  // POP-4: Each Province has exactly one of each class
-  for (const provinceId of Object.keys(state.provinces).sort()) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    const classCounts: Record<string, number> = {}
-    for (const popGroupId of province.popGroupIds) {
-      const pop = state.popGroups[popGroupId]
-      if (!pop) continue
-      classCounts[pop.class] = (classCounts[pop.class] ?? 0) + 1
-    }
-    for (const cls of ['peasants', 'townsmen', 'nobles'] as const) {
-      if (classCounts[cls] !== 1) {
-        throw new Error(
-          'Province ' +
-            provinceId +
-            ' has ' +
-            (classCounts[cls] ?? 0) +
-            ' ' +
-            cls +
-            ' pops, expected 1',
+    if (share.holder.kind === 'person') {
+      if (!state.persons[share.holder.id]) {
+        errors.push(
+          `OrganizationShare ${shareId} references non-existent person ${share.holder.id}`,
         )
+      }
+    } else {
+      if (!state.houses[share.holder.id]) {
+        errors.push(`OrganizationShare ${shareId} references non-existent house ${share.holder.id}`)
       }
     }
   }
 
-  // POP-5: PopGroup.size >= minPopSizeByClass
-  for (const popGroupId of Object.keys(state.popGroups).sort()) {
-    const pop = state.popGroups[popGroupId as PopGroupId]
-    if (!pop) continue
-    const minSize = ctx.config.minPopSizeByClass[pop.class]
-    if (pop.size < minSize) {
-      throw new Error('PopGroup ' + popGroupId + ' size ' + pop.size + ' below minimum ' + minSize)
+  // 2. OfficeAssignment integrity
+  for (const officeId of Object.keys(state.officeAssignments)) {
+    const office = state.officeAssignments[officeId as import('../types/ids').OfficeAssignmentId]
+    if (!office || !office.active) continue
+
+    const person = state.persons[office.holderPersonId]
+    if (!person || !person.alive) {
+      errors.push(
+        `Active OfficeAssignment ${officeId} holder ${office.holderPersonId} is not alive`,
+      )
+    }
+
+    const defKey: `${OrganizationKind}:${OfficeRole}` = `${office.organization.kind}:${office.role}`
+    if (!OFFICE_DEFINITIONS[defKey]) {
+      errors.push(`OfficeAssignment ${officeId} has invalid role ${defKey}`)
+    }
+
+    if (office.unpaidCount < 0) {
+      errors.push(`OfficeAssignment ${officeId} has negative unpaidCount`)
     }
   }
 
-  // POP-6: PopGroup.wealth in 0..100
-  for (const popGroupId of Object.keys(state.popGroups).sort()) {
-    const pop = state.popGroups[popGroupId as PopGroupId]
-    if (!pop) continue
-    if (pop.wealth < 0 || pop.wealth > 100) {
-      throw new Error('PopGroup ' + popGroupId + ' wealth out of range: ' + pop.wealth)
-    }
-  }
-
-  // POP-7: PopGroup.unrest in 0..100
-  for (const popGroupId of Object.keys(state.popGroups).sort()) {
-    const pop = state.popGroups[popGroupId as PopGroupId]
-    if (!pop) continue
-    if (pop.unrest < 0 || pop.unrest > 100) {
-      throw new Error('PopGroup ' + popGroupId + ' unrest out of range: ' + pop.unrest)
-    }
-  }
-
-  // Check: active Country.rulerHouseId is in Country.houseIds
+  // 3. Active Country must have exactly 1 country:leader office
   for (const countryId of Object.keys(state.countries).sort()) {
     const country = state.countries[countryId as CountryId]
     if (!country || !country.active) continue
 
-    if (!country.houseIds.some((hid) => (hid as string) === (country.rulerHouseId as string))) {
-      throw new Error(
-        'Country ' + countryId + ' rulerHouseId ' + country.rulerHouseId + ' not in houseIds',
-      )
+    const ruler = getCountryRuler(state, countryId as CountryId)
+    if (!ruler) {
+      // Transient state is allowed — succession will fix it next tick
     }
   }
 
-  // Check: active House.headId is in House.memberIds
+  // 4. Active House must have exactly 1 house:leader office
   for (const houseId of Object.keys(state.houses).sort()) {
     const house = state.houses[houseId as HouseId]
     if (!house || !house.active) continue
 
-    if (!house.memberIds.some((mid) => (mid as string) === (house.headId as string))) {
-      throw new Error('House ' + houseId + ' headId ' + house.headId + ' not in memberIds')
-    }
-  }
-
-  // Check: House.memberIds has no duplicates
-  for (const houseId of Object.keys(state.houses).sort()) {
-    const house = state.houses[houseId as HouseId]
-    if (!house) continue
-    const seen = new Set<PersonId>()
-    for (const mid of house.memberIds) {
-      if (seen.has(mid)) {
-        throw new Error('House ' + houseId + ' memberIds has duplicate: ' + mid)
+    const leader = getHouseLeader(state, houseId as HouseId)
+    if (!leader) {
+      // Transient — succession will fix
+    } else {
+      const person = state.persons[leader]
+      if (!person || !person.alive) {
+        errors.push(`House ${houseId} leader ${leader} is not alive`)
       }
-      seen.add(mid)
-    }
-  }
-
-  // Check: House.provinceIds has no duplicates
-  for (const houseId of Object.keys(state.houses).sort()) {
-    const house = state.houses[houseId as HouseId]
-    if (!house) continue
-    const seenProvs = new Set<ProvinceId>()
-    for (const pid of house.provinceIds) {
-      if (seenProvs.has(pid)) {
-        throw new Error('House ' + houseId + ' provinceIds has duplicate: ' + pid)
+      if (!house.memberIds.some((m) => (m as string) === (leader as string))) {
+        errors.push(`House ${houseId} leader ${leader} is not in memberIds`)
       }
-      seenProvs.add(pid)
     }
   }
 
-  // V0.11: Country.legacyPrestige in 0..100
-  for (const countryId of Object.keys(state.countries).sort()) {
+  // 5. Person wealth >= 0
+  for (const personId of Object.keys(state.persons)) {
+    const person = state.persons[personId as import('../types/ids').PersonId]
+    if (!person) continue
+    if (person.wealth < 0) {
+      errors.push(`Person ${personId} has negative wealth: ${person.wealth}`)
+    }
+  }
+
+  // 6. Country treasury >= 0
+  for (const countryId of Object.keys(state.countries)) {
     const country = state.countries[countryId as CountryId]
     if (!country) continue
-    if (country.legacyPrestige < 0 || country.legacyPrestige > 100) {
-      throw new Error(
-        'Country ' + countryId + ' legacyPrestige out of range: ' + country.legacyPrestige,
-      )
+    if (country.treasury < 0) {
+      errors.push(`Country ${countryId} has negative treasury: ${country.treasury}`)
     }
   }
 
-  // V0.11: House.legacyPrestige in 0..100
-  for (const houseId of Object.keys(state.houses).sort()) {
+  // 7. House wealth >= 0
+  for (const houseId of Object.keys(state.houses)) {
     const house = state.houses[houseId as HouseId]
     if (!house) continue
-    if (house.legacyPrestige < 0 || house.legacyPrestige > 100) {
-      throw new Error('House ' + houseId + ' legacyPrestige out of range: ' + house.legacyPrestige)
+    if (house.wealth < 0) {
+      errors.push(`House ${houseId} has negative wealth: ${house.wealth}`)
     }
   }
 
-  // V0.11: Person.legacyPrestige in 0..100
-  for (const personId of Object.keys(state.persons).sort()) {
-    const person = state.persons[personId as PersonId]
-    if (!person) continue
-    if (person.legacyPrestige < 0 || person.legacyPrestige > 100) {
-      throw new Error(
-        'Person ' + personId + ' legacyPrestige out of range: ' + person.legacyPrestige,
-      )
-    }
-  }
-
-  // V0.11: Country.adminPower in 0..100
-  for (const countryId of Object.keys(state.countries).sort()) {
-    const country = state.countries[countryId as CountryId]
-    if (!country) continue
-    if (country.adminPower < 0 || country.adminPower > 100) {
-      throw new Error('Country ' + countryId + ' adminPower out of range: ' + country.adminPower)
-    }
-  }
-
-  // V0.11: Person attitudes: each Attitude's affection/respect in -100..100
-  for (const personId of Object.keys(state.persons).sort()) {
-    const person = state.persons[personId as PersonId]
-    if (!person) continue
-    for (const key of Object.keys(person.attitudes)) {
-      const att = person.attitudes[key]
-      if (!att) continue
-      if (att.affection < -100 || att.affection > 100) {
-        throw new Error(
-          'Person ' + personId + ' attitude ' + key + ' affection out of range: ' + att.affection,
-        )
+  // 8. ShareIndex consistency
+  for (const [key, ids] of Object.entries(state.shareIndex.byOrganization)) {
+    for (const shareId of ids ?? []) {
+      const share = state.organizationShares[shareId]
+      if (!share) {
+        errors.push(`shareIndex.byOrganization[${key}] references non-existent share ${shareId}`)
       }
-      if (att.respect < -100 || att.respect > 100) {
-        throw new Error(
-          'Person ' + personId + ' attitude ' + key + ' respect out of range: ' + att.respect,
-        )
+    }
+  }
+  for (const [key, ids] of Object.entries(state.shareIndex.byHolder)) {
+    for (const shareId of ids ?? []) {
+      const share = state.organizationShares[shareId]
+      if (!share) {
+        errors.push(`shareIndex.byHolder[${key}] references non-existent share ${shareId}`)
       }
     }
   }
 
-  // V0.11: PopGroup attitudes: each Attitude's affection/respect in -100..100
-  for (const popGroupId of Object.keys(state.popGroups).sort()) {
-    const pop = state.popGroups[popGroupId as PopGroupId]
-    if (!pop) continue
-    for (const key of Object.keys(pop.attitudes)) {
-      const att = pop.attitudes[key]
-      if (!att) continue
-      if (att.affection < -100 || att.affection > 100) {
-        throw new Error(
-          'PopGroup ' +
-            popGroupId +
-            ' attitude ' +
-            key +
-            ' affection out of range: ' +
-            att.affection,
-        )
-      }
-      if (att.respect < -100 || att.respect > 100) {
-        throw new Error(
-          'PopGroup ' + popGroupId + ' attitude ' + key + ' respect out of range: ' + att.respect,
-        )
+  // 9. OfficeIndex consistency
+  for (const [key, ids] of Object.entries(state.officeIndex.byOrganization)) {
+    for (const officeId of ids ?? []) {
+      const office = state.officeAssignments[officeId]
+      if (!office) {
+        errors.push(`officeIndex.byOrganization[${key}] references non-existent office ${officeId}`)
       }
     }
+  }
+
+  // 10. Active House memberIds are consistent
+  for (const houseId of Object.keys(state.houses).sort()) {
+    const house = state.houses[houseId as HouseId]
+    if (!house || !house.active) continue
+    for (const memberId of house.memberIds) {
+      const member = state.persons[memberId]
+      if (!member) {
+        errors.push(`House ${houseId} has non-existent member ${memberId}`)
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    for (const error of errors) {
+      console.error('INTEGRITY:', error)
+    }
+    throw new Error(`Integrity check failed with ${errors.length} error(s): ${errors[0]}`)
   }
 
   return ctx

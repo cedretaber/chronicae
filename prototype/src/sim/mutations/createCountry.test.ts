@@ -26,24 +26,20 @@ function makeFixture(): {
       [country1Id]: {
         id: country1Id,
         name: 'Country 1',
-        rulerHouseId: house1Id,
         houseIds: [house1Id, house2Id],
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 50,
-        roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
       },
       [country2Id]: {
         id: country2Id,
         name: 'Country 2',
-        rulerHouseId: createHouseId('h', 2),
         houseIds: [],
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 50,
-        roleAssignments: {},
         active: true,
         capitalProvinceId: '' as ProvinceId,
       },
@@ -56,7 +52,6 @@ function makeFixture(): {
         countryId: country1Id,
         provinceIds: [],
         memberIds: [person1Id],
-        headId: person1Id,
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 1000,
@@ -69,7 +64,6 @@ function makeFixture(): {
         countryId: country1Id,
         provinceIds: [],
         memberIds: [],
-        headId: createPersonId('pe', 1),
         cadetHouseIds: [],
         legacyPrestige: 30,
         wealth: 200,
@@ -90,11 +84,18 @@ function makeFixture(): {
         stats: { admin: 5, martial: 5 },
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 50,
+        wealth: 0,
         attitudes: {},
       },
     },
     activePlots: {},
     popGroups: {},
+    organizationShares: {},
+    officeAssignments: {},
+    shareIndex: { byOrganization: {}, byHolder: {} },
+    officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 0,
   }
   return {
     state,
@@ -119,7 +120,6 @@ describe('createCountryFromHouse', () => {
     expect(newCountry!.adminPower).toBe(0)
     expect(newCountry!.name).toBe('House 1領')
     expect(newCountry!.treasury).toBe(Math.floor(1000 * 0.5))
-    expect(newCountry!.rulerHouseId).toBe(house1Id)
   })
 
   it('rebel house moves to new country', () => {

@@ -53,7 +53,7 @@ describe('generateWorld', () => {
       }
     })
 
-    it('every house: headId exists and is alive', () => {
+    it('every house: has an active leader office with a living holder', () => {
       const { world } = generateWorld('test-seed')
 
       const houseKeys = Object.keys(world.houses).sort()
@@ -61,7 +61,14 @@ describe('generateWorld', () => {
         const house = world.houses[hk as keyof typeof world.houses]
         if (!house) continue
 
-        const head = world.persons[house.headId]
+        const orgKey = `house:${house.id}`
+        const officeIds = world.officeIndex.byOrganization[orgKey] ?? []
+        const leaderOffice = officeIds
+          .map((id) => world.officeAssignments[id])
+          .find((o) => o?.active && o.role === 'leader')
+
+        expect(leaderOffice).toBeDefined()
+        const head = world.persons[leaderOffice!.holderPersonId]
         expect(head).toBeDefined()
         expect(head?.alive).toBe(true)
       }

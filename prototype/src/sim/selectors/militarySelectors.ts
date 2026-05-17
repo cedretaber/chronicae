@@ -5,6 +5,7 @@ import { clamp } from '../utils/math'
 import { normalizedStat } from './personAbilityEffects'
 import { getProvinceHouseManpowerBase } from './popEconomySelectors'
 import { getHouseLoyaltyToCountry } from './statusSelectors'
+import { getCountryRulerHouse } from './officeSelectors'
 
 export function calcHouseMilitaryPower(
   state: WorldState,
@@ -48,13 +49,15 @@ export function calcCountryMilitaryPower(
 
   let total = country.adminPower * config.countryAdminMilitaryFactor
 
+  const rulerHouseId = getCountryRulerHouse(state, countryId)
+
   for (const houseId of country.houseIds) {
     const house = state.houses[houseId]
     if (!house || !house.active) continue
 
     const housePower = calcHouseMilitaryPower(state, config, houseId)
 
-    if (houseId === country.rulerHouseId) {
+    if (rulerHouseId && houseId === rulerHouseId) {
       total += housePower
     } else {
       const loyaltyModifier = clamp(

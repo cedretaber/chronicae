@@ -4,11 +4,15 @@ import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
 import { adjustCountryLegacyPrestige, adjustHouseLegacyPrestige } from '../helpers/attitudeHelpers'
 import { calcAmbitionScores } from './ambitionSystem'
-import { changeRulerHouse } from '../mutations/changeRulerHouse'
+import { getCountryRulerHouse, getHouseLeader } from '../selectors/officeSelectors'
 import { getHouseLoyaltyToCountry } from '../selectors/statusSelectors'
 import { createCountryFromHouse } from '../mutations/createCountry'
 import { calcHouseMilitaryPower } from '../selectors/militarySelectors'
 import { generateCountryName } from '../selectors/countryNamingService'
+import {
+  createOfficeAssignment,
+  revokeAllOfficesForOrganization,
+} from '../mutations/officeMutations'
 import type { CountryId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import { getPopUnrestByClass } from '../selectors/popSelectors'
@@ -23,7 +27,6 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
     if (!country.active) continue
 
     const houseIdsSnapshot = country.houseIds
-      .filter((hid) => hid !== country.rulerHouseId)
       .filter((hid) => {
         const house = currentCtx.state.houses[hid]
         return house && house.active
@@ -41,7 +44,19 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
 
       if (house.provinceIds.length === 0) continue
 
+      const activeHousesInCountry = currentCountry.houseIds.filter((hid) => {
+        const h = currentCtx.state.houses[hid]
+        return h && h.active
+      })
+      if (activeHousesInCountry.length <= 1) continue
+
       let { rebellionTendency } = calcAmbitionScores(currentCtx.state, houseId)
+
+      // Rebellion suppression for the current ruling house
+      const rulerHouseId = getCountryRulerHouse(currentCtx.state, countryId as CountryId)
+      if (houseId === rulerHouseId) {
+        rebellionTendency -= currentCtx.config.rulerHouseRebellionSuppression
+      }
 
       // POP-based rebellion modifiers
       const houseForPop = currentCtx.state.houses[houseId]
@@ -104,25 +119,22 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
           currentCtx.config,
           otherHouseId,
         )
-        if (otherHouseId === currentCountry.rulerHouseId) {
-          loyalistPower += otherHousePower // ruler house contributes 100%
-        } else {
-          const loyaltyModifier = Math.max(
-            currentCtx.config.minHouseMilitaryContribution,
-            Math.min(1, getHouseLoyaltyToCountry(currentCtx.state, otherHouseId) / 100),
-          )
-          loyalistPower += otherHousePower * loyaltyModifier
-        }
+        const loyaltyModifier = Math.max(
+          currentCtx.config.minHouseMilitaryContribution,
+          Math.min(1, getHouseLoyaltyToCountry(currentCtx.state, otherHouseId) / 100),
+        )
+        loyalistPower += otherHousePower * loyaltyModifier
       }
 
       const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
+      const headId = getHouseLeader(eventCtx.state, houseId)
       const event: SimEvent = {
         id: eventId,
         year: eventCtx.state.currentYear,
         month: eventCtx.state.currentMonth,
         type: 'REBELLION_STARTED',
         importance: 'critical',
-        actorIds: [house.headId],
+        actorIds: headId ? [headId] : [],
         houseIds: [houseId],
         countryIds: [countryId as CountryId],
         provinceIds: [],
@@ -191,13 +203,14 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
           currentCtx = { ...currentCtx, state: newState }
 
           const { id: succeedEventId, ctx: succeedEventCtx } = makeEventId(currentCtx)
+          const rebelHeadId = getHouseLeader(succeedEventCtx.state, houseId)
           const succeedEvent: SimEvent = {
             id: succeedEventId,
             year: succeedEventCtx.state.currentYear,
             month: succeedEventCtx.state.currentMonth,
             type: 'REBELLION_SUCCEEDED',
             importance: 'critical',
-            actorIds: [house.headId],
+            actorIds: rebelHeadId ? [rebelHeadId] : [],
             houseIds: [houseId],
             countryIds: [countryId as CountryId, newCountryId],
             provinceIds: [],
@@ -252,29 +265,40 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
             }
           }
         } else {
-          let postRebellionState = changeRulerHouse(
-            currentCtx.state,
-            countryId as CountryId,
-            houseId,
-          )
-          postRebellionState = adjustHouseLegacyPrestige(postRebellionState, houseId, 8)
-          const oldRulerHouseId = currentCtx.state.countries[countryId as CountryId]?.rulerHouseId
-          if (oldRulerHouseId && oldRulerHouseId !== houseId) {
-            postRebellionState = adjustHouseLegacyPrestige(postRebellionState, oldRulerHouseId, -8)
+          const rebelLeaderId = getHouseLeader(currentCtx.state, houseId)
+          if (rebelLeaderId) {
+            let postState = revokeAllOfficesForOrganization(
+              currentCtx.state,
+              { kind: 'country', id: countryId as CountryId },
+              'leader',
+            )
+            postState = createOfficeAssignment(
+              postState,
+              { kind: 'country', id: countryId as CountryId },
+              'leader',
+              rebelLeaderId,
+            )
+            // Also apply legacyPrestige adjustments
+            postState = adjustHouseLegacyPrestige(postState, houseId, 8)
+            const oldRulerHouseId = getCountryRulerHouse(currentCtx.state, countryId as CountryId)
+            if (oldRulerHouseId && oldRulerHouseId !== houseId) {
+              postState = adjustHouseLegacyPrestige(postState, oldRulerHouseId, -8)
+            }
+            currentCtx = { ...currentCtx, state: postState }
           }
-          currentCtx = { ...currentCtx, state: postRebellionState }
 
-          const updatedCountryAfter = postRebellionState.countries[countryId as CountryId]
+          const updatedCountryAfter = currentCtx.state.countries[countryId as CountryId]
           const countryName = updatedCountryAfter?.name ?? updatedCountry.name
 
           const { id: succeedEventId, ctx: succeedEventCtx } = makeEventId(currentCtx)
+          const rebelHeadId2 = getHouseLeader(succeedEventCtx.state, houseId)
           const succeedEvent: SimEvent = {
             id: succeedEventId,
             year: succeedEventCtx.state.currentYear,
             month: succeedEventCtx.state.currentMonth,
             type: 'REBELLION_SUCCEEDED',
             importance: 'critical',
-            actorIds: [house.headId],
+            actorIds: rebelHeadId2 ? [rebelHeadId2] : [],
             houseIds: [houseId],
             countryIds: [countryId as CountryId],
             provinceIds: [],
@@ -293,7 +317,7 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
             id: rulerEventId,
             year: rulerEventCtx.state.currentYear,
             month: rulerEventCtx.state.currentMonth,
-            type: 'RULER_HOUSE_CHANGED',
+            type: 'RULER_CHANGED',
             importance: 'critical',
             actorIds: [],
             houseIds: [houseId],
@@ -343,13 +367,14 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
           ...currentCtx,
           state: newState,
         })
+        const failHeadId = getHouseLeader(failEventCtx.state, houseId)
         const failEvent: SimEvent = {
           id: failEventId,
           year: failEventCtx.state.currentYear,
           month: failEventCtx.state.currentMonth,
           type: 'REBELLION_FAILED',
           importance: 'major',
-          actorIds: [house.headId],
+          actorIds: failHeadId ? [failHeadId] : [],
           houseIds: [houseId],
           countryIds: [countryId as CountryId],
           provinceIds: [],

@@ -8,6 +8,8 @@ import type { SuccessionCandidate } from '../selectors/successionSelectors'
 import type { WorldState } from '../types/world'
 import { createLogger } from '../debug/logger'
 import { getHouseCohesion } from '../selectors/statusSelectors'
+import { createOfficeAssignment } from '../mutations/officeMutations'
+import { getHouseLeader } from '../selectors/officeSelectors'
 
 export type SplitInput = {
   houseId: HouseId
@@ -88,8 +90,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   const newHouseId = `h-${input.houseId}-${currentYear}` as HouseId
 
   const splitterPerson = splitter.person
-  // The current house head cannot be pulled into the cadet house — their headId would become stale
-  const parentHeadId = house.headId as string
+  const parentLeaderId = getHouseLeader(ctx.state, input.houseId) as string | undefined
   const newMemberIds: PersonId[] = [splitterPerson.id]
 
   if (splitterPerson.spouseId !== undefined) {
@@ -98,7 +99,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
       spouse &&
       spouse.alive &&
       spouse.houseId === input.houseId &&
-      (splitterPerson.spouseId as string) !== parentHeadId
+      (parentLeaderId === undefined || (splitterPerson.spouseId as string) !== parentLeaderId)
     ) {
       newMemberIds.push(spouse.id)
     }
@@ -110,7 +111,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
       child &&
       child.alive &&
       child.houseId === input.houseId &&
-      (childId as string) !== parentHeadId
+      (childId as string) !== parentLeaderId
     ) {
       newMemberIds.push(childId)
     }
@@ -126,7 +127,6 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     countryId: house.countryId,
     provinceIds: splitProvinces,
     memberIds: [splitterPerson.id],
-    headId: splitterPerson.id,
     founderId: splitterPerson.id,
     cadetHouseIds: [],
     legacyPrestige: Math.floor(house.legacyPrestige * 0.5),
@@ -135,10 +135,16 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     parentHouseId: house.id,
   }
 
-  const stateWithNewHouse: WorldState = {
+  let stateWithNewHouse: WorldState = {
     ...ctx.state,
     houses: { ...ctx.state.houses, [newHouseId]: newHouse },
   }
+  stateWithNewHouse = createOfficeAssignment(
+    stateWithNewHouse,
+    { kind: 'house', id: newHouseId },
+    'leader',
+    splitterPerson.id,
+  )
   let resultCtx = { ...ctx, rng: rngAfterControl, state: stateWithNewHouse }
 
   const familyPersonIds = new Set(newMemberIds)

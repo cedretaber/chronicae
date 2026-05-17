@@ -7,6 +7,13 @@ import type { House } from '../types/house'
 import type { Country } from '../types/country'
 import type { Person } from '../types/person'
 import type { PopGroup } from '../types/popGroup'
+import type {
+  OrganizationRef,
+  ShareHolderRef,
+  OrganizationShare,
+  ShareIndex,
+} from '../types/office'
+import type { OrganizationShareId } from '../types/ids'
 import { createRng } from '../rng/rng'
 import { randomInt } from '../rng/rng'
 import { generateProvinces } from './generateProvinces'
@@ -24,6 +31,8 @@ import { defaultConfig } from '../config/defaultConfig'
 import { defaultMapConfig } from './mapConfig'
 import { clamp } from '../utils/math'
 import { countryAttitudeKey, houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
+import { createOfficeAssignment } from '../mutations/officeMutations'
+import { getHouseLeader } from '../selectors/officeSelectors'
 
 export function generateWorld(seedText: string): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
@@ -191,7 +200,6 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       countryId: countryId ?? ('' as CountryId),
       provinceIds,
       memberIds,
-      headId: headId ?? memberIds[0] ?? ('' as PersonId),
       cadetHouseIds: [],
       legacyPrestige,
       wealth,
@@ -224,20 +232,16 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((h) => h.id)
 
-    const rulerHouseId = houseIds[0] ?? ('' as HouseId)
-
-    const rulerHouse = houses.find((h) => h.id === rulerHouseId)
-    const capitalProvinceId = rulerHouse?.seatProvinceId ?? ('' as ProvinceId)
+    const capitalHouse = houseIds.length > 0 ? houses.find((h) => h.id === houseIds[0]) : undefined
+    const capitalProvinceId = capitalHouse?.seatProvinceId ?? ('' as ProvinceId)
 
     const country: Country = {
       id: countryId,
       name: cName,
-      rulerHouseId,
       houseIds,
       treasury,
       legacyPrestige,
       adminPower: 50,
-      roleAssignments: {},
       active: true,
       capitalProvinceId,
     }
@@ -445,8 +449,63 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     }
 
     const house = houses.find((h) => h.id === p.houseId)
-    if (house && p.id !== house.headId) {
-      const headKey = personAttitudeKey(house.headId)
+    // Find house leader (same logic as original headId computation)
+    let leaderPersonId: PersonId | undefined
+    if (house) {
+      const adultMaleCandidates = persons
+        .filter(
+          (p) =>
+            p.houseId === house.id &&
+            p.alive &&
+            p.sex === 'male' &&
+            p.age >= defaultConfig.adultAge,
+        )
+        .sort((a, b) => a.id.localeCompare(b.id))
+
+      if (adultMaleCandidates.length > 0) {
+        let bestScore = -Infinity
+        for (const c of adultMaleCandidates) {
+          const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+          if (score > bestScore) {
+            bestScore = score
+            leaderPersonId = c.id
+          }
+        }
+      }
+
+      if (!leaderPersonId) {
+        const adultFemaleCandidates = persons
+          .filter(
+            (p) =>
+              p.houseId === house.id &&
+              p.alive &&
+              p.sex === 'female' &&
+              p.age >= defaultConfig.adultAge,
+          )
+          .sort((a, b) => a.id.localeCompare(b.id))
+
+        if (adultFemaleCandidates.length > 0) {
+          let bestScore = -Infinity
+          for (const c of adultFemaleCandidates) {
+            const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+            if (score > bestScore) {
+              bestScore = score
+              leaderPersonId = c.id
+            }
+          }
+        }
+      }
+
+      if (!leaderPersonId) {
+        const allPersons = persons
+          .filter((p) => p.houseId === house.id)
+          .sort((a, b) => b.age - a.age || a.id.localeCompare(b.id))
+        leaderPersonId = allPersons[0]?.id
+      }
+    }
+
+    if (house && leaderPersonId && p.id !== leaderPersonId) {
+      const headKey = personAttitudeKey(leaderPersonId)
       const { value: aff3, rng: r5 } = randomInt(rng, 20, 80)
       const { value: res3, rng: r6 } = randomInt(r5, 20, 80)
       rng = r6
@@ -565,6 +624,284 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     countriesRecord[c.id] = c
   }
 
+  // Initialize offices via createOfficeAssignment
+  let officeState = {
+    currentYear: 1,
+    currentMonth: 1,
+    provinces: provincesRecord,
+    countries: countriesRecord,
+    houses: housesRecord,
+    persons: personsRecord,
+    activePlots: {},
+    popGroups: popGroupsRecord,
+    organizationShares: {},
+    officeAssignments: {},
+    shareIndex: {},
+    officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    nextOrganizationShareId: 0,
+    nextOfficeAssignmentId: 0,
+  } as unknown as WorldState
+
+  // House leader offices
+  for (const house of houses) {
+    let leaderPersonId: PersonId | undefined
+
+    const adultMaleCandidates = persons
+      .filter(
+        (p) =>
+          p.houseId === house.id && p.alive && p.sex === 'male' && p.age >= defaultConfig.adultAge,
+      )
+      .sort((a, b) => a.id.localeCompare(b.id))
+
+    if (adultMaleCandidates.length > 0) {
+      let bestScore = -Infinity
+      for (const c of adultMaleCandidates) {
+        const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+        if (score > bestScore) {
+          bestScore = score
+          leaderPersonId = c.id
+        }
+      }
+    }
+
+    if (!leaderPersonId) {
+      const adultFemaleCandidates = persons
+        .filter(
+          (p) =>
+            p.houseId === house.id &&
+            p.alive &&
+            p.sex === 'female' &&
+            p.age >= defaultConfig.adultAge,
+        )
+        .sort((a, b) => a.id.localeCompare(b.id))
+
+      if (adultFemaleCandidates.length > 0) {
+        let bestScore = -Infinity
+        for (const c of adultFemaleCandidates) {
+          const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+          if (score > bestScore) {
+            bestScore = score
+            leaderPersonId = c.id
+          }
+        }
+      }
+    }
+
+    if (!leaderPersonId) {
+      const allPersons = persons
+        .filter((p) => p.houseId === house.id)
+        .sort((a, b) => b.age - a.age || a.id.localeCompare(b.id))
+      leaderPersonId = allPersons[0]?.id
+    }
+
+    if (leaderPersonId) {
+      officeState = createOfficeAssignment(
+        officeState,
+        { kind: 'house', id: house.id },
+        'leader',
+        leaderPersonId,
+      )
+    }
+  }
+
+  // Country offices
+  for (const country of countries) {
+    // Country ruler: use leader of the house with the most provinces
+    let bestHouseId: HouseId | undefined
+    let bestProvinceCount = -1
+    for (const houseId of country.houseIds) {
+      const house = housesRecord[houseId]
+      if (!house || !house.active) continue
+      if (house.provinceIds.length > bestProvinceCount) {
+        bestProvinceCount = house.provinceIds.length
+        bestHouseId = houseId
+      }
+    }
+    if (bestHouseId) {
+      const rulerPersonId = getHouseLeader(officeState, bestHouseId)
+      if (rulerPersonId) {
+        officeState = createOfficeAssignment(
+          officeState,
+          { kind: 'country', id: country.id },
+          'leader',
+          rulerPersonId,
+        )
+      }
+    }
+
+    const countryPersons = persons.filter(
+      (p) => p.countryId === country.id && p.alive && p.age >= defaultConfig.adultAge,
+    )
+
+    // Administrator: best admin stat
+    const adminCandidate = countryPersons
+      .filter((p) => {
+        const personKey = p.id as string
+        const pOffices = officeState.officeIndex.byHolderPerson[personKey] ?? []
+        return !pOffices.some((oid) => {
+          const o = officeState.officeAssignments[oid]
+          return o && o.organization.kind === 'country' && o.role === 'leader'
+        })
+      })
+      .sort((a, b) => b.stats.admin - a.stats.admin || a.id.localeCompare(b.id))[0]
+    if (adminCandidate) {
+      officeState = createOfficeAssignment(
+        officeState,
+        { kind: 'country', id: country.id },
+        'administrator',
+        adminCandidate.id,
+      )
+    }
+
+    // Treasurer: best admin stat, different person
+    const treasurerCandidate = countryPersons
+      .filter((p) => p.id !== adminCandidate?.id)
+      .filter((p) => {
+        const personKey = p.id as string
+        const pOffices = officeState.officeIndex.byHolderPerson[personKey] ?? []
+        return !pOffices.some((oid) => {
+          const o = officeState.officeAssignments[oid]
+          return o && o.organization.kind === 'country' && o.role === 'leader'
+        })
+      })
+      .sort((a, b) => b.stats.admin - a.stats.admin || a.id.localeCompare(b.id))[0]
+    if (treasurerCandidate) {
+      officeState = createOfficeAssignment(
+        officeState,
+        { kind: 'country', id: country.id },
+        'treasurer',
+        treasurerCandidate.id,
+      )
+    }
+
+    // Military: best martial stat
+    const militaryCandidate = countryPersons
+      .filter((p) => {
+        const personKey = p.id as string
+        const pOffices = officeState.officeIndex.byHolderPerson[personKey] ?? []
+        return !pOffices.some((oid) => {
+          const o = officeState.officeAssignments[oid]
+          return o && o.organization.kind === 'country' && o.role === 'leader'
+        })
+      })
+      .sort((a, b) => b.stats.martial - a.stats.martial || a.id.localeCompare(b.id))[0]
+    if (militaryCandidate) {
+      officeState = createOfficeAssignment(
+        officeState,
+        { kind: 'country', id: country.id },
+        'military',
+        militaryCandidate.id,
+      )
+    }
+  }
+
+  // Build ruler house lookup for shares
+  const rulerHouseIdForCountry = new Map<CountryId, HouseId>()
+  for (const country of countries) {
+    const countryOrgKey = `country:${country.id}`
+    const countryOfficeIds = officeState.officeIndex.byOrganization[countryOrgKey] ?? []
+    const countryLeaderOffice = countryOfficeIds
+      .map((oid) => officeState.officeAssignments[oid])
+      .find((o) => o && o.active && o.role === 'leader')
+    if (countryLeaderOffice) {
+      const leaderPerson = personsRecord[countryLeaderOffice.holderPersonId]
+      if (leaderPerson) {
+        rulerHouseIdForCountry.set(country.id, leaderPerson.houseId)
+      }
+    }
+  }
+
+  // Initialize shares
+  const organizationShares: Record<OrganizationShareId, OrganizationShare> = {}
+  const shareIndex: ShareIndex = { byOrganization: {}, byHolder: {} }
+  let nextOrganizationShareId = 0
+
+  function addShare(organization: OrganizationRef, holder: ShareHolderRef, rawPower: number): void {
+    if (rawPower <= 0) return
+    const id = `os-${nextOrganizationShareId}` as OrganizationShareId
+    nextOrganizationShareId++
+    const share: OrganizationShare = { id, organization, holder, rawPower }
+    organizationShares[id] = share
+
+    const orgKey = `${organization.kind}:${organization.id}`
+    const holderKey = `${holder.kind}:${holder.id}`
+    const existingByOrg = shareIndex.byOrganization[orgKey] ?? []
+    const existingByHolder = shareIndex.byHolder[holderKey] ?? []
+    shareIndex.byOrganization[orgKey] = [...existingByOrg, id]
+    shareIndex.byHolder[holderKey] = [...existingByHolder, id]
+  }
+
+  // Country shares
+  for (const country of countries) {
+    const config = defaultConfig
+    for (const houseId of country.houseIds) {
+      const house = houses.find((h) => h.id === houseId)
+      if (!house || !house.active) continue
+
+      const countryOrgKey = `country:${country.id}`
+      const countryOfficeIds = officeState.officeIndex.byOrganization[countryOrgKey] ?? []
+      const countryOfficeCount = countryOfficeIds.filter((oid) => {
+        const o = officeState.officeAssignments[oid]
+        if (!o || o.role === 'leader') return false
+        const holder = persons.find((p) => p.id === o.holderPersonId)
+        return holder && holder.houseId === houseId
+      }).length
+
+      const housePrestige = house.legacyPrestige
+      const militaryProxy = house.provinceIds.length * 10
+
+      const rawPower =
+        config.countryShareBase +
+        house.provinceIds.length * config.countryShareProvinceFactor +
+        militaryProxy * config.countryShareMilitaryFactor +
+        house.wealth * config.countryShareWealthFactor +
+        housePrestige * config.countrySharePrestigeFactor +
+        (houseId === rulerHouseIdForCountry.get(country.id)
+          ? config.countryShareRulerHouseBonus
+          : 0) +
+        countryOfficeCount * config.countryShareOfficeFactor
+
+      addShare({ kind: 'country', id: country.id }, { kind: 'house', id: houseId }, rawPower)
+    }
+  }
+
+  // House shares
+  for (const house of houses) {
+    if (!house.active) continue
+    const config = defaultConfig
+
+    const houseOrgKey = `house:${house.id}`
+    const houseOfficeIds = officeState.officeIndex.byOrganization[houseOrgKey] ?? []
+    const leaderOffice = houseOfficeIds
+      .map((oid) => officeState.officeAssignments[oid])
+      .find((o) => o && o.active && o.role === 'leader')
+    const leaderPersonId = leaderOffice?.holderPersonId
+
+    for (const personId of house.memberIds) {
+      const person = persons.find((p) => p.id === personId)
+      if (!person || !person.alive) continue
+
+      const isLeader = person.id === leaderPersonId
+
+      const personKey = person.id as string
+      const personOfficeIds = officeState.officeIndex.byHolderPerson[personKey] ?? []
+      const hasOffice = personOfficeIds.some((oid) => {
+        const o = officeState.officeAssignments[oid]
+        return o && o.active
+      })
+
+      const rawPower =
+        config.houseShareBase +
+        (isLeader ? config.houseShareLeaderBonus : 0) +
+        (hasOffice ? config.houseShareOfficeBonus : 0) +
+        person.legacyPrestige * config.houseSharePrestigeFactor +
+        person.wealth * config.houseShareWealthFactor +
+        (person.stats.admin + person.stats.martial) * config.houseShareStatFactor
+
+      addShare({ kind: 'house', id: house.id }, { kind: 'person', id: personId }, rawPower)
+    }
+  }
+
   const world: WorldState = {
     currentYear: 1,
     currentMonth: 1,
@@ -574,6 +911,12 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     persons: personsRecord,
     activePlots: {},
     popGroups: popGroupsRecord,
+    organizationShares,
+    officeAssignments: officeState.officeAssignments,
+    shareIndex,
+    officeIndex: officeState.officeIndex,
+    nextOrganizationShareId,
+    nextOfficeAssignmentId: officeState.nextOfficeAssignmentId,
   }
 
   return { world, rng }
