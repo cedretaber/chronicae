@@ -1,19 +1,30 @@
 import type { ProvinceId, HouseId } from '../types/ids'
 import type { WorldState } from '../types/world'
+import type { StateResult } from './result'
+import { ok, err } from './result'
 
 export function transferProvinceToHouse(
   state: WorldState,
   provinceId: ProvinceId,
   newOwnerHouseId: HouseId,
-): WorldState {
+): StateResult {
   const province = state.provinces[provinceId]
-  if (!province) throw new Error('Province not found')
+  if (!province)
+    return err({ code: 'PROVINCE_NOT_FOUND', message: 'Province not found: ' + provinceId })
 
   const oldHouse = state.houses[province.ownerHouseId]
-  if (!oldHouse) throw new Error('Old owner house not found')
+  if (!oldHouse)
+    return err({
+      code: 'HOUSE_NOT_FOUND',
+      message: 'Old owner house not found: ' + province.ownerHouseId,
+    })
 
   const newOwnerHouse = state.houses[newOwnerHouseId]
-  if (!newOwnerHouse) throw new Error('New owner house not found')
+  if (!newOwnerHouse)
+    return err({
+      code: 'HOUSE_NOT_FOUND',
+      message: 'New owner house not found: ' + newOwnerHouseId,
+    })
 
   const newProvinces = { ...state.provinces }
   newProvinces[provinceId] = {
@@ -38,9 +49,9 @@ export function transferProvinceToHouse(
     provinceIds: [...newOwnerHouse.provinceIds, provinceId],
   }
 
-  return {
+  return ok({
     ...state,
     provinces: newProvinces,
     houses: newHouses,
-  }
+  })
 }

@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
-import { transferProvinceToHouse } from '../mutations/transferProvince'
+import { transferProvinceToHouse } from '../mutations/provinceMutations'
 import type { HouseId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
@@ -106,7 +106,8 @@ function transferOrphanProvincesToBestNeighbor(
 
   let result = state
   for (const pid of orphanProvinceIds) {
-    result = transferProvinceToHouse(result, pid, receiverHouseId)
+    const r = transferProvinceToHouse(result, pid, receiverHouseId)
+    if (r.ok) result = r.value
   }
   return result
 }
@@ -184,7 +185,8 @@ function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickCo
 
   let chainState = resultCtx.state
   for (const pid of sortedProvinceIds) {
-    chainState = transferProvinceToHouse(chainState, pid, receiverHouseId)
+    const r = transferProvinceToHouse(chainState, pid, receiverHouseId)
+    if (r.ok) chainState = r.value
   }
 
   const inheritedControl = resultCtx.config.inheritedProvinceHouseControl
@@ -322,7 +324,8 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
     const sortedProvinceIds = [...house.provinceIds].sort()
     let transferChainState = domesticState
     for (const pid of sortedProvinceIds) {
-      transferChainState = transferProvinceToHouse(transferChainState, pid, newRulerHouseId)
+      const r = transferProvinceToHouse(transferChainState, pid, newRulerHouseId)
+      if (r.ok) transferChainState = r.value
     }
 
     const inheritedControl = resultCtx.config.inheritedProvinceHouseControl
@@ -509,10 +512,8 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
 
     const extinctHouseProvinceIds = [...house.provinceIds].sort()
     for (const pid of extinctHouseProvinceIds) {
-      annexState = {
-        ...annexState,
-        state: transferProvinceToHouse(annexState.state, pid, annexerRulerHouseId),
-      }
+      const r = transferProvinceToHouse(annexState.state, pid, annexerRulerHouseId)
+      if (r.ok) annexState = { ...annexState, state: r.value }
     }
 
     // Set countryControl on all provinces belonging to the defunct country

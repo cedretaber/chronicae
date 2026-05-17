@@ -1,22 +1,36 @@
 import type { PersonId, HouseId } from '../types/ids'
 import type { WorldState } from '../types/world'
+import type { StateResult } from './result'
+import { ok, err } from './result'
 
 export function movePersonToHouse(
   state: WorldState,
   personId: PersonId,
   newHouseId: HouseId,
-): WorldState {
+): StateResult {
   const person = state.persons[personId]
-  if (!person) throw new Error('movePersonToHouse: person not found: ' + personId)
+  if (!person)
+    return err({
+      code: 'PERSON_NOT_FOUND',
+      message: 'movePersonToHouse: person not found: ' + personId,
+    })
 
   const newHouse = state.houses[newHouseId]
-  if (!newHouse) throw new Error('movePersonToHouse: target house not found: ' + newHouseId)
+  if (!newHouse)
+    return err({
+      code: 'HOUSE_NOT_FOUND',
+      message: 'movePersonToHouse: target house not found: ' + newHouseId,
+    })
 
   const oldHouse = state.houses[person.houseId]
-  if (!oldHouse) throw new Error('movePersonToHouse: source house not found: ' + person.houseId)
+  if (!oldHouse)
+    return err({
+      code: 'HOUSE_NOT_FOUND',
+      message: 'movePersonToHouse: source house not found: ' + person.houseId,
+    })
 
   if (person.houseId === newHouseId) {
-    return state
+    return ok(state)
   }
 
   const newPersons = { ...state.persons }
@@ -36,29 +50,9 @@ export function movePersonToHouse(
     memberIds: [...newHouse.memberIds, personId],
   }
 
-  return {
+  return ok({
     ...state,
     persons: newPersons,
     houses: newHouses,
-  }
-}
-
-export function setSpouse(state: WorldState, personAId: PersonId, personBId: PersonId): WorldState {
-  const personA = state.persons[personAId]
-  if (!personA) throw new Error('setSpouse: personA not found: ' + personAId)
-
-  const personB = state.persons[personBId]
-  if (!personB) throw new Error('setSpouse: personB not found: ' + personBId)
-
-  if (personA.spouseId) throw new Error('setSpouse: personA already has a spouse')
-  if (personB.spouseId) throw new Error('setSpouse: personB already has a spouse')
-
-  const newPersons = { ...state.persons }
-  newPersons[personAId] = { ...personA, spouseId: personBId }
-  newPersons[personBId] = { ...personB, spouseId: personAId }
-
-  return {
-    ...state,
-    persons: newPersons,
-  }
+  })
 }

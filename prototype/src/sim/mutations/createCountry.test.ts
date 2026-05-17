@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId } from '../types/ids'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { createCountryFromHouse } from './createCountry'
+import { createCountryFromHouse } from './countryMutations'
 
 function makeFixture(): {
   state: WorldState

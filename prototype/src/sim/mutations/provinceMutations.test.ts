@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
-import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import { createCountryId, createHouseId, createProvinceId } from '../types/ids'
+import type { CountryId, HouseId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { transferProvinceToHouse } from './transferProvince'
+import { transferProvinceToHouse } from './provinceMutations'
 
 function makeFixture(): {
   state: WorldState
@@ -11,16 +11,12 @@ function makeFixture(): {
   house2Id: HouseId
   country1Id: CountryId
   country2Id: CountryId
-  person1Id: PersonId
-  person2Id: PersonId
 } {
   const provinceId = createProvinceId('p', 0)
   const house1Id = createHouseId('h', 0)
   const house2Id = createHouseId('h', 1)
   const country1Id = createCountryId('c', 0)
   const country2Id = createCountryId('c', 1)
-  const person1Id = createPersonId('pe', 0)
-  const person2Id = createPersonId('pe', 1)
 
   const state: WorldState = {
     currentYear: 1444,
@@ -99,16 +95,7 @@ function makeFixture(): {
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
   }
-  return {
-    state,
-    provinceId,
-    house1Id,
-    house2Id,
-    country1Id,
-    country2Id,
-    person1Id,
-    person2Id,
-  }
+  return { state, provinceId, house1Id, house2Id, country1Id, country2Id }
 }
 
 describe('transferProvinceToHouse', () => {
@@ -116,44 +103,50 @@ describe('transferProvinceToHouse', () => {
     const { state, provinceId, house2Id, country2Id } = makeFixture()
     const result = transferProvinceToHouse(state, provinceId, house2Id)
 
-    expect(result.provinces[provinceId]!.ownerHouseId).toBe(house2Id)
-    expect(result.provinces[provinceId]!.countryId).toBe(country2Id)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.provinces[provinceId]!.ownerHouseId).toBe(house2Id)
+      expect(result.value.provinces[provinceId]!.countryId).toBe(country2Id)
+    }
   })
 
   it('old house provinceIds no longer contains the provinceId', () => {
     const { state, provinceId, house1Id, house2Id } = makeFixture()
     const result = transferProvinceToHouse(state, provinceId, house2Id)
 
-    expect(result.houses[house1Id]!.provinceIds).not.toContain(provinceId)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.houses[house1Id]!.provinceIds).not.toContain(provinceId)
   })
 
   it('new house provinceIds contains the provinceId', () => {
     const { state, provinceId, house2Id } = makeFixture()
     const result = transferProvinceToHouse(state, provinceId, house2Id)
 
-    expect(result.houses[house2Id]!.provinceIds).toContain(provinceId)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.houses[house2Id]!.provinceIds).toContain(provinceId)
   })
 
   it('original state is not mutated', () => {
     const { state, provinceId, house2Id } = makeFixture()
     const result = transferProvinceToHouse(state, provinceId, house2Id)
 
-    expect(result).not.toBe(state)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value).not.toBe(state)
   })
 
-  it('throws when provinceId does not exist', () => {
+  it('returns err when provinceId does not exist', () => {
     const { state } = makeFixture()
+    const result = transferProvinceToHouse(state, createProvinceId('p', 99), createHouseId('h', 2))
 
-    expect(() =>
-      transferProvinceToHouse(state, createProvinceId('p', 99), createHouseId('h', 2)),
-    ).toThrow('Province not found')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('PROVINCE_NOT_FOUND')
   })
 
-  it('throws when newOwnerHouseId does not exist', () => {
+  it('returns err when newOwnerHouseId does not exist', () => {
     const { state, provinceId } = makeFixture()
+    const result = transferProvinceToHouse(state, provinceId, createHouseId('h', 99))
 
-    expect(() => transferProvinceToHouse(state, provinceId, createHouseId('h', 99))).toThrow(
-      'New owner house not found',
-    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
   })
 })

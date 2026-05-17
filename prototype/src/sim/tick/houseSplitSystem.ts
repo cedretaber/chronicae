@@ -201,8 +201,8 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
 
   for (const personId of newMemberIds) {
     if (personId === splitterPerson.id) continue
-    const movedState = movePersonToHouse(resultCtx.state, personId, newHouseId)
-    resultCtx = { ...resultCtx, state: movedState }
+    const moveResult = movePersonToHouse(resultCtx.state, personId, newHouseId)
+    if (moveResult.ok) resultCtx = { ...resultCtx, state: moveResult.value }
   }
 
   const country = resultCtx.state.countries[house.countryId]

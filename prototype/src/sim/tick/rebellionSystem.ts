@@ -6,7 +6,7 @@ import { adjustCountryLegacyPrestige, adjustHouseLegacyPrestige } from '../helpe
 import { calcAmbitionScores } from './ambitionSystem'
 import { getCountryRulerHouse, getHouseLeader } from '../selectors/officeSelectors'
 import { getHouseLoyaltyToCountry } from '../selectors/statusSelectors'
-import { createCountryFromHouse } from '../mutations/createCountry'
+import { createCountryFromHouse } from '../mutations/countryMutations'
 import { calcHouseMilitaryPower } from '../selectors/militarySelectors'
 import { generateCountryName } from '../selectors/countryNamingService'
 import {

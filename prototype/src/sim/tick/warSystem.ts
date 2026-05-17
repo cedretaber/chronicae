@@ -12,8 +12,8 @@ import {
   calcGeneralWarPowerModifier,
   calcGeneralDeclareThreshold,
 } from '../selectors/personAbilityEffects'
-import { transferProvinceToHouse } from '../mutations/transferProvince'
-import { annexCountry } from '../mutations/annexCountry'
+import { transferProvinceToHouse } from '../mutations/provinceMutations'
+import { annexCountry } from '../mutations/countryMutations'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { SimEvent } from '../types/event'
@@ -345,10 +345,9 @@ export function runWarSystem(ctx: TickContext): TickContext {
             continue
           }
 
-          currentCtx = {
-            ...currentCtx,
-            state: transferProvinceToHouse(currentCtx.state, provinceId, rulerHouseId),
-          }
+          const tResult = transferProvinceToHouse(currentCtx.state, provinceId, rulerHouseId)
+          if (!tResult.ok) continue
+          currentCtx = { ...currentCtx, state: tResult.value }
 
           const provinceName = currentState.provinces[provinceId]?.name ?? provinceId
           currentCtx = emitProvinceConquered(

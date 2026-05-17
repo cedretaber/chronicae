@@ -21,7 +21,7 @@ import {
   adjustProvincePopUnrest,
   adjustProvincePopWealthByClass,
 } from '../mutations/popMutations'
-import { transferProvinceToHouse } from '../mutations/transferProvince'
+import { transferProvinceToHouse } from '../mutations/provinceMutations'
 import {
   pickNameBySex,
   pickUniqueName,
@@ -576,7 +576,8 @@ function resolveRevoltLordshipChange(
   )
 
   // Transfer province to new house
-  newState = transferProvinceToHouse(newState, provinceId, newHouseId)
+  const transferResult = transferProvinceToHouse(newState, provinceId, newHouseId)
+  if (transferResult.ok) newState = transferResult.value
 
   // Fix province controls
   const updatedProvince = newState.provinces[provinceId]

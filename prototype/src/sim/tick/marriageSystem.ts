@@ -2,7 +2,8 @@ import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
 import { shuffle } from '../rng/rng'
-import { setSpouse, movePersonToHouse } from '../mutations/personMutations'
+import { movePersonToHouse } from '../mutations/personMutations'
+import { setSpouse } from '../mutations/relationshipMutations'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import { isForbiddenMarriagePair } from '../selectors/kinshipSelectors'
@@ -70,10 +71,12 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
 
     marriedFemales.add(chosenFemaleId)
 
-    const newState = movePersonToHouse(currentCtx.state, chosenFemaleId, male.houseId)
-    const newState2 = setSpouse(newState, maleId, chosenFemaleId)
+    const moveResult = movePersonToHouse(currentCtx.state, chosenFemaleId, male.houseId)
+    if (!moveResult.ok) continue
+    const spouseResult = setSpouse(moveResult.value, maleId, chosenFemaleId)
+    if (!spouseResult.ok) continue
 
-    currentCtx = { ...currentCtx, state: newState2 }
+    currentCtx = { ...currentCtx, state: spouseResult.value }
 
     const malePerson = currentCtx.state.persons[maleId]
     const femalePerson = currentCtx.state.persons[chosenFemaleId]
