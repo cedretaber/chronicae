@@ -3,6 +3,7 @@ import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
 import type { House } from '../types/house'
 import type { OfficeRole, OrganizationRef } from '../types/office'
+import { getRoleScore } from './abilitySelectors'
 import { getActiveOfficeHolders, getHouseLeader } from './officeSelectors'
 import { clamp } from '../utils/math'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -42,7 +43,7 @@ export function calcChancellorControlGrowthModifier(
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
   const administrator = getFirstActiveLivingOfficeHolder(state, countryId, 'administrator')
-  const admin = administrator?.stats.admin ?? 5
+  const admin = administrator ? getRoleScore(state, administrator.id, 'governance') / 10 : 5
   return 1 + normalizedStat(admin) * config.chancellorAdminControlGrowthEffect
 }
 
@@ -53,7 +54,7 @@ export function calcChancellorControlMaxBonus(
 ): number {
   if (!config.personAbilityEffectsEnabled) return 0
   const administrator = getFirstActiveLivingOfficeHolder(state, countryId, 'administrator')
-  const admin = administrator?.stats.admin ?? 5
+  const admin = administrator ? getRoleScore(state, administrator.id, 'governance') / 10 : 5
   return (admin - 5) * config.chancellorAdminControlMaxBonusPerAdmin
 }
 
@@ -69,7 +70,7 @@ export function calcHouseHeadControlGrowthModifier(
     const admin = 5
     return 1 + normalizedStat(admin) * config.houseHeadAdminControlGrowthEffect
   }
-  const admin = head.stats.admin
+  const admin = getRoleScore(state, head.id, 'governance') / 10
   return 1 + normalizedStat(admin) * config.houseHeadAdminControlGrowthEffect
 }
 
@@ -85,7 +86,7 @@ export function calcHouseHeadControlMaxBonus(
     const admin = 5
     return (admin - 5) * config.houseHeadAdminControlMaxBonusPerAdmin
   }
-  const admin = head.stats.admin
+  const admin = getRoleScore(state, head.id, 'governance') / 10
   return (admin - 5) * config.houseHeadAdminControlMaxBonusPerAdmin
 }
 
@@ -96,7 +97,7 @@ export function calcTreasurerTaxEfficiency(
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
   const treasurer = getFirstActiveLivingOfficeHolder(state, countryId, 'treasurer')
-  const admin = treasurer?.stats.admin ?? 5
+  const admin = treasurer ? getRoleScore(state, treasurer.id, 'stewardship') / 10 : 5
   const caution = treasurer?.traits.caution ?? 0.5
   return clamp(
     1 +
@@ -114,7 +115,7 @@ export function calcTreasurerDevelopmentCostModifier(
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
   const treasurer = getFirstActiveLivingOfficeHolder(state, countryId, 'treasurer')
-  const admin = treasurer?.stats.admin ?? 5
+  const admin = treasurer ? getRoleScore(state, treasurer.id, 'stewardship') / 10 : 5
   return 1 - normalizedStat(admin) * config.treasurerAdminDevelopmentCostEffect
 }
 
@@ -125,7 +126,7 @@ export function calcGeneralWarPowerModifier(
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
   const military = getFirstActiveLivingOfficeHolder(state, countryId, 'military')
-  const martial = military?.stats.martial ?? 5
+  const martial = military ? getRoleScore(state, military.id, 'warCommand') / 10 : 5
   return 1 + normalizedStat(martial) * config.generalMartialWarPowerEffect
 }
 
@@ -193,7 +194,7 @@ export function calcHouseHeadDevelopmentChanceBonus(
       normalizedTrait(caution) * config.houseHeadCautionDevelopmentChanceEffect
     )
   }
-  const admin = head.stats.admin
+  const admin = getRoleScore(state, head.id, 'governance') / 10
   const caution = head.traits.caution
   return (
     normalizedStat(admin) * config.houseHeadAdminDevelopmentChanceEffect +

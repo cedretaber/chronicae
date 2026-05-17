@@ -8,6 +8,15 @@ import { defaultConfig } from '../config/defaultConfig'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import { moveHouseToCountry, createCountry, deactivateCountry } from './countryMutations'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makeFixture(): {
   state: WorldState
   house1Id: HouseId
@@ -102,7 +111,8 @@ function makeFixture(): {
         countryId: country1Id,
         childIds: [],
         birthStatus: 'unknown',
-        stats: { admin: 5, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 50,
         wealth: 0,
@@ -186,6 +196,8 @@ function makeCtx(state: WorldState): TickContext {
     config: defaultConfig,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: 10,
     nextHouseIndex: 10,
     nextCountryIndex: 10,

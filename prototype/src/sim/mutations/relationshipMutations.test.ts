@@ -5,6 +5,15 @@ import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import { setSpouse, clearSpouse, addChildToParents } from './relationshipMutations'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makeFixture(): {
   state: WorldState
   person1Id: PersonId
@@ -58,7 +67,8 @@ function makeFixture(): {
         countryId: country1Id,
         childIds: [],
         birthStatus: 'legitimate' as const,
-        stats: { admin: 5, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 10,
         wealth: 0,
@@ -74,7 +84,8 @@ function makeFixture(): {
         countryId: country1Id,
         childIds: [],
         birthStatus: 'legitimate' as const,
-        stats: { admin: 5, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 10,
         wealth: 0,
@@ -153,7 +164,8 @@ describe('setSpouse', () => {
           countryId: country1Id,
           childIds: [],
           birthStatus: 'unknown' as const,
-          stats: { admin: 5, martial: 5 },
+          abilities: DEFAULT_ABILITIES,
+          aptitudes: DEFAULT_ABILITIES,
           traits: { ambition: 0.5, caution: 0.5 },
           legacyPrestige: 10,
           wealth: 0,

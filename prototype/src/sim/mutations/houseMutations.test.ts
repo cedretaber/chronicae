@@ -6,7 +6,7 @@ import type { TickContext } from '../tick/context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { collectIntegrityErrors } from '../tick/integritySystem'
-import { createHouse, deactivateHouse } from './houseMutations'
+import { createHouse, deactivateHouse, addHouseWealth } from './houseMutations'
 
 function makeFixture(): { state: WorldState; country1Id: CountryId; house1Id: HouseId } {
   const country1Id = createCountryId('c', 0)
@@ -62,6 +62,8 @@ function makeCtx(state: WorldState): TickContext {
     config: defaultConfig,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: 10,
     nextHouseIndex: 10,
     nextCountryIndex: 10,
@@ -163,5 +165,29 @@ describe('deactivateHouse', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
+  })
+})
+
+describe('addHouseWealth', () => {
+  it('adds delta to house wealth', () => {
+    const { state, house1Id } = makeFixture()
+    const result = addHouseWealth(state, house1Id, 75)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.houses[house1Id]!.wealth).toBe(75)
+  })
+
+  it('floors at 0 for negative delta larger than wealth', () => {
+    const { state, house1Id } = makeFixture()
+    const result = addHouseWealth(state, house1Id, -200)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.houses[house1Id]!.wealth).toBe(0)
+  })
+
+  it('returns err when house not found', () => {
+    const { state } = makeFixture()
+    const result = addHouseWealth(state, createHouseId('h', 99), 10)
+    expect(result.ok).toBe(false)
   })
 })

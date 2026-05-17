@@ -9,6 +9,15 @@ import { defaultConfig } from '../config/defaultConfig'
 import { runSuccessionSystem } from './successionSystem'
 import { applyMinorHeadPenalties } from './successionSystem'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makePerson(
   id: PersonId,
   name: string,
@@ -16,8 +25,6 @@ function makePerson(
   alive: boolean,
   houseId: HouseId,
   countryId: CountryId,
-  admin: number,
-  martial: number,
   ambition: number,
   legacyPrestige: number,
   sex: Person['sex'] = 'male',
@@ -37,7 +44,8 @@ function makePerson(
     countryId,
     childIds,
     birthStatus,
-    stats: { admin, martial },
+    abilities: DEFAULT_ABILITIES,
+    aptitudes: DEFAULT_ABILITIES,
     traits: { ambition, caution: 0.5 },
     attitudes: {},
     legacyPrestige,
@@ -106,6 +114,8 @@ function makeCtx(members: Person[], houseActive: boolean = true, month: number =
     config: defaultConfig,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: members.length,
     nextHouseIndex: 0,
     nextCountryIndex: 0,
@@ -121,8 +131,6 @@ describe('runSuccessionSystem', () => {
       true,
       'h-0' as HouseId,
       'c-0' as CountryId,
-      5,
-      5,
       0.5,
       30,
     )
@@ -166,8 +174,6 @@ describe('runSuccessionSystem', () => {
       true,
       'h-0' as HouseId,
       'c-0' as CountryId,
-      5,
-      5,
       0.5,
       10,
     )
@@ -186,8 +192,6 @@ describe('runSuccessionSystem', () => {
       true,
       'h-0' as HouseId,
       'c-0' as CountryId,
-      2,
-      2,
       0.3,
       5,
     )
@@ -198,8 +202,6 @@ describe('runSuccessionSystem', () => {
       true,
       'h-0' as HouseId,
       'c-0' as CountryId,
-      3,
-      3,
       0.4,
       8,
     )
@@ -232,30 +234,8 @@ describe('runSuccessionSystem', () => {
     const houseId = 'h-0' as HouseId
     const countryId = 'c-0' as CountryId
 
-    const pe1 = makePerson(
-      'pe-1' as PersonId,
-      'Candidate1',
-      30,
-      true,
-      houseId,
-      countryId,
-      5,
-      5,
-      0.5,
-      10,
-    )
-    const pe2 = makePerson(
-      'pe-2' as PersonId,
-      'Candidate2',
-      29,
-      true,
-      houseId,
-      countryId,
-      5,
-      5,
-      0.5,
-      10,
-    )
+    const pe1 = makePerson('pe-1' as PersonId, 'Candidate1', 30, true, houseId, countryId, 0.5, 10)
+    const pe2 = makePerson('pe-2' as PersonId, 'Candidate2', 29, true, houseId, countryId, 0.5, 10)
 
     const persons: Record<PersonId, Person> = {}
     persons['pe-1' as PersonId] = pe1
@@ -306,6 +286,8 @@ describe('runSuccessionSystem', () => {
       config: defaultConfig,
       events: [],
       nextEventIndex: 0,
+      deathsThisTick: [],
+      deathRolesThisTick: {},
       nextPersonIndex: 3,
       nextHouseIndex: 0,
       nextCountryIndex: 0,
@@ -320,30 +302,8 @@ describe('runSuccessionSystem', () => {
     const houseId = 'h-0' as HouseId
     const countryId = 'c-0' as CountryId
 
-    const pe1 = makePerson(
-      'pe-1' as PersonId,
-      'HighScore',
-      30,
-      true,
-      houseId,
-      countryId,
-      10,
-      10,
-      1.0,
-      100,
-    )
-    const pe2 = makePerson(
-      'pe-2' as PersonId,
-      'LowScore',
-      29,
-      true,
-      houseId,
-      countryId,
-      1,
-      1,
-      0.0,
-      0,
-    )
+    const pe1 = makePerson('pe-1' as PersonId, 'HighScore', 30, true, houseId, countryId, 1.0, 100)
+    const pe2 = makePerson('pe-2' as PersonId, 'LowScore', 29, true, houseId, countryId, 0.0, 0)
 
     const persons: Record<PersonId, Person> = {}
     persons['pe-1' as PersonId] = pe1
@@ -394,6 +354,8 @@ describe('runSuccessionSystem', () => {
       config: defaultConfig,
       events: [],
       nextEventIndex: 0,
+      deathsThisTick: [],
+      deathRolesThisTick: {},
       nextPersonIndex: 3,
       nextHouseIndex: 0,
       nextCountryIndex: 0,
@@ -413,7 +375,7 @@ describe('applyMinorHeadPenalties', () => {
     config = defaultConfig,
   ): TickContext {
     const memberId = 'pe-0' as PersonId
-    const member = makePerson(memberId, 'Member', age, true, houseId, countryId, 2, 2, 0.3, 10)
+    const member = makePerson(memberId, 'Member', age, true, houseId, countryId, 0.3, 10)
     const baseCtx: TickContext = {
       state: {
         currentYear: 1,
@@ -459,6 +421,8 @@ describe('applyMinorHeadPenalties', () => {
       config,
       events: [],
       nextEventIndex: 0,
+      deathsThisTick: [],
+      deathRolesThisTick: {},
       nextPersonIndex: 1,
       nextHouseIndex: 0,
       nextCountryIndex: 0,

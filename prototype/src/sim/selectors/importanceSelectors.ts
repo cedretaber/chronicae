@@ -1,6 +1,7 @@
 import type { PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { SimEvent } from '../types/event'
+import { getRoleScore } from './abilitySelectors'
 
 const OFFICE_BONUS: Record<string, number> = {
   leader: 40,
@@ -43,8 +44,8 @@ export function calcPersonImportanceScore(
     roleBonus +
     housePrestige * 0.3 +
     person.legacyPrestige +
-    person.stats.admin * 3 +
-    person.stats.martial * 3 +
+    (getRoleScore(state, personId, 'governance') / 10) * 3 +
+    (getRoleScore(state, personId, 'warCommand') / 10) * 3 +
     person.traits.ambition * 20 +
     recentInvolvement * 5
   )

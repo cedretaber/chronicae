@@ -307,6 +307,31 @@ export type SimulationConfig = {
   // v0.12 Appointment — concurrent office limits
   concurrentOfficePenalty: number
   minAppointmentScore: number
+  // v0.14 Ability generation / inheritance
+  abilityAptitudeMean: number
+  abilityAptitudeStddev: number
+  abilityHeritability: number
+  abilityAptitudeNoiseStddev: number
+  abilityInitialNoiseStddev: number
+  // v0.14 Age curves
+  ageCurveLifelongMaxFraction: number
+  ageCurveLifelongAgeConstant: number
+  ageCurveYouthMaxFraction: number
+  ageCurveYouthPeakAge: number
+  ageCurveYouthDeclineConstant: number
+  ageCurveMidLifeMaxFraction: number
+  ageCurveMidLifePeakAge: number
+  ageCurveMidLifeDeclineConstant: number
+  // v0.14 Growth / Decline
+  abilityGrowthChanceBase: number
+  abilityDeclineChanceBase: number
+  abilityActiveDeclineMultiplier: number
+  // v0.14 Estate Settlement
+  estateBaseRecoveryRate: number
+  estateShareEffectStrength: number
+  estateRecoveryRateMin: number
+  estateRecoveryRateMax: number
+  estateSettledNormalWealthRatio: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -609,4 +634,29 @@ export const defaultConfig: SimulationConfig = {
   // v0.12 Appointment — concurrent office limits
   concurrentOfficePenalty: 8,
   minAppointmentScore: 2,
+  // v0.14 Ability generation / inheritance
+  abilityAptitudeMean: 50,
+  abilityAptitudeStddev: 15,
+  abilityHeritability: 0.5,
+  abilityAptitudeNoiseStddev: 8,
+  abilityInitialNoiseStddev: 3,
+  // v0.14 Age curves
+  ageCurveLifelongMaxFraction: 0.7,
+  ageCurveLifelongAgeConstant: 30,
+  ageCurveYouthMaxFraction: 0.75,
+  ageCurveYouthPeakAge: 30,
+  ageCurveYouthDeclineConstant: 40,
+  ageCurveMidLifeMaxFraction: 0.7,
+  ageCurveMidLifePeakAge: 45,
+  ageCurveMidLifeDeclineConstant: 60,
+  // v0.14 Growth / Decline
+  abilityGrowthChanceBase: 100,
+  abilityDeclineChanceBase: 5,
+  abilityActiveDeclineMultiplier: 0.3,
+  // v0.14 Estate Settlement
+  estateBaseRecoveryRate: 0.5,
+  estateShareEffectStrength: 0.6,
+  estateRecoveryRateMin: 0.2,
+  estateRecoveryRateMax: 0.9,
+  estateSettledNormalWealthRatio: 0.2,
 }

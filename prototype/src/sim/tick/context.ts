@@ -16,6 +16,11 @@ export type TickResult = {
   events: SimEvent[]
 }
 
+export type DeathRoleInfo = {
+  readonly wasHouseLeader: boolean
+  readonly wasCountryLeader: boolean
+}
+
 export type TickContext = {
   readonly state: WorldState
   readonly rng: RngState
@@ -25,6 +30,8 @@ export type TickContext = {
   readonly nextPersonIndex: number
   readonly nextHouseIndex: number
   readonly nextCountryIndex: number
+  readonly deathsThisTick: readonly PersonId[]
+  readonly deathRolesThisTick: Readonly<Record<string, DeathRoleInfo>>
 }
 
 export function createTickContext(input: TickInput): TickContext {
@@ -58,6 +65,8 @@ export function createTickContext(input: TickInput): TickContext {
     nextPersonIndex: maxPersonIndex + 1,
     nextHouseIndex: maxHouseIndex + 1,
     nextCountryIndex: maxCountryIndex + 1,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
   }
 }
 

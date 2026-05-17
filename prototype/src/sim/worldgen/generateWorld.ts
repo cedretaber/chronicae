@@ -139,7 +139,17 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       let bestScore = -Infinity
       let bestPerson: Person | undefined
       for (const c of adultMaleCandidates) {
-        const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+        const governanceScore =
+          c.abilities.numeracy * 0.3 +
+          c.abilities.learning * 0.3 +
+          c.abilities.charisma * 0.2 +
+          c.abilities.insight * 0.2
+        const warCommandScore =
+          c.abilities.command * 0.6 +
+          c.abilities.insight * 0.2 +
+          c.abilities.learning * 0.1 +
+          c.abilities.valor * 0.1
+        const score = c.legacyPrestige * 0.5 + governanceScore * 2 + warCommandScore * 2
         if (score > bestScore) {
           bestScore = score
           bestPerson = c
@@ -164,7 +174,17 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
         let bestScore = -Infinity
         let bestPerson: Person | undefined
         for (const c of adultFemaleCandidates) {
-          const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+          const governanceScore =
+            c.abilities.numeracy * 0.3 +
+            c.abilities.learning * 0.3 +
+            c.abilities.charisma * 0.2 +
+            c.abilities.insight * 0.2
+          const warCommandScore =
+            c.abilities.command * 0.6 +
+            c.abilities.insight * 0.2 +
+            c.abilities.learning * 0.1 +
+            c.abilities.valor * 0.1
+          const score = c.legacyPrestige * 0.5 + governanceScore * 2 + warCommandScore * 2
           if (score > bestScore) {
             bestScore = score
             bestPerson = c
@@ -465,7 +485,17 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       if (adultMaleCandidates.length > 0) {
         let bestScore = -Infinity
         for (const c of adultMaleCandidates) {
-          const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+          const governanceScore =
+            c.abilities.numeracy * 0.3 +
+            c.abilities.learning * 0.3 +
+            c.abilities.charisma * 0.2 +
+            c.abilities.insight * 0.2
+          const warCommandScore =
+            c.abilities.command * 0.6 +
+            c.abilities.insight * 0.2 +
+            c.abilities.learning * 0.1 +
+            c.abilities.valor * 0.1
+          const score = c.legacyPrestige * 0.5 + governanceScore * 2 + warCommandScore * 2
           if (score > bestScore) {
             bestScore = score
             leaderPersonId = c.id
@@ -487,7 +517,17 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
         if (adultFemaleCandidates.length > 0) {
           let bestScore = -Infinity
           for (const c of adultFemaleCandidates) {
-            const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+            const governanceScore =
+              c.abilities.numeracy * 0.3 +
+              c.abilities.learning * 0.3 +
+              c.abilities.charisma * 0.2 +
+              c.abilities.insight * 0.2
+            const warCommandScore =
+              c.abilities.command * 0.6 +
+              c.abilities.insight * 0.2 +
+              c.abilities.learning * 0.1 +
+              c.abilities.valor * 0.1
+            const score = c.legacyPrestige * 0.5 + governanceScore * 2 + warCommandScore * 2
             if (score > bestScore) {
               bestScore = score
               leaderPersonId = c.id
@@ -656,7 +696,17 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     if (adultMaleCandidates.length > 0) {
       let bestScore = -Infinity
       for (const c of adultMaleCandidates) {
-        const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+        const governanceScore =
+          c.abilities.numeracy * 0.3 +
+          c.abilities.learning * 0.3 +
+          c.abilities.charisma * 0.2 +
+          c.abilities.insight * 0.2
+        const warCommandScore =
+          c.abilities.command * 0.6 +
+          c.abilities.insight * 0.2 +
+          c.abilities.learning * 0.1 +
+          c.abilities.valor * 0.1
+        const score = c.legacyPrestige * 0.5 + governanceScore * 2 + warCommandScore * 2
         if (score > bestScore) {
           bestScore = score
           leaderPersonId = c.id
@@ -678,7 +728,17 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       if (adultFemaleCandidates.length > 0) {
         let bestScore = -Infinity
         for (const c of adultFemaleCandidates) {
-          const score = c.legacyPrestige * 0.5 + c.stats.admin * 2 + c.stats.martial * 2
+          const governanceScore =
+            c.abilities.numeracy * 0.3 +
+            c.abilities.learning * 0.3 +
+            c.abilities.charisma * 0.2 +
+            c.abilities.insight * 0.2
+          const warCommandScore =
+            c.abilities.command * 0.6 +
+            c.abilities.insight * 0.2 +
+            c.abilities.learning * 0.1 +
+            c.abilities.valor * 0.1
+          const score = c.legacyPrestige * 0.5 + governanceScore * 2 + warCommandScore * 2
           if (score > bestScore) {
             bestScore = score
             leaderPersonId = c.id
@@ -743,7 +803,19 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
           return o && o.organization.kind === 'country' && o.role === 'leader'
         })
       })
-      .sort((a, b) => b.stats.admin - a.stats.admin || a.id.localeCompare(b.id))[0]
+      .sort((a, b) => {
+        const aGov =
+          a.abilities.numeracy * 0.3 +
+          a.abilities.learning * 0.3 +
+          a.abilities.charisma * 0.2 +
+          a.abilities.insight * 0.2
+        const bGov =
+          b.abilities.numeracy * 0.3 +
+          b.abilities.learning * 0.3 +
+          b.abilities.charisma * 0.2 +
+          b.abilities.insight * 0.2
+        return bGov - aGov || a.id.localeCompare(b.id)
+      })[0]
     if (adminCandidate) {
       officeState = createOfficeAssignment(
         officeState,
@@ -764,7 +836,19 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
           return o && o.organization.kind === 'country' && o.role === 'leader'
         })
       })
-      .sort((a, b) => b.stats.admin - a.stats.admin || a.id.localeCompare(b.id))[0]
+      .sort((a, b) => {
+        const aGov =
+          a.abilities.numeracy * 0.3 +
+          a.abilities.learning * 0.3 +
+          a.abilities.charisma * 0.2 +
+          a.abilities.insight * 0.2
+        const bGov =
+          b.abilities.numeracy * 0.3 +
+          b.abilities.learning * 0.3 +
+          b.abilities.charisma * 0.2 +
+          b.abilities.insight * 0.2
+        return bGov - aGov || a.id.localeCompare(b.id)
+      })[0]
     if (treasurerCandidate) {
       officeState = createOfficeAssignment(
         officeState,
@@ -784,7 +868,19 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
           return o && o.organization.kind === 'country' && o.role === 'leader'
         })
       })
-      .sort((a, b) => b.stats.martial - a.stats.martial || a.id.localeCompare(b.id))[0]
+      .sort((a, b) => {
+        const aWar =
+          a.abilities.command * 0.6 +
+          a.abilities.insight * 0.2 +
+          a.abilities.learning * 0.1 +
+          a.abilities.valor * 0.1
+        const bWar =
+          b.abilities.command * 0.6 +
+          b.abilities.insight * 0.2 +
+          b.abilities.learning * 0.1 +
+          b.abilities.valor * 0.1
+        return bWar - aWar || a.id.localeCompare(b.id)
+      })[0]
     if (militaryCandidate) {
       officeState = createOfficeAssignment(
         officeState,
@@ -896,7 +992,15 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
         (hasOffice ? config.houseShareOfficeBonus : 0) +
         person.legacyPrestige * config.houseSharePrestigeFactor +
         person.wealth * config.houseShareWealthFactor +
-        (person.stats.admin + person.stats.martial) * config.houseShareStatFactor
+        (person.abilities.numeracy * 0.3 +
+          person.abilities.learning * 0.3 +
+          person.abilities.charisma * 0.2 +
+          person.abilities.insight * 0.2 +
+          person.abilities.command * 0.6 +
+          person.abilities.insight * 0.2 +
+          person.abilities.learning * 0.1 +
+          person.abilities.valor * 0.1) *
+          config.houseShareStatFactor
 
       addShare({ kind: 'house', id: house.id }, { kind: 'person', id: personId }, rawPower)
     }

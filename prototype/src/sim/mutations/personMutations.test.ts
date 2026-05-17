@@ -6,9 +6,24 @@ import type { TickContext } from '../tick/context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { collectIntegrityErrors } from '../tick/integritySystem'
-import { movePersonToHouse, birthChild, markPersonDead } from './personMutations'
+import {
+  movePersonToHouse,
+  birthChild,
+  markPersonDead,
+  addPersonWealth,
+  clearPersonWealth,
+} from './personMutations'
 import { setSpouse } from './relationshipMutations'
 import { createOfficeAssignment } from './officeMutations'
+
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
 
 function makeFixture(): {
   state: WorldState
@@ -89,7 +104,8 @@ function makeFixture(): {
         countryId: country1Id,
         childIds: [],
         birthStatus: 'legitimate' as const,
-        stats: { admin: 5, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 10,
         wealth: 0,
@@ -105,7 +121,8 @@ function makeFixture(): {
         countryId: country2Id,
         childIds: [],
         birthStatus: 'legitimate' as const,
-        stats: { admin: 5, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 10,
         wealth: 0,
@@ -263,6 +280,8 @@ function makeCtx(state: WorldState): TickContext {
     config: defaultConfig,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: 10,
     nextHouseIndex: 10,
     nextCountryIndex: 10,
@@ -278,7 +297,7 @@ describe('birthChild', () => {
       birthStatus: 'illegitimate',
       name: 'Child',
       sex: 'male',
-      stats: { admin: 3, martial: 4 },
+      aptitudes: DEFAULT_ABILITIES,
       traits: { ambition: 0.6, caution: 0.4 },
     })
 
@@ -304,7 +323,7 @@ describe('birthChild', () => {
       birthStatus: 'illegitimate',
       name: 'Child',
       sex: 'female',
-      stats: { admin: 3, martial: 4 },
+      aptitudes: DEFAULT_ABILITIES,
       traits: { ambition: 0.5, caution: 0.5 },
     })
 
@@ -324,7 +343,7 @@ describe('birthChild', () => {
       birthStatus: 'illegitimate',
       name: 'Child',
       sex: 'male',
-      stats: { admin: 3, martial: 4 },
+      aptitudes: DEFAULT_ABILITIES,
       traits: { ambition: 0.5, caution: 0.5 },
     })
 
@@ -345,7 +364,7 @@ describe('birthChild', () => {
       birthStatus: 'legitimate',
       name: 'Child',
       sex: 'female',
-      stats: { admin: 3, martial: 4 },
+      aptitudes: DEFAULT_ABILITIES,
       traits: { ambition: 0.5, caution: 0.5 },
     })
 
@@ -366,7 +385,7 @@ describe('birthChild', () => {
       birthStatus: 'illegitimate',
       name: 'Child',
       sex: 'male',
-      stats: { admin: 3, martial: 4 },
+      aptitudes: DEFAULT_ABILITIES,
       traits: { ambition: 0.5, caution: 0.5 },
     })
 
@@ -385,11 +404,55 @@ describe('birthChild', () => {
       birthStatus: 'illegitimate',
       name: 'Child',
       sex: 'male',
-      stats: { admin: 3, martial: 4 },
+      aptitudes: DEFAULT_ABILITIES,
       traits: { ambition: 0.5, caution: 0.5 },
     })
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('PERSON_NOT_FOUND')
+  })
+})
+
+describe('addPersonWealth', () => {
+  it('adds delta to person wealth', () => {
+    const { state, person1Id } = makeFixture()
+    const result = addPersonWealth(state, person1Id, 50)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.persons[person1Id]!.wealth).toBe(50)
+  })
+
+  it('floors at 0 for negative delta larger than wealth', () => {
+    const { state, person1Id } = makeFixture()
+    const result = addPersonWealth(state, person1Id, -100)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.persons[person1Id]!.wealth).toBe(0)
+  })
+
+  it('returns err when person not found', () => {
+    const { state } = makeFixture()
+    const result = addPersonWealth(state, createPersonId('pe', 99), 10)
+    expect(result.ok).toBe(false)
+  })
+})
+
+describe('clearPersonWealth', () => {
+  it('sets person wealth to 0', () => {
+    const { state, person1Id } = makeFixture()
+    const withWealth = addPersonWealth(state, person1Id, 100)
+    expect(withWealth.ok).toBe(true)
+    if (!withWealth.ok) return
+
+    const result = clearPersonWealth(withWealth.value, person1Id)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.persons[person1Id]!.wealth).toBe(0)
+  })
+
+  it('returns err when person not found', () => {
+    const { state } = makeFixture()
+    const result = clearPersonWealth(state, createPersonId('pe', 99))
+    expect(result.ok).toBe(false)
   })
 })

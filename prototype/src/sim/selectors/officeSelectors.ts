@@ -10,6 +10,7 @@ import {
 } from '@sim/selectors/shareSelectors'
 import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
 import { weightedAverage } from '@sim/selectors/statusSelectors'
+import { getRoleScore } from '@sim/selectors/abilitySelectors'
 
 function orgKey(org: OrganizationRef): string {
   return `${org.kind}:${org.id}`
@@ -172,7 +173,6 @@ export function getEffectiveOfficeStat(
   config: SimulationConfig,
   organization: OrganizationRef,
   role: OfficeRole,
-  stat: 'admin' | 'martial',
 ): number {
   const holders = getActiveOfficeHolders(state, organization, role)
   if (holders.length === 0) return 0
@@ -182,7 +182,7 @@ export function getEffectiveOfficeStat(
       const office = findActiveOfficeFor(state, organization, role, holderId)
       const person = state.persons[holderId]
       return {
-        value: person?.stats[stat] ?? 0,
+        value: person ? getRoleScore(state, person.id, 'governance') / 10 : 0,
         weight: office ? getOfficeHolderPower(state, office) : 0.01,
       }
     }),
@@ -223,9 +223,9 @@ export function getAdministrativeCapacity(
   countryId: CountryId,
 ): number {
   const countryRef: OrganizationRef = { kind: 'country', id: countryId }
-  const rulerStat = getEffectiveOfficeStat(state, config, countryRef, 'leader', 'admin')
-  const adminStat = getEffectiveOfficeStat(state, config, countryRef, 'administrator', 'admin')
-  const treasurerStat = getEffectiveOfficeStat(state, config, countryRef, 'treasurer', 'admin')
+  const rulerStat = getEffectiveOfficeStat(state, config, countryRef, 'leader')
+  const adminStat = getEffectiveOfficeStat(state, config, countryRef, 'administrator')
+  const treasurerStat = getEffectiveOfficeStat(state, config, countryRef, 'treasurer')
   return (
     config.baseCountryInstitutionalCapacity +
     rulerStat * config.rulerAdminCapacityFactor +

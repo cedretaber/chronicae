@@ -9,6 +9,7 @@ import {
 import { getOrganizationShares } from '@sim/selectors/shareSelectors'
 import { getHouseLeader } from '@sim/selectors/officeSelectors'
 import { getOfficeAssignments } from '@sim/selectors/officeSelectors'
+import { getRoleScore } from '@sim/selectors/abilitySelectors'
 
 export function runShareUpdateSystem(ctx: TickContext): TickContext {
   if (ctx.state.currentMonth !== 1) return ctx
@@ -131,7 +132,9 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
         (hasOffice ? config.houseShareOfficeBonus : 0) +
         person.legacyPrestige * config.houseSharePrestigeFactor +
         person.wealth * config.houseShareWealthFactor +
-        (person.stats.admin + person.stats.martial) * config.houseShareStatFactor
+        (getRoleScore(state, person.id, 'governance') / 10 +
+          getRoleScore(state, person.id, 'warCommand') / 10) *
+          config.houseShareStatFactor
 
       const upsertResult = upsertOrganizationShare(state, {
         organization: houseRef,

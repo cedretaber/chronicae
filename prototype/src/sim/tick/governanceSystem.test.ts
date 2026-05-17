@@ -14,7 +14,16 @@ import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { runGovernanceSystem } from './governanceSystem'
 
-function makePerson(id: PersonId, admin: number): Person {
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
+function makePerson(id: PersonId): Person {
   return {
     id,
     name: 'Person-' + id,
@@ -25,7 +34,8 @@ function makePerson(id: PersonId, admin: number): Person {
     countryId: 'c-0' as CountryId,
     childIds: [],
     birthStatus: 'unknown',
-    stats: { admin, martial: 5 },
+    abilities: DEFAULT_ABILITIES,
+    aptitudes: DEFAULT_ABILITIES,
     traits: { ambition: 0.5, caution: 0.5 },
     legacyPrestige: 10,
     wealth: 0,
@@ -120,16 +130,16 @@ function makeCtx({
 
   const persons: Record<PersonId, Person> = {}
   if (administratorId !== undefined) {
-    persons[administratorId] = makePerson(administratorId, 8)
+    persons[administratorId] = makePerson(administratorId)
   } else {
-    persons[administratorPersonId] = makePerson(administratorPersonId, 8)
+    persons[administratorPersonId] = makePerson(administratorPersonId)
   }
   if (treasurerId !== undefined) {
-    persons[treasurerId] = makePerson(treasurerId, 6)
+    persons[treasurerId] = makePerson(treasurerId)
   } else {
-    persons[treasurerPersonId] = makePerson(treasurerPersonId, 6)
+    persons[treasurerPersonId] = makePerson(treasurerPersonId)
   }
-  persons[headPersonId] = makePerson(headPersonId, 5)
+  persons[headPersonId] = makePerson(headPersonId)
 
   const state = {
     currentYear: 1,
@@ -178,6 +188,8 @@ function makeCtx({
     config: defaultConfig,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
     nextCountryIndex: 0,
@@ -252,8 +264,8 @@ describe('runGovernanceSystem', () => {
       currentMonth: 1,
     })
     // Override persons with admin=10
-    const person0 = makePerson(createPersonId('pe', 0), 10)
-    const person1 = makePerson(createPersonId('pe', 1), 10)
+    const person0 = makePerson(createPersonId('pe', 0))
+    const person1 = makePerson(createPersonId('pe', 1))
     ctx.state.persons[createPersonId('pe', 0)] = person0
     ctx.state.persons[createPersonId('pe', 1)] = person1
 

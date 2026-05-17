@@ -19,6 +19,8 @@ export function advanceTime(ctx: TickContext): TickContext {
         currentYear: ctx.state.currentYear + 1,
         currentMonth: 1,
       },
+      deathsThisTick: [],
+      deathRolesThisTick: {},
     }
   }
   return {
@@ -27,5 +29,7 @@ export function advanceTime(ctx: TickContext): TickContext {
       ...ctx.state,
       currentMonth: newMonth,
     },
+    deathsThisTick: [],
+    deathRolesThisTick: {},
   }
 }

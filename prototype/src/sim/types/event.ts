@@ -48,6 +48,8 @@ export type EventType =
   | 'RULER_CHANGED'
   | 'HOUSE_LEADER_CHANGED'
   | 'SHARE_SHIFTED'
+  | 'ESTATE_SETTLED'
+  | 'ESTATE_DISPUTED'
 
 export type EventReason = {
   label: string

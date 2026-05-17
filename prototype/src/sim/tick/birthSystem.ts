@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
-import { randomFloat, randomInt } from '../rng/rng'
+import { randomFloat } from '../rng/rng'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { createLogger } from '../debug/logger'
 import type { PersonId } from '../types/ids'
@@ -8,6 +8,7 @@ import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { birthChild } from '../mutations/personMutations'
+import { inheritAptitudes, sampleAptitudes } from '../selectors/abilitySelectors'
 
 export function runBirthSystem(ctx: TickContext): TickContext {
   if (ctx.state.currentMonth !== 1) return ctx
@@ -72,10 +73,26 @@ export function runBirthSystem(ctx: TickContext): TickContext {
 
     const { value: amb1, rng: rng1 } = randomFloat(currentCtx.rng)
     const { value: amb3, rng: rng3 } = randomFloat(rng1)
-    const { value: adminStat, rng: rng4 } = randomInt(rng3, 1, 8)
-    const { value: martialStat, rng: rng5 } = randomInt(rng4, 1, 8)
-    const { name: childName, rng: rngAfterName } = pickNameBySex(childSex, rng5)
+    const { name: childName, rng: rngAfterName } = pickNameBySex(childSex, rng3)
     currentCtx = { ...currentCtx, rng: rngAfterName }
+
+    const childMother = motherId !== undefined ? currentCtx.state.persons[motherId] : undefined
+
+    let childAptitudes: import('../types/person').AbilityScores
+    if (childMother) {
+      const { value: apt, rng: aptRng } = inheritAptitudes(
+        person,
+        childMother,
+        currentCtx.rng,
+        currentCtx.config,
+      )
+      childAptitudes = apt
+      currentCtx = { ...currentCtx, rng: aptRng }
+    } else {
+      const { value: apt, rng: aptRng } = sampleAptitudes(currentCtx.rng, currentCtx.config)
+      childAptitudes = apt
+      currentCtx = { ...currentCtx, rng: aptRng }
+    }
 
     const birthResult = birthChild(currentCtx, {
       fatherId: person.id,
@@ -83,7 +100,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       birthStatus,
       name: childName,
       sex: childSex,
-      stats: { admin: adminStat, martial: martialStat },
+      aptitudes: childAptitudes,
       traits: { ambition: amb1, caution: amb3 },
     })
     if (!birthResult.ok) continue

@@ -22,6 +22,7 @@ import {
   getAttitudeOrDefault,
   attitudeValueToScore,
 } from '../helpers/attitudeHelpers'
+import { getRoleScore } from '../selectors/abilitySelectors'
 
 function scoreLandDevelopmentProvince(province: Province, rulerHouseId: HouseId): number {
   const recoveryBonus = Math.max(0, -province.development) * 1.0
@@ -53,10 +54,10 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
     const administratorId = getActiveOfficeHolders(currentCtx.state, countryRef, 'administrator')[0]
     const treasurerId = getActiveOfficeHolders(currentCtx.state, countryRef, 'treasurer')[0]
     const administratorAdmin = administratorId
-      ? (currentCtx.state.persons[administratorId]?.stats.admin ?? 0)
+      ? getRoleScore(currentCtx.state, administratorId, 'governance') / 10
       : 0
     const treasurerAdmin = treasurerId
-      ? (currentCtx.state.persons[treasurerId]?.stats.admin ?? 0)
+      ? getRoleScore(currentCtx.state, treasurerId, 'stewardship') / 10
       : 0
 
     const treasurySurplus = Math.max(0, country.treasury - ctx.config.monumentBaseCost)

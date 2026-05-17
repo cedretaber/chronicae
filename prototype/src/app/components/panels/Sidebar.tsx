@@ -141,7 +141,25 @@ function PersonRow({
         <span className="text-xs text-yellow-400">{Math.round(score)}</span>
       </div>
       <div className="text-gray-300">
-        Age: {person.age} | Admin: {person.stats.admin} | Martial: {person.stats.martial}
+        Age: {person.age} | Governance:{' '}
+        {(Math.round(
+          person.abilities.numeracy * 0.3 +
+            person.abilities.learning * 0.3 +
+            person.abilities.charisma * 0.2 +
+            person.abilities.insight * 0.2,
+        ) /
+          10) *
+          10}{' '}
+        | WarCommand:{' '}
+        {(Math.round(
+          person.abilities.command * 0.6 +
+            person.abilities.insight * 0.2 +
+            person.abilities.learning * 0.1 +
+            person.abilities.valor * 0.1,
+        ) /
+          10) *
+          10}{' '}
+        | Valor: {person.abilities.valor} | Charisma: {person.abilities.charisma}
       </div>
     </div>
   )

@@ -14,6 +14,15 @@ import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { calcAmbitionScores, runAmbitionSystem } from './ambitionSystem'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makePerson(id: PersonId, ambition: number, caution: number): Person {
   return {
     id,
@@ -25,7 +34,8 @@ function makePerson(id: PersonId, ambition: number, caution: number): Person {
     countryId: 'c-0' as CountryId,
     childIds: [],
     birthStatus: 'unknown',
-    stats: { admin: 5, martial: 5 },
+    abilities: DEFAULT_ABILITIES,
+    aptitudes: DEFAULT_ABILITIES,
     traits: { ambition, caution },
     legacyPrestige: 10,
     wealth: 0,
@@ -149,6 +159,8 @@ function makeFixture(): {
     config: defaultConfig,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
     nextCountryIndex: 0,

@@ -6,6 +6,15 @@ import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import { addPlot, removePlot, resolvePlot } from './plotMutations'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makeFixture(): {
   state: WorldState
   plotId: PlotId
@@ -59,7 +68,8 @@ function makeFixture(): {
         countryId: country1Id,
         childIds: [],
         birthStatus: 'legitimate',
-        stats: { admin: 5, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.7, caution: 0.3 },
         legacyPrestige: 20,
         wealth: 0,

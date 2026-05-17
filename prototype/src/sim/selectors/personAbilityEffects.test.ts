@@ -37,7 +37,8 @@ function makePerson(overrides: Partial<Person> = {}): Person {
     countryId: createCountryId('c', 0),
     childIds: [],
     birthStatus: 'unknown',
-    stats: { admin: 5, martial: 5 },
+    abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
+    aptitudes: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
     traits: { ambition: 0.5, caution: 0.5 },
     legacyPrestige: 50,
     wealth: 0,
@@ -199,7 +200,24 @@ describe('normalizedTrait', () => {
 describe('calcChancellorControlGrowthModifier', () => {
   it('returns 1.25 with chancellor admin=10', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 10, martial: 5 } },
+      {
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+      },
       { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -209,7 +227,24 @@ describe('calcChancellorControlGrowthModifier', () => {
 
   it('returns 1 with chancellor admin=5', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 5, martial: 5 } },
+      {
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 50,
+          learning: 50,
+          charisma: 50,
+          insight: 50,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 50,
+          learning: 50,
+          charisma: 50,
+          insight: 50,
+        },
+      },
       { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -219,7 +254,10 @@ describe('calcChancellorControlGrowthModifier', () => {
 
   it('returns 0.75 with chancellor admin=0', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 0, martial: 5 } },
+      {
+        abilities: { valor: 50, command: 50, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+        aptitudes: { valor: 50, command: 50, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+      },
       { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -236,7 +274,24 @@ describe('calcChancellorControlGrowthModifier', () => {
 
   it('returns 1 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 10, martial: 5 } },
+      {
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+      },
       { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
@@ -248,7 +303,24 @@ describe('calcChancellorControlGrowthModifier', () => {
 describe('calcChancellorControlMaxBonus', () => {
   it('returns 5 with chancellor admin=10', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 10, martial: 5 } },
+      {
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+      },
       { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -258,7 +330,24 @@ describe('calcChancellorControlMaxBonus', () => {
 
   it('returns 0 with chancellor admin=5', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 5, martial: 5 } },
+      {
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 50,
+          learning: 50,
+          charisma: 50,
+          insight: 50,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 50,
+          learning: 50,
+          charisma: 50,
+          insight: 50,
+        },
+      },
       { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -268,7 +357,10 @@ describe('calcChancellorControlMaxBonus', () => {
 
   it('returns -5 with chancellor admin=0', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 0, martial: 5 } },
+      {
+        abilities: { valor: 50, command: 50, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+        aptitudes: { valor: 50, command: 50, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+      },
       { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -278,7 +370,24 @@ describe('calcChancellorControlMaxBonus', () => {
 
   it('returns 0 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 10, martial: 5 } },
+      {
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+      },
       { administrator: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
@@ -291,7 +400,22 @@ describe('calcTreasurerTaxEfficiency', () => {
   it('returns 1.2 with treasurer admin=10, caution=1.0 (clamped)', () => {
     const { state, country } = makeWorldState(
       {
-        stats: { admin: 10, martial: 5 },
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
         traits: { ambition: 0.5, caution: 1.0 },
       },
       { treasurer: createPersonId('pe', 0) },
@@ -304,7 +428,22 @@ describe('calcTreasurerTaxEfficiency', () => {
   it('returns 1.0 with treasurer admin=5, caution=0.5', () => {
     const { state, country } = makeWorldState(
       {
-        stats: { admin: 5, martial: 5 },
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 50,
+          learning: 50,
+          charisma: 50,
+          insight: 50,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 50,
+          learning: 50,
+          charisma: 50,
+          insight: 50,
+        },
         traits: { ambition: 0.5, caution: 0.5 },
       },
       { treasurer: createPersonId('pe', 0) },
@@ -317,7 +456,8 @@ describe('calcTreasurerTaxEfficiency', () => {
   it('returns 0.8 with treasurer admin=0, caution=0.0 (clamped)', () => {
     const { state, country } = makeWorldState(
       {
-        stats: { admin: 0, martial: 5 },
+        abilities: { valor: 50, command: 50, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+        aptitudes: { valor: 50, command: 50, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
         traits: { ambition: 0.5, caution: 0.0 },
       },
       { treasurer: createPersonId('pe', 0) },
@@ -337,7 +477,22 @@ describe('calcTreasurerTaxEfficiency', () => {
   it('returns 1.0 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
       {
-        stats: { admin: 10, martial: 5 },
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
         traits: { ambition: 0.5, caution: 1.0 },
       },
       { treasurer: createPersonId('pe', 0) },
@@ -351,7 +506,24 @@ describe('calcTreasurerTaxEfficiency', () => {
 describe('calcGeneralWarPowerModifier', () => {
   it('returns 1.15 with general martial=10', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 5, martial: 10 } },
+      {
+        abilities: {
+          valor: 100,
+          command: 100,
+          numeracy: 50,
+          learning: 100,
+          charisma: 50,
+          insight: 100,
+        },
+        aptitudes: {
+          valor: 100,
+          command: 100,
+          numeracy: 50,
+          learning: 100,
+          charisma: 50,
+          insight: 100,
+        },
+      },
       { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -361,7 +533,24 @@ describe('calcGeneralWarPowerModifier', () => {
 
   it('returns 1 with general martial=5', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 5, martial: 5 } },
+      {
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 50,
+          learning: 50,
+          charisma: 50,
+          insight: 50,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 50,
+          learning: 50,
+          charisma: 50,
+          insight: 50,
+        },
+      },
       { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -371,7 +560,10 @@ describe('calcGeneralWarPowerModifier', () => {
 
   it('returns 0.85 with general martial=0', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 5, martial: 0 } },
+      {
+        abilities: { valor: 0, command: 0, numeracy: 50, learning: 0, charisma: 50, insight: 0 },
+        aptitudes: { valor: 0, command: 0, numeracy: 50, learning: 0, charisma: 50, insight: 0 },
+      },
       { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig }
@@ -388,7 +580,24 @@ describe('calcGeneralWarPowerModifier', () => {
 
   it('returns 1 when personAbilityEffectsEnabled is false', () => {
     const { state, country } = makeWorldState(
-      { stats: { admin: 5, martial: 10 } },
+      {
+        abilities: {
+          valor: 100,
+          command: 100,
+          numeracy: 50,
+          learning: 100,
+          charisma: 50,
+          insight: 100,
+        },
+        aptitudes: {
+          valor: 100,
+          command: 100,
+          numeracy: 50,
+          learning: 100,
+          charisma: 50,
+          insight: 100,
+        },
+      },
       { military: createPersonId('pe', 0) },
     )
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
@@ -472,7 +681,22 @@ describe('calcHouseHeadDevelopmentChanceBonus', () => {
   it('returns 0.15 with head admin=10, caution=1.0', () => {
     const { state, house } = makeWorldState(
       {
-        stats: { admin: 10, martial: 5 },
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
         traits: { ambition: 0.5, caution: 1.0 },
       },
       {},
@@ -485,7 +709,22 @@ describe('calcHouseHeadDevelopmentChanceBonus', () => {
   it('returns 0 with head admin=5, caution=0.5', () => {
     const { state, house } = makeWorldState(
       {
-        stats: { admin: 5, martial: 5 },
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 50,
+          learning: 50,
+          charisma: 50,
+          insight: 50,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 50,
+          learning: 50,
+          charisma: 50,
+          insight: 50,
+        },
         traits: { ambition: 0.5, caution: 0.5 },
       },
       {},
@@ -498,7 +737,22 @@ describe('calcHouseHeadDevelopmentChanceBonus', () => {
   it('returns 0 when personAbilityEffectsEnabled is false', () => {
     const { state, house } = makeWorldState(
       {
-        stats: { admin: 10, martial: 5 },
+        abilities: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
+        aptitudes: {
+          valor: 50,
+          command: 50,
+          numeracy: 100,
+          learning: 100,
+          charisma: 100,
+          insight: 100,
+        },
         traits: { ambition: 0.5, caution: 1.0 },
       },
       {},

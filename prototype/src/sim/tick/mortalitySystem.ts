@@ -4,7 +4,7 @@ import { randomFloat } from '../rng/rng'
 import { markPersonDead } from '../mutations/personMutations'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
-import { getHouseLeader } from '../selectors/officeSelectors'
+import { getHouseLeader, getCountryRuler } from '../selectors/officeSelectors'
 
 export function runMortalitySystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -20,9 +20,11 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
     currentCtx = { ...currentCtx, rng: nextRng }
 
     if (deathCheck < deathRate) {
-      // Check if person was a house leader BEFORE revoking
+      // Check if person was a house/country leader BEFORE revoking
       const houseLeaderBefore = getHouseLeader(currentCtx.state, person.houseId)
       const wasHouseLeader = houseLeaderBefore === (personId as PersonId)
+      const countryRulerBefore = getCountryRuler(currentCtx.state, person.countryId)
+      const wasCountryLeader = countryRulerBefore === (personId as PersonId)
 
       const deadResult = markPersonDead(currentCtx.state, personId as PersonId)
       const currentState = deadResult.ok ? deadResult.value : currentCtx.state
@@ -50,6 +52,11 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
         ...eventCtx,
         state: currentState,
         events: [...eventCtx.events, event],
+        deathsThisTick: [...eventCtx.deathsThisTick, personId as PersonId],
+        deathRolesThisTick: {
+          ...eventCtx.deathRolesThisTick,
+          [personId]: { wasHouseLeader, wasCountryLeader },
+        },
       }
     }
   }

@@ -15,6 +15,7 @@ import type { PlotId, HouseId, PersonId, CountryId } from '../types/ids'
 import type { Plot, PlotType } from '../types/plot'
 import type { SimEvent, EventType } from '../types/event'
 import type { Person } from '../types/person'
+import { getRoleScore } from '../selectors/abilitySelectors'
 
 function emitEvent(
   ctx: TickContext,
@@ -82,7 +83,10 @@ function resolvePlot(currentCtx: TickContext, plot: Plot): ResolveResult {
 
   const plotSuccessChance = clamp(
     currentCtx.config.basePlotSuccess +
-      ((leader.stats.admin + leader.stats.martial) / 20) * 0.1 +
+      ((getRoleScore(currentCtx.state, leader.id, 'governance') / 10 +
+        getRoleScore(currentCtx.state, leader.id, 'warCommand') / 10) /
+        2) *
+        0.1 +
       (plot.power / 100) * 0.15 +
       (plot.secrecy / 100) * 0.1 -
       (targetDefense / 100) * 0.2 -

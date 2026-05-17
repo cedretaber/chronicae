@@ -24,6 +24,7 @@ import {
 } from '../worldgen/nameGenerators'
 import { generateCountryName } from '../selectors/countryNamingService'
 import { createLogger } from '../debug/logger'
+import { samplePerson } from '../helpers/personFactory'
 
 // ============================================================================
 // Split House Orchestration
@@ -891,57 +892,27 @@ export function foundRevoltCountry(
   const { name: leaderName, rng: rng1 } = pickNameBySex('male', ctx.rng)
   ctx = { ...ctx, rng: rng1 }
 
-  // Generate leader stats by class
-  let adminMin: number, adminMax: number, martialMin: number, martialMax: number
-  if (rebelClass === 'peasants') {
-    adminMin = 2
-    adminMax = 6
-    martialMin = 2
-    martialMax = 6
-  } else if (rebelClass === 'townsmen') {
-    adminMin = 4
-    adminMax = 8
-    martialMin = 2
-    martialMax = 5
-  } else {
-    adminMin = 3
-    adminMax = 7
-    martialMin = 4
-    martialMax = 8
-  }
-
   const { value: age, rng: rng2 } = randomInt(ctx.rng, 20, 45)
   ctx = { ...ctx, rng: rng2 }
-  const { value: admin, rng: rng3 } = randomInt(ctx.rng, adminMin, adminMax)
+  const { value: ambition, rng: rng3 } = randomInt(ctx.rng, 7, 10)
   ctx = { ...ctx, rng: rng3 }
-  const { value: martial, rng: rng4 } = randomInt(ctx.rng, martialMin, martialMax)
+  const { value: caution, rng: rng4 } = randomInt(ctx.rng, 2, 7)
   ctx = { ...ctx, rng: rng4 }
-  const { value: ambition, rng: rng5 } = randomInt(ctx.rng, 7, 10)
+  const { value: legacyPrestige, rng: rng5 } = randomInt(ctx.rng, 5, 20)
   ctx = { ...ctx, rng: rng5 }
-  const { value: caution, rng: rng7 } = randomInt(ctx.rng, 2, 7)
-  ctx = { ...ctx, rng: rng7 }
-  const { value: legacyPrestige, rng: rng8 } = randomInt(ctx.rng, 5, 20)
-  ctx = { ...ctx, rng: rng8 }
 
-  const newLeader: Person = {
+  const { value: newLeader, rng: rngAfterLeader } = samplePerson(ctx.rng, ctx.config, {
     id: newPersonId,
     name: leaderName,
     sex: 'male',
     age,
-    alive: true,
     houseId: newHouseId,
     countryId: newCountryId,
-    childIds: [],
     birthStatus: 'unknown',
-    stats: { admin, martial },
-    traits: {
-      ambition: ambition / 10,
-      caution: caution / 10,
-    },
+    traits: { ambition: ambition / 10, caution: caution / 10 },
     legacyPrestige,
-    wealth: 0,
-    attitudes: {},
-  }
+  })
+  ctx = { ...ctx, rng: rngAfterLeader }
 
   // Generate house name
   const usedHouseNames = new Set(

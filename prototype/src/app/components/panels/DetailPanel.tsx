@@ -18,6 +18,8 @@ import {
   getAdministrativeEfficiency,
 } from '@sim/selectors/officeSelectors'
 import { getDominantCountryHouse, getTopShareholders } from '@sim/selectors/shareSelectors'
+import { getRoleScore } from '@sim/selectors/abilitySelectors'
+import { ABILITY_AGE_CURVES } from '@sim/constants/abilityConstants'
 import { getProvinceDevelopmentMultiplier } from '@/sim/selectors/developmentSelectors'
 import {
   getProvincePops,
@@ -513,12 +515,12 @@ function HouseDetail({
     levyPower * defaultConfig.maxMercenaryPowerRatio,
   )
 
-  const bestMartial = worldState
-    ? Math.max(0, ...house.memberIds.map((pid) => worldState.persons[pid]?.stats.martial ?? 0))
+  const bestWarCommand = worldState
+    ? Math.max(0, ...house.memberIds.map((pid) => getRoleScore(worldState, pid, 'warCommand') / 10))
     : 0
 
   const commanderModifier = clamp(
-    1 + normalizedStat(bestMartial) * defaultConfig.houseCommanderMartialEffect,
+    1 + normalizedStat(bestWarCommand) * defaultConfig.houseCommanderMartialEffect,
     defaultConfig.minCommanderModifier,
     defaultConfig.maxCommanderModifier,
   )
@@ -894,14 +896,77 @@ function PersonDetail({
         </div>
       </div>
 
+      <div className="text-sm font-semibold text-gray-300">Abilities (ability / aptitude):</div>
+      <div className="text-sm">
+        {(
+          [
+            ['武勇 Valor', 'valor'],
+            ['統率 Command', 'command'],
+            ['数理 Numeracy', 'numeracy'],
+            ['学識 Learning', 'learning'],
+            ['魅力 Charisma', 'charisma'],
+            ['洞察 Insight', 'insight'],
+          ] as const
+        ).map(([label, key]) => {
+          const curve = ABILITY_AGE_CURVES[key]
+          const curveIcon = curve === 'youthPeak' ? '▲' : curve === 'midLifePeak' ? '●' : '↗'
+          const curveColor =
+            curve === 'youthPeak'
+              ? 'text-yellow-400'
+              : curve === 'midLifePeak'
+                ? 'text-orange-400'
+                : 'text-green-400'
+          const abilityPct = (person.abilities[key] / 120) * 100
+          const aptitudePct = (person.aptitudes[key] / 120) * 100
+          return (
+            <div key={key} className="mb-0.5">
+              <div className="flex justify-between">
+                <span className="text-gray-400">
+                  <span className={`mr-1 text-xs ${curveColor}`}>{curveIcon}</span>
+                  {label}:
+                </span>
+                <span>
+                  <span className="text-gray-100">{person.abilities[key]}</span>
+                  <span className="text-gray-500"> / </span>
+                  <span className="text-gray-400">{person.aptitudes[key]}</span>
+                </span>
+              </div>
+              <div className="relative h-1 w-full rounded bg-gray-600">
+                <div
+                  className="absolute h-1 rounded bg-gray-400"
+                  style={{ width: `${aptitudePct}%` }}
+                />
+                <div
+                  className="absolute h-1 rounded bg-blue-400"
+                  style={{ width: `${abilityPct}%` }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="text-sm font-semibold text-gray-300">Derived Scores:</div>
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Admin:</span>
-          <span>{person.stats.admin}</span>
+          <span className="text-gray-400">Governance:</span>
+          <span>{Math.round((getRoleScore(worldState, person.id, 'governance') / 10) * 10)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Martial:</span>
-          <span>{person.stats.martial}</span>
+          <span className="text-gray-400">Stewardship:</span>
+          <span>{Math.round((getRoleScore(worldState, person.id, 'stewardship') / 10) * 10)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Diplomacy:</span>
+          <span>{Math.round((getRoleScore(worldState, person.id, 'diplomacy') / 10) * 10)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Intrigue:</span>
+          <span>{Math.round((getRoleScore(worldState, person.id, 'intrigue') / 10) * 10)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">WarCommand:</span>
+          <span>{Math.round((getRoleScore(worldState, person.id, 'warCommand') / 10) * 10)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Prestige:</span>

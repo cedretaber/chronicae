@@ -5,6 +5,15 @@ import type { Person } from '../types/person'
 import { defaultConfig } from '../config/defaultConfig'
 import { runMortalitySystem } from './mortalitySystem'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makePerson(id: PersonId, age: number, alive: boolean): Person {
   return {
     id,
@@ -16,7 +25,8 @@ function makePerson(id: PersonId, age: number, alive: boolean): Person {
     countryId: 'c-0' as CountryId,
     childIds: [],
     birthStatus: 'unknown',
-    stats: { admin: 5, martial: 5 },
+    abilities: DEFAULT_ABILITIES,
+    aptitudes: DEFAULT_ABILITIES,
     traits: { ambition: 0.5, caution: 0.5 },
     legacyPrestige: 10,
     wealth: 0,
@@ -74,6 +84,8 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
     config: defaultConfig,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
     nextCountryIndex: 0,
@@ -181,6 +193,8 @@ describe('runMortalitySystem', () => {
         nextPersonIndex: 0,
         nextHouseIndex: 0,
         nextCountryIndex: 0,
+        deathsThisTick: [],
+        deathRolesThisTick: {},
       } as unknown as TickContext
 
       const result = runMortalitySystem(ctx)
@@ -300,6 +314,8 @@ describe('runMortalitySystem', () => {
         nextPersonIndex: 0,
         nextHouseIndex: 0,
         nextCountryIndex: 0,
+        deathsThisTick: [],
+        deathRolesThisTick: {},
       } as unknown as TickContext
 
       const result = runMortalitySystem(ctx)

@@ -3,6 +3,7 @@ import type { PersonId, CountryId } from '../types/ids'
 import type { OfficeRole } from '../types/office'
 import type { EventReason, EventEffect } from '../types/event'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
+import { getRoleScore } from '../selectors/abilitySelectors'
 
 export function explainAppointment(
   state: WorldState,
@@ -26,14 +27,30 @@ export function explainAppointment(
 
   switch (role) {
     case 'administrator': {
-      const adminContribution = person.stats.admin * 8
+      const adminContribution = (getRoleScore(state, personId, 'governance') / 10) * 8
       if (adminContribution > 0) {
         reasons.push({
           label: 'Admin skill',
-          value: person.stats.admin,
+          value: getRoleScore(state, personId, 'governance') / 10,
           contribution: adminContribution,
         })
       }
+
+      reasons.push({
+        label: 'Numeracy',
+        value: person.abilities.numeracy,
+        contribution: 0,
+      })
+      reasons.push({
+        label: 'Learning',
+        value: person.abilities.learning,
+        contribution: 0,
+      })
+      reasons.push({
+        label: 'Charisma',
+        value: person.abilities.charisma,
+        contribution: 0,
+      })
 
       const loyaltyContribution = personCountryLoyalty * 20
       if (loyaltyContribution > 0) {
@@ -66,14 +83,25 @@ export function explainAppointment(
     }
 
     case 'military': {
-      const martialContribution = person.stats.martial * 8
+      const martialContribution = (getRoleScore(state, personId, 'warCommand') / 10) * 8
       if (martialContribution > 0) {
         reasons.push({
           label: 'Martial skill',
-          value: person.stats.martial,
+          value: getRoleScore(state, personId, 'warCommand') / 10,
           contribution: martialContribution,
         })
       }
+
+      reasons.push({
+        label: 'Command',
+        value: person.abilities.command,
+        contribution: 0,
+      })
+      reasons.push({
+        label: 'Valor',
+        value: person.abilities.valor,
+        contribution: 0,
+      })
 
       const prestigeContribution = person.legacyPrestige * 0.3
       if (prestigeContribution > 0) {
@@ -97,11 +125,11 @@ export function explainAppointment(
     }
 
     case 'treasurer': {
-      const adminContribution = person.stats.admin * 7
+      const adminContribution = (getRoleScore(state, personId, 'governance') / 10) * 7
       if (adminContribution > 0) {
         reasons.push({
           label: 'Admin skill',
-          value: person.stats.admin,
+          value: getRoleScore(state, personId, 'governance') / 10,
           contribution: adminContribution,
         })
       }

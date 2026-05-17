@@ -75,6 +75,8 @@ function makeCtx(world: WorldState): TickContext {
     config: defaultConfig,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
     nextCountryIndex: 0,

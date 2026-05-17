@@ -6,6 +6,15 @@ import { createTickContext, makeEventId, makePersonId, toResult } from './contex
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
   const persons: Record<PersonId, Person> = {}
   for (const id of personIds) {
@@ -19,7 +28,8 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
       countryId: 'c-0' as CountryId,
       childIds: [],
       birthStatus: 'unknown',
-      stats: { admin: 5, martial: 5 },
+      abilities: DEFAULT_ABILITIES,
+      aptitudes: DEFAULT_ABILITIES,
       traits: { ambition: 0.5, caution: 0.5 },
       legacyPrestige: 10,
       wealth: 0,

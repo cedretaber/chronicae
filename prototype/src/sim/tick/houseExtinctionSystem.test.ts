@@ -6,6 +6,15 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makePerson(
   id: PersonId,
   name: string,
@@ -13,8 +22,6 @@ function makePerson(
   alive: boolean,
   houseId: HouseId,
   countryId: CountryId,
-  admin: number,
-  martial: number,
   ambition: number,
   legacyPrestige: number,
   sex: Person['sex'] = 'male',
@@ -30,7 +37,8 @@ function makePerson(
     countryId,
     childIds: [],
     birthStatus,
-    stats: { admin, martial },
+    abilities: DEFAULT_ABILITIES,
+    aptitudes: DEFAULT_ABILITIES,
     traits: { ambition, caution: 0.5 },
     legacyPrestige,
     wealth: 0,
@@ -54,8 +62,6 @@ function makeNormalExtinctionCtx(): TickContext {
     false,
     houseId,
     countryId,
-    5,
-    5,
     0.5,
     30,
   )
@@ -68,8 +74,6 @@ function makeNormalExtinctionCtx(): TickContext {
     true,
     rulerHouseId,
     countryId,
-    5,
-    5,
     0.5,
     30,
   )
@@ -163,6 +167,8 @@ function makeNormalExtinctionCtx(): TickContext {
     config: defaultConfig,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: 11,
     nextHouseIndex: 0,
     nextCountryIndex: 0,
@@ -239,8 +245,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
         false,
         houseId,
         countryId,
-        5,
-        5,
         0.5,
         30,
       )
@@ -251,8 +255,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
         true,
         candidateHouseId,
         countryId,
-        5,
-        5,
         0.5,
         40,
       )
@@ -361,6 +363,8 @@ describe('extinctHouseAfterFailedSuccession', () => {
         config: defaultConfig,
         events: [],
         nextEventIndex: 0,
+        deathsThisTick: [],
+        deathRolesThisTick: {},
         nextPersonIndex: 2,
         nextHouseIndex: 0,
         nextCountryIndex: 0,

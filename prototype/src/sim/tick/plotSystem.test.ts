@@ -15,6 +15,15 @@ import { createTickContext, toResult } from './context'
 import { runPlotSystem } from './plotSystem'
 import type { SimEvent } from '../types/event'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makeBaseState(): {
   state: WorldState
   countryId: CountryId
@@ -66,7 +75,8 @@ function makeBaseState(): {
         countryId,
         childIds: [],
         birthStatus: 'unknown',
-        stats: { admin: 5, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 50,
         wealth: 0,

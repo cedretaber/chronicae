@@ -30,6 +30,8 @@ import { runGovernanceSystem } from './governanceSystem'
 import { runIntegritySystem } from './integritySystem'
 import { runPopSystem, normalizePopSizes } from './popSystem'
 import { runPopDevelopmentSystem } from './popDevelopmentSystem'
+import { runPersonGrowthSystem } from './personGrowthSystem'
+import { runEstateSettlementSystem } from './estateSettlementSystem'
 import { createLogger } from '../debug/logger'
 
 export function tick(input: TickInput): TickResult {
@@ -56,12 +58,14 @@ export function tick(input: TickInput): TickResult {
   run('economySystem', runEconomySystem)
   run('disasterSystem', runDisasterSystem)
   run('mortalitySystem', runMortalitySystem)
+  run('estateSettlementSystem', runEstateSettlementSystem)
   run('successionSystem', runSuccessionSystem)
   run('marriageSystem', runMarriageSystem)
   run('birthSystem', runBirthSystem)
   run('shareUpdateSystem', runShareUpdateSystem)
   run('appointmentSystem', runAppointmentSystem)
   run('officeCompensationSystem', runOfficeCompensationSystem)
+  run('personGrowthSystem', runPersonGrowthSystem)
   run('ambitionSystem', runAmbitionSystem)
   run('publicSpendingSystem', runPublicSpendingSystem)
   run('houseDevelopmentSystem', runHouseDevelopmentSystem)

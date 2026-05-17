@@ -15,6 +15,15 @@ import { runAppointmentSystem } from './appointmentSystem'
 import type { SimEvent } from '../types/event'
 import type { OfficeRole } from '../types/office'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makeBaseState(): {
   state: WorldState
   countryId: CountryId
@@ -82,7 +91,8 @@ function makeBaseState(): {
         countryId,
         childIds: [],
         birthStatus: 'unknown',
-        stats: { admin: 7, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.3, caution: 0.5 },
         legacyPrestige: 30,
         wealth: 0,
@@ -98,7 +108,8 @@ function makeBaseState(): {
         countryId,
         childIds: [],
         birthStatus: 'unknown',
-        stats: { admin: 9, martial: 6 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.2, caution: 0.6 },
         legacyPrestige: 40,
         wealth: 0,
@@ -415,7 +426,8 @@ describe('runAppointmentSystem', () => {
         ...base.state.persons,
         [base.personRulerId]: {
           ...base.state.persons[base.personRulerId]!,
-          stats: { admin: 10, martial: 5 },
+          abilities: DEFAULT_ABILITIES,
+          aptitudes: DEFAULT_ABILITIES,
         },
       },
     }

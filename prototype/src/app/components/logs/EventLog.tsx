@@ -62,6 +62,8 @@ const EVENT_ICON: Partial<Record<EventType, string>> = {
   OFFICE_SALARY_UNPAID: '💸',
   OFFICE_SALARY_PARTIALLY_PAID: '💸',
   SHARE_SHIFTED: '⚖',
+  ESTATE_SETTLED: '⚱',
+  ESTATE_DISPUTED: '⚖',
 }
 
 function getEventIcon(type: EventType): string {

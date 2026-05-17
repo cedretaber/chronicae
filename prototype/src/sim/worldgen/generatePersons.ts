@@ -5,6 +5,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import { createPersonId } from '../types/ids'
 import { randomFloat, randomInt } from '../rng/rng'
 import { pickNameBySex } from './nameGenerators'
+import { samplePerson } from '../helpers/personFactory'
 
 export function generatePersons(
   houseProvinces: Map<HouseId, ProvinceId[]>,
@@ -126,197 +127,141 @@ export function generatePersons(
     const relativeId = createPersonId('pe', globalIndex)
     globalIndex++
 
-    const oldFather: Person = {
+    const { value: oldFatherAmbition, rng: rngOFA } = randomFloat(rng)
+    const { value: oldFatherCaution, rng: rngOFC } = randomFloat(rngOFA)
+    const { value: oldFather, rng: rngOF } = samplePerson(rngOFC, config, {
       id: oldFatherId,
       name: oldFatherName,
       sex: 'male',
       age: oldFatherAge,
-      alive: true,
       houseId,
       countryId,
-      childIds: [],
-      birthStatus: 'unknown' as const,
-      stats: {
-        admin: 0,
-        martial: 0,
-      },
-      traits: {
-        ambition: 0,
-        caution: 0,
-      },
+      birthStatus: 'unknown',
+      traits: { ambition: oldFatherAmbition, caution: oldFatherCaution },
       legacyPrestige: oldFatherLegacyPrestige,
       wealth: oldFatherWealth,
-      attitudes: {},
-    }
+    })
+    rng = rngOF
 
-    const oldMother: Person = {
+    const { value: oldMotherAmbition, rng: rngOMA } = randomFloat(rng)
+    const { value: oldMotherCaution, rng: rngOMC } = randomFloat(rngOMA)
+    const { value: oldMother, rng: rngOM } = samplePerson(rngOMC, config, {
       id: oldMotherId,
       name: oldMotherName,
       sex: 'female',
       age: oldMotherAge,
-      alive: true,
       houseId,
       countryId,
-      childIds: [],
-      birthStatus: 'unknown' as const,
-      stats: {
-        admin: 0,
-        martial: 0,
-      },
-      traits: {
-        ambition: 0,
-        caution: 0,
-      },
+      birthStatus: 'unknown',
+      traits: { ambition: oldMotherAmbition, caution: oldMotherCaution },
       legacyPrestige: oldMotherLegacyPrestige,
       wealth: oldMotherWealth,
-      attitudes: {},
-    }
+    })
+    rng = rngOM
 
-    const head: Person = {
+    const { value: headAmbition, rng: rngHA } = randomFloat(rng)
+    const { value: headCaution, rng: rngHC } = randomFloat(rngHA)
+    const { value: head, rng: rngH } = samplePerson(rngHC, config, {
       id: headId,
       name: headName,
-      sex: 'male' as const,
+      sex: 'male',
       age: headAge,
-      alive: true,
       houseId,
       countryId,
+      birthStatus: 'unknown',
+      traits: { ambition: headAmbition, caution: headCaution },
       fatherId: oldFatherId,
       motherId: oldMotherId,
-      childIds: [],
-      birthStatus: 'unknown' as const,
-      stats: {
-        admin: 0,
-        martial: 0,
-      },
-      traits: {
-        ambition: 0,
-        caution: 0,
-      },
       legacyPrestige: headLegacyPrestige,
       wealth: headWealth,
-      attitudes: {},
-    }
+    })
+    rng = rngH
 
-    const sibling: Person = {
+    const { value: siblingAmbition, rng: rngSA } = randomFloat(rng)
+    const { value: siblingCaution, rng: rngSC } = randomFloat(rngSA)
+    const { value: sibling, rng: rngS } = samplePerson(rngSC, config, {
       id: siblingId,
       name: siblingName,
       sex: siblingSexVal,
       age: siblingAge,
-      alive: true,
       houseId,
       countryId,
+      birthStatus: 'unknown',
+      traits: { ambition: siblingAmbition, caution: siblingCaution },
       fatherId: oldFatherId,
       motherId: oldMotherId,
-      childIds: [],
-      birthStatus: 'unknown' as const,
-      stats: {
-        admin: 0,
-        martial: 0,
-      },
-      traits: {
-        ambition: 0,
-        caution: 0,
-      },
       legacyPrestige: siblingLegacyPrestige,
       wealth: siblingWealth,
-      attitudes: {},
-    }
+    })
+    rng = rngS
 
-    const spouse: Person = {
+    const { value: spouseAmbition, rng: rngSpA } = randomFloat(rng)
+    const { value: spouseCaution, rng: rngSpC } = randomFloat(rngSpA)
+    const { value: spouse, rng: rngSp } = samplePerson(rngSpC, config, {
       id: spouseId,
       name: spouseName,
-      sex: 'female' as const,
+      sex: 'female',
       age: spouseAge,
-      alive: true,
       houseId,
       countryId,
-      childIds: [],
-      birthStatus: 'unknown' as const,
-      stats: {
-        admin: 0,
-        martial: 0,
-      },
-      traits: {
-        ambition: 0,
-        caution: 0,
-      },
+      birthStatus: 'unknown',
+      traits: { ambition: spouseAmbition, caution: spouseCaution },
       legacyPrestige: spouseLegacyPrestige,
       wealth: spouseWealth,
-      attitudes: {},
-    }
+    })
+    rng = rngSp
 
-    const child1: Person = {
+    const { value: child1Ambition, rng: rngC1A } = randomFloat(rng)
+    const { value: child1Caution, rng: rngC1C } = randomFloat(rngC1A)
+    const { value: child1, rng: rngCh1 } = samplePerson(rngC1C, config, {
       id: child1Id,
       name: child1Name,
       sex: child1SexVal,
       age: child1Age,
-      alive: true,
       houseId,
       countryId,
+      birthStatus: 'legitimate',
+      traits: { ambition: child1Ambition, caution: child1Caution },
       fatherId: headId,
       motherId: spouseId,
-      childIds: [],
-      birthStatus: 'legitimate' as const,
-      stats: {
-        admin: 0,
-        martial: 0,
-      },
-      traits: {
-        ambition: 0,
-        caution: 0,
-      },
       legacyPrestige: child1LegacyPrestige,
       wealth: child1Wealth,
-      attitudes: {},
-    }
+    })
+    rng = rngCh1
 
-    const child2: Person = {
+    const { value: child2Ambition, rng: rngC2A } = randomFloat(rng)
+    const { value: child2Caution, rng: rngC2C } = randomFloat(rngC2A)
+    const { value: child2, rng: rngCh2 } = samplePerson(rngC2C, config, {
       id: child2Id,
       name: child2Name,
       sex: child2SexVal,
       age: child2Age,
-      alive: true,
       houseId,
       countryId,
+      birthStatus: 'legitimate',
+      traits: { ambition: child2Ambition, caution: child2Caution },
       fatherId: headId,
       motherId: spouseId,
-      childIds: [],
-      birthStatus: 'legitimate' as const,
-      stats: {
-        admin: 0,
-        martial: 0,
-      },
-      traits: {
-        ambition: 0,
-        caution: 0,
-      },
       legacyPrestige: child2LegacyPrestige,
       wealth: child2Wealth,
-      attitudes: {},
-    }
+    })
+    rng = rngCh2
 
-    const relative: Person = {
+    const { value: relativeAmbition, rng: rngRA } = randomFloat(rng)
+    const { value: relativeCaution, rng: rngRC } = randomFloat(rngRA)
+    const { value: relative, rng: rngR } = samplePerson(rngRC, config, {
       id: relativeId,
       name: relativeName,
       sex: relativeSexVal,
       age: relativeAge,
-      alive: true,
       houseId,
       countryId,
-      childIds: [],
-      birthStatus: 'unknown' as const,
-      stats: {
-        admin: 0,
-        martial: 0,
-      },
-      traits: {
-        ambition: 0,
-        caution: 0,
-      },
+      birthStatus: 'unknown',
+      traits: { ambition: relativeAmbition, caution: relativeCaution },
       legacyPrestige: relativeLegacyPrestige,
       wealth: relativeWealth,
-      attitudes: {},
-    }
+    })
+    rng = rngR
 
     const housePersons = [oldFather, oldMother, head, sibling, spouse, child1, child2, relative]
     if (

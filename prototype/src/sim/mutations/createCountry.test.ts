@@ -4,6 +4,15 @@ import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { createCountryFromHouse } from './countryMutations'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makeFixture(): {
   state: WorldState
   country1Id: CountryId
@@ -81,7 +90,8 @@ function makeFixture(): {
         countryId: country1Id,
         childIds: [],
         birthStatus: 'unknown',
-        stats: { admin: 5, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 50,
         wealth: 0,

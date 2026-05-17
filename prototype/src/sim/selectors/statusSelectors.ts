@@ -289,14 +289,12 @@ export function getCountryAdminPower(
   const efficiency = getAdministrativeEfficiency(state, config, countryId)
 
   const rulerContrib =
-    getEffectiveOfficeStat(state, config, countryRef, 'leader', 'admin') *
-    config.rulerAdminCapacityFactor
+    getEffectiveOfficeStat(state, config, countryRef, 'leader') * config.rulerAdminCapacityFactor
   const adminContrib =
-    getEffectiveOfficeStat(state, config, countryRef, 'administrator', 'admin') *
+    getEffectiveOfficeStat(state, config, countryRef, 'administrator') *
     config.administratorCapacityFactor
   const treasurerContrib =
-    getEffectiveOfficeStat(state, config, countryRef, 'treasurer', 'admin') *
-    config.treasurerCapacityFactor
+    getEffectiveOfficeStat(state, config, countryRef, 'treasurer') * config.treasurerCapacityFactor
 
   return clamp100(
     (rulerContrib + adminContrib + treasurerContrib) * efficiency * 0.5 +

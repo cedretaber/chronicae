@@ -46,6 +46,13 @@ export function chooseOne<T>(rng: RngState, items: readonly T[]): RngResult<T> {
   return { value, rng: indexRng }
 }
 
+export function randomGaussian(rng: RngState, mean: number, stddev: number): RngResult<number> {
+  const { value: u1, rng: rng1 } = randomFloat(rng)
+  const { value: u2, rng: rng2 } = randomFloat(rng1)
+  const z = Math.sqrt(-2 * Math.log(Math.max(u1, 1e-10))) * Math.cos(2 * Math.PI * u2)
+  return { value: mean + stddev * z, rng: rng2 }
+}
+
 export function shuffle<T>(rng: RngState, items: readonly T[]): RngResult<T[]> {
   const array = [...items]
   for (let i = array.length - 1; i > 0; i--) {

@@ -14,6 +14,15 @@ import {
   type SuccessionCandidate,
 } from './successionSelectors'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makePerson(overrides: Partial<Person> = {}): Person {
   const id = overrides.id ?? createPersonId('pe', 0)
   const houseId = overrides.houseId ?? createHouseId('h', 0)
@@ -27,7 +36,8 @@ function makePerson(overrides: Partial<Person> = {}): Person {
     countryId: createCountryId('c', 0),
     childIds: [],
     birthStatus: 'unknown',
-    stats: { admin: 5, martial: 5 },
+    abilities: DEFAULT_ABILITIES,
+    aptitudes: DEFAULT_ABILITIES,
     traits: { ambition: 0.5, caution: 0.5 },
     legacyPrestige: 50,
     wealth: 0,

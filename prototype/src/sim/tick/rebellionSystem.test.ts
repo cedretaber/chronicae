@@ -8,6 +8,15 @@ import { createTickContext, toResult } from './context'
 import { runRebellionSystem } from './rebellionSystem'
 import type { SimEvent } from '../types/event'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makeBaseState(): {
   state: WorldState
   countryId: CountryId
@@ -82,7 +91,8 @@ function makeBaseState(): {
         countryId,
         childIds: [],
         birthStatus: 'unknown',
-        stats: { admin: 5, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 50,
         wealth: 0,
@@ -98,7 +108,8 @@ function makeBaseState(): {
         countryId,
         childIds: [],
         birthStatus: 'unknown',
-        stats: { admin: 5, martial: 5 },
+        abilities: DEFAULT_ABILITIES,
+        aptitudes: DEFAULT_ABILITIES,
         traits: { ambition: 0.5, caution: 0.5 },
         legacyPrestige: 50,
         wealth: 0,
@@ -333,7 +344,8 @@ describe('runRebellionSystem', () => {
           countryId,
           childIds: [],
           birthStatus: 'unknown',
-          stats: { admin: 1, martial: 1 },
+          abilities: DEFAULT_ABILITIES,
+          aptitudes: DEFAULT_ABILITIES,
           traits: { ambition: 0.1, caution: 0.5 },
           legacyPrestige: 10,
           wealth: 0,
@@ -349,7 +361,8 @@ describe('runRebellionSystem', () => {
           countryId,
           childIds: [],
           birthStatus: 'unknown',
-          stats: { admin: 5, martial: 10 },
+          abilities: DEFAULT_ABILITIES,
+          aptitudes: DEFAULT_ABILITIES,
           traits: { ambition: 1.0, caution: 0 },
           legacyPrestige: 100,
           wealth: 0,

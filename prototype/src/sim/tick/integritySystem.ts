@@ -3,6 +3,7 @@ import type { CountryId, HouseId } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
+import { ABILITY_KEYS, ABILITY_HARD_CAP } from '../constants/abilityConstants'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 
@@ -188,6 +189,46 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
           message: `House ${houseId} has non-existent member ${memberId}`,
         })
       }
+    }
+  }
+
+  // 10. ability <= aptitude and both in [0, ABILITY_HARD_CAP]
+  for (const personId of Object.keys(state.persons)) {
+    const person = state.persons[personId as import('../types/ids').PersonId]
+    if (!person) continue
+    for (const k of ABILITY_KEYS) {
+      const ability = person.abilities[k]
+      const aptitude = person.aptitudes[k]
+      if (ability < 0 || ability > ABILITY_HARD_CAP) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Person ${personId} ability.${k}=${ability} is outside [0, ${ABILITY_HARD_CAP}]`,
+        })
+      }
+      if (aptitude < 0 || aptitude > ABILITY_HARD_CAP) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Person ${personId} aptitude.${k}=${aptitude} is outside [0, ${ABILITY_HARD_CAP}]`,
+        })
+      }
+      if (ability > aptitude) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Person ${personId} ability.${k}=${ability} exceeds aptitude.${k}=${aptitude}`,
+        })
+      }
+    }
+  }
+
+  // 11. Dead person must have wealth === 0 (estate settled)
+  for (const personId of Object.keys(state.persons)) {
+    const person = state.persons[personId as import('../types/ids').PersonId]
+    if (!person) continue
+    if (!person.alive && person.wealth > 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Dead person ${personId} still has wealth=${person.wealth}`,
+      })
     }
   }
 

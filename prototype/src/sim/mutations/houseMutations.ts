@@ -108,3 +108,19 @@ export function deactivateHouse(
 
   return ok({ ...state, houses: newHouses })
 }
+
+export function addHouseWealth(state: WorldState, houseId: HouseId, delta: number): StateResult {
+  const house = state.houses[houseId]
+  if (!house)
+    return err({
+      code: 'HOUSE_NOT_FOUND',
+      message: 'addHouseWealth: house not found: ' + houseId,
+    })
+  return ok({
+    ...state,
+    houses: {
+      ...state.houses,
+      [houseId]: { ...house, wealth: Math.max(0, house.wealth + delta) },
+    },
+  })
+}

@@ -1,12 +1,14 @@
 import type { TickContext } from '../tick/context'
 import { makePersonId } from '../tick/context'
 import type { PersonId, HouseId } from '../types/ids'
-import type { Person, Sex, BirthStatus } from '../types/person'
+import type { Person, Sex, BirthStatus, AbilityScores } from '../types/person'
 import type { WorldState } from '../types/world'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
 import { clearSpouse } from './relationshipMutations'
 import { revokeOfficesByHolder } from './officeMutations'
+import { buildPerson } from '../helpers/personFactory'
+import { sampleAbilitiesFromAptitudes } from '../selectors/abilitySelectors'
 
 export type BirthChildInput = {
   fatherId: PersonId
@@ -14,7 +16,7 @@ export type BirthChildInput = {
   birthStatus: BirthStatus
   name: string
   sex: Sex
-  stats: { admin: number; martial: number }
+  aptitudes: AbilityScores
   traits: { ambition: number; caution: number }
 }
 
@@ -91,6 +93,35 @@ export function movePersonToHouse(
   })
 }
 
+export function addPersonWealth(state: WorldState, personId: PersonId, delta: number): StateResult {
+  const person = state.persons[personId]
+  if (!person)
+    return err({
+      code: 'PERSON_NOT_FOUND',
+      message: 'addPersonWealth: person not found: ' + personId,
+    })
+  return ok({
+    ...state,
+    persons: {
+      ...state.persons,
+      [personId]: { ...person, wealth: Math.max(0, person.wealth + delta) },
+    },
+  })
+}
+
+export function clearPersonWealth(state: WorldState, personId: PersonId): StateResult {
+  const person = state.persons[personId]
+  if (!person)
+    return err({
+      code: 'PERSON_NOT_FOUND',
+      message: 'clearPersonWealth: person not found: ' + personId,
+    })
+  return ok({
+    ...state,
+    persons: { ...state.persons, [personId]: { ...person, wealth: 0 } },
+  })
+}
+
 export function birthChild(
   ctx: TickContext,
   input: BirthChildInput,
@@ -111,26 +142,27 @@ export function birthChild(
 
   const { id: childId, ctx: ctxWithId } = makePersonId(ctx)
 
-  const childBase: Person = {
+  const { value: abilities, rng: rngAfterAbilities } = sampleAbilitiesFromAptitudes(
+    input.aptitudes,
+    0,
+    ctxWithId.rng,
+    ctxWithId.config,
+  )
+
+  const childPerson = buildPerson({
     id: childId,
     name: input.name,
     sex: input.sex,
     age: 0,
-    alive: true,
     houseId: father.houseId,
     countryId: father.countryId,
-    fatherId: input.fatherId,
     birthStatus: input.birthStatus,
-    childIds: [],
-    stats: input.stats,
+    abilities,
+    aptitudes: input.aptitudes,
     traits: input.traits,
-    legacyPrestige: 0,
-    wealth: 0,
-    attitudes: {},
-  }
-  const childPerson: Person = input.motherId
-    ? { ...childBase, motherId: input.motherId }
-    : childBase
+    fatherId: input.fatherId,
+    ...(input.motherId !== undefined ? { motherId: input.motherId } : {}),
+  })
 
   let newPersons: Record<PersonId, Person> = { ...ctxWithId.state.persons, [childId]: childPerson }
 
@@ -162,5 +194,8 @@ export function birthChild(
   }
 
   const newState = { ...ctxWithId.state, persons: newPersons, houses: newHouses }
-  return ok({ ctx: { ...ctxWithId, state: newState }, value: { childId } })
+  return ok({
+    ctx: { ...ctxWithId, rng: rngAfterAbilities, state: newState },
+    value: { childId },
+  })
 }

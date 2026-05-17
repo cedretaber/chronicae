@@ -4,7 +4,7 @@ import { defaultConfig } from '../config/defaultConfig'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { ProvinceId, HouseId, CountryId, PersonId, OfficeAssignmentId } from '../types/ids'
-import type { Person } from '../types/person'
+import type { Person, AbilityScores } from '../types/person'
 import type { OfficeAssignment, OrganizationRef } from '../types/office'
 import { runControlSystem } from './controlSystem'
 import { runEconomySystem } from './economySystem'
@@ -15,7 +15,20 @@ import {
   calcHouseHeadDevelopmentChanceBonus,
 } from '../selectors/personAbilityEffects'
 
-function makePerson(admin: number, martial: number, ambition: number, caution: number): Person {
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
+function makeAbilities(overrides: Partial<AbilityScores> = {}): AbilityScores {
+  return { ...DEFAULT_ABILITIES, ...overrides }
+}
+
+function makePerson(ambition: number, caution: number): Person {
   return {
     id: 'pe-0' as PersonId,
     name: 'TestPerson',
@@ -26,7 +39,8 @@ function makePerson(admin: number, martial: number, ambition: number, caution: n
     countryId: 'c-0' as CountryId,
     childIds: [],
     birthStatus: 'unknown',
-    stats: { admin, martial },
+    abilities: DEFAULT_ABILITIES,
+    aptitudes: DEFAULT_ABILITIES,
     traits: { ambition, caution },
     legacyPrestige: 50,
     wealth: 0,
@@ -52,11 +66,12 @@ function makeOfficeAssignment(
 }
 
 function makeWorldState(
-  person: Person,
-  officeAssignments: Record<string, PersonId>,
+  personOverrides: Partial<Person> = {},
+  officeAssignments: Record<string, PersonId> = {},
   treasury: number = 100,
   houseWealth: number = 100,
 ): WorldState {
+  const person = { ...makePerson(0.5, 0.5), ...personOverrides }
   const provinceId = 'p-0' as ProvinceId
   const houseId = 'h-0' as HouseId
   const countryId = 'c-0' as CountryId
@@ -175,6 +190,8 @@ function makeCtx(world: WorldState): TickContext {
     config: defaultConfig,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
     nextCountryIndex: 0,
@@ -183,12 +200,15 @@ function makeCtx(world: WorldState): TickContext {
 
 describe('runControlSystem — countryControl growth', () => {
   it('admin=10 chancellor grows countryControl faster than admin=5', () => {
-    const highAdminPerson = makePerson(10, 5, 0.5, 0.5)
-    const highAdminState = makeWorldState(highAdminPerson, { administrator: highAdminPerson.id })
+    const highAdminPerson = makePerson(0.5, 0.5)
+    const highAdminState = makeWorldState(
+      { abilities: makeAbilities({ numeracy: 100 }), aptitudes: makeAbilities({ numeracy: 100 }) },
+      { administrator: highAdminPerson.id },
+    )
     const highAdminCtx = makeCtx(highAdminState)
     const highAdminResult = runControlSystem(highAdminCtx)
 
-    const neutralPerson = makePerson(5, 5, 0.5, 0.5)
+    const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { administrator: neutralPerson.id })
     const neutralCtx = makeCtx(neutralState)
     const neutralResult = runControlSystem(neutralCtx)
@@ -200,13 +220,16 @@ describe('runControlSystem — countryControl growth', () => {
   })
 
   it('admin=5 chancellor grows countryControl faster than admin=0', () => {
-    const neutralPerson = makePerson(5, 5, 0.5, 0.5)
+    const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { administrator: neutralPerson.id })
     const neutralCtx = makeCtx(neutralState)
     const neutralResult = runControlSystem(neutralCtx)
 
-    const lowAdminPerson = makePerson(0, 5, 0.5, 0.5)
-    const lowAdminState = makeWorldState(lowAdminPerson, { administrator: lowAdminPerson.id })
+    const lowAdminPerson = makePerson(0.5, 0.5)
+    const lowAdminState = makeWorldState(
+      { abilities: makeAbilities({ numeracy: 0 }), aptitudes: makeAbilities({ numeracy: 0 }) },
+      { administrator: lowAdminPerson.id },
+    )
     const lowAdminCtx = makeCtx(lowAdminState)
     const lowAdminResult = runControlSystem(lowAdminCtx)
 
@@ -216,21 +239,26 @@ describe('runControlSystem — countryControl growth', () => {
     expect(neutralProv.countryControl).toBeGreaterThan(lowAdminProv.countryControl)
   })
 
-  it('expected values: admin=10 → 52.5, admin=5 → 52.0, admin=0 → 51.5', () => {
-    const admin10Person = makePerson(10, 5, 0.5, 0.5)
-    const admin10State = makeWorldState(admin10Person, { administrator: admin10Person.id })
+  it('expected values: governance=100 → 52.5, governance=50 → 52.0, governance=0 → 51.5', () => {
+    const govMax = makeAbilities({ numeracy: 100, learning: 100, charisma: 100, insight: 100 })
+    const admin10State = makeWorldState(
+      { abilities: govMax, aptitudes: govMax },
+      { administrator: 'pe-0' as PersonId },
+    )
     const admin10Result = runControlSystem(makeCtx(admin10State))
     const admin10Prov = admin10Result.state.provinces['p-0' as ProvinceId]!
     expect(admin10Prov.countryControl).toBeCloseTo(52.5, 5)
 
-    const admin5Person = makePerson(5, 5, 0.5, 0.5)
-    const admin5State = makeWorldState(admin5Person, { administrator: admin5Person.id })
+    const admin5State = makeWorldState({}, { administrator: 'pe-0' as PersonId })
     const admin5Result = runControlSystem(makeCtx(admin5State))
     const admin5Prov = admin5Result.state.provinces['p-0' as ProvinceId]!
     expect(admin5Prov.countryControl).toBeCloseTo(52.0, 5)
 
-    const admin0Person = makePerson(0, 5, 0.5, 0.5)
-    const admin0State = makeWorldState(admin0Person, { administrator: admin0Person.id })
+    const govMin = makeAbilities({ numeracy: 0, learning: 0, charisma: 0, insight: 0 })
+    const admin0State = makeWorldState(
+      { abilities: govMin, aptitudes: govMin },
+      { administrator: 'pe-0' as PersonId },
+    )
     const admin0Result = runControlSystem(makeCtx(admin0State))
     const admin0Prov = admin0Result.state.provinces['p-0' as ProvinceId]!
     expect(admin0Prov.countryControl).toBeCloseTo(51.5, 5)
@@ -239,7 +267,7 @@ describe('runControlSystem — countryControl growth', () => {
 
 describe('runControlSystem — capital province maxControl', () => {
   it('capital province at 100 stays at 100 regardless of chancellor admin', () => {
-    const admin0Person = makePerson(0, 5, 0.5, 0.5)
+    const admin0Person = makePerson(0.5, 0.5)
     const provinceId = 'p-0' as ProvinceId
     const houseId = 'h-0' as HouseId
     const countryId = 'c-0' as CountryId
@@ -322,12 +350,12 @@ describe('runControlSystem — capital province maxControl', () => {
 // TODO Phase 3: re-enable when EconomySystem is updated to POP-based production
 describe.skip('runEconomySystem — treasurer tax efficiency', () => {
   it('treasurer admin=10 produces higher treasury than admin=5', () => {
-    const highAdminPerson = makePerson(10, 5, 0.5, 1.0)
+    const highAdminPerson = makePerson(0.5, 1.0)
     const highAdminState = makeWorldState(highAdminPerson, { treasurer: highAdminPerson.id })
     const highAdminResult = runEconomySystem(makeCtx(highAdminState))
     const highAdminTreasury = highAdminResult.state.countries['c-0' as CountryId]!.treasury
 
-    const neutralPerson = makePerson(5, 5, 0.5, 0.5)
+    const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { treasurer: neutralPerson.id })
     const neutralResult = runEconomySystem(makeCtx(neutralState))
     const neutralTreasury = neutralResult.state.countries['c-0' as CountryId]!.treasury
@@ -336,13 +364,13 @@ describe.skip('runEconomySystem — treasurer tax efficiency', () => {
   })
 
   it('expected treasury values: admin=10 → 103.0, admin=5 → 102.5', () => {
-    const highAdminPerson = makePerson(10, 5, 0.5, 1.0)
+    const highAdminPerson = makePerson(0.5, 1.0)
     const highAdminState = makeWorldState(highAdminPerson, { treasurer: highAdminPerson.id })
     const highAdminResult = runEconomySystem(makeCtx(highAdminState))
     const highAdminTreasury = highAdminResult.state.countries['c-0' as CountryId]!.treasury
     expect(highAdminTreasury).toBeCloseTo(103.0, 5)
 
-    const neutralPerson = makePerson(5, 5, 0.5, 0.5)
+    const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { treasurer: neutralPerson.id })
     const neutralResult = runEconomySystem(makeCtx(neutralState))
     const neutralTreasury = neutralResult.state.countries['c-0' as CountryId]!.treasury
@@ -353,12 +381,12 @@ describe.skip('runEconomySystem — treasurer tax efficiency', () => {
 // TODO Phase 3: re-enable when EconomySystem is updated to POP-based production
 describe.skip('runEconomySystem — houseIncome unaffected by treasurer', () => {
   it('house.wealth is the same regardless of treasurer admin level', () => {
-    const highAdminPerson = makePerson(10, 5, 0.5, 1.0)
+    const highAdminPerson = makePerson(0.5, 1.0)
     const highAdminState = makeWorldState(highAdminPerson, { treasurer: highAdminPerson.id })
     const highAdminResult = runEconomySystem(makeCtx(highAdminState))
     const highAdminWealth = highAdminResult.state.houses['h-0' as HouseId]!.wealth
 
-    const neutralPerson = makePerson(5, 5, 0.5, 0.5)
+    const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { treasurer: neutralPerson.id })
     const neutralResult = runEconomySystem(makeCtx(neutralState))
     const neutralWealth = neutralResult.state.houses['h-0' as HouseId]!.wealth
@@ -367,13 +395,13 @@ describe.skip('runEconomySystem — houseIncome unaffected by treasurer', () => 
   })
 
   it('expected house.wealth: 102.5 for both admin=10 and admin=5', () => {
-    const highAdminPerson = makePerson(10, 5, 0.5, 1.0)
+    const highAdminPerson = makePerson(0.5, 1.0)
     const highAdminState = makeWorldState(highAdminPerson, { treasurer: highAdminPerson.id })
     const highAdminResult = runEconomySystem(makeCtx(highAdminState))
     const highAdminWealth = highAdminResult.state.houses['h-0' as HouseId]!.wealth
     expect(highAdminWealth).toBeCloseTo(102.5, 5)
 
-    const neutralPerson = makePerson(5, 5, 0.5, 0.5)
+    const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { treasurer: neutralPerson.id })
     const neutralResult = runEconomySystem(makeCtx(neutralState))
     const neutralWealth = neutralResult.state.houses['h-0' as HouseId]!.wealth
@@ -383,7 +411,7 @@ describe.skip('runEconomySystem — houseIncome unaffected by treasurer', () => 
 
 describe('calcGeneralDeclareThreshold — integration with defaultConfig', () => {
   it('ambition=1.0 general returns threshold below base 0.45', () => {
-    const ambitionPerson = makePerson(5, 10, 1.0, 0.5)
+    const ambitionPerson = makePerson(1.0, 0.5)
     const state = makeWorldState(ambitionPerson, { military: ambitionPerson.id })
     const threshold = calcGeneralDeclareThreshold(state, 'c-0' as CountryId, defaultConfig)
     expect(threshold).toBe(0.4)
@@ -391,7 +419,7 @@ describe('calcGeneralDeclareThreshold — integration with defaultConfig', () =>
   })
 
   it('caution=1.0 general returns threshold above base 0.45', () => {
-    const cautionPerson = makePerson(5, 10, 0.5, 1.0)
+    const cautionPerson = makePerson(0.5, 1.0)
     const state = makeWorldState(cautionPerson, { military: cautionPerson.id })
     const threshold = calcGeneralDeclareThreshold(state, 'c-0' as CountryId, defaultConfig)
     expect(threshold).toBe(0.5)
@@ -399,7 +427,7 @@ describe('calcGeneralDeclareThreshold — integration with defaultConfig', () =>
   })
 
   it('disabled effects returns base threshold 0.45', () => {
-    const ambitionPerson = makePerson(5, 10, 1.0, 0.5)
+    const ambitionPerson = makePerson(1.0, 0.5)
     const state = makeWorldState(ambitionPerson, { military: ambitionPerson.id })
     const disabledConfig = { ...defaultConfig, personAbilityEffectsEnabled: false }
     const threshold = calcGeneralDeclareThreshold(state, 'c-0' as CountryId, disabledConfig)
@@ -409,7 +437,7 @@ describe('calcGeneralDeclareThreshold — integration with defaultConfig', () =>
 
 describe('runPublicSpendingSystem — chancellor ambition monument preference', () => {
   it('ambition=1.0 chancellor triggers MONUMENT_BUILT event', () => {
-    const ambitionChancellor = makePerson(5, 5, 1.0, 0.0)
+    const ambitionChancellor = makePerson(1.0, 0.0)
     const state = makeWorldState(ambitionChancellor, { administrator: ambitionChancellor.id }, 500)
     const config = { ...defaultConfig, publicSpendingYearlyChance: 1.0 }
     const ctx = { ...makeCtx(state), config }
@@ -420,7 +448,7 @@ describe('runPublicSpendingSystem — chancellor ambition monument preference', 
   })
 
   it('monumentScore exceeds landDevelopmentScore with ambition=1.0 chancellor', () => {
-    const ambitionChancellor = makePerson(5, 5, 1.0, 0.0)
+    const ambitionChancellor = makePerson(1.0, 0.0)
     const state = makeWorldState(ambitionChancellor, { administrator: ambitionChancellor.id }, 500)
     const config = { ...defaultConfig, publicSpendingYearlyChance: 1.0 }
     const ctx = { ...makeCtx(state), config }
@@ -433,7 +461,7 @@ describe('runPublicSpendingSystem — chancellor ambition monument preference', 
   })
 
   it('neutral chancellor produces different outcome than ambition=1.0', () => {
-    const neutralChancellor = makePerson(5, 5, 0.5, 0.5)
+    const neutralChancellor = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(
       neutralChancellor,
       { administrator: neutralChancellor.id },
@@ -443,7 +471,7 @@ describe('runPublicSpendingSystem — chancellor ambition monument preference', 
     const neutralCtx = { ...makeCtx(neutralState), config }
     const neutralResult = runPublicSpendingSystem(neutralCtx)
 
-    const ambitionChancellor = makePerson(5, 5, 1.0, 0.0)
+    const ambitionChancellor = makePerson(1.0, 0.0)
     const ambitionState = makeWorldState(
       ambitionChancellor,
       { administrator: ambitionChancellor.id },
@@ -461,15 +489,18 @@ describe('runPublicSpendingSystem — chancellor ambition monument preference', 
 
 describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
   it('admin=10, caution=1.0 head produces higher abilityChanceBonus than admin=5', () => {
-    const highBonusPerson = makePerson(10, 5, 0.5, 1.0)
-    const highBonusState = makeWorldState(highBonusPerson, {})
+    const govMax = makeAbilities({ numeracy: 100, learning: 100, charisma: 100, insight: 100 })
+    const highBonusState = makeWorldState(
+      { abilities: govMax, aptitudes: govMax, traits: { ambition: 0.5, caution: 1.0 } },
+      {},
+    )
     const highBonusBonus = calcHouseHeadDevelopmentChanceBonus(
       highBonusState,
       highBonusState.houses['h-0' as HouseId]!,
       defaultConfig,
     )
 
-    const neutralPerson = makePerson(5, 5, 0.5, 0.5)
+    const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, {})
     const neutralBonus = calcHouseHeadDevelopmentChanceBonus(
       neutralState,
@@ -481,8 +512,11 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
   })
 
   it('admin=10, caution=1.0 produces abilityChanceBonus of approximately 0.15', () => {
-    const highBonusPerson = makePerson(10, 5, 0.5, 1.0)
-    const highBonusState = makeWorldState(highBonusPerson, {})
+    const govMax = makeAbilities({ numeracy: 100, learning: 100, charisma: 100, insight: 100 })
+    const highBonusState = makeWorldState(
+      { abilities: govMax, aptitudes: govMax, traits: { ambition: 0.5, caution: 1.0 } },
+      {},
+    )
     const bonus = calcHouseHeadDevelopmentChanceBonus(
       highBonusState,
       highBonusState.houses['h-0' as HouseId]!,
@@ -492,7 +526,7 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
   })
 
   it('system emits HOUSE_LAND_DEVELOPED event with high wealth and chance=1.0', () => {
-    const headPerson = makePerson(10, 5, 0.5, 1.0)
+    const headPerson = makePerson(0.5, 1.0)
     const houseId = 'h-0' as HouseId
     const provinceId = 'p-0' as ProvinceId
     const countryId = 'c-0' as CountryId
@@ -564,7 +598,7 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
   })
 
   it('disabled effects produce zero abilityChanceBonus', () => {
-    const highBonusPerson = makePerson(10, 5, 0.5, 1.0)
+    const highBonusPerson = makePerson(0.5, 1.0)
     const highBonusState = makeWorldState(highBonusPerson, {})
     const disabledConfig = { ...defaultConfig, personAbilityEffectsEnabled: false }
     const bonus = calcHouseHeadDevelopmentChanceBonus(

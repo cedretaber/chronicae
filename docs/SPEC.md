@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-17（v0.13 時点）
+最終更新: 2026-05-18（v0.14 時点）
 
 ---
 
@@ -169,6 +169,17 @@ type House = {
 export type Sex = 'male' | 'female'
 export type BirthStatus = 'legitimate' | 'illegitimate' | 'unknown'
 
+export type AbilityScores = {
+  valor: number      // 個人戦闘力・身体能力・士気
+  command: number    // 組織を束ねる・軍指揮の規律
+  numeracy: number   // 数を扱う・計算・財務管理
+  learning: number   // 知識を持つ・法・制度・歴史
+  charisma: number   // 人を惹きつける・容姿・声・説得・社交
+  insight: number    // 人を理解する・他者の動機・派閥力学
+}
+
+export type AbilityKey = keyof AbilityScores
+
 type Person = {
   id: PersonId
   name: string
@@ -182,16 +193,14 @@ type Person = {
   spouseId?: PersonId        // 配偶者（婚姻中のみ）
   childIds: PersonId[]       // 子のリスト
   birthStatus: BirthStatus   // 嫡出・非嫡出・不明
-  stats: {
-    admin: number    // 0..10
-    martial: number  // 0..10
-  }
+  abilities: AbilityScores   // 現在能力 0..120（通常生成は 0..100）
+  aptitudes: AbilityScores   // 才能上限 0..120（通常生成は 0..100）
   traits: {
     ambition: number  // 0.0..1.0
     caution: number   // 0.0..1.0
   }
   legacyPrestige: number    // 0..100（個人の歴史的評価の蓄積）
-  wealth: number            // >= 0（個人資産。v0.12）
+  wealth: number            // >= 0（個人資産。v0.12 / EstateSettlementSystem v0.14 で死亡時分配）
   attitudes: AttitudeMap    // 対 Country / House / Person への態度（v0.11）
 }
 ```
@@ -200,6 +209,11 @@ type Person = {
 - 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §6.24 参照）
 - `prestige` / `traits.loyaltyToCountry` は v0.11 で削除。Attitude から動的計算（§4.5 参照）
 - **v0.12**: `wealth` 追加。OfficeCompensationSystem による給与受け取りで増加（§6.14b 参照）
+- **v0.14**: `stats: { admin, martial }` を廃止し、6 軸の `abilities` / `aptitudes` に置換。
+  - `abilities`: 現在発揮できる能力（経験で aptitude まで成長し、年齢曲線で衰退）
+  - `aptitudes`: 才能上限（原則不変、遺伝で親から子へ平均回帰込みで伝わる）
+  - 応用ロール（governance / stewardship / diplomacy / intrigue / warCommand）は派生 selector `getRoleScore(state, personId, role)` で計算する（§4.7 参照）
+  - 死亡時、`wealth > 0` なら EstateSettlementSystem（§6.7b）が家・相続人へ分配する
 
 ### 3.6 Attitude（態度）
 
@@ -445,6 +459,52 @@ function getAdministrativeLoad(state: WorldState, config: SimulationConfig, coun
 function getAdministrativeEfficiency(state: WorldState, config: SimulationConfig, countryId: CountryId): number
 ```
 
+### 4.7 Ability / 派生 selector（v0.14）
+
+`prototype/src/sim/selectors/abilitySelectors.ts` に集約。
+
+```ts
+export type AppliedRoleKey =
+  | 'governance'
+  | 'stewardship'
+  | 'diplomacy'
+  | 'intrigue'
+  | 'warCommand'
+
+// 応用ロールの基礎能力からの重み付き和を返す（0..120 を保証、ABILITY_HARD_CAP でクランプ）
+function getRoleScore(state: WorldState, personId: PersonId, role: AppliedRoleKey): number
+
+// 能力 k における年齢 age での「自然到達水準」を返す（0..1 の係数）
+// 各能力の AGE_CURVE （lifelongGrowth / youthPeak / midLifePeak）に基づく
+function naturalFraction(k: AbilityKey, age: number, config: SimulationConfig): number
+
+// aptitude（才能上限）を独立ガウス分布でサンプル。値域 [0, ABILITY_GENERATION_MAX=100]
+function sampleAptitudes(rng: RngState, config: SimulationConfig): RngResult<AbilityScores>
+
+// 両親平均と populationMean(=50) を heritability で混合して子の aptitude を生成
+function inheritAptitudes(father: Person, mother: Person, rng: RngState, config: SimulationConfig): RngResult<AbilityScores>
+
+// 年齢曲線に基づき aptitude * naturalFraction(age) を中央値として ability をサンプル
+// 不変条件: ability ≤ aptitude
+function sampleAbilitiesFromAptitudes(aptitudes: AbilityScores, age: number, rng: RngState, config: SimulationConfig): RngResult<AbilityScores>
+
+// 能力 k について、当該 person が「関連経験」を持つか判定（PersonGrowthSystem の effectiveCeiling 切替に使用）
+function hadRelevantExperience(state: WorldState, personId: PersonId, k: AbilityKey): boolean
+```
+
+**ROLE_WEIGHTS（応用ロールの定義）**:
+
+```ts
+governanceScore   = numeracy*0.30 + learning*0.30 + charisma*0.20 + insight*0.20
+stewardshipScore  = numeracy*0.60 + learning*0.20 + insight*0.20
+diplomacyScore    = charisma*0.50 + insight*0.30 + learning*0.20
+intrigueScore     = insight*0.70 + charisma*0.20 + learning*0.10
+warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
+```
+
+* 既存システム（successionSelectors / personAbilityEffects / militarySelectors / officeSelectors / publicSpendingSystem / plotSystem 等）は `getRoleScore(state, p.id, role) / 10` で正規化して旧 admin/martial（0..10）相当のスケールに揃える
+* 通常範囲は 0..10、限界突破帯（v0.15 以降の機構）では最大 12
+
 ---
 
 ## 5. Tick システム順序
@@ -461,12 +521,14 @@ function getAdministrativeEfficiency(state: WorldState, config: SimulationConfig
 | 6 | EconomySystem | 毎月 |
 | 7 | DisasterSystem | 毎年1月 |
 | 8 | MortalitySystem | 毎月 |
+| 8b | **EstateSettlementSystem** (v0.14) | 毎月 |
 | 9 | SuccessionSystem | 毎月 |
 | 10 | MarriageSystem | 毎年1月 |
 | 11 | BirthSystem | 毎年1月 |
 | 12 | **ShareUpdateSystem** | 毎年1月 |
 | 13 | AppointmentSystem | 毎年1月 |
 | 14 | **OfficeCompensationSystem** | 毎年1月 |
+| 14b | **PersonGrowthSystem** (v0.14) | 毎年1月（誕生月以外 no-op） |
 | 15 | AmbitionSystem | 毎月 |
 | 16 | PublicSpendingSystem | 毎年1月 |
 | 17 | HouseDevelopmentSystem | 毎年1月 |
@@ -716,6 +778,45 @@ if (
 
 家長（house:leader）が死亡した場合の後継選出は SuccessionSystem（§6.10）が担当する。
 
+**v0.14**: 死亡者の `wealth` 分配は直後の EstateSettlementSystem（§6.7b）が処理する。MortalitySystem は死者を `TickContext.deathsThisTick` に追記し、`wasHouseLeader` / `wasCountryLeader` の役職情報を `TickContext.deathRolesThisTick` に保存して estate 処理に引き継ぐ（mortalitySystem 内で role を取得しないと markPersonDead が office を revoke するため後段では復元できない）。
+
+### 6.7b EstateSettlementSystem（毎月、v0.14）
+
+`MortalitySystem` 直後・`SuccessionSystem` 前に実行。`deathsThisTick` に含まれる死亡者で `wealth > 0` の者について、家中 Share に応じた家回収率で家・相続人に wealth を分配する。
+
+**家回収率**:
+```
+share = getPersonHouseSharePercent(state, houseId, personId) / 100
+houseRecoveryRate = clamp(
+  estateBaseRecoveryRate - estateShareEffectStrength * share,
+  estateRecoveryRateMin,
+  estateRecoveryRateMax,
+)
+toHouse = floor(wealth * houseRecoveryRate)
+toHeirsPool = wealth - toHouse
+```
+
+* 家中 Share が高い人物ほど家回収率が下がる（子に多く残せる）
+* 家に所属していない人物（v0.14 では稀）は houseRecoveryRate = 0 で全額相続人へ
+
+**相続人決定（`findHeirs`）**: 最初にマッチした集合で確定:
+1. 嫡出子のうち alive な者 全員
+2. 配偶者（alive）
+3. 嫡出兄弟姉妹（同 fatherId / alive / 同 house）
+4. 家長（自分自身が家長だった場合は除外）
+5. なし → wealth は全額家に回収（家もなければ消滅）
+
+相続人は age 降順 + id 昇順 でソート（決定論性保持）。端数は最年長相続人 `heirs[0]` に寄せる。
+
+**Mutation API**: `addPersonWealth`, `clearPersonWealth`, `addHouseWealth`（§12.2 参照）。
+
+**イベント**:
+* `ESTATE_SETTLED` は対象人物ごとに必ず発火
+* 加えて、嫡出子 2 人以上または兄弟相続で 2 人以上の場合は `ESTATE_DISPUTED` を ESTATE_SETTLED と並んで追加発火（v0.14 では記録のみ、後続処理なし）
+* importance: 故人が country leader だった場合 `major`、家長または `wealth ≥ house.wealth * estateSettledNormalWealthRatio` の場合 `normal`、それ以外 `minor`
+
+`deathsThisTick` と `deathRolesThisTick` は次 tick の `advanceTime` で空にリセットされる。
+
 ### 6.8 MarriageSystem（毎年1月）
 
 `marriageEnabled` が true のとき動作。未婚の男性候補を一覧し、それぞれに対して婚姻判定を行う。
@@ -795,7 +896,7 @@ currentCohesion = getHouseCohesion(house)   // Attitude から動的計算（§4
 splitChance = baseHouseSplitChance
             + splitter.ambition        * houseSplitAmbitionFactor
             + splitter.legacyPrestige  * houseSplitPrestigeFactor
-            + splitter.martial         * houseSplitMartialFactor
+            + (getRoleScore(state, splitter.id, 'warCommand') / 10) * houseSplitMartialFactor   // v0.14: 旧 splitter.martial
             - currentCohesion          * houseSplitCohesionFactor
 ```
 
@@ -913,10 +1014,45 @@ newRawPower = houseShareBase
             + houseOfficeCount * houseShareOfficeBonus
             + person.legacyPrestige * houseSharePrestigeFactor
             + person.wealth * houseShareWealthFactor
-            + (admin + martial) * houseShareStatFactor
+            + (governance + warCommand) * houseShareStatFactor
+            // v0.14: 旧 (admin + martial) は getRoleScore(governance + warCommand) / 10 に置換
 ```
 
 **イベント**: `SHARE_SHIFTED`（importance: `minor`）— Share 分布に有意な変化があった場合
+
+### 6.14d PersonGrowthSystem（毎年1月、v0.14）
+
+`OfficeCompensationSystem` の直後・`AmbitionSystem` の前に実行。誕生月（`currentMonth === 1`）以外は no-op で early return。
+
+毎年 1 月に全 alive Person の 6 基礎能力それぞれについて、**成長判定** と **衰退判定** を行う。
+
+**成長判定**:
+```ts
+const naturalCeil    = aptitude[k] * naturalFraction(k, age, config)
+const effectiveCeil  = hadRelevantExperience(state, personId, k) ? aptitude[k] : naturalCeil
+if (ability[k] < effectiveCeil) {
+  const gainChance = abilityGrowthChanceBase * (1 - ability[k] / effectiveCeil)
+  if (rng < gainChance / 100) ability[k] = min(ability[k] + 1, ABILITY_HARD_CAP)
+}
+```
+
+* **経験あり** → `effectiveCeil = aptitude[k]`（能力は aptitude を目指して伸びる）
+* **経験なし** → `effectiveCeil = naturalCeil`（年齢曲線の自然到達水準で頭打ち）
+
+**衰退判定**: `youthPeak` / `midLifePeak` 曲線の能力で、`ability > naturalCeil` の場合に発火。経験あり人物は `abilityActiveDeclineMultiplier`（0.3）で衰退速度が鈍化する。`lifelongGrowth`（numeracy / learning）は衰退しない。
+
+**経験イベント対応表（hadRelevantExperience）**:
+
+| 経験 | 成長対象 |
+|---|---|
+| Country leader 在任 | command, charisma, insight, learning |
+| House leader 在任 | command, charisma, insight |
+| Country administrator (chancellor) 在任 | numeracy, learning, charisma |
+| Country/House treasurer 在任 | numeracy, learning |
+| Country military (general) 在任 | command, learning |
+| House military (marshal) 在任 | command, valor |
+| 戦争 active 期間中（12 ヶ月以内に lastWarMonth）の在国 | valor, command |
+| PlotSystem の active リーダー | insight |
 
 ### 6.15 AmbitionSystem（毎月）
 
@@ -1171,6 +1307,8 @@ adminPower = 0.30*getEffectiveOfficeStat('administrator','admin')*10
 27. House.provinceIds に重複がない（v0.11）
 28. Country.legacyPrestige が 0..100 の範囲内（v0.11）
 29. House.legacyPrestige が 0..100 の範囲内（v0.11）
+30. ability ≤ aptitude かつ両者が `[0, ABILITY_HARD_CAP=120]` の範囲内（v0.14、6 軸すべて）
+31. 死亡者の wealth が 0（EstateSettlementSystem 処理後の整合性、v0.14）
 
 ---
 
@@ -1294,6 +1432,8 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | POP_PROSPERITY | minor | POP の繁栄（将来実装） |
 | POP_UNREST_RISING | normal | Province unrest 上昇警告（将来実装） |
 | POP_DECLINED | normal | Province 人口大幅低下（将来実装） |
+| ESTATE_SETTLED | minor / normal / major | 死亡時の wealth 分配（v0.14。家長 or wealth≥house*20% で normal、country leader で major） |
+| ESTATE_DISPUTED | minor | 複数相続人候補による争い（v0.14、記録のみ、ESTATE_SETTLED と並んで発火） |
 
 POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType 宣言のみ。実際の発火ロジックは v1.0 以降に実装する。
 
@@ -1576,17 +1716,47 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | initialPersonLegacyPrestigeMax | 20 | Person 初期 legacyPrestige の上限 |
 | rulerHouseExtinctionPrestigeLoss | 10 | 支配家断絶時の旧 Country legacyPrestige 低下量 |
 | rulerExtinctionAnnexPrestigeWeight | 0.3 | 支配家断絶・併合時の legacyPrestige 継承重み |
+| abilityAptitudeMean | 50 | v0.14: aptitude ガウス生成の平均 |
+| abilityAptitudeStddev | 15 | v0.14: aptitude ガウス生成の標準偏差 |
+| abilityHeritability | 0.5 | v0.14: 両親平均 vs populationMean のブレンド比率 |
+| abilityAptitudeNoiseStddev | 8 | v0.14: 遺伝時のガウスノイズ標準偏差 |
+| abilityInitialNoiseStddev | 3 | v0.14: ability 初期値サンプル時のガウスノイズ標準偏差 |
+| ageCurveLifelongMaxFraction | 0.70 | v0.14: 終生成長曲線の最大到達比率 |
+| ageCurveLifelongAgeConstant | 30 | v0.14: 終生成長曲線の時定数 |
+| ageCurveYouthMaxFraction | 0.75 | v0.14: 若年期ピーク曲線の最大到達比率 |
+| ageCurveYouthPeakAge | 30 | v0.14: 若年期ピーク曲線のピーク年齢 |
+| ageCurveYouthDeclineConstant | 40 | v0.14: 若年期ピーク曲線のピーク後減衰時定数 |
+| ageCurveMidLifeMaxFraction | 0.70 | v0.14: 壮年期ピーク曲線の最大到達比率 |
+| ageCurveMidLifePeakAge | 45 | v0.14: 壮年期ピーク曲線のピーク年齢 |
+| ageCurveMidLifeDeclineConstant | 60 | v0.14: 壮年期ピーク曲線のピーク後減衰時定数 |
+| abilityGrowthChanceBase | 1.0 | v0.14: 成長判定の基礎確率（%、effectiveCeil との比率で減衰） |
+| abilityDeclineChanceBase | 0.10 | v0.14: 衰退判定の基礎確率（%） |
+| abilityActiveDeclineMultiplier | 0.30 | v0.14: 経験あり人物の衰退速度倍率（鈍化） |
+| estateBaseRecoveryRate | 0.5 | v0.14: 家回収率の基礎値（Share=0 のとき） |
+| estateShareEffectStrength | 0.6 | v0.14: 家中 Share による家回収率引き下げ強度 |
+| estateRecoveryRateMin | 0.2 | v0.14: 家回収率の下限 |
+| estateRecoveryRateMax | 0.9 | v0.14: 家回収率の上限 |
+| estateSettledNormalWealthRatio | 0.2 | v0.14: ESTATE_SETTLED の importance を normal に昇格させる wealth/house.wealth 閾値 |
 
 ---
 
-## 10. 人物能力効果（v0.6）
+## 10. 人物能力効果（v0.6 / v0.14 で派生 selector ベースに刷新）
 
 `personAbilityEffectsEnabled` が false の場合、全関数は中立値（倍率 1.0、ボーナス 0）を返す。
+
+**v0.14 での変更**: `stats.admin` / `stats.martial`（0..10）は廃止。各効果計算は `getRoleScore(state, p.id, role) / 10` を `0..10` スケールに正規化して、旧 admin/martial 相当に揃えて入力する。
+
+| 旧 stats 参照 | v0.14 派生 selector 経由 |
+|---|---|
+| `stats.admin` (chancellor effect) | `getRoleScore(state, p.id, 'governance') / 10` |
+| `stats.admin` (treasurer effect) | `getRoleScore(state, p.id, 'stewardship') / 10` |
+| `stats.martial` (general effect) | `getRoleScore(state, p.id, 'warCommand') / 10` |
 
 ### 10.1 正規化関数
 
 ```ts
-normalizedStat(value: number): number   // (value - 5) / 5  → -1.0 (stat=0) .. 0 (stat=5) .. +1.0 (stat=10)
+normalizedStat(value: number): number   // (value - 5) / 5  → -1.0 (=0) .. 0 (=5) .. +1.0 (=10)
+                                        // v0.14: 入力は getRoleScore(state, id, role) / 10
 normalizedTrait(value: number): number  // value - 0.5      → -0.5 (trait=0.0) .. 0 (trait=0.5) .. +0.5 (trait=1.0)
 ```
 
@@ -1717,7 +1887,7 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 
 ---
 
-## 12. アーキテクチャ原則（v0.13）
+## 12. アーキテクチャ原則（v0.13 / v0.14 派生 selector 追記）
 
 シミュレーション層は以下の原則に従う。コード上の集約点を仕様レベルでも明示しておくことで、将来の機能追加でも同じ規律を維持する。
 
@@ -1736,9 +1906,9 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 | ファイル | 主な責務 |
 |---|---|
 | `worldStructureMutations.ts` | `splitHouse` / `extinctHouse` / `foundRevoltCountry` — 家分裂・断絶・反乱独立の高レベル一括処理 |
-| `personMutations.ts` | `markPersonDead`（§6.7）/ `movePersonToHouse` / `birthChild` |
+| `personMutations.ts` | `markPersonDead`（§6.7）/ `movePersonToHouse` / `birthChild` / `addPersonWealth` / `clearPersonWealth` (v0.14) |
 | `relationshipMutations.ts` | `setSpouse` / `clearSpouse` / `addChildToParents` |
-| `houseMutations.ts` | `createHouse` / `deactivateHouse` |
+| `houseMutations.ts` | `createHouse` / `deactivateHouse` / `addHouseWealth` (v0.14) |
 | `countryMutations.ts` | `createCountry` / `deactivateCountry` / `moveHouseToCountry` / `annexCountry` / `createCountryFromHouse` / `createCountryFromProvinces` |
 | `provinceMutations.ts` | `transferProvinceToHouse` / `transferProvinceToCountry` / `adjustProvinceDevelopment` |
 | `popMutations.ts` | `adjustProvincePopWealth` / `adjustProvincePopUnrest` / `adjustProvincePopSize`（class 別バリアント含む）|
@@ -1774,10 +1944,44 @@ mutation 関数はおおむね `StateResult = SimResult<WorldState>` または `
 
 `debug` モード時は IntegrityCheck の違反が非致死的になり、`[DEBUG:INTEGRITY] error=...` として stderr に出力される（§2.2）。長期シミュレーションでの再現性確認に利用する。
 
+### 12.5 派生 selector による応用ロールの計算（v0.14）
+
+人物の応用ロールスコア（governance / stewardship / diplomacy / intrigue / warCommand）は `prototype/src/sim/selectors/abilitySelectors.ts` の `getRoleScore(state, personId, role)` に集約する。tick / mutations / UI 各層は基礎能力（`person.abilities.{valor|command|...}`）を直接合成せず、必ず派生 selector を経由する。
+
+これにより：
+
+- 新ロール追加時に変更箇所が 1 ファイル（abilitySelectors.ts + ROLE_WEIGHTS 定数）に閉じる
+- ロール定義変更（重み調整）が全システムに自動反映される
+- 基礎能力モデル変更（v0.15 以降の限界突破イベント等）でも応用ロール側のシステムは影響を受けない
+
+UI 層では基礎能力直接参照（`person.abilities.valor` を直接表示）も許容するが、バックエンドロジック（appointmentSystem / publicSpendingSystem / militarySelectors 等）は必ず `getRoleScore` 経由とする（§4.7 / §4.8 参照）。
+
 ---
 
 ## 13. 今後の課題（未実装）
 
+### v0.14 で実装済み（参考）
+
+- 6 基礎能力 (valor / command / numeracy / learning / charisma / insight) と aptitude / ability 分離
+- 才能遺伝（平均回帰込み）
+- 年齢曲線 (lifelongGrowth / youthPeak / midLifePeak) 別の自然到達水準
+- 経験成長と年齢衰退（PersonGrowthSystem）
+- 派生 selector による応用ロール（governance / stewardship / diplomacy / intrigue / warCommand）
+- 死亡時 wealth 分配（EstateSettlementSystem）と ESTATE_SETTLED / ESTATE_DISPUTED イベント
+- UI 6 能力表示・5 派生スコア・年齢曲線アイコン
+
+### v0.15 以降に送られる主要項目
+
+- **限界突破イベント**: aptitude を 101..120 帯に押し上げる伝説的偉業・特訓イベント（v0.14 はデータ表現のみ）
+- **ESTATE_CONTESTED の長期 Project 化・claim 派生**: v0.14 では ESTATE_DISPUTED は記録のみ。長期化させた相続争いを Project 化し、後年に claim 相続へ繋げる
+- **遺言（指定相続人）機構**: 現状は嫡出子→配偶者→兄弟→家長の固定順
+- **称号システム**（家産称号 / 個人称号 / 公的称号、TITLE_INHERITED / TITLE_RECLAIMED_BY_HOUSE / DYNASTY_CHANGED / TITLE_UNION_FORMED / DISSOLVED）
+- **Country → Polity 拡張**（rank / ownershipMode / owner / titlePropertyRegime / successionLaw / 同君連合）
+- **代官 / ProvinceOfficeAssignment**（Person.houseId optional 化、代官蓄財）
+- **氏族 Clan**、巨大 House の Clan 化
+- **socialFriction**（魅力 − 洞察 ペナルティ）— Attitude system 全体見直しと併せて v0.15 以降
+- **ROLE_WEIGHTS の config 化**（シナリオごとに重み変更したいニーズが顕在化したとき）
+- **spymaster / disasterSystem 関連の役職** とその経験成長対応
 - **大分裂（House 独立）**: 全土統一後、国力が一定規模を超えると支配家から傍系家が独立し複数国家が成立する「中国史的分裂」メカニズム。現状は Province Revolt から新勢力が生まれるが、House 単位での大規模独立はまだ弱い
 - **国家規模ペナルティ**: Province 数・House 数が増えるほど Legitimacy（getCountryLegitimacy）が低下しやすくなり、大国が自重で崩れる仕組み
 - **家の分裂の作り込み**: Attitude 経由の cohesion 変動をより細かく制御、分裂閾値の調整、一強状態でも分裂が自然発生する仕組み

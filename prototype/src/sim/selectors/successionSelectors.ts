@@ -3,6 +3,7 @@ import type { House } from '../types/house'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { getHouseLeader } from './officeSelectors'
+import { getRoleScore } from './abilitySelectors'
 
 export type SuccessionCandidate = {
   person: Person
@@ -142,8 +143,8 @@ export function calcSuccessionScore(
   return (
     blood +
     candidate.legacyPrestige * config.prestigeSuccessionWeight +
-    candidate.stats.admin * config.adminSuccessionWeight +
-    candidate.stats.martial * config.martialSuccessionWeight +
+    (getRoleScore(state, candidate.id, 'governance') / 10) * config.adminSuccessionWeight +
+    (getRoleScore(state, candidate.id, 'warCommand') / 10) * config.martialSuccessionWeight +
     candidate.traits.ambition * config.ambitionSuccessionWeight -
     birthPenalty
   )

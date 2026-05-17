@@ -18,6 +18,7 @@ import type { OfficeRole, OrganizationRef } from '../types/office'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
+import { getRoleScore } from '../selectors/abilitySelectors'
 
 const COUNTRY_APPOINTABLE_ROLES: OfficeRole[] = [
   'administrator',
@@ -28,13 +29,11 @@ const COUNTRY_APPOINTABLE_ROLES: OfficeRole[] = [
 const HOUSE_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
 
 function getRelevantStat(state: WorldState, personId: PersonId, role: OfficeRole): number {
-  const person = state.persons[personId]
-  if (!person) return 0
   switch (role) {
     case 'military':
-      return person.stats.martial
+      return getRoleScore(state, personId, 'warCommand') / 10
     default:
-      return person.stats.admin
+      return getRoleScore(state, personId, 'governance') / 10
   }
 }
 

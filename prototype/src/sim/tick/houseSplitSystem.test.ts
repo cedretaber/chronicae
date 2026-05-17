@@ -7,6 +7,15 @@ import { defaultConfig } from '../config/defaultConfig'
 import { maybeSplitHouseAfterSuccession } from './houseSplitSystem'
 import type { SplitInput } from './houseSplitSystem'
 
+const DEFAULT_ABILITIES = {
+  valor: 50,
+  command: 50,
+  numeracy: 50,
+  learning: 50,
+  charisma: 50,
+  insight: 50,
+}
+
 function makePerson(
   id: PersonId,
   name: string,
@@ -14,8 +23,6 @@ function makePerson(
   alive: boolean,
   houseId: HouseId,
   countryId: CountryId,
-  admin: number,
-  martial: number,
   ambition: number,
   legacyPrestige: number,
   sex: Person['sex'] = 'male',
@@ -35,7 +42,8 @@ function makePerson(
     countryId,
     childIds,
     birthStatus,
-    stats: { admin, martial },
+    abilities: DEFAULT_ABILITIES,
+    aptitudes: DEFAULT_ABILITIES,
     traits: { ambition, caution: 0.5 },
     legacyPrestige,
     wealth: 0,
@@ -61,7 +69,7 @@ function makeSplitCtx(
 
   for (let i = 0; i < memberCount; i++) {
     const pid = `pe-${i}` as PersonId
-    persons[pid] = makePerson(pid, `Member${i}`, 30, true, houseId, countryId, 5, 5, 0.5, 10)
+    persons[pid] = makePerson(pid, `Member${i}`, 30, true, houseId, countryId, 0.5, 10)
     memberIds.push(pid)
   }
 
@@ -134,6 +142,8 @@ function makeSplitCtx(
     config,
     events: [],
     nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
     nextPersonIndex: memberCount,
     nextHouseIndex: 0,
     nextCountryIndex: 0,
@@ -202,8 +212,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       true,
       houseId,
       countryId,
-      5,
-      5,
       0.5,
       10,
     )
@@ -214,8 +222,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       true,
       houseId,
       countryId,
-      5,
-      5,
       0.9,
       80,
     )
@@ -226,8 +232,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       true,
       houseId,
       countryId,
-      5,
-      5,
       0.5,
       10,
     )
@@ -298,6 +302,8 @@ describe('maybeSplitHouseAfterSuccession', () => {
       config: highSplitConfig,
       events: [],
       nextEventIndex: 0,
+      deathsThisTick: [],
+      deathRolesThisTick: {},
       nextPersonIndex: 3,
       nextHouseIndex: 0,
       nextCountryIndex: 0,
@@ -338,8 +344,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       true,
       houseId,
       countryId,
-      5,
-      5,
       0.5,
       10,
     )
@@ -350,8 +354,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       true,
       houseId,
       countryId,
-      5,
-      5,
       0.9,
       80,
     )
@@ -362,8 +364,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       true,
       houseId,
       countryId,
-      5,
-      5,
       0.5,
       10,
     )
@@ -434,6 +434,8 @@ describe('maybeSplitHouseAfterSuccession', () => {
       config: highSplitConfig,
       events: [],
       nextEventIndex: 0,
+      deathsThisTick: [],
+      deathRolesThisTick: {},
       nextPersonIndex: 3,
       nextHouseIndex: 0,
       nextCountryIndex: 0,
@@ -481,8 +483,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       true,
       houseId,
       countryId,
-      5,
-      5,
       0.5,
       10,
     )
@@ -493,8 +493,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       true,
       houseId,
       countryId,
-      5,
-      5,
       0.9,
       80,
     )
@@ -505,8 +503,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       true,
       houseId,
       countryId,
-      5,
-      5,
       0.5,
       10,
     )
@@ -577,6 +573,8 @@ describe('maybeSplitHouseAfterSuccession', () => {
       config: highSplitConfig,
       events: [],
       nextEventIndex: 0,
+      deathsThisTick: [],
+      deathRolesThisTick: {},
       nextPersonIndex: 3,
       nextHouseIndex: 0,
       nextCountryIndex: 0,

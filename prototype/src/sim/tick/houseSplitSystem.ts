@@ -5,6 +5,8 @@ import type { SuccessionCandidate } from '../selectors/successionSelectors'
 import { createLogger } from '../debug/logger'
 import { getHouseCohesion } from '../selectors/statusSelectors'
 import { splitHouse } from '../mutations/worldStructureMutations'
+import { getRoleScore } from '../selectors/abilitySelectors'
+import type { WorldState } from '../types/world'
 
 export type SplitInput = {
   houseId: HouseId
@@ -47,14 +49,14 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     return ctx
   }
 
-  const splitter = chooseSplitter(input.splitCandidates, ctx.config)
+  const splitter = chooseSplitter(ctx.state, input.splitCandidates, ctx.config)
   if (!splitter) return ctx
 
   const splitChance =
     baseHouseSplitChance +
     splitter.person.traits.ambition * houseSplitAmbitionFactor +
     splitter.person.legacyPrestige * houseSplitPrestigeFactor +
-    splitter.person.stats.martial * houseSplitMartialFactor -
+    (getRoleScore(ctx.state, splitter.person.id, 'warCommand') / 10) * houseSplitMartialFactor -
     currentCohesion * houseSplitCohesionFactor
 
   const { value: roll, rng: rngAfter } = randomFloat(ctx.rng)
@@ -82,6 +84,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
 }
 
 function chooseSplitter(
+  state: WorldState,
   candidates: SuccessionCandidate[],
   config: import('../config/defaultConfig').SimulationConfig,
 ): SuccessionCandidate | null {
@@ -92,7 +95,7 @@ function chooseSplitter(
     const score =
       candidate.person.traits.ambition * config.houseSplitAmbitionFactor +
       candidate.person.legacyPrestige * config.houseSplitPrestigeFactor +
-      candidate.person.stats.martial * config.houseSplitMartialFactor
+      (getRoleScore(state, candidate.person.id, 'warCommand') / 10) * config.houseSplitMartialFactor
 
     if (score > bestScore) {
       bestScore = score

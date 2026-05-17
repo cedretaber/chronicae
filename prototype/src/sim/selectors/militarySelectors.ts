@@ -3,6 +3,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { HouseId, CountryId } from '../types/ids'
 import { clamp } from '../utils/math'
 import { normalizedStat } from './personAbilityEffects'
+import { getRoleScore } from './abilitySelectors'
 import { getProvinceHouseManpowerBase } from './popEconomySelectors'
 import { getHouseLoyaltyToCountry } from './statusSelectors'
 import { getCountryRulerHouse } from './officeSelectors'
@@ -28,10 +29,12 @@ export function calcHouseMilitaryPower(
   const mercenaryPower = Math.min(rawMercenaryPower, levyPower * config.maxMercenaryPowerRatio)
 
   // commanderModifier: best martial stat of house members, normalized to -1..1
-  const martials = house.memberIds.map((pid) => state.persons[pid]?.stats.martial ?? 0)
-  const bestMartial = martials.length > 0 ? Math.max(...martials) : 0
+  const warScores = house.memberIds
+    .filter((pid) => state.persons[pid]?.alive)
+    .map((pid) => getRoleScore(state, pid, 'warCommand') / 10)
+  const bestWarScore = warScores.length > 0 ? Math.max(...warScores) : 0
   const commanderModifier = clamp(
-    1 + normalizedStat(bestMartial) * config.houseCommanderMartialEffect,
+    1 + normalizedStat(bestWarScore) * config.houseCommanderMartialEffect,
     config.minCommanderModifier,
     config.maxCommanderModifier,
   )
