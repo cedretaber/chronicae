@@ -1,5 +1,5 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { makeEventId, makeHouseId } from './context'
 import { randomFloat } from '../rng/rng'
 import { movePersonToHouse } from '../mutations/personMutations'
 import type { HouseId, PersonId, ProvinceId } from '../types/ids'
@@ -86,15 +86,14 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   const splitCount = Math.max(1, Math.floor(sortedProvinceIds.length * F))
   const splitProvinces = sortedProvinceIds.slice(sortedProvinceIds.length - splitCount)
 
-  const currentYear = ctx.state.currentYear
-  const newHouseId = `h-${input.houseId}-${currentYear}` as HouseId
+  const { id: newHouseId, ctx: ctxWithId } = makeHouseId(ctx)
 
   const splitterPerson = splitter.person
-  const parentLeaderId = getHouseLeader(ctx.state, input.houseId) as string | undefined
+  const parentLeaderId = getHouseLeader(ctxWithId.state, input.houseId) as string | undefined
   const newMemberIds: PersonId[] = [splitterPerson.id]
 
   if (splitterPerson.spouseId !== undefined) {
-    const spouse = ctx.state.persons[splitterPerson.spouseId]
+    const spouse = ctxWithId.state.persons[splitterPerson.spouseId]
     if (
       spouse &&
       spouse.alive &&
@@ -106,7 +105,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   }
 
   for (const childId of splitterPerson.childIds) {
-    const child = ctx.state.persons[childId]
+    const child = ctxWithId.state.persons[childId]
     if (
       child &&
       child.alive &&
@@ -136,8 +135,8 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   }
 
   let stateWithNewHouse: WorldState = {
-    ...ctx.state,
-    houses: { ...ctx.state.houses, [newHouseId]: newHouse },
+    ...ctxWithId.state,
+    houses: { ...ctxWithId.state.houses, [newHouseId]: newHouse },
   }
   stateWithNewHouse = createOfficeAssignment(
     stateWithNewHouse,
@@ -145,7 +144,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
     'leader',
     splitterPerson.id,
   )
-  let resultCtx = { ...ctx, rng: rngAfterControl, state: stateWithNewHouse }
+  let resultCtx = { ...ctxWithId, rng: rngAfterControl, state: stateWithNewHouse }
 
   const familyPersonIds = new Set(newMemberIds)
 

@@ -17,6 +17,7 @@ Options:
   --integrity-check     Run integrity check after every tick
   --debug               Enable debug mode (entity IDs in events, structured debug log on stderr)
   --dump-world          Dump full WorldState as JSON to stderr after simulation ends
+  --digest              Output WorldDigest summary as JSON to stdout after simulation
   --help                Show this help message`)
 }
 
@@ -27,6 +28,7 @@ function parseArgs(argv: string[]): {
   integrityCheck: boolean
   debug: boolean
   dumpWorld: boolean
+  digest: boolean
   showHelp: boolean
 } {
   let seed = 'chronicae-default'
@@ -35,6 +37,7 @@ function parseArgs(argv: string[]): {
   let integrityCheck = false
   let debug = false
   let dumpWorld = false
+  let digest = false
   let showHelp = false
 
   let i = 2
@@ -60,13 +63,15 @@ function parseArgs(argv: string[]): {
       debug = true
     } else if (arg === '--dump-world') {
       dumpWorld = true
+    } else if (arg === '--digest') {
+      digest = true
     } else if (arg === '--help') {
       showHelp = true
     }
     i++
   }
 
-  return { seed, years, json, integrityCheck, debug, dumpWorld, showHelp }
+  return { seed, years, json, integrityCheck, debug, dumpWorld, digest, showHelp }
 }
 
 function countActiveCountries(state: WorldState): number {
@@ -131,6 +136,14 @@ function computeAvgHouseControl(state: WorldState): number {
   return Math.round((total / count) * 10) / 10
 }
 
+function countLivingPersons(state: WorldState): number {
+  let count = 0
+  for (const p of Object.values(state.persons)) {
+    if (p?.alive) count++
+  }
+  return count
+}
+
 function countEventsByType(events: SimEvent[]): Record<string, number> {
   const result: Record<string, number> = {}
   for (const event of events) {
@@ -168,7 +181,7 @@ const allEvents: SimEvent[] = []
 const totalTicks = args.years * 12
 const config = args.debug ? { ...defaultConfig, debug: true } : defaultConfig
 
-if (!args.json) {
+if (!args.json && !args.digest) {
   console.log('Starting simulation with seed:', args.seed)
   console.log('Simulating', args.years, 'years,', totalTicks, 'ticks')
   console.log('')
@@ -199,7 +212,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
     }
   }
 
-  if (events.length > 0) {
+  if (events.length > 0 && !args.digest) {
     if (args.json) {
       const output = {
         year,
@@ -253,7 +266,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
         activeHouses,
       }
       console.log(JSON.stringify(output))
-    } else {
+    } else if (!args.digest) {
       console.log('')
       console.log('--- Year ' + year + ' Summary ---')
       console.log(
@@ -288,6 +301,24 @@ if (args.dumpWorld) {
   process.stderr.write(JSON.stringify(state, null, 2) + '\n')
 }
 
+if (args.digest) {
+  const digest = {
+    seed: args.seed,
+    years: args.years,
+    finalYear: state.currentYear,
+    finalMonth: state.currentMonth,
+    activeCountries: countActiveCountries(state),
+    activeHouses: countActiveHouses(state),
+    livingPersons: countLivingPersons(state),
+    totalProvinces: Object.keys(state.provinces).length,
+    avgCountryControl: computeAvgCountryControl(state),
+    avgHouseControl: computeAvgHouseControl(state),
+    eventCounts: countEventsByType(allEvents),
+    totalEvents: allEvents.length,
+  }
+  console.log(JSON.stringify(digest, null, 2))
+}
+
 if (args.json) {
   const finalOutput = {
     year: state.currentYear,
@@ -297,7 +328,7 @@ if (args.json) {
     activeHouses: countActiveHouses(state),
   }
   console.log(JSON.stringify(finalOutput))
-} else {
+} else if (!args.digest) {
   console.log('=== FINAL SUMMARY (after ' + args.years + ' years, ' + totalTicks + ' ticks) ===')
   const finalActiveCountries = countActiveCountries(state)
   const finalActiveHouses = countActiveHouses(state)
