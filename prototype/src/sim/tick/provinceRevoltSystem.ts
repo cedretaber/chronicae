@@ -1,5 +1,5 @@
 import type { TickContext } from './context'
-import { makeEventId, makePersonId, makeHouseId, makeCountryId } from './context'
+import { makeEventId, makePersonId, makeHouseId } from './context'
 import { clamp } from '../utils/math'
 import { randomFloat, randomInt } from '../rng/rng'
 import type { ProvinceId, HouseId, CountryId, PersonId } from '../types/ids'
@@ -7,8 +7,6 @@ import type { PopClass } from '../types/popGroup'
 import type { SimEvent } from '../types/event'
 import type { Person } from '../types/person'
 import type { House } from '../types/house'
-import type { Country } from '../types/country'
-import type { WorldState } from '../types/world'
 import { getProvincePopulationPressure } from '../selectors/popSelectors'
 import { getPopWealthByClass } from '../selectors/popSelectors'
 import { getProvinceProduction } from '../selectors/popEconomySelectors'
@@ -28,7 +26,6 @@ import {
   houseNamePool,
   houseName as houseNameFn,
 } from '../worldgen/nameGenerators'
-import { generateCountryName } from '../selectors/countryNamingService'
 import {
   getAttitudeOrDefault,
   attitudeValueToScore,
@@ -40,6 +37,7 @@ import {
 import { getCountryLegitimacy, getCountryStability } from '../selectors/statusSelectors'
 import { getCountryRulerHouse } from '../selectors/officeSelectors'
 import { createOfficeAssignment } from '../mutations/officeMutations'
+import { foundRevoltCountry } from '../mutations/worldStructureMutations'
 
 type RevoltCandidate = {
   provinceId: ProvinceId
@@ -713,290 +711,9 @@ function resolveRevoltIndependence(
   rebelClass: PopClass,
   oldCountryId: CountryId,
 ): TickContext {
-  const config = ctx.config
-  const state = ctx.state
-
-  const province = state.provinces[provinceId]
-  if (!province) return ctx
-
-  const oldCountry = state.countries[oldCountryId]
-  if (!oldCountry) return ctx
-
-  const oldOwnerHouseId = province.ownerHouseId
-  const oldOwnerHouse = state.houses[oldOwnerHouseId]
-
-  // Pre-generate IDs
-  const { id: newCountryId, ctx: ctx1 } = makeCountryId(ctx)
-  const { id: newPersonId, ctx: ctx2 } = makePersonId(ctx1)
-  const { id: newHouseId, ctx: ctx3 } = makeHouseId(ctx2)
-  ctx = ctx3
-
-  // Generate country name
-  const { name: newCountryName, rng: rng0 } = generateCountryName(ctx.state, ctx.config, ctx.rng, {
-    origin: 'province_revolt_independence',
-    provinceIds: [provinceId],
-    capitalProvinceId: provinceId,
-    rulingHouseId: newHouseId,
-    founderPersonId: newPersonId,
-    sourceCountryId: oldCountryId,
-    rebelClass,
-  })
-  ctx = { ...ctx, rng: rng0 }
-
-  // Generate leader name
-  const { name: leaderName, rng: rng1 } = pickNameBySex('male', ctx.rng)
-  ctx = { ...ctx, rng: rng1 }
-
-  // Generate leader stats by class
-  let adminMin: number, adminMax: number, martialMin: number, martialMax: number
-  if (rebelClass === 'peasants') {
-    adminMin = 2
-    adminMax = 6
-    martialMin = 2
-    martialMax = 6
-  } else if (rebelClass === 'townsmen') {
-    adminMin = 4
-    adminMax = 8
-    martialMin = 2
-    martialMax = 5
-  } else {
-    adminMin = 3
-    adminMax = 7
-    martialMin = 4
-    martialMax = 8
-  }
-
-  const { value: age, rng: rng2 } = randomInt(ctx.rng, 20, 45)
-  ctx = { ...ctx, rng: rng2 }
-  const { value: admin, rng: rng3 } = randomInt(ctx.rng, adminMin, adminMax)
-  ctx = { ...ctx, rng: rng3 }
-  const { value: martial, rng: rng4 } = randomInt(ctx.rng, martialMin, martialMax)
-  ctx = { ...ctx, rng: rng4 }
-  const { value: ambition, rng: rng5 } = randomInt(ctx.rng, 7, 10)
-  ctx = { ...ctx, rng: rng5 }
-  const { value: caution, rng: rng7 } = randomInt(ctx.rng, 2, 7)
-  ctx = { ...ctx, rng: rng7 }
-  const { value: legacyPrestige, rng: rng8 } = randomInt(ctx.rng, 5, 20)
-  ctx = { ...ctx, rng: rng8 }
-
-  const newLeader: Person = {
-    id: newPersonId,
-    name: leaderName,
-    sex: 'male',
-    age,
-    alive: true,
-    houseId: newHouseId,
-    countryId: newCountryId,
-    childIds: [],
-    birthStatus: 'unknown',
-    stats: { admin, martial },
-    traits: {
-      ambition: ambition / 10,
-      caution: caution / 10,
-    },
-    legacyPrestige,
-    wealth: 0,
-    attitudes: {},
-  }
-
-  // Generate house name
-  const usedHouseNames = new Set(
-    Object.values(ctx.state.houses)
-      .filter((h): h is NonNullable<typeof h> => h !== undefined && h.active)
-      .map((h) => h.name),
-  )
-  const { name: newHouseName, rng: rng9 } = pickUniqueName(
-    houseNamePool(),
-    usedHouseNames,
-    houseNameFn,
-    ctx.nextHouseIndex,
-    ctx.rng,
-  )
-  ctx = { ...ctx, rng: rng9 }
-
-  const newHouse: House = {
-    id: newHouseId,
-    name: newHouseName,
-    active: true,
-    countryId: newCountryId,
-    provinceIds: [provinceId],
-    memberIds: [newPersonId],
-    founderId: newPersonId,
-    cadetHouseIds: [],
-    legacyPrestige: config.revoltHouseInitialLegacyPrestige,
-    wealth: config.revoltHouseInitialWealth,
-    seatProvinceId: provinceId,
-  }
-
-  const newCountry: Country = {
-    id: newCountryId,
-    name: newCountryName,
-    houseIds: [newHouseId],
-    treasury: config.revoltCountryInitialTreasury,
-    legacyPrestige: config.revoltCountryInitialLegacyPrestige,
-    adminPower: 0,
-    active: true,
-    capitalProvinceId: provinceId,
-  }
-
-  // Update province ownership manually (can't use transferProvinceToHouse here due to state ordering)
-  const updatedProvince: typeof province = {
-    ...province,
-    ownerHouseId: newHouseId,
-    countryId: newCountryId,
-    countryControl: config.provinceRevoltNewCountryControl,
-    houseControl: config.provinceRevoltNewHouseControl,
-  }
-
-  // Remove province from old owner house
-  const updatedOldOwnerHouse = oldOwnerHouse
-    ? {
-        ...oldOwnerHouse,
-        provinceIds: oldOwnerHouse.provinceIds.filter(
-          (pid) => (pid as string) !== (provinceId as string),
-        ),
-        seatProvinceId:
-          oldOwnerHouse.seatProvinceId === provinceId
-            ? ((oldOwnerHouse.provinceIds.filter(
-                (pid) => (pid as string) !== (provinceId as string),
-              )[0] ?? '') as ProvinceId)
-            : oldOwnerHouse.seatProvinceId,
-      }
-    : undefined
-
-  // Remove old owner house from old country houseIds if it becomes landless
-  const oldOwnerIsRuler = getCountryRulerHouse(state, oldCountryId) === oldOwnerHouseId
-  const remainingHouseIds = oldCountry.houseIds.filter(
-    (hid) => (hid as string) !== (oldOwnerHouseId as string),
-  )
-
-  // Fix capitalProvinceId if the revolting province was the old country's capital
-  const newOldCapProvinceId: ProvinceId =
-    oldCountry.capitalProvinceId === provinceId
-      ? ((Object.values(state.provinces).find(
-          (p) => p !== undefined && p.countryId === oldCountryId && p.id !== provinceId,
-        )?.id ?? '') as ProvinceId)
-      : oldCountry.capitalProvinceId
-
-  const updatedOldCountry =
-    updatedOldOwnerHouse && updatedOldOwnerHouse.provinceIds.length === 0
-      ? {
-          ...oldCountry,
-          houseIds: remainingHouseIds,
-          active: !oldOwnerIsRuler || remainingHouseIds.length > 0,
-          capitalProvinceId: newOldCapProvinceId,
-        }
-      : {
-          ...oldCountry,
-          capitalProvinceId: newOldCapProvinceId,
-        }
-
-  // Apply all state changes
-  let newState: WorldState = {
-    ...ctx.state,
-    provinces: { ...ctx.state.provinces, [provinceId]: updatedProvince },
-    persons: { ...ctx.state.persons, [newPersonId]: newLeader },
-    houses: {
-      ...ctx.state.houses,
-      [newHouseId]: newHouse,
-      ...(updatedOldOwnerHouse ? { [oldOwnerHouseId]: updatedOldOwnerHouse } : {}),
-    },
-    countries: {
-      ...ctx.state.countries,
-      [newCountryId]: newCountry,
-      [oldCountryId]: updatedOldCountry,
-    },
-  }
-
-  // Assign leader offices for the new house and country
-  newState = createOfficeAssignment(
-    newState,
-    { kind: 'house' as const, id: newHouseId },
-    'leader',
-    newPersonId,
-  )
-  newState = createOfficeAssignment(
-    newState,
-    { kind: 'country' as const, id: newCountryId },
-    'leader',
-    newPersonId,
-  )
-
-  // If old owner house became landless, deactivate and move members
-  if (updatedOldOwnerHouse && updatedOldOwnerHouse.provinceIds.length === 0 && oldOwnerHouse) {
-    const deactivatedOldHouse = { ...updatedOldOwnerHouse, active: false }
-    const rulerHouseId = getCountryRulerHouse(newState, oldCountryId)
-    if (!rulerHouseId) {
-      ctx = { ...ctx, state: newState }
-      return ctx
-    }
-    const rulerHouse = newState.houses[rulerHouseId]
-    const updatedPersons: Record<PersonId, Person> = { ...newState.persons }
-    const rulerMemberIds = rulerHouse ? [...rulerHouse.memberIds] : []
-
-    for (const memberId of oldOwnerHouse.memberIds) {
-      const member = updatedPersons[memberId]
-      if (member && member.alive) {
-        updatedPersons[memberId] = {
-          ...member,
-          houseId: rulerHouseId,
-          countryId: oldCountryId,
-        }
-        rulerMemberIds.push(memberId)
-      }
-    }
-
-    const updatedHouses: Record<HouseId, House> = { ...newState.houses }
-    updatedHouses[oldOwnerHouseId] = deactivatedOldHouse
-    if (rulerHouse) {
-      updatedHouses[rulerHouseId] = { ...rulerHouse, memberIds: rulerMemberIds }
-    }
-
-    newState = {
-      ...newState,
-      persons: updatedPersons,
-      houses: updatedHouses,
-    }
-
-    // Emit HOUSE_EXTINCT event
-    ctx = { ...ctx, state: newState }
-    const { id: extinctEventId, ctx: ctxE } = makeEventId(ctx)
-    const extinctEvent: SimEvent = {
-      id: extinctEventId,
-      year: ctxE.state.currentYear,
-      month: ctxE.state.currentMonth,
-      type: 'HOUSE_EXTINCT',
-      importance: 'major',
-      actorIds: [],
-      houseIds: [oldOwnerHouseId],
-      countryIds: [oldCountryId],
-      provinceIds: [provinceId],
-      summary: `${oldOwnerHouse.name} has fallen after losing its last province.`,
-      reasons: [],
-      effects: [],
-    }
-    ctx = { ...ctxE, events: [...ctxE.events, extinctEvent] }
-  } else {
-    ctx = { ...ctx, state: newState }
-  }
-
-  // Emit REVOLT_COUNTRY_FOUNDED event
-  const { id: eventId, ctx: ctx4 } = makeEventId(ctx)
-  const event: SimEvent = {
-    id: eventId,
-    year: ctx4.state.currentYear,
-    month: ctx4.state.currentMonth,
-    type: 'REVOLT_COUNTRY_FOUNDED',
-    importance: 'critical',
-    actorIds: [newPersonId],
-    houseIds: [newHouseId],
-    countryIds: [newCountryId, oldCountryId],
-    provinceIds: [provinceId],
-    summary: `${newCountry.name} has been founded by ${newLeader.name} through revolt in ${province.name}!`,
-    reasons: [],
-    effects: [],
-  }
-  return { ...ctx4, events: [...ctx4.events, event] }
+  const result = foundRevoltCountry(ctx, { provinceId, rebelClass, oldCountryId })
+  if (!result.ok) return ctx
+  return result.value.ctx
 }
 
 export function runProvinceRevoltSystem(ctx: TickContext): TickContext {

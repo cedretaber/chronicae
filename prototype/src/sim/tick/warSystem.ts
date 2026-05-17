@@ -345,6 +345,9 @@ export function runWarSystem(ctx: TickContext): TickContext {
             continue
           }
 
+          // v013-residual: transferProvinceToHouse used instead of transferProvinceToCountry;
+          // the latter adds country-ownership validation that fails in edge cases where
+          // attackerCountry.houseIds[0] fallback has stale countryId, causing >10% digest divergence
           const tResult = transferProvinceToHouse(currentCtx.state, provinceId, rulerHouseId)
           if (!tResult.ok) continue
           currentCtx = { ...currentCtx, state: tResult.value }
