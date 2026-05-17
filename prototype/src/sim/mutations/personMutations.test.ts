@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId } from '../types/ids'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { movePersonToHouse } from './personMutations'
+import type { TickContext } from '../tick/context'
+import { createRng } from '../rng/rng'
+import { defaultConfig } from '../config/defaultConfig'
+import { collectIntegrityErrors } from '../tick/integritySystem'
+import { movePersonToHouse, birthChild } from './personMutations'
 
 function makeFixture(): {
   state: WorldState
@@ -181,5 +185,143 @@ describe('movePersonToHouse', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
+  })
+})
+
+function makeCtx(state: WorldState): TickContext {
+  return {
+    state,
+    rng: createRng('test'),
+    config: defaultConfig,
+    events: [],
+    nextEventIndex: 0,
+    nextPersonIndex: 10,
+    nextHouseIndex: 10,
+    nextCountryIndex: 10,
+  }
+}
+
+describe('birthChild', () => {
+  it('creates a new person in father house', () => {
+    const { state, person1Id, house1Id } = makeFixture()
+    const ctx = makeCtx(state)
+    const result = birthChild(ctx, {
+      fatherId: person1Id,
+      birthStatus: 'illegitimate',
+      name: 'Child',
+      sex: 'male',
+      stats: { admin: 3, martial: 4 },
+      traits: { ambition: 0.6, caution: 0.4 },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { childId } = result.value.value
+    const newState = result.value.ctx.state
+    const child = newState.persons[childId]
+    expect(child).toBeDefined()
+    expect(child!.name).toBe('Child')
+    expect(child!.houseId).toBe(house1Id)
+    expect(child!.fatherId).toBe(person1Id)
+    expect(child!.age).toBe(0)
+    expect(collectIntegrityErrors(newState)).toEqual([])
+  })
+
+  it('adds child to father childIds', () => {
+    const { state, person1Id } = makeFixture()
+    const ctx = makeCtx(state)
+    const result = birthChild(ctx, {
+      fatherId: person1Id,
+      birthStatus: 'illegitimate',
+      name: 'Child',
+      sex: 'female',
+      stats: { admin: 3, martial: 4 },
+      traits: { ambition: 0.5, caution: 0.5 },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { childId } = result.value.value
+    const newState = result.value.ctx.state
+    expect(newState.persons[person1Id]!.childIds).toContain(childId)
+  })
+
+  it('adds child to house memberIds', () => {
+    const { state, person1Id, house1Id } = makeFixture()
+    const ctx = makeCtx(state)
+    const result = birthChild(ctx, {
+      fatherId: person1Id,
+      birthStatus: 'illegitimate',
+      name: 'Child',
+      sex: 'male',
+      stats: { admin: 3, martial: 4 },
+      traits: { ambition: 0.5, caution: 0.5 },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { childId } = result.value.value
+    const newState = result.value.ctx.state
+    expect(newState.houses[house1Id]!.memberIds).toContain(childId)
+  })
+
+  it('sets motherId and adds child to mother childIds when motherId given', () => {
+    const { state, person1Id, person2Id } = makeFixture()
+    const ctx = makeCtx(state)
+    const result = birthChild(ctx, {
+      fatherId: person1Id,
+      motherId: person2Id,
+      birthStatus: 'legitimate',
+      name: 'Child',
+      sex: 'female',
+      stats: { admin: 3, martial: 4 },
+      traits: { ambition: 0.5, caution: 0.5 },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { childId } = result.value.value
+    const newState = result.value.ctx.state
+    expect(newState.persons[childId]!.motherId).toBe(person2Id)
+    expect(newState.persons[person2Id]!.childIds).toContain(childId)
+  })
+
+  it('allocates a unique pe- prefixed personId', () => {
+    const { state, person1Id } = makeFixture()
+    const ctx = makeCtx(state)
+    const result = birthChild(ctx, {
+      fatherId: person1Id,
+      birthStatus: 'illegitimate',
+      name: 'Child',
+      sex: 'male',
+      stats: { admin: 3, martial: 4 },
+      traits: { ambition: 0.5, caution: 0.5 },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { childId } = result.value.value
+    expect((childId as string).startsWith('pe-')).toBe(true)
+  })
+
+  it('returns err when father not found', () => {
+    const { state } = makeFixture()
+    const ctx = makeCtx(state)
+    const result = birthChild(ctx, {
+      fatherId: createPersonId('pe', 99),
+      birthStatus: 'illegitimate',
+      name: 'Child',
+      sex: 'male',
+      stats: { admin: 3, martial: 4 },
+      traits: { ambition: 0.5, caution: 0.5 },
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('PERSON_NOT_FOUND')
   })
 })

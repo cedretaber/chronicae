@@ -6,10 +6,7 @@ import {
   getMinorSuccessionCandidates,
   chooseSuccessor,
 } from '../selectors/successionSelectors'
-import {
-  createOfficeAssignment,
-  revokeAllOfficesForOrganization,
-} from '../mutations/officeMutations'
+import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { getHouseLeader, getCountryRuler } from '../selectors/officeSelectors'
 import { maybeSplitHouseAfterSuccession } from './houseSplitSystem'
 import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
@@ -109,7 +106,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
       const oldestMinor = minorCandidates[0]
       if (!oldestMinor) return extinctHouseAfterFailedSuccession(ctx, houseId)
 
-      let newState = revokeAllOfficesForOrganization(
+      let newState = revokeOfficesByOrganization(
         ctx.state,
         { kind: 'house', id: houseId },
         'leader',
@@ -153,7 +150,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
 
   const successor = chooseSuccessor(adultCandidates)
 
-  let newStateAfterHead = revokeAllOfficesForOrganization(
+  let newStateAfterHead = revokeOfficesByOrganization(
     ctx.state,
     { kind: 'house', id: houseId },
     'leader',

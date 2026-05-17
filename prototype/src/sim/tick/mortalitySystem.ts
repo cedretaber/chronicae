@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { revokeAllOfficesForPerson } from '../mutations/officeMutations'
+import { revokeOfficesByHolder } from '../mutations/officeMutations'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -38,7 +38,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
       const wasHouseLeader = houseLeaderBefore === (personId as PersonId)
 
       let currentState = { ...currentCtx.state, persons: newPersons }
-      currentState = revokeAllOfficesForPerson(currentState, personId as PersonId)
+      currentState = revokeOfficesByHolder(currentState, personId as PersonId)
 
       const importance = wasHouseLeader ? 'normal' : 'minor'
 

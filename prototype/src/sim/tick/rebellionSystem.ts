@@ -9,10 +9,7 @@ import { getHouseLoyaltyToCountry } from '../selectors/statusSelectors'
 import { createCountryFromHouse } from '../mutations/countryMutations'
 import { calcHouseMilitaryPower } from '../selectors/militarySelectors'
 import { generateCountryName } from '../selectors/countryNamingService'
-import {
-  createOfficeAssignment,
-  revokeAllOfficesForOrganization,
-} from '../mutations/officeMutations'
+import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import type { CountryId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import { getPopUnrestByClass } from '../selectors/popSelectors'
@@ -267,7 +264,7 @@ export function runRebellionSystem(ctx: TickContext): TickContext {
         } else {
           const rebelLeaderId = getHouseLeader(currentCtx.state, houseId)
           if (rebelLeaderId) {
-            let postState = revokeAllOfficesForOrganization(
+            let postState = revokeOfficesByOrganization(
               currentCtx.state,
               { kind: 'country', id: countryId as CountryId },
               'leader',

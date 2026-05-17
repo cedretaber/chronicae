@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId } from '../types/ids'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { setSpouse } from './relationshipMutations'
+import { collectIntegrityErrors } from '../tick/integritySystem'
+import { setSpouse, clearSpouse, addChildToParents } from './relationshipMutations'
 
 function makeFixture(): {
   state: WorldState
@@ -163,5 +164,100 @@ describe('setSpouse', () => {
     const result = setSpouse(stateWithPerson3, person3Id, person2Id)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('INTEGRITY_VIOLATION')
+  })
+})
+
+describe('clearSpouse', () => {
+  it('clears spouseId from both persons', () => {
+    const { state, person1Id, person2Id } = makeFixture()
+    const married = setSpouse(state, person1Id, person2Id)
+    expect(married.ok).toBe(true)
+    if (!married.ok) return
+
+    const result = clearSpouse(married.value, person1Id)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.value.persons[person1Id]!.spouseId).toBeUndefined()
+    expect(result.value.persons[person2Id]!.spouseId).toBeUndefined()
+    expect(collectIntegrityErrors(result.value)).toEqual([])
+  })
+
+  it('is a no-op when person has no spouse', () => {
+    const { state, person1Id } = makeFixture()
+    const result = clearSpouse(state, person1Id)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value).toBe(state)
+  })
+
+  it('returns err when person not found', () => {
+    const { state } = makeFixture()
+    const result = clearSpouse(state, createPersonId('pe', 99))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('PERSON_NOT_FOUND')
+  })
+})
+
+describe('addChildToParents', () => {
+  it('adds child to father childIds', () => {
+    const { state, person1Id, person2Id } = makeFixture()
+    const result = addChildToParents(state, person2Id, person1Id)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.value.persons[person1Id]!.childIds).toContain(person2Id)
+    expect(collectIntegrityErrors(result.value)).toEqual([])
+  })
+
+  it('adds child to mother childIds', () => {
+    const { state, person1Id, person2Id } = makeFixture()
+    const result = addChildToParents(state, person1Id, undefined, person2Id)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.value.persons[person2Id]!.childIds).toContain(person1Id)
+    expect(collectIntegrityErrors(result.value)).toEqual([])
+  })
+
+  it('sets fatherId on child if not already set', () => {
+    const { state, person1Id, person2Id } = makeFixture()
+    const result = addChildToParents(state, person2Id, person1Id)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.persons[person2Id]!.fatherId).toBe(person1Id)
+  })
+
+  it('does not duplicate child in parent childIds', () => {
+    const { state, person1Id, person2Id } = makeFixture()
+    const first = addChildToParents(state, person2Id, person1Id)
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+
+    const second = addChildToParents(first.value, person2Id, person1Id)
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+
+    const childIds = second.value.persons[person1Id]!.childIds
+    expect(childIds.filter((id) => (id as string) === (person2Id as string))).toHaveLength(1)
+  })
+
+  it('returns err when child not found', () => {
+    const { state, person1Id } = makeFixture()
+    const result = addChildToParents(state, createPersonId('pe', 99), person1Id)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('PERSON_NOT_FOUND')
+  })
+
+  it('returns err when father not found', () => {
+    const { state, person1Id } = makeFixture()
+    const result = addChildToParents(state, person1Id, createPersonId('pe', 99))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('PERSON_NOT_FOUND')
   })
 })

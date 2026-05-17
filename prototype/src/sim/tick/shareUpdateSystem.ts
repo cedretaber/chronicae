@@ -4,7 +4,7 @@ import type { OrganizationRef } from '@sim/types/office'
 import {
   createOrganizationShare,
   updateShareRawPower,
-  deleteOrganizationShare,
+  removeOrganizationShare,
   transferShareRawPower,
 } from '@sim/mutations/shareMutations'
 import { getOrganizationShares } from '@sim/selectors/shareSelectors'
@@ -73,7 +73,7 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
       const existing = shareByHouse.get(houseId)
       if (existing) {
         if (newRawPower <= 0) {
-          state = deleteOrganizationShare(state, existing.id)
+          state = removeOrganizationShare(state, existing.id)
         } else {
           state = updateShareRawPower(state, existing.id, newRawPower)
         }
@@ -91,7 +91,7 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
     const currentHouseIds = new Set(country.houseIds)
     for (const share of existingShares) {
       if (share.holder.kind === 'house' && !currentHouseIds.has(share.holder.id)) {
-        state = deleteOrganizationShare(state, share.id)
+        state = removeOrganizationShare(state, share.id)
       }
     }
   }
@@ -132,7 +132,7 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
       // Delete remaining share for dead person
       const updatedShare = state.organizationShares[share.id]
       if (updatedShare) {
-        state = deleteOrganizationShare(state, share.id)
+        state = removeOrganizationShare(state, share.id)
       }
     }
 
@@ -161,7 +161,7 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
       const existing = shareByPerson.get(personId)
       if (existing) {
         if (newRawPower <= 0) {
-          state = deleteOrganizationShare(state, existing.id)
+          state = removeOrganizationShare(state, existing.id)
         } else {
           state = updateShareRawPower(state, existing.id, newRawPower)
         }

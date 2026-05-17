@@ -2,6 +2,15 @@ import type { WorldState } from '@sim/types/world'
 import type { PersonId, OfficeAssignmentId } from '@sim/types/ids'
 import type { OrganizationRef, OfficeRole } from '@sim/types/office'
 import { createOfficeAssignmentId } from '@sim/types/ids'
+import type { StateResult } from './result'
+import { ok, err } from './result'
+
+export type AssignOfficeInput = {
+  organization: OrganizationRef
+  role: OfficeRole
+  holderPersonId: PersonId
+  replaceExisting?: boolean
+}
 
 function orgKey(org: OrganizationRef): string {
   return `${org.kind}:${org.id}`
@@ -68,7 +77,7 @@ export function revokeOfficeAssignment(
   }
 }
 
-export function revokeAllOfficesForPerson(state: WorldState, personId: PersonId): WorldState {
+export function revokeOfficesByHolder(state: WorldState, personId: PersonId): WorldState {
   const personKeyStr = personId as string
   const ids = state.officeIndex.byHolderPerson[personKeyStr] ?? []
   let current = state
@@ -78,7 +87,7 @@ export function revokeAllOfficesForPerson(state: WorldState, personId: PersonId)
   return current
 }
 
-export function revokeAllOfficesForOrganization(
+export function revokeOfficesByOrganization(
   state: WorldState,
   organization: OrganizationRef,
   role?: OfficeRole,
@@ -93,4 +102,30 @@ export function revokeAllOfficesForOrganization(
     current = revokeOfficeAssignment(current, id)
   }
   return current
+}
+
+export function assignOffice(state: WorldState, input: AssignOfficeInput): StateResult {
+  const person = state.persons[input.holderPersonId]
+  if (!person)
+    return err({
+      code: 'PERSON_NOT_FOUND',
+      message: 'assignOffice: holder not found: ' + input.holderPersonId,
+    })
+  if (!person.alive)
+    return err({
+      code: 'PERSON_DEAD',
+      message: 'assignOffice: holder is not alive: ' + input.holderPersonId,
+    })
+
+  let currentState = state
+  if (input.replaceExisting) {
+    currentState = revokeOfficesByOrganization(currentState, input.organization, input.role)
+  }
+  currentState = createOfficeAssignment(
+    currentState,
+    input.organization,
+    input.role,
+    input.holderPersonId,
+  )
+  return ok(currentState)
 }

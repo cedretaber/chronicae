@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createProvinceId } from '../types/ids'
 import type { CountryId, HouseId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { transferProvinceToHouse } from './provinceMutations'
+import { collectIntegrityErrors } from '../tick/integritySystem'
+import { transferProvinceToHouse, transferProvinceToCountry } from './provinceMutations'
 
 function makeFixture(): {
   state: WorldState
@@ -148,5 +149,43 @@ describe('transferProvinceToHouse', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
+  })
+})
+
+describe('transferProvinceToCountry', () => {
+  it('transfers province to a house within the target country', () => {
+    const { state, provinceId, house2Id, country2Id } = makeFixture()
+    const result = transferProvinceToCountry(state, provinceId, country2Id, house2Id)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.value.provinces[provinceId]!.ownerHouseId).toBe(house2Id)
+    expect(result.value.provinces[provinceId]!.countryId).toBe(country2Id)
+    expect(collectIntegrityErrors(result.value)).toEqual([])
+  })
+
+  it('returns err when province not found', () => {
+    const { state, house2Id, country2Id } = makeFixture()
+    const result = transferProvinceToCountry(state, createProvinceId('p', 99), country2Id, house2Id)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('PROVINCE_NOT_FOUND')
+  })
+
+  it('returns err when target country not found', () => {
+    const { state, provinceId, house2Id } = makeFixture()
+    const result = transferProvinceToCountry(state, provinceId, createCountryId('c', 99), house2Id)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('COUNTRY_NOT_FOUND')
+  })
+
+  it('returns err when house does not belong to target country', () => {
+    const { state, provinceId, house1Id, country2Id } = makeFixture()
+    const result = transferProvinceToCountry(state, provinceId, country2Id, house1Id)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('CROSS_COUNTRY_TRANSFER')
   })
 })

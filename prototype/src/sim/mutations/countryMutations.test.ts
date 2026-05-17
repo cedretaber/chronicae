@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { createCountryId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { moveHouseToCountry } from './countryMutations'
+import type { TickContext } from '../tick/context'
+import { createRng } from '../rng/rng'
+import { defaultConfig } from '../config/defaultConfig'
+import { collectIntegrityErrors } from '../tick/integritySystem'
+import { moveHouseToCountry, createCountry, deactivateCountry } from './countryMutations'
 
 function makeFixture(): {
   state: WorldState
@@ -172,5 +176,91 @@ describe('moveHouseToCountry', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
+  })
+})
+
+function makeCtx(state: WorldState): TickContext {
+  return {
+    state,
+    rng: createRng('test'),
+    config: defaultConfig,
+    events: [],
+    nextEventIndex: 0,
+    nextPersonIndex: 10,
+    nextHouseIndex: 10,
+    nextCountryIndex: 10,
+  }
+}
+
+describe('createCountry', () => {
+  it('creates a country with correct initial values', () => {
+    const { state } = makeFixture()
+    const ctx = makeCtx(state)
+    const result = createCountry(ctx, { name: 'New Country', treasury: 200, legacyPrestige: 30 })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { countryId } = result.value.value
+    const newCountry = result.value.ctx.state.countries[countryId]
+    expect(newCountry).toBeDefined()
+    expect(newCountry!.name).toBe('New Country')
+    expect(newCountry!.treasury).toBe(200)
+    expect(newCountry!.legacyPrestige).toBe(30)
+    expect(newCountry!.active).toBe(true)
+    expect(newCountry!.houseIds).toEqual([])
+    expect(collectIntegrityErrors(result.value.ctx.state)).toEqual([])
+  })
+
+  it('allocates a unique dc- prefixed countryId', () => {
+    const { state } = makeFixture()
+    const ctx = makeCtx(state)
+    const result = createCountry(ctx, { name: 'Country X' })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { countryId } = result.value.value
+    expect((countryId as string).startsWith('dc-')).toBe(true)
+  })
+})
+
+describe('deactivateCountry', () => {
+  it('marks country as inactive', () => {
+    const { state, country1Id } = makeFixture()
+    const result = deactivateCountry(state, country1Id)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.countries[country1Id]!.active).toBe(false)
+  })
+
+  it('is a no-op when already inactive', () => {
+    const { state, country1Id } = makeFixture()
+    const first = deactivateCountry(state, country1Id)
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+
+    const result = deactivateCountry(first.value, country1Id)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value).toBe(first.value)
+  })
+
+  it('deactivates all houses when deactivateHouses is true', () => {
+    const { state, country1Id, house1Id } = makeFixture()
+    const result = deactivateCountry(state, country1Id, { deactivateHouses: true })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.countries[country1Id]!.active).toBe(false)
+      expect(result.value.houses[house1Id]!.active).toBe(false)
+    }
+  })
+
+  it('returns err when country not found', () => {
+    const { state } = makeFixture()
+    const result = deactivateCountry(state, createCountryId('c', 99))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('COUNTRY_NOT_FOUND')
   })
 })

@@ -13,10 +13,7 @@ import {
 import { getHouseCohesion, getCountryStability } from '../selectors/statusSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getAvailableOfficeRoles } from '../selectors/officeSelectors'
-import {
-  createOfficeAssignment,
-  revokeAllOfficesForOrganization,
-} from '../mutations/officeMutations'
+import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import type { OrganizationRef, OfficeRole } from '../types/office'
 import type { PlotId, HouseId, PersonId, CountryId } from '../types/ids'
 import type { Plot, PlotType } from '../types/plot'
@@ -141,7 +138,7 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
 
           // Apply office mutation: revoke all offices for the organization, then assign to new leader
           const targetOrgRef: OrganizationRef = { kind: 'house', id: targetHouse.id }
-          let newState = revokeAllOfficesForOrganization(currentCtx.state, targetOrgRef, 'leader')
+          let newState = revokeOfficesByOrganization(currentCtx.state, targetOrgRef, 'leader')
           newState = createOfficeAssignment(newState, targetOrgRef, 'leader', newHead.id)
           state = newState
 

@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
-import { createOfficeAssignment, revokeAllOfficesForPerson } from '../mutations/officeMutations'
+import { createOfficeAssignment, revokeOfficesByHolder } from '../mutations/officeMutations'
 import {
   getActiveOfficeHolders,
   getCountryRuler,
@@ -138,7 +138,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
         if (!holder || !holder.alive) {
           currentCtx = {
             ...currentCtx,
-            state: revokeAllOfficesForPerson(currentCtx.state, holderId),
+            state: revokeOfficesByHolder(currentCtx.state, holderId),
           }
         }
       }
@@ -228,7 +228,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
         if (!holder || !holder.alive) {
           currentCtx = {
             ...currentCtx,
-            state: revokeAllOfficesForPerson(currentCtx.state, holderId),
+            state: revokeOfficesByHolder(currentCtx.state, holderId),
           }
         }
       }

@@ -2,6 +2,8 @@ import type { WorldState } from '@sim/types/world'
 import type { OrganizationShareId } from '@sim/types/ids'
 import type { OrganizationRef, ShareHolderRef } from '@sim/types/office'
 import { createOrganizationShareId } from '@sim/types/ids'
+import type { StateResult } from './result'
+import { ok } from './result'
 
 function orgKey(org: OrganizationRef): string {
   return `${org.kind}:${org.id}`
@@ -62,7 +64,7 @@ export function updateShareRawPower(
   }
 }
 
-export function deleteOrganizationShare(
+export function removeOrganizationShare(
   state: WorldState,
   shareId: OrganizationShareId,
 ): WorldState {
@@ -98,7 +100,7 @@ export function deleteAllSharesForHolder(state: WorldState, holder: ShareHolderR
   const ids = state.shareIndex.byHolder[hKeyStr] ?? []
   let current = state
   for (const id of ids) {
-    current = deleteOrganizationShare(current, id)
+    current = removeOrganizationShare(current, id)
   }
   return current
 }
@@ -124,7 +126,7 @@ export function transferShareRawPower(
     const remaining = share.rawPower - transferAmount
 
     if (remaining <= 0) {
-      current = deleteOrganizationShare(current, id)
+      current = removeOrganizationShare(current, id)
     } else {
       current = updateShareRawPower(current, id, remaining)
     }
@@ -151,4 +153,35 @@ export function transferShareRawPower(
   }
 
   return current
+}
+
+export type UpsertShareInput = {
+  organization: OrganizationRef
+  holder: ShareHolderRef
+  rawPower: number
+}
+
+export function upsertOrganizationShare(state: WorldState, input: UpsertShareInput): StateResult {
+  const orgKeyStr = orgKey(input.organization)
+  const hKeyStr = holderKey(input.holder)
+
+  const ids = state.shareIndex.byOrganization[orgKeyStr] ?? []
+  let existingId: OrganizationShareId | undefined
+  for (const id of ids) {
+    const share = state.organizationShares[id]
+    if (share && holderKey(share.holder) === hKeyStr) {
+      existingId = id
+      break
+    }
+  }
+
+  if (existingId !== undefined) {
+    if (input.rawPower <= 0) {
+      return ok(removeOrganizationShare(state, existingId))
+    }
+    return ok(updateShareRawPower(state, existingId, input.rawPower))
+  }
+
+  if (input.rawPower <= 0) return ok(state)
+  return ok(createOrganizationShare(state, input.organization, input.holder, input.rawPower))
 }

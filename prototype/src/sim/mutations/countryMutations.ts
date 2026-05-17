@@ -4,8 +4,73 @@ import type { HouseId, CountryId, PersonId, ProvinceId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
 import type { Country } from '../types/country'
 import type { WorldState } from '../types/world'
-import type { StateResult } from './result'
+import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
+
+export type CreateCountryInput = {
+  name: string
+  capitalProvinceId?: ProvinceId
+  treasury?: number
+  legacyPrestige?: number
+  adminPower?: number
+}
+
+export function createCountry(
+  ctx: TickContext,
+  input: CreateCountryInput,
+): CtxResult<{ countryId: CountryId }> {
+  const { id: countryId, ctx: ctxWithId } = makeCountryId(ctx)
+
+  const newCountry: Country = {
+    id: countryId,
+    name: input.name,
+    houseIds: [],
+    treasury: input.treasury ?? 0,
+    adminPower: input.adminPower ?? 0,
+    legacyPrestige: input.legacyPrestige ?? 0,
+    active: true,
+    capitalProvinceId: input.capitalProvinceId ?? ('' as ProvinceId),
+  }
+
+  const newState = {
+    ...ctxWithId.state,
+    countries: { ...ctxWithId.state.countries, [countryId]: newCountry },
+  }
+  return ok({ ctx: { ...ctxWithId, state: newState }, value: { countryId } })
+}
+
+export function deactivateCountry(
+  state: WorldState,
+  countryId: CountryId,
+  options?: { deactivateHouses?: boolean },
+): StateResult {
+  const country = state.countries[countryId]
+  if (!country)
+    return err({
+      code: 'COUNTRY_NOT_FOUND',
+      message: 'deactivateCountry: country not found: ' + countryId,
+    })
+
+  if (!country.active) return ok(state)
+
+  let newState = {
+    ...state,
+    countries: { ...state.countries, [countryId]: { ...country, active: false } },
+  }
+
+  if (options?.deactivateHouses) {
+    const newHouses = { ...newState.houses }
+    for (const houseId of country.houseIds) {
+      const house = newHouses[houseId]
+      if (house && house.active) {
+        newHouses[houseId] = { ...house, active: false }
+      }
+    }
+    newState = { ...newState, houses: newHouses }
+  }
+
+  return ok(newState)
+}
 import { defaultConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 import { createOfficeAssignment } from './officeMutations'

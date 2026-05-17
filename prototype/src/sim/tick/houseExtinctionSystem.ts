@@ -9,10 +9,7 @@ import { adjustCountryLegacyPrestige } from '../helpers/attitudeHelpers'
 import { getCountryRulerHouse } from '../selectors/officeSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getDominantCountryHouse } from '../selectors/shareSelectors'
-import {
-  createOfficeAssignment,
-  revokeAllOfficesForOrganization,
-} from '../mutations/officeMutations'
+import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import type { CountryId, ProvinceId } from '../types/ids'
 
 function moveLivingMembersToHouse(
@@ -308,7 +305,7 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
     // Set new leader via office system
     const newLeaderId = getHouseLeader(domesticState, newRulerHouseId)
     if (newLeaderId) {
-      domesticState = revokeAllOfficesForOrganization(
+      domesticState = revokeOfficesByOrganization(
         domesticState,
         { kind: 'country', id: house.countryId },
         'leader',

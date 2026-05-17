@@ -1,4 +1,4 @@
-import type { ProvinceId, HouseId } from '../types/ids'
+import type { ProvinceId, HouseId, CountryId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { StateResult } from './result'
 import { ok, err } from './result'
@@ -54,4 +54,29 @@ export function transferProvinceToHouse(
     provinces: newProvinces,
     houses: newHouses,
   })
+}
+
+export function transferProvinceToCountry(
+  state: WorldState,
+  provinceId: ProvinceId,
+  toCountryId: CountryId,
+  toOwnerHouseId: HouseId,
+): StateResult {
+  if (!state.provinces[provinceId])
+    return err({ code: 'PROVINCE_NOT_FOUND', message: 'Province not found: ' + provinceId })
+
+  if (!state.countries[toCountryId])
+    return err({ code: 'COUNTRY_NOT_FOUND', message: 'Target country not found: ' + toCountryId })
+
+  const toHouse = state.houses[toOwnerHouseId]
+  if (!toHouse)
+    return err({ code: 'HOUSE_NOT_FOUND', message: 'Target house not found: ' + toOwnerHouseId })
+
+  if ((toHouse.countryId as string) !== (toCountryId as string))
+    return err({
+      code: 'CROSS_COUNTRY_TRANSFER',
+      message: `House ${toOwnerHouseId} does not belong to country ${toCountryId}`,
+    })
+
+  return transferProvinceToHouse(state, provinceId, toOwnerHouseId)
 }
