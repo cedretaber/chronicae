@@ -10,6 +10,7 @@ export function runGovernanceSystem(ctx: TickContext): TickContext {
 
   let currentCtx = ctx
 
+  // v013-residual: simple-batch — 全 country の adminPower 計算後の単一バッチ書き込み。将来 setCountryAdminPower() で代替可
   const countryIds = Object.keys(currentCtx.state.countries).sort()
   const newCountries: Record<CountryId, Country> = { ...currentCtx.state.countries }
 

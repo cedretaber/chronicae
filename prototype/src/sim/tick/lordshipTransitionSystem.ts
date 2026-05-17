@@ -4,6 +4,7 @@ import type { SimEvent } from '../types/event'
 import { randomFloat } from '../rng/rng'
 import { makeEventId } from './context'
 import { clamp } from '../utils/math'
+import { transferProvinceToHouse } from '../mutations/provinceMutations'
 
 export function runLordshipTransitionSystem(ctx: TickContext): TickContext {
   const { provinces, houses } = ctx.state
@@ -126,51 +127,27 @@ export function runLordshipTransitionSystem(ctx: TickContext): TickContext {
     })
   }
 
-  const newProvinces = { ...provinces }
-  const newHouses = { ...houses }
-
-  for (const targetIdKey of Object.keys(provinceSnapshot)) {
-    const targetId = targetIdKey as ProvinceId
-    const target = provinceSnapshot[targetId]
-    if (!target) continue
-
-    if (!appliedTargets.has(targetId)) continue
-
-    const candidate = candidates.find((c) => c.targetId === targetId)
-    if (!candidate) continue
-
-    const oldHouseId = target.ownerHouseId
-    const newHouseId = candidate.sourceNeighbor.ownerHouseId
+  let currentState = currentCtx.state
+  for (const candidate of candidates) {
     const newHouseControl = clamp(
       candidate.sourceNeighbor.houseControl - config.lordshipAbsorptionNewControlPenalty,
       config.lordshipAbsorptionNewControlMin,
       config.lordshipAbsorptionNewControlMax,
     )
-
-    newProvinces[targetId] = {
-      ...target,
-      ownerHouseId: newHouseId,
-      houseControl: newHouseControl,
-    }
-
-    const oldHouse = newHouses[oldHouseId]
-    if (!oldHouse) continue
-    newHouses[oldHouseId] = {
-      ...oldHouse,
-      provinceIds: oldHouse.provinceIds.filter((pid) => pid !== targetId),
-    }
-
-    const newHouse = newHouses[newHouseId]
-    if (!newHouse) continue
-    newHouses[newHouseId] = {
-      ...newHouse,
-      provinceIds: [...newHouse.provinceIds, targetId],
-    }
+    const r = transferProvinceToHouse(
+      currentState,
+      candidate.targetId,
+      candidate.sourceNeighbor.ownerHouseId,
+      {
+        newHouseControl,
+      },
+    )
+    if (r.ok) currentState = r.value
   }
 
   return {
     ...currentCtx,
-    state: { ...currentCtx.state, provinces: newProvinces, houses: newHouses },
+    state: currentState,
     events: [...currentCtx.events, ...newEvents],
     nextEventIndex: currentCtx.nextEventIndex + newEvents.length,
   }

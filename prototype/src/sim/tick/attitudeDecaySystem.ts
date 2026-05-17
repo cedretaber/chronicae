@@ -4,7 +4,7 @@ import type { PersonId, PopGroupId } from '../types/ids'
 export function runAttitudeDecaySystem(ctx: TickContext): TickContext {
   const rate = ctx.config.attitudeMonthlyRetentionRate
 
-  // Decay all Person attitudes toward 0 by multiplying by retention rate
+  // v013-residual: simple-batch — 全員の attitudes を retention rate 倍する単純畳み込み。将来 decayAllAttitudes() で代替可
   const newPersons = { ...ctx.state.persons }
   for (const personId of Object.keys(newPersons).sort() as PersonId[]) {
     const person = newPersons[personId]
@@ -23,7 +23,7 @@ export function runAttitudeDecaySystem(ctx: TickContext): TickContext {
     newPersons[personId] = { ...person, attitudes: decayedAttitudes }
   }
 
-  // Decay all PopGroup attitudes toward 0 by multiplying by retention rate
+  // v013-residual: simple-batch — PopGroup 全員の attitudes を retention rate 倍。上記と同様
   const newPopGroups = { ...ctx.state.popGroups }
   for (const popId of Object.keys(newPopGroups).sort() as PopGroupId[]) {
     const pop = newPopGroups[popId]

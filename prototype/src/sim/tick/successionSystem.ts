@@ -14,7 +14,8 @@ import type { HouseId, CountryId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { SuccessionCandidate } from '../selectors/successionSelectors'
 import { createLogger } from '../debug/logger'
-import { adjustAttitude, countryAttitudeKey, houseAttitudeKey } from '../helpers/attitudeHelpers'
+import { countryAttitudeKey, houseAttitudeKey } from '../helpers/attitudeHelpers'
+import { adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
 
 export function runSuccessionSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -254,21 +255,17 @@ export function applyMinorHeadPenalties(ctx: TickContext): TickContext {
 
     const countryKey = countryAttitudeKey(house.countryId)
     const houseKey = houseAttitudeKey(houseId as HouseId)
-    const newPersons = { ...currentCtx.state.persons }
-    for (const memberId of house.memberIds) {
-      const member = newPersons[memberId]
-      if (!member || !member.alive) continue
-      let att = member.attitudes
-      att = adjustAttitude(att, houseKey, {
-        respect: -currentCtx.config.minorHeadCohesionPenaltyPerMonth,
-      })
-      att = adjustAttitude(att, countryKey, {
-        affection: -currentCtx.config.minorHeadLoyaltyPenaltyPerMonth,
-      })
-      newPersons[memberId] = { ...member, attitudes: att }
-    }
+    let state = currentCtx.state
+    const r1 = adjustHouseMembersAttitude(state, houseId as HouseId, houseKey, {
+      respect: -currentCtx.config.minorHeadCohesionPenaltyPerMonth,
+    })
+    if (r1.ok) state = r1.value
+    const r2 = adjustHouseMembersAttitude(state, houseId as HouseId, countryKey, {
+      affection: -currentCtx.config.minorHeadLoyaltyPenaltyPerMonth,
+    })
+    if (r2.ok) state = r2.value
 
-    currentCtx = { ...currentCtx, state: { ...currentCtx.state, persons: newPersons } }
+    currentCtx = { ...currentCtx, state }
   }
 
   return currentCtx

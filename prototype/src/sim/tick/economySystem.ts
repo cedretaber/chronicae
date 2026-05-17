@@ -92,7 +92,7 @@ export function runEconomySystem(ctx: TickContext): TickContext {
     }
   }
 
-  // Apply house wealth deltas
+  // v013-residual: simple-batch — delta map 集約後の単一バッチ書き込み。将来 adjustHouseWealth() 等で代替可だが delta 集約パターンが有用なので直接記述
   const newHouses = { ...currentState.houses }
   for (const houseId of Object.keys(currentState.houses).sort()) {
     const house = newHouses[houseId as HouseId]
@@ -104,7 +104,7 @@ export function runEconomySystem(ctx: TickContext): TickContext {
     }
   }
 
-  // Apply country treasury deltas
+  // v013-residual: simple-batch — taxEfficiency を乗じた treasury バッチ更新。上記と同様
   const newCountries = { ...currentState.countries }
   for (const countryId of Object.keys(currentState.countries).sort()) {
     const country = newCountries[countryId as CountryId]

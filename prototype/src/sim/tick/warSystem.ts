@@ -12,7 +12,7 @@ import {
   calcGeneralWarPowerModifier,
   calcGeneralDeclareThreshold,
 } from '../selectors/personAbilityEffects'
-import { transferProvinceToHouse } from '../mutations/provinceMutations'
+import { transferProvinceToCountry } from '../mutations/provinceMutations'
 import { annexCountry } from '../mutations/countryMutations'
 import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
@@ -270,7 +270,11 @@ export function runWarSystem(ctx: TickContext): TickContext {
         }
 
         const rulerHouseId =
-          getCountryRulerHouse(currentState, attackerCountryId) ?? attackerCountry.houseIds[0]
+          getCountryRulerHouse(currentState, attackerCountryId) ??
+          attackerCountry.houseIds.find((hid) => {
+            const h = currentState.houses[hid]
+            return h?.active && (h.countryId as string) === (attackerCountryId as string)
+          })
         if (!rulerHouseId) {
           continue
         }
@@ -345,10 +349,12 @@ export function runWarSystem(ctx: TickContext): TickContext {
             continue
           }
 
-          // v013-residual: transferProvinceToHouse used instead of transferProvinceToCountry;
-          // the latter adds country-ownership validation that fails in edge cases where
-          // attackerCountry.houseIds[0] fallback has stale countryId, causing >10% digest divergence
-          const tResult = transferProvinceToHouse(currentCtx.state, provinceId, rulerHouseId)
+          const tResult = transferProvinceToCountry(
+            currentCtx.state,
+            provinceId,
+            attackerCountryId,
+            rulerHouseId,
+          )
           if (!tResult.ok) continue
           currentCtx = { ...currentCtx, state: tResult.value }
 

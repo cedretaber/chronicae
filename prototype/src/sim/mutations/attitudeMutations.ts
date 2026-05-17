@@ -63,3 +63,29 @@ export function adjustPopAttitude(
     popGroups: { ...state.popGroups, [popGroupId]: { ...pop, attitudes: newAttitudes } },
   })
 }
+
+export function adjustHouseMembersAttitude(
+  state: WorldState,
+  houseId: HouseId,
+  attitudeKey: string,
+  delta: Partial<Attitude>,
+): StateResult {
+  const house = state.houses[houseId]
+  if (!house)
+    return err({
+      code: 'HOUSE_NOT_FOUND',
+      message: 'adjustHouseMembersAttitude: house not found: ' + houseId,
+    })
+
+  const newPersons = { ...state.persons }
+  for (const memberId of house.memberIds) {
+    const person = newPersons[memberId]
+    if (!person || !person.alive) continue
+    newPersons[memberId] = {
+      ...person,
+      attitudes: adjustAttitude(person.attitudes, attitudeKey, delta),
+    }
+  }
+
+  return ok({ ...state, persons: newPersons })
+}

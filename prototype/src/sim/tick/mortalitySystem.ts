@@ -25,6 +25,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
       const houseLeaderBefore = getHouseLeader(currentCtx.state, person.houseId)
       const wasHouseLeader = houseLeaderBefore === (personId as PersonId)
 
+      // v013-residual: simple-batch — alive=false フラグ単独更新（spouse/office は mutation 経由済み）
       const newPersons = { ...currentCtx.state.persons }
       newPersons[personId as PersonId] = { ...person, alive: false }
       let currentState = { ...currentCtx.state, persons: newPersons }

@@ -3,6 +3,7 @@ import type { TickContext } from './context'
 import type { ProvinceId } from '../types/ids'
 
 export function runDevelopmentSystem(ctx: TickContext): TickContext {
+  // v013-residual: simple-batch — 全 province の development を decay/recover。adjustProvinceDevelopment で代替可だがループが単純なので直接記述
   const newProvinces = { ...ctx.state.provinces }
 
   for (const provinceId of Object.keys(ctx.state.provinces).sort()) {

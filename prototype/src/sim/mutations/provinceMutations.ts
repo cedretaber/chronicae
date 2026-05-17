@@ -2,11 +2,13 @@ import type { ProvinceId, HouseId, CountryId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { StateResult } from './result'
 import { ok, err } from './result'
+import { clamp } from '../utils/math'
 
 export function transferProvinceToHouse(
   state: WorldState,
   provinceId: ProvinceId,
   newOwnerHouseId: HouseId,
+  options?: { newHouseControl?: number },
 ): StateResult {
   const province = state.provinces[provinceId]
   if (!province)
@@ -31,6 +33,9 @@ export function transferProvinceToHouse(
     ...province,
     ownerHouseId: newOwnerHouseId,
     countryId: newOwnerHouse.countryId,
+    ...(options?.newHouseControl !== undefined
+      ? { houseControl: options.newHouseControl }
+      : undefined),
   }
 
   const newHouses = { ...state.houses }
@@ -53,6 +58,31 @@ export function transferProvinceToHouse(
     ...state,
     provinces: newProvinces,
     houses: newHouses,
+  })
+}
+
+export function adjustProvinceDevelopment(
+  state: WorldState,
+  provinceId: ProvinceId,
+  delta: number,
+  options?: { min?: number; max?: number },
+): StateResult {
+  const province = state.provinces[provinceId]
+  if (!province)
+    return err({ code: 'PROVINCE_NOT_FOUND', message: 'Province not found: ' + provinceId })
+
+  const min = options?.min ?? -100
+  const max = options?.max ?? 100
+
+  return ok({
+    ...state,
+    provinces: {
+      ...state.provinces,
+      [provinceId]: {
+        ...province,
+        development: clamp(province.development + delta, min, max),
+      },
+    },
   })
 }
 

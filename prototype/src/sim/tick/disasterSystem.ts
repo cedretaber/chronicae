@@ -1,7 +1,6 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { clamp } from '../utils/math'
 import type { CountryId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import {
@@ -11,6 +10,7 @@ import {
   adjustProvincePopSize,
   adjustProvincePopUnrestByClass,
 } from '../mutations/popMutations'
+import { adjustProvinceDevelopment } from '../mutations/provinceMutations'
 import {
   adjustCountryLegacyPrestige,
   adjustAttitude,
@@ -31,19 +31,14 @@ function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
   const reliefCost = countryProvinceIds.length * ctx.config.disasterReliefCostPerProvince
   const canAffordRelief = country.treasury >= reliefCost
 
-  const newProvinces = { ...ctx.state.provinces }
-
   const developmentDelta = canAffordRelief
     ? ctx.config.famineDevastation - ctx.config.famineReliefDevelopmentRecovery
     : ctx.config.famineDevastation
 
+  let stateWithDev = ctx.state
   for (const pid of countryProvinceIds) {
-    const province = newProvinces[pid]
-    if (!province) continue
-    newProvinces[pid] = {
-      ...province,
-      development: clamp(province.development - developmentDelta, -100, 100),
-    }
+    const r = adjustProvinceDevelopment(stateWithDev, pid, -developmentDelta)
+    if (r.ok) stateWithDev = r.value
   }
 
   const treasuryAfterRelief = canAffordRelief
@@ -56,9 +51,8 @@ function applyFamine(ctx: TickContext, countryId: CountryId): TickContext {
   }
 
   const stateWithCountry = {
-    ...ctx.state,
-    provinces: newProvinces,
-    countries: { ...ctx.state.countries, [countryId]: updatedCountry },
+    ...stateWithDev,
+    countries: { ...stateWithDev.countries, [countryId]: updatedCountry },
   }
 
   // Apply legacyPrestige and attitude changes based on relief
@@ -176,28 +170,13 @@ function applyPlague(ctx: TickContext, countryId: CountryId): TickContext {
     })
     .map((pid) => pid as ProvinceId)
 
-  const newProvinces = { ...ctx.state.provinces }
-
+  let stateWithDev = ctx.state
   for (const pid of countryProvinceIds) {
-    const province = newProvinces[pid]
-    if (!province) continue
-    newProvinces[pid] = {
-      ...province,
-      development: clamp(province.development - ctx.config.plagueDevastation, -100, 100),
-    }
+    const r = adjustProvinceDevelopment(stateWithDev, pid, -ctx.config.plagueDevastation)
+    if (r.ok) stateWithDev = r.value
   }
 
-  const updatedCountry = { ...country }
-
-  const nextCtx = {
-    ...ctx,
-    state: {
-      ...ctx.state,
-      provinces: newProvinces,
-      countries: { ...ctx.state.countries, [countryId]: updatedCountry },
-    },
-  }
-
+  const nextCtx = { ...ctx, state: stateWithDev }
   let stateWithPopEffects = nextCtx.state
   for (const pid of countryProvinceIds) {
     stateWithPopEffects = adjustProvincePopWealth(
@@ -234,34 +213,21 @@ function applyBountifulHarvest(ctx: TickContext, countryId: CountryId): TickCont
   const country = ctx.state.countries[countryId]
   if (!country) return ctx
 
-  const newProvinces = { ...ctx.state.provinces }
-  const countryProvinceIds: ProvinceId[] = []
+  const countryProvinceIds: ProvinceId[] = Object.keys(ctx.state.provinces)
+    .filter((pid) => ctx.state.provinces[pid as ProvinceId]?.countryId === countryId)
+    .map((pid) => pid as ProvinceId)
 
-  for (const pid of Object.keys(ctx.state.provinces)) {
-    const province = ctx.state.provinces[pid as ProvinceId]
-    if (!province || province.countryId !== countryId) continue
-    countryProvinceIds.push(pid as ProvinceId)
-    newProvinces[pid as ProvinceId] = {
-      ...province,
-      development: clamp(
-        province.development + ctx.config.bountifulHarvestDevelopmentGain,
-        -100,
-        100,
-      ),
-    }
+  let stateWithDev = ctx.state
+  for (const pid of countryProvinceIds) {
+    const r = adjustProvinceDevelopment(
+      stateWithDev,
+      pid,
+      ctx.config.bountifulHarvestDevelopmentGain,
+    )
+    if (r.ok) stateWithDev = r.value
   }
 
-  const updatedCountry = { ...country }
-
-  const nextCtxHarvest = {
-    ...ctx,
-    state: {
-      ...ctx.state,
-      provinces: newProvinces,
-      countries: { ...ctx.state.countries, [countryId]: updatedCountry },
-    },
-  }
-
+  const nextCtxHarvest = { ...ctx, state: stateWithDev }
   let stateWithPopEffects = nextCtxHarvest.state
   for (const pid of countryProvinceIds) {
     stateWithPopEffects = adjustProvincePopWealthByClass(

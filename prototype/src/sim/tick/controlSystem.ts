@@ -60,6 +60,7 @@ export function runControlSystem(ctx: TickContext): TickContext {
   const { provinces, countries, houses } = ctx.state
   const config = ctx.config
 
+  // v013-residual: simple-batch — BFS 距離計算と組み合わせた countryControl/houseControl 更新。mutation 化はオーバーキル
   const newProvinces: Record<ProvinceId, Province> = {}
   for (const id of Object.keys(provinces) as ProvinceId[]) {
     const prov = provinces[id]

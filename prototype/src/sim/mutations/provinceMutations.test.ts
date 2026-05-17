@@ -3,7 +3,11 @@ import { createCountryId, createHouseId, createProvinceId } from '../types/ids'
 import type { CountryId, HouseId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
-import { transferProvinceToHouse, transferProvinceToCountry } from './provinceMutations'
+import {
+  transferProvinceToHouse,
+  transferProvinceToCountry,
+  adjustProvinceDevelopment,
+} from './provinceMutations'
 
 function makeFixture(): {
   state: WorldState
@@ -187,5 +191,65 @@ describe('transferProvinceToCountry', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('CROSS_COUNTRY_TRANSFER')
+  })
+})
+
+describe('transferProvinceToHouse with newHouseControl', () => {
+  it('overrides houseControl when newHouseControl is provided', () => {
+    const { state, provinceId, house2Id } = makeFixture()
+    const result = transferProvinceToHouse(state, provinceId, house2Id, { newHouseControl: 42 })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.provinces[provinceId]!.houseControl).toBe(42)
+    expect(collectIntegrityErrors(result.value)).toEqual([])
+  })
+
+  it('preserves original houseControl when option is omitted', () => {
+    const { state, provinceId, house2Id } = makeFixture()
+    const original = state.provinces[provinceId]!.houseControl
+    const result = transferProvinceToHouse(state, provinceId, house2Id)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.provinces[provinceId]!.houseControl).toBe(original)
+  })
+})
+
+describe('adjustProvinceDevelopment', () => {
+  it('adds delta to development', () => {
+    const { state, provinceId } = makeFixture()
+    const result = adjustProvinceDevelopment(state, provinceId, 10)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.provinces[provinceId]!.development).toBe(10)
+  })
+
+  it('clamps to -100..100 by default', () => {
+    const { state, provinceId } = makeFixture()
+    const r1 = adjustProvinceDevelopment(state, provinceId, 200)
+    const r2 = adjustProvinceDevelopment(state, provinceId, -200)
+
+    expect(r1.ok && r1.value.provinces[provinceId]!.development).toBe(100)
+    expect(r2.ok && r2.value.provinces[provinceId]!.development).toBe(-100)
+  })
+
+  it('respects custom min/max options', () => {
+    const { state, provinceId } = makeFixture()
+    const result = adjustProvinceDevelopment(state, provinceId, 50, { min: -50, max: 30 })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.provinces[provinceId]!.development).toBe(30)
+    expect(collectIntegrityErrors(result.value)).toEqual([])
+  })
+
+  it('returns err when province not found', () => {
+    const { state } = makeFixture()
+    const result = adjustProvinceDevelopment(state, createProvinceId('p', 99), 10)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('PROVINCE_NOT_FOUND')
   })
 })

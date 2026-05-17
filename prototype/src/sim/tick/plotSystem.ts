@@ -6,7 +6,6 @@ import { clamp } from '../utils/math'
 import {
   adjustPersonLegacyPrestige,
   adjustHouseLegacyPrestige,
-  adjustAttitude,
   personAttitudeKey,
   countryAttitudeKey,
 } from '../helpers/attitudeHelpers'
@@ -15,6 +14,7 @@ import { getHouseLeader } from '../selectors/officeSelectors'
 import { getAvailableOfficeRoles } from '../selectors/officeSelectors'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { addPlot as addPlotMutation } from '../mutations/plotMutations'
+import { adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
 import type { OrganizationRef, OfficeRole } from '../types/office'
 import type { PlotId, HouseId, PersonId, CountryId } from '../types/ids'
 import type { Plot, PlotType } from '../types/plot'
@@ -130,34 +130,23 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
           .sort((a, b) => b.legacyPrestige - a.legacyPrestige)[0]
 
         if (newHead) {
-          // Update house with new head (no cohesion field anymore)
-          const newHouses = { ...state.houses }
-          newHouses[plot.targetHouseId as HouseId] = {
-            ...targetHouse,
-          }
-          state = { ...state, houses: newHouses }
-
           // Apply office mutation: revoke all offices for the organization, then assign to new leader
           const targetOrgRef: OrganizationRef = { kind: 'house', id: targetHouse.id }
-          let newState = revokeOfficesByOrganization(currentCtx.state, targetOrgRef, 'leader')
+          let newState = revokeOfficesByOrganization(state, targetOrgRef, 'leader')
           newState = createOfficeAssignment(newState, targetOrgRef, 'leader', newHead.id)
           state = newState
 
           // Adjust target house member attitudes
           const oldHeadKey = currentHeadId ? personAttitudeKey(currentHeadId) : ''
           const newHeadKey = personAttitudeKey(newHead.id)
-          const newPersons = { ...state.persons }
-          for (const memberId of targetHouse.memberIds) {
-            const m = newPersons[memberId]
-            if (!m || !m.alive) continue
-            let att = m.attitudes
-            if (oldHeadKey) {
-              att = adjustAttitude(att, oldHeadKey, { respect: -10 })
-            }
-            att = adjustAttitude(att, newHeadKey, { respect: 8 })
-            newPersons[memberId] = { ...m, attitudes: att }
+          if (oldHeadKey) {
+            const r = adjustHouseMembersAttitude(state, targetHouse.id, oldHeadKey, {
+              respect: -10,
+            })
+            if (r.ok) state = r.value
           }
-          state = { ...state, persons: newPersons }
+          const r2 = adjustHouseMembersAttitude(state, targetHouse.id, newHeadKey, { respect: 8 })
+          if (r2.ok) state = r2.value
         }
 
         // Leader legacyPrestige +5
@@ -209,20 +198,12 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
     }
 
     case 'prepare_rebellion': {
-      const leaderHouse = state.houses[leader.houseId]
-      if (leaderHouse) {
-        const cKey = countryAttitudeKey(leader.countryId)
-        const newPersons = { ...state.persons }
-        for (const memberId of leaderHouse.memberIds) {
-          const m = newPersons[memberId]
-          if (!m || !m.alive) continue
-          newPersons[memberId] = {
-            ...m,
-            attitudes: adjustAttitude(m.attitudes, cKey, { affection: -8, respect: -5 }),
-          }
-        }
-        state = { ...state, persons: newPersons }
-      }
+      const cKey = countryAttitudeKey(leader.countryId)
+      const rr = adjustHouseMembersAttitude(state, leader.houseId, cKey, {
+        affection: -8,
+        respect: -5,
+      })
+      if (rr.ok) state = rr.value
 
       const countryIds: CountryId[] = plot.targetCountryId
         ? [plot.targetCountryId]

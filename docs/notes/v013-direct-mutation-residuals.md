@@ -1,64 +1,61 @@
 # v0.13 Direct Mutation Residuals
 
-Direct writes to `state.persons[x]`, `state.houses[x]`, etc. that remain in `sim/tick/` after v0.13.
+Direct writes to `state.persons[x]`, `state.houses[x]`, etc. that remain in `sim/tick/` after v0.13 + post-review cleanup.
 
-## 移行済み (Migrated in v0.13)
+## 移行済み (Migrated)
 
-These large mutation blocks were extracted into `sim/mutations/worldStructureMutations.ts`:
-
-| System file | Migrated to |
-|---|---|
-| `houseExtinctionSystem.ts` (600+ lines) | `extinctHouse()` orchestration |
-| `houseSplitSystem.ts` (execution phase, ~200 lines) | `splitHouse()` orchestration |
-| `provinceRevoltSystem.ts` `resolveRevoltIndependence` (~290 lines) | `foundRevoltCountry()` orchestration |
-
-Phase 4 also migrated atomic operations:
+### v0.13 本体 (Phase 4-5)
 
 | System file | Migrated to |
 |---|---|
+| `houseExtinctionSystem.ts` (600+ lines) | `extinctHouse()` in `worldStructureMutations.ts` |
+| `houseSplitSystem.ts` (execution phase, ~200 lines) | `splitHouse()` in `worldStructureMutations.ts` |
+| `provinceRevoltSystem.ts` `resolveRevoltIndependence` (~290 lines) | `foundRevoltCountry()` in `worldStructureMutations.ts` |
 | `mortalitySystem.ts` spouse clearing | `clearSpouse()` in `relationshipMutations.ts` |
 | `birthSystem.ts` child creation | `birthChild()` in `personMutations.ts` |
 
-## 意図的に残す (Intentionally Kept)
+### v0.13 post-review cleanup (Phase B-E)
 
-### `warSystem.ts:348` — `transferProvinceToHouse` instead of `transferProvinceToCountry`
+| System file | Migrated to |
+|---|---|
+| `warSystem.ts:273` `houseIds[0]` fallback + `transferProvinceToHouse` | `find` で valid house 検索 + `transferProvinceToCountry` — stale countryId による province 誤転送バグを修正 |
+| `plotSystem.ts:135` no-op house spread | 削除（`revokeOfficesByOrganization` + `createOfficeAssignment` で完結していた） |
+| `disasterSystem.ts:43,184,244` provinces development | `adjustProvinceDevelopment()` in `provinceMutations.ts` |
+| `lordshipTransitionSystem.ts:150,158,165` provinces/houses lordship | `transferProvinceToHouse({ newHouseControl })` — `newHouseControl` option を Phase A で追加 |
+| `plotSystem.ts:158,219` house member attitudes | `adjustHouseMembersAttitude()` in `attitudeMutations.ts` |
+| `successionSystem.ts:268` house member attitudes | `adjustHouseMembersAttitude()` in `attitudeMutations.ts` |
 
-```
-// v013-residual: transferProvinceToHouse used instead of transferProvinceToCountry;
-// the latter adds country-ownership validation that fails in edge cases where
-// attackerCountry.houseIds[0] fallback has stale countryId, causing >10% digest divergence
-```
+## simple-batch（v013-residual: simple-batch コメント済み）
 
-**理由**: `transferProvinceToCountry` は `toHouse.countryId !== toCountryId` の追加バリデーションを行う。
-`getCountryRulerHouse` が null を返した場合のフォールバック `attackerCountry.houseIds[0]` が
-stale な `countryId` を持つ edge case でバリデーションが失敗し、province 獲得がスキップされる。
-この影響で4シード×300年で `activeCountries` や `REBELLION_STARTED` が ±10% を超えて変化する。
-根本修正（`attackerCountry.houseIds[0]` フォールバックの廃止か state 整合性の保証）は別 issue とする。
+以下は `new* = { ...state.* }` → ループ → `state: { ...state, [field]: new* }` の
+immutable update パターン。mutation API 化より直接記述のほうが可読性が高い単純なループ。
+コード上に `// v013-residual: simple-batch` コメントを付けており、将来の置換候補として grep 可能。
 
-### バッチ処理パターン（immutable update として意図的）
-
-以下は `new* = { ...state.* }` → 代入 → `state: { ...state, [field]: new* }` の
-immutable update パターン。mutation API 化するより直接記述のほうが可読性が高く、
-単純なフィールド更新なので mutation API が不要。
-
-| ファイル | 行 | 内容 |
-|---|---|---|
-| `advanceTime.ts:11` | persons age +1 | 全員に1歳加算する単純ループ |
-| `attitudeDecaySystem.ts:23` | persons attitudes decay | 全員の attitude を decay する単純ループ |
-| `mortalitySystem.ts:29` | persons alive = false | 死亡フラグ設定（spouse clearing は clearSpouse に移行済み） |
-| `developmentSystem.ts:22` | provinces development | 開発値更新 |
-| `economySystem.ts:101` | houses wealth | 家の収入計算 |
-| `economySystem.ts:115` | countries treasury | 国の財政計算 |
-| `governanceSystem.ts:27` | countries adminPower | ガバナンス更新 |
-| `controlSystem.ts:67` | provinces (control tick) | province control 減衰 |
-
-## 持ち越し (Deferred)
-
-以下は複雑なロジックを含むため v0.13 での mutation API 化を見送り、別 issue とする。
-
-| ファイル | 行 | 内容 | 持ち越し理由 |
+| ファイル | 行 | 内容 | 将来の mutation API 案 |
 |---|---|---|---|
-| `disasterSystem.ts:43,184,244` | provinces disaster effects | 複数の catastrophe ロジック | ロジックが複雑でリスクが高い |
-| `lordshipTransitionSystem.ts:150,158,165` | provinces/houses lordship | 封建制の主従変更 | 多数の整合性条件がある |
-| `plotSystem.ts:135,158,219` | houses/persons plot effects | plot 解決ロジック | plot 系は Phase 3 で API 追加したが呼び出し側は未移行 |
-| `successionSystem.ts:268` | persons attitudes after succession | 継承後 attitude 更新 | successionSystem 全体の Result 化とセット |
+| `advanceTime.ts:8` | persons age +1 | 全員に1歳加算する単純ループ | `incrementAllPersonsAge(state)` |
+| `attitudeDecaySystem.ts:9` | persons attitudes decay | 全員の person attitudes を retention rate 倍 | `decayAllPersonAttitudes(state, rate)` |
+| `attitudeDecaySystem.ts:28` | popGroups attitudes decay | 全員の popGroup attitudes を retention rate 倍 | `decayAllPopAttitudes(state, rate)` |
+| `mortalitySystem.ts:29` | persons alive = false | 死亡フラグ設定（spouse/office clearing は mutation 経由済み） | `markPersonDead(state, personId)` |
+| `developmentSystem.ts:7` | provinces development decay | 全 province の development を decay/recover | `adjustProvinceDevelopment` で代替可。ループ単純なので現状維持 |
+| `economySystem.ts:97` | houses wealth | delta map 集約後の house wealth バッチ更新 | `adjustHouseWealth(state, houseId, delta)` で代替可だが delta 集約パターンが有用 |
+| `economySystem.ts:109` | countries treasury | taxEfficiency を乗じた treasury バッチ更新 | 上記と同様 |
+| `governanceSystem.ts:14` | countries adminPower | 全 country の adminPower バッチ更新 | `setCountryAdminPower(state, countryId, power)` |
+| `controlSystem.ts:63` | provinces control | BFS 距離計算と組み合わせた countryControl/houseControl 更新 | mutation 化はオーバーキル（BFS 計算が不可分） |
+
+## Digest 差分記録
+
+Phase B（warSystem フォールバック修正）で挙動変化あり。各 seed の主要集計値：
+
+| seed | baseline activeCountries | Phase B activeCountries | 変化 |
+|---|---|---|---|
+| 1 | 7 | 5 | -28% |
+| 42 | 同一 | 同一 | — |
+| 123 | 軽微差分のみ | 軽微差分のみ | — |
+| 999 | 2 | 7 | +250% |
+
+**理由**: 以前の `houseIds[0]` フォールバックは stale countryId を持つ house に province を渡し、
+`province.countryId` が誤った値で更新される潜在的状態破壊バグを含んでいた。
+修正後は `valid house` が見つからない場合に province 獲得をスキップするため、
+戦争の結果が変わり政治マップが大きく変化する。
+ゲームの挙動変化として許容（integrity violation は発生していない）。
