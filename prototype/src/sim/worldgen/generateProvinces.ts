@@ -1,4 +1,4 @@
-import type { ProvinceId, HouseId, PolityId, PopGroupId } from '../types/ids'
+import type { ProvinceId, PopGroupId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { RngState } from '../rng/rng'
 import type { MapGenerationConfig } from './mapConfig'
@@ -74,12 +74,9 @@ export function generateProvinces(
         x: col * 100,
         y: row * 100,
         neighbors,
-        ownerHouseId: '' as HouseId,
-        polityId: '' as PolityId,
         habitability: 0,
         development: 0,
         polityControl: 0,
-        houseControl: 0,
         popGroupIds: [] as PopGroupId[],
       })
     }

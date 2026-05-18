@@ -13,7 +13,20 @@ import type {
   OrganizationShare,
   ShareIndex,
 } from '../types/office'
-import type { OrganizationShareId } from '../types/ids'
+import type {
+  OrganizationShareId,
+  LandContractId,
+  ProvinceOfficeAssignmentId,
+} from '../types/ids'
+import type {
+  LandContract,
+  LandContractIndex,
+  ProvinceTerminalPolityCache,
+  ProvinceOfficeAssignment,
+  ProvinceOfficeIndex,
+  PolityIndex,
+} from '../types/landContract'
+import { ROOT_WORLD, ANONYMOUS_HOUSE_ID } from '../types/landContract'
 import { createRng } from '../rng/rng'
 import { randomInt } from '../rng/rng'
 import { generateProvinces } from './generateProvinces'
@@ -69,10 +82,6 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     const { value: development, rng: r2 } = randomInt(r1, -10, 10)
     rng = r2
 
-    const ownerHouseId = provinceToHouse.get(province.id)
-
-    province.ownerHouseId = ownerHouseId ?? ('' as HouseId)
-    province.polityId = assignments.get(province.id) ?? ('' as PolityId)
     province.habitability = habitability
     province.development = development
     province.popGroupIds = []
@@ -212,7 +221,6 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       id: houseId,
       name: hName,
       active: true,
-      provinceIds,
       memberIds,
       cadetHouseIds: [],
       legacyPrestige,
@@ -271,7 +279,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     const capProv = provinceMap.get(polity.capitalProvinceId)
     if (!capProv) {
       for (const p of provinces) {
-        if (p.polityId === polity.id) {
+        if (assignments.get(p.id) === polity.id) {
           p.polityControl = 30
         }
       }
@@ -279,7 +287,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     }
 
     for (const p of provinces) {
-      if (p.polityId === polity.id) {
+      if (assignments.get(p.id) === polity.id) {
         p.polityControl = 30
       }
     }
@@ -304,7 +312,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
           if (visited.has(neighborId)) continue
           const neighborProv = provinceMap.get(neighborId)
           if (!neighborProv) continue
-          if (neighborProv.polityId !== polity.id) continue
+          if (assignments.get(neighborId) !== polity.id) continue
           visited.add(neighborId)
           const neighborDist = currentDist + 1
           distMap.set(neighborId, neighborDist)
@@ -323,67 +331,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       }
     }
   }
-
-  for (const house of houses) {
-    const seatProv = provinceMap.get(house.seatProvinceId)
-    if (!seatProv) {
-      for (const p of provinces) {
-        if (p.ownerHouseId === house.id) {
-          p.houseControl = 30
-        }
-      }
-      continue
-    }
-
-    const houseDistMap = new Map<ProvinceId, number>()
-    houseDistMap.set(seatProv.id, 0)
-    if (seatProv.ownerHouseId === house.id) {
-      seatProv.houseControl = 100
-    }
-
-    visited.clear()
-    visited.add(seatProv.id)
-    queue.length = 0
-    queue.push(seatProv.id)
-
-    while (queue.length > 0) {
-      const nextQueue: string[] = []
-      for (const currentIdStr of queue) {
-        const currentId = currentIdStr as ProvinceId
-        const currentDist = houseDistMap.get(currentId) ?? 0
-        const currentProv = provinceMap.get(currentId)
-        if (!currentProv) continue
-        for (const neighborId of currentProv.neighbors) {
-          if (visited.has(neighborId)) continue
-          const neighborProv = provinceMap.get(neighborId)
-          if (!neighborProv) continue
-          if (neighborProv.polityId !== housePolity.get(house.id)) continue
-          visited.add(neighborId)
-          const neighborDist = currentDist + 1
-          houseDistMap.set(neighborId, neighborDist)
-          if (neighborProv.ownerHouseId === house.id) {
-            const maxControl = clamp(
-              100 - neighborDist * controlMaxDistancePenalty,
-              controlMaxMinimum,
-              100,
-            )
-            neighborProv.houseControl = maxControl
-          }
-          nextQueue.push(neighborId)
-        }
-      }
-      queue.length = 0
-      for (const n of nextQueue) {
-        queue.push(n)
-      }
-    }
-
-    for (const p of provinces) {
-      if (p.ownerHouseId === house.id && !visited.has(p.id)) {
-        p.houseControl = 30
-      }
-    }
-  }
+  // v0.16: houseControl BFS は廃止 (§8.2 §8.3)。Province の統治実効性は polityControl 単独。
 
   const popGroupsRecord: Record<PopGroupId, PopGroup> = {}
   const { populationCapacityPerHabitability, minProvinceCarryingCapacity, minPopSizeByClass } =
@@ -551,7 +499,8 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     const province = provinceMap.get(pop.provinceId)
     if (!province) continue
 
-    const polityKey = polityAttitudeKey(province.polityId)
+    const provincePolityId = assignments.get(province.id) ?? ('' as PolityId)
+    const polityKey = polityAttitudeKey(provincePolityId)
     const { value: aff1, rng: rp1 } = randomInt(rng, 10, 60)
     const { value: res1, rng: rp2 } = randomInt(rp1, 20, 70)
     rng = rp2
@@ -559,7 +508,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       [polityKey]: { affection: aff1, respect: res1 },
     }
 
-    const ownerHouseId = province.ownerHouseId
+    const ownerHouseId = provinceToHouse.get(province.id) ?? ('' as HouseId)
     if (ownerHouseId) {
       const houseKey = houseAttitudeKey(ownerHouseId)
       const { value: aff2, rng: rp3 } = randomInt(rng, 10, 60)
@@ -752,14 +701,25 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
 
   // Polity offices
   for (const polity of polities) {
-    // Polity ruler: use leader of the house with the most provinces
+    // Polity ruler: use leader of the house with the most provinces in this polity (housePolity ベース)
     let bestHouseId: HouseId | undefined
     let bestProvinceCount = -1
     for (const houseId of getPolityHouseIds(officeState, polity.id)) {
       const house = housesRecord[houseId]
       if (!house || !house.active) continue
-      if (house.provinceIds.length > bestProvinceCount) {
-        bestProvinceCount = house.provinceIds.length
+      let count = 0
+      for (const [, hp] of housePolity) {
+        if (hp === polity.id) count += 1
+      }
+      const provincesOfHouse = (() => {
+        let n = 0
+        for (const [pid, hid] of provinceToHouse) {
+          if (hid === houseId && assignments.get(pid) === polity.id) n += 1
+        }
+        return n
+      })()
+      if (provincesOfHouse > bestProvinceCount) {
+        bestProvinceCount = provincesOfHouse
         bestHouseId = houseId
       }
     }
@@ -934,11 +894,15 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       }).length
 
       const housePrestige = house.legacyPrestige
-      const militaryProxy = house.provinceIds.length * 10
+      let houseProvinceCount = 0
+      for (const [pid, hid] of provinceToHouse) {
+        if (hid === houseId && assignments.get(pid) === polity.id) houseProvinceCount += 1
+      }
+      const militaryProxy = houseProvinceCount * 10
 
       const rawPower =
         config.polityShareBase +
-        house.provinceIds.length * config.polityShareProvinceFactor +
+        houseProvinceCount * config.polityShareProvinceFactor +
         militaryProxy * config.polityShareMilitaryFactor +
         house.wealth * config.polityShareWealthFactor +
         housePrestige * config.politySharePrestigeFactor +
@@ -994,6 +958,117 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     }
   }
 
+  // v0.16: LandContract chain, AnonymousHouse, placeholder persons, ProvinceOfficeAssignments を生成
+  const landContractsRecord: Record<LandContractId, LandContract> = {}
+  const landContractIndex: LandContractIndex = {
+    byProvince: {},
+    byGranteePolity: {},
+    byParent: {},
+  }
+  const provinceTerminalPolityCache: ProvinceTerminalPolityCache = {}
+  let nextLandContractId = 0
+
+  // Stage A の最小構成: world → Kingdom (rank 2) を全 Province に
+  for (const province of provinces) {
+    const polityId = assignments.get(province.id)
+    if (!polityId) continue
+    const rootId = ('lc-' + nextLandContractId) as LandContractId
+    nextLandContractId++
+    landContractsRecord[rootId] = {
+      id: rootId,
+      provinceId: province.id,
+      rootAuthorityId: ROOT_WORLD,
+      granteePolityId: polityId,
+      terms: { taxRateToGrantor: 0 },
+    }
+    landContractIndex.byProvince[province.id] = [rootId]
+    const existingGrantee = landContractIndex.byGranteePolity[polityId] ?? []
+    landContractIndex.byGranteePolity[polityId] = [...existingGrantee, rootId]
+    provinceTerminalPolityCache[province.id] = polityId
+  }
+
+  // polityIndex.byOwnerHouse
+  const polityIndex: PolityIndex = { byOwnerHouse: {} }
+  for (const polity of polities) {
+    if (polity.ownerHouseId === undefined) continue
+    const existing = polityIndex.byOwnerHouse[polity.ownerHouseId] ?? []
+    polityIndex.byOwnerHouse[polity.ownerHouseId] = [...existing, polity.id]
+  }
+
+  // AnonymousHouse (system house) を 1 つ追加。全 placeholder Person の所属先。
+  const anonymousHouse: House = {
+    id: ANONYMOUS_HOUSE_ID,
+    name: 'Anonymous Placeholder House',
+    active: true,
+    kind: 'system',
+    memberIds: [],
+    cadetHouseIds: [],
+    legacyPrestige: 0,
+    wealth: 0,
+    seatProvinceId: provinceList[0]?.id ?? ('' as ProvinceId),
+  }
+  housesRecord[ANONYMOUS_HOUSE_ID] = anonymousHouse
+
+  // 各 Province 用 placeholder Person + bailiff ProvinceOfficeAssignment
+  const provinceOfficeAssignments: Record<ProvinceOfficeAssignmentId, ProvinceOfficeAssignment> = {}
+  const provinceOfficeIndex: ProvinceOfficeIndex = {
+    byProvince: {},
+    byHolderPerson: {},
+    byAppointingPolity: {},
+  }
+  let nextProvinceOfficeAssignmentId = 0
+  let nextPlaceholderIndex = 0
+  const placeholderMembers: PersonId[] = []
+  for (const province of provinces) {
+    const terminalPolityId = provinceTerminalPolityCache[province.id]
+    if (!terminalPolityId) continue
+    const placeholderId = ('pe-anon-' + nextPlaceholderIndex) as PersonId
+    nextPlaceholderIndex++
+    const placeholder: Person = {
+      id: placeholderId,
+      name: 'Anonymous',
+      sex: 'male',
+      age: 30,
+      alive: true,
+      kind: 'placeholder',
+      houseId: ANONYMOUS_HOUSE_ID,
+      childIds: [],
+      birthStatus: 'unknown',
+      abilities: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+      aptitudes: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+      traits: { ambition: 0, caution: 0 },
+      legacyPrestige: 0,
+      wealth: 0,
+      attitudes: {},
+    }
+    personsRecord[placeholderId] = placeholder
+    placeholderMembers.push(placeholderId)
+
+    const officeAssignmentId = ('po-' + nextProvinceOfficeAssignmentId) as ProvinceOfficeAssignmentId
+    nextProvinceOfficeAssignmentId++
+    const assignment: ProvinceOfficeAssignment = {
+      id: officeAssignmentId,
+      provinceId: province.id,
+      role: 'bailiff',
+      holderPersonId: placeholderId,
+      appointingPolityId: terminalPolityId,
+      active: true,
+      startYear: 1,
+      startMonth: 1,
+      unpaidCount: 0,
+    }
+    provinceOfficeAssignments[officeAssignmentId] = assignment
+    provinceOfficeIndex.byProvince[province.id] = officeAssignmentId
+    const holderSlot = provinceOfficeIndex.byHolderPerson[placeholderId] ?? []
+    provinceOfficeIndex.byHolderPerson[placeholderId] = [...holderSlot, officeAssignmentId]
+    const politySlot = provinceOfficeIndex.byAppointingPolity[terminalPolityId] ?? []
+    provinceOfficeIndex.byAppointingPolity[terminalPolityId] = [...politySlot, officeAssignmentId]
+  }
+  housesRecord[ANONYMOUS_HOUSE_ID] = {
+    ...anonymousHouse,
+    memberIds: placeholderMembers,
+  }
+
   const world: WorldState = {
     currentYear: 1,
     currentMonth: 1,
@@ -1005,10 +1080,18 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     popGroups: popGroupsRecord,
     organizationShares,
     officeAssignments: officeState.officeAssignments,
+    landContracts: landContractsRecord,
+    provinceOfficeAssignments,
     shareIndex,
     officeIndex: officeState.officeIndex,
+    landContractIndex,
+    provinceTerminalPolityCache,
+    provinceOfficeIndex,
+    polityIndex,
     nextOrganizationShareId,
     nextOfficeAssignmentId: officeState.nextOfficeAssignmentId,
+    nextLandContractId,
+    nextProvinceOfficeAssignmentId,
   }
 
   return { world, rng }

@@ -12,7 +12,6 @@ import type { CtxResult } from './result'
 import { ok, err } from './result'
 import { createOfficeAssignment } from './officeMutations'
 import { movePersonToHouse } from './personMutations'
-import { transferProvinceToHouse } from './provinceMutations'
 import { getHouseLeader, getPolityLeaderHouse } from '../selectors/officeSelectors'
 import {
   pickNameBySex,
@@ -26,6 +25,12 @@ import {
   getHouseProvinceIdsByPolity,
   getPolityHouseIds,
 } from '../selectors/polityRelations'
+import {
+  getHouseControlledProvinceIds,
+  getProvinceTerminalContract,
+  getProvinceEffectiveOwnerHouseId,
+} from '../selectors/landContractSelectors'
+import { transferLandContractGrantee } from './landContractMutations'
 import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
 import { samplePerson } from '../helpers/personFactory'
@@ -58,7 +63,7 @@ export function splitHouse(
   const controlMax = ctx.config.houseSplitControlMax / 100
   const { value: controlFraction, rng: rngAfterControl } = randomFloat(ctx.rng)
   const F = controlMin + controlFraction * (controlMax - controlMin)
-  const sortedProvinceIds = [...house.provinceIds].sort()
+  const sortedProvinceIds = [...getHouseControlledProvinceIds(ctx.state, input.houseId)].sort()
   const splitCount = Math.max(1, Math.floor(sortedProvinceIds.length * F))
   const splitProvinces = sortedProvinceIds.slice(sortedProvinceIds.length - splitCount)
 
@@ -95,12 +100,12 @@ export function splitHouse(
   const newHouseWealth = Math.floor(house.wealth * ctx.config.houseSplitWealthShare)
   const firstSplitProvince = splitProvinces[0] ?? house.seatProvinceId
 
+  // v0.16: 親 Polity ID は polityIndex.byOwnerHouse 経由で取得。Stage A では実際の Polity 帰属変更は行わない (Stage B で LandContract 操作に置換)
   const newHousePolityId = getHousePrimaryPolityId(ctxWithId.state, house.id)
   const newHouseObj: House = {
     id: newHouseId,
     name: splitterPerson.name + "'s House",
     active: true,
-    provinceIds: splitProvinces,
     memberIds: [splitterPerson.id],
     founderId: splitterPerson.id,
     cadetHouseIds: [],
@@ -131,17 +136,19 @@ export function splitHouse(
       message: `splitHouse: parent house ${input.houseId} not found after update`,
     })
 
-  const splitProvincesSet = new Set<ProvinceId>(splitProvinces)
-  const newParentProvinceIds = parentHouse.provinceIds.filter((pid) => !splitProvincesSet.has(pid))
-  const newParentSeatProvinceId: ProvinceId = splitProvincesSet.has(parentHouse.seatProvinceId)
-    ? (newParentProvinceIds[0] ?? ('' as ProvinceId))
+  const splitProvincesSet = new Set<string>(splitProvinces.map((id) => id as string))
+  const parentControlled = getHouseControlledProvinceIds(resultCtx.state, input.houseId)
+  const newParentSeatProvinceId: ProvinceId = splitProvincesSet.has(
+    parentHouse.seatProvinceId as string,
+  )
+    ? (parentControlled.find((pid) => !splitProvincesSet.has(pid as string)) ??
+      parentHouse.seatProvinceId)
     : parentHouse.seatProvinceId
   const newParentMemberIds = parentHouse.memberIds.filter((pid) => !familyPersonIds.has(pid))
   const newParentWealth = parentHouse.wealth - newHouseWealth
 
   const newParentHouseObj = {
     ...parentHouse,
-    provinceIds: newParentProvinceIds,
     seatProvinceId: newParentSeatProvinceId,
     memberIds: newParentMemberIds,
     wealth: newParentWealth,
@@ -155,17 +162,9 @@ export function splitHouse(
   }
   resultCtx = { ...resultCtx, state: stateWithParentUpdate }
 
-  const updatedProvs = { ...resultCtx.state.provinces }
-  for (const pid of splitProvinces) {
-    const prov = updatedProvs[pid]
-    if (!prov) continue
-    updatedProvs[pid] = {
-      ...prov,
-      ownerHouseId: newHouseId,
-      polityId: newHousePolityId ?? prov.polityId,
-    }
-  }
-  resultCtx = { ...resultCtx, state: { ...resultCtx.state, provinces: updatedProvs } }
+  // v0.16 TODO Stage B: split された Province を新 House 配下に移すには新規 sub-Polity を作る必要がある。
+  // Stage A では Province 帰属の更新を行わない (新 House は controlled 0 で start)。
+  void newHousePolityId
 
   const splitterPersonCurrent = resultCtx.state.persons[splitterPerson.id]
   if (splitterPersonCurrent) {
@@ -319,7 +318,7 @@ function chooseReceiverHouse(
   }
   if (bestByShare) return bestByShare.houseId
 
-  // 3) 旧 seatProvinceId 隣接 Province の ownerHouse
+  // 3) 旧 seatProvinceId 隣接 Province の effective owner House
   const extinctHouse = state.houses[extinctHouseId]
   if (extinctHouse) {
     const seat = state.provinces[extinctHouse.seatProvinceId]
@@ -327,7 +326,9 @@ function chooseReceiverHouse(
       for (const neighborId of seat.neighbors) {
         const neighbor = state.provinces[neighborId]
         if (!neighbor) continue
-        const ownerHouse = state.houses[neighbor.ownerHouseId]
+        const ownerHouseId = getProvinceEffectiveOwnerHouseId(state, neighborId)
+        if (!ownerHouseId) continue
+        const ownerHouse = state.houses[ownerHouseId]
         if (ownerHouse && ownerHouse.active && ownerHouse.id !== extinctHouseId) {
           return ownerHouse.id
         }
@@ -335,13 +336,14 @@ function chooseReceiverHouse(
     }
   }
 
-  // 4) 世界全体で最大 Province 数を持つ active House
+  // 4) 世界全体で最大 controlled Province 数を持つ active House
   let bestGlobal: { houseId: HouseId; count: number } | undefined
   for (const candidate of Object.values(state.houses)) {
     if (!candidate || !candidate.active) continue
     if ((candidate.id as string) === (extinctHouseId as string)) continue
-    if (!bestGlobal || candidate.provinceIds.length > bestGlobal.count) {
-      bestGlobal = { houseId: candidate.id, count: candidate.provinceIds.length }
+    const count = getHouseControlledProvinceIds(state, candidate.id).length
+    if (!bestGlobal || count > bestGlobal.count) {
+      bestGlobal = { houseId: candidate.id, count }
     }
   }
   return bestGlobal?.houseId
@@ -366,7 +368,7 @@ function handleNormalHouseExtinction(
     const newHouses = { ...ctx.state.houses }
     const extinctHouseObj = newHouses[houseId]
     if (!extinctHouseObj) return ctx
-    newHouses[houseId] = { ...extinctHouseObj, active: false, memberIds: [], provinceIds: [] }
+    newHouses[houseId] = { ...extinctHouseObj, active: false, memberIds: [] }
     const finalState = { ...ctx.state, houses: newHouses }
     const { id: eventId, ctx: eventCtx } = makeEventId({ ...ctx, state: finalState })
     const event: SimEvent = {
@@ -387,26 +389,21 @@ function handleNormalHouseExtinction(
   }
 
   let resultCtx = ctx
-  const sortedProvinceIds = [...house.provinceIds].sort()
+  const sortedProvinceIds = [...getHouseControlledProvinceIds(resultCtx.state, houseId)].sort()
 
+  // v0.16: extinct House の controlled Province は LandContract chain 経由で receiver の Polity に移す。
+  // receiver House が owner である最初の Polity を target にする。なければ skip。
+  const receiverPolityIds = resultCtx.state.polityIndex.byOwnerHouse[receiverHouseId] ?? []
+  const targetPolityId = receiverPolityIds[0]
   let chainState = resultCtx.state
-  for (const pid of sortedProvinceIds) {
-    const r = transferProvinceToHouse(chainState, pid, receiverHouseId)
-    if (r.ok) chainState = r.value
+  if (targetPolityId !== undefined) {
+    for (const pid of sortedProvinceIds) {
+      const terminal = getProvinceTerminalContract(chainState, pid)
+      if (!terminal) continue
+      chainState = transferLandContractGrantee(chainState, terminal.id, targetPolityId)
+    }
   }
-
-  const inheritedControl = resultCtx.config.inheritedProvinceHouseControl
-
-  let controlChainState = chainState
-  for (const pid of sortedProvinceIds) {
-    const province = controlChainState.provinces[pid]
-    if (!province) continue
-    const newProvinces = { ...controlChainState.provinces }
-    newProvinces[pid] = { ...province, houseControl: inheritedControl }
-    controlChainState = { ...controlChainState, provinces: newProvinces }
-  }
-
-  resultCtx = { ...resultCtx, state: controlChainState }
+  resultCtx = { ...resultCtx, state: chainState }
 
   const stateAfterMove = moveLivingMembersToHouse(resultCtx.state, houseId, receiverHouseId)
   resultCtx = { ...resultCtx, state: stateAfterMove }
@@ -418,7 +415,6 @@ function handleNormalHouseExtinction(
     ...extinctHouseObj,
     active: false,
     memberIds: [],
-    provinceIds: [],
   }
 
   const finalState = { ...resultCtx.state, houses: newHouses }
@@ -433,7 +429,7 @@ function handleNormalHouseExtinction(
     actorIds: [],
     houseIds: [houseId],
     polityIds: eventPolityIds,
-    provinceIds: [...house.provinceIds],
+    provinceIds: sortedProvinceIds,
     summary: `${house.name} has become extinct; lands inherited by another house.`,
     reasons: [],
     effects: [],
@@ -494,8 +490,8 @@ export function foundRevoltCountry(
       message: `foundRevoltCountry: old polity not found: ${oldPolityId}`,
     })
 
-  const oldOwnerHouseId = province.ownerHouseId
-  const oldOwnerHouse = state.houses[oldOwnerHouseId]
+  const oldOwnerHouseId = getProvinceEffectiveOwnerHouseId(state, provinceId)
+  const oldOwnerHouse = oldOwnerHouseId ? state.houses[oldOwnerHouseId] : undefined
 
   // Pre-generate IDs
   const { id: newPolityId, ctx: ctx1 } = makePolityId(ctx)
@@ -559,7 +555,6 @@ export function foundRevoltCountry(
     id: newHouseId,
     name: newHouseName,
     active: true,
-    provinceIds: [provinceId],
     memberIds: [newPersonId],
     founderId: newPersonId,
     cadetHouseIds: [],
@@ -580,55 +575,14 @@ export function foundRevoltCountry(
     ownerHouseId: newHouseId,
   }
 
-  // Update province ownership manually (state ordering: all new entities created simultaneously)
+  // v0.16: Province の polityControl のみリセット。所有変更は LandContract chain で表現する。
   const updatedProvince: typeof province = {
     ...province,
-    ownerHouseId: newHouseId,
-    polityId: newPolityId,
     polityControl: config.provinceRevoltNewCountryControl,
-    houseControl: config.provinceRevoltNewHouseControl,
   }
 
-  // Remove province from old owner house
-  const updatedOldOwnerHouse = oldOwnerHouse
-    ? {
-        ...oldOwnerHouse,
-        provinceIds: oldOwnerHouse.provinceIds.filter(
-          (pid) => (pid as string) !== (provinceId as string),
-        ),
-        seatProvinceId:
-          oldOwnerHouse.seatProvinceId === provinceId
-            ? ((oldOwnerHouse.provinceIds.filter(
-                (pid) => (pid as string) !== (provinceId as string),
-              )[0] ?? '') as ProvinceId)
-            : oldOwnerHouse.seatProvinceId,
-      }
-    : undefined
-
-  // Remove old owner house from old polity houseIds if it becomes landless
-  const oldOwnerIsRuler = getPolityLeaderHouse(state, oldPolityId) === oldOwnerHouseId
-  const existingHouseIds = getPolityHouseIds(state, oldPolityId)
-  const remainingHouseIds = existingHouseIds.filter((hid) => hid !== oldOwnerHouseId)
-
-  // Fix capitalProvinceId if the revolting province was the old polity's capital
-  const newOldCapProvinceId: ProvinceId =
-    oldPolity.capitalProvinceId === provinceId
-      ? ((Object.values(state.provinces).find(
-          (p) => p !== undefined && p.polityId === oldPolityId && p.id !== provinceId,
-        )?.id ?? '') as ProvinceId)
-      : oldPolity.capitalProvinceId
-
-  const updatedOldPolity =
-    updatedOldOwnerHouse && updatedOldOwnerHouse.provinceIds.length === 0
-      ? {
-          ...oldPolity,
-          active: !oldOwnerIsRuler || remainingHouseIds.length > 0,
-          capitalProvinceId: newOldCapProvinceId,
-        }
-      : {
-          ...oldPolity,
-          capitalProvinceId: newOldCapProvinceId,
-        }
+  // v0.16: 旧 ownerHouse の Province 帰属は LandContract chain 経由で動的に決まるため House 自体は触らない。
+  // ただし seat が当該 Province にあった場合の seat 移動は別 system に委ねる (Stage A では skip)。
 
   // Apply all state changes
   let newState: WorldState = {
@@ -638,14 +592,28 @@ export function foundRevoltCountry(
     houses: {
       ...ctx.state.houses,
       [newHouseId]: newHouseObj,
-      ...(updatedOldOwnerHouse ? { [oldOwnerHouseId]: updatedOldOwnerHouse } : {}),
     },
     polities: {
       ...ctx.state.polities,
       [newPolityId]: newPolityObj,
-      [oldPolityId]: updatedOldPolity,
+    },
+    polityIndex: {
+      byOwnerHouse: {
+        ...ctx.state.polityIndex.byOwnerHouse,
+        [newHouseId]: [newPolityId],
+      },
     },
   }
+
+  // v0.16: 当該 Province の terminal LandContract grantee を newPolityId に差し替え
+  const terminal = getProvinceTerminalContract(newState, provinceId)
+  if (terminal) {
+    newState = transferLandContractGrantee(newState, terminal.id, newPolityId)
+  }
+
+  const oldOwnerIsRuler =
+    oldOwnerHouseId !== undefined && getPolityLeaderHouse(state, oldPolityId) === oldOwnerHouseId
+  void oldOwnerIsRuler
 
   // Assign leader offices for the new house and polity
   newState = createOfficeAssignment(
@@ -661,61 +629,63 @@ export function foundRevoltCountry(
     newPersonId,
   )
 
-  // If old owner house became landless, deactivate and move members
-  if (updatedOldOwnerHouse && updatedOldOwnerHouse.provinceIds.length === 0 && oldOwnerHouse) {
-    const deactivatedOldHouse = { ...updatedOldOwnerHouse, active: false }
-    const rulerHouseId = getPolityLeaderHouse(newState, oldPolityId)
-    if (!rulerHouseId) {
-      return ok({
-        ctx: { ...ctx, state: newState },
-        value: { polityId: newPolityId, houseId: newHouseId, personId: newPersonId },
-      })
-    }
-    const rulerHouse = newState.houses[rulerHouseId]
-    const updatedPersons: Record<PersonId, Person> = { ...newState.persons }
-    const rulerMemberIds = rulerHouse ? [...rulerHouse.memberIds] : []
+  // v0.16: 旧 ownerHouse が landless になった場合の処理は LandContract chain selector 経由で判定する。
+  if (oldOwnerHouseId !== undefined && oldOwnerHouse) {
+    const remainingControlled = getHouseControlledProvinceIds(newState, oldOwnerHouseId)
+    if (remainingControlled.length === 0) {
+      const rulerHouseId = getPolityLeaderHouse(newState, oldPolityId)
+      if (rulerHouseId && rulerHouseId !== oldOwnerHouseId) {
+        const rulerHouse = newState.houses[rulerHouseId]
+        const updatedPersons: Record<PersonId, Person> = { ...newState.persons }
+        const rulerMemberIds = rulerHouse ? [...rulerHouse.memberIds] : []
 
-    for (const memberId of oldOwnerHouse.memberIds) {
-      const member = updatedPersons[memberId]
-      if (member && member.alive) {
-        updatedPersons[memberId] = {
-          ...member,
-          houseId: rulerHouseId,
+        for (const memberId of oldOwnerHouse.memberIds) {
+          const member = updatedPersons[memberId]
+          if (member && member.alive) {
+            updatedPersons[memberId] = {
+              ...member,
+              houseId: rulerHouseId,
+            }
+            rulerMemberIds.push(memberId)
+          }
         }
-        rulerMemberIds.push(memberId)
+
+        const updatedHouses: Record<HouseId, House> = { ...newState.houses }
+        updatedHouses[oldOwnerHouseId] = { ...oldOwnerHouse, active: false, memberIds: [] }
+        if (rulerHouse) {
+          updatedHouses[rulerHouseId] = { ...rulerHouse, memberIds: rulerMemberIds }
+        }
+
+        newState = {
+          ...newState,
+          persons: updatedPersons,
+          houses: updatedHouses,
+        }
+
+        // Emit HOUSE_EXTINCT event
+        ctx = { ...ctx, state: newState }
+        const { id: extinctEventId, ctx: ctxE } = makeEventId(ctx)
+        const extinctEvent: SimEvent = {
+          id: extinctEventId,
+          year: ctxE.state.currentYear,
+          month: ctxE.state.currentMonth,
+          type: 'HOUSE_EXTINCT',
+          importance: 'major',
+          actorIds: [],
+          houseIds: [oldOwnerHouseId],
+          polityIds: [oldPolityId],
+          provinceIds: [provinceId],
+          summary: `${oldOwnerHouse.name} has fallen from power after losing all lands.`,
+          reasons: [],
+          effects: [],
+        }
+        ctx = { ...ctxE, events: [...ctxE.events, extinctEvent] }
+      } else {
+        ctx = { ...ctx, state: newState }
       }
+    } else {
+      ctx = { ...ctx, state: newState }
     }
-
-    const updatedHouses: Record<HouseId, House> = { ...newState.houses }
-    updatedHouses[oldOwnerHouseId] = deactivatedOldHouse
-    if (rulerHouse) {
-      updatedHouses[rulerHouseId] = { ...rulerHouse, memberIds: rulerMemberIds }
-    }
-
-    newState = {
-      ...newState,
-      persons: updatedPersons,
-      houses: updatedHouses,
-    }
-
-    // Emit HOUSE_EXTINCT event
-    ctx = { ...ctx, state: newState }
-    const { id: extinctEventId, ctx: ctxE } = makeEventId(ctx)
-    const extinctEvent: SimEvent = {
-      id: extinctEventId,
-      year: ctxE.state.currentYear,
-      month: ctxE.state.currentMonth,
-      type: 'HOUSE_EXTINCT',
-      importance: 'major',
-      actorIds: [],
-      houseIds: [oldOwnerHouseId],
-      polityIds: [oldPolityId],
-      provinceIds: [provinceId],
-      summary: `${oldOwnerHouse.name} has fallen from power after losing all lands.`,
-      reasons: [],
-      effects: [],
-    }
-    ctx = { ...ctxE, events: [...ctxE.events, extinctEvent] }
   } else {
     ctx = { ...ctx, state: newState }
   }

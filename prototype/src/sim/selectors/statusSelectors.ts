@@ -14,6 +14,7 @@ import {
   getExplicitAttitude,
 } from '@sim/helpers/attitudeHelpers'
 import { getPolityHouseIds, getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
 
 // --- Utility ---
 
@@ -58,11 +59,12 @@ export function getPolityLegitimacy(state: WorldState, countryId: PolityId): num
   const personScore =
     personScores.length > 0 ? personScores.reduce((sum, s) => sum + s, 0) / personScores.length : 50
 
-  // Collect PopGroups in polity's provinces
+  // Collect PopGroups in polity's provinces (terminal Polity chain ベース)
   const popValues: Array<{ value: number; weight: number }> = []
   for (const provinceId of Object.keys(state.provinces) as ProvinceId[]) {
     const province = state.provinces[provinceId]
-    if (!province || province.polityId !== countryId) continue
+    if (!province) continue
+    if (getProvinceTerminalPolityId(state, provinceId) !== countryId) continue
     for (const popId of province.popGroupIds) {
       const pop = state.popGroups[popId]
       if (!pop) continue
@@ -105,7 +107,8 @@ export function getPolityStability(
     for (const neighborId of prov.neighbors) {
       if (distMap.has(neighborId)) continue
       const neighbor = state.provinces[neighborId]
-      if (!neighbor || neighbor.polityId !== countryId) continue
+      if (!neighbor) continue
+      if (getProvinceTerminalPolityId(state, neighborId) !== countryId) continue
       distMap.set(neighborId, dist + 1)
       queue.push(neighborId)
     }
@@ -118,7 +121,8 @@ export function getPolityStability(
   const values: Array<{ value: number; weight: number }> = []
   for (const provinceId of Object.keys(state.provinces) as ProvinceId[]) {
     const province = state.provinces[provinceId]
-    if (!province || province.polityId !== countryId) continue
+    if (!province) continue
+    if (getProvinceTerminalPolityId(state, provinceId) !== countryId) continue
     const dist = distMap.get(provinceId) ?? unreachableDistance
     const unrest = getProvinceUnrest(state, provinceId)
     // provinceStability = 0.70*(100-unrest) + 0.30*polityControl
