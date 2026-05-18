@@ -805,11 +805,7 @@ export const defaultConfig: SimulationConfig = {
   // v0.17 Office overlap / Share
   polityShareOfficeOverlapBonusMax: 0.5,
   // v0.17 Unaffiliated persons
-  // 暫定 0 (Stage B 進行中): 30 にすると unaffiliatedPersonSystem の RNG ストリーム
-  // シフトで「世界の active 通常 House が 0 になる終末状態」を稀に踏み、polity 孤立
-  // → LandContract grantee inactive 違反となる (pre-existing edge case)。
-  // Stage B 末で「最後の通常 House 絶滅防止」を入れた後に 30 に戻す。
-  targetUnaffiliatedPersons: 0,
+  targetUnaffiliatedPersons: 30,
   softMaxUnaffiliatedPersons: 50,
   hardMaxUnaffiliatedPersons: 80,
   unaffiliatedProtectionYears: 5,

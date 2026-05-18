@@ -1019,6 +1019,38 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     }
   }
 
+  // v0.17 §21.2 O4: non-leader OfficeAssignment の startYear は currentYear 以下
+  for (const officeId of Object.keys(state.officeAssignments)) {
+    const office = state.officeAssignments[officeId as import('../types/ids').OfficeAssignmentId]
+    if (!office || !office.active) continue
+    if (office.role === 'leader') continue
+    if (office.startYear > state.currentYear) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `OfficeAssignment ${officeId} startYear=${office.startYear} > currentYear=${state.currentYear} (§21.2 O4)`,
+      })
+    }
+  }
+
+  // v0.17 §21.3 D2: alive=true の Person は deathCircumstance を持たない
+  // v0.17 §21.3 D3: 'faded_from_history' は normal Person のみ (placeholder 不可)
+  for (const personIdStr of Object.keys(state.persons)) {
+    const p = state.persons[personIdStr as PersonId]
+    if (!p) continue
+    if (p.alive && p.deathCircumstance !== undefined) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Alive Person ${p.id} has deathCircumstance=${p.deathCircumstance} (§21.3 D2)`,
+      })
+    }
+    if (p.deathCircumstance === 'faded_from_history' && p.kind === 'placeholder') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Placeholder Person ${p.id} has deathCircumstance='faded_from_history' (§21.3 D3)`,
+      })
+    }
+  }
+
   // §25 #2: root contract は rootAuthorityId を持ち ROOT_WORLD を指す
   // §25 #3: parent を持つ contract は rootAuthorityId を持たない
   for (const contractIdStr of Object.keys(state.landContracts)) {

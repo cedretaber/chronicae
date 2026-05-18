@@ -172,7 +172,33 @@ describe('runSuccessionSystem', () => {
   })
 
   it('HOUSE_EXTINCT event when ruler house has no candidates', () => {
-    const ctx = makeCtx([])
+    const baseCtx = makeCtx([])
+    // Add a second normal house so the last-normal-house guard doesn't block extinction
+    const baseState = baseCtx.state
+    const secondHouseId = 'h-1' as HouseId
+    const provinceId = 'p-0' as ProvinceId
+    const secondHouseState = withHouse(
+      { ...baseState, houses: { ...baseState.houses } },
+      secondHouseId,
+      {
+        name: 'H1',
+        active: true,
+        memberIds: [],
+        legacyPrestige: 10,
+        wealth: 10,
+        seatProvinceId: provinceId,
+      },
+    )
+    const ctx: TickContext = {
+      ...baseCtx,
+      state: {
+        ...secondHouseState,
+        houses: {
+          ...secondHouseState.houses,
+          [secondHouseId]: secondHouseState.houses[secondHouseId],
+        },
+      },
+    }
 
     const result = runSuccessionSystem(ctx)
 

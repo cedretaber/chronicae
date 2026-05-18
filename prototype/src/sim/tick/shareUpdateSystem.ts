@@ -10,6 +10,7 @@ import { getOrganizationShares } from '@sim/selectors/shareSelectors'
 import { getHouseLeader } from '@sim/selectors/officeSelectors'
 import { getOfficeAssignments } from '@sim/selectors/officeSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
+import { getHousePolityOfficeOverlapScore } from '@sim/selectors/officeSelectors'
 import {
   getHousePrimaryPolityId,
   getHouseProvinceIdsByPolity,
@@ -66,7 +67,12 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
         (isOwnerHouse ? config.polityShareOwnerHouseBonus : 0) +
         polityOfficeCount * config.polityShareOfficeFactor
 
-      const newRawPower = calculatedRawPower * config.shareYearlyRetentionRate
+      // v0.17 §16.2: House/Polity Office overlap bonus to House holder's Polity Share rawPower.
+      // Person holder (commonwealth / rebel) は対象外 (§16.2 末尾の注意)。
+      const overlapScore = getHousePolityOfficeOverlapScore(state, houseId, polityId)
+      const adjustedRawPower =
+        calculatedRawPower * (1 + overlapScore * config.polityShareOfficeOverlapBonusMax)
+      const newRawPower = adjustedRawPower * config.shareYearlyRetentionRate
 
       const upsertResult = upsertOrganizationShare(state, {
         organization: polityRef,

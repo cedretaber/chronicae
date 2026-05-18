@@ -362,6 +362,28 @@ function handleNormalHouseExtinction(
   const house = ctx.state.houses[houseId]
   if (!house) return ctx
 
+  // v0.17 §5.6.1 + 終末防止: 世界に他に active 通常 House が残らないなら絶滅させない。
+  // 「最後の通常 House」を kept active で残し、polity が成立し続けるようにする。
+  let otherActiveNormalCount = 0
+  for (const otherIdStr of Object.keys(ctx.state.houses)) {
+    const otherId = otherIdStr as HouseId
+    if (otherId === houseId) continue
+    const other = ctx.state.houses[otherId]
+    if (!other || !other.active) continue
+    if (other.kind === 'system') continue
+    otherActiveNormalCount++
+  }
+  if (otherActiveNormalCount === 0) {
+    // 最後の通常 House は絶滅させない (Stage B 末で導入された終末防止策)
+    const log = createLogger(ctx.config.debug)
+    log.log('LAST_NORMAL_HOUSE_GUARD', {
+      year: ctx.state.currentYear,
+      month: ctx.state.currentMonth,
+      house: houseId,
+    })
+    return ctx
+  }
+
   // event 用 polityIds は affectedPolityIds を使う（喪失前のスナップショット）
   const eventPolityIds = affectedPolityIds.length > 0 ? affectedPolityIds : []
 

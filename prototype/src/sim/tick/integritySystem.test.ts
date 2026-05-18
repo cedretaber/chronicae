@@ -7,7 +7,7 @@ import type { House } from '../types/house'
 import type { Polity } from '../types/polity'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
-import { runIntegritySystem } from './integritySystem'
+import { runIntegritySystem, collectIntegrityErrors } from './integritySystem'
 import { generateWorld } from '../worldgen/generateWorld'
 
 const DEFAULT_ABILITIES = {
@@ -429,6 +429,262 @@ describe('runIntegritySystem', () => {
     const ctx = makeCtx(world)
 
     expect(() => runIntegritySystem(ctx)).toThrow('negative unpaidCount')
+  })
+
+  it('throws when non-leader active OfficeAssignment has startYear > currentYear (§21.2 O4)', () => {
+    const houseId = 'h-0' as HouseId
+    const polityId = 'dp-0' as PolityId
+    const aliveHolderId = 'pe-alive' as PersonId
+
+    const aliveHolder: Person = {
+      id: aliveHolderId,
+      name: 'AliveHolder',
+      sex: 'male',
+      age: 30,
+      alive: true,
+      houseId,
+      childIds: [],
+      birthStatus: 'unknown',
+      abilities: DEFAULT_ABILITIES,
+      aptitudes: DEFAULT_ABILITIES,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 30,
+      wealth: 0,
+      attitudes: {},
+    }
+
+    const house: House = {
+      id: houseId,
+      name: 'H0',
+      active: true,
+      memberIds: [aliveHolderId],
+      cadetHouseIds: [],
+      legacyPrestige: 50,
+      wealth: 100,
+      seatProvinceId: '' as ProvinceId,
+    }
+
+    const polity: Polity = {
+      id: polityId,
+      name: 'C0',
+      rank: 2,
+      ownerHouseId: houseId,
+      treasury: 100,
+      legacyPrestige: 50,
+      adminPower: 50,
+      active: true,
+      capitalProvinceId: '' as ProvinceId,
+    }
+
+    const officeAssignmentId = 'oa-0' as import('../types/ids').OfficeAssignmentId
+    const officeAssignments: Record<string, import('../types/office').OfficeAssignment> = {
+      [officeAssignmentId]: {
+        id: officeAssignmentId,
+        organization: { kind: 'polity', id: polityId },
+        role: 'administrator',
+        holderPersonId: aliveHolderId,
+        active: true,
+        startYear: 100,
+        unpaidCount: 0,
+      },
+    }
+
+    const world: WorldState = {
+      currentYear: 50,
+      currentMonth: 1,
+      provinces: {},
+      polities: { [polityId]: polity },
+      houses: { [houseId]: house },
+      persons: { [aliveHolderId]: aliveHolder },
+      activePlots: {},
+      popGroups: {},
+      organizationShares: {},
+      officeAssignments,
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      factions: {},
+      factionMemberships: {},
+      factionIndex: { byLeader: {}, byMember: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
+      nextFactionId: 0,
+      nextFactionMembershipId: 0,
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 1,
+    }
+
+    const errors = collectIntegrityErrors(world)
+    const o4Error = errors.find((e) => e.message.includes('§21.2 O4'))
+    expect(o4Error).toBeDefined()
+  })
+
+  it('throws when alive Person has deathCircumstance set (§21.3 D2)', () => {
+    const houseId = 'h-0' as HouseId
+    const polityId = 'dp-0' as PolityId
+    const alivePersonId = 'pe-alive' as PersonId
+
+    const alivePerson: Person = {
+      id: alivePersonId,
+      name: 'AlivePerson',
+      sex: 'male',
+      age: 30,
+      alive: true,
+      houseId,
+      childIds: [],
+      birthStatus: 'unknown',
+      abilities: DEFAULT_ABILITIES,
+      aptitudes: DEFAULT_ABILITIES,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 30,
+      wealth: 0,
+      attitudes: {},
+      deathCircumstance: 'natural',
+    }
+
+    const house: House = {
+      id: houseId,
+      name: 'H0',
+      active: true,
+      memberIds: [alivePersonId],
+      cadetHouseIds: [],
+      legacyPrestige: 50,
+      wealth: 100,
+      seatProvinceId: '' as ProvinceId,
+    }
+
+    const polity: Polity = {
+      id: polityId,
+      name: 'C0',
+      rank: 2,
+      ownerHouseId: houseId,
+      treasury: 100,
+      legacyPrestige: 50,
+      adminPower: 50,
+      active: true,
+      capitalProvinceId: '' as ProvinceId,
+    }
+
+    const world: WorldState = {
+      currentYear: 1,
+      currentMonth: 1,
+      provinces: {},
+      polities: { [polityId]: polity },
+      houses: { [houseId]: house },
+      persons: { [alivePersonId]: alivePerson },
+      activePlots: {},
+      popGroups: {},
+      organizationShares: {},
+      officeAssignments: {},
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      factions: {},
+      factionMemberships: {},
+      factionIndex: { byLeader: {}, byMember: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
+      nextFactionId: 0,
+      nextFactionMembershipId: 0,
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 0,
+    }
+
+    const errors = collectIntegrityErrors(world)
+    const d2Error = errors.find((e) => e.message.includes('§21.3 D2'))
+    expect(d2Error).toBeDefined()
+  })
+
+  it('throws when placeholder Person has deathCircumstance=faded_from_history (§21.3 D3)', () => {
+    const houseId = 'h-0' as HouseId
+    const polityId = 'dp-0' as PolityId
+    const placeholderPersonId = 'pe-placeholder' as PersonId
+
+    const placeholderPerson: Person = {
+      id: placeholderPersonId,
+      name: 'Placeholder',
+      sex: 'male',
+      age: 25,
+      alive: true,
+      houseId,
+      childIds: [],
+      birthStatus: 'unknown',
+      abilities: DEFAULT_ABILITIES,
+      aptitudes: DEFAULT_ABILITIES,
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 10,
+      wealth: 0,
+      attitudes: {},
+      kind: 'placeholder',
+      deathCircumstance: 'faded_from_history',
+    }
+
+    const house: House = {
+      id: houseId,
+      name: 'H0',
+      active: true,
+      memberIds: [placeholderPersonId],
+      cadetHouseIds: [],
+      legacyPrestige: 50,
+      wealth: 100,
+      seatProvinceId: '' as ProvinceId,
+    }
+
+    const polity: Polity = {
+      id: polityId,
+      name: 'C0',
+      rank: 2,
+      ownerHouseId: houseId,
+      treasury: 100,
+      legacyPrestige: 50,
+      adminPower: 50,
+      active: true,
+      capitalProvinceId: '' as ProvinceId,
+    }
+
+    const world: WorldState = {
+      currentYear: 1,
+      currentMonth: 1,
+      provinces: {},
+      polities: { [polityId]: polity },
+      houses: { [houseId]: house },
+      persons: { [placeholderPersonId]: placeholderPerson },
+      activePlots: {},
+      popGroups: {},
+      organizationShares: {},
+      officeAssignments: {},
+      shareIndex: { byOrganization: {}, byHolder: {} },
+      officeIndex: { byOrganization: {}, byHolderPerson: {} },
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      factions: {},
+      factionMemberships: {},
+      factionIndex: { byLeader: {}, byMember: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
+      nextFactionId: 0,
+      nextFactionMembershipId: 0,
+      nextOrganizationShareId: 0,
+      nextOfficeAssignmentId: 0,
+    }
+
+    const errors = collectIntegrityErrors(world)
+    const d3Error = errors.find((e) => e.message.includes('§21.3 D3'))
+    expect(d3Error).toBeDefined()
   })
 })
 
