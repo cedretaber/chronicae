@@ -45,7 +45,11 @@ import type { PopGroup } from '@/sim/types/popGroup'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import type { AttitudeMap } from '@/sim/types/attitude'
 import type { PolityId, HouseId, PersonId } from '@/sim/types/ids'
-import { getHousePrimaryPolityId, getPolityHouseIds } from '@sim/selectors/polityRelations'
+import {
+  getHousePrimaryPolityId,
+  getHouseProvinceIdsByPolity,
+  getPolityHouseIds,
+} from '@sim/selectors/polityRelations'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
@@ -308,20 +312,33 @@ function CountryDetail({
     treasurer: 'Treasurer',
   }
 
-  const houseIds = currentState ? getPolityHouseIds(currentState, polity.id) : []
-  const inHouseNames = currentState
-    ? houseIds
-        .map((hid) => houses[hid])
-        .filter(
-          (h): h is House =>
-            !!h && h.active && getHousePrimaryPolityId(currentState, h.id) === polity.id,
-        )
-        .map((h) => (
-          <li key={h.id} className="mb-0.5">
-            <HouseLink houseId={h.id} houses={houses} onClick={onHouseClick} />
-          </li>
-        ))
+  // v0.15: この Polity に Province を持つ active House を、所領 Province 数とともに表示する。
+  // 多 Polity 所領家も他 Polity の Detail に出る (primary 限定はしない)。
+  // Province 数 desc → HouseId 昇順でソートし、primary がここでない家には「外様」表示を付ける。
+  const houseEntries = currentState
+    ? getPolityHouseIds(currentState, polity.id)
+        .map((hid) => {
+          const house = houses[hid]
+          if (!house || !house.active) return null
+          const count = getHouseProvinceIdsByPolity(currentState, hid, polity.id).length
+          const primary = getHousePrimaryPolityId(currentState, hid)
+          return { house, count, isPrimaryHere: primary === polity.id }
+        })
+        .filter((e): e is { house: House; count: number; isPrimaryHere: boolean } => e !== null)
+        .sort((a, b) => {
+          if (b.count !== a.count) return b.count - a.count
+          return a.house.id.localeCompare(b.house.id)
+        })
     : []
+  const inHouseNames = houseEntries.map(({ house, count, isPrimaryHere }) => (
+    <li key={house.id} className="mb-0.5">
+      <HouseLink houseId={house.id} houses={houses} onClick={onHouseClick} />
+      <span className="ml-1 text-xs text-gray-400">
+        ({count} province{count === 1 ? '' : 's'}
+        {isPrimaryHere ? '' : ', non-primary'})
+      </span>
+    </li>
+  ))
 
   return (
     <div className="flex flex-col gap-1 p-3">
@@ -466,7 +483,7 @@ function CountryDetail({
         )}
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">Houses:</div>
+      <div className="text-sm font-semibold text-gray-300">Houses with land here:</div>
       <ul className="list-inside list-disc text-sm">
         {inHouseNames.length > 0 ? inHouseNames : <li className="text-gray-500">\u2014</li>}
       </ul>
