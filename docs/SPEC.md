@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-18（v0.14 時点）
+最終更新: 2026-05-18（v0.15 時点）
 
 ---
 
@@ -75,10 +75,10 @@ type Province = {
   y: number
   neighbors: ProvinceId[]
   ownerHouseId: HouseId
-  countryId: CountryId
+  polityId: PolityId
   habitability: number    // 0..100
   development: number     // -100..100
-  countryControl: number  // 0..100
+  polityControl: number   // 0..100
   houseControl: number    // 0..100
   popGroupIds: PopGroupId[]
 }
@@ -86,10 +86,11 @@ type Province = {
 
 - `habitability`: Province の基礎的な居住性・土地ポテンシャル。0 = ほぼ居住不能、100 = 非常に居住・生産に適した土地
 - `development`: 土地の荒廃・発展。-100 = 完全荒廃、0 = 通常、+100 = 高度発展
-- `countryControl`: 国家による実効支配力
+- `polityControl`: Polity による実効支配力
 - `houseControl`: 領主 House による実効支配力
-- 名目所有（`countryId` / `ownerHouseId`）は支配力が 0 になっても変わらない
+- 名目所有（`polityId` / `ownerHouseId`）は支配力が 0 になっても変わらない
 - `baseTax` / `manpower` / `unrest` は v0.8 で廃止。これらは POP から selector で算出する
+- **v0.15**: `polityId` / `polityControl` を `polityId` / `polityControl` に置換
 
 ### 3.2 PopClass / PopGroup（民衆集団）
 
@@ -103,7 +104,7 @@ type PopGroup = {
   size: number       // 抽象人口規模（実人数ではない）
   wealth: number     // 0..100（豊かさ指数。金額ではない）
   unrest: number     // 0..100
-  attitudes: AttitudeMap  // 対 Country などへの態度（v0.11）
+  attitudes: AttitudeMap  // 対 Polity などへの態度（v0.11 / v0.15）
 }
 ```
 
@@ -117,26 +118,42 @@ type PopGroup = {
 
 Province の unrest は POP unrest の人口加重平均として selector で算出する（§4 参照）。
 
-### 3.3 Country（国家）
+### 3.3 Polity（政治主体）
 
 ```ts
-type Country = {
-  id: CountryId
+type PolityRank = 1 | 2 | 3 | 4
+
+type Polity = {
+  id: PolityId
   name: string
-  houseIds: HouseId[]
-  treasury: number           // >= 0
-  adminPower: number         // 0..100（キャッシュ値。毎1月に GovernanceSystem が再計算）
-  legacyPrestige: number     // 0..100（歴史的権威・伝統の蓄積）
+  rank: PolityRank
+  ownerHouseId?: HouseId      // 家産的保有関係: その Polity を所有する家（optional だが v0.15 worldgen では常に設定される）
+  treasury: number             // >= 0
+  adminPower: number           // 0..100（キャッシュ値。毎1月に GovernanceSystem が再計算）
+  legacyPrestige: number       // 0..100（歴史的権威・伝統の蓄積）
   active: boolean
   lastWarMonth?: number
   capitalProvinceId: ProvinceId
 }
 ```
 
-- `capitalProvinceId`: 国家支配力の中心。その Country に属する Province でなければならない
+- `capitalProvinceId`: 政治支配力の中心。その Polity に属する Province でなければならない
+- `ownerHouseId`: その Polity を家産的に保有する House の id。Polity 内に Province を 1 つ以上所有する active House でなければならない（§6.x PolityOwnerConsistencySystem 参照）
+- `rank` は v0.15 では game effect を持たない placeholder。将来の称号システムの土台
 - `legitimacy`・`stability` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
-- `adminPower` はキャッシュ値として維持。毎1月に GovernanceSystem が `getCountryAdminPower` で再計算（§4.5 / §6.23b 参照）
-- **v0.12**: `rulerHouseId` と `roleAssignments` を削除。支配者・役職担当者は `OfficeAssignment` システムで管理（§3.7 参照）。`getCountryRuler` / `getCountryRulerHouse` セレクターで取得（§4.6 参照）
+- `adminPower` はキャッシュ値として維持。毎1月に GovernanceSystem が `getPolityAdminPower` で再計算（§4.5 / §6.23b 参照）
+- **v0.12**: `rulerHouseId` と `roleAssignments` を削除。支配者・役職担当者は `OfficeAssignment` システムで管理（§3.7 参照）。`getPolityLeader` / `getPolityLeaderHouse` セレクターで取得（§4.6 参照）
+- **v0.15**: 旧 `Country` を `Polity` に rename し、`houseIds` フィールドを削除（`getPolityHouseIds` selector で動的取得）。`ownerHouseId` / `rank` を新規追加
+
+#### Polity-House-Person 関係 (v0.15)
+
+`House` / `Person` は Polity に所属しない。
+関係は以下の selector で動的に取得する（§4.x 参照）:
+
+- `getPolityProvinceIds(state, polityId)` — その Polity 内の Province 一覧
+- `getPolityHouseIds(state, polityId)` — その Polity 内に Province を所有する active House 一覧
+- `getHousePolityIds(state, houseId)` — その House が Province を持つ active Polity 一覧（複数可）
+- `getHousePrimaryPolityId(state, houseId)` — House の主たる Polity（seat / Province 数で判定）
 
 ### 3.4 House（家）
 
@@ -145,7 +162,6 @@ type House = {
   id: HouseId
   name: string
   active: boolean
-  countryId: CountryId
   provinceIds: ProvinceId[]
   memberIds: PersonId[]      // 生存・死亡を問わず登録されたすべてのメンバー
   founderId?: PersonId       // 家の創設者（分裂新設家のみ設定）
@@ -160,8 +176,9 @@ type House = {
 
 - `seatProvinceId`: 家支配力の中心。その House が所有する Province でなければならない
 - House は常に本拠地を保持する（本拠地移転・喪失は今後の課題）
-- `prestige`・`cohesion`・`loyaltyToCountry` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
+- `prestige`・`cohesion`・`loyaltyToPolity` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
 - **v0.12**: `headId` を削除。家長は `OfficeAssignment`（role: 'leader'）で管理。`getHouseLeader` セレクターで取得（§4.6 参照）
+- **v0.15**: `polityId` フィールドを削除。House は単一 Polity に所属しない（複数 Polity に所領を持ち得る）。関係は `getHousePolityIds` selector で取得（§4.x 参照）
 
 ### 3.5 Person（人物）
 
@@ -187,7 +204,6 @@ type Person = {
   age: number
   alive: boolean
   houseId: HouseId
-  countryId: CountryId
   fatherId?: PersonId        // 父親（既知の場合）
   motherId?: PersonId        // 母親（既知の場合）
   spouseId?: PersonId        // 配偶者（婚姻中のみ）
@@ -201,13 +217,14 @@ type Person = {
   }
   legacyPrestige: number    // 0..100（個人の歴史的評価の蓄積）
   wealth: number            // >= 0（個人資産。v0.12 / EstateSettlementSystem v0.14 で死亡時分配）
-  attitudes: AttitudeMap    // 対 Country / House / Person への態度（v0.11）
+  attitudes: AttitudeMap    // 対 Polity / House / Person への態度（v0.11 / v0.15）
 }
 ```
 
 - `spouseId`: 生存中の配偶者のみを指す。配偶者が死亡した場合は `undefined` に戻る
 - 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §6.24 参照）
-- `prestige` / `traits.loyaltyToCountry` は v0.11 で削除。Attitude から動的計算（§4.5 参照）
+- `prestige` / `traits.loyaltyToPolity` は v0.11 で削除。Attitude から動的計算（§4.5 参照）
+- **v0.15**: `polityId` フィールドを削除。Person は単一 Polity に直接所属しない。関係 Polity は `getPersonPrimaryPolityId` / `getPersonRelevantPolityIds` で取得（§4.x 参照）
 - **v0.12**: `wealth` 追加。OfficeCompensationSystem による給与受け取りで増加（§6.14b 参照）
 - **v0.14**: `stats: { admin, martial }` を廃止し、6 軸の `abilities` / `aptitudes` に置換。
   - `abilities`: 現在発揮できる能力（経験で aptitude まで成長し、年齢曲線で衰退）
@@ -225,14 +242,15 @@ type Attitude = {
   respect: number    // -100..100（能力・権威への評価）
 }
 
-type AttitudeKey = string  // 形式: 'country:{id}' | 'house:{id}' | 'person:{id}'
+type AttitudeKey = string  // 形式: 'polity:{id}' | 'house:{id}' | 'person:{id}' (v0.15)
 
 type AttitudeMap = Record<AttitudeKey, Attitude>
 
 // v0.13: Attitude を読み書きする際の唯一の対象指定型
+// v0.15: kind 'country' → 'polity' に置換
 type AttitudeTarget =
   | { kind: 'person'; id: PersonId }
-  | { kind: 'country'; id: CountryId }
+  | { kind: 'polity'; id: PolityId }
   | { kind: 'house'; id: HouseId }
 ```
 
@@ -240,17 +258,18 @@ type AttitudeTarget =
 - `respect`: 能力・権威への尊敬（正）または軽蔑（負）
 - エントリが存在しない場合は `{ affection: 0, respect: 0 }` として扱う
 - AttitudeDecaySystem により毎月 `attitudeMonthlyRetentionRate`（0.995）倍に減衰
-- **v0.13**: tick / selectors / explain / app からの Attitude 読み書きはすべて `AttitudeTarget` を経由する。`{country|house|person}AttitudeKey` 文字列ビルダーの直接使用は `attitudeMutations` 内部と worldgen に限定（§12 参照）
+- **v0.13**: tick / selectors / explain / app からの Attitude 読み書きはすべて `AttitudeTarget` を経由する。`{polity|house|person}AttitudeKey` 文字列ビルダーの直接使用は `attitudeMutations` 内部と worldgen に限定（§12 参照）
+- **v0.15**: AttitudeTarget の kind `'country'` を `'polity'` に置換。`polityAttitudeKey` → `polityAttitudeKey`、key の prefix も `country:` → `polity:` に
 
-### 3.7 Office / Share システム（v0.12）
+### 3.7 Office / Share システム（v0.12 / v0.15）
 
-**OfficeRole**: 5 種の役職。Country と House それぞれに存在する。
+**OfficeRole**: 5 種の役職。Polity と House それぞれに存在する。
 
 ```ts
 type OfficeRole = 'leader' | 'administrator' | 'treasurer' | 'military' | 'advisor'
 ```
 
-| role | Country 表示名 | House 表示名 | maxHolders (Country) | maxHolders (House) |
+| role | Polity 表示名 | House 表示名 | maxHolders (Polity) | maxHolders (House) |
 |------|--------------|------------|---------------------|-------------------|
 | leader | Ruler | House Head | 1 | 1 |
 | administrator | Chancellor | Steward | 3 | 2 |
@@ -258,12 +277,21 @@ type OfficeRole = 'leader' | 'administrator' | 'treasurer' | 'military' | 'advis
 | military | General | Guard Captain | 5 | 2 |
 | advisor | Court Advisor | House Advisor | 5 | 3 |
 
+**OrganizationRef** (v0.15: kind 'country' → 'polity'):
+
+```ts
+type OrganizationKind = 'polity' | 'house'
+type OrganizationRef =
+  | { kind: 'polity'; id: PolityId }
+  | { kind: 'house'; id: HouseId }
+```
+
 **OfficeAssignment**: 役職の任命記録。
 
 ```ts
 type OfficeAssignment = {
   id: OfficeAssignmentId
-  organization: OrganizationRef   // { kind: 'country' | 'house', id: CountryId | HouseId }
+  organization: OrganizationRef
   role: OfficeRole
   holderPersonId: PersonId
   active: boolean
@@ -289,7 +317,7 @@ type OrganizationShare = {
 organizationShares: Record<OrganizationShareId, OrganizationShare>
 officeAssignments: Record<OfficeAssignmentId, OfficeAssignment>
 shareIndex: {
-  byOrganization: Record<string, OrganizationShareId[]>  // 'country:{id}' など
+  byOrganization: Record<string, OrganizationShareId[]>  // v0.15: 'polity:{id}' / 'house:{id}'
   byHolder: Record<string, OrganizationShareId[]>
 }
 officeIndex: {
@@ -300,7 +328,8 @@ nextOrganizationShareId: number
 nextOfficeAssignmentId: number
 ```
 
-旧: `Country.rulerHouseId` / `Country.roleAssignments` / `House.headId` はすべて削除され、`OfficeAssignment` に統一された。
+旧: `Polity.ownerHouseId` / `Polity.roleAssignments` / `House.headId` はすべて削除され、`OfficeAssignment` に統一された。
+**v0.15**: `OFFICE_DEFINITIONS` のキー prefix も `country:` → `polity:` に変更。
 
 ---
 
@@ -349,7 +378,7 @@ function getPopWealthByClass(state: WorldState, provinceId: ProvinceId, popClass
 
 ```ts
 // POP 1件の生産量
-// pop.size * productivityByClass[pop.class] * (pop.wealth / 100) * (province.countryControl / 100)
+// pop.size * productivityByClass[pop.class] * (pop.wealth / 100) * (province.polityControl / 100)
 function getPopProduction(state: WorldState, config: SimulationConfig, popId: PopGroupId): number
 
 // Province の総生産量（全 POP の生産量合計）
@@ -358,13 +387,13 @@ function getProvinceProduction(state: WorldState, config: SimulationConfig, prov
 // Province の税基盤: getProvinceProduction * (houseControl / 100)
 function getProvinceTaxBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// Country 用の Province 兵力基盤: sum(pop.size * manpowerFactorByClass[pop.class] * (countryControl / 100))
-function getProvinceCountryManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+// Polity 用の Province 兵力基盤: sum(pop.size * manpowerFactorByClass[pop.class] * (polityControl / 100))
+function getProvincePolityManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
 // House 用の Province 兵力基盤: sum(pop.size * manpowerFactorByClass[pop.class] * (houseControl / 100))
 function getProvinceHouseManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// 後方互換 wrapper: getProvinceCountryManpowerBase を呼ぶ
+// 後方互換 wrapper: getProvincePolityManpowerBase を呼ぶ
 function getProvinceManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 ```
 
@@ -377,86 +406,127 @@ function getProvinceManpowerBase(state: WorldState, config: SimulationConfig, pr
 //   commanderModifier = clamp(1 + normalizedStat(bestMartial) * effect, min, max)
 function calcHouseMilitaryPower(state: WorldState, config: SimulationConfig, houseId: HouseId): number
 
-// Country 軍事力: adminPower * factor + sum(houseContributions)
-//   支配家門は 100% 寄与。非支配家門は getHouseLoyaltyToCountry に応じた寄与
-function calcCountryMilitaryPower(state: WorldState, config: SimulationConfig, countryId: CountryId): number
+// Polity 軍事力: adminPower * factor + sum(houseContributions)
+//   owner 家門は 100% 寄与。非 owner 家門は getHouseLoyaltyToPolity に応じた寄与
+function calcPolityMilitaryPower(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 ```
 
-### 4.5 Status セレクター（v0.11）
+### 4.5 Status セレクター（v0.11 / v0.15）
 
-v0.11 で legitimacy / stability / prestige / cohesion / loyaltyToCountry が格納フィールドから動的計算セレクターに移行した。
+v0.11 で legitimacy / stability / prestige / cohesion / loyaltyToPolity が格納フィールドから動的計算セレクターに移行した。v0.15 で Country → Polity rename。
 
 ```ts
-// Country 正統性: 0.35*personScore + 0.45*popScore + 0.2*legacyPrestige
-//   personScore: 国内 Person の対 Country attitude (affection*0.35 + respect*0.65) 平均
-//   popScore:    国内 PopGroup の対 Country attitude (affection*0.40 + respect*0.60) 人口加重平均
-function getCountryLegitimacy(state: WorldState, countryId: CountryId): number
+// Polity 正統性: 0.35*personScore + 0.45*popScore + 0.2*legacyPrestige
+//   personScore: Polity 関係 Person の対 Polity attitude (affection*0.35 + respect*0.65) 平均
+//   popScore:    Polity 内 PopGroup の対 Polity attitude (affection*0.40 + respect*0.60) 人口加重平均
+function getPolityLegitimacy(state: WorldState, polityId: PolityId): number
 
-// Country 安定度: Province の安定度を首都からの距離で重み付け平均
-//   provinceStability = 0.70*(100-unrest) + 0.30*countryControl
+// Polity 安定度: Province の安定度を首都からの距離で重み付け平均
+//   provinceStability = 0.70*(100-unrest) + 0.30*polityControl
 //   weight = 1 / (1 + distance)  ※到達不能は distance=5 扱い
-function getCountryStability(state: WorldState, config: SimulationConfig, countryId: CountryId): number
+function getPolityStability(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 
 // House 結束度: 家臣メンバーの家長への attitude 平均
 //   score = affection*0.45 + respect*0.55（attitudeValueToScore で 0..100 正規化）
 //   メンバーが 0 の場合は fallback 50
 function getHouseCohesion(state: WorldState, houseId: HouseId): number
 
-// House 忠誠度: 家メンバーの対 Country attitude 平均
+// House 忠誠度: 家メンバーの対 Polity attitude 平均
 //   score = affection*0.55 + respect*0.45
-function getHouseLoyaltyToCountry(state: WorldState, houseId: HouseId): number
+function getHouseLoyaltyToPolity(state: WorldState, houseId: HouseId): number
 
 // Prestige = 0.70 * legacyPrestige + 0.30 * averageRespectScore
 //   respectScore: 世界全体の Person/PopGroup からの attitude.respect 平均（attitudeValueToScore 正規化）
-function getCountryPrestige(state: WorldState, countryId: CountryId): number
+function getPolityPrestige(state: WorldState, polityId: PolityId): number
 function getHousePrestige(state: WorldState, houseId: HouseId): number
 function getPersonPrestige(state: WorldState, personId: PersonId): number
 
-// Country 行政力: 毎1月 GovernanceSystem がキャッシュ
+// Polity 行政力: 毎1月 GovernanceSystem がキャッシュ
 //   0.30*adminEffectiveStat*10 + 0.20*treasurerEffectiveStat*10 + 0.20*stability + 0.20*rulerPrestige + 0.10*treasuryScore
 //   各 stat は getEffectiveOfficeStat（役職担当者の能力・人数・協調ペナルティを考慮）
-function getCountryAdminPower(state: WorldState, config: SimulationConfig, countryId: CountryId): number
+function getPolityAdminPower(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 ```
 
 **attitudeValueToScore の変換**:
 - affection / respect の値 (-100..100) → score (0..100)
 - 0 → 50、正 → 50+、負 → 50- の線形変換
 
-### 4.6 Office / Share セレクター（v0.12）
+### 4.6 Office / Share セレクター（v0.12 / v0.15）
 
 ```ts
 // 指定組織・役職のアクティブ担当者 ID 一覧
 function getActiveOfficeHolders(state: WorldState, org: OrganizationRef, role: OfficeRole): PersonId[]
 
-// 国の支配者（country:leader のホルダー）
-function getCountryRuler(state: WorldState, countryId: CountryId): PersonId | undefined
+// Polity の指導者（polity:leader Office holder）
+function getPolityLeader(state: WorldState, polityId: PolityId): PersonId | undefined
 
-// 国の支配家（支配者の所属家）
-function getCountryRulerHouse(state: WorldState, countryId: CountryId): HouseId | undefined
+// Polity の指導者の所属家
+function getPolityLeaderHouse(state: WorldState, polityId: PolityId): HouseId | undefined
 
 // 家の家長（house:leader のホルダー）
 function getHouseLeader(state: WorldState, houseId: HouseId): PersonId | undefined
 
 // 指定組織で rawPower が最も多い House（Dominant House）
-function getDominantCountryHouse(state: WorldState, countryId: CountryId): HouseId | undefined
+function getDominantPolityHouse(state: WorldState, polityId: PolityId): HouseId | undefined
 
 // 指定組織の上位株主一覧（holder・rawPower・percent）
 function getTopShareholders(state: WorldState, org: OrganizationRef, limit?: number): Array<{ holder: ShareHolderRef; rawPower: number; percent: number }>
 
-// House が Country に持つ Share 割合（%）
-function getHouseCountrySharePercent(state: WorldState, countryId: CountryId, houseId: HouseId): number
+// House が Polity に持つ Share 割合（%）
+function getHousePolitySharePercent(state: WorldState, polityId: PolityId, houseId: HouseId): number
 
 // Person が House に持つ Share 割合（%）
 function getPersonHouseSharePercent(state: WorldState, houseId: HouseId, personId: PersonId): number
 
-// 行政キャパシティ: baseCountryInstitutionalCapacity + ruler*factor + administrator*factor + treasurer*factor
-function getAdministrativeCapacity(state: WorldState, config: SimulationConfig, countryId: CountryId): number
+// 行政キャパシティ: basePolityInstitutionalCapacity + ruler*factor + administrator*factor + treasurer*factor
+function getAdministrativeCapacity(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 
-// 行政負荷: Province数 * adminLoadPerProvince + officeCount * adminLoadPerCountryOffice
-function getAdministrativeLoad(state: WorldState, config: SimulationConfig, countryId: CountryId): number
+// 行政負荷: Province数 * adminLoadPerProvince + officeCount * adminLoadPerPolityOffice
+function getAdministrativeLoad(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 
 // 行政効率: clamp(capacity / load, minAdministrativeEfficiency, maxAdministrativeEfficiency)
-function getAdministrativeEfficiency(state: WorldState, config: SimulationConfig, countryId: CountryId): number
+function getAdministrativeEfficiency(state: WorldState, config: SimulationConfig, polityId: PolityId): number
+```
+
+### 4.6b Polity 関係 selector（v0.15）
+
+House / Person が Polity に所属しない設計（§3.3 参照）のため、関係取得は `prototype/src/sim/selectors/polityRelations.ts` の selector に集約する。
+
+```ts
+// Province → Polity / House
+function getProvincePolity(state: WorldState, provinceId: ProvinceId): Polity | undefined
+function getProvinceOwnerHouse(state: WorldState, provinceId: ProvinceId): House | undefined
+
+// Polity 内 Province / House / Person
+function getPolityProvinceIds(state: WorldState, polityId: PolityId): ProvinceId[]
+function getPolityHouseIds(state: WorldState, polityId: PolityId): HouseId[]
+// ↑ Polity 内に Province を 1 つ以上所有する active House の集合
+function getPolityPersonIds(state: WorldState, polityId: PolityId): PersonId[]
+// ↑ Polity 関係 House の alive member。複数 Polity 跨ぎ House の人物は重複可
+
+// House → Polity
+function getHouseProvinceIdsByPolity(state: WorldState, houseId: HouseId, polityId: PolityId): ProvinceId[]
+function getHousePolityIds(state: WorldState, houseId: HouseId): PolityId[]
+// ↑ House が Province を所有している active Polity 一覧
+function getHousePrimaryPolityId(state: WorldState, houseId: HouseId): PolityId | undefined
+// ↑ 表示・候補選定用の便宜的 primary Polity
+//   1) house.seatProvinceId の polity を最優先
+//   2) Province 数が最大の Polity
+//   3) 同数なら development 合計が最大
+//   4) それも同じなら PolityId 昇順
+
+// Person → Polity
+function getPersonRelevantPolityIds(state: WorldState, personId: PersonId): PolityId[]
+function getPersonPrimaryPolityId(state: WorldState, personId: PersonId): PolityId | undefined
+
+// House の Polity 内拠点（capital 移転や Polity 内中心地を求めるとき）
+function getHouseSeatProvinceInPolity(
+  state: WorldState,
+  houseId: HouseId,
+  polityId: PolityId,
+): ProvinceId | undefined
+//   1) house.seatProvinceId が対象 Polity 内なら、それを返す
+//   2) そうでなければ Polity 内の所有 Province から development 最大を選ぶ
 ```
 
 ### 4.7 Ability / 派生 selector（v0.14）
@@ -537,12 +607,18 @@ warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
 | 20 | WarSystem | 毎月 |
 | 21 | **ProvinceRevoltSystem** | 毎月 |
 | 22 | RebellionSystem | 毎月 |
+| 22b | **PolityOwnerConsistencySystem** (v0.15) | 毎月 |
+| 22c | **OrganizationConsistencySystem** (v0.15) | 毎月 |
 | 23 | **AttitudeDecaySystem** | 毎月 |
 | 24 | GovernanceSystem | 毎年1月 |
 | 25 | normalizePopSizes | 毎月 |
 | 26 | IntegrityCheck | 毎月 |
 
-順序の理由：PopSystem を EconomySystem より前に置くことで、当月の POP 状態変化（人口成長・pressure・wealth/unrest）を反映して生産量を計算する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。OfficeCompensationSystem を AppointmentSystem の直後に置くことで、当年に任命された役職への給与支払いが即座に処理される。PopDevelopmentSystem を Country/House 開発システムより後に置くことで、当月の収入分配後に POP に残った余剰富による地元の自主開発を表現する。ProvinceRevoltSystem を RebellionSystem の前に置くことで、Province / POP 起点の社会不安が House 反乱に波及する経路を表現する（ただし同一 tick での直接連鎖はしない）。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当月に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は1月のみ実行され、次の1年間の各システムで使われる。
+v0.15 で挿入された Consistency 系 2 つは、War / Rebellion / ProvinceRevolt 等の所領変動 system の **直後** に走り、所領異動の結果生じた Polity の owner / capital / Share / Office の整合性を即座に補正する。
+
+詳細は §6.22b / §6.22c 参照。
+
+順序の理由：PopSystem を EconomySystem より前に置くことで、当月の POP 状態変化（人口成長・pressure・wealth/unrest）を反映して生産量を計算する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。OfficeCompensationSystem を AppointmentSystem の直後に置くことで、当年に任命された役職への給与支払いが即座に処理される。PopDevelopmentSystem を Polity/House 開発システムより後に置くことで、当月の収入分配後に POP に残った余剰富による地元の自主開発を表現する。ProvinceRevoltSystem を RebellionSystem の前に置くことで、Province / POP 起点の社会不安が House 反乱に波及する経路を表現する（ただし同一 tick での直接連鎖はしない）。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当月に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は1月のみ実行され、次の1年間の各システムで使われる。
 
 ---
 
@@ -560,7 +636,7 @@ development < 0 → development = min(0, development + developmentNegativeMonthl
 
 ### 6.2 ControlSystem（毎月）
 
-Country ごとに首都から BFS、House ごとに本拠地から BFS を行い、各 Province の支配力を更新する。
+Polity ごとに首都から BFS、House ごとに本拠地から BFS を行い、各 Province の支配力を更新する。
 
 **支配力上限（二段階 clamp）**:
 
@@ -572,7 +648,7 @@ maxControl = clamp(baseMaxControl + maxControlBonus, controlAbilityMinimumFloor,
 // 首都 / 本拠地は常に上限 100
 ```
 
-`maxControlBonus` は Country administrator（countryControl）・家長 house:leader（houseControl）の admin stat から算出される（§10 参照）。
+`maxControlBonus` は Polity administrator（polityControl）・家長 house:leader（houseControl）の admin stat から算出される（§10 参照）。
 
 **到達可能な Province**:
 
@@ -581,7 +657,7 @@ if (control < maxControl) control = Math.min(control + effectiveGrowth, maxContr
 if (control > maxControl) control = Math.max(control - controlDecayPerMonth, maxControl)
 ```
 
-`effectiveGrowth = controlGrowthPerMonth * growthModifier`（Country administrator・家長 house:leader の admin stat による）。
+`effectiveGrowth = controlGrowthPerMonth * growthModifier`（Polity administrator・家長 house:leader の admin stat による）。
 
 **到達不能な Province**（飛び地など）:
 
@@ -590,8 +666,8 @@ control = Math.max(0, control - disconnectedControlDecayPerMonth)
 ```
 
 BFS 通行条件:
-- countryControl: 首都から同一 Country の Province のみ通行可
-- houseControl: 本拠地から同一 Country の Province（他 House 領も通行可）。更新対象はその House の Province のみ
+- polityControl: 首都から同一 Polity の Province のみ通行可
+- houseControl: 本拠地から同一 Polity の Province（他 House 領も通行可）。更新対象はその House の Province のみ
 
 ### 6.3 LordshipTransitionSystem（毎月）
 
@@ -602,7 +678,7 @@ BFS 通行条件:
 - `target.id !== ownerHouse.seatProvinceId`
 
 **neighbor 候補の条件**:
-- `neighbor.countryId === target.countryId`
+- `neighbor.polityId === target.polityId`
 - `neighbor.ownerHouseId !== target.ownerHouseId`
 - `neighbor.houseControl >= lordshipAbsorptionSourceMinimum`
 - `neighbor.houseControl >= target.houseControl * lordshipAbsorptionRatio`
@@ -678,7 +754,7 @@ Province ごとに POP の生産量を算出し、支配力に基づいて国・
 
 ```ts
 const production = getProvinceProduction(state, config, province.id)
-// = sum(pop.size * productivityByClass[pop.class] * (pop.wealth/100) * (countryControl/100))
+// = sum(pop.size * productivityByClass[pop.class] * (pop.wealth/100) * (polityControl/100))
 ```
 
 **6.5.2 回収式**
@@ -686,33 +762,33 @@ const production = getProvinceProduction(state, config, province.id)
 支配力不足によるロスの思想は維持する。ロス分は POP に残る富となる。
 
 ```ts
-const cc = province.countryControl / 100
+const cc = province.polityControl / 100
 const hc = province.houseControl / 100
 const totalControl = cc + hc
 
 if (totalControl > 0) {
-  countryIncome = production * (cc / totalControl) * cc
+  polityIncome = production * (cc / totalControl) * cc
   houseIncome   = production * (hc / totalControl) * hc
 }
 
-const extracted = countryIncome + houseIncome
+const extracted = polityIncome + houseIncome
 const retained  = Math.max(0, production - extracted)
 ```
 
 支配力の例（Province 生産量 100 の場合）:
-| countryControl | houseControl | 国収入（taxEfficiency=1） | 家収入 | POP 残留 |
+| polityControl | houseControl | 国収入（taxEfficiency=1） | 家収入 | POP 残留 |
 |---|---|---|---|---|
 | 100 | 100 | 50 | 50 | 0 |
 | 100 | 50 | 66.7 | 16.7 | 16.6 |
 | 50 | 50 | 25 | 25 | 50 |
 | 100 | 0 | 100 | 0 | 0 |
 
-**6.5.3 Country treasurer の taxEfficiency**
+**6.5.3 Polity treasurer の taxEfficiency**
 
-国庫収入には Country treasurer の能力補正が乗算される（§10 参照）。POP から余分に徴収するのではなく、徴収・輸送・汚職抑制の効率を表す。
+国庫収入には Polity treasurer の能力補正が乗算される（§10 参照）。POP から余分に徴収するのではなく、徴収・輸送・汚職抑制の効率を表す。
 
 ```ts
-country.treasury += countryIncome * taxEfficiency
+polity.treasury += polityIncome * taxEfficiency
 house.wealth     += houseIncome
 ```
 
@@ -752,8 +828,8 @@ if (
 | BountifulHarvest（豊作） | `bountifulHarvestBaseChancePerYear` (5%) | Province dev 上昇、peasants/townsmen wealth 上昇・unrest 低下 |
 
 **Famine の詳細**:
-- 救済判定: `country.treasury >= countryProvinceCount * disasterReliefCostPerProvince`
-- 救済あり: dev -= (famineDevastation - famineReliefDevelopmentRecovery)、country.legacyPrestige +1、POP 効果を `famineReliefDamageMultiplier`（0.3）倍に軽減
+- 救済判定: `polity.treasury >= polityProvinceCount * disasterReliefCostPerProvince`
+- 救済あり: dev -= (famineDevastation - famineReliefDevelopmentRecovery)、polity.legacyPrestige +1、POP 効果を `famineReliefDamageMultiplier`（0.3）倍に軽減
 - 救済なし: dev -= famineDevastation、POP 効果フル適用
 - POP 効果: `adjustProvincePopWealthByClass(state, pid, 'peasants', -famineWealthPenalty * multiplier)` / `adjustProvincePopSizeByClass(state, pid, 'peasants', -famineSizeDamage * multiplier)`
 
@@ -778,7 +854,7 @@ if (
 
 家長（house:leader）が死亡した場合の後継選出は SuccessionSystem（§6.10）が担当する。
 
-**v0.14**: 死亡者の `wealth` 分配は直後の EstateSettlementSystem（§6.7b）が処理する。MortalitySystem は死者を `TickContext.deathsThisTick` に追記し、`wasHouseLeader` / `wasCountryLeader` の役職情報を `TickContext.deathRolesThisTick` に保存して estate 処理に引き継ぐ（mortalitySystem 内で role を取得しないと markPersonDead が office を revoke するため後段では復元できない）。
+**v0.14**: 死亡者の `wealth` 分配は直後の EstateSettlementSystem（§6.7b）が処理する。MortalitySystem は死者を `TickContext.deathsThisTick` に追記し、`wasHouseLeader` / `wasPolityLeader` の役職情報を `TickContext.deathRolesThisTick` に保存して estate 処理に引き継ぐ（mortalitySystem 内で role を取得しないと markPersonDead が office を revoke するため後段では復元できない）。
 
 ### 6.7b EstateSettlementSystem（毎月、v0.14）
 
@@ -813,7 +889,7 @@ toHeirsPool = wealth - toHouse
 **イベント**:
 * `ESTATE_SETTLED` は対象人物ごとに必ず発火
 * 加えて、嫡出子 2 人以上または兄弟相続で 2 人以上の場合は `ESTATE_DISPUTED` を ESTATE_SETTLED と並んで追加発火（v0.14 では記録のみ、後続処理なし）
-* importance: 故人が country leader だった場合 `major`、家長または `wealth ≥ house.wealth * estateSettledNormalWealthRatio` の場合 `normal`、それ以外 `minor`
+* importance: 故人が polity leader だった場合 `major`、家長または `wealth ≥ house.wealth * estateSettledNormalWealthRatio` の場合 `normal`、それ以外 `minor`
 
 `deathsThisTick` と `deathRolesThisTick` は次 tick の `advanceTime` で空にリセットされる。
 
@@ -824,8 +900,8 @@ toHeirsPool = wealth - toHouse
 - **候補条件（男性）**: 生存・未婚・対象年齢（`marriageMaleMinAge`〜`marriageMaleMaxAge`）・所属家が active
 - **候補条件（女性）**: 生存・未婚・対象年齢（`marriageFemaleMinAge`〜`marriageFemaleMaxAge`）・所属家が active
 - **禁止組み合わせ**: 同一家・近親関係（`isForbiddenMarriagePair` によるチェック）
-- **国内婚ボーナス**: 同一国の女性には `sameCountryMarriageBonus`（+0.10）を加算
-- **異国婚ペナルティ**: 異なる国の女性には `differentCountryMarriagePenalty`（-0.05）を加算
+- **同 Polity 婚ボーナス**（v0.15）: `getPersonPrimaryPolityId` で primary Polity を取得し、男女で一致なら `samePrimaryPolityMarriageBonus`（+0.08）を加算
+- **異 Polity 婚ペナルティ**（v0.15 で廃止）: 「単一 Polity 所属を強要しない」設計のためペナルティは加えない
 
 婚姻成立時の処理：
 - 女性が男性の家に `movePersonToHouse` で移動
@@ -915,50 +991,68 @@ splitChance = baseHouseSplitChance
 
 ### 6.12 未成年当主ペナルティ（SuccessionSystem 内）
 
-当主が未成年（age < `adultAge`）の間、毎月適用。v0.11 以降は格納フィールドの直接変更ではなく、Attitude の調整を通じて cohesion・loyaltyToCountry に間接影響を与える（実装上は `minorHeadCohesionPenaltyPerMonth` / `minorHeadLoyaltyPenaltyPerMonth` の config 値が引き続き参照される）。
+当主が未成年（age < `adultAge`）の間、毎月適用。v0.11 以降は格納フィールドの直接変更ではなく、Attitude の調整を通じて cohesion・loyaltyToPolity に間接影響を与える（実装上は `minorHeadCohesionPenaltyPerMonth` / `minorHeadLoyaltyPenaltyPerMonth` の config 値が引き続き参照される）。
 
 ### 6.13 HouseExtinctionSystem（SuccessionSystem から呼び出し）
 
-後継者が存在しない家（生存メンバーが 0 または全員未成年かつ成人後継者なし）に対して断絶処理を行う。実体の状態書き換えは `extinctHouse` mutation（`worldStructureMutations.ts`）に集約されている（v0.13）。
+後継者が存在しない家（生存メンバーが 0 または全員未成年かつ成人後継者なし）に対して断絶処理を行う。実体の状態書き換えは `extinctHouse` mutation（`worldStructureMutations.ts`）に集約されている（v0.13 / v0.15）。
 
-**通常家の断絶（非支配家）**:
-- 同国内の別の active House を継承先に選択
+**v0.15 §22.3 affectedPolityIds スナップショット**:
+
+```ts
+type HouseExtinctionInput = {
+  houseId: HouseId
+  affectedPolityIds: PolityId[]  // 喪失前の getHousePolityIds スナップショット
+}
+```
+
+呼び出し側で所領喪失前の Polity 集合を取得しておき、メンバー移住先選定のスコープとして使う。
+
+**移住先 House の選定（v0.15 §22.3）**:
+
+1. `affectedPolityIds` 内で最大 Province 数を持つ active House
+2. `affectedPolityIds` 内で最大 Polity Share を持つ active House
+3. 旧 `seatProvinceId` に隣接する Province の ownerHouse
+4. 世界全体で最大 Province 数を持つ active House
+5. 見つからない場合、メンバーは inactive のまま House 解散（後段 IntegrityCheck の Person/House 整合チェック対象になる）
+
+選定後の処理:
 - `moveLivingMembersToHouse` で生存メンバーを継承先に移動
 - 断絶家の Province を継承先に `transferProvinceToHouse` で移管
 - 断絶家を `active: false`、`memberIds: []` に設定
-- 国の `houseIds` から除外
 
-**支配家の断絶（rulerHouse）**:
-- 同国内に別の active House がある場合:
-  - 最も Province 数が多い House を新支配家に選択
-  - `country:leader` の OfficeAssignment を新支配家の代表者に付け替え（`RULER_CHANGED` イベント）
-  - 生存メンバーを新支配家に移動・Province も移管
-  - `RULER_HOUSE_CHANGED` イベントを発火後に断絶処理
-- 同国内に House がない場合（完全孤立）:
-  - 隣接国の最大 House に Province・生存メンバーを移動し国ごと併合
-  - 内部的に `handleRulerHouseExtinction` のアネクサーパスを実行
+**Polity の inactive 化は HouseExtinctionSystem で行わない**（v0.15）:
+v0.14 では `handleRulerHouseExtinction` が ruler house extinct で Country を消滅させていたが、v0.15 ではこれを削除。Polity の active 制御は §6.22b PolityOwnerConsistencySystem に一本化する。
+これにより HouseExtinction → 所領消失 → 当月内に PolityOwnerConsistency が owner 補充または `POLITY_EXTINCT` 発火、という分離した責務になる。
 
-イベント: `HOUSE_EXTINCT`（importance: `major`）または `RULER_HOUSE_EXTINCT`（importance: `critical`）
+イベント: `HOUSE_EXTINCT`（importance: `major`）
 
 ### 6.14 AppointmentSystem（毎年1月）
 
-Country と House それぞれの役職（leader 以外の 4 種）に対して、空席を最適候補で補充する。
+Polity と House それぞれの役職（leader 以外の 4 種）に対して、空席を最適候補で補充する。
 
 **対象役職**:
-- Country: administrator / treasurer / military / advisor
+- Polity: administrator / treasurer / military / advisor
 - House: administrator / treasurer / military / advisor
 - leader は AppointmentSystem が直接補充しない（SuccessionSystem が担当）
 
-**候補スコア（Country 役職）**:
+**候補スコア（Polity 役職）**:
 ```ts
-score = relevantStat(role) * 1.0          // military → martial、他 → admin
-      + (prestige / 100) * 10             // getPersonPrestige
-      + rulerRespect * 5                  // ruler の attitude.respect（0..1 正規化）
-      + countryAffection * 3             // 候補者の対 Country attitude.affection
-      + houseSharePct * 0.1              // 候補者の家の Country Share 割合
-      + personSharePct * 0.05           // 候補者個人の House Share 割合
-      - concurrentOfficePenalty * currentOfficeCount  // 兼任ペナルティ
+// v0.15 §13.4 で更新されたスコア式
+score = relevantStat(role) * 1.0          // military → warCommand、他 → governance（v0.14 派生 selector）
+      + (prestige / 100) * 8              // getPersonPrestige (v0.15: 10→8)
+      + leaderRespect * 4                 // polity leader の attitude.respect（0..1 正規化）(v0.15: 5→4)
+      + polityAffection * 3               // 候補者の対 Polity attitude.affection
+      + houseSharePct * polityShareAppointmentFactor  // v0.15: 候補者の家の Polity Share 割合（既定 0.25）
+      + personSharePct * houseShareAppointmentFactor  // v0.15: 候補者個人の House Share 割合（既定 0.08）
+      + ownerHouseBonus                   // v0.15: 候補者の家が polity.ownerHouseId なら ownerHouseAppointmentBonus（既定 4）
+      - concurrentOfficePenalty * currentOfficeCount  // 兼任ペナルティ（個人単位）
+      - sameHousePolityOfficePenalty * sameHousePolityOfficeCount  // v0.15: 同 House の Polity Office 数（既定 2）
 ```
+
+**v0.15 §13.2 候補者条件**: alive 成人 / active House 所属 / 同 role を未保有 / 以下のいずれか:
+1. その House が対象 Polity 内に Province を所有する
+2. その House が対象 Polity の `ownerHouseId` である（owner が一時的に Province を失っていても候補に残す）
 
 **候補スコア（House 役職）**:
 ```ts
@@ -981,10 +1075,10 @@ score = relevantStat(role) * 1.0
 
 アクティブな OfficeAssignment に対して、`baseSalary`（§3.7 参照）に基づく給与を支払う。
 
-- 支払元: Country 役職 → `country.treasury`、House 役職 → `house.wealth`
+- 支払元: Polity 役職 → `polity.treasury`、House 役職 → `house.wealth`
 - 支払先: `person.wealth += paid`
 - 資金不足時は部分支払いまたは未払い
-- 未払い・部分支払い時: `office.unpaidCount` を増加し、Person の Attitude（対 Country / 対 House の affection・respect）にペナルティを付与
+- 未払い・部分支払い時: `office.unpaidCount` を増加し、Person の Attitude（対 Polity / 対 House の affection・respect）にペナルティを付与
   - ペナルティは `officeDignityUnpaidPenaltyReduction` × dignity 値で軽減
 - `unpaidCount` が 0 の完全支払い時にはリセット
 
@@ -992,20 +1086,24 @@ score = relevantStat(role) * 1.0
 
 ### 6.14c ShareUpdateSystem（毎年1月）
 
-Country・House それぞれの Share 分布を毎年更新する。
+Polity・House それぞれの Share 分布を毎年更新する。
 
-**Country Share 更新（House ホルダーの Share を計算）**:
+**Polity Share 更新（House ホルダーの Share を計算）**:
 ```ts
-newRawPower = countryShareBase
-            + province.count * countryShareProvinceFactor
-            + militaryProxy * countryShareMilitaryFactor
-            + house.wealth * countryShareWealthFactor
-            + house.legacyPrestige * countrySharePrestigeFactor
-            + countryOfficeCount * countryShareOfficeFactor
-            + (isRulerHouse ? countryShareRulerHouseBonus : 0)
+// v0.15 §12.3: 計算は対象 Polity 内の local power に限定する。
+// 別 Polity の所領で当該 Polity の Share が膨らむことを防ぐ。
+newRawPower = polityShareBase
+            + ownedProvinceCountInPolity * polityShareProvinceFactor     // v0.15: 対象 Polity 内に限定
+            + localMilitaryProxy * polityShareMilitaryFactor             // v0.15: 対象 Polity 内 Province から算出
+            + house.wealth * polityShareWealthFactor
+            + house.legacyPrestige * politySharePrestigeFactor
+            + polityOfficeCount * polityShareOfficeFactor
+            + (isOwnerHouse ? polityShareOwnerHouseBonus : 0)             // v0.15: polity.ownerHouseId と一致なら
 ```
 
 既存 Share との統合: `rawPower = oldPower * shareYearlyRetentionRate + newRawPower * (1 - shareYearlyRetentionRate)`
+
+**v0.15 §12.2 削除責務**: ShareUpdateSystem は不適格 Share の削除を **行わない**。削除責任は §6.22c OrganizationConsistencySystem に一本化されている。
 
 **House Share 更新（Person ホルダーの Share を計算）**:
 ```ts
@@ -1045,11 +1143,11 @@ if (ability[k] < effectiveCeil) {
 
 | 経験 | 成長対象 |
 |---|---|
-| Country leader 在任 | command, charisma, insight, learning |
+| Polity leader 在任 | command, charisma, insight, learning |
 | House leader 在任 | command, charisma, insight |
-| Country administrator (chancellor) 在任 | numeracy, learning, charisma |
-| Country/House treasurer 在任 | numeracy, learning |
-| Country military (general) 在任 | command, learning |
+| Polity administrator (chancellor) 在任 | numeracy, learning, charisma |
+| Polity/House treasurer 在任 | numeracy, learning |
+| Polity military (general) 在任 | command, learning |
 | House military (marshal) 在任 | command, valor |
 | 戦争 active 期間中（12 ヶ月以内に lastWarMonth）の在国 | valor, command |
 | PlotSystem の active リーダー | insight |
@@ -1062,7 +1160,7 @@ if (ability[k] < effectiveCeil) {
 
 `publicSpendingYearlyChance`（35%）で発動。monumentScore vs landDevelopmentScore を比較し実行：
 
-スコア計算に Country administrator の ability 補正が加算される（§10 参照）:
+スコア計算に Polity administrator の ability 補正が加算される（§10 参照）:
 ```
 monumentScore      += chancellorAmbitionMonumentScoreBonus + chancellorCautionMonumentScoreBonus
 landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorAmbitionLandDevelopmentScoreBonus
@@ -1070,11 +1168,11 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
 
 **記念碑建設（MONUMENT_BUILT）**:
 - 条件: monumentScore > landDevelopmentScore かつ treasury >= monumentBaseCost
-- 対象 Province: 首都から接続済み、countryControl < 100 の中から最高スコアで選択
-- 効果: treasury -= monumentBaseCost、**countryControl += monumentCountryControlGain**、legitimacy += monumentLegitimacyGain、rulerHouse.prestige += 2
+- 対象 Province: 首都から接続済み、polityControl < 100 の中から最高スコアで選択
+- 効果: treasury -= monumentBaseCost、**polityControl += monumentPolityControlGain**、legitimacy += monumentLegitimacyGain、rulerHouse.prestige += 2
 
-**国家土地開発（COUNTRY_LAND_DEVELOPED）**:
-- 条件: treasury >= effectiveCost（Country treasurer の admin による割引あり）
+**Polity土地開発（COUNTRY_LAND_DEVELOPED）**:
+- 条件: treasury >= effectiveCost（Polity treasurer の admin による割引あり）
 - 効果: development += gain（clamp）、**houseControl += landDevelopmentHouseControlGain**、treasury -= effectiveCost
 
 ### 6.17 HouseDevelopmentSystem（毎年1月）
@@ -1101,13 +1199,13 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
 
 `popDevelopmentEnabled` が true のとき動作。地元共同体・都市民・在地有力者による小規模な土地改善を表す。
 
-POP 自主開発は Country / House 開発より明確に弱く、局所的・低効率に留める：
+POP 自主開発は Polity / House 開発より明確に弱く、局所的・低効率に留める：
 
 | 開発主体 | development gain | 財源 |
 |----------|-----------------|------|
 | POP | +0.25（微少） | Province に残った POP wealth |
 | House | +6 | House wealth |
-| Country | +8 以上 | Country treasury |
+| Polity | +8 以上 | Polity treasury |
 
 **発動条件**:
 ```ts
@@ -1133,7 +1231,7 @@ province.development += popDevelopmentGain  // clamp(-100, 100)
 adjustProvincePopWealth(state, province.id, -popDevelopmentCost)
 ```
 
-countryControl / houseControl には影響しない。
+polityControl / houseControl には影響しない。
 
 イベント: `POP_LAND_DEVELOPED`（importance: `minor`）
 ```
@@ -1148,29 +1246,29 @@ summary: "The people of ${province.name} improved their lands."
 
 `warEnabled` が true のとき動作。国家が他国に宣戦布告し、Province を奪取する。
 
-- 宣戦条件: `effectiveMinWinChanceToDeclare`（Country military の ambition/caution で変動、§10 参照）以上の勝率見込み、warCooldown 明け
-- 軍事力: `baseMilitaryPower * warPowerModifier`（Country military の martial stat による、§10 参照）
+- 宣戦条件: `effectiveMinWinChanceToDeclare`（Polity military の ambition/caution で変動、§10 参照）以上の勝率見込み、warCooldown 明け
+- 軍事力: `baseMilitaryPower * warPowerModifier`（Polity military の martial stat による、§10 参照）
 - **本拠地保護**: `seatProvinceId` の Province は征服対象から除外する
-- 征服後、defender の非 seat Province がすべてなくなった場合（seat のみ残存）に `annexCountry` を呼び出す
-- **v0.13**: 征服 Province の引き渡し先は「勝者 Country に属し active な House」を線形検索で決定する。以前の `houseIds[0]` フォールバックは stale な `countryId` を持つ House に Province を渡してしまう潜在的状態破壊バグを含んでいたため修正された。valid House が存在しない場合は Province 獲得をスキップする
+- 征服後、defender の非 seat Province がすべてなくなった場合（seat のみ残存）に `annexPolity` を呼び出す
+- **v0.13**: 征服 Province の引き渡し先は「勝者 Polity に属し active な House」を線形検索で決定する。以前の `houseIds[0]` フォールバックは stale な `polityId` を持つ House に Province を渡してしまう潜在的状態破壊バグを含んでいたため修正された。valid House が存在しない場合は Province 獲得をスキップする
 
 **荒廃・POP 効果**:
 - 攻撃側勝利時（征服 Province）: development -= warConqueredProvinceDevastation、全 POP wealth 低下・unrest 上昇・peasants/townsmen size 軽度減少
 - 攻撃側勝利時（境界 Province）: development -= warBorderProvinceDevastation、全 POP wealth 低下・unrest 上昇
 - 攻撃側敗北時（攻撃側境界 Province）: development -= failedWarBorderDevastation、全 POP wealth 低下・unrest 上昇
 
-**annexCountry mutation**:
+**annexPolity mutation**:
 
 ```
-1. defeatedCountry の全 Province.countryId を winnerCountry に変更
-2. defeatedCountry の全 House.countryId / Person.countryId を winnerCountry に変更
-3. defeatedCountry.rulerHouse は seatProvinceId 以外の Province を失う
+1. defeatedPolity の全 Province.polityId を winnerPolity に変更
+2. defeatedPolity の全 House.polityId / Person.polityId を winnerPolity に変更
+3. defeatedPolity.rulerHouse は seatProvinceId 以外の Province を失う
 4. 非 rulerHouse の ownerHouseId は維持
-5. rulerHouse から取り上げた Province は winnerCountry.rulerHouse に割り当て
-6. 全 Province の countryControl = annexedCountryControl（35）
+5. rulerHouse から取り上げた Province は winnerPolity.rulerHouse に割り当て
+6. 全 Province の polityControl = annexedPolityControl（35）
 7. 非 rulerHouse 領の houseControl は維持
-8. winnerCountry.rulerHouse に新規割当された Province の houseControl = newRulerHouseControl（35）
-9. defeatedCountry.active = false
+8. winnerPolity.rulerHouse に新規割当された Province の houseControl = newRulerHouseControl（35）
+9. defeatedPolity.active = false
 ```
 
 ### 6.21 RebellionSystem（毎月）
@@ -1184,13 +1282,13 @@ summary: "The people of ${province.name} improved their lands."
 ```ts
 rebellionTendency += avgNoblesUnrest * houseRebellionNobleUnrestFactor
 rebellionTendency += avgProvinceUnrest * houseRebellionProvinceUnrestFactor
-rebellionTendency += (100 - avgCountryControl) * houseRebellionLowControlFactor
+rebellionTendency += (100 - avgPolityControl) * houseRebellionLowControlFactor
 ```
 
 **戦力計算**:
 
 - 反乱側: `calcHouseMilitaryPower(state, config, rebelHouseId)`
-- 鎮圧側: 支配家（`getCountryRulerHouse` で特定）は 100% 寄与、非支配家門は `getHouseLoyaltyToCountry`（§4.5）に応じた寄与 + `adminPower * factor` + `treasury / divisor`
+- 鎮圧側: 支配家（`getPolityLeaderHouse` で特定）は 100% 寄与、非支配家門は `getHouseLoyaltyToPolity`（§4.5）に応じた寄与 + `adminPower * factor` + `treasury / divisor`
 
 **荒廃効果**:
 - 反乱開始時: rebelProvinces に development -= rebellionStartedDevastation
@@ -1213,8 +1311,8 @@ Province / POP を起点とする社会的反乱を処理する。
 revoltTendency =
   pop.unrest * provinceRevoltUnrestFactor
   + (100 - houseControl) * provinceRevoltLowHouseControlFactor
-  + (100 - countryControl) * provinceRevoltLowCountryControlFactor
-  - country.stability * provinceRevoltStabilitySuppressionFactor
+  + (100 - polityControl) * provinceRevoltLowPolityControlFactor
+  - polity.stability * provinceRevoltStabilitySuppressionFactor
   + [class 別補正]
 ```
 
@@ -1230,7 +1328,7 @@ class 別補正:
 
 **戦力比較**:
 - 反乱側: `pop.size * popRevoltPowerFactorByClass[class] * (0.5 + unrest/100)`
-- 鎮圧側: Province の house/country manpower + log1p(treasury) + log1p(houseWealth)
+- 鎮圧側: Province の house/polity manpower + log1p(treasury) + log1p(houseWealth)
 
 **成功 outcome**:
 
@@ -1238,11 +1336,11 @@ class 別補正:
 |---------|------|------|
 | `concession` | 小幅成功 | 支配力低下・house wealth 低下、不満低下 |
 | `lordship_change` | 中〜大成功 | 新 Person・新 House を生成し Province の領主を交代 |
-| `independence` | nobles 反乱かつ両支配力が極低値かつ大差勝利 | 新 Person・新 House・新 Country を生成し Province が独立 |
+| `independence` | nobles 反乱かつ両支配力が極低値かつ大差勝利 | 新 Person・新 House・新 Polity を生成し Province が独立 |
 
-`independence` 実行時の状態書き換え（新 Country・新 House の生成、Province の `countryId` 付け替え、旧国側の生存メンバー移動、Share/Office の初期化等）は `foundRevoltCountry` mutation（`worldStructureMutations.ts`）に集約されている（v0.13）。
+`independence` 実行時の状態書き換え（新 Polity・新 House の生成、Province の `polityId` 付け替え、旧国側の生存メンバー移動、Share/Office の初期化等）は `foundRevoltPolity` mutation（`worldStructureMutations.ts`）に集約されている（v0.13）。
 
-**反乱失敗**: 反乱 POP の unrest 低下・Province 荒廃・反乱 POP wealth 低下、鎮圧側 country.legacyPrestige +1。他 class の unrest が collateral として小幅上昇。
+**反乱失敗**: 反乱 POP の unrest 低下・Province 荒廃・反乱 POP wealth 低下、鎮圧側 polity.legacyPrestige +1。他 class の unrest が collateral として小幅上昇。
 
 **イベント**:
 
@@ -1251,10 +1349,88 @@ class 別補正:
 | 発生 | `PROVINCE_REVOLT_STARTED` |
 | concession 成功 | `PROVINCE_REVOLT_SUCCEEDED` |
 | lordship_change 成功 | `LORDSHIP_USURPED` |
-| independence 成功 | `REVOLT_COUNTRY_FOUNDED` |
+| independence 成功 | `REVOLT_POLITY_FOUNDED` |
 | 失敗 | `PROVINCE_REVOLT_FAILED` |
 
 **旧 ownerHouse の処置（lordship_change / independence）**: 領地がゼロになった House は即 inactive 化し、生存メンバーを rulerHouse に移動。`HOUSE_EXTINCT` イベントを発火。
+
+### 6.22b PolityOwnerConsistencySystem（毎月、v0.15）
+
+War / Rebellion / ProvinceRevolt 等の所領変動 system の直後に走り、`Polity.ownerHouseId` の整合性を補正する。
+
+active Polity を id 昇順に走査し、以下のステップを順に行う（疑似コード, §11.3）:
+
+```
+for each polity in active polities:
+  provinceIds = getPolityProvinceIds(state, polity.id)
+
+  // Step 1: provinceIds = 0 なら Polity 自体を消滅させる
+  if provinceIds.length === 0:
+    deactivate polity
+    revokeOfficesByOrganization({ kind: 'polity', id: polity.id })
+    removeSharesByOrganization({ kind: 'polity', id: polity.id })
+    emit POLITY_EXTINCT
+    continue
+
+  eligibleHouseIds = getPolityHouseIds(state, polity.id)
+
+  // Step 2: ownerHouseId 未設定なら新規補充
+  if polity.ownerHouseId === undefined:
+    newOwner = chooseOwner(eligibleHouseIds)
+    polity.ownerHouseId = newOwner
+    polity.capitalProvinceId = getHouseSeatProvinceInPolity(newOwner, polity.id)
+    replace polity:leader Office (revoke + assign new owner-house leader)
+    emit POLITY_OWNER_CHANGED
+
+  // Step 3: ownerHouse が inactive または Polity 内に Province なしなら交代
+  if ownerHouse is invalid:
+    newOwner = chooseOwner(eligibleHouseIds)
+    polity.ownerHouseId = newOwner
+    polity.capitalProvinceId = getHouseSeatProvinceInPolity(newOwner, polity.id)
+    replace polity:leader Office
+    emit POLITY_OWNER_CHANGED
+```
+
+**chooseOwner（§10.2 選定順）**:
+
+1. 対象 Polity 内の所有 Province 数が最大
+2. 同数なら local military proxy（Polity 内 Province の development 合計を proxy として使用）が最大
+3. 同値なら `house.legacyPrestige` が最大
+4. 同値なら HouseId 昇順
+
+**事後条件**:
+- 全 active Polity について、`ownerHouseId` が存在し、ownerHouse は active かつ Polity 内に Province を持つ
+- 全 Polity の `capitalProvinceId` はその Polity 内の Province を指す
+- owner 交代と同月内に `polity:leader` Office が補充されている（IntegrityCheck §25.2 #10 を当月内成立させる）
+
+イベント: `POLITY_OWNER_CHANGED`（importance: `major`）/ `POLITY_EXTINCT`（importance: `major`）
+
+### 6.22c OrganizationConsistencySystem（毎月、v0.15）
+
+PolityOwnerConsistencySystem の直後に走り、Polity Share / Office の保持資格を監査する。
+
+```
+for each polity in active polities:
+  eligibleHouseIds = getPolityHouseIds(state, polity.id)
+
+  // Step 1: 不適格 Share 削除
+  for each share where organization is { kind: 'polity', id: polity.id }:
+    if share.holder.kind === 'house' and share.holder.id not in eligibleHouseIds:
+      removeOrganizationShare(share.id)
+
+  // Step 2: 不適格 Polity Office revoke
+  for each active office where organization is { kind: 'polity', id: polity.id }:
+    person = state.persons[office.holderPersonId]
+    if not person.alive: continue  // 別系統の不整合（IntegrityCheck で検知）
+    house = state.houses[person.houseId]
+    if house is not in eligibleHouseIds:
+      revokeOfficeAssignment(office.id)
+      emit OFFICE_REVOKED
+```
+
+これにより:
+- Share 削除責任は OrganizationConsistencySystem に**一本化**される（ShareUpdateSystem は削除を行わない）
+- Polity Office holder は常に「対象 Polity 内に Province を持つ active House の人物」に限定される
 
 ### 6.23 AttitudeDecaySystem（毎月）
 
@@ -1262,53 +1438,73 @@ class 別補正:
 
 ### 6.23b GovernanceSystem（毎年1月）
 
-`getCountryAdminPower`（§4.5）で `adminPower` を再計算し、`country.adminPower` にキャッシュとして書き込む。
+`getPolityAdminPower`（§4.5）で `adminPower` を再計算し、`polity.adminPower` にキャッシュとして書き込む。
 
 ```ts
 adminPower = 0.30*getEffectiveOfficeStat('administrator','admin')*10
            + 0.20*getEffectiveOfficeStat('treasurer','admin')*10
-           + 0.20*getCountryStability
-           + 0.20*getHousePrestige(getCountryRulerHouse)
+           + 0.20*getPolityStability
+           + 0.20*getHousePrestige(getPolityLeaderHouse)
            + 0.10*clamp(log1p(treasury)*10, 0, 100)
 ```
 
-`getEffectiveOfficeStat` は役職担当者の能力・複数担当者の協調ペナルティを考慮した実効能力値を返す（v0.12）。旧 StabilitySystem は v0.11 で廃止。Stability は `getCountryStability` セレクターで毎回計算する。
+`getEffectiveOfficeStat` は役職担当者の能力・複数担当者の協調ペナルティを考慮した実効能力値を返す（v0.12）。旧 StabilitySystem は v0.11 で廃止。Stability は `getPolityStability` セレクターで毎回計算する。
 
-### 6.24 IntegrityCheck（毎月）
+### 6.24 IntegrityCheck（毎月、v0.15 で §25.2 へ整理）
 
-以下を検証し、違反があれば例外を投げる（`debug` モード時は警告のみ）：
+以下を検証し、違反があれば例外を投げる（`debug` モード時は警告のみ）。**(WARN)** マークの項目は Stage B（v0.15 移行期）では `console.warn` のみで throw しない設計。Polity 直交化に伴う transient 状態を許容するためで、PolityOwnerConsistencySystem (§6.22b) が当月内に整合性を回復する。
 
-1. 死亡人物が役職を持たない
-2. 活動中の家の家長が生存している
-3. House.provinceIds と Province.ownerHouseId の双方向整合性
-4. Province.countryId と ownerHouse.countryId の一致
-5. 生存 Person.countryId と House.countryId の一致
-6. Province.development が -100..100 の範囲内
-7. 国の country:leader ホルダーが存在し、active な House のメンバーである
-8. Country.capitalProvinceId がその Country に属する Province を指している
-9. House.seatProvinceId がその House の provinceIds に含まれている
-10. Province.countryControl が 0..100 の範囲内
-11. Province.houseControl が 0..100 の範囲内
-12. Person.sex が `'male'` または `'female'` のいずれか
-13. 生存 Person の spouseId が双方向かつ有効（相互参照の一致）
-14. 生存 Person の spouseId が死亡者を指さない
-15. 親子関係の双方向整合性（fatherId/motherId と childIds の相互参照）
-16. House の cadet 関係の双方向整合性（parentHouseId と cadetHouseIds の相互参照）
-17. PopGroup.provinceId が有効な Province を指している
-18. Province.popGroupIds の全 ID が有効な PopGroup を指している
-19. Province.popGroupIds と PopGroup.provinceId の双方向整合性
-20. 各 Province が peasants / townsmen / nobles を 1 つずつ持つ
-21. PopGroup.size >= minPopSizeByClass[class]
-22. PopGroup.wealth が 0..100 の範囲内
-23. PopGroup.unrest が 0..100 の範囲内
-24. active Country の country:leader ホルダー（存在する場合）が houseIds 内の active House のメンバーである
-25. active House の house:leader ホルダー（存在する場合）が memberIds に含まれる
-26. House.memberIds に重複がない（v0.11）
-27. House.provinceIds に重複がない（v0.11）
-28. Country.legacyPrestige が 0..100 の範囲内（v0.11）
-29. House.legacyPrestige が 0..100 の範囲内（v0.11）
-30. ability ≤ aptitude かつ両者が `[0, ABILITY_HARD_CAP=120]` の範囲内（v0.14、6 軸すべて）
-31. 死亡者の wealth が 0（EstateSettlementSystem 処理後の整合性、v0.14）
+**v0.15 で削除された旧チェック**:
+
+```
+Province.countryId と ownerHouse.countryId の一致      ← Country/House.countryId 削除のため
+生存 Person.countryId と House.countryId の一致         ← 同上
+Country.houseIds と House.countryId の整合性            ← Country.houseIds 削除のため
+```
+
+**v0.15 検証項目**:
+
+1. Province.polityId が有効な Polity を指す
+2. Province.ownerHouseId が有効な House を指す
+3. active Province の polity が active
+4. active Province の ownerHouse が active
+5. Polity.capitalProvinceId がその Polity に属する Province を指す **(WARN)**
+6. House.seatProvinceId がその House の provinceIds に含まれる **(WARN)**
+7. House.provinceIds と Province.ownerHouseId が双方向整合
+8. ownerHouseId を持つ active Polity では、ownerHouseId が active House を指す **(WARN)**
+9. ownerHouseId を持つ active Polity では、ownerHouse がその Polity 内に Province を1つ以上所有する **(WARN)**
+10. active Polity は active `polity:leader` Office を持つ **(WARN)**
+11. active House は active `house:leader` Office を持つ **(WARN)**
+12. OrganizationRef.kind は `'polity' | 'house'` のみ
+13. AttitudeTarget / attitude key に `country:` が残っていない
+14. active Polity の Share holder House は対象 Polity 内に Province を持つ **(WARN)**
+15. active Polity の Office holder は、対象 Polity に関係する House の人物である **(WARN)**
+
+加えて、v0.14 以前から継続するチェック:
+
+16. 死亡人物が役職を持たない
+17. 活動中の家の家長が生存している
+18. Province.development が -100..100 の範囲内
+19. Province.polityControl が 0..100 の範囲内
+20. Province.houseControl が 0..100 の範囲内
+21. Person.sex が `'male'` または `'female'` のいずれか
+22. 生存 Person の spouseId が双方向かつ有効（相互参照の一致）
+23. 生存 Person の spouseId が死亡者を指さない
+24. 親子関係の双方向整合性（fatherId/motherId と childIds の相互参照）
+25. House の cadet 関係の双方向整合性（parentHouseId と cadetHouseIds の相互参照）
+26. PopGroup.provinceId が有効な Province を指している
+27. Province.popGroupIds の全 ID が有効な PopGroup を指している
+28. Province.popGroupIds と PopGroup.provinceId の双方向整合性
+29. 各 Province が peasants / townsmen / nobles を 1 つずつ持つ
+30. PopGroup.size >= minPopSizeByClass[class]
+31. PopGroup.wealth が 0..100 の範囲内
+32. PopGroup.unrest が 0..100 の範囲内
+33. House.memberIds に重複がない（v0.11）
+34. House.provinceIds に重複がない（v0.11）
+35. Polity.legacyPrestige が 0..100 の範囲内（v0.11）
+36. House.legacyPrestige が 0..100 の範囲内（v0.11）
+37. ability ≤ aptitude かつ両者が `[0, ABILITY_HARD_CAP=120]` の範囲内（v0.14、6 軸すべて）
+38. 死亡者の wealth が 0（EstateSettlementSystem 処理後の整合性、v0.14）
 
 ---
 
@@ -1356,24 +1552,33 @@ nobles.unrest    = randomInt(5, 25)
 
 ### 7.4 capitalProvinceId の決定
 
-各 Country の首都は、支配家（rulerHouse）の `seatProvinceId`。
+各 Polity の首都は、初期 owner House の `seatProvinceId`。
 
-### 7.5 countryControl / houseControl の初期値
+**v0.15 追加**: 初期 Polity 生成時に以下を設定する。
+
+- `rank: 2` （placeholder、v0.15 では game effect なし）
+- `ownerHouseId`: その Polity に割り当てられた初期 leader House の id
+- `capitalProvinceId`: ownerHouse の `seatProvinceId` （= ownerHouse が所有する Province のうち development 等で選ばれた中心地）
+- `houseIds` フィールドは削除（`getPolityHouseIds` で動的取得）
+
+各 House は 1 つの Polity 内にしか Province を持たない状態で生成される（多 Polity 所領は War / Rebellion 経由でのみ発生）。
+
+### 7.5 polityControl / houseControl の初期値
 
 ControlSystem と同じ距離上限計算で初期化する。
 
 ```
-countryControl = maxControl(capitalProvinceId からの BFS 距離)
+polityControl = maxControl(capitalProvinceId からの BFS 距離)
 houseControl   = maxControl(seatProvinceId からの BFS 距離)
 ```
 
-接続不能な Province: `countryControl = 30`、`houseControl = 30`
+接続不能な Province: `polityControl = 30`、`houseControl = 30`
 
 ### 7.6 エンティティ名称の生成
 
-Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` に定義された名前プールから seed 付き RNG で選択する。
+Polity / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` に定義された名前プールから seed 付き RNG で選択する。
 
-- Country・House・Province: `pickUniqueName` による重複回避。プール不足時は `Country-N` / `House-N` / `Province-N` にフォールバック
+- Polity・House・Province: `pickUniqueName` による重複回避。プール不足時は `Country-N` / `House-N` / `Province-N` にフォールバック
 - Person（worldgen 初期生成・BirthSystem による出生ともに）: `pickNameBySex` による重複あり選択（中世欧州風に同名人物が複数存在し得る）
 - `debug` モード時もエンティティ名は通常と同じ名前プールから生成される（連番 ID 方式は廃止）。デバッグ追跡はエンティティ固有 ID（`pe-42`, `h-3` 等）で行う
 
@@ -1387,13 +1592,14 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | OFFICE_REVOKED | normal | 役職解任（v0.12。旧 ROLE_REVOKED） |
 | OFFICE_SALARY_UNPAID | minor | 給与未払い（v0.12） |
 | OFFICE_SALARY_PARTIALLY_PAID | minor | 給与部分払い（v0.12） |
-| RULER_CHANGED | critical | 国の支配者交代（v0.12） |
+| POLITY_LEADER_CHANGED | critical | Polity leader の交代（v0.12。旧 RULER_CHANGED、v0.15 で rename） |
+| POLITY_OWNER_CHANGED | major | Polity の ownerHouseId 交代（v0.15 新規） |
+| POLITY_EXTINCT | major | Polity が自己消滅（ownerHouse 不在 / Province 数 0）（v0.15 新規） |
 | HOUSE_LEADER_CHANGED | normal | 家長交代（v0.12。旧 HOUSE_HEAD_CHANGED） |
 | SHARE_SHIFTED | minor | Share 分布の有意な変化（v0.12） |
 | PERSON_DIED | normal | 人物死亡 |
 | IMPORTANT_PERSON_DIED | major | 重要人物死亡 |
-| HOUSE_EXTINCT | major | 家の断絶（非支配家） |
-| RULER_HOUSE_EXTINCT | critical | 支配家の断絶 |
+| HOUSE_EXTINCT | major | 家の断絶（後継者不在）（v0.15: 旧 RULER_HOUSE_EXTINCT も統合） |
 | MARRIAGE_FORMED | normal | 婚姻成立 |
 | CHILD_BORN | minor | 子誕生 |
 | HOUSE_SPLIT | major | 家の分裂（傍系家の独立） |
@@ -1405,8 +1611,7 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | REBELLION_STARTED | critical | 反乱勃発 |
 | REBELLION_SUCCEEDED | critical | 反乱成功 |
 | REBELLION_FAILED | major | 反乱失敗 |
-| COUNTRY_SPLIT | critical | 国家分裂 |
-| RULER_HOUSE_CHANGED | critical | 支配家交代 |
+| POLITY_SPLIT | critical | Polity 分裂（v0.15: 旧 COUNTRY_SPLIT を rename） |
 | OMEN | normal | 兆し |
 | FAMINE | major | 飢饉 |
 | PLAGUE | major | 疫病 |
@@ -1417,7 +1622,7 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | WAR_WON | major | 戦争勝利 |
 | WAR_LOST | major | 戦争敗北 |
 | PROVINCE_CONQUERED | major | Province 征服 |
-| COUNTRY_ANNEXED | critical | 国家消滅（併合） |
+| POLITY_ANNEXED | critical | 国家消滅（併合） |
 | MONUMENT_BUILT | major | 記念碑建設 |
 | COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発 |
 | HOUSE_LAND_DEVELOPED | normal | 家による土地開発 |
@@ -1427,12 +1632,12 @@ Country / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` 
 | PROVINCE_REVOLT_SUCCEEDED | major | Province 反乱が concession で成功 |
 | PROVINCE_REVOLT_FAILED | normal | Province 反乱が失敗・鎮圧 |
 | LORDSHIP_USURPED | major | 反乱により Province の ownerHouse が交代 |
-| REVOLT_COUNTRY_FOUNDED | critical | Province 反乱の独立により新 Country が成立 |
+| REVOLT_POLITY_FOUNDED | critical | Province 反乱の独立により新 Polity が成立 |
 | POP_HARDSHIP | minor | POP の困窮（将来実装） |
 | POP_PROSPERITY | minor | POP の繁栄（将来実装） |
 | POP_UNREST_RISING | normal | Province unrest 上昇警告（将来実装） |
 | POP_DECLINED | normal | Province 人口大幅低下（将来実装） |
-| ESTATE_SETTLED | minor / normal / major | 死亡時の wealth 分配（v0.14。家長 or wealth≥house*20% で normal、country leader で major） |
+| ESTATE_SETTLED | minor / normal / major | 死亡時の wealth 分配（v0.14。家長 or wealth≥house*20% で normal、polity leader で major） |
 | ESTATE_DISPUTED | minor | 複数相続人候補による争い（v0.14、記録のみ、ESTATE_SETTLED と並んで発火） |
 
 POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType 宣言のみ。実際の発火ロジックは v1.0 以降に実装する。
@@ -1451,6 +1656,12 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | **AppointmentSystem（v0.12）** | | |
 | concurrentOfficePenalty | 8 | 兼任 1 役職ごとのスコアペナルティ |
 | minAppointmentScore | 2 | この閾値未満なら任命しない（空席維持） |
+| **Polity Appointment（v0.15 §13.4）** | | |
+| polityShareAppointmentFactor | 0.25 | Polity Share 割合のスコア寄与係数 |
+| houseShareAppointmentFactor | 0.08 | House Share 割合のスコア寄与係数 |
+| ownerHouseAppointmentBonus | 4 | 候補者の家が polity.ownerHouseId と一致する場合の加算 |
+| sameHousePolityOfficePenalty | 2 | 同 House の Polity Office 保有数 1 つにつき減算（Polity Office 独占抑制） |
+| samePrimaryPolityMarriageBonus | 0.08 | 同 primary Polity 間婚姻ボーナス（v0.15、旧 0.1 から微減） |
 | maxRawEvents | 10000 | 全イベント保持上限 |
 | maxChronicleEvents | 1000 | Chronicle イベント保持上限 |
 | **Marriage & Birth** | | |
@@ -1460,8 +1671,8 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | marriageFemaleMinAge | 15 | 婚姻可能最低年齢（女性） |
 | marriageFemaleMaxAge | 45 | 婚姻可能最高年齢（女性） |
 | marriageYearlyChance | 0.08 | 年間婚姻確率（基本） |
-| sameCountryMarriageBonus | 0.10 | 同国婚姻の確率ボーナス |
-| differentCountryMarriagePenalty | -0.05 | 異国婚姻の確率ペナルティ |
+| samePrimaryPolityMarriageBonus | 0.10 | 同国婚姻の確率ボーナス |
+| differentPolityMarriagePenalty | -0.05 | 異国婚姻の確率ペナルティ |
 | birthEnabled | true | 出生システム有効 |
 | fatherMinChildAge | 15 | 父親になれる最低年齢 |
 | fatherMaxChildAge | 60 | 父親になれる最高年齢 |
@@ -1479,7 +1690,7 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | **Succession & House Split** | | |
 | successionCrisisScoreGap | 10 | 後継者スコア差がこの値を超えると継承危機が発生 |
 | minorHeadCohesionPenaltyPerMonth | 0.5 | 未成年当主の月次 cohesion 影響係数（Attitude 経由） |
-| minorHeadLoyaltyPenaltyPerMonth | 0.3 | 未成年当主の月次 loyaltyToCountry 影響係数（Attitude 経由） |
+| minorHeadLoyaltyPenaltyPerMonth | 0.3 | 未成年当主の月次 loyaltyToPolity 影響係数（Attitude 経由） |
 | houseSplitEnabled | true | 家の分裂有効 |
 | minProvincesForHouseSplit | 3 | 分裂に必要な最小 Province 数 |
 | houseSplitCohesionThreshold | 60 | 分裂条件の cohesion 上限（getHouseCohesion が未満でないと不発） |
@@ -1536,8 +1747,8 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | famineReliefDevelopmentRecovery | 2 | 飢饉救済による荒廃軽減 |
 | plagueDevastation | 8 | 疫病による荒廃 |
 | bountifulHarvestDevelopmentGain | 3 | 豊作による development 上昇 |
-| countryLandDevelopmentBaseCost | 70 | 国家土地開発コスト |
-| countryLandDevelopmentGain | 8 | 国家土地開発による development 上昇 |
+| polityLandDevelopmentBaseCost | 70 | Polity土地開発コスト |
+| polityLandDevelopmentGain | 8 | Polity土地開発による development 上昇 |
 | houseDevelopmentEnabled | true | 家の土地開発有効 |
 | houseDevelopmentYearlyChance | 0.25 | 家の土地開発年間基本確率 |
 | houseLandDevelopmentBaseCost | 40 | 家の土地開発コスト |
@@ -1550,7 +1761,7 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | controlDecayPerMonth | 1 | 支配力月次減少量（上限超過時） |
 | disconnectedControlDecayPerMonth | 5 | 接続不能 Province の月次減衰量 |
 | **Monument** | | |
-| monumentCountryControlGain | 10 | 記念碑による countryControl 上昇量 |
+| monumentPolityControlGain | 10 | 記念碑による polityControl 上昇量 |
 | monumentLegacyPrestigeGain | 3 | 記念碑による rulerHouse.legacyPrestige 上昇量（v0.11） |
 | **Land Development** | | |
 | landDevelopmentHouseControlGain | 5 | 土地開発による houseControl 上昇量 |
@@ -1587,7 +1798,7 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | lordshipAbsorptionNewControlMax | 70 | 吸収後 houseControl の上限 |
 | lordshipAbsorptionNewControlPenalty | 10 | 吸収後 houseControl のペナルティ |
 | **Annexation** | | |
-| annexedCountryControl | 35 | 併合後の Province countryControl |
+| annexedPolityControl | 35 | 併合後の Province polityControl |
 | newRulerHouseControl | 35 | 征服国 rulerHouse に割当られた Province の houseControl |
 | **Military（v0.9）** | | |
 | houseManpowerPowerFactor | 1.0 | House manpower を軍事力へ変換する係数 |
@@ -1597,12 +1808,12 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | houseCommanderMartialEffect | 0.25 | martial による軍事力倍率補正係数 |
 | minCommanderModifier | 0.75 | 指揮官補正の下限 |
 | maxCommanderModifier | 1.25 | 指揮官補正の上限 |
-| countryAdminMilitaryFactor | 0.3 | 国家 adminPower の軍事力寄与係数 |
+| polityAdminMilitaryFactor | 0.3 | Polity adminPower の軍事力寄与係数 |
 | minHouseMilitaryContribution | 0.25 | 非支配家門の最低軍事寄与率 |
 | **HouseRebellion（v0.9）** | | |
 | houseRebellionNobleUnrestFactor | 0.15 | nobles unrest の反乱傾向加算係数 |
 | houseRebellionProvinceUnrestFactor | 0.05 | Province 全体 unrest の反乱傾向加算係数 |
-| houseRebellionLowControlFactor | 0.10 | 低 countryControl による反乱傾向加算係数 |
+| houseRebellionLowControlFactor | 0.10 | 低 polityControl による反乱傾向加算係数 |
 | rebellionTreasuryPowerDivisor | 50 | 国庫を鎮圧戦力へ換算する除数 |
 | **ProvinceRevolt（v0.9）** | | |
 | provinceRevoltThreshold | 90 | Province 反乱発動の傾向閾値 |
@@ -1610,7 +1821,7 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | provinceRevoltMaxChance | 0.35 | 月次発生確率の上限 |
 | provinceRevoltUnrestFactor | 0.8 | unrest の傾向加算係数 |
 | provinceRevoltLowHouseControlFactor | 0.2 | 低 houseControl の傾向加算係数 |
-| provinceRevoltLowCountryControlFactor | 0.2 | 低 countryControl の傾向加算係数 |
+| provinceRevoltLowPolityControlFactor | 0.2 | 低 polityControl の傾向加算係数 |
 | provinceRevoltStabilitySuppressionFactor | 0.2 | stability による傾向抑制係数 |
 | peasantRevoltPovertyFactor | 0.5 | peasants 貧困補正係数 |
 | peasantRevoltPressureFactor | 10 | peasants 人口圧補正係数 |
@@ -1620,36 +1831,36 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | nobleRevoltLowLegitimacyFactor | 0.2 | nobles 低正統性補正係数 |
 | popRevoltPowerFactorByClass | {peasants:0.02, townsmen:0.015, nobles:0.08} | class 別反乱戦力係数 |
 | provinceRevoltHouseSuppressionFactor | 1.0 | House manpower の鎮圧力換算係数 |
-| provinceRevoltCountrySuppressionFactor | 0.8 | Country manpower の鎮圧力換算係数 |
+| provinceRevoltPolitySuppressionFactor | 0.8 | Polity manpower の鎮圧力換算係数 |
 | provinceRevoltTreasurySuppressionFactor | 2.0 | log1p(treasury) の鎮圧力換算係数 |
 | provinceRevoltHouseWealthSuppressionFactor | 2.0 | log1p(houseWealth) の鎮圧力換算係数 |
-| provinceRevoltConcessionCountryControlLoss | 10 | 譲歩時の countryControl 低下量 |
+| provinceRevoltConcessionPolityControlLoss | 10 | 譲歩時の polityControl 低下量 |
 | provinceRevoltConcessionHouseControlLoss | 15 | 譲歩時の houseControl 低下量 |
 | provinceRevoltConcessionUnrestReduction | 20 | 譲歩時の反乱 POP unrest 低下量 |
 | provinceRevoltConcessionLegitimacyLoss | 3 | 譲歩時の legitimacy 低下量 |
 | provinceRevoltConcessionHouseWealthLoss | 20 | 譲歩時の House wealth 低下量 |
 | provinceRevoltLordshipChangeSuccessMargin | 0.15 | lordship_change に必要な最低 successMargin |
-| provinceRevoltLordshipChangeCountryControlLoss | 10 | 領主交代後の countryControl 低下量 |
+| provinceRevoltLordshipChangePolityControlLoss | 10 | 領主交代後の polityControl 低下量 |
 | provinceRevoltNewHouseControl | 50 | 新領主の初期 houseControl |
-| provinceRevoltIndependenceCountryControlMax | 10 | 独立条件: countryControl の上限 |
+| provinceRevoltIndependencePolityControlMax | 10 | 独立条件: polityControl の上限 |
 | provinceRevoltIndependenceHouseControlMax | 10 | 独立条件: houseControl の上限 |
 | provinceRevoltIndependenceSuccessMargin | 0.20 | 独立に必要な最低 successMargin |
-| provinceRevoltNewCountryControl | 40 | 独立後の新国家 countryControl |
+| provinceRevoltNewPolityControl | 40 | 独立後の新国家 polityControl |
 | provinceRevoltFailedUnrestReduction | 10 | 反乱失敗時の反乱 POP unrest 低下量 |
 | provinceRevoltFailedDevastation | 4 | 反乱失敗時の Province 荒廃量 |
 | provinceRevoltFailedWealthPenalty | 8 | 反乱失敗時の反乱 POP wealth 低下量 |
 | provinceRevoltSuppressionCollateralUnrestGain | 2 | 鎮圧時の他 class への collateral unrest |
 | revoltHouseInitialLegacyPrestige | 10 | 反乱新設 House の初期 legacyPrestige（v0.11） |
 | revoltHouseInitialWealth | 30 | 反乱新設 House の初期 wealth |
-| revoltCountryInitialTreasury | 50 | 独立新設 Country の初期 treasury |
-| revoltCountryInitialLegacyPrestige | 20 | 独立新設 Country の初期 legacyPrestige（v0.11） |
+| revoltPolityInitialTreasury | 50 | 独立新設 Polity の初期 treasury |
+| revoltPolityInitialLegacyPrestige | 20 | 独立新設 Polity の初期 legacyPrestige（v0.11） |
 | **行政キャパシティ（v0.12）** | | |
-| baseCountryInstitutionalCapacity | 20 | 国家の基礎的行政キャパシティ |
+| basePolityInstitutionalCapacity | 20 | 国家の基礎的行政キャパシティ |
 | rulerAdminCapacityFactor | 4 | Ruler の admin stat によるキャパシティ寄与係数 |
 | administratorCapacityFactor | 3 | Administrator の admin stat によるキャパシティ寄与係数 |
 | treasurerCapacityFactor | 2 | Treasurer の admin stat によるキャパシティ寄与係数 |
 | adminLoadPerProvince | 2 | Province 1 つあたりの行政負荷 |
-| adminLoadPerCountryOffice | 1 | 役職 1 つあたりの行政負荷 |
+| adminLoadPerPolityOffice | 1 | 役職 1 つあたりの行政負荷 |
 | minAdministrativeEfficiency | 0.3 | 行政効率の下限 |
 | maxAdministrativeEfficiency | 1.5 | 行政効率の上限 |
 | duplicateOfficeCoordinationPenalty | 0.5 | 同役職複数担当者の協調ペナルティ係数 |
@@ -1660,13 +1871,13 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | officeDignityUnpaidPenaltyReduction | 0.5 | 役職の尊厳によるペナルティ軽減係数 |
 | **ShareUpdate（v0.12）** | | |
 | shareYearlyRetentionRate | 0.85 | 既存 Share の年次保持率（EMA 計算用） |
-| countryShareBase | 10 | Country Share 基礎値 |
-| countryShareProvinceFactor | 5 | Province 数の Share 寄与係数 |
-| countryShareMilitaryFactor | 0.1 | 軍事力代理値の Share 寄与係数 |
-| countryShareWealthFactor | 0.05 | House wealth の Share 寄与係数 |
-| countrySharePrestigeFactor | 0.2 | House legacyPrestige の Share 寄与係数 |
-| countryShareOfficeFactor | 3 | Country 役職保有数の Share 寄与係数 |
-| countryShareRulerHouseBonus | 30 | 支配家への Share ボーナス |
+| polityShareBase | 10 | Polity Share 基礎値 |
+| polityShareProvinceFactor | 5 | Province 数の Share 寄与係数 |
+| polityShareMilitaryFactor | 0.1 | 軍事力代理値の Share 寄与係数 |
+| polityShareWealthFactor | 0.05 | House wealth の Share 寄与係数 |
+| politySharePrestigeFactor | 0.2 | House legacyPrestige の Share 寄与係数 |
+| polityShareOfficeFactor | 3 | Polity 役職保有数の Share 寄与係数 |
+| polityShareOwnerHouseBonus | 30 | 支配家への Share ボーナス |
 | houseShareBase | 5 | House Share 基礎値 |
 | houseShareLeaderBonus | 20 | 家長への Share ボーナス |
 | houseShareOfficeBonus | 10 | House 役職保有数の Share 寄与係数 |
@@ -1708,13 +1919,13 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | popDevelopmentMaxDevelopment | 40 | POP 自主開発の development 上限 |
 | **Attitude システム（v0.11）** | | |
 | attitudeMonthlyRetentionRate | 0.995 | 態度の月次保持率（1-rate が減衰率） |
-| initialCountryLegacyPrestigeMin | 20 | Country 初期 legacyPrestige の下限 |
-| initialCountryLegacyPrestigeMax | 60 | Country 初期 legacyPrestige の上限 |
+| initialPolityLegacyPrestigeMin | 20 | Polity 初期 legacyPrestige の下限 |
+| initialPolityLegacyPrestigeMax | 60 | Polity 初期 legacyPrestige の上限 |
 | initialHouseLegacyPrestigeMin | 20 | House 初期 legacyPrestige の下限 |
 | initialHouseLegacyPrestigeMax | 80 | House 初期 legacyPrestige の上限 |
 | initialPersonLegacyPrestigeMin | 0 | Person 初期 legacyPrestige の下限 |
 | initialPersonLegacyPrestigeMax | 20 | Person 初期 legacyPrestige の上限 |
-| rulerHouseExtinctionPrestigeLoss | 10 | 支配家断絶時の旧 Country legacyPrestige 低下量 |
+| ownerHouseExtinctionPrestigeLoss | 10 | owner house 断絶時の旧 Polity legacyPrestige 低下量 |
 | rulerExtinctionAnnexPrestigeWeight | 0.3 | 支配家断絶・併合時の legacyPrestige 継承重み |
 | abilityAptitudeMean | 50 | v0.14: aptitude ガウス生成の平均 |
 | abilityAptitudeStddev | 15 | v0.14: aptitude ガウス生成の標準偏差 |
@@ -1771,13 +1982,13 @@ normalizedTrait(value: number): number  // value - 0.5      → -0.5 (trait=0.0)
 
 ### 10.3 ControlSystem への効果
 
-**Country administrator（Chancellor）→ countryControl**:
+**Polity administrator（Chancellor）→ polityControl**:
 ```ts
 growthModifier = 1 + normalizedStat(admin) * chancellorAdminControlGrowthEffect
 maxControlBonus = normalizedStat(admin) * chancellorAdminControlMaxBonusPerAdmin * 10
 ```
 
-v0.12 では `getEffectiveOfficeStat(state, config, countryRef, 'administrator', 'admin')` で複数担当者を集約した実効値が使われる。
+v0.12 では `getEffectiveOfficeStat(state, config, polityRef, 'administrator', 'admin')` で複数担当者を集約した実効値が使われる。
 
 **家長（house:leader）→ houseControl**:
 ```ts
@@ -1794,7 +2005,7 @@ maxControl     = clamp(baseMaxControl + maxControlBonus, controlAbilityMinimumFl
 
 ### 10.4 EconomySystem への効果
 
-**Country treasurer → 国庫税収効率**:
+**Polity treasurer → 国庫税収効率**:
 ```ts
 taxEfficiency = clamp(
   1 + normalizedStat(admin) * treasurerAdminTaxEfficiencyEffect
@@ -1805,21 +2016,21 @@ taxEfficiency = clamp(
 // 国庫収入 *= taxEfficiency。家収入・POP wealth への影響なし
 ```
 
-**Country treasurer → 国家土地開発コスト**:
+**Polity treasurer → Polity土地開発コスト**:
 ```ts
 costModifier = 1 - normalizedStat(admin) * treasurerAdminDevelopmentCostEffect
-effectiveCost = max(1, round(countryLandDevelopmentBaseCost * costModifier))
+effectiveCost = max(1, round(polityLandDevelopmentBaseCost * costModifier))
 ```
 
 ### 10.5 WarSystem への効果
 
-**Country military（General）→ 戦闘力**:
+**Polity military（General）→ 戦闘力**:
 ```ts
 warPowerModifier = 1 + normalizedStat(martial) * generalMartialWarPowerEffect
 // 攻撃側・防衛側それぞれ独立して適用
 ```
 
-**Country military → 宣戦閾値**:
+**Polity military → 宣戦閾値**:
 ```ts
 // ambition 高（野心的）→ 閾値を下げる（積極的に開戦）
 // caution 高（慎重）→ 閾値を上げる（消極的）
@@ -1834,7 +2045,7 @@ effectiveThreshold = clamp(
 
 ### 10.6 PublicSpendingSystem への効果
 
-**Country administrator（Chancellor）→ スコア補正**:
+**Polity administrator（Chancellor）→ スコア補正**:
 ```ts
 // ambition 高 → monumentScore 上昇（栄光志向）
 // caution 低（大胆）→ monumentScore 上昇（果断な建設）
@@ -1862,24 +2073,24 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 
 - **MapPanel**: Province を SVG で描画。クリックで Province 選択
 - **Sidebar**: 人物一覧。重要度スコア順。ウォッチリスト対応
-- **DetailPanel**: 選択エンティティ（Province / Country / House / Person / PopGroup）の詳細表示
+- **DetailPanel**: 選択エンティティ（Province / Polity / House / Person / PopGroup）の詳細表示
   - ProvinceDetail:
-    - **Population** セクション: habitability / Carrying Capacity / Total Population / Pop. Pressure（90% 超で赤表示）/ Avg Wealth / Unrest（60 超で赤表示）/ Production / Country Manpower / House Manpower
+    - **Population** セクション: habitability / Carrying Capacity / Total Population / Pop. Pressure（90% 超で赤表示）/ Avg Wealth / Unrest（60 超で赤表示）/ Production / Polity Manpower / House Manpower
     - **POP Groups** セクション: class 別に size / wealth / unrest（60 超で赤表示）を一覧表示。各 POP カードはクリッカブルで PopGroupDetail へ遷移（v0.11）
     - **Revolt Risk** セクション: class 別反乱傾向値（Peasants / Townsmen / Nobles）
-  - CountryDetail（v0.12 更新）:
-    - 基本情報: Ruler（人物リンク）/ Royal House（getCountryRulerHouse）/ Dominant House（getDominantCountryHouse）/ 首都 / Legitimacy / Treasury / Military Power
+  - PolityDetail（v0.12 / v0.15 更新）:
+    - 基本情報: Ruler（人物リンク）/ Royal House（getPolityLeaderHouse）/ Dominant House（getDominantPolityHouse）/ 首都 / Legitimacy / Treasury / Military Power
     - **Administration** セクション: Capacity / Load / Efficiency（getAdministrative* セレクター）
     - **Roles** セクション: leader / administrator / treasurer / military / advisor の担当者リンク（空席は「—」）
-    - **Top Shareholders** セクション: Country Share 上位 5 House と割合
-    - **Houses** リスト: active かつ同国の House のみ表示
+    - **Top Shareholders** セクション: Polity Share 上位 5 House と割合
+    - **Houses with land here** リスト（v0.15）: その Polity に Province を 1 つ以上持つ active House を、Polity 内 Province 数とともに表示。primary がここでない House には「non-primary」マーカーを付ける
   - HouseDetail（v0.12 更新）:
     - 基本情報: Leader（getHouseLeader）/ 本拠地 / Province 数 / Wealth / Prestige / Military
     - **Offices** セクション: administrator / treasurer / military / advisor の担当者リンク（空席は「—」）
     - **Top Shareholders** セクション: House Share 上位 5 Person と割合
-  - PersonDetail（v0.12 更新）:
-    - 基本情報: Age / House / Country / Sex / Birth Status / Wealth
-    - **Offices** セクション: Country と House でグループ分け、役職重要度順（leader → administrator → treasurer → military → advisor）
+  - PersonDetail（v0.12 / v0.15 更新）:
+    - 基本情報: Age / House / Sex / Birth Status / Wealth（v0.15: Country フィールド廃止、Relevant Polities へ）
+    - **Offices** セクション: Polity と House でグループ分け、役職重要度順（leader → administrator → treasurer → military → advisor）
     - Stats / Traits / Family リンク / **Attitudes セクション**（v0.11）
   - **PopGroupDetail**（v0.11）: size / wealth / unrest（60 超で赤表示）/ 所属 Province リンク / **Attitudes セクション**
 - **EventLog**: Chronicle（major/critical）と全イベントの 2 ビュー
@@ -1899,18 +2110,18 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 
 ### 12.2 状態書き換えは `sim/mutations/*` に集約
 
-`tick/` 配下のシステムは、状態書き換えを `sim/mutations/*` の関数経由でのみ行う。生フィールド（`Person.alive`, `House.memberIds`, `Province.countryId`, etc.）の直接書き換えは原則として禁止。
+`tick/` 配下のシステムは、状態書き換えを `sim/mutations/*` の関数経由でのみ行う。生フィールド（`Person.alive`, `House.memberIds`, `Province.polityId`, etc.）の直接書き換えは原則として禁止。
 
 主要 mutation の役割：
 
 | ファイル | 主な責務 |
 |---|---|
-| `worldStructureMutations.ts` | `splitHouse` / `extinctHouse` / `foundRevoltCountry` — 家分裂・断絶・反乱独立の高レベル一括処理 |
+| `worldStructureMutations.ts` | `splitHouse` / `extinctHouse` / `foundRevoltPolity` — 家分裂・断絶・反乱独立の高レベル一括処理 |
 | `personMutations.ts` | `markPersonDead`（§6.7）/ `movePersonToHouse` / `birthChild` / `addPersonWealth` / `clearPersonWealth` (v0.14) |
 | `relationshipMutations.ts` | `setSpouse` / `clearSpouse` / `addChildToParents` |
 | `houseMutations.ts` | `createHouse` / `deactivateHouse` / `addHouseWealth` (v0.14) |
-| `countryMutations.ts` | `createCountry` / `deactivateCountry` / `moveHouseToCountry` / `annexCountry` / `createCountryFromHouse` / `createCountryFromProvinces` |
-| `provinceMutations.ts` | `transferProvinceToHouse` / `transferProvinceToCountry` / `adjustProvinceDevelopment` |
+| `polityMutations.ts` (v0.15) | `createPolity` / `deactivatePolity` / `annexPolity` / `createPolityFromHouse` / `createPolityFromProvinces` / `moveHouseToPolity` |
+| `provinceMutations.ts` | `transferProvinceToHouse` / `transferProvinceToPolity` / `adjustProvinceDevelopment` |
 | `popMutations.ts` | `adjustProvincePopWealth` / `adjustProvincePopUnrest` / `adjustProvincePopSize`（class 別バリアント含む）|
 | `officeMutations.ts` | `createOfficeAssignment` / `revokeOfficeAssignment` / `revokeOfficesByHolder` / `revokeOfficesByOrganization` / `assignOffice` |
 | `shareMutations.ts` | `createOrganizationShare` / `updateShareRawPower` / `removeOrganizationShare` / `transferShareRawPower` / `upsertOrganizationShare` / `deleteAllSharesForHolder` |
@@ -1924,8 +2135,8 @@ mutation 関数はおおむね `StateResult = SimResult<WorldState>` または `
 - 全 Person の `age += 1`（advanceTime）
 - 全 Person / PopGroup の attitudes 減衰（AttitudeDecaySystem）
 - Province development の月次自然減衰・回復（DevelopmentSystem）
-- House wealth / Country treasury / Country adminPower の月次バッチ更新（EconomySystem / GovernanceSystem）
-- ControlSystem の BFS と組み合わせた countryControl/houseControl 更新
+- House wealth / Polity treasury / Polity adminPower の月次バッチ更新（EconomySystem / GovernanceSystem）
+- ControlSystem の BFS と組み合わせた polityControl/houseControl 更新
 
 ### 12.3 Attitude は `AttitudeTarget` で読み書きする
 
@@ -1934,7 +2145,7 @@ mutation 関数はおおむね `StateResult = SimResult<WorldState>` または `
 - 書き込み: `adjustPersonAttitude(state, personId, target, delta)` / `adjustPopAttitude(state, popId, target, delta)` / `adjustHouseMembersAttitude(state, houseId, target, delta)`
 - 読み出し: `getAttitudeOrDefault(state, source, target): Attitude` / `getExplicitAttitude(attitudes, target): Attitude | undefined`
 
-`countryAttitudeKey(id)` / `houseAttitudeKey(id)` / `personAttitudeKey(id)` 文字列ビルダーは `attitudeHelpers.ts` の内部実装と `worldgen/` でのみ使用してよい。tick / selectors / explain / app からの直接呼び出しは禁止。
+`polityAttitudeKey(id)` / `houseAttitudeKey(id)` / `personAttitudeKey(id)` 文字列ビルダーは `attitudeHelpers.ts` の内部実装と `worldgen/` でのみ使用してよい。tick / selectors / explain / app からの直接呼び出しは禁止。
 
 低レベルの `adjustAttitude(map, key, delta)` ヘルパーは `mutations/attitudeMutations.ts` 内部と `worldgen/` でのみ使用する。tick からの直接 import は禁止。
 
@@ -1970,20 +2181,35 @@ UI 層では基礎能力直接参照（`person.abilities.valor` を直接表示�
 - 死亡時 wealth 分配（EstateSettlementSystem）と ESTATE_SETTLED / ESTATE_DISPUTED イベント
 - UI 6 能力表示・5 派生スコア・年齢曲線アイコン
 
-### v0.15 以降に送られる主要項目
+### v0.15 で実装済み（参考）
+
+- **Country → Polity 直交化**: `Country` 型を `Polity` 型に rename。`House.countryId` / `Person.countryId` を削除。`Country.houseIds` を削除し `getPolityHouseIds` selector で動的取得。
+- **Polity.ownerHouseId / rank**: Polity 自身が家産的に所有家を持つ。`rank: PolityRank` は v0.15 では effect 持たない placeholder（将来の称号システム土台）
+- **Polity 関係 selector 群** (`polityRelations.ts`): `getPolityProvinceIds` / `getPolityHouseIds` / `getPolityPersonIds` / `getHousePolityIds` / `getHousePrimaryPolityId` / `getPersonPrimaryPolityId` / `getHouseSeatProvinceInPolity` 等
+- **House の多 Polity 所領**: 1 House が複数 Polity に Province を持てる（戦争・反乱で発生）。各 system は selector 経由で関係を動的に取得
+- **PolityOwnerConsistencySystem / OrganizationConsistencySystem** (v0.15 §6.22b/§6.22c): 所領変動後の owner / capital / Share / Office の整合性を毎月補正
+- **§13.4 Polity 役職スコア式**: `polityShareAppointmentFactor` / `ownerHouseAppointmentBonus` / `sameHousePolityOfficePenalty` を導入。同 House による Polity Office 独占を抑制
+- **§17.3 War 征服時の新 ownerHouse 選定**: attacker `polity.ownerHouseId` 優先
+- **§22.3 affectedPolityIds スナップショット**: `extinctHouse(ctx, { houseId, affectedPolityIds })` で所領喪失前の関係 Polity 集合を保存し、メンバー移住先選定に使う
+- **POLITY_OWNER_CHANGED / POLITY_EXTINCT イベント追加**、`RULER_CHANGED` → `POLITY_LEADER_CHANGED` 等の rename
+
+### v0.16 以降に送られる主要項目
 
 - **限界突破イベント**: aptitude を 101..120 帯に押し上げる伝説的偉業・特訓イベント（v0.14 はデータ表現のみ）
 - **ESTATE_CONTESTED の長期 Project 化・claim 派生**: v0.14 では ESTATE_DISPUTED は記録のみ。長期化させた相続争いを Project 化し、後年に claim 相続へ繋げる
 - **遺言（指定相続人）機構**: 現状は嫡出子→配偶者→兄弟→家長の固定順
 - **称号システム**（家産称号 / 個人称号 / 公的称号、TITLE_INHERITED / TITLE_RECLAIMED_BY_HOUSE / DYNASTY_CHANGED / TITLE_UNION_FORMED / DISSOLVED）
-- **Country → Polity 拡張**（rank / ownershipMode / owner / titlePropertyRegime / successionLaw / 同君連合）
+- **Polity 拡張**: ownershipMode / titlePropertyRegime / successionLaw / 同君連合（rank は v0.15 で型のみ導入済み、game effect は v0.16+）
+- **LandContract**（明示的な臣従・封土契約）: 現状は House 関係をすべて `province.ownerHouseId` 経由で読み取る簡易モデル。将来は House 間の明示的契約に切り替える
+- **多重臣従**: 1 つの House が複数 Polity の owner / vassal を兼ねる構造（v0.15 では「複数 Polity に所領を持つ」のみで明示臣従はない）
+- **Faction（派閥）**: 家を超えた政治集団。同派閥婚姻ボーナス等を実装する場合の前提
 - **代官 / ProvinceOfficeAssignment**（Person.houseId optional 化、代官蓄財）
 - **氏族 Clan**、巨大 House の Clan 化
-- **socialFriction**（魅力 − 洞察 ペナルティ）— Attitude system 全体見直しと併せて v0.15 以降
+- **socialFriction**（魅力 − 洞察 ペナルティ）— Attitude system 全体見直し
 - **ROLE_WEIGHTS の config 化**（シナリオごとに重み変更したいニーズが顕在化したとき）
 - **spymaster / disasterSystem 関連の役職** とその経験成長対応
-- **大分裂（House 独立）**: 全土統一後、国力が一定規模を超えると支配家から傍系家が独立し複数国家が成立する「中国史的分裂」メカニズム。現状は Province Revolt から新勢力が生まれるが、House 単位での大規模独立はまだ弱い
-- **国家規模ペナルティ**: Province 数・House 数が増えるほど Legitimacy（getCountryLegitimacy）が低下しやすくなり、大国が自重で崩れる仕組み
+- **大分裂（House 独立）**: 全土統一後、国力が一定規模を超えると支配家から傍系家が独立し複数 Polity が成立する「中国史的分裂」メカニズム。現状は Province Revolt から新勢力が生まれるが、House 単位での大規模独立はまだ弱い
+- **Polity 規模ペナルティ**: Province 数・House 数が増えるほど Legitimacy（getPolityLegitimacy）が低下しやすくなり、大 Polity が自重で崩れる仕組み
 - **家の分裂の作り込み**: Attitude 経由の cohesion 変動をより細かく制御、分裂閾値の調整、一強状態でも分裂が自然発生する仕組み
 - **POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED イベントの発火ロジック**: 閾値超過時のみ発火する条件付きイベント（EventType 宣言のみ実装済み）
 - **首都・本拠地移転**: 征服・滅亡・特別イベントによる移転
@@ -1995,4 +2221,3 @@ UI 層では基礎能力直接参照（`person.abilities.valor` を直接表示�
 - **施設システム**: 城塞・道路・港・市場
 - **詳細外交**: 同盟・条約・婚姻
 - **継承権・請求権**: 血縁関係に基づく他家への継承権主張
-- **House の多国所領**: House が複数 Country に所領を持つ仕組み
