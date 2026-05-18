@@ -478,22 +478,28 @@ function CountryDetail({
       <div className="text-sm">
         {worldState ? (
           getTopShareholders(worldState, { kind: 'polity', id: polity.id }, 5).map(
-            ({ holder, percent }) => {
-              const name =
-                holder.kind === 'house'
-                  ? (currentState.houses[holder.id]?.name ?? holder.id)
-                  : holder.id
-              return (
-                <div key={`${holder.kind}:${holder.id}`} className="flex justify-between">
-                  {holder.kind === 'house' ? (
-                    <HouseLink houseId={holder.id} houses={houses ?? {}} onClick={onHouseClick} />
-                  ) : (
-                    <span className="text-gray-400">{name}</span>
-                  )}
-                  <span className="text-gray-200">{percent.toFixed(1)}%</span>
-                </div>
-              )
-            },
+            ({ holder, percent }) => (
+              <div key={`${holder.kind}:${holder.id}`} className="flex justify-between">
+                {holder.kind === 'house' ? (
+                  <HouseLink houseId={holder.id} houses={houses ?? {}} onClick={onHouseClick} />
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <PersonLink
+                      personId={holder.id}
+                      persons={currentState.persons ?? {}}
+                      onClick={onPersonClick}
+                    />
+                    <span
+                      className="text-[10px] text-amber-400"
+                      title="Individual ruler (autocrat / usurper)"
+                    >
+                      ★
+                    </span>
+                  </span>
+                )}
+                <span className="text-gray-200">{percent.toFixed(1)}%</span>
+              </div>
+            ),
           )
         ) : (
           <span className="text-gray-500">—</span>

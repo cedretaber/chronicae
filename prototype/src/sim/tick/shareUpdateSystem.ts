@@ -23,6 +23,11 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
   const config = ctx.config
 
   // 1. Update Polity Shares for each Polity
+  // 通常 holder: House (各 active House について本 system が rawPower を年次再計算する)
+  // 例外 holder: Person (§17 commonwealth / 独裁者・僭主)。Rebel Polity 生成時に
+  //   worldStructureMutations.createRebelPolity が初期値 100 を 1 度だけ設定する。
+  //   本 system は touch しない (rebel leader 死亡時の整合は OrganizationConsistencySystem が
+  //   削除する)。Person holder の rawPower を年次変動させる仕様は将来検討。
   for (const polityId of Object.keys(state.polities).sort() as PolityId[]) {
     const polity = state.polities[polityId]
     if (!polity || !polity.active) continue

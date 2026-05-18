@@ -1287,6 +1287,8 @@ newRawPower = polityShareBase
 
 **v0.15 §12.2 削除責務**: ShareUpdateSystem は不適格 Share の削除を **行わない**。削除責任は §6.22c OrganizationConsistencySystem に一本化されている。
 
+**Person holder の Polity Share (§17 commonwealth / 独裁者・僭主)**: Rebel Polity 生成時に `createRebelPolity` が rebel leader (Person) に rawPower 100 を初期値で設定する。本 system は House holder のみを年次再計算対象とし、Person holder の Polity Share には touch しない（rawPower は初期固定）。整合性管理は OrganizationConsistencySystem に委ねる。Person holder の rawPower を年次変動させる仕様は将来検討。
+
 **House Share 更新（Person ホルダーの Share を計算）**:
 ```ts
 newRawPower = houseShareBase
@@ -1587,8 +1589,18 @@ for each polity in active polities:
 
   // Step 1: 不適格 Share 削除
   for each share where organization is { kind: 'polity', id: polity.id }:
-    if share.holder.kind === 'house' and share.holder.id not in eligibleHouseIds:
-      removeOrganizationShare(share.id)
+    if share.holder.kind === 'house':
+      if share.holder.id not in eligibleHouseIds:
+        removeOrganizationShare(share.id)
+    else if share.holder.kind === 'person':
+      // §17 commonwealth / 独裁者・僭主の Person holder Polity Share
+      person = state.persons[share.holder.id]
+      if person is missing or not alive or person.kind === 'placeholder':
+        removeOrganizationShare(share.id)
+      else:
+        house = state.houses[person.houseId]
+        if house is missing or not active or house.id not in eligibleHouseIds:
+          removeOrganizationShare(share.id)
 
   // Step 2: 不適格 Polity Office revoke
   for each active office where organization is { kind: 'polity', id: polity.id }:
@@ -2268,7 +2280,7 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
     - 基本情報: Ruler（人物リンク）/ Royal House（getPolityLeaderHouse）/ Dominant House（getDominantPolityHouse）/ 首都 / Legitimacy / Treasury / Military Power
     - **Administration** セクション: Capacity / Load / Efficiency（getAdministrative* セレクター）
     - **Roles** セクション: leader / administrator / treasurer / military / advisor の担当者リンク（空席は「—」）
-    - **Top Shareholders** セクション: Polity Share 上位 5 House と割合
+    - **Top Shareholders** セクション: Polity Share 上位 5 holder と割合。通常は House リンクで表示するが、§17 commonwealth / 独裁者・僭主による Person holder は Person リンク + 識別マーク（★）で表示する
     - **Houses with land here** リスト（v0.15）: その Polity に Province を 1 つ以上持つ active House を、Polity 内 Province 数とともに表示。primary がここでない House には「non-primary」マーカーを付ける
   - HouseDetail（v0.12 更新）:
     - 基本情報: Leader（getHouseLeader）/ 本拠地 / Province 数 / Wealth / Prestige / Military

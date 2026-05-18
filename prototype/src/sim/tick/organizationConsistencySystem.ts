@@ -19,13 +19,29 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
     const eligibleHouseIds = new Set<string>(getPolityHouseIds(currentCtx.state, polityId))
 
     // Step 1: 不適格 Share 削除
+    // House holder: 当該 House が Polity の eligibleHouseIds に含まれなければ削除
+    // Person holder (§17 commonwealth / 独裁者・僭主): 当該 Person が dead / placeholder /
+    //   不在、もしくは houseId が inactive または eligibleHouseIds に含まれなければ削除
     const orgKey = `polity:${polityId}`
     const shareIds = [...(currentCtx.state.shareIndex.byOrganization[orgKey] ?? [])]
     for (const shareId of shareIds) {
       const share = currentCtx.state.organizationShares[shareId]
       if (!share) continue
-      if (share.holder.kind !== 'house') continue
-      if (!eligibleHouseIds.has(share.holder.id)) {
+      let shouldRemove = false
+      if (share.holder.kind === 'house') {
+        shouldRemove = !eligibleHouseIds.has(share.holder.id)
+      } else {
+        const person = currentCtx.state.persons[share.holder.id]
+        if (!person || !person.alive || person.kind === 'placeholder') {
+          shouldRemove = true
+        } else {
+          const house = currentCtx.state.houses[person.houseId]
+          if (!house || !house.active || !eligibleHouseIds.has(house.id)) {
+            shouldRemove = true
+          }
+        }
+      }
+      if (shouldRemove) {
         currentCtx = {
           ...currentCtx,
           state: removeOrganizationShare(currentCtx.state, share.id),
