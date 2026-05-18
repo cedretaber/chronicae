@@ -5,6 +5,10 @@ import { useSimulationStore } from '@/app/stores/simulationStore'
 import { buildPolityColorMap } from '@/app/utils/polityColors'
 import type { PolityId, HouseId, ProvinceId } from '@/sim/types/ids'
 import { getProvincePops } from '@/sim/selectors/popSelectors'
+import {
+  getProvinceTerminalPolityId,
+  getHouseControlledProvinceIds,
+} from '@/sim/selectors/landContractSelectors'
 import { ProvinceNode, type ProvinceNodeData } from './ProvinceNode'
 import { MAP_ICON_CONFIG } from '@/app/constants/mapConstants'
 import mapBackground from '@/assets/map/map-background.png'
@@ -50,9 +54,11 @@ export function ProvinceMap() {
       Object.values(houses ?? {}).map((h) => h.seatProvinceId),
     )
 
-    const houseProvinceSet = new Set(
-      (selectedHouse?.provinceIds ?? []).map((id: ProvinceId) => id as string),
-    )
+    const selectedHouseControlled =
+      selectedHouse && session?.currentState
+        ? getHouseControlledProvinceIds(session.currentState, selectedHouse.id)
+        : []
+    const houseProvinceSet = new Set(selectedHouseControlled.map((id: ProvinceId) => id as string))
     const capitalProvinceId = selectedPolity?.capitalProvinceId
     const seatProvinceId = selectedHouse?.seatProvinceId
 
@@ -67,11 +73,14 @@ export function ProvinceMap() {
       const isCapital = capitalProvinceIds.has(province.id)
       const isSeat = seatProvinceIds.has(province.id)
 
+      const terminalPolityId = session?.currentState
+        ? getProvinceTerminalPolityId(session.currentState, province.id)
+        : undefined
       const isDimmed =
         anyEntityHighlighted &&
         province.id !== capitalProvinceId &&
         province.id !== seatProvinceId &&
-        (isPolitySelected ? province.polityId !== selectedId : !houseProvinceSet.has(province.id))
+        (isPolitySelected ? terminalPolityId !== selectedId : !houseProvinceSet.has(province.id))
 
       const isSelected = selectedId === province.id && selectedType === 'province'
 
@@ -84,7 +93,9 @@ export function ProvinceMap() {
           isUrban,
           isCapital,
           isSeat,
-          polityColor: polityColorMap[province.polityId] ?? '#888',
+          polityColor: terminalPolityId
+            ? (polityColorMap[terminalPolityId] ?? '#888')
+            : '#888',
           isDimmed,
           isSelected,
         } satisfies ProvinceNodeData,

@@ -9,6 +9,7 @@ import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
 import type { WorldState } from '@/sim/types/world'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
+import { getHouseControlledProvinceIds } from '@sim/selectors/landContractSelectors'
 import { buildPolityColorMap } from '@/app/utils/polityColors'
 import { formatScore, formatPower } from '@/app/utils/format'
 import { defaultConfig } from '@/sim/config/defaultConfig'
@@ -88,10 +89,12 @@ function HouseRow({
   house,
   polityName,
   polityColor,
+  provinceCount,
   isSelected,
   onClick,
 }: {
   house: House
+  provinceCount: number
   polityName: string
   polityColor: string
   isSelected: boolean
@@ -113,7 +116,7 @@ function HouseRow({
         <span>{polityName}</span>
       </div>
       <div className="text-gray-300">
-        Prestige: {formatScore(house.legacyPrestige)} | Provinces: {house.provinceIds.length}
+        Prestige: {formatScore(house.legacyPrestige)} | Provinces: {provinceCount}
       </div>
     </div>
   )
@@ -237,26 +240,10 @@ export function Sidebar() {
   const polityMilitaryPowers = useMemo(() => {
     if (!session?.currentState) return {}
     const state = session.currentState
-    const worldState: WorldState = {
-      currentYear: state.currentYear,
-      currentMonth: state.currentMonth,
-      provinces: state.provinces,
-      polities: state.polities,
-      houses: state.houses,
-      persons: state.persons,
-      activePlots: state.activePlots ?? {},
-      popGroups: state.popGroups ?? {},
-      organizationShares: {},
-      officeAssignments: {},
-      shareIndex: { byOrganization: {}, byHolder: {} },
-      officeIndex: { byOrganization: {}, byHolderPerson: {} },
-      nextOrganizationShareId: 0,
-      nextOfficeAssignmentId: 0,
-    }
     return Object.fromEntries(
       Object.values(state.polities ?? {}).map((p) => [
         p.id,
-        calcPolityMilitaryPower(worldState, defaultConfig, p.id),
+        calcPolityMilitaryPower(state, defaultConfig, p.id),
       ]),
     )
   }, [session])
@@ -299,24 +286,7 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'countries' &&
           sortedPolities.map((polity) => {
-            const worldState: WorldState | null = session?.currentState
-              ? {
-                  currentYear: session.currentState.currentYear,
-                  currentMonth: session.currentState.currentMonth,
-                  provinces: session.currentState.provinces,
-                  polities: session.currentState.polities,
-                  houses: session.currentState.houses,
-                  persons: session.currentState.persons,
-                  activePlots: session.currentState.activePlots ?? {},
-                  popGroups: session.currentState.popGroups ?? {},
-                  organizationShares: {},
-                  officeAssignments: {},
-                  shareIndex: { byOrganization: {}, byHolder: {} },
-                  officeIndex: { byOrganization: {}, byHolderPerson: {} },
-                  nextOrganizationShareId: 0,
-                  nextOfficeAssignmentId: 0,
-                }
-              : null
+            const worldState: WorldState | null = session?.currentState ?? null
             return (
               <PolityRow
                 key={polity.id}
@@ -341,6 +311,11 @@ export function Sidebar() {
                 house={house}
                 polityName={primaryPolityId ? (polities?.[primaryPolityId]?.name ?? '') : ''}
                 polityColor={primaryPolityId ? (polityColorMap[primaryPolityId] ?? '#888') : '#888'}
+                provinceCount={
+                  session?.currentState
+                    ? getHouseControlledProvinceIds(session.currentState, house.id).length
+                    : 0
+                }
                 isSelected={selectedId === house.id && selectedType === 'house'}
                 onClick={() => setSelected(house.id, 'house')}
               />

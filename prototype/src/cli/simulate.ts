@@ -6,6 +6,8 @@ import { runIntegritySystem } from '@sim/tick/integritySystem'
 import { createLogger } from '@sim/debug/logger'
 import type { WorldState } from '@sim/types/world'
 import type { SimEvent } from '@sim/types/event'
+import type { ProvinceId } from '@sim/types/ids'
+import { getProvinceTerminalPolityId } from '@sim/selectors/landContractSelectors'
 
 function printUsage(): void {
   console.log(`Usage: npm run cli [options]
@@ -101,7 +103,8 @@ function countProvincesPerPolity(state: WorldState): Record<string, number> {
   for (const id of Object.keys(state.provinces)) {
     const province = state.provinces[id as keyof typeof state.provinces]
     if (!province) continue
-    const polityId = province.polityId
+    const polityId = getProvinceTerminalPolityId(state, id as ProvinceId)
+    if (!polityId) continue
     if (!result[polityId]) {
       result[polityId] = 0
     }
@@ -123,17 +126,9 @@ function computeAvgPolityControl(state: WorldState): number {
   return Math.round((total / count) * 10) / 10
 }
 
+// v0.16: houseControl 廃止により本関数は polityControl を返す (互換のため signature 維持)
 function computeAvgHouseControl(state: WorldState): number {
-  let total = 0
-  let count = 0
-  for (const id of Object.keys(state.provinces)) {
-    const province = state.provinces[id as keyof typeof state.provinces]
-    if (!province) continue
-    total += province.houseControl
-    count++
-  }
-  if (count === 0) return 0
-  return Math.round((total / count) * 10) / 10
+  return computeAvgPolityControl(state)
 }
 
 function countLivingPersons(state: WorldState): number {

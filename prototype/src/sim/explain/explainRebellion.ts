@@ -5,6 +5,7 @@ import { getPolityLegitimacy, getHouseLoyaltyToPolity } from '../selectors/statu
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
 
 export function explainRebellion(
   state: WorldState,
@@ -36,11 +37,12 @@ export function explainRebellion(
     })
   }
 
-  const provinceContribution = house.provinceIds.length * 4
+  const provinceCount = getHouseControlledProvinceIds(state, house.id).length
+  const provinceContribution = provinceCount * 4
   if (provinceContribution > 2.0) {
     reasons.push({
       label: 'Province count',
-      value: house.provinceIds.length,
+      value: provinceCount,
       contribution: provinceContribution,
     })
   }

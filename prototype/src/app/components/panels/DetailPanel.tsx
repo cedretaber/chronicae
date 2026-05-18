@@ -51,6 +51,11 @@ import {
   getPolityHouseIds,
 } from '@sim/selectors/polityRelations'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
+import {
+  getProvinceTerminalPolityId,
+  getProvinceEffectiveOwnerHouseId,
+  getHouseControlledProvinceIds,
+} from '@sim/selectors/landContractSelectors'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { calcPolityMilitaryPower } from '@/sim/selectors/militarySelectors'
@@ -115,10 +120,11 @@ function HouseLink({
   houses,
   onClick,
 }: {
-  houseId: HouseId
+  houseId: HouseId | undefined
   houses: Record<string, House>
   onClick: ClickHandler
 }) {
+  if (!houseId) return <span className="text-gray-500">\u2014</span>
   const house = houses[houseId]
   if (!house) return <span className="text-gray-500">\u2014</span>
   return (
@@ -136,10 +142,11 @@ function PolityLink({
   polities,
   onClick,
 }: {
-  polityId: PolityId
+  polityId: PolityId | undefined
   polities: Record<string, Polity>
   onClick: ClickHandler
 }) {
+  if (!polityId) return <span className="text-gray-500">\u2014</span>
   const polity = polities[polityId]
   if (!polity) return <span className="text-gray-500">\u2014</span>
   return (
@@ -529,8 +536,8 @@ function HouseDetail({
   const loyaltyToPolity = worldState ? getHouseLoyaltyToPolity(worldState, house.id) : 50
 
   const levyPower = worldState
-    ? house.provinceIds.reduce(
-        (sum, pid) => sum + getProvinceHouseManpowerBase(worldState, defaultConfig, pid),
+    ? getHouseControlledProvinceIds(worldState, house.id).reduce(
+        (sum: number, pid) => sum + getProvinceHouseManpowerBase(worldState, defaultConfig, pid),
         0,
       ) * defaultConfig.houseManpowerPowerFactor
     : 0
@@ -617,7 +624,9 @@ function HouseDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Provinces:</span>
-          <span>{house.provinceIds.length}</span>
+          <span>
+            {worldState ? getHouseControlledProvinceIds(worldState, house.id).length : 0}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Rebellion Tendency:</span>
@@ -809,10 +818,18 @@ function PersonDetail({
     popGroups: {},
     organizationShares: {},
     officeAssignments: {},
+    landContracts: {},
+    provinceOfficeAssignments: {},
     shareIndex: { byOrganization: {}, byHolder: {} },
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
   const allOfficeIds = worldState.officeIndex.byHolderPerson[person.id] ?? []
   const allOffices = allOfficeIds.flatMap((id) => {
@@ -1227,9 +1244,13 @@ function ProvinceDetail({
     ws: WorldState,
     popClass: 'peasants' | 'townsmen' | 'nobles',
   ): number => {
-    const polity = ws.polities[province.polityId]
+    const polityId = getProvinceTerminalPolityId(ws, province.id)
+    if (!polityId) return 0
+    const polity = ws.polities[polityId]
     if (!polity) return 0
-    const ownerHouse = ws.houses[province.ownerHouseId]
+    const ownerHouseId = getProvinceEffectiveOwnerHouseId(ws, province.id)
+    if (!ownerHouseId) return 0
+    const ownerHouse = ws.houses[ownerHouseId]
     if (!ownerHouse) return 0
 
     const pop = Object.values(ws.popGroups).find(
@@ -1237,11 +1258,11 @@ function ProvinceDetail({
     )
     if (!pop) return 0
 
+    // v0.16: houseControl 廃止により、polityControl のみ参照する
     let tendency =
       pop.unrest * defaultConfig.provinceRevoltUnrestFactor +
-      (100 - province.houseControl) * defaultConfig.provinceRevoltLowHouseControlFactor +
       (100 - province.polityControl) * defaultConfig.provinceRevoltLowCountryControlFactor -
-      getPolityStability(ws, defaultConfig, province.polityId) *
+      getPolityStability(ws, defaultConfig, polityId) *
         defaultConfig.provinceRevoltStabilitySuppressionFactor
 
     if (popClass === 'peasants') {
@@ -1267,11 +1288,11 @@ function ProvinceDetail({
       if (noblesPop) {
         const a_house = getAttitudeOrDefault(ws, noblesPop, {
           kind: 'house',
-          id: province.ownerHouseId,
+          id: ownerHouseId,
         })
         const a_country = getAttitudeOrDefault(ws, noblesPop, {
           kind: 'polity',
-          id: province.polityId,
+          id: polityId,
         })
         const houseScore =
           attitudeValueToScore(a_house.affection) * 0.6 +
@@ -1304,7 +1325,7 @@ function ProvinceDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">Primary Polity:</span>
           <PolityLink
-            polityId={province.polityId}
+            polityId={currentState ? getProvinceTerminalPolityId(currentState, province.id) : undefined}
             polities={currentState?.polities ?? {}}
             onClick={onPolityClick}
           />
@@ -1312,7 +1333,9 @@ function ProvinceDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">Owner:</span>
           <HouseLink
-            houseId={province.ownerHouseId}
+            houseId={
+              currentState ? getProvinceEffectiveOwnerHouseId(currentState, province.id) : undefined
+            }
             houses={currentState?.houses ?? {}}
             onClick={onHouseClick}
           />
@@ -1334,10 +1357,6 @@ function ProvinceDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">Polity Control:</span>
           <span>{formatPower(province.polityControl)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">House Control:</span>
-          <span>{formatPower(province.houseControl)}</span>
         </div>
       </div>
 
