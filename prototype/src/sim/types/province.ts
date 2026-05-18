@@ -1,4 +1,4 @@
-import type { ProvinceId, HouseId, PolityId, PopGroupId } from './ids'
+import type { ProvinceId, PopGroupId } from './ids'
 
 export type Province = {
   id: ProvinceId
@@ -6,11 +6,8 @@ export type Province = {
   x: number
   y: number
   neighbors: ProvinceId[]
-  ownerHouseId: HouseId
-  polityId: PolityId
   habitability: number
   development: number
   polityControl: number
-  houseControl: number
   popGroupIds: PopGroupId[]
 }

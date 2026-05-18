@@ -11,6 +11,7 @@ import {
 import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
 import { weightedAverage } from '@sim/selectors/statusSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
+import { getPolityTerminalProvinceIds } from '@sim/selectors/landContractSelectors'
 
 function orgKey(org: OrganizationRef): string {
   return `${org.kind}:${org.id}`
@@ -246,9 +247,7 @@ export function getAdministrativeLoad(
 ): number {
   const country = state.polities[countryId]
   if (!country) return 0
-  const provinceCount = Object.values(state.provinces).filter(
-    (p) => p && p.polityId === countryId,
-  ).length
+  const provinceCount = getPolityTerminalProvinceIds(state, countryId).length
   const countryRef: OrganizationRef = { kind: 'polity', id: countryId }
   const officeCount = getOfficeAssignments(state, countryRef).filter((o) => o.active).length
   return (

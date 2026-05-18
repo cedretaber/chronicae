@@ -8,6 +8,8 @@ import type {
   PopGroupId,
   OrganizationShareId,
   OfficeAssignmentId,
+  LandContractId,
+  ProvinceOfficeAssignmentId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -17,6 +19,14 @@ import type { Plot } from './plot'
 import type { SimEvent } from './event'
 import type { PopGroup } from './popGroup'
 import type { OrganizationShare, OfficeAssignment, ShareIndex, OfficeIndex } from './office'
+import type {
+  LandContract,
+  LandContractIndex,
+  ProvinceTerminalPolityCache,
+  ProvinceOfficeAssignment,
+  ProvinceOfficeIndex,
+  PolityIndex,
+} from './landContract'
 
 export type WorldState = {
   currentYear: number
@@ -29,10 +39,18 @@ export type WorldState = {
   popGroups: Record<PopGroupId, PopGroup>
   organizationShares: Record<OrganizationShareId, OrganizationShare>
   officeAssignments: Record<OfficeAssignmentId, OfficeAssignment>
+  landContracts: Record<LandContractId, LandContract>
+  provinceOfficeAssignments: Record<ProvinceOfficeAssignmentId, ProvinceOfficeAssignment>
   shareIndex: ShareIndex
   officeIndex: OfficeIndex
+  landContractIndex: LandContractIndex
+  provinceTerminalPolityCache: ProvinceTerminalPolityCache
+  provinceOfficeIndex: ProvinceOfficeIndex
+  polityIndex: PolityIndex
   nextOrganizationShareId: number
   nextOfficeAssignmentId: number
+  nextLandContractId: number
+  nextProvinceOfficeAssignmentId: number
 }
 
 export type SimulationSession = {

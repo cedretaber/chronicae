@@ -1,10 +1,12 @@
 import type { HouseId, ProvinceId, PersonId } from './ids'
 
+export type HouseKind = 'normal' | 'system'
+
 export type House = {
   id: HouseId
   name: string
   active: boolean
-  provinceIds: ProvinceId[]
+  kind?: HouseKind
   memberIds: PersonId[]
   founderId?: PersonId
   parentHouseId?: HouseId

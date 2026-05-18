@@ -36,7 +36,7 @@ export function getProvinceProduction(
   return total
 }
 
-// Province tax base: getProvinceProduction(state, config, provinceId) * (province.houseControl / 100)
+// v0.16: houseControl 廃止により、Province の徴税ベースは polityControl に統一する。
 export function getProvinceTaxBase(
   state: WorldState,
   config: SimulationConfig,
@@ -45,7 +45,7 @@ export function getProvinceTaxBase(
   const province = state.provinces[provinceId]
   if (!province) return 0
 
-  return getProvinceProduction(state, config, provinceId) * (province.houseControl / 100)
+  return getProvinceProduction(state, config, provinceId) * (province.polityControl / 100)
 }
 
 // Province country manpower base:
@@ -68,24 +68,14 @@ export function getProvinceCountryManpowerBase(
   return total
 }
 
-// Province house manpower base:
-// sum over pops: pop.size * config.manpowerFactorByClass[pop.class] * (province.houseControl / 100)
+// v0.16: houseControl 廃止により、house manpower も polityControl 基準。
+// terminal Polity の ownerHouseId がいる場合、そのハウスが Province から徴募できる兵力。
 export function getProvinceHouseManpowerBase(
   state: WorldState,
   config: SimulationConfig,
   provinceId: ProvinceId,
 ): number {
-  const province = state.provinces[provinceId]
-  if (!province) return 0
-
-  let total = 0
-  for (const popId of province.popGroupIds) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    const manpowerFactor = config.manpowerFactorByClass[pop.class]
-    total += pop.size * manpowerFactor * (province.houseControl / 100)
-  }
-  return total
+  return getProvinceCountryManpowerBase(state, config, provinceId)
 }
 
 // Compatibility wrapper — delegates to getProvinceCountryManpowerBase

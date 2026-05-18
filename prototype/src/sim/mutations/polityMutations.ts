@@ -13,6 +13,11 @@ import { getPolityLeaderHouse, getHouseLeader } from '../selectors/officeSelecto
 import { generatePolityName } from '../selectors/polityNamingService'
 import { getPolityHouseIds } from '../selectors/polityRelations'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import {
+  getPolityTerminalProvinceIds,
+  getHouseControlledProvinceIds,
+} from '../selectors/landContractSelectors'
+import { transferAllProvincesToPolity } from './landContractMutations'
 
 export type CreatePolityInput = {
   name: string
@@ -97,106 +102,34 @@ export function annexPolity(
   const winnerPolity = state.polities[winnerPolityId]
   if (!winnerPolity || !winnerPolity.active) return state
 
-  const winnerRulerHouseId = getPolityLeaderHouse(state, winnerPolityId)
-  const defeatedRulerHouseId = getPolityLeaderHouse(state, defeatedPolityId)
+  // v0.16: 敗者 Polity が grantee である LandContract をすべて勝者 Polity に差し替える。
+  // これにより敗者 Polity は landless となり、polityOwnerConsistencySystem が active=false 化する。
+  let next = transferAllProvincesToPolity(state, defeatedPolityId, winnerPolityId)
 
-  if (!winnerRulerHouseId || !defeatedRulerHouseId) return state
-
-  const newProvinces = { ...state.provinces } as typeof state.provinces
-  for (const provinceId of Object.keys(state.provinces).sort() as ProvinceId[]) {
-    const province = state.provinces[provinceId]
+  // 譲渡された Province の polityControl を低めにリセットする (新支配の浸透前)。
+  const transferredProvinceIds = getPolityTerminalProvinceIds(next, winnerPolityId)
+  const updatedProvinces = { ...next.provinces }
+  for (const provinceId of transferredProvinceIds) {
+    const province = updatedProvinces[provinceId]
     if (!province) continue
-    if (province.polityId === defeatedPolityId) {
-      newProvinces[provinceId] = {
-        ...province,
-        polityId: winnerPolityId,
-        polityControl: defaultConfig.annexedPolityControl,
-      }
+    if ((next.provinceTerminalPolityCache[provinceId] as string) !== (winnerPolityId as string))
+      continue
+    updatedProvinces[provinceId] = {
+      ...province,
+      polityControl: defaultConfig.annexedPolityControl,
     }
   }
+  next = { ...next, provinces: updatedProvinces }
 
-  const newHouses = { ...state.houses } as typeof state.houses
-  for (const houseId of Object.keys(state.houses).sort() as HouseId[]) {
-    const house = state.houses[houseId]
-    if (!house) continue
-    const housePolityId = getHousePrimaryPolityId(state, houseId)
-    if (housePolityId === defeatedPolityId) {
-      newHouses[houseId] = { ...house }
-    }
-  }
-
-  const defeatedRulerHouse = newHouses[defeatedRulerHouseId]
-  if (defeatedRulerHouse) {
-    const seatProvinceId = defeatedRulerHouse.seatProvinceId
-    const seatProvince = newProvinces[seatProvinceId]
-    if (seatProvince) {
-      newProvinces[seatProvinceId] = {
-        ...seatProvince,
-        ownerHouseId: defeatedRulerHouseId,
-      }
-    }
-
-    const winnerRulerHouse = newHouses[winnerRulerHouseId]
-    if (winnerRulerHouse) {
-      const newWinnerProvinceIds = [...winnerRulerHouse.provinceIds]
-      const newDefeatedProvinceIds: ProvinceId[] = []
-
-      for (const provinceId of defeatedRulerHouse.provinceIds) {
-        const province = newProvinces[provinceId]
-        if (!province) continue
-        if (provinceId === seatProvinceId) {
-          newDefeatedProvinceIds.push(provinceId)
-        } else {
-          newWinnerProvinceIds.push(provinceId)
-          newProvinces[provinceId] = {
-            ...province,
-            ownerHouseId: winnerRulerHouseId,
-            houseControl: defaultConfig.newRulerHouseControl,
-          }
-        }
-      }
-
-      newHouses[winnerRulerHouseId] = {
-        ...winnerRulerHouse,
-        provinceIds: newWinnerProvinceIds,
-      }
-      newHouses[defeatedRulerHouseId] = {
-        ...defeatedRulerHouse,
-        provinceIds: newDefeatedProvinceIds,
-      }
-    }
-  }
-
-  const newPersons = { ...state.persons }
-  for (const personId of Object.keys(state.persons).sort() as PersonId[]) {
-    const person = state.persons[personId]
-    if (!person) continue
-    const personPolityId = getHousePrimaryPolityId(state, person.houseId)
-    if (personPolityId === defeatedPolityId) {
-      newPersons[personId] = { ...person }
-    }
-  }
-
-  const newWinnerPolity = {
-    ...winnerPolity,
-  }
-
-  const newDefeatedPolity = {
-    ...defeatedPolity,
-    active: false,
-  }
-
-  return {
-    ...state,
-    provinces: newProvinces,
-    houses: newHouses,
-    persons: newPersons,
+  // 敗者 Polity 自体を inactive に。consistency system が同じ判定をするが、明示しておく。
+  next = {
+    ...next,
     polities: {
-      ...state.polities,
-      [winnerPolityId]: newWinnerPolity,
-      [defeatedPolityId]: newDefeatedPolity,
+      ...next.polities,
+      [defeatedPolityId]: { ...defeatedPolity, active: false },
     },
   }
+  return next
 }
 
 export function createPolityFromHouse(
@@ -250,17 +183,8 @@ export function createPolityFromHouse(
     adminPower: clamp(updatedOldPolity.adminPower - 5, 0, 100),
   }
 
-  const capProv = stateWithLeader.provinces[penalizedOldPolity.capitalProvinceId]
-  const finalOldPolity: Polity =
-    penalizedOldPolity.capitalProvinceId !== ('' as ProvinceId) &&
-    (!capProv || capProv.polityId !== oldPolityId)
-      ? {
-          ...penalizedOldPolity,
-          capitalProvinceId: (Object.values(stateWithLeader.provinces).find(
-            (p) => p !== undefined && p.polityId === oldPolityId,
-          )?.id ?? '') as ProvinceId,
-        }
-      : penalizedOldPolity
+  // v0.16: capitalProvinceId は維持する。当該 Polity が現在 terminal holder でなくてもよい (§10.1)。
+  const finalOldPolity: Polity = penalizedOldPolity
 
   const hasActiveHouses = true
   const resolvedOldPolity = hasActiveHouses ? finalOldPolity : { ...finalOldPolity, active: false }

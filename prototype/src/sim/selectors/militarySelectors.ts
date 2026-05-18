@@ -8,6 +8,7 @@ import { getProvinceHouseManpowerBase } from './popEconomySelectors'
 import { getHouseLoyaltyToPolity } from './statusSelectors'
 import { getPolityLeaderHouse } from './officeSelectors'
 import { getPolityHouseIds } from './polityRelations'
+import { getHouseControlledProvinceIds } from './landContractSelectors'
 
 export function calcHouseMilitaryPower(
   state: WorldState,
@@ -17,9 +18,9 @@ export function calcHouseMilitaryPower(
   const house = state.houses[houseId]
   if (!house) return 0
 
-  // levyPower: sum of house manpower from all provinces, scaled by houseManpowerPowerFactor
+  // levyPower: sum of house manpower from all controlled provinces, scaled by houseManpowerPowerFactor
   let levyPower = 0
-  for (const pid of house.provinceIds) {
+  for (const pid of getHouseControlledProvinceIds(state, houseId)) {
     levyPower += getProvinceHouseManpowerBase(state, config, pid)
   }
   levyPower *= config.houseManpowerPowerFactor

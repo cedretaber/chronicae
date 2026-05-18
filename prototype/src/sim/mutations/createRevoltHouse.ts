@@ -37,7 +37,6 @@ export function createRevoltHouse(
     id,
     name,
     active: true,
-    provinceIds: [params.seatProvinceId],
     memberIds: [params.leaderId],
     founderId: params.leaderId,
     cadetHouseIds: [],

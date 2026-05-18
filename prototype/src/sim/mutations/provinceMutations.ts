@@ -3,24 +3,24 @@ import type { WorldState } from '../types/world'
 import type { StateResult } from './result'
 import { ok, err } from './result'
 import { clamp } from '../utils/math'
-import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import {
+  getProvinceTerminalContract,
+  getProvinceTerminalPolityId,
+} from '../selectors/landContractSelectors'
+import { transferLandContractGrantee } from './landContractMutations'
 
+// v0.16: Province の直接所有は廃止された (§8)。所有変更は terminal LandContract の grantee 差し替えで表現する。
+// この関数は v0.15 互換 API として残るが、内部で transferLandContractGrantee に委譲する。
+// 「ownerHouseId 経由の Polity 推定」は不要になり、呼び出し側で toPolityId を明示すること (transferProvinceToPolity 参照)。
 export function transferProvinceToHouse(
   state: WorldState,
   provinceId: ProvinceId,
   newOwnerHouseId: HouseId,
-  options?: { newHouseControl?: number },
+  _options?: { newHouseControl?: number },
 ): StateResult {
   const province = state.provinces[provinceId]
   if (!province)
     return err({ code: 'PROVINCE_NOT_FOUND', message: 'Province not found: ' + provinceId })
-
-  const oldHouse = state.houses[province.ownerHouseId]
-  if (!oldHouse)
-    return err({
-      code: 'HOUSE_NOT_FOUND',
-      message: 'Old owner house not found: ' + province.ownerHouseId,
-    })
 
   const newOwnerHouse = state.houses[newOwnerHouseId]
   if (!newOwnerHouse)
@@ -29,47 +29,24 @@ export function transferProvinceToHouse(
       message: 'New owner house not found: ' + newOwnerHouseId,
     })
 
-  // v0.14 では province.countryId = newOwnerHouse.countryId だった。
-  // v0.15 では House に polity 所属が無いため、(1) 既存所領から推定、(2) Polity.ownerHouseId 逆引き、
-  // (3) どちらも該当なしなら province の元 polityId を維持、という順で決める。
-  const inferredFromProvinces = getHousePrimaryPolityId(state, newOwnerHouseId)
-  const inferredFromOwnership = inferredFromProvinces
-    ? undefined
-    : Object.values(state.polities).find((p) => p && p.active && p.ownerHouseId === newOwnerHouseId)
-        ?.id
-  const newProvincePolityId = inferredFromProvinces ?? inferredFromOwnership ?? province.polityId
-
-  const newProvinces = { ...state.provinces }
-  newProvinces[provinceId] = {
-    ...province,
-    ownerHouseId: newOwnerHouseId,
-    polityId: newProvincePolityId,
-    ...(options?.newHouseControl !== undefined
-      ? { houseControl: options.newHouseControl }
-      : undefined),
+  // 新 owner House が ownerHouseId である Polity を探し、terminal contract をその Polity に差し替える。
+  const ownedPolityIds = state.polityIndex.byOwnerHouse[newOwnerHouseId] ?? []
+  const targetPolityId = ownedPolityIds[0]
+  if (!targetPolityId) {
+    return err({
+      code: 'NO_TARGET_POLITY',
+      message: 'New owner house has no owned Polity: ' + newOwnerHouseId,
+    })
   }
 
-  const newHouses = { ...state.houses }
-  const newOldHouseProvinceIds = oldHouse.provinceIds.filter((id) => id !== provinceId)
-  const newSeatProvinceId =
-    oldHouse.seatProvinceId === provinceId
-      ? (newOldHouseProvinceIds[0] ?? ('' as ProvinceId))
-      : oldHouse.seatProvinceId
-  newHouses[oldHouse.id] = {
-    ...oldHouse,
-    provinceIds: newOldHouseProvinceIds,
-    seatProvinceId: newSeatProvinceId,
-  }
-  newHouses[newOwnerHouse.id] = {
-    ...newOwnerHouse,
-    provinceIds: [...newOwnerHouse.provinceIds, provinceId],
-  }
+  const terminal = getProvinceTerminalContract(state, provinceId)
+  if (!terminal)
+    return err({
+      code: 'NO_TERMINAL_CONTRACT',
+      message: 'Province has no terminal LandContract: ' + provinceId,
+    })
 
-  return ok({
-    ...state,
-    provinces: newProvinces,
-    houses: newHouses,
-  })
+  return ok(transferLandContractGrantee(state, terminal.id, targetPolityId))
 }
 
 export function adjustProvinceDevelopment(
@@ -97,6 +74,7 @@ export function adjustProvinceDevelopment(
   })
 }
 
+// v0.16: toOwnerHouseId は ownership chain の整合確認用 (toPolityId.ownerHouseId と一致するはず)。
 export function transferProvinceToPolity(
   state: WorldState,
   provinceId: ProvinceId,
@@ -106,41 +84,30 @@ export function transferProvinceToPolity(
   if (!state.provinces[provinceId])
     return err({ code: 'PROVINCE_NOT_FOUND', message: 'Province not found: ' + provinceId })
 
-  if (!state.polities[toPolityId])
+  const targetPolity = state.polities[toPolityId]
+  if (!targetPolity)
     return err({ code: 'POLITY_NOT_FOUND', message: 'Target polity not found: ' + toPolityId })
 
-  const toHouse = state.houses[toOwnerHouseId]
-  if (!toHouse)
+  if (!state.houses[toOwnerHouseId])
     return err({ code: 'HOUSE_NOT_FOUND', message: 'Target house not found: ' + toOwnerHouseId })
 
-  // 受け手 House が対象 Polity に属することを検査:
-  // (a) 既に対象 Polity 内に Province を持つ、または
-  // (b) その Polity の ownerHouseId である（v0.15 §10.1 / §13.2 transient state 許容）
-  const toOwnerPrimaryPolityId = getHousePrimaryPolityId(state, toOwnerHouseId)
-  const targetPolity = state.polities[toPolityId]
-  const isOwnerHouse =
-    targetPolity?.active === true &&
-    targetPolity.ownerHouseId !== undefined &&
-    toOwnerHouseId === targetPolity.ownerHouseId
-  if (toOwnerPrimaryPolityId && toOwnerPrimaryPolityId !== toPolityId && !isOwnerHouse)
+  // Polity の ownerHouseId と引数の toOwnerHouseId が一致することを検査
+  if (targetPolity.ownerHouseId !== undefined && targetPolity.ownerHouseId !== toOwnerHouseId) {
     return err({
-      code: 'CROSS_POLITY_TRANSFER',
-      message: `House ${toOwnerHouseId} does not belong to polity ${toPolityId}`,
+      code: 'OWNER_MISMATCH',
+      message: `Polity ${toPolityId} ownerHouseId (${targetPolity.ownerHouseId}) does not match requested toOwnerHouseId (${toOwnerHouseId})`,
+    })
+  }
+
+  const currentTerminal = getProvinceTerminalPolityId(state, provinceId)
+  if (currentTerminal === toPolityId) return ok(state)
+
+  const terminal = getProvinceTerminalContract(state, provinceId)
+  if (!terminal)
+    return err({
+      code: 'NO_TERMINAL_CONTRACT',
+      message: 'Province has no terminal LandContract: ' + provinceId,
     })
 
-  // transferProvinceToHouse に bookkeeping を委譲し、その後 polityId を toPolityId に強制する。
-  // 委譲することで house.provinceIds の add/remove が正しく行われる（v0.14 と同じ責務分担）。
-  const transferred = transferProvinceToHouse(state, provinceId, toOwnerHouseId)
-  if (!transferred.ok) return transferred
-
-  const transferredProvince = transferred.value.provinces[provinceId]
-  if (!transferredProvince) return transferred
-
-  return ok({
-    ...transferred.value,
-    provinces: {
-      ...transferred.value.provinces,
-      [provinceId]: { ...transferredProvince, polityId: toPolityId },
-    },
-  })
+  return ok(transferLandContractGrantee(state, terminal.id, toPolityId))
 }

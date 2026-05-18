@@ -3,6 +3,7 @@ import type { AttitudeMap } from './attitude'
 
 export type Sex = 'male' | 'female'
 export type BirthStatus = 'legitimate' | 'illegitimate' | 'unknown'
+export type PersonKind = 'normal' | 'placeholder'
 
 export type AbilityScores = {
   valor: number // 個人戦闘力・身体能力・士気
@@ -21,6 +22,7 @@ export type Person = {
   sex: Sex
   age: number
   alive: boolean
+  kind?: PersonKind
   houseId: HouseId
   fatherId?: PersonId
   motherId?: PersonId

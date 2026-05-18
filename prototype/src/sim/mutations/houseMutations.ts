@@ -5,7 +5,6 @@ import type { House } from '../types/house'
 import type { WorldState } from '../types/world'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
-import { getHousePrimaryPolityId, getPolityHouseIds } from '../selectors/polityRelations'
 
 export type CreateHouseInput = {
   name: string
@@ -33,7 +32,6 @@ export function createHouse(
     id: houseId,
     name: input.name,
     active: true,
-    provinceIds: [],
     memberIds: [],
     cadetHouseIds: [],
     legacyPrestige: input.legacyPrestige ?? 0,
@@ -44,13 +42,6 @@ export function createHouse(
     ...houseBase,
     ...(input.founderId !== undefined && { founderId: input.founderId }),
     ...(input.parentHouseId !== undefined && { parentHouseId: input.parentHouseId }),
-  }
-
-  const polity = ctxWithId.state.polities[input.polityId]!
-  const houseIds = getPolityHouseIds(ctxWithId.state, input.polityId)
-  const newPolities = {
-    ...ctxWithId.state.polities,
-    [input.polityId]: { ...polity, houseIds: [...houseIds, houseId] },
   }
 
   if (input.parentHouseId !== undefined) {
@@ -64,7 +55,7 @@ export function createHouse(
           cadetHouseIds: [...parentHouse.cadetHouseIds, houseId],
         },
       }
-      const newState = { ...ctxWithId.state, houses: newHouses, polities: newPolities }
+      const newState = { ...ctxWithId.state, houses: newHouses }
       return ok({ ctx: { ...ctxWithId, state: newState }, value: { houseId } })
     }
   }
@@ -72,7 +63,6 @@ export function createHouse(
   const newState = {
     ...ctxWithId.state,
     houses: { ...ctxWithId.state.houses, [houseId]: houseWithOptionals },
-    polities: newPolities,
   }
   return ok({ ctx: { ...ctxWithId, state: newState }, value: { houseId } })
 }
@@ -80,7 +70,7 @@ export function createHouse(
 export function deactivateHouse(
   state: WorldState,
   houseId: HouseId,
-  options?: { removeFromPolity?: boolean },
+  _options?: { removeFromPolity?: boolean },
 ): StateResult {
   const house = state.houses[houseId]
   if (!house)
@@ -92,25 +82,6 @@ export function deactivateHouse(
   if (!house.active) return ok(state)
 
   const newHouses = { ...state.houses, [houseId]: { ...house, active: false } }
-
-  if (options?.removeFromPolity) {
-    const housePolityId = getHousePrimaryPolityId(state, houseId)
-    if (housePolityId) {
-      const polity = state.polities[housePolityId]
-      if (polity) {
-        const houseIds = getPolityHouseIds(state, housePolityId)
-        const newPolities = {
-          ...state.polities,
-          [housePolityId]: {
-            ...polity,
-            houseIds: houseIds.filter((id) => id !== houseId),
-          },
-        }
-        return ok({ ...state, houses: newHouses, polities: newPolities })
-      }
-    }
-  }
-
   return ok({ ...state, houses: newHouses })
 }
 

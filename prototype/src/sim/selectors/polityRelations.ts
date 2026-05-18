@@ -1,59 +1,76 @@
-// v0.15 Polity 直交化のための関係 selector 群。
-// Stage A 段階では既存型 (Country / CountryId / countryId フィールド) をそのまま参照し、
-// Stage B の機械置換で Polity / PolityId / polityId に置き換わる前提で実装する。
-// 仕様: docs/drafts/spec-v015-update.md §8, §9
-//
-// 戻り値型は将来の rename 対象 (Country / CountryId) をそのまま露出する。
-// Phase 0 では新たな型 alias を作らず、既存型をそのまま使う。
+// v0.16 LandContract chain ベース。Province の polity/owner は chain の terminal から取得する。
+// House の所属 Polity は polityIndex.byOwnerHouse (Polity.ownerHouseId 経由) で決まる。
+// 仕様: docs/drafts/spec-v016-update.md §8, §9, §10
 import type { WorldState } from '@sim/types/world'
 import type { Polity } from '@sim/types/polity'
 import type { House } from '@sim/types/house'
 import type { PolityId, HouseId, PersonId, ProvinceId } from '@sim/types/ids'
+import {
+  getProvinceTerminalPolityId,
+  getProvinceEffectiveOwnerHouseId,
+  getPolityGrantedProvinceIds,
+  getPolityTerminalProvinceIds,
+  getHouseOwnedPolityIds,
+  getHouseControlledProvinceIds,
+} from './landContractSelectors'
 
-// §8.1 — Province → Polity
+// §8.1 — Province の terminal Polity
 export function getProvincePolity(state: WorldState, provinceId: ProvinceId): Polity | undefined {
-  const province = state.provinces[provinceId]
-  if (!province) return undefined
-  return state.polities[province.polityId]
+  const polityId = getProvinceTerminalPolityId(state, provinceId)
+  if (!polityId) return undefined
+  return state.polities[polityId]
 }
 
-// §8.1 — Province → owner House
+// §8.1 — Province の実効 owner House (= terminal Polity の ownerHouseId)
 export function getProvinceOwnerHouse(
   state: WorldState,
   provinceId: ProvinceId,
 ): House | undefined {
-  const province = state.provinces[provinceId]
-  if (!province) return undefined
-  return state.houses[province.ownerHouseId]
+  const houseId = getProvinceEffectiveOwnerHouseId(state, provinceId)
+  if (!houseId) return undefined
+  return state.houses[houseId]
 }
 
-// §8.2 — Polity 内 Province ids（active / inactive 問わず）
+// §10 — Polity が grantee である Province の一覧。terminal だけでなく上位 chain 上のものも含む
 export function getPolityProvinceIds(state: WorldState, polityId: PolityId): ProvinceId[] {
-  const result: ProvinceId[] = []
-  for (const province of Object.values(state.provinces)) {
-    if (!province) continue
-    if ((province.polityId as string) === (polityId as string)) {
-      result.push(province.id)
-    }
-  }
+  const result = [...getPolityGrantedProvinceIds(state, polityId)]
   result.sort((a, b) => a.localeCompare(b))
   return result
 }
 
-// §8.2 — Polity 内に Province を持つ active House
+// Polity の terminal Province (chain の最下位 grantee)
+export function getPolityTerminalProvinceIdsSorted(
+  state: WorldState,
+  polityId: PolityId,
+): ProvinceId[] {
+  const result = [...getPolityTerminalProvinceIds(state, polityId)]
+  result.sort((a, b) => a.localeCompare(b))
+  return result
+}
+
+// §8.2 — Polity に関係する active House の一覧。
+// 定義: その Polity が grantee である Province の effective owner House (= terminal Polity の ownerHouseId)
+// に加え、Polity 自身の ownerHouseId も含める。AnonymousHouse / system house は除外。
 export function getPolityHouseIds(state: WorldState, polityId: PolityId): HouseId[] {
   const seen = new Set<string>()
-  for (const province of Object.values(state.provinces)) {
-    if (!province) continue
-    if ((province.polityId as string) !== (polityId as string)) continue
-    const house = state.houses[province.ownerHouseId]
-    if (!house || !house.active) continue
-    seen.add(house.id)
+  const polity = state.polities[polityId]
+  if (polity?.ownerHouseId !== undefined) {
+    const ownerHouse = state.houses[polity.ownerHouseId]
+    if (ownerHouse && ownerHouse.active && ownerHouse.kind !== 'system') {
+      seen.add(polity.ownerHouseId as string)
+    }
+  }
+  for (const provinceId of getPolityGrantedProvinceIds(state, polityId)) {
+    const houseId = getProvinceEffectiveOwnerHouseId(state, provinceId)
+    if (!houseId) continue
+    const house = state.houses[houseId]
+    if (!house || !house.active || house.kind === 'system') continue
+    seen.add(houseId as string)
   }
   return [...seen].sort((a, b) => a.localeCompare(b)).map((id) => id as HouseId)
 }
 
-// §8.2 — Polity に関係する alive Person。複数 Polity に所領を持つ House の人物は重複可
+// §8.2 — Polity に関係する alive Person 一覧。所属 House の memberIds を集約
 export function getPolityPersonIds(state: WorldState, polityId: PolityId): PersonId[] {
   const houseIds = getPolityHouseIds(state, polityId)
   const result: PersonId[] = []
@@ -70,90 +87,75 @@ export function getPolityPersonIds(state: WorldState, polityId: PolityId): Perso
   return result
 }
 
-// §8.3 — House が対象 Polity 内に所有する Province 一覧
+// §8.3 — House が対象 Polity 内に「所有」する Province。
+// 定義: その Province の effective owner House が houseId かつ、polityId が chain 上に出現する。
 export function getHouseProvinceIdsByPolity(
   state: WorldState,
   houseId: HouseId,
   polityId: PolityId,
 ): ProvinceId[] {
-  const house = state.houses[houseId]
-  if (!house) return []
+  const polityProvinceIds = new Set<string>(
+    getPolityGrantedProvinceIds(state, polityId).map((id) => id as string),
+  )
   const result: ProvinceId[] = []
-  for (const pid of house.provinceIds) {
-    const province = state.provinces[pid]
-    if (!province) continue
-    if ((province.polityId as string) === (polityId as string)) {
-      result.push(pid)
-    }
+  for (const provinceId of getHouseControlledProvinceIds(state, houseId)) {
+    if (!polityProvinceIds.has(provinceId as string)) continue
+    result.push(provinceId)
   }
   result.sort((a, b) => a.localeCompare(b))
   return result
 }
 
-// §8.3 — House が Province を所有している active Polity の一覧
+// §8.3 — House が ownerHouseId である Polity の一覧
 export function getHousePolityIds(state: WorldState, houseId: HouseId): PolityId[] {
   const house = state.houses[houseId]
   if (!house || !house.active) return []
-  if (house.provinceIds.length === 0) return []
-  const seen = new Set<string>()
-  for (const pid of house.provinceIds) {
-    const province = state.provinces[pid]
-    if (!province) continue
-    const polity = state.polities[province.polityId]
+  const result: PolityId[] = []
+  for (const polityId of getHouseOwnedPolityIds(state, houseId)) {
+    const polity = state.polities[polityId]
     if (!polity || !polity.active) continue
-    seen.add(province.polityId)
+    result.push(polityId)
   }
-  return [...seen].sort((a, b) => a.localeCompare(b)).map((id) => id as PolityId)
+  result.sort((a, b) => a.localeCompare(b))
+  return result
 }
 
-// §8.3 — 表示・候補選定用の便宜的 primary Polity
+// §8.3 — House の primary Polity。最も価値が大きい所有 Polity を選ぶ
 export function getHousePrimaryPolityId(state: WorldState, houseId: HouseId): PolityId | undefined {
   const house = state.houses[houseId]
   if (!house || !house.active) return undefined
-  if (house.provinceIds.length === 0) return undefined
+  const owned = getHousePolityIds(state, houseId)
+  if (owned.length === 0) return undefined
 
-  // 1) seatProvinceId の Polity
+  // 1) seatProvinceId の Polity を最優先
   const seat = state.provinces[house.seatProvinceId]
   if (seat) {
-    const seatPolity = state.polities[seat.polityId]
-    if (seatPolity && seatPolity.active) {
-      // ただし seat が他家に奪われている場合は house が seat polity 内に Province を持つことを確認
-      const ownsInSeatPolity = house.provinceIds.some((pid) => {
-        const p = state.provinces[pid]
-        return p && (p.polityId as string) === (seat.polityId as string)
-      })
-      if (ownsInSeatPolity) return seat.polityId
+    const seatPolityId = getProvinceTerminalPolityId(state, seat.id)
+    if (seatPolityId && owned.some((id) => (id as string) === (seatPolityId as string))) {
+      return seatPolityId
     }
   }
 
-  // 2) 所有 Province 数が最大の Polity
+  // 2) terminal Province 数の合計が最大の Polity
   // 3) 同数なら development 合計が最大
   // 4) それも同じなら PolityId 昇順
   const stats = new Map<
     string,
     { polityId: PolityId; provinceCount: number; development: number }
   >()
-  for (const pid of house.provinceIds) {
-    const province = state.provinces[pid]
-    if (!province) continue
-    const polity = state.polities[province.polityId]
-    if (!polity || !polity.active) continue
-    const key = province.polityId as string
-    const cur = stats.get(key)
-    if (cur) {
-      cur.provinceCount += 1
-      cur.development += province.development
-    } else {
-      stats.set(key, {
-        polityId: province.polityId,
-        provinceCount: 1,
-        development: province.development,
-      })
+  for (const polityId of owned) {
+    let count = 0
+    let dev = 0
+    for (const provinceId of getPolityTerminalProvinceIds(state, polityId)) {
+      const province = state.provinces[provinceId]
+      if (!province) continue
+      count += 1
+      dev += province.development
     }
+    stats.set(polityId as string, { polityId, provinceCount: count, development: dev })
   }
-  if (stats.size === 0) return undefined
-
   const entries = [...stats.values()]
+  if (entries.length === 0) return owned[0]
   entries.sort((a, b) => {
     if (b.provinceCount !== a.provinceCount) return b.provinceCount - a.provinceCount
     if (b.development !== a.development) return b.development - a.development
@@ -162,14 +164,14 @@ export function getHousePrimaryPolityId(state: WorldState, houseId: HouseId): Po
   return entries[0]?.polityId
 }
 
-// §8.4 — Person が関係する Polity 一覧（所属 House の getHousePolityIds に委譲）
+// §8.4 — Person が関係する Polity 一覧 (所属 House の getHousePolityIds に委譲)
 export function getPersonRelevantPolityIds(state: WorldState, personId: PersonId): PolityId[] {
   const person = state.persons[personId]
   if (!person) return []
   return getHousePolityIds(state, person.houseId)
 }
 
-// §8.4 — Person primary Polity（所属 House の getHousePrimaryPolityId に委譲）
+// §8.4 — Person primary Polity (所属 House の getHousePrimaryPolityId に委譲)
 export function getPersonPrimaryPolityId(
   state: WorldState,
   personId: PersonId,
@@ -179,7 +181,7 @@ export function getPersonPrimaryPolityId(
   return getHousePrimaryPolityId(state, person.houseId)
 }
 
-// §9 — House の Polity 内拠点。Polity ごとに動的に選ぶ
+// §9 — House の Polity 内拠点。対象 Polity 内に持つ Province から動的に選ぶ
 export function getHouseSeatProvinceInPolity(
   state: WorldState,
   houseId: HouseId,
@@ -188,31 +190,18 @@ export function getHouseSeatProvinceInPolity(
   const house = state.houses[houseId]
   if (!house) return undefined
 
-  // 1) seatProvinceId が対象 Polity 内なら、それを返す
-  const seat = state.provinces[house.seatProvinceId]
-  if (
-    seat &&
-    (seat.polityId as string) === (polityId as string) &&
-    house.provinceIds.some((pid) => (pid as string) === (house.seatProvinceId as string))
-  ) {
+  const candidates = getHouseProvinceIdsByPolity(state, houseId, polityId)
+  if (candidates.length === 0) return undefined
+
+  // 1) seatProvinceId が candidates に含まれるならそれを返す
+  if (candidates.some((id) => (id as string) === (house.seatProvinceId as string))) {
     return house.seatProvinceId
   }
 
-  // 2) House が対象 Polity 内に持つ Province を集める
-  const candidates: ProvinceId[] = []
-  for (const pid of house.provinceIds) {
-    const province = state.provinces[pid]
-    if (!province) continue
-    if ((province.polityId as string) === (polityId as string)) {
-      candidates.push(pid)
-    }
-  }
-  if (candidates.length === 0) return undefined
-
-  // 3) development が最大の Province
-  // 4) 同値なら popGroupIds.length（人口の代理）が最大
-  // 5) 同値なら ProvinceId 昇順
-  candidates.sort((a, b) => {
+  // 2) development が最大の Province
+  // 3) 同値なら popGroupIds.length (人口の代理) が最大
+  // 4) 同値なら ProvinceId 昇順
+  const sorted = [...candidates].sort((a, b) => {
     const pa = state.provinces[a]
     const pb = state.provinces[b]
     if (!pa || !pb) return 0
@@ -222,5 +211,5 @@ export function getHouseSeatProvinceInPolity(
     }
     return a.localeCompare(b)
   })
-  return candidates[0]
+  return sorted[0]
 }
