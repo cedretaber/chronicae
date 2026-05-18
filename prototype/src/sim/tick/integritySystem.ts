@@ -235,6 +235,27 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     }
   }
 
+  // v0.16 §7 不変条件 8: 各 LandContract の granteePolityId は active Polity を指す。
+  // landless ↔ inactive の遷移は polityOwnerConsistencySystem に委ねるため、tick 末でこの不変条件が
+  // 成立していなければ整合性エラー (誰かが defeated Polity への transfer を残した、または
+  // polityOwnerConsistencySystem が走らないままここに到達した)。
+  for (const contractIdStr of Object.keys(state.landContracts)) {
+    const contract = state.landContracts[contractIdStr as import('../types/ids').LandContractId]
+    if (!contract) continue
+    const grantee = state.polities[contract.granteePolityId]
+    if (!grantee) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `LandContract ${contractIdStr} grantee Polity ${contract.granteePolityId} does not exist`,
+      })
+    } else if (!grantee.active) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `LandContract ${contractIdStr} grantee Polity ${contract.granteePolityId} is inactive`,
+      })
+    }
+  }
+
   // v0.16: 旧 Province.ownerHouseId / polityId / House.provinceIds は廃止された (§8 / §9)。
   // 新 LandContract chain ベースの不変条件 (§25 の 33 項目) は Stage A 残作業として後続コミットで実装する。
   // ここでは暫定的に Polity.capitalProvinceId の存在チェックのみ残す。

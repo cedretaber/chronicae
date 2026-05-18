@@ -1,5 +1,6 @@
 import type { TickContext } from './context'
 import type { PolityId, HouseId, ProvinceId, PersonId } from '../types/ids'
+import type { WorldState } from '../types/world'
 import type { SimEvent } from '../types/event'
 import { makeEventId } from './context'
 import {
@@ -134,6 +135,47 @@ function replacePolityLeader(
   return { ...ctx, state }
 }
 
+// v0.16: chain length 1 だと Polity 関連 House は ownerHouse 1 つだけになる。
+// その owner が滅んで eligibleHouseIds が空になっても、Polity に granteed Province が残るなら
+// LandContract grantee 不整合を防ぐため、世界中から active な通常 House を 1 つ拾って ownerHouse に
+// 任命する。これにより「王朝交代」が常に起き、Polity 自体は landless になるまで存続する。
+function findFallbackOwnerHouse(state: WorldState, excludeHouseId?: HouseId): HouseId | undefined {
+  let best: { houseId: HouseId; legacyPrestige: number } | undefined
+  for (const houseId of Object.keys(state.houses).sort()) {
+    if (excludeHouseId !== undefined && houseId === excludeHouseId) continue
+    const house = state.houses[houseId as HouseId]
+    if (!house || !house.active) continue
+    if (house.kind === 'system') continue
+    // ownerHouse は seatProvinceId を持っているはず (chain length 1 想定では undefined 不可)
+    if (!best || house.legacyPrestige > best.legacyPrestige) {
+      best = { houseId: house.id, legacyPrestige: house.legacyPrestige }
+    }
+  }
+  return best?.houseId
+}
+
+// polityIndex.byOwnerHouse を更新する: oldOwner から外し newOwner に追加。
+function reassignPolityOwnership(
+  state: WorldState,
+  polityId: PolityId,
+  oldOwnerId: HouseId | undefined,
+  newOwnerId: HouseId,
+): WorldState {
+  const byOwnerHouse = { ...state.polityIndex.byOwnerHouse }
+  if (oldOwnerId !== undefined) {
+    const oldSlot = byOwnerHouse[oldOwnerId] ?? []
+    byOwnerHouse[oldOwnerId] = oldSlot.filter((p: PolityId) => p !== polityId)
+  }
+  const newSlot = byOwnerHouse[newOwnerId] ?? []
+  if (!newSlot.includes(polityId)) {
+    byOwnerHouse[newOwnerId] = [...newSlot, polityId]
+  }
+  return {
+    ...state,
+    polityIndex: { byOwnerHouse },
+  }
+}
+
 function deactivatePolityInline(ctx: TickContext, polityId: PolityId): TickContext {
   const polity = ctx.state.polities[polityId]
   if (!polity) return ctx
@@ -176,7 +218,13 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
 
     // Step 2: ownerHouseId が undefined の場合の補充
     if (polity.ownerHouseId === undefined) {
-      if (eligibleHouseIds.length === 0) {
+      // v0.16: Polity に Province がまだ残っているなら、グローバルに active 通常 House を探して
+      // 補充する (LandContract grantee 不整合防止)。それも無ければ POLITY_EXTINCT。
+      const newOwnerId =
+        eligibleHouseIds.length > 0
+          ? chooseOwner(currentCtx, polityId, eligibleHouseIds)!
+          : findFallbackOwnerHouse(currentCtx.state)
+      if (newOwnerId === undefined) {
         currentCtx = deactivatePolityInline(currentCtx, polityId)
         currentCtx = emitPolityExtinct(
           currentCtx,
@@ -185,24 +233,24 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
         )
         continue
       }
-      const newOwnerId = chooseOwner(currentCtx, polityId, eligibleHouseIds)!
       const newCapital =
         getHouseSeatProvinceInPolity(currentCtx.state, newOwnerId, polityId) ?? provinceIds[0]!
       const updated = currentCtx.state.polities[polityId]
       if (!updated) continue
-      currentCtx = {
-        ...currentCtx,
-        state: {
-          ...currentCtx.state,
-          polities: {
-            ...currentCtx.state.polities,
-            [polityId]: {
-              ...updated,
-              ownerHouseId: newOwnerId,
-              capitalProvinceId: newCapital,
-            },
+      const stateWithOwner: WorldState = {
+        ...currentCtx.state,
+        polities: {
+          ...currentCtx.state.polities,
+          [polityId]: {
+            ...updated,
+            ownerHouseId: newOwnerId,
+            capitalProvinceId: newCapital,
           },
         },
+      }
+      currentCtx = {
+        ...currentCtx,
+        state: reassignPolityOwnership(stateWithOwner, polityId, undefined, newOwnerId),
       }
       currentCtx = replacePolityLeader(currentCtx, polityId, newOwnerId)
       currentCtx = emitPolityOwnerChanged(currentCtx, polityId, undefined, newOwnerId, newCapital)
@@ -218,7 +266,15 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
 
     if (!ownerInvalid) continue
 
-    if (eligibleHouseIds.length === 0) {
+    // v0.16: eligibleHouseIds が空でも、Polity が provinces を持つ限り別 House を ownerHouse に
+    // 任命する (LandContract grantee 不整合防止)。グローバル fallback で active 通常 House を探す。
+    const oldOwnerId = polity.ownerHouseId
+    const newOwnerId =
+      eligibleHouseIds.length > 0
+        ? chooseOwner(currentCtx, polityId, eligibleHouseIds)!
+        : findFallbackOwnerHouse(currentCtx.state, oldOwnerId)
+    if (newOwnerId === undefined) {
+      // 世界に active 通常 House が 1 つも残っていない場合のみ extinct
       currentCtx = deactivatePolityInline(currentCtx, polityId)
       currentCtx = emitPolityExtinct(
         currentCtx,
@@ -227,26 +283,24 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
       )
       continue
     }
-
-    const oldOwnerId = polity.ownerHouseId
-    const newOwnerId = chooseOwner(currentCtx, polityId, eligibleHouseIds)!
     const newCapital =
       getHouseSeatProvinceInPolity(currentCtx.state, newOwnerId, polityId) ?? provinceIds[0]!
     const updated = currentCtx.state.polities[polityId]
     if (!updated) continue
-    currentCtx = {
-      ...currentCtx,
-      state: {
-        ...currentCtx.state,
-        polities: {
-          ...currentCtx.state.polities,
-          [polityId]: {
-            ...updated,
-            ownerHouseId: newOwnerId,
-            capitalProvinceId: newCapital,
-          },
+    const stateWithOwner: WorldState = {
+      ...currentCtx.state,
+      polities: {
+        ...currentCtx.state.polities,
+        [polityId]: {
+          ...updated,
+          ownerHouseId: newOwnerId,
+          capitalProvinceId: newCapital,
         },
       },
+    }
+    currentCtx = {
+      ...currentCtx,
+      state: reassignPolityOwnership(stateWithOwner, polityId, oldOwnerId, newOwnerId),
     }
     currentCtx = replacePolityLeader(currentCtx, polityId, newOwnerId)
     currentCtx = emitPolityOwnerChanged(currentCtx, polityId, oldOwnerId, newOwnerId, newCapital)
