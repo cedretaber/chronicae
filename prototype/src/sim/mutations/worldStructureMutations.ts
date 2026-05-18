@@ -12,6 +12,8 @@ import type { CtxResult } from './result'
 import { ok, err } from './result'
 import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMutations'
 import { movePersonToHouse } from './personMutations'
+import { dispersePersonsToAnonymousHouse } from './houseMutations'
+import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
 import { getHouseLeader, getPolityLeaderHouse } from '../selectors/officeSelectors'
 import {
   pickNameBySex,
@@ -366,14 +368,53 @@ function handleNormalHouseExtinction(
   const receiverHouseId = chooseReceiverHouse(ctx.state, houseId, affectedPolityIds)
 
   if (!receiverHouseId) {
-    // メンバーは inactive のまま House 解散。Polity の active 化は
-    // PolityOwnerConsistencySystem に委ねるためここでは触らない。
-    const newHouses = { ...ctx.state.houses }
+    // v0.17 §5.6: 受け継ぎ家が見つからない場合、living non-placeholder member を AnonymousHouse に散らす。
+    // dead / placeholder member は元 house に残し、house は active=false とする。
+    let workingState = ctx.state
+    const livingMemberIds: PersonId[] = []
+    for (const memberId of house.memberIds) {
+      const p = workingState.persons[memberId]
+      if (!p || !p.alive || p.kind === 'placeholder') continue
+      livingMemberIds.push(memberId)
+    }
+
+    const disperseResult = dispersePersonsToAnonymousHouse(workingState, {
+      houseId,
+      year: workingState.currentYear,
+    })
+    if (disperseResult.ok) workingState = disperseResult.value
+
+    const newHouses = { ...workingState.houses }
     const extinctHouseObj = newHouses[houseId]
     if (!extinctHouseObj) return ctx
-    newHouses[houseId] = { ...extinctHouseObj, active: false, memberIds: [] }
-    const finalState = { ...ctx.state, houses: newHouses }
-    const { id: eventId, ctx: eventCtx } = makeEventId({ ...ctx, state: finalState })
+    newHouses[houseId] = {
+      ...extinctHouseObj,
+      active: false,
+      memberIds: extinctHouseObj.memberIds,
+    }
+    const finalState = { ...workingState, houses: newHouses }
+    let eventCtx: TickContext = { ...ctx, state: finalState }
+
+    if (livingMemberIds.length > 0) {
+      const { id: dispersedEventId, ctx: ec1 } = makeEventId(eventCtx)
+      const dispersedEvent: SimEvent = {
+        id: dispersedEventId,
+        year: finalState.currentYear,
+        month: finalState.currentMonth,
+        type: 'HOUSE_MEMBERS_DISPERSED',
+        importance: 'normal',
+        actorIds: livingMemberIds,
+        houseIds: [houseId, ANONYMOUS_HOUSE_ID],
+        polityIds: [],
+        provinceIds: [],
+        summary: `The remnants of ${house.name} dispersed into obscurity.`,
+        reasons: [],
+        effects: [],
+      }
+      eventCtx = { ...ec1, events: [...ec1.events, dispersedEvent] }
+    }
+
+    const { id: eventId, ctx: ec2 } = makeEventId(eventCtx)
     const event: SimEvent = {
       id: eventId,
       year: finalState.currentYear,
@@ -388,7 +429,7 @@ function handleNormalHouseExtinction(
       reasons: [],
       effects: [],
     }
-    return { ...eventCtx, state: finalState, events: [...eventCtx.events, event] }
+    return { ...ec2, events: [...ec2.events, event] }
   }
 
   let resultCtx = ctx

@@ -14,7 +14,6 @@ import {
   clearPersonWealth,
 } from './personMutations'
 import { setSpouse } from './relationshipMutations'
-import { createOfficeAssignment } from './officeMutations'
 import {
   bindProvinceToHouseViaPolity,
   makeEmptyV016State,
@@ -114,32 +113,26 @@ describe('markPersonDead', () => {
     if (result.ok) expect(result.value.persons[person1Id]!.alive).toBe(false)
   })
 
-  it('clears spouse relationship on both sides', () => {
-    const { state, person1Id, person2Id } = makeFixture()
-    const withSpouse = setSpouse(state, person1Id, person2Id)
-    expect(withSpouse.ok).toBe(true)
-    if (!withSpouse.ok) return
-    const result = markPersonDead(withSpouse.value, person1Id)
+  it('does not set deathCircumstance when no options given', () => {
+    const { state, person1Id } = makeFixture()
+    const result = markPersonDead(state, person1Id)
     expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.value.persons[person1Id]!.spouseId).toBeUndefined()
-    expect(result.value.persons[person2Id]!.spouseId).toBeUndefined()
+    if (result.ok) expect(result.value.persons[person1Id]!.deathCircumstance).toBeUndefined()
   })
 
-  it('revokes active office assignments', () => {
-    const { state, person1Id, house1Id } = makeFixture()
-    const withOffice = createOfficeAssignment(
-      state,
-      { kind: 'house', id: house1Id },
-      'leader',
-      person1Id,
-    )
-    expect(Object.keys(withOffice.officeAssignments).length).toBe(1)
-    const result = markPersonDead(withOffice, person1Id)
+  it('sets deathCircumstance to natural when provided', () => {
+    const { state, person1Id } = makeFixture()
+    const result = markPersonDead(state, person1Id, { deathCircumstance: 'natural' })
     expect(result.ok).toBe(true)
-    if (!result.ok) return
-    const assignments = Object.values(result.value.officeAssignments)
-    expect(assignments.every((a) => !a.active)).toBe(true)
+    if (result.ok) expect(result.value.persons[person1Id]!.deathCircumstance).toBe('natural')
+  })
+
+  it('sets deathCircumstance to faded_from_history when provided', () => {
+    const { state, person1Id } = makeFixture()
+    const result = markPersonDead(state, person1Id, { deathCircumstance: 'faded_from_history' })
+    expect(result.ok).toBe(true)
+    if (result.ok)
+      expect(result.value.persons[person1Id]!.deathCircumstance).toBe('faded_from_history')
   })
 
   it('is a no-op when person is already dead', () => {

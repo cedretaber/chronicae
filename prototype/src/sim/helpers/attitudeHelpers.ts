@@ -177,3 +177,23 @@ export function initNewHouseAttitudes(): AttitudeMap {
 export function initNewPolityAttitudes(): void {
   // Attitudes for new polities are initialized by revolt system directly
 }
+
+// v0.17 §11.x: like adjustAttitude, but ONLY updates if the key already exists.
+// If key is absent, returns the input map unchanged (does NOT create the entry).
+// Used by FactionPatronageSystem to avoid creating new attitude keys for routine
+// donations / stipends (decisions §2.12).
+export function updateAttitudeIfExists(
+  attitudes: AttitudeMap,
+  key: AttitudeKey,
+  delta: Partial<Attitude>,
+): AttitudeMap {
+  const current = attitudes[key]
+  if (!current) return attitudes
+  return {
+    ...attitudes,
+    [key]: {
+      affection: clamp(current.affection + (delta.affection ?? 0), -100, 100),
+      respect: clamp(current.respect + (delta.respect ?? 0), -100, 100),
+    },
+  }
+}

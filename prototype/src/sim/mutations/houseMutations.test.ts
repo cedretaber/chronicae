@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { createPolityId, createHouseId, createProvinceId } from '../types/ids'
-import type { PolityId, HouseId, ProvinceId } from '../types/ids'
+import { createPolityId, createHouseId, createProvinceId, createPersonId } from '../types/ids'
+import type { PolityId, HouseId, ProvinceId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { TickContext } from '../tick/context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
-import { createHouse, deactivateHouse, addHouseWealth } from './houseMutations'
+import {
+  createHouse,
+  deactivateHouse,
+  addHouseWealth,
+  dispersePersonsToAnonymousHouse,
+} from './houseMutations'
+import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { makeEmptyV016State, withHouse, withPerson } from '../testFixtures'
 
 function makeFixture(): {
   state: WorldState
@@ -73,8 +80,13 @@ function makeFixture(): {
     provinceTerminalPolityCache: {},
     provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
     polityIndex: { byOwnerHouse: {} },
+    factions: {},
+    factionMemberships: {},
+    factionIndex: { byLeader: {}, byMember: {} },
     nextLandContractId: 0,
     nextProvinceOfficeAssignmentId: 0,
+    nextFactionId: 0,
+    nextFactionMembershipId: 0,
   }
   return { state, polity1Id, house1Id, provinceId }
 }
@@ -188,5 +200,122 @@ describe('addHouseWealth', () => {
     const { state } = makeFixture()
     const result = addHouseWealth(state, createHouseId('h', 99), 10)
     expect(result.ok).toBe(false)
+  })
+})
+
+describe('dispersePersonsToAnonymousHouse', () => {
+  function makeDisperseFixture(): {
+    state: WorldState
+    sourceHouseId: HouseId
+    livingPersonId: PersonId
+    deadPersonId: PersonId
+    placeholderPersonId: PersonId
+  } {
+    const sourceHouseId = createHouseId('h', 10)
+    const livingPersonId = createPersonId('pe', 10)
+    const deadPersonId = createPersonId('pe', 11)
+    const placeholderPersonId = createPersonId('pe', 12)
+
+    let state = makeEmptyV016State()
+    state = withHouse(state, sourceHouseId, {
+      name: 'Source House',
+      active: true,
+      memberIds: [livingPersonId, deadPersonId, placeholderPersonId],
+    })
+    state = withPerson(state, livingPersonId, {
+      name: 'Living',
+      houseId: sourceHouseId,
+      alive: true,
+    })
+    state = withPerson(state, deadPersonId, { name: 'Dead', houseId: sourceHouseId, alive: false })
+    state = withPerson(state, placeholderPersonId, {
+      name: 'Placeholder',
+      houseId: sourceHouseId,
+      alive: true,
+      kind: 'placeholder',
+    })
+    return { state, sourceHouseId, livingPersonId, deadPersonId, placeholderPersonId }
+  }
+
+  it('moves living non-placeholder members to AnonymousHouse', () => {
+    const { state, sourceHouseId, livingPersonId } = makeDisperseFixture()
+    const result = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const anon = result.value.houses[ANONYMOUS_HOUSE_ID]!
+    expect(anon.memberIds).toContain(livingPersonId)
+    expect(result.value.persons[livingPersonId]!.houseId).toBe(ANONYMOUS_HOUSE_ID)
+    expect(result.value.persons[livingPersonId]!.lastHouseTransferYear).toBe(1450)
+  })
+
+  it('keeps dead and placeholder members in source house', () => {
+    const { state, sourceHouseId, deadPersonId, placeholderPersonId } = makeDisperseFixture()
+    const result = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const source = result.value.houses[sourceHouseId]!
+    expect(source.memberIds).toContain(deadPersonId)
+    expect(source.memberIds).toContain(placeholderPersonId)
+  })
+
+  it('sets lastHouseTransferYear on transferred persons', () => {
+    const { state, sourceHouseId, livingPersonId } = makeDisperseFixture()
+    const result = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.persons[livingPersonId]!.lastHouseTransferYear).toBe(1450)
+  })
+
+  it('appends to AnonymousHouse.memberIds without duplicates', () => {
+    const { state, sourceHouseId, livingPersonId } = makeDisperseFixture()
+    // First disperse
+    const first = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    // Second disperse from same source (no living members left)
+    const second = dispersePersonsToAnonymousHouse(first.value, {
+      houseId: sourceHouseId,
+      year: 1451,
+    })
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    const anon = second.value.houses[ANONYMOUS_HOUSE_ID]!
+    const count = anon.memberIds.filter((id) => id === livingPersonId).length
+    expect(count).toBe(1)
+  })
+
+  it('filters source house.memberIds to remove transferred persons', () => {
+    const { state, sourceHouseId, livingPersonId, deadPersonId, placeholderPersonId } =
+      makeDisperseFixture()
+    const result = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const source = result.value.houses[sourceHouseId]!
+    expect(source.memberIds).not.toContain(livingPersonId)
+    expect(source.memberIds).toContain(deadPersonId)
+    expect(source.memberIds).toContain(placeholderPersonId)
+  })
+
+  it('is a no-op when source has no living member', () => {
+    const { state, sourceHouseId } = makeDisperseFixture()
+    // Remove all living members by making the only living person dead
+    const result = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // Now source has only dead/placeholder members
+    const source = result.value.houses[sourceHouseId]!
+    expect(source.memberIds.length).toBe(2) // dead + placeholder
+  })
+
+  it('returns err when source house not found', () => {
+    const { state } = makeFixture()
+    const result = dispersePersonsToAnonymousHouse(state, {
+      houseId: createHouseId('h', 99),
+      year: 1450,
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
   })
 })

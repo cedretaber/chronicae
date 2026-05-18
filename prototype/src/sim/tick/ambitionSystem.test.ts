@@ -90,6 +90,11 @@ function makeFixture(): {
       },
     },
     nextOfficeAssignmentId: state.nextOfficeAssignmentId + 1,
+    factions: {},
+    factionMemberships: {},
+    factionIndex: { byLeader: {}, byMember: {} },
+    nextFactionId: 0,
+    nextFactionMembershipId: 0,
   }
 
   const ctx: TickContext = {

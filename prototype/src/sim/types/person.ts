@@ -5,6 +5,19 @@ export type Sex = 'male' | 'female'
 export type BirthStatus = 'legitimate' | 'illegitimate' | 'unknown'
 export type PersonKind = 'normal' | 'placeholder'
 
+export type UnaffiliatedOccupation =
+  | 'adventurer'
+  | 'merchant'
+  | 'scholar'
+  | 'mercenary'
+  | 'scribe'
+  | 'priest'
+  | 'physician'
+  | 'jurist'
+  | 'wanderer'
+
+export type DeathCircumstance = 'natural' | 'faded_from_history'
+
 export type AbilityScores = {
   valor: number // 個人戦闘力・身体能力・士気
   command: number // 組織を束ねる・軍指揮の規律
@@ -38,4 +51,7 @@ export type Person = {
   legacyPrestige: number // 0..100
   wealth: number // >= 0
   attitudes: AttitudeMap
+  occupation?: UnaffiliatedOccupation
+  deathCircumstance?: DeathCircumstance
+  lastHouseTransferYear?: number
 }

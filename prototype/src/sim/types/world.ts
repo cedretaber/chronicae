@@ -10,6 +10,8 @@ import type {
   OfficeAssignmentId,
   LandContractId,
   ProvinceOfficeAssignmentId,
+  FactionId,
+  FactionMembershipId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -27,6 +29,7 @@ import type {
   ProvinceOfficeIndex,
   PolityIndex,
 } from './landContract'
+import type { Faction, FactionMembership, FactionIndex } from './faction'
 
 export type WorldState = {
   currentYear: number
@@ -47,10 +50,15 @@ export type WorldState = {
   provinceTerminalPolityCache: ProvinceTerminalPolityCache
   provinceOfficeIndex: ProvinceOfficeIndex
   polityIndex: PolityIndex
+  factions: Record<FactionId, Faction>
+  factionMemberships: Record<FactionMembershipId, FactionMembership>
+  factionIndex: FactionIndex
   nextOrganizationShareId: number
   nextOfficeAssignmentId: number
   nextLandContractId: number
   nextProvinceOfficeAssignmentId: number
+  nextFactionId: number
+  nextFactionMembershipId: number
 }
 
 export type SimulationSession = {

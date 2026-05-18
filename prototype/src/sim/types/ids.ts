@@ -56,3 +56,14 @@ export function createLandContractId(n: number): LandContractId {
 export function createProvinceOfficeAssignmentId(n: number): ProvinceOfficeAssignmentId {
   return ('po-' + n) as ProvinceOfficeAssignmentId
 }
+
+export type FactionId = Branded<string, 'FactionId'>
+export type FactionMembershipId = Branded<string, 'FactionMembershipId'>
+
+export function createFactionId(n: number): FactionId {
+  return ('f-' + n) as FactionId
+}
+
+export function createFactionMembershipId(n: number): FactionMembershipId {
+  return ('fm-' + n) as FactionMembershipId
+}

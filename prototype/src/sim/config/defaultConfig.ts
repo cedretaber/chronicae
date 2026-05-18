@@ -1,3 +1,7 @@
+import type { OfficeRole } from '../types/office'
+import type { PolityRank } from '../types/polity'
+import type { UnaffiliatedOccupation } from '../types/person'
+
 export type SimulationConfig = {
   debug: boolean
   minLivingMembersPerHouse: number
@@ -331,6 +335,78 @@ export type SimulationConfig = {
   estateRecoveryRateMin: number
   estateRecoveryRateMax: number
   estateSettledNormalWealthRatio: number
+  // v0.17 Faction lifecycle
+  factionFormationThreshold: number
+  factionDisbandThreshold: number
+  factionDisbandWealthFloor: number
+  minimumFactionFounderWealth: number
+  initialFactionMemberMax: number
+  minimumInitialFactionMembers: number
+  minimumFactionMembers: number
+  factionViabilityMemberCountWeight: number
+  factionViabilityOfficeHolderWeight: number
+  factionViabilityWealthWeight: number
+  // v0.17 Faction opportunity score
+  officeOpportunityRoleWeights: Record<Exclude<OfficeRole, 'leader'>, number>
+  // v0.17 Faction recruitment
+  baseFactionRecruitmentCost: number
+  factionRecruitmentPrestigeCostFactor: number
+  factionRecruitmentAbilityCostFactor: number
+  factionRecruitmentSigningBonusRate: number
+  recruitmentInitialAffection: number
+  recruitmentInitialRespect: number
+  // v0.17 Faction nomination / appointment
+  factionNominationPowerThreshold: number
+  factionOwnerHouseNominationBonus: number
+  factionBailiffNominationWeight: number
+  factionalAppointmentScoreScale: number
+  // v0.17 Faction patronage
+  factionDonationRate: number
+  factionDonationPersonalReserve: number
+  factionDonationAffectionGain: number
+  factionDonationRespectGain: number
+  factionDonationAffectionGainSmall: number
+  factionStipendBase: number
+  factionLeaderReserveWealth: number
+  factionStipendAffectionGain: number
+  factionStipendRespectGain: number
+  factionStipendShortageAffectionPenalty: number
+  factionStipendShortageRespectPenalty: number
+  // v0.17 House surplus
+  houseWealthReserveTarget: number
+  houseSurplusDistributionMonthlyRate: number
+  // v0.17 Office terms
+  officeTermYears: {
+    polity: Record<Exclude<OfficeRole, 'leader'>, number>
+    house: Record<Exclude<OfficeRole, 'leader'>, number>
+  }
+  provinceOfficeTermYears: {
+    bailiff: number
+  }
+  // v0.17 Office max (Polity rank x province count)
+  polityOfficeMaxByRank: Record<PolityRank, Record<Exclude<OfficeRole, 'leader'>, number>>
+  polityOfficeMaxProvinceFactor: {
+    small: number
+    medium: number
+    large: number
+  }
+  // v0.17 Office compatibility lookup
+  compatibleOfficePenalty: number
+  incompatibleOfficePenalty: number
+  compatibleShareReductionMax: number
+  // v0.17 Office overlap / Share
+  polityShareOfficeOverlapBonusMax: number
+  // v0.17 Unaffiliated persons
+  targetUnaffiliatedPersons: number
+  softMaxUnaffiliatedPersons: number
+  hardMaxUnaffiliatedPersons: number
+  unaffiliatedProtectionYears: number
+  pruningPrestigeThreshold: number
+  pruningWealthThreshold: number
+  pruningMinDwellYears: number
+  protectionPrestigeThreshold: number
+  // v0.17 Occupation抽選 weights
+  occupationWeights: Record<UnaffiliatedOccupation, number>
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -656,4 +732,97 @@ export const defaultConfig: SimulationConfig = {
   estateRecoveryRateMin: 0.2,
   estateRecoveryRateMax: 0.9,
   estateSettledNormalWealthRatio: 0.2,
+  // v0.17 Faction lifecycle
+  factionFormationThreshold: 5.0,
+  factionDisbandThreshold: 2.5,
+  factionDisbandWealthFloor: 10,
+  minimumFactionFounderWealth: 50,
+  initialFactionMemberMax: 3,
+  minimumInitialFactionMembers: 1,
+  minimumFactionMembers: 2,
+  factionViabilityMemberCountWeight: 0.5,
+  factionViabilityOfficeHolderWeight: 1.0,
+  factionViabilityWealthWeight: 0.5,
+  // v0.17 Faction opportunity score
+  officeOpportunityRoleWeights: {
+    administrator: 1.0,
+    treasurer: 1.0,
+    military: 1.0,
+    advisor: 0.75,
+  },
+  // v0.17 Faction recruitment
+  baseFactionRecruitmentCost: 30,
+  factionRecruitmentPrestigeCostFactor: 0.5,
+  factionRecruitmentAbilityCostFactor: 1.0,
+  factionRecruitmentSigningBonusRate: 0.3,
+  recruitmentInitialAffection: 20,
+  recruitmentInitialRespect: 10,
+  // v0.17 Faction nomination / appointment
+  factionNominationPowerThreshold: 0.3,
+  factionOwnerHouseNominationBonus: 0.3,
+  factionBailiffNominationWeight: 0.4,
+  factionalAppointmentScoreScale: 100,
+  // v0.17 Faction patronage
+  factionDonationRate: 0.1,
+  factionDonationPersonalReserve: 20,
+  factionDonationAffectionGain: 2,
+  factionDonationRespectGain: 1,
+  factionDonationAffectionGainSmall: 1,
+  factionStipendBase: 5,
+  factionLeaderReserveWealth: 30,
+  factionStipendAffectionGain: 1,
+  factionStipendRespectGain: 1,
+  factionStipendShortageAffectionPenalty: 2,
+  factionStipendShortageRespectPenalty: 1,
+  // v0.17 House surplus
+  houseWealthReserveTarget: 100,
+  houseSurplusDistributionMonthlyRate: 0.015,
+  // v0.17 Office terms
+  officeTermYears: {
+    polity: { administrator: 4, treasurer: 4, military: 3, advisor: 3 },
+    house: { administrator: 4, treasurer: 4, military: 3, advisor: 3 },
+  },
+  provinceOfficeTermYears: {
+    bailiff: 3,
+  },
+  // v0.17 Office max
+  polityOfficeMaxByRank: {
+    1: { administrator: 1, treasurer: 1, military: 1, advisor: 1 },
+    2: { administrator: 1, treasurer: 1, military: 1, advisor: 2 },
+    3: { administrator: 2, treasurer: 1, military: 2, advisor: 2 },
+    4: { administrator: 2, treasurer: 2, military: 2, advisor: 3 },
+    5: { administrator: 3, treasurer: 2, military: 3, advisor: 3 },
+  },
+  polityOfficeMaxProvinceFactor: {
+    small: 0.4,
+    medium: 0.7,
+    large: 1.0,
+  },
+  // v0.17 Office compatibility
+  compatibleOfficePenalty: 2,
+  incompatibleOfficePenalty: 10,
+  compatibleShareReductionMax: 0.5,
+  // v0.17 Office overlap / Share
+  polityShareOfficeOverlapBonusMax: 0.5,
+  // v0.17 Unaffiliated persons
+  targetUnaffiliatedPersons: 30,
+  softMaxUnaffiliatedPersons: 50,
+  hardMaxUnaffiliatedPersons: 80,
+  unaffiliatedProtectionYears: 5,
+  pruningPrestigeThreshold: 20,
+  pruningWealthThreshold: 30,
+  pruningMinDwellYears: 3,
+  protectionPrestigeThreshold: 60,
+  // v0.17 Occupation抽選 weights
+  occupationWeights: {
+    adventurer: 1.5,
+    merchant: 1.5,
+    scholar: 1.0,
+    mercenary: 1.5,
+    scribe: 1.0,
+    priest: 1.0,
+    physician: 0.8,
+    jurist: 0.7,
+    wanderer: 1.0,
+  },
 }

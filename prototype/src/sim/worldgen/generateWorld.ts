@@ -638,6 +638,11 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    factions: {},
+    factionMemberships: {},
+    factionIndex: { byLeader: {}, byMember: {} },
+    nextFactionId: 0,
+    nextFactionMembershipId: 0,
   } as unknown as WorldState
 
   // House leader offices
@@ -1159,10 +1164,15 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     provinceTerminalPolityCache,
     provinceOfficeIndex,
     polityIndex,
+    factions: {},
+    factionMemberships: {},
+    factionIndex: { byLeader: {}, byMember: {} },
     nextOrganizationShareId,
     nextOfficeAssignmentId: officeState.nextOfficeAssignmentId,
     nextLandContractId,
     nextProvinceOfficeAssignmentId,
+    nextFactionId: 0,
+    nextFactionMembershipId: 0,
   }
 
   return { world, rng }

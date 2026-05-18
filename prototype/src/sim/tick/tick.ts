@@ -35,6 +35,12 @@ import { runPopSystem, normalizePopSizes } from './popSystem'
 import { runPopDevelopmentSystem } from './popDevelopmentSystem'
 import { runPersonGrowthSystem } from './personGrowthSystem'
 import { runEstateSettlementSystem } from './estateSettlementSystem'
+import { runHouseSurplusDistributionSystem } from './houseSurplusDistributionSystem'
+import { runUnaffiliatedPersonSystem } from './unaffiliatedPersonSystem'
+import { runOfficeTermSystem } from './officeTermSystem'
+import { runFactionLifecycleSystem } from './factionLifecycleSystem'
+import { runFactionRecruitmentSystem } from './factionRecruitmentSystem'
+import { runFactionPatronageSystem } from './factionPatronageSystem'
 import { createLogger } from '../debug/logger'
 
 export function tick(input: TickInput): TickResult {
@@ -59,16 +65,22 @@ export function tick(input: TickInput): TickResult {
   run('popSystem', runPopSystem)
   run('landRevenueSystem', runLandRevenueSystem)
   run('politySurplusDistributionSystem', runPolitySurplusDistributionSystem)
+  run('houseSurplusDistributionSystem', runHouseSurplusDistributionSystem)
   run('disasterSystem', runDisasterSystem)
   run('mortalitySystem', runMortalitySystem)
   run('estateSettlementSystem', runEstateSettlementSystem)
   run('successionSystem', runSuccessionSystem)
   run('marriageSystem', runMarriageSystem)
   run('birthSystem', runBirthSystem)
+  run('unaffiliatedPersonSystem', runUnaffiliatedPersonSystem)
+  run('officeTermSystem', runOfficeTermSystem)
+  run('factionLifecycleSystem', runFactionLifecycleSystem)
+  run('factionRecruitmentSystem', runFactionRecruitmentSystem)
   run('shareUpdateSystem', runShareUpdateSystem)
   run('appointmentSystem', runAppointmentSystem)
   run('bailiffAppointmentSystem', runBailiffAppointmentSystem)
   run('officeCompensationSystem', runOfficeCompensationSystem)
+  run('factionPatronageSystem', runFactionPatronageSystem)
   run('personGrowthSystem', runPersonGrowthSystem)
   run('ambitionSystem', runAmbitionSystem)
   run('publicSpendingSystem', runPublicSpendingSystem)

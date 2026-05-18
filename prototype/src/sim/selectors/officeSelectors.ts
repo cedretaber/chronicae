@@ -2,7 +2,12 @@ import { clamp } from '@sim/utils/math'
 import type { WorldState } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { PolityId, HouseId, PersonId } from '@sim/types/ids'
-import type { OrganizationRef, OfficeAssignment, OfficeRole } from '@sim/types/office'
+import type {
+  OrganizationRef,
+  OfficeAssignment,
+  OfficeRole,
+  OrganizationKind,
+} from '@sim/types/office'
 import { OFFICE_DEFINITIONS } from '@sim/config/officeDefinitions'
 import {
   getHousePolitySharePercent,
@@ -264,4 +269,145 @@ export function getAdministrativeEfficiency(
   const load = getAdministrativeLoad(state, config, countryId)
   const raw = capacity / Math.max(1, load)
   return clamp(raw, config.minAdministrativeEfficiency, config.maxAdministrativeEfficiency)
+}
+
+// v0.17 §7.2: dynamic effective max for office holders
+export function getEffectiveOfficeMaxHolders(
+  state: WorldState,
+  config: SimulationConfig,
+  organization: OrganizationRef,
+  role: OfficeRole,
+): number {
+  const def = OFFICE_DEFINITIONS[`${organization.kind}:${role}`]
+  const baseMax = def ? def.maxHolders : 1
+
+  if (organization.kind === 'house') return baseMax
+
+  const polity = state.polities[organization.id]
+  if (!polity || !polity.active) return baseMax
+  if (role === 'leader') return baseMax
+
+  const rankRow = config.polityOfficeMaxByRank[polity.rank]
+  if (!rankRow) return baseMax
+  const rankCap = rankRow[role]
+
+  const provinceCount = getPolityTerminalProvinceIds(state, organization.id).length
+  let factor: number
+  if (provinceCount <= 1) factor = config.polityOfficeMaxProvinceFactor.small
+  else if (provinceCount <= 3) factor = config.polityOfficeMaxProvinceFactor.medium
+  else factor = config.polityOfficeMaxProvinceFactor.large
+
+  return Math.max(1, Math.min(baseMax, Math.floor(rankCap * factor)))
+}
+
+// v0.17 §6.5.1: office term expiration check (year-resolution)
+export function isOfficeTermExpired(
+  state: WorldState,
+  config: SimulationConfig,
+  assignment: OfficeAssignment,
+): boolean {
+  if (assignment.role === 'leader') return false
+  const orgKind = assignment.organization.kind
+  const role = assignment.role
+  const termYears =
+    orgKind === 'polity' ? config.officeTermYears.polity[role] : config.officeTermYears.house[role]
+  return state.currentYear - assignment.startYear >= termYears
+}
+
+// v0.17 §8.2 / §9.2: shared weight table for House-Polity office equivalents
+// Used both for compatibility penalty (§8.3) and overlap score (§9.2).
+const HOUSE_POLITY_OFFICE_EQUIVALENTS: ReadonlyArray<{
+  houseRole: OfficeRole
+  polityRole: OfficeRole
+  weight: number
+}> = [
+  { houseRole: 'leader', polityRole: 'leader', weight: 4 },
+  { houseRole: 'administrator', polityRole: 'administrator', weight: 3 },
+  { houseRole: 'treasurer', polityRole: 'treasurer', weight: 3 },
+  { houseRole: 'military', polityRole: 'military', weight: 2 },
+  { houseRole: 'advisor', polityRole: 'advisor', weight: 1 },
+]
+
+// v0.17 §9.2: how much of a House's Polity roles are held by people who also hold the matching House role
+export function getHousePolityOfficeOverlapScore(
+  state: WorldState,
+  houseId: HouseId,
+  polityId: PolityId,
+): number {
+  let matched = 0
+  let total = 0
+  for (const { houseRole, polityRole, weight } of HOUSE_POLITY_OFFICE_EQUIVALENTS) {
+    total += weight
+    const houseHolders = getActiveOfficeHolders(state, { kind: 'house', id: houseId }, houseRole)
+    const polityHolders = getActiveOfficeHolders(
+      state,
+      { kind: 'polity', id: polityId },
+      polityRole,
+    )
+    if (houseHolders.length === 0 || polityHolders.length === 0) continue
+    if (houseHolders.some((h) => polityHolders.includes(h))) matched += weight
+  }
+  return total === 0 ? 0 : matched / total
+}
+
+function isCompatiblePair(
+  existing: OfficeAssignment,
+  targetKind: OrganizationKind,
+  targetRole: OfficeRole,
+): boolean {
+  if (existing.organization.kind === targetKind) return false
+  if (targetRole === 'leader' || existing.role === 'leader') return false
+  return existing.role === targetRole
+}
+
+function getCompatibleShareReduction(
+  state: WorldState,
+  config: SimulationConfig,
+  candidateHouseId: HouseId,
+  targetOrganization: OrganizationRef,
+): number {
+  if (targetOrganization.kind !== 'polity') return 0
+  const polity = state.polities[targetOrganization.id]
+  if (!polity) return 0
+  if (polity.ownerHouseId === candidateHouseId) {
+    return config.compatibleShareReductionMax
+  }
+  const sharePct = getHousePolitySharePercent(state, targetOrganization.id, candidateHouseId) / 100
+  const clamped = Math.max(0, Math.min(1, sharePct))
+  return clamped * config.compatibleShareReductionMax
+}
+
+// v0.17 §8.3: total compatibility penalty across all existing offices the candidate holds.
+export function getOfficeCompatibilityPenalty(
+  state: WorldState,
+  config: SimulationConfig,
+  candidateId: PersonId,
+  targetOrganization: OrganizationRef,
+  targetRole: OfficeRole,
+): number {
+  const candidate = state.persons[candidateId]
+  if (!candidate) return 0
+
+  let total = 0
+  const ownIds = state.officeIndex.byHolderPerson[candidateId] ?? []
+  for (const officeId of ownIds) {
+    const existing = state.officeAssignments[officeId]
+    if (!existing || !existing.active) continue
+    if (existing.role === 'leader') continue
+    if (targetRole === 'leader') continue
+
+    if (isCompatiblePair(existing, targetOrganization.kind, targetRole)) {
+      const reduction = getCompatibleShareReduction(
+        state,
+        config,
+        candidate.houseId,
+        targetOrganization,
+      )
+      total += config.compatibleOfficePenalty * (1 - reduction)
+    } else {
+      // Same-kind same-role would be an unusual case; treat as incompatible.
+      total += config.incompatibleOfficePenalty
+    }
+  }
+  return total
 }

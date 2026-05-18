@@ -1,7 +1,7 @@
 import type { TickContext } from '../tick/context'
 import { makePersonId } from '../tick/context'
 import type { PersonId, HouseId } from '../types/ids'
-import type { Person, Sex, BirthStatus, AbilityScores } from '../types/person'
+import type { Person, Sex, BirthStatus, AbilityScores, DeathCircumstance } from '../types/person'
 import type { WorldState } from '../types/world'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
@@ -20,7 +20,15 @@ export type BirthChildInput = {
   traits: { ambition: number; caution: number }
 }
 
-export function markPersonDead(state: WorldState, personId: PersonId): StateResult {
+export type MarkPersonDeadOptions = {
+  deathCircumstance?: DeathCircumstance
+}
+
+export function markPersonDead(
+  state: WorldState,
+  personId: PersonId,
+  options?: MarkPersonDeadOptions,
+): StateResult {
   const person = state.persons[personId]
   if (!person)
     return err({
@@ -29,9 +37,15 @@ export function markPersonDead(state: WorldState, personId: PersonId): StateResu
     })
   if (!person.alive) return ok(state)
 
+  const deathCircumstance = options?.deathCircumstance
+  const updatedPerson: typeof person =
+    deathCircumstance !== undefined
+      ? { ...person, alive: false, deathCircumstance }
+      : { ...person, alive: false }
+
   let newState: WorldState = {
     ...state,
-    persons: { ...state.persons, [personId]: { ...person, alive: false } },
+    persons: { ...state.persons, [personId]: updatedPerson },
   }
   const spouseResult = clearSpouse(newState, personId)
   if (spouseResult.ok) newState = spouseResult.value

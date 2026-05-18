@@ -82,8 +82,13 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     provinceTerminalPolityCache: {},
     provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
     polityIndex: { byOwnerHouse: {} },
+    factions: {},
+    factionMemberships: {},
+    factionIndex: { byLeader: {}, byMember: {} },
     nextLandContractId: 0,
     nextProvinceOfficeAssignmentId: 0,
+    nextFactionId: 0,
+    nextFactionMembershipId: 0,
   }
 }
 

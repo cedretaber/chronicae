@@ -411,6 +411,8 @@ describe('runAppointmentSystem', () => {
       polityIndex: { byOwnerHouse: {} },
       nextLandContractId: 0,
       nextProvinceOfficeAssignmentId: 0,
+      nextFactionId: 0,
+      nextFactionMembershipId: 0,
     }
 
     const config = { ...defaultConfig }
@@ -469,6 +471,8 @@ describe('runAppointmentSystem', () => {
       polityIndex: { byOwnerHouse: {} },
       nextLandContractId: 0,
       nextProvinceOfficeAssignmentId: 0,
+      nextFactionId: 0,
+      nextFactionMembershipId: 0,
     }
 
     const config = { ...defaultConfig, allowFemaleRolesWhenNoMaleCandidate: true }
@@ -525,6 +529,8 @@ describe('runAppointmentSystem', () => {
       polityIndex: { byOwnerHouse: {} },
       nextLandContractId: 0,
       nextProvinceOfficeAssignmentId: 0,
+      nextFactionId: 0,
+      nextFactionMembershipId: 0,
     }
 
     const config = { ...defaultConfig, allowFemaleRolesWhenNoMaleCandidate: false }

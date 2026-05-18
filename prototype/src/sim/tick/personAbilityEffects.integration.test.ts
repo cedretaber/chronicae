@@ -153,6 +153,11 @@ function makeWorldState(
       byHolderPerson: { ...state.officeIndex.byHolderPerson },
     },
     nextOfficeAssignmentId: state.nextOfficeAssignmentId + assignmentCounter,
+    factions: {},
+    factionMemberships: {},
+    factionIndex: { byLeader: {}, byMember: {} },
+    nextFactionId: 0,
+    nextFactionMembershipId: 0,
   }
   return state
 }
@@ -315,8 +320,13 @@ describe('runControlSystem — capital province maxControl', () => {
       provinceTerminalPolityCache: {},
       provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
       polityIndex: { byOwnerHouse: {} },
+      factions: {},
+      factionMemberships: {},
+      factionIndex: { byLeader: {}, byMember: {} },
       nextLandContractId: 0,
       nextProvinceOfficeAssignmentId: 0,
+      nextFactionId: 0,
+      nextFactionMembershipId: 0,
     }
 
     const result = runControlSystem(makeCtx(world))
