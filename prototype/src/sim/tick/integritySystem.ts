@@ -4,6 +4,7 @@ import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
 import { ABILITY_KEYS, ABILITY_HARD_CAP } from '../constants/abilityConstants'
+import { getHouseProvinceIdsByPolity } from '../selectors/polityRelations'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 
@@ -402,6 +403,110 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
       if (office && office.active) {
         console.warn(`Active House ${houseId} has active house:leader Office`)
       }
+    }
+  }
+
+  // 20. spec §25.2 #2 — Province.ownerHouseId must point to an existing House
+  for (const provinceId of Object.keys(state.provinces)) {
+    const province = state.provinces[provinceId as ProvinceId]
+    if (!province) continue
+    if (province.ownerHouseId !== '' && !state.houses[province.ownerHouseId]) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provinceId} has ownerHouseId ${province.ownerHouseId} which does not exist`,
+      })
+    }
+  }
+
+  // 21. spec §25.2 #3 — Province whose Polity is inactive is a violation
+  for (const provinceId of Object.keys(state.provinces)) {
+    const province = state.provinces[provinceId as ProvinceId]
+    if (!province) continue
+    if (province.polityId === '') continue
+    const polity = state.polities[province.polityId]
+    if (polity && !polity.active) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provinceId} belongs to inactive Polity ${province.polityId}`,
+      })
+    }
+  }
+
+  // 22. spec §25.2 #4 — Province ownerHouse is inactive
+  for (const provinceId of Object.keys(state.provinces)) {
+    const province = state.provinces[provinceId as ProvinceId]
+    if (!province) continue
+    if (province.ownerHouseId === '') continue
+    const ownerHouse = state.houses[province.ownerHouseId]
+    if (ownerHouse && !ownerHouse.active) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provinceId} has inactive ownerHouse ${province.ownerHouseId}`,
+      })
+    }
+  }
+
+  // 23. spec §25.2 #8 — Active Polity ownerHouse must exist and be active (WARN)
+  for (const polityId of Object.keys(state.polities)) {
+    const polity = state.polities[polityId as PolityId]
+    if (!polity || !polity.active) continue
+    if (polity.ownerHouseId === undefined) continue
+    const ownerHouse = state.houses[polity.ownerHouseId]
+    if (!ownerHouse || !ownerHouse.active) {
+      console.warn(
+        `INTEGRITY (Stage B warn): Polity ${polityId} ownerHouseId ${polity.ownerHouseId} is missing or inactive`,
+      )
+    }
+  }
+
+  // 24. spec §25.2 #9 — Active Polity ownerHouse must own a Province in that Polity (WARN)
+  for (const polityId of Object.keys(state.polities)) {
+    const polity = state.polities[polityId as PolityId]
+    if (!polity || !polity.active) continue
+    if (polity.ownerHouseId === undefined) continue
+    if (
+      getHouseProvinceIdsByPolity(state, polity.ownerHouseId, polityId as PolityId).length === 0
+    ) {
+      console.warn(
+        `INTEGRITY (Stage B warn): Polity ${polityId} ownerHouse ${polity.ownerHouseId} owns no Province in this Polity`,
+      )
+    }
+  }
+
+  // 25. spec §25.2 #14 — OrganizationShare holder House must own Province in Polity
+  // Stage B warn: tightened in Phase 6
+  for (const shareId of Object.keys(state.organizationShares)) {
+    const share = state.organizationShares[shareId as import('../types/ids').OrganizationShareId]
+    if (!share) continue
+    if (share.organization.kind !== 'polity') continue
+    const polity = state.polities[share.organization.id]
+    if (!polity || !polity.active) continue
+    if (share.holder.kind !== 'house') continue
+    if (getHouseProvinceIdsByPolity(state, share.holder.id, share.organization.id).length === 0) {
+      console.warn(
+        `INTEGRITY (Stage B warn): OrganizationShare ${shareId} holder House ${share.holder.id} owns no Province in Polity ${share.organization.id}`,
+      )
+    }
+  }
+
+  // 26. spec §25.2 #15 — OfficeAssignment holder House must be in Polity
+  // Stage B warn: tightened in Phase 6
+  for (const officeId of Object.keys(state.officeAssignments)) {
+    const office = state.officeAssignments[officeId as import('../types/ids').OfficeAssignmentId]
+    if (!office || !office.active) continue
+    if (office.organization.kind !== 'polity') continue
+    const polity = state.polities[office.organization.id]
+    if (!polity || !polity.active) continue
+    const person = state.persons[office.holderPersonId]
+    if (!person) continue
+    const houseId = person.houseId
+    const ownsProvince =
+      getHouseProvinceIdsByPolity(state, houseId, office.organization.id).length > 0
+    const isOwnerHouse = polity.ownerHouseId !== undefined && houseId === polity.ownerHouseId
+    if (!ownsProvince && !isOwnerHouse) {
+      console.warn(
+        `INTEGRITY (Stage B warn): OfficeAssignment ${officeId} holder Person ${office.holderPersonId} belongs to House ${houseId}, which is not in Polity ${polity.id}`,
+      )
     }
   }
 

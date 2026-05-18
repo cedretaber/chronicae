@@ -306,6 +306,11 @@ export type SimulationConfig = {
   // v0.12 Appointment — concurrent office limits
   concurrentOfficePenalty: number
   minAppointmentScore: number
+  // v0.15 §13.4 Polity appointment scoring
+  polityShareAppointmentFactor: number
+  houseShareAppointmentFactor: number
+  ownerHouseAppointmentBonus: number
+  sameHousePolityOfficePenalty: number
   // v0.14 Ability generation / inheritance
   abilityAptitudeMean: number
   abilityAptitudeStddev: number
@@ -429,7 +434,7 @@ export const defaultConfig: SimulationConfig = {
   marriageFemaleMinAge: 15,
   marriageFemaleMaxAge: 45,
   marriageYearlyChance: 0.08,
-  samePrimaryPolityMarriageBonus: 0.1,
+  samePrimaryPolityMarriageBonus: 0.08,
   // v0.7 Birth
   birthEnabled: true,
   fatherMinChildAge: 15,
@@ -631,6 +636,10 @@ export const defaultConfig: SimulationConfig = {
   rulerHouseRebellionSuppression: 30,
   // v0.12 Appointment — concurrent office limits
   concurrentOfficePenalty: 8,
+  polityShareAppointmentFactor: 0.25,
+  houseShareAppointmentFactor: 0.08,
+  ownerHouseAppointmentBonus: 4,
+  sameHousePolityOfficePenalty: 2,
   minAppointmentScore: 2,
   // v0.14 Ability generation / inheritance
   abilityAptitudeMean: 50,

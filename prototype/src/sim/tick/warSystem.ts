@@ -23,7 +23,7 @@ import {
   adjustProvincePopSizeByClass,
 } from '../mutations/popMutations'
 import { getPolityLeaderHouse, getActiveOfficeHolders } from '../selectors/officeSelectors'
-import { getHousePrimaryPolityId, getPolityHouseIds } from '../selectors/polityRelations'
+import { getPolityHouseIds } from '../selectors/polityRelations'
 
 function emitWarEvent(
   ctx: TickContext,
@@ -270,12 +270,18 @@ export function runWarSystem(ctx: TickContext): TickContext {
           },
         }
 
+        // v0.15 §17.3: 征服 Province の新 ownerHouse 選定
+        // 1) attacker Polity の ownerHouseId
+        // 2) attacker Polity leader が属する House
+        // 3) attacker Polity 内で最大 Share の House
+        // 4) Polity 内で Province 数最大の House
+        const attackerOwnerHouseId = attackerPolity.ownerHouseId
         const rulerHouseId =
+          (attackerOwnerHouseId && currentState.houses[attackerOwnerHouseId]?.active
+            ? attackerOwnerHouseId
+            : undefined) ??
           getPolityLeaderHouse(currentState, attackerPolityId) ??
-          getPolityHouseIds(currentState, attackerPolityId).find((hid) => {
-            const h = currentState.houses[hid]
-            return h?.active && getHousePrimaryPolityId(currentState, hid) === attackerPolityId
-          })
+          getPolityHouseIds(currentState, attackerPolityId)[0]
         if (!rulerHouseId) {
           continue
         }

@@ -105,6 +105,20 @@ export function deleteAllSharesForHolder(state: WorldState, holder: ShareHolderR
   return current
 }
 
+// v0.15 §11.3 / §11.4: Polity 消滅時に当該 organization の全 Share を削除する。
+export function removeSharesByOrganization(
+  state: WorldState,
+  organization: { kind: 'polity' | 'house'; id: string },
+): WorldState {
+  const orgKeyStr = `${organization.kind}:${organization.id}`
+  const ids = state.shareIndex.byOrganization[orgKeyStr] ?? []
+  let current = state
+  for (const id of ids) {
+    current = removeOrganizationShare(current, id)
+  }
+  return current
+}
+
 export function transferShareRawPower(
   state: WorldState,
   fromHolder: ShareHolderRef,

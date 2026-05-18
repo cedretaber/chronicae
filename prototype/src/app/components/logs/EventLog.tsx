@@ -50,6 +50,8 @@ const EVENT_ICON: Partial<Record<EventType, string>> = {
   HOUSE_LEADER_CHANGED: '♛',
   SUCCESSION_CRISIS: '♛',
   POLITY_LEADER_CHANGED: '♛',
+  POLITY_OWNER_CHANGED: '♛',
+  POLITY_EXTINCT: '♛',
   HOUSE_EXTINCT: '♛',
   POLITY_ANNEXED: '♛',
   POLITY_SPLIT: '♛',

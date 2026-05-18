@@ -8,7 +8,7 @@ import {
   calcHouseHeadControlGrowthModifier,
   calcHouseHeadControlMaxBonus,
 } from '../selectors/personAbilityEffects'
-import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { getHousePolityIds } from '../selectors/polityRelations'
 
 function bfs(
   startId: ProvinceId,
@@ -116,13 +116,13 @@ export function runControlSystem(ctx: TickContext): TickContext {
     const maxControlBonus = calcHouseHeadControlMaxBonus(ctx.state, house, config)
     const effectiveGrowth = config.controlGrowthPerMonth * growthModifier
 
-    const housePrimaryPolityId = getHousePrimaryPolityId(ctx.state, house.id)
-    if (!housePrimaryPolityId) continue
+    // v0.15 §14.3: House が所領を持つ全 Polity の Province を通行可能にする（多 Polity 跨ぎ対応）。
+    const housePolityIds = getHousePolityIds(ctx.state, house.id)
+    if (housePolityIds.length === 0) continue
+    const passablePolitySet = new Set<string>(housePolityIds)
 
-    const distMap = bfs(
-      house.seatProvinceId,
-      provinces,
-      (prov) => (prov as { polityId: string }).polityId === housePrimaryPolityId,
+    const distMap = bfs(house.seatProvinceId, provinces, (prov) =>
+      passablePolitySet.has((prov as { polityId: string }).polityId),
     )
 
     for (const provinceId of Object.keys(provinces) as ProvinceId[]) {

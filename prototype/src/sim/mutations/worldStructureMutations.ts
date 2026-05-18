@@ -14,7 +14,6 @@ import { createOfficeAssignment } from './officeMutations'
 import { movePersonToHouse } from './personMutations'
 import { transferProvinceToHouse } from './provinceMutations'
 import { getHouseLeader, getPolityLeaderHouse } from '../selectors/officeSelectors'
-import { getDominantPolityHouse } from '../selectors/shareSelectors'
 import {
   pickNameBySex,
   pickUniqueName,
@@ -22,7 +21,12 @@ import {
   houseName as houseNameFn,
 } from '../worldgen/nameGenerators'
 import { generatePolityName } from '../selectors/polityNamingService'
-import { getHousePrimaryPolityId, getPolityHouseIds } from '../selectors/polityRelations'
+import {
+  getHousePrimaryPolityId,
+  getHouseProvinceIdsByPolity,
+  getPolityHouseIds,
+} from '../selectors/polityRelations'
+import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
 import { samplePerson } from '../helpers/personFactory'
 
@@ -278,116 +282,108 @@ function moveLivingMembersToHouse(
   return { ...state, persons: newPersons, houses: newHouses }
 }
 
-function transferOrphanProvincesToBestNeighbor(
+// v0.15 §22.3: メンバー / 残 Province 移住先 House を選定する。
+// affectedPolityIds がスナップショット時点での関係 Polity 集合（所領喪失前）。
+function chooseReceiverHouse(
   state: WorldState,
-  orphanProvinceIds: ProvinceId[],
-  excludePolityId: PolityId,
-): WorldState {
-  if (orphanProvinceIds.length === 0) return state
-
-  const neighborCount = new Map<PolityId, number>()
-  for (const pid of orphanProvinceIds) {
-    const p = state.provinces[pid]
-    if (!p) continue
-    for (const neighborId of p.neighbors) {
-      const neighbor = state.provinces[neighborId]
-      if (!neighbor) continue
-      const pid2 = neighbor.polityId
-      if (pid2 === excludePolityId) continue
-      const polity = state.polities[pid2]
-      if (!polity || !polity.active) continue
-      neighborCount.set(pid2, (neighborCount.get(pid2) ?? 0) + 1)
+  extinctHouseId: HouseId,
+  affectedPolityIds: PolityId[],
+): HouseId | undefined {
+  // 1) affectedPolityIds 内で最大 Province 数を持つ active House
+  let bestByProvinceCount: { houseId: HouseId; count: number } | undefined
+  for (const polityId of affectedPolityIds) {
+    for (const candidateId of getPolityHouseIds(state, polityId)) {
+      if ((candidateId as string) === (extinctHouseId as string)) continue
+      const candidate = state.houses[candidateId]
+      if (!candidate || !candidate.active) continue
+      const count = getHouseProvinceIdsByPolity(state, candidateId, polityId).length
+      if (!bestByProvinceCount || count > bestByProvinceCount.count) {
+        bestByProvinceCount = { houseId: candidateId, count }
+      }
     }
   }
+  if (bestByProvinceCount) return bestByProvinceCount.houseId
 
-  let bestAnnexerId: PolityId | null = null
-  let bestScore = -1
-  for (const [pid2, score] of neighborCount.entries()) {
-    if (score > bestScore) {
-      bestScore = score
-      bestAnnexerId = pid2
+  // 2) affectedPolityIds 内で最大 Polity Share を持つ active House
+  let bestByShare: { houseId: HouseId; share: number } | undefined
+  for (const polityId of affectedPolityIds) {
+    for (const candidateId of getPolityHouseIds(state, polityId)) {
+      if ((candidateId as string) === (extinctHouseId as string)) continue
+      const candidate = state.houses[candidateId]
+      if (!candidate || !candidate.active) continue
+      const share = getHousePolitySharePercent(state, polityId, candidateId)
+      if (!bestByShare || share > bestByShare.share) {
+        bestByShare = { houseId: candidateId, share }
+      }
     }
   }
+  if (bestByShare) return bestByShare.houseId
 
-  if (!bestAnnexerId) {
-    let maxProvinces = -1
-    for (const [id, polity] of Object.entries(state.polities)) {
-      if (!polity || !polity.active || id === excludePolityId) continue
-      const count = Object.values(state.provinces).filter((p) => p?.polityId === id).length
-      if (count > maxProvinces) {
-        maxProvinces = count
-        bestAnnexerId = id as PolityId
+  // 3) 旧 seatProvinceId 隣接 Province の ownerHouse
+  const extinctHouse = state.houses[extinctHouseId]
+  if (extinctHouse) {
+    const seat = state.provinces[extinctHouse.seatProvinceId]
+    if (seat) {
+      for (const neighborId of seat.neighbors) {
+        const neighbor = state.provinces[neighborId]
+        if (!neighbor) continue
+        const ownerHouse = state.houses[neighbor.ownerHouseId]
+        if (ownerHouse && ownerHouse.active && ownerHouse.id !== extinctHouseId) {
+          return ownerHouse.id
+        }
       }
     }
   }
 
-  if (!bestAnnexerId) return state
-
-  const receiverHouseId =
-    getPolityLeaderHouse(state, bestAnnexerId) ?? getDominantPolityHouse(state, bestAnnexerId)
-  if (!receiverHouseId) return state
-
-  let result = state
-  for (const pid of orphanProvinceIds) {
-    const r = transferProvinceToHouse(result, pid, receiverHouseId)
-    if (r.ok) result = r.value
+  // 4) 世界全体で最大 Province 数を持つ active House
+  let bestGlobal: { houseId: HouseId; count: number } | undefined
+  for (const candidate of Object.values(state.houses)) {
+    if (!candidate || !candidate.active) continue
+    if ((candidate.id as string) === (extinctHouseId as string)) continue
+    if (!bestGlobal || candidate.provinceIds.length > bestGlobal.count) {
+      bestGlobal = { houseId: candidate.id, count: candidate.provinceIds.length }
+    }
   }
-  return result
+  return bestGlobal?.houseId
 }
 
-function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickContext {
+function handleNormalHouseExtinction(
+  ctx: TickContext,
+  houseId: HouseId,
+  affectedPolityIds: PolityId[],
+): TickContext {
   const house = ctx.state.houses[houseId]
   if (!house) return ctx
 
-  const polityId = getHousePrimaryPolityId(ctx.state, house.id)
-  if (!polityId) return ctx
+  // event 用 polityIds は affectedPolityIds を使う（喪失前のスナップショット）
+  const eventPolityIds = affectedPolityIds.length > 0 ? affectedPolityIds : []
 
-  const polity = ctx.state.polities[polityId]
-  if (!polity) return ctx
-
-  const rulerHouseId = getPolityLeaderHouse(ctx.state, polityId)
-  const rulerHouse = rulerHouseId ? ctx.state.houses[rulerHouseId] : undefined
-  const receiverHouseId = rulerHouse?.active
-    ? rulerHouseId
-    : (Object.values(ctx.state.houses)
-        .filter(
-          (h): h is House =>
-            h !== null &&
-            h.active &&
-            getHousePrimaryPolityId(ctx.state, h.id) === polityId &&
-            h.id !== houseId,
-        )
-        .sort((a, b) => b.legacyPrestige - a.legacyPrestige)[0]?.id ?? null)
+  const receiverHouseId = chooseReceiverHouse(ctx.state, houseId, affectedPolityIds)
 
   if (!receiverHouseId) {
-    let finalState = ctx.state
-    finalState = transferOrphanProvincesToBestNeighbor(finalState, house.provinceIds, polityId)
-    const newHouses = { ...finalState.houses }
+    // メンバーは inactive のまま House 解散。Polity の active 化は
+    // PolityOwnerConsistencySystem に委ねるためここでは触らない。
+    const newHouses = { ...ctx.state.houses }
     const extinctHouseObj = newHouses[houseId]
     if (!extinctHouseObj) return ctx
     newHouses[houseId] = { ...extinctHouseObj, active: false, memberIds: [], provinceIds: [] }
-    const newPolities = { ...finalState.polities }
-    const extinctPolity = newPolities[polityId]
-    if (extinctPolity) {
-      newPolities[polityId] = { ...extinctPolity, active: false }
-    }
-    const finalStateWithExtinction = { ...finalState, houses: newHouses, polities: newPolities }
-    const { id: eventId, ctx: eventCtx } = makeEventId({ ...ctx, state: finalStateWithExtinction })
+    const finalState = { ...ctx.state, houses: newHouses }
+    const { id: eventId, ctx: eventCtx } = makeEventId({ ...ctx, state: finalState })
     const event: SimEvent = {
       id: eventId,
-      year: finalStateWithExtinction.currentYear,
-      month: finalStateWithExtinction.currentMonth,
+      year: finalState.currentYear,
+      month: finalState.currentMonth,
       type: 'HOUSE_EXTINCT',
       importance: 'major',
       actorIds: [],
       houseIds: [houseId],
-      polityIds: [polityId],
+      polityIds: eventPolityIds,
       provinceIds: [],
-      summary: `${house.name} has become extinct.`,
+      summary: `${house.name} has become extinct with no surviving house to inherit its legacy.`,
       reasons: [],
       effects: [],
     }
-    return { ...eventCtx, state: finalStateWithExtinction, events: [...eventCtx.events, event] }
+    return { ...eventCtx, state: finalState, events: [...eventCtx.events, event] }
   }
 
   let resultCtx = ctx
@@ -425,17 +421,7 @@ function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickCo
     provinceIds: [],
   }
 
-  const newPolities = { ...resultCtx.state.polities }
-  if (polityId) {
-    const targetPolity = newPolities[polityId]
-    if (targetPolity) {
-      newPolities[polityId] = {
-        ...targetPolity,
-      }
-    }
-  }
-
-  const finalState = { ...resultCtx.state, houses: newHouses, polities: newPolities }
+  const finalState = { ...resultCtx.state, houses: newHouses }
 
   const { id: eventId, ctx: eventCtx } = makeEventId({ ...resultCtx, state: finalState })
   const event: SimEvent = {
@@ -446,9 +432,9 @@ function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickCo
     importance: 'major',
     actorIds: [],
     houseIds: [houseId],
-    polityIds: [polityId ?? ('' as PolityId)],
+    polityIds: eventPolityIds,
     provinceIds: [...house.provinceIds],
-    summary: `${house.name} has become extinct.`,
+    summary: `${house.name} has become extinct; lands inherited by another house.`,
     reasons: [],
     effects: [],
   }
@@ -465,28 +451,19 @@ function handleNormalHouseExtinction(ctx: TickContext, houseId: HouseId): TickCo
   return { ...eventCtx, state: finalState, events: [...eventCtx.events, event] }
 }
 
-// v0.15 §22.3: extinctHouse は所領を失う直前の Polity (Country) 集合を入力として受け取る。
-// Stage A では handleNormalHouseExtinction の v0.14 ロジックを温存し、
-// affectedCountryIds は呼び出し側でスナップショットを取得するが内部では既存挙動を維持する。
-// Phase 9 で affectedPolityIds に rename され、候補探索のスコープとして使われる。
+// v0.15 §22.3: affectedPolityIds は所領喪失前の getHousePolityIds スナップショット。
+// 移住先 House の選定スコープとして使う。
 export type HouseExtinctionInput = {
   houseId: HouseId
   affectedPolityIds: PolityId[]
 }
 
 export function extinctHouse(ctx: TickContext, input: HouseExtinctionInput): CtxResult<void> {
-  const { houseId } = input
+  const { houseId, affectedPolityIds } = input
   const house = ctx.state.houses[houseId]
   if (!house) return ok({ ctx, value: undefined })
 
-  const polityId = getHousePrimaryPolityId(ctx.state, house.id)
-  if (!polityId) return ok({ ctx, value: undefined })
-
-  const polity = ctx.state.polities[polityId]
-  if (!polity) return ok({ ctx, value: undefined })
-
-  const updatedCtx = handleNormalHouseExtinction(ctx, houseId)
-
+  const updatedCtx = handleNormalHouseExtinction(ctx, houseId, affectedPolityIds)
   return ok({ ctx: updatedCtx, value: undefined })
 }
 

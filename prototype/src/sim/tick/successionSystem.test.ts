@@ -203,10 +203,8 @@ describe('runSuccessionSystem', () => {
 
     const house = result.state.houses['h-0' as HouseId]
     expect(house?.active).toBe(false)
-    // v0.15: With no receiver house available (only house is extinct),
-    // handleNormalHouseExtinction deactivates both house and polity
-    const polity = result.state.polities['dp-0' as PolityId]
-    expect(polity?.active).toBe(false)
+    // v0.15 §22.3: handleNormalHouseExtinction は House の inactive 化のみ責任を持つ。
+    // Polity の inactive 化は後段 PolityOwnerConsistencySystem に委ねられる。
     expect(result.events.some((e) => e.type === 'HOUSE_EXTINCT')).toBe(true)
   })
 

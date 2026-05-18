@@ -40,10 +40,11 @@ function computePolityScore(
 ): number {
   const person = state.persons[personId]
   if (!person) return -Infinity
+  const polity = state.polities[polityId]
   const ruler = state.persons[rulerId]
 
   const prestige = getPersonPrestige(state, personId)
-  const rulerRespect = ruler
+  const leaderRespect = ruler
     ? attitudeValueToScore(
         getAttitudeOrDefault(state, ruler, { kind: 'polity', id: polityId }).respect,
       ) / 100
@@ -55,14 +56,30 @@ function computePolityScore(
 
   const currentOfficeCount = (state.officeIndex.byHolderPerson[personId as string] ?? []).length
 
+  // v0.15 §13.4: 同 House の Polity Office 保有数 (leader 含む) を sameHousePolityOfficeCount として算出
+  const polityOfficeIds = state.officeIndex.byOrganization[`polity:${polityId}`] ?? []
+  let sameHousePolityOfficeCount = 0
+  for (const oId of polityOfficeIds) {
+    const o = state.officeAssignments[oId]
+    if (!o || !o.active) continue
+    const p = state.persons[o.holderPersonId]
+    if (p && p.houseId === person.houseId) sameHousePolityOfficeCount++
+  }
+
+  const ownerHouseBonus =
+    polity?.ownerHouseId === person.houseId ? config.ownerHouseAppointmentBonus : 0
+
+  // v0.15 §13.4: スコア式
   return (
     getRelevantStat(state, personId, role) * 1.0 +
-    (prestige / 100) * 10 +
-    rulerRespect * 5 +
+    (prestige / 100) * 8 +
+    leaderRespect * 4 +
     polityAffection * 3 +
-    houseSharePct * 0.1 +
-    personSharePct * 0.05 -
-    config.concurrentOfficePenalty * currentOfficeCount
+    houseSharePct * config.polityShareAppointmentFactor +
+    personSharePct * config.houseShareAppointmentFactor +
+    ownerHouseBonus -
+    config.concurrentOfficePenalty * currentOfficeCount -
+    config.sameHousePolityOfficePenalty * sameHousePolityOfficeCount
   )
 }
 

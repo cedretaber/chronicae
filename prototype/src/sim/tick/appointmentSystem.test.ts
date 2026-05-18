@@ -266,9 +266,10 @@ describe('runAppointmentSystem', () => {
 
     // Current holder keeps office (slot is full)
     expect(holdsOfficeRole(result.state, personRulerId, 'administrator')).toBe(true)
-    // vassal fills treasurer and military; advisor score drops below minAppointmentScore
-    // due to concurrentOfficePenalty accumulating across multiple offices
-    expect(countEvents(result.events, 'OFFICE_ASSIGNED')).toBe(2)
+    // v0.15 §13.4: sameHousePolityOfficePenalty を加算するため、
+    // 同 House のみで複数 Polity Office を埋める score が早く minAppointmentScore を下回る。
+    // vassal は treasurer 1 つだけ埋め、それ以降は閾値未満で停止する。
+    expect(countEvents(result.events, 'OFFICE_ASSIGNED')).toBe(1)
     expect(countEvents(result.events, 'OFFICE_REVOKED')).toBe(0)
   })
 
@@ -420,9 +421,9 @@ describe('runAppointmentSystem', () => {
     expect(holdsOfficeRole(result.state, personVassalId, 'administrator')).toBe(true)
     // Dead person revocation does not emit OFFICE_REVOKED event (only replacement does)
     expect(countEvents(result.events, 'OFFICE_REVOKED')).toBe(0)
-    // vassal fills administrator and treasurer; military/advisor score drops below minAppointmentScore
-    // due to concurrentOfficePenalty accumulating after each appointment
-    expect(countEvents(result.events, 'OFFICE_ASSIGNED')).toBe(2)
+    // v0.15 §13.4: sameHousePolityOfficePenalty を加算するため、
+    // vassal は administrator 1 つ埋めた時点で score が minAppointmentScore を下回る。
+    expect(countEvents(result.events, 'OFFICE_ASSIGNED')).toBe(1)
   })
 
   it('concurrent office penalty reduces score for already-office-holding candidates', () => {

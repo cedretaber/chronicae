@@ -10,7 +10,11 @@ import { getOrganizationShares } from '@sim/selectors/shareSelectors'
 import { getHouseLeader } from '@sim/selectors/officeSelectors'
 import { getOfficeAssignments } from '@sim/selectors/officeSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
-import { getHousePrimaryPolityId, getPolityHouseIds } from '@sim/selectors/polityRelations'
+import {
+  getHousePrimaryPolityId,
+  getHouseProvinceIdsByPolity,
+  getPolityHouseIds,
+} from '@sim/selectors/polityRelations'
 
 export function runShareUpdateSystem(ctx: TickContext): TickContext {
   if (ctx.state.currentMonth !== 1) return ctx
@@ -24,24 +28,16 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
     if (!polity || !polity.active) continue
 
     const polityRef: OrganizationRef = { kind: 'polity', id: polityId }
-    const existingShares = getOrganizationShares(state, polityRef)
 
-    // Compute new rawPower for each house in this polity
+    // v0.15 §12.3: 計算は対象 Polity 内の local power に限定する。
+    // §12.2: 削除責任は OrganizationConsistencySystem に一本化されるためここでは扱わない。
     for (const houseId of getPolityHouseIds(state, polityId)) {
       const house = state.houses[houseId]
       if (!house || !house.active) continue
 
-      const isRulerHouse = (() => {
-        const polityLeaders = getOfficeAssignments(state, polityRef).filter(
-          (o) => o.active && o.role === 'leader',
-        )
-        return polityLeaders.some((o) => {
-          const p = state.persons[o.holderPersonId]
-          return p && p.houseId === houseId
-        })
-      })()
+      const isOwnerHouse = polity.ownerHouseId === houseId
 
-      // Count non-leader offices held by persons of this house
+      // Polity Office count held by persons of this house
       const polityOfficeCount = getOfficeAssignments(state, polityRef)
         .filter((o) => o.active && o.role !== 'leader')
         .filter((o) => {
@@ -49,16 +45,20 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
           return p && p.houseId === houseId
         }).length
 
-      const militaryProxy = house.provinceIds.length * 10
+      // ownedProvinceCountInPolity と localMilitaryProxy を Polity 内に限定する。
+      // 別 Polity の所領で当該 Polity の Share が膨らむのを防ぐ意図（§12.3）。
+      const ownedProvinceIdsInPolity = getHouseProvinceIdsByPolity(state, houseId, polityId)
+      const ownedProvinceCountInPolity = ownedProvinceIdsInPolity.length
+      const localMilitaryProxy = ownedProvinceCountInPolity * 10
       const housePrestige = house.legacyPrestige
 
       const calculatedRawPower =
         config.polityShareBase +
-        house.provinceIds.length * config.polityShareProvinceFactor +
-        militaryProxy * config.polityShareMilitaryFactor +
+        ownedProvinceCountInPolity * config.polityShareProvinceFactor +
+        localMilitaryProxy * config.polityShareMilitaryFactor +
         house.wealth * config.polityShareWealthFactor +
         housePrestige * config.politySharePrestigeFactor +
-        (isRulerHouse ? config.polityShareOwnerHouseBonus : 0) +
+        (isOwnerHouse ? config.polityShareOwnerHouseBonus : 0) +
         polityOfficeCount * config.polityShareOfficeFactor
 
       const newRawPower = calculatedRawPower * config.shareYearlyRetentionRate
@@ -69,14 +69,6 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
         rawPower: newRawPower,
       })
       if (upsertResult.ok) state = upsertResult.value
-    }
-
-    // Delete shares for houses that are no longer in this polity
-    const currentHouseIds = new Set(getPolityHouseIds(state, polityId))
-    for (const share of existingShares) {
-      if (share.holder.kind === 'house' && !currentHouseIds.has(share.holder.id)) {
-        state = removeOrganizationShare(state, share.id)
-      }
     }
   }
 
