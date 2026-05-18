@@ -5,6 +5,7 @@ import type { StateResult } from './result'
 import { ok, err } from './result'
 import {
   adjustAttitude,
+  setAttitude,
   updateAttitudeIfExists,
   personAttitudeKey,
   polityAttitudeKey,
@@ -116,4 +117,27 @@ export function adjustHouseMembersAttitude(
   }
 
   return ok({ ...state, persons: newPersons })
+}
+
+// v0.17 §12/§13: overwrites (sets, not adjusts) a Person's attitude key.
+// Used by Faction formation / recruitment which initializes the relationship
+// with explicit values (key-creation is intentional).
+export function setPersonAttitude(
+  state: WorldState,
+  personId: PersonId,
+  target: AttitudeTarget,
+  attitude: { affection: number; respect: number },
+): StateResult {
+  const person = state.persons[personId]
+  if (!person)
+    return err({
+      code: 'PERSON_NOT_FOUND',
+      message: 'setPersonAttitude: person not found: ' + personId,
+    })
+  const key = targetKey(target)
+  const newAttitudes = setAttitude(person.attitudes, key, attitude)
+  return ok({
+    ...state,
+    persons: { ...state.persons, [personId]: { ...person, attitudes: newAttitudes } },
+  })
 }
