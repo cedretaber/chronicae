@@ -5,10 +5,8 @@ import { clamp } from '../utils/math'
 import {
   calcChancellorControlGrowthModifier,
   calcChancellorControlMaxBonus,
-  calcHouseHeadControlGrowthModifier,
-  calcHouseHeadControlMaxBonus,
 } from '../selectors/personAbilityEffects'
-import { getHousePolityIds } from '../selectors/polityRelations'
+import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
 
 function bfs(
   startId: ProvinceId,
@@ -58,10 +56,10 @@ function applyControl(
 }
 
 export function runControlSystem(ctx: TickContext): TickContext {
-  const { provinces, polities, houses } = ctx.state
+  const { provinces, polities } = ctx.state
   const config = ctx.config
 
-  // v013-residual: simple-batch — BFS 距離計算と組み合わせた polityControl/houseControl 更新。mutation 化はオーバーキル
+  // v0.16: houseControl 廃止。polityControl のみ更新する (§8.2, §8.3)。
   const newProvinces: Record<ProvinceId, Province> = {}
   for (const id of Object.keys(provinces) as ProvinceId[]) {
     const prov = provinces[id]
@@ -77,15 +75,15 @@ export function runControlSystem(ctx: TickContext): TickContext {
     const maxControlBonus = calcChancellorControlMaxBonus(ctx.state, polity.id, config)
     const effectiveGrowth = config.controlGrowthPerMonth * growthModifier
 
-    const distMap = bfs(
-      polity.capitalProvinceId,
-      provinces,
-      (prov) => (prov as { polityId: string }).polityId === polity.id,
-    )
+    const distMap = bfs(polity.capitalProvinceId, provinces, (prov) => {
+      const p = prov as { id: ProvinceId }
+      return getProvinceTerminalPolityId(ctx.state, p.id) === polity.id
+    })
 
     for (const provinceId of Object.keys(provinces) as ProvinceId[]) {
       const province = provinces[provinceId]
-      if (!province || province.polityId !== polity.id) continue
+      if (!province) continue
+      if (getProvinceTerminalPolityId(ctx.state, provinceId) !== polity.id) continue
 
       const newProvince = newProvinces[provinceId]!
       const current = newProvince.polityControl
@@ -104,48 +102,6 @@ export function runControlSystem(ctx: TickContext): TickContext {
         newProvince.polityControl = applyControl(current, maxControl, effectiveGrowth, config)
       } else {
         newProvince.polityControl = Math.max(0, current - config.disconnectedControlDecayPerMonth)
-      }
-    }
-  }
-
-  for (const houseId of Object.keys(houses) as Array<keyof typeof houses>) {
-    const house = houses[houseId]
-    if (!house || !house.active) continue
-
-    const growthModifier = calcHouseHeadControlGrowthModifier(ctx.state, house, config)
-    const maxControlBonus = calcHouseHeadControlMaxBonus(ctx.state, house, config)
-    const effectiveGrowth = config.controlGrowthPerMonth * growthModifier
-
-    // v0.15 §14.3: House が所領を持つ全 Polity の Province を通行可能にする（多 Polity 跨ぎ対応）。
-    const housePolityIds = getHousePolityIds(ctx.state, house.id)
-    if (housePolityIds.length === 0) continue
-    const passablePolitySet = new Set<string>(housePolityIds)
-
-    const distMap = bfs(house.seatProvinceId, provinces, (prov) =>
-      passablePolitySet.has((prov as { polityId: string }).polityId),
-    )
-
-    for (const provinceId of Object.keys(provinces) as ProvinceId[]) {
-      const province = provinces[provinceId]
-      if (!province || province.ownerHouseId !== house.id) continue
-
-      const newProvince = newProvinces[provinceId]!
-      const current = newProvince.houseControl
-      const dist = distMap.get(provinceId)
-
-      if (dist !== undefined) {
-        const baseMaxControl = clamp(
-          100 - dist * config.controlMaxDistancePenalty,
-          config.controlMaxMinimum,
-          100,
-        )
-        const isSeat = provinceId === house.seatProvinceId
-        const maxControl = isSeat
-          ? 100
-          : clamp(baseMaxControl + maxControlBonus, config.controlAbilityMinimumFloor, 100)
-        newProvince.houseControl = applyControl(current, maxControl, effectiveGrowth, config)
-      } else {
-        newProvince.houseControl = Math.max(0, current - config.disconnectedControlDecayPerMonth)
       }
     }
   }

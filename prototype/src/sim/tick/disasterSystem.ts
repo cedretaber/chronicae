@@ -13,6 +13,7 @@ import {
 import { adjustProvinceDevelopment } from '../mutations/provinceMutations'
 import { adjustPolityLegacyPrestige } from '../helpers/attitudeHelpers'
 import { adjustPopAttitude } from '../mutations/attitudeMutations'
+import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
 
 function applyFamine(ctx: TickContext, polityId: PolityId): TickContext {
   const polity = ctx.state.polities[polityId]
@@ -21,7 +22,8 @@ function applyFamine(ctx: TickContext, polityId: PolityId): TickContext {
   const polityProvinceIds: ProvinceId[] = Object.keys(ctx.state.provinces)
     .filter((pid) => {
       const province = ctx.state.provinces[pid as ProvinceId]
-      return province?.polityId === polityId
+      if (!province) return false
+      return getProvinceTerminalPolityId(ctx.state, pid as ProvinceId) === polityId
     })
     .map((pid) => pid as ProvinceId)
 
@@ -156,7 +158,8 @@ function applyPlague(ctx: TickContext, polityId: PolityId): TickContext {
   const polityProvinceIds: ProvinceId[] = Object.keys(ctx.state.provinces)
     .filter((pid) => {
       const province = ctx.state.provinces[pid as ProvinceId]
-      return province?.polityId === polityId
+      if (!province) return false
+      return getProvinceTerminalPolityId(ctx.state, pid as ProvinceId) === polityId
     })
     .map((pid) => pid as ProvinceId)
 
@@ -204,7 +207,7 @@ function applyBountifulHarvest(ctx: TickContext, polityId: PolityId): TickContex
   if (!polity) return ctx
 
   const polityProvinceIds: ProvinceId[] = Object.keys(ctx.state.provinces)
-    .filter((pid) => ctx.state.provinces[pid as ProvinceId]?.polityId === polityId)
+    .filter((pid) => getProvinceTerminalPolityId(ctx.state, pid as ProvinceId) === polityId)
     .map((pid) => pid as ProvinceId)
 
   let stateWithDev = ctx.state

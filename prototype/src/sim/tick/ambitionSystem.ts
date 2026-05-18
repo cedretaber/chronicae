@@ -5,6 +5,7 @@ import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitud
 import { getPolityLegitimacy, getHouseLoyaltyToPolity } from '@sim/selectors/statusSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
 
 export type AmbitionScores = {
   rebellionTendency: number
@@ -36,7 +37,7 @@ export function calcAmbitionScores(state: WorldState, houseId: HouseId): Ambitio
 
   const rebellionTendency =
     house.legacyPrestige * 0.3 +
-    house.provinceIds.length * 4 +
+    getHouseControlledProvinceIds(state, house.id).length * 4 +
     head.traits.ambition * 30 +
     (100 - legitimacy) * 0.3 +
     (100 - houseLoyalty) * 0.4 +

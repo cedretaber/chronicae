@@ -9,14 +9,11 @@ import { ok, err } from './result'
 import { defaultConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 import { createOfficeAssignment } from './officeMutations'
-import { getPolityLeaderHouse, getHouseLeader } from '../selectors/officeSelectors'
+import { getHouseLeader } from '../selectors/officeSelectors'
 import { generatePolityName } from '../selectors/polityNamingService'
 import { getPolityHouseIds } from '../selectors/polityRelations'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
-import {
-  getPolityTerminalProvinceIds,
-  getHouseControlledProvinceIds,
-} from '../selectors/landContractSelectors'
+import { getPolityTerminalProvinceIds } from '../selectors/landContractSelectors'
 import { transferAllProvincesToPolity } from './landContractMutations'
 
 export type CreatePolityInput = {

@@ -1,5 +1,5 @@
 import type { TickContext } from './context'
-import type { PolityId, HouseId, ProvinceId, PopGroupId } from '../types/ids'
+import type { PolityId, HouseId, PopGroupId } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
@@ -233,94 +233,17 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     }
   }
 
-  // 12. Province.polityId must point to an existing Polity
-  for (const provinceId of Object.keys(state.provinces)) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    if (!state.polities[province.polityId]) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Province ${provinceId} has polityId ${province.polityId} which does not exist`,
-      })
-    }
-    if (!state.houses[province.ownerHouseId]) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Province ${provinceId} has ownerHouseId ${province.ownerHouseId} which does not exist`,
-      })
-    }
-    const polity = state.polities[province.polityId]
-    if (polity && !polity.active) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Province ${provinceId} has inactive polity ${province.polityId}`,
-      })
-    }
-    const ownerHouse = state.houses[province.ownerHouseId]
-    if (ownerHouse && !ownerHouse.active) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Province ${provinceId} has inactive ownerHouse ${province.ownerHouseId}`,
-      })
-    }
-  }
-
-  // 13. Polity.capitalProvinceId belongs to that polity.
-  // v0.15 Stage B: PolityOwnerConsistencySystem (Phase 6) が capital を維持する設計だが、
-  // Stage B では同 system が空骨格のため、capital が他 Polity に流出した状態は throw せず warn する。
-  // Phase 4 で strict 復帰。
+  // v0.16: 旧 Province.ownerHouseId / polityId / House.provinceIds は廃止された (§8 / §9)。
+  // 新 LandContract chain ベースの不変条件 (§25 の 33 項目) は Stage A 残作業として後続コミットで実装する。
+  // ここでは暫定的に Polity.capitalProvinceId の存在チェックのみ残す。
   for (const polityId of Object.keys(state.polities)) {
     const polity = state.polities[polityId as PolityId]
     if (!polity) continue
     const capital = state.provinces[polity.capitalProvinceId]
     if (!capital) {
       console.warn(
-        `INTEGRITY (Stage B warn): Polity ${polityId} has capitalProvinceId ${polity.capitalProvinceId} which does not exist`,
+        `INTEGRITY (v0.16 Stage A warn): Polity ${polityId} has capitalProvinceId ${polity.capitalProvinceId} which does not exist`,
       )
-    } else if (capital.polityId !== polityId) {
-      console.warn(
-        `INTEGRITY (Stage B warn): Polity ${polityId} capitalProvinceId ${polity.capitalProvinceId} belongs to polity ${capital.polityId}`,
-      )
-    }
-  }
-
-  // 14. House.seatProvinceId is in house.provinceIds.
-  // v0.15 Stage B: HouseExtinction や Province 喪失で seat が一時的に provinceIds 外になる経路は
-  // PolityOwnerConsistencySystem (Phase 6) / HouseExtinction (Phase 9) で補正される設計のため warn のみ。
-  // Phase 4 で strict 復帰。
-  for (const houseId of Object.keys(state.houses)) {
-    const house = state.houses[houseId as HouseId]
-    if (!house) continue
-    if (!house.provinceIds.includes(house.seatProvinceId)) {
-      console.warn(
-        `INTEGRITY (Stage B warn): House ${houseId} seatProvinceId ${house.seatProvinceId} is not in provinceIds`,
-      )
-    }
-  }
-
-  // 15. House.provinceIds and Province.ownerHouseId are bidirectionally consistent
-  for (const houseId of Object.keys(state.houses)) {
-    const house = state.houses[houseId as HouseId]
-    if (!house) continue
-    for (const provId of house.provinceIds) {
-      const province = state.provinces[provId]
-      if (province && province.ownerHouseId !== houseId) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `House ${houseId} lists province ${provId} but its ownerHouseId is ${province.ownerHouseId}`,
-        })
-      }
-    }
-  }
-  for (const provinceId of Object.keys(state.provinces)) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    const house = state.houses[province.ownerHouseId]
-    if (house && !house.provinceIds.includes(provinceId as ProvinceId)) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Province ${provinceId} has ownerHouseId ${province.ownerHouseId} but that house does not list this province`,
-      })
     }
   }
 
@@ -406,45 +329,8 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     }
   }
 
-  // 20. spec §25.2 #2 — Province.ownerHouseId must point to an existing House
-  for (const provinceId of Object.keys(state.provinces)) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    if (province.ownerHouseId !== '' && !state.houses[province.ownerHouseId]) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Province ${provinceId} has ownerHouseId ${province.ownerHouseId} which does not exist`,
-      })
-    }
-  }
-
-  // 21. spec §25.2 #3 — Province whose Polity is inactive is a violation
-  for (const provinceId of Object.keys(state.provinces)) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    if (province.polityId === '') continue
-    const polity = state.polities[province.polityId]
-    if (polity && !polity.active) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Province ${provinceId} belongs to inactive Polity ${province.polityId}`,
-      })
-    }
-  }
-
-  // 22. spec §25.2 #4 — Province ownerHouse is inactive
-  for (const provinceId of Object.keys(state.provinces)) {
-    const province = state.provinces[provinceId as ProvinceId]
-    if (!province) continue
-    if (province.ownerHouseId === '') continue
-    const ownerHouse = state.houses[province.ownerHouseId]
-    if (ownerHouse && !ownerHouse.active) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Province ${provinceId} has inactive ownerHouse ${province.ownerHouseId}`,
-      })
-    }
-  }
+  // v0.16: 旧 Province.ownerHouseId / polityId 系の不変条件は廃止 (§8)。
+  // 対応する v0.16 不変条件 (§25 の grantee active Polity / chain consistency など) は後続コミットで追加。
 
   // 23. spec §25.2 #8 — Active Polity ownerHouse must exist and be active (WARN)
   for (const polityId of Object.keys(state.polities)) {

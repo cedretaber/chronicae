@@ -5,6 +5,10 @@ import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
 import { getProvinceProduction } from '../selectors/popEconomySelectors'
 import { getProvinceAveragePopWealth, getProvinceUnrest } from '../selectors/popSelectors'
 import {
+  getProvinceTerminalPolityId,
+  getProvinceEffectiveOwnerHouseId,
+} from '../selectors/landContractSelectors'
+import {
   adjustProvincePopWealth,
   adjustProvincePopUnrest,
   adjustProvincePopWealthByClass,
@@ -22,34 +26,28 @@ export function runEconomySystem(ctx: TickContext): TickContext {
 
     const production = getProvinceProduction(ctx.state, ctx.config, province.id)
     const cc = province.polityControl / 100
-    const hc = province.houseControl / 100
-    const totalControl = cc + hc
 
-    let polityIncome: number
-    let houseIncome: number
-
-    if (totalControl > 0) {
-      polityIncome = production * (cc / totalControl) * cc
-      houseIncome = production * (hc / totalControl) * hc
-    } else {
-      polityIncome = 0
-      houseIncome = 0
-    }
+    // v0.16: houseControl 廃止 (§8.2)。徴税は polityControl 単独。houseIncome は廃止予定だが
+    // Stage A では House.wealth 経路を維持するため、terminal Polity の ownerHouse に同額を配る簡略化を採る。
+    const polityIncome = production * cc * cc
+    const houseIncome = production * cc * (1 - cc)
 
     const extracted = polityIncome + houseIncome
     const retained = Math.max(0, production - extracted)
 
-    // Apply taxEfficiency to polity treasury
-    treasuryDeltas.set(
-      province.polityId,
-      (treasuryDeltas.get(province.polityId) ?? 0) + polityIncome,
-    )
+    const terminalPolityId = getProvinceTerminalPolityId(ctx.state, province.id)
+    const ownerHouseId = getProvinceEffectiveOwnerHouseId(ctx.state, province.id)
 
-    // Apply house income
-    wealthDeltas.set(
-      province.ownerHouseId,
-      (wealthDeltas.get(province.ownerHouseId) ?? 0) + houseIncome,
-    )
+    if (terminalPolityId) {
+      treasuryDeltas.set(
+        terminalPolityId,
+        (treasuryDeltas.get(terminalPolityId) ?? 0) + polityIncome,
+      )
+    }
+
+    if (ownerHouseId) {
+      wealthDeltas.set(ownerHouseId, (wealthDeltas.get(ownerHouseId) ?? 0) + houseIncome)
+    }
 
     // Apply retained wealth to POPs
     const retainedRatio = production > 0 ? retained / production : 0

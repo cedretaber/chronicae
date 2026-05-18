@@ -6,6 +6,7 @@ import { createLogger } from '../debug/logger'
 import { getHouseCohesion } from '../selectors/statusSelectors'
 import { splitHouse } from '../mutations/worldStructureMutations'
 import { getRoleScore } from '../selectors/abilitySelectors'
+import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
 import type { WorldState } from '../types/world'
 
 export type SplitInput = {
@@ -32,7 +33,8 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   const log = createLogger(ctx.config.debug)
 
   if (!houseSplitEnabled) return ctx
-  if (house.provinceIds.length < minProvincesForHouseSplit) return ctx
+  if (getHouseControlledProvinceIds(ctx.state, house.id).length < minProvincesForHouseSplit)
+    return ctx
   if (input.splitCandidates.length < 1) return ctx
 
   const currentCohesion = getHouseCohesion(ctx.state, house.id)

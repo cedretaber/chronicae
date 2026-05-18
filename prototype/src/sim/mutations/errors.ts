@@ -10,6 +10,9 @@ export type SimErrorCode =
   | 'CROSS_POLITY_TRANSFER'
   | 'INVALID_SHARE'
   | 'INTEGRITY_VIOLATION'
+  | 'NO_TARGET_POLITY'
+  | 'NO_TERMINAL_CONTRACT'
+  | 'OWNER_MISMATCH'
 
 export type SimError = {
   code: SimErrorCode

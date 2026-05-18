@@ -1,11 +1,12 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import { clamp, clamp100 } from '../utils/math'
+import { clamp } from '../utils/math'
 import { calcHouseHeadDevelopmentChanceBonus } from '../selectors/personAbilityEffects'
 import type { HouseId, ProvinceId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { SimEvent } from '../types/event'
+import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
 
 function scoreHouseLandDevelopmentProvince(province: Province): number {
   const recoveryBonus = Math.max(0, -province.development) * 1.0
@@ -22,7 +23,8 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
   for (const houseId of Object.keys(ctx.state.houses).sort()) {
     const house = currentCtx.state.houses[houseId as HouseId]
     if (!house || !house.active) continue
-    if (house.provinceIds.length === 0) continue
+    const controlledProvinceIds = getHouseControlledProvinceIds(currentCtx.state, house.id)
+    if (controlledProvinceIds.length === 0) continue
 
     const minWealth =
       currentCtx.config.houseLandDevelopmentBaseCost + currentCtx.config.houseWealthReserve
@@ -43,7 +45,7 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
 
     if (roll >= chance) continue
 
-    const sortedProvinceIds = [...house.provinceIds].sort()
+    const sortedProvinceIds = [...controlledProvinceIds].sort()
 
     let bestProvinceId: ProvinceId = sortedProvinceIds[0]!
     let bestScore = -Infinity
@@ -64,16 +66,14 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
       currentCtx.config.houseLandDevelopmentGain *
       (1 - Math.max(0, targetProvince.development) / 100)
     const newDevelopment = clamp(targetProvince.development + effectiveGain, -100, 100)
-    const newHouseControl = clamp100(
-      targetProvince.houseControl + currentCtx.config.landDevelopmentHouseControlGain,
-    )
 
+    // v0.16: houseControl 廃止により Province の control 更新は polityControl のみだが、
+    // 開発による control gain は将来の代官能力経由に委ねる (Stage A では development のみ更新)。
     const newProvinces = {
       ...currentCtx.state.provinces,
       [bestProvinceId]: {
         ...targetProvince,
         development: newDevelopment,
-        houseControl: newHouseControl,
       },
     }
     const newHouse = {
