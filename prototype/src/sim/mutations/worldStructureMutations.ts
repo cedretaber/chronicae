@@ -824,7 +824,17 @@ function handleRulerHouseExtinction(ctx: TickContext, houseId: HouseId): TickCon
   }
 }
 
-export function extinctHouse(ctx: TickContext, houseId: HouseId): CtxResult<void> {
+// v0.15 §22.3: extinctHouse は所領を失う直前の Polity (Country) 集合を入力として受け取る。
+// Stage A では handleRulerHouseExtinction / handleNormalHouseExtinction の v0.14 ロジックを温存し、
+// affectedCountryIds は呼び出し側でスナップショットを取得するが内部では既存挙動を維持する。
+// Phase 9 で affectedPolityIds に rename され、候補探索のスコープとして使われる。
+export type HouseExtinctionInput = {
+  houseId: HouseId
+  affectedCountryIds: CountryId[]
+}
+
+export function extinctHouse(ctx: TickContext, input: HouseExtinctionInput): CtxResult<void> {
+  const { houseId } = input
   const house = ctx.state.houses[houseId]
   if (!house) return ok({ ctx, value: undefined })
 

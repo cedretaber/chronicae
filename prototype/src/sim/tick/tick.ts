@@ -25,6 +25,8 @@ import { runPlotSystem } from './plotSystem'
 import { runWarSystem } from './warSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import { runRebellionSystem } from './rebellionSystem'
+import { runPolityOwnerConsistencySystem } from './polityOwnerConsistencySystem'
+import { runOrganizationConsistencySystem } from './organizationConsistencySystem'
 import { runAttitudeDecaySystem } from './attitudeDecaySystem'
 import { runGovernanceSystem } from './governanceSystem'
 import { runIntegritySystem } from './integritySystem'
@@ -74,6 +76,8 @@ export function tick(input: TickInput): TickResult {
   run('warSystem', runWarSystem)
   run('provinceRevoltSystem', runProvinceRevoltSystem)
   run('rebellionSystem', runRebellionSystem)
+  run('polityOwnerConsistencySystem', runPolityOwnerConsistencySystem)
+  run('organizationConsistencySystem', runOrganizationConsistencySystem)
   run('attitudeDecaySystem', runAttitudeDecaySystem)
   run('governanceSystem', runGovernanceSystem)
   run('normalizePopSizes', normalizePopSizes)
