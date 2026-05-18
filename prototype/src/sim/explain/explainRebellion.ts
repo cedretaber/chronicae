@@ -1,9 +1,10 @@
 import type { WorldState } from '../types/world'
 import type { HouseId } from '../types/ids'
 import type { EventReason, EventEffect } from '../types/event'
-import { getCountryLegitimacy, getHouseLoyaltyToCountry } from '../selectors/statusSelectors'
+import { getPolityLegitimacy, getHouseLoyaltyToPolity } from '../selectors/statusSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
+import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
 export function explainRebellion(
   state: WorldState,
@@ -14,8 +15,10 @@ export function explainRebellion(
   const house = state.houses[houseId]
   if (!house) return { reasons: [], effects: [] }
 
-  const country = state.countries[house.countryId]
-  if (!country) return { reasons: [], effects: [] }
+  const polityId = getHousePrimaryPolityId(state, house.id)
+  if (!polityId) return { reasons: [], effects: [] }
+  const polity = state.polities[polityId]
+  if (!polity) return { reasons: [], effects: [] }
 
   const headId = getHouseLeader(state, house.id)
   if (!headId) return { reasons: [], effects: [] }
@@ -51,16 +54,16 @@ export function explainRebellion(
     })
   }
 
-  const legitimacyContribution = (100 - getCountryLegitimacy(state, house.countryId)) * 0.3
+  const legitimacyContribution = (100 - getPolityLegitimacy(state, polityId)) * 0.3
   if (legitimacyContribution > 2.0) {
     reasons.push({
-      label: 'Low country legitimacy',
-      value: getCountryLegitimacy(state, house.countryId),
+      label: 'Low polity legitimacy',
+      value: getPolityLegitimacy(state, polityId),
       contribution: legitimacyContribution,
     })
   }
 
-  const houseLoyalty = getHouseLoyaltyToCountry(state, houseId)
+  const houseLoyalty = getHouseLoyaltyToPolity(state, houseId)
   const loyaltyContribution = (100 - houseLoyalty) * 0.4
   if (loyaltyContribution > 2.0) {
     reasons.push({
@@ -70,7 +73,7 @@ export function explainRebellion(
     })
   }
 
-  const headCountryAtt = getAttitudeOrDefault(state, head, { kind: 'country', id: house.countryId })
+  const headCountryAtt = getAttitudeOrDefault(state, head, { kind: 'polity', id: polityId })
   const headCountryLoyalty =
     (attitudeValueToScore(headCountryAtt.affection) * 0.55 +
       attitudeValueToScore(headCountryAtt.respect) * 0.45) /
@@ -89,8 +92,8 @@ export function explainRebellion(
   const effects: EventEffect[] = [
     { label: 'Rebel military power', value: rebelPower },
     { label: 'Loyalist military power', value: loyalistPower },
-    { label: 'Country stability', value: -10 },
-    { label: 'Country legitimacy', value: -5 },
+    { label: 'Polity stability', value: -10 },
+    { label: 'Polity legitimacy', value: -5 },
   ]
 
   return { reasons, effects }

@@ -1,7 +1,7 @@
 import type { RngState } from '../rng/rng'
 import type {
   ProvinceId,
-  CountryId,
+  PolityId,
   HouseId,
   PersonId,
   PlotId,
@@ -10,7 +10,7 @@ import type {
   OfficeAssignmentId,
 } from './ids'
 import type { Province } from './province'
-import type { Country } from './country'
+import type { Polity } from './polity'
 import type { House } from './house'
 import type { Person } from './person'
 import type { Plot } from './plot'
@@ -22,7 +22,7 @@ export type WorldState = {
   currentYear: number
   currentMonth: number
   provinces: Record<ProvinceId, Province>
-  countries: Record<CountryId, Country>
+  polities: Record<PolityId, Polity>
   houses: Record<HouseId, House>
   persons: Record<PersonId, Person>
   activePlots: Record<PlotId, Plot>

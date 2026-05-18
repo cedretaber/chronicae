@@ -1,5 +1,5 @@
 import type { Person, AbilityScores } from '../types/person'
-import type { PersonId, HouseId, CountryId } from '../types/ids'
+import type { PersonId, HouseId } from '../types/ids'
 
 const DEFAULT_ABILITIES: AbilityScores = {
   valor: 50,
@@ -18,7 +18,6 @@ export function makeTestPerson(overrides: Partial<Person> = {}): Person {
     age: 30,
     alive: true,
     houseId: 'dh-0' as HouseId,
-    countryId: 'dc-0' as CountryId,
     childIds: [],
     birthStatus: 'legitimate',
     abilities: { ...DEFAULT_ABILITIES },

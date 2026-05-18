@@ -1,12 +1,13 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { HouseId, CountryId } from '../types/ids'
+import type { HouseId, PolityId } from '../types/ids'
 import { clamp } from '../utils/math'
 import { normalizedStat } from './personAbilityEffects'
 import { getRoleScore } from './abilitySelectors'
 import { getProvinceHouseManpowerBase } from './popEconomySelectors'
-import { getHouseLoyaltyToCountry } from './statusSelectors'
-import { getCountryRulerHouse } from './officeSelectors'
+import { getHouseLoyaltyToPolity } from './statusSelectors'
+import { getPolityLeaderHouse } from './officeSelectors'
+import { getPolityHouseIds } from './polityRelations'
 
 export function calcHouseMilitaryPower(
   state: WorldState,
@@ -42,19 +43,19 @@ export function calcHouseMilitaryPower(
   return (levyPower + mercenaryPower) * commanderModifier
 }
 
-export function calcCountryMilitaryPower(
+export function calcPolityMilitaryPower(
   state: WorldState,
   config: SimulationConfig,
-  countryId: CountryId,
+  countryId: PolityId,
 ): number {
-  const country = state.countries[countryId]
-  if (!country) return 0
+  const polity = state.polities[countryId]
+  if (!polity) return 0
 
-  let total = country.adminPower * config.countryAdminMilitaryFactor
+  let total = polity.adminPower * config.polityAdminMilitaryFactor
 
-  const rulerHouseId = getCountryRulerHouse(state, countryId)
+  const rulerHouseId = getPolityLeaderHouse(state, countryId)
 
-  for (const houseId of country.houseIds) {
+  for (const houseId of getPolityHouseIds(state, countryId)) {
     const house = state.houses[houseId]
     if (!house || !house.active) continue
 
@@ -64,7 +65,7 @@ export function calcCountryMilitaryPower(
       total += housePower
     } else {
       const loyaltyModifier = clamp(
-        getHouseLoyaltyToCountry(state, houseId) / 100,
+        getHouseLoyaltyToPolity(state, houseId) / 100,
         config.minHouseMilitaryContribution,
         1,
       )

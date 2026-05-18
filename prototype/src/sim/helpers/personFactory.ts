@@ -1,5 +1,5 @@
 import type { Person, AbilityScores, BirthStatus, Sex } from '../types/person'
-import type { PersonId, HouseId, CountryId } from '../types/ids'
+import type { PersonId, HouseId } from '../types/ids'
 import type { AttitudeMap } from '../types/attitude'
 import type { RngState, RngResult } from '../rng/rng'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -11,7 +11,6 @@ export type BuildPersonInput = {
   sex: Sex
   age: number
   houseId: HouseId
-  countryId: CountryId
   birthStatus: BirthStatus
   abilities: AbilityScores
   aptitudes: AbilityScores
@@ -34,7 +33,6 @@ export function buildPerson(input: BuildPersonInput): Person {
     age: input.age,
     alive: input.alive ?? true,
     houseId: input.houseId,
-    countryId: input.countryId,
     childIds: input.childIds ?? [],
     birthStatus: input.birthStatus,
     abilities: input.abilities,

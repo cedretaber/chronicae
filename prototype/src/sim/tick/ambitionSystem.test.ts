@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createCountryId,
+  createPolityId,
   createHouseId,
   createOfficeAssignmentId,
   createPersonId,
   createProvinceId,
 } from '../types/ids'
-import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import type { PolityId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { Person } from '../types/person'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
@@ -31,7 +31,6 @@ function makePerson(id: PersonId, ambition: number, caution: number): Person {
     age: 30,
     alive: true,
     houseId: 'h-0' as HouseId,
-    countryId: 'c-0' as CountryId,
     childIds: [],
     birthStatus: 'unknown',
     abilities: DEFAULT_ABILITIES,
@@ -47,12 +46,12 @@ function makeFixture(): {
   ctx: TickContext
   state: WorldState
   houseId: HouseId
-  countryId: CountryId
+  polityId: PolityId
   headId: PersonId
   province1Id: ProvinceId
   province2Id: ProvinceId
 } {
-  const countryId = createCountryId('c', 0)
+  const polityId = createPolityId('c', 0)
   const houseId = createHouseId('h', 0)
   const headId = createPersonId('pe', 0)
   const province1Id = createProvinceId('pr', 0)
@@ -71,11 +70,11 @@ function makeFixture(): {
         y: 0,
         neighbors: [],
         ownerHouseId: houseId,
-        countryId,
+        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
-        countryControl: 100,
+        polityControl: 100,
         houseControl: 100,
       },
       [province2Id]: {
@@ -85,19 +84,20 @@ function makeFixture(): {
         y: 0,
         neighbors: [],
         ownerHouseId: houseId,
-        countryId,
+        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
-        countryControl: 100,
+        polityControl: 100,
         houseControl: 100,
       },
     },
-    countries: {
-      [countryId]: {
-        id: countryId,
+    polities: {
+      [polityId]: {
+        id: polityId,
         name: 'C0',
-        houseIds: [houseId],
+        rank: 2,
+        ownerHouseId: houseId,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 50,
@@ -110,7 +110,6 @@ function makeFixture(): {
         id: houseId,
         name: 'H0',
         active: true,
-        countryId,
         provinceIds: [province1Id, province2Id],
         memberIds: [headId],
         cadetHouseIds: [],
@@ -163,10 +162,10 @@ function makeFixture(): {
     deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 
-  return { ctx, state: stateWithLeader, houseId, countryId, headId, province1Id, province2Id }
+  return { ctx, state: stateWithLeader, houseId, polityId, headId, province1Id, province2Id }
 }
 
 describe('calcAmbitionScores', () => {
@@ -181,7 +180,7 @@ describe('calcAmbitionScores', () => {
     //   + 0.8 * 30          = 24   (ambition)
     //   + (100-50) * 0.3    = 15   (100 - legitimacy=50, derived from neutral attitudes)
     //   + (100-50) * 0.4    = 20   (100 - houseLoyalty=50, derived from neutral attitudes)
-    //   + (1.0-0.5) * 30    = 15   (1 - headCountryLoyalty=0.5, derived from neutral attitudes)
+    //   + (1.0-0.5) * 30    = 15   (1 - headPolityLoyalty=0.5, derived from neutral attitudes)
     //   - 0.2 * 20          = -4   (caution)
     //   - 50 * 0.2          = -10  (adminPower)
     //   = 83
@@ -197,7 +196,7 @@ describe('calcAmbitionScores', () => {
     //   0.8 * 30            = 24   (ambition)
     //   + 50 * 0.2          = 10   (house.legacyPrestige)
     //   + (100-50) * 0.3    = 15   (100 - houseLoyalty=50, derived from neutral attitudes)
-    //   + (1.0-0.5) * 20    = 10   (1 - headCountryLoyalty=0.5, neutral attitudes)
+    //   + (1.0-0.5) * 20    = 10   (1 - headPolityLoyalty=0.5, neutral attitudes)
     //   - 0.2 * 15          = -3   (caution)
     //   - 50 * 0.1          = -5   (adminPower)
     //   = 51

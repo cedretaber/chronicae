@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId } from '../types/ids'
-import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import { createPolityId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
+import type { PersonId, HouseId } from '../types/ids'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import { setSpouse, clearSpouse, addChildToParents } from './relationshipMutations'
 
@@ -19,27 +19,44 @@ function makeFixture(): {
   person1Id: PersonId
   person2Id: PersonId
   house1Id: HouseId
-  country1Id: CountryId
 } {
   const person1Id = createPersonId('pe', 0)
   const person2Id = createPersonId('pe', 1)
   const house1Id = createHouseId('h', 0)
-  const country1Id = createCountryId('c', 0)
+  const polity1Id = createPolityId('c', 0)
+
+  const provinceId = createProvinceId('p', 0)
 
   const state: WorldState = {
     currentYear: 1444,
     currentMonth: 1,
-    provinces: {},
-    countries: {
-      [country1Id]: {
-        id: country1Id,
-        name: 'Country 1',
-        houseIds: [house1Id],
+    provinces: {
+      [provinceId]: {
+        id: provinceId,
+        name: 'Test Province',
+        x: 0,
+        y: 0,
+        neighbors: [],
+        ownerHouseId: house1Id,
+        polityId: polity1Id,
+        habitability: 50,
+        development: 10,
+        polityControl: 100,
+        houseControl: 100,
+        popGroupIds: [],
+      },
+    },
+    polities: {
+      [polity1Id]: {
+        id: polity1Id,
+        name: 'Polity 1',
+        rank: 2,
+        ownerHouseId: house1Id,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
         active: true,
-        capitalProvinceId: '' as ProvinceId,
+        capitalProvinceId: provinceId,
       },
     },
     houses: {
@@ -47,13 +64,12 @@ function makeFixture(): {
         id: house1Id,
         name: 'House 1',
         active: true,
-        countryId: country1Id,
-        provinceIds: [],
+        provinceIds: [provinceId],
         memberIds: [person1Id, person2Id],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
-        seatProvinceId: '' as ProvinceId,
+        seatProvinceId: provinceId,
       },
     },
     persons: {
@@ -64,7 +80,6 @@ function makeFixture(): {
         age: 30,
         alive: true,
         houseId: house1Id,
-        countryId: country1Id,
         childIds: [],
         birthStatus: 'legitimate' as const,
         abilities: DEFAULT_ABILITIES,
@@ -81,7 +96,6 @@ function makeFixture(): {
         age: 28,
         alive: true,
         houseId: house1Id,
-        countryId: country1Id,
         childIds: [],
         birthStatus: 'legitimate' as const,
         abilities: DEFAULT_ABILITIES,
@@ -101,7 +115,7 @@ function makeFixture(): {
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
   }
-  return { state, person1Id, person2Id, house1Id, country1Id }
+  return { state, person1Id, person2Id, house1Id }
 }
 
 describe('setSpouse', () => {
@@ -144,7 +158,7 @@ describe('setSpouse', () => {
   })
 
   it('returns err when personB already has a spouse', () => {
-    const { state, person1Id, person2Id, house1Id, country1Id } = makeFixture()
+    const { state, person1Id, person2Id, house1Id } = makeFixture()
     const first = setSpouse(state, person1Id, person2Id)
     expect(first.ok).toBe(true)
     if (!first.ok) return
@@ -161,7 +175,6 @@ describe('setSpouse', () => {
           age: 25,
           alive: true,
           houseId: house1Id,
-          countryId: country1Id,
           childIds: [],
           birthStatus: 'unknown' as const,
           abilities: DEFAULT_ABILITIES,

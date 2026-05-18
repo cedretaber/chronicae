@@ -8,6 +8,7 @@ import {
   calcHouseHeadControlGrowthModifier,
   calcHouseHeadControlMaxBonus,
 } from '../selectors/personAbilityEffects'
+import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
 function bfs(
   startId: ProvinceId,
@@ -57,10 +58,10 @@ function applyControl(
 }
 
 export function runControlSystem(ctx: TickContext): TickContext {
-  const { provinces, countries, houses } = ctx.state
+  const { provinces, polities, houses } = ctx.state
   const config = ctx.config
 
-  // v013-residual: simple-batch — BFS 距離計算と組み合わせた countryControl/houseControl 更新。mutation 化はオーバーキル
+  // v013-residual: simple-batch — BFS 距離計算と組み合わせた polityControl/houseControl 更新。mutation 化はオーバーキル
   const newProvinces: Record<ProvinceId, Province> = {}
   for (const id of Object.keys(provinces) as ProvinceId[]) {
     const prov = provinces[id]
@@ -68,26 +69,26 @@ export function runControlSystem(ctx: TickContext): TickContext {
     newProvinces[id] = { ...prov }
   }
 
-  for (const countryId of Object.keys(countries) as Array<keyof typeof countries>) {
-    const country = countries[countryId]
-    if (!country || !country.active) continue
+  for (const polityId of Object.keys(polities) as Array<keyof typeof polities>) {
+    const polity = polities[polityId]
+    if (!polity || !polity.active) continue
 
-    const growthModifier = calcChancellorControlGrowthModifier(ctx.state, country.id, config)
-    const maxControlBonus = calcChancellorControlMaxBonus(ctx.state, country.id, config)
+    const growthModifier = calcChancellorControlGrowthModifier(ctx.state, polity.id, config)
+    const maxControlBonus = calcChancellorControlMaxBonus(ctx.state, polity.id, config)
     const effectiveGrowth = config.controlGrowthPerMonth * growthModifier
 
     const distMap = bfs(
-      country.capitalProvinceId,
+      polity.capitalProvinceId,
       provinces,
-      (prov) => (prov as { countryId: string }).countryId === country.id,
+      (prov) => (prov as { polityId: string }).polityId === polity.id,
     )
 
     for (const provinceId of Object.keys(provinces) as ProvinceId[]) {
       const province = provinces[provinceId]
-      if (!province || province.countryId !== country.id) continue
+      if (!province || province.polityId !== polity.id) continue
 
       const newProvince = newProvinces[provinceId]!
-      const current = newProvince.countryControl
+      const current = newProvince.polityControl
       const dist = distMap.get(provinceId)
 
       if (dist !== undefined) {
@@ -96,13 +97,13 @@ export function runControlSystem(ctx: TickContext): TickContext {
           config.controlMaxMinimum,
           100,
         )
-        const isCapital = provinceId === country.capitalProvinceId
+        const isCapital = provinceId === polity.capitalProvinceId
         const maxControl = isCapital
           ? 100
           : clamp(baseMaxControl + maxControlBonus, config.controlAbilityMinimumFloor, 100)
-        newProvince.countryControl = applyControl(current, maxControl, effectiveGrowth, config)
+        newProvince.polityControl = applyControl(current, maxControl, effectiveGrowth, config)
       } else {
-        newProvince.countryControl = Math.max(0, current - config.disconnectedControlDecayPerMonth)
+        newProvince.polityControl = Math.max(0, current - config.disconnectedControlDecayPerMonth)
       }
     }
   }
@@ -115,10 +116,13 @@ export function runControlSystem(ctx: TickContext): TickContext {
     const maxControlBonus = calcHouseHeadControlMaxBonus(ctx.state, house, config)
     const effectiveGrowth = config.controlGrowthPerMonth * growthModifier
 
+    const housePrimaryPolityId = getHousePrimaryPolityId(ctx.state, house.id)
+    if (!housePrimaryPolityId) continue
+
     const distMap = bfs(
       house.seatProvinceId,
       provinces,
-      (prov) => (prov as { countryId: string }).countryId === house.countryId,
+      (prov) => (prov as { polityId: string }).polityId === housePrimaryPolityId,
     )
 
     for (const provinceId of Object.keys(provinces) as ProvinceId[]) {

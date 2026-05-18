@@ -2,30 +2,23 @@ import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { createOfficeAssignment, revokeOfficesByHolder } from '../mutations/officeMutations'
 import {
-  getActiveOfficeHolders,
-  getCountryRuler,
+  getPolityLeader,
   getHouseLeader,
+  getActiveOfficeHolders,
 } from '../selectors/officeSelectors'
-import {
-  getHouseCountrySharePercent,
-  getPersonHouseSharePercent,
-} from '../selectors/shareSelectors'
+import { getHousePolitySharePercent, getPersonHouseSharePercent } from '../selectors/shareSelectors'
 import { getPersonPrestige } from '../selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
-import type { PersonId, CountryId, HouseId } from '../types/ids'
+import type { PersonId, PolityId, HouseId } from '../types/ids'
 import type { OfficeRole, OrganizationRef } from '../types/office'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { getRoleScore } from '../selectors/abilitySelectors'
+import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
 
-const COUNTRY_APPOINTABLE_ROLES: OfficeRole[] = [
-  'administrator',
-  'treasurer',
-  'military',
-  'advisor',
-]
+const POLITY_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
 const HOUSE_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
 
 function getRelevantStat(state: WorldState, personId: PersonId, role: OfficeRole): number {
@@ -37,10 +30,10 @@ function getRelevantStat(state: WorldState, personId: PersonId, role: OfficeRole
   }
 }
 
-function computeCountryScore(
+function computePolityScore(
   state: WorldState,
   config: SimulationConfig,
-  countryId: CountryId,
+  polityId: PolityId,
   rulerId: PersonId,
   personId: PersonId,
   role: OfficeRole,
@@ -52,12 +45,12 @@ function computeCountryScore(
   const prestige = getPersonPrestige(state, personId)
   const rulerRespect = ruler
     ? attitudeValueToScore(
-        getAttitudeOrDefault(state, ruler, { kind: 'country', id: countryId }).respect,
+        getAttitudeOrDefault(state, ruler, { kind: 'polity', id: polityId }).respect,
       ) / 100
     : 0
-  const countryAtt = getAttitudeOrDefault(state, person, { kind: 'country', id: countryId })
-  const countryAffection = attitudeValueToScore(countryAtt.affection) / 100
-  const houseSharePct = getHouseCountrySharePercent(state, countryId, person.houseId)
+  const polityAtt = getAttitudeOrDefault(state, person, { kind: 'polity', id: polityId })
+  const polityAffection = attitudeValueToScore(polityAtt.affection) / 100
+  const houseSharePct = getHousePolitySharePercent(state, polityId, person.houseId)
   const personSharePct = getPersonHouseSharePercent(state, person.houseId, personId)
 
   const currentOfficeCount = (state.officeIndex.byHolderPerson[personId as string] ?? []).length
@@ -66,7 +59,7 @@ function computeCountryScore(
     getRelevantStat(state, personId, role) * 1.0 +
     (prestige / 100) * 10 +
     rulerRespect * 5 +
-    countryAffection * 3 +
+    polityAffection * 3 +
     houseSharePct * 0.1 +
     personSharePct * 0.05 -
     config.concurrentOfficePenalty * currentOfficeCount
@@ -112,22 +105,22 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
 
   let currentCtx = ctx
 
-  // Country offices
-  for (const countryId of Object.keys(currentCtx.state.countries).sort()) {
-    const country = currentCtx.state.countries[countryId as CountryId]
-    if (!country || !country.active) continue
+  // Polity offices
+  for (const polityId of Object.keys(currentCtx.state.polities).sort()) {
+    const polity = currentCtx.state.polities[polityId as PolityId]
+    if (!polity || !polity.active) continue
 
-    const rulerId = getCountryRuler(currentCtx.state, countryId as CountryId)
+    const rulerId = getPolityLeader(currentCtx.state, polityId as PolityId)
     if (!rulerId) continue
 
-    const countryRef: OrganizationRef = { kind: 'country', id: countryId as CountryId }
+    const polityRef: OrganizationRef = { kind: 'polity', id: polityId as PolityId }
 
-    for (const role of COUNTRY_APPOINTABLE_ROLES) {
-      const def = OFFICE_DEFINITIONS[`country:${role}`]
+    for (const role of POLITY_APPOINTABLE_ROLES) {
+      const def = OFFICE_DEFINITIONS[`polity:${role}`]
       if (!def) continue
 
       // Get current active holders, revoke dead ones
-      const currentHolders = getActiveOfficeHolders(currentCtx.state, countryRef, role)
+      const currentHolders = getActiveOfficeHolders(currentCtx.state, polityRef, role)
       for (const holderId of currentHolders) {
         const holder = currentCtx.state.persons[holderId]
         if (!holder || !holder.alive) {
@@ -139,20 +132,30 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
       }
 
       // Re-check after revocations
-      const activeHolders = getActiveOfficeHolders(currentCtx.state, countryRef, role)
+      const activeHolders = getActiveOfficeHolders(currentCtx.state, polityRef, role)
       if (activeHolders.length >= def.maxHolders) continue
 
-      // Find candidates: alive adults in this country, not already holding this role
+      // Find candidates per v0.15 §13.2:
+      //  - alive adult
+      //  - house is active
+      //  - (house owns a Province in this Polity) OR (house is this Polity's ownerHouseId)
+      //  - not already holding this role
       const alreadyHolding = new Set(activeHolders.map((id) => id as string))
       const candidates: PersonId[] = []
       for (const personId of Object.keys(currentCtx.state.persons).sort()) {
         const person = currentCtx.state.persons[personId as PersonId]
         if (!person || !person.alive) continue
-        if (person.countryId !== countryId) continue
         if (person.age < currentCtx.config.adultAge) continue
         if (alreadyHolding.has(personId)) continue
         const house = currentCtx.state.houses[person.houseId]
         if (!house || !house.active) continue
+        const personPrimaryPolityId = getPersonPrimaryPolityId(
+          currentCtx.state,
+          personId as PersonId,
+        )
+        const isOwnerHouseMember =
+          polity.ownerHouseId !== undefined && person.houseId === polity.ownerHouseId
+        if (personPrimaryPolityId !== polityId && !isOwnerHouseMember) continue
         candidates.push(personId as PersonId)
       }
 
@@ -161,10 +164,10 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
       const scored = candidates
         .map((id) => ({
           id,
-          score: computeCountryScore(
+          score: computePolityScore(
             currentCtx.state,
             currentCtx.config,
-            countryId as CountryId,
+            polityId as PolityId,
             rulerId,
             id,
             role,
@@ -175,7 +178,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
       const best = scored[0]
       if (!best || best.score < currentCtx.config.minAppointmentScore) continue
 
-      const newState = createOfficeAssignment(currentCtx.state, countryRef, role, best.id)
+      const newState = createOfficeAssignment(currentCtx.state, polityRef, role, best.id)
       currentCtx = { ...currentCtx, state: newState }
 
       const person = currentCtx.state.persons[best.id]
@@ -191,9 +194,9 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
             importance: 'normal',
             actorIds: [best.id],
             houseIds: [person.houseId],
-            countryIds: [countryId as CountryId],
+            polityIds: [polityId as PolityId],
             provinceIds: [],
-            summary: `${person.name} was appointed as ${def.displayName} of ${country.name}.`,
+            summary: `${person.name} was appointed as ${def.displayName} of ${polity.name}.`,
             reasons: [],
             effects: [],
           }
@@ -276,7 +279,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
           importance: 'normal',
           actorIds: [best.id],
           houseIds: [houseId as HouseId],
-          countryIds: [house.countryId],
+          polityIds: [],
           provinceIds: [],
           summary: `${person.name} was appointed as ${def.displayName} of ${house.name}.`,
           reasons: [],

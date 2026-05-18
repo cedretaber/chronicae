@@ -3,7 +3,7 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { ProvinceId, HouseId, CountryId, PersonId, OfficeAssignmentId } from '../types/ids'
+import type { ProvinceId, HouseId, PolityId, PersonId, OfficeAssignmentId } from '../types/ids'
 import type { Person, AbilityScores } from '../types/person'
 import type { OfficeAssignment, OrganizationRef } from '../types/office'
 import { runControlSystem } from './controlSystem'
@@ -36,7 +36,6 @@ function makePerson(ambition: number, caution: number): Person {
     age: 30,
     alive: true,
     houseId: 'h-0' as HouseId,
-    countryId: 'c-0' as CountryId,
     childIds: [],
     birthStatus: 'unknown',
     abilities: DEFAULT_ABILITIES,
@@ -74,26 +73,26 @@ function makeWorldState(
   const person = { ...makePerson(0.5, 0.5), ...personOverrides }
   const provinceId = 'p-0' as ProvinceId
   const houseId = 'h-0' as HouseId
-  const countryId = 'c-0' as CountryId
+  const polityId = 'dp-0' as PolityId
 
   const officeAssignmentsMap: Record<OfficeAssignmentId, OfficeAssignment> = {}
   const officeIndexByOrg: Record<string, OfficeAssignmentId[]> = {}
 
   let assignmentCounter = 0
 
-  // Set up country 'leader' office assignment (required by getCountryRulerHouse)
-  const countryLeaderId = ('of-' + assignmentCounter) as OfficeAssignmentId
+  // Set up polity 'leader' office assignment (required by getPolityRulerHouse)
+  const polityLeaderId = ('of-' + assignmentCounter) as OfficeAssignmentId
   assignmentCounter++
-  const countryLeaderOffice = makeOfficeAssignment(
-    countryLeaderId,
-    { kind: 'country', id: countryId },
+  const polityLeaderOffice = makeOfficeAssignment(
+    polityLeaderId,
+    { kind: 'polity', id: polityId },
     'leader',
     person.id,
   )
-  officeAssignmentsMap[countryLeaderId] = countryLeaderOffice
-  const countryKey = `country:${countryId}`
-  if (!officeIndexByOrg[countryKey]) officeIndexByOrg[countryKey] = []
-  officeIndexByOrg[countryKey].push(countryLeaderId)
+  officeAssignmentsMap[polityLeaderId] = polityLeaderOffice
+  const polityKey = `polity:${polityId}`
+  if (!officeIndexByOrg[polityKey]) officeIndexByOrg[polityKey] = []
+  officeIndexByOrg[polityKey].push(polityLeaderId)
 
   // Set up house 'leader' office assignment (required by getHouseLeader)
   const houseLeaderId = ('of-' + assignmentCounter) as OfficeAssignmentId
@@ -113,15 +112,10 @@ function makeWorldState(
   for (const [role, holderId] of Object.entries(officeAssignments)) {
     const officeId = ('of-' + assignmentCounter) as OfficeAssignmentId
     assignmentCounter++
-    const office = makeOfficeAssignment(
-      officeId,
-      { kind: 'country', id: countryId },
-      role,
-      holderId,
-    )
+    const office = makeOfficeAssignment(officeId, { kind: 'polity', id: polityId }, role, holderId)
     officeAssignmentsMap[officeId] = office
-    if (!officeIndexByOrg[countryKey]) officeIndexByOrg[countryKey] = []
-    officeIndexByOrg[countryKey].push(officeId)
+    if (!officeIndexByOrg[polityKey]) officeIndexByOrg[polityKey] = []
+    officeIndexByOrg[polityKey].push(officeId)
   }
 
   return {
@@ -135,19 +129,20 @@ function makeWorldState(
         y: 0,
         neighbors: [],
         ownerHouseId: houseId,
-        countryId,
+        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
-        countryControl: 50,
+        polityControl: 50,
         houseControl: 50,
       },
     },
-    countries: {
-      [countryId]: {
-        id: countryId,
+    polities: {
+      [polityId]: {
+        id: polityId,
         name: 'C0',
-        houseIds: [houseId],
+        rank: 2,
+        ownerHouseId: houseId,
         treasury,
         legacyPrestige: 50,
         adminPower: 10,
@@ -160,7 +155,6 @@ function makeWorldState(
         id: houseId,
         name: 'H0',
         active: true,
-        countryId,
         provinceIds: [provinceId],
         memberIds: [],
         cadetHouseIds: [],
@@ -194,12 +188,12 @@ function makeCtx(world: WorldState): TickContext {
     deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 }
 
-describe('runControlSystem — countryControl growth', () => {
-  it('admin=10 chancellor grows countryControl faster than admin=5', () => {
+describe('runControlSystem — polityControl growth', () => {
+  it('admin=10 chancellor grows polityControl faster than admin=5', () => {
     const highAdminPerson = makePerson(0.5, 0.5)
     const highAdminState = makeWorldState(
       { abilities: makeAbilities({ numeracy: 100 }), aptitudes: makeAbilities({ numeracy: 100 }) },
@@ -216,10 +210,10 @@ describe('runControlSystem — countryControl growth', () => {
     const highAdminProv = highAdminResult.state.provinces['p-0' as ProvinceId]!
     const neutralProv = neutralResult.state.provinces['p-0' as ProvinceId]!
 
-    expect(highAdminProv.countryControl).toBeGreaterThan(neutralProv.countryControl)
+    expect(highAdminProv.polityControl).toBeGreaterThan(neutralProv.polityControl)
   })
 
-  it('admin=5 chancellor grows countryControl faster than admin=0', () => {
+  it('admin=5 chancellor grows polityControl faster than admin=0', () => {
     const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { administrator: neutralPerson.id })
     const neutralCtx = makeCtx(neutralState)
@@ -236,7 +230,7 @@ describe('runControlSystem — countryControl growth', () => {
     const neutralProv = neutralResult.state.provinces['p-0' as ProvinceId]!
     const lowAdminProv = lowAdminResult.state.provinces['p-0' as ProvinceId]!
 
-    expect(neutralProv.countryControl).toBeGreaterThan(lowAdminProv.countryControl)
+    expect(neutralProv.polityControl).toBeGreaterThan(lowAdminProv.polityControl)
   })
 
   it('expected values: governance=100 → 52.5, governance=50 → 52.0, governance=0 → 51.5', () => {
@@ -247,12 +241,12 @@ describe('runControlSystem — countryControl growth', () => {
     )
     const admin10Result = runControlSystem(makeCtx(admin10State))
     const admin10Prov = admin10Result.state.provinces['p-0' as ProvinceId]!
-    expect(admin10Prov.countryControl).toBeCloseTo(52.5, 5)
+    expect(admin10Prov.polityControl).toBeCloseTo(52.5, 5)
 
     const admin5State = makeWorldState({}, { administrator: 'pe-0' as PersonId })
     const admin5Result = runControlSystem(makeCtx(admin5State))
     const admin5Prov = admin5Result.state.provinces['p-0' as ProvinceId]!
-    expect(admin5Prov.countryControl).toBeCloseTo(52.0, 5)
+    expect(admin5Prov.polityControl).toBeCloseTo(52.0, 5)
 
     const govMin = makeAbilities({ numeracy: 0, learning: 0, charisma: 0, insight: 0 })
     const admin0State = makeWorldState(
@@ -261,7 +255,7 @@ describe('runControlSystem — countryControl growth', () => {
     )
     const admin0Result = runControlSystem(makeCtx(admin0State))
     const admin0Prov = admin0Result.state.provinces['p-0' as ProvinceId]!
-    expect(admin0Prov.countryControl).toBeCloseTo(51.5, 5)
+    expect(admin0Prov.polityControl).toBeCloseTo(51.5, 5)
   })
 })
 
@@ -270,12 +264,12 @@ describe('runControlSystem — capital province maxControl', () => {
     const admin0Person = makePerson(0.5, 0.5)
     const provinceId = 'p-0' as ProvinceId
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
 
     const officeId = 'of-0' as OfficeAssignmentId
     const office: OfficeAssignment = {
       id: officeId,
-      organization: { kind: 'country', id: countryId },
+      organization: { kind: 'polity', id: polityId },
       role: 'administrator',
       holderPersonId: admin0Person.id,
       active: true,
@@ -294,19 +288,20 @@ describe('runControlSystem — capital province maxControl', () => {
           y: 0,
           neighbors: [],
           ownerHouseId: houseId,
-          countryId,
+          polityId,
           habitability: 50,
           popGroupIds: [],
           development: 0,
-          countryControl: 100,
+          polityControl: 100,
           houseControl: 100,
         },
       },
-      countries: {
-        [countryId]: {
-          id: countryId,
+      polities: {
+        [polityId]: {
+          id: polityId,
           name: 'C0',
-          houseIds: [houseId],
+          rank: 2,
+          ownerHouseId: houseId,
           treasury: 100,
           legacyPrestige: 50,
           adminPower: 10,
@@ -319,7 +314,6 @@ describe('runControlSystem — capital province maxControl', () => {
           id: houseId,
           name: 'H0',
           active: true,
-          countryId,
           provinceIds: [provinceId],
           memberIds: [],
           cadetHouseIds: [],
@@ -336,14 +330,14 @@ describe('runControlSystem — capital province maxControl', () => {
       organizationShares: {},
       officeAssignments: { [officeId]: office },
       shareIndex: { byOrganization: {}, byHolder: {} },
-      officeIndex: { byOrganization: { [`country:${countryId}`]: [officeId] }, byHolderPerson: {} },
+      officeIndex: { byOrganization: { [`polity:${polityId}`]: [officeId] }, byHolderPerson: {} },
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 1,
     }
 
     const result = runControlSystem(makeCtx(world))
     const capitalProv = result.state.provinces['p-0' as ProvinceId]!
-    expect(capitalProv.countryControl).toBe(100)
+    expect(capitalProv.polityControl).toBe(100)
   })
 })
 
@@ -353,12 +347,12 @@ describe.skip('runEconomySystem — treasurer tax efficiency', () => {
     const highAdminPerson = makePerson(0.5, 1.0)
     const highAdminState = makeWorldState(highAdminPerson, { treasurer: highAdminPerson.id })
     const highAdminResult = runEconomySystem(makeCtx(highAdminState))
-    const highAdminTreasury = highAdminResult.state.countries['c-0' as CountryId]!.treasury
+    const highAdminTreasury = highAdminResult.state.polities['dp-0' as PolityId]!.treasury
 
     const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { treasurer: neutralPerson.id })
     const neutralResult = runEconomySystem(makeCtx(neutralState))
-    const neutralTreasury = neutralResult.state.countries['c-0' as CountryId]!.treasury
+    const neutralTreasury = neutralResult.state.polities['dp-0' as PolityId]!.treasury
 
     expect(highAdminTreasury).toBeGreaterThan(neutralTreasury)
   })
@@ -367,13 +361,13 @@ describe.skip('runEconomySystem — treasurer tax efficiency', () => {
     const highAdminPerson = makePerson(0.5, 1.0)
     const highAdminState = makeWorldState(highAdminPerson, { treasurer: highAdminPerson.id })
     const highAdminResult = runEconomySystem(makeCtx(highAdminState))
-    const highAdminTreasury = highAdminResult.state.countries['c-0' as CountryId]!.treasury
+    const highAdminTreasury = highAdminResult.state.polities['dp-0' as PolityId]!.treasury
     expect(highAdminTreasury).toBeCloseTo(103.0, 5)
 
     const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { treasurer: neutralPerson.id })
     const neutralResult = runEconomySystem(makeCtx(neutralState))
-    const neutralTreasury = neutralResult.state.countries['c-0' as CountryId]!.treasury
+    const neutralTreasury = neutralResult.state.polities['dp-0' as PolityId]!.treasury
     expect(neutralTreasury).toBeCloseTo(102.5, 5)
   })
 })
@@ -413,7 +407,7 @@ describe('calcGeneralDeclareThreshold — integration with defaultConfig', () =>
   it('ambition=1.0 general returns threshold below base 0.45', () => {
     const ambitionPerson = makePerson(1.0, 0.5)
     const state = makeWorldState(ambitionPerson, { military: ambitionPerson.id })
-    const threshold = calcGeneralDeclareThreshold(state, 'c-0' as CountryId, defaultConfig)
+    const threshold = calcGeneralDeclareThreshold(state, 'dp-0' as PolityId, defaultConfig)
     expect(threshold).toBe(0.4)
     expect(threshold).toBeLessThan(0.45)
   })
@@ -421,7 +415,7 @@ describe('calcGeneralDeclareThreshold — integration with defaultConfig', () =>
   it('caution=1.0 general returns threshold above base 0.45', () => {
     const cautionPerson = makePerson(0.5, 1.0)
     const state = makeWorldState(cautionPerson, { military: cautionPerson.id })
-    const threshold = calcGeneralDeclareThreshold(state, 'c-0' as CountryId, defaultConfig)
+    const threshold = calcGeneralDeclareThreshold(state, 'dp-0' as PolityId, defaultConfig)
     expect(threshold).toBe(0.5)
     expect(threshold).toBeGreaterThan(0.45)
   })
@@ -430,7 +424,7 @@ describe('calcGeneralDeclareThreshold — integration with defaultConfig', () =>
     const ambitionPerson = makePerson(1.0, 0.5)
     const state = makeWorldState(ambitionPerson, { military: ambitionPerson.id })
     const disabledConfig = { ...defaultConfig, personAbilityEffectsEnabled: false }
-    const threshold = calcGeneralDeclareThreshold(state, 'c-0' as CountryId, disabledConfig)
+    const threshold = calcGeneralDeclareThreshold(state, 'dp-0' as PolityId, disabledConfig)
     expect(threshold).toBe(0.45)
   })
 })
@@ -455,7 +449,7 @@ describe('runPublicSpendingSystem — chancellor ambition monument preference', 
     const result = runPublicSpendingSystem(ctx)
 
     const monumentEvents = result.events.filter((e) => e.type === 'MONUMENT_BUILT')
-    const landDevEvents = result.events.filter((e) => e.type === 'COUNTRY_LAND_DEVELOPED')
+    const landDevEvents = result.events.filter((e) => e.type === 'POP_LAND_DEVELOPED')
     expect(monumentEvents.length).toBeGreaterThan(0)
     expect(landDevEvents.length).toBe(0)
   })
@@ -529,7 +523,7 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
     const headPerson = makePerson(0.5, 1.0)
     const houseId = 'h-0' as HouseId
     const provinceId = 'p-0' as ProvinceId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
 
     const state: WorldState = {
       currentYear: 1444,
@@ -542,19 +536,20 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
           y: 0,
           neighbors: [],
           ownerHouseId: houseId,
-          countryId,
+          polityId,
           habitability: 50,
           popGroupIds: [],
           development: 0,
-          countryControl: 50,
+          polityControl: 50,
           houseControl: 50,
         },
       },
-      countries: {
-        [countryId]: {
-          id: countryId,
+      polities: {
+        [polityId]: {
+          id: polityId,
           name: 'C0',
-          houseIds: [houseId],
+          rank: 2,
+          ownerHouseId: houseId,
           treasury: 500,
           legacyPrestige: 50,
           adminPower: 10,
@@ -567,7 +562,6 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
           id: houseId,
           name: 'H0',
           active: true,
-          countryId,
           provinceIds: [provinceId],
           memberIds: [],
           cadetHouseIds: [],

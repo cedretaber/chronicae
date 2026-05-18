@@ -9,6 +9,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { birthChild } from '../mutations/personMutations'
 import { inheritAptitudes, sampleAptitudes } from '../selectors/abilitySelectors'
+import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
 export function runBirthSystem(ctx: TickContext): TickContext {
   if (ctx.state.currentMonth !== 1) return ctx
@@ -113,6 +114,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
 
     const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
 
+    const childPrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, person.houseId)
     const event: SimEvent = {
       id: eventId,
       year: currentCtx.state.currentYear,
@@ -121,7 +123,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       importance: 'minor',
       actorIds: motherId ? [childId, person.id, motherId] : [childId, person.id],
       houseIds: [person.houseId],
-      countryIds: [person.countryId],
+      polityIds: childPrimaryPolityId ? [childPrimaryPolityId] : [],
       provinceIds: [],
       summary: childName + ' was born',
       description: childName + ' was born',

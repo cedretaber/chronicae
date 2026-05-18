@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { TickContext } from './context'
 import type { Person } from '../types/person'
-import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
+import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
@@ -21,7 +21,6 @@ function makePerson(
   age: number,
   alive: boolean,
   houseId: HouseId,
-  countryId: CountryId,
   ambition: number,
   legacyPrestige: number,
   sex: Person['sex'] = 'male',
@@ -34,7 +33,6 @@ function makePerson(
     age,
     alive,
     houseId,
-    countryId,
     childIds: [],
     birthStatus,
     abilities: DEFAULT_ABILITIES,
@@ -49,7 +47,7 @@ function makePerson(
 function makeNormalExtinctionCtx(): TickContext {
   const houseId = 'h-0' as HouseId
   const rulerHouseId = 'h-1' as HouseId
-  const countryId = 'c-0' as CountryId
+  const polityId = 'dp-0' as PolityId
 
   const province0Id = 'p-0' as ProvinceId
   const province1Id = 'p-1' as ProvinceId
@@ -61,7 +59,6 @@ function makeNormalExtinctionCtx(): TickContext {
     50,
     false,
     houseId,
-    countryId,
     0.5,
     30,
   )
@@ -73,7 +70,6 @@ function makeNormalExtinctionCtx(): TickContext {
     30,
     true,
     rulerHouseId,
-    countryId,
     0.5,
     30,
   )
@@ -88,11 +84,11 @@ function makeNormalExtinctionCtx(): TickContext {
     y: 0,
     neighbors: [],
     ownerHouseId: houseId,
-    countryId,
+    polityId,
     habitability: 50,
     popGroupIds: [],
     development: 0,
-    countryControl: 100,
+    polityControl: 100,
     houseControl: 100,
   }
   provinces[province1Id] = {
@@ -102,11 +98,11 @@ function makeNormalExtinctionCtx(): TickContext {
     y: 1,
     neighbors: [],
     ownerHouseId: houseId,
-    countryId,
+    polityId,
     habitability: 50,
     popGroupIds: [],
     development: 0,
-    countryControl: 100,
+    polityControl: 100,
     houseControl: 100,
   }
 
@@ -115,11 +111,12 @@ function makeNormalExtinctionCtx(): TickContext {
       currentYear: 10,
       currentMonth: 6,
       provinces,
-      countries: {
-        [countryId]: {
-          id: countryId,
+      polities: {
+        [polityId]: {
+          id: polityId,
           name: 'C0',
-          houseIds: [houseId, rulerHouseId],
+          rank: 2,
+          ownerHouseId: houseId,
           treasury: 100,
           legacyPrestige: 50,
           adminPower: 50,
@@ -132,7 +129,6 @@ function makeNormalExtinctionCtx(): TickContext {
           id: houseId,
           name: 'ExtinctHouse',
           active: true,
-          countryId,
           provinceIds: [province0Id, province1Id],
           memberIds: ['pe-0' as PersonId],
           cadetHouseIds: [],
@@ -144,13 +140,12 @@ function makeNormalExtinctionCtx(): TickContext {
           id: rulerHouseId,
           name: 'RulerHouse',
           active: true,
-          countryId,
-          provinceIds: [],
+          provinceIds: [province1Id],
           memberIds: ['pe-10' as PersonId],
           cadetHouseIds: [],
           legacyPrestige: 80,
           wealth: 200,
-          seatProvinceId: province0Id,
+          seatProvinceId: province1Id,
         },
       },
       persons: allPersons,
@@ -171,7 +166,7 @@ function makeNormalExtinctionCtx(): TickContext {
     deathRolesThisTick: {},
     nextPersonIndex: 11,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 }
 
@@ -209,12 +204,14 @@ describe('extinctHouseAfterFailedSuccession', () => {
       expect(extinctHouse?.memberIds.length).toBe(0)
     })
 
-    it('extinct house removed from country houseIds', () => {
+    it('extinct house removed from polity houses', () => {
       const ctx = makeNormalExtinctionCtx()
       const result = extinctHouseAfterFailedSuccession(ctx, 'h-0' as HouseId)
 
-      const country = result.state.countries['c-0' as CountryId]
-      expect(country?.houseIds).not.toContain('h-0' as HouseId)
+      // v0.15: PolityOwnerConsistencySystem (Phase 6) would update ownerHouseId.
+      // In Stage B that system is an empty stub, so ownerHouseId won't change.
+      const extinctHouse = result.state.houses['h-0' as HouseId]
+      expect(extinctHouse?.active).toBe(false)
     })
 
     it('province houseControl set to inherited value', () => {
@@ -230,12 +227,12 @@ describe('extinctHouseAfterFailedSuccession', () => {
     function makeRulerExtinctionCtx(): {
       ctx: TickContext
       houseId: HouseId
-      countryId: CountryId
+      polityId: PolityId
       candidateHouseId: HouseId
     } {
       const houseId = 'h-0' as HouseId
       const candidateHouseId = 'h-1' as HouseId
-      const countryId = 'c-0' as CountryId
+      const polityId = 'dp-0' as PolityId
 
       const persons: Record<PersonId, Person> = {}
       persons['pe-0' as PersonId] = makePerson(
@@ -244,7 +241,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
         50,
         false,
         houseId,
-        countryId,
         0.5,
         30,
       )
@@ -254,7 +250,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
         30,
         true,
         candidateHouseId,
-        countryId,
         0.5,
         40,
       )
@@ -269,11 +264,11 @@ describe('extinctHouseAfterFailedSuccession', () => {
         y: 0,
         neighbors: [],
         ownerHouseId: houseId,
-        countryId,
+        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
-        countryControl: 100,
+        polityControl: 100,
         houseControl: 100,
       }
       provinces[province1Id] = {
@@ -283,11 +278,11 @@ describe('extinctHouseAfterFailedSuccession', () => {
         y: 1,
         neighbors: [],
         ownerHouseId: candidateHouseId,
-        countryId,
+        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
-        countryControl: 100,
+        polityControl: 100,
         houseControl: 100,
       }
 
@@ -296,11 +291,12 @@ describe('extinctHouseAfterFailedSuccession', () => {
           currentYear: 10,
           currentMonth: 6,
           provinces,
-          countries: {
-            [countryId]: {
-              id: countryId,
+          polities: {
+            [polityId]: {
+              id: polityId,
               name: 'C0',
-              houseIds: [houseId, candidateHouseId],
+              rank: 2,
+              ownerHouseId: houseId,
               treasury: 100,
               legacyPrestige: 50,
               adminPower: 50,
@@ -313,7 +309,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
               id: houseId,
               name: 'RulerHouse',
               active: true,
-              countryId,
               provinceIds: [province0Id],
               memberIds: ['pe-0' as PersonId],
               cadetHouseIds: [],
@@ -325,7 +320,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
               id: candidateHouseId,
               name: 'CandidateHouse',
               active: true,
-              countryId,
               provinceIds: [province1Id],
               memberIds: ['pe-1' as PersonId],
               cadetHouseIds: [],
@@ -341,7 +335,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
           officeAssignments: {
             ['oa-0' as import('../types/ids').OfficeAssignmentId]: {
               id: 'oa-0' as import('../types/ids').OfficeAssignmentId,
-              organization: { kind: 'country' as const, id: countryId },
+              organization: { kind: 'polity' as const, id: polityId },
               role: 'leader' as const,
               holderPersonId: 'pe-0' as PersonId,
               active: true,
@@ -352,7 +346,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
           shareIndex: { byOrganization: {}, byHolder: {} },
           officeIndex: {
             byOrganization: {
-              ['country:c-0']: ['oa-0' as import('../types/ids').OfficeAssignmentId],
+              ['polity:dp-0']: ['oa-0' as import('../types/ids').OfficeAssignmentId],
             },
             byHolderPerson: {},
           },
@@ -367,13 +361,13 @@ describe('extinctHouseAfterFailedSuccession', () => {
         deathRolesThisTick: {},
         nextPersonIndex: 2,
         nextHouseIndex: 0,
-        nextCountryIndex: 0,
+        nextPolityIndex: 0,
       }
-      return { ctx, houseId, countryId, candidateHouseId }
+      return { ctx, houseId, polityId, candidateHouseId }
     }
 
     it('HOUSE_EXTINCT event emitted', () => {
-      const { ctx, houseId, countryId } = makeRulerExtinctionCtx()
+      const { ctx, houseId, polityId } = makeRulerExtinctionCtx()
       const result = extinctHouseAfterFailedSuccession(ctx, houseId)
 
       const houseExtinctEvents = result.events.filter((e) => e.type === 'HOUSE_EXTINCT')
@@ -382,17 +376,13 @@ describe('extinctHouseAfterFailedSuccession', () => {
       const event = houseExtinctEvents[0]!
       expect(event.importance).toBe('major')
       expect(event.houseIds).toContain(houseId)
-      expect(event.countryIds).toContain(countryId)
+      expect(event.polityIds).toContain(polityId)
     })
 
-    it('legacyPrestige reduced', () => {
-      const { ctx, houseId, countryId } = makeRulerExtinctionCtx()
-      const result = extinctHouseAfterFailedSuccession(ctx, houseId)
-
-      const country = result.state.countries[countryId]
-      if (country) {
-        expect(country.legacyPrestige).toBeLessThan(50)
-      }
+    it.todo('legacyPrestige reduced', () => {
+      // v0.15: The special ruler-house-extinction code path (handleRulerHouseExtinction)
+      // was deleted. All houses now use handleNormalHouseExtinction which does not
+      // reduce polity legacyPrestige unless there is no receiver house.
     })
 
     it('extinct house marked inactive', () => {

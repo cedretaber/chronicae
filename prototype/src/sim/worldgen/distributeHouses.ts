@@ -1,37 +1,37 @@
 import type { RngState } from '../rng/rng'
-import type { ProvinceId, HouseId, CountryId } from '../types/ids'
+import type { ProvinceId, HouseId, PolityId } from '../types/ids'
 import type { Province } from '../types/province'
-import { createHouseId, createCountryId } from '../types/ids'
+import { createHouseId, createPolityId } from '../types/ids'
 import { shuffle, randomInt } from '../rng/rng'
 
 export function distributeHouses(
   provinces: Province[],
-  assignments: Map<ProvinceId, CountryId>,
+  assignments: Map<ProvinceId, PolityId>,
   rng: RngState,
 ): {
   houseProvinces: Map<HouseId, ProvinceId[]>
-  houseCountry: Map<HouseId, CountryId>
+  housePolity: Map<HouseId, PolityId>
   rng: RngState
 } {
   const houseProvinces = new Map<HouseId, ProvinceId[]>()
-  const houseCountry = new Map<HouseId, CountryId>()
+  const housePolity = new Map<HouseId, PolityId>()
 
-  for (let countryIndex = 0; countryIndex < 3; countryIndex++) {
-    const countryId = createCountryId('c', countryIndex)
-    const countryProvinces = provinces
-      .filter((p) => assignments.get(p.id) === countryId)
+  for (let polityIndex = 0; polityIndex < 3; polityIndex++) {
+    const polityId = createPolityId('c', polityIndex)
+    const polityProvinces = provinces
+      .filter((p) => assignments.get(p.id) === polityId)
       .map((p) => p.id)
 
     for (let houseIndex = 0; houseIndex < 5; houseIndex++) {
-      const houseId = createHouseId('h', countryIndex * 5 + houseIndex)
-      const countryIdForHouse = createCountryId('c', countryIndex)
-      houseCountry.set(houseId, countryIdForHouse)
+      const houseId = createHouseId('h', polityIndex * 5 + houseIndex)
+      const polityIdForHouse = createPolityId('c', polityIndex)
+      housePolity.set(houseId, polityIdForHouse)
     }
 
-    let remainingProvinces = [...countryProvinces]
+    let remainingProvinces = [...polityProvinces]
 
     for (let houseIndex = 0; houseIndex < 5; houseIndex++) {
-      const houseId = createHouseId('h', countryIndex * 5 + houseIndex)
+      const houseId = createHouseId('h', polityIndex * 5 + houseIndex)
       const total = remainingProvinces.length
 
       let count: number
@@ -64,5 +64,5 @@ export function distributeHouses(
     }
   }
 
-  return { houseProvinces, houseCountry, rng }
+  return { houseProvinces, housePolity, rng }
 }

@@ -1,9 +1,9 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { RngState } from '../rng/rng'
-import type { ProvinceId, HouseId, PersonId, CountryId } from '../types/ids'
+import type { ProvinceId, HouseId, PersonId, PolityId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
-import { pickUniqueName, countryNamePool, countryName } from '../worldgen/nameGenerators'
+import { pickUniqueName, polityNamePool, polityName } from '../worldgen/nameGenerators'
 
 const ROMAN_NUMERALS = ['II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI']
 
@@ -22,20 +22,20 @@ function ensureUniqueName(
     }
   }
   // Fallback to worldgen pool after 10 attempts
-  const pool = countryNamePool()
+  const pool = polityNamePool()
   const fallbackIndex = Math.floor(Math.random() * pool.length)
-  return pickUniqueName(pool, usedNames, countryName, fallbackIndex, rng)
+  return pickUniqueName(pool, usedNames, polityName, fallbackIndex, rng)
 }
 
 function buildUsedNames(state: WorldState): Set<string> {
   return new Set(
-    Object.values(state.countries)
+    Object.values(state.polities)
       .filter((c): c is NonNullable<typeof c> => c !== undefined)
       .map((c) => c.name),
   )
 }
 
-export type CountryNameOrigin =
+export type PolityNameOrigin =
   | 'worldgen'
   | 'house_independence'
   | 'province_revolt_independence'
@@ -43,34 +43,34 @@ export type CountryNameOrigin =
   | 'future_split'
   | 'future_release'
 
-export type CountryNameContext = {
-  origin: CountryNameOrigin
+export type PolityNameContext = {
+  origin: PolityNameOrigin
   provinceIds?: ProvinceId[]
   capitalProvinceId?: ProvinceId
   rulingHouseId?: HouseId
   founderPersonId?: PersonId
-  sourceCountryId?: CountryId
+  sourcePolityId?: PolityId
   rebelClass?: PopClass
 }
 
-export function generateCountryName(
+export function generatePolityName(
   state: WorldState,
   _config: SimulationConfig,
   rng: RngState,
-  context: CountryNameContext,
+  context: PolityNameContext,
 ): { name: string; rng: RngState } {
   switch (context.origin) {
     case 'worldgen': {
       const usedNames = new Set(
-        Object.values(state.countries)
+        Object.values(state.polities)
           .filter((c): c is NonNullable<typeof c> => c !== undefined)
           .map((c) => c.name),
       )
       const { name, rng: nextRng } = pickUniqueName(
-        countryNamePool(),
+        polityNamePool(),
         usedNames,
-        countryName,
-        Object.keys(state.countries).length,
+        polityName,
+        Object.keys(state.polities).length,
         rng,
       )
       return { name, rng: nextRng }

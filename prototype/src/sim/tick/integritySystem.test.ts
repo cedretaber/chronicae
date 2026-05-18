@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
+import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import type { Person } from '../types/person'
 import type { House } from '../types/house'
-import type { Country } from '../types/country'
+import type { Polity } from '../types/polity'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runIntegritySystem } from './integritySystem'
@@ -30,7 +30,7 @@ function makeCtx(world: WorldState): TickContext {
     deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 }
 
@@ -44,7 +44,7 @@ describe('runIntegritySystem', () => {
 
   it('throws when dead person holds an office', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
     const personId = 'pe-0' as PersonId
 
     const person: Person = {
@@ -54,7 +54,6 @@ describe('runIntegritySystem', () => {
       age: 50,
       alive: false,
       houseId,
-      countryId,
       childIds: [],
       birthStatus: 'unknown',
       abilities: DEFAULT_ABILITIES,
@@ -69,7 +68,6 @@ describe('runIntegritySystem', () => {
       id: houseId,
       name: 'H0',
       active: true,
-      countryId,
       provinceIds: [],
       memberIds: [personId],
       cadetHouseIds: [],
@@ -78,10 +76,11 @@ describe('runIntegritySystem', () => {
       seatProvinceId: '' as ProvinceId,
     }
 
-    const country: Country = {
-      id: countryId,
+    const polity: Polity = {
+      id: polityId,
       name: 'C0',
-      houseIds: [houseId],
+      rank: 2,
+      ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 50,
@@ -93,7 +92,7 @@ describe('runIntegritySystem', () => {
     const officeAssignments: Record<string, import('../types/office').OfficeAssignment> = {
       [officeAssignmentId]: {
         id: officeAssignmentId,
-        organization: { kind: 'country', id: countryId },
+        organization: { kind: 'polity', id: polityId },
         role: 'administrator',
         holderPersonId: personId,
         active: true,
@@ -106,7 +105,7 @@ describe('runIntegritySystem', () => {
       currentYear: 1,
       currentMonth: 1,
       provinces: {},
-      countries: { [countryId]: country },
+      polities: { [polityId]: polity },
       houses: { [houseId]: house },
       persons: { [personId]: person },
       activePlots: {},
@@ -126,7 +125,7 @@ describe('runIntegritySystem', () => {
 
   it('throws when active house leader is not alive', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
     const deadLeaderId = 'pe-dead' as PersonId
 
     const deadLeader: Person = {
@@ -136,7 +135,6 @@ describe('runIntegritySystem', () => {
       age: 50,
       alive: false,
       houseId,
-      countryId,
       childIds: [],
       birthStatus: 'unknown',
       abilities: DEFAULT_ABILITIES,
@@ -154,7 +152,6 @@ describe('runIntegritySystem', () => {
       age: 30,
       alive: true,
       houseId,
-      countryId,
       childIds: [],
       birthStatus: 'unknown',
       abilities: DEFAULT_ABILITIES,
@@ -169,7 +166,6 @@ describe('runIntegritySystem', () => {
       id: houseId,
       name: 'H0',
       active: true,
-      countryId,
       provinceIds: [],
       memberIds: [deadLeaderId, 'pe-alive' as PersonId],
       cadetHouseIds: [],
@@ -178,10 +174,11 @@ describe('runIntegritySystem', () => {
       seatProvinceId: '' as ProvinceId,
     }
 
-    const country: Country = {
-      id: countryId,
+    const polity: Polity = {
+      id: polityId,
       name: 'C0',
-      houseIds: [houseId],
+      rank: 2,
+      ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 50,
@@ -206,7 +203,7 @@ describe('runIntegritySystem', () => {
       currentYear: 1,
       currentMonth: 1,
       provinces: {},
-      countries: { [countryId]: country },
+      polities: { [polityId]: polity },
       houses: { [houseId]: house },
       persons: { [deadLeaderId]: deadLeader, ['pe-alive' as PersonId]: aliveMember },
       activePlots: {},
@@ -226,7 +223,7 @@ describe('runIntegritySystem', () => {
 
   it('throws when active OfficeAssignment holder is dead', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
     const deadHolderId = 'pe-dead' as PersonId
 
     const deadHolder: Person = {
@@ -236,7 +233,6 @@ describe('runIntegritySystem', () => {
       age: 40,
       alive: false,
       houseId,
-      countryId,
       childIds: [],
       birthStatus: 'unknown',
       abilities: DEFAULT_ABILITIES,
@@ -251,7 +247,6 @@ describe('runIntegritySystem', () => {
       id: houseId,
       name: 'H0',
       active: true,
-      countryId,
       provinceIds: [],
       memberIds: [deadHolderId],
       cadetHouseIds: [],
@@ -260,10 +255,11 @@ describe('runIntegritySystem', () => {
       seatProvinceId: '' as ProvinceId,
     }
 
-    const country: Country = {
-      id: countryId,
+    const polity: Polity = {
+      id: polityId,
       name: 'C0',
-      houseIds: [houseId],
+      rank: 2,
+      ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 50,
@@ -275,7 +271,7 @@ describe('runIntegritySystem', () => {
     const officeAssignments: Record<string, import('../types/office').OfficeAssignment> = {
       [officeAssignmentId]: {
         id: officeAssignmentId,
-        organization: { kind: 'country', id: countryId },
+        organization: { kind: 'polity', id: polityId },
         role: 'treasurer',
         holderPersonId: deadHolderId,
         active: true,
@@ -288,7 +284,7 @@ describe('runIntegritySystem', () => {
       currentYear: 1,
       currentMonth: 1,
       provinces: {},
-      countries: { [countryId]: country },
+      polities: { [polityId]: polity },
       houses: { [houseId]: house },
       persons: { [deadHolderId]: deadHolder },
       activePlots: {},
@@ -308,7 +304,7 @@ describe('runIntegritySystem', () => {
 
   it('throws when OfficeAssignment has negative unpaidCount', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
     const aliveHolderId = 'pe-alive' as PersonId
 
     const aliveHolder: Person = {
@@ -318,7 +314,6 @@ describe('runIntegritySystem', () => {
       age: 30,
       alive: true,
       houseId,
-      countryId,
       childIds: [],
       birthStatus: 'unknown',
       abilities: DEFAULT_ABILITIES,
@@ -333,7 +328,6 @@ describe('runIntegritySystem', () => {
       id: houseId,
       name: 'H0',
       active: true,
-      countryId,
       provinceIds: [],
       memberIds: [aliveHolderId],
       cadetHouseIds: [],
@@ -342,10 +336,11 @@ describe('runIntegritySystem', () => {
       seatProvinceId: '' as ProvinceId,
     }
 
-    const country: Country = {
-      id: countryId,
+    const polity: Polity = {
+      id: polityId,
       name: 'C0',
-      houseIds: [houseId],
+      rank: 2,
+      ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 50,
@@ -357,7 +352,7 @@ describe('runIntegritySystem', () => {
     const officeAssignments: Record<string, import('../types/office').OfficeAssignment> = {
       [officeAssignmentId]: {
         id: officeAssignmentId,
-        organization: { kind: 'country', id: countryId },
+        organization: { kind: 'polity', id: polityId },
         role: 'advisor',
         holderPersonId: aliveHolderId,
         active: true,
@@ -370,7 +365,7 @@ describe('runIntegritySystem', () => {
       currentYear: 1,
       currentMonth: 1,
       provinces: {},
-      countries: { [countryId]: country },
+      polities: { [polityId]: polity },
       houses: { [houseId]: house },
       persons: { [aliveHolderId]: aliveHolder },
       activePlots: {},

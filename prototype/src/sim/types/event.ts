@@ -1,4 +1,4 @@
-import type { EventId, PersonId, HouseId, CountryId, ProvinceId } from './ids'
+import type { EventId, PersonId, HouseId, PolityId, ProvinceId } from './ids'
 
 export type EventType =
   | 'PERSON_DIED'
@@ -15,7 +15,7 @@ export type EventType =
   | 'REBELLION_STARTED'
   | 'REBELLION_SUCCEEDED'
   | 'REBELLION_FAILED'
-  | 'COUNTRY_SPLIT'
+  | 'POLITY_SPLIT'
   | 'OMEN'
   | 'FAMINE'
   | 'BOUNTIFUL_HARVEST'
@@ -24,7 +24,7 @@ export type EventType =
   | 'WAR_WON'
   | 'WAR_LOST'
   | 'PROVINCE_CONQUERED'
-  | 'COUNTRY_ANNEXED'
+  | 'POLITY_ANNEXED'
   | 'DISASTER_RELIEF_FUNDED'
   | 'DISASTER_RELIEF_FAILED'
   | 'MONUMENT_BUILT'
@@ -40,12 +40,14 @@ export type EventType =
   | 'PROVINCE_REVOLT_SUCCEEDED'
   | 'PROVINCE_REVOLT_FAILED'
   | 'LORDSHIP_USURPED'
-  | 'REVOLT_COUNTRY_FOUNDED'
+  | 'REVOLT_POLITY_FOUNDED'
   | 'OFFICE_ASSIGNED'
   | 'OFFICE_REVOKED'
   | 'OFFICE_SALARY_UNPAID'
   | 'OFFICE_SALARY_PARTIALLY_PAID'
-  | 'RULER_CHANGED'
+  | 'POLITY_LEADER_CHANGED'
+  | 'POLITY_OWNER_CHANGED'
+  | 'POLITY_EXTINCT'
   | 'HOUSE_LEADER_CHANGED'
   | 'SHARE_SHIFTED'
   | 'ESTATE_SETTLED'
@@ -70,7 +72,7 @@ export type SimEvent = {
   importance: 'minor' | 'normal' | 'major' | 'critical'
   actorIds: PersonId[]
   houseIds: HouseId[]
-  countryIds: CountryId[]
+  polityIds: PolityId[]
   provinceIds: ProvinceId[]
   summary: string
   description?: string

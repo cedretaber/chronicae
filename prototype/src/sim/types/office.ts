@@ -1,8 +1,8 @@
-import type { CountryId, HouseId, PersonId, OrganizationShareId, OfficeAssignmentId } from './ids'
+import type { PolityId, HouseId, PersonId, OrganizationShareId, OfficeAssignmentId } from './ids'
 
-export type OrganizationKind = 'country' | 'house'
+export type OrganizationKind = 'polity' | 'house'
 
-export type OrganizationRef = { kind: 'country'; id: CountryId } | { kind: 'house'; id: HouseId }
+export type OrganizationRef = { kind: 'polity'; id: PolityId } | { kind: 'house'; id: HouseId }
 
 export type ShareHolderRef = { kind: 'person'; id: PersonId } | { kind: 'house'; id: HouseId }
 

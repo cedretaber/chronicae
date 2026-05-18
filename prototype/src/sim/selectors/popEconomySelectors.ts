@@ -4,7 +4,7 @@ import type { ProvinceId } from '../types/ids'
 import type { PopGroupId } from '../types/ids'
 
 // POP production formula:
-// production = pop.size * config.productivityByClass[pop.class] * (pop.wealth / 100) * (province.countryControl / 100)
+// production = pop.size * config.productivityByClass[pop.class] * (pop.wealth / 100) * (province.polityControl / 100)
 export function getPopProduction(
   state: WorldState,
   config: SimulationConfig,
@@ -17,7 +17,7 @@ export function getPopProduction(
   if (!province) return 0
 
   const productivity = config.productivityByClass[pop.class]
-  return pop.size * productivity * (pop.wealth / 100) * (province.countryControl / 100)
+  return pop.size * productivity * (pop.wealth / 100) * (province.polityControl / 100)
 }
 
 // Sum of all pop productions in a province
@@ -49,7 +49,7 @@ export function getProvinceTaxBase(
 }
 
 // Province country manpower base:
-// sum over pops: pop.size * config.manpowerFactorByClass[pop.class] * (province.countryControl / 100)
+// sum over pops: pop.size * config.manpowerFactorByClass[pop.class] * (province.polityControl / 100)
 export function getProvinceCountryManpowerBase(
   state: WorldState,
   config: SimulationConfig,
@@ -63,7 +63,7 @@ export function getProvinceCountryManpowerBase(
     const pop = state.popGroups[popId]
     if (!pop) continue
     const manpowerFactor = config.manpowerFactorByClass[pop.class]
-    total += pop.size * manpowerFactor * (province.countryControl / 100)
+    total += pop.size * manpowerFactor * (province.polityControl / 100)
   }
   return total
 }

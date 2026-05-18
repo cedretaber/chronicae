@@ -103,7 +103,7 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
       importance: 'minor',
       actorIds: [],
       houseIds: [houseId as HouseId],
-      countryIds: [],
+      polityIds: [],
       provinceIds: [bestProvinceId],
       summary: `${house.name} invested in developing ${targetProvince.name}.`,
       reasons: [],

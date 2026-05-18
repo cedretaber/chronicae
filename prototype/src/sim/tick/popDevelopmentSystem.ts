@@ -13,7 +13,7 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
   for (const provinceId of Object.keys(ctx.state.provinces).sort()) {
-    const province = currentCtx.state.provinces[provinceId as ProvinceId]
+    const province = ctx.state.provinces[provinceId as ProvinceId]
     if (!province) continue
 
     const averageWealth = getProvinceAveragePopWealth(currentCtx.state, provinceId as ProvinceId)
@@ -64,7 +64,7 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
       importance: 'minor',
       actorIds: [],
       houseIds: [],
-      countryIds: [],
+      polityIds: [],
       provinceIds: [provinceId as ProvinceId],
       summary: `The people of ${province.name} improved their lands.`,
       reasons: [],

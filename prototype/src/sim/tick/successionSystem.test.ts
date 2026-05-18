@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
-import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
+import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import { createOfficeAssignmentId } from '../types/ids'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
@@ -24,7 +24,6 @@ function makePerson(
   age: number,
   alive: boolean,
   houseId: HouseId,
-  countryId: CountryId,
   ambition: number,
   legacyPrestige: number,
   sex: Person['sex'] = 'male',
@@ -41,7 +40,6 @@ function makePerson(
     age,
     alive,
     houseId,
-    countryId,
     childIds,
     birthStatus,
     abilities: DEFAULT_ABILITIES,
@@ -59,7 +57,8 @@ function makePerson(
 
 function makeCtx(members: Person[], houseActive: boolean = true, month: number = 1): TickContext {
   const houseId = 'h-0' as HouseId
-  const countryId = 'c-0' as CountryId
+  const polityId = 'dp-0' as PolityId
+  const provinceId = 'p-0' as ProvinceId
 
   const allPersons: Record<PersonId, Person> = {}
   const memberIds: PersonId[] = []
@@ -73,17 +72,33 @@ function makeCtx(members: Person[], houseActive: boolean = true, month: number =
     state: {
       currentYear: 1,
       currentMonth: month,
-      provinces: {},
-      countries: {
-        [countryId]: {
-          id: countryId,
+      provinces: {
+        [provinceId]: {
+          id: provinceId,
+          name: 'Capital',
+          x: 0,
+          y: 0,
+          neighbors: [],
+          ownerHouseId: houseId,
+          polityId,
+          habitability: 50,
+          popGroupIds: [],
+          development: 10,
+          polityControl: 100,
+          houseControl: 100,
+        },
+      },
+      polities: {
+        [polityId]: {
+          id: polityId,
           name: 'C0',
-          houseIds: [houseId],
+          rank: 2,
+          ownerHouseId: houseId,
           treasury: 100,
           legacyPrestige: 50,
           adminPower: 50,
           active: true,
-          capitalProvinceId: '' as ProvinceId,
+          capitalProvinceId: provinceId,
         },
       },
       houses: {
@@ -91,13 +106,12 @@ function makeCtx(members: Person[], houseActive: boolean = true, month: number =
           id: houseId,
           name: 'H0',
           active: houseActive,
-          countryId,
-          provinceIds: [],
+          provinceIds: [provinceId],
           memberIds,
           cadetHouseIds: [],
           legacyPrestige: 50,
           wealth: 100,
-          seatProvinceId: '' as ProvinceId,
+          seatProvinceId: provinceId,
         },
       },
       persons: allPersons,
@@ -118,22 +132,13 @@ function makeCtx(members: Person[], houseActive: boolean = true, month: number =
     deathRolesThisTick: {},
     nextPersonIndex: members.length,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 }
 
 describe('runSuccessionSystem', () => {
   it('skips houses that do not need succession (has leader office assignment)', () => {
-    const head = makePerson(
-      'pe-0' as PersonId,
-      'Head',
-      50,
-      true,
-      'h-0' as HouseId,
-      'c-0' as CountryId,
-      0.5,
-      30,
-    )
+    const head = makePerson('pe-0' as PersonId, 'Head', 50, true, 'h-0' as HouseId, 0.5, 30)
     const ctx = makeCtx([head])
     // Add leader office assignment so needsSuccession returns false
     const officeId = 'of-0' as import('../types/ids').OfficeAssignmentId
@@ -159,24 +164,15 @@ describe('runSuccessionSystem', () => {
 
     const result = runSuccessionSystem(resultCtx)
 
-    // No house succession events (house already has a leader), but a RULER_CHANGED
-    // event is correctly emitted because the country had no country:leader office.
+    // No house succession events (house already has a leader), but a POLITY_LEADER_CHANGED
+    // event is correctly emitted because the polity had no polity:leader office.
     expect(result.events.some((e) => e.type === 'HOUSE_LEADER_CHANGED')).toBe(false)
-    expect(result.events.some((e) => e.type === 'RULER_CHANGED')).toBe(true)
+    expect(result.events.some((e) => e.type === 'POLITY_LEADER_CHANGED')).toBe(true)
     expect(result.events.length).toBe(1)
   })
 
   it('HOUSE_LEADER_CHANGED event emitted when succession occurs', () => {
-    const adult = makePerson(
-      'pe-1' as PersonId,
-      'AdultChild',
-      30,
-      true,
-      'h-0' as HouseId,
-      'c-0' as CountryId,
-      0.5,
-      10,
-    )
+    const adult = makePerson('pe-1' as PersonId, 'AdultChild', 30, true, 'h-0' as HouseId, 0.5, 10)
     const ctx = makeCtx([adult])
 
     const result = runSuccessionSystem(ctx)
@@ -185,26 +181,8 @@ describe('runSuccessionSystem', () => {
   })
 
   it('minor becomes head when no adults exist', () => {
-    const minor1 = makePerson(
-      'pe-1' as PersonId,
-      'MinorChild',
-      8,
-      true,
-      'h-0' as HouseId,
-      'c-0' as CountryId,
-      0.3,
-      5,
-    )
-    const minor2 = makePerson(
-      'pe-2' as PersonId,
-      'OlderMinor',
-      12,
-      true,
-      'h-0' as HouseId,
-      'c-0' as CountryId,
-      0.4,
-      8,
-    )
+    const minor1 = makePerson('pe-1' as PersonId, 'MinorChild', 8, true, 'h-0' as HouseId, 0.3, 5)
+    const minor2 = makePerson('pe-2' as PersonId, 'OlderMinor', 12, true, 'h-0' as HouseId, 0.4, 8)
     const ctx = makeCtx([minor1, minor2])
 
     const result = runSuccessionSystem(ctx)
@@ -225,17 +203,19 @@ describe('runSuccessionSystem', () => {
 
     const house = result.state.houses['h-0' as HouseId]
     expect(house?.active).toBe(false)
-    const country = result.state.countries['c-0' as CountryId]
-    expect(country?.active).toBe(false)
+    // v0.15: With no receiver house available (only house is extinct),
+    // handleNormalHouseExtinction deactivates both house and polity
+    const polity = result.state.polities['dp-0' as PolityId]
+    expect(polity?.active).toBe(false)
     expect(result.events.some((e) => e.type === 'HOUSE_EXTINCT')).toBe(true)
   })
 
   it('SUCCESSION_CRISIS fires when top two scores are close', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
 
-    const pe1 = makePerson('pe-1' as PersonId, 'Candidate1', 30, true, houseId, countryId, 0.5, 10)
-    const pe2 = makePerson('pe-2' as PersonId, 'Candidate2', 29, true, houseId, countryId, 0.5, 10)
+    const pe1 = makePerson('pe-1' as PersonId, 'Candidate1', 30, true, houseId, 0.5, 10)
+    const pe2 = makePerson('pe-2' as PersonId, 'Candidate2', 29, true, houseId, 0.5, 10)
 
     const persons: Record<PersonId, Person> = {}
     persons['pe-1' as PersonId] = pe1
@@ -246,11 +226,12 @@ describe('runSuccessionSystem', () => {
         currentYear: 1,
         currentMonth: 1,
         provinces: {},
-        countries: {
-          [countryId]: {
-            id: countryId,
+        polities: {
+          [polityId]: {
+            id: polityId,
             name: 'C0',
-            houseIds: [houseId],
+            rank: 2,
+            ownerHouseId: houseId,
             treasury: 100,
             legacyPrestige: 50,
             adminPower: 50,
@@ -263,7 +244,6 @@ describe('runSuccessionSystem', () => {
             id: houseId,
             name: 'H0',
             active: true,
-            countryId,
             provinceIds: [],
             memberIds: ['pe-1' as PersonId, 'pe-2' as PersonId],
             cadetHouseIds: [],
@@ -290,7 +270,7 @@ describe('runSuccessionSystem', () => {
       deathRolesThisTick: {},
       nextPersonIndex: 3,
       nextHouseIndex: 0,
-      nextCountryIndex: 0,
+      nextPolityIndex: 0,
     }
 
     const result = runSuccessionSystem(ctx)
@@ -300,10 +280,10 @@ describe('runSuccessionSystem', () => {
 
   it('no SUCCESSION_CRISIS when score gap is large', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
 
-    const pe1 = makePerson('pe-1' as PersonId, 'HighScore', 30, true, houseId, countryId, 1.0, 100)
-    const pe2 = makePerson('pe-2' as PersonId, 'LowScore', 29, true, houseId, countryId, 0.0, 0)
+    const pe1 = makePerson('pe-1' as PersonId, 'HighScore', 30, true, houseId, 1.0, 100)
+    const pe2 = makePerson('pe-2' as PersonId, 'LowScore', 29, true, houseId, 0.0, 0)
 
     const persons: Record<PersonId, Person> = {}
     persons['pe-1' as PersonId] = pe1
@@ -314,11 +294,12 @@ describe('runSuccessionSystem', () => {
         currentYear: 1,
         currentMonth: 1,
         provinces: {},
-        countries: {
-          [countryId]: {
-            id: countryId,
+        polities: {
+          [polityId]: {
+            id: polityId,
             name: 'C0',
-            houseIds: [houseId],
+            rank: 2,
+            ownerHouseId: houseId,
             treasury: 100,
             legacyPrestige: 50,
             adminPower: 50,
@@ -331,7 +312,6 @@ describe('runSuccessionSystem', () => {
             id: houseId,
             name: 'H0',
             active: true,
-            countryId,
             provinceIds: [],
             memberIds: ['pe-1' as PersonId, 'pe-2' as PersonId],
             cadetHouseIds: [],
@@ -358,7 +338,7 @@ describe('runSuccessionSystem', () => {
       deathRolesThisTick: {},
       nextPersonIndex: 3,
       nextHouseIndex: 0,
-      nextCountryIndex: 0,
+      nextPolityIndex: 0,
     }
 
     const result = runSuccessionSystem(ctx)
@@ -370,27 +350,44 @@ describe('runSuccessionSystem', () => {
 describe('applyMinorHeadPenalties', () => {
   function makeMinorHeadCtx(
     houseId: HouseId,
-    countryId: CountryId,
+    polityId: PolityId,
     age: number,
     config = defaultConfig,
   ): TickContext {
     const memberId = 'pe-0' as PersonId
-    const member = makePerson(memberId, 'Member', age, true, houseId, countryId, 0.3, 10)
+    const member = makePerson(memberId, 'Member', age, true, houseId, 0.3, 10)
+    const provinceId = 'p-0' as ProvinceId
     const baseCtx: TickContext = {
       state: {
         currentYear: 1,
         currentMonth: 1,
-        provinces: {},
-        countries: {
-          [countryId]: {
-            id: countryId,
+        provinces: {
+          [provinceId]: {
+            id: provinceId,
+            name: 'Capital',
+            x: 0,
+            y: 0,
+            neighbors: [],
+            ownerHouseId: houseId,
+            polityId,
+            habitability: 50,
+            popGroupIds: [],
+            development: 10,
+            polityControl: 100,
+            houseControl: 100,
+          },
+        },
+        polities: {
+          [polityId]: {
+            id: polityId,
             name: 'C0',
-            houseIds: [houseId],
+            rank: 2,
+            ownerHouseId: houseId,
             treasury: 100,
             legacyPrestige: 50,
             adminPower: 50,
             active: true,
-            capitalProvinceId: '' as ProvinceId,
+            capitalProvinceId: provinceId,
           },
         },
         houses: {
@@ -398,13 +395,12 @@ describe('applyMinorHeadPenalties', () => {
             id: houseId,
             name: 'H0',
             active: true,
-            countryId,
-            provinceIds: [],
+            provinceIds: [provinceId],
             memberIds: [memberId],
             cadetHouseIds: [],
             legacyPrestige: 50,
             wealth: 100,
-            seatProvinceId: '' as ProvinceId,
+            seatProvinceId: provinceId,
           },
         },
         persons: { [memberId]: member },
@@ -425,7 +421,7 @@ describe('applyMinorHeadPenalties', () => {
       deathRolesThisTick: {},
       nextPersonIndex: 1,
       nextHouseIndex: 0,
-      nextCountryIndex: 0,
+      nextPolityIndex: 0,
     }
     // Add house leader office assignment so getHouseLeader returns memberId
     const officeId = createOfficeAssignmentId(0)
@@ -454,33 +450,33 @@ describe('applyMinorHeadPenalties', () => {
     return ctxWithLeader
   }
 
-  it('reduces house and country attitude scores for minor head member', () => {
+  it('reduces house and polity attitude scores for minor head member', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
     const memberId = 'pe-0' as PersonId
 
-    const ctx = makeMinorHeadCtx(houseId, countryId, 10)
+    const ctx = makeMinorHeadCtx(houseId, polityId, 10)
     const result = applyMinorHeadPenalties(ctx)
 
     const person = result.state.persons[memberId]
     const houseKey = `house:${houseId as string}`
-    const countryKey = `country:${countryId as string}`
+    const polityKey = `polity:${polityId as string}`
     // respect toward house should decrease by minorHeadCohesionPenaltyPerMonth (0.5)
     expect(person?.attitudes[houseKey]?.respect).toBeCloseTo(
       -defaultConfig.minorHeadCohesionPenaltyPerMonth,
     )
-    // affection toward country should decrease by minorHeadLoyaltyPenaltyPerMonth (0.3)
-    expect(person?.attitudes[countryKey]?.affection).toBeCloseTo(
+    // affection toward polity should decrease by minorHeadLoyaltyPenaltyPerMonth (0.3)
+    expect(person?.attitudes[polityKey]?.affection).toBeCloseTo(
       -defaultConfig.minorHeadLoyaltyPenaltyPerMonth,
     )
   })
 
   it('does not penalize adult head member', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
     const memberId = 'pe-0' as PersonId
 
-    const ctx = makeMinorHeadCtx(houseId, countryId, 25)
+    const ctx = makeMinorHeadCtx(houseId, polityId, 25)
     const result = applyMinorHeadPenalties(ctx)
 
     const person = result.state.persons[memberId]
@@ -490,7 +486,7 @@ describe('applyMinorHeadPenalties', () => {
 
   it('clamps attitude penalties to -100', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
     const memberId = 'pe-0' as PersonId
 
     const bigPenaltyConfig = {
@@ -498,13 +494,13 @@ describe('applyMinorHeadPenalties', () => {
       minorHeadCohesionPenaltyPerMonth: 200,
       minorHeadLoyaltyPenaltyPerMonth: 200,
     }
-    const ctx = makeMinorHeadCtx(houseId, countryId, 5, bigPenaltyConfig)
+    const ctx = makeMinorHeadCtx(houseId, polityId, 5, bigPenaltyConfig)
     const result = applyMinorHeadPenalties(ctx)
 
     const person = result.state.persons[memberId]
     const houseKey = `house:${houseId as string}`
-    const countryKey = `country:${countryId as string}`
+    const polityKey = `polity:${polityId as string}`
     expect(person?.attitudes[houseKey]?.respect).toBe(-100)
-    expect(person?.attitudes[countryKey]?.affection).toBe(-100)
+    expect(person?.attitudes[polityKey]?.affection).toBe(-100)
   })
 })

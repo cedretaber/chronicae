@@ -9,6 +9,7 @@ import type { SimEvent } from '../types/event'
 import { isForbiddenMarriagePair } from '../selectors/kinshipSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { createLogger } from '../debug/logger'
+import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
 
 export function runMarriageSystem(ctx: TickContext): TickContext {
   if (ctx.state.currentMonth !== 1) return ctx
@@ -44,14 +45,16 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
       .filter((fid) => {
         const fperson = currentCtx.state.persons[fid]
         if (!fperson) return false
-        const sameCountry = fperson.countryId === male.countryId
-        const effectiveChance = sameCountry
-          ? currentCtx.config.marriageYearlyChance + currentCtx.config.sameCountryMarriageBonus
-          : currentCtx.config.marriageYearlyChance +
-            currentCtx.config.differentCountryMarriagePenalty
-        const { value: countryRoll, rng: countryRng } = randomFloat(currentCtx.rng)
-        currentCtx = { ...currentCtx, rng: countryRng }
-        return countryRoll < effectiveChance
+        const samePolity =
+          getPersonPrimaryPolityId(currentCtx.state, male.id) ===
+          getPersonPrimaryPolityId(currentCtx.state, fperson.id)
+        const effectiveChance = samePolity
+          ? currentCtx.config.marriageYearlyChance +
+            currentCtx.config.samePrimaryPolityMarriageBonus
+          : currentCtx.config.marriageYearlyChance
+        const { value: polityRoll, rng: polityRng } = randomFloat(currentCtx.rng)
+        currentCtx = { ...currentCtx, rng: polityRng }
+        return polityRoll < effectiveChance
       })
 
     if (eligibleFemales.length === 0) continue
@@ -84,6 +87,7 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
 
     const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
 
+    const malePolityId = getPersonPrimaryPolityId(currentCtx.state, maleId)
     const event: SimEvent = {
       id: eventId,
       year: currentCtx.state.currentYear,
@@ -92,7 +96,7 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
       importance: 'normal',
       actorIds: [maleId, chosenFemaleId],
       houseIds: [male.houseId],
-      countryIds: [male.countryId],
+      polityIds: malePolityId ? [malePolityId] : [],
       provinceIds: [],
       summary: malePerson.name + ' married ' + femalePerson.name,
       description: malePerson.name + ' married ' + femalePerson.name,

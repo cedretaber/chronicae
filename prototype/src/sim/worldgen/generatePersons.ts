@@ -1,5 +1,5 @@
 import type { RngState } from '../rng/rng'
-import type { HouseId, CountryId, ProvinceId } from '../types/ids'
+import type { HouseId, PolityId, ProvinceId } from '../types/ids'
 import type { Person, Sex } from '../types/person'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { createPersonId } from '../types/ids'
@@ -9,7 +9,7 @@ import { samplePerson } from '../helpers/personFactory'
 
 export function generatePersons(
   houseProvinces: Map<HouseId, ProvinceId[]>,
-  houseCountry: Map<HouseId, CountryId>,
+  housePolity: Map<HouseId, PolityId>,
   config: SimulationConfig,
   rng: RngState,
 ): { persons: Person[]; rng: RngState } {
@@ -19,8 +19,8 @@ export function generatePersons(
   const sortedHouseIds = Array.from(houseProvinces.keys()).sort()
 
   for (const houseId of sortedHouseIds) {
-    const countryId = houseCountry.get(houseId)
-    if (!countryId) {
+    const polityId = housePolity.get(houseId)
+    if (!polityId) {
       continue
     }
 
@@ -135,7 +135,6 @@ export function generatePersons(
       sex: 'male',
       age: oldFatherAge,
       houseId,
-      countryId,
       birthStatus: 'unknown',
       traits: { ambition: oldFatherAmbition, caution: oldFatherCaution },
       legacyPrestige: oldFatherLegacyPrestige,
@@ -151,7 +150,6 @@ export function generatePersons(
       sex: 'female',
       age: oldMotherAge,
       houseId,
-      countryId,
       birthStatus: 'unknown',
       traits: { ambition: oldMotherAmbition, caution: oldMotherCaution },
       legacyPrestige: oldMotherLegacyPrestige,
@@ -167,7 +165,6 @@ export function generatePersons(
       sex: 'male',
       age: headAge,
       houseId,
-      countryId,
       birthStatus: 'unknown',
       traits: { ambition: headAmbition, caution: headCaution },
       fatherId: oldFatherId,
@@ -185,7 +182,6 @@ export function generatePersons(
       sex: siblingSexVal,
       age: siblingAge,
       houseId,
-      countryId,
       birthStatus: 'unknown',
       traits: { ambition: siblingAmbition, caution: siblingCaution },
       fatherId: oldFatherId,
@@ -203,7 +199,6 @@ export function generatePersons(
       sex: 'female',
       age: spouseAge,
       houseId,
-      countryId,
       birthStatus: 'unknown',
       traits: { ambition: spouseAmbition, caution: spouseCaution },
       legacyPrestige: spouseLegacyPrestige,
@@ -219,7 +214,6 @@ export function generatePersons(
       sex: child1SexVal,
       age: child1Age,
       houseId,
-      countryId,
       birthStatus: 'legitimate',
       traits: { ambition: child1Ambition, caution: child1Caution },
       fatherId: headId,
@@ -237,7 +231,6 @@ export function generatePersons(
       sex: child2SexVal,
       age: child2Age,
       houseId,
-      countryId,
       birthStatus: 'legitimate',
       traits: { ambition: child2Ambition, caution: child2Caution },
       fatherId: headId,
@@ -255,7 +248,6 @@ export function generatePersons(
       sex: relativeSexVal,
       age: relativeAge,
       houseId,
-      countryId,
       birthStatus: 'unknown',
       traits: { ambition: relativeAmbition, caution: relativeCaution },
       legacyPrestige: relativeLegacyPrestige,

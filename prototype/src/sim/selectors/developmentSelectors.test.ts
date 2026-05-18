@@ -10,11 +10,11 @@ function makeProvince(overrides: Partial<Province>): Province {
     y: 0,
     neighbors: [],
     ownerHouseId: 'h-0' as Province['ownerHouseId'],
-    countryId: 'c-0' as Province['countryId'],
+    polityId: 'dp-0' as Province['polityId'],
     habitability: 50,
     popGroupIds: [],
     development: 0,
-    countryControl: 0,
+    polityControl: 0,
     houseControl: 0,
     ...overrides,
   }

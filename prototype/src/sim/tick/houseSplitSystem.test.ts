@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { TickContext } from './context'
 import type { Person } from '../types/person'
-import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
+import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { maybeSplitHouseAfterSuccession } from './houseSplitSystem'
@@ -22,7 +22,6 @@ function makePerson(
   age: number,
   alive: boolean,
   houseId: HouseId,
-  countryId: CountryId,
   ambition: number,
   legacyPrestige: number,
   sex: Person['sex'] = 'male',
@@ -39,7 +38,6 @@ function makePerson(
     age,
     alive,
     houseId,
-    countryId,
     childIds,
     birthStatus,
     abilities: DEFAULT_ABILITIES,
@@ -62,14 +60,14 @@ function makeSplitCtx(
   houseSplitEnabled: boolean = true,
 ): TickContext {
   const houseId = 'h-0' as HouseId
-  const countryId = 'c-0' as CountryId
+  const polityId = 'dp-0' as PolityId
 
   const persons: Record<PersonId, Person> = {}
   const memberIds: PersonId[] = []
 
   for (let i = 0; i < memberCount; i++) {
     const pid = `pe-${i}` as PersonId
-    persons[pid] = makePerson(pid, `Member${i}`, 30, true, houseId, countryId, 0.5, 10)
+    persons[pid] = makePerson(pid, `Member${i}`, 30, true, houseId, 0.5, 10)
     memberIds.push(pid)
   }
 
@@ -85,11 +83,11 @@ function makeSplitCtx(
       y: i,
       neighbors: [],
       ownerHouseId: houseId,
-      countryId,
+      polityId,
       habitability: 50,
       popGroupIds: [],
       development: 0,
-      countryControl: 100,
+      polityControl: 100,
       houseControl: 100,
     }
     provinceIds.push(pid)
@@ -102,11 +100,12 @@ function makeSplitCtx(
       currentYear: 10,
       currentMonth: 6,
       provinces,
-      countries: {
-        [countryId]: {
-          id: countryId,
+      polities: {
+        [polityId]: {
+          id: polityId,
           name: 'C0',
-          houseIds: [houseId],
+          rank: 2,
+          ownerHouseId: houseId,
           treasury: 100,
           legacyPrestige: 50,
           adminPower: 50,
@@ -119,7 +118,6 @@ function makeSplitCtx(
           id: houseId,
           name: 'H0',
           active: true,
-          countryId,
           provinceIds,
           memberIds,
           cadetHouseIds: [],
@@ -146,7 +144,7 @@ function makeSplitCtx(
     deathRolesThisTick: {},
     nextPersonIndex: memberCount,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 }
 
@@ -202,26 +200,16 @@ describe('maybeSplitHouseAfterSuccession', () => {
     }
 
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
 
     const persons: Record<PersonId, Person> = {}
-    persons['pe-0' as PersonId] = makePerson(
-      'pe-0' as PersonId,
-      'Head',
-      30,
-      true,
-      houseId,
-      countryId,
-      0.5,
-      10,
-    )
+    persons['pe-0' as PersonId] = makePerson('pe-0' as PersonId, 'Head', 30, true, houseId, 0.5, 10)
     persons['pe-1' as PersonId] = makePerson(
       'pe-1' as PersonId,
       'Splitter',
       25,
       true,
       houseId,
-      countryId,
       0.9,
       80,
     )
@@ -231,7 +219,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       30,
       true,
       houseId,
-      countryId,
       0.5,
       10,
     )
@@ -248,11 +235,11 @@ describe('maybeSplitHouseAfterSuccession', () => {
         y: i,
         neighbors: [],
         ownerHouseId: houseId,
-        countryId,
+        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
-        countryControl: 100,
+        polityControl: 100,
         houseControl: 100,
       }
     }
@@ -262,11 +249,12 @@ describe('maybeSplitHouseAfterSuccession', () => {
         currentYear: 10,
         currentMonth: 6,
         provinces,
-        countries: {
-          [countryId]: {
-            id: countryId,
+        polities: {
+          [polityId]: {
+            id: polityId,
             name: 'C0',
-            houseIds: [houseId],
+            rank: 2,
+            ownerHouseId: houseId,
             treasury: 100,
             legacyPrestige: 50,
             adminPower: 50,
@@ -279,7 +267,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
             id: houseId,
             name: 'H0',
             active: true,
-            countryId,
             provinceIds,
             memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
             cadetHouseIds: [],
@@ -306,7 +293,7 @@ describe('maybeSplitHouseAfterSuccession', () => {
       deathRolesThisTick: {},
       nextPersonIndex: 3,
       nextHouseIndex: 0,
-      nextCountryIndex: 0,
+      nextPolityIndex: 0,
     }
 
     const input: SplitInput = {
@@ -334,26 +321,16 @@ describe('maybeSplitHouseAfterSuccession', () => {
     }
 
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
 
     const persons: Record<PersonId, Person> = {}
-    persons['pe-0' as PersonId] = makePerson(
-      'pe-0' as PersonId,
-      'Head',
-      30,
-      true,
-      houseId,
-      countryId,
-      0.5,
-      10,
-    )
+    persons['pe-0' as PersonId] = makePerson('pe-0' as PersonId, 'Head', 30, true, houseId, 0.5, 10)
     persons['pe-1' as PersonId] = makePerson(
       'pe-1' as PersonId,
       'Splitter',
       25,
       true,
       houseId,
-      countryId,
       0.9,
       80,
     )
@@ -363,7 +340,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       30,
       true,
       houseId,
-      countryId,
       0.5,
       10,
     )
@@ -380,11 +356,11 @@ describe('maybeSplitHouseAfterSuccession', () => {
         y: i,
         neighbors: [],
         ownerHouseId: houseId,
-        countryId,
+        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
-        countryControl: 100,
+        polityControl: 100,
         houseControl: 100,
       }
     }
@@ -394,11 +370,12 @@ describe('maybeSplitHouseAfterSuccession', () => {
         currentYear: 10,
         currentMonth: 6,
         provinces,
-        countries: {
-          [countryId]: {
-            id: countryId,
+        polities: {
+          [polityId]: {
+            id: polityId,
             name: 'C0',
-            houseIds: [houseId],
+            rank: 2,
+            ownerHouseId: houseId,
             treasury: 100,
             legacyPrestige: 50,
             adminPower: 50,
@@ -411,7 +388,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
             id: houseId,
             name: 'H0',
             active: true,
-            countryId,
             provinceIds,
             memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
             cadetHouseIds: [],
@@ -438,7 +414,7 @@ describe('maybeSplitHouseAfterSuccession', () => {
       deathRolesThisTick: {},
       nextPersonIndex: 3,
       nextHouseIndex: 0,
-      nextCountryIndex: 0,
+      nextPolityIndex: 0,
     }
 
     const input: SplitInput = {
@@ -473,26 +449,16 @@ describe('maybeSplitHouseAfterSuccession', () => {
     }
 
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
+    const polityId = 'dp-0' as PolityId
 
     const persons: Record<PersonId, Person> = {}
-    persons['pe-0' as PersonId] = makePerson(
-      'pe-0' as PersonId,
-      'Head',
-      30,
-      true,
-      houseId,
-      countryId,
-      0.5,
-      10,
-    )
+    persons['pe-0' as PersonId] = makePerson('pe-0' as PersonId, 'Head', 30, true, houseId, 0.5, 10)
     persons['pe-1' as PersonId] = makePerson(
       'pe-1' as PersonId,
       'Splitter',
       25,
       true,
       houseId,
-      countryId,
       0.9,
       80,
     )
@@ -502,7 +468,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
       30,
       true,
       houseId,
-      countryId,
       0.5,
       10,
     )
@@ -519,11 +484,11 @@ describe('maybeSplitHouseAfterSuccession', () => {
         y: i,
         neighbors: [],
         ownerHouseId: houseId,
-        countryId,
+        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
-        countryControl: 100,
+        polityControl: 100,
         houseControl: 100,
       }
     }
@@ -533,11 +498,12 @@ describe('maybeSplitHouseAfterSuccession', () => {
         currentYear: 10,
         currentMonth: 6,
         provinces,
-        countries: {
-          [countryId]: {
-            id: countryId,
+        polities: {
+          [polityId]: {
+            id: polityId,
             name: 'C0',
-            houseIds: [houseId],
+            rank: 2,
+            ownerHouseId: houseId,
             treasury: 100,
             legacyPrestige: 50,
             adminPower: 50,
@@ -550,7 +516,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
             id: houseId,
             name: 'H0',
             active: true,
-            countryId,
             provinceIds,
             memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
             cadetHouseIds: [],
@@ -577,7 +542,7 @@ describe('maybeSplitHouseAfterSuccession', () => {
       deathRolesThisTick: {},
       nextPersonIndex: 3,
       nextHouseIndex: 0,
-      nextCountryIndex: 0,
+      nextPolityIndex: 0,
     }
 
     const input: SplitInput = {
@@ -595,6 +560,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
     expect(event.importance).toBe('major')
     expect(event.actorIds).toContain('pe-1' as PersonId)
     expect(event.houseIds).toContain('h-0' as HouseId)
-    expect(event.countryIds).toContain(countryId)
+    expect(event.polityIds).toContain(polityId)
   })
 })

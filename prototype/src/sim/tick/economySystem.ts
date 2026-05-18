@@ -1,5 +1,5 @@
 import type { TickContext } from './context'
-import type { ProvinceId, HouseId, CountryId } from '../types/ids'
+import type { ProvinceId, HouseId, PolityId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
 import { getProvinceProduction } from '../selectors/popEconomySelectors'
@@ -12,7 +12,7 @@ import {
 
 export function runEconomySystem(ctx: TickContext): TickContext {
   const wealthDeltas = new Map<HouseId, number>()
-  const treasuryDeltas = new Map<CountryId, number>()
+  const treasuryDeltas = new Map<PolityId, number>()
 
   let currentState = ctx.state
 
@@ -21,28 +21,28 @@ export function runEconomySystem(ctx: TickContext): TickContext {
     if (!province) continue
 
     const production = getProvinceProduction(ctx.state, ctx.config, province.id)
-    const cc = province.countryControl / 100
+    const cc = province.polityControl / 100
     const hc = province.houseControl / 100
     const totalControl = cc + hc
 
-    let countryIncome: number
+    let polityIncome: number
     let houseIncome: number
 
     if (totalControl > 0) {
-      countryIncome = production * (cc / totalControl) * cc
+      polityIncome = production * (cc / totalControl) * cc
       houseIncome = production * (hc / totalControl) * hc
     } else {
-      countryIncome = 0
+      polityIncome = 0
       houseIncome = 0
     }
 
-    const extracted = countryIncome + houseIncome
+    const extracted = polityIncome + houseIncome
     const retained = Math.max(0, production - extracted)
 
-    // Apply taxEfficiency to country treasury
+    // Apply taxEfficiency to polity treasury
     treasuryDeltas.set(
-      province.countryId,
-      (treasuryDeltas.get(province.countryId) ?? 0) + countryIncome,
+      province.polityId,
+      (treasuryDeltas.get(province.polityId) ?? 0) + polityIncome,
     )
 
     // Apply house income
@@ -92,7 +92,7 @@ export function runEconomySystem(ctx: TickContext): TickContext {
     }
   }
 
-  // v013-residual: simple-batch — delta map 集約後の単一バッチ書き込み。将来 adjustHouseWealth() 等で代替可だが delta 集約パターンが有用なので直接記述
+  // v013-residual: simple-batch — delta map 集約後の単一バッチ書き込み。将来 adjustHouseWealth() で代替可
   const newHouses = { ...currentState.houses }
   for (const houseId of Object.keys(currentState.houses).sort()) {
     const house = newHouses[houseId as HouseId]
@@ -105,16 +105,16 @@ export function runEconomySystem(ctx: TickContext): TickContext {
   }
 
   // v013-residual: simple-batch — taxEfficiency を乗じた treasury バッチ更新。上記と同様
-  const newCountries = { ...currentState.countries }
-  for (const countryId of Object.keys(currentState.countries).sort()) {
-    const country = newCountries[countryId as CountryId]
-    if (!country) continue
-    if (!country.active) continue
-    const taxEfficiency = calcTreasurerTaxEfficiency(ctx.state, country.id, ctx.config)
-    const delta = treasuryDeltas.get(countryId as CountryId) ?? 0
-    newCountries[countryId as CountryId] = {
-      ...country,
-      treasury: country.treasury + delta * taxEfficiency,
+  const newPolities = { ...currentState.polities }
+  for (const polityId of Object.keys(currentState.polities).sort()) {
+    const polity = newPolities[polityId as PolityId]
+    if (!polity) continue
+    if (!polity.active) continue
+    const taxEfficiency = calcTreasurerTaxEfficiency(ctx.state, polity.id, ctx.config)
+    const delta = treasuryDeltas.get(polityId as PolityId) ?? 0
+    newPolities[polityId as PolityId] = {
+      ...polity,
+      treasury: polity.treasury + delta * taxEfficiency,
     }
   }
 
@@ -123,7 +123,7 @@ export function runEconomySystem(ctx: TickContext): TickContext {
     state: {
       ...currentState,
       houses: newHouses,
-      countries: newCountries,
+      polities: newPolities,
     },
   }
 }

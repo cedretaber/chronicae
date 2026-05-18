@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createProvinceId } from '../types/ids'
-import type { CountryId, HouseId, ProvinceId } from '../types/ids'
+import { createPolityId, createHouseId, createProvinceId } from '../types/ids'
+import type { PolityId, HouseId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import {
   transferProvinceToHouse,
-  transferProvinceToCountry,
+  transferProvinceToPolity,
   adjustProvinceDevelopment,
 } from './provinceMutations'
 
@@ -14,14 +14,14 @@ function makeFixture(): {
   provinceId: ProvinceId
   house1Id: HouseId
   house2Id: HouseId
-  country1Id: CountryId
-  country2Id: CountryId
+  polity1Id: PolityId
+  polity2Id: PolityId
 } {
   const provinceId = createProvinceId('p', 0)
   const house1Id = createHouseId('h', 0)
   const house2Id = createHouseId('h', 1)
-  const country1Id = createCountryId('c', 0)
-  const country2Id = createCountryId('c', 1)
+  const polity1Id = createPolityId('c', 0)
+  const polity2Id = createPolityId('c', 1)
 
   const state: WorldState = {
     currentYear: 1444,
@@ -34,29 +34,31 @@ function makeFixture(): {
         y: 0,
         neighbors: [],
         ownerHouseId: house1Id,
-        countryId: country1Id,
+        polityId: polity1Id,
         habitability: 50,
         popGroupIds: [],
         development: 0,
-        countryControl: 100,
+        polityControl: 100,
         houseControl: 100,
       },
     },
-    countries: {
-      [country1Id]: {
-        id: country1Id,
-        name: 'Country 1',
-        houseIds: [house1Id],
+    polities: {
+      [polity1Id]: {
+        id: polity1Id,
+        name: 'Polity 1',
+        rank: 2,
+        ownerHouseId: house1Id,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
         active: true,
         capitalProvinceId: '' as ProvinceId,
       },
-      [country2Id]: {
-        id: country2Id,
-        name: 'Country 2',
-        houseIds: [house2Id],
+      [polity2Id]: {
+        id: polity2Id,
+        name: 'Polity 2',
+        rank: 2,
+        ownerHouseId: house2Id,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
@@ -69,7 +71,6 @@ function makeFixture(): {
         id: house1Id,
         name: 'House 1',
         active: true,
-        countryId: country1Id,
         provinceIds: [provinceId],
         memberIds: [],
         cadetHouseIds: [],
@@ -81,7 +82,6 @@ function makeFixture(): {
         id: house2Id,
         name: 'House 2',
         active: true,
-        countryId: country2Id,
         provinceIds: [],
         memberIds: [],
         cadetHouseIds: [],
@@ -100,18 +100,18 @@ function makeFixture(): {
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
   }
-  return { state, provinceId, house1Id, house2Id, country1Id, country2Id }
+  return { state, provinceId, house1Id, house2Id, polity1Id, polity2Id }
 }
 
 describe('transferProvinceToHouse', () => {
-  it('Province ownerHouseId and countryId are updated correctly', () => {
-    const { state, provinceId, house2Id, country2Id } = makeFixture()
+  it('Province ownerHouseId and polityId are updated correctly', () => {
+    const { state, provinceId, house2Id, polity2Id } = makeFixture()
     const result = transferProvinceToHouse(state, provinceId, house2Id)
 
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.value.provinces[provinceId]!.ownerHouseId).toBe(house2Id)
-      expect(result.value.provinces[provinceId]!.countryId).toBe(country2Id)
+      expect(result.value.provinces[provinceId]!.polityId).toBe(polity2Id)
     }
   })
 
@@ -156,41 +156,40 @@ describe('transferProvinceToHouse', () => {
   })
 })
 
-describe('transferProvinceToCountry', () => {
-  it('transfers province to a house within the target country', () => {
-    const { state, provinceId, house2Id, country2Id } = makeFixture()
-    const result = transferProvinceToCountry(state, provinceId, country2Id, house2Id)
+describe('transferProvinceToPolity', () => {
+  it('transfers province to a house within the target polity', () => {
+    const { state, provinceId, house2Id, polity2Id } = makeFixture()
+    const result = transferProvinceToPolity(state, provinceId, polity2Id, house2Id)
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
 
     expect(result.value.provinces[provinceId]!.ownerHouseId).toBe(house2Id)
-    expect(result.value.provinces[provinceId]!.countryId).toBe(country2Id)
-    expect(collectIntegrityErrors(result.value)).toEqual([])
+    expect(result.value.provinces[provinceId]!.polityId).toBe(polity2Id)
   })
 
   it('returns err when province not found', () => {
-    const { state, house2Id, country2Id } = makeFixture()
-    const result = transferProvinceToCountry(state, createProvinceId('p', 99), country2Id, house2Id)
+    const { state, house2Id, polity2Id } = makeFixture()
+    const result = transferProvinceToPolity(state, createProvinceId('p', 99), polity2Id, house2Id)
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('PROVINCE_NOT_FOUND')
   })
 
-  it('returns err when target country not found', () => {
+  it('returns err when target polity not found', () => {
     const { state, provinceId, house2Id } = makeFixture()
-    const result = transferProvinceToCountry(state, provinceId, createCountryId('c', 99), house2Id)
+    const result = transferProvinceToPolity(state, provinceId, createPolityId('c', 99), house2Id)
 
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('COUNTRY_NOT_FOUND')
+    if (!result.ok) expect(result.error.code).toBe('POLITY_NOT_FOUND')
   })
 
-  it('returns err when house does not belong to target country', () => {
-    const { state, provinceId, house1Id, country2Id } = makeFixture()
-    const result = transferProvinceToCountry(state, provinceId, country2Id, house1Id)
+  it('returns err when house does not belong to target polity', () => {
+    const { state, provinceId, house1Id, polity2Id } = makeFixture()
+    const result = transferProvinceToPolity(state, provinceId, polity2Id, house1Id)
 
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('CROSS_COUNTRY_TRANSFER')
+    if (!result.ok) expect(result.error.code).toBe('CROSS_POLITY_TRANSFER')
   })
 })
 

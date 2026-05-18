@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
-import type { CountryId } from '../types/ids'
-import type { Country } from '../types/country'
-import { getCountryAdminPower } from '@sim/selectors/statusSelectors'
+import type { PolityId } from '../types/ids'
+import type { Polity } from '../types/polity'
+import { getPolityAdminPower } from '@sim/selectors/statusSelectors'
 
 export function runGovernanceSystem(ctx: TickContext): TickContext {
   if (ctx.state.currentMonth !== 1) {
@@ -10,28 +10,28 @@ export function runGovernanceSystem(ctx: TickContext): TickContext {
 
   let currentCtx = ctx
 
-  // v013-residual: simple-batch — 全 country の adminPower 計算後の単一バッチ書き込み。将来 setCountryAdminPower() で代替可
-  const countryIds = Object.keys(currentCtx.state.countries).sort()
-  const newCountries: Record<CountryId, Country> = { ...currentCtx.state.countries }
+  // v013-residual: simple-batch — 全 polity の adminPower 計算後の単一バッチ書き込み。将来 setPolityAdminPower() で代替可
+  const polityIds = Object.keys(currentCtx.state.polities).sort()
+  const newPolities: Record<PolityId, Polity> = { ...currentCtx.state.polities }
 
-  for (const countryId of countryIds) {
-    const country = currentCtx.state.countries[countryId as CountryId]
-    if (!country) continue
-    if (!country.active) continue
+  for (const polityId of polityIds) {
+    const polity = currentCtx.state.polities[polityId as PolityId]
+    if (!polity) continue
+    if (!polity.active) continue
 
-    const adminPower = getCountryAdminPower(
+    const adminPower = getPolityAdminPower(
       currentCtx.state,
       currentCtx.config,
-      countryId as CountryId,
+      polityId as PolityId,
     )
 
-    newCountries[countryId as CountryId] = {
-      ...country,
+    newPolities[polityId as PolityId] = {
+      ...polity,
       adminPower,
     }
   }
 
-  currentCtx = { ...currentCtx, state: { ...currentCtx.state, countries: newCountries } }
+  currentCtx = { ...currentCtx, state: { ...currentCtx.state, polities: newPolities } }
 
   return currentCtx
 }

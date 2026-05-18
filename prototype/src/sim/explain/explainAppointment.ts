@@ -1,5 +1,5 @@
 import type { WorldState } from '../types/world'
-import type { PersonId, CountryId } from '../types/ids'
+import type { PersonId, PolityId } from '../types/ids'
 import type { OfficeRole } from '../types/office'
 import type { EventReason, EventEffect } from '../types/event'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
@@ -7,19 +7,19 @@ import { getRoleScore } from '../selectors/abilitySelectors'
 
 export function explainAppointment(
   state: WorldState,
-  countryId: CountryId,
+  polityId: PolityId,
   role: OfficeRole,
   personId: PersonId,
 ): { reasons: EventReason[]; effects: EventEffect[] } {
-  const country = state.countries[countryId]
-  if (!country) return { reasons: [], effects: [] }
+  const polity = state.polities[polityId]
+  if (!polity) return { reasons: [], effects: [] }
 
   const person = state.persons[personId]
   if (!person) return { reasons: [], effects: [] }
 
   const reasons: EventReason[] = []
 
-  const personCountryAtt = getAttitudeOrDefault(state, person, { kind: 'country', id: countryId })
+  const personCountryAtt = getAttitudeOrDefault(state, person, { kind: 'polity', id: polityId })
   const personCountryLoyalty =
     (attitudeValueToScore(personCountryAtt.affection) * 0.55 +
       attitudeValueToScore(personCountryAtt.respect) * 0.45) /
@@ -55,7 +55,7 @@ export function explainAppointment(
       const loyaltyContribution = personCountryLoyalty * 20
       if (loyaltyContribution > 0) {
         reasons.push({
-          label: 'Loyalty to country',
+          label: 'Loyalty to polity',
           value: personCountryLoyalty,
           contribution: loyaltyContribution,
         })
@@ -137,7 +137,7 @@ export function explainAppointment(
       const loyaltyContribution = personCountryLoyalty * 25
       if (loyaltyContribution > 0) {
         reasons.push({
-          label: 'Loyalty to country',
+          label: 'Loyalty to polity',
           value: personCountryLoyalty,
           contribution: loyaltyContribution,
         })

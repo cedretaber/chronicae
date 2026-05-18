@@ -1,4 +1,4 @@
-import type { PersonId, CountryId, HouseId, PopGroupId } from '../types/ids'
+import type { PersonId, PolityId, HouseId, PopGroupId } from '../types/ids'
 import type { Attitude } from '../types/attitude'
 import type { WorldState } from '../types/world'
 import type { StateResult } from './result'
@@ -6,21 +6,21 @@ import { ok, err } from './result'
 import {
   adjustAttitude,
   personAttitudeKey,
-  countryAttitudeKey,
+  polityAttitudeKey,
   houseAttitudeKey,
 } from '../helpers/attitudeHelpers'
 
 export type AttitudeTarget =
   | { kind: 'person'; id: PersonId }
-  | { kind: 'country'; id: CountryId }
+  | { kind: 'polity'; id: PolityId }
   | { kind: 'house'; id: HouseId }
 
 function targetKey(target: AttitudeTarget): string {
   switch (target.kind) {
     case 'person':
       return personAttitudeKey(target.id)
-    case 'country':
-      return countryAttitudeKey(target.id)
+    case 'polity':
+      return polityAttitudeKey(target.id)
     case 'house':
       return houseAttitudeKey(target.id)
   }

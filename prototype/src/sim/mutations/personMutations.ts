@@ -73,7 +73,6 @@ export function movePersonToHouse(
   newPersons[personId] = {
     ...person,
     houseId: newHouseId,
-    countryId: newHouse.countryId,
   }
 
   const newHouses = { ...state.houses }
@@ -155,7 +154,6 @@ export function birthChild(
     sex: input.sex,
     age: 0,
     houseId: father.houseId,
-    countryId: father.countryId,
     birthStatus: input.birthStatus,
     abilities,
     aptitudes: input.aptitudes,

@@ -1,7 +1,7 @@
 type Branded<T, B> = T & { readonly _brand: B }
 
 export type ProvinceId = Branded<string, 'ProvinceId'>
-export type CountryId = Branded<string, 'CountryId'>
+export type PolityId = Branded<string, 'PolityId'>
 export type HouseId = Branded<string, 'HouseId'>
 export type PersonId = Branded<string, 'PersonId'>
 export type PlotId = Branded<string, 'PlotId'>
@@ -12,8 +12,8 @@ export function createProvinceId(prefix: string, n: number): ProvinceId {
   return (prefix + '-' + n) as ProvinceId
 }
 
-export function createCountryId(prefix: string, n: number): CountryId {
-  return (prefix + '-' + n) as CountryId
+export function createPolityId(prefix: string, n: number): PolityId {
+  return (prefix + '-' + n) as PolityId
 }
 
 export function createHouseId(prefix: string, n: number): HouseId {

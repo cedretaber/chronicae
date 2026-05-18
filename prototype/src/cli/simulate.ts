@@ -74,11 +74,11 @@ function parseArgs(argv: string[]): {
   return { seed, years, json, integrityCheck, debug, dumpWorld, digest, showHelp }
 }
 
-function countActiveCountries(state: WorldState): number {
+function countActivePolities(state: WorldState): number {
   let count = 0
-  for (const id of Object.keys(state.countries)) {
-    const country = state.countries[id as keyof typeof state.countries]
-    if (country && country.active) {
+  for (const id of Object.keys(state.polities)) {
+    const polity = state.polities[id as keyof typeof state.polities]
+    if (polity && polity.active) {
       count++
     }
   }
@@ -96,27 +96,27 @@ function countActiveHouses(state: WorldState): number {
   return count
 }
 
-function countProvincesPerCountry(state: WorldState): Record<string, number> {
+function countProvincesPerPolity(state: WorldState): Record<string, number> {
   const result: Record<string, number> = {}
   for (const id of Object.keys(state.provinces)) {
     const province = state.provinces[id as keyof typeof state.provinces]
     if (!province) continue
-    const countryId = province.countryId
-    if (!result[countryId]) {
-      result[countryId] = 0
+    const polityId = province.polityId
+    if (!result[polityId]) {
+      result[polityId] = 0
     }
-    result[countryId]++
+    result[polityId]++
   }
   return result
 }
 
-function computeAvgCountryControl(state: WorldState): number {
+function computeAvgPolityControl(state: WorldState): number {
   let total = 0
   let count = 0
   for (const id of Object.keys(state.provinces)) {
     const province = state.provinces[id as keyof typeof state.provinces]
     if (!province) continue
-    total += province.countryControl
+    total += province.polityControl
     count++
   }
   if (count === 0) return 0
@@ -165,14 +165,14 @@ if (args.showHelp) {
 
 const { world, rng: initialRng } = generateWorld(args.seed)
 
-const initialCountryCount = countActiveCountries(world)
+const initialPolityCount = countActivePolities(world)
 const initialHouseCount = countActiveHouses(world)
 
-const countryAnnexedInfo: Record<string, { name: string; year: number }> = {}
-for (const id of Object.keys(world.countries)) {
-  const country = world.countries[id as keyof typeof world.countries]
-  if (!country) continue
-  countryAnnexedInfo[id] = { name: country.name, year: 0 }
+const polityAnnexedInfo: Record<string, { name: string; year: number }> = {}
+for (const id of Object.keys(world.polities)) {
+  const polity = world.polities[id as keyof typeof world.polities]
+  if (!polity) continue
+  polityAnnexedInfo[id] = { name: polity.name, year: 0 }
 }
 
 let state: WorldState = world
@@ -198,13 +198,13 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
   const year = result.state.currentYear
   const month = result.state.currentMonth
   const events = result.events
-  const activeCountries = countActiveCountries(result.state)
+  const activePolities = countActivePolities(result.state)
   const activeHouses = countActiveHouses(result.state)
 
   for (const event of events) {
-    if (event.type === 'COUNTRY_ANNEXED') {
-      for (const countryId of event.countryIds) {
-        const info = countryAnnexedInfo[countryId]
+    if (event.type === 'POLITY_ANNEXED') {
+      for (const polityId of event.polityIds) {
+        const info = polityAnnexedInfo[polityId]
         if (info) {
           info.year = year
         }
@@ -218,7 +218,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
         year,
         month,
         events: events.map((e) => ({ type: e.type, summary: e.summary })),
-        activeCountries,
+        activePolities,
         activeHouses,
       }
       console.log(JSON.stringify(output))
@@ -229,7 +229,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
           const ids = [
             ...(event.actorIds as string[]),
             ...(event.houseIds as string[]),
-            ...(event.countryIds as string[]),
+            ...(event.polityIds as string[]),
             ...(event.provinceIds as string[]),
           ]
           const idStr = ids.length > 0 ? ' [' + ids.join(', ') + ']' : ''
@@ -253,7 +253,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
         year,
         persons: livingPersons,
         houses: activeHouses,
-        countries: activeCountries,
+        polities: activePolities,
       })
     }
 
@@ -262,21 +262,19 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
         year,
         month,
         events: events.map((e) => ({ type: e.type, summary: e.summary })),
-        activeCountries,
+        activePolities,
         activeHouses,
       }
       console.log(JSON.stringify(output))
     } else if (!args.digest) {
       console.log('')
       console.log('--- Year ' + year + ' Summary ---')
-      console.log(
-        '  Countries: ' + activeCountries + ' active | Houses: ' + activeHouses + ' active',
-      )
-      const avgCountryControl = computeAvgCountryControl(result.state)
+      console.log('  Polities: ' + activePolities + ' active | Houses: ' + activeHouses + ' active')
+      const avgPolityControl = computeAvgPolityControl(result.state)
       const avgHouseControl = computeAvgHouseControl(result.state)
       console.log(
-        '  Provinces: avg countryControl=' +
-          avgCountryControl.toFixed(1) +
+        '  Provinces: avg polityControl=' +
+          avgPolityControl.toFixed(1) +
           ', avg houseControl=' +
           avgHouseControl.toFixed(1),
       )
@@ -307,11 +305,11 @@ if (args.digest) {
     years: args.years,
     finalYear: state.currentYear,
     finalMonth: state.currentMonth,
-    activeCountries: countActiveCountries(state),
+    activePolities: countActivePolities(state),
     activeHouses: countActiveHouses(state),
     livingPersons: countLivingPersons(state),
     totalProvinces: Object.keys(state.provinces).length,
-    avgCountryControl: computeAvgCountryControl(state),
+    avgPolityControl: computeAvgPolityControl(state),
     avgHouseControl: computeAvgHouseControl(state),
     eventCounts: countEventsByType(allEvents),
     totalEvents: allEvents.length,
@@ -324,29 +322,27 @@ if (args.json) {
     year: state.currentYear,
     month: state.currentMonth,
     events: allEvents.map((e) => ({ type: e.type, summary: e.summary })),
-    activeCountries: countActiveCountries(state),
+    activePolities: countActivePolities(state),
     activeHouses: countActiveHouses(state),
   }
   console.log(JSON.stringify(finalOutput))
 } else if (!args.digest) {
   console.log('=== FINAL SUMMARY (after ' + args.years + ' years, ' + totalTicks + ' ticks) ===')
-  const finalActiveCountries = countActiveCountries(state)
+  const finalActivePolities = countActivePolities(state)
   const finalActiveHouses = countActiveHouses(state)
-  console.log(
-    'Countries: ' + finalActiveCountries + ' active / ' + initialCountryCount + ' initial',
-  )
+  console.log('Polities: ' + finalActivePolities + ' active / ' + initialPolityCount + ' initial')
 
-  const provinceCounts = countProvincesPerCountry(state)
-  for (const id of Object.keys(state.countries)) {
-    const country = state.countries[id as keyof typeof state.countries]
-    if (!country) continue
-    const info = countryAnnexedInfo[id]
+  const provinceCounts = countProvincesPerPolity(state)
+  for (const id of Object.keys(state.polities)) {
+    const polity = state.polities[id as keyof typeof state.polities]
+    if (!polity) continue
+    const info = polityAnnexedInfo[id]
     if (!info) continue
     const name = info.name
-    if (country.active) {
+    if (polity.active) {
       const provCount = provinceCounts[id] || 0
       console.log(
-        '  ' + name + ': ' + provCount + ' provinces, treasury=' + formatTreasury(country.treasury),
+        '  ' + name + ': ' + provCount + ' provinces, treasury=' + formatTreasury(polity.treasury),
       )
     } else {
       console.log('  [ANNEXED] ' + name + ' -> annexed (year ' + info.year + ')')

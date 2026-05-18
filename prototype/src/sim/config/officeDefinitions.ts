@@ -3,8 +3,8 @@ import type { OrganizationKind, OfficeRole, OfficeDefinition } from '@sim/types/
 type OfficeKey = `${OrganizationKind}:${OfficeRole}`
 
 export const OFFICE_DEFINITIONS: Record<OfficeKey, OfficeDefinition> = {
-  'country:leader': {
-    organizationKind: 'country',
+  'polity:leader': {
+    organizationKind: 'polity',
     role: 'leader',
     displayName: 'Ruler',
     maxHolders: 1,
@@ -14,8 +14,8 @@ export const OFFICE_DEFINITIONS: Record<OfficeKey, OfficeDefinition> = {
     adminLoad: 0,
     coordinationLoad: 0,
   },
-  'country:administrator': {
-    organizationKind: 'country',
+  'polity:administrator': {
+    organizationKind: 'polity',
     role: 'administrator',
     displayName: 'Chancellor',
     maxHolders: 3,
@@ -25,8 +25,8 @@ export const OFFICE_DEFINITIONS: Record<OfficeKey, OfficeDefinition> = {
     adminLoad: 5,
     coordinationLoad: 10,
   },
-  'country:treasurer': {
-    organizationKind: 'country',
+  'polity:treasurer': {
+    organizationKind: 'polity',
     role: 'treasurer',
     displayName: 'Treasurer',
     maxHolders: 3,
@@ -36,8 +36,8 @@ export const OFFICE_DEFINITIONS: Record<OfficeKey, OfficeDefinition> = {
     adminLoad: 5,
     coordinationLoad: 10,
   },
-  'country:military': {
-    organizationKind: 'country',
+  'polity:military': {
+    organizationKind: 'polity',
     role: 'military',
     displayName: 'General',
     maxHolders: 5,
@@ -47,8 +47,8 @@ export const OFFICE_DEFINITIONS: Record<OfficeKey, OfficeDefinition> = {
     adminLoad: 3,
     coordinationLoad: 8,
   },
-  'country:advisor': {
-    organizationKind: 'country',
+  'polity:advisor': {
+    organizationKind: 'polity',
     role: 'advisor',
     displayName: 'Court Advisor',
     maxHolders: 5,

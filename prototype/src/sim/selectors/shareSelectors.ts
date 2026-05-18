@@ -1,5 +1,5 @@
 import type { WorldState } from '@sim/types/world'
-import type { CountryId, HouseId, PersonId } from '@sim/types/ids'
+import type { HouseId, PersonId, PolityId } from '@sim/types/ids'
 import type { OrganizationRef, ShareHolderRef, OrganizationShare } from '@sim/types/office'
 
 function orgKey(org: OrganizationRef): string {
@@ -76,19 +76,19 @@ export function getTopShareholders(
     }))
 }
 
-export function getHouseCountrySharePercent(
+export function getHousePolitySharePercent(
   state: WorldState,
-  countryId: CountryId,
+  countryId: PolityId,
   houseId: HouseId,
 ): number {
-  return getSharePercent(state, { kind: 'country', id: countryId }, { kind: 'house', id: houseId })
+  return getSharePercent(state, { kind: 'polity', id: countryId }, { kind: 'house', id: houseId })
 }
 
-export function getDominantCountryHouse(
+export function getDominantPolityHouse(
   state: WorldState,
-  countryId: CountryId,
+  countryId: PolityId,
 ): HouseId | undefined {
-  const top = getTopShareholders(state, { kind: 'country', id: countryId }, 1)
+  const top = getTopShareholders(state, { kind: 'polity', id: countryId }, 1)
   const first = top[0]
   if (!first) return undefined
   if (first.holder.kind === 'house') return first.holder.id

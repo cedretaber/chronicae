@@ -1,14 +1,15 @@
 import type { TickContext } from '../tick/context'
 import { makeHouseId } from '../tick/context'
-import type { HouseId, CountryId, ProvinceId, PersonId } from '../types/ids'
+import type { HouseId, PolityId, ProvinceId, PersonId } from '../types/ids'
 import type { House } from '../types/house'
 import type { WorldState } from '../types/world'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
+import { getHousePrimaryPolityId, getPolityHouseIds } from '../selectors/polityRelations'
 
 export type CreateHouseInput = {
   name: string
-  countryId: CountryId
+  polityId: PolityId
   seatProvinceId?: ProvinceId
   founderId?: PersonId
   parentHouseId?: HouseId
@@ -20,10 +21,10 @@ export function createHouse(
   ctx: TickContext,
   input: CreateHouseInput,
 ): CtxResult<{ houseId: HouseId }> {
-  if (!ctx.state.countries[input.countryId])
+  if (!ctx.state.polities[input.polityId])
     return err({
-      code: 'COUNTRY_NOT_FOUND',
-      message: 'createHouse: country not found: ' + input.countryId,
+      code: 'POLITY_NOT_FOUND',
+      message: 'createHouse: polity not found: ' + input.polityId,
     })
 
   const { id: houseId, ctx: ctxWithId } = makeHouseId(ctx)
@@ -32,7 +33,6 @@ export function createHouse(
     id: houseId,
     name: input.name,
     active: true,
-    countryId: input.countryId,
     provinceIds: [],
     memberIds: [],
     cadetHouseIds: [],
@@ -46,10 +46,11 @@ export function createHouse(
     ...(input.parentHouseId !== undefined && { parentHouseId: input.parentHouseId }),
   }
 
-  const country = ctxWithId.state.countries[input.countryId]!
-  const newCountries = {
-    ...ctxWithId.state.countries,
-    [input.countryId]: { ...country, houseIds: [...country.houseIds, houseId] },
+  const polity = ctxWithId.state.polities[input.polityId]!
+  const houseIds = getPolityHouseIds(ctxWithId.state, input.polityId)
+  const newPolities = {
+    ...ctxWithId.state.polities,
+    [input.polityId]: { ...polity, houseIds: [...houseIds, houseId] },
   }
 
   if (input.parentHouseId !== undefined) {
@@ -63,7 +64,7 @@ export function createHouse(
           cadetHouseIds: [...parentHouse.cadetHouseIds, houseId],
         },
       }
-      const newState = { ...ctxWithId.state, houses: newHouses, countries: newCountries }
+      const newState = { ...ctxWithId.state, houses: newHouses, polities: newPolities }
       return ok({ ctx: { ...ctxWithId, state: newState }, value: { houseId } })
     }
   }
@@ -71,7 +72,7 @@ export function createHouse(
   const newState = {
     ...ctxWithId.state,
     houses: { ...ctxWithId.state.houses, [houseId]: houseWithOptionals },
-    countries: newCountries,
+    polities: newPolities,
   }
   return ok({ ctx: { ...ctxWithId, state: newState }, value: { houseId } })
 }
@@ -79,7 +80,7 @@ export function createHouse(
 export function deactivateHouse(
   state: WorldState,
   houseId: HouseId,
-  options?: { removeFromCountry?: boolean },
+  options?: { removeFromPolity?: boolean },
 ): StateResult {
   const house = state.houses[houseId]
   if (!house)
@@ -92,17 +93,21 @@ export function deactivateHouse(
 
   const newHouses = { ...state.houses, [houseId]: { ...house, active: false } }
 
-  if (options?.removeFromCountry) {
-    const country = state.countries[house.countryId]
-    if (country) {
-      const newCountries = {
-        ...state.countries,
-        [house.countryId]: {
-          ...country,
-          houseIds: country.houseIds.filter((id) => id !== houseId),
-        },
+  if (options?.removeFromPolity) {
+    const housePolityId = getHousePrimaryPolityId(state, houseId)
+    if (housePolityId) {
+      const polity = state.polities[housePolityId]
+      if (polity) {
+        const houseIds = getPolityHouseIds(state, housePolityId)
+        const newPolities = {
+          ...state.polities,
+          [housePolityId]: {
+            ...polity,
+            houseIds: houseIds.filter((id) => id !== houseId),
+          },
+        }
+        return ok({ ...state, houses: newHouses, polities: newPolities })
       }
-      return ok({ ...state, houses: newHouses, countries: newCountries })
     }
   }
 

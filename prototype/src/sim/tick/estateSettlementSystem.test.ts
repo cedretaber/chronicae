@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
+import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { TickContext } from './context'
 import { createRng } from '../rng/rng'
@@ -17,23 +17,45 @@ const DEFAULT_ABILITIES = {
   insight: 50,
 }
 
-function makeBaseState(): { state: WorldState; houseId: HouseId; countryId: CountryId } {
+function makeBaseState(): {
+  state: WorldState
+  houseId: HouseId
+  polityId: PolityId
+  provinceId: ProvinceId
+} {
   const houseId = 'dh-0' as HouseId
-  const countryId = 'dc-0' as CountryId
+  const polityId = 'dp-0' as PolityId
+  const provinceId = 'dp-pr-0' as ProvinceId
   const state: WorldState = {
     currentYear: 1444,
     currentMonth: 1,
-    provinces: {},
-    countries: {
-      [countryId]: {
-        id: countryId,
+    provinces: {
+      [provinceId]: {
+        id: provinceId,
+        name: 'Province0',
+        x: 0,
+        y: 0,
+        neighbors: [],
+        ownerHouseId: houseId,
+        polityId,
+        habitability: 50,
+        popGroupIds: [],
+        development: 0,
+        polityControl: 100,
+        houseControl: 100,
+      },
+    },
+    polities: {
+      [polityId]: {
+        id: polityId,
         name: 'Kingdom',
-        houseIds: [houseId],
+        rank: 2,
+        ownerHouseId: houseId,
         treasury: 500,
         legacyPrestige: 50,
         adminPower: 10,
         active: true,
-        capitalProvinceId: '' as ProvinceId,
+        capitalProvinceId: provinceId,
       },
     },
     houses: {
@@ -41,13 +63,12 @@ function makeBaseState(): { state: WorldState; houseId: HouseId; countryId: Coun
         id: houseId,
         name: 'House',
         active: true,
-        countryId,
-        provinceIds: [],
+        provinceIds: [provinceId],
         memberIds: [],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
-        seatProvinceId: '' as ProvinceId,
+        seatProvinceId: provinceId,
       },
     },
     persons: {},
@@ -60,7 +81,7 @@ function makeBaseState(): { state: WorldState; houseId: HouseId; countryId: Coun
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
   }
-  return { state, houseId, countryId }
+  return { state, houseId, polityId, provinceId }
 }
 
 function makeCtx(state: WorldState, deathsThisTick: PersonId[] = []): TickContext {
@@ -74,14 +95,13 @@ function makeCtx(state: WorldState, deathsThisTick: PersonId[] = []): TickContex
     deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 }
 
 function makePerson(
   id: PersonId,
   houseId: HouseId,
-  countryId: CountryId,
   overrides: Partial<import('../types/person').Person> = {},
 ): import('../types/person').Person {
   return {
@@ -91,7 +111,6 @@ function makePerson(
     age: 40,
     alive: true,
     houseId,
-    countryId,
     childIds: [],
     birthStatus: 'unknown' as const,
     abilities: { ...DEFAULT_ABILITIES },
@@ -106,24 +125,24 @@ function makePerson(
 
 describe('findHeirs', () => {
   it('returns legitimate children sorted by age descending', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const child1Id = 'pe-0' as PersonId
     const child2Id = 'pe-1' as PersonId
     const deceasedId = 'pe-2' as PersonId
 
-    state.persons[child1Id] = makePerson(child1Id, houseId, cId, {
+    state.persons[child1Id] = makePerson(child1Id, houseId, {
       age: 20,
       alive: true,
       birthStatus: 'legitimate',
       childIds: [],
     })
-    state.persons[child2Id] = makePerson(child2Id, houseId, cId, {
+    state.persons[child2Id] = makePerson(child2Id, houseId, {
       age: 15,
       alive: true,
       birthStatus: 'legitimate',
       childIds: [],
     })
-    state.persons[deceasedId] = makePerson(deceasedId, houseId, cId, {
+    state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
       alive: false,
       childIds: [child1Id, child2Id],
@@ -136,23 +155,23 @@ describe('findHeirs', () => {
   })
 
   it('skips illegitimate child and returns spouse', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const childId = 'pe-0' as PersonId
     const spouseId = 'pe-1' as PersonId
     const deceasedId = 'pe-2' as PersonId
 
-    state.persons[childId] = makePerson(childId, houseId, cId, {
+    state.persons[childId] = makePerson(childId, houseId, {
       age: 20,
       alive: true,
       birthStatus: 'illegitimate',
       childIds: [],
     })
-    state.persons[spouseId] = makePerson(spouseId, houseId, cId, {
+    state.persons[spouseId] = makePerson(spouseId, houseId, {
       age: 40,
       alive: true,
       childIds: [],
     })
-    state.persons[deceasedId] = makePerson(deceasedId, houseId, cId, {
+    state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
       alive: false,
       spouseId,
@@ -166,16 +185,16 @@ describe('findHeirs', () => {
   })
 
   it('returns spouse when no children exist', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const spouseId = 'pe-0' as PersonId
     const deceasedId = 'pe-1' as PersonId
 
-    state.persons[spouseId] = makePerson(spouseId, houseId, cId, {
+    state.persons[spouseId] = makePerson(spouseId, houseId, {
       age: 40,
       alive: true,
       childIds: [],
     })
-    state.persons[deceasedId] = makePerson(deceasedId, houseId, cId, {
+    state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
       alive: false,
       spouseId,
@@ -188,18 +207,18 @@ describe('findHeirs', () => {
   })
 
   it('returns sibling when no children or spouse', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const siblingId = 'pe-0' as PersonId
     const deceasedId = 'pe-1' as PersonId
     const fatherId = 'pe-99' as PersonId
 
-    state.persons[siblingId] = makePerson(siblingId, houseId, cId, {
+    state.persons[siblingId] = makePerson(siblingId, houseId, {
       age: 35,
       alive: true,
       fatherId,
       childIds: [],
     })
-    state.persons[deceasedId] = makePerson(deceasedId, houseId, cId, {
+    state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 30,
       alive: false,
       fatherId,
@@ -212,16 +231,16 @@ describe('findHeirs', () => {
   })
 
   it('returns house leader when no children, spouse, or siblings', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const leaderId = 'pe-0' as PersonId
     const deceasedId = 'pe-1' as PersonId
 
-    state.persons[leaderId] = makePerson(leaderId, houseId, cId, {
+    state.persons[leaderId] = makePerson(leaderId, houseId, {
       age: 50,
       alive: true,
       childIds: [],
     })
-    state.persons[deceasedId] = makePerson(deceasedId, houseId, cId, {
+    state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 30,
       alive: false,
       childIds: [],
@@ -246,10 +265,10 @@ describe('findHeirs', () => {
   })
 
   it('returns empty array when no heirs exist', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const deceasedId = 'pe-0' as PersonId
 
-    state.persons[deceasedId] = makePerson(deceasedId, houseId, cId, {
+    state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 30,
       alive: false,
       childIds: [],
@@ -263,18 +282,18 @@ describe('findHeirs', () => {
 
 describe('runEstateSettlementSystem', () => {
   it('ESTATE_SETTLED: distributes wealth with 1 heir', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const deceasedId = 'pe-0' as PersonId
     const heirId = 'pe-1' as PersonId
 
-    state.persons[deceasedId] = makePerson(deceasedId, houseId, cId, {
+    state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
       alive: false,
       wealth: 100,
       childIds: [heirId],
       birthStatus: 'legitimate',
     })
-    state.persons[heirId] = makePerson(heirId, houseId, cId, {
+    state.persons[heirId] = makePerson(heirId, houseId, {
       age: 20,
       alive: true,
       wealth: 0,
@@ -295,26 +314,26 @@ describe('runEstateSettlementSystem', () => {
   })
 
   it('ESTATE_DISPUTED: distributes wealth with 2 heirs', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const deceasedId = 'pe-0' as PersonId
     const heir1Id = 'pe-1' as PersonId
     const heir2Id = 'pe-2' as PersonId
 
-    state.persons[deceasedId] = makePerson(deceasedId, houseId, cId, {
+    state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
       alive: false,
       wealth: 100,
       childIds: [heir1Id, heir2Id],
       birthStatus: 'legitimate',
     })
-    state.persons[heir1Id] = makePerson(heir1Id, houseId, cId, {
+    state.persons[heir1Id] = makePerson(heir1Id, houseId, {
       age: 20,
       alive: true,
       wealth: 0,
       birthStatus: 'legitimate',
       childIds: [],
     })
-    state.persons[heir2Id] = makePerson(heir2Id, houseId, cId, {
+    state.persons[heir2Id] = makePerson(heir2Id, houseId, {
       age: 15,
       alive: true,
       wealth: 0,
@@ -337,10 +356,10 @@ describe('runEstateSettlementSystem', () => {
   })
 
   it('all wealth to house when no heirs', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const deceasedId = 'pe-0' as PersonId
 
-    state.persons[deceasedId] = makePerson(deceasedId, houseId, cId, {
+    state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
       alive: false,
       wealth: 100,
@@ -360,10 +379,10 @@ describe('runEstateSettlementSystem', () => {
   })
 
   it('skips when deceased wealth is 0', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const deceasedId = 'pe-0' as PersonId
 
-    state.persons[deceasedId] = makePerson(deceasedId, houseId, cId, {
+    state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
       alive: false,
       wealth: 0,
@@ -385,21 +404,21 @@ describe('runEstateSettlementSystem', () => {
 // 家系を 2 世代追って合計 wealth (家 + 全人物) が保存されることを確認
 describe('estateSettlementSystem 2-generation integration', () => {
   it('preserves total wealth across 2 successive deaths (grandfather -> father)', () => {
-    const { state, houseId, countryId: cId } = makeBaseState()
+    const { state, houseId } = makeBaseState()
     const grandfatherId = 'pe-0' as PersonId
     const fatherId = 'pe-1' as PersonId
     const grandchildId = 'pe-2' as PersonId
 
     // 祖父 wealth=100, 父 wealth=50, 孫 wealth=0, 家 wealth=0
     // 祖父 → 父 (嫡出子), 父 → 孫 (嫡出子)
-    state.persons[grandfatherId] = makePerson(grandfatherId, houseId, cId, {
+    state.persons[grandfatherId] = makePerson(grandfatherId, houseId, {
       age: 70,
       alive: true,
       wealth: 100,
       childIds: [fatherId],
       birthStatus: 'legitimate',
     })
-    state.persons[fatherId] = makePerson(fatherId, houseId, cId, {
+    state.persons[fatherId] = makePerson(fatherId, houseId, {
       age: 40,
       alive: true,
       wealth: 50,
@@ -407,7 +426,7 @@ describe('estateSettlementSystem 2-generation integration', () => {
       childIds: [grandchildId],
       birthStatus: 'legitimate',
     })
-    state.persons[grandchildId] = makePerson(grandchildId, houseId, cId, {
+    state.persons[grandchildId] = makePerson(grandchildId, houseId, {
       age: 15,
       alive: true,
       wealth: 0,

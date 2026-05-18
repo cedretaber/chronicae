@@ -2,22 +2,22 @@ import type {} from 'react'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { formatScore, formatAmount, formatPower } from '@/app/utils/format'
 import {
-  getCountryLegitimacy,
-  getCountryStability,
+  getPolityLegitimacy,
+  getPolityStability,
   getHouseCohesion,
-  getHouseLoyaltyToCountry,
+  getHouseLoyaltyToPolity,
 } from '@sim/selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '@sim/helpers/attitudeHelpers'
 import {
-  getCountryRulerHouse,
-  getCountryRuler,
+  getPolityLeaderHouse,
+  getPolityLeader,
   getHouseLeader,
   getActiveOfficeHolders,
   getAdministrativeCapacity,
   getAdministrativeLoad,
   getAdministrativeEfficiency,
 } from '@sim/selectors/officeSelectors'
-import { getDominantCountryHouse, getTopShareholders } from '@sim/selectors/shareSelectors'
+import { getDominantPolityHouse, getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
 import { ABILITY_AGE_CURVES } from '@sim/constants/abilityConstants'
 import { getProvinceDevelopmentMultiplier } from '@/sim/selectors/developmentSelectors'
@@ -37,17 +37,19 @@ import {
   getProvinceHouseManpowerBase,
 } from '@sim/selectors/popEconomySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
-import type { Country } from '@/sim/types/country'
+import type { Polity } from '@/sim/types/polity'
 import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
 import type { Province } from '@/sim/types/province'
 import type { PopGroup } from '@/sim/types/popGroup'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import type { AttitudeMap } from '@/sim/types/attitude'
-import type { CountryId, HouseId, PersonId } from '@/sim/types/ids'
+import type { PolityId, HouseId, PersonId } from '@/sim/types/ids'
+import { getHousePrimaryPolityId, getPolityHouseIds } from '@sim/selectors/polityRelations'
+import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
-import { calcCountryMilitaryPower } from '@/sim/selectors/militarySelectors'
+import { calcPolityMilitaryPower } from '@/sim/selectors/militarySelectors'
 import { normalizedStat } from '@/sim/selectors/personAbilityEffects'
 import { OFFICE_DEFINITIONS } from '@sim/config/officeDefinitions'
 import { clamp } from '@/sim/utils/math'
@@ -66,7 +68,7 @@ function getImportanceColor(importance: SimEvent['importance']): string {
   }
 }
 
-type ClickHandler = (id: string, type: 'person' | 'house' | 'country') => void
+type ClickHandler = (id: PolityId | HouseId | PersonId, type: 'person' | 'house' | 'polity') => void
 
 function WatchButton({ isWatching, onToggle }: { isWatching: boolean; onToggle: () => void }) {
   return (
@@ -88,7 +90,7 @@ function PersonLink({
   persons,
   onClick,
 }: {
-  personId: string
+  personId: PersonId
   persons: Record<string, Person>
   onClick: ClickHandler
 }) {
@@ -109,7 +111,7 @@ function HouseLink({
   houses,
   onClick,
 }: {
-  houseId: string
+  houseId: HouseId
   houses: Record<string, House>
   onClick: ClickHandler
 }) {
@@ -125,70 +127,71 @@ function HouseLink({
   )
 }
 
-function CountryLink({
-  countryId,
-  countries,
+function PolityLink({
+  polityId,
+  polities,
   onClick,
 }: {
-  countryId: string
-  countries: Record<string, Country>
+  polityId: PolityId
+  polities: Record<string, Polity>
   onClick: ClickHandler
 }) {
-  const country = countries[countryId]
-  if (!country) return <span className="text-gray-500">\u2014</span>
+  const polity = polities[polityId]
+  if (!polity) return <span className="text-gray-500">\u2014</span>
   return (
     <button
       className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
-      onClick={() => onClick(countryId, 'country')}
+      onClick={() => onClick(polityId, 'polity')}
     >
-      {country.name}
+      {polity.name}
     </button>
   )
 }
 
 function RoleDisplay({
   role,
-  countryId,
+  polityId,
   persons,
   onClick,
   currentState,
 }: {
   role: string
-  countryId: string
+  polityId: PolityId
   persons: Record<string, Person>
   onClick: ClickHandler
   currentState: import('@sim/types/world').WorldState | null
 }) {
-  const countryRef = {
-    kind: 'country' as const,
-    id: countryId as import('@sim/types/ids').CountryId,
+  const polityRef = {
+    kind: 'polity' as const,
+    id: polityId,
   }
   if (!currentState) return <span className="text-gray-500">\u2014</span>
   const holderIds = getActiveOfficeHolders(
     currentState,
-    countryRef,
+    polityRef,
     role as import('@sim/types/office').OfficeRole,
   )
   if (holderIds.length === 0) return <span className="text-gray-500">\u2014</span>
   const personId = holderIds[0]
-  const person = persons[personId as string]
+  const person = persons[personId as PersonId]
   if (!person) return <span className="text-gray-500">\u2014</span>
-  return <PersonLink personId={personId as string} persons={persons} onClick={onClick} />
+  return <PersonLink personId={personId as PersonId} persons={persons} onClick={onClick} />
 }
 
 function AttitudeList({
   attitudes,
   worldState,
-  onCountryClick,
+  onPolityClick,
   onHouseClick,
   onPersonClick,
 }: {
   attitudes: AttitudeMap
-  worldState: WorldState
-  onCountryClick: ClickHandler
+  worldState: WorldState | null
+  onPolityClick: ClickHandler
   onHouseClick: ClickHandler
   onPersonClick: (id: string) => void
 }) {
+  if (!worldState) return null
   const entries = Object.entries(attitudes)
   return (
     <div className="flex flex-col gap-0.5">
@@ -198,13 +201,13 @@ function AttitudeList({
         const id = key.slice(colonIdx + 1)
 
         let linkNode: React.ReactNode
-        if (prefix === 'country') {
-          const c = worldState.countries[id as CountryId]
-          const name = c?.name ?? id
+        if (prefix === 'polity') {
+          const p = worldState.polities[id as PolityId]
+          const name = p?.name ?? id
           linkNode = (
             <button
               className="cursor-pointer text-blue-400 hover:text-blue-300"
-              onClick={() => onCountryClick(id, 'country')}
+              onClick={() => onPolityClick(id as PolityId, 'polity')}
             >
               {name}
             </button>
@@ -215,7 +218,7 @@ function AttitudeList({
           linkNode = (
             <button
               className="cursor-pointer text-blue-400 hover:text-blue-300"
-              onClick={() => onHouseClick(id, 'house')}
+              onClick={() => onHouseClick(id as HouseId, 'house')}
             >
               {name}
             </button>
@@ -267,7 +270,7 @@ function AttitudeList({
 }
 
 function CountryDetail({
-  country,
+  polity,
   session,
   watchlist,
   toggleWatchlist,
@@ -275,7 +278,7 @@ function CountryDetail({
   onHouseClick,
   onProvinceClick,
 }: {
-  country: Country
+  polity: Polity
   session: SimulationSession | null
   watchlist: string[]
   toggleWatchlist: (id: string) => void
@@ -283,19 +286,20 @@ function CountryDetail({
   onHouseClick: ClickHandler
   onProvinceClick: (id: string) => void
 }) {
-  const isWatching = watchlist.includes(country.id)
+  const isWatching = watchlist.includes(polity.id)
   const currentState = session?.currentState
-  const houses = currentState?.houses
-  const persons = currentState?.persons
+  if (!currentState) return null
+  const houses = currentState.houses
+  const persons = currentState.persons
 
   const worldState: WorldState | null = currentState ?? null
 
   const totalMilitaryPower = worldState
-    ? calcCountryMilitaryPower(worldState, defaultConfig, country.id)
+    ? calcPolityMilitaryPower(worldState, defaultConfig, polity.id)
     : 0
 
-  const legitimacy = worldState ? getCountryLegitimacy(worldState, country.id) : 50
-  const stability = worldState ? getCountryStability(worldState, defaultConfig, country.id) : 50
+  const legitimacy = worldState ? getPolityLegitimacy(worldState, polity.id) : 50
+  const stability = worldState ? getPolityStability(worldState, defaultConfig, polity.id) : 50
 
   const roleLabels: Record<string, string> = {
     leader: 'Ruler',
@@ -304,25 +308,31 @@ function CountryDetail({
     treasurer: 'Treasurer',
   }
 
-  const inHouseNames = country.houseIds
-    .map((hid) => houses?.[hid])
-    .filter((h): h is House => !!h && h.active && h.countryId === country.id)
-    .map((h) => (
-      <li key={h.id} className="mb-0.5">
-        <HouseLink houseId={h.id} houses={houses!} onClick={onHouseClick} />
-      </li>
-    ))
+  const houseIds = currentState ? getPolityHouseIds(currentState, polity.id) : []
+  const inHouseNames = currentState
+    ? houseIds
+        .map((hid) => houses[hid])
+        .filter(
+          (h): h is House =>
+            !!h && h.active && getHousePrimaryPolityId(currentState, h.id) === polity.id,
+        )
+        .map((h) => (
+          <li key={h.id} className="mb-0.5">
+            <HouseLink houseId={h.id} houses={houses} onClick={onHouseClick} />
+          </li>
+        ))
+    : []
 
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-bold">{country.name}</span>
-          {!country.active && (
+          <span className="text-lg font-bold">{polity.name}</span>
+          {!polity.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">Annexed</span>
           )}
         </div>
-        <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(country.id)} />
+        <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(polity.id)} />
       </div>
 
       <div className="text-sm">
@@ -330,17 +340,16 @@ function CountryDetail({
           <span className="text-gray-400">Capital:</span>
           <button
             className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
-            onClick={() => onProvinceClick(country.capitalProvinceId)}
+            onClick={() => onProvinceClick(polity.capitalProvinceId)}
           >
-            {currentState?.provinces?.[country.capitalProvinceId]?.name ??
-              country.capitalProvinceId}
+            {currentState.provinces?.[polity.capitalProvinceId]?.name ?? polity.capitalProvinceId}
           </button>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Ruler:</span>
           {(() => {
             if (!currentState) return <span className="text-gray-500">\u2014</span>
-            const rulerId = getCountryRuler(currentState, country.id)
+            const rulerId = getPolityLeader(currentState, polity.id)
             if (!rulerId) return <span className="text-gray-500">\u2014</span>
             return <PersonLink personId={rulerId} persons={persons ?? {}} onClick={onPersonClick} />
           })()}
@@ -349,7 +358,7 @@ function CountryDetail({
           <span className="text-gray-400">Royal House:</span>
           {(() => {
             if (!currentState) return <span className="text-gray-500">\u2014</span>
-            const rulerHouseId = getCountryRulerHouse(currentState, country.id)
+            const rulerHouseId = getPolityLeaderHouse(currentState, polity.id)
             if (!rulerHouseId) return <span className="text-gray-500">\u2014</span>
             return <HouseLink houseId={rulerHouseId} houses={houses ?? {}} onClick={onHouseClick} />
           })()}
@@ -358,7 +367,7 @@ function CountryDetail({
           <span className="text-gray-400">Dominant House:</span>
           {(() => {
             if (!currentState) return <span className="text-gray-500">\u2014</span>
-            const dominantHouseId = getDominantCountryHouse(currentState, country.id)
+            const dominantHouseId = getDominantPolityHouse(currentState, polity.id)
             if (!dominantHouseId) return <span className="text-gray-500">\u2014</span>
             return (
               <HouseLink houseId={dominantHouseId} houses={houses ?? {}} onClick={onHouseClick} />
@@ -367,7 +376,7 @@ function CountryDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Treasury:</span>
-          <span>{formatAmount(country.treasury)}</span>
+          <span>{formatAmount(polity.treasury)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Legitimacy:</span>
@@ -375,7 +384,7 @@ function CountryDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">AdminPower:</span>
-          <span>{formatScore(country.adminPower)}</span>
+          <span>{formatScore(polity.adminPower)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Stability:</span>
@@ -393,7 +402,7 @@ function CountryDetail({
           <span className="text-gray-400">Capacity:</span>
           <span>
             {worldState
-              ? getAdministrativeCapacity(worldState, defaultConfig, country.id).toFixed(1)
+              ? getAdministrativeCapacity(worldState, defaultConfig, polity.id).toFixed(1)
               : '—'}
           </span>
         </div>
@@ -401,7 +410,7 @@ function CountryDetail({
           <span className="text-gray-400">Load:</span>
           <span>
             {worldState
-              ? getAdministrativeLoad(worldState, defaultConfig, country.id).toFixed(1)
+              ? getAdministrativeLoad(worldState, defaultConfig, polity.id).toFixed(1)
               : '—'}
           </span>
         </div>
@@ -409,7 +418,7 @@ function CountryDetail({
           <span className="text-gray-400">Efficiency:</span>
           <span>
             {worldState
-              ? `x${getAdministrativeEfficiency(worldState, defaultConfig, country.id).toFixed(2)}`
+              ? `x${getAdministrativeEfficiency(worldState, defaultConfig, polity.id).toFixed(2)}`
               : '—'}
           </span>
         </div>
@@ -422,8 +431,8 @@ function CountryDetail({
             <span className="text-gray-400">{roleLabels[role]}:</span>
             <RoleDisplay
               role={role}
-              countryId={country.id}
-              persons={persons!}
+              polityId={polity.id}
+              persons={persons}
               onClick={onPersonClick}
               currentState={session?.currentState ?? null}
             />
@@ -434,11 +443,11 @@ function CountryDetail({
       <div className="text-sm font-semibold text-gray-300">Top Shareholders:</div>
       <div className="text-sm">
         {worldState ? (
-          getTopShareholders(worldState, { kind: 'country', id: country.id }, 5).map(
+          getTopShareholders(worldState, { kind: 'polity', id: polity.id }, 5).map(
             ({ holder, percent }) => {
               const name =
                 holder.kind === 'house'
-                  ? (currentState?.houses[holder.id]?.name ?? holder.id)
+                  ? (currentState.houses[holder.id]?.name ?? holder.id)
                   : holder.id
               return (
                 <div key={`${holder.kind}:${holder.id}`} className="flex justify-between">
@@ -471,7 +480,7 @@ function HouseDetail({
   watchlist,
   toggleWatchlist,
   onPersonClick,
-  onCountryClick,
+  onPolityClick,
   onProvinceClick,
   eventHistory,
 }: {
@@ -480,16 +489,17 @@ function HouseDetail({
   watchlist: string[]
   toggleWatchlist: (id: string) => void
   onPersonClick: ClickHandler
-  onCountryClick: ClickHandler
+  onPolityClick: ClickHandler
   onProvinceClick: (id: string) => void
   eventHistory: SimEvent[]
 }) {
   const isWatching = watchlist.includes(house.id)
   const currentState = session?.currentState
+  if (!currentState) return null
   const leaderId = currentState ? getHouseLeader(currentState, house.id) : undefined
-  const head = leaderId ? currentState?.persons?.[leaderId] : undefined
+  const head = leaderId ? currentState.persons?.[leaderId] : undefined
   const aliveMembers = house.memberIds.filter(
-    (pid) => currentState?.persons?.[pid]?.alive === true,
+    (pid) => currentState.persons?.[pid]?.alive === true,
   ).length
 
   const worldState: WorldState | null = currentState ?? null
@@ -499,7 +509,7 @@ function HouseDetail({
     : { rebellionTendency: 0, plotTendency: 0 }
 
   const cohesion = worldState ? getHouseCohesion(worldState, house.id) : 50
-  const loyaltyToCountry = worldState ? getHouseLoyaltyToCountry(worldState, house.id) : 50
+  const loyaltyToPolity = worldState ? getHouseLoyaltyToPolity(worldState, house.id) : 50
 
   const levyPower = worldState
     ? house.provinceIds.reduce(
@@ -547,12 +557,21 @@ function HouseDetail({
 
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Country:</span>
-          <CountryLink
-            countryId={house.countryId}
-            countries={currentState?.countries ?? {}}
-            onClick={onCountryClick}
-          />
+          <span className="text-gray-400">Primary Polity:</span>
+          {(() => {
+            const primaryPolityId = getHousePrimaryPolityId(currentState, house.id)
+            if (!primaryPolityId) return <span className="text-gray-500">\u2014</span>
+            const p = currentState.polities[primaryPolityId]
+            if (!p) return <span className="text-gray-500">\u2014</span>
+            return (
+              <button
+                className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                onClick={() => onPolityClick(primaryPolityId, 'polity')}
+              >
+                {p.name}
+              </button>
+            )
+          })()}
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Seat:</span>
@@ -560,7 +579,7 @@ function HouseDetail({
             className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
             onClick={() => onProvinceClick(house.seatProvinceId)}
           >
-            {currentState?.provinces?.[house.seatProvinceId]?.name ?? house.seatProvinceId}
+            {currentState.provinces?.[house.seatProvinceId]?.name ?? house.seatProvinceId}
           </button>
         </div>
         <div className="flex justify-between">
@@ -573,7 +592,7 @@ function HouseDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Loyalty:</span>
-          <span>{formatScore(loyaltyToCountry)}</span>
+          <span>{formatScore(loyaltyToPolity)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Wealth:</span>
@@ -622,8 +641,8 @@ function HouseDetail({
           <span className="text-gray-400">Leader:</span>
           {head ? (
             <PersonLink
-              personId={leaderId as string}
-              persons={currentState?.persons ?? {}}
+              personId={leaderId as PersonId}
+              persons={currentState.persons ?? {}}
               onClick={onPersonClick}
             />
           ) : (
@@ -653,8 +672,8 @@ function HouseDetail({
                     holderIds.map((pid) => (
                       <PersonLink
                         key={pid as string}
-                        personId={pid as string}
-                        persons={currentState?.persons ?? {}}
+                        personId={pid}
+                        persons={currentState.persons ?? {}}
                         onClick={onPersonClick}
                       />
                     ))
@@ -672,8 +691,8 @@ function HouseDetail({
                 <div key={`${holder.kind}:${holder.id}`} className="flex justify-between">
                   {holder.kind === 'person' ? (
                     <PersonLink
-                      personId={holder.id as string}
-                      persons={currentState?.persons ?? {}}
+                      personId={holder.id}
+                      persons={currentState.persons ?? {}}
                       onClick={onPersonClick}
                     />
                   ) : (
@@ -747,7 +766,7 @@ function PersonDetail({
   watchlist,
   toggleWatchlist,
   onHouseClick,
-  onCountryClick,
+  onPolityClick,
   onPersonClick,
   eventHistory,
 }: {
@@ -756,7 +775,7 @@ function PersonDetail({
   watchlist: string[]
   toggleWatchlist: (id: string) => void
   onHouseClick: ClickHandler
-  onCountryClick: ClickHandler
+  onPolityClick: ClickHandler
   onPersonClick: (id: string) => void
   eventHistory: SimEvent[]
 }) {
@@ -766,7 +785,7 @@ function PersonDetail({
     currentYear: 0,
     currentMonth: 0,
     provinces: {},
-    countries: {},
+    polities: {},
     houses: {},
     persons: {},
     activePlots: {},
@@ -785,9 +804,10 @@ function PersonDetail({
   })
   const importanceScore = calcPersonImportanceScore(worldState, person.id, eventHistory)
 
+  const primaryPolityId = getPersonPrimaryPolityId(worldState, person.id)
   const personCountryAtt = getAttitudeOrDefault(worldState, person, {
-    kind: 'country',
-    id: person.countryId,
+    kind: 'polity',
+    id: primaryPolityId ?? ('' as PolityId),
   })
   const countryLoyalty =
     (attitudeValueToScore(personCountryAtt.affection) * 0.55 +
@@ -803,8 +823,8 @@ function PersonDetail({
 
   function officeOrgName(office: (typeof allOffices)[number]): string {
     const org = office.organization
-    if (org.kind === 'country') {
-      return worldState.countries[org.id]?.name ?? org.id
+    if (org.kind === 'polity') {
+      return worldState.polities[org.id]?.name ?? org.id
     }
     return worldState.houses[org.id]?.name ?? org.id
   }
@@ -812,9 +832,7 @@ function PersonDetail({
   const sortByRole = (a: (typeof allOffices)[number], b: (typeof allOffices)[number]) =>
     ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)
 
-  const countryOffices = allOffices
-    .filter((o) => o.organization.kind === 'country')
-    .sort(sortByRole)
+  const polityOffices = allOffices.filter((o) => o.organization.kind === 'polity').sort(sortByRole)
   const houseOffices = allOffices.filter((o) => o.organization.kind === 'house').sort(sortByRole)
 
   return (
@@ -842,12 +860,21 @@ function PersonDetail({
           />
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Country:</span>
-          <CountryLink
-            countryId={person.countryId}
-            countries={currentState?.countries ?? {}}
-            onClick={onCountryClick}
-          />
+          <span className="text-gray-400">Primary Polity:</span>
+          {(() => {
+            if (!primaryPolityId) return <span className="text-gray-500">\u2014</span>
+            if (!currentState) return <span className="text-gray-500">\u2014</span>
+            const p = currentState.polities?.[primaryPolityId]
+            if (!p) return <span className="text-gray-500">\u2014</span>
+            return (
+              <button
+                className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                onClick={() => onPolityClick(primaryPolityId, 'polity')}
+              >
+                {p.name}
+              </button>
+            )
+          })()}
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Sex:</span>
@@ -869,10 +896,10 @@ function PersonDetail({
             <div className="ml-1 text-sm text-gray-500">—</div>
           ) : (
             <div className="ml-1 text-sm">
-              {countryOffices.length > 0 && (
+              {polityOffices.length > 0 && (
                 <div>
                   <span className="text-xs text-gray-500">Country</span>
-                  {countryOffices.map((o) => (
+                  {polityOffices.map((o) => (
                     <div key={o.id} className="flex justify-between gap-2">
                       <span className="text-gray-300">{officeDisplayName(o)}</span>
                       <span className="text-right text-gray-200">{officeOrgName(o)}</span>
@@ -881,7 +908,7 @@ function PersonDetail({
                 </div>
               )}
               {houseOffices.length > 0 && (
-                <div className={countryOffices.length > 0 ? 'mt-0.5' : ''}>
+                <div className={polityOffices.length > 0 ? 'mt-0.5' : ''}>
                   <span className="text-xs text-gray-500">House</span>
                   {houseOffices.map((o) => (
                     <div key={o.id} className="flex justify-between gap-2">
@@ -1054,7 +1081,7 @@ function PersonDetail({
       <AttitudeList
         attitudes={person.attitudes}
         worldState={worldState}
-        onCountryClick={onCountryClick}
+        onPolityClick={onPolityClick}
         onHouseClick={onHouseClick}
         onPersonClick={onPersonClick}
       />
@@ -1073,14 +1100,14 @@ function getDevelopmentLabel(d: number): string {
 function PopGroupDetail({
   popGroup,
   session,
-  onCountryClick,
+  onPolityClick,
   onHouseClick,
   onPersonClick,
   onProvinceClick,
 }: {
   popGroup: PopGroup
   session: SimulationSession | null
-  onCountryClick: ClickHandler
+  onPolityClick: ClickHandler
   onHouseClick: ClickHandler
   onPersonClick: (id: string) => void
   onProvinceClick: (id: string) => void
@@ -1127,8 +1154,8 @@ function PopGroupDetail({
       <div className="text-sm font-semibold text-gray-300">Attitudes:</div>
       <AttitudeList
         attitudes={popGroup.attitudes}
-        worldState={worldState!}
-        onCountryClick={onCountryClick}
+        worldState={worldState}
+        onPolityClick={onPolityClick}
         onHouseClick={onHouseClick}
         onPersonClick={onPersonClick}
       />
@@ -1139,14 +1166,14 @@ function PopGroupDetail({
 function ProvinceDetail({
   province,
   session,
-  onCountryClick,
+  onPolityClick,
   onHouseClick,
   onProvinceClick,
   onPopGroupClick,
 }: {
   province: Province
   session: SimulationSession | null
-  onCountryClick: ClickHandler
+  onPolityClick: ClickHandler
   onHouseClick: ClickHandler
   onProvinceClick: (id: string) => void
   onPopGroupClick: (id: string) => void
@@ -1183,8 +1210,8 @@ function ProvinceDetail({
     ws: WorldState,
     popClass: 'peasants' | 'townsmen' | 'nobles',
   ): number => {
-    const country = ws.countries[province.countryId]
-    if (!country) return 0
+    const polity = ws.polities[province.polityId]
+    if (!polity) return 0
     const ownerHouse = ws.houses[province.ownerHouseId]
     if (!ownerHouse) return 0
 
@@ -1196,8 +1223,8 @@ function ProvinceDetail({
     let tendency =
       pop.unrest * defaultConfig.provinceRevoltUnrestFactor +
       (100 - province.houseControl) * defaultConfig.provinceRevoltLowHouseControlFactor +
-      (100 - province.countryControl) * defaultConfig.provinceRevoltLowCountryControlFactor -
-      getCountryStability(ws, defaultConfig, province.countryId) *
+      (100 - province.polityControl) * defaultConfig.provinceRevoltLowCountryControlFactor -
+      getPolityStability(ws, defaultConfig, province.polityId) *
         defaultConfig.provinceRevoltStabilitySuppressionFactor
 
     if (popClass === 'peasants') {
@@ -1226,8 +1253,8 @@ function ProvinceDetail({
           id: province.ownerHouseId,
         })
         const a_country = getAttitudeOrDefault(ws, noblesPop, {
-          kind: 'country',
-          id: province.countryId,
+          kind: 'polity',
+          id: province.polityId,
         })
         const houseScore =
           attitudeValueToScore(a_house.affection) * 0.6 +
@@ -1258,11 +1285,11 @@ function ProvinceDetail({
 
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Country:</span>
-          <CountryLink
-            countryId={province.countryId}
-            countries={currentState?.countries ?? {}}
-            onClick={onCountryClick}
+          <span className="text-gray-400">Primary Polity:</span>
+          <PolityLink
+            polityId={province.polityId}
+            polities={currentState?.polities ?? {}}
+            onClick={onPolityClick}
           />
         </div>
         <div className="flex justify-between">
@@ -1288,8 +1315,8 @@ function ProvinceDetail({
           <span>{formatScore(developmentMultiplier)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Country Control:</span>
-          <span>{formatPower(province.countryControl)}</span>
+          <span className="text-gray-400">Polity Control:</span>
+          <span>{formatPower(province.polityControl)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">House Control:</span>
@@ -1435,13 +1462,13 @@ export function DetailPanel() {
 
   const onPersonClick = (id: string) => setSelected(id, 'person')
   const onHouseClick = (id: string) => setSelected(id, 'house')
-  const onCountryClick = (id: string) => setSelected(id, 'country')
+  const onPolityClick = (id: string) => setSelected(id, 'polity')
   const onProvinceClick = (id: string) => setSelected(id, 'province')
   const onPopGroupClick = (id: string) => setSelected(id, 'popGroup')
 
-  const country =
-    selectedType === 'country' && selectedId && currentState
-      ? Object.values(currentState.countries).find((c) => c.id === selectedId)
+  const polity =
+    selectedType === 'polity' && selectedId && currentState
+      ? Object.values(currentState.polities).find((p) => p.id === selectedId)
       : undefined
   const house =
     selectedType === 'house' && selectedId && currentState
@@ -1468,9 +1495,9 @@ export function DetailPanel() {
       <div className="flex-1 overflow-y-auto">
         {!selectedId || !selectedType ? (
           <NoSelection />
-        ) : selectedType === 'country' && country ? (
+        ) : selectedType === 'polity' && polity ? (
           <CountryDetail
-            country={country}
+            polity={polity}
             session={session}
             watchlist={watchlist}
             toggleWatchlist={toggleWatchlist}
@@ -1485,7 +1512,7 @@ export function DetailPanel() {
             watchlist={watchlist}
             toggleWatchlist={toggleWatchlist}
             onPersonClick={onPersonClick}
-            onCountryClick={onCountryClick}
+            onPolityClick={onPolityClick}
             onProvinceClick={onProvinceClick}
             eventHistory={eventHistory}
           />
@@ -1496,7 +1523,7 @@ export function DetailPanel() {
             watchlist={watchlist}
             toggleWatchlist={toggleWatchlist}
             onHouseClick={onHouseClick}
-            onCountryClick={onCountryClick}
+            onPolityClick={onPolityClick}
             onPersonClick={onPersonClick}
             eventHistory={eventHistory}
           />
@@ -1504,7 +1531,7 @@ export function DetailPanel() {
           <ProvinceDetail
             province={province}
             session={session}
-            onCountryClick={onCountryClick}
+            onPolityClick={onPolityClick}
             onHouseClick={onHouseClick}
             onProvinceClick={onProvinceClick}
             onPopGroupClick={onPopGroupClick}
@@ -1513,7 +1540,7 @@ export function DetailPanel() {
           <PopGroupDetail
             popGroup={popGroup}
             session={session}
-            onCountryClick={onCountryClick}
+            onPolityClick={onPolityClick}
             onHouseClick={onHouseClick}
             onPersonClick={onPersonClick}
             onProvinceClick={onProvinceClick}

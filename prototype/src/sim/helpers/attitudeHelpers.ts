@@ -1,6 +1,6 @@
 import { clamp } from '@sim/utils/math'
 import type { WorldState } from '@sim/types/world'
-import type { CountryId, HouseId, PersonId } from '@sim/types/ids'
+import type { PolityId, HouseId, PersonId } from '@sim/types/ids'
 import type { AttitudeKey, AttitudeMap, Attitude } from '@sim/types/attitude'
 import type { Person } from '@sim/types/person'
 import type { PopGroup } from '@sim/types/popGroup'
@@ -8,8 +8,8 @@ import type { AttitudeTarget } from '@sim/mutations/attitudeMutations'
 
 // --- Key builders ---
 
-export function countryAttitudeKey(id: CountryId): AttitudeKey {
-  return `country:${id}`
+export function polityAttitudeKey(id: PolityId): AttitudeKey {
+  return `polity:${id}`
 }
 
 export function houseAttitudeKey(id: HouseId): AttitudeKey {
@@ -41,8 +41,8 @@ function attitudeTargetToKey(target: AttitudeTarget): AttitudeKey {
   switch (target.kind) {
     case 'person':
       return personAttitudeKey(target.id)
-    case 'country':
-      return countryAttitudeKey(target.id)
+    case 'polity':
+      return polityAttitudeKey(target.id)
     case 'house':
       return houseAttitudeKey(target.id)
   }
@@ -95,21 +95,21 @@ export function adjustAttitude(
 
 // --- legacyPrestige adjusters (return new WorldState, immutable) ---
 
-// Adjusts country.legacyPrestige by delta, clamping to 0..100
-export function adjustCountryLegacyPrestige(
+// Adjusts polity.legacyPrestige by delta, clamping to 0..100
+export function adjustPolityLegacyPrestige(
   state: WorldState,
-  id: CountryId,
+  id: PolityId,
   delta: number,
 ): WorldState {
-  const country = state.countries[id]
-  if (!country) return state
+  const polity = state.polities[id]
+  if (!polity) return state
   return {
     ...state,
-    countries: {
-      ...state.countries,
+    polities: {
+      ...state.polities,
       [id]: {
-        ...country,
-        legacyPrestige: clamp(country.legacyPrestige + delta, 0, 100),
+        ...polity,
+        legacyPrestige: clamp(polity.legacyPrestige + delta, 0, 100),
       },
     },
   }
@@ -173,7 +173,7 @@ export function initNewHouseAttitudes(): AttitudeMap {
   return {}
 }
 
-// No-op — worldgen will populate Country-related attitudes directly
-export function initNewCountryAttitudes(): void {
-  // Attitudes for new countries are initialized by revolt system directly
+// No-op — worldgen will populate Polity-related attitudes directly
+export function initNewPolityAttitudes(): void {
+  // Attitudes for new polities are initialized by revolt system directly
 }

@@ -9,6 +9,7 @@ import { getPersonHouseSharePercent } from '../selectors/shareSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { clamp } from '../utils/math'
 import { ESTATE_DISPUTE_HEIR_THRESHOLD } from '../constants/abilityConstants'
+import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
 export function findHeirs(state: WorldState, deceased: PersonId): PersonId[] {
   const person = state.persons[deceased]
@@ -135,7 +136,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
       currentCtx.config.estateSettledNormalWealthRatio * (house?.wealth ?? 0)
     const roleInfo = currentCtx.deathRolesThisTick[deceasedId]
     let importance: SimEvent['importance'] = 'minor'
-    if (roleInfo?.wasCountryLeader) {
+    if (roleInfo?.wasPolityLeader) {
       importance = 'major'
     } else if (roleInfo?.wasHouseLeader || wealth >= normalWealthThreshold) {
       importance = 'normal'
@@ -146,6 +147,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
       ...currentCtx,
       state: newState,
     })
+    const primaryPolityId = getHousePrimaryPolityId(newState, person.houseId)
     const settledEvent: SimEvent = {
       id: settledId,
       year: newState.currentYear,
@@ -154,7 +156,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
       importance,
       actorIds: [deceasedId, ...heirs],
       houseIds,
-      countryIds: [person.countryId],
+      polityIds: primaryPolityId ? [primaryPolityId] : [],
       provinceIds: [],
       summary:
         person.name +
@@ -186,7 +188,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
         importance: 'minor',
         actorIds: [deceasedId, ...heirs],
         houseIds,
-        countryIds: [person.countryId],
+        polityIds: primaryPolityId ? [primaryPolityId] : [],
         provinceIds: [],
         summary: 'Multiple heirs (' + heirs.length + ') contest ' + person.name + "'s estate.",
         reasons: [{ label: 'Multiple heirs', value: heirs.length }],

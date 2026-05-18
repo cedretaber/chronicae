@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId } from '../types/ids'
-import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import { createPolityId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
+import type { PolityId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { TickContext } from '../tick/context'
 import { createRng } from '../rng/rng'
@@ -31,40 +31,75 @@ function makeFixture(): {
   person2Id: PersonId
   house1Id: HouseId
   house2Id: HouseId
-  country1Id: CountryId
-  country2Id: CountryId
+  polity1Id: PolityId
+  polity2Id: PolityId
+  province1Id: ProvinceId
+  province2Id: ProvinceId
 } {
   const person1Id = createPersonId('pe', 0)
   const person2Id = createPersonId('pe', 1)
   const house1Id = createHouseId('h', 0)
   const house2Id = createHouseId('h', 1)
-  const country1Id = createCountryId('c', 0)
-  const country2Id = createCountryId('c', 1)
+  const polity1Id = createPolityId('c', 0)
+  const polity2Id = createPolityId('c', 1)
+  const province1Id = createProvinceId('p', 0)
+  const province2Id = createProvinceId('p', 1)
 
   const state: WorldState = {
     currentYear: 1444,
     currentMonth: 1,
-    provinces: {},
-    countries: {
-      [country1Id]: {
-        id: country1Id,
-        name: 'Country 1',
-        houseIds: [house1Id],
-        treasury: 100,
-        legacyPrestige: 50,
-        adminPower: 10,
-        active: true,
-        capitalProvinceId: '' as ProvinceId,
+    provinces: {
+      [province1Id]: {
+        id: province1Id,
+        name: 'Test Province 1',
+        x: 0,
+        y: 0,
+        neighbors: [],
+        ownerHouseId: house1Id,
+        polityId: polity1Id,
+        habitability: 50,
+        popGroupIds: [],
+        development: 10,
+        polityControl: 100,
+        houseControl: 100,
       },
-      [country2Id]: {
-        id: country2Id,
-        name: 'Country 2',
-        houseIds: [house2Id],
+      [province2Id]: {
+        id: province2Id,
+        name: 'Test Province 2',
+        x: 1,
+        y: 1,
+        neighbors: [],
+        ownerHouseId: house2Id,
+        polityId: polity2Id,
+        habitability: 50,
+        popGroupIds: [],
+        development: 10,
+        polityControl: 100,
+        houseControl: 100,
+      },
+    },
+    polities: {
+      [polity1Id]: {
+        id: polity1Id,
+        name: 'Polity 1',
+        rank: 2,
+        ownerHouseId: house1Id,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
         active: true,
-        capitalProvinceId: '' as ProvinceId,
+        capitalProvinceId: province1Id,
+      },
+      [polity2Id]: {
+        id: polity2Id,
+        name: 'Polity 2',
+        rank: 2,
+        ownerHouseId: house2Id,
+        treasury: 100,
+        legacyPrestige: 50,
+        adminPower: 10,
+        active: true,
+        capitalProvinceId: province2Id,
       },
     },
     houses: {
@@ -72,25 +107,23 @@ function makeFixture(): {
         id: house1Id,
         name: 'House 1',
         active: true,
-        countryId: country1Id,
-        provinceIds: [],
+        provinceIds: [province1Id],
         memberIds: [person1Id],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
-        seatProvinceId: '' as ProvinceId,
+        seatProvinceId: province1Id,
       },
       [house2Id]: {
         id: house2Id,
         name: 'House 2',
         active: true,
-        countryId: country2Id,
-        provinceIds: [],
+        provinceIds: [province2Id],
         memberIds: [person2Id],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
-        seatProvinceId: '' as ProvinceId,
+        seatProvinceId: province2Id,
       },
     },
     persons: {
@@ -101,7 +134,6 @@ function makeFixture(): {
         age: 30,
         alive: true,
         houseId: house1Id,
-        countryId: country1Id,
         childIds: [],
         birthStatus: 'legitimate' as const,
         abilities: DEFAULT_ABILITIES,
@@ -118,7 +150,6 @@ function makeFixture(): {
         age: 28,
         alive: true,
         houseId: house2Id,
-        countryId: country2Id,
         childIds: [],
         birthStatus: 'legitimate' as const,
         abilities: DEFAULT_ABILITIES,
@@ -144,8 +175,10 @@ function makeFixture(): {
     person2Id,
     house1Id,
     house2Id,
-    country1Id,
-    country2Id,
+    polity1Id,
+    polity2Id,
+    province1Id,
+    province2Id,
   }
 }
 
@@ -224,14 +257,6 @@ describe('movePersonToHouse', () => {
     if (result.ok) expect(result.value.persons[person1Id]!.houseId).toBe(house2Id)
   })
 
-  it('updates person.countryId to newHouse.countryId', () => {
-    const { state, person1Id, house2Id, country2Id } = makeFixture()
-    const result = movePersonToHouse(state, person1Id, house2Id)
-
-    expect(result.ok).toBe(true)
-    if (result.ok) expect(result.value.persons[person1Id]!.countryId).toBe(country2Id)
-  })
-
   it('removes personId from old house memberIds', () => {
     const { state, person1Id, house1Id, house2Id } = makeFixture()
     const result = movePersonToHouse(state, person1Id, house2Id)
@@ -284,7 +309,7 @@ function makeCtx(state: WorldState): TickContext {
     deathRolesThisTick: {},
     nextPersonIndex: 10,
     nextHouseIndex: 10,
-    nextCountryIndex: 10,
+    nextPolityIndex: 10,
   }
 }
 

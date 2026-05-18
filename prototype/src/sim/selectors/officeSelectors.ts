@@ -1,11 +1,11 @@
 import { clamp } from '@sim/utils/math'
 import type { WorldState } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
-import type { CountryId, HouseId, PersonId } from '@sim/types/ids'
+import type { PolityId, HouseId, PersonId } from '@sim/types/ids'
 import type { OrganizationRef, OfficeAssignment, OfficeRole } from '@sim/types/office'
 import { OFFICE_DEFINITIONS } from '@sim/config/officeDefinitions'
 import {
-  getHouseCountrySharePercent,
+  getHousePolitySharePercent,
   getPersonHouseSharePercent,
 } from '@sim/selectors/shareSelectors'
 import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
@@ -61,12 +61,12 @@ export function getPrimaryOfficeHolder(
   return bestId
 }
 
-export function getCountryRuler(state: WorldState, countryId: CountryId): PersonId | undefined {
-  return getPrimaryOfficeHolder(state, { kind: 'country', id: countryId }, 'leader')
+export function getPolityLeader(state: WorldState, countryId: PolityId): PersonId | undefined {
+  return getPrimaryOfficeHolder(state, { kind: 'polity', id: countryId }, 'leader')
 }
 
-export function getCountryRulerHouse(state: WorldState, countryId: CountryId): HouseId | undefined {
-  const rulerId = getCountryRuler(state, countryId)
+export function getPolityLeaderHouse(state: WorldState, countryId: PolityId): HouseId | undefined {
+  const rulerId = getPolityLeader(state, countryId)
   if (!rulerId) return undefined
   const ruler = state.persons[rulerId]
   if (!ruler) return undefined
@@ -83,17 +83,22 @@ export function getOfficeHolderPower(state: WorldState, office: OfficeAssignment
 
   const org = office.organization
 
-  if (org.kind === 'country') {
+  if (org.kind === 'polity') {
     const countryId = org.id
     const houseId = person.houseId
-    const country = state.countries[countryId]
+    const country = state.polities[countryId]
 
-    const houseSharePct = getHouseCountrySharePercent(state, countryId, houseId)
+    const houseSharePct = getHousePolitySharePercent(state, countryId, houseId)
     const personSharePct = getPersonHouseSharePercent(state, houseId, person.id)
     const prestige = person.legacyPrestige
 
+    // v0.15: 旧 v0.14 では getPolityLeader (= polity:leader Office holder) を ruler 参照に使っていた。
+    // getPrimaryOfficeHolder が同じ Office について getOfficeHolderPower を再帰呼びするため、
+    // 同 Polity に複数 polity:leader Office が一時的に並存すると無限再帰する。
+    // v0.15 では Polity.ownerHouseId → その House の leader を ruler proxy とし、再帰を切る。
     let rulerRespectScore = 0
-    const rulerId = getCountryRuler(state, countryId)
+    const ownerHouseId = country?.ownerHouseId
+    const rulerId = ownerHouseId ? getHouseLeader(state, ownerHouseId) : undefined
     if (rulerId && rulerId !== office.holderPersonId) {
       const ruler = state.persons[rulerId]
       if (ruler) {
@@ -104,7 +109,7 @@ export function getOfficeHolderPower(state: WorldState, office: OfficeAssignment
 
     let orgRespectScore = 0
     if (country) {
-      const att = getAttitudeOrDefault(state, person, { kind: 'country', id: countryId })
+      const att = getAttitudeOrDefault(state, person, { kind: 'polity', id: countryId })
       orgRespectScore = attitudeValueToScore(att.respect) / 100
     }
 
@@ -220,9 +225,9 @@ export function getAvailableOfficeRoles(
 export function getAdministrativeCapacity(
   state: WorldState,
   config: SimulationConfig,
-  countryId: CountryId,
+  countryId: PolityId,
 ): number {
-  const countryRef: OrganizationRef = { kind: 'country', id: countryId }
+  const countryRef: OrganizationRef = { kind: 'polity', id: countryId }
   const rulerStat = getEffectiveOfficeStat(state, config, countryRef, 'leader')
   const adminStat = getEffectiveOfficeStat(state, config, countryRef, 'administrator')
   const treasurerStat = getEffectiveOfficeStat(state, config, countryRef, 'treasurer')
@@ -237,14 +242,14 @@ export function getAdministrativeCapacity(
 export function getAdministrativeLoad(
   state: WorldState,
   config: SimulationConfig,
-  countryId: CountryId,
+  countryId: PolityId,
 ): number {
-  const country = state.countries[countryId]
+  const country = state.polities[countryId]
   if (!country) return 0
   const provinceCount = Object.values(state.provinces).filter(
-    (p) => p && p.countryId === countryId,
+    (p) => p && p.polityId === countryId,
   ).length
-  const countryRef: OrganizationRef = { kind: 'country', id: countryId }
+  const countryRef: OrganizationRef = { kind: 'polity', id: countryId }
   const officeCount = getOfficeAssignments(state, countryRef).filter((o) => o.active).length
   return (
     provinceCount * config.adminLoadPerProvince + officeCount * config.adminLoadPerCountryOffice
@@ -254,7 +259,7 @@ export function getAdministrativeLoad(
 export function getAdministrativeEfficiency(
   state: WorldState,
   config: SimulationConfig,
-  countryId: CountryId,
+  countryId: PolityId,
 ): number {
   const capacity = getAdministrativeCapacity(state, config, countryId)
   const load = getAdministrativeLoad(state, config, countryId)

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 import {
   createProvinceId,
-  createCountryId,
+  createPolityId,
   createHouseId,
   createPersonId,
   createPlotId,
@@ -23,9 +23,9 @@ describe('createProvinceId', () => {
   })
 })
 
-describe('createCountryId', () => {
+describe('createPolityId', () => {
   it('returns the expected string format', () => {
-    const id = createCountryId('c', 1)
+    const id = createPolityId('c', 1)
     expect(id).toBe('c-1')
   })
 })

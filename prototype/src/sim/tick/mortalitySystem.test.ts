@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
+import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import type { TickContext } from './context'
 import type { Person } from '../types/person'
 import { defaultConfig } from '../config/defaultConfig'
@@ -22,7 +22,6 @@ function makePerson(id: PersonId, age: number, alive: boolean): Person {
     age,
     alive,
     houseId: 'h-0' as HouseId,
-    countryId: 'c-0' as CountryId,
     childIds: [],
     birthStatus: 'unknown',
     abilities: DEFAULT_ABILITIES,
@@ -35,7 +34,7 @@ function makePerson(id: PersonId, age: number, alive: boolean): Person {
 }
 
 function makeCtx(person: Person, rngSeed: number): TickContext {
-  const countryId = 'c-0' as CountryId
+  const polityId = 'dp-0' as PolityId
   const houseId = 'h-0' as HouseId
   const personsRecord: Record<PersonId, Person> = { [person.id]: person }
 
@@ -44,11 +43,12 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
       currentYear: 1,
       currentMonth: 1,
       provinces: {},
-      countries: {
-        [countryId]: {
-          id: countryId,
+      polities: {
+        [polityId]: {
+          id: polityId,
           name: 'C0',
-          houseIds: [houseId],
+          rank: 2,
+          ownerHouseId: houseId,
           treasury: 100,
           legacyPrestige: 50,
           adminPower: 50,
@@ -61,7 +61,6 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
           id: houseId,
           name: 'H0',
           active: true,
-          countryId,
           provinceIds: [],
           memberIds: [person.id],
           cadetHouseIds: [],
@@ -88,7 +87,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
     deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 }
 
@@ -140,7 +139,7 @@ describe('runMortalitySystem', () => {
       const head = makePerson('pe-0' as PersonId, 70, true)
       const member = makePerson('pe-1' as PersonId, 30, true)
 
-      const countryId = 'c-0' as CountryId
+      const polityId = 'dp-0' as PolityId
       const houseId = 'h-0' as HouseId
 
       const personsRecord: Record<PersonId, Person> = { [head.id]: head, [member.id]: member }
@@ -150,11 +149,12 @@ describe('runMortalitySystem', () => {
           currentYear: 1,
           currentMonth: 1,
           provinces: {},
-          countries: {
-            [countryId]: {
-              id: countryId,
+          polities: {
+            [polityId]: {
+              id: polityId,
               name: 'C0',
-              houseIds: [houseId],
+              rank: 2,
+              ownerHouseId: houseId,
               treasury: 100,
               legacyPrestige: 50,
               adminPower: 50,
@@ -167,7 +167,6 @@ describe('runMortalitySystem', () => {
               id: houseId,
               name: 'H0',
               active: true,
-              countryId,
               provinceIds: [],
               memberIds: [head.id, member.id],
               cadetHouseIds: [],
@@ -192,7 +191,7 @@ describe('runMortalitySystem', () => {
         nextEventIndex: 0,
         nextPersonIndex: 0,
         nextHouseIndex: 0,
-        nextCountryIndex: 0,
+        nextPolityIndex: 0,
         deathsThisTick: [],
         deathRolesThisTick: {},
       } as unknown as TickContext
@@ -258,7 +257,7 @@ describe('runMortalitySystem', () => {
         spouseId: 'pe-0' as PersonId,
       }
 
-      const countryId = 'c-0' as CountryId
+      const polityId = 'dp-0' as PolityId
       const houseId = 'h-0' as HouseId
 
       const personsRecord: Record<PersonId, Person> = {
@@ -271,11 +270,12 @@ describe('runMortalitySystem', () => {
           currentYear: 1,
           currentMonth: 1,
           provinces: {},
-          countries: {
-            [countryId]: {
-              id: countryId,
+          polities: {
+            [polityId]: {
+              id: polityId,
               name: 'C0',
-              houseIds: [houseId],
+              rank: 2,
+              ownerHouseId: houseId,
               treasury: 100,
               legacyPrestige: 50,
               adminPower: 50,
@@ -288,7 +288,6 @@ describe('runMortalitySystem', () => {
               id: houseId,
               name: 'H0',
               active: true,
-              countryId,
               provinceIds: [],
               memberIds: [husband.id, wife.id],
               cadetHouseIds: [],
@@ -313,7 +312,7 @@ describe('runMortalitySystem', () => {
         nextEventIndex: 0,
         nextPersonIndex: 0,
         nextHouseIndex: 0,
-        nextCountryIndex: 0,
+        nextPolityIndex: 0,
         deathsThisTick: [],
         deathRolesThisTick: {},
       } as unknown as TickContext

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { WorldState } from '../types/world'
-import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
+import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import type { TickContext } from './context'
 import type { Person } from '../types/person'
 import { defaultConfig } from '../config/defaultConfig'
@@ -22,7 +22,6 @@ function makePerson(
   age: number,
   alive: boolean,
   houseId: HouseId,
-  countryId: CountryId,
 ): Person {
   return {
     id,
@@ -31,7 +30,6 @@ function makePerson(
     age,
     alive,
     houseId,
-    countryId,
     childIds: [],
     birthStatus: 'unknown',
     abilities: DEFAULT_ABILITIES,
@@ -46,15 +44,33 @@ function makePerson(
 function makeBaseCtx(
   persons: Record<PersonId, Person>,
   houses: Record<HouseId, NonNullable<WorldState['houses'][HouseId]>>,
-  countries: Record<CountryId, NonNullable<WorldState['countries'][CountryId]>>,
+  polities: Record<PolityId, NonNullable<WorldState['polities'][PolityId]>>,
   month: number,
+  provinceId?: ProvinceId,
 ): TickContext {
   return {
     state: {
       currentYear: 1,
       currentMonth: month,
-      provinces: {},
-      countries,
+      provinces: provinceId
+        ? {
+            [provinceId]: {
+              id: provinceId,
+              name: 'Test Province',
+              x: 0,
+              y: 0,
+              neighbors: [],
+              ownerHouseId: Object.values(houses)[0]?.id ?? ('h-0' as HouseId),
+              polityId: Object.values(polities)[0]?.id ?? ('dp-0' as PolityId),
+              habitability: 50,
+              popGroupIds: [],
+              development: 0,
+              polityControl: 100,
+              houseControl: 100,
+            },
+          }
+        : {},
+      polities,
       houses,
       persons,
       activePlots: {},
@@ -74,38 +90,44 @@ function makeBaseCtx(
     deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 }
 
-function makeCountry(
-  id: CountryId,
+function makePolity(
+  id: PolityId,
   houseId: HouseId,
-): NonNullable<WorldState['countries'][CountryId]> {
+  provinceId?: ProvinceId,
+): NonNullable<WorldState['polities'][PolityId]> {
+  const provId = provinceId ?? ('p-0' as ProvinceId)
   return {
     id,
     name: 'C',
-    houseIds: [houseId],
+    rank: 2,
+    ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
     adminPower: 50,
     active: true,
-    capitalProvinceId: '' as ProvinceId,
+    capitalProvinceId: provId,
   }
 }
 
-function makeHouse(id: HouseId, countryId: CountryId): NonNullable<WorldState['houses'][HouseId]> {
+function makeHouse(
+  id: HouseId,
+  provinceId?: ProvinceId,
+): NonNullable<WorldState['houses'][HouseId]> {
+  const provId = provinceId ?? ('p-0' as ProvinceId)
   return {
     id,
     name: 'H',
     active: true,
-    countryId,
-    provinceIds: [],
+    provinceIds: provinceId ? [provinceId] : [],
     memberIds: [],
     cadetHouseIds: [],
     legacyPrestige: 50,
     wealth: 100,
-    seatProvinceId: '' as ProvinceId,
+    seatProvinceId: provId,
   }
 }
 
@@ -116,19 +138,19 @@ function makeConfig(overrides: Partial<typeof defaultConfig> = {}): typeof defau
 describe('runBirthSystem', () => {
   it('does nothing when currentMonth !== 1', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId, countryId)
-    const mother = makePerson('pe-1' as PersonId, 'Jane', 'female', 28, true, houseId, countryId)
+    const polityId = 'dp-0' as PolityId
+    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId)
+    const mother = makePerson('pe-1' as PersonId, 'Jane', 'female', 28, true, houseId)
     mother.spouseId = father.id
     father.spouseId = mother.id
-    const house = makeHouse(houseId, countryId)
+    const house = makeHouse(houseId)
     house.memberIds = [father.id, mother.id]
-    const country = makeCountry(countryId, houseId)
+    const polity = makePolity(polityId, houseId)
 
     const ctx = makeBaseCtx(
       { [father.id]: father, [mother.id]: mother },
       { [houseId]: house },
-      { [countryId]: country },
+      { [polityId]: polity },
       6,
     )
 
@@ -141,14 +163,14 @@ describe('runBirthSystem', () => {
 
   it('a father with a valid spouse produces a child', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId, countryId)
-    const mother = makePerson('pe-1' as PersonId, 'Jane', 'female', 28, true, houseId, countryId)
+    const polityId = 'dp-0' as PolityId
+    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId)
+    const mother = makePerson('pe-1' as PersonId, 'Jane', 'female', 28, true, houseId)
     mother.spouseId = father.id
     father.spouseId = mother.id
-    const house = makeHouse(houseId, countryId)
+    const house = makeHouse(houseId)
     house.memberIds = [father.id, mother.id]
-    const country = makeCountry(countryId, houseId)
+    const polity = makePolity(polityId, houseId)
 
     const customConfig = makeConfig({
       baseBirthChancePerMalePerYear: 1.0,
@@ -160,7 +182,7 @@ describe('runBirthSystem', () => {
         currentYear: 1,
         currentMonth: 1,
         provinces: {},
-        countries: { [countryId]: country },
+        polities: { [polityId]: polity },
         houses: { [houseId]: house },
         persons: { [father.id]: father, [mother.id]: mother },
         activePlots: {},
@@ -180,7 +202,7 @@ describe('runBirthSystem', () => {
       deathRolesThisTick: {},
       nextPersonIndex: 2,
       nextHouseIndex: 0,
-      nextCountryIndex: 0,
+      nextPolityIndex: 0,
     }
 
     const result = runBirthSystem(ctx)
@@ -205,11 +227,11 @@ describe('runBirthSystem', () => {
 
   it('child born without spouse mother gets birthStatus illegitimate', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId, countryId)
-    const house = makeHouse(houseId, countryId)
+    const polityId = 'dp-0' as PolityId
+    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId)
+    const house = makeHouse(houseId)
     house.memberIds = [father.id]
-    const country = makeCountry(countryId, houseId)
+    const polity = makePolity(polityId, houseId)
 
     const customConfig = makeConfig({
       baseBirthChancePerMalePerYear: 1.0,
@@ -221,7 +243,7 @@ describe('runBirthSystem', () => {
         currentYear: 1,
         currentMonth: 1,
         provinces: {},
-        countries: { [countryId]: country },
+        polities: { [polityId]: polity },
         houses: { [houseId]: house },
         persons: { [father.id]: father },
         activePlots: {},
@@ -241,7 +263,7 @@ describe('runBirthSystem', () => {
       deathRolesThisTick: {},
       nextPersonIndex: 2,
       nextHouseIndex: 0,
-      nextCountryIndex: 0,
+      nextPolityIndex: 0,
     }
 
     const result = runBirthSystem(ctx)
@@ -258,14 +280,14 @@ describe('runBirthSystem', () => {
 
   it('child born to legitimate couple gets birthStatus legitimate', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId, countryId)
-    const mother = makePerson('pe-1' as PersonId, 'Jane', 'female', 28, true, houseId, countryId)
+    const polityId = 'dp-0' as PolityId
+    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId)
+    const mother = makePerson('pe-1' as PersonId, 'Jane', 'female', 28, true, houseId)
     mother.spouseId = father.id
     father.spouseId = mother.id
-    const house = makeHouse(houseId, countryId)
+    const house = makeHouse(houseId)
     house.memberIds = [father.id, mother.id]
-    const country = makeCountry(countryId, houseId)
+    const polity = makePolity(polityId, houseId)
 
     const customConfig = makeConfig({
       baseBirthChancePerMalePerYear: 1.0,
@@ -277,7 +299,7 @@ describe('runBirthSystem', () => {
         currentYear: 1,
         currentMonth: 1,
         provinces: {},
-        countries: { [countryId]: country },
+        polities: { [polityId]: polity },
         houses: { [houseId]: house },
         persons: { [father.id]: father, [mother.id]: mother },
         activePlots: {},
@@ -297,7 +319,7 @@ describe('runBirthSystem', () => {
       deathRolesThisTick: {},
       nextPersonIndex: 2,
       nextHouseIndex: 0,
-      nextCountryIndex: 0,
+      nextPolityIndex: 0,
     }
 
     const result = runBirthSystem(ctx)
@@ -314,11 +336,11 @@ describe('runBirthSystem', () => {
 
   it('population multiplier applies when living persons <= criticalLivingPersons', () => {
     const houseId = 'h-0' as HouseId
-    const countryId = 'c-0' as CountryId
-    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId, countryId)
-    const house = makeHouse(houseId, countryId)
+    const polityId = 'dp-0' as PolityId
+    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId)
+    const house = makeHouse(houseId)
     house.memberIds = [father.id]
-    const country = makeCountry(countryId, houseId)
+    const polity = makePolity(polityId, houseId)
 
     const customConfig = makeConfig({
       baseBirthChancePerMalePerYear: 0.3,
@@ -335,7 +357,7 @@ describe('runBirthSystem', () => {
           currentYear: 1,
           currentMonth: 1,
           provinces: {},
-          countries: { [countryId]: country },
+          polities: { [polityId]: polity },
           houses: { [houseId]: house },
           persons: { [father.id]: { ...father } },
           activePlots: {},
@@ -355,7 +377,7 @@ describe('runBirthSystem', () => {
         deathRolesThisTick: {},
         nextPersonIndex: 1,
         nextHouseIndex: 0,
-        nextCountryIndex: 0,
+        nextPolityIndex: 0,
       }
 
       const result = runBirthSystem(ctx)
@@ -377,7 +399,7 @@ describe('runBirthSystem', () => {
           currentYear: 1,
           currentMonth: 1,
           provinces: {},
-          countries: { [countryId]: country },
+          polities: { [polityId]: polity },
           houses: { [houseId]: house },
           persons: { [father.id]: { ...father } },
           activePlots: {},
@@ -397,7 +419,7 @@ describe('runBirthSystem', () => {
         deathRolesThisTick: {},
         nextPersonIndex: 1,
         nextHouseIndex: 0,
-        nextCountryIndex: 0,
+        nextPolityIndex: 0,
       }
 
       const result = runBirthSystem(ctx)

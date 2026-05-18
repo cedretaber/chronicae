@@ -28,15 +28,15 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
     let updatePayer: (funds: number) => WorldState
     const org = office.organization
 
-    if (org.kind === 'country') {
-      const country = state.countries[org.id]
-      if (!country) continue
-      payerFunds = country.treasury
+    if (org.kind === 'polity') {
+      const polity = state.polities[org.id]
+      if (!polity) continue
+      payerFunds = polity.treasury
       updatePayer = (funds: number) => ({
         ...state,
-        countries: {
-          ...state.countries,
-          [org.id]: { ...country, treasury: funds },
+        polities: {
+          ...state.polities,
+          [org.id]: { ...polity, treasury: funds },
         },
       })
     } else {
@@ -83,8 +83,8 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
       const resPenalty = config.officeUnpaidRespectPenalty * (1 - dignityReduction)
 
       const orgTarget =
-        org.kind === 'country'
-          ? { kind: 'country' as const, id: org.id }
+        org.kind === 'polity'
+          ? { kind: 'polity' as const, id: org.id }
           : { kind: 'house' as const, id: org.id }
 
       const r = adjustPersonAttitude(state, office.holderPersonId, orgTarget, {
@@ -104,7 +104,7 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
         importance: 'minor',
         actorIds: [office.holderPersonId],
         houseIds: [],
-        countryIds: org.kind === 'country' ? [org.id] : [],
+        polityIds: org.kind === 'polity' ? [org.id] : [],
         provinceIds: [],
         summary: `Salary ${paid > 0 ? 'partially ' : ''}unpaid for office holder.`,
         reasons: [],

@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createCountryId,
+  createPolityId,
   createHouseId,
   createOfficeAssignmentId,
   createPersonId,
   createPlotId,
+  createProvinceId,
 } from '../types/ids'
-import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import type { PolityId, HouseId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { defaultConfig } from '../config/defaultConfig'
 import type { Plot } from '../types/plot'
@@ -26,28 +27,45 @@ const DEFAULT_ABILITIES = {
 
 function makeBaseState(): {
   state: WorldState
-  countryId: CountryId
+  polityId: PolityId
   houseId: HouseId
   personId: PersonId
 } {
-  const countryId = createCountryId('c', 0)
+  const polityId = createPolityId('c', 0)
   const houseId = createHouseId('h', 0)
   const personId = createPersonId('pe', 0)
+  const provinceId = createProvinceId('p', 0)
 
   const state: WorldState = {
     currentYear: 1444,
     currentMonth: 1,
-    provinces: {},
-    countries: {
-      [countryId]: {
-        id: countryId,
-        name: 'Country 1',
-        houseIds: [houseId],
+    provinces: {
+      [provinceId]: {
+        id: provinceId,
+        name: 'Capital',
+        x: 0,
+        y: 0,
+        neighbors: [],
+        ownerHouseId: houseId,
+        polityId,
+        habitability: 50,
+        popGroupIds: [],
+        development: 10,
+        polityControl: 100,
+        houseControl: 100,
+      },
+    },
+    polities: {
+      [polityId]: {
+        id: polityId,
+        name: 'Polity 1',
+        rank: 2,
+        ownerHouseId: houseId,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
         active: true,
-        capitalProvinceId: '' as ProvinceId,
+        capitalProvinceId: provinceId,
       },
     },
     houses: {
@@ -55,13 +73,12 @@ function makeBaseState(): {
         id: houseId,
         name: 'Test House',
         active: true,
-        countryId,
-        provinceIds: [],
+        provinceIds: [provinceId],
         memberIds: [personId],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
-        seatProvinceId: '' as ProvinceId,
+        seatProvinceId: provinceId,
       },
     },
     persons: {
@@ -72,7 +89,6 @@ function makeBaseState(): {
         age: 30,
         alive: true,
         houseId,
-        countryId,
         childIds: [],
         birthStatus: 'unknown',
         abilities: DEFAULT_ABILITIES,
@@ -114,7 +130,7 @@ function makeBaseState(): {
     nextOfficeAssignmentId: 1,
   }
 
-  return { state: stateWithLeader, countryId, houseId, personId }
+  return { state: stateWithLeader, polityId, houseId, personId }
 }
 
 function countEvents(events: readonly SimEvent[], type: string): number {
@@ -123,7 +139,7 @@ function countEvents(events: readonly SimEvent[], type: string): number {
 
 describe('runPlotSystem', () => {
   it('does not resolve plot when elapsedMonths < durationMonths', () => {
-    const { state, countryId, personId } = makeBaseState()
+    const { state, polityId, personId } = makeBaseState()
 
     const plot: Plot = {
       id: createPlotId('p', 0),
@@ -138,7 +154,7 @@ describe('runPlotSystem', () => {
       power: 50,
       secrecy: 50,
       risk: 20,
-      targetCountryId: countryId,
+      targetPolityId: polityId,
       targetRole: 'administrator',
     }
 
@@ -160,7 +176,7 @@ describe('runPlotSystem', () => {
   })
 
   it('resolves plot when elapsedMonths reaches durationMonths', () => {
-    const { state, countryId, personId } = makeBaseState()
+    const { state, polityId, personId } = makeBaseState()
 
     const plot: Plot = {
       id: createPlotId('p', 0),
@@ -175,7 +191,7 @@ describe('runPlotSystem', () => {
       power: 80,
       secrecy: 80,
       risk: 20,
-      targetCountryId: countryId,
+      targetPolityId: polityId,
       targetRole: 'administrator',
     }
 
@@ -199,29 +215,29 @@ describe('runPlotSystem', () => {
   })
 
   it('does not start new plot if plotTendency < plotThreshold', () => {
-    const { state, countryId, houseId, personId } = makeBaseState()
+    const { state, polityId, houseId, personId } = makeBaseState()
 
-    // Low plotTendency: ambition=0.1, loyaltyToCountry=0.9
+    // Low plotTendency: ambition=0.1, loyaltyToPolity=0.9
     const stateWithLowTendency: WorldState = {
       ...state,
       persons: {
         ...state.persons,
         [personId]: {
           ...state.persons[personId]!,
-          traits: { ambition: 0.1, loyaltyToCountry: 0.9, caution: 0.5 },
+          traits: { ambition: 0.1, loyaltyToPolity: 0.9, caution: 0.5 },
         },
       },
       houses: {
         ...state.houses,
         [houseId]: {
           ...state.houses[houseId]!,
-          loyaltyToCountry: 90,
+          loyaltyToPolity: 90,
         },
       },
-      countries: {
-        ...state.countries,
-        [countryId]: {
-          ...state.countries[countryId]!,
+      polities: {
+        ...state.polities,
+        [polityId]: {
+          ...state.polities[polityId]!,
           legitimacy: 80,
           adminPower: 80,
         },
@@ -238,11 +254,11 @@ describe('runPlotSystem', () => {
   })
 
   it('starts new plot when plotTendency >= plotThreshold', () => {
-    const { state, countryId, personId } = makeBaseState()
+    const { state, polityId, personId } = makeBaseState()
 
     // High plotTendency: ambition=0.9, caution=0.1, adminPower=20
-    // Set strongly negative country attitude → houseLoyalty=0, headCountryLoyalty=0
-    const countryKey = `country:${countryId as string}`
+    // Set strongly negative polity attitude → houseLoyalty=0, headPolityLoyalty=0
+    const polityKey = `polity:${polityId as string}`
     const stateWithHighTendency: WorldState = {
       ...state,
       persons: {
@@ -250,13 +266,13 @@ describe('runPlotSystem', () => {
         [personId]: {
           ...state.persons[personId]!,
           traits: { ambition: 0.9, caution: 0.1 },
-          attitudes: { [countryKey]: { affection: -100, respect: -100 } },
+          attitudes: { [polityKey]: { affection: -100, respect: -100 } },
         },
       },
-      countries: {
-        ...state.countries,
-        [countryId]: {
-          ...state.countries[countryId]!,
+      polities: {
+        ...state.polities,
+        [polityId]: {
+          ...state.polities[polityId]!,
           adminPower: 20,
         },
       },
@@ -273,7 +289,7 @@ describe('runPlotSystem', () => {
   })
 
   it('does not start second plot for house that already has active plot', () => {
-    const { state, countryId, houseId, personId } = makeBaseState()
+    const { state, polityId, houseId, personId } = makeBaseState()
 
     const existingPlot: Plot = {
       id: createPlotId('p', 0),
@@ -288,7 +304,7 @@ describe('runPlotSystem', () => {
       power: 50,
       secrecy: 50,
       risk: 20,
-      targetCountryId: countryId,
+      targetPolityId: polityId,
       targetRole: 'administrator',
     }
 
@@ -300,7 +316,7 @@ describe('runPlotSystem', () => {
         ...state.persons,
         [personId]: {
           ...state.persons[personId]!,
-          traits: { ambition: 0.9, loyaltyToCountry: 0.1, caution: 0.1 },
+          traits: { ambition: 0.9, loyaltyToPolity: 0.1, caution: 0.1 },
         },
       },
       houses: {
@@ -308,13 +324,13 @@ describe('runPlotSystem', () => {
         [houseId]: {
           ...state.houses[houseId]!,
           prestige: 80,
-          loyaltyToCountry: 20,
+          loyaltyToPolity: 20,
         },
       },
-      countries: {
-        ...state.countries,
-        [countryId]: {
-          ...state.countries[countryId]!,
+      polities: {
+        ...state.polities,
+        [polityId]: {
+          ...state.polities[polityId]!,
           legitimacy: 30,
           adminPower: 20,
         },

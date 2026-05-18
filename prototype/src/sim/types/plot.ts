@@ -1,4 +1,4 @@
-import type { PlotId, PersonId, HouseId, CountryId } from './ids'
+import type { PlotId, PersonId, HouseId, PolityId } from './ids'
 import type { OfficeRole } from './office'
 
 export type PlotType = 'replace_house_leader' | 'seize_office' | 'prepare_rebellion'
@@ -16,7 +16,7 @@ export type Plot = {
   participantIds: PersonId[]
   targetPersonId?: PersonId
   targetHouseId?: HouseId
-  targetCountryId?: CountryId
+  targetPolityId?: PolityId
   targetRole?: OfficeRole
   power: number // 0..100
   secrecy: number // 0..100

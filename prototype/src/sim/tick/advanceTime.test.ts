@@ -10,7 +10,7 @@ function makeCtx(year: number, month: number): TickContext {
       currentYear: year,
       currentMonth: month,
       provinces: {},
-      countries: {},
+      polities: {},
       houses: {},
       persons: {},
       activePlots: {},
@@ -30,7 +30,7 @@ function makeCtx(year: number, month: number): TickContext {
     deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 }
 

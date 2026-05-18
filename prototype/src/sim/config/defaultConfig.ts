@@ -49,7 +49,7 @@ export type SimulationConfig = {
   controlDecayPerMonth: number
   disconnectedControlDecayPerMonth: number
   // Monument (v0.5 changes)
-  monumentCountryControlGain: number
+  monumentPolityControlGain: number
   // Land development (v0.5 additions)
   landDevelopmentHouseControlGain: number
   landDevelopmentUnrestReduction: number
@@ -62,11 +62,11 @@ export type SimulationConfig = {
   lordshipAbsorptionNewControlMax: number
   lordshipAbsorptionNewControlPenalty: number
   // Annexation
-  annexedCountryControl: number
+  annexedPolityControl: number
   newRulerHouseControl: number
-  // Country land development
-  countryLandDevelopmentBaseCost: number
-  countryLandDevelopmentGain: number
+  // Polity land development
+  polityLandDevelopmentBaseCost: number
+  polityLandDevelopmentGain: number
   // House land development
   houseDevelopmentEnabled: boolean
   houseDevelopmentYearlyChance: number
@@ -103,8 +103,7 @@ export type SimulationConfig = {
   marriageFemaleMinAge: number
   marriageFemaleMaxAge: number
   marriageYearlyChance: number
-  sameCountryMarriageBonus: number
-  differentCountryMarriagePenalty: number
+  samePrimaryPolityMarriageBonus: number
   // v0.7 Birth
   birthEnabled: boolean
   fatherMinChildAge: number
@@ -210,7 +209,7 @@ export type SimulationConfig = {
   houseCommanderMartialEffect: number
   minCommanderModifier: number
   maxCommanderModifier: number
-  countryAdminMilitaryFactor: number
+  polityAdminMilitaryFactor: number
   minHouseMilitaryContribution: number
   // HouseRebellion v0.9
   houseRebellionNobleUnrestFactor: number
@@ -258,8 +257,8 @@ export type SimulationConfig = {
   provinceRevoltSuppressionCollateralUnrestGain: number
   // Legacy Prestige
   attitudeMonthlyRetentionRate: number
-  initialCountryLegacyPrestigeMin: number
-  initialCountryLegacyPrestigeMax: number
+  initialPolityLegacyPrestigeMin: number
+  initialPolityLegacyPrestigeMax: number
   initialHouseLegacyPrestigeMin: number
   initialHouseLegacyPrestigeMax: number
   initialPersonLegacyPrestigeMin: number
@@ -267,8 +266,8 @@ export type SimulationConfig = {
   // ProvinceRevolt new entities
   revoltHouseInitialLegacyPrestige: number
   revoltHouseInitialWealth: number
-  revoltCountryInitialTreasury: number
-  revoltCountryInitialLegacyPrestige: number
+  revoltPolityInitialTreasury: number
+  revoltPolityInitialLegacyPrestige: number
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: number
   rulerAdminCapacityFactor: number
@@ -286,13 +285,13 @@ export type SimulationConfig = {
   officeDignityUnpaidPenaltyReduction: number
   // v0.12 Share yearly update
   shareYearlyRetentionRate: number
-  countryShareBase: number
-  countryShareProvinceFactor: number
-  countryShareMilitaryFactor: number
-  countryShareWealthFactor: number
-  countrySharePrestigeFactor: number
-  countryShareOfficeFactor: number
-  countryShareRulerHouseBonus: number
+  polityShareBase: number
+  polityShareProvinceFactor: number
+  polityShareMilitaryFactor: number
+  polityShareWealthFactor: number
+  politySharePrestigeFactor: number
+  polityShareOfficeFactor: number
+  polityShareOwnerHouseBonus: number
   houseShareBase: number
   houseShareLeaderBonus: number
   houseShareOfficeBonus: number
@@ -371,8 +370,8 @@ export const defaultConfig: SimulationConfig = {
   famineReliefDevelopmentRecovery: 2,
   plagueDevastation: 8,
   bountifulHarvestDevelopmentGain: 3,
-  countryLandDevelopmentBaseCost: 70,
-  countryLandDevelopmentGain: 8,
+  polityLandDevelopmentBaseCost: 70,
+  polityLandDevelopmentGain: 8,
   houseDevelopmentEnabled: true,
   houseDevelopmentYearlyChance: 0.25,
   houseLandDevelopmentBaseCost: 40,
@@ -385,7 +384,7 @@ export const defaultConfig: SimulationConfig = {
   controlDecayPerMonth: 1,
   disconnectedControlDecayPerMonth: 5,
   // Monument (v0.5 changes)
-  monumentCountryControlGain: 10,
+  monumentPolityControlGain: 10,
   // Land development (v0.5 additions)
   landDevelopmentHouseControlGain: 5,
   landDevelopmentUnrestReduction: 1,
@@ -398,7 +397,7 @@ export const defaultConfig: SimulationConfig = {
   lordshipAbsorptionNewControlMax: 70,
   lordshipAbsorptionNewControlPenalty: 10,
   // Annexation
-  annexedCountryControl: 35,
+  annexedPolityControl: 35,
   newRulerHouseControl: 35,
   // v0.6 Person Ability Effects
   personAbilityEffectsEnabled: true,
@@ -430,8 +429,7 @@ export const defaultConfig: SimulationConfig = {
   marriageFemaleMinAge: 15,
   marriageFemaleMaxAge: 45,
   marriageYearlyChance: 0.08,
-  sameCountryMarriageBonus: 0.1,
-  differentCountryMarriagePenalty: 0.05,
+  samePrimaryPolityMarriageBonus: 0.1,
   // v0.7 Birth
   birthEnabled: true,
   fatherMinChildAge: 15,
@@ -537,7 +535,7 @@ export const defaultConfig: SimulationConfig = {
   houseCommanderMartialEffect: 0.25,
   minCommanderModifier: 0.75,
   maxCommanderModifier: 1.25,
-  countryAdminMilitaryFactor: 0.3,
+  polityAdminMilitaryFactor: 0.3,
   minHouseMilitaryContribution: 0.25,
   // HouseRebellion v0.9
   houseRebellionNobleUnrestFactor: 0.15,
@@ -585,8 +583,8 @@ export const defaultConfig: SimulationConfig = {
   provinceRevoltSuppressionCollateralUnrestGain: 2,
   // Legacy Prestige
   attitudeMonthlyRetentionRate: 0.995,
-  initialCountryLegacyPrestigeMin: 20,
-  initialCountryLegacyPrestigeMax: 60,
+  initialPolityLegacyPrestigeMin: 20,
+  initialPolityLegacyPrestigeMax: 60,
   initialHouseLegacyPrestigeMin: 20,
   initialHouseLegacyPrestigeMax: 80,
   initialPersonLegacyPrestigeMin: 0,
@@ -594,8 +592,8 @@ export const defaultConfig: SimulationConfig = {
   // ProvinceRevolt new entities
   revoltHouseInitialLegacyPrestige: 10,
   revoltHouseInitialWealth: 30,
-  revoltCountryInitialTreasury: 50,
-  revoltCountryInitialLegacyPrestige: 20,
+  revoltPolityInitialTreasury: 50,
+  revoltPolityInitialLegacyPrestige: 20,
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: 20,
   rulerAdminCapacityFactor: 4,
@@ -613,13 +611,13 @@ export const defaultConfig: SimulationConfig = {
   officeDignityUnpaidPenaltyReduction: 0.5,
   // v0.12 Share yearly update
   shareYearlyRetentionRate: 0.85,
-  countryShareBase: 10,
-  countryShareProvinceFactor: 5,
-  countryShareMilitaryFactor: 0.1,
-  countryShareWealthFactor: 0.05,
-  countrySharePrestigeFactor: 0.2,
-  countryShareOfficeFactor: 3,
-  countryShareRulerHouseBonus: 30,
+  polityShareBase: 10,
+  polityShareProvinceFactor: 5,
+  polityShareMilitaryFactor: 0.1,
+  polityShareWealthFactor: 0.05,
+  politySharePrestigeFactor: 0.2,
+  polityShareOfficeFactor: 3,
+  polityShareOwnerHouseBonus: 30,
   houseShareBase: 5,
   houseShareLeaderBonus: 20,
   houseShareOfficeBonus: 10,

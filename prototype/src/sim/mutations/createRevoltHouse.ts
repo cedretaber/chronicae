@@ -1,6 +1,6 @@
 import type { TickContext } from '../tick/context'
 import { makeHouseId } from '../tick/context'
-import type { PersonId, CountryId, ProvinceId, HouseId } from '../types/ids'
+import type { PersonId, ProvinceId, HouseId, PolityId } from '../types/ids'
 import type { House } from '../types/house'
 import { pickUniqueName, houseNamePool, houseName } from '../worldgen/nameGenerators'
 import { createOfficeAssignment } from './officeMutations'
@@ -9,7 +9,7 @@ export function createRevoltHouse(
   ctx: TickContext,
   params: {
     leaderId: PersonId
-    countryId: CountryId
+    polityId: PolityId
     seatProvinceId: ProvinceId
     parentHouseId?: HouseId
   },
@@ -37,7 +37,6 @@ export function createRevoltHouse(
     id,
     name,
     active: true,
-    countryId: params.countryId,
     provinceIds: [params.seatProvinceId],
     memberIds: [params.leaderId],
     founderId: params.leaderId,

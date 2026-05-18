@@ -4,7 +4,8 @@ import { randomFloat } from '../rng/rng'
 import { markPersonDead } from '../mutations/personMutations'
 import type { PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
-import { getHouseLeader, getCountryRuler } from '../selectors/officeSelectors'
+import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
+import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
 export function runMortalitySystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -20,11 +21,14 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
     currentCtx = { ...currentCtx, rng: nextRng }
 
     if (deathCheck < deathRate) {
-      // Check if person was a house/country leader BEFORE revoking
+      // Check if person was a house/polity leader BEFORE revoking
       const houseLeaderBefore = getHouseLeader(currentCtx.state, person.houseId)
       const wasHouseLeader = houseLeaderBefore === (personId as PersonId)
-      const countryRulerBefore = getCountryRuler(currentCtx.state, person.countryId)
-      const wasCountryLeader = countryRulerBefore === (personId as PersonId)
+      const personPrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, person.houseId)
+      const polityRulerBefore = personPrimaryPolityId
+        ? getPolityLeader(currentCtx.state, personPrimaryPolityId)
+        : undefined
+      const wasPolityLeader = polityRulerBefore === (personId as PersonId)
 
       const deadResult = markPersonDead(currentCtx.state, personId as PersonId)
       const currentState = deadResult.ok ? deadResult.value : currentCtx.state
@@ -41,7 +45,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
         importance,
         actorIds: [personId as PersonId],
         houseIds: [person.houseId],
-        countryIds: [person.countryId],
+        polityIds: personPrimaryPolityId ? [personPrimaryPolityId] : [],
         provinceIds: [],
         summary: person.name + ' has died at age ' + person.age + '.',
         reasons: [],
@@ -55,7 +59,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
         deathsThisTick: [...eventCtx.deathsThisTick, personId as PersonId],
         deathRolesThisTick: {
           ...eventCtx.deathRolesThisTick,
-          [personId]: { wasHouseLeader, wasCountryLeader },
+          [personId]: { wasHouseLeader, wasPolityLeader },
         },
       }
     }

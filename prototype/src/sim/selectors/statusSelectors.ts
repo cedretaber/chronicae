@@ -1,7 +1,7 @@
 import { clamp, clamp100 } from '@sim/utils/math'
 import type { WorldState } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
-import type { CountryId, HouseId, PersonId, ProvinceId, PopGroupId } from '@sim/types/ids'
+import type { PolityId, HouseId, PersonId, ProvinceId, PopGroupId } from '@sim/types/ids'
 import { getProvinceUnrest } from '@sim/selectors/popSelectors'
 import {
   getEffectiveOfficeStat,
@@ -13,6 +13,7 @@ import {
   getAttitudeOrDefault,
   getExplicitAttitude,
 } from '@sim/helpers/attitudeHelpers'
+import { getPolityHouseIds, getHousePrimaryPolityId } from '../selectors/polityRelations'
 
 // --- Utility ---
 
@@ -31,17 +32,17 @@ export function weightedAverage(
   return weightedSum / totalWeight
 }
 
-// --- getCountryLegitimacy (spec §7.2) ---
+// --- getPolityLegitimacy (spec §7.2) ---
 
-export function getCountryLegitimacy(state: WorldState, countryId: CountryId): number {
-  const country = state.countries[countryId]
+export function getPolityLegitimacy(state: WorldState, countryId: PolityId): number {
+  const country = state.polities[countryId]
   if (!country) return 50
 
-  const countryTarget = { kind: 'country' as const, id: countryId }
+  const countryTarget = { kind: 'polity' as const, id: countryId }
 
-  // Collect alive persons in this country
+  // Collect alive persons in this polity
   const personScores: number[] = []
-  for (const houseId of country.houseIds) {
+  for (const houseId of getPolityHouseIds(state, countryId)) {
     const house = state.houses[houseId]
     if (!house || !house.active) continue
     for (const memberId of house.memberIds) {
@@ -57,11 +58,11 @@ export function getCountryLegitimacy(state: WorldState, countryId: CountryId): n
   const personScore =
     personScores.length > 0 ? personScores.reduce((sum, s) => sum + s, 0) / personScores.length : 50
 
-  // Collect PopGroups in country's provinces
+  // Collect PopGroups in polity's provinces
   const popValues: Array<{ value: number; weight: number }> = []
   for (const provinceId of Object.keys(state.provinces) as ProvinceId[]) {
     const province = state.provinces[provinceId]
-    if (!province || province.countryId !== countryId) continue
+    if (!province || province.polityId !== countryId) continue
     for (const popId of province.popGroupIds) {
       const pop = state.popGroups[popId]
       if (!pop) continue
@@ -77,19 +78,19 @@ export function getCountryLegitimacy(state: WorldState, countryId: CountryId): n
   return clamp(0.35 * personScore + 0.45 * popScore + 0.2 * country.legacyPrestige, 0, 100)
 }
 
-// --- getCountryStability (spec §7.3, BFS from capital) ---
+// --- getPolityStability (spec §7.3, BFS from capital) ---
 
-export function getCountryStability(
+export function getPolityStability(
   state: WorldState,
   _config: SimulationConfig,
-  countryId: CountryId,
+  countryId: PolityId,
 ): number {
-  const country = state.countries[countryId]
+  const country = state.polities[countryId]
   if (!country) return 50
 
   const capitalId = country.capitalProvinceId
 
-  // BFS to compute distance from capital for each province in the country
+  // BFS to compute distance from capital for each province in the polity
   const distMap = new Map<ProvinceId, number>()
   const queue: ProvinceId[] = [capitalId]
   distMap.set(capitalId, 0)
@@ -104,7 +105,7 @@ export function getCountryStability(
     for (const neighborId of prov.neighbors) {
       if (distMap.has(neighborId)) continue
       const neighbor = state.provinces[neighborId]
-      if (!neighbor || neighbor.countryId !== countryId) continue
+      if (!neighbor || neighbor.polityId !== countryId) continue
       distMap.set(neighborId, dist + 1)
       queue.push(neighborId)
     }
@@ -117,11 +118,11 @@ export function getCountryStability(
   const values: Array<{ value: number; weight: number }> = []
   for (const provinceId of Object.keys(state.provinces) as ProvinceId[]) {
     const province = state.provinces[provinceId]
-    if (!province || province.countryId !== countryId) continue
+    if (!province || province.polityId !== countryId) continue
     const dist = distMap.get(provinceId) ?? unreachableDistance
     const unrest = getProvinceUnrest(state, provinceId)
-    // provinceStability = 0.70*(100-unrest) + 0.30*countryControl
-    const provinceStability = clamp100(0.7 * (100 - unrest) + 0.3 * province.countryControl)
+    // provinceStability = 0.70*(100-unrest) + 0.30*polityControl
+    const provinceStability = clamp100(0.7 * (100 - unrest) + 0.3 * province.polityControl)
     const weight = 1 / (1 + dist)
     values.push({ value: provinceStability, weight })
   }
@@ -156,13 +157,16 @@ export function getHouseCohesion(state: WorldState, houseId: HouseId): number {
   return clamp100(scores.reduce((sum, s) => sum + s, 0) / scores.length)
 }
 
-// --- getHouseLoyaltyToCountry (spec §7.5) ---
+// --- getHouseLoyaltyToPolity (spec §7.5) ---
 
-export function getHouseLoyaltyToCountry(state: WorldState, houseId: HouseId): number {
+export function getHouseLoyaltyToPolity(state: WorldState, houseId: HouseId): number {
   const house = state.houses[houseId]
   if (!house) return 50
 
-  const countryTarget = { kind: 'country' as const, id: house.countryId }
+  const primaryPolityId = getHousePrimaryPolityId(state, houseId)
+  if (!primaryPolityId) return 50
+
+  const countryTarget = { kind: 'polity' as const, id: primaryPolityId }
   const scores: number[] = []
 
   for (const memberId of house.memberIds) {
@@ -179,14 +183,14 @@ export function getHouseLoyaltyToCountry(state: WorldState, houseId: HouseId): n
   return clamp100(scores.reduce((sum, s) => sum + s, 0) / scores.length)
 }
 
-// --- getXPrestige (spec §7.6) ---
+// --- getPolityPrestige (spec §7.6) ---
 // prestige = 0.70 * legacyPrestige + 0.30 * averageRespectToTargetScore
 
-export function getCountryPrestige(state: WorldState, countryId: CountryId): number {
-  const country = state.countries[countryId]
+export function getPolityPrestige(state: WorldState, countryId: PolityId): number {
+  const country = state.polities[countryId]
   if (!country) return 0
 
-  const countryTarget = { kind: 'country' as const, id: countryId }
+  const countryTarget = { kind: 'polity' as const, id: countryId }
   const respectScores: number[] = []
 
   // Collect respect from all Persons in the world
@@ -273,18 +277,18 @@ export function getPersonPrestige(state: WorldState, personId: PersonId): number
   return clamp100(0.7 * person.legacyPrestige + 0.3 * averageRespect)
 }
 
-// --- getCountryAdminPower (spec §7.7) ---
+// --- getPolityAdminPower (spec §7.7) ---
 
-export function getCountryAdminPower(
+export function getPolityAdminPower(
   state: WorldState,
   config: SimulationConfig,
-  countryId: CountryId,
+  countryId: PolityId,
 ): number {
-  const country = state.countries[countryId]
+  const country = state.polities[countryId]
   if (!country) return 0
 
-  const countryRef = { kind: 'country' as const, id: countryId }
-  const stability = getCountryStability(state, config, countryId)
+  const countryRef = { kind: 'polity' as const, id: countryId }
+  const stability = getPolityStability(state, config, countryId)
   const treasuryScore = clamp(Math.log1p(country.treasury) * 10, 0, 100)
   const efficiency = getAdministrativeEfficiency(state, config, countryId)
 

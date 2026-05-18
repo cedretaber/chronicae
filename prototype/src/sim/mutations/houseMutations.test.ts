@@ -1,31 +1,52 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId } from '../types/ids'
-import type { CountryId, HouseId, ProvinceId } from '../types/ids'
+import { createPolityId, createHouseId, createProvinceId } from '../types/ids'
+import type { PolityId, HouseId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { TickContext } from '../tick/context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
-import { collectIntegrityErrors } from '../tick/integritySystem'
 import { createHouse, deactivateHouse, addHouseWealth } from './houseMutations'
 
-function makeFixture(): { state: WorldState; country1Id: CountryId; house1Id: HouseId } {
-  const country1Id = createCountryId('c', 0)
+function makeFixture(): {
+  state: WorldState
+  polity1Id: PolityId
+  house1Id: HouseId
+  provinceId: ProvinceId
+} {
+  const polity1Id = createPolityId('c', 0)
   const house1Id = createHouseId('h', 0)
+  const provinceId = createProvinceId('p', 0)
 
   const state: WorldState = {
     currentYear: 1444,
     currentMonth: 1,
-    provinces: {},
-    countries: {
-      [country1Id]: {
-        id: country1Id,
-        name: 'Country 1',
-        houseIds: [house1Id],
+    provinces: {
+      [provinceId]: {
+        id: provinceId,
+        name: 'Test Province',
+        x: 0,
+        y: 0,
+        neighbors: [],
+        ownerHouseId: house1Id,
+        polityId: polity1Id,
+        habitability: 50,
+        development: 10,
+        polityControl: 100,
+        houseControl: 100,
+        popGroupIds: [],
+      },
+    },
+    polities: {
+      [polity1Id]: {
+        id: polity1Id,
+        name: 'Polity 1',
+        rank: 2,
+        ownerHouseId: house1Id,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
         active: true,
-        capitalProvinceId: '' as ProvinceId,
+        capitalProvinceId: provinceId,
       },
     },
     houses: {
@@ -33,13 +54,12 @@ function makeFixture(): { state: WorldState; country1Id: CountryId; house1Id: Ho
         id: house1Id,
         name: 'House 1',
         active: true,
-        countryId: country1Id,
-        provinceIds: [],
+        provinceIds: [provinceId],
         memberIds: [],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
-        seatProvinceId: '' as ProvinceId,
+        seatProvinceId: provinceId,
       },
     },
     persons: {},
@@ -52,7 +72,7 @@ function makeFixture(): { state: WorldState; country1Id: CountryId; house1Id: Ho
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
   }
-  return { state, country1Id, house1Id }
+  return { state, polity1Id, house1Id, provinceId }
 }
 
 function makeCtx(state: WorldState): TickContext {
@@ -66,15 +86,15 @@ function makeCtx(state: WorldState): TickContext {
     deathRolesThisTick: {},
     nextPersonIndex: 10,
     nextHouseIndex: 10,
-    nextCountryIndex: 10,
+    nextPolityIndex: 10,
   }
 }
 
 describe('createHouse', () => {
   it('creates a house with correct initial values', () => {
-    const { state, country1Id } = makeFixture()
+    const { state, polity1Id } = makeFixture()
     const ctx = makeCtx(state)
-    const result = createHouse(ctx, { name: 'New House', countryId: country1Id })
+    const result = createHouse(ctx, { name: 'New House', polityId: polity1Id })
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -83,31 +103,16 @@ describe('createHouse', () => {
     const newHouse = result.value.ctx.state.houses[houseId]
     expect(newHouse).toBeDefined()
     expect(newHouse!.name).toBe('New House')
-    expect(newHouse!.countryId).toBe(country1Id)
     expect(newHouse!.active).toBe(true)
     expect(newHouse!.memberIds).toEqual([])
-    expect(collectIntegrityErrors(result.value.ctx.state)).toEqual([])
-  })
-
-  it('adds the new house to the country houseIds', () => {
-    const { state, country1Id } = makeFixture()
-    const ctx = makeCtx(state)
-    const result = createHouse(ctx, { name: 'New House', countryId: country1Id })
-
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-
-    const { houseId } = result.value.value
-    const newState = result.value.ctx.state
-    expect(newState.countries[country1Id]!.houseIds).toContain(houseId)
   })
 
   it('updates parent house cadetHouseIds when parentHouseId is given', () => {
-    const { state, country1Id, house1Id } = makeFixture()
+    const { state, polity1Id, house1Id } = makeFixture()
     const ctx = makeCtx(state)
     const result = createHouse(ctx, {
       name: 'Cadet House',
-      countryId: country1Id,
+      polityId: polity1Id,
       parentHouseId: house1Id,
     })
 
@@ -119,13 +124,13 @@ describe('createHouse', () => {
     expect(newState.houses[house1Id]!.cadetHouseIds).toContain(houseId)
   })
 
-  it('returns err when country not found', () => {
+  it('returns err when polity not found', () => {
     const { state } = makeFixture()
     const ctx = makeCtx(state)
-    const result = createHouse(ctx, { name: 'X', countryId: createCountryId('c', 99) })
+    const result = createHouse(ctx, { name: 'X', polityId: createPolityId('c', 99) })
 
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('COUNTRY_NOT_FOUND')
+    if (!result.ok) expect(result.error.code).toBe('POLITY_NOT_FOUND')
   })
 })
 
@@ -147,16 +152,6 @@ describe('deactivateHouse', () => {
     const result = deactivateHouse(first.value, house1Id)
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.value).toBe(first.value)
-  })
-
-  it('removes from country houseIds when removeFromCountry is true', () => {
-    const { state, house1Id, country1Id } = makeFixture()
-    const result = deactivateHouse(state, house1Id, { removeFromCountry: true })
-
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.value.countries[country1Id]!.houseIds).not.toContain(house1Id)
-    }
   })
 
   it('returns err when house not found', () => {

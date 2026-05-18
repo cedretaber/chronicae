@@ -7,14 +7,15 @@ import {
   chooseSuccessor,
 } from '../selectors/successionSelectors'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
-import { getHouseLeader, getCountryRuler } from '../selectors/officeSelectors'
+import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { maybeSplitHouseAfterSuccession } from './houseSplitSystem'
 import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
-import type { HouseId, CountryId } from '../types/ids'
+import type { HouseId, PolityId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { SuccessionCandidate } from '../selectors/successionSelectors'
 import { createLogger } from '../debug/logger'
 import { adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
+import { getHousePrimaryPolityId, getPolityHouseIds } from '../selectors/polityRelations'
 
 export function runSuccessionSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -28,21 +29,26 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
     currentCtx = resolveHouseSuccession(currentCtx, houseId as HouseId)
   }
 
-  // Country ruler succession: if an active country has no ruler, appoint one
-  for (const countryId of Object.keys(currentCtx.state.countries).sort()) {
-    const country = currentCtx.state.countries[countryId as CountryId]
-    if (!country || !country.active) continue
+  // Polity ruler succession: if an active polity has no ruler, appoint one
+  for (const polityId of Object.keys(currentCtx.state.polities).sort()) {
+    const polity = currentCtx.state.polities[polityId as PolityId]
+    if (!polity || !polity.active) continue
 
-    const currentRuler = getCountryRuler(currentCtx.state, countryId as CountryId)
+    const currentRuler = getPolityLeader(currentCtx.state, polityId as PolityId)
     if (currentRuler) continue // Already has a ruler
 
-    // Find the active house (matching countryId) with the most provinces
+    // Find the active house (matching polity) with the most provinces
     let bestHouseId: HouseId | undefined
     let bestProvinceCount = -1
 
-    for (const houseId of country.houseIds) {
+    for (const houseId of getPolityHouseIds(currentCtx.state, polityId as PolityId)) {
       const house = currentCtx.state.houses[houseId]
-      if (!house || !house.active || house.countryId !== (countryId as CountryId)) continue
+      if (
+        !house ||
+        !house.active ||
+        getHousePrimaryPolityId(currentCtx.state, houseId) !== (polityId as PolityId)
+      )
+        continue
       const leader = getHouseLeader(currentCtx.state, houseId)
       if (!leader) continue
       if (house.provinceIds.length > bestProvinceCount) {
@@ -58,7 +64,7 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
 
     const newState = createOfficeAssignment(
       currentCtx.state,
-      { kind: 'country', id: countryId as CountryId },
+      { kind: 'polity', id: polityId as PolityId },
       'leader',
       newRulerPersonId,
     )
@@ -69,13 +75,13 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
       id: eventId,
       year: newState.currentYear,
       month: newState.currentMonth,
-      type: 'RULER_CHANGED',
+      type: 'POLITY_LEADER_CHANGED',
       importance: 'critical',
       actorIds: [newRulerPersonId],
       houseIds: [bestHouseId],
-      countryIds: [countryId as CountryId],
+      polityIds: [polityId as PolityId],
       provinceIds: [],
-      summary: `${newRuler?.name ?? 'Unknown'} has become the new ruler of ${country.name}.`,
+      summary: `${newRuler?.name ?? 'Unknown'} has become the new ruler of ${polity.name}.`,
       reasons: [],
       effects: [],
     }
@@ -126,7 +132,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
         importance: 'normal',
         actorIds: [oldestMinor.id],
         houseIds: [houseId],
-        countryIds: [house.countryId],
+        polityIds: [],
         provinceIds: [],
         summary: oldestMinor.name + ' has become the new head of ' + house.name + '.',
         reasons: [],
@@ -170,7 +176,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
     importance: 'normal',
     actorIds: [successor.person.id],
     houseIds: [houseId],
-    countryIds: [house.countryId],
+    polityIds: [],
     provinceIds: [],
     summary: successor.person.name + ' has become the new head of ' + house.name + '.',
     reasons: [],
@@ -207,7 +213,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
         importance: 'major',
         actorIds: [successor.person.id],
         houseIds: [houseId],
-        countryIds: [house.countryId],
+        polityIds: [],
         provinceIds: [],
         summary: 'A succession crisis has erupted in ' + house.name + '!',
         reasons: [],
@@ -262,10 +268,12 @@ export function applyMinorHeadPenalties(ctx: TickContext): TickContext {
       },
     )
     if (r1.ok) state = r1.value
+
+    const housePrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, house.id)
     const r2 = adjustHouseMembersAttitude(
       state,
       houseId as HouseId,
-      { kind: 'country', id: house.countryId },
+      { kind: 'polity', id: housePrimaryPolityId as PolityId },
       {
         affection: -currentCtx.config.minorHeadLoyaltyPenaltyPerMonth,
       },

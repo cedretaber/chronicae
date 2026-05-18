@@ -2,8 +2,9 @@ import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { HouseId } from '../types/ids'
 import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
-import { getCountryLegitimacy, getHouseLoyaltyToCountry } from '@sim/selectors/statusSelectors'
+import { getPolityLegitimacy, getHouseLoyaltyToPolity } from '@sim/selectors/statusSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
+import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
 export type AmbitionScores = {
   rebellionTendency: number
@@ -14,21 +15,24 @@ export function calcAmbitionScores(state: WorldState, houseId: HouseId): Ambitio
   const house = state.houses[houseId]
   if (!house) return { rebellionTendency: 0, plotTendency: 0 }
 
-  const country = state.countries[house.countryId]
-  if (!country) return { rebellionTendency: 0, plotTendency: 0 }
+  const primaryPolityId = getHousePrimaryPolityId(state, houseId)
+  if (!primaryPolityId) return { rebellionTendency: 0, plotTendency: 0 }
+
+  const polity = state.polities[primaryPolityId]
+  if (!polity) return { rebellionTendency: 0, plotTendency: 0 }
 
   const headId = getHouseLeader(state, house.id)
   const head = headId ? state.persons[headId] : undefined
   if (!head) return { rebellionTendency: 0, plotTendency: 0 }
 
-  const headCountryAtt = getAttitudeOrDefault(state, head, { kind: 'country', id: house.countryId })
-  const headCountryLoyalty =
-    (attitudeValueToScore(headCountryAtt.affection) * 0.55 +
-      attitudeValueToScore(headCountryAtt.respect) * 0.45) /
+  const headPolityAtt = getAttitudeOrDefault(state, head, { kind: 'polity', id: primaryPolityId })
+  const headPolityLoyalty =
+    (attitudeValueToScore(headPolityAtt.affection) * 0.55 +
+      attitudeValueToScore(headPolityAtt.respect) * 0.45) /
     100
 
-  const houseLoyalty = getHouseLoyaltyToCountry(state, houseId)
-  const legitimacy = getCountryLegitimacy(state, house.countryId)
+  const houseLoyalty = getHouseLoyaltyToPolity(state, houseId)
+  const legitimacy = getPolityLegitimacy(state, primaryPolityId)
 
   const rebellionTendency =
     house.legacyPrestige * 0.3 +
@@ -36,17 +40,17 @@ export function calcAmbitionScores(state: WorldState, houseId: HouseId): Ambitio
     head.traits.ambition * 30 +
     (100 - legitimacy) * 0.3 +
     (100 - houseLoyalty) * 0.4 +
-    (1.0 - headCountryLoyalty) * 30 -
+    (1.0 - headPolityLoyalty) * 30 -
     head.traits.caution * 20 -
-    country.adminPower * 0.2
+    polity.adminPower * 0.2
 
   const plotTendency =
     head.traits.ambition * 30 +
     house.legacyPrestige * 0.2 +
     (100 - houseLoyalty) * 0.3 +
-    (1.0 - headCountryLoyalty) * 20 -
+    (1.0 - headPolityLoyalty) * 20 -
     head.traits.caution * 15 -
-    country.adminPower * 0.1
+    polity.adminPower * 0.1
 
   return { rebellionTendency, plotTendency }
 }

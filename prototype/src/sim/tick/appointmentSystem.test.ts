@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createCountryId,
+  createPolityId,
   createHouseId,
   createOfficeAssignmentId,
   createPersonId,
+  createProvinceId,
 } from '../types/ids'
-import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import type { PolityId, HouseId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { defaultConfig } from '../config/defaultConfig'
@@ -26,32 +27,64 @@ const DEFAULT_ABILITIES = {
 
 function makeBaseState(): {
   state: WorldState
-  countryId: CountryId
+  polityId: PolityId
   houseRulerId: HouseId
   houseVassalId: HouseId
   personRulerId: PersonId
   personVassalId: PersonId
 } {
-  const countryId = createCountryId('c', 0)
+  const polityId = createPolityId('c', 0)
   const houseRulerId = createHouseId('h', 0)
   const houseVassalId = createHouseId('h', 1)
   const personRulerId = createPersonId('pe', 0)
   const personVassalId = createPersonId('pe', 1)
+  const provinceRulerId = createProvinceId('p', 0)
+  const provinceVassalId = createProvinceId('p', 1)
 
   const state: WorldState = {
     currentYear: 1444,
     currentMonth: 1,
-    provinces: {},
-    countries: {
-      [countryId]: {
-        id: countryId,
-        name: 'Country 1',
-        houseIds: [houseRulerId, houseVassalId],
+    provinces: {
+      [provinceRulerId]: {
+        id: provinceRulerId,
+        name: 'Ruler Province',
+        x: 0,
+        y: 0,
+        neighbors: [],
+        ownerHouseId: houseRulerId,
+        polityId,
+        habitability: 50,
+        popGroupIds: [],
+        development: 10,
+        polityControl: 100,
+        houseControl: 100,
+      },
+      [provinceVassalId]: {
+        id: provinceVassalId,
+        name: 'Vassal Province',
+        x: 1,
+        y: 1,
+        neighbors: [],
+        ownerHouseId: houseVassalId,
+        polityId,
+        habitability: 50,
+        popGroupIds: [],
+        development: 10,
+        polityControl: 100,
+        houseControl: 100,
+      },
+    },
+    polities: {
+      [polityId]: {
+        id: polityId,
+        name: 'Polity 1',
+        rank: 2,
+        ownerHouseId: houseRulerId,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
         active: true,
-        capitalProvinceId: '' as ProvinceId,
+        capitalProvinceId: provinceRulerId,
       },
     },
     houses: {
@@ -59,25 +92,23 @@ function makeBaseState(): {
         id: houseRulerId,
         name: 'Ruler House',
         active: true,
-        countryId,
-        provinceIds: [],
+        provinceIds: [provinceRulerId],
         memberIds: [personRulerId],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
-        seatProvinceId: '' as ProvinceId,
+        seatProvinceId: provinceRulerId,
       },
       [houseVassalId]: {
         id: houseVassalId,
         name: 'Vassal House',
         active: true,
-        countryId,
-        provinceIds: [],
+        provinceIds: [provinceVassalId],
         memberIds: [personVassalId],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
-        seatProvinceId: '' as ProvinceId,
+        seatProvinceId: provinceVassalId,
       },
     },
     persons: {
@@ -88,7 +119,6 @@ function makeBaseState(): {
         age: 30,
         alive: true,
         houseId: houseRulerId,
-        countryId,
         childIds: [],
         birthStatus: 'unknown',
         abilities: DEFAULT_ABILITIES,
@@ -105,7 +135,6 @@ function makeBaseState(): {
         age: 35,
         alive: true,
         houseId: houseVassalId,
-        countryId,
         childIds: [],
         birthStatus: 'unknown',
         abilities: DEFAULT_ABILITIES,
@@ -128,7 +157,7 @@ function makeBaseState(): {
 
   return {
     state,
-    countryId,
+    polityId,
     houseRulerId,
     houseVassalId,
     personRulerId,
@@ -157,7 +186,7 @@ function holdsOfficeRole(state: WorldState, personId: PersonId, role: OfficeRole
 
 describe('runAppointmentSystem', () => {
   it('appoints best candidate to administrator role in January', () => {
-    const { state, countryId, personRulerId, personVassalId } = makeBaseState()
+    const { state, polityId, personRulerId, personVassalId } = makeBaseState()
 
     const leaderOfficeId = createOfficeAssignmentId(99)
     const stateWithLeader: WorldState = {
@@ -165,7 +194,7 @@ describe('runAppointmentSystem', () => {
       officeAssignments: {
         [leaderOfficeId]: {
           id: leaderOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'leader',
           holderPersonId: personRulerId,
           active: true,
@@ -175,7 +204,7 @@ describe('runAppointmentSystem', () => {
       },
       officeIndex: {
         byOrganization: {
-          [`country:${countryId}`]: [leaderOfficeId],
+          [`polity:${polityId}`]: [leaderOfficeId],
         },
         byHolderPerson: {
           [personRulerId]: [leaderOfficeId],
@@ -194,7 +223,7 @@ describe('runAppointmentSystem', () => {
   })
 
   it('does not replace current holder when score diff < replacementThreshold', () => {
-    const { state, countryId, personRulerId } = makeBaseState()
+    const { state, polityId, personRulerId } = makeBaseState()
 
     const leaderOfficeId = createOfficeAssignmentId(99)
     const adminOfficeId = createOfficeAssignmentId(100)
@@ -203,7 +232,7 @@ describe('runAppointmentSystem', () => {
       officeAssignments: {
         [leaderOfficeId]: {
           id: leaderOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'leader',
           holderPersonId: personRulerId,
           active: true,
@@ -212,7 +241,7 @@ describe('runAppointmentSystem', () => {
         },
         [adminOfficeId]: {
           id: adminOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'administrator',
           holderPersonId: personRulerId,
           active: true,
@@ -222,7 +251,7 @@ describe('runAppointmentSystem', () => {
       },
       officeIndex: {
         byOrganization: {
-          [`country:${countryId}`]: [leaderOfficeId, adminOfficeId],
+          [`polity:${polityId}`]: [leaderOfficeId, adminOfficeId],
         },
         byHolderPerson: {
           [personRulerId]: [leaderOfficeId, adminOfficeId],
@@ -244,7 +273,7 @@ describe('runAppointmentSystem', () => {
   })
 
   it('replaces current holder on January when score diff >= replacementThreshold', () => {
-    const { state, countryId, personRulerId, personVassalId } = makeBaseState()
+    const { state, polityId, personRulerId, personVassalId } = makeBaseState()
 
     const leaderOfficeId = createOfficeAssignmentId(99)
     const adminOfficeId = createOfficeAssignmentId(100)
@@ -253,7 +282,7 @@ describe('runAppointmentSystem', () => {
       officeAssignments: {
         [leaderOfficeId]: {
           id: leaderOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'leader',
           holderPersonId: personRulerId,
           active: true,
@@ -262,7 +291,7 @@ describe('runAppointmentSystem', () => {
         },
         [adminOfficeId]: {
           id: adminOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'administrator',
           holderPersonId: personRulerId,
           active: true,
@@ -272,7 +301,7 @@ describe('runAppointmentSystem', () => {
       },
       officeIndex: {
         byOrganization: {
-          [`country:${countryId}`]: [leaderOfficeId, adminOfficeId],
+          [`polity:${polityId}`]: [leaderOfficeId, adminOfficeId],
         },
         byHolderPerson: {
           [personRulerId]: [leaderOfficeId, adminOfficeId],
@@ -293,7 +322,7 @@ describe('runAppointmentSystem', () => {
   })
 
   it('does not run in non-January months', () => {
-    const { state, countryId, personRulerId } = makeBaseState()
+    const { state, polityId, personRulerId } = makeBaseState()
 
     const leaderOfficeId = createOfficeAssignmentId(99)
     const adminOfficeId = createOfficeAssignmentId(100)
@@ -303,7 +332,7 @@ describe('runAppointmentSystem', () => {
       officeAssignments: {
         [leaderOfficeId]: {
           id: leaderOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'leader',
           holderPersonId: personRulerId,
           active: true,
@@ -312,7 +341,7 @@ describe('runAppointmentSystem', () => {
         },
         [adminOfficeId]: {
           id: adminOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'administrator',
           holderPersonId: personRulerId,
           active: true,
@@ -322,7 +351,7 @@ describe('runAppointmentSystem', () => {
       },
       officeIndex: {
         byOrganization: {
-          [`country:${countryId}`]: [leaderOfficeId, adminOfficeId],
+          [`polity:${polityId}`]: [leaderOfficeId, adminOfficeId],
         },
         byHolderPerson: {
           [personRulerId]: [leaderOfficeId, adminOfficeId],
@@ -342,7 +371,7 @@ describe('runAppointmentSystem', () => {
   })
 
   it('revokes dead person office and appoints new person', () => {
-    const { state, countryId, personRulerId, personVassalId } = makeBaseState()
+    const { state, polityId, personRulerId, personVassalId } = makeBaseState()
 
     const leaderOfficeId = createOfficeAssignmentId(99)
     const adminOfficeId = createOfficeAssignmentId(100)
@@ -351,7 +380,7 @@ describe('runAppointmentSystem', () => {
       officeAssignments: {
         [leaderOfficeId]: {
           id: leaderOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'leader',
           holderPersonId: personRulerId,
           active: true,
@@ -360,7 +389,7 @@ describe('runAppointmentSystem', () => {
         },
         [adminOfficeId]: {
           id: adminOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'administrator',
           holderPersonId: personRulerId,
           active: true,
@@ -370,7 +399,7 @@ describe('runAppointmentSystem', () => {
       },
       officeIndex: {
         byOrganization: {
-          [`country:${countryId}`]: [leaderOfficeId, adminOfficeId],
+          [`polity:${polityId}`]: [leaderOfficeId, adminOfficeId],
         },
         byHolderPerson: {
           [personRulerId]: [leaderOfficeId, adminOfficeId],
@@ -398,7 +427,7 @@ describe('runAppointmentSystem', () => {
 
   it('concurrent office penalty reduces score for already-office-holding candidates', () => {
     const base = makeBaseState()
-    const { countryId, personRulerId, personVassalId } = base
+    const { polityId, personRulerId, personVassalId } = base
 
     const leaderOfficeId = createOfficeAssignmentId(99)
     const state: WorldState = {
@@ -406,7 +435,7 @@ describe('runAppointmentSystem', () => {
       officeAssignments: {
         [leaderOfficeId]: {
           id: leaderOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'leader',
           holderPersonId: personRulerId,
           active: true,
@@ -416,7 +445,7 @@ describe('runAppointmentSystem', () => {
       },
       officeIndex: {
         byOrganization: {
-          [`country:${countryId}`]: [leaderOfficeId],
+          [`polity:${polityId}`]: [leaderOfficeId],
         },
         byHolderPerson: {
           [personRulerId]: [leaderOfficeId],
@@ -445,7 +474,7 @@ describe('runAppointmentSystem', () => {
 
   it('uses female candidates when no male candidates and allowFemaleRolesWhenNoMaleCandidate=true', () => {
     const base = makeBaseState()
-    const { countryId, personRulerId } = base
+    const { polityId, personRulerId } = base
 
     const leaderOfficeId = createOfficeAssignmentId(99)
     const state: WorldState = {
@@ -453,7 +482,7 @@ describe('runAppointmentSystem', () => {
       officeAssignments: {
         [leaderOfficeId]: {
           id: leaderOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'leader',
           holderPersonId: personRulerId,
           active: true,
@@ -463,7 +492,7 @@ describe('runAppointmentSystem', () => {
       },
       officeIndex: {
         byOrganization: {
-          [`country:${countryId}`]: [leaderOfficeId],
+          [`polity:${polityId}`]: [leaderOfficeId],
         },
         byHolderPerson: {
           [personRulerId]: [leaderOfficeId],
@@ -493,7 +522,7 @@ describe('runAppointmentSystem', () => {
 
   it('appoints best candidate when allowFemaleRolesWhenNoMaleCandidate=false and only females exist', () => {
     const base = makeBaseState()
-    const { countryId, personRulerId } = base
+    const { polityId, personRulerId } = base
 
     const leaderOfficeId = createOfficeAssignmentId(99)
     const state: WorldState = {
@@ -501,7 +530,7 @@ describe('runAppointmentSystem', () => {
       officeAssignments: {
         [leaderOfficeId]: {
           id: leaderOfficeId,
-          organization: { kind: 'country' as const, id: countryId },
+          organization: { kind: 'polity' as const, id: polityId },
           role: 'leader',
           holderPersonId: personRulerId,
           active: true,
@@ -511,7 +540,7 @@ describe('runAppointmentSystem', () => {
       },
       officeIndex: {
         byOrganization: {
-          [`country:${countryId}`]: [leaderOfficeId],
+          [`polity:${polityId}`]: [leaderOfficeId],
         },
         byHolderPerson: {
           [personRulerId]: [leaderOfficeId],

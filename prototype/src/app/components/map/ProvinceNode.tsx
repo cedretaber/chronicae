@@ -10,13 +10,13 @@ export type ProvinceNodeData = {
   isUrban: boolean
   isCapital: boolean
   isSeat: boolean
-  countryColor: string
+  polityColor: string
   isDimmed: boolean
   isSelected: boolean
 }
 
 export function ProvinceNode({ data }: NodeProps) {
-  const { label, isUrban, isCapital, isSeat, countryColor, isDimmed, isSelected } =
+  const { label, isUrban, isCapital, isSeat, polityColor, isDimmed, isSelected } =
     data as ProvinceNodeData
 
   return (
@@ -103,7 +103,7 @@ export function ProvinceNode({ data }: NodeProps) {
             transform: 'translateX(-50%)',
             fontSize: 10,
             color: '#fff',
-            backgroundColor: countryColor,
+            backgroundColor: polityColor,
             padding: '1px 4px',
             borderRadius: 3,
             outline: isSelected ? '2px solid yellow' : 'none',

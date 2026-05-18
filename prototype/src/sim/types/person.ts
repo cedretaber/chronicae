@@ -1,4 +1,4 @@
-import type { PersonId, HouseId, CountryId } from './ids'
+import type { PersonId, HouseId } from './ids'
 import type { AttitudeMap } from './attitude'
 
 export type Sex = 'male' | 'female'
@@ -22,7 +22,6 @@ export type Person = {
   age: number
   alive: boolean
   houseId: HouseId
-  countryId: CountryId
   fatherId?: PersonId
   motherId?: PersonId
   spouseId?: PersonId

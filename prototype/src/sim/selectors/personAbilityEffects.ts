@@ -1,4 +1,4 @@
-import type { PersonId, CountryId } from '../types/ids'
+import type { PersonId, PolityId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
 import type { House } from '../types/house'
@@ -18,11 +18,11 @@ export function normalizedTrait(value: number): number {
 
 function getFirstActiveLivingOfficeHolder(
   state: WorldState,
-  countryId: CountryId,
+  polityId: PolityId,
   role: OfficeRole,
 ): Person | undefined {
-  const countryRef: OrganizationRef = { kind: 'country', id: countryId }
-  const holderIds = getActiveOfficeHolders(state, countryRef, role)
+  const polityRef: OrganizationRef = { kind: 'polity', id: polityId }
+  const holderIds = getActiveOfficeHolders(state, polityRef, role)
   for (const id of holderIds) {
     const p = state.persons[id]
     if (p && p.alive) return p
@@ -38,22 +38,22 @@ export function getLivingPerson(state: WorldState, personId: PersonId): Person |
 
 export function calcChancellorControlGrowthModifier(
   state: WorldState,
-  countryId: CountryId,
+  polityId: PolityId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
-  const administrator = getFirstActiveLivingOfficeHolder(state, countryId, 'administrator')
+  const administrator = getFirstActiveLivingOfficeHolder(state, polityId, 'administrator')
   const admin = administrator ? getRoleScore(state, administrator.id, 'governance') / 10 : 5
   return 1 + normalizedStat(admin) * config.chancellorAdminControlGrowthEffect
 }
 
 export function calcChancellorControlMaxBonus(
   state: WorldState,
-  countryId: CountryId,
+  polityId: PolityId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 0
-  const administrator = getFirstActiveLivingOfficeHolder(state, countryId, 'administrator')
+  const administrator = getFirstActiveLivingOfficeHolder(state, polityId, 'administrator')
   const admin = administrator ? getRoleScore(state, administrator.id, 'governance') / 10 : 5
   return (admin - 5) * config.chancellorAdminControlMaxBonusPerAdmin
 }
@@ -92,11 +92,11 @@ export function calcHouseHeadControlMaxBonus(
 
 export function calcTreasurerTaxEfficiency(
   state: WorldState,
-  countryId: CountryId,
+  polityId: PolityId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
-  const treasurer = getFirstActiveLivingOfficeHolder(state, countryId, 'treasurer')
+  const treasurer = getFirstActiveLivingOfficeHolder(state, polityId, 'treasurer')
   const admin = treasurer ? getRoleScore(state, treasurer.id, 'stewardship') / 10 : 5
   const caution = treasurer?.traits.caution ?? 0.5
   return clamp(
@@ -110,33 +110,33 @@ export function calcTreasurerTaxEfficiency(
 
 export function calcTreasurerDevelopmentCostModifier(
   state: WorldState,
-  countryId: CountryId,
+  polityId: PolityId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
-  const treasurer = getFirstActiveLivingOfficeHolder(state, countryId, 'treasurer')
+  const treasurer = getFirstActiveLivingOfficeHolder(state, polityId, 'treasurer')
   const admin = treasurer ? getRoleScore(state, treasurer.id, 'stewardship') / 10 : 5
   return 1 - normalizedStat(admin) * config.treasurerAdminDevelopmentCostEffect
 }
 
 export function calcGeneralWarPowerModifier(
   state: WorldState,
-  countryId: CountryId,
+  polityId: PolityId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 1
-  const military = getFirstActiveLivingOfficeHolder(state, countryId, 'military')
+  const military = getFirstActiveLivingOfficeHolder(state, polityId, 'military')
   const martial = military ? getRoleScore(state, military.id, 'warCommand') / 10 : 5
   return 1 + normalizedStat(martial) * config.generalMartialWarPowerEffect
 }
 
 export function calcGeneralDeclareThreshold(
   state: WorldState,
-  countryId: CountryId,
+  polityId: PolityId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return config.minAttackerWinChanceToDeclare
-  const military = getFirstActiveLivingOfficeHolder(state, countryId, 'military')
+  const military = getFirstActiveLivingOfficeHolder(state, polityId, 'military')
   const ambition = military?.traits.ambition ?? 0.5
   const caution = military?.traits.caution ?? 0.5
   return clamp(
@@ -150,11 +150,11 @@ export function calcGeneralDeclareThreshold(
 
 export function calcChancellorMonumentScoreBonus(
   state: WorldState,
-  countryId: CountryId,
+  polityId: PolityId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 0
-  const administrator = getFirstActiveLivingOfficeHolder(state, countryId, 'administrator')
+  const administrator = getFirstActiveLivingOfficeHolder(state, polityId, 'administrator')
   const ambition = administrator?.traits.ambition ?? 0.5
   const caution = administrator?.traits.caution ?? 0.5
   return (
@@ -165,11 +165,11 @@ export function calcChancellorMonumentScoreBonus(
 
 export function calcChancellorLandDevelopmentScoreBonus(
   state: WorldState,
-  countryId: CountryId,
+  polityId: PolityId,
   config: SimulationConfig,
 ): number {
   if (!config.personAbilityEffectsEnabled) return 0
-  const administrator = getFirstActiveLivingOfficeHolder(state, countryId, 'administrator')
+  const administrator = getFirstActiveLivingOfficeHolder(state, polityId, 'administrator')
   const ambition = administrator?.traits.ambition ?? 0.5
   const caution = administrator?.traits.caution ?? 0.5
   return (

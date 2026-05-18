@@ -32,7 +32,6 @@ function makeAptitudeOnlyPerson(aptitudes: AbilityScores): import('../types/pers
     age: 30,
     alive: true,
     houseId: 'dh-0' as import('../types/ids').HouseId,
-    countryId: 'dc-0' as import('../types/ids').CountryId,
     abilities: { ...DEFAULT_ABILITIES },
     aptitudes,
     traits: { ambition: 0.5, caution: 0.5 },
@@ -215,7 +214,6 @@ describe('getRoleScore', () => {
           age: 30,
           alive: true,
           houseId: 'dh-0' as import('../types/ids').HouseId,
-          countryId: 'dc-0' as import('../types/ids').CountryId,
           abilities: {
             valor: 100,
             command: 80,
@@ -250,7 +248,6 @@ describe('getRoleScore', () => {
           age: 30,
           alive: true,
           houseId: 'dh-0' as import('../types/ids').HouseId,
-          countryId: 'dc-0' as import('../types/ids').CountryId,
           abilities: {
             valor: 100,
             command: 80,
@@ -291,7 +288,6 @@ describe('getRoleScore', () => {
           age: 30,
           alive: true,
           houseId: 'dh-0' as import('../types/ids').HouseId,
-          countryId: 'dc-0' as import('../types/ids').CountryId,
           abilities: {
             valor: 120,
             command: 120,

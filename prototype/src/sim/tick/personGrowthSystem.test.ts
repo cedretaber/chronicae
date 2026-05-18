@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { WorldState } from '../types/world'
 import type { TickContext } from './context'
-import type { PersonId, HouseId, CountryId, ProvinceId } from '../types/ids'
+import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runPersonGrowthSystem } from './personGrowthSystem'
@@ -18,18 +18,19 @@ const DEFAULT_ABILITIES = {
 function makeWorldState(
   person1Id: PersonId,
   house1Id: HouseId,
-  country1Id: CountryId,
+  polity1Id: PolityId,
   opts?: { currentYear?: number; currentMonth?: number },
 ): WorldState {
   return {
     currentYear: opts?.currentYear ?? 1444,
     currentMonth: opts?.currentMonth ?? 1,
     provinces: {},
-    countries: {
-      [country1Id]: {
-        id: country1Id,
-        name: 'Country 1',
-        houseIds: [house1Id],
+    polities: {
+      [polity1Id]: {
+        id: polity1Id,
+        name: 'Polity 1',
+        rank: 2,
+        ownerHouseId: house1Id,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
@@ -42,7 +43,6 @@ function makeWorldState(
         id: house1Id,
         name: 'House 1',
         active: true,
-        countryId: country1Id,
         provinceIds: [],
         memberIds: [person1Id],
         cadetHouseIds: [],
@@ -74,7 +74,7 @@ function makeCtx(state: WorldState): TickContext {
     deathRolesThisTick: {},
     nextPersonIndex: 10,
     nextHouseIndex: 10,
-    nextCountryIndex: 10,
+    nextPolityIndex: 10,
   }
 }
 
@@ -83,9 +83,9 @@ describe('runPersonGrowthSystem', () => {
     it('returns the same state object when currentMonth !== 1', () => {
       const person1Id = 'pe-0' as PersonId
       const house1Id = 'h-0' as HouseId
-      const country1Id = 'c-0' as CountryId
+      const polity1Id = 'dp-0' as PolityId
 
-      const state = makeWorldState(person1Id, house1Id, country1Id, {
+      const state = makeWorldState(person1Id, house1Id, polity1Id, {
         currentYear: 1444,
         currentMonth: 2,
       })
@@ -97,7 +97,6 @@ describe('runPersonGrowthSystem', () => {
           age: 30,
           alive: true,
           houseId: house1Id,
-          countryId: country1Id,
           childIds: [],
           birthStatus: 'legitimate' as const,
           abilities: { ...DEFAULT_ABILITIES, valor: 10 },
@@ -120,10 +119,10 @@ describe('runPersonGrowthSystem', () => {
     it('runs without error for a single person', () => {
       const person1Id = 'pe-0' as PersonId
       const house1Id = 'h-0' as HouseId
-      const country1Id = 'c-0' as CountryId
+      const polity1Id = 'dp-0' as PolityId
 
       let currentCtx = makeCtx(
-        makeWorldState(person1Id, house1Id, country1Id, {
+        makeWorldState(person1Id, house1Id, polity1Id, {
           currentYear: 1444,
           currentMonth: 1,
         }),
@@ -136,7 +135,6 @@ describe('runPersonGrowthSystem', () => {
           age: 30,
           alive: true,
           houseId: house1Id,
-          countryId: country1Id,
           childIds: [],
           birthStatus: 'legitimate' as const,
           abilities: { ...DEFAULT_ABILITIES, valor: 0 },
@@ -170,9 +168,9 @@ describe('runPersonGrowthSystem', () => {
       const alivePersonId = 'pe-0' as PersonId
       const deadPersonId = 'pe-1' as PersonId
       const house1Id = 'h-0' as HouseId
-      const country1Id = 'c-0' as CountryId
+      const polity1Id = 'dp-0' as PolityId
 
-      const state = makeWorldState(alivePersonId, house1Id, country1Id, {
+      const state = makeWorldState(alivePersonId, house1Id, polity1Id, {
         currentYear: 1444,
         currentMonth: 1,
       })
@@ -186,7 +184,6 @@ describe('runPersonGrowthSystem', () => {
           age: 30,
           alive: true,
           houseId: house1Id,
-          countryId: country1Id,
           childIds: [],
           birthStatus: 'legitimate' as const,
           abilities: { ...DEFAULT_ABILITIES, valor: 0 },
@@ -203,7 +200,6 @@ describe('runPersonGrowthSystem', () => {
           age: 30,
           alive: false,
           houseId: house1Id,
-          countryId: country1Id,
           childIds: [],
           birthStatus: 'legitimate' as const,
           abilities: deadAbilitiesBefore,
@@ -231,10 +227,10 @@ describe('runPersonGrowthSystem', () => {
       // Without experience, effectiveCeil = naturalCeil = 75
       const person1Id = 'pe-0' as PersonId
       const house1Id = 'h-0' as HouseId
-      const country1Id = 'c-0' as CountryId
+      const polity1Id = 'dp-0' as PolityId
 
       let currentCtx = makeCtx(
-        makeWorldState(person1Id, house1Id, country1Id, {
+        makeWorldState(person1Id, house1Id, polity1Id, {
           currentYear: 1444,
           currentMonth: 1,
         }),
@@ -247,7 +243,6 @@ describe('runPersonGrowthSystem', () => {
           age: 30,
           alive: true,
           houseId: house1Id,
-          countryId: country1Id,
           childIds: [],
           birthStatus: 'legitimate' as const,
           abilities: { ...DEFAULT_ABILITIES, valor: 48 },

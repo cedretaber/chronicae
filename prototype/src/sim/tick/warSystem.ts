@@ -3,18 +3,18 @@ import { makeEventId } from './context'
 import { randomFloat, randomInt } from '../rng/rng'
 import { clamp } from '../utils/math'
 import {
-  adjustCountryLegacyPrestige,
+  adjustPolityLegacyPrestige,
   adjustHouseLegacyPrestige,
   adjustPersonLegacyPrestige,
 } from '../helpers/attitudeHelpers'
-import { calcCountryMilitaryPower } from '../selectors/militarySelectors'
+import { calcPolityMilitaryPower } from '../selectors/militarySelectors'
 import {
   calcGeneralWarPowerModifier,
   calcGeneralDeclareThreshold,
 } from '../selectors/personAbilityEffects'
-import { transferProvinceToCountry } from '../mutations/provinceMutations'
-import { annexCountry } from '../mutations/countryMutations'
-import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import { transferProvinceToPolity } from '../mutations/provinceMutations'
+import { annexPolity } from '../mutations/polityMutations'
+import type { PolityId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { SimEvent } from '../types/event'
 import {
@@ -22,14 +22,15 @@ import {
   adjustProvincePopUnrest,
   adjustProvincePopSizeByClass,
 } from '../mutations/popMutations'
-import { getCountryRulerHouse, getActiveOfficeHolders } from '../selectors/officeSelectors'
+import { getPolityLeaderHouse, getActiveOfficeHolders } from '../selectors/officeSelectors'
+import { getHousePrimaryPolityId, getPolityHouseIds } from '../selectors/polityRelations'
 
 function emitWarEvent(
   ctx: TickContext,
   type: 'WAR_DECLARED' | 'WAR_WON' | 'WAR_LOST',
   generalId: PersonId,
-  attackerCountryId: CountryId,
-  defenderCountryId: CountryId,
+  attackerPolityId: PolityId,
+  defenderPolityId: PolityId,
   summary: string,
 ): TickContext {
   const { id: eventId, ctx: eventCtx } = makeEventId(ctx)
@@ -41,7 +42,7 @@ function emitWarEvent(
     importance: 'major',
     actorIds: [generalId],
     houseIds: [],
-    countryIds: [attackerCountryId, defenderCountryId],
+    polityIds: [attackerPolityId, defenderPolityId],
     provinceIds: [],
     summary,
     reasons: [],
@@ -53,8 +54,8 @@ function emitWarEvent(
 function emitProvinceConquered(
   ctx: TickContext,
   generalId: PersonId,
-  attackerCountryId: CountryId,
-  defenderCountryId: CountryId,
+  attackerPolityId: PolityId,
+  defenderPolityId: PolityId,
   rulerHouseId: HouseId,
   provinceId: ProvinceId,
   provinceName: string,
@@ -69,7 +70,7 @@ function emitProvinceConquered(
     importance: 'major',
     actorIds: [generalId],
     houseIds: [rulerHouseId],
-    countryIds: [attackerCountryId, defenderCountryId],
+    polityIds: [attackerPolityId, defenderPolityId],
     provinceIds: [provinceId],
     summary: `${provinceName} was conquered by ${attackerName}.`,
     reasons: [],
@@ -78,11 +79,11 @@ function emitProvinceConquered(
   return { ...eventCtx, state: eventCtx.state, events: [...eventCtx.events, event] }
 }
 
-function emitCountryAnnexed(
+function emitPolityAnnexed(
   ctx: TickContext,
   generalId: PersonId,
-  attackerCountryId: CountryId,
-  defenderCountryId: CountryId,
+  attackerPolityId: PolityId,
+  defenderPolityId: PolityId,
   defenderName: string,
   attackerName: string,
 ): TickContext {
@@ -91,11 +92,11 @@ function emitCountryAnnexed(
     id: eventId,
     year: eventCtx.state.currentYear,
     month: eventCtx.state.currentMonth,
-    type: 'COUNTRY_ANNEXED',
+    type: 'POLITY_ANNEXED',
     importance: 'critical',
     actorIds: [generalId],
     houseIds: [],
-    countryIds: [attackerCountryId, defenderCountryId],
+    polityIds: [attackerPolityId, defenderPolityId],
     provinceIds: [],
     summary: `${defenderName} has been annexed by ${attackerName}.`,
     reasons: [],
@@ -113,23 +114,23 @@ export function runWarSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
   let currentState = currentCtx.state
 
-  const countryIds = Object.keys(currentState.countries).sort() as CountryId[]
+  const polityIds = Object.keys(currentState.polities).sort() as PolityId[]
 
-  for (const attackerCountryId of countryIds) {
+  for (const attackerPolityId of polityIds) {
     if (warsThisTick >= currentCtx.config.maxWarsPerTick) {
       break
     }
 
     currentState = currentCtx.state
-    const attackerCountry = currentState.countries[attackerCountryId]
-    if (!attackerCountry || !attackerCountry.active) {
+    const attackerPolity = currentState.polities[attackerPolityId]
+    if (!attackerPolity || !attackerPolity.active) {
       continue
     }
 
     const currentAbsoluteMonth = currentState.currentYear * 12 + currentState.currentMonth
-    if (attackerCountry.lastWarMonth !== undefined) {
+    if (attackerPolity.lastWarMonth !== undefined) {
       if (
-        currentAbsoluteMonth - attackerCountry.lastWarMonth <
+        currentAbsoluteMonth - attackerPolity.lastWarMonth <
         currentCtx.config.warCooldownMonths
       ) {
         continue
@@ -138,7 +139,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
 
     const militaryHolders = getActiveOfficeHolders(
       currentState,
-      { kind: 'country', id: attackerCountryId },
+      { kind: 'polity', id: attackerPolityId },
       'military',
     )
     const generalId = militaryHolders[0]
@@ -152,16 +153,16 @@ export function runWarSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    if (attackerCountry.treasury < currentCtx.config.warCostPerProvince) {
+    if (attackerPolity.treasury < currentCtx.config.warCostPerProvince) {
       continue
     }
 
     const attackerPower =
-      calcCountryMilitaryPower(currentState, currentCtx.config, attackerCountryId) *
-      calcGeneralWarPowerModifier(currentState, attackerCountryId, currentCtx.config)
+      calcPolityMilitaryPower(currentState, currentCtx.config, attackerPolityId) *
+      calcGeneralWarPowerModifier(currentState, attackerPolityId, currentCtx.config)
 
     const attackerProvinceSet = new Set<ProvinceId>()
-    for (const houseId of attackerCountry.houseIds) {
+    for (const houseId of getPolityHouseIds(currentState, attackerPolityId)) {
       currentState = currentCtx.state
       const house = currentState.houses[houseId]
       if (!house) {
@@ -172,14 +173,14 @@ export function runWarSystem(ctx: TickContext): TickContext {
       }
     }
 
-    for (const defenderCountryId of countryIds) {
-      if (defenderCountryId === attackerCountryId) {
+    for (const defenderPolityId of polityIds) {
+      if (defenderPolityId === attackerPolityId) {
         continue
       }
 
       currentState = currentCtx.state
-      const defenderCountry = currentState.countries[defenderCountryId]
-      if (!defenderCountry || !defenderCountry.active) {
+      const defenderPolity = currentState.polities[defenderPolityId]
+      if (!defenderPolity || !defenderPolity.active) {
         continue
       }
 
@@ -187,7 +188,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
       for (const provinceIdStr of Object.keys(currentState.provinces)) {
         const provinceId = provinceIdStr as ProvinceId
         const province = currentState.provinces[provinceId]
-        if (!province || province.countryId !== defenderCountryId) {
+        if (!province || province.polityId !== defenderPolityId) {
           continue
         }
         const ownerHouse = currentState.houses[province.ownerHouseId]
@@ -203,17 +204,17 @@ export function runWarSystem(ctx: TickContext): TickContext {
         continue
       }
 
-      const defenderCountryObj = currentState.countries[defenderCountryId]
+      const defenderPolityObj = currentState.polities[defenderPolityId]
       const defenderPower =
-        calcCountryMilitaryPower(currentState, currentCtx.config, defenderCountryId) *
-        (defenderCountryObj
-          ? calcGeneralWarPowerModifier(currentState, defenderCountryId, currentCtx.config)
+        calcPolityMilitaryPower(currentState, currentCtx.config, defenderPolityId) *
+        (defenderPolityObj
+          ? calcGeneralWarPowerModifier(currentState, defenderPolityId, currentCtx.config)
           : 1)
       const winChance = attackerPower / (attackerPower + defenderPower + 1)
 
       const declareThreshold = calcGeneralDeclareThreshold(
         currentState,
-        attackerCountryId,
+        attackerPolityId,
         currentCtx.config,
       )
       if (winChance < declareThreshold) {
@@ -222,12 +223,12 @@ export function runWarSystem(ctx: TickContext): TickContext {
 
       warsThisTick++
 
-      const updatedAttacker = { ...attackerCountry, lastWarMonth: currentAbsoluteMonth }
+      const updatedAttacker = { ...attackerPolity, lastWarMonth: currentAbsoluteMonth }
       currentCtx = {
         ...currentCtx,
         state: {
           ...currentCtx.state,
-          countries: { ...currentCtx.state.countries, [attackerCountryId]: updatedAttacker },
+          polities: { ...currentCtx.state.polities, [attackerPolityId]: updatedAttacker },
         },
       }
 
@@ -235,9 +236,9 @@ export function runWarSystem(ctx: TickContext): TickContext {
         currentCtx,
         'WAR_DECLARED',
         generalId,
-        attackerCountryId,
-        defenderCountryId,
-        `${attackerCountry.name} declared war on ${defenderCountry.name}!`,
+        attackerPolityId,
+        defenderPolityId,
+        `${attackerPolity.name} declared war on ${defenderPolity.name}!`,
       )
 
       const { value: warRoll, rng: warRng } = randomFloat(currentCtx.rng)
@@ -247,7 +248,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
         const maxToTake = Math.min(
           currentCtx.config.maxProvincesPerWar,
           borderProvinceIds.length,
-          Math.floor(attackerCountry.treasury / currentCtx.config.warCostPerProvince),
+          Math.floor(attackerPolity.treasury / currentCtx.config.warCostPerProvince),
         )
         const effectiveMaxToTake = maxToTake < 1 ? 1 : maxToTake
         const { value: numToTake, rng: intRng } = randomInt(currentCtx.rng, 1, effectiveMaxToTake)
@@ -256,24 +257,24 @@ export function runWarSystem(ctx: TickContext): TickContext {
         const provincesToTake = borderProvinceIds.slice(0, numToTake)
         const totalCost = provincesToTake.length * currentCtx.config.warCostPerProvince
 
-        const newAttackerTreasury = Math.max(0, attackerCountry.treasury - totalCost)
-        const treasuryUpdatedAttacker = { ...attackerCountry, treasury: newAttackerTreasury }
+        const newAttackerTreasury = Math.max(0, attackerPolity.treasury - totalCost)
+        const treasuryUpdatedAttacker = { ...attackerPolity, treasury: newAttackerTreasury }
         currentCtx = {
           ...currentCtx,
           state: {
             ...currentCtx.state,
-            countries: {
-              ...currentCtx.state.countries,
-              [attackerCountryId]: treasuryUpdatedAttacker,
+            polities: {
+              ...currentCtx.state.polities,
+              [attackerPolityId]: treasuryUpdatedAttacker,
             },
           },
         }
 
         const rulerHouseId =
-          getCountryRulerHouse(currentState, attackerCountryId) ??
-          attackerCountry.houseIds.find((hid) => {
+          getPolityLeaderHouse(currentState, attackerPolityId) ??
+          getPolityHouseIds(currentState, attackerPolityId).find((hid) => {
             const h = currentState.houses[hid]
-            return h?.active && (h.countryId as string) === (attackerCountryId as string)
+            return h?.active && getHousePrimaryPolityId(currentState, hid) === attackerPolityId
           })
         if (!rulerHouseId) {
           continue
@@ -349,10 +350,10 @@ export function runWarSystem(ctx: TickContext): TickContext {
             continue
           }
 
-          const tResult = transferProvinceToCountry(
+          const tResult = transferProvinceToPolity(
             currentCtx.state,
             provinceId,
-            attackerCountryId,
+            attackerPolityId,
             rulerHouseId,
           )
           if (!tResult.ok) continue
@@ -362,19 +363,19 @@ export function runWarSystem(ctx: TickContext): TickContext {
           currentCtx = emitProvinceConquered(
             currentCtx,
             generalId,
-            attackerCountryId,
-            defenderCountryId,
+            attackerPolityId,
+            defenderPolityId,
             rulerHouseId,
             provinceId,
             provinceName,
-            attackerCountry.name,
+            attackerPolity.name,
           )
         }
 
         {
           let winnerState = currentCtx.state
-          winnerState = adjustCountryLegacyPrestige(winnerState, attackerCountryId, 3)
-          const winnerRulerHouseId = getCountryRulerHouse(winnerState, attackerCountryId)
+          winnerState = adjustPolityLegacyPrestige(winnerState, attackerPolityId, 3)
+          const winnerRulerHouseId = getPolityLeaderHouse(winnerState, attackerPolityId)
           if (winnerRulerHouseId) {
             winnerState = adjustHouseLegacyPrestige(winnerState, winnerRulerHouseId, 2)
           }
@@ -383,20 +384,20 @@ export function runWarSystem(ctx: TickContext): TickContext {
         }
 
         {
-          const defenderCheck = currentCtx.state.countries[defenderCountryId]
+          const defenderCheck = currentCtx.state.polities[defenderPolityId]
           if (defenderCheck) {
             const capProv = currentCtx.state.provinces[defenderCheck.capitalProvinceId]
-            if (!capProv || capProv.countryId !== defenderCountryId) {
+            if (!capProv || capProv.polityId !== defenderPolityId) {
               const newCap = Object.values(currentCtx.state.provinces).find(
-                (p) => p.countryId === defenderCountryId,
+                (p) => p?.polityId === defenderPolityId,
               )
               currentCtx = {
                 ...currentCtx,
                 state: {
                   ...currentCtx.state,
-                  countries: {
-                    ...currentCtx.state.countries,
-                    [defenderCountryId]: {
+                  polities: {
+                    ...currentCtx.state.polities,
+                    [defenderPolityId]: {
                       ...defenderCheck,
                       capitalProvinceId: newCap?.id ?? ('' as ProvinceId),
                     },
@@ -408,27 +409,27 @@ export function runWarSystem(ctx: TickContext): TickContext {
         }
 
         currentState = currentCtx.state
-        const defenderAfterTransfers = currentState.countries[defenderCountryId]
+        const defenderAfterTransfers = currentState.polities[defenderPolityId]
         if (defenderAfterTransfers) {
           const defenderNonSeatProvinceCount = Object.values(currentState.provinces).filter((p) => {
-            if (p.countryId !== defenderCountryId) return false
+            if (p?.polityId !== defenderPolityId) return false
             const ownerHouse = currentState.houses[p.ownerHouseId]
             return ownerHouse?.seatProvinceId !== p.id
           }).length
           if (defenderNonSeatProvinceCount === 0) {
             currentCtx = {
               ...currentCtx,
-              state: annexCountry(currentCtx.state, defenderCountryId, attackerCountryId),
+              state: annexPolity(currentCtx.state, defenderPolityId, attackerPolityId),
             }
 
             const attackerName =
-              currentCtx.state.countries[attackerCountryId]?.name ?? attackerCountry.name
+              currentCtx.state.polities[attackerPolityId]?.name ?? attackerPolity.name
             const defenderName = defenderAfterTransfers.name
-            currentCtx = emitCountryAnnexed(
+            currentCtx = emitPolityAnnexed(
               currentCtx,
               generalId,
-              attackerCountryId,
-              defenderCountryId,
+              attackerPolityId,
+              defenderPolityId,
               defenderName,
               attackerName,
             )
@@ -439,15 +440,15 @@ export function runWarSystem(ctx: TickContext): TickContext {
           currentCtx,
           'WAR_WON',
           generalId,
-          attackerCountryId,
-          defenderCountryId,
-          `${attackerCountry.name} won the war against ${defenderCountry.name}.`,
+          attackerPolityId,
+          defenderPolityId,
+          `${attackerPolity.name} won the war against ${defenderPolity.name}.`,
         )
 
         break
       } else {
         {
-          const currentAttacker = currentCtx.state.countries[attackerCountryId]
+          const currentAttacker = currentCtx.state.polities[attackerPolityId]
           if (currentAttacker) {
             const newTreasury = Math.max(
               0,
@@ -455,13 +456,13 @@ export function runWarSystem(ctx: TickContext): TickContext {
             )
             let loserState: WorldState = {
               ...currentCtx.state,
-              countries: {
-                ...currentCtx.state.countries,
-                [attackerCountryId]: { ...currentAttacker, treasury: newTreasury },
+              polities: {
+                ...currentCtx.state.polities,
+                [attackerPolityId]: { ...currentAttacker, treasury: newTreasury },
               },
             }
-            loserState = adjustCountryLegacyPrestige(loserState, attackerCountryId, -3)
-            const loserRulerHouseId = getCountryRulerHouse(loserState, attackerCountryId)
+            loserState = adjustPolityLegacyPrestige(loserState, attackerPolityId, -3)
+            const loserRulerHouseId = getPolityLeaderHouse(loserState, attackerPolityId)
             if (loserRulerHouseId) {
               loserState = adjustHouseLegacyPrestige(loserState, loserRulerHouseId, -2)
             }
@@ -472,7 +473,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
 
         {
           const defenderProvinceSet = new Set<ProvinceId>()
-          for (const houseId of defenderCountry.houseIds) {
+          for (const houseId of getPolityHouseIds(currentCtx.state, defenderPolityId)) {
             const h = currentCtx.state.houses[houseId]
             if (!h) continue
             for (const pid of h.provinceIds) {
@@ -482,7 +483,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
           const attackerBorderProvinces: ProvinceId[] = []
           for (const pid of Object.keys(currentCtx.state.provinces)) {
             const p = currentCtx.state.provinces[pid as ProvinceId]
-            if (!p || p.countryId !== attackerCountryId) continue
+            if (!p || p.polityId !== attackerPolityId) continue
             if (p.neighbors.some((nid) => defenderProvinceSet.has(nid))) {
               attackerBorderProvinces.push(pid as ProvinceId)
             }
@@ -525,9 +526,9 @@ export function runWarSystem(ctx: TickContext): TickContext {
           currentCtx,
           'WAR_LOST',
           generalId,
-          attackerCountryId,
-          defenderCountryId,
-          `${attackerCountry.name} lost the war against ${defenderCountry.name}.`,
+          attackerPolityId,
+          defenderPolityId,
+          `${attackerPolity.name} lost the war against ${defenderPolity.name}.`,
         )
 
         break

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
+import { createHouseId, createPersonId, createProvinceId } from '../types/ids'
 import type { House } from '../types/house'
 import type { Person } from '../types/person'
 import type { WorldState } from '../types/world'
@@ -33,7 +33,6 @@ function makePerson(overrides: Partial<Person> = {}): Person {
     age: 30,
     alive: true,
     houseId,
-    countryId: createCountryId('c', 0),
     childIds: [],
     birthStatus: 'unknown',
     abilities: DEFAULT_ABILITIES,
@@ -52,7 +51,6 @@ function makeHouse(memberIds: Person[], overrides: Partial<House> = {}): House {
     id: houseId,
     name: 'House',
     active: true,
-    countryId: createCountryId('c', 0),
     provinceIds: [],
     memberIds: memberIds.map((p) => p.id),
     cadetHouseIds: [],
@@ -68,7 +66,7 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     currentYear: 1444,
     currentMonth: 1,
     provinces: {},
-    countries: {},
+    polities: {},
     houses,
     persons,
     activePlots: {},

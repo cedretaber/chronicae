@@ -39,7 +39,7 @@ export function runLordshipTransitionSystem(ctx: TickContext): TickContext {
     for (const neighborId of target.neighbors) {
       const neighbor = provinceSnapshot[neighborId]
       if (!neighbor) continue
-      if (neighbor.countryId !== target.countryId) continue
+      if (neighbor.polityId !== target.polityId) continue
       if (neighbor.ownerHouseId === target.ownerHouseId) continue
       if (neighbor.houseControl < config.lordshipAbsorptionSourceMinimum) continue
       if (neighbor.houseControl < target.houseControl * config.lordshipAbsorptionRatio) continue
@@ -109,7 +109,7 @@ export function runLordshipTransitionSystem(ctx: TickContext): TickContext {
       importance: 'minor',
       actorIds: [],
       houseIds: [newHouseId, oldHouseId],
-      countryIds: [],
+      polityIds: [],
       provinceIds: [candidate.targetId],
       summary: `${newHouseName} absorbed ${provinceName} from ${oldHouseName}.`,
       reasons: [],

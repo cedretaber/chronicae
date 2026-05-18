@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId, createPlotId } from '../types/ids'
-import type { CountryId, HouseId, PersonId, PlotId, ProvinceId } from '../types/ids'
+import { createPolityId, createHouseId, createPersonId, createPlotId } from '../types/ids'
+import type { PolityId, HouseId, PersonId, PlotId, ProvinceId } from '../types/ids'
 import type { Plot } from '../types/plot'
 import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
@@ -19,10 +19,10 @@ function makeFixture(): {
   state: WorldState
   plotId: PlotId
   leaderId: PersonId
-  country1Id: CountryId
+  polity1Id: PolityId
   house1Id: HouseId
 } {
-  const country1Id = createCountryId('c', 0)
+  const polity1Id = createPolityId('c', 0)
   const house1Id = createHouseId('h', 0)
   const leaderId = createPersonId('pe', 0)
   const plotId = createPlotId('pl', 0)
@@ -31,11 +31,12 @@ function makeFixture(): {
     currentYear: 1444,
     currentMonth: 1,
     provinces: {},
-    countries: {
-      [country1Id]: {
-        id: country1Id,
-        name: 'Country 1',
-        houseIds: [house1Id],
+    polities: {
+      [polity1Id]: {
+        id: polity1Id,
+        name: 'Polity 1',
+        rank: 2,
+        ownerHouseId: house1Id,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
@@ -48,7 +49,6 @@ function makeFixture(): {
         id: house1Id,
         name: 'House 1',
         active: true,
-        countryId: country1Id,
         provinceIds: [],
         memberIds: [leaderId],
         cadetHouseIds: [],
@@ -65,7 +65,6 @@ function makeFixture(): {
         age: 35,
         alive: true,
         houseId: house1Id,
-        countryId: country1Id,
         childIds: [],
         birthStatus: 'legitimate',
         abilities: DEFAULT_ABILITIES,
@@ -85,7 +84,7 @@ function makeFixture(): {
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
   }
-  return { state, plotId, leaderId, country1Id, house1Id }
+  return { state, plotId, leaderId, polity1Id, house1Id }
 }
 
 function makePlot(plotId: PlotId, leaderId: PersonId): Plot {

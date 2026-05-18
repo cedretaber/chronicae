@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { WorldState } from '../types/world'
-import type { ProvinceId, HouseId, CountryId } from '../types/ids'
+import type { ProvinceId, HouseId, PolityId } from '../types/ids'
 import type { TickContext } from './context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
@@ -9,7 +9,7 @@ import { runDevelopmentSystem } from './developmentSystem'
 function makeProvinceState(development: number): WorldState {
   const provinceId = 'p-0' as ProvinceId
   const houseId = 'h-0' as HouseId
-  const countryId = 'c-0' as CountryId
+  const polityId = 'dp-0' as PolityId
 
   return {
     currentYear: 1,
@@ -22,19 +22,20 @@ function makeProvinceState(development: number): WorldState {
         y: 0,
         neighbors: [],
         ownerHouseId: houseId,
-        countryId,
+        polityId,
         habitability: 50,
         popGroupIds: [],
         development,
-        countryControl: 100,
+        polityControl: 100,
         houseControl: 100,
       },
     },
-    countries: {
-      [countryId]: {
-        id: countryId,
+    polities: {
+      [polityId]: {
+        id: polityId,
         name: 'C0',
-        houseIds: [houseId],
+        rank: 2,
+        ownerHouseId: houseId,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 50,
@@ -47,7 +48,6 @@ function makeProvinceState(development: number): WorldState {
         id: houseId,
         name: 'H0',
         active: true,
-        countryId,
         provinceIds: [provinceId],
         memberIds: [],
         cadetHouseIds: [],
@@ -79,7 +79,7 @@ function makeCtx(world: WorldState): TickContext {
     deathRolesThisTick: {},
     nextPersonIndex: 0,
     nextHouseIndex: 0,
-    nextCountryIndex: 0,
+    nextPolityIndex: 0,
   }
 }
 

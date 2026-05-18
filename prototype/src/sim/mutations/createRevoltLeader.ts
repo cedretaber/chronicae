@@ -1,6 +1,6 @@
 import type { TickContext } from '../tick/context'
 import { makePersonId } from '../tick/context'
-import type { ProvinceId, CountryId, HouseId } from '../types/ids'
+import type { ProvinceId, PolityId, HouseId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
 import type { Person } from '../types/person'
 import { randomInt } from '../rng/rng'
@@ -12,7 +12,7 @@ export function createRevoltLeader(
   params: {
     provinceId: ProvinceId
     rebelClass: PopClass
-    countryId: CountryId
+    polityId: PolityId
     houseId: HouseId
   },
 ): { person: Person; ctx: TickContext } {
@@ -30,7 +30,6 @@ export function createRevoltLeader(
     sex: 'male',
     age,
     houseId: params.houseId,
-    countryId: params.countryId,
     birthStatus: 'unknown',
     traits: { ambition: ambition / 10, caution: caution / 10 },
     legacyPrestige,

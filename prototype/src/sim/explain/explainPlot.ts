@@ -2,9 +2,10 @@ import type { WorldState } from '../types/world'
 import type { HouseId } from '../types/ids'
 import type { PlotType } from '../types/plot'
 import type { EventReason, EventEffect } from '../types/event'
-import { getHouseLoyaltyToCountry } from '../selectors/statusSelectors'
+import { getHouseLoyaltyToPolity } from '../selectors/statusSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
+import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
 export function explainPlot(
   state: WorldState,
@@ -14,8 +15,10 @@ export function explainPlot(
   const house = state.houses[houseId]
   if (!house) return { reasons: [], effects: [] }
 
-  const country = state.countries[house.countryId]
-  if (!country) return { reasons: [], effects: [] }
+  const polityId = getHousePrimaryPolityId(state, house.id)
+  if (!polityId) return { reasons: [], effects: [] }
+  const polity = state.polities[polityId]
+  if (!polity) return { reasons: [], effects: [] }
 
   const headId = getHouseLeader(state, house.id)
   if (!headId) return { reasons: [], effects: [] }
@@ -42,7 +45,7 @@ export function explainPlot(
     })
   }
 
-  const houseLoyalty = getHouseLoyaltyToCountry(state, houseId)
+  const houseLoyalty = getHouseLoyaltyToPolity(state, houseId)
   const loyaltyContribution = (100 - houseLoyalty) * 0.3
   if (loyaltyContribution > 2.0) {
     reasons.push({
@@ -52,7 +55,7 @@ export function explainPlot(
     })
   }
 
-  const headCountryAtt = getAttitudeOrDefault(state, head, { kind: 'country', id: house.countryId })
+  const headCountryAtt = getAttitudeOrDefault(state, head, { kind: 'polity', id: polityId })
   const headCountryLoyalty =
     (attitudeValueToScore(headCountryAtt.affection) * 0.55 +
       attitudeValueToScore(headCountryAtt.respect) * 0.45) /

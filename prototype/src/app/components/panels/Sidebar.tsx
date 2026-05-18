@@ -1,14 +1,15 @@
 import { useState, useMemo } from 'react'
 import { calcPersonImportanceScore } from '@sim/selectors/importanceSelectors'
-import { calcCountryMilitaryPower } from '@sim/selectors/militarySelectors'
-import { getCountryLegitimacy, getCountryStability } from '@sim/selectors/statusSelectors'
+import { calcPolityMilitaryPower } from '@sim/selectors/militarySelectors'
+import { getPolityLegitimacy, getPolityStability } from '@sim/selectors/statusSelectors'
 import type { SimEvent } from '@sim/types/event'
 import { useSimulationStore } from '@/app/stores/simulationStore'
-import type { Country } from '@/sim/types/country'
+import type { Polity } from '@/sim/types/polity'
 import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
 import type { WorldState } from '@/sim/types/world'
-import { buildCountryColorMap } from '@/app/utils/countryColors'
+import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
+import { buildPolityColorMap } from '@/app/utils/polityColors'
 import { formatScore, formatPower } from '@/app/utils/format'
 import { defaultConfig } from '@/sim/config/defaultConfig'
 
@@ -34,36 +35,36 @@ function getRecentEventCount(
       eMonths >= cutoffMonths &&
       (e.actorIds.some((id) => (id as string) === watchId) ||
         e.houseIds.some((id) => (id as string) === watchId) ||
-        e.countryIds.some((id) => (id as string) === watchId) ||
+        e.polityIds.some((id) => (id as string) === watchId) ||
         e.provinceIds.some((id) => (id as string) === watchId))
     )
   }).length
 }
 
-function inferWatchlistType(id: string): 'country' | 'house' | 'person' | null {
-  if (id.startsWith('c-')) return 'country'
+function inferWatchlistType(id: string): 'polity' | 'house' | 'person' | null {
+  if (id.startsWith('c-')) return 'polity'
   if (id.startsWith('h-')) return 'house'
   if (id.startsWith('pe-')) return 'person'
   return null
 }
 
-function CountryRow({
-  country,
+function PolityRow({
+  polity,
   color,
   militaryPower,
   isSelected,
   onClick,
   worldState,
 }: {
-  country: Country
+  polity: Polity
   color: string
   militaryPower: number
   isSelected: boolean
   onClick: () => void
   worldState: WorldState | null
 }) {
-  const legitimacy = worldState ? getCountryLegitimacy(worldState, country.id) : 50
-  const stability = worldState ? getCountryStability(worldState, defaultConfig, country.id) : 50
+  const legitimacy = worldState ? getPolityLegitimacy(worldState, polity.id) : 50
+  const stability = worldState ? getPolityStability(worldState, defaultConfig, polity.id) : 50
   return (
     <div
       className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
@@ -73,7 +74,7 @@ function CountryRow({
     >
       <div className="flex items-center gap-2">
         <span className="inline-block h-3 w-3 shrink-0 rounded-sm" style={{ background: color }} />
-        <span className="font-bold">{country.name}</span>
+        <span className="font-bold">{polity.name}</span>
       </div>
       <div className="text-gray-300">
         Leg: {formatScore(legitimacy)} | Stab: {formatScore(stability)} | Mil:{' '}
@@ -85,14 +86,14 @@ function CountryRow({
 
 function HouseRow({
   house,
-  countryName,
-  countryColor,
+  polityName,
+  polityColor,
   isSelected,
   onClick,
 }: {
   house: House
-  countryName: string
-  countryColor: string
+  polityName: string
+  polityColor: string
   isSelected: boolean
   onClick: () => void
 }) {
@@ -107,9 +108,9 @@ function HouseRow({
       <div className="flex items-center gap-1.5 text-xs text-gray-400">
         <span
           className="inline-block h-2 w-2 shrink-0 rounded-sm"
-          style={{ background: countryColor }}
+          style={{ background: polityColor }}
         />
-        <span>{countryName}</span>
+        <span>{polityName}</span>
       </div>
       <div className="text-gray-300">
         Prestige: {formatScore(house.legacyPrestige)} | Provinces: {house.provinceIds.length}
@@ -173,7 +174,7 @@ function WatchlistRow({
   onClick,
 }: {
   name: string
-  type: 'country' | 'house' | 'person'
+  type: 'polity' | 'house' | 'person'
   eventCount: number
   onRemove: () => void
   onClick: () => void
@@ -218,29 +219,29 @@ export function Sidebar() {
 
   const eventHistory = useSimulationStore((s) => s.session?.eventHistory ?? [])
 
-  const countries = session?.currentState.countries
+  const polities = session?.currentState.polities
   const houses = session?.currentState.houses
   const persons = session?.currentState.persons
 
-  const sortedCountries: Country[] = countries
-    ? Object.values(countries)
-        .filter((c) => c.active)
+  const sortedPolities: Polity[] = polities
+    ? Object.values(polities)
+        .filter((p) => p.active)
         .sort((a, b) => b.legacyPrestige - a.legacyPrestige)
     : []
 
-  const countryColorMap = useMemo(
-    () => (countries ? buildCountryColorMap(Object.keys(countries)) : {}),
-    [countries],
+  const polityColorMap = useMemo(
+    () => (polities ? buildPolityColorMap(Object.keys(polities)) : {}),
+    [polities],
   )
 
-  const countryMilitaryPowers = useMemo(() => {
+  const polityMilitaryPowers = useMemo(() => {
     if (!session?.currentState) return {}
     const state = session.currentState
     const worldState: WorldState = {
       currentYear: state.currentYear,
       currentMonth: state.currentMonth,
       provinces: state.provinces,
-      countries: state.countries,
+      polities: state.polities,
       houses: state.houses,
       persons: state.persons,
       activePlots: state.activePlots ?? {},
@@ -253,9 +254,9 @@ export function Sidebar() {
       nextOfficeAssignmentId: 0,
     }
     return Object.fromEntries(
-      Object.values(state.countries ?? {}).map((c) => [
-        c.id,
-        calcCountryMilitaryPower(worldState, defaultConfig, c.id),
+      Object.values(state.polities ?? {}).map((p) => [
+        p.id,
+        calcPolityMilitaryPower(worldState, defaultConfig, p.id),
       ]),
     )
   }, [session])
@@ -297,13 +298,13 @@ export function Sidebar() {
 
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'countries' &&
-          sortedCountries.map((country) => {
+          sortedPolities.map((polity) => {
             const worldState: WorldState | null = session?.currentState
               ? {
                   currentYear: session.currentState.currentYear,
                   currentMonth: session.currentState.currentMonth,
                   provinces: session.currentState.provinces,
-                  countries: session.currentState.countries,
+                  polities: session.currentState.polities,
                   houses: session.currentState.houses,
                   persons: session.currentState.persons,
                   activePlots: session.currentState.activePlots ?? {},
@@ -317,29 +318,34 @@ export function Sidebar() {
                 }
               : null
             return (
-              <CountryRow
-                key={country.id}
-                country={country}
-                color={countryColorMap[country.id] ?? '#888'}
-                militaryPower={countryMilitaryPowers[country.id] ?? 0}
-                isSelected={selectedId === country.id && selectedType === 'country'}
-                onClick={() => setSelected(country.id, 'country')}
+              <PolityRow
+                key={polity.id}
+                polity={polity}
+                color={polityColorMap[polity.id] ?? '#888'}
+                militaryPower={polityMilitaryPowers[polity.id] ?? 0}
+                isSelected={selectedId === polity.id && selectedType === 'polity'}
+                onClick={() => setSelected(polity.id, 'polity')}
                 worldState={worldState}
               />
             )
           })}
 
         {activeTab === 'houses' &&
-          sortedHouses.map((house) => (
-            <HouseRow
-              key={house.id}
-              house={house}
-              countryName={countries?.[house.countryId]?.name ?? ''}
-              countryColor={countryColorMap[house.countryId] ?? '#888'}
-              isSelected={selectedId === house.id && selectedType === 'house'}
-              onClick={() => setSelected(house.id, 'house')}
-            />
-          ))}
+          sortedHouses.map((house) => {
+            const primaryPolityId = session?.currentState
+              ? getHousePrimaryPolityId(session.currentState, house.id)
+              : undefined
+            return (
+              <HouseRow
+                key={house.id}
+                house={house}
+                polityName={primaryPolityId ? (polities?.[primaryPolityId]?.name ?? '') : ''}
+                polityColor={primaryPolityId ? (polityColorMap[primaryPolityId] ?? '#888') : '#888'}
+                isSelected={selectedId === house.id && selectedType === 'house'}
+                onClick={() => setSelected(house.id, 'house')}
+              />
+            )
+          })}
 
         {activeTab === 'persons' &&
           sortedPersons.map(({ person, score }) => (
@@ -358,8 +364,8 @@ export function Sidebar() {
             if (!type) return null
 
             let name = watchId
-            if (type === 'country' && countries) {
-              const found = Object.values(countries).find((c) => c.id === watchId)
+            if (type === 'polity' && polities) {
+              const found = Object.values(polities).find((p) => p.id === watchId)
               if (found) name = found.name
             } else if (type === 'house' && houses) {
               const found = Object.values(houses).find((h) => h.id === watchId)

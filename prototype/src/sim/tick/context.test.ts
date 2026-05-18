@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { WorldState } from '../types/world'
-import type { HouseId, CountryId, PersonId, EventId } from '../types/ids'
+import type { HouseId, PersonId, EventId } from '../types/ids'
 import type { Person } from '../types/person'
 import { createTickContext, makeEventId, makePersonId, toResult } from './context'
 import { createRng } from '../rng/rng'
@@ -25,7 +25,6 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
       age: 30,
       alive: true,
       houseId: 'h-0' as HouseId,
-      countryId: 'c-0' as CountryId,
       childIds: [],
       birthStatus: 'unknown',
       abilities: DEFAULT_ABILITIES,
@@ -40,7 +39,7 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
     currentYear: 1,
     currentMonth: 1,
     provinces: {},
-    countries: {},
+    polities: {},
     houses: {},
     persons,
     activePlots: {},
@@ -165,7 +164,7 @@ describe('toResult', () => {
       importance: 'minor',
       actorIds: [],
       houseIds: [],
-      countryIds: [],
+      polityIds: [],
       provinceIds: [],
       summary: 'test',
       reasons: [],

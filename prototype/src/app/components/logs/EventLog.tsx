@@ -39,7 +39,7 @@ const EVENT_ICON: Partial<Record<EventType, string>> = {
   PROVINCE_REVOLT_SUCCEEDED: '🔥',
   PROVINCE_REVOLT_FAILED: '🔥',
   LORDSHIP_USURPED: '🔥',
-  REVOLT_COUNTRY_FOUNDED: '🔥',
+  REVOLT_POLITY_FOUNDED: '🔥',
   MONUMENT_BUILT: '▲',
   PERSON_DIED: '✝',
   IMPORTANT_PERSON_DIED: '✝',
@@ -49,10 +49,10 @@ const EVENT_ICON: Partial<Record<EventType, string>> = {
   MARRIAGE_FORMED: '◇',
   HOUSE_LEADER_CHANGED: '♛',
   SUCCESSION_CRISIS: '♛',
-  RULER_CHANGED: '♛',
+  POLITY_LEADER_CHANGED: '♛',
   HOUSE_EXTINCT: '♛',
-  COUNTRY_ANNEXED: '♛',
-  COUNTRY_SPLIT: '♛',
+  POLITY_ANNEXED: '♛',
+  POLITY_SPLIT: '♛',
   FAMINE: '⚠',
   PLAGUE: '⚠',
   DISASTER_RELIEF_FAILED: '⚠',
@@ -74,7 +74,7 @@ function isWatchlistRelated(event: SimEvent, watchlist: string[]): boolean {
   return (
     event.actorIds.some((id) => watchlist.includes(id)) ||
     event.houseIds.some((id) => watchlist.includes(id)) ||
-    event.countryIds.some((id) => watchlist.includes(id)) ||
+    event.polityIds.some((id) => watchlist.includes(id)) ||
     event.provinceIds.some((id) => watchlist.includes(id))
   )
 }

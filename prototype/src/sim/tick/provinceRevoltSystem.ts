@@ -2,7 +2,7 @@ import type { TickContext } from './context'
 import { makeEventId, makePersonId, makeHouseId } from './context'
 import { clamp } from '../utils/math'
 import { randomFloat, randomInt } from '../rng/rng'
-import type { ProvinceId, HouseId, CountryId, PersonId } from '../types/ids'
+import type { ProvinceId, HouseId, PolityId, PersonId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
 import type { SimEvent } from '../types/event'
 import type { Person } from '../types/person'
@@ -11,7 +11,7 @@ import { getProvincePopulationPressure } from '../selectors/popSelectors'
 import { getPopWealthByClass } from '../selectors/popSelectors'
 import { getProvinceProduction } from '../selectors/popEconomySelectors'
 import {
-  getProvinceCountryManpowerBase,
+  getProvinceManpowerBase,
   getProvinceHouseManpowerBase,
 } from '../selectors/popEconomySelectors'
 import {
@@ -29,11 +29,12 @@ import {
 import {
   getAttitudeOrDefault,
   attitudeValueToScore,
-  adjustCountryLegacyPrestige,
+  adjustPolityLegacyPrestige,
 } from '../helpers/attitudeHelpers'
 import { adjustPopAttitude } from '../mutations/attitudeMutations'
-import { getCountryLegitimacy, getCountryStability } from '../selectors/statusSelectors'
-import { getCountryRulerHouse } from '../selectors/officeSelectors'
+import { getPolityLegitimacy, getPolityStability } from '../selectors/statusSelectors'
+import { getPolityLeaderHouse } from '../selectors/officeSelectors'
+import { getPolityHouseIds } from '../selectors/polityRelations'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 import { foundRevoltCountry } from '../mutations/worldStructureMutations'
 import { samplePerson } from '../helpers/personFactory'
@@ -55,8 +56,8 @@ function calcRevoltTendency(
   const province = state.provinces[provinceId]
   if (!province) return 0
 
-  const country = state.countries[province.countryId]
-  if (!country) return 0
+  const polity = state.polities[province.polityId]
+  if (!polity) return 0
 
   const ownerHouse = state.houses[province.ownerHouseId]
   if (!ownerHouse) return 0
@@ -73,8 +74,8 @@ function calcRevoltTendency(
   let tendency =
     pop.unrest * config.provinceRevoltUnrestFactor +
     (100 - province.houseControl) * config.provinceRevoltLowHouseControlFactor +
-    (100 - province.countryControl) * config.provinceRevoltLowCountryControlFactor -
-    getCountryStability(state, config, province.countryId) *
+    (100 - province.polityControl) * config.provinceRevoltLowCountryControlFactor -
+    getPolityStability(state, config, province.polityId) *
       config.provinceRevoltStabilitySuppressionFactor
 
   if (rebelClass === 'peasants') {
@@ -92,19 +93,17 @@ function calcRevoltTendency(
         config.townsmenRevoltProductionFactor
     }
   } else if (rebelClass === 'nobles') {
-    // Use the nobles pop's attitudes toward house and country
+    // Use the nobles pop's attitudes toward house and polity
     const a_house = getAttitudeOrDefault(state, pop, { kind: 'house', id: province.ownerHouseId })
-    const a_country = getAttitudeOrDefault(state, pop, { kind: 'country', id: province.countryId })
+    const a_polity = getAttitudeOrDefault(state, pop, { kind: 'polity', id: province.polityId })
     const houseScore =
       attitudeValueToScore(a_house.affection) * 0.6 + attitudeValueToScore(a_house.respect) * 0.4
-    const countryScore =
-      attitudeValueToScore(a_country.affection) * 0.6 +
-      attitudeValueToScore(a_country.respect) * 0.4
-    const nobleDisloyalty = 100 - (0.5 * houseScore + 0.5 * countryScore)
+    const polityScore =
+      attitudeValueToScore(a_polity.affection) * 0.6 + attitudeValueToScore(a_polity.respect) * 0.4
+    const nobleDisloyalty = 100 - (0.5 * houseScore + 0.5 * polityScore)
     tendency += nobleDisloyalty * config.nobleRevoltHouseDisloyaltyFactor
     tendency +=
-      (100 - getCountryLegitimacy(state, province.countryId)) *
-      config.nobleRevoltLowLegitimacyFactor
+      (100 - getPolityLegitimacy(state, province.polityId)) * config.nobleRevoltLowLegitimacyFactor
   }
 
   return tendency
@@ -118,8 +117,8 @@ function collectCandidates(ctx: TickContext): RevoltCandidate[] {
     const province = ctx.state.provinces[provinceId as ProvinceId]
     if (!province) continue
 
-    const country = ctx.state.countries[province.countryId]
-    if (!country || !country.active) continue
+    const polity = ctx.state.polities[province.polityId]
+    if (!polity || !polity.active) continue
 
     const ownerHouse = ctx.state.houses[province.ownerHouseId]
     if (!ownerHouse || !ownerHouse.active) continue
@@ -156,8 +155,8 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
   const province = ctx.state.provinces[provinceId]
   if (!province) return ctx
 
-  const country = ctx.state.countries[province.countryId]
-  if (!country || !country.active) return ctx
+  const polity = ctx.state.polities[province.polityId]
+  if (!polity || !polity.active) return ctx
 
   const ownerHouse = ctx.state.houses[province.ownerHouseId]
   if (!ownerHouse || !ownerHouse.active) return ctx
@@ -184,7 +183,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
     importance: 'normal',
     actorIds: [],
     houseIds: [province.ownerHouseId],
-    countryIds: [province.countryId],
+    polityIds: [province.polityId],
     provinceIds: [provinceId],
     summary: `A ${rebelClass} revolt has started in ${province.name}!`,
     reasons: [],
@@ -210,12 +209,12 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
     getProvinceHouseManpowerBase(ctx.state, config, provinceId) *
     config.provinceRevoltHouseSuppressionFactor
 
-  const countryPower =
-    getProvinceCountryManpowerBase(ctx.state, config, provinceId) *
+  const polityPower =
+    getProvinceManpowerBase(ctx.state, config, provinceId) *
     config.provinceRevoltCountrySuppressionFactor
 
-  let suppressionPower = ownerHousePower + countryPower
-  suppressionPower += Math.log1p(country.treasury) * config.provinceRevoltTreasurySuppressionFactor
+  let suppressionPower = ownerHousePower + polityPower
+  suppressionPower += Math.log1p(polity.treasury) * config.provinceRevoltTreasurySuppressionFactor
   suppressionPower +=
     Math.log1p(ownerHouse.wealth) * config.provinceRevoltHouseWealthSuppressionFactor
 
@@ -226,7 +225,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
 
   if (successRoll >= successChance) {
     // Revolt FAILED
-    return resolveRevoltFailure(ctx, provinceId, rebelClass, province.countryId)
+    return resolveRevoltFailure(ctx, provinceId, rebelClass, province.polityId)
   }
 
   // Revolt SUCCEEDED — determine outcome
@@ -234,7 +233,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
 
   const canBecomeIndependent =
     rebelClass === 'nobles' &&
-    province.countryControl <= config.provinceRevoltIndependenceCountryControlMax &&
+    province.polityControl <= config.provinceRevoltIndependenceCountryControlMax &&
     province.houseControl <= config.provinceRevoltIndependenceHouseControlMax &&
     successMargin >= config.provinceRevoltIndependenceSuccessMargin
 
@@ -254,13 +253,13 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
       ctx,
       provinceId,
       rebelClass,
-      province.countryId,
+      province.polityId,
       province.ownerHouseId,
     )
   } else if (outcome === 'lordship_change') {
-    return resolveRevoltLordshipChange(ctx, provinceId, rebelClass, province.countryId)
+    return resolveRevoltLordshipChange(ctx, provinceId, rebelClass, province.polityId)
   } else {
-    return resolveRevoltIndependence(ctx, provinceId, rebelClass, province.countryId)
+    return resolveRevoltIndependence(ctx, provinceId, rebelClass, province.polityId)
   }
 }
 
@@ -268,7 +267,7 @@ function resolveRevoltFailure(
   ctx: TickContext,
   provinceId: ProvinceId,
   rebelClass: PopClass,
-  countryId: CountryId,
+  polityId: PolityId,
 ): TickContext {
   const config = ctx.config
 
@@ -314,10 +313,10 @@ function resolveRevoltFailure(
     config.provinceRevoltSuppressionCollateralUnrestGain,
   )
 
-  // Country gains legacyPrestige
-  const country = newState.countries[countryId]
-  if (country) {
-    const stateWithLegitimacy = adjustCountryLegacyPrestige(newState, countryId, 1)
+  // Polity gains legacyPrestige
+  const polity = newState.polities[polityId]
+  if (polity) {
+    const stateWithLegitimacy = adjustPolityLegacyPrestige(newState, polityId, 1)
     newState = stateWithLegitimacy
   }
 
@@ -334,7 +333,7 @@ function resolveRevoltFailure(
     importance: 'normal',
     actorIds: [],
     houseIds: [],
-    countryIds: [countryId],
+    polityIds: [polityId],
     provinceIds: [provinceId],
     summary: `The ${rebelClass} revolt in ${province2?.name ?? provinceId} has been suppressed.`,
     reasons: [],
@@ -347,7 +346,7 @@ function resolveRevoltConcession(
   ctx: TickContext,
   provinceId: ProvinceId,
   rebelClass: PopClass,
-  countryId: CountryId,
+  polityId: PolityId,
   ownerHouseId: HouseId,
 ): TickContext {
   const config = ctx.config
@@ -363,8 +362,8 @@ function resolveRevoltConcession(
         ...newState.provinces,
         [provinceId]: {
           ...province,
-          countryControl: clamp(
-            province.countryControl - config.provinceRevoltConcessionCountryControlLoss,
+          polityControl: clamp(
+            province.polityControl - config.provinceRevoltConcessionCountryControlLoss,
             0,
             100,
           ),
@@ -386,7 +385,7 @@ function resolveRevoltConcession(
     -config.provinceRevoltConcessionUnrestReduction,
   )
 
-  // Rebel POP → Country: respect -4, affection +2
+  // Rebel POP → Polity: respect -4, affection +2
   const currentProvince = newState.provinces[provinceId]
   const rebelPop = (() => {
     for (const popId of currentProvince?.popGroupIds ?? []) {
@@ -399,7 +398,7 @@ function resolveRevoltConcession(
     const r = adjustPopAttitude(
       newState,
       rebelPop.id,
-      { kind: 'country', id: countryId },
+      { kind: 'polity', id: polityId },
       { respect: -4, affection: 2 },
     )
     if (r.ok) newState = r.value
@@ -433,7 +432,7 @@ function resolveRevoltConcession(
     importance: 'major',
     actorIds: [],
     houseIds: [ownerHouseId],
-    countryIds: [countryId],
+    polityIds: [polityId],
     provinceIds: [provinceId],
     summary: `${rebelClass} revolt in ${province2?.name ?? provinceId} forced concessions.`,
     reasons: [],
@@ -446,7 +445,7 @@ function resolveRevoltLordshipChange(
   ctx: TickContext,
   provinceId: ProvinceId,
   rebelClass: PopClass,
-  countryId: CountryId,
+  polityId: PolityId,
 ): TickContext {
   const config = ctx.config
   const state = ctx.state
@@ -458,8 +457,8 @@ function resolveRevoltLordshipChange(
   const oldOwnerHouse = state.houses[oldOwnerHouseId]
   if (!oldOwnerHouse) return ctx
 
-  const country = state.countries[countryId]
-  if (!country) return ctx
+  const polity = state.polities[polityId]
+  if (!polity) return ctx
 
   // Pre-generate IDs for the new leader and house
   const { id: newPersonId, ctx: ctx1 } = makePersonId(ctx)
@@ -484,7 +483,6 @@ function resolveRevoltLordshipChange(
     sex: 'male',
     age,
     houseId: newHouseId,
-    countryId,
     birthStatus: 'unknown',
     traits: { ambition: ambition / 10, caution: caution / 10 },
     legacyPrestige,
@@ -510,7 +508,6 @@ function resolveRevoltLordshipChange(
     id: newHouseId,
     name: houseName2,
     active: true,
-    countryId,
     provinceIds: [],
     memberIds: [newPersonId],
     founderId: newPersonId,
@@ -525,11 +522,11 @@ function resolveRevoltLordshipChange(
     ...ctx.state,
     persons: { ...ctx.state.persons, [newPersonId]: newLeader },
     houses: { ...ctx.state.houses, [newHouseId]: newHouse },
-    countries: {
-      ...ctx.state.countries,
-      [countryId]: {
-        ...country,
-        houseIds: [...country.houseIds, newHouseId],
+    polities: {
+      ...ctx.state.polities,
+      [polityId]: {
+        ...polity,
+        houseIds: [...getPolityHouseIds(ctx.state, polityId), newHouseId],
       },
     },
   }
@@ -556,8 +553,8 @@ function resolveRevoltLordshipChange(
         [provinceId]: {
           ...updatedProvince,
           houseControl: config.provinceRevoltNewHouseControl,
-          countryControl: Math.max(
-            updatedProvince.countryControl - config.provinceRevoltLordshipChangeCountryControlLoss,
+          polityControl: Math.max(
+            updatedProvince.polityControl - config.provinceRevoltLordshipChangeCountryControlLoss,
             0,
           ),
         },
@@ -569,8 +566,8 @@ function resolveRevoltLordshipChange(
   const updatedOldHouse = newState.houses[oldOwnerHouseId]
   if (updatedOldHouse && updatedOldHouse.provinceIds.length === 0) {
     // If the old owner was the ruler, transfer rulership to the new house
-    const isOldOwnerRuler = getCountryRulerHouse(state, countryId) === oldOwnerHouseId
-    const targetHouseId = isOldOwnerRuler ? newHouseId : getCountryRulerHouse(state, countryId)
+    const isOldOwnerRuler = getPolityLeaderHouse(state, polityId) === oldOwnerHouseId
+    const targetHouseId = isOldOwnerRuler ? newHouseId : getPolityLeaderHouse(state, polityId)
     if (targetHouseId === undefined) return ctx
     const targetHouse = newState.houses[targetHouseId]
     const updatedPersons: Record<PersonId, Person> = { ...newState.persons }
@@ -593,22 +590,22 @@ function resolveRevoltLordshipChange(
       updatedHouses[targetHouseId] = { ...targetHouse, memberIds: targetMemberIds }
     }
 
-    const updatedCountry = newState.countries[countryId]
+    const updatedPolity = newState.polities[polityId]
     newState = {
       ...newState,
       persons: updatedPersons,
       houses: updatedHouses,
-      countries: updatedCountry
+      polities: updatedPolity
         ? {
-            ...newState.countries,
-            [countryId]: {
-              ...updatedCountry,
-              houseIds: updatedCountry.houseIds.filter(
+            ...newState.polities,
+            [polityId]: {
+              ...updatedPolity,
+              houseIds: getPolityHouseIds(newState, polityId).filter(
                 (hid) => (hid as string) !== (oldOwnerHouseId as string),
               ),
             },
           }
-        : newState.countries,
+        : newState.polities,
     }
 
     // Emit HOUSE_EXTINCT event
@@ -622,7 +619,7 @@ function resolveRevoltLordshipChange(
       importance: 'major',
       actorIds: [],
       houseIds: [oldOwnerHouseId],
-      countryIds: [countryId],
+      polityIds: [polityId],
       provinceIds: [provinceId],
       summary: `${oldOwnerHouse.name} has fallen from power after losing all lands.`,
       reasons: [],
@@ -662,7 +659,7 @@ function resolveRevoltLordshipChange(
     importance: 'major',
     actorIds: [newPersonId],
     houseIds: [newHouseId, oldOwnerHouseId],
-    countryIds: [countryId],
+    polityIds: [polityId],
     provinceIds: [provinceId],
     summary: `${newHouse.name} has seized lordship of ${currentProvince?.name ?? provinceId} from ${oldOwnerHouse.name}.`,
     reasons: [],
@@ -675,9 +672,9 @@ function resolveRevoltIndependence(
   ctx: TickContext,
   provinceId: ProvinceId,
   rebelClass: PopClass,
-  oldCountryId: CountryId,
+  oldPolityId: PolityId,
 ): TickContext {
-  const result = foundRevoltCountry(ctx, { provinceId, rebelClass, oldCountryId })
+  const result = foundRevoltCountry(ctx, { provinceId, rebelClass, oldPolityId })
   if (!result.ok) return ctx
   return result.value.ctx
 }

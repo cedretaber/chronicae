@@ -207,13 +207,13 @@ export function ConfigPanel() {
             onChange={(v) => setConfig({ developmentNegativeMonthlyRecovery: v })}
           />
           <ConfigRow
-            label="Country Dev Cost"
-            value={config.countryLandDevelopmentBaseCost}
+            label="Polity Dev Cost"
+            value={config.polityLandDevelopmentBaseCost}
             min={30}
             max={200}
             step={10}
-            displayValue={String(config.countryLandDevelopmentBaseCost)}
-            onChange={(v) => setConfig({ countryLandDevelopmentBaseCost: v })}
+            displayValue={String(config.polityLandDevelopmentBaseCost)}
+            onChange={(v) => setConfig({ polityLandDevelopmentBaseCost: v })}
           />
           <ConfigRow
             label="House Dev Cost"
@@ -272,12 +272,12 @@ export function ConfigPanel() {
           />
           <ConfigRow
             label="Monument Control Gain"
-            value={config.monumentCountryControlGain}
+            value={config.monumentPolityControlGain}
             min={5}
             max={20}
             step={5}
-            displayValue={String(config.monumentCountryControlGain)}
-            onChange={(v) => setConfig({ monumentCountryControlGain: v })}
+            displayValue={String(config.monumentPolityControlGain)}
+            onChange={(v) => setConfig({ monumentPolityControlGain: v })}
           />
           <ConfigRow
             label="Dev House Control Gain"

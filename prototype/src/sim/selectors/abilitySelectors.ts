@@ -12,6 +12,7 @@ import {
   ABILITY_AGE_CURVES,
 } from '../constants/abilityConstants'
 import type { RngResult } from '../rng/rng'
+import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
 
 export type AppliedRoleKey = 'governance' | 'stewardship' | 'diplomacy' | 'intrigue' | 'warCommand'
 
@@ -144,7 +145,7 @@ export function hadRelevantExperience(
       if (k === 'numeracy' || k === 'learning') return true
     }
     if (office.role === 'military') {
-      if (org.kind === 'country') {
+      if (org.kind === 'polity') {
         // general: command, learning
         if (k === 'command' || k === 'learning') return true
       } else {
@@ -157,7 +158,7 @@ export function hadRelevantExperience(
         // house leader: command, charisma, insight
         if (k === 'command' || k === 'charisma' || k === 'insight') return true
       } else {
-        // country leader: command, charisma, insight, learning
+        // polity leader: command, charisma, insight, learning
         if (k === 'command' || k === 'charisma' || k === 'insight' || k === 'learning') return true
       }
     }
@@ -170,12 +171,14 @@ export function hadRelevantExperience(
     }
   }
 
-  // Check if country is at war (valor, command experience)
+  // Check if person's primary polity is at war (valor, command experience)
   if (k === 'valor' || k === 'command') {
-    const country = state.countries[person.countryId]
-    if (country && country.lastWarMonth !== undefined) {
+    const polityId = getPersonPrimaryPolityId(state, personId)
+    if (!polityId) return false
+    const polity = state.polities[polityId]
+    if (polity && polity.lastWarMonth !== undefined) {
       const currentAbsoluteMonth = state.currentYear * 12 + state.currentMonth
-      const monthsSinceWar = currentAbsoluteMonth - country.lastWarMonth
+      const monthsSinceWar = currentAbsoluteMonth - polity.lastWarMonth
       if (monthsSinceWar <= 12) return true
     }
   }

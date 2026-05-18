@@ -31,9 +31,6 @@ export function pickNameBySex(
   return pickName(sex === 'male' ? MALE_NAMES : FEMALE_NAMES, rng)
 }
 
-export function countryNamePool(): string[] {
-  return COUNTRY_NAMES
-}
 export function houseNamePool(): string[] {
   return HOUSE_NAMES
 }
@@ -46,12 +43,15 @@ export function femaleNamePool(): string[] {
 export function provinceNamePool(): string[] {
   return PROVINCE_NAMES
 }
+export function polityNamePool(): string[] {
+  return COUNTRY_NAMES
+}
 
 // Keep old functions for fallback use only
 export function provinceName(index: number): string {
   return `Province-${index}`
 }
-export function countryName(index: number): string {
+export function polityName(index: number): string {
   return `Country-${index}`
 }
 export function houseName(index: number): string {

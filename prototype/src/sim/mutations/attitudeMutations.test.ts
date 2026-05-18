@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId } from '../types/ids'
-import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import { createPolityId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
+import type { PolityId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import { adjustHouseMembersAttitude } from './attitudeMutations'
@@ -20,27 +20,45 @@ function makeFixture(): {
   person1Id: PersonId
   person2Id: PersonId
   houseId: HouseId
-  countryId: CountryId
+  polityId: PolityId
+  provinceId: ProvinceId
 } {
   const person1Id = createPersonId('pe', 0)
   const person2Id = createPersonId('pe', 1)
   const houseId = createHouseId('h', 0)
-  const countryId = createCountryId('c', 0)
+  const polityId = createPolityId('c', 0)
+  const provinceId = createProvinceId('p', 0)
 
   const state: WorldState = {
     currentYear: 1444,
     currentMonth: 1,
-    provinces: {},
-    countries: {
-      [countryId]: {
-        id: countryId,
-        name: 'Country 1',
-        houseIds: [houseId],
+    provinces: {
+      [provinceId]: {
+        id: provinceId,
+        name: 'Test Province',
+        x: 0,
+        y: 0,
+        neighbors: [],
+        ownerHouseId: houseId,
+        polityId: polityId,
+        habitability: 50,
+        popGroupIds: [],
+        development: 10,
+        polityControl: 100,
+        houseControl: 100,
+      },
+    },
+    polities: {
+      [polityId]: {
+        id: polityId,
+        name: 'Polity 1',
+        rank: 2,
+        ownerHouseId: houseId,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 10,
         active: true,
-        capitalProvinceId: '' as ProvinceId,
+        capitalProvinceId: provinceId,
       },
     },
     houses: {
@@ -48,13 +66,12 @@ function makeFixture(): {
         id: houseId,
         name: 'House 1',
         active: true,
-        countryId: countryId,
-        provinceIds: [],
+        provinceIds: [provinceId],
         memberIds: [person1Id, person2Id],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,
-        seatProvinceId: '' as ProvinceId,
+        seatProvinceId: provinceId,
       },
     },
     persons: {
@@ -65,7 +82,6 @@ function makeFixture(): {
         age: 30,
         alive: true,
         houseId: houseId,
-        countryId: countryId,
         childIds: [],
         birthStatus: 'legitimate' as const,
         abilities: DEFAULT_ABILITIES,
@@ -82,7 +98,6 @@ function makeFixture(): {
         age: 28,
         alive: false,
         houseId: houseId,
-        countryId: countryId,
         childIds: [],
         birthStatus: 'legitimate' as const,
         abilities: DEFAULT_ABILITIES,
@@ -102,7 +117,7 @@ function makeFixture(): {
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
   }
-  return { state, person1Id, person2Id, houseId, countryId }
+  return { state, person1Id, person2Id, houseId, polityId, provinceId }
 }
 
 describe('adjustHouseMembersAttitude', () => {

@@ -2,7 +2,7 @@ import type { WorldState } from '../types/world'
 import type { RngState } from '../rng/rng'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { SimEvent } from '../types/event'
-import type { EventId, PersonId, HouseId, CountryId } from '../types/ids'
+import type { EventId, PersonId, HouseId, PolityId } from '../types/ids'
 
 export type TickInput = {
   state: WorldState
@@ -18,7 +18,7 @@ export type TickResult = {
 
 export type DeathRoleInfo = {
   readonly wasHouseLeader: boolean
-  readonly wasCountryLeader: boolean
+  readonly wasPolityLeader: boolean
 }
 
 export type TickContext = {
@@ -29,7 +29,7 @@ export type TickContext = {
   readonly nextEventIndex: number
   readonly nextPersonIndex: number
   readonly nextHouseIndex: number
-  readonly nextCountryIndex: number
+  readonly nextPolityIndex: number
   readonly deathsThisTick: readonly PersonId[]
   readonly deathRolesThisTick: Readonly<Record<string, DeathRoleInfo>>
 }
@@ -50,11 +50,11 @@ export function createTickContext(input: TickInput): TickContext {
     const n = parseInt(houseId.slice(3), 10)
     if (!isNaN(n) && n > maxHouseIndex) maxHouseIndex = n
   }
-  let maxCountryIndex = -1
-  for (const countryId of Object.keys(input.state.countries).sort()) {
-    if (!countryId.startsWith('dc-')) continue
-    const n = parseInt(countryId.slice(3), 10)
-    if (!isNaN(n) && n > maxCountryIndex) maxCountryIndex = n
+  let maxPolityIndex = -1
+  for (const polityId of Object.keys(input.state.polities).sort()) {
+    if (!polityId.startsWith('dp-')) continue
+    const n = parseInt(polityId.slice(3), 10)
+    if (!isNaN(n) && n > maxPolityIndex) maxPolityIndex = n
   }
   return {
     state: input.state,
@@ -64,7 +64,7 @@ export function createTickContext(input: TickInput): TickContext {
     nextEventIndex: 0,
     nextPersonIndex: maxPersonIndex + 1,
     nextHouseIndex: maxHouseIndex + 1,
-    nextCountryIndex: maxCountryIndex + 1,
+    nextPolityIndex: maxPolityIndex + 1,
     deathsThisTick: [],
     deathRolesThisTick: {},
   }
@@ -93,7 +93,7 @@ export function makeHouseId(ctx: TickContext): { id: HouseId; ctx: TickContext }
   return { id, ctx: { ...ctx, nextHouseIndex: ctx.nextHouseIndex + 1 } }
 }
 
-export function makeCountryId(ctx: TickContext): { id: CountryId; ctx: TickContext } {
-  const id = `dc-${ctx.nextCountryIndex}` as CountryId
-  return { id, ctx: { ...ctx, nextCountryIndex: ctx.nextCountryIndex + 1 } }
+export function makePolityId(ctx: TickContext): { id: PolityId; ctx: TickContext } {
+  const id = `dp-${ctx.nextPolityIndex}` as PolityId
+  return { id, ctx: { ...ctx, nextPolityIndex: ctx.nextPolityIndex + 1 } }
 }

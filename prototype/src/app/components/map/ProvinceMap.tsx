@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import { ReactFlow, Controls, type Node, type Edge, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useSimulationStore } from '@/app/stores/simulationStore'
-import { buildCountryColorMap } from '@/app/utils/countryColors'
-import type { CountryId, HouseId, ProvinceId } from '@/sim/types/ids'
+import { buildPolityColorMap } from '@/app/utils/polityColors'
+import type { PolityId, HouseId, ProvinceId } from '@/sim/types/ids'
 import { getProvincePops } from '@/sim/selectors/popSelectors'
 import { ProvinceNode, type ProvinceNodeData } from './ProvinceNode'
 import { MAP_ICON_CONFIG } from '@/app/constants/mapConstants'
@@ -18,33 +18,33 @@ export function ProvinceMap() {
   const setSelected = useSimulationStore((s) => s.setSelected)
   const clearSelected = useSimulationStore((s) => s.clearSelected)
 
-  const provinces = session?.currentState.provinces
-  const countries = session?.currentState.countries
+  const polities = session?.currentState.polities
   const houses = session?.currentState.houses
+  const provinces = session?.currentState.provinces
 
-  const countryColorMap = useMemo(() => {
-    if (!countries) return {}
-    return buildCountryColorMap(Object.keys(countries))
-  }, [countries])
+  const polityColorMap = useMemo(() => {
+    if (!polities) return {}
+    return buildPolityColorMap(Object.keys(polities))
+  }, [polities])
 
   // Convert provinces to React Flow nodes
   const nodes = useMemo(() => {
     if (!provinces) return []
 
     const popGroups = session?.currentState.popGroups
-    const isCountrySelected = selectedType === 'country'
+    const isPolitySelected = selectedType === 'polity'
     const isHouseSelected = selectedType === 'house'
-    const anyEntityHighlighted = isCountrySelected || isHouseSelected
+    const anyEntityHighlighted = isPolitySelected || isHouseSelected
 
-    const selectedCountry =
-      isCountrySelected && selectedId && countries
-        ? countries[selectedId as unknown as CountryId]
+    const selectedPolity =
+      isPolitySelected && selectedId && polities
+        ? polities[selectedId as unknown as PolityId]
         : undefined
     const selectedHouse =
       isHouseSelected && selectedId && houses ? houses[selectedId as unknown as HouseId] : undefined
 
     const capitalProvinceIds = new Set<string>(
-      Object.values(countries ?? {}).map((c) => c.capitalProvinceId),
+      Object.values(polities ?? {}).map((p) => p.capitalProvinceId),
     )
     const seatProvinceIds = new Set<string>(
       Object.values(houses ?? {}).map((h) => h.seatProvinceId),
@@ -53,7 +53,7 @@ export function ProvinceMap() {
     const houseProvinceSet = new Set(
       (selectedHouse?.provinceIds ?? []).map((id: ProvinceId) => id as string),
     )
-    const capitalProvinceId = selectedCountry?.capitalProvinceId
+    const capitalProvinceId = selectedPolity?.capitalProvinceId
     const seatProvinceId = selectedHouse?.seatProvinceId
 
     return Object.values(provinces).map((province) => {
@@ -71,7 +71,7 @@ export function ProvinceMap() {
         anyEntityHighlighted &&
         province.id !== capitalProvinceId &&
         province.id !== seatProvinceId &&
-        (isCountrySelected ? province.countryId !== selectedId : !houseProvinceSet.has(province.id))
+        (isPolitySelected ? province.polityId !== selectedId : !houseProvinceSet.has(province.id))
 
       const isSelected = selectedId === province.id && selectedType === 'province'
 
@@ -84,13 +84,13 @@ export function ProvinceMap() {
           isUrban,
           isCapital,
           isSeat,
-          countryColor: countryColorMap[province.countryId] ?? '#888',
+          polityColor: polityColorMap[province.polityId] ?? '#888',
           isDimmed,
           isSelected,
         } satisfies ProvinceNodeData,
       }
     })
-  }, [provinces, countryColorMap, selectedId, selectedType, countries, houses, session])
+  }, [provinces, polityColorMap, selectedId, selectedType, polities, houses, session])
 
   // Convert province neighbors to edges (deduplicate: only when a < b)
   const edges: Edge[] = useMemo(() => {

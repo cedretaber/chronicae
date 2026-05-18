@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createCountryId, createHouseId, createPersonId } from '../types/ids'
-import type { CountryId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import { createPolityId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
+import type { PolityId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { createCountryFromHouse } from './countryMutations'
+import { createPolityFromHouse } from './polityMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -15,37 +15,55 @@ const DEFAULT_ABILITIES = {
 
 function makeFixture(): {
   state: WorldState
-  country1Id: CountryId
-  country2Id: CountryId
+  polity1Id: PolityId
+  polity2Id: PolityId
   house1Id: HouseId
   house2Id: HouseId
   person1Id: PersonId
 } {
-  const country1Id = createCountryId('c', 0)
-  const country2Id = createCountryId('c', 1)
+  const polity1Id = createPolityId('c', 0)
+  const polity2Id = createPolityId('c', 1)
   const house1Id = createHouseId('h', 0)
   const house2Id = createHouseId('h', 1)
   const person1Id = createPersonId('pe', 0)
+  const provinceId = createProvinceId('p', 0)
 
   const state: WorldState = {
     currentYear: 1444,
     currentMonth: 1,
-    provinces: {},
-    countries: {
-      [country1Id]: {
-        id: country1Id,
-        name: 'Country 1',
-        houseIds: [house1Id, house2Id],
+    provinces: {
+      [provinceId]: {
+        id: provinceId,
+        name: 'Test Province',
+        x: 0,
+        y: 0,
+        neighbors: [],
+        ownerHouseId: house1Id,
+        polityId: polity1Id,
+        habitability: 50,
+        popGroupIds: [],
+        development: 10,
+        polityControl: 100,
+        houseControl: 100,
+      },
+    },
+    polities: {
+      [polity1Id]: {
+        id: polity1Id,
+        name: 'Polity 1',
+        rank: 2,
+        ownerHouseId: house1Id,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 50,
         active: true,
-        capitalProvinceId: '' as ProvinceId,
+        capitalProvinceId: provinceId,
       },
-      [country2Id]: {
-        id: country2Id,
-        name: 'Country 2',
-        houseIds: [],
+      [polity2Id]: {
+        id: polity2Id,
+        name: 'Polity 2',
+        rank: 2,
+        ownerHouseId: house2Id,
         treasury: 100,
         legacyPrestige: 50,
         adminPower: 50,
@@ -58,19 +76,17 @@ function makeFixture(): {
         id: house1Id,
         name: 'House 1',
         active: true,
-        countryId: country1Id,
-        provinceIds: [],
+        provinceIds: [provinceId],
         memberIds: [person1Id],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 1000,
-        seatProvinceId: '' as ProvinceId,
+        seatProvinceId: provinceId,
       },
       [house2Id]: {
         id: house2Id,
         name: 'House 2',
         active: true,
-        countryId: country1Id,
         provinceIds: [],
         memberIds: [],
         cadetHouseIds: [],
@@ -87,7 +103,6 @@ function makeFixture(): {
         age: 30,
         alive: true,
         houseId: house1Id,
-        countryId: country1Id,
         childIds: [],
         birthStatus: 'unknown',
         abilities: DEFAULT_ABILITIES,
@@ -109,59 +124,60 @@ function makeFixture(): {
   }
   return {
     state,
-    country1Id,
-    country2Id,
+    polity1Id,
+    polity2Id,
     house1Id,
     house2Id,
     person1Id,
   }
 }
 
-describe('createCountryFromHouse', () => {
-  it('creates new country with correct initial values', () => {
+describe('createPolityFromHouse', () => {
+  it('creates new polity with correct initial values', () => {
     const { state, house1Id } = makeFixture()
-    const newCountryId = createCountryId('c', 10)
+    const newPolityId = createPolityId('c', 10)
 
-    const result = createCountryFromHouse(state, house1Id, newCountryId)
+    const result = createPolityFromHouse(state, house1Id, newPolityId)
 
-    const newCountry = result.countries[newCountryId]
-    expect(newCountry).toBeDefined()
-    expect(newCountry!.legacyPrestige).toBe(20)
-    expect(newCountry!.adminPower).toBe(0)
-    expect(newCountry!.name).toBe('House 1領')
-    expect(newCountry!.treasury).toBe(Math.floor(1000 * 0.5))
+    const newPolity = result.polities[newPolityId]
+    expect(newPolity).toBeDefined()
+    expect(newPolity!.legacyPrestige).toBe(20)
+    expect(newPolity!.adminPower).toBe(0)
+    expect(newPolity!.name).toBe('House 1領')
+    expect(newPolity!.treasury).toBe(Math.floor(1000 * 0.5))
   })
 
-  it('rebel house moves to new country', () => {
-    const { state, house1Id, country1Id } = makeFixture()
-    const newCountryId = createCountryId('c', 10)
+  it('rebel house moves to new polity', () => {
+    const { state, house1Id } = makeFixture()
+    const newPolityId = createPolityId('c', 10)
 
-    const result = createCountryFromHouse(state, house1Id, newCountryId)
+    const result = createPolityFromHouse(state, house1Id, newPolityId)
 
-    expect(result.houses[house1Id]!.countryId).toBe(newCountryId)
-    expect(result.countries[country1Id]!.houseIds).not.toContain(house1Id)
+    // v0.15: rebel house becomes owner of new polity; old polity retains ownerHouseId
+    // (since it still has provinces from other houses)
+    expect(result.polities[newPolityId]!.ownerHouseId).toBe(house1Id)
   })
 
-  it('old country receives penalties', () => {
-    const { state, house1Id, country1Id } = makeFixture()
-    const newCountryId = createCountryId('c', 10)
+  it('old polity receives penalties', () => {
+    const { state, house1Id, polity1Id } = makeFixture()
+    const newPolityId = createPolityId('c', 10)
 
-    const oldCountry = state.countries[country1Id]!
-    const oldLegacyPrestige = oldCountry.legacyPrestige
-    const oldAdminPower = oldCountry.adminPower
+    const oldPolity = state.polities[polity1Id]!
+    const oldLegacyPrestige = oldPolity.legacyPrestige
+    const oldAdminPower = oldPolity.adminPower
 
-    const result = createCountryFromHouse(state, house1Id, newCountryId)
+    const result = createPolityFromHouse(state, house1Id, newPolityId)
 
-    const updatedOldCountry = result.countries[country1Id]!
-    expect(updatedOldCountry.legacyPrestige).toBe(Math.max(0, oldLegacyPrestige - 10))
-    expect(updatedOldCountry.adminPower).toBe(Math.max(0, oldAdminPower - 5))
+    const updatedOldPolity = result.polities[polity1Id]!
+    expect(updatedOldPolity.legacyPrestige).toBe(Math.max(0, oldLegacyPrestige - 10))
+    expect(updatedOldPolity.adminPower).toBe(Math.max(0, oldAdminPower - 5))
   })
 
   it('returns state unchanged if rebelHouseId not found', () => {
     const { state } = makeFixture()
     const fakeHouseId = createHouseId('h', 999)
 
-    const result = createCountryFromHouse(state, fakeHouseId, createCountryId('c', 10))
+    const result = createPolityFromHouse(state, fakeHouseId, createPolityId('c', 10))
 
     expect(result).toBe(state)
   })

@@ -1,10 +1,9 @@
-import type { HouseId, ProvinceId, PersonId, CountryId } from './ids'
+import type { HouseId, ProvinceId, PersonId } from './ids'
 
 export type House = {
   id: HouseId
   name: string
   active: boolean
-  countryId: CountryId
   provinceIds: ProvinceId[]
   memberIds: PersonId[]
   founderId?: PersonId

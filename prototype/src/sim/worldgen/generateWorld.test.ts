@@ -9,10 +9,10 @@ describe('generateWorld', () => {
     expect(JSON.stringify(w1)).toEqual(JSON.stringify(w2))
   })
 
-  it('has correct structure: 40 provinces, 3 countries, 15 houses', () => {
+  it('has correct structure: 40 provinces, 3 polities, 15 houses', () => {
     const { world } = generateWorld('test-seed')
     expect(Object.keys(world.provinces).length).toEqual(40)
-    expect(Object.keys(world.countries).length).toEqual(3)
+    expect(Object.keys(world.polities).length).toEqual(3)
     expect(Object.keys(world.houses).length).toEqual(15)
   })
 
@@ -40,7 +40,7 @@ describe('generateWorld', () => {
       }
     })
 
-    it('every person: countryId matches house countryId', () => {
+    it('every person: house exists', () => {
       const { world } = generateWorld('test-seed')
 
       const personKeys = Object.keys(world.persons).sort()
@@ -49,7 +49,7 @@ describe('generateWorld', () => {
         if (!person) continue
 
         const house = world.houses[person.houseId]
-        expect(house?.countryId).toEqual(person.countryId)
+        expect(house).toBeDefined()
       }
     })
 
@@ -74,7 +74,7 @@ describe('generateWorld', () => {
       }
     })
 
-    it('every province: owner house countryId matches province countryId', () => {
+    it('every province: owner house exists', () => {
       const { world } = generateWorld('test-seed')
 
       const provinceKeys = Object.keys(world.provinces).sort()
@@ -83,7 +83,7 @@ describe('generateWorld', () => {
         if (!province) continue
 
         const house = world.houses[province.ownerHouseId]
-        expect(house?.countryId).toEqual(province.countryId)
+        expect(house).toBeDefined()
       }
     })
   })
@@ -101,16 +101,16 @@ describe('generateWorld', () => {
       }
     })
 
-    it('countries: treasury in [100,300], legacyPrestige in [20,60]', () => {
+    it('polities: treasury in [100,300], legacyPrestige in [20,60]', () => {
       const { world } = generateWorld('test-seed')
 
-      const countryKeys = Object.keys(world.countries).sort()
-      for (const ck of countryKeys) {
-        const country = world.countries[ck as keyof typeof world.countries]
-        expect(country?.treasury).toBeGreaterThanOrEqual(100)
-        expect(country?.treasury).toBeLessThanOrEqual(300)
-        expect(country?.legacyPrestige).toBeGreaterThanOrEqual(20)
-        expect(country?.legacyPrestige).toBeLessThanOrEqual(60)
+      const polityKeys = Object.keys(world.polities).sort()
+      for (const ck of polityKeys) {
+        const polity = world.polities[ck as keyof typeof world.polities]
+        expect(polity?.treasury).toBeGreaterThanOrEqual(100)
+        expect(polity?.treasury).toBeLessThanOrEqual(300)
+        expect(polity?.legacyPrestige).toBeGreaterThanOrEqual(20)
+        expect(polity?.legacyPrestige).toBeLessThanOrEqual(60)
       }
     })
   })

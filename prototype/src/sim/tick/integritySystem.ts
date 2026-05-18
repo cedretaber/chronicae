@@ -1,5 +1,5 @@
 import type { TickContext } from './context'
-import type { CountryId, HouseId } from '../types/ids'
+import type { PolityId, HouseId, ProvinceId, PopGroupId } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
@@ -20,11 +20,11 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
         message: `OrganizationShare ${shareId} has negative rawPower: ${share.rawPower}`,
       })
     }
-    if (share.organization.kind === 'country') {
-      if (!state.countries[share.organization.id]) {
+    if (share.organization.kind === 'polity') {
+      if (!state.polities[share.organization.id]) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `OrganizationShare ${shareId} references non-existent country ${share.organization.id}`,
+          message: `OrganizationShare ${shareId} references non-existent polity ${share.organization.id}`,
         })
       }
     } else {
@@ -116,14 +116,14 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     }
   }
 
-  // 5. Country treasury >= 0
-  for (const countryId of Object.keys(state.countries)) {
-    const country = state.countries[countryId as CountryId]
-    if (!country) continue
-    if (country.treasury < 0) {
+  // 5. Polity treasury >= 0
+  for (const polityId of Object.keys(state.polities)) {
+    const polity = state.polities[polityId as PolityId]
+    if (!polity) continue
+    if (polity.treasury < 0) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `Country ${countryId} has negative treasury: ${country.treasury}`,
+        message: `Polity ${polityId} has negative treasury: ${polity.treasury}`,
       })
     }
   }
@@ -229,6 +229,179 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
         code: 'INTEGRITY_VIOLATION',
         message: `Dead person ${personId} still has wealth=${person.wealth}`,
       })
+    }
+  }
+
+  // 12. Province.polityId must point to an existing Polity
+  for (const provinceId of Object.keys(state.provinces)) {
+    const province = state.provinces[provinceId as ProvinceId]
+    if (!province) continue
+    if (!state.polities[province.polityId]) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provinceId} has polityId ${province.polityId} which does not exist`,
+      })
+    }
+    if (!state.houses[province.ownerHouseId]) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provinceId} has ownerHouseId ${province.ownerHouseId} which does not exist`,
+      })
+    }
+    const polity = state.polities[province.polityId]
+    if (polity && !polity.active) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provinceId} has inactive polity ${province.polityId}`,
+      })
+    }
+    const ownerHouse = state.houses[province.ownerHouseId]
+    if (ownerHouse && !ownerHouse.active) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provinceId} has inactive ownerHouse ${province.ownerHouseId}`,
+      })
+    }
+  }
+
+  // 13. Polity.capitalProvinceId belongs to that polity.
+  // v0.15 Stage B: PolityOwnerConsistencySystem (Phase 6) が capital を維持する設計だが、
+  // Stage B では同 system が空骨格のため、capital が他 Polity に流出した状態は throw せず warn する。
+  // Phase 4 で strict 復帰。
+  for (const polityId of Object.keys(state.polities)) {
+    const polity = state.polities[polityId as PolityId]
+    if (!polity) continue
+    const capital = state.provinces[polity.capitalProvinceId]
+    if (!capital) {
+      console.warn(
+        `INTEGRITY (Stage B warn): Polity ${polityId} has capitalProvinceId ${polity.capitalProvinceId} which does not exist`,
+      )
+    } else if (capital.polityId !== polityId) {
+      console.warn(
+        `INTEGRITY (Stage B warn): Polity ${polityId} capitalProvinceId ${polity.capitalProvinceId} belongs to polity ${capital.polityId}`,
+      )
+    }
+  }
+
+  // 14. House.seatProvinceId is in house.provinceIds.
+  // v0.15 Stage B: HouseExtinction や Province 喪失で seat が一時的に provinceIds 外になる経路は
+  // PolityOwnerConsistencySystem (Phase 6) / HouseExtinction (Phase 9) で補正される設計のため warn のみ。
+  // Phase 4 で strict 復帰。
+  for (const houseId of Object.keys(state.houses)) {
+    const house = state.houses[houseId as HouseId]
+    if (!house) continue
+    if (!house.provinceIds.includes(house.seatProvinceId)) {
+      console.warn(
+        `INTEGRITY (Stage B warn): House ${houseId} seatProvinceId ${house.seatProvinceId} is not in provinceIds`,
+      )
+    }
+  }
+
+  // 15. House.provinceIds and Province.ownerHouseId are bidirectionally consistent
+  for (const houseId of Object.keys(state.houses)) {
+    const house = state.houses[houseId as HouseId]
+    if (!house) continue
+    for (const provId of house.provinceIds) {
+      const province = state.provinces[provId]
+      if (province && province.ownerHouseId !== houseId) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `House ${houseId} lists province ${provId} but its ownerHouseId is ${province.ownerHouseId}`,
+        })
+      }
+    }
+  }
+  for (const provinceId of Object.keys(state.provinces)) {
+    const province = state.provinces[provinceId as ProvinceId]
+    if (!province) continue
+    const house = state.houses[province.ownerHouseId]
+    if (house && !house.provinceIds.includes(provinceId as ProvinceId)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provinceId} has ownerHouseId ${province.ownerHouseId} but that house does not list this province`,
+      })
+    }
+  }
+
+  // 16. OrganizationRef.kind is 'polity' | 'house' only (no 'country')
+  for (const shareId of Object.keys(state.organizationShares)) {
+    const share = state.organizationShares[shareId as import('../types/ids').OrganizationShareId]
+    if (!share) continue
+    const kind = share.organization.kind
+    if (kind !== 'polity' && kind !== 'house') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `OrganizationShare ${shareId} has invalid organization.kind '${String(kind)}' (must be 'polity' or 'house')`,
+      })
+    }
+  }
+
+  // 17. v0.15 §25.2: No attitude key starts with the legacy 'country:' prefix.
+  // 新しい attitude key prefix は 'polity:' なので、'country:' が残っていたら v0.14 残骸の違反。
+  for (const personId of Object.keys(state.persons)) {
+    const person = state.persons[personId as import('../types/ids').PersonId]
+    if (!person) continue
+    for (const key of Object.keys(person.attitudes)) {
+      if (key.startsWith('country:')) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Person ${personId} has legacy attitude key '${key}' starting with 'country:'`,
+        })
+      }
+    }
+  }
+  for (const popGroupId of Object.keys(state.popGroups)) {
+    const pop = state.popGroups[popGroupId as PopGroupId]
+    if (!pop) continue
+    for (const key of Object.keys(pop.attitudes)) {
+      if (key.startsWith('country:')) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `PopGroup ${popGroupId} has legacy attitude key '${key}' starting with 'country:'`,
+        })
+      }
+    }
+  }
+
+  // 18. Active Polity has active polity:leader Office (WARN)
+  for (const polityId of Object.keys(state.polities)) {
+    const polity = state.polities[polityId as PolityId]
+    if (!polity || !polity.active) continue
+    const leader = getHouseLeader(state, polity.ownerHouseId as HouseId)
+    if (leader) {
+      const officeKey = Object.keys(state.officeAssignments).find(
+        (k) =>
+          state.officeAssignments[k as import('../types/ids').OfficeAssignmentId]
+            ?.holderPersonId === leader,
+      )
+      const office = officeKey
+        ? state.officeAssignments[officeKey as import('../types/ids').OfficeAssignmentId]
+        : undefined
+      if (office && office.active) {
+        console.warn(
+          `Active Polity ${polityId} has active polity:leader Office via House ${polity.ownerHouseId}`,
+        )
+      }
+    }
+  }
+
+  // 19. Active House has active house:leader Office (WARN)
+  for (const houseId of Object.keys(state.houses)) {
+    const house = state.houses[houseId as HouseId]
+    if (!house || !house.active) continue
+    const leader = getHouseLeader(state, houseId as HouseId)
+    if (leader) {
+      const officeKey = Object.keys(state.officeAssignments).find(
+        (k) =>
+          state.officeAssignments[k as import('../types/ids').OfficeAssignmentId]
+            ?.holderPersonId === leader,
+      )
+      const office = officeKey
+        ? state.officeAssignments[officeKey as import('../types/ids').OfficeAssignmentId]
+        : undefined
+      if (office && office.active) {
+        console.warn(`Active House ${houseId} has active house:leader Office`)
+      }
     }
   }
 
