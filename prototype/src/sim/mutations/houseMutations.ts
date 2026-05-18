@@ -67,11 +67,7 @@ export function createHouse(
   return ok({ ctx: { ...ctxWithId, state: newState }, value: { houseId } })
 }
 
-export function deactivateHouse(
-  state: WorldState,
-  houseId: HouseId,
-  _options?: { removeFromPolity?: boolean },
-): StateResult {
+export function deactivateHouse(state: WorldState, houseId: HouseId): StateResult {
   const house = state.houses[houseId]
   if (!house)
     return err({

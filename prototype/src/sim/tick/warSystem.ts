@@ -477,7 +477,9 @@ export function runWarSystem(ctx: TickContext): TickContext {
           for (const pid of Object.keys(currentCtx.state.provinces)) {
             const p = currentCtx.state.provinces[pid as ProvinceId]
             if (!p) continue
-            if (getProvinceTerminalPolityId(currentCtx.state, pid as ProvinceId) !== attackerPolityId)
+            if (
+              getProvinceTerminalPolityId(currentCtx.state, pid as ProvinceId) !== attackerPolityId
+            )
               continue
             if (p.neighbors.some((nid) => defenderProvinceSet.has(nid))) {
               attackerBorderProvinces.push(pid as ProvinceId)

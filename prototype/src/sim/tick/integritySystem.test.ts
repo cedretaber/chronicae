@@ -68,7 +68,6 @@ describe('runIntegritySystem', () => {
       id: houseId,
       name: 'H0',
       active: true,
-      provinceIds: [],
       memberIds: [personId],
       cadetHouseIds: [],
       legacyPrestige: 50,
@@ -116,6 +115,14 @@ describe('runIntegritySystem', () => {
       officeIndex: { byOrganization: {}, byHolderPerson: {} },
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 1,
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -166,7 +173,6 @@ describe('runIntegritySystem', () => {
       id: houseId,
       name: 'H0',
       active: true,
-      provinceIds: [],
       memberIds: [deadLeaderId, 'pe-alive' as PersonId],
       cadetHouseIds: [],
       legacyPrestige: 50,
@@ -214,6 +220,14 @@ describe('runIntegritySystem', () => {
       officeIndex: { byOrganization: {}, byHolderPerson: {} },
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 1,
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -247,7 +261,6 @@ describe('runIntegritySystem', () => {
       id: houseId,
       name: 'H0',
       active: true,
-      provinceIds: [],
       memberIds: [deadHolderId],
       cadetHouseIds: [],
       legacyPrestige: 50,
@@ -295,6 +308,14 @@ describe('runIntegritySystem', () => {
       officeIndex: { byOrganization: {}, byHolderPerson: {} },
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 1,
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -328,7 +349,6 @@ describe('runIntegritySystem', () => {
       id: houseId,
       name: 'H0',
       active: true,
-      provinceIds: [],
       memberIds: [aliveHolderId],
       cadetHouseIds: [],
       legacyPrestige: 50,
@@ -376,6 +396,14 @@ describe('runIntegritySystem', () => {
       officeIndex: { byOrganization: {}, byHolderPerson: {} },
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 1,
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
     }
 
     const ctx = makeCtx(world)

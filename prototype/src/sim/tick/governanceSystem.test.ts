@@ -162,7 +162,6 @@ function makeCtx({
         id: houseId,
         name: 'H0',
         active: true,
-        provinceIds: [],
         memberIds: [headPersonId],
         cadetHouseIds: [],
         legacyPrestige: rulerHousePrestige,
@@ -179,6 +178,14 @@ function makeCtx({
     officeIndex: { byOrganization: officeIndexByOrg, byHolderPerson: officeIndexByHolder },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 2,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
 
   return {

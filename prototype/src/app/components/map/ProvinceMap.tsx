@@ -93,9 +93,7 @@ export function ProvinceMap() {
           isUrban,
           isCapital,
           isSeat,
-          polityColor: terminalPolityId
-            ? (polityColorMap[terminalPolityId] ?? '#888')
-            : '#888',
+          polityColor: terminalPolityId ? (polityColorMap[terminalPolityId] ?? '#888') : '#888',
           isDimmed,
           isSelected,
         } satisfies ProvinceNodeData,

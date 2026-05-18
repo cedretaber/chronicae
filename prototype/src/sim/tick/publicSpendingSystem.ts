@@ -195,7 +195,9 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       if (polity.treasury < effectiveCost) continue
 
       const sortedProvinceIds = Object.keys(currentCtx.state.provinces)
-        .filter((pid) => getProvinceTerminalPolityId(currentCtx.state, pid as ProvinceId) === polityId)
+        .filter(
+          (pid) => getProvinceTerminalPolityId(currentCtx.state, pid as ProvinceId) === polityId,
+        )
         .sort() as ProvinceId[]
 
       if (sortedProvinceIds.length === 0) continue

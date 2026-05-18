@@ -138,9 +138,7 @@ export function splitHouse(
 
   const splitProvincesSet = new Set<string>(splitProvinces.map((id) => id as string))
   const parentControlled = getHouseControlledProvinceIds(resultCtx.state, input.houseId)
-  const newParentSeatProvinceId: ProvinceId = splitProvincesSet.has(
-    parentHouse.seatProvinceId as string,
-  )
+  const newParentSeatProvinceId: ProvinceId = splitProvincesSet.has(parentHouse.seatProvinceId)
     ? (parentControlled.find((pid) => !splitProvincesSet.has(pid as string)) ??
       parentHouse.seatProvinceId)
     : parentHouse.seatProvinceId

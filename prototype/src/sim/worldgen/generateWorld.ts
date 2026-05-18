@@ -13,11 +13,7 @@ import type {
   OrganizationShare,
   ShareIndex,
 } from '../types/office'
-import type {
-  OrganizationShareId,
-  LandContractId,
-  ProvinceOfficeAssignmentId,
-} from '../types/ids'
+import type { OrganizationShareId, LandContractId, ProvinceOfficeAssignmentId } from '../types/ids'
 import type {
   LandContract,
   LandContractIndex,
@@ -46,7 +42,6 @@ import { clamp } from '../utils/math'
 import { polityAttitudeKey, houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 import { getHouseLeader } from '../selectors/officeSelectors'
-import { getPolityHouseIds } from '../selectors/polityRelations'
 
 export function generateWorld(seedText: string): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
@@ -701,23 +696,20 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
 
   // Polity offices
   for (const polity of polities) {
-    // Polity ruler: use leader of the house with the most provinces in this polity (housePolity ベース)
+    // Polity ruler: chain がまだ未構築なので assignments / provinceToHouse の Map を直接使う。
     let bestHouseId: HouseId | undefined
     let bestProvinceCount = -1
-    for (const houseId of getPolityHouseIds(officeState, polity.id)) {
+    const polityHouseCandidates = new Set<HouseId>()
+    for (const [pid, hid] of provinceToHouse) {
+      if (assignments.get(pid) === polity.id) polityHouseCandidates.add(hid)
+    }
+    for (const houseId of polityHouseCandidates) {
       const house = housesRecord[houseId]
       if (!house || !house.active) continue
-      let count = 0
-      for (const [, hp] of housePolity) {
-        if (hp === polity.id) count += 1
+      let provincesOfHouse = 0
+      for (const [pid, hid] of provinceToHouse) {
+        if (hid === houseId && assignments.get(pid) === polity.id) provincesOfHouse += 1
       }
-      const provincesOfHouse = (() => {
-        let n = 0
-        for (const [pid, hid] of provinceToHouse) {
-          if (hid === houseId && assignments.get(pid) === polity.id) n += 1
-        }
-        return n
-      })()
       if (provincesOfHouse > bestProvinceCount) {
         bestProvinceCount = provincesOfHouse
         bestHouseId = houseId
@@ -877,10 +869,14 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     shareIndex.byHolder[holderKey] = [...existingByHolder, id]
   }
 
-  // Polity shares
+  // Polity shares (chain がまだ未構築なので housePolity / provinceToHouse Map を直接使う)
   for (const polity of polities) {
     const config = defaultConfig
-    for (const houseId of getPolityHouseIds(officeState, polity.id)) {
+    const polityHouseCandidates = new Set<HouseId>()
+    for (const [pid, hid] of provinceToHouse) {
+      if (assignments.get(pid) === polity.id) polityHouseCandidates.add(hid)
+    }
+    for (const houseId of polityHouseCandidates) {
       const house = houses.find((h) => h.id === houseId)
       if (!house || !house.active) continue
 
@@ -1044,7 +1040,8 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     personsRecord[placeholderId] = placeholder
     placeholderMembers.push(placeholderId)
 
-    const officeAssignmentId = ('po-' + nextProvinceOfficeAssignmentId) as ProvinceOfficeAssignmentId
+    const officeAssignmentId = ('po-' +
+      nextProvinceOfficeAssignmentId) as ProvinceOfficeAssignmentId
     nextProvinceOfficeAssignmentId++
     const assignment: ProvinceOfficeAssignment = {
       id: officeAssignmentId,

@@ -624,9 +624,7 @@ function HouseDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Provinces:</span>
-          <span>
-            {worldState ? getHouseControlledProvinceIds(worldState, house.id).length : 0}
-          </span>
+          <span>{worldState ? getHouseControlledProvinceIds(worldState, house.id).length : 0}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Rebellion Tendency:</span>
@@ -1325,7 +1323,9 @@ function ProvinceDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">Primary Polity:</span>
           <PolityLink
-            polityId={currentState ? getProvinceTerminalPolityId(currentState, province.id) : undefined}
+            polityId={
+              currentState ? getProvinceTerminalPolityId(currentState, province.id) : undefined
+            }
             polities={currentState?.polities ?? {}}
             onClick={onPolityClick}
           />

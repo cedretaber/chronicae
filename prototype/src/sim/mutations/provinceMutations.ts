@@ -16,7 +16,6 @@ export function transferProvinceToHouse(
   state: WorldState,
   provinceId: ProvinceId,
   newOwnerHouseId: HouseId,
-  _options?: { newHouseControl?: number },
 ): StateResult {
   const province = state.provinces[provinceId]
   if (!province)

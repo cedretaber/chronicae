@@ -51,7 +51,6 @@ function makeHouse(memberIds: Person[], overrides: Partial<House> = {}): House {
     id: houseId,
     name: 'House',
     active: true,
-    provinceIds: [],
     memberIds: memberIds.map((p) => p.id),
     cadetHouseIds: [],
     legacyPrestige: 50,
@@ -77,6 +76,14 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
 }
 

@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { generateWorld } from './generateWorld'
 import type { ProvinceId } from '../types/ids'
+import {
+  getHouseControlledProvinceIds,
+  getProvinceEffectiveOwnerHouseId,
+} from '../selectors/landContractSelectors'
 
 describe('generateWorld', () => {
   it('is deterministic: same seed produces identical world', () => {
@@ -23,7 +27,7 @@ describe('generateWorld', () => {
   })
 
   describe('consistency checks', () => {
-    it('every house: all provinceIds exist and ownerHouseId matches', () => {
+    it('every house: all controlled provinces exist and effective owner matches', () => {
       const { world } = generateWorld('test-seed')
 
       const houseKeys = Object.keys(world.houses).sort()
@@ -31,11 +35,12 @@ describe('generateWorld', () => {
         const house = world.houses[hk as keyof typeof world.houses]
         if (!house) continue
 
-        const provinceIds = house.provinceIds
+        const provinceIds = getHouseControlledProvinceIds(world, house.id)
         for (const pid of provinceIds) {
           const province = world.provinces[pid]
           expect(province).toBeDefined()
-          expect(province?.ownerHouseId).toEqual(house.id)
+          const effectiveOwner = getProvinceEffectiveOwnerHouseId(world, pid)
+          expect(effectiveOwner).toEqual(house.id)
         }
       }
     })
@@ -74,7 +79,7 @@ describe('generateWorld', () => {
       }
     })
 
-    it('every province: owner house exists', () => {
+    it('every province: effective owner house exists', () => {
       const { world } = generateWorld('test-seed')
 
       const provinceKeys = Object.keys(world.provinces).sort()
@@ -82,7 +87,9 @@ describe('generateWorld', () => {
         const province = world.provinces[pkk as keyof typeof world.provinces]
         if (!province) continue
 
-        const house = world.houses[province.ownerHouseId]
+        const effectiveOwner = getProvinceEffectiveOwnerHouseId(world, province.id)
+        if (!effectiveOwner) continue
+        const house = world.houses[effectiveOwner]
         expect(house).toBeDefined()
       }
     })

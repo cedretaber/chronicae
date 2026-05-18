@@ -1,15 +1,6 @@
 import type { WorldState } from '../types/world'
-import type {
-  ProvinceId,
-  PolityId,
-  HouseId,
-  PersonId,
-  LandContractId,
-} from '../types/ids'
-import type {
-  LandContract,
-  LandContractGrantor,
-} from '../types/landContract'
+import type { ProvinceId, PolityId, HouseId, PersonId, LandContractId } from '../types/ids'
+import type { LandContract, LandContractGrantor } from '../types/landContract'
 import { ANONYMOUS_HOUSE_ID, ROOT_WORLD } from '../types/landContract'
 
 export function getProvinceLandContractChain(
@@ -73,10 +64,7 @@ export function getProvinceEffectiveOwnerHouseId(
   return polity.ownerHouseId
 }
 
-export function getPolityGrantedProvinceIds(
-  state: WorldState,
-  polityId: PolityId,
-): ProvinceId[] {
+export function getPolityGrantedProvinceIds(state: WorldState, polityId: PolityId): ProvinceId[] {
   const contractIds = state.landContractIndex.byGranteePolity[polityId] ?? []
   const result: ProvinceId[] = []
   for (const id of contractIds) {
@@ -87,10 +75,7 @@ export function getPolityGrantedProvinceIds(
   return result
 }
 
-export function getPolityTerminalProvinceIds(
-  state: WorldState,
-  polityId: PolityId,
-): ProvinceId[] {
+export function getPolityTerminalProvinceIds(state: WorldState, polityId: PolityId): ProvinceId[] {
   const contractIds = state.landContractIndex.byGranteePolity[polityId] ?? []
   const result: ProvinceId[] = []
   for (const id of contractIds) {
@@ -102,10 +87,7 @@ export function getPolityTerminalProvinceIds(
   return result
 }
 
-export function getPolityOverlordProvinceIds(
-  state: WorldState,
-  polityId: PolityId,
-): ProvinceId[] {
+export function getPolityOverlordProvinceIds(state: WorldState, polityId: PolityId): ProvinceId[] {
   const contractIds = state.landContractIndex.byGranteePolity[polityId] ?? []
   const result: ProvinceId[] = []
   for (const id of contractIds) {
@@ -121,10 +103,7 @@ export function getHouseOwnedPolityIds(state: WorldState, houseId: HouseId): Pol
   return state.polityIndex.byOwnerHouse[houseId] ?? []
 }
 
-export function getHouseControlledProvinceIds(
-  state: WorldState,
-  houseId: HouseId,
-): ProvinceId[] {
+export function getHouseControlledProvinceIds(state: WorldState, houseId: HouseId): ProvinceId[] {
   const polityIds = getHouseOwnedPolityIds(state, houseId)
   const seen = new Set<string>()
   const result: ProvinceId[] = []
@@ -139,10 +118,7 @@ export function getHouseControlledProvinceIds(
   return result
 }
 
-export function getHouseRelevantProvinceIds(
-  state: WorldState,
-  houseId: HouseId,
-): ProvinceId[] {
+export function getHouseRelevantProvinceIds(state: WorldState, houseId: HouseId): ProvinceId[] {
   const polityIds = getHouseOwnedPolityIds(state, houseId)
   const seen = new Set<string>()
   const result: ProvinceId[] = []

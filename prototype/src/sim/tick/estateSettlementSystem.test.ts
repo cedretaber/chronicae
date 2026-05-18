@@ -36,13 +36,10 @@ function makeBaseState(): {
         x: 0,
         y: 0,
         neighbors: [],
-        ownerHouseId: houseId,
-        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
         polityControl: 100,
-        houseControl: 100,
       },
     },
     polities: {
@@ -63,7 +60,6 @@ function makeBaseState(): {
         id: houseId,
         name: 'House',
         active: true,
-        provinceIds: [provinceId],
         memberIds: [],
         cadetHouseIds: [],
         legacyPrestige: 50,
@@ -80,6 +76,14 @@ function makeBaseState(): {
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
   return { state, houseId, polityId, provinceId }
 }

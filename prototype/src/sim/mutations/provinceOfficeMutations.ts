@@ -54,10 +54,7 @@ function removeFromPolitySlot(
   return { ...index.byAppointingPolity, [polityId]: next }
 }
 
-export function appointBailiff(
-  state: WorldState,
-  params: AppointBailiffParams,
-): AppointResult {
+export function appointBailiff(state: WorldState, params: AppointBailiffParams): AppointResult {
   const id = createProvinceOfficeAssignmentId(state.nextProvinceOfficeAssignmentId)
   const assignment: ProvinceOfficeAssignment = {
     id,

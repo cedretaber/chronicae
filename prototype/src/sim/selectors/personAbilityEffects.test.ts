@@ -132,7 +132,6 @@ function makeWorldState(
         id: house1Id,
         name: 'House 1',
         active: true,
-        provinceIds: [provinceId],
         memberIds: [personId],
         founderId: personId,
         cadetHouseIds: [],
@@ -152,6 +151,14 @@ function makeWorldState(
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
   const polity = state.polities[polity1Id]!
   const house = state.houses[house1Id]!

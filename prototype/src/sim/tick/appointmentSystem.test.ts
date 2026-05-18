@@ -51,13 +51,10 @@ function makeBaseState(): {
         x: 0,
         y: 0,
         neighbors: [],
-        ownerHouseId: houseRulerId,
-        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 10,
         polityControl: 100,
-        houseControl: 100,
       },
       [provinceVassalId]: {
         id: provinceVassalId,
@@ -65,13 +62,10 @@ function makeBaseState(): {
         x: 1,
         y: 1,
         neighbors: [],
-        ownerHouseId: houseVassalId,
-        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 10,
         polityControl: 100,
-        houseControl: 100,
       },
     },
     polities: {
@@ -92,7 +86,6 @@ function makeBaseState(): {
         id: houseRulerId,
         name: 'Ruler House',
         active: true,
-        provinceIds: [provinceRulerId],
         memberIds: [personRulerId],
         cadetHouseIds: [],
         legacyPrestige: 50,
@@ -103,7 +96,6 @@ function makeBaseState(): {
         id: houseVassalId,
         name: 'Vassal House',
         active: true,
-        provinceIds: [provinceVassalId],
         memberIds: [personVassalId],
         cadetHouseIds: [],
         legacyPrestige: 50,
@@ -153,6 +145,14 @@ function makeBaseState(): {
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
 
   return {
@@ -460,6 +460,14 @@ describe('runAppointmentSystem', () => {
           aptitudes: DEFAULT_ABILITIES,
         },
       },
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
     }
 
     const config = { ...defaultConfig }
@@ -510,6 +518,14 @@ describe('runAppointmentSystem', () => {
           sex: 'female',
         },
       },
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
     }
 
     const config = { ...defaultConfig, allowFemaleRolesWhenNoMaleCandidate: true }
@@ -558,6 +574,14 @@ describe('runAppointmentSystem', () => {
           sex: 'female',
         },
       },
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
     }
 
     const config = { ...defaultConfig, allowFemaleRolesWhenNoMaleCandidate: false }

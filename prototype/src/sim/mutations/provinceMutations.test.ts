@@ -1,3 +1,8 @@
+import {
+  getHouseControlledProvinceIds,
+  getProvinceEffectiveOwnerHouseId,
+  getProvinceTerminalPolityId,
+} from '../selectors/landContractSelectors'
 import { describe, expect, it } from 'vitest'
 import { createPolityId, createHouseId, createProvinceId } from '../types/ids'
 import type { PolityId, HouseId, ProvinceId } from '../types/ids'
@@ -33,13 +38,10 @@ function makeFixture(): {
         x: 0,
         y: 0,
         neighbors: [],
-        ownerHouseId: house1Id,
-        polityId: polity1Id,
         habitability: 50,
         popGroupIds: [],
         development: 0,
         polityControl: 100,
-        houseControl: 100,
       },
     },
     polities: {
@@ -71,7 +73,6 @@ function makeFixture(): {
         id: house1Id,
         name: 'House 1',
         active: true,
-        provinceIds: [provinceId],
         memberIds: [],
         cadetHouseIds: [],
         legacyPrestige: 50,
@@ -82,7 +83,6 @@ function makeFixture(): {
         id: house2Id,
         name: 'House 2',
         active: true,
-        provinceIds: [],
         memberIds: [],
         cadetHouseIds: [],
         legacyPrestige: 50,
@@ -99,6 +99,14 @@ function makeFixture(): {
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
   return { state, provinceId, house1Id, house2Id, polity1Id, polity2Id }
 }
@@ -110,8 +118,8 @@ describe('transferProvinceToHouse', () => {
 
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.value.provinces[provinceId]!.ownerHouseId).toBe(house2Id)
-      expect(result.value.provinces[provinceId]!.polityId).toBe(polity2Id)
+      expect(getProvinceEffectiveOwnerHouseId(result.value, provinceId)).toBe(house2Id)
+      expect(getProvinceTerminalPolityId(result.value, provinceId)).toBe(polity2Id)
     }
   })
 
@@ -120,7 +128,8 @@ describe('transferProvinceToHouse', () => {
     const result = transferProvinceToHouse(state, provinceId, house2Id)
 
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.value.houses[house1Id]!.provinceIds).not.toContain(provinceId)
+    if (result.ok)
+      expect(getHouseControlledProvinceIds(result.value, house1Id)).not.toContain(provinceId)
   })
 
   it('new house provinceIds contains the provinceId', () => {
@@ -128,7 +137,8 @@ describe('transferProvinceToHouse', () => {
     const result = transferProvinceToHouse(state, provinceId, house2Id)
 
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.value.houses[house2Id]!.provinceIds).toContain(provinceId)
+    if (result.ok)
+      expect(getHouseControlledProvinceIds(result.value, house2Id)).toContain(provinceId)
   })
 
   it('original state is not mutated', () => {
@@ -164,8 +174,8 @@ describe('transferProvinceToPolity', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
 
-    expect(result.value.provinces[provinceId]!.ownerHouseId).toBe(house2Id)
-    expect(result.value.provinces[provinceId]!.polityId).toBe(polity2Id)
+    expect(getProvinceEffectiveOwnerHouseId(result.value, provinceId)).toBe(house2Id)
+    expect(getProvinceTerminalPolityId(result.value, provinceId)).toBe(polity2Id)
   })
 
   it('returns err when province not found', () => {
@@ -193,25 +203,17 @@ describe('transferProvinceToPolity', () => {
   })
 })
 
-describe('transferProvinceToHouse with newHouseControl', () => {
-  it('overrides houseControl when newHouseControl is provided', () => {
+// v0.16: transferProvinceToHouse の newHouseControl オプションは廃止 (houseControl 廃止のため)。
+// 代替: terminal Polity 経由で polityControl が変動するため、別 system で扱う。
+describe('transferProvinceToHouse (v0.16)', () => {
+  it('preserves polityControl when transferring', () => {
     const { state, provinceId, house2Id } = makeFixture()
-    const result = transferProvinceToHouse(state, provinceId, house2Id, { newHouseControl: 42 })
-
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.value.provinces[provinceId]!.houseControl).toBe(42)
-    expect(collectIntegrityErrors(result.value)).toEqual([])
-  })
-
-  it('preserves original houseControl when option is omitted', () => {
-    const { state, provinceId, house2Id } = makeFixture()
-    const original = state.provinces[provinceId]!.houseControl
+    const original = state.provinces[provinceId]!.polityControl
     const result = transferProvinceToHouse(state, provinceId, house2Id)
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.provinces[provinceId]!.houseControl).toBe(original)
+    expect(result.value.provinces[provinceId]!.polityControl).toBe(original)
   })
 })
 

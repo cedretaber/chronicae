@@ -21,13 +21,10 @@ function makeProvinceState(development: number): WorldState {
         x: 0,
         y: 0,
         neighbors: [],
-        ownerHouseId: houseId,
-        polityId,
         habitability: 50,
         popGroupIds: [],
         development,
         polityControl: 100,
-        houseControl: 100,
       },
     },
     polities: {
@@ -48,7 +45,6 @@ function makeProvinceState(development: number): WorldState {
         id: houseId,
         name: 'H0',
         active: true,
-        provinceIds: [provinceId],
         memberIds: [],
         cadetHouseIds: [],
         legacyPrestige: 50,
@@ -65,6 +61,14 @@ function makeProvinceState(development: number): WorldState {
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
 }
 

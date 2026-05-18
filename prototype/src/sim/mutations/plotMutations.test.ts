@@ -49,7 +49,6 @@ function makeFixture(): {
         id: house1Id,
         name: 'House 1',
         active: true,
-        provinceIds: [],
         memberIds: [leaderId],
         cadetHouseIds: [],
         legacyPrestige: 50,
@@ -83,6 +82,14 @@ function makeFixture(): {
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
   return { state, plotId, leaderId, polity1Id, house1Id }
 }

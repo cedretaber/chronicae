@@ -48,7 +48,6 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
         id: firstHouseId,
         name: 'House',
         active: true,
-        provinceIds: [],
         memberIds: Object.values(persons).map((p) => p.id),
         cadetHouseIds: [],
         legacyPrestige: 50,
@@ -65,6 +64,14 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
 }
 

@@ -1,9 +1,5 @@
 import type { WorldState } from '../types/world'
-import type {
-  ProvinceId,
-  PolityId,
-  LandContractId,
-} from '../types/ids'
+import type { ProvinceId, PolityId, LandContractId } from '../types/ids'
 import type {
   LandContract,
   LandContractIndex,
@@ -32,17 +28,11 @@ type CreateResult = {
   contractId: LandContractId
 }
 
-function emptyChainSlot(
-  index: LandContractIndex,
-  provinceId: ProvinceId,
-): LandContractId[] {
+function emptyChainSlot(index: LandContractIndex, provinceId: ProvinceId): LandContractId[] {
   return index.byProvince[provinceId] ?? []
 }
 
-function emptyGranteeSlot(
-  index: LandContractIndex,
-  polityId: PolityId,
-): LandContractId[] {
+function emptyGranteeSlot(index: LandContractIndex, polityId: PolityId): LandContractId[] {
   return index.byGranteePolity[polityId] ?? []
 }
 
@@ -94,7 +84,10 @@ export function createRootLandContract(
     nextLandContractId: state.nextLandContractId + 1,
   }
   return {
-    state: { ...nextState, provinceTerminalPolityCache: recomputeTerminalCache(nextState, params.provinceId) },
+    state: {
+      ...nextState,
+      provinceTerminalPolityCache: recomputeTerminalCache(nextState, params.provinceId),
+    },
     contractId: id,
   }
 }
@@ -127,7 +120,10 @@ export function createChildLandContract(
     nextLandContractId: state.nextLandContractId + 1,
   }
   return {
-    state: { ...nextState, provinceTerminalPolityCache: recomputeTerminalCache(nextState, params.provinceId) },
+    state: {
+      ...nextState,
+      provinceTerminalPolityCache: recomputeTerminalCache(nextState, params.provinceId),
+    },
     contractId: id,
   }
 }

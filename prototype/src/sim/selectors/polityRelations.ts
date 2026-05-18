@@ -57,7 +57,7 @@ export function getPolityHouseIds(state: WorldState, polityId: PolityId): HouseI
   if (polity?.ownerHouseId !== undefined) {
     const ownerHouse = state.houses[polity.ownerHouseId]
     if (ownerHouse && ownerHouse.active && ownerHouse.kind !== 'system') {
-      seen.add(polity.ownerHouseId as string)
+      seen.add(polity.ownerHouseId)
     }
   }
   for (const provinceId of getPolityGrantedProvinceIds(state, polityId)) {
@@ -65,7 +65,7 @@ export function getPolityHouseIds(state: WorldState, polityId: PolityId): HouseI
     if (!houseId) continue
     const house = state.houses[houseId]
     if (!house || !house.active || house.kind === 'system') continue
-    seen.add(houseId as string)
+    seen.add(houseId)
   }
   return [...seen].sort((a, b) => a.localeCompare(b)).map((id) => id as HouseId)
 }
@@ -99,7 +99,7 @@ export function getHouseProvinceIdsByPolity(
   )
   const result: ProvinceId[] = []
   for (const provinceId of getHouseControlledProvinceIds(state, houseId)) {
-    if (!polityProvinceIds.has(provinceId as string)) continue
+    if (!polityProvinceIds.has(provinceId)) continue
     result.push(provinceId)
   }
   result.sort((a, b) => a.localeCompare(b))
@@ -152,7 +152,7 @@ export function getHousePrimaryPolityId(state: WorldState, houseId: HouseId): Po
       count += 1
       dev += province.development
     }
-    stats.set(polityId as string, { polityId, provinceCount: count, development: dev })
+    stats.set(polityId, { polityId, provinceCount: count, development: dev })
   }
   const entries = [...stats.values()]
   if (entries.length === 0) return owned[0]

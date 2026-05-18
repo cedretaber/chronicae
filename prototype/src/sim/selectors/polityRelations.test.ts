@@ -35,12 +35,9 @@ function makeProvince(overrides: Partial<Province> & { id: ProvinceId }): Provin
     x: 0,
     y: 0,
     neighbors: [],
-    ownerHouseId: createHouseId('h', 0),
-    polityId: createPolityId('c', 0),
     habitability: 50,
     development: 1,
     polityControl: 100,
-    houseControl: 100,
     popGroupIds: [],
     ...overrides,
   }
@@ -64,7 +61,6 @@ function makeHouse(overrides: Partial<House> & { id: HouseId }): House {
   return {
     name: 'H',
     active: true,
-    provinceIds: [],
     memberIds: [],
     cadetHouseIds: [],
     legacyPrestige: 0,
@@ -105,10 +101,18 @@ function emptyState(): WorldState {
     popGroups: {},
     organizationShares: {},
     officeAssignments: {},
+    landContracts: {},
+    provinceOfficeAssignments: {},
     shareIndex: { byOrganization: {}, byHolder: {} },
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
 }
 
@@ -118,7 +122,7 @@ describe('polityRelations - basic Province/Polity', () => {
     const pid = createProvinceId('pr', 1)
     const state = emptyState()
     state.polities[cid] = makePolity({ id: cid })
-    state.provinces[pid] = makeProvince({ id: pid, polityId: cid })
+    state.provinces[pid] = makeProvince({ id: pid })
 
     expect(getProvincePolity(state, pid)?.id).toBe(cid)
   })
@@ -134,7 +138,7 @@ describe('polityRelations - basic Province/Polity', () => {
     const pid = createProvinceId('pr', 1)
     const state = emptyState()
     state.houses[hid] = makeHouse({ id: hid })
-    state.provinces[pid] = makeProvince({ id: pid, ownerHouseId: hid })
+    state.provinces[pid] = makeProvince({ id: pid })
 
     expect(getProvinceOwnerHouse(state, pid)?.id).toBe(hid)
   })
@@ -148,9 +152,9 @@ describe('polityRelations - getPolityProvinceIds', () => {
     state.polities[cid] = makePolity({ id: cid })
     state.polities[otherCid] = makePolity({ id: otherCid })
     const pids = [createProvinceId('pr', 3), createProvinceId('pr', 1), createProvinceId('pr', 2)]
-    state.provinces[pids[0]!] = makeProvince({ id: pids[0]!, polityId: cid })
-    state.provinces[pids[1]!] = makeProvince({ id: pids[1]!, polityId: cid })
-    state.provinces[pids[2]!] = makeProvince({ id: pids[2]!, polityId: otherCid })
+    state.provinces[pids[0]!] = makeProvince({ id: pids[0]! })
+    state.provinces[pids[1]!] = makeProvince({ id: pids[1]! })
+    state.provinces[pids[2]!] = makeProvince({ id: pids[2]! })
 
     const result = getPolityProvinceIds(state, cid)
     expect(result.map((id) => id as string)).toEqual(['pr-1', 'pr-3'])
@@ -178,18 +182,12 @@ describe('polityRelations - getPolityHouseIds', () => {
     state.houses[inactive] = makeHouse({ id: inactive, active: false })
     state.provinces[createProvinceId('pr', 1)] = makeProvince({
       id: createProvinceId('pr', 1),
-      polityId: cid,
-      ownerHouseId: h1,
     })
     state.provinces[createProvinceId('pr', 2)] = makeProvince({
       id: createProvinceId('pr', 2),
-      polityId: cid,
-      ownerHouseId: h2,
     })
     state.provinces[createProvinceId('pr', 3)] = makeProvince({
       id: createProvinceId('pr', 3),
-      polityId: cid,
-      ownerHouseId: inactive,
     })
 
     const result = getPolityHouseIds(state, cid)
@@ -204,13 +202,9 @@ describe('polityRelations - getPolityHouseIds', () => {
     state.houses[hid] = makeHouse({ id: hid })
     state.provinces[createProvinceId('pr', 1)] = makeProvince({
       id: createProvinceId('pr', 1),
-      polityId: cid,
-      ownerHouseId: hid,
     })
     state.provinces[createProvinceId('pr', 2)] = makeProvince({
       id: createProvinceId('pr', 2),
-      polityId: cid,
-      ownerHouseId: hid,
     })
 
     expect(getPolityHouseIds(state, cid)).toEqual([hid])
@@ -228,8 +222,6 @@ describe('polityRelations - getPolityPersonIds', () => {
     state.houses[hid] = makeHouse({ id: hid, memberIds: [alive, dead] })
     state.provinces[createProvinceId('pr', 1)] = makeProvince({
       id: createProvinceId('pr', 1),
-      polityId: cid,
-      ownerHouseId: hid,
     })
     state.persons[alive] = makePerson({ id: alive, houseId: hid, alive: true })
     state.persons[dead] = makePerson({ id: dead, houseId: hid, alive: false })
@@ -251,10 +243,10 @@ describe('polityRelations - House -> Polity', () => {
     state.polities[c1] = makePolity({ id: c1 })
     state.polities[c2] = makePolity({ id: c2 })
     state.polities[inactiveC] = makePolity({ id: inactiveC, active: false })
-    state.houses[hid] = makeHouse({ id: hid, provinceIds: [p1, p2, p3], seatProvinceId: p1 })
-    state.provinces[p1] = makeProvince({ id: p1, polityId: c1, ownerHouseId: hid })
-    state.provinces[p2] = makeProvince({ id: p2, polityId: c2, ownerHouseId: hid })
-    state.provinces[p3] = makeProvince({ id: p3, polityId: inactiveC, ownerHouseId: hid })
+    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: p1 })
+    state.provinces[p1] = makeProvince({ id: p1 })
+    state.provinces[p2] = makeProvince({ id: p2 })
+    state.provinces[p3] = makeProvince({ id: p3 })
 
     const result = getHousePolityIds(state, hid)
     expect(result.map((id) => id as string)).toEqual(['c-1', 'c-2'])
@@ -266,8 +258,8 @@ describe('polityRelations - House -> Polity', () => {
     const pid = createProvinceId('pr', 1)
     const state = emptyState()
     state.polities[cid] = makePolity({ id: cid })
-    state.houses[hid] = makeHouse({ id: hid, active: false, provinceIds: [pid] })
-    state.provinces[pid] = makeProvince({ id: pid, polityId: cid, ownerHouseId: hid })
+    state.houses[hid] = makeHouse({ id: hid, active: false })
+    state.provinces[pid] = makeProvince({ id: pid })
 
     expect(getHousePolityIds(state, hid)).toEqual([])
   })
@@ -282,10 +274,10 @@ describe('polityRelations - House -> Polity', () => {
     const state = emptyState()
     state.polities[c1] = makePolity({ id: c1 })
     state.polities[c2] = makePolity({ id: c2 })
-    state.houses[hid] = makeHouse({ id: hid, provinceIds: [p1, p2, p3], seatProvinceId: p1 })
-    state.provinces[p1] = makeProvince({ id: p1, polityId: c1, ownerHouseId: hid })
-    state.provinces[p2] = makeProvince({ id: p2, polityId: c1, ownerHouseId: hid })
-    state.provinces[p3] = makeProvince({ id: p3, polityId: c2, ownerHouseId: hid })
+    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: p1 })
+    state.provinces[p1] = makeProvince({ id: p1 })
+    state.provinces[p2] = makeProvince({ id: p2 })
+    state.provinces[p3] = makeProvince({ id: p3 })
 
     expect(getHouseProvinceIdsByPolity(state, hid, c1).map((id) => id as string)).toEqual([
       'pr-1',
@@ -305,9 +297,9 @@ describe('polityRelations - getHousePrimaryPolityId', () => {
     const state = emptyState()
     state.polities[c1] = makePolity({ id: c1 })
     state.polities[c2] = makePolity({ id: c2 })
-    state.houses[hid] = makeHouse({ id: hid, provinceIds: [seat, other], seatProvinceId: seat })
-    state.provinces[seat] = makeProvince({ id: seat, polityId: c1, ownerHouseId: hid })
-    state.provinces[other] = makeProvince({ id: other, polityId: c2, ownerHouseId: hid })
+    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: seat })
+    state.provinces[seat] = makeProvince({ id: seat })
+    state.provinces[other] = makeProvince({ id: other })
 
     expect(getHousePrimaryPolityId(state, hid)).toBe(c1)
   })
@@ -323,14 +315,12 @@ describe('polityRelations - getHousePrimaryPolityId', () => {
     state.polities[c1] = makePolity({ id: c1 })
     state.polities[c2] = makePolity({ id: c2 })
     // seat は別家に奪われた状態
-    state.houses[hid] = makeHouse({ id: hid, provinceIds: [p2, p3], seatProvinceId: seat })
+    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: seat })
     state.provinces[seat] = makeProvince({
       id: seat,
-      polityId: c1,
-      ownerHouseId: createHouseId('h', 99),
     })
-    state.provinces[p2] = makeProvince({ id: p2, polityId: c2, ownerHouseId: hid })
-    state.provinces[p3] = makeProvince({ id: p3, polityId: c2, ownerHouseId: hid })
+    state.provinces[p2] = makeProvince({ id: p2 })
+    state.provinces[p3] = makeProvince({ id: p3 })
 
     expect(getHousePrimaryPolityId(state, hid)).toBe(c2)
   })
@@ -340,7 +330,7 @@ describe('polityRelations - getHousePrimaryPolityId', () => {
     const hid = createHouseId('h', 1)
     const state = emptyState()
     state.polities[cid] = makePolity({ id: cid })
-    state.houses[hid] = makeHouse({ id: hid, active: false, provinceIds: [] })
+    state.houses[hid] = makeHouse({ id: hid, active: false })
 
     expect(getHousePrimaryPolityId(state, hid)).toBeUndefined()
   })
@@ -354,10 +344,10 @@ describe('polityRelations - getHousePrimaryPolityId', () => {
     const state = emptyState()
     state.polities[c1] = makePolity({ id: c1 })
     state.polities[c2] = makePolity({ id: c2 })
-    state.houses[hid] = makeHouse({ id: hid, provinceIds: [p1, p2], seatProvinceId: p1 })
+    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: p1 })
     // 同じ Province 数なら development の大きい c2 が選ばれる
-    state.provinces[p1] = makeProvince({ id: p1, polityId: c1, ownerHouseId: hid, development: 1 })
-    state.provinces[p2] = makeProvince({ id: p2, polityId: c2, ownerHouseId: hid, development: 5 })
+    state.provinces[p1] = makeProvince({ id: p1, development: 1 })
+    state.provinces[p2] = makeProvince({ id: p2, development: 5 })
 
     // seat (p1) は house が所有しているので、seat の polity = c1 が優先される（規則 1）
     expect(getHousePrimaryPolityId(state, hid)).toBe(c1)
@@ -372,8 +362,8 @@ describe('polityRelations - Person -> Polity', () => {
     const p1 = createProvinceId('pr', 1)
     const state = emptyState()
     state.polities[c1] = makePolity({ id: c1 })
-    state.houses[hid] = makeHouse({ id: hid, provinceIds: [p1], seatProvinceId: p1 })
-    state.provinces[p1] = makeProvince({ id: p1, polityId: c1, ownerHouseId: hid })
+    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: p1 })
+    state.provinces[p1] = makeProvince({ id: p1 })
     state.persons[personId] = makePerson({ id: personId, houseId: hid })
 
     expect(getPersonRelevantPolityIds(state, personId)).toEqual([c1])
@@ -395,8 +385,8 @@ describe('polityRelations - getHouseSeatProvinceInPolity', () => {
     const seat = createProvinceId('pr', 1)
     const state = emptyState()
     state.polities[cid] = makePolity({ id: cid })
-    state.houses[hid] = makeHouse({ id: hid, provinceIds: [seat], seatProvinceId: seat })
-    state.provinces[seat] = makeProvince({ id: seat, polityId: cid, ownerHouseId: hid })
+    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: seat })
+    state.provinces[seat] = makeProvince({ id: seat })
 
     expect(getHouseSeatProvinceInPolity(state, hid, cid)).toBe(seat)
   })
@@ -413,12 +403,11 @@ describe('polityRelations - getHouseSeatProvinceInPolity', () => {
     state.polities[c2] = makePolity({ id: c2 })
     state.houses[hid] = makeHouse({
       id: hid,
-      provinceIds: [seat, p2, p3],
       seatProvinceId: seat,
     })
-    state.provinces[seat] = makeProvince({ id: seat, polityId: c1, ownerHouseId: hid })
-    state.provinces[p2] = makeProvince({ id: p2, polityId: c2, ownerHouseId: hid, development: 3 })
-    state.provinces[p3] = makeProvince({ id: p3, polityId: c2, ownerHouseId: hid, development: 7 })
+    state.provinces[seat] = makeProvince({ id: seat })
+    state.provinces[p2] = makeProvince({ id: p2, development: 3 })
+    state.provinces[p3] = makeProvince({ id: p3, development: 7 })
 
     expect(getHouseSeatProvinceInPolity(state, hid, c2)).toBe(p3)
   })
@@ -431,8 +420,8 @@ describe('polityRelations - getHouseSeatProvinceInPolity', () => {
     const state = emptyState()
     state.polities[c1] = makePolity({ id: c1 })
     state.polities[c2] = makePolity({ id: c2 })
-    state.houses[hid] = makeHouse({ id: hid, provinceIds: [p1], seatProvinceId: p1 })
-    state.provinces[p1] = makeProvince({ id: p1, polityId: c1, ownerHouseId: hid })
+    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: p1 })
+    state.provinces[p1] = makeProvince({ id: p1 })
 
     expect(getHouseSeatProvinceInPolity(state, hid, c2)).toBeUndefined()
   })

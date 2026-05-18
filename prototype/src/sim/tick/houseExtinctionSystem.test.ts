@@ -5,6 +5,7 @@ import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
+import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -83,13 +84,10 @@ function makeNormalExtinctionCtx(): TickContext {
     x: 0,
     y: 0,
     neighbors: [],
-    ownerHouseId: houseId,
-    polityId,
     habitability: 50,
     popGroupIds: [],
     development: 0,
     polityControl: 100,
-    houseControl: 100,
   }
   provinces[province1Id] = {
     id: province1Id,
@@ -97,13 +95,10 @@ function makeNormalExtinctionCtx(): TickContext {
     x: 1,
     y: 1,
     neighbors: [],
-    ownerHouseId: houseId,
-    polityId,
     habitability: 50,
     popGroupIds: [],
     development: 0,
     polityControl: 100,
-    houseControl: 100,
   }
 
   return {
@@ -129,7 +124,6 @@ function makeNormalExtinctionCtx(): TickContext {
           id: houseId,
           name: 'ExtinctHouse',
           active: true,
-          provinceIds: [province0Id, province1Id],
           memberIds: ['pe-0' as PersonId],
           cadetHouseIds: [],
           legacyPrestige: 50,
@@ -140,7 +134,6 @@ function makeNormalExtinctionCtx(): TickContext {
           id: rulerHouseId,
           name: 'RulerHouse',
           active: true,
-          provinceIds: [province1Id],
           memberIds: ['pe-10' as PersonId],
           cadetHouseIds: [],
           legacyPrestige: 80,
@@ -157,6 +150,14 @@ function makeNormalExtinctionCtx(): TickContext {
       officeIndex: { byOrganization: {}, byHolderPerson: {} },
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 0,
+      landContracts: {},
+      provinceOfficeAssignments: {},
+      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+      provinceTerminalPolityCache: {},
+      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      polityIndex: { byOwnerHouse: {} },
+      nextLandContractId: 0,
+      nextProvinceOfficeAssignmentId: 0,
     },
     rng: createRng('extinction-test'),
     config: defaultConfig,
@@ -177,10 +178,12 @@ describe('extinctHouseAfterFailedSuccession', () => {
       const result = extinctHouseAfterFailedSuccession(ctx, 'h-0' as HouseId)
 
       const extinctHouse = result.state.houses['h-0' as HouseId]
-      expect(extinctHouse?.provinceIds.length).toBe(0)
+      if (!extinctHouse) return
+      expect(getHouseControlledProvinceIds(result.state, extinctHouse.id).length).toBe(0)
 
       const rulerHouse = result.state.houses['h-1' as HouseId]
-      expect(rulerHouse?.provinceIds.length).toBeGreaterThan(0)
+      if (!rulerHouse) return
+      expect(getHouseControlledProvinceIds(result.state, rulerHouse.id).length).toBeGreaterThan(0)
     })
 
     it('HOUSE_EXTINCT event emitted', () => {
@@ -219,7 +222,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
       const result = extinctHouseAfterFailedSuccession(ctx, 'h-0' as HouseId)
 
       const province = result.state.provinces['p-0' as ProvinceId]
-      expect(province?.houseControl).toBe(defaultConfig.inheritedProvinceHouseControl)
+      expect(province?.polityControl).toBe(defaultConfig.inheritedProvinceHouseControl)
     })
   })
 
@@ -263,13 +266,10 @@ describe('extinctHouseAfterFailedSuccession', () => {
         x: 0,
         y: 0,
         neighbors: [],
-        ownerHouseId: houseId,
-        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
         polityControl: 100,
-        houseControl: 100,
       }
       provinces[province1Id] = {
         id: province1Id,
@@ -277,13 +277,10 @@ describe('extinctHouseAfterFailedSuccession', () => {
         x: 1,
         y: 1,
         neighbors: [],
-        ownerHouseId: candidateHouseId,
-        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
         polityControl: 100,
-        houseControl: 100,
       }
 
       const ctx: TickContext = {
@@ -309,7 +306,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
               id: houseId,
               name: 'RulerHouse',
               active: true,
-              provinceIds: [province0Id],
               memberIds: ['pe-0' as PersonId],
               cadetHouseIds: [],
               legacyPrestige: 90,
@@ -320,7 +316,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
               id: candidateHouseId,
               name: 'CandidateHouse',
               active: true,
-              provinceIds: [province1Id],
               memberIds: ['pe-1' as PersonId],
               cadetHouseIds: [],
               legacyPrestige: 40,
@@ -352,6 +347,14 @@ describe('extinctHouseAfterFailedSuccession', () => {
           },
           nextOrganizationShareId: 0,
           nextOfficeAssignmentId: 1,
+          landContracts: {},
+          provinceOfficeAssignments: {},
+          landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+          provinceTerminalPolityCache: {},
+          provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+          polityIndex: { byOwnerHouse: {} },
+          nextLandContractId: 0,
+          nextProvinceOfficeAssignmentId: 0,
         },
         rng: createRng('ruler-extinction-test'),
         config: defaultConfig,

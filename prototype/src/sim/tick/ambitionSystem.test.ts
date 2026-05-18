@@ -69,13 +69,10 @@ function makeFixture(): {
         x: 0,
         y: 0,
         neighbors: [],
-        ownerHouseId: houseId,
-        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
         polityControl: 100,
-        houseControl: 100,
       },
       [province2Id]: {
         id: province2Id,
@@ -83,13 +80,10 @@ function makeFixture(): {
         x: 0,
         y: 0,
         neighbors: [],
-        ownerHouseId: houseId,
-        polityId,
         habitability: 50,
         popGroupIds: [],
         development: 0,
         polityControl: 100,
-        houseControl: 100,
       },
     },
     polities: {
@@ -110,7 +104,6 @@ function makeFixture(): {
         id: houseId,
         name: 'H0',
         active: true,
-        provinceIds: [province1Id, province2Id],
         memberIds: [headId],
         cadetHouseIds: [],
         legacyPrestige: 50,
@@ -129,6 +122,14 @@ function makeFixture(): {
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
 
   const officeId = createOfficeAssignmentId(0)
@@ -150,6 +151,14 @@ function makeFixture(): {
       byHolderPerson: { [headId as string]: [officeId] },
     },
     nextOfficeAssignmentId: 1,
+    landContracts: {},
+    provinceOfficeAssignments: {},
+    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
+    provinceTerminalPolityCache: {},
+    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    polityIndex: { byOwnerHouse: {} },
+    nextLandContractId: 0,
+    nextProvinceOfficeAssignmentId: 0,
   }
 
   const ctx: TickContext = {
