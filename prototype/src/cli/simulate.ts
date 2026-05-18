@@ -139,6 +139,79 @@ function countLivingPersons(state: WorldState): number {
   return count
 }
 
+function countLandContracts(state: WorldState): number {
+  return Object.keys(state.landContracts).length
+}
+
+function avgChainDepth(state: WorldState): number {
+  let totalDepth = 0
+  let count = 0
+  for (const chain of Object.values(state.landContractIndex.byProvince)) {
+    if (!chain) continue
+    totalDepth += chain.length
+    count++
+  }
+  if (count === 0) return 0
+  return Math.round((totalDepth / count) * 10) / 10
+}
+
+function countBailiffsByKind(state: WorldState): {
+  normal: number
+  placeholder: number
+  vacant: number
+} {
+  let normal = 0
+  let placeholder = 0
+  let vacant = 0
+  for (const provinceId of Object.keys(state.provinces)) {
+    const assignmentId = state.provinceOfficeIndex.byProvince[provinceId as ProvinceId]
+    if (!assignmentId) {
+      vacant++
+      continue
+    }
+    const assignment = state.provinceOfficeAssignments[assignmentId]
+    if (!assignment || !assignment.active) {
+      vacant++
+      continue
+    }
+    const holder = state.persons[assignment.holderPersonId]
+    if (!holder) {
+      vacant++
+      continue
+    }
+    if (holder.kind === 'placeholder') {
+      placeholder++
+    } else {
+      normal++
+    }
+  }
+  return { normal, placeholder, vacant }
+}
+
+function countRebelPolities(state: WorldState): number {
+  let count = 0
+  for (const id of Object.keys(state.polities)) {
+    if (id.startsWith('dp-')) count++
+  }
+  return count
+}
+
+function countSystemHouses(state: WorldState): number {
+  let count = 0
+  for (const house of Object.values(state.houses)) {
+    if (house?.kind === 'system') count++
+  }
+  return count
+}
+
+function countPlaceholderPersons(state: WorldState): number {
+  let count = 0
+  for (const person of Object.values(state.persons)) {
+    if (person?.kind === 'placeholder') count++
+  }
+  return count
+}
+
 function countEventsByType(events: SimEvent[]): Record<string, number> {
   const result: Record<string, number> = {}
   for (const event of events) {
@@ -273,6 +346,23 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
           ', avg houseControl=' +
           avgHouseControl.toFixed(1),
       )
+      const chainDepth = avgChainDepth(result.state)
+      const lcCount = countLandContracts(result.state)
+      const bailiffs = countBailiffsByKind(result.state)
+      const rebelCount = countRebelPolities(result.state)
+      console.log(
+        '  Land: ' +
+          lcCount +
+          ' contracts, avg chain depth=' +
+          chainDepth.toFixed(1) +
+          ' | Bailiffs: ' +
+          bailiffs.normal +
+          ' normal / ' +
+          bailiffs.placeholder +
+          ' placeholder' +
+          (bailiffs.vacant > 0 ? ' / ' + bailiffs.vacant + ' vacant' : '') +
+          (rebelCount > 0 ? ' | Rebel polities: ' + rebelCount : ''),
+      )
       const eventCounts = countEventsByType(events)
       let totalYearEvents = 0
       for (const count of Object.values(eventCounts)) {
@@ -295,6 +385,7 @@ if (args.dumpWorld) {
 }
 
 if (args.digest) {
+  const bailiffs = countBailiffsByKind(state)
   const digest = {
     seed: args.seed,
     years: args.years,
@@ -306,6 +397,14 @@ if (args.digest) {
     totalProvinces: Object.keys(state.provinces).length,
     avgPolityControl: computeAvgPolityControl(state),
     avgHouseControl: computeAvgHouseControl(state),
+    landContracts: countLandContracts(state),
+    avgChainDepth: avgChainDepth(state),
+    bailiffNormal: bailiffs.normal,
+    bailiffPlaceholder: bailiffs.placeholder,
+    bailiffVacant: bailiffs.vacant,
+    rebelPolities: countRebelPolities(state),
+    systemHouses: countSystemHouses(state),
+    placeholderPersons: countPlaceholderPersons(state),
     eventCounts: countEventsByType(allEvents),
     totalEvents: allEvents.length,
   }
@@ -345,6 +444,24 @@ if (args.json) {
   }
 
   console.log('Houses: ' + finalActiveHouses + ' active / ' + initialHouseCount + ' initial')
+
+  const finalBailiffs = countBailiffsByKind(state)
+  console.log(
+    'Land: ' +
+      countLandContracts(state) +
+      ' contracts, avg chain depth=' +
+      avgChainDepth(state).toFixed(1) +
+      ' | Bailiffs: ' +
+      finalBailiffs.normal +
+      ' normal / ' +
+      finalBailiffs.placeholder +
+      ' placeholder' +
+      (finalBailiffs.vacant > 0 ? ' / ' + finalBailiffs.vacant + ' vacant' : ''),
+  )
+  const finalRebelCount = countRebelPolities(state)
+  if (finalRebelCount > 0) {
+    console.log('Rebel polities ever formed: ' + finalRebelCount)
+  }
 
   console.log('Total events: ' + allEvents.length)
 }

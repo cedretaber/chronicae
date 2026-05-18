@@ -6,6 +6,13 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { maybeSplitHouseAfterSuccession } from './houseSplitSystem'
 import type { SplitInput } from './houseSplitSystem'
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -53,6 +60,79 @@ function makePerson(
   return person
 }
 
+function makeSplitTestCtx(config: typeof defaultConfig): TickContext {
+  const houseId = 'h-0' as HouseId
+  const polityId = 'dp-0' as PolityId
+
+  const persons: Record<PersonId, Person> = {}
+  persons['pe-0' as PersonId] = makePerson('pe-0' as PersonId, 'Head', 30, true, houseId, 0.5, 10)
+  persons['pe-1' as PersonId] = makePerson(
+    'pe-1' as PersonId,
+    'Splitter',
+    25,
+    true,
+    houseId,
+    0.9,
+    80,
+  )
+  persons['pe-2' as PersonId] = makePerson(
+    'pe-2' as PersonId,
+    'Member2',
+    30,
+    true,
+    houseId,
+    0.5,
+    10,
+  )
+
+  const provinceIds: ProvinceId[] = []
+  for (let i = 0; i < 5; i++) {
+    provinceIds.push(`p-${i}` as ProvinceId)
+  }
+
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 10, currentMonth: 6 }
+  for (let i = 0; i < provinceIds.length; i++) {
+    state = withProvince(state, provinceIds[i] as ProvinceId, {
+      name: `Province${i}`,
+      x: i,
+      y: i,
+    })
+  }
+  state = withHouse(state, houseId, {
+    name: 'H0',
+    memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
+    legacyPrestige: 50,
+    wealth: 100,
+    seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
+  })
+  state = withPolity(state, polityId, {
+    name: 'C0',
+    ownerHouseId: houseId,
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 50,
+    capitalProvinceId: provinceIds[0] ?? ('' as ProvinceId),
+  })
+  for (const provId of provinceIds) {
+    state = bindProvinceToHouseViaPolity(state, provId, polityId, houseId)
+  }
+  state = { ...state, persons: { ...state.persons, ...persons } }
+
+  return {
+    state,
+    rng: createRng('split-deterministic'),
+    config,
+    events: [],
+    nextEventIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
+    nextPersonIndex: 3,
+    nextHouseIndex: 0,
+    nextPolityIndex: 0,
+  }
+}
+
 function makeSplitCtx(
   _cohesion: number,
   memberCount: number,
@@ -71,75 +151,44 @@ function makeSplitCtx(
     memberIds.push(pid)
   }
 
-  const provinces: Record<ProvinceId, import('../types/province').Province> = {}
   const provinceIds: ProvinceId[] = []
-
   for (let i = 0; i < provinceCount; i++) {
-    const pid = `p-${i}` as ProvinceId
-    provinces[pid] = {
-      id: pid,
-      name: `Province${i}`,
-      x: i,
-      y: i,
-      neighbors: [],
-      habitability: 50,
-      popGroupIds: [],
-      development: 0,
-      polityControl: 100,
-    }
-    provinceIds.push(pid)
+    provinceIds.push(`p-${i}` as ProvinceId)
   }
 
   const config = { ...defaultConfig, houseSplitEnabled }
 
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 10, currentMonth: 6 }
+  for (let i = 0; i < provinceCount; i++) {
+    state = withProvince(state, provinceIds[i] as ProvinceId, {
+      name: `Province${i}`,
+      x: i,
+      y: i,
+    })
+  }
+  state = withHouse(state, houseId, {
+    name: 'H0',
+    memberIds,
+    legacyPrestige: 50,
+    wealth: 100,
+    seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
+  })
+  state = withPolity(state, polityId, {
+    name: 'C0',
+    ownerHouseId: houseId,
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 50,
+    capitalProvinceId: provinceIds[0] ?? ('' as ProvinceId),
+  })
+  for (const provId of provinceIds) {
+    state = bindProvinceToHouseViaPolity(state, provId, polityId, houseId)
+  }
+  state = { ...state, persons: { ...state.persons, ...persons } }
+
   return {
-    state: {
-      currentYear: 10,
-      currentMonth: 6,
-      provinces,
-      polities: {
-        [polityId]: {
-          id: polityId,
-          name: 'C0',
-          rank: 2,
-          ownerHouseId: houseId,
-          treasury: 100,
-          legacyPrestige: 50,
-          adminPower: 50,
-          active: true,
-          capitalProvinceId: provinceIds[0] ?? ('' as ProvinceId),
-        },
-      },
-      houses: {
-        [houseId]: {
-          id: houseId,
-          name: 'H0',
-          active: true,
-          memberIds,
-          cadetHouseIds: [],
-          legacyPrestige: 50,
-          wealth: 100,
-          seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
-        },
-      },
-      persons,
-      activePlots: {},
-      popGroups: {},
-      organizationShares: {},
-      officeAssignments: {},
-      shareIndex: { byOrganization: {}, byHolder: {} },
-      officeIndex: { byOrganization: {}, byHolderPerson: {} },
-      nextOrganizationShareId: 0,
-      nextOfficeAssignmentId: 0,
-      landContracts: {},
-      provinceOfficeAssignments: {},
-      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-      provinceTerminalPolityCache: {},
-      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-      polityIndex: { byOwnerHouse: {} },
-      nextLandContractId: 0,
-      nextProvinceOfficeAssignmentId: 0,
-    },
+    state,
     rng: createRng('split-test'),
     config,
     events: [],
@@ -203,109 +252,11 @@ describe('maybeSplitHouseAfterSuccession', () => {
       houseSplitCohesionThreshold: 60,
     }
 
-    const houseId = 'h-0' as HouseId
-    const polityId = 'dp-0' as PolityId
-
-    const persons: Record<PersonId, Person> = {}
-    persons['pe-0' as PersonId] = makePerson('pe-0' as PersonId, 'Head', 30, true, houseId, 0.5, 10)
-    persons['pe-1' as PersonId] = makePerson(
-      'pe-1' as PersonId,
-      'Splitter',
-      25,
-      true,
-      houseId,
-      0.9,
-      80,
-    )
-    persons['pe-2' as PersonId] = makePerson(
-      'pe-2' as PersonId,
-      'Member2',
-      30,
-      true,
-      houseId,
-      0.5,
-      10,
-    )
-
-    const provinceIds: ProvinceId[] = []
-    const provinces: Record<ProvinceId, import('../types/province').Province> = {}
-    for (let i = 0; i < 5; i++) {
-      const pid = `p-${i}` as ProvinceId
-      provinceIds.push(pid)
-      provinces[pid] = {
-        id: pid,
-        name: `Province${i}`,
-        x: i,
-        y: i,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 0,
-        polityControl: 100,
-      }
-    }
-
-    const ctx: TickContext = {
-      state: {
-        currentYear: 10,
-        currentMonth: 6,
-        provinces,
-        polities: {
-          [polityId]: {
-            id: polityId,
-            name: 'C0',
-            rank: 2,
-            ownerHouseId: houseId,
-            treasury: 100,
-            legacyPrestige: 50,
-            adminPower: 50,
-            active: true,
-            capitalProvinceId: provinceIds[0] ?? ('' as ProvinceId),
-          },
-        },
-        houses: {
-          [houseId]: {
-            id: houseId,
-            name: 'H0',
-            active: true,
-            memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
-            cadetHouseIds: [],
-            legacyPrestige: 50,
-            wealth: 100,
-            seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
-          },
-        },
-        persons,
-        activePlots: {},
-        popGroups: {},
-        organizationShares: {},
-        officeAssignments: {},
-        shareIndex: { byOrganization: {}, byHolder: {} },
-        officeIndex: { byOrganization: {}, byHolderPerson: {} },
-        nextOrganizationShareId: 0,
-        nextOfficeAssignmentId: 0,
-        landContracts: {},
-        provinceOfficeAssignments: {},
-        landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-        provinceTerminalPolityCache: {},
-        provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-        polityIndex: { byOwnerHouse: {} },
-        nextLandContractId: 0,
-        nextProvinceOfficeAssignmentId: 0,
-      },
-      rng: createRng('split-deterministic'),
-      config: highSplitConfig,
-      events: [],
-      nextEventIndex: 0,
-      deathsThisTick: [],
-      deathRolesThisTick: {},
-      nextPersonIndex: 3,
-      nextHouseIndex: 0,
-      nextPolityIndex: 0,
-    }
+    const ctx = makeSplitTestCtx(highSplitConfig)
+    const persons = ctx.state.persons
 
     const input: SplitInput = {
-      houseId,
+      houseId: 'h-0' as HouseId,
       successorId: 'pe-0' as PersonId,
       splitCandidates: [{ person: persons['pe-1' as PersonId]!, score: 50 }],
     }
@@ -328,116 +279,22 @@ describe('maybeSplitHouseAfterSuccession', () => {
       houseSplitCohesionThreshold: 60,
     }
 
-    const houseId = 'h-0' as HouseId
-    const polityId = 'dp-0' as PolityId
-
-    const persons: Record<PersonId, Person> = {}
-    persons['pe-0' as PersonId] = makePerson('pe-0' as PersonId, 'Head', 30, true, houseId, 0.5, 10)
-    persons['pe-1' as PersonId] = makePerson(
-      'pe-1' as PersonId,
-      'Splitter',
-      25,
-      true,
-      houseId,
-      0.9,
-      80,
-    )
-    persons['pe-2' as PersonId] = makePerson(
-      'pe-2' as PersonId,
-      'Member2',
-      30,
-      true,
-      houseId,
-      0.5,
-      10,
-    )
-
-    const provinceIds: ProvinceId[] = []
-    const provinces: Record<ProvinceId, import('../types/province').Province> = {}
-    for (let i = 0; i < 5; i++) {
-      const pid = `p-${i}` as ProvinceId
-      provinceIds.push(pid)
-      provinces[pid] = {
-        id: pid,
-        name: `Province${i}`,
-        x: i,
-        y: i,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 0,
-        polityControl: 100,
-      }
-    }
-
-    const ctx: TickContext = {
-      state: {
-        currentYear: 10,
-        currentMonth: 6,
-        provinces,
-        polities: {
-          [polityId]: {
-            id: polityId,
-            name: 'C0',
-            rank: 2,
-            ownerHouseId: houseId,
-            treasury: 100,
-            legacyPrestige: 50,
-            adminPower: 50,
-            active: true,
-            capitalProvinceId: provinceIds[0] ?? ('' as ProvinceId),
-          },
-        },
-        houses: {
-          [houseId]: {
-            id: houseId,
-            name: 'H0',
-            active: true,
-            memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
-            cadetHouseIds: [],
-            legacyPrestige: 50,
-            wealth: 100,
-            seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
-          },
-        },
-        persons,
-        activePlots: {},
-        popGroups: {},
-        organizationShares: {},
-        officeAssignments: {},
-        shareIndex: { byOrganization: {}, byHolder: {} },
-        officeIndex: { byOrganization: {}, byHolderPerson: {} },
-        nextOrganizationShareId: 0,
-        nextOfficeAssignmentId: 0,
-        landContracts: {},
-        provinceOfficeAssignments: {},
-        landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-        provinceTerminalPolityCache: {},
-        provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-        polityIndex: { byOwnerHouse: {} },
-        nextLandContractId: 0,
-        nextProvinceOfficeAssignmentId: 0,
-      },
-      rng: createRng('split-deterministic'),
-      config: highSplitConfig,
-      events: [],
-      nextEventIndex: 0,
-      deathsThisTick: [],
-      deathRolesThisTick: {},
-      nextPersonIndex: 3,
-      nextHouseIndex: 0,
-      nextPolityIndex: 0,
-    }
+    const ctx = makeSplitTestCtx(highSplitConfig)
+    const persons = ctx.state.persons
 
     const input: SplitInput = {
-      houseId,
+      houseId: 'h-0' as HouseId,
       successorId: 'pe-0' as PersonId,
       splitCandidates: [{ person: persons['pe-1' as PersonId]!, score: 50 }],
     }
 
     const result = maybeSplitHouseAfterSuccession(ctx, input)
 
-    const newHouseIds = Object.keys(result.state.houses).filter((k) => k !== 'h-0')
+    const newHouseIds = Object.keys(result.state.houses).filter((k) => {
+      if (k === 'h-0') return false
+      const h = result.state.houses[k as HouseId]
+      return h !== undefined && h.kind !== 'system'
+    })
     expect(newHouseIds.length).toBeGreaterThan(0)
 
     const newHouseId = newHouseIds[0] as HouseId
@@ -460,109 +317,11 @@ describe('maybeSplitHouseAfterSuccession', () => {
       houseSplitCohesionThreshold: 60,
     }
 
-    const houseId = 'h-0' as HouseId
-    const polityId = 'dp-0' as PolityId
-
-    const persons: Record<PersonId, Person> = {}
-    persons['pe-0' as PersonId] = makePerson('pe-0' as PersonId, 'Head', 30, true, houseId, 0.5, 10)
-    persons['pe-1' as PersonId] = makePerson(
-      'pe-1' as PersonId,
-      'Splitter',
-      25,
-      true,
-      houseId,
-      0.9,
-      80,
-    )
-    persons['pe-2' as PersonId] = makePerson(
-      'pe-2' as PersonId,
-      'Member2',
-      30,
-      true,
-      houseId,
-      0.5,
-      10,
-    )
-
-    const provinceIds: ProvinceId[] = []
-    const provinces: Record<ProvinceId, import('../types/province').Province> = {}
-    for (let i = 0; i < 5; i++) {
-      const pid = `p-${i}` as ProvinceId
-      provinceIds.push(pid)
-      provinces[pid] = {
-        id: pid,
-        name: `Province${i}`,
-        x: i,
-        y: i,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 0,
-        polityControl: 100,
-      }
-    }
-
-    const ctx: TickContext = {
-      state: {
-        currentYear: 10,
-        currentMonth: 6,
-        provinces,
-        polities: {
-          [polityId]: {
-            id: polityId,
-            name: 'C0',
-            rank: 2,
-            ownerHouseId: houseId,
-            treasury: 100,
-            legacyPrestige: 50,
-            adminPower: 50,
-            active: true,
-            capitalProvinceId: provinceIds[0] ?? ('' as ProvinceId),
-          },
-        },
-        houses: {
-          [houseId]: {
-            id: houseId,
-            name: 'H0',
-            active: true,
-            memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
-            cadetHouseIds: [],
-            legacyPrestige: 50,
-            wealth: 100,
-            seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
-          },
-        },
-        persons,
-        activePlots: {},
-        popGroups: {},
-        organizationShares: {},
-        officeAssignments: {},
-        shareIndex: { byOrganization: {}, byHolder: {} },
-        officeIndex: { byOrganization: {}, byHolderPerson: {} },
-        nextOrganizationShareId: 0,
-        nextOfficeAssignmentId: 0,
-        landContracts: {},
-        provinceOfficeAssignments: {},
-        landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-        provinceTerminalPolityCache: {},
-        provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-        polityIndex: { byOwnerHouse: {} },
-        nextLandContractId: 0,
-        nextProvinceOfficeAssignmentId: 0,
-      },
-      rng: createRng('split-deterministic'),
-      config: highSplitConfig,
-      events: [],
-      nextEventIndex: 0,
-      deathsThisTick: [],
-      deathRolesThisTick: {},
-      nextPersonIndex: 3,
-      nextHouseIndex: 0,
-      nextPolityIndex: 0,
-    }
+    const ctx = makeSplitTestCtx(highSplitConfig)
+    const persons = ctx.state.persons
 
     const input: SplitInput = {
-      houseId,
+      houseId: 'h-0' as HouseId,
       successorId: 'pe-0' as PersonId,
       splitCandidates: [{ person: persons['pe-1' as PersonId]!, score: 50 }],
     }
@@ -576,6 +335,6 @@ describe('maybeSplitHouseAfterSuccession', () => {
     expect(event.importance).toBe('major')
     expect(event.actorIds).toContain('pe-1' as PersonId)
     expect(event.houseIds).toContain('h-0' as HouseId)
-    expect(event.polityIds).toContain(polityId)
+    expect(event.polityIds).toContain('dp-0' as PolityId)
   })
 })

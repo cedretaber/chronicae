@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-18（v0.15 時点）
+最終更新: 2026-05-19（v0.16 時点）
 
 ---
 
@@ -74,23 +74,18 @@ type Province = {
   x: number
   y: number
   neighbors: ProvinceId[]
-  ownerHouseId: HouseId
-  polityId: PolityId
   habitability: number    // 0..100
   development: number     // -100..100
   polityControl: number   // 0..100
-  houseControl: number    // 0..100
   popGroupIds: PopGroupId[]
 }
 ```
 
 - `habitability`: Province の基礎的な居住性・土地ポテンシャル。0 = ほぼ居住不能、100 = 非常に居住・生産に適した土地
 - `development`: 土地の荒廃・発展。-100 = 完全荒廃、0 = 通常、+100 = 高度発展
-- `polityControl`: Polity による実効支配力
-- `houseControl`: 領主 House による実効支配力
-- 名目所有（`polityId` / `ownerHouseId`）は支配力が 0 になっても変わらない
+- `polityControl`: terminal Polity による実効支配力
 - `baseTax` / `manpower` / `unrest` は v0.8 で廃止。これらは POP から selector で算出する
-- **v0.15**: `polityId` / `polityControl` を `polityId` / `polityControl` に置換
+- **v0.16**: `polityId` / `ownerHouseId` / `houseControl` を削除。土地支配は §3.8 LandContract chain で表現する。Province の terminal owner は selector (`getProvinceTerminalPolityId` / `getProvinceEffectiveOwnerHouseId`) で取得する
 
 ### 3.2 PopClass / PopGroup（民衆集団）
 
@@ -137,23 +132,27 @@ type Polity = {
 }
 ```
 
-- `capitalProvinceId`: 政治支配力の中心。その Polity に属する Province でなければならない
-- `ownerHouseId`: その Polity を家産的に保有する House の id。Polity 内に Province を 1 つ以上所有する active House でなければならない（§6.x PolityOwnerConsistencySystem 参照）
-- `rank` は v0.15 では game effect を持たない placeholder。将来の称号システムの土台
+- `capitalProvinceId`: 政治支配力の中心。controlSystem の BFS 起点として使う。v0.16 では landless 化後も保持する
+- `ownerHouseId`: その Polity を家産的に保有する House の id。Rebel Polity / commonwealth では `undefined`（§11.2 / §17）
+- `rank`: 1 (帝国) / 2 (王国) / 3 (公爵領) / 4 (伯爵領) / 5 (反乱領)。LandContract chain の rank 不変条件 (§7) と戦争 case 分岐 (§13 / §16.1) で機能する
 - `legitimacy`・`stability` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
 - `adminPower` はキャッシュ値として維持。毎1月に GovernanceSystem が `getPolityAdminPower` で再計算（§4.5 / §6.23b 参照）
 - **v0.12**: `rulerHouseId` と `roleAssignments` を削除。支配者・役職担当者は `OfficeAssignment` システムで管理（§3.7 参照）。`getPolityLeader` / `getPolityLeaderHouse` セレクターで取得（§4.6 参照）
 - **v0.15**: 旧 `Country` を `Polity` に rename し、`houseIds` フィールドを削除（`getPolityHouseIds` selector で動的取得）。`ownerHouseId` / `rank` を新規追加
+- **v0.16**: Polity と Province の関係は LandContract chain で表現する。`getPolityGrantedProvinceIds` / `getPolityTerminalProvinceIds` / `getPolityOverlordProvinceIds` を使う
 
-#### Polity-House-Person 関係 (v0.15)
+#### Polity-House-Person 関係 (v0.15 / v0.16)
 
 `House` / `Person` は Polity に所属しない。
 関係は以下の selector で動的に取得する（§4.x 参照）:
 
-- `getPolityProvinceIds(state, polityId)` — その Polity 内の Province 一覧
-- `getPolityHouseIds(state, polityId)` — その Polity 内に Province を所有する active House 一覧
-- `getHousePolityIds(state, houseId)` — その House が Province を持つ active Polity 一覧（複数可）
-- `getHousePrimaryPolityId(state, houseId)` — House の主たる Polity（seat / Province 数で判定）
+- `getPolityTerminalProvinceIds(state, polityId)` — その Polity が terminal grantee である Province 一覧 (v0.16)
+- `getPolityOverlordProvinceIds(state, polityId)` — その Polity が chain 上位に登場する Province 一覧 (v0.16)
+- `getPolityHouseIds(state, polityId)` — その Polity を ownerHouse とする House 一覧
+- `getHouseOwnedPolityIds(state, houseId)` — その House が ownerHouse である Polity 一覧（複数可、王朝交代で増える）
+- `getHouseControlledProvinceIds(state, houseId)` — その House が ownerHouse である Polity が terminal の Province 一覧 (v0.16)
+- `getHouseRelevantProvinceIds(state, houseId)` — その House が ownerHouse である Polity が chain 上に登場する Province 一覧 (v0.16)
+- `getHousePrimaryPolityId(state, houseId)` — House の主たる Polity（seat / controlled Province 数で判定）
 
 ### 3.4 House（家）
 
@@ -162,7 +161,7 @@ type House = {
   id: HouseId
   name: string
   active: boolean
-  provinceIds: ProvinceId[]
+  kind?: 'system'            // 'system' = AnonymousHouse 等の内部 House (v0.16)
   memberIds: PersonId[]      // 生存・死亡を問わず登録されたすべてのメンバー
   founderId?: PersonId       // 家の創設者（分裂新設家のみ設定）
   parentHouseId?: HouseId    // 分裂元の家
@@ -174,11 +173,12 @@ type House = {
 }
 ```
 
-- `seatProvinceId`: 家支配力の中心。その House が所有する Province でなければならない
-- House は常に本拠地を保持する（本拠地移転・喪失は今後の課題）
+- `seatProvinceId`: 家本拠地の中心。v0.16 では House が支配していない Province を指してもよい（亡命・名目本拠地を許容）
+- `kind === 'system'` は AnonymousHouse（`h-anon` 固定 ID、placeholder Person の集約用）。UI / 整合性検査 / extinction / split から除外される（§3.8 / §20.4）
 - `prestige`・`cohesion`・`loyaltyToPolity` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
 - **v0.12**: `headId` を削除。家長は `OfficeAssignment`（role: 'leader'）で管理。`getHouseLeader` セレクターで取得（§4.6 参照）
-- **v0.15**: `polityId` フィールドを削除。House は単一 Polity に所属しない（複数 Polity に所領を持ち得る）。関係は `getHousePolityIds` selector で取得（§4.x 参照）
+- **v0.15**: `polityId` フィールドを削除。House は単一 Polity に所属しない
+- **v0.16**: `provinceIds` フィールドを削除。House の関与 Province は LandContract chain から selector で取得（`getHouseControlledProvinceIds` / `getHouseRelevantProvinceIds`）。House active 判定は memberIds (血統) ベース（§9.1 / spec-v016-update.md）。土地ゼロでも `active=true` のまま「亡命家」として存続し、お家再興を待つ
 
 ### 3.5 Person（人物）
 
@@ -204,6 +204,7 @@ type Person = {
   age: number
   alive: boolean
   houseId: HouseId
+  kind?: 'normal' | 'placeholder'  // 'placeholder' = ProvinceOffice 用の仮想人物 (v0.16)
   fatherId?: PersonId        // 父親（既知の場合）
   motherId?: PersonId        // 母親（既知の場合）
   spouseId?: PersonId        // 配偶者（婚姻中のみ）
@@ -231,6 +232,7 @@ type Person = {
   - `aptitudes`: 才能上限（原則不変、遺伝で親から子へ平均回帰込みで伝わる）
   - 応用ロール（governance / stewardship / diplomacy / intrigue / warCommand）は派生 selector `getRoleScore(state, personId, role)` で計算する（§4.7 参照）
   - 死亡時、`wealth > 0` なら EstateSettlementSystem（§6.7b）が家・相続人へ分配する
+- **v0.16**: `kind` を追加。`'placeholder'` は ProvinceOffice (Bailiff) 用の仮想人物で、AnonymousHouse に所属し marriage / birth / death / succession などの Person-loop からはガード経由で除外される（§20.3）。`kind` 未設定または `'normal'` は通常人物
 
 ### 3.6 Attitude（態度）
 
@@ -331,6 +333,91 @@ nextOfficeAssignmentId: number
 旧: `Polity.ownerHouseId` / `Polity.roleAssignments` / `House.headId` はすべて削除され、`OfficeAssignment` に統一された。
 **v0.15**: `OFFICE_DEFINITIONS` のキー prefix も `country:` → `polity:` に変更。
 
+### 3.8 LandContract / ProvinceOffice（v0.16）
+
+v0.16 で土地支配を Province 直接所有から **LandContract chain** に置き換えた。詳細仕様は `docs/drafts/spec-v016-update.md` を参照。
+
+**LandContract**: ある Province に対する 1 段の契約。chain は root → terminal の順で積み重なる。
+
+```ts
+type LandContractId = string & { readonly _brand: 'LandContractId' }
+type RootAuthorityId = string & { readonly __brand: 'RootAuthorityId' }
+const ROOT_WORLD: RootAuthorityId = 'root:world' as RootAuthorityId
+
+type LandContract = {
+  id: LandContractId
+  provinceId: ProvinceId
+  parentContractId?: LandContractId  // parent (上位契約)
+  rootAuthorityId?: RootAuthorityId  // parent と相互排他: root contract のみ rootAuthorityId
+  granteePolityId: PolityId          // この契約で土地を受け取る Polity
+  terms: { taxRateToGrantor: number }  // grantor への上納率。root contract は 0 固定
+}
+```
+
+不変条件 (§7 抜粋):
+
+1. すべての Province は chain 上に root contract を 1 つだけ持つ
+2. root contract の `taxRateToGrantor` は 0
+3. chain の `granteePolityId` は active Polity
+4. chain は循環しない
+5. terminal contract のみ Bailiff が紐付く
+6. chain 内の各段で `granteePolityId` は重複しない
+7. `landContractIndex.byProvince` は chain 順 (root → terminal) を保つ
+8. grantor rank < grantee rank（rank 数値が大きいほど下位）
+
+**ProvinceOfficeAssignment** (Bailiff): terminal Polity が任命する代官。
+
+```ts
+type ProvinceOfficeRole = 'bailiff'
+
+type ProvinceOfficeAssignment = {
+  id: ProvinceOfficeAssignmentId
+  provinceId: ProvinceId
+  role: ProvinceOfficeRole
+  holderPersonId: PersonId            // 'placeholder' kind の Person を許容
+  appointingPolityId: PolityId        // 任命主体（terminal Polity）
+  active: boolean
+  startYear: number
+  startMonth: number
+  unpaidCount: number
+}
+```
+
+**AnonymousHouse**: placeholder Person を集約する固定 ID House (`h-anon`、`kind: 'system'`)。worldgen で 1 つ生成され、Bailiff の placeholder Person が所属する。succession / split / extinction / marriage / birth / mortality からは除外される（§20.4）。
+
+**WorldState の追加フィールド（v0.16）**:
+
+```ts
+landContracts: Record<LandContractId, LandContract>
+landContractIndex: {
+  byProvince: Record<ProvinceId, LandContractId[]>      // chain 順
+  byGranteePolity: Record<PolityId, LandContractId[]>
+  byParent: Record<LandContractId, LandContractId | undefined>  // parent → child
+}
+provinceTerminalPolityCache: Record<ProvinceId, PolityId>
+
+provinceOfficeAssignments: Record<ProvinceOfficeAssignmentId, ProvinceOfficeAssignment>
+provinceOfficeIndex: {
+  byProvince: Record<ProvinceId, ProvinceOfficeAssignmentId | undefined>
+  byHolderPerson: Record<PersonId, ProvinceOfficeAssignmentId[]>
+  byAppointingPolity: Record<PolityId, ProvinceOfficeAssignmentId[]>
+}
+
+polityIndex: { byOwnerHouse: Record<HouseId, PolityId[]> }
+
+nextLandContractId: number
+nextProvinceOfficeAssignmentId: number
+```
+
+ID prefix (CLAUDE.md ID 衝突表):
+
+| Type | Prefix |
+|---|---|
+| `LandContractId` | `lc-` |
+| `RootAuthorityId` | `root:` |
+| `ProvinceOfficeAssignmentId` | `po-` |
+| `AnonymousHouse` (固定 ID) | `h-anon` |
+
 ---
 
 ## 4. セレクター
@@ -384,13 +471,13 @@ function getPopProduction(state: WorldState, config: SimulationConfig, popId: Po
 // Province の総生産量（全 POP の生産量合計）
 function getProvinceProduction(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// Province の税基盤: getProvinceProduction * (houseControl / 100)
+// Province の税基盤: getProvinceProduction * (polityControl / 100)
 function getProvinceTaxBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
 // Polity 用の Province 兵力基盤: sum(pop.size * manpowerFactorByClass[pop.class] * (polityControl / 100))
 function getProvincePolityManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// House 用の Province 兵力基盤: sum(pop.size * manpowerFactorByClass[pop.class] * (houseControl / 100))
+// House 用の Province 兵力基盤 (v0.16): polityManpowerBase と同等 (houseControl は廃止)
 function getProvinceHouseManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
 // 後方互換 wrapper: getProvincePolityManpowerBase を呼ぶ
@@ -529,6 +616,44 @@ function getHouseSeatProvinceInPolity(
 //   2) そうでなければ Polity 内の所有 Province から development 最大を選ぶ
 ```
 
+### 4.6c LandContract / ProvinceOffice selector（v0.16）
+
+`prototype/src/sim/selectors/landContractSelectors.ts` および `provinceOfficeSelectors.ts` に集約。
+
+```ts
+// LandContract chain
+function getProvinceLandContractChain(state, provinceId): LandContract[]  // root → terminal
+function getProvinceRootContract(state, provinceId): LandContract | undefined
+function getProvinceTerminalContract(state, provinceId): LandContract | undefined
+function getProvinceTerminalPolityId(state, provinceId): PolityId | undefined
+function getProvinceOverlordPolityIds(state, provinceId): PolityId[]
+function getProvinceEffectiveOwnerHouseId(state, provinceId): HouseId | undefined
+
+// Polity → Province
+function getPolityGrantedProvinceIds(state, polityId): ProvinceId[]
+function getPolityTerminalProvinceIds(state, polityId): ProvinceId[]
+function getPolityOverlordProvinceIds(state, polityId): ProvinceId[]
+
+// House → Polity / Province
+function getHouseOwnedPolityIds(state, houseId): PolityId[]
+function getHouseControlledProvinceIds(state, houseId): ProvinceId[]  // ownerHouse の Polity が terminal の Province
+function getHouseRelevantProvinceIds(state, houseId): ProvinceId[]    // chain 上に登場する Province
+
+// grantor 派生
+function getLandContractGrantor(state, contractId): LandContractGrantor | undefined
+function getGrantorRank(state, grantor): number   // root は 0
+
+// system house / placeholder Person 判定
+function isPlaceholderPerson(state, personId): boolean
+function getAnonymousHouseId(): HouseId
+function isSystemHouse(state, houseId): boolean
+
+// ProvinceOffice / Bailiff
+function getProvinceBailiff(state, provinceId): ProvinceOfficeAssignment | undefined
+function getBailiffPerson(state, provinceId): Person | undefined
+function isOfficeVacantOrPlaceholder(state, provinceId): boolean
+```
+
 ### 4.7 Ability / 派生 selector（v0.14）
 
 `prototype/src/sim/selectors/abilitySelectors.ts` に集約。
@@ -586,9 +711,9 @@ warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
 | 1 | advanceTime | 毎月 |
 | 2 | DevelopmentSystem | 毎月 |
 | 3 | ControlSystem | 毎月 |
-| 4 | LordshipTransitionSystem | 毎月 |
-| 5 | **PopSystem** | 毎月 |
-| 6 | EconomySystem | 毎月 |
+| 4 | **PopSystem** | 毎月 |
+| 5 | **LandRevenueSystem** (v0.16) | 毎月 |
+| 6 | **PolitySurplusDistributionSystem** (v0.16) | 毎月 |
 | 7 | DisasterSystem | 毎年1月 |
 | 8 | MortalitySystem | 毎月 |
 | 8b | **EstateSettlementSystem** (v0.14) | 毎月 |
@@ -597,6 +722,7 @@ warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
 | 11 | BirthSystem | 毎年1月 |
 | 12 | **ShareUpdateSystem** | 毎年1月 |
 | 13 | AppointmentSystem | 毎年1月 |
+| 13b | **BailiffAppointmentSystem** (v0.16) | 毎月（config の interval で間引き） |
 | 14 | **OfficeCompensationSystem** | 毎年1月 |
 | 14b | **PersonGrowthSystem** (v0.14) | 毎年1月（誕生月以外 no-op） |
 | 15 | AmbitionSystem | 毎月 |
@@ -606,7 +732,7 @@ warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
 | 19 | PlotSystem | 毎月 |
 | 20 | WarSystem | 毎月 |
 | 21 | **ProvinceRevoltSystem** | 毎月 |
-| 22 | RebellionSystem | 毎月 |
+| 21b | **LandContractPurchaseSystem** (v0.16) | 毎年1月 |
 | 22b | **PolityOwnerConsistencySystem** (v0.15) | 毎月 |
 | 22c | **OrganizationConsistencySystem** (v0.15) | 毎月 |
 | 23 | **AttitudeDecaySystem** | 毎月 |
@@ -614,11 +740,13 @@ warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
 | 25 | normalizePopSizes | 毎月 |
 | 26 | IntegrityCheck | 毎月 |
 
+**v0.16 で削除された System**: 旧 LordshipTransitionSystem / EconomySystem / RebellionSystem は廃止された。Province 直接所有モデルが LandContract chain に置き換わり、House 反乱は ProvinceRevoltSystem の `createRebelPolity` に統合されている。
+
 v0.15 で挿入された Consistency 系 2 つは、War / Rebellion / ProvinceRevolt 等の所領変動 system の **直後** に走り、所領異動の結果生じた Polity の owner / capital / Share / Office の整合性を即座に補正する。
 
 詳細は §6.22b / §6.22c 参照。
 
-順序の理由：PopSystem を EconomySystem より前に置くことで、当月の POP 状態変化（人口成長・pressure・wealth/unrest）を反映して生産量を計算する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。OfficeCompensationSystem を AppointmentSystem の直後に置くことで、当年に任命された役職への給与支払いが即座に処理される。PopDevelopmentSystem を Polity/House 開発システムより後に置くことで、当月の収入分配後に POP に残った余剰富による地元の自主開発を表現する。ProvinceRevoltSystem を RebellionSystem の前に置くことで、Province / POP 起点の社会不安が House 反乱に波及する経路を表現する（ただし同一 tick での直接連鎖はしない）。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当月に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は1月のみ実行され、次の1年間の各システムで使われる。
+順序の理由：PopSystem を LandRevenueSystem より前に置くことで、当月の POP 状態変化（人口成長・pressure・wealth/unrest）を反映して生産量を計算する。LandRevenueSystem の直後に PolitySurplusDistributionSystem を置くことで、上納後の余剰を即座に Share holder に分配する（§21）。BailiffAppointmentSystem を AppointmentSystem の直後に置くことで、ProvinceOffice (Bailiff) 任命を Polity Office と一括して処理する。LandContractPurchaseSystem を ProvinceRevoltSystem の直後に置くことで、戦争・反乱の結果生じた所領分布を入力として平和的譲渡を実行する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。OfficeCompensationSystem を AppointmentSystem の直後に置くことで、当年に任命された役職への給与支払いが即座に処理される。PopDevelopmentSystem を Polity/House 開発システムより後に置くことで、当月の収入分配後に POP に残った余剰富による地元の自主開発を表現する。ProvinceRevoltSystem を WarSystem の後に置くことで、Province / POP 起点の社会不安が反乱独立に波及する経路を表現する。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当月に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は1月のみ実行され、次の1年間の各システムで使われる。
 
 ---
 
@@ -648,7 +776,7 @@ maxControl = clamp(baseMaxControl + maxControlBonus, controlAbilityMinimumFloor,
 // 首都 / 本拠地は常に上限 100
 ```
 
-`maxControlBonus` は Polity administrator（polityControl）・家長 house:leader（houseControl）の admin stat から算出される（§10 参照）。
+`maxControlBonus` は Polity administrator（polityControl）の admin stat から算出される（§10 参照）。v0.16 で `houseControl` は廃止された。
 
 **到達可能な Province**:
 
@@ -657,7 +785,7 @@ if (control < maxControl) control = Math.min(control + effectiveGrowth, maxContr
 if (control > maxControl) control = Math.max(control - controlDecayPerMonth, maxControl)
 ```
 
-`effectiveGrowth = controlGrowthPerMonth * growthModifier`（Polity administrator・家長 house:leader の admin stat による）。
+`effectiveGrowth = controlGrowthPerMonth * growthModifier`（Polity administrator の admin stat による）。
 
 **到達不能な Province**（飛び地など）:
 
@@ -666,10 +794,15 @@ control = Math.max(0, control - disconnectedControlDecayPerMonth)
 ```
 
 BFS 通行条件:
-- polityControl: 首都から同一 Polity の Province のみ通行可
-- houseControl: 本拠地から同一 Polity の Province（他 House 領も通行可）。更新対象はその House の Province のみ
+- polityControl: 首都 (`capitalProvinceId`) から同一 terminal Polity の Province のみ通行可
 
-### 6.3 LordshipTransitionSystem（毎月）
+### 6.3 LordshipTransitionSystem（v0.16 で廃止）
+
+旧 v0.15 までの「隣接 Province 間で houseControl が下回ると ownerHouseId を奪う」ロジックは v0.16 で廃止された。土地支配は LandContract chain に統一され、Province 単位の所有変動は WarSystem（§6.20）/ ProvinceRevoltSystem（§6.22）/ LandContractPurchaseSystem（§6.22d）に集約される。
+
+参考までに、廃止前の動作は以下のとおりだった。
+
+#### 旧 v0.15 仕様（参考、現在の tick からは外れている）
 
 隣接する強力な領主による Province 吸収を処理する。スナップショットパターンで実装（連鎖防止）。
 
@@ -746,64 +879,53 @@ pop.unrest = clamp(pop.unrest, 0, 100)
 
 **normalizePopSizes**（IntegrityCheck 直前）: 全 POP について `size < minPopSizeByClass[class]` の場合、最低値に切り上げる。疫病・戦争などでサイズが最低値を下回った場合のフェイルセーフ。
 
-### 6.5 EconomySystem（毎月）
+### 6.5 EconomySystem（v0.16 で廃止 → LandRevenue + PolitySurplusDistribution に分割）
 
-Province ごとに POP の生産量を算出し、支配力に基づいて国・家・POP に富を分配する。
+旧 v0.15 までの EconomySystem は v0.16 で 2 つの system に分割された:
 
-**6.5.1 生産量算出**
+- **LandRevenueSystem** (§6.5a): Province 生産から各 Polity treasury への上納
+- **PolitySurplusDistributionSystem** (§6.5b): Polity treasury から Share holder への分配
+
+過徴税ペナルティは LandRevenueSystem 側で継続。`houseControl` 経由の二重収入経路 (`houseIncome`) は廃止された。House への富の流れは Polity Share 経由でのみ発生する（§6.5b）。
+
+### 6.5a LandRevenueSystem（毎月、v0.16）
+
+Province の生産を terminal Polity treasury に集積し、LandContract chain に沿って上納する。
+
+**6.5a.1 生産量算出**
 
 ```ts
 const production = getProvinceProduction(state, config, province.id)
 // = sum(pop.size * productivityByClass[pop.class] * (pop.wealth/100) * (polityControl/100))
 ```
 
-**6.5.2 回収式**
+`polityControl` 単独入力。`houseControl` は v0.16 で廃止された。
 
-支配力不足によるロスの思想は維持する。ロス分は POP に残る富となる。
+**6.5a.2 terminal Polity への集積と chain 上納**
 
 ```ts
-const cc = province.polityControl / 100
-const hc = province.houseControl / 100
-const totalControl = cc + hc
+// terminal Polity treasury に Province 生産を加算
+terminalPolity.treasury += production * taxEfficiency
 
-if (totalControl > 0) {
-  polityIncome = production * (cc / totalControl) * cc
-  houseIncome   = production * (hc / totalControl) * hc
+// chain を terminal → root の順に走査し、taxRateToGrantor で上納
+let amount = production * taxEfficiency
+for (const contract of chain.slice().reverse()) {
+  const tax = amount * contract.terms.taxRateToGrantor
+  granteePolity.treasury -= tax
+  grantorPolity.treasury += tax
+  amount = tax  // 上位 contract への上納原資は受け取った分のみ
 }
-
-const extracted = polityIncome + houseIncome
-const retained  = Math.max(0, production - extracted)
 ```
 
-支配力の例（Province 生産量 100 の場合）:
-| polityControl | houseControl | 国収入（taxEfficiency=1） | 家収入 | POP 残留 |
-|---|---|---|---|---|
-| 100 | 100 | 50 | 50 | 0 |
-| 100 | 50 | 66.7 | 16.7 | 16.6 |
-| 50 | 50 | 25 | 25 | 50 |
-| 100 | 0 | 100 | 0 | 0 |
+`root contract` の `taxRateToGrantor` は 0 固定（§6.3 不変条件 2）なので、world に流出する分は無い。
 
-**6.5.3 Polity treasurer の taxEfficiency**
+**6.5a.3 Polity treasurer の taxEfficiency**
 
-国庫収入には Polity treasurer の能力補正が乗算される（§10 参照）。POP から余分に徴収するのではなく、徴収・輸送・汚職抑制の効率を表す。
+terminal Polity の treasurer に能力補正がかかる（§10 参照）。
 
-```ts
-polity.treasury += polityIncome * taxEfficiency
-house.wealth     += houseIncome
-```
+**6.5a.4 過徴税ペナルティ**
 
-**6.5.4 retained wealth の POP 反映**
-
-回収されなかった富は `retainedRatio * retainedWealthGainByClass[class]` として POP wealth に反映される：
-
-```ts
-const retainedRatio = production > 0 ? retained / production : 0
-// POP class ごとに adjustProvincePopWealthByClass で適用
-```
-
-**6.5.5 過剰徴収ペナルティ**
-
-高支配地域での高徴収は正常だが、POP が貧しく不満を抱えている場合にのみペナルティが発生する：
+`extractionRatio` の入力は `polityControl` 単独になる。判定式は旧 EconomySystem と同じ。
 
 ```ts
 if (
@@ -816,6 +938,38 @@ if (
   adjustProvincePopUnrest(state, province.id, over * config.overExtractionUnrestGain)
 }
 ```
+
+**6.5a.5 retained wealth の POP 反映**
+
+回収されなかった富は POP wealth に反映される（旧 EconomySystem と同じ式、`polityControl` 単独入力）。
+
+### 6.5b PolitySurplusDistributionSystem（毎月、v0.16）
+
+各 Polity treasury から OrganizationShare に応じて Share holder に分配する。給与・維持費 (OfficeCompensationSystem §6.14b) は別 system で支払う。
+
+```ts
+const distributable = Math.max(
+  0,
+  polity.treasury - config.polityTreasuryReserveTarget
+) * config.politySurplusDistributionRate
+
+// Polity の OrganizationShare 全 holder に rawPower 比で分配
+for (const share of getOrganizationShares(state, { kind: 'polity', id: polityId })) {
+  const portion = distributable * (share.rawPower / totalRawPower)
+  if (share.holder.kind === 'house') {
+    house.wealth += portion
+  } else {
+    // Person holder。alive チェック必須
+    if (!person.alive) continue
+    person.wealth += portion
+  }
+}
+polity.treasury -= distributedTotal
+```
+
+`reserveTarget` (`polityTreasuryReserveTarget`、暫定 100) は予備として残り、後続の OfficeCompensationSystem の給与原資となる（spec-v016-update.md §21）。
+
+**Person Share holder の死亡 skip**: holder Person が `!alive` の場合は分配しない（暫定挙動。家・相続人への流入は将来の課題）。
 
 ### 6.6 DisasterSystem（毎年1月）
 
@@ -962,7 +1116,7 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 
 **分裂条件（AND）**:
 1. `houseSplitEnabled: true`
-2. `house.provinceIds.length >= minProvincesForHouseSplit`（デフォルト 3）
+2. `getHouseControlledProvinceIds(state, houseId).length >= minProvincesForHouseSplit`（デフォルト 3、v0.16）
 3. `splitCandidates.length >= 1`（後継者以外の成人候補が存在する）
 4. `getHouseCohesion(house) < houseSplitCohesionThreshold`（デフォルト 60）
 
@@ -997,6 +1151,8 @@ splitChance = baseHouseSplitChance
 
 後継者が存在しない家（生存メンバーが 0 または全員未成年かつ成人後継者なし）に対して断絶処理を行う。実体の状態書き換えは `extinctHouse` mutation（`worldStructureMutations.ts`）に集約されている（v0.13 / v0.15）。
 
+**v0.16 House active 判定の変更**: 旧 v0.15 までの「`house.provinceIds.length === 0` で即 extinction」判定は廃止された。House active は memberIds（血統）ベースで判定され、土地を完全に失っても active=true のまま「亡命家」として存続する（spec-v016-update.md §9.1）。お家再興 / 復古試行は将来の Faction 段階で動的に発生する想定で、v0.16 ではデータ上の存続のみ許す。
+
 **v0.15 §22.3 affectedPolityIds スナップショット**:
 
 ```ts
@@ -1008,18 +1164,25 @@ type HouseExtinctionInput = {
 
 呼び出し側で所領喪失前の Polity 集合を取得しておき、メンバー移住先選定のスコープとして使う。
 
-**移住先 House の選定（v0.15 §22.3）**:
+**移住先 House の選定（v0.15 §22.3 / v0.16）**:
 
-1. `affectedPolityIds` 内で最大 Province 数を持つ active House
-2. `affectedPolityIds` 内で最大 Polity Share を持つ active House
-3. 旧 `seatProvinceId` に隣接する Province の ownerHouse
-4. 世界全体で最大 Province 数を持つ active House
-5. 見つからない場合、メンバーは inactive のまま House 解散（後段 IntegrityCheck の Person/House 整合チェック対象になる）
+1. `affectedPolityIds` 内で最大 controlled Province 数を持つ active 通常 House (system house 除外)
+2. `affectedPolityIds` 内で最大 Polity Share を持つ active 通常 House
+3. 旧 `seatProvinceId` に隣接する Province の effective ownerHouse
+4. 世界全体で最大 controlled Province 数を持つ active 通常 House (system house 除外、v0.16)
+5. 見つからない場合、メンバーは inactive のまま House 解散
 
-選定後の処理:
+選定後の処理（v0.16 §22.3）:
+- 断絶家が ownerHouse である **すべての Polity** を receiver House に継承（王朝交代）
+  - `Polity.ownerHouseId = receiver.id`
+  - `polityIndex.byOwnerHouse` 同期更新
+  - `polity:leader` Office を receiver House の leader に差し替え
+  - `POLITY_OWNER_CHANGED` event を Polity ごとに発火
+- LandContracts は変更しない（Polity と Province の関係は不変、王朝のみ交代）
 - `moveLivingMembersToHouse` で生存メンバーを継承先に移動
-- 断絶家の Province を継承先に `transferProvinceToHouse` で移管
 - 断絶家を `active: false`、`memberIds: []` に設定
+
+旧 v0.15 までの「断絶家の Province を transferProvinceToHouse で受け取り House の既存 Polity に移す」処理は v0.16 で廃止された（異 Polity 間の Province 跨ぎが不自然なため）。
 
 **Polity の inactive 化は HouseExtinctionSystem で行わない**（v0.15）:
 v0.14 では `handleRulerHouseExtinction` が ruler house extinct で Country を消滅させていたが、v0.15 ではこれを削除。Polity の active 制御は §6.22b PolityOwnerConsistencySystem に一本化する。
@@ -1083,6 +1246,25 @@ score = relevantStat(role) * 1.0
 - `unpaidCount` が 0 の完全支払い時にはリセット
 
 **イベント**: `OFFICE_SALARY_UNPAID`（importance: `minor`）/ `OFFICE_SALARY_PARTIALLY_PAID`（importance: `minor`）
+
+### 6.14e BailiffAppointmentSystem（毎月、v0.16）
+
+terminal Polity ごとに ProvinceOfficeAssignment (Bailiff) を走査し、placeholder Person で空席化している Province を通常人物で埋める。逆に、通常人物の Bailiff が死亡・離反などで不在化した場合は placeholder Person に戻す。
+
+config `bailiffAppointmentInterval` で起動頻度を制御する（暫定 6 = 半年に 1 回）。
+
+**候補者選定（暫定、spec-v016-update.md §19.1）**:
+- ownerHouse の member を優先（成人 / 他 Office を持たない者）
+- なければ Polity Share holder 系の House member
+- stewardship / numeracy / learning などのスコアでソート
+- 適任者が居なければ placeholder のまま
+
+**イベント**:
+- `BAILIFF_APPOINTED`（importance: `normal`）: placeholder → 通常人物に交代
+- `BAILIFF_VACATED`（importance: `normal`）: 通常人物が不在化
+- `BAILIFF_PLACEHOLDER_INSTALLED`（importance: `minor`）: terminal Polity 変更時に placeholder を新規設置
+
+commonwealth (`ownerHouseId === undefined`) Polity の Bailiff 候補者選定は Faction 段階まで持ち越し（v0.16 では skip）。
 
 ### 6.14c ShareUpdateSystem（毎年1月）
 
@@ -1173,7 +1355,8 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
 
 **Polity土地開発（COUNTRY_LAND_DEVELOPED）**:
 - 条件: treasury >= effectiveCost（Polity treasurer の admin による割引あり）
-- 効果: development += gain（clamp）、**houseControl += landDevelopmentHouseControlGain**、treasury -= effectiveCost
+- 効果: development += gain（clamp）、treasury -= effectiveCost
+- v0.16: `houseControl` 廃止に伴い旧来の `landDevelopmentHouseControlGain` 加算は無効化された (config は残置するが未使用)
 
 ### 6.17 HouseDevelopmentSystem（毎年1月）
 
@@ -1190,9 +1373,9 @@ landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorA
   ```
   effectiveGain = houseLandDevelopmentGain * (1 - max(0, development) / 100)
   development += effectiveGain（clamp）
-  houseControl += landDevelopmentHouseControlGain（clamp）
   house.wealth -= houseLandDevelopmentBaseCost
   ```
+  v0.16 で `houseControl` 加算は廃止された (Province.houseControl 自体が無い)。
 - イベント: `HOUSE_LAND_DEVELOPED`
 
 ### 6.18 PopDevelopmentSystem（毎月）
@@ -1242,62 +1425,32 @@ summary: "The people of ${province.name} improved their lands."
 
 野心スコアが `plotThreshold` を超えた人物が陰謀を実行。成功率 `basePlotSuccess`。
 
-### 6.20 WarSystem（毎月）
+### 6.20 WarSystem（毎月、v0.16 で LandContract 化）
 
-`warEnabled` が true のとき動作。国家が他国に宣戦布告し、Province を奪取する。
+`warEnabled` が true のとき動作。Polity が他 Polity に宣戦布告し、勝敗後に LandContract を操作する。
 
 - 宣戦条件: `effectiveMinWinChanceToDeclare`（Polity military の ambition/caution で変動、§10 参照）以上の勝率見込み、warCooldown 明け
-- 軍事力: `baseMilitaryPower * warPowerModifier`（Polity military の martial stat による、§10 参照）
-- **本拠地保護**: `seatProvinceId` の Province は征服対象から除外する
-- 征服後、defender の非 seat Province がすべてなくなった場合（seat のみ残存）に `annexPolity` を呼び出す
-- **v0.13**: 征服 Province の引き渡し先は「勝者 Polity に属し active な House」を線形検索で決定する。以前の `houseIds[0]` フォールバックは stale な `polityId` を持つ House に Province を渡してしまう潜在的状態破壊バグを含んでいたため修正された。valid House が存在しない場合は Province 獲得をスキップする
+- 軍事力: `calcPolityMilitaryPower` (§4.4) で算出。v0.16 では `institutionalPower` 下限 (`institutionalPowerFloorByRank`) を被せて Rebel Polity 即死を防止
+- **本拠地保護**: 旧 `seatProvinceId` の保護ロジックは v0.16 では capital province として保持（landless 化後も capital は残る）
 
-**荒廃・POP 効果**:
-- 攻撃側勝利時（征服 Province）: development -= warConqueredProvinceDevastation、全 POP wealth 低下・unrest 上昇・peasants/townsmen size 軽度減少
-- 攻撃側勝利時（境界 Province）: development -= warBorderProvinceDevastation、全 POP wealth 低下・unrest 上昇
-- 攻撃側敗北時（攻撃側境界 Province）: development -= failedWarBorderDevastation、全 POP wealth 低下・unrest 上昇
+**v0.16 §13 / §16.1 戦争結果の LandContract 化**: 勝敗後の Province 移転は `transferProvinceByWarGoal` mutation 経由で rank 比較による case 分岐で処理する。
 
-**annexPolity mutation**:
+| case | 条件 | 動作 |
+|---|---|---|
+| A | 勝者 rank == 敗者 rank | terminal contract の granteePolityId を敗者から勝者に差し替える (`transferLandContractGrantee`) |
+| B-1 | 勝者 rank < 敗者 rank、かつ勝者が chain 未登場 | 中間契約として勝者を挿入 (`insertIntermediateLandContract`) |
+| B-2 | 勝者 rank < 敗者 rank、かつ勝者が既に chain 上位 | 勝者と敗者の間の中間契約を全削除し、直接接続に差し替える (`replaceLowerLandContract`) |
+| C | 勝者 rank > 敗者 rank | terminal の差し替え不可。税率調整 (`adjustLandContractTaxRate`) で勝者の上納率を下げる…が v0.16 では no-op (将来配線、§16.1) |
 
-```
-1. defeatedPolity の全 Province.polityId を winnerPolity に変更
-2. defeatedPolity の全 House.polityId / Person.polityId を winnerPolity に変更
-3. defeatedPolity.rulerHouse は seatProvinceId 以外の Province を失う
-4. 非 rulerHouse の ownerHouseId は維持
-5. rulerHouse から取り上げた Province は winnerPolity.rulerHouse に割り当て
-6. 全 Province の polityControl = annexedPolityControl（35）
-7. 非 rulerHouse 領の houseControl は維持
-8. winnerPolity.rulerHouse に新規割当された Province の houseControl = newRulerHouseControl（35）
-9. defeatedPolity.active = false
-```
+annexPolity (Polity 全体消滅) は v0.16 では LandContract chain が全部 receiver に移った結果として §6.22b PolityOwnerConsistencySystem が active=false 化することで達成される。
 
-### 6.21 RebellionSystem（毎月）
+**荒廃・POP 効果**: 旧 v0.15 と同じ係数で適用 (development 減少、unrest 上昇等)。
 
-反乱傾向が `rebellionThreshold` を超えた House が反乱を起こす（HouseRebellionSystem）。Province / POP 起点の反乱は §6.22 ProvinceRevoltSystem が担当する。
+### 6.21 RebellionSystem（v0.16 で廃止）
 
-**反乱傾向の計算**:
+旧 v0.15 までの「反乱傾向が `rebellionThreshold` を超えた House が反乱を起こす」HouseRebellionSystem は v0.16 で廃止された。Province / POP 起点の反乱に統合され、すべて §6.22 ProvinceRevoltSystem の `createRebelPolity` で処理する。
 
-`calcAmbitionScores` による基本傾向に加え、POP 状態から以下を加算する。
-
-```ts
-rebellionTendency += avgNoblesUnrest * houseRebellionNobleUnrestFactor
-rebellionTendency += avgProvinceUnrest * houseRebellionProvinceUnrestFactor
-rebellionTendency += (100 - avgPolityControl) * houseRebellionLowControlFactor
-```
-
-**戦力計算**:
-
-- 反乱側: `calcHouseMilitaryPower(state, config, rebelHouseId)`
-- 鎮圧側: 支配家（`getPolityLeaderHouse` で特定）は 100% 寄与、非支配家門は `getHouseLoyaltyToPolity`（§4.5）に応じた寄与 + `adminPower * factor` + `treasury / divisor`
-
-**荒廃効果**:
-- 反乱開始時: rebelProvinces に development -= rebellionStartedDevastation
-- 反乱成功時: rebelProvinces に development -= rebellionSucceededDevastation
-- 反乱失敗時: rebelProvinces に development -= rebellionFailedDevastation
-
-**成功時の処理**（`rebellionSuccessMode` で分岐）:
-- `independence`: 反乱家が独立国を形成（国名: `{house.name}領`）
-- `ruler_change`: 反乱家が支配家に就く
+`HouseRebellionSystem` のロジック (家門の反乱傾向計算 / 戦力比較 / 成功時の独立または支配家交代) は Faction システム導入時に派閥圧力ベースで再設計される。
 
 ### 6.22 ProvinceRevoltSystem（毎月）
 
@@ -1310,7 +1463,7 @@ Province / POP を起点とする社会的反乱を処理する。
 ```ts
 revoltTendency =
   pop.unrest * provinceRevoltUnrestFactor
-  + (100 - houseControl) * provinceRevoltLowHouseControlFactor
+  + (100 - polityControl) * provinceRevoltLowHouseControlFactor  // v0.16: houseControl 廃止のため polityControl で代用 (係数は流用)
   + (100 - polityControl) * provinceRevoltLowPolityControlFactor
   - polity.stability * provinceRevoltStabilitySuppressionFactor
   + [class 別補正]
@@ -1338,7 +1491,33 @@ class 別補正:
 | `lordship_change` | 中〜大成功 | 新 Person・新 House を生成し Province の領主を交代 |
 | `independence` | nobles 反乱かつ両支配力が極低値かつ大差勝利 | 新 Person・新 House・新 Polity を生成し Province が独立 |
 
-`independence` 実行時の状態書き換え（新 Polity・新 House の生成、Province の `polityId` 付け替え、旧国側の生存メンバー移動、Share/Office の初期化等）は `foundRevoltPolity` mutation（`worldStructureMutations.ts`）に集約されている（v0.13）。
+`independence` 実行時の状態書き換えは v0.16 で `createRebelPolity` mutation (`worldStructureMutations.ts`) に統合された。生成内容:
+
+1. Rebel Polity (rank = min(5, max(4, terminalRank+1)), `ownerHouseId === undefined` の commonwealth)
+2. Rebel House (memberIds = [rebel leader], `seatProvinceId`, legacyPrestige=0, wealth=0)
+3. Rebel leader Person (kind='normal', age 20-50 / sex 50/50 random、`rebelLeaderAgeRange` config 経由)
+4. Polity leader OfficeAssignment 任命
+5. Rebel Polity の OrganizationShare を rebel leader (Person) に 100% 付与（§17 commonwealth）
+6. terminal LandContract の granteePolityId を Rebel Polity に差し替え
+7. 当該 Province の Bailiff を placeholder に切り替え
+8. `REVOLT_POLITY_FOUNDED` / `BAILIFF_PLACEHOLDER_INSTALLED` event を発火
+
+旧 v0.13 の `foundRevoltPolity` mutation は v0.16 で `createRebelPolity` に統合され、関連ファイル (`createRevoltHouse.ts` / `createRevoltLeader.ts`) は削除された。
+
+### 6.22d LandContractPurchaseSystem（毎年1月、v0.16）
+
+戦争以外の平和的な LandContract 変動として、隣接する **同 rank かつ同じ直接 grantor 下** の Polity 間で Province を金銭購入する system。
+
+**動作 (毎年 1 月)**:
+1. 各 active な dynastic Polity (`ownerHouseId !== undefined`) を「買い手候補」として走査
+2. `treasury > purchaseBuyerTreasuryThreshold` なら確率 `purchaseAttemptChance` で試行
+3. 隣接 Province を持つ「同 rank・同 grantor・commonwealth でない・treasury 不足」の Polity を「売り手候補」とする
+4. 候補から 1 つランダムに選び、terminal LandContract の granteePolityId を差し替え、treasury を移動
+5. `LAND_CONTRACT_PURCHASED` event を発火
+
+価格は `purchasePriceBase + development * purchasePriceDevelopmentFactor` (下限 `purchasePriceBase`)。支払いは Polity treasury 経由 (spec-v016-update.md §18 注記)。
+
+commonwealth (Rebel Polity 等) は購入主体・売却主体のいずれにもならない (§11.2)。
 
 **反乱失敗**: 反乱 POP の unrest 低下・Province 荒廃・反乱 POP wealth 低下、鎮圧側 polity.legacyPrestige +1。他 class の unrest が collateral として小幅上昇。
 
@@ -1450,61 +1629,70 @@ adminPower = 0.30*getEffectiveOfficeStat('administrator','admin')*10
 
 `getEffectiveOfficeStat` は役職担当者の能力・複数担当者の協調ペナルティを考慮した実効能力値を返す（v0.12）。旧 StabilitySystem は v0.11 で廃止。Stability は `getPolityStability` セレクターで毎回計算する。
 
-### 6.24 IntegrityCheck（毎月、v0.15 で §25.2 へ整理）
+### 6.24 IntegrityCheck（毎月、v0.16 で 33 項目に拡張）
 
-以下を検証し、違反があれば例外を投げる（`debug` モード時は警告のみ）。**(WARN)** マークの項目は Stage B（v0.15 移行期）では `console.warn` のみで throw しない設計。Polity 直交化に伴う transient 状態を許容するためで、PolityOwnerConsistencySystem (§6.22b) が当月内に整合性を回復する。
+以下を検証し、違反があれば例外を投げる（`debug` モード時は警告のみ）。v0.16 では Stage C で全 33 項目を error throw / 型レベル保証 / コードレビューのいずれかで担保した（spec-v016-update.md §25）。
 
-**v0.15 で削除された旧チェック**:
+**v0.16 で削除された旧チェック**:
 
 ```
-Province.countryId と ownerHouse.countryId の一致      ← Country/House.countryId 削除のため
-生存 Person.countryId と House.countryId の一致         ← 同上
-Country.houseIds と House.countryId の整合性            ← Country.houseIds 削除のため
+Province.polityId / Province.ownerHouseId 系               ← Province から該当フィールド削除のため
+House.provinceIds と Province.ownerHouseId の双方向整合     ← House.provinceIds 削除のため
+Province.houseControl が 0..100 の範囲内                    ← Province.houseControl 削除のため
+House.provinceIds に重複がない                              ← 同上
+ownerHouseId を持つ active Polity の owner Province 1 個保証 ← LandContract chain で表現するため
 ```
 
-**v0.15 検証項目**:
+**v0.16 §25 IntegrityCheck 33 項目（要旨。詳細は `integritySystem.ts` 冒頭コメント参照）**:
 
-1. Province.polityId が有効な Polity を指す
-2. Province.ownerHouseId が有効な House を指す
-3. active Province の polity が active
-4. active Province の ownerHouse が active
-5. Polity.capitalProvinceId がその Polity に属する Province を指す **(WARN)**
-6. House.seatProvinceId がその House の provinceIds に含まれる **(WARN)**
-7. House.provinceIds と Province.ownerHouseId が双方向整合
-8. ownerHouseId を持つ active Polity では、ownerHouseId が active House を指す **(WARN)**
-9. ownerHouseId を持つ active Polity では、ownerHouse がその Polity 内に Province を1つ以上所有する **(WARN)**
-10. active Polity は active `polity:leader` Office を持つ **(WARN)**
-11. active House は active `house:leader` Office を持つ **(WARN)**
-12. OrganizationRef.kind は `'polity' | 'house'` のみ
-13. AttitudeTarget / attitude key に `country:` が残っていない
-14. active Polity の Share holder House は対象 Polity 内に Province を持つ **(WARN)**
-15. active Polity の Office holder は、対象 Polity に関係する House の人物である **(WARN)**
+LandContract / chain 整合性:
+1. chain は root contract を 1 つだけ持つ
+2. root contract の `taxRateToGrantor` は 0
+3. chain の granteePolityId は active Polity
+4. chain は循環しない
+5. terminal contract のみ Bailiff が紐付く
+6. chain 内の各段で granteePolityId は重複しない
+7. landContractIndex.byProvince は chain 順 (root → terminal)
+8. grantor rank < grantee rank
+9. landContractIndex.byGranteePolity の整合
+10. landContractIndex.byParent (parent → child) の整合
+11. provinceTerminalPolityCache が getProvinceTerminalPolityId と一致
 
-加えて、v0.14 以前から継続するチェック:
+Polity / House:
+12. Polity.ownerHouseId が有効な House を指す (undefined は許容、§11.2)
+13. Polity.capitalProvinceId が存在する Province
+14. polityIndex.byOwnerHouse の整合
+15. landless Polity (terminal Province 0) は active=false
+16. active Polity は active `polity:leader` Office を持つ (placeholder leader を許容)
+17. active 通常 House は active `house:leader` Office を持つ
 
-16. 死亡人物が役職を持たない
-17. 活動中の家の家長が生存している
-18. Province.development が -100..100 の範囲内
-19. Province.polityControl が 0..100 の範囲内
-20. Province.houseControl が 0..100 の範囲内
-21. Person.sex が `'male'` または `'female'` のいずれか
-22. 生存 Person の spouseId が双方向かつ有効（相互参照の一致）
-23. 生存 Person の spouseId が死亡者を指さない
-24. 親子関係の双方向整合性（fatherId/motherId と childIds の相互参照）
-25. House の cadet 関係の双方向整合性（parentHouseId と cadetHouseIds の相互参照）
-26. PopGroup.provinceId が有効な Province を指している
-27. Province.popGroupIds の全 ID が有効な PopGroup を指している
-28. Province.popGroupIds と PopGroup.provinceId の双方向整合性
-29. 各 Province が peasants / townsmen / nobles を 1 つずつ持つ
-30. PopGroup.size >= minPopSizeByClass[class]
-31. PopGroup.wealth が 0..100 の範囲内
-32. PopGroup.unrest が 0..100 の範囲内
-33. House.memberIds に重複がない（v0.11）
-34. House.provinceIds に重複がない（v0.11）
-35. Polity.legacyPrestige が 0..100 の範囲内（v0.11）
-36. House.legacyPrestige が 0..100 の範囲内（v0.11）
-37. ability ≤ aptitude かつ両者が `[0, ABILITY_HARD_CAP=120]` の範囲内（v0.14、6 軸すべて）
-38. 死亡者の wealth が 0（EstateSettlementSystem 処理後の整合性、v0.14）
+ProvinceOffice / Bailiff:
+18. 全 Province が ProvinceOfficeAssignment (Bailiff) を持つ
+19. provinceOfficeIndex の 3 方向整合 (byProvince / byHolderPerson / byAppointingPolity)
+20. Bailiff の appointingPolityId が当該 Province の terminal Polity と一致
+
+AnonymousHouse / placeholder:
+21. AnonymousHouse (`h-anon`, kind: 'system') が 1 つだけ存在する
+22. AnonymousHouse の memberIds はすべて placeholder Person
+23. 通常 House の memberIds に placeholder Person が混入していない
+24. placeholder Person の houseId は AnonymousHouse を指す
+25. placeholder Person は marriage / spouse / childIds を持たない
+
+Person / House の不変条件（v0.15 以前から継続）:
+26. 死亡人物が役職を持たない
+27. Person.sex が `'male' | 'female'`
+28. 生存 Person の spouseId が双方向かつ有効、死亡者を指さない
+29. 親子関係の双方向整合 (fatherId / motherId / childIds)
+30. House の cadet 関係の双方向整合 (parentHouseId / cadetHouseIds)
+31. House.memberIds に重複がない
+32. Province.development / polityControl / PopGroup.size/wealth/unrest が範囲内
+33. ability ≤ aptitude かつ両者が `[0, ABILITY_HARD_CAP=120]` の範囲内、死亡者の wealth が 0
+
+PopGroup / Polity 数値範囲:
+- Polity.legacyPrestige / House.legacyPrestige が 0..100 (型レベル + 範囲チェック)
+- PopGroup.provinceId 双方向、Province あたり peasants / townsmen / nobles を 1 つずつ
+- OrganizationRef.kind は `'polity' | 'house'` のみ (型レベル)
+- AttitudeTarget / attitude key に `country:` が残っていない (型レベル)
 
 ---
 
@@ -1546,35 +1734,46 @@ townsmen.unrest  = randomInt(10, 25)
 nobles.unrest    = randomInt(5, 25)
 ```
 
-### 7.3 seatProvinceId の決定
+### 7.3 階層構造の生成（v0.16）
 
-各 House の本拠地は、その House が所有する Province のうち `development` が最も高いもの。同値は Province ID 昇順。
+v0.16 では世界生成時点で 3 階層の Polity 構造を作る:
 
-### 7.4 capitalProvinceId の決定
+- Kingdom (rank 2) × 3
+- Duchy (rank 3) × 4 （各 Kingdom の配下に 1-2 つ）
+- County (rank 4) × 8 （各 Duchy または直轄 Kingdom の配下）
 
-各 Polity の首都は、初期 owner House の `seatProvinceId`。
+計 **15 Polity / 15 通常 House**。各 Polity に 1 つの ownerHouse を割り当てる。加えて **AnonymousHouse (`h-anon`, kind: 'system')** を 1 つ生成し placeholder Person の集約用とする (House 数は 16)。
 
-**v0.15 追加**: 初期 Polity 生成時に以下を設定する。
+LandContract chain は Province ごとに以下を組み立てる:
 
-- `rank: 2` （placeholder、v0.15 では game effect なし）
-- `ownerHouseId`: その Polity に割り当てられた初期 leader House の id
-- `capitalProvinceId`: ownerHouse の `seatProvinceId` （= ownerHouse が所有する Province のうち development 等で選ばれた中心地）
-- `houseIds` フィールドは削除（`getPolityHouseIds` で動的取得）
+```
+root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
+  → Kingdom (taxRateToGrantor = 0.3)
+  → Duchy   (taxRateToGrantor = 0.3)   ← optional
+  → County  (taxRateToGrantor = 0.3)   ← terminal grantee
+```
 
-各 House は 1 つの Polity 内にしか Province を持たない状態で生成される（多 Polity 所領は War / Rebellion 経由でのみ発生）。
+chain depth は Province によって 1〜3 段 (Kingdom 直轄 / Duchy 配下 / County)。`INTERMEDIATE_TAX_RATE = 0.3` で固定。root contract の `taxRateToGrantor` は 0 固定（§3.8 不変条件 2）。
 
-### 7.5 polityControl / houseControl の初期値
+### 7.4 seatProvinceId / capitalProvinceId の決定
 
-ControlSystem と同じ距離上限計算で初期化する。
+各 House の本拠地は、その House が ownerHouse である Polity の terminal Province のうち `development` が最も高いもの (v0.16 では LandContract chain で算出)。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
+
+### 7.5 polityControl の初期値（v0.16）
+
+`houseControl` は v0.16 で廃止された。`polityControl` のみを ControlSystem と同じ距離上限計算で初期化する。
 
 ```
 polityControl = maxControl(capitalProvinceId からの BFS 距離)
-houseControl   = maxControl(seatProvinceId からの BFS 距離)
 ```
 
-接続不能な Province: `polityControl = 30`、`houseControl = 30`
+接続不能な Province: `polityControl = 30`。
 
-### 7.6 エンティティ名称の生成
+### 7.7 ProvinceOffice (Bailiff) の初期化（v0.16）
+
+全 Province に `bailiff` ProvinceOfficeAssignment を生成し、holder は **placeholder Person** (AnonymousHouse 所属) とする。BailiffAppointmentSystem (§6.14e) が実行されると順次通常人物に置き換わる。
+
+### 7.8 エンティティ名称の生成
 
 Polity / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` に定義された名前プールから seed 付き RNG で選択する。
 
@@ -1608,10 +1807,8 @@ Polity / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` �
 | PLOT_SUCCEEDED | major | 陰謀成功 |
 | PLOT_FAILED | normal | 陰謀失敗 |
 | PLOT_CANCELLED | minor | 陰謀中断 |
-| REBELLION_STARTED | critical | 反乱勃発 |
-| REBELLION_SUCCEEDED | critical | 反乱成功 |
-| REBELLION_FAILED | major | 反乱失敗 |
 | POLITY_SPLIT | critical | Polity 分裂（v0.15: 旧 COUNTRY_SPLIT を rename） |
+| POLITY_LANDLESS | major | Polity が landless 化（terminal Province 0、v0.16 新規 / 現状未発火 §11） |
 | OMEN | normal | 兆し |
 | FAMINE | major | 飢饉 |
 | PLAGUE | major | 疫病 |
@@ -1621,18 +1818,31 @@ Polity / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` �
 | WAR_DECLARED | major | 宣戦布告 |
 | WAR_WON | major | 戦争勝利 |
 | WAR_LOST | major | 戦争敗北 |
-| PROVINCE_CONQUERED | major | Province 征服 |
+| PROVINCE_CONQUERED | major | Province 征服 (v0.16 では WarSystem が依然発火、LAND_CONTRACT_* への置換は Faction 段階) |
 | POLITY_ANNEXED | critical | 国家消滅（併合） |
 | MONUMENT_BUILT | major | 記念碑建設 |
 | COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発 |
 | HOUSE_LAND_DEVELOPED | normal | 家による土地開発 |
-| LORDSHIP_TRANSFERRED | minor | 隣接吸収による領主交代 |
 | POP_LAND_DEVELOPED | minor | POP 自主開発（§6.18） |
 | PROVINCE_REVOLT_STARTED | normal | Province / POP 反乱が発生 |
 | PROVINCE_REVOLT_SUCCEEDED | major | Province 反乱が concession で成功 |
 | PROVINCE_REVOLT_FAILED | normal | Province 反乱が失敗・鎮圧 |
-| LORDSHIP_USURPED | major | 反乱により Province の ownerHouse が交代 |
 | REVOLT_POLITY_FOUNDED | critical | Province 反乱の独立により新 Polity が成立 |
+| LAND_CONTRACT_GRANTED | major | LandContract 新規付与（v0.16、現状未発火、Faction 段階で配線） |
+| LAND_CONTRACT_TRANSFERRED | major | terminal grantee の差し替え（v0.16、§13 case A、現状未発火） |
+| LAND_CONTRACT_INSERTED | major | 中間契約の挿入（v0.16、§13 case B-1、現状未発火） |
+| LAND_CONTRACT_REPLACED | major | 下位契約の差し替え（v0.16、§13 case B-2、現状未発火） |
+| LAND_CONTRACT_TAX_CHANGED | normal | 上納率の変更（v0.16、§16.1 case C、現状未発火） |
+| LAND_CONTRACT_REVOKED | major | 契約解消（v0.16、現状未発火） |
+| LAND_CONTRACT_PURCHASED | major | 金銭による契約譲渡が成立（v0.16、§18） |
+| BAILIFF_APPOINTED | normal | placeholder → 通常人物への Bailiff 交代（v0.16） |
+| BAILIFF_VACATED | normal | Bailiff が不在化（v0.16） |
+| BAILIFF_PLACEHOLDER_INSTALLED | minor | terminal Polity 変更時の Bailiff placeholder 設置（v0.16） |
+
+**v0.16 で削除された EventType**:
+
+- `REBELLION_STARTED` / `REBELLION_SUCCEEDED` / `REBELLION_FAILED` — RebellionSystem 廃止により発火源消失
+- `LORDSHIP_TRANSFERRED` / `LORDSHIP_USURPED` — LordshipTransitionSystem 廃止 / 反乱で ownerHouse が直接交代する経路の消失により発火源消失
 | POP_HARDSHIP | minor | POP の困窮（将来実装） |
 | POP_PROSPERITY | minor | POP の繁栄（将来実装） |
 | POP_UNREST_RISING | normal | Province unrest 上昇警告（将来実装） |
@@ -2193,17 +2403,49 @@ UI 層では基礎能力直接参照（`person.abilities.valor` を直接表示�
 - **§22.3 affectedPolityIds スナップショット**: `extinctHouse(ctx, { houseId, affectedPolityIds })` で所領喪失前の関係 Polity 集合を保存し、メンバー移住先選定に使う
 - **POLITY_OWNER_CHANGED / POLITY_EXTINCT イベント追加**、`RULER_CHANGED` → `POLITY_LEADER_CHANGED` 等の rename
 
-### v0.16 以降に送られる主要項目
+### v0.16 で実装済み（参考）
+
+詳細仕様は `docs/drafts/spec-v016-update.md` を参照（Stage A/B/C すべて完了、2026-05-19 時点）。
+
+- **LandContract chain による土地支配の階層化**: `Province.ownerHouseId` / `Province.polityId` / `Province.houseControl` / `House.provinceIds` を全廃。土地支配は `LandContract` (provinceId, parentContractId | rootAuthorityId, granteePolityId, terms.taxRateToGrantor) の chain で表現。Province の effective owner / overlord は selector で動的取得。
+- **Polity rank の階層化**: 1 (帝国) / 2 (王国) / 3 (公爵領) / 4 (伯爵領) / 5 (反乱領)。自動昇降格はしない。grantor rank は派生値 (chain の親 grantee の rank)。worldgen で rank 2 × 3 + rank 3 × 4 + rank 4 × 8 の 3 階層 15 Polity を生成。
+- **AnonymousHouse + placeholder Person**: 単一の system House (`h-anon`、`kind: 'system'`) に `kind: 'placeholder'` の Person が所属。Province の Bailiff が空席のときの仮充当に使う。Person-loop / House-loop systems は placeholder / system house を skip する。
+- **新 tick system 4 つ**:
+  - `LandRevenueSystem`: 各 Province の terminal Polity treasury に積み、chain を terminal→root の逆順走査で `taxRateToGrantor` 上納。root の taxRate は 0 固定。過徴税ペナルティ継続。
+  - `PolitySurplusDistributionSystem`: 余剰 `max(0, treasury - reserveTarget) * distributionRate` を Share holder (Person / House) の wealth に分配。`reserveTarget` が暗黙の給与予備として機能する。
+  - `BailiffAppointmentSystem`: terminal Polity ごとに Bailiff の placeholder ↔ 通常人物を 6 ヶ月間隔で交代任命。
+  - `LandContractPurchaseSystem` (毎年 1 月): 隣接かつ同 rank・同 grantor の dynastic Polity 間で Province を金銭購入。commonwealth は除外。
+- **WarSystem の LandContract 化 (§13 / §16.1)**: `transferProvinceByWarGoal` mutation で case A / B-1 / B-2 / C を rank 比較で分岐。case C は v0.16 では no-op (税率調整は Faction 段階で配線)。
+- **createRebelPolity (mutation)**: provinceRevoltSystem の独立成功時に Rebel Polity + Rebel House + rebel leader を atomic 生成。`ownerHouseId === undefined` の commonwealth として生成し、OrganizationShare を rebel leader (Person) に 100% 付与 (§17)。
+- **House extinction inheritance (§22.3)**: extinct House が ownerHouse である Polity すべてを receiver House の所有に移す (王朝交代)。`Polity.ownerHouseId` と `polityIndex.byOwnerHouse` と `polity:leader` Office を同期更新、`POLITY_OWNER_CHANGED` 発火。LandContracts は変更しない (Polity と Province の関係は不変)。
+- **House active 判定の変更 (§9.1)**: 旧 `provinceIds.length === 0` ベース判定を廃止し、memberIds (血統) ベースに統一。土地を完全に失った House も active=true のまま「亡命家」として存続。
+- **institutionalPower 下限 (§22.1)**: `calcPolityMilitaryPower` に rank 別下限 (`institutionalPowerFloorByRank`) を被せ、Rebel Polity / 小 Polity の即死を防止。
+- **旧 system の廃止**: `economySystem` / `rebellionSystem` / `lordshipTransitionSystem` を tick から除去。`createRevoltHouse` / `createRevoltLeader` mutation を削除し `createRebelPolity` に統合。
+- **§25 IntegrityCheck 33 項目**: chain 不変条件 / index 同期 / AnonymousHouse / placeholder / ProvinceOffice / Polity-House 整合性等を 25 項目 error throw + 5 項目型レベル保証 + 1 項目コードレビューで担保。
+- **検証**: CLI 300 年 × 4 seed (1, 42, 123, 999) で integrity 違反 0 完走。335 件 test pass。
+
+### v0.17 以降に送られる主要項目
+
+#### Faction / お家再興 / 多重臣従と同時に再設計する項目 (spec-v016-update.md §30 B カテゴリ)
+
+- **派閥システム (Faction)**: 家を超えた政治集団。同派閥婚姻ボーナス、leader 意思決定の派閥圧力、軍事 contribution の Share-based 集計、commonwealth Polity の意思決定、placeholder leader の自発戦争抑制など。LAND_CONTRACT_* event の actual emit (現状 PURCHASED と BAILIFF_* のみ発火) もここで一括配線
+- **お家再興 / 復古試行**: landless 化した「亡命家」の memberIds が他家の Office に就任する経路の優先度補正。家の再起イベント発火条件
+- **多重臣従**: 1 つの House が複数 Polity の owner / vassal を兼ねる構造の明示化 (v0.16 では「複数 Polity の ownerHouse になり得る」のみ実装、明示臣従関係は無し)
+- **war goal system**: case C (下位 rank 勝者) の税率調整 default を起動。§13 / §16.1
+- **commonwealth 補充 / Rebel Polity の家産化阻止 (§11.2)**: 現状 polityOwnerConsistencySystem が `ownerHouseId === undefined` を補充対象としてしまうため、Rebel Polity が次の tick で家産国に転換される暫定挙動を本来の意図に戻す
+- **POLITY_LANDLESS event の発火 (§11)**: 現状未発火
+- **上位者の取り分維持と Attitude penalty (§14)**: 押領・強制的な税率変更時に上位者から実行者へ negative Attitude を付与
+- **BailiffAppointment の commonwealth 対応 (§19.1)**: 現状 ownerHouse なしは skip。Polity Share holder 系の候補者選定を導入
+
+#### v0.17 以降の独立トピック
 
 - **限界突破イベント**: aptitude を 101..120 帯に押し上げる伝説的偉業・特訓イベント（v0.14 はデータ表現のみ）
 - **ESTATE_CONTESTED の長期 Project 化・claim 派生**: v0.14 では ESTATE_DISPUTED は記録のみ。長期化させた相続争いを Project 化し、後年に claim 相続へ繋げる
 - **遺言（指定相続人）機構**: 現状は嫡出子→配偶者→兄弟→家長の固定順
 - **称号システム**（家産称号 / 個人称号 / 公的称号、TITLE_INHERITED / TITLE_RECLAIMED_BY_HOUSE / DYNASTY_CHANGED / TITLE_UNION_FORMED / DISSOLVED）
-- **Polity 拡張**: ownershipMode / titlePropertyRegime / successionLaw / 同君連合（rank は v0.15 で型のみ導入済み、game effect は v0.16+）
-- **LandContract**（明示的な臣従・封土契約）: 現状は House 関係をすべて `province.ownerHouseId` 経由で読み取る簡易モデル。将来は House 間の明示的契約に切り替える
-- **多重臣従**: 1 つの House が複数 Polity の owner / vassal を兼ねる構造（v0.15 では「複数 Polity に所領を持つ」のみで明示臣従はない）
-- **Faction（派閥）**: 家を超えた政治集団。同派閥婚姻ボーナス等を実装する場合の前提
-- **代官 / ProvinceOfficeAssignment**（Person.houseId optional 化、代官蓄財）
+- **Polity 拡張**: ownershipMode / titlePropertyRegime / successionLaw / 同君連合
+- **LandContract の高度な機能**: 契約改竄 / claim / 分岐 chain / 共同保有等 (§27 参照)
+- **代官 / ProvinceOfficeAssignment の拡充**（Person.houseId optional 化、代官蓄財、bailiff 経済の独立）
 - **氏族 Clan**、巨大 House の Clan 化
 - **socialFriction**（魅力 − 洞察 ペナルティ）— Attitude system 全体見直し
 - **ROLE_WEIGHTS の config 化**（シナリオごとに重み変更したいニーズが顕在化したとき）

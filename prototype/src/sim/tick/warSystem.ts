@@ -12,7 +12,7 @@ import {
   calcGeneralWarPowerModifier,
   calcGeneralDeclareThreshold,
 } from '../selectors/personAbilityEffects'
-import { transferProvinceToPolity } from '../mutations/provinceMutations'
+import { transferProvinceByWarGoal } from '../mutations/provinceMutations'
 import { annexPolity } from '../mutations/polityMutations'
 import type { PolityId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
@@ -363,14 +363,12 @@ export function runWarSystem(ctx: TickContext): TickContext {
             continue
           }
 
-          const tResult = transferProvinceToPolity(
-            currentCtx.state,
-            provinceId,
-            attackerPolityId,
-            rulerHouseId,
-          )
-          if (!tResult.ok) continue
-          currentCtx = { ...currentCtx, state: tResult.value }
+          // v0.16 §16.1: case A/B/C 分岐版 helper を使う。chain 不変条件を破る場合は no-op。
+          const stateBefore = currentCtx.state
+          const stateAfter = transferProvinceByWarGoal(stateBefore, provinceId, attackerPolityId)
+          // state が変化しなければスキップ (case C 等)
+          if (stateAfter === stateBefore) continue
+          currentCtx = { ...currentCtx, state: stateAfter }
 
           const provinceName = currentState.provinces[provinceId]?.name ?? provinceId
           currentCtx = emitProvinceConquered(

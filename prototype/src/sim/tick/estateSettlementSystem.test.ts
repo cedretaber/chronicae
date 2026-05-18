@@ -7,6 +7,13 @@ import { defaultConfig } from '../config/defaultConfig'
 import { findHeirs, runEstateSettlementSystem } from './estateSettlementSystem'
 import { collectIntegrityErrors } from './integritySystem'
 import { createOfficeAssignmentId } from '../types/ids'
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -26,65 +33,23 @@ function makeBaseState(): {
   const houseId = 'dh-0' as HouseId
   const polityId = 'dp-0' as PolityId
   const provinceId = 'dp-pr-0' as ProvinceId
-  const state: WorldState = {
-    currentYear: 1444,
-    currentMonth: 1,
-    provinces: {
-      [provinceId]: {
-        id: provinceId,
-        name: 'Province0',
-        x: 0,
-        y: 0,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 0,
-        polityControl: 100,
-      },
-    },
-    polities: {
-      [polityId]: {
-        id: polityId,
-        name: 'Kingdom',
-        rank: 2,
-        ownerHouseId: houseId,
-        treasury: 500,
-        legacyPrestige: 50,
-        adminPower: 10,
-        active: true,
-        capitalProvinceId: provinceId,
-      },
-    },
-    houses: {
-      [houseId]: {
-        id: houseId,
-        name: 'House',
-        active: true,
-        memberIds: [],
-        cadetHouseIds: [],
-        legacyPrestige: 50,
-        wealth: 0,
-        seatProvinceId: provinceId,
-      },
-    },
-    persons: {},
-    activePlots: {},
-    popGroups: {},
-    organizationShares: {},
-    officeAssignments: {},
-    shareIndex: { byOrganization: {}, byHolder: {} },
-    officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    nextOrganizationShareId: 0,
-    nextOfficeAssignmentId: 0,
-    landContracts: {},
-    provinceOfficeAssignments: {},
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    polityIndex: { byOwnerHouse: {} },
-    nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
-  }
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 1444 }
+  state = withProvince(state, provinceId, { name: 'Province0' })
+  state = withHouse(state, houseId, {
+    name: 'House',
+    legacyPrestige: 50,
+    seatProvinceId: provinceId,
+  })
+  state = withPolity(state, polityId, {
+    name: 'Kingdom',
+    ownerHouseId: houseId,
+    treasury: 500,
+    legacyPrestige: 50,
+    adminPower: 10,
+    capitalProvinceId: provinceId,
+  })
+  state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
   return { state, houseId, polityId, provinceId }
 }
 

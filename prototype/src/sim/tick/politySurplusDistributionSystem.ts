@@ -40,6 +40,11 @@ export function runPolitySurplusDistributionSystem(ctx: TickContext): TickContex
         actuallyDistributed += portion
       } else if (share.holder.kind === 'person') {
         const personId = share.holder.id
+        // v0.16: 死亡した Person Share holder には分配しない。
+        // shareUpdateSystem の次回更新で Share holder 自体が再計算される想定。
+        // それまでの間は分配だけ skip して dead person.wealth が増えないようにする。
+        const person = state.persons[personId]
+        if (!person || !person.alive) continue
         personWealthDeltas.set(personId, (personWealthDeltas.get(personId) ?? 0) + portion)
         actuallyDistributed += portion
       }

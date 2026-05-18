@@ -8,6 +8,13 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runSuccessionSystem } from './successionSystem'
 import { applyMinorHeadPenalties } from './successionSystem'
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -68,66 +75,30 @@ function makeCtx(members: Person[], houseActive: boolean = true, month: number =
     memberIds.push(m.id)
   }
 
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 1, currentMonth: month }
+  state = withProvince(state, provinceId, { name: 'Capital', development: 10 })
+  state = withHouse(state, houseId, {
+    name: 'H0',
+    active: houseActive,
+    memberIds,
+    legacyPrestige: 50,
+    wealth: 100,
+    seatProvinceId: provinceId,
+  })
+  state = withPolity(state, polityId, {
+    name: 'C0',
+    ownerHouseId: houseId,
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 50,
+    capitalProvinceId: provinceId,
+  })
+  state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
+  state = { ...state, persons: { ...state.persons, ...allPersons } }
+
   return {
-    state: {
-      currentYear: 1,
-      currentMonth: month,
-      provinces: {
-        [provinceId]: {
-          id: provinceId,
-          name: 'Capital',
-          x: 0,
-          y: 0,
-          neighbors: [],
-          habitability: 50,
-          popGroupIds: [],
-          development: 10,
-          polityControl: 100,
-        },
-      },
-      polities: {
-        [polityId]: {
-          id: polityId,
-          name: 'C0',
-          rank: 2,
-          ownerHouseId: houseId,
-          treasury: 100,
-          legacyPrestige: 50,
-          adminPower: 50,
-          active: true,
-          capitalProvinceId: provinceId,
-        },
-      },
-      houses: {
-        [houseId]: {
-          id: houseId,
-          name: 'H0',
-          active: houseActive,
-          memberIds,
-          cadetHouseIds: [],
-          legacyPrestige: 50,
-          wealth: 100,
-          seatProvinceId: provinceId,
-        },
-      },
-      persons: allPersons,
-      activePlots: {},
-      popGroups: {},
-      organizationShares: {},
-      officeAssignments: {},
-      shareIndex: { byOrganization: {}, byHolder: {} },
-      officeIndex: { byOrganization: {}, byHolderPerson: {} },
-      nextOrganizationShareId: 0,
-      nextOfficeAssignmentId: 0,
-      landContracts: {},
-      provinceOfficeAssignments: {},
-      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-      provinceTerminalPolityCache: {},
-      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-      polityIndex: { byOwnerHouse: {} },
-      nextLandContractId: 0,
-      nextProvinceOfficeAssignmentId: 0,
-    },
+    state,
     rng: createRng('succession-test'),
     config: defaultConfig,
     events: [],
@@ -373,66 +344,28 @@ describe('applyMinorHeadPenalties', () => {
     const memberId = 'pe-0' as PersonId
     const member = makePerson(memberId, 'Member', age, true, houseId, 0.3, 10)
     const provinceId = 'p-0' as ProvinceId
+    let state = makeEmptyV016State()
+    state = { ...state, currentYear: 1 }
+    state = withProvince(state, provinceId, { name: 'Capital', development: 10 })
+    state = withHouse(state, houseId, {
+      name: 'H0',
+      memberIds: [memberId],
+      legacyPrestige: 50,
+      wealth: 100,
+      seatProvinceId: provinceId,
+    })
+    state = withPolity(state, polityId, {
+      name: 'C0',
+      ownerHouseId: houseId,
+      treasury: 100,
+      legacyPrestige: 50,
+      adminPower: 50,
+      capitalProvinceId: provinceId,
+    })
+    state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
+    state = { ...state, persons: { ...state.persons, [memberId]: member } }
     const baseCtx: TickContext = {
-      state: {
-        currentYear: 1,
-        currentMonth: 1,
-        provinces: {
-          [provinceId]: {
-            id: provinceId,
-            name: 'Capital',
-            x: 0,
-            y: 0,
-            neighbors: [],
-            habitability: 50,
-            popGroupIds: [],
-            development: 10,
-            polityControl: 100,
-          },
-        },
-        polities: {
-          [polityId]: {
-            id: polityId,
-            name: 'C0',
-            rank: 2,
-            ownerHouseId: houseId,
-            treasury: 100,
-            legacyPrestige: 50,
-            adminPower: 50,
-            active: true,
-            capitalProvinceId: provinceId,
-          },
-        },
-        houses: {
-          [houseId]: {
-            id: houseId,
-            name: 'H0',
-            active: true,
-            memberIds: [memberId],
-            cadetHouseIds: [],
-            legacyPrestige: 50,
-            wealth: 100,
-            seatProvinceId: provinceId,
-          },
-        },
-        persons: { [memberId]: member },
-        activePlots: {},
-        popGroups: {},
-        organizationShares: {},
-        officeAssignments: {},
-        shareIndex: { byOrganization: {}, byHolder: {} },
-        officeIndex: { byOrganization: {}, byHolderPerson: {} },
-        nextOrganizationShareId: 0,
-        nextOfficeAssignmentId: 0,
-        landContracts: {},
-        provinceOfficeAssignments: {},
-        landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-        provinceTerminalPolityCache: {},
-        provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-        polityIndex: { byOwnerHouse: {} },
-        nextLandContractId: 0,
-        nextProvinceOfficeAssignmentId: 0,
-      },
+      state,
       rng: createRng('penalty-test'),
       config,
       events: [],

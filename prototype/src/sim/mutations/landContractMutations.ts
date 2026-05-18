@@ -230,9 +230,14 @@ export function insertIntermediateLandContract(
 
   const newChain = [...chain.slice(0, belowIdx), id, ...chain.slice(belowIdx)]
   const granteeSlot = emptyGranteeSlot(state.landContractIndex, params.newGranteePolityId)
+  // byParent は「parent → 直下 child」方向 (mutations/createChildLandContract と同じ)
   const newByParent = { ...state.landContractIndex.byParent }
-  newByParent[id] = oldParentId
-  newByParent[params.belowContractId] = id
+  // 旧 oldParent → below を上書きして oldParent → new に
+  if (oldParentId !== undefined) {
+    newByParent[oldParentId] = id
+  }
+  // new → below を登録
+  newByParent[id] = params.belowContractId
 
   const nextState: WorldState = {
     ...state,
@@ -313,7 +318,8 @@ export function replaceLowerLandContract(
   }
   delete (updatedTerminal as { rootAuthorityId?: RootAuthorityId }).rootAuthorityId
   nextLandContracts = { ...nextLandContracts, [terminalId]: updatedTerminal }
-  nextByParent[terminalId] = winnerId
+  // byParent は parent → child 方向。winner contract の直下を terminal に更新する。
+  nextByParent[winnerId] = terminalId
 
   const newChain = [...chain.slice(0, winnerIdx + 1), terminalId]
   const nextState: WorldState = {
@@ -331,6 +337,48 @@ export function replaceLowerLandContract(
   }
 }
 
+// v0.16 §18: 金銭による LandContract 譲渡。
+// terminal の grantee を seller (現在の terminal Polity) から buyer に差し替え、
+// buyer.treasury から seller.treasury に price を移す。
+// 同 rank 制約 (case A 相当) を満たすことが前提。caller が rank と隣接性をチェックする。
+export function purchaseLandContract(
+  state: WorldState,
+  params: {
+    provinceId: ProvinceId
+    buyerPolityId: PolityId
+    sellerPolityId: PolityId
+    price: number
+  },
+): WorldState {
+  const buyer = state.polities[params.buyerPolityId]
+  const seller = state.polities[params.sellerPolityId]
+  if (!buyer || !seller) return state
+  if (buyer.treasury < params.price) return state
+
+  // terminal grantee swap (case A semantics)
+  const terminalContractId = state.landContractIndex.byProvince[params.provinceId]?.slice(-1)[0]
+  if (!terminalContractId) return state
+  const terminal = state.landContracts[terminalContractId]
+  if (!terminal) return state
+  if (terminal.granteePolityId !== params.sellerPolityId) return state
+
+  let nextState = transferLandContractGrantee(state, terminalContractId, params.buyerPolityId)
+
+  // treasury 移動
+  const nextPolities = { ...nextState.polities }
+  nextPolities[params.buyerPolityId] = {
+    ...buyer,
+    treasury: Math.max(0, buyer.treasury - params.price),
+  }
+  nextPolities[params.sellerPolityId] = {
+    ...seller,
+    treasury: seller.treasury + params.price,
+  }
+  nextState = { ...nextState, polities: nextPolities }
+
+  return nextState
+}
+
 // v0.16 §16.1: contract を削除する。terminal でない contract を消すと chain が断絶するので、
 // 削除前に caller が chain 整合性 (例えば terminal を root に昇格させる) を担保する責務がある。
 export function revokeLandContract(state: WorldState, contractId: LandContractId): WorldState {
@@ -340,11 +388,17 @@ export function revokeLandContract(state: WorldState, contractId: LandContractId
   const chain = state.landContractIndex.byProvince[contract.provinceId] ?? []
   const newChain = chain.filter((cid) => cid !== contractId)
   const granteeSlot = state.landContractIndex.byGranteePolity[contract.granteePolityId] ?? []
+  // byParent は parent → child 方向。
+  // 旧: parent → contractId, contractId → child
+  // 新: parent → child (contractId をスキップ)
   const newByParent = { ...state.landContractIndex.byParent }
+  const oldChild: LandContractId | undefined = newByParent[contractId]
   delete newByParent[contractId]
-  for (const [child, parent] of Object.entries(newByParent)) {
-    if (parent === contractId) {
-      newByParent[child as LandContractId] = contract.parentContractId
+  if (contract.parentContractId !== undefined) {
+    if (oldChild !== undefined) {
+      newByParent[contract.parentContractId] = oldChild
+    } else {
+      delete newByParent[contract.parentContractId]
     }
   }
 

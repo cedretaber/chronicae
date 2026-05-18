@@ -5,15 +5,14 @@ import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import { adjustHouseMembersAttitude } from './attitudeMutations'
 import { houseAttitudeKey } from '../helpers/attitudeHelpers' // used for assertion key lookup only
-
-const DEFAULT_ABILITIES = {
-  valor: 50,
-  command: 50,
-  numeracy: 50,
-  learning: 50,
-  charisma: 50,
-  insight: 50,
-}
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPerson,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
 function makeFixture(): {
   state: WorldState
@@ -29,98 +28,36 @@ function makeFixture(): {
   const polityId = createPolityId('c', 0)
   const provinceId = createProvinceId('p', 0)
 
-  const state: WorldState = {
-    currentYear: 1444,
-    currentMonth: 1,
-    provinces: {
-      [provinceId]: {
-        id: provinceId,
-        name: 'Test Province',
-        x: 0,
-        y: 0,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 10,
-        polityControl: 100,
-      },
-    },
-    polities: {
-      [polityId]: {
-        id: polityId,
-        name: 'Polity 1',
-        rank: 2,
-        ownerHouseId: houseId,
-        treasury: 100,
-        legacyPrestige: 50,
-        adminPower: 10,
-        active: true,
-        capitalProvinceId: provinceId,
-      },
-    },
-    houses: {
-      [houseId]: {
-        id: houseId,
-        name: 'House 1',
-        active: true,
-        memberIds: [person1Id, person2Id],
-        cadetHouseIds: [],
-        legacyPrestige: 50,
-        wealth: 0,
-        seatProvinceId: provinceId,
-      },
-    },
-    persons: {
-      [person1Id]: {
-        id: person1Id,
-        name: 'Person 1',
-        sex: 'male' as const,
-        age: 30,
-        alive: true,
-        houseId: houseId,
-        childIds: [],
-        birthStatus: 'legitimate' as const,
-        abilities: DEFAULT_ABILITIES,
-        aptitudes: DEFAULT_ABILITIES,
-        traits: { ambition: 0.5, caution: 0.5 },
-        legacyPrestige: 10,
-        wealth: 0,
-        attitudes: {},
-      },
-      [person2Id]: {
-        id: person2Id,
-        name: 'Person 2',
-        sex: 'female' as const,
-        age: 28,
-        alive: false,
-        houseId: houseId,
-        childIds: [],
-        birthStatus: 'legitimate' as const,
-        abilities: DEFAULT_ABILITIES,
-        aptitudes: DEFAULT_ABILITIES,
-        traits: { ambition: 0.5, caution: 0.5 },
-        legacyPrestige: 10,
-        wealth: 0,
-        attitudes: {},
-      },
-    },
-    activePlots: {},
-    popGroups: {},
-    organizationShares: {},
-    officeAssignments: {},
-    shareIndex: { byOrganization: {}, byHolder: {} },
-    officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    nextOrganizationShareId: 0,
-    nextOfficeAssignmentId: 0,
-    landContracts: {},
-    provinceOfficeAssignments: {},
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    polityIndex: { byOwnerHouse: {} },
-    nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
-  }
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 1444 }
+  state = withProvince(state, provinceId, { name: 'Test Province', development: 10 })
+  state = withHouse(state, houseId, {
+    name: 'House 1',
+    memberIds: [person1Id, person2Id],
+    seatProvinceId: provinceId,
+  })
+  state = withPolity(state, polityId, {
+    name: 'Polity 1',
+    ownerHouseId: houseId,
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 10,
+    capitalProvinceId: provinceId,
+  })
+  state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
+  state = withPerson(state, person1Id, {
+    name: 'Person 1',
+    houseId,
+    legacyPrestige: 10,
+  })
+  state = withPerson(state, person2Id, {
+    name: 'Person 2',
+    sex: 'female',
+    age: 28,
+    alive: false,
+    houseId,
+    legacyPrestige: 10,
+  })
   return { state, person1Id, person2Id, houseId, polityId, provinceId }
 }
 

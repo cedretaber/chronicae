@@ -32,10 +32,12 @@ import {
 } from '../selectors/landContractSelectors'
 import { transferLandContractGrantee } from './landContractMutations'
 import { installPlaceholderBailiff } from './provinceOfficeMutations'
+import { createOrganizationShare } from './shareMutations'
 import type { PolityRank } from '../types/polity'
 import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
 import { samplePerson } from '../helpers/personFactory'
+import { defaultLandContractConfig } from '../config/landContractConfig'
 
 // ============================================================================
 // Split House Orchestration
@@ -336,10 +338,11 @@ function chooseReceiverHouse(
     }
   }
 
-  // 4) 世界全体で最大 controlled Province 数を持つ active House
+  // 4) 世界全体で最大 controlled Province 数を持つ active 通常 House
   let bestGlobal: { houseId: HouseId; count: number } | undefined
   for (const candidate of Object.values(state.houses)) {
     if (!candidate || !candidate.active) continue
+    if (candidate.kind === 'system') continue
     if ((candidate.id as string) === (extinctHouseId as string)) continue
     const count = getHouseControlledProvinceIds(state, candidate.id).length
     if (!bestGlobal || count > bestGlobal.count) {
@@ -576,11 +579,15 @@ export function createRebelPolity(
   })
   ctx = { ...ctx, rng: rng0 }
 
-  // Generate leader name
-  const { name: leaderName, rng: rng1 } = pickNameBySex('male', ctx.rng)
+  // Generate leader (§17 step 4: sex 50/50, age range from config)
+  const { value: sexRoll, rng: rngSex } = randomInt(ctx.rng, 0, 1)
+  ctx = { ...ctx, rng: rngSex }
+  const leaderSex: 'male' | 'female' = sexRoll === 0 ? 'male' : 'female'
+  const { name: leaderName, rng: rng1 } = pickNameBySex(leaderSex, ctx.rng)
   ctx = { ...ctx, rng: rng1 }
 
-  const { value: age, rng: rng2 } = randomInt(ctx.rng, 20, 45)
+  const [ageMin, ageMax] = defaultLandContractConfig.rebelLeaderAgeRange
+  const { value: age, rng: rng2 } = randomInt(ctx.rng, ageMin, ageMax)
   ctx = { ...ctx, rng: rng2 }
   const { value: ambition, rng: rng3 } = randomInt(ctx.rng, 7, 10)
   ctx = { ...ctx, rng: rng3 }
@@ -592,7 +599,7 @@ export function createRebelPolity(
   const { value: newLeader, rng: rngAfterLeader } = samplePerson(ctx.rng, ctx.config, {
     id: newPersonId,
     name: leaderName,
-    sex: 'male',
+    sex: leaderSex,
     age,
     houseId: newHouseId,
     birthStatus: 'unknown',
@@ -633,6 +640,8 @@ export function createRebelPolity(
   const terminalRank = oldPolity.rank
   const rebelRank: PolityRank = Math.min(5, Math.max(4, terminalRank + 1)) as PolityRank
 
+  // v0.16 §17 step 3: Rebel Polity.ownerHouseId は undefined (commonwealth / rebel regime)
+  // Rebel House は身分上の所属のためだけに作り、Polity の ownerHouse にはしない (§17 末尾)
   const newPolityObj: Polity = {
     id: newPolityId,
     name: newPolityName,
@@ -642,7 +651,6 @@ export function createRebelPolity(
     active: true,
     capitalProvinceId: provinceId,
     rank: rebelRank,
-    ownerHouseId: newHouseId,
   }
 
   // v0.16: Province の polityControl のみリセット。所有変更は LandContract chain で表現する。
@@ -654,7 +662,7 @@ export function createRebelPolity(
   // v0.16: 旧 ownerHouse の Province 帰属は LandContract chain 経由で動的に決まるため House 自体は触らない。
   // ただし seat が当該 Province にあった場合の seat 移動は別 system に委ねる (Stage A では skip)。
 
-  // Apply all state changes
+  // v0.16 §17: Rebel Polity は commonwealth なので polityIndex.byOwnerHouse には登録しない
   let newState: WorldState = {
     ...ctx.state,
     provinces: { ...ctx.state.provinces, [provinceId]: updatedProvince },
@@ -667,13 +675,16 @@ export function createRebelPolity(
       ...ctx.state.polities,
       [newPolityId]: newPolityObj,
     },
-    polityIndex: {
-      byOwnerHouse: {
-        ...ctx.state.polityIndex.byOwnerHouse,
-        [newHouseId]: [newPolityId],
-      },
-    },
   }
+
+  // v0.16 §17 step 6: Rebel Polity の OrganizationShare = rebel leader (Person) に rawPower 100%
+  // shareUpdateSystem の次回年次更新で再計算されるが、初期値として rebel leader 単独を置く
+  newState = createOrganizationShare(
+    newState,
+    { kind: 'polity', id: newPolityId },
+    { kind: 'person', id: newPersonId },
+    100,
+  )
 
   // v0.16: 当該 Province の terminal LandContract grantee を newPolityId に差し替え
   const terminal = getProvinceTerminalContract(newState, provinceId)

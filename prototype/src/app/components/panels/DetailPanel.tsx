@@ -1,6 +1,6 @@
 import type {} from 'react'
 import { useSimulationStore } from '@/app/stores/simulationStore'
-import { formatScore, formatAmount, formatPower } from '@/app/utils/format'
+import { formatScore, formatAmount, formatPower, formatPolityRank } from '@/app/utils/format'
 import {
   getPolityLegitimacy,
   getPolityStability,
@@ -55,7 +55,10 @@ import {
   getProvinceTerminalPolityId,
   getProvinceEffectiveOwnerHouseId,
   getHouseControlledProvinceIds,
+  getProvinceLandContractChain,
+  getHouseOwnedPolityIds,
 } from '@sim/selectors/landContractSelectors'
+import { getBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { calcPolityMilitaryPower } from '@/sim/selectors/militarySelectors'
@@ -361,6 +364,13 @@ function CountryDetail({
 
       <div className="text-sm">
         <div className="flex justify-between">
+          <span className="text-gray-400">Rank:</span>
+          <span>
+            {formatPolityRank(polity.rank)}{' '}
+            <span className="text-gray-500">(rank {polity.rank})</span>
+          </span>
+        </div>
+        <div className="flex justify-between">
           <span className="text-gray-400">Capital:</span>
           <button
             className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
@@ -597,6 +607,57 @@ function HouseDetail({
             )
           })()}
         </div>
+        {(() => {
+          const ownedIds = getHouseOwnedPolityIds(currentState, house.id)
+          if (ownedIds.length <= 1) {
+            return (
+              <div className="flex justify-between">
+                <span className="text-gray-400">Owned Polity:</span>
+                {ownedIds.length === 0 ? (
+                  <span className="text-gray-500">\u2014</span>
+                ) : (
+                  (() => {
+                    const pid = ownedIds[0]!
+                    const p = currentState.polities[pid]
+                    if (!p) return <span className="text-gray-500">\u2014</span>
+                    return (
+                      <button
+                        className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                        onClick={() => onPolityClick(pid, 'polity')}
+                      >
+                        {p.name}
+                      </button>
+                    )
+                  })()
+                )}
+              </div>
+            )
+          }
+          return (
+            <div className="flex flex-col gap-0.5">
+              <span className="text-gray-400">Owned Polities ({ownedIds.length}):</span>
+              <ul className="flex flex-col gap-0.5 pl-3">
+                {ownedIds.map((pid) => {
+                  const p = currentState.polities[pid]
+                  if (!p) return null
+                  return (
+                    <li key={pid}>
+                      <button
+                        className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                        onClick={() => onPolityClick(pid, 'polity')}
+                      >
+                        {p.name}
+                      </button>
+                      <span className="ml-1 text-xs text-gray-500">
+                        ({formatPolityRank(p.rank)})
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )
+        })()}
         <div className="flex justify-between">
           <span className="text-gray-400">Seat:</span>
           <button
@@ -1200,6 +1261,7 @@ function ProvinceDetail({
   session,
   onPolityClick,
   onHouseClick,
+  onPersonClick,
   onProvinceClick,
   onPopGroupClick,
 }: {
@@ -1207,6 +1269,7 @@ function ProvinceDetail({
   session: SimulationSession | null
   onPolityClick: ClickHandler
   onHouseClick: ClickHandler
+  onPersonClick: ClickHandler
   onProvinceClick: (id: string) => void
   onPopGroupClick: (id: string) => void
 }) {
@@ -1359,6 +1422,63 @@ function ProvinceDetail({
           <span>{formatPower(province.polityControl)}</span>
         </div>
       </div>
+
+      {currentState && (
+        <>
+          <div className="text-sm font-semibold text-gray-300">Land Tenure Chain</div>
+          <div className="text-sm">
+            {(() => {
+              const chain = getProvinceLandContractChain(currentState, province.id)
+              if (chain.length === 0) {
+                return <div className="text-gray-500">— no contracts —</div>
+              }
+              return chain.map((contract, idx) => {
+                const grantee = currentState.polities[contract.granteePolityId]
+                const isRoot = contract.parentContractId === undefined
+                const isTerminal = idx === chain.length - 1
+                const role = isRoot ? 'root' : isTerminal ? 'terminal' : 'intermediate'
+                return (
+                  <div
+                    key={contract.id}
+                    className="flex justify-between border-l border-gray-700 pl-2"
+                  >
+                    <span className="text-gray-400">
+                      {'  '.repeat(idx)}↳ {role} (rank {grantee?.rank ?? '?'})
+                    </span>
+                    {grantee ? (
+                      <button
+                        className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                        onClick={() => onPolityClick(grantee.id, 'polity')}
+                      >
+                        {grantee.name} {(contract.terms.taxRateToGrantor * 100).toFixed(0)}%
+                      </button>
+                    ) : (
+                      <span className="text-gray-500">—</span>
+                    )}
+                  </div>
+                )
+              })
+            })()}
+            <div className="mt-1 flex justify-between">
+              <span className="text-gray-400">Bailiff:</span>
+              {(() => {
+                const bailiff = getBailiffPerson(currentState, province.id)
+                if (!bailiff) return <span className="text-gray-500">vacant</span>
+                if (bailiff.kind === 'placeholder') {
+                  return <span className="text-gray-500 italic">placeholder</span>
+                }
+                return (
+                  <PersonLink
+                    personId={bailiff.id}
+                    persons={currentState.persons ?? {}}
+                    onClick={onPersonClick}
+                  />
+                )
+              })()}
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="text-sm font-semibold text-gray-300">Population</div>
       <div className="text-sm">
@@ -1569,6 +1689,7 @@ export function DetailPanel() {
             session={session}
             onPolityClick={onPolityClick}
             onHouseClick={onHouseClick}
+            onPersonClick={onPersonClick}
             onProvinceClick={onProvinceClick}
             onPopGroupClick={onPopGroupClick}
           />

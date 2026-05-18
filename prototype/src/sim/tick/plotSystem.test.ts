@@ -15,15 +15,14 @@ import { createRng } from '../rng/rng'
 import { createTickContext, toResult } from './context'
 import { runPlotSystem } from './plotSystem'
 import type { SimEvent } from '../types/event'
-
-const DEFAULT_ABILITIES = {
-  valor: 50,
-  command: 50,
-  numeracy: 50,
-  learning: 50,
-  charisma: 50,
-  insight: 50,
-}
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPerson,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
 function makeBaseState(): {
   state: WorldState
@@ -36,87 +35,36 @@ function makeBaseState(): {
   const personId = createPersonId('pe', 0)
   const provinceId = createProvinceId('p', 0)
 
-  const state: WorldState = {
-    currentYear: 1444,
-    currentMonth: 1,
-    provinces: {
-      [provinceId]: {
-        id: provinceId,
-        name: 'Capital',
-        x: 0,
-        y: 0,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 10,
-        polityControl: 100,
-      },
-    },
-    polities: {
-      [polityId]: {
-        id: polityId,
-        name: 'Polity 1',
-        rank: 2,
-        ownerHouseId: houseId,
-        treasury: 100,
-        legacyPrestige: 50,
-        adminPower: 10,
-        active: true,
-        capitalProvinceId: provinceId,
-      },
-    },
-    houses: {
-      [houseId]: {
-        id: houseId,
-        name: 'Test House',
-        active: true,
-        memberIds: [personId],
-        cadetHouseIds: [],
-        legacyPrestige: 50,
-        wealth: 0,
-        seatProvinceId: provinceId,
-      },
-    },
-    persons: {
-      [personId]: {
-        id: personId,
-        name: 'Test Person',
-        sex: 'male',
-        age: 30,
-        alive: true,
-        houseId,
-        childIds: [],
-        birthStatus: 'unknown',
-        abilities: DEFAULT_ABILITIES,
-        aptitudes: DEFAULT_ABILITIES,
-        traits: { ambition: 0.5, caution: 0.5 },
-        legacyPrestige: 50,
-        wealth: 0,
-        attitudes: {},
-      },
-    },
-    activePlots: {},
-    popGroups: {},
-    organizationShares: {},
-    officeAssignments: {},
-    shareIndex: { byOrganization: {}, byHolder: {} },
-    officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    nextOrganizationShareId: 0,
-    nextOfficeAssignmentId: 0,
-    landContracts: {},
-    provinceOfficeAssignments: {},
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    polityIndex: { byOwnerHouse: {} },
-    nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
-  }
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 1444 }
+  state = withProvince(state, provinceId, { name: 'Capital', development: 10 })
+  state = withHouse(state, houseId, {
+    name: 'Test House',
+    memberIds: [personId],
+    legacyPrestige: 50,
+    seatProvinceId: provinceId,
+  })
+  state = withPolity(state, polityId, {
+    name: 'Polity 1',
+    ownerHouseId: houseId,
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 10,
+    capitalProvinceId: provinceId,
+  })
+  state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
+  state = withPerson(state, personId, {
+    name: 'Test Person',
+    houseId,
+    birthStatus: 'unknown',
+    legacyPrestige: 50,
+  })
 
   const officeId = createOfficeAssignmentId(0)
   const stateWithLeader: WorldState = {
     ...state,
     officeAssignments: {
+      ...state.officeAssignments,
       [officeId]: {
         id: officeId,
         organization: { kind: 'house', id: houseId },
@@ -128,10 +76,16 @@ function makeBaseState(): {
       },
     },
     officeIndex: {
-      byOrganization: { [`house:${houseId as string}`]: [officeId] },
-      byHolderPerson: { [personId as string]: [officeId] },
+      byOrganization: {
+        ...state.officeIndex.byOrganization,
+        [`house:${houseId as string}`]: [officeId],
+      },
+      byHolderPerson: {
+        ...state.officeIndex.byHolderPerson,
+        [personId as string]: [officeId],
+      },
     },
-    nextOfficeAssignmentId: 1,
+    nextOfficeAssignmentId: state.nextOfficeAssignmentId + 1,
   }
 
   return { state: stateWithLeader, polityId, houseId, personId }

@@ -1,19 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { createPolityId, createHouseId, createPersonId, createPlotId } from '../types/ids'
-import type { PolityId, HouseId, PersonId, PlotId, ProvinceId } from '../types/ids'
+import {
+  createPolityId,
+  createHouseId,
+  createPersonId,
+  createPlotId,
+  createProvinceId,
+} from '../types/ids'
+import type { PolityId, HouseId, PersonId, PlotId } from '../types/ids'
 import type { Plot } from '../types/plot'
 import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import { addPlot, removePlot, resolvePlot } from './plotMutations'
-
-const DEFAULT_ABILITIES = {
-  valor: 50,
-  command: 50,
-  numeracy: 50,
-  learning: 50,
-  charisma: 50,
-  insight: 50,
-}
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPerson,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
 function makeFixture(): {
   state: WorldState
@@ -26,71 +31,32 @@ function makeFixture(): {
   const house1Id = createHouseId('h', 0)
   const leaderId = createPersonId('pe', 0)
   const plotId = createPlotId('pl', 0)
+  const provinceId = createProvinceId('p', 0)
 
-  const state: WorldState = {
-    currentYear: 1444,
-    currentMonth: 1,
-    provinces: {},
-    polities: {
-      [polity1Id]: {
-        id: polity1Id,
-        name: 'Polity 1',
-        rank: 2,
-        ownerHouseId: house1Id,
-        treasury: 100,
-        legacyPrestige: 50,
-        adminPower: 10,
-        active: true,
-        capitalProvinceId: '' as ProvinceId,
-      },
-    },
-    houses: {
-      [house1Id]: {
-        id: house1Id,
-        name: 'House 1',
-        active: true,
-        memberIds: [leaderId],
-        cadetHouseIds: [],
-        legacyPrestige: 50,
-        wealth: 0,
-        seatProvinceId: '' as ProvinceId,
-      },
-    },
-    persons: {
-      [leaderId]: {
-        id: leaderId,
-        name: 'Leader',
-        sex: 'male',
-        age: 35,
-        alive: true,
-        houseId: house1Id,
-        childIds: [],
-        birthStatus: 'legitimate',
-        abilities: DEFAULT_ABILITIES,
-        aptitudes: DEFAULT_ABILITIES,
-        traits: { ambition: 0.7, caution: 0.3 },
-        legacyPrestige: 20,
-        wealth: 0,
-        attitudes: {},
-      },
-    },
-    activePlots: {},
-    popGroups: {},
-    organizationShares: {},
-    officeAssignments: {},
-    shareIndex: { byOrganization: {}, byHolder: {} },
-    officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    nextOrganizationShareId: 0,
-    nextOfficeAssignmentId: 0,
-    landContracts: {},
-    provinceOfficeAssignments: {},
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    polityIndex: { byOwnerHouse: {} },
-    nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
-  }
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 1444 }
+  state = withProvince(state, provinceId)
+  state = withHouse(state, house1Id, {
+    name: 'House 1',
+    memberIds: [leaderId],
+    seatProvinceId: provinceId,
+  })
+  state = withPolity(state, polity1Id, {
+    name: 'Polity 1',
+    ownerHouseId: house1Id,
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 10,
+    capitalProvinceId: provinceId,
+  })
+  state = bindProvinceToHouseViaPolity(state, provinceId, polity1Id, house1Id)
+  state = withPerson(state, leaderId, {
+    name: 'Leader',
+    age: 35,
+    houseId: house1Id,
+    traits: { ambition: 0.7, caution: 0.3 },
+    legacyPrestige: 20,
+  })
   return { state, plotId, leaderId, polity1Id, house1Id }
 }
 

@@ -14,6 +14,13 @@ import {
   calcGeneralDeclareThreshold,
   calcHouseHeadDevelopmentChanceBonus,
 } from '../selectors/personAbilityEffects'
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -118,67 +125,37 @@ function makeWorldState(
     officeIndexByOrg[polityKey].push(officeId)
   }
 
-  return {
-    currentYear: 1444,
-    currentMonth: 1,
-    provinces: {
-      [provinceId]: {
-        id: provinceId,
-        name: 'P0',
-        x: 0,
-        y: 0,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 0,
-        polityControl: 50,
-      },
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 1444 }
+  state = withProvince(state, provinceId, { name: 'P0', polityControl: 50 })
+  state = withHouse(state, houseId, {
+    name: 'H0',
+    memberIds: [person.id],
+    legacyPrestige: 50,
+    wealth: houseWealth,
+    seatProvinceId: provinceId,
+  })
+  state = withPolity(state, polityId, {
+    name: 'C0',
+    ownerHouseId: houseId,
+    treasury,
+    legacyPrestige: 50,
+    adminPower: 10,
+    capitalProvinceId: provinceId,
+  })
+  state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
+  // Add person and merge offices on top of fixture-provided defaults.
+  state = {
+    ...state,
+    persons: { ...state.persons, [person.id]: person },
+    officeAssignments: { ...state.officeAssignments, ...officeAssignmentsMap },
+    officeIndex: {
+      byOrganization: { ...state.officeIndex.byOrganization, ...officeIndexByOrg },
+      byHolderPerson: { ...state.officeIndex.byHolderPerson },
     },
-    polities: {
-      [polityId]: {
-        id: polityId,
-        name: 'C0',
-        rank: 2,
-        ownerHouseId: houseId,
-        treasury,
-        legacyPrestige: 50,
-        adminPower: 10,
-        active: true,
-        capitalProvinceId: provinceId,
-      },
-    },
-    houses: {
-      [houseId]: {
-        id: houseId,
-        name: 'H0',
-        active: true,
-        memberIds: [],
-        cadetHouseIds: [],
-        legacyPrestige: 50,
-        wealth: houseWealth,
-        seatProvinceId: provinceId,
-      },
-    },
-    persons: {
-      [person.id]: person,
-    },
-    activePlots: {},
-    popGroups: {},
-    organizationShares: {},
-    officeAssignments: officeAssignmentsMap,
-    shareIndex: { byOrganization: {}, byHolder: {} },
-    officeIndex: { byOrganization: officeIndexByOrg, byHolderPerson: {} },
-    nextOrganizationShareId: 0,
-    nextOfficeAssignmentId: assignmentCounter,
-    landContracts: {},
-    provinceOfficeAssignments: {},
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    polityIndex: { byOwnerHouse: {} },
-    nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
+    nextOfficeAssignmentId: state.nextOfficeAssignmentId + assignmentCounter,
   }
+  return state
 }
 
 function makeCtx(world: WorldState): TickContext {
@@ -533,67 +510,26 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
     const provinceId = 'p-0' as ProvinceId
     const polityId = 'dp-0' as PolityId
 
-    const state: WorldState = {
-      currentYear: 1444,
-      currentMonth: 1,
-      provinces: {
-        [provinceId]: {
-          id: provinceId,
-          name: 'P0',
-          x: 0,
-          y: 0,
-          neighbors: [],
-          habitability: 50,
-          popGroupIds: [],
-          development: 0,
-          polityControl: 50,
-        },
-      },
-      polities: {
-        [polityId]: {
-          id: polityId,
-          name: 'C0',
-          rank: 2,
-          ownerHouseId: houseId,
-          treasury: 500,
-          legacyPrestige: 50,
-          adminPower: 10,
-          active: true,
-          capitalProvinceId: provinceId,
-        },
-      },
-      houses: {
-        [houseId]: {
-          id: houseId,
-          name: 'H0',
-          active: true,
-          memberIds: [],
-          cadetHouseIds: [],
-          legacyPrestige: 50,
-          wealth: 500,
-          seatProvinceId: provinceId,
-        },
-      },
-      persons: {
-        [headPerson.id]: headPerson,
-      },
-      activePlots: {},
-      popGroups: {},
-      organizationShares: {},
-      officeAssignments: {},
-      shareIndex: { byOrganization: {}, byHolder: {} },
-      officeIndex: { byOrganization: {}, byHolderPerson: {} },
-      nextOrganizationShareId: 0,
-      nextOfficeAssignmentId: 0,
-      landContracts: {},
-      provinceOfficeAssignments: {},
-      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-      provinceTerminalPolityCache: {},
-      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-      polityIndex: { byOwnerHouse: {} },
-      nextLandContractId: 0,
-      nextProvinceOfficeAssignmentId: 0,
-    }
+    let state = makeEmptyV016State()
+    state = { ...state, currentYear: 1444 }
+    state = withProvince(state, provinceId, { name: 'P0', polityControl: 50 })
+    state = withHouse(state, houseId, {
+      name: 'H0',
+      memberIds: [headPerson.id],
+      legacyPrestige: 50,
+      wealth: 500,
+      seatProvinceId: provinceId,
+    })
+    state = withPolity(state, polityId, {
+      name: 'C0',
+      ownerHouseId: houseId,
+      treasury: 500,
+      legacyPrestige: 50,
+      adminPower: 10,
+      capitalProvinceId: provinceId,
+    })
+    state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
+    state = { ...state, persons: { ...state.persons, [headPerson.id]: headPerson } }
 
     const config = { ...defaultConfig, houseDevelopmentYearlyChance: 1.0 }
     const ctx = { ...makeCtx(state), config }

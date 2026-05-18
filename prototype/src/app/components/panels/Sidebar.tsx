@@ -11,7 +11,8 @@ import type { WorldState } from '@/sim/types/world'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
 import { getHouseControlledProvinceIds } from '@sim/selectors/landContractSelectors'
 import { buildPolityColorMap } from '@/app/utils/polityColors'
-import { formatScore, formatPower } from '@/app/utils/format'
+import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
+import type { PolityRank } from '@/sim/types/polity'
 import { defaultConfig } from '@/sim/config/defaultConfig'
 
 type TabKey = 'countries' | 'houses' | 'persons' | 'watchlist'
@@ -229,8 +230,21 @@ export function Sidebar() {
   const sortedPolities: Polity[] = polities
     ? Object.values(polities)
         .filter((p) => p.active)
-        .sort((a, b) => b.legacyPrestige - a.legacyPrestige)
+        .sort((a, b) => {
+          if (a.rank !== b.rank) return a.rank - b.rank
+          return b.legacyPrestige - a.legacyPrestige
+        })
     : []
+
+  const polityGroups: { rank: PolityRank; polities: Polity[] }[] = []
+  for (const polity of sortedPolities) {
+    const last = polityGroups[polityGroups.length - 1]
+    if (last && last.rank === polity.rank) {
+      last.polities.push(polity)
+    } else {
+      polityGroups.push({ rank: polity.rank, polities: [polity] })
+    }
+  }
 
   const polityColorMap = useMemo(
     () => (polities ? buildPolityColorMap(Object.keys(polities)) : {}),
@@ -248,15 +262,24 @@ export function Sidebar() {
     )
   }, [session])
 
-  const sortedHouses: House[] = houses
+  const houseEntries: { house: House; provinceCount: number }[] = houses
     ? Object.values(houses)
-        .filter((h) => h.active)
-        .sort((a, b) => b.legacyPrestige - a.legacyPrestige)
+        .filter((h) => h.active && h.kind !== 'system')
+        .map((h) => ({
+          house: h,
+          provinceCount: session?.currentState
+            ? getHouseControlledProvinceIds(session.currentState, h.id).length
+            : 0,
+        }))
+        .sort((a, b) => b.house.legacyPrestige - a.house.legacyPrestige)
     : []
+
+  const rulingHouses = houseEntries.filter((e) => e.provinceCount > 0)
+  const landlessHouses = houseEntries.filter((e) => e.provinceCount === 0)
 
   const sortedPersons: { person: Person; score: number }[] = persons
     ? Object.values(persons)
-        .filter((p) => p.alive)
+        .filter((p) => p.alive && p.kind !== 'placeholder')
         .map((p) => ({
           person: p,
           score: session?.currentState
@@ -285,42 +308,64 @@ export function Sidebar() {
 
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'countries' &&
-          sortedPolities.map((polity) => {
+          polityGroups.map((group) => {
             const worldState: WorldState | null = session?.currentState ?? null
             return (
-              <PolityRow
-                key={polity.id}
-                polity={polity}
-                color={polityColorMap[polity.id] ?? '#888'}
-                militaryPower={polityMilitaryPowers[polity.id] ?? 0}
-                isSelected={selectedId === polity.id && selectedType === 'polity'}
-                onClick={() => setSelected(polity.id, 'polity')}
-                worldState={worldState}
-              />
+              <div key={group.rank}>
+                <div className="sticky top-0 z-10 border-b border-gray-700 bg-gray-900 px-3 py-1 text-xs font-bold text-gray-400">
+                  {formatPolityRank(group.rank)}{' '}
+                  <span className="font-normal text-gray-500">({group.polities.length})</span>
+                </div>
+                {group.polities.map((polity) => (
+                  <PolityRow
+                    key={polity.id}
+                    polity={polity}
+                    color={polityColorMap[polity.id] ?? '#888'}
+                    militaryPower={polityMilitaryPowers[polity.id] ?? 0}
+                    isSelected={selectedId === polity.id && selectedType === 'polity'}
+                    onClick={() => setSelected(polity.id, 'polity')}
+                    worldState={worldState}
+                  />
+                ))}
+              </div>
             )
           })}
 
-        {activeTab === 'houses' &&
-          sortedHouses.map((house) => {
-            const primaryPolityId = session?.currentState
-              ? getHousePrimaryPolityId(session.currentState, house.id)
-              : undefined
-            return (
-              <HouseRow
-                key={house.id}
-                house={house}
-                polityName={primaryPolityId ? (polities?.[primaryPolityId]?.name ?? '') : ''}
-                polityColor={primaryPolityId ? (polityColorMap[primaryPolityId] ?? '#888') : '#888'}
-                provinceCount={
-                  session?.currentState
-                    ? getHouseControlledProvinceIds(session.currentState, house.id).length
-                    : 0
-                }
-                isSelected={selectedId === house.id && selectedType === 'house'}
-                onClick={() => setSelected(house.id, 'house')}
-              />
-            )
-          })}
+        {activeTab === 'houses' && (
+          <>
+            {(
+              [
+                { key: 'ruling', label: '支配家', entries: rulingHouses },
+                { key: 'landless', label: '亡命家', entries: landlessHouses },
+              ] as const
+            ).map((section) => (
+              <div key={section.key}>
+                <div className="sticky top-0 z-10 border-b border-gray-700 bg-gray-900 px-3 py-1 text-xs font-bold text-gray-400">
+                  {section.label}{' '}
+                  <span className="font-normal text-gray-500">({section.entries.length})</span>
+                </div>
+                {section.entries.map(({ house, provinceCount }) => {
+                  const primaryPolityId = session?.currentState
+                    ? getHousePrimaryPolityId(session.currentState, house.id)
+                    : undefined
+                  return (
+                    <HouseRow
+                      key={house.id}
+                      house={house}
+                      polityName={primaryPolityId ? (polities?.[primaryPolityId]?.name ?? '') : ''}
+                      polityColor={
+                        primaryPolityId ? (polityColorMap[primaryPolityId] ?? '#888') : '#888'
+                      }
+                      provinceCount={provinceCount}
+                      isSelected={selectedId === house.id && selectedType === 'house'}
+                      onClick={() => setSelected(house.id, 'house')}
+                    />
+                  )
+                })}
+              </div>
+            ))}
+          </>
+        )}
 
         {activeTab === 'persons' &&
           sortedPersons.map(({ person, score }) => (

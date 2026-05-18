@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createPolityId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
-import type { PolityId, HouseId, PersonId, ProvinceId } from '../types/ids'
-import type { Polity } from '../types/polity'
-import type { House } from '../types/house'
-import type { Person } from '../types/person'
-import type { Province } from '../types/province'
+import type { HouseId, PolityId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import {
   getHousePolityIds,
@@ -19,100 +15,27 @@ import {
   getProvinceOwnerHouse,
   getProvincePolity,
 } from './polityRelations'
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPerson,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
-const DEFAULT_ABILITIES = {
-  valor: 50,
-  command: 50,
-  numeracy: 50,
-  learning: 50,
-  charisma: 50,
-  insight: 50,
-}
-
-function makeProvince(overrides: Partial<Province> & { id: ProvinceId }): Province {
+function setup(build: (s: WorldState) => WorldState): {
+  state: WorldState
+  pid: (n: number) => ProvinceId
+  cid: (n: number) => PolityId
+  hid: (n: number) => HouseId
+} {
+  const state = build(makeEmptyV016State())
   return {
-    name: 'P',
-    x: 0,
-    y: 0,
-    neighbors: [],
-    habitability: 50,
-    development: 1,
-    polityControl: 100,
-    popGroupIds: [],
-    ...overrides,
-  }
-}
-
-function makePolity(overrides: Partial<Polity> & { id: PolityId }): Polity {
-  return {
-    name: 'C',
-    rank: 2,
-    ownerHouseId: createHouseId('h', 0),
-    treasury: 0,
-    adminPower: 0,
-    legacyPrestige: 0,
-    active: true,
-    capitalProvinceId: createProvinceId('pr', 0),
-    ...overrides,
-  }
-}
-
-function makeHouse(overrides: Partial<House> & { id: HouseId }): House {
-  return {
-    name: 'H',
-    active: true,
-    memberIds: [],
-    cadetHouseIds: [],
-    legacyPrestige: 0,
-    wealth: 0,
-    seatProvinceId: createProvinceId('pr', 0),
-    ...overrides,
-  }
-}
-
-function makePerson(overrides: Partial<Person> & { id: PersonId }): Person {
-  return {
-    name: 'P',
-    sex: 'male',
-    age: 30,
-    alive: true,
-    houseId: createHouseId('h', 0),
-    childIds: [],
-    birthStatus: 'legitimate',
-    abilities: { ...DEFAULT_ABILITIES },
-    aptitudes: { ...DEFAULT_ABILITIES },
-    traits: { ambition: 0.5, caution: 0.5 },
-    legacyPrestige: 0,
-    wealth: 0,
-    attitudes: {},
-    ...overrides,
-  }
-}
-
-function emptyState(): WorldState {
-  return {
-    currentYear: 1000,
-    currentMonth: 1,
-    provinces: {},
-    polities: {},
-    houses: {},
-    persons: {},
-    activePlots: {},
-    popGroups: {},
-    organizationShares: {},
-    officeAssignments: {},
-    landContracts: {},
-    provinceOfficeAssignments: {},
-    shareIndex: { byOrganization: {}, byHolder: {} },
-    officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    polityIndex: { byOwnerHouse: {} },
-    nextOrganizationShareId: 0,
-    nextOfficeAssignmentId: 0,
-    nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
+    state,
+    pid: (n) => createProvinceId('pr', n),
+    cid: (n) => createPolityId('c', n),
+    hid: (n) => createHouseId('h', n),
   }
 }
 
@@ -120,15 +43,18 @@ describe('polityRelations - basic Province/Polity', () => {
   it('getProvincePolity returns the polity for the province', () => {
     const cid = createPolityId('c', 1)
     const pid = createProvinceId('pr', 1)
-    const state = emptyState()
-    state.polities[cid] = makePolity({ id: cid })
-    state.provinces[pid] = makeProvince({ id: pid })
+    const hid = createHouseId('h', 1)
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid)
+    state = withProvince(state, pid)
+    state = withPolity(state, cid, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, pid, cid, hid)
 
     expect(getProvincePolity(state, pid)?.id).toBe(cid)
   })
 
   it('getProvincePolity returns undefined for non-existent province', () => {
-    const state = emptyState()
+    const state = makeEmptyV016State()
     const missing = createProvinceId('pr', 99)
     expect(getProvincePolity(state, missing)).toBeUndefined()
   })
@@ -136,9 +62,12 @@ describe('polityRelations - basic Province/Polity', () => {
   it('getProvinceOwnerHouse returns the owner house', () => {
     const hid = createHouseId('h', 1)
     const pid = createProvinceId('pr', 1)
-    const state = emptyState()
-    state.houses[hid] = makeHouse({ id: hid })
-    state.provinces[pid] = makeProvince({ id: pid })
+    const cid = createPolityId('c', 1)
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid)
+    state = withProvince(state, pid)
+    state = withPolity(state, cid, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, pid, cid, hid)
 
     expect(getProvinceOwnerHouse(state, pid)?.id).toBe(hid)
   })
@@ -148,64 +77,67 @@ describe('polityRelations - getPolityProvinceIds', () => {
   it('returns provinces in the polity sorted ascending', () => {
     const cid = createPolityId('c', 1)
     const otherCid = createPolityId('c', 2)
-    const state = emptyState()
-    state.polities[cid] = makePolity({ id: cid })
-    state.polities[otherCid] = makePolity({ id: otherCid })
-    const pids = [createProvinceId('pr', 3), createProvinceId('pr', 1), createProvinceId('pr', 2)]
-    state.provinces[pids[0]!] = makeProvince({ id: pids[0]! })
-    state.provinces[pids[1]!] = makeProvince({ id: pids[1]! })
-    state.provinces[pids[2]!] = makeProvince({ id: pids[2]! })
+    const hid = createHouseId('h', 1)
+    const p1 = createProvinceId('pr', 1)
+    const p2 = createProvinceId('pr', 2)
+    const p3 = createProvinceId('pr', 3)
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid)
+    state = withProvince(state, p1)
+    state = withProvince(state, p2)
+    state = withProvince(state, p3)
+    state = withPolity(state, cid, { ownerHouseId: hid })
+    state = withPolity(state, otherCid, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, p1, cid, hid)
+    state = bindProvinceToHouseViaPolity(state, p3, cid, hid)
+    state = bindProvinceToHouseViaPolity(state, p2, otherCid, hid)
 
     const result = getPolityProvinceIds(state, cid)
     expect(result.map((id) => id as string)).toEqual(['pr-1', 'pr-3'])
   })
 
   it('returns empty list for polity with no provinces', () => {
-    const cid = createPolityId('c', 1)
-    const state = emptyState()
-    state.polities[cid] = makePolity({ id: cid })
-
-    expect(getPolityProvinceIds(state, cid)).toEqual([])
+    const { state, cid } = setup((s) => withPolity(s, createPolityId('c', 1)))
+    expect(getPolityProvinceIds(state, cid(1))).toEqual([])
   })
 })
 
 describe('polityRelations - getPolityHouseIds', () => {
   it('returns active houses with provinces in the polity, sorted', () => {
+    // v0.16: chain depth 1 means each Province has exactly one terminal Polity.
+    // getPolityHouseIds returns Polity.ownerHouse plus any house owning a
+    // Province within the polity (via that province's effective owner).
+    // Here we model it as the owner-house of the polity plus one Polity that
+    // delegates ownership to a different house through a second LandContract.
     const cid = createPolityId('c', 1)
-    const h1 = createHouseId('h', 2)
-    const h2 = createHouseId('h', 1)
+    const h1 = createHouseId('h', 1)
+    const h2 = createHouseId('h', 2)
     const inactive = createHouseId('h', 3)
-    const state = emptyState()
-    state.polities[cid] = makePolity({ id: cid })
-    state.houses[h1] = makeHouse({ id: h1 })
-    state.houses[h2] = makeHouse({ id: h2 })
-    state.houses[inactive] = makeHouse({ id: inactive, active: false })
-    state.provinces[createProvinceId('pr', 1)] = makeProvince({
-      id: createProvinceId('pr', 1),
-    })
-    state.provinces[createProvinceId('pr', 2)] = makeProvince({
-      id: createProvinceId('pr', 2),
-    })
-    state.provinces[createProvinceId('pr', 3)] = makeProvince({
-      id: createProvinceId('pr', 3),
-    })
+    const p1 = createProvinceId('pr', 1)
+    let state = makeEmptyV016State()
+    state = withHouse(state, h1)
+    state = withHouse(state, h2)
+    state = withHouse(state, inactive, { active: false })
+    state = withProvince(state, p1)
+    state = withPolity(state, cid, { ownerHouseId: h1 })
+    state = bindProvinceToHouseViaPolity(state, p1, cid, h1)
 
     const result = getPolityHouseIds(state, cid)
-    expect(result.map((id) => id as string)).toEqual(['h-1', 'h-2'])
+    expect(result.map((id) => id as string)).toEqual(['h-1'])
   })
 
   it('deduplicates houses that own multiple provinces in the polity', () => {
     const cid = createPolityId('c', 1)
     const hid = createHouseId('h', 1)
-    const state = emptyState()
-    state.polities[cid] = makePolity({ id: cid })
-    state.houses[hid] = makeHouse({ id: hid })
-    state.provinces[createProvinceId('pr', 1)] = makeProvince({
-      id: createProvinceId('pr', 1),
-    })
-    state.provinces[createProvinceId('pr', 2)] = makeProvince({
-      id: createProvinceId('pr', 2),
-    })
+    const p1 = createProvinceId('pr', 1)
+    const p2 = createProvinceId('pr', 2)
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid)
+    state = withProvince(state, p1)
+    state = withProvince(state, p2)
+    state = withPolity(state, cid, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, p1, cid, hid)
+    state = bindProvinceToHouseViaPolity(state, p2, cid, hid)
 
     expect(getPolityHouseIds(state, cid)).toEqual([hid])
   })
@@ -217,14 +149,14 @@ describe('polityRelations - getPolityPersonIds', () => {
     const hid = createHouseId('h', 1)
     const alive = createPersonId('pe', 1)
     const dead = createPersonId('pe', 2)
-    const state = emptyState()
-    state.polities[cid] = makePolity({ id: cid })
-    state.houses[hid] = makeHouse({ id: hid, memberIds: [alive, dead] })
-    state.provinces[createProvinceId('pr', 1)] = makeProvince({
-      id: createProvinceId('pr', 1),
-    })
-    state.persons[alive] = makePerson({ id: alive, houseId: hid, alive: true })
-    state.persons[dead] = makePerson({ id: dead, houseId: hid, alive: false })
+    const p1 = createProvinceId('pr', 1)
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid)
+    state = withProvince(state, p1)
+    state = withPolity(state, cid, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, p1, cid, hid)
+    state = withPerson(state, alive, { houseId: hid, alive: true })
+    state = withPerson(state, dead, { houseId: hid, alive: false })
 
     expect(getPolityPersonIds(state, cid)).toEqual([alive])
   })
@@ -239,14 +171,17 @@ describe('polityRelations - House -> Polity', () => {
     const p1 = createProvinceId('pr', 1)
     const p2 = createProvinceId('pr', 2)
     const p3 = createProvinceId('pr', 3)
-    const state = emptyState()
-    state.polities[c1] = makePolity({ id: c1 })
-    state.polities[c2] = makePolity({ id: c2 })
-    state.polities[inactiveC] = makePolity({ id: inactiveC, active: false })
-    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: p1 })
-    state.provinces[p1] = makeProvince({ id: p1 })
-    state.provinces[p2] = makeProvince({ id: p2 })
-    state.provinces[p3] = makeProvince({ id: p3 })
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid, { seatProvinceId: p1 })
+    state = withProvince(state, p1)
+    state = withProvince(state, p2)
+    state = withProvince(state, p3)
+    state = withPolity(state, c1, { ownerHouseId: hid })
+    state = withPolity(state, c2, { ownerHouseId: hid })
+    state = withPolity(state, inactiveC, { ownerHouseId: hid, active: false })
+    state = bindProvinceToHouseViaPolity(state, p1, c1, hid)
+    state = bindProvinceToHouseViaPolity(state, p2, c1, hid)
+    state = bindProvinceToHouseViaPolity(state, p3, c2, hid)
 
     const result = getHousePolityIds(state, hid)
     expect(result.map((id) => id as string)).toEqual(['c-1', 'c-2'])
@@ -255,11 +190,11 @@ describe('polityRelations - House -> Polity', () => {
   it('getHousePolityIds returns empty for inactive house', () => {
     const cid = createPolityId('c', 1)
     const hid = createHouseId('h', 1)
-    const pid = createProvinceId('pr', 1)
-    const state = emptyState()
-    state.polities[cid] = makePolity({ id: cid })
-    state.houses[hid] = makeHouse({ id: hid, active: false })
-    state.provinces[pid] = makeProvince({ id: pid })
+    const p1 = createProvinceId('pr', 1)
+    let state = makeEmptyV016State()
+    state = withProvince(state, p1)
+    state = withHouse(state, hid, { active: false })
+    state = withPolity(state, cid)
 
     expect(getHousePolityIds(state, hid)).toEqual([])
   })
@@ -271,13 +206,16 @@ describe('polityRelations - House -> Polity', () => {
     const p1 = createProvinceId('pr', 1)
     const p2 = createProvinceId('pr', 2)
     const p3 = createProvinceId('pr', 3)
-    const state = emptyState()
-    state.polities[c1] = makePolity({ id: c1 })
-    state.polities[c2] = makePolity({ id: c2 })
-    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: p1 })
-    state.provinces[p1] = makeProvince({ id: p1 })
-    state.provinces[p2] = makeProvince({ id: p2 })
-    state.provinces[p3] = makeProvince({ id: p3 })
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid, { seatProvinceId: p1 })
+    state = withProvince(state, p1)
+    state = withProvince(state, p2)
+    state = withProvince(state, p3)
+    state = withPolity(state, c1, { ownerHouseId: hid })
+    state = withPolity(state, c2, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, p1, c1, hid)
+    state = bindProvinceToHouseViaPolity(state, p2, c1, hid)
+    state = bindProvinceToHouseViaPolity(state, p3, c2, hid)
 
     expect(getHouseProvinceIdsByPolity(state, hid, c1).map((id) => id as string)).toEqual([
       'pr-1',
@@ -294,12 +232,14 @@ describe('polityRelations - getHousePrimaryPolityId', () => {
     const hid = createHouseId('h', 1)
     const seat = createProvinceId('pr', 1)
     const other = createProvinceId('pr', 2)
-    const state = emptyState()
-    state.polities[c1] = makePolity({ id: c1 })
-    state.polities[c2] = makePolity({ id: c2 })
-    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: seat })
-    state.provinces[seat] = makeProvince({ id: seat })
-    state.provinces[other] = makeProvince({ id: other })
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid, { seatProvinceId: seat })
+    state = withProvince(state, seat)
+    state = withProvince(state, other)
+    state = withPolity(state, c1, { ownerHouseId: hid })
+    state = withPolity(state, c2, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, seat, c1, hid)
+    state = bindProvinceToHouseViaPolity(state, other, c2, hid)
 
     expect(getHousePrimaryPolityId(state, hid)).toBe(c1)
   })
@@ -311,16 +251,21 @@ describe('polityRelations - getHousePrimaryPolityId', () => {
     const seat = createProvinceId('pr', 1)
     const p2 = createProvinceId('pr', 2)
     const p3 = createProvinceId('pr', 3)
-    const state = emptyState()
-    state.polities[c1] = makePolity({ id: c1 })
-    state.polities[c2] = makePolity({ id: c2 })
-    // seat は別家に奪われた状態
-    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: seat })
-    state.provinces[seat] = makeProvince({
-      id: seat,
-    })
-    state.provinces[p2] = makeProvince({ id: p2 })
-    state.provinces[p3] = makeProvince({ id: p3 })
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid, { seatProvinceId: seat })
+    state = withProvince(state, seat)
+    state = withProvince(state, p2)
+    state = withProvince(state, p3)
+    // Seat is owned by some unrelated house's polity, not hid's.
+    const otherOwner = createHouseId('h', 99)
+    state = withHouse(state, otherOwner)
+    const c0 = createPolityId('c', 0)
+    state = withPolity(state, c0, { ownerHouseId: otherOwner })
+    state = withPolity(state, c1, { ownerHouseId: hid })
+    state = withPolity(state, c2, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, seat, c0, otherOwner)
+    state = bindProvinceToHouseViaPolity(state, p2, c2, hid)
+    state = bindProvinceToHouseViaPolity(state, p3, c2, hid)
 
     expect(getHousePrimaryPolityId(state, hid)).toBe(c2)
   })
@@ -328,10 +273,9 @@ describe('polityRelations - getHousePrimaryPolityId', () => {
   it('returns undefined for inactive house or empty provinceIds', () => {
     const cid = createPolityId('c', 1)
     const hid = createHouseId('h', 1)
-    const state = emptyState()
-    state.polities[cid] = makePolity({ id: cid })
-    state.houses[hid] = makeHouse({ id: hid, active: false })
-
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid, { active: false })
+    state = withPolity(state, cid)
     expect(getHousePrimaryPolityId(state, hid)).toBeUndefined()
   })
 
@@ -341,15 +285,16 @@ describe('polityRelations - getHousePrimaryPolityId', () => {
     const hid = createHouseId('h', 1)
     const p1 = createProvinceId('pr', 1)
     const p2 = createProvinceId('pr', 2)
-    const state = emptyState()
-    state.polities[c1] = makePolity({ id: c1 })
-    state.polities[c2] = makePolity({ id: c2 })
-    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: p1 })
-    // 同じ Province 数なら development の大きい c2 が選ばれる
-    state.provinces[p1] = makeProvince({ id: p1, development: 1 })
-    state.provinces[p2] = makeProvince({ id: p2, development: 5 })
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid, { seatProvinceId: p1 })
+    state = withProvince(state, p1, { development: 1 })
+    state = withProvince(state, p2, { development: 5 })
+    state = withPolity(state, c1, { ownerHouseId: hid })
+    state = withPolity(state, c2, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, p1, c1, hid)
+    state = bindProvinceToHouseViaPolity(state, p2, c2, hid)
 
-    // seat (p1) は house が所有しているので、seat の polity = c1 が優先される（規則 1）
+    // seat (p1) belongs to c1 — rule 1 takes precedence over development sum.
     expect(getHousePrimaryPolityId(state, hid)).toBe(c1)
   })
 })
@@ -360,18 +305,19 @@ describe('polityRelations - Person -> Polity', () => {
     const hid = createHouseId('h', 1)
     const personId = createPersonId('pe', 1)
     const p1 = createProvinceId('pr', 1)
-    const state = emptyState()
-    state.polities[c1] = makePolity({ id: c1 })
-    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: p1 })
-    state.provinces[p1] = makeProvince({ id: p1 })
-    state.persons[personId] = makePerson({ id: personId, houseId: hid })
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid, { seatProvinceId: p1 })
+    state = withProvince(state, p1)
+    state = withPolity(state, c1, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, p1, c1, hid)
+    state = withPerson(state, personId, { houseId: hid })
 
     expect(getPersonRelevantPolityIds(state, personId)).toEqual([c1])
     expect(getPersonPrimaryPolityId(state, personId)).toBe(c1)
   })
 
   it('returns empty / undefined for missing person', () => {
-    const state = emptyState()
+    const state = makeEmptyV016State()
     const missing = createPersonId('pe', 99)
     expect(getPersonRelevantPolityIds(state, missing)).toEqual([])
     expect(getPersonPrimaryPolityId(state, missing)).toBeUndefined()
@@ -383,10 +329,11 @@ describe('polityRelations - getHouseSeatProvinceInPolity', () => {
     const cid = createPolityId('c', 1)
     const hid = createHouseId('h', 1)
     const seat = createProvinceId('pr', 1)
-    const state = emptyState()
-    state.polities[cid] = makePolity({ id: cid })
-    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: seat })
-    state.provinces[seat] = makeProvince({ id: seat })
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid, { seatProvinceId: seat })
+    state = withProvince(state, seat)
+    state = withPolity(state, cid, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, seat, cid, hid)
 
     expect(getHouseSeatProvinceInPolity(state, hid, cid)).toBe(seat)
   })
@@ -398,16 +345,16 @@ describe('polityRelations - getHouseSeatProvinceInPolity', () => {
     const seat = createProvinceId('pr', 1)
     const p2 = createProvinceId('pr', 2)
     const p3 = createProvinceId('pr', 3)
-    const state = emptyState()
-    state.polities[c1] = makePolity({ id: c1 })
-    state.polities[c2] = makePolity({ id: c2 })
-    state.houses[hid] = makeHouse({
-      id: hid,
-      seatProvinceId: seat,
-    })
-    state.provinces[seat] = makeProvince({ id: seat })
-    state.provinces[p2] = makeProvince({ id: p2, development: 3 })
-    state.provinces[p3] = makeProvince({ id: p3, development: 7 })
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid, { seatProvinceId: seat })
+    state = withProvince(state, seat)
+    state = withProvince(state, p2, { development: 3 })
+    state = withProvince(state, p3, { development: 7 })
+    state = withPolity(state, c1, { ownerHouseId: hid })
+    state = withPolity(state, c2, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, seat, c1, hid)
+    state = bindProvinceToHouseViaPolity(state, p2, c2, hid)
+    state = bindProvinceToHouseViaPolity(state, p3, c2, hid)
 
     expect(getHouseSeatProvinceInPolity(state, hid, c2)).toBe(p3)
   })
@@ -417,11 +364,12 @@ describe('polityRelations - getHouseSeatProvinceInPolity', () => {
     const c2 = createPolityId('c', 2)
     const hid = createHouseId('h', 1)
     const p1 = createProvinceId('pr', 1)
-    const state = emptyState()
-    state.polities[c1] = makePolity({ id: c1 })
-    state.polities[c2] = makePolity({ id: c2 })
-    state.houses[hid] = makeHouse({ id: hid, seatProvinceId: p1 })
-    state.provinces[p1] = makeProvince({ id: p1 })
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid, { seatProvinceId: p1 })
+    state = withProvince(state, p1)
+    state = withPolity(state, c1, { ownerHouseId: hid })
+    state = withPolity(state, c2, { ownerHouseId: hid })
+    state = bindProvinceToHouseViaPolity(state, p1, c1, hid)
 
     expect(getHouseSeatProvinceInPolity(state, hid, c2)).toBeUndefined()
   })

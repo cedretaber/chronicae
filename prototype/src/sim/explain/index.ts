@@ -1,3 +1,7 @@
 export { explainRebellion } from './explainRebellion'
 export { explainAppointment } from './explainAppointment'
 export { explainPlot } from './explainPlot'
+export { explainLandContract } from './explainLandContract'
+export type { LandContractChangeKind } from './explainLandContract'
+export { explainBailiff } from './explainBailiff'
+export type { BailiffChangeKind } from './explainBailiff'

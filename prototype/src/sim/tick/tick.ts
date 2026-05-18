@@ -25,6 +25,7 @@ import { runControlSystem } from './controlSystem'
 import { runPlotSystem } from './plotSystem'
 import { runWarSystem } from './warSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
+import { runLandContractPurchaseSystem } from './landContractPurchaseSystem'
 import { runPolityOwnerConsistencySystem } from './polityOwnerConsistencySystem'
 import { runOrganizationConsistencySystem } from './organizationConsistencySystem'
 import { runAttitudeDecaySystem } from './attitudeDecaySystem'
@@ -76,6 +77,7 @@ export function tick(input: TickInput): TickResult {
   run('plotSystem', runPlotSystem)
   run('warSystem', runWarSystem)
   run('provinceRevoltSystem', runProvinceRevoltSystem)
+  run('landContractPurchaseSystem', runLandContractPurchaseSystem)
   run('polityOwnerConsistencySystem', runPolityOwnerConsistencySystem)
   run('organizationConsistencySystem', runOrganizationConsistencySystem)
   run('attitudeDecaySystem', runAttitudeDecaySystem)

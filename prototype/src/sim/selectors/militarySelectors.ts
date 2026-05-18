@@ -9,6 +9,7 @@ import { getHouseLoyaltyToPolity } from './statusSelectors'
 import { getPolityLeaderHouse } from './officeSelectors'
 import { getPolityHouseIds } from './polityRelations'
 import { getHouseControlledProvinceIds } from './landContractSelectors'
+import { defaultLandContractConfig } from '../config/landContractConfig'
 
 export function calcHouseMilitaryPower(
   state: WorldState,
@@ -52,7 +53,12 @@ export function calcPolityMilitaryPower(
   const polity = state.polities[countryId]
   if (!polity) return 0
 
-  let total = polity.adminPower * config.polityAdminMilitaryFactor
+  // §22.1: institutionalPower 概念。adminPower 由来の administrative contribution に
+  // rank 別下限値を被せて、rank ≥ 4 (county-tier 以下) の小 Polity / Rebel Polity が
+  // 即死しないようにする。
+  const adminContribution = polity.adminPower * config.polityAdminMilitaryFactor
+  const floor = defaultLandContractConfig.institutionalPowerFloorByRank[polity.rank] ?? 0
+  let total = Math.max(adminContribution, floor)
 
   const rulerHouseId = getPolityLeaderHouse(state, countryId)
 

@@ -5,18 +5,26 @@ import provinceUrbanIcon from '@/assets/map/province-urban.png'
 import provinceRuralIcon from '@/assets/map/province-rural.png'
 import { MAP_ICON_CONFIG } from '@/app/constants/mapConstants'
 
+export type HighlightTier = 'direct' | 'indirect' | 'none'
+
 export type ProvinceNodeData = {
   label: string
   isUrban: boolean
   isCapital: boolean
   isSeat: boolean
   polityColor: string
-  isDimmed: boolean
+  highlightTier: HighlightTier
   isSelected: boolean
 }
 
+const TIER_OPACITY: Record<HighlightTier, number> = {
+  direct: 1,
+  indirect: 0.65,
+  none: 0.3,
+}
+
 export function ProvinceNode({ data }: NodeProps) {
-  const { label, isUrban, isCapital, isSeat, polityColor, isDimmed, isSelected } =
+  const { label, isUrban, isCapital, isSeat, polityColor, highlightTier, isSelected } =
     data as ProvinceNodeData
 
   return (
@@ -24,7 +32,7 @@ export function ProvinceNode({ data }: NodeProps) {
       style={{
         position: 'relative',
         width: MAP_ICON_CONFIG.provinceIconSize,
-        opacity: isDimmed ? 0.35 : 1,
+        opacity: TIER_OPACITY[highlightTier],
       }}
     >
       {/* Handles on all 4 sides for edges */}

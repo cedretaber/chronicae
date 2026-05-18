@@ -17,6 +17,16 @@ export type LandContractConfig = {
   institutionalPowerFloorByRank: Record<PolityRank, number>
   // chain 上納 (LandRevenue) の徴税効率倍率
   taxFlowEfficiency: number
+  // §18 LandContract purchase:
+  // 買い手 Polity の treasury がこれを超えていれば購入提案を試みる
+  purchaseBuyerTreasuryThreshold: number
+  // 売り手 Polity の treasury がこれを下回っていれば売却を受け入れる
+  purchaseSellerTreasuryThreshold: number
+  // 1 Province の購入価格 = base + development × developmentFactor
+  purchasePriceBase: number
+  purchasePriceDevelopmentFactor: number
+  // 各買い手 Polity が年次でひとつ提案を試みる確率
+  purchaseAttemptChance: number
 }
 
 export const defaultLandContractConfig: LandContractConfig = {
@@ -33,4 +43,10 @@ export const defaultLandContractConfig: LandContractConfig = {
     5: 30,
   },
   taxFlowEfficiency: 1.0,
+  purchaseBuyerTreasuryThreshold: 1500,
+  purchaseSellerTreasuryThreshold: 800,
+  purchasePriceBase: 500,
+  purchasePriceDevelopmentFactor: 30,
+  // 年 1 月実行で買い手候補ごとに試行。15 Polity × 10% ≈ 1.5 件/年 (上限)
+  purchaseAttemptChance: 0.1,
 }

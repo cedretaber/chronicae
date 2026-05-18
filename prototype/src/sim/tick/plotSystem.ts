@@ -52,7 +52,8 @@ type ResolveResult = {
 
 function resolvePlot(currentCtx: TickContext, plot: Plot): ResolveResult {
   const leader = currentCtx.state.persons[plot.leaderId]
-  if (!leader) {
+  // 死亡した leader の plot は無効化 (dead person を Office に任命する事故を防ぐ)
+  if (!leader || !leader.alive) {
     const updatedPlots = { ...currentCtx.state.activePlots }
     delete updatedPlots[plot.id]
     return {

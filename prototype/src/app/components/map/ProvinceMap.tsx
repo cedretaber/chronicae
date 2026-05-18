@@ -8,8 +8,10 @@ import { getProvincePops } from '@/sim/selectors/popSelectors'
 import {
   getProvinceTerminalPolityId,
   getHouseControlledProvinceIds,
+  getHouseRelevantProvinceIds,
+  getPolityOverlordProvinceIds,
 } from '@/sim/selectors/landContractSelectors'
-import { ProvinceNode, type ProvinceNodeData } from './ProvinceNode'
+import { ProvinceNode, type ProvinceNodeData, type HighlightTier } from './ProvinceNode'
 import { MAP_ICON_CONFIG } from '@/app/constants/mapConstants'
 import mapBackground from '@/assets/map/map-background.png'
 
@@ -54,11 +56,30 @@ export function ProvinceMap() {
       Object.values(houses ?? {}).map((h) => h.seatProvinceId),
     )
 
-    const selectedHouseControlled =
+    const houseDirectSet =
       selectedHouse && session?.currentState
-        ? getHouseControlledProvinceIds(session.currentState, selectedHouse.id)
-        : []
-    const houseProvinceSet = new Set(selectedHouseControlled.map((id: ProvinceId) => id as string))
+        ? new Set(
+            getHouseControlledProvinceIds(session.currentState, selectedHouse.id).map(
+              (id: ProvinceId) => id as string,
+            ),
+          )
+        : new Set<string>()
+    const houseIndirectSet =
+      selectedHouse && session?.currentState
+        ? new Set(
+            getHouseRelevantProvinceIds(session.currentState, selectedHouse.id).map(
+              (id: ProvinceId) => id as string,
+            ),
+          )
+        : new Set<string>()
+    const polityIndirectSet =
+      selectedPolity && session?.currentState
+        ? new Set(
+            getPolityOverlordProvinceIds(session.currentState, selectedPolity.id).map(
+              (id: ProvinceId) => id as string,
+            ),
+          )
+        : new Set<string>()
     const capitalProvinceId = selectedPolity?.capitalProvinceId
     const seatProvinceId = selectedHouse?.seatProvinceId
 
@@ -76,11 +97,21 @@ export function ProvinceMap() {
       const terminalPolityId = session?.currentState
         ? getProvinceTerminalPolityId(session.currentState, province.id)
         : undefined
-      const isDimmed =
-        anyEntityHighlighted &&
-        province.id !== capitalProvinceId &&
-        province.id !== seatProvinceId &&
-        (isPolitySelected ? terminalPolityId !== selectedId : !houseProvinceSet.has(province.id))
+
+      let highlightTier: HighlightTier
+      if (!anyEntityHighlighted) {
+        highlightTier = 'direct'
+      } else if (province.id === capitalProvinceId || province.id === seatProvinceId) {
+        highlightTier = 'direct'
+      } else if (isPolitySelected) {
+        if (terminalPolityId === selectedId) highlightTier = 'direct'
+        else if (polityIndirectSet.has(province.id)) highlightTier = 'indirect'
+        else highlightTier = 'none'
+      } else {
+        if (houseDirectSet.has(province.id)) highlightTier = 'direct'
+        else if (houseIndirectSet.has(province.id)) highlightTier = 'indirect'
+        else highlightTier = 'none'
+      }
 
       const isSelected = selectedId === province.id && selectedType === 'province'
 
@@ -94,7 +125,7 @@ export function ProvinceMap() {
           isCapital,
           isSeat,
           polityColor: terminalPolityId ? (polityColorMap[terminalPolityId] ?? '#888') : '#888',
-          isDimmed,
+          highlightTier,
           isSelected,
         } satisfies ProvinceNodeData,
       }

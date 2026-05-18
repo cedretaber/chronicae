@@ -15,6 +15,14 @@ import {
 } from './personMutations'
 import { setSpouse } from './relationshipMutations'
 import { createOfficeAssignment } from './officeMutations'
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPerson,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -45,130 +53,46 @@ function makeFixture(): {
   const province1Id = createProvinceId('p', 0)
   const province2Id = createProvinceId('p', 1)
 
-  const state: WorldState = {
-    currentYear: 1444,
-    currentMonth: 1,
-    provinces: {
-      [province1Id]: {
-        id: province1Id,
-        name: 'Test Province 1',
-        x: 0,
-        y: 0,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 10,
-        polityControl: 100,
-      },
-      [province2Id]: {
-        id: province2Id,
-        name: 'Test Province 2',
-        x: 1,
-        y: 1,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 10,
-        polityControl: 100,
-      },
-    },
-    polities: {
-      [polity1Id]: {
-        id: polity1Id,
-        name: 'Polity 1',
-        rank: 2,
-        ownerHouseId: house1Id,
-        treasury: 100,
-        legacyPrestige: 50,
-        adminPower: 10,
-        active: true,
-        capitalProvinceId: province1Id,
-      },
-      [polity2Id]: {
-        id: polity2Id,
-        name: 'Polity 2',
-        rank: 2,
-        ownerHouseId: house2Id,
-        treasury: 100,
-        legacyPrestige: 50,
-        adminPower: 10,
-        active: true,
-        capitalProvinceId: province2Id,
-      },
-    },
-    houses: {
-      [house1Id]: {
-        id: house1Id,
-        name: 'House 1',
-        active: true,
-        memberIds: [person1Id],
-        cadetHouseIds: [],
-        legacyPrestige: 50,
-        wealth: 0,
-        seatProvinceId: province1Id,
-      },
-      [house2Id]: {
-        id: house2Id,
-        name: 'House 2',
-        active: true,
-        memberIds: [person2Id],
-        cadetHouseIds: [],
-        legacyPrestige: 50,
-        wealth: 0,
-        seatProvinceId: province2Id,
-      },
-    },
-    persons: {
-      [person1Id]: {
-        id: person1Id,
-        name: 'Person 1',
-        sex: 'male' as const,
-        age: 30,
-        alive: true,
-        houseId: house1Id,
-        childIds: [],
-        birthStatus: 'legitimate' as const,
-        abilities: DEFAULT_ABILITIES,
-        aptitudes: DEFAULT_ABILITIES,
-        traits: { ambition: 0.5, caution: 0.5 },
-        legacyPrestige: 10,
-        wealth: 0,
-        attitudes: {},
-      },
-      [person2Id]: {
-        id: person2Id,
-        name: 'Person 2',
-        sex: 'female' as const,
-        age: 28,
-        alive: true,
-        houseId: house2Id,
-        childIds: [],
-        birthStatus: 'legitimate' as const,
-        abilities: DEFAULT_ABILITIES,
-        aptitudes: DEFAULT_ABILITIES,
-        traits: { ambition: 0.5, caution: 0.5 },
-        legacyPrestige: 10,
-        wealth: 0,
-        attitudes: {},
-      },
-    },
-    activePlots: {},
-    popGroups: {},
-    organizationShares: {},
-    officeAssignments: {},
-    shareIndex: { byOrganization: {}, byHolder: {} },
-    officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    nextOrganizationShareId: 0,
-    nextOfficeAssignmentId: 0,
-    landContracts: {},
-    provinceOfficeAssignments: {},
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    polityIndex: { byOwnerHouse: {} },
-    nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
-  }
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 1444 }
+  state = withProvince(state, province1Id, { name: 'Test Province 1', development: 10 })
+  state = withProvince(state, province2Id, { name: 'Test Province 2', x: 1, y: 1, development: 10 })
+  state = withHouse(state, house1Id, {
+    name: 'House 1',
+    memberIds: [person1Id],
+    seatProvinceId: province1Id,
+  })
+  state = withHouse(state, house2Id, {
+    name: 'House 2',
+    memberIds: [person2Id],
+    seatProvinceId: province2Id,
+  })
+  state = withPolity(state, polity1Id, {
+    name: 'Polity 1',
+    ownerHouseId: house1Id,
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 10,
+    capitalProvinceId: province1Id,
+  })
+  state = withPolity(state, polity2Id, {
+    name: 'Polity 2',
+    ownerHouseId: house2Id,
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 10,
+    capitalProvinceId: province2Id,
+  })
+  state = bindProvinceToHouseViaPolity(state, province1Id, polity1Id, house1Id)
+  state = bindProvinceToHouseViaPolity(state, province2Id, polity2Id, house2Id)
+  state = withPerson(state, person1Id, { name: 'Person 1', houseId: house1Id, legacyPrestige: 10 })
+  state = withPerson(state, person2Id, {
+    name: 'Person 2',
+    sex: 'female',
+    age: 28,
+    houseId: house2Id,
+    legacyPrestige: 10,
+  })
   return {
     state,
     person1Id,

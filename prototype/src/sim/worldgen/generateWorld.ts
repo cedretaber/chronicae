@@ -226,10 +226,43 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     houses.push(house)
   }
 
+  // v0.16: 階層的 Polity 構造を構築する。
+  // distributeHouses で得た 15 House を以下のように rank 分けする:
+  //   - Kingdom owners (rank 2): h-0, h-5, h-10  → Polity c-0, c-1, c-2
+  //   - Duchy owners (rank 3):   h-1, h-2, h-6, h-11  → Polity c-3, c-4, c-5, c-6
+  //   - County owners (rank 4):  h-3, h-4, h-7, h-8, h-9, h-12, h-13, h-14  → Polity c-7〜c-14
+  //
+  // 各 Polity の parent (= LandContract の grantor) は次表の通り固定する。
+  type PolityInfo = { polityId: PolityId; rank: 2 | 3 | 4; parentPolityId?: PolityId }
+  const HOUSE_POLITY_MAP: Record<string, PolityInfo> = {
+    'h-0': { polityId: 'c-0' as PolityId, rank: 2 },
+    'h-1': { polityId: 'c-3' as PolityId, rank: 3, parentPolityId: 'c-0' as PolityId },
+    'h-2': { polityId: 'c-4' as PolityId, rank: 3, parentPolityId: 'c-0' as PolityId },
+    'h-3': { polityId: 'c-7' as PolityId, rank: 4, parentPolityId: 'c-3' as PolityId },
+    'h-4': { polityId: 'c-8' as PolityId, rank: 4, parentPolityId: 'c-4' as PolityId },
+    'h-5': { polityId: 'c-1' as PolityId, rank: 2 },
+    'h-6': { polityId: 'c-5' as PolityId, rank: 3, parentPolityId: 'c-1' as PolityId },
+    'h-7': { polityId: 'c-9' as PolityId, rank: 4, parentPolityId: 'c-5' as PolityId },
+    'h-8': { polityId: 'c-10' as PolityId, rank: 4, parentPolityId: 'c-5' as PolityId },
+    'h-9': { polityId: 'c-11' as PolityId, rank: 4, parentPolityId: 'c-1' as PolityId },
+    'h-10': { polityId: 'c-2' as PolityId, rank: 2 },
+    'h-11': { polityId: 'c-6' as PolityId, rank: 3, parentPolityId: 'c-2' as PolityId },
+    'h-12': { polityId: 'c-12' as PolityId, rank: 4, parentPolityId: 'c-6' as PolityId },
+    'h-13': { polityId: 'c-13' as PolityId, rank: 4, parentPolityId: 'c-6' as PolityId },
+    'h-14': { polityId: 'c-14' as PolityId, rank: 4, parentPolityId: 'c-2' as PolityId },
+  }
+
   const polities: Polity[] = []
 
-  for (let polityIndex = 0; polityIndex < 3; polityIndex++) {
-    const polityId = `c-${polityIndex}` as PolityId
+  // 各 House に対応する Polity を生成する (15 個)。
+  const houseToPolityId = new Map<HouseId, PolityId>()
+  const polityToOwnerHouse = new Map<PolityId, HouseId>()
+  let polityNameCounter = 0
+  for (const house of houses) {
+    const info = HOUSE_POLITY_MAP[house.id as string]
+    if (!info) continue
+    houseToPolityId.set(house.id, info.polityId)
+    polityToOwnerHouse.set(info.polityId, house.id)
 
     const { value: treasury, rng: r1 } = randomInt(rng, 100, 300)
     const { value: legacyPrestige, rng: r2 } = randomInt(r1, 20, 60)
@@ -239,29 +272,24 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       polityNamePool(),
       usedPolityNames,
       polityName,
-      polityIndex,
+      polityNameCounter,
       rng,
     )
+    polityNameCounter++
     rng = rC
 
-    const houseIds = houses
-      .filter((h) => housePolity.get(h.id) === polityId)
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((h) => h.id)
-
-    const capitalHouse = houseIds.length > 0 ? houses.find((h) => h.id === houseIds[0]) : undefined
-    const capitalProvinceId = capitalHouse?.seatProvinceId ?? ('' as ProvinceId)
+    const capitalProvinceId = house.seatProvinceId
 
     const newPolity: Polity = {
-      id: polityId,
+      id: info.polityId,
       name: cName,
       treasury,
       legacyPrestige,
       adminPower: 50,
       active: true,
       capitalProvinceId,
-      rank: 2,
-      ...(houseIds.length > 0 ? { ownerHouseId: houseIds[0] } : {}),
+      rank: info.rank,
+      ownerHouseId: house.id,
     }
 
     polities.push(newPolity)
@@ -964,23 +992,69 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   const provinceTerminalPolityCache: ProvinceTerminalPolityCache = {}
   let nextLandContractId = 0
 
-  // Stage A の最小構成: world → Kingdom (rank 2) を全 Province に
-  for (const province of provinces) {
-    const polityId = assignments.get(province.id)
-    if (!polityId) continue
-    const rootId = ('lc-' + nextLandContractId) as LandContractId
-    nextLandContractId++
-    landContractsRecord[rootId] = {
-      id: rootId,
-      provinceId: province.id,
-      rootAuthorityId: ROOT_WORLD,
-      granteePolityId: polityId,
-      terms: { taxRateToGrantor: 0 },
+  // 各 Polity の rank と parent を逆引きする map
+  const polityRankMap = new Map<PolityId, 2 | 3 | 4>()
+  const polityParentMap = new Map<PolityId, PolityId>()
+  for (const info of Object.values(HOUSE_POLITY_MAP)) {
+    polityRankMap.set(info.polityId, info.rank)
+    if (info.parentPolityId !== undefined) {
+      polityParentMap.set(info.polityId, info.parentPolityId)
     }
-    landContractIndex.byProvince[province.id] = [rootId]
-    const existingGrantee = landContractIndex.byGranteePolity[polityId] ?? []
-    landContractIndex.byGranteePolity[polityId] = [...existingGrantee, rootId]
-    provinceTerminalPolityCache[province.id] = polityId
+  }
+
+  // 各 Province の chain を構築する。
+  // 1. Province を所有する House を provinceToHouse から取得
+  // 2. その House の所有 Polity (terminal) を houseToPolityId から取得
+  // 3. terminal Polity の祖先を辿り、root → terminal の順で contract を作る
+  // 4. 中間契約の taxRateToGrantor は 0.3 で固定 (簡略化、後で config 化可能)
+  const INTERMEDIATE_TAX_RATE = 0.3
+  for (const province of provinces) {
+    const houseId = provinceToHouse.get(province.id)
+    if (!houseId) continue
+    const terminalPolityId = houseToPolityId.get(houseId)
+    if (!terminalPolityId) continue
+
+    // terminal から root へ祖先列を作る
+    const polityChain: PolityId[] = [terminalPolityId]
+    let cursor: PolityId | undefined = polityParentMap.get(terminalPolityId)
+    while (cursor !== undefined) {
+      polityChain.push(cursor)
+      cursor = polityParentMap.get(cursor)
+    }
+    polityChain.reverse() // root → terminal の順
+
+    // chain の各段に LandContract を作る
+    const contractIds: LandContractId[] = []
+    let prevContractId: LandContractId | undefined = undefined
+    for (let depth = 0; depth < polityChain.length; depth++) {
+      const granteePolityId = polityChain[depth]!
+      const contractId = ('lc-' + nextLandContractId) as LandContractId
+      nextLandContractId++
+
+      const contract: LandContract = {
+        id: contractId,
+        provinceId: province.id,
+        granteePolityId,
+        terms: {
+          taxRateToGrantor: prevContractId === undefined ? 0 : INTERMEDIATE_TAX_RATE,
+        },
+        ...(prevContractId === undefined
+          ? { rootAuthorityId: ROOT_WORLD }
+          : { parentContractId: prevContractId }),
+      }
+      landContractsRecord[contractId] = contract
+      contractIds.push(contractId)
+
+      const existingGrantee = landContractIndex.byGranteePolity[granteePolityId] ?? []
+      landContractIndex.byGranteePolity[granteePolityId] = [...existingGrantee, contractId]
+
+      if (prevContractId !== undefined) {
+        landContractIndex.byParent[prevContractId] = contractId
+      }
+      prevContractId = contractId
+    }
+    landContractIndex.byProvince[province.id] = contractIds
+    provinceTerminalPolityCache[province.id] = terminalPolityId
   }
 
   // polityIndex.byOwnerHouse

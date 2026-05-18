@@ -13,6 +13,13 @@ import {
   transferProvinceToPolity,
   adjustProvinceDevelopment,
 } from './provinceMutations'
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
 function makeFixture(): {
   state: WorldState
@@ -28,86 +35,32 @@ function makeFixture(): {
   const polity1Id = createPolityId('c', 0)
   const polity2Id = createPolityId('c', 1)
 
-  const state: WorldState = {
-    currentYear: 1444,
-    currentMonth: 1,
-    provinces: {
-      [provinceId]: {
-        id: provinceId,
-        name: 'Test Province',
-        x: 0,
-        y: 0,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 0,
-        polityControl: 100,
-      },
-    },
-    polities: {
-      [polity1Id]: {
-        id: polity1Id,
-        name: 'Polity 1',
-        rank: 2,
-        ownerHouseId: house1Id,
-        treasury: 100,
-        legacyPrestige: 50,
-        adminPower: 10,
-        active: true,
-        capitalProvinceId: '' as ProvinceId,
-      },
-      [polity2Id]: {
-        id: polity2Id,
-        name: 'Polity 2',
-        rank: 2,
-        ownerHouseId: house2Id,
-        treasury: 100,
-        legacyPrestige: 50,
-        adminPower: 10,
-        active: true,
-        capitalProvinceId: '' as ProvinceId,
-      },
-    },
-    houses: {
-      [house1Id]: {
-        id: house1Id,
-        name: 'House 1',
-        active: true,
-        memberIds: [],
-        cadetHouseIds: [],
-        legacyPrestige: 50,
-        wealth: 0,
-        seatProvinceId: '' as ProvinceId,
-      },
-      [house2Id]: {
-        id: house2Id,
-        name: 'House 2',
-        active: true,
-        memberIds: [],
-        cadetHouseIds: [],
-        legacyPrestige: 50,
-        wealth: 0,
-        seatProvinceId: '' as ProvinceId,
-      },
-    },
-    persons: {},
-    activePlots: {},
-    popGroups: {},
-    organizationShares: {},
-    officeAssignments: {},
-    shareIndex: { byOrganization: {}, byHolder: {} },
-    officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    nextOrganizationShareId: 0,
-    nextOfficeAssignmentId: 0,
-    landContracts: {},
-    provinceOfficeAssignments: {},
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    polityIndex: { byOwnerHouse: {} },
-    nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
-  }
+  // Second province satisfies §25 #17 (polity2 must have ≥1 LandContract grantee).
+  const auxProvinceId = createProvinceId('p', 1)
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 1444 }
+  state = withProvince(state, provinceId, { name: 'Test Province', development: 0 })
+  state = withProvince(state, auxProvinceId, { name: 'Aux Province' })
+  state = withHouse(state, house1Id, { name: 'House 1', seatProvinceId: provinceId })
+  state = withHouse(state, house2Id, { name: 'House 2', seatProvinceId: auxProvinceId })
+  state = withPolity(state, polity1Id, {
+    name: 'Polity 1',
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 10,
+    capitalProvinceId: provinceId,
+    ownerHouseId: house1Id,
+  })
+  state = withPolity(state, polity2Id, {
+    name: 'Polity 2',
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 10,
+    capitalProvinceId: auxProvinceId,
+    ownerHouseId: house2Id,
+  })
+  state = bindProvinceToHouseViaPolity(state, provinceId, polity1Id, house1Id)
+  state = bindProvinceToHouseViaPolity(state, auxProvinceId, polity2Id, house2Id)
   return { state, provinceId, house1Id, house2Id, polity1Id, polity2Id }
 }
 
@@ -199,7 +152,7 @@ describe('transferProvinceToPolity', () => {
     const result = transferProvinceToPolity(state, provinceId, polity2Id, house1Id)
 
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('CROSS_POLITY_TRANSFER')
+    if (!result.ok) expect(result.error.code).toBe('OWNER_MISMATCH')
   })
 })
 

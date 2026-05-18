@@ -13,17 +13,28 @@ describe('generateWorld', () => {
     expect(JSON.stringify(w1)).toEqual(JSON.stringify(w2))
   })
 
-  it('has correct structure: 40 provinces, 3 polities, 15 houses', () => {
+  it('has correct structure: 40 provinces, 15 polities (3 kingdoms + 4 duchies + 8 counties), 15 normal + 1 AnonymousHouse', () => {
     const { world } = generateWorld('test-seed')
     expect(Object.keys(world.provinces).length).toEqual(40)
-    expect(Object.keys(world.polities).length).toEqual(3)
-    expect(Object.keys(world.houses).length).toEqual(15)
+    expect(Object.keys(world.polities).length).toEqual(15)
+    const rank2 = Object.values(world.polities).filter((p) => p?.rank === 2).length
+    const rank3 = Object.values(world.polities).filter((p) => p?.rank === 3).length
+    const rank4 = Object.values(world.polities).filter((p) => p?.rank === 4).length
+    expect(rank2).toEqual(3)
+    expect(rank3).toEqual(4)
+    expect(rank4).toEqual(8)
+    const normalHouseCount = Object.values(world.houses).filter((h) => h?.kind !== 'system').length
+    const systemHouseCount = Object.values(world.houses).filter((h) => h?.kind === 'system').length
+    expect(normalHouseCount).toEqual(15)
+    expect(systemHouseCount).toEqual(1)
   })
 
-  it('has correct person count: 120 persons (8 per house)', () => {
+  it('has correct person count: 120 normal + 40 placeholder bailiffs', () => {
     const { world } = generateWorld('test-seed')
-    const count = Object.keys(world.persons).length
-    expect(count).toBe(120)
+    const normal = Object.values(world.persons).filter((p) => p?.kind !== 'placeholder').length
+    const placeholder = Object.values(world.persons).filter((p) => p?.kind === 'placeholder').length
+    expect(normal).toBe(120)
+    expect(placeholder).toBe(40)
   })
 
   describe('consistency checks', () => {
@@ -58,13 +69,14 @@ describe('generateWorld', () => {
       }
     })
 
-    it('every house: has an active leader office with a living holder', () => {
+    it('every normal house: has an active leader office with a living holder', () => {
       const { world } = generateWorld('test-seed')
 
       const houseKeys = Object.keys(world.houses).sort()
       for (const hk of houseKeys) {
         const house = world.houses[hk as keyof typeof world.houses]
         if (!house) continue
+        if (house.kind === 'system') continue
 
         const orgKey = `house:${house.id}`
         const officeIds = world.officeIndex.byOrganization[orgKey] ?? []

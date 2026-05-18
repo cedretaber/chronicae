@@ -6,6 +6,13 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
 import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
+import {
+  bindProvinceToHouseViaPolity,
+  makeEmptyV016State,
+  withHouse,
+  withPolity,
+  withProvince,
+} from '../testFixtures'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -77,88 +84,38 @@ function makeNormalExtinctionCtx(): TickContext {
 
   const allPersons: Record<PersonId, Person> = { ...extinctHousePersons, ...rulerHousePersons }
 
-  const provinces: Record<ProvinceId, import('../types/province').Province> = {}
-  provinces[province0Id] = {
-    id: province0Id,
-    name: 'Province0',
-    x: 0,
-    y: 0,
-    neighbors: [],
-    habitability: 50,
-    popGroupIds: [],
-    development: 0,
-    polityControl: 100,
-  }
-  provinces[province1Id] = {
-    id: province1Id,
-    name: 'Province1',
-    x: 1,
-    y: 1,
-    neighbors: [],
-    habitability: 50,
-    popGroupIds: [],
-    development: 0,
-    polityControl: 100,
-  }
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 10, currentMonth: 6 }
+  state = withProvince(state, province0Id, { name: 'Province0' })
+  state = withProvince(state, province1Id, { name: 'Province1', x: 1, y: 1 })
+  state = withHouse(state, houseId, {
+    name: 'ExtinctHouse',
+    memberIds: ['pe-0' as PersonId],
+    legacyPrestige: 50,
+    wealth: 100,
+    seatProvinceId: province0Id,
+  })
+  state = withHouse(state, rulerHouseId, {
+    name: 'RulerHouse',
+    memberIds: ['pe-10' as PersonId],
+    legacyPrestige: 80,
+    wealth: 200,
+    seatProvinceId: province1Id,
+  })
+  state = withPolity(state, polityId, {
+    name: 'C0',
+    ownerHouseId: houseId,
+    treasury: 100,
+    legacyPrestige: 50,
+    adminPower: 50,
+    capitalProvinceId: province0Id,
+  })
+  state = bindProvinceToHouseViaPolity(state, province0Id, polityId, houseId)
+  state = bindProvinceToHouseViaPolity(state, province1Id, polityId, houseId)
+  state = { ...state, persons: { ...state.persons, ...allPersons } }
 
   return {
-    state: {
-      currentYear: 10,
-      currentMonth: 6,
-      provinces,
-      polities: {
-        [polityId]: {
-          id: polityId,
-          name: 'C0',
-          rank: 2,
-          ownerHouseId: houseId,
-          treasury: 100,
-          legacyPrestige: 50,
-          adminPower: 50,
-          active: true,
-          capitalProvinceId: province0Id,
-        },
-      },
-      houses: {
-        [houseId]: {
-          id: houseId,
-          name: 'ExtinctHouse',
-          active: true,
-          memberIds: ['pe-0' as PersonId],
-          cadetHouseIds: [],
-          legacyPrestige: 50,
-          wealth: 100,
-          seatProvinceId: province0Id,
-        },
-        [rulerHouseId]: {
-          id: rulerHouseId,
-          name: 'RulerHouse',
-          active: true,
-          memberIds: ['pe-10' as PersonId],
-          cadetHouseIds: [],
-          legacyPrestige: 80,
-          wealth: 200,
-          seatProvinceId: province1Id,
-        },
-      },
-      persons: allPersons,
-      activePlots: {},
-      popGroups: {},
-      organizationShares: {},
-      officeAssignments: {},
-      shareIndex: { byOrganization: {}, byHolder: {} },
-      officeIndex: { byOrganization: {}, byHolderPerson: {} },
-      nextOrganizationShareId: 0,
-      nextOfficeAssignmentId: 0,
-      landContracts: {},
-      provinceOfficeAssignments: {},
-      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-      provinceTerminalPolityCache: {},
-      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-      polityIndex: { byOwnerHouse: {} },
-      nextLandContractId: 0,
-      nextProvinceOfficeAssignmentId: 0,
-    },
+    state,
     rng: createRng('extinction-test'),
     config: defaultConfig,
     events: [],
@@ -217,12 +174,9 @@ describe('extinctHouseAfterFailedSuccession', () => {
       expect(extinctHouse?.active).toBe(false)
     })
 
-    it('province houseControl set to inherited value', () => {
-      const ctx = makeNormalExtinctionCtx()
-      const result = extinctHouseAfterFailedSuccession(ctx, 'h-0' as HouseId)
-
-      const province = result.state.provinces['p-0' as ProvinceId]
-      expect(province?.polityControl).toBe(defaultConfig.inheritedProvinceHouseControl)
+    it.skip('province houseControl set to inherited value (v0.15)', () => {
+      // v0.16: Province.houseControl が型レベルで廃止されているため、本テストは無効化する。
+      // 代わりに polityControl は変動しないことが期待される (§8.2)。
     })
   })
 
@@ -257,105 +211,65 @@ describe('extinctHouseAfterFailedSuccession', () => {
         40,
       )
 
-      const provinces: Record<ProvinceId, import('../types/province').Province> = {}
       const province0Id = 'p-0' as ProvinceId
       const province1Id = 'p-1' as ProvinceId
-      provinces[province0Id] = {
-        id: province0Id,
-        name: 'Province0',
-        x: 0,
-        y: 0,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 0,
-        polityControl: 100,
-      }
-      provinces[province1Id] = {
-        id: province1Id,
-        name: 'Province1',
-        x: 1,
-        y: 1,
-        neighbors: [],
-        habitability: 50,
-        popGroupIds: [],
-        development: 0,
-        polityControl: 100,
+
+      let state = makeEmptyV016State()
+      state = { ...state, currentYear: 10, currentMonth: 6 }
+      state = withProvince(state, province0Id, { name: 'Province0' })
+      state = withProvince(state, province1Id, { name: 'Province1', x: 1, y: 1 })
+      state = withHouse(state, houseId, {
+        name: 'RulerHouse',
+        memberIds: ['pe-0' as PersonId],
+        legacyPrestige: 90,
+        wealth: 100,
+        seatProvinceId: province0Id,
+      })
+      state = withHouse(state, candidateHouseId, {
+        name: 'CandidateHouse',
+        memberIds: ['pe-1' as PersonId],
+        legacyPrestige: 40,
+        wealth: 50,
+        seatProvinceId: province1Id,
+      })
+      state = withPolity(state, polityId, {
+        name: 'C0',
+        ownerHouseId: houseId,
+        treasury: 100,
+        legacyPrestige: 50,
+        adminPower: 50,
+        capitalProvinceId: province0Id,
+      })
+      state = bindProvinceToHouseViaPolity(state, province0Id, polityId, houseId)
+      state = bindProvinceToHouseViaPolity(state, province1Id, polityId, houseId)
+      const leaderOfficeId = 'oa-0' as import('../types/ids').OfficeAssignmentId
+      state = {
+        ...state,
+        persons: { ...state.persons, ...persons },
+        officeAssignments: {
+          ...state.officeAssignments,
+          [leaderOfficeId]: {
+            id: leaderOfficeId,
+            organization: { kind: 'polity' as const, id: polityId },
+            role: 'leader' as const,
+            holderPersonId: 'pe-0' as PersonId,
+            active: true,
+            startYear: 10,
+            unpaidCount: 0,
+          },
+        },
+        officeIndex: {
+          byOrganization: {
+            ...state.officeIndex.byOrganization,
+            [`polity:${polityId}`]: [leaderOfficeId],
+          },
+          byHolderPerson: { ...state.officeIndex.byHolderPerson },
+        },
+        nextOfficeAssignmentId: state.nextOfficeAssignmentId + 1,
       }
 
       const ctx: TickContext = {
-        state: {
-          currentYear: 10,
-          currentMonth: 6,
-          provinces,
-          polities: {
-            [polityId]: {
-              id: polityId,
-              name: 'C0',
-              rank: 2,
-              ownerHouseId: houseId,
-              treasury: 100,
-              legacyPrestige: 50,
-              adminPower: 50,
-              active: true,
-              capitalProvinceId: province0Id,
-            },
-          },
-          houses: {
-            [houseId]: {
-              id: houseId,
-              name: 'RulerHouse',
-              active: true,
-              memberIds: ['pe-0' as PersonId],
-              cadetHouseIds: [],
-              legacyPrestige: 90,
-              wealth: 100,
-              seatProvinceId: province0Id,
-            },
-            [candidateHouseId]: {
-              id: candidateHouseId,
-              name: 'CandidateHouse',
-              active: true,
-              memberIds: ['pe-1' as PersonId],
-              cadetHouseIds: [],
-              legacyPrestige: 40,
-              wealth: 50,
-              seatProvinceId: province1Id,
-            },
-          },
-          persons,
-          activePlots: {},
-          popGroups: {},
-          organizationShares: {},
-          officeAssignments: {
-            ['oa-0' as import('../types/ids').OfficeAssignmentId]: {
-              id: 'oa-0' as import('../types/ids').OfficeAssignmentId,
-              organization: { kind: 'polity' as const, id: polityId },
-              role: 'leader' as const,
-              holderPersonId: 'pe-0' as PersonId,
-              active: true,
-              startYear: 10,
-              unpaidCount: 0,
-            },
-          },
-          shareIndex: { byOrganization: {}, byHolder: {} },
-          officeIndex: {
-            byOrganization: {
-              ['polity:dp-0']: ['oa-0' as import('../types/ids').OfficeAssignmentId],
-            },
-            byHolderPerson: {},
-          },
-          nextOrganizationShareId: 0,
-          nextOfficeAssignmentId: 1,
-          landContracts: {},
-          provinceOfficeAssignments: {},
-          landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-          provinceTerminalPolityCache: {},
-          provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-          polityIndex: { byOwnerHouse: {} },
-          nextLandContractId: 0,
-          nextProvinceOfficeAssignmentId: 0,
-        },
+        state,
         rng: createRng('ruler-extinction-test'),
         config: defaultConfig,
         events: [],
