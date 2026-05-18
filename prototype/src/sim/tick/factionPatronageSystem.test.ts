@@ -1,0 +1,368 @@
+import { describe, expect, it } from 'vitest'
+import type { TickContext } from './context'
+import type { PersonId, ProvinceId } from '../types/ids'
+import { createRng } from '../rng/rng'
+import { defaultConfig } from '../config/defaultConfig'
+import { runFactionPatronageSystem } from './factionPatronageSystem'
+import {
+  createHouseId,
+  createPersonId,
+  createFactionId,
+  createFactionMembershipId,
+  createOfficeAssignmentId,
+  createProvinceId,
+  createPolityId,
+} from '../types/ids'
+import type { WorldState } from '../types/world'
+import type { Faction, FactionMembership } from '../types/faction'
+import type { OfficeAssignment, OfficeRole } from '../types/office'
+import {
+  makeEmptyV016State,
+  withHouse,
+  withPerson,
+  withPolity,
+  withProvince,
+  bindProvinceToHouseViaPolity,
+} from '../testFixtures'
+
+function makeConfig(
+  overrides: Partial<import('../config/defaultConfig').SimulationConfig> = {},
+): import('../config/defaultConfig').SimulationConfig {
+  return { ...defaultConfig, ...overrides }
+}
+
+function makeCtx(
+  state: WorldState,
+  config?: import('../config/defaultConfig').SimulationConfig,
+): TickContext {
+  return {
+    state,
+    rng: createRng('faction-patronage-test'),
+    config: config || defaultConfig,
+    events: [],
+    nextEventIndex: 0,
+    nextPersonIndex: 0,
+    nextHouseIndex: 0,
+    nextPolityIndex: 0,
+    deathsThisTick: [],
+    deathRolesThisTick: {},
+  }
+}
+
+function buildBaseState(): {
+  state: WorldState
+  leaderId: PersonId
+  provinceId: ProvinceId
+  polityId: import('../types/ids').PolityId
+  houseId: import('../types/ids').HouseId
+} {
+  const leaderId = createPersonId('pe', 0)
+  const provinceId = createProvinceId('p', 0)
+  const polityId = createPolityId('dp', 0)
+  const houseId = createHouseId('dh', 0)
+
+  let state = makeEmptyV016State()
+  state = { ...state, currentYear: 1444, currentMonth: 1 }
+  state = withProvince(state, provinceId, { name: 'Province0' })
+  state = withHouse(state, houseId, {
+    name: 'House0',
+    memberIds: [leaderId],
+    seatProvinceId: provinceId,
+  })
+  state = withPolity(state, polityId, {
+    name: 'Polity0',
+    ownerHouseId: houseId,
+    capitalProvinceId: provinceId,
+  })
+  state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
+  state = withPerson(state, leaderId, { name: 'Leader', houseId, wealth: 1000, alive: true })
+
+  return { state, leaderId, provinceId, polityId, houseId }
+}
+
+function addFaction(
+  state: WorldState,
+  factionId: import('../types/ids').FactionId,
+  leaderPersonId: PersonId,
+): { state: WorldState; faction: Faction } {
+  const faction: Faction = {
+    id: factionId,
+    name: 'Faction0',
+    leaderPersonId,
+    active: true,
+    foundingYear: 1444,
+    foundingMonth: 1,
+  }
+  const newIndex: import('../types/faction').FactionIndex = {
+    byLeader: { ...state.factionIndex.byLeader, [leaderPersonId]: [factionId] },
+    byMember: { ...state.factionIndex.byMember },
+  }
+  return {
+    state: {
+      ...state,
+      factions: { ...state.factions, [factionId]: faction },
+      factionIndex: newIndex,
+    },
+    faction,
+  }
+}
+
+function addFactionMembership(
+  state: WorldState,
+  membershipId: import('../types/ids').FactionMembershipId,
+  factionId: import('../types/ids').FactionId,
+  personId: PersonId,
+): WorldState {
+  const membership: FactionMembership = {
+    id: membershipId,
+    factionId,
+    personId,
+    active: true,
+    joinedYear: 1444,
+    joinedMonth: 1,
+  }
+  const memberIds = state.factionIndex.byMember[personId] ?? []
+  const newIndex: import('../types/faction').FactionIndex = {
+    byLeader: { ...state.factionIndex.byLeader },
+    byMember: { ...state.factionIndex.byMember, [personId]: [...memberIds, membershipId] },
+  }
+  return {
+    ...state,
+    factionMemberships: { ...state.factionMemberships, [membershipId]: membership },
+    factionIndex: newIndex,
+  }
+}
+
+function addOffice(
+  state: WorldState,
+  officeId: import('../types/ids').OfficeAssignmentId,
+  holderPersonId: PersonId,
+  role: OfficeRole,
+  organization: { kind: 'house'; id: import('../types/ids').HouseId },
+): WorldState {
+  const office: OfficeAssignment = {
+    id: officeId,
+    organization,
+    role,
+    holderPersonId,
+    active: true,
+    startYear: 1444,
+    unpaidCount: 0,
+  }
+  const orgKey = `${organization.kind}:${organization.id}`
+  const holderKey = holderPersonId
+  return {
+    ...state,
+    officeAssignments: { ...state.officeAssignments, [officeId]: office },
+    officeIndex: {
+      byOrganization: {
+        ...state.officeIndex.byOrganization,
+        [orgKey]: [...(state.officeIndex.byOrganization[orgKey] ?? []), officeId],
+      },
+      byHolderPerson: {
+        ...state.officeIndex.byHolderPerson,
+        [holderKey]: [...(state.officeIndex.byHolderPerson[holderKey] ?? []), officeId],
+      },
+    },
+  }
+}
+
+describe('runFactionPatronageSystem', () => {
+  it('returns identity when month != 1', () => {
+    const { state } = buildBaseState()
+    const month12State: WorldState = { ...state, currentMonth: 12 }
+    const ctx = makeCtx(month12State)
+    const result = runFactionPatronageSystem(ctx)
+
+    expect(result.state).toBe(month12State)
+  })
+
+  it('returns identity when no active factions', () => {
+    const { state } = buildBaseState()
+    const ctx = makeCtx(state)
+    const result = runFactionPatronageSystem(ctx)
+
+    expect(result.state).toBe(state)
+  })
+
+  it('office-holding member with wealth > reserve donates to leader', () => {
+    const memberId = createPersonId('pe', 1)
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    const officeId = createOfficeAssignmentId(0)
+    const { state, leaderId, houseId } = buildBaseState()
+
+    let s = state
+    s = withPerson(s, memberId, { name: 'Member', houseId, wealth: 500, alive: true })
+    const { state: s2, faction } = addFaction(s, factionId, leaderId)
+    const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
+    // member has an office (non-leader role)
+    const s4 = addOffice(s3, officeId, memberId, 'administrator', { kind: 'house', id: houseId })
+
+    const customConfig = makeConfig({
+      factionDonationRate: 0.5,
+      factionDonationPersonalReserve: 200,
+      factionDonationAffectionGain: 3,
+      factionDonationRespectGain: 2,
+      factionDonationAffectionGainSmall: 1,
+    })
+    void faction // used implicitly via addFaction return
+    const ctx = makeCtx(s4, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    // donation = min(wealth - reserve, floor(wealth * rate)) = min(500-200, floor(500*0.5)) = min(300, 250) = 250
+    const expectedDonation = 250
+    expect(result.state.persons[memberId]?.wealth).toBe(500 - expectedDonation)
+    expect(result.state.persons[leaderId]?.wealth).toBe(1000 + expectedDonation)
+
+    // adjustPersonAttitudeIfExists does NOT create new attitude keys.
+    // Attitude keys are only updated if they already exist (tested in test 6).
+    const leaderAttitudeKey = `person:${memberId}`
+    expect(result.state.persons[leaderId]?.attitudes[leaderAttitudeKey]).toBeUndefined()
+  })
+
+  it('leader pays stipend to no-office member when leader wealth > reserve + stipend', () => {
+    const memberId = createPersonId('pe', 1)
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    const { state, leaderId, houseId } = buildBaseState()
+
+    let s = state
+    s = withPerson(s, memberId, { name: 'NoOfficeMember', houseId, wealth: 0, alive: true })
+    const s2 = addFaction(s, factionId, leaderId).state
+    const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
+
+    const customConfig = makeConfig({
+      factionStipendBase: 10,
+      factionLeaderReserveWealth: 500,
+      factionStipendAffectionGain: 2,
+      factionStipendRespectGain: 1,
+    })
+    const ctx = makeCtx(s3, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    // leader wealth = 1000, reserve + stipend = 500 + 10 = 510, 1000 >= 510 → pays stipend
+    expect(result.state.persons[leaderId]?.wealth).toBe(1000 - 10)
+    expect(result.state.persons[memberId]?.wealth).toBe(10)
+
+    // adjustPersonAttitudeIfExists does NOT create new attitude keys.
+    const memberAttitudeKey = `person:${leaderId}`
+    expect(result.state.persons[memberId]?.attitudes[memberAttitudeKey]).toBeUndefined()
+  })
+
+  it('leader does NOT pay stipend when wealth < reserve + stipend; attitude penalty if key exists', () => {
+    const memberId = createPersonId('pe', 1)
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    const { state, leaderId, houseId } = buildBaseState()
+
+    // Leader has low wealth
+    let s = state
+    s = { ...s, persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, wealth: 400 } } }
+    s = withPerson(s, memberId, { name: 'NoOfficeMember', houseId, wealth: 0, alive: true })
+    const s2 = addFaction(s, factionId, leaderId).state
+    const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
+
+    const customConfig = makeConfig({
+      factionStipendBase: 10,
+      factionLeaderReserveWealth: 500,
+      factionStipendShortageAffectionPenalty: 3,
+      factionStipendShortageRespectPenalty: 2,
+      factionStipendAffectionGain: 2,
+      factionStipendRespectGain: 1,
+    })
+    const ctx = makeCtx(s3, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    // leader wealth = 400, reserve + stipend = 510, 400 < 510 → no stipend
+    expect(result.state.persons[leaderId]?.wealth).toBe(400)
+    expect(result.state.persons[memberId]?.wealth).toBe(0)
+  })
+
+  it('pre-existing attitude key is adjusted by donation gains', () => {
+    const memberId = createPersonId('pe', 1)
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    const officeId = createOfficeAssignmentId(0)
+    const { state, leaderId, houseId } = buildBaseState()
+
+    let s = state
+    s = withPerson(s, memberId, { name: 'Member', houseId, wealth: 500, alive: true })
+    const s2 = addFaction(s, factionId, leaderId).state
+    const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
+    const s4 = addOffice(s3, officeId, memberId, 'administrator', { kind: 'house', id: houseId })
+
+    // Pre-existing attitude: leader has affection=10, respect=5 for member
+    const leaderAttKey = `person:${memberId}`
+    const leaderPerson = s4.persons[leaderId]!
+    const s5: WorldState = {
+      ...s4,
+      persons: {
+        ...s4.persons,
+        [leaderId]: {
+          ...leaderPerson,
+          attitudes: { [leaderAttKey]: { affection: 10, respect: 5 } },
+        },
+      },
+    }
+
+    const customConfig = makeConfig({
+      factionDonationRate: 0.5,
+      factionDonationPersonalReserve: 200,
+      factionDonationAffectionGain: 3,
+      factionDonationRespectGain: 2,
+      factionDonationAffectionGainSmall: 1,
+    })
+    const ctx = makeCtx(s5, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    // leader's attitude for member should be 10+3=13, 5+2=7
+    const leaderAtt = result.state.persons[leaderId]?.attitudes[leaderAttKey]
+    expect(leaderAtt?.affection).toBe(13)
+    expect(leaderAtt?.respect).toBe(7)
+  })
+
+  it('does NOT create attitude key when source has no existing key for target', () => {
+    const memberId = createPersonId('pe', 1)
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    const officeId = createOfficeAssignmentId(0)
+    const { state, leaderId, houseId } = buildBaseState()
+
+    let s = state
+    s = withPerson(s, memberId, { name: 'Member', houseId, wealth: 500, alive: true })
+    // Give leader an existing attitude key for member (so leader→member attitude update works)
+    const leaderAttKey = `person:${memberId}`
+    const leaderPerson = s.persons[leaderId]!
+    s = {
+      ...s,
+      persons: {
+        ...s.persons,
+        [leaderId]: {
+          ...leaderPerson,
+          attitudes: { [leaderAttKey]: { affection: 10, respect: 5 } },
+        },
+      },
+    }
+    const s2 = addFaction(s, factionId, leaderId).state
+    const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
+    const s4 = addOffice(s3, officeId, memberId, 'administrator', { kind: 'house', id: houseId })
+
+    // member has NO attitude key for leader
+    const memberAttKey = `person:${leaderId}`
+    expect(s4.persons[memberId]?.attitudes[memberAttKey]).toBeUndefined()
+
+    const customConfig = makeConfig({
+      factionDonationRate: 0.5,
+      factionDonationPersonalReserve: 200,
+      factionDonationAffectionGain: 3,
+      factionDonationRespectGain: 2,
+      factionDonationAffectionGainSmall: 1,
+    })
+    const ctx = makeCtx(s4, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    // member's attitude for leader should NOT be created (adjustPersonAttitudeIfExists)
+    expect(result.state.persons[memberId]?.attitudes[memberAttKey]).toBeUndefined()
+  })
+})

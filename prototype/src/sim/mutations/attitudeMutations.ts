@@ -5,6 +5,7 @@ import type { StateResult } from './result'
 import { ok, err } from './result'
 import {
   adjustAttitude,
+  updateAttitudeIfExists,
   personAttitudeKey,
   polityAttitudeKey,
   houseAttitudeKey,
@@ -41,6 +42,32 @@ export function adjustPersonAttitude(
 
   const key = targetKey(target)
   const newAttitudes = adjustAttitude(person.attitudes, key, delta)
+  return ok({
+    ...state,
+    persons: { ...state.persons, [personId]: { ...person, attitudes: newAttitudes } },
+  })
+}
+
+// v0.17 §11.x: like adjustPersonAttitude, but ONLY updates if the target attitude key
+// already exists. If the key is absent, returns state unchanged (does NOT create it).
+// Used by FactionPatronageSystem to avoid creating new attitude keys for routine
+// donations / stipends (decisions §2.12).
+export function adjustPersonAttitudeIfExists(
+  state: WorldState,
+  personId: PersonId,
+  target: AttitudeTarget,
+  delta: Partial<Attitude>,
+): StateResult {
+  const person = state.persons[personId]
+  if (!person)
+    return err({
+      code: 'PERSON_NOT_FOUND',
+      message: 'adjustPersonAttitudeIfExists: person not found: ' + personId,
+    })
+
+  const key = targetKey(target)
+  const newAttitudes = updateAttitudeIfExists(person.attitudes, key, delta)
+  if (newAttitudes === person.attitudes) return ok(state) // no change
   return ok({
     ...state,
     persons: { ...state.persons, [personId]: { ...person, attitudes: newAttitudes } },

@@ -3,8 +3,8 @@ import { createPolityId, createHouseId, createPersonId, createProvinceId } from 
 import type { PolityId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
-import { adjustHouseMembersAttitude } from './attitudeMutations'
-import { houseAttitudeKey } from '../helpers/attitudeHelpers' // used for assertion key lookup only
+import { adjustHouseMembersAttitude, adjustPersonAttitudeIfExists } from './attitudeMutations'
+import { houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
 import {
   bindProvinceToHouseViaPolity,
   makeEmptyV016State,
@@ -158,5 +158,73 @@ describe('adjustHouseMembersAttitude', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(collectIntegrityErrors(result.value)).toEqual([])
+  })
+})
+
+describe('adjustPersonAttitudeIfExists', () => {
+  it('updates affection/respect when source has existing attitude key for target, clamped to [-100, 100]', () => {
+    const { state, person1Id } = makeFixture()
+    const targetPersonId = createPersonId('pe', 1)
+    const key = personAttitudeKey(targetPersonId)
+    const withAttitude: WorldState = {
+      ...state,
+      persons: {
+        ...state.persons,
+        [person1Id]: {
+          ...state.persons[person1Id]!,
+          attitudes: { [key]: { affection: 50, respect: 30 } },
+        },
+      },
+    }
+
+    const result = adjustPersonAttitudeIfExists(
+      withAttitude,
+      person1Id,
+      { kind: 'person', id: targetPersonId },
+      { affection: 60, respect: 70 },
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.persons[person1Id]!.attitudes[key]?.affection).toBe(100)
+    expect(result.value.persons[person1Id]!.attitudes[key]?.respect).toBe(100)
+  })
+
+  it('does not create a new attitude key when source has no attitude key for target', () => {
+    const { state, person1Id } = makeFixture()
+    const targetPersonId = createPersonId('pe', 1)
+    const key = personAttitudeKey(targetPersonId)
+    // person1Id has no attitudes at all (empty object)
+    const person1 = state.persons[person1Id]!
+    expect(Object.keys(person1.attitudes).length).toBe(0)
+
+    const result = adjustPersonAttitudeIfExists(
+      state,
+      person1Id,
+      { kind: 'person', id: targetPersonId },
+      { affection: 10, respect: 5 },
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // State should be returned unchanged (no new key created)
+    expect(result.value.persons[person1Id]!.attitudes[key]).toBeUndefined()
+    // The attitudes object should be the same reference (no modification)
+    expect(result.value.persons[person1Id]!.attitudes).toBe(person1.attitudes)
+  })
+
+  it('returns err when source person is missing', () => {
+    const { state } = makeFixture()
+    const fakePersonId = createPersonId('pe', 9999)
+
+    const result = adjustPersonAttitudeIfExists(
+      state,
+      fakePersonId,
+      { kind: 'person', id: createPersonId('pe', 0) },
+      { affection: 10 },
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('PERSON_NOT_FOUND')
   })
 })
