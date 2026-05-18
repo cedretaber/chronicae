@@ -129,3 +129,20 @@ export function assignOffice(state: WorldState, input: AssignOfficeInput): State
   )
   return ok(currentState)
 }
+
+// v0.17 §6.5: OfficeAssignment term expiration → inactive.
+// Functionally same as revokeOfficeAssignment but semantically distinct (scheduled term end vs forced removal).
+export function expireOfficeTermAssignment(
+  state: WorldState,
+  officeId: OfficeAssignmentId,
+): WorldState {
+  const office = state.officeAssignments[officeId]
+  if (!office || !office.active) return state
+  return {
+    ...state,
+    officeAssignments: {
+      ...state.officeAssignments,
+      [officeId]: { ...office, active: false },
+    },
+  }
+}

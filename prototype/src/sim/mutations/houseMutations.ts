@@ -3,6 +3,7 @@ import { makeHouseId } from '../tick/context'
 import type { HouseId, PolityId, ProvinceId, PersonId } from '../types/ids'
 import type { House } from '../types/house'
 import type { WorldState } from '../types/world'
+import type { Person } from '../types/person'
 import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
@@ -165,4 +166,41 @@ export function dispersePersonsToAnonymousHouse(
   }
 
   return ok({ ...state, persons: newPersons, houses: newHouses })
+}
+
+export type AddPersonToAnonymousHouseInput = {
+  person: Person
+}
+
+// v0.17 §5.4.2: Atomically add an already-built Person to AnonymousHouse.
+// person.houseId must already be set to ANONYMOUS_HOUSE_ID by the caller.
+export function addPersonToAnonymousHouse(
+  state: WorldState,
+  input: AddPersonToAnonymousHouseInput,
+): StateResult {
+  const anon = state.houses[ANONYMOUS_HOUSE_ID]
+  if (!anon)
+    return err({
+      code: 'HOUSE_NOT_FOUND',
+      message: 'addPersonToAnonymousHouse: AnonymousHouse missing',
+    })
+  if (state.persons[input.person.id])
+    return err({
+      code: 'PERSON_ALREADY_EXISTS',
+      message: 'addPersonToAnonymousHouse: person already exists: ' + input.person.id,
+    })
+  if (input.person.houseId !== ANONYMOUS_HOUSE_ID)
+    return err({
+      code: 'HOUSE_MISMATCH',
+      message: 'addPersonToAnonymousHouse: person.houseId must be ANONYMOUS_HOUSE_ID',
+    })
+
+  return ok({
+    ...state,
+    persons: { ...state.persons, [input.person.id]: input.person },
+    houses: {
+      ...state.houses,
+      [ANONYMOUS_HOUSE_ID]: { ...anon, memberIds: [...anon.memberIds, input.person.id] },
+    },
+  })
 }

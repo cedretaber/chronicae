@@ -10,6 +10,7 @@ import {
   deactivateHouse,
   addHouseWealth,
   dispersePersonsToAnonymousHouse,
+  addPersonToAnonymousHouse,
 } from './houseMutations'
 import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
 import { makeEmptyV016State, withHouse, withPerson } from '../testFixtures'
@@ -317,5 +318,121 @@ describe('dispersePersonsToAnonymousHouse', () => {
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
+  })
+})
+
+describe('addPersonToAnonymousHouse', () => {
+  function makeAddPersonFixture(): {
+    state: WorldState
+    personId: PersonId
+    otherHouseId: HouseId
+  } {
+    const personId = createPersonId('pe', 20)
+    const otherHouseId = createHouseId('h', 20)
+    const state = makeEmptyV016State()
+    return { state, personId, otherHouseId }
+  }
+
+  it('valid input → person added, AnonymousHouse.memberIds appends', () => {
+    const { state, personId } = makeAddPersonFixture()
+    const person = {
+      id: personId,
+      name: 'New Person',
+      sex: 'male' as const,
+      age: 25,
+      alive: true,
+      houseId: ANONYMOUS_HOUSE_ID,
+      childIds: [],
+      birthStatus: 'unknown' as const,
+      abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
+      aptitudes: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 0,
+      wealth: 0,
+      attitudes: {},
+      lastHouseTransferYear: 1450,
+    }
+    const result = addPersonToAnonymousHouse(state, { person })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.persons[personId]).toBeDefined()
+    const anon = result.value.houses[ANONYMOUS_HOUSE_ID]
+    expect(anon!.memberIds).toContain(personId)
+  })
+
+  it('AnonymousHouse missing → err', () => {
+    const { state, personId } = makeAddPersonFixture()
+    const newState = { ...state, houses: {} }
+    const person = {
+      id: personId,
+      name: 'New Person',
+      sex: 'male' as const,
+      age: 25,
+      alive: true,
+      houseId: ANONYMOUS_HOUSE_ID,
+      childIds: [],
+      birthStatus: 'unknown' as const,
+      abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
+      aptitudes: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 0,
+      wealth: 0,
+      attitudes: {},
+    }
+    const result = addPersonToAnonymousHouse(newState, { person })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
+  })
+
+  it('Person.id already exists → err', () => {
+    const { state, personId } = makeAddPersonFixture()
+    const existingPerson = {
+      id: personId,
+      name: 'Existing',
+      sex: 'male' as const,
+      age: 30,
+      alive: true,
+      houseId: ANONYMOUS_HOUSE_ID,
+      childIds: [],
+      birthStatus: 'unknown' as const,
+      abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
+      aptitudes: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 0,
+      wealth: 0,
+      attitudes: {},
+    }
+    const updatedState = { ...state, persons: { [personId]: existingPerson } }
+    const newPerson = {
+      ...existingPerson,
+      id: personId,
+      name: 'Duplicate',
+    }
+    const result = addPersonToAnonymousHouse(updatedState, { person: newPerson })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('PERSON_ALREADY_EXISTS')
+  })
+
+  it('Person.houseId !== ANONYMOUS_HOUSE_ID → err', () => {
+    const { state, personId, otherHouseId } = makeAddPersonFixture()
+    const person = {
+      id: personId,
+      name: 'Wrong House',
+      sex: 'male' as const,
+      age: 25,
+      alive: true,
+      houseId: otherHouseId,
+      childIds: [],
+      birthStatus: 'unknown' as const,
+      abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
+      aptitudes: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 0,
+      wealth: 0,
+      attitudes: {},
+    }
+    const result = addPersonToAnonymousHouse(state, { person })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('HOUSE_MISMATCH')
   })
 })

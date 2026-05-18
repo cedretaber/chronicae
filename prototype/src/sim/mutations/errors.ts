@@ -20,6 +20,8 @@ export type SimErrorCode =
   | 'FACTION_LEADER_MEMBERSHIP_EXISTS'
   | 'FACTION_MEMBERSHIP_NOT_FOUND'
   | 'FACTION_LEADER_MEMBERSHIP_PROTECTED'
+  | 'PERSON_ALREADY_EXISTS'
+  | 'HOUSE_MISMATCH'
 
 export type SimError = {
   code: SimErrorCode
