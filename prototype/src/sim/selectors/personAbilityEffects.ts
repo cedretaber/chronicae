@@ -148,21 +148,6 @@ export function calcGeneralDeclareThreshold(
   )
 }
 
-export function calcChancellorMonumentScoreBonus(
-  state: WorldState,
-  polityId: PolityId,
-  config: SimulationConfig,
-): number {
-  if (!config.personAbilityEffectsEnabled) return 0
-  const administrator = getFirstActiveLivingOfficeHolder(state, polityId, 'administrator')
-  const ambition = administrator?.traits.ambition ?? 0.5
-  const caution = administrator?.traits.caution ?? 0.5
-  return (
-    normalizedTrait(ambition) * config.chancellorAmbitionMonumentScoreEffect -
-    normalizedTrait(caution) * config.chancellorCautionMonumentScoreEffect
-  )
-}
-
 export function calcChancellorLandDevelopmentScoreBonus(
   state: WorldState,
   polityId: PolityId,

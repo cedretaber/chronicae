@@ -1340,23 +1340,16 @@ if (ability[k] < effectiveCeil) {
 
 ### 6.16 PublicSpendingSystem（毎年1月）
 
-`publicSpendingYearlyChance`（35%）で発動。monumentScore vs landDevelopmentScore を比較し実行：
+`publicSpendingYearlyChance`（35%）で発動。Polity treasury から terminal Province 1 つを選んで土地開発する。
 
-スコア計算に Polity administrator の ability 補正が加算される（§10 参照）:
-```
-monumentScore      += chancellorAmbitionMonumentScoreBonus + chancellorCautionMonumentScoreBonus
-landDevelopmentScore += chancellorCautionLandDevelopmentScoreBonus + chancellorAmbitionLandDevelopmentScoreBonus
-```
-
-**記念碑建設（MONUMENT_BUILT）**:
-- 条件: monumentScore > landDevelopmentScore かつ treasury >= monumentBaseCost
-- 対象 Province: 首都から接続済み、polityControl < 100 の中から最高スコアで選択
-- 効果: treasury -= monumentBaseCost、**polityControl += monumentPolityControlGain**、legitimacy += monumentLegitimacyGain、rulerHouse.prestige += 2
-
-**Polity土地開発（COUNTRY_LAND_DEVELOPED）**:
+**Polity土地開発（POP_LAND_DEVELOPED）**:
 - 条件: treasury >= effectiveCost（Polity treasurer の admin による割引あり）
+- 対象 Province: 当該 Polity が terminal な Province の中から、ruler House の所領 (`getProvinceEffectiveOwnerHouseId === rulerHouseId`) と recovery score (負の development の絶対値) で最高スコアを選ぶ
 - 効果: development += gain（clamp）、treasury -= effectiveCost
 - v0.16: `houseControl` 廃止に伴い旧来の `landDevelopmentHouseControlGain` 加算は無効化された (config は残置するが未使用)
+
+**記念碑建設の廃止**:
+v0.16 後の整理で `MONUMENT_BUILT` イベントは削除された（ログを埋めるだけで観賞価値が薄く、polityControl 補強の代替経路として独立した存在意義に乏しいため）。これに伴い `monumentScore` vs `landDevelopmentScore` の二択分岐構造、関連 config (`monumentBaseCost` / `monumentPolityControlGain` / `chancellorAmbition,CautionMonumentScoreEffect`)、selector (`calcChancellorMonumentScoreBonus`) もすべて削除された。
 
 ### 6.17 HouseDevelopmentSystem（毎年1月）
 
@@ -1820,7 +1813,6 @@ Polity / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` �
 | WAR_LOST | major | 戦争敗北 |
 | PROVINCE_CONQUERED | major | Province 征服 (v0.16 では WarSystem が依然発火、LAND_CONTRACT_* への置換は Faction 段階) |
 | POLITY_ANNEXED | critical | 国家消滅（併合） |
-| MONUMENT_BUILT | major | 記念碑建設 |
 | COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発 |
 | HOUSE_LAND_DEVELOPED | normal | 家による土地開発 |
 | POP_LAND_DEVELOPED | minor | POP 自主開発（§6.18） |
@@ -1843,6 +1835,7 @@ Polity / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` �
 
 - `REBELLION_STARTED` / `REBELLION_SUCCEEDED` / `REBELLION_FAILED` — RebellionSystem 廃止により発火源消失
 - `LORDSHIP_TRANSFERRED` / `LORDSHIP_USURPED` — LordshipTransitionSystem 廃止 / 反乱で ownerHouse が直接交代する経路の消失により発火源消失
+- `MONUMENT_BUILT` — v0.16 後の整理で記念碑建設機能を廃止（観賞価値の薄さと polityControl 補強として独立した存在意義の乏しさを理由に publicSpendingSystem を土地開発専用に簡素化）
 | POP_HARDSHIP | minor | POP の困窮（将来実装） |
 | POP_PROSPERITY | minor | POP の繁栄（将来実装） |
 | POP_UNREST_RISING | normal | Province unrest 上昇警告（将来実装） |
@@ -1942,7 +1935,6 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | bountifulHarvestTownsmanUnrestReduction | 1 | 豊作による townsmen unrest 低下量 |
 | **Public Spending** | | |
 | publicSpendingEnabled | true | 公共支出有効 |
-| monumentBaseCost | 120 | 記念碑建設コスト |
 | publicSpendingYearlyChance | 0.35 | 公共支出年間発動確率 |
 | **Development** | | |
 | developmentPositiveMonthlyDecay | 0.1 | 正 development の月次減衰 |
@@ -1970,9 +1962,6 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | controlGrowthPerMonth | 2 | 支配力月次増加量 |
 | controlDecayPerMonth | 1 | 支配力月次減少量（上限超過時） |
 | disconnectedControlDecayPerMonth | 5 | 接続不能 Province の月次減衰量 |
-| **Monument** | | |
-| monumentPolityControlGain | 10 | 記念碑による polityControl 上昇量 |
-| monumentLegacyPrestigeGain | 3 | 記念碑による rulerHouse.legacyPrestige 上昇量（v0.11） |
 | **Land Development** | | |
 | landDevelopmentHouseControlGain | 5 | 土地開発による houseControl 上昇量 |
 | landDevelopmentUnrestReduction | 1 | 土地開発によるスコア評価に用いる unrest 低下量 |
@@ -1993,8 +1982,6 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | generalCautionDeclareThresholdEffect | 0.10 | 将軍 caution による宣戦閾値変動係数 |
 | minWarDeclareThreshold | 0.30 | 宣戦閾値の下限 |
 | maxWarDeclareThreshold | 0.75 | 宣戦閾値の上限 |
-| chancellorAmbitionMonumentScoreEffect | 20 | 宰相 ambition による monumentScore 補正係数 |
-| chancellorCautionMonumentScoreEffect | 10 | 宰相 caution による monumentScore 補正係数（低 caution が正に働く） |
 | chancellorAmbitionLandDevelopmentScoreEffect | 10 | 宰相 ambition による landDevelopmentScore 補正係数（低 ambition が正に働く） |
 | chancellorCautionLandDevelopmentScoreEffect | 20 | 宰相 caution による landDevelopmentScore 補正係数 |
 | houseHeadAdminDevelopmentChanceEffect | 0.10 | 家長 admin による開発確率補正係数 |
@@ -2255,18 +2242,7 @@ effectiveThreshold = clamp(
 
 ### 10.6 PublicSpendingSystem への効果
 
-**Polity administrator（Chancellor）→ スコア補正**:
-```ts
-// ambition 高 → monumentScore 上昇（栄光志向）
-// caution 低（大胆）→ monumentScore 上昇（果断な建設）
-monumentScoreBonus = normalizedTrait(ambition) * chancellorAmbitionMonumentScoreEffect
-                   - normalizedTrait(caution)  * chancellorCautionMonumentScoreEffect
-
-// caution 高 → landDevelopmentScore 上昇（堅実な内政）
-// ambition 低 → landDevelopmentScore 上昇（現状維持志向）
-landDevelopmentScoreBonus = normalizedTrait(caution)  * chancellorCautionLandDevelopmentScoreEffect
-                           - normalizedTrait(ambition) * chancellorAmbitionLandDevelopmentScoreEffect
-```
+v0.16 後の整理で記念碑建設機能が削除されたため、`monumentScore` / `landDevelopmentScore` の二択構造そのものが廃止された。現在は `publicSpendingYearlyChance` の確率試行成功時に Polity 土地開発を実行するのみ。Polity treasurer の admin による開発コスト割引 (`calcTreasurerDevelopmentCostModifier`) のみが残っており、Polity administrator の ambition / caution 補正は `calcChancellorLandDevelopmentScoreBonus` selector として残置されているが現状未参照（将来の活用余地として保持）。
 
 ### 10.7 HouseDevelopmentSystem への効果
 
@@ -2455,7 +2431,6 @@ UI 層では基礎能力直接参照（`person.abilities.valor` を直接表示�
 - **家の分裂の作り込み**: Attitude 経由の cohesion 変動をより細かく制御、分裂閾値の調整、一強状態でも分裂が自然発生する仕組み
 - **POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED イベントの発火ロジック**: 閾値超過時のみ発火する条件付きイベント（EventType 宣言のみ実装済み）
 - **首都・本拠地移転**: 征服・滅亡・特別イベントによる移転
-- **記念碑エンティティ化**: 建設場所、継続効果、破壊、monumentLevel
 - **POP の移住**: population pressure・wealth・unrest・戦争荒廃に応じた Province 間移動
 - **文化・宗教**: PopGroup への cultureId / religionId 追加、同化・改宗・弾圧・寛容政策
 - **食料生産**: carrying capacity / population pressure を foodProduction / foodDemand に拡張

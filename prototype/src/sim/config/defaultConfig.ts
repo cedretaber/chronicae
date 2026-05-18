@@ -24,7 +24,6 @@ export type SimulationConfig = {
   disasterReliefCostPerProvince: number
   // Public Spending
   publicSpendingEnabled: boolean
-  monumentBaseCost: number
   publicSpendingYearlyChance: number
   // Development decay/recovery
   developmentPositiveMonthlyDecay: number
@@ -48,8 +47,6 @@ export type SimulationConfig = {
   controlGrowthPerMonth: number
   controlDecayPerMonth: number
   disconnectedControlDecayPerMonth: number
-  // Monument (v0.5 changes)
-  monumentPolityControlGain: number
   // Land development (v0.5 additions)
   landDevelopmentHouseControlGain: number
   landDevelopmentUnrestReduction: number
@@ -89,8 +86,6 @@ export type SimulationConfig = {
   generalCautionDeclareThresholdEffect: number
   minWarDeclareThreshold: number
   maxWarDeclareThreshold: number
-  chancellorAmbitionMonumentScoreEffect: number
-  chancellorCautionMonumentScoreEffect: number
   chancellorAmbitionLandDevelopmentScoreEffect: number
   chancellorCautionLandDevelopmentScoreEffect: number
   houseHeadAdminDevelopmentChanceEffect: number
@@ -361,7 +356,6 @@ export const defaultConfig: SimulationConfig = {
   bountifulHarvestBaseChancePerYear: 0.05,
   disasterReliefCostPerProvince: 20,
   publicSpendingEnabled: true,
-  monumentBaseCost: 120,
   publicSpendingYearlyChance: 0.35,
   developmentPositiveMonthlyDecay: 0.1,
   developmentNegativeMonthlyRecovery: 0.25,
@@ -388,8 +382,6 @@ export const defaultConfig: SimulationConfig = {
   controlGrowthPerMonth: 2,
   controlDecayPerMonth: 1,
   disconnectedControlDecayPerMonth: 5,
-  // Monument (v0.5 changes)
-  monumentPolityControlGain: 10,
   // Land development (v0.5 additions)
   landDevelopmentHouseControlGain: 5,
   landDevelopmentUnrestReduction: 1,
@@ -420,8 +412,6 @@ export const defaultConfig: SimulationConfig = {
   generalCautionDeclareThresholdEffect: 0.1,
   minWarDeclareThreshold: 0.3,
   maxWarDeclareThreshold: 0.75,
-  chancellorAmbitionMonumentScoreEffect: 20,
-  chancellorCautionMonumentScoreEffect: 10,
   chancellorAmbitionLandDevelopmentScoreEffect: 10,
   chancellorCautionLandDevelopmentScoreEffect: 20,
   houseHeadAdminDevelopmentChanceEffect: 0.1,

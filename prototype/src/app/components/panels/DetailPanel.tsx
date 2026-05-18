@@ -45,12 +45,12 @@ import type { PopGroup } from '@/sim/types/popGroup'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import type { AttitudeMap } from '@/sim/types/attitude'
 import type { PolityId, HouseId, PersonId } from '@/sim/types/ids'
+import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
   getHousePrimaryPolityId,
   getHouseProvinceIdsByPolity,
   getPolityHouseIds,
 } from '@sim/selectors/polityRelations'
-import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
   getProvinceTerminalPolityId,
   getProvinceEffectiveOwnerHouseId,
@@ -898,14 +898,6 @@ function PersonDetail({
   const importanceScore = calcPersonImportanceScore(worldState, person.id, eventHistory)
 
   const primaryPolityId = getPersonPrimaryPolityId(worldState, person.id)
-  const personCountryAtt = getAttitudeOrDefault(worldState, person, {
-    kind: 'polity',
-    id: primaryPolityId ?? ('' as PolityId),
-  })
-  const countryLoyalty =
-    (attitudeValueToScore(personCountryAtt.affection) * 0.55 +
-      attitudeValueToScore(personCountryAtt.respect) * 0.45) /
-    100
 
   const ROLE_ORDER = ['leader', 'administrator', 'treasurer', 'military', 'advisor']
 
@@ -1107,10 +1099,6 @@ function PersonDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">Ambition:</span>
           <span>{formatScore(person.traits.ambition)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Country Loyalty:</span>
-          <span>{formatScore(countryLoyalty * 100)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Caution:</span>

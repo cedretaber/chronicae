@@ -36,7 +36,6 @@ const EVENT_ICON: Partial<Record<EventType, string>> = {
   PROVINCE_REVOLT_SUCCEEDED: '🔥',
   PROVINCE_REVOLT_FAILED: '🔥',
   REVOLT_POLITY_FOUNDED: '🔥',
-  MONUMENT_BUILT: '▲',
   PERSON_DIED: '✝',
   IMPORTANT_PERSON_DIED: '✝',
   CHILD_BORN: '✦',

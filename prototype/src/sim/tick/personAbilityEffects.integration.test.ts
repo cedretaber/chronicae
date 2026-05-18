@@ -8,7 +8,6 @@ import type { Person, AbilityScores } from '../types/person'
 import type { OfficeAssignment, OrganizationRef } from '../types/office'
 import { runControlSystem } from './controlSystem'
 import { runLandRevenueSystem } from './landRevenueSystem'
-import { runPublicSpendingSystem } from './publicSpendingSystem'
 import { runHouseDevelopmentSystem } from './houseDevelopmentSystem'
 import {
   calcGeneralDeclareThreshold,
@@ -411,58 +410,6 @@ describe('calcGeneralDeclareThreshold — integration with defaultConfig', () =>
     const disabledConfig = { ...defaultConfig, personAbilityEffectsEnabled: false }
     const threshold = calcGeneralDeclareThreshold(state, 'dp-0' as PolityId, disabledConfig)
     expect(threshold).toBe(0.45)
-  })
-})
-
-describe('runPublicSpendingSystem — chancellor ambition monument preference', () => {
-  it('ambition=1.0 chancellor triggers MONUMENT_BUILT event', () => {
-    const ambitionChancellor = makePerson(1.0, 0.0)
-    const state = makeWorldState(ambitionChancellor, { administrator: ambitionChancellor.id }, 500)
-    const config = { ...defaultConfig, publicSpendingYearlyChance: 1.0 }
-    const ctx = { ...makeCtx(state), config }
-    const result = runPublicSpendingSystem(ctx)
-
-    const monumentEvents = result.events.filter((e) => e.type === 'MONUMENT_BUILT')
-    expect(monumentEvents.length).toBeGreaterThan(0)
-  })
-
-  it('monumentScore exceeds landDevelopmentScore with ambition=1.0 chancellor', () => {
-    const ambitionChancellor = makePerson(1.0, 0.0)
-    const state = makeWorldState(ambitionChancellor, { administrator: ambitionChancellor.id }, 500)
-    const config = { ...defaultConfig, publicSpendingYearlyChance: 1.0 }
-    const ctx = { ...makeCtx(state), config }
-    const result = runPublicSpendingSystem(ctx)
-
-    const monumentEvents = result.events.filter((e) => e.type === 'MONUMENT_BUILT')
-    const landDevEvents = result.events.filter((e) => e.type === 'POP_LAND_DEVELOPED')
-    expect(monumentEvents.length).toBeGreaterThan(0)
-    expect(landDevEvents.length).toBe(0)
-  })
-
-  it('neutral chancellor produces different outcome than ambition=1.0', () => {
-    const neutralChancellor = makePerson(0.5, 0.5)
-    const neutralState = makeWorldState(
-      neutralChancellor,
-      { administrator: neutralChancellor.id },
-      500,
-    )
-    const config = { ...defaultConfig, publicSpendingYearlyChance: 1.0 }
-    const neutralCtx = { ...makeCtx(neutralState), config }
-    const neutralResult = runPublicSpendingSystem(neutralCtx)
-
-    const ambitionChancellor = makePerson(1.0, 0.0)
-    const ambitionState = makeWorldState(
-      ambitionChancellor,
-      { administrator: ambitionChancellor.id },
-      500,
-    )
-    const ambitionCtx = { ...makeCtx(ambitionState), config }
-    const ambitionResult = runPublicSpendingSystem(ambitionCtx)
-
-    const neutralMonumentEvents = neutralResult.events.filter((e) => e.type === 'MONUMENT_BUILT')
-    const ambitionMonumentEvents = ambitionResult.events.filter((e) => e.type === 'MONUMENT_BUILT')
-
-    expect(ambitionMonumentEvents.length).toBeGreaterThanOrEqual(neutralMonumentEvents.length)
   })
 })
 

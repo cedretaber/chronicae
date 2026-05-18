@@ -22,7 +22,6 @@ import {
   calcTreasurerTaxEfficiency,
   calcGeneralWarPowerModifier,
   calcGeneralDeclareThreshold,
-  calcChancellorMonumentScoreBonus,
   calcHouseHeadDevelopmentChanceBonus,
 } from './personAbilityEffects'
 
@@ -649,38 +648,6 @@ describe('calcGeneralDeclareThreshold', () => {
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
     const result = calcGeneralDeclareThreshold(state, polity.id, config)
     expect(result).toBe(0.45)
-  })
-})
-
-describe('calcChancellorMonumentScoreBonus', () => {
-  it('returns 15 with chancellor ambition=1.0, caution=0.0', () => {
-    const { state, polity } = makeWorldState(
-      { traits: { ambition: 1.0, caution: 0.0 } },
-      { administrator: createPersonId('pe', 0) },
-    )
-    const config = { ...defaultConfig }
-    const result = calcChancellorMonumentScoreBonus(state, polity.id, config)
-    expect(result).toBe(15)
-  })
-
-  it('returns 0 with chancellor ambition=0.5, caution=0.5', () => {
-    const { state, polity } = makeWorldState(
-      { traits: { ambition: 0.5, caution: 0.5 } },
-      { administrator: createPersonId('pe', 0) },
-    )
-    const config = { ...defaultConfig }
-    const result = calcChancellorMonumentScoreBonus(state, polity.id, config)
-    expect(result).toBe(0)
-  })
-
-  it('returns 0 when personAbilityEffectsEnabled is false', () => {
-    const { state, polity } = makeWorldState(
-      { traits: { ambition: 1.0, caution: 0.0 } },
-      { administrator: createPersonId('pe', 0) },
-    )
-    const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
-    const result = calcChancellorMonumentScoreBonus(state, polity.id, config)
-    expect(result).toBe(0)
   })
 })
 

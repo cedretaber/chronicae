@@ -173,15 +173,6 @@ export function ConfigPanel() {
             value={config.publicSpendingEnabled}
             onChange={(v) => setConfig({ publicSpendingEnabled: v })}
           />
-          <ConfigRow
-            label="Monument Cost"
-            value={config.monumentBaseCost}
-            min={50}
-            max={300}
-            step={10}
-            displayValue={String(config.monumentBaseCost)}
-            onChange={(v) => setConfig({ monumentBaseCost: v })}
-          />
           <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Development</div>
           <ToggleRow
             label="House Development"
@@ -269,15 +260,6 @@ export function ConfigPanel() {
             step={1}
             displayValue={String(config.disconnectedControlDecayPerMonth)}
             onChange={(v) => setConfig({ disconnectedControlDecayPerMonth: v })}
-          />
-          <ConfigRow
-            label="Monument Control Gain"
-            value={config.monumentPolityControlGain}
-            min={5}
-            max={20}
-            step={5}
-            displayValue={String(config.monumentPolityControlGain)}
-            onChange={(v) => setConfig({ monumentPolityControlGain: v })}
           />
           <ConfigRow
             label="Dev House Control Gain"
