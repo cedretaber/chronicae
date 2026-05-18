@@ -10,7 +10,7 @@ import type { SimEvent } from '../types/event'
 import type { PopClass } from '../types/popGroup'
 import type { CtxResult } from './result'
 import { ok, err } from './result'
-import { createOfficeAssignment } from './officeMutations'
+import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMutations'
 import { movePersonToHouse } from './personMutations'
 import { getHouseLeader, getPolityLeaderHouse } from '../selectors/officeSelectors'
 import {
@@ -391,19 +391,78 @@ function handleNormalHouseExtinction(
   let resultCtx = ctx
   const sortedProvinceIds = [...getHouseControlledProvinceIds(resultCtx.state, houseId)].sort()
 
-  // v0.16: extinct House の controlled Province は LandContract chain 経由で receiver の Polity に移す。
-  // receiver House が owner である最初の Polity を target にする。なければ skip。
-  const receiverPolityIds = resultCtx.state.polityIndex.byOwnerHouse[receiverHouseId] ?? []
-  const targetPolityId = receiverPolityIds[0]
+  // v0.16 §22.3: extinct House が ownerHouse である Polity すべてを receiver House に継承させる
+  // (王朝交代)。LandContracts は変更しない (Polity と Province の関係は不変、ownerHouse のみ差し替え)。
+  // - Polity.ownerHouseId = receiver
+  // - polityIndex.byOwnerHouse 同期更新
+  // - polity:leader Office を receiver の leader に差し替え
+  // - POLITY_OWNER_CHANGED event 発火
+  const inheritedPolityIds = [...(resultCtx.state.polityIndex.byOwnerHouse[houseId] ?? [])]
   let chainState = resultCtx.state
-  if (targetPolityId !== undefined) {
-    for (const pid of sortedProvinceIds) {
-      const terminal = getProvinceTerminalContract(chainState, pid)
-      if (!terminal) continue
-      chainState = transferLandContractGrantee(chainState, terminal.id, targetPolityId)
+  const ownerChangedEvents: SimEvent[] = []
+  for (const polityId of inheritedPolityIds) {
+    const polity = chainState.polities[polityId]
+    if (!polity) continue
+
+    // Polity.ownerHouseId 更新
+    chainState = {
+      ...chainState,
+      polities: {
+        ...chainState.polities,
+        [polityId]: { ...polity, ownerHouseId: receiverHouseId },
+      },
     }
+
+    // polityIndex.byOwnerHouse 更新
+    const oldSlot = chainState.polityIndex.byOwnerHouse[houseId] ?? []
+    const newSlot = chainState.polityIndex.byOwnerHouse[receiverHouseId] ?? []
+    chainState = {
+      ...chainState,
+      polityIndex: {
+        byOwnerHouse: {
+          ...chainState.polityIndex.byOwnerHouse,
+          [houseId]: oldSlot.filter((id) => id !== polityId),
+          [receiverHouseId]: newSlot.includes(polityId) ? newSlot : [...newSlot, polityId],
+        },
+      },
+    }
+
+    // polity:leader Office を receiver House の leader に差し替え
+    chainState = revokeOfficesByOrganization(chainState, { kind: 'polity', id: polityId }, 'leader')
+    const newLeaderId = getHouseLeader(chainState, receiverHouseId)
+    if (newLeaderId) {
+      chainState = createOfficeAssignment(
+        chainState,
+        { kind: 'polity', id: polityId },
+        'leader',
+        newLeaderId,
+      )
+    }
+
+    // POLITY_OWNER_CHANGED イベントを後でまとめて発火するため記録
+    const receiverHouse = chainState.houses[receiverHouseId]
+    ownerChangedEvents.push({
+      id: '' as ReturnType<typeof makeEventId>['id'], // 後で発番
+      year: chainState.currentYear,
+      month: chainState.currentMonth,
+      type: 'POLITY_OWNER_CHANGED',
+      importance: 'major',
+      actorIds: [],
+      houseIds: [houseId, receiverHouseId],
+      polityIds: [polityId],
+      provinceIds: [],
+      summary: `${polity.name}'s ruling house changed from ${house.name} to ${receiverHouse?.name ?? receiverHouseId} after the extinction.`,
+      reasons: [],
+      effects: [],
+    })
   }
   resultCtx = { ...resultCtx, state: chainState }
+
+  // POLITY_OWNER_CHANGED イベントの ID を採番して emit
+  for (const partial of ownerChangedEvents) {
+    const { id: eventId, ctx: ec } = makeEventId(resultCtx)
+    resultCtx = { ...ec, events: [...ec.events, { ...partial, id: eventId }] }
+  }
 
   const stateAfterMove = moveLivingMembersToHouse(resultCtx.state, houseId, receiverHouseId)
   resultCtx = { ...resultCtx, state: stateAfterMove }
@@ -427,10 +486,13 @@ function handleNormalHouseExtinction(
     type: 'HOUSE_EXTINCT',
     importance: 'major',
     actorIds: [],
-    houseIds: [houseId],
+    houseIds: [houseId, receiverHouseId],
     polityIds: eventPolityIds,
     provinceIds: sortedProvinceIds,
-    summary: `${house.name} has become extinct; lands inherited by another house.`,
+    summary:
+      inheritedPolityIds.length > 0
+        ? `${house.name} has become extinct; its realm is inherited by another house.`
+        : `${house.name} has become extinct; its legacy passes to another house.`,
     reasons: [],
     effects: [],
   }
