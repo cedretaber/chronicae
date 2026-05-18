@@ -24,6 +24,11 @@ import {
 } from '../mutations/popMutations'
 import { getPolityLeaderHouse, getActiveOfficeHolders } from '../selectors/officeSelectors'
 import { getPolityHouseIds } from '../selectors/polityRelations'
+import {
+  getProvinceTerminalPolityId,
+  getProvinceEffectiveOwnerHouseId,
+  getHouseControlledProvinceIds,
+} from '../selectors/landContractSelectors'
 
 function emitWarEvent(
   ctx: TickContext,
@@ -168,7 +173,7 @@ export function runWarSystem(ctx: TickContext): TickContext {
       if (!house) {
         continue
       }
-      for (const provinceId of house.provinceIds) {
+      for (const provinceId of getHouseControlledProvinceIds(currentState, houseId)) {
         attackerProvinceSet.add(provinceId)
       }
     }
@@ -188,10 +193,12 @@ export function runWarSystem(ctx: TickContext): TickContext {
       for (const provinceIdStr of Object.keys(currentState.provinces)) {
         const provinceId = provinceIdStr as ProvinceId
         const province = currentState.provinces[provinceId]
-        if (!province || province.polityId !== defenderPolityId) {
+        if (!province) continue
+        if (getProvinceTerminalPolityId(currentState, provinceId) !== defenderPolityId) {
           continue
         }
-        const ownerHouse = currentState.houses[province.ownerHouseId]
+        const ownerHouseId = getProvinceEffectiveOwnerHouseId(currentState, provinceId)
+        const ownerHouse = ownerHouseId ? currentState.houses[ownerHouseId] : undefined
         if (ownerHouse && ownerHouse.seatProvinceId === provinceId) {
           continue
         }
@@ -389,37 +396,17 @@ export function runWarSystem(ctx: TickContext): TickContext {
           currentCtx = { ...currentCtx, state: winnerState }
         }
 
-        {
-          const defenderCheck = currentCtx.state.polities[defenderPolityId]
-          if (defenderCheck) {
-            const capProv = currentCtx.state.provinces[defenderCheck.capitalProvinceId]
-            if (!capProv || capProv.polityId !== defenderPolityId) {
-              const newCap = Object.values(currentCtx.state.provinces).find(
-                (p) => p?.polityId === defenderPolityId,
-              )
-              currentCtx = {
-                ...currentCtx,
-                state: {
-                  ...currentCtx.state,
-                  polities: {
-                    ...currentCtx.state.polities,
-                    [defenderPolityId]: {
-                      ...defenderCheck,
-                      capitalProvinceId: newCap?.id ?? ('' as ProvinceId),
-                    },
-                  },
-                },
-              }
-            }
-          }
-        }
+        // v0.16: capitalProvinceId は維持する設計 (§10.1) のため、capital の移行は行わない。
+        // Polity が landless 化 (terminal grantee 数 0) した場合は polityOwnerConsistencySystem が処理する。
 
         currentState = currentCtx.state
         const defenderAfterTransfers = currentState.polities[defenderPolityId]
         if (defenderAfterTransfers) {
           const defenderNonSeatProvinceCount = Object.values(currentState.provinces).filter((p) => {
-            if (p?.polityId !== defenderPolityId) return false
-            const ownerHouse = currentState.houses[p.ownerHouseId]
+            if (!p) return false
+            if (getProvinceTerminalPolityId(currentState, p.id) !== defenderPolityId) return false
+            const ownerHouseId = getProvinceEffectiveOwnerHouseId(currentState, p.id)
+            const ownerHouse = ownerHouseId ? currentState.houses[ownerHouseId] : undefined
             return ownerHouse?.seatProvinceId !== p.id
           }).length
           if (defenderNonSeatProvinceCount === 0) {
@@ -482,14 +469,16 @@ export function runWarSystem(ctx: TickContext): TickContext {
           for (const houseId of getPolityHouseIds(currentCtx.state, defenderPolityId)) {
             const h = currentCtx.state.houses[houseId]
             if (!h) continue
-            for (const pid of h.provinceIds) {
+            for (const pid of getHouseControlledProvinceIds(currentCtx.state, houseId)) {
               defenderProvinceSet.add(pid)
             }
           }
           const attackerBorderProvinces: ProvinceId[] = []
           for (const pid of Object.keys(currentCtx.state.provinces)) {
             const p = currentCtx.state.provinces[pid as ProvinceId]
-            if (!p || p.polityId !== attackerPolityId) continue
+            if (!p) continue
+            if (getProvinceTerminalPolityId(currentCtx.state, pid as ProvinceId) !== attackerPolityId)
+              continue
             if (p.neighbors.some((nid) => defenderProvinceSet.has(nid))) {
               attackerBorderProvinces.push(pid as ProvinceId)
             }

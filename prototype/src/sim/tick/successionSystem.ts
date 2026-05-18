@@ -16,6 +16,7 @@ import type { SuccessionCandidate } from '../selectors/successionSelectors'
 import { createLogger } from '../debug/logger'
 import { adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
 import { getHousePrimaryPolityId, getPolityHouseIds } from '../selectors/polityRelations'
+import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
 
 export function runSuccessionSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -51,8 +52,9 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
         continue
       const leader = getHouseLeader(currentCtx.state, houseId)
       if (!leader) continue
-      if (house.provinceIds.length > bestProvinceCount) {
-        bestProvinceCount = house.provinceIds.length
+      const controlledCount = getHouseControlledProvinceIds(currentCtx.state, houseId).length
+      if (controlledCount > bestProvinceCount) {
+        bestProvinceCount = controlledCount
         bestHouseId = houseId
       }
     }

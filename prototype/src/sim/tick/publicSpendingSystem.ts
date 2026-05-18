@@ -23,10 +23,20 @@ import {
   attitudeValueToScore,
 } from '../helpers/attitudeHelpers'
 import { getRoleScore } from '../selectors/abilitySelectors'
+import type { WorldState } from '../types/world'
+import {
+  getProvinceTerminalPolityId,
+  getProvinceEffectiveOwnerHouseId,
+} from '../selectors/landContractSelectors'
 
-function scoreLandDevelopmentProvince(province: Province, rulerHouseId: HouseId): number {
+function scoreLandDevelopmentProvince(
+  state: WorldState,
+  province: Province,
+  rulerHouseId: HouseId,
+): number {
   const recoveryBonus = Math.max(0, -province.development) * 1.0
-  const rulerHouseProvinceBonus = province.ownerHouseId === rulerHouseId ? 15 : 0
+  const effectiveOwner = getProvinceEffectiveOwnerHouseId(state, province.id)
+  const rulerHouseProvinceBonus = effectiveOwner === rulerHouseId ? 15 : 0
   return recoveryBonus + rulerHouseProvinceBonus
 }
 
@@ -105,7 +115,10 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
 
       const qualifyingProvinceIds = Object.keys(currentCtx.state.provinces).filter((pid) => {
         const p = currentCtx.state.provinces[pid as ProvinceId]
-        return p?.polityId === polityId && p.polityControl > 0 && p.polityControl < 100
+        if (!p) return false
+        if (getProvinceTerminalPolityId(currentCtx.state, pid as ProvinceId) !== polityId)
+          return false
+        return p.polityControl > 0 && p.polityControl < 100
       }) as ProvinceId[]
 
       if (qualifyingProvinceIds.length === 0) continue
@@ -182,10 +195,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       if (polity.treasury < effectiveCost) continue
 
       const sortedProvinceIds = Object.keys(currentCtx.state.provinces)
-        .filter((pid) => {
-          const p = currentCtx.state.provinces[pid as ProvinceId]
-          return p?.polityId === polityId
-        })
+        .filter((pid) => getProvinceTerminalPolityId(currentCtx.state, pid as ProvinceId) === polityId)
         .sort() as ProvinceId[]
 
       if (sortedProvinceIds.length === 0) continue
@@ -195,7 +205,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       for (const pid of sortedProvinceIds) {
         const p = currentCtx.state.provinces[pid]
         if (!p) continue
-        const score = scoreLandDevelopmentProvince(p, rulerHouseId)
+        const score = scoreLandDevelopmentProvince(currentCtx.state, p, rulerHouseId)
         if (score > bestScore) {
           bestScore = score
           bestProvinceId = pid
@@ -210,15 +220,12 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
         -100,
         100,
       )
-      const newHouseControl = clamp100(
-        targetProvince.houseControl + ctx.config.landDevelopmentHouseControlGain,
-      )
+      // v0.16: houseControl 廃止により Province の control 更新は development のみ。
       const newProvinces = {
         ...currentCtx.state.provinces,
         [bestProvinceId]: {
           ...targetProvince,
           development: newDevelopment,
-          houseControl: newHouseControl,
         },
       }
 
