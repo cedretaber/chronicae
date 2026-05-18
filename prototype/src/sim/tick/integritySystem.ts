@@ -86,6 +86,8 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
   for (const houseId of Object.keys(state.houses).sort()) {
     const house = state.houses[houseId as HouseId]
     if (!house || !house.active) continue
+    // v0.16: AnonymousHouse など system house は house:leader 要件を満たさなくてよい
+    if (house.kind === 'system') continue
 
     const leader = getHouseLeader(state, houseId as HouseId)
     if (leader) {
@@ -313,6 +315,7 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
   for (const houseId of Object.keys(state.houses)) {
     const house = state.houses[houseId as HouseId]
     if (!house || !house.active) continue
+    if (house.kind === 'system') continue
     const leader = getHouseLeader(state, houseId as HouseId)
     if (leader) {
       const officeKey = Object.keys(state.officeAssignments).find(

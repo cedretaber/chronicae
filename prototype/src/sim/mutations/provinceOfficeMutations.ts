@@ -1,6 +1,8 @@
 import type { WorldState } from '../types/world'
 import type { ProvinceId, PolityId, PersonId, ProvinceOfficeAssignmentId } from '../types/ids'
 import type { ProvinceOfficeAssignment } from '../types/landContract'
+import type { Person } from '../types/person'
+import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
 import { createProvinceOfficeAssignmentId } from '../types/ids'
 
 type AppointBailiffParams = {
@@ -87,6 +89,58 @@ export function appointBailiff(state: WorldState, params: AppointBailiffParams):
     },
     assignmentId: id,
   }
+}
+
+// v0.16 §19.2: 新規 placeholder Person を AnonymousHouse 配下に作り、当該 Province の bailiff に任命する。
+// 既存 bailiff があれば事前に vacate する。
+// placeholder Person ID は世代カウンタを使うと runtime nextPersonIndex と干渉するので、
+// state.nextProvinceOfficeAssignmentId を流用した安定 ID `pe-anon-rt-<N>` を採用する。
+export function installPlaceholderBailiff(
+  state: WorldState,
+  params: { provinceId: ProvinceId; appointingPolityId: PolityId; year: number; month: number },
+): WorldState {
+  let working = vacateBailiff(state, params.provinceId)
+
+  const placeholderId = ('pe-anon-rt-' + working.nextProvinceOfficeAssignmentId) as PersonId
+  const placeholder: Person = {
+    id: placeholderId,
+    name: 'Anonymous',
+    sex: 'male',
+    age: 30,
+    alive: true,
+    kind: 'placeholder',
+    houseId: ANONYMOUS_HOUSE_ID,
+    childIds: [],
+    birthStatus: 'unknown',
+    abilities: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+    aptitudes: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+    traits: { ambition: 0, caution: 0 },
+    legacyPrestige: 0,
+    wealth: 0,
+    attitudes: {},
+  }
+
+  const anonHouse = working.houses[ANONYMOUS_HOUSE_ID]
+  const updatedAnonHouse = anonHouse
+    ? { ...anonHouse, memberIds: [...anonHouse.memberIds, placeholderId] }
+    : anonHouse
+
+  working = {
+    ...working,
+    persons: { ...working.persons, [placeholderId]: placeholder },
+    ...(updatedAnonHouse
+      ? { houses: { ...working.houses, [ANONYMOUS_HOUSE_ID]: updatedAnonHouse } }
+      : {}),
+  }
+
+  const { state: afterAppoint } = appointBailiff(working, {
+    provinceId: params.provinceId,
+    holderPersonId: placeholderId,
+    appointingPolityId: params.appointingPolityId,
+    year: params.year,
+    month: params.month,
+  })
+  return afterAppoint
 }
 
 export function vacateBailiff(state: WorldState, provinceId: ProvinceId): WorldState {

@@ -1,0 +1,119 @@
+import type { TickContext } from './context'
+import type { ProvinceId, PolityId } from '../types/ids'
+import type { WorldState } from '../types/world'
+import type { PopClass } from '../types/popGroup'
+import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
+import { getProvinceProduction } from '../selectors/popEconomySelectors'
+import { getProvinceAveragePopWealth, getProvinceUnrest } from '../selectors/popSelectors'
+import { getProvinceLandContractChain } from '../selectors/landContractSelectors'
+import {
+  adjustProvincePopWealth,
+  adjustProvincePopUnrest,
+  adjustProvincePopWealthByClass,
+} from '../mutations/popMutations'
+import { defaultLandContractConfig } from '../config/landContractConfig'
+
+// v0.16 §18: LandRevenueSystem
+// 各 Province の生産物を chain 上の Polity に配る。
+// 1) terminal Polity が production * polityControl を一次徴収
+// 2) chain を terminal → root と逆順に走査し、taxRateToGrantor の比率で grantor に上納
+// 3) root contract の taxRateToGrantor は 0 のため、最終的に world (実体なし) に流れる分は捨てる
+// 4) 残りは Province の POP に再分配 (旧 retainedWealthGainByClass を流用)
+// 5) 過徴税ペナルティは polityControl 単独判定で継続
+export function runLandRevenueSystem(ctx: TickContext): TickContext {
+  const treasuryDeltas = new Map<PolityId, number>()
+  let currentState = ctx.state
+
+  for (const provinceId of Object.keys(ctx.state.provinces).sort() as ProvinceId[]) {
+    const province = ctx.state.provinces[provinceId]
+    if (!province) continue
+
+    const production = getProvinceProduction(ctx.state, ctx.config, province.id)
+    const cc = province.polityControl / 100
+    const grossTax = production * cc
+
+    if (grossTax <= 0) {
+      // POP 還元はゼロでも適用しない (extracted=0 → retainedRatio=1 だが追加効果は限定的)
+      continue
+    }
+
+    // chain 走査: terminal → root の逆順で上納。
+    const chain = getProvinceLandContractChain(ctx.state, province.id)
+    if (chain.length === 0) continue
+
+    // remaining = 各段で granter に渡されない (= 自分のものとして留まる) 分
+    let remaining = grossTax
+    // chain[chain.length - 1] が terminal (Province を直接握る), chain[0] が root
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const contract = chain[i]!
+      const taxRate = contract.terms.taxRateToGrantor
+      // この段の Polity に残る分 = remaining * (1 - taxRate)
+      const retained = remaining * (1 - taxRate)
+      treasuryDeltas.set(
+        contract.granteePolityId,
+        (treasuryDeltas.get(contract.granteePolityId) ?? 0) + retained,
+      )
+      // 上に渡す分
+      remaining = remaining * taxRate
+    }
+    // root contract の taxRateToGrantor は 0 のため remaining はこの時点で 0 になる想定。
+    // 非 0 (root が非標準で taxRate>0) の場合は捨てる (world authority に実体がないため)。
+
+    // 過徴税ペナルティ (旧 economySystem から踏襲)
+    const extracted = grossTax
+    const retainedToPop = Math.max(0, production - extracted)
+    const retainedRatio = production > 0 ? retainedToPop / production : 0
+    const retainedWealthGainByClass = ctx.config.retainedWealthGainByClass
+    const popClasses: PopClass[] = ['peasants', 'townsmen', 'nobles']
+
+    for (const popClass of popClasses) {
+      const delta = retainedRatio * retainedWealthGainByClass[popClass]
+      currentState = adjustProvincePopWealthByClass(currentState, province.id, popClass, delta)
+    }
+
+    const extractionRatio = production > 0 ? extracted / production : 0
+    if (extractionRatio > ctx.config.overExtractionThreshold) {
+      const averageWealth = getProvinceAveragePopWealth(ctx.state, province.id)
+      const provinceUnrest = getProvinceUnrest(ctx.state, province.id)
+      if (
+        averageWealth < ctx.config.overExtractionWealthSafeThreshold ||
+        provinceUnrest > ctx.config.overExtractionUnrestSafeThreshold
+      ) {
+        const over = extractionRatio - ctx.config.overExtractionThreshold
+        currentState = adjustProvincePopWealth(
+          currentState,
+          province.id,
+          -over * ctx.config.overExtractionWealthPenalty,
+        )
+        currentState = adjustProvincePopUnrest(
+          currentState,
+          province.id,
+          over * ctx.config.overExtractionUnrestGain,
+        )
+      }
+    }
+  }
+
+  // treasurer の taxEfficiency を適用して polity.treasury に書き込み
+  const newPolities = { ...currentState.polities }
+  for (const polityIdStr of Object.keys(currentState.polities).sort()) {
+    const polityId = polityIdStr as PolityId
+    const polity = newPolities[polityId]
+    if (!polity || !polity.active) continue
+    const taxEfficiency = calcTreasurerTaxEfficiency(ctx.state, polityId, ctx.config)
+    const delta = treasuryDeltas.get(polityId) ?? 0
+    const flowEfficiency = defaultLandContractConfig.taxFlowEfficiency
+    newPolities[polityId] = {
+      ...polity,
+      treasury: polity.treasury + delta * taxEfficiency * flowEfficiency,
+    }
+  }
+
+  return {
+    ...ctx,
+    state: {
+      ...currentState,
+      polities: newPolities,
+    } satisfies WorldState,
+  }
+}

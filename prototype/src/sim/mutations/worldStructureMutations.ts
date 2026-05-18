@@ -31,6 +31,8 @@ import {
   getProvinceEffectiveOwnerHouseId,
 } from '../selectors/landContractSelectors'
 import { transferLandContractGrantee } from './landContractMutations'
+import { installPlaceholderBailiff } from './provinceOfficeMutations'
+import type { PolityRank } from '../types/polity'
 import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
 import { samplePerson } from '../helpers/personFactory'
@@ -462,11 +464,14 @@ export function extinctHouse(ctx: TickContext, input: HouseExtinctionInput): Ctx
 }
 
 // ============================================================================
-// Found Revolt Country Orchestration
-// Extracted from provinceRevoltSystem.ts resolveRevoltIndependence
+// Create Rebel Polity (v0.16 §17)
+// foundRevoltCountry を統合して書き換え:
+//   - rank = min(5, max(4, terminalRank+1))
+//   - bailiff を placeholder に installPlaceholderBailiff (placeholder Person 新規生成)
+//   - Rebel House を最小構成 (members=[leader], legacyPrestige=0, wealth=0)
 // ============================================================================
 
-export function foundRevoltCountry(
+export function createRebelPolity(
   ctx: TickContext,
   input: { provinceId: ProvinceId; rebelClass: PopClass; oldPolityId: PolityId },
 ): CtxResult<{ polityId: PolityId; houseId: HouseId; personId: PersonId }> {
@@ -478,14 +483,14 @@ export function foundRevoltCountry(
   if (!province)
     return err({
       code: 'PROVINCE_NOT_FOUND',
-      message: `foundRevoltCountry: province not found: ${provinceId}`,
+      message: `createRebelPolity: province not found: ${provinceId}`,
     })
 
   const oldPolity = state.polities[oldPolityId]
   if (!oldPolity)
     return err({
       code: 'POLITY_NOT_FOUND',
-      message: `foundRevoltCountry: old polity not found: ${oldPolityId}`,
+      message: `createRebelPolity: old polity not found: ${oldPolityId}`,
     })
 
   const oldOwnerHouseId = getProvinceEffectiveOwnerHouseId(state, provinceId)
@@ -549,6 +554,7 @@ export function foundRevoltCountry(
   )
   ctx = { ...ctx, rng: rng9 }
 
+  // v0.16 §17: Rebel House は最小構成 (legacyPrestige=0, wealth=0)
   const newHouseObj: House = {
     id: newHouseId,
     name: newHouseName,
@@ -556,10 +562,14 @@ export function foundRevoltCountry(
     memberIds: [newPersonId],
     founderId: newPersonId,
     cadetHouseIds: [],
-    legacyPrestige: config.revoltHouseInitialLegacyPrestige,
-    wealth: config.revoltHouseInitialWealth,
+    legacyPrestige: 0,
+    wealth: 0,
     seatProvinceId: provinceId,
   }
+
+  // v0.16 §17: Rebel rank = min(5, max(4, terminalRank+1))
+  const terminalRank = oldPolity.rank
+  const rebelRank: PolityRank = Math.min(5, Math.max(4, terminalRank + 1)) as PolityRank
 
   const newPolityObj: Polity = {
     id: newPolityId,
@@ -569,7 +579,7 @@ export function foundRevoltCountry(
     adminPower: 0,
     active: true,
     capitalProvinceId: provinceId,
-    rank: 2,
+    rank: rebelRank,
     ownerHouseId: newHouseId,
   }
 
@@ -608,6 +618,14 @@ export function foundRevoltCountry(
   if (terminal) {
     newState = transferLandContractGrantee(newState, terminal.id, newPolityId)
   }
+
+  // v0.16 §17: 当該 Province の bailiff を新 Polity 配下の placeholder に installPlaceholderBailiff
+  newState = installPlaceholderBailiff(newState, {
+    provinceId,
+    appointingPolityId: newPolityId,
+    year: newState.currentYear,
+    month: newState.currentMonth,
+  })
 
   const oldOwnerIsRuler =
     oldOwnerHouseId !== undefined && getPolityLeaderHouse(state, oldPolityId) === oldOwnerHouseId

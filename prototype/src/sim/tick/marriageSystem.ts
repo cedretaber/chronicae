@@ -127,6 +127,7 @@ function collectUnmarriedMaleCandidates(ctx: TickContext): PersonId[] {
   for (const personId of Object.keys(ctx.state.persons).sort()) {
     const person = ctx.state.persons[personId as PersonId]
     if (!person) continue
+    if (person.kind === 'placeholder') continue
     if (person.sex !== 'male') continue
     if (!person.alive) continue
     if (person.spouseId) continue
@@ -144,6 +145,7 @@ function collectUnmarriedFemaleCandidates(ctx: TickContext): PersonId[] {
   for (const personId of Object.keys(ctx.state.persons).sort()) {
     const person = ctx.state.persons[personId as PersonId]
     if (!person) continue
+    if (person.kind === 'placeholder') continue
     if (person.sex !== 'female') continue
     if (!person.alive) continue
     if (person.spouseId) continue

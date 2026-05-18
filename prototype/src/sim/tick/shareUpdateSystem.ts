@@ -76,6 +76,7 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
   for (const houseId of Object.keys(state.houses).sort() as HouseId[]) {
     const house = state.houses[houseId]
     if (!house || !house.active) continue
+    if (house.kind === 'system') continue
 
     const houseRef: OrganizationRef = { kind: 'house', id: houseId }
     const existingShares = getOrganizationShares(state, houseRef)

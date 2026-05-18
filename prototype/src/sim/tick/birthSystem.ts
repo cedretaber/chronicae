@@ -24,6 +24,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
   for (const personId of Object.keys(currentCtx.state.persons).sort()) {
     const person = currentCtx.state.persons[personId as PersonId]
     if (!person) continue
+    if (person.kind === 'placeholder') continue
     if (!person.alive) continue
     if (person.sex !== 'male') continue
     if (person.age < currentCtx.config.fatherMinChildAge) continue
@@ -152,7 +153,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
 function countLivingPersons(state: WorldState): number {
   let count = 0
   for (const person of Object.values(state.persons)) {
-    if (person && person.alive) count++
+    if (person && person.alive && person.kind !== 'placeholder') count++
   }
   return count
 }
@@ -166,7 +167,14 @@ function computeBirthMultiplier(config: SimulationConfig, livingCount: number): 
 function countAdultMales(state: WorldState): number {
   let count = 0
   for (const person of Object.values(state.persons)) {
-    if (person && person.alive && person.sex === 'male' && person.age >= 15) count++
+    if (
+      person &&
+      person.alive &&
+      person.kind !== 'placeholder' &&
+      person.sex === 'male' &&
+      person.age >= 15
+    )
+      count++
   }
   return count
 }

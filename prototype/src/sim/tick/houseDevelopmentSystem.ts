@@ -23,6 +23,7 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
   for (const houseId of Object.keys(ctx.state.houses).sort()) {
     const house = currentCtx.state.houses[houseId as HouseId]
     if (!house || !house.active) continue
+    if (house.kind === 'system') continue
     const controlledProvinceIds = getHouseControlledProvinceIds(currentCtx.state, house.id)
     if (controlledProvinceIds.length === 0) continue
 

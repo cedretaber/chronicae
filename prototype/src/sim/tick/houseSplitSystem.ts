@@ -18,6 +18,7 @@ export type SplitInput = {
 export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInput): TickContext {
   const house = ctx.state.houses[input.houseId]
   if (!house) return ctx
+  if (house.kind === 'system') return ctx
 
   const {
     houseSplitEnabled,

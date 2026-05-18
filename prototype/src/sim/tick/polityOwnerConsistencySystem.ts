@@ -67,6 +67,25 @@ function emitPolityExtinct(ctx: TickContext, polityId: PolityId, summary: string
   return { ...c1, events: [...c1.events, event] }
 }
 
+function emitPolityLandless(ctx: TickContext, polityId: PolityId, summary: string): TickContext {
+  const { id: eventId, ctx: c1 } = makeEventId(ctx)
+  const event: SimEvent = {
+    id: eventId,
+    year: c1.state.currentYear,
+    month: c1.state.currentMonth,
+    type: 'POLITY_LANDLESS',
+    importance: 'major',
+    actorIds: [],
+    houseIds: [],
+    polityIds: [polityId],
+    provinceIds: [],
+    summary,
+    reasons: [],
+    effects: [],
+  }
+  return { ...c1, events: [...c1.events, event] }
+}
+
 function emitPolityOwnerChanged(
   ctx: TickContext,
   polityId: PolityId,
@@ -136,9 +155,14 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
     const polity = currentCtx.state.polities[polityId]
     if (!polity || !polity.active) continue
 
-    // Step 1: provinceIds=0 なら inactive 化 + Share/Office 全削除 + POLITY_EXTINCT
+    // Step 1: provinceIds=0 なら POLITY_LANDLESS を発火し、inactive 化 + Share/Office 全削除 + POLITY_EXTINCT
     const provinceIds = getPolityProvinceIds(currentCtx.state, polityId)
     if (provinceIds.length === 0) {
+      currentCtx = emitPolityLandless(
+        currentCtx,
+        polityId,
+        `${polity.name} no longer holds any land.`,
+      )
       currentCtx = deactivatePolityInline(currentCtx, polityId)
       currentCtx = emitPolityExtinct(
         currentCtx,

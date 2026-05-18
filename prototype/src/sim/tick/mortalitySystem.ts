@@ -13,6 +13,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
   for (const personId of Object.keys(ctx.state.persons).sort()) {
     const person = currentCtx.state.persons[personId as PersonId]
     if (!person || !person.alive) continue
+    if (person.kind === 'placeholder') continue
 
     const deathRate =
       person.age <= 39 ? 0.004 : person.age <= 59 ? 0.01 : person.age <= 69 ? 0.025 : 0.05

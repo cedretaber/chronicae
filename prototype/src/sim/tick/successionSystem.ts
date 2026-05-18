@@ -24,6 +24,7 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
   for (const houseId of Object.keys(currentCtx.state.houses).sort()) {
     const house = currentCtx.state.houses[houseId as HouseId]
     if (!house || !house.active) continue
+    if (house.kind === 'system') continue
 
     if (!needsSuccession(currentCtx.state, house)) continue
 

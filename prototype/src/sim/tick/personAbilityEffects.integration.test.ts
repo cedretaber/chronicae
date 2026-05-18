@@ -7,7 +7,7 @@ import type { ProvinceId, HouseId, PolityId, PersonId, OfficeAssignmentId } from
 import type { Person, AbilityScores } from '../types/person'
 import type { OfficeAssignment, OrganizationRef } from '../types/office'
 import { runControlSystem } from './controlSystem'
-import { runEconomySystem } from './economySystem'
+import { runLandRevenueSystem } from './landRevenueSystem'
 import { runPublicSpendingSystem } from './publicSpendingSystem'
 import { runHouseDevelopmentSystem } from './houseDevelopmentSystem'
 import {
@@ -350,16 +350,16 @@ describe('runControlSystem — capital province maxControl', () => {
 })
 
 // TODO Phase 3: re-enable when EconomySystem is updated to POP-based production
-describe.skip('runEconomySystem — treasurer tax efficiency', () => {
+describe.skip('runLandRevenueSystem — treasurer tax efficiency', () => {
   it('treasurer admin=10 produces higher treasury than admin=5', () => {
     const highAdminPerson = makePerson(0.5, 1.0)
     const highAdminState = makeWorldState(highAdminPerson, { treasurer: highAdminPerson.id })
-    const highAdminResult = runEconomySystem(makeCtx(highAdminState))
+    const highAdminResult = runLandRevenueSystem(makeCtx(highAdminState))
     const highAdminTreasury = highAdminResult.state.polities['dp-0' as PolityId]!.treasury
 
     const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { treasurer: neutralPerson.id })
-    const neutralResult = runEconomySystem(makeCtx(neutralState))
+    const neutralResult = runLandRevenueSystem(makeCtx(neutralState))
     const neutralTreasury = neutralResult.state.polities['dp-0' as PolityId]!.treasury
 
     expect(highAdminTreasury).toBeGreaterThan(neutralTreasury)
@@ -368,29 +368,29 @@ describe.skip('runEconomySystem — treasurer tax efficiency', () => {
   it('expected treasury values: admin=10 → 103.0, admin=5 → 102.5', () => {
     const highAdminPerson = makePerson(0.5, 1.0)
     const highAdminState = makeWorldState(highAdminPerson, { treasurer: highAdminPerson.id })
-    const highAdminResult = runEconomySystem(makeCtx(highAdminState))
+    const highAdminResult = runLandRevenueSystem(makeCtx(highAdminState))
     const highAdminTreasury = highAdminResult.state.polities['dp-0' as PolityId]!.treasury
     expect(highAdminTreasury).toBeCloseTo(103.0, 5)
 
     const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { treasurer: neutralPerson.id })
-    const neutralResult = runEconomySystem(makeCtx(neutralState))
+    const neutralResult = runLandRevenueSystem(makeCtx(neutralState))
     const neutralTreasury = neutralResult.state.polities['dp-0' as PolityId]!.treasury
     expect(neutralTreasury).toBeCloseTo(102.5, 5)
   })
 })
 
 // TODO Phase 3: re-enable when EconomySystem is updated to POP-based production
-describe.skip('runEconomySystem — houseIncome unaffected by treasurer', () => {
+describe.skip('runLandRevenueSystem — houseIncome unaffected by treasurer', () => {
   it('house.wealth is the same regardless of treasurer admin level', () => {
     const highAdminPerson = makePerson(0.5, 1.0)
     const highAdminState = makeWorldState(highAdminPerson, { treasurer: highAdminPerson.id })
-    const highAdminResult = runEconomySystem(makeCtx(highAdminState))
+    const highAdminResult = runLandRevenueSystem(makeCtx(highAdminState))
     const highAdminWealth = highAdminResult.state.houses['h-0' as HouseId]!.wealth
 
     const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { treasurer: neutralPerson.id })
-    const neutralResult = runEconomySystem(makeCtx(neutralState))
+    const neutralResult = runLandRevenueSystem(makeCtx(neutralState))
     const neutralWealth = neutralResult.state.houses['h-0' as HouseId]!.wealth
 
     expect(highAdminWealth).toBe(neutralWealth)
@@ -399,13 +399,13 @@ describe.skip('runEconomySystem — houseIncome unaffected by treasurer', () => 
   it('expected house.wealth: 102.5 for both admin=10 and admin=5', () => {
     const highAdminPerson = makePerson(0.5, 1.0)
     const highAdminState = makeWorldState(highAdminPerson, { treasurer: highAdminPerson.id })
-    const highAdminResult = runEconomySystem(makeCtx(highAdminState))
+    const highAdminResult = runLandRevenueSystem(makeCtx(highAdminState))
     const highAdminWealth = highAdminResult.state.houses['h-0' as HouseId]!.wealth
     expect(highAdminWealth).toBeCloseTo(102.5, 5)
 
     const neutralPerson = makePerson(0.5, 0.5)
     const neutralState = makeWorldState(neutralPerson, { treasurer: neutralPerson.id })
-    const neutralResult = runEconomySystem(makeCtx(neutralState))
+    const neutralResult = runLandRevenueSystem(makeCtx(neutralState))
     const neutralWealth = neutralResult.state.houses['h-0' as HouseId]!.wealth
     expect(neutralWealth).toBeCloseTo(102.5, 5)
   })

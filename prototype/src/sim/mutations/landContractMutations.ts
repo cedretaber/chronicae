@@ -191,3 +191,180 @@ export function transferAllProvincesToPolity(
   }
   return next
 }
+
+// v0.16 §16.1 case B: 既存 contract の上に中間 contract (新 grantee) を挿入する。
+// chain の terminal の直前に挿入し、新 contract が terminal の親、新 contract の親が旧 terminal-1 contract になる。
+export function insertIntermediateLandContract(
+  state: WorldState,
+  params: {
+    provinceId: ProvinceId
+    belowContractId: LandContractId
+    newGranteePolityId: PolityId
+    taxRateToGrantor: number
+  },
+): { state: WorldState; contractId: LandContractId } {
+  const below = state.landContracts[params.belowContractId]
+  if (!below) return { state, contractId: '' as LandContractId }
+
+  const chain = state.landContractIndex.byProvince[params.provinceId] ?? []
+  const belowIdx = chain.findIndex((cid) => cid === params.belowContractId)
+  if (belowIdx === -1) return { state, contractId: '' as LandContractId }
+
+  const id = createLandContractId(state.nextLandContractId)
+  const oldParentId = below.parentContractId
+  const newContract: LandContract = {
+    id,
+    provinceId: params.provinceId,
+    granteePolityId: params.newGranteePolityId,
+    terms: { taxRateToGrantor: clampTaxRate(params.taxRateToGrantor) },
+    ...(oldParentId !== undefined
+      ? { parentContractId: oldParentId }
+      : { rootAuthorityId: below.rootAuthorityId ?? ROOT_WORLD }),
+  }
+
+  const updatedBelow: LandContract = {
+    ...below,
+    parentContractId: id,
+  }
+  delete (updatedBelow as { rootAuthorityId?: RootAuthorityId }).rootAuthorityId
+
+  const newChain = [...chain.slice(0, belowIdx), id, ...chain.slice(belowIdx)]
+  const granteeSlot = emptyGranteeSlot(state.landContractIndex, params.newGranteePolityId)
+  const newByParent = { ...state.landContractIndex.byParent }
+  newByParent[id] = oldParentId
+  newByParent[params.belowContractId] = id
+
+  const nextState: WorldState = {
+    ...state,
+    landContracts: {
+      ...state.landContracts,
+      [id]: newContract,
+      [params.belowContractId]: updatedBelow,
+    },
+    landContractIndex: {
+      byProvince: { ...state.landContractIndex.byProvince, [params.provinceId]: newChain },
+      byGranteePolity: {
+        ...state.landContractIndex.byGranteePolity,
+        [params.newGranteePolityId]: [...granteeSlot, id],
+      },
+      byParent: newByParent,
+    },
+    nextLandContractId: state.nextLandContractId + 1,
+  }
+  return {
+    state: {
+      ...nextState,
+      provinceTerminalPolityCache: recomputeTerminalCache(nextState, params.provinceId),
+    },
+    contractId: id,
+  }
+}
+
+// v0.16 §16.1 case B 変種: 勝者 Polity が既に overlord として chain 上に存在する場合、
+// 勝者 contract と敗者 (terminal) contract の間にある中間 contract をすべて除去する。
+// 戻り値: 残った chain.
+export function replaceLowerLandContract(
+  state: WorldState,
+  params: { provinceId: ProvinceId; winnerPolityId: PolityId },
+): WorldState {
+  const chain = state.landContractIndex.byProvince[params.provinceId] ?? []
+  if (chain.length === 0) return state
+
+  let winnerIdx = -1
+  for (let i = 0; i < chain.length; i++) {
+    const cid = chain[i]
+    if (!cid) continue
+    const c = state.landContracts[cid]
+    if (!c) continue
+    if (c.granteePolityId === params.winnerPolityId) {
+      winnerIdx = i
+      break
+    }
+  }
+  if (winnerIdx === -1) return state
+  if (winnerIdx === chain.length - 1) return state
+
+  const toRemove = chain.slice(winnerIdx + 1, chain.length - 1)
+  if (toRemove.length === 0) return state
+
+  let nextLandContracts = { ...state.landContracts }
+  let nextByGrantee = { ...state.landContractIndex.byGranteePolity }
+  const nextByParent = { ...state.landContractIndex.byParent }
+  for (const cid of toRemove) {
+    const removed = state.landContracts[cid]
+    if (!removed) continue
+    delete nextLandContracts[cid]
+    const slot = nextByGrantee[removed.granteePolityId] ?? []
+    nextByGrantee = {
+      ...nextByGrantee,
+      [removed.granteePolityId]: slot.filter((id) => id !== cid),
+    }
+    delete nextByParent[cid]
+  }
+
+  const winnerId = chain[winnerIdx]
+  const terminalId = chain[chain.length - 1]
+  const terminal = terminalId ? state.landContracts[terminalId] : undefined
+  if (!winnerId || !terminalId || !terminal) return state
+
+  const updatedTerminal: LandContract = {
+    ...terminal,
+    parentContractId: winnerId,
+  }
+  delete (updatedTerminal as { rootAuthorityId?: RootAuthorityId }).rootAuthorityId
+  nextLandContracts = { ...nextLandContracts, [terminalId]: updatedTerminal }
+  nextByParent[terminalId] = winnerId
+
+  const newChain = [...chain.slice(0, winnerIdx + 1), terminalId]
+  const nextState: WorldState = {
+    ...state,
+    landContracts: nextLandContracts,
+    landContractIndex: {
+      byProvince: { ...state.landContractIndex.byProvince, [params.provinceId]: newChain },
+      byGranteePolity: nextByGrantee,
+      byParent: nextByParent,
+    },
+  }
+  return {
+    ...nextState,
+    provinceTerminalPolityCache: recomputeTerminalCache(nextState, params.provinceId),
+  }
+}
+
+// v0.16 §16.1: contract を削除する。terminal でない contract を消すと chain が断絶するので、
+// 削除前に caller が chain 整合性 (例えば terminal を root に昇格させる) を担保する責務がある。
+export function revokeLandContract(state: WorldState, contractId: LandContractId): WorldState {
+  const contract = state.landContracts[contractId]
+  if (!contract) return state
+
+  const chain = state.landContractIndex.byProvince[contract.provinceId] ?? []
+  const newChain = chain.filter((cid) => cid !== contractId)
+  const granteeSlot = state.landContractIndex.byGranteePolity[contract.granteePolityId] ?? []
+  const newByParent = { ...state.landContractIndex.byParent }
+  delete newByParent[contractId]
+  for (const [child, parent] of Object.entries(newByParent)) {
+    if (parent === contractId) {
+      newByParent[child as LandContractId] = contract.parentContractId
+    }
+  }
+
+  const nextLandContracts = { ...state.landContracts }
+  delete nextLandContracts[contractId]
+
+  const nextState: WorldState = {
+    ...state,
+    landContracts: nextLandContracts,
+    landContractIndex: {
+      byProvince: { ...state.landContractIndex.byProvince, [contract.provinceId]: newChain },
+      byGranteePolity: {
+        ...state.landContractIndex.byGranteePolity,
+        [contract.granteePolityId]: granteeSlot.filter((id) => id !== contractId),
+      },
+      byParent: newByParent,
+    },
+  }
+  return {
+    ...nextState,
+    provinceTerminalPolityCache: recomputeTerminalCache(nextState, contract.provinceId),
+  }
+}

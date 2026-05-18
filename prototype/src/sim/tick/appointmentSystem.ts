@@ -227,6 +227,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
   for (const houseId of Object.keys(currentCtx.state.houses).sort()) {
     const house = currentCtx.state.houses[houseId as HouseId]
     if (!house || !house.active) continue
+    if (house.kind === 'system') continue
 
     const leaderId = getHouseLeader(currentCtx.state, houseId as HouseId)
     if (!leaderId) continue

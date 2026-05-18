@@ -7,7 +7,9 @@ import {
 } from './context'
 import { advanceTime } from './advanceTime'
 import { runDevelopmentSystem } from './developmentSystem'
-import { runEconomySystem } from './economySystem'
+import { runLandRevenueSystem } from './landRevenueSystem'
+import { runPolitySurplusDistributionSystem } from './politySurplusDistributionSystem'
+import { runBailiffAppointmentSystem } from './bailiffAppointmentSystem'
 import { runDisasterSystem } from './disasterSystem'
 import { runMortalitySystem } from './mortalitySystem'
 import { runSuccessionSystem } from './successionSystem'
@@ -20,11 +22,9 @@ import { runAmbitionSystem } from './ambitionSystem'
 import { runPublicSpendingSystem } from './publicSpendingSystem'
 import { runHouseDevelopmentSystem } from './houseDevelopmentSystem'
 import { runControlSystem } from './controlSystem'
-import { runLordshipTransitionSystem } from './lordshipTransitionSystem'
 import { runPlotSystem } from './plotSystem'
 import { runWarSystem } from './warSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
-import { runRebellionSystem } from './rebellionSystem'
 import { runPolityOwnerConsistencySystem } from './polityOwnerConsistencySystem'
 import { runOrganizationConsistencySystem } from './organizationConsistencySystem'
 import { runAttitudeDecaySystem } from './attitudeDecaySystem'
@@ -55,9 +55,9 @@ export function tick(input: TickInput): TickResult {
   run('advanceTime', advanceTime)
   run('developmentSystem', runDevelopmentSystem)
   run('controlSystem', runControlSystem)
-  run('lordshipTransitionSystem', runLordshipTransitionSystem)
   run('popSystem', runPopSystem)
-  run('economySystem', runEconomySystem)
+  run('landRevenueSystem', runLandRevenueSystem)
+  run('politySurplusDistributionSystem', runPolitySurplusDistributionSystem)
   run('disasterSystem', runDisasterSystem)
   run('mortalitySystem', runMortalitySystem)
   run('estateSettlementSystem', runEstateSettlementSystem)
@@ -66,6 +66,7 @@ export function tick(input: TickInput): TickResult {
   run('birthSystem', runBirthSystem)
   run('shareUpdateSystem', runShareUpdateSystem)
   run('appointmentSystem', runAppointmentSystem)
+  run('bailiffAppointmentSystem', runBailiffAppointmentSystem)
   run('officeCompensationSystem', runOfficeCompensationSystem)
   run('personGrowthSystem', runPersonGrowthSystem)
   run('ambitionSystem', runAmbitionSystem)
@@ -75,7 +76,6 @@ export function tick(input: TickInput): TickResult {
   run('plotSystem', runPlotSystem)
   run('warSystem', runWarSystem)
   run('provinceRevoltSystem', runProvinceRevoltSystem)
-  run('rebellionSystem', runRebellionSystem)
   run('polityOwnerConsistencySystem', runPolityOwnerConsistencySystem)
   run('organizationConsistencySystem', runOrganizationConsistencySystem)
   run('attitudeDecaySystem', runAttitudeDecaySystem)

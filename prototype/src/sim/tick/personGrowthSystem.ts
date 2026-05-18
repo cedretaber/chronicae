@@ -14,6 +14,7 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
   for (const personId of Object.keys(ctx.state.persons).sort()) {
     const person = ctx.state.persons[personId as PersonId]
     if (!person || !person.alive) continue
+    if (person.kind === 'placeholder') continue
 
     let changed = false
     const newAbilities: AbilityScores = { ...person.abilities }

@@ -363,6 +363,7 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
         if (!candidateHouse) continue
         if (cid === houseId) continue
         if (!candidateHouse.active) continue
+        if (candidateHouse.kind === 'system') continue
         const candidatePrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, cid as HouseId)
         const housePrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, house.id)
         if (
@@ -492,6 +493,7 @@ export function runPlotSystem(ctx: TickContext): TickContext {
 
     const house = currentCtx.state.houses[houseId as HouseId]
     if (!house || !house.active) continue
+    if (house.kind === 'system') continue
 
     const leaderId = getHouseLeader(currentCtx.state, houseId as HouseId)
     if (!leaderId) continue
