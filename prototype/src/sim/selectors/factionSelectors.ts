@@ -1,16 +1,18 @@
 import type { WorldState } from '@sim/types/world'
-import type { PersonId, FactionId, FactionMembershipId } from '@sim/types/ids'
+import type { PersonId, FactionId, FactionMembershipId, HouseId, PolityId } from '@sim/types/ids'
 import type { Faction, FactionMembership } from '@sim/types/faction'
 import type { Person, UnaffiliatedOccupation } from '@sim/types/person'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
-import type { OfficeRole } from '@sim/types/office'
-import { getEffectiveOfficeMaxHolders } from '@sim/selectors/officeSelectors'
+import type { OfficeRole, OrganizationRef } from '@sim/types/office'
+import { getEffectiveOfficeMaxHolders, getHouseLeader } from '@sim/selectors/officeSelectors'
 import {
   getPersonHouseSharePercent,
   getHousePolitySharePercent,
 } from '@sim/selectors/shareSelectors'
 import { getHousePolityIds } from '@sim/selectors/polityRelations'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
+import { getAttitudeOrDefault, attitudeValueToScore } from '@sim/helpers/attitudeHelpers'
+import { getOfficeCompatibilityPenalty } from '@sim/selectors/officeSelectors'
 
 export function getActiveFactions(state: WorldState): Faction[] {
   const result: Faction[] = []
@@ -185,4 +187,206 @@ export function getOccupationRoleFitBonus(candidate: Person): number {
   const occupation = candidate.occupation
   if (!occupation) return 0
   return OCCUPATION_FIT_BONUS[occupation]
+}
+
+// ---------------------------------------------------------------------------
+// v0.17 §14.1: Appointment-related faction selectors
+// ---------------------------------------------------------------------------
+
+function clamp01(n: number): number {
+  return Math.max(0, Math.min(1, n))
+}
+
+// v0.17 §14.1: getFactionNominationPower returns 0..1.
+// Sum various contributions then clamp to [0, 1].
+export function getFactionNominationPower(
+  state: WorldState,
+  config: SimulationConfig,
+  factionId: FactionId,
+  org: OrganizationRef,
+  role: OfficeRole,
+): number {
+  void role
+  const faction = state.factions[factionId]
+  if (!faction || !faction.active) return 0
+  if (org.kind === 'polity') {
+    return getFactionNominationPowerForPolity(state, config, faction, org.id)
+  }
+  return getFactionNominationPowerForHouse(state, faction, org.id)
+}
+
+function getFactionNominationPowerForPolity(
+  state: WorldState,
+  config: SimulationConfig,
+  faction: Faction,
+  polityId: PolityId,
+): number {
+  const memberIds = getFactionActiveMemberIds(state, faction.id)
+  const leader = state.persons[faction.leaderPersonId]
+  const leaderHouseId = leader?.houseId
+
+  // House-level Share: dedupe by house, leader-house weights x1.0, others x0.5
+  const seenHouses = new Set<string>()
+  let power = 0
+  for (const mid of memberIds) {
+    const m = state.persons[mid]
+    if (!m) continue
+    const hid = m.houseId
+    if (seenHouses.has(hid)) continue
+    seenHouses.add(hid)
+    const sharePct = getHousePolitySharePercent(state, polityId, m.houseId) / 100
+    const weight = m.houseId === leaderHouseId ? 1.0 : 0.5
+    power += sharePct * weight
+  }
+
+  // Existing Polity office holdings (members in this polity)
+  for (const mid of memberIds) {
+    const ids = state.officeIndex.byHolderPerson[mid] ?? []
+    for (const oid of ids) {
+      const o = state.officeAssignments[oid]
+      if (o && o.active && o.organization.kind === 'polity' && o.organization.id === polityId) {
+        power += 0.2
+      }
+    }
+  }
+
+  // ownerHouse bonus (skip commonwealth)
+  const polity = state.polities[polityId]
+  if (polity && polity.ownerHouseId !== undefined && leaderHouseId === polity.ownerHouseId) {
+    power += config.factionOwnerHouseNominationBonus
+  }
+
+  return clamp01(power)
+}
+
+function getFactionNominationPowerForHouse(
+  state: WorldState,
+  faction: Faction,
+  houseId: HouseId,
+): number {
+  const memberIds = getFactionActiveMemberIds(state, faction.id)
+  let power = 0
+
+  // Member personal Shares within this house (no leader-house dedupe at house-level)
+  for (const mid of memberIds) {
+    const m = state.persons[mid]
+    if (!m) continue
+    if (m.houseId !== houseId) continue
+    const psPct = getPersonHouseSharePercent(state, houseId, mid) / 100
+    power += psPct * 0.5
+  }
+
+  // Members holding active offices in this house
+  for (const mid of memberIds) {
+    const ids = state.officeIndex.byHolderPerson[mid] ?? []
+    for (const oid of ids) {
+      const o = state.officeAssignments[oid]
+      if (o && o.active && o.organization.kind === 'house' && o.organization.id === houseId) {
+        power += 0.2
+      }
+    }
+  }
+
+  // Leader influence on their own House
+  const leader = state.persons[faction.leaderPersonId]
+  if (leader && leader.houseId === houseId) {
+    const houseLeader = getHouseLeader(state, houseId)
+    if (houseLeader && houseLeader === leader.id) {
+      power += 0.5
+    } else {
+      power += 0.2
+    }
+  }
+
+  return clamp01(power)
+}
+
+// v0.17 §14.1: hasRelevantFactionForAppointment
+export function hasRelevantFactionForAppointment(
+  state: WorldState,
+  config: SimulationConfig,
+  org: OrganizationRef,
+  role: OfficeRole,
+): boolean {
+  for (const faction of getActiveFactions(state)) {
+    const np = getFactionNominationPower(state, config, faction.id, org, role)
+    if (np >= config.factionNominationPowerThreshold) return true
+  }
+  return false
+}
+
+// v0.17 §14.3: getFactionRecommendationScore
+function mapOfficeRoleToApplied(
+  role: OfficeRole,
+): 'governance' | 'stewardship' | 'warCommand' | 'diplomacy' | undefined {
+  switch (role) {
+    case 'leader':
+      return 'governance'
+    case 'administrator':
+      return 'governance'
+    case 'treasurer':
+      return 'stewardship'
+    case 'military':
+      return 'warCommand'
+    case 'advisor':
+      return 'diplomacy'
+  }
+}
+
+export function getFactionRecommendationScore(
+  state: WorldState,
+  factionId: FactionId,
+  candidateId: PersonId,
+  _targetOrg: OrganizationRef,
+  targetRole: OfficeRole,
+): number {
+  const faction = state.factions[factionId]
+  if (!faction || !faction.active) return 0
+  const leader = state.persons[faction.leaderPersonId]
+  const candidate = state.persons[candidateId]
+  if (!leader || !candidate) return 0
+
+  const lToC = getAttitudeOrDefault(state, leader, { kind: 'person', id: candidateId })
+  const cToL = getAttitudeOrDefault(state, candidate, {
+    kind: 'person',
+    id: faction.leaderPersonId,
+  })
+
+  const appliedKey = mapOfficeRoleToApplied(targetRole)
+  const suitability = appliedKey ? getRoleScore(state, candidateId, appliedKey) : 0
+
+  const components = [
+    attitudeValueToScore(lToC.affection) * 0.3,
+    attitudeValueToScore(lToC.respect) * 0.25,
+    attitudeValueToScore(cToL.affection) * 0.15,
+    attitudeValueToScore(cToL.respect) * 0.1,
+    suitability * 0.2,
+  ]
+  const raw = components.reduce((a, b) => a + b, 0)
+  return clamp01(raw / 100)
+}
+
+// v0.17 §14.1: getFactionalCandidateScore
+export function getFactionalCandidateScore(
+  state: WorldState,
+  config: SimulationConfig,
+  factionId: FactionId,
+  candidateId: PersonId,
+  org: OrganizationRef,
+  role: OfficeRole,
+): number {
+  const nominationPower = getFactionNominationPower(state, config, factionId, org, role)
+  const recommendation = getFactionRecommendationScore(state, factionId, candidateId, org, role)
+  const candidate = state.persons[candidateId]
+  const appliedKey = mapOfficeRoleToApplied(role)
+  const smallAbility = appliedKey ? getRoleScore(state, candidateId, appliedKey) * 0.05 : 0
+  const smallPrestige = ((candidate?.legacyPrestige ?? 0) / 100) * 0.05
+  const compatibilityPenalty = getOfficeCompatibilityPenalty(state, config, candidateId, org, role)
+
+  return (
+    nominationPower * recommendation * config.factionalAppointmentScoreScale +
+    smallAbility +
+    smallPrestige -
+    compatibilityPenalty
+  )
 }

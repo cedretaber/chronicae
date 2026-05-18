@@ -15,8 +15,19 @@ import type { OfficeRole, OrganizationRef } from '../types/office'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
+import type { FactionId } from '../types/ids'
+import type { Polity } from '../types/polity'
+import type { House } from '../types/house'
 import { getRoleScore } from '../selectors/abilitySelectors'
 import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
+import {
+  hasRelevantFactionForAppointment,
+  getFactionalCandidateScore,
+  getActiveFactions,
+  getFactionNominationPower,
+  getFactionActiveMemberIds,
+} from '../selectors/factionSelectors'
+import { getOfficeCompatibilityPenalty } from '../selectors/officeSelectors'
 
 const POLITY_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
 const HOUSE_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
@@ -30,34 +41,110 @@ function getRelevantStat(state: WorldState, personId: PersonId, role: OfficeRole
   }
 }
 
-function computePolityScore(
+// ---------------------------------------------------------------------------
+// v0.17 §14.6: Traditional pool collection (system House exclusion removed)
+// ---------------------------------------------------------------------------
+
+function collectPolityCandidatesTraditional(
   state: WorldState,
   config: SimulationConfig,
-  polityId: PolityId,
+  polity: Polity,
+  alreadyHolding: Set<string>,
+): PersonId[] {
+  void config
+  const result: PersonId[] = []
+  for (const pidStr of Object.keys(state.persons).sort()) {
+    const pid = pidStr as PersonId
+    const p = state.persons[pid]
+    if (!p || !p.alive) continue
+    if (p.kind === 'placeholder') continue
+    if (p.age < config.adultAge) continue
+    if (alreadyHolding.has(pid)) continue
+    const house = state.houses[p.houseId]
+    if (!house || !house.active) continue
+    // v0.17 §14.6: system House 所属者除外を撤廃 (placeholder のみ除外)
+    const personPrimaryPolityId = getPersonPrimaryPolityId(state, pid)
+    const isOwnerHouseMember =
+      polity.ownerHouseId !== undefined && p.houseId === polity.ownerHouseId
+    if (personPrimaryPolityId !== polity.id && !isOwnerHouseMember) continue
+    result.push(pid)
+  }
+  return result
+}
+
+function collectHouseCandidatesTraditional(
+  state: WorldState,
+  config: SimulationConfig,
+  house: House,
+  alreadyHolding: Set<string>,
+): PersonId[] {
+  void config
+  const result: PersonId[] = []
+  for (const memberId of house.memberIds) {
+    const member = state.persons[memberId]
+    if (!member || !member.alive) continue
+    if (member.kind === 'placeholder') continue
+    if (member.age < config.adultAge) continue
+    if (alreadyHolding.has(memberId)) continue
+    result.push(memberId)
+  }
+  return result
+}
+
+// ---------------------------------------------------------------------------
+// v0.17 §14.1: Factional candidate collection
+// ---------------------------------------------------------------------------
+
+function collectFactionalCandidates(
+  state: WorldState,
+  config: SimulationConfig,
+  org: OrganizationRef,
+  role: OfficeRole,
+): { factionId: FactionId; candidateId: PersonId }[] {
+  const result: { factionId: FactionId; candidateId: PersonId }[] = []
+  for (const faction of getActiveFactions(state)) {
+    const np = getFactionNominationPower(state, config, faction.id, org, role)
+    if (np < config.factionNominationPowerThreshold) continue
+    for (const mid of getFactionActiveMemberIds(state, faction.id)) {
+      const m = state.persons[mid]
+      if (!m || !m.alive) continue
+      if (m.kind === 'placeholder') continue
+      if (m.age < config.adultAge) continue
+      result.push({ factionId: faction.id, candidateId: mid })
+    }
+  }
+  return result
+}
+
+// ---------------------------------------------------------------------------
+// v0.17 §14.5: Traditional scoring with v0.17 adjustments
+// ---------------------------------------------------------------------------
+
+function computePolityScoreV017(
+  state: WorldState,
+  config: SimulationConfig,
+  polity: Polity,
   rulerId: PersonId,
   personId: PersonId,
   role: OfficeRole,
 ): number {
   const person = state.persons[personId]
   if (!person) return -Infinity
-  const polity = state.polities[polityId]
   const ruler = state.persons[rulerId]
 
   const prestige = getPersonPrestige(state, personId)
   const leaderRespect = ruler
     ? attitudeValueToScore(
-        getAttitudeOrDefault(state, ruler, { kind: 'polity', id: polityId }).respect,
+        getAttitudeOrDefault(state, ruler, { kind: 'polity', id: polity.id }).respect,
       ) / 100
     : 0
-  const polityAtt = getAttitudeOrDefault(state, person, { kind: 'polity', id: polityId })
+  const polityAtt = getAttitudeOrDefault(state, person, { kind: 'polity', id: polity.id })
   const polityAffection = attitudeValueToScore(polityAtt.affection) / 100
-  const houseSharePct = getHousePolitySharePercent(state, polityId, person.houseId)
+  const houseSharePct = getHousePolitySharePercent(state, polity.id, person.houseId)
   const personSharePct = getPersonHouseSharePercent(state, person.houseId, personId)
 
-  const currentOfficeCount = (state.officeIndex.byHolderPerson[personId as string] ?? []).length
-
-  // v0.15 §13.4: 同 House の Polity Office 保有数 (leader 含む) を sameHousePolityOfficeCount として算出
-  const polityOfficeIds = state.officeIndex.byOrganization[`polity:${polityId}`] ?? []
+  // same-house polity office count (effective per v0.17 §14.5)
+  const polityOfficeIds = state.officeIndex.byOrganization[`polity:${polity.id}`] ?? []
   let sameHousePolityOfficeCount = 0
   for (const oId of polityOfficeIds) {
     const o = state.officeAssignments[oId]
@@ -65,11 +152,24 @@ function computePolityScore(
     const p = state.persons[o.holderPersonId]
     if (p && p.houseId === person.houseId) sameHousePolityOfficeCount++
   }
+  const sameHouseEffective =
+    config.sameHousePolityOfficePenalty * (1 - houseSharePct / 100) * sameHousePolityOfficeCount
 
+  // ownerHouseBonus: 0 when ownerHouseId is undefined (commonwealth)
   const ownerHouseBonus =
-    polity?.ownerHouseId === person.houseId ? config.ownerHouseAppointmentBonus : 0
+    polity.ownerHouseId !== undefined && polity.ownerHouseId === person.houseId
+      ? config.ownerHouseAppointmentBonus
+      : 0
 
-  // v0.15 §13.4: スコア式
+  // v0.17 §14.5: replace concurrentOfficePenalty * count with getOfficeCompatibilityPenalty
+  const compatibilityPenalty = getOfficeCompatibilityPenalty(
+    state,
+    config,
+    personId,
+    { kind: 'polity', id: polity.id },
+    role,
+  )
+
   return (
     getRelevantStat(state, personId, role) * 1.0 +
     (prestige / 100) * 8 +
@@ -78,15 +178,15 @@ function computePolityScore(
     houseSharePct * config.polityShareAppointmentFactor +
     personSharePct * config.houseShareAppointmentFactor +
     ownerHouseBonus -
-    config.concurrentOfficePenalty * currentOfficeCount -
-    config.sameHousePolityOfficePenalty * sameHousePolityOfficeCount
+    compatibilityPenalty -
+    sameHouseEffective
   )
 }
 
-function computeHouseScore(
+function computeHouseScoreV017(
   state: WorldState,
   config: SimulationConfig,
-  houseId: HouseId,
+  house: House,
   leaderId: PersonId,
   personId: PersonId,
   role: OfficeRole,
@@ -98,14 +198,21 @@ function computeHouseScore(
   const prestige = getPersonPrestige(state, personId)
   const leaderRespect = leader
     ? attitudeValueToScore(
-        getAttitudeOrDefault(state, leader, { kind: 'house', id: houseId }).respect,
+        getAttitudeOrDefault(state, leader, { kind: 'house', id: house.id }).respect,
       ) / 100
     : 0
-  const houseAtt = getAttitudeOrDefault(state, person, { kind: 'house', id: houseId })
+  const houseAtt = getAttitudeOrDefault(state, person, { kind: 'house', id: house.id })
   const houseAffection = attitudeValueToScore(houseAtt.affection) / 100
-  const personSharePct = getPersonHouseSharePercent(state, houseId, personId)
+  const personSharePct = getPersonHouseSharePercent(state, house.id, personId)
 
-  const currentOfficeCount = (state.officeIndex.byHolderPerson[personId as string] ?? []).length
+  // v0.17 §14.5: replace concurrentOfficePenalty * count with getOfficeCompatibilityPenalty
+  const compatibilityPenalty = getOfficeCompatibilityPenalty(
+    state,
+    config,
+    personId,
+    { kind: 'house', id: house.id },
+    role,
+  )
 
   return (
     getRelevantStat(state, personId, role) * 1.0 +
@@ -113,8 +220,207 @@ function computeHouseScore(
     leaderRespect * 5 +
     houseAffection * 3 +
     personSharePct * 0.1 -
-    config.concurrentOfficePenalty * currentOfficeCount
+    compatibilityPenalty
   )
+}
+
+// ---------------------------------------------------------------------------
+// v0.17 §14.1: tryAppoint helpers (dispatch between factional and traditional)
+// ---------------------------------------------------------------------------
+
+function tryAppointPolityOffice(
+  ctx: TickContext,
+  polity: Polity,
+  rulerId: PersonId,
+  role: OfficeRole,
+  def: { displayName: string; maxHolders: number },
+): TickContext {
+  const config = ctx.config
+  const polityRef: OrganizationRef = { kind: 'polity', id: polity.id }
+
+  // 1. revoke dead holders
+  let currentCtx = ctx
+  const currentHolders = getActiveOfficeHolders(currentCtx.state, polityRef, role)
+  for (const holderId of currentHolders) {
+    const holder = currentCtx.state.persons[holderId]
+    if (!holder || !holder.alive) {
+      currentCtx = { ...currentCtx, state: revokeOfficesByHolder(currentCtx.state, holderId) }
+    }
+  }
+
+  const activeHolders = getActiveOfficeHolders(currentCtx.state, polityRef, role)
+  if (activeHolders.length >= def.maxHolders) return currentCtx
+  const alreadyHolding = new Set(activeHolders.map((id) => id as string))
+
+  let best: { id: PersonId; score: number } | undefined
+
+  // 2. factional path
+  if (hasRelevantFactionForAppointment(currentCtx.state, config, polityRef, role)) {
+    const factional = collectFactionalCandidates(currentCtx.state, config, polityRef, role).filter(
+      (c) => !alreadyHolding.has(c.candidateId as string),
+    )
+    const scored = factional.map((c) => ({
+      id: c.candidateId,
+      score: getFactionalCandidateScore(
+        currentCtx.state,
+        config,
+        c.factionId,
+        c.candidateId,
+        polityRef,
+        role,
+      ),
+    }))
+    scored.sort((a, b) => b.score - a.score)
+    if (scored[0] && scored[0].score >= config.minAppointmentScore) {
+      best = scored[0]
+    }
+  }
+
+  // 3. traditional fallback
+  if (!best) {
+    const candidates = collectPolityCandidatesTraditional(
+      currentCtx.state,
+      config,
+      polity,
+      alreadyHolding,
+    )
+    const scored = candidates.map((id) => ({
+      id,
+      score: computePolityScoreV017(currentCtx.state, config, polity, rulerId, id, role),
+    }))
+    scored.sort((a, b) => b.score - a.score)
+    if (scored[0] && scored[0].score >= config.minAppointmentScore) {
+      best = scored[0]
+    }
+  }
+
+  if (!best) return currentCtx
+
+  const newState = createOfficeAssignment(currentCtx.state, polityRef, role, best.id)
+  currentCtx = { ...currentCtx, state: newState }
+
+  const person = currentCtx.state.persons[best.id]
+  if (person) {
+    const house = currentCtx.state.houses[person.houseId]
+    if (house) {
+      const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
+      const event: SimEvent = {
+        id: eventId,
+        year: currentCtx.state.currentYear,
+        month: currentCtx.state.currentMonth,
+        type: 'OFFICE_ASSIGNED',
+        importance: 'normal',
+        actorIds: [best.id],
+        houseIds: [person.houseId],
+        polityIds: [polity.id],
+        provinceIds: [],
+        summary: `${person.name} was appointed as ${def.displayName} of ${polity.name}.`,
+        reasons: [],
+        effects: [],
+      }
+      currentCtx = {
+        ...eventCtx,
+        state: currentCtx.state,
+        events: [...eventCtx.events, event],
+      }
+    }
+  }
+
+  return currentCtx
+}
+
+function tryAppointHouseOffice(
+  ctx: TickContext,
+  house: House,
+  leaderId: PersonId,
+  role: OfficeRole,
+  def: { displayName: string; maxHolders: number },
+): TickContext {
+  const config = ctx.config
+  const houseRef: OrganizationRef = { kind: 'house', id: house.id }
+
+  // 1. revoke dead holders
+  let currentCtx = ctx
+  const currentHolders = getActiveOfficeHolders(currentCtx.state, houseRef, role)
+  for (const holderId of currentHolders) {
+    const holder = currentCtx.state.persons[holderId]
+    if (!holder || !holder.alive) {
+      currentCtx = { ...currentCtx, state: revokeOfficesByHolder(currentCtx.state, holderId) }
+    }
+  }
+
+  const activeHolders = getActiveOfficeHolders(currentCtx.state, houseRef, role)
+  if (activeHolders.length >= def.maxHolders) return currentCtx
+  const alreadyHolding = new Set(activeHolders.map((id) => id as string))
+
+  let best: { id: PersonId; score: number } | undefined
+
+  // 2. factional path
+  if (hasRelevantFactionForAppointment(currentCtx.state, config, houseRef, role)) {
+    const factional = collectFactionalCandidates(currentCtx.state, config, houseRef, role).filter(
+      (c) => !alreadyHolding.has(c.candidateId as string),
+    )
+    const scored = factional.map((c) => ({
+      id: c.candidateId,
+      score: getFactionalCandidateScore(
+        currentCtx.state,
+        config,
+        c.factionId,
+        c.candidateId,
+        houseRef,
+        role,
+      ),
+    }))
+    scored.sort((a, b) => b.score - a.score)
+    if (scored[0] && scored[0].score >= config.minAppointmentScore) {
+      best = scored[0]
+    }
+  }
+
+  // 3. traditional fallback
+  if (!best) {
+    const candidates = collectHouseCandidatesTraditional(
+      currentCtx.state,
+      config,
+      house,
+      alreadyHolding,
+    )
+    const scored = candidates.map((id) => ({
+      id,
+      score: computeHouseScoreV017(currentCtx.state, config, house, leaderId, id, role),
+    }))
+    scored.sort((a, b) => b.score - a.score)
+    if (scored[0] && scored[0].score >= config.minAppointmentScore) {
+      best = scored[0]
+    }
+  }
+
+  if (!best) return currentCtx
+
+  const newState = createOfficeAssignment(currentCtx.state, houseRef, role, best.id)
+  currentCtx = { ...currentCtx, state: newState }
+
+  const person = currentCtx.state.persons[best.id]
+  if (person) {
+    const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
+    const event: SimEvent = {
+      id: eventId,
+      year: currentCtx.state.currentYear,
+      month: currentCtx.state.currentMonth,
+      type: 'OFFICE_ASSIGNED',
+      importance: 'normal',
+      actorIds: [best.id],
+      houseIds: [person.houseId],
+      polityIds: [],
+      provinceIds: [],
+      summary: `${person.name} was appointed as ${def.displayName} of ${house.name}.`,
+      reasons: [],
+      effects: [],
+    }
+    currentCtx = { ...eventCtx, state: currentCtx.state, events: [...eventCtx.events, event] }
+  }
+
+  return currentCtx
 }
 
 export function runAppointmentSystem(ctx: TickContext): TickContext {
@@ -130,96 +436,11 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
     const rulerId = getPolityLeader(currentCtx.state, polityId as PolityId)
     if (!rulerId) continue
 
-    const polityRef: OrganizationRef = { kind: 'polity', id: polityId as PolityId }
-
     for (const role of POLITY_APPOINTABLE_ROLES) {
       const def = OFFICE_DEFINITIONS[`polity:${role}`]
       if (!def) continue
 
-      // Get current active holders, revoke dead ones
-      const currentHolders = getActiveOfficeHolders(currentCtx.state, polityRef, role)
-      for (const holderId of currentHolders) {
-        const holder = currentCtx.state.persons[holderId]
-        if (!holder || !holder.alive) {
-          currentCtx = {
-            ...currentCtx,
-            state: revokeOfficesByHolder(currentCtx.state, holderId),
-          }
-        }
-      }
-
-      // Re-check after revocations
-      const activeHolders = getActiveOfficeHolders(currentCtx.state, polityRef, role)
-      if (activeHolders.length >= def.maxHolders) continue
-
-      // Find candidates per v0.15 §13.2:
-      //  - alive adult
-      //  - house is active
-      //  - (house owns a Province in this Polity) OR (house is this Polity's ownerHouseId)
-      //  - not already holding this role
-      const alreadyHolding = new Set(activeHolders.map((id) => id as string))
-      const candidates: PersonId[] = []
-      for (const personId of Object.keys(currentCtx.state.persons).sort()) {
-        const person = currentCtx.state.persons[personId as PersonId]
-        if (!person || !person.alive) continue
-        if (person.age < currentCtx.config.adultAge) continue
-        if (alreadyHolding.has(personId)) continue
-        const house = currentCtx.state.houses[person.houseId]
-        if (!house || !house.active) continue
-        const personPrimaryPolityId = getPersonPrimaryPolityId(
-          currentCtx.state,
-          personId as PersonId,
-        )
-        const isOwnerHouseMember =
-          polity.ownerHouseId !== undefined && person.houseId === polity.ownerHouseId
-        if (personPrimaryPolityId !== polityId && !isOwnerHouseMember) continue
-        candidates.push(personId as PersonId)
-      }
-
-      if (candidates.length === 0) continue
-
-      const scored = candidates
-        .map((id) => ({
-          id,
-          score: computePolityScore(
-            currentCtx.state,
-            currentCtx.config,
-            polityId as PolityId,
-            rulerId,
-            id,
-            role,
-          ),
-        }))
-        .sort((a, b) => b.score - a.score)
-
-      const best = scored[0]
-      if (!best || best.score < currentCtx.config.minAppointmentScore) continue
-
-      const newState = createOfficeAssignment(currentCtx.state, polityRef, role, best.id)
-      currentCtx = { ...currentCtx, state: newState }
-
-      const person = currentCtx.state.persons[best.id]
-      if (person) {
-        const house = currentCtx.state.houses[person.houseId]
-        if (house) {
-          const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
-          const event: SimEvent = {
-            id: eventId,
-            year: currentCtx.state.currentYear,
-            month: currentCtx.state.currentMonth,
-            type: 'OFFICE_ASSIGNED',
-            importance: 'normal',
-            actorIds: [best.id],
-            houseIds: [person.houseId],
-            polityIds: [polityId as PolityId],
-            provinceIds: [],
-            summary: `${person.name} was appointed as ${def.displayName} of ${polity.name}.`,
-            reasons: [],
-            effects: [],
-          }
-          currentCtx = { ...eventCtx, state: currentCtx.state, events: [...eventCtx.events, event] }
-        }
-      }
+      currentCtx = tryAppointPolityOffice(currentCtx, polity, rulerId, role, def)
     }
   }
 
@@ -232,79 +453,11 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
     const leaderId = getHouseLeader(currentCtx.state, houseId as HouseId)
     if (!leaderId) continue
 
-    const houseRef: OrganizationRef = { kind: 'house', id: houseId as HouseId }
-
     for (const role of HOUSE_APPOINTABLE_ROLES) {
       const def = OFFICE_DEFINITIONS[`house:${role}`]
       if (!def) continue
 
-      const currentHolders = getActiveOfficeHolders(currentCtx.state, houseRef, role)
-      for (const holderId of currentHolders) {
-        const holder = currentCtx.state.persons[holderId]
-        if (!holder || !holder.alive) {
-          currentCtx = {
-            ...currentCtx,
-            state: revokeOfficesByHolder(currentCtx.state, holderId),
-          }
-        }
-      }
-
-      const activeHolders = getActiveOfficeHolders(currentCtx.state, houseRef, role)
-      if (activeHolders.length >= def.maxHolders) continue
-
-      const alreadyHolding = new Set(activeHolders.map((id) => id as string))
-      const candidates: PersonId[] = []
-      const currentHouse = currentCtx.state.houses[houseId as HouseId]
-      if (!currentHouse) continue
-      for (const memberId of currentHouse.memberIds) {
-        const member = currentCtx.state.persons[memberId]
-        if (!member || !member.alive) continue
-        if (member.age < currentCtx.config.adultAge) continue
-        if (alreadyHolding.has(memberId)) continue
-        candidates.push(memberId)
-      }
-
-      if (candidates.length === 0) continue
-
-      const scored = candidates
-        .map((id) => ({
-          id,
-          score: computeHouseScore(
-            currentCtx.state,
-            currentCtx.config,
-            houseId as HouseId,
-            leaderId,
-            id,
-            role,
-          ),
-        }))
-        .sort((a, b) => b.score - a.score)
-
-      const best = scored[0]
-      if (!best || best.score < currentCtx.config.minAppointmentScore) continue
-
-      const newState = createOfficeAssignment(currentCtx.state, houseRef, role, best.id)
-      currentCtx = { ...currentCtx, state: newState }
-
-      const person = currentCtx.state.persons[best.id]
-      if (person) {
-        const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
-        const event: SimEvent = {
-          id: eventId,
-          year: currentCtx.state.currentYear,
-          month: currentCtx.state.currentMonth,
-          type: 'OFFICE_ASSIGNED',
-          importance: 'normal',
-          actorIds: [best.id],
-          houseIds: [houseId as HouseId],
-          polityIds: [],
-          provinceIds: [],
-          summary: `${person.name} was appointed as ${def.displayName} of ${house.name}.`,
-          reasons: [],
-          effects: [],
-        }
-        currentCtx = { ...eventCtx, state: currentCtx.state, events: [...eventCtx.events, event] }
-      }
+      currentCtx = tryAppointHouseOffice(currentCtx, house, leaderId, role, def)
     }
   }
 

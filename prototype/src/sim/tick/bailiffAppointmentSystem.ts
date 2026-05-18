@@ -37,6 +37,32 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
 
     const terminalProvinceIds = getPolityTerminalProvinceIds(currentCtx.state, polityId)
 
+    // Term-based vacating (v0.17 §15.2): insert before step 1
+    for (const provinceId of terminalProvinceIds) {
+      const officeId = currentCtx.state.provinceOfficeIndex.byProvince[provinceId]
+      if (!officeId) continue
+      const office = currentCtx.state.provinceOfficeAssignments[officeId]
+      if (!office) continue
+      // Skip placeholder bailiffs (they never had a real tenure)
+      if (office.holderPersonId.startsWith('pe-anon')) continue
+      // Term expiration: yearly comparison
+      if (
+        currentCtx.state.currentYear - office.startYear >=
+        currentCtx.config.provinceOfficeTermYears.bailiff
+      ) {
+        currentCtx = emitBailiffVacated(currentCtx, provinceId, office.holderPersonId)
+        const beforeVacate = currentCtx.state
+        const afterPlaceholder = installPlaceholderBailiff(beforeVacate, {
+          provinceId,
+          appointingPolityId: polityId,
+          year: beforeVacate.currentYear,
+          month: beforeVacate.currentMonth,
+        })
+        currentCtx = { ...currentCtx, state: afterPlaceholder }
+        currentCtx = emitBailiffPlaceholderInstalled(currentCtx, provinceId, polityId)
+      }
+    }
+
     // 1) 死亡 / 不正な bailiff を vacate → placeholder へ
     for (const provinceId of terminalProvinceIds) {
       const officeId = currentCtx.state.provinceOfficeIndex.byProvince[provinceId]
