@@ -10,6 +10,7 @@ import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
 import type { WorldState } from '@/sim/types/world'
 import type { Faction } from '@/sim/types/faction'
+import type { DiplomaticPlay } from '@/sim/types/diplomaticPlay'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
 import { getHouseControlledProvinceIds } from '@sim/selectors/landContractSelectors'
 import { buildPolityColorMap } from '@/app/utils/polityColors'
@@ -17,10 +18,11 @@ import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
 import type { PolityRank } from '@/sim/types/polity'
 import { defaultConfig } from '@/sim/config/defaultConfig'
 
-type SectionKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist'
+type SectionKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist' | 'plays'
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'watchlist', label: 'Watchlist' },
+  { key: 'plays', label: 'Plays' },
   { key: 'countries', label: 'Countries' },
   { key: 'houses', label: 'Houses' },
   { key: 'persons', label: 'Persons' },
@@ -203,6 +205,52 @@ function FactionRow({
   )
 }
 
+// v0.18 Stage E §21: Active DiplomaticPlay 一覧の row
+function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<string, Polity> }) {
+  const kindLabel: Record<string, string> = {
+    revolt_negotiation: 'Revolt',
+    land_purchase: 'Purchase',
+    land_transfer_demand: 'Demand',
+    contract_tax_revision: 'Tax',
+  }
+  const statusBadge: Record<string, { label: string; bg: string }> = {
+    active: { label: 'active', bg: 'bg-blue-700' },
+    escalated: { label: 'escalated', bg: 'bg-red-700' },
+  }
+
+  const initiatorName = polities[play.initiator.id]?.name ?? play.initiator.id
+  const targetName = polities[play.target.id]?.name ?? play.target.id
+  const badge = statusBadge[play.status] ?? { label: play.status, bg: 'bg-gray-600' }
+  const kindLabelText = kindLabel[play.kind] ?? play.kind
+  const provinceId =
+    play.primaryDemand.kind === 'transfer_land_contract'
+      ? play.primaryDemand.provinceId
+      : play.primaryDemand.kind === 'revolt_concession'
+        ? play.primaryDemand.provinceId
+        : undefined
+
+  return (
+    <div className="cursor-default border-b border-gray-700/50 px-3 py-1.5 text-sm">
+      <div className="flex items-center gap-2">
+        <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-white">
+          {kindLabelText}
+        </span>
+        <span className={`rounded px-1.5 py-0.5 text-xs text-white ${badge.bg}`}>
+          {badge.label}
+        </span>
+      </div>
+      <div className="mt-1 truncate text-xs text-gray-300">
+        <span className="font-bold">{initiatorName}</span> → {targetName}
+        {provinceId && <span className="text-gray-500"> ({provinceId})</span>}
+      </div>
+      <div className="text-xs text-gray-400">
+        Prog {Math.round(play.progress)} | Tens {Math.round(play.tension)} | DL {play.deadlineYear}/
+        {String(play.deadlineMonth).padStart(2, '0')}
+      </div>
+    </div>
+  )
+}
+
 function WatchlistRow({
   name,
   type,
@@ -251,6 +299,7 @@ export function Sidebar() {
     persons: false,
     factions: false,
     watchlist: false,
+    plays: false,
   })
   const toggleSection = (key: SectionKey) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
 
@@ -353,12 +402,27 @@ export function Sidebar() {
           })
       : []
 
+  const activePlays: DiplomaticPlay[] = session?.currentState
+    ? Object.values(session.currentState.diplomaticPlays)
+        .filter(
+          (p): p is DiplomaticPlay => !!p && (p.status === 'active' || p.status === 'escalated'),
+        )
+        .sort((a, b) => {
+          // escalated を先、次に deadline 近いもの
+          if (a.status !== b.status) return a.status === 'escalated' ? -1 : 1
+          const aDl = a.deadlineYear * 12 + a.deadlineMonth
+          const bDl = b.deadlineYear * 12 + b.deadlineMonth
+          return aDl - bDl
+        })
+    : []
+
   const sectionCount: Record<SectionKey, number> = {
     countries: sortedPolities.length,
     houses: houseEntries.length,
     persons: sortedPersons.length,
     factions: factionEntries.length,
     watchlist: watchlist.length,
+    plays: activePlays.length,
   }
 
   const renderSectionBody = (key: SectionKey) => {
@@ -439,6 +503,15 @@ export function Sidebar() {
           isSelected={focusedId === faction.id && focusedType === 'faction'}
           onClick={() => openDetailWindow('faction', faction.id)}
         />
+      ))
+    }
+    if (key === 'plays') {
+      if (activePlays.length === 0) {
+        return <div className="px-3 py-2 text-xs text-gray-500">No active plays</div>
+      }
+      const politiesMap = polities ?? {}
+      return activePlays.map((play) => (
+        <PlayRow key={play.id} play={play} polities={politiesMap as Record<string, Polity>} />
       ))
     }
     // watchlist

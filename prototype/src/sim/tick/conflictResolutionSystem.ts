@@ -209,6 +209,13 @@ function resolveLandTransferDemandEscalation(ctx: TickContext, play: DiplomaticP
   const { value: roll, rng: nextRng } = randomFloat(ctx.rng)
   const attackerWins = roll < winChance
 
+  // v0.18 Stage E §21: CLI debug 出力 (--debug 時のみ)
+  if (ctx.config.debug) {
+    console.error(
+      `[DEBUG:CONFLICT] play=${play.id} kind=${play.kind} attackerPower=${attackerPower.toFixed(1)} defenderPower=${defenderPower.toFixed(1)} winChance=${winChance.toFixed(3)} attackerWins=${attackerWins}`,
+    )
+  }
+
   let nextCtx: TickContext = { ...ctx, rng: nextRng }
   const currentAbsoluteMonth = nextCtx.state.currentYear * 12 + nextCtx.state.currentMonth
 
