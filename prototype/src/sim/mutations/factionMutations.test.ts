@@ -279,12 +279,14 @@ describe('deactivateFaction', () => {
     if (!result.ok) return
 
     expect(result.value.factions[factionId]!.active).toBe(false)
-    // Leader membership should be inactive
+    // v0.17.3 C: Leader and member memberships are now deleted (not just set inactive)
     const leaderMembershipId = createFactionMembershipId(0)
-    expect(result.value.factionMemberships[leaderMembershipId]!.active).toBe(false)
-    // Member1 membership should be inactive
+    expect(result.value.factionMemberships[leaderMembershipId]).toBeUndefined()
     const memberMembershipId = createFactionMembershipId(1)
-    expect(result.value.factionMemberships[memberMembershipId]!.active).toBe(false)
+    expect(result.value.factionMemberships[memberMembershipId]).toBeUndefined()
+    // byMember index cleaned
+    expect(result.value.factionIndex.byMember[leaderId] ?? []).not.toContain(leaderMembershipId)
+    expect(result.value.factionIndex.byMember[member1Id] ?? []).not.toContain(memberMembershipId)
   })
 
   it('is a no-op when faction already inactive', () => {
@@ -345,13 +347,15 @@ describe('transitionFactionLeader', () => {
     const faction = result.value.factions[factionId]
     expect(faction!.leaderPersonId).toBe(member1Id)
 
-    // Old leader's membership should be inactive
+    // v0.17.3 C: Old leader's membership is now deleted (not just set inactive)
     const oldLeaderMembershipId = createFactionMembershipId(0)
-    expect(result.value.factionMemberships[oldLeaderMembershipId]!.active).toBe(false)
+    expect(result.value.factionMemberships[oldLeaderMembershipId]).toBeUndefined()
 
     // byLeader index updated for both
     expect(result.value.factionIndex.byLeader[member1Id]).toContain(factionId)
     expect(result.value.factionIndex.byLeader[leaderId]).not.toContain(factionId)
+    // byMember index cleaned for old leader
+    expect(result.value.factionIndex.byMember[leaderId] ?? []).not.toContain(oldLeaderMembershipId)
   })
 
   it('is a no-op when new leader is same as old', () => {
@@ -418,10 +422,12 @@ describe('removeFactionMembership', () => {
     const result = removeFactionMembership(addResult.value.state, membershipId)
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.factionMemberships[membershipId]!.active).toBe(false)
+    // v0.17.3 C: membership is now deleted (not just set inactive)
+    expect(result.value.factionMemberships[membershipId]).toBeUndefined()
+    expect(result.value.factionIndex.byMember[member1Id] ?? []).not.toContain(membershipId)
   })
 
-  it('is a no-op when membership already inactive', () => {
+  it('is a no-op when membership already deleted (after deactivateFaction)', () => {
     const { state, leaderId } = makeFixture()
     const factionResult = createFaction(
       { ...makeFixture().ctx, state },
@@ -431,7 +437,7 @@ describe('removeFactionMembership', () => {
     if (!factionResult.ok) return
     const leaderMembershipId = factionResult.value.value.leaderMembershipId
 
-    // Deactivate first
+    // Deactivate first — this DELETES all memberships including the leader's
     const deactivated = deactivateFaction(
       factionResult.value.ctx.state,
       factionResult.value.value.factionId,
@@ -439,10 +445,10 @@ describe('removeFactionMembership', () => {
     expect(deactivated.ok).toBe(true)
     if (!deactivated.ok) return
 
+    // v0.17.3 C: deleted membership → FACTION_MEMBERSHIP_NOT_FOUND
     const result = removeFactionMembership(deactivated.value, leaderMembershipId)
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.value).toBe(deactivated.value)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('FACTION_MEMBERSHIP_NOT_FOUND')
   })
 
   it('returns err when trying to remove leader membership', () => {

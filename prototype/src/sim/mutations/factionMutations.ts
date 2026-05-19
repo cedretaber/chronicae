@@ -157,24 +157,33 @@ export function addFactionMembership(
   return ok({ state: newState, membershipId })
 }
 
-// Deactivates the faction and ALL its memberships (leader + members).
+// Deactivates the faction and DELETES ALL its memberships (leader + members).
+// v0.17.3 C: 旧版は memberships を active=false にセットして残置していた。
+// integrityCheck §21.5 I2 (byMember index sync) を満たすため byMember からも除去する。
+// Faction entity 自体は active=false で残置 (historical reference / event 参照用)。
 export function deactivateFaction(state: WorldState, factionId: FactionId): StateResult {
   const faction = state.factions[factionId]
   if (!faction) return err({ code: 'FACTION_NOT_FOUND', message: 'deactivateFaction: not found' })
   if (!faction.active) return ok(state)
 
   const newMemberships = { ...state.factionMemberships }
+  const newByMember = { ...state.factionIndex.byMember }
   for (const [mid, m] of Object.entries(state.factionMemberships)) {
     if (!m) continue
     if (m.factionId !== factionId) continue
-    if (!m.active) continue
-    newMemberships[mid as FactionMembershipId] = { ...m, active: false }
+    delete newMemberships[mid as FactionMembershipId]
+    const slot = newByMember[m.personId] ?? []
+    newByMember[m.personId] = slot.filter((id) => id !== (mid as FactionMembershipId))
   }
 
   return ok({
     ...state,
     factions: { ...state.factions, [factionId]: { ...faction, active: false } },
     factionMemberships: newMemberships,
+    factionIndex: {
+      byLeader: state.factionIndex.byLeader,
+      byMember: newByMember,
+    },
   })
 }
 
@@ -227,23 +236,33 @@ export function transitionFactionLeader(
       message: 'transitionFactionLeader: new leader is not an active member',
     })
 
-  // Deactivate old leader's membership in THIS faction
+  // v0.17.3 C: 旧 leader の membership を完全削除する (active=false 残置から変更)。
+  // byMember の同期も行う。
   const newMemberships = { ...state.factionMemberships }
   const oldLeaderMembershipIds = state.factionIndex.byMember[oldLeaderId] ?? []
+  const removedMembershipIds: FactionMembershipId[] = []
   for (const mid of oldLeaderMembershipIds) {
     const m = state.factionMemberships[mid]
-    if (m && m.active && m.factionId === input.factionId) {
-      newMemberships[mid] = { ...m, active: false }
+    if (m && m.factionId === input.factionId) {
+      delete newMemberships[mid]
+      removedMembershipIds.push(mid)
     }
   }
 
-  // Index update: byLeader is rebuilt for both persons
+  // Index update: byLeader is rebuilt for both persons; byMember は旧 leader の slot を再構築
   const oldLeaderLed = state.factionIndex.byLeader[oldLeaderId] ?? []
   const newLeaderLed = state.factionIndex.byLeader[input.newLeaderPersonId] ?? []
   const newByLeader = {
     ...state.factionIndex.byLeader,
     [oldLeaderId]: oldLeaderLed.filter((fid) => fid !== input.factionId),
     [input.newLeaderPersonId]: [...newLeaderLed, input.factionId],
+  }
+  const oldLeaderMemberSlot = (state.factionIndex.byMember[oldLeaderId] ?? []).filter(
+    (mid) => !removedMembershipIds.includes(mid),
+  )
+  const newByMember = {
+    ...state.factionIndex.byMember,
+    [oldLeaderId]: oldLeaderMemberSlot,
   }
 
   return ok({
@@ -255,12 +274,13 @@ export function transitionFactionLeader(
     factionMemberships: newMemberships,
     factionIndex: {
       byLeader: newByLeader,
-      byMember: state.factionIndex.byMember,
+      byMember: newByMember,
     },
   })
 }
 
 // Single member leaves the faction. Cannot be called on the current leader's membership.
+// v0.17.3 C: membership を完全削除 (active=false 残置から変更)。byMember も同期。
 export function removeFactionMembership(
   state: WorldState,
   membershipId: FactionMembershipId,
@@ -282,11 +302,21 @@ export function removeFactionMembership(
     })
   }
 
+  const newMemberships = { ...state.factionMemberships }
+  delete newMemberships[membershipId]
+  const byMemberSlot = (state.factionIndex.byMember[membership.personId] ?? []).filter(
+    (id) => id !== membershipId,
+  )
+
   return ok({
     ...state,
-    factionMemberships: {
-      ...state.factionMemberships,
-      [membershipId]: { ...membership, active: false },
+    factionMemberships: newMemberships,
+    factionIndex: {
+      byLeader: state.factionIndex.byLeader,
+      byMember: {
+        ...state.factionIndex.byMember,
+        [membership.personId]: byMemberSlot,
+      },
     },
   })
 }
