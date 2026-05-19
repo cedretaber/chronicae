@@ -54,6 +54,10 @@ function makeBaseState(): WorldState {
     nextProvinceOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
+    actorIntents: {},
+    diplomaticPlays: {},
+    nextActorIntentId: 0,
+    nextDiplomaticPlayId: 0,
   }
 }
 
@@ -590,6 +594,10 @@ describe('expireOfficeTermAssignment', () => {
       nextProvinceOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
+      actorIntents: {},
+      diplomaticPlays: {},
+      nextActorIntentId: 0,
+      nextDiplomaticPlayId: 0,
     }
     return { state, officeId, holderId, houseId, polityId }
   }

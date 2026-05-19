@@ -643,6 +643,11 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     factionIndex: { byLeader: {}, byMember: {} },
     nextFactionId: 0,
     nextFactionMembershipId: 0,
+    // v0.18 Stage A: 外交劇 entity を空で初期化
+    actorIntents: {},
+    diplomaticPlays: {},
+    nextActorIntentId: 0,
+    nextDiplomaticPlayId: 0,
   } as unknown as WorldState
 
   // House leader offices
@@ -1166,12 +1171,18 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     factions: {},
     factionMemberships: {},
     factionIndex: { byLeader: {}, byMember: {} },
+    // v0.18 Stage A: 外交劇 entity を空で初期化
+    actorIntents: {},
+    diplomaticPlays: {},
     nextOrganizationShareId,
     nextOfficeAssignmentId: officeState.nextOfficeAssignmentId,
     nextLandContractId,
     nextProvinceOfficeAssignmentId,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
+    // v0.18 Stage A
+    nextActorIntentId: 0,
+    nextDiplomaticPlayId: 0,
   }
 
   return { world, rng }

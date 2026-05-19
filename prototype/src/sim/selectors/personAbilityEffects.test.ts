@@ -163,6 +163,10 @@ function makeWorldState(
     nextProvinceOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
+    actorIntents: {},
+    diplomaticPlays: {},
+    nextActorIntentId: 0,
+    nextDiplomaticPlayId: 0,
   }
   const polity = state.polities[polity1Id]!
   const house = state.houses[house1Id]!

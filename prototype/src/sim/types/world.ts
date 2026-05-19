@@ -12,6 +12,8 @@ import type {
   ProvinceOfficeAssignmentId,
   FactionId,
   FactionMembershipId,
+  ActorIntentId,
+  DiplomaticPlayId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -30,6 +32,8 @@ import type {
   PolityIndex,
 } from './landContract'
 import type { Faction, FactionMembership, FactionIndex } from './faction'
+import type { ActorIntent } from './actorIntent'
+import type { DiplomaticPlay } from './diplomaticPlay'
 
 export type WorldState = {
   currentYear: number
@@ -53,12 +57,18 @@ export type WorldState = {
   factions: Record<FactionId, Faction>
   factionMemberships: Record<FactionMembershipId, FactionMembership>
   factionIndex: FactionIndex
+  // v0.18 Stage A §6.6
+  actorIntents: Record<ActorIntentId, ActorIntent>
+  diplomaticPlays: Record<DiplomaticPlayId, DiplomaticPlay>
   nextOrganizationShareId: number
   nextOfficeAssignmentId: number
   nextLandContractId: number
   nextProvinceOfficeAssignmentId: number
   nextFactionId: number
   nextFactionMembershipId: number
+  // v0.18 Stage A §6.6
+  nextActorIntentId: number
+  nextDiplomaticPlayId: number
 }
 
 export type SimulationSession = {

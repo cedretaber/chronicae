@@ -265,6 +265,10 @@ describe('runBailiffAppointmentSystem', () => {
       },
       nextFactionId: 1,
       nextFactionMembershipId: 2,
+      actorIntents: {},
+      diplomaticPlays: {},
+      nextActorIntentId: 0,
+      nextDiplomaticPlayId: 0,
     }
 
     const ctx = createTickContext({ state: s, rng: createRng('test'), config: defaultConfig })
@@ -378,6 +382,10 @@ describe('runBailiffAppointmentSystem', () => {
       },
       nextFactionId: 1,
       nextFactionMembershipId: 2,
+      actorIntents: {},
+      diplomaticPlays: {},
+      nextActorIntentId: 0,
+      nextDiplomaticPlayId: 0,
     }
 
     const ctx = createTickContext({ state: s, rng: createRng('test'), config: defaultConfig })

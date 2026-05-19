@@ -8,6 +8,8 @@ import type {
   FactionId,
   FactionMembershipId,
   PersonId,
+  ActorIntentId,
+  DiplomaticPlayId,
 } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -18,6 +20,7 @@ import { ANONYMOUS_HOUSE_ID, ROOT_WORLD } from '../types/landContract'
 import { getGrantorRank, getLandContractGrantor } from '../selectors/landContractSelectors'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
+import type { PoliticalActorRef } from '../types/actor'
 
 // v0.16 §25 IntegrityCheck 33 項目の実装状況サマリ:
 //
@@ -1071,6 +1074,213 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `Non-root LandContract ${c.id} has rootAuthorityId=${c.rootAuthorityId} (§25 #3)`,
+        })
+      }
+    }
+  }
+
+  // ─── v0.18 Stage A §20: ActorIntent / DiplomaticPlay 整合性 ───
+
+  // actor が存在する active actor を指すかチェック (Polity の active / House の active を確認)
+  const isActiveActor = (actor: PoliticalActorRef): boolean => {
+    if (actor.kind === 'polity') {
+      const p = state.polities[actor.id]
+      return Boolean(p && p.active)
+    }
+    const h = state.houses[actor.id]
+    return Boolean(h && h.active)
+  }
+
+  // ActorIntent integrity (§20)
+  const seenIntentIds = new Set<string>()
+  for (const idStr of Object.keys(state.actorIntents)) {
+    const intent = state.actorIntents[idStr as ActorIntentId]
+    if (!intent) continue
+    // id 一意性
+    if (seenIntentIds.has(idStr)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `ActorIntent ${idStr} duplicate id (§20)`,
+      })
+    }
+    seenIntentIds.add(idStr)
+    // すべての entry の status === 'active' (terminal は cleanup phase で削除済み)
+    if (intent.status !== 'active') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `ActorIntent ${idStr} has non-active status ${intent.status} (terminal must be cleaned up) (§20)`,
+      })
+    }
+    // actor が active を指す
+    if (!isActiveActor(intent.actor)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `ActorIntent ${idStr} actor ${intent.actor.kind}:${intent.actor.id} is not active (§20)`,
+      })
+    }
+    // targetActor (存在する場合) が active
+    if (intent.targetActor && !isActiveActor(intent.targetActor)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `ActorIntent ${idStr} targetActor ${intent.targetActor.kind}:${intent.targetActor.id} is not active (§20)`,
+      })
+    }
+    // targetProvinceId (存在する場合) が存在する Province
+    if (intent.targetProvinceId !== undefined && !state.provinces[intent.targetProvinceId]) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `ActorIntent ${idStr} targetProvinceId ${intent.targetProvinceId} does not exist (§20)`,
+      })
+    }
+    // beneficiaryPolityId (存在する場合) が active Polity
+    if (intent.beneficiaryPolityId !== undefined) {
+      const bene = state.polities[intent.beneficiaryPolityId]
+      if (!bene || !bene.active) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `ActorIntent ${idStr} beneficiaryPolityId ${intent.beneficiaryPolityId} is missing or inactive (§20)`,
+        })
+      }
+    }
+  }
+
+  // DiplomaticPlay integrity (§20)
+  const seenPlayIds = new Set<string>()
+  for (const idStr of Object.keys(state.diplomaticPlays)) {
+    const play = state.diplomaticPlays[idStr as DiplomaticPlayId]
+    if (!play) continue
+    // id 一意性
+    if (seenPlayIds.has(idStr)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticPlay ${idStr} duplicate id (§20)`,
+      })
+    }
+    seenPlayIds.add(idStr)
+    // すべての entry の status === 'active'
+    if (play.status !== 'active') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticPlay ${idStr} has non-active status ${play.status} (terminal must be cleaned up) (§20)`,
+      })
+    }
+    // initiator / target が active actor
+    if (!isActiveActor(play.initiator)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticPlay ${idStr} initiator ${play.initiator.kind}:${play.initiator.id} is not active (§20)`,
+      })
+    }
+    if (!isActiveActor(play.target)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticPlay ${idStr} target ${play.target.kind}:${play.target.id} is not active (§20)`,
+      })
+    }
+    // progress / tension は 0..100
+    if (play.progress < 0 || play.progress > 100) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticPlay ${idStr} progress=${play.progress} outside [0, 100] (§20)`,
+      })
+    }
+    if (play.tension < 0 || play.tension > 100) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticPlay ${idStr} tension=${play.tension} outside [0, 100] (§20)`,
+      })
+    }
+    // deadline が started より後
+    const startedKey = play.startedYear * 12 + play.startedMonth
+    const deadlineKey = play.deadlineYear * 12 + play.deadlineMonth
+    if (deadlineKey <= startedKey) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticPlay ${idStr} deadline (${play.deadlineYear}/${play.deadlineMonth}) is not after started (${play.startedYear}/${play.startedMonth}) (§20)`,
+      })
+    }
+    // primaryDemand が有効な対象を指す (kind 別の最小チェック)
+    const demand = play.primaryDemand
+    switch (demand.kind) {
+      case 'transfer_land_contract': {
+        if (!state.provinces[demand.provinceId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} primaryDemand.provinceId ${demand.provinceId} does not exist (§20)`,
+          })
+        }
+        const toPolity = state.polities[demand.toPolityId]
+        if (!toPolity || !toPolity.active) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} primaryDemand.toPolityId ${demand.toPolityId} is missing or inactive (§20)`,
+          })
+        }
+        break
+      }
+      case 'change_contract_tax_rate': {
+        if (!state.landContracts[demand.landContractId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} primaryDemand.landContractId ${demand.landContractId} does not exist (§20)`,
+          })
+        }
+        break
+      }
+      case 'pay_wealth': {
+        if (!isActiveActor(demand.from)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} primaryDemand.from ${demand.from.kind}:${demand.from.id} is not active (§20)`,
+          })
+        }
+        if (!isActiveActor(demand.to)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} primaryDemand.to ${demand.to.kind}:${demand.to.id} is not active (§20)`,
+          })
+        }
+        break
+      }
+      case 'revolt_concession': {
+        if (!state.provinces[demand.provinceId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} primaryDemand.provinceId ${demand.provinceId} does not exist (§20)`,
+          })
+        }
+        if (!state.popGroups[demand.popGroupId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} primaryDemand.popGroupId ${demand.popGroupId} does not exist (§20)`,
+          })
+        }
+        break
+      }
+      case 'status_quo':
+        // no target to validate
+        break
+    }
+    // revolt_negotiation 固有チェック (§20)
+    if (play.kind === 'revolt_negotiation') {
+      if (play.initiator.kind !== 'polity') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} revolt_negotiation initiator must be a Polity (§20)`,
+        })
+      } else {
+        const initPolity = state.polities[play.initiator.id]
+        if (initPolity && initPolity.kind !== 'commonwealth') {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} revolt_negotiation initiator Polity ${play.initiator.id} is not commonwealth (§20)`,
+          })
+        }
+      }
+      if (play.target.kind !== 'polity') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} revolt_negotiation target must be a Polity (§20)`,
         })
       }
     }

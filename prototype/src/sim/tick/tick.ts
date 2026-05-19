@@ -32,6 +32,7 @@ import { runAttitudeDecaySystem } from './attitudeDecaySystem'
 import { runGovernanceSystem } from './governanceSystem'
 import { runIntegritySystem } from './integritySystem'
 import { runPopSystem, normalizePopSizes } from './popSystem'
+import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { runPopDevelopmentSystem } from './popDevelopmentSystem'
 import { runPersonGrowthSystem } from './personGrowthSystem'
 import { runEstateSettlementSystem } from './estateSettlementSystem'
@@ -97,6 +98,8 @@ export function tick(input: TickInput): TickResult {
   run('attitudeDecaySystem', runAttitudeDecaySystem)
   run('governanceSystem', runGovernanceSystem)
   run('normalizePopSizes', normalizePopSizes)
+  // v0.18 Stage A §17: terminal status の ActorIntent / DiplomaticPlay を Record から削除
+  run('cleanupTerminalDiplomacy', runCleanupTerminalDiplomacy)
 
   if (debug) {
     // debug モードは細粒度デバッグ用に毎 tick 走らせる

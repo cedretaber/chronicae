@@ -1202,6 +1202,10 @@ export function PersonDetail({
     nextProvinceOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
+    actorIntents: {},
+    diplomaticPlays: {},
+    nextActorIntentId: 0,
+    nextDiplomaticPlayId: 0,
   }
   const allOfficeIds = worldState.officeIndex.byHolderPerson[person.id] ?? []
   const allOffices = allOfficeIds.flatMap((id) => {

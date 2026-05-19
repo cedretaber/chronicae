@@ -89,6 +89,10 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     nextProvinceOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
+    actorIntents: {},
+    diplomaticPlays: {},
+    nextActorIntentId: 0,
+    nextDiplomaticPlayId: 0,
   }
 }
 

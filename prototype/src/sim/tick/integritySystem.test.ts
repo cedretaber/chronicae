@@ -128,6 +128,10 @@ describe('runIntegritySystem', () => {
       nextProvinceOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
+      actorIntents: {},
+      diplomaticPlays: {},
+      nextActorIntentId: 0,
+      nextDiplomaticPlayId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -238,6 +242,10 @@ describe('runIntegritySystem', () => {
       nextProvinceOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
+      actorIntents: {},
+      diplomaticPlays: {},
+      nextActorIntentId: 0,
+      nextDiplomaticPlayId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -331,6 +339,10 @@ describe('runIntegritySystem', () => {
       nextProvinceOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
+      actorIntents: {},
+      diplomaticPlays: {},
+      nextActorIntentId: 0,
+      nextDiplomaticPlayId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -424,6 +436,10 @@ describe('runIntegritySystem', () => {
       nextProvinceOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
+      actorIntents: {},
+      diplomaticPlays: {},
+      nextActorIntentId: 0,
+      nextDiplomaticPlayId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -515,6 +531,10 @@ describe('runIntegritySystem', () => {
       nextProvinceOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
+      actorIntents: {},
+      diplomaticPlays: {},
+      nextActorIntentId: 0,
+      nextDiplomaticPlayId: 0,
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 1,
     }
@@ -596,6 +616,10 @@ describe('runIntegritySystem', () => {
       nextProvinceOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
+      actorIntents: {},
+      diplomaticPlays: {},
+      nextActorIntentId: 0,
+      nextDiplomaticPlayId: 0,
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 0,
     }
@@ -678,6 +702,10 @@ describe('runIntegritySystem', () => {
       nextProvinceOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
+      actorIntents: {},
+      diplomaticPlays: {},
+      nextActorIntentId: 0,
+      nextDiplomaticPlayId: 0,
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 0,
     }

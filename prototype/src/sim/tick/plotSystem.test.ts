@@ -91,6 +91,10 @@ function makeBaseState(): {
     factionIndex: { byLeader: {}, byMember: {} },
     nextFactionId: 0,
     nextFactionMembershipId: 0,
+    actorIntents: {},
+    diplomaticPlays: {},
+    nextActorIntentId: 0,
+    nextDiplomaticPlayId: 0,
   }
 
   return { state: stateWithLeader, polityId, houseId, personId }
