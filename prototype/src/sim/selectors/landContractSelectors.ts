@@ -44,6 +44,14 @@ export function getProvinceTerminalPolityId(
   return state.provinceTerminalPolityCache[provinceId]
 }
 
+export function getProvinceRootPolityId(
+  state: WorldState,
+  provinceId: ProvinceId,
+): PolityId | undefined {
+  const root = getProvinceRootContract(state, provinceId)
+  return root?.granteePolityId
+}
+
 export function getProvinceOverlordPolityIds(
   state: WorldState,
   provinceId: ProvinceId,

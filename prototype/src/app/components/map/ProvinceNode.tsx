@@ -15,6 +15,7 @@ export type ProvinceNodeData = {
   polityColor: string
   highlightTier: HighlightTier
   isSelected: boolean
+  extraOpacity?: number
 }
 
 const TIER_OPACITY: Record<HighlightTier, number> = {
@@ -24,15 +25,23 @@ const TIER_OPACITY: Record<HighlightTier, number> = {
 }
 
 export function ProvinceNode({ data }: NodeProps) {
-  const { label, isUrban, isCapital, isSeat, polityColor, highlightTier, isSelected } =
-    data as ProvinceNodeData
+  const {
+    label,
+    isUrban,
+    isCapital,
+    isSeat,
+    polityColor,
+    highlightTier,
+    isSelected,
+    extraOpacity,
+  } = data as ProvinceNodeData
 
   return (
     <div
       style={{
         position: 'relative',
         width: MAP_ICON_CONFIG.provinceIconSize,
-        opacity: TIER_OPACITY[highlightTier],
+        opacity: TIER_OPACITY[highlightTier] * (extraOpacity ?? 1),
       }}
     >
       {/* Handles on all 4 sides for edges */}

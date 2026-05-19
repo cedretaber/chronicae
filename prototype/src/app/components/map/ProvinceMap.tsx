@@ -2,16 +2,20 @@ import { useMemo } from 'react'
 import { ReactFlow, Controls, type Node, type Edge, type NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useSimulationStore } from '@/app/stores/simulationStore'
-import { buildPolityColorMap } from '@/app/utils/polityColors'
+import { buildPolityColorMap, buildHouseColorMap, unrestToColor } from '@/app/utils/polityColors'
 import type { PolityId, HouseId, ProvinceId } from '@/sim/types/ids'
-import { getProvincePops } from '@/sim/selectors/popSelectors'
+import { getProvincePops, getProvinceUnrest } from '@/sim/selectors/popSelectors'
 import {
   getProvinceTerminalPolityId,
+  getProvinceRootPolityId,
+  getProvinceEffectiveOwnerHouseId,
   getHouseControlledProvinceIds,
   getHouseRelevantProvinceIds,
   getPolityOverlordProvinceIds,
 } from '@/sim/selectors/landContractSelectors'
+import { getHousePolitySharePercent } from '@/sim/selectors/shareSelectors'
 import { ProvinceNode, type ProvinceNodeData, type HighlightTier } from './ProvinceNode'
+import { MapLegend } from './MapLegend'
 import { MAP_ICON_CONFIG } from '@/app/constants/mapConstants'
 import mapBackground from '@/assets/map/map-background.png'
 
@@ -23,6 +27,7 @@ export function ProvinceMap() {
   const selectedType = useSimulationStore((s) => s.selectedType)
   const setSelected = useSimulationStore((s) => s.setSelected)
   const clearSelected = useSimulationStore((s) => s.clearSelected)
+  const mapView = useSimulationStore((s) => s.mapView)
 
   const polities = session?.currentState.polities
   const houses = session?.currentState.houses
@@ -32,6 +37,11 @@ export function ProvinceMap() {
     if (!polities) return {}
     return buildPolityColorMap(Object.keys(polities))
   }, [polities])
+
+  const houseColorMap = useMemo(() => {
+    if (!houses) return {}
+    return buildHouseColorMap(Object.keys(houses))
+  }, [houses])
 
   // Convert provinces to React Flow nodes
   const nodes = useMemo(() => {
@@ -115,6 +125,34 @@ export function ProvinceMap() {
 
       const isSelected = selectedId === province.id && selectedType === 'province'
 
+      // mapView ベースの色 / opacity 計算
+      let cellColor = '#888'
+      let extraOpacity = 1
+      const state = session?.currentState
+      if (state) {
+        if (mapView === 'terminal') {
+          if (terminalPolityId) cellColor = polityColorMap[terminalPolityId] ?? '#888'
+        } else if (mapView === 'root') {
+          const rootId = getProvinceRootPolityId(state, province.id)
+          if (rootId) cellColor = polityColorMap[rootId] ?? '#888'
+        } else if (mapView === 'house') {
+          const ownerHouseId = getProvinceEffectiveOwnerHouseId(state, province.id)
+          if (ownerHouseId) cellColor = houseColorMap[ownerHouseId] ?? '#888'
+        } else if (mapView === 'share') {
+          if (terminalPolityId) cellColor = polityColorMap[terminalPolityId] ?? '#888'
+          const ownerHouseId = getProvinceEffectiveOwnerHouseId(state, province.id)
+          if (terminalPolityId && ownerHouseId) {
+            const pct = getHousePolitySharePercent(state, terminalPolityId, ownerHouseId)
+            extraOpacity = 0.4 + (Math.max(0, Math.min(100, pct)) / 100) * 0.6
+          } else {
+            extraOpacity = 0.4
+          }
+        } else if (mapView === 'unrest') {
+          const u = getProvinceUnrest(state, province.id)
+          cellColor = unrestToColor(u / 100)
+        }
+      }
+
       return {
         id: province.id,
         type: 'province',
@@ -124,13 +162,24 @@ export function ProvinceMap() {
           isUrban,
           isCapital,
           isSeat,
-          polityColor: terminalPolityId ? (polityColorMap[terminalPolityId] ?? '#888') : '#888',
+          polityColor: cellColor,
           highlightTier,
           isSelected,
+          extraOpacity,
         } satisfies ProvinceNodeData,
       }
     })
-  }, [provinces, polityColorMap, selectedId, selectedType, polities, houses, session])
+  }, [
+    provinces,
+    polityColorMap,
+    houseColorMap,
+    selectedId,
+    selectedType,
+    polities,
+    houses,
+    session,
+    mapView,
+  ])
 
   // Convert province neighbors to edges (deduplicate: only when a < b)
   const edges: Edge[] = useMemo(() => {
@@ -189,6 +238,7 @@ export function ProvinceMap() {
           ✕ Clear
         </button>
       )}
+      <MapLegend />
       {/* ReactFlow layer */}
       <div className="relative z-10 h-full w-full">
         <ReactFlow
