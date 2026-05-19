@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-19（v0.17 時点）
+最終更新: 2026-05-19（v0.17.1 時点）
 
 ---
 
@@ -2436,16 +2436,30 @@ UI 層では基礎能力直接参照（`person.abilities.valor` を直接表示�
 - **「最後の通常 House 絶滅防止」guard**: `handleNormalHouseExtinction` 内で、世界に他に active 通常 House が残らないなら絶滅させない (pre-existing terminal state 防止)。
 - **検証**: CLI 300 年 × 4 seed (1, 42, 123, 999) で integrity 違反 0 完走。49 テストファイル / 483 件 test pass。
 
+### v0.17.1 で実装済み（参考）
+
+v0.17 完成後、CLI 観察で「Bailiff が全 Province で placeholder のまま (0 normal / 40 placeholder)」になることが判明し、原因解析の上で代官の機能を以下のように補強した。仕様書本体は §15 を参照。
+
+- **Bailiff の給与経路 (§15.4)**: terminal Polity の retained 税収のうち `bailiffRevenueShare: 0.1` (10%) を normal bailiff の `person.wealth` に直接加算。placeholder bailiff は salary 対象外で従来通り 100% が treasury に流れる。実装は `landRevenueSystem` の terminal contract 段で `addPersonWealth` を直接適用する。
+- **BailiffAppointment の factional 切替 (§15.3)**: `BailiffAppointmentSystem` の placeholder 補充ステップを「factional 優先 + ownerHouse fallback」に書き換え。factional 候補は Polity に対する `getFactionNominationPower` が `factionNominationPowerThreshold` 以上の active faction の member 全員から構築 (Polity 内外問わず)。score は `getFactionalCandidateScore * factionBailiffNominationWeight (0.4)`、`minAppointmentScore` 未満なら ownerHouse fallback。`'bailiff'` は `OfficeRole` に含まれないため role alias として `'advisor'` を渡す (`getFactionNominationPower` は role を void。`factionBailiffNominationWeight` で別重み)。
+- **代官と国家中枢役職の兼任全面禁止 (§15.3)**:
+  - `BailiffAppointmentSystem` 側: 派閥候補 / ownerHouse 候補ともに `officeIndex.byHolderPerson` (Polity/House Office) と `provinceOfficeIndex.byHolderPerson` (別 Province の Bailiff) のいずれかに active 割当があれば候補から除外。
+  - `AppointmentSystem` 側: `collectPolityCandidatesTraditional` / `collectHouseCandidatesTraditional` / `collectFactionalCandidates` の三経路すべてで active な ProvinceOffice 保有者を除外。これにより「国家中枢役職と代官の兼任」を双方向に排除する。
+  - 派閥所属の有無に関わらず兼任は許可しない。代官は「現地常駐の独立役職」「在野・没落貴族が稼ぐ場所」として位置付ける。
+- **FactionPatronage の Bailiff 包含 (§11)**: `hasActiveNonLeaderOffice` の判定に ProvinceOffice (Bailiff) を含めて、Bailiff 持ち派閥員も leader への donation 経路に乗せる (= stipend 対象外)。これにより Bailiff salary → 派閥献金の経路が成立する。
+- **v0.17.1 で削減した v0.18 送り項目**: 「§15.3 bailiff factional 推薦」「Bailiff salary 経路 (§15.4 将来項目)」を実装済みに移動。
+- **検証**: CLI 300 年 × 4 seed (1, 42, 123, 999) で integrity 違反 0 完走。50 テストファイル / 492 件 test pass。normal Bailiff の最終比率は seed により 5〜15/40 と改善。
+
 ### v0.18 以降に送られる主要項目
 
 #### Faction 拡張系
 
 - **同派閥婚姻ボーナス / leader 意思決定の派閥圧力 / 軍事 contribution の Share-based 集計**: v0.17 では未実装。派閥が「人事と恩顧」のみ。
 - **Faction 独立 UI**: v0.17 では Person detail に "Faction: ◈ {name} (leader|member)" を表示するに留め、Faction 専用 detail panel と Sidebar 切替は未着手。
-- **bailiff の factional 推薦 (§15.3)**: 派閥 leader と関係が良い候補を低重みで bailiff 推薦。v0.17 では未実装 (bailiff 任期切れによる placeholder 化のみ)。
+- ~~**bailiff の factional 推薦 (§15.3)**~~: v0.17.1 で実装済み (派閥員候補プール拡大 + 兼任全面禁止 + Bailiff salary 経路)。
 - **commonwealth 派閥の取り扱い拡張**: `ownerHouseId === undefined` Polity (Rebel Polity / commonwealth) で `getFactionNominationPower` から ownerHouse bonus を 0 にする処理は実装済 だが、commonwealth 特有の派閥動態 (rebel leader 直接派閥 leader 化など) は未深化。
 - **§21.3 D1 (alive=false → deathYear/deathMonth set)**: v0.17 では Person 型に deathYear/deathMonth を追加せず、integrity check は D1 を除外。表示時に state.currentYear から算出する設計のままで継続するか、deathYear を Person field として追加するかは要検討。
-- **Bailiff 任期年数のチューニング**: v0.17 デフォルト 3 年は normal bailiff が ownerHouse member に交代される機会を過度に絞る (CLI 観察で 4 seed 全て 0 normal / 40 placeholder)。任期延長 or 補充タイミングの再設計が必要。
+- **Bailiff 任期年数のチューニング**: v0.17 デフォルト 3 年は normal bailiff が ownerHouse member に交代される機会を絞る要因の一つだった。v0.17.1 で factional 化と兼任厳格化により normal bailiff 比率は改善 (4 seed 平均で ~10/40)、任期延長 or 補充タイミング再設計は引き続き要観察。
 - **`targetUnaffiliatedPersons` バランス調整**: 30 から始めて、AnonymousHouse 内の normal Person 動態と派閥スカウト頻度を観察してチューニング。
 - **POLITY_LANDLESS event 表示の整備**
 
