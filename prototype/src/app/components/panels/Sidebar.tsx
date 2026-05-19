@@ -17,9 +17,9 @@ import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
 import type { PolityRank } from '@/sim/types/polity'
 import { defaultConfig } from '@/sim/config/defaultConfig'
 
-type TabKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist'
+type SectionKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist'
 
-const TABS: { key: TabKey; label: string }[] = [
+const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'countries', label: 'Countries' },
   { key: 'houses', label: 'Houses' },
   { key: 'persons', label: 'Persons' },
@@ -245,7 +245,14 @@ function WatchlistRow({
 }
 
 export function Sidebar() {
-  const [activeTab, setActiveTab] = useState<TabKey>('countries')
+  const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
+    countries: true,
+    houses: false,
+    persons: false,
+    factions: false,
+    watchlist: false,
+  })
+  const toggleSection = (key: SectionKey) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
 
   const session = useSimulationStore((s) => s.session)
   const selectedId = useSimulationStore((s) => s.selectedId)
@@ -340,155 +347,158 @@ export function Sidebar() {
           })
       : []
 
-  return (
-    <div className="flex h-full w-64 flex-col overflow-hidden bg-gray-800 text-white">
-      <div className="flex border-b border-gray-600">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            className={`flex-1 py-1 text-xs ${
-              activeTab === tab.key ? 'border-b-2 border-blue-400 bg-gray-700' : 'hover:bg-gray-700'
-            }`}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+  const sectionCount: Record<SectionKey, number> = {
+    countries: sortedPolities.length,
+    houses: houseEntries.length,
+    persons: sortedPersons.length,
+    factions: factionEntries.length,
+    watchlist: watchlist.length,
+  }
 
-      <div className="flex-1 overflow-y-auto">
-        {activeTab === 'countries' &&
-          polityGroups.map((group) => {
-            const worldState: WorldState | null = session?.currentState ?? null
-            return (
-              <div key={group.rank}>
-                <div className="sticky top-0 z-10 border-b border-gray-700 bg-gray-900 px-3 py-1 text-xs font-bold text-gray-400">
-                  {formatPolityRank(group.rank)}{' '}
-                  <span className="font-normal text-gray-500">({group.polities.length})</span>
-                </div>
-                {group.polities.map((polity) => (
-                  <PolityRow
-                    key={polity.id}
-                    polity={polity}
-                    color={polityColorMap[polity.id] ?? '#888'}
-                    militaryPower={polityMilitaryPowers[polity.id] ?? 0}
-                    isSelected={selectedId === polity.id && selectedType === 'polity'}
-                    onClick={() => setSelected(polity.id, 'polity')}
-                    worldState={worldState}
-                  />
-                ))}
-              </div>
-            )
-          })}
-
-        {activeTab === 'houses' && (
-          <>
-            {(
-              [
-                { key: 'ruling', label: '支配家', entries: rulingHouses },
-                { key: 'landless', label: '亡命家', entries: landlessHouses },
-              ] as const
-            ).map((section) => (
-              <div key={section.key}>
-                <div className="sticky top-0 z-10 border-b border-gray-700 bg-gray-900 px-3 py-1 text-xs font-bold text-gray-400">
-                  {section.label}{' '}
-                  <span className="font-normal text-gray-500">({section.entries.length})</span>
-                </div>
-                {section.entries.map(({ house, provinceCount }) => {
-                  const primaryPolityId = session?.currentState
-                    ? getHousePrimaryPolityId(session.currentState, house.id)
-                    : undefined
-                  return (
-                    <HouseRow
-                      key={house.id}
-                      house={house}
-                      polityName={primaryPolityId ? (polities?.[primaryPolityId]?.name ?? '') : ''}
-                      polityColor={
-                        primaryPolityId ? (polityColorMap[primaryPolityId] ?? '#888') : '#888'
-                      }
-                      provinceCount={provinceCount}
-                      isSelected={selectedId === house.id && selectedType === 'house'}
-                      onClick={() => setSelected(house.id, 'house')}
-                    />
-                  )
-                })}
-              </div>
-            ))}
-          </>
-        )}
-
-        {activeTab === 'persons' &&
-          sortedPersons.map(({ person, score }) => (
-            <PersonRow
-              key={person.id}
-              person={person}
-              score={score}
-              isSelected={selectedId === person.id && selectedType === 'person'}
-              onClick={() => setSelected(person.id, 'person')}
+  const renderSectionBody = (key: SectionKey) => {
+    if (key === 'countries') {
+      const worldState: WorldState | null = session?.currentState ?? null
+      return polityGroups.map((group) => (
+        <div key={group.rank}>
+          <div className="sticky top-0 z-10 border-b border-gray-700 bg-gray-900 px-3 py-1 text-xs font-bold text-gray-400">
+            {formatPolityRank(group.rank)}{' '}
+            <span className="font-normal text-gray-500">({group.polities.length})</span>
+          </div>
+          {group.polities.map((polity) => (
+            <PolityRow
+              key={polity.id}
+              polity={polity}
+              color={polityColorMap[polity.id] ?? '#888'}
+              militaryPower={polityMilitaryPowers[polity.id] ?? 0}
+              isSelected={selectedId === polity.id && selectedType === 'polity'}
+              onClick={() => setSelected(polity.id, 'polity')}
+              worldState={worldState}
             />
           ))}
-
-        {activeTab === 'factions' && (
-          <>
-            <div className="sticky top-0 z-10 border-b border-gray-700 bg-gray-900 px-3 py-1 text-xs font-bold text-gray-400">
-              Active Factions{' '}
-              <span className="font-normal text-gray-500">({factionEntries.length})</span>
-            </div>
-            {factionEntries.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-gray-500">No active factions</div>
-            ) : (
-              factionEntries.map(({ faction, leaderName, memberCount }) => (
-                <FactionRow
-                  key={faction.id}
-                  faction={faction}
-                  leaderName={leaderName}
-                  memberCount={memberCount}
-                  isSelected={selectedId === faction.id && selectedType === 'faction'}
-                  onClick={() => setSelected(faction.id, 'faction')}
-                />
-              ))
-            )}
-          </>
-        )}
-
-        {activeTab === 'watchlist' &&
-          watchlist.map((watchId) => {
-            const type = inferWatchlistType(watchId)
-            if (!type) return null
-
-            let name = watchId
-            if (type === 'polity' && polities) {
-              const found = Object.values(polities).find((p) => p.id === watchId)
-              if (found) name = found.name
-            } else if (type === 'house' && houses) {
-              const found = Object.values(houses).find((h) => h.id === watchId)
-              if (found) name = found.name
-            } else if (type === 'person' && persons) {
-              const found = Object.values(persons).find((p) => p.id === watchId)
-              if (found) name = found.name
-            }
-
-            const currentState = session?.currentState
-            const eventCount = currentState
-              ? getRecentEventCount(
-                  watchId,
-                  eventHistory,
-                  currentState.currentYear,
-                  currentState.currentMonth,
-                )
-              : 0
-
+        </div>
+      ))
+    }
+    if (key === 'houses') {
+      return (
+        [
+          { key: 'ruling', label: '支配家', entries: rulingHouses },
+          { key: 'landless', label: '亡命家', entries: landlessHouses },
+        ] as const
+      ).map((section) => (
+        <div key={section.key}>
+          <div className="sticky top-0 z-10 border-b border-gray-700 bg-gray-900 px-3 py-1 text-xs font-bold text-gray-400">
+            {section.label}{' '}
+            <span className="font-normal text-gray-500">({section.entries.length})</span>
+          </div>
+          {section.entries.map(({ house, provinceCount }) => {
+            const primaryPolityId = session?.currentState
+              ? getHousePrimaryPolityId(session.currentState, house.id)
+              : undefined
             return (
-              <WatchlistRow
-                key={watchId}
-                name={name}
-                type={type}
-                eventCount={eventCount}
-                onRemove={() => toggleWatchlist(watchId)}
-                onClick={() => setSelected(watchId, type)}
+              <HouseRow
+                key={house.id}
+                house={house}
+                polityName={primaryPolityId ? (polities?.[primaryPolityId]?.name ?? '') : ''}
+                polityColor={primaryPolityId ? (polityColorMap[primaryPolityId] ?? '#888') : '#888'}
+                provinceCount={provinceCount}
+                isSelected={selectedId === house.id && selectedType === 'house'}
+                onClick={() => setSelected(house.id, 'house')}
               />
             )
           })}
+        </div>
+      ))
+    }
+    if (key === 'persons') {
+      return sortedPersons.map(({ person, score }) => (
+        <PersonRow
+          key={person.id}
+          person={person}
+          score={score}
+          isSelected={selectedId === person.id && selectedType === 'person'}
+          onClick={() => setSelected(person.id, 'person')}
+        />
+      ))
+    }
+    if (key === 'factions') {
+      if (factionEntries.length === 0) {
+        return <div className="px-3 py-2 text-xs text-gray-500">No active factions</div>
+      }
+      return factionEntries.map(({ faction, leaderName, memberCount }) => (
+        <FactionRow
+          key={faction.id}
+          faction={faction}
+          leaderName={leaderName}
+          memberCount={memberCount}
+          isSelected={selectedId === faction.id && selectedType === 'faction'}
+          onClick={() => setSelected(faction.id, 'faction')}
+        />
+      ))
+    }
+    // watchlist
+    if (watchlist.length === 0) {
+      return <div className="px-3 py-2 text-xs text-gray-500">Watchlist is empty</div>
+    }
+    return watchlist.map((watchId) => {
+      const type = inferWatchlistType(watchId)
+      if (!type) return null
+
+      let name = watchId
+      if (type === 'polity' && polities) {
+        const found = Object.values(polities).find((p) => p.id === watchId)
+        if (found) name = found.name
+      } else if (type === 'house' && houses) {
+        const found = Object.values(houses).find((h) => h.id === watchId)
+        if (found) name = found.name
+      } else if (type === 'person' && persons) {
+        const found = Object.values(persons).find((p) => p.id === watchId)
+        if (found) name = found.name
+      }
+
+      const currentState = session?.currentState
+      const eventCount = currentState
+        ? getRecentEventCount(
+            watchId,
+            eventHistory,
+            currentState.currentYear,
+            currentState.currentMonth,
+          )
+        : 0
+
+      return (
+        <WatchlistRow
+          key={watchId}
+          name={name}
+          type={type}
+          eventCount={eventCount}
+          onRemove={() => toggleWatchlist(watchId)}
+          onClick={() => setSelected(watchId, type)}
+        />
+      )
+    })
+  }
+
+  return (
+    <div className="flex h-full w-64 flex-col overflow-hidden bg-gray-800 text-white">
+      <div className="flex-1 overflow-y-auto">
+        {SECTIONS.map((section) => {
+          const isOpen = expanded[section.key]
+          return (
+            <div key={section.key} className="border-b border-gray-700">
+              <button
+                className="sticky top-0 z-20 flex w-full items-center justify-between bg-gray-900 px-3 py-1.5 text-left text-xs font-bold text-gray-200 hover:bg-gray-700"
+                onClick={() => toggleSection(section.key)}
+              >
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 text-gray-500">{isOpen ? '▼' : '▶'}</span>
+                  <span>{section.label}</span>
+                  <span className="font-normal text-gray-500">({sectionCount[section.key]})</span>
+                </span>
+              </button>
+              {isOpen && <div>{renderSectionBody(section.key)}</div>}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

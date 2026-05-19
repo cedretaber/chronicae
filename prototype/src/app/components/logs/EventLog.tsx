@@ -1,7 +1,53 @@
 import { useState } from 'react'
-import { useSimulationStore } from '@/app/stores/simulationStore'
+import { useSimulationStore, type SelectedType } from '@/app/stores/simulationStore'
 import type { SimEvent } from '@/sim/types/event'
 import type { EventType } from '@/sim/types/event'
+
+type LinkItem = { id: string; type: SelectedType; name: string }
+
+function EventLinks({ event }: { event: SimEvent }) {
+  const session = useSimulationStore((s) => s.session)
+  const setSelected = useSimulationStore((s) => s.setSelected)
+
+  if (!session) return null
+  const state = session.currentState
+
+  const items: LinkItem[] = []
+  const polityId = event.polityIds[0]
+  if (polityId) {
+    const polity = state.polities[polityId]
+    if (polity) items.push({ id: polity.id, type: 'polity', name: polity.name })
+  }
+  const houseId = event.houseIds[0]
+  if (houseId) {
+    const house = state.houses[houseId]
+    if (house) items.push({ id: house.id, type: 'house', name: house.name })
+  }
+  const actorId = event.actorIds[0]
+  if (actorId) {
+    const person = state.persons[actorId]
+    if (person) items.push({ id: person.id, type: 'person', name: person.name })
+  }
+
+  if (items.length === 0) return null
+  return (
+    <span className="ml-1 inline-flex gap-1">
+      {items.map((it) => (
+        <button
+          key={`${it.type}:${it.id}`}
+          className="rounded bg-gray-800 px-1 text-[10px] text-blue-300 hover:bg-gray-700 hover:text-blue-200"
+          onClick={(e) => {
+            e.stopPropagation()
+            setSelected(it.id, it.type)
+          }}
+          title={`${it.type}: ${it.name}`}
+        >
+          {it.name}
+        </button>
+      ))}
+    </span>
+  )
+}
 
 type TabKey = 'raw' | 'chronicle' | 'timeline'
 
@@ -104,11 +150,12 @@ function RawLogRow({ event }: { event: SimEvent }) {
   const typeLabel = event.type.replace(/_/g, ' ').toUpperCase()
 
   return (
-    <div className={`flex gap-2 py-0.5 text-xs ${colorClass}`}>
+    <div className={`flex flex-wrap items-center gap-2 py-0.5 text-xs ${colorClass}`}>
       <span className="text-gray-500">
         [{event.year}/{event.month}] {getEventIcon(event.type)} {typeLabel}
       </span>
       <span>{event.summary}</span>
+      <EventLinks event={event} />
     </div>
   )
 }
@@ -119,7 +166,7 @@ function ChronicleRow({ event, isHighlighted }: { event: SimEvent; isHighlighted
 
   return (
     <div
-      className={`flex gap-2 py-0.5 text-xs ${colorClass} ${
+      className={`flex flex-wrap items-center gap-2 py-0.5 text-xs ${colorClass} ${
         isHighlighted ? 'border-l-2 border-yellow-400 pl-1' : ''
       }`}
     >
@@ -127,6 +174,7 @@ function ChronicleRow({ event, isHighlighted }: { event: SimEvent; isHighlighted
         [{event.year}/{event.month}] {icon}
       </span>
       <span>{event.summary}</span>
+      <EventLinks event={event} />
     </div>
   )
 }
@@ -140,9 +188,13 @@ function TimelineYear({ year, events }: YearGroup) {
         Year {year}
       </div>
       {events.map((e) => (
-        <div key={e.id} className={`px-3 py-0.5 text-xs ${getImportanceColor(e.importance)}`}>
+        <div
+          key={e.id}
+          className={`flex flex-wrap items-center gap-2 px-3 py-0.5 text-xs ${getImportanceColor(e.importance)}`}
+        >
           <span className="text-gray-500">[{e.month}] </span>
-          {e.summary}
+          <span>{e.summary}</span>
+          <EventLinks event={e} />
         </div>
       ))}
     </div>
@@ -174,7 +226,7 @@ export function EventLog() {
     .map(([year, events]) => ({ year, events }))
 
   return (
-    <div className="flex h-64 flex-col overflow-hidden bg-gray-900 text-white">
+    <div className="flex h-40 flex-col overflow-hidden bg-gray-900 text-white">
       <div className="flex border-b border-gray-700">
         {TABS.map((tab) => (
           <button

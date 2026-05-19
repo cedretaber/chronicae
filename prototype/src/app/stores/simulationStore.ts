@@ -5,7 +5,8 @@ import { defaultConfig } from '@sim/config/defaultConfig'
 import type { SimulationSession } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 
-type SelectedType = 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction'
+export type SelectedType = 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction'
+export type MapView = 'terminal' | 'root' | 'house' | 'share' | 'unrest'
 
 type SimState = {
   session: SimulationSession | null
@@ -13,6 +14,7 @@ type SimState = {
   speed: number
   selectedId: string | null
   selectedType: SelectedType | null
+  mapView: MapView
   watchlist: string[]
   config: SimulationConfig
   pendingNotifications: { id: string; message: string; timestamp: number }[]
@@ -27,6 +29,7 @@ type SimActions = {
   setSpeed: (speed: number) => void
   setSelected: (id: string, type: SelectedType) => void
   clearSelected: () => void
+  setMapView: (view: MapView) => void
   toggleWatchlist: (id: string) => void
   setConfig: (partial: Partial<SimulationConfig>) => void
   dismissNotification: (id: string) => void
@@ -53,6 +56,7 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   speed: 1,
   selectedId: null,
   selectedType: null,
+  mapView: 'terminal',
   watchlist: [],
   config: { ...defaultConfig },
   pendingNotifications: [],
@@ -152,6 +156,10 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
 
   clearSelected: () => {
     set({ selectedId: null, selectedType: null })
+  },
+
+  setMapView: (view) => {
+    set({ mapView: view })
   },
 
   toggleWatchlist: (id: string) => {
