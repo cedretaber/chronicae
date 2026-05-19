@@ -451,6 +451,7 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
 
   // 26. spec §25.2 #15 — OfficeAssignment holder House must be in Polity
   // Stage B warn: tightened in Phase 6
+  // v0.18-pre: commonwealth Polity の AnonymousHouse 所属 holder (rebel founder) は許容
   for (const officeId of Object.keys(state.officeAssignments)) {
     const office = state.officeAssignments[officeId as import('../types/ids').OfficeAssignmentId]
     if (!office || !office.active) continue
@@ -463,7 +464,9 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     const ownsProvince =
       getHouseProvinceIdsByPolity(state, houseId, office.organization.id).length > 0
     const isOwnerHouse = polity.ownerHouseId !== undefined && houseId === polity.ownerHouseId
-    if (!ownsProvince && !isOwnerHouse) {
+    const isCommonwealthRebelHolder =
+      polity.kind === 'commonwealth' && houseId === ANONYMOUS_HOUSE_ID
+    if (!ownsProvince && !isOwnerHouse && !isCommonwealthRebelHolder) {
       console.warn(
         `INTEGRITY (Stage B warn): OfficeAssignment ${officeId} holder Person ${office.holderPersonId} belongs to House ${houseId}, which is not in Polity ${polity.id}`,
       )

@@ -218,6 +218,9 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
 
     // Step 2: ownerHouseId が undefined の場合の補充
     if (polity.ownerHouseId === undefined) {
+      // v0.18-pre: commonwealth Polity は ownerHouseId === undefined を恒常状態として許容する
+      // (Rebel Polity が第三国家に乗っ取られる現象の解消)。Polity.kind === 'commonwealth' なら補充スキップ。
+      if (polity.kind === 'commonwealth') continue
       // v0.16: Polity に Province がまだ残っているなら、グローバルに active 通常 House を探して
       // 補充する (LandContract grantee 不整合防止)。それも無ければ POLITY_EXTINCT。
       const newOwnerId =
@@ -265,6 +268,10 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
       !eligibleHouseIds.some((id) => (id as string) === (polity.ownerHouseId as string))
 
     if (!ownerInvalid) continue
+
+    // v0.18-pre: commonwealth Polity に owner が一時的に set された状態は将来「家の設立」イベント
+    // 等で起き得る。kind === 'commonwealth' のままなら invalid 検知でも入れ替えない (defensive)。
+    if (polity.kind === 'commonwealth') continue
 
     // v0.16: eligibleHouseIds が空でも、Polity が provinces を持つ限り別 House を ownerHouse に
     // 任命する (LandContract grantee 不整合防止)。グローバル fallback で active 通常 House を探す。

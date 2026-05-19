@@ -337,7 +337,7 @@ function resolveRevoltIndependence(
     type: 'PROVINCE_REVOLT_SUCCEEDED',
     importance: 'critical',
     actorIds: [result.value.value.personId],
-    houseIds: [result.value.value.houseId],
+    houseIds: [],
     polityIds: [result.value.value.polityId, oldPolityId],
     provinceIds: [provinceId],
     summary: `The ${rebelClass} revolt in ${ctxSucc.state.provinces[provinceId]?.name ?? provinceId} has succeeded — a new polity is born!`,

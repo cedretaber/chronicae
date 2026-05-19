@@ -5,6 +5,7 @@ import { makeEventId } from './context'
 import { getPolityHouseIds } from '../selectors/polityRelations'
 import { removeOrganizationShare } from '../mutations/shareMutations'
 import { revokeOfficeAssignment } from '../mutations/officeMutations'
+import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
 
 // v0.15 §11.4: PolityOwnerConsistencySystem の後段で実行。
 // Polity Share / Office の保持資格を監査し、不適格を削除/revoke する。
@@ -22,6 +23,8 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
     // House holder: 当該 House が Polity の eligibleHouseIds に含まれなければ削除
     // Person holder (§17 commonwealth / 独裁者・僭主): 当該 Person が dead / placeholder /
     //   不在、もしくは houseId が inactive または eligibleHouseIds に含まれなければ削除
+    // v0.18-pre: commonwealth Polity の AnonymousHouse 所属 Person-direct holder (rebel founder)
+    //            は houseId が eligibleHouseIds に含まれなくても eligible 扱いする
     const orgKey = `polity:${polityId}`
     const shareIds = [...(currentCtx.state.shareIndex.byOrganization[orgKey] ?? [])]
     for (const shareId of shareIds) {
@@ -36,8 +39,12 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
           shouldRemove = true
         } else {
           const house = currentCtx.state.houses[person.houseId]
-          if (!house || !house.active || !eligibleHouseIds.has(house.id)) {
-            shouldRemove = true
+          const isCommonwealthRebelHolder =
+            polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
+          if (!isCommonwealthRebelHolder) {
+            if (!house || !house.active || !eligibleHouseIds.has(house.id)) {
+              shouldRemove = true
+            }
           }
         }
       }
@@ -50,6 +57,7 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
     }
 
     // Step 2: 不適格 Polity Office revoke + OFFICE_REVOKED 発火
+    // v0.18-pre: commonwealth Polity の AnonymousHouse 所属 holder (rebel founder) は eligible 扱い
     const officeIds = [...(currentCtx.state.officeIndex.byOrganization[orgKey] ?? [])]
     for (const officeId of officeIds) {
       const office = currentCtx.state.officeAssignments[officeId]
@@ -58,7 +66,9 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
       if (!person || !person.alive) continue // 別系統の不整合
       const house = currentCtx.state.houses[person.houseId]
       const houseEligible = house && house.active && eligibleHouseIds.has(house.id)
-      if (houseEligible) continue
+      const isCommonwealthRebelHolder =
+        polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
+      if (houseEligible || isCommonwealthRebelHolder) continue
 
       const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)
       const { id: eventId, ctx: eventCtx } = makeEventId({ ...currentCtx, state: revokedState })

@@ -35,6 +35,8 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
   for (const polityId of Object.keys(currentCtx.state.polities).sort()) {
     const polity = currentCtx.state.polities[polityId as PolityId]
     if (!polity || !polity.active) continue
+    // v0.18-pre: commonwealth Polity は leader 死後も新 leader を補充しない (永続 commonwealth サポート)
+    if (polity.kind === 'commonwealth') continue
 
     const currentRuler = getPolityLeader(currentCtx.state, polityId as PolityId)
     if (currentRuler) continue // Already has a ruler

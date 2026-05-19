@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-19（v0.17.4 完成）
+最終更新: 2026-05-20（v0.18-pre 完成）
 
 ---
 
@@ -117,12 +117,14 @@ Province の unrest は POP unrest の人口加重平均として selector で�
 
 ```ts
 type PolityRank = 1 | 2 | 3 | 4
+type PolityKind = 'normal' | 'commonwealth'  // v0.18-pre
 
 type Polity = {
   id: PolityId
   name: string
   rank: PolityRank
-  ownerHouseId?: HouseId      // 家産的保有関係: その Polity を所有する家（optional だが v0.15 worldgen では常に設定される）
+  ownerHouseId?: HouseId      // 家産的保有関係: その Polity を所有する家。Rebel Polity / commonwealth では undefined（恒常状態）
+  kind?: PolityKind            // v0.18-pre: 'commonwealth' は ownerHouseId === undefined を恒常的に許容する状態。undefined は 'normal' と等価
   treasury: number             // >= 0
   adminPower: number           // 0..100（キャッシュ値。毎1月に GovernanceSystem が再計算）
   legacyPrestige: number       // 0..100（歴史的権威・伝統の蓄積）
@@ -134,12 +136,14 @@ type Polity = {
 
 - `capitalProvinceId`: 政治支配力の中心。controlSystem の BFS 起点として使う。v0.16 では landless 化後も保持する
 - `ownerHouseId`: その Polity を家産的に保有する House の id。Rebel Polity / commonwealth では `undefined`（§11.2 / §17）
+- `kind`: 'commonwealth' は v0.18-pre で導入。`ownerHouseId === undefined` を恒常状態として維持する Polity の標識。`createRebelPolity` で 'commonwealth' を set し、`polityOwnerConsistencySystem` / `successionSystem` / `organizationConsistencySystem` 等は commonwealth を skip / 特別扱いする。詳細は `docs/drafts/spec-v018-pre-update.md` 参照
 - `rank`: 1 (帝国) / 2 (王国) / 3 (公爵領) / 4 (伯爵領) / 5 (反乱領)。LandContract chain の rank 不変条件 (§7) と戦争 case 分岐 (§13 / §16.1) で機能する
 - `legitimacy`・`stability` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
 - `adminPower` はキャッシュ値として維持。毎1月に GovernanceSystem が `getPolityAdminPower` で再計算（§4.5 / §6.23b 参照）
 - **v0.12**: `rulerHouseId` と `roleAssignments` を削除。支配者・役職担当者は `OfficeAssignment` システムで管理（§3.7 参照）。`getPolityLeader` / `getPolityLeaderHouse` セレクターで取得（§4.6 参照）
 - **v0.15**: 旧 `Country` を `Polity` に rename し、`houseIds` フィールドを削除（`getPolityHouseIds` selector で動的取得）。`ownerHouseId` / `rank` を新規追加
 - **v0.16**: Polity と Province の関係は LandContract chain で表現する。`getPolityGrantedProvinceIds` / `getPolityTerminalProvinceIds` / `getPolityOverlordProvinceIds` を使う
+- **v0.18-pre**: `kind: 'normal' | 'commonwealth'` を追加。叛乱政体 (Rebel Polity) を恒常的な commonwealth 状態として維持する基盤
 
 #### Polity-House-Person 関係 (v0.15 / v0.16)
 
@@ -1110,6 +1114,8 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 
 家長交代は `house:leader` の OfficeAssignment を新設し、旧ホルダーの assignment を inactive にすることで記録する。`HOUSE_LEADER_CHANGED` イベントを発火（v0.12）。
 
+**Polity ruler succession (v0.15+)**: 同 system 内で active Polity に polity:leader Office が無い場合、`getPolityHouseIds` 内から ownerHouse leader を立てる。**v0.18-pre**: `polity.kind === 'commonwealth'` の場合は skip し、rebel founder 死亡後も leader 空席のまま polity を存続させる (commonwealth は rebel founder 個人を象徴とする一代政体として扱う。後継機構は v0.18+ で別途設計)。
+
 ### 6.11 HouseSplitSystem（SuccessionSystem から呼び出し）
 
 継承が発生した際に、分裂条件を満たせば家の分裂を実行する。実体の状態書き換えは `splitHouse` mutation（`worldStructureMutations.ts`）に集約されている（v0.13）。
@@ -1486,18 +1492,20 @@ class 別補正:
 | `lordship_change` | 中〜大成功 | 新 Person・新 House を生成し Province の領主を交代 |
 | `independence` | nobles 反乱かつ両支配力が極低値かつ大差勝利 | 新 Person・新 House・新 Polity を生成し Province が独立 |
 
-`independence` 実行時の状態書き換えは v0.16 で `createRebelPolity` mutation (`worldStructureMutations.ts`) に統合された。生成内容:
+`independence` 実行時の状態書き換えは v0.16 で `createRebelPolity` mutation (`worldStructureMutations.ts`) に統合され、v0.18-pre で AnonymousHouse 方式に書き換えられた。生成内容:
 
-1. Rebel Polity (rank = min(5, max(4, terminalRank+1)), `ownerHouseId === undefined` の commonwealth)
-2. Rebel House (memberIds = [rebel leader], `seatProvinceId`, legacyPrestige=0, wealth=0)
-3. Rebel leader Person (kind='normal', age 20-50 / sex 50/50 random、`rebelLeaderAgeRange` config 経由)
-4. Polity leader OfficeAssignment 任命
+1. Rebel Polity (rank = min(5, max(4, terminalRank+1)), `ownerHouseId === undefined` + `kind: 'commonwealth'`)
+2. Rebel leader Person (kind='normal', age 20-50 / sex 50/50 random、`rebelLeaderAgeRange` config 経由、`houseId: ANONYMOUS_HOUSE_ID`)
+3. `addPersonToAnonymousHouse` 経由で AnonymousHouse.memberIds に rebel Person を追加 (**Rebel House は生成しない**、v0.18-pre)
+4. Polity:leader OfficeAssignment 任命 (rebel Person 直接、house:leader は作らない)
 5. Rebel Polity の OrganizationShare を rebel leader (Person) に 100% 付与（§17 commonwealth）
 6. terminal LandContract の granteePolityId を Rebel Polity に差し替え
 7. 当該 Province の Bailiff を placeholder に切り替え
-8. `REVOLT_POLITY_FOUNDED` / `BAILIFF_PLACEHOLDER_INSTALLED` event を発火
+8. `REVOLT_POLITY_FOUNDED` / `BAILIFF_PLACEHOLDER_INSTALLED` event を発火 (REVOLT_POLITY_FOUNDED の `houseIds: []`)
 
-旧 v0.13 の `foundRevoltPolity` mutation は v0.16 で `createRebelPolity` に統合され、関連ファイル (`createRevoltHouse.ts` / `createRevoltLeader.ts`) は削除された。
+将来 「家の設立」イベント (v0.18+) によって AnonymousHouse 内の rebel founder + 一族が新規 House を立て上げ、`Polity.kind` を `'normal'` に遷移できる素地を残している。
+
+旧 v0.13 の `foundRevoltPolity` mutation は v0.16 で `createRebelPolity` に統合され、関連ファイル (`createRevoltHouse.ts` / `createRevoltLeader.ts`) は削除された。v0.18-pre で Rebel House 生成ロジックも削除された。
 
 ### 6.22d LandContractPurchaseSystem（毎年1月、v0.16）
 
@@ -1538,7 +1546,7 @@ active Polity を id 昇順に走査し、以下のステップを順に行う�
 for each polity in active polities:
   provinceIds = getPolityProvinceIds(state, polity.id)
 
-  // Step 1: provinceIds = 0 なら Polity 自体を消滅させる
+  // Step 1: provinceIds = 0 なら Polity 自体を消滅させる (commonwealth でも適用)
   if provinceIds.length === 0:
     deactivate polity
     revokeOfficesByOrganization({ kind: 'polity', id: polity.id })
@@ -1550,6 +1558,7 @@ for each polity in active polities:
 
   // Step 2: ownerHouseId 未設定なら新規補充
   if polity.ownerHouseId === undefined:
+    if polity.kind === 'commonwealth': continue  // v0.18-pre: commonwealth は undefined を恒常的に許容
     newOwner = chooseOwner(eligibleHouseIds)
     polity.ownerHouseId = newOwner
     polity.capitalProvinceId = getHouseSeatProvinceInPolity(newOwner, polity.id)
@@ -1558,6 +1567,7 @@ for each polity in active polities:
 
   // Step 3: ownerHouse が inactive または Polity 内に Province なしなら交代
   if ownerHouse is invalid:
+    if polity.kind === 'commonwealth': continue  // v0.18-pre: defensive skip
     newOwner = chooseOwner(eligibleHouseIds)
     polity.ownerHouseId = newOwner
     polity.capitalProvinceId = getHouseSeatProvinceInPolity(newOwner, polity.id)
@@ -1598,23 +1608,32 @@ for each polity in active polities:
       if person is missing or not alive or person.kind === 'placeholder':
         removeOrganizationShare(share.id)
       else:
-        house = state.houses[person.houseId]
-        if house is missing or not active or house.id not in eligibleHouseIds:
-          removeOrganizationShare(share.id)
+        // v0.18-pre: commonwealth の rebel founder (AnonymousHouse 所属) は eligible 扱い
+        isCommonwealthRebelHolder = polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
+        if not isCommonwealthRebelHolder:
+          house = state.houses[person.houseId]
+          if house is missing or not active or house.id not in eligibleHouseIds:
+            removeOrganizationShare(share.id)
 
   // Step 2: 不適格 Polity Office revoke
   for each active office where organization is { kind: 'polity', id: polity.id }:
     person = state.persons[office.holderPersonId]
     if not person.alive: continue  // 別系統の不整合（IntegrityCheck で検知）
     house = state.houses[person.houseId]
-    if house is not in eligibleHouseIds:
-      revokeOfficeAssignment(office.id)
-      emit OFFICE_REVOKED
+    houseEligible = house and house.active and house.id in eligibleHouseIds
+    // v0.18-pre: commonwealth の rebel founder (AnonymousHouse 所属) は eligible 扱い
+    isCommonwealthRebelHolder = polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
+    if houseEligible or isCommonwealthRebelHolder: continue
+    revokeOfficeAssignment(office.id)
+    emit OFFICE_REVOKED
 ```
 
 これにより:
 - Share 削除責任は OrganizationConsistencySystem に**一本化**される（ShareUpdateSystem は削除を行わない）
-- Polity Office holder は常に「対象 Polity 内に Province を持つ active House の人物」に限定される
+- Polity Office holder は常に「対象 Polity 内に Province を持つ active House の人物」、または「commonwealth Polity の AnonymousHouse 所属 rebel founder」に限定される
+- rebel founder が死亡したら `markPersonDead → revokeOfficesByHolder` 経路で Office が revoke され、Step 1 の `!person.alive` 分岐で Share も削除される (commonwealth Polity は leader 死後も active=true で存続するが、Office / Share holder は不在になる)
+
+v0.18-pre 時点では `polity.kind === 'commonwealth' && houseId === ANONYMOUS_HOUSE_ID` という ad-hoc な分岐になっており、将来的には `AppointmentPolicy` 抽象化 (Polity ごとの任命方針) として一般化する予定。詳細は `docs/drafts/spec-v018-pre-update.md` §5 参照。
 
 ### 6.23 AttitudeDecaySystem（毎月）
 
@@ -2682,6 +2701,35 @@ FACTION_LEADER_BANKRUPT
   - `simulationStore.ts` の `SelectedType` に `'faction'` を追加
   - `PersonDetail` の Faction 表示をリンク化 (Person → Faction 遷移)
   - `buildEntitySnapshot` に `'faction'` ケースを追加 (Copy JSON 経路)
+
+### v0.18-pre で実装済み（参考）
+
+詳細仕様は `docs/drafts/spec-v018-pre-update.md` を参照（2026-05-20 完成）。
+
+v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) の物理サポートを整える小規模リファクタリング。`createRebelPolity` が `ownerHouseId === undefined` の commonwealth として生成していた Rebel Polity を、`polityOwnerConsistencySystem` が毎 tick 「埋めるべき空席」と解釈して第三国家に乗っ取らせていた不具合を解消。
+
+- **`Polity.kind: 'normal' | 'commonwealth'`** を追加。`'commonwealth'` は `ownerHouseId === undefined` を恒常的に許容する Polity の標識。`undefined` は `'normal'` と等価 (backward compatibility)。
+- **`createRebelPolity` を AnonymousHouse 方式に書き換え**:
+  - Rebel House は生成しない (`makeHouseId` / `pickUniqueName` / `House` オブジェクト構築を削除)
+  - rebel Person は `houseId: ANONYMOUS_HOUSE_ID` で `addPersonToAnonymousHouse` 経由で AnonymousHouse.memberIds に登録
+  - 新 Polity は `kind: 'commonwealth'` を明示
+  - polity:leader Office のみ rebel Person に付与 (house:leader は作らない)
+  - 戻り値から `houseId` を削除 (`{ polityId, personId }` のみ)
+  - `REVOLT_POLITY_FOUNDED` event の `houseIds: []`
+- **`polityOwnerConsistencySystem` の Step 2/3 に commonwealth skip**: `polity.kind === 'commonwealth'` を補充ロジック直前で `continue`。これにより commonwealth Polity が「ownerHouseId が常に undefined」の状態で永続できる。
+- **`successionSystem` の polity ruler phase に commonwealth skip**: commonwealth Polity は rebel founder 死亡後も新 leader を補充しない。
+- **`organizationConsistencySystem` の commonwealth 例外**: Step 1 (Share 削除) / Step 2 (Office revoke) の両方で「commonwealth の AnonymousHouse 所属 holder (rebel founder)」を eligible 扱い。rebel founder 死亡時は既存の `markPersonDead → revokeOfficesByHolder` 経路 + `!person.alive` 分岐で正しくクリーンアップされる。
+- **`integritySystem` Stage B warn #26 に同例外**: rebel founder の OfficeAssignment に対する誤警告を抑制。
+- **将来「家の設立」イベント (v0.18+) との接続**: rebel founder + 一族が財産・子供数・政治地位を満たした時点で新規 House を立てて AnonymousHouse から脱出する想定。これにより commonwealth → dynasty への自然な遷移経路を残している。
+
+**検証**: `npm run check` 全 pass (52 ファイル / 510 件)。CLI 300 年 × 4 seed (1, 42, 123, 999) で integrity 違反 0 完走。各 seed で 34-41 件の Rebel Polity が生成され、`POLITY_OWNER_CHANGED` に Rebel Polity 名が一切登場しないことを確認 (乗っ取りバグ解消)。Year 12 観察で rebel founder 生存中の commonwealth Polity が active polity:leader Office と Person-direct Share 100% を正しく保持することを確認。
+
+**残課題 (v0.18 以降)**:
+
+- **指導者不在 commonwealth の自然併合 / 新指導者探索**: rebel founder 死亡後の leaderless commonwealth が「Province を持ったまま leader 空席で存続」するのは不自然。近隣 dynastic Polity への自然併合経路、または AnonymousHouse 内の他 Person からの後継選出を v0.18 叛乱システム改修と合わせて検討。
+- **政体変化イベント** (commonwealth ↔ dynasty 双方向遷移): 「家の設立」 (commonwealth → dynasty) と「王朝打倒」 (dynasty → commonwealth) を event として実装。
+- **`AppointmentPolicy` 抽象化**: `polity.kind === 'commonwealth' && houseId === ANONYMOUS_HOUSE_ID` という ad-hoc な分岐を、`Polity.officePolicy: { default, byRole }` による任命方針モデルに一般化する。「dynastic でも open がありうる (専制君主の恣意任命)」「commonwealth でも closed がありうる (ヴェネツィア型貴族共和制)」を表現できるようにする。
+- **Stage B warn の整合**: v0.18-pre で commonwealth 永続化により dynastic Polity 側の Share/Office Stage B warn 数が増加 (seed 999 で 62 → 1566)。`polityOwnerConsistencySystem` の eligibleHouseIds 計算と integrity warn #24/#25 の条件を整合させる。
 
 ### v0.18 以降に送られる主要項目
 

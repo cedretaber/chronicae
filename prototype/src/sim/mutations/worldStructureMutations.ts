@@ -12,15 +12,10 @@ import type { CtxResult } from './result'
 import { ok, err } from './result'
 import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMutations'
 import { movePersonToHouse } from './personMutations'
-import { dispersePersonsToAnonymousHouse } from './houseMutations'
+import { dispersePersonsToAnonymousHouse, addPersonToAnonymousHouse } from './houseMutations'
 import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
 import { getHouseLeader, getPolityLeaderHouse } from '../selectors/officeSelectors'
-import {
-  pickNameBySex,
-  pickUniqueName,
-  houseNamePool,
-  houseName as houseNameFn,
-} from '../worldgen/nameGenerators'
+import { pickNameBySex } from '../worldgen/nameGenerators'
 import { generatePolityName } from '../selectors/polityNamingService'
 import {
   getHousePrimaryPolityId,
@@ -592,17 +587,20 @@ export function extinctHouse(ctx: TickContext, input: HouseExtinctionInput): Ctx
 }
 
 // ============================================================================
-// Create Rebel Polity (v0.16 §17)
-// foundRevoltCountry を統合して書き換え:
+// Create Rebel Polity (v0.18-pre)
+// v0.16 §17 で生成された Rebel Polity を commonwealth として恒常運用する形に書き換え:
 //   - rank = min(5, max(4, terminalRank+1))
-//   - bailiff を placeholder に installPlaceholderBailiff (placeholder Person 新規生成)
-//   - Rebel House を最小構成 (members=[leader], legacyPrestige=0, wealth=0)
+//   - bailiff を placeholder に installPlaceholderBailiff
+//   - rebel Person は AnonymousHouse 所属 (Rebel House は生成しない)
+//   - Polity.kind = 'commonwealth'、ownerHouseId は undefined のまま (永続)
+//   - polity:leader Office のみ rebel Person に付与 (house:leader は不在)
+// 将来「家の設立」イベントで AnonymousHouse から新規 House を立て上げ、dynasty 樹立可能。
 // ============================================================================
 
 export function createRebelPolity(
   ctx: TickContext,
   input: { provinceId: ProvinceId; rebelClass: PopClass; oldPolityId: PolityId },
-): CtxResult<{ polityId: PolityId; houseId: HouseId; personId: PersonId }> {
+): CtxResult<{ polityId: PolityId; personId: PersonId }> {
   const { provinceId, rebelClass, oldPolityId } = input
   const config = ctx.config
   const state = ctx.state
@@ -624,18 +622,17 @@ export function createRebelPolity(
   const oldOwnerHouseId = getProvinceEffectiveOwnerHouseId(state, provinceId)
   const oldOwnerHouse = oldOwnerHouseId ? state.houses[oldOwnerHouseId] : undefined
 
-  // Pre-generate IDs
+  // Pre-generate IDs (v0.18-pre: Rebel House は作らないので HouseId は不要)
   const { id: newPolityId, ctx: ctx1 } = makePolityId(ctx)
   const { id: newPersonId, ctx: ctx2 } = makePersonId(ctx1)
-  const { id: newHouseId, ctx: ctx3 } = makeHouseId(ctx2)
-  ctx = ctx3
+  ctx = ctx2
 
-  // Generate polity name
+  // Generate polity name (rulingHouseId は不使用: province_revolt_independence origin は
+  // capitalProvinceId から命名する)
   const { name: newPolityName, rng: rng0 } = generatePolityName(ctx.state, ctx.config, ctx.rng, {
     origin: 'province_revolt_independence',
     provinceIds: [provinceId],
     capitalProvinceId: provinceId,
-    rulingHouseId: newHouseId,
     founderPersonId: newPersonId,
     sourcePolityId: oldPolityId,
     rebelClass,
@@ -659,52 +656,26 @@ export function createRebelPolity(
   const { value: legacyPrestige, rng: rng5 } = randomInt(ctx.rng, 5, 20)
   ctx = { ...ctx, rng: rng5 }
 
+  // v0.18-pre: rebel Person は AnonymousHouse 所属。dynasty 樹立は将来「家の設立」イベントで。
   const { value: newLeader, rng: rngAfterLeader } = samplePerson(ctx.rng, ctx.config, {
     id: newPersonId,
     name: leaderName,
     sex: leaderSex,
     age,
-    houseId: newHouseId,
+    houseId: ANONYMOUS_HOUSE_ID,
     birthStatus: 'unknown',
     traits: { ambition: ambition / 10, caution: caution / 10 },
     legacyPrestige,
   })
   ctx = { ...ctx, rng: rngAfterLeader }
 
-  // Generate house name
-  const usedHouseNames = new Set(
-    Object.values(ctx.state.houses)
-      .filter((h): h is NonNullable<typeof h> => h !== undefined && h.active)
-      .map((h) => h.name),
-  )
-  const { name: newHouseName, rng: rng9 } = pickUniqueName(
-    houseNamePool(),
-    usedHouseNames,
-    houseNameFn,
-    ctx.nextHouseIndex,
-    ctx.rng,
-  )
-  ctx = { ...ctx, rng: rng9 }
-
-  // v0.16 §17: Rebel House は最小構成 (legacyPrestige=0, wealth=0)
-  const newHouseObj: House = {
-    id: newHouseId,
-    name: newHouseName,
-    active: true,
-    memberIds: [newPersonId],
-    founderId: newPersonId,
-    cadetHouseIds: [],
-    legacyPrestige: 0,
-    wealth: 0,
-    seatProvinceId: provinceId,
-  }
-
   // v0.16 §17: Rebel rank = min(5, max(4, terminalRank+1))
   const terminalRank = oldPolity.rank
   const rebelRank: PolityRank = Math.min(5, Math.max(4, terminalRank + 1)) as PolityRank
 
-  // v0.16 §17 step 3: Rebel Polity.ownerHouseId は undefined (commonwealth / rebel regime)
-  // Rebel House は身分上の所属のためだけに作り、Polity の ownerHouse にはしない (§17 末尾)
+  // v0.18-pre: Rebel Polity は commonwealth。kind = 'commonwealth' により
+  // polityOwnerConsistencySystem / successionSystem の補充ロジックを skip させ、
+  // ownerHouseId === undefined を恒常的に許容する。
   const newPolityObj: Polity = {
     id: newPolityId,
     name: newPolityName,
@@ -714,6 +685,7 @@ export function createRebelPolity(
     active: true,
     capitalProvinceId: provinceId,
     rank: rebelRank,
+    kind: 'commonwealth',
   }
 
   // v0.16: Province の polityControl のみリセット。所有変更は LandContract chain で表現する。
@@ -725,20 +697,22 @@ export function createRebelPolity(
   // v0.16: 旧 ownerHouse の Province 帰属は LandContract chain 経由で動的に決まるため House 自体は触らない。
   // ただし seat が当該 Province にあった場合の seat 移動は別 system に委ねる (Stage A では skip)。
 
-  // v0.16 §17: Rebel Polity は commonwealth なので polityIndex.byOwnerHouse には登録しない
+  // v0.18-pre: Rebel Polity は commonwealth なので polityIndex.byOwnerHouse には登録しない。
+  // rebel Person は addPersonToAnonymousHouse 経由で AnonymousHouse.memberIds に追加する。
   let newState: WorldState = {
     ...ctx.state,
     provinces: { ...ctx.state.provinces, [provinceId]: updatedProvince },
-    persons: { ...ctx.state.persons, [newPersonId]: newLeader },
-    houses: {
-      ...ctx.state.houses,
-      [newHouseId]: newHouseObj,
-    },
     polities: {
       ...ctx.state.polities,
       [newPolityId]: newPolityObj,
     },
   }
+
+  const addPersonResult = addPersonToAnonymousHouse(newState, { person: newLeader })
+  if (!addPersonResult.ok) {
+    return err(addPersonResult.error)
+  }
+  newState = addPersonResult.value
 
   // v0.16 §17 step 6: Rebel Polity の OrganizationShare = rebel leader (Person) に rawPower 100%
   // shareUpdateSystem の次回年次更新で再計算されるが、初期値として rebel leader 単独を置く
@@ -767,13 +741,7 @@ export function createRebelPolity(
     oldOwnerHouseId !== undefined && getPolityLeaderHouse(state, oldPolityId) === oldOwnerHouseId
   void oldOwnerIsRuler
 
-  // Assign leader offices for the new house and polity
-  newState = createOfficeAssignment(
-    newState,
-    { kind: 'house' as const, id: newHouseId },
-    'leader',
-    newPersonId,
-  )
+  // v0.18-pre: polity:leader のみ rebel Person に付与 (house:leader は rebel に固有の House がないので作らない)
   newState = createOfficeAssignment(
     newState,
     { kind: 'polity' as const, id: newPolityId },
@@ -851,7 +819,7 @@ export function createRebelPolity(
     type: 'REVOLT_POLITY_FOUNDED',
     importance: 'critical',
     actorIds: [newPersonId],
-    houseIds: [newHouseId],
+    houseIds: [],
     polityIds: [newPolityId, oldPolityId],
     provinceIds: [provinceId],
     summary: `${newPolityObj.name} has been founded by ${newLeader.name} through revolt in ${province.name}!`,
@@ -860,5 +828,5 @@ export function createRebelPolity(
   }
   ctx = { ...ctx4, events: [...ctx4.events, event] }
 
-  return ok({ ctx, value: { polityId: newPolityId, houseId: newHouseId, personId: newPersonId } })
+  return ok({ ctx, value: { polityId: newPolityId, personId: newPersonId } })
 }
