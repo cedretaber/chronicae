@@ -2490,6 +2490,30 @@ CLI 実行時間の最適化。これ以降の機能追加・バランス調整�
 - **POLITY_LANDLESS event 表示の整備**
 - **支出メカニズムの拡充**: 現状 Person.wealth は収入経路 (Office salary / Polity 余剰分配 / 派閥献金 / Bailiff salary) が複数あるのに対して支出経路が乏しく、複数 office を兼任する人物の wealth が 10 万単位で累積する (v0.17.3 観察例: Ostmark の Ruler + Greymark の Court Advisor + House Drakenhof 家長 + House Corvin の役職 3 つ + Lionel's Circle faction leader を兼ねる Lionel が 50 年で wealth 198,378)。将来追加候補: 不動産維持費・人件費・交際費・浪費。バランス調整は支出経路が入った後に行う方針。
 
+#### Action 経済 + 実体・称号システム (将来、v0.18+ 想定)
+
+v0.17.3 観察から「実体を持たない家/国の役職」をどう扱うかが課題として浮上した (例: landless な家の家長は他派閥に入って bailiff として身を立てるべきだが、現状 v0.17.1 の「兼任全面禁止」ルールで除外される)。
+
+これを ad-hoc な例外ルール (例: substantive org の役職のみ兼任禁止対象) として対処するのではなく、**より principled な数値モデル「個人の Action 経済」に統合する方針**。
+
+設計の骨子:
+
+- **Person.actionCapacity (月)**: 個人ごとの「月あたり行動力」上限。能力 (governance / insight など) と相関させる予定。
+- **Office に actionCost を持たせる**: 各役職は月々その役職の動力コストを消費する。`getOfficeCompatibilityPenalty` (v0.17 §14.5) と `concurrentOfficePenalty` (v0.12) を統合・置換する。
+- **役職の actionCost は所属組織の "実体" に比例**:
+  - 土地と財産が多い家・国の役職は actionCost が高い (管理対象多 = 仕事多)
+  - 名目だけの没落家・滅びかけの polity の役職は actionCost が極小 (実権なし)
+  - 「Holy Roman Emperor」型の称号も自然に表現できる
+- **兼任ルールは「合計 actionCost ≤ actionCapacity」に置換**: 「全面禁止」「同 role 兼任ペナルティ」などの ad-hoc ルールを統合
+- **称号システムへの発展**: 実体のない役職 (actionCost ~ 0) はそのまま「称号」として扱える。`TITLE_INHERITED` / `TITLE_RECLAIMED_BY_HOUSE` / `DYNASTY_CHANGED` 等 (§v0.17+ 独立トピックで既出) と統合可能。
+
+実装規模感: state 拡張 (Person.actionCapacity)・全 OfficeDefinition の actionCost 設計・appointmentSystem / bailiffAppointmentSystem / officeCompensationSystem の改修・config の整理 — 1 マイナーバージョン丸ごと使う規模。設計ドラフト (`docs/drafts/spec-v018-action-economy.md`) を先に書いて寝かせる方が安全。
+
+関連する既存メモ:
+- v0.17.1 の「兼任全面禁止」(§15.3): action 経済導入時に soft constraint に置換される予定
+- v0.17 §14.5 `getOfficeCompatibilityPenalty`: 同上
+- §v0.17+ 独立トピックの称号システム: action 経済と統合設計予定
+
 #### Affection 駆動の行動 (将来)
 
 現状 Attitude (Affection / Respect) は記録されているが、各種意思決定にはまだほとんど反映されていない。Lionel のような「強い負の Affection を持つ House の役職を兼任する」状況が観察できるが、これを反映するには以下のリンクが必要:
