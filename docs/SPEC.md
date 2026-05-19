@@ -2488,6 +2488,17 @@ CLI 実行時間の最適化。これ以降の機能追加・バランス調整�
 - **Bailiff 任期年数のチューニング**: v0.17 デフォルト 3 年は normal bailiff が ownerHouse member に交代される機会を絞る要因の一つだった。v0.17.1 で factional 化と兼任厳格化により normal bailiff 比率は改善 (4 seed 平均で ~10/40)、任期延長 or 補充タイミング再設計は引き続き要観察。
 - **`targetUnaffiliatedPersons` バランス調整**: 30 から始めて、AnonymousHouse 内の normal Person 動態と派閥スカウト頻度を観察してチューニング。
 - **POLITY_LANDLESS event 表示の整備**
+- **支出メカニズムの拡充**: 現状 Person.wealth は収入経路 (Office salary / Polity 余剰分配 / 派閥献金 / Bailiff salary) が複数あるのに対して支出経路が乏しく、複数 office を兼任する人物の wealth が 10 万単位で累積する (v0.17.3 観察例: Ostmark の Ruler + Greymark の Court Advisor + House Drakenhof 家長 + House Corvin の役職 3 つ + Lionel's Circle faction leader を兼ねる Lionel が 50 年で wealth 198,378)。将来追加候補: 不動産維持費・人件費・交際費・浪費。バランス調整は支出経路が入った後に行う方針。
+
+#### Affection 駆動の行動 (将来)
+
+現状 Attitude (Affection / Respect) は記録されているが、各種意思決定にはまだほとんど反映されていない。Lionel のような「強い負の Affection を持つ House の役職を兼任する」状況が観察できるが、これを反映するには以下のリンクが必要:
+
+- 婚姻: 互いに Affection 正の組同士で形成しやすい (現状ランダム + 同 Polity ボーナスのみ)
+- 派閥リクルート: leader と target の相互 Affection でコスト・成功率が変動 (一部実装済)
+- Plot: 標的への Affection 強負で発動率上昇
+- Office 辞退・離反: 大きな負の Affection を持つ組織からの任命を低確率で拒否
+- 戦争意思決定: 隣接 Polity への Affection で戦争閾値が変動
 
 #### v0.16 から繰り越された未実装 (一部 v0.17 で部分対応)
 
