@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-19（v0.17.1 時点）
+最終更新: 2026-05-19（v0.17.2 時点）
 
 ---
 
@@ -2449,6 +2449,16 @@ v0.17 完成後、CLI 観察で「Bailiff が全 Province で placeholder のま
 - **FactionPatronage の Bailiff 包含 (§11)**: `hasActiveNonLeaderOffice` の判定に ProvinceOffice (Bailiff) を含めて、Bailiff 持ち派閥員も leader への donation 経路に乗せる (= stipend 対象外)。これにより Bailiff salary → 派閥献金の経路が成立する。
 - **v0.17.1 で削減した v0.18 送り項目**: 「§15.3 bailiff factional 推薦」「Bailiff salary 経路 (§15.4 将来項目)」を実装済みに移動。
 - **検証**: CLI 300 年 × 4 seed (1, 42, 123, 999) で integrity 違反 0 完走。50 テストファイル / 492 件 test pass。normal Bailiff の最終比率は seed により 5〜15/40 と改善。
+
+### v0.17.2 で実装済み（参考）
+
+v0.17.1 完成後、観察用 Activity Report (4 軸 JSON 出力) を導入して挙動を確認したところ、以下 2 件の意図と異なる動きが判明したため修正した。
+
+- **rank の方向修正**: `polityOfficeMaxByRank` を spec §7.2 の例に合わせ、rank 1 (帝国) が最多枠 / rank 5 (反乱領) が最少枠となる正しい方向に反転。
+- **factional bailiff 即解任バグ修正**: `bailiffAppointmentSystem` の step 1 にあった「ownerHouse 外の holder を vacate」ロジックは v0.16 時代のものであり、v0.17.1 で factional 経路から ownerHouse 外の派閥員を意図的に任命するようになったことで衝突していた (6 ヶ月ごとに任命直後に解任、seed 1 で 6228 回の churn)。step 1 を「死亡 / 欠落 holder のみ vacate」に置き換え、生存中の holder は任期 (step 0) で循環させる方針に統一。
+- **placeholder Person の singleton 化**: 全 Province の空席 bailiff は単一の placeholder Person (`PLACEHOLDER_PERSON_ID = 'pe-anon-placeholder'`) を共有する。旧版は `installPlaceholderBailiff` が呼び出しごとに新規 placeholder を生成し AnonymousHouse に残置していたため、seed 1 で 6266 体の placeholder Person が累積していた。singleton 化で state が安定する。あわせて `provinceOfficeIndex.byHolderPerson` には placeholder holder を登録しない B2 policy を採用し、index ノイズも排除。
+- **観察機能 (Activity Report)**: `--report <path>` と `--report-snapshot <years>` フラグで run 終了時に 4 軸 (Office 流動性 / Faction ライフサイクル / Bailiff 動態 / 人口) の JSON 集計を出力できる。詳細は README §"Activity Report" を参照。今後も挙動確認・バランス調整で再利用する。
+- **検証**: CLI 300 年 × 4 seed (1, 42, 123, 999) で integrity 違反 0 完走、test 495 件 pass。
 
 ### v0.18 以降に送られる主要項目
 
