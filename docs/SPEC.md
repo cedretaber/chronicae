@@ -2524,6 +2524,21 @@ v0.17.3 観察から「実体を持たない家/国の役職」をどう扱う�
 - Office 辞退・離反: 大きな負の Affection を持つ組織からの任命を低確率で拒否
 - 戦争意思決定: 隣接 Polity への Affection で戦争閾値が変動
 
+#### 家の土地回復経路 (将来)
+
+v0.17.3 観察 (House Corvin — 9 人の血統メンバー + Lionel 派閥所属、しかし完全 landless で wealth=0) で、**現状の実装には「土地を失った家が land を取り戻す経路」が事実上存在しない** ことが確認された。
+
+調査結果: 既存の Province 取得経路 (House Split / Extinction 継承 / POLITY_OWNER_CHANGED / War / LandContractPurchase / createRebelPolity / Marriage) はいずれも「既に土地を持っている家」「最高 prestige 家」「新規生成家」を優先するため、完全 landless な家には届かない。`findFallbackOwnerHouse` だけが理論的可能性だが legacyPrestige 順で他に必ず負ける。
+
+将来追加すべき経路 (シナリオ別、必要な infrastructure は既に存在):
+
+- **土地を買い戻す (Land purchase)**: `LandContractPurchaseSystem` を Polity-to-Polity から House-direct purchase にも開放。`transferProvinceToHouse` + `Person.wealth` の組み合わせで実現可能。Werner のような派閥員が稼いだ wealth で旧領を買い戻す物語の基盤。
+- **譲られる (Patron grant)**: Polity owner や派閥 leader が member house に Province を恩恵として割譲する仕組み。新規 system (例: `PatronageGrantSystem`) と既存 `transferProvinceToHouse` の組合せ。Lionel が Ostmark の Province を Werner に与える、といった物語。
+- **叛乱指導者となって land を獲得する**: 現状の `createRebelPolity` は「新規 House を生成」するが、これを「既存 House の member を rebel leader として推戴し、その House にProvince を移転」する経路に拡張する。Werner が「Corvin 家再興のために叛乱を主導」する物語。
+- **結婚の持参金 (Dowry)**: `marriageSystem` に Province 持参金経路を追加。`transferProvinceToHouse` 既存。高 prestige 家と低 prestige 家の婚姻時に Province が移転する。Werner の子 (pe-264 等) が強家と婚姻して land を持ち込む物語。
+
+これらは Affection 駆動行動・action 経済とも連動するので、v0.18+ で「家の興亡」というテーマで束ねて実装するのが自然 (個別 PR ではなく v0.18 全体テーマとして括る案)。
+
 #### v0.16 から繰り越された未実装 (一部 v0.17 で部分対応)
 
 - **多重臣従**: 1 つの House が複数 Polity の owner / vassal を兼ねる構造の明示化 (v0.16 では「複数 Polity の ownerHouse になり得る」のみ実装、明示臣従関係は無し)
