@@ -1,4 +1,4 @@
-import type {} from 'react'
+import { useState } from 'react'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { formatScore, formatAmount, formatPower, formatPolityRank } from '@/app/utils/format'
 import {
@@ -98,6 +98,200 @@ function WatchButton({ isWatching, onToggle }: { isWatching: boolean; onToggle: 
       {isWatching ? '\u2605 Watching' : '\u2606 Watch'}
     </button>
   )
+}
+
+// v0.17.4 UI: \u8a73\u7d30\u30d1\u30cd\u30eb\u306e\u5185\u5bb9\u3092 JSON \u5f62\u5f0f\u3067\u30af\u30ea\u30c3\u30d7\u30dc\u30fc\u30c9\u3078\u30b3\u30d4\u30fc\u3059\u308b\u30dc\u30bf\u30f3\u3002
+// LLM \u3084\u5916\u90e8\u30c4\u30fc\u30eb\u306b\u300c\u753b\u9762\u3067\u898b\u3048\u3066\u3044\u308b\u4eba\u7269\u30fb\u56fd\u30fb\u5bb6\u30fb\u5dde\u30fbPOP\u300d\u3092\u69cb\u9020\u5316\u5171\u6709\u3059\u308b\u305f\u3081\u306e\u88dc\u52a9\u3002
+function CopyJsonButton({ payload }: { payload: unknown }) {
+  const [copied, setCopied] = useState(false)
+  const handleClick = (): void => {
+    const text = JSON.stringify(payload, null, 2)
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      })
+      .catch((e: unknown) => {
+        console.error('Failed to copy JSON to clipboard', e)
+      })
+  }
+  return (
+    <button
+      className="rounded bg-gray-600 px-2 py-0.5 text-xs text-gray-300 transition-colors hover:bg-gray-500"
+      onClick={handleClick}
+      title="Copy this entity as JSON to clipboard"
+    >
+      {copied ? '\u2713 Copied' : '\u29c9 Copy JSON'}
+    </button>
+  )
+}
+
+// v0.17.4 UI: \u8a73\u7d30\u30d1\u30cd\u30eb\u8868\u793a\u4e2d\u30a8\u30f3\u30c6\u30a3\u30c6\u30a3\u306e\u300c\u30ea\u30c3\u30c1 JSON snapshot\u300d\u3092\u7d44\u307f\u7acb\u3066\u308b\u3002
+// raw entity + \u89e3\u6c7a\u6e08\u307f\u53c2\u7167 (House/Polity/Person \u540d\u7b49) + \u6642\u523b\u6587\u8108\u3092\u542b\u3080\u3002
+// LLM \u3078\u306e\u69cb\u9020\u5316\u5171\u6709\u3092\u60f3\u5b9a \u2014 \u904e\u5ea6\u306a derived \u306f\u5165\u308c\u305a\u3001\u751f\u30c7\u30fc\u30bf\u306b\u8584\u3044 overlay \u3092\u88ab\u305b\u308b\u65b9\u91dd\u3002
+function buildEntitySnapshot(
+  kind: 'polity' | 'house' | 'person' | 'province' | 'popGroup',
+  entity: unknown,
+  currentState: WorldState | null,
+): unknown {
+  const meta = currentState
+    ? { currentYear: currentState.currentYear, currentMonth: currentState.currentMonth }
+    : null
+  const ws = currentState
+
+  const houseName = (id: HouseId | undefined): string | null =>
+    id ? (ws?.houses[id]?.name ?? null) : null
+  const polityName = (id: PolityId | undefined): string | null =>
+    id ? (ws?.polities[id]?.name ?? null) : null
+  const personName = (id: PersonId | undefined): string | null =>
+    id ? (ws?.persons[id]?.name ?? null) : null
+  const provinceName = (id: string | undefined): string | null =>
+    id ? (ws?.provinces[id as import('@sim/types/ids').ProvinceId]?.name ?? null) : null
+
+  if (kind === 'polity') {
+    const p = entity as Polity
+    const terminalIds = ws
+      ? Object.keys(ws.provinces).filter(
+          (pid) =>
+            getProvinceTerminalPolityId(ws, pid as import('@sim/types/ids').ProvinceId) === p.id,
+        )
+      : []
+    return {
+      kind,
+      meta,
+      entity: p,
+      derived: {
+        ownerHouseName: houseName(p.ownerHouseId),
+        capitalProvinceName: provinceName(p.capitalProvinceId),
+        rulerPersonId: ws ? getPolityLeader(ws, p.id) : null,
+        rulerPersonName: ws ? personName(getPolityLeader(ws, p.id) ?? undefined) : null,
+        terminalProvinceIds: terminalIds,
+        terminalProvinceNames: terminalIds.map((pid) => provinceName(pid)),
+      },
+    }
+  }
+  if (kind === 'house') {
+    const h = entity as House
+    const ownedPolityIds = ws ? getHouseOwnedPolityIds(ws, h.id) : []
+    const controlledProvinceIds = ws ? getHouseControlledProvinceIds(ws, h.id) : []
+    return {
+      kind,
+      meta,
+      entity: h,
+      derived: {
+        headPersonId: ws ? getHouseLeader(ws, h.id) : null,
+        headPersonName: ws ? personName(getHouseLeader(ws, h.id) ?? undefined) : null,
+        primaryPolityId: ws ? getHousePrimaryPolityId(ws, h.id) : null,
+        primaryPolityName: ws ? polityName(getHousePrimaryPolityId(ws, h.id) ?? undefined) : null,
+        ownedPolityIds,
+        ownedPolityNames: ownedPolityIds.map((pid) => polityName(pid)),
+        controlledProvinceIds,
+        controlledProvinceNames: controlledProvinceIds.map((pid) => provinceName(pid)),
+      },
+    }
+  }
+  if (kind === 'person') {
+    const pe = entity as Person
+    const factionMembership = ws ? getActiveFactionMembership(ws, pe.id) : null
+    const leaderFaction = ws ? getFactionByLeader(ws, pe.id) : null
+    const factionInfo = leaderFaction
+      ? { factionId: leaderFaction.id, factionName: leaderFaction.name, role: 'leader' as const }
+      : factionMembership
+        ? {
+            factionId: factionMembership.factionId,
+            factionName: ws?.factions[factionMembership.factionId]?.name ?? null,
+            role: 'member' as const,
+          }
+        : null
+    const officeIds = ws ? (ws.officeIndex.byHolderPerson[pe.id] ?? []) : []
+    const activeOffices = ws
+      ? officeIds
+          .map((oid) => ws.officeAssignments[oid])
+          .filter((o): o is NonNullable<typeof o> => Boolean(o && o.active))
+          .map((o) => ({
+            orgKind: o.organization.kind,
+            orgId: o.organization.id,
+            orgName:
+              o.organization.kind === 'polity'
+                ? polityName(o.organization.id)
+                : houseName(o.organization.id),
+            role: o.role,
+            displayName:
+              OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? null,
+            startYear: o.startYear,
+          }))
+      : []
+    const provOfficeIds = ws ? (ws.provinceOfficeIndex.byHolderPerson[pe.id] ?? []) : []
+    const bailiffOf = ws
+      ? provOfficeIds
+          .map((aid) => ws.provinceOfficeAssignments[aid])
+          .filter((a): a is NonNullable<typeof a> => Boolean(a && a.active))
+          .map((a) => ({
+            provinceId: a.provinceId,
+            provinceName: provinceName(a.provinceId),
+            appointingPolityId: a.appointingPolityId,
+            appointingPolityName: polityName(a.appointingPolityId),
+            startYear: a.startYear,
+          }))
+      : []
+    return {
+      kind,
+      meta,
+      entity: pe,
+      derived: {
+        houseName: houseName(pe.houseId),
+        primaryPolityId: ws ? getPersonPrimaryPolityId(ws, pe.id) : null,
+        primaryPolityName: ws ? polityName(getPersonPrimaryPolityId(ws, pe.id) ?? undefined) : null,
+        faction: factionInfo,
+        activeOffices,
+        bailiffOf,
+        isUnaffiliated: ws ? isUnaffiliatedPerson(ws, pe.id) : false,
+        isLandlessHouseMember: ws ? isLandlessHouseMember(ws, pe.id) : false,
+      },
+    }
+  }
+  if (kind === 'province') {
+    const pv = entity as Province
+    const chain = ws ? getProvinceLandContractChain(ws, pv.id) : []
+    const bailiff = ws ? getBailiffPerson(ws, pv.id) : null
+    return {
+      kind,
+      meta,
+      entity: pv,
+      derived: {
+        terminalPolityId: ws ? getProvinceTerminalPolityId(ws, pv.id) : null,
+        terminalPolityName: ws
+          ? polityName(getProvinceTerminalPolityId(ws, pv.id) ?? undefined)
+          : null,
+        effectiveOwnerHouseId: ws ? getProvinceEffectiveOwnerHouseId(ws, pv.id) : null,
+        effectiveOwnerHouseName: ws
+          ? houseName(getProvinceEffectiveOwnerHouseId(ws, pv.id) ?? undefined)
+          : null,
+        landContractChain: chain.map((c) => ({
+          id: c.id,
+          granteePolityId: c.granteePolityId,
+          granteePolityName: polityName(c.granteePolityId),
+          taxRateToGrantor: c.terms.taxRateToGrantor,
+        })),
+        bailiffPersonId: bailiff?.id ?? null,
+        bailiffPersonName: bailiff?.name ?? null,
+        bailiffIsPlaceholder: bailiff?.kind === 'placeholder',
+      },
+    }
+  }
+  if (kind === 'popGroup') {
+    const pg = entity as PopGroup
+    return {
+      kind,
+      meta,
+      entity: pg,
+      derived: {
+        provinceName: provinceName(pg.provinceId),
+      },
+    }
+  }
+  return { kind, meta, entity }
 }
 
 function PersonLink({
@@ -362,7 +556,10 @@ function CountryDetail({
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">Annexed</span>
           )}
         </div>
-        <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(polity.id)} />
+        <div className="flex items-center gap-1.5">
+          <CopyJsonButton payload={buildEntitySnapshot('polity', polity, currentState ?? null)} />
+          <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(polity.id)} />
+        </div>
       </div>
 
       <div className="text-sm">
@@ -595,7 +792,10 @@ function HouseDetail({
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
         <span className="text-lg font-bold">{house.name}</span>
-        <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(house.id)} />
+        <div className="flex items-center gap-1.5">
+          <CopyJsonButton payload={buildEntitySnapshot('house', house, currentState ?? null)} />
+          <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(house.id)} />
+        </div>
       </div>
 
       <div className="text-sm">
@@ -938,7 +1138,10 @@ function PersonDetail({
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
         <span className="text-lg font-bold">{person.name}</span>
-        <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(person.id)} />
+        <div className="flex items-center gap-1.5">
+          <CopyJsonButton payload={buildEntitySnapshot('person', person, currentState ?? null)} />
+          <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(person.id)} />
+        </div>
       </div>
 
       <div className="text-sm">
@@ -1258,7 +1461,10 @@ function PopGroupDetail({
 
   return (
     <div className="flex flex-col gap-1 p-3">
-      <span className="text-lg font-bold capitalize">{popGroup.class}</span>
+      <div className="flex items-center justify-between">
+        <span className="text-lg font-bold capitalize">{popGroup.class}</span>
+        <CopyJsonButton payload={buildEntitySnapshot('popGroup', popGroup, worldState)} />
+      </div>
       <div className="text-sm text-gray-400">
         of{' '}
         <button
@@ -1426,7 +1632,10 @@ function ProvinceDetail({
 
   return (
     <div className="flex flex-col gap-1 p-3">
-      <span className="text-lg font-bold">{province.name}</span>
+      <div className="flex items-center justify-between">
+        <span className="text-lg font-bold">{province.name}</span>
+        <CopyJsonButton payload={buildEntitySnapshot('province', province, currentState ?? null)} />
+      </div>
 
       <div className="text-sm">
         <div className="flex justify-between">
