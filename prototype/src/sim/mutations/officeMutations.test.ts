@@ -134,16 +134,19 @@ function makeOfficeState(): {
 }
 
 describe('expireOfficeTermAssignment', () => {
-  it('active office → active = false', () => {
-    const { state, officeId } = makeOfficeState()
+  // v0.17.3 B: 削除セマンティクスに更新
+  it('active office → deleted from state', () => {
+    const { state, officeId, holderId, polityId } = makeOfficeState()
     const result = expireOfficeTermAssignment(state, officeId)
-    expect(result.officeAssignments[officeId]!.active).toBe(false)
+    expect(result.officeAssignments[officeId]).toBeUndefined()
+    expect(result.officeIndex.byOrganization[`polity:${polityId}`]).toEqual([])
+    expect(result.officeIndex.byHolderPerson[holderId as string]).toEqual([])
   })
 
-  it('already inactive → unchanged', () => {
+  it('already deleted → unchanged', () => {
     const { state, officeId } = makeOfficeState()
     const first = expireOfficeTermAssignment(state, officeId)
-    expect(first.officeAssignments[officeId]!.active).toBe(false)
+    expect(first.officeAssignments[officeId]).toBeUndefined()
     const second = expireOfficeTermAssignment(first, officeId)
     expect(second).toBe(first)
   })

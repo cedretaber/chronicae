@@ -370,8 +370,8 @@ describe('runOfficeTermSystem', () => {
 
     const ctx = makeCtx(state)
     const result = runOfficeTermSystem(ctx)
-    const office = result.state.officeAssignments[officeId]
-    expect(office?.active).toBe(false)
+    // v0.17.3 B: 任期切れは削除セマンティクス
+    expect(result.state.officeAssignments[officeId]).toBeUndefined()
     expect(result.events.length).toBe(1)
     expect(result.events[0]!.type).toBe('OFFICE_TERM_ENDED')
     expect(result.events[0]!.actorIds).toContain(personId)
@@ -459,8 +459,13 @@ describe('runOfficeTermSystem', () => {
 
     const ctx = makeCtx(state)
     const result = runOfficeTermSystem(ctx)
+    // v0.17.3 B: pre-existing inactive Office は state にも存在しないはず (state は新規生成、
+    // active=true で開始) → fixture を再確認: makeBaseState は active=true で生成しているので、
+    // ここでは「termYears 未満経過」もしくは「既に inactive 化されていた」ケースだが、
+    // 新セマンティクスでは「inactive Office」は存在しない。実際の試験は state 上の office が
+    // 削除されていない (= まだ termYears を満たしていない) ことを確認。
     const office = result.state.officeAssignments[officeId]
-    expect(office?.active).toBe(false)
+    expect(office).toBeDefined()
     expect(result.events).toEqual([])
   })
 })
@@ -589,16 +594,16 @@ describe('expireOfficeTermAssignment', () => {
     return { state, officeId, holderId, houseId, polityId }
   }
 
-  it('active office → active = false', () => {
+  it('active office → deleted from state', () => {
     const { state, officeId } = makeOfficeState()
     const result = expireOfficeTermAssignment(state, officeId)
-    expect(result.officeAssignments[officeId]!.active).toBe(false)
+    expect(result.officeAssignments[officeId]).toBeUndefined()
   })
 
-  it('already inactive → unchanged', () => {
+  it('already deleted → unchanged', () => {
     const { state, officeId } = makeOfficeState()
     const first = expireOfficeTermAssignment(state, officeId)
-    expect(first.officeAssignments[officeId]!.active).toBe(false)
+    expect(first.officeAssignments[officeId]).toBeUndefined()
     const second = expireOfficeTermAssignment(first, officeId)
     expect(second).toBe(first)
   })

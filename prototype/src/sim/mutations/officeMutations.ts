@@ -59,6 +59,11 @@ export function createOfficeAssignment(
   }
 }
 
+// v0.17.3 B: 失効した OfficeAssignment は完全削除する。
+// 旧版は `active: false` をセットして残置していたため、state.officeAssignments と
+// officeIndex の両方が累積して O(N) 走査系 (integrityCheck / officeCompensationSystem)
+// が肥大化していた。selectors はすべて `if (!o || !o.active) continue` のガードを通る
+// ため、delete と active=false は意味的に等価。
 export function revokeOfficeAssignment(
   state: WorldState,
   officeId: OfficeAssignmentId,
@@ -66,13 +71,25 @@ export function revokeOfficeAssignment(
   const office = state.officeAssignments[officeId]
   if (!office || !office.active) return state
 
-  const updatedOffice = { ...office, active: false }
+  const orgKeyStr = orgKey(office.organization)
+  const personKeyStr = office.holderPersonId as string
+
+  const nextAssignments = { ...state.officeAssignments }
+  delete nextAssignments[officeId]
+
+  const orgSlot = (state.officeIndex.byOrganization[orgKeyStr] ?? []).filter(
+    (id) => id !== officeId,
+  )
+  const personSlot = (state.officeIndex.byHolderPerson[personKeyStr] ?? []).filter(
+    (id) => id !== officeId,
+  )
 
   return {
     ...state,
-    officeAssignments: {
-      ...state.officeAssignments,
-      [officeId]: updatedOffice,
+    officeAssignments: nextAssignments,
+    officeIndex: {
+      byOrganization: { ...state.officeIndex.byOrganization, [orgKeyStr]: orgSlot },
+      byHolderPerson: { ...state.officeIndex.byHolderPerson, [personKeyStr]: personSlot },
     },
   }
 }
@@ -130,19 +147,13 @@ export function assignOffice(state: WorldState, input: AssignOfficeInput): State
   return ok(currentState)
 }
 
-// v0.17 §6.5: OfficeAssignment term expiration → inactive.
-// Functionally same as revokeOfficeAssignment but semantically distinct (scheduled term end vs forced removal).
+// v0.17 §6.5: OfficeAssignment term expiration → 削除。
+// v0.17.3 B: revokeOfficeAssignment と同様に完全削除する。
+// 任期切れと revoke は意味的に区別したいが、state 上は同じ「消滅」として扱う
+// (event 側で OFFICE_TERM_ENDED / OFFICE_REVOKED の区別を保持済み)。
 export function expireOfficeTermAssignment(
   state: WorldState,
   officeId: OfficeAssignmentId,
 ): WorldState {
-  const office = state.officeAssignments[officeId]
-  if (!office || !office.active) return state
-  return {
-    ...state,
-    officeAssignments: {
-      ...state.officeAssignments,
-      [officeId]: { ...office, active: false },
-    },
-  }
+  return revokeOfficeAssignment(state, officeId)
 }
