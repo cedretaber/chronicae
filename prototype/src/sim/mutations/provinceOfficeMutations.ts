@@ -1,8 +1,7 @@
 import type { WorldState } from '../types/world'
 import type { ProvinceId, PolityId, PersonId, ProvinceOfficeAssignmentId } from '../types/ids'
 import type { ProvinceOfficeAssignment } from '../types/landContract'
-import type { Person } from '../types/person'
-import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { PLACEHOLDER_PERSON_ID } from '../types/landContract'
 import { createProvinceOfficeAssignmentId } from '../types/ids'
 
 type AppointBailiffParams = {
@@ -56,6 +55,10 @@ function removeFromPolitySlot(
   return { ...index.byAppointingPolity, [polityId]: next }
 }
 
+// v0.17.2 B2: placeholder holder は byHolderPerson に登録しない。
+// 「あるPerson がどの Bailiff を持っているか」という索引は normal Person 向けの兼任チェック
+// 用途であり、placeholder singleton に対しては意味を持たない (全 Province の空席を 1 人で
+// 占有することになり、ノイズになるだけ)。判定は Person.kind === 'placeholder' で行う。
 export function appointBailiff(state: WorldState, params: AppointBailiffParams): AppointResult {
   const id = createProvinceOfficeAssignmentId(state.nextProvinceOfficeAssignmentId)
   const assignment: ProvinceOfficeAssignment = {
@@ -69,6 +72,8 @@ export function appointBailiff(state: WorldState, params: AppointBailiffParams):
     startMonth: params.month,
     unpaidCount: 0,
   }
+  const holder = state.persons[params.holderPersonId]
+  const isPlaceholder = holder?.kind === 'placeholder'
   return {
     state: {
       ...state,
@@ -78,7 +83,9 @@ export function appointBailiff(state: WorldState, params: AppointBailiffParams):
       },
       provinceOfficeIndex: {
         byProvince: { ...state.provinceOfficeIndex.byProvince, [params.provinceId]: id },
-        byHolderPerson: pushHolderSlot(state.provinceOfficeIndex, params.holderPersonId, id),
+        byHolderPerson: isPlaceholder
+          ? state.provinceOfficeIndex.byHolderPerson
+          : pushHolderSlot(state.provinceOfficeIndex, params.holderPersonId, id),
         byAppointingPolity: pushPolitySlot(
           state.provinceOfficeIndex,
           params.appointingPolityId,
@@ -91,51 +98,19 @@ export function appointBailiff(state: WorldState, params: AppointBailiffParams):
   }
 }
 
-// v0.16 §19.2: 新規 placeholder Person を AnonymousHouse 配下に作り、当該 Province の bailiff に任命する。
+// v0.17.2 §19.2: 当該 Province の bailiff を singleton placeholder Person に任命する。
 // 既存 bailiff があれば事前に vacate する。
-// placeholder Person ID は世代カウンタを使うと runtime nextPersonIndex と干渉するので、
-// state.nextProvinceOfficeAssignmentId を流用した安定 ID `pe-anon-rt-<N>` を採用する。
+// 旧版は呼び出しごとに新規 placeholder Person を生成していたため AnonymousHouse.memberIds が
+// 累積していた (seed 1 で 6266 体)。v0.17.2 以降は PLACEHOLDER_PERSON_ID の Person 1 体を
+// 全 Province の空席で共有する。worldgen で生成済みである前提。
 export function installPlaceholderBailiff(
   state: WorldState,
   params: { provinceId: ProvinceId; appointingPolityId: PolityId; year: number; month: number },
 ): WorldState {
-  let working = vacateBailiff(state, params.provinceId)
-
-  const placeholderId = ('pe-anon-rt-' + working.nextProvinceOfficeAssignmentId) as PersonId
-  const placeholder: Person = {
-    id: placeholderId,
-    name: 'Anonymous',
-    sex: 'male',
-    age: 30,
-    alive: true,
-    kind: 'placeholder',
-    houseId: ANONYMOUS_HOUSE_ID,
-    childIds: [],
-    birthStatus: 'unknown',
-    abilities: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
-    aptitudes: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
-    traits: { ambition: 0, caution: 0 },
-    legacyPrestige: 0,
-    wealth: 0,
-    attitudes: {},
-  }
-
-  const anonHouse = working.houses[ANONYMOUS_HOUSE_ID]
-  const updatedAnonHouse = anonHouse
-    ? { ...anonHouse, memberIds: [...anonHouse.memberIds, placeholderId] }
-    : anonHouse
-
-  working = {
-    ...working,
-    persons: { ...working.persons, [placeholderId]: placeholder },
-    ...(updatedAnonHouse
-      ? { houses: { ...working.houses, [ANONYMOUS_HOUSE_ID]: updatedAnonHouse } }
-      : {}),
-  }
-
+  const working = vacateBailiff(state, params.provinceId)
   const { state: afterAppoint } = appointBailiff(working, {
     provinceId: params.provinceId,
-    holderPersonId: placeholderId,
+    holderPersonId: PLACEHOLDER_PERSON_ID,
     appointingPolityId: params.appointingPolityId,
     year: params.year,
     month: params.month,

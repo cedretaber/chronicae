@@ -29,12 +29,15 @@ describe('generateWorld', () => {
     expect(systemHouseCount).toEqual(1)
   })
 
-  it('has correct person count: 120 normal + 40 placeholder bailiffs', () => {
+  it('has correct person count: 120 normal + 1 placeholder singleton', () => {
+    // v0.17.2: 全 Province の bailiff は単一の placeholder singleton を共有する。
+    // 旧版では Province ごとに 40 体の placeholder Person が存在していたが、
+    // 蓄積バグ防止のため 1 体に統一。
     const { world } = generateWorld('test-seed')
     const normal = Object.values(world.persons).filter((p) => p?.kind !== 'placeholder').length
     const placeholder = Object.values(world.persons).filter((p) => p?.kind === 'placeholder').length
     expect(normal).toBe(120)
-    expect(placeholder).toBe(40)
+    expect(placeholder).toBe(1)
   })
 
   describe('consistency checks', () => {

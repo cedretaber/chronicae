@@ -13,6 +13,13 @@ export const ROOT_WORLD: RootAuthorityId = 'root:world' as RootAuthorityId
 
 export const ANONYMOUS_HOUSE_ID: HouseId = 'h-anon' as HouseId
 
+// v0.17.2: Province の bailiff が空席のときに当てる単一の placeholder Person ID。
+// 旧版では Province ごとに新規 placeholder Person を作っていたが、これは
+// AnonymousHouse.memberIds に死蔵 (累積) する原因になっていた (seed 1 で 6266 体)。
+// 全 placeholder bailiff は singleton ID を共有する。kind === 'placeholder' で
+// 判定する各種システムの挙動は変わらない。
+export const PLACEHOLDER_PERSON_ID: PersonId = 'pe-anon-placeholder' as PersonId
+
 export type LandContract = {
   id: LandContractId
   provinceId: ProvinceId

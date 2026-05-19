@@ -25,7 +25,7 @@ import type {
   LandContractId,
   ProvinceOfficeAssignmentId,
 } from './types/ids'
-import { ANONYMOUS_HOUSE_ID, ROOT_WORLD } from './types/landContract'
+import { ANONYMOUS_HOUSE_ID, PLACEHOLDER_PERSON_ID, ROOT_WORLD } from './types/landContract'
 import { installPlaceholderBailiff } from './mutations/provinceOfficeMutations'
 
 const DEFAULT_ABILITIES = {
@@ -38,12 +38,47 @@ const DEFAULT_ABILITIES = {
 }
 
 export function makeEmptyV016State(): WorldState {
+  // v0.17.2: singleton placeholder Person を含む状態で初期化する。
+  // worldgen と整合 (PLACEHOLDER_PERSON_ID は AnonymousHouse.memberIds に常駐)。
+  const placeholderSingleton: Person = {
+    id: PLACEHOLDER_PERSON_ID,
+    name: 'Anonymous',
+    sex: 'male',
+    age: 30,
+    alive: true,
+    kind: 'placeholder',
+    houseId: ANONYMOUS_HOUSE_ID,
+    childIds: [],
+    birthStatus: 'unknown',
+    abilities: {
+      ...DEFAULT_ABILITIES,
+      valor: 0,
+      command: 0,
+      numeracy: 0,
+      learning: 0,
+      charisma: 0,
+      insight: 0,
+    },
+    aptitudes: {
+      ...DEFAULT_ABILITIES,
+      valor: 0,
+      command: 0,
+      numeracy: 0,
+      learning: 0,
+      charisma: 0,
+      insight: 0,
+    },
+    traits: { ambition: 0, caution: 0 },
+    legacyPrestige: 0,
+    wealth: 0,
+    attitudes: {},
+  }
   const anon: House = {
     id: ANONYMOUS_HOUSE_ID,
     name: 'Anonymous',
     active: true,
     kind: 'system',
-    memberIds: [],
+    memberIds: [PLACEHOLDER_PERSON_ID],
     cadetHouseIds: [],
     legacyPrestige: 0,
     wealth: 0,
@@ -55,7 +90,7 @@ export function makeEmptyV016State(): WorldState {
     provinces: {},
     polities: {},
     houses: { [ANONYMOUS_HOUSE_ID]: anon },
-    persons: {},
+    persons: { [PLACEHOLDER_PERSON_ID]: placeholderSingleton },
     activePlots: {},
     popGroups: {},
     organizationShares: {},

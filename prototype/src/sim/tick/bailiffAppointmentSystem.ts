@@ -59,7 +59,8 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       const office = currentCtx.state.provinceOfficeAssignments[officeId]
       if (!office) continue
       // Skip placeholder bailiffs (they never had a real tenure)
-      if (office.holderPersonId.startsWith('pe-anon')) continue
+      // v0.17.2: Person.kind ベース判定に統一 (singleton 化に伴い ID prefix check は廃止)
+      if (isPlaceholderPerson(currentCtx.state, office.holderPersonId)) continue
       // Term expiration: yearly comparison
       if (
         currentCtx.state.currentYear - office.startYear >=

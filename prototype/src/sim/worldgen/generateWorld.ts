@@ -22,7 +22,7 @@ import type {
   ProvinceOfficeIndex,
   PolityIndex,
 } from '../types/landContract'
-import { ROOT_WORLD, ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { ROOT_WORLD, ANONYMOUS_HOUSE_ID, PLACEHOLDER_PERSON_ID } from '../types/landContract'
 import { createRng } from '../rng/rng'
 import { randomInt } from '../rng/rng'
 import { generateProvinces } from './generateProvinces'
@@ -1084,7 +1084,30 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   }
   housesRecord[ANONYMOUS_HOUSE_ID] = anonymousHouse
 
-  // 各 Province 用 placeholder Person + bailiff ProvinceOfficeAssignment
+  // v0.17.2: 全 Province の placeholder bailiff は単一の singleton Person を共有する。
+  // 旧版は Province ごとに新規 Person を生成していたため、bailiff の vacate/install サイクルで
+  // AnonymousHouse.memberIds が累積していた。singleton 化で state が安定する。
+  // B2 policy: placeholder holder は provinceOfficeIndex.byHolderPerson に登録しない
+  // (兼任チェック等で意味を持たないため、ノイズ回避を優先)。
+  const placeholderSingleton: Person = {
+    id: PLACEHOLDER_PERSON_ID,
+    name: 'Anonymous',
+    sex: 'male',
+    age: 30,
+    alive: true,
+    kind: 'placeholder',
+    houseId: ANONYMOUS_HOUSE_ID,
+    childIds: [],
+    birthStatus: 'unknown',
+    abilities: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+    aptitudes: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
+    traits: { ambition: 0, caution: 0 },
+    legacyPrestige: 0,
+    wealth: 0,
+    attitudes: {},
+  }
+  personsRecord[PLACEHOLDER_PERSON_ID] = placeholderSingleton
+
   const provinceOfficeAssignments: Record<ProvinceOfficeAssignmentId, ProvinceOfficeAssignment> = {}
   const provinceOfficeIndex: ProvinceOfficeIndex = {
     byProvince: {},
@@ -1092,32 +1115,9 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     byAppointingPolity: {},
   }
   let nextProvinceOfficeAssignmentId = 0
-  let nextPlaceholderIndex = 0
-  const placeholderMembers: PersonId[] = []
   for (const province of provinces) {
     const terminalPolityId = provinceTerminalPolityCache[province.id]
     if (!terminalPolityId) continue
-    const placeholderId = ('pe-anon-' + nextPlaceholderIndex) as PersonId
-    nextPlaceholderIndex++
-    const placeholder: Person = {
-      id: placeholderId,
-      name: 'Anonymous',
-      sex: 'male',
-      age: 30,
-      alive: true,
-      kind: 'placeholder',
-      houseId: ANONYMOUS_HOUSE_ID,
-      childIds: [],
-      birthStatus: 'unknown',
-      abilities: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
-      aptitudes: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
-      traits: { ambition: 0, caution: 0 },
-      legacyPrestige: 0,
-      wealth: 0,
-      attitudes: {},
-    }
-    personsRecord[placeholderId] = placeholder
-    placeholderMembers.push(placeholderId)
 
     const officeAssignmentId = ('po-' +
       nextProvinceOfficeAssignmentId) as ProvinceOfficeAssignmentId
@@ -1126,7 +1126,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       id: officeAssignmentId,
       provinceId: province.id,
       role: 'bailiff',
-      holderPersonId: placeholderId,
+      holderPersonId: PLACEHOLDER_PERSON_ID,
       appointingPolityId: terminalPolityId,
       active: true,
       startYear: 1,
@@ -1135,14 +1135,13 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     }
     provinceOfficeAssignments[officeAssignmentId] = assignment
     provinceOfficeIndex.byProvince[province.id] = officeAssignmentId
-    const holderSlot = provinceOfficeIndex.byHolderPerson[placeholderId] ?? []
-    provinceOfficeIndex.byHolderPerson[placeholderId] = [...holderSlot, officeAssignmentId]
+    // B2 policy: placeholder は byHolderPerson に積まない
     const politySlot = provinceOfficeIndex.byAppointingPolity[terminalPolityId] ?? []
     provinceOfficeIndex.byAppointingPolity[terminalPolityId] = [...politySlot, officeAssignmentId]
   }
   housesRecord[ANONYMOUS_HOUSE_ID] = {
     ...anonymousHouse,
-    memberIds: placeholderMembers,
+    memberIds: [PLACEHOLDER_PERSON_ID],
   }
 
   const world: WorldState = {
