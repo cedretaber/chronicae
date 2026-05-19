@@ -790,12 +790,14 @@ export const defaultConfig: SimulationConfig = {
   // v0.17.1 Bailiff salary path: terminal retained のうち bailiff 個人に渡す比率
   bailiffRevenueShare: 0.1,
   // v0.17 Office max
+  // v0.17.1: rank の方向を spec §7.2 に合わせて修正。
+  // rank は数値が小さいほど上位 (1=帝国, 5=反乱領)。大国ほど官職枠が多い。
   polityOfficeMaxByRank: {
-    1: { administrator: 1, treasurer: 1, military: 1, advisor: 1 },
-    2: { administrator: 1, treasurer: 1, military: 1, advisor: 2 },
-    3: { administrator: 2, treasurer: 1, military: 2, advisor: 2 },
-    4: { administrator: 2, treasurer: 2, military: 2, advisor: 3 },
-    5: { administrator: 3, treasurer: 2, military: 3, advisor: 3 },
+    1: { administrator: 3, treasurer: 3, military: 5, advisor: 5 },
+    2: { administrator: 3, treasurer: 3, military: 4, advisor: 4 },
+    3: { administrator: 2, treasurer: 2, military: 3, advisor: 3 },
+    4: { administrator: 1, treasurer: 1, military: 2, advisor: 2 },
+    5: { administrator: 1, treasurer: 1, military: 1, advisor: 1 },
   },
   polityOfficeMaxProvinceFactor: {
     small: 0.4,
