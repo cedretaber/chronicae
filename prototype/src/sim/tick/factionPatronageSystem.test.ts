@@ -365,4 +365,70 @@ describe('runFactionPatronageSystem', () => {
     // member's attitude for leader should NOT be created (adjustPersonAttitudeIfExists)
     expect(result.state.persons[memberId]?.attitudes[memberAttKey]).toBeUndefined()
   })
+
+  it('v0.17.1: Bailiff-holding member donates to leader (no Office, no Province Office change)', async () => {
+    const { appointBailiff, vacateBailiff } = await import('../mutations/provinceOfficeMutations')
+    const memberId = createPersonId('pe', 1)
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    const { state, leaderId, polityId, provinceId, houseId } = buildBaseState()
+
+    let s = state
+    s = withPerson(s, memberId, { name: 'BailiffMember', houseId, wealth: 500, alive: true })
+    s = addFaction(s, factionId, leaderId).state
+    s = addFactionMembership(s, membershipId, factionId, memberId)
+    // Install member as Bailiff (ProvinceOffice) — no Polity/House Office
+    s = vacateBailiff(s, provinceId)
+    s = appointBailiff(s, {
+      provinceId,
+      holderPersonId: memberId,
+      appointingPolityId: polityId,
+      year: s.currentYear,
+      month: s.currentMonth,
+    }).state
+
+    const customConfig = makeConfig({
+      factionDonationRate: 0.5,
+      factionDonationPersonalReserve: 200,
+    })
+    const ctx = makeCtx(s, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    // donation expected (Bailiff treated as "has Office" for donation path)
+    expect(result.state.persons[memberId]?.wealth).toBeLessThan(500)
+    expect(result.state.persons[leaderId]?.wealth).toBeGreaterThan(1000)
+  })
+
+  it('v0.17.1: Bailiff-holding member does NOT receive stipend (treated as office-holder)', async () => {
+    const { appointBailiff, vacateBailiff } = await import('../mutations/provinceOfficeMutations')
+    const memberId = createPersonId('pe', 1)
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    const { state, leaderId, polityId, provinceId, houseId } = buildBaseState()
+
+    let s = state
+    // Member has 0 wealth → no donation eligibility, but also Bailiff → should not receive stipend
+    s = withPerson(s, memberId, { name: 'BailiffMember', houseId, wealth: 0, alive: true })
+    s = addFaction(s, factionId, leaderId).state
+    s = addFactionMembership(s, membershipId, factionId, memberId)
+    s = vacateBailiff(s, provinceId)
+    s = appointBailiff(s, {
+      provinceId,
+      holderPersonId: memberId,
+      appointingPolityId: polityId,
+      year: s.currentYear,
+      month: s.currentMonth,
+    }).state
+
+    const customConfig = makeConfig({
+      factionStipendBase: 10,
+      factionLeaderReserveWealth: 500,
+    })
+    const ctx = makeCtx(s, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    // leader has plenty (1000), but Bailiff-holding member is treated as office holder → no stipend
+    expect(result.state.persons[memberId]?.wealth).toBe(0)
+    expect(result.state.persons[leaderId]?.wealth).toBe(1000)
+  })
 })

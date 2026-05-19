@@ -60,6 +60,8 @@ function collectPolityCandidatesTraditional(
     if (p.kind === 'placeholder') continue
     if (p.age < config.adultAge) continue
     if (alreadyHolding.has(pid)) continue
+    // v0.17.1 §15.3: active Bailiff (ProvinceOffice) 保有者は候補外
+    if (hasActiveProvinceOffice(state, pid)) continue
     const house = state.houses[p.houseId]
     if (!house || !house.active) continue
     // v0.17 §14.6: system House 所属者除外を撤廃 (placeholder のみ除外)
@@ -86,9 +88,21 @@ function collectHouseCandidatesTraditional(
     if (member.kind === 'placeholder') continue
     if (member.age < config.adultAge) continue
     if (alreadyHolding.has(memberId)) continue
+    // v0.17.1 §15.3: active Bailiff (ProvinceOffice) 保有者は候補外
+    if (hasActiveProvinceOffice(state, memberId)) continue
     result.push(memberId)
   }
   return result
+}
+
+// v0.17.1 §15.3: 別 Province の bailiff として active な ProvinceOffice を持つ Person を判定。
+function hasActiveProvinceOffice(state: WorldState, personId: PersonId): boolean {
+  const ids = state.provinceOfficeIndex.byHolderPerson[personId] ?? []
+  for (const id of ids) {
+    const a = state.provinceOfficeAssignments[id]
+    if (a && a.active) return true
+  }
+  return false
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +124,8 @@ function collectFactionalCandidates(
       if (!m || !m.alive) continue
       if (m.kind === 'placeholder') continue
       if (m.age < config.adultAge) continue
+      // v0.17.1 §15.3: active Bailiff 保有者は Polity/House Office 候補から除外
+      if (hasActiveProvinceOffice(state, mid)) continue
       result.push({ factionId: faction.id, candidateId: mid })
     }
   }

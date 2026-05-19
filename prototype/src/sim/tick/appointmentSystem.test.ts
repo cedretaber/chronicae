@@ -25,6 +25,7 @@ import {
   withPolity,
   withProvince,
 } from '../testFixtures'
+import { appointBailiff, vacateBailiff } from '../mutations/provinceOfficeMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -939,5 +940,65 @@ describe('runAppointmentSystem', () => {
     // Anonymous member should NOT be eligible (their house is not in the polity)
     // but the test verifies the system doesn't crash and still appoints someone
     expect(countEvents(result.events, 'OFFICE_ASSIGNED')).toBeGreaterThanOrEqual(0)
+  })
+
+  it('v0.17.1: active Bailiff holder is excluded from Polity Office candidates', () => {
+    const { state, polityId, personRulerId, personVassalId } = makeBaseState()
+
+    // Install personVassalId (the high-ability candidate) as active Bailiff
+    // of one of the Provinces. AppointmentSystem must skip them.
+    const provinceId = createProvinceId('p', 1)
+    let withBailiff = vacateBailiff(state, provinceId)
+    withBailiff = appointBailiff(withBailiff, {
+      provinceId,
+      holderPersonId: personVassalId,
+      appointingPolityId: polityId,
+      year: withBailiff.currentYear,
+      month: withBailiff.currentMonth,
+    }).state
+
+    // Wire up leader office for ruler
+    const leaderOfficeId = createOfficeAssignmentId(99)
+    const stateWithLeader: WorldState = {
+      ...withBailiff,
+      currentMonth: 1,
+      officeAssignments: {
+        ...withBailiff.officeAssignments,
+        [leaderOfficeId]: {
+          id: leaderOfficeId,
+          organization: { kind: 'polity' as const, id: polityId },
+          role: 'leader',
+          holderPersonId: personRulerId,
+          active: true,
+          startYear: 1444,
+          unpaidCount: 0,
+        },
+      },
+      officeIndex: {
+        byOrganization: {
+          ...withBailiff.officeIndex.byOrganization,
+          [`polity:${polityId}`]: [
+            ...(withBailiff.officeIndex.byOrganization[`polity:${polityId}`] ?? []),
+            leaderOfficeId,
+          ],
+        },
+        byHolderPerson: {
+          ...withBailiff.officeIndex.byHolderPerson,
+          [personRulerId]: [
+            ...(withBailiff.officeIndex.byHolderPerson[personRulerId] ?? []),
+            leaderOfficeId,
+          ],
+        },
+      },
+    }
+
+    const ctx = buildCtx(stateWithLeader, defaultConfig)
+    const result = toResult(runAppointmentSystem(ctx))
+
+    // personVassalId is a Bailiff → must NOT get any Polity Office (admin/treasurer/military/advisor)
+    expect(holdsOfficeRole(result.state, personVassalId, 'administrator')).toBe(false)
+    expect(holdsOfficeRole(result.state, personVassalId, 'treasurer')).toBe(false)
+    expect(holdsOfficeRole(result.state, personVassalId, 'military')).toBe(false)
+    expect(holdsOfficeRole(result.state, personVassalId, 'advisor')).toBe(false)
   })
 })

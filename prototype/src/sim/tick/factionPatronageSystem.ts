@@ -95,6 +95,12 @@ function hasActiveNonLeaderOffice(state: WorldState, personId: PersonId): boolea
     const o = state.officeAssignments[id]
     if (o && o.active && o.role !== 'leader') return true
   }
+  // v0.17.1 §15.3: Bailiff (ProvinceOffice) 持ちも献金経路に乗せる
+  const pIds = state.provinceOfficeIndex.byHolderPerson[personId] ?? []
+  for (const id of pIds) {
+    const a = state.provinceOfficeAssignments[id]
+    if (a && a.active) return true
+  }
   return false
 }
 
