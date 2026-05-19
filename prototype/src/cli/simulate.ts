@@ -8,6 +8,10 @@ import type { WorldState } from '@sim/types/world'
 import type { SimEvent } from '@sim/types/event'
 import type { ProvinceId } from '@sim/types/ids'
 import { getProvinceTerminalPolityId } from '@sim/selectors/landContractSelectors'
+import { buildActivityReport } from '@sim/report/activityReport'
+import { takeSnapshot } from '@sim/report/snapshot'
+import type { ActivitySnapshot } from '@sim/report/types'
+import { writeFileSync } from 'node:fs'
 
 function printUsage(): void {
   console.log(`Usage: npm run cli [options]
@@ -20,6 +24,8 @@ Options:
   --debug               Enable debug mode (entity IDs in events, structured debug log on stderr)
   --dump-world          Dump full WorldState as JSON to stderr after simulation ends
   --digest              Output WorldDigest summary as JSON to stdout after simulation
+  --report <path>       Write Activity Report (4-axis observation JSON) to <path>; use "-" for stdout
+  --report-snapshot <n> Capture a snapshot every <n> years for the report (default: off)
   --help                Show this help message`)
 }
 
@@ -31,6 +37,8 @@ function parseArgs(argv: string[]): {
   debug: boolean
   dumpWorld: boolean
   digest: boolean
+  reportPath: string | undefined
+  reportSnapshotYears: number
   showHelp: boolean
 } {
   let seed = 'chronicae-default'
@@ -40,6 +48,8 @@ function parseArgs(argv: string[]): {
   let debug = false
   let dumpWorld = false
   let digest = false
+  let reportPath: string | undefined = undefined
+  let reportSnapshotYears = 0
   let showHelp = false
 
   let i = 2
@@ -67,13 +77,36 @@ function parseArgs(argv: string[]): {
       dumpWorld = true
     } else if (arg === '--digest') {
       digest = true
+    } else if (arg === '--report') {
+      i++
+      const val = argv[i]
+      if (i < argv.length && val !== undefined) {
+        reportPath = val
+      }
+    } else if (arg === '--report-snapshot') {
+      i++
+      const val = argv[i]
+      if (i < argv.length && val !== undefined) {
+        reportSnapshotYears = parseInt(val, 10)
+      }
     } else if (arg === '--help') {
       showHelp = true
     }
     i++
   }
 
-  return { seed, years, json, integrityCheck, debug, dumpWorld, digest, showHelp }
+  return {
+    seed,
+    years,
+    json,
+    integrityCheck,
+    debug,
+    dumpWorld,
+    digest,
+    reportPath,
+    reportSnapshotYears,
+    showHelp,
+  }
 }
 
 function countActivePolities(state: WorldState): number {
@@ -248,6 +281,11 @@ let currentRng = initialRng
 const allEvents: SimEvent[] = []
 const totalTicks = args.years * 12
 const config = args.debug ? { ...defaultConfig, debug: true } : defaultConfig
+const snapshots: ActivitySnapshot[] = []
+// 初期状態 (year 0) のスナップショットも取る (--report-snapshot 有効時のみ)
+if (args.reportPath !== undefined && args.reportSnapshotYears > 0) {
+  snapshots.push(takeSnapshot(state, state.currentYear))
+}
 
 if (!args.json && !args.digest) {
   console.log('Starting simulation with seed:', args.seed)
@@ -378,10 +416,34 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
   for (const event of events) {
     allEvents.push(event)
   }
+
+  // --report-snapshot 指定時、年末 (month=12) かつ指定間隔で snapshot を取る
+  if (
+    args.reportPath !== undefined &&
+    args.reportSnapshotYears > 0 &&
+    month === 12 &&
+    year % args.reportSnapshotYears === 0
+  ) {
+    snapshots.push(takeSnapshot(result.state, year))
+  }
 }
 
 if (args.dumpWorld) {
   process.stderr.write(JSON.stringify(state, null, 2) + '\n')
+}
+
+if (args.reportPath !== undefined) {
+  const report = buildActivityReport(state, allEvents, config, snapshots, {
+    seed: args.seed,
+    years: args.years,
+  })
+  const json = JSON.stringify(report, null, 2)
+  if (args.reportPath === '-') {
+    console.log(json)
+  } else {
+    writeFileSync(args.reportPath, json + '\n')
+    process.stderr.write('Wrote activity report to ' + args.reportPath + '\n')
+  }
 }
 
 if (args.digest) {
