@@ -83,15 +83,32 @@ cd prototype && npm run check
 
 `npm run check` が通った後、必ず CLI で複数シード × 300年のシミュレーションを実行して整合性エラーがないことを確認する。
 
+**整合性検証なら並列実行が高速** (v0.17.3 時点で 4 seed 合計 ~125 sec、並列なら最長 seed 1 のみで ~40 sec)。
+
 ```bash
+# 並列実行 (整合性検証用 — wallclock 時間を最短にしたい場合)
 cd prototype
+for s in 1 42 123 999; do
+  node src/cli/run.mjs --years 300 --seed $s > /tmp/seed$s.log 2>&1 &
+done
+wait
+echo "All 4 seeds finished"
+
+# 個別検証 (デバグ目的で順次走らせたい場合)
 npm run cli -- --years 300 --seed 1
 npm run cli -- --years 300 --seed 42
 npm run cli -- --years 300 --seed 123
 npm run cli -- --years 300 --seed 999
 ```
 
-エラーなく完走すれば OK。`integritySystem` が検知した違反は `Error:` で即時終了する。
+エラーなく完走すれば OK。`integritySystem` が検知した違反は `Error:` で即時終了する (v0.17.3 から default では year-end のみ走るが、検知即座に throw して exit code 非 0 で停止)。
+
+**並列 vs 直列の使い分け:**
+
+| 用途 | 推奨 |
+|---|---|
+| 整合性検証 / 観察 report 生成 | 並列 (`&` + `wait`) |
+| 時間計測・perf 比較 | 直列 (CPU 競合でブレるため) |
 
 ### なぜ CLI 確認が必要か
 
@@ -250,22 +267,24 @@ for (const r of rows) {
 | ほぼ全 system が同じ ratio (例: 全部 2x) | アルゴリズムバグではなく state 累積差。Object.keys 系の走査が状態サイズに連動 |
 | 絶対値が大きい system | 最適化候補。ratio が小さくても share が大きければ価値あり |
 
-### 既知のベースライン (v0.17.2 時点)
+### 既知のベースライン (v0.17.3 時点)
 
-300 年 × 1 seed の tick:total ≈ 130〜290 sec (state 累積量で 2x 差)。
-特に重い system (時間 share):
+300 年 × 1 seed の wallclock 直列:
+- seed 1: ~40 sec (最長)
+- seed 999: ~26 sec (最短)
+- 4 seed 合計: ~125 sec (v0.17.2 比 -85% 短縮)
 
-- `integrityCheck` (40%強): default で毎 tick 走る。inactive を含む全 entity 走査
-- `appointmentSystem` (20%強): Polity/House 各 role 毎の候補絞り込み
-- `officeCompensationSystem` (15%強)
-
-seed 1 が seed 999 の 2x 時間になる主因は **`OFFICE_ASSIGNED` 履歴累積 (1.56x) と表全体の肥大化**。アルゴリズム的 O(N²) バグではない。
+短縮の中身 (v0.17.3 で実装):
+- **A**: integrityCheck を年末のみ実行 (default 非 debug 時)。-38%。
+- **B**: inactive OfficeAssignment を完全削除。state.officeAssignments の累積を解消。A の上でさらに -76%。
+- **C**: inactive FactionMembership を完全削除。Office 比で量が少なく計測上は誤差レベル。
 
 ### v0.18 以降の最適化候補
 
-- `integritySystem` の Object.keys 走査を index 経由 (active のみ) に置き換え
-- 死亡 Person / inactive OfficeAssignment の archive / compaction
-- `eventCounts` 系の最大保持件数を絞る (`maxRawEvents`)
+短縮済みのため優先度は下がったが、機能完成後に検討する候補:
+- 死亡 Person の compaction (lineage 参照を保ちつつ archive map に逃がす)
+- `maxRawEvents` を default で絞る (現状 10000)
+- `state.persons` を `living / dead` 二分割
 
 これらは機能完成後にまとめて対応する方針 (上記「バランス調整は機能完成後」と同じ理由)。
 

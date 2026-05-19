@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-19（v0.17.2 時点）
+最終更新: 2026-05-19（v0.17.3 時点）
 
 ---
 
@@ -2459,6 +2459,22 @@ v0.17.1 完成後、観察用 Activity Report (4 軸 JSON 出力) を導入し�
 - **placeholder Person の singleton 化**: 全 Province の空席 bailiff は単一の placeholder Person (`PLACEHOLDER_PERSON_ID = 'pe-anon-placeholder'`) を共有する。旧版は `installPlaceholderBailiff` が呼び出しごとに新規 placeholder を生成し AnonymousHouse に残置していたため、seed 1 で 6266 体の placeholder Person が累積していた。singleton 化で state が安定する。あわせて `provinceOfficeIndex.byHolderPerson` には placeholder holder を登録しない B2 policy を採用し、index ノイズも排除。
 - **観察機能 (Activity Report)**: `--report <path>` と `--report-snapshot <years>` フラグで run 終了時に 4 軸 (Office 流動性 / Faction ライフサイクル / Bailiff 動態 / 人口) の JSON 集計を出力できる。詳細は README §"Activity Report" を参照。今後も挙動確認・バランス調整で再利用する。
 - **検証**: CLI 300 年 × 4 seed (1, 42, 123, 999) で integrity 違反 0 完走、test 495 件 pass。
+
+### v0.17.3 で実装済み（参考）
+
+CLI 実行時間の最適化。これ以降の機能追加・バランス調整サイクルの開発速度向上が目的。
+
+- **A. integrityCheck を年末 (month=12) のみ実行**: 旧版は default の非 debug モードでも毎 tick 走らせていた。違反検知は year-end でも原因 year は特定できるので CLI 検証用途として十分。`--integrity-check` flag は per-tick check を明示的に要求するときに使う。debug mode は per-system PERF log の都合で per-tick 継続。
+- **B. inactive OfficeAssignment を完全削除**: 旧版は `revokeOfficeAssignment` / `expireOfficeTermAssignment` が `active: false` をセットして残置していた。state.officeAssignments / officeIndex から完全削除する形に変更。selectors はすべて `if (!o || !o.active) continue` のガードを通るため意味的に等価。
+- **C. inactive FactionMembership を完全削除**: B と同様の処理を `removeFactionMembership` / `deactivateFaction` / `transitionFactionLeader` に適用。Faction entity 自体は historical reference のため active=false で残置。
+- **検証**: CLI 300 年 × 4 seed の wallclock 計測:
+  - seed 1:   286.5s → 39.4s (-86%)
+  - seed 42:  187.4s → 23.4s (-88%)
+  - seed 123: 218.0s → 35.2s (-84%)
+  - seed 999: 140.8s → 26.2s (-81%)
+  - 4 seed 合計: 832.7s → 124.2s (-**85%**)
+- 内訳: A だけで -38%、B でさらに大幅短縮 (state table の累積解消)、C は誤差レベル (structural cleanup の意義が主)。
+- integrity 違反は 0 のまま完走。test 495 件 pass。
 
 ### v0.18 以降に送られる主要項目
 
