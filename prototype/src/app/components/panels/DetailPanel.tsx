@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useSimulationStore } from '@/app/stores/simulationStore'
 import { formatScore, formatAmount, formatPower, formatPolityRank } from '@/app/utils/format'
 import {
   getPolityLegitimacy,
@@ -576,7 +575,7 @@ function AttitudeList({
   )
 }
 
-function CountryDetail({
+export function CountryDetail({
   polity,
   session,
   watchlist,
@@ -810,7 +809,7 @@ function CountryDetail({
   )
 }
 
-function HouseDetail({
+export function HouseDetail({
   house,
   session,
   watchlist,
@@ -1150,7 +1149,7 @@ function HouseDetail({
   )
 }
 
-function PersonDetail({
+export function PersonDetail({
   person,
   session,
   watchlist,
@@ -1573,7 +1572,7 @@ function getDevelopmentLabel(d: number): string {
   return '繁栄'
 }
 
-function PopGroupDetail({
+export function PopGroupDetail({
   popGroup,
   session,
   onPolityClick,
@@ -1642,7 +1641,7 @@ function PopGroupDetail({
   )
 }
 
-function ProvinceDetail({
+export function ProvinceDetail({
   province,
   session,
   onPolityClick,
@@ -1985,7 +1984,7 @@ function ProvinceDetail({
   )
 }
 
-function FactionDetail({
+export function FactionDetail({
   faction,
   session,
   onPersonClick,
@@ -2192,134 +2191,6 @@ function FactionDetail({
           })}
         </div>
       )}
-    </div>
-  )
-}
-
-function NoSelection() {
-  return (
-    <div className="flex h-full items-center justify-center text-gray-500">
-      <p>Select an entity to view details</p>
-    </div>
-  )
-}
-
-export function DetailPanel() {
-  const selectedId = useSimulationStore((s) => s.selectedId)
-  const selectedType = useSimulationStore((s) => s.selectedType)
-  const session = useSimulationStore((s) => s.session)
-  const watchlist = useSimulationStore((s) => s.watchlist)
-  const toggleWatchlist = useSimulationStore((s) => s.toggleWatchlist)
-  const setSelected = useSimulationStore((s) => s.setSelected)
-
-  const eventHistory = useSimulationStore((s) => s.session?.eventHistory ?? [])
-
-  const currentState = session?.currentState
-
-  const onPersonClick = (id: string) => setSelected(id, 'person')
-  const onHouseClick = (id: string) => setSelected(id, 'house')
-  const onPolityClick = (id: string) => setSelected(id, 'polity')
-  const onProvinceClick = (id: string) => setSelected(id, 'province')
-  const onPopGroupClick = (id: string) => setSelected(id, 'popGroup')
-  const onFactionClick = (id: FactionId) => setSelected(id, 'faction')
-
-  const polity =
-    selectedType === 'polity' && selectedId && currentState
-      ? Object.values(currentState.polities).find((p) => p.id === selectedId)
-      : undefined
-  const house =
-    selectedType === 'house' && selectedId && currentState
-      ? Object.values(currentState.houses).find((h) => h.id === selectedId)
-      : undefined
-  const person =
-    selectedType === 'person' && selectedId && currentState
-      ? Object.values(currentState.persons).find((p) => p.id === selectedId)
-      : undefined
-  const province =
-    selectedType === 'province' && selectedId && currentState
-      ? Object.values(currentState.provinces).find((pv) => pv.id === selectedId)
-      : undefined
-  const popGroup =
-    selectedType === 'popGroup' && selectedId && currentState
-      ? Object.values(currentState.popGroups).find((pg) => pg?.id === selectedId)
-      : undefined
-  const faction =
-    selectedType === 'faction' && selectedId && currentState
-      ? currentState.factions[selectedId as FactionId]
-      : undefined
-
-  return (
-    <div className="flex h-full w-72 flex-col overflow-hidden bg-gray-800 text-white">
-      <div className="border-b border-gray-600 px-3 py-2 text-sm font-semibold text-gray-300">
-        Details
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        {!selectedId || !selectedType ? (
-          <NoSelection />
-        ) : selectedType === 'polity' && polity ? (
-          <CountryDetail
-            polity={polity}
-            session={session}
-            watchlist={watchlist}
-            toggleWatchlist={toggleWatchlist}
-            onPersonClick={onPersonClick}
-            onHouseClick={onHouseClick}
-            onProvinceClick={onProvinceClick}
-          />
-        ) : selectedType === 'house' && house ? (
-          <HouseDetail
-            house={house}
-            session={session}
-            watchlist={watchlist}
-            toggleWatchlist={toggleWatchlist}
-            onPersonClick={onPersonClick}
-            onPolityClick={onPolityClick}
-            onProvinceClick={onProvinceClick}
-            eventHistory={eventHistory}
-          />
-        ) : selectedType === 'person' && person ? (
-          <PersonDetail
-            person={person}
-            session={session}
-            watchlist={watchlist}
-            toggleWatchlist={toggleWatchlist}
-            onHouseClick={onHouseClick}
-            onPolityClick={onPolityClick}
-            onPersonClick={onPersonClick}
-            onFactionClick={onFactionClick}
-            onProvinceClick={onProvinceClick}
-            eventHistory={eventHistory}
-          />
-        ) : selectedType === 'province' && province ? (
-          <ProvinceDetail
-            province={province}
-            session={session}
-            onPolityClick={onPolityClick}
-            onHouseClick={onHouseClick}
-            onPersonClick={onPersonClick}
-            onProvinceClick={onProvinceClick}
-            onPopGroupClick={onPopGroupClick}
-          />
-        ) : selectedType === 'popGroup' && popGroup ? (
-          <PopGroupDetail
-            popGroup={popGroup}
-            session={session}
-            onPolityClick={onPolityClick}
-            onHouseClick={onHouseClick}
-            onPersonClick={onPersonClick}
-            onProvinceClick={onProvinceClick}
-          />
-        ) : selectedType === 'faction' && faction ? (
-          <FactionDetail
-            faction={faction}
-            session={session}
-            onPersonClick={onPersonClick}
-            onHouseClick={onHouseClick}
-          />
-        ) : (
-          <NoSelection />
-        )}
-      </div>
     </div>
   )
 }

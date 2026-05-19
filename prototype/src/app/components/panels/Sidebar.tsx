@@ -255,11 +255,17 @@ export function Sidebar() {
   const toggleSection = (key: SectionKey) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
 
   const session = useSimulationStore((s) => s.session)
-  const selectedId = useSimulationStore((s) => s.selectedId)
-  const selectedType = useSimulationStore((s) => s.selectedType)
+  const openWindows = useSimulationStore((s) => s.openWindows)
+  const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
   const watchlist = useSimulationStore((s) => s.watchlist)
-  const setSelected = useSimulationStore((s) => s.setSelected)
   const toggleWatchlist = useSimulationStore((s) => s.toggleWatchlist)
+
+  const focused =
+    openWindows.length === 0
+      ? undefined
+      : openWindows.reduce((a, b) => (a.zIndex >= b.zIndex ? a : b))
+  const focusedType = focused?.entityType
+  const focusedId = focused?.entityId
 
   const eventHistory = useSimulationStore((s) => s.session?.eventHistory ?? [])
 
@@ -370,8 +376,8 @@ export function Sidebar() {
               polity={polity}
               color={polityColorMap[polity.id] ?? '#888'}
               militaryPower={polityMilitaryPowers[polity.id] ?? 0}
-              isSelected={selectedId === polity.id && selectedType === 'polity'}
-              onClick={() => setSelected(polity.id, 'polity')}
+              isSelected={focusedId === polity.id && focusedType === 'polity'}
+              onClick={() => openDetailWindow('polity', polity.id)}
               worldState={worldState}
             />
           ))}
@@ -401,8 +407,8 @@ export function Sidebar() {
                 polityName={primaryPolityId ? (polities?.[primaryPolityId]?.name ?? '') : ''}
                 polityColor={primaryPolityId ? (polityColorMap[primaryPolityId] ?? '#888') : '#888'}
                 provinceCount={provinceCount}
-                isSelected={selectedId === house.id && selectedType === 'house'}
-                onClick={() => setSelected(house.id, 'house')}
+                isSelected={focusedId === house.id && focusedType === 'house'}
+                onClick={() => openDetailWindow('house', house.id)}
               />
             )
           })}
@@ -415,8 +421,8 @@ export function Sidebar() {
           key={person.id}
           person={person}
           score={score}
-          isSelected={selectedId === person.id && selectedType === 'person'}
-          onClick={() => setSelected(person.id, 'person')}
+          isSelected={focusedId === person.id && focusedType === 'person'}
+          onClick={() => openDetailWindow('person', person.id)}
         />
       ))
     }
@@ -430,8 +436,8 @@ export function Sidebar() {
           faction={faction}
           leaderName={leaderName}
           memberCount={memberCount}
-          isSelected={selectedId === faction.id && selectedType === 'faction'}
-          onClick={() => setSelected(faction.id, 'faction')}
+          isSelected={focusedId === faction.id && focusedType === 'faction'}
+          onClick={() => openDetailWindow('faction', faction.id)}
         />
       ))
     }
@@ -472,7 +478,7 @@ export function Sidebar() {
           type={type}
           eventCount={eventCount}
           onRemove={() => toggleWatchlist(watchId)}
-          onClick={() => setSelected(watchId, type)}
+          onClick={() => openDetailWindow(type, watchId)}
         />
       )
     })

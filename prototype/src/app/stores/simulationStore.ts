@@ -5,16 +5,26 @@ import { defaultConfig } from '@sim/config/defaultConfig'
 import type { SimulationSession } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 
-export type SelectedType = 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction'
+export type EntityType = 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction'
+// Backwards-friendly alias retained as named export (some modules import SelectedType)
+export type SelectedType = EntityType
 export type MapView = 'terminal' | 'root' | 'house' | 'share' | 'unrest'
+
+export type DetailWindow = {
+  id: string
+  entityType: EntityType
+  entityId: string
+  position: { x: number; y: number }
+  zIndex: number
+}
 
 type SimState = {
   session: SimulationSession | null
   isRunning: boolean
   speed: number
-  selectedId: string | null
-  selectedType: SelectedType | null
   mapView: MapView
+  openWindows: DetailWindow[]
+  nextZIndex: number
   watchlist: string[]
   config: SimulationConfig
   pendingNotifications: { id: string; message: string; timestamp: number }[]
@@ -27,9 +37,11 @@ type SimActions = {
   tickYear: () => void
   setRunning: (running: boolean) => void
   setSpeed: (speed: number) => void
-  setSelected: (id: string, type: SelectedType) => void
-  clearSelected: () => void
   setMapView: (view: MapView) => void
+  openDetailWindow: (entityType: EntityType, entityId: string) => void
+  closeDetailWindow: (windowId: string) => void
+  focusDetailWindow: (windowId: string) => void
+  moveDetailWindow: (windowId: string, position: { x: number; y: number }) => void
   toggleWatchlist: (id: string) => void
   setConfig: (partial: Partial<SimulationConfig>) => void
   dismissNotification: (id: string) => void
@@ -50,13 +62,19 @@ function stopInterval(): void {
   }
 }
 
+const WINDOW_CASCADE_STEP = 24
+const WINDOW_INITIAL_X = 300
+const WINDOW_INITIAL_Y = 80
+// 360px window width 想定で、おおむね右端を超えない位置に折り返す
+const WINDOW_MAX_X = 600
+
 export const useSimulationStore = create<SimStore>((set, get) => ({
   session: null,
   isRunning: false,
   speed: 1,
-  selectedId: null,
-  selectedType: null,
   mapView: 'terminal',
+  openWindows: [],
+  nextZIndex: 1,
   watchlist: [],
   config: { ...defaultConfig },
   pendingNotifications: [],
@@ -150,16 +168,64 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
     }
   },
 
-  setSelected: (id: string, type: SelectedType) => {
-    set({ selectedId: id, selectedType: type })
-  },
-
-  clearSelected: () => {
-    set({ selectedId: null, selectedType: null })
-  },
-
   setMapView: (view) => {
     set({ mapView: view })
+  },
+
+  openDetailWindow: (entityType, entityId) => {
+    const windowId = `${entityType}:${entityId}`
+    const { openWindows, nextZIndex } = get()
+    const existing = openWindows.find((w) => w.id === windowId)
+    if (existing) {
+      // bring-to-front
+      set({
+        openWindows: openWindows.map((w) => (w.id === windowId ? { ...w, zIndex: nextZIndex } : w)),
+        nextZIndex: nextZIndex + 1,
+      })
+      return
+    }
+    // cascade: 最後に focus されたウィンドウから +step, +step。窓ゼロなら initial 位置
+    const topWindow =
+      openWindows.length > 0
+        ? openWindows.reduce((a, b) => (a.zIndex >= b.zIndex ? a : b))
+        : undefined
+    let x = WINDOW_INITIAL_X
+    let y = WINDOW_INITIAL_Y
+    if (topWindow) {
+      x = topWindow.position.x + WINDOW_CASCADE_STEP
+      y = topWindow.position.y + WINDOW_CASCADE_STEP
+      if (x > WINDOW_MAX_X) x = 16
+      if (y > 360) y = 60
+    }
+    const win: DetailWindow = {
+      id: windowId,
+      entityType,
+      entityId,
+      position: { x, y },
+      zIndex: nextZIndex,
+    }
+    set({ openWindows: [...openWindows, win], nextZIndex: nextZIndex + 1 })
+  },
+
+  closeDetailWindow: (windowId) => {
+    set((state) => ({ openWindows: state.openWindows.filter((w) => w.id !== windowId) }))
+  },
+
+  focusDetailWindow: (windowId) => {
+    const { openWindows, nextZIndex } = get()
+    const target = openWindows.find((w) => w.id === windowId)
+    if (!target) return
+    if (target.zIndex === nextZIndex - 1) return
+    set({
+      openWindows: openWindows.map((w) => (w.id === windowId ? { ...w, zIndex: nextZIndex } : w)),
+      nextZIndex: nextZIndex + 1,
+    })
+  },
+
+  moveDetailWindow: (windowId, position) => {
+    set((state) => ({
+      openWindows: state.openWindows.map((w) => (w.id === windowId ? { ...w, position } : w)),
+    }))
   },
 
   toggleWatchlist: (id: string) => {

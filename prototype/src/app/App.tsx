@@ -2,8 +2,8 @@ import { ControlBar } from './components/controls/ControlBar'
 import { ProvinceMap } from './components/map/ProvinceMap'
 import { MapViewSwitcher } from './components/map/MapViewSwitcher'
 import { Sidebar } from './components/panels/Sidebar'
-import { DetailPanel } from './components/panels/DetailPanel'
 import { EventLog } from './components/logs/EventLog'
+import { WindowManager } from './components/windows/WindowManager'
 import { NotificationOverlay } from './components/notifications/NotificationOverlay'
 
 export function App() {
@@ -18,11 +18,11 @@ export function App() {
               <ProvinceMap />
             </div>
             <Sidebar />
-            <DetailPanel />
           </div>
           <EventLog />
         </div>
       </div>
+      <WindowManager />
       <NotificationOverlay />
     </div>
   )

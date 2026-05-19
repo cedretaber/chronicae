@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { useSimulationStore, type SelectedType } from '@/app/stores/simulationStore'
+import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
 import type { SimEvent } from '@/sim/types/event'
 import type { EventType } from '@/sim/types/event'
 
-type LinkItem = { id: string; type: SelectedType; name: string }
+type LinkItem = { id: string; type: EntityType; name: string }
 
 function EventLinks({ event }: { event: SimEvent }) {
   const session = useSimulationStore((s) => s.session)
-  const setSelected = useSimulationStore((s) => s.setSelected)
+  const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
 
   if (!session) return null
   const state = session.currentState
@@ -38,7 +38,7 @@ function EventLinks({ event }: { event: SimEvent }) {
           className="rounded bg-gray-800 px-1 text-[10px] text-blue-300 hover:bg-gray-700 hover:text-blue-200"
           onClick={(e) => {
             e.stopPropagation()
-            setSelected(it.id, it.type)
+            openDetailWindow(it.type, it.id)
           }}
           title={`${it.type}: ${it.name}`}
         >

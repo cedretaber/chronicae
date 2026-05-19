@@ -23,11 +23,16 @@ const nodeTypes: NodeTypes = { province: ProvinceNode }
 
 export function ProvinceMap() {
   const session = useSimulationStore((s) => s.session)
-  const selectedId = useSimulationStore((s) => s.selectedId)
-  const selectedType = useSimulationStore((s) => s.selectedType)
-  const setSelected = useSimulationStore((s) => s.setSelected)
-  const clearSelected = useSimulationStore((s) => s.clearSelected)
+  const openWindows = useSimulationStore((s) => s.openWindows)
+  const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
   const mapView = useSimulationStore((s) => s.mapView)
+
+  const focused = useMemo(() => {
+    if (openWindows.length === 0) return undefined
+    return openWindows.reduce((a, b) => (a.zIndex >= b.zIndex ? a : b))
+  }, [openWindows])
+  const focusedType = focused?.entityType
+  const focusedId = focused?.entityId
 
   const polities = session?.currentState.polities
   const houses = session?.currentState.houses
@@ -48,16 +53,16 @@ export function ProvinceMap() {
     if (!provinces) return []
 
     const popGroups = session?.currentState.popGroups
-    const isPolitySelected = selectedType === 'polity'
-    const isHouseSelected = selectedType === 'house'
+    const isPolitySelected = focusedType === 'polity'
+    const isHouseSelected = focusedType === 'house'
     const anyEntityHighlighted = isPolitySelected || isHouseSelected
 
     const selectedPolity =
-      isPolitySelected && selectedId && polities
-        ? polities[selectedId as unknown as PolityId]
+      isPolitySelected && focusedId && polities
+        ? polities[focusedId as unknown as PolityId]
         : undefined
     const selectedHouse =
-      isHouseSelected && selectedId && houses ? houses[selectedId as unknown as HouseId] : undefined
+      isHouseSelected && focusedId && houses ? houses[focusedId as unknown as HouseId] : undefined
 
     const capitalProvinceIds = new Set<string>(
       Object.values(polities ?? {}).map((p) => p.capitalProvinceId),
@@ -114,7 +119,7 @@ export function ProvinceMap() {
       } else if (province.id === capitalProvinceId || province.id === seatProvinceId) {
         highlightTier = 'direct'
       } else if (isPolitySelected) {
-        if (terminalPolityId === selectedId) highlightTier = 'direct'
+        if (terminalPolityId === focusedId) highlightTier = 'direct'
         else if (polityIndirectSet.has(province.id)) highlightTier = 'indirect'
         else highlightTier = 'none'
       } else {
@@ -123,7 +128,7 @@ export function ProvinceMap() {
         else highlightTier = 'none'
       }
 
-      const isSelected = selectedId === province.id && selectedType === 'province'
+      const isSelected = focusedId === province.id && focusedType === 'province'
 
       // mapView ベースの色 / opacity 計算
       let cellColor = '#888'
@@ -173,8 +178,8 @@ export function ProvinceMap() {
     provinces,
     polityColorMap,
     houseColorMap,
-    selectedId,
-    selectedType,
+    focusedId,
+    focusedType,
     polities,
     houses,
     session,
@@ -208,7 +213,7 @@ export function ProvinceMap() {
 
   const handleNodeClick = (_event: React.MouseEvent, node: Node) => {
     if (!session) return
-    setSelected(node.id, 'province')
+    openDetailWindow('province', node.id)
   }
 
   if (!session) {
@@ -229,15 +234,6 @@ export function ProvinceMap() {
           opacity: MAP_ICON_CONFIG.backgroundOpacity,
         }}
       />
-      {/* Clear button */}
-      {selectedId && (
-        <button
-          className="absolute top-2 right-2 z-20 rounded bg-gray-800/80 px-2 py-1 text-xs text-white hover:bg-gray-700"
-          onClick={clearSelected}
-        >
-          ✕ Clear
-        </button>
-      )}
       <MapLegend />
       {/* ReactFlow layer */}
       <div className="relative z-10 h-full w-full">
