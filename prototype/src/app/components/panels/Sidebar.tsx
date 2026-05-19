@@ -20,11 +20,11 @@ import { defaultConfig } from '@/sim/config/defaultConfig'
 type SectionKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist'
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
+  { key: 'watchlist', label: 'Watchlist' },
   { key: 'countries', label: 'Countries' },
   { key: 'houses', label: 'Houses' },
   { key: 'persons', label: 'Persons' },
   { key: 'factions', label: 'Factions' },
-  { key: 'watchlist', label: 'Watchlist' },
 ]
 
 function getRecentEventCount(
