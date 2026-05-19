@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-19（v0.16 時点）
+最終更新: 2026-05-19（v0.17 時点）
 
 ---
 
@@ -2412,16 +2412,48 @@ UI 層では基礎能力直接参照（`person.abilities.valor` を直接表示�
 - **§25 IntegrityCheck 33 項目**: chain 不変条件 / index 同期 / AnonymousHouse / placeholder / ProvinceOffice / Polity-House 整合性等を 25 項目 error throw + 5 項目型レベル保証 + 1 項目コードレビューで担保。
 - **検証**: CLI 300 年 × 4 seed (1, 42, 123, 999) で integrity 違反 0 完走。335 件 test pass。
 
-### v0.17 以降に送られる主要項目
+### v0.17 で実装済み（参考）
 
-#### Faction / お家再興 / 多重臣従と同時に再設計する項目 (spec-v016-update.md §30 B カテゴリ)
+詳細仕様は `docs/drafts/spec-v017-update.md` を参照（Stage A/B/C すべて完了、2026-05-19 時点）。
 
-- **派閥システム (Faction)**: 家を超えた政治集団。同派閥婚姻ボーナス、leader 意思決定の派閥圧力、軍事 contribution の Share-based 集計、commonwealth Polity の意思決定、placeholder leader の自発戦争抑制など。LAND_CONTRACT_* event の actual emit (現状 PURCHASED と BAILIFF_* のみ発火) もここで一括配線
-- **お家再興 / 復古試行**: landless 化した「亡命家」の memberIds が他家の Office に就任する経路の優先度補正。家の再起イベント発火条件
+- **派閥システム (Faction) の導入**: leader / member の純ネットワーク。treasury / land / Office / Share は持たない (人事と恩顧のネットワークに限定)。`Faction` (id, name, leaderPersonId, active, foundingYear, foundingMonth) と `FactionMembership` (factionId, personId, active, joinedYear, joinedMonth) を atomic mutation (`createFaction` / `addFactionMembership` / `deactivateFaction` / `transitionFactionLeader` / `removeFactionMembership`) で操作。`factionIndex.byLeader` / `byMember` で同期。
+- **新規 system 6 個**:
+  - `OfficeTermSystem` (毎年 1 月): 任期年数 (`officeTermYears.{polity,house}.{role}`) 経過 で非 leader Office を inactive 化、OFFICE_TERM_ENDED 発火。
+  - `UnaffiliatedPersonSystem` (毎年 1 月): AnonymousHouse の normal Person 数を `targetUnaffiliatedPersons` に向けて調整 (生成 / pruning)。`occupation` (9 種: adventurer / merchant / scholar / mercenary / scribe / priest / physician / jurist / wanderer) を抽選付与。pruning は `markPersonDead` + `deathCircumstance: 'faded_from_history'`。
+  - `HouseSurplusDistributionSystem` (毎月): House の余剰 wealth を Person Share 比で配当 (`houseSurplusDistributionMonthlyRate`)。
+  - `FactionLifecycleSystem` (毎年 1 月、毎月 leader 死亡時継承): 結成 / 解散 / leader 死亡時継承。`getFactionOpportunityScore` / `getFactionViabilityScore` で判定。最大 3 結成 / 年。
+  - `FactionRecruitmentSystem` (毎年 1 月): 在野 (AnonymousHouse 在籍 normal) / 没落貴族 (isLandlessHouseMember) を leader が引き抜く。`leader.wealth` から cost、`signingBonus` を candidate に。最大 3 リクルート / 派閥 / 年。
+  - `FactionPatronageSystem` (毎年 1 月): 派閥内の献金 (office 持ち → leader) と小遣い (leader → no-office member)。Attitude 更新は `updateAttitudeIfExists` で **既存 key のみ**。
+- **AnonymousHouse の拡張**: `kind: 'system'` のまま、normal Person も滞在可。houseExtinctionSystem が receiverHouse 不在時に living member を AnonymousHouse へ散らし、`Person.lastHouseTransferYear` を設定、HOUSE_MEMBERS_DISPERSED 発火。
+- **Person 拡張 field (すべて optional)**: `occupation` (`UnaffiliatedOccupation`)、`deathCircumstance` (`'natural' | 'faded_from_history'`)、`lastHouseTransferYear` (pruning 保護期間判定用)。`availabilityStatus` enum は導入せず、`isUnaffiliatedPerson` / `isLandlessHouseMember` 等の selector で状態を導出。
+- **Office 任期判定 (selector-based)**: `OfficeAssignment` に endYear/endMonth は追加せず、`isOfficeTermExpired(state, config, assignment)` で `currentYear - startYear >= termYears` 判定。`provinceOfficeTermYears.bailiff: 3` で Bailiff にも任期 (BailiffAppointmentSystem の前段で expire → placeholder)。
+- **AppointmentSystem 全面改修 (§14 切替方式 + fallback)**: `hasRelevantFactionForAppointment` で factional / traditional 切替。
+  - factional: `getFactionNominationPower` (org × 派閥) ≥ threshold な faction の member から `getFactionalCandidateScore` = NP × recommendation × scale + ability + prestige - compatibilityPenalty で選出。`minAppointmentScore` 未満なら fallback。
+  - traditional (v0.16 ベース): "system House 所属者除外" を撤廃 (placeholder のみ)、`concurrentOfficePenalty` を `getOfficeCompatibilityPenalty` (lookup table) に置換、`sameHousePolityOfficePenalty` を effective 版 `(1 - housePolitySharePct/100)` 倍に置換、ownerHouseBonus は commonwealth で 0。
+- **ShareUpdateSystem overlap bonus (§16.2)**: House holder の Polity Share rawPower に `(1 + overlapScore × polityShareOfficeOverlapBonusMax)` を乗算 (overlap は §9 の house-polity Office overlap)。Person holder (commonwealth) には適用しない。
+- **新規 EventType (11 種)**: `FACTION_FOUNDED` / `FACTION_DISSOLVED` / `FACTION_LEADER_CHANGED` / `PERSON_RECRUITED_TO_FACTION` / `OFFICE_TERM_ENDED` / `PERSON_FADED_FROM_HISTORY` / `PERSON_BORN_IN_OBSCURITY` / `HOUSE_MEMBERS_DISPERSED` / `FACTION_FUNDS_SHORTAGE` / `FACTION_MEMBER_ABANDONED` / `FACTION_LEADER_BANKRUPT`。
+- **IntegrityCheck §21 追加 (28 項目→39 項目)**: Faction (F1/F2/F4-F7)、Office (O3/O4)、deathCircumstance (D2/D3)、AnonymousHouse 拡張 (A1)、Index (I1-I4)。旧 §25 #29 inverse / #31 は §21.4 A2 に従い緩和 (AnonymousHouse は normal Person を許容)。
+- **「最後の通常 House 絶滅防止」guard**: `handleNormalHouseExtinction` 内で、世界に他に active 通常 House が残らないなら絶滅させない (pre-existing terminal state 防止)。
+- **検証**: CLI 300 年 × 4 seed (1, 42, 123, 999) で integrity 違反 0 完走。49 テストファイル / 483 件 test pass。
+
+### v0.18 以降に送られる主要項目
+
+#### Faction 拡張系
+
+- **同派閥婚姻ボーナス / leader 意思決定の派閥圧力 / 軍事 contribution の Share-based 集計**: v0.17 では未実装。派閥が「人事と恩顧」のみ。
+- **Faction 独立 UI**: v0.17 では Person detail に "Faction: ◈ {name} (leader|member)" を表示するに留め、Faction 専用 detail panel と Sidebar 切替は未着手。
+- **bailiff の factional 推薦 (§15.3)**: 派閥 leader と関係が良い候補を低重みで bailiff 推薦。v0.17 では未実装 (bailiff 任期切れによる placeholder 化のみ)。
+- **commonwealth 派閥の取り扱い拡張**: `ownerHouseId === undefined` Polity (Rebel Polity / commonwealth) で `getFactionNominationPower` から ownerHouse bonus を 0 にする処理は実装済 だが、commonwealth 特有の派閥動態 (rebel leader 直接派閥 leader 化など) は未深化。
+- **§21.3 D1 (alive=false → deathYear/deathMonth set)**: v0.17 では Person 型に deathYear/deathMonth を追加せず、integrity check は D1 を除外。表示時に state.currentYear から算出する設計のままで継続するか、deathYear を Person field として追加するかは要検討。
+- **Bailiff 任期年数のチューニング**: v0.17 デフォルト 3 年は normal bailiff が ownerHouse member に交代される機会を過度に絞る (CLI 観察で 4 seed 全て 0 normal / 40 placeholder)。任期延長 or 補充タイミングの再設計が必要。
+- **`targetUnaffiliatedPersons` バランス調整**: 30 から始めて、AnonymousHouse 内の normal Person 動態と派閥スカウト頻度を観察してチューニング。
+- **POLITY_LANDLESS event 表示の整備**
+
+#### v0.16 から繰り越された未実装 (一部 v0.17 で部分対応)
+
 - **多重臣従**: 1 つの House が複数 Polity の owner / vassal を兼ねる構造の明示化 (v0.16 では「複数 Polity の ownerHouse になり得る」のみ実装、明示臣従関係は無し)
 - **war goal system**: case C (下位 rank 勝者) の税率調整 default を起動。§13 / §16.1
 - **commonwealth 補充 / Rebel Polity の家産化阻止 (§11.2)**: 現状 polityOwnerConsistencySystem が `ownerHouseId === undefined` を補充対象としてしまうため、Rebel Polity が次の tick で家産国に転換される暫定挙動を本来の意図に戻す
-- **POLITY_LANDLESS event の発火 (§11)**: 現状未発火
 - **上位者の取り分維持と Attitude penalty (§14)**: 押領・強制的な税率変更時に上位者から実行者へ negative Attitude を付与
 - **BailiffAppointment の commonwealth 対応 (§19.1)**: 現状 ownerHouse なしは skip。Polity Share holder 系の候補者選定を導入
 
