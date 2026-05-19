@@ -97,13 +97,17 @@ export function tick(input: TickInput): TickResult {
   run('normalizePopSizes', normalizePopSizes)
 
   if (debug) {
+    // debug モードは細粒度デバッグ用に毎 tick 走らせる
     try {
       run('integrityCheck', runIntegritySystem)
     } catch (e) {
       log.log('INTEGRITY', { error: String(e) })
     }
     log.perf('tick:total', performance.now() - tickStart)
-  } else {
+  } else if (ctx.state.currentMonth === 12) {
+    // v0.17.3: default (non-debug) では年末のみ実行する。
+    // 違反は即時 throw して終了 (year-end 検知でも原因 year は特定できる)。
+    // tick 単位で per-tick check したい場合は --integrity-check flag を使う。
     ctx = runIntegritySystem(ctx)
   }
 
