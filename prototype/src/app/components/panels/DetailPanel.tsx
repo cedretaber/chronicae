@@ -19,6 +19,9 @@ import {
 } from '@sim/selectors/officeSelectors'
 import { getDominantPolityHouse, getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
+import { isUnaffiliatedPerson, isLandlessHouseMember } from '@sim/selectors/availabilitySelectors'
+import { getActiveFactionMembership, getFactionByLeader } from '@sim/selectors/factionSelectors'
+import { ANONYMOUS_HOUSE_ID } from '@sim/types/landContract'
 import { ABILITY_AGE_CURVES } from '@sim/constants/abilityConstants'
 import { getProvinceDevelopmentMultiplier } from '@/sim/selectors/developmentSelectors'
 import {
@@ -945,16 +948,60 @@ function PersonDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Alive:</span>
-          <span>{person.alive ? 'Yes' : 'No'}</span>
+          <span>
+            {person.alive
+              ? 'Yes'
+              : person.deathCircumstance === 'faded_from_history'
+                ? `Faded from history (${worldState.currentYear})`
+                : 'No'}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">House:</span>
-          <HouseLink
-            houseId={person.houseId}
-            houses={currentState?.houses ?? {}}
-            onClick={onHouseClick}
-          />
+          {person.houseId === ANONYMOUS_HOUSE_ID ? (
+            <span className="text-gray-400">(Unaffiliated)</span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <HouseLink
+                houseId={person.houseId}
+                houses={currentState?.houses ?? {}}
+                onClick={onHouseClick}
+              />
+              {isLandlessHouseMember(worldState, person.id) && (
+                <span className="text-xs text-amber-400">(landless)</span>
+              )}
+            </span>
+          )}
         </div>
+        {person.occupation && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Occupation:</span>
+            <span>{person.occupation}</span>
+          </div>
+        )}
+        {(() => {
+          const factionAsLeader = getFactionByLeader(worldState, person.id)
+          const membership = getActiveFactionMembership(worldState, person.id)
+          if (!factionAsLeader && !membership) return null
+          const targetFactionId = factionAsLeader?.id ?? membership?.factionId
+          const faction = targetFactionId ? worldState.factions[targetFactionId] : undefined
+          if (!faction) return null
+          const roleLabel = factionAsLeader ? 'leader' : 'member'
+          return (
+            <div className="flex justify-between">
+              <span className="text-gray-400">Faction:</span>
+              <span>
+                ◈ {faction.name} <span className="text-xs text-gray-500">({roleLabel})</span>
+              </span>
+            </div>
+          )
+        })()}
+        {isUnaffiliatedPerson(worldState, person.id) && person.houseId !== ANONYMOUS_HOUSE_ID && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Status:</span>
+            <span className="text-amber-400">Unaffiliated</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span className="text-gray-400">Primary Polity:</span>
           {(() => {
