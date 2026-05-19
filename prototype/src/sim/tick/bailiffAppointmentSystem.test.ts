@@ -390,6 +390,95 @@ describe('runBailiffAppointmentSystem', () => {
     expect(office.holderPersonId).not.toBe(memberId)
   })
 
+  it('v0.17.2: alive non-ownerHouse bailiff is NOT vacated by step 1 (factional bailiff stable)', () => {
+    const { state: baseState, polityId, houseId, provinceId } = makeBaseState()
+    let s: WorldState = { ...baseState, currentMonth: 6 }
+
+    // Install an outsider bailiff (alive, normal, not in ownerHouse) — simulates a factional bailiff
+    // that was already appointed in a previous tick. The new step 1 must NOT vacate this person.
+    const outsiderHouseId = createHouseId('h', 9)
+    s = withHouse(s, outsiderHouseId, { name: 'OutsiderHouse' })
+    const bailiffId = createPersonId('pe', 50)
+    s = withPerson(s, bailiffId, {
+      name: 'FactionalBailiff',
+      age: 30,
+      houseId: outsiderHouseId,
+      birthStatus: 'unknown',
+      legacyPrestige: 50,
+    })
+    // Install the bailiff manually with startYear = currentYear (term not expired)
+    void houseId
+    const officeId = s.provinceOfficeIndex.byProvince[provinceId] as ProvinceOfficeAssignmentId
+    const office = s.provinceOfficeAssignments[officeId]
+    if (!officeId || !office) throw new Error('no bailiff office found')
+    s = {
+      ...s,
+      provinceOfficeAssignments: {
+        ...s.provinceOfficeAssignments,
+        [officeId]: {
+          ...office,
+          holderPersonId: bailiffId,
+          startYear: s.currentYear,
+        },
+      },
+      provinceOfficeIndex: {
+        ...s.provinceOfficeIndex,
+        byHolderPerson: {
+          ...s.provinceOfficeIndex.byHolderPerson,
+          [bailiffId]: [officeId],
+        },
+      },
+    }
+
+    const ctx = createTickContext({ state: s, rng: createRng('test'), config: defaultConfig })
+    const result = toResult(runBailiffAppointmentSystem(ctx))
+
+    // The factional bailiff should remain in office
+    expect(countEvents(result.events, 'BAILIFF_VACATED')).toBe(0)
+    expect(countEvents(result.events, 'BAILIFF_PLACEHOLDER_INSTALLED')).toBe(0)
+    const afterOfficeId = result.state.provinceOfficeIndex.byProvince[provinceId]
+    expect(afterOfficeId).toBe(officeId)
+    expect(result.state.provinceOfficeAssignments[afterOfficeId!]?.holderPersonId).toBe(bailiffId)
+    void polityId
+  })
+
+  it('v0.17.2: dead bailiff IS vacated by step 1', () => {
+    const { state: baseState, houseId, provinceId } = makeBaseState()
+    let s: WorldState = { ...baseState, currentMonth: 6 }
+
+    const bailiffId = createPersonId('pe', 51)
+    s = withPerson(s, bailiffId, {
+      name: 'DeadBailiff',
+      age: 30,
+      houseId,
+      birthStatus: 'unknown',
+      alive: false,
+    })
+    const officeId = s.provinceOfficeIndex.byProvince[provinceId] as ProvinceOfficeAssignmentId
+    const office = s.provinceOfficeAssignments[officeId]
+    if (!officeId || !office) throw new Error('no bailiff office found')
+    s = {
+      ...s,
+      provinceOfficeAssignments: {
+        ...s.provinceOfficeAssignments,
+        [officeId]: { ...office, holderPersonId: bailiffId, startYear: s.currentYear },
+      },
+      provinceOfficeIndex: {
+        ...s.provinceOfficeIndex,
+        byHolderPerson: {
+          ...s.provinceOfficeIndex.byHolderPerson,
+          [bailiffId]: [officeId],
+        },
+      },
+    }
+
+    const ctx = createTickContext({ state: s, rng: createRng('test'), config: defaultConfig })
+    const result = toResult(runBailiffAppointmentSystem(ctx))
+
+    expect(countEvents(result.events, 'BAILIFF_VACATED')).toBeGreaterThan(0)
+    expect(countEvents(result.events, 'BAILIFF_PLACEHOLDER_INSTALLED')).toBeGreaterThan(0)
+  })
+
   it('does NOT vacate placeholder bailiff by term', () => {
     const { state: baseState, provinceId } = makeBaseState()
 

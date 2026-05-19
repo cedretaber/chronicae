@@ -78,19 +78,21 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       }
     }
 
-    // 1) 死亡 / 不正な bailiff を vacate → placeholder へ
+    // 1) 死亡 / 欠落 holder の vacate → placeholder へ
+    // v0.17.2: 旧版の「ownerHouse 外の holder を vacate」ロジックを削除。
+    // v0.17.1 で factional bailiff (ownerHouse 外の派閥員) を意図的に任命するようになったため、
+    // この check が factional bailiff を毎 6 ヶ月で即解任する事故を引き起こしていた。
+    // 死亡 holder のみ vacate する。生存中の holder は (placeholder / normal / 所属 House を問わず)
+    // 任期 (step 0) で循環させる方針に切り替える。
     for (const provinceId of terminalProvinceIds) {
       const officeId = currentCtx.state.provinceOfficeIndex.byProvince[provinceId]
       if (!officeId) continue
       const office = currentCtx.state.provinceOfficeAssignments[officeId]
       if (!office) continue
       const holder = currentCtx.state.persons[office.holderPersonId]
-      const isAlive = holder?.alive === true && holder.kind !== 'placeholder'
-      if (!isAlive) continue
-      // holder の houseId が ownerHouse の members に属していない場合は再任命対象
-      if (ownerHouse.memberIds.some((m) => m === holder.id)) {
-        continue
-      }
+      // 既に Person が消えている / 死亡している場合のみ vacate (placeholder は alive=true なので除外)
+      const needsVacate = !holder || (!holder.alive && holder.kind !== 'placeholder')
+      if (!needsVacate) continue
       currentCtx = emitBailiffVacated(currentCtx, provinceId, office.holderPersonId)
       const beforeVacate = currentCtx.state
       const afterPlaceholder = installPlaceholderBailiff(beforeVacate, {
