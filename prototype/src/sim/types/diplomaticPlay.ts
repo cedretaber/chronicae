@@ -16,7 +16,14 @@ export type DiplomaticPlayKind =
   | 'contract_tax_revision'
   | 'revolt_negotiation'
 
-export type ActiveDiplomaticPlayStatus = 'active'
+// v0.18 Stage D 更新:
+//   'escalated' を ActiveDiplomaticPlayStatus に追加。
+//   この status は diplomaticPlaySystem が tension >= escalationThreshold を検出したとき
+//   設定する非進行中間状態。同 tick 内の ConflictResolutionSystem が拾い上げ、
+//   'resolved_by_conflict' (terminal) に置換する。maxConflictsResolvedPerTick の
+//   上限で resolve 漏れがあった場合、'escalated' は次 tick に持ち越される (それでも
+//   IntegrityCheck §20 を通る非 terminal 扱い)。
+export type ActiveDiplomaticPlayStatus = 'active' | 'escalated'
 
 export type TerminalDiplomaticPlayStatus =
   | 'settled'
@@ -32,10 +39,6 @@ export const TERMINAL_DIPLOMATIC_PLAY_STATUSES: ReadonlyArray<TerminalDiplomatic
   'resolved_by_conflict',
   'cancelled',
 ]
-
-// 注: status === 'escalated' は §10.2 で言及される中間状態だが、それは
-// ConflictResolution に渡す直前の一時状態として扱い、Record 上では
-// 'resolved_by_conflict' に置換されることを想定。型 union には含めない。
 
 export type DiplomaticDemand =
   | {

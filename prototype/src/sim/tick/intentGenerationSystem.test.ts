@@ -43,28 +43,35 @@ function buildWorld() {
   })
   s = bindProvinceToHouseViaPolity(s, provinceBuyerId, buyerPolityId, buyerHouseId)
   s = bindProvinceToHouseViaPolity(s, provinceSellerId, sellerPolityId, sellerHouseId)
-  return { state: s, sellerPolityId, buyerPolityId, provinceSellerId }
+  return { state: s, sellerPolityId, buyerPolityId, provinceSellerId, provinceBuyerId }
 }
 
-function makeCtx(state: WorldState, currentMonth = 1) {
+function makeCtx(
+  state: WorldState,
+  currentMonth = 1,
+  configOverride?: Partial<typeof defaultConfig>,
+) {
   const s = { ...state, currentMonth }
-  return createTickContext({ state: s, rng: createRng('intent-test'), config: defaultConfig })
+  return createTickContext({
+    state: s,
+    rng: createRng('intent-test'),
+    config: { ...defaultConfig, ...configOverride },
+  })
 }
 
 describe('runIntentGenerationSystem', () => {
-  it('generates sell_land Intent when conditions are met', () => {
+  it('generates sell_land Intent when conditions are met (acquire_land disabled)', () => {
     const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld()
-    const ctx = makeCtx(state)
+    const ctx = makeCtx(state, 1, { acquireLandIntentEnabled: false })
     const next = runIntentGenerationSystem(ctx)
     const intents = Object.values(next.state.actorIntents)
-    expect(intents.length).toBe(1)
-    const intent = intents[0]
-    expect(intent?.kind).toBe('sell_land')
+    const sellIntents = intents.filter((i) => i?.kind === 'sell_land')
+    expect(sellIntents.length).toBe(1)
+    const intent = sellIntents[0]
     expect(intent?.actor.id).toBe(sellerPolityId)
     expect(intent?.targetActor?.id).toBe(buyerPolityId)
     expect(intent?.targetProvinceId).toBe(provinceSellerId)
     expect(intent?.status).toBe('active')
-    // ACTOR_INTENT_CREATED event 発火
     expect(next.events.some((e) => e.type === 'ACTOR_INTENT_CREATED')).toBe(true)
   })
 
@@ -75,9 +82,8 @@ describe('runIntentGenerationSystem', () => {
     expect(Object.keys(next.state.actorIntents).length).toBe(0)
   })
 
-  it('does not duplicate Intent if already active', () => {
+  it('does not duplicate sell_land Intent if already active', () => {
     const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld()
-    // 既存 sell_land Intent を inject
     const existing = {
       id: 'ai-existing' as import('../types/ids').ActorIntentId,
       actor: { kind: 'polity' as const, id: sellerPolityId },
@@ -93,9 +99,98 @@ describe('runIntentGenerationSystem', () => {
       expiresMonth: 1,
     }
     const s = { ...state, actorIntents: { [existing.id]: existing } }
+    // acquire_land を無効化して sell_land の重複防止のみを検証
+    const ctx = makeCtx(s, 1, { acquireLandIntentEnabled: false })
+    const next = runIntentGenerationSystem(ctx)
+    expect(Object.keys(next.state.actorIntents).length).toBe(1)
+  })
+
+  // v0.18 Stage D: acquire_land
+  it('generates acquire_land Intent when acquirer has treasury and adjacent target', () => {
+    const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld()
+    // sell_land を無効化して acquire_land 単独動作を検証
+    // (defaultLandContractConfig.purchaseSellerTreasuryThreshold は別 module で
+    //  config override しても効かないため、seller treasury を threshold 以上に上書き)
+    const stateNoSell = {
+      ...state,
+      polities: {
+        ...state.polities,
+        [sellerPolityId]: {
+          ...state.polities[sellerPolityId]!,
+          treasury: defaultLandContractConfig.purchaseSellerTreasuryThreshold + 100,
+        },
+      },
+    }
+    const ctx = makeCtx(stateNoSell)
+    const next = runIntentGenerationSystem(ctx)
+    const intents = Object.values(next.state.actorIntents)
+    const acquireIntents = intents.filter((i) => i?.kind === 'acquire_land')
+    expect(acquireIntents.length).toBeGreaterThanOrEqual(1)
+    const intent = acquireIntents[0]
+    // acquirer = buyer (rich Polity), target = seller, province = seller の Province
+    expect(intent?.actor.id).toBe(buyerPolityId)
+    expect(intent?.targetActor?.id).toBe(sellerPolityId)
+    expect(intent?.targetProvinceId).toBe(provinceSellerId)
+    expect(intent?.rationale).toBe('expand_territory')
+  })
+
+  it('emits ACTOR_INTENT_CREATED for acquire_land Intent', () => {
+    const { state, sellerPolityId } = buildWorld()
+    const stateNoSell = {
+      ...state,
+      polities: {
+        ...state.polities,
+        [sellerPolityId]: {
+          ...state.polities[sellerPolityId]!,
+          treasury: defaultLandContractConfig.purchaseSellerTreasuryThreshold + 100,
+        },
+      },
+    }
+    const ctx = makeCtx(stateNoSell)
+    const next = runIntentGenerationSystem(ctx)
+    // event の summary に "eyes" (acquire_land 用) が入っていること
+    const acquireEvent = next.events.find(
+      (e) => e.type === 'ACTOR_INTENT_CREATED' && e.summary.includes('eyes'),
+    )
+    expect(acquireEvent).toBeDefined()
+  })
+
+  it('does not duplicate acquire_land Intent if already active', () => {
+    const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld()
+    // seller の treasury を threshold 以上 + acquireLandMinTreasury 未満にして
+    //   sell_land を起こさず、かつ seller を acquirer にもしない
+    const stateNoSell = {
+      ...state,
+      polities: {
+        ...state.polities,
+        [sellerPolityId]: {
+          ...state.polities[sellerPolityId]!,
+          treasury: defaultLandContractConfig.purchaseSellerTreasuryThreshold + 100,
+        },
+      },
+    }
+    const existing = {
+      id: 'ai-existing-acquire' as import('../types/ids').ActorIntentId,
+      actor: { kind: 'polity' as const, id: buyerPolityId },
+      kind: 'acquire_land' as const,
+      targetActor: { kind: 'polity' as const, id: sellerPolityId },
+      targetProvinceId: provinceSellerId,
+      priority: 100,
+      rationale: 'expand_territory' as const,
+      status: 'active' as const,
+      createdYear: state.currentYear,
+      createdMonth: 1,
+      expiresYear: state.currentYear + 1,
+      expiresMonth: 1,
+    }
+    const s = { ...stateNoSell, actorIntents: { [existing.id]: existing } }
     const ctx = makeCtx(s)
     const next = runIntentGenerationSystem(ctx)
-    // 既存 1 件のまま
-    expect(Object.keys(next.state.actorIntents).length).toBe(1)
+    // buyer→seller 方向の acquire_land は重複しない (既存 1 件のまま)。
+    // seller→buyer 方向は別の Intent (許容)。
+    const buyerAcquires = Object.values(next.state.actorIntents).filter(
+      (i) => i?.kind === 'acquire_land' && i.actor.id === buyerPolityId,
+    )
+    expect(buyerAcquires.length).toBe(1)
   })
 })

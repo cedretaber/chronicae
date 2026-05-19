@@ -23,11 +23,11 @@ import { runPublicSpendingSystem } from './publicSpendingSystem'
 import { runHouseDevelopmentSystem } from './houseDevelopmentSystem'
 import { runControlSystem } from './controlSystem'
 import { runPlotSystem } from './plotSystem'
-import { runWarSystem } from './warSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import { runDiplomaticPlaySystem } from './diplomaticPlaySystem'
 import { runIntentGenerationSystem } from './intentGenerationSystem'
 import { runIntentToDiplomaticPlaySystem } from './intentToDiplomaticPlaySystem'
+import { runConflictResolutionSystem } from './conflictResolutionSystem'
 import { runPolityOwnerConsistencySystem } from './polityOwnerConsistencySystem'
 import { runOrganizationConsistencySystem } from './organizationConsistencySystem'
 import { runAttitudeDecaySystem } from './attitudeDecaySystem'
@@ -92,13 +92,15 @@ export function tick(input: TickInput): TickResult {
   run('houseDevelopmentSystem', runHouseDevelopmentSystem)
   run('popDevelopmentSystem', runPopDevelopmentSystem)
   run('plotSystem', runPlotSystem)
-  run('warSystem', runWarSystem)
-  // v0.18 Stage C §17.2: Intent 生成 + Play 変換 (warSystem の後、provinceRevoltSystem の前)
+  // v0.18 Stage D §17.3: 旧 warSystem を tick から除外 (acquire_land Intent → land_transfer_demand → ConflictResolution 経路に統合)
+  // v0.18 Stage C/D §17.2-3: Intent 生成 + Play 変換
   run('intentGenerationSystem', runIntentGenerationSystem)
   run('intentToDiplomaticPlaySystem', runIntentToDiplomaticPlaySystem)
   run('provinceRevoltSystem', runProvinceRevoltSystem)
-  // v0.18 Stage B §17.1 / Stage C §17.2: revolt_negotiation + land_purchase 進行
+  // v0.18 Stage B/C/D: 全 kind の DiplomaticPlay 進行
   run('diplomaticPlaySystem', runDiplomaticPlaySystem)
+  // v0.18 Stage D §13: escalated Play を武力衝突として解決
+  run('conflictResolutionSystem', runConflictResolutionSystem)
   // v0.18 Stage C §15: 旧 landContractPurchaseSystem は tick から除外 (Intent → Play 経路に統合)
   run('polityOwnerConsistencySystem', runPolityOwnerConsistencySystem)
   run('organizationConsistencySystem', runOrganizationConsistencySystem)

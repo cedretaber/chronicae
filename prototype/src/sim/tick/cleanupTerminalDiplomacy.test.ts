@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { makeEmptyV016State } from '../testFixtures'
+import { makeEmptyV016State, withPolity } from '../testFixtures'
 import { createTickContext } from './context'
 import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { createRng } from '../rng/rng'
@@ -14,6 +14,15 @@ import type {
 } from '../types/ids'
 import type { ActorIntent } from '../types/actorIntent'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
+
+// v0.18 Stage D 追加: cleanup は inactive actor 参照 Play / Intent も削除する。
+// テストでは fixture で active な c-1 / c-2 polity を用意しておく。
+function makeStateWithActors(): WorldState {
+  let s = makeEmptyV016State()
+  s = withPolity(s, 'c-1' as PolityId, { rank: 2, treasury: 100 })
+  s = withPolity(s, 'c-2' as PolityId, { rank: 2, treasury: 100 })
+  return s
+}
 
 function makeCtx(state: WorldState) {
   return createTickContext({ state, rng: createRng('cleanup-test'), config: defaultConfig })
@@ -65,7 +74,7 @@ describe('cleanupTerminalDiplomacy', () => {
   })
 
   it('keeps active Intent and Play untouched', () => {
-    let s = makeEmptyV016State()
+    let s = makeStateWithActors()
     const intent = makeIntent('ai-1', 'active')
     const play = makePlay('dp-1', 'active')
     s = {
@@ -79,7 +88,7 @@ describe('cleanupTerminalDiplomacy', () => {
   })
 
   it('removes terminal Intent (converted / expired / cancelled)', () => {
-    let s = makeEmptyV016State()
+    let s = makeStateWithActors()
     const active = makeIntent('ai-active', 'active')
     const converted = makeIntent('ai-converted', 'converted')
     const expired = makeIntent('ai-expired', 'expired')
@@ -99,7 +108,7 @@ describe('cleanupTerminalDiplomacy', () => {
   })
 
   it('removes terminal Play (settled / failed / resolved_by_conflict / cancelled)', () => {
-    let s = makeEmptyV016State()
+    let s = makeStateWithActors()
     const active = makePlay('dp-active', 'active')
     const settled = makePlay('dp-settled', 'settled')
     const failed = makePlay('dp-failed', 'failed')
@@ -121,7 +130,7 @@ describe('cleanupTerminalDiplomacy', () => {
   })
 
   it('does not roll back nextActorIntentId / nextDiplomaticPlayId on deletion', () => {
-    let s = makeEmptyV016State()
+    let s = makeStateWithActors()
     s = {
       ...s,
       actorIntents: { 'ai-1': makeIntent('ai-1', 'expired') } as Record<ActorIntentId, ActorIntent>,

@@ -1157,11 +1157,14 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
       })
     }
     seenPlayIds.add(idStr)
-    // すべての entry の status === 'active'
-    if (play.status !== 'active') {
+    // すべての entry は active or escalated (terminal は tick 末で削除される前提)
+    // v0.18 Stage D: 'escalated' は ConflictResolutionSystem が同 tick 内で
+    // 'resolved_by_conflict' に置換するが、maxConflictsResolvedPerTick 上限で
+    // 持ち越される場合がある (非 terminal なので OK)。
+    if (play.status !== 'active' && play.status !== 'escalated') {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `DiplomaticPlay ${idStr} has non-active status ${play.status} (terminal must be cleaned up) (§20)`,
+        message: `DiplomaticPlay ${idStr} has terminal status ${play.status} (must be cleaned up) (§20)`,
       })
     }
     // initiator / target が active actor

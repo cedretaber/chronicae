@@ -81,6 +81,8 @@ export type EventType =
   // v0.18 Stage C §18.1
   | 'ACTOR_INTENT_CREATED'
   | 'ACTOR_INTENT_CONVERTED'
+  // v0.18 Stage D §18.1
+  | 'DIPLOMATIC_PLAY_ESCALATED'
 
 export type EventReason = {
   label: string

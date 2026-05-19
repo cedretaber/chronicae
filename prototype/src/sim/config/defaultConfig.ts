@@ -291,6 +291,23 @@ export type SimulationConfig = {
   purchaseProvinceValueFactor: number
   purchaseStrategicLossFactor: number
   landPurchaseNegotiationDurationMonths: number
+  // v0.18 Stage D: land_transfer_demand acceptance (§10.3.3)
+  demandPressureFactor: number
+  demandResistFactor: number
+  demandProvinceValueFactor: number
+  demandPrestigeLossFactor: number
+  landTransferDemandNegotiationDurationMonths: number
+  // v0.18 Stage D: 汎用 conflict (§13.2)
+  conflictResolutionEnabled: boolean
+  maxConflictsResolvedPerTick: number
+  conflictLoserTreasuryDamageFactor: number
+  conflictProvinceDevastation: number
+  conflictPopWealthDamage: number
+  conflictPopUnrestGain: number
+  // v0.18 Stage D: acquire_land Intent
+  acquireLandIntentEnabled: boolean
+  acquireLandMinTreasury: number
+  acquireLandMaxIntentsPerActor: number
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: number
   rulerAdminCapacityFactor: number
@@ -722,6 +739,29 @@ export const defaultConfig: SimulationConfig = {
   purchaseProvinceValueFactor: 0.3,
   purchaseStrategicLossFactor: 0.2,
   landPurchaseNegotiationDurationMonths: 12,
+  // v0.18 Stage D: land_transfer_demand acceptance (§10.3.3)
+  // 注: progressLandTransferDemand 内で acceptanceScore =
+  //   initiatorMilitaryPower * demandPressureFactor
+  //   - defenderMilitaryPower * demandResistFactor
+  //   - provinceValue * demandProvinceValueFactor
+  //   - prestigeLoss * demandPrestigeLossFactor
+  // 軍事力は数百〜数千スケール、provinceValue は開発度ベース (0〜100 想定)。
+  demandPressureFactor: 0.1,
+  demandResistFactor: 0.12,
+  demandProvinceValueFactor: 0.3,
+  demandPrestigeLossFactor: 0.2,
+  landTransferDemandNegotiationDurationMonths: 18,
+  // v0.18 Stage D: 汎用 conflict (§13.2)
+  conflictResolutionEnabled: true,
+  maxConflictsResolvedPerTick: 5,
+  conflictLoserTreasuryDamageFactor: 0.4,
+  conflictProvinceDevastation: 4,
+  conflictPopWealthDamage: 4,
+  conflictPopUnrestGain: 12,
+  // v0.18 Stage D: acquire_land Intent
+  acquireLandIntentEnabled: true,
+  acquireLandMinTreasury: 200,
+  acquireLandMaxIntentsPerActor: 1,
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: 20,
   rulerAdminCapacityFactor: 4,
