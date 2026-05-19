@@ -78,6 +78,9 @@ export type EventType =
   | 'DIPLOMATIC_PLAY_SETTLED'
   | 'DIPLOMATIC_PLAY_FAILED'
   | 'DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT'
+  // v0.18 Stage C §18.1
+  | 'ACTOR_INTENT_CREATED'
+  | 'ACTOR_INTENT_CONVERTED'
 
 export type EventReason = {
   label: string

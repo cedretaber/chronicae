@@ -287,6 +287,10 @@ export type SimulationConfig = {
   revoltSuppressedOtherUnrestReduction: number
   revoltSuppressedDevelopmentDamage: number
   revoltSuppressedWealthPenalty: number
+  // v0.18 Stage C: land_purchase acceptance
+  purchaseProvinceValueFactor: number
+  purchaseStrategicLossFactor: number
+  landPurchaseNegotiationDurationMonths: number
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: number
   rulerAdminCapacityFactor: number
@@ -712,6 +716,12 @@ export const defaultConfig: SimulationConfig = {
   revoltSuppressedOtherUnrestReduction: 10,
   revoltSuppressedDevelopmentDamage: 4,
   revoltSuppressedWealthPenalty: 8,
+  // v0.18 Stage C: land_purchase acceptance (§10.3.2)
+  // 注: progressLandPurchase 内の係数 (offeredPrice * 0.05 など) と組み合わせて使う。
+  // 値の調整は Stage E balance pass で見直す前提。
+  purchaseProvinceValueFactor: 0.3,
+  purchaseStrategicLossFactor: 0.2,
+  landPurchaseNegotiationDurationMonths: 12,
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: 20,
   rulerAdminCapacityFactor: 4,

@@ -1,5 +1,5 @@
 import type { WorldState } from '../types/world'
-import type { ProvinceId, PolityId, LandContractId } from '../types/ids'
+import type { ProvinceId, PolityId, LandContractId, HouseId } from '../types/ids'
 import type {
   LandContract,
   LandContractIndex,
@@ -9,6 +9,16 @@ import type {
 import { ROOT_WORLD } from '../types/landContract'
 import { createLandContractId } from '../types/ids'
 import { clampTaxRate } from '../helpers/landContractHelpers'
+import type { TickContext } from '../tick/context'
+import { makeEventId } from '../tick/context'
+import type { SimEvent } from '../types/event'
+import type { CtxResult } from './result'
+import { ok, err } from './result'
+import {
+  getProvinceTerminalContract,
+  getLandContractGrantor,
+  getGrantorRank,
+} from '../selectors/landContractSelectors'
 
 type CreateRootContractParams = {
   provinceId: ProvinceId
@@ -377,6 +387,118 @@ export function purchaseLandContract(
   nextState = { ...nextState, polities: nextPolities }
 
   return nextState
+}
+
+// v0.18 Stage C §12.2: applyLandContractTransferGoal wrapper
+// LandContract terminal grantee の差し替えを wrap し、reason 別に event を発火する。
+// - reason='purchase' → LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_PURCHASED
+// - reason='demand'   → LAND_CONTRACT_TRANSFERRED (Stage D で利用)
+// - reason='war'      → LAND_CONTRACT_TRANSFERRED (Stage D 以降)
+// - reason='revolt'   → LAND_CONTRACT_TRANSFERRED (Stage B の disbandRebelPolity は直接 transferLandContractGrantee 使用済)
+//
+// DIPLOMATIC_PLAY_* / REVOLT_* / WAR_* 上位 event は caller 側で発火する責任。
+//
+// rank 不変条件 (§25 #7) を事前チェック。違反なら error を返し、state を変更しない。
+
+export type LandContractTransferReason = 'purchase' | 'demand' | 'war' | 'revolt'
+
+export function applyLandContractTransferGoal(
+  ctx: TickContext,
+  input: {
+    provinceId: ProvinceId
+    toPolityId: PolityId
+    reason: LandContractTransferReason
+  },
+): CtxResult<void> {
+  const state = ctx.state
+  const province = state.provinces[input.provinceId]
+  if (!province) {
+    return err({
+      code: 'PROVINCE_NOT_FOUND',
+      message: `applyLandContractTransferGoal: province ${input.provinceId} not found`,
+    })
+  }
+  const toPolity = state.polities[input.toPolityId]
+  if (!toPolity || !toPolity.active) {
+    return err({
+      code: 'POLITY_NOT_FOUND',
+      message: `applyLandContractTransferGoal: target polity ${input.toPolityId} is missing or inactive`,
+    })
+  }
+  const terminal = getProvinceTerminalContract(state, input.provinceId)
+  if (!terminal) {
+    return err({
+      code: 'NO_TERMINAL_CONTRACT',
+      message: `applyLandContractTransferGoal: province ${input.provinceId} has no terminal contract`,
+    })
+  }
+  if (terminal.granteePolityId === input.toPolityId) {
+    // 既に target grantee → no-op で ok
+    return ok({ ctx, value: undefined })
+  }
+  // rank 不変条件 (§25 #7): grantor rank < grantee rank
+  const grantor = getLandContractGrantor(state, terminal.id)
+  if (grantor) {
+    const grantorRank = getGrantorRank(state, grantor)
+    if (grantorRank >= toPolity.rank) {
+      return err({
+        code: 'INTEGRITY_VIOLATION',
+        message: `applyLandContractTransferGoal: rank invariant violation (grantor rank ${grantorRank} >= grantee rank ${toPolity.rank})`,
+      })
+    }
+  }
+
+  const fromPolityId = terminal.granteePolityId
+  const fromPolity = state.polities[fromPolityId]
+  const newState = transferLandContractGrantee(state, terminal.id, input.toPolityId)
+  let nextCtx: TickContext = { ...ctx, state: newState }
+
+  // LAND_CONTRACT_TRANSFERRED event (低レベル)
+  const ownerHouseIds: HouseId[] = []
+  if (fromPolity?.ownerHouseId !== undefined) ownerHouseIds.push(fromPolity.ownerHouseId)
+  if (toPolity.ownerHouseId !== undefined) ownerHouseIds.push(toPolity.ownerHouseId)
+  const provinceName = province.name
+  const fromName = fromPolity?.name ?? fromPolityId
+  const toName = toPolity.name
+
+  const { id: transferEventId, ctx: ctxAfterTransfer } = makeEventId(nextCtx)
+  const transferEv: SimEvent = {
+    id: transferEventId,
+    year: ctxAfterTransfer.state.currentYear,
+    month: ctxAfterTransfer.state.currentMonth,
+    type: 'LAND_CONTRACT_TRANSFERRED',
+    importance: 'normal',
+    actorIds: [],
+    houseIds: ownerHouseIds,
+    polityIds: [fromPolityId, input.toPolityId],
+    provinceIds: [input.provinceId],
+    summary: `${provinceName} transferred from ${fromName} to ${toName} (${input.reason}).`,
+    reasons: [],
+    effects: [],
+  }
+  nextCtx = { ...ctxAfterTransfer, events: [...ctxAfterTransfer.events, transferEv] }
+
+  // reason 別の追加 domain event
+  if (input.reason === 'purchase') {
+    const { id: purchaseEventId, ctx: ctxAfterPurchase } = makeEventId(nextCtx)
+    const purchaseEv: SimEvent = {
+      id: purchaseEventId,
+      year: ctxAfterPurchase.state.currentYear,
+      month: ctxAfterPurchase.state.currentMonth,
+      type: 'LAND_CONTRACT_PURCHASED',
+      importance: 'major',
+      actorIds: [],
+      houseIds: ownerHouseIds,
+      polityIds: [fromPolityId, input.toPolityId],
+      provinceIds: [input.provinceId],
+      summary: `${toName} purchased ${provinceName} from ${fromName}.`,
+      reasons: [],
+      effects: [],
+    }
+    nextCtx = { ...ctxAfterPurchase, events: [...ctxAfterPurchase.events, purchaseEv] }
+  }
+
+  return ok({ ctx: nextCtx, value: undefined })
 }
 
 // v0.16 §16.1: contract を削除する。terminal でない contract を消すと chain が断絶するので、

@@ -9,10 +9,12 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import { adjustProvincePopUnrestByClass, adjustProvincePopUnrest } from '../mutations/popMutations'
 import { resolveRevoltConflict } from './provinceRevoltSystem'
 import { disbandRebelPolity, type RebelLeaderAftermath } from '../mutations/worldStructureMutations'
+import { applyLandContractTransferGoal } from '../mutations/landContractMutations'
 import {
   getProvinceManpowerBase,
   getProvinceHouseManpowerBase,
 } from '../selectors/popEconomySelectors'
+import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
 import { randomFloat } from '../rng/rng'
 
 // v0.18 Stage B §10 / §11.4 / §13.3 / §14.5-7
@@ -31,9 +33,14 @@ export function runDiplomaticPlaySystem(ctx: TickContext): TickContext {
     const play = currentCtx.state.diplomaticPlays[playIdStr as DiplomaticPlayId]
     if (!play) continue
     if (play.status !== 'active') continue
-    // Stage B: revolt_negotiation のみ進行。他 kind は Stage C/D で実装
-    if (play.kind !== 'revolt_negotiation') continue
-    currentCtx = progressRevoltNegotiation(currentCtx, play)
+    // Stage B: revolt_negotiation 進行
+    // Stage C: land_purchase 進行
+    // 他 kind は Stage D 以降で実装
+    if (play.kind === 'revolt_negotiation') {
+      currentCtx = progressRevoltNegotiation(currentCtx, play)
+    } else if (play.kind === 'land_purchase') {
+      currentCtx = progressLandPurchase(currentCtx, play)
+    }
   }
   return currentCtx
 }
@@ -423,4 +430,217 @@ function setPlayStatus(
       },
     },
   }
+}
+
+// v0.18 Stage C §10.3.2 / §11.1 / §12.2
+// land_purchase Play の月次進行 (target=seller 視点での acceptanceScore で更新)。
+// Stage C では escalation 経路は実装しない (cancelled として終了)。
+//
+// 判定優先順:
+//   1. progress >= settlementThreshold → settled (金銭移転 + LandContract 移転)
+//   2. deadline 到達 → failed
+//   3. それ以外 → progress/tension 更新のみ
+function progressLandPurchase(ctx: TickContext, play: DiplomaticPlay): TickContext {
+  const config = ctx.config
+  const state = ctx.state
+  if (play.primaryDemand.kind !== 'transfer_land_contract') return ctx
+  if (!play.counterDemand || play.counterDemand.kind !== 'pay_wealth') return ctx
+  if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') return ctx
+
+  const primary = play.primaryDemand
+  const counter = play.counterDemand
+  const buyerPolityId = play.initiator.id
+  const sellerPolityId = play.target.id
+  const provinceId = primary.provinceId
+  const offeredPrice = counter.amount
+
+  // target / buyer / Province の整合性を確認
+  const buyer = state.polities[buyerPolityId]
+  const seller = state.polities[sellerPolityId]
+  const province = state.provinces[provinceId]
+  if (!buyer || !buyer.active || !seller || !seller.active || !province) {
+    return setPlayStatus(ctx, play.id, 'cancelled')
+  }
+  // 既に province が seller 以外のものになっている (war で奪われた等) → cancelled
+  if (getProvinceTerminalPolityId(state, provinceId) !== sellerPolityId) {
+    return setPlayStatus(ctx, play.id, 'cancelled')
+  }
+  // commonwealth 化など、seller の rank/owner が変わった場合も cancelled
+  if (seller.ownerHouseId === undefined) {
+    return setPlayStatus(ctx, play.id, 'cancelled')
+  }
+
+  // §10.3.2 acceptanceScore (seller 視点)
+  //   acceptanceScore =
+  //     offeredPrice
+  //     + sellerTreasuryNeed
+  //     - provinceValue * config.purchaseProvinceValueFactor
+  //     - strategicValue * config.purchaseStrategicLossFactor
+  const sellerTreasuryNeed = computeSellerTreasuryNeed(seller.treasury)
+  const provinceValue = computeProvinceValue(province.development)
+  const strategicValue = computeStrategicValue(state, provinceId, sellerPolityId)
+
+  const acceptanceScore =
+    offeredPrice * 0.05 + // price を 0.05 倍して unrest スケールに揃える (旧 price base = 500)
+    sellerTreasuryNeed -
+    provinceValue * config.purchaseProvinceValueFactor -
+    strategicValue * config.purchaseStrategicLossFactor
+
+  // progress / tension 更新 (Stage B と同じ式)
+  let nextProgress = play.progress
+  let nextTension: number
+  if (acceptanceScore >= 0) {
+    nextProgress = clamp(play.progress + clamp(acceptanceScore * 0.2, 1, 12), 0, 100)
+    nextTension = clamp(play.tension + config.diplomaticPlayBaseTensionGain, 0, 100)
+  } else {
+    nextTension = clamp(play.tension + clamp(-acceptanceScore * 0.2, 1, 12), 0, 100)
+  }
+
+  let nextCtx: TickContext = {
+    ...ctx,
+    state: {
+      ...state,
+      diplomaticPlays: {
+        ...state.diplomaticPlays,
+        [play.id]: { ...play, progress: nextProgress, tension: nextTension },
+      },
+    },
+  }
+
+  // 判定優先順
+  if (nextProgress >= config.diplomaticPlaySettlementThreshold) {
+    return applyLandPurchaseSettlement(
+      nextCtx,
+      play,
+      primary,
+      counter,
+      buyerPolityId,
+      sellerPolityId,
+    )
+  }
+  // Stage C: escalation 経路は実装しない (Stage D で land_transfer_demand 経路として追加)
+  if (isDeadlineReached(nextCtx.state, play)) {
+    nextCtx = setPlayStatus(nextCtx, play.id, 'failed')
+    const { id: eid, ctx: ctxEv } = makeEventId(nextCtx)
+    const provinceName = ctxEv.state.provinces[provinceId]?.name ?? provinceId
+    const ev: SimEvent = {
+      id: eid,
+      year: ctxEv.state.currentYear,
+      month: ctxEv.state.currentMonth,
+      type: 'DIPLOMATIC_PLAY_FAILED',
+      importance: 'normal',
+      actorIds: [],
+      houseIds: [],
+      polityIds: [buyerPolityId, sellerPolityId],
+      provinceIds: [provinceId],
+      summary: `Land purchase negotiation for ${provinceName} failed.`,
+      reasons: [],
+      effects: [],
+    }
+    return { ...ctxEv, events: [...ctxEv.events, ev] }
+  }
+
+  // 通常進行: DIPLOMATIC_PLAY_PROGRESS event は発火しない (Stage B と同様、ノイズ抑制)
+  return nextCtx
+}
+
+function applyLandPurchaseSettlement(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  primary: Extract<DiplomaticPlay['primaryDemand'], { kind: 'transfer_land_contract' }>,
+  counter: Extract<NonNullable<DiplomaticPlay['counterDemand']>, { kind: 'pay_wealth' }>,
+  buyerPolityId: PolityId,
+  sellerPolityId: PolityId,
+): TickContext {
+  const state = ctx.state
+  const buyer = state.polities[buyerPolityId]
+  const seller = state.polities[sellerPolityId]
+  if (!buyer || !seller) return setPlayStatus(ctx, play.id, 'cancelled')
+  const price = counter.amount
+
+  // buyer が支払い能力を失っていれば cancelled
+  if (buyer.treasury < price) {
+    return setPlayStatus(ctx, play.id, 'cancelled')
+  }
+
+  // LandContract 移転 (rank 不変条件チェックを内包、失敗時は state 不変で error)
+  const transferResult = applyLandContractTransferGoal(ctx, {
+    provinceId: primary.provinceId,
+    toPolityId: buyerPolityId,
+    reason: 'purchase',
+  })
+  if (!transferResult.ok) {
+    // 移転失敗 → 金銭も移さず Play cancelled
+    return setPlayStatus(ctx, play.id, 'cancelled')
+  }
+  let nextCtx = transferResult.value.ctx
+
+  // 金銭移転
+  const buyerNow = nextCtx.state.polities[buyerPolityId]
+  const sellerNow = nextCtx.state.polities[sellerPolityId]
+  if (buyerNow && sellerNow) {
+    nextCtx = {
+      ...nextCtx,
+      state: {
+        ...nextCtx.state,
+        polities: {
+          ...nextCtx.state.polities,
+          [buyerPolityId]: { ...buyerNow, treasury: Math.max(0, buyerNow.treasury - price) },
+          [sellerPolityId]: { ...sellerNow, treasury: sellerNow.treasury + price },
+        },
+      },
+    }
+  }
+
+  // Play status = 'settled'
+  nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
+
+  // DIPLOMATIC_PLAY_SETTLED event
+  const { id: eid, ctx: ctxEv } = makeEventId(nextCtx)
+  const provinceName = ctxEv.state.provinces[primary.provinceId]?.name ?? primary.provinceId
+  const buyerName = ctxEv.state.polities[buyerPolityId]?.name ?? buyerPolityId
+  const sellerName = ctxEv.state.polities[sellerPolityId]?.name ?? sellerPolityId
+  const ev: SimEvent = {
+    id: eid,
+    year: ctxEv.state.currentYear,
+    month: ctxEv.state.currentMonth,
+    type: 'DIPLOMATIC_PLAY_SETTLED',
+    importance: 'major',
+    actorIds: [],
+    houseIds: [],
+    polityIds: [buyerPolityId, sellerPolityId],
+    provinceIds: [primary.provinceId],
+    summary: `${buyerName} purchased ${provinceName} from ${sellerName} for ${Math.round(price)} gold.`,
+    reasons: [],
+    effects: [],
+  }
+  return { ...ctxEv, events: [...ctxEv.events, ev] }
+}
+
+function computeSellerTreasuryNeed(treasury: number): number {
+  // treasury が低いほど高い値を返す (~ 100 で 0、0 で 50)
+  const baseThreshold = 1000
+  return clamp((baseThreshold - treasury) * 0.05, 0, 50)
+}
+
+function computeProvinceValue(development: number): number {
+  // development -100..100 → 0..100 にマッピング (high dev = 価値高)
+  return clamp((development + 100) * 0.5, 0, 100)
+}
+
+function computeStrategicValue(
+  state: WorldState,
+  provinceId: ProvinceId,
+  ownerPolityId: PolityId,
+): number {
+  // 隣接 Province のうち owner 以外の Polity 所属が多いほど strategic value が高い (国境度)
+  const province = state.provinces[provinceId]
+  if (!province) return 0
+  let foreignNeighbors = 0
+  for (const neighborId of province.neighbors) {
+    const terminalPid = getProvinceTerminalPolityId(state, neighborId)
+    if (terminalPid && terminalPid !== ownerPolityId) foreignNeighbors++
+  }
+  // 0-100 にスケーリング (4 隣接で 100 と仮定)
+  return clamp(foreignNeighbors * 25, 0, 100)
 }

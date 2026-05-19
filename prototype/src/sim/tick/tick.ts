@@ -26,7 +26,8 @@ import { runPlotSystem } from './plotSystem'
 import { runWarSystem } from './warSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import { runDiplomaticPlaySystem } from './diplomaticPlaySystem'
-import { runLandContractPurchaseSystem } from './landContractPurchaseSystem'
+import { runIntentGenerationSystem } from './intentGenerationSystem'
+import { runIntentToDiplomaticPlaySystem } from './intentToDiplomaticPlaySystem'
 import { runPolityOwnerConsistencySystem } from './polityOwnerConsistencySystem'
 import { runOrganizationConsistencySystem } from './organizationConsistencySystem'
 import { runAttitudeDecaySystem } from './attitudeDecaySystem'
@@ -92,10 +93,13 @@ export function tick(input: TickInput): TickResult {
   run('popDevelopmentSystem', runPopDevelopmentSystem)
   run('plotSystem', runPlotSystem)
   run('warSystem', runWarSystem)
+  // v0.18 Stage C §17.2: Intent 生成 + Play 変換 (warSystem の後、provinceRevoltSystem の前)
+  run('intentGenerationSystem', runIntentGenerationSystem)
+  run('intentToDiplomaticPlaySystem', runIntentToDiplomaticPlaySystem)
   run('provinceRevoltSystem', runProvinceRevoltSystem)
-  // v0.18 Stage B §17.1: revolt_negotiation Play 進行 (provinceRevoltSystem の直後)
+  // v0.18 Stage B §17.1 / Stage C §17.2: revolt_negotiation + land_purchase 進行
   run('diplomaticPlaySystem', runDiplomaticPlaySystem)
-  run('landContractPurchaseSystem', runLandContractPurchaseSystem)
+  // v0.18 Stage C §15: 旧 landContractPurchaseSystem は tick から除外 (Intent → Play 経路に統合)
   run('polityOwnerConsistencySystem', runPolityOwnerConsistencySystem)
   run('organizationConsistencySystem', runOrganizationConsistencySystem)
   run('attitudeDecaySystem', runAttitudeDecaySystem)
