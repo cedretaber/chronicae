@@ -2,16 +2,31 @@ import type { TickContext } from './context'
 import { makeEventId } from './context'
 import type { ProvinceId, PolityId, PersonId } from '../types/ids'
 import type { SimEvent } from '../types/event'
+import type { WorldState } from '../types/world'
+import type { SimulationConfig } from '../config/defaultConfig'
+import type { OrganizationRef, OfficeRole } from '../types/office'
 import {
   getPolityTerminalProvinceIds,
   isPlaceholderPerson,
 } from '../selectors/landContractSelectors'
+import {
+  getActiveFactions,
+  getFactionActiveMemberIds,
+  getFactionNominationPower,
+  getFactionalCandidateScore,
+} from '../selectors/factionSelectors'
 import {
   vacateBailiff,
   appointBailiff,
   installPlaceholderBailiff,
 } from '../mutations/provinceOfficeMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
+
+// v0.17.1 §15.3: bailiff 任命用の OfficeRole alias。
+// getFactionNominationPower / getFactionalCandidateScore は role 引数を `void role` で
+// 無視するが、型として OfficeRole を要求するため 'advisor' を渡す。Bailiff 用の重み付け
+// は factionBailiffNominationWeight 側で調整する。
+const BAILIFF_ROLE_ALIAS: OfficeRole = 'advisor'
 
 // v0.16 §19: BailiffAppointmentSystem
 // 各 terminal Polity ごとに ProvinceOfficeAssignment (bailiff) を走査:
@@ -88,66 +103,147 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       currentCtx = emitBailiffPlaceholderInstalled(currentCtx, provinceId, polityId)
     }
 
-    // 2) placeholder bailiff を ownerHouse member に交代 (候補がいれば)
-    const adultMembers = ownerHouse.memberIds
+    // 2) placeholder bailiff の交代:
+    //    2a) factional 優先 (派閥 NP >= threshold の active member、Polity 内外問わず候補)
+    //    2b) fallback: ownerHouse の free adult member
+    //    どちらの経路でも他 active Office / 他 active ProvinceOffice は持っていないこと
+    const polityRef: OrganizationRef = { kind: 'polity', id: polityId }
+
+    const ownerFreeAdults = ownerHouse.memberIds
       .map((mid) => currentCtx.state.persons[mid])
       .filter((p): p is NonNullable<typeof p> => p !== undefined)
       .filter(
         (p) =>
-          p.alive && p.age >= defaultLandContractConfig.bailiffMinAge && p.kind !== 'placeholder',
+          p.alive &&
+          p.age >= defaultLandContractConfig.bailiffMinAge &&
+          p.kind !== 'placeholder' &&
+          !hasActiveOffice(currentCtx.state, p.id) &&
+          !hasActiveProvinceOffice(currentCtx.state, p.id),
       )
+      .sort((a, b) => {
+        const aScore = a.abilities.numeracy + a.abilities.insight
+        const bScore = b.abilities.numeracy + b.abilities.insight
+        if (bScore !== aScore) return bScore - aScore
+        return a.id.localeCompare(b.id)
+      })
 
-    if (adultMembers.length === 0) continue
+    // 派閥候補プール (Polity に NP >= threshold な faction 全 active member から構築)。
+    // スコア順 (降順) でソート済み。dedupe 済み (同一人物が複数 faction 所属時は最大スコア)。
+    const factionalRanked = collectBailiffFactionalCandidates(
+      currentCtx.state,
+      currentCtx.config,
+      polityRef,
+    )
 
-    // 既に他オフィスを持っている Person を避ける
-    const busyPersonIds = new Set<string>()
-    for (const memberId of ownerHouse.memberIds) {
-      const offices = currentCtx.state.officeIndex.byHolderPerson[memberId] ?? []
-      for (const oid of offices) {
-        const o = currentCtx.state.officeAssignments[oid]
-        if (o && o.active) busyPersonIds.add(memberId)
-      }
-      // ProvinceOffice 持ちも忙しい
-      const pOffices = currentCtx.state.provinceOfficeIndex.byHolderPerson[memberId] ?? []
-      if (pOffices.length > 0) busyPersonIds.add(memberId)
-    }
-
-    const freeAdults = adultMembers.filter((p) => !busyPersonIds.has(p.id))
-    if (freeAdults.length === 0) continue
-
-    // stewardship 相当 (numeracy + insight) でスコアリング
-    freeAdults.sort((a, b) => {
-      const aScore = a.abilities.numeracy + a.abilities.insight
-      const bScore = b.abilities.numeracy + b.abilities.insight
-      if (bScore !== aScore) return bScore - aScore
-      return a.id.localeCompare(b.id)
-    })
+    const bookedThisTick = new Set<string>()
 
     for (const provinceId of terminalProvinceIds) {
-      if (freeAdults.length === 0) break
       const officeId = currentCtx.state.provinceOfficeIndex.byProvince[provinceId]
       if (!officeId) continue
       const office = currentCtx.state.provinceOfficeAssignments[officeId]
       if (!office) continue
       if (!isPlaceholderPerson(currentCtx.state, office.holderPersonId)) continue
 
-      const candidate = freeAdults.shift()
-      if (!candidate) break
+      let chosenId: PersonId | undefined
 
+      // 2a) factional: 最高スコア候補が minAppointmentScore 以上なら採用
+      for (const cand of factionalRanked) {
+        if (bookedThisTick.has(cand.id)) continue
+        if (cand.score < currentCtx.config.minAppointmentScore) break
+        chosenId = cand.id
+        break
+      }
+
+      // 2b) fallback: ownerHouse 内の free adult を score 順に消費
+      if (!chosenId) {
+        while (ownerFreeAdults.length > 0) {
+          const candidate = ownerFreeAdults.shift()
+          if (!candidate) break
+          if (bookedThisTick.has(candidate.id)) continue
+          chosenId = candidate.id
+          break
+        }
+      }
+
+      if (!chosenId) continue
+
+      bookedThisTick.add(chosenId)
       const vacatedState = vacateBailiff(currentCtx.state, provinceId)
       const { state: appointedState } = appointBailiff(vacatedState, {
         provinceId,
-        holderPersonId: candidate.id,
+        holderPersonId: chosenId,
         appointingPolityId: polityId,
         year: vacatedState.currentYear,
         month: vacatedState.currentMonth,
       })
       currentCtx = { ...currentCtx, state: appointedState }
-      currentCtx = emitBailiffAppointed(currentCtx, provinceId, polityId, candidate.id)
+      currentCtx = emitBailiffAppointed(currentCtx, provinceId, polityId, chosenId)
     }
   }
 
   return currentCtx
+}
+
+// v0.17.1 §15.3: bailiff 任命用の factional 候補プール。
+// - Polity に対する NP が factionNominationPowerThreshold 以上の active faction が対象。
+// - 各 faction の active member のうち: alive, adult, normal kind, 他 active Office / ProvinceOffice なし。
+// - 同一人物が複数 faction 所属の場合は最大スコアで dedupe。
+// - getFactionalCandidateScore に factionBailiffNominationWeight を掛けて bailiff 用に弱める。
+function collectBailiffFactionalCandidates(
+  state: WorldState,
+  config: SimulationConfig,
+  polityRef: OrganizationRef,
+): { id: PersonId; score: number }[] {
+  const byId = new Map<string, { id: PersonId; score: number }>()
+
+  for (const faction of getActiveFactions(state)) {
+    const np = getFactionNominationPower(state, config, faction.id, polityRef, BAILIFF_ROLE_ALIAS)
+    if (np < config.factionNominationPowerThreshold) continue
+    for (const mid of getFactionActiveMemberIds(state, faction.id)) {
+      const m = state.persons[mid]
+      if (!m || !m.alive) continue
+      if (m.kind === 'placeholder') continue
+      if (m.age < defaultLandContractConfig.bailiffMinAge) continue
+      if (hasActiveOffice(state, mid)) continue
+      if (hasActiveProvinceOffice(state, mid)) continue
+      const raw = getFactionalCandidateScore(
+        state,
+        config,
+        faction.id,
+        mid,
+        polityRef,
+        BAILIFF_ROLE_ALIAS,
+      )
+      const score = raw * config.factionBailiffNominationWeight
+      const prev = byId.get(mid)
+      if (!prev || score > prev.score) byId.set(mid, { id: mid, score })
+    }
+  }
+
+  const list = [...byId.values()]
+  list.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    return a.id.localeCompare(b.id)
+  })
+  return list
+}
+
+function hasActiveOffice(state: WorldState, personId: PersonId): boolean {
+  const ids = state.officeIndex.byHolderPerson[personId] ?? []
+  for (const id of ids) {
+    const o = state.officeAssignments[id]
+    if (o && o.active) return true
+  }
+  return false
+}
+
+function hasActiveProvinceOffice(state: WorldState, personId: PersonId): boolean {
+  const ids = state.provinceOfficeIndex.byHolderPerson[personId] ?? []
+  for (const id of ids) {
+    const a = state.provinceOfficeAssignments[id]
+    if (a && a.active) return true
+  }
+  return false
 }
 
 function emitBailiffAppointed(

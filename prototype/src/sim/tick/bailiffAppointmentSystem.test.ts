@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { createPolityId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
-import type { PolityId, HouseId, PersonId, ProvinceId } from '../types/ids'
+import type {
+  PolityId,
+  HouseId,
+  PersonId,
+  ProvinceId,
+  FactionId,
+  FactionMembershipId,
+  OfficeAssignmentId,
+} from '../types/ids'
 import type { ProvinceOfficeAssignmentId } from '../types/ids'
 import type { WorldState } from '../types/world'
+import type { Faction, FactionMembership } from '../types/faction'
+import type { OfficeAssignment } from '../types/office'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { createTickContext, toResult } from './context'
@@ -176,6 +186,208 @@ describe('runBailiffAppointmentSystem', () => {
     // Bailiff should NOT be vacated (term not expired)
     expect(countEvents(result.events, 'BAILIFF_VACATED')).toBe(0)
     expect(countEvents(result.events, 'BAILIFF_PLACEHOLDER_INSTALLED')).toBe(0)
+  })
+
+  it('factional path: picks faction member outside ownerHouse when NP >= threshold', () => {
+    const { state: baseState, polityId, houseId, provinceId } = makeBaseState()
+    // currentMonth=6 so absMonth % 6 === 0
+    let s: WorldState = { ...baseState, currentMonth: 6 }
+
+    // Faction leader sits in the ownerHouse → NP gets +0.3 (ownerHouse bonus) → meets threshold (0.30)
+    const leaderId = createPersonId('pe', 5)
+    s = withPerson(s, leaderId, {
+      name: 'FactionLeader',
+      age: 35,
+      houseId,
+      birthStatus: 'unknown',
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 50,
+      abilities: DEFAULT_ABILITIES,
+    })
+
+    // Faction member in a DIFFERENT house (outside the ownerHouse) — pool expansion target
+    const memberHouseId = createHouseId('h', 1)
+    s = withHouse(s, memberHouseId, { name: 'OutsiderHouse', memberIds: [] })
+    const memberId = createPersonId('pe', 6)
+    s = withPerson(s, memberId, {
+      name: 'OutsiderFactionMember',
+      age: 30,
+      houseId: memberHouseId,
+      birthStatus: 'unknown',
+      traits: { ambition: 0.5, caution: 0.5 },
+      // Higher prestige than the leader so the factional pool picks the outsider candidate.
+      legacyPrestige: 100,
+      abilities: DEFAULT_ABILITIES,
+    })
+
+    const factionId = 'f-0' as unknown as FactionId
+    const leaderMembershipId = 'fm-0' as unknown as FactionMembershipId
+    const memberMembershipId = 'fm-1' as unknown as FactionMembershipId
+    const faction: Faction = {
+      id: factionId,
+      name: 'TestFaction',
+      leaderPersonId: leaderId,
+      active: true,
+      foundingYear: s.currentYear,
+      foundingMonth: s.currentMonth,
+    }
+    const leaderMembership: FactionMembership = {
+      id: leaderMembershipId,
+      factionId,
+      personId: leaderId,
+      active: true,
+      joinedYear: s.currentYear,
+      joinedMonth: s.currentMonth,
+    }
+    const memberMembership: FactionMembership = {
+      id: memberMembershipId,
+      factionId,
+      personId: memberId,
+      active: true,
+      joinedYear: s.currentYear,
+      joinedMonth: s.currentMonth,
+    }
+    s = {
+      ...s,
+      factions: { ...s.factions, [factionId]: faction },
+      factionMemberships: {
+        ...s.factionMemberships,
+        [leaderMembershipId]: leaderMembership,
+        [memberMembershipId]: memberMembership,
+      },
+      factionIndex: {
+        byLeader: { ...s.factionIndex.byLeader, [leaderId]: [factionId] },
+        byMember: {
+          ...s.factionIndex.byMember,
+          [leaderId]: [leaderMembershipId],
+          [memberId]: [memberMembershipId],
+        },
+      },
+      nextFactionId: 1,
+      nextFactionMembershipId: 2,
+    }
+
+    const ctx = createTickContext({ state: s, rng: createRng('test'), config: defaultConfig })
+    const result = toResult(runBailiffAppointmentSystem(ctx))
+
+    const officeId = result.state.provinceOfficeIndex.byProvince[provinceId]!
+    const office = result.state.provinceOfficeAssignments[officeId]!
+    expect(office.holderPersonId).toBe(memberId)
+    expect(office.appointingPolityId).toBe(polityId)
+    expect(countEvents(result.events, 'BAILIFF_APPOINTED')).toBeGreaterThan(0)
+  })
+
+  it('factional candidate with active Polity Office is excluded', () => {
+    const { state: baseState, polityId, houseId, provinceId } = makeBaseState()
+    let s: WorldState = { ...baseState, currentMonth: 6 }
+
+    // Faction leader in ownerHouse to satisfy NP
+    const leaderId = createPersonId('pe', 5)
+    s = withPerson(s, leaderId, {
+      name: 'FactionLeader',
+      age: 35,
+      houseId,
+      birthStatus: 'unknown',
+      traits: { ambition: 0.5, caution: 0.5 },
+      legacyPrestige: 50,
+      abilities: DEFAULT_ABILITIES,
+    })
+
+    const memberHouseId = createHouseId('h', 1)
+    s = withHouse(s, memberHouseId, { name: 'OutsiderHouse', memberIds: [] })
+    const memberId = createPersonId('pe', 6)
+    s = withPerson(s, memberId, {
+      name: 'BusyMember',
+      age: 30,
+      houseId: memberHouseId,
+      birthStatus: 'unknown',
+      abilities: DEFAULT_ABILITIES,
+    })
+
+    // Give the candidate an active Polity Office → must be excluded from factional candidates
+    const existingOfficeId = 'of-existing' as unknown as OfficeAssignmentId
+    const existingOffice: OfficeAssignment = {
+      id: existingOfficeId,
+      organization: { kind: 'polity', id: polityId },
+      role: 'advisor',
+      holderPersonId: memberId,
+      active: true,
+      startYear: s.currentYear,
+      unpaidCount: 0,
+    }
+    s = {
+      ...s,
+      officeAssignments: { ...s.officeAssignments, [existingOfficeId]: existingOffice },
+      officeIndex: {
+        byOrganization: {
+          ...s.officeIndex.byOrganization,
+          [`polity:${polityId}`]: [
+            ...(s.officeIndex.byOrganization[`polity:${polityId}`] ?? []),
+            existingOfficeId,
+          ],
+        },
+        byHolderPerson: {
+          ...s.officeIndex.byHolderPerson,
+          [memberId]: [existingOfficeId],
+        },
+      },
+    }
+
+    const factionId = 'f-0' as unknown as FactionId
+    const leaderMembershipId = 'fm-0' as unknown as FactionMembershipId
+    const memberMembershipId = 'fm-1' as unknown as FactionMembershipId
+    s = {
+      ...s,
+      factions: {
+        ...s.factions,
+        [factionId]: {
+          id: factionId,
+          name: 'F',
+          leaderPersonId: leaderId,
+          active: true,
+          foundingYear: s.currentYear,
+          foundingMonth: s.currentMonth,
+        },
+      },
+      factionMemberships: {
+        ...s.factionMemberships,
+        [leaderMembershipId]: {
+          id: leaderMembershipId,
+          factionId,
+          personId: leaderId,
+          active: true,
+          joinedYear: s.currentYear,
+          joinedMonth: s.currentMonth,
+        },
+        [memberMembershipId]: {
+          id: memberMembershipId,
+          factionId,
+          personId: memberId,
+          active: true,
+          joinedYear: s.currentYear,
+          joinedMonth: s.currentMonth,
+        },
+      },
+      factionIndex: {
+        byLeader: { ...s.factionIndex.byLeader, [leaderId]: [factionId] },
+        byMember: {
+          ...s.factionIndex.byMember,
+          [leaderId]: [leaderMembershipId],
+          [memberId]: [memberMembershipId],
+        },
+      },
+      nextFactionId: 1,
+      nextFactionMembershipId: 2,
+    }
+
+    const ctx = createTickContext({ state: s, rng: createRng('test'), config: defaultConfig })
+    const result = toResult(runBailiffAppointmentSystem(ctx))
+
+    // Expected: factional path skips busy member → fallback to ownerHouse (faction leader is in dh-0,
+    // and ruler pe-0 is also in dh-0). The chosen bailiff must NOT be the busy member.
+    const officeId = result.state.provinceOfficeIndex.byProvince[provinceId]!
+    const office = result.state.provinceOfficeAssignments[officeId]!
+    expect(office.holderPersonId).not.toBe(memberId)
   })
 
   it('does NOT vacate placeholder bailiff by term', () => {
