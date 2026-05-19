@@ -383,6 +383,8 @@ export type SimulationConfig = {
   provinceOfficeTermYears: {
     bailiff: number
   }
+  // v0.17.1 Bailiff revenue share (fraction of terminal retained)
+  bailiffRevenueShare: number
   // v0.17 Office max (Polity rank x province count)
   polityOfficeMaxByRank: Record<PolityRank, Record<Exclude<OfficeRole, 'leader'>, number>>
   polityOfficeMaxProvinceFactor: {
@@ -785,6 +787,8 @@ export const defaultConfig: SimulationConfig = {
   provinceOfficeTermYears: {
     bailiff: 3,
   },
+  // v0.17.1 Bailiff salary path: terminal retained のうち bailiff 個人に渡す比率
+  bailiffRevenueShare: 0.1,
   // v0.17 Office max
   polityOfficeMaxByRank: {
     1: { administrator: 1, treasurer: 1, military: 1, advisor: 1 },

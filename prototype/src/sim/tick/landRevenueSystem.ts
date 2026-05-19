@@ -5,12 +5,16 @@ import type { PopClass } from '../types/popGroup'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
 import { getProvinceProduction } from '../selectors/popEconomySelectors'
 import { getProvinceAveragePopWealth, getProvinceUnrest } from '../selectors/popSelectors'
-import { getProvinceLandContractChain } from '../selectors/landContractSelectors'
+import {
+  getProvinceLandContractChain,
+  isPlaceholderPerson,
+} from '../selectors/landContractSelectors'
 import {
   adjustProvincePopWealth,
   adjustProvincePopUnrest,
   adjustProvincePopWealthByClass,
 } from '../mutations/popMutations'
+import { addPersonWealth } from '../mutations/personMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
 
 // v0.16 §18: LandRevenueSystem
@@ -48,7 +52,21 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       const contract = chain[i]!
       const taxRate = contract.terms.taxRateToGrantor
       // この段の Polity に残る分 = remaining * (1 - taxRate)
-      const retained = remaining * (1 - taxRate)
+      let retained = remaining * (1 - taxRate)
+      // v0.17.1: terminal 段で normal bailiff に salary を分配する。
+      // - placeholder bailiff は対象外 (100% 国庫)
+      // - bailiff が存在しない (= unowned 等) Province も 100% 国庫
+      // - normal bailiff のみ retained * bailiffRevenueShare を wealth に直接加算
+      if (i === chain.length - 1) {
+        const bailiffShare = giveBailiffSalary(
+          currentState,
+          province.id,
+          retained,
+          ctx.config.bailiffRevenueShare,
+        )
+        currentState = bailiffShare.state
+        retained -= bailiffShare.paid
+      }
       treasuryDeltas.set(
         contract.granteePolityId,
         (treasuryDeltas.get(contract.granteePolityId) ?? 0) + retained,
@@ -116,4 +134,29 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       polities: newPolities,
     } satisfies WorldState,
   }
+}
+
+// v0.17.1 §15.4: terminal Polity の retained 分から normal bailiff に salary を渡す。
+// 返り値: 更新後 state と、実際に bailiff に支払った額 (treasury から差し引く分)。
+function giveBailiffSalary(
+  state: WorldState,
+  provinceId: ProvinceId,
+  retained: number,
+  bailiffRevenueShare: number,
+): { state: WorldState; paid: number } {
+  if (retained <= 0 || bailiffRevenueShare <= 0) return { state, paid: 0 }
+  const assignmentId = state.provinceOfficeIndex.byProvince[provinceId]
+  if (!assignmentId) return { state, paid: 0 }
+  const assignment = state.provinceOfficeAssignments[assignmentId]
+  if (!assignment || !assignment.active) return { state, paid: 0 }
+  const holderId = assignment.holderPersonId
+  if (isPlaceholderPerson(state, holderId)) return { state, paid: 0 }
+  const holder = state.persons[holderId]
+  if (!holder || !holder.alive) return { state, paid: 0 }
+
+  const salary = retained * bailiffRevenueShare
+  if (salary <= 0) return { state, paid: 0 }
+  const result = addPersonWealth(state, holderId, salary)
+  if (!result.ok) return { state, paid: 0 }
+  return { state: result.value, paid: salary }
 }
