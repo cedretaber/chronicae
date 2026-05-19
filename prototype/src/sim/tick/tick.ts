@@ -41,6 +41,7 @@ import { runOfficeTermSystem } from './officeTermSystem'
 import { runFactionLifecycleSystem } from './factionLifecycleSystem'
 import { runFactionRecruitmentSystem } from './factionRecruitmentSystem'
 import { runFactionPatronageSystem } from './factionPatronageSystem'
+import { runFactionDefectionSystem } from './factionDefectionSystem'
 import { createLogger } from '../debug/logger'
 
 export function tick(input: TickInput): TickResult {
@@ -74,13 +75,14 @@ export function tick(input: TickInput): TickResult {
   run('birthSystem', runBirthSystem)
   run('unaffiliatedPersonSystem', runUnaffiliatedPersonSystem)
   run('officeTermSystem', runOfficeTermSystem)
-  run('factionLifecycleSystem', runFactionLifecycleSystem)
-  run('factionRecruitmentSystem', runFactionRecruitmentSystem)
   run('shareUpdateSystem', runShareUpdateSystem)
   run('appointmentSystem', runAppointmentSystem)
   run('bailiffAppointmentSystem', runBailiffAppointmentSystem)
   run('officeCompensationSystem', runOfficeCompensationSystem)
   run('factionPatronageSystem', runFactionPatronageSystem)
+  run('factionDefectionSystem', runFactionDefectionSystem)
+  run('factionLifecycleSystem', runFactionLifecycleSystem)
+  run('factionRecruitmentSystem', runFactionRecruitmentSystem)
   run('personGrowthSystem', runPersonGrowthSystem)
   run('ambitionSystem', runAmbitionSystem)
   run('publicSpendingSystem', runPublicSpendingSystem)

@@ -275,4 +275,116 @@ describe('runFactionLifecycleSystem', () => {
     const dissolvedEvents = result.events.filter((e) => e.type === 'FACTION_DISSOLVED')
     expect(dissolvedEvents.length).toBeGreaterThan(0)
   })
+
+  it('v0.17.4: FACTION_LEADER_BANKRUPT fires before FACTION_DISSOLVED when leader bankrupt', () => {
+    const { state, leaderId, houseId } = buildBaseState()
+    const factionId = createFactionId(0)
+    const member1Id = createPersonId('pe', 1)
+    let s = state
+    s = withPerson(s, member1Id, { name: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
+    const { state: s2 } = addFaction(s, factionId, leaderId)
+    const s3: WorldState = {
+      ...s2,
+      persons: { ...s2.persons, [leaderId]: { ...s2.persons[leaderId]!, wealth: 1 } },
+    }
+
+    const config = { ...defaultConfig, factionDisbandWealthFloor: 10, factionDisbandThreshold: 0 }
+    const ctx = makeCtx(s3, { config })
+    const result = runFactionLifecycleSystem(ctx)
+
+    const bankruptIdx = result.events.findIndex((e) => e.type === 'FACTION_LEADER_BANKRUPT')
+    const dissolvedIdx = result.events.findIndex((e) => e.type === 'FACTION_DISSOLVED')
+    expect(bankruptIdx).toBeGreaterThanOrEqual(0)
+    expect(dissolvedIdx).toBeGreaterThanOrEqual(0)
+    expect(bankruptIdx).toBeLessThan(dissolvedIdx)
+    expect(result.events[bankruptIdx]?.actorIds[0]).toBe(leaderId)
+  })
+
+  it('v0.17.4: dead member membership is removed during processExistingFactions', () => {
+    const { state, leaderId, houseId } = buildBaseState()
+    const factionId = createFactionId(0)
+    const deadMemberId = createPersonId('pe', 1)
+    const aliveMemberId = createPersonId('pe', 2)
+    const deadMembershipId = createFactionMembershipId(1)
+    const aliveMembershipId = createFactionMembershipId(2)
+
+    let s = state
+    s = withPerson(s, deadMemberId, { name: 'Dead', houseId, wealth: 0, alive: false, age: 70 })
+    s = withPerson(s, aliveMemberId, { name: 'Alive', houseId, wealth: 0, alive: true, age: 25 })
+    const { state: s2 } = addFaction(s, factionId, leaderId)
+
+    // 手動で 2 membership 追加 (helper は leaderMembership だけ作るので拡張)
+    const deadM = {
+      id: deadMembershipId,
+      factionId,
+      personId: deadMemberId,
+      active: true,
+      joinedYear: 1444,
+      joinedMonth: 1,
+    }
+    const aliveM = {
+      id: aliveMembershipId,
+      factionId,
+      personId: aliveMemberId,
+      active: true,
+      joinedYear: 1444,
+      joinedMonth: 1,
+    }
+    const s3: WorldState = {
+      ...s2,
+      factionMemberships: {
+        ...s2.factionMemberships,
+        [deadMembershipId]: deadM,
+        [aliveMembershipId]: aliveM,
+      },
+      factionIndex: {
+        byLeader: s2.factionIndex.byLeader,
+        byMember: {
+          ...s2.factionIndex.byMember,
+          [deadMemberId]: [deadMembershipId],
+          [aliveMemberId]: [aliveMembershipId],
+        },
+      },
+    }
+
+    const ctx = makeCtx(s3)
+    const result = runFactionLifecycleSystem(ctx)
+
+    // 死亡 member の membership は完全削除 (v0.17.3 C: deleted)
+    expect(result.state.factionMemberships[deadMembershipId]).toBeUndefined()
+    // 生存 member の membership は残る
+    expect(result.state.factionMemberships[aliveMembershipId]?.active).toBe(true)
+    // byMember index も同期
+    expect(result.state.factionIndex.byMember[deadMemberId]).toEqual([])
+    expect(result.state.factionIndex.byMember[aliveMemberId]).toContain(aliveMembershipId)
+  })
+
+  it('v0.17.4: FACTION_LEADER_BANKRUPT does NOT fire when dissolved by other reasons', () => {
+    const { state, leaderId, houseId } = buildBaseState()
+    const factionId = createFactionId(0)
+    // leader 単独 (member 0 < minimumFactionMembers=2) で解散される、leader wealth は十分
+    let s = state
+    // ensure leader stays wealthy
+    s = { ...s, persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, wealth: 10000 } } }
+    s = withPerson(s, createPersonId('pe', 1), {
+      name: 'Other',
+      houseId,
+      wealth: 0,
+      alive: true,
+      age: 20,
+    })
+    const { state: s2 } = addFaction(s, factionId, leaderId)
+
+    const config = {
+      ...defaultConfig,
+      minimumFactionMembers: 5,
+      factionDisbandWealthFloor: 10,
+      factionDisbandThreshold: 0,
+    }
+    const ctx = makeCtx(s2, { config })
+    const result = runFactionLifecycleSystem(ctx)
+
+    expect(result.events.filter((e) => e.type === 'FACTION_LEADER_BANKRUPT')).toHaveLength(0)
+    expect(result.events.filter((e) => e.type === 'FACTION_DISSOLVED').length).toBeGreaterThan(0)
+  })
 })

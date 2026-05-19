@@ -14,7 +14,9 @@ import {
   addFactionMembership,
   deactivateFaction,
   transitionFactionLeader,
+  removeFactionMembership,
 } from '../mutations/factionMutations'
+import type { FactionMembershipId } from '../types/ids'
 import { setPersonAttitude } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 
@@ -53,6 +55,11 @@ function processExistingFactions(ctx: TickContext): TickContext {
       continue
     }
 
+    // v0.17.4: 死亡 member の membership を削除 (毎月走る)。
+    // mortalitySystem で alive=false にされた member の membership は
+    // どこにも cleanup されないため、ここで対応する。leader 死亡は別経路 (handleLeaderVacancy)。
+    currentCtx = removeDeadMemberships(currentCtx, factionId)
+
     // Dissolution checks (January only)
     if (currentCtx.state.currentMonth !== 1) continue
 
@@ -68,12 +75,57 @@ function processExistingFactions(ctx: TickContext): TickContext {
       reasonsToDissolve.push('leader bankrupt')
 
     if (reasonsToDissolve.length > 0) {
+      // v0.17.4 §13.11: bankrupt 解散の前駆 event。FACTION_DISSOLVED と 2 連発火する。
+      if (leader && reasonsToDissolve.includes('leader bankrupt')) {
+        const { id: eventId, ctx: ec } = makeEventId(currentCtx)
+        const event: SimEvent = {
+          id: eventId,
+          year: ec.state.currentYear,
+          month: ec.state.currentMonth,
+          type: 'FACTION_LEADER_BANKRUPT',
+          importance: 'normal',
+          actorIds: [faction.leaderPersonId],
+          houseIds: [leader.houseId],
+          polityIds: [],
+          provinceIds: [],
+          summary: `${leader.name}'s fortunes are exhausted, putting ${faction.name} in jeopardy.`,
+          reasons: [],
+          effects: [],
+        }
+        currentCtx = { ...ec, events: [...ec.events, event] }
+      }
       currentCtx = dissolveFaction(
         currentCtx,
         factionId,
         `${faction.name} dissolved (${reasonsToDissolve.join(', ')}).`,
       )
     }
+  }
+  return currentCtx
+}
+
+// v0.17.4: faction に所属する死亡 member の membership を削除する。
+// leader が dead の場合は別経路 (handleLeaderVacancy) で処理するため、ここでは leader を除外。
+// event は emit しない (死亡 event で十分、二重発火回避)。
+function removeDeadMemberships(ctx: TickContext, factionId: FactionId): TickContext {
+  const faction = ctx.state.factions[factionId]
+  if (!faction || !faction.active) return ctx
+
+  // removeFactionMembership が byMember を破壊的に書き換えるため、id を先に snapshot する。
+  const targetIds = (
+    Object.keys(ctx.state.factionMemberships).sort() as FactionMembershipId[]
+  ).filter((mid) => {
+    const m = ctx.state.factionMemberships[mid]
+    if (!m || !m.active || m.factionId !== factionId) return false
+    if (m.personId === faction.leaderPersonId) return false
+    const p = ctx.state.persons[m.personId]
+    return Boolean(p && !p.alive)
+  })
+
+  let currentCtx = ctx
+  for (const membershipId of targetIds) {
+    const result = removeFactionMembership(currentCtx.state, membershipId)
+    if (result.ok) currentCtx = { ...currentCtx, state: result.value }
   }
   return currentCtx
 }

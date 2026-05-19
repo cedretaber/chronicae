@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-19（v0.17.3 時点）
+最終更新: 2026-05-19（v0.17.4 完成）
 
 ---
 
@@ -2476,12 +2476,219 @@ CLI 実行時間の最適化。これ以降の機能追加・バランス調整�
 - 内訳: A だけで -38%、B でさらに大幅短縮 (state table の累積解消)、C は誤差レベル (structural cleanup の意義が主)。
 - integrity 違反は 0 のまま完走。test 495 件 pass。
 
+### v0.17.4 で実装済み (派閥肥大化抑止 + Faction 独立 UI)
+
+v0.17.3 完成後の CLI 100 年観察 (seed 1) で派閥に重大な構造問題が判明したため、v0.17.4 で追加の調整を入れる。
+
+**観察された問題**:
+
+```
+Rainer's Circle (f-0, year 4 創設、year 100 で 96 歳)
+  - leader Gregor (h-3 Brightmere, landless, 個人 wealth 65,999)
+  - 派閥メンバー 95 人 (世界最大、他派閥は 3-4 人)
+  - 内訳: 53% h-anon (drifter), 20% House Corvin (没落貴族), 27% その他
+  - leader の Polity Nomination Power はほぼ 0 (Office 任命に貢献できず)
+  - 結果: 95 人の人材が「派閥に滞留して bailiff / 他家 advisor にも就けない」
+       opportunity cost が世界中の Polity 人事 ROI を悪化させている
+```
+
+**根本原因**:
+
+派閥に**流入経路 (FactionRecruitmentSystem) はあるが、有効な流出経路がない**。viability score が低くなれば一括解散はするが、長寿派閥は wealth/donation の自己強化ループ (member 95 × donation → leader wealth 65,999 → factionLeaderReserveWealth threshold を超え続ける) で半永久に存続する。
+
+**v0.17.4 で導入する仕組み — Idle メンバーの自然離脱 (FactionDefectionSystem)**
+
+派閥に所属しているのに **利益を得られない時間が長期化した member** が確率的に派閥を抜ける機構。
+
+#### 13.9 FactionDefectionSystem (v0.17.4 新規)
+
+##### 13.9.1 「利益」の定義
+
+派閥メンバーが派閥から得る利益は **active な Office (Polity / House / Bailiff) の在任** のみ。
+
+| 検出方法 | 性質 |
+|---|---|
+| `state.officeIndex.byHolderPerson[personId]` / `state.provinceOfficeIndex.byHolderPerson[personId]` に active 有り | live 判定 |
+
+##### 13.9.1.1 stipend を利益に含めない理由 (2026-05-19 設計判断)
+
+当初は「stipend 受領」も利益に含める案だったが、CLI 観察 (seed 1 / 300y) で以下の問題が判明:
+
+- リッチな leader (例: Rainer's Circle の Gregor、wealth 65,999) は `factionLeaderReserveWealth = 30` を余裕で超え、毎年 stipend を全 member に配布
+- Office を持たない drifter member も毎年 stipend を受領 → 「利益あり」 → idle reset → defection が永遠に起きない
+- ユーザの問題提起 (Gregor 型 leader の 95 人派閥) を**まさにそのパターンで無効化する**矛盾
+
+これを回避するため、利益判定は **Office 在任のみ** に限定。stipend は member へのギフトに留まり、引き留め力 (membership retention) を持たない。
+
+この判断により `FactionMembership.lastBenefitYear` field は不要となり、idle 計算は `joinedYear` を起点とする live 計算のみで完結。実装が大幅にシンプルになる。
+
+将来「stipend = 弱い利益」として再導入する場合は、出費メカニズム (`v0.18+` 「支出メカニズムの拡充」項目) の整備後に検討する。出費が入って leader が wealth を貯めにくくなれば、stipend を払えるかどうかが leader の実力指標として機能するため。
+
+##### 13.9.2 system 処理 (yearly, January)
+
+```ts
+runFactionDefectionSystem(ctx):
+  if currentMonth !== 1: return ctx
+
+  for each active FactionMembership:
+    if member is faction leader: continue          // leader は対象外
+
+    // (a) Office 保有チェック
+    if hasActiveOffice(state, personId) or hasActiveBailiff(state, personId): continue
+
+    // (b) idle 計算 — joinedYear からの経過年
+    idle = currentYear - membership.joinedYear
+
+    if idle < factionDefectionGraceYears: continue   // grace 期間
+
+    // 確率判定
+    prob = (idle - factionDefectionGraceYears) * factionDefectionProbPerYear
+    prob = min(prob, 1)
+    if rng < prob:
+      mutation: removeFactionMembership(membershipId)
+      // attitude penalty (option, factionStipendShortage と同等)
+      updateAttitudeIfExists(member.id, personAttitudeKey(leader.id), {
+        affection: -factionDefectionAttitudeAffectionPenalty,
+        respect:   -factionDefectionAttitudeRespectPenalty,
+      })
+      emit FACTION_MEMBER_ABANDONED  // 既存 event type を流用
+        actorIds: [personId, leaderId]
+        houseIds: [member の house]
+        importance: 'minor'
+        summary: "{member.name} abandoned {faction.name}."  // 既存 explain text 流用
+```
+
+##### 13.9.4 確率曲線
+
+```
+factionDefectionGraceYears: 8       // 加入後 8 年は判定なし (新規 member 保護)
+factionDefectionProbPerYear: 0.07   // grace 切れ後、idle 1 年ごとに +7%
+
+idle = 8  → prob 0%
+idle = 13 → prob 35%
+idle = 18 → prob 70%
+idle = 22 → prob 98% (ほぼ確定)
+```
+
+Rainer's Circle case: 50+ 年前から idle の drifter は 4-5 年で全員消える計算。
+
+##### 13.9.5 tick 実行順
+
+```
+factionPatronageSystem        // stipend / donation 配布
+  ↓
+factionDefectionSystem (NEW)  // year 1 月のみ
+  ↓
+factionLifecycleSystem        // viability / 解散 / 新規結成
+  ↓
+factionRecruitmentSystem      // 補充
+```
+
+順序の意味: defection で member が減ると次の lifecycle で viability score が下がり、弱い派閥は自然解散する。さらに recruitment は同 tick の最後なので、補充は次年以降。
+
+##### 13.9.6 既存 event の流用
+
+`FACTION_MEMBER_ABANDONED` は draft spec §11.5 で「member が attitude 悪化により脱退」用に予約され、`explainFaction.ts` に summary 文も既存 (`"{member} abandoned {faction}."`)。v0.17.4 では `idle による defection` 経路もこの event に集約する (発火元が attitude / idle のいずれであっても、観察者にとっては「member が抜けた」事実が重要)。
+
+##### 13.9.7 config 追加
+
+```ts
+// v0.17.4
+factionDefectionGraceYears: 8
+factionDefectionProbPerYear: 0.07
+factionDefectionAttitudeAffectionPenalty: 2
+factionDefectionAttitudeRespectPenalty: 1
+```
+
+##### 13.9.8 期待される動態
+
+- Gregor のような **無力 leader の派閥は数十年で縮小** (95 → 5-10 人レベルへ)
+- 縮小した派閥は viability score の閾値を割って自然解散、wealth は leader 個人に残置
+- 解放された h-anon / 没落貴族メンバーは isUnaffiliated / isLandlessHouseMember に戻り、Bailiff / 他派閥 recruit 対象として再流通する
+- **Polity Bailiff 任命の人材プールが増える** → factional bailiff appointment の質改善が期待値
+
+#### 13.10.1 v0.17.4 で並行修正 (死亡 member の membership cleanup)
+
+v0.17.4 観察中に判明した既存 bug を修正:
+
+**問題**: faction に所属する member が死亡 (`mortalitySystem` で `alive=false` 化) しても、その `FactionMembership` を削除する経路がどこにも存在せず、`active=true` のまま残置していた。結果として CLI 観察で死亡者が派閥に在籍したまま見える (例: seed 1 year 30 の Rainer's Circle に Aveline pe-137 (age 61, alive=false) が残っていた)。
+
+**修正**: `factionLifecycleSystem.processExistingFactions` の毎月走るループに、`removeDeadMemberships(ctx, factionId)` helper を追加。当該 faction の全 membership を走査し、`person.alive === false` の member の membership を `removeFactionMembership` で完全削除する。leader 死亡は別経路 (`handleLeaderVacancy`) なので除外。`v0.17.3 C` で `removeFactionMembership` が完全削除 + `byMember` 同期するため、integrity は保たれる。
+
+**副次効果**: 死人 cleanup により membership table が clean に保たれ、defection / recruitment の動態が大幅に活性化:
+
+| seed | abandoned (修正前 → 修正後) |
+|---|---|
+| 1 | 2 → 32 |
+| 42 | 0 → 20 |
+| 123 | 0 → 2 |
+| 999 | 0 → 22 |
+
+#### 13.11 v0.17.4 で未発火 event の発火実装
+
+draft spec §11.5 / §13.6 で予約済みの以下 event は v0.17 時点で `types/event.ts` に declared、`explain/explainFaction.ts` に summary 文も完備だが **未発火** だった (Stage B B2 で意図的に後送)。v0.17.4 で発火条件を確定する。年代記に派閥興亡の物語性を加えるため、idle defection と同タイミングで実装する。
+
+##### FACTION_FUNDS_SHORTAGE
+
+警告段階の event。leader が完全破産には至らないが、当該年に **stipend を払いきれなかった no-office member が 1 人以上いた** ことを示す。
+
+発火条件 (`factionPatronageSystem` 内で集計):
+
+- 当該年の小遣い loop で `leader.wealth < factionLeaderReserveWealth + stipend` により stipend を支払えなかった member が >= 1
+- かつ `leader.wealth >= factionDisbandWealthFloor` (= 10) — 完全破産は別 event (FACTION_LEADER_BANKRUPT) なので除外
+
+書式:
+
+```
+FACTION_FUNDS_SHORTAGE
+  importance: 'normal'
+  actorIds: [leaderId]
+  houseIds: [leader.houseId]
+  summary: "{leader.name}'s {faction.name} faces a financial crisis."
+```
+
+実装位置: `factionPatronageSystem` の小遣い loop の末尾で `unpaidCount` を集計、loop 後に条件判定して発火。1 派閥 1 年 1 回 (patronage は 1 月のみ実行のため重複なし)。
+
+##### FACTION_LEADER_BANKRUPT
+
+致命段階の event。leader.wealth が解散閾値を割った瞬間に発火。同 tick で FACTION_DISSOLVED が続き、解散理由を物語る前駆 event として機能する。
+
+発火条件 (`factionLifecycleSystem` 内):
+
+- 解散判定で `leader.wealth < factionDisbandWealthFloor` が true で deactivateFaction を実行する分岐
+- 他の解散理由 (insufficient members / low viability / leader vacancy 死亡) では発火しない (= bankrupt 固有の event)
+
+書式:
+
+```
+FACTION_LEADER_BANKRUPT
+  importance: 'normal'
+  actorIds: [leaderId]
+  houseIds: [leader.houseId]
+  summary: "{leader.name}'s fortunes are exhausted, putting {faction.name} in jeopardy."
+```
+
+実装位置: `factionLifecycleSystem.runFactionLifecycleSystem` の解散判定 (line 67) 直後、`reasonsToDissolve` に 'leader bankrupt' が含まれる場合に `dissolveFaction` を呼ぶ前で発火。順序は **FACTION_LEADER_BANKRUPT → FACTION_DISSOLVED** の 2 連 emit。
+
+##### config 追加 (なし)
+
+両 event とも既存 config (`factionDisbandWealthFloor` / `factionLeaderReserveWealth` / `factionStipendBase`) のみで判定可能、新規 config 不要。
+
+#### 13.10 v0.17.4 で実装済み (UI 改修)
+
+- **Faction 独立 UI**:
+  - `Sidebar.tsx` に `Factions` タブを追加 (4 番目)。Active Faction を「メンバー数 desc / 結成年 asc」で表示。各 row に leader name / 結成年月 / member count
+  - `DetailPanel.tsx` に `FactionDetail` コンポーネントを新規追加。表示内容: faction name (+ Dissolved バッジ) / ID / 結成年月 (+ 経過年数) / Leader (PersonLink) / Leader House (HouseLink) / メンバー数 / Viability score / Leader Opportunity score / Roster (leader 以外を prestige 降順で list)
+  - `simulationStore.ts` の `SelectedType` に `'faction'` を追加
+  - `PersonDetail` の Faction 表示をリンク化 (Person → Faction 遷移)
+  - `buildEntitySnapshot` に `'faction'` ケースを追加 (Copy JSON 経路)
+
 ### v0.18 以降に送られる主要項目
 
 #### Faction 拡張系
 
 - **同派閥婚姻ボーナス / leader 意思決定の派閥圧力 / 軍事 contribution の Share-based 集計**: v0.17 では未実装。派閥が「人事と恩顧」のみ。
-- **Faction 独立 UI**: v0.17 では Person detail に "Faction: ◈ {name} (leader|member)" を表示するに留め、Faction 専用 detail panel と Sidebar 切替は未着手。
+- ~~**Faction 独立 UI**~~: v0.17.4 で実装済み (sidebar Factions タブ + DetailPanel FactionDetail)。
 - ~~**bailiff の factional 推薦 (§15.3)**~~: v0.17.1 で実装済み (派閥員候補プール拡大 + 兼任全面禁止 + Bailiff salary 経路)。
 - **commonwealth 派閥の取り扱い拡張**: `ownerHouseId === undefined` Polity (Rebel Polity / commonwealth) で `getFactionNominationPower` から ownerHouse bonus を 0 にする処理は実装済 だが、commonwealth 特有の派閥動態 (rebel leader 直接派閥 leader 化など) は未深化。
 - **§21.3 D1 (alive=false → deathYear/deathMonth set)**: v0.17 では Person 型に deathYear/deathMonth を追加せず、integrity check は D1 を除外。表示時に state.currentYear から算出する設計のままで継続するか、deathYear を Person field として追加するかは要検討。
@@ -2538,6 +2745,27 @@ v0.17.3 観察 (House Corvin — 9 人の血統メンバー + Lionel 派閥所�
 - **結婚の持参金 (Dowry)**: `marriageSystem` に Province 持参金経路を追加。`transferProvinceToHouse` 既存。高 prestige 家と低 prestige 家の婚姻時に Province が移転する。Werner の子 (pe-264 等) が強家と婚姻して land を持ち込む物語。
 
 これらは Affection 駆動行動・action 経済とも連動するので、v0.18+ で「家の興亡」というテーマで束ねて実装するのが自然 (個別 PR ではなく v0.18 全体テーマとして括る案)。
+
+#### 経歴 / Entity-Event 関連付け (将来)
+
+人物 / 家 / 国 / Province 単位で「何が起きたか」を時系列で振り返れる UI を実現するための data model 改修。v0.17.3 で inactive OfficeAssignment / FactionMembership を完全削除した結果、state を遡って経歴を再構築することは不可能になっており、別経路で履歴を保持する必要がある。
+
+**アイディアレベルの設計案** (詳細は v0.18+ で他システムと突き合わせて確定する):
+
+- **Entity 側に ID 参照リストを持たせる**: `Polity / House / Person / Province` に `relatedEventIds: EventId[]` (もしくは類似フィールド) を追加。イベント生成時に event の `actorIds / houseIds / polityIds / provinceIds` を巡回して該当 entity の list に push する単一 dispatcher を用意する。各 system 側の event 生成箇所が既に統一されていれば 1 箇所の改修で済むはず。
+- **eventHistory の保管場所を `session` から `state` に移植**: ID から event を引ける前提なので、state と event log の整合性が前提条件になる。CLI export や snapshot との一貫性もこれで担保される。
+- **保管 cap の戦略 (案レベル)**:
+  - (A) cap 撤廃、`state.eventHistory: Record<EventId, SimEvent>` で全保持。memory 影響大。
+  - (B) importance ベース cap: `critical` / `major` は無期限、`normal` / `minor` のみ cap。歴史書が重大事件しか記録しない史実的整合とも合う。**有力**。
+  - (C) cap 突破時に "圧縮イベント" にまとめる (例: 「pe-XXX は year 50-60 に Bailiff を 3 回務めた」のような要約)。実装コスト高。
+- **UI**: DetailPanel に "Career" / "History" タブを追加し、`relatedEventIds` から取得した event を時系列降順で表示。importance や EventType でフィルタ可能。
+
+**他システムとの関連 (実装時に再確認すべき項目)**:
+
+- `maxRawEvents` config と event ring buffer (現状 `simulationStore.ts:99-103` で cap) の挙動を見直す。
+- v0.17.3 で削除した inactive OfficeAssignment / FactionMembership と異なり、経歴は event ID 経由でアクセスするので state table 圧縮の方針とは衝突しない。
+- イベント生成側の単一 dispatcher 化が前提なので、現状の event emit 箇所を棚卸しして集約済みかを確認する必要がある。
+- 死者の Person を完全削除する将来最適化 (`docs/SPEC.md` "v0.18 以降の最適化候補" の項目) と整合させる: 死亡者の `relatedEventIds` が無くなるなら、event 側に actor の `personName` snapshot を持たせて孤児イベントでも UI 表示できるようにする等の検討が必要。
 
 #### v0.16 から繰り越された未実装 (一部 v0.17 で部分対応)
 

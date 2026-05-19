@@ -20,7 +20,13 @@ import {
 import { getDominantPolityHouse, getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
 import { isUnaffiliatedPerson, isLandlessHouseMember } from '@sim/selectors/availabilitySelectors'
-import { getActiveFactionMembership, getFactionByLeader } from '@sim/selectors/factionSelectors'
+import {
+  getActiveFactionMembership,
+  getFactionByLeader,
+  getFactionActiveMemberIds,
+  getFactionViabilityScore,
+  getFactionOpportunityScore,
+} from '@sim/selectors/factionSelectors'
 import { ANONYMOUS_HOUSE_ID } from '@sim/types/landContract'
 import { ABILITY_AGE_CURVES } from '@sim/constants/abilityConstants'
 import { getProvinceDevelopmentMultiplier } from '@/sim/selectors/developmentSelectors'
@@ -47,7 +53,8 @@ import type { Province } from '@/sim/types/province'
 import type { PopGroup } from '@/sim/types/popGroup'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import type { AttitudeMap } from '@/sim/types/attitude'
-import type { PolityId, HouseId, PersonId } from '@/sim/types/ids'
+import type { PolityId, HouseId, PersonId, FactionId } from '@/sim/types/ids'
+import type { Faction } from '@/sim/types/faction'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
   getHousePrimaryPolityId,
@@ -131,7 +138,7 @@ function CopyJsonButton({ payload }: { payload: unknown }) {
 // raw entity + \u89e3\u6c7a\u6e08\u307f\u53c2\u7167 (House/Polity/Person \u540d\u7b49) + \u6642\u523b\u6587\u8108\u3092\u542b\u3080\u3002
 // LLM \u3078\u306e\u69cb\u9020\u5316\u5171\u6709\u3092\u60f3\u5b9a \u2014 \u904e\u5ea6\u306a derived \u306f\u5165\u308c\u305a\u3001\u751f\u30c7\u30fc\u30bf\u306b\u8584\u3044 overlay \u3092\u88ab\u305b\u308b\u65b9\u91dd\u3002
 function buildEntitySnapshot(
-  kind: 'polity' | 'house' | 'person' | 'province' | 'popGroup',
+  kind: 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction',
   entity: unknown,
   currentState: WorldState | null,
 ): unknown {
@@ -288,6 +295,95 @@ function buildEntitySnapshot(
       entity: pg,
       derived: {
         provinceName: provinceName(pg.provinceId),
+      },
+    }
+  }
+  if (kind === 'faction') {
+    const f = entity as Faction
+    const memberIds = ws ? getFactionActiveMemberIds(ws, f.id) : []
+    // v0.17.4 UI: Faction Roster と同じ「代表官職 / 無職」「Unaffiliated」情報を JSON にも反映する。
+    const ROSTER_ROLE_ORDER = ['leader', 'administrator', 'treasurer', 'military', 'advisor']
+    const representativeOfficeFor = (
+      personId: PersonId,
+    ): { label: string; extraCount: number; isUnemployed: boolean } => {
+      if (!ws) return { label: '無職', extraCount: 0, isUnemployed: true }
+      const officeIds = ws.officeIndex.byHolderPerson[personId] ?? []
+      const offices = officeIds.flatMap((oid) => {
+        const o = ws.officeAssignments[oid]
+        return o && o.active ? [o] : []
+      })
+      const bailiffIds = ws.provinceOfficeIndex.byHolderPerson[personId] ?? []
+      const bailiffs = bailiffIds.flatMap((aid) => {
+        const a = ws.provinceOfficeAssignments[aid]
+        return a && a.active ? [a] : []
+      })
+      const polityOfficesLocal = offices
+        .filter((o) => o.organization.kind === 'polity')
+        .sort((a, b) => ROSTER_ROLE_ORDER.indexOf(a.role) - ROSTER_ROLE_ORDER.indexOf(b.role))
+      const houseOfficesLocal = offices
+        .filter((o) => o.organization.kind === 'house')
+        .sort((a, b) => ROSTER_ROLE_ORDER.indexOf(a.role) - ROSTER_ROLE_ORDER.indexOf(b.role))
+      const total = offices.length + bailiffs.length
+      if (polityOfficesLocal.length > 0) {
+        const o = polityOfficesLocal[0]!
+        const displayName =
+          OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
+        const orgName = ws.polities[o.organization.id as PolityId]?.name ?? o.organization.id
+        return {
+          label: `${displayName} (${orgName})`,
+          extraCount: total - 1,
+          isUnemployed: false,
+        }
+      }
+      if (houseOfficesLocal.length > 0) {
+        const o = houseOfficesLocal[0]!
+        const displayName =
+          OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
+        const orgName = ws.houses[o.organization.id as HouseId]?.name ?? o.organization.id
+        return {
+          label: `${displayName} (${orgName})`,
+          extraCount: total - 1,
+          isUnemployed: false,
+        }
+      }
+      if (bailiffs.length > 0) {
+        const a = bailiffs[0]!
+        const provName = ws.provinces[a.provinceId]?.name ?? a.provinceId
+        return {
+          label: `代官 (${provName})`,
+          extraCount: total - 1,
+          isUnemployed: false,
+        }
+      }
+      return { label: '無職', extraCount: 0, isUnemployed: true }
+    }
+    const members = memberIds.map((pid) => {
+      const p = ws?.persons[pid]
+      const hid = p?.houseId
+      const isUnaffiliated = hid === ANONYMOUS_HOUSE_ID
+      return {
+        personId: pid,
+        personName: p?.name ?? null,
+        houseId: hid ?? null,
+        houseName: isUnaffiliated ? null : houseName(hid),
+        isUnaffiliated,
+        representativeOffice: representativeOfficeFor(pid),
+      }
+    })
+    const employedCount = members.filter((m) => !m.representativeOffice.isUnemployed).length
+    const leader = ws?.persons[f.leaderPersonId]
+    const leaderHouseId = leader?.houseId
+    return {
+      kind,
+      meta,
+      entity: f,
+      derived: {
+        leaderPersonName: personName(f.leaderPersonId),
+        leaderHouseId: leaderHouseId ?? null,
+        leaderHouseName: houseName(leaderHouseId),
+        memberCount: memberIds.length,
+        employedCount,
+        members,
       },
     }
   }
@@ -1062,6 +1158,8 @@ function PersonDetail({
   onHouseClick,
   onPolityClick,
   onPersonClick,
+  onFactionClick,
+  onProvinceClick,
   eventHistory,
 }: {
   person: Person
@@ -1071,6 +1169,8 @@ function PersonDetail({
   onHouseClick: ClickHandler
   onPolityClick: ClickHandler
   onPersonClick: (id: string) => void
+  onFactionClick: (id: FactionId) => void
+  onProvinceClick: (id: string) => void
   eventHistory: SimEvent[]
 }) {
   const isWatching = watchlist.includes(person.id)
@@ -1134,6 +1234,12 @@ function PersonDetail({
   const polityOffices = allOffices.filter((o) => o.organization.kind === 'polity').sort(sortByRole)
   const houseOffices = allOffices.filter((o) => o.organization.kind === 'house').sort(sortByRole)
 
+  const bailiffAssignmentIds = worldState.provinceOfficeIndex.byHolderPerson[person.id] ?? []
+  const bailiffAssignments = bailiffAssignmentIds.flatMap((aid) => {
+    const a = worldState.provinceOfficeAssignments[aid]
+    return a && a.active ? [a] : []
+  })
+
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
@@ -1194,7 +1300,14 @@ function PersonDetail({
             <div className="flex justify-between">
               <span className="text-gray-400">Faction:</span>
               <span>
-                ◈ {faction.name} <span className="text-xs text-gray-500">({roleLabel})</span>
+                ◈{' '}
+                <button
+                  className="cursor-pointer text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                  onClick={() => onFactionClick(faction.id)}
+                >
+                  {faction.name}
+                </button>{' '}
+                <span className="text-xs text-gray-500">({roleLabel})</span>
               </span>
             </div>
           )
@@ -1238,7 +1351,7 @@ function PersonDetail({
         </div>
         <div className="mt-1">
           <span className="text-sm text-gray-400">Offices</span>
-          {allOffices.length === 0 ? (
+          {allOffices.length === 0 && bailiffAssignments.length === 0 ? (
             <div className="ml-1 text-sm text-gray-500">—</div>
           ) : (
             <div className="ml-1 text-sm">
@@ -1262,6 +1375,27 @@ function PersonDetail({
                       <span className="text-right text-gray-200">{officeOrgName(o)}</span>
                     </div>
                   ))}
+                </div>
+              )}
+              {bailiffAssignments.length > 0 && (
+                <div
+                  className={polityOffices.length > 0 || houseOffices.length > 0 ? 'mt-0.5' : ''}
+                >
+                  <span className="text-xs text-gray-500">Bailiff</span>
+                  {bailiffAssignments.map((a) => {
+                    const province = worldState.provinces[a.provinceId]
+                    return (
+                      <div key={a.id} className="flex justify-between gap-2">
+                        <span className="text-gray-300">代官</span>
+                        <button
+                          className="text-right text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                          onClick={() => onProvinceClick(a.provinceId)}
+                        >
+                          {province?.name ?? a.provinceId}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -1851,6 +1985,217 @@ function ProvinceDetail({
   )
 }
 
+function FactionDetail({
+  faction,
+  session,
+  onPersonClick,
+  onHouseClick,
+}: {
+  faction: Faction
+  session: SimulationSession | null
+  onPersonClick: ClickHandler
+  onHouseClick: ClickHandler
+}) {
+  const currentState = session?.currentState
+  const worldState: WorldState | null = currentState ?? null
+  if (!worldState) return null
+
+  const persons = worldState.persons
+  const houses = worldState.houses
+  const leader = persons[faction.leaderPersonId]
+  const memberIds = getFactionActiveMemberIds(worldState, faction.id)
+  const viability = getFactionViabilityScore(worldState, defaultConfig, faction.id)
+  const leaderOpportunity = getFactionOpportunityScore(
+    worldState,
+    defaultConfig,
+    faction.leaderPersonId,
+  )
+  const currentYear = worldState.currentYear
+  const ageYears = currentYear - faction.foundingYear
+
+  const memberRows = memberIds
+    .filter((pid) => pid !== faction.leaderPersonId)
+    .map((pid) => {
+      const p = persons[pid]
+      return p
+    })
+    .filter((p): p is NonNullable<typeof p> => Boolean(p))
+    .sort((a, b) => b.legacyPrestige - a.legacyPrestige)
+
+  // v0.17.4 UI: 各 member の代表官職を抽出する。
+  // 優先順位: Polity Office > House Office > Bailiff > 無職。
+  // ROLE_ORDER で leader, administrator, treasurer, military, advisor の順に並べる。
+  const ROSTER_ROLE_ORDER = ['leader', 'administrator', 'treasurer', 'military', 'advisor']
+  const ws: WorldState = worldState
+  function getMemberRepresentativeOffice(personId: PersonId): {
+    label: string
+    extraCount: number
+    isUnemployed: boolean
+  } {
+    const officeIds = ws.officeIndex.byHolderPerson[personId] ?? []
+    const offices = officeIds.flatMap((oid) => {
+      const o = ws.officeAssignments[oid]
+      return o && o.active ? [o] : []
+    })
+    const bailiffIds = ws.provinceOfficeIndex.byHolderPerson[personId] ?? []
+    const bailiffs = bailiffIds.flatMap((aid) => {
+      const a = ws.provinceOfficeAssignments[aid]
+      return a && a.active ? [a] : []
+    })
+    const polityOfficesLocal = offices
+      .filter((o) => o.organization.kind === 'polity')
+      .sort((a, b) => ROSTER_ROLE_ORDER.indexOf(a.role) - ROSTER_ROLE_ORDER.indexOf(b.role))
+    const houseOfficesLocal = offices
+      .filter((o) => o.organization.kind === 'house')
+      .sort((a, b) => ROSTER_ROLE_ORDER.indexOf(a.role) - ROSTER_ROLE_ORDER.indexOf(b.role))
+    const total = offices.length + bailiffs.length
+    if (polityOfficesLocal.length > 0) {
+      const o = polityOfficesLocal[0]!
+      const displayName =
+        OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
+      const orgName = ws.polities[o.organization.id as PolityId]?.name ?? o.organization.id
+      return {
+        label: `${displayName} (${orgName})`,
+        extraCount: total - 1,
+        isUnemployed: false,
+      }
+    }
+    if (houseOfficesLocal.length > 0) {
+      const o = houseOfficesLocal[0]!
+      const displayName =
+        OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
+      const orgName = ws.houses[o.organization.id as HouseId]?.name ?? o.organization.id
+      return {
+        label: `${displayName} (${orgName})`,
+        extraCount: total - 1,
+        isUnemployed: false,
+      }
+    }
+    if (bailiffs.length > 0) {
+      const a = bailiffs[0]!
+      const provName = ws.provinces[a.provinceId]?.name ?? a.provinceId
+      return {
+        label: `代官 (${provName})`,
+        extraCount: total - 1,
+        isUnemployed: false,
+      }
+    }
+    return { label: '無職', extraCount: 0, isUnemployed: true }
+  }
+
+  return (
+    <div className="flex flex-col gap-1 p-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-bold">{faction.name}</span>
+          {!faction.active && (
+            <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">
+              Dissolved
+            </span>
+          )}
+        </div>
+        <CopyJsonButton payload={buildEntitySnapshot('faction', faction, worldState)} />
+      </div>
+
+      <div className="text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-400">ID:</span>
+          <span className="text-xs text-gray-500">{faction.id}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Founded:</span>
+          <span>
+            {faction.foundingYear}/{String(faction.foundingMonth).padStart(2, '0')}{' '}
+            <span className="text-xs text-gray-500">
+              ({ageYears} year{ageYears === 1 ? '' : 's'} ago)
+            </span>
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Leader:</span>
+          {leader ? (
+            <PersonLink personId={leader.id} persons={persons} onClick={onPersonClick} />
+          ) : (
+            <span className="text-gray-500">—</span>
+          )}
+        </div>
+        {leader && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Leader House:</span>
+            <HouseLink houseId={leader.houseId} houses={houses} onClick={onHouseClick} />
+          </div>
+        )}
+        <div className="flex justify-between">
+          <span className="text-gray-400">Members:</span>
+          <span>{memberIds.length}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Viability:</span>
+          <span>{formatScore(viability)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Leader Opportunity:</span>
+          <span>{formatScore(leaderOpportunity)}</span>
+        </div>
+      </div>
+
+      {/* v0.17.4 UI: 派閥の "ジョブ被害状況" を一目で見られるよう集計を表示 */}
+      {(() => {
+        const memberOfficeInfo = memberRows.map((p) => getMemberRepresentativeOffice(p.id))
+        const employedCount = memberOfficeInfo.filter((info) => !info.isUnemployed).length
+        const totalRoster = memberRows.length
+        return (
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-300">Roster</span>
+            {totalRoster > 0 && (
+              <span className="text-xs text-gray-400">
+                有職: {employedCount}/{totalRoster}
+              </span>
+            )}
+          </div>
+        )
+      })()}
+      {memberRows.length === 0 ? (
+        <div className="text-xs text-gray-500">(leader only)</div>
+      ) : (
+        <div className="flex flex-col gap-0.5 text-sm">
+          {memberRows.map((p) => {
+            const officeInfo = getMemberRepresentativeOffice(p.id)
+            return (
+              <div key={p.id} className="flex items-center justify-between rounded bg-gray-700 p-1">
+                <div className="flex flex-col">
+                  <PersonLink personId={p.id} persons={persons} onClick={onPersonClick} />
+                  <span className="text-xs text-gray-400">
+                    {p.houseId === ANONYMOUS_HOUSE_ID ? (
+                      <span className="text-gray-500">(Unaffiliated)</span>
+                    ) : (
+                      <HouseLink houseId={p.houseId} houses={houses} onClick={onHouseClick} />
+                    )}{' '}
+                    · age {p.age}
+                  </span>
+                  <span
+                    className={`text-xs ${
+                      officeInfo.isUnemployed ? 'text-gray-500' : 'text-amber-300'
+                    }`}
+                  >
+                    {officeInfo.label}
+                    {officeInfo.extraCount > 0 && (
+                      <span className="text-gray-500"> +{officeInfo.extraCount}</span>
+                    )}
+                  </span>
+                </div>
+                <span className="text-xs text-gray-400">
+                  Prestige {formatScore(p.legacyPrestige)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function NoSelection() {
   return (
     <div className="flex h-full items-center justify-center text-gray-500">
@@ -1876,6 +2221,7 @@ export function DetailPanel() {
   const onPolityClick = (id: string) => setSelected(id, 'polity')
   const onProvinceClick = (id: string) => setSelected(id, 'province')
   const onPopGroupClick = (id: string) => setSelected(id, 'popGroup')
+  const onFactionClick = (id: FactionId) => setSelected(id, 'faction')
 
   const polity =
     selectedType === 'polity' && selectedId && currentState
@@ -1896,6 +2242,10 @@ export function DetailPanel() {
   const popGroup =
     selectedType === 'popGroup' && selectedId && currentState
       ? Object.values(currentState.popGroups).find((pg) => pg?.id === selectedId)
+      : undefined
+  const faction =
+    selectedType === 'faction' && selectedId && currentState
+      ? currentState.factions[selectedId as FactionId]
       : undefined
 
   return (
@@ -1936,6 +2286,8 @@ export function DetailPanel() {
             onHouseClick={onHouseClick}
             onPolityClick={onPolityClick}
             onPersonClick={onPersonClick}
+            onFactionClick={onFactionClick}
+            onProvinceClick={onProvinceClick}
             eventHistory={eventHistory}
           />
         ) : selectedType === 'province' && province ? (
@@ -1956,6 +2308,13 @@ export function DetailPanel() {
             onHouseClick={onHouseClick}
             onPersonClick={onPersonClick}
             onProvinceClick={onProvinceClick}
+          />
+        ) : selectedType === 'faction' && faction ? (
+          <FactionDetail
+            faction={faction}
+            session={session}
+            onPersonClick={onPersonClick}
+            onHouseClick={onHouseClick}
           />
         ) : (
           <NoSelection />

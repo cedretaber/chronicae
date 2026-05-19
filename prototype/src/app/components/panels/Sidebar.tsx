@@ -2,12 +2,14 @@ import { useState, useMemo } from 'react'
 import { calcPersonImportanceScore } from '@sim/selectors/importanceSelectors'
 import { calcPolityMilitaryPower } from '@sim/selectors/militarySelectors'
 import { getPolityLegitimacy, getPolityStability } from '@sim/selectors/statusSelectors'
+import { getActiveFactions, getFactionActiveMemberIds } from '@sim/selectors/factionSelectors'
 import type { SimEvent } from '@sim/types/event'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import type { Polity } from '@/sim/types/polity'
 import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
 import type { WorldState } from '@/sim/types/world'
+import type { Faction } from '@/sim/types/faction'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
 import { getHouseControlledProvinceIds } from '@sim/selectors/landContractSelectors'
 import { buildPolityColorMap } from '@/app/utils/polityColors'
@@ -15,12 +17,13 @@ import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
 import type { PolityRank } from '@/sim/types/polity'
 import { defaultConfig } from '@/sim/config/defaultConfig'
 
-type TabKey = 'countries' | 'houses' | 'persons' | 'watchlist'
+type TabKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'countries', label: 'Countries' },
   { key: 'houses', label: 'Houses' },
   { key: 'persons', label: 'Persons' },
+  { key: 'factions', label: 'Factions' },
   { key: 'watchlist', label: 'Watchlist' },
 ]
 
@@ -170,6 +173,36 @@ function PersonRow({
   )
 }
 
+function FactionRow({
+  faction,
+  leaderName,
+  memberCount,
+  isSelected,
+  onClick,
+}: {
+  faction: Faction
+  leaderName: string
+  memberCount: number
+  isSelected: boolean
+  onClick: () => void
+}) {
+  return (
+    <div
+      className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
+        isSelected ? 'bg-blue-700' : ''
+      }`}
+      onClick={onClick}
+    >
+      <div className="font-bold">{faction.name}</div>
+      <div className="text-xs text-gray-400">Leader: {leaderName}</div>
+      <div className="text-gray-300">
+        Members: {memberCount} | Founded: {faction.foundingYear}/
+        {String(faction.foundingMonth).padStart(2, '0')}
+      </div>
+    </div>
+  )
+}
+
 function WatchlistRow({
   name,
   type,
@@ -290,6 +323,23 @@ export function Sidebar() {
         .slice(0, 50)
     : []
 
+  const factionEntries: { faction: Faction; leaderName: string; memberCount: number }[] =
+    session?.currentState
+      ? getActiveFactions(session.currentState)
+          .map((f) => {
+            const leader = persons?.[f.leaderPersonId]
+            return {
+              faction: f,
+              leaderName: leader?.name ?? '(unknown)',
+              memberCount: getFactionActiveMemberIds(session.currentState, f.id).length,
+            }
+          })
+          .sort((a, b) => {
+            if (b.memberCount !== a.memberCount) return b.memberCount - a.memberCount
+            return a.faction.foundingYear - b.faction.foundingYear
+          })
+      : []
+
   return (
     <div className="flex h-full w-64 flex-col overflow-hidden bg-gray-800 text-white">
       <div className="flex border-b border-gray-600">
@@ -377,6 +427,29 @@ export function Sidebar() {
               onClick={() => setSelected(person.id, 'person')}
             />
           ))}
+
+        {activeTab === 'factions' && (
+          <>
+            <div className="sticky top-0 z-10 border-b border-gray-700 bg-gray-900 px-3 py-1 text-xs font-bold text-gray-400">
+              Active Factions{' '}
+              <span className="font-normal text-gray-500">({factionEntries.length})</span>
+            </div>
+            {factionEntries.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-gray-500">No active factions</div>
+            ) : (
+              factionEntries.map(({ faction, leaderName, memberCount }) => (
+                <FactionRow
+                  key={faction.id}
+                  faction={faction}
+                  leaderName={leaderName}
+                  memberCount={memberCount}
+                  isSelected={selectedId === faction.id && selectedType === 'faction'}
+                  onClick={() => setSelected(faction.id, 'faction')}
+                />
+              ))
+            )}
+          </>
+        )}
 
         {activeTab === 'watchlist' &&
           watchlist.map((watchId) => {

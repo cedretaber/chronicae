@@ -372,6 +372,11 @@ export type SimulationConfig = {
   factionStipendRespectGain: number
   factionStipendShortageAffectionPenalty: number
   factionStipendShortageRespectPenalty: number
+  // v0.17.4 §13.9 Faction defection (idle メンバー離脱)
+  factionDefectionGraceYears: number
+  factionDefectionProbPerYear: number
+  factionDefectionAttitudeAffectionPenalty: number
+  factionDefectionAttitudeRespectPenalty: number
   // v0.17 House surplus
   houseWealthReserveTarget: number
   houseSurplusDistributionMonthlyRate: number
@@ -776,6 +781,11 @@ export const defaultConfig: SimulationConfig = {
   factionStipendRespectGain: 1,
   factionStipendShortageAffectionPenalty: 2,
   factionStipendShortageRespectPenalty: 1,
+  // v0.17.4 §13.9 Faction defection
+  factionDefectionGraceYears: 8,
+  factionDefectionProbPerYear: 0.07,
+  factionDefectionAttitudeAffectionPenalty: 2,
+  factionDefectionAttitudeRespectPenalty: 1,
   // v0.17 House surplus
   houseWealthReserveTarget: 100,
   houseSurplusDistributionMonthlyRate: 0.015,

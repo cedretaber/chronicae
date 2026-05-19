@@ -221,6 +221,104 @@ describe('runFactionPatronageSystem', () => {
     expect(result.state.persons[leaderId]?.attitudes[leaderAttitudeKey]).toBeUndefined()
   })
 
+  it('v0.17.4: FACTION_FUNDS_SHORTAGE fires when leader cannot pay stipend but is not bankrupt', () => {
+    const memberId = createPersonId('pe', 1)
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    const { state, leaderId, houseId } = buildBaseState()
+
+    // Leader wealth 100: stipend 10 + reserve 500 = 510 > 100 → 不払い
+    // ただし factionDisbandWealthFloor (default 10) は上回るので BANKRUPT ではない
+    let s = state
+    s = { ...s, persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, wealth: 100 } } }
+    s = withPerson(s, memberId, { name: 'NoOfficeMember', houseId, wealth: 0, alive: true })
+    const s2 = addFaction(s, factionId, leaderId).state
+    const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
+
+    const customConfig = makeConfig({
+      factionStipendBase: 10,
+      factionLeaderReserveWealth: 500,
+      factionDisbandWealthFloor: 10,
+    })
+    const ctx = makeCtx(s3, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    const fundsShortageEvents = result.events.filter((e) => e.type === 'FACTION_FUNDS_SHORTAGE')
+    expect(fundsShortageEvents).toHaveLength(1)
+    expect(fundsShortageEvents[0]?.actorIds[0]).toBe(leaderId)
+  })
+
+  it('v0.17.4: FACTION_FUNDS_SHORTAGE does NOT fire when no unpaid members', () => {
+    const memberId = createPersonId('pe', 1)
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    const { state, leaderId, houseId } = buildBaseState()
+
+    let s = state
+    s = withPerson(s, memberId, { name: 'NoOfficeMember', houseId, wealth: 0, alive: true })
+    const s2 = addFaction(s, factionId, leaderId).state
+    const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
+
+    // leader 1000 >> 500 + 10 → stipend 払える
+    const customConfig = makeConfig({ factionStipendBase: 10, factionLeaderReserveWealth: 500 })
+    const ctx = makeCtx(s3, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    expect(result.events.filter((e) => e.type === 'FACTION_FUNDS_SHORTAGE')).toHaveLength(0)
+  })
+
+  it('v0.17.4: FACTION_FUNDS_SHORTAGE does NOT fire when leader is already bankrupt', () => {
+    const memberId = createPersonId('pe', 1)
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    const { state, leaderId, houseId } = buildBaseState()
+
+    // Leader wealth 5 (< factionDisbandWealthFloor=10) → bankrupt 状態
+    let s = state
+    s = { ...s, persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, wealth: 5 } } }
+    s = withPerson(s, memberId, { name: 'NoOfficeMember', houseId, wealth: 0, alive: true })
+    const s2 = addFaction(s, factionId, leaderId).state
+    const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
+
+    const customConfig = makeConfig({
+      factionStipendBase: 10,
+      factionLeaderReserveWealth: 500,
+      factionDisbandWealthFloor: 10,
+    })
+    const ctx = makeCtx(s3, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    // BANKRUPT 側に委ねる経路 → FUNDS_SHORTAGE は発火しない
+    expect(result.events.filter((e) => e.type === 'FACTION_FUNDS_SHORTAGE')).toHaveLength(0)
+  })
+
+  it('v0.17.4: FACTION_FUNDS_SHORTAGE fires once per faction even with multiple unpaid members', () => {
+    const member1Id = createPersonId('pe', 1)
+    const member2Id = createPersonId('pe', 2)
+    const factionId = createFactionId(0)
+    const membership1Id = createFactionMembershipId(0)
+    const membership2Id = createFactionMembershipId(1)
+    const { state, leaderId, houseId } = buildBaseState()
+
+    let s = state
+    s = { ...s, persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, wealth: 100 } } }
+    s = withPerson(s, member1Id, { name: 'M1', houseId, wealth: 0, alive: true })
+    s = withPerson(s, member2Id, { name: 'M2', houseId, wealth: 0, alive: true })
+    let s2 = addFaction(s, factionId, leaderId).state
+    s2 = addFactionMembership(s2, membership1Id, factionId, member1Id)
+    s2 = addFactionMembership(s2, membership2Id, factionId, member2Id)
+
+    const customConfig = makeConfig({
+      factionStipendBase: 10,
+      factionLeaderReserveWealth: 500,
+      factionDisbandWealthFloor: 10,
+    })
+    const ctx = makeCtx(s2, customConfig)
+    const result = runFactionPatronageSystem(ctx)
+
+    expect(result.events.filter((e) => e.type === 'FACTION_FUNDS_SHORTAGE')).toHaveLength(1)
+  })
+
   it('leader pays stipend to no-office member when leader wealth > reserve + stipend', () => {
     const memberId = createPersonId('pe', 1)
     const factionId = createFactionId(0)

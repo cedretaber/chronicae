@@ -1,36 +1,37 @@
 import type { TickContext } from './context'
 import type { PersonId } from '../types/ids'
+import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
+import { makeEventId } from './context'
 import { getActiveFactions, getFactionActiveMemberIds } from '../selectors/factionSelectors'
 import { addPersonWealth } from '../mutations/personMutations'
 import { adjustPersonAttitudeIfExists } from '../mutations/attitudeMutations'
 
-// v0.17 §11: FactionPatronageSystem (毎年 1 月)
+// v0.17 §11 + v0.17.4 §13.11: FactionPatronageSystem (毎年 1 月)
 // 派閥 leader と member 間の献金 / 小遣いを処理する。
 // attitude 更新は updateAttitudeIfExists で既存 key のみ (新規 key は作らない)。
-// Stage B B2 段階では FACTION_FUNDS_SHORTAGE / FACTION_LEADER_BANKRUPT /
-// FACTION_MEMBER_ABANDONED 等の年次集計イベントは発火しない (Stage B B3 で派閥が
-// 結成されるようになってから扱う)。
+// v0.17.4: stipend を払えなかった member が >= 1 かつ leader.wealth が解散閾値を上回る場合
+// FACTION_FUNDS_SHORTAGE event を 1 派閥 1 年 1 回 emit する。
 export function runFactionPatronageSystem(ctx: TickContext): TickContext {
   if (ctx.state.currentMonth !== 1) return ctx
-  let state = ctx.state
+  let currentCtx = ctx
   const config = ctx.config
 
-  for (const faction of getActiveFactions(state)) {
-    const leader = state.persons[faction.leaderPersonId]
+  for (const faction of getActiveFactions(currentCtx.state)) {
+    const leader = currentCtx.state.persons[faction.leaderPersonId]
     if (!leader || !leader.alive) continue
 
-    const memberIds = getFactionActiveMemberIds(state, faction.id).filter(
+    const memberIds = getFactionActiveMemberIds(currentCtx.state, faction.id).filter(
       (mid) => mid !== faction.leaderPersonId,
     )
 
     // 1. 献金: office 持ち member → leader
     for (const memberId of memberIds) {
-      const member = state.persons[memberId]
+      const member = currentCtx.state.persons[memberId]
       if (!member || !member.alive) continue
       if (member.wealth <= config.factionDonationPersonalReserve) continue
 
-      const hasOffice = hasActiveNonLeaderOffice(state, memberId)
+      const hasOffice = hasActiveNonLeaderOffice(currentCtx.state, memberId)
       if (!hasOffice) continue
 
       const donationCap = member.wealth - config.factionDonationPersonalReserve
@@ -38,55 +39,82 @@ export function runFactionPatronageSystem(ctx: TickContext): TickContext {
       const donation = Math.max(1, Math.min(donationCap, donationDesired))
       if (donation <= 0) continue
 
-      // member → leader 振替
-      const minusResult = addPersonWealth(state, memberId, -donation)
+      const minusResult = addPersonWealth(currentCtx.state, memberId, -donation)
       if (!minusResult.ok) continue
-      state = minusResult.value
-      const plusResult = addPersonWealth(state, faction.leaderPersonId, donation)
-      if (plusResult.ok) state = plusResult.value
+      currentCtx = { ...currentCtx, state: minusResult.value }
+      const plusResult = addPersonWealth(currentCtx.state, faction.leaderPersonId, donation)
+      if (plusResult.ok) currentCtx = { ...currentCtx, state: plusResult.value }
 
-      // attitude: 既存 key のみ更新
-      state = applyAttitudeIfPresent(state, faction.leaderPersonId, memberId, {
+      let s = applyAttitudeIfPresent(currentCtx.state, faction.leaderPersonId, memberId, {
         affection: config.factionDonationAffectionGain,
         respect: config.factionDonationRespectGain,
       })
-      state = applyAttitudeIfPresent(state, memberId, faction.leaderPersonId, {
+      s = applyAttitudeIfPresent(s, memberId, faction.leaderPersonId, {
         affection: config.factionDonationAffectionGainSmall,
       })
+      currentCtx = { ...currentCtx, state: s }
     }
 
     // 2. 小遣い: leader → office なし member
+    let unpaidCount = 0
     for (const memberId of memberIds) {
-      const member = state.persons[memberId]
+      const member = currentCtx.state.persons[memberId]
       if (!member || !member.alive) continue
-      if (hasActiveNonLeaderOffice(state, memberId)) continue
+      if (hasActiveNonLeaderOffice(currentCtx.state, memberId)) continue
 
-      const leaderNow = state.persons[faction.leaderPersonId]
+      const leaderNow = currentCtx.state.persons[faction.leaderPersonId]
       if (!leaderNow) break
 
       const stipend = config.factionStipendBase
       if (leaderNow.wealth >= config.factionLeaderReserveWealth + stipend) {
-        const lResult = addPersonWealth(state, faction.leaderPersonId, -stipend)
+        const lResult = addPersonWealth(currentCtx.state, faction.leaderPersonId, -stipend)
         if (!lResult.ok) continue
-        state = lResult.value
-        const mResult = addPersonWealth(state, memberId, stipend)
-        if (mResult.ok) state = mResult.value
+        currentCtx = { ...currentCtx, state: lResult.value }
+        const mResult = addPersonWealth(currentCtx.state, memberId, stipend)
+        if (mResult.ok) currentCtx = { ...currentCtx, state: mResult.value }
 
-        state = applyAttitudeIfPresent(state, memberId, faction.leaderPersonId, {
+        const s = applyAttitudeIfPresent(currentCtx.state, memberId, faction.leaderPersonId, {
           affection: config.factionStipendAffectionGain,
           respect: config.factionStipendRespectGain,
         })
+        currentCtx = { ...currentCtx, state: s }
       } else {
+        unpaidCount++
         // 資金不足: 既存 attitude key があれば負方向
-        state = applyAttitudeIfPresent(state, memberId, faction.leaderPersonId, {
+        const s = applyAttitudeIfPresent(currentCtx.state, memberId, faction.leaderPersonId, {
           affection: -config.factionStipendShortageAffectionPenalty,
           respect: -config.factionStipendShortageRespectPenalty,
         })
+        currentCtx = { ...currentCtx, state: s }
+      }
+    }
+
+    // v0.17.4 §13.11: FACTION_FUNDS_SHORTAGE — 1 派閥 1 年 1 回
+    // 完全破産 (LEADER_BANKRUPT) は factionLifecycleSystem 側で扱うので除外する。
+    if (unpaidCount >= 1) {
+      const leaderAfter = currentCtx.state.persons[faction.leaderPersonId]
+      if (leaderAfter && leaderAfter.wealth >= config.factionDisbandWealthFloor) {
+        const { id: eventId, ctx: ec } = makeEventId(currentCtx)
+        const event: SimEvent = {
+          id: eventId,
+          year: ec.state.currentYear,
+          month: ec.state.currentMonth,
+          type: 'FACTION_FUNDS_SHORTAGE',
+          importance: 'normal',
+          actorIds: [faction.leaderPersonId],
+          houseIds: [leaderAfter.houseId],
+          polityIds: [],
+          provinceIds: [],
+          summary: `${leaderAfter.name}'s ${faction.name} faces a financial crisis.`,
+          reasons: [],
+          effects: [],
+        }
+        currentCtx = { ...ec, events: [...ec.events, event] }
       }
     }
   }
 
-  return { ...ctx, state }
+  return currentCtx
 }
 
 function hasActiveNonLeaderOffice(state: WorldState, personId: PersonId): boolean {
