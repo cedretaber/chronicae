@@ -1,23 +1,22 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { clamp } from '../utils/math'
-import { randomFloat } from '../rng/rng'
-import type { ProvinceId, PolityId } from '../types/ids'
-import type { PopClass } from '../types/popGroup'
+import { randomFloat, type RngState } from '../rng/rng'
+import type { ProvinceId, PolityId, PopGroupId } from '../types/ids'
+import { createDiplomaticPlayId } from '../types/ids'
+import type { PopClass, PopGroup } from '../types/popGroup'
 import type { SimEvent } from '../types/event'
+import type { WorldState } from '../types/world'
+import type { SimulationConfig } from '../config/defaultConfig'
+import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import { getProvincePopulationPressure, getPopWealthByClass } from '../selectors/popSelectors'
 import { getProvinceProduction } from '../selectors/popEconomySelectors'
 import {
   getProvinceManpowerBase,
   getProvinceHouseManpowerBase,
 } from '../selectors/popEconomySelectors'
-import {
-  adjustProvincePopUnrestByClass,
-  adjustProvincePopUnrest,
-  adjustProvincePopWealthByClass,
-} from '../mutations/popMutations'
+import { adjustProvincePopUnrestByClass } from '../mutations/popMutations'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
-import { adjustPolityLegacyPrestige } from '../helpers/attitudeHelpers'
 import { getPolityLegitimacy, getPolityStability } from '../selectors/statusSelectors'
 import {
   getProvinceTerminalPolityId,
@@ -25,10 +24,12 @@ import {
 } from '../selectors/landContractSelectors'
 import { createRebelPolity } from '../mutations/worldStructureMutations'
 
-// v0.16 §17: ProvinceRevoltSystem (簡略化版)
-// v0.15 では concession / lordship_change / independence の 3 outcome があったが、
-// v0.16 では LandContract chain の整合性を保つため independence outcome のみを実装する。
-// concession / lordship_change は将来 unrest 緩和 / share 再分配などで再導入予定。
+// v0.18 Stage B §14: ProvinceRevoltSystem
+// 即時成否 roll を廃止し、発火後は Rebel commonwealth Polity を生成 + revolt_negotiation
+// DiplomaticPlay を作成する。妥協 / 鎮圧 / 独立の判定は diplomaticPlaySystem が担当する。
+//
+// v0.16 から保持: revoltTendency 計算と candidate 収集
+// v0.18 Stage B: 成否判定を Play 経路に移譲
 
 type RevoltCandidate = {
   provinceId: ProvinceId
@@ -116,6 +117,9 @@ function collectCandidates(ctx: TickContext): RevoltCandidate[] {
     if (!terminalPolityId) continue
     const polity = ctx.state.polities[terminalPolityId]
     if (!polity || !polity.active) continue
+    // v0.18 Stage B: commonwealth Polity が支配する Province は新たな revolt の対象外
+    // (Rebel commonwealth 自体に対する叛乱は Stage B では扱わない)
+    if (polity.kind === 'commonwealth') continue
     const ownerHouseId = getProvinceEffectiveOwnerHouseId(ctx.state, provinceId)
     if (!ownerHouseId) continue
     const ownerHouse = ctx.state.houses[ownerHouseId]
@@ -145,6 +149,83 @@ function collectCandidates(ctx: TickContext): RevoltCandidate[] {
   return candidates
 }
 
+function findPopByClass(
+  state: WorldState,
+  provinceId: ProvinceId,
+  cls: PopClass,
+): PopGroup | undefined {
+  const province = state.provinces[provinceId]
+  if (!province) return undefined
+  for (const popId of province.popGroupIds) {
+    const p = state.popGroups[popId]
+    if (p && p.class === cls) return p
+  }
+  return undefined
+}
+
+// v0.18 Stage B §13.3: revolt conflict 解決
+// `revolt_negotiation` が決裂した場合に呼ばれる。pop.size + unrest と target polity の
+// suppression power を比較して勝敗を決める。spec §13.3 の式を実装。
+export type RevoltConflictResult = {
+  rebelWins: boolean
+  rebelPower: number
+  suppressionPower: number
+  successChance: number
+}
+
+export function resolveRevoltConflict(
+  state: WorldState,
+  config: SimulationConfig,
+  rng: RngState,
+  input: {
+    provinceId: ProvinceId
+    popGroupId: PopGroupId
+    targetPolityId: PolityId
+  },
+): { result: RevoltConflictResult; rng: RngState } {
+  const pop = state.popGroups[input.popGroupId]
+  const targetPolity = state.polities[input.targetPolityId]
+  const province = state.provinces[input.provinceId]
+  if (!pop || !targetPolity || !province) {
+    return {
+      result: { rebelWins: false, rebelPower: 0, suppressionPower: 1, successChance: 0 },
+      rng,
+    }
+  }
+
+  const rebelPower =
+    pop.size * config.popRevoltPowerFactorByClass[pop.class] * (0.5 + pop.unrest / 100)
+
+  const polityManpower = getProvinceManpowerBase(state, config, input.provinceId)
+  let suppressionPower =
+    polityManpower * config.provinceRevoltCountrySuppressionFactor +
+    Math.log1p(targetPolity.treasury) * config.provinceRevoltTreasurySuppressionFactor
+
+  const targetOwnerHouseId = targetPolity.ownerHouseId
+  if (targetOwnerHouseId !== undefined) {
+    const targetOwnerHouse = state.houses[targetOwnerHouseId]
+    if (targetOwnerHouse) {
+      const houseManpower = getProvinceHouseManpowerBase(state, config, input.provinceId)
+      suppressionPower += houseManpower * config.provinceRevoltHouseSuppressionFactor
+      suppressionPower +=
+        Math.log1p(targetOwnerHouse.wealth) * config.provinceRevoltHouseWealthSuppressionFactor
+    }
+  }
+
+  const successChance = rebelPower / (rebelPower + suppressionPower + 1)
+  const { value: roll, rng: nextRng } = randomFloat(rng)
+  return {
+    result: {
+      rebelWins: roll < successChance,
+      rebelPower,
+      suppressionPower,
+      successChance,
+    },
+    rng: nextRng,
+  }
+}
+
+// v0.18 Stage B §14.2: 発火後の処理を「revolt_negotiation Play 生成」に置き換えた版
 function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContext {
   const { provinceId, rebelClass, revoltTendency } = candidate
   const config = ctx.config
@@ -164,162 +245,45 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
     config.provinceRevoltMaxChance,
   )
 
+  // 発火 roll (このまま維持)
   const { value: roll1, rng: rng1 } = randomFloat(ctx.rng)
   ctx = { ...ctx, rng: rng1 }
   if (roll1 >= revoltChance) return ctx
 
-  // PROVINCE_REVOLT_STARTED
-  const { id: startEventId, ctx: ctxStart } = makeEventId(ctx)
-  const startEvent: SimEvent = {
-    id: startEventId,
-    year: ctxStart.state.currentYear,
-    month: ctxStart.state.currentMonth,
-    type: 'PROVINCE_REVOLT_STARTED',
-    importance: 'normal',
-    actorIds: [],
-    houseIds: [ownerHouseId],
-    polityIds: [terminalPolityId],
-    provinceIds: [provinceId],
-    summary: `A ${rebelClass} revolt has started in ${province.name}!`,
-    reasons: [],
-    effects: [],
-  }
-  ctx = { ...ctxStart, events: [...ctxStart.events, startEvent] }
-
-  // Revolt power & suppression power
-  const pop = (() => {
-    for (const popId of province.popGroupIds) {
-      const p = ctx.state.popGroups[popId]
-      if (p && p.class === rebelClass) return p
-    }
-    return undefined
-  })()
+  // 反乱 PopGroup を特定 (Play.primaryDemand.popGroupId の source of truth)
+  const pop = findPopByClass(ctx.state, provinceId, rebelClass)
   if (!pop) return ctx
 
-  const popRevoltPower =
-    pop.size * config.popRevoltPowerFactorByClass[rebelClass] * (0.5 + pop.unrest / 100)
-
-  const ownerHousePower =
-    getProvinceHouseManpowerBase(ctx.state, config, provinceId) *
-    config.provinceRevoltHouseSuppressionFactor
-  const polityPower =
-    getProvinceManpowerBase(ctx.state, config, provinceId) *
-    config.provinceRevoltCountrySuppressionFactor
-  const ownerHouse = ctx.state.houses[ownerHouseId]
-  let suppressionPower = ownerHousePower + polityPower
-  suppressionPower += Math.log1p(polity.treasury) * config.provinceRevoltTreasurySuppressionFactor
-  if (ownerHouse) {
-    suppressionPower +=
-      Math.log1p(ownerHouse.wealth) * config.provinceRevoltHouseWealthSuppressionFactor
-  }
-
-  const successChance = popRevoltPower / (popRevoltPower + suppressionPower + 1)
-  const { value: successRoll, rng: rng2 } = randomFloat(ctx.rng)
-  ctx = { ...ctx, rng: rng2 }
-
-  if (successRoll >= successChance) {
-    return resolveRevoltFailure(ctx, provinceId, rebelClass, terminalPolityId)
-  }
-
-  // Success: independence outcome only (v0.16 簡略化)
-  return resolveRevoltIndependence(ctx, provinceId, rebelClass, terminalPolityId)
-}
-
-function resolveRevoltFailure(
-  ctx: TickContext,
-  provinceId: ProvinceId,
-  rebelClass: PopClass,
-  polityId: PolityId,
-): TickContext {
-  const config = ctx.config
-
-  let newState = adjustProvincePopUnrestByClass(
-    ctx.state,
+  // Rebel commonwealth 生成 (LandContract grantee も内部で差し替え済み)
+  const createResult = createRebelPolity(ctx, {
     provinceId,
     rebelClass,
-    -config.provinceRevoltFailedUnrestReduction,
-  )
+    oldPolityId: terminalPolityId,
+  })
+  if (!createResult.ok) return ctx
+  let nextCtx = createResult.value.ctx
+  const { polityId: rebelPolityId, personId: rebelLeaderId } = createResult.value.value
 
-  const province = newState.provinces[provinceId]
-  if (province) {
-    newState = {
-      ...newState,
-      provinces: {
-        ...newState.provinces,
-        [provinceId]: {
-          ...province,
-          development: clamp(
-            province.development - config.provinceRevoltFailedDevastation,
-            -100,
-            100,
-          ),
+  // Province polityControl をリセット (Rebel commonwealth が物理支配)
+  const provinceAfter = nextCtx.state.provinces[provinceId]
+  if (provinceAfter) {
+    nextCtx = {
+      ...nextCtx,
+      state: {
+        ...nextCtx.state,
+        provinces: {
+          ...nextCtx.state.provinces,
+          [provinceId]: {
+            ...provinceAfter,
+            polityControl: config.provinceRevoltNewCountryControl,
+          },
         },
       },
     }
   }
 
-  newState = adjustProvincePopWealthByClass(
-    newState,
-    provinceId,
-    rebelClass,
-    -config.provinceRevoltFailedWealthPenalty,
-  )
-
-  newState = adjustProvincePopUnrest(
-    newState,
-    provinceId,
-    config.provinceRevoltSuppressionCollateralUnrestGain,
-  )
-
-  newState = adjustPolityLegacyPrestige(newState, polityId, 1)
-
-  ctx = { ...ctx, state: newState }
-
-  const { id: failEventId, ctx: ctxFail } = makeEventId(ctx)
-  const failEvent: SimEvent = {
-    id: failEventId,
-    year: ctxFail.state.currentYear,
-    month: ctxFail.state.currentMonth,
-    type: 'PROVINCE_REVOLT_FAILED',
-    importance: 'normal',
-    actorIds: [],
-    houseIds: [],
-    polityIds: [polityId],
-    provinceIds: [provinceId],
-    summary: `The ${rebelClass} revolt in ${ctxFail.state.provinces[provinceId]?.name ?? provinceId} has been suppressed.`,
-    reasons: [],
-    effects: [],
-  }
-  return { ...ctxFail, events: [...ctxFail.events, failEvent] }
-}
-
-function resolveRevoltIndependence(
-  ctx: TickContext,
-  provinceId: ProvinceId,
-  rebelClass: PopClass,
-  oldPolityId: PolityId,
-): TickContext {
-  // Use existing createRebelPolity to do the atomic creation
-  const result = createRebelPolity(ctx, { provinceId, rebelClass, oldPolityId })
-  if (!result.ok) return ctx
-  let nextCtx = result.value.ctx
-
-  const province = nextCtx.state.provinces[provinceId]
-  if (province) {
-    const newState = {
-      ...nextCtx.state,
-      provinces: {
-        ...nextCtx.state.provinces,
-        [provinceId]: {
-          ...province,
-          polityControl: ctx.config.provinceRevoltNewCountryControl,
-        },
-      },
-    }
-    nextCtx = { ...nextCtx, state: newState }
-  }
-
-  // Reset rebel POP unrest
+  // 叛乱 PopGroup の unrest を一時的に解放 (-50)
+  // Play 妥協/鎮圧時にさらに減らされる
   const unrestReducedState = adjustProvincePopUnrestByClass(
     nextCtx.state,
     provinceId,
@@ -328,23 +292,61 @@ function resolveRevoltIndependence(
   )
   nextCtx = { ...nextCtx, state: unrestReducedState }
 
-  // PROVINCE_REVOLT_SUCCEEDED event
-  const { id: succEventId, ctx: ctxSucc } = makeEventId(nextCtx)
-  const succEvent: SimEvent = {
-    id: succEventId,
-    year: ctxSucc.state.currentYear,
-    month: ctxSucc.state.currentMonth,
-    type: 'PROVINCE_REVOLT_SUCCEEDED',
-    importance: 'critical',
-    actorIds: [result.value.value.personId],
-    houseIds: [],
-    polityIds: [result.value.value.polityId, oldPolityId],
+  // revolt_negotiation DiplomaticPlay を生成
+  const playId = createDiplomaticPlayId(nextCtx.state.nextDiplomaticPlayId)
+  const totalStartedMonth = nextCtx.state.currentMonth - 1
+  const deadlineOffset = config.revoltNegotiationDurationMonths
+  const deadlineYear =
+    nextCtx.state.currentYear + Math.floor((totalStartedMonth + deadlineOffset) / 12)
+  const deadlineMonth = ((totalStartedMonth + deadlineOffset) % 12) + 1
+  const play: DiplomaticPlay = {
+    id: playId,
+    kind: 'revolt_negotiation',
+    initiator: { kind: 'polity', id: rebelPolityId },
+    target: { kind: 'polity', id: terminalPolityId },
+    primaryDemand: {
+      kind: 'revolt_concession',
+      provinceId,
+      popGroupId: pop.id,
+      concessionLevel: 'minor',
+    },
+    status: 'active',
+    startedYear: nextCtx.state.currentYear,
+    startedMonth: nextCtx.state.currentMonth,
+    deadlineYear,
+    deadlineMonth,
+    progress: 0,
+    tension: 0,
+  }
+  nextCtx = {
+    ...nextCtx,
+    state: {
+      ...nextCtx.state,
+      diplomaticPlays: {
+        ...nextCtx.state.diplomaticPlays,
+        [playId]: play,
+      },
+      nextDiplomaticPlayId: nextCtx.state.nextDiplomaticPlayId + 1,
+    },
+  }
+
+  // REVOLT_NEGOTIATION_STARTED event (旧 PROVINCE_REVOLT_STARTED の置換)
+  const { id: startEventId, ctx: ctxStart } = makeEventId(nextCtx)
+  const startEvent: SimEvent = {
+    id: startEventId,
+    year: ctxStart.state.currentYear,
+    month: ctxStart.state.currentMonth,
+    type: 'REVOLT_NEGOTIATION_STARTED',
+    importance: 'major',
+    actorIds: [rebelLeaderId],
+    houseIds: [ownerHouseId],
+    polityIds: [rebelPolityId, terminalPolityId],
     provinceIds: [provinceId],
-    summary: `The ${rebelClass} revolt in ${ctxSucc.state.provinces[provinceId]?.name ?? provinceId} has succeeded — a new polity is born!`,
+    summary: `A ${rebelClass} revolt has broken out in ${province.name} — negotiations begin.`,
     reasons: [],
     effects: [],
   }
-  return { ...ctxSucc, events: [...ctxSucc.events, succEvent] }
+  return { ...ctxStart, events: [...ctxStart.events, startEvent] }
 }
 
 export function runProvinceRevoltSystem(ctx: TickContext): TickContext {

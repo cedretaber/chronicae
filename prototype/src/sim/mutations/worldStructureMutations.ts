@@ -11,10 +11,10 @@ import type { PopClass } from '../types/popGroup'
 import type { CtxResult } from './result'
 import { ok, err } from './result'
 import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMutations'
-import { movePersonToHouse } from './personMutations'
+import { markPersonDead, movePersonToHouse } from './personMutations'
 import { dispersePersonsToAnonymousHouse, addPersonToAnonymousHouse } from './houseMutations'
 import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
-import { getHouseLeader, getPolityLeaderHouse } from '../selectors/officeSelectors'
+import { getHouseLeader, getPolityLeader, getPolityLeaderHouse } from '../selectors/officeSelectors'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { generatePolityName } from '../selectors/polityNamingService'
 import {
@@ -26,10 +26,12 @@ import {
   getHouseControlledProvinceIds,
   getProvinceTerminalContract,
   getProvinceEffectiveOwnerHouseId,
+  getLandContractGrantor,
+  getGrantorRank,
 } from '../selectors/landContractSelectors'
 import { transferLandContractGrantee } from './landContractMutations'
 import { installPlaceholderBailiff } from './provinceOfficeMutations'
-import { createOrganizationShare } from './shareMutations'
+import { createOrganizationShare, removeOrganizationShare } from './shareMutations'
 import type { PolityRank } from '../types/polity'
 import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
@@ -829,4 +831,165 @@ export function createRebelPolity(
   ctx = { ...ctx4, events: [...ctx4.events, event] }
 
   return ok({ ctx, value: { polityId: newPolityId, personId: newPersonId } })
+}
+
+// ============================================================================
+// v0.18 Stage B §12.5: disbandRebelPolity
+// revolt_negotiation の妥協成立または鎮圧成功時に Rebel commonwealth Polity を解散する。
+// createRebelPolity の逆操作を担当 (LandContract grantee 復元 / Office revoke / Share 削除
+// / placeholder Bailiff 切り替え / leader 死亡処理 / Polity inactive)。
+// ============================================================================
+
+export type RebelLeaderAftermath = 'returned_to_obscurity' | 'vanished' | 'executed' | 'exiled'
+
+const REBEL_AFTERMATH_NARRATIONS: Record<RebelLeaderAftermath, string> = {
+  returned_to_obscurity: 'has returned to obscurity',
+  vanished: 'has vanished without a trace',
+  executed: 'has been executed',
+  exiled: 'has been exiled',
+}
+
+export type DisbandRebelPolityInput = {
+  rebelPolityId: PolityId
+  restoreToPolityId: PolityId
+  provinceId: ProvinceId
+  leaderAftermath: RebelLeaderAftermath
+  reason: 'settlement' | 'suppression'
+}
+
+export function disbandRebelPolity(
+  ctx: TickContext,
+  input: DisbandRebelPolityInput,
+): CtxResult<void> {
+  const rebelPolity = ctx.state.polities[input.rebelPolityId]
+  if (!rebelPolity) {
+    return err({
+      code: 'POLITY_NOT_FOUND',
+      message: `disbandRebelPolity: rebel Polity ${input.rebelPolityId} not found`,
+    })
+  }
+  if (rebelPolity.kind !== 'commonwealth') {
+    return err({
+      code: 'POLITY_INACTIVE',
+      message: `disbandRebelPolity: Polity ${input.rebelPolityId} is not a commonwealth`,
+    })
+  }
+  const restorePolity = ctx.state.polities[input.restoreToPolityId]
+  if (!restorePolity || !restorePolity.active) {
+    return err({
+      code: 'POLITY_NOT_FOUND',
+      message: `disbandRebelPolity: restore target Polity ${input.restoreToPolityId} not active`,
+    })
+  }
+  const province = ctx.state.provinces[input.provinceId]
+  if (!province) {
+    return err({
+      code: 'PROVINCE_NOT_FOUND',
+      message: `disbandRebelPolity: Province ${input.provinceId} not found`,
+    })
+  }
+
+  let state = ctx.state
+
+  // 1. terminal LandContract grantee を restoreToPolityId に戻す
+  //    rank 不変条件 (§25 #7: grantor rank < grantee rank) を満たさない場合は abort
+  //    (restoreToPolityId の rank が変化していて、現在の chain 構造と整合しないケース)
+  const terminal = getProvinceTerminalContract(state, input.provinceId)
+  if (terminal) {
+    const grantor = getLandContractGrantor(state, terminal.id)
+    if (grantor) {
+      const grantorRank = getGrantorRank(state, grantor)
+      if (grantorRank >= restorePolity.rank) {
+        return err({
+          code: 'INTEGRITY_VIOLATION',
+          message: `disbandRebelPolity: restore would violate rank invariant (grantor rank ${grantorRank} >= restore polity rank ${restorePolity.rank})`,
+        })
+      }
+    }
+    state = transferLandContractGrantee(state, terminal.id, input.restoreToPolityId)
+  }
+
+  // 2. Rebel Polity の active polity:leader Office を revoke
+  //    rebel leader を取得しておく (markPersonDead は revoke 後では取れなくなる)
+  const rebelLeaderId = getPolityLeader(state, input.rebelPolityId)
+  state = revokeOfficesByOrganization(state, { kind: 'polity', id: input.rebelPolityId }, 'leader')
+
+  // 3. Rebel Polity 関連の OrganizationShare を全削除
+  const orgKey = `polity:${input.rebelPolityId}`
+  const shareIds = state.shareIndex.byOrganization[orgKey] ?? []
+  for (const shareId of [...shareIds]) {
+    state = removeOrganizationShare(state, shareId)
+  }
+
+  // 4. placeholder Bailiff を restoreToPolityId に切り替える
+  //    (rebel polity が任命していた placeholder bailiff を vacate し、restore polity の
+  //    placeholder bailiff を再 install。次 tick の bailiffAppointmentSystem が通常ルールで
+  //    本任命する。IntegrityCheck §25 #23 違反を avoid するための immediate placeholder)
+  state = installPlaceholderBailiff(state, {
+    provinceId: input.provinceId,
+    appointingPolityId: input.restoreToPolityId,
+    year: state.currentYear,
+    month: state.currentMonth,
+  })
+
+  // 5. rebel leader を死亡処理 (markPersonDead 内部で revokeOfficesByHolder 連鎖)
+  //    estateSettlementSystem は tick 早期に走っているため、tick 末 IntegrityCheck #11
+  //    (dead person must have wealth === 0) を満たすため wealth も明示的にクリアする
+  if (rebelLeaderId !== undefined) {
+    const deadResult = markPersonDead(state, rebelLeaderId)
+    if (deadResult.ok) {
+      state = deadResult.value
+      const deadPerson = state.persons[rebelLeaderId]
+      if (deadPerson && deadPerson.wealth > 0) {
+        state = {
+          ...state,
+          persons: {
+            ...state.persons,
+            [rebelLeaderId]: { ...deadPerson, wealth: 0 },
+          },
+        }
+      }
+    }
+  }
+
+  // 6. Polity を inactive にする
+  const rebelPolityNow = state.polities[input.rebelPolityId]
+  if (rebelPolityNow) {
+    state = {
+      ...state,
+      polities: {
+        ...state.polities,
+        [input.rebelPolityId]: { ...rebelPolityNow, active: false },
+      },
+    }
+  }
+
+  let nextCtx: TickContext = { ...ctx, state }
+
+  // 7. event 発火
+  const { id: eventId, ctx: ctxEvent } = makeEventId(nextCtx)
+  const aftermathText = REBEL_AFTERMATH_NARRATIONS[input.leaderAftermath]
+  const restoreName = ctxEvent.state.polities[input.restoreToPolityId]?.name ?? 'the realm'
+  const provinceName = ctxEvent.state.provinces[input.provinceId]?.name ?? input.provinceId
+  const summary =
+    input.reason === 'settlement'
+      ? `The revolt in ${provinceName} has been settled by negotiation — its leader ${aftermathText}, and the province returns to ${restoreName}.`
+      : `The revolt in ${provinceName} has been suppressed — its leader ${aftermathText}, and the province returns to ${restoreName}.`
+  const event: SimEvent = {
+    id: eventId,
+    year: ctxEvent.state.currentYear,
+    month: ctxEvent.state.currentMonth,
+    type: input.reason === 'settlement' ? 'REVOLT_SETTLED' : 'REVOLT_SUPPRESSED',
+    importance: 'major',
+    actorIds: rebelLeaderId !== undefined ? [rebelLeaderId] : [],
+    houseIds: [],
+    polityIds: [input.rebelPolityId, input.restoreToPolityId],
+    provinceIds: [input.provinceId],
+    summary,
+    reasons: [],
+    effects: [],
+  }
+  nextCtx = { ...ctxEvent, events: [...ctxEvent.events, event] }
+
+  return ok({ ctx: nextCtx, value: undefined })
 }

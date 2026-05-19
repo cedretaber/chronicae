@@ -267,6 +267,26 @@ export type SimulationConfig = {
   revoltHouseInitialWealth: number
   revoltPolityInitialTreasury: number
   revoltPolityInitialLegacyPrestige: number
+  // v0.18 Stage B: DiplomaticPlay 基盤
+  diplomaticPlaySettlementThreshold: number
+  diplomaticPlayEscalationThreshold: number
+  diplomaticPlayBaseTensionGain: number
+  // v0.18 Stage B: Revolt negotiation
+  revoltNegotiationDurationMonths: number
+  revoltAcceptRebelPowerFactor: number
+  revoltAcceptSuppressionFactor: number
+  revoltConcessionSeverityMinor: number
+  revoltConcessionSeverityMajor: number
+  // v0.18 Stage B: Revolt settlement effects (§12.4)
+  revoltSettlementMainUnrestReduction: number
+  revoltSettlementOtherUnrestReduction: number
+  revoltSettlementTreasuryCostMinor: number
+  revoltSettlementTreasuryCostMajor: number
+  // v0.18 Stage B: Revolt suppression effects (§14.6)
+  revoltSuppressedMainUnrestReduction: number
+  revoltSuppressedOtherUnrestReduction: number
+  revoltSuppressedDevelopmentDamage: number
+  revoltSuppressedWealthPenalty: number
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: number
   rulerAdminCapacityFactor: number
@@ -672,6 +692,26 @@ export const defaultConfig: SimulationConfig = {
   revoltHouseInitialWealth: 30,
   revoltPolityInitialTreasury: 50,
   revoltPolityInitialLegacyPrestige: 20,
+  // v0.18 Stage B: DiplomaticPlay 基盤
+  diplomaticPlaySettlementThreshold: 60,
+  diplomaticPlayEscalationThreshold: 40,
+  diplomaticPlayBaseTensionGain: 5,
+  // v0.18 Stage B: Revolt negotiation
+  revoltNegotiationDurationMonths: 12,
+  revoltAcceptRebelPowerFactor: 0.1,
+  revoltAcceptSuppressionFactor: 0.05,
+  revoltConcessionSeverityMinor: 10,
+  revoltConcessionSeverityMajor: 25,
+  // v0.18 Stage B: Revolt settlement effects (§12.4)
+  revoltSettlementMainUnrestReduction: 30,
+  revoltSettlementOtherUnrestReduction: 8,
+  revoltSettlementTreasuryCostMinor: 50,
+  revoltSettlementTreasuryCostMajor: 150,
+  // v0.18 Stage B: Revolt suppression effects (§14.6)
+  revoltSuppressedMainUnrestReduction: 35,
+  revoltSuppressedOtherUnrestReduction: 10,
+  revoltSuppressedDevelopmentDamage: 4,
+  revoltSuppressedWealthPenalty: 8,
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: 20,
   rulerAdminCapacityFactor: 4,
