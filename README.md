@@ -61,6 +61,14 @@ npm run cli -- --seed test-seed --years 20 --debug 2>/tmp/debug.log
 # Dump full WorldState as JSON to stderr after simulation ends
 npm run cli -- --seed test-seed --years 10 --dump-world 2>world.json
 
+# Compact summary of the final world (JSON to stdout) — useful for quick checks
+npm run cli -- --seed test-seed --years 300 --digest
+
+# Activity Report: 4-axis observation JSON (Office churn / Faction lifecycle /
+# Bailiff dynamics / population). Use "-" for stdout instead of a file path.
+npm run cli -- --seed test-seed --years 300 --report report.json
+npm run cli -- --seed test-seed --years 300 --report report.json --report-snapshot 50
+
 # All options
 npm run cli -- --help
 ```
@@ -75,6 +83,9 @@ npm run cli -- --help
 | `--json` | off | Output NDJSON instead of human-readable text |
 | `--debug` | off | Debug mode (see below) |
 | `--dump-world` | off | Dump full WorldState JSON to stderr after simulation ends |
+| `--digest` | off | Print a compact final-state summary as JSON to stdout (active polities, bailiff counts, event counts, etc.) |
+| `--report <path>` | off | Write an Activity Report JSON to `<path>` (use `-` for stdout). See below. |
+| `--report-snapshot <n>` | off | When `--report` is set, capture state snapshots every `<n>` years for time-series view |
 
 ### Debug Mode (`--debug`)
 
@@ -125,6 +136,54 @@ jq '.persons["pe-78"] | {name, alive, age, houseId}' world.json
 ```
 
 Because the simulation is deterministic (same seed → same result), you can re-run with a different `--years` value to inspect the state at any point in time without replaying from scratch.
+
+### Activity Report (`--report`)
+
+Writes a structured JSON report that aggregates the entire run along four observation axes. Use this to spot unintended behavior, validate balance changes, and track historical trends across releases.
+
+```bash
+# Single seed, no snapshots
+npm run cli -- --seed test-seed --years 300 --report report.json
+
+# Add per-50-year snapshots for time-series inspection
+npm run cli -- --seed test-seed --years 300 --report report.json --report-snapshot 50
+
+# Send to stdout for piping (e.g. with jq)
+npm run cli -- --seed test-seed --years 300 --report - | jq .bailiff
+```
+
+**Report structure (top-level keys):**
+
+| Key | What it contains |
+|---|---|
+| `meta` | seed, years, final year/month, plus the key config parameters used (so the report is self-describing) |
+| `eventCounts` | Total count per `EventType` for the run (e.g. `OFFICE_ASSIGNED`, `FACTION_FOUNDED`) |
+| `office.aggregateByRole` | Per-role office churn: `assignments` / `revokes` / `termEnds` |
+| `office.polity[]` | Per-Polity office assignment distribution, holder-house breakdown, and `ownerHouseHoldRatio` (fraction of assignments going to the current ownerHouse) |
+| `office.house[]` | Per-House office assignment summary |
+| `faction.aggregate` | Faction totals: formed, dissolved, leader changes, recruitments, bankruptcies, avg lifespan |
+| `faction.factions[]` | Per-Faction lifecycle: founding/dissolution years, recruitments, abandonments, unique recruit houses, final member count |
+| `bailiff` | Final normal/placeholder counts + total appointments and source attribution (ownerHouse vs other) |
+| `population` | Final living counts (normal vs placeholder), total births / deaths / marriages / faded-from-history events |
+| `snapshots[]` | Optional time-series: per-snapshot Polity offices, Faction member distribution, Bailiff counts |
+
+**Example inspection with `jq`:**
+
+```bash
+# How many normal bailiffs at the end, by source?
+jq '.bailiff | {final_normal: .finalNormalCount, final_placeholder: .finalPlaceholderCount, source: .appointmentBySource}' report.json
+
+# Faction lifespan distribution
+jq '.faction.factions | map(.lifespanYears) | sort | reverse | .[0:10]' report.json
+
+# Per-Polity ownerHouse hold ratio (high = ownerHouse-dominated, low = distributed)
+jq '.office.polity | map({id: .polityId, rank, owner_ratio: .ownerHouseHoldRatio})' report.json
+
+# Snapshot at year 150: who holds offices in each Polity
+jq '.snapshots[] | select(.year == 150) | .polities[] | {polity: .name, rank, offices}' report.json
+```
+
+The report is generated purely from the event log and the final state, so its overhead is small (~150–200 KB per 300-year run). Snapshots add roughly `snapshots × active_polities × roles` of data — keep `--report-snapshot` ≥ 20 to avoid bulk on long runs.
 
 ## Development
 
