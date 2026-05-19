@@ -200,6 +200,75 @@ cd prototype && node src/cli/run.mjs --years 20 --seed 1 --debug 2>&1 | grep INT
 - CLI + debug モードが既にあるので、診断ログのコストは 5 分以下
 - 原因システムさえ特定できれば、そのファイルだけ読めば十分
 
+## パフォーマンス分析手法 (per-system perf log)
+
+シミュレーションが遅い・seed 間で実行時間に大きな差がある場合は、`--debug` の `[PERF:<system>] ms=X.XXX` ログを集計してホットスポットを特定する。
+
+### 手順
+
+**Step 1: 2 seed 分の perf log を取る**
+
+比較対象として「遅い seed」と「速い seed」の両方を計測する。1 seed だけでは絶対値しか分からない。
+
+```bash
+cd prototype
+node src/cli/run.mjs --years 300 --seed 1   --debug 2>/tmp/perf1.log   > /dev/null
+node src/cli/run.mjs --years 300 --seed 999 --debug 2>/tmp/perf999.log > /dev/null
+```
+
+**Step 2: per-system に合計時間を集計する**
+
+```bash
+node -e "
+const fs = require('fs');
+function aggregate(path) {
+  const totals = new Map();
+  for (const line of fs.readFileSync(path, 'utf8').split('\n')) {
+    const m = /^\[PERF:(\S+)\] ms=([\d.]+)/.exec(line);
+    if (!m) continue;
+    totals.set(m[1], (totals.get(m[1]) ?? 0) + parseFloat(m[2]));
+  }
+  return totals;
+}
+const a = aggregate('/tmp/perf1.log');
+const b = aggregate('/tmp/perf999.log');
+const sys = new Set([...a.keys(), ...b.keys()]);
+const rows = [...sys].map(s => ({ s, a: a.get(s) ?? 0, b: b.get(s) ?? 0 }));
+rows.sort((x, y) => y.a - x.a);
+for (const r of rows) {
+  if (r.a < 1000 && r.b < 1000) continue;
+  console.log(r.s.padEnd(34), r.a.toFixed(0).padStart(10), r.b.toFixed(0).padStart(10), (r.a / Math.max(1, r.b)).toFixed(2).padStart(7));
+}
+"
+```
+
+**Step 3: 結果の読み方**
+
+| 観察 | 解釈 |
+|---|---|
+| 特定 system の ratio が突出して悪い (例: 3x+) | その system が seed 1 の state 構造 (Faction 数や Polity owner churn など) に対して non-linear | 
+| ほぼ全 system が同じ ratio (例: 全部 2x) | アルゴリズムバグではなく state 累積差。Object.keys 系の走査が状態サイズに連動 |
+| 絶対値が大きい system | 最適化候補。ratio が小さくても share が大きければ価値あり |
+
+### 既知のベースライン (v0.17.2 時点)
+
+300 年 × 1 seed の tick:total ≈ 130〜290 sec (state 累積量で 2x 差)。
+特に重い system (時間 share):
+
+- `integrityCheck` (40%強): default で毎 tick 走る。inactive を含む全 entity 走査
+- `appointmentSystem` (20%強): Polity/House 各 role 毎の候補絞り込み
+- `officeCompensationSystem` (15%強)
+
+seed 1 が seed 999 の 2x 時間になる主因は **`OFFICE_ASSIGNED` 履歴累積 (1.56x) と表全体の肥大化**。アルゴリズム的 O(N²) バグではない。
+
+### v0.18 以降の最適化候補
+
+- `integritySystem` の Object.keys 走査を index 経由 (active のみ) に置き換え
+- 死亡 Person / inactive OfficeAssignment の archive / compaction
+- `eventCounts` 系の最大保持件数を絞る (`maxRawEvents`)
+
+これらは機能完成後にまとめて対応する方針 (上記「バランス調整は機能完成後」と同じ理由)。
+
 ## tick システムの追加規約
 
 `prototype/src/sim/tick/tick.ts` に新しいサブシステムを追加する際は、直接呼び出しではなく `run` ヘルパーを使うこと。
