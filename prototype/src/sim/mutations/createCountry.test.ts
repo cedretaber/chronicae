@@ -30,7 +30,7 @@ function makeFixture(): {
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
-  state = withProvince(state, provinceId, { name: 'Test Province', development: 10 })
+  state = withProvince(state, provinceId, { name: 'Test Province' })
   state = withProvince(state, auxProvinceId, { name: 'Aux Province' })
   state = withHouse(state, house1Id, {
     name: 'House 1',

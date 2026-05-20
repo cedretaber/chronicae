@@ -82,6 +82,7 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
         houseIds: house ? [house.id] : [],
         polityIds: [polityId],
         provinceIds: [],
+        holdingIds: [],
         summary: `Office of ${office.role} in ${polity.name} was revoked as the holder's house no longer holds province in this polity.`,
         reasons: [],
         effects: [],

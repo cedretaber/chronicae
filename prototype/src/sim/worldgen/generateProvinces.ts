@@ -86,8 +86,7 @@ export function generateProvinces(
         y: row * 100,
         neighbors,
         habitability: 0,
-        development: 0,
-        polityControl: 0,
+        holdingIds: [],
         popGroupIds: [] as PopGroupId[],
       })
     }

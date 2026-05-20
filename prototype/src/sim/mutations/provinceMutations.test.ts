@@ -39,7 +39,16 @@ function makeFixture(): {
   const auxProvinceId = createProvinceId('p', 1)
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
-  state = withProvince(state, provinceId, { name: 'Test Province', development: 0 })
+  state = withProvince(state, provinceId, { name: 'Test Province' })
+  // Set Holding development to 0 for adjustProvinceDevelopment tests
+  const p0HoldingId = state.provinces[provinceId]!.holdingIds[0]!
+  state = {
+    ...state,
+    holdings: {
+      ...state.holdings,
+      [p0HoldingId]: { ...state.holdings[p0HoldingId]!, development: 0 },
+    },
+  }
   state = withProvince(state, auxProvinceId, { name: 'Aux Province' })
   state = withHouse(state, house1Id, { name: 'House 1', seatProvinceId: provinceId })
   state = withHouse(state, house2Id, { name: 'House 2', seatProvinceId: auxProvinceId })
@@ -161,41 +170,45 @@ describe('transferProvinceToPolity', () => {
 describe('transferProvinceToHouse (v0.16)', () => {
   it('preserves polityControl when transferring', () => {
     const { state, provinceId, house2Id } = makeFixture()
-    const original = state.provinces[provinceId]!.polityControl
+    const holdingId = state.provinces[provinceId]!.holdingIds[0]!
+    const original = state.holdings[holdingId]!.polityControl
     const result = transferProvinceToHouse(state, provinceId, house2Id)
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.provinces[provinceId]!.polityControl).toBe(original)
+    expect(result.value.holdings[holdingId]!.polityControl).toBe(original)
   })
 })
 
 describe('adjustProvinceDevelopment', () => {
   it('adds delta to development', () => {
     const { state, provinceId } = makeFixture()
+    const holdingId = state.provinces[provinceId]!.holdingIds[0]!
     const result = adjustProvinceDevelopment(state, provinceId, 10)
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.provinces[provinceId]!.development).toBe(10)
+    expect(result.value.holdings[holdingId]!.development).toBe(10)
   })
 
   it('clamps to -100..100 by default', () => {
     const { state, provinceId } = makeFixture()
+    const holdingId = state.provinces[provinceId]!.holdingIds[0]!
     const r1 = adjustProvinceDevelopment(state, provinceId, 200)
     const r2 = adjustProvinceDevelopment(state, provinceId, -200)
 
-    expect(r1.ok && r1.value.provinces[provinceId]!.development).toBe(100)
-    expect(r2.ok && r2.value.provinces[provinceId]!.development).toBe(-100)
+    expect(r1.ok && r1.value.holdings[holdingId]!.development).toBe(100)
+    expect(r2.ok && r2.value.holdings[holdingId]!.development).toBe(-100)
   })
 
   it('respects custom min/max options', () => {
     const { state, provinceId } = makeFixture()
+    const holdingId = state.provinces[provinceId]!.holdingIds[0]!
     const result = adjustProvinceDevelopment(state, provinceId, 50, { min: -50, max: 30 })
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.provinces[provinceId]!.development).toBe(30)
+    expect(result.value.holdings[holdingId]!.development).toBe(30)
     expect(collectIntegrityErrors(result.value)).toEqual([])
   })
 

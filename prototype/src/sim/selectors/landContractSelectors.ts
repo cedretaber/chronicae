@@ -1,6 +1,13 @@
 import type { WorldState } from '../types/world'
-import type { ProvinceId, PolityId, HouseId, PersonId, LandContractId } from '../types/ids'
-import type { LandContract, LandContractGrantor } from '../types/landContract'
+import type {
+  ProvinceId,
+  PolityId,
+  HouseId,
+  PersonId,
+  LandContractId,
+  HoldingId,
+} from '../types/ids'
+import type { LandContract, LandContractGrantor, Holding } from '../types/landContract'
 import { ANONYMOUS_HOUSE_ID, ROOT_WORLD } from '../types/landContract'
 import type { PolityRank } from '../types/polity'
 
@@ -42,7 +49,11 @@ export function getProvinceTerminalPolityId(
   state: WorldState,
   provinceId: ProvinceId,
 ): PolityId | undefined {
-  return state.provinceTerminalPolityCache[provinceId]
+  const province = state.provinces[provinceId]
+  if (!province) return undefined
+  const holdingId = province.holdingIds[0]
+  if (!holdingId) return undefined
+  return state.holdingTerminalPolityCache[holdingId]
 }
 
 export function getProvinceRootPolityId(
@@ -216,4 +227,77 @@ export function isSystemHouse(state: WorldState, houseId: HouseId): boolean {
   const house = state.houses[houseId]
   if (!house) return false
   return house.kind === 'system'
+}
+
+export function getHoldingTerminalPolityId(
+  state: WorldState,
+  holdingId: HoldingId,
+): PolityId | undefined {
+  return state.holdingTerminalPolityCache[holdingId]
+}
+
+export function getHoldingLandContractChain(
+  state: WorldState,
+  holdingId: HoldingId,
+): LandContract[] {
+  const ids = state.landContractIndex.byHolding[holdingId] ?? []
+  const chain: LandContract[] = []
+  for (const id of ids) {
+    const contract = state.landContracts[id]
+    if (!contract) continue
+    chain.push(contract)
+  }
+  return chain
+}
+
+export function getProvincePrimaryHolding(
+  state: WorldState,
+  provinceId: ProvinceId,
+): Holding | undefined {
+  const province = state.provinces[provinceId]
+  if (!province) return undefined
+  const holdingId = province.holdingIds[0]
+  if (!holdingId) return undefined
+  return state.holdings[holdingId]
+}
+
+export function getProvinceHoldings(state: WorldState, provinceId: ProvinceId): Holding[] {
+  const province = state.provinces[provinceId]
+  if (!province) return []
+  const result: Holding[] = []
+  for (const hid of province.holdingIds) {
+    const h = state.holdings[hid]
+    if (h) result.push(h)
+  }
+  return result
+}
+
+export function getProvincePolityControlFromHoldings(
+  state: WorldState,
+  provinceId: ProvinceId,
+): number {
+  const holdings = getProvinceHoldings(state, provinceId)
+  if (holdings.length === 0) return 0
+  let totalWeight = 0
+  let weightedControl = 0
+  for (const h of holdings) {
+    totalWeight += h.weight
+    weightedControl += h.polityControl * h.weight
+  }
+  return totalWeight > 0 ? weightedControl / totalWeight : 0
+}
+
+export function getProvinceDevelopmentFromHoldings(
+  state: WorldState,
+  provinceId: ProvinceId,
+): number {
+  const holdings = getProvinceHoldings(state, provinceId)
+  if (holdings.length === 0) return 0
+  let totalWeight = 0
+  let weightedDev = 0
+  for (const h of holdings) {
+    totalWeight += h.weight
+    weightedDev += h.development * h.weight
+  }
+  return totalWeight > 0 ? weightedDev / totalWeight : 0
 }

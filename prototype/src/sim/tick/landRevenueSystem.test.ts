@@ -15,7 +15,7 @@ import {
   withPerson,
   bindProvinceToHouseViaPolity,
 } from '../testFixtures'
-import { appointBailiff, vacateBailiff } from '../mutations/provinceOfficeMutations'
+import { appointHoldingBailiff, vacateHoldingBailiff } from '../mutations/provinceOfficeMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
 
 function withPopGroup(
@@ -65,7 +65,7 @@ function setupBaseWorld(): {
 
   let state = makeEmptyV016State()
   state = withHouse(state, houseId, { seatProvinceId: provinceId })
-  state = withProvince(state, provinceId, { polityControl: 100 })
+  state = withProvince(state, provinceId, {})
   state = withPolity(state, polityId, {
     treasury: 0,
     capitalProvinceId: provinceId,
@@ -92,7 +92,8 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
   it('normal bailiff: bailiffRevenueShare (10%) goes to bailiff.wealth, rest to treasury', () => {
     const { state: base, polityId, houseId, provinceId } = setupBaseWorld()
     // Promote bailiff to normal: replace placeholder with a real person
-    let state = vacateBailiff(base, provinceId)
+    const holdingId = base.provinces[provinceId]!.holdingIds[0]!
+    let state = vacateHoldingBailiff(base, holdingId)
     const bailiffPersonId = 'pe-bailiff' as PersonId
     state = withPerson(state, bailiffPersonId, {
       houseId,
@@ -100,8 +101,8 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
       wealth: 0,
       kind: 'normal',
     })
-    state = appointBailiff(state, {
-      provinceId,
+    state = appointHoldingBailiff(state, {
+      holdingId,
       holderPersonId: bailiffPersonId,
       appointingPolityId: polityId,
       year: state.currentYear,
@@ -121,7 +122,8 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
 
   it('production=0: bailiff and treasury both 0', () => {
     const { state: base, polityId, houseId, provinceId } = setupBaseWorld()
-    let state = vacateBailiff(base, provinceId)
+    const holdingId = base.provinces[provinceId]!.holdingIds[0]!
+    let state = vacateHoldingBailiff(base, holdingId)
     const bailiffPersonId = 'pe-bailiff' as PersonId
     state = withPerson(state, bailiffPersonId, {
       houseId,
@@ -129,8 +131,8 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
       wealth: 0,
       kind: 'normal',
     })
-    state = appointBailiff(state, {
-      provinceId,
+    state = appointHoldingBailiff(state, {
+      holdingId,
       holderPersonId: bailiffPersonId,
       appointingPolityId: polityId,
       year: state.currentYear,
@@ -154,7 +156,8 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
 
   it('dead bailiff (still appointed): no salary, 100% to treasury', () => {
     const { state: base, polityId, houseId, provinceId } = setupBaseWorld()
-    let state = vacateBailiff(base, provinceId)
+    const holdingId = base.provinces[provinceId]!.holdingIds[0]!
+    let state = vacateHoldingBailiff(base, holdingId)
     const bailiffPersonId = 'pe-bailiff' as PersonId
     state = withPerson(state, bailiffPersonId, {
       houseId,
@@ -163,8 +166,8 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
       kind: 'normal',
       alive: false,
     })
-    state = appointBailiff(state, {
-      provinceId,
+    state = appointHoldingBailiff(state, {
+      holdingId,
       holderPersonId: bailiffPersonId,
       appointingPolityId: polityId,
       year: state.currentYear,

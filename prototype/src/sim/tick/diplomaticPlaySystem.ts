@@ -24,6 +24,7 @@ import {
 import {
   getProvinceLandContractChain,
   getProvinceTerminalPolityId,
+  getProvinceDevelopmentFromHoldings,
 } from '../selectors/landContractSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { calcGeneralWarPowerModifier } from '../selectors/personAbilityEffects'
@@ -150,6 +151,7 @@ function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): Tick
       houseIds: [],
       polityIds: [rebelPolityId, targetPolityId],
       provinceIds: [provinceId],
+      holdingIds: [],
       summary: `Revolt negotiation in ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} ended without resolution.`,
       reasons: [],
       effects: [],
@@ -256,6 +258,7 @@ function applyRevoltSettlement(
     houseIds: [],
     polityIds: [rebelPolityId, targetPolityId],
     provinceIds: [demand.provinceId],
+    holdingIds: [],
     summary: `Revolt negotiation in ${ctxEv.state.provinces[demand.provinceId]?.name ?? demand.provinceId} settled — concessions granted.`,
     reasons: [],
     effects: [],
@@ -319,7 +322,7 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
   const defenderPower =
     getActorMilitaryPower(state, config, play.target) *
     calcGeneralWarPowerModifier(state, defenderPolityId, config)
-  const provinceValue = computeProvinceValue(province.development)
+  const provinceValue = computeProvinceValue(getProvinceDevelopmentFromHoldings(state, provinceId))
   const strategicLoss = computeStrategicValue(state, provinceId, defenderPolityId)
   const prestigeLoss = computePrestigeLoss(defender.rank)
 
@@ -378,6 +381,7 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
       houseIds: [],
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
+      holdingIds: [],
       summary: `${ctxEv.state.polities[initiatorPolityId]?.name ?? initiatorPolityId}'s claim on ${ctxEv.state.provinces[provinceId]?.name ?? provinceId} faded out.`,
       reasons: [],
       effects: [],
@@ -438,7 +442,9 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
     ? (currentRate - 0.3) * config.taxRevisionRateImbalanceFactor
     : (0.5 - currentRate) * config.taxRevisionRateImbalanceFactor
 
-  const provinceValue = computeProvinceValue(province.development)
+  const provinceValue = computeProvinceValue(
+    getProvinceDevelopmentFromHoldings(state, demand.provinceId),
+  )
 
   const acceptanceScore =
     initiatorPower * config.taxRevisionPressureFactor -
@@ -536,6 +542,7 @@ function applyContractTaxRevisionSettlement(
       houseIds: [],
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
+      holdingIds: [],
       summary: `Tax rate for ${provinceName} revised to ${Math.round(newRate * 100)}% between ${initiatorName} and ${defenderName}.`,
       reasons: [],
       effects: [],
@@ -582,6 +589,7 @@ function applyContractTaxRevisionSettlement(
       houseIds: [],
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
+      holdingIds: [],
       summary: `Contract chain for ${provinceName} altered between ${initiatorName} and ${defenderName}.`,
       reasons: [],
       effects: [],
@@ -601,6 +609,7 @@ function applyContractTaxRevisionSettlement(
     houseIds: [],
     polityIds: [initiatorPolityId, defenderPolityId],
     provinceIds: [provinceId],
+    holdingIds: [],
     summary: `Tax revision for ${ctxSettled.state.provinces[provinceId]?.name ?? provinceId} settled.`,
     reasons: [],
     effects: [],
@@ -679,6 +688,7 @@ function applyLandClaimSettlement(
       houseIds: [],
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [primary.provinceId],
+      holdingIds: [],
       summary: `${initiatorName} purchased ${provinceName} from ${defenderName} for ${Math.round(offeredPrice)} gold.`,
       reasons: [],
       effects: [],
@@ -713,6 +723,7 @@ function applyLandClaimSettlement(
     houseIds: [],
     polityIds: [initiatorPolityId, defenderPolityId],
     provinceIds: [primary.provinceId],
+    holdingIds: [],
     summary: `${defenderName} ceded ${provinceName} to ${initiatorName} under pressure.`,
     reasons: [],
     effects: [],
@@ -762,6 +773,7 @@ function markPlayEscalated(
     houseIds: [],
     polityIds: eventMeta.polityIds,
     provinceIds: eventMeta.provinceIds,
+    holdingIds: [],
     summary: eventMeta.summary,
     reasons: [],
     effects: [],

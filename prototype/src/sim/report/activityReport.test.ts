@@ -39,6 +39,7 @@ function makeEvent(
     houseIds: houses,
     polityIds: polities,
     provinceIds: [],
+    holdingIds: [],
     summary,
     reasons: [],
     effects: [],

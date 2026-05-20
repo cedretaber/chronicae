@@ -4,6 +4,7 @@ import type { ProvinceId } from '../types/ids'
 import type { PopGroup } from '../types/popGroup'
 import type { PopClass } from '../types/popGroup'
 import { clamp } from '../utils/math'
+import { getProvinceDevelopmentFromHoldings } from './landContractSelectors'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -60,7 +61,8 @@ export function getProvinceCarryingCapacity(
   const province = state.provinces[provinceId]
   if (!province) return config.minProvinceCarryingCapacity
 
-  const devMod = clamp(1 + province.development / 200, 0.5, 1.5)
+  const development = getProvinceDevelopmentFromHoldings(state, provinceId)
+  const devMod = clamp(1 + development / 200, 0.5, 1.5)
   const capacity = province.habitability * config.populationCapacityPerHabitability * devMod
   return Math.max(config.minProvinceCarryingCapacity, capacity)
 }

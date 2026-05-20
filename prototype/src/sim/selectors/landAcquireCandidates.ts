@@ -1,7 +1,11 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { PolityId, ProvinceId } from '../types/ids'
-import { getPolityTerminalProvinceIds, findClaimTargetInChain } from './landContractSelectors'
+import {
+  getPolityTerminalProvinceIds,
+  findClaimTargetInChain,
+  getProvinceDevelopmentFromHoldings,
+} from './landContractSelectors'
 import { calcPolityMilitaryPower } from './militarySelectors'
 
 // v0.18 Stage D §8.4
@@ -81,7 +85,7 @@ export function findLandAcquireIntentCandidates(
 
         const defenderPower = calcPolityMilitaryPower(state, config, targetPolityId)
         const winChance = acquirerPower / (acquirerPower + defenderPower + 1)
-        const priority = winChance * 100 + targetProvince.development
+        const priority = winChance * 100 + getProvinceDevelopmentFromHoldings(state, neighborId)
 
         acquirerCandidates.push({
           acquirerPolityId,

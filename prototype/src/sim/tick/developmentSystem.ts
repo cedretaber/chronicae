@@ -1,16 +1,15 @@
 import { clamp } from '../utils/math'
 import type { TickContext } from './context'
-import type { ProvinceId } from '../types/ids'
+import type { HoldingId } from '../types/ids'
 
 export function runDevelopmentSystem(ctx: TickContext): TickContext {
-  // v013-residual: simple-batch — 全 province の development を decay/recover。adjustProvinceDevelopment で代替可だがループが単純なので直接記述
-  const newProvinces = { ...ctx.state.provinces }
+  const newHoldings = { ...ctx.state.holdings }
 
-  for (const provinceId of Object.keys(ctx.state.provinces).sort()) {
-    const province = ctx.state.provinces[provinceId as ProvinceId]
-    if (!province) continue
+  for (const holdingId of Object.keys(ctx.state.holdings).sort()) {
+    const holding = ctx.state.holdings[holdingId as HoldingId]
+    if (!holding) continue
 
-    let { development } = province
+    let { development } = holding
 
     if (development > 0) {
       development = Math.max(0, development - ctx.config.developmentPositiveMonthlyDecay)
@@ -20,14 +19,14 @@ export function runDevelopmentSystem(ctx: TickContext): TickContext {
 
     development = clamp(development, -100, 100)
 
-    newProvinces[provinceId as ProvinceId] = { ...province, development }
+    newHoldings[holdingId as HoldingId] = { ...holding, development }
   }
 
   return {
     ...ctx,
     state: {
       ...ctx.state,
-      provinces: newProvinces,
+      holdings: newHoldings,
     },
   }
 }

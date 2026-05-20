@@ -135,19 +135,18 @@ function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickCo
   }
   const province = state.provinces[provinceId]
   if (province) {
-    state = {
-      ...state,
-      provinces: {
-        ...state.provinces,
-        [provinceId]: {
-          ...province,
-          development: clamp(
-            province.development - config.revoltSuppressedDevelopmentDamage,
-            -100,
-            100,
-          ),
+    const holdingId = province.holdingIds[0]
+    const holding = holdingId ? state.holdings[holdingId] : undefined
+    const currentDev = holding ? holding.development : 0
+    const newDev = clamp(currentDev - config.revoltSuppressedDevelopmentDamage, -100, 100)
+    if (holdingId && holding) {
+      state = {
+        ...state,
+        holdings: {
+          ...state.holdings,
+          [holdingId]: { ...holding, development: newDev },
         },
-      },
+      }
     }
   }
   const targetPolityNow = state.polities[targetPolityId]
@@ -478,15 +477,18 @@ function applyConflictDamage(
   // 対象 Province の development 低下
   const province = state.provinces[input.provinceId]
   if (province) {
-    state = {
-      ...state,
-      provinces: {
-        ...state.provinces,
-        [input.provinceId]: {
-          ...province,
-          development: clamp(province.development - config.conflictProvinceDevastation, -100, 100),
+    const holdingId = province.holdingIds[0]
+    const holding = holdingId ? state.holdings[holdingId] : undefined
+    const currentDev = holding ? holding.development : 0
+    const newDev = clamp(currentDev - config.conflictProvinceDevastation, -100, 100)
+    if (holdingId && holding) {
+      state = {
+        ...state,
+        holdings: {
+          ...state.holdings,
+          [holdingId]: { ...holding, development: newDev },
         },
-      },
+      }
     }
   }
   // 主 PopGroup damage
@@ -588,6 +590,7 @@ function emitEvent(
     houseIds: [],
     polityIds: input.polityIds,
     provinceIds: input.provinceIds,
+    holdingIds: [],
     summary: input.summary,
     reasons: [],
     effects: [],

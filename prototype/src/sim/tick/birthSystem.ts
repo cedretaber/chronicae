@@ -127,6 +127,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       houseIds: [person.houseId],
       polityIds: childPrimaryPolityId ? [childPrimaryPolityId] : [],
       provinceIds: [],
+      holdingIds: [],
       summary: childName + ' was born',
       description: childName + ' was born',
       reasons: [],

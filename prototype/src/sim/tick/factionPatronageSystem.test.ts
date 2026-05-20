@@ -463,7 +463,8 @@ describe('runFactionPatronageSystem', () => {
   })
 
   it('v0.17.1: Bailiff-holding member donates to leader (no Office, no Province Office change)', async () => {
-    const { appointBailiff, vacateBailiff } = await import('../mutations/provinceOfficeMutations')
+    const { appointHoldingBailiff, vacateHoldingBailiff } =
+      await import('../mutations/provinceOfficeMutations')
     const memberId = createPersonId('pe', 1)
     const factionId = createFactionId(0)
     const membershipId = createFactionMembershipId(0)
@@ -474,10 +475,11 @@ describe('runFactionPatronageSystem', () => {
     s = addFaction(s, factionId, leaderId).state
     s = addFactionMembership(s, membershipId, factionId, memberId)
     // Install member as Bailiff (ProvinceOffice) — no Polity/House Office
-    s = vacateBailiff(s, provinceId)
+    const holdingId = s.provinces[provinceId]!.holdingIds[0]!
+    s = vacateHoldingBailiff(s, holdingId)
     const weekVal = s.absoluteWeek
-    s = appointBailiff(s, {
-      provinceId,
+    s = appointHoldingBailiff(s, {
+      holdingId,
       holderPersonId: memberId,
       appointingPolityId: polityId,
       year: s.currentYear,
@@ -497,7 +499,8 @@ describe('runFactionPatronageSystem', () => {
   })
 
   it('v0.17.1: Bailiff-holding member does NOT receive stipend (treated as office-holder)', async () => {
-    const { appointBailiff, vacateBailiff } = await import('../mutations/provinceOfficeMutations')
+    const { appointHoldingBailiff, vacateHoldingBailiff } =
+      await import('../mutations/provinceOfficeMutations')
     const memberId = createPersonId('pe', 1)
     const factionId = createFactionId(0)
     const membershipId = createFactionMembershipId(0)
@@ -508,10 +511,11 @@ describe('runFactionPatronageSystem', () => {
     s = withPerson(s, memberId, { name: 'BailiffMember', houseId, wealth: 0, alive: true })
     s = addFaction(s, factionId, leaderId).state
     s = addFactionMembership(s, membershipId, factionId, memberId)
-    s = vacateBailiff(s, provinceId)
+    const holdingId = s.provinces[provinceId]!.holdingIds[0]!
+    s = vacateHoldingBailiff(s, holdingId)
     const weekVal = s.absoluteWeek
-    s = appointBailiff(s, {
-      provinceId,
+    s = appointHoldingBailiff(s, {
+      holdingId,
       holderPersonId: memberId,
       appointingPolityId: polityId,
       year: s.currentYear,

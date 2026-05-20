@@ -17,18 +17,19 @@ import type { StateRegion } from './types/stateRegion'
 import type { Polity } from './types/polity'
 import type { House } from './types/house'
 import type { Person } from './types/person'
-import type { LandContract } from './types/landContract'
+import type { LandContract, Holding, HoldingOfficeAssignment } from './types/landContract'
 import type {
   ProvinceId,
   PolityId,
   HouseId,
   PersonId,
   LandContractId,
-  ProvinceOfficeAssignmentId,
+  HoldingOfficeAssignmentId,
+  HoldingId,
   StateRegionId,
 } from './types/ids'
+import { createHoldingId } from './types/ids'
 import { ANONYMOUS_HOUSE_ID, PLACEHOLDER_PERSON_ID, ROOT_WORLD } from './types/landContract'
-import { installPlaceholderBailiff } from './mutations/provinceOfficeMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -91,6 +92,7 @@ export function makeEmptyV016State(): WorldState {
     currentWeekOfYear: 1,
     absoluteWeek: 48000,
     provinces: {},
+    holdings: {},
     states: {
       ['sr-0' as StateRegionId]: {
         id: 'sr-0' as StateRegionId,
@@ -108,12 +110,12 @@ export function makeEmptyV016State(): WorldState {
     organizationShares: {},
     officeAssignments: {},
     landContracts: {},
-    provinceOfficeAssignments: {},
+    holdingOfficeAssignments: {},
+    holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
     shareIndex: { byOrganization: {}, byHolder: {} },
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+    holdingTerminalPolityCache: {},
     polityIndex: { byOwnerHouse: {} },
     factions: {},
     factionMemberships: {},
@@ -121,7 +123,7 @@ export function makeEmptyV016State(): WorldState {
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
     nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
+    nextHoldingOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
     actorIntents: {},
@@ -136,6 +138,19 @@ export function withProvince(
   id: ProvinceId,
   overrides: Partial<Province> = {},
 ): WorldState {
+  const holdingId = createHoldingId(Object.keys(state.holdings).length)
+  // Extract Holding-specific overrides (Province no longer has development/polityControl)
+  const anyOverrides = overrides as Record<string, unknown>
+  const holding: Holding = {
+    id: holdingId,
+    provinceId: id,
+    kind: 'manor',
+    name: (anyOverrides.name as string) ?? 'P',
+    development: (anyOverrides.development as number) ?? 1,
+    polityControl: (anyOverrides.polityControl as number) ?? 100,
+    landQuality: (anyOverrides.habitability as number) ?? 50,
+    weight: 1,
+  }
   const province: Province = {
     id,
     stateId: 'sr-0' as StateRegionId,
@@ -144,20 +159,52 @@ export function withProvince(
     y: 0,
     neighbors: [],
     habitability: 50,
-    development: 1,
-    polityControl: 100,
     popGroupIds: [],
     ...overrides,
+    holdingIds: overrides.holdingIds ?? [holdingId],
   }
-  const nextState = { ...state, provinces: { ...state.provinces, [id]: province } }
-  // Auto-register province in its StateRegion
+  let nextState: WorldState = {
+    ...state,
+    provinces: { ...state.provinces, [id]: province },
+    holdings: { ...state.holdings, [holdingId]: holding },
+  }
   const stateRegionId = province.stateId
   const sr = nextState.states[stateRegionId]
   if (sr) {
     const nextSr: StateRegion = { ...sr, provinceIds: [...sr.provinceIds, id] }
-    return { ...nextState, states: { ...nextState.states, [stateRegionId]: nextSr } }
+    nextState = { ...nextState, states: { ...nextState.states, [stateRegionId]: nextSr } }
   }
   return nextState
+}
+
+export function withHolding(
+  state: WorldState,
+  holdingId: HoldingId,
+  provinceId: ProvinceId,
+  overrides: Partial<Holding> = {},
+): WorldState {
+  const holding: Holding = {
+    id: holdingId,
+    provinceId,
+    kind: 'manor',
+    name: 'H',
+    development: 1,
+    polityControl: 100,
+    landQuality: 50,
+    weight: 1,
+    ...overrides,
+  }
+  const province = state.provinces[provinceId]
+  const updatedProvince = province
+    ? { ...province, holdingIds: [...province.holdingIds, holdingId] }
+    : province
+  return {
+    ...state,
+    holdings: { ...state.holdings, [holdingId]: holding },
+    ...(updatedProvince
+      ? { provinces: { ...state.provinces, [provinceId]: updatedProvince } }
+      : {}),
+  }
 }
 
 export function withPolity(
@@ -260,39 +307,67 @@ export function bindProvinceToPolity(
   if (existing.length > 0) {
     throw new Error(`bindProvinceToPolity: Province ${provinceId} already has a LandContract chain`)
   }
+  const province = state.provinces[provinceId]
   const contractId = ('lc-' + state.nextLandContractId) as LandContractId
+  const holdingId = province.holdingIds[0]
   const contract: LandContract = {
     id: contractId,
     provinceId,
+    ...(holdingId ? { holdingId } : {}),
     rootAuthorityId: ROOT_WORLD,
     granteePolityId: polityId,
     terms: { taxRateToGrantor: 0 },
   }
   const granteeSlot = state.landContractIndex.byGranteePolity[polityId] ?? []
+  const byHolding = { ...state.landContractIndex.byHolding }
+  if (holdingId) {
+    byHolding[holdingId] = [contractId]
+  }
   let nextState: WorldState = {
     ...state,
     landContracts: { ...state.landContracts, [contractId]: contract },
     landContractIndex: {
       byProvince: { ...state.landContractIndex.byProvince, [provinceId]: [contractId] },
+      byHolding,
       byGranteePolity: {
         ...state.landContractIndex.byGranteePolity,
         [polityId]: [...granteeSlot, contractId],
       },
       byParent: { ...state.landContractIndex.byParent },
     },
-    provinceTerminalPolityCache: {
-      ...state.provinceTerminalPolityCache,
-      [provinceId]: polityId,
-    },
+    holdingTerminalPolityCache: holdingId
+      ? { ...state.holdingTerminalPolityCache, [holdingId]: polityId }
+      : state.holdingTerminalPolityCache,
     nextLandContractId: state.nextLandContractId + 1,
   }
-  // Install placeholder bailiff so integrity §25 #23/#24/#33 pass.
-  nextState = installPlaceholderBailiff(nextState, {
-    provinceId,
-    appointingPolityId: polityId,
-    year: nextState.currentYear,
-    week: nextState.absoluteWeek,
-  })
+  // Install Holding placeholder bailiff
+  if (holdingId) {
+    const hoaId = ('ho-' + nextState.nextHoldingOfficeAssignmentId) as HoldingOfficeAssignmentId
+    const hoa: HoldingOfficeAssignment = {
+      id: hoaId,
+      holdingId,
+      role: 'bailiff',
+      holderPersonId: PLACEHOLDER_PERSON_ID,
+      appointingPolityId: polityId,
+      active: true,
+      startYear: nextState.currentYear,
+      startWeek: nextState.absoluteWeek,
+      unpaidCount: 0,
+    }
+    nextState = {
+      ...nextState,
+      holdingOfficeAssignments: { ...nextState.holdingOfficeAssignments, [hoaId]: hoa },
+      holdingOfficeIndex: {
+        ...nextState.holdingOfficeIndex,
+        byHolding: { ...nextState.holdingOfficeIndex.byHolding, [holdingId]: hoaId },
+        byAppointingPolity: {
+          ...nextState.holdingOfficeIndex.byAppointingPolity,
+          [polityId]: [...(nextState.holdingOfficeIndex.byAppointingPolity[polityId] ?? []), hoaId],
+        },
+      },
+      nextHoldingOfficeAssignmentId: nextState.nextHoldingOfficeAssignmentId + 1,
+    }
+  }
   return nextState
 }
 
@@ -332,6 +407,6 @@ export function bindProvinceToHouseViaPolity(
   return nextState
 }
 
-// Convenience: void unused-vars compiler complaint for ProvinceOfficeAssignmentId
+// Convenience: void unused-vars compiler complaint for HoldingOfficeAssignmentId
 // (kept as documented type alias for callers that want strong typing).
-export type _ProvinceOfficeAssignmentIdAlias = ProvinceOfficeAssignmentId
+export type _HoldingOfficeAssignmentIdAlias = HoldingOfficeAssignmentId

@@ -12,6 +12,7 @@ import {
   getPolityTerminalProvinceIds,
   getHouseOwnedPolityIds,
   getHouseControlledProvinceIds,
+  getProvinceDevelopmentFromHoldings,
 } from './landContractSelectors'
 
 // §8.1 — Province の terminal Polity
@@ -150,7 +151,7 @@ export function getHousePrimaryPolityId(state: WorldState, houseId: HouseId): Po
       const province = state.provinces[provinceId]
       if (!province) continue
       count += 1
-      dev += province.development
+      dev += getProvinceDevelopmentFromHoldings(state, provinceId)
     }
     stats.set(polityId, { polityId, provinceCount: count, development: dev })
   }
@@ -205,7 +206,9 @@ export function getHouseSeatProvinceInPolity(
     const pa = state.provinces[a]
     const pb = state.provinces[b]
     if (!pa || !pb) return 0
-    if (pb.development !== pa.development) return pb.development - pa.development
+    const devA = getProvinceDevelopmentFromHoldings(state, a)
+    const devB = getProvinceDevelopmentFromHoldings(state, b)
+    if (devB !== devA) return devB - devA
     if (pb.popGroupIds.length !== pa.popGroupIds.length) {
       return pb.popGroupIds.length - pa.popGroupIds.length
     }

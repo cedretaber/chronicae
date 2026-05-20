@@ -158,6 +158,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
       houseIds,
       polityIds: primaryPolityId ? [primaryPolityId] : [],
       provinceIds: [],
+      holdingIds: [],
       summary:
         person.name +
         "'s estate of " +
@@ -190,6 +191,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
         houseIds,
         polityIds: primaryPolityId ? [primaryPolityId] : [],
         provinceIds: [],
+        holdingIds: [],
         summary: 'Multiple heirs (' + heirs.length + ') contest ' + person.name + "'s estate.",
         reasons: [{ label: 'Multiple heirs', value: heirs.length }],
         effects: [],

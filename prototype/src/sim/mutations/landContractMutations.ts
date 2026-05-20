@@ -1,11 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { ProvinceId, PolityId, LandContractId, HouseId } from '../types/ids'
-import type {
-  LandContract,
-  LandContractIndex,
-  ProvinceTerminalPolityCache,
-  RootAuthorityId,
-} from '../types/landContract'
+import type { LandContract, LandContractIndex, RootAuthorityId } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
 import { createLandContractId } from '../types/ids'
 import { clampTaxRate } from '../helpers/landContractHelpers'
@@ -46,23 +41,33 @@ function emptyGranteeSlot(index: LandContractIndex, polityId: PolityId): LandCon
   return index.byGranteePolity[polityId] ?? []
 }
 
-function recomputeTerminalCache(
+function recomputeHoldingTerminalCache(
   state: WorldState,
   provinceId: ProvinceId,
-): ProvinceTerminalPolityCache {
+): WorldState['holdingTerminalPolityCache'] {
   const ids = state.landContractIndex.byProvince[provinceId] ?? []
   const terminalId = ids[ids.length - 1]
   if (!terminalId) {
-    const next = { ...state.provinceTerminalPolityCache }
-    delete next[provinceId]
-    return next
+    const nextCache = { ...state.holdingTerminalPolityCache }
+    const province = state.provinces[provinceId]
+    if (province) {
+      for (const hid of province.holdingIds) {
+        delete nextCache[hid]
+      }
+    }
+    return nextCache
   }
   const terminal = state.landContracts[terminalId]
-  if (!terminal) return state.provinceTerminalPolityCache
-  return {
-    ...state.provinceTerminalPolityCache,
-    [provinceId]: terminal.granteePolityId,
+  if (!terminal) return state.holdingTerminalPolityCache
+  const polityId = terminal.granteePolityId
+  const nextCache = { ...state.holdingTerminalPolityCache }
+  const province = state.provinces[provinceId]
+  if (province) {
+    for (const hid of province.holdingIds) {
+      nextCache[hid] = polityId
+    }
   }
+  return nextCache
 }
 
 export function createRootLandContract(
@@ -85,6 +90,7 @@ export function createRootLandContract(
     landContracts: { ...state.landContracts, [id]: contract },
     landContractIndex: {
       byProvince: { ...state.landContractIndex.byProvince, [params.provinceId]: [...chain, id] },
+      byHolding: state.landContractIndex.byHolding,
       byGranteePolity: {
         ...state.landContractIndex.byGranteePolity,
         [params.granteePolityId]: [...granteeSlot, id],
@@ -96,7 +102,7 @@ export function createRootLandContract(
   return {
     state: {
       ...nextState,
-      provinceTerminalPolityCache: recomputeTerminalCache(nextState, params.provinceId),
+      holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, params.provinceId),
     },
     contractId: id,
   }
@@ -121,6 +127,7 @@ export function createChildLandContract(
     landContracts: { ...state.landContracts, [id]: contract },
     landContractIndex: {
       byProvince: { ...state.landContractIndex.byProvince, [params.provinceId]: [...chain, id] },
+      byHolding: state.landContractIndex.byHolding,
       byGranteePolity: {
         ...state.landContractIndex.byGranteePolity,
         [params.granteePolityId]: [...granteeSlot, id],
@@ -132,7 +139,7 @@ export function createChildLandContract(
   return {
     state: {
       ...nextState,
-      provinceTerminalPolityCache: recomputeTerminalCache(nextState, params.provinceId),
+      holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, params.provinceId),
     },
     contractId: id,
   }
@@ -175,6 +182,7 @@ export function transferLandContractGrantee(
     landContracts: { ...state.landContracts, [contractId]: nextContract },
     landContractIndex: {
       byProvince: state.landContractIndex.byProvince,
+      byHolding: state.landContractIndex.byHolding,
       byGranteePolity: {
         ...state.landContractIndex.byGranteePolity,
         [contract.granteePolityId]: oldGranteeNext,
@@ -185,7 +193,7 @@ export function transferLandContractGrantee(
   }
   return {
     ...nextState,
-    provinceTerminalPolityCache: recomputeTerminalCache(nextState, contract.provinceId),
+    holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, contract.provinceId),
   }
 }
 
@@ -258,6 +266,7 @@ export function insertIntermediateLandContract(
     },
     landContractIndex: {
       byProvince: { ...state.landContractIndex.byProvince, [params.provinceId]: newChain },
+      byHolding: state.landContractIndex.byHolding,
       byGranteePolity: {
         ...state.landContractIndex.byGranteePolity,
         [params.newGranteePolityId]: [...granteeSlot, id],
@@ -269,7 +278,7 @@ export function insertIntermediateLandContract(
   return {
     state: {
       ...nextState,
-      provinceTerminalPolityCache: recomputeTerminalCache(nextState, params.provinceId),
+      holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, params.provinceId),
     },
     contractId: id,
   }
@@ -337,13 +346,14 @@ export function replaceLowerLandContract(
     landContracts: nextLandContracts,
     landContractIndex: {
       byProvince: { ...state.landContractIndex.byProvince, [params.provinceId]: newChain },
+      byHolding: state.landContractIndex.byHolding,
       byGranteePolity: nextByGrantee,
       byParent: nextByParent,
     },
   }
   return {
     ...nextState,
-    provinceTerminalPolityCache: recomputeTerminalCache(nextState, params.provinceId),
+    holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, params.provinceId),
   }
 }
 
@@ -515,6 +525,7 @@ export function applyLandContractTransferGoal(
     houseIds: ownerHouseIds,
     polityIds: [fromPolityId, input.toPolityId],
     provinceIds: [input.provinceId],
+    holdingIds: [],
     summary: `${provinceName} transferred from ${fromName} to ${toName} (${input.reason}).`,
     reasons: [],
     effects: [],
@@ -551,6 +562,7 @@ export function applyLandContractTransferGoal(
       houseIds: ownerHouseIds,
       polityIds: [fromPolityId, input.toPolityId],
       provinceIds: [input.provinceId],
+      holdingIds: [],
       summary: outcomeSummary,
       reasons: [],
       effects: [],
@@ -592,6 +604,7 @@ export function revokeLandContract(state: WorldState, contractId: LandContractId
     landContracts: nextLandContracts,
     landContractIndex: {
       byProvince: { ...state.landContractIndex.byProvince, [contract.provinceId]: newChain },
+      byHolding: state.landContractIndex.byHolding,
       byGranteePolity: {
         ...state.landContractIndex.byGranteePolity,
         [contract.granteePolityId]: granteeSlot.filter((id) => id !== contractId),
@@ -601,7 +614,7 @@ export function revokeLandContract(state: WorldState, contractId: LandContractId
   }
   return {
     ...nextState,
-    provinceTerminalPolityCache: recomputeTerminalCache(nextState, contract.provinceId),
+    holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, contract.provinceId),
   }
 }
 
@@ -674,6 +687,7 @@ export function eliminateContractFromChain(
     landContracts: nextLandContracts,
     landContractIndex: {
       byProvince: { ...state.landContractIndex.byProvince, [contract.provinceId]: newChain },
+      byHolding: state.landContractIndex.byHolding,
       byGranteePolity: {
         ...state.landContractIndex.byGranteePolity,
         [contract.granteePolityId]: newGranteeSlot,
@@ -684,6 +698,6 @@ export function eliminateContractFromChain(
 
   return {
     ...nextState,
-    provinceTerminalPolityCache: recomputeTerminalCache(nextState, contract.provinceId),
+    holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, contract.provinceId),
   }
 }

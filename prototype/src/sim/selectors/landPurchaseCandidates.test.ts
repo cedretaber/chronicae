@@ -29,7 +29,6 @@ function buildWorld(opts: {
   s = withProvince(s, provinceSellerId, {
     neighbors: [provinceBuyerId],
     popGroupIds: [],
-    development: 0,
   })
   s = withHouse(s, buyerHouseId, { seatProvinceId: provinceBuyerId })
   s = withHouse(s, sellerHouseId, { seatProvinceId: provinceSellerId })

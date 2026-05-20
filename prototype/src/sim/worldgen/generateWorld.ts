@@ -7,8 +7,16 @@ import type {
   PersonId,
   PopGroupId,
   StateRegionId,
+  HoldingId,
+  HoldingOfficeAssignmentId,
 } from '../types/ids'
-import { newPopGroupId, createStateRegionId, createPolityId, createHouseId } from '../types/ids'
+import {
+  newPopGroupId,
+  createStateRegionId,
+  createPolityId,
+  createHouseId,
+  createHoldingId,
+} from '../types/ids'
 import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Polity } from '../types/polity'
@@ -21,14 +29,16 @@ import type {
   OrganizationShare,
   ShareIndex,
 } from '../types/office'
-import type { OrganizationShareId, LandContractId, ProvinceOfficeAssignmentId } from '../types/ids'
+import type { OrganizationShareId, LandContractId } from '../types/ids'
 import type {
   LandContract,
   LandContractIndex,
   ProvinceTerminalPolityCache,
-  ProvinceOfficeAssignment,
-  ProvinceOfficeIndex,
   PolityIndex,
+  Holding,
+  HoldingTerminalPolityCache,
+  HoldingOfficeAssignment,
+  HoldingOfficeIndex,
 } from '../types/landContract'
 import { ROOT_WORLD, ANONYMOUS_HOUSE_ID, PLACEHOLDER_PERSON_ID } from '../types/landContract'
 import { createRng } from '../rng/rng'
@@ -144,12 +154,18 @@ export function generateWorld(
 
   for (const province of provinceList) {
     const { value: habitability, rng: r1 } = randomInt(rng, 30, 90)
-    const { value: development, rng: r2 } = randomInt(r1, -10, 10)
-    rng = r2
+    rng = r1
 
     province.habitability = habitability
-    province.development = development
     province.popGroupIds = []
+  }
+
+  // Compute development values for Holdings (Province no longer stores development)
+  const developmentMap = new Map<ProvinceId, number>()
+  for (const province of provinceList) {
+    const { value: development, rng: r2 } = randomInt(rng, -10, 10)
+    rng = r2
+    developmentMap.set(province.id, development)
   }
 
   const houses: House[] = []
@@ -182,13 +198,13 @@ export function generateWorld(
       const sortedProvinceIds = [...provinceIds].sort()
       const firstId = sortedProvinceIds[0]!
       let bestId = firstId
-      let bestDev = provinceMap.get(firstId)!.development
+      let bestHabitability = provinceMap.get(firstId)!.habitability
       for (let i = 1; i < sortedProvinceIds.length; i++) {
         const pid = sortedProvinceIds[i]!
         const prov = provinceMap.get(pid)
         if (!prov) continue
-        if (prov.development > bestDev) {
-          bestDev = prov.development
+        if (prov.habitability > bestHabitability) {
+          bestHabitability = prov.habitability
           bestId = pid
         }
       }
@@ -412,12 +428,15 @@ export function generateWorld(
   const visited = new Set<ProvinceId>()
   const queue = new Array<string>()
 
+  // Compute polityControl values for Holdings (Province no longer stores polityControl)
+  const controlMap = new Map<ProvinceId, number>()
+
   for (const polity of polities) {
     const capProv = provinceMap.get(polity.capitalProvinceId)
     if (!capProv) {
       for (const p of provinces) {
         if (assignments.get(p.id) === polity.id) {
-          p.polityControl = 30
+          controlMap.set(p.id, 30)
         }
       }
       continue
@@ -425,13 +444,13 @@ export function generateWorld(
 
     for (const p of provinces) {
       if (assignments.get(p.id) === polity.id) {
-        p.polityControl = 30
+        controlMap.set(p.id, 30)
       }
     }
 
     const distMap = new Map<ProvinceId, number>()
     distMap.set(capProv.id, 0)
-    capProv.polityControl = 100
+    controlMap.set(capProv.id, 100)
 
     visited.clear()
     visited.add(capProv.id)
@@ -458,7 +477,7 @@ export function generateWorld(
             controlMaxMinimum,
             100,
           )
-          neighborProv.polityControl = maxControl
+          controlMap.set(neighborId, maxControl)
           nextQueue.push(neighborId)
         }
       }
@@ -476,7 +495,8 @@ export function generateWorld(
 
   for (const province of provinces) {
     const baseCapacity = province.habitability * populationCapacityPerHabitability
-    const devMod = Math.min(1.5, Math.max(0.5, 1 + province.development / 200))
+    const dev = developmentMap.get(province.id) ?? 0
+    const devMod = Math.min(1.5, Math.max(0.5, 1 + dev / 200))
     const capacity = Math.max(minProvinceCarryingCapacity, baseCapacity * devMod)
 
     const { value: peasantSizePct, rng: rp1 } = randomInt(rng, 55, 75)
@@ -1111,6 +1131,7 @@ export function generateWorld(
   const landContractsRecord: Record<LandContractId, LandContract> = {}
   const landContractIndex: LandContractIndex = {
     byProvince: {},
+    byHolding: {},
     byGranteePolity: {},
     byParent: {},
   }
@@ -1182,6 +1203,72 @@ export function generateWorld(
     provinceTerminalPolityCache[province.id] = terminalPolityId
   }
 
+  // v0.20-ab: Holding 生成 (1P=1H)
+  const holdingsRecord: Record<HoldingId, Holding> = {}
+  const holdingTerminalPolityCache: HoldingTerminalPolityCache = {}
+  const holdingOfficeAssignments: Record<HoldingOfficeAssignmentId, HoldingOfficeAssignment> = {}
+  const holdingOfficeIndex: HoldingOfficeIndex = {
+    byHolding: {},
+    byHolderPerson: {},
+    byAppointingPolity: {},
+  }
+  let nextHoldingId = 0
+  let nextHoldingOfficeAssignmentId = 0
+
+  for (const province of provinces) {
+    const holdingId = createHoldingId(nextHoldingId++)
+    const holdingDev = developmentMap.get(province.id) ?? 0
+    const holdingControl = controlMap.get(province.id) ?? 0
+    const holding: Holding = {
+      id: holdingId,
+      provinceId: province.id,
+      kind: 'manor',
+      name: province.name,
+      development: holdingDev,
+      polityControl: holdingControl,
+      landQuality: province.habitability,
+      weight: 1,
+    }
+    holdingsRecord[holdingId] = holding
+
+    provincesRecord[province.id] = {
+      ...provincesRecord[province.id]!,
+      holdingIds: [holdingId],
+    }
+
+    const contractIds = landContractIndex.byProvince[province.id] ?? []
+    for (const cid of contractIds) {
+      const contract = landContractsRecord[cid]
+      if (contract) {
+        landContractsRecord[cid] = { ...contract, holdingId }
+      }
+    }
+    landContractIndex.byHolding[holdingId] = contractIds
+
+    const terminalPolityId = provinceTerminalPolityCache[province.id]
+    if (terminalPolityId) {
+      holdingTerminalPolityCache[holdingId] = terminalPolityId
+
+      const hoaId = ('ho-' + nextHoldingOfficeAssignmentId) as HoldingOfficeAssignmentId
+      nextHoldingOfficeAssignmentId++
+      const hoa: HoldingOfficeAssignment = {
+        id: hoaId,
+        holdingId,
+        role: 'bailiff',
+        holderPersonId: PLACEHOLDER_PERSON_ID,
+        appointingPolityId: terminalPolityId,
+        active: true,
+        startYear: 1,
+        startWeek: 1,
+        unpaidCount: 0,
+      }
+      holdingOfficeAssignments[hoaId] = hoa
+      holdingOfficeIndex.byHolding[holdingId] = hoaId
+      const politySlot = holdingOfficeIndex.byAppointingPolity[terminalPolityId] ?? []
+      holdingOfficeIndex.byAppointingPolity[terminalPolityId] = [...politySlot, hoaId]
+    }
+  }
+
   // polityIndex.byOwnerHouse
   const polityIndex: PolityIndex = { byOwnerHouse: {} }
   for (const polity of polities) {
@@ -1207,8 +1294,6 @@ export function generateWorld(
   // v0.17.2: 全 Province の placeholder bailiff は単一の singleton Person を共有する。
   // 旧版は Province ごとに新規 Person を生成していたため、bailiff の vacate/install サイクルで
   // AnonymousHouse.memberIds が累積していた。singleton 化で state が安定する。
-  // B2 policy: placeholder holder は provinceOfficeIndex.byHolderPerson に登録しない
-  // (兼任チェック等で意味を持たないため、ノイズ回避を優先)。
   const placeholderSingleton: Person = {
     id: PLACEHOLDER_PERSON_ID,
     name: 'Anonymous',
@@ -1228,47 +1313,12 @@ export function generateWorld(
   }
   personsRecord[PLACEHOLDER_PERSON_ID] = placeholderSingleton
 
-  const provinceOfficeAssignments: Record<ProvinceOfficeAssignmentId, ProvinceOfficeAssignment> = {}
-  const provinceOfficeIndex: ProvinceOfficeIndex = {
-    byProvince: {},
-    byHolderPerson: {},
-    byAppointingPolity: {},
-  }
-  let nextProvinceOfficeAssignmentId = 0
-  for (const province of provinces) {
-    const terminalPolityId = provinceTerminalPolityCache[province.id]
-    if (!terminalPolityId) continue
-
-    const officeAssignmentId = ('po-' +
-      nextProvinceOfficeAssignmentId) as ProvinceOfficeAssignmentId
-    nextProvinceOfficeAssignmentId++
-    const assignment: ProvinceOfficeAssignment = {
-      id: officeAssignmentId,
-      provinceId: province.id,
-      role: 'bailiff',
-      holderPersonId: PLACEHOLDER_PERSON_ID,
-      appointingPolityId: terminalPolityId,
-      active: true,
-      startYear: 1,
-      startWeek: 1,
-      unpaidCount: 0,
-    }
-    provinceOfficeAssignments[officeAssignmentId] = assignment
-    provinceOfficeIndex.byProvince[province.id] = officeAssignmentId
-    // B2 policy: placeholder は byHolderPerson に積まない
-    const politySlot = provinceOfficeIndex.byAppointingPolity[terminalPolityId] ?? []
-    provinceOfficeIndex.byAppointingPolity[terminalPolityId] = [...politySlot, officeAssignmentId]
-  }
-  housesRecord[ANONYMOUS_HOUSE_ID] = {
-    ...anonymousHouse,
-    memberIds: [PLACEHOLDER_PERSON_ID],
-  }
-
   const world: WorldState = {
     currentYear: 1,
     currentWeekOfYear: 1,
     absoluteWeek: 48,
     provinces: provincesRecord,
+    holdings: holdingsRecord,
     polities: politiesRecord,
     states: statesRecord,
     houses: housesRecord,
@@ -1278,12 +1328,12 @@ export function generateWorld(
     organizationShares,
     officeAssignments: officeState.officeAssignments,
     landContracts: landContractsRecord,
-    provinceOfficeAssignments,
+    holdingOfficeAssignments,
+    holdingOfficeIndex,
     shareIndex,
     officeIndex: officeState.officeIndex,
     landContractIndex,
-    provinceTerminalPolityCache,
-    provinceOfficeIndex,
+    holdingTerminalPolityCache,
     polityIndex,
     factions: {},
     factionMemberships: {},
@@ -1294,7 +1344,7 @@ export function generateWorld(
     nextOrganizationShareId,
     nextOfficeAssignmentId: officeState.nextOfficeAssignmentId,
     nextLandContractId,
-    nextProvinceOfficeAssignmentId,
+    nextHoldingOfficeAssignmentId,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
     // v0.18 Stage A

@@ -105,18 +105,24 @@ export function annexPolity(
 
   // 譲渡された Province の polityControl を低めにリセットする (新支配の浸透前)。
   const transferredProvinceIds = getPolityTerminalProvinceIds(next, winnerPolityId)
-  const updatedProvinces = { ...next.provinces }
+  const updatedHoldings = { ...next.holdings }
   for (const provinceId of transferredProvinceIds) {
-    const province = updatedProvinces[provinceId]
+    const province = next.provinces[provinceId]
     if (!province) continue
-    if ((next.provinceTerminalPolityCache[provinceId] as string) !== (winnerPolityId as string))
-      continue
-    updatedProvinces[provinceId] = {
-      ...province,
-      polityControl: defaultConfig.annexedPolityControl,
+    // Update Holdings instead of Province (Province no longer stores polityControl)
+    for (const holdingId of province.holdingIds) {
+      const holdingTerminal = next.holdingTerminalPolityCache[holdingId]
+      if ((holdingTerminal as string) !== (winnerPolityId as string)) continue
+      const holding = updatedHoldings[holdingId]
+      if (holding) {
+        updatedHoldings[holdingId] = {
+          ...holding,
+          polityControl: defaultConfig.annexedPolityControl,
+        }
+      }
     }
   }
-  next = { ...next, provinces: updatedProvinces }
+  next = { ...next, holdings: updatedHoldings }
 
   // 敗者 Polity 自体を inactive に。consistency system が同じ判定をするが、明示しておく。
   next = {

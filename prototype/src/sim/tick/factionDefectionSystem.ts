@@ -90,6 +90,7 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
         houseIds: [member.houseId],
         polityIds: [],
         provinceIds: [],
+        holdingIds: [],
         summary: `${member.name} abandoned ${faction.name}.`,
         reasons: [],
         effects: [],
@@ -106,9 +107,9 @@ function hasActiveOfficeOrBailiff(state: WorldState, personId: PersonId): boolea
     const o = state.officeAssignments[id]
     if (o && o.active && o.role !== 'leader') return true
   }
-  const pIds = state.provinceOfficeIndex.byHolderPerson[personId] ?? []
-  for (const id of pIds) {
-    const a = state.provinceOfficeAssignments[id]
+  const hIds = state.holdingOfficeIndex.byHolderPerson[personId] ?? []
+  for (const id of hIds) {
+    const a = state.holdingOfficeAssignments[id]
     if (a && a.active) return true
   }
   return false

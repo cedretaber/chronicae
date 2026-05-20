@@ -126,7 +126,16 @@ function makeWorldState(
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-  state = withProvince(state, provinceId, { name: 'P0', polityControl: 50 })
+  state = withProvince(state, provinceId, { name: 'P0' })
+  // Set Holding polityControl to 50 for runControlSystem tests
+  const p0HoldingId = state.provinces[provinceId]!.holdingIds[0]!
+  state = {
+    ...state,
+    holdings: {
+      ...state.holdings,
+      [p0HoldingId]: { ...state.holdings[p0HoldingId]!, polityControl: 50 },
+    },
+  }
   state = withHouse(state, houseId, {
     name: 'H0',
     memberIds: [person.id],
@@ -197,9 +206,13 @@ describe('runControlSystem — polityControl growth', () => {
     const neutralResult = runControlSystem(neutralCtx)
 
     const highAdminProv = highAdminResult.state.provinces['p-0' as ProvinceId]!
+    const highAdminHolding = highAdminProv.holdingIds[0]!
     const neutralProv = neutralResult.state.provinces['p-0' as ProvinceId]!
+    const neutralHolding = neutralProv.holdingIds[0]!
 
-    expect(highAdminProv.polityControl).toBeGreaterThan(neutralProv.polityControl)
+    expect(highAdminResult.state.holdings[highAdminHolding]!.polityControl).toBeGreaterThan(
+      neutralResult.state.holdings[neutralHolding]!.polityControl,
+    )
   })
 
   it('admin=5 chancellor grows polityControl faster than admin=0', () => {
@@ -217,9 +230,13 @@ describe('runControlSystem — polityControl growth', () => {
     const lowAdminResult = runControlSystem(lowAdminCtx)
 
     const neutralProv = neutralResult.state.provinces['p-0' as ProvinceId]!
+    const neutralHolding = neutralProv.holdingIds[0]!
     const lowAdminProv = lowAdminResult.state.provinces['p-0' as ProvinceId]!
+    const lowAdminHolding = lowAdminProv.holdingIds[0]!
 
-    expect(neutralProv.polityControl).toBeGreaterThan(lowAdminProv.polityControl)
+    expect(neutralResult.state.holdings[neutralHolding]!.polityControl).toBeGreaterThan(
+      lowAdminResult.state.holdings[lowAdminHolding]!.polityControl,
+    )
   })
 
   it('expected values: governance=100 → 52.5, governance=50 → 52.0, governance=0 → 51.5', () => {
@@ -230,12 +247,14 @@ describe('runControlSystem — polityControl growth', () => {
     )
     const admin10Result = runControlSystem(makeCtx(admin10State))
     const admin10Prov = admin10Result.state.provinces['p-0' as ProvinceId]!
-    expect(admin10Prov.polityControl).toBeCloseTo(52.5, 5)
+    const admin10Holding = admin10Prov.holdingIds[0]!
+    expect(admin10Result.state.holdings[admin10Holding]!.polityControl).toBeCloseTo(52.5, 5)
 
     const admin5State = makeWorldState({}, { administrator: 'pe-0' as PersonId })
     const admin5Result = runControlSystem(makeCtx(admin5State))
     const admin5Prov = admin5Result.state.provinces['p-0' as ProvinceId]!
-    expect(admin5Prov.polityControl).toBeCloseTo(52.0, 5)
+    const admin5Holding = admin5Prov.holdingIds[0]!
+    expect(admin5Result.state.holdings[admin5Holding]!.polityControl).toBeCloseTo(52.0, 5)
 
     const govMin = makeAbilities({ numeracy: 0, learning: 0, charisma: 0, insight: 0 })
     const admin0State = makeWorldState(
@@ -244,7 +263,8 @@ describe('runControlSystem — polityControl growth', () => {
     )
     const admin0Result = runControlSystem(makeCtx(admin0State))
     const admin0Prov = admin0Result.state.provinces['p-0' as ProvinceId]!
-    expect(admin0Prov.polityControl).toBeCloseTo(51.5, 5)
+    const admin0Holding = admin0Prov.holdingIds[0]!
+    expect(admin0Result.state.holdings[admin0Holding]!.polityControl).toBeCloseTo(51.5, 5)
   })
 })
 
@@ -254,6 +274,7 @@ describe('runControlSystem — capital province maxControl', () => {
     const provinceId = 'p-0' as ProvinceId
     const houseId = 'h-0' as HouseId
     const polityId = 'dp-0' as PolityId
+    const holdingId = 'hl-0' as import('../types/ids').HoldingId
 
     const officeId = 'of-0' as OfficeAssignmentId
     const office: OfficeAssignment = {
@@ -280,8 +301,19 @@ describe('runControlSystem — capital province maxControl', () => {
           neighbors: [],
           habitability: 50,
           popGroupIds: [],
+          holdingIds: [holdingId],
+        },
+      },
+      holdings: {
+        [holdingId]: {
+          id: holdingId,
+          provinceId,
+          kind: 'manor' as const,
+          name: 'Capital',
           development: 0,
           polityControl: 100,
+          landQuality: 50,
+          weight: 1,
         },
       },
       states: {},
@@ -322,16 +354,16 @@ describe('runControlSystem — capital province maxControl', () => {
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 1,
       landContracts: {},
-      provinceOfficeAssignments: {},
-      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-      provinceTerminalPolityCache: {},
-      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      holdingOfficeAssignments: {},
+      holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+      holdingTerminalPolityCache: {},
       polityIndex: { byOwnerHouse: {} },
       factions: {},
       factionMemberships: {},
       factionIndex: { byLeader: {}, byMember: {} },
       nextLandContractId: 0,
-      nextProvinceOfficeAssignmentId: 0,
+      nextHoldingOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
       actorIntents: {},
@@ -341,8 +373,7 @@ describe('runControlSystem — capital province maxControl', () => {
     }
 
     const result = runControlSystem(makeCtx(world))
-    const capitalProv = result.state.provinces['p-0' as ProvinceId]!
-    expect(capitalProv.polityControl).toBe(100)
+    expect(result.state.holdings[holdingId]!.polityControl).toBe(100)
   })
 })
 
@@ -480,7 +511,7 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
 
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, provinceId, { name: 'P0', polityControl: 50 })
+    state = withProvince(state, provinceId, { name: 'P0' })
     state = withHouse(state, houseId, {
       name: 'H0',
       memberIds: [headPerson.id],

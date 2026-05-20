@@ -37,7 +37,7 @@ function makeBaseState(): {
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
-  state = withProvince(state, provinceId, { name: 'Capital', development: 10 })
+  state = withProvince(state, provinceId, { name: 'Capital' })
   state = withHouse(state, houseId, {
     name: 'Test House',
     memberIds: [personId],

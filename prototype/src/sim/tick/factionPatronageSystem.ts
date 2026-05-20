@@ -104,6 +104,7 @@ export function runFactionPatronageSystem(ctx: TickContext): TickContext {
           houseIds: [leaderAfter.houseId],
           polityIds: [],
           provinceIds: [],
+          holdingIds: [],
           summary: `${leaderAfter.name}'s ${faction.name} faces a financial crisis.`,
           reasons: [],
           effects: [],
@@ -122,10 +123,10 @@ function hasActiveNonLeaderOffice(state: WorldState, personId: PersonId): boolea
     const o = state.officeAssignments[id]
     if (o && o.active && o.role !== 'leader') return true
   }
-  // v0.17.1 §15.3: Bailiff (ProvinceOffice) 持ちも献金経路に乗せる
-  const pIds = state.provinceOfficeIndex.byHolderPerson[personId] ?? []
-  for (const id of pIds) {
-    const a = state.provinceOfficeAssignments[id]
+  // v0.17.1 §15.3: Bailiff (HoldingOffice) 持ちも献金経路に乗せる
+  const hIds = state.holdingOfficeIndex.byHolderPerson[personId] ?? []
+  for (const id of hIds) {
+    const a = state.holdingOfficeAssignments[id]
     if (a && a.active) return true
   }
   return false

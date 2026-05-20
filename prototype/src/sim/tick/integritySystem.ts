@@ -40,7 +40,7 @@ import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 //   #12 byProvince 同期 + chain 順                       → 「§25 #12: landContractIndex.byProvince は state.landContracts と一致し chain 順」で error throw
 //   #13 byGranteePolity 同期                             → 「§25 #13: landContractIndex.byGranteePolity は state.landContracts と一致」で error throw
 //   #14 byParent 同期 (parent → child 方向)              → 「§25 #14: landContractIndex.byParent は state.landContracts と一致」で error throw
-//   #15 provinceTerminalPolityCache 同期                 → 「§25 #15: provinceTerminalPolityCache は chain の terminal grantee と一致」で error throw
+//   #15 holdingTerminalPolityCache 同期                  → 「§25 #15: holdingTerminalPolityCache は chain の terminal grantee と一致」で error throw
 //   #16 polityIndex.byOwnerHouse 同期                    → 「§25 #16: polityIndex.byOwnerHouse は state.polities と一致」で error throw
 //   #17 landless Polity == inactive                      → 「§25 #17: landless Polity は active=false である」で error throw
 //   #18 house.seatProvinceId 存在                        → 「§25 #18: House.seatProvinceId は存在する Province」で error throw
@@ -48,8 +48,8 @@ import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 //   #20 House active 判定が memberIds ベース             → コードレベル保証 (houseExtinctionSystem は memberIds 判定のみ)。runtime チェック不要
 //   #21 ownerHouseId active                              → 「§25 #21: Polity.ownerHouseId が定義済みなら、その House は存在し active」で error throw
 //   #22 Province.houseControl 型から削除                 → 型レベル保証。runtime チェック不要
-//   #23 各 Province に active bailiff 1 つ                → 「§25 #23: 各 Province に active な bailiff ProvinceOfficeAssignment が 1 つ」で error throw
-//   #24 bailiff holder 存在                              → 同 #23 ブロック内で error throw
+//   #23 各 Province に active bailiff 1 つ                → HoldingOffice に移行 (H1, H2, H3)
+//   #24 bailiff holder 存在                              → HoldingOffice に移行 (H1, H2, H3)
 //   #25 placeholder ガード sweep                         → 「全 Person-loop に kind === 'placeholder' continue」のコードレビューで担保。runtime チェック困難 (システム毎の動的検証は意味がない)
 //   #26 placeholder は kind === 'placeholder' で判定     → コードレベル保証 (isPlaceholderPerson selector 経由)。runtime チェック不要
 //   #27 AnonymousHouse 存在                              → 「§25 #27: AnonymousHouse は worldgen 後に必ず 1 つ存在」で error throw
@@ -57,8 +57,8 @@ import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 //   #29 normal House.memberIds に placeholder 無し       → 「§25 #29 inverse: Non-placeholder Person が AnonymousHouse」と「Normal House に placeholder member」の双方で error throw
 //   #30 AnonymousHouse が grantee / ownerHouse / share holder にならない → 「§25 #30」ブロックで error throw
 //   #31 AnonymousHouse.memberIds 全員 placeholder         → 「§25 #31: AnonymousHouse contains non-placeholder member」で error throw
-//   #32 ProvinceOfficeAssignment は OfficeAssignment と別 entity → 型レベル保証 (OrganizationKind に 'province' は含まれない)。runtime チェック不要
-//   #33 provinceOfficeIndex.byProvince 同期               → 「§25 #33: provinceOfficeIndex.byProvince[X] entry」で error throw
+//   #32 HoldingOfficeAssignment は OfficeAssignment と別 entity → 型レベル保証 (OrganizationKind に 'holding' は含まれない)。runtime チェック不要
+//   #33 holdingOfficeIndex.byHolding 同期                 → 「§25 H1: holdingOfficeIndex.byHolding[X] entry」で error throw
 //
 // 実装すべき 33 項目のうち error throw: 25 項目
 // 型レベル保証 (runtime 不要): #10, #20, #22, #26, #32 = 5 項目
@@ -500,7 +500,7 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     }
   }
 
-  // ─── v0.16 §25 LandContract / AnonymousHouse / ProvinceOffice 不変条件 ───
+  // ─── v0.16 §25 LandContract / AnonymousHouse / HoldingOffice 不変条件 ───
 
   // §25 #5: 各 LandContract の provinceId は存在する Province を指す
   // §25 #6: contract.provinceId は parent contract の provinceId と一致する
@@ -642,12 +642,19 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     }
     if (ok && prev !== undefined) {
       const terminal = state.landContracts[prev]
-      const cached = state.provinceTerminalPolityCache[provId]
-      if (!terminal || cached !== terminal.granteePolityId) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `provinceTerminalPolityCache[${provId}]=${cached} differs from terminal grantee ${terminal?.granteePolityId} (§25 #15)`,
-        })
+      if (terminal) {
+        const province = state.provinces[provId]
+        if (province) {
+          for (const hid of province.holdingIds) {
+            const cached = state.holdingTerminalPolityCache[hid]
+            if (cached !== terminal.granteePolityId) {
+              errors.push({
+                code: 'INTEGRITY_VIOLATION',
+                message: `holdingTerminalPolityCache[${hid}]=${cached} differs from terminal grantee ${terminal.granteePolityId} for province ${provId} (§25 #15)`,
+              })
+            }
+          }
+        }
       }
     }
   }
@@ -783,48 +790,6 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
         message: `House ${houseId} seatProvinceId ${h.seatProvinceId} does not exist (§25 #18)`,
-      })
-    }
-  }
-
-  // §25 #23: 各 Province に active な bailiff ProvinceOfficeAssignment が 1 つ存在する
-  // §25 #24: bailiff の holderPersonId は存在する Person を指す
-  // §25 #33: provinceOfficeIndex.byProvince は state.provinceOfficeAssignments と一致し各 Province に 1 つ
-  for (const provIdStr of Object.keys(state.provinces)) {
-    const provId = provIdStr as ProvinceId
-    const assignmentId = state.provinceOfficeIndex.byProvince[provId]
-    if (!assignmentId) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Province ${provId} has no bailiff assignment (§25 #23)`,
-      })
-      continue
-    }
-    const assignment = state.provinceOfficeAssignments[assignmentId]
-    if (!assignment) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `provinceOfficeIndex.byProvince[${provId}]=${assignmentId} does not exist in provinceOfficeAssignments (§25 #33)`,
-      })
-      continue
-    }
-    if (assignment.provinceId !== provId) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `ProvinceOfficeAssignment ${assignmentId} provinceId=${assignment.provinceId} differs from index key ${provId} (§25 #33)`,
-      })
-    }
-    if (!assignment.active) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Province ${provId} bailiff assignment ${assignmentId} is inactive (§25 #23)`,
-      })
-    }
-    const holder = state.persons[assignment.holderPersonId]
-    if (!holder) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Bailiff assignment ${assignmentId} holderPersonId ${assignment.holderPersonId} does not exist (§25 #24)`,
       })
     }
   }
@@ -1373,6 +1338,60 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
           message: `Province ${provIdStr} is not in any StateRegion.provinceIds`,
         })
       }
+    }
+  }
+
+  // H1: Every Province.holdingIds entry exists in state.holdings with matching provinceId
+  for (const province of Object.values(state.provinces)) {
+    if (!province) continue
+    for (const hid of province.holdingIds) {
+      const holding = state.holdings[hid]
+      if (!holding) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Province ${province.id} references missing Holding ${hid}`,
+        })
+      } else if (holding.provinceId !== province.id) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Province ${province.id} lists Holding ${hid}, but Holding.provinceId is ${holding.provinceId}`,
+        })
+      }
+    }
+  }
+
+  // H2: Every Holding.provinceId points to an existing Province that lists this Holding
+  for (const holding of Object.values(state.holdings)) {
+    if (!holding) continue
+    const province = state.provinces[holding.provinceId]
+    if (!province) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Holding ${holding.id} references missing Province ${holding.provinceId}`,
+      })
+    } else if (!province.holdingIds.includes(holding.id)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Holding ${holding.id} belongs to Province ${holding.provinceId} but is not in holdingIds`,
+      })
+    }
+  }
+
+  // H3: holdingTerminalPolityCache consistent with LandContract chain terminal
+  for (const holding of Object.values(state.holdings)) {
+    if (!holding) continue
+    const holdingTerminal = state.holdingTerminalPolityCache[holding.id]
+    const chain = state.landContractIndex.byProvince[holding.provinceId] ?? []
+    const terminalContractId = chain[chain.length - 1]
+    const terminalContract = terminalContractId
+      ? state.landContracts[terminalContractId]
+      : undefined
+    const expectedPolity = terminalContract?.granteePolityId
+    if (holdingTerminal !== expectedPolity) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Holding ${holding.id} holdingTerminalPolityCache (${holdingTerminal}) != LandContract chain terminal grantee (${expectedPolity}) for province ${holding.provinceId}`,
+      })
     }
   }
 

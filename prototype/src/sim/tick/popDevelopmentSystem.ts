@@ -6,6 +6,7 @@ import { getProvinceAveragePopWealth, getProvinceUnrest } from '../selectors/pop
 import { adjustProvincePopWealth } from '../mutations/popMutations'
 import type { ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
+import { getProvincePrimaryHolding } from '../selectors/landContractSelectors'
 
 export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
   if (!ctx.config.popDevelopmentEnabled) return ctx
@@ -21,7 +22,9 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
 
     if (averageWealth < currentCtx.config.popDevelopmentWealthThreshold) continue
     if (unrest > currentCtx.config.popDevelopmentUnrestMax) continue
-    if (province.development >= currentCtx.config.popDevelopmentMaxDevelopment) continue
+    const primaryHolding = getProvincePrimaryHolding(currentCtx.state, provinceId as ProvinceId)
+    if (!primaryHolding) continue
+    if (primaryHolding.development >= currentCtx.config.popDevelopmentMaxDevelopment) continue
 
     const chance = clamp(
       currentCtx.config.popDevelopmentMonthlyChance +
@@ -38,15 +41,23 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
     const newRng = rng1
     const newCtx = { ...currentCtx, rng: newRng }
 
-    const newDev = clamp(province.development + currentCtx.config.popDevelopmentGain, -100, 100)
+    const newDev = clamp(
+      primaryHolding.development + currentCtx.config.popDevelopmentGain,
+      -100,
+      100,
+    )
 
+    const newHoldings = {
+      ...newCtx.state.holdings,
+      [primaryHolding.id]: { ...primaryHolding, development: newDev },
+    }
     const newProvinces = {
       ...newCtx.state.provinces,
       [provinceId]: { ...province, development: newDev },
     }
 
     const updatedState = adjustProvincePopWealth(
-      { ...newCtx.state, provinces: newProvinces },
+      { ...newCtx.state, holdings: newHoldings, provinces: newProvinces },
       provinceId as ProvinceId,
       -currentCtx.config.popDevelopmentCost,
     )
@@ -66,6 +77,7 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
       houseIds: [],
       polityIds: [],
       provinceIds: [provinceId as ProvinceId],
+      holdingIds: [],
       summary: `The people of ${province.name} improved their lands.`,
       reasons: [],
       effects: [],

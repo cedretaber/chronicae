@@ -64,7 +64,7 @@ function makeFixture(): {
     active: true,
     capitalProvinceId: provinceId,
   })
-  state = withProvince(state, provinceId, { name: 'Test Province', development: 10 })
+  state = withProvince(state, provinceId, { name: 'Test Province' })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
   state = withPerson(state, leaderId, { name: 'Leader', houseId })
   state = withPerson(state, adminId, { name: 'Administrator', houseId })

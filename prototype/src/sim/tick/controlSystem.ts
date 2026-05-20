@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
-import type { ProvinceId } from '../types/ids'
-import type { Province } from '../types/province'
+import type { ProvinceId, HoldingId } from '../types/ids'
+import type { Holding } from '../types/landContract'
 import { clamp } from '../utils/math'
 import {
   calcChancellorControlGrowthModifier,
@@ -56,15 +56,14 @@ function applyControl(
 }
 
 export function runControlSystem(ctx: TickContext): TickContext {
-  const { provinces, polities } = ctx.state
+  const { provinces, polities, holdings } = ctx.state
   const config = ctx.config
 
-  // v0.16: houseControl 廃止。polityControl のみ更新する (§8.2, §8.3)。
-  const newProvinces: Record<ProvinceId, Province> = {}
-  for (const id of Object.keys(provinces) as ProvinceId[]) {
-    const prov = provinces[id]
-    if (!prov) continue
-    newProvinces[id] = { ...prov }
+  const newHoldings: Record<HoldingId, Holding> = {}
+  for (const id of Object.keys(holdings) as HoldingId[]) {
+    const h = holdings[id]
+    if (!h) continue
+    newHoldings[id] = { ...h }
   }
 
   for (const polityId of Object.keys(polities) as Array<keyof typeof polities>) {
@@ -85,26 +84,32 @@ export function runControlSystem(ctx: TickContext): TickContext {
       if (!province) continue
       if (getProvinceTerminalPolityId(ctx.state, provinceId) !== polity.id) continue
 
-      const newProvince = newProvinces[provinceId]!
-      const current = newProvince.polityControl
       const dist = distMap.get(provinceId)
 
-      if (dist !== undefined) {
-        const baseMaxControl = clamp(
-          100 - dist * config.controlMaxDistancePenalty,
-          config.controlMaxMinimum,
-          100,
-        )
-        const isCapital = provinceId === polity.capitalProvinceId
-        const maxControl = isCapital
-          ? 100
-          : clamp(baseMaxControl + maxControlBonus, config.controlAbilityMinimumFloor, 100)
-        newProvince.polityControl = applyControl(current, maxControl, effectiveGrowth, config)
-      } else {
-        newProvince.polityControl = Math.max(0, current - config.disconnectedControlDecayPerMonth)
+      for (const holdingId of province.holdingIds) {
+        const holding = newHoldings[holdingId]
+        if (!holding) continue
+        const current = holding.polityControl
+
+        let newControl: number
+        if (dist !== undefined) {
+          const baseMaxControl = clamp(
+            100 - dist * config.controlMaxDistancePenalty,
+            config.controlMaxMinimum,
+            100,
+          )
+          const isCapital = provinceId === polity.capitalProvinceId
+          const maxControl = isCapital
+            ? 100
+            : clamp(baseMaxControl + maxControlBonus, config.controlAbilityMinimumFloor, 100)
+          newControl = applyControl(current, maxControl, effectiveGrowth, config)
+        } else {
+          newControl = Math.max(0, current - config.disconnectedControlDecayPerMonth)
+        }
+        holding.polityControl = newControl
       }
     }
   }
 
-  return { ...ctx, state: { ...ctx.state, provinces: newProvinces } }
+  return { ...ctx, state: { ...ctx.state, holdings: newHoldings } }
 }

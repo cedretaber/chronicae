@@ -4,7 +4,8 @@ import type {
   PersonId,
   HouseId,
   LandContractId,
-  ProvinceOfficeAssignmentId,
+  HoldingId,
+  HoldingOfficeAssignmentId,
 } from './ids'
 
 export type RootAuthorityId = string & { readonly __brand: 'RootAuthorityId' }
@@ -23,6 +24,7 @@ export const PLACEHOLDER_PERSON_ID: PersonId = 'pe-anon-placeholder' as PersonId
 export type LandContract = {
   id: LandContractId
   provinceId: ProvinceId
+  holdingId?: HoldingId
   parentContractId?: LandContractId
   rootAuthorityId?: RootAuthorityId
   granteePolityId: PolityId
@@ -37,18 +39,32 @@ export type LandContractGrantor =
 
 export type LandContractIndex = {
   byProvince: Record<ProvinceId, LandContractId[]>
+  byHolding: Record<HoldingId, LandContractId[]>
   byGranteePolity: Record<PolityId, LandContractId[]>
   byParent: Record<LandContractId, LandContractId | undefined>
 }
 
 export type ProvinceTerminalPolityCache = Record<ProvinceId, PolityId>
 
-export type ProvinceOfficeRole = 'bailiff'
-
-export type ProvinceOfficeAssignment = {
-  id: ProvinceOfficeAssignmentId
+export type Holding = {
+  id: HoldingId
   provinceId: ProvinceId
-  role: ProvinceOfficeRole
+  kind: 'manor' | 'city'
+  name: string
+  development: number
+  polityControl: number
+  landQuality: number
+  weight: number
+}
+
+export type HoldingTerminalPolityCache = Record<HoldingId, PolityId>
+
+export type HoldingOfficeRole = 'bailiff'
+
+export type HoldingOfficeAssignment = {
+  id: HoldingOfficeAssignmentId
+  holdingId: HoldingId
+  role: HoldingOfficeRole
   holderPersonId: PersonId
   appointingPolityId: PolityId
   active: boolean
@@ -57,10 +73,10 @@ export type ProvinceOfficeAssignment = {
   unpaidCount: number
 }
 
-export type ProvinceOfficeIndex = {
-  byProvince: Record<ProvinceId, ProvinceOfficeAssignmentId | undefined>
-  byHolderPerson: Record<PersonId, ProvinceOfficeAssignmentId[]>
-  byAppointingPolity: Record<PolityId, ProvinceOfficeAssignmentId[]>
+export type HoldingOfficeIndex = {
+  byHolding: Record<HoldingId, HoldingOfficeAssignmentId | undefined>
+  byHolderPerson: Record<PersonId, HoldingOfficeAssignmentId[]>
+  byAppointingPolity: Record<PolityId, HoldingOfficeAssignmentId[]>
 }
 
 export type PolityIndex = {

@@ -3,7 +3,6 @@ import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
 import type { PolityId, HouseId, ProvinceId } from '../types/ids'
-import type { Province } from '../types/province'
 import type { SimEvent } from '../types/event'
 import { calcTreasurerDevelopmentCostModifier } from '../selectors/personAbilityEffects'
 import { getPolityLeaderHouse } from '../selectors/officeSelectors'
@@ -11,15 +10,18 @@ import type { WorldState } from '../types/world'
 import {
   getProvinceTerminalPolityId,
   getProvinceEffectiveOwnerHouseId,
+  getProvincePrimaryHolding,
+  getProvinceDevelopmentFromHoldings,
 } from '../selectors/landContractSelectors'
 
 function scoreLandDevelopmentProvince(
   state: WorldState,
-  province: Province,
+  provinceId: ProvinceId,
   rulerHouseId: HouseId,
 ): number {
-  const recoveryBonus = Math.max(0, -province.development) * 1.0
-  const effectiveOwner = getProvinceEffectiveOwnerHouseId(state, province.id)
+  const dev = getProvinceDevelopmentFromHoldings(state, provinceId)
+  const recoveryBonus = Math.max(0, -dev) * 1.0
+  const effectiveOwner = getProvinceEffectiveOwnerHouseId(state, provinceId)
   const rulerHouseProvinceBonus = effectiveOwner === rulerHouseId ? 15 : 0
   return recoveryBonus + rulerHouseProvinceBonus
 }
@@ -61,9 +63,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
     let bestProvinceId: ProvinceId = sortedProvinceIds[0]!
     let bestScore = -Infinity
     for (const pid of sortedProvinceIds) {
-      const p = currentCtx.state.provinces[pid]
-      if (!p) continue
-      const score = scoreLandDevelopmentProvince(currentCtx.state, p, rulerHouseId)
+      const score = scoreLandDevelopmentProvince(currentCtx.state, pid, rulerHouseId)
       if (score > bestScore) {
         bestScore = score
         bestProvinceId = pid
@@ -73,17 +73,21 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
     const targetProvince = currentCtx.state.provinces[bestProvinceId]
     if (!targetProvince) continue
 
+    const primaryHolding = getProvincePrimaryHolding(currentCtx.state, bestProvinceId)
+    if (!primaryHolding) continue
+
     const newDevelopment = clamp(
-      targetProvince.development + ctx.config.polityLandDevelopmentGain,
+      primaryHolding.development + ctx.config.polityLandDevelopmentGain,
       -100,
       100,
     )
+    const newHoldings = {
+      ...currentCtx.state.holdings,
+      [primaryHolding.id]: { ...primaryHolding, development: newDevelopment },
+    }
     const newProvinces = {
       ...currentCtx.state.provinces,
-      [bestProvinceId]: {
-        ...targetProvince,
-        development: newDevelopment,
-      },
+      [bestProvinceId]: { ...targetProvince, development: newDevelopment },
     }
     const updatedPolity = {
       ...polity,
@@ -94,6 +98,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       ...currentCtx,
       state: {
         ...currentCtx.state,
+        holdings: newHoldings,
         provinces: newProvinces,
         polities: { ...currentCtx.state.polities, [polityId as PolityId]: updatedPolity },
       },
@@ -110,6 +115,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       houseIds: [],
       polityIds: [polityId as PolityId],
       provinceIds: [bestProvinceId],
+      holdingIds: [],
       summary: `${polity.name} invested in land development in ${targetProvince.name}.`,
       reasons: [],
       effects: [],

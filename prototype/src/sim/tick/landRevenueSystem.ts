@@ -16,6 +16,7 @@ import {
 } from '../mutations/popMutations'
 import { addPersonWealth } from '../mutations/personMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
+import { getProvincePolityControlFromHoldings } from '../selectors/landContractSelectors'
 
 // v0.16 §18: LandRevenueSystem
 // 各 Province の生産物を chain 上の Polity に配る。
@@ -33,7 +34,7 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     if (!province) continue
 
     const production = getProvinceProduction(ctx.state, ctx.config, province.id)
-    const cc = province.polityControl / 100
+    const cc = getProvincePolityControlFromHoldings(ctx.state, province.id) / 100
     const grossTax = production * cc
 
     if (grossTax <= 0) {
@@ -145,9 +146,13 @@ function giveBailiffSalary(
   bailiffRevenueShare: number,
 ): { state: WorldState; paid: number } {
   if (retained <= 0 || bailiffRevenueShare <= 0) return { state, paid: 0 }
-  const assignmentId = state.provinceOfficeIndex.byProvince[provinceId]
+  const province = state.provinces[provinceId]
+  if (!province) return { state, paid: 0 }
+  const holdingId = province.holdingIds[0]
+  if (!holdingId) return { state, paid: 0 }
+  const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]
   if (!assignmentId) return { state, paid: 0 }
-  const assignment = state.provinceOfficeAssignments[assignmentId]
+  const assignment = state.holdingOfficeAssignments[assignmentId]
   if (!assignment || !assignment.active) return { state, paid: 0 }
   const holderId = assignment.holderPersonId
   if (isPlaceholderPerson(state, holderId)) return { state, paid: 0 }

@@ -1,4 +1,4 @@
-import type { EventId, PersonId, HouseId, PolityId, ProvinceId } from './ids'
+import type { EventId, PersonId, HouseId, PolityId, ProvinceId, HoldingId } from './ids'
 
 export type EventType =
   | 'PERSON_DIED'
@@ -111,6 +111,7 @@ export type SimEvent = {
   houseIds: HouseId[]
   polityIds: PolityId[]
   provinceIds: ProvinceId[]
+  holdingIds: HoldingId[]
   summary: string
   description?: string
   reasons: EventReason[]

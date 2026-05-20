@@ -31,6 +31,10 @@ import { ANONYMOUS_HOUSE_ID } from '@sim/types/landContract'
 import { ABILITY_AGE_CURVES } from '@sim/constants/abilityConstants'
 import { getProvinceDevelopmentMultiplier } from '@/sim/selectors/developmentSelectors'
 import {
+  getProvincePolityControlFromHoldings,
+  getProvinceDevelopmentFromHoldings,
+} from '@/sim/selectors/landContractSelectors'
+import {
   getProvincePops,
   getProvinceCarryingCapacity,
   getProvincePopulation,
@@ -53,7 +57,7 @@ import type { Province } from '@/sim/types/province'
 import type { PopGroup } from '@/sim/types/popGroup'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import type { AttitudeMap } from '@/sim/types/attitude'
-import type { PolityId, HouseId, PersonId, FactionId } from '@/sim/types/ids'
+import type { PolityId, HouseId, PersonId, FactionId, HoldingId } from '@/sim/types/ids'
 import type { Faction } from '@/sim/types/faction'
 import type { ShareHolderRef } from '@/sim/types/office'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
@@ -69,7 +73,7 @@ import {
   getProvinceLandContractChain,
   getHouseOwnedPolityIds,
 } from '@sim/selectors/landContractSelectors'
-import { getBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
+import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { calcPolityMilitaryPower } from '@/sim/selectors/militarySelectors'
@@ -185,9 +189,9 @@ function buildEntitySnapshot(
             const idx = chain.findIndex((cc) => cc.id === c.id)
             let estimatedRevenue = 0
             if (province && idx >= 0) {
+              const polityControl = ws ? getProvincePolityControlFromHoldings(ws, c.provinceId) : 0
               const grossTax =
-                getProvinceProduction(ws, defaultConfig, c.provinceId) *
-                (province.polityControl / 100)
+                getProvinceProduction(ws, defaultConfig, c.provinceId) * (polityControl / 100)
               let remaining = grossTax
               for (let i = chain.length - 1; i >= 0; i--) {
                 const seg = chain[i]
@@ -289,14 +293,13 @@ function buildEntitySnapshot(
             startYear: o.startYear,
           }))
       : []
-    const provOfficeIds = ws ? (ws.provinceOfficeIndex.byHolderPerson[pe.id] ?? []) : []
+    const holdingOfficeIds = ws ? (ws.holdingOfficeIndex.byHolderPerson[pe.id] ?? []) : []
     const bailiffOf = ws
-      ? provOfficeIds
-          .map((aid) => ws.provinceOfficeAssignments[aid])
+      ? holdingOfficeIds
+          .map((aid) => ws.holdingOfficeAssignments[aid])
           .filter((a): a is NonNullable<typeof a> => Boolean(a && a.active))
           .map((a) => ({
-            provinceId: a.provinceId,
-            provinceName: provinceName(a.provinceId),
+            holdingId: a.holdingId,
             appointingPolityId: a.appointingPolityId,
             appointingPolityName: polityName(a.appointingPolityId),
             startYear: a.startYear,
@@ -321,7 +324,7 @@ function buildEntitySnapshot(
   if (kind === 'province') {
     const pv = entity as Province
     const chain = ws ? getProvinceLandContractChain(ws, pv.id) : []
-    const bailiff = ws ? getBailiffPerson(ws, pv.id) : null
+    const bailiff = ws ? getHoldingBailiffPerson(ws, pv.holdingIds[0] ?? ('' as HoldingId)) : null
     return {
       kind,
       meta,
@@ -372,9 +375,9 @@ function buildEntitySnapshot(
         const o = ws.officeAssignments[oid]
         return o && o.active ? [o] : []
       })
-      const bailiffIds = ws.provinceOfficeIndex.byHolderPerson[personId] ?? []
+      const bailiffIds = ws.holdingOfficeIndex.byHolderPerson[personId] ?? []
       const bailiffs = bailiffIds.flatMap((aid) => {
-        const a = ws.provinceOfficeAssignments[aid]
+        const a = ws.holdingOfficeAssignments[aid]
         return a && a.active ? [a] : []
       })
       const polityOfficesLocal = offices
@@ -408,9 +411,9 @@ function buildEntitySnapshot(
       }
       if (bailiffs.length > 0) {
         const a = bailiffs[0]!
-        const provName = ws.provinces[a.provinceId]?.name ?? a.provinceId
+        const holdingName = ws.holdings[a.holdingId]?.name ?? a.holdingId
         return {
-          label: `代官 (${provName})`,
+          label: `代官 (${holdingName})`,
           extraCount: total - 1,
           isUnemployed: false,
         }
@@ -835,9 +838,11 @@ function PolityLandContracts({
       const idx = chain.findIndex((cc) => cc.id === c.id)
       let estimatedRevenue = 0
       if (province && idx >= 0) {
+        const polityControl = worldState
+          ? getProvincePolityControlFromHoldings(worldState, c.provinceId)
+          : 0
         const grossTax =
-          getProvinceProduction(worldState, defaultConfig, c.provinceId) *
-          (province.polityControl / 100)
+          getProvinceProduction(worldState, defaultConfig, c.provinceId) * (polityControl / 100)
         let remaining = grossTax
         for (let i = chain.length - 1; i >= 0; i--) {
           const seg = chain[i]
@@ -1496,6 +1501,7 @@ export function PersonDetail({
     currentWeekOfYear: 0,
     absoluteWeek: 0,
     provinces: {},
+    holdings: {},
     states: {},
     polities: {},
     houses: {},
@@ -1505,12 +1511,12 @@ export function PersonDetail({
     organizationShares: {},
     officeAssignments: {},
     landContracts: {},
-    provinceOfficeAssignments: {},
+    holdingOfficeAssignments: {},
+    holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
     shareIndex: { byOrganization: {}, byHolder: {} },
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+    holdingTerminalPolityCache: {},
     polityIndex: { byOwnerHouse: {} },
     factions: {},
     factionMemberships: {},
@@ -1518,7 +1524,7 @@ export function PersonDetail({
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
     nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
+    nextHoldingOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
     actorIntents: {},
@@ -1556,9 +1562,9 @@ export function PersonDetail({
   const polityOffices = allOffices.filter((o) => o.organization.kind === 'polity').sort(sortByRole)
   const houseOffices = allOffices.filter((o) => o.organization.kind === 'house').sort(sortByRole)
 
-  const bailiffAssignmentIds = worldState.provinceOfficeIndex.byHolderPerson[person.id] ?? []
+  const bailiffAssignmentIds = worldState.holdingOfficeIndex.byHolderPerson[person.id] ?? []
   const bailiffAssignments = bailiffAssignmentIds.flatMap((aid) => {
-    const a = worldState.provinceOfficeAssignments[aid]
+    const a = worldState.holdingOfficeAssignments[aid]
     return a && a.active ? [a] : []
   })
 
@@ -1705,15 +1711,15 @@ export function PersonDetail({
                 >
                   <span className="text-xs text-gray-500">Bailiff</span>
                   {bailiffAssignments.map((a) => {
-                    const province = worldState.provinces[a.provinceId]
+                    const holding = worldState.holdings[a.holdingId]
                     return (
                       <div key={a.id} className="flex justify-between gap-2">
                         <span className="text-gray-300">代官</span>
                         <button
                           className="text-right text-blue-400 underline underline-offset-2 hover:text-blue-300"
-                          onClick={() => onProvinceClick(a.provinceId)}
+                          onClick={() => onProvinceClick(holding?.provinceId ?? '')}
                         >
-                          {province?.name ?? a.provinceId}
+                          {holding?.name ?? a.holdingId}
                         </button>
                       </div>
                     )
@@ -2014,7 +2020,13 @@ export function ProvinceDetail({
   onPopGroupClick: (id: string) => void
 }) {
   const currentState = session?.currentState
-  const developmentMultiplier = getProvinceDevelopmentMultiplier(province)
+  const holdingDev = currentState
+    ? getProvinceDevelopmentFromHoldings(currentState, province.id)
+    : 0
+  const holdingCtrl = currentState
+    ? getProvincePolityControlFromHoldings(currentState, province.id)
+    : 0
+  const developmentMultiplier = getProvinceDevelopmentMultiplier(holdingDev)
 
   const pops = currentState ? getProvincePops(currentState, province.id) : []
   const carryingCapacity = currentState
@@ -2060,9 +2072,10 @@ export function ProvinceDetail({
     if (!pop) return 0
 
     // v0.16: houseControl 廃止により、polityControl のみ参照する
+    const polityControl = ws ? getProvincePolityControlFromHoldings(ws, province.id) : 0
     let tendency =
       pop.unrest * defaultConfig.provinceRevoltUnrestFactor +
-      (100 - province.polityControl) * defaultConfig.provinceRevoltLowCountryControlFactor -
+      (100 - polityControl) * defaultConfig.provinceRevoltLowCountryControlFactor -
       getPolityStability(ws, defaultConfig, polityId) *
         defaultConfig.provinceRevoltStabilitySuppressionFactor
 
@@ -2153,7 +2166,7 @@ export function ProvinceDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">Development:</span>
           <span>
-            {formatScore(province.development)} {getDevelopmentLabel(province.development)}
+            {formatScore(holdingDev)} {getDevelopmentLabel(holdingDev)}
           </span>
         </div>
         <div className="flex justify-between">
@@ -2162,7 +2175,7 @@ export function ProvinceDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Polity Control:</span>
-          <span>{formatPower(province.polityControl)}</span>
+          <span>{formatPower(holdingCtrl)}</span>
         </div>
       </div>
 
@@ -2205,7 +2218,10 @@ export function ProvinceDetail({
             <div className="mt-1 flex justify-between">
               <span className="text-gray-400">Bailiff:</span>
               {(() => {
-                const bailiff = getBailiffPerson(currentState, province.id)
+                const bailiff = getHoldingBailiffPerson(
+                  currentState,
+                  province.holdingIds[0] ?? ('' as HoldingId),
+                )
                 if (!bailiff) return <span className="text-gray-500">vacant</span>
                 if (bailiff.kind === 'placeholder') {
                   return <span className="text-gray-500 italic">placeholder</span>
@@ -2390,11 +2406,13 @@ export function FactionDetail({
       const o = ws.officeAssignments[oid]
       return o && o.active ? [o] : []
     })
-    const bailiffIds = ws.provinceOfficeIndex.byHolderPerson[personId] ?? []
-    const bailiffs = bailiffIds.flatMap((aid) => {
-      const a = ws.provinceOfficeAssignments[aid]
-      return a && a.active ? [a] : []
-    })
+    const bailiffIds = ws.holdingOfficeIndex.byHolderPerson[personId] ?? []
+    const bailiffs = bailiffIds.flatMap(
+      (aid: import('@sim/types/ids').HoldingOfficeAssignmentId) => {
+        const a = ws.holdingOfficeAssignments[aid]
+        return a && a.active ? [a] : []
+      },
+    )
     const polityOfficesLocal = offices
       .filter((o) => o.organization.kind === 'polity')
       .sort((a, b) => ROSTER_ROLE_ORDER.indexOf(a.role) - ROSTER_ROLE_ORDER.indexOf(b.role))
@@ -2426,9 +2444,9 @@ export function FactionDetail({
     }
     if (bailiffs.length > 0) {
       const a = bailiffs[0]!
-      const provName = ws.provinces[a.provinceId]?.name ?? a.provinceId
+      const holdingName = ws.holdings[a.holdingId]?.name ?? a.holdingId
       return {
-        label: `代官 (${provName})`,
+        label: `代官 (${holdingName})`,
         extraCount: total - 1,
         isUnemployed: false,
       }

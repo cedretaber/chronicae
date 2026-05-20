@@ -130,6 +130,7 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
       houseIds: collectHouseIds(ec.state, [faction.leaderPersonId, candidateId]),
       polityIds: [],
       provinceIds: [],
+      holdingIds: [],
       summary: `${candidate.name} joined ${faction.name}.`,
       reasons: [],
       effects: [],

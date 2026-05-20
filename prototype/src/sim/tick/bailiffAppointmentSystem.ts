@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
-import type { ProvinceId, PolityId, PersonId } from '../types/ids'
+import type { HoldingId, PolityId, PersonId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -16,9 +16,9 @@ import {
   getFactionalCandidateScore,
 } from '../selectors/factionSelectors'
 import {
-  vacateBailiff,
-  appointBailiff,
-  installPlaceholderBailiff,
+  vacateHoldingBailiff,
+  appointHoldingBailiff,
+  installHoldingPlaceholderBailiff,
 } from '../mutations/provinceOfficeMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
 
@@ -29,7 +29,7 @@ import { defaultLandContractConfig } from '../config/landContractConfig'
 const BAILIFF_ROLE_ALIAS: OfficeRole = 'advisor'
 
 // v0.16 §19: BailiffAppointmentSystem
-// 各 terminal Polity ごとに ProvinceOfficeAssignment (bailiff) を走査:
+// 各 terminal Polity ごとに HoldingOfficeAssignment (bailiff) を走査:
 //   - bailiff が placeholder で候補がいる → 通常人物を任命 (BAILIFF_APPOINTED)
 //   - bailiff が死亡 or holder houseId が terminal owner と無関係 → vacate → placeholder install (BAILIFF_VACATED + BAILIFF_PLACEHOLDER_INSTALLED)
 // 候補者選定: terminal Polity の ownerHouse member 優先 (active, adult, alive)。
@@ -48,11 +48,21 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
 
     const terminalProvinceIds = getPolityTerminalProvinceIds(currentCtx.state, polityId)
 
-    // Term-based vacating (v0.17 §15.2): insert before step 1
+    // Collect holdings from terminal provinces
+    const terminalHoldings: { provinceId: ProvinceId; holdingId: HoldingId }[] = []
     for (const provinceId of terminalProvinceIds) {
-      const officeId = currentCtx.state.provinceOfficeIndex.byProvince[provinceId]
+      const province = currentCtx.state.provinces[provinceId]
+      if (!province) continue
+      const holdingId = province.holdingIds[0]
+      if (!holdingId) continue
+      terminalHoldings.push({ provinceId, holdingId })
+    }
+
+    // Term-based vacating (v0.17 §15.2): insert before step 1
+    for (const { provinceId, holdingId } of terminalHoldings) {
+      const officeId = currentCtx.state.holdingOfficeIndex.byHolding[holdingId]
       if (!officeId) continue
-      const office = currentCtx.state.provinceOfficeAssignments[officeId]
+      const office = currentCtx.state.holdingOfficeAssignments[officeId]
       if (!office) continue
       // Skip placeholder bailiffs (they never had a real tenure)
       // v0.17.2: Person.kind ベース判定に統一 (singleton 化に伴い ID prefix check は廃止)
@@ -64,8 +74,8 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       ) {
         currentCtx = emitBailiffVacated(currentCtx, provinceId, office.holderPersonId)
         const beforeVacate = currentCtx.state
-        const afterPlaceholder = installPlaceholderBailiff(beforeVacate, {
-          provinceId,
+        const afterPlaceholder = installHoldingPlaceholderBailiff(beforeVacate, {
+          holdingId,
           appointingPolityId: polityId,
           year: beforeVacate.currentYear,
           week: beforeVacate.absoluteWeek,
@@ -81,10 +91,10 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
     // この check が factional bailiff を毎 6 ヶ月で即解任する事故を引き起こしていた。
     // 死亡 holder のみ vacate する。生存中の holder は (placeholder / normal / 所属 House を問わず)
     // 任期 (step 0) で循環させる方針に切り替える。
-    for (const provinceId of terminalProvinceIds) {
-      const officeId = currentCtx.state.provinceOfficeIndex.byProvince[provinceId]
+    for (const { provinceId, holdingId } of terminalHoldings) {
+      const officeId = currentCtx.state.holdingOfficeIndex.byHolding[holdingId]
       if (!officeId) continue
-      const office = currentCtx.state.provinceOfficeAssignments[officeId]
+      const office = currentCtx.state.holdingOfficeAssignments[officeId]
       if (!office) continue
       const holder = currentCtx.state.persons[office.holderPersonId]
       // 既に Person が消えている / 死亡している場合のみ vacate (placeholder は alive=true なので除外)
@@ -92,8 +102,8 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       if (!needsVacate) continue
       currentCtx = emitBailiffVacated(currentCtx, provinceId, office.holderPersonId)
       const beforeVacate = currentCtx.state
-      const afterPlaceholder = installPlaceholderBailiff(beforeVacate, {
-        provinceId,
+      const afterPlaceholder = installHoldingPlaceholderBailiff(beforeVacate, {
+        holdingId,
         appointingPolityId: polityId,
         year: beforeVacate.currentYear,
         week: beforeVacate.absoluteWeek,
@@ -105,7 +115,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
     // 2) placeholder bailiff の交代:
     //    2a) factional 優先 (派閥 NP >= threshold の active member、Polity 内外問わず候補)
     //    2b) fallback: ownerHouse の free adult member
-    //    どちらの経路でも他 active Office / 他 active ProvinceOffice は持っていないこと
+    //    どちらの経路でも他 active Office / 他 active HoldingOffice は持っていないこと
     const polityRef: OrganizationRef = { kind: 'polity', id: polityId }
 
     const ownerFreeAdults = ownerHouse.memberIds
@@ -117,7 +127,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
           p.age >= defaultLandContractConfig.bailiffMinAge &&
           p.kind !== 'placeholder' &&
           !hasActiveOffice(currentCtx.state, p.id) &&
-          !hasActiveProvinceOffice(currentCtx.state, p.id),
+          !hasActiveHoldingOffice(currentCtx.state, p.id),
       )
       .sort((a, b) => {
         const aScore = a.abilities.numeracy + a.abilities.insight
@@ -136,10 +146,10 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
 
     const bookedThisTick = new Set<string>()
 
-    for (const provinceId of terminalProvinceIds) {
-      const officeId = currentCtx.state.provinceOfficeIndex.byProvince[provinceId]
+    for (const { provinceId, holdingId } of terminalHoldings) {
+      const officeId = currentCtx.state.holdingOfficeIndex.byHolding[holdingId]
       if (!officeId) continue
-      const office = currentCtx.state.provinceOfficeAssignments[officeId]
+      const office = currentCtx.state.holdingOfficeAssignments[officeId]
       if (!office) continue
       if (!isPlaceholderPerson(currentCtx.state, office.holderPersonId)) continue
 
@@ -167,9 +177,9 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       if (!chosenId) continue
 
       bookedThisTick.add(chosenId)
-      const vacatedState = vacateBailiff(currentCtx.state, provinceId)
-      const { state: appointedState } = appointBailiff(vacatedState, {
-        provinceId,
+      const vacatedState = vacateHoldingBailiff(currentCtx.state, holdingId)
+      const { state: appointedState } = appointHoldingBailiff(vacatedState, {
+        holdingId,
         holderPersonId: chosenId,
         appointingPolityId: polityId,
         year: vacatedState.currentYear,
@@ -185,7 +195,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
 
 // v0.17.1 §15.3: bailiff 任命用の factional 候補プール。
 // - Polity に対する NP が factionNominationPowerThreshold 以上の active faction が対象。
-// - 各 faction の active member のうち: alive, adult, normal kind, 他 active Office / ProvinceOffice なし。
+// - 各 faction の active member のうち: alive, adult, normal kind, 他 active Office / HoldingOffice なし。
 // - 同一人物が複数 faction 所属の場合は最大スコアで dedupe。
 // - getFactionalCandidateScore に factionBailiffNominationWeight を掛けて bailiff 用に弱める。
 function collectBailiffFactionalCandidates(
@@ -204,7 +214,7 @@ function collectBailiffFactionalCandidates(
       if (m.kind === 'placeholder') continue
       if (m.age < defaultLandContractConfig.bailiffMinAge) continue
       if (hasActiveOffice(state, mid)) continue
-      if (hasActiveProvinceOffice(state, mid)) continue
+      if (hasActiveHoldingOffice(state, mid)) continue
       const raw = getFactionalCandidateScore(
         state,
         config,
@@ -236,10 +246,10 @@ function hasActiveOffice(state: WorldState, personId: PersonId): boolean {
   return false
 }
 
-function hasActiveProvinceOffice(state: WorldState, personId: PersonId): boolean {
-  const ids = state.provinceOfficeIndex.byHolderPerson[personId] ?? []
+function hasActiveHoldingOffice(state: WorldState, personId: PersonId): boolean {
+  const ids = state.holdingOfficeIndex.byHolderPerson[personId] ?? []
   for (const id of ids) {
-    const a = state.provinceOfficeAssignments[id]
+    const a = state.holdingOfficeAssignments[id]
     if (a && a.active) return true
   }
   return false
@@ -266,6 +276,7 @@ function emitBailiffAppointed(
     houseIds: person?.houseId ? [person.houseId] : [],
     polityIds: [polityId],
     provinceIds: [provinceId],
+    holdingIds: [],
     summary: `${personName} was appointed bailiff of ${provinceName}.`,
     reasons: [],
     effects: [],
@@ -293,6 +304,7 @@ function emitBailiffVacated(
     houseIds: [],
     polityIds: [],
     provinceIds: [provinceId],
+    holdingIds: [],
     summary: `${personName} stepped down as bailiff of ${provinceName}.`,
     reasons: [],
     effects: [],
@@ -318,6 +330,7 @@ function emitBailiffPlaceholderInstalled(
     houseIds: [],
     polityIds: [polityId],
     provinceIds: [provinceId],
+    holdingIds: [],
     summary: `An anonymous placeholder oversees ${provinceName}.`,
     reasons: [],
     effects: [],

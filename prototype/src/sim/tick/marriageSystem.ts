@@ -98,6 +98,7 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
       houseIds: [male.houseId],
       polityIds: malePolityId ? [malePolityId] : [],
       provinceIds: [],
+      holdingIds: [],
       summary: malePerson.name + ' married ' + femalePerson.name,
       description: malePerson.name + ' married ' + femalePerson.name,
       reasons: [],

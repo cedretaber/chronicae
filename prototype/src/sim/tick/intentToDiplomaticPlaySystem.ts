@@ -10,6 +10,7 @@ import {
   getProvinceTerminalContract,
   getProvinceLandContractChain,
   getLandContractGrantor,
+  getProvinceDevelopmentFromHoldings,
 } from '../selectors/landContractSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import type { WorldState } from '../types/world'
@@ -406,6 +407,7 @@ function emitConversionAndStartEvents(
     houseIds: [],
     polityIds,
     provinceIds: [provinceId],
+    holdingIds: [],
     summary: convSummary,
     reasons: [],
     effects: [],
@@ -423,6 +425,7 @@ function emitConversionAndStartEvents(
     houseIds: [],
     polityIds,
     provinceIds: [provinceId],
+    holdingIds: [],
     summary: startSummary,
     reasons: [],
     effects: [],
@@ -469,12 +472,11 @@ function checkLandPurchaseEligibility(
 }
 
 function computeLandPurchasePrice(state: WorldState, provinceId: ProvinceId): number {
-  const province = state.provinces[provinceId]
-  if (!province) return defaultLandContractConfig.purchasePriceBase
+  const development = getProvinceDevelopmentFromHoldings(state, provinceId)
   return Math.max(
     defaultLandContractConfig.purchasePriceBase,
     defaultLandContractConfig.purchasePriceBase +
-      province.development * defaultLandContractConfig.purchasePriceDevelopmentFactor,
+      development * defaultLandContractConfig.purchasePriceDevelopmentFactor,
   )
 }
 

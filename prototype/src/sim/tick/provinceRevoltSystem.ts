@@ -21,6 +21,7 @@ import { getPolityLegitimacy, getPolityStability } from '../selectors/statusSele
 import {
   getProvinceTerminalPolityId,
   getProvinceEffectiveOwnerHouseId,
+  getProvincePolityControlFromHoldings,
 } from '../selectors/landContractSelectors'
 import { createRebelPolity } from '../mutations/worldStructureMutations'
 
@@ -68,10 +69,11 @@ function calcRevoltTendency(
   if (!pop) return 0
 
   // v0.16: houseControl は廃止。lowHouseControl 因子は polityControl で代用 (係数は流用)
+  const polityControl = getProvincePolityControlFromHoldings(state, provinceId)
   let tendency =
     pop.unrest * config.provinceRevoltUnrestFactor +
-    (100 - province.polityControl) * config.provinceRevoltLowHouseControlFactor +
-    (100 - province.polityControl) * config.provinceRevoltLowCountryControlFactor -
+    (100 - polityControl) * config.provinceRevoltLowHouseControlFactor +
+    (100 - polityControl) * config.provinceRevoltLowCountryControlFactor -
     getPolityStability(state, config, terminalPolityId) *
       config.provinceRevoltStabilitySuppressionFactor
 
@@ -337,6 +339,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
     houseIds: [ownerHouseId],
     polityIds: [rebelPolityId, terminalPolityId],
     provinceIds: [provinceId],
+    holdingIds: [],
     summary: `A ${rebelClass} revolt has broken out in ${province.name} — negotiations begin.`,
     reasons: [],
     effects: [],

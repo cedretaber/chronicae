@@ -39,7 +39,6 @@ export function newPopGroupId(value: string): PopGroupId {
 export type OrganizationShareId = Branded<string, 'OrganizationShareId'>
 export type OfficeAssignmentId = Branded<string, 'OfficeAssignmentId'>
 export type LandContractId = Branded<string, 'LandContractId'>
-export type ProvinceOfficeAssignmentId = Branded<string, 'ProvinceOfficeAssignmentId'>
 
 export function createOrganizationShareId(n: number): OrganizationShareId {
   return ('os-' + n) as OrganizationShareId
@@ -51,10 +50,6 @@ export function createOfficeAssignmentId(n: number): OfficeAssignmentId {
 
 export function createLandContractId(n: number): LandContractId {
   return ('lc-' + n) as LandContractId
-}
-
-export function createProvinceOfficeAssignmentId(n: number): ProvinceOfficeAssignmentId {
-  return ('po-' + n) as ProvinceOfficeAssignmentId
 }
 
 export type FactionId = Branded<string, 'FactionId'>
@@ -83,4 +78,16 @@ export type StateRegionId = Branded<string, 'StateRegionId'>
 
 export function createStateRegionId(n: number): StateRegionId {
   return ('sr-' + n) as StateRegionId
+}
+
+export type HoldingId = Branded<string, 'HoldingId'>
+
+export function createHoldingId(n: number): HoldingId {
+  return ('hl-' + n) as HoldingId
+}
+
+export type HoldingOfficeAssignmentId = Branded<string, 'HoldingOfficeAssignmentId'>
+
+export function createHoldingOfficeAssignmentId(n: number): HoldingOfficeAssignmentId {
+  return ('ho-' + n) as HoldingOfficeAssignmentId
 }

@@ -30,7 +30,7 @@ import {
   getGrantorRank,
 } from '../selectors/landContractSelectors'
 import { transferLandContractGrantee } from './landContractMutations'
-import { installPlaceholderBailiff } from './provinceOfficeMutations'
+import { installHoldingPlaceholderBailiff } from './provinceOfficeMutations'
 import { createOrganizationShare, removeOrganizationShare } from './shareMutations'
 import type { PolityRank } from '../types/polity'
 import { getHousePolitySharePercent } from '../selectors/shareSelectors'
@@ -206,6 +206,7 @@ export function splitHouse(
     houseIds: [input.houseId, newHouseId],
     polityIds: [housePolityId ?? ('' as PolityId)],
     provinceIds: splitProvinces,
+    holdingIds: [],
     summary: `${splitterPerson.name} has split from ${house.name} to form a new house.`,
     reasons: [],
     effects: [],
@@ -232,6 +233,7 @@ export function splitHouse(
     houseIds: [input.houseId],
     polityIds: [housePolityId ?? ('' as PolityId)],
     provinceIds: [],
+    holdingIds: [],
     summary: `A succession crisis has erupted due to the house split!`,
     reasons: [],
     effects: [],
@@ -426,6 +428,7 @@ function handleNormalHouseExtinction(
         houseIds: [houseId, ANONYMOUS_HOUSE_ID],
         polityIds: [],
         provinceIds: [],
+        holdingIds: [],
         summary: `The remnants of ${house.name} dispersed into obscurity.`,
         reasons: [],
         effects: [],
@@ -444,6 +447,7 @@ function handleNormalHouseExtinction(
       houseIds: [houseId],
       polityIds: eventPolityIds,
       provinceIds: [],
+      holdingIds: [],
       summary: `${house.name} has become extinct with no surviving house to inherit its legacy.`,
       reasons: [],
       effects: [],
@@ -514,6 +518,7 @@ function handleNormalHouseExtinction(
       houseIds: [houseId, receiverHouseId],
       polityIds: [polityId],
       provinceIds: [],
+      holdingIds: [],
       summary: `${polity.name}'s ruling house changed from ${house.name} to ${receiverHouse?.name ?? receiverHouseId} after the extinction.`,
       reasons: [],
       effects: [],
@@ -552,6 +557,7 @@ function handleNormalHouseExtinction(
     houseIds: [houseId, receiverHouseId],
     polityIds: eventPolityIds,
     provinceIds: sortedProvinceIds,
+    holdingIds: [],
     summary:
       inheritedPolityIds.length > 0
         ? `${house.name} has become extinct; its realm is inherited by another house.`
@@ -690,10 +696,16 @@ export function createRebelPolity(
     kind: 'commonwealth',
   }
 
-  // v0.16: Province の polityControl のみリセット。所有変更は LandContract chain で表現する。
-  const updatedProvince: typeof province = {
-    ...province,
-    polityControl: config.provinceRevoltNewCountryControl,
+  // v0.16: Holding の polityControl のみリセット。所有変更は LandContract chain で表現する。
+  const updatedHoldings = { ...ctx.state.holdings }
+  for (const holdingId of province.holdingIds) {
+    const holding = updatedHoldings[holdingId]
+    if (holding) {
+      updatedHoldings[holdingId] = {
+        ...holding,
+        polityControl: config.provinceRevoltNewCountryControl,
+      }
+    }
   }
 
   // v0.16: 旧 ownerHouse の Province 帰属は LandContract chain 経由で動的に決まるため House 自体は触らない。
@@ -703,7 +715,7 @@ export function createRebelPolity(
   // rebel Person は addPersonToAnonymousHouse 経由で AnonymousHouse.memberIds に追加する。
   let newState: WorldState = {
     ...ctx.state,
-    provinces: { ...ctx.state.provinces, [provinceId]: updatedProvince },
+    holdings: updatedHoldings,
     polities: {
       ...ctx.state.polities,
       [newPolityId]: newPolityObj,
@@ -731,13 +743,16 @@ export function createRebelPolity(
     newState = transferLandContractGrantee(newState, terminal.id, newPolityId)
   }
 
-  // v0.16 §17: 当該 Province の bailiff を新 Polity 配下の placeholder に installPlaceholderBailiff
-  newState = installPlaceholderBailiff(newState, {
-    provinceId,
-    appointingPolityId: newPolityId,
-    year: newState.currentYear,
-    week: newState.currentWeekOfYear,
-  })
+  // v0.16 §17: 当該 Province の bailiff を新 Polity 配下の placeholder に installHoldingPlaceholderBailiff
+  const primaryHoldingId = province.holdingIds[0]
+  if (primaryHoldingId) {
+    newState = installHoldingPlaceholderBailiff(newState, {
+      holdingId: primaryHoldingId,
+      appointingPolityId: newPolityId,
+      year: newState.currentYear,
+      week: newState.currentWeekOfYear,
+    })
+  }
 
   const oldOwnerIsRuler =
     oldOwnerHouseId !== undefined && getPolityLeaderHouse(state, oldPolityId) === oldOwnerHouseId
@@ -797,6 +812,7 @@ export function createRebelPolity(
           houseIds: [oldOwnerHouseId],
           polityIds: [oldPolityId],
           provinceIds: [provinceId],
+          holdingIds: [],
           summary: `${oldOwnerHouse.name} has fallen from power after losing all lands.`,
           reasons: [],
           effects: [],
@@ -824,6 +840,7 @@ export function createRebelPolity(
     houseIds: [],
     polityIds: [newPolityId, oldPolityId],
     provinceIds: [provinceId],
+    holdingIds: [],
     summary: `${newPolityObj.name} has been founded by ${newLeader.name} through revolt in ${province.name}!`,
     reasons: [],
     effects: [],
@@ -925,12 +942,16 @@ export function disbandRebelPolity(
   //    (rebel polity が任命していた placeholder bailiff を vacate し、restore polity の
   //    placeholder bailiff を再 install。次 tick の bailiffAppointmentSystem が通常ルールで
   //    本任命する。IntegrityCheck §25 #23 違反を avoid するための immediate placeholder)
-  state = installPlaceholderBailiff(state, {
-    provinceId: input.provinceId,
-    appointingPolityId: input.restoreToPolityId,
-    year: state.currentYear,
-    week: state.currentWeekOfYear,
-  })
+  const restoreProvince = state.provinces[input.provinceId]
+  const restoreHoldingId = restoreProvince?.holdingIds[0]
+  if (restoreHoldingId) {
+    state = installHoldingPlaceholderBailiff(state, {
+      holdingId: restoreHoldingId,
+      appointingPolityId: input.restoreToPolityId,
+      year: state.currentYear,
+      week: state.currentWeekOfYear,
+    })
+  }
 
   // 5. rebel leader を死亡処理 (markPersonDead 内部で revokeOfficesByHolder 連鎖)
   //    estateSettlementSystem は tick 早期に走っているため、tick 末 IntegrityCheck #11
@@ -985,6 +1006,7 @@ export function disbandRebelPolity(
     houseIds: [],
     polityIds: [input.rebelPolityId, input.restoreToPolityId],
     provinceIds: [input.provinceId],
+    holdingIds: [],
     summary,
     reasons: [],
     effects: [],

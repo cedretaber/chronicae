@@ -43,8 +43,6 @@ function buildWorld(opts: {
 
   s = withProvince(s, provinceId, {
     popGroupIds: [popId],
-    development: opts.development,
-    polityControl: opts.polityControl,
   })
   s = withPolity(s, polityId, {
     treasury: opts.treasury,

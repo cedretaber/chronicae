@@ -25,7 +25,7 @@ import {
   withPolity,
   withProvince,
 } from '../testFixtures'
-import { appointBailiff, vacateBailiff } from '../mutations/provinceOfficeMutations'
+import { appointHoldingBailiff, vacateHoldingBailiff } from '../mutations/provinceOfficeMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -57,12 +57,11 @@ function makeBaseState(): {
   // houseVassal は別 House として残すが、polity1 の Office 候補としては寄与しない。
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-  state = withProvince(state, provinceRulerId, { name: 'Ruler Province', development: 10 })
+  state = withProvince(state, provinceRulerId, { name: 'Ruler Province' })
   state = withProvince(state, provinceVassalId, {
     name: 'Vassal Province',
     x: 1,
     y: 1,
-    development: 10,
   })
   state = withHouse(state, houseRulerId, {
     name: 'Ruler House',
@@ -358,13 +357,13 @@ describe('runAppointmentSystem', () => {
         },
       },
       landContracts: {},
-      provinceOfficeAssignments: {},
-      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-      provinceTerminalPolityCache: {},
-      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      holdingOfficeAssignments: {},
+      holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+      holdingTerminalPolityCache: {},
       polityIndex: { byOwnerHouse: {} },
       nextLandContractId: 0,
-      nextProvinceOfficeAssignmentId: 0,
+      nextHoldingOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
       actorIntents: {},
@@ -422,13 +421,13 @@ describe('runAppointmentSystem', () => {
         },
       },
       landContracts: {},
-      provinceOfficeAssignments: {},
-      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-      provinceTerminalPolityCache: {},
-      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      holdingOfficeAssignments: {},
+      holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+      holdingTerminalPolityCache: {},
       polityIndex: { byOwnerHouse: {} },
       nextLandContractId: 0,
-      nextProvinceOfficeAssignmentId: 0,
+      nextHoldingOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
       actorIntents: {},
@@ -484,13 +483,13 @@ describe('runAppointmentSystem', () => {
         },
       },
       landContracts: {},
-      provinceOfficeAssignments: {},
-      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-      provinceTerminalPolityCache: {},
-      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      holdingOfficeAssignments: {},
+      holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
+      landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+      holdingTerminalPolityCache: {},
       polityIndex: { byOwnerHouse: {} },
       nextLandContractId: 0,
-      nextProvinceOfficeAssignmentId: 0,
+      nextHoldingOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
       actorIntents: {},
@@ -524,7 +523,7 @@ describe('runAppointmentSystem', () => {
 
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, createProvinceId('p', 0), { name: 'P0', development: 10 })
+    state = withProvince(state, createProvinceId('p', 0), { name: 'P0' })
     state = withHouse(state, houseId, {
       name: 'Test House',
       memberIds: [rulerId, factionMemberId, leaderId],
@@ -632,7 +631,7 @@ describe('runAppointmentSystem', () => {
 
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, createProvinceId('p', 0), { name: 'P0', development: 10 })
+    state = withProvince(state, createProvinceId('p', 0), { name: 'P0' })
     state = withHouse(state, houseId, {
       name: 'Test House',
       memberIds: [rulerId, factionMemberId, leaderId],
@@ -745,7 +744,7 @@ describe('runAppointmentSystem', () => {
 
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, provinceId, { name: 'P0', development: 10 })
+    state = withProvince(state, provinceId, { name: 'P0' })
     state = withHouse(state, houseId, {
       name: 'Test House',
       memberIds: [rulerId, candidateId],
@@ -827,7 +826,7 @@ describe('runAppointmentSystem', () => {
 
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, provinceId, { name: 'P0', development: 10 })
+    state = withProvince(state, provinceId, { name: 'P0' })
     state = withHouse(state, houseId, {
       name: 'Test House',
       memberIds: [rulerId],
@@ -907,9 +906,10 @@ describe('runAppointmentSystem', () => {
     // Install personVassalId (the high-ability candidate) as active Bailiff
     // of one of the Provinces. AppointmentSystem must skip them.
     const provinceId = createProvinceId('p', 1)
-    let withBailiff = vacateBailiff(state, provinceId)
-    withBailiff = appointBailiff(withBailiff, {
-      provinceId,
+    const holdingId = state.provinces[provinceId]!.holdingIds[0]!
+    let withBailiff = vacateHoldingBailiff(state, holdingId)
+    withBailiff = appointHoldingBailiff(withBailiff, {
+      holdingId,
       holderPersonId: personVassalId,
       appointingPolityId: polityId,
       year: withBailiff.currentYear,

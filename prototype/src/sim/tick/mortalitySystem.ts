@@ -48,6 +48,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
         houseIds: [person.houseId],
         polityIds: personPrimaryPolityId ? [personPrimaryPolityId] : [],
         provinceIds: [],
+        holdingIds: [],
         summary: person.name + ' has died at age ' + person.age + '.',
         reasons: [],
         effects: [],

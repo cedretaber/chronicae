@@ -1,11 +1,11 @@
 import type { WorldState } from '../types/world'
-import type { ProvinceId, PolityId, PersonId, ProvinceOfficeAssignmentId } from '../types/ids'
-import type { ProvinceOfficeAssignment } from '../types/landContract'
+import type { HoldingId, PolityId, PersonId, HoldingOfficeAssignmentId } from '../types/ids'
+import type { HoldingOfficeAssignment } from '../types/landContract'
 import { PLACEHOLDER_PERSON_ID } from '../types/landContract'
-import { createProvinceOfficeAssignmentId } from '../types/ids'
+import { createHoldingOfficeAssignmentId } from '../types/ids'
 
-type AppointBailiffParams = {
-  provinceId: ProvinceId
+type AppointHoldingBailiffParams = {
+  holdingId: HoldingId
   holderPersonId: PersonId
   appointingPolityId: PolityId
   year: number
@@ -14,42 +14,42 @@ type AppointBailiffParams = {
 
 type AppointResult = {
   state: WorldState
-  assignmentId: ProvinceOfficeAssignmentId
+  assignmentId: HoldingOfficeAssignmentId
 }
 
 function pushHolderSlot(
-  index: WorldState['provinceOfficeIndex'],
+  index: WorldState['holdingOfficeIndex'],
   personId: PersonId,
-  assignmentId: ProvinceOfficeAssignmentId,
-): Record<PersonId, ProvinceOfficeAssignmentId[]> {
+  assignmentId: HoldingOfficeAssignmentId,
+): Record<PersonId, HoldingOfficeAssignmentId[]> {
   const slot = index.byHolderPerson[personId] ?? []
   return { ...index.byHolderPerson, [personId]: [...slot, assignmentId] }
 }
 
 function pushPolitySlot(
-  index: WorldState['provinceOfficeIndex'],
+  index: WorldState['holdingOfficeIndex'],
   polityId: PolityId,
-  assignmentId: ProvinceOfficeAssignmentId,
-): Record<PolityId, ProvinceOfficeAssignmentId[]> {
+  assignmentId: HoldingOfficeAssignmentId,
+): Record<PolityId, HoldingOfficeAssignmentId[]> {
   const slot = index.byAppointingPolity[polityId] ?? []
   return { ...index.byAppointingPolity, [polityId]: [...slot, assignmentId] }
 }
 
 function removeFromHolderSlot(
-  index: WorldState['provinceOfficeIndex'],
+  index: WorldState['holdingOfficeIndex'],
   personId: PersonId,
-  assignmentId: ProvinceOfficeAssignmentId,
-): Record<PersonId, ProvinceOfficeAssignmentId[]> {
+  assignmentId: HoldingOfficeAssignmentId,
+): Record<PersonId, HoldingOfficeAssignmentId[]> {
   const slot = index.byHolderPerson[personId] ?? []
   const next = slot.filter((id) => id !== assignmentId)
   return { ...index.byHolderPerson, [personId]: next }
 }
 
 function removeFromPolitySlot(
-  index: WorldState['provinceOfficeIndex'],
+  index: WorldState['holdingOfficeIndex'],
   polityId: PolityId,
-  assignmentId: ProvinceOfficeAssignmentId,
-): Record<PolityId, ProvinceOfficeAssignmentId[]> {
+  assignmentId: HoldingOfficeAssignmentId,
+): Record<PolityId, HoldingOfficeAssignmentId[]> {
   const slot = index.byAppointingPolity[polityId] ?? []
   const next = slot.filter((id) => id !== assignmentId)
   return { ...index.byAppointingPolity, [polityId]: next }
@@ -57,13 +57,16 @@ function removeFromPolitySlot(
 
 // v0.17.2 B2: placeholder holder は byHolderPerson に登録しない。
 // 「あるPerson がどの Bailiff を持っているか」という索引は normal Person 向けの兼任チェック
-// 用途であり、placeholder singleton に対しては意味を持たない (全 Province の空席を 1 人で
+// 用途であり、placeholder singleton に対しては意味を持たない (全 Holding の空席を 1 人で
 // 占有することになり、ノイズになるだけ)。判定は Person.kind === 'placeholder' で行う。
-export function appointBailiff(state: WorldState, params: AppointBailiffParams): AppointResult {
-  const id = createProvinceOfficeAssignmentId(state.nextProvinceOfficeAssignmentId)
-  const assignment: ProvinceOfficeAssignment = {
+export function appointHoldingBailiff(
+  state: WorldState,
+  params: AppointHoldingBailiffParams,
+): AppointResult {
+  const id = createHoldingOfficeAssignmentId(state.nextHoldingOfficeAssignmentId)
+  const assignment: HoldingOfficeAssignment = {
     id,
-    provinceId: params.provinceId,
+    holdingId: params.holdingId,
     role: 'bailiff',
     holderPersonId: params.holderPersonId,
     appointingPolityId: params.appointingPolityId,
@@ -77,39 +80,35 @@ export function appointBailiff(state: WorldState, params: AppointBailiffParams):
   return {
     state: {
       ...state,
-      provinceOfficeAssignments: {
-        ...state.provinceOfficeAssignments,
+      holdingOfficeAssignments: {
+        ...state.holdingOfficeAssignments,
         [id]: assignment,
       },
-      provinceOfficeIndex: {
-        byProvince: { ...state.provinceOfficeIndex.byProvince, [params.provinceId]: id },
+      holdingOfficeIndex: {
+        byHolding: { ...state.holdingOfficeIndex.byHolding, [params.holdingId]: id },
         byHolderPerson: isPlaceholder
-          ? state.provinceOfficeIndex.byHolderPerson
-          : pushHolderSlot(state.provinceOfficeIndex, params.holderPersonId, id),
-        byAppointingPolity: pushPolitySlot(
-          state.provinceOfficeIndex,
-          params.appointingPolityId,
-          id,
-        ),
+          ? state.holdingOfficeIndex.byHolderPerson
+          : pushHolderSlot(state.holdingOfficeIndex, params.holderPersonId, id),
+        byAppointingPolity: pushPolitySlot(state.holdingOfficeIndex, params.appointingPolityId, id),
       },
-      nextProvinceOfficeAssignmentId: state.nextProvinceOfficeAssignmentId + 1,
+      nextHoldingOfficeAssignmentId: state.nextHoldingOfficeAssignmentId + 1,
     },
     assignmentId: id,
   }
 }
 
-// v0.17.2 §19.2: 当該 Province の bailiff を singleton placeholder Person に任命する。
+// v0.17.2 §19.2: 当該 Holding の bailiff を singleton placeholder Person に任命する。
 // 既存 bailiff があれば事前に vacate する。
 // 旧版は呼び出しごとに新規 placeholder Person を生成していたため AnonymousHouse.memberIds が
 // 累積していた (seed 1 で 6266 体)。v0.17.2 以降は PLACEHOLDER_PERSON_ID の Person 1 体を
-// 全 Province の空席で共有する。worldgen で生成済みである前提。
-export function installPlaceholderBailiff(
+// 全 Holding の空席で共有する。worldgen で生成済みである前提。
+export function installHoldingPlaceholderBailiff(
   state: WorldState,
-  params: { provinceId: ProvinceId; appointingPolityId: PolityId; year: number; week: number },
+  params: { holdingId: HoldingId; appointingPolityId: PolityId; year: number; week: number },
 ): WorldState {
-  const working = vacateBailiff(state, params.provinceId)
-  const { state: afterAppoint } = appointBailiff(working, {
-    provinceId: params.provinceId,
+  const working = vacateHoldingBailiff(state, params.holdingId)
+  const { state: afterAppoint } = appointHoldingBailiff(working, {
+    holdingId: params.holdingId,
     holderPersonId: PLACEHOLDER_PERSON_ID,
     appointingPolityId: params.appointingPolityId,
     year: params.year,
@@ -118,27 +117,27 @@ export function installPlaceholderBailiff(
   return afterAppoint
 }
 
-export function vacateBailiff(state: WorldState, provinceId: ProvinceId): WorldState {
-  const existingId = state.provinceOfficeIndex.byProvince[provinceId]
+export function vacateHoldingBailiff(state: WorldState, holdingId: HoldingId): WorldState {
+  const existingId = state.holdingOfficeIndex.byHolding[holdingId]
   if (!existingId) return state
-  const existing = state.provinceOfficeAssignments[existingId]
+  const existing = state.holdingOfficeAssignments[existingId]
   if (!existing) return state
-  const nextAssignments = { ...state.provinceOfficeAssignments }
+  const nextAssignments = { ...state.holdingOfficeAssignments }
   delete nextAssignments[existingId]
-  const nextByProvince = { ...state.provinceOfficeIndex.byProvince }
-  delete nextByProvince[provinceId]
+  const nextByHolding = { ...state.holdingOfficeIndex.byHolding }
+  delete nextByHolding[holdingId]
   return {
     ...state,
-    provinceOfficeAssignments: nextAssignments,
-    provinceOfficeIndex: {
-      byProvince: nextByProvince,
+    holdingOfficeAssignments: nextAssignments,
+    holdingOfficeIndex: {
+      byHolding: nextByHolding,
       byHolderPerson: removeFromHolderSlot(
-        state.provinceOfficeIndex,
+        state.holdingOfficeIndex,
         existing.holderPersonId,
         existingId,
       ),
       byAppointingPolity: removeFromPolitySlot(
-        state.provinceOfficeIndex,
+        state.holdingOfficeIndex,
         existing.appointingPolityId,
         existingId,
       ),

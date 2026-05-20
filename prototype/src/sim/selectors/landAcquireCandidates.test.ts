@@ -27,12 +27,10 @@ function buildWorld(opts: {
   s = withProvince(s, provinceAId, {
     neighbors: [provinceBId],
     popGroupIds: [],
-    development: 10,
   })
   s = withProvince(s, provinceBId, {
     neighbors: [provinceAId],
     popGroupIds: [],
-    development: 25,
   })
   s = withHouse(s, acquirerHouseId, { seatProvinceId: provinceAId })
   s = withHouse(s, targetHouseId, { seatProvinceId: provinceBId })

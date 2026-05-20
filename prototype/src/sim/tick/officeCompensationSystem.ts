@@ -108,6 +108,7 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
         houseIds: [],
         polityIds: org.kind === 'polity' ? [org.id] : [],
         provinceIds: [],
+        holdingIds: [],
         summary: `Salary ${paid > 0 ? 'partially ' : ''}unpaid for office holder.`,
         reasons: [],
         effects: [],

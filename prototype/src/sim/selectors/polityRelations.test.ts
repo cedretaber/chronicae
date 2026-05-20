@@ -287,12 +287,22 @@ describe('polityRelations - getHousePrimaryPolityId', () => {
     const p2 = createProvinceId('pr', 2)
     let state = makeEmptyV016State()
     state = withHouse(state, hid, { seatProvinceId: p1 })
-    state = withProvince(state, p1, { development: 1 })
-    state = withProvince(state, p2, { development: 5 })
+    state = withProvince(state, p1)
+    state = withProvince(state, p2)
     state = withPolity(state, c1, { ownerHouseId: hid })
     state = withPolity(state, c2, { ownerHouseId: hid })
     state = bindProvinceToHouseViaPolity(state, p1, c1, hid)
     state = bindProvinceToHouseViaPolity(state, p2, c2, hid)
+    // Set development on Holdings (moved from Province)
+    for (const holding of Object.values(state.holdings)) {
+      if (holding.provinceId === p1) {
+        holding.development = 1
+      }
+      if (holding.provinceId === p2) {
+        holding.development = 5
+      }
+    }
+    state = { ...state, holdings: { ...state.holdings } }
 
     // seat (p1) belongs to c1 — rule 1 takes precedence over development sum.
     expect(getHousePrimaryPolityId(state, hid)).toBe(c1)
@@ -348,13 +358,23 @@ describe('polityRelations - getHouseSeatProvinceInPolity', () => {
     let state = makeEmptyV016State()
     state = withHouse(state, hid, { seatProvinceId: seat })
     state = withProvince(state, seat)
-    state = withProvince(state, p2, { development: 3 })
-    state = withProvince(state, p3, { development: 7 })
+    state = withProvince(state, p2)
+    state = withProvince(state, p3)
     state = withPolity(state, c1, { ownerHouseId: hid })
     state = withPolity(state, c2, { ownerHouseId: hid })
     state = bindProvinceToHouseViaPolity(state, seat, c1, hid)
     state = bindProvinceToHouseViaPolity(state, p2, c2, hid)
     state = bindProvinceToHouseViaPolity(state, p3, c2, hid)
+    // Set development on Holdings (moved from Province)
+    for (const holding of Object.values(state.holdings)) {
+      if (holding.provinceId === p2) {
+        holding.development = 3
+      }
+      if (holding.provinceId === p3) {
+        holding.development = 7
+      }
+    }
+    state = { ...state, holdings: { ...state.holdings } }
 
     expect(getHouseSeatProvinceInPolity(state, hid, c2)).toBe(p3)
   })

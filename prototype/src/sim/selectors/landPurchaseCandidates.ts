@@ -6,6 +6,7 @@ import {
   getProvinceTerminalPolityId,
   getProvinceTerminalContract,
   getLandContractGrantor,
+  getProvinceDevelopmentFromHoldings,
 } from './landContractSelectors'
 
 // v0.18 Stage C §11.1 / §15
@@ -79,7 +80,8 @@ export function findLandPurchaseIntentCandidates(state: WorldState): LandPurchas
         const price = Math.max(
           config.purchasePriceBase,
           config.purchasePriceBase +
-            sellerProvince.development * config.purchasePriceDevelopmentFactor,
+            getProvinceDevelopmentFromHoldings(state, sellerProvinceId) *
+              config.purchasePriceDevelopmentFactor,
         )
         if (buyer.treasury < price) continue
 

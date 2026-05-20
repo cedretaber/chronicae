@@ -106,7 +106,8 @@ function makeWorldState(
     development: 50,
     polityControl: 50,
     houseControl: 50,
-  } as Province
+    holdingIds: [],
+  } as unknown as Province
 
   const state: WorldState = {
     currentYear: 1444,
@@ -115,6 +116,7 @@ function makeWorldState(
     provinces: {
       [provinceId]: province,
     },
+    holdings: {},
     states: {},
     polities: {
       [polity1Id]: {
@@ -154,16 +156,16 @@ function makeWorldState(
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
     landContracts: {},
-    provinceOfficeAssignments: {},
-    landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-    provinceTerminalPolityCache: {},
-    provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    holdingOfficeAssignments: {},
+    holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
+    landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+    holdingTerminalPolityCache: {},
     polityIndex: { byOwnerHouse: {} },
     factions: {},
     factionMemberships: {},
     factionIndex: { byLeader: {}, byMember: {} },
     nextLandContractId: 0,
-    nextProvinceOfficeAssignmentId: 0,
+    nextHoldingOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
     actorIntents: {},

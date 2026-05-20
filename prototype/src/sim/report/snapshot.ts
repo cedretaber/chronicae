@@ -1,5 +1,5 @@
 import type { WorldState } from '../types/world'
-import type { PolityId, ProvinceId } from '../types/ids'
+import type { PolityId, HoldingId } from '../types/ids'
 import type { ActivitySnapshot, ActivitySnapshotFaction, ActivitySnapshotPolity } from './types'
 import { getPolityTerminalProvinceIds } from '../selectors/landContractSelectors'
 
@@ -65,14 +65,14 @@ export function takeSnapshot(state: WorldState, year: number): ActivitySnapshot 
   let bailiffNormal = 0
   let bailiffPlaceholder = 0
   let bailiffVacant = 0
-  for (const provinceIdStr of Object.keys(state.provinces)) {
-    const provinceId = provinceIdStr as ProvinceId
-    const assignmentId = state.provinceOfficeIndex.byProvince[provinceId]
+  for (const holdingIdStr of Object.keys(state.holdings)) {
+    const holdingId = holdingIdStr as HoldingId
+    const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]
     if (!assignmentId) {
       bailiffVacant++
       continue
     }
-    const a = state.provinceOfficeAssignments[assignmentId]
+    const a = state.holdingOfficeAssignments[assignmentId]
     if (!a || !a.active) {
       bailiffVacant++
       continue

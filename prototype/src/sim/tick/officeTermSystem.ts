@@ -36,6 +36,7 @@ export function runOfficeTermSystem(ctx: TickContext): TickContext {
       houseIds,
       polityIds,
       provinceIds: [],
+      holdingIds: [],
       summary: `${holder?.name ?? office.holderPersonId}'s term as ${office.role} ended.`,
       reasons: [],
       effects: [],

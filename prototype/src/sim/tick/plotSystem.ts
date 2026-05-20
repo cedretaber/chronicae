@@ -38,6 +38,7 @@ function emitEvent(
     houseIds,
     polityIds,
     provinceIds: [],
+    holdingIds: [],
     summary,
     reasons: [],
     effects: [],

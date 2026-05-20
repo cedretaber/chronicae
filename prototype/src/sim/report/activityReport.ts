@@ -391,16 +391,16 @@ function buildBailiffReport(
   let finalNormalCount = 0
   let finalPlaceholderCount = 0
   let finalVacantCount = 0
-  for (const provinceId of Object.keys(finalState.provinces)) {
+  for (const holdingId of Object.keys(finalState.holdings)) {
     const assignmentId =
-      finalState.provinceOfficeIndex.byProvince[
-        provinceId as keyof typeof finalState.provinceOfficeIndex.byProvince
+      finalState.holdingOfficeIndex.byHolding[
+        holdingId as keyof typeof finalState.holdingOfficeIndex.byHolding
       ]
     if (!assignmentId) {
       finalVacantCount++
       continue
     }
-    const a = finalState.provinceOfficeAssignments[assignmentId]
+    const a = finalState.holdingOfficeAssignments[assignmentId]
     if (!a || !a.active) {
       finalVacantCount++
       continue

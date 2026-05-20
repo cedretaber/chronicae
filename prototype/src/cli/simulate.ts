@@ -7,8 +7,11 @@ import { runIntegritySystem } from '@sim/tick/integritySystem'
 import { createLogger } from '@sim/debug/logger'
 import type { WorldState } from '@sim/types/world'
 import type { SimEvent } from '@sim/types/event'
-import type { ProvinceId } from '@sim/types/ids'
-import { getProvinceTerminalPolityId } from '@sim/selectors/landContractSelectors'
+import type { ProvinceId, HoldingId } from '@sim/types/ids'
+import {
+  getProvinceTerminalPolityId,
+  getProvincePolityControlFromHoldings,
+} from '@sim/selectors/landContractSelectors'
 import { buildActivityReport } from '@sim/report/activityReport'
 import { takeSnapshot } from '@sim/report/snapshot'
 import type { ActivitySnapshot } from '@sim/report/types'
@@ -195,9 +198,8 @@ function computeAvgPolityControl(state: WorldState): number {
   let total = 0
   let count = 0
   for (const id of Object.keys(state.provinces)) {
-    const province = state.provinces[id as keyof typeof state.provinces]
-    if (!province) continue
-    total += province.polityControl
+    const provinceControl = getProvincePolityControlFromHoldings(state, id as ProvinceId)
+    total += provinceControl
     count++
   }
   if (count === 0) return 0
@@ -233,7 +235,35 @@ function avgChainDepth(state: WorldState): number {
   return Math.round((totalDepth / count) * 10) / 10
 }
 
-function countBailiffsByKind(state: WorldState): {
+function countHoldings(state: WorldState): number {
+  return Object.keys(state.holdings).length
+}
+
+function computeAvgHoldingDevelopment(state: WorldState): number {
+  let total = 0
+  let count = 0
+  for (const holding of Object.values(state.holdings)) {
+    if (!holding) continue
+    total += holding.development
+    count++
+  }
+  if (count === 0) return 0
+  return Math.round((total / count) * 10) / 10
+}
+
+function computeAvgHoldingPolityControl(state: WorldState): number {
+  let total = 0
+  let count = 0
+  for (const holding of Object.values(state.holdings)) {
+    if (!holding) continue
+    total += holding.polityControl
+    count++
+  }
+  if (count === 0) return 0
+  return Math.round((total / count) * 10) / 10
+}
+
+function countHoldingBailiffsByKind(state: WorldState): {
   normal: number
   placeholder: number
   vacant: number
@@ -241,13 +271,13 @@ function countBailiffsByKind(state: WorldState): {
   let normal = 0
   let placeholder = 0
   let vacant = 0
-  for (const provinceId of Object.keys(state.provinces)) {
-    const assignmentId = state.provinceOfficeIndex.byProvince[provinceId as ProvinceId]
+  for (const holdingId of Object.keys(state.holdings)) {
+    const assignmentId = state.holdingOfficeIndex.byHolding[holdingId as HoldingId]
     if (!assignmentId) {
       vacant++
       continue
     }
-    const assignment = state.provinceOfficeAssignments[assignmentId]
+    const assignment = state.holdingOfficeAssignments[assignmentId]
     if (!assignment || !assignment.active) {
       vacant++
       continue
@@ -442,22 +472,35 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
           ', avg houseControl=' +
           avgHouseControl.toFixed(1),
       )
+      const holdingCount = countHoldings(result.state)
+      const avgHDev = computeAvgHoldingDevelopment(result.state)
+      const avgHCtrl = computeAvgHoldingPolityControl(result.state)
+      console.log(
+        '  Holdings: ' +
+          holdingCount +
+          ', avg dev=' +
+          avgHDev.toFixed(1) +
+          ', avg polityControl=' +
+          avgHCtrl.toFixed(1),
+      )
       const chainDepth = avgChainDepth(result.state)
       const lcCount = countLandContracts(result.state)
-      const bailiffs = countBailiffsByKind(result.state)
+      const holdingBailiffs = countHoldingBailiffsByKind(result.state)
       const rebelCount = countRebelPolities(result.state)
       console.log(
         '  Land: ' +
           lcCount +
           ' contracts, avg chain depth=' +
           chainDepth.toFixed(1) +
-          ' | Bailiffs: ' +
-          bailiffs.normal +
-          ' normal / ' +
-          bailiffs.placeholder +
-          ' placeholder' +
-          (bailiffs.vacant > 0 ? ' / ' + bailiffs.vacant + ' vacant' : '') +
           (rebelCount > 0 ? ' | Rebel polities: ' + rebelCount : ''),
+      )
+      console.log(
+        '  Bailiffs: ' +
+          holdingBailiffs.normal +
+          ' normal / ' +
+          holdingBailiffs.placeholder +
+          ' placeholder' +
+          (holdingBailiffs.vacant > 0 ? ' / ' + holdingBailiffs.vacant + ' vacant' : ''),
       )
       const eventCounts = countEventsByType(events)
       let totalYearEvents = 0
@@ -505,7 +548,7 @@ if (args.reportPath !== undefined) {
 }
 
 if (args.digest) {
-  const bailiffs = countBailiffsByKind(state)
+  const bailiffs = countHoldingBailiffsByKind(state)
   const digest = {
     seed: args.seed,
     years: args.years,
@@ -515,7 +558,10 @@ if (args.digest) {
     activeHouses: countActiveHouses(state),
     livingPersons: countLivingPersons(state),
     totalProvinces: Object.keys(state.provinces).length,
+    totalHoldings: countHoldings(state),
     totalStates: Object.keys(state.states).length,
+    avgHoldingDevelopment: computeAvgHoldingDevelopment(state),
+    avgHoldingPolityControl: computeAvgHoldingPolityControl(state),
     avgPolityControl: computeAvgPolityControl(state),
     avgHouseControl: computeAvgHouseControl(state),
     landContracts: countLandContracts(state),
@@ -566,7 +612,26 @@ if (args.json) {
 
   console.log('Houses: ' + finalActiveHouses + ' active / ' + initialHouseCount + ' initial')
 
-  const finalBailiffs = countBailiffsByKind(state)
+  const holdingTotal = countHoldings(state)
+  const avgHDev = computeAvgHoldingDevelopment(state)
+  const avgHCtrl = computeAvgHoldingPolityControl(state)
+  const holdingBailiffs = countHoldingBailiffsByKind(state)
+  console.log(
+    'Holdings: ' +
+      holdingTotal +
+      ', avg dev=' +
+      avgHDev.toFixed(1) +
+      ', avg polityControl=' +
+      avgHCtrl.toFixed(1) +
+      ' | Bailiffs: ' +
+      holdingBailiffs.normal +
+      ' normal / ' +
+      holdingBailiffs.placeholder +
+      ' placeholder' +
+      (holdingBailiffs.vacant > 0 ? ' / ' + holdingBailiffs.vacant + ' vacant' : ''),
+  )
+
+  const finalBailiffs = countHoldingBailiffsByKind(state)
   console.log(
     'Land: ' +
       countLandContracts(state) +

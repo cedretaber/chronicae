@@ -77,7 +77,7 @@ function makeCtx(members: Person[], houseActive: boolean = true, month: number =
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1, currentWeekOfYear: month, absoluteWeek: 51 + month }
-  state = withProvince(state, provinceId, { name: 'Capital', development: 10 })
+  state = withProvince(state, provinceId, { name: 'Capital' })
   state = withHouse(state, houseId, {
     name: 'H0',
     active: houseActive,
@@ -226,6 +226,7 @@ describe('runSuccessionSystem', () => {
         currentWeekOfYear: 1,
         absoluteWeek: 48,
         provinces: {},
+        holdings: {},
         states: {},
         polities: {
           [polityId]: {
@@ -262,16 +263,16 @@ describe('runSuccessionSystem', () => {
         nextOrganizationShareId: 0,
         nextOfficeAssignmentId: 0,
         landContracts: {},
-        provinceOfficeAssignments: {},
-        landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-        provinceTerminalPolityCache: {},
-        provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+        holdingOfficeAssignments: {},
+        holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
+        landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+        holdingTerminalPolityCache: {},
         polityIndex: { byOwnerHouse: {} },
         factions: {},
         factionMemberships: {},
         factionIndex: { byLeader: {}, byMember: {} },
         nextLandContractId: 0,
-        nextProvinceOfficeAssignmentId: 0,
+        nextHoldingOfficeAssignmentId: 0,
         nextFactionId: 0,
         nextFactionMembershipId: 0,
         actorIntents: {},
@@ -312,6 +313,7 @@ describe('runSuccessionSystem', () => {
         currentWeekOfYear: 1,
         absoluteWeek: 48,
         provinces: {},
+        holdings: {},
         states: {},
         polities: {
           [polityId]: {
@@ -348,16 +350,16 @@ describe('runSuccessionSystem', () => {
         nextOrganizationShareId: 0,
         nextOfficeAssignmentId: 0,
         landContracts: {},
-        provinceOfficeAssignments: {},
-        landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-        provinceTerminalPolityCache: {},
-        provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
+        holdingOfficeAssignments: {},
+        holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
+        landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+        holdingTerminalPolityCache: {},
         polityIndex: { byOwnerHouse: {} },
         factions: {},
         factionMemberships: {},
         factionIndex: { byLeader: {}, byMember: {} },
         nextLandContractId: 0,
-        nextProvinceOfficeAssignmentId: 0,
+        nextHoldingOfficeAssignmentId: 0,
         nextFactionId: 0,
         nextFactionMembershipId: 0,
         actorIntents: {},
@@ -394,7 +396,7 @@ describe('applyMinorHeadPenalties', () => {
     const provinceId = 'p-0' as ProvinceId
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1, currentWeekOfYear: 1, absoluteWeek: 48 }
-    state = withProvince(state, provinceId, { name: 'Capital', development: 10 })
+    state = withProvince(state, provinceId, { name: 'Capital' })
     state = withHouse(state, houseId, {
       name: 'H0',
       memberIds: [memberId],

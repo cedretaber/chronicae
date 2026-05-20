@@ -12,6 +12,7 @@ import {
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { revokeOfficesByOrganization, createOfficeAssignment } from '../mutations/officeMutations'
 import { removeSharesByOrganization } from '../mutations/shareMutations'
+import { getProvinceDevelopmentFromHoldings } from '../selectors/landContractSelectors'
 
 // v0.15 §10.2: 新 ownerHouse を選定する。
 // 1) Polity 内所有 Province 数 desc
@@ -31,7 +32,7 @@ function chooseOwner(
       let devSum = 0
       for (const pid of provinceIdsInPolity) {
         const p = ctx.state.provinces[pid]
-        if (p) devSum += p.development
+        if (p) devSum += getProvinceDevelopmentFromHoldings(ctx.state, pid)
       }
       return {
         houseId,
@@ -61,6 +62,7 @@ function emitPolityExtinct(ctx: TickContext, polityId: PolityId, summary: string
     houseIds: [],
     polityIds: [polityId],
     provinceIds: [],
+    holdingIds: [],
     summary,
     reasons: [],
     effects: [],
@@ -80,6 +82,7 @@ function emitPolityLandless(ctx: TickContext, polityId: PolityId, summary: strin
     houseIds: [],
     polityIds: [polityId],
     provinceIds: [],
+    holdingIds: [],
     summary,
     reasons: [],
     effects: [],
@@ -114,6 +117,7 @@ function emitPolityOwnerChanged(
     houseIds: oldOwnerId ? [oldOwnerId, newOwnerId] : [newOwnerId],
     polityIds: [polityId],
     provinceIds: [newCapitalProvinceId],
+    holdingIds: [],
     summary,
     reasons: [],
     effects: [],

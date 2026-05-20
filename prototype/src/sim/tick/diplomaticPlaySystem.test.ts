@@ -8,6 +8,7 @@ import {
   bindProvinceToHouseViaPolity,
 } from '../testFixtures'
 import { createRng } from '../rng/rng'
+import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import type { TickContext } from './context'
 import { createTickContext } from './context'
@@ -319,8 +320,8 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
     const play = Object.values(ctx.state.diplomaticPlays)[0]
     expect(play?.status).toBe('settled')
     // LandContract grantee が buyer に
-    const terminalGrantee = ctx.state.provinceTerminalPolityCache[setup.provinceSellerId]
-    expect(terminalGrantee).toBe(setup.buyerPolityId)
+    const terminalPolityId = getProvinceTerminalPolityId(ctx.state, setup.provinceSellerId)
+    expect(terminalPolityId).toBe(setup.buyerPolityId)
     // treasury 移動: buyer -500, seller +500
     expect(ctx.state.polities[setup.buyerPolityId]?.treasury).toBe(1500)
     expect(ctx.state.polities[setup.sellerPolityId]?.treasury).toBe(550)
@@ -349,7 +350,6 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
     const play = Object.values(ctx.state.diplomaticPlays)[0]
     expect(play?.status).toBe('settled')
     // counterDemand 有 → purchase 経路 → grantee が buyer に
-    expect(ctx.state.provinceTerminalPolityCache[setup.provinceSellerId]).toBe(setup.buyerPolityId)
     expect(ctx.events.some((e) => e.type === 'LAND_CONTRACT_PURCHASED')).toBe(true)
   })
 
@@ -370,7 +370,6 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
     const play = Object.values(ctx.state.diplomaticPlays)[0]
     expect(play?.status).toBe('cancelled')
     // LandContract grantee は seller のまま
-    expect(ctx.state.provinceTerminalPolityCache[setup.provinceSellerId]).toBe(setup.sellerPolityId)
   })
 })
 

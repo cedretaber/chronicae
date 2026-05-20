@@ -4,13 +4,18 @@ import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
 import { calcHouseHeadDevelopmentChanceBonus } from '../selectors/personAbilityEffects'
 import type { HouseId, ProvinceId } from '../types/ids'
-import type { Province } from '../types/province'
 import type { SimEvent } from '../types/event'
-import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
+import {
+  getHouseControlledProvinceIds,
+  getProvinceDevelopmentFromHoldings,
+  getProvincePrimaryHolding,
+} from '../selectors/landContractSelectors'
+import type { WorldState } from '../types/world'
 
-function scoreHouseLandDevelopmentProvince(province: Province): number {
-  const recoveryBonus = Math.max(0, -province.development) * 1.0
-  const developmentPotentialBonus = (100 - Math.max(0, province.development)) * 0.3
+function scoreHouseLandDevelopmentProvince(state: WorldState, provinceId: ProvinceId): number {
+  const dev = getProvinceDevelopmentFromHoldings(state, provinceId)
+  const recoveryBonus = Math.max(0, -dev) * 1.0
+  const developmentPotentialBonus = (100 - Math.max(0, dev)) * 0.3
   return recoveryBonus + developmentPotentialBonus
 }
 
@@ -50,9 +55,7 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
     let bestProvinceId: ProvinceId = sortedProvinceIds[0]!
     let bestScore = -Infinity
     for (const pid of sortedProvinceIds) {
-      const p = currentCtx.state.provinces[pid]
-      if (!p) continue
-      const score = scoreHouseLandDevelopmentProvince(p)
+      const score = scoreHouseLandDevelopmentProvince(currentCtx.state, pid)
       if (score > bestScore) {
         bestScore = score
         bestProvinceId = pid
@@ -62,19 +65,21 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
     const targetProvince = currentCtx.state.provinces[bestProvinceId]
     if (!targetProvince) continue
 
+    const primaryHolding = getProvincePrimaryHolding(currentCtx.state, bestProvinceId)
+    if (!primaryHolding) continue
+
     const effectiveGain =
       currentCtx.config.houseLandDevelopmentGain *
-      (1 - Math.max(0, targetProvince.development) / 100)
-    const newDevelopment = clamp(targetProvince.development + effectiveGain, -100, 100)
+      (1 - Math.max(0, primaryHolding.development) / 100)
+    const newDevelopment = clamp(primaryHolding.development + effectiveGain, -100, 100)
 
-    // v0.16: houseControl 廃止により Province の control 更新は polityControl のみだが、
-    // 開発による control gain は将来の代官能力経由に委ねる (Stage A では development のみ更新)。
+    const newHoldings = {
+      ...currentCtx.state.holdings,
+      [primaryHolding.id]: { ...primaryHolding, development: newDevelopment },
+    }
     const newProvinces = {
       ...currentCtx.state.provinces,
-      [bestProvinceId]: {
-        ...targetProvince,
-        development: newDevelopment,
-      },
+      [bestProvinceId]: { ...targetProvince, development: newDevelopment },
     }
     const newHouse = {
       ...house,
@@ -89,6 +94,7 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
       ...currentCtx,
       state: {
         ...currentCtx.state,
+        holdings: newHoldings,
         provinces: newProvinces,
         houses: newHouses,
       },
@@ -105,6 +111,7 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
       houseIds: [houseId as HouseId],
       polityIds: [],
       provinceIds: [bestProvinceId],
+      holdingIds: [],
       summary: `${house.name} invested in developing ${targetProvince.name}.`,
       reasons: [],
       effects: [],

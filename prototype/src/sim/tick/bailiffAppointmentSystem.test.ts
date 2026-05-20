@@ -8,11 +8,13 @@ import type {
   FactionId,
   FactionMembershipId,
   OfficeAssignmentId,
+  HoldingOfficeAssignmentId,
+  HoldingId,
 } from '../types/ids'
-import type { ProvinceOfficeAssignmentId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { Faction, FactionMembership } from '../types/faction'
 import type { OfficeAssignment } from '../types/office'
+import type { HoldingOfficeAssignment } from '../types/landContract'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { createTickContext, toResult } from './context'
@@ -41,6 +43,7 @@ function makeBaseState(): {
   polityId: PolityId
   houseId: HouseId
   provinceId: ProvinceId
+  holdingId: HoldingId
   rulerId: PersonId
 } {
   const polityId = createPolityId('c', 0)
@@ -50,7 +53,7 @@ function makeBaseState(): {
 
   let s = makeEmptyV016State()
   s = { ...s, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-  s = withProvince(s, provinceId, { name: 'P0', development: 10 })
+  s = withProvince(s, provinceId, { name: 'P0' })
   s = withHouse(s, houseId, {
     name: 'Test House',
     memberIds: [rulerId],
@@ -74,7 +77,9 @@ function makeBaseState(): {
     legacyPrestige: 30,
   })
 
-  return { state: s, polityId, houseId, provinceId, rulerId }
+  const holdingId = s.provinces[provinceId]!.holdingIds[0]!
+
+  return { state: s, polityId, houseId, provinceId, holdingId, rulerId }
 }
 
 function countEvents(events: readonly SimEvent[], type: string): number {
@@ -83,7 +88,7 @@ function countEvents(events: readonly SimEvent[], type: string): number {
 
 describe('runBailiffAppointmentSystem', () => {
   it('vacates bailiff whose term has expired (startYear = currentYear - 3)', () => {
-    const { state: baseState, houseId, provinceId } = makeBaseState()
+    const { state: baseState, holdingId, houseId } = makeBaseState()
     // Set month so absMonth % 6 === 0 (bailiffAppointmentInterval)
     const s: WorldState = {
       ...baseState,
@@ -103,26 +108,26 @@ describe('runBailiffAppointmentSystem', () => {
     })
 
     // Install a non-placeholder bailiff with startYear = currentYear - 3
-    const officeId = stateWithBailiff.provinceOfficeIndex.byProvince[
-      provinceId
-    ] as ProvinceOfficeAssignmentId
-    const office = stateWithBailiff.provinceOfficeAssignments[officeId]
+    const officeId = stateWithBailiff.holdingOfficeIndex.byHolding[
+      holdingId
+    ] as HoldingOfficeAssignmentId
+    const office = stateWithBailiff.holdingOfficeAssignments[officeId]
     if (!officeId || !office) throw new Error('no bailiff office found')
 
     const updatedState: WorldState = {
       ...stateWithBailiff,
-      provinceOfficeAssignments: {
-        ...stateWithBailiff.provinceOfficeAssignments,
+      holdingOfficeAssignments: {
+        ...stateWithBailiff.holdingOfficeAssignments,
         [officeId]: {
           ...office,
           holderPersonId: bailiffId,
           startYear: stateWithBailiff.currentYear - 3,
         },
       },
-      provinceOfficeIndex: {
-        ...stateWithBailiff.provinceOfficeIndex,
+      holdingOfficeIndex: {
+        ...stateWithBailiff.holdingOfficeIndex,
         byHolderPerson: {
-          ...stateWithBailiff.provinceOfficeIndex.byHolderPerson,
+          ...stateWithBailiff.holdingOfficeIndex.byHolderPerson,
           [bailiffId]: [officeId],
         },
       },
@@ -141,7 +146,7 @@ describe('runBailiffAppointmentSystem', () => {
   })
 
   it('does NOT vacate bailiff whose term has not expired (startYear = currentYear)', () => {
-    const { state: baseState, houseId, provinceId } = makeBaseState()
+    const { state: baseState, holdingId, houseId } = makeBaseState()
     const bailiffId = createPersonId('pe', 10)
 
     const stateWithBailiff = withPerson(baseState, bailiffId, {
@@ -155,26 +160,26 @@ describe('runBailiffAppointmentSystem', () => {
     })
 
     // Install a bailiff with startYear = currentYear (not expired yet)
-    const officeId = stateWithBailiff.provinceOfficeIndex.byProvince[
-      provinceId
-    ] as ProvinceOfficeAssignmentId
-    const office = stateWithBailiff.provinceOfficeAssignments[officeId]
+    const officeId = stateWithBailiff.holdingOfficeIndex.byHolding[
+      holdingId
+    ] as HoldingOfficeAssignmentId
+    const office = stateWithBailiff.holdingOfficeAssignments[officeId]
     if (!officeId || !office) throw new Error('no bailiff office found')
 
     const updatedState: WorldState = {
       ...stateWithBailiff,
-      provinceOfficeAssignments: {
-        ...stateWithBailiff.provinceOfficeAssignments,
+      holdingOfficeAssignments: {
+        ...stateWithBailiff.holdingOfficeAssignments,
         [officeId]: {
           ...office,
           holderPersonId: bailiffId,
           startYear: stateWithBailiff.currentYear,
         },
       },
-      provinceOfficeIndex: {
-        ...stateWithBailiff.provinceOfficeIndex,
+      holdingOfficeIndex: {
+        ...stateWithBailiff.holdingOfficeIndex,
         byHolderPerson: {
-          ...stateWithBailiff.provinceOfficeIndex.byHolderPerson,
+          ...stateWithBailiff.holdingOfficeIndex.byHolderPerson,
           [bailiffId]: [officeId],
         },
       },
@@ -193,7 +198,7 @@ describe('runBailiffAppointmentSystem', () => {
   })
 
   it('factional path: picks faction member outside ownerHouse when NP >= threshold', () => {
-    const { state: baseState, polityId, houseId, provinceId } = makeBaseState()
+    const { state: baseState, polityId, houseId, holdingId } = makeBaseState()
     let s: WorldState = {
       ...baseState,
       currentWeekOfYear: 6,
@@ -278,15 +283,15 @@ describe('runBailiffAppointmentSystem', () => {
     const ctx = createTickContext({ state: s, rng: createRng('test'), config: defaultConfig })
     const result = toResult(runBailiffAppointmentSystem(ctx))
 
-    const officeId = result.state.provinceOfficeIndex.byProvince[provinceId]!
-    const office = result.state.provinceOfficeAssignments[officeId]!
+    const officeId = result.state.holdingOfficeIndex.byHolding[holdingId]!
+    const office = result.state.holdingOfficeAssignments[officeId]!
     expect(office.holderPersonId).toBe(memberId)
     expect(office.appointingPolityId).toBe(polityId)
     expect(countEvents(result.events, 'BAILIFF_APPOINTED')).toBeGreaterThan(0)
   })
 
   it('factional candidate with active Polity Office is excluded', () => {
-    const { state: baseState, polityId, houseId, provinceId } = makeBaseState()
+    const { state: baseState, polityId, houseId, holdingId } = makeBaseState()
     let s: WorldState = {
       ...baseState,
       currentWeekOfYear: 6,
@@ -398,13 +403,13 @@ describe('runBailiffAppointmentSystem', () => {
 
     // Expected: factional path skips busy member → fallback to ownerHouse (faction leader is in dh-0,
     // and ruler pe-0 is also in dh-0). The chosen bailiff must NOT be the busy member.
-    const officeId = result.state.provinceOfficeIndex.byProvince[provinceId]!
-    const office = result.state.provinceOfficeAssignments[officeId]!
+    const officeId = result.state.holdingOfficeIndex.byHolding[holdingId]!
+    const office = result.state.holdingOfficeAssignments[officeId]!
     expect(office.holderPersonId).not.toBe(memberId)
   })
 
   it('v0.17.2: alive non-ownerHouse bailiff is NOT vacated by step 1 (factional bailiff stable)', () => {
-    const { state: baseState, polityId, houseId, provinceId } = makeBaseState()
+    const { state: baseState, polityId, houseId, holdingId } = makeBaseState()
     let s: WorldState = {
       ...baseState,
       currentWeekOfYear: 6,
@@ -425,23 +430,23 @@ describe('runBailiffAppointmentSystem', () => {
     })
     // Install the bailiff manually with startYear = currentYear (term not expired)
     void houseId
-    const officeId = s.provinceOfficeIndex.byProvince[provinceId] as ProvinceOfficeAssignmentId
-    const office = s.provinceOfficeAssignments[officeId]
+    const officeId = s.holdingOfficeIndex.byHolding[holdingId] as HoldingOfficeAssignmentId
+    const office = s.holdingOfficeAssignments[officeId] as HoldingOfficeAssignment
     if (!officeId || !office) throw new Error('no bailiff office found')
     s = {
       ...s,
-      provinceOfficeAssignments: {
-        ...s.provinceOfficeAssignments,
+      holdingOfficeAssignments: {
+        ...s.holdingOfficeAssignments,
         [officeId]: {
           ...office,
           holderPersonId: bailiffId,
           startYear: s.currentYear,
         },
       },
-      provinceOfficeIndex: {
-        ...s.provinceOfficeIndex,
+      holdingOfficeIndex: {
+        ...s.holdingOfficeIndex,
         byHolderPerson: {
-          ...s.provinceOfficeIndex.byHolderPerson,
+          ...s.holdingOfficeIndex.byHolderPerson,
           [bailiffId]: [officeId],
         },
       },
@@ -453,14 +458,14 @@ describe('runBailiffAppointmentSystem', () => {
     // The factional bailiff should remain in office
     expect(countEvents(result.events, 'BAILIFF_VACATED')).toBe(0)
     expect(countEvents(result.events, 'BAILIFF_PLACEHOLDER_INSTALLED')).toBe(0)
-    const afterOfficeId = result.state.provinceOfficeIndex.byProvince[provinceId]
+    const afterOfficeId = result.state.holdingOfficeIndex.byHolding[holdingId]
     expect(afterOfficeId).toBe(officeId)
-    expect(result.state.provinceOfficeAssignments[afterOfficeId!]?.holderPersonId).toBe(bailiffId)
+    expect(result.state.holdingOfficeAssignments[afterOfficeId!]?.holderPersonId).toBe(bailiffId)
     void polityId
   })
 
   it('v0.17.2: dead bailiff IS vacated by step 1', () => {
-    const { state: baseState, houseId, provinceId } = makeBaseState()
+    const { state: baseState, houseId, holdingId } = makeBaseState()
     let s: WorldState = {
       ...baseState,
       currentWeekOfYear: 6,
@@ -475,19 +480,19 @@ describe('runBailiffAppointmentSystem', () => {
       birthStatus: 'unknown',
       alive: false,
     })
-    const officeId = s.provinceOfficeIndex.byProvince[provinceId] as ProvinceOfficeAssignmentId
-    const office = s.provinceOfficeAssignments[officeId]
+    const officeId = s.holdingOfficeIndex.byHolding[holdingId] as HoldingOfficeAssignmentId
+    const office = s.holdingOfficeAssignments[officeId] as HoldingOfficeAssignment
     if (!officeId || !office) throw new Error('no bailiff office found')
     s = {
       ...s,
-      provinceOfficeAssignments: {
-        ...s.provinceOfficeAssignments,
+      holdingOfficeAssignments: {
+        ...s.holdingOfficeAssignments,
         [officeId]: { ...office, holderPersonId: bailiffId, startYear: s.currentYear },
       },
-      provinceOfficeIndex: {
-        ...s.provinceOfficeIndex,
+      holdingOfficeIndex: {
+        ...s.holdingOfficeIndex,
         byHolderPerson: {
-          ...s.provinceOfficeIndex.byHolderPerson,
+          ...s.holdingOfficeIndex.byHolderPerson,
           [bailiffId]: [officeId],
         },
       },
@@ -501,30 +506,26 @@ describe('runBailiffAppointmentSystem', () => {
   })
 
   it('does NOT vacate placeholder bailiff by term', () => {
-    const { state: baseState, provinceId } = makeBaseState()
+    const { state: baseState, holdingId } = makeBaseState()
 
-    const officeId = baseState.provinceOfficeIndex.byProvince[
-      provinceId
-    ] as ProvinceOfficeAssignmentId
-    const office = baseState.provinceOfficeAssignments[officeId]
+    const officeId = baseState.holdingOfficeIndex.byHolding[holdingId] as HoldingOfficeAssignmentId
+    const office = baseState.holdingOfficeAssignments[officeId] as HoldingOfficeAssignment
     if (!officeId || !office) throw new Error('no bailiff office found')
 
     // Placeholder bailiff (holder starts with 'pe-anon')
     const placeholderId = 'pe-anon-placeholder' as PersonId
     const updatedState: WorldState = {
       ...baseState,
-      provinceOfficeAssignments: {
-        ...baseState.provinceOfficeAssignments,
-        [officeId]: {
-          ...office,
-          holderPersonId: placeholderId,
-          startYear: baseState.currentYear - 10,
-        },
+      ...baseState.holdingOfficeAssignments,
+      [officeId]: {
+        ...office,
+        holderPersonId: placeholderId,
+        startYear: baseState.currentYear - 10,
       },
-      provinceOfficeIndex: {
-        ...baseState.provinceOfficeIndex,
+      holdingOfficeIndex: {
+        ...baseState.holdingOfficeIndex,
         byHolderPerson: {
-          ...baseState.provinceOfficeIndex.byHolderPerson,
+          ...baseState.holdingOfficeIndex.byHolderPerson,
           [placeholderId]: [officeId],
         },
       },

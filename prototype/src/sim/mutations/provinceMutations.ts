@@ -61,16 +61,24 @@ export function adjustProvinceDevelopment(
   const min = options?.min ?? -100
   const max = options?.max ?? 100
 
-  return ok({
+  // Read development from primary Holding (Province no longer stores development)
+  const holdingId = province.holdingIds[0]
+  const holding = holdingId ? state.holdings[holdingId] : undefined
+  const currentDev = holding ? holding.development : 0
+  const newDev = clamp(currentDev + delta, min, max)
+
+  if (!holdingId || !holding) {
+    return ok(state)
+  }
+
+  const nextState: WorldState = {
     ...state,
-    provinces: {
-      ...state.provinces,
-      [provinceId]: {
-        ...province,
-        development: clamp(province.development + delta, min, max),
-      },
+    holdings: {
+      ...state.holdings,
+      [holdingId]: { ...holding, development: newDev },
     },
-  })
+  }
+  return ok(nextState)
 }
 
 // v0.16: toOwnerHouseId は ownership chain の整合確認用 (toPolityId.ownerHouseId と一致するはず)。

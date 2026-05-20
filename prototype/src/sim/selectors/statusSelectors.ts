@@ -14,7 +14,10 @@ import {
   getExplicitAttitude,
 } from '@sim/helpers/attitudeHelpers'
 import { getPolityHouseIds, getHousePrimaryPolityId } from '../selectors/polityRelations'
-import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
+import {
+  getProvinceTerminalPolityId,
+  getProvincePolityControlFromHoldings,
+} from '../selectors/landContractSelectors'
 
 // --- Utility ---
 
@@ -126,7 +129,8 @@ export function getPolityStability(
     const dist = distMap.get(provinceId) ?? unreachableDistance
     const unrest = getProvinceUnrest(state, provinceId)
     // provinceStability = 0.70*(100-unrest) + 0.30*polityControl
-    const provinceStability = clamp100(0.7 * (100 - unrest) + 0.3 * province.polityControl)
+    const polityControl = getProvincePolityControlFromHoldings(state, provinceId)
+    const provinceStability = clamp100(0.7 * (100 - unrest) + 0.3 * polityControl)
     const weight = 1 / (1 + dist)
     values.push({ value: provinceStability, weight })
   }

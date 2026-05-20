@@ -195,10 +195,11 @@ describe('disbandRebelPolity', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     const after = result.value.ctx.state
-    const bailiffId = after.provinceOfficeIndex.byProvince[setup.provinceId]
+    const holdingId = after.provinces[setup.provinceId]!.holdingIds[0]!
+    const bailiffId = after.holdingOfficeIndex.byHolding[holdingId]
     expect(bailiffId).toBeDefined()
     if (!bailiffId) return
-    const bailiff = after.provinceOfficeAssignments[bailiffId]
+    const bailiff = after.holdingOfficeAssignments[bailiffId]
     expect(bailiff?.active).toBe(true)
     expect(bailiff?.appointingPolityId).toBe(setup.oldPolityId)
   })
