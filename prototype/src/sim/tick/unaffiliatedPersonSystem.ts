@@ -16,7 +16,6 @@ import { getActiveFactionMembership } from '../selectors/factionSelectors'
 // v0.17 §5.4: UnaffiliatedPersonSystem
 // Every January, maintain AnonymousHouse normal Person count via birth and fading.
 export function runUnaffiliatedPersonSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
   let currentCtx = ctx
   const config = ctx.config
 
@@ -113,7 +112,7 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
   const event: SimEvent = {
     id: eventId,
     year: ec.state.currentYear,
-    month: ec.state.currentMonth,
+    weekOfYear: ec.state.currentWeekOfYear,
     type: 'PERSON_BORN_IN_OBSCURITY',
     importance: 'minor',
     actorIds: [personId],
@@ -201,7 +200,7 @@ function pruneUnaffiliated(ctx: TickContext, targetReduction: number): TickConte
     const event: SimEvent = {
       id: eventId,
       year: ec.state.currentYear,
-      month: ec.state.currentMonth,
+      weekOfYear: ec.state.currentWeekOfYear,
       type: 'PERSON_FADED_FROM_HISTORY',
       importance: 'minor',
       actorIds: [personId],

@@ -12,7 +12,7 @@ import { defaultConfig } from '../config/defaultConfig'
 
 function buildWorld(opts: {
   acquirerTreasury: number
-  acquirerLastWarMonth?: number
+  acquirerLastWarWeek?: number
   targetCommonwealth?: boolean
   acquirerCommonwealth?: boolean
 }) {
@@ -78,14 +78,14 @@ function buildWorld(opts: {
       },
     }
   }
-  if (opts.acquirerLastWarMonth !== undefined) {
+  if (opts.acquirerLastWarWeek !== undefined) {
     s = {
       ...s,
       polities: {
         ...s.polities,
         [acquirerPolityId]: {
           ...s.polities[acquirerPolityId]!,
-          lastWarMonth: opts.acquirerLastWarMonth,
+          lastWarWeek: opts.acquirerLastWarWeek,
         },
       },
     }
@@ -152,16 +152,16 @@ describe('findLandAcquireIntentCandidates', () => {
     s = bindProvinceToHouseViaPolity(s, provinceAId, acquirerPolityId, acquirerHouseId)
     s = bindProvinceToHouseViaPolity(s, provinceBId, targetPolityId, targetHouseId)
 
-    // currentYear=1000, currentMonth=1 → currentAbsoluteMonth=12001
-    s = { ...s, currentYear: 1000, currentMonth: 1 }
-    // lastWarMonth=12000 → diff=1 < warCooldownMonths (24) → cooldown 中
+    // currentYear=1000, currentWeekOfYear=1 → absoluteWeek=1000*52+1-1=52000
+    s = { ...s, currentYear: 1000, currentWeekOfYear: 1, absoluteWeek: 52000 }
+    // lastWarWeek=51952 → diff=48 < warCooldownWeeks=96 → cooldown active
     s = {
       ...s,
       polities: {
         ...s.polities,
         [acquirerPolityId]: {
           ...s.polities[acquirerPolityId]!,
-          lastWarMonth: 12000,
+          lastWarWeek: 51952,
         },
       },
     }

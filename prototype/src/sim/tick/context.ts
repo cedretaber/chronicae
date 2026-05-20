@@ -79,7 +79,7 @@ export function toResult(ctx: TickContext): TickResult {
 }
 
 export function makeEventId(ctx: TickContext): { id: EventId; ctx: TickContext } {
-  const id = `e-${ctx.state.currentYear}-${ctx.state.currentMonth}-${ctx.nextEventIndex}` as EventId
+  const id = `e-${ctx.state.absoluteWeek}-${ctx.nextEventIndex}` as EventId
   return { id, ctx: { ...ctx, nextEventIndex: ctx.nextEventIndex + 1 } }
 }
 

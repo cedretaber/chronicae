@@ -14,31 +14,23 @@ import {
   addFactionMembership,
   deactivateFaction,
   transitionFactionLeader,
-  removeFactionMembership,
 } from '../mutations/factionMutations'
-import type { FactionMembershipId } from '../types/ids'
 import { setPersonAttitude } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 
-// v0.17 §13: FactionLifecycleSystem
-// Runs each January, after mortality/estate/succession:
-//   1. Existing active faction integrity check (leader death → succession or dissolution, dissolution conditions)
-//   2. New faction formation decisions
+// v0.19: FactionLifecycleYearlySystem (intervalWeeks=52)
+// Dissolution checks + new faction formation. Runs once per year.
+// Leader vacancy + dead member cleanup is handled by FactionMaintenanceSystem (intervalWeeks=4).
 export function runFactionLifecycleSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
-  // Phase 1: existing factions — leader vacancy / dissolution (runs every month)
-  currentCtx = processExistingFactions(currentCtx)
-
-  // Phase 2: new factions (January only)
-  if (ctx.state.currentMonth === 1) {
-    currentCtx = formNewFactions(currentCtx)
-  }
+  currentCtx = checkDissolutions(currentCtx)
+  currentCtx = formNewFactions(currentCtx)
 
   return currentCtx
 }
 
-function processExistingFactions(ctx: TickContext): TickContext {
+function checkDissolutions(ctx: TickContext): TickContext {
   let currentCtx = ctx
   const factionIds = (Object.keys(currentCtx.state.factions).sort() as FactionId[]).filter(
     (fid) => currentCtx.state.factions[fid]?.active,
@@ -48,20 +40,7 @@ function processExistingFactions(ctx: TickContext): TickContext {
     if (!faction || !faction.active) continue
 
     const leader = currentCtx.state.persons[faction.leaderPersonId]
-    const leaderAlive = leader && leader.alive && leader.kind !== 'placeholder'
-
-    if (!leaderAlive) {
-      currentCtx = handleLeaderVacancy(currentCtx, factionId)
-      continue
-    }
-
-    // v0.17.4: 死亡 member の membership を削除 (毎月走る)。
-    // mortalitySystem で alive=false にされた member の membership は
-    // どこにも cleanup されないため、ここで対応する。leader 死亡は別経路 (handleLeaderVacancy)。
-    currentCtx = removeDeadMemberships(currentCtx, factionId)
-
-    // Dissolution checks (January only)
-    if (currentCtx.state.currentMonth !== 1) continue
+    if (!leader || !leader.alive || leader.kind === 'placeholder') continue
 
     const memberIds = getFactionActiveMemberIds(currentCtx.state, factionId)
     const viability = getFactionViabilityScore(currentCtx.state, currentCtx.config, factionId)
@@ -71,17 +50,15 @@ function processExistingFactions(ctx: TickContext): TickContext {
     if (memberIds.length < config.minimumFactionMembers)
       reasonsToDissolve.push('insufficient members')
     if (viability < config.factionDisbandThreshold) reasonsToDissolve.push('low viability')
-    if (leader && leader.wealth < config.factionDisbandWealthFloor)
-      reasonsToDissolve.push('leader bankrupt')
+    if (leader.wealth < config.factionDisbandWealthFloor) reasonsToDissolve.push('leader bankrupt')
 
     if (reasonsToDissolve.length > 0) {
-      // v0.17.4 §13.11: bankrupt 解散の前駆 event。FACTION_DISSOLVED と 2 連発火する。
-      if (leader && reasonsToDissolve.includes('leader bankrupt')) {
+      if (reasonsToDissolve.includes('leader bankrupt')) {
         const { id: eventId, ctx: ec } = makeEventId(currentCtx)
         const event: SimEvent = {
           id: eventId,
           year: ec.state.currentYear,
-          month: ec.state.currentMonth,
+          weekOfYear: ec.state.currentWeekOfYear,
           type: 'FACTION_LEADER_BANKRUPT',
           importance: 'normal',
           actorIds: [faction.leaderPersonId],
@@ -104,33 +81,8 @@ function processExistingFactions(ctx: TickContext): TickContext {
   return currentCtx
 }
 
-// v0.17.4: faction に所属する死亡 member の membership を削除する。
-// leader が dead の場合は別経路 (handleLeaderVacancy) で処理するため、ここでは leader を除外。
-// event は emit しない (死亡 event で十分、二重発火回避)。
-function removeDeadMemberships(ctx: TickContext, factionId: FactionId): TickContext {
-  const faction = ctx.state.factions[factionId]
-  if (!faction || !faction.active) return ctx
-
-  // removeFactionMembership が byMember を破壊的に書き換えるため、id を先に snapshot する。
-  const targetIds = (
-    Object.keys(ctx.state.factionMemberships).sort() as FactionMembershipId[]
-  ).filter((mid) => {
-    const m = ctx.state.factionMemberships[mid]
-    if (!m || !m.active || m.factionId !== factionId) return false
-    if (m.personId === faction.leaderPersonId) return false
-    const p = ctx.state.persons[m.personId]
-    return Boolean(p && !p.alive)
-  })
-
-  let currentCtx = ctx
-  for (const membershipId of targetIds) {
-    const result = removeFactionMembership(currentCtx.state, membershipId)
-    if (result.ok) currentCtx = { ...currentCtx, state: result.value }
-  }
-  return currentCtx
-}
-
-function handleLeaderVacancy(ctx: TickContext, factionId: FactionId): TickContext {
+// Exported for use by FactionMaintenanceSystem
+export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionId): TickContext {
   const faction = ctx.state.factions[factionId]
   if (!faction) return ctx
 
@@ -145,7 +97,6 @@ function handleLeaderVacancy(ctx: TickContext, factionId: FactionId): TickContex
     if (!candidate || !candidate.alive) continue
     if (candidate.kind === 'placeholder') continue
 
-    // Score: attitude product (cand → old leader) + opportunity + wealth + prestige
     let attitudeProduct = 0
     if (oldLeader) {
       const att = getAttitudeOrDefault(ctx.state, candidate, {
@@ -181,7 +132,7 @@ function handleLeaderVacancy(ctx: TickContext, factionId: FactionId): TickContex
   const event: SimEvent = {
     id: eventId,
     year: ec.state.currentYear,
-    month: ec.state.currentMonth,
+    weekOfYear: ec.state.currentWeekOfYear,
     type: 'FACTION_LEADER_CHANGED',
     importance: 'normal',
     actorIds: [faction.leaderPersonId, newLeaderId],
@@ -206,7 +157,7 @@ function dissolveFaction(ctx: TickContext, factionId: FactionId, summary: string
   const event: SimEvent = {
     id: eventId,
     year: ec.state.currentYear,
-    month: ec.state.currentMonth,
+    weekOfYear: ec.state.currentWeekOfYear,
     type: 'FACTION_DISSOLVED',
     importance: 'normal',
     actorIds: [faction.leaderPersonId],
@@ -224,7 +175,6 @@ function formNewFactions(ctx: TickContext): TickContext {
   let currentCtx = ctx
   const config = currentCtx.config
 
-  // Candidate founders
   const founders: { personId: PersonId; score: number }[] = []
   for (const pid of Object.keys(currentCtx.state.persons).sort() as PersonId[]) {
     const person = currentCtx.state.persons[pid]
@@ -234,7 +184,7 @@ function formNewFactions(ctx: TickContext): TickContext {
 
     const house = currentCtx.state.houses[person.houseId]
     if (!house || !house.active) continue
-    if (house.kind === 'system') continue // §13.4 system House excluded
+    if (house.kind === 'system') continue
     if (getFactionByLeader(currentCtx.state, pid)) continue
     if (getActiveFactionMembership(currentCtx.state, pid)) continue
     if (person.wealth < config.minimumFactionFounderWealth) continue
@@ -242,13 +192,11 @@ function formNewFactions(ctx: TickContext): TickContext {
     const oppScore = getFactionOpportunityScore(currentCtx.state, currentCtx.config, pid)
     if (oppScore < config.factionFormationThreshold) continue
 
-    // Score: ambition + opportunity + prestige
     const score = oppScore * 1.0 + person.traits.ambition * 5 + (person.legacyPrestige / 100) * 3
     founders.push({ personId: pid, score })
   }
   founders.sort((a, b) => b.score - a.score)
 
-  // Process top N founders (cap so multiple factions can form per year but not unbounded)
   const maxFoundersPerYear = 3
   let formed = 0
   for (const { personId: leaderId } of founders) {
@@ -265,44 +213,35 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
   const leader = ctx.state.persons[leaderId]
   if (!leader) return ctx
 
-  // Faction name = "{leader.name}'s Circle"
   const factionName = `${leader.name}'s Circle`
-
-  // Initial members from candidate pool
   const candidates = pickInitialMemberCandidates(ctx, leaderId)
   const slots = config.initialFactionMemberMax
   const selected = candidates.slice(0, slots)
 
   if (selected.length < config.minimumInitialFactionMembers) {
-    // not enough initial members; do not found
     return ctx
   }
 
-  // createFaction (CtxResult)
   const createResult = createFaction(ctx, {
     leaderPersonId: leaderId,
     name: factionName,
-    year: ctx.state.currentYear,
-    month: ctx.state.currentMonth,
+    week: ctx.state.absoluteWeek,
   })
   if (!createResult.ok) return ctx
   let currentCtx = createResult.value.ctx
   const factionId = createResult.value.value.factionId
 
-  // Add initial members + initial attitudes (Founded is a key-creation event)
   const initialMemberIds: PersonId[] = []
   for (const memberId of selected) {
     const addResult = addFactionMembership(currentCtx.state, {
       factionId,
       personId: memberId,
-      year: currentCtx.state.currentYear,
-      month: currentCtx.state.currentMonth,
+      week: currentCtx.state.absoluteWeek,
     })
     if (!addResult.ok) continue
     currentCtx = { ...currentCtx, state: addResult.value.state }
     initialMemberIds.push(memberId)
 
-    // Initial attitudes (overwrite — Founded is an important event)
     const leaderToMember = setPersonAttitude(
       currentCtx.state,
       leaderId,
@@ -325,7 +264,6 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
     if (memberToLeader.ok) currentCtx = { ...currentCtx, state: memberToLeader.value }
   }
 
-  // FACTION_FOUNDED event
   const { id: eventId, ctx: ec } = makeEventId(currentCtx)
   const housesInvolved: HouseId[] = [leader.houseId]
   for (const mid of initialMemberIds) {
@@ -336,7 +274,7 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
   const event: SimEvent = {
     id: eventId,
     year: ec.state.currentYear,
-    month: ec.state.currentMonth,
+    weekOfYear: ec.state.currentWeekOfYear,
     type: 'FACTION_FOUNDED',
     importance: 'normal',
     actorIds: [leaderId, ...initialMemberIds],
@@ -364,7 +302,6 @@ function pickInitialMemberCandidates(ctx: TickContext, leaderId: PersonId): Pers
     if (getActiveFactionMembership(ctx.state, pid)) continue
     if (getFactionByLeader(ctx.state, pid)) continue
 
-    // Bias: same House strongly preferred; attitudes also matter.
     let bias = 0
     if (p.houseId === leader.houseId) bias += 10
     const lToP = getAttitudeOrDefault(ctx.state, leader, { kind: 'person', id: pid })

@@ -41,7 +41,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
       const event: SimEvent = {
         id: eventId,
         year: currentState.currentYear,
-        month: currentState.currentMonth,
+        weekOfYear: currentState.currentWeekOfYear,
         type: 'PERSON_DIED',
         importance,
         actorIds: [personId as PersonId],

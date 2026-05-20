@@ -10,7 +10,8 @@ describe('tick', () => {
 
     const result = tick(input)
 
-    expect(result.state.currentMonth).toBe(world.currentMonth + 1)
+    expect(result.state.currentWeekOfYear).toBe(world.currentWeekOfYear + 1)
+    expect(result.state.absoluteWeek).toBe(world.absoluteWeek + 1)
     expect(result.state.currentYear).toBe(world.currentYear)
   })
 
@@ -33,7 +34,7 @@ describe('tick', () => {
 
     expect(result.state).toBeDefined()
     expect(result.state.currentYear).toBeDefined()
-    expect(result.state.currentMonth).toBeDefined()
+    expect(result.state.currentWeekOfYear).toBeDefined()
     expect(result.state.provinces).toBeDefined()
     expect(result.state.polities).toBeDefined()
     expect(result.state.houses).toBeDefined()
@@ -45,13 +46,13 @@ describe('tick', () => {
     expect(Array.isArray(result.events)).toBe(true)
   })
 
-  it('12 consecutive ticks advance year by 1 (month 1 -> month 1, year 2)', () => {
+  it('52 consecutive ticks advance year by 1 (week 1 -> week 1, year 2)', () => {
     const { world, rng } = generateWorld('tick-year-test')
     let currentState = world
     let currentRng = { ...rng }
     const config = defaultConfig
 
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 52; i++) {
       const input = { state: currentState, rng: currentRng, config }
       const result = tick(input)
       currentState = result.state
@@ -59,7 +60,7 @@ describe('tick', () => {
     }
 
     expect(currentState.currentYear).toBe(world.currentYear + 1)
-    expect(currentState.currentMonth).toBe(world.currentMonth)
+    expect(currentState.currentWeekOfYear).toBe(world.currentWeekOfYear)
   })
 
   it('tick on generateWorld output does not throw (integration test)', () => {
@@ -79,7 +80,7 @@ describe('tick', () => {
       expect(event.id).toBeDefined()
       expect(typeof event.id).toBe('string')
       expect(event.year).toBeDefined()
-      expect(event.month).toBeDefined()
+      expect(event.weekOfYear).toBeDefined()
       expect(event.type).toBeDefined()
       expect(['minor', 'normal', 'major', 'critical']).toContain(event.importance)
       expect(Array.isArray(event.actorIds)).toBe(true)

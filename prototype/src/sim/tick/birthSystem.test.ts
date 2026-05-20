@@ -41,73 +41,6 @@ function makePerson(
   }
 }
 
-function makeBaseCtx(
-  persons: Record<PersonId, Person>,
-  houses: Record<HouseId, NonNullable<WorldState['houses'][HouseId]>>,
-  polities: Record<PolityId, NonNullable<WorldState['polities'][PolityId]>>,
-  month: number,
-  provinceId?: ProvinceId,
-): TickContext {
-  return {
-    state: {
-      currentYear: 1,
-      currentMonth: month,
-      provinces: provinceId
-        ? {
-            [provinceId]: {
-              id: provinceId,
-              name: 'Test Province',
-              x: 0,
-              y: 0,
-              neighbors: [],
-              habitability: 50,
-              popGroupIds: [],
-              development: 0,
-              polityControl: 100,
-            },
-          }
-        : {},
-      polities,
-      houses,
-      persons,
-      activePlots: {},
-      popGroups: {},
-      organizationShares: {},
-      officeAssignments: {},
-      shareIndex: { byOrganization: {}, byHolder: {} },
-      officeIndex: { byOrganization: {}, byHolderPerson: {} },
-      nextOrganizationShareId: 0,
-      nextOfficeAssignmentId: 0,
-      landContracts: {},
-      provinceOfficeAssignments: {},
-      landContractIndex: { byProvince: {}, byGranteePolity: {}, byParent: {} },
-      provinceTerminalPolityCache: {},
-      provinceOfficeIndex: { byProvince: {}, byHolderPerson: {}, byAppointingPolity: {} },
-      polityIndex: { byOwnerHouse: {} },
-      factions: {},
-      factionMemberships: {},
-      factionIndex: { byLeader: {}, byMember: {} },
-      nextLandContractId: 0,
-      nextProvinceOfficeAssignmentId: 0,
-      nextFactionId: 0,
-      nextFactionMembershipId: 0,
-      actorIntents: {},
-      diplomaticPlays: {},
-      nextActorIntentId: 0,
-      nextDiplomaticPlayId: 0,
-    },
-    rng: { seedText: 'test', state: 42 },
-    config: defaultConfig,
-    events: [],
-    nextEventIndex: 0,
-    deathsThisTick: [],
-    deathRolesThisTick: {},
-    nextPersonIndex: 0,
-    nextHouseIndex: 0,
-    nextPolityIndex: 0,
-  }
-}
-
 function makePolity(
   id: PolityId,
   houseId: HouseId,
@@ -149,31 +82,6 @@ function makeConfig(overrides: Partial<typeof defaultConfig> = {}): typeof defau
 }
 
 describe('runBirthSystem', () => {
-  it('does nothing when currentMonth !== 1', () => {
-    const houseId = 'h-0' as HouseId
-    const polityId = 'dp-0' as PolityId
-    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId)
-    const mother = makePerson('pe-1' as PersonId, 'Jane', 'female', 28, true, houseId)
-    mother.spouseId = father.id
-    father.spouseId = mother.id
-    const house = makeHouse(houseId)
-    house.memberIds = [father.id, mother.id]
-    const polity = makePolity(polityId, houseId)
-
-    const ctx = makeBaseCtx(
-      { [father.id]: father, [mother.id]: mother },
-      { [houseId]: house },
-      { [polityId]: polity },
-      6,
-    )
-
-    const result = runBirthSystem(ctx)
-
-    expect(result.events.length).toBe(0)
-    const keys = Object.keys(result.state.persons)
-    expect(keys.length).toBe(2)
-  })
-
   it('a father with a valid spouse produces a child', () => {
     const houseId = 'h-0' as HouseId
     const polityId = 'dp-0' as PolityId
@@ -193,7 +101,8 @@ describe('runBirthSystem', () => {
     const ctx: TickContext = {
       state: {
         currentYear: 1,
-        currentMonth: 1,
+        currentWeekOfYear: 1,
+        absoluteWeek: 52,
         provinces: {},
         polities: { [polityId]: polity },
         houses: { [houseId]: house },
@@ -271,7 +180,8 @@ describe('runBirthSystem', () => {
     const ctx: TickContext = {
       state: {
         currentYear: 1,
-        currentMonth: 1,
+        currentWeekOfYear: 1,
+        absoluteWeek: 52,
         provinces: {},
         polities: { [polityId]: polity },
         houses: { [houseId]: house },
@@ -344,7 +254,8 @@ describe('runBirthSystem', () => {
     const ctx: TickContext = {
       state: {
         currentYear: 1,
-        currentMonth: 1,
+        currentWeekOfYear: 1,
+        absoluteWeek: 52,
         provinces: {},
         polities: { [polityId]: polity },
         houses: { [houseId]: house },
@@ -419,7 +330,8 @@ describe('runBirthSystem', () => {
       const ctx: TickContext = {
         state: {
           currentYear: 1,
-          currentMonth: 1,
+          currentWeekOfYear: 1,
+          absoluteWeek: 52,
           provinces: {},
           polities: { [polityId]: polity },
           houses: { [houseId]: house },
@@ -478,7 +390,8 @@ describe('runBirthSystem', () => {
       const ctx: TickContext = {
         state: {
           currentYear: 1,
-          currentMonth: 1,
+          currentWeekOfYear: 1,
+          absoluteWeek: 52,
           provinces: {},
           polities: { [polityId]: polity },
           houses: { [houseId]: house },

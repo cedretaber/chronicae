@@ -58,24 +58,21 @@ function makeFixture(): {
     name: 'Active Faction',
     leaderPersonId: leaderId,
     active: true,
-    foundingYear: 1444,
-    foundingMonth: 1,
+    foundingWeek: 75088,
   }
   state.factionMemberships[createFactionMembershipId(0)] = {
     id: createFactionMembershipId(0),
     factionId: faction1Id,
     personId: leaderId,
     active: true,
-    joinedYear: 1444,
-    joinedMonth: 1,
+    joinedWeek: 75088,
   }
   state.factionMemberships[createFactionMembershipId(1)] = {
     id: createFactionMembershipId(1),
     factionId: faction1Id,
     personId: member1Id,
     active: true,
-    joinedYear: 1444,
-    joinedMonth: 1,
+    joinedWeek: 75088,
   }
   state.factionIndex.byMember[leaderId] = [createFactionMembershipId(0)]
   state.factionIndex.byMember[member1Id] = [createFactionMembershipId(1)]
@@ -87,8 +84,7 @@ function makeFixture(): {
     name: 'Inactive Faction',
     leaderPersonId: member2Id,
     active: false,
-    foundingYear: 1440,
-    foundingMonth: 6,
+    foundingWeek: 74891,
   }
   state.factionIndex.byLeader[member2Id] = [inactiveFactionId]
 
@@ -200,8 +196,7 @@ describe('getFactionActiveMemberIds', () => {
       name: 'Empty',
       leaderPersonId: createPersonId('pe', 99),
       active: true,
-      foundingYear: 1444,
-      foundingMonth: 1,
+      foundingWeek: 75088,
     }
     const result = getFactionActiveMemberIds(state, emptyFactionId)
     expect(result).toEqual([])
@@ -240,8 +235,7 @@ describe('getFactionViabilityScore', () => {
       name: 'Inactive',
       leaderPersonId: createPersonId('pe', 99),
       active: false,
-      foundingYear: 1444,
-      foundingMonth: 1,
+      foundingWeek: 75088,
     }
     const result = getFactionViabilityScore(state, defaultConfig, inactiveFactionId)
     expect(result).toBe(0)
@@ -344,16 +338,14 @@ describe('getFactionNominationPower', () => {
       name: 'Active Faction',
       leaderPersonId: leaderId,
       active: true,
-      foundingYear: 1444,
-      foundingMonth: 1,
+      foundingWeek: 75088,
     }
     state.factionMemberships[membershipId] = {
       id: membershipId,
       factionId: faction1Id,
       personId: member1Id,
       active: true,
-      joinedYear: 1444,
-      joinedMonth: 1,
+      joinedWeek: 75088,
     }
     state.factionIndex.byMember[member1Id] = [membershipId]
     state.factionIndex.byLeader[leaderId] = [faction1Id]
@@ -392,16 +384,14 @@ describe('getFactionNominationPower', () => {
       name: 'Active Faction',
       leaderPersonId: leaderId,
       active: true,
-      foundingYear: 1444,
-      foundingMonth: 1,
+      foundingWeek: 75088,
     }
     state.factionMemberships[membershipId] = {
       id: membershipId,
       factionId: faction1Id,
       personId: member1Id,
       active: true,
-      joinedYear: 1444,
-      joinedMonth: 1,
+      joinedWeek: 75088,
     }
     state.factionIndex.byMember[member1Id] = [membershipId]
     state.factionIndex.byLeader[leaderId] = [faction1Id]
@@ -459,16 +449,14 @@ describe('hasRelevantFactionForAppointment', () => {
       name: 'Active Faction',
       leaderPersonId: leaderId,
       active: true,
-      foundingYear: 1444,
-      foundingMonth: 1,
+      foundingWeek: 75088,
     }
     state.factionMemberships[membershipId] = {
       id: membershipId,
       factionId: faction1Id,
       personId: member1Id,
       active: true,
-      joinedYear: 1444,
-      joinedMonth: 1,
+      joinedWeek: 75088,
     }
     state.factionIndex.byMember[member1Id] = [membershipId]
     state.factionIndex.byLeader[leaderId] = [faction1Id]
@@ -519,24 +507,21 @@ describe('getFactionRecommendationScore', () => {
       name: 'Active Faction',
       leaderPersonId: leaderId,
       active: true,
-      foundingYear: 1444,
-      foundingMonth: 1,
+      foundingWeek: 75088,
     }
     state.factionMemberships[memLovedId] = {
       id: memLovedId,
       factionId: faction1Id,
       personId: lovedId,
       active: true,
-      joinedYear: 1444,
-      joinedMonth: 1,
+      joinedWeek: 75088,
     }
     state.factionMemberships[memHatedId] = {
       id: memHatedId,
       factionId: faction1Id,
       personId: hatedId,
       active: true,
-      joinedYear: 1444,
-      joinedMonth: 1,
+      joinedWeek: 75088,
     }
     state.factionIndex.byMember[lovedId] = [memLovedId]
     state.factionIndex.byMember[hatedId] = [memHatedId]
@@ -626,16 +611,14 @@ describe('getFactionalCandidateScore', () => {
       name: 'Active Faction',
       leaderPersonId: leaderId,
       active: true,
-      foundingYear: 1444,
-      foundingMonth: 1,
+      foundingWeek: 75088,
     }
     state.factionMemberships[memId] = {
       id: memId,
       factionId: faction1Id,
       personId: candidateId,
       active: true,
-      joinedYear: 1444,
-      joinedMonth: 1,
+      joinedWeek: 75088,
     }
     state.factionIndex.byMember[candidateId] = [memId]
     state.factionIndex.byLeader[leaderId] = [faction1Id]

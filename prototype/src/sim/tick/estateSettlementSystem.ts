@@ -151,7 +151,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
     const settledEvent: SimEvent = {
       id: settledId,
       year: newState.currentYear,
-      month: newState.currentMonth,
+      weekOfYear: newState.currentWeekOfYear,
       type: 'ESTATE_SETTLED',
       importance,
       actorIds: [deceasedId, ...heirs],
@@ -183,7 +183,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
       const disputedEvent: SimEvent = {
         id: disputedId,
         year: newState.currentYear,
-        month: newState.currentMonth,
+        weekOfYear: newState.currentWeekOfYear,
         type: 'ESTATE_DISPUTED',
         importance: 'minor',
         actorIds: [deceasedId, ...heirs],

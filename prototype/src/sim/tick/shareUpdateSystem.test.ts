@@ -26,8 +26,9 @@ function makeCtx(world: WorldState): TickContext {
 describe('runShareUpdateSystem — overlap bonus (§16.2)', () => {
   it('House holder with overlap = 0 → rawPower unchanged (no bonus)', () => {
     const { world } = generateWorld('overlap-zero')
-    // Ensure currentMonth === 1 for share update to run
-    world.currentMonth = 1
+    // Ensure weekly time is at week 1 for share update to run
+    world.currentWeekOfYear = 1
+    world.absoluteWeek = world.currentYear * 52
 
     // Find a normal house and its polity
     const houseId = Object.keys(world.houses).find((k): k is HouseId => {
@@ -53,7 +54,8 @@ describe('runShareUpdateSystem — overlap bonus (§16.2)', () => {
 
   it('House holder with overlap = 1.0 → rawPower multiplied by (1 + bonusMax)', () => {
     const { world } = generateWorld('overlap-full')
-    world.currentMonth = 1
+    world.currentWeekOfYear = 1
+    world.absoluteWeek = world.currentYear * 52
 
     const houseId = Object.keys(world.houses).find((k): k is HouseId => {
       const h = world.houses[k as HouseId]
@@ -78,7 +80,8 @@ describe('runShareUpdateSystem — overlap bonus (§16.2)', () => {
 
   it('Person holder (commonwealth) → NO overlap bonus applied', () => {
     const { world } = generateWorld('overlap-person')
-    world.currentMonth = 1
+    world.currentWeekOfYear = 1
+    world.absoluteWeek = world.currentYear * 52
 
     const polityId = Object.keys(world.polities).find((k): k is PolityId => {
       const p = world.polities[k as PolityId]

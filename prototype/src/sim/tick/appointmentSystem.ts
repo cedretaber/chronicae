@@ -323,7 +323,7 @@ function tryAppointPolityOffice(
       const event: SimEvent = {
         id: eventId,
         year: currentCtx.state.currentYear,
-        month: currentCtx.state.currentMonth,
+        weekOfYear: currentCtx.state.currentWeekOfYear,
         type: 'OFFICE_ASSIGNED',
         importance: 'normal',
         actorIds: [best.id],
@@ -422,7 +422,7 @@ function tryAppointHouseOffice(
     const event: SimEvent = {
       id: eventId,
       year: currentCtx.state.currentYear,
-      month: currentCtx.state.currentMonth,
+      weekOfYear: currentCtx.state.currentWeekOfYear,
       type: 'OFFICE_ASSIGNED',
       importance: 'normal',
       actorIds: [best.id],
@@ -440,8 +440,6 @@ function tryAppointHouseOffice(
 }
 
 export function runAppointmentSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
-
   let currentCtx = ctx
 
   // Polity offices

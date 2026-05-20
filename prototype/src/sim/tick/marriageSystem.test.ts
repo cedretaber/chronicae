@@ -50,7 +50,8 @@ function makeBaseCtx(
   return {
     state: {
       currentYear: 1,
-      currentMonth: month,
+      currentWeekOfYear: month,
+      absoluteWeek: 51 + month,
       provinces: {},
       polities,
       houses,
@@ -121,28 +122,6 @@ function makeHouse(id: HouseId): NonNullable<WorldState['houses'][HouseId]> {
 }
 
 describe('runMarriageSystem', () => {
-  it('does nothing when currentMonth !== 1', () => {
-    const houseId = 'h-0' as HouseId
-    const polityId = 'dp-0' as PolityId
-    const male = makePerson('pe-0' as PersonId, 'John', 'male', 20, true, houseId)
-    const female = makePerson('pe-1' as PersonId, 'Jane', 'female', 18, true, houseId)
-    const house = makeHouse(houseId)
-    house.memberIds = [male.id, female.id]
-    const polity = makePolity(polityId, houseId)
-
-    const ctx = makeBaseCtx(
-      { [male.id]: male, [female.id]: female },
-      { [houseId]: house },
-      { [polityId]: polity },
-      6,
-    )
-
-    const result = runMarriageSystem(ctx)
-
-    expect(result.events.length).toBe(0)
-    expect(result.state.persons['pe-0' as PersonId]?.spouseId).toBeUndefined()
-  })
-
   it('marries an eligible male and female', () => {
     const houseId = 'h-0' as HouseId
     const polityId = 'dp-0' as PolityId

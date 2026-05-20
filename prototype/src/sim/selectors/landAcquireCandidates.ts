@@ -35,16 +35,14 @@ export function findLandAcquireIntentCandidates(
 
   const results: LandAcquireCandidate[] = []
   const polityIds = Object.keys(state.polities).sort() as PolityId[]
-  const currentAbsoluteMonth = state.currentYear * 12 + state.currentMonth
-
   for (const acquirerPolityId of polityIds) {
     const acquirer = state.polities[acquirerPolityId]
     if (!acquirer || !acquirer.active) continue
     if (acquirer.ownerHouseId === undefined) continue // commonwealth 除外
     if (acquirer.treasury < config.acquireLandMinTreasury) continue
 
-    if (acquirer.lastWarMonth !== undefined) {
-      if (currentAbsoluteMonth - acquirer.lastWarMonth < config.warCooldownMonths) {
+    if (acquirer.lastWarWeek !== undefined) {
+      if (state.absoluteWeek - acquirer.lastWarWeek < config.warCooldownWeeks) {
         continue
       }
     }

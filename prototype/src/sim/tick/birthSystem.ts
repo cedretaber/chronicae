@@ -12,8 +12,6 @@ import { inheritAptitudes, sampleAptitudes } from '../selectors/abilitySelectors
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
 export function runBirthSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
-
   let currentCtx = ctx
 
   const livingCount = countLivingPersons(currentCtx.state)
@@ -119,7 +117,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     const event: SimEvent = {
       id: eventId,
       year: currentCtx.state.currentYear,
-      month: currentCtx.state.currentMonth,
+      weekOfYear: currentCtx.state.currentWeekOfYear,
       type: 'CHILD_BORN',
       importance: 'minor',
       actorIds: motherId ? [childId, person.id, motherId] : [childId, person.id],
@@ -137,7 +135,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     const log = createLogger(currentCtx.config.debug)
     const birthFields: Record<string, string | number | boolean> = {
       year: currentCtx.state.currentYear,
-      month: currentCtx.state.currentMonth,
+      week: currentCtx.state.currentWeekOfYear,
       child: childId,
       sex: childSex,
       father: person.id,

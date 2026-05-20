@@ -156,7 +156,7 @@ function RawLogRow({ event }: { event: SimEvent }) {
   return (
     <div className={`flex flex-wrap items-center gap-2 py-0.5 text-xs ${colorClass}`}>
       <span className="text-gray-500">
-        [{event.year}/{event.month}] {getEventIcon(event.type)} {typeLabel}
+        [{event.year}/{event.weekOfYear}] {getEventIcon(event.type)} {typeLabel}
       </span>
       <span>{event.summary}</span>
       <EventLinks event={event} />
@@ -175,7 +175,7 @@ function ChronicleRow({ event, isHighlighted }: { event: SimEvent; isHighlighted
       }`}
     >
       <span className="text-gray-500">
-        [{event.year}/{event.month}] {icon}
+        [{event.year}/{event.weekOfYear}] {icon}
       </span>
       <span>{event.summary}</span>
       <EventLinks event={event} />
@@ -196,7 +196,7 @@ function TimelineYear({ year, events }: YearGroup) {
           key={e.id}
           className={`flex flex-wrap items-center gap-2 px-3 py-0.5 text-xs ${getImportanceColor(e.importance)}`}
         >
-          <span className="text-gray-500">[{e.month}] </span>
+          <span className="text-gray-500">[W{e.weekOfYear}] </span>
           <span>{e.summary}</span>
           <EventLinks event={e} />
         </div>

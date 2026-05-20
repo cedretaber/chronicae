@@ -32,12 +32,10 @@ export function calcPersonImportanceScore(
     if (bonus > roleBonus) roleBonus = bonus
   }
 
-  const cutoffMonths = state.currentYear * 12 + state.currentMonth - 12
+  const cutoffWeek = state.absoluteWeek - 52
   const recentInvolvement = eventHistory.filter((e) => {
-    const eMonths = e.year * 12 + e.month
-    return (
-      eMonths >= cutoffMonths && e.actorIds.some((id) => (id as string) === (personId as string))
-    )
+    const eWeek = e.year * 52 + e.weekOfYear - 1
+    return eWeek >= cutoffWeek && e.actorIds.some((id) => (id as string) === (personId as string))
   }).length
 
   return (

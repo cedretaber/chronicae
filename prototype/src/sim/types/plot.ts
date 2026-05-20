@@ -8,10 +8,8 @@ export type Plot = {
   id: PlotId
   type: PlotType
   status: PlotStatus
-  startedYear: number
-  startedMonth: number
-  durationMonths: number
-  elapsedMonths: number
+  startedWeek: number
+  durationWeeks: number
   leaderId: PersonId
   participantIds: PersonId[]
   targetPersonId?: PersonId

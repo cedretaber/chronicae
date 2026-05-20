@@ -21,8 +21,6 @@ import {
 // House actor の Intent は spec §8.7 により v0.18 では生成しない。
 
 export function runIntentGenerationSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
-
   let currentCtx = ctx
 
   // -- sell_land --
@@ -52,10 +50,8 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
         priority: c.price,
         rationale: 'raise_revenue',
         status: 'active',
-        createdYear: currentCtx.state.currentYear,
-        createdMonth: currentCtx.state.currentMonth,
-        expiresYear: currentCtx.state.currentYear + 1,
-        expiresMonth: currentCtx.state.currentMonth,
+        createdWeek: currentCtx.state.absoluteWeek,
+        expiresWeek: currentCtx.state.absoluteWeek + 52,
       }
 
       currentCtx = {
@@ -78,7 +74,7 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const ev: SimEvent = {
         id: eventId,
         year: ctxEv.state.currentYear,
-        month: ctxEv.state.currentMonth,
+        weekOfYear: ctxEv.state.currentWeekOfYear,
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
         actorIds: [],
@@ -120,10 +116,8 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
         priority: c.intentPriority,
         rationale: 'expand_territory',
         status: 'active',
-        createdYear: currentCtx.state.currentYear,
-        createdMonth: currentCtx.state.currentMonth,
-        expiresYear: currentCtx.state.currentYear + 1,
-        expiresMonth: currentCtx.state.currentMonth,
+        createdWeek: currentCtx.state.absoluteWeek,
+        expiresWeek: currentCtx.state.absoluteWeek + 52,
       }
 
       currentCtx = {
@@ -146,7 +140,7 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const ev: SimEvent = {
         id: eventId,
         year: ctxEv.state.currentYear,
-        month: ctxEv.state.currentMonth,
+        weekOfYear: ctxEv.state.currentWeekOfYear,
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
         actorIds: [],
@@ -188,10 +182,8 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
         priority: c.intentPriority,
         rationale: 'reduce_tribute',
         status: 'active',
-        createdYear: currentCtx.state.currentYear,
-        createdMonth: currentCtx.state.currentMonth,
-        expiresYear: currentCtx.state.currentYear + 1,
-        expiresMonth: currentCtx.state.currentMonth,
+        createdWeek: currentCtx.state.absoluteWeek,
+        expiresWeek: currentCtx.state.absoluteWeek + 52,
       }
 
       currentCtx = {
@@ -214,7 +206,7 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const ev: SimEvent = {
         id: eventId,
         year: ctxEv.state.currentYear,
-        month: ctxEv.state.currentMonth,
+        weekOfYear: ctxEv.state.currentWeekOfYear,
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
         actorIds: [],
@@ -256,10 +248,8 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
         priority: c.intentPriority,
         rationale: 'increase_tribute',
         status: 'active',
-        createdYear: currentCtx.state.currentYear,
-        createdMonth: currentCtx.state.currentMonth,
-        expiresYear: currentCtx.state.currentYear + 1,
-        expiresMonth: currentCtx.state.currentMonth,
+        createdWeek: currentCtx.state.absoluteWeek,
+        expiresWeek: currentCtx.state.absoluteWeek + 52,
       }
 
       currentCtx = {
@@ -282,7 +272,7 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const ev: SimEvent = {
         id: eventId,
         year: ctxEv.state.currentYear,
-        month: ctxEv.state.currentMonth,
+        weekOfYear: ctxEv.state.currentWeekOfYear,
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
         actorIds: [],

@@ -32,7 +32,7 @@ function makeEvent(
   return {
     id: `e-${year}-${id}` as EventId,
     year,
-    month: 1,
+    weekOfYear: 1,
     type,
     importance: 'minor',
     actorIds: actors,
@@ -58,7 +58,7 @@ describe('buildActivityReport', () => {
     const provinceId = 'pr-0' as import('../types/ids').ProvinceId
 
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1100, currentMonth: 12 }
+    state = { ...state, currentYear: 1100, currentWeekOfYear: 12, absoluteWeek: 57211 }
     state = withProvince(state, provinceId)
     state = withHouse(state, ownerHouseId, { name: 'OwnerHouse', memberIds: [rulerId, adminPid] })
     state = withHouse(state, outsiderHouseId, {
@@ -83,8 +83,7 @@ describe('buildActivityReport', () => {
       name: 'TestFaction',
       leaderPersonId: factionLeaderId,
       active: true,
-      foundingYear: 1050,
-      foundingMonth: 1,
+      foundingWeek: 54600,
     }
     const leaderMembershipId = 'fm-0' as FactionMembershipId
     const memberMembershipId = 'fm-1' as FactionMembershipId
@@ -93,16 +92,14 @@ describe('buildActivityReport', () => {
       factionId,
       personId: factionLeaderId,
       active: true,
-      joinedYear: 1050,
-      joinedMonth: 1,
+      joinedWeek: 54600,
     }
     const memberMembership: FactionMembership = {
       id: memberMembershipId,
       factionId,
       personId: factionMemberId,
       active: true,
-      joinedYear: 1060,
-      joinedMonth: 1,
+      joinedWeek: 55120,
     }
     state = {
       ...state,

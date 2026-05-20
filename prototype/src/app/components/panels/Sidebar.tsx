@@ -20,6 +20,7 @@ import { buildPolityColorMap } from '@/app/utils/polityColors'
 import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
 import type { PolityRank } from '@/sim/types/polity'
 import { defaultConfig } from '@/sim/config/defaultConfig'
+import { weekToYearWeek } from '@sim/utils/timeUtils'
 
 type SectionKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist' | 'plays'
 
@@ -36,13 +37,13 @@ function getRecentEventCount(
   watchId: string,
   eventHistory: SimEvent[],
   currentYear: number,
-  currentMonth: number,
+  currentWeekOfYear: number,
 ): number {
-  const cutoffMonths = currentYear * 12 + currentMonth - 12
+  const cutoffWeek = currentYear * 52 + currentWeekOfYear - 52
   return eventHistory.filter((e) => {
-    const eMonths = e.year * 12 + e.month
+    const eWeek = e.year * 52 + e.weekOfYear
     return (
-      eMonths >= cutoffMonths &&
+      eWeek >= cutoffWeek &&
       (e.actorIds.some((id) => (id as string) === watchId) ||
         e.houseIds.some((id) => (id as string) === watchId) ||
         e.polityIds.some((id) => (id as string) === watchId) ||
@@ -191,6 +192,7 @@ function FactionRow({
   isSelected: boolean
   onClick: () => void
 }) {
+  const founded = weekToYearWeek(faction.foundingWeek)
   return (
     <div
       className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
@@ -201,8 +203,8 @@ function FactionRow({
       <div className="font-bold">{faction.name}</div>
       <div className="text-xs text-gray-400">Leader: {leaderName}</div>
       <div className="text-gray-300">
-        Members: {memberCount} | Founded: {faction.foundingYear}/
-        {String(faction.foundingMonth).padStart(2, '0')}
+        Members: {memberCount} | Founded: {founded.year}/W
+        {String(founded.weekOfYear).padStart(2, '0')}
       </div>
     </div>
   )
@@ -224,6 +226,7 @@ function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<st
   const targetName = polities[play.target.id]?.name ?? play.target.id
   const badge = statusBadge[play.status] ?? { label: play.status, bg: 'bg-gray-600' }
   const kindLabelText = kindLabel[play.kind] ?? play.kind
+  const dl = weekToYearWeek(play.deadlineWeek)
   const provinceId =
     play.primaryDemand.kind === 'transfer_land_contract'
       ? play.primaryDemand.provinceId
@@ -250,8 +253,8 @@ function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<st
         {provinceId && <span className="text-gray-500"> ({provinceId})</span>}
       </div>
       <div className="text-xs text-gray-400">
-        Prog {Math.round(play.progress)} | Tens {Math.round(play.tension)} | DL {play.deadlineYear}/
-        {String(play.deadlineMonth).padStart(2, '0')}
+        Prog {Math.round(play.progress)} | Tens {Math.round(play.tension)} | DL {dl.year}/W
+        {String(dl.weekOfYear).padStart(2, '0')}
       </div>
     </div>
   )
@@ -415,7 +418,7 @@ export function Sidebar() {
           })
           .sort((a, b) => {
             if (b.memberCount !== a.memberCount) return b.memberCount - a.memberCount
-            return a.faction.foundingYear - b.faction.foundingYear
+            return a.faction.foundingWeek - b.faction.foundingWeek
           })
       : []
 
@@ -427,9 +430,7 @@ export function Sidebar() {
         .sort((a, b) => {
           // escalated を先、次に deadline 近いもの
           if (a.status !== b.status) return a.status === 'escalated' ? -1 : 1
-          const aDl = a.deadlineYear * 12 + a.deadlineMonth
-          const bDl = b.deadlineYear * 12 + b.deadlineMonth
-          return aDl - bDl
+          return a.deadlineWeek - b.deadlineWeek
         })
     : []
 
@@ -557,7 +558,7 @@ export function Sidebar() {
             watchId,
             eventHistory,
             currentState.currentYear,
-            currentState.currentMonth,
+            currentState.currentWeekOfYear,
           )
         : 0
 

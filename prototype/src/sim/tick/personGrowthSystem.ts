@@ -6,8 +6,6 @@ import { naturalFraction, hadRelevantExperience } from '../selectors/abilitySele
 import { randomFloat } from '../rng/rng'
 
 export function runPersonGrowthSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
-
   let rng = ctx.rng
   const updatedPersons: Record<PersonId, AbilityScores> = {}
 

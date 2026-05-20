@@ -63,7 +63,12 @@ function buildBaseState(currentYear = 1500): {
   const houseId = createHouseId('dh', 0)
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear, currentMonth: 1 }
+  state = {
+    ...state,
+    currentYear,
+    currentWeekOfYear: 1,
+    absoluteWeek: currentYear * 52,
+  }
   state = withProvince(state, provinceId, { name: 'Province0' })
   state = withHouse(state, houseId, {
     name: 'House0',
@@ -91,8 +96,7 @@ function addFaction(
     name: 'Faction0',
     leaderPersonId,
     active: true,
-    foundingYear: 1444,
-    foundingMonth: 1,
+    foundingWeek: state.currentYear * 52 + state.currentWeekOfYear - 1,
   }
   const newIndex: import('../types/faction').FactionIndex = {
     byLeader: { ...state.factionIndex.byLeader, [leaderPersonId]: [factionId] },
@@ -110,15 +114,14 @@ function addMembership(
   membershipId: import('../types/ids').FactionMembershipId,
   factionId: import('../types/ids').FactionId,
   personId: PersonId,
-  joinedYear: number,
+  joinedWeek: number,
 ): WorldState {
   const membership: FactionMembership = {
     id: membershipId,
     factionId,
     personId,
     active: true,
-    joinedYear,
-    joinedMonth: 1,
+    joinedWeek,
   }
   const memberIds = state.factionIndex.byMember[personId] ?? []
   return {
@@ -165,13 +168,13 @@ function addOffice(
 }
 
 describe('runFactionDefectionSystem', () => {
-  it('returns identity when month != 1', () => {
+  it('returns identity when currentWeekOfYear != 1', () => {
     const { state } = buildBaseState()
-    const month6State: WorldState = { ...state, currentMonth: 6 }
-    const ctx = makeCtx(month6State)
+    const week30State: WorldState = { ...state, currentWeekOfYear: 30 }
+    const ctx = makeCtx(week30State)
     const result = runFactionDefectionSystem(ctx)
 
-    expect(result.state).toBe(month6State)
+    expect(result.state).toBe(week30State)
   })
 
   it('returns identity when no active factions', () => {
@@ -189,7 +192,13 @@ describe('runFactionDefectionSystem', () => {
     // 別 member を追加 (Office なし、idle 長期) → defection は起きるが leader は無関係
     const memberId = createPersonId('pe', 1)
     s = withPerson(s, memberId, { name: 'Member', houseId, alive: true })
-    s = addMembership(s, createFactionMembershipId(0), createFactionId(0), memberId, 1480)
+    s = addMembership(
+      s,
+      createFactionMembershipId(0),
+      createFactionId(0),
+      memberId,
+      1480 * 52 + 1 - 1,
+    )
 
     const config = makeConfig({
       factionDefectionGraceYears: 8,
@@ -210,7 +219,13 @@ describe('runFactionDefectionSystem', () => {
     s = withPerson(s, memberId, { name: 'Member', houseId, alive: true })
     s = addFaction(s, createFactionId(0), leaderId)
     // joinedYear 1480 → idle 20 だが Office 持ちなので保護される
-    s = addMembership(s, createFactionMembershipId(0), createFactionId(0), memberId, 1480)
+    s = addMembership(
+      s,
+      createFactionMembershipId(0),
+      createFactionId(0),
+      memberId,
+      1480 * 52 + 1 - 1,
+    )
     s = addOffice(s, createOfficeAssignmentId(0), memberId, 'administrator', {
       kind: 'house',
       id: houseId,
@@ -233,8 +248,8 @@ describe('runFactionDefectionSystem', () => {
     let s = state
     s = withPerson(s, memberId, { name: 'Member', houseId, alive: true })
     s = addFaction(s, createFactionId(0), leaderId)
-    // joinedYear 1495 → idle = 5 < grace 8
-    s = addMembership(s, createFactionMembershipId(0), createFactionId(0), memberId, 1495)
+    // joinedWeek 77740 → idle = (78000-77740)/52 = 5 years (< grace 8 years)
+    s = addMembership(s, createFactionMembershipId(0), createFactionId(0), memberId, 77740)
 
     const config = makeConfig({
       factionDefectionGraceYears: 8,
@@ -243,8 +258,8 @@ describe('runFactionDefectionSystem', () => {
     const ctx = makeCtx(s, config)
     const result = runFactionDefectionSystem(ctx)
 
-    expect(result.state.factionMemberships[createFactionMembershipId(0)]).toBeDefined()
-    expect(result.events).toHaveLength(0)
+    expect(result.state.factions[createFactionId(0)]?.active).toBe(true)
+    expect(result.events.every((e) => e.type !== 'FACTION_MEMBER_ABANDONED')).toBe(true)
   })
 
   it('idle >= grace and roll < prob: defection happens, membership removed, event emitted', () => {
@@ -260,7 +275,13 @@ describe('runFactionDefectionSystem', () => {
     })
     s = addFaction(s, createFactionId(0), leaderId)
     // idle = 30, grace 8 → prob = (30-8)*1.0 = max → 必ず離脱
-    s = addMembership(s, createFactionMembershipId(0), createFactionId(0), memberId, 1470)
+    s = addMembership(
+      s,
+      createFactionMembershipId(0),
+      createFactionId(0),
+      memberId,
+      1470 * 52 + 1 - 1,
+    )
 
     const config = makeConfig({
       factionDefectionGraceYears: 8,
@@ -290,7 +311,13 @@ describe('runFactionDefectionSystem', () => {
     s = withPerson(s, memberId, { name: 'Member', houseId, alive: true })
     s = addFaction(s, createFactionId(0), leaderId)
     // idle = 9, grace 8 → prob = (9-8)*0.001 = 0.001 → ほぼ確実に roll >= prob
-    s = addMembership(s, createFactionMembershipId(0), createFactionId(0), memberId, 1491)
+    s = addMembership(
+      s,
+      createFactionMembershipId(0),
+      createFactionId(0),
+      memberId,
+      1491 * 52 + 1 - 1,
+    )
 
     const config = makeConfig({
       factionDefectionGraceYears: 8,

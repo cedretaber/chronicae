@@ -86,7 +86,8 @@ export function makeEmptyV016State(): WorldState {
   }
   return {
     currentYear: 1000,
-    currentMonth: 1,
+    currentWeekOfYear: 1,
+    absoluteWeek: 52000,
     provinces: {},
     polities: {},
     houses: { [ANONYMOUS_HOUSE_ID]: anon },
@@ -270,7 +271,7 @@ export function bindProvinceToPolity(
     provinceId,
     appointingPolityId: polityId,
     year: nextState.currentYear,
-    month: nextState.currentMonth,
+    week: nextState.absoluteWeek,
   })
   return nextState
 }

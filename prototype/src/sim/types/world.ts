@@ -37,7 +37,8 @@ import type { DiplomaticPlay } from './diplomaticPlay'
 
 export type WorldState = {
   currentYear: number
-  currentMonth: number
+  currentWeekOfYear: number
+  absoluteWeek: number
   provinces: Record<ProvinceId, Province>
   polities: Record<PolityId, Polity>
   houses: Record<HouseId, House>

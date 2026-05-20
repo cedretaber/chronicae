@@ -199,7 +199,7 @@ export function splitHouse(
   const splitEvent: SimEvent = {
     id: eventId,
     year: resultCtx.state.currentYear,
-    month: resultCtx.state.currentMonth,
+    weekOfYear: resultCtx.state.currentWeekOfYear,
     type: 'HOUSE_SPLIT',
     importance: 'major',
     actorIds: [splitterPerson.id],
@@ -215,7 +215,7 @@ export function splitHouse(
   const log = createLogger(ctx.config.debug)
   log.log('HOUSE_SPLIT', {
     year: resultCtx.state.currentYear,
-    month: resultCtx.state.currentMonth,
+    weekOfYear: resultCtx.state.currentWeekOfYear,
     house: input.houseId,
     result: 'split',
     new_house: newHouseId,
@@ -225,7 +225,7 @@ export function splitHouse(
   const crisisEvent: SimEvent = {
     id: crisisId,
     year: resultCtx.state.currentYear,
-    month: resultCtx.state.currentMonth,
+    weekOfYear: resultCtx.state.currentWeekOfYear,
     type: 'SUCCESSION_CRISIS',
     importance: 'major',
     actorIds: [splitterPerson.id],
@@ -375,7 +375,7 @@ function handleNormalHouseExtinction(
     const log = createLogger(ctx.config.debug)
     log.log('LAST_NORMAL_HOUSE_GUARD', {
       year: ctx.state.currentYear,
-      month: ctx.state.currentMonth,
+      weekOfYear: ctx.state.currentWeekOfYear,
       house: houseId,
     })
     return ctx
@@ -419,7 +419,7 @@ function handleNormalHouseExtinction(
       const dispersedEvent: SimEvent = {
         id: dispersedEventId,
         year: finalState.currentYear,
-        month: finalState.currentMonth,
+        weekOfYear: finalState.currentWeekOfYear,
         type: 'HOUSE_MEMBERS_DISPERSED',
         importance: 'normal',
         actorIds: livingMemberIds,
@@ -437,7 +437,7 @@ function handleNormalHouseExtinction(
     const event: SimEvent = {
       id: eventId,
       year: finalState.currentYear,
-      month: finalState.currentMonth,
+      weekOfYear: finalState.currentWeekOfYear,
       type: 'HOUSE_EXTINCT',
       importance: 'major',
       actorIds: [],
@@ -507,7 +507,7 @@ function handleNormalHouseExtinction(
     ownerChangedEvents.push({
       id: '' as ReturnType<typeof makeEventId>['id'], // 後で発番
       year: chainState.currentYear,
-      month: chainState.currentMonth,
+      weekOfYear: chainState.currentWeekOfYear,
       type: 'POLITY_OWNER_CHANGED',
       importance: 'major',
       actorIds: [],
@@ -545,7 +545,7 @@ function handleNormalHouseExtinction(
   const event: SimEvent = {
     id: eventId,
     year: finalState.currentYear,
-    month: finalState.currentMonth,
+    weekOfYear: finalState.currentWeekOfYear,
     type: 'HOUSE_EXTINCT',
     importance: 'major',
     actorIds: [],
@@ -563,7 +563,7 @@ function handleNormalHouseExtinction(
   const log = createLogger(ctx.config.debug)
   log.log('HOUSE_EXTINCT', {
     year: finalState.currentYear,
-    month: finalState.currentMonth,
+    weekOfYear: finalState.currentWeekOfYear,
     house: houseId,
     type: 'normal',
     receiver: receiverHouseId,
@@ -736,7 +736,7 @@ export function createRebelPolity(
     provinceId,
     appointingPolityId: newPolityId,
     year: newState.currentYear,
-    month: newState.currentMonth,
+    week: newState.currentWeekOfYear,
   })
 
   const oldOwnerIsRuler =
@@ -790,7 +790,7 @@ export function createRebelPolity(
         const extinctEvent: SimEvent = {
           id: extinctEventId,
           year: ctxE.state.currentYear,
-          month: ctxE.state.currentMonth,
+          weekOfYear: ctxE.state.currentWeekOfYear,
           type: 'HOUSE_EXTINCT',
           importance: 'major',
           actorIds: [],
@@ -817,7 +817,7 @@ export function createRebelPolity(
   const event: SimEvent = {
     id: eventId,
     year: ctx4.state.currentYear,
-    month: ctx4.state.currentMonth,
+    weekOfYear: ctx4.state.currentWeekOfYear,
     type: 'REVOLT_POLITY_FOUNDED',
     importance: 'critical',
     actorIds: [newPersonId],
@@ -929,7 +929,7 @@ export function disbandRebelPolity(
     provinceId: input.provinceId,
     appointingPolityId: input.restoreToPolityId,
     year: state.currentYear,
-    month: state.currentMonth,
+    week: state.currentWeekOfYear,
   })
 
   // 5. rebel leader を死亡処理 (markPersonDead 内部で revokeOfficesByHolder 連鎖)
@@ -978,7 +978,7 @@ export function disbandRebelPolity(
   const event: SimEvent = {
     id: eventId,
     year: ctxEvent.state.currentYear,
-    month: ctxEvent.state.currentMonth,
+    weekOfYear: ctxEvent.state.currentWeekOfYear,
     type: input.reason === 'settlement' ? 'REVOLT_SETTLED' : 'REVOLT_SUPPRESSED',
     importance: 'major',
     actorIds: rebelLeaderId !== undefined ? [rebelLeaderId] : [],

@@ -56,7 +56,7 @@ function makeBaseState(): {
   // 旧 fixture が想定した複数 House の候補競合を保つため、両人物を houseRuler の member として扱う。
   // houseVassal は別 House として残すが、polity1 の Office 候補としては寄与しない。
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
   state = withProvince(state, provinceRulerId, { name: 'Ruler Province', development: 10 })
   state = withProvince(state, provinceVassalId, {
     name: 'Vassal Province',
@@ -266,55 +266,6 @@ describe('runAppointmentSystem', () => {
     // OFFICE_REVOKED events are not emitted for replacements (only for dead people)
     expect(countEvents(result.events, 'OFFICE_REVOKED')).toBe(0)
     expect(countEvents(result.events, 'OFFICE_ASSIGNED')).toBeGreaterThan(0)
-  })
-
-  it('does not run in non-January months', () => {
-    const { state, polityId, personRulerId } = makeBaseState()
-
-    const leaderOfficeId = createOfficeAssignmentId(99)
-    const adminOfficeId = createOfficeAssignmentId(100)
-    const stateWithOffices: WorldState = {
-      ...state,
-      currentMonth: 2,
-      officeAssignments: {
-        [leaderOfficeId]: {
-          id: leaderOfficeId,
-          organization: { kind: 'polity' as const, id: polityId },
-          role: 'leader',
-          holderPersonId: personRulerId,
-          active: true,
-          startYear: 1444,
-          unpaidCount: 0,
-        },
-        [adminOfficeId]: {
-          id: adminOfficeId,
-          organization: { kind: 'polity' as const, id: polityId },
-          role: 'administrator',
-          holderPersonId: personRulerId,
-          active: true,
-          startYear: 1444,
-          unpaidCount: 0,
-        },
-      },
-      officeIndex: {
-        byOrganization: {
-          [`polity:${polityId}`]: [leaderOfficeId, adminOfficeId],
-        },
-        byHolderPerson: {
-          [personRulerId]: [leaderOfficeId, adminOfficeId],
-        },
-      },
-    }
-
-    const config = { ...defaultConfig }
-    const ctx = buildCtx(stateWithOffices, config)
-
-    const result = toResult(runAppointmentSystem(ctx))
-
-    // System doesn't run in non-January months - no appointments or replacements
-    expect(holdsOfficeRole(result.state, personRulerId, 'administrator')).toBe(true)
-    expect(countEvents(result.events, 'OFFICE_ASSIGNED')).toBe(0)
-    expect(countEvents(result.events, 'OFFICE_REVOKED')).toBe(0)
   })
 
   it('revokes dead person office and appoints new person', () => {
@@ -572,7 +523,7 @@ describe('runAppointmentSystem', () => {
     const memId = createFactionMembershipId(0)
 
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1444, currentMonth: 1 }
+    state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
     state = withProvince(state, createProvinceId('p', 0), { name: 'P0', development: 10 })
     state = withHouse(state, houseId, {
       name: 'Test House',
@@ -625,16 +576,14 @@ describe('runAppointmentSystem', () => {
       name: 'Test Faction',
       leaderPersonId: leaderId,
       active: true,
-      foundingYear: 1440,
-      foundingMonth: 1,
+      foundingWeek: 1440 * 52 + 1 - 1,
     }
     state.factionMemberships[memId] = {
       id: memId,
       factionId,
       personId: factionMemberId,
       active: true,
-      joinedYear: 1440,
-      joinedMonth: 1,
+      joinedWeek: 1440 * 52 + 1 - 1,
     }
     state.factionIndex.byMember[factionMemberId] = [memId]
     state.factionIndex.byLeader[leaderId] = [factionId]
@@ -682,7 +631,7 @@ describe('runAppointmentSystem', () => {
     const memId = createFactionMembershipId(0)
 
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1444, currentMonth: 1 }
+    state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
     state = withProvince(state, createProvinceId('p', 0), { name: 'P0', development: 10 })
     state = withHouse(state, houseId, {
       name: 'Test House',
@@ -735,16 +684,14 @@ describe('runAppointmentSystem', () => {
       name: 'Test Faction',
       leaderPersonId: leaderId,
       active: true,
-      foundingYear: 1440,
-      foundingMonth: 1,
+      foundingWeek: 1440 * 52 + 1 - 1,
     }
     state.factionMemberships[memId] = {
       id: memId,
       factionId,
       personId: factionMemberId,
       active: true,
-      joinedYear: 1440,
-      joinedMonth: 1,
+      joinedWeek: 1440 * 52 + 1 - 1,
     }
     state.factionIndex.byMember[factionMemberId] = [memId]
     state.factionIndex.byLeader[leaderId] = [factionId]
@@ -797,7 +744,7 @@ describe('runAppointmentSystem', () => {
     const provinceId = createProvinceId('p', 0)
 
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1444, currentMonth: 1 }
+    state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
     state = withProvince(state, provinceId, { name: 'P0', development: 10 })
     state = withHouse(state, houseId, {
       name: 'Test House',
@@ -879,7 +826,7 @@ describe('runAppointmentSystem', () => {
     const provinceId = createProvinceId('p', 0)
 
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1444, currentMonth: 1 }
+    state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
     state = withProvince(state, provinceId, { name: 'P0', development: 10 })
     state = withHouse(state, houseId, {
       name: 'Test House',
@@ -966,14 +913,15 @@ describe('runAppointmentSystem', () => {
       holderPersonId: personVassalId,
       appointingPolityId: polityId,
       year: withBailiff.currentYear,
-      month: withBailiff.currentMonth,
+      week: withBailiff.absoluteWeek,
     }).state
 
     // Wire up leader office for ruler
     const leaderOfficeId = createOfficeAssignmentId(99)
     const stateWithLeader: WorldState = {
       ...withBailiff,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
+      absoluteWeek: withBailiff.absoluteWeek,
       officeAssignments: {
         ...withBailiff.officeAssignments,
         [leaderOfficeId]: {

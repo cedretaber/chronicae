@@ -13,7 +13,6 @@ import { adjustPersonAttitudeIfExists } from '../mutations/attitudeMutations'
 // v0.17.4: stipend を払えなかった member が >= 1 かつ leader.wealth が解散閾値を上回る場合
 // FACTION_FUNDS_SHORTAGE event を 1 派閥 1 年 1 回 emit する。
 export function runFactionPatronageSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
   let currentCtx = ctx
   const config = ctx.config
 
@@ -98,7 +97,7 @@ export function runFactionPatronageSystem(ctx: TickContext): TickContext {
         const event: SimEvent = {
           id: eventId,
           year: ec.state.currentYear,
-          month: ec.state.currentMonth,
+          weekOfYear: ec.state.currentWeekOfYear,
           type: 'FACTION_FUNDS_SHORTAGE',
           importance: 'normal',
           actorIds: [faction.leaderPersonId],

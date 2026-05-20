@@ -18,8 +18,6 @@ import {
 } from '@sim/selectors/polityRelations'
 
 export function runShareUpdateSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
-
   let state = ctx.state
   const config = ctx.config
 

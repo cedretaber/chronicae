@@ -4,10 +4,6 @@ import type { Polity } from '../types/polity'
 import { getPolityAdminPower } from '@sim/selectors/statusSelectors'
 
 export function runGovernanceSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) {
-    return ctx
-  }
-
   let currentCtx = ctx
 
   // v013-residual: simple-batch — 全 polity の adminPower 計算後の単一バッチ書き込み。将来 setPolityAdminPower() で代替可

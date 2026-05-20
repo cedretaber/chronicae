@@ -1,10 +1,14 @@
 import type { TickContext } from './context'
 import type { PersonId } from '../types/ids'
 
+const WEEKS_PER_YEAR = 52
+
 export function advanceTime(ctx: TickContext): TickContext {
-  const newMonth = ctx.state.currentMonth + 1
-  if (newMonth > 12) {
-    // v013-residual: simple-batch — 全員に1歳加算する単純ループ。将来 incrementAllPersonsAge() で代替可
+  const nextAbsoluteWeek = ctx.state.absoluteWeek + 1
+  const nextWeekOfYear = (nextAbsoluteWeek % WEEKS_PER_YEAR) + 1
+  const nextYear = Math.floor(nextAbsoluteWeek / WEEKS_PER_YEAR)
+
+  if (nextWeekOfYear === 1) {
     const newPersons = { ...ctx.state.persons }
     for (const personId of Object.keys(ctx.state.persons)) {
       const person = newPersons[personId as PersonId]
@@ -16,18 +20,22 @@ export function advanceTime(ctx: TickContext): TickContext {
       state: {
         ...ctx.state,
         persons: newPersons,
-        currentYear: ctx.state.currentYear + 1,
-        currentMonth: 1,
+        absoluteWeek: nextAbsoluteWeek,
+        currentWeekOfYear: nextWeekOfYear,
+        currentYear: nextYear,
       },
       deathsThisTick: [],
       deathRolesThisTick: {},
     }
   }
+
   return {
     ...ctx,
     state: {
       ...ctx.state,
-      currentMonth: newMonth,
+      absoluteWeek: nextAbsoluteWeek,
+      currentWeekOfYear: nextWeekOfYear,
+      currentYear: nextYear,
     },
     deathsThisTick: [],
     deathRolesThisTick: {},

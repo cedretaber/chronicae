@@ -93,10 +93,8 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
         concessionLevel: 'minor',
       },
       status: 'escalated',
-      startedYear: ctx.state.currentYear,
-      startedMonth: ctx.state.currentMonth,
-      deadlineYear: ctx.state.currentYear + 1,
-      deadlineMonth: ctx.state.currentMonth,
+      startedWeek: ctx.state.currentYear * 52 + ctx.state.currentWeekOfYear,
+      deadlineWeek: (ctx.state.currentYear + 1) * 52 + ctx.state.currentWeekOfYear,
       progress: 30,
       tension: 70,
     }
@@ -139,10 +137,8 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
         concessionLevel: 'minor',
       },
       status: 'active',
-      startedYear: setup.ctx.state.currentYear,
-      startedMonth: setup.ctx.state.currentMonth,
-      deadlineYear: setup.ctx.state.currentYear + 1,
-      deadlineMonth: setup.ctx.state.currentMonth,
+      startedWeek: setup.ctx.state.currentYear * 52 + setup.ctx.state.currentWeekOfYear - 1,
+      deadlineWeek: (setup.ctx.state.currentYear + 1) * 52 + setup.ctx.state.currentWeekOfYear - 1,
       progress: 50,
       tension: 30,
     }
@@ -205,10 +201,8 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
         toPolityId: attackerPolityId,
       },
       status: 'escalated',
-      startedYear: ctx.state.currentYear,
-      startedMonth: ctx.state.currentMonth,
-      deadlineYear: ctx.state.currentYear + 1,
-      deadlineMonth: ctx.state.currentMonth,
+      startedWeek: ctx.state.currentYear * 52 + ctx.state.currentWeekOfYear,
+      deadlineWeek: (ctx.state.currentYear + 1) * 52 + ctx.state.currentWeekOfYear,
       progress: 10,
       tension: 70,
     }
@@ -248,9 +242,9 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
       setup.provinceDefenderId,
     )
     ctx = runConflictResolutionSystem(ctx)
-    const expected = ctx.state.currentYear * 12 + ctx.state.currentMonth
-    expect(ctx.state.polities[setup.attackerPolityId]?.lastWarMonth).toBe(expected)
-    expect(ctx.state.polities[setup.defenderPolityId]?.lastWarMonth).toBe(expected)
+    const expected = ctx.state.absoluteWeek
+    expect(ctx.state.polities[setup.attackerPolityId]?.lastWarWeek).toBe(expected)
+    expect(ctx.state.polities[setup.defenderPolityId]?.lastWarWeek).toBe(expected)
   })
 
   it('cancels Play when conflictResolutionEnabled=false', () => {
@@ -303,10 +297,8 @@ describe('runConflictResolutionSystem (unsupported kind)', () => {
         kind: 'status_quo',
       },
       status: 'escalated',
-      startedYear: s.currentYear,
-      startedMonth: s.currentMonth,
-      deadlineYear: s.currentYear + 1,
-      deadlineMonth: s.currentMonth,
+      startedWeek: s.currentYear * 52 + s.currentWeekOfYear,
+      deadlineWeek: (s.currentYear + 1) * 52 + s.currentWeekOfYear,
       progress: 10,
       tension: 70,
     }

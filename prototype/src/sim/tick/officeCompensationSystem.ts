@@ -7,8 +7,6 @@ import { adjustPersonAttitude } from '@sim/mutations/attitudeMutations'
 import type { WorldState } from '@sim/types/world'
 
 export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
-
   let state = ctx.state
   const config = ctx.config
   const events: SimEvent[] = [...ctx.events]
@@ -99,7 +97,7 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
       const event: SimEvent = {
         id: eventId,
         year: state.currentYear,
-        month: state.currentMonth,
+        weekOfYear: state.currentWeekOfYear,
         type: eventType,
         importance: 'minor',
         actorIds: [office.holderPersonId],

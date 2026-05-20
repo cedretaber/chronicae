@@ -75,7 +75,7 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
       const event: SimEvent = {
         id: eventId,
         year: eventCtx.state.currentYear,
-        month: eventCtx.state.currentMonth,
+        weekOfYear: eventCtx.state.currentWeekOfYear,
         type: 'OFFICE_REVOKED',
         importance: 'normal',
         actorIds: [office.holderPersonId],

@@ -40,7 +40,8 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
   const firstHouseId = Object.values(persons)[0]?.houseId ?? createHouseId('h', 0)
   return {
     currentYear: 1444,
-    currentMonth: 1,
+    absoluteWeek: 75088,
+    currentWeekOfYear: 1,
     provinces: {},
     polities: {},
     houses: {

@@ -176,10 +176,9 @@ export function hadRelevantExperience(
     const polityId = getPersonPrimaryPolityId(state, personId)
     if (!polityId) return false
     const polity = state.polities[polityId]
-    if (polity && polity.lastWarMonth !== undefined) {
-      const currentAbsoluteMonth = state.currentYear * 12 + state.currentMonth
-      const monthsSinceWar = currentAbsoluteMonth - polity.lastWarMonth
-      if (monthsSinceWar <= 12) return true
+    if (polity && polity.lastWarWeek !== undefined) {
+      const weeksSinceWar = state.absoluteWeek - polity.lastWarWeek
+      if (weeksSinceWar <= 52) return true
     }
   }
 

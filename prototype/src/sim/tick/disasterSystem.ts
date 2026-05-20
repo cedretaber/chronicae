@@ -112,7 +112,7 @@ function applyFamine(ctx: TickContext, polityId: PolityId): TickContext {
   const event: SimEvent = {
     id: eventId,
     year: eventCtx.state.currentYear,
-    month: eventCtx.state.currentMonth,
+    weekOfYear: eventCtx.state.currentWeekOfYear,
     type: 'FAMINE',
     importance: 'major',
     actorIds: [],
@@ -137,7 +137,7 @@ function applyFamine(ctx: TickContext, polityId: PolityId): TickContext {
   const reliefEvent: SimEvent = {
     id: reliefId,
     year: reliefCtx.state.currentYear,
-    month: reliefCtx.state.currentMonth,
+    weekOfYear: reliefCtx.state.currentWeekOfYear,
     type: reliefEventType,
     importance: 'normal',
     actorIds: [],
@@ -188,7 +188,7 @@ function applyPlague(ctx: TickContext, polityId: PolityId): TickContext {
   const event: SimEvent = {
     id: eventId,
     year: eventCtx.state.currentYear,
-    month: eventCtx.state.currentMonth,
+    weekOfYear: eventCtx.state.currentWeekOfYear,
     type: 'PLAGUE',
     importance: 'major',
     actorIds: [],
@@ -256,7 +256,7 @@ function applyBountifulHarvest(ctx: TickContext, polityId: PolityId): TickContex
   const event: SimEvent = {
     id: eventId,
     year: eventCtx.state.currentYear,
-    month: eventCtx.state.currentMonth,
+    weekOfYear: eventCtx.state.currentWeekOfYear,
     type: 'BOUNTIFUL_HARVEST',
     importance: 'normal',
     actorIds: [],
@@ -272,7 +272,6 @@ function applyBountifulHarvest(ctx: TickContext, polityId: PolityId): TickContex
 
 export function runDisasterSystem(ctx: TickContext): TickContext {
   if (!ctx.config.disasterEnabled) return ctx
-  if (ctx.state.currentMonth !== 1) return ctx
 
   let currentCtx = ctx
   const state = ctx.state

@@ -62,8 +62,7 @@ describe('createFaction', () => {
     const result = createFaction(ctx, {
       leaderPersonId: leaderId,
       name: 'Test Faction',
-      year: 1444,
-      month: 1,
+      week: 1444 * 52 + 1 - 1,
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -76,7 +75,7 @@ describe('createFaction', () => {
     expect(faction!.name).toBe('Test Faction')
     expect(faction!.active).toBe(true)
     expect(faction!.leaderPersonId).toBe(leaderId)
-    expect(faction!.foundingYear).toBe(1444)
+    expect(faction!.foundingWeek).toBe(1444 * 52 + 1 - 1)
 
     const membership = newState.factionMemberships[leaderMembershipId]
     expect(membership).toBeDefined()
@@ -103,8 +102,7 @@ describe('createFaction', () => {
     const result = createFaction(deadCtx, {
       leaderPersonId: leaderId,
       name: 'Test Faction',
-      year: 1444,
-      month: 1,
+      week: 1444 * 52 + 1 - 1,
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('PERSON_DEAD')
@@ -123,8 +121,7 @@ describe('createFaction', () => {
     const result = createFaction(placeholderCtx, {
       leaderPersonId: leaderId,
       name: 'Test Faction',
-      year: 1444,
-      month: 1,
+      week: 1444 * 52 + 1 - 1,
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('PLACEHOLDER_PERSON')
@@ -136,8 +133,7 @@ describe('createFaction', () => {
     const first = createFaction(ctx, {
       leaderPersonId: leaderId,
       name: 'First Faction',
-      year: 1444,
-      month: 1,
+      week: 1444 * 52 + 1 - 1,
     })
     expect(first.ok).toBe(true)
     if (!first.ok) return
@@ -146,8 +142,7 @@ describe('createFaction', () => {
     const second = createFaction(first.value.ctx, {
       leaderPersonId: leaderId,
       name: 'Second Faction',
-      year: 1445,
-      month: 1,
+      week: 1445 * 52 + 1 - 1,
     })
     expect(second.ok).toBe(false)
     if (!second.ok) expect(second.error.code).toBe('FACTION_MEMBERSHIP_CONFLICT')
@@ -159,7 +154,7 @@ describe('addFactionMembership', () => {
     const { state, leaderId, member1Id } = makeFixture()
     const factionResult = createFaction(
       { ...makeFixture().ctx, state },
-      { leaderPersonId: leaderId, name: 'Test', year: 1444, month: 1 },
+      { leaderPersonId: leaderId, name: 'Test', week: 1444 * 52 + 1 - 1 },
     )
     expect(factionResult.ok).toBe(true)
     if (!factionResult.ok) return
@@ -168,8 +163,7 @@ describe('addFactionMembership', () => {
     const result = addFactionMembership(factionResult.value.ctx.state, {
       factionId,
       personId: member1Id,
-      year: 1444,
-      month: 2,
+      week: 1444 * 52 + 2 - 1,
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -188,8 +182,7 @@ describe('addFactionMembership', () => {
     const first = createFaction(ctx, {
       leaderPersonId: leaderId,
       name: 'First',
-      year: 1444,
-      month: 1,
+      week: 1444 * 52 + 1 - 1,
     })
     expect(first.ok).toBe(true)
     if (!first.ok) return
@@ -199,8 +192,7 @@ describe('addFactionMembership', () => {
     const addResult = addFactionMembership(first.value.ctx.state, {
       factionId,
       personId: member1Id,
-      year: 1444,
-      month: 2,
+      week: 1444 * 52 + 2 - 1,
     })
     expect(addResult.ok).toBe(true)
     if (!addResult.ok) return
@@ -216,16 +208,14 @@ describe('addFactionMembership', () => {
           name: 'Second',
           leaderPersonId: createPersonId('pe', 99),
           active: true,
-          foundingYear: 1444,
-          foundingMonth: 1,
+          foundingWeek: 1444 * 52 + 1 - 1,
         },
       },
     }
     const result = addFactionMembership(stateWithFaction2, {
       factionId: faction2Id,
       personId: member1Id,
-      year: 1444,
-      month: 3,
+      week: 1444 * 52 + 3 - 1,
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('FACTION_MEMBERSHIP_CONFLICT')
@@ -239,14 +229,12 @@ describe('addFactionMembership', () => {
       name: 'Test',
       leaderPersonId: leaderId,
       active: true,
-      foundingYear: 1444,
-      foundingMonth: 1,
+      foundingWeek: 1444 * 52 + 1 - 1,
     }
     const result = addFactionMembership(state, {
       factionId,
       personId: leaderId,
-      year: 1444,
-      month: 1,
+      week: 1444 * 52 + 1 - 1,
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('FACTION_LEADER_MEMBERSHIP_EXISTS')
@@ -258,7 +246,7 @@ describe('deactivateFaction', () => {
     const { state, leaderId, member1Id } = makeFixture()
     const factionResult = createFaction(
       { ...makeFixture().ctx, state },
-      { leaderPersonId: leaderId, name: 'Test', year: 1444, month: 1 },
+      { leaderPersonId: leaderId, name: 'Test', week: 1444 * 52 + 1 - 1 },
     )
     expect(factionResult.ok).toBe(true)
     if (!factionResult.ok) return
@@ -268,8 +256,7 @@ describe('deactivateFaction', () => {
     const addResult = addFactionMembership(factionResult.value.ctx.state, {
       factionId,
       personId: member1Id,
-      year: 1444,
-      month: 2,
+      week: 1444 * 52 + 2 - 1,
     })
     expect(addResult.ok).toBe(true)
     if (!addResult.ok) return
@@ -293,7 +280,7 @@ describe('deactivateFaction', () => {
     const { state, leaderId } = makeFixture()
     const factionResult = createFaction(
       { ...makeFixture().ctx, state },
-      { leaderPersonId: leaderId, name: 'Test', year: 1444, month: 1 },
+      { leaderPersonId: leaderId, name: 'Test', week: 1444 * 52 + 1 - 1 },
     )
     expect(factionResult.ok).toBe(true)
     if (!factionResult.ok) return
@@ -321,7 +308,7 @@ describe('transitionFactionLeader', () => {
     const { state, leaderId, member1Id } = makeFixture()
     const factionResult = createFaction(
       { ...makeFixture().ctx, state },
-      { leaderPersonId: leaderId, name: 'Test', year: 1444, month: 1 },
+      { leaderPersonId: leaderId, name: 'Test', week: 1444 * 52 + 1 - 1 },
     )
     expect(factionResult.ok).toBe(true)
     if (!factionResult.ok) return
@@ -331,8 +318,7 @@ describe('transitionFactionLeader', () => {
     const addResult = addFactionMembership(factionResult.value.ctx.state, {
       factionId,
       personId: member1Id,
-      year: 1444,
-      month: 2,
+      week: 1444 * 52 + 2 - 1,
     })
     expect(addResult.ok).toBe(true)
     if (!addResult.ok) return
@@ -362,7 +348,7 @@ describe('transitionFactionLeader', () => {
     const { state, leaderId } = makeFixture()
     const factionResult = createFaction(
       { ...makeFixture().ctx, state },
-      { leaderPersonId: leaderId, name: 'Test', year: 1444, month: 1 },
+      { leaderPersonId: leaderId, name: 'Test', week: 1444 * 52 + 1 - 1 },
     )
     expect(factionResult.ok).toBe(true)
     if (!factionResult.ok) return
@@ -381,7 +367,7 @@ describe('transitionFactionLeader', () => {
     const { state, leaderId, member1Id } = makeFixture()
     const factionResult = createFaction(
       { ...makeFixture().ctx, state },
-      { leaderPersonId: leaderId, name: 'Test', year: 1444, month: 1 },
+      { leaderPersonId: leaderId, name: 'Test', week: 1444 * 52 + 1 - 1 },
     )
     expect(factionResult.ok).toBe(true)
     if (!factionResult.ok) return
@@ -402,7 +388,7 @@ describe('removeFactionMembership', () => {
     const { state, leaderId, member1Id } = makeFixture()
     const factionResult = createFaction(
       { ...makeFixture().ctx, state },
-      { leaderPersonId: leaderId, name: 'Test', year: 1444, month: 1 },
+      { leaderPersonId: leaderId, name: 'Test', week: 1444 * 52 + 1 - 1 },
     )
     expect(factionResult.ok).toBe(true)
     if (!factionResult.ok) return
@@ -412,8 +398,7 @@ describe('removeFactionMembership', () => {
     const addResult = addFactionMembership(factionResult.value.ctx.state, {
       factionId,
       personId: member1Id,
-      year: 1444,
-      month: 2,
+      week: 1444 * 52 + 2 - 1,
     })
     expect(addResult.ok).toBe(true)
     if (!addResult.ok) return
@@ -431,7 +416,7 @@ describe('removeFactionMembership', () => {
     const { state, leaderId } = makeFixture()
     const factionResult = createFaction(
       { ...makeFixture().ctx, state },
-      { leaderPersonId: leaderId, name: 'Test', year: 1444, month: 1 },
+      { leaderPersonId: leaderId, name: 'Test', week: 1444 * 52 + 1 - 1 },
     )
     expect(factionResult.ok).toBe(true)
     if (!factionResult.ok) return
@@ -455,7 +440,7 @@ describe('removeFactionMembership', () => {
     const { state, leaderId } = makeFixture()
     const factionResult = createFaction(
       { ...makeFixture().ctx, state },
-      { leaderPersonId: leaderId, name: 'Test', year: 1444, month: 1 },
+      { leaderPersonId: leaderId, name: 'Test', week: 1444 * 52 + 1 - 1 },
     )
     expect(factionResult.ok).toBe(true)
     if (!factionResult.ok) return

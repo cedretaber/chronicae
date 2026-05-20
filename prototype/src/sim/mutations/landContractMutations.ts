@@ -508,7 +508,7 @@ export function applyLandContractTransferGoal(
   const transferEv: SimEvent = {
     id: transferEventId,
     year: ctxAfterTransfer.state.currentYear,
-    month: ctxAfterTransfer.state.currentMonth,
+    weekOfYear: ctxAfterTransfer.state.currentWeekOfYear,
     type: 'LAND_CONTRACT_TRANSFERRED',
     importance: 'normal',
     actorIds: [],
@@ -544,7 +544,7 @@ export function applyLandContractTransferGoal(
     const outcomeEv: SimEvent = {
       id: outcomeEventId,
       year: ctxAfterOutcome.state.currentYear,
-      month: ctxAfterOutcome.state.currentMonth,
+      weekOfYear: ctxAfterOutcome.state.currentWeekOfYear,
       type: outcomeEventType,
       importance: 'major',
       actorIds: [],

@@ -13,7 +13,8 @@ function makeProvinceState(development: number): WorldState {
 
   return {
     currentYear: 1,
-    currentMonth: 1,
+    currentWeekOfYear: 1,
+    absoluteWeek: 52,
     provinces: {
       [provinceId]: {
         id: provinceId,

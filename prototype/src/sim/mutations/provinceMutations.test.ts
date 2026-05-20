@@ -38,7 +38,7 @@ function makeFixture(): {
   // Second province satisfies §25 #17 (polity2 must have ≥1 LandContract grantee).
   const auxProvinceId = createProvinceId('p', 1)
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 75088 }
   state = withProvince(state, provinceId, { name: 'Test Province', development: 0 })
   state = withProvince(state, auxProvinceId, { name: 'Aux Province' })
   state = withHouse(state, house1Id, { name: 'House 1', seatProvinceId: provinceId })

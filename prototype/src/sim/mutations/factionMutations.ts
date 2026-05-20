@@ -9,8 +9,7 @@ import { ok, err } from './result'
 export type CreateFactionInput = {
   leaderPersonId: PersonId
   name: string
-  year: number
-  month: number
+  week: number
 }
 
 // Creates a Faction + leader FactionMembership atomically.
@@ -46,16 +45,14 @@ export function createFaction(
     name: input.name,
     leaderPersonId: input.leaderPersonId,
     active: true,
-    foundingYear: input.year,
-    foundingMonth: input.month,
+    foundingWeek: input.week,
   }
   const membership: FactionMembership = {
     id: membershipId,
     factionId,
     personId: input.leaderPersonId,
     active: true,
-    joinedYear: input.year,
-    joinedMonth: input.month,
+    joinedWeek: input.week,
   }
 
   const existingByLeader = ctx.state.factionIndex.byLeader[input.leaderPersonId] ?? []
@@ -91,8 +88,7 @@ export function createFaction(
 export type AddFactionMembershipInput = {
   factionId: FactionId
   personId: PersonId
-  year: number
-  month: number
+  week: number
 }
 
 export function addFactionMembership(
@@ -137,8 +133,7 @@ export function addFactionMembership(
     factionId: input.factionId,
     personId: input.personId,
     active: true,
-    joinedYear: input.year,
-    joinedMonth: input.month,
+    joinedWeek: input.week,
   }
 
   const newState: WorldState = {

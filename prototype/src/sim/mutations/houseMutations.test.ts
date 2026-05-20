@@ -27,7 +27,8 @@ function makeFixture(): {
 
   const state: WorldState = {
     currentYear: 1444,
-    currentMonth: 1,
+    absoluteWeek: 75088,
+    currentWeekOfYear: 1,
     provinces: {
       [provinceId]: {
         id: provinceId,

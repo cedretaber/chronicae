@@ -65,6 +65,28 @@ import type { PoliticalActorRef } from '../types/actor'
 export function collectIntegrityErrors(state: WorldState): SimError[] {
   const errors: SimError[] = []
 
+  // §17.1 Time invariants (v0.19)
+  if (state.currentWeekOfYear < 1 || state.currentWeekOfYear > 52) {
+    errors.push({
+      code: 'INTEGRITY_VIOLATION',
+      message: `currentWeekOfYear=${state.currentWeekOfYear} outside valid range [1, 52]`,
+    })
+  }
+  if (state.absoluteWeek < 0) {
+    errors.push({
+      code: 'INTEGRITY_VIOLATION',
+      message: `absoluteWeek=${state.absoluteWeek} is negative`,
+    })
+  }
+  const expectedYear = Math.floor(state.absoluteWeek / 52)
+  const expectedWeek = (state.absoluteWeek % 52) + 1
+  if (state.currentYear !== expectedYear || state.currentWeekOfYear !== expectedWeek) {
+    errors.push({
+      code: 'INTEGRITY_VIOLATION',
+      message: `Time fields inconsistent: absoluteWeek=${state.absoluteWeek} implies year=${expectedYear}/week=${expectedWeek}, but state has year=${state.currentYear}/week=${state.currentWeekOfYear}`,
+    })
+  }
+
   // 1. OrganizationShare integrity
   for (const shareId of Object.keys(state.organizationShares)) {
     const share = state.organizationShares[shareId as import('../types/ids').OrganizationShareId]
@@ -1194,12 +1216,10 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
       })
     }
     // deadline が started より後
-    const startedKey = play.startedYear * 12 + play.startedMonth
-    const deadlineKey = play.deadlineYear * 12 + play.deadlineMonth
-    if (deadlineKey <= startedKey) {
+    if (play.deadlineWeek <= play.startedWeek) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `DiplomaticPlay ${idStr} deadline (${play.deadlineYear}/${play.deadlineMonth}) is not after started (${play.startedYear}/${play.startedMonth}) (§20)`,
+        message: `DiplomaticPlay ${idStr} deadlineWeek=${play.deadlineWeek} is not after startedWeek=${play.startedWeek} (§20)`,
       })
     }
     // primaryDemand が有効な対象を指す (kind 別の最小チェック)

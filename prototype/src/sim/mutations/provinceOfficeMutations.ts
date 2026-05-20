@@ -9,7 +9,7 @@ type AppointBailiffParams = {
   holderPersonId: PersonId
   appointingPolityId: PolityId
   year: number
-  month: number
+  week: number
 }
 
 type AppointResult = {
@@ -69,7 +69,7 @@ export function appointBailiff(state: WorldState, params: AppointBailiffParams):
     appointingPolityId: params.appointingPolityId,
     active: true,
     startYear: params.year,
-    startMonth: params.month,
+    startWeek: params.week,
     unpaidCount: 0,
   }
   const holder = state.persons[params.holderPersonId]
@@ -105,7 +105,7 @@ export function appointBailiff(state: WorldState, params: AppointBailiffParams):
 // 全 Province の空席で共有する。worldgen で生成済みである前提。
 export function installPlaceholderBailiff(
   state: WorldState,
-  params: { provinceId: ProvinceId; appointingPolityId: PolityId; year: number; month: number },
+  params: { provinceId: ProvinceId; appointingPolityId: PolityId; year: number; week: number },
 ): WorldState {
   const working = vacateBailiff(state, params.provinceId)
   const { state: afterAppoint } = appointBailiff(working, {
@@ -113,7 +113,7 @@ export function installPlaceholderBailiff(
     holderPersonId: PLACEHOLDER_PERSON_ID,
     appointingPolityId: params.appointingPolityId,
     year: params.year,
-    month: params.month,
+    week: params.week,
   })
   return afterAppoint
 }

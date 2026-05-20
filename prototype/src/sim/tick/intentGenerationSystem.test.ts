@@ -48,10 +48,14 @@ function buildWorld() {
 
 function makeCtx(
   state: WorldState,
-  currentMonth = 1,
+  currentWeekOfYear = 1,
   configOverride?: Partial<typeof defaultConfig>,
 ) {
-  const s = { ...state, currentMonth }
+  const s = {
+    ...state,
+    currentWeekOfYear,
+    absoluteWeek: state.currentYear * 52 + currentWeekOfYear - 1,
+  }
   return createTickContext({
     state: s,
     rng: createRng('intent-test'),
@@ -75,13 +79,6 @@ describe('runIntentGenerationSystem', () => {
     expect(next.events.some((e) => e.type === 'ACTOR_INTENT_CREATED')).toBe(true)
   })
 
-  it('skips when month != 1', () => {
-    const { state } = buildWorld()
-    const ctx = makeCtx(state, 6)
-    const next = runIntentGenerationSystem(ctx)
-    expect(Object.keys(next.state.actorIntents).length).toBe(0)
-  })
-
   it('does not duplicate sell_land Intent if already active', () => {
     const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld()
     const existing = {
@@ -93,10 +90,8 @@ describe('runIntentGenerationSystem', () => {
       priority: 500,
       rationale: 'raise_revenue' as const,
       status: 'active' as const,
-      createdYear: state.currentYear,
-      createdMonth: 1,
-      expiresYear: state.currentYear + 1,
-      expiresMonth: 1,
+      createdWeek: state.currentYear * 52 + 1 - 1,
+      expiresWeek: (state.currentYear + 1) * 52 + 1 - 1,
     }
     const s = { ...state, actorIntents: { [existing.id]: existing } }
     // acquire_land を無効化して sell_land の重複防止のみを検証
@@ -178,10 +173,8 @@ describe('runIntentGenerationSystem', () => {
       priority: 100,
       rationale: 'expand_territory' as const,
       status: 'active' as const,
-      createdYear: state.currentYear,
-      createdMonth: 1,
-      expiresYear: state.currentYear + 1,
-      expiresMonth: 1,
+      createdWeek: state.currentYear * 52 + 1 - 1,
+      expiresWeek: (state.currentYear + 1) * 52 + 1 - 1,
     }
     const s = { ...stateNoSell, actorIntents: { [existing.id]: existing } }
     const ctx = makeCtx(s)

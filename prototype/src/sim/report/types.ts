@@ -148,7 +148,7 @@ export type ActivityReport = {
     seed: string
     years: number
     finalYear: number
-    finalMonth: number
+    finalWeekOfYear: number
     // 主要パラメータの抜粋 (再現性のため)
     keyConfig: {
       bailiffRevenueShare: number

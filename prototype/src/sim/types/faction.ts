@@ -5,8 +5,7 @@ export type Faction = {
   name: string
   leaderPersonId: PersonId
   active: boolean
-  foundingYear: number
-  foundingMonth: number
+  foundingWeek: number
 }
 
 export type FactionMembership = {
@@ -14,8 +13,7 @@ export type FactionMembership = {
   factionId: FactionId
   personId: PersonId
   active: boolean
-  joinedYear: number
-  joinedMonth: number
+  joinedWeek: number
 }
 
 export type FactionIndex = {

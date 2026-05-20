@@ -63,7 +63,8 @@ function makeHouse(memberIds: Person[], overrides: Partial<House> = {}): House {
 function makeState(persons: Record<string, Person>, houses: Record<string, House>): WorldState {
   return {
     currentYear: 1444,
-    currentMonth: 1,
+    absoluteWeek: 75088,
+    currentWeekOfYear: 1,
     provinces: {},
     polities: {},
     houses,

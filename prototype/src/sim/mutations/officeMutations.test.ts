@@ -35,7 +35,8 @@ function makeOfficeState(): {
   }
   const state: WorldState = {
     currentYear: 1450,
-    currentMonth: 1,
+    currentWeekOfYear: 1,
+    absoluteWeek: 75400,
     provinces: {},
     polities: {
       [polityId]: {

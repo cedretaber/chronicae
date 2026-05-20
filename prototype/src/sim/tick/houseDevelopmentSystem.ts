@@ -16,7 +16,6 @@ function scoreHouseLandDevelopmentProvince(province: Province): number {
 
 export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
   if (!ctx.config.houseDevelopmentEnabled) return ctx
-  if (ctx.state.currentMonth !== 1) return ctx
 
   let currentCtx = ctx
 
@@ -99,7 +98,7 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
     const event: SimEvent = {
       id: eventId,
       year: eventCtx.state.currentYear,
-      month: eventCtx.state.currentMonth,
+      weekOfYear: eventCtx.state.currentWeekOfYear,
       type: 'HOUSE_LAND_DEVELOPED',
       importance: 'minor',
       actorIds: [],

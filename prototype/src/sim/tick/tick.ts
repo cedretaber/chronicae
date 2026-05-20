@@ -42,10 +42,185 @@ import { runHouseSurplusDistributionSystem } from './houseSurplusDistributionSys
 import { runUnaffiliatedPersonSystem } from './unaffiliatedPersonSystem'
 import { runOfficeTermSystem } from './officeTermSystem'
 import { runFactionLifecycleSystem } from './factionLifecycleSystem'
+import { runFactionMaintenanceSystem } from './factionMaintenanceSystem'
 import { runFactionRecruitmentSystem } from './factionRecruitmentSystem'
 import { runFactionPatronageSystem } from './factionPatronageSystem'
 import { runFactionDefectionSystem } from './factionDefectionSystem'
 import { createLogger } from '../debug/logger'
+
+type ScheduledSystem = {
+  name: string
+  intervalWeeks: number
+  phaseOffsetWeeks: number
+  run: (ctx: TickContext) => TickContext
+}
+
+function shouldRun(system: ScheduledSystem, absoluteWeek: number): boolean {
+  return (absoluteWeek - system.phaseOffsetWeeks) % system.intervalWeeks === 0
+}
+
+const scheduledSystems: ScheduledSystem[] = [
+  { name: 'developmentSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runDevelopmentSystem },
+  { name: 'controlSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runControlSystem },
+  { name: 'popSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPopSystem },
+  { name: 'landRevenueSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runLandRevenueSystem },
+  {
+    name: 'politySurplusDistributionSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runPolitySurplusDistributionSystem,
+  },
+  {
+    name: 'houseSurplusDistributionSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runHouseSurplusDistributionSystem,
+  },
+  { name: 'disasterSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runDisasterSystem },
+  { name: 'mortalitySystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runMortalitySystem },
+  {
+    name: 'estateSettlementSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runEstateSettlementSystem,
+  },
+  { name: 'successionSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runSuccessionSystem },
+  { name: 'marriageSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runMarriageSystem },
+  { name: 'birthSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runBirthSystem },
+  {
+    name: 'unaffiliatedPersonSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runUnaffiliatedPersonSystem,
+  },
+  { name: 'officeTermSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runOfficeTermSystem },
+  { name: 'shareUpdateSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runShareUpdateSystem },
+  { name: 'appointmentSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runAppointmentSystem },
+  {
+    name: 'bailiffAppointmentSystem',
+    intervalWeeks: 24,
+    phaseOffsetWeeks: 0,
+    run: runBailiffAppointmentSystem,
+  },
+  {
+    name: 'officeCompensationSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runOfficeCompensationSystem,
+  },
+  {
+    name: 'factionPatronageSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runFactionPatronageSystem,
+  },
+  {
+    name: 'factionDefectionSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runFactionDefectionSystem,
+  },
+  {
+    name: 'factionMaintenanceSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runFactionMaintenanceSystem,
+  },
+  {
+    name: 'factionLifecycleSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runFactionLifecycleSystem,
+  },
+  {
+    name: 'factionRecruitmentSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runFactionRecruitmentSystem,
+  },
+  {
+    name: 'personGrowthSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runPersonGrowthSystem,
+  },
+  { name: 'ambitionSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runAmbitionSystem },
+  {
+    name: 'publicSpendingSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runPublicSpendingSystem,
+  },
+  {
+    name: 'houseDevelopmentSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runHouseDevelopmentSystem,
+  },
+  {
+    name: 'popDevelopmentSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runPopDevelopmentSystem,
+  },
+  { name: 'plotSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPlotSystem },
+  {
+    name: 'intentGenerationSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runIntentGenerationSystem,
+  },
+  {
+    name: 'intentToDiplomaticPlaySystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runIntentToDiplomaticPlaySystem,
+  },
+  {
+    name: 'provinceRevoltSystem',
+    intervalWeeks: 52,
+    phaseOffsetWeeks: 0,
+    run: runProvinceRevoltSystem,
+  },
+  {
+    name: 'diplomaticPlaySystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runDiplomaticPlaySystem,
+  },
+  {
+    name: 'conflictResolutionSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runConflictResolutionSystem,
+  },
+  {
+    name: 'polityOwnerConsistencySystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runPolityOwnerConsistencySystem,
+  },
+  {
+    name: 'organizationConsistencySystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runOrganizationConsistencySystem,
+  },
+  {
+    name: 'attitudeDecaySystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runAttitudeDecaySystem,
+  },
+  { name: 'governanceSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runGovernanceSystem },
+  { name: 'normalizePopSizes', intervalWeeks: 4, phaseOffsetWeeks: 0, run: normalizePopSizes },
+  {
+    name: 'cleanupTerminalDiplomacy',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runCleanupTerminalDiplomacy,
+  },
+]
 
 export function tick(input: TickInput): TickResult {
   let ctx = createTickContext(input)
@@ -64,64 +239,21 @@ export function tick(input: TickInput): TickResult {
   }
 
   run('advanceTime', advanceTime)
-  run('developmentSystem', runDevelopmentSystem)
-  run('controlSystem', runControlSystem)
-  run('popSystem', runPopSystem)
-  run('landRevenueSystem', runLandRevenueSystem)
-  run('politySurplusDistributionSystem', runPolitySurplusDistributionSystem)
-  run('houseSurplusDistributionSystem', runHouseSurplusDistributionSystem)
-  run('disasterSystem', runDisasterSystem)
-  run('mortalitySystem', runMortalitySystem)
-  run('estateSettlementSystem', runEstateSettlementSystem)
-  run('successionSystem', runSuccessionSystem)
-  run('marriageSystem', runMarriageSystem)
-  run('birthSystem', runBirthSystem)
-  run('unaffiliatedPersonSystem', runUnaffiliatedPersonSystem)
-  run('officeTermSystem', runOfficeTermSystem)
-  run('shareUpdateSystem', runShareUpdateSystem)
-  run('appointmentSystem', runAppointmentSystem)
-  run('bailiffAppointmentSystem', runBailiffAppointmentSystem)
-  run('officeCompensationSystem', runOfficeCompensationSystem)
-  run('factionPatronageSystem', runFactionPatronageSystem)
-  run('factionDefectionSystem', runFactionDefectionSystem)
-  run('factionLifecycleSystem', runFactionLifecycleSystem)
-  run('factionRecruitmentSystem', runFactionRecruitmentSystem)
-  run('personGrowthSystem', runPersonGrowthSystem)
-  run('ambitionSystem', runAmbitionSystem)
-  run('publicSpendingSystem', runPublicSpendingSystem)
-  run('houseDevelopmentSystem', runHouseDevelopmentSystem)
-  run('popDevelopmentSystem', runPopDevelopmentSystem)
-  run('plotSystem', runPlotSystem)
-  // v0.18 Stage D §17.3: 旧 warSystem を tick から除外 (acquire_land Intent → land_transfer_demand → ConflictResolution 経路に統合)
-  // v0.18 Stage C/D §17.2-3: Intent 生成 + Play 変換
-  run('intentGenerationSystem', runIntentGenerationSystem)
-  run('intentToDiplomaticPlaySystem', runIntentToDiplomaticPlaySystem)
-  run('provinceRevoltSystem', runProvinceRevoltSystem)
-  // v0.18 Stage B/C/D: 全 kind の DiplomaticPlay 進行
-  run('diplomaticPlaySystem', runDiplomaticPlaySystem)
-  // v0.18 Stage D §13: escalated Play を武力衝突として解決
-  run('conflictResolutionSystem', runConflictResolutionSystem)
-  // v0.18 Stage C §15: 旧 landContractPurchaseSystem は tick から除外 (Intent → Play 経路に統合)
-  run('polityOwnerConsistencySystem', runPolityOwnerConsistencySystem)
-  run('organizationConsistencySystem', runOrganizationConsistencySystem)
-  run('attitudeDecaySystem', runAttitudeDecaySystem)
-  run('governanceSystem', runGovernanceSystem)
-  run('normalizePopSizes', normalizePopSizes)
-  // v0.18 Stage A §17: terminal status の ActorIntent / DiplomaticPlay を Record から削除
-  run('cleanupTerminalDiplomacy', runCleanupTerminalDiplomacy)
+
+  for (const system of scheduledSystems) {
+    if (shouldRun(system, ctx.state.absoluteWeek)) {
+      run(system.name, system.run)
+    }
+  }
 
   if (debug) {
-    // debug モードは細粒度デバッグ用に毎 tick 走らせる
     try {
       run('integrityCheck', runIntegritySystem)
     } catch (e) {
       log.log('INTEGRITY', { error: String(e) })
     }
     log.perf('tick:total', performance.now() - tickStart)
-  } else if (ctx.state.currentMonth === 12) {
-    // v0.17.3: default (non-debug) では年末のみ実行する。
-    // 違反は即時 throw して終了 (year-end 検知でも原因 year は特定できる)。
-    // tick 単位で per-tick check したい場合は --integrity-check flag を使う。
+  } else if (ctx.state.currentWeekOfYear === 52) {
     ctx = runIntegritySystem(ctx)
   }
 

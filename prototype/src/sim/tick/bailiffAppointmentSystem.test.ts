@@ -49,7 +49,7 @@ function makeBaseState(): {
   const rulerId = createPersonId('pe', 0)
 
   let s = makeEmptyV016State()
-  s = { ...s, currentYear: 1444, currentMonth: 1 }
+  s = { ...s, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
   s = withProvince(s, provinceId, { name: 'P0', development: 10 })
   s = withHouse(s, houseId, {
     name: 'Test House',
@@ -85,7 +85,11 @@ describe('runBailiffAppointmentSystem', () => {
   it('vacates bailiff whose term has expired (startYear = currentYear - 3)', () => {
     const { state: baseState, houseId, provinceId } = makeBaseState()
     // Set month so absMonth % 6 === 0 (bailiffAppointmentInterval)
-    const s: WorldState = { ...baseState, currentMonth: 6 }
+    const s: WorldState = {
+      ...baseState,
+      currentWeekOfYear: 6,
+      absoluteWeek: baseState.currentYear * 52 + 6 - 1,
+    }
 
     const bailiffId = createPersonId('pe', 10)
     const stateWithBailiff = withPerson(s, bailiffId, {
@@ -190,8 +194,11 @@ describe('runBailiffAppointmentSystem', () => {
 
   it('factional path: picks faction member outside ownerHouse when NP >= threshold', () => {
     const { state: baseState, polityId, houseId, provinceId } = makeBaseState()
-    // currentMonth=6 so absMonth % 6 === 0
-    let s: WorldState = { ...baseState, currentMonth: 6 }
+    let s: WorldState = {
+      ...baseState,
+      currentWeekOfYear: 6,
+      absoluteWeek: baseState.currentYear * 52 + 6 - 1,
+    }
 
     // Faction leader sits in the ownerHouse → NP gets +0.3 (ownerHouse bonus) → meets threshold (0.30)
     const leaderId = createPersonId('pe', 5)
@@ -228,24 +235,21 @@ describe('runBailiffAppointmentSystem', () => {
       name: 'TestFaction',
       leaderPersonId: leaderId,
       active: true,
-      foundingYear: s.currentYear,
-      foundingMonth: s.currentMonth,
+      foundingWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
     }
     const leaderMembership: FactionMembership = {
       id: leaderMembershipId,
       factionId,
       personId: leaderId,
       active: true,
-      joinedYear: s.currentYear,
-      joinedMonth: s.currentMonth,
+      joinedWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
     }
     const memberMembership: FactionMembership = {
       id: memberMembershipId,
       factionId,
       personId: memberId,
       active: true,
-      joinedYear: s.currentYear,
-      joinedMonth: s.currentMonth,
+      joinedWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
     }
     s = {
       ...s,
@@ -283,7 +287,11 @@ describe('runBailiffAppointmentSystem', () => {
 
   it('factional candidate with active Polity Office is excluded', () => {
     const { state: baseState, polityId, houseId, provinceId } = makeBaseState()
-    let s: WorldState = { ...baseState, currentMonth: 6 }
+    let s: WorldState = {
+      ...baseState,
+      currentWeekOfYear: 6,
+      absoluteWeek: baseState.currentYear * 52 + 6 - 1,
+    }
 
     // Faction leader in ownerHouse to satisfy NP
     const leaderId = createPersonId('pe', 5)
@@ -349,8 +357,7 @@ describe('runBailiffAppointmentSystem', () => {
           name: 'F',
           leaderPersonId: leaderId,
           active: true,
-          foundingYear: s.currentYear,
-          foundingMonth: s.currentMonth,
+          foundingWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
         },
       },
       factionMemberships: {
@@ -360,16 +367,14 @@ describe('runBailiffAppointmentSystem', () => {
           factionId,
           personId: leaderId,
           active: true,
-          joinedYear: s.currentYear,
-          joinedMonth: s.currentMonth,
+          joinedWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
         },
         [memberMembershipId]: {
           id: memberMembershipId,
           factionId,
           personId: memberId,
           active: true,
-          joinedYear: s.currentYear,
-          joinedMonth: s.currentMonth,
+          joinedWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
         },
       },
       factionIndex: {
@@ -400,7 +405,11 @@ describe('runBailiffAppointmentSystem', () => {
 
   it('v0.17.2: alive non-ownerHouse bailiff is NOT vacated by step 1 (factional bailiff stable)', () => {
     const { state: baseState, polityId, houseId, provinceId } = makeBaseState()
-    let s: WorldState = { ...baseState, currentMonth: 6 }
+    let s: WorldState = {
+      ...baseState,
+      currentWeekOfYear: 6,
+      absoluteWeek: baseState.currentYear * 52 + 6 - 1,
+    }
 
     // Install an outsider bailiff (alive, normal, not in ownerHouse) — simulates a factional bailiff
     // that was already appointed in a previous tick. The new step 1 must NOT vacate this person.
@@ -452,7 +461,11 @@ describe('runBailiffAppointmentSystem', () => {
 
   it('v0.17.2: dead bailiff IS vacated by step 1', () => {
     const { state: baseState, houseId, provinceId } = makeBaseState()
-    let s: WorldState = { ...baseState, currentMonth: 6 }
+    let s: WorldState = {
+      ...baseState,
+      currentWeekOfYear: 6,
+      absoluteWeek: baseState.currentYear * 52 + 6 - 1,
+    }
 
     const bailiffId = createPersonId('pe', 51)
     s = withPerson(s, bailiffId, {

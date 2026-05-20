@@ -59,7 +59,7 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
     const event: SimEvent = {
       id: eventId,
       year: eventCtx.state.currentYear,
-      month: eventCtx.state.currentMonth,
+      weekOfYear: eventCtx.state.currentWeekOfYear,
       type: 'POP_LAND_DEVELOPED',
       importance: 'minor',
       actorIds: [],

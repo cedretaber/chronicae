@@ -7,6 +7,7 @@ import {
   getHouseLoyaltyToPolity,
 } from '@sim/selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '@sim/helpers/attitudeHelpers'
+import { weekToYearWeek } from '@sim/utils/timeUtils'
 import {
   getPolityLeaderHouse,
   getPolityLeader,
@@ -143,7 +144,7 @@ function buildEntitySnapshot(
   currentState: WorldState | null,
 ): unknown {
   const meta = currentState
-    ? { currentYear: currentState.currentYear, currentMonth: currentState.currentMonth }
+    ? { currentYear: currentState.currentYear, currentWeekOfYear: currentState.currentWeekOfYear }
     : null
   const ws = currentState
 
@@ -1455,7 +1456,7 @@ export function HouseDetail({
           <div className="text-sm font-semibold text-gray-300">Recent Events:</div>
           {recentEvents.map((e) => (
             <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
-              [{e.year}/{e.month}] {e.summary}
+              [{e.year}/W{e.weekOfYear}] {e.summary}
             </div>
           ))}
         </div>
@@ -1492,7 +1493,8 @@ export function PersonDetail({
   const currentState = session?.currentState
   const worldState: WorldState = currentState ?? {
     currentYear: 0,
-    currentMonth: 0,
+    currentWeekOfYear: 0,
+    absoluteWeek: 0,
     provinces: {},
     polities: {},
     houses: {},
@@ -2361,8 +2363,7 @@ export function FactionDetail({
     defaultConfig,
     faction.leaderPersonId,
   )
-  const currentYear = worldState.currentYear
-  const ageYears = currentYear - faction.foundingYear
+  const ageYears = Math.floor((worldState.absoluteWeek - faction.foundingWeek) / 52)
 
   const memberRows = memberIds
     .filter((pid) => pid !== faction.leaderPersonId)
@@ -2456,7 +2457,10 @@ export function FactionDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">Founded:</span>
           <span>
-            {faction.foundingYear}/{String(faction.foundingMonth).padStart(2, '0')}{' '}
+            {(() => {
+              const f = weekToYearWeek(faction.foundingWeek)
+              return `${f.year}/W${String(f.weekOfYear).padStart(2, '0')}`
+            })()}{' '}
             <span className="text-xs text-gray-500">
               ({ageYears} year{ageYears === 1 ? '' : 's'} ago)
             </span>

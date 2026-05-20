@@ -104,7 +104,7 @@ export type EventEffect = {
 export type SimEvent = {
   id: EventId
   year: number
-  month: number
+  weekOfYear: number
   type: EventType
   importance: 'minor' | 'normal' | 'major' | 'critical'
   actorIds: PersonId[]

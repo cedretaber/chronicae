@@ -54,7 +54,7 @@ function emitPolityExtinct(ctx: TickContext, polityId: PolityId, summary: string
   const event: SimEvent = {
     id: eventId,
     year: c1.state.currentYear,
-    month: c1.state.currentMonth,
+    weekOfYear: c1.state.currentWeekOfYear,
     type: 'POLITY_EXTINCT',
     importance: 'major',
     actorIds: [],
@@ -73,7 +73,7 @@ function emitPolityLandless(ctx: TickContext, polityId: PolityId, summary: strin
   const event: SimEvent = {
     id: eventId,
     year: c1.state.currentYear,
-    month: c1.state.currentMonth,
+    weekOfYear: c1.state.currentWeekOfYear,
     type: 'POLITY_LANDLESS',
     importance: 'major',
     actorIds: [],
@@ -107,7 +107,7 @@ function emitPolityOwnerChanged(
   const event: SimEvent = {
     id: eventId,
     year: c1.state.currentYear,
-    month: c1.state.currentMonth,
+    weekOfYear: c1.state.currentWeekOfYear,
     type: 'POLITY_OWNER_CHANGED',
     importance: 'major',
     actorIds: [],

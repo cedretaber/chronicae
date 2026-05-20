@@ -35,10 +35,6 @@ const BAILIFF_ROLE_ALIAS: OfficeRole = 'advisor'
 // 候補者選定: terminal Polity の ownerHouse member 優先 (active, adult, alive)。
 // 起動頻度は config.bailiffAppointmentInterval (月単位)。
 export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
-  const interval = defaultLandContractConfig.bailiffAppointmentInterval
-  const absMonth = ctx.state.currentYear * 12 + ctx.state.currentMonth
-  if (absMonth % interval !== 0) return ctx
-
   let currentCtx = ctx
 
   for (const polityIdStr of Object.keys(currentCtx.state.polities).sort()) {
@@ -72,7 +68,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
           provinceId,
           appointingPolityId: polityId,
           year: beforeVacate.currentYear,
-          month: beforeVacate.currentMonth,
+          week: beforeVacate.absoluteWeek,
         })
         currentCtx = { ...currentCtx, state: afterPlaceholder }
         currentCtx = emitBailiffPlaceholderInstalled(currentCtx, provinceId, polityId)
@@ -100,7 +96,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
         provinceId,
         appointingPolityId: polityId,
         year: beforeVacate.currentYear,
-        month: beforeVacate.currentMonth,
+        week: beforeVacate.absoluteWeek,
       })
       currentCtx = { ...currentCtx, state: afterPlaceholder }
       currentCtx = emitBailiffPlaceholderInstalled(currentCtx, provinceId, polityId)
@@ -177,7 +173,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
         holderPersonId: chosenId,
         appointingPolityId: polityId,
         year: vacatedState.currentYear,
-        month: vacatedState.currentMonth,
+        week: vacatedState.absoluteWeek,
       })
       currentCtx = { ...currentCtx, state: appointedState }
       currentCtx = emitBailiffAppointed(currentCtx, provinceId, polityId, chosenId)
@@ -263,7 +259,7 @@ function emitBailiffAppointed(
   const event: SimEvent = {
     id: eventId,
     year: c1.state.currentYear,
-    month: c1.state.currentMonth,
+    weekOfYear: c1.state.currentWeekOfYear,
     type: 'BAILIFF_APPOINTED',
     importance: 'minor',
     actorIds: [holderPersonId],
@@ -290,7 +286,7 @@ function emitBailiffVacated(
   const event: SimEvent = {
     id: eventId,
     year: c1.state.currentYear,
-    month: c1.state.currentMonth,
+    weekOfYear: c1.state.currentWeekOfYear,
     type: 'BAILIFF_VACATED',
     importance: 'minor',
     actorIds: [holderPersonId],
@@ -315,7 +311,7 @@ function emitBailiffPlaceholderInstalled(
   const event: SimEvent = {
     id: eventId,
     year: c1.state.currentYear,
-    month: c1.state.currentMonth,
+    weekOfYear: c1.state.currentWeekOfYear,
     type: 'BAILIFF_PLACEHOLDER_INSTALLED',
     importance: 'minor',
     actorIds: [],

@@ -224,7 +224,7 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
   }
 
   let nextCtx: TickContext = { ...ctx, rng: nextRng }
-  const currentAbsoluteMonth = nextCtx.state.currentYear * 12 + nextCtx.state.currentMonth
+  const currentAbsoluteWeek = nextCtx.state.absoluteWeek
 
   if (attackerWins) {
     const transferResult = applyLandContractTransferGoal(nextCtx, {
@@ -243,9 +243,9 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
       loserPolityId: defenderPolityId,
       provinceId,
       mainPopId: getMainPopOfProvince(nextCtx.state, provinceId),
-      lastWarMonthAttacker: attackerPolityId,
-      lastWarMonthDefender: defenderPolityId,
-      currentAbsoluteMonth,
+      lastWarWeekAttacker: attackerPolityId,
+      lastWarWeekDefender: defenderPolityId,
+      currentAbsoluteWeek,
       winnerPolityId: attackerPolityId,
     })
 
@@ -267,9 +267,9 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
     loserPolityId: attackerPolityId,
     provinceId,
     mainPopId: undefined, // border province の荒廃のみ
-    lastWarMonthAttacker: attackerPolityId,
-    lastWarMonthDefender: defenderPolityId,
-    currentAbsoluteMonth,
+    lastWarWeekAttacker: attackerPolityId,
+    lastWarWeekDefender: defenderPolityId,
+    currentAbsoluteWeek,
     winnerPolityId: defenderPolityId,
   })
 
@@ -330,7 +330,7 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
   }
 
   let nextCtx: TickContext = { ...ctx, rng: nextRng }
-  const currentAbsoluteMonth = nextCtx.state.currentYear * 12 + nextCtx.state.currentMonth
+  const currentAbsoluteWeek = nextCtx.state.absoluteWeek
 
   if (attackerWins) {
     // Attacker wins: apply the demand (tax change or elimination)
@@ -368,9 +368,9 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
       loserPolityId: defenderPolityId,
       provinceId,
       mainPopId: getMainPopOfProvince(nextCtx.state, provinceId),
-      lastWarMonthAttacker: attackerPolityId,
-      lastWarMonthDefender: defenderPolityId,
-      currentAbsoluteMonth,
+      lastWarWeekAttacker: attackerPolityId,
+      lastWarWeekDefender: defenderPolityId,
+      currentAbsoluteWeek,
       winnerPolityId: attackerPolityId,
     })
 
@@ -392,9 +392,9 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
     loserPolityId: attackerPolityId,
     provinceId,
     mainPopId: undefined,
-    lastWarMonthAttacker: attackerPolityId,
-    lastWarMonthDefender: defenderPolityId,
-    currentAbsoluteMonth,
+    lastWarWeekAttacker: attackerPolityId,
+    lastWarWeekDefender: defenderPolityId,
+    currentAbsoluteWeek,
     winnerPolityId: defenderPolityId,
   })
 
@@ -436,9 +436,9 @@ function applyConflictDamage(
     loserPolityId: PolityId
     provinceId: ProvinceId
     mainPopId: PopGroupId | undefined
-    lastWarMonthAttacker: PolityId
-    lastWarMonthDefender: PolityId
-    currentAbsoluteMonth: number
+    lastWarWeekAttacker: PolityId
+    lastWarWeekDefender: PolityId
+    currentAbsoluteWeek: number
     winnerPolityId: PolityId
   },
 ): TickContext {
@@ -514,15 +514,15 @@ function applyConflictDamage(
       }
     }
   }
-  // lastWarMonth 更新 (両 Polity)
-  for (const pid of [input.lastWarMonthAttacker, input.lastWarMonthDefender]) {
+  // lastWarWeek 更新 (両 Polity)
+  for (const pid of [input.lastWarWeekAttacker, input.lastWarWeekDefender]) {
     const p = state.polities[pid]
     if (p) {
       state = {
         ...state,
         polities: {
           ...state.polities,
-          [pid]: { ...p, lastWarMonth: input.currentAbsoluteMonth },
+          [pid]: { ...p, lastWarWeek: input.currentAbsoluteWeek },
         },
       }
     }
@@ -581,7 +581,7 @@ function emitEvent(
   const ev: SimEvent = {
     id: eid,
     year: ctxEv.state.currentYear,
-    month: ctxEv.state.currentMonth,
+    weekOfYear: ctxEv.state.currentWeekOfYear,
     type: input.type,
     importance: input.importance,
     actorIds: [],

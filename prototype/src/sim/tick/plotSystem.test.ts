@@ -36,7 +36,7 @@ function makeBaseState(): {
   const provinceId = createProvinceId('p', 0)
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 75088 }
   state = withProvince(state, provinceId, { name: 'Capital', development: 10 })
   state = withHouse(state, houseId, {
     name: 'Test House',
@@ -112,10 +112,8 @@ describe('runPlotSystem', () => {
       id: createPlotId('p', 0),
       type: 'seize_office',
       status: 'active',
-      startedYear: 1444,
-      startedMonth: 1,
-      durationMonths: 3,
-      elapsedMonths: 0,
+      startedWeek: 75088,
+      durationWeeks: 12,
       leaderId: personId,
       participantIds: [personId],
       power: 50,
@@ -137,7 +135,6 @@ describe('runPlotSystem', () => {
 
     const resolvedPlot = result.state.activePlots[plot.id]!
     expect(resolvedPlot.status).toBe('active')
-    expect(resolvedPlot.elapsedMonths).toBe(1)
     expect(countEvents(result.events, 'PLOT_SUCCEEDED')).toBe(0)
     expect(countEvents(result.events, 'PLOT_FAILED')).toBe(0)
   })
@@ -149,10 +146,8 @@ describe('runPlotSystem', () => {
       id: createPlotId('p', 0),
       type: 'seize_office',
       status: 'active',
-      startedYear: 1444,
-      startedMonth: 1,
-      durationMonths: 3,
-      elapsedMonths: 2,
+      startedWeek: 75088,
+      durationWeeks: 12,
       leaderId: personId,
       participantIds: [personId],
       power: 80,
@@ -164,6 +159,7 @@ describe('runPlotSystem', () => {
 
     const stateWithPlot: WorldState = {
       ...state,
+      absoluteWeek: 75100,
       activePlots: { [plot.id]: plot },
     }
 
@@ -262,10 +258,8 @@ describe('runPlotSystem', () => {
       id: createPlotId('p', 0),
       type: 'seize_office',
       status: 'active',
-      startedYear: 1444,
-      startedMonth: 1,
-      durationMonths: 3,
-      elapsedMonths: 0,
+      startedWeek: 75088,
+      durationWeeks: 12,
       leaderId: personId,
       participantIds: [personId],
       power: 50,

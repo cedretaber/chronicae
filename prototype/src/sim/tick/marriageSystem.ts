@@ -12,8 +12,6 @@ import { createLogger } from '../debug/logger'
 import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
 
 export function runMarriageSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
-
   let currentCtx = ctx
 
   const maleCandidates = collectUnmarriedMaleCandidates(currentCtx)
@@ -91,7 +89,7 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
     const event: SimEvent = {
       id: eventId,
       year: currentCtx.state.currentYear,
-      month: currentCtx.state.currentMonth,
+      weekOfYear: currentCtx.state.currentWeekOfYear,
       type: 'MARRIAGE_FORMED',
       importance: 'normal',
       actorIds: [maleId, chosenFemaleId],
@@ -113,7 +111,7 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
     const log = createLogger(currentCtx.config.debug)
     log.log('MARRIAGE', {
       year: currentCtx.state.currentYear,
-      month: currentCtx.state.currentMonth,
+      week: currentCtx.state.currentWeekOfYear,
       husband: maleId,
       wife: chosenFemaleId,
     })

@@ -79,7 +79,7 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
     const event: SimEvent = {
       id: eventId,
       year: newState.currentYear,
-      month: newState.currentMonth,
+      weekOfYear: newState.currentWeekOfYear,
       type: 'POLITY_LEADER_CHANGED',
       importance: 'critical',
       actorIds: [newRulerPersonId],
@@ -132,7 +132,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
       const event: SimEvent = {
         id: eventId,
         year: newState.currentYear,
-        month: newState.currentMonth,
+        weekOfYear: newState.currentWeekOfYear,
         type: 'HOUSE_LEADER_CHANGED',
         importance: 'normal',
         actorIds: [oldestMinor.id],
@@ -146,7 +146,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
 
       log.log('SUCCESSION', {
         year: newState.currentYear,
-        month: newState.currentMonth,
+        week: newState.currentWeekOfYear,
         house: houseId,
         old_head: oldLeaderId ?? '',
         new_head: oldestMinor.id,
@@ -176,7 +176,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
   const event: SimEvent = {
     id: eventId,
     year: newStateAfterHead.currentYear,
-    month: newStateAfterHead.currentMonth,
+    weekOfYear: newStateAfterHead.currentWeekOfYear,
     type: 'HOUSE_LEADER_CHANGED',
     importance: 'normal',
     actorIds: [successor.person.id],
@@ -190,7 +190,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
 
   log.log('SUCCESSION', {
     year: newStateAfterHead.currentYear,
-    month: newStateAfterHead.currentMonth,
+    week: newStateAfterHead.currentWeekOfYear,
     house: houseId,
     old_head: oldLeaderId ?? '',
     new_head: successor.person.id,
@@ -213,7 +213,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
       const crisisEvent: SimEvent = {
         id: crisisId,
         year: resultCtx.state.currentYear,
-        month: resultCtx.state.currentMonth,
+        weekOfYear: resultCtx.state.currentWeekOfYear,
         type: 'SUCCESSION_CRISIS',
         importance: 'major',
         actorIds: [successor.person.id],
@@ -226,7 +226,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
       }
       log.log('SUCCESSION_CRISIS', {
         year: resultCtx.state.currentYear,
-        month: resultCtx.state.currentMonth,
+        week: resultCtx.state.currentWeekOfYear,
         house: houseId,
         new_head: successor.person.id,
         score: Math.round(successor.score),

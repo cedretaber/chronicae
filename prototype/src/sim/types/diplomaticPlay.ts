@@ -81,10 +81,8 @@ export type DiplomaticPlay = {
 
   status: DiplomaticPlayStatus
 
-  startedYear: number
-  startedMonth: number
-  deadlineYear: number
-  deadlineMonth: number
+  startedWeek: number
+  deadlineWeek: number
 
   progress: number // 0..100
   tension: number // 0..100

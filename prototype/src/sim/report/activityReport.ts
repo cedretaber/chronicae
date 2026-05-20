@@ -69,7 +69,7 @@ export function buildActivityReport(
       seed: meta.seed,
       years: meta.years,
       finalYear: finalState.currentYear,
-      finalMonth: finalState.currentMonth,
+      finalWeekOfYear: finalState.currentWeekOfYear,
       keyConfig: {
         bailiffRevenueShare: config.bailiffRevenueShare,
         factionBailiffNominationWeight: config.factionBailiffNominationWeight,
@@ -240,7 +240,7 @@ function buildFactionReport(
   const byFaction = new Map<string, FactionStats>()
 
   // FACTION_FOUNDED は faction.id を辿るのが難しい (event は actor/house のみ) ので
-  // factions テーブルから直接探す。foundedYear は faction.foundingYear。
+  // factions テーブルから直接探す。foundedYear は foundingWeek から逆算。
   for (const fidStr of Object.keys(finalState.factions).sort()) {
     const f = finalState.factions[fidStr as keyof typeof finalState.factions]
     if (!f) continue
@@ -250,7 +250,7 @@ function buildFactionReport(
       abandonments: 0,
       fundsShortages: 0,
       bankruptcies: 0,
-      foundedYear: f.foundingYear,
+      foundedYear: Math.floor(f.foundingWeek / 52),
       dissolvedYear: undefined,
       recruitHouses: new Set<string>(),
     })

@@ -47,13 +47,13 @@ function makeCtx({
   treasurerId,
   treasury,
   rulerHousePrestige,
-  currentMonth = 1,
+  currentWeekOfYear = 1,
 }: {
   administratorId?: PersonId
   treasurerId?: PersonId
   treasury: number
   rulerHousePrestige: number
-  currentMonth?: number
+  currentWeekOfYear?: number
 }): TickContext {
   const polityId = createPolityId('c', 0)
   const houseId = createHouseId('h', 0)
@@ -142,7 +142,8 @@ function makeCtx({
 
   const state = {
     currentYear: 1,
-    currentMonth,
+    currentWeekOfYear,
+    absoluteWeek: 52 + currentWeekOfYear - 1,
     provinces: {},
     polities: {
       [polityId]: {
@@ -220,7 +221,7 @@ describe('runGovernanceSystem', () => {
       treasurerId,
       treasury: 200,
       rulerHousePrestige: 40,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
     })
 
     const result = runGovernanceSystem(ctx)
@@ -238,19 +239,19 @@ describe('runGovernanceSystem', () => {
     expect(polity.adminPower).toBeLessThanOrEqual(100)
   })
 
-  it('does not update adminPower on other months', () => {
+  it('updates adminPower regardless of month', () => {
     const ctx = makeCtx({
       administratorId: createPersonId('pe', 0),
       treasurerId: createPersonId('pe', 1),
       treasury: 200,
       rulerHousePrestige: 40,
-      currentMonth: 2,
+      currentWeekOfYear: 2,
     })
 
     const result = runGovernanceSystem(ctx)
 
     const polity = result.state.polities[createPolityId('c', 0)]!
-    expect(polity.adminPower).toBe(30)
+    expect(polity.adminPower).toBeGreaterThan(30)
   })
 
   it('uses 0 for vacant administrator', () => {
@@ -259,7 +260,7 @@ describe('runGovernanceSystem', () => {
       treasurerId,
       treasury: 200,
       rulerHousePrestige: 40,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
     })
 
     const result = runGovernanceSystem(ctx)
@@ -276,7 +277,7 @@ describe('runGovernanceSystem', () => {
       treasurerId: createPersonId('pe', 1),
       treasury: 10000,
       rulerHousePrestige: 100,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
     })
     // Override persons with admin=10
     const person0 = makePerson(createPersonId('pe', 0))

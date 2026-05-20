@@ -91,7 +91,7 @@ function makeSplitTestCtx(config: typeof defaultConfig): TickContext {
   }
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 10, currentMonth: 6 }
+  state = { ...state, currentYear: 10, currentWeekOfYear: 6, absoluteWeek: 525 }
   for (let i = 0; i < provinceIds.length; i++) {
     state = withProvince(state, provinceIds[i] as ProvinceId, {
       name: `Province${i}`,
@@ -159,7 +159,7 @@ function makeSplitCtx(
   const config = { ...defaultConfig, houseSplitEnabled }
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 10, currentMonth: 6 }
+  state = { ...state, currentYear: 10, currentWeekOfYear: 6, absoluteWeek: 525 }
   for (let i = 0; i < provinceCount; i++) {
     state = withProvince(state, provinceIds[i] as ProvinceId, {
       name: `Province${i}`,

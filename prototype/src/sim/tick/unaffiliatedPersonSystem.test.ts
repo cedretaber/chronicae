@@ -23,7 +23,8 @@ function makeBaseState(): WorldState {
   }
   return {
     currentYear: 1450,
-    currentMonth: 1,
+    currentWeekOfYear: 1,
+    absoluteWeek: 75400,
     provinces: {},
     polities: {},
     houses: { [ANONYMOUS_HOUSE_ID]: anon },
@@ -121,16 +122,6 @@ const testConfig: Partial<SimulationConfig> = {
 }
 
 describe('runUnaffiliatedPersonSystem', () => {
-  it('month != 1 → identity (no change)', () => {
-    const state = makeBaseState()
-    state.currentMonth = 6
-    const ctx = makeCtx(state)
-    const result = runUnaffiliatedPersonSystem(ctx)
-    expect(result.state.currentYear).toBe(1450)
-    expect(Object.keys(result.state.persons).length).toBe(0)
-    expect(result.events).toEqual([])
-  })
-
   it('AnonymousHouse has 0 normal Persons, target = 3 → 3 new normal Persons created', () => {
     const state = makeBaseState()
     const ctx = makeCtx(state, testConfig)
@@ -171,7 +162,8 @@ describe('runUnaffiliatedPersonSystem', () => {
 
     let state = makeBaseState()
     state.currentYear = currentYear
-    state.currentMonth = 1
+    state.currentWeekOfYear = 1
+    state.absoluteWeek = state.currentYear * 52
 
     for (const pid of [person1Id, person2Id, person3Id, person4Id, person5Id, person6Id]) {
       state = withUnaffiliatedPerson(state, pid, {
@@ -200,7 +192,8 @@ describe('runUnaffiliatedPersonSystem', () => {
 
     let state = makeBaseState()
     state.currentYear = currentYear
-    state.currentMonth = 1
+    state.currentWeekOfYear = 1
+    state.absoluteWeek = state.currentYear * 52
 
     for (const pid of [person1Id, person2Id, person3Id, person4Id, person5Id, person6Id]) {
       state = withUnaffiliatedPerson(state, pid, {
@@ -230,7 +223,8 @@ describe('runUnaffiliatedPersonSystem', () => {
 
     let state = makeBaseState()
     state.currentYear = currentYear
-    state.currentMonth = 1
+    state.currentWeekOfYear = 1
+    state.absoluteWeek = state.currentYear * 52
 
     state = withUnaffiliatedPerson(state, protectedId, {
       lastHouseTransferYear: currentYear - 10,

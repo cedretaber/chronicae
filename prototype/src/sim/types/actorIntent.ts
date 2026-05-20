@@ -52,8 +52,6 @@ export type ActorIntent = {
 
   status: ActorIntentStatus
 
-  createdYear: number
-  createdMonth: number
-  expiresYear: number
-  expiresMonth: number
+  createdWeek: number
+  expiresWeek: number
 }

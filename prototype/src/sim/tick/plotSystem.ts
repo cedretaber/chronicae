@@ -31,7 +31,7 @@ function emitEvent(
   const event: SimEvent = {
     id: eventId,
     year: eventCtx.state.currentYear,
-    month: eventCtx.state.currentMonth,
+    weekOfYear: eventCtx.state.currentWeekOfYear,
     type,
     importance,
     actorIds,
@@ -345,7 +345,7 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
   const power = Math.floor(powerRoll * 60) + 20
   const secrecy = Math.floor(secrecyRoll * 60) + 20
   const risk = Math.floor(riskRoll * 60) + 20
-  const durationMonths = plotType === 'prepare_rebellion' ? 6 : 3
+  const durationWeeks = plotType === 'prepare_rebellion' ? 24 : 12
 
   // Generate PlotId
   const { id: rawId, ctx: eventCtx } = makeEventId(ctx4)
@@ -416,10 +416,8 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
     id: plotId,
     type: plotType,
     status: 'active',
-    startedYear: eventCtx.state.currentYear,
-    startedMonth: eventCtx.state.currentMonth,
-    durationMonths,
-    elapsedMonths: 0,
+    startedWeek: eventCtx.state.absoluteWeek,
+    durationWeeks,
     leaderId: leaderId,
     participantIds: [leaderId],
     power,
@@ -464,25 +462,22 @@ export function runPlotSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    const newElapsed = plot.elapsedMonths + 1
+    // Check if plot has expired using absoluteWeek comparison
+    if (ctx.state.absoluteWeek >= plot.startedWeek + plot.durationWeeks) {
+      // Resolve the plot
+      const result = resolvePlot(currentCtx, plot)
+      const status: 'succeeded' | 'failed' = result.succeeded ? 'succeeded' : 'failed'
 
-    if (newElapsed < plot.durationMonths) {
-      const updatedPlots = { ...currentCtx.state.activePlots }
-      updatedPlots[plotId as PlotId] = { ...plot, elapsedMonths: newElapsed }
-      currentCtx = { ...currentCtx, state: { ...currentCtx.state, activePlots: updatedPlots } }
+      const updatedPlots = { ...result.ctx.state.activePlots }
+      updatedPlots[plotId as PlotId] = { ...plot, status }
+      currentCtx = {
+        ...result.ctx,
+        state: { ...result.ctx.state, activePlots: updatedPlots },
+      }
       continue
     }
 
-    // Resolve the plot
-    const result = resolvePlot(currentCtx, plot)
-    const status: 'succeeded' | 'failed' = result.succeeded ? 'succeeded' : 'failed'
-
-    const updatedPlots = { ...result.ctx.state.activePlots }
-    updatedPlots[plotId as PlotId] = { ...plot, status, elapsedMonths: newElapsed }
-    currentCtx = {
-      ...result.ctx,
-      state: { ...result.ctx.state, activePlots: updatedPlots },
-    }
+    continue
   }
 
   // === PHASE B: Start new plots ===

@@ -41,7 +41,8 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
   return {
     state: {
       currentYear: 1,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
+      absoluteWeek: 52,
       provinces: {},
       polities: {
         [polityId]: {
@@ -163,7 +164,8 @@ describe('runMortalitySystem', () => {
       const ctx = {
         state: {
           currentYear: 1,
-          currentMonth: 1,
+          currentWeekOfYear: 1,
+          absoluteWeek: 52,
           provinces: {},
           polities: {
             [polityId]: {
@@ -297,7 +299,8 @@ describe('runMortalitySystem', () => {
       const ctx = {
         state: {
           currentYear: 1,
-          currentMonth: 1,
+          currentWeekOfYear: 1,
+          absoluteWeek: 52,
           provinces: {},
           polities: {
             [polityId]: {

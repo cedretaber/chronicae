@@ -105,7 +105,7 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
       holderPersonId: bailiffPersonId,
       appointingPolityId: polityId,
       year: state.currentYear,
-      month: state.currentMonth,
+      week: state.currentWeekOfYear,
     }).state
 
     const result = runLandRevenueSystem(makeCtx(state))
@@ -134,7 +134,7 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
       holderPersonId: bailiffPersonId,
       appointingPolityId: polityId,
       year: state.currentYear,
-      month: state.currentMonth,
+      week: state.currentWeekOfYear,
     }).state
     // zero out pop wealth so production = 0
     const province = state.provinces[provinceId]!
@@ -168,7 +168,7 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
       holderPersonId: bailiffPersonId,
       appointingPolityId: polityId,
       year: state.currentYear,
-      month: state.currentMonth,
+      week: state.currentWeekOfYear,
     }).state
 
     const result = runLandRevenueSystem(makeCtx(state))

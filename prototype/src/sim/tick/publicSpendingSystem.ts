@@ -26,7 +26,6 @@ function scoreLandDevelopmentProvince(
 
 export function runPublicSpendingSystem(ctx: TickContext): TickContext {
   if (!ctx.config.publicSpendingEnabled) return ctx
-  if (ctx.state.currentMonth !== 1) return ctx
 
   let currentCtx = ctx
 
@@ -104,7 +103,7 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
     const event: SimEvent = {
       id: eventId,
       year: eventCtx.state.currentYear,
-      month: eventCtx.state.currentMonth,
+      weekOfYear: eventCtx.state.currentWeekOfYear,
       type: 'POP_LAND_DEVELOPED',
       importance: 'normal',
       actorIds: [],

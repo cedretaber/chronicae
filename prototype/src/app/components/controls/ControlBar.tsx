@@ -14,7 +14,7 @@ export function ControlBar() {
   const setSpeed = useSimulationStore((s) => s.setSpeed)
 
   const currentYear = session?.currentState.currentYear ?? null
-  const currentMonth = session?.currentState.currentMonth ?? null
+  const currentWeekOfYear = session?.currentState.currentWeekOfYear ?? null
   const [seedInput, setSeedInput] = useState(session?.initialSeed ?? 'chronicae-default')
 
   return (
@@ -22,8 +22,8 @@ export function ControlBar() {
       <span className="text-lg font-bold">Chronicae</span>
 
       <span className="min-w-36">
-        {currentYear != null && currentMonth != null
-          ? `Year ${currentYear} / Month ${currentMonth}`
+        {currentYear != null && currentWeekOfYear != null
+          ? `Year ${currentYear} / Week ${currentWeekOfYear}`
           : '---'}
       </span>
 

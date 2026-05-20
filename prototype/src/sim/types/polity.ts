@@ -14,7 +14,7 @@ export type Polity = {
   adminPower: number // 0..100, cache: recalculated each January
   legacyPrestige: number // 0..100
   active: boolean
-  lastWarMonth?: number
+  lastWarWeek?: number
   capitalProvinceId: ProvinceId
   ownerHouseId?: HouseId
   rank: PolityRank

@@ -18,7 +18,7 @@ export type SimulationConfig = {
   warCostPerProvince: number
   maxProvincesPerWar: number
   maxWarsPerTick: number
-  warCooldownMonths: number
+  warCooldownWeeks: number
   minAttackerWinChanceToDeclare: number
   // Disaster
   disasterEnabled: boolean
@@ -272,7 +272,7 @@ export type SimulationConfig = {
   diplomaticPlayEscalationThreshold: number
   diplomaticPlayBaseTensionGain: number
   // v0.18 Stage B: Revolt negotiation
-  revoltNegotiationDurationMonths: number
+  revoltNegotiationDurationWeeks: number
   revoltAcceptRebelPowerFactor: number
   revoltAcceptSuppressionFactor: number
   revoltConcessionSeverityMinor: number
@@ -302,7 +302,7 @@ export type SimulationConfig = {
   claimProvinceValueFactor: number
   claimStrategicLossFactor: number
   claimPrestigeLossFactor: number
-  landClaimNegotiationDurationMonths: number
+  landClaimNegotiationDurationWeeks: number
   // 初期 progress / tension (Intent kind / 購入条件成立 に応じて変動)
   landClaimInitialProgressOnConsent: number
   landClaimInitialTensionOnPressure: number
@@ -312,7 +312,7 @@ export type SimulationConfig = {
   taxRevisionMaxRateForIncrease: number
   taxRevisionMinTreasury: number
   taxRevisionMaxIntentsPerActor: number
-  taxRevisionNegotiationDurationMonths: number
+  taxRevisionNegotiationDurationWeeks: number
   taxRevisionTaxChangeAmount: number
   taxRevisionMinRate: number
   taxRevisionMaxRate: number
@@ -497,7 +497,7 @@ export const defaultConfig: SimulationConfig = {
   warCostPerProvince: 20,
   maxProvincesPerWar: 3,
   maxWarsPerTick: 1,
-  warCooldownMonths: 24,
+  warCooldownWeeks: 104,
   minAttackerWinChanceToDeclare: 0.45,
   disasterEnabled: true,
   famineBaseChancePerYear: 0.08,
@@ -743,7 +743,7 @@ export const defaultConfig: SimulationConfig = {
   diplomaticPlayEscalationThreshold: 40,
   diplomaticPlayBaseTensionGain: 5,
   // v0.18 Stage B: Revolt negotiation
-  revoltNegotiationDurationMonths: 12,
+  revoltNegotiationDurationWeeks: 48,
   revoltAcceptRebelPowerFactor: 0.1,
   revoltAcceptSuppressionFactor: 0.05,
   revoltConcessionSeverityMinor: 10,
@@ -769,7 +769,7 @@ export const defaultConfig: SimulationConfig = {
   claimProvinceValueFactor: 0.3,
   claimStrategicLossFactor: 0.2,
   claimPrestigeLossFactor: 0.2,
-  landClaimNegotiationDurationMonths: 18,
+  landClaimNegotiationDurationWeeks: 72,
   landClaimInitialProgressOnConsent: 20,
   landClaimInitialTensionOnPressure: 15,
   // v0.18 contract_tax_revision
@@ -778,7 +778,7 @@ export const defaultConfig: SimulationConfig = {
   taxRevisionMaxRateForIncrease: 0.6,
   taxRevisionMinTreasury: 200,
   taxRevisionMaxIntentsPerActor: 2,
-  taxRevisionNegotiationDurationMonths: 12,
+  taxRevisionNegotiationDurationWeeks: 48,
   taxRevisionTaxChangeAmount: 0.05,
   taxRevisionMinRate: 0.05,
   taxRevisionMaxRate: 0.8,

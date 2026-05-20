@@ -53,7 +53,7 @@ export type ProvinceOfficeAssignment = {
   appointingPolityId: PolityId
   active: boolean
   startYear: number
-  startMonth: number
+  startWeek: number
   unpaidCount: number
 }
 

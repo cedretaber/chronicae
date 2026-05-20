@@ -30,10 +30,9 @@ export function findTaxReductionCandidates(
     if (polity.treasury < config.taxRevisionMinTreasury) continue
 
     // Skip if war cooldown not passed
-    const currentAbsoluteMonth = state.currentYear * 12 + state.currentMonth
     if (
-      polity.lastWarMonth !== undefined &&
-      currentAbsoluteMonth - polity.lastWarMonth < config.warCooldownMonths
+      polity.lastWarWeek !== undefined &&
+      state.absoluteWeek - polity.lastWarWeek < config.warCooldownWeeks
     ) {
       continue
     }
@@ -114,10 +113,9 @@ export function findTaxIncreaseCandidates(
     if (polity.treasury < config.taxRevisionMinTreasury) continue
 
     // Skip if war cooldown not passed
-    const currentAbsoluteMonth = state.currentYear * 12 + state.currentMonth
     if (
-      polity.lastWarMonth !== undefined &&
-      currentAbsoluteMonth - polity.lastWarMonth < config.warCooldownMonths
+      polity.lastWarWeek !== undefined &&
+      state.absoluteWeek - polity.lastWarWeek < config.warCooldownWeeks
     ) {
       continue
     }

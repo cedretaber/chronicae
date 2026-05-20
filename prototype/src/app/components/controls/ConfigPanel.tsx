@@ -136,12 +136,12 @@ export function ConfigPanel() {
           />
           <ConfigRow
             label="War Cooldown"
-            value={config.warCooldownMonths}
-            min={6}
-            max={60}
-            step={6}
-            displayValue={`${config.warCooldownMonths} months`}
-            onChange={(v) => setConfig({ warCooldownMonths: v })}
+            value={config.warCooldownWeeks}
+            min={24}
+            max={260}
+            step={26}
+            displayValue={`${config.warCooldownWeeks} weeks`}
+            onChange={(v) => setConfig({ warCooldownWeeks: v })}
           />
           <ConfigRow
             label="Max Wars/Tick"

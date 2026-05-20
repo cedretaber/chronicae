@@ -61,13 +61,8 @@ export function runDiplomaticPlaySystem(ctx: TickContext): TickContext {
   return currentCtx
 }
 
-function isDeadlineReached(
-  state: { currentYear: number; currentMonth: number },
-  play: DiplomaticPlay,
-): boolean {
-  const cur = state.currentYear * 12 + state.currentMonth
-  const dl = play.deadlineYear * 12 + play.deadlineMonth
-  return cur >= dl
+function isDeadlineReached(state: { absoluteWeek: number }, play: DiplomaticPlay): boolean {
+  return state.absoluteWeek >= play.deadlineWeek
 }
 
 // ─── revolt_negotiation 進行 (Stage B、escalation 経路は Stage D で ConflictResolution に移譲) ───
@@ -148,7 +143,7 @@ function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): Tick
     const ev: SimEvent = {
       id: eid,
       year: ctxEv.state.currentYear,
-      month: ctxEv.state.currentMonth,
+      weekOfYear: ctxEv.state.currentWeekOfYear,
       type: 'DIPLOMATIC_PLAY_FAILED',
       importance: 'normal',
       actorIds: [],
@@ -254,7 +249,7 @@ function applyRevoltSettlement(
   const ev: SimEvent = {
     id: eid,
     year: ctxEv.state.currentYear,
-    month: ctxEv.state.currentMonth,
+    weekOfYear: ctxEv.state.currentWeekOfYear,
     type: 'DIPLOMATIC_PLAY_SETTLED',
     importance: 'major',
     actorIds: [],
@@ -376,7 +371,7 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
     const ev: SimEvent = {
       id: eid,
       year: ctxEv.state.currentYear,
-      month: ctxEv.state.currentMonth,
+      weekOfYear: ctxEv.state.currentWeekOfYear,
       type: 'DIPLOMATIC_PLAY_FAILED',
       importance: 'normal',
       actorIds: [],
@@ -476,9 +471,8 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
   }
 
   // Check deadline
-  const currentAbsoluteMonth = state.currentYear * 12 + state.currentMonth
-  const deadlineAbsoluteMonth = play.deadlineYear * 12 + play.deadlineMonth
-  const deadlineReached = currentAbsoluteMonth >= deadlineAbsoluteMonth
+  const currentAbsoluteWeek = state.absoluteWeek
+  const deadlineReached = currentAbsoluteWeek >= play.deadlineWeek
 
   // Check thresholds
   if (progress >= config.diplomaticPlaySettlementThreshold) {
@@ -535,7 +529,7 @@ function applyContractTaxRevisionSettlement(
     const ev: SimEvent = {
       id: eid,
       year: ctxEv.state.currentYear,
-      month: ctxEv.state.currentMonth,
+      weekOfYear: ctxEv.state.currentWeekOfYear,
       type: 'CONTRACT_TAX_REVISED',
       importance: 'major',
       actorIds: [],
@@ -581,7 +575,7 @@ function applyContractTaxRevisionSettlement(
     const ev: SimEvent = {
       id: eid,
       year: ctxEv.state.currentYear,
-      month: ctxEv.state.currentMonth,
+      weekOfYear: ctxEv.state.currentWeekOfYear,
       type: 'CONTRACT_ELIMINATED',
       importance: 'major',
       actorIds: [],
@@ -600,7 +594,7 @@ function applyContractTaxRevisionSettlement(
   const settledEv: SimEvent = {
     id: settledId,
     year: ctxSettled.state.currentYear,
-    month: ctxSettled.state.currentMonth,
+    weekOfYear: ctxSettled.state.currentWeekOfYear,
     type: 'DIPLOMATIC_PLAY_SETTLED',
     importance: 'major',
     actorIds: [],
@@ -678,7 +672,7 @@ function applyLandClaimSettlement(
     const ev: SimEvent = {
       id: eid,
       year: ctxEv.state.currentYear,
-      month: ctxEv.state.currentMonth,
+      weekOfYear: ctxEv.state.currentWeekOfYear,
       type: 'DIPLOMATIC_PLAY_SETTLED',
       importance: 'major',
       actorIds: [],
@@ -712,7 +706,7 @@ function applyLandClaimSettlement(
   const ev: SimEvent = {
     id: eid,
     year: ctxEv.state.currentYear,
-    month: ctxEv.state.currentMonth,
+    weekOfYear: ctxEv.state.currentWeekOfYear,
     type: 'DIPLOMATIC_PLAY_SETTLED',
     importance: 'major',
     actorIds: [],
@@ -761,7 +755,7 @@ function markPlayEscalated(
   const ev: SimEvent = {
     id: eid,
     year: ctxEv.state.currentYear,
-    month: ctxEv.state.currentMonth,
+    weekOfYear: ctxEv.state.currentWeekOfYear,
     type: 'DIPLOMATIC_PLAY_ESCALATED',
     importance: 'major',
     actorIds: [],

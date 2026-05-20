@@ -294,11 +294,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
 
   // revolt_negotiation DiplomaticPlay を生成
   const playId = createDiplomaticPlayId(nextCtx.state.nextDiplomaticPlayId)
-  const totalStartedMonth = nextCtx.state.currentMonth - 1
-  const deadlineOffset = config.revoltNegotiationDurationMonths
-  const deadlineYear =
-    nextCtx.state.currentYear + Math.floor((totalStartedMonth + deadlineOffset) / 12)
-  const deadlineMonth = ((totalStartedMonth + deadlineOffset) % 12) + 1
+  const deadlineWeek = nextCtx.state.absoluteWeek + config.revoltNegotiationDurationWeeks
   const play: DiplomaticPlay = {
     id: playId,
     kind: 'revolt_negotiation',
@@ -311,10 +307,8 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
       concessionLevel: 'minor',
     },
     status: 'active',
-    startedYear: nextCtx.state.currentYear,
-    startedMonth: nextCtx.state.currentMonth,
-    deadlineYear,
-    deadlineMonth,
+    startedWeek: nextCtx.state.absoluteWeek,
+    deadlineWeek,
     progress: 0,
     tension: 0,
   }
@@ -335,7 +329,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
   const startEvent: SimEvent = {
     id: startEventId,
     year: ctxStart.state.currentYear,
-    month: ctxStart.state.currentMonth,
+    weekOfYear: ctxStart.state.currentWeekOfYear,
     type: 'REVOLT_NEGOTIATION_STARTED',
     importance: 'major',
     actorIds: [rebelLeaderId],
@@ -350,9 +344,6 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
 }
 
 export function runProvinceRevoltSystem(ctx: TickContext): TickContext {
-  // Only run once per year (in January) — full simulation is monthly which can be too noisy
-  if (ctx.state.currentMonth !== 1) return ctx
-
   const candidates = collectCandidates(ctx).sort((a, b) => b.revoltTendency - a.revoltTendency)
   // Limit to top 3 per year to avoid mass chaos
   const limit = Math.min(3, candidates.length)

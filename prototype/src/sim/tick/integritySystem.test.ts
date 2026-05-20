@@ -102,7 +102,8 @@ describe('runIntegritySystem', () => {
 
     const world: WorldState = {
       currentYear: 1,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
+      absoluteWeek: 52,
       provinces: {},
       polities: { [polityId]: polity },
       houses: { [houseId]: house },
@@ -216,7 +217,8 @@ describe('runIntegritySystem', () => {
 
     const world: WorldState = {
       currentYear: 1,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
+      absoluteWeek: 52,
       provinces: {},
       polities: { [polityId]: polity },
       houses: { [houseId]: house },
@@ -313,7 +315,8 @@ describe('runIntegritySystem', () => {
 
     const world: WorldState = {
       currentYear: 1,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
+      absoluteWeek: 52,
       provinces: {},
       polities: { [polityId]: polity },
       houses: { [houseId]: house },
@@ -410,7 +413,8 @@ describe('runIntegritySystem', () => {
 
     const world: WorldState = {
       currentYear: 1,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
+      absoluteWeek: 52,
       provinces: {},
       polities: { [polityId]: polity },
       houses: { [houseId]: house },
@@ -507,7 +511,8 @@ describe('runIntegritySystem', () => {
 
     const world: WorldState = {
       currentYear: 50,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
+      absoluteWeek: 50 * 52,
       provinces: {},
       polities: { [polityId]: polity },
       houses: { [houseId]: house },
@@ -592,7 +597,8 @@ describe('runIntegritySystem', () => {
 
     const world: WorldState = {
       currentYear: 1,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
+      absoluteWeek: 52,
       provinces: {},
       polities: { [polityId]: polity },
       houses: { [houseId]: house },
@@ -678,7 +684,8 @@ describe('runIntegritySystem', () => {
 
     const world: WorldState = {
       currentYear: 1,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
+      absoluteWeek: 52,
       provinces: {},
       polities: { [polityId]: polity },
       houses: { [houseId]: house },

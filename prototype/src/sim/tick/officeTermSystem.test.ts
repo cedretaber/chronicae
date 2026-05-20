@@ -28,7 +28,8 @@ function makeBaseState(): WorldState {
   }
   return {
     currentYear: 1450,
-    currentMonth: 1,
+    currentWeekOfYear: 1,
+    absoluteWeek: 75400,
     provinces: {},
     polities: {},
     houses: { [ANONYMOUS_HOUSE_ID]: anon },
@@ -126,15 +127,6 @@ function makeOffice(
 }
 
 describe('runOfficeTermSystem', () => {
-  it('month != 1 → identity (no change)', () => {
-    const state = makeBaseState()
-    state.currentMonth = 6
-    const ctx = makeCtx(state)
-    const result = runOfficeTermSystem(ctx)
-    expect(result.state).toBe(state)
-    expect(result.events).toEqual([])
-  })
-
   it('leader role + term beyond limit → unchanged', () => {
     const polityId = createPolityId('c', 0)
     const personId = createPersonId('pe', 0)
@@ -500,7 +492,8 @@ describe('expireOfficeTermAssignment', () => {
     }
     const state: WorldState = {
       currentYear: 1450,
-      currentMonth: 1,
+      currentWeekOfYear: 1,
+      absoluteWeek: 75400,
       provinces: {},
       polities: {
         [polityId]: {

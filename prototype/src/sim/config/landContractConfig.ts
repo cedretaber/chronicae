@@ -7,7 +7,7 @@ export type LandContractConfig = {
   politySurplusDistributionRate: number
   // Polity treasury のリザーブ目標 (これを下回ると分配しない)
   polityTreasuryReserveTarget: number
-  // BailiffAppointment 起動頻度 (月単位)。1 = 毎月、6 = 半年に 1 回
+  // BailiffAppointment 起動頻度。v0.19 では ScheduledSystem の intervalWeeks で制御 (6ヶ月 = 24週)
   bailiffAppointmentInterval: number
   // bailiff 候補者の最小年齢
   bailiffMinAge: number

@@ -19,6 +19,7 @@ function printUsage(): void {
 Options:
   --seed <text>         Seed for world generation (default: "chronicae-default")
   --years <n>           Number of years to simulate (default: 10)
+  --weeks <n>           Number of weeks to simulate (alternative to --years)
   --json                Output each tick as NDJSON
   --integrity-check     Run integrity check after every tick
   --debug               Enable debug mode (entity IDs in events, structured debug log on stderr)
@@ -33,6 +34,7 @@ Options:
 function parseArgs(argv: string[]): {
   seed: string
   years: number
+  weeks: number | undefined
   json: boolean
   integrityCheck: boolean
   debug: boolean
@@ -45,6 +47,7 @@ function parseArgs(argv: string[]): {
 } {
   let seed = 'chronicae-default'
   let years = 10
+  let weeks: number | undefined = undefined
   let json = false
   let integrityCheck = false
   let debug = false
@@ -69,6 +72,12 @@ function parseArgs(argv: string[]): {
       const val = argv[i]
       if (i < argv.length && val !== undefined) {
         years = parseInt(val, 10)
+      }
+    } else if (arg === '--weeks') {
+      i++
+      const val = argv[i]
+      if (i < argv.length && val !== undefined) {
+        weeks = parseInt(val, 10)
       }
     } else if (arg === '--json') {
       json = true
@@ -118,6 +127,7 @@ function parseArgs(argv: string[]): {
   return {
     seed,
     years,
+    weeks,
     json,
     integrityCheck,
     debug,
@@ -285,6 +295,13 @@ if (args.showHelp) {
   process.exit(0)
 }
 
+if (args.years !== undefined && args.weeks !== undefined) {
+  console.error('Error: --years and --weeks cannot be specified together')
+  process.exit(1)
+}
+
+const totalTicks = args.weeks !== undefined ? args.weeks : args.years * 52
+
 const { world, rng: initialRng } = generateWorld(args.seed)
 
 const initialPolityCount = countActivePolities(world)
@@ -300,7 +317,6 @@ for (const id of Object.keys(world.polities)) {
 let state: WorldState = world
 let currentRng = initialRng
 const allEvents: SimEvent[] = []
-const totalTicks = args.years * 12
 const validConfigKeys = new Set(Object.keys(defaultConfig))
 for (const key of Object.keys(args.configOverrides)) {
   if (!validConfigKeys.has(key)) {
@@ -330,7 +346,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
   }
 
   const year = result.state.currentYear
-  const month = result.state.currentMonth
+  const weekOfYear = result.state.currentWeekOfYear
   const events = result.events
   const activePolities = countActivePolities(result.state)
   const activeHouses = countActiveHouses(result.state)
@@ -350,14 +366,14 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
     if (args.json) {
       const output = {
         year,
-        month,
+        week: weekOfYear,
         events: events.map((e) => ({ type: e.type, summary: e.summary })),
         activePolities,
         activeHouses,
       }
       console.log(JSON.stringify(output))
     } else {
-      console.log('Year ' + year + ', Month ' + month)
+      console.log('Year ' + year + ', Week ' + weekOfYear)
       for (const event of events) {
         if (args.debug) {
           const ids = [
@@ -376,7 +392,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
     }
   }
 
-  if (month === 12) {
+  if (weekOfYear === 52) {
     if (args.debug) {
       const debugLog = createLogger(true)
       let livingPersons = 0
@@ -394,7 +410,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
     if (args.json) {
       const output = {
         year,
-        month,
+        week: weekOfYear,
         events: events.map((e) => ({ type: e.type, summary: e.summary })),
         activePolities,
         activeHouses,
@@ -445,11 +461,11 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
     allEvents.push(event)
   }
 
-  // --report-snapshot 指定時、年末 (month=12) かつ指定間隔で snapshot を取る
+  // --report-snapshot 指定時、年末 (weekOfYear=52) かつ指定間隔で snapshot を取る
   if (
     args.reportPath !== undefined &&
     args.reportSnapshotYears > 0 &&
-    month === 12 &&
+    weekOfYear === 52 &&
     year % args.reportSnapshotYears === 0
   ) {
     snapshots.push(takeSnapshot(result.state, year))
@@ -480,7 +496,7 @@ if (args.digest) {
     seed: args.seed,
     years: args.years,
     finalYear: state.currentYear,
-    finalMonth: state.currentMonth,
+    finalWeekOfYear: state.currentWeekOfYear,
     activePolities: countActivePolities(state),
     activeHouses: countActiveHouses(state),
     livingPersons: countLivingPersons(state),
@@ -504,7 +520,7 @@ if (args.digest) {
 if (args.json) {
   const finalOutput = {
     year: state.currentYear,
-    month: state.currentMonth,
+    week: state.currentWeekOfYear,
     events: allEvents.map((e) => ({ type: e.type, summary: e.summary })),
     activePolities: countActivePolities(state),
     activeHouses: countActiveHouses(state),

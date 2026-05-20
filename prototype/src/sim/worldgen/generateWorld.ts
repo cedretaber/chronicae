@@ -625,7 +625,8 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   // Initialize offices via createOfficeAssignment
   let officeState = {
     currentYear: 1,
-    currentMonth: 1,
+    currentWeekOfYear: 1,
+    absoluteWeek: 52,
     provinces: provincesRecord,
     polities: politiesRecord,
     houses: housesRecord,
@@ -1135,7 +1136,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
       appointingPolityId: terminalPolityId,
       active: true,
       startYear: 1,
-      startMonth: 1,
+      startWeek: 1,
       unpaidCount: 0,
     }
     provinceOfficeAssignments[officeAssignmentId] = assignment
@@ -1151,7 +1152,8 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
 
   const world: WorldState = {
     currentYear: 1,
-    currentMonth: 1,
+    currentWeekOfYear: 1,
+    absoluteWeek: 52,
     provinces: provincesRecord,
     polities: politiesRecord,
     houses: housesRecord,

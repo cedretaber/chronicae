@@ -85,7 +85,7 @@ function makeNormalExtinctionCtx(): TickContext {
   const allPersons: Record<PersonId, Person> = { ...extinctHousePersons, ...rulerHousePersons }
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 10, currentMonth: 6 }
+  state = { ...state, currentYear: 10, currentWeekOfYear: 6, absoluteWeek: 525 }
   state = withProvince(state, province0Id, { name: 'Province0' })
   state = withProvince(state, province1Id, { name: 'Province1', x: 1, y: 1 })
   state = withHouse(state, houseId, {
@@ -215,7 +215,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
       const province1Id = 'p-1' as ProvinceId
 
       let state = makeEmptyV016State()
-      state = { ...state, currentYear: 10, currentMonth: 6 }
+      state = { ...state, currentYear: 10, currentWeekOfYear: 6, absoluteWeek: 525 }
       state = withProvince(state, province0Id, { name: 'Province0' })
       state = withProvince(state, province1Id, { name: 'Province1', x: 1, y: 1 })
       state = withHouse(state, houseId, {

@@ -235,9 +235,9 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
         continue
       }
 
-      const { deadlineYear, deadlineMonth } = computeDeadline(
+      const deadlineWeek = computeDeadline(
         currentCtx,
-        currentCtx.config.taxRevisionNegotiationDurationMonths,
+        currentCtx.config.taxRevisionNegotiationDurationWeeks,
       )
 
       const playId = createDiplomaticPlayId(currentCtx.state.nextDiplomaticPlayId)
@@ -254,10 +254,8 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
           newTaxRateToGrantor: newRate,
         },
         status: 'active',
-        startedYear: currentCtx.state.currentYear,
-        startedMonth: currentCtx.state.currentMonth,
-        deadlineYear,
-        deadlineMonth,
+        startedWeek: currentCtx.state.absoluteWeek,
+        deadlineWeek,
         progress: hasAdvantage ? currentCtx.config.taxRevisionInitialProgressOnAdvantage : 0,
         tension: hasAdvantage ? 0 : currentCtx.config.taxRevisionInitialTensionOnPressure,
       }
@@ -312,9 +310,9 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
     initialTension,
   } = input
   const playId = createDiplomaticPlayId(currentCtx.state.nextDiplomaticPlayId)
-  const { deadlineYear, deadlineMonth } = computeDeadline(
+  const deadlineWeek = computeDeadline(
     currentCtx,
-    currentCtx.config.landClaimNegotiationDurationMonths,
+    currentCtx.config.landClaimNegotiationDurationWeeks,
   )
 
   const play: DiplomaticPlay = {
@@ -340,10 +338,8 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
         }
       : {}),
     status: 'active',
-    startedYear: currentCtx.state.currentYear,
-    startedMonth: currentCtx.state.currentMonth,
-    deadlineYear,
-    deadlineMonth,
+    startedWeek: currentCtx.state.absoluteWeek,
+    deadlineWeek,
     progress: initialProgress,
     tension: initialTension,
   }
@@ -369,14 +365,8 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
   return currentCtx
 }
 
-function computeDeadline(
-  ctx: TickContext,
-  durationMonths: number,
-): { deadlineYear: number; deadlineMonth: number } {
-  const totalStartedMonth = ctx.state.currentMonth - 1
-  const deadlineYear = ctx.state.currentYear + Math.floor((totalStartedMonth + durationMonths) / 12)
-  const deadlineMonth = ((totalStartedMonth + durationMonths) % 12) + 1
-  return { deadlineYear, deadlineMonth }
+function computeDeadline(ctx: TickContext, durationWeeks: number): number {
+  return ctx.state.absoluteWeek + durationWeeks
 }
 
 function emitConversionAndStartEvents(
@@ -409,7 +399,7 @@ function emitConversionAndStartEvents(
   const convEv: SimEvent = {
     id: convEventId,
     year: ctxConv.state.currentYear,
-    month: ctxConv.state.currentMonth,
+    weekOfYear: ctxConv.state.currentWeekOfYear,
     type: 'ACTOR_INTENT_CONVERTED',
     importance: 'normal',
     actorIds: [],
@@ -426,7 +416,7 @@ function emitConversionAndStartEvents(
   const startEv: SimEvent = {
     id: startEventId,
     year: ctxStart.state.currentYear,
-    month: ctxStart.state.currentMonth,
+    weekOfYear: ctxStart.state.currentWeekOfYear,
     type: 'DIPLOMATIC_PLAY_STARTED',
     importance: 'normal',
     actorIds: [],

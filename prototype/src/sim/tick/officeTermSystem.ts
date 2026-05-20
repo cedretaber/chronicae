@@ -7,8 +7,6 @@ import { expireOfficeTermAssignment } from '../mutations/officeMutations'
 
 // v0.17 §6.5: Every January, expire non-leader offices whose term has elapsed.
 export function runOfficeTermSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
-
   let currentCtx = ctx
 
   const officeIds = (Object.keys(currentCtx.state.officeAssignments) as OfficeAssignmentId[]).sort()
@@ -31,7 +29,7 @@ export function runOfficeTermSystem(ctx: TickContext): TickContext {
     const event: SimEvent = {
       id: eventId,
       year: ec.state.currentYear,
-      month: ec.state.currentMonth,
+      weekOfYear: ec.state.currentWeekOfYear,
       type: 'OFFICE_TERM_ENDED',
       importance: 'normal',
       actorIds: [office.holderPersonId],

@@ -19,8 +19,6 @@ import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 
 // v0.17 §12: FactionRecruitmentSystem (yearly, Jan, after FactionLifecycle)
 export function runFactionRecruitmentSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
-
   let currentCtx = ctx
   for (const faction of getActiveFactions(currentCtx.state)) {
     currentCtx = recruitForFaction(currentCtx, faction.id)
@@ -94,8 +92,7 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
     const addResult = addFactionMembership(currentCtx.state, {
       factionId,
       personId: candidateId,
-      year: currentCtx.state.currentYear,
-      month: currentCtx.state.currentMonth,
+      week: currentCtx.state.absoluteWeek,
     })
     if (!addResult.ok) continue
     currentCtx = { ...currentCtx, state: addResult.value.state }
@@ -127,7 +124,7 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
     const event: SimEvent = {
       id: eventId,
       year: ec.state.currentYear,
-      month: ec.state.currentMonth,
+      weekOfYear: ec.state.currentWeekOfYear,
       type: 'PERSON_RECRUITED_TO_FACTION',
       importance: 'normal',
       actorIds: [faction.leaderPersonId, candidateId],

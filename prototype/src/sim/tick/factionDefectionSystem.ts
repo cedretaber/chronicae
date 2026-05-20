@@ -19,8 +19,6 @@ import { randomFloat } from '../rng/rng'
 // 利益判定は active Office (Polity/House/Bailiff) のみに限定する。stipend は member への
 // ギフトに留まり、引き留め力を持たない設計とする。lastBenefitYear cache は導入しない。
 export function runFactionDefectionSystem(ctx: TickContext): TickContext {
-  if (ctx.state.currentMonth !== 1) return ctx
-
   let currentCtx = ctx
   for (const faction of getActiveFactions(currentCtx.state)) {
     const leader = currentCtx.state.persons[faction.leaderPersonId]
@@ -46,8 +44,8 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
       // (a) Office 保有チェック — 利益あり → skip
       if (hasActiveOfficeOrBailiff(currentCtx.state, membership.personId)) continue
 
-      // (b) idle 計算 — joinedYear を起点とする
-      const idle = currentCtx.state.currentYear - membership.joinedYear
+      // (b) idle 計算 — joinedWeek を起点とする
+      const idle = Math.floor((currentCtx.state.absoluteWeek - membership.joinedWeek) / 52)
       if (idle < currentCtx.config.factionDefectionGraceYears) continue
 
       // 確率判定
@@ -82,7 +80,7 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
       const event: SimEvent = {
         id: eventId,
         year: ec.state.currentYear,
-        month: ec.state.currentMonth,
+        weekOfYear: ec.state.currentWeekOfYear,
         type: 'FACTION_MEMBER_ABANDONED',
         importance: 'minor',
         actorIds: [membership.personId, faction.leaderPersonId],

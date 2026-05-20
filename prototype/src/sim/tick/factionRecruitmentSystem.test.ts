@@ -53,7 +53,7 @@ function buildBaseState(): {
   const houseId = createHouseId('dh', 0)
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444, currentMonth: 1 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
   state = withProvince(state, provinceId, { name: 'Province0' })
   state = withHouse(state, houseId, {
     name: 'House0',
@@ -81,16 +81,14 @@ function addFaction(
     name: 'Faction0',
     leaderPersonId,
     active: true,
-    foundingYear: 1444,
-    foundingMonth: 1,
+    foundingWeek: 75088,
   }
   const membership: FactionMembership = {
     id: createFactionMembershipId(0),
     factionId,
     personId: leaderPersonId,
     active: true,
-    joinedYear: 1444,
-    joinedMonth: 1,
+    joinedWeek: 75088,
   }
   const newIndex: import('../types/faction').FactionIndex = {
     byLeader: { ...state.factionIndex.byLeader, [leaderPersonId]: [factionId] },
@@ -111,13 +109,13 @@ function addFaction(
 }
 
 describe('runFactionRecruitmentSystem', () => {
-  it('returns identity when month != 1', () => {
+  it('returns identity when currentWeekOfYear != 1', () => {
     const { state } = buildBaseState()
-    const month12State: WorldState = { ...state, currentMonth: 12 }
-    const ctx = makeCtx(month12State)
+    const week12State: WorldState = { ...state, currentWeekOfYear: 12 }
+    const ctx = makeCtx(week12State)
     const result = runFactionRecruitmentSystem(ctx)
 
-    expect(result.state).toBe(month12State)
+    expect(result.state).toBe(week12State)
   })
 
   it('no active factions → identity', () => {
@@ -233,16 +231,14 @@ describe('runFactionRecruitmentSystem', () => {
       name: 'OtherFaction',
       leaderPersonId: candidateId,
       active: true,
-      foundingYear: 1444,
-      foundingMonth: 1,
+      foundingWeek: 75088,
     }
     const otherMembership: FactionMembership = {
       id: createFactionMembershipId(1),
       factionId: otherFactionId,
       personId: candidateId,
       active: true,
-      joinedYear: 1444,
-      joinedMonth: 1,
+      joinedWeek: 75088,
     }
     const s3: WorldState = {
       ...s2,

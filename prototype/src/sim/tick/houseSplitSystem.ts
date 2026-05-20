@@ -42,7 +42,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   if (currentCohesion >= houseSplitCohesionThreshold) {
     log.log('HOUSE_SPLIT', {
       year: ctx.state.currentYear,
-      month: ctx.state.currentMonth,
+      weekOfYear: ctx.state.currentWeekOfYear,
       house: input.houseId,
       cohesion: Math.round(currentCohesion),
       threshold: houseSplitCohesionThreshold,
@@ -66,7 +66,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   if (roll >= splitChance) {
     log.log('HOUSE_SPLIT', {
       year: ctx.state.currentYear,
-      month: ctx.state.currentMonth,
+      weekOfYear: ctx.state.currentWeekOfYear,
       house: input.houseId,
       cohesion: Math.round(currentCohesion),
       threshold: houseSplitCohesionThreshold,
