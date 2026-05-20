@@ -94,7 +94,7 @@ describe('runBirthSystem', () => {
     const polity = makePolity(polityId, houseId)
 
     const customConfig = makeConfig({
-      baseBirthChancePerMalePerYear: 1.0,
+      baseBirthChancePerMalePerYear: 12.0,
       spouseMotherChance: 1.0,
     })
 
@@ -173,7 +173,7 @@ describe('runBirthSystem', () => {
     const polity = makePolity(polityId, houseId)
 
     const customConfig = makeConfig({
-      baseBirthChancePerMalePerYear: 1.0,
+      baseBirthChancePerMalePerYear: 12.0,
       spouseMotherChance: 0.0,
     })
 
@@ -247,7 +247,7 @@ describe('runBirthSystem', () => {
     const polity = makePolity(polityId, houseId)
 
     const customConfig = makeConfig({
-      baseBirthChancePerMalePerYear: 1.0,
+      baseBirthChancePerMalePerYear: 12.0,
       spouseMotherChance: 1.0,
     })
 

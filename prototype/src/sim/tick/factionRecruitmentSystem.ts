@@ -62,8 +62,7 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
   candidates.sort((a, b) => b.score - a.score)
 
   let currentCtx = ctx
-  // recruit top up to small per-year cap to avoid runaway
-  const recruitCap = Math.max(1, 3)
+  const recruitCap = 1
   let recruited = 0
   for (const { personId: candidateId } of candidates) {
     if (recruited >= recruitCap) break

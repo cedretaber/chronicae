@@ -6,6 +6,8 @@ import { getOfficeDefinition } from '@sim/config/officeDefinitions'
 import { adjustPersonAttitude } from '@sim/mutations/attitudeMutations'
 import type { WorldState } from '@sim/types/world'
 
+const COMPENSATION_CALLS_PER_YEAR = 12
+
 export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
   let state = ctx.state
   const config = ctx.config
@@ -18,7 +20,7 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
     const def = getOfficeDefinition(office.organization.kind, office.role)
     if (!def || def.baseSalary <= 0) continue
 
-    const due = def.baseSalary
+    const due = def.baseSalary / COMPENSATION_CALLS_PER_YEAR
     const person = state.persons[office.holderPersonId]
     if (!person) continue
 
@@ -77,8 +79,10 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
       // Apply Attitude penalty (reduced by dignity)
       const dignityReduction =
         (def.baseDignityPower / 100) * config.officeDignityUnpaidPenaltyReduction
-      const affPenalty = config.officeUnpaidAffectionPenalty * (1 - dignityReduction)
-      const resPenalty = config.officeUnpaidRespectPenalty * (1 - dignityReduction)
+      const affPenalty =
+        (config.officeUnpaidAffectionPenalty / COMPENSATION_CALLS_PER_YEAR) * (1 - dignityReduction)
+      const resPenalty =
+        (config.officeUnpaidRespectPenalty / COMPENSATION_CALLS_PER_YEAR) * (1 - dignityReduction)
 
       const orgTarget =
         org.kind === 'polity'

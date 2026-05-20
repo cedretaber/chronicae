@@ -15,8 +15,16 @@ import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { HouseId, PolityId, PersonId, ProvinceId, PopGroupId } from '../types/ids'
 
-function makeCtx(state: WorldState, seed = 'revolt-test'): TickContext {
-  return createTickContext({ state, rng: createRng(seed), config: defaultConfig })
+function makeCtx(
+  state: WorldState,
+  seed = 'revolt-test',
+  configOverrides: Partial<typeof defaultConfig> = {},
+): TickContext {
+  return createTickContext({
+    state,
+    rng: createRng(seed),
+    config: { ...defaultConfig, ...configOverrides },
+  })
 }
 
 function buildWorld(opts: {
@@ -82,7 +90,32 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
     // High unrest + low polityControl + low treasury → revoltTendency 高
     // 複数 seed を試して 1 つでも Play が出ることを確認
     let foundPlay = false
-    for (const seed of ['rev-1', 'rev-2', 'rev-3', 'rev-4', 'rev-5', 'rev-6']) {
+    for (const seed of [
+      'rev-1',
+      'rev-2',
+      'rev-3',
+      'rev-4',
+      'rev-5',
+      'rev-6',
+      'rev-7',
+      'rev-8',
+      'rev-9',
+      'rev-10',
+      'rev-11',
+      'rev-12',
+      'rev-13',
+      'rev-14',
+      'rev-15',
+      'rev-16',
+      'rev-17',
+      'rev-18',
+      'rev-19',
+      'rev-20',
+      'rev-21',
+      'rev-22',
+      'rev-23',
+      'rev-24',
+    ]) {
       const { state, provinceId, polityId } = buildWorld({
         popUnrest: 99,
         popSize: 2000,
@@ -90,7 +123,10 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
         polityControl: 5,
         treasury: 0,
       })
-      const ctx = makeCtx(state, seed)
+      const ctx = makeCtx(state, seed, {
+        provinceRevoltChanceDivisor: 30,
+        provinceRevoltMaxChance: 1.0,
+      })
       const next = runProvinceRevoltSystem(ctx)
       const plays = Object.values(next.state.diplomaticPlays)
       if (plays.length > 0) {

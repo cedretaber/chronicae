@@ -239,10 +239,11 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
   const ownerHouseId = getProvinceEffectiveOwnerHouseId(ctx.state, provinceId)
   if (!ownerHouseId) return ctx
 
+  const REVOLT_CALLS_PER_YEAR = 4
   const revoltChance = clamp(
-    revoltTendency / config.provinceRevoltChanceDivisor,
+    revoltTendency / (config.provinceRevoltChanceDivisor * REVOLT_CALLS_PER_YEAR),
     0,
-    config.provinceRevoltMaxChance,
+    config.provinceRevoltMaxChance / REVOLT_CALLS_PER_YEAR,
   )
 
   // 発火 roll (このまま維持)
@@ -345,8 +346,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
 
 export function runProvinceRevoltSystem(ctx: TickContext): TickContext {
   const candidates = collectCandidates(ctx).sort((a, b) => b.revoltTendency - a.revoltTendency)
-  // Limit to top 3 per year to avoid mass chaos
-  const limit = Math.min(3, candidates.length)
+  const limit = Math.min(1, candidates.length)
 
   let currentCtx = ctx
   for (let i = 0; i < limit; i++) {

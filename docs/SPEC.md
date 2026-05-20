@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-20（v0.18 完成）
+最終更新: 2026-05-20（v0.19 完成）
 
 ---
 
@@ -50,7 +50,7 @@ function tick(input: TickInput): TickResult
 
 ```bash
 cd prototype
-npm run cli -- --seed <seed> --years <n> [--integrity-check] [--json]
+npm run cli -- --seed <seed> --years <n> [--weeks <n>] [--integrity-check] [--json]
 ```
 
 コーディングエージェントがバグ検出・動作確認に利用することを想定している。
@@ -126,10 +126,10 @@ type Polity = {
   ownerHouseId?: HouseId      // 家産的保有関係: その Polity を所有する家。Rebel Polity / commonwealth では undefined（恒常状態）
   kind?: PolityKind            // v0.18-pre: 'commonwealth' は ownerHouseId === undefined を恒常的に許容する状態。undefined は 'normal' と等価
   treasury: number             // >= 0
-  adminPower: number           // 0..100（キャッシュ値。毎1月に GovernanceSystem が再計算）
+  adminPower: number           // 0..100（キャッシュ値。毎年 GovernanceSystem が再計算）
   legacyPrestige: number       // 0..100（歴史的権威・伝統の蓄積）
   active: boolean
-  lastWarMonth?: number
+  lastWarWeek?: number         // absoluteWeek (v0.19)
   capitalProvinceId: ProvinceId
 }
 ```
@@ -139,7 +139,7 @@ type Polity = {
 - `kind`: 'commonwealth' は v0.18-pre で導入。`ownerHouseId === undefined` を恒常状態として維持する Polity の標識。`createRebelPolity` で 'commonwealth' を set し、`polityOwnerConsistencySystem` / `successionSystem` / `organizationConsistencySystem` 等は commonwealth を skip / 特別扱いする。詳細は `docs/drafts/spec-v018-pre-update.md` 参照
 - `rank`: 1 (帝国) / 2 (王国) / 3 (公爵領) / 4 (伯爵領) / 5 (反乱領)。LandContract chain の rank 不変条件 (§7) と戦争 case 分岐 (§13 / §16.1) で機能する
 - `legitimacy`・`stability` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
-- `adminPower` はキャッシュ値として維持。毎1月に GovernanceSystem が `getPolityAdminPower` で再計算（§4.5 / §6.23b 参照）
+- `adminPower` はキャッシュ値として維持。毎年 GovernanceSystem が `getPolityAdminPower` で再計算（§4.5 / §6.23b 参照）
 - **v0.12**: `rulerHouseId` と `roleAssignments` を削除。支配者・役職担当者は `OfficeAssignment` システムで管理（§3.7 参照）。`getPolityLeader` / `getPolityLeaderHouse` セレクターで取得（§4.6 参照）
 - **v0.15**: 旧 `Country` を `Polity` に rename し、`houseIds` フィールドを削除（`getPolityHouseIds` selector で動的取得）。`ownerHouseId` / `rank` を新規追加
 - **v0.16**: Polity と Province の関係は LandContract chain で表現する。`getPolityGrantedProvinceIds` / `getPolityTerminalProvinceIds` / `getPolityOverlordProvinceIds` を使う
@@ -263,7 +263,7 @@ type AttitudeTarget =
 - `affection`: 感情的な好意（正）または嫌悪（負）
 - `respect`: 能力・権威への尊敬（正）または軽蔑（負）
 - エントリが存在しない場合は `{ affection: 0, respect: 0 }` として扱う
-- AttitudeDecaySystem により毎月 `attitudeMonthlyRetentionRate`（0.995）倍に減衰
+- AttitudeDecaySystem により 4 週ごとに `attitudeMonthlyRetentionRate`（0.995）倍に減衰
 - **v0.13**: tick / selectors / explain / app からの Attitude 読み書きはすべて `AttitudeTarget` を経由する。`{polity|house|person}AttitudeKey` 文字列ビルダーの直接使用は `attitudeMutations` 内部と worldgen に限定（§12 参照）
 - **v0.15**: AttitudeTarget の kind `'country'` を `'polity'` に置換。`polityAttitudeKey` → `polityAttitudeKey`、key の prefix も `country:` → `polity:` に
 
@@ -382,7 +382,7 @@ type ProvinceOfficeAssignment = {
   appointingPolityId: PolityId        // 任命主体（terminal Polity）
   active: boolean
   startYear: number
-  startMonth: number
+  startWeek: number            // absoluteWeek (v0.19)
   unpaidCount: number
 }
 ```
@@ -438,7 +438,7 @@ v0.18 では Polity actor のみ実動。House actor は型のみ。
 
 #### ActorIntent
 
-短期的な行動意図。毎年 1 月に IntentGenerationSystem が生成する。
+短期的な行動意図。毎年 IntentGenerationSystem が生成する。`createdWeek` / `expiresWeek` を absoluteWeek で保持 (v0.19)。
 
 ```ts
 type ActorIntentKind =
@@ -466,7 +466,7 @@ type ActiveDiplomaticPlayStatus = 'active' | 'escalated'
 type TerminalDiplomaticPlayStatus = 'settled' | 'failed' | 'resolved_by_conflict' | 'cancelled'
 ```
 
-progress (妥協方向) / tension (緊張方向) の 2 軸で進行し、閾値到達で settlement / escalation に分岐する。terminal status に達した Play は同 tick 末に削除。
+progress (妥協方向) / tension (緊張方向) の 2 軸で進行し、閾値到達で settlement / escalation に分岐する。`startedWeek` / `deadlineWeek` を absoluteWeek で保持 (v0.19)。terminal status に達した Play は同 tick 末に削除。
 
 #### DiplomaticDemand
 
@@ -603,7 +603,7 @@ function getPolityPrestige(state: WorldState, polityId: PolityId): number
 function getHousePrestige(state: WorldState, houseId: HouseId): number
 function getPersonPrestige(state: WorldState, personId: PersonId): number
 
-// Polity 行政力: 毎1月 GovernanceSystem がキャッシュ
+// Polity 行政力: 毎年 GovernanceSystem がキャッシュ
 //   0.30*adminEffectiveStat*10 + 0.20*treasurerEffectiveStat*10 + 0.20*stability + 0.20*rulerPrestige + 0.10*treasuryScore
 //   各 stat は getEffectiveOfficeStat（役職担当者の能力・人数・協調ペナルティを考慮）
 function getPolityAdminPower(state: WorldState, config: SimulationConfig, polityId: PolityId): number
@@ -779,60 +779,120 @@ warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
 
 ## 5. Tick システム順序
 
-毎月 1 回 tick が実行される。以下の順序でシステムが動く：
+### 5.1 ScheduledSystem (v0.19)
 
-| 順序 | システム | 頻度 |
-|------|----------|------|
-| 1 | advanceTime | 毎月 |
-| 2 | DevelopmentSystem | 毎月 |
-| 3 | ControlSystem | 毎月 |
-| 4 | **PopSystem** | 毎月 |
-| 5 | **LandRevenueSystem** (v0.16) | 毎月 |
-| 6 | **PolitySurplusDistributionSystem** (v0.16) | 毎月 |
-| 7 | DisasterSystem | 毎年1月 |
-| 8 | MortalitySystem | 毎月 |
-| 8b | **EstateSettlementSystem** (v0.14) | 毎月 |
-| 9 | SuccessionSystem | 毎月 |
-| 10 | MarriageSystem | 毎年1月 |
-| 11 | BirthSystem | 毎年1月 |
-| 12 | **ShareUpdateSystem** | 毎年1月 |
-| 13 | AppointmentSystem | 毎年1月 |
-| 13b | **BailiffAppointmentSystem** (v0.16) | 毎月（config の interval で間引き） |
-| 14 | **OfficeCompensationSystem** | 毎年1月 |
-| 14b | **PersonGrowthSystem** (v0.14) | 毎年1月（誕生月以外 no-op） |
-| 15 | AmbitionSystem | 毎月 |
-| 16 | PublicSpendingSystem | 毎年1月 |
-| 17 | HouseDevelopmentSystem | 毎年1月 |
-| 18 | **PopDevelopmentSystem** | 毎月 |
-| 19 | PlotSystem | 毎月 |
-| 20 | ~~WarSystem~~ | ~~毎月~~ | **v0.18 で廃止**: 宣戦 AI → IntentGenerationSystem に移行、戦争は DiplomaticPlay escalation → ConflictResolutionSystem で発生 |
-| 20a | **IntentGenerationSystem** (v0.18) | 毎年1月 |
-| 20b | **IntentToDiplomaticPlaySystem** (v0.18) | 毎月 |
-| 21 | **ProvinceRevoltSystem** | 毎月 | **v0.18 で外交劇化**: revolt_negotiation DiplomaticPlay を生成 |
-| 21b | **DiplomaticPlaySystem** (v0.18) | 毎月 |
-| 21c | **ConflictResolutionSystem** (v0.18) | 毎月 |
-| 21d | ~~LandContractPurchaseSystem~~ | ~~毎年1月~~ | **v0.18 で廃止**: land_claim DiplomaticPlay に統合 |
-| 22b | **PolityOwnerConsistencySystem** (v0.15) | 毎月 |
-| 22c | **OrganizationConsistencySystem** (v0.15) | 毎月 |
-| 23 | **AttitudeDecaySystem** | 毎月 |
-| 24 | GovernanceSystem | 毎年1月 |
-| 25 | normalizePopSizes | 毎月 |
-| 25b | **CleanupTerminalDiplomacy** (v0.18) | 毎月 |
-| 26 | IntegrityCheck | 毎月 |
+v0.19 で時間単位を月次 tick (1 tick = 1 ヶ月) から **週次 tick (1 tick = 1 週)** に移行した。1 年 = 48 週 = 12 擬似月 × 4 週。
 
-**v0.16 で削除された System**: 旧 LordshipTransitionSystem / EconomySystem / RebellionSystem は廃止された。Province 直接所有モデルが LandContract chain に置き換わり、House 反乱は ProvinceRevoltSystem の `createRebelPolity` に統合されている。
+各 system の実行周期は **ScheduledSystem** として tick scheduler 側で管理する。各 system 内部の `if (currentMonth !== 1) return ctx` ガードは廃止。
 
-v0.15 で挿入された Consistency 系 2 つは、War / Rebellion / ProvinceRevolt 等の所領変動 system の **直後** に走り、所領異動の結果生じた Polity の owner / capital / Share / Office の整合性を即座に補正する。
+```ts
+type ScheduledSystem = {
+  name: string
+  intervalWeeks: number
+  phaseOffsetWeeks: number
+  run: (ctx: TickContext) => TickContext
+}
 
-詳細は §6.22b / §6.22c 参照。
+function shouldRun(system: ScheduledSystem, absoluteWeek: number): boolean {
+  return (absoluteWeek - system.phaseOffsetWeeks) % system.intervalWeeks === 0
+}
+```
 
-順序の理由：PopSystem を LandRevenueSystem より前に置くことで、当月の POP 状態変化（人口成長・pressure・wealth/unrest）を反映して生産量を計算する。LandRevenueSystem の直後に PolitySurplusDistributionSystem を置くことで、上納後の余剰を即座に Share holder に分配する（§21）。BailiffAppointmentSystem を AppointmentSystem の直後に置くことで、ProvinceOffice (Bailiff) 任命を Polity Office と一括して処理する。LandContractPurchaseSystem を ProvinceRevoltSystem の直後に置くことで、戦争・反乱の結果生じた所領分布を入力として平和的譲渡を実行する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。OfficeCompensationSystem を AppointmentSystem の直後に置くことで、当年に任命された役職への給与支払いが即座に処理される。PopDevelopmentSystem を Polity/House 開発システムより後に置くことで、当月の収入分配後に POP に残った余剰富による地元の自主開発を表現する。ProvinceRevoltSystem を WarSystem の後に置くことで、Province / POP 起点の社会不安が反乱独立に波及する経路を表現する。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当月に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は1月のみ実行され、次の1年間の各システムで使われる。
+### 5.2 WorldState の時間表現
+
+```ts
+type WorldState = {
+  absoluteWeek: number        // 0-based 通算週 — 一次情報源
+  currentYear: number         // 表示・利便用キャッシュ (absoluteWeek から導出)
+  currentWeekOfYear: number   // 1..48 — 表示・利便用キャッシュ
+  ...
+}
+```
+
+`absoluteWeek` が一次情報源。`currentYear` / `currentWeekOfYear` は `advanceTime` が同期更新する。IntegrityCheck で 3 値の整合性を検証する。
+
+### 5.3 時間定数
+
+```ts
+const WEEKS_PER_YEAR = 48
+const WEEKS_PER_PSEUDO_MONTH = 4
+const WEEKS_PER_SEASON = 12
+```
+
+### 5.4 システム実行順序
+
+`advanceTime` は毎 tick 直接実行（ScheduledSystem 対象外）。以下の ScheduledSystem 配列が `shouldRun` で判定される：
+
+| 順序 | システム | intervalWeeks | 備考 |
+|------|----------|---:|------|
+| 1 | advanceTime | 毎tick | schedule 対象外。毎 tick 実行 |
+| 2 | DevelopmentSystem | 4 | 旧毎月 |
+| 3 | ControlSystem | 4 | 旧毎月 |
+| 4 | PopSystem | 4 | 旧毎月 |
+| 5 | LandRevenueSystem | 4 | 旧毎月 |
+| 6 | PolitySurplusDistributionSystem | 4 | 旧毎月 |
+| 6b | HouseSurplusDistributionSystem | 4 | 旧毎月 |
+| 7 | DisasterSystem | 48 | 旧毎年 |
+| 8 | MortalitySystem | 4 | 旧毎月 |
+| 8b | EstateSettlementSystem | 4 | Mortality 直後 |
+| 9 | SuccessionSystem | 4 | 旧毎月 |
+| 10 | MarriageSystem | 48 | 旧毎年 |
+| 11 | BirthSystem | 48 | 旧毎年 |
+| 11b | UnaffiliatedPersonSystem | 48 | 旧毎年 |
+| 11c | OfficeTermSystem | 48 | 旧毎年 |
+| 12 | ShareUpdateSystem | 48 | 旧毎年 |
+| 13 | AppointmentSystem | 48 | 旧毎年 |
+| 13b | BailiffAppointmentSystem | 24 | 旧6ヶ月ごと |
+| 14 | OfficeCompensationSystem | 48 | 旧毎年 |
+| 14b | FactionPatronageSystem | 48 | 旧毎年 |
+| 14c | FactionDefectionSystem | 48 | 旧毎年 |
+| 14d | FactionMaintenanceSystem | 4 | v0.19 で分割: leader 死亡時継承・死亡 member 整理 |
+| 14e | FactionLifecycleSystem | 48 | v0.19 で分割: 解散判定・新規結成 (年次のみ) |
+| 14f | FactionRecruitmentSystem | 48 | 旧毎年 |
+| 14g | PersonGrowthSystem | 48 | 旧毎年 |
+| 15 | AmbitionSystem | 4 | 旧毎月 |
+| 16 | PublicSpendingSystem | 48 | 旧毎年 |
+| 17 | HouseDevelopmentSystem | 48 | 旧毎年 |
+| 18 | PopDevelopmentSystem | 4 | 旧毎月 |
+| 19 | PlotSystem | 4 | 旧毎月 |
+| 20a | IntentGenerationSystem | 48 | 旧毎年 |
+| 20b | IntentToDiplomaticPlaySystem | 4 | 旧毎月 |
+| 21 | ProvinceRevoltSystem | 48 | 旧毎年 |
+| 21b | DiplomaticPlaySystem | 4 | 旧毎月 |
+| 21c | ConflictResolutionSystem | 4 | 旧毎月 |
+| 22b | PolityOwnerConsistencySystem | 4 | 旧毎月 |
+| 22c | OrganizationConsistencySystem | 4 | 旧毎月 |
+| 23 | AttitudeDecaySystem | 4 | 旧毎月 |
+| 24 | GovernanceSystem | 48 | 旧毎年 |
+| 25 | normalizePopSizes | 4 | 旧毎月 |
+| 25b | CleanupTerminalDiplomacy | 4 | 旧毎月 |
+| 26 | IntegrityCheck | ※3モード | debug=毎tick(try-catch), integrity-check=毎tick(throw), 通常=week48(throw) |
+
+全 system の `phaseOffsetWeeks = 0`（v0.19 時点）。
+
+### 5.5 IntegrityCheck の 3 モード
+
+IntegrityCheck は ScheduledSystem 配列に含めず、tick 末尾で直接制御する：
+
+- **debug モード**: 毎 tick 実行。違反は try-catch で stderr に出力して継続
+- **--integrity-check モード**: 毎 tick 実行。違反は throw して即時停止
+- **通常モード**: `currentWeekOfYear === 48`（年末）のみ実行。違反は throw
+
+### 5.6 削除された System
+
+**v0.16**: 旧 LordshipTransitionSystem / EconomySystem / RebellionSystem を廃止。**v0.18**: 旧 WarSystem / LandContractPurchaseSystem を廃止。
+
+Consistency 系 2 つは所領変動 system の直後に走り、所領異動の結果生じた Polity の owner / capital / Share / Office の整合性を即座に補正する（§6.22b / §6.22c 参照）。
+
+### 5.7 順序の理由
+
+PopSystem を LandRevenueSystem より前に置くことで、当 tick の POP 状態変化を反映して生産量を計算する。LandRevenueSystem の直後に PolitySurplusDistributionSystem を置くことで、上納後の余剰を即座に Share holder に分配する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当 tick に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は年次実行され、次の 1 年間の各システムで使われる。
 
 ---
 
 ## 6. 各システムの仕様
 
-### 6.1 DevelopmentSystem（毎月）
+### 6.1 DevelopmentSystem（4週ごと）
 
 全 Province に対して自然減衰・回復を適用：
 
@@ -842,7 +902,7 @@ development < 0 → development = min(0, development + developmentNegativeMonthl
 結果を clamp(-100, 100)
 ```
 
-### 6.2 ControlSystem（毎月）
+### 6.2 ControlSystem（4週ごと）
 
 Polity ごとに首都から BFS、House ごとに本拠地から BFS を行い、各 Province の支配力を更新する。
 
@@ -909,9 +969,9 @@ target.houseControl = clamp(neighbor.houseControl - penalty, newControlMin, newC
 summary: "${新House.name} absorbed ${province.name} from ${旧House.name}."
 ```
 
-### 6.4 PopSystem（毎月）
+### 6.4 PopSystem（4週ごと）
 
-POP の月次自然変化を処理する。Province の carrying capacity に基づいた人口圧制御、wealth/unrest の自然変化を担当する。
+POP の自然変化を処理する。Province の carrying capacity に基づいた人口圧制御、wealth/unrest の自然変化を担当する。
 
 **6.4.1 人口成長**
 
@@ -968,7 +1028,7 @@ pop.unrest = clamp(pop.unrest, 0, 100)
 
 過徴税ペナルティは LandRevenueSystem 側で継続。`houseControl` 経由の二重収入経路 (`houseIncome`) は廃止された。House への富の流れは Polity Share 経由でのみ発生する（§6.5b）。
 
-### 6.5a LandRevenueSystem（毎月、v0.16）
+### 6.5a LandRevenueSystem（4週ごと、v0.16）
 
 Province の生産を terminal Polity treasury に集積し、LandContract chain に沿って上納する。
 
@@ -1023,7 +1083,7 @@ if (
 
 回収されなかった富は POP wealth に反映される（旧 EconomySystem と同じ式、`polityControl` 単独入力）。
 
-### 6.5b PolitySurplusDistributionSystem（毎月、v0.16）
+### 6.5b PolitySurplusDistributionSystem（4週ごと、v0.16）
 
 各 Polity treasury から OrganizationShare に応じて Share holder に分配する。給与・維持費 (OfficeCompensationSystem §6.14b) は別 system で支払う。
 
@@ -1051,7 +1111,7 @@ polity.treasury -= distributedTotal
 
 **Person Share holder の死亡 skip**: holder Person が `!alive` の場合は分配しない（暫定挙動。家・相続人への流入は将来の課題）。
 
-### 6.6 DisasterSystem（毎年1月）
+### 6.6 DisasterSystem（48週ごと = 毎年）
 
 国家ごとに独立して判定。同一国に複数の災害が同時発生し得る。
 
@@ -1078,7 +1138,7 @@ polity.treasury -= distributedTotal
 - `adjustProvincePopWealthByClass(state, pid, 'townsmen', +bountifulHarvestTownsmanWealthGain)`
 - `adjustProvincePopUnrestByClass(state, pid, 'townsmen', -bountifulHarvestTownsmanUnrestReduction)`
 
-### 6.7 MortalitySystem（毎月）
+### 6.7 MortalitySystem（4週ごと）
 
 人物の自然死亡を処理。死亡が確定した Person について `markPersonDead` mutation を呼び、以下を一括で処理する（v0.13）：
 
@@ -1090,7 +1150,7 @@ polity.treasury -= distributedTotal
 
 **v0.14**: 死亡者の `wealth` 分配は直後の EstateSettlementSystem（§6.7b）が処理する。MortalitySystem は死者を `TickContext.deathsThisTick` に追記し、`wasHouseLeader` / `wasPolityLeader` の役職情報を `TickContext.deathRolesThisTick` に保存して estate 処理に引き継ぐ（mortalitySystem 内で role を取得しないと markPersonDead が office を revoke するため後段では復元できない）。
 
-### 6.7b EstateSettlementSystem（毎月、v0.14）
+### 6.7b EstateSettlementSystem（4週ごと、v0.14）
 
 `MortalitySystem` 直後・`SuccessionSystem` 前に実行。`deathsThisTick` に含まれる死亡者で `wealth > 0` の者について、家中 Share に応じた家回収率で家・相続人に wealth を分配する。
 
@@ -1127,7 +1187,7 @@ toHeirsPool = wealth - toHouse
 
 `deathsThisTick` と `deathRolesThisTick` は次 tick の `advanceTime` で空にリセットされる。
 
-### 6.8 MarriageSystem（毎年1月）
+### 6.8 MarriageSystem（48週ごと = 毎年）
 
 `marriageEnabled` が true のとき動作。未婚の男性候補を一覧し、それぞれに対して婚姻判定を行う。
 
@@ -1144,7 +1204,7 @@ toHeirsPool = wealth - toHouse
 
 イベント: `MARRIAGE_FORMED`（importance: `normal`）
 
-### 6.9 BirthSystem（毎年1月）
+### 6.9 BirthSystem（48週ごと = 毎年）
 
 `birthEnabled` が true のとき動作。対象年齢（`fatherMinChildAge`〜`fatherMaxChildAge`）の生存男性を走査し、出生判定を行う。
 
@@ -1172,7 +1232,7 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 
 イベント: `CHILD_BORN`（importance: `minor`）
 
-### 6.10 SuccessionSystem（毎月）
+### 6.10 SuccessionSystem（4週ごと）
 
 家長（house:leader の OfficeAssignment ホルダー）が死亡または存在しない場合、生存メンバーから新家長を選出。
 
@@ -1184,7 +1244,7 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 
 **後継者選出（未成年のみ）**:
 - 最年長の未成年を仮の家長に任命
-- 未成年当主ペナルティ（§6.12 参照）が以後毎月適用される
+- 未成年当主ペナルティ（§6.12 参照）が以後 4 週ごとに適用される
 
 **後継者なし**: `extinctHouseAfterFailedSuccession`（§6.13 参照）を呼び出す。
 
@@ -1227,7 +1287,7 @@ splitChance = baseHouseSplitChance
 
 ### 6.12 未成年当主ペナルティ（SuccessionSystem 内）
 
-当主が未成年（age < `adultAge`）の間、毎月適用。v0.11 以降は格納フィールドの直接変更ではなく、Attitude の調整を通じて cohesion・loyaltyToPolity に間接影響を与える（実装上は `minorHeadCohesionPenaltyPerMonth` / `minorHeadLoyaltyPenaltyPerMonth` の config 値が引き続き参照される）。
+当主が未成年（age < `adultAge`）の間、4 週ごとに適用。v0.11 以降は格納フィールドの直接変更ではなく、Attitude の調整を通じて cohesion・loyaltyToPolity に間接影響を与える（実装上は `minorHeadCohesionPenaltyPerMonth` / `minorHeadLoyaltyPenaltyPerMonth` の config 値が引き続き参照される）。
 
 ### 6.13 HouseExtinctionSystem（SuccessionSystem から呼び出し）
 
@@ -1272,7 +1332,7 @@ v0.14 では `handleRulerHouseExtinction` が ruler house extinct で Country �
 
 イベント: `HOUSE_EXTINCT`（importance: `major`）
 
-### 6.14 AppointmentSystem（毎年1月）
+### 6.14 AppointmentSystem（48週ごと = 毎年）
 
 Polity と House それぞれの役職（leader 以外の 4 種）に対して、空席を最適候補で補充する。
 
@@ -1316,7 +1376,7 @@ score = relevantStat(role) * 1.0
 
 **イベント**: `OFFICE_ASSIGNED`（importance: `normal`）
 
-### 6.14b OfficeCompensationSystem（毎年1月）
+### 6.14b OfficeCompensationSystem（48週ごと = 毎年）
 
 アクティブな OfficeAssignment に対して、`baseSalary`（§3.7 参照）に基づく給与を支払う。
 
@@ -1329,7 +1389,7 @@ score = relevantStat(role) * 1.0
 
 **イベント**: `OFFICE_SALARY_UNPAID`（importance: `minor`）/ `OFFICE_SALARY_PARTIALLY_PAID`（importance: `minor`）
 
-### 6.14e BailiffAppointmentSystem（毎月、v0.16）
+### 6.14e BailiffAppointmentSystem（24週ごと、v0.16）
 
 terminal Polity ごとに ProvinceOfficeAssignment (Bailiff) を走査し、placeholder Person で空席化している Province を通常人物で埋める。逆に、通常人物の Bailiff が死亡・離反などで不在化した場合は placeholder Person に戻す。
 
@@ -1348,7 +1408,7 @@ config `bailiffAppointmentInterval` で起動頻度を制御する（暫定 6 = 
 
 commonwealth (`ownerHouseId === undefined`) Polity の Bailiff 候補者選定は Faction 段階まで持ち越し（v0.16 では skip）。
 
-### 6.14c ShareUpdateSystem（毎年1月）
+### 6.14c ShareUpdateSystem（48週ごと = 毎年）
 
 Polity・House それぞれの Share 分布を毎年更新する。
 
@@ -1384,9 +1444,9 @@ newRawPower = houseShareBase
 
 **イベント**: `SHARE_SHIFTED`（importance: `minor`）— Share 分布に有意な変化があった場合
 
-### 6.14d PersonGrowthSystem（毎年1月、v0.14）
+### 6.14d PersonGrowthSystem（48週ごと = 毎年、v0.14）
 
-`OfficeCompensationSystem` の直後・`AmbitionSystem` の前に実行。誕生月（`currentMonth === 1`）以外は no-op で early return。
+`OfficeCompensationSystem` の直後・`AmbitionSystem` の前に実行。48 週ごと（ScheduledSystem で制御）。
 
 毎年 1 月に全 alive Person の 6 基礎能力それぞれについて、**成長判定** と **衰退判定** を行う。
 
@@ -1415,14 +1475,14 @@ if (ability[k] < effectiveCeil) {
 | Polity/House treasurer 在任 | numeracy, learning |
 | Polity military (general) 在任 | command, learning |
 | House military (marshal) 在任 | command, valor |
-| 戦争 active 期間中（12 ヶ月以内に lastWarMonth）の在国 | valor, command |
+| 戦争 active 期間中（48 週以内に lastWarWeek）の在国 | valor, command |
 | PlotSystem の active リーダー | insight |
 
-### 6.15 AmbitionSystem（毎月）
+### 6.15 AmbitionSystem（4週ごと）
 
 人物・家ごとに野心スコアを計算し、将来の陰謀・反乱の素地を作る。
 
-### 6.16 PublicSpendingSystem（毎年1月）
+### 6.16 PublicSpendingSystem（48週ごと = 毎年）
 
 `publicSpendingYearlyChance`（35%）で発動。Polity treasury から terminal Province 1 つを選んで土地開発する。
 
@@ -1435,7 +1495,7 @@ if (ability[k] < effectiveCeil) {
 **記念碑建設の廃止**:
 v0.16 後の整理で `MONUMENT_BUILT` イベントは削除された（ログを埋めるだけで観賞価値が薄く、polityControl 補強の代替経路として独立した存在意義に乏しいため）。これに伴い `monumentScore` vs `landDevelopmentScore` の二択分岐構造、関連 config (`monumentBaseCost` / `monumentPolityControlGain` / `chancellorAmbition,CautionMonumentScoreEffect`)、selector (`calcChancellorMonumentScoreBonus`) もすべて削除された。
 
-### 6.17 HouseDevelopmentSystem（毎年1月）
+### 6.17 HouseDevelopmentSystem（48週ごと = 毎年）
 
 `houseDevelopmentEnabled` が true のとき動作。全 active House に対して：
 
@@ -1455,7 +1515,7 @@ v0.16 後の整理で `MONUMENT_BUILT` イベントは削除された（ログ�
   v0.16 で `houseControl` 加算は廃止された (Province.houseControl 自体が無い)。
 - イベント: `HOUSE_LAND_DEVELOPED`
 
-### 6.18 PopDevelopmentSystem（毎月）
+### 6.18 PopDevelopmentSystem（4週ごと）
 
 `popDevelopmentEnabled` が true のとき動作。地元共同体・都市民・在地有力者による小規模な土地改善を表す。
 
@@ -1498,11 +1558,11 @@ polityControl / houseControl には影響しない。
 summary: "The people of ${province.name} improved their lands."
 ```
 
-### 6.19 PlotSystem（毎月）
+### 6.19 PlotSystem（4週ごと）
 
 野心スコアが `plotThreshold` を超えた人物が陰謀を実行。成功率 `basePlotSuccess`。
 
-### 6.20 WarSystem（毎月、v0.16 で LandContract 化）
+### 6.20 WarSystem（v0.18 で廃止）
 
 **v0.18 で外交劇に統合**: WarSystem の宣戦 AI は IntentGenerationSystem + IntentToDiplomaticPlaySystem に移行し、戦争は DiplomaticPlay の escalation → ConflictResolutionSystem で発生する。`config.warEnabled = false` で旧 WarSystem は無効化されている。WAR_DECLARED = 0 が確認済み。旧 `warSystem.ts` / `landContractPurchaseSystem.ts` は物理削除済み。
 
@@ -1531,13 +1591,13 @@ annexPolity (Polity 全体消滅) は v0.16 では LandContract chain が全部 
 
 `HouseRebellionSystem` のロジック (家門の反乱傾向計算 / 戦力比較 / 成功時の独立または支配家交代) は Faction システム導入時に派閥圧力ベースで再設計される。
 
-### 6.22 ProvinceRevoltSystem（毎月）
+### 6.22 ProvinceRevoltSystem（48週ごと = 毎年）
 
 **v0.18 で外交劇化**: 叛乱判定で即時独立を行わず、Rebel commonwealth Polity を生成し revolt_negotiation DiplomaticPlay を開始する。交渉 → 妥協 / 鎮圧 / 独立の 3 分岐で処理される。旧 PROVINCE_REVOLT_SUCCEEDED / PROVINCE_REVOLT_FAILED の即時成否判定は廃止された。
 
 Province / POP を起点とする社会的反乱を処理する。
 
-毎月、全 active Province に対して POP class ごとの反乱傾向を評価し、最も傾向が高い class 1 つを候補とする。スナップショットパターンで実装（連鎖防止）。
+毎年、全 active Province に対して POP class ごとの反乱傾向を評価し、最も傾向が高い class 1 つを候補とする。スナップショットパターンで実装（連鎖防止）。
 
 **反乱傾向**:
 
@@ -1587,7 +1647,7 @@ class 別補正:
 
 旧 v0.13 の `foundRevoltPolity` mutation は v0.16 で `createRebelPolity` に統合され、関連ファイル (`createRevoltHouse.ts` / `createRevoltLeader.ts`) は削除された。v0.18-pre で Rebel House 生成ロジックも削除された。
 
-### 6.22d LandContractPurchaseSystem（毎年1月、v0.16）
+### 6.22d LandContractPurchaseSystem（v0.18 で廃止）
 
 **v0.18 で外交劇に統合**: land_claim DiplomaticPlay に統合された。売却 Intent (sell_land) と取得 Intent (acquire_land) が land_claim Play を生成する。旧 `landContractPurchaseSystem.ts` は物理削除済み。
 
@@ -1618,7 +1678,7 @@ commonwealth (Rebel Polity 等) は購入主体・売却主体のいずれにも
 
 **旧 ownerHouse の処置（lordship_change / independence）**: 領地がゼロになった House は即 inactive 化し、生存メンバーを rulerHouse に移動。`HOUSE_EXTINCT` イベントを発火。
 
-### 6.22b PolityOwnerConsistencySystem（毎月、v0.15）
+### 6.22b PolityOwnerConsistencySystem（4週ごと、v0.15）
 
 War / Rebellion / ProvinceRevolt 等の所領変動 system の直後に走り、`Polity.ownerHouseId` の整合性を補正する。
 
@@ -1671,7 +1731,7 @@ for each polity in active polities:
 
 イベント: `POLITY_OWNER_CHANGED`（importance: `major`）/ `POLITY_EXTINCT`（importance: `major`）
 
-### 6.22c OrganizationConsistencySystem（毎月、v0.15）
+### 6.22c OrganizationConsistencySystem（4週ごと、v0.15）
 
 PolityOwnerConsistencySystem の直後に走り、Polity Share / Office の保持資格を監査する。
 
@@ -1717,11 +1777,11 @@ for each polity in active polities:
 
 v0.18-pre 時点では `polity.kind === 'commonwealth' && houseId === ANONYMOUS_HOUSE_ID` という ad-hoc な分岐になっており、将来的には `AppointmentPolicy` 抽象化 (Polity ごとの任命方針) として一般化する予定。詳細は `docs/drafts/spec-v018-pre-update.md` §5 参照。
 
-### 6.23 AttitudeDecaySystem（毎月）
+### 6.23 AttitudeDecaySystem（4週ごと）
 
-全 Person および全 PopGroup の `attitudes` を毎月 `attitudeMonthlyRetentionRate`（0.995）倍に減衰させる。`affection` / `respect` どちらも同率で 0 に近づく。エントリを持たない（未設定の）態度への影響なし。
+全 Person および全 PopGroup の `attitudes` を 4 週ごとに `attitudeMonthlyRetentionRate`（0.995）倍に減衰させる。`affection` / `respect` どちらも同率で 0 に近づく。エントリを持たない（未設定の）態度への影響なし。
 
-### 6.23b GovernanceSystem（毎年1月）
+### 6.23b GovernanceSystem（48週ごと = 毎年）
 
 `getPolityAdminPower`（§4.5）で `adminPower` を再計算し、`polity.adminPower` にキャッシュとして書き込む。
 
@@ -1735,7 +1795,7 @@ adminPower = 0.30*getEffectiveOfficeStat('administrator','admin')*10
 
 `getEffectiveOfficeStat` は役職担当者の能力・複数担当者の協調ペナルティを考慮した実効能力値を返す（v0.12）。旧 StabilitySystem は v0.11 で廃止。Stability は `getPolityStability` セレクターで毎回計算する。
 
-### 6.24 IntegrityCheck（毎月、v0.16 で 33 項目に拡張）
+### 6.24 IntegrityCheck（3モード制、v0.19 で週次化）
 
 以下を検証し、違反があれば例外を投げる（`debug` モード時は警告のみ）。v0.16 では Stage C で全 33 項目を error throw / 型レベル保証 / コードレビューのいずれかで担保した（spec-v016-update.md §25）。
 
@@ -1821,7 +1881,7 @@ Commonwealth Polity:
 - kind === 'commonwealth' なら ownerHouseId === undefined を許容
 - commonwealth の active DiplomaticPlay の initiator になるのは revolt_negotiation のみ
 
-### 6.25 IntentGenerationSystem（毎年1月、v0.18）
+### 6.25 IntentGenerationSystem（48週ごと = 毎年、v0.18）
 
 短期 Intent を生成する。Polity actor のみ。
 
@@ -1835,7 +1895,7 @@ commonwealth Polity は `revolt_negotiation` 以外の Intent を生成しない
 
 候補生成は selector (`landAcquireCandidates` / `landPurchaseCandidates` / `taxRevisionCandidates`) に委譲。
 
-### 6.26 IntentToDiplomaticPlaySystem（毎月、v0.18）
+### 6.26 IntentToDiplomaticPlaySystem（4週ごと、v0.18）
 
 active な ActorIntent を DiplomaticPlay に変換する。
 
@@ -1845,7 +1905,7 @@ active な ActorIntent を DiplomaticPlay に変換する。
 
 Province 単位 dedup: 同一 Province に対して同時進行できる外交劇は高々 1 つ。全 DiplomaticPlayKind 横断で適用。
 
-### 6.27 DiplomaticPlaySystem（毎月、v0.18）
+### 6.27 DiplomaticPlaySystem（4週ごと、v0.18）
 
 active な DiplomaticPlay を進行させる。
 
@@ -1859,7 +1919,7 @@ Play kind 別の処理:
 - `contract_tax_revision`: 税率 ±5% 変更。下限 5% / 上限 80% 超で契約破棄 (`eliminateContractFromChain` mutation による chain 再接続)。
 - `revolt_negotiation`: 叛乱交渉。妥協 / 鎮圧 / 独立の 3 分岐。
 
-### 6.28 ConflictResolutionSystem（毎月、v0.18）
+### 6.28 ConflictResolutionSystem（4週ごと、v0.18）
 
 status='escalated' な DiplomaticPlay を武力衝突として解決する。
 
@@ -1871,7 +1931,7 @@ revolt_negotiation の決裂時は通常の actor military power ではなく、
 
 WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / development / unrest) を適用。
 
-### 6.29 CleanupTerminalDiplomacy（毎月、v0.18）
+### 6.29 CleanupTerminalDiplomacy（4週ごと、v0.18）
 
 terminal status の ActorIntent / DiplomaticPlay を state から削除する GC。IntegrityCheck の直前に置く。v0.17.3 で inactive OfficeAssignment / FactionMembership の累積が perf 問題を引き起こした経験を踏まえ、最初から完全削除設計。
 
@@ -2095,8 +2155,8 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | adultAge | 15 | 成人年齢（継承・婚姻・出生の判定基準） |
 | **Succession & House Split** | | |
 | successionCrisisScoreGap | 10 | 後継者スコア差がこの値を超えると継承危機が発生 |
-| minorHeadCohesionPenaltyPerMonth | 0.5 | 未成年当主の月次 cohesion 影響係数（Attitude 経由） |
-| minorHeadLoyaltyPenaltyPerMonth | 0.3 | 未成年当主の月次 loyaltyToPolity 影響係数（Attitude 経由） |
+| minorHeadCohesionPenaltyPerMonth | 0.5 | 未成年当主の 4 週ごとの cohesion 影響係数（Attitude 経由。名称は旧 Monthly を維持） |
+| minorHeadLoyaltyPenaltyPerMonth | 0.3 | 未成年当主の 4 週ごとの loyaltyToPolity 影響係数（Attitude 経由。名称は旧 Monthly を維持） |
 | houseSplitEnabled | true | 家の分裂有効 |
 | minProvincesForHouseSplit | 3 | 分裂に必要な最小 Province 数 |
 | houseSplitCohesionThreshold | 60 | 分裂条件の cohesion 上限（getHouseCohesion が未満でないと不発） |
@@ -2115,7 +2175,7 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | warCostPerProvince | 20 | Province あたり戦費 |
 | maxProvincesPerWar | 3 | 1 戦争あたり最大征服数 |
 | maxWarsPerTick | 1 | 1 tick あたり最大宣戦数 |
-| warCooldownMonths | 24 | 戦争クールダウン（月） |
+| warCooldownWeeks | 96 | 戦争クールダウン（週、2年相当） |
 | minAttackerWinChanceToDeclare | 0.45 | 宣戦布告に必要な最低勝率 |
 | warWealthDamage | 8 | 戦争時の全 POP wealth 低下量 |
 | warUnrestDamage | 10 | 戦争時の全 POP unrest 上昇量 |
@@ -2162,9 +2222,9 @@ POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType �
 | **Control System** | | |
 | controlMaxDistancePenalty | 10 | 距離 1 あたりの支配力上限ペナルティ |
 | controlMaxMinimum | 40 | 支配力上限の最低値 |
-| controlGrowthPerMonth | 2 | 支配力月次増加量 |
-| controlDecayPerMonth | 1 | 支配力月次減少量（上限超過時） |
-| disconnectedControlDecayPerMonth | 5 | 接続不能 Province の月次減衰量 |
+| controlGrowthPerMonth | 2 | 支配力 4 週ごとの増加量（名称は旧 Monthly を維持） |
+| controlDecayPerMonth | 1 | 支配力 4 週ごとの減少量（上限超過時。名称は旧 Monthly を維持） |
+| disconnectedControlDecayPerMonth | 5 | 接続不能 Province の 4 週ごとの減衰量（名称は旧 Monthly を維持） |
 | **Land Development** | | |
 | landDevelopmentHouseControlGain | 5 | 土地開発による houseControl 上昇量 |
 | landDevelopmentUnrestReduction | 1 | 土地開発によるスコア評価に用いる unrest 低下量 |
@@ -2540,7 +2600,7 @@ mutation 関数はおおむね `StateResult = SimResult<WorldState>` または `
 
 ### 12.4 IntegrityCheck と mutation API の組み合わせによる契約検知
 
-`IntegrityCheck`（§6.24）は毎月末に WorldState を走査し、双方向整合性・範囲・参照整合性を検証する。mutation API が状態書き換えを独占することで、契約違反が混入する可能性のある箇所が mutation 関数の内部に限定され、違反の発生源を絞り込みやすい構造になっている。
+`IntegrityCheck`（§6.24）は WorldState を走査し、双方向整合性・範囲・参照整合性・時間 3 値整合性を検証する（通常モードでは年末 week 48 のみ、debug / integrity-check モードでは毎 tick）。mutation API が状態書き換えを独占することで、契約違反が混入する可能性のある箇所が mutation 関数の内部に限定され、違反の発生源を絞り込みやすい構造になっている。
 
 `debug` モード時は IntegrityCheck の違反が非致死的になり、`[DEBUG:INTEGRITY] error=...` として stderr に出力される（§2.2）。長期シミュレーションでの再現性確認に利用する。
 
@@ -2922,7 +2982,24 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **新規 EventType 16 種**: ACTOR_INTENT_CREATED / ACTOR_INTENT_CONVERTED / DIPLOMATIC_PLAY_STARTED / DIPLOMATIC_PLAY_SETTLED / DIPLOMATIC_PLAY_FAILED / DIPLOMATIC_PLAY_ESCALATED / DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT / LAND_CONTRACT_CEDED / LAND_CONTRACT_CONQUERED / CONTRACT_TAX_REVISED / CONTRACT_ELIMINATED / REVOLT_NEGOTIATION_STARTED / REVOLT_SETTLED / REVOLT_SUPPRESSED / REVOLT_POLITY_ESTABLISHED / LAND_CONTRACT_PURCHASED (既存拡張)
 - **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。592 tests pass
 
-### v0.18 以降に送られる主要項目
+### v0.19 で実装済み（参考）
+
+詳細仕様は `docs/drafts/spec-v019-update.md` を参照（2026-05-20 完成）。
+
+- **時間基盤の週次化**: 内部時間を 1 tick = 1 ヶ月 から 1 tick = 1 週 に変更。1 年 = 48 週 = 12 擬似月 × 4 週。`absoluteWeek` を一次情報源とし、`currentYear` / `currentWeekOfYear` は同期キャッシュ。`currentMonth` フィールドは廃止。
+- **ScheduledSystem 導入**: tick scheduler に `shouldRun(system, absoluteWeek)` を集約し、各 system 内の `if (currentMonth !== 1) return ctx` ガードを全 18 system から削除。旧毎月 system → `intervalWeeks=4`、旧毎年 system → `intervalWeeks=48`。`phaseOffsetWeeks` は全 system で 0（将来の負荷分散基盤として保持）。
+- **月ベースフィールドの absoluteWeek 統一**: `DiplomaticPlay.startedYear/startedMonth/deadlineYear/deadlineMonth` → `startedWeek/deadlineWeek`、`ActorIntent.createdYear/createdMonth/expiresYear/expiresMonth` → `createdWeek/expiresWeek`、`Plot.startedYear/startedMonth/durationMonths/elapsedMonths` → `startedWeek/durationWeeks` (elapsedMonths 廃止、absoluteWeek 比較で代替)、`Faction.foundingYear/foundingMonth` → `foundingWeek`、`FactionMembership.joinedYear/joinedMonth` → `joinedWeek`、`Polity.lastWarMonth` → `lastWarWeek`、`ProvinceOfficeAssignment.startMonth` → `startWeek`。`year * 12 + month` の absoluteMonth 算術を全廃。
+- **Months 系 config の移行**: `warCooldownMonths: 24` → `warCooldownWeeks: 96`、`revoltNegotiationDurationMonths: 12` → `revoltNegotiationDurationWeeks: 48`、`landClaimNegotiationDurationMonths: 18` → `landClaimNegotiationDurationWeeks: 72`、`taxRevisionNegotiationDurationMonths: 12` → `taxRevisionNegotiationDurationWeeks: 48`。`bailiffAppointmentInterval` は `intervalWeeks=24` で代替。
+- **FactionLifecycleSystem 分割**: 旧 FactionLifecycleSystem を `FactionMaintenanceSystem` (4週ごと: leader 死亡時継承・死亡 member cleanup) と `FactionLifecycleSystem` (年次: 解散判定・新規結成) に分割。
+- **Event の週次化**: `SimEvent.month` → `weekOfYear`。Event ID を `e-{absoluteWeek}-{index}` に変更。
+- **IntegrityCheck 3 モード制**: debug=毎tick+try-catch、--integrity-check=毎tick+throw、通常=week48+throw。時間不変条件（3値整合性）を追加。
+- **CLI 拡張**: `--weeks` 引数追加、`--years` は `years * 48` tick に変換。年サマリは `weekOfYear === 48` で出力。
+- **UI 改修**: 日付表示を `Year X / Month M / Week W` (擬似月 1-12、月内週 1-4) に変更。先送りボタンを週送り・月送り・年送りの 3 段階に。
+- **時間 utility**: `timeUtils.ts` に `WEEKS_PER_YEAR` / `weekToYearWeek` / `getSeason` / `getPseudoMonthFromWeek` / `getWeekOfPseudoMonth` を集約。
+- **性能改善**: ScheduledSystem 導入により、大半の system が `shouldRun` で skip されるため、tick 数は 4 倍 (3,600→14,400 ticks/300年) だが総実行時間は約 50% 短縮。
+- **検証**: CLI 4 seed × 300 年 (14,400 ticks each) IntegrityCheck violation 0 件。63 テストファイル / 581 tests pass。
+
+### v0.19 以降に送られる主要項目
 
 #### Faction 拡張系
 
@@ -2946,7 +3023,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **House actor を主体とする外交劇の有効化**: Faction policy preference 接続
 - **install_owner / dynasty change 要求**: 王朝交代要求 DiplomaticDemand
 - **AppointmentPolicy 抽象による commonwealth ad-hoc 分岐の整理**
-- **intentCooldownMonths の本格運用**: v0.18 では未使用 (config のみ用意)
+- **intentCooldownWeeks の本格運用**: v0.18 では未使用 (config のみ用意。v0.19 で Weeks に改名)
 - **Rebel Polity の rank 昇格** (rank=5 → rank=4): v0.18 では現行 rank 決定を維持
 - **DiplomaticPlay の settlement/escalation 閾値の非対称化調整**: escalation 経路が支配的 (Stage E 確認済)
 - **CONTRACT_ELIMINATED の発生頻度調整**: 現状 4 seed × 300 年で 0 件

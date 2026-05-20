@@ -86,7 +86,8 @@ npm run cli -- --help
 | Option | Default | Description |
 |---|---|---|
 | `--seed <text>` | `chronicae-default` | World generation seed |
-| `--years <n>` | `10` | Number of years to simulate |
+| `--years <n>` | `10` | Number of years to simulate (1 year = 48 ticks) |
+| `--weeks <n>` | — | Number of weeks (ticks) to simulate. Cannot be used with `--years`. |
 | `--integrity-check` | off | Run data integrity checks after every tick |
 | `--json` | off | Output NDJSON instead of human-readable text |
 | `--debug` | off | Debug mode (see below) |
@@ -116,11 +117,11 @@ Because names in normal mode are drawn randomly, the same name can appear on mul
 Key simulation decisions are written to **stderr** in a tagged `key=value` format:
 
 ```
-[DEBUG:SUCCESSION] year=3 month=5 house=h-3 old_head=pe-42 new_head=pe-67 type=adult
-[DEBUG:BIRTH] year=3 month=1 child=pe-89 sex=male father=pe-12 status=legitimate mother=pe-34
-[DEBUG:MARRIAGE] year=4 month=1 husband=pe-39 wife=pe-108
-[DEBUG:HOUSE_SPLIT] year=5 month=6 house=h-3 cohesion=45 threshold=60 result=skipped reason=probability
-[DEBUG:HOUSE_EXTINCT] year=10 month=2 house=h-5 type=normal receiver=h-0
+[DEBUG:SUCCESSION] year=3 week=20 house=h-3 old_head=pe-42 new_head=pe-67 type=adult
+[DEBUG:BIRTH] year=3 week=1 child=pe-89 sex=male father=pe-12 status=legitimate mother=pe-34
+[DEBUG:MARRIAGE] year=4 week=1 husband=pe-39 wife=pe-108
+[DEBUG:HOUSE_SPLIT] year=5 week=24 house=h-3 cohesion=45 threshold=60 result=skipped reason=probability
+[DEBUG:HOUSE_EXTINCT] year=10 week=8 house=h-5 type=normal receiver=h-0
 [DEBUG:INTEGRITY] error="house h-3 head pe-42 is dead"
 [DEBUG:YEAR] year=5 persons=87 houses=6 countries=3
 ```
@@ -165,7 +166,7 @@ npm run cli -- --seed test-seed --years 300 --report - | jq .bailiff
 
 | Key | What it contains |
 |---|---|
-| `meta` | seed, years, final year/month, plus the key config parameters used (so the report is self-describing) |
+| `meta` | seed, years, final year/week, plus the key config parameters used (so the report is self-describing) |
 | `eventCounts` | Total count per `EventType` for the run (e.g. `OFFICE_ASSIGNED`, `FACTION_FOUNDED`) |
 | `office.aggregateByRole` | Per-role office churn: `assignments` / `revokes` / `termEnds` |
 | `office.polity[]` | Per-Polity office assignment distribution, holder-house breakdown, and `ownerHouseHoldRatio` (fraction of assignments going to the current ownerHouse) |

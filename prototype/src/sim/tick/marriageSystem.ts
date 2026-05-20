@@ -11,6 +11,8 @@ import { getHouseLeader } from '../selectors/officeSelectors'
 import { createLogger } from '../debug/logger'
 import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
 
+const MARRIAGE_CALLS_PER_YEAR = 12
+
 export function runMarriageSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
@@ -29,7 +31,8 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
     const { value: roll, rng: rollRng } = randomFloat(currentCtx.rng)
     currentCtx = { ...currentCtx, rng: rollRng }
 
-    if (roll >= currentCtx.config.marriageYearlyChance) continue
+    const chancePerCall = currentCtx.config.marriageYearlyChance / MARRIAGE_CALLS_PER_YEAR
+    if (roll >= chancePerCall) continue
 
     const eligibleFemales = femaleCandidates
       .filter((fid) => {
@@ -46,10 +49,9 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
         const samePolity =
           getPersonPrimaryPolityId(currentCtx.state, male.id) ===
           getPersonPrimaryPolityId(currentCtx.state, fperson.id)
-        const effectiveChance = samePolity
-          ? currentCtx.config.marriageYearlyChance +
-            currentCtx.config.samePrimaryPolityMarriageBonus
-          : currentCtx.config.marriageYearlyChance
+        const bonusPerCall =
+          currentCtx.config.samePrimaryPolityMarriageBonus / MARRIAGE_CALLS_PER_YEAR
+        const effectiveChance = samePolity ? chancePerCall + bonusPerCall : chancePerCall
         const { value: polityRoll, rng: polityRng } = randomFloat(currentCtx.rng)
         currentCtx = { ...currentCtx, rng: polityRng }
         return polityRoll < effectiveChance

@@ -18,7 +18,6 @@ import { runBirthSystem } from './birthSystem'
 import { runAppointmentSystem } from './appointmentSystem'
 import { runShareUpdateSystem } from './shareUpdateSystem'
 import { runOfficeCompensationSystem } from './officeCompensationSystem'
-import { runAmbitionSystem } from './ambitionSystem'
 import { runPublicSpendingSystem } from './publicSpendingSystem'
 import { runHouseDevelopmentSystem } from './houseDevelopmentSystem'
 import { runControlSystem } from './controlSystem'
@@ -91,13 +90,8 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runEstateSettlementSystem,
   },
   { name: 'successionSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runSuccessionSystem },
-  {
-    name: 'marriageSystem',
-    intervalWeeks: WEEKS_PER_YEAR,
-    phaseOffsetWeeks: 0,
-    run: runMarriageSystem,
-  },
-  { name: 'birthSystem', intervalWeeks: WEEKS_PER_YEAR, phaseOffsetWeeks: 0, run: runBirthSystem },
+  { name: 'marriageSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runMarriageSystem },
+  { name: 'birthSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runBirthSystem },
   {
     name: 'unaffiliatedPersonSystem',
     intervalWeeks: WEEKS_PER_YEAR,
@@ -116,21 +110,16 @@ const scheduledSystems: ScheduledSystem[] = [
     phaseOffsetWeeks: 0,
     run: runShareUpdateSystem,
   },
-  {
-    name: 'appointmentSystem',
-    intervalWeeks: WEEKS_PER_YEAR,
-    phaseOffsetWeeks: 0,
-    run: runAppointmentSystem,
-  },
+  { name: 'appointmentSystem', intervalWeeks: 12, phaseOffsetWeeks: 0, run: runAppointmentSystem },
   {
     name: 'bailiffAppointmentSystem',
-    intervalWeeks: 24,
+    intervalWeeks: 12,
     phaseOffsetWeeks: 0,
     run: runBailiffAppointmentSystem,
   },
   {
     name: 'officeCompensationSystem',
-    intervalWeeks: WEEKS_PER_YEAR,
+    intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runOfficeCompensationSystem,
   },
@@ -160,7 +149,7 @@ const scheduledSystems: ScheduledSystem[] = [
   },
   {
     name: 'factionRecruitmentSystem',
-    intervalWeeks: WEEKS_PER_YEAR,
+    intervalWeeks: 12,
     phaseOffsetWeeks: 0,
     run: runFactionRecruitmentSystem,
   },
@@ -170,7 +159,6 @@ const scheduledSystems: ScheduledSystem[] = [
     phaseOffsetWeeks: 0,
     run: runPersonGrowthSystem,
   },
-  { name: 'ambitionSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runAmbitionSystem },
   {
     name: 'publicSpendingSystem',
     intervalWeeks: WEEKS_PER_YEAR,
@@ -204,7 +192,7 @@ const scheduledSystems: ScheduledSystem[] = [
   },
   {
     name: 'provinceRevoltSystem',
-    intervalWeeks: WEEKS_PER_YEAR,
+    intervalWeeks: 12,
     phaseOffsetWeeks: 0,
     run: runProvinceRevoltSystem,
   },

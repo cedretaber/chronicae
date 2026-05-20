@@ -11,6 +11,8 @@ import { birthChild } from '../mutations/personMutations'
 import { inheritAptitudes, sampleAptitudes } from '../selectors/abilitySelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
+const BIRTH_CALLS_PER_YEAR = 12
+
 export function runBirthSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
@@ -33,7 +35,8 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     const { value: birthRoll, rng: rollRng } = randomFloat(currentCtx.rng)
     currentCtx = { ...currentCtx, rng: rollRng }
 
-    const birthChance = currentCtx.config.baseBirthChancePerMalePerYear * birthMultiplier
+    const birthChance =
+      (currentCtx.config.baseBirthChancePerMalePerYear / BIRTH_CALLS_PER_YEAR) * birthMultiplier
     if (birthRoll >= birthChance) continue
 
     let motherId: PersonId | undefined = undefined
