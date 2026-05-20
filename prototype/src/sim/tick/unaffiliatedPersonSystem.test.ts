@@ -163,7 +163,7 @@ describe('runUnaffiliatedPersonSystem', () => {
     let state = makeBaseState()
     state.currentYear = currentYear
     state.currentWeekOfYear = 1
-    state.absoluteWeek = state.currentYear * 52
+    state.absoluteWeek = state.currentYear * 48
 
     for (const pid of [person1Id, person2Id, person3Id, person4Id, person5Id, person6Id]) {
       state = withUnaffiliatedPerson(state, pid, {
@@ -193,7 +193,7 @@ describe('runUnaffiliatedPersonSystem', () => {
     let state = makeBaseState()
     state.currentYear = currentYear
     state.currentWeekOfYear = 1
-    state.absoluteWeek = state.currentYear * 52
+    state.absoluteWeek = state.currentYear * 48
 
     for (const pid of [person1Id, person2Id, person3Id, person4Id, person5Id, person6Id]) {
       state = withUnaffiliatedPerson(state, pid, {
@@ -224,7 +224,7 @@ describe('runUnaffiliatedPersonSystem', () => {
     let state = makeBaseState()
     state.currentYear = currentYear
     state.currentWeekOfYear = 1
-    state.absoluteWeek = state.currentYear * 52
+    state.absoluteWeek = state.currentYear * 48
 
     state = withUnaffiliatedPerson(state, protectedId, {
       lastHouseTransferYear: currentYear - 10,

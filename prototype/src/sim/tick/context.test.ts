@@ -38,7 +38,7 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
   return {
     currentYear: 1,
     currentWeekOfYear: 1,
-    absoluteWeek: 52,
+    absoluteWeek: 48,
     provinces: {},
     polities: {},
     houses: {},
@@ -113,11 +113,11 @@ describe('makeEventId', () => {
     expect(ctx.nextEventIndex).toBe(0)
 
     const { id, ctx: updatedCtx } = makeEventId(ctx)
-    expect(id).toBe('e-52-0')
+    expect(id).toBe('e-48-0')
     expect(updatedCtx.nextEventIndex).toBe(1)
 
     const { id: id2, ctx: updatedCtx2 } = makeEventId(updatedCtx)
-    expect(id2).toBe('e-52-1')
+    expect(id2).toBe('e-48-1')
     expect(updatedCtx2.nextEventIndex).toBe(2)
   })
 
@@ -175,7 +175,7 @@ describe('toResult', () => {
 
     const result = toResult(ctx)
     result.events.push({
-      id: 'e-52-99' as EventId,
+      id: 'e-48-99' as EventId,
       year: 1,
       weekOfYear: 1,
       type: 'PERSON_DIED',

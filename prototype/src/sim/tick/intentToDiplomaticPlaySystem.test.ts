@@ -54,7 +54,7 @@ function makeSellLandIntent(
     priority: 500,
     rationale: 'raise_revenue',
     status: 'active',
-    createdWeek: 52000,
+    createdWeek: 48000,
     expiresWeek: 52052,
   }
 }
@@ -74,7 +74,7 @@ function makeAcquireLandIntent(
     priority: 100,
     rationale: 'expand_territory',
     status: 'active',
-    createdWeek: 52000,
+    createdWeek: 48000,
     expiresWeek: 52052,
   }
 }
@@ -128,7 +128,7 @@ describe('runIntentToDiplomaticPlaySystem', () => {
         toPolityId: buyerPolityId,
       },
       status: 'active',
-      startedWeek: 52000,
+      startedWeek: 48000,
       deadlineWeek: 52006,
       progress: 0,
       tension: 0,

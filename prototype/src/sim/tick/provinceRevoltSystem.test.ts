@@ -60,7 +60,7 @@ function buildWorld(opts: {
       },
     },
   }
-  s = { ...s, currentYear: 1000, currentWeekOfYear: 1, absoluteWeek: 1000 * 52 }
+  s = { ...s, currentYear: 1000, currentWeekOfYear: 1, absoluteWeek: 1000 * 48 }
   return { state: s, provinceId, polityId, popId }
 }
 
@@ -73,7 +73,7 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
       polityControl: 10,
       treasury: 0,
     })
-    const ctx = makeCtx({ ...state, currentWeekOfYear: 5, absoluteWeek: 1000 * 52 + 4 })
+    const ctx = makeCtx({ ...state, currentWeekOfYear: 5, absoluteWeek: 1000 * 48 + 4 })
     const next = runProvinceRevoltSystem(ctx)
     expect(Object.keys(next.state.diplomaticPlays).length).toBe(0)
   })

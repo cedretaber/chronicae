@@ -3,6 +3,7 @@ import { makeEventId } from './context'
 import type { ActorIntentId } from '../types/ids'
 import { createActorIntentId } from '../types/ids'
 import type { ActorIntent } from '../types/actorIntent'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import type { SimEvent } from '../types/event'
 import { findLandPurchaseIntentCandidates } from '../selectors/landPurchaseCandidates'
 import { findLandAcquireIntentCandidates } from '../selectors/landAcquireCandidates'
@@ -51,7 +52,7 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
         rationale: 'raise_revenue',
         status: 'active',
         createdWeek: currentCtx.state.absoluteWeek,
-        expiresWeek: currentCtx.state.absoluteWeek + 52,
+        expiresWeek: currentCtx.state.absoluteWeek + WEEKS_PER_YEAR,
       }
 
       currentCtx = {
@@ -117,7 +118,7 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
         rationale: 'expand_territory',
         status: 'active',
         createdWeek: currentCtx.state.absoluteWeek,
-        expiresWeek: currentCtx.state.absoluteWeek + 52,
+        expiresWeek: currentCtx.state.absoluteWeek + WEEKS_PER_YEAR,
       }
 
       currentCtx = {
@@ -183,7 +184,7 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
         rationale: 'reduce_tribute',
         status: 'active',
         createdWeek: currentCtx.state.absoluteWeek,
-        expiresWeek: currentCtx.state.absoluteWeek + 52,
+        expiresWeek: currentCtx.state.absoluteWeek + WEEKS_PER_YEAR,
       }
 
       currentCtx = {
@@ -249,7 +250,7 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
         rationale: 'increase_tribute',
         status: 'active',
         createdWeek: currentCtx.state.absoluteWeek,
-        expiresWeek: currentCtx.state.absoluteWeek + 52,
+        expiresWeek: currentCtx.state.absoluteWeek + WEEKS_PER_YEAR,
       }
 
       currentCtx = {

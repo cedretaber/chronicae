@@ -21,6 +21,7 @@ import { getGrantorRank, getLandContractGrantor } from '../selectors/landContrac
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import type { PoliticalActorRef } from '../types/actor'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
 // v0.16 §25 IntegrityCheck 33 項目の実装状況サマリ:
 //
@@ -66,10 +67,10 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
   const errors: SimError[] = []
 
   // §17.1 Time invariants (v0.19)
-  if (state.currentWeekOfYear < 1 || state.currentWeekOfYear > 52) {
+  if (state.currentWeekOfYear < 1 || state.currentWeekOfYear > WEEKS_PER_YEAR) {
     errors.push({
       code: 'INTEGRITY_VIOLATION',
-      message: `currentWeekOfYear=${state.currentWeekOfYear} outside valid range [1, 52]`,
+      message: `currentWeekOfYear=${state.currentWeekOfYear} outside valid range [1, ${WEEKS_PER_YEAR}]`,
     })
   }
   if (state.absoluteWeek < 0) {
@@ -78,8 +79,8 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
       message: `absoluteWeek=${state.absoluteWeek} is negative`,
     })
   }
-  const expectedYear = Math.floor(state.absoluteWeek / 52)
-  const expectedWeek = (state.absoluteWeek % 52) + 1
+  const expectedYear = Math.floor(state.absoluteWeek / WEEKS_PER_YEAR)
+  const expectedWeek = (state.absoluteWeek % WEEKS_PER_YEAR) + 1
   if (state.currentYear !== expectedYear || state.currentWeekOfYear !== expectedWeek) {
     errors.push({
       code: 'INTEGRITY_VIOLATION',

@@ -34,7 +34,7 @@ function makeFixture(): {
   const provinceId = createProvinceId('p', 0)
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444, absoluteWeek: 75088 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
   state = withProvince(state, provinceId)
   state = withHouse(state, house1Id, {
     name: 'House 1',
@@ -65,7 +65,7 @@ function makePlot(plotId: PlotId, leaderId: PersonId): Plot {
     id: plotId,
     type: 'replace_house_leader',
     status: 'active',
-    startedWeek: 1444 * 52 + 1 - 1,
+    startedWeek: 1444 * 48 + 1 - 1,
     durationWeeks: 12 * 4,
     leaderId,
     participantIds: [],

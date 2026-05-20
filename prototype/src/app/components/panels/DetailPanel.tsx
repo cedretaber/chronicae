@@ -2363,7 +2363,7 @@ export function FactionDetail({
     defaultConfig,
     faction.leaderPersonId,
   )
-  const ageYears = Math.floor((worldState.absoluteWeek - faction.foundingWeek) / 52)
+  const ageYears = Math.floor((worldState.absoluteWeek - faction.foundingWeek) / 48)
 
   const memberRows = memberIds
     .filter((pid) => pid !== faction.leaderPersonId)

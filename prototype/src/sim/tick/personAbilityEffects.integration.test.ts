@@ -125,7 +125,7 @@ function makeWorldState(
   }
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
   state = withProvince(state, provinceId, { name: 'P0', polityControl: 50 })
   state = withHouse(state, houseId, {
     name: 'H0',
@@ -268,7 +268,7 @@ describe('runControlSystem — capital province maxControl', () => {
 
     const world: WorldState = {
       currentYear: 1444,
-      absoluteWeek: 75088,
+      absoluteWeek: 69312,
       currentWeekOfYear: 1,
       provinces: {
         [provinceId]: {
@@ -477,7 +477,7 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
     const polityId = 'dp-0' as PolityId
 
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+    state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
     state = withProvince(state, provinceId, { name: 'P0', polityControl: 50 })
     state = withHouse(state, houseId, {
       name: 'H0',

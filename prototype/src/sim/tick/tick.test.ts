@@ -46,13 +46,13 @@ describe('tick', () => {
     expect(Array.isArray(result.events)).toBe(true)
   })
 
-  it('52 consecutive ticks advance year by 1 (week 1 -> week 1, year 2)', () => {
+  it('48 consecutive ticks advance year by 1 (week 1 -> week 1, year 2)', () => {
     const { world, rng } = generateWorld('tick-year-test')
     let currentState = world
     let currentRng = { ...rng }
     const config = defaultConfig
 
-    for (let i = 0; i < 52; i++) {
+    for (let i = 0; i < 48; i++) {
       const input = { state: currentState, rng: currentRng, config }
       const result = tick(input)
       currentState = result.state

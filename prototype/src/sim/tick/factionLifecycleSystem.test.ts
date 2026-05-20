@@ -52,7 +52,7 @@ function buildBaseState(): {
   const houseId = createHouseId('dh', 0)
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
   state = withProvince(state, provinceId, { name: 'Province0' })
   state = withHouse(state, houseId, {
     name: 'House0',
@@ -80,14 +80,14 @@ function addFaction(
     name: 'Faction0',
     leaderPersonId,
     active: true,
-    foundingWeek: 75088,
+    foundingWeek: 69312,
   }
   const membership: FactionMembership = {
     id: createFactionMembershipId(0),
     factionId,
     personId: leaderPersonId,
     active: true,
-    joinedWeek: 75088,
+    joinedWeek: 69312,
   }
   const newIndex: import('../types/faction').FactionIndex = {
     byLeader: { ...state.factionIndex.byLeader, [leaderPersonId]: [factionId] },
@@ -150,7 +150,7 @@ describe('runFactionLifecycleSystem', () => {
     const polityId = createPolityId('dp', 0)
 
     let s = makeEmptyV016State()
-    s = { ...s, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+    s = { ...s, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
     s = withProvince(s, provinceId, { name: 'Province0' })
     s = withHouse(s, houseId, {
       name: 'House0',
@@ -318,14 +318,14 @@ describe('runFactionLifecycleSystem', () => {
       factionId,
       personId: deadMemberId,
       active: true,
-      joinedWeek: 75088,
+      joinedWeek: 69312,
     }
     const aliveM = {
       id: aliveMembershipId,
       factionId,
       personId: aliveMemberId,
       active: true,
-      joinedWeek: 75088,
+      joinedWeek: 69312,
     }
     const s3: WorldState = {
       ...s2,

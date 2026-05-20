@@ -49,7 +49,7 @@ function makeBaseState(): {
   const rulerId = createPersonId('pe', 0)
 
   let s = makeEmptyV016State()
-  s = { ...s, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+  s = { ...s, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
   s = withProvince(s, provinceId, { name: 'P0', development: 10 })
   s = withHouse(s, houseId, {
     name: 'Test House',
@@ -88,7 +88,7 @@ describe('runBailiffAppointmentSystem', () => {
     const s: WorldState = {
       ...baseState,
       currentWeekOfYear: 6,
-      absoluteWeek: baseState.currentYear * 52 + 6 - 1,
+      absoluteWeek: baseState.currentYear * 48 + 6 - 1,
     }
 
     const bailiffId = createPersonId('pe', 10)
@@ -197,7 +197,7 @@ describe('runBailiffAppointmentSystem', () => {
     let s: WorldState = {
       ...baseState,
       currentWeekOfYear: 6,
-      absoluteWeek: baseState.currentYear * 52 + 6 - 1,
+      absoluteWeek: baseState.currentYear * 48 + 6 - 1,
     }
 
     // Faction leader sits in the ownerHouse → NP gets +0.3 (ownerHouse bonus) → meets threshold (0.30)
@@ -235,21 +235,21 @@ describe('runBailiffAppointmentSystem', () => {
       name: 'TestFaction',
       leaderPersonId: leaderId,
       active: true,
-      foundingWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
+      foundingWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
     }
     const leaderMembership: FactionMembership = {
       id: leaderMembershipId,
       factionId,
       personId: leaderId,
       active: true,
-      joinedWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
+      joinedWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
     }
     const memberMembership: FactionMembership = {
       id: memberMembershipId,
       factionId,
       personId: memberId,
       active: true,
-      joinedWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
+      joinedWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
     }
     s = {
       ...s,
@@ -290,7 +290,7 @@ describe('runBailiffAppointmentSystem', () => {
     let s: WorldState = {
       ...baseState,
       currentWeekOfYear: 6,
-      absoluteWeek: baseState.currentYear * 52 + 6 - 1,
+      absoluteWeek: baseState.currentYear * 48 + 6 - 1,
     }
 
     // Faction leader in ownerHouse to satisfy NP
@@ -357,7 +357,7 @@ describe('runBailiffAppointmentSystem', () => {
           name: 'F',
           leaderPersonId: leaderId,
           active: true,
-          foundingWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
+          foundingWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
         },
       },
       factionMemberships: {
@@ -367,14 +367,14 @@ describe('runBailiffAppointmentSystem', () => {
           factionId,
           personId: leaderId,
           active: true,
-          joinedWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
+          joinedWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
         },
         [memberMembershipId]: {
           id: memberMembershipId,
           factionId,
           personId: memberId,
           active: true,
-          joinedWeek: s.currentYear * 52 + s.currentWeekOfYear - 1,
+          joinedWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
         },
       },
       factionIndex: {
@@ -408,7 +408,7 @@ describe('runBailiffAppointmentSystem', () => {
     let s: WorldState = {
       ...baseState,
       currentWeekOfYear: 6,
-      absoluteWeek: baseState.currentYear * 52 + 6 - 1,
+      absoluteWeek: baseState.currentYear * 48 + 6 - 1,
     }
 
     // Install an outsider bailiff (alive, normal, not in ownerHouse) — simulates a factional bailiff
@@ -464,7 +464,7 @@ describe('runBailiffAppointmentSystem', () => {
     let s: WorldState = {
       ...baseState,
       currentWeekOfYear: 6,
-      absoluteWeek: baseState.currentYear * 52 + 6 - 1,
+      absoluteWeek: baseState.currentYear * 48 + 6 - 1,
     }
 
     const bailiffId = createPersonId('pe', 51)

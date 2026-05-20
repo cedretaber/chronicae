@@ -93,8 +93,8 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
         concessionLevel: 'minor',
       },
       status: 'escalated',
-      startedWeek: ctx.state.currentYear * 52 + ctx.state.currentWeekOfYear,
-      deadlineWeek: (ctx.state.currentYear + 1) * 52 + ctx.state.currentWeekOfYear,
+      startedWeek: ctx.state.currentYear * 48 + ctx.state.currentWeekOfYear,
+      deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
       progress: 30,
       tension: 70,
     }
@@ -137,8 +137,8 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
         concessionLevel: 'minor',
       },
       status: 'active',
-      startedWeek: setup.ctx.state.currentYear * 52 + setup.ctx.state.currentWeekOfYear - 1,
-      deadlineWeek: (setup.ctx.state.currentYear + 1) * 52 + setup.ctx.state.currentWeekOfYear - 1,
+      startedWeek: setup.ctx.state.currentYear * 48 + setup.ctx.state.currentWeekOfYear - 1,
+      deadlineWeek: (setup.ctx.state.currentYear + 1) * 48 + setup.ctx.state.currentWeekOfYear - 1,
       progress: 50,
       tension: 30,
     }
@@ -201,8 +201,8 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
         toPolityId: attackerPolityId,
       },
       status: 'escalated',
-      startedWeek: ctx.state.currentYear * 52 + ctx.state.currentWeekOfYear,
-      deadlineWeek: (ctx.state.currentYear + 1) * 52 + ctx.state.currentWeekOfYear,
+      startedWeek: ctx.state.currentYear * 48 + ctx.state.currentWeekOfYear,
+      deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
       progress: 10,
       tension: 70,
     }
@@ -297,8 +297,8 @@ describe('runConflictResolutionSystem (unsupported kind)', () => {
         kind: 'status_quo',
       },
       status: 'escalated',
-      startedWeek: s.currentYear * 52 + s.currentWeekOfYear,
-      deadlineWeek: (s.currentYear + 1) * 52 + s.currentWeekOfYear,
+      startedWeek: s.currentYear * 48 + s.currentWeekOfYear,
+      deadlineWeek: (s.currentYear + 1) * 48 + s.currentWeekOfYear,
       progress: 10,
       tension: 70,
     }

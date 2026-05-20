@@ -152,8 +152,8 @@ describe('findLandAcquireIntentCandidates', () => {
     s = bindProvinceToHouseViaPolity(s, provinceAId, acquirerPolityId, acquirerHouseId)
     s = bindProvinceToHouseViaPolity(s, provinceBId, targetPolityId, targetHouseId)
 
-    // currentYear=1000, currentWeekOfYear=1 → absoluteWeek=1000*52+1-1=52000
-    s = { ...s, currentYear: 1000, currentWeekOfYear: 1, absoluteWeek: 52000 }
+    // currentYear=1000, currentWeekOfYear=1 → absoluteWeek=1000*52+1-1=48000
+    s = { ...s, currentYear: 1000, currentWeekOfYear: 1, absoluteWeek: 48000 }
     // lastWarWeek=51952 → diff=48 < warCooldownWeeks=96 → cooldown active
     s = {
       ...s,

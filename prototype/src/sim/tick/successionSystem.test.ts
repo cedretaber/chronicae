@@ -224,7 +224,7 @@ describe('runSuccessionSystem', () => {
       state: {
         currentYear: 1,
         currentWeekOfYear: 1,
-        absoluteWeek: 52,
+        absoluteWeek: 48,
         provinces: {},
         polities: {
           [polityId]: {
@@ -309,7 +309,7 @@ describe('runSuccessionSystem', () => {
       state: {
         currentYear: 1,
         currentWeekOfYear: 1,
-        absoluteWeek: 52,
+        absoluteWeek: 48,
         provinces: {},
         polities: {
           [polityId]: {
@@ -391,7 +391,7 @@ describe('applyMinorHeadPenalties', () => {
     const member = makePerson(memberId, 'Member', age, true, houseId, 0.3, 10)
     const provinceId = 'p-0' as ProvinceId
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1, currentWeekOfYear: 1, absoluteWeek: 52 }
+    state = { ...state, currentYear: 1, currentWeekOfYear: 1, absoluteWeek: 48 }
     state = withProvince(state, provinceId, { name: 'Capital', development: 10 })
     state = withHouse(state, houseId, {
       name: 'H0',

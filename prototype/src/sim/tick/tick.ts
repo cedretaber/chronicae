@@ -47,6 +47,7 @@ import { runFactionRecruitmentSystem } from './factionRecruitmentSystem'
 import { runFactionPatronageSystem } from './factionPatronageSystem'
 import { runFactionDefectionSystem } from './factionDefectionSystem'
 import { createLogger } from '../debug/logger'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
 type ScheduledSystem = {
   name: string
@@ -76,7 +77,12 @@ const scheduledSystems: ScheduledSystem[] = [
     phaseOffsetWeeks: 0,
     run: runHouseSurplusDistributionSystem,
   },
-  { name: 'disasterSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runDisasterSystem },
+  {
+    name: 'disasterSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runDisasterSystem,
+  },
   { name: 'mortalitySystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runMortalitySystem },
   {
     name: 'estateSettlementSystem',
@@ -85,17 +91,37 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runEstateSettlementSystem,
   },
   { name: 'successionSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runSuccessionSystem },
-  { name: 'marriageSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runMarriageSystem },
-  { name: 'birthSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runBirthSystem },
+  {
+    name: 'marriageSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runMarriageSystem,
+  },
+  { name: 'birthSystem', intervalWeeks: WEEKS_PER_YEAR, phaseOffsetWeeks: 0, run: runBirthSystem },
   {
     name: 'unaffiliatedPersonSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runUnaffiliatedPersonSystem,
   },
-  { name: 'officeTermSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runOfficeTermSystem },
-  { name: 'shareUpdateSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runShareUpdateSystem },
-  { name: 'appointmentSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runAppointmentSystem },
+  {
+    name: 'officeTermSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runOfficeTermSystem,
+  },
+  {
+    name: 'shareUpdateSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runShareUpdateSystem,
+  },
+  {
+    name: 'appointmentSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runAppointmentSystem,
+  },
   {
     name: 'bailiffAppointmentSystem',
     intervalWeeks: 24,
@@ -104,19 +130,19 @@ const scheduledSystems: ScheduledSystem[] = [
   },
   {
     name: 'officeCompensationSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runOfficeCompensationSystem,
   },
   {
     name: 'factionPatronageSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runFactionPatronageSystem,
   },
   {
     name: 'factionDefectionSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runFactionDefectionSystem,
   },
@@ -128,32 +154,32 @@ const scheduledSystems: ScheduledSystem[] = [
   },
   {
     name: 'factionLifecycleSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runFactionLifecycleSystem,
   },
   {
     name: 'factionRecruitmentSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runFactionRecruitmentSystem,
   },
   {
     name: 'personGrowthSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runPersonGrowthSystem,
   },
   { name: 'ambitionSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runAmbitionSystem },
   {
     name: 'publicSpendingSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runPublicSpendingSystem,
   },
   {
     name: 'houseDevelopmentSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runHouseDevelopmentSystem,
   },
@@ -166,7 +192,7 @@ const scheduledSystems: ScheduledSystem[] = [
   { name: 'plotSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPlotSystem },
   {
     name: 'intentGenerationSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runIntentGenerationSystem,
   },
@@ -178,7 +204,7 @@ const scheduledSystems: ScheduledSystem[] = [
   },
   {
     name: 'provinceRevoltSystem',
-    intervalWeeks: 52,
+    intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runProvinceRevoltSystem,
   },
@@ -212,7 +238,12 @@ const scheduledSystems: ScheduledSystem[] = [
     phaseOffsetWeeks: 0,
     run: runAttitudeDecaySystem,
   },
-  { name: 'governanceSystem', intervalWeeks: 52, phaseOffsetWeeks: 0, run: runGovernanceSystem },
+  {
+    name: 'governanceSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runGovernanceSystem,
+  },
   { name: 'normalizePopSizes', intervalWeeks: 4, phaseOffsetWeeks: 0, run: normalizePopSizes },
   {
     name: 'cleanupTerminalDiplomacy',
@@ -253,7 +284,7 @@ export function tick(input: TickInput): TickResult {
       log.log('INTEGRITY', { error: String(e) })
     }
     log.perf('tick:total', performance.now() - tickStart)
-  } else if (ctx.state.currentWeekOfYear === 52) {
+  } else if (ctx.state.currentWeekOfYear === WEEKS_PER_YEAR) {
     ctx = runIntegritySystem(ctx)
   }
 

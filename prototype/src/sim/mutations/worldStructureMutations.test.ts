@@ -115,7 +115,7 @@ function makeMinimalWorld(): WorldState {
   return {
     currentYear: 1,
     currentWeekOfYear: 1,
-    absoluteWeek: 52,
+    absoluteWeek: 48,
     provinces: { [provinceId]: province },
     polities: { [polityId]: polity },
     houses: { [houseId]: house, [ANONYMOUS_HOUSE_ID]: anonHouse },

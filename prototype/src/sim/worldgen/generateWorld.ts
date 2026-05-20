@@ -626,7 +626,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   let officeState = {
     currentYear: 1,
     currentWeekOfYear: 1,
-    absoluteWeek: 52,
+    absoluteWeek: 48,
     provinces: provincesRecord,
     polities: politiesRecord,
     houses: housesRecord,
@@ -1153,7 +1153,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   const world: WorldState = {
     currentYear: 1,
     currentWeekOfYear: 1,
-    absoluteWeek: 52,
+    absoluteWeek: 48,
     provinces: provincesRecord,
     polities: politiesRecord,
     houses: housesRecord,

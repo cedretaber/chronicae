@@ -42,7 +42,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
     state: {
       currentYear: 1,
       currentWeekOfYear: 1,
-      absoluteWeek: 52,
+      absoluteWeek: 48,
       provinces: {},
       polities: {
         [polityId]: {
@@ -165,7 +165,7 @@ describe('runMortalitySystem', () => {
         state: {
           currentYear: 1,
           currentWeekOfYear: 1,
-          absoluteWeek: 52,
+          absoluteWeek: 48,
           provinces: {},
           polities: {
             [polityId]: {
@@ -300,7 +300,7 @@ describe('runMortalitySystem', () => {
         state: {
           currentYear: 1,
           currentWeekOfYear: 1,
-          absoluteWeek: 52,
+          absoluteWeek: 48,
           provinces: {},
           polities: {
             [polityId]: {

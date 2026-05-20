@@ -67,7 +67,7 @@ function buildBaseState(currentYear = 1500): {
     ...state,
     currentYear,
     currentWeekOfYear: 1,
-    absoluteWeek: currentYear * 52,
+    absoluteWeek: currentYear * 48,
   }
   state = withProvince(state, provinceId, { name: 'Province0' })
   state = withHouse(state, houseId, {
@@ -96,7 +96,7 @@ function addFaction(
     name: 'Faction0',
     leaderPersonId,
     active: true,
-    foundingWeek: state.currentYear * 52 + state.currentWeekOfYear - 1,
+    foundingWeek: state.currentYear * 48 + state.currentWeekOfYear - 1,
   }
   const newIndex: import('../types/faction').FactionIndex = {
     byLeader: { ...state.factionIndex.byLeader, [leaderPersonId]: [factionId] },
@@ -197,7 +197,7 @@ describe('runFactionDefectionSystem', () => {
       createFactionMembershipId(0),
       createFactionId(0),
       memberId,
-      1480 * 52 + 1 - 1,
+      1480 * 48 + 1 - 1,
     )
 
     const config = makeConfig({
@@ -224,7 +224,7 @@ describe('runFactionDefectionSystem', () => {
       createFactionMembershipId(0),
       createFactionId(0),
       memberId,
-      1480 * 52 + 1 - 1,
+      1480 * 48 + 1 - 1,
     )
     s = addOffice(s, createOfficeAssignmentId(0), memberId, 'administrator', {
       kind: 'house',
@@ -280,7 +280,7 @@ describe('runFactionDefectionSystem', () => {
       createFactionMembershipId(0),
       createFactionId(0),
       memberId,
-      1470 * 52 + 1 - 1,
+      1470 * 48 + 1 - 1,
     )
 
     const config = makeConfig({
@@ -316,7 +316,7 @@ describe('runFactionDefectionSystem', () => {
       createFactionMembershipId(0),
       createFactionId(0),
       memberId,
-      1491 * 52 + 1 - 1,
+      1491 * 48 + 1 - 1,
     )
 
     const config = makeConfig({

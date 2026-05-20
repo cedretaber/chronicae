@@ -39,9 +39,9 @@ function getRecentEventCount(
   currentYear: number,
   currentWeekOfYear: number,
 ): number {
-  const cutoffWeek = currentYear * 52 + currentWeekOfYear - 52
+  const cutoffWeek = currentYear * 48 + currentWeekOfYear - 48
   return eventHistory.filter((e) => {
-    const eWeek = e.year * 52 + e.weekOfYear
+    const eWeek = e.year * 48 + e.weekOfYear
     return (
       eWeek >= cutoffWeek &&
       (e.actorIds.some((id) => (id as string) === watchId) ||

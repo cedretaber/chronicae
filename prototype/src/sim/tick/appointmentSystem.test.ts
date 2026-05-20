@@ -56,7 +56,7 @@ function makeBaseState(): {
   // 旧 fixture が想定した複数 House の候補競合を保つため、両人物を houseRuler の member として扱う。
   // houseVassal は別 House として残すが、polity1 の Office 候補としては寄与しない。
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
   state = withProvince(state, provinceRulerId, { name: 'Ruler Province', development: 10 })
   state = withProvince(state, provinceVassalId, {
     name: 'Vassal Province',
@@ -523,7 +523,7 @@ describe('runAppointmentSystem', () => {
     const memId = createFactionMembershipId(0)
 
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+    state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
     state = withProvince(state, createProvinceId('p', 0), { name: 'P0', development: 10 })
     state = withHouse(state, houseId, {
       name: 'Test House',
@@ -576,14 +576,14 @@ describe('runAppointmentSystem', () => {
       name: 'Test Faction',
       leaderPersonId: leaderId,
       active: true,
-      foundingWeek: 1440 * 52 + 1 - 1,
+      foundingWeek: 1440 * 48 + 1 - 1,
     }
     state.factionMemberships[memId] = {
       id: memId,
       factionId,
       personId: factionMemberId,
       active: true,
-      joinedWeek: 1440 * 52 + 1 - 1,
+      joinedWeek: 1440 * 48 + 1 - 1,
     }
     state.factionIndex.byMember[factionMemberId] = [memId]
     state.factionIndex.byLeader[leaderId] = [factionId]
@@ -631,7 +631,7 @@ describe('runAppointmentSystem', () => {
     const memId = createFactionMembershipId(0)
 
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+    state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
     state = withProvince(state, createProvinceId('p', 0), { name: 'P0', development: 10 })
     state = withHouse(state, houseId, {
       name: 'Test House',
@@ -684,14 +684,14 @@ describe('runAppointmentSystem', () => {
       name: 'Test Faction',
       leaderPersonId: leaderId,
       active: true,
-      foundingWeek: 1440 * 52 + 1 - 1,
+      foundingWeek: 1440 * 48 + 1 - 1,
     }
     state.factionMemberships[memId] = {
       id: memId,
       factionId,
       personId: factionMemberId,
       active: true,
-      joinedWeek: 1440 * 52 + 1 - 1,
+      joinedWeek: 1440 * 48 + 1 - 1,
     }
     state.factionIndex.byMember[factionMemberId] = [memId]
     state.factionIndex.byLeader[leaderId] = [factionId]
@@ -744,7 +744,7 @@ describe('runAppointmentSystem', () => {
     const provinceId = createProvinceId('p', 0)
 
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+    state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
     state = withProvince(state, provinceId, { name: 'P0', development: 10 })
     state = withHouse(state, houseId, {
       name: 'Test House',
@@ -826,7 +826,7 @@ describe('runAppointmentSystem', () => {
     const provinceId = createProvinceId('p', 0)
 
     let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+    state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
     state = withProvince(state, provinceId, { name: 'P0', development: 10 })
     state = withHouse(state, houseId, {
       name: 'Test House',

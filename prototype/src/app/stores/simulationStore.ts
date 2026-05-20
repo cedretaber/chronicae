@@ -34,6 +34,7 @@ type SimActions = {
   generateNewWorld: (seed: string) => void
   resetWorld: () => void
   tickOnce: () => void
+  tickMonth: () => void
   tickYear: () => void
   setRunning: (running: boolean) => void
   setSpeed: (speed: number) => void
@@ -138,8 +139,14 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
     })
   },
 
+  tickMonth: () => {
+    for (let i = 0; i < 4; i++) {
+      get().tickOnce()
+    }
+  },
+
   tickYear: () => {
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 48; i++) {
       get().tickOnce()
     }
   },

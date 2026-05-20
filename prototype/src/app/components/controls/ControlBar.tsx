@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ConfigPanel } from './ConfigPanel'
 import { useSimulationStore } from '@/app/stores/simulationStore'
+import { getPseudoMonthFromWeek, getWeekOfPseudoMonth } from '@sim/utils/timeUtils'
 
 export function ControlBar() {
   const session = useSimulationStore((s) => s.session)
@@ -9,6 +10,7 @@ export function ControlBar() {
   const generateNewWorld = useSimulationStore((s) => s.generateNewWorld)
   const resetWorld = useSimulationStore((s) => s.resetWorld)
   const tickOnce = useSimulationStore((s) => s.tickOnce)
+  const tickMonth = useSimulationStore((s) => s.tickMonth)
   const tickYear = useSimulationStore((s) => s.tickYear)
   const setRunning = useSimulationStore((s) => s.setRunning)
   const setSpeed = useSimulationStore((s) => s.setSpeed)
@@ -17,15 +19,16 @@ export function ControlBar() {
   const currentWeekOfYear = session?.currentState.currentWeekOfYear ?? null
   const [seedInput, setSeedInput] = useState(session?.initialSeed ?? 'chronicae-default')
 
+  const dateDisplay =
+    currentYear != null && currentWeekOfYear != null
+      ? `Year ${currentYear} / Month ${getPseudoMonthFromWeek(currentWeekOfYear)} / Week ${getWeekOfPseudoMonth(currentWeekOfYear)}`
+      : '---'
+
   return (
     <div className="flex h-12 w-full items-center gap-2 bg-gray-900 px-4 py-2 text-white">
       <span className="text-lg font-bold">Chronicae</span>
 
-      <span className="min-w-36">
-        {currentYear != null && currentWeekOfYear != null
-          ? `Year ${currentYear} / Week ${currentWeekOfYear}`
-          : '---'}
-      </span>
+      <span className="min-w-52">{dateDisplay}</span>
 
       <button onClick={resetWorld} title="Reset world">
         ⏮
@@ -36,10 +39,13 @@ export function ControlBar() {
       <button onClick={() => setRunning(!isRunning)} title={isRunning ? 'Pause' : 'Play'}>
         {isRunning ? '⏸' : '▶'}
       </button>
-      <button onClick={tickOnce} title="Advance 1 month">
+      <button onClick={tickOnce} title="Advance 1 week">
         ▶|
       </button>
-      <button onClick={tickYear} title="Advance 1 year">
+      <button onClick={tickMonth} title="Advance 1 month (4 weeks)">
+        ▶▶
+      </button>
+      <button onClick={tickYear} title="Advance 1 year (48 weeks)">
         ▶▶|
       </button>
 

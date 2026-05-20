@@ -1,7 +1,6 @@
 import type { TickContext } from './context'
 import type { PersonId } from '../types/ids'
-
-const WEEKS_PER_YEAR = 52
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
 export function advanceTime(ctx: TickContext): TickContext {
   const nextAbsoluteWeek = ctx.state.absoluteWeek + 1

@@ -54,7 +54,7 @@ function makeCtx(
   const s = {
     ...state,
     currentWeekOfYear,
-    absoluteWeek: state.currentYear * 52 + currentWeekOfYear - 1,
+    absoluteWeek: state.currentYear * 48 + currentWeekOfYear - 1,
   }
   return createTickContext({
     state: s,
@@ -90,8 +90,8 @@ describe('runIntentGenerationSystem', () => {
       priority: 500,
       rationale: 'raise_revenue' as const,
       status: 'active' as const,
-      createdWeek: state.currentYear * 52 + 1 - 1,
-      expiresWeek: (state.currentYear + 1) * 52 + 1 - 1,
+      createdWeek: state.currentYear * 48 + 1 - 1,
+      expiresWeek: (state.currentYear + 1) * 48 + 1 - 1,
     }
     const s = { ...state, actorIntents: { [existing.id]: existing } }
     // acquire_land を無効化して sell_land の重複防止のみを検証
@@ -173,8 +173,8 @@ describe('runIntentGenerationSystem', () => {
       priority: 100,
       rationale: 'expand_territory' as const,
       status: 'active' as const,
-      createdWeek: state.currentYear * 52 + 1 - 1,
-      expiresWeek: (state.currentYear + 1) * 52 + 1 - 1,
+      createdWeek: state.currentYear * 48 + 1 - 1,
+      expiresWeek: (state.currentYear + 1) * 48 + 1 - 1,
     }
     const s = { ...stateNoSell, actorIntents: { [existing.id]: existing } }
     const ctx = makeCtx(s)

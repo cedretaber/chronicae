@@ -36,8 +36,8 @@ function makeIntent(id: string, status: ActorIntent['status']): ActorIntent {
     priority: 1,
     rationale: 'expand_territory',
     status,
-    createdWeek: 1000 * 52 + 1 - 1,
-    expiresWeek: 1001 * 52 + 1 - 1,
+    createdWeek: 1000 * 48 + 1 - 1,
+    expiresWeek: 1001 * 48 + 1 - 1,
   }
 }
 
@@ -54,8 +54,8 @@ function makePlay(id: string, status: DiplomaticPlay['status']): DiplomaticPlay 
       concessionLevel: 'minor',
     },
     status,
-    startedWeek: 1000 * 52 + 1 - 1,
-    deadlineWeek: 1000 * 52 + 7 - 1,
+    startedWeek: 1000 * 48 + 1 - 1,
+    deadlineWeek: 1000 * 48 + 7 - 1,
     progress: 0,
     tension: 0,
   }

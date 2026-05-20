@@ -3,6 +3,7 @@ import type { PersonId, FactionMembershipId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import { makeEventId } from './context'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import { getActiveFactions } from '../selectors/factionSelectors'
 import { removeFactionMembership } from '../mutations/factionMutations'
 import { adjustPersonAttitudeIfExists } from '../mutations/attitudeMutations'
@@ -45,7 +46,9 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
       if (hasActiveOfficeOrBailiff(currentCtx.state, membership.personId)) continue
 
       // (b) idle 計算 — joinedWeek を起点とする
-      const idle = Math.floor((currentCtx.state.absoluteWeek - membership.joinedWeek) / 52)
+      const idle = Math.floor(
+        (currentCtx.state.absoluteWeek - membership.joinedWeek) / WEEKS_PER_YEAR,
+      )
       if (idle < currentCtx.config.factionDefectionGraceYears) continue
 
       // 確率判定

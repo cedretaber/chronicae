@@ -102,7 +102,7 @@ describe('runBirthSystem', () => {
       state: {
         currentYear: 1,
         currentWeekOfYear: 1,
-        absoluteWeek: 52,
+        absoluteWeek: 48,
         provinces: {},
         polities: { [polityId]: polity },
         houses: { [houseId]: house },
@@ -181,7 +181,7 @@ describe('runBirthSystem', () => {
       state: {
         currentYear: 1,
         currentWeekOfYear: 1,
-        absoluteWeek: 52,
+        absoluteWeek: 48,
         provinces: {},
         polities: { [polityId]: polity },
         houses: { [houseId]: house },
@@ -255,7 +255,7 @@ describe('runBirthSystem', () => {
       state: {
         currentYear: 1,
         currentWeekOfYear: 1,
-        absoluteWeek: 52,
+        absoluteWeek: 48,
         provinces: {},
         polities: { [polityId]: polity },
         houses: { [houseId]: house },
@@ -331,7 +331,7 @@ describe('runBirthSystem', () => {
         state: {
           currentYear: 1,
           currentWeekOfYear: 1,
-          absoluteWeek: 52,
+          absoluteWeek: 48,
           provinces: {},
           polities: { [polityId]: polity },
           houses: { [houseId]: house },
@@ -391,7 +391,7 @@ describe('runBirthSystem', () => {
         state: {
           currentYear: 1,
           currentWeekOfYear: 1,
-          absoluteWeek: 52,
+          absoluteWeek: 48,
           provinces: {},
           polities: { [polityId]: polity },
           houses: { [houseId]: house },

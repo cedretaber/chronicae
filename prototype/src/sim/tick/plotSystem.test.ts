@@ -36,7 +36,7 @@ function makeBaseState(): {
   const provinceId = createProvinceId('p', 0)
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444, absoluteWeek: 75088 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
   state = withProvince(state, provinceId, { name: 'Capital', development: 10 })
   state = withHouse(state, houseId, {
     name: 'Test House',
@@ -112,7 +112,7 @@ describe('runPlotSystem', () => {
       id: createPlotId('p', 0),
       type: 'seize_office',
       status: 'active',
-      startedWeek: 75088,
+      startedWeek: 69312,
       durationWeeks: 12,
       leaderId: personId,
       participantIds: [personId],
@@ -146,7 +146,7 @@ describe('runPlotSystem', () => {
       id: createPlotId('p', 0),
       type: 'seize_office',
       status: 'active',
-      startedWeek: 75088,
+      startedWeek: 69312,
       durationWeeks: 12,
       leaderId: personId,
       participantIds: [personId],
@@ -258,7 +258,7 @@ describe('runPlotSystem', () => {
       id: createPlotId('p', 0),
       type: 'seize_office',
       status: 'active',
-      startedWeek: 75088,
+      startedWeek: 69312,
       durationWeeks: 12,
       leaderId: personId,
       participantIds: [personId],

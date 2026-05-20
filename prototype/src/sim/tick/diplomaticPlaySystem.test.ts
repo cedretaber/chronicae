@@ -93,8 +93,8 @@ function injectPlay(
       concessionLevel: 'minor',
     },
     status: 'active',
-    startedWeek: ctx.state.currentYear * 52 + ctx.state.currentWeekOfYear,
-    deadlineWeek: (ctx.state.currentYear + 1) * 52 + ctx.state.currentWeekOfYear,
+    startedWeek: ctx.state.currentYear * 48 + ctx.state.currentWeekOfYear,
+    deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
     progress: 0,
     tension: 0,
     ...overrides,
@@ -129,8 +129,8 @@ describe('runDiplomaticPlaySystem', () => {
         kind: 'status_quo',
       },
       status: 'active',
-      startedWeek: ctx.state.currentYear * 52 + ctx.state.currentWeekOfYear,
-      deadlineWeek: (ctx.state.currentYear + 1) * 52 + ctx.state.currentWeekOfYear,
+      startedWeek: ctx.state.currentYear * 48 + ctx.state.currentWeekOfYear,
+      deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
       progress: 0,
       tension: 0,
     }
@@ -201,7 +201,7 @@ describe('runDiplomaticPlaySystem', () => {
       {
         progress: 5,
         tension: 5,
-        deadlineWeek: 52000,
+        deadlineWeek: 48000,
       },
     )
     ctx = runDiplomaticPlaySystem(ctx)
@@ -287,8 +287,8 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
         amount: 500,
       },
       status: 'active',
-      startedWeek: ctx.state.currentYear * 52 + ctx.state.currentWeekOfYear,
-      deadlineWeek: (ctx.state.currentYear + 1) * 52 + ctx.state.currentWeekOfYear,
+      startedWeek: ctx.state.currentYear * 48 + ctx.state.currentWeekOfYear,
+      deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
       progress: 0,
       tension: 0,
       ...overrides,
@@ -342,7 +342,7 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
       {
         progress: 30,
         tension: 5,
-        deadlineWeek: 52000,
+        deadlineWeek: 48000,
       },
     )
     ctx = runDiplomaticPlaySystem(ctx)
@@ -423,8 +423,8 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
         toPolityId: attackerPolityId,
       },
       status: 'active',
-      startedWeek: ctx.state.currentYear * 52 + ctx.state.currentWeekOfYear,
-      deadlineWeek: (ctx.state.currentYear + 1) * 52 + ctx.state.currentWeekOfYear,
+      startedWeek: ctx.state.currentYear * 48 + ctx.state.currentWeekOfYear,
+      deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
       progress: 0,
       tension: 0,
       ...overrides,

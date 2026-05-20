@@ -53,7 +53,7 @@ function buildBaseState(): {
   const houseId = createHouseId('dh', 0)
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444, absoluteWeek: 75088, currentWeekOfYear: 1 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
   state = withProvince(state, provinceId, { name: 'Province0' })
   state = withHouse(state, houseId, {
     name: 'House0',
@@ -81,14 +81,14 @@ function addFaction(
     name: 'Faction0',
     leaderPersonId,
     active: true,
-    foundingWeek: 75088,
+    foundingWeek: 69312,
   }
   const membership: FactionMembership = {
     id: createFactionMembershipId(0),
     factionId,
     personId: leaderPersonId,
     active: true,
-    joinedWeek: 75088,
+    joinedWeek: 69312,
   }
   const newIndex: import('../types/faction').FactionIndex = {
     byLeader: { ...state.factionIndex.byLeader, [leaderPersonId]: [factionId] },
@@ -231,14 +231,14 @@ describe('runFactionRecruitmentSystem', () => {
       name: 'OtherFaction',
       leaderPersonId: candidateId,
       active: true,
-      foundingWeek: 75088,
+      foundingWeek: 69312,
     }
     const otherMembership: FactionMembership = {
       id: createFactionMembershipId(1),
       factionId: otherFactionId,
       personId: candidateId,
       active: true,
-      joinedWeek: 75088,
+      joinedWeek: 69312,
     }
     const s3: WorldState = {
       ...s2,

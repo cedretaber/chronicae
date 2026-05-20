@@ -87,7 +87,7 @@ export function makeEmptyV016State(): WorldState {
   return {
     currentYear: 1000,
     currentWeekOfYear: 1,
-    absoluteWeek: 52000,
+    absoluteWeek: 48000,
     provinces: {},
     polities: {},
     houses: { [ANONYMOUS_HOUSE_ID]: anon },

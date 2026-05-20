@@ -9,7 +9,7 @@ function makeCtx(year: number, weekOfYear: number): TickContext {
     state: {
       currentYear: year,
       currentWeekOfYear: weekOfYear,
-      absoluteWeek: year * 52 + (weekOfYear - 1),
+      absoluteWeek: year * 48 + (weekOfYear - 1),
       provinces: {},
       polities: {},
       houses: {},
@@ -55,9 +55,9 @@ function makeCtx(year: number, weekOfYear: number): TickContext {
 describe('advanceTime', () => {
   it('absoluteWeek increments by 1', () => {
     const ctx = makeCtx(1, 1)
-    ctx.state.absoluteWeek = 52
+    ctx.state.absoluteWeek = 48
     const result = advanceTime(ctx)
-    expect(result.state.absoluteWeek).toBe(53)
+    expect(result.state.absoluteWeek).toBe(49)
     expect(result.state.currentWeekOfYear).toBe(2)
   })
 
@@ -68,13 +68,13 @@ describe('advanceTime', () => {
     expect(result.state.currentYear).toBe(1)
   })
 
-  it('currentWeekOfYear wraps from 52 to 1 and currentYear increments', () => {
-    const ctx = makeCtx(1000, 52)
-    ctx.state.absoluteWeek = 52051
+  it('currentWeekOfYear wraps from 48 to 1 and currentYear increments', () => {
+    const ctx = makeCtx(1000, 48)
+    ctx.state.absoluteWeek = 48047
     const result = advanceTime(ctx)
     expect(result.state.currentWeekOfYear).toBe(1)
     expect(result.state.currentYear).toBe(1001)
-    expect(result.state.absoluteWeek).toBe(52052)
+    expect(result.state.absoluteWeek).toBe(48048)
   })
 
   it('does not mutate original ctx state', () => {

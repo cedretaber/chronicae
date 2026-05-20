@@ -143,7 +143,7 @@ function makeCtx({
   const state = {
     currentYear: 1,
     currentWeekOfYear,
-    absoluteWeek: 52 + currentWeekOfYear - 1,
+    absoluteWeek: 48 + currentWeekOfYear - 1,
     provinces: {},
     polities: {
       [polityId]: {

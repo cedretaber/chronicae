@@ -53,7 +53,7 @@ function makeFixture(): {
   const province2Id = createProvinceId('p', 1)
 
   let state = makeEmptyV016State()
-  state = { ...state, currentYear: 1444, absoluteWeek: 75088 }
+  state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
   state = withProvince(state, province1Id, { name: 'Test Province 1', development: 10 })
   state = withProvince(state, province2Id, { name: 'Test Province 2', x: 1, y: 1, development: 10 })
   state = withHouse(state, house1Id, {

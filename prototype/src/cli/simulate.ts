@@ -300,7 +300,7 @@ if (args.years !== undefined && args.weeks !== undefined) {
   process.exit(1)
 }
 
-const totalTicks = args.weeks !== undefined ? args.weeks : args.years * 52
+const totalTicks = args.weeks !== undefined ? args.weeks : args.years * 48
 
 const { world, rng: initialRng } = generateWorld(args.seed)
 
@@ -392,7 +392,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
     }
   }
 
-  if (weekOfYear === 52) {
+  if (weekOfYear === 48) {
     if (args.debug) {
       const debugLog = createLogger(true)
       let livingPersons = 0
@@ -465,7 +465,7 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
   if (
     args.reportPath !== undefined &&
     args.reportSnapshotYears > 0 &&
-    weekOfYear === 52 &&
+    weekOfYear === 48 &&
     year % args.reportSnapshotYears === 0
   ) {
     snapshots.push(takeSnapshot(result.state, year))

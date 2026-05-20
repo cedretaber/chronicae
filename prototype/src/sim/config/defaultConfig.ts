@@ -497,7 +497,7 @@ export const defaultConfig: SimulationConfig = {
   warCostPerProvince: 20,
   maxProvincesPerWar: 3,
   maxWarsPerTick: 1,
-  warCooldownWeeks: 104,
+  warCooldownWeeks: 96,
   minAttackerWinChanceToDeclare: 0.45,
   disasterEnabled: true,
   famineBaseChancePerYear: 0.08,
