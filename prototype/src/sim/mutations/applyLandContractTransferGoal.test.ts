@@ -66,18 +66,35 @@ describe('applyLandContractTransferGoal', () => {
     expect(after.polities[sellerPolityId]?.active).toBe(true)
   })
 
-  it('demand: fires LAND_CONTRACT_TRANSFERRED only (no LAND_CONTRACT_PURCHASED)', () => {
+  it('cession: fires LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_CEDED', () => {
     const { state, buyerPolityId, provinceId } = buildWorld()
     const ctx = makeCtx(state)
     const result = applyLandContractTransferGoal(ctx, {
       provinceId,
       toPolityId: buyerPolityId,
-      reason: 'demand',
+      reason: 'cession',
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     const events = result.value.ctx.events
     expect(events.some((e) => e.type === 'LAND_CONTRACT_TRANSFERRED')).toBe(true)
+    expect(events.some((e) => e.type === 'LAND_CONTRACT_CEDED')).toBe(true)
+    expect(events.some((e) => e.type === 'LAND_CONTRACT_PURCHASED')).toBe(false)
+  })
+
+  it('war: fires LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_CONQUERED', () => {
+    const { state, buyerPolityId, provinceId } = buildWorld()
+    const ctx = makeCtx(state)
+    const result = applyLandContractTransferGoal(ctx, {
+      provinceId,
+      toPolityId: buyerPolityId,
+      reason: 'war',
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const events = result.value.ctx.events
+    expect(events.some((e) => e.type === 'LAND_CONTRACT_TRANSFERRED')).toBe(true)
+    expect(events.some((e) => e.type === 'LAND_CONTRACT_CONQUERED')).toBe(true)
     expect(events.some((e) => e.type === 'LAND_CONTRACT_PURCHASED')).toBe(false)
   })
 

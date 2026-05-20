@@ -83,6 +83,9 @@ export type EventType =
   | 'ACTOR_INTENT_CONVERTED'
   // v0.18 Stage D §18.1
   | 'DIPLOMATIC_PLAY_ESCALATED'
+  // v0.18 Stage F §18.1: land_claim outcome の色分け event
+  | 'LAND_CONTRACT_CEDED'
+  | 'LAND_CONTRACT_CONQUERED'
 
 export type EventReason = {
   label: string

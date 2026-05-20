@@ -287,16 +287,25 @@ export type SimulationConfig = {
   revoltSuppressedOtherUnrestReduction: number
   revoltSuppressedDevelopmentDamage: number
   revoltSuppressedWealthPenalty: number
-  // v0.18 Stage C: land_purchase acceptance
-  purchaseProvinceValueFactor: number
-  purchaseStrategicLossFactor: number
-  landPurchaseNegotiationDurationMonths: number
-  // v0.18 Stage D: land_transfer_demand acceptance (§10.3.3)
-  demandPressureFactor: number
-  demandResistFactor: number
-  demandProvinceValueFactor: number
-  demandPrestigeLossFactor: number
-  landTransferDemandNegotiationDurationMonths: number
+  // v0.18 Stage F: land_claim acceptance (旧 land_purchase + land_transfer_demand を統合)
+  //   acceptanceScore =
+  //     offeredPrice * claimOfferedPriceFactor
+  //     + defenderTreasuryNeed
+  //     + initiatorPower * claimInitiatorPressureFactor
+  //     - defenderPower * claimDefenderResistFactor
+  //     - provinceValue * claimProvinceValueFactor
+  //     - strategicLoss * claimStrategicLossFactor
+  //     - prestigeLoss * claimPrestigeLossFactor
+  claimOfferedPriceFactor: number
+  claimInitiatorPressureFactor: number
+  claimDefenderResistFactor: number
+  claimProvinceValueFactor: number
+  claimStrategicLossFactor: number
+  claimPrestigeLossFactor: number
+  landClaimNegotiationDurationMonths: number
+  // 初期 progress / tension (Intent kind / 購入条件成立 に応じて変動)
+  landClaimInitialProgressOnConsent: number
+  landClaimInitialTensionOnPressure: number
   // v0.18 Stage D: 汎用 conflict (§13.2)
   conflictResolutionEnabled: boolean
   maxConflictsResolvedPerTick: number
@@ -733,24 +742,20 @@ export const defaultConfig: SimulationConfig = {
   revoltSuppressedOtherUnrestReduction: 10,
   revoltSuppressedDevelopmentDamage: 4,
   revoltSuppressedWealthPenalty: 8,
-  // v0.18 Stage C: land_purchase acceptance (§10.3.2)
-  // 注: progressLandPurchase 内の係数 (offeredPrice * 0.05 など) と組み合わせて使う。
-  // 値の調整は Stage E balance pass で見直す前提。
-  purchaseProvinceValueFactor: 0.3,
-  purchaseStrategicLossFactor: 0.2,
-  landPurchaseNegotiationDurationMonths: 12,
-  // v0.18 Stage D: land_transfer_demand acceptance (§10.3.3)
-  // 注: progressLandTransferDemand 内で acceptanceScore =
-  //   initiatorMilitaryPower * demandPressureFactor
-  //   - defenderMilitaryPower * demandResistFactor
-  //   - provinceValue * demandProvinceValueFactor
-  //   - prestigeLoss * demandPrestigeLossFactor
-  // 軍事力は数百〜数千スケール、provinceValue は開発度ベース (0〜100 想定)。
-  demandPressureFactor: 0.1,
-  demandResistFactor: 0.12,
-  demandProvinceValueFactor: 0.3,
-  demandPrestigeLossFactor: 0.2,
-  landTransferDemandNegotiationDurationMonths: 18,
+  // v0.18 Stage F: land_claim acceptance (§10.3, 旧 land_purchase + land_transfer_demand 統合)
+  // 注: progressLandClaim 内で融合 acceptanceScore を計算する。
+  //   offered スケール係数 0.05 は旧 land_purchase の hardcoded を config 化したもの。
+  //   軍事力は数百〜数千スケール、provinceValue は開発度ベース (0〜100 想定)。
+  // 値の調整は Stage F 完了後の balance pass で user と一緒に見直す前提。
+  claimOfferedPriceFactor: 0.05,
+  claimInitiatorPressureFactor: 0.1,
+  claimDefenderResistFactor: 0.12,
+  claimProvinceValueFactor: 0.3,
+  claimStrategicLossFactor: 0.2,
+  claimPrestigeLossFactor: 0.2,
+  landClaimNegotiationDurationMonths: 18,
+  landClaimInitialProgressOnConsent: 20,
+  landClaimInitialTensionOnPressure: 15,
   // v0.18 Stage D: 汎用 conflict (§13.2)
   conflictResolutionEnabled: true,
   maxConflictsResolvedPerTick: 5,

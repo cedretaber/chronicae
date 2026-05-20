@@ -25,7 +25,7 @@ import { randomFloat } from '../rng/rng'
 //
 // kind 別の resolver:
 //   - revolt_negotiation → resolveRevoltEscalation (Stage B の resolveRevoltConflict 流用)
-//   - land_transfer_demand → resolveLandTransferDemandEscalation (§13.2 actor military 比較)
+//   - land_claim → resolveLandClaimEscalation (§13.2 actor military 比較)
 //   - その他 kind の escalation は対象外 (cancelled に倒す)
 //
 // 配置: diplomaticPlaySystem の直後、cleanupTerminalDiplomacy / integrityCheck の前。
@@ -43,8 +43,8 @@ export function runConflictResolutionSystem(ctx: TickContext): TickContext {
 
     if (play.kind === 'revolt_negotiation') {
       currentCtx = resolveRevoltEscalation(currentCtx, play)
-    } else if (play.kind === 'land_transfer_demand') {
-      currentCtx = resolveLandTransferDemandEscalation(currentCtx, play)
+    } else if (play.kind === 'land_claim') {
+      currentCtx = resolveLandClaimEscalation(currentCtx, play)
     } else {
       currentCtx = setPlayStatus(currentCtx, play.id, 'cancelled')
     }
@@ -173,9 +173,9 @@ function pickSuppressionAftermath(ctx: TickContext): RebelLeaderAftermath {
   return value < 0.5 ? 'executed' : 'vanished'
 }
 
-// ─── land_transfer_demand の escalation (§13.2) ───
+// ─── land_claim の escalation (§13.2、Stage F で land_transfer_demand から rename) ───
 
-function resolveLandTransferDemandEscalation(ctx: TickContext, play: DiplomaticPlay): TickContext {
+function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): TickContext {
   if (play.primaryDemand.kind !== 'transfer_land_contract') {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }

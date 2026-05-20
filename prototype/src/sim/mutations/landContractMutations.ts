@@ -389,18 +389,18 @@ export function purchaseLandContract(
   return nextState
 }
 
-// v0.18 Stage C §12.2: applyLandContractTransferGoal wrapper
+// v0.18 Stage C/F §12.2: applyLandContractTransferGoal wrapper
 // LandContract terminal grantee の差し替えを wrap し、reason 別に event を発火する。
-// - reason='purchase' → LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_PURCHASED
-// - reason='demand'   → LAND_CONTRACT_TRANSFERRED (Stage D で利用)
-// - reason='war'      → LAND_CONTRACT_TRANSFERRED (Stage D 以降)
-// - reason='revolt'   → LAND_CONTRACT_TRANSFERRED (Stage B の disbandRebelPolity は直接 transferLandContractGrantee 使用済)
+// - reason='purchase' → LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_PURCHASED  (補償あり妥協)
+// - reason='cession'  → LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_CEDED      (補償なし妥協、Stage F 新規)
+// - reason='war'      → LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_CONQUERED  (武力奪取、Stage F 新規)
+// - reason='revolt'   → LAND_CONTRACT_TRANSFERRED (Stage B の disbandRebelPolity 経由)
 //
 // DIPLOMATIC_PLAY_* / REVOLT_* / WAR_* 上位 event は caller 側で発火する責任。
 //
 // rank 不変条件 (§25 #7) を事前チェック。違反なら error を返し、state を変更しない。
 
-export type LandContractTransferReason = 'purchase' | 'demand' | 'war' | 'revolt'
+export type LandContractTransferReason = 'purchase' | 'cession' | 'war' | 'revolt'
 
 export function applyLandContractTransferGoal(
   ctx: TickContext,
@@ -478,24 +478,41 @@ export function applyLandContractTransferGoal(
   }
   nextCtx = { ...ctxAfterTransfer, events: [...ctxAfterTransfer.events, transferEv] }
 
-  // reason 別の追加 domain event
+  // reason 別の追加 domain event (Stage F: purchase / cession / war / revolt)
+  let outcomeEventType:
+    | 'LAND_CONTRACT_PURCHASED'
+    | 'LAND_CONTRACT_CEDED'
+    | 'LAND_CONTRACT_CONQUERED'
+    | undefined
+  let outcomeSummary: string | undefined
   if (input.reason === 'purchase') {
-    const { id: purchaseEventId, ctx: ctxAfterPurchase } = makeEventId(nextCtx)
-    const purchaseEv: SimEvent = {
-      id: purchaseEventId,
-      year: ctxAfterPurchase.state.currentYear,
-      month: ctxAfterPurchase.state.currentMonth,
-      type: 'LAND_CONTRACT_PURCHASED',
+    outcomeEventType = 'LAND_CONTRACT_PURCHASED'
+    outcomeSummary = `${toName} purchased ${provinceName} from ${fromName}.`
+  } else if (input.reason === 'cession') {
+    outcomeEventType = 'LAND_CONTRACT_CEDED'
+    outcomeSummary = `${fromName} ceded ${provinceName} to ${toName}.`
+  } else if (input.reason === 'war') {
+    outcomeEventType = 'LAND_CONTRACT_CONQUERED'
+    outcomeSummary = `${toName} conquered ${provinceName} from ${fromName}.`
+  }
+
+  if (outcomeEventType && outcomeSummary) {
+    const { id: outcomeEventId, ctx: ctxAfterOutcome } = makeEventId(nextCtx)
+    const outcomeEv: SimEvent = {
+      id: outcomeEventId,
+      year: ctxAfterOutcome.state.currentYear,
+      month: ctxAfterOutcome.state.currentMonth,
+      type: outcomeEventType,
       importance: 'major',
       actorIds: [],
       houseIds: ownerHouseIds,
       polityIds: [fromPolityId, input.toPolityId],
       provinceIds: [input.provinceId],
-      summary: `${toName} purchased ${provinceName} from ${fromName}.`,
+      summary: outcomeSummary,
       reasons: [],
       effects: [],
     }
-    nextCtx = { ...ctxAfterPurchase, events: [...ctxAfterPurchase.events, purchaseEv] }
+    nextCtx = { ...ctxAfterOutcome, events: [...ctxAfterOutcome.events, outcomeEv] }
   }
 
   return ok({ ctx: nextCtx, value: undefined })

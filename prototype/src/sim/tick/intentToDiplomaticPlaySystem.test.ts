@@ -88,7 +88,7 @@ function makeCtx(state: WorldState) {
 }
 
 describe('runIntentToDiplomaticPlaySystem', () => {
-  it('converts sell_land Intent → land_purchase Play (initiator=buyer, target=seller)', () => {
+  it('converts sell_land Intent → land_claim Play with offer (initiator=buyer, target=seller)', () => {
     const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld()
     const intent = makeSellLandIntent('ai-1', sellerPolityId, buyerPolityId, provinceSellerId)
     const s = { ...state, actorIntents: { [intent.id]: intent } }
@@ -98,7 +98,7 @@ describe('runIntentToDiplomaticPlaySystem', () => {
     const plays = Object.values(next.state.diplomaticPlays)
     expect(plays.length).toBe(1)
     const play = plays[0]
-    expect(play?.kind).toBe('land_purchase')
+    expect(play?.kind).toBe('land_claim')
     expect(play?.initiator.id).toBe(buyerPolityId)
     expect(play?.target.id).toBe(sellerPolityId)
     expect(play?.status).toBe('active')
@@ -119,11 +119,11 @@ describe('runIntentToDiplomaticPlaySystem', () => {
     expect(next.events.some((e) => e.type === 'DIPLOMATIC_PLAY_STARTED')).toBe(true)
   })
 
-  it('suppresses duplicate Play when an active land_purchase already exists for same (buyer, seller, province)', () => {
+  it('suppresses duplicate Play when an active land_claim already exists for same (buyer, seller, province)', () => {
     const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld()
     const existingPlay: DiplomaticPlay = {
       id: 'dp-existing' as DiplomaticPlayId,
-      kind: 'land_purchase',
+      kind: 'land_claim',
       initiator: { kind: 'polity', id: buyerPolityId },
       target: { kind: 'polity', id: sellerPolityId },
       primaryDemand: {
@@ -165,7 +165,7 @@ describe('runIntentToDiplomaticPlaySystem', () => {
   })
 
   // v0.18 Stage D: acquire_land 経路
-  it('converts acquire_land Intent → land_purchase Play when same rank + same grantor + acquirer rich', () => {
+  it('converts acquire_land Intent → land_claim Play WITH offer when same rank + same grantor + acquirer rich', () => {
     const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld()
     // acquirer = buyer (rank 2, treasury 2000), target = seller (rank 2)
     // Both bound via ROOT_WORLD so same grantor.
@@ -177,7 +177,7 @@ describe('runIntentToDiplomaticPlaySystem', () => {
     const plays = Object.values(next.state.diplomaticPlays)
     expect(plays.length).toBe(1)
     const play = plays[0]
-    expect(play?.kind).toBe('land_purchase')
+    expect(play?.kind).toBe('land_claim')
     expect(play?.initiator.id).toBe(buyerPolityId) // initiator = acquirer
     expect(play?.target.id).toBe(sellerPolityId) // target = defender
     if (play?.counterDemand?.kind === 'pay_wealth') {
@@ -185,11 +185,13 @@ describe('runIntentToDiplomaticPlaySystem', () => {
       expect(play.counterDemand.to.id).toBe(sellerPolityId)
       expect(play.counterDemand.amount).toBeGreaterThan(0)
     } else {
-      throw new Error('expected pay_wealth counter')
+      throw new Error('expected pay_wealth counter (offer present)')
     }
+    // 初期 progress が高め (合意ベース)
+    expect(play?.progress).toBeGreaterThan(0)
   })
 
-  it('converts acquire_land Intent → land_transfer_demand Play when ranks differ', () => {
+  it('converts acquire_land Intent → land_claim Play WITHOUT offer when ranks differ', () => {
     const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld({
       sameRank: false,
     })
@@ -201,10 +203,12 @@ describe('runIntentToDiplomaticPlaySystem', () => {
     const plays = Object.values(next.state.diplomaticPlays)
     expect(plays.length).toBe(1)
     const play = plays[0]
-    expect(play?.kind).toBe('land_transfer_demand')
+    expect(play?.kind).toBe('land_claim')
     expect(play?.initiator.id).toBe(buyerPolityId)
     expect(play?.target.id).toBe(sellerPolityId)
     expect(play?.counterDemand).toBeUndefined()
+    // 初期 tension が高め (威圧ベース)
+    expect(play?.tension).toBeGreaterThan(0)
     if (play?.primaryDemand.kind === 'transfer_land_contract') {
       expect(play.primaryDemand.toPolityId).toBe(buyerPolityId)
       expect(play.primaryDemand.provinceId).toBe(provinceSellerId)

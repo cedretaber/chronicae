@@ -45,10 +45,8 @@ export function runDiplomaticPlaySystem(ctx: TickContext): TickContext {
     if (play.status !== 'active') continue
     if (play.kind === 'revolt_negotiation') {
       currentCtx = progressRevoltNegotiation(currentCtx, play)
-    } else if (play.kind === 'land_purchase') {
-      currentCtx = progressLandPurchase(currentCtx, play)
-    } else if (play.kind === 'land_transfer_demand') {
-      currentCtx = progressLandTransferDemand(currentCtx, play)
+    } else if (play.kind === 'land_claim') {
+      currentCtx = progressLandClaim(currentCtx, play)
     }
   }
   return currentCtx
@@ -267,182 +265,29 @@ function pickSettlementAftermath(ctx: TickContext): RebelLeaderAftermath {
   return value < 0.5 ? 'returned_to_obscurity' : 'exiled'
 }
 
-// ─── land_purchase 進行 (Stage C) ───
+// ─── land_claim 進行 (Stage F §10.3 / §11、旧 land_purchase + land_transfer_demand 統合) ───
 
-function progressLandPurchase(ctx: TickContext, play: DiplomaticPlay): TickContext {
-  const config = ctx.config
-  const state = ctx.state
-  if (play.primaryDemand.kind !== 'transfer_land_contract') return ctx
-  if (!play.counterDemand || play.counterDemand.kind !== 'pay_wealth') return ctx
-  if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') return ctx
-
-  const primary = play.primaryDemand
-  const counter = play.counterDemand
-  const buyerPolityId = play.initiator.id
-  const sellerPolityId = play.target.id
-  const provinceId = primary.provinceId
-  const offeredPrice = counter.amount
-
-  const buyer = state.polities[buyerPolityId]
-  const seller = state.polities[sellerPolityId]
-  const province = state.provinces[provinceId]
-  if (!buyer || !buyer.active || !seller || !seller.active || !province) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
-  }
-  if (getProvinceTerminalPolityId(state, provinceId) !== sellerPolityId) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
-  }
-  if (seller.ownerHouseId === undefined) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
-  }
-
-  const sellerTreasuryNeed = computeSellerTreasuryNeed(seller.treasury)
-  const provinceValue = computeProvinceValue(province.development)
-  const strategicValue = computeStrategicValue(state, provinceId, sellerPolityId)
-
-  const acceptanceScore =
-    offeredPrice * 0.05 +
-    sellerTreasuryNeed -
-    provinceValue * config.purchaseProvinceValueFactor -
-    strategicValue * config.purchaseStrategicLossFactor
-
-  const { nextProgress, nextTension } = applyAcceptanceUpdate(play, acceptanceScore, config)
-
-  let nextCtx: TickContext = {
-    ...ctx,
-    state: {
-      ...state,
-      diplomaticPlays: {
-        ...state.diplomaticPlays,
-        [play.id]: { ...play, progress: nextProgress, tension: nextTension },
-      },
-    },
-  }
-
-  if (nextProgress >= config.diplomaticPlaySettlementThreshold) {
-    return applyLandPurchaseSettlement(
-      nextCtx,
-      play,
-      primary,
-      counter,
-      buyerPolityId,
-      sellerPolityId,
-    )
-  }
-  // land_purchase は escalation 経路を持たない (Stage D 以降も維持)
-  if (isDeadlineReached(nextCtx.state, play)) {
-    nextCtx = setPlayStatus(nextCtx, play.id, 'failed')
-    const { id: eid, ctx: ctxEv } = makeEventId(nextCtx)
-    const provinceName = ctxEv.state.provinces[provinceId]?.name ?? provinceId
-    const ev: SimEvent = {
-      id: eid,
-      year: ctxEv.state.currentYear,
-      month: ctxEv.state.currentMonth,
-      type: 'DIPLOMATIC_PLAY_FAILED',
-      importance: 'normal',
-      actorIds: [],
-      houseIds: [],
-      polityIds: [buyerPolityId, sellerPolityId],
-      provinceIds: [provinceId],
-      summary: `Land purchase negotiation for ${provinceName} failed.`,
-      reasons: [],
-      effects: [],
-    }
-    return { ...ctxEv, events: [...ctxEv.events, ev] }
-  }
-  return nextCtx
-}
-
-function applyLandPurchaseSettlement(
-  ctx: TickContext,
-  play: DiplomaticPlay,
-  primary: Extract<DiplomaticPlay['primaryDemand'], { kind: 'transfer_land_contract' }>,
-  counter: Extract<NonNullable<DiplomaticPlay['counterDemand']>, { kind: 'pay_wealth' }>,
-  buyerPolityId: PolityId,
-  sellerPolityId: PolityId,
-): TickContext {
-  const state = ctx.state
-  const buyer = state.polities[buyerPolityId]
-  const seller = state.polities[sellerPolityId]
-  if (!buyer || !seller) return setPlayStatus(ctx, play.id, 'cancelled')
-  const price = counter.amount
-
-  if (buyer.treasury < price) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
-  }
-
-  const transferResult = applyLandContractTransferGoal(ctx, {
-    provinceId: primary.provinceId,
-    toPolityId: buyerPolityId,
-    reason: 'purchase',
-  })
-  if (!transferResult.ok) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
-  }
-  let nextCtx = transferResult.value.ctx
-
-  const buyerNow = nextCtx.state.polities[buyerPolityId]
-  const sellerNow = nextCtx.state.polities[sellerPolityId]
-  if (buyerNow && sellerNow) {
-    nextCtx = {
-      ...nextCtx,
-      state: {
-        ...nextCtx.state,
-        polities: {
-          ...nextCtx.state.polities,
-          [buyerPolityId]: { ...buyerNow, treasury: Math.max(0, buyerNow.treasury - price) },
-          [sellerPolityId]: { ...sellerNow, treasury: sellerNow.treasury + price },
-        },
-      },
-    }
-  }
-
-  nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
-
-  const { id: eid, ctx: ctxEv } = makeEventId(nextCtx)
-  const provinceName = ctxEv.state.provinces[primary.provinceId]?.name ?? primary.provinceId
-  const buyerName = ctxEv.state.polities[buyerPolityId]?.name ?? buyerPolityId
-  const sellerName = ctxEv.state.polities[sellerPolityId]?.name ?? sellerPolityId
-  const ev: SimEvent = {
-    id: eid,
-    year: ctxEv.state.currentYear,
-    month: ctxEv.state.currentMonth,
-    type: 'DIPLOMATIC_PLAY_SETTLED',
-    importance: 'major',
-    actorIds: [],
-    houseIds: [],
-    polityIds: [buyerPolityId, sellerPolityId],
-    provinceIds: [primary.provinceId],
-    summary: `${buyerName} purchased ${provinceName} from ${sellerName} for ${Math.round(price)} gold.`,
-    reasons: [],
-    effects: [],
-  }
-  return { ...ctxEv, events: [...ctxEv.events, ev] }
-}
-
-// ─── land_transfer_demand 進行 (Stage D §10.3.3 / §11.2) ───
-
-function progressLandTransferDemand(ctx: TickContext, play: DiplomaticPlay): TickContext {
+function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext {
   const config = ctx.config
   const state = ctx.state
   if (play.primaryDemand.kind !== 'transfer_land_contract') return ctx
   if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') return ctx
 
   const primary = play.primaryDemand
-  const acquirerPolityId = play.initiator.id
+  const initiatorPolityId = play.initiator.id
   const defenderPolityId = play.target.id
   const provinceId = primary.provinceId
 
-  const acquirer = state.polities[acquirerPolityId]
+  const initiator = state.polities[initiatorPolityId]
   const defender = state.polities[defenderPolityId]
   const province = state.provinces[provinceId]
   if (
-    !acquirer ||
-    !acquirer.active ||
+    !initiator ||
+    !initiator.active ||
     !defender ||
     !defender.active ||
     !province ||
-    acquirer.ownerHouseId === undefined ||
+    initiator.ownerHouseId === undefined ||
     defender.ownerHouseId === undefined
   ) {
     return setPlayStatus(ctx, play.id, 'cancelled')
@@ -451,26 +296,36 @@ function progressLandTransferDemand(ctx: TickContext, play: DiplomaticPlay): Tic
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
 
-  // §10.3.3 acceptanceScore (defender 視点での「譲歩しても良い」度合い)
+  // §10.3 融合 acceptanceScore (defender 視点で「土地を手放してもよい」度合い)
   //   acceptanceScore =
-  //     initiatorMilitaryPower * demandPressureFactor
-  //     - defenderMilitaryPower * demandResistFactor
-  //     - provinceValue * demandProvinceValueFactor
-  //     - prestigeLoss * demandPrestigeLossFactor
+  //       offeredPrice * claimOfferedPriceFactor              // 補償金 (高いほど折れる)
+  //     + defenderTreasuryNeed                                // 困窮度 (低いほど折れる)
+  //     + initiatorPower * claimInitiatorPressureFactor       // 軍事威圧
+  //     - defenderPower * claimDefenderResistFactor           // 自軍力 (抵抗)
+  //     - provinceValue * claimProvinceValueFactor            // Province 価値
+  //     - strategicLoss * claimStrategicLossFactor            // 戦略損失
+  //     - prestigeLoss * claimPrestigeLossFactor              // 名誉損失
+  const offeredPrice =
+    play.counterDemand && play.counterDemand.kind === 'pay_wealth' ? play.counterDemand.amount : 0
+  const defenderTreasuryNeed = computeDefenderTreasuryNeed(defender.treasury)
   const initiatorPower =
     getActorMilitaryPower(state, config, play.initiator) *
-    calcGeneralWarPowerModifier(state, acquirerPolityId, config)
+    calcGeneralWarPowerModifier(state, initiatorPolityId, config)
   const defenderPower =
     getActorMilitaryPower(state, config, play.target) *
     calcGeneralWarPowerModifier(state, defenderPolityId, config)
   const provinceValue = computeProvinceValue(province.development)
+  const strategicLoss = computeStrategicValue(state, provinceId, defenderPolityId)
   const prestigeLoss = computePrestigeLoss(defender.rank)
 
   const acceptanceScore =
-    initiatorPower * config.demandPressureFactor -
-    defenderPower * config.demandResistFactor -
-    provinceValue * config.demandProvinceValueFactor -
-    prestigeLoss * config.demandPrestigeLossFactor
+    offeredPrice * config.claimOfferedPriceFactor +
+    defenderTreasuryNeed +
+    initiatorPower * config.claimInitiatorPressureFactor -
+    defenderPower * config.claimDefenderResistFactor -
+    provinceValue * config.claimProvinceValueFactor -
+    strategicLoss * config.claimStrategicLossFactor -
+    prestigeLoss * config.claimPrestigeLossFactor
 
   const { nextProgress, nextTension } = applyAcceptanceUpdate(play, acceptanceScore, config)
 
@@ -486,36 +341,24 @@ function progressLandTransferDemand(ctx: TickContext, play: DiplomaticPlay): Tic
   }
 
   if (nextProgress >= config.diplomaticPlaySettlementThreshold) {
-    return applyLandTransferDemandSettlement(
-      nextCtx,
-      play,
-      primary,
-      acquirerPolityId,
-      defenderPolityId,
-    )
+    return applyLandClaimSettlement(nextCtx, play, primary, initiatorPolityId, defenderPolityId)
   }
   if (nextTension >= config.diplomaticPlayEscalationThreshold) {
     return markPlayEscalated(nextCtx, play.id, {
-      polityIds: [acquirerPolityId, defenderPolityId],
+      polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
-      summary: `${nextCtx.state.polities[acquirerPolityId]?.name ?? acquirerPolityId} mobilises against ${nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId} over ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
+      summary: `${nextCtx.state.polities[initiatorPolityId]?.name ?? initiatorPolityId} mobilises against ${nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId} over ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
     })
   }
   if (isDeadlineReached(nextCtx.state, play)) {
     if (nextProgress > nextTension) {
-      return applyLandTransferDemandSettlement(
-        nextCtx,
-        play,
-        primary,
-        acquirerPolityId,
-        defenderPolityId,
-      )
+      return applyLandClaimSettlement(nextCtx, play, primary, initiatorPolityId, defenderPolityId)
     }
     if (nextTension > nextProgress) {
       return markPlayEscalated(nextCtx, play.id, {
-        polityIds: [acquirerPolityId, defenderPolityId],
+        polityIds: [initiatorPolityId, defenderPolityId],
         provinceIds: [provinceId],
-        summary: `Deadlocked demand erupts: ${nextCtx.state.polities[acquirerPolityId]?.name ?? acquirerPolityId} attacks for ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
+        summary: `Deadlocked claim erupts: ${nextCtx.state.polities[initiatorPolityId]?.name ?? initiatorPolityId} attacks for ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
       })
     }
     nextCtx = setPlayStatus(nextCtx, play.id, 'failed')
@@ -528,9 +371,9 @@ function progressLandTransferDemand(ctx: TickContext, play: DiplomaticPlay): Tic
       importance: 'normal',
       actorIds: [],
       houseIds: [],
-      polityIds: [acquirerPolityId, defenderPolityId],
+      polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
-      summary: `${ctxEv.state.polities[acquirerPolityId]?.name ?? acquirerPolityId}'s demand on ${ctxEv.state.provinces[provinceId]?.name ?? provinceId} faded out.`,
+      summary: `${ctxEv.state.polities[initiatorPolityId]?.name ?? initiatorPolityId}'s claim on ${ctxEv.state.provinces[provinceId]?.name ?? provinceId} faded out.`,
       reasons: [],
       effects: [],
     }
@@ -539,17 +382,86 @@ function progressLandTransferDemand(ctx: TickContext, play: DiplomaticPlay): Tic
   return nextCtx
 }
 
-function applyLandTransferDemandSettlement(
+// Stage F: counterDemand 有無で reason='purchase' / 'cession' を分岐
+function applyLandClaimSettlement(
   ctx: TickContext,
   play: DiplomaticPlay,
   primary: Extract<DiplomaticPlay['primaryDemand'], { kind: 'transfer_land_contract' }>,
-  acquirerPolityId: PolityId,
+  initiatorPolityId: PolityId,
   defenderPolityId: PolityId,
 ): TickContext {
+  const offeredPrice =
+    play.counterDemand && play.counterDemand.kind === 'pay_wealth' ? play.counterDemand.amount : 0
+
+  if (offeredPrice > 0) {
+    // 補償あり → 購入経路
+    const initiator = ctx.state.polities[initiatorPolityId]
+    const defender = ctx.state.polities[defenderPolityId]
+    if (!initiator || !defender) return setPlayStatus(ctx, play.id, 'cancelled')
+    if (initiator.treasury < offeredPrice) {
+      return setPlayStatus(ctx, play.id, 'cancelled')
+    }
+
+    const transferResult = applyLandContractTransferGoal(ctx, {
+      provinceId: primary.provinceId,
+      toPolityId: initiatorPolityId,
+      reason: 'purchase',
+    })
+    if (!transferResult.ok) {
+      return setPlayStatus(ctx, play.id, 'cancelled')
+    }
+    let nextCtx = transferResult.value.ctx
+
+    const initiatorNow = nextCtx.state.polities[initiatorPolityId]
+    const defenderNow = nextCtx.state.polities[defenderPolityId]
+    if (initiatorNow && defenderNow) {
+      nextCtx = {
+        ...nextCtx,
+        state: {
+          ...nextCtx.state,
+          polities: {
+            ...nextCtx.state.polities,
+            [initiatorPolityId]: {
+              ...initiatorNow,
+              treasury: Math.max(0, initiatorNow.treasury - offeredPrice),
+            },
+            [defenderPolityId]: {
+              ...defenderNow,
+              treasury: defenderNow.treasury + offeredPrice,
+            },
+          },
+        },
+      }
+    }
+
+    nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
+
+    const { id: eid, ctx: ctxEv } = makeEventId(nextCtx)
+    const provinceName = ctxEv.state.provinces[primary.provinceId]?.name ?? primary.provinceId
+    const initiatorName = ctxEv.state.polities[initiatorPolityId]?.name ?? initiatorPolityId
+    const defenderName = ctxEv.state.polities[defenderPolityId]?.name ?? defenderPolityId
+    const ev: SimEvent = {
+      id: eid,
+      year: ctxEv.state.currentYear,
+      month: ctxEv.state.currentMonth,
+      type: 'DIPLOMATIC_PLAY_SETTLED',
+      importance: 'major',
+      actorIds: [],
+      houseIds: [],
+      polityIds: [initiatorPolityId, defenderPolityId],
+      provinceIds: [primary.provinceId],
+      summary: `${initiatorName} purchased ${provinceName} from ${defenderName} for ${Math.round(offeredPrice)} gold.`,
+      reasons: [],
+      effects: [],
+    }
+    return { ...ctxEv, events: [...ctxEv.events, ev] }
+  }
+
+  // 補償なし → 譲歩経路
   const transferResult = applyLandContractTransferGoal(ctx, {
     provinceId: primary.provinceId,
-    toPolityId: acquirerPolityId,
-    reason: 'demand',
+    toPolityId: initiatorPolityId,
+    reason: 'cession',
   })
   if (!transferResult.ok) {
     return setPlayStatus(ctx, play.id, 'cancelled')
@@ -559,7 +471,7 @@ function applyLandTransferDemandSettlement(
 
   const { id: eid, ctx: ctxEv } = makeEventId(nextCtx)
   const provinceName = ctxEv.state.provinces[primary.provinceId]?.name ?? primary.provinceId
-  const acquirerName = ctxEv.state.polities[acquirerPolityId]?.name ?? acquirerPolityId
+  const initiatorName = ctxEv.state.polities[initiatorPolityId]?.name ?? initiatorPolityId
   const defenderName = ctxEv.state.polities[defenderPolityId]?.name ?? defenderPolityId
   const ev: SimEvent = {
     id: eid,
@@ -569,9 +481,9 @@ function applyLandTransferDemandSettlement(
     importance: 'major',
     actorIds: [],
     houseIds: [],
-    polityIds: [acquirerPolityId, defenderPolityId],
+    polityIds: [initiatorPolityId, defenderPolityId],
     provinceIds: [primary.provinceId],
-    summary: `${defenderName} ceded ${provinceName} to ${acquirerName} under pressure.`,
+    summary: `${defenderName} ceded ${provinceName} to ${initiatorName} under pressure.`,
     reasons: [],
     effects: [],
   }
@@ -662,7 +574,8 @@ function setPlayAnyStatus(
   }
 }
 
-function computeSellerTreasuryNeed(treasury: number): number {
+// 旧 computeSellerTreasuryNeed を rename (defender = seller/holder の財政困窮度)
+function computeDefenderTreasuryNeed(treasury: number): number {
   const baseThreshold = 1000
   return clamp((baseThreshold - treasury) * 0.05, 0, 50)
 }

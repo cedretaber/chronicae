@@ -196,7 +196,7 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
     const playId = 'dp-ltd-esc' as DiplomaticPlayId
     const play: DiplomaticPlay = {
       id: playId,
-      kind: 'land_transfer_demand',
+      kind: 'land_claim',
       initiator: { kind: 'polity', id: attackerPolityId },
       target: { kind: 'polity', id: defenderPolityId },
       primaryDemand: {
@@ -221,7 +221,7 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
     }
   }
 
-  it('resolves escalated land_transfer_demand → status=resolved_by_conflict + WAR_WON/LOST', () => {
+  it('resolves escalated land_claim → status=resolved_by_conflict + WAR_WON/LOST + LAND_CONTRACT_CONQUERED', () => {
     const setup = setupLTD()
     let ctx = makeCtx(setup.state)
     ctx = injectEscalatedLTDPlay(
@@ -275,7 +275,7 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
 })
 
 describe('runConflictResolutionSystem (unsupported kind)', () => {
-  it('cancels escalated Plays of unsupported kind (e.g., land_purchase)', () => {
+  it('cancels escalated Plays of unsupported kind (e.g., contract_tax_revision)', () => {
     let s = makeEmptyV016State()
     const provinceAId = 'pr-a' as ProvinceId
     const provinceBId = 'pr-b' as ProvinceId
@@ -292,23 +292,15 @@ describe('runConflictResolutionSystem (unsupported kind)', () => {
     s = bindProvinceToHouseViaPolity(s, provinceAId, polityAId, houseAId)
     s = bindProvinceToHouseViaPolity(s, provinceBId, polityBId, houseBId)
 
-    const playId = 'dp-lp-esc' as DiplomaticPlayId
-    // land_purchase は normally escalation 経路を持たないが、test として escalated を強制
+    const playId = 'dp-tax-esc' as DiplomaticPlayId
+    // contract_tax_revision は conflictResolutionSystem の対象外 kind (Stage F 時点)
     const play: DiplomaticPlay = {
       id: playId,
-      kind: 'land_purchase',
+      kind: 'contract_tax_revision',
       initiator: { kind: 'polity', id: polityAId },
       target: { kind: 'polity', id: polityBId },
       primaryDemand: {
-        kind: 'transfer_land_contract',
-        provinceId: provinceBId,
-        toPolityId: polityAId,
-      },
-      counterDemand: {
-        kind: 'pay_wealth',
-        from: { kind: 'polity', id: polityAId },
-        to: { kind: 'polity', id: polityBId },
-        amount: 500,
+        kind: 'status_quo',
       },
       status: 'escalated',
       startedYear: s.currentYear,

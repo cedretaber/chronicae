@@ -10,11 +10,11 @@ import type { PoliticalActorRef } from './actor'
 
 // v0.18 Stage A §6.4 / §6.5
 
-export type DiplomaticPlayKind =
-  | 'land_purchase'
-  | 'land_transfer_demand'
-  | 'contract_tax_revision'
-  | 'revolt_negotiation'
+// v0.18 Stage F: land_purchase + land_transfer_demand を land_claim に統合。
+//   外交劇は中立な「土地請求」として開始し、交渉プロセスと outcome (補償あり妥協 /
+//   補償なし妥協 / 武力奪取) で結果の色を表現する。
+//   counterDemand.kind === 'pay_wealth' の amount > 0 で「平和的購入」、なしで「威圧要求」を表現。
+export type DiplomaticPlayKind = 'land_claim' | 'contract_tax_revision' | 'revolt_negotiation'
 
 // v0.18 Stage D 更新:
 //   'escalated' を ActiveDiplomaticPlayStatus に追加。

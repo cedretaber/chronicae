@@ -2,7 +2,7 @@ import type { TickContext } from './context'
 import { makeEventId } from './context'
 import type { ActorIntentId, PolityId, ProvinceId } from '../types/ids'
 import { createDiplomaticPlayId } from '../types/ids'
-import type { DiplomaticPlay, DiplomaticPlayKind } from '../types/diplomaticPlay'
+import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type { SimEvent } from '../types/event'
 import { defaultLandContractConfig } from '../config/landContractConfig'
@@ -12,20 +12,22 @@ import {
 } from '../selectors/landContractSelectors'
 import type { WorldState } from '../types/world'
 
-// v0.18 Stage C / Stage D §9: IntentToDiplomaticPlaySystem
+// v0.18 Stage C/D/F §9: IntentToDiplomaticPlaySystem
 //
 // active な ActorIntent を DiplomaticPlay に変換する。
 //
-// 変換ルール:
-//   sell_land Intent (actor=seller, targetActor=buyer)
-//     → land_purchase Play (initiator=buyer, target=seller)
-//   acquire_land Intent (actor=acquirer, targetActor=defender)
-//     → 同 rank・同 grantor の隣接かつ非 commonwealth → land_purchase Play
-//     → それ以外 → land_transfer_demand Play
-//     (どちらも initiator=acquirer, target=defender)
+// Stage F 統合後の変換ルール:
+//   sell_land / acquire_land の両 Intent → 一律 land_claim Play
+//     initiator = 土地を取得しようとする側 (buyer / acquirer)
+//     target    = 現所有者 (seller / defender)
+//   counterDemand と初期 progress/tension で「平和度・威圧度」を表現:
+//     - sell_land Intent: counterDemand = pay_wealth(seller 提示価格)、progress 高め (合意ベース)
+//     - acquire_land Intent (同 rank・同 grantor・acquirer 支払い能力あり):
+//         counterDemand = pay_wealth(計算 price)、progress 高め (合意ベース)
+//     - acquire_land Intent (上記不成立): counterDemand なし、tension 高め (威圧ベース)
 //
-// Play actor の慣習: 「initiator が target に何かを要求」で一貫させる。
-// land_purchase 妥協式 (§10.3.2) は target (seller) 視点で評価する。
+// Play actor の慣習: 「initiator が target に土地譲渡を要求」で一貫させる。
+// progressLandClaim 内の acceptanceScore は target (defender) 視点で評価する。
 //
 // 変換後の Intent は status='converted' になり、tick 末の cleanupTerminalDiplomacy で削除される。
 // 変換できない Intent は immediate に status='expired' に (spec §9.2)。
@@ -33,8 +35,7 @@ import type { WorldState } from '../types/world'
 export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
-  // 既存 active Play の重複防止キーを構築 (§9.3)
-  // key: `${kind}|${initiatorId}|${targetId}|${targetProvinceId}`
+  // 既存 active/escalated land_claim Play の重複防止キーを構築 (§9.3)
   const existingActivePlayKeys = new Set<string>()
   for (const play of Object.values(currentCtx.state.diplomaticPlays)) {
     if (!play || (play.status !== 'active' && play.status !== 'escalated')) continue
@@ -62,7 +63,6 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
       continue
     }
 
-    // 共通 active actor check
     const actorPolity = currentCtx.state.polities[intent.actor.id]
     const targetActorPolity = currentCtx.state.polities[intent.targetActor.id]
     if (!actorPolity || !actorPolity.active || !targetActorPolity || !targetActorPolity.active) {
@@ -70,84 +70,74 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
       continue
     }
 
-    if (intent.kind === 'sell_land') {
-      // sell_land: initiator=buyer (intent.targetActor), target=seller (intent.actor)
-      const initiator: PoliticalActorRef = intent.targetActor
-      const target: PoliticalActorRef = intent.actor
-      const provinceId = intent.targetProvinceId
-      const price = intent.priority
+    // Intent kind → Play actor mapping + counterDemand / 初期値の決定
+    let initiator: PoliticalActorRef
+    let target: PoliticalActorRef
+    let counterDemandAmount: number
+    let initialProgress: number
+    let initialTension: number
 
-      const dedupeKey = `land_purchase|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
-      if (existingActivePlayKeys.has(dedupeKey)) {
+    if (intent.kind === 'sell_land') {
+      // sell_land: actor=seller, targetActor=buyer
+      initiator = intent.targetActor // buyer
+      target = intent.actor // seller
+      // seller 提示価格 (Intent.priority に格納済)
+      counterDemandAmount = intent.priority
+      initialProgress = currentCtx.config.landClaimInitialProgressOnConsent
+      initialTension = 0
+    } else {
+      // acquire_land: actor=acquirer, targetActor=defender
+      initiator = intent.actor // acquirer = buyer 候補
+      target = intent.targetActor // defender = seller 候補
+      const buyerPolity = actorPolity
+      const sellerPolity = targetActorPolity
+
+      // commonwealth は spec §3 / §5.6 により対象外
+      if (buyerPolity.ownerHouseId === undefined || sellerPolity.ownerHouseId === undefined) {
         currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
         continue
       }
 
-      currentCtx = createLandPurchasePlay(currentCtx, {
-        intentId: intent.id,
-        initiator,
-        target,
-        provinceId,
-        price,
-      })
-      existingActivePlayKeys.add(dedupeKey)
-      continue
-    }
-
-    // intent.kind === 'acquire_land'
-    // acquire_land: initiator=acquirer (intent.actor), target=defender (intent.targetActor)
-    const initiator: PoliticalActorRef = intent.actor
-    const target: PoliticalActorRef = intent.targetActor
-    const provinceId = intent.targetProvinceId
-
-    // commonwealth target は spec §3 / §5.6 により land_purchase / land_transfer_demand 共に対象外
-    if (actorPolity.ownerHouseId === undefined || targetActorPolity.ownerHouseId === undefined) {
-      currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
-      continue
-    }
-
-    // 同 rank かつ同 grantor の隣接 → land_purchase
-    // それ以外 → land_transfer_demand
-    const eligibleForPurchase = checkLandPurchaseEligibility(
-      currentCtx.state,
-      initiator.id,
-      target.id,
-      provinceId,
-    )
-
-    if (eligibleForPurchase) {
-      const price = computeLandPurchasePrice(currentCtx.state, provinceId)
-      // acquirer treasury 不足なら land_purchase に進まない (land_transfer_demand に倒す)
-      const acquirer = currentCtx.state.polities[initiator.id]
-      if (acquirer && acquirer.treasury >= price) {
-        const dedupeKey = `land_purchase|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
-        if (existingActivePlayKeys.has(dedupeKey)) {
-          currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
-          continue
+      // 同 rank・同 grantor・支払い能力 が揃えば「合意ベース」、それ以外は「威圧ベース」
+      const eligibleForPurchase = checkLandPurchaseEligibility(
+        currentCtx.state,
+        initiator.id,
+        target.id,
+        intent.targetProvinceId,
+      )
+      if (eligibleForPurchase) {
+        const price = computeLandPurchasePrice(currentCtx.state, intent.targetProvinceId)
+        if (buyerPolity.treasury >= price) {
+          counterDemandAmount = price
+          initialProgress = currentCtx.config.landClaimInitialProgressOnConsent
+          initialTension = 0
+        } else {
+          counterDemandAmount = 0
+          initialProgress = 0
+          initialTension = currentCtx.config.landClaimInitialTensionOnPressure
         }
-        currentCtx = createLandPurchasePlay(currentCtx, {
-          intentId: intent.id,
-          initiator,
-          target,
-          provinceId,
-          price,
-        })
-        existingActivePlayKeys.add(dedupeKey)
-        continue
+      } else {
+        counterDemandAmount = 0
+        initialProgress = 0
+        initialTension = currentCtx.config.landClaimInitialTensionOnPressure
       }
     }
 
-    // land_transfer_demand
-    const dedupeKey = `land_transfer_demand|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
+    const provinceId = intent.targetProvinceId
+    const dedupeKey = `land_claim|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
     if (existingActivePlayKeys.has(dedupeKey)) {
       currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
       continue
     }
-    currentCtx = createLandTransferDemandPlay(currentCtx, {
+
+    currentCtx = createLandClaimPlay(currentCtx, {
       intentId: intent.id,
       initiator,
       target,
       provinceId,
+      counterDemandAmount,
+      initialProgress,
+      initialTension,
     })
     existingActivePlayKeys.add(dedupeKey)
   }
@@ -155,28 +145,38 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
   return currentCtx
 }
 
-// ─── Play 生成 helpers ───
+// ─── Play 生成 ───
 
-type CreateLandPurchaseInput = {
+type CreateLandClaimInput = {
   intentId: ActorIntentId
   initiator: PoliticalActorRef
   target: PoliticalActorRef
   provinceId: ProvinceId
-  price: number
+  counterDemandAmount: number // 0 なら counterDemand 省略 (威圧要求)
+  initialProgress: number
+  initialTension: number
 }
 
-function createLandPurchasePlay(ctx: TickContext, input: CreateLandPurchaseInput): TickContext {
+function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): TickContext {
   let currentCtx = ctx
-  const { intentId, initiator, target, provinceId, price } = input
+  const {
+    intentId,
+    initiator,
+    target,
+    provinceId,
+    counterDemandAmount,
+    initialProgress,
+    initialTension,
+  } = input
   const playId = createDiplomaticPlayId(currentCtx.state.nextDiplomaticPlayId)
   const { deadlineYear, deadlineMonth } = computeDeadline(
     currentCtx,
-    currentCtx.config.landPurchaseNegotiationDurationMonths,
+    currentCtx.config.landClaimNegotiationDurationMonths,
   )
 
   const play: DiplomaticPlay = {
     id: playId,
-    kind: 'land_purchase',
+    kind: 'land_claim',
     initiator,
     target,
     originIntentId: intentId,
@@ -186,19 +186,23 @@ function createLandPurchasePlay(ctx: TickContext, input: CreateLandPurchaseInput
       toPolityId: initiator.id as PolityId,
       beneficiaryActor: initiator,
     },
-    counterDemand: {
-      kind: 'pay_wealth',
-      from: initiator,
-      to: target,
-      amount: price,
-    },
+    ...(counterDemandAmount > 0
+      ? {
+          counterDemand: {
+            kind: 'pay_wealth' as const,
+            from: initiator,
+            to: target,
+            amount: counterDemandAmount,
+          },
+        }
+      : {}),
     status: 'active',
     startedYear: currentCtx.state.currentYear,
     startedMonth: currentCtx.state.currentMonth,
     deadlineYear,
     deadlineMonth,
-    progress: 0,
-    tension: 0,
+    progress: initialProgress,
+    tension: initialTension,
   }
 
   currentCtx = {
@@ -214,72 +218,10 @@ function createLandPurchasePlay(ctx: TickContext, input: CreateLandPurchaseInput
   }
   currentCtx = setIntentStatus(currentCtx, intentId, 'converted')
   currentCtx = emitConversionAndStartEvents(currentCtx, {
-    kind: 'land_purchase',
     initiator,
     target,
     provinceId,
-  })
-  return currentCtx
-}
-
-type CreateLandTransferDemandInput = {
-  intentId: ActorIntentId
-  initiator: PoliticalActorRef
-  target: PoliticalActorRef
-  provinceId: ProvinceId
-}
-
-function createLandTransferDemandPlay(
-  ctx: TickContext,
-  input: CreateLandTransferDemandInput,
-): TickContext {
-  let currentCtx = ctx
-  const { intentId, initiator, target, provinceId } = input
-  const playId = createDiplomaticPlayId(currentCtx.state.nextDiplomaticPlayId)
-  const { deadlineYear, deadlineMonth } = computeDeadline(
-    currentCtx,
-    currentCtx.config.landTransferDemandNegotiationDurationMonths,
-  )
-
-  const play: DiplomaticPlay = {
-    id: playId,
-    kind: 'land_transfer_demand',
-    initiator,
-    target,
-    originIntentId: intentId,
-    primaryDemand: {
-      kind: 'transfer_land_contract',
-      provinceId,
-      toPolityId: initiator.id as PolityId,
-      beneficiaryActor: initiator,
-    },
-    // Stage D: 補償金なし (counterDemand 省略)
-    status: 'active',
-    startedYear: currentCtx.state.currentYear,
-    startedMonth: currentCtx.state.currentMonth,
-    deadlineYear,
-    deadlineMonth,
-    progress: 0,
-    tension: 0,
-  }
-
-  currentCtx = {
-    ...currentCtx,
-    state: {
-      ...currentCtx.state,
-      diplomaticPlays: {
-        ...currentCtx.state.diplomaticPlays,
-        [playId]: play,
-      },
-      nextDiplomaticPlayId: currentCtx.state.nextDiplomaticPlayId + 1,
-    },
-  }
-  currentCtx = setIntentStatus(currentCtx, intentId, 'converted')
-  currentCtx = emitConversionAndStartEvents(currentCtx, {
-    kind: 'land_transfer_demand',
-    initiator,
-    target,
-    provinceId,
+    hasOffer: counterDemandAmount > 0,
   })
   return currentCtx
 }
@@ -297,14 +239,14 @@ function computeDeadline(
 function emitConversionAndStartEvents(
   ctx: TickContext,
   input: {
-    kind: DiplomaticPlayKind
     initiator: PoliticalActorRef
     target: PoliticalActorRef
     provinceId: ProvinceId
+    hasOffer: boolean
   },
 ): TickContext {
   let currentCtx = ctx
-  const { kind, initiator, target, provinceId } = input
+  const { initiator, target, provinceId, hasOffer } = input
 
   const { id: convEventId, ctx: ctxConv } = makeEventId(currentCtx)
   const initiatorName =
@@ -313,18 +255,13 @@ function emitConversionAndStartEvents(
   const provinceName = ctxConv.state.provinces[provinceId]?.name ?? provinceId
   const polityIds = [initiator.id, target.id] as PolityId[]
 
-  let convSummary: string
-  let startSummary: string
-  if (kind === 'land_purchase') {
-    convSummary = `${initiatorName} opens negotiations to purchase ${provinceName} from ${targetName}.`
-    startSummary = `${initiatorName} negotiates with ${targetName} for ${provinceName}.`
-  } else if (kind === 'land_transfer_demand') {
-    convSummary = `${initiatorName} demands ${provinceName} from ${targetName}.`
-    startSummary = `${initiatorName} pressures ${targetName} to cede ${provinceName}.`
-  } else {
-    convSummary = `${initiatorName} initiates ${kind} with ${targetName}.`
-    startSummary = convSummary
-  }
+  // hasOffer (補償金あり) か否かで summary を分ける
+  const convSummary = hasOffer
+    ? `${initiatorName} opens negotiations to acquire ${provinceName} from ${targetName} with compensation.`
+    : `${initiatorName} demands ${provinceName} from ${targetName} without compensation.`
+  const startSummary = hasOffer
+    ? `${initiatorName} negotiates with ${targetName} for ${provinceName}.`
+    : `${initiatorName} pressures ${targetName} to cede ${provinceName}.`
 
   const convEv: SimEvent = {
     id: convEventId,
@@ -383,7 +320,6 @@ function checkLandPurchaseEligibility(
   if (!targetGrantor) return false
   const targetGrantorKey = `${targetGrantor.kind}:${targetGrantor.id}`
 
-  // acquirer の terminal Province を見て、target Province と隣接 + 同 grantor を確認
   const targetProvince = state.provinces[provinceId]
   if (!targetProvince) return false
   for (const neighborId of targetProvince.neighbors) {

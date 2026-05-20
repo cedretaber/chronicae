@@ -205,12 +205,11 @@ function FactionRow({
   )
 }
 
-// v0.18 Stage E §21: Active DiplomaticPlay 一覧の row
+// v0.18 Stage E/F §21: Active DiplomaticPlay 一覧の row
 function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<string, Polity> }) {
   const kindLabel: Record<string, string> = {
     revolt_negotiation: 'Revolt',
-    land_purchase: 'Purchase',
-    land_transfer_demand: 'Demand',
+    land_claim: 'Claim',
     contract_tax_revision: 'Tax',
   }
   const statusBadge: Record<string, { label: string; bg: string }> = {
@@ -228,11 +227,15 @@ function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<st
       : play.primaryDemand.kind === 'revolt_concession'
         ? play.primaryDemand.provinceId
         : undefined
+  // counterDemand 有無で land_claim の色付けを表現 (補償あり=合意ベース、なし=威圧ベース)
+  const hasOffer = play.counterDemand?.kind === 'pay_wealth' && play.counterDemand.amount > 0
+  const naturePrefix = play.kind === 'land_claim' ? (hasOffer ? '\u{1F4B0} ' : '\u{2694} ') : ''
 
   return (
     <div className="cursor-default border-b border-gray-700/50 px-3 py-1.5 text-sm">
       <div className="flex items-center gap-2">
         <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-white">
+          {naturePrefix}
           {kindLabelText}
         </span>
         <span className={`rounded px-1.5 py-0.5 text-xs text-white ${badge.bg}`}>

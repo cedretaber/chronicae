@@ -118,19 +118,17 @@ describe('runDiplomaticPlaySystem', () => {
     expect(next).toBe(ctx)
   })
 
-  it('skips land_purchase play without counterDemand (early return)', () => {
+  it('does not progress non-handled kinds (e.g., contract_tax_revision)', () => {
     const setup = setupRebel()
     let ctx = setup.ctx
     const playId = 'dp-test-other' as DiplomaticPlayId
     const otherPlay: DiplomaticPlay = {
       id: playId,
-      kind: 'land_purchase', // counterDemand なしで early return
+      kind: 'contract_tax_revision',
       initiator: { kind: 'polity', id: setup.rebelPolityId },
       target: { kind: 'polity', id: setup.oldPolityId },
       primaryDemand: {
-        kind: 'transfer_land_contract',
-        provinceId: setup.provinceId,
-        toPolityId: setup.oldPolityId,
+        kind: 'status_quo',
       },
       status: 'active',
       startedYear: ctx.state.currentYear,
@@ -148,7 +146,6 @@ describe('runDiplomaticPlaySystem', () => {
       },
     }
     const next = runDiplomaticPlaySystem(ctx)
-    // progress / tension が変わっていない
     expect(next.state.diplomaticPlays[playId]?.progress).toBe(0)
     expect(next.state.diplomaticPlays[playId]?.tension).toBe(0)
   })
@@ -240,7 +237,8 @@ describe('runDiplomaticPlaySystem', () => {
 })
 
 // v0.18 Stage C: land_purchase progression tests
-describe('runDiplomaticPlaySystem (land_purchase)', () => {
+// v0.18 Stage F: land_claim 補償あり (旧 land_purchase 相当)
+describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
   function setupLandPurchase(opts: { sellerTreasury?: number; buyerTreasury?: number }) {
     let s = makeEmptyV016State()
     const provinceBuyerId = 'pr-buyer' as ProvinceId
@@ -279,7 +277,7 @@ describe('runDiplomaticPlaySystem (land_purchase)', () => {
     const playId = 'dp-lp-1' as DiplomaticPlayId
     const play: DiplomaticPlay = {
       id: playId,
-      kind: 'land_purchase',
+      kind: 'land_claim',
       initiator: { kind: 'polity', id: buyerPolityId },
       target: { kind: 'polity', id: sellerPolityId },
       primaryDemand: {
@@ -339,7 +337,8 @@ describe('runDiplomaticPlaySystem (land_purchase)', () => {
     expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_SETTLED')).toBe(true)
   })
 
-  it('deadline timeout: status=failed, no transfer', () => {
+  // v0.18 Stage F: deadline で progress > tension なら settlement に倒す (§10.2 step 6)
+  it('deadline timeout with progress > tension → settled (purchase outcome)', () => {
     const setup = setupLandPurchase({ sellerTreasury: 50, buyerTreasury: 2000 })
     let ctx = makeCtx(setup.state)
     ctx = injectLandPurchasePlay(
@@ -348,7 +347,7 @@ describe('runDiplomaticPlaySystem (land_purchase)', () => {
       setup.sellerPolityId,
       setup.provinceSellerId,
       {
-        progress: 5,
+        progress: 30,
         tension: 5,
         deadlineYear: setup.state.currentYear,
         deadlineMonth: 1,
@@ -356,10 +355,10 @@ describe('runDiplomaticPlaySystem (land_purchase)', () => {
     )
     ctx = runDiplomaticPlaySystem(ctx)
     const play = Object.values(ctx.state.diplomaticPlays)[0]
-    expect(play?.status).toBe('failed')
-    // LandContract grantee は seller のまま
-    expect(ctx.state.provinceTerminalPolityCache[setup.provinceSellerId]).toBe(setup.sellerPolityId)
-    expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_FAILED')).toBe(true)
+    expect(play?.status).toBe('settled')
+    // counterDemand 有 → purchase 経路 → grantee が buyer に
+    expect(ctx.state.provinceTerminalPolityCache[setup.provinceSellerId]).toBe(setup.buyerPolityId)
+    expect(ctx.events.some((e) => e.type === 'LAND_CONTRACT_PURCHASED')).toBe(true)
   })
 
   it('cancelled: buyer treasury too low to pay → Play cancelled, no transfer', () => {
@@ -383,8 +382,8 @@ describe('runDiplomaticPlaySystem (land_purchase)', () => {
   })
 })
 
-// v0.18 Stage D: land_transfer_demand progression tests
-describe('runDiplomaticPlaySystem (land_transfer_demand)', () => {
+// v0.18 Stage F: land_claim 補償なし (旧 land_transfer_demand 相当)
+describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
   function setupLandTransferDemand() {
     let s = makeEmptyV016State()
     const provinceAttackerId = 'pr-att' as ProvinceId
@@ -423,7 +422,7 @@ describe('runDiplomaticPlaySystem (land_transfer_demand)', () => {
     const playId = 'dp-ltd-1' as DiplomaticPlayId
     const play: DiplomaticPlay = {
       id: playId,
-      kind: 'land_transfer_demand',
+      kind: 'land_claim',
       initiator: { kind: 'polity', id: attackerPolityId },
       target: { kind: 'polity', id: defenderPolityId },
       primaryDemand: {
