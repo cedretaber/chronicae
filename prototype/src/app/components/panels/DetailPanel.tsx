@@ -54,6 +54,7 @@ import type { SimulationSession, WorldState } from '@/sim/types/world'
 import type { AttitudeMap } from '@/sim/types/attitude'
 import type { PolityId, HouseId, PersonId, FactionId } from '@/sim/types/ids'
 import type { Faction } from '@/sim/types/faction'
+import type { ShareHolderRef } from '@/sim/types/office'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
   getHousePrimaryPolityId,
@@ -163,6 +164,54 @@ function buildEntitySnapshot(
             getProvinceTerminalPolityId(ws, pid as import('@sim/types/ids').ProvinceId) === p.id,
         )
       : []
+    const topShareholders = ws
+      ? getTopShareholders(ws, { kind: 'polity', id: p.id }, 5).map(({ holder, percent }) => ({
+          holderKind: holder.kind,
+          holderId: holder.id,
+          holderName: holder.kind === 'house' ? houseName(holder.id) : personName(holder.id),
+          percent: Math.round(percent * 10) / 10,
+        }))
+      : []
+    const landContracts = ws
+      ? (ws.landContractIndex.byGranteePolity[p.id] ?? [])
+          .map((cid) => {
+            const c = ws.landContracts[cid]
+            if (!c) return undefined
+            const province = ws.provinces[c.provinceId]
+            const isRoot = c.parentContractId === undefined
+            const isTerminal = ws.landContractIndex.byParent[c.id] === undefined
+            const chain = getProvinceLandContractChain(ws, c.provinceId)
+            const idx = chain.findIndex((cc) => cc.id === c.id)
+            let estimatedRevenue = 0
+            if (province && idx >= 0) {
+              const grossTax =
+                getProvinceProduction(ws, defaultConfig, c.provinceId) *
+                (province.polityControl / 100)
+              let remaining = grossTax
+              for (let i = chain.length - 1; i >= 0; i--) {
+                const seg = chain[i]
+                if (!seg) continue
+                const rate = seg.terms.taxRateToGrantor
+                const retained = remaining * (1 - rate)
+                if (i === idx) {
+                  estimatedRevenue = Math.round(retained * 10) / 10
+                  break
+                }
+                remaining = remaining * rate
+              }
+            }
+            return {
+              contractId: c.id,
+              provinceId: c.provinceId,
+              provinceName: province?.name ?? String(c.provinceId),
+              taxRateToGrantor: Math.round(c.terms.taxRateToGrantor * 100),
+              isRoot,
+              isTerminal,
+              estimatedRevenue,
+            }
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== undefined)
+      : []
     return {
       kind,
       meta,
@@ -174,6 +223,8 @@ function buildEntitySnapshot(
         rulerPersonName: ws ? personName(getPolityLeader(ws, p.id) ?? undefined) : null,
         terminalProvinceIds: terminalIds,
         terminalProvinceNames: terminalIds.map((pid) => provinceName(pid)),
+        topShareholders,
+        landContracts,
       },
     }
   }
@@ -181,6 +232,14 @@ function buildEntitySnapshot(
     const h = entity as House
     const ownedPolityIds = ws ? getHouseOwnedPolityIds(ws, h.id) : []
     const controlledProvinceIds = ws ? getHouseControlledProvinceIds(ws, h.id) : []
+    const houseTopShareholders = ws
+      ? getTopShareholders(ws, { kind: 'house', id: h.id }, 5).map(({ holder, percent }) => ({
+          holderKind: holder.kind,
+          holderId: holder.id,
+          holderName: holder.kind === 'person' ? personName(holder.id) : String(holder.id),
+          percent: Math.round(percent * 10) / 10,
+        }))
+      : []
     return {
       kind,
       meta,
@@ -194,6 +253,7 @@ function buildEntitySnapshot(
         ownedPolityNames: ownedPolityIds.map((pid) => polityName(pid)),
         controlledProvinceIds,
         controlledProvinceNames: controlledProvinceIds.map((pid) => provinceName(pid)),
+        topShareholders: houseTopShareholders,
       },
     }
   }
@@ -484,6 +544,181 @@ function RoleDisplay({
   return <PersonLink personId={personId as PersonId} persons={persons} onClick={onClick} />
 }
 
+const ABILITY_KEYS = ['valor', 'command', 'numeracy', 'learning', 'charisma', 'insight'] as const
+const ABILITY_LABELS: Record<(typeof ABILITY_KEYS)[number], string> = {
+  valor: '武勇',
+  command: '統率',
+  numeracy: '数理',
+  learning: '学識',
+  charisma: '魅力',
+  insight: '洞察',
+}
+
+function AbilityRadarChart({
+  abilities,
+  aptitudes,
+  size = 192,
+}: {
+  abilities: Record<string, number>
+  aptitudes: Record<string, number>
+  size?: number
+}) {
+  const cx = size / 2
+  const cy = size / 2
+  const maxVal = 100
+  const rings = [25, 50, 75, 100]
+  const r = (size - 48) / 2
+
+  const vertex = (i: number, val: number): [number, number] => {
+    const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2
+    const ratio = val / maxVal
+    return [cx + r * ratio * Math.cos(angle), cy + r * ratio * Math.sin(angle)]
+  }
+
+  const gridPoints = (val: number) => ABILITY_KEYS.map((_, i) => vertex(i, val).join(',')).join(' ')
+
+  const dataPoints = (vals: Record<string, number>) =>
+    ABILITY_KEYS.map((k, i) => vertex(i, vals[k] ?? 0).join(',')).join(' ')
+
+  return (
+    <svg width={size} height={size} className="mx-auto">
+      {rings.map((ringVal) => (
+        <polygon
+          key={ringVal}
+          points={gridPoints(ringVal)}
+          fill="none"
+          stroke="#4b5563"
+          strokeWidth="0.5"
+        />
+      ))}
+      {ABILITY_KEYS.map((_, i) => {
+        const [ex, ey] = vertex(i, maxVal)
+        return <line key={i} x1={cx} y1={cy} x2={ex} y2={ey} stroke="#4b5563" strokeWidth="0.5" />
+      })}
+      <polygon
+        points={dataPoints(aptitudes)}
+        fill="rgba(156,163,175,0.15)"
+        stroke="#9ca3af"
+        strokeWidth="1"
+      />
+      <polygon
+        points={dataPoints(abilities)}
+        fill="rgba(96,165,250,0.25)"
+        stroke="#60a5fa"
+        strokeWidth="1.5"
+      />
+      {ABILITY_KEYS.map((k, i) => {
+        const [lx, ly] = vertex(i, maxVal + 18)
+        return (
+          <text
+            key={k}
+            x={lx}
+            y={ly}
+            textAnchor="middle"
+            dominantBaseline="central"
+            className="fill-gray-400 text-[9px]"
+          >
+            {ABILITY_LABELS[k]}
+          </text>
+        )
+      })}
+    </svg>
+  )
+}
+
+const SHARE_COLORS = ['#60a5fa', '#f59e0b', '#34d399', '#f87171', '#a78bfa', '#9ca3af']
+
+function ShareDonutChart({
+  slices,
+  size = 80,
+}: {
+  slices: Array<{ percent: number; color: string }>
+  size?: number
+}) {
+  const r = 32
+  const circumference = 2 * Math.PI * r
+  const arcs = slices.reduce<Array<{ dash: number; offset: number; color: string }>>((acc, s) => {
+    const prevOffset = acc.length > 0 ? acc[acc.length - 1]!.offset + acc[acc.length - 1]!.dash : 0
+    acc.push({ dash: (s.percent / 100) * circumference, offset: prevOffset, color: s.color })
+    return acc
+  }, [])
+  return (
+    <svg width={size} height={size} viewBox="0 0 80 80" className="shrink-0">
+      {arcs.map((a, i) => (
+        <circle
+          key={i}
+          cx="40"
+          cy="40"
+          r={r}
+          fill="none"
+          stroke={a.color}
+          strokeWidth="12"
+          strokeDasharray={`${a.dash} ${circumference - a.dash}`}
+          strokeDashoffset={-a.offset}
+          transform="rotate(-90 40 40)"
+        />
+      ))}
+    </svg>
+  )
+}
+
+function ShareholderSection({
+  shareholders,
+  persons,
+  houses,
+  onPersonClick,
+  onHouseClick,
+}: {
+  shareholders: Array<{ holder: ShareHolderRef; percent: number }>
+  persons: Record<string, Person>
+  houses: Record<string, House>
+  onPersonClick: ClickHandler
+  onHouseClick: ClickHandler
+}) {
+  if (shareholders.length === 0) return <span className="text-gray-500">—</span>
+  const othersPercent = Math.max(0, 100 - shareholders.reduce((s, h) => s + h.percent, 0))
+  const slices = shareholders.map((h, i) => ({
+    percent: h.percent,
+    color: SHARE_COLORS[i % SHARE_COLORS.length]!,
+  }))
+  if (othersPercent > 0.5) {
+    slices.push({ percent: othersPercent, color: SHARE_COLORS[SHARE_COLORS.length - 1]! })
+  }
+  return (
+    <div className="flex items-start gap-3">
+      <ShareDonutChart slices={slices} />
+      <div className="min-w-0 flex-1 text-sm">
+        {shareholders.map((h, i) => (
+          <div key={`${h.holder.kind}:${h.holder.id}`} className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: SHARE_COLORS[i % SHARE_COLORS.length] }}
+            />
+            <span className="min-w-0 truncate">
+              {h.holder.kind === 'house' ? (
+                <HouseLink houseId={h.holder.id} houses={houses} onClick={onHouseClick} />
+              ) : (
+                <PersonLink personId={h.holder.id} persons={persons} onClick={onPersonClick} />
+              )}
+            </span>
+            <span className="ml-auto shrink-0 text-gray-200">{h.percent.toFixed(1)}%</span>
+          </div>
+        ))}
+        {othersPercent > 0.5 && (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: SHARE_COLORS[SHARE_COLORS.length - 1] }}
+            />
+            <span className="text-gray-400">Others</span>
+            <span className="ml-auto shrink-0 text-gray-200">{othersPercent.toFixed(1)}%</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function AttitudeList({
   attitudes,
   worldState,
@@ -571,6 +806,107 @@ function AttitudeList({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function PolityLandContracts({
+  polity,
+  worldState,
+  onProvinceClick,
+}: {
+  polity: Polity
+  worldState: WorldState | null
+  onProvinceClick: (id: string) => void
+}) {
+  if (!worldState) return null
+  const contractIds = worldState.landContractIndex.byGranteePolity[polity.id] ?? []
+  if (contractIds.length === 0) return null
+
+  const contracts = contractIds
+    .map((cid) => {
+      const c = worldState.landContracts[cid]
+      if (!c) return undefined
+      const province = worldState.provinces[c.provinceId]
+      const isRoot = c.parentContractId === undefined
+      const isTerminal = worldState.landContractIndex.byParent[c.id] === undefined
+      const chain = getProvinceLandContractChain(worldState, c.provinceId)
+      const idx = chain.findIndex((cc) => cc.id === c.id)
+      let estimatedRevenue = 0
+      if (province && idx >= 0) {
+        const grossTax =
+          getProvinceProduction(worldState, defaultConfig, c.provinceId) *
+          (province.polityControl / 100)
+        let remaining = grossTax
+        for (let i = chain.length - 1; i >= 0; i--) {
+          const seg = chain[i]
+          if (!seg) continue
+          const rate = seg.terms.taxRateToGrantor
+          const retained = remaining * (1 - rate)
+          if (i === idx) {
+            estimatedRevenue = Math.round(retained * 10) / 10
+            break
+          }
+          remaining = remaining * rate
+        }
+      }
+      return {
+        id: c.id,
+        provinceId: c.provinceId,
+        provinceName: province?.name ?? String(c.provinceId),
+        taxRate: c.terms.taxRateToGrantor,
+        isRoot,
+        isTerminal,
+        estimatedRevenue,
+      }
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== undefined)
+    .sort((a, b) => b.estimatedRevenue - a.estimatedRevenue)
+
+  return (
+    <div className="mt-1">
+      <div className="text-sm font-semibold text-gray-300">
+        Land Contracts ({contracts.length}):
+      </div>
+      <div className="max-h-48 overflow-y-auto text-sm">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-gray-400">
+              <th className="text-left font-normal">Province</th>
+              <th className="text-right font-normal">Tax</th>
+              <th className="text-right font-normal">Rev</th>
+              <th className="text-right font-normal">Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {contracts.map((c) => (
+              <tr key={c.id} className="border-t border-gray-700/30">
+                <td>
+                  <button
+                    className="text-left text-blue-300 hover:underline"
+                    onClick={() => onProvinceClick(c.provinceId)}
+                  >
+                    {c.provinceName}
+                  </button>
+                </td>
+                <td className="text-right text-gray-300">{Math.round(c.taxRate * 100)}%</td>
+                <td className="text-right text-amber-300">
+                  {c.estimatedRevenue > 0 ? c.estimatedRevenue.toFixed(1) : '—'}
+                </td>
+                <td className="text-right text-gray-400">
+                  {c.isRoot && c.isTerminal
+                    ? 'R+T'
+                    : c.isRoot
+                      ? 'Root'
+                      : c.isTerminal
+                        ? 'Term'
+                        : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -770,41 +1106,28 @@ export function CountryDetail({
       </div>
 
       <div className="text-sm font-semibold text-gray-300">Top Shareholders:</div>
-      <div className="text-sm">
-        {worldState ? (
-          getTopShareholders(worldState, { kind: 'polity', id: polity.id }, 5).map(
-            ({ holder, percent }) => (
-              <div key={`${holder.kind}:${holder.id}`} className="flex justify-between">
-                {holder.kind === 'house' ? (
-                  <HouseLink houseId={holder.id} houses={houses ?? {}} onClick={onHouseClick} />
-                ) : (
-                  <span className="flex items-center gap-1">
-                    <PersonLink
-                      personId={holder.id}
-                      persons={currentState.persons ?? {}}
-                      onClick={onPersonClick}
-                    />
-                    <span
-                      className="text-[10px] text-amber-400"
-                      title="Individual ruler (autocrat / usurper)"
-                    >
-                      ★
-                    </span>
-                  </span>
-                )}
-                <span className="text-gray-200">{percent.toFixed(1)}%</span>
-              </div>
-            ),
-          )
-        ) : (
-          <span className="text-gray-500">—</span>
-        )}
-      </div>
+      {worldState ? (
+        <ShareholderSection
+          shareholders={getTopShareholders(worldState, { kind: 'polity', id: polity.id }, 5)}
+          persons={currentState.persons ?? {}}
+          houses={houses ?? {}}
+          onPersonClick={onPersonClick}
+          onHouseClick={onHouseClick}
+        />
+      ) : (
+        <span className="text-sm text-gray-500">—</span>
+      )}
 
       <div className="text-sm font-semibold text-gray-300">Houses with land here:</div>
       <ul className="list-inside list-disc text-sm">
         {inHouseNames.length > 0 ? inHouseNames : <li className="text-gray-500">\u2014</li>}
       </ul>
+
+      <PolityLandContracts
+        polity={polity}
+        worldState={worldState}
+        onProvinceClick={onProvinceClick}
+      />
     </div>
   )
 }
@@ -815,6 +1138,7 @@ export function HouseDetail({
   watchlist,
   toggleWatchlist,
   onPersonClick,
+  onHouseClick,
   onPolityClick,
   onProvinceClick,
   eventHistory,
@@ -824,12 +1148,14 @@ export function HouseDetail({
   watchlist: string[]
   toggleWatchlist: (id: string) => void
   onPersonClick: ClickHandler
+  onHouseClick: ClickHandler
   onPolityClick: ClickHandler
   onProvinceClick: (id: string) => void
   eventHistory: SimEvent[]
 }) {
   const isWatching = watchlist.includes(house.id)
   const currentState = session?.currentState
+  const houses = currentState?.houses ?? {}
   if (!currentState) return null
   const leaderId = currentState ? getHouseLeader(currentState, house.id) : undefined
   const head = leaderId ? currentState.persons?.[leaderId] : undefined
@@ -1073,28 +1399,17 @@ export function HouseDetail({
           })}
         </div>
         <div className="mt-1 text-sm font-semibold text-gray-300">Top Shareholders</div>
-        <div className="text-sm">
-          {worldState ? (
-            getTopShareholders(worldState, { kind: 'house', id: house.id }, 5).map(
-              ({ holder, percent }) => (
-                <div key={`${holder.kind}:${holder.id}`} className="flex justify-between">
-                  {holder.kind === 'person' ? (
-                    <PersonLink
-                      personId={holder.id}
-                      persons={currentState.persons ?? {}}
-                      onClick={onPersonClick}
-                    />
-                  ) : (
-                    <span className="text-gray-400">{holder.id}</span>
-                  )}
-                  <span className="text-gray-200">{percent.toFixed(1)}%</span>
-                </div>
-              ),
-            )
-          ) : (
-            <span className="text-gray-500">—</span>
-          )}
-        </div>
+        {worldState ? (
+          <ShareholderSection
+            shareholders={getTopShareholders(worldState, { kind: 'house', id: house.id }, 5)}
+            persons={currentState.persons ?? {}}
+            houses={houses ?? {}}
+            onPersonClick={onPersonClick}
+            onHouseClick={onHouseClick}
+          />
+        ) : (
+          <span className="text-sm text-gray-500">—</span>
+        )}
         <div>
           <div className="text-sm font-semibold text-gray-300">Members ({aliveMembers} alive):</div>
           <div className="flex flex-col gap-0.5 text-sm">
@@ -1172,6 +1487,7 @@ export function PersonDetail({
   onProvinceClick: (id: string) => void
   eventHistory: SimEvent[]
 }) {
+  const [abilityView, setAbilityView] = useState<'table' | 'radar'>('table')
   const isWatching = watchlist.includes(person.id)
   const currentState = session?.currentState
   const worldState: WorldState = currentState ?? {
@@ -1406,55 +1722,87 @@ export function PersonDetail({
         </div>
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">Abilities (ability / aptitude):</div>
-      <div className="text-sm">
-        {(
-          [
-            ['武勇 Valor', 'valor'],
-            ['統率 Command', 'command'],
-            ['数理 Numeracy', 'numeracy'],
-            ['学識 Learning', 'learning'],
-            ['魅力 Charisma', 'charisma'],
-            ['洞察 Insight', 'insight'],
-          ] as const
-        ).map(([label, key]) => {
-          const curve = ABILITY_AGE_CURVES[key]
-          const curveIcon = curve === 'youthPeak' ? '▲' : curve === 'midLifePeak' ? '●' : '↗'
-          const curveColor =
-            curve === 'youthPeak'
-              ? 'text-yellow-400'
-              : curve === 'midLifePeak'
-                ? 'text-orange-400'
-                : 'text-green-400'
-          const abilityPct = (person.abilities[key] / 120) * 100
-          const aptitudePct = (person.aptitudes[key] / 120) * 100
-          return (
-            <div key={key} className="mb-0.5">
-              <div className="flex justify-between">
-                <span className="text-gray-400">
-                  <span className={`mr-1 text-xs ${curveColor}`}>{curveIcon}</span>
-                  {label}:
-                </span>
-                <span>
-                  <span className="text-gray-100">{person.abilities[key]}</span>
-                  <span className="text-gray-500"> / </span>
-                  <span className="text-gray-400">{person.aptitudes[key]}</span>
-                </span>
-              </div>
-              <div className="relative h-1 w-full rounded bg-gray-600">
-                <div
-                  className="absolute h-1 rounded bg-gray-400"
-                  style={{ width: `${aptitudePct}%` }}
-                />
-                <div
-                  className="absolute h-1 rounded bg-blue-400"
-                  style={{ width: `${abilityPct}%` }}
-                />
-              </div>
-            </div>
-          )
-        })}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-gray-300">Abilities</span>
+        <div className="flex gap-0.5 rounded bg-gray-700 p-0.5 text-[10px]">
+          <button
+            className={`rounded px-1.5 py-0.5 ${abilityView === 'table' ? 'bg-gray-500 text-gray-100' : 'text-gray-400 hover:text-gray-200'}`}
+            onClick={() => setAbilityView('table')}
+          >
+            Table
+          </button>
+          <button
+            className={`rounded px-1.5 py-0.5 ${abilityView === 'radar' ? 'bg-gray-500 text-gray-100' : 'text-gray-400 hover:text-gray-200'}`}
+            onClick={() => setAbilityView('radar')}
+          >
+            Radar
+          </button>
+        </div>
       </div>
+      {abilityView === 'table' ? (
+        <div className="text-sm">
+          {(
+            [
+              ['武勇 Valor', 'valor'],
+              ['統率 Command', 'command'],
+              ['数理 Numeracy', 'numeracy'],
+              ['学識 Learning', 'learning'],
+              ['魅力 Charisma', 'charisma'],
+              ['洞察 Insight', 'insight'],
+            ] as const
+          ).map(([label, key]) => {
+            const curve = ABILITY_AGE_CURVES[key]
+            const curveIcon = curve === 'youthPeak' ? '▲' : curve === 'midLifePeak' ? '●' : '↗'
+            const curveColor =
+              curve === 'youthPeak'
+                ? 'text-yellow-400'
+                : curve === 'midLifePeak'
+                  ? 'text-orange-400'
+                  : 'text-green-400'
+            const abilityPct = (person.abilities[key] / 120) * 100
+            const aptitudePct = (person.aptitudes[key] / 120) * 100
+            return (
+              <div key={key} className="mb-0.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">
+                    <span className={`mr-1 text-xs ${curveColor}`}>{curveIcon}</span>
+                    {label}:
+                  </span>
+                  <span>
+                    <span className="text-gray-100">{person.abilities[key]}</span>
+                    <span className="text-gray-500"> / </span>
+                    <span className="text-gray-400">{person.aptitudes[key]}</span>
+                  </span>
+                </div>
+                <div className="relative h-1 w-full rounded bg-gray-600">
+                  <div
+                    className="absolute h-1 rounded bg-gray-400"
+                    style={{ width: `${aptitudePct}%` }}
+                  />
+                  <div
+                    className="absolute h-1 rounded bg-blue-400"
+                    style={{ width: `${abilityPct}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div>
+          <AbilityRadarChart abilities={person.abilities} aptitudes={person.aptitudes} />
+          <div className="mt-1 flex justify-center gap-3 text-[10px]">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-3 rounded bg-blue-400/40" />
+              <span className="text-gray-400">Ability</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-3 rounded bg-gray-400/30" />
+              <span className="text-gray-400">Aptitude</span>
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="text-sm font-semibold text-gray-300">Derived Scores:</div>
       <div className="text-sm">

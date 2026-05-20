@@ -52,6 +52,7 @@ describe('applyLandContractTransferGoal', () => {
     const ctx = makeCtx(state)
     const result = applyLandContractTransferGoal(ctx, {
       provinceId,
+      fromPolityId: sellerPolityId,
       toPolityId: buyerPolityId,
       reason: 'purchase',
     })
@@ -67,10 +68,11 @@ describe('applyLandContractTransferGoal', () => {
   })
 
   it('cession: fires LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_CEDED', () => {
-    const { state, buyerPolityId, provinceId } = buildWorld()
+    const { state, sellerPolityId, buyerPolityId, provinceId } = buildWorld()
     const ctx = makeCtx(state)
     const result = applyLandContractTransferGoal(ctx, {
       provinceId,
+      fromPolityId: sellerPolityId,
       toPolityId: buyerPolityId,
       reason: 'cession',
     })
@@ -83,10 +85,11 @@ describe('applyLandContractTransferGoal', () => {
   })
 
   it('war: fires LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_CONQUERED', () => {
-    const { state, buyerPolityId, provinceId } = buildWorld()
+    const { state, sellerPolityId, buyerPolityId, provinceId } = buildWorld()
     const ctx = makeCtx(state)
     const result = applyLandContractTransferGoal(ctx, {
       provinceId,
+      fromPolityId: sellerPolityId,
       toPolityId: buyerPolityId,
       reason: 'war',
     })
@@ -103,7 +106,8 @@ describe('applyLandContractTransferGoal', () => {
     const ctx = makeCtx(state)
     const result = applyLandContractTransferGoal(ctx, {
       provinceId,
-      toPolityId: sellerPolityId, // 既に grantee
+      fromPolityId: sellerPolityId,
+      toPolityId: sellerPolityId,
       reason: 'purchase',
     })
     expect(result.ok).toBe(true)
@@ -133,6 +137,7 @@ describe('applyLandContractTransferGoal', () => {
     const ctx = makeCtx(s)
     const result = applyLandContractTransferGoal(ctx, {
       provinceId,
+      fromPolityId: polityA,
       toPolityId: polityB,
       reason: 'purchase',
     })
@@ -141,10 +146,11 @@ describe('applyLandContractTransferGoal', () => {
   })
 
   it('returns error when target polity is missing', () => {
-    const { state, provinceId } = buildWorld()
+    const { state, sellerPolityId, provinceId } = buildWorld()
     const ctx = makeCtx(state)
     const result = applyLandContractTransferGoal(ctx, {
       provinceId,
+      fromPolityId: sellerPolityId,
       toPolityId: 'c-missing' as PolityId,
       reason: 'purchase',
     })

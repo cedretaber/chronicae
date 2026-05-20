@@ -306,6 +306,22 @@ export type SimulationConfig = {
   // 初期 progress / tension (Intent kind / 購入条件成立 に応じて変動)
   landClaimInitialProgressOnConsent: number
   landClaimInitialTensionOnPressure: number
+  // v0.18 contract_tax_revision
+  taxRevisionIntentEnabled: boolean
+  taxRevisionMinRateForReduction: number
+  taxRevisionMaxRateForIncrease: number
+  taxRevisionMinTreasury: number
+  taxRevisionMaxIntentsPerActor: number
+  taxRevisionNegotiationDurationMonths: number
+  taxRevisionTaxChangeAmount: number
+  taxRevisionMinRate: number
+  taxRevisionMaxRate: number
+  taxRevisionPressureFactor: number
+  taxRevisionResistFactor: number
+  taxRevisionProvinceValueFactor: number
+  taxRevisionRateImbalanceFactor: number
+  taxRevisionInitialProgressOnAdvantage: number
+  taxRevisionInitialTensionOnPressure: number
   // v0.18 Stage D: 汎用 conflict (§13.2)
   conflictResolutionEnabled: boolean
   maxConflictsResolvedPerTick: number
@@ -756,6 +772,22 @@ export const defaultConfig: SimulationConfig = {
   landClaimNegotiationDurationMonths: 18,
   landClaimInitialProgressOnConsent: 20,
   landClaimInitialTensionOnPressure: 15,
+  // v0.18 contract_tax_revision
+  taxRevisionIntentEnabled: true,
+  taxRevisionMinRateForReduction: 0.15,
+  taxRevisionMaxRateForIncrease: 0.6,
+  taxRevisionMinTreasury: 200,
+  taxRevisionMaxIntentsPerActor: 2,
+  taxRevisionNegotiationDurationMonths: 12,
+  taxRevisionTaxChangeAmount: 0.05,
+  taxRevisionMinRate: 0.05,
+  taxRevisionMaxRate: 0.8,
+  taxRevisionPressureFactor: 0.08,
+  taxRevisionResistFactor: 0.1,
+  taxRevisionProvinceValueFactor: 0.15,
+  taxRevisionRateImbalanceFactor: 50,
+  taxRevisionInitialProgressOnAdvantage: 10,
+  taxRevisionInitialTensionOnPressure: 10,
   // v0.18 Stage D: 汎用 conflict (§13.2)
   conflictResolutionEnabled: true,
   maxConflictsResolvedPerTick: 5,

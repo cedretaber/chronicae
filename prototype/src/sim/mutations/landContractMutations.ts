@@ -15,7 +15,7 @@ import type { SimEvent } from '../types/event'
 import type { CtxResult } from './result'
 import { ok, err } from './result'
 import {
-  getProvinceTerminalContract,
+  getProvinceLandContractChain,
   getLandContractGrantor,
   getGrantorRank,
 } from '../selectors/landContractSelectors'
@@ -389,23 +389,13 @@ export function purchaseLandContract(
   return nextState
 }
 
-// v0.18 Stage C/F §12.2: applyLandContractTransferGoal wrapper
-// LandContract terminal grantee の差し替えを wrap し、reason 別に event を発火する。
-// - reason='purchase' → LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_PURCHASED  (補償あり妥協)
-// - reason='cession'  → LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_CEDED      (補償なし妥協、Stage F 新規)
-// - reason='war'      → LAND_CONTRACT_TRANSFERRED + LAND_CONTRACT_CONQUERED  (武力奪取、Stage F 新規)
-// - reason='revolt'   → LAND_CONTRACT_TRANSFERRED (Stage B の disbandRebelPolity 経由)
-//
-// DIPLOMATIC_PLAY_* / REVOLT_* / WAR_* 上位 event は caller 側で発火する責任。
-//
-// rank 不変条件 (§25 #7) を事前チェック。違反なら error を返し、state を変更しない。
-
 export type LandContractTransferReason = 'purchase' | 'cession' | 'war' | 'revolt'
 
 export function applyLandContractTransferGoal(
   ctx: TickContext,
   input: {
     provinceId: ProvinceId
+    fromPolityId: PolityId
     toPolityId: PolityId
     reason: LandContractTransferReason
   },
@@ -425,32 +415,85 @@ export function applyLandContractTransferGoal(
       message: `applyLandContractTransferGoal: target polity ${input.toPolityId} is missing or inactive`,
     })
   }
-  const terminal = getProvinceTerminalContract(state, input.provinceId)
-  if (!terminal) {
+  // chain 内で fromPolityId が grantee の契約を探す
+  const chain = getProvinceLandContractChain(state, input.provinceId)
+  const targetContract = chain.find((c) => c.granteePolityId === input.fromPolityId)
+  if (!targetContract) {
     return err({
-      code: 'NO_TERMINAL_CONTRACT',
-      message: `applyLandContractTransferGoal: province ${input.provinceId} has no terminal contract`,
+      code: 'CONTRACT_NOT_FOUND',
+      message: `applyLandContractTransferGoal: no contract with grantee ${input.fromPolityId} in chain of province ${input.provinceId}`,
     })
   }
-  if (terminal.granteePolityId === input.toPolityId) {
-    // 既に target grantee → no-op で ok
+  if (targetContract.granteePolityId === input.toPolityId) {
     return ok({ ctx, value: undefined })
   }
-  // rank 不変条件 (§25 #7): grantor rank < grantee rank
-  const grantor = getLandContractGrantor(state, terminal.id)
-  if (grantor) {
-    const grantorRank = getGrantorRank(state, grantor)
-    if (grantorRank >= toPolity.rank) {
+
+  const fromPolityId = input.fromPolityId
+  const fromPolity = state.polities[fromPolityId]
+  const fromRank = fromPolity?.rank ?? 0
+
+  let newState: WorldState
+  const isTerminal = state.landContractIndex.byParent[targetContract.id] === undefined
+
+  if (toPolity.rank <= fromRank) {
+    // 5-a (同 rank) or 5-b (claimer が上位 rank): grantee を差し替える
+    const grantor = getLandContractGrantor(state, targetContract.id)
+    if (grantor) {
+      const grantorRank = getGrantorRank(state, grantor)
+      if (grantorRank >= toPolity.rank) {
+        return err({
+          code: 'INTEGRITY_VIOLATION',
+          message: `applyLandContractTransferGoal: rank invariant violation (grantor rank ${grantorRank} >= grantee rank ${toPolity.rank})`,
+        })
+      }
+    }
+    const childContractId = state.landContractIndex.byParent[targetContract.id]
+    if (childContractId) {
+      const childContract = state.landContracts[childContractId]
+      if (childContract) {
+        const childPolity = state.polities[childContract.granteePolityId]
+        if (childPolity && toPolity.rank >= childPolity.rank) {
+          return err({
+            code: 'INTEGRITY_VIOLATION',
+            message: `applyLandContractTransferGoal: rank invariant violation (new grantee rank ${toPolity.rank} >= child rank ${childPolity.rank})`,
+          })
+        }
+      }
+    }
+    newState = transferLandContractGrantee(state, targetContract.id, input.toPolityId)
+  } else {
+    // 5-c (claimer が下位 rank): 対象契約の下に新契約を挿入
+    if (fromRank >= toPolity.rank) {
       return err({
         code: 'INTEGRITY_VIOLATION',
-        message: `applyLandContractTransferGoal: rank invariant violation (grantor rank ${grantorRank} >= grantee rank ${toPolity.rank})`,
+        message: `applyLandContractTransferGoal: cannot insert below same or lower rank (from=${fromRank} to=${toPolity.rank})`,
       })
     }
+    if (isTerminal) {
+      const result = createChildLandContract(state, {
+        provinceId: input.provinceId,
+        parentContractId: targetContract.id,
+        granteePolityId: input.toPolityId,
+        taxRateToGrantor: 0.3,
+      })
+      newState = result.state
+    } else {
+      const childContractId = state.landContractIndex.byParent[targetContract.id]
+      if (!childContractId) {
+        return err({
+          code: 'INTEGRITY_VIOLATION',
+          message: `applyLandContractTransferGoal: non-terminal contract has no child`,
+        })
+      }
+      const result = insertIntermediateLandContract(state, {
+        provinceId: input.provinceId,
+        belowContractId: childContractId,
+        newGranteePolityId: input.toPolityId,
+        taxRateToGrantor: 0.3,
+      })
+      newState = result.state
+    }
   }
-
-  const fromPolityId = terminal.granteePolityId
-  const fromPolity = state.polities[fromPolityId]
-  const newState = transferLandContractGrantee(state, terminal.id, input.toPolityId)
   let nextCtx: TickContext = { ...ctx, state: newState }
 
   // LAND_CONTRACT_TRANSFERRED event (低レベル)
@@ -556,6 +599,89 @@ export function revokeLandContract(state: WorldState, contractId: LandContractId
       byParent: newByParent,
     },
   }
+  return {
+    ...nextState,
+    provinceTerminalPolityCache: recomputeTerminalCache(nextState, contract.provinceId),
+  }
+}
+
+export function eliminateContractFromChain(
+  state: WorldState,
+  contractId: LandContractId,
+  inheritedTaxRate?: number,
+): WorldState {
+  const contract = state.landContracts[contractId]
+  if (!contract) return state
+
+  const childContractId = state.landContractIndex.byParent[contractId]
+  const parentContractId = contract.parentContractId
+  const isRoot = parentContractId === undefined
+
+  // Build updated state
+  const nextLandContracts = { ...state.landContracts }
+  delete nextLandContracts[contractId]
+
+  const chain = state.landContractIndex.byProvince[contract.provinceId] ?? []
+  const newChain = chain.filter((cid) => cid !== contractId)
+
+  const granteeSlot = state.landContractIndex.byGranteePolity[contract.granteePolityId] ?? []
+  const newGranteeSlot = granteeSlot.filter((id) => id !== contractId)
+
+  const newByParent = { ...state.landContractIndex.byParent }
+  delete newByParent[contractId]
+
+  if (childContractId) {
+    const childContract = state.landContracts[childContractId]
+    if (childContract) {
+      let updatedChild: LandContract
+      if (isRoot) {
+        // Child becomes root
+        updatedChild = {
+          ...childContract,
+          rootAuthorityId: contract.rootAuthorityId ?? ROOT_WORLD,
+        }
+        delete (updatedChild as { parentContractId?: LandContractId }).parentContractId
+      } else {
+        // Child reconnects to parent
+        updatedChild = {
+          ...childContract,
+          parentContractId,
+        }
+        delete (updatedChild as { rootAuthorityId?: RootAuthorityId }).rootAuthorityId
+      }
+      if (inheritedTaxRate !== undefined) {
+        updatedChild = {
+          ...updatedChild,
+          terms: { taxRateToGrantor: clampTaxRate(inheritedTaxRate) },
+        }
+      }
+      nextLandContracts[childContractId] = updatedChild
+
+      // Update byParent: parent -> child (bridging)
+      if (parentContractId !== undefined) {
+        newByParent[parentContractId] = childContractId
+      }
+    }
+  } else {
+    // No child - just remove parent's reference
+    if (parentContractId !== undefined) {
+      delete newByParent[parentContractId]
+    }
+  }
+
+  const nextState: WorldState = {
+    ...state,
+    landContracts: nextLandContracts,
+    landContractIndex: {
+      byProvince: { ...state.landContractIndex.byProvince, [contract.provinceId]: newChain },
+      byGranteePolity: {
+        ...state.landContractIndex.byGranteePolity,
+        [contract.granteePolityId]: newGranteeSlot,
+      },
+      byParent: newByParent,
+    },
+  }
+
   return {
     ...nextState,
     provinceTerminalPolityCache: recomputeTerminalCache(nextState, contract.provinceId),

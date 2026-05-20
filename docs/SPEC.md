@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-20（v0.18-pre 完成）
+最終更新: 2026-05-20（v0.18 完成）
 
 ---
 
@@ -422,6 +422,77 @@ ID prefix (CLAUDE.md ID 衝突表):
 | `ProvinceOfficeAssignmentId` | `po-` |
 | `AnonymousHouse` (固定 ID) | `h-anon` |
 
+### 3.9 外交劇システム (v0.18)
+
+#### PoliticalActorRef
+
+外交・戦争・叛乱の主体を表す共通参照。
+
+```ts
+type PoliticalActorRef =
+  | { kind: 'polity'; id: PolityId }
+  | { kind: 'house'; id: HouseId }
+```
+
+v0.18 では Polity actor のみ実動。House actor は型のみ。
+
+#### ActorIntent
+
+短期的な行動意図。毎年 1 月に IntentGenerationSystem が生成する。
+
+```ts
+type ActorIntentKind =
+  | 'acquire_land'
+  | 'sell_land'
+  | 'improve_contract_terms'
+  | 'demand_tax_increase'
+  | 'suppress_unrest'
+  | 'revolt'
+```
+
+terminal status ('converted' / 'expired' / 'cancelled') に達した Intent は同 tick 末に削除。
+
+#### DiplomaticPlay
+
+外交劇本体。Intent から変換されて生成される。
+
+```ts
+type DiplomaticPlayKind =
+  | 'land_claim'
+  | 'contract_tax_revision'
+  | 'revolt_negotiation'
+
+type ActiveDiplomaticPlayStatus = 'active' | 'escalated'
+type TerminalDiplomaticPlayStatus = 'settled' | 'failed' | 'resolved_by_conflict' | 'cancelled'
+```
+
+progress (妥協方向) / tension (緊張方向) の 2 軸で進行し、閾値到達で settlement / escalation に分岐する。terminal status に達した Play は同 tick 末に削除。
+
+#### DiplomaticDemand
+
+```ts
+type DiplomaticDemand =
+  | { kind: 'transfer_land_contract'; provinceId; toPolityId; beneficiaryActor? }
+  | { kind: 'change_contract_tax_rate'; provinceId; landContractId; newTaxRateToGrantor }
+  | { kind: 'pay_wealth'; from; to; amount }
+  | { kind: 'revolt_concession'; provinceId; popGroupId; concessionLevel }
+  | { kind: 'status_quo' }
+```
+
+#### WorldState 追加 (v0.18)
+
+```ts
+type WorldState = {
+  ...
+  actorIntents: Record<ActorIntentId, ActorIntent>
+  diplomaticPlays: Record<DiplomaticPlayId, DiplomaticPlay>
+  nextActorIntentId: number
+  nextDiplomaticPlayId: number
+}
+```
+
+terminal status の ActorIntent / DiplomaticPlay は tick 末の `cleanupTerminalDiplomacy` phase で state から完全削除される。履歴は Event ログに残す。
+
 ---
 
 ## 4. セレクター
@@ -734,14 +805,19 @@ warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
 | 17 | HouseDevelopmentSystem | 毎年1月 |
 | 18 | **PopDevelopmentSystem** | 毎月 |
 | 19 | PlotSystem | 毎月 |
-| 20 | WarSystem | 毎月 |
-| 21 | **ProvinceRevoltSystem** | 毎月 |
-| 21b | **LandContractPurchaseSystem** (v0.16) | 毎年1月 |
+| 20 | ~~WarSystem~~ | ~~毎月~~ | **v0.18 で廃止**: 宣戦 AI → IntentGenerationSystem に移行、戦争は DiplomaticPlay escalation → ConflictResolutionSystem で発生 |
+| 20a | **IntentGenerationSystem** (v0.18) | 毎年1月 |
+| 20b | **IntentToDiplomaticPlaySystem** (v0.18) | 毎月 |
+| 21 | **ProvinceRevoltSystem** | 毎月 | **v0.18 で外交劇化**: revolt_negotiation DiplomaticPlay を生成 |
+| 21b | **DiplomaticPlaySystem** (v0.18) | 毎月 |
+| 21c | **ConflictResolutionSystem** (v0.18) | 毎月 |
+| 21d | ~~LandContractPurchaseSystem~~ | ~~毎年1月~~ | **v0.18 で廃止**: land_claim DiplomaticPlay に統合 |
 | 22b | **PolityOwnerConsistencySystem** (v0.15) | 毎月 |
 | 22c | **OrganizationConsistencySystem** (v0.15) | 毎月 |
 | 23 | **AttitudeDecaySystem** | 毎月 |
 | 24 | GovernanceSystem | 毎年1月 |
 | 25 | normalizePopSizes | 毎月 |
+| 25b | **CleanupTerminalDiplomacy** (v0.18) | 毎月 |
 | 26 | IntegrityCheck | 毎月 |
 
 **v0.16 で削除された System**: 旧 LordshipTransitionSystem / EconomySystem / RebellionSystem は廃止された。Province 直接所有モデルが LandContract chain に置き換わり、House 反乱は ProvinceRevoltSystem の `createRebelPolity` に統合されている。
@@ -1428,6 +1504,8 @@ summary: "The people of ${province.name} improved their lands."
 
 ### 6.20 WarSystem（毎月、v0.16 で LandContract 化）
 
+**v0.18 で外交劇に統合**: WarSystem の宣戦 AI は IntentGenerationSystem + IntentToDiplomaticPlaySystem に移行し、戦争は DiplomaticPlay の escalation → ConflictResolutionSystem で発生する。`config.warEnabled = false` で旧 WarSystem は無効化されている。WAR_DECLARED = 0 が確認済み。旧 `warSystem.ts` / `landContractPurchaseSystem.ts` は物理削除済み。
+
 `warEnabled` が true のとき動作。Polity が他 Polity に宣戦布告し、勝敗後に LandContract を操作する。
 
 - 宣戦条件: `effectiveMinWinChanceToDeclare`（Polity military の ambition/caution で変動、§10 参照）以上の勝率見込み、warCooldown 明け
@@ -1454,6 +1532,8 @@ annexPolity (Polity 全体消滅) は v0.16 では LandContract chain が全部 
 `HouseRebellionSystem` のロジック (家門の反乱傾向計算 / 戦力比較 / 成功時の独立または支配家交代) は Faction システム導入時に派閥圧力ベースで再設計される。
 
 ### 6.22 ProvinceRevoltSystem（毎月）
+
+**v0.18 で外交劇化**: 叛乱判定で即時独立を行わず、Rebel commonwealth Polity を生成し revolt_negotiation DiplomaticPlay を開始する。交渉 → 妥協 / 鎮圧 / 独立の 3 分岐で処理される。旧 PROVINCE_REVOLT_SUCCEEDED / PROVINCE_REVOLT_FAILED の即時成否判定は廃止された。
 
 Province / POP を起点とする社会的反乱を処理する。
 
@@ -1508,6 +1588,8 @@ class 別補正:
 旧 v0.13 の `foundRevoltPolity` mutation は v0.16 で `createRebelPolity` に統合され、関連ファイル (`createRevoltHouse.ts` / `createRevoltLeader.ts`) は削除された。v0.18-pre で Rebel House 生成ロジックも削除された。
 
 ### 6.22d LandContractPurchaseSystem（毎年1月、v0.16）
+
+**v0.18 で外交劇に統合**: land_claim DiplomaticPlay に統合された。売却 Intent (sell_land) と取得 Intent (acquire_land) が land_claim Play を生成する。旧 `landContractPurchaseSystem.ts` は物理削除済み。
 
 戦争以外の平和的な LandContract 変動として、隣接する **同 rank かつ同じ直接 grantor 下** の Polity 間で Province を金銭購入する system。
 
@@ -1718,6 +1800,81 @@ PopGroup / Polity 数値範囲:
 - OrganizationRef.kind は `'polity' | 'house'` のみ (型レベル)
 - AttitudeTarget / attitude key に `country:` が残っていない (型レベル)
 
+**v0.18 追加チェック項目**:
+
+ActorIntent:
+- すべての entry の status === 'active' (terminal status は tick 末で削除される前提)
+- actor が存在する active actor を指す
+- targetProvinceId が存在する場合、Province が存在する
+
+DiplomaticPlay:
+- すべての entry の status ∈ {'active', 'escalated'} (terminal status は tick 末で削除される前提)
+- initiator / target が存在する
+- progress / tension は 0..100
+- primaryDemand が有効な対象を指す
+
+Revolt:
+- revolt_negotiation の initiator は commonwealth Polity
+- revolt_negotiation の target は normal Polity
+
+Commonwealth Polity:
+- kind === 'commonwealth' なら ownerHouseId === undefined を許容
+- commonwealth の active DiplomaticPlay の initiator になるのは revolt_negotiation のみ
+
+### 6.25 IntentGenerationSystem（毎年1月、v0.18）
+
+短期 Intent を生成する。Polity actor のみ。
+
+生成対象:
+- `acquire_land`: 隣接 Province を持つ他 Polity への土地獲得意図
+- `sell_land`: 財政難の Polity が辺境 Province を売却したい意図
+- `improve_contract_terms`: 上位契約者への税率引き下げ要求
+- `demand_tax_increase`: 下位契約者への税率引き上げ要求
+
+commonwealth Polity は `revolt_negotiation` 以外の Intent を生成しない。House actor は型のみ導入し、Intent 生成は v0.18 では無効化。Faction は v0.18 では IntentGeneration に影響しない (v0.19+ で GoalSystem / PolicyPreference と接続)。
+
+候補生成は selector (`landAcquireCandidates` / `landPurchaseCandidates` / `taxRevisionCandidates`) に委譲。
+
+### 6.26 IntentToDiplomaticPlaySystem（毎月、v0.18）
+
+active な ActorIntent を DiplomaticPlay に変換する。
+
+変換マッピング:
+- `sell_land` / `acquire_land` → `land_claim`
+- `improve_contract_terms` / `demand_tax_increase` → `contract_tax_revision`
+
+Province 単位 dedup: 同一 Province に対して同時進行できる外交劇は高々 1 つ。全 DiplomaticPlayKind 横断で適用。
+
+### 6.27 DiplomaticPlaySystem（毎月、v0.18）
+
+active な DiplomaticPlay を進行させる。
+
+各 Play kind の acceptanceScore を計算し、progress / tension を更新。
+- progress >= settlementThreshold (60) → settlement
+- tension >= escalationThreshold (40) → escalation (status='escalated')
+- deadline 到達 → progress > tension なら settlement、それ以外 escalation
+
+Play kind 別の処理:
+- `land_claim`: 土地契約の移転。rank ベースの契約選択 (3-a/3-b/3-c) と操作 (5-a/5-b/5-c)。settlement 時の分岐: counterDemand (pay_wealth) あり → reason='purchase' (LAND_CONTRACT_PURCHASED)、なし → reason='cession' (LAND_CONTRACT_CEDED)。
+- `contract_tax_revision`: 税率 ±5% 変更。下限 5% / 上限 80% 超で契約破棄 (`eliminateContractFromChain` mutation による chain 再接続)。
+- `revolt_negotiation`: 叛乱交渉。妥協 / 鎮圧 / 独立の 3 分岐。
+
+### 6.28 ConflictResolutionSystem（毎月、v0.18）
+
+status='escalated' な DiplomaticPlay を武力衝突として解決する。
+
+軍事力比較 → winChance → RNG 判定。
+- initiator 勝利: demand を適用 (土地移転 / 税率変更 / 独立)
+- defender 勝利: status_quo (revolt の場合は鎮圧)
+
+revolt_negotiation の決裂時は通常の actor military power ではなく、ProvinceRevoltSystem の既存式 (rebelPower / suppressionPower) を利用する。
+
+WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / development / unrest) を適用。
+
+### 6.29 CleanupTerminalDiplomacy（毎月、v0.18）
+
+terminal status の ActorIntent / DiplomaticPlay を state から削除する GC。IntegrityCheck の直前に置く。v0.17.3 で inactive OfficeAssignment / FactionMembership の累積が perf 問題を引き起こした経験を踏まえ、最初から完全削除設計。
+
 ---
 
 ## 7. Worldgen 初期化
@@ -1857,7 +2014,22 @@ Polity / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` �
 | LAND_CONTRACT_REPLACED | major | 下位契約の差し替え（v0.16、§13 case B-2、現状未発火） |
 | LAND_CONTRACT_TAX_CHANGED | normal | 上納率の変更（v0.16、§16.1 case C、現状未発火） |
 | LAND_CONTRACT_REVOKED | major | 契約解消（v0.16、現状未発火） |
-| LAND_CONTRACT_PURCHASED | major | 金銭による契約譲渡が成立（v0.16、§18） |
+| LAND_CONTRACT_PURCHASED | major | 金銭による契約譲渡が成立（v0.16 / v0.18 で補償あり土地購入に拡張） |
+| LAND_CONTRACT_CEDED | major | 補償なし土地譲渡（v0.18） |
+| LAND_CONTRACT_CONQUERED | major | 武力による土地奪取（v0.18） |
+| ACTOR_INTENT_CREATED | minor | Intent 生成（v0.18） |
+| ACTOR_INTENT_CONVERTED | minor | Intent → Play 変換（v0.18） |
+| DIPLOMATIC_PLAY_STARTED | normal | 外交劇開始（v0.18） |
+| DIPLOMATIC_PLAY_SETTLED | major | 外交劇妥協成立（v0.18） |
+| DIPLOMATIC_PLAY_FAILED | normal | 外交劇失敗（v0.18） |
+| DIPLOMATIC_PLAY_ESCALATED | major | 外交劇決裂・戦争化（v0.18） |
+| DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT | major | 外交劇が武力衝突で解決（v0.18） |
+| CONTRACT_TAX_REVISED | normal | 税率改定成功（v0.18） |
+| CONTRACT_ELIMINATED | major | 契約破棄（v0.18） |
+| REVOLT_NEGOTIATION_STARTED | normal | 叛乱交渉開始（v0.18） |
+| REVOLT_SETTLED | major | 叛乱妥協（v0.18） |
+| REVOLT_SUPPRESSED | major | 叛乱鎮圧（v0.18） |
+| REVOLT_POLITY_ESTABLISHED | critical | 叛乱独立成功（v0.18） |
 | BAILIFF_APPOINTED | normal | placeholder → 通常人物への Bailiff 交代（v0.16） |
 | BAILIFF_VACATED | normal | Bailiff が不在化（v0.16） |
 | BAILIFF_PLACEHOLDER_INSTALLED | minor | terminal Polity 変更時の Bailiff placeholder 設置（v0.16） |
@@ -2731,6 +2903,25 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **`AppointmentPolicy` 抽象化**: `polity.kind === 'commonwealth' && houseId === ANONYMOUS_HOUSE_ID` という ad-hoc な分岐を、`Polity.officePolicy: { default, byRole }` による任命方針モデルに一般化する。「dynastic でも open がありうる (専制君主の恣意任命)」「commonwealth でも closed がありうる (ヴェネツィア型貴族共和制)」を表現できるようにする。
 - **Stage B warn の整合**: v0.18-pre で commonwealth 永続化により dynastic Polity 側の Share/Office Stage B warn 数が増加 (seed 999 で 62 → 1566)。`polityOwnerConsistencySystem` の eligibleHouseIds 計算と integrity warn #24/#25 の条件を整合させる。
 
+### v0.18 で実装済み（参考）
+
+詳細仕様は `docs/drafts/spec-v018-update.md` を参照（Stage A〜G すべて完了、2026-05-20 時点）。
+
+- **外交劇基盤**: PoliticalActorRef / ActorIntent / DiplomaticPlay / DiplomaticDemand 型、GC (CleanupTerminalDiplomacy)、IntegrityCheck 拡張
+- **叛乱の外交劇化**: ProvinceRevoltSystem → revolt_negotiation DiplomaticPlay。妥協 / 鎮圧 / 独立の 3 分岐。disbandRebelPolity mutation による Rebel Polity 解散処理
+- **土地請求 (land_claim)**: 旧 land_purchase / land_transfer_demand を統合。rank ベース契約選択 (3-a/3-b/3-c)、解決時操作 (5-a/5-b/5-c)。outcome event 3 色分け: LAND_CONTRACT_PURCHASED / LAND_CONTRACT_CEDED / LAND_CONTRACT_CONQUERED
+- **税率改定 (contract_tax_revision)**: 上位/下位契約者間の税率 ±5% 交渉。下限 5% / 上限 80% 超で契約破棄 (eliminateContractFromChain mutation による chain 再接続)
+- **Province 単位 dedup**: 全 Play kind 横断で 1 Province に同時進行 1 Play のみ
+- **旧 WarSystem 廃止**: 宣戦 AI → Intent + DiplomaticPlay に移行。WAR_DECLARED = 0 確認済み。`warSystem.ts` 物理削除
+- **旧 LandContractPurchaseSystem 廃止**: land_claim に統合。`landContractPurchaseSystem.ts` 物理削除
+- **IntentGenerationSystem**: 毎年 1 月に Polity actor の短期 Intent を生成 (acquire_land / sell_land / improve_contract_terms / demand_tax_increase)
+- **IntentToDiplomaticPlaySystem**: active Intent を DiplomaticPlay に変換
+- **DiplomaticPlaySystem**: active Play の progress / tension を毎月更新し settlement / escalation に分岐
+- **ConflictResolutionSystem**: escalated Play の武力衝突解決 (revolt 専用 + 汎用)
+- **UI**: Sidebar Plays タブ、DetailPanel topShareholders、亡命家分類改善
+- **新規 EventType 16 種**: ACTOR_INTENT_CREATED / ACTOR_INTENT_CONVERTED / DIPLOMATIC_PLAY_STARTED / DIPLOMATIC_PLAY_SETTLED / DIPLOMATIC_PLAY_FAILED / DIPLOMATIC_PLAY_ESCALATED / DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT / LAND_CONTRACT_CEDED / LAND_CONTRACT_CONQUERED / CONTRACT_TAX_REVISED / CONTRACT_ELIMINATED / REVOLT_NEGOTIATION_STARTED / REVOLT_SETTLED / REVOLT_SUPPRESSED / REVOLT_POLITY_ESTABLISHED / LAND_CONTRACT_PURCHASED (既存拡張)
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。592 tests pass
+
 ### v0.18 以降に送られる主要項目
 
 #### Faction 拡張系
@@ -2744,6 +2935,26 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **`targetUnaffiliatedPersons` バランス調整**: 30 から始めて、AnonymousHouse 内の normal Person 動態と派閥スカウト頻度を観察してチューニング。
 - **POLITY_LANDLESS event 表示の整備**
 - **支出メカニズムの拡充**: 現状 Person.wealth は収入経路 (Office salary / Polity 余剰分配 / 派閥献金 / Bailiff salary) が複数あるのに対して支出経路が乏しく、複数 office を兼任する人物の wealth が 10 万単位で累積する (v0.17.3 観察例: Ostmark の Ruler + Greymark の Court Advisor + House Drakenhof 家長 + House Corvin の役職 3 つ + Lionel's Circle faction leader を兼ねる Lionel が 50 年で wealth 198,378)。将来追加候補: 不動産維持費・人件費・交際費・浪費。バランス調整は支出経路が入った後に行う方針。
+
+#### v0.18 外交劇の残課題 (v0.19+ で検討)
+
+- **長期 GoalSystem**: 現在の短期 Intent を本格的な中長期目標システムに発展
+- **Person ActionSystem**: 個人の行動意思決定システム
+- **DiplomaticRelation**: Polity 間の長期外交関係
+- **第三者参加外交 / 同盟 / 保証 / 参戦 / 仲裁**: DiplomaticPlay への第三者介入
+- **本格 War entity / WarScore / PeaceSettlement**: 詳細戦争システム
+- **House actor を主体とする外交劇の有効化**: Faction policy preference 接続
+- **install_owner / dynasty change 要求**: 王朝交代要求 DiplomaticDemand
+- **AppointmentPolicy 抽象による commonwealth ad-hoc 分岐の整理**
+- **intentCooldownMonths の本格運用**: v0.18 では未使用 (config のみ用意)
+- **Rebel Polity の rank 昇格** (rank=5 → rank=4): v0.18 では現行 rank 決定を維持
+- **DiplomaticPlay の settlement/escalation 閾値の非対称化調整**: escalation 経路が支配的 (Stage E 確認済)
+- **CONTRACT_ELIMINATED の発生頻度調整**: 現状 4 seed × 300 年で 0 件
+- **異 rank 間 land_claim の CEDED 経路の調整**: 補償なし妥協の成立条件チューニング
+- **請求権 (claim rights) システム**: inactive Polity を材料とした動機付き land_claim
+- **税率変動量の動的調整**: 軍事力差に応じて 5% → 10-15% 等
+- **commonwealth succession / commonwealth faction / commonwealth → dynastic polity 遷移**
+- **House Rebellion の外交劇化**: Faction / GoalSystem と接続して再設計
 
 #### Action 経済 + 実体・称号システム (将来、v0.18+ 想定)
 
@@ -2818,8 +3029,8 @@ v0.17.3 観察 (House Corvin — 9 人の血統メンバー + Lionel 派閥所�
 #### v0.16 から繰り越された未実装 (一部 v0.17 で部分対応)
 
 - **多重臣従**: 1 つの House が複数 Polity の owner / vassal を兼ねる構造の明示化 (v0.16 では「複数 Polity の ownerHouse になり得る」のみ実装、明示臣従関係は無し)
-- **war goal system**: case C (下位 rank 勝者) の税率調整 default を起動。§13 / §16.1
-- **commonwealth 補充 / Rebel Polity の家産化阻止 (§11.2)**: 現状 polityOwnerConsistencySystem が `ownerHouseId === undefined` を補充対象としてしまうため、Rebel Polity が次の tick で家産国に転換される暫定挙動を本来の意図に戻す
+- **war goal system**: ~~case C (下位 rank 勝者) の税率調整 default を起動。§13 / §16.1~~ → v0.18 で contract_tax_revision DiplomaticPlay として実装済み
+- ~~**commonwealth 補充 / Rebel Polity の家産化阻止 (§11.2)**~~: v0.18-pre で commonwealth skip を実装し解消済み
 - **上位者の取り分維持と Attitude penalty (§14)**: 押領・強制的な税率変更時に上位者から実行者へ negative Attitude を付与
 - **BailiffAppointment の commonwealth 対応 (§19.1)**: 現状 ownerHouse なしは skip。Polity Share holder 系の候補者選定を導入
 

@@ -19,6 +19,7 @@ export type ActorIntentKind =
   | 'acquire_land'
   | 'sell_land'
   | 'improve_contract_terms'
+  | 'demand_tax_increase'
   | 'suppress_unrest'
   | 'revolt'
 

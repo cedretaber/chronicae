@@ -86,6 +86,9 @@ export type EventType =
   // v0.18 Stage F §18.1: land_claim outcome の色分け event
   | 'LAND_CONTRACT_CEDED'
   | 'LAND_CONTRACT_CONQUERED'
+  // v0.18 contract_tax_revision
+  | 'CONTRACT_TAX_REVISED'
+  | 'CONTRACT_ELIMINATED'
 
 export type EventReason = {
   label: string

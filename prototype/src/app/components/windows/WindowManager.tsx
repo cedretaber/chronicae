@@ -61,6 +61,7 @@ export function WindowManager() {
                 watchlist={watchlist}
                 toggleWatchlist={toggleWatchlist}
                 onPersonClick={onPersonClick}
+                onHouseClick={onHouseClick}
                 onPolityClick={onPolityClick}
                 onProvinceClick={onProvinceClick}
                 eventHistory={eventHistory}

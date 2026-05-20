@@ -2,6 +2,7 @@ import type { WorldState } from '../types/world'
 import type { ProvinceId, PolityId, HouseId, PersonId, LandContractId } from '../types/ids'
 import type { LandContract, LandContractGrantor } from '../types/landContract'
 import { ANONYMOUS_HOUSE_ID, ROOT_WORLD } from '../types/landContract'
+import type { PolityRank } from '../types/polity'
 
 export function getProvinceLandContractChain(
   state: WorldState,
@@ -160,6 +161,45 @@ export function getGrantorRank(state: WorldState, grantor: LandContractGrantor):
   const polity = state.polities[grantor.id]
   if (!polity) return 0
   return polity.rank
+}
+
+export type ClaimTargetMatch = {
+  contract: LandContract
+  polityId: PolityId
+  matchType: 'same' | 'lower' | 'upper'
+}
+
+export function findClaimTargetInChain(
+  state: WorldState,
+  provinceId: ProvinceId,
+  claimerRank: PolityRank,
+): ClaimTargetMatch | undefined {
+  const chain = getProvinceLandContractChain(state, provinceId)
+  let sameRank: ClaimTargetMatch | undefined
+  let closestLower: ClaimTargetMatch | undefined
+  let closestUpper: ClaimTargetMatch | undefined
+
+  for (const contract of chain) {
+    const polity = state.polities[contract.granteePolityId]
+    if (!polity || !polity.active) continue
+
+    if (polity.rank === claimerRank) {
+      sameRank = { contract, polityId: contract.granteePolityId, matchType: 'same' }
+      break
+    }
+    if (polity.rank > claimerRank) {
+      if (!closestLower || polity.rank < state.polities[closestLower.polityId]!.rank) {
+        closestLower = { contract, polityId: contract.granteePolityId, matchType: 'lower' }
+      }
+    }
+    if (polity.rank < claimerRank) {
+      if (!closestUpper || polity.rank > state.polities[closestUpper.polityId]!.rank) {
+        closestUpper = { contract, polityId: contract.granteePolityId, matchType: 'upper' }
+      }
+    }
+  }
+
+  return sameRank ?? closestLower ?? closestUpper
 }
 
 export function isPlaceholderPerson(state: WorldState, personId: PersonId): boolean {

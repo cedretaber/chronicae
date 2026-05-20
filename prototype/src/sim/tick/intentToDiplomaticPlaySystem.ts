@@ -8,8 +8,10 @@ import type { SimEvent } from '../types/event'
 import { defaultLandContractConfig } from '../config/landContractConfig'
 import {
   getProvinceTerminalContract,
+  getProvinceLandContractChain,
   getLandContractGrantor,
 } from '../selectors/landContractSelectors'
+import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import type { WorldState } from '../types/world'
 
 // v0.18 Stage C/D/F §9: IntentToDiplomaticPlaySystem
@@ -35,19 +37,33 @@ import type { WorldState } from '../types/world'
 export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
-  // 既存 active/escalated land_claim Play の重複防止キーを構築 (§9.3)
+  // 既存 active/escalated Play の重複防止 (§9.3)
   const existingActivePlayKeys = new Set<string>()
+  const activePlayProvinceIds = new Set<ProvinceId>()
   for (const play of Object.values(currentCtx.state.diplomaticPlays)) {
     if (!play || (play.status !== 'active' && play.status !== 'escalated')) continue
     const key = playDedupeKey(play)
     if (key) existingActivePlayKeys.add(key)
+    if (play.primaryDemand.kind === 'transfer_land_contract') {
+      activePlayProvinceIds.add(play.primaryDemand.provinceId)
+    } else if (play.primaryDemand.kind === 'revolt_concession') {
+      activePlayProvinceIds.add(play.primaryDemand.provinceId)
+    } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
+      activePlayProvinceIds.add(play.primaryDemand.provinceId)
+    }
   }
 
   for (const intentIdStr of Object.keys(currentCtx.state.actorIntents).sort()) {
     const intent = currentCtx.state.actorIntents[intentIdStr as ActorIntentId]
     if (!intent || intent.status !== 'active') continue
 
-    if (intent.kind !== 'sell_land' && intent.kind !== 'acquire_land') continue
+    if (
+      intent.kind !== 'sell_land' &&
+      intent.kind !== 'acquire_land' &&
+      intent.kind !== 'improve_contract_terms' &&
+      intent.kind !== 'demand_tax_increase'
+    )
+      continue
 
     if (!intent.targetActor) {
       currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
@@ -85,7 +101,31 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
       counterDemandAmount = intent.priority
       initialProgress = currentCtx.config.landClaimInitialProgressOnConsent
       initialTension = 0
-    } else {
+
+      const provinceId = intent.targetProvinceId
+      // province 単位 dedup
+      if (activePlayProvinceIds.has(provinceId)) {
+        currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
+        continue
+      }
+      const dedupeKey = `land_claim|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
+      if (existingActivePlayKeys.has(dedupeKey)) {
+        currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
+        continue
+      }
+
+      currentCtx = createLandClaimPlay(currentCtx, {
+        intentId: intent.id,
+        initiator,
+        target,
+        provinceId,
+        counterDemandAmount,
+        initialProgress,
+        initialTension,
+      })
+      existingActivePlayKeys.add(dedupeKey)
+      activePlayProvinceIds.add(provinceId)
+    } else if (intent.kind === 'acquire_land') {
       // acquire_land: actor=acquirer, targetActor=defender
       initiator = intent.actor // acquirer = buyer 候補
       target = intent.targetActor // defender = seller 候補
@@ -121,25 +161,128 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
         initialProgress = 0
         initialTension = currentCtx.config.landClaimInitialTensionOnPressure
       }
-    }
 
-    const provinceId = intent.targetProvinceId
-    const dedupeKey = `land_claim|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
-    if (existingActivePlayKeys.has(dedupeKey)) {
-      currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
-      continue
-    }
+      const provinceId = intent.targetProvinceId
+      // province 単位 dedup
+      if (activePlayProvinceIds.has(provinceId)) {
+        currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
+        continue
+      }
+      const dedupeKey = `land_claim|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
+      if (existingActivePlayKeys.has(dedupeKey)) {
+        currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
+        continue
+      }
 
-    currentCtx = createLandClaimPlay(currentCtx, {
-      intentId: intent.id,
-      initiator,
-      target,
-      provinceId,
-      counterDemandAmount,
-      initialProgress,
-      initialTension,
-    })
-    existingActivePlayKeys.add(dedupeKey)
+      currentCtx = createLandClaimPlay(currentCtx, {
+        intentId: intent.id,
+        initiator,
+        target,
+        provinceId,
+        counterDemandAmount,
+        initialProgress,
+        initialTension,
+      })
+      existingActivePlayKeys.add(dedupeKey)
+      activePlayProvinceIds.add(provinceId)
+    } else if (intent.kind === 'improve_contract_terms' || intent.kind === 'demand_tax_increase') {
+      const provinceId = intent.targetProvinceId
+      // province 単位 dedup
+      if (activePlayProvinceIds.has(provinceId)) {
+        currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
+        continue
+      }
+
+      // Find the subject contract in the chain
+      const chain = getProvinceLandContractChain(currentCtx.state, provinceId)
+      const isReduction = intent.kind === 'improve_contract_terms'
+      const targetActorRef = intent.targetActor
+      const subjectContract = isReduction
+        ? chain.find(
+            (c) => c && c.granteePolityId === intent.actor.id && c.parentContractId !== undefined,
+          )
+        : chain.find((c) => c && c.granteePolityId === targetActorRef.id)
+
+      if (!subjectContract) {
+        currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
+        continue
+      }
+
+      const currentRate = subjectContract.terms.taxRateToGrantor
+      const newRate = isReduction
+        ? currentRate - currentCtx.config.taxRevisionTaxChangeAmount
+        : currentRate + currentCtx.config.taxRevisionTaxChangeAmount
+
+      // Check military advantage for initial progress/tension
+      const initiatorPower = getActorMilitaryPower(
+        currentCtx.state,
+        currentCtx.config,
+        intent.actor,
+      )
+      const targetPower = getActorMilitaryPower(
+        currentCtx.state,
+        currentCtx.config,
+        intent.targetActor,
+      )
+      const hasAdvantage = initiatorPower > targetPower
+
+      const initiator = intent.actor
+      const target = intent.targetActor
+
+      const dedupeKey = `contract_tax_revision|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
+      if (existingActivePlayKeys.has(dedupeKey)) {
+        currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
+        continue
+      }
+
+      const { deadlineYear, deadlineMonth } = computeDeadline(
+        currentCtx,
+        currentCtx.config.taxRevisionNegotiationDurationMonths,
+      )
+
+      const playId = createDiplomaticPlayId(currentCtx.state.nextDiplomaticPlayId)
+      const play: DiplomaticPlay = {
+        id: playId,
+        kind: 'contract_tax_revision',
+        initiator,
+        target,
+        originIntentId: intent.id,
+        primaryDemand: {
+          kind: 'change_contract_tax_rate',
+          provinceId,
+          landContractId: subjectContract.id,
+          newTaxRateToGrantor: newRate,
+        },
+        status: 'active',
+        startedYear: currentCtx.state.currentYear,
+        startedMonth: currentCtx.state.currentMonth,
+        deadlineYear,
+        deadlineMonth,
+        progress: hasAdvantage ? currentCtx.config.taxRevisionInitialProgressOnAdvantage : 0,
+        tension: hasAdvantage ? 0 : currentCtx.config.taxRevisionInitialTensionOnPressure,
+      }
+
+      currentCtx = {
+        ...currentCtx,
+        state: {
+          ...currentCtx.state,
+          diplomaticPlays: {
+            ...currentCtx.state.diplomaticPlays,
+            [playId]: play,
+          },
+          nextDiplomaticPlayId: currentCtx.state.nextDiplomaticPlayId + 1,
+        },
+      }
+      currentCtx = setIntentStatus(currentCtx, intent.id, 'converted')
+      currentCtx = emitConversionAndStartEvents(currentCtx, {
+        initiator,
+        target,
+        provinceId,
+        hasOffer: false,
+      })
+      existingActivePlayKeys.add(dedupeKey)
+      activePlayProvinceIds.add(provinceId)
+    }
   }
 
   return currentCtx

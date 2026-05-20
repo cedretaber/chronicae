@@ -12,7 +12,10 @@ import type { WorldState } from '@/sim/types/world'
 import type { Faction } from '@/sim/types/faction'
 import type { DiplomaticPlay } from '@/sim/types/diplomaticPlay'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
-import { getHouseControlledProvinceIds } from '@sim/selectors/landContractSelectors'
+import {
+  getHouseControlledProvinceIds,
+  getHouseOwnedPolityIds,
+} from '@sim/selectors/landContractSelectors'
 import { buildPolityColorMap } from '@/app/utils/polityColors'
 import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
 import type { PolityRank } from '@/sim/types/polity'
@@ -372,8 +375,19 @@ export function Sidebar() {
         .sort((a, b) => b.house.legacyPrestige - a.house.legacyPrestige)
     : []
 
-  const rulingHouses = houseEntries.filter((e) => e.provinceCount > 0)
-  const landlessHouses = houseEntries.filter((e) => e.provinceCount === 0)
+  const hasActivePolity = (houseId: import('@sim/types/ids').HouseId): boolean => {
+    if (!session?.currentState) return false
+    return getHouseOwnedPolityIds(session.currentState, houseId).some((pid) => {
+      const p = session.currentState.polities[pid]
+      return p?.active === true
+    })
+  }
+  const rulingHouses = houseEntries.filter(
+    (e) => e.provinceCount > 0 || hasActivePolity(e.house.id),
+  )
+  const landlessHouses = houseEntries.filter(
+    (e) => e.provinceCount === 0 && !hasActivePolity(e.house.id),
+  )
 
   const sortedPersons: { person: Person; score: number }[] = persons
     ? Object.values(persons)

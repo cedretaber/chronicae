@@ -49,6 +49,7 @@ export type DiplomaticDemand =
     }
   | {
       kind: 'change_contract_tax_rate'
+      provinceId: ProvinceId
       landContractId: LandContractId
       newTaxRateToGrantor: number
     }

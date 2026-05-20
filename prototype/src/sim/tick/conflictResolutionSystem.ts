@@ -10,9 +10,13 @@ import type {
 import type { SimEvent, EventType } from '../types/event'
 import { adjustProvincePopUnrestByClass, adjustProvincePopUnrest } from '../mutations/popMutations'
 import { disbandRebelPolity, type RebelLeaderAftermath } from '../mutations/worldStructureMutations'
-import { applyLandContractTransferGoal } from '../mutations/landContractMutations'
+import {
+  applyLandContractTransferGoal,
+  adjustLandContractTaxRate,
+  eliminateContractFromChain,
+} from '../mutations/landContractMutations'
 import { resolveRevoltConflict } from './provinceRevoltSystem'
-import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
+import { getProvinceLandContractChain } from '../selectors/landContractSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { calcGeneralWarPowerModifier } from '../selectors/personAbilityEffects'
 import { randomFloat } from '../rng/rng'
@@ -45,6 +49,8 @@ export function runConflictResolutionSystem(ctx: TickContext): TickContext {
       currentCtx = resolveRevoltEscalation(currentCtx, play)
     } else if (play.kind === 'land_claim') {
       currentCtx = resolveLandClaimEscalation(currentCtx, play)
+    } else if (play.kind === 'contract_tax_revision') {
+      currentCtx = resolveContractTaxRevisionEscalation(currentCtx, play)
     } else {
       currentCtx = setPlayStatus(currentCtx, play.id, 'cancelled')
     }
@@ -194,7 +200,8 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
   if (!attacker || !attacker.active || !defender || !defender.active) {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
-  if (getProvinceTerminalPolityId(state, provinceId) !== defenderPolityId) {
+  const claimChain = getProvinceLandContractChain(state, provinceId)
+  if (!claimChain.some((c) => c.granteePolityId === defenderPolityId)) {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
 
@@ -222,6 +229,7 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
   if (attackerWins) {
     const transferResult = applyLandContractTransferGoal(nextCtx, {
       provinceId,
+      fromPolityId: defenderPolityId,
       toPolityId: attackerPolityId,
       reason: 'war',
     })
@@ -275,6 +283,131 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
     polityIds: [attackerPolityId, defenderPolityId],
     provinceIds: [provinceId],
     summary: `${nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId} repelled ${nextCtx.state.polities[attackerPolityId]?.name ?? attackerPolityId}'s claim on ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
+  })
+}
+
+function resolveContractTaxRevisionEscalation(ctx: TickContext, play: DiplomaticPlay): TickContext {
+  if (play.primaryDemand.kind !== 'change_contract_tax_rate') {
+    return setPlayStatus(ctx, play.id, 'cancelled')
+  }
+  if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
+    return setPlayStatus(ctx, play.id, 'cancelled')
+  }
+  const config = ctx.config
+  const demand = play.primaryDemand
+  const attackerPolityId = play.initiator.id
+  const defenderPolityId = play.target.id
+  const provinceId = demand.provinceId
+
+  const state = ctx.state
+  const attacker = state.polities[attackerPolityId]
+  const defender = state.polities[defenderPolityId]
+  if (!attacker || !attacker.active || !defender || !defender.active) {
+    return setPlayStatus(ctx, play.id, 'cancelled')
+  }
+
+  // Verify contract still in chain
+  const chain = getProvinceLandContractChain(state, provinceId)
+  if (!chain.some((c) => c.id === demand.landContractId)) {
+    return setPlayStatus(ctx, play.id, 'cancelled')
+  }
+
+  const attackerPower =
+    getActorMilitaryPower(state, config, play.initiator) *
+    calcGeneralWarPowerModifier(state, attackerPolityId, config)
+  const defenderPower =
+    getActorMilitaryPower(state, config, play.target) *
+    calcGeneralWarPowerModifier(state, defenderPolityId, config)
+
+  const winChance = attackerPower / (attackerPower + defenderPower + 1)
+  const { value: roll, rng: nextRng } = randomFloat(ctx.rng)
+  const attackerWins = roll < winChance
+
+  if (ctx.config.debug) {
+    console.error(
+      `[DEBUG:CONFLICT] play=${play.id} kind=${play.kind} attackerPower=${attackerPower.toFixed(1)} defenderPower=${defenderPower.toFixed(1)} winChance=${winChance.toFixed(3)} attackerWins=${attackerWins}`,
+    )
+  }
+
+  let nextCtx: TickContext = { ...ctx, rng: nextRng }
+  const currentAbsoluteMonth = nextCtx.state.currentYear * 12 + nextCtx.state.currentMonth
+
+  if (attackerWins) {
+    // Attacker wins: apply the demand (tax change or elimination)
+    const newRate = demand.newTaxRateToGrantor
+    const contract = state.landContracts[demand.landContractId]
+
+    if (contract && newRate >= config.taxRevisionMinRate && newRate <= config.taxRevisionMaxRate) {
+      // Normal: adjust tax rate
+      const newState = adjustLandContractTaxRate(nextCtx.state, demand.landContractId, newRate)
+      nextCtx = { ...nextCtx, state: newState }
+    } else if (contract) {
+      // Elimination
+      const isReduction = newRate < config.taxRevisionMinRate
+      if (isReduction) {
+        // Upper elimination: remove defender's contract
+        const defenderContract = chain.find((c) => c.granteePolityId === defenderPolityId)
+        if (defenderContract) {
+          const oldRateToParent = defenderContract.terms.taxRateToGrantor
+          const newState = eliminateContractFromChain(
+            nextCtx.state,
+            defenderContract.id,
+            oldRateToParent,
+          )
+          nextCtx = { ...nextCtx, state: newState }
+        }
+      } else {
+        // Lower elimination: remove target's contract
+        const newState = eliminateContractFromChain(nextCtx.state, demand.landContractId)
+        nextCtx = { ...nextCtx, state: newState }
+      }
+    }
+
+    // Apply conflict damage to defender
+    nextCtx = applyConflictDamage(nextCtx, {
+      loserPolityId: defenderPolityId,
+      provinceId,
+      mainPopId: getMainPopOfProvince(nextCtx.state, provinceId),
+      lastWarMonthAttacker: attackerPolityId,
+      lastWarMonthDefender: defenderPolityId,
+      currentAbsoluteMonth,
+      winnerPolityId: attackerPolityId,
+    })
+
+    nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
+    nextCtx = emitWarOutcomeEvents(nextCtx, {
+      winner: attackerPolityId,
+      loser: defenderPolityId,
+      provinceId,
+    })
+    return emitResolvedByConflictEvent(nextCtx, play, {
+      polityIds: [attackerPolityId, defenderPolityId],
+      provinceIds: [provinceId],
+      summary: `${nextCtx.state.polities[attackerPolityId]?.name ?? attackerPolityId} prevails in the tax dispute over ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
+    })
+  }
+
+  // Defender wins: no demand applied, attacker takes damage
+  nextCtx = applyConflictDamage(nextCtx, {
+    loserPolityId: attackerPolityId,
+    provinceId,
+    mainPopId: undefined,
+    lastWarMonthAttacker: attackerPolityId,
+    lastWarMonthDefender: defenderPolityId,
+    currentAbsoluteMonth,
+    winnerPolityId: defenderPolityId,
+  })
+
+  nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
+  nextCtx = emitWarOutcomeEvents(nextCtx, {
+    winner: defenderPolityId,
+    loser: attackerPolityId,
+    provinceId,
+  })
+  return emitResolvedByConflictEvent(nextCtx, play, {
+    polityIds: [attackerPolityId, defenderPolityId],
+    provinceIds: [provinceId],
+    summary: `${nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId} repels the tax revision demand for ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
   })
 }
 

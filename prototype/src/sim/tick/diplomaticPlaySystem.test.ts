@@ -490,16 +490,32 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
   it('cancelled: defender no longer holds province → Play cancelled', () => {
     const setup = setupLandTransferDemand()
     let ctx = makeCtx(setup.state)
-    // defender の Province を空にする (terminal を消す)
-    ctx = {
-      ...ctx,
-      state: {
-        ...ctx.state,
-        provinceTerminalPolityCache: {
-          ...ctx.state.provinceTerminalPolityCache,
-          [setup.provinceDefenderId]: undefined as unknown as PolityId,
+    // defender の契約を chain から除去する (grantee を別 polity に差し替え)
+    const chain = ctx.state.landContractIndex.byProvince[setup.provinceDefenderId] ?? []
+    const terminalId = chain[chain.length - 1]
+    if (terminalId) {
+      const thirdPartyId = 'c-third' as PolityId
+      ctx = {
+        ...ctx,
+        state: {
+          ...ctx.state,
+          polities: {
+            ...ctx.state.polities,
+            [thirdPartyId]: {
+              ...ctx.state.polities[setup.defenderPolityId]!,
+              id: thirdPartyId,
+              name: 'Third',
+            },
+          },
+          landContracts: {
+            ...ctx.state.landContracts,
+            [terminalId]: {
+              ...ctx.state.landContracts[terminalId]!,
+              granteePolityId: thirdPartyId,
+            },
+          },
         },
-      },
+      }
     }
     ctx = injectLTDPlay(
       ctx,

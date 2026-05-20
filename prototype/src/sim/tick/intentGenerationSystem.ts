@@ -6,6 +6,10 @@ import type { ActorIntent } from '../types/actorIntent'
 import type { SimEvent } from '../types/event'
 import { findLandPurchaseIntentCandidates } from '../selectors/landPurchaseCandidates'
 import { findLandAcquireIntentCandidates } from '../selectors/landAcquireCandidates'
+import {
+  findTaxReductionCandidates,
+  findTaxIncreaseCandidates,
+} from '../selectors/taxRevisionCandidates'
 
 // v0.18 Stage C §8.5 / Stage D §8.4: IntentGenerationSystem
 // 年次 (月 1 のみ) 実行。短期 Intent を生成する。
@@ -150,6 +154,142 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
         polityIds: [c.acquirerPolityId, c.targetPolityId],
         provinceIds: [c.provinceId],
         summary: `${acquirerName} eyes ${provinceName} held by ${targetName}.`,
+        reasons: [],
+        effects: [],
+      }
+      currentCtx = { ...ctxEv, events: [...ctxEv.events, ev] }
+    }
+  }
+
+  // -- improve_contract_terms (tax reduction) --
+  const improveCandidates = findTaxReductionCandidates(currentCtx.state, currentCtx.config)
+  if (improveCandidates.length > 0) {
+    const existingImproveKeys = new Set<string>()
+    for (const intent of Object.values(currentCtx.state.actorIntents)) {
+      if (!intent || intent.status !== 'active') continue
+      if (intent.kind !== 'improve_contract_terms') continue
+      if (!intent.targetActor || intent.targetProvinceId === undefined) continue
+      existingImproveKeys.add(
+        `${intent.actor.kind}:${intent.actor.id}|${intent.targetActor.kind}:${intent.targetActor.id}|${intent.targetProvinceId}`,
+      )
+    }
+
+    for (const c of improveCandidates) {
+      const key = `polity:${c.initiatorPolityId}|polity:${c.targetPolityId}|${c.provinceId}`
+      if (existingImproveKeys.has(key)) continue
+
+      const intentId: ActorIntentId = createActorIntentId(currentCtx.state.nextActorIntentId)
+      const intent: ActorIntent = {
+        id: intentId,
+        actor: { kind: 'polity', id: c.initiatorPolityId },
+        kind: 'improve_contract_terms',
+        targetActor: { kind: 'polity', id: c.targetPolityId },
+        targetProvinceId: c.provinceId,
+        priority: c.intentPriority,
+        rationale: 'reduce_tribute',
+        status: 'active',
+        createdYear: currentCtx.state.currentYear,
+        createdMonth: currentCtx.state.currentMonth,
+        expiresYear: currentCtx.state.currentYear + 1,
+        expiresMonth: currentCtx.state.currentMonth,
+      }
+
+      currentCtx = {
+        ...currentCtx,
+        state: {
+          ...currentCtx.state,
+          actorIntents: {
+            ...currentCtx.state.actorIntents,
+            [intentId]: intent,
+          },
+          nextActorIntentId: currentCtx.state.nextActorIntentId + 1,
+        },
+      }
+      existingImproveKeys.add(key)
+
+      const { id: eventId, ctx: ctxEv } = makeEventId(currentCtx)
+      const initiatorName = ctxEv.state.polities[c.initiatorPolityId]?.name ?? c.initiatorPolityId
+      const targetName = ctxEv.state.polities[c.targetPolityId]?.name ?? c.targetPolityId
+      const provinceName = ctxEv.state.provinces[c.provinceId]?.name ?? c.provinceId
+      const ev: SimEvent = {
+        id: eventId,
+        year: ctxEv.state.currentYear,
+        month: ctxEv.state.currentMonth,
+        type: 'ACTOR_INTENT_CREATED',
+        importance: 'normal',
+        actorIds: [],
+        houseIds: [],
+        polityIds: [c.initiatorPolityId, c.targetPolityId],
+        provinceIds: [c.provinceId],
+        summary: `${initiatorName} demands lower taxes from ${targetName} for ${provinceName}.`,
+        reasons: [],
+        effects: [],
+      }
+      currentCtx = { ...ctxEv, events: [...ctxEv.events, ev] }
+    }
+  }
+
+  // -- demand_tax_increase --
+  const increaseCandidates = findTaxIncreaseCandidates(currentCtx.state, currentCtx.config)
+  if (increaseCandidates.length > 0) {
+    const existingIncreaseKeys = new Set<string>()
+    for (const intent of Object.values(currentCtx.state.actorIntents)) {
+      if (!intent || intent.status !== 'active') continue
+      if (intent.kind !== 'demand_tax_increase') continue
+      if (!intent.targetActor || intent.targetProvinceId === undefined) continue
+      existingIncreaseKeys.add(
+        `${intent.actor.kind}:${intent.actor.id}|${intent.targetActor.kind}:${intent.targetActor.id}|${intent.targetProvinceId}`,
+      )
+    }
+
+    for (const c of increaseCandidates) {
+      const key = `polity:${c.initiatorPolityId}|polity:${c.targetPolityId}|${c.provinceId}`
+      if (existingIncreaseKeys.has(key)) continue
+
+      const intentId: ActorIntentId = createActorIntentId(currentCtx.state.nextActorIntentId)
+      const intent: ActorIntent = {
+        id: intentId,
+        actor: { kind: 'polity', id: c.initiatorPolityId },
+        kind: 'demand_tax_increase',
+        targetActor: { kind: 'polity', id: c.targetPolityId },
+        targetProvinceId: c.provinceId,
+        priority: c.intentPriority,
+        rationale: 'increase_tribute',
+        status: 'active',
+        createdYear: currentCtx.state.currentYear,
+        createdMonth: currentCtx.state.currentMonth,
+        expiresYear: currentCtx.state.currentYear + 1,
+        expiresMonth: currentCtx.state.currentMonth,
+      }
+
+      currentCtx = {
+        ...currentCtx,
+        state: {
+          ...currentCtx.state,
+          actorIntents: {
+            ...currentCtx.state.actorIntents,
+            [intentId]: intent,
+          },
+          nextActorIntentId: currentCtx.state.nextActorIntentId + 1,
+        },
+      }
+      existingIncreaseKeys.add(key)
+
+      const { id: eventId, ctx: ctxEv } = makeEventId(currentCtx)
+      const initiatorName = ctxEv.state.polities[c.initiatorPolityId]?.name ?? c.initiatorPolityId
+      const targetName = ctxEv.state.polities[c.targetPolityId]?.name ?? c.targetPolityId
+      const provinceName = ctxEv.state.provinces[c.provinceId]?.name ?? c.provinceId
+      const ev: SimEvent = {
+        id: eventId,
+        year: ctxEv.state.currentYear,
+        month: ctxEv.state.currentMonth,
+        type: 'ACTOR_INTENT_CREATED',
+        importance: 'normal',
+        actorIds: [],
+        houseIds: [],
+        polityIds: [c.initiatorPolityId, c.targetPolityId],
+        provinceIds: [c.provinceId],
+        summary: `${initiatorName} demands higher taxes from ${targetName} for ${provinceName}.`,
         reasons: [],
         effects: [],
       }
