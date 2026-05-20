@@ -64,6 +64,14 @@ npm run cli -- --seed test-seed --years 10 --dump-world 2>world.json
 # Compact summary of the final world (JSON to stdout) — useful for quick checks
 npm run cli -- --seed test-seed --years 300 --digest
 
+# Override config values for balance testing (JSON object, keys merged with defaults)
+npm run cli -- --seed 1 --years 300 --digest --config '{"taxRevisionTaxChangeAmount":0.15}'
+
+# Compare two configs side-by-side
+npm run cli -- --seed 1 --years 300 --digest --config '{"taxRevisionTaxChangeAmount":0.05}' > /tmp/a.json &
+npm run cli -- --seed 1 --years 300 --digest --config '{"taxRevisionTaxChangeAmount":0.15}' > /tmp/b.json &
+wait && diff /tmp/a.json /tmp/b.json
+
 # Activity Report: 4-axis observation JSON (Office churn / Faction lifecycle /
 # Bailiff dynamics / population). Use "-" for stdout instead of a file path.
 npm run cli -- --seed test-seed --years 300 --report report.json
@@ -84,6 +92,7 @@ npm run cli -- --help
 | `--debug` | off | Debug mode (see below) |
 | `--dump-world` | off | Dump full WorldState JSON to stderr after simulation ends |
 | `--digest` | off | Print a compact final-state summary as JSON to stdout (active polities, bailiff counts, event counts, etc.) |
+| `--config <json>` | `{}` | Override config values with a JSON object. Unknown keys produce a warning and are ignored. |
 | `--report <path>` | off | Write an Activity Report JSON to `<path>` (use `-` for stdout). See below. |
 | `--report-snapshot <n>` | off | When `--report` is set, capture state snapshots every `<n>` years for time-series view |
 
@@ -184,6 +193,22 @@ jq '.snapshots[] | select(.year == 150) | .polities[] | {polity: .name, rank, of
 ```
 
 The report is generated purely from the event log and the final state, so its overhead is small (~150–200 KB per 300-year run). Snapshots add roughly `snapshots × active_polities × roles` of data — keep `--report-snapshot` ≥ 20 to avoid bulk on long runs.
+
+### Config Override (`--config`)
+
+Override any simulation config value without editing code. Useful for balance testing — run the same seed with different parameters and compare results.
+
+```bash
+# Increase tax change amount from default 5% to 15%
+npm run cli -- --seed 1 --years 300 --digest --config '{"taxRevisionTaxChangeAmount":0.15}'
+
+# Multiple overrides at once
+npm run cli -- --seed 1 --years 300 --digest --config '{"taxRevisionTaxChangeAmount":0.15,"taxRevisionMinRate":0.10}'
+```
+
+The value must be a valid JSON object. Keys are shallow-merged with `defaultConfig`: specified keys override defaults, unspecified keys keep their default values. Unknown keys produce a warning on stderr and are ignored (helps catch typos).
+
+To see all available config keys and their defaults, refer to `prototype/src/sim/config/defaultConfig.ts`.
 
 ## Development
 

@@ -24,6 +24,7 @@ Options:
   --debug               Enable debug mode (entity IDs in events, structured debug log on stderr)
   --dump-world          Dump full WorldState as JSON to stderr after simulation ends
   --digest              Output WorldDigest summary as JSON to stdout after simulation
+  --config <json>       Override config values with a JSON object (e.g. '{"taxRevisionTaxChangeAmount":0.10}')
   --report <path>       Write Activity Report (4-axis observation JSON) to <path>; use "-" for stdout
   --report-snapshot <n> Capture a snapshot every <n> years for the report (default: off)
   --help                Show this help message`)
@@ -37,6 +38,7 @@ function parseArgs(argv: string[]): {
   debug: boolean
   dumpWorld: boolean
   digest: boolean
+  configOverrides: Record<string, unknown>
   reportPath: string | undefined
   reportSnapshotYears: number
   showHelp: boolean
@@ -48,6 +50,7 @@ function parseArgs(argv: string[]): {
   let debug = false
   let dumpWorld = false
   let digest = false
+  let configOverrides: Record<string, unknown> = {}
   let reportPath: string | undefined = undefined
   let reportSnapshotYears = 0
   let showHelp = false
@@ -77,6 +80,23 @@ function parseArgs(argv: string[]): {
       dumpWorld = true
     } else if (arg === '--digest') {
       digest = true
+    } else if (arg === '--config') {
+      i++
+      const val = argv[i]
+      if (i < argv.length && val !== undefined) {
+        try {
+          const parsed: unknown = JSON.parse(val)
+          if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+            configOverrides = parsed as Record<string, unknown>
+          } else {
+            console.error('Error: --config value must be a JSON object')
+            process.exit(1)
+          }
+        } catch {
+          console.error('Error: --config value is not valid JSON')
+          process.exit(1)
+        }
+      }
     } else if (arg === '--report') {
       i++
       const val = argv[i]
@@ -103,6 +123,7 @@ function parseArgs(argv: string[]): {
     debug,
     dumpWorld,
     digest,
+    configOverrides,
     reportPath,
     reportSnapshotYears,
     showHelp,
@@ -280,7 +301,14 @@ let state: WorldState = world
 let currentRng = initialRng
 const allEvents: SimEvent[] = []
 const totalTicks = args.years * 12
-const config = args.debug ? { ...defaultConfig, debug: true } : defaultConfig
+const validConfigKeys = new Set(Object.keys(defaultConfig))
+for (const key of Object.keys(args.configOverrides)) {
+  if (!validConfigKeys.has(key)) {
+    console.error(`Warning: unknown config key "${key}" (ignored)`)
+  }
+}
+const configBase: typeof defaultConfig = Object.assign({}, defaultConfig, args.configOverrides)
+const config = args.debug ? { ...configBase, debug: true } : configBase
 const snapshots: ActivitySnapshot[] = []
 // 初期状態 (year 0) のスナップショットも取る (--report-snapshot 有効時のみ)
 if (args.reportPath !== undefined && args.reportSnapshotYears > 0) {
