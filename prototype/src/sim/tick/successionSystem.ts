@@ -47,9 +47,10 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
 
     for (const houseId of getPolityHouseIds(currentCtx.state, polityId as PolityId)) {
       const house = currentCtx.state.houses[houseId]
+      if (!house || !house.active) continue
+      // ownerHouse は常に候補。それ以外は primaryPolityId が一致する場合のみ候補
       if (
-        !house ||
-        !house.active ||
+        houseId !== polity.ownerHouseId &&
         getHousePrimaryPolityId(currentCtx.state, houseId) !== (polityId as PolityId)
       )
         continue
