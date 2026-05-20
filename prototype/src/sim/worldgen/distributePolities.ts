@@ -10,12 +10,14 @@ function manhattanDistance(p1: Province, p2: Province): number {
 
 export function distributePolities(
   provinces: Province[],
+  polityCount: number,
   rng: RngState,
 ): { assignments: Map<ProvinceId, PolityId>; rng: RngState } {
-  const polityIds = [createPolityId('c', 0), createPolityId('c', 1), createPolityId('c', 2)]
+  const polityIds = Array.from({ length: polityCount }, (_, i) => createPolityId('c', i))
 
   let seeds: ProvinceId[] | null = null
-  let minDist = 5
+  const initialMinDist = Math.max(1, Math.floor(Math.sqrt(provinces.length) / polityCount))
+  let minDist = initialMinDist
 
   while (!seeds && minDist >= 0) {
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -35,12 +37,12 @@ export function distributePolities(
         if (valid) {
           candidates.push(p.id)
         }
-        if (candidates.length === 3) {
+        if (candidates.length === polityCount) {
           break
         }
       }
 
-      if (candidates.length === 3) {
+      if (candidates.length === polityCount) {
         seeds = candidates
         break
       }
@@ -50,20 +52,20 @@ export function distributePolities(
   }
 
   if (!seeds) {
-    seeds = [provinces[0]!.id, provinces[1]!.id, provinces[2]!.id]
+    seeds = provinces.slice(0, polityCount).map((p) => p.id)
   }
 
   const assignments = new Map<ProvinceId, PolityId>()
   const polityProvinces = new Map<ProvinceId, ProvinceId>()
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < polityCount; i++) {
     assignments.set(seeds[i]!, polityIds[i]!)
     polityProvinces.set(seeds[i]!, seeds[i]!)
   }
 
   let round = 0
   while (assignments.size < provinces.length) {
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < polityCount; i++) {
       const polityId = polityIds[i]
       const polityProvs = provinces
         .filter((p) => assignments.get(p.id) === polityId)

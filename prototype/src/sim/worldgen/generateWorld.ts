@@ -1,12 +1,20 @@
 import type { WorldState } from '../types/world'
 import type { RngState } from '../rng/rng'
-import type { ProvinceId, HouseId, PolityId, PersonId, PopGroupId } from '../types/ids'
-import { newPopGroupId } from '../types/ids'
+import type {
+  ProvinceId,
+  HouseId,
+  PolityId,
+  PersonId,
+  PopGroupId,
+  StateRegionId,
+} from '../types/ids'
+import { newPopGroupId, createStateRegionId, createPolityId, createHouseId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Polity } from '../types/polity'
 import type { Person } from '../types/person'
 import type { PopGroup } from '../types/popGroup'
+import type { StateRegion } from '../types/stateRegion'
 import type {
   OrganizationRef,
   ShareHolderRef,
@@ -35,6 +43,8 @@ import {
   pickUniqueName,
   houseNamePool,
   polityNamePool,
+  stateNamePool,
+  stateName,
 } from './nameGenerators'
 import { defaultConfig } from '../config/defaultConfig'
 import { defaultMapConfig } from './mapConfig'
@@ -42,17 +52,77 @@ import { clamp } from '../utils/math'
 import { polityAttitudeKey, houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 import { getHouseLeader } from '../selectors/officeSelectors'
+import { WORLD_PRESETS, DEFAULT_PRESET } from './worldPresets'
+import type { WorldPreset, WorldPresetName } from './worldPresets'
 
-export function generateWorld(seedText: string): { world: WorldState; rng: RngState } {
+export function generateWorld(
+  seedText: string,
+  presetName?: WorldPresetName,
+): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
 
-  const { provinces, rng: rng0 } = generateProvinces(rng, defaultMapConfig)
+  const preset = WORLD_PRESETS[presetName ?? DEFAULT_PRESET]
+
+  const { provinces, rng: rng0 } = generateProvinces(
+    rng,
+    defaultMapConfig,
+    preset.gridCols,
+    preset.gridRows,
+    preset.stateCols,
+    preset.stateRows,
+  )
   rng = rng0
 
-  const { assignments, rng: rng1 } = distributePolities(provinces, rng)
+  // Generate StateRegion records
+  const statesRecord: Record<StateRegionId, StateRegion> = {}
+  const usedStateNames = new Set<string>()
+  const statePool = stateNamePool()
+  let stateNameCounter = 0
+
+  for (let stateRow = 0; stateRow < preset.stateRows; stateRow++) {
+    for (let stateCol = 0; stateCol < preset.stateCols; stateCol++) {
+      const stateIndex = stateRow * preset.stateCols + stateCol
+      const stateId = createStateRegionId(stateIndex)
+      const provinceIdsInState = provinces
+        .filter((p) => (p.stateId as string) === (stateId as string))
+        .map((p) => p.id)
+
+      const { name: sName, rng: rS } = pickUniqueName(
+        statePool,
+        usedStateNames,
+        stateName,
+        stateNameCounter,
+        rng,
+      )
+      stateNameCounter++
+      rng = rS
+
+      statesRecord[stateId] = {
+        id: stateId,
+        name: sName,
+        provinceIds: provinceIdsInState,
+        gridCol: stateCol,
+        gridRow: stateRow,
+      }
+    }
+  }
+
+  const { assignments, rng: rng1 } = distributePolities(provinces, preset.kingdoms, rng)
   rng = rng1
 
-  const { houseProvinces, housePolity, rng: rng2 } = distributeHouses(provinces, assignments, rng)
+  // Compute housesPerKingdom from the polity hierarchy logic
+  // (must match generatePolityHierarchy's calculation)
+  const duchiesPerK = Math.floor(preset.duchies / preset.kingdoms)
+  const extraD = preset.duchies % preset.kingdoms
+  const countiesPerK = Math.floor(preset.counties / preset.kingdoms)
+  const extraC = preset.counties % preset.kingdoms
+  const housesPerKingdom =
+    1 + (duchiesPerK + (extraD > 0 ? 1 : 0)) + (countiesPerK + (extraC > 0 ? 1 : 0))
+  const {
+    houseProvinces,
+    housePolity,
+    rng: rng2,
+  } = distributeHouses(provinces, assignments, preset.kingdoms, housesPerKingdom, rng)
   rng = rng2
 
   const { persons, rng: rng3 } = generatePersons(houseProvinces, housePolity, defaultConfig, rng)
@@ -226,40 +296,84 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     houses.push(house)
   }
 
-  // v0.16: 階層的 Polity 構造を構築する。
-  // distributeHouses で得た 15 House を以下のように rank 分けする:
-  //   - Kingdom owners (rank 2): h-0, h-5, h-10  → Polity c-0, c-1, c-2
-  //   - Duchy owners (rank 3):   h-1, h-2, h-6, h-11  → Polity c-3, c-4, c-5, c-6
-  //   - County owners (rank 4):  h-3, h-4, h-7, h-8, h-9, h-12, h-13, h-14  → Polity c-7〜c-14
-  //
-  // 各 Polity の parent (= LandContract の grantor) は次表の通り固定する。
+  // v0.20: Generate polity hierarchy dynamically from preset.
   type PolityInfo = { polityId: PolityId; rank: 2 | 3 | 4; parentPolityId?: PolityId }
-  const HOUSE_POLITY_MAP: Record<string, PolityInfo> = {
-    'h-0': { polityId: 'c-0' as PolityId, rank: 2 },
-    'h-1': { polityId: 'c-3' as PolityId, rank: 3, parentPolityId: 'c-0' as PolityId },
-    'h-2': { polityId: 'c-4' as PolityId, rank: 3, parentPolityId: 'c-0' as PolityId },
-    'h-3': { polityId: 'c-7' as PolityId, rank: 4, parentPolityId: 'c-3' as PolityId },
-    'h-4': { polityId: 'c-8' as PolityId, rank: 4, parentPolityId: 'c-4' as PolityId },
-    'h-5': { polityId: 'c-1' as PolityId, rank: 2 },
-    'h-6': { polityId: 'c-5' as PolityId, rank: 3, parentPolityId: 'c-1' as PolityId },
-    'h-7': { polityId: 'c-9' as PolityId, rank: 4, parentPolityId: 'c-5' as PolityId },
-    'h-8': { polityId: 'c-10' as PolityId, rank: 4, parentPolityId: 'c-5' as PolityId },
-    'h-9': { polityId: 'c-11' as PolityId, rank: 4, parentPolityId: 'c-1' as PolityId },
-    'h-10': { polityId: 'c-2' as PolityId, rank: 2 },
-    'h-11': { polityId: 'c-6' as PolityId, rank: 3, parentPolityId: 'c-2' as PolityId },
-    'h-12': { polityId: 'c-12' as PolityId, rank: 4, parentPolityId: 'c-6' as PolityId },
-    'h-13': { polityId: 'c-13' as PolityId, rank: 4, parentPolityId: 'c-6' as PolityId },
-    'h-14': { polityId: 'c-14' as PolityId, rank: 4, parentPolityId: 'c-2' as PolityId },
+
+  function generatePolityHierarchy(preset: WorldPreset): {
+    map: Map<string, PolityInfo>
+    housesPerKingdom: number
+  } {
+    const map = new Map<string, PolityInfo>()
+    let polityCounter = 0
+    const { kingdoms, duchies, counties } = preset
+
+    const duchiesPerKingdom = Math.floor(duchies / kingdoms)
+    const extraDuchies = duchies % kingdoms
+    const countiesPerKingdom = Math.floor(counties / kingdoms)
+    const extraCounties = counties % kingdoms
+
+    // housesPerKingdom must accommodate the kingdom with the most polities (= most extras)
+    const maxDuchiesInOneKingdom = duchiesPerKingdom + (extraDuchies > 0 ? 1 : 0)
+    const maxCountiesInOneKingdom = countiesPerKingdom + (extraCounties > 0 ? 1 : 0)
+    const housesPerKingdom = 1 + maxDuchiesInOneKingdom + maxCountiesInOneKingdom
+
+    for (let k = 0; k < kingdoms; k++) {
+      const kingdomHouseBase = k * housesPerKingdom
+      const kingdomPolityId = createPolityId('c', polityCounter++)
+
+      // Kingdom owner = first house in this kingdom's block
+      map.set(createHouseId('h', kingdomHouseBase), {
+        polityId: kingdomPolityId,
+        rank: 2,
+      })
+
+      const myDuchies = duchiesPerKingdom + (k < extraDuchies ? 1 : 0)
+
+      let houseOffset = 1
+      const duchyPolityIds: PolityId[] = []
+
+      // Duchies for this kingdom
+      for (let d = 0; d < myDuchies; d++) {
+        const duchyPolityId = createPolityId('c', polityCounter++)
+        duchyPolityIds.push(duchyPolityId)
+        const houseId = createHouseId('h', kingdomHouseBase + houseOffset++)
+        map.set(houseId, {
+          polityId: duchyPolityId,
+          rank: 3,
+          parentPolityId: kingdomPolityId,
+        })
+      }
+
+      // Counties for this kingdom, distributed among its duchies.
+      // Pad with extra counties if myDuchies + myCounties + 1 < housesPerKingdom
+      // so that every House in the block has a Polity.
+      const targetCounties = housesPerKingdom - 1 - myDuchies
+      for (let c = 0; c < targetCounties; c++) {
+        const parentDuchy =
+          duchyPolityIds.length > 0 ? duchyPolityIds[c % duchyPolityIds.length]! : kingdomPolityId
+        const countyPolityId = createPolityId('c', polityCounter++)
+        const houseId = createHouseId('h', kingdomHouseBase + houseOffset++)
+        map.set(houseId, {
+          polityId: countyPolityId,
+          rank: 4,
+          parentPolityId: parentDuchy,
+        })
+      }
+    }
+
+    return { map, housesPerKingdom }
   }
+
+  const { map: polityHierarchy } = generatePolityHierarchy(preset)
 
   const polities: Polity[] = []
 
-  // 各 House に対応する Polity を生成する (15 個)。
+  // Generate Polity for each House.
   const houseToPolityId = new Map<HouseId, PolityId>()
   const polityToOwnerHouse = new Map<PolityId, HouseId>()
   let polityNameCounter = 0
   for (const house of houses) {
-    const info = HOUSE_POLITY_MAP[house.id as string]
+    const info = polityHierarchy.get(house.id)
     if (!info) continue
     houseToPolityId.set(house.id, info.polityId)
     polityToOwnerHouse.set(info.polityId, house.id)
@@ -1003,10 +1117,10 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
   const provinceTerminalPolityCache: ProvinceTerminalPolityCache = {}
   let nextLandContractId = 0
 
-  // 各 Polity の rank と parent を逆引きする map
+  // Build reverse lookup of polity rank and parent.
   const polityRankMap = new Map<PolityId, 2 | 3 | 4>()
   const polityParentMap = new Map<PolityId, PolityId>()
-  for (const info of Object.values(HOUSE_POLITY_MAP)) {
+  for (const info of polityHierarchy.values()) {
     polityRankMap.set(info.polityId, info.rank)
     if (info.parentPolityId !== undefined) {
       polityParentMap.set(info.polityId, info.parentPolityId)
@@ -1156,6 +1270,7 @@ export function generateWorld(seedText: string): { world: WorldState; rng: RngSt
     absoluteWeek: 48,
     provinces: provincesRecord,
     polities: politiesRecord,
+    states: statesRecord,
     houses: housesRecord,
     persons: personsRecord,
     activePlots: {},

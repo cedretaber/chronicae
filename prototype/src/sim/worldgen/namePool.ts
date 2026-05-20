@@ -584,3 +584,65 @@ export const PROVINCE_NAMES: string[] = [
   'Wyvernford',
   'Yellowmere',
 ]
+
+export const STATE_NAMES: string[] = [
+  // English / Anglo-Norman-ish
+  'Northmarch',
+  'Westmarch',
+  'Eastmere',
+  'Southvale',
+  'Ashenford',
+  'Greyshire',
+  'Highwick',
+  'Ravenmoor',
+  'Stoneleigh',
+  'Blackfen',
+
+  // Germanic-ish
+  'Eisenmark',
+  'Hohenwald',
+  'Dunkelheim',
+  'Falkenmark',
+  'Steinmark',
+  'Grünwald',
+  'Rosenfeld',
+  'Adlergau',
+  'Wintergau',
+  'Lindenmark',
+
+  // French-ish
+  'Montclair',
+  'Valbrune',
+  'Beaufort',
+  'Rocheval',
+  'Aubemont',
+  'Clairevaux',
+  'Noirmont',
+  'Vallombre',
+  'Belrive',
+  'Hauteroche',
+
+  // Italian-ish
+  'Valdoro',
+  'Montefiore',
+  'Castelverde',
+  'Rivamara',
+  'Bellacosta',
+  'Roccalta',
+  'Valserra',
+  'Monteluce',
+  'Fioravalle',
+  'Terrabruna',
+
+  // Low Countries / borderland-ish
+  'Dornveld',
+  'Bruggenland',
+  'Meerveld',
+  'Oosthaven',
+  'Westerveld',
+  'Zuidbroek',
+  'Nieuwmark',
+  'Rijnwold',
+  'Bergdam',
+  'Veldhaven',
+]

@@ -1496,6 +1496,7 @@ export function PersonDetail({
     currentWeekOfYear: 0,
     absoluteWeek: 0,
     provinces: {},
+    states: {},
     polities: {},
     houses: {},
     persons: {},

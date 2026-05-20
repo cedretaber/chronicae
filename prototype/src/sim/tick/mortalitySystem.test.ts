@@ -44,6 +44,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
       currentWeekOfYear: 1,
       absoluteWeek: 48,
       provinces: {},
+      states: {},
       polities: {
         [polityId]: {
           id: polityId,

@@ -1,7 +1,8 @@
-import type { ProvinceId, PopGroupId } from './ids'
+import type { ProvinceId, PopGroupId, StateRegionId } from './ids'
 
 export type Province = {
   id: ProvinceId
+  stateId: StateRegionId
   name: string
   x: number
   y: number

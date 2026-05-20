@@ -32,6 +32,7 @@ function makeFixture(): {
     provinces: {
       [provinceId]: {
         id: provinceId,
+        stateId: 'sr-0' as import('../types/ids').StateRegionId,
         name: 'Test Province',
         x: 0,
         y: 0,
@@ -42,6 +43,7 @@ function makeFixture(): {
         popGroupIds: [],
       },
     },
+    states: {},
     polities: {
       [polity1Id]: {
         id: polity1Id,

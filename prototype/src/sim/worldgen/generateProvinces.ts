@@ -3,11 +3,9 @@ import type { Province } from '../types/province'
 import type { RngState } from '../rng/rng'
 import type { MapGenerationConfig } from './mapConfig'
 import { createProvinceId } from '../types/ids'
+import { createStateRegionId } from '../types/ids'
 import { pickUniqueName, provinceName, provinceNamePool } from './nameGenerators'
 import { randomFloat, shuffle } from '../rng/rng'
-
-const COLS = 8
-const ROWS = 5
 
 function isConnected(adj: Map<ProvinceId, Set<ProvinceId>>, allIds: ProvinceId[]): boolean {
   if (allIds.length === 0) return true
@@ -33,15 +31,22 @@ function isConnected(adj: Map<ProvinceId, Set<ProvinceId>>, allIds: ProvinceId[]
 export function generateProvinces(
   rng: RngState,
   mapConfig: MapGenerationConfig,
+  cols: number,
+  rows: number,
+  stateCols: number,
+  stateRows: number,
 ): { provinces: Province[]; rng: RngState } {
   const provinces: Province[] = []
   const usedNames = new Set<string>()
   const pool = provinceNamePool()
   let currentRng = rng
 
-  for (let row = 0; row < ROWS; row++) {
-    for (let col = 0; col < COLS; col++) {
-      const index = row * COLS + col
+  const provBlockCols = cols / stateCols
+  const provBlockRows = rows / stateRows
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const index = row * cols + col
       const id = createProvinceId('p', index)
 
       const neighbors: ProvinceId[] = []
@@ -49,15 +54,20 @@ export function generateProvinces(
       if (col > 0) {
         neighbors.push(createProvinceId('p', index - 1))
       }
-      if (col < COLS - 1) {
+      if (col < cols - 1) {
         neighbors.push(createProvinceId('p', index + 1))
       }
       if (row > 0) {
-        neighbors.push(createProvinceId('p', index - COLS))
+        neighbors.push(createProvinceId('p', index - cols))
       }
-      if (row < ROWS - 1) {
-        neighbors.push(createProvinceId('p', index + COLS))
+      if (row < rows - 1) {
+        neighbors.push(createProvinceId('p', index + cols))
       }
+
+      const stateCol = Math.floor(col / provBlockCols)
+      const stateRow = Math.floor(row / provBlockRows)
+      const stateIndex = stateRow * stateCols + stateCol
+      const stateId = createStateRegionId(stateIndex)
 
       const { name, rng: nextRng } = pickUniqueName(
         pool,
@@ -70,6 +80,7 @@ export function generateProvinces(
 
       provinces.push({
         id,
+        stateId: stateId,
         name,
         x: col * 100,
         y: row * 100,

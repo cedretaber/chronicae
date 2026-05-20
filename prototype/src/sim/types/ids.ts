@@ -78,3 +78,9 @@ export function createActorIntentId(n: number): ActorIntentId {
 export function createDiplomaticPlayId(n: number): DiplomaticPlayId {
   return ('dp-' + n) as DiplomaticPlayId
 }
+
+export type StateRegionId = Branded<string, 'StateRegionId'>
+
+export function createStateRegionId(n: number): StateRegionId {
+  return ('sr-' + n) as StateRegionId
+}

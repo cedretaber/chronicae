@@ -66,6 +66,7 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     absoluteWeek: 69312,
     currentWeekOfYear: 1,
     provinces: {},
+    states: {},
     polities: {},
     houses,
     persons,

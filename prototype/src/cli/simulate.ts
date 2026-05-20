@@ -1,4 +1,5 @@
 import { generateWorld } from '@sim/worldgen/generateWorld'
+import type { WorldPresetName } from '@sim/worldgen/worldPresets'
 import { tick } from '@sim/tick/tick'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { createTickContext } from '@sim/tick/context'
@@ -28,6 +29,7 @@ Options:
   --config <json>       Override config values with a JSON object (e.g. '{"taxRevisionTaxChangeAmount":0.10}')
   --report <path>       Write Activity Report (4-axis observation JSON) to <path>; use "-" for stdout
   --report-snapshot <n> Capture a snapshot every <n> years for the report (default: off)
+  --preset <name>       World size preset (tiny, small, standard, perfLarge)
   --help                Show this help message`)
 }
 
@@ -43,6 +45,7 @@ function parseArgs(argv: string[]): {
   configOverrides: Record<string, unknown>
   reportPath: string | undefined
   reportSnapshotYears: number
+  preset: WorldPresetName | undefined
   showHelp: boolean
 } {
   let seed = 'chronicae-default'
@@ -56,6 +59,7 @@ function parseArgs(argv: string[]): {
   let configOverrides: Record<string, unknown> = {}
   let reportPath: string | undefined = undefined
   let reportSnapshotYears = 0
+  let preset: WorldPresetName | undefined = undefined
   let showHelp = false
 
   let i = 2
@@ -118,6 +122,15 @@ function parseArgs(argv: string[]): {
       if (i < argv.length && val !== undefined) {
         reportSnapshotYears = parseInt(val, 10)
       }
+    } else if (arg === '--preset') {
+      i++
+      const val = argv[i]
+      if (val && ['tiny', 'small', 'standard', 'perfLarge'].includes(val)) {
+        preset = val as WorldPresetName
+      } else {
+        console.error('Error: --preset must be one of: tiny, small, standard, perfLarge')
+        process.exit(1)
+      }
     } else if (arg === '--help') {
       showHelp = true
     }
@@ -136,6 +149,7 @@ function parseArgs(argv: string[]): {
     configOverrides,
     reportPath,
     reportSnapshotYears,
+    preset,
     showHelp,
   }
 }
@@ -302,7 +316,7 @@ if (args.years !== undefined && args.weeks !== undefined) {
 
 const totalTicks = args.weeks !== undefined ? args.weeks : args.years * 48
 
-const { world, rng: initialRng } = generateWorld(args.seed)
+const { world, rng: initialRng } = generateWorld(args.seed, args.preset)
 
 const initialPolityCount = countActivePolities(world)
 const initialHouseCount = countActiveHouses(world)
@@ -501,6 +515,7 @@ if (args.digest) {
     activeHouses: countActiveHouses(state),
     livingPersons: countLivingPersons(state),
     totalProvinces: Object.keys(state.provinces).length,
+    totalStates: Object.keys(state.states).length,
     avgPolityControl: computeAvgPolityControl(state),
     avgHouseControl: computeAvgHouseControl(state),
     landContracts: countLandContracts(state),

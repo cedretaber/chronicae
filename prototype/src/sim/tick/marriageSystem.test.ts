@@ -53,6 +53,7 @@ function makeBaseCtx(
       currentWeekOfYear: month,
       absoluteWeek: 51 + month,
       provinces: {},
+      states: {},
       polities,
       houses,
       persons,

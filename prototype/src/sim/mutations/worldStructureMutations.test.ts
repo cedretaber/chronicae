@@ -89,6 +89,7 @@ function makeMinimalWorld(): WorldState {
 
   const province: Province = {
     id: provinceId,
+    stateId: 'sr-0' as import('../types/ids').StateRegionId,
     name: 'Capital',
     x: 0,
     y: 0,
@@ -117,6 +118,7 @@ function makeMinimalWorld(): WorldState {
     currentWeekOfYear: 1,
     absoluteWeek: 48,
     provinces: { [provinceId]: province },
+    states: {},
     polities: { [polityId]: polity },
     houses: { [houseId]: house, [ANONYMOUS_HOUSE_ID]: anonHouse },
     persons: { [personId]: person },

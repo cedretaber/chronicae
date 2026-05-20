@@ -43,6 +43,7 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
     absoluteWeek: 69312,
     currentWeekOfYear: 1,
     provinces: {},
+    states: {},
     polities: {},
     houses: {
       [firstHouseId]: {

@@ -273,6 +273,7 @@ describe('runControlSystem — capital province maxControl', () => {
       provinces: {
         [provinceId]: {
           id: provinceId,
+          stateId: 'sr-0' as import('../types/ids').StateRegionId,
           name: 'Capital',
           x: 0,
           y: 0,
@@ -283,6 +284,7 @@ describe('runControlSystem — capital province maxControl', () => {
           polityControl: 100,
         },
       },
+      states: {},
       polities: {
         [polityId]: {
           id: polityId,

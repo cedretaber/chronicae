@@ -10,6 +10,7 @@ import type {
   PersonId,
   ActorIntentId,
   DiplomaticPlayId,
+  StateRegionId,
 } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -1305,6 +1306,71 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `DiplomaticPlay ${idStr} revolt_negotiation target must be a Polity (§20)`,
+        })
+      }
+    }
+  }
+
+  // ─── State-Province consistency checks (v0.20-a) ───
+
+  // S1: Every Province.stateId points to an existing StateRegion
+  for (const provIdStr of Object.keys(state.provinces)) {
+    const prov = state.provinces[provIdStr as ProvinceId]
+    if (!prov) continue
+    if (!state.states[prov.stateId]) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provIdStr} has stateId=${prov.stateId as string} which does not exist in states`,
+      })
+    }
+  }
+
+  // S2: Every StateRegion.provinceIds entry points to existing Province with matching stateId
+  for (const stateIdStr of Object.keys(state.states)) {
+    const stateRegion = state.states[stateIdStr as StateRegionId]
+    if (!stateRegion) continue
+    if (stateRegion.provinceIds.length === 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `StateRegion ${stateIdStr} has no provinces`,
+      })
+    }
+    for (const pid of stateRegion.provinceIds) {
+      const prov = state.provinces[pid]
+      if (!prov) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `StateRegion ${stateIdStr} references non-existent Province ${pid as string}`,
+        })
+      } else if ((prov.stateId as string) !== (stateRegion.id as string)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `StateRegion ${stateIdStr} contains Province ${pid as string} whose stateId=${prov.stateId as string} does not match`,
+        })
+      }
+    }
+  }
+
+  // S3: Every Province is in exactly one State's provinceIds (no orphans, no duplicates)
+  {
+    const provincesInStates = new Set<string>()
+    for (const stateRegion of Object.values(state.states)) {
+      if (!stateRegion) continue
+      for (const pid of stateRegion.provinceIds) {
+        if (provincesInStates.has(pid)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Province ${pid} appears in multiple StateRegions`,
+          })
+        }
+        provincesInStates.add(pid)
+      }
+    }
+    for (const provIdStr of Object.keys(state.provinces)) {
+      if (!provincesInStates.has(provIdStr)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Province ${provIdStr} is not in any StateRegion.provinceIds`,
         })
       }
     }

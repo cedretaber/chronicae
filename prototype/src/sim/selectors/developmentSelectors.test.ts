@@ -5,6 +5,7 @@ import type { Province } from '../types/province'
 function makeProvince(overrides: Partial<Province>): Province {
   return {
     id: 'p-0' as Province['id'],
+    stateId: 'sr-0' as import('../types/ids').StateRegionId,
     name: 'Test',
     x: 0,
     y: 0,

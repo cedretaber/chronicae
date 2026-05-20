@@ -1,6 +1,13 @@
 import type { RngState } from '../rng/rng'
 import { randomInt } from '../rng/rng'
-import { COUNTRY_NAMES, HOUSE_NAMES, MALE_NAMES, FEMALE_NAMES, PROVINCE_NAMES } from './namePool'
+import {
+  COUNTRY_NAMES,
+  HOUSE_NAMES,
+  MALE_NAMES,
+  FEMALE_NAMES,
+  PROVINCE_NAMES,
+  STATE_NAMES,
+} from './namePool'
 
 export function pickUniqueName(
   pool: string[],
@@ -45,6 +52,14 @@ export function provinceNamePool(): string[] {
 }
 export function polityNamePool(): string[] {
   return COUNTRY_NAMES
+}
+
+export function stateNamePool(): string[] {
+  return STATE_NAMES
+}
+
+export function stateName(index: number): string {
+  return `State-${index}`
 }
 
 // Keep old functions for fallback use only

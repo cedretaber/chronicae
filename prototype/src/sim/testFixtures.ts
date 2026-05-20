@@ -13,6 +13,7 @@
 
 import type { WorldState } from './types/world'
 import type { Province } from './types/province'
+import type { StateRegion } from './types/stateRegion'
 import type { Polity } from './types/polity'
 import type { House } from './types/house'
 import type { Person } from './types/person'
@@ -24,6 +25,7 @@ import type {
   PersonId,
   LandContractId,
   ProvinceOfficeAssignmentId,
+  StateRegionId,
 } from './types/ids'
 import { ANONYMOUS_HOUSE_ID, PLACEHOLDER_PERSON_ID, ROOT_WORLD } from './types/landContract'
 import { installPlaceholderBailiff } from './mutations/provinceOfficeMutations'
@@ -89,6 +91,15 @@ export function makeEmptyV016State(): WorldState {
     currentWeekOfYear: 1,
     absoluteWeek: 48000,
     provinces: {},
+    states: {
+      ['sr-0' as StateRegionId]: {
+        id: 'sr-0' as StateRegionId,
+        name: 'Default Region',
+        provinceIds: [],
+        gridCol: 0,
+        gridRow: 0,
+      },
+    },
     polities: {},
     houses: { [ANONYMOUS_HOUSE_ID]: anon },
     persons: { [PLACEHOLDER_PERSON_ID]: placeholderSingleton },
@@ -127,6 +138,7 @@ export function withProvince(
 ): WorldState {
   const province: Province = {
     id,
+    stateId: 'sr-0' as StateRegionId,
     name: 'P',
     x: 0,
     y: 0,
@@ -137,7 +149,15 @@ export function withProvince(
     popGroupIds: [],
     ...overrides,
   }
-  return { ...state, provinces: { ...state.provinces, [id]: province } }
+  const nextState = { ...state, provinces: { ...state.provinces, [id]: province } }
+  // Auto-register province in its StateRegion
+  const stateRegionId = province.stateId
+  const sr = nextState.states[stateRegionId]
+  if (sr) {
+    const nextSr: StateRegion = { ...sr, provinceIds: [...sr.provinceIds, id] }
+    return { ...nextState, states: { ...nextState.states, [stateRegionId]: nextSr } }
+  }
+  return nextState
 }
 
 export function withPolity(

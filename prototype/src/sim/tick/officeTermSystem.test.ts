@@ -31,6 +31,7 @@ function makeBaseState(): WorldState {
     currentWeekOfYear: 1,
     absoluteWeek: 75400,
     provinces: {},
+    states: {},
     polities: {},
     houses: { [ANONYMOUS_HOUSE_ID]: anon },
     persons: {},
@@ -495,6 +496,7 @@ describe('expireOfficeTermAssignment', () => {
       currentWeekOfYear: 1,
       absoluteWeek: 75400,
       provinces: {},
+      states: {},
       polities: {
         [polityId]: {
           id: polityId,

@@ -11,6 +11,7 @@ function makeCtx(year: number, weekOfYear: number): TickContext {
       currentWeekOfYear: weekOfYear,
       absoluteWeek: year * 48 + (weekOfYear - 1),
       provinces: {},
+      states: {},
       polities: {},
       houses: {},
       persons: {},

@@ -14,6 +14,7 @@ import type {
   FactionMembershipId,
   ActorIntentId,
   DiplomaticPlayId,
+  StateRegionId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -34,12 +35,14 @@ import type {
 import type { Faction, FactionMembership, FactionIndex } from './faction'
 import type { ActorIntent } from './actorIntent'
 import type { DiplomaticPlay } from './diplomaticPlay'
+import type { StateRegion } from './stateRegion'
 
 export type WorldState = {
   currentYear: number
   currentWeekOfYear: number
   absoluteWeek: number
   provinces: Record<ProvinceId, Province>
+  states: Record<StateRegionId, StateRegion>
   polities: Record<PolityId, Polity>
   houses: Record<HouseId, House>
   persons: Record<PersonId, Person>

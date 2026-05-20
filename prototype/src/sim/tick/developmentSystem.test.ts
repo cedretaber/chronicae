@@ -18,6 +18,7 @@ function makeProvinceState(development: number): WorldState {
     provinces: {
       [provinceId]: {
         id: provinceId,
+        stateId: 'sr-0' as import('../types/ids').StateRegionId,
         name: 'P0',
         x: 0,
         y: 0,
@@ -28,6 +29,7 @@ function makeProvinceState(development: number): WorldState {
         polityControl: 100,
       },
     },
+    states: {},
     polities: {
       [polityId]: {
         id: polityId,

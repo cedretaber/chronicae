@@ -26,6 +26,8 @@ export function ProvinceMap() {
   const openWindows = useSimulationStore((s) => s.openWindows)
   const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
   const mapView = useSimulationStore((s) => s.mapView)
+  const focusedStateId = useSimulationStore((s) => s.focusedStateId)
+  const exitToStateMap = useSimulationStore((s) => s.exitToStateMap)
 
   const focused = useMemo(() => {
     if (openWindows.length === 0) return undefined
@@ -48,9 +50,9 @@ export function ProvinceMap() {
     return buildHouseColorMap(Object.keys(houses))
   }, [houses])
 
-  // Convert provinces to React Flow nodes
-  const nodes = useMemo(() => {
-    if (!provinces) return []
+  // Convert provinces to React Flow nodes + gate edges
+  const { nodes, gateEdges } = useMemo(() => {
+    if (!provinces) return { nodes: [], gateEdges: [] }
 
     const popGroups = session?.currentState.popGroups
     const isPolitySelected = focusedType === 'polity'
@@ -98,7 +100,89 @@ export function ProvinceMap() {
     const capitalProvinceId = selectedPolity?.capitalProvinceId
     const seatProvinceId = selectedHouse?.seatProvinceId
 
-    return Object.values(provinces).map((province) => {
+    const filteredProvinces = focusedStateId
+      ? Object.values(provinces).filter((p) => (p.stateId as string) === (focusedStateId as string))
+      : Object.values(provinces)
+
+    // Gate indicators for cross-State connections
+    // Place gate nodes outside the province cluster, in the direction of the external province
+    const gateNodes: Node[] = []
+    const gateEdges: Edge[] = []
+    if (focusedStateId && session) {
+      const world = session.currentState
+      const GATE_OFFSET = 150
+      const gateTargets = new Map<
+        string,
+        {
+          fromProvinceId: string
+          fromX: number
+          fromY: number
+          neighborX: number
+          neighborY: number
+          toStateName: string
+        }
+      >()
+      for (const province of filteredProvinces) {
+        for (const nid of province.neighbors) {
+          const neighbor = world.provinces[nid]
+          if (!neighbor) continue
+          const neighborStateId = neighbor.stateId as string
+          if (neighborStateId === (focusedStateId as string)) continue
+          const targetState = world.states[neighbor.stateId]
+          if (!targetState) continue
+          const key = `${province.id as string}-${neighborStateId}`
+          if (!gateTargets.has(key)) {
+            gateTargets.set(key, {
+              fromProvinceId: province.id,
+              fromX: province.x,
+              fromY: province.y,
+              neighborX: neighbor.x,
+              neighborY: neighbor.y,
+              toStateName: targetState.name,
+            })
+          }
+        }
+      }
+      let gateIndex = 0
+      for (const [
+        ,
+        { fromProvinceId, fromX, fromY, neighborX, neighborY, toStateName },
+      ] of gateTargets) {
+        const gateId = `gate-${gateIndex++}`
+        const dx = neighborX - fromX
+        const dy = neighborY - fromY
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1
+        const gateX = fromX + (dx / dist) * GATE_OFFSET
+        const gateY = fromY + (dy / dist) * GATE_OFFSET
+        gateNodes.push({
+          id: gateId,
+          type: 'default',
+          position: { x: gateX, y: gateY },
+          data: { label: `→ ${toStateName}` },
+          style: {
+            fontSize: 9,
+            padding: '2px 6px',
+            background: '#374151',
+            color: '#9ca3af',
+            border: '1px dashed #6b7280',
+            borderRadius: 4,
+            pointerEvents: 'none' as const,
+            minWidth: 'auto',
+          },
+          selectable: false,
+          draggable: false,
+        })
+        gateEdges.push({
+          id: `ge-${gateId}`,
+          source: fromProvinceId,
+          target: gateId,
+          type: 'straight',
+          style: { stroke: '#6b7280', strokeWidth: 2, strokeDasharray: '6 4' },
+        })
+      }
+    }
+
+    const provinceNodes = filteredProvinces.map((province) => {
       const pops = popGroups ? getProvincePops(session.currentState, province.id) : []
       const peasantsSize = pops.find((p) => p.class === 'peasants')?.size ?? 0
       const townsmenSize = pops.find((p) => p.class === 'townsmen')?.size ?? 0
@@ -174,6 +258,8 @@ export function ProvinceMap() {
         } satisfies ProvinceNodeData,
       }
     })
+
+    return { nodes: [...provinceNodes, ...gateNodes], gateEdges }
   }, [
     provinces,
     polityColorMap,
@@ -184,6 +270,7 @@ export function ProvinceMap() {
     houses,
     session,
     mapView,
+    focusedStateId,
   ])
 
   // Convert province neighbors to edges (deduplicate: only when a < b)
@@ -191,7 +278,16 @@ export function ProvinceMap() {
     if (!provinces) return []
     const edgeSet = new Set<string>()
     const result: Edge[] = []
+    const filteredProvinceIds = focusedStateId
+      ? new Set(
+          Object.values(provinces)
+            .filter((p) => (p.stateId as string) === (focusedStateId as string))
+            .map((p) => p.id as string),
+        )
+      : null
+
     for (const province of Object.values(provinces)) {
+      if (filteredProvinceIds && !filteredProvinceIds.has(province.id)) continue
       for (const neighborId of province.neighbors) {
         const a = province.id
         const b = neighborId
@@ -199,17 +295,21 @@ export function ProvinceMap() {
         const edgeId = `e-${a}-${b}`
         if (edgeSet.has(edgeId)) continue
         edgeSet.add(edgeId)
+
+        const isGate = filteredProvinceIds && !filteredProvinceIds.has(neighborId)
+        if (isGate) continue // don't draw edges to provinces outside the focused state
+
         result.push({
           id: edgeId,
           source: a,
           target: b,
           type: 'straight',
-          style: { stroke: '#555', strokeWidth: 1 },
+          style: { stroke: '#78716c', strokeWidth: 2.5 },
         })
       }
     }
-    return result
-  }, [provinces])
+    return [...result, ...gateEdges]
+  }, [provinces, focusedStateId, gateEdges])
 
   const handleNodeClick = (_event: React.MouseEvent, node: Node) => {
     if (!session) return
@@ -224,6 +324,14 @@ export function ProvinceMap() {
 
   return (
     <div className="relative h-full w-full">
+      {focusedStateId && (
+        <button
+          className="absolute top-3 left-3 z-20 rounded bg-gray-700 px-3 py-1.5 text-sm text-white hover:bg-gray-600"
+          onClick={exitToStateMap}
+        >
+          ← State Map
+        </button>
+      )}
       {/* Background image layer */}
       <div
         className="pointer-events-none absolute inset-0 z-0"

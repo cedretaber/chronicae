@@ -226,6 +226,7 @@ describe('runSuccessionSystem', () => {
         currentWeekOfYear: 1,
         absoluteWeek: 48,
         provinces: {},
+        states: {},
         polities: {
           [polityId]: {
             id: polityId,
@@ -311,6 +312,7 @@ describe('runSuccessionSystem', () => {
         currentWeekOfYear: 1,
         absoluteWeek: 48,
         provinces: {},
+        states: {},
         polities: {
           [polityId]: {
             id: polityId,

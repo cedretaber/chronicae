@@ -2,6 +2,14 @@ import { useState } from 'react'
 import { ConfigPanel } from './ConfigPanel'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { getPseudoMonthFromWeek, getWeekOfPseudoMonth } from '@sim/utils/timeUtils'
+import type { WorldPresetName } from '@sim/worldgen/worldPresets'
+
+const PRESET_OPTIONS: { value: WorldPresetName; label: string }[] = [
+  { value: 'tiny', label: 'Tiny (4×4)' },
+  { value: 'small', label: 'Small (9×9)' },
+  { value: 'standard', label: 'Standard (16×16)' },
+  { value: 'perfLarge', label: 'Large (20×20)' },
+]
 
 export function ControlBar() {
   const session = useSimulationStore((s) => s.session)
@@ -18,6 +26,7 @@ export function ControlBar() {
   const currentYear = session?.currentState.currentYear ?? null
   const currentWeekOfYear = session?.currentState.currentWeekOfYear ?? null
   const [seedInput, setSeedInput] = useState(session?.initialSeed ?? 'chronicae-default')
+  const [presetInput, setPresetInput] = useState<WorldPresetName>('tiny')
 
   const dateDisplay =
     currentYear != null && currentWeekOfYear != null
@@ -68,9 +77,20 @@ export function ControlBar() {
         placeholder="Enter seed"
         className="w-40 rounded bg-gray-800 px-2 py-0.5 text-white"
       />
+      <select
+        value={presetInput}
+        onChange={(e) => setPresetInput(e.target.value as WorldPresetName)}
+        className="rounded bg-gray-800 px-1 py-0.5"
+      >
+        {PRESET_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
       <button
         onClick={() => {
-          if (seedInput) generateNewWorld(seedInput)
+          if (seedInput) generateNewWorld(seedInput, presetInput)
         }}
         className="rounded bg-gray-700 px-3 py-1 hover:bg-gray-600"
       >

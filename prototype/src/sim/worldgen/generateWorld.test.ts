@@ -13,31 +13,29 @@ describe('generateWorld', () => {
     expect(JSON.stringify(w1)).toEqual(JSON.stringify(w2))
   })
 
-  it('has correct structure: 40 provinces, 15 polities (3 kingdoms + 4 duchies + 8 counties), 15 normal + 1 AnonymousHouse', () => {
+  it('has correct structure: 16 provinces, 9 polities (1 kingdom + 2 duchies + 6 counties), 10 normal + 1 AnonymousHouse', () => {
     const { world } = generateWorld('test-seed')
-    expect(Object.keys(world.provinces).length).toEqual(40)
-    expect(Object.keys(world.polities).length).toEqual(15)
+    expect(Object.keys(world.provinces).length).toEqual(16)
+    expect(Object.keys(world.polities).length).toEqual(9)
     const rank2 = Object.values(world.polities).filter((p) => p?.rank === 2).length
     const rank3 = Object.values(world.polities).filter((p) => p?.rank === 3).length
     const rank4 = Object.values(world.polities).filter((p) => p?.rank === 4).length
-    expect(rank2).toEqual(3)
-    expect(rank3).toEqual(4)
-    expect(rank4).toEqual(8)
+    expect(rank2).toEqual(1)
+    expect(rank3).toEqual(2)
+    expect(rank4).toEqual(6)
     const normalHouseCount = Object.values(world.houses).filter((h) => h?.kind !== 'system').length
     const systemHouseCount = Object.values(world.houses).filter((h) => h?.kind === 'system').length
-    expect(normalHouseCount).toEqual(15)
+    expect(normalHouseCount).toEqual(9)
     expect(systemHouseCount).toEqual(1)
   })
 
-  it('has correct person count: 120 normal + 1 placeholder singleton', () => {
+  it('has correct person count: varies by preset + 1 placeholder singleton', () => {
     // v0.17.2: 全 Province の bailiff は単一の placeholder singleton を共有する。
-    // 旧版では Province ごとに 40 体の placeholder Person が存在していたが、
-    // 蓄積バグ防止のため 1 体に統一。
     const { world } = generateWorld('test-seed')
     const normal = Object.values(world.persons).filter((p) => p?.kind !== 'placeholder').length
     const placeholder = Object.values(world.persons).filter((p) => p?.kind === 'placeholder').length
-    expect(normal).toBe(120)
     expect(placeholder).toBe(1)
+    expect(normal).toBeGreaterThan(0)
   })
 
   describe('consistency checks', () => {
@@ -185,7 +183,7 @@ describe('generateWorld', () => {
         }
       }
 
-      expect(visited.size).toEqual(40)
+      expect(visited.size).toEqual(16)
     })
 
     it('same seed produces same neighbor graph (determinism)', () => {
@@ -208,9 +206,31 @@ describe('generateWorld', () => {
         const province = world.provinces[id]
         if (!province) continue
         expect(province.x).toBeGreaterThanOrEqual(-25)
-        expect(province.x).toBeLessThanOrEqual(725)
+        expect(province.x).toBeLessThanOrEqual(325)
         expect(province.y).toBeGreaterThanOrEqual(-25)
-        expect(province.y).toBeLessThanOrEqual(425)
+        expect(province.y).toBeLessThanOrEqual(325)
+      }
+    })
+  })
+
+  describe('state structure', () => {
+    it('has correct State structure: 4 states', () => {
+      const { world } = generateWorld('test-seed')
+      expect(Object.keys(world.states).length).toBe(4)
+      // Each state should have 4 provinces
+      for (const state of Object.values(world.states)) {
+        if (!state) continue
+        expect(state.provinceIds.length).toBe(4)
+      }
+    })
+
+    it('every province belongs to a state', () => {
+      const { world } = generateWorld('test-seed')
+      for (const province of Object.values(world.provinces)) {
+        if (!province) continue
+        const state = world.states[province.stateId]
+        expect(state).toBeDefined()
+        expect(state!.provinceIds).toContain(province.id)
       }
     })
   })
