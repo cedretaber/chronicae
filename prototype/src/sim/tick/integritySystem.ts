@@ -1361,6 +1361,39 @@ export function collectIntegrityErrors(
     }
   }
 
+  // S4: Province.neighbors must be bidirectional
+  for (const prov of Object.values(state.provinces)) {
+    if (!prov) continue
+    for (const nid of prov.neighbors) {
+      const neighbor = state.provinces[nid]
+      if (!neighbor) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Province ${prov.id} has neighbor ${nid as string} which does not exist`,
+        })
+        continue
+      }
+      if (!neighbor.neighbors.includes(prov.id)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Province ${prov.id} has neighbor ${nid as string} but the reverse is missing`,
+        })
+      }
+    }
+    if (prov.neighbors.includes(prov.id)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${prov.id} has itself as a neighbor`,
+      })
+    }
+    if (prov.neighbors.length === 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${prov.id} has no neighbors (isolated)`,
+      })
+    }
+  }
+
   // H0: Every Province must have at least one Holding
   for (const province of Object.values(state.provinces)) {
     if (!province) continue

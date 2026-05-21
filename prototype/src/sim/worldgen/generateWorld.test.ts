@@ -5,6 +5,10 @@ import {
   getHouseControlledProvinceIds,
   getProvinceEffectiveOwnerHouseId,
 } from '../selectors/landContractSelectors'
+import { WORLD_PRESETS } from './worldPresets'
+import { defaultMapConfig } from './mapConfig'
+
+const tinyPreset = WORLD_PRESETS.tiny
 
 describe('generateWorld', () => {
   it('is deterministic: same seed produces identical world', () => {
@@ -13,9 +17,13 @@ describe('generateWorld', () => {
     expect(JSON.stringify(w1)).toEqual(JSON.stringify(w2))
   })
 
-  it('has correct structure: 16 provinces, 9 polities (1 kingdom + 2 duchies + 6 counties), 10 normal + 1 AnonymousHouse', () => {
+  it('has correct structure: province count in expected range, 9 polities (1 kingdom + 2 duchies + 6 counties), 10 normal + 1 AnonymousHouse', () => {
     const { world } = generateWorld('test-seed')
-    expect(Object.keys(world.provinces).length).toEqual(16)
+    const provinceCount = Object.keys(world.provinces).length
+    const minProv = tinyPreset.stateCount * tinyPreset.provinceCountPerStateMin
+    const maxProv = tinyPreset.stateCount * tinyPreset.provinceCountPerStateMax
+    expect(provinceCount).toBeGreaterThanOrEqual(minProv)
+    expect(provinceCount).toBeLessThanOrEqual(maxProv)
     expect(Object.keys(world.polities).length).toEqual(9)
     const rank2 = Object.values(world.polities).filter((p) => p?.rank === 2).length
     const rank3 = Object.values(world.polities).filter((p) => p?.rank === 3).length
@@ -30,7 +38,6 @@ describe('generateWorld', () => {
   })
 
   it('has correct person count: varies by preset + 1 placeholder singleton', () => {
-    // v0.17.2: 全 Province の bailiff は単一の placeholder singleton を共有する。
     const { world } = generateWorld('test-seed')
     const normal = Object.values(world.persons).filter((p) => p?.kind !== 'placeholder').length
     const placeholder = Object.values(world.persons).filter((p) => p?.kind === 'placeholder').length
@@ -135,13 +142,11 @@ describe('generateWorld', () => {
     })
   })
 
-  describe('graph structure (after link removal + jitter)', () => {
+  describe('graph structure', () => {
     it('every province has at least 1 neighbor', () => {
       const { world } = generateWorld('graph-test-seed')
 
-      const provinceKeys = Object.keys(world.provinces).sort() as ProvinceId[]
-      for (const id of provinceKeys) {
-        const province = world.provinces[id]
+      for (const province of Object.values(world.provinces)) {
         if (!province) continue
         expect(province.neighbors.length).toBeGreaterThanOrEqual(1)
       }
@@ -150,14 +155,14 @@ describe('generateWorld', () => {
     it('neighbor relationship is bidirectional', () => {
       const { world } = generateWorld('bidirectional-test-seed')
 
-      const provinceKeys = Object.keys(world.provinces).sort() as ProvinceId[]
-      for (const id of provinceKeys) {
-        const province = world.provinces[id]
+      for (const province of Object.values(world.provinces)) {
         if (!province) continue
         for (const neighborId of province.neighbors) {
           const neighborProvince = world.provinces[neighborId]
           if (!neighborProvince) continue
-          expect((neighborProvince.neighbors as string[]).includes(id as string)).toBe(true)
+          expect((neighborProvince.neighbors as string[]).includes(province.id as string)).toBe(
+            true,
+          )
         }
       }
     })
@@ -183,7 +188,7 @@ describe('generateWorld', () => {
         }
       }
 
-      expect(visited.size).toEqual(16)
+      expect(visited.size).toEqual(Object.keys(world.provinces).length)
     })
 
     it('same seed produces same neighbor graph (determinism)', () => {
@@ -198,29 +203,61 @@ describe('generateWorld', () => {
       }
     })
 
-    it('jitter: all province x/y coordinates within expected bounds', () => {
-      const { world } = generateWorld('jitter-test-seed')
+    it('province coordinates within map bounds', () => {
+      const { world } = generateWorld('bounds-test-seed')
 
-      const provinceKeys = Object.keys(world.provinces).sort() as ProvinceId[]
-      for (const id of provinceKeys) {
-        const province = world.provinces[id]
+      for (const province of Object.values(world.provinces)) {
         if (!province) continue
-        expect(province.x).toBeGreaterThanOrEqual(-25)
-        expect(province.x).toBeLessThanOrEqual(325)
-        expect(province.y).toBeGreaterThanOrEqual(-25)
-        expect(province.y).toBeLessThanOrEqual(325)
+        expect(province.x).toBeGreaterThanOrEqual(0)
+        expect(province.x).toBeLessThanOrEqual(defaultMapConfig.worldMapWidth)
+        expect(province.y).toBeGreaterThanOrEqual(0)
+        expect(province.y).toBeLessThanOrEqual(defaultMapConfig.worldMapHeight)
+      }
+    })
+
+    it("each state's provinces form a connected subgraph", () => {
+      const { world } = generateWorld('state-connectivity-seed')
+
+      for (const state of Object.values(world.states)) {
+        if (!state || state.provinceIds.length <= 1) continue
+
+        const stateProvSet = new Set<ProvinceId>(state.provinceIds)
+        const startId = state.provinceIds[0]!
+        const visited = new Set<ProvinceId>()
+        const queue: ProvinceId[] = [startId]
+
+        while (queue.length > 0) {
+          const current = queue.shift()!
+          if (visited.has(current)) continue
+          visited.add(current)
+          const prov = world.provinces[current]
+          if (!prov) continue
+          for (const nid of prov.neighbors) {
+            if (stateProvSet.has(nid) && !visited.has(nid)) {
+              queue.push(nid)
+            }
+          }
+        }
+
+        expect(visited.size).toEqual(state.provinceIds.length)
       }
     })
   })
 
   describe('state structure', () => {
-    it('has correct State structure: 4 states', () => {
+    it('has correct number of states', () => {
       const { world } = generateWorld('test-seed')
-      expect(Object.keys(world.states).length).toBe(4)
-      // Each state should have 4 provinces
+      expect(Object.keys(world.states).length).toBe(tinyPreset.stateCount)
+    })
+
+    it('each state has province count within preset range', () => {
+      const { world } = generateWorld('test-seed')
       for (const state of Object.values(world.states)) {
         if (!state) continue
-        expect(state.provinceIds.length).toBe(4)
+        expect(state.provinceIds.length).toBeGreaterThanOrEqual(tinyPreset.provinceCountPerStateMin)
+        expect(state.provinceIds.length).toBeLessThanOrEqual(
+          tinyPreset.provinceCountPerStateMax + 2,
+        )
       }
     })
 
@@ -231,6 +268,17 @@ describe('generateWorld', () => {
         const state = world.states[province.stateId]
         expect(state).toBeDefined()
         expect(state!.provinceIds).toContain(province.id)
+      }
+    })
+
+    it('states have centerX/centerY within map bounds', () => {
+      const { world } = generateWorld('test-seed')
+      for (const state of Object.values(world.states)) {
+        if (!state) continue
+        expect(state.centerX).toBeGreaterThanOrEqual(0)
+        expect(state.centerX).toBeLessThanOrEqual(defaultMapConfig.worldMapWidth)
+        expect(state.centerY).toBeGreaterThanOrEqual(0)
+        expect(state.centerY).toBeLessThanOrEqual(defaultMapConfig.worldMapHeight)
       }
     })
   })

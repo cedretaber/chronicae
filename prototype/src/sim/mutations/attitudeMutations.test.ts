@@ -11,6 +11,7 @@ import {
 import { houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
 import {
   bindProvinceToHouseViaPolity,
+  bindProvinceToPolity,
   makeEmptyV016State,
   withHouse,
   withPerson,
@@ -35,6 +36,7 @@ function makeFixture(): {
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
   state = withProvince(state, provinceId, { name: 'Test Province' })
+  state = withProvince(state, 'p-1' as ProvinceId)
   state = withHouse(state, houseId, {
     name: 'House 1',
     memberIds: [person1Id, person2Id],
@@ -49,6 +51,7 @@ function makeFixture(): {
     capitalProvinceId: provinceId,
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
+  state = bindProvinceToPolity(state, 'p-1' as ProvinceId, polityId)
   state = withPerson(state, person1Id, {
     name: 'Person 1',
     houseId,

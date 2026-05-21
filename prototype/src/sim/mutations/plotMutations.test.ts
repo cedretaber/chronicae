@@ -6,13 +6,14 @@ import {
   createPlotId,
   createProvinceId,
 } from '../types/ids'
-import type { PolityId, HouseId, PersonId, PlotId } from '../types/ids'
+import type { PolityId, HouseId, PersonId, PlotId, ProvinceId } from '../types/ids'
 import type { Plot } from '../types/plot'
 import type { WorldState } from '../types/world'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import { addPlot, removePlot, resolvePlot } from './plotMutations'
 import {
   bindProvinceToHouseViaPolity,
+  bindProvinceToPolity,
   makeEmptyV016State,
   withHouse,
   withPerson,
@@ -36,6 +37,7 @@ function makeFixture(): {
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
   state = withProvince(state, provinceId)
+  state = withProvince(state, 'p-1' as ProvinceId)
   state = withHouse(state, house1Id, {
     name: 'House 1',
     memberIds: [leaderId],
@@ -50,6 +52,7 @@ function makeFixture(): {
     capitalProvinceId: provinceId,
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polity1Id, house1Id)
+  state = bindProvinceToPolity(state, 'p-1' as ProvinceId, polity1Id)
   state = withPerson(state, leaderId, {
     name: 'Leader',
     age: 35,

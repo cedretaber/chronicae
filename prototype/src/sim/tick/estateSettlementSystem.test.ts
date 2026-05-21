@@ -9,6 +9,7 @@ import { collectIntegrityErrors } from './integritySystem'
 import { createOfficeAssignmentId } from '../types/ids'
 import {
   bindProvinceToHouseViaPolity,
+  bindProvinceToPolity,
   makeEmptyV016State,
   withHouse,
   withPolity,
@@ -36,6 +37,7 @@ function makeBaseState(): {
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
   state = withProvince(state, provinceId, { name: 'Province0' })
+  state = withProvince(state, 'dp-pr-1' as ProvinceId)
   state = withHouse(state, houseId, {
     name: 'House',
     legacyPrestige: 50,
@@ -50,6 +52,7 @@ function makeBaseState(): {
     capitalProvinceId: provinceId,
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
+  state = bindProvinceToPolity(state, 'dp-pr-1' as ProvinceId, polityId)
   return { state, houseId, polityId, provinceId }
 }
 

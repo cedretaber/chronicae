@@ -1,185 +1,387 @@
-import type { ProvinceId, PopGroupId } from '../types/ids'
+import { Delaunay } from 'd3-delaunay'
+import type { PopGroupId, StateRegionId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { RngState } from '../rng/rng'
 import type { MapGenerationConfig } from './mapConfig'
-import { createProvinceId } from '../types/ids'
-import { createStateRegionId } from '../types/ids'
+import type { WorldPreset } from './worldPresets'
+import { createProvinceId, createStateRegionId } from '../types/ids'
 import { pickUniqueName, provinceName, provinceNamePool } from './nameGenerators'
-import { randomFloat, shuffle } from '../rng/rng'
+import { randomFloat, randomInt } from '../rng/rng'
+import { poissonDiskSample } from './poissonDisk'
+import { kruskalMST } from './mst'
+import { UnionFind } from './unionFind'
 
-function isConnected(adj: Map<ProvinceId, Set<ProvinceId>>, allIds: ProvinceId[]): boolean {
-  if (allIds.length === 0) return true
-  const start = allIds[0]
-  if (!start) return true
-  const visited = new Set<ProvinceId>()
-  const queue: ProvinceId[] = [start]
-  visited.add(start)
-  while (queue.length > 0) {
-    const cur = queue.shift()!
-    const neighbors = adj.get(cur)
-    if (!neighbors) continue
-    for (const nb of neighbors) {
-      if (!visited.has(nb)) {
-        visited.add(nb)
-        queue.push(nb)
-      }
-    }
-  }
-  return visited.size === allIds.length
-}
+type StateCenter = { id: StateRegionId; x: number; y: number }
+type ProvincePoint = { index: number; stateIndex: number; x: number; y: number }
 
 export function generateProvinces(
   rng: RngState,
   mapConfig: MapGenerationConfig,
-  cols: number,
-  rows: number,
-  stateCols: number,
-  stateRows: number,
-): { provinces: Province[]; rng: RngState } {
-  const provinces: Province[] = []
+  preset: WorldPreset,
+): {
+  provinces: Province[]
+  stateCenters: StateCenter[]
+  rng: RngState
+} {
+  // Step 1: Place state centers via Poisson disk
+  const { points: centerPoints, rng: rng1 } = poissonDiskSample(
+    rng,
+    mapConfig.worldMapWidth,
+    mapConfig.worldMapHeight,
+    preset.stateCount,
+    mapConfig.minStateCenterDistance,
+    mapConfig.mapGenerationMaxAttempts,
+  )
+  rng = rng1
+
+  const stateCenters: StateCenter[] = centerPoints.map((p, i) => ({
+    id: createStateRegionId(i),
+    x: p.x,
+    y: p.y,
+  }))
+
+  // Step 2: Province count per state
+  const provinceCounts: number[] = []
+  for (let i = 0; i < preset.stateCount; i++) {
+    const { value, rng: r } = randomInt(
+      rng,
+      preset.provinceCountPerStateMin,
+      preset.provinceCountPerStateMax,
+    )
+    provinceCounts.push(value)
+    rng = r
+  }
+
+  // Step 3: Elliptical cluster params per state
+  const clusterParams: { radiusX: number; radiusY: number; rotation: number }[] = []
+  for (let i = 0; i < preset.stateCount; i++) {
+    const { value: rv, rng: r1 } = randomFloat(rng)
+    const radiusX =
+      mapConfig.stateRadiusMin + rv * (mapConfig.stateRadiusMax - mapConfig.stateRadiusMin)
+    const { value: av, rng: r2 } = randomFloat(r1)
+    const aspect =
+      mapConfig.stateAspectRatioMin +
+      av * (mapConfig.stateAspectRatioMax - mapConfig.stateAspectRatioMin)
+    const { value: rotV, rng: r3 } = randomFloat(r2)
+    const rotation = rotV * Math.PI
+    clusterParams.push({ radiusX, radiusY: radiusX * aspect, rotation })
+    rng = r3
+  }
+
+  // Step 4: Place province points around state centers
+  const allPoints: ProvincePoint[] = []
+  // Spatial hash for min distance check
+  const cellSize = mapConfig.minProvinceDistance
+  const spatialGrid = new Map<string, ProvincePoint[]>()
+
+  function gridKey(x: number, y: number): string {
+    return `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)}`
+  }
+
+  function isTooClose(x: number, y: number): boolean {
+    const gx = Math.floor(x / cellSize)
+    const gy = Math.floor(y / cellSize)
+    const minDistSq = mapConfig.minProvinceDistance * mapConfig.minProvinceDistance
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const key = `${gx + dx},${gy + dy}`
+        const cell = spatialGrid.get(key)
+        if (!cell) continue
+        for (const pt of cell) {
+          const ddx = pt.x - x
+          const ddy = pt.y - y
+          if (ddx * ddx + ddy * ddy < minDistSq) return true
+        }
+      }
+    }
+    return false
+  }
+
+  function addToGrid(pt: ProvincePoint): void {
+    const key = gridKey(pt.x, pt.y)
+    const cell = spatialGrid.get(key)
+    if (cell) {
+      cell.push(pt)
+    } else {
+      spatialGrid.set(key, [pt])
+    }
+  }
+
+  let globalIndex = 0
+
+  for (let si = 0; si < preset.stateCount; si++) {
+    const center = stateCenters[si]!
+    const count = provinceCounts[si]!
+    const cluster = clusterParams[si]!
+    const cosR = Math.cos(cluster.rotation)
+    const sinR = Math.sin(cluster.rotation)
+
+    for (let pi = 0; pi < count; pi++) {
+      let placed = false
+      for (let attempt = 0; attempt < mapConfig.mapGenerationMaxAttempts; attempt++) {
+        const { value: angleV, rng: ra } = randomFloat(rng)
+        const { value: radiusV, rng: rr } = randomFloat(ra)
+        rng = rr
+
+        const angle = angleV * 2 * Math.PI
+        const r = Math.sqrt(radiusV)
+        const lx = r * Math.cos(angle) * cluster.radiusX
+        const ly = r * Math.sin(angle) * cluster.radiusY
+        const x = center.x + lx * cosR - ly * sinR
+        const y = center.y + lx * sinR + ly * cosR
+
+        const cx = Math.max(0, Math.min(mapConfig.worldMapWidth, x))
+        const cy = Math.max(0, Math.min(mapConfig.worldMapHeight, y))
+
+        if (!isTooClose(cx, cy)) {
+          const pt: ProvincePoint = { index: globalIndex, stateIndex: si, x: cx, y: cy }
+          allPoints.push(pt)
+          addToGrid(pt)
+          globalIndex++
+          placed = true
+          break
+        }
+      }
+
+      if (!placed) {
+        // Fallback: place near center with small random offset
+        const { value: fx, rng: rf1 } = randomFloat(rng)
+        const { value: fy, rng: rf2 } = randomFloat(rf1)
+        rng = rf2
+        const cx = Math.max(0, Math.min(mapConfig.worldMapWidth, center.x + (fx - 0.5) * 20))
+        const cy = Math.max(0, Math.min(mapConfig.worldMapHeight, center.y + (fy - 0.5) * 20))
+        const pt: ProvincePoint = { index: globalIndex, stateIndex: si, x: cx, y: cy }
+        allPoints.push(pt)
+        addToGrid(pt)
+        globalIndex++
+      }
+    }
+  }
+
+  // Step 5: Geometric state assignment validation
+  // Reassign if nearest state center differs from assigned state
+  const stateCountTracker = new Map<number, number>()
+  for (const pt of allPoints) {
+    stateCountTracker.set(pt.stateIndex, (stateCountTracker.get(pt.stateIndex) ?? 0) + 1)
+  }
+
+  for (const pt of allPoints) {
+    let nearestSi = pt.stateIndex
+    let nearestDistSq = Infinity
+    for (let si = 0; si < stateCenters.length; si++) {
+      const c = stateCenters[si]!
+      const dx = pt.x - c.x
+      const dy = pt.y - c.y
+      const dsq = dx * dx + dy * dy
+      if (dsq < nearestDistSq) {
+        nearestDistSq = dsq
+        nearestSi = si
+      }
+    }
+    if (nearestSi !== pt.stateIndex) {
+      const oldCount = stateCountTracker.get(pt.stateIndex) ?? 0
+      if (oldCount > preset.provinceCountPerStateMin) {
+        stateCountTracker.set(pt.stateIndex, oldCount - 1)
+        stateCountTracker.set(nearestSi, (stateCountTracker.get(nearestSi) ?? 0) + 1)
+        pt.stateIndex = nearestSi
+      }
+    }
+  }
+
+  // Step 6: Delaunay triangulation
+  const points: [number, number][] = allPoints.map((p) => [p.x, p.y])
+  const delaunay = Delaunay.from(points)
+
+  // Extract all Delaunay edges
+  type EdgePair = { a: number; b: number; dist: number }
+  const edgeSet = new Set<string>()
+  const allEdges: EdgePair[] = []
+
+  for (let i = 0; i < allPoints.length; i++) {
+    for (const j of delaunay.neighbors(i)) {
+      if (i >= j) continue
+      const key = `${i}-${j}`
+      if (edgeSet.has(key)) continue
+      edgeSet.add(key)
+      const ptA = allPoints[i]!
+      const ptB = allPoints[j]!
+      const dx = ptA.x - ptB.x
+      const dy = ptA.y - ptB.y
+      allEdges.push({ a: i, b: j, dist: Math.sqrt(dx * dx + dy * dy) })
+    }
+  }
+
+  // Step 7: Classify edges
+  const intraEdges: EdgePair[] = []
+  const interEdges: EdgePair[] = []
+  for (const edge of allEdges) {
+    const sA = allPoints[edge.a]!.stateIndex
+    const sB = allPoints[edge.b]!.stateIndex
+    if (sA === sB) {
+      intraEdges.push(edge)
+    } else {
+      interEdges.push(edge)
+    }
+  }
+
+  // Step 8: MST per state for intra-state connectivity
+  const acceptedEdges = new Set<string>()
+  const degree = new Array<number>(allPoints.length).fill(0)
+
+  function acceptEdge(a: number, b: number): void {
+    const key = a < b ? `${a}-${b}` : `${b}-${a}`
+    if (acceptedEdges.has(key)) return
+    acceptedEdges.add(key)
+    degree[a]!++
+    degree[b]!++
+  }
+
+  // Group provinces by state, build local MST
+  const stateProvinces = new Map<number, number[]>()
+  for (const pt of allPoints) {
+    const arr = stateProvinces.get(pt.stateIndex)
+    if (arr) arr.push(pt.index)
+    else stateProvinces.set(pt.stateIndex, [pt.index])
+  }
+
+  for (const [si, provIndices] of stateProvinces) {
+    if (provIndices.length <= 1) continue
+    const localIndexMap = new Map<number, number>()
+    for (let li = 0; li < provIndices.length; li++) {
+      localIndexMap.set(provIndices[li]!, li)
+    }
+
+    const localEdges = intraEdges
+      .filter((e) => allPoints[e.a]!.stateIndex === si)
+      .map((e) => ({
+        a: localIndexMap.get(e.a)!,
+        b: localIndexMap.get(e.b)!,
+        weight: e.dist,
+      }))
+
+    const mstEdges = kruskalMST(provIndices.length, localEdges)
+    for (const me of mstEdges) {
+      acceptEdge(provIndices[me.a]!, provIndices[me.b]!)
+    }
+  }
+
+  // Step 9: Extra intra-state edges
+  const sortedIntra = [...intraEdges].sort((a, b) => {
+    if (a.a !== b.a) return a.a - b.a
+    return a.b - b.b
+  })
+
+  for (const edge of sortedIntra) {
+    const key = `${edge.a}-${edge.b}`
+    if (acceptedEdges.has(key)) continue
+    if (degree[edge.a]! >= mapConfig.maxProvinceDegree) continue
+    if (degree[edge.b]! >= mapConfig.maxProvinceDegree) continue
+
+    const { value: roll, rng: r } = randomFloat(rng)
+    rng = r
+    if (roll < mapConfig.intraStateExtraEdgeChance) {
+      acceptEdge(edge.a, edge.b)
+    }
+  }
+
+  // Step 10: Inter-state edges
+  const sortedInter = [...interEdges].sort((a, b) => a.dist - b.dist)
+  const statePairEdgeCount = new Map<string, number>()
+
+  function statePairKey(a: number, b: number): string {
+    return a < b ? `${a}-${b}` : `${b}-${a}`
+  }
+
+  // First pass: guarantee at least one edge per adjacent state pair
+  for (const edge of sortedInter) {
+    const sA = allPoints[edge.a]!.stateIndex
+    const sB = allPoints[edge.b]!.stateIndex
+    const spKey = statePairKey(sA, sB)
+    if ((statePairEdgeCount.get(spKey) ?? 0) > 0) continue
+    if (degree[edge.a]! >= mapConfig.maxProvinceDegree) continue
+    if (degree[edge.b]! >= mapConfig.maxProvinceDegree) continue
+    acceptEdge(edge.a, edge.b)
+    statePairEdgeCount.set(spKey, 1)
+  }
+
+  // Second pass: probabilistic extra inter-state edges
+  for (const edge of sortedInter) {
+    const key = `${edge.a}-${edge.b}`
+    if (acceptedEdges.has(key)) continue
+    if (degree[edge.a]! >= mapConfig.maxProvinceDegree) continue
+    if (degree[edge.b]! >= mapConfig.maxProvinceDegree) continue
+
+    const sA = allPoints[edge.a]!.stateIndex
+    const sB = allPoints[edge.b]!.stateIndex
+    const spKey = statePairKey(sA, sB)
+    if ((statePairEdgeCount.get(spKey) ?? 0) >= mapConfig.maxInterStateEdgesPerStatePair) continue
+
+    const { value: roll, rng: r } = randomFloat(rng)
+    rng = r
+    if (roll < mapConfig.interStateExtraEdgeChance) {
+      acceptEdge(edge.a, edge.b)
+      statePairEdgeCount.set(spKey, (statePairEdgeCount.get(spKey) ?? 0) + 1)
+    }
+  }
+
+  // Step 11: Global connectivity guarantee
+  const uf = new UnionFind(allPoints.length)
+  for (const edgeKey of acceptedEdges) {
+    const [aStr, bStr] = edgeKey.split('-')
+    uf.union(parseInt(aStr!, 10), parseInt(bStr!, 10))
+  }
+
+  if (uf.componentCount() > 1) {
+    // Sort all Delaunay edges by distance, try to connect components
+    const allByDist = [...allEdges].sort((a, b) => a.dist - b.dist)
+    for (const edge of allByDist) {
+      if (uf.componentCount() <= 1) break
+      if (!uf.connected(edge.a, edge.b)) {
+        acceptEdge(edge.a, edge.b)
+        uf.union(edge.a, edge.b)
+      }
+    }
+  }
+
+  // Step 12: Build Province objects with neighbors
+  const neighborMap = new Map<number, number[]>()
+  for (const edgeKey of acceptedEdges) {
+    const [aStr, bStr] = edgeKey.split('-')
+    const a = parseInt(aStr!, 10)
+    const b = parseInt(bStr!, 10)
+    const na = neighborMap.get(a)
+    if (na) na.push(b)
+    else neighborMap.set(a, [b])
+    const nb = neighborMap.get(b)
+    if (nb) nb.push(a)
+    else neighborMap.set(b, [a])
+  }
+
+  // Step 13: Name provinces and build final array
   const usedNames = new Set<string>()
   const pool = provinceNamePool()
-  let currentRng = rng
+  const provinces: Province[] = []
 
-  const provBlockCols = cols / stateCols
-  const provBlockRows = rows / stateRows
+  for (const pt of allPoints) {
+    const id = createProvinceId('p', pt.index)
+    const stateId = createStateRegionId(pt.stateIndex)
+    const neighbors = (neighborMap.get(pt.index) ?? []).map((ni) => createProvinceId('p', ni))
 
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const index = row * cols + col
-      const id = createProvinceId('p', index)
+    const { name, rng: nr } = pickUniqueName(pool, usedNames, provinceName, pt.index, rng)
+    rng = nr
 
-      const neighbors: ProvinceId[] = []
-
-      if (col > 0) {
-        neighbors.push(createProvinceId('p', index - 1))
-      }
-      if (col < cols - 1) {
-        neighbors.push(createProvinceId('p', index + 1))
-      }
-      if (row > 0) {
-        neighbors.push(createProvinceId('p', index - cols))
-      }
-      if (row < rows - 1) {
-        neighbors.push(createProvinceId('p', index + cols))
-      }
-
-      const stateCol = Math.floor(col / provBlockCols)
-      const stateRow = Math.floor(row / provBlockRows)
-      const stateIndex = stateRow * stateCols + stateCol
-      const stateId = createStateRegionId(stateIndex)
-
-      const { name, rng: nextRng } = pickUniqueName(
-        pool,
-        usedNames,
-        provinceName,
-        index,
-        currentRng,
-      )
-      currentRng = nextRng
-
-      provinces.push({
-        id,
-        stateId: stateId,
-        name,
-        x: col * 100,
-        y: row * 100,
-        neighbors,
-        habitability: 0,
-        holdingIds: [],
-        popGroupIds: [] as PopGroupId[],
-      })
-    }
+    provinces.push({
+      id,
+      stateId,
+      name,
+      x: pt.x,
+      y: pt.y,
+      neighbors,
+      habitability: 0,
+      holdingIds: [],
+      popGroupIds: [] as PopGroupId[],
+    })
   }
 
-  // Step 2: Link removal
-  if (mapConfig.linkRemovalEnabled) {
-    const adj = new Map<ProvinceId, Set<ProvinceId>>()
-    for (const p of provinces) {
-      adj.set(p.id, new Set(p.neighbors))
-    }
-
-    const allIds = provinces.map((p) => p.id)
-
-    const edges: [ProvinceId, ProvinceId][] = []
-    for (const p of provinces) {
-      for (const nid of p.neighbors) {
-        if (p.id < nid) edges.push([p.id, nid])
-      }
-    }
-
-    const { value: shuffledEdges, rng: rng1 } = shuffle(currentRng, edges)
-    currentRng = rng1
-
-    for (const [a, b] of shuffledEdges) {
-      // Check if average degree is already at target
-      const totalDegree = provinces.reduce((sum, p) => sum + p.neighbors.length, 0)
-      const avgDegree = totalDegree / provinces.length
-      if (avgDegree < mapConfig.targetAverageDegreeMin) break
-
-      // Attempt removal
-      const adjA = adj.get(a)
-      const adjB = adj.get(b)
-      if (!adjA || !adjB) continue
-
-      // Remove edge
-      adjA.delete(b)
-      adjB.delete(a)
-
-      // Check constraints
-      const minDegreeOk = provinces.every((p) => (adj.get(p.id)?.size ?? 0) >= mapConfig.minDegree)
-      if (!minDegreeOk) {
-        adjA.add(b)
-        adjB.add(a)
-        continue
-      }
-
-      const deadEndCount = provinces.filter((p) => (adj.get(p.id)?.size ?? 0) === 1).length
-      if (deadEndCount > mapConfig.maxDeadEnds) {
-        adjA.add(b)
-        adjB.add(a)
-        continue
-      }
-
-      if (!isConnected(adj, allIds)) {
-        adjA.add(b)
-        adjB.add(a)
-        continue
-      }
-
-      const newTotalDegree = provinces.reduce((sum, p) => sum + (adj.get(p.id)?.size ?? 0), 0)
-      const newAvgDegree = newTotalDegree / provinces.length
-      if (newAvgDegree < mapConfig.targetAverageDegreeMin) {
-        adjA.add(b)
-        adjB.add(a)
-        continue
-      }
-
-      // All constraints passed — keep removal
-    }
-
-    for (const p of provinces) {
-      const nbSet = adj.get(p.id)
-      p.neighbors = nbSet ? Array.from(nbSet) : []
-    }
-  }
-
-  // Step 3: Jitter
-  if (mapConfig.jitterEnabled) {
-    const CELL_WIDTH = 100
-    const CELL_HEIGHT = 100
-    const jitterX = CELL_WIDTH * mapConfig.jitterRatioX
-    const jitterY = CELL_HEIGHT * mapConfig.jitterRatioY
-
-    for (const p of provinces) {
-      const { value: rx, rng: rngX } = randomFloat(currentRng)
-      currentRng = rngX
-      const { value: ry, rng: rngY } = randomFloat(currentRng)
-      currentRng = rngY
-      p.x += rx * 2 * jitterX - jitterX
-      p.y += ry * 2 * jitterY - jitterY
-    }
-  }
-
-  return { provinces, rng: currentRng }
+  return { provinces, stateCenters, rng }
 }

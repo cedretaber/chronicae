@@ -4,6 +4,6 @@ export type StateRegion = {
   id: StateRegionId
   name: string
   provinceIds: ProvinceId[]
-  gridCol: number
-  gridRow: number
+  centerX: number
+  centerY: number
 }

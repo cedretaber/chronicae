@@ -98,8 +98,8 @@ export function makeEmptyV016State(): WorldState {
         id: 'sr-0' as StateRegionId,
         name: 'Default Region',
         provinceIds: [],
-        gridCol: 0,
-        gridRow: 0,
+        centerX: 0,
+        centerY: 0,
       },
     },
     polities: {},
@@ -151,24 +151,40 @@ export function withProvince(
     landQuality: (anyOverrides.habitability as number) ?? 50,
     weight: 1,
   }
+  // Auto-link to existing provinces in the same state as bidirectional neighbors
+  const stateRegionId = (overrides.stateId ?? 'sr-0') as StateRegionId
+  const existingProvIds = Object.values(state.provinces)
+    .filter((p) => p && (p.stateId as string) === (stateRegionId as string))
+    .map((p) => p.id)
+  const autoNeighbors = overrides.neighbors ?? existingProvIds
+
   const province: Province = {
     id,
-    stateId: 'sr-0' as StateRegionId,
+    stateId: stateRegionId,
     name: 'P',
     x: 0,
     y: 0,
-    neighbors: [],
+    neighbors: autoNeighbors,
     habitability: 50,
     popGroupIds: [],
     ...overrides,
     holdingIds: overrides.holdingIds ?? [holdingId],
   }
+  const updatedProvinces: Record<ProvinceId, Province> = { ...state.provinces, [id]: province }
+  // Add reverse neighbor links
+  if (!overrides.neighbors) {
+    for (const existingId of existingProvIds) {
+      const existing = updatedProvinces[existingId]
+      if (existing && !existing.neighbors.includes(id)) {
+        updatedProvinces[existingId] = { ...existing, neighbors: [...existing.neighbors, id] }
+      }
+    }
+  }
   let nextState: WorldState = {
     ...state,
-    provinces: { ...state.provinces, [id]: province },
+    provinces: updatedProvinces,
     holdings: { ...state.holdings, [holdingId]: holding },
   }
-  const stateRegionId = province.stateId
   const sr = nextState.states[stateRegionId]
   if (sr) {
     const nextSr: StateRegion = { ...sr, provinceIds: [...sr.provinceIds, id] }

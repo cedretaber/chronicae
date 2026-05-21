@@ -4,8 +4,10 @@ import type { Province } from '../types/province'
 import { createPolityId } from '../types/ids'
 import { shuffle } from '../rng/rng'
 
-function manhattanDistance(p1: Province, p2: Province): number {
-  return Math.abs(p1.x - p2.x) / 100 + Math.abs(p1.y - p2.y) / 100
+function euclideanDistance(p1: Province, p2: Province): number {
+  const dx = p1.x - p2.x
+  const dy = p1.y - p2.y
+  return Math.sqrt(dx * dx + dy * dy)
 }
 
 export function distributePolities(
@@ -16,7 +18,15 @@ export function distributePolities(
   const polityIds = Array.from({ length: polityCount }, (_, i) => createPolityId('c', i))
 
   let seeds: ProvinceId[] | null = null
-  const initialMinDist = Math.max(1, Math.floor(Math.sqrt(provinces.length) / polityCount))
+  // Estimate a reasonable minimum distance between polity seeds based on map extent
+  const xs = provinces.map((p) => p.x)
+  const ys = provinces.map((p) => p.y)
+  const mapExtent = Math.max(
+    Math.max(...xs) - Math.min(...xs),
+    Math.max(...ys) - Math.min(...ys),
+    1,
+  )
+  const initialMinDist = Math.max(1, Math.floor(mapExtent / (polityCount * 2)))
   let minDist = initialMinDist
 
   while (!seeds && minDist >= 0) {
@@ -29,7 +39,7 @@ export function distributePolities(
         let valid = true
         for (const s of candidates) {
           const sp = provinces.find((pr) => pr.id === s)!
-          if (manhattanDistance(sp, p) < minDist) {
+          if (euclideanDistance(sp, p) < minDist) {
             valid = false
             break
           }

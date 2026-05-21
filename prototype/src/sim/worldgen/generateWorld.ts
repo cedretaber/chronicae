@@ -10,13 +10,7 @@ import type {
   HoldingId,
   HoldingOfficeAssignmentId,
 } from '../types/ids'
-import {
-  newPopGroupId,
-  createStateRegionId,
-  createPolityId,
-  createHouseId,
-  createHoldingId,
-} from '../types/ids'
+import { newPopGroupId, createPolityId, createHouseId, createHoldingId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Polity } from '../types/polity'
@@ -72,47 +66,29 @@ export function generateWorld(
 
   const preset = WORLD_PRESETS[presetName ?? DEFAULT_PRESET]
 
-  const { provinces, rng: rng0 } = generateProvinces(
-    rng,
-    defaultMapConfig,
-    preset.gridCols,
-    preset.gridRows,
-    preset.stateCols,
-    preset.stateRows,
-  )
+  const { provinces, stateCenters, rng: rng0 } = generateProvinces(rng, defaultMapConfig, preset)
   rng = rng0
 
   // Generate StateRegion records
   const statesRecord: Record<StateRegionId, StateRegion> = {}
   const usedStateNames = new Set<string>()
   const statePool = stateNamePool()
-  let stateNameCounter = 0
 
-  for (let stateRow = 0; stateRow < preset.stateRows; stateRow++) {
-    for (let stateCol = 0; stateCol < preset.stateCols; stateCol++) {
-      const stateIndex = stateRow * preset.stateCols + stateCol
-      const stateId = createStateRegionId(stateIndex)
-      const provinceIdsInState = provinces
-        .filter((p) => (p.stateId as string) === (stateId as string))
-        .map((p) => p.id)
+  for (let i = 0; i < stateCenters.length; i++) {
+    const center = stateCenters[i]!
+    const provinceIdsInState = provinces
+      .filter((p) => (p.stateId as string) === (center.id as string))
+      .map((p) => p.id)
 
-      const { name: sName, rng: rS } = pickUniqueName(
-        statePool,
-        usedStateNames,
-        stateName,
-        stateNameCounter,
-        rng,
-      )
-      stateNameCounter++
-      rng = rS
+    const { name: sName, rng: rS } = pickUniqueName(statePool, usedStateNames, stateName, i, rng)
+    rng = rS
 
-      statesRecord[stateId] = {
-        id: stateId,
-        name: sName,
-        provinceIds: provinceIdsInState,
-        gridCol: stateCol,
-        gridRow: stateRow,
-      }
+    statesRecord[center.id] = {
+      id: center.id,
+      name: sName,
+      provinceIds: provinceIdsInState,
+      centerX: center.x,
+      centerY: center.y,
     }
   }
 

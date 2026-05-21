@@ -17,7 +17,7 @@ import { getHousePolitySharePercent } from '@/sim/selectors/shareSelectors'
 import { ProvinceNode, type ProvinceNodeData, type HighlightTier } from './ProvinceNode'
 import { MapLegend } from './MapLegend'
 import { MAP_ICON_CONFIG } from '@/app/constants/mapConstants'
-import mapBackground from '@/assets/map/map-background.png'
+import { getProvinceMapBackground } from '@/app/utils/assetHash'
 
 const nodeTypes: NodeTypes = { province: ProvinceNode }
 
@@ -336,7 +336,7 @@ export function ProvinceMap() {
       <div
         className="pointer-events-none absolute inset-0 z-0"
         style={{
-          backgroundImage: `url(${mapBackground})`,
+          backgroundImage: `url(${getProvinceMapBackground(focusedStateId as string | undefined)})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           opacity: MAP_ICON_CONFIG.backgroundOpacity,

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getProvinceImage, getHoldingImage } from '@/app/utils/assetHash'
 import { formatScore, formatAmount, formatPower, formatPolityRank } from '@/app/utils/format'
 import {
   getPolityLegitimacy,
@@ -2140,6 +2141,13 @@ export function ProvinceDetail({
         <CopyJsonButton payload={buildEntitySnapshot('province', province, currentState ?? null)} />
       </div>
 
+      <img
+        src={getProvinceImage(province.id)}
+        alt={province.name}
+        className="h-24 w-full rounded object-cover"
+        draggable={false}
+      />
+
       <div className="text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">Primary Polity:</span>
@@ -2190,67 +2198,75 @@ export function ProvinceDetail({
           return (
             <div
               key={holding.id}
-              className="mb-1 rounded border border-gray-700 bg-gray-800 p-1.5 text-sm"
+              className="mb-1 flex gap-2 rounded border border-gray-700 bg-gray-800 p-1.5 text-sm"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-gray-200">{holding.name}</span>
-                <span
-                  className={`rounded px-1 text-xs ${holding.kind === 'city' ? 'bg-amber-800 text-amber-200' : 'bg-green-900 text-green-300'}`}
-                >
-                  {holding.kind}
-                </span>
-              </div>
-              <div className="mt-0.5 grid grid-cols-2 gap-x-2 text-xs text-gray-400">
-                <span>Dev: {holding.development.toFixed(1)}</span>
-                <span>Control: {holding.polityControl.toFixed(0)}%</span>
-                <span>Quality: {holding.landQuality.toFixed(2)}</span>
-                <span>Weight: {holding.weight.toFixed(1)}</span>
-              </div>
-              {(() => {
-                const chain = getHoldingLandContractChain(currentState, holding.id)
-                if (chain.length === 0) return null
-                return (
-                  <div className="mt-0.5 text-xs">
-                    <span className="text-gray-500">Chain:</span>
-                    {chain.map((contract, idx) => {
-                      const grantee = currentState.polities[contract.granteePolityId]
-                      const isTerminal = idx === chain.length - 1
-                      return (
-                        <div key={contract.id} className="border-l border-gray-700 pl-2">
-                          {grantee ? (
-                            <button
-                              className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
-                              onClick={() => onPolityClick(grantee.id, 'polity')}
-                            >
-                              {grantee.name}
-                              {isTerminal
-                                ? ''
-                                : ` (${(contract.terms.taxRateToGrantor * 100).toFixed(0)}%)`}
-                            </button>
-                          ) : (
-                            <span className="text-gray-500">—</span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
-              <div className="mt-0.5 text-xs text-gray-400">
-                Bailiff:{' '}
-                {bailiff ? (
-                  bailiff.kind === 'placeholder' ? (
-                    <span className="text-gray-500 italic">placeholder</span>
-                  ) : (
-                    <PersonLink
-                      personId={bailiff.id}
-                      persons={currentState.persons ?? {}}
-                      onClick={onPersonClick}
-                    />
+              <img
+                src={getHoldingImage(holding.id, holding.kind)}
+                alt={holding.name}
+                className="h-16 w-16 flex-shrink-0 rounded object-cover"
+                draggable={false}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-200">{holding.name}</span>
+                  <span
+                    className={`rounded px-1 text-xs ${holding.kind === 'city' ? 'bg-amber-800 text-amber-200' : 'bg-green-900 text-green-300'}`}
+                  >
+                    {holding.kind}
+                  </span>
+                </div>
+                <div className="mt-0.5 grid grid-cols-2 gap-x-2 text-xs text-gray-400">
+                  <span>Dev: {holding.development.toFixed(1)}</span>
+                  <span>Control: {holding.polityControl.toFixed(0)}%</span>
+                  <span>Quality: {holding.landQuality.toFixed(2)}</span>
+                  <span>Weight: {holding.weight.toFixed(1)}</span>
+                </div>
+                {(() => {
+                  const chain = getHoldingLandContractChain(currentState, holding.id)
+                  if (chain.length === 0) return null
+                  return (
+                    <div className="mt-0.5 text-xs">
+                      <span className="text-gray-500">Chain:</span>
+                      {chain.map((contract, idx) => {
+                        const grantee = currentState.polities[contract.granteePolityId]
+                        const isTerminal = idx === chain.length - 1
+                        return (
+                          <div key={contract.id} className="border-l border-gray-700 pl-2">
+                            {grantee ? (
+                              <button
+                                className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
+                                onClick={() => onPolityClick(grantee.id, 'polity')}
+                              >
+                                {grantee.name}
+                                {isTerminal
+                                  ? ''
+                                  : ` (${(contract.terms.taxRateToGrantor * 100).toFixed(0)}%)`}
+                              </button>
+                            ) : (
+                              <span className="text-gray-500">—</span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   )
-                ) : (
-                  <span className="text-gray-500">vacant</span>
-                )}
+                })()}
+                <div className="mt-0.5 text-xs text-gray-400">
+                  Bailiff:{' '}
+                  {bailiff ? (
+                    bailiff.kind === 'placeholder' ? (
+                      <span className="text-gray-500 italic">placeholder</span>
+                    ) : (
+                      <PersonLink
+                        personId={bailiff.id}
+                        persons={currentState.persons ?? {}}
+                        onClick={onPersonClick}
+                      />
+                    )
+                  ) : (
+                    <span className="text-gray-500">vacant</span>
+                  )}
+                </div>
               </div>
             </div>
           )

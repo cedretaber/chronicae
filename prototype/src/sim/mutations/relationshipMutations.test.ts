@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createPolityId, createHouseId, createPersonId, createProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import type { PersonId, HouseId } from '../types/ids'
+import type { PersonId, HouseId, ProvinceId } from '../types/ids'
 import { collectIntegrityErrors } from '../tick/integritySystem'
 import { setSpouse, clearSpouse, addChildToParents } from './relationshipMutations'
 import {
   bindProvinceToHouseViaPolity,
+  bindProvinceToPolity,
   makeEmptyV016State,
   withHouse,
   withPerson,
@@ -37,6 +38,7 @@ function makeFixture(): {
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
   state = withProvince(state, provinceId, { name: 'Test Province' })
+  state = withProvince(state, 'p-1' as ProvinceId)
   state = withHouse(state, house1Id, {
     name: 'House 1',
     memberIds: [person1Id, person2Id],
@@ -51,6 +53,7 @@ function makeFixture(): {
     capitalProvinceId: provinceId,
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polity1Id, house1Id)
+  state = bindProvinceToPolity(state, 'p-1' as ProvinceId, polity1Id)
   state = withPerson(state, person1Id, { name: 'Person 1', houseId: house1Id, legacyPrestige: 10 })
   state = withPerson(state, person2Id, {
     name: 'Person 2',
