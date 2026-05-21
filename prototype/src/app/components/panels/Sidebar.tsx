@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { calcPersonImportanceScore } from '@sim/selectors/importanceSelectors'
 import { calcPolityMilitaryPower } from '@sim/selectors/militarySelectors'
 import { getPolityLegitimacy, getPolityStability } from '@sim/selectors/statusSelectors'
@@ -25,13 +26,13 @@ import { weekToYearWeek } from '@sim/utils/timeUtils'
 
 type SectionKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist' | 'plays'
 
-const SECTIONS: { key: SectionKey; label: string }[] = [
-  { key: 'watchlist', label: 'Watchlist' },
-  { key: 'plays', label: 'Plays' },
-  { key: 'countries', label: 'Countries' },
-  { key: 'houses', label: 'Houses' },
-  { key: 'persons', label: 'Persons' },
-  { key: 'factions', label: 'Factions' },
+const SECTION_KEYS: SectionKey[] = [
+  'watchlist',
+  'plays',
+  'countries',
+  'houses',
+  'persons',
+  'factions',
 ]
 
 function getRecentEventCount(
@@ -308,6 +309,7 @@ export function Sidebar() {
     watchlist: false,
     plays: false,
   })
+  const { t } = useTranslation()
   const toggleSection = (key: SectionKey) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
 
   const session = useSimulationStore((s) => s.session)
@@ -576,21 +578,21 @@ export function Sidebar() {
   return (
     <div className="flex h-full w-64 flex-col overflow-hidden bg-gray-800 text-white">
       <div className="flex-1 overflow-y-auto">
-        {SECTIONS.map((section) => {
-          const isOpen = expanded[section.key]
+        {SECTION_KEYS.map((key) => {
+          const isOpen = expanded[key]
           return (
-            <div key={section.key} className="border-b border-gray-700">
+            <div key={key} className="border-b border-gray-700">
               <button
                 className="sticky top-0 z-20 flex w-full items-center justify-between bg-gray-900 px-3 py-1.5 text-left text-xs font-bold text-gray-200 hover:bg-gray-700"
-                onClick={() => toggleSection(section.key)}
+                onClick={() => toggleSection(key)}
               >
                 <span className="flex items-center gap-1.5">
                   <span className="inline-block w-3 text-gray-500">{isOpen ? '▼' : '▶'}</span>
-                  <span>{section.label}</span>
-                  <span className="font-normal text-gray-500">({sectionCount[section.key]})</span>
+                  <span>{t(`sidebar.${key}`)}</span>
+                  <span className="font-normal text-gray-500">({sectionCount[key]})</span>
                 </span>
               </button>
-              {isOpen && <div>{renderSectionBody(section.key)}</div>}
+              {isOpen && <div>{renderSectionBody(key)}</div>}
             </div>
           )
         })}

@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
 import type { SimEvent } from '@sim/types/event'
 import type { EventType } from '@sim/types/event'
-import { getFirstEntityId, hasEntityId, renderEventSummary } from '@sim/types/event'
+import { getFirstEntityId, hasEntityId } from '@sim/types/event'
+import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 
 type LinkItem = { id: string; type: EntityType; name: string }
 
@@ -52,11 +54,7 @@ function EventLinks({ event }: { event: SimEvent }) {
 
 type TabKey = 'raw' | 'chronicle' | 'timeline'
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'raw', label: 'Raw Log' },
-  { key: 'chronicle', label: 'Chronicle' },
-  { key: 'timeline', label: 'Timeline' },
-]
+const TAB_KEYS: TabKey[] = ['raw', 'chronicle', 'timeline']
 
 const MAX_RAW_EVENTS = 100
 const MAX_CHRONICLE_EVENTS = 50
@@ -145,7 +143,13 @@ function isWatchlistRelated(event: SimEvent, watchlist: string[]): boolean {
   return watchlist.some((id) => hasEntityId(event, id))
 }
 
-function RawLogRow({ event }: { event: SimEvent }) {
+function RawLogRow({
+  event,
+  renderEvent,
+}: {
+  event: SimEvent
+  renderEvent: (e: SimEvent) => string
+}) {
   const colorClass = getImportanceColor(event.importance)
   const typeLabel = event.type.replace(/_/g, ' ').toUpperCase()
 
@@ -154,13 +158,21 @@ function RawLogRow({ event }: { event: SimEvent }) {
       <span className="text-gray-500">
         [{event.year}/{event.weekOfYear}] {getEventIcon(event.type)} {typeLabel}
       </span>
-      <span>{renderEventSummary(event)}</span>
+      <span>{renderEvent(event)}</span>
       <EventLinks event={event} />
     </div>
   )
 }
 
-function ChronicleRow({ event, isHighlighted }: { event: SimEvent; isHighlighted: boolean }) {
+function ChronicleRow({
+  event,
+  isHighlighted,
+  renderEvent,
+}: {
+  event: SimEvent
+  isHighlighted: boolean
+  renderEvent: (e: SimEvent) => string
+}) {
   const colorClass = getImportanceColor(event.importance)
   const icon = getEventIcon(event.type)
 
@@ -173,7 +185,7 @@ function ChronicleRow({ event, isHighlighted }: { event: SimEvent; isHighlighted
       <span className="text-gray-500">
         [{event.year}/{event.weekOfYear}] {icon}
       </span>
-      <span>{renderEventSummary(event)}</span>
+      <span>{renderEvent(event)}</span>
       <EventLinks event={event} />
     </div>
   )
@@ -181,7 +193,11 @@ function ChronicleRow({ event, isHighlighted }: { event: SimEvent; isHighlighted
 
 type YearGroup = { year: number; events: SimEvent[] }
 
-function TimelineYear({ year, events }: YearGroup) {
+function TimelineYear({
+  year,
+  events,
+  renderEvent,
+}: YearGroup & { renderEvent: (e: SimEvent) => string }) {
   return (
     <div className="mb-2">
       <div className="sticky top-0 bg-gray-900 px-2 py-0.5 text-xs font-bold text-gray-400">
@@ -193,7 +209,7 @@ function TimelineYear({ year, events }: YearGroup) {
           className={`flex flex-wrap items-center gap-2 px-3 py-0.5 text-xs ${getImportanceColor(e.importance)}`}
         >
           <span className="text-gray-500">[W{e.weekOfYear}] </span>
-          <span>{renderEventSummary(e)}</span>
+          <span>{renderEvent(e)}</span>
           <EventLinks event={e} />
         </div>
       ))}
@@ -202,6 +218,8 @@ function TimelineYear({ year, events }: YearGroup) {
 }
 
 export function EventLog() {
+  const { t } = useTranslation()
+  const renderEvent = useRenderEvent()
   const [activeTab, setActiveTab] = useState<TabKey>('raw')
   const eventHistory = useSimulationStore((s) => s.session?.eventHistory ?? [])
   const watchlist = useSimulationStore((s) => s.watchlist)
@@ -228,33 +246,38 @@ export function EventLog() {
   return (
     <div className="flex h-40 flex-col overflow-hidden bg-gray-900 text-white">
       <div className="flex border-b border-gray-700">
-        {TABS.map((tab) => (
+        {TAB_KEYS.map((key) => (
           <button
-            key={tab.key}
+            key={key}
             className={`flex-1 px-3 py-1 text-xs ${
-              activeTab === tab.key
+              activeTab === key
                 ? 'border-b-2 border-blue-400 bg-gray-800'
                 : 'text-gray-400 hover:bg-gray-800'
             }`}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => setActiveTab(key)}
           >
-            {tab.label}
+            {t(`tabs.${key === 'raw' ? 'raw_log' : key}`)}
           </button>
         ))}
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {activeTab === 'raw' &&
-          rawEvents.map((event) => <RawLogRow key={event.id} event={event} />)}
+          rawEvents.map((event) => (
+            <RawLogRow key={event.id} event={event} renderEvent={renderEvent} />
+          ))}
         {activeTab === 'chronicle' &&
           chronicleEvents.map((event) => (
             <ChronicleRow
               key={event.id}
               event={event}
               isHighlighted={isWatchlistRelated(event, watchlist)}
+              renderEvent={renderEvent}
             />
           ))}
         {activeTab === 'timeline' &&
-          sortedGroups.map((group) => <TimelineYear key={group.year} {...group} />)}
+          sortedGroups.map((group) => (
+            <TimelineYear key={group.year} {...group} renderEvent={renderEvent} />
+          ))}
       </div>
     </div>
   )

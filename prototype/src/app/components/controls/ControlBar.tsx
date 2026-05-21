@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ConfigPanel } from './ConfigPanel'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { getPseudoMonthFromWeek, getWeekOfPseudoMonth } from '@sim/utils/timeUtils'
@@ -23,6 +24,7 @@ export function ControlBar() {
   const setRunning = useSimulationStore((s) => s.setRunning)
   const setSpeed = useSimulationStore((s) => s.setSpeed)
 
+  const { t } = useTranslation()
   const currentYear = session?.currentState.currentYear ?? null
   const currentWeekOfYear = session?.currentState.currentWeekOfYear ?? null
   const [seedInput, setSeedInput] = useState(session?.initialSeed ?? 'chronicae-default')
@@ -35,26 +37,29 @@ export function ControlBar() {
 
   return (
     <div className="flex h-12 w-full items-center gap-2 bg-gray-900 px-4 py-2 text-white">
-      <span className="text-lg font-bold">Chronicae</span>
+      <span className="text-lg font-bold">{t('app.title')}</span>
 
       <span className="min-w-52">{dateDisplay}</span>
 
-      <button onClick={resetWorld} title="Reset world">
+      <button onClick={resetWorld} title={t('buttons.reset')}>
         ⏮
       </button>
       <button disabled className="cursor-not-allowed text-gray-500" title="Cannot go back">
         ◀
       </button>
-      <button onClick={() => setRunning(!isRunning)} title={isRunning ? 'Pause' : 'Play'}>
+      <button
+        onClick={() => setRunning(!isRunning)}
+        title={isRunning ? t('buttons.pause') : t('buttons.start')}
+      >
         {isRunning ? '⏸' : '▶'}
       </button>
-      <button onClick={tickOnce} title="Advance 1 week">
+      <button onClick={tickOnce} title={t('controls.advance_week')}>
         ▶|
       </button>
-      <button onClick={tickMonth} title="Advance 1 month (4 weeks)">
+      <button onClick={tickMonth} title={t('controls.advance_month')}>
         ▶▶
       </button>
-      <button onClick={tickYear} title="Advance 1 year (48 weeks)">
+      <button onClick={tickYear} title={t('controls.advance_year')}>
         ▶▶|
       </button>
 
@@ -69,7 +74,7 @@ export function ControlBar() {
         <option value={8}>8x</option>
       </select>
 
-      <span>Seed:</span>
+      <span>{t('controls.seed')}:</span>
       <input
         type="text"
         value={seedInput}

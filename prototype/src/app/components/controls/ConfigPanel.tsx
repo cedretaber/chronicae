@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import type { SimulationConfig } from '@/sim/config/defaultConfig'
 
@@ -66,6 +67,7 @@ export function ConfigPanel() {
   const [open, setOpen] = useState(false)
   const config = useSimulationStore((s) => s.config)
   const setConfig = useSimulationStore((s) => s.setConfig)
+  const { i18n } = useTranslation()
 
   return (
     <div className="relative">
@@ -77,6 +79,17 @@ export function ConfigPanel() {
       </button>
       {open && (
         <div className="absolute top-full right-0 z-50 mt-1 w-72 rounded bg-gray-800 p-3 shadow-lg">
+          <div className="mb-3 flex items-center justify-between text-xs">
+            <span className="text-gray-400">Language</span>
+            <select
+              value={i18n.language}
+              onChange={(e) => void i18n.changeLanguage(e.target.value)}
+              className="rounded bg-gray-700 px-1 py-0.5 text-white"
+            >
+              <option value="en">English</option>
+              <option value="ja">日本語</option>
+            </select>
+          </div>
           <ConfigRow
             label="Plot Success Rate"
             value={config.basePlotSuccess}

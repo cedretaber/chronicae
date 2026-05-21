@@ -14,6 +14,7 @@ async function main(): Promise<void> {
     locale: 'en',
     fallbackLocale: 'en',
     resourceLoader: createWebResourceLoader(),
+    preloadLocales: ['en', 'ja'],
   })
 
   createRoot(root!).render(

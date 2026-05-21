@@ -92,7 +92,8 @@ import { normalizedStat } from '@/sim/selectors/personAbilityEffects'
 import { OFFICE_DEFINITIONS } from '@sim/config/officeDefinitions'
 import { clamp } from '@/sim/utils/math'
 import type { SimEvent } from '@/sim/types/event'
-import { hasEntityId, renderEventSummary } from '@sim/types/event'
+import { hasEntityId } from '@sim/types/event'
+import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 
 function getImportanceColor(importance: SimEvent['importance']): string {
   switch (importance) {
@@ -1201,6 +1202,7 @@ export function HouseDetail({
   onProvinceClick: (id: string) => void
   eventHistory: SimEvent[]
 }) {
+  const renderEvent = useRenderEvent()
   const isWatching = watchlist.includes(house.id)
   const currentState = session?.currentState
   const houses = currentState?.houses ?? {}
@@ -1497,7 +1499,7 @@ export function HouseDetail({
           <div className="text-sm font-semibold text-gray-300">Recent Events:</div>
           {recentEvents.map((e) => (
             <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
-              [{e.year}/W{e.weekOfYear}] {renderEventSummary(e)}
+              [{e.year}/W{e.weekOfYear}] {renderEvent(e)}
             </div>
           ))}
         </div>
