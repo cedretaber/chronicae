@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-20（v0.19 完成）
+最終更新: 2026-05-21（v0.20 完成）
 
 ---
 
@@ -70,22 +70,64 @@ npm run cli -- --seed <seed> --years <n> [--weeks <n>] [--integrity-check] [--js
 ```ts
 type Province = {
   id: ProvinceId
+  stateId: StateRegionId
   name: string
   x: number
   y: number
   neighbors: ProvinceId[]
   habitability: number    // 0..100
-  development: number     // -100..100
-  polityControl: number   // 0..100
+  holdingIds: HoldingId[]
   popGroupIds: PopGroupId[]
 }
 ```
 
+- `stateId`: 所属する StateRegion (v0.20)
 - `habitability`: Province の基礎的な居住性・土地ポテンシャル。0 = ほぼ居住不能、100 = 非常に居住・生産に適した土地
-- `development`: 土地の荒廃・発展。-100 = 完全荒廃、0 = 通常、+100 = 高度発展
-- `polityControl`: terminal Polity による実効支配力
+- `holdingIds`: この Province に属する Holding の一覧 (v0.20)。各 Holding が development / polityControl を持つ
 - `baseTax` / `manpower` / `unrest` は v0.8 で廃止。これらは POP から selector で算出する
 - **v0.16**: `polityId` / `ownerHouseId` / `houseControl` を削除。土地支配は §3.8 LandContract chain で表現する。Province の terminal owner は selector (`getProvinceTerminalPolityId` / `getProvinceEffectiveOwnerHouseId`) で取得する
+- **v0.20**: `development` / `polityControl` を Province から削除し Holding に移動。Province レベルの値は selector (`getProvinceDevelopmentFromHoldings` / `getProvincePolityControlFromHoldings`) で Holding の weight 加重平均から算出する
+
+### 3.1b StateRegion（v0.20）
+
+```ts
+type StateRegion = {
+  id: StateRegionId
+  name: string
+  provinceIds: ProvinceId[]
+  gridCol: number
+  gridRow: number
+}
+```
+
+- Province をまとめる上位地理単位。UI 上の State map 表示、集計に使用
+- 土地所有・契約・収入の単位ではない（それらは Holding が担う）
+- State 間隣接は保存せず、selector (`getStateNeighborIds`) で Province.neighbors から動的に算出
+
+### 3.1c Holding（v0.20）
+
+```ts
+type HoldingKind = 'manor' | 'city'
+
+type Holding = {
+  id: HoldingId
+  provinceId: ProvinceId
+  kind: HoldingKind
+  name: string
+  development: number     // -100..100
+  polityControl: number   // 0..100
+  landQuality: number     // > 0
+  weight: number          // > 0
+}
+```
+
+- Province 内の個別土地区画。土地契約・実効支配・開発度・収入分配・代官任命の単位
+- `kind`: manor (農村荘園) / city (都市)。収入分配で city は kindMultiplier = 1.3
+- `development`: 荒廃〜発展。Province の development は全 Holding の weight 加重平均
+- `polityControl`: terminal Polity の実効支配力。ControlSystem が Holding 単位で更新
+- `landQuality`: 土地の基礎品質。収入分配の share weight に影響
+- `weight`: Holding の相対的な重み。収入分配・Province 集計の加重に使用
+- Holding-Province 対応はゲーム中不変（v0.20 scope ではゲーム中の Holding 追加・削除はない）
 
 ### 3.2 PopClass / PopGroup（民衆集団）
 
@@ -337,20 +379,17 @@ nextOfficeAssignmentId: number
 旧: `Polity.ownerHouseId` / `Polity.roleAssignments` / `House.headId` はすべて削除され、`OfficeAssignment` に統一された。
 **v0.15**: `OFFICE_DEFINITIONS` のキー prefix も `country:` → `polity:` に変更。
 
-### 3.8 LandContract / ProvinceOffice（v0.16）
+### 3.8 LandContract / HoldingOffice（v0.16 / v0.20）
 
-v0.16 で土地支配を Province 直接所有から **LandContract chain** に置き換えた。詳細仕様は `docs/drafts/spec-v016-update.md` を参照。
+v0.16 で土地支配を Province 直接所有から **LandContract chain** に置き換えた。v0.20 で contract の対象を Province から **Holding** に変更し、各 Holding が独立した contract chain を持つ構造に移行した。
 
-**LandContract**: ある Province に対する 1 段の契約。chain は root → terminal の順で積み重なる。
+**LandContract**: ある Holding に対する 1 段の契約。chain は root → terminal の順で積み重なる。
 
 ```ts
-type LandContractId = string & { readonly _brand: 'LandContractId' }
-type RootAuthorityId = string & { readonly __brand: 'RootAuthorityId' }
-const ROOT_WORLD: RootAuthorityId = 'root:world' as RootAuthorityId
-
 type LandContract = {
   id: LandContractId
-  provinceId: ProvinceId
+  provinceId: ProvinceId             // Holding.provinceId の denormalize（参照コスト軽減用）
+  holdingId?: HoldingId              // v0.20: 対象 Holding
   parentContractId?: LandContractId  // parent (上位契約)
   rootAuthorityId?: RootAuthorityId  // parent と相互排他: root contract のみ rootAuthorityId
   granteePolityId: PolityId          // この契約で土地を受け取る Polity
@@ -358,68 +397,83 @@ type LandContract = {
 }
 ```
 
-不変条件 (§7 抜粋):
+- `provinceId` は `holdingId → Holding.provinceId` から導出可能な冗長フィールド。Holding-Province 対応はゲーム中不変のため壊れず、多数の参照箇所で間接参照を省ける
 
-1. すべての Province は chain 上に root contract を 1 つだけ持つ
+不変条件:
+
+1. すべての Holding は byHolding chain 上に root contract を 1 つだけ持つ
 2. root contract の `taxRateToGrantor` は 0
 3. chain の `granteePolityId` は active Polity
 4. chain は循環しない
 5. terminal contract のみ Bailiff が紐付く
 6. chain 内の各段で `granteePolityId` は重複しない
-7. `landContractIndex.byProvince` は chain 順 (root → terminal) を保つ
+7. `landContractIndex.byHolding` は chain 順 (root → terminal) を保つ
 8. grantor rank < grantee rank（rank 数値が大きいほど下位）
 
-**ProvinceOfficeAssignment** (Bailiff): terminal Polity が任命する代官。
+**HoldingOfficeAssignment** (Bailiff): terminal Polity が Holding 単位で任命する代官。
 
 ```ts
-type ProvinceOfficeRole = 'bailiff'
+type HoldingOfficeRole = 'bailiff'
 
-type ProvinceOfficeAssignment = {
-  id: ProvinceOfficeAssignmentId
-  provinceId: ProvinceId
-  role: ProvinceOfficeRole
+type HoldingOfficeAssignment = {
+  id: HoldingOfficeAssignmentId
+  holdingId: HoldingId
+  role: HoldingOfficeRole
   holderPersonId: PersonId            // 'placeholder' kind の Person を許容
   appointingPolityId: PolityId        // 任命主体（terminal Polity）
   active: boolean
-  startYear: number
-  startWeek: number            // absoluteWeek (v0.19)
+  startWeek: number                   // absoluteWeek
   unpaidCount: number
 }
 ```
 
-**AnonymousHouse**: placeholder Person を集約する固定 ID House (`h-anon`、`kind: 'system'`)。worldgen で 1 つ生成され、Bailiff の placeholder Person が所属する。succession / split / extinction / marriage / birth / mortality からは除外される（§20.4）。
+- **v0.20**: `provinceId` → `holdingId` に変更。`startYear` を廃止し `startWeek` (absoluteWeek) に統一。term expiry は `absoluteWeek - startWeek >= termYears * WEEKS_PER_YEAR` で判定
 
-**WorldState の追加フィールド（v0.16）**:
+**AnonymousHouse**: placeholder Person を集約する固定 ID House (`h-anon`、`kind: 'system'`)。worldgen で 1 つ生成され、Bailiff の placeholder Person が所属する。succession / split / extinction / marriage / birth / mortality からは除外される。
+
+**WorldState の追加フィールド（v0.16 / v0.20）**:
 
 ```ts
+// v0.20: Holding / StateRegion
+states: Record<StateRegionId, StateRegion>
+holdings: Record<HoldingId, Holding>
+
+// LandContract
 landContracts: Record<LandContractId, LandContract>
 landContractIndex: {
-  byProvince: Record<ProvinceId, LandContractId[]>      // chain 順
+  byProvince: Record<ProvinceId, LandContractId[]>    // legacy: 最初の Holding の chain
+  byHolding: Record<HoldingId, LandContractId[]>      // v0.20: 各 Holding 固有の chain (正規 index)
   byGranteePolity: Record<PolityId, LandContractId[]>
   byParent: Record<LandContractId, LandContractId | undefined>  // parent → child
 }
-provinceTerminalPolityCache: Record<ProvinceId, PolityId>
+holdingTerminalPolityCache: Record<HoldingId, PolityId>  // v0.20: Holding 単位の terminal cache
 
-provinceOfficeAssignments: Record<ProvinceOfficeAssignmentId, ProvinceOfficeAssignment>
-provinceOfficeIndex: {
-  byProvince: Record<ProvinceId, ProvinceOfficeAssignmentId | undefined>
-  byHolderPerson: Record<PersonId, ProvinceOfficeAssignmentId[]>
-  byAppointingPolity: Record<PolityId, ProvinceOfficeAssignmentId[]>
+// HoldingOffice (v0.20: Province → Holding に移行)
+holdingOfficeAssignments: Record<HoldingOfficeAssignmentId, HoldingOfficeAssignment>
+holdingOfficeIndex: {
+  byHolding: Record<HoldingId, HoldingOfficeAssignmentId | undefined>
+  byHolderPerson: Record<PersonId, HoldingOfficeAssignmentId[]>
+  byAppointingPolity: Record<PolityId, HoldingOfficeAssignmentId[]>
 }
 
 polityIndex: { byOwnerHouse: Record<HouseId, PolityId[]> }
 
 nextLandContractId: number
-nextProvinceOfficeAssignmentId: number
+nextHoldingOfficeAssignmentId: number
 ```
 
-ID prefix (CLAUDE.md ID 衝突表):
+- `byProvince`: worldgen 時に最初の Holding の chain を登録する legacy index。Province 単位の参照が必要な既存コード向けに維持
+- `byHolding`: 各 Holding 固有の独立した contract chain。v0.20-b2 以降の正規 index
+
+ID prefix:
 
 | Type | Prefix |
 |---|---|
 | `LandContractId` | `lc-` |
 | `RootAuthorityId` | `root:` |
-| `ProvinceOfficeAssignmentId` | `po-` |
+| `HoldingOfficeAssignmentId` | `ho-` |
+| `HoldingId` | `hl-` |
+| `StateRegionId` | `st-` |
 | `AnonymousHouse` (固定 ID) | `h-anon` |
 
 ### 3.9 外交劇システム (v0.18)
@@ -472,8 +526,8 @@ progress (妥協方向) / tension (緊張方向) の 2 軸で進行し、閾値�
 
 ```ts
 type DiplomaticDemand =
-  | { kind: 'transfer_land_contract'; provinceId; toPolityId; beneficiaryActor? }
-  | { kind: 'change_contract_tax_rate'; provinceId; landContractId; newTaxRateToGrantor }
+  | { kind: 'transfer_land_contract'; holdingId: HoldingId; toPolityId; beneficiaryActor? }
+  | { kind: 'change_contract_tax_rate'; holdingId: HoldingId; landContractId; newTaxRateToGrantor }
   | { kind: 'pay_wealth'; from; to; amount }
   | { kind: 'revolt_concession'; provinceId; popGroupId; concessionLevel }
   | { kind: 'status_quo' }
@@ -502,7 +556,10 @@ terminal status の ActorIntent / DiplomaticPlay は tick 末の `cleanupTermina
 ```ts
 // development multiplier: clamp(1 + development / 100, 0, 2)
 // development -100 → 0倍、0 → 1倍、+100 → 2倍
-function getProvinceDevelopmentMultiplier(province: Province): number
+function getProvinceDevelopmentMultiplier(development: number): number
+
+// v0.20: Province の development は Holding の weight 加重平均
+function getProvinceDevelopmentFromHoldings(state: WorldState, provinceId: ProvinceId): number
 ```
 
 `getEffectiveProvinceTax` / `getEffectiveProvinceManpower` は v0.8 で廃止。代わりに POP Economy セレクターを使用する。
@@ -691,18 +748,30 @@ function getHouseSeatProvinceInPolity(
 //   2) そうでなければ Polity 内の所有 Province から development 最大を選ぶ
 ```
 
-### 4.6c LandContract / ProvinceOffice selector（v0.16）
+### 4.6c LandContract / HoldingOffice selector（v0.16 / v0.20）
 
 `prototype/src/sim/selectors/landContractSelectors.ts` および `provinceOfficeSelectors.ts` に集約。
 
 ```ts
-// LandContract chain
+// LandContract chain — Province ベース (legacy)
 function getProvinceLandContractChain(state, provinceId): LandContract[]  // root → terminal
 function getProvinceRootContract(state, provinceId): LandContract | undefined
 function getProvinceTerminalContract(state, provinceId): LandContract | undefined
 function getProvinceTerminalPolityId(state, provinceId): PolityId | undefined
 function getProvinceOverlordPolityIds(state, provinceId): PolityId[]
 function getProvinceEffectiveOwnerHouseId(state, provinceId): HouseId | undefined
+
+// LandContract chain — Holding ベース (v0.20 正規)
+function getHoldingLandContractChain(state, holdingId): LandContract[]  // root → terminal
+function getHoldingTerminalPolityId(state, holdingId): PolityId | undefined
+
+// Holding selector (v0.20)
+function getProvinceHoldings(state, provinceId): Holding[]
+function getProvinceDevelopmentFromHoldings(state, provinceId): number     // weight 加重平均
+function getProvincePolityControlFromHoldings(state, provinceId): number   // weight 加重平均
+function getProvinceTerminalPolityBreakdown(state, provinceId): Array<{ polityId; holdingCount; weight }>
+function getProvinceDominantTerminalPolityId(state, provinceId): PolityId | undefined
+function selectTargetHoldingInProvince(state, provinceId): HoldingId | undefined  // 最大 weight
 
 // Polity → Province
 function getPolityGrantedProvinceIds(state, polityId): ProvinceId[]
@@ -711,8 +780,8 @@ function getPolityOverlordProvinceIds(state, polityId): ProvinceId[]
 
 // House → Polity / Province
 function getHouseOwnedPolityIds(state, houseId): PolityId[]
-function getHouseControlledProvinceIds(state, houseId): ProvinceId[]  // ownerHouse の Polity が terminal の Province
-function getHouseRelevantProvinceIds(state, houseId): ProvinceId[]    // chain 上に登場する Province
+function getHouseControlledProvinceIds(state, houseId): ProvinceId[]
+function getHouseRelevantProvinceIds(state, houseId): ProvinceId[]
 
 // grantor 派生
 function getLandContractGrantor(state, contractId): LandContractGrantor | undefined
@@ -723,10 +792,8 @@ function isPlaceholderPerson(state, personId): boolean
 function getAnonymousHouseId(): HouseId
 function isSystemHouse(state, houseId): boolean
 
-// ProvinceOffice / Bailiff
-function getProvinceBailiff(state, provinceId): ProvinceOfficeAssignment | undefined
-function getBailiffPerson(state, provinceId): Person | undefined
-function isOfficeVacantOrPlaceholder(state, provinceId): boolean
+// HoldingOffice / Bailiff (v0.20: Province → Holding に移行)
+function getHoldingBailiffPerson(state, holdingId): Person | undefined
 ```
 
 ### 4.7 Ability / 派生 selector（v0.14）
@@ -934,7 +1001,9 @@ control = Math.max(0, control - disconnectedControlDecayPerMonth)
 ```
 
 BFS 通行条件:
-- polityControl: 首都 (`capitalProvinceId`) から同一 terminal Polity の Province のみ通行可
+- polityControl: 首都 (`capitalProvinceId`) から全 Province を通行可（v0.20 で制限を撤廃）
+
+**v0.20**: polityControl は Province ではなく **Holding 単位**で更新する。BFS は Province graph 上を走査し、到達した Province 内の各 Holding の `polityControl` を距離に応じて更新する。Province レベルの polityControl は selector (`getProvincePolityControlFromHoldings`) で Holding の weight 加重平均から算出する。
 
 ### 6.3 LordshipTransitionSystem（v0.16 で廃止）
 
@@ -1028,36 +1097,46 @@ pop.unrest = clamp(pop.unrest, 0, 100)
 
 過徴税ペナルティは LandRevenueSystem 側で継続。`houseControl` 経由の二重収入経路 (`houseIncome`) は廃止された。House への富の流れは Polity Share 経由でのみ発生する（§6.5b）。
 
-### 6.5a LandRevenueSystem（4週ごと、v0.16）
+### 6.5a LandRevenueSystem（4週ごと、v0.16 / v0.20）
 
-Province の生産を terminal Polity treasury に集積し、LandContract chain に沿って上納する。
+Province の生産を **Holding 単位で分配**し、各 Holding の LandContract chain に沿って上納する。
 
 **6.5a.1 生産量算出**
 
 ```ts
 const production = getProvinceProduction(state, config, province.id)
-// = sum(pop.size * productivityByClass[pop.class] * (pop.wealth/100) * (polityControl/100))
+// = sum(pop.size * productivityByClass[pop.class] * (pop.wealth/100) * (provinceDev multiplier))
 ```
 
-`polityControl` 単独入力。`houseControl` は v0.16 で廃止された。
+**6.5a.2 per-Holding 分配と chain 上納（v0.20）**
 
-**6.5a.2 terminal Polity への集積と chain 上納**
+Province 生産を各 Holding の share weight に応じて分配する。
 
 ```ts
-// terminal Polity treasury に Province 生産を加算
-terminalPolity.treasury += production * taxEfficiency
+// §12.3: Holding の share weight
+holdingShareWeight = holding.weight * holding.landQuality * kindMultiplier(holding.kind)
+// kindMultiplier: manor = 1.0, city = 1.3
 
-// chain を terminal → root の順に走査し、taxRateToGrantor で上納
-let amount = production * taxEfficiency
+// Province 全体の totalShareWeight
+totalShareWeight = sum(holdingShareWeight for each Holding in Province)
+
+// per-Holding 収入
+holdingShare = production * (holdingShareWeight / totalShareWeight)
+holdingRevenue = holdingShare * (holding.polityControl / 100)
+```
+
+各 Holding について、その byHolding chain を terminal → root の順に走査し上納する。
+
+```ts
+let remaining = holdingRevenue * taxEfficiency
 for (const contract of chain.slice().reverse()) {
-  const tax = amount * contract.terms.taxRateToGrantor
-  granteePolity.treasury -= tax
-  grantorPolity.treasury += tax
-  amount = tax  // 上位 contract への上納原資は受け取った分のみ
+  const tax = remaining * contract.terms.taxRateToGrantor
+  granteePolity.treasury += (remaining - tax)
+  remaining = tax
 }
 ```
 
-`root contract` の `taxRateToGrantor` は 0 固定（§6.3 不変条件 2）なので、world に流出する分は無い。
+`root contract` の `taxRateToGrantor` は 0 固定なので、world に流出する分は無い。
 
 **6.5a.3 Polity treasurer の taxEfficiency**
 
@@ -1389,24 +1468,26 @@ score = relevantStat(role) * 1.0
 
 **イベント**: `OFFICE_SALARY_UNPAID`（importance: `minor`）/ `OFFICE_SALARY_PARTIALLY_PAID`（importance: `minor`）
 
-### 6.14e BailiffAppointmentSystem（24週ごと、v0.16）
+### 6.14e BailiffAppointmentSystem（24週ごと、v0.16 / v0.20）
 
-terminal Polity ごとに ProvinceOfficeAssignment (Bailiff) を走査し、placeholder Person で空席化している Province を通常人物で埋める。逆に、通常人物の Bailiff が死亡・離反などで不在化した場合は placeholder Person に戻す。
+terminal Polity ごとに HoldingOfficeAssignment (Bailiff) を走査し、placeholder Person で空席化している **Holding** を通常人物で埋める。逆に、通常人物の Bailiff が死亡・離反などで不在化した場合は placeholder Person に戻す。
 
 config `bailiffAppointmentInterval` で起動頻度を制御する（暫定 6 = 半年に 1 回）。
 
-**候補者選定（暫定、spec-v016-update.md §19.1）**:
+**任期判定（v0.20）**: `absoluteWeek - office.startWeek >= termYears * WEEKS_PER_YEAR`。`startYear` は廃止。
+
+**候補者選定**:
 - ownerHouse の member を優先（成人 / 他 Office を持たない者）
 - なければ Polity Share holder 系の House member
 - stewardship / numeracy / learning などのスコアでソート
 - 適任者が居なければ placeholder のまま
 
 **イベント**:
-- `BAILIFF_APPOINTED`（importance: `normal`）: placeholder → 通常人物に交代
+- `BAILIFF_APPOINTED`（importance: `minor`）: placeholder → 通常人物に交代
 - `BAILIFF_VACATED`（importance: `normal`）: 通常人物が不在化
 - `BAILIFF_PLACEHOLDER_INSTALLED`（importance: `minor`）: terminal Polity 変更時に placeholder を新規設置
 
-commonwealth (`ownerHouseId === undefined`) Polity の Bailiff 候補者選定は Faction 段階まで持ち越し（v0.16 では skip）。
+commonwealth (`ownerHouseId === undefined`) Polity の Bailiff 候補者選定は Faction 段階まで持ち越し。
 
 ### 6.14c ShareUpdateSystem（48週ごと = 毎年）
 
@@ -1904,6 +1985,8 @@ active な ActorIntent を DiplomaticPlay に変換する。
 
 Province 単位 dedup: 同一 Province に対して同時進行できる外交劇は高々 1 つ。全 DiplomaticPlayKind 横断で適用。
 
+**v0.20**: Play 生成時に `selectTargetHoldingInProvince` で対象 Holding を選定し、DiplomaticDemand の `holdingId` に設定する。dedup は引き続き Province 単位。
+
 ### 6.27 DiplomaticPlaySystem（4週ごと、v0.18）
 
 active な DiplomaticPlay を進行させる。
@@ -1974,17 +2057,22 @@ townsmen.unrest  = randomInt(10, 25)
 nobles.unrest    = randomInt(5, 25)
 ```
 
-### 7.3 階層構造の生成（v0.16）
+### 7.3 WorldPreset と階層構造の生成（v0.16 / v0.20）
 
-v0.16 では世界生成時点で 3 階層の Polity 構造を作る:
+**WorldPreset** によりマップサイズと Polity 数を制御する:
 
-- Kingdom (rank 2) × 3
-- Duchy (rank 3) × 4 （各 Kingdom の配下に 1-2 つ）
-- County (rank 4) × 8 （各 Duchy または直轄 Kingdom の配下）
+| preset | grid | states | prov/state | Polity (K/D/C) | Holdings/prov |
+|---|---|---|---|---|---|
+| tiny | 4×4 | 2×2=4 | 4 | 1/2/6 | 2 |
+| small | 8×8 | 4×4=16 | 4 | 2/4/18 | 2-3 |
+| standard | 16×16 | 4×4=16 | 16 | 3/8/36 | 3-5 |
+| perfLarge | 32×16 | 4×4=16 | 32 | 4/12/48 | 3-5 |
 
-計 **15 Polity / 15 通常 House**。各 Polity に 1 つの ownerHouse を割り当てる。加えて **AnonymousHouse (`h-anon`, kind: 'system')** を 1 つ生成し placeholder Person の集約用とする (House 数は 16)。
+各 Polity に 1 つの ownerHouse を割り当てる。加えて **AnonymousHouse (`h-anon`, kind: 'system')** を 1 つ生成し placeholder Person の集約用とする。
 
-LandContract chain は Province ごとに以下を組み立てる:
+**StateRegion の生成**: `stateCols × stateRows` のグリッドで StateRegion を配置。各 StateRegion に `provBlockCols × provBlockRows` の Province を割り当てる。
+
+**LandContract chain の生成**: Province ごとに Polity 階層に基づく contract chain を構築した後、各 Holding に独立した chain をコピーする（最初の Holding は元の chain を流用、2 番目以降は新しい contract ID でコピー）。
 
 ```
 root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
@@ -1993,25 +2081,35 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
   → County  (taxRateToGrantor = 0.3)   ← terminal grantee
 ```
 
-chain depth は Province によって 1〜3 段 (Kingdom 直轄 / Duchy 配下 / County)。`INTERMEDIATE_TAX_RATE = 0.3` で固定。root contract の `taxRateToGrantor` は 0 固定（§3.8 不変条件 2）。
+`INTERMEDIATE_TAX_RATE = 0.3` で固定。root contract の `taxRateToGrantor` は 0 固定。`byHolding` が正規 index。`byProvince` は最初の Holding の chain を legacy 互換として保持。
+
+### 7.3b Holding の生成（v0.20）
+
+各 Province に `holdingsPerProvinceMin..Max` の Holding を生成する。
+
+- `kind`: 基本は `manor`。`cityProvinceChance` (20%) で最初の city を配置。`secondCityChance` (5%) で 2 つ目の city を許容
+- `name`: Province 名 + 連番サフィックス (e.g. "Aldoria-1", "Aldoria-2")
+- `weight`: 1.0 (基本) + manor 0.0〜0.3 / city 0.5〜1.0 の乱数加算
+- `landQuality`: 0.8〜1.2 の乱数
+- `development`: Province の habitability から初期値 (-10〜+10) を設定
 
 ### 7.4 seatProvinceId / capitalProvinceId の決定
 
-各 House の本拠地は、その House が ownerHouse である Polity の terminal Province のうち `development` が最も高いもの (v0.16 では LandContract chain で算出)。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
+各 House の本拠地は、その House が ownerHouse である Polity の terminal Province のうち配分された Province の先頭。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
 
-### 7.5 polityControl の初期値（v0.16）
+### 7.5 polityControl の初期値（v0.16 / v0.20）
 
-`houseControl` は v0.16 で廃止された。`polityControl` のみを ControlSystem と同じ距離上限計算で初期化する。
+`polityControl` を ControlSystem と同じ距離上限計算で初期化する。**v0.20** では各 Holding の `polityControl` を設定する。
 
 ```
-polityControl = maxControl(capitalProvinceId からの BFS 距離)
+holding.polityControl = maxControl(capitalProvinceId からの BFS 距離)
 ```
 
-接続不能な Province: `polityControl = 30`。
+接続不能な Province の Holding: `polityControl = 30`。
 
-### 7.7 ProvinceOffice (Bailiff) の初期化（v0.16）
+### 7.7 HoldingOffice (Bailiff) の初期化（v0.16 / v0.20）
 
-全 Province に `bailiff` ProvinceOfficeAssignment を生成し、holder は **placeholder Person** (AnonymousHouse 所属) とする。BailiffAppointmentSystem (§6.14e) が実行されると順次通常人物に置き換わる。
+全 **Holding** に `bailiff` HoldingOfficeAssignment を生成し、holder は **placeholder Person** (AnonymousHouse 所属) とする。BailiffAppointmentSystem (§6.14e) が実行されると順次通常人物に置き換わる。
 
 ### 7.8 エンティティ名称の生成
 
@@ -2519,13 +2617,15 @@ chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 
 
 ## 11. UI 構成
 
-- **MapPanel**: Province を SVG で描画。クリックで Province 選択
+- **MapPanel**: 二段階マップ。State map → Province map をクリックで遷移 (v0.20)。Province をクリックで Province 選択
 - **Sidebar**: 人物一覧。重要度スコア順。ウォッチリスト対応
 - **DetailPanel**: 選択エンティティ（Province / Polity / House / Person / PopGroup）の詳細表示
   - ProvinceDetail:
-    - **Population** セクション: habitability / Carrying Capacity / Total Population / Pop. Pressure（90% 超で赤表示）/ Avg Wealth / Unrest（60 超で赤表示）/ Production / Polity Manpower / House Manpower
+    - **Holdings** セクション (v0.20): 各 Holding をカードで表示。name / kind badge (manor: 緑, city: 琥珀) / development / polityControl / landQuality / weight / per-Holding LandContract chain (各 grantee Polity をリンク付きで表示) / Bailiff (person リンク / placeholder / vacant)
+    - **Population** セクション: habitability / Carrying Capacity / Total Population / Pop. Pressure（90% 超で赤表示）/ Avg Wealth / Unrest（60 超で赤表示）/ Production / Polity Manpower
     - **POP Groups** セクション: class 別に size / wealth / unrest（60 超で赤表示）を一覧表示。各 POP カードはクリッカブルで PopGroupDetail へ遷移（v0.11）
     - **Revolt Risk** セクション: class 別反乱傾向値（Peasants / Townsmen / Nobles）
+    - development / polityControl は Holding の weight 加重平均で Province レベルに集約表示
   - PolityDetail（v0.12 / v0.15 更新）:
     - 基本情報: Ruler（人物リンク）/ Royal House（getPolityLeaderHouse）/ Dominant House（getDominantPolityHouse）/ 首都 / Legitimacy / Treasury / Military Power
     - **Administration** セクション: Capacity / Load / Efficiency（getAdministrative* セレクター）
@@ -2998,7 +3098,28 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **性能改善**: ScheduledSystem 導入により、大半の system が `shouldRun` で skip されるため、tick 数は 4 倍 (3,600→14,400 ticks/300年) だが総実行時間は約 50% 短縮。
 - **検証**: CLI 4 seed × 300 年 (14,400 ticks each) IntegrityCheck violation 0 件。63 テストファイル / 581 tests pass。
 
-### v0.19 以降に送られる主要項目
+### v0.20 で実装済み（参考）
+
+詳細仕様は `docs/drafts/spec-v020-update.md` を参照。
+
+- **State / Province / Holding 三層構造の導入**:
+  - `StateRegion`: Province をまとめる上位地理単位。UI の二段階マップ（State map → Province map）表示に使用。隣接は selector で動的算出
+  - `Holding`: Province 内の個別土地区画。`kind: 'manor' | 'city'`。development / polityControl / landQuality / weight を保持。Province の development / polityControl は selector で Holding の weight 加重平均から算出
+  - Province から `development` / `polityControl` を削除し、`stateId: StateRegionId` / `holdingIds: HoldingId[]` を追加
+- **WorldPreset によるマップ規模制御**: tiny / small / standard / perfLarge の 4 preset。grid サイズ / State 数 / Province 数 / Polity 数 (Kingdom/Duchy/County) / Holdings per Province を preset で指定
+- **per-Holding LandContract chain**: worldgen で各 Holding に独立した contract chain を生成。`byHolding` が正規 index、`byProvince` は legacy。`holdingTerminalPolityCache` で terminal polity を Holding 単位でキャッシュ
+- **DiplomaticDemand の holdingId 化**: `transfer_land_contract` / `change_contract_tax_rate` の対象を `provinceId` から `holdingId` に変更。`revolt_concession` は Province 単位のまま。Play 生成時に `selectTargetHoldingInProvince` で対象 Holding を選定
+- **applyLandContractTransferGoal の rank 走査**: chain を走査して rank に基づく正しい位置を選ぶロジックに変更。同 rank grantee 差し替え / 上位 rank 挿入 / 下位 rank child 追加を rank 順で判定
+- **HoldingOfficeAssignment**: ProvinceOfficeAssignment を HoldingOfficeAssignment に置換。`startYear` を廃止し `startWeek` (absoluteWeek) に統一
+- **ControlSystem BFS**: 全 Province 通過可能に変更（飛び地への距離ベース減衰が正しく機能）。polityControl は Holding 単位で更新
+- **LandRevenueSystem per-Holding 分配**: `holdingShareWeight = weight * landQuality * kindMultiplier(kind)` (city = 1.3, manor = 1.0) で Province 生産を分配。各 Holding の byHolding chain を走査して上納
+- **createRebelPolity / disbandRebelPolity**: Province の代表 terminal ではなく各 Holding の terminal を操作するよう修正
+- **Integrity Check 拡充**: H4 (Holding フィールド範囲)、H5 (HoldingOffice 整合性)、H6 (byAppointingPolity index)。§25 #15 / H3 を byHolding ベースに修正
+- **UI Holding card**: ProvinceDetail に Holdings セクション追加。name / kind badge / dev / control / quality / weight / per-Holding chain / Bailiff を表示。Land Tenure Chain を Province レベルから Holding card 内に移動
+- **CLI `--perf` フラグ**: entity count / elapsed time / per-system timing を出力。`--json` と併用可
+- **検証**: CLI 4 seed × 50 年 (tiny/small) IntegrityCheck violation 0 件。standard preset 1024 Holding worldgen + 10 年 headless simulation 完走。63 テストファイル / 583 tests pass
+
+### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系
 
