@@ -130,6 +130,7 @@ function WatchButton({ isWatching, onToggle }: { isWatching: boolean; onToggle: 
 // v0.17.4 UI: \u8a73\u7d30\u30d1\u30cd\u30eb\u306e\u5185\u5bb9\u3092 JSON \u5f62\u5f0f\u3067\u30af\u30ea\u30c3\u30d7\u30dc\u30fc\u30c9\u3078\u30b3\u30d4\u30fc\u3059\u308b\u30dc\u30bf\u30f3\u3002
 // LLM \u3084\u5916\u90e8\u30c4\u30fc\u30eb\u306b\u300c\u753b\u9762\u3067\u898b\u3048\u3066\u3044\u308b\u4eba\u7269\u30fb\u56fd\u30fb\u5bb6\u30fb\u5dde\u30fbPOP\u300d\u3092\u69cb\u9020\u5316\u5171\u6709\u3059\u308b\u305f\u3081\u306e\u88dc\u52a9\u3002
 function CopyJsonButton({ payload }: { payload: unknown }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const handleClick = (): void => {
     const text = JSON.stringify(payload, null, 2)
@@ -149,7 +150,7 @@ function CopyJsonButton({ payload }: { payload: unknown }) {
       onClick={handleClick}
       title="Copy this entity as JSON to clipboard"
     >
-      {copied ? '\u2713 Copied' : '\u29c9 Copy JSON'}
+      {copied ? `\u2713 ${t('buttons.copied')}` : `\u29c9 ${t('buttons.copy_json')}`}
     </button>
   )
 }
@@ -923,7 +924,9 @@ function PolityLandContracts({
 
   return (
     <div className="mt-1">
-      <div className="text-sm font-semibold text-gray-300">Land Contracts ({totalContracts}):</div>
+      <div className="text-sm font-semibold text-gray-300">
+        {t('detail.polity.land_contracts')} ({totalContracts}):
+      </div>
       <div className="max-h-48 overflow-y-auto text-sm">
         {groups.map((g) => (
           <div key={g.provinceId} className="mb-1">
@@ -2451,7 +2454,9 @@ export function ProvinceDetail({
 
       {province.neighbors.length > 0 && (
         <>
-          <div className="text-sm font-semibold text-gray-300">Neighbors</div>
+          <div className="text-sm font-semibold text-gray-300">
+            {t('detail.province.neighbors')}
+          </div>
           <div className="flex flex-col gap-0.5 text-sm">
             {province.neighbors.map((nid) => (
               <button

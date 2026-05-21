@@ -179,6 +179,7 @@ detail:
     nobles: 'Nobles'
     root: 'Root'
     term: 'Term'
+    neighbors: 'Neighbors'
 
   # Faction detail
   faction:

@@ -179,6 +179,7 @@ detail:
     nobles: '貴族'
     root: '根'
     term: '末端'
+    neighbors: '隣接州'
 
   # 派閥詳細
   faction:
