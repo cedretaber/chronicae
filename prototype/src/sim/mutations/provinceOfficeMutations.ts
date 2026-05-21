@@ -8,7 +8,6 @@ type AppointHoldingBailiffParams = {
   holdingId: HoldingId
   holderPersonId: PersonId
   appointingPolityId: PolityId
-  year: number
   week: number
 }
 
@@ -71,7 +70,6 @@ export function appointHoldingBailiff(
     holderPersonId: params.holderPersonId,
     appointingPolityId: params.appointingPolityId,
     active: true,
-    startYear: params.year,
     startWeek: params.week,
     unpaidCount: 0,
   }
@@ -104,14 +102,13 @@ export function appointHoldingBailiff(
 // 全 Holding の空席で共有する。worldgen で生成済みである前提。
 export function installHoldingPlaceholderBailiff(
   state: WorldState,
-  params: { holdingId: HoldingId; appointingPolityId: PolityId; year: number; week: number },
+  params: { holdingId: HoldingId; appointingPolityId: PolityId; week: number },
 ): WorldState {
   const working = vacateHoldingBailiff(state, params.holdingId)
   const { state: afterAppoint } = appointHoldingBailiff(working, {
     holdingId: params.holdingId,
     holderPersonId: PLACEHOLDER_PERSON_ID,
     appointingPolityId: params.appointingPolityId,
-    year: params.year,
     week: params.week,
   })
   return afterAppoint

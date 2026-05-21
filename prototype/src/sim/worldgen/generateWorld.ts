@@ -1338,7 +1338,6 @@ export function generateWorld(
           holderPersonId: PLACEHOLDER_PERSON_ID,
           appointingPolityId: terminalPolityId,
           active: true,
-          startYear: 1,
           startWeek: 1,
           unpaidCount: 0,
         }

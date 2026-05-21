@@ -9,6 +9,15 @@ import {
   getHoldingLandContractChain,
   isPlaceholderPerson,
 } from '../selectors/landContractSelectors'
+import type { HoldingKind } from '../types/landContract'
+
+function kindMultiplier(kind: HoldingKind): number {
+  return kind === 'city' ? 1.3 : 1.0
+}
+
+function holdingShareWeight(weight: number, landQuality: number, kind: HoldingKind): number {
+  return weight * landQuality * kindMultiplier(kind)
+}
 import {
   adjustProvincePopWealth,
   adjustProvincePopUnrest,
@@ -41,20 +50,21 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    // Compute total weight for the province
-    let totalWeight = 0
+    // Compute total share weight for the province (§12.3)
+    let totalShareWeight = 0
     for (const hid of province.holdingIds) {
       const h = currentState.holdings[hid]
-      if (h) totalWeight += h.weight
+      if (h) totalShareWeight += holdingShareWeight(h.weight, h.landQuality, h.kind)
     }
-    if (totalWeight <= 0) continue
+    if (totalShareWeight <= 0) continue
 
     // Per-Holding revenue distribution
     for (const holdingId of province.holdingIds) {
       const holding = currentState.holdings[holdingId]
       if (!holding) continue
 
-      const holdingShare = production * (holding.weight / totalWeight)
+      const share = holdingShareWeight(holding.weight, holding.landQuality, holding.kind)
+      const holdingShare = production * (share / totalShareWeight)
       const holdingRevenue = holdingShare * (holding.polityControl / 100)
       if (holdingRevenue <= 0) continue
 

@@ -14,6 +14,7 @@ export type TickResult = {
   state: WorldState
   rng: RngState
   events: SimEvent[]
+  systemTimings?: Record<string, number>
 }
 
 export type DeathRoleInfo = {

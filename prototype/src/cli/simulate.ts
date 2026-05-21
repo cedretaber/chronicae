@@ -389,11 +389,18 @@ if (!args.json && !args.digest) {
 
 const simStartTime = performance.now()
 let tickTimeTotal = 0
+const systemTimingsTotal: Record<string, number> = {}
 
 for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
   const tickT0 = performance.now()
   const result = tick({ state, rng: currentRng, config })
   tickTimeTotal += performance.now() - tickT0
+
+  if (result.systemTimings) {
+    for (const [sys, ms] of Object.entries(result.systemTimings)) {
+      systemTimingsTotal[sys] = (systemTimingsTotal[sys] ?? 0) + ms
+    }
+  }
 
   if (args.integrityCheck) {
     const ctx = createTickContext({ state: result.state, rng: result.rng, config })
@@ -562,6 +569,11 @@ if (args.perf) {
     seed: args.seed,
     preset: args.preset ?? 'default',
     years: args.years,
+    systemTimings: Object.fromEntries(
+      Object.entries(systemTimingsTotal)
+        .sort(([, a], [, b]) => b - a)
+        .map(([k, v]) => [k, Math.round(v)]),
+    ),
   }
   if (args.json) {
     console.log(JSON.stringify(perfData))
@@ -576,6 +588,10 @@ if (args.perf) {
     process.stderr.write(
       `Entities: ${perfData.entities.states} states, ${perfData.entities.provinces} provinces, ${perfData.entities.holdings} holdings, ${perfData.entities.polities} polities, ${perfData.entities.houses} houses, ${perfData.entities.persons} persons, ${perfData.entities.landContracts} contracts\n`,
     )
+    process.stderr.write('System timings (ms):\n')
+    for (const [sys, ms] of Object.entries(perfData.systemTimings)) {
+      process.stderr.write(`  ${sys.padEnd(34)} ${String(ms).padStart(8)}\n`)
+    }
   }
 }
 

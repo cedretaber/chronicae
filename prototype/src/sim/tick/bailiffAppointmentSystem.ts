@@ -4,6 +4,7 @@ import type { HoldingId, PolityId, PersonId, ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import type { OrganizationRef, OfficeRole } from '../types/office'
 import {
   getPolityTerminalProvinceIds,
@@ -67,17 +68,14 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       // Skip placeholder bailiffs (they never had a real tenure)
       // v0.17.2: Person.kind ベース判定に統一 (singleton 化に伴い ID prefix check は廃止)
       if (isPlaceholderPerson(currentCtx.state, office.holderPersonId)) continue
-      // Term expiration: yearly comparison
-      if (
-        currentCtx.state.currentYear - office.startYear >=
-        currentCtx.config.provinceOfficeTermYears.bailiff
-      ) {
+      // Term expiration: week-based comparison
+      const termWeeks = currentCtx.config.provinceOfficeTermYears.bailiff * WEEKS_PER_YEAR
+      if (currentCtx.state.absoluteWeek - office.startWeek >= termWeeks) {
         currentCtx = emitBailiffVacated(currentCtx, provinceId, office.holderPersonId)
         const beforeVacate = currentCtx.state
         const afterPlaceholder = installHoldingPlaceholderBailiff(beforeVacate, {
           holdingId,
           appointingPolityId: polityId,
-          year: beforeVacate.currentYear,
           week: beforeVacate.absoluteWeek,
         })
         currentCtx = { ...currentCtx, state: afterPlaceholder }
@@ -105,7 +103,6 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       const afterPlaceholder = installHoldingPlaceholderBailiff(beforeVacate, {
         holdingId,
         appointingPolityId: polityId,
-        year: beforeVacate.currentYear,
         week: beforeVacate.absoluteWeek,
       })
       currentCtx = { ...currentCtx, state: afterPlaceholder }
@@ -182,7 +179,6 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
         holdingId,
         holderPersonId: chosenId,
         appointingPolityId: polityId,
-        year: vacatedState.currentYear,
         week: vacatedState.absoluteWeek,
       })
       currentCtx = { ...currentCtx, state: appointedState }

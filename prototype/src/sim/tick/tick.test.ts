@@ -23,7 +23,11 @@ describe('tick', () => {
     const result1 = tick(input1)
     const result2 = tick(input2)
 
-    expect(JSON.stringify(result1)).toBe(JSON.stringify(result2))
+    const { systemTimings: _, ...r1 } = result1
+    const { systemTimings: __, ...r2 } = result2
+    void _
+    void __
+    expect(JSON.stringify(r1)).toBe(JSON.stringify(r2))
   })
 
   it('tick returns valid TickResult shape (state, rng, events)', () => {

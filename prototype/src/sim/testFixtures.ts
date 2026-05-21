@@ -369,7 +369,6 @@ export function bindProvinceToPolity(
       holderPersonId: PLACEHOLDER_PERSON_ID,
       appointingPolityId: polityId,
       active: true,
-      startYear: nextState.currentYear,
       startWeek: nextState.absoluteWeek,
       unpaidCount: 0,
     }

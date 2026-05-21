@@ -912,7 +912,6 @@ describe('runAppointmentSystem', () => {
       holdingId,
       holderPersonId: personVassalId,
       appointingPolityId: polityId,
-      year: withBailiff.currentYear,
       week: withBailiff.absoluteWeek,
     }).state
 

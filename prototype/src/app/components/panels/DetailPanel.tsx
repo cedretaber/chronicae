@@ -304,7 +304,7 @@ function buildEntitySnapshot(
             holdingId: a.holdingId,
             appointingPolityId: a.appointingPolityId,
             appointingPolityName: polityName(a.appointingPolityId),
-            startYear: a.startYear,
+            startWeek: a.startWeek,
           }))
       : []
     return {

@@ -74,10 +74,7 @@ export function runControlSystem(ctx: TickContext): TickContext {
     const maxControlBonus = calcChancellorControlMaxBonus(ctx.state, polity.id, config)
     const effectiveGrowth = config.controlGrowthPerMonth * growthModifier
 
-    const distMap = bfs(polity.capitalProvinceId, provinces, (prov) => {
-      const p = prov as { id: ProvinceId }
-      return getProvinceTerminalPolityId(ctx.state, p.id) === polity.id
-    })
+    const distMap = bfs(polity.capitalProvinceId, provinces, () => true)
 
     for (const provinceId of Object.keys(provinces) as ProvinceId[]) {
       const province = provinces[provinceId]

@@ -21,6 +21,8 @@ export const ANONYMOUS_HOUSE_ID: HouseId = 'h-anon' as HouseId
 // 判定する各種システムの挙動は変わらない。
 export const PLACEHOLDER_PERSON_ID: PersonId = 'pe-anon-placeholder' as PersonId
 
+// provinceId は holdingId → Holding.provinceId から導出可能な冗長フィールドだが、
+// Holding-Province 対応はゲーム中不変のため壊れず、多数の参照箇所で間接参照を省ける。
 export type LandContract = {
   id: LandContractId
   provinceId: ProvinceId
@@ -37,6 +39,10 @@ export type LandContractGrantor =
   | { kind: 'root'; id: RootAuthorityId }
   | { kind: 'polity'; id: PolityId }
 
+// byProvince: worldgen 時に最初の Holding の chain を登録する legacy index。
+//   新規 contract 追加時は holdingId 指定で byHolding のみ更新される。
+//   Province 単位の chain 検索が必要な既存コード (UI/selector) 向けに維持。
+// byHolding: 各 Holding 固有の独立した contract chain。v0.20-b2 以降の正規 index。
 export type LandContractIndex = {
   byProvince: Record<ProvinceId, LandContractId[]>
   byHolding: Record<HoldingId, LandContractId[]>
@@ -46,10 +52,12 @@ export type LandContractIndex = {
 
 export type ProvinceTerminalPolityCache = Record<ProvinceId, PolityId>
 
+export type HoldingKind = 'manor' | 'city'
+
 export type Holding = {
   id: HoldingId
   provinceId: ProvinceId
-  kind: 'manor' | 'city'
+  kind: HoldingKind
   name: string
   development: number
   polityControl: number
@@ -68,7 +76,6 @@ export type HoldingOfficeAssignment = {
   holderPersonId: PersonId
   appointingPolityId: PolityId
   active: boolean
-  startYear: number
   startWeek: number
   unpaidCount: number
 }

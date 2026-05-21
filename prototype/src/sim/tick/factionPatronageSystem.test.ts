@@ -482,7 +482,6 @@ describe('runFactionPatronageSystem', () => {
       holdingId,
       holderPersonId: memberId,
       appointingPolityId: polityId,
-      year: s.currentYear,
       week: weekVal,
     }).state
 
@@ -518,7 +517,6 @@ describe('runFactionPatronageSystem', () => {
       holdingId,
       holderPersonId: memberId,
       appointingPolityId: polityId,
-      year: s.currentYear,
       week: weekVal,
     }).state
 

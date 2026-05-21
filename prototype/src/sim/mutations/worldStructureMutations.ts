@@ -750,8 +750,7 @@ export function createRebelPolity(
     newState = installHoldingPlaceholderBailiff(newState, {
       holdingId,
       appointingPolityId: newPolityId,
-      year: newState.currentYear,
-      week: newState.currentWeekOfYear,
+      week: newState.absoluteWeek,
     })
   }
 
@@ -953,8 +952,7 @@ export function disbandRebelPolity(
       state = installHoldingPlaceholderBailiff(state, {
         holdingId: restoreHoldingId,
         appointingPolityId: input.restoreToPolityId,
-        year: state.currentYear,
-        week: state.currentWeekOfYear,
+        week: state.absoluteWeek,
       })
     }
   }

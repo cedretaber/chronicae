@@ -87,7 +87,7 @@ function countEvents(events: readonly SimEvent[], type: string): number {
 }
 
 describe('runBailiffAppointmentSystem', () => {
-  it('vacates bailiff whose term has expired (startYear = currentYear - 3)', () => {
+  it('vacates bailiff whose term has expired (startWeek = absoluteWeek - 3 years)', () => {
     const { state: baseState, holdingId, houseId } = makeBaseState()
     // Set month so absMonth % 6 === 0 (bailiffAppointmentInterval)
     const s: WorldState = {
@@ -121,7 +121,7 @@ describe('runBailiffAppointmentSystem', () => {
         [officeId]: {
           ...office,
           holderPersonId: bailiffId,
-          startYear: stateWithBailiff.currentYear - 3,
+          startWeek: stateWithBailiff.absoluteWeek - 3 * 48,
         },
       },
       holdingOfficeIndex: {

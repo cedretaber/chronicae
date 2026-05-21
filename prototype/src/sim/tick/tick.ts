@@ -245,15 +245,15 @@ export function tick(input: TickInput): TickResult {
   let ctx = createTickContext(input)
   const log = createLogger(ctx.config.debug)
   const debug = ctx.config.debug
-  const tickStart = performance.now()
+  const timings: Record<string, number> = {}
 
   const run = (label: string, fn: (c: TickContext) => TickContext): void => {
+    const t0 = performance.now()
+    ctx = fn(ctx)
+    const elapsed = performance.now() - t0
+    timings[label] = (timings[label] ?? 0) + elapsed
     if (debug) {
-      const t0 = performance.now()
-      ctx = fn(ctx)
-      log.perf(label, performance.now() - t0)
-    } else {
-      ctx = fn(ctx)
+      log.perf(label, elapsed)
     }
   }
 
@@ -271,10 +271,9 @@ export function tick(input: TickInput): TickResult {
     } catch (e) {
       log.log('INTEGRITY', { error: String(e) })
     }
-    log.perf('tick:total', performance.now() - tickStart)
   } else if (ctx.state.currentWeekOfYear === WEEKS_PER_YEAR) {
     ctx = runIntegritySystem(ctx)
   }
 
-  return toResult(ctx)
+  return { ...toResult(ctx), systemTimings: timings }
 }
