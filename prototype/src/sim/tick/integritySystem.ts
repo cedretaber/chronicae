@@ -1426,6 +1426,96 @@ export function collectIntegrityErrors(
     }
   }
 
+  // H4: Holding field range checks (§18.3)
+  for (const holding of Object.values(state.holdings)) {
+    if (!holding) continue
+    if (holding.development < -100 || holding.development > 100) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Holding ${holding.id} development=${holding.development} out of range [-100,100] (§18.3)`,
+      })
+    }
+    if (holding.polityControl < 0 || holding.polityControl > 100) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Holding ${holding.id} polityControl=${holding.polityControl} out of range [0,100] (§18.3)`,
+      })
+    }
+    if (holding.landQuality <= 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Holding ${holding.id} landQuality=${holding.landQuality} must be > 0 (§18.3)`,
+      })
+    }
+    if (holding.weight <= 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Holding ${holding.id} weight=${holding.weight} must be > 0 (§18.3)`,
+      })
+    }
+    if (holding.kind !== 'manor' && holding.kind !== 'city') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Holding ${holding.id} kind=${String(holding.kind)} must be 'manor' or 'city' (§18.3)`,
+      })
+    }
+  }
+
+  // H5: HoldingOffice integrity (§18.5)
+  for (const holdingIdStr of Object.keys(state.holdings)) {
+    const hid = holdingIdStr as HoldingId
+    const assignmentId = state.holdingOfficeIndex.byHolding[hid]
+    if (!assignmentId) continue
+    const assignment = state.holdingOfficeAssignments[assignmentId]
+    if (!assignment) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `holdingOfficeIndex.byHolding[${hid}] references missing assignment ${assignmentId as string} (§18.5)`,
+      })
+      continue
+    }
+    if (!assignment.active) continue
+    if (assignment.holdingId !== hid) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `HoldingOfficeAssignment ${assignmentId as string} holdingId=${assignment.holdingId as string} != indexed holding ${hid} (§18.5)`,
+      })
+    }
+    const holder = state.persons[assignment.holderPersonId]
+    if (!holder) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `HoldingOfficeAssignment ${assignmentId as string} holderPersonId=${assignment.holderPersonId as string} does not exist (§18.5)`,
+      })
+    }
+    const terminalPolityId = state.holdingTerminalPolityCache[hid]
+    if (
+      terminalPolityId &&
+      (assignment.appointingPolityId as string) !== (terminalPolityId as string)
+    ) {
+      if (debug) {
+        console.warn(
+          `INTEGRITY (§18.5 warn): HoldingOfficeAssignment ${assignmentId as string} appointingPolityId=${assignment.appointingPolityId as string} != terminal polity ${terminalPolityId as string} for holding ${hid}`,
+        )
+      }
+    }
+  }
+
+  // H6: holdingOfficeIndex.byAppointingPolity consistency (§18.5)
+  for (const polityIdStr of Object.keys(state.holdingOfficeIndex.byAppointingPolity)) {
+    const polityId = polityIdStr as PolityId
+    const hoaIds = state.holdingOfficeIndex.byAppointingPolity[polityId] ?? []
+    for (const hoaId of hoaIds) {
+      const hoa = state.holdingOfficeAssignments[hoaId]
+      if (!hoa) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `holdingOfficeIndex.byAppointingPolity[${polityIdStr}] references missing assignment ${hoaId as string} (§18.5)`,
+        })
+      }
+    }
+  }
+
   return errors
 }
 
