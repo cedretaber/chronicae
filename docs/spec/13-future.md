@@ -400,6 +400,39 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **CLI `--perf` フラグ**: entity count / elapsed time / per-system timing を出力。`--json` と併用可
 - **検証**: CLI 4 seed × 50 年 (tiny/small) IntegrityCheck violation 0 件。standard preset 1024 Holding worldgen + 10 年 headless simulation 完走。63 テストファイル / 583 tests pass
 
+### v0.20.1 で実装済み（参考）
+
+- **Worldgen の全面刷新**: 矩形グリッド型 Province/State 配置を廃止し、自然な地理生成へ移行
+  - `StateRegion.gridCol/gridRow` → `centerX/centerY`。State center を Poisson disk sampling で配置
+  - `WorldPreset` からグリッド設定 (gridCols/gridRows/stateCols/stateRows/provBlockCols/provBlockRows) を除去し、stateCount/provinceCountPerStateMin/Max に置換
+  - `MapGenerationConfig` を全面刷新。linkRemoval/jitter を廃止、幾何パラメータ (worldMapWidth/Height, minStateCenterDistance, minProvinceDistance, stateRadius, aspectRatio, edge chances) に置換
+  - `generateProvinces` を全面書き換え: Poisson disk → 楕円クラスタ → Delaunay → MST → 確率的 edge → 全体連結保証の 13 ステップ
+  - Province graph の接続数は均質化しない（袋小路・回廊・交通要衝を許容）
+- **ユーティリティモジュール新規追加**: UnionFind (path compression + union by rank)、MST (Kruskal)、Poisson disk sampling (Bridson)
+- **SVG Voronoi StateMap**: ReactFlow ベースの StateMap を SVG Voronoi マップに置換。Province x/y を種点として Voronoi セルを生成し、State の dominant polity 色で塗り分け。State 境界を太線、内部境界を薄線で描画
+- **UI 画像アセット**: マップ背景、Province バナー画像、Holding カード画像を追加
+- **IntegrityCheck §25 S4**: Province.neighbors の双方向性、自己参照禁止、孤立禁止、存在しない neighbor 検出を追加
+- **色パレット拡充**: POLITY_COLORS 5→25 色、HOUSE_COLORS 8→25 色
+- **d3-delaunay 導入**: Voronoi/Delaunay 計算ライブラリ
+- **`distributePolities` の距離計算修正**: manhattanDistance/100 → euclideanDistance（新座標系対応）
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。66 テストファイル / 600 tests pass
+
+### v0.20.2 で実装済み（参考）
+
+- **Unified Map UI**: StateMap と ProvinceMap の二段構造を廃止し、単一の UnifiedMap SVG コンポーネントに統合。zoom level (Far/Medium/Near) に応じて State/Province の表示強度を自動切替
+  - Far: State 単位の色・ラベル（名前+人口+unrest）、State クリック → ズームイン
+  - Medium: Province 単位の色・ラベル・アイコン（小）・neighbor edge、Province クリック → DetailPanel
+  - Near: Province アイコン（都市/農村 + 城/荘園バッジ）フルサイズ、ホバーツールチップ
+- **Ocean ポイントによる不規則外枠**: Province 群の凸包外側にダミー Voronoi 点を散布し、矩形クリッピングの直線的外枠を不規則な輪郭に改善
+- **セル色表現の改善**: 不透明塗りつぶしを廃止し、薄い半透明 fill + 枠線に polity 色のスタイルに変更（羊皮紙背景が透ける地図らしい雰囲気）
+- **usePanZoom 拡張**: animateTo() によるスムーズなズーム遷移、zoomBy/resetZoom メソッド
+- **ズームコントロール**: +/-/reset ボタン（左下配置）
+- **highlight tier ユーティリティ**: computeProvinceTiers / computeStateTiers を共有モジュールに抽出
+- **Store 簡素化**: mapLevel / focusedStateId / focusState / exitToStateMap を削除
+- **ReactFlow 完全撤去**: `@xyflow/react` をアンインストール。StateMap / StateMapSvg / ProvinceMap / ProvinceNode を削除
+- **未使用アセット削除**: province-map-background 2 枚、getProvinceMapBackground() 関数
+- **検証**: npm run check 全 pass。66 テストファイル / 600 tests pass
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系

@@ -1,6 +1,7 @@
 # 2. 技術構成
 
 - **フロントエンド**: React + TypeScript + Vite + Tailwind CSS
+- **地図描画**: SVG Voronoi ベース（d3-delaunay）。v0.20.2 で ReactFlow (`@xyflow/react`) を撤去
 - **状態管理**: Zustand
 - **シミュレーションコア**: 純粋な TypeScript モジュール（React 非依存）
 - **ディレクトリ構造**:

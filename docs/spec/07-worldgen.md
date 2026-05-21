@@ -36,20 +36,58 @@ townsmen.unrest  = randomInt(10, 25)
 nobles.unrest    = randomInt(5, 25)
 ```
 
-### 7.3 WorldPreset と階層構造の生成（v0.16 / v0.20）
+### 7.3 WorldPreset と階層構造の生成（v0.16 / v0.20 / v0.20.1 更新）
 
 **WorldPreset** によりマップサイズと Polity 数を制御する:
 
-| preset | grid | states | prov/state | Polity (K/D/C) | Holdings/prov |
+| preset | stateCount | prov/state | 概算 Province 数 | Polity (K/D/C) | Holdings/prov |
 |---|---|---|---|---|---|
-| tiny | 4×4 | 2×2=4 | 4 | 1/2/6 | 2 |
-| small | 8×8 | 4×4=16 | 4 | 2/4/18 | 2-3 |
-| standard | 16×16 | 4×4=16 | 16 | 3/8/36 | 3-5 |
-| perfLarge | 32×16 | 4×4=16 | 32 | 4/12/48 | 3-5 |
+| tiny | 4 | 3-5 | 12-20 | 1/2/6 | 2 |
+| small | 9 | 7-11 | 63-99 | 2/5/15 | 2-3 |
+| standard | 16 | 14-18 | 224-288 | 4/10/30 | 4 |
+| perfLarge | 25 | 14-18 | 350-450 | 6/16/50 | 3-5 |
 
 各 Polity に 1 つの ownerHouse を割り当てる。加えて **AnonymousHouse (`h-anon`, kind: 'system')** を 1 つ生成し placeholder Person の集約用とする。
 
-**StateRegion の生成**: `stateCols × stateRows` のグリッドで StateRegion を配置。各 StateRegion に `provBlockCols × provBlockRows` の Province を割り当てる。
+**StateRegion の生成（v0.20.1）**: 矩形グリッドを廃止し、Poisson disk sampling で State center を配置。各 State に Province を楕円クラスタで配置。Province 間の neighbors は Delaunay 三角形分割 → MST + 確率的 edge 選別で生成。
+
+### 7.3a Province グラフ生成（v0.20.1 新規）
+
+**MapGenerationConfig** で空間パラメータを制御:
+
+| パラメータ | デフォルト値 | 説明 |
+|---|---|---|
+| worldMapWidth / Height | 1000 / 700 | マップ座標範囲 |
+| minStateCenterDistance | 160 | State center 間の最小距離 |
+| minProvinceDistance | 45 | Province 間の最小距離 |
+| stateRadiusMin / Max | 80 / 150 | 楕円クラスタの半径範囲 |
+| stateAspectRatioMin / Max | 0.65 / 1.6 | 楕円のアスペクト比 |
+| intraStateExtraEdgeChance | 0.25 | State 内追加 edge の確率 |
+| interStateExtraEdgeChance | 0.12 | State 間追加 edge の確率 |
+| maxProvinceDegree | 5 | Province の最大接続数 |
+| maxInterStateEdgesPerStatePair | 2 | State pair あたりの最大接続数 |
+
+**生成手順** (13 ステップ):
+
+1. State center を Poisson disk sampling で配置
+2. State ごとの Province 数を割り当て
+3. State ごとの楕円パラメータ（radiusX, radiusY, rotation）を生成
+4. Province point を State center 周辺に楕円分布で配置（空間ハッシュグリッドで最小距離チェック）
+5. 幾何的 State 割り当て検証（最寄り State center に再割り当て）
+6. 全 Province で Delaunay 三角形分割
+7. Edge を intra_state / inter_state に分類
+8. State 内 MST で連結骨格を保証
+9. 追加 intra-state edge を確率的に採用
+10. inter-state edge を確率的に追加（各 State pair で最短 1 本は優先）
+11. UnionFind で全体連結性を保証
+12. Province.neighbors を確定（双方向）
+13. Province 命名
+
+**不変条件**:
+- 全 Province graph は連結
+- 各 Province の degree ≥ 1
+- Province.neighbors は双方向
+- IntegrityCheck (§25 S4) で検証
 
 **LandContract chain の生成**: Province ごとに Polity 階層に基づく contract chain を構築した後、各 Holding に独立した chain をコピーする（最初の Holding は元の chain を流用、2 番目以降は新しい contract ID でコピー）。
 

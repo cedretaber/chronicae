@@ -23,21 +23,23 @@ type Province = {
 - **v0.16**: `polityId` / `ownerHouseId` / `houseControl` を削除。土地支配は §3.8 LandContract chain で表現する。Province の terminal owner は selector (`getProvinceTerminalPolityId` / `getProvinceEffectiveOwnerHouseId`) で取得する
 - **v0.20**: `development` / `polityControl` を Province から削除し Holding に移動。Province レベルの値は selector (`getProvinceDevelopmentFromHoldings` / `getProvincePolityControlFromHoldings`) で Holding の weight 加重平均から算出する
 
-### 3.1b StateRegion（v0.20）
+### 3.1b StateRegion（v0.20 / v0.20.1 更新）
 
 ```ts
 type StateRegion = {
   id: StateRegionId
   name: string
   provinceIds: ProvinceId[]
-  gridCol: number
-  gridRow: number
+  centerX: number
+  centerY: number
 }
 ```
 
-- Province をまとめる上位地理単位。UI 上の State map 表示、集計に使用
+- Province をまとめる上位地理単位。UI 上の地図表示、集計に使用
 - 土地所有・契約・収入の単位ではない（それらは Holding が担う）
+- `centerX` / `centerY`: worldgen で Poisson disk sampling により配置された State の地理的中心座標（v0.20.1 で `gridCol` / `gridRow` を廃止し導入）
 - State 間隣接は保存せず、selector (`getStateNeighborIds`) で Province.neighbors から動的に算出
+- State 境界ポリゴンは WorldState に保存しない。UI 側で Province の Voronoi セルから動的に算出
 
 ### 3.1c Holding（v0.20）
 
