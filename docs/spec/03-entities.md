@@ -145,7 +145,8 @@ type House = {
   name: string
   active: boolean
   kind?: 'system'            // 'system' = AnonymousHouse 等の内部 House (v0.16)
-  memberIds: PersonId[]      // 生存・死亡を問わず登録されたすべてのメンバー
+  memberIds: PersonId[]      // 生存中のメンバー
+  deceasedMemberIds: PersonId[]  // 死亡したメンバー（家系の歴史記録）
   founderId?: PersonId       // 家の創設者（分裂新設家のみ設定）
   parentHouseId?: HouseId    // 分裂元の家
   cadetHouseIds: HouseId[]   // 分裂で生まれた傍系家のリスト
@@ -162,6 +163,7 @@ type House = {
 - **v0.12**: `headId` を削除。家長は `OfficeAssignment`（role: 'leader'）で管理。`getHouseLeader` セレクターで取得（§4.6 参照）
 - **v0.15**: `polityId` フィールドを削除。House は単一 Polity に所属しない
 - **v0.16**: `provinceIds` フィールドを削除。House の関与 Province は LandContract chain から selector で取得（`getHouseControlledProvinceIds` / `getHouseRelevantProvinceIds`）。House active 判定は memberIds (血統) ベース（§9.1 / spec-v016-update.md）。土地ゼロでも `active=true` のまま「亡命家」として存続し、お家再興を待つ
+- **v0.20.3**: `memberIds` を生存中メンバーのみに限定し、`deceasedMemberIds` を追加。`markPersonDead` で memberIds → deceasedMemberIds に移動する。家系の歴史記録を保持しつつ、生存メンバー走査の効率を確保
 
 ### 3.5 Person（人物）
 

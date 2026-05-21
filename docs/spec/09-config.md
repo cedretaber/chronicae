@@ -69,17 +69,19 @@
 | warUnrestDamage | 10 | 戦争時の全 POP unrest 上昇量 |
 | warPeasantSizeDamage | 0.5 | 戦争時の peasants size 減少量 |
 | warTownsmanSizeDamage | 0.3 | 戦争時の townsmen size 減少量 |
-| **Disaster** | | |
+| **Disaster（v0.20.3 改修: Province 単位・割合ベース・圧力連動）** | | |
 | disasterEnabled | true | 災害有効 |
-| famineBaseChancePerYear | 0.08 | 飢饉発生率/年 |
-| plagueBaseChancePerYear | 0.03 | 疫病発生率/年 |
-| bountifulHarvestBaseChancePerYear | 0.05 | 豊作発生率/年 |
-| disasterReliefCostPerProvince | 20 | 救済費用/Province |
-| famineWealthPenalty | 15 | 飢饉による peasants wealth 低下量 |
-| famineSizeDamage | 2 | 飢饉による peasants size 減少量 |
-| famineReliefDamageMultiplier | 0.3 | 救済成功時の POP 効果軽減係数 |
+| famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province |
+| plagueBaseChancePerYear | 0.03 | 疫病基礎発生率/年/Province |
+| bountifulHarvestBaseChancePerYear | 0.05 | 豊作発生率/年/Province |
+| faminePressureChanceBonus | 9.2 | 人口圧力超過分あたりの飢饉発生率加算（pressure 1.0 で 100%） |
+| plaguePressureChanceBonus | 2.0 | 人口圧力超過分あたりの疫病発生率加算 |
+| famineWealthPenalty | 8 | 飢饉による peasants wealth 低下量 |
+| famineSizeDamageRate | 0.10 | 飢饉による peasants 人口減少率（10%） |
 | plagueWealthPenalty | 10 | 疫病による全 POP wealth 低下量 |
-| plagueSizeDamage | 3 | 疫病による全 POP size 減少量 |
+| plagueSizeDamageRate | 0.05 | 疫病による全 POP 人口減少率（5%） |
+| disasterReliefCostPerProvince | 20 | 救済費用/Province（v0.20.3 で一旦オミット、将来再導入） |
+| famineReliefDamageMultiplier | 0.3 | 救済成功時の POP 効果軽減係数（v0.20.3 で一旦オミット） |
 | bountifulHarvestPeasantWealthGain | 10 | 豊作による peasants wealth 上昇量 |
 | bountifulHarvestPeasantUnrestReduction | 5 | 豊作による peasants unrest 低下量 |
 | bountifulHarvestTownsmanWealthGain | 2 | 豊作による townsmen wealth 上昇量 |
@@ -167,7 +169,7 @@
 | provinceRevoltThreshold | 90 | Province 反乱発動の傾向閾値 |
 | provinceRevoltChanceDivisor | 300 | 傾向値を月次確率へ変換する除数 |
 | provinceRevoltMaxChance | 0.35 | 月次発生確率の上限 |
-| provinceRevoltUnrestFactor | 0.8 | unrest の傾向加算係数 |
+| provinceRevoltUnrestFactor | 1.2 | unrest の傾向加算係数（v0.20.3 で 0.8→1.2 に変更） |
 | provinceRevoltLowHouseControlFactor | 0.2 | 低 houseControl の傾向加算係数 |
 | provinceRevoltLowPolityControlFactor | 0.2 | 低 polityControl の傾向加算係数 |
 | provinceRevoltStabilitySuppressionFactor | 0.2 | stability による傾向抑制係数 |
@@ -248,6 +250,7 @@
 | povertyUnrestGain | 0.02 | 貧困による unrest 上昇係数 |
 | prosperityWealthThreshold | 70 | 繁栄閾値（これ超過で unrest 低下） |
 | prosperityUnrestReduction | 0.01 | 繁栄による unrest 低下係数 |
+| unrestNaturalDecayRate | 0.005 | unrest 月次自然減衰率（v0.20.3 追加） |
 | retainedWealthGainByClass | {peasants:0.30, townsmen:0.45, nobles:0.25} | 残留富 1 に対する wealth 増加量（class 別） |
 | overExtractionThreshold | 0.95 | 過剰徴収判定の回収率閾値 |
 | overExtractionWealthSafeThreshold | 55 | この wealth 以上ならペナルティ回避 |
@@ -265,6 +268,15 @@
 | popDevelopmentCost | 3 | 発動時の全 POP wealth 低下量 |
 | popDevelopmentGain | 0.25 | 発動時の development 上昇量 |
 | popDevelopmentMaxDevelopment | 40 | POP 自主開発の development 上限 |
+| **Unaffiliated Person（v0.17、v0.20.3 改修）** | | |
+| unaffiliatedPersonsPerHolding | 0.5 | holdings 数あたりの在野人物 target 比率 |
+| unaffiliatedMaleRatio | 0.75 | 在野人物生成時の男性比率 |
+| targetUnaffiliatedPersons | 30 | 在野人物の最低 target（holdings ベース計算の下限として使用） |
+| softMaxUnaffiliatedPersons | 50 | pruning 開始の閾値（実効値は target × 1.5） |
+| hardMaxUnaffiliatedPersons | 80 | 強制削減の閾値（実効値は target × 2） |
+| unaffiliatedProtectionYears | 5 | 新参者の削除保護期間 |
+| pruningPrestigeThreshold | 20 | この prestige 以上は削除対象外 |
+| pruningWealthThreshold | 30 | この wealth 以上は削除対象外 |
 | **Attitude システム（v0.11）** | | |
 | attitudeMonthlyRetentionRate | 0.995 | 態度の月次保持率（1-rate が減衰率） |
 | initialPolityLegacyPrestigeMin | 20 | Polity 初期 legacyPrestige の下限 |

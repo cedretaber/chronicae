@@ -433,6 +433,21 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **未使用アセット削除**: province-map-background 2 枚、getProvinceMapBackground() 関数
 - **検証**: npm run check 全 pass。66 テストファイル / 600 tests pass
 
+### v0.20.3 で実装済み（参考）
+
+- **unrest バランス調整**: unrest 自然減衰 (`unrestNaturalDecayRate: 0.005`) を追加。全土が常に高 unrest になる問題を解消
+- **災害システム Province 単位化**: polity 単位 → Province 単位に変更。各 Province の人口圧力に応じて飢饉・疫病の発生率が増加（pressure 1.0 で飢饉確率 100%）
+- **人口ダメージ割合ベース化**: 飢饉 peasants -10%、疫病 全POP -5%。人口圧力のフィードバックループが成立
+- **救済システムの一旦オミット**: Province に複数 Holding があり支配者が異なるため、polity 単位の救済は不自然。将来 Holding 単位 POP 分割後に代官の一次対応 + 国の救済判断として再導入
+- **叛乱 unrest 係数の引き上げ**: `provinceRevoltUnrestFactor` 0.8 → 1.2。polityControl が高い状態でも unrest が高ければ叛乱が発生する
+- **unaffiliated person プールの holdings 比例化**: `unaffiliatedPersonsPerHolding: 0.5` で holdings 数に連動。月次実行化。男性比率 75%
+- **AnonymousHouse 所属者の出産禁止**: 家を持たない在野人物の無制限出産を抑止。将来の新家系創設で解決
+- **House.deceasedMemberIds 追加**: 死亡時に memberIds → deceasedMemberIds に移動。生存メンバー走査の効率化 + 家系の歴史記録保持
+- **死亡者の memberIds 蓄積バグ修正**: `getUnaffiliatedPersons` に alive チェック追加、`markPersonDead` で memberIds から除外
+- **UI**: 国詳細パネルの土地契約一覧を Province→Holding 二重構造に変更。ダークテーマに合わせたスクロールバースタイル追加
+- **CLI**: 年末サマリーに unrest 統計出力を追加（avg / class 別 / high count）
+- **リファクタ**: `ANONYMOUS_HOUSE_ID` を `house.ts` に、`PLACEHOLDER_PERSON_ID` を `person.ts` に移動
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系
@@ -443,7 +458,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **commonwealth 派閥の取り扱い拡張**: `ownerHouseId === undefined` Polity (Rebel Polity / commonwealth) で `getFactionNominationPower` から ownerHouse bonus を 0 にする処理は実装済 だが、commonwealth 特有の派閥動態 (rebel leader 直接派閥 leader 化など) は未深化。
 - **§21.3 D1 (alive=false → deathYear/deathMonth set)**: v0.17 では Person 型に deathYear/deathMonth を追加せず、integrity check は D1 を除外。表示時に state.currentYear から算出する設計のままで継続するか、deathYear を Person field として追加するかは要検討。
 - **Bailiff 任期年数のチューニング**: v0.17 デフォルト 3 年は normal bailiff が ownerHouse member に交代される機会を絞る要因の一つだった。v0.17.1 で factional 化と兼任厳格化により normal bailiff 比率は改善 (4 seed 平均で ~10/40)、任期延長 or 補充タイミング再設計は引き続き要観察。
-- **`targetUnaffiliatedPersons` バランス調整**: 30 から始めて、AnonymousHouse 内の normal Person 動態と派閥スカウト頻度を観察してチューニング。
+- ~~**`targetUnaffiliatedPersons` バランス調整**~~: v0.20.3 で holdings 比例化 (`unaffiliatedPersonsPerHolding: 0.5`) により解決。月次実行化、男性比率 75% 設定済み。
 - **POLITY_LANDLESS event 表示の整備**
 - **支出メカニズムの拡充**: 現状 Person.wealth は収入経路 (Office salary / Polity 余剰分配 / 派閥献金 / Bailiff salary) が複数あるのに対して支出経路が乏しく、複数 office を兼任する人物の wealth が 10 万単位で累積する (v0.17.3 観察例: Ostmark の Ruler + Greymark の Court Advisor + House Drakenhof 家長 + House Corvin の役職 3 つ + Lionel's Circle faction leader を兼ねる Lionel が 50 年で wealth 198,378)。将来追加候補: 不動産維持費・人件費・交際費・浪費。バランス調整は支出経路が入った後に行う方針。
 

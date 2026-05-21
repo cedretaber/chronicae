@@ -119,7 +119,15 @@ if (pop.wealth > config.prosperityWealthThreshold) {
 }
 ```
 
-**6.4.4 clamp**
+**6.4.4 unrest 自然減衰**（v0.20.3 追加）
+
+prosperity / poverty による増減の後、unrest に自然減衰を適用する。明示的な減少要因がなくても unrest が徐々に安定に向かう。
+
+```ts
+pop.unrest *= 1 - config.unrestNaturalDecayRate  // default: 0.005（月 0.5% 減衰）
+```
+
+**6.4.5 clamp**
 
 ```ts
 pop.size = Math.max(config.minPopSizeByClass[pop.class], pop.size + delta)
@@ -233,23 +241,36 @@ polity.treasury -= distributedTotal
 
 ### 6.6 DisasterSystem（48週ごと = 毎年）
 
-国家ごとに独立して判定。同一国に複数の災害が同時発生し得る。
+**v0.20.3 で大幅改修**: Province 単位の判定に変更。救済システムは一旦オミット（将来 Holding 単位 POP で再導入予定）。人口ダメージは割合ベースに変更。人口圧力による発生率増加を追加。
 
-| 災害 | 確率 | 効果 |
-|------|------|------|
-| Famine（飢饉） | `famineBaseChancePerYear` (8%) | Province dev 低下、treasury 消費（救済）、peasants wealth/size 低下 |
-| Plague（疫病） | `plagueBaseChancePerYear` (3%) | Province dev 低下、全 POP wealth/size 低下 |
-| BountifulHarvest（豊作） | `bountifulHarvestBaseChancePerYear` (5%) | Province dev 上昇、peasants/townsmen wealth 上昇・unrest 低下 |
+Province ごとに独立して判定。同一 Province に複数の災害が同時発生し得る。
+
+**発生率の計算**:
+
+```ts
+const pressure = getProvincePopulationPressure(state, config, provinceId)
+const pressureExcess = Math.max(0, pressure - config.populationPressureThreshold)
+const famineChance = config.famineBaseChancePerYear + config.faminePressureChanceBonus * pressureExcess
+const plagueChance = config.plagueBaseChancePerYear + config.plaguePressureChanceBonus * pressureExcess
+```
+
+pressure 1.0 で飢饉確率 100%（`faminePressureChanceBonus: 9.2`）。人口が carrying capacity を超過すると確実に飢饉が発生する。
+
+| 災害 | 基礎確率 | 圧力ボーナス | 効果 |
+|------|------|------|------|
+| Famine（飢饉） | 8% | +9.2/excess | Province dev 低下、peasants wealth -8・population -10% |
+| Plague（疫病） | 3% | +2.0/excess | Province dev 低下、全 POP wealth -10・population -5% |
+| BountifulHarvest（豊作） | 5% | なし | Province dev 上昇、peasants/townsmen wealth 上昇・unrest 低下 |
 
 **Famine の詳細**:
-- 救済判定: `polity.treasury >= polityProvinceCount * disasterReliefCostPerProvince`
-- 救済あり: dev -= (famineDevastation - famineReliefDevelopmentRecovery)、polity.legacyPrestige +1、POP 効果を `famineReliefDamageMultiplier`（0.3）倍に軽減
-- 救済なし: dev -= famineDevastation、POP 効果フル適用
-- POP 効果: `adjustProvincePopWealthByClass(state, pid, 'peasants', -famineWealthPenalty * multiplier)` / `adjustProvincePopSizeByClass(state, pid, 'peasants', -famineSizeDamage * multiplier)`
+- dev -= `famineDevastation`
+- peasants wealth -= `famineWealthPenalty`（default: 8）
+- peasants size *= `(1 - famineSizeDamageRate)`（default: -10%）
 
 **Plague の詳細**:
-- `adjustProvincePopWealth(state, pid, -plagueWealthPenalty)`（全 POP）
-- `adjustProvincePopSize(state, pid, -plagueSizeDamage)`（全 POP）
+- dev -= `plagueDevastation`
+- 全 POP wealth -= `plagueWealthPenalty`
+- 全 POP size *= `(1 - plagueSizeDamageRate)`（default: -5%）
 
 **BountifulHarvest の詳細**:
 - treasury への直接加算なし。翌月以降の EconomySystem で POP production 上昇により国庫が増加する
@@ -265,6 +286,7 @@ polity.treasury -= distributedTotal
 1. `person.alive = false`
 2. `clearSpouse` で配偶者側の `spouseId` も解除
 3. `revokeOfficesByHolder` で当人が保有する全 OfficeAssignment を inactive 化
+4. 所属 House の `memberIds` から除外し `deceasedMemberIds` に移動（v0.20.3）
 
 家長（house:leader）が死亡した場合の後継選出は SuccessionSystem（§6.10）が担当する。
 
@@ -326,7 +348,7 @@ toHeirsPool = wealth - toHouse
 
 ### 6.9 BirthSystem（48週ごと = 毎年）
 
-`birthEnabled` が true のとき動作。対象年齢（`fatherMinChildAge`〜`fatherMaxChildAge`）の生存男性を走査し、出生判定を行う。
+`birthEnabled` が true のとき動作。対象年齢（`fatherMinChildAge`〜`fatherMaxChildAge`）の生存男性を走査し、出生判定を行う。AnonymousHouse 所属者は出産対象外（v0.20.3）。家を持たない在野人物が子を残すには、まず家系を創設する必要がある。
 
 **出生確率補正**:
 ```
