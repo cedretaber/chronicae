@@ -190,6 +190,9 @@ describe('toResult', () => {
       summary: 'test',
       reasons: [],
       effects: [],
+      messageKey: 'test.person_died',
+      messageParams: {},
+      entityRefs: [],
     })
 
     const result2 = toResult(ctx)

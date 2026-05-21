@@ -43,6 +43,9 @@ function makeEvent(
     summary,
     reasons: [],
     effects: [],
+    messageKey: `test.${type.toLowerCase()}`,
+    messageParams: {},
+    entityRefs: [],
   }
 }
 

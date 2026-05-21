@@ -70,8 +70,22 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
   const sex: 'male' | 'female' = sexRoll < config.unaffiliatedMaleRatio ? 'male' : 'female'
 
   // 3. Name
-  const { name, rng: rngAfterName } = pickNameBySex(sex, rng)
-  rng = rngAfterName
+  let name: string
+  let nameKey: string | undefined
+  if (ctx.namePoolService) {
+    const { value: key, rng: rngAfterName } = ctx.namePoolService.pickNameKey(rng, {
+      nameCultureId: ctx.config.nameCultureId,
+      category: 'person',
+      path: [sex === 'male' ? 'male' : 'female'],
+    })
+    rng = rngAfterName
+    nameKey = key
+    name = key
+  } else {
+    const { name: n, rng: rngAfterName } = pickNameBySex(sex, rng)
+    rng = rngAfterName
+    name = n
+  }
 
   // 4. Occupation (weighted)
   const { occupation, rng: rngAfterOccupation } = sampleOccupation(rng, config.occupationWeights)
@@ -95,6 +109,7 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
   const { value: person, rng: rngAfterSample } = samplePerson(ctxWithId.rng, ctxWithId.config, {
     id: personId,
     name,
+    ...(nameKey !== undefined ? { nameKey } : {}),
     sex,
     age,
     houseId: ANONYMOUS_HOUSE_ID,

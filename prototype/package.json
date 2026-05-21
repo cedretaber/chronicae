@@ -31,11 +31,14 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "d3-delaunay": "^6.0.4",
+    "i18next": "^26.2.0",
     "lucide-react": "^1.14.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-i18next": "^17.0.8",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.0",
+    "yaml": "^2.9.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

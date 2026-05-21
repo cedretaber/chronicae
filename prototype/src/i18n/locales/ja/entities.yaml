@@ -1,0 +1,9 @@
+entity:
+  polity: '政治主体'
+  house: '家'
+  person: '人物'
+  province: 'プロヴィンス'
+  state_region: '州域'
+  holding: '所領'
+  pop_group: '民衆集団'
+  faction: '派閥'

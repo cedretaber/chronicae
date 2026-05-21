@@ -77,9 +77,27 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     const childSex = sexRoll < sex ? 'male' : 'female'
 
     const { value: amb1, rng: rng1 } = randomFloat(currentCtx.rng)
-    const { value: amb3, rng: rng3 } = randomFloat(rng1)
-    const { name: childName, rng: rngAfterName } = pickNameBySex(childSex, rng3)
-    currentCtx = { ...currentCtx, rng: rngAfterName }
+    const { value: amb3, rng: rng2 } = randomFloat(rng1)
+    currentCtx = { ...currentCtx, rng: rng2 }
+    let childName: string
+    let childNameKey: string | undefined
+    if (currentCtx.namePoolService) {
+      const { value: key, rng: rngAfterName } = currentCtx.namePoolService.pickNameKey(
+        currentCtx.rng,
+        {
+          nameCultureId: currentCtx.config.nameCultureId,
+          category: 'person',
+          path: [childSex],
+        },
+      )
+      currentCtx = { ...currentCtx, rng: rngAfterName }
+      childNameKey = key
+      childName = key
+    } else {
+      const { name, rng: rngAfterName } = pickNameBySex(childSex, currentCtx.rng)
+      currentCtx = { ...currentCtx, rng: rngAfterName }
+      childName = name
+    }
 
     const childMother = motherId !== undefined ? currentCtx.state.persons[motherId] : undefined
 
@@ -104,6 +122,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       ...(motherId !== undefined ? { motherId } : {}),
       birthStatus,
       name: childName,
+      ...(childNameKey !== undefined ? { nameKey: childNameKey } : {}),
       sex: childSex,
       aptitudes: childAptitudes,
       traits: { ambition: amb1, caution: amb3 },

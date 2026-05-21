@@ -651,8 +651,23 @@ export function createRebelPolity(
   const { value: sexRoll, rng: rngSex } = randomInt(ctx.rng, 0, 1)
   ctx = { ...ctx, rng: rngSex }
   const leaderSex: 'male' | 'female' = sexRoll === 0 ? 'male' : 'female'
-  const { name: leaderName, rng: rng1 } = pickNameBySex(leaderSex, ctx.rng)
-  ctx = { ...ctx, rng: rng1 }
+
+  let leaderName: string
+  let leaderNameKey: string | undefined
+  if (ctx.namePoolService) {
+    const { value: key, rng: rng1 } = ctx.namePoolService.pickNameKey(ctx.rng, {
+      nameCultureId: ctx.config.nameCultureId,
+      category: 'person',
+      path: [leaderSex],
+    })
+    ctx = { ...ctx, rng: rng1 }
+    leaderNameKey = key
+    leaderName = key
+  } else {
+    const { name, rng: rng1 } = pickNameBySex(leaderSex, ctx.rng)
+    ctx = { ...ctx, rng: rng1 }
+    leaderName = name
+  }
 
   const [ageMin, ageMax] = defaultLandContractConfig.rebelLeaderAgeRange
   const { value: age, rng: rng2 } = randomInt(ctx.rng, ageMin, ageMax)
@@ -668,6 +683,7 @@ export function createRebelPolity(
   const { value: newLeader, rng: rngAfterLeader } = samplePerson(ctx.rng, ctx.config, {
     id: newPersonId,
     name: leaderName,
+    ...(leaderNameKey !== undefined ? { nameKey: leaderNameKey } : {}),
     sex: leaderSex,
     age,
     houseId: ANONYMOUS_HOUSE_ID,

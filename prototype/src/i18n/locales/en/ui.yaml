@@ -1,0 +1,37 @@
+app:
+  title: 'Chronicae'
+
+buttons:
+  start: 'Start'
+  pause: 'Pause'
+  resume: 'Resume'
+  reset: 'Reset'
+
+panels:
+  world: 'World'
+  map: 'Map'
+  event_log: 'Event Log'
+  selected_entity: 'Selected Entity'
+
+settings:
+  locale: 'Language'
+
+controls:
+  advance_week: 'Advance 1 week'
+  advance_month: 'Advance 1 month (4 weeks)'
+  advance_year: 'Advance 1 year (48 weeks)'
+  seed: 'Seed'
+  preset: 'Preset'
+
+tabs:
+  raw_log: 'Raw Log'
+  chronicle: 'Chronicle'
+  timeline: 'Timeline'
+
+sidebar:
+  watchlist: 'Watchlist'
+  plays: 'Plays'
+  countries: 'Countries'
+  houses: 'Houses'
+  persons: 'Person'
+  factions: 'Factions'

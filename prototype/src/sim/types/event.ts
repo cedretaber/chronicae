@@ -101,12 +101,54 @@ export type EventEffect = {
   value?: number
 }
 
+export type EventEntityKind =
+  | 'person'
+  | 'house'
+  | 'polity'
+  | 'province'
+  | 'holding'
+  | 'popGroup'
+  | 'landContract'
+  | 'diplomaticPlay'
+  | 'actorIntent'
+  | 'faction'
+
+export type EventEntityRef = {
+  kind: EventEntityKind
+  id: string
+  role?: string
+  nameKey?: string
+}
+
+export type LocalizedNameParam = {
+  kind: 'name'
+  category: string
+  key: string
+}
+
+export type EventEntityParam = {
+  kind: 'entity'
+  entityKind: EventEntityKind
+  id: string
+}
+
+export type EventMessageParamValue =
+  | string
+  | number
+  | boolean
+  | LocalizedNameParam
+  | EventEntityParam
+
+export type EventMessageParams = Record<string, EventMessageParamValue>
+
+export type EventImportance = 'minor' | 'normal' | 'major' | 'critical'
+
 export type SimEvent = {
   id: EventId
   year: number
   weekOfYear: number
   type: EventType
-  importance: 'minor' | 'normal' | 'major' | 'critical'
+  importance: EventImportance
   actorIds: PersonId[]
   houseIds: HouseId[]
   polityIds: PolityId[]
@@ -116,4 +158,8 @@ export type SimEvent = {
   description?: string
   reasons: EventReason[]
   effects: EventEffect[]
+  // v0.21 i18n fields (optional during migration)
+  messageKey?: string
+  messageParams?: EventMessageParams
+  entityRefs?: EventEntityRef[]
 }

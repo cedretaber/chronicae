@@ -3,6 +3,8 @@ import type { PolityRank } from '../types/polity'
 import type { UnaffiliatedOccupation } from '../types/person'
 
 export type SimulationConfig = {
+  uiLocale: 'en' | 'ja'
+  nameCultureId: string
   debug: boolean
   minLivingMembersPerHouse: number
   maxNewPersonsPerHousePerYear: number
@@ -488,6 +490,8 @@ export type SimulationConfig = {
 }
 
 export const defaultConfig: SimulationConfig = {
+  uiLocale: 'en',
+  nameCultureId: 'western',
   debug: false,
   minLivingMembersPerHouse: 4,
   maxNewPersonsPerHousePerYear: 2,

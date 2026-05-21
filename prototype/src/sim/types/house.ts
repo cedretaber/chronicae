@@ -7,6 +7,7 @@ export type HouseKind = 'normal' | 'system'
 export type House = {
   id: HouseId
   name: string
+  nameKey?: string
   active: boolean
   kind?: HouseKind
   memberIds: PersonId[]

@@ -17,6 +17,12 @@ import { buildActivityReport } from '@sim/report/activityReport'
 import { takeSnapshot } from '@sim/report/snapshot'
 import type { ActivitySnapshot } from '@sim/report/types'
 import { writeFileSync } from 'node:fs'
+import fs from 'node:fs'
+import path from 'node:path'
+import YAML from 'yaml'
+import { createNamePoolService } from '@sim/namegen/namePoolService'
+import { loadNameDisplayData } from '@sim/namegen/loadNameDisplayData'
+import type { NamePoolData } from '@sim/namegen/namePoolTypes'
 
 function printUsage(): void {
   console.log(`Usage: npm run cli [options]
@@ -400,7 +406,19 @@ if (args.years !== undefined && args.weeks !== undefined) {
 
 const totalTicks = args.weeks !== undefined ? args.weeks : args.years * 48
 
-const { world, rng: initialRng } = generateWorld(args.seed, args.preset)
+// Load NamePoolService and NameDisplayData for CLI
+const namePoolsPath = path.resolve(import.meta.dirname, '../sim/namegen/namePools.yaml')
+const namePoolsYaml = fs.readFileSync(namePoolsPath, 'utf-8')
+const namePoolData = YAML.parse(namePoolsYaml) as NamePoolData
+const namePoolService = createNamePoolService(namePoolData)
+const nameDisplayData = loadNameDisplayData()
+
+const { world, rng: initialRng } = generateWorld(
+  args.seed,
+  args.preset,
+  namePoolService,
+  nameDisplayData,
+)
 
 const initialPolityCount = countActivePolities(world)
 const initialHouseCount = countActiveHouses(world)
@@ -441,7 +459,7 @@ const systemTimingsTotal: Record<string, number> = {}
 
 for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
   const tickT0 = performance.now()
-  const result = tick({ state, rng: currentRng, config })
+  const result = tick({ state, rng: currentRng, config, namePoolService })
   tickTimeTotal += performance.now() - tickT0
 
   if (result.systemTimings) {

@@ -1,0 +1,9 @@
+entity:
+  polity: 'Polity'
+  house: 'House'
+  person: 'Person'
+  province: 'Province'
+  state_region: 'State'
+  holding: 'Holding'
+  pop_group: 'POP'
+  faction: 'Faction'

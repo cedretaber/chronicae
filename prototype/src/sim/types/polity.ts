@@ -10,6 +10,7 @@ export type PolityKind = 'normal' | 'commonwealth'
 export type Polity = {
   id: PolityId
   name: string
+  nameKey?: string
   treasury: number // >= 0
   adminPower: number // 0..100, cache: recalculated each January
   legacyPrestige: number // 0..100

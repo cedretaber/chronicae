@@ -1,0 +1,37 @@
+app:
+  title: 'Chronicae'
+
+buttons:
+  start: '開始'
+  pause: '一時停止'
+  resume: '再開'
+  reset: 'リセット'
+
+panels:
+  world: '世界'
+  map: '地図'
+  event_log: 'イベントログ'
+  selected_entity: '選択中の対象'
+
+settings:
+  locale: '表示言語'
+
+controls:
+  advance_week: '1週進める'
+  advance_month: '1ヶ月進める (4週)'
+  advance_year: '1年進める (48週)'
+  seed: 'シード'
+  preset: 'プリセット'
+
+tabs:
+  raw_log: 'ログ'
+  chronicle: '年代記'
+  timeline: '年表'
+
+sidebar:
+  watchlist: 'ウォッチリスト'
+  plays: '外交劇'
+  countries: '国家'
+  houses: '家系'
+  persons: '人物'
+  factions: '派閥'

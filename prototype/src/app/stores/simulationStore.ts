@@ -5,6 +5,10 @@ import { defaultConfig } from '@sim/config/defaultConfig'
 import type { SimulationSession } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { WorldPresetName } from '@sim/worldgen/worldPresets'
+import YAML from 'yaml'
+import { createNamePoolService } from '@sim/namegen/namePoolService'
+import type { NamePoolService } from '@sim/namegen/namePoolTypes'
+import type { NameDisplayData } from '@sim/namegen/nameDisplayResolver'
 export type EntityType = 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction'
 // Backwards-friendly alias retained as named export (some modules import SelectedType)
 export type SelectedType = EntityType
@@ -69,6 +73,56 @@ const WINDOW_INITIAL_Y = 80
 // 360px window width 想定で、おおむね右端を超えない位置に折り返す
 const WINDOW_MAX_X = 600
 
+// Lazy NamePoolService and NameDisplayData initialization
+let _namePoolService: NamePoolService | null = null
+let _nameDisplayData: NameDisplayData | null = null
+
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+const namePoolsRaw = import.meta.glob('../../sim/namegen/namePools.yaml', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
+
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+const nameDisplayRaw = import.meta.glob('../../i18n/locales/en/names/*.yaml', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
+
+function getNamePoolService(): NamePoolService {
+  if (!_namePoolService) {
+    const yamlStr = Object.values(namePoolsRaw)[0]
+    if (!yamlStr) throw new Error('namePools.yaml not found')
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const data: import('@sim/namegen/namePoolTypes').NamePoolData = YAML.parse(yamlStr)
+    _namePoolService = createNamePoolService(data)
+  }
+  return _namePoolService
+}
+
+function getNameDisplayData(): NameDisplayData {
+  if (!_nameDisplayData) {
+    const data: NameDisplayData = {}
+    for (const [path, raw] of Object.entries(nameDisplayRaw)) {
+      const match = path.match(/\/names\/(\w+)\.yaml$/)
+      if (match && match[1]) {
+        const parsed: unknown = YAML.parse(raw)
+        if (parsed && typeof parsed === 'object') {
+          const result: Record<string, string> = {}
+          for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+            if (typeof v === 'string') result[k] = v
+          }
+          data[match[1]] = result
+        }
+      }
+    }
+    _nameDisplayData = data
+  }
+  return _nameDisplayData
+}
+
 export const useSimulationStore = create<SimStore>((set, get) => ({
   session: null,
   isRunning: false,
@@ -81,7 +135,9 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   pendingNotifications: [],
 
   generateNewWorld: (seed: string, preset?: WorldPresetName) => {
-    const { world, rng } = generateWorld(seed, preset)
+    const nps = getNamePoolService()
+    const ndd = getNameDisplayData()
+    const { world, rng } = generateWorld(seed, preset, nps, ndd)
     const session: SimulationSession = {
       initialSeed: seed,
       currentState: world,
@@ -94,7 +150,9 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   resetWorld: () => {
     const { session: currentSession } = get()
     if (!currentSession) return
-    const { world, rng } = generateWorld(currentSession.initialSeed)
+    const nps = getNamePoolService()
+    const ndd = getNameDisplayData()
+    const { world, rng } = generateWorld(currentSession.initialSeed, undefined, nps, ndd)
     const session: SimulationSession = {
       initialSeed: currentSession.initialSeed,
       currentState: world,
@@ -108,10 +166,12 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
     const { session: currentSession, config } = get()
     if (!currentSession) return
 
+    const nps = getNamePoolService()
     const input = {
       state: currentSession.currentState,
       rng: currentSession.rng,
       config,
+      namePoolService: nps,
     }
     const result = tick(input)
 

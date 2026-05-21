@@ -4,6 +4,7 @@ export type Province = {
   id: ProvinceId
   stateId: StateRegionId
   name: string
+  nameKey?: string
   x: number
   y: number
   neighbors: ProvinceId[]

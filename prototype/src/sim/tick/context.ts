@@ -1,13 +1,22 @@
 import type { WorldState } from '../types/world'
 import type { RngState } from '../rng/rng'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { SimEvent } from '../types/event'
-import type { EventId, PersonId, HouseId, PolityId } from '../types/ids'
+import type {
+  SimEvent,
+  EventType,
+  EventImportance,
+  EventMessageParams,
+  EventEntityRef,
+  EventReason,
+  EventEffect,
+} from '../types/event'
+import type { EventId, PersonId, HouseId, PolityId, ProvinceId, HoldingId } from '../types/ids'
 
 export type TickInput = {
   state: WorldState
   rng: RngState
   config: SimulationConfig
+  namePoolService?: import('../namegen/namePoolTypes').NamePoolService
 }
 
 export type TickResult = {
@@ -26,6 +35,7 @@ export type TickContext = {
   readonly state: WorldState
   readonly rng: RngState
   readonly config: SimulationConfig
+  readonly namePoolService?: import('../namegen/namePoolTypes').NamePoolService
   readonly events: readonly SimEvent[]
   readonly nextEventIndex: number
   readonly nextPersonIndex: number
@@ -61,6 +71,7 @@ export function createTickContext(input: TickInput): TickContext {
     state: input.state,
     rng: input.rng,
     config: input.config,
+    namePoolService: input.namePoolService,
     events: [],
     nextEventIndex: 0,
     nextPersonIndex: maxPersonIndex + 1,
@@ -68,7 +79,7 @@ export function createTickContext(input: TickInput): TickContext {
     nextPolityIndex: maxPolityIndex + 1,
     deathsThisTick: [],
     deathRolesThisTick: {},
-  }
+  } as TickContext
 }
 
 export function toResult(ctx: TickContext): TickResult {
@@ -97,4 +108,47 @@ export function makeHouseId(ctx: TickContext): { id: HouseId; ctx: TickContext }
 export function makePolityId(ctx: TickContext): { id: PolityId; ctx: TickContext } {
   const id = `dp-${ctx.nextPolityIndex}` as PolityId
   return { id, ctx: { ...ctx, nextPolityIndex: ctx.nextPolityIndex + 1 } }
+}
+
+export type CreateSimEventInput = {
+  type: EventType
+  importance: EventImportance
+  messageKey: string
+  messageParams: EventMessageParams
+  entityRefs?: EventEntityRef[]
+  // Legacy fields for migration period
+  legacySummary: string
+  legacyActorIds?: PersonId[]
+  legacyHouseIds?: HouseId[]
+  legacyPolityIds?: PolityId[]
+  legacyProvinceIds?: ProvinceId[]
+  legacyHoldingIds?: HoldingId[]
+  reasons?: EventReason[]
+  effects?: EventEffect[]
+}
+
+export function createSimEvent(
+  ctx: TickContext,
+  input: CreateSimEventInput,
+): { event: SimEvent; ctx: TickContext } {
+  const { id, ctx: nextCtx } = makeEventId(ctx)
+  const event: SimEvent = {
+    id,
+    year: nextCtx.state.currentYear,
+    weekOfYear: nextCtx.state.currentWeekOfYear,
+    type: input.type,
+    importance: input.importance,
+    actorIds: input.legacyActorIds ?? [],
+    houseIds: input.legacyHouseIds ?? [],
+    polityIds: input.legacyPolityIds ?? [],
+    provinceIds: input.legacyProvinceIds ?? [],
+    holdingIds: input.legacyHoldingIds ?? [],
+    summary: input.legacySummary,
+    reasons: input.reasons ?? [],
+    effects: input.effects ?? [],
+    messageKey: input.messageKey,
+    messageParams: input.messageParams,
+    entityRefs: input.entityRefs ?? [],
+  }
+  return { event, ctx: nextCtx }
 }
