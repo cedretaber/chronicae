@@ -137,6 +137,7 @@ function makeWorldState(
         name: 'House 1',
         active: true,
         memberIds: [personId],
+        deceasedMemberIds: [],
         founderId: personId,
         cadetHouseIds: [],
         legacyPrestige: 50,

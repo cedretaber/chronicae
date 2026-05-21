@@ -109,6 +109,7 @@ export function splitHouse(
     name: splitterPerson.name + "'s House",
     active: true,
     memberIds: [splitterPerson.id],
+    deceasedMemberIds: [],
     founderId: splitterPerson.id,
     cadetHouseIds: [],
     legacyPrestige: Math.floor(house.legacyPrestige * 0.5),

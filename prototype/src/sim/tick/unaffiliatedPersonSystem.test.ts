@@ -17,6 +17,7 @@ function makeBaseState(): WorldState {
     active: true,
     kind: 'system' as const,
     memberIds: [],
+    deceasedMemberIds: [],
     cadetHouseIds: [],
     legacyPrestige: 0,
     wealth: 0,

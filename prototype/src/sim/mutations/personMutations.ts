@@ -60,6 +60,7 @@ export function markPersonDead(
         [person.houseId]: {
           ...house,
           memberIds: house.memberIds.filter((id) => id !== personId),
+          deceasedMemberIds: [...(house.deceasedMemberIds ?? []), personId],
         },
       },
     }

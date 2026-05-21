@@ -61,6 +61,7 @@ function makeProvinceState(development: number): WorldState {
         name: 'H0',
         active: true,
         memberIds: [],
+        deceasedMemberIds: [],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 100,

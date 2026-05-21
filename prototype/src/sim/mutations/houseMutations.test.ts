@@ -63,6 +63,7 @@ function makeFixture(): {
         name: 'House 1',
         active: true,
         memberIds: [],
+        deceasedMemberIds: [],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,

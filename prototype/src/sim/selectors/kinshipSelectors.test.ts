@@ -52,6 +52,7 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
         name: 'House',
         active: true,
         memberIds: Object.values(persons).map((p) => p.id),
+        deceasedMemberIds: [],
         cadetHouseIds: [],
         legacyPrestige: 50,
         wealth: 0,

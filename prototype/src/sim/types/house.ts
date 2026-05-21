@@ -10,6 +10,7 @@ export type House = {
   active: boolean
   kind?: HouseKind
   memberIds: PersonId[]
+  deceasedMemberIds: PersonId[]
   founderId?: PersonId
   parentHouseId?: HouseId
   cadetHouseIds: HouseId[]

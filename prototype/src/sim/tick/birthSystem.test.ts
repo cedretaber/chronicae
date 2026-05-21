@@ -70,6 +70,7 @@ function makeHouse(
     name: 'H',
     active: true,
     memberIds: [],
+    deceasedMemberIds: [],
     cadetHouseIds: [],
     legacyPrestige: 50,
     wealth: 100,

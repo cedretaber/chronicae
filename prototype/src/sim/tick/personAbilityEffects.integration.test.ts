@@ -139,6 +139,7 @@ function makeWorldState(
   state = withHouse(state, houseId, {
     name: 'H0',
     memberIds: [person.id],
+    deceasedMemberIds: [],
     legacyPrestige: 50,
     wealth: houseWealth,
     seatProvinceId: provinceId,
@@ -336,6 +337,7 @@ describe('runControlSystem — capital province maxControl', () => {
           name: 'H0',
           active: true,
           memberIds: [],
+          deceasedMemberIds: [],
           cadetHouseIds: [],
           legacyPrestige: 50,
           wealth: 100,
@@ -515,6 +517,7 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
     state = withHouse(state, houseId, {
       name: 'H0',
       memberIds: [headPerson.id],
+      deceasedMemberIds: [],
       legacyPrestige: 50,
       wealth: 500,
       seatProvinceId: provinceId,

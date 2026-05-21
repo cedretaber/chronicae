@@ -35,6 +35,7 @@ export function createHouse(
     name: input.name,
     active: true,
     memberIds: [],
+    deceasedMemberIds: [],
     cadetHouseIds: [],
     legacyPrestige: input.legacyPrestige ?? 0,
     wealth: input.wealth ?? 0,

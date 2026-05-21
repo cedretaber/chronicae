@@ -116,6 +116,7 @@ function makeHouse(id: HouseId): NonNullable<WorldState['houses'][HouseId]> {
     name: 'H',
     active: true,
     memberIds: [],
+    deceasedMemberIds: [],
     cadetHouseIds: [],
     legacyPrestige: 50,
     wealth: 100,

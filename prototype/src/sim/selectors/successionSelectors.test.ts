@@ -52,6 +52,7 @@ function makeHouse(memberIds: Person[], overrides: Partial<House> = {}): House {
     name: 'House',
     active: true,
     memberIds: memberIds.map((p) => p.id),
+    deceasedMemberIds: [],
     cadetHouseIds: [],
     legacyPrestige: 50,
     wealth: 0,
