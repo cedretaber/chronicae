@@ -123,6 +123,7 @@ detail:
     stewardship: '内政'
     diplomacy: '外交'
     war_command: '軍略'
+    intrigue: '謀略'
     importance: '重要度'
     traits: '性格'
     ambition: '野心'

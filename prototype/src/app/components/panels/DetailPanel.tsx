@@ -1602,8 +1602,7 @@ export function PersonDetail({
   const ROLE_ORDER = ['leader', 'administrator', 'treasurer', 'military', 'advisor']
 
   function officeDisplayName(office: (typeof allOffices)[number]): string {
-    const key = `${office.organization.kind}:${office.role}` as const
-    return OFFICE_DEFINITIONS[key]?.displayName ?? office.role
+    return t(`${office.organization.kind}.${office.role}`, { ns: 'roles' })
   }
 
   function officeOrgName(office: (typeof allOffices)[number]): string {
@@ -1900,7 +1899,7 @@ export function PersonDetail({
           <span>{Math.round((getRoleScore(worldState, person.id, 'diplomacy') / 10) * 10)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Intrigue:</span>
+          <span className="text-gray-400">{t('detail.person.intrigue')}:</span>
           <span>{Math.round((getRoleScore(worldState, person.id, 'intrigue') / 10) * 10)}</span>
         </div>
         <div className="flex justify-between">
