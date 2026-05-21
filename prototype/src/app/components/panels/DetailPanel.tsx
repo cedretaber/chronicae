@@ -112,6 +112,7 @@ function getImportanceColor(importance: SimEvent['importance']): string {
 type ClickHandler = (id: PolityId | HouseId | PersonId, type: 'person' | 'house' | 'polity') => void
 
 function WatchButton({ isWatching, onToggle }: { isWatching: boolean; onToggle: () => void }) {
+  const { t } = useTranslation()
   return (
     <button
       className={`rounded px-2 py-0.5 text-xs transition-colors ${
@@ -121,7 +122,7 @@ function WatchButton({ isWatching, onToggle }: { isWatching: boolean; onToggle: 
       }`}
       onClick={onToggle}
     >
-      {isWatching ? '\u2605 Watching' : '\u2606 Watch'}
+      {isWatching ? `\u2605 ${t('buttons.watching')}` : `\u2606 ${t('buttons.watch')}`}
     </button>
   )
 }
@@ -839,6 +840,7 @@ function PolityLandContracts({
   worldState: WorldState | null
   onProvinceClick: (id: string) => void
 }) {
+  const { t } = useTranslation()
   if (!worldState) return null
   const contractIds = worldState.landContractIndex.byGranteePolity[polity.id] ?? []
   if (contractIds.length === 0) return null
@@ -945,11 +947,11 @@ function PolityLandContracts({
                     </td>
                     <td className="text-right text-gray-400">
                       {c.isRoot && c.isTerminal
-                        ? 'R+T'
+                        ? `${t('detail.province.root')}+${t('detail.province.term')}`
                         : c.isRoot
-                          ? 'Root'
+                          ? t('detail.province.root')
                           : c.isTerminal
-                            ? 'Term'
+                            ? t('detail.province.term')
                             : '—'}
                     </td>
                   </tr>
@@ -2235,7 +2237,7 @@ export function ProvinceDetail({
           />
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Habitability:</span>
+          <span className="text-gray-400">{t('detail.province.habitability')}:</span>
           <span>{formatScore(province.habitability)}</span>
         </div>
         <div className="flex justify-between">
@@ -2245,11 +2247,11 @@ export function ProvinceDetail({
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Dev. Multiplier:</span>
+          <span className="text-gray-400">{t('detail.province.dev_multiplier')}:</span>
           <span>{formatScore(developmentMultiplier)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Polity Control:</span>
+          <span className="text-gray-400">{t('detail.province.polity_control')}:</span>
           <span>{formatPower(holdingCtrl)}</span>
         </div>
       </div>
@@ -2281,10 +2283,18 @@ export function ProvinceDetail({
                   </span>
                 </div>
                 <div className="mt-0.5 grid grid-cols-2 gap-x-2 text-xs text-gray-400">
-                  <span>Dev: {holding.development.toFixed(1)}</span>
-                  <span>Control: {holding.polityControl.toFixed(0)}%</span>
-                  <span>Quality: {holding.landQuality.toFixed(2)}</span>
-                  <span>Weight: {holding.weight.toFixed(1)}</span>
+                  <span>
+                    {t('detail.province.dev')}: {holding.development.toFixed(1)}
+                  </span>
+                  <span>
+                    {t('detail.province.control')}: {holding.polityControl.toFixed(0)}%
+                  </span>
+                  <span>
+                    {t('detail.province.quality')}: {holding.landQuality.toFixed(2)}
+                  </span>
+                  <span>
+                    {t('detail.province.weight')}: {holding.weight.toFixed(1)}
+                  </span>
                 </div>
                 {(() => {
                   const chain = getHoldingLandContractChain(currentState, holding.id)
@@ -2320,7 +2330,9 @@ export function ProvinceDetail({
                   {t('detail.province.bailiff')}:{' '}
                   {bailiff ? (
                     bailiff.kind === 'placeholder' ? (
-                      <span className="text-gray-500 italic">placeholder</span>
+                      <span className="text-gray-500 italic">
+                        {t('detail.province.placeholder')}
+                      </span>
                     ) : (
                       <PersonLink
                         personId={bailiff.id}
@@ -2329,7 +2341,7 @@ export function ProvinceDetail({
                       />
                     )
                   ) : (
-                    <span className="text-gray-500">vacant</span>
+                    <span className="text-gray-500">{t('detail.province.vacant')}</span>
                   )}
                 </div>
               </div>
@@ -2397,15 +2409,15 @@ export function ProvinceDetail({
                 {pop.class} →
               </button>
               <div className="flex justify-between">
-                <span className="text-gray-400">Size:</span>
+                <span className="text-gray-400">{t('detail.province.size')}:</span>
                 <span>{pop.size.toFixed(1)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Wealth:</span>
+                <span className="text-gray-400">{t('detail.province.wealth')}:</span>
                 <span>{pop.wealth.toFixed(1)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Unrest:</span>
+                <span className="text-gray-400">{t('detail.province.unrest')}:</span>
                 <span className={pop.unrest > 60 ? 'text-red-400' : 'text-gray-200'}>
                   {pop.unrest.toFixed(1)}
                 </span>
@@ -2419,9 +2431,9 @@ export function ProvinceDetail({
       <div className="text-sm">
         {(
           [
-            ['Peasants', peasantRevoltTendency],
-            ['Townsmen', townsmenRevoltTendency],
-            ['Nobles', noblesRevoltTendency],
+            [t('detail.province.peasants'), peasantRevoltTendency],
+            [t('detail.province.townsmen'), townsmenRevoltTendency],
+            [t('detail.province.nobles'), noblesRevoltTendency],
           ] as const
         ).map(([label, tendency]) => (
           <div key={label} className="flex justify-between">
