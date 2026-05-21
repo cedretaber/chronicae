@@ -12,7 +12,7 @@ Chronicae はまだプロトタイプ段階であり、観賞用シミュレー�
 
 ### 2. 仕様書に無い修正も、方向性に合致していれば実装する
 
-仕様書 (`docs/SPEC.md`, `docs/drafts/spec-v0XX-update.md`) は実装中の判断基盤だが、
+仕様書 (`docs/spec/`, `docs/drafts/spec-v0XX-update.md`) は実装中の判断基盤だが、
 実装中に「仕様書には無いがゲーム全体の目的に沿った拡張・調整」が必要だと気付くことがある。
 
 そのような場合は、仕様書の文面に縛られず実装してよい。
@@ -20,7 +20,7 @@ Chronicae はまだプロトタイプ段階であり、観賞用シミュレー�
 
 判断基準は以下:
 
-- `docs/SPEC.md §1` (概要 / 検証目的) と矛盾しないか
+- `docs/spec/01-overview.md` (概要 / 検証目的) と矛盾しないか
 - 既存の他システムと整合が取れているか
 - プロトタイプの「観賞対象としての面白さ」を損なわないか
 
@@ -60,7 +60,7 @@ v0.15 段階では機能拡張が続いている。各機能追加がバラン�
 ```
 Chronicae/
 ├── .claude/         # Claude Code 設定
-├── docs/            # 仕様書（SPEC.md など）
+├── docs/            # 仕様書（SPEC.md = 目次, spec/ = 各章）
 └── prototype/       # 実装本体（Vite + React + TypeScript）
     └── src/
         ├── app/     # UI 層（components, stores）
