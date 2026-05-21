@@ -1003,9 +1003,9 @@ export function CountryDetail({
 
   const roleLabels: Record<string, string> = {
     leader: t('detail.polity.ruler'),
-    administrator: t('roles.polity.administrator', { ns: 'roles' }),
-    military: t('roles.polity.military', { ns: 'roles' }),
-    treasurer: t('roles.polity.treasurer', { ns: 'roles' }),
+    administrator: t('polity.administrator', { ns: 'roles' }),
+    military: t('polity.military', { ns: 'roles' }),
+    treasurer: t('polity.treasurer', { ns: 'roles' }),
   }
 
   // v0.15: この Polity に Province を持つ active House を、所領 Province 数とともに表示する。
@@ -1433,7 +1433,7 @@ export function HouseDetail({
           {(['administrator', 'treasurer', 'military', 'advisor'] as const).map((role) => {
             const houseRef = { kind: 'house' as const, id: house.id }
             const holderIds = worldState ? getActiveOfficeHolders(worldState, houseRef, role) : []
-            const roleLabel = t(`roles.house.${role}`, { ns: 'roles' })
+            const roleLabel = t(`house.${role}`, { ns: 'roles' })
             return (
               <div key={role} className="flex justify-between">
                 <span className="text-gray-400">{roleLabel}:</span>
