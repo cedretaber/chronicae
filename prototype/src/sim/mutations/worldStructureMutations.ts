@@ -24,7 +24,6 @@ import {
 } from '../selectors/polityRelations'
 import {
   getHouseControlledProvinceIds,
-  getProvinceTerminalContract,
   getProvinceEffectiveOwnerHouseId,
   getLandContractGrantor,
   getGrantorRank,
@@ -737,10 +736,13 @@ export function createRebelPolity(
     100,
   )
 
-  // v0.16: 当該 Province の terminal LandContract grantee を newPolityId に差し替え
-  const terminal = getProvinceTerminalContract(newState, provinceId)
-  if (terminal) {
-    newState = transferLandContractGrantee(newState, terminal.id, newPolityId)
+  // v0.20: 各 Holding の terminal LandContract grantee を newPolityId に差し替え
+  for (const holdingId of province.holdingIds) {
+    const holdingChain = newState.landContractIndex.byHolding[holdingId] ?? []
+    const terminalId = holdingChain[holdingChain.length - 1]
+    if (terminalId) {
+      newState = transferLandContractGrantee(newState, terminalId, newPolityId)
+    }
   }
 
   // v0.16 §17: 当該 Province の bailiff を新 Polity 配下の placeholder に installHoldingPlaceholderBailiff
@@ -907,12 +909,16 @@ export function disbandRebelPolity(
 
   let state = ctx.state
 
-  // 1. terminal LandContract grantee を restoreToPolityId に戻す
+  // v0.20: 各 Holding の terminal LandContract grantee を restoreToPolityId に戻す
   //    rank 不変条件 (§25 #7: grantor rank < grantee rank) を満たさない場合は abort
-  //    (restoreToPolityId の rank が変化していて、現在の chain 構造と整合しないケース)
-  const terminal = getProvinceTerminalContract(state, input.provinceId)
-  if (terminal) {
-    const grantor = getLandContractGrantor(state, terminal.id)
+  for (const hid of province.holdingIds) {
+    const holdingChain = state.landContractIndex.byHolding[hid] ?? []
+    const terminalId = holdingChain[holdingChain.length - 1]
+    if (!terminalId) continue
+    const terminalContract = state.landContracts[terminalId]
+    if (!terminalContract) continue
+    if ((terminalContract.granteePolityId as string) !== (input.rebelPolityId as string)) continue
+    const grantor = getLandContractGrantor(state, terminalId)
     if (grantor) {
       const grantorRank = getGrantorRank(state, grantor)
       if (grantorRank >= restorePolity.rank) {
@@ -922,7 +928,7 @@ export function disbandRebelPolity(
         })
       }
     }
-    state = transferLandContractGrantee(state, terminal.id, input.restoreToPolityId)
+    state = transferLandContractGrantee(state, terminalId, input.restoreToPolityId)
   }
 
   // 2. Rebel Polity の active polity:leader Office を revoke

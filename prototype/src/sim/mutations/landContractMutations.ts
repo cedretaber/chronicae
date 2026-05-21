@@ -469,7 +469,6 @@ export function applyLandContractTransferGoal(
   const fromRank = fromPolity?.rank ?? 0
 
   let newState: WorldState
-  const isTerminal = state.landContractIndex.byParent[targetContract.id] === undefined
 
   if (toPolity.rank <= fromRank) {
     // 5-a (同 rank) or 5-b (claimer が上位 rank): grantee を差し替える
@@ -498,39 +497,85 @@ export function applyLandContractTransferGoal(
     }
     newState = transferLandContractGrantee(state, targetContract.id, input.toPolityId)
   } else {
-    // 5-c (claimer が下位 rank): 対象契約の下に新契約を挿入
+    // 5-c (claimer が下位 rank): チェーンを走査して適切な位置に挿入/差し替え
     if (fromRank >= toPolity.rank) {
       return err({
         code: 'INTEGRITY_VIOLATION',
         message: `applyLandContractTransferGoal: cannot insert below same or lower rank (from=${fromRank} to=${toPolity.rank})`,
       })
     }
-    if (isTerminal) {
-      const result = createChildLandContract(state, {
-        provinceId,
-        parentContractId: targetContract.id,
-        granteePolityId: input.toPolityId,
-        taxRateToGrantor: 0.3,
-        holdingId: input.holdingId,
-      })
-      newState = result.state
-    } else {
-      const childContractId = state.landContractIndex.byParent[targetContract.id]
-      if (!childContractId) {
+    let anchor = targetContract
+    let placed: { state: WorldState } | undefined
+    for (let depth = 0; depth < 20; depth++) {
+      const childId = state.landContractIndex.byParent[anchor.id]
+      if (!childId) {
+        placed = createChildLandContract(state, {
+          provinceId,
+          parentContractId: anchor.id,
+          granteePolityId: input.toPolityId,
+          taxRateToGrantor: 0.3,
+          holdingId: input.holdingId,
+        })
+        break
+      }
+      const child = state.landContracts[childId]
+      if (!child) {
         return err({
           code: 'INTEGRITY_VIOLATION',
-          message: `applyLandContractTransferGoal: non-terminal contract has no child`,
+          message: `applyLandContractTransferGoal: child contract ${childId as string} not found`,
         })
       }
-      const result = insertIntermediateLandContract(state, {
-        provinceId,
-        belowContractId: childContractId,
-        newGranteePolityId: input.toPolityId,
-        taxRateToGrantor: 0.3,
-        holdingId: input.holdingId,
-      })
-      newState = result.state
+      const childPolity = state.polities[child.granteePolityId]
+      const childRank = childPolity?.rank ?? 0
+
+      if (toPolity.rank < childRank) {
+        placed = insertIntermediateLandContract(state, {
+          provinceId,
+          belowContractId: childId,
+          newGranteePolityId: input.toPolityId,
+          taxRateToGrantor: 0.3,
+          holdingId: input.holdingId,
+        })
+        break
+      }
+
+      if (toPolity.rank === childRank) {
+        const cGrantor = getLandContractGrantor(state, childId)
+        if (cGrantor) {
+          const cGrantorRank = getGrantorRank(state, cGrantor)
+          if (cGrantorRank >= toPolity.rank) {
+            return err({
+              code: 'INTEGRITY_VIOLATION',
+              message: `applyLandContractTransferGoal: rank invariant violation (grantor rank ${cGrantorRank} >= grantee rank ${toPolity.rank})`,
+            })
+          }
+        }
+        const gcId = state.landContractIndex.byParent[childId]
+        if (gcId) {
+          const gc = state.landContracts[gcId]
+          if (gc) {
+            const gcPolity = state.polities[gc.granteePolityId]
+            if (gcPolity && toPolity.rank >= gcPolity.rank) {
+              return err({
+                code: 'INTEGRITY_VIOLATION',
+                message: `applyLandContractTransferGoal: rank invariant violation (new grantee rank ${toPolity.rank} >= grandchild rank ${gcPolity.rank})`,
+              })
+            }
+          }
+        }
+        placed = { state: transferLandContractGrantee(state, childId, input.toPolityId) }
+        break
+      }
+
+      anchor = child
     }
+    if (!placed) {
+      return err({
+        code: 'INTEGRITY_VIOLATION',
+        message: `applyLandContractTransferGoal: could not find valid position in chain for rank ${toPolity.rank}`,
+      })
+    }
+    newState = placed.state
   }
   let nextCtx: TickContext = { ...ctx, state: newState }
 

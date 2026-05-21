@@ -1576,9 +1576,8 @@ summary: "The people of ${province.name} improved their lands."
 
 | case | 条件 | 動作 |
 |---|---|---|
-| A | 勝者 rank == 敗者 rank | terminal contract の granteePolityId を敗者から勝者に差し替える (`transferLandContractGrantee`) |
-| B-1 | 勝者 rank < 敗者 rank、かつ勝者が chain 未登場 | 中間契約として勝者を挿入 (`insertIntermediateLandContract`) |
-| B-2 | 勝者 rank < 敗者 rank、かつ勝者が既に chain 上位 | 勝者と敗者の間の中間契約を全削除し、直接接続に差し替える (`replaceLowerLandContract`) |
+| A | 勝者 rank == 敗者 rank | 敗者が grantee の contract の granteePolityId を勝者に差し替える (`transferLandContractGrantee`) |
+| B | 勝者 rank < 敗者 rank (勝者が下位) | 対象契約からチェーンを下方向に走査し、適切な位置を探す。(1) terminal に到達 → 子契約を作成、(2) 自身より下位 rank の子を発見 → 中間挿入、(3) 同 rank の子を発見 → 子の grantee を差し替え（v0.20-b2 で rank 不変条件違反を防ぐチェーン走査に改修） |
 | C | 勝者 rank > 敗者 rank | terminal の差し替え不可。税率調整 (`adjustLandContractTaxRate`) で勝者の上納率を下げる…が v0.16 では no-op (将来配線、§16.1) |
 
 annexPolity (Polity 全体消滅) は v0.16 では LandContract chain が全部 receiver に移った結果として §6.22b PolityOwnerConsistencySystem が active=false 化することで達成される。
@@ -1639,7 +1638,7 @@ class 別補正:
 3. `addPersonToAnonymousHouse` 経由で AnonymousHouse.memberIds に rebel Person を追加 (**Rebel House は生成しない**、v0.18-pre)
 4. Polity:leader OfficeAssignment 任命 (rebel Person 直接、house:leader は作らない)
 5. Rebel Polity の OrganizationShare を rebel leader (Person) に 100% 付与（§17 commonwealth）
-6. terminal LandContract の granteePolityId を Rebel Polity に差し替え
+6. 当該 Province の **各 Holding** の terminal LandContract granteePolityId を Rebel Polity に差し替え（v0.20-b2 で per-Holding 化。旧 Province chain terminal ではなく `byHolding` chain terminal を走査）
 7. 当該 Province の Bailiff を placeholder に切り替え
 8. `REVOLT_POLITY_FOUNDED` / `BAILIFF_PLACEHOLDER_INSTALLED` event を発火 (REVOLT_POLITY_FOUNDED の `houseIds: []`)
 
@@ -2968,7 +2967,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 詳細仕様は `docs/drafts/spec-v018-update.md` を参照（Stage A〜G すべて完了、2026-05-20 時点）。
 
 - **外交劇基盤**: PoliticalActorRef / ActorIntent / DiplomaticPlay / DiplomaticDemand 型、GC (CleanupTerminalDiplomacy)、IntegrityCheck 拡張
-- **叛乱の外交劇化**: ProvinceRevoltSystem → revolt_negotiation DiplomaticPlay。妥協 / 鎮圧 / 独立の 3 分岐。disbandRebelPolity mutation による Rebel Polity 解散処理
+- **叛乱の外交劇化**: ProvinceRevoltSystem → revolt_negotiation DiplomaticPlay。妥協 / 鎮圧 / 独立の 3 分岐。disbandRebelPolity mutation による Rebel Polity 解散処理（v0.20-b2 で per-Holding 化: 各 Holding の terminal のうち rebel grantee のもののみを `restoreToPolityId` に復元）
 - **土地請求 (land_claim)**: 旧 land_purchase / land_transfer_demand を統合。rank ベース契約選択 (3-a/3-b/3-c)、解決時操作 (5-a/5-b/5-c)。outcome event 3 色分け: LAND_CONTRACT_PURCHASED / LAND_CONTRACT_CEDED / LAND_CONTRACT_CONQUERED
 - **税率改定 (contract_tax_revision)**: 上位/下位契約者間の税率 ±5% 交渉。下限 5% / 上限 80% 超で契約破棄 (eliminateContractFromChain mutation による chain 再接続)
 - **Province 単位 dedup**: 全 Play kind 横断で 1 Province に同時進行 1 Play のみ
