@@ -8,6 +8,7 @@ import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { birthChild } from '../mutations/personMutations'
+import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
 import { inheritAptitudes, sampleAptitudes } from '../selectors/abilitySelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
@@ -31,6 +32,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     if (person.age > currentCtx.config.fatherMaxChildAge) continue
     const house = currentCtx.state.houses[person.houseId]
     if (!house || !house.active) continue
+    if (person.houseId === (ANONYMOUS_HOUSE_ID as string)) continue
 
     const { value: birthRoll, rng: rollRng } = randomFloat(currentCtx.rng)
     currentCtx = { ...currentCtx, rng: rollRng }
