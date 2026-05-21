@@ -73,6 +73,9 @@ export function runPopSystem(ctx: TickContext): TickContext {
         newUnrest -= (pop.wealth - prosperityWealthThreshold) * prosperityUnrestReduction
       }
 
+      // 4.5. Natural decay
+      newUnrest *= 1 - ctx.config.unrestNaturalDecayRate
+
       // 5. Clamp (§7.6)
       const finalSize = Math.max(minPopSizeByClass[pop.class], newSize)
       const finalWealth = clamp(newWealth, 0, 100)

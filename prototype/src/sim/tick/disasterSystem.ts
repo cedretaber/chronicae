@@ -1,114 +1,45 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
-import type { PolityId, ProvinceId } from '../types/ids'
+import type { ProvinceId } from '../types/ids'
 import type { SimEvent } from '../types/event'
 import {
   adjustProvincePopWealthByClass,
   adjustProvincePopSizeByClass,
   adjustProvincePopWealth,
-  adjustProvincePopSize,
   adjustProvincePopUnrestByClass,
 } from '../mutations/popMutations'
 import { adjustProvinceDevelopment } from '../mutations/provinceMutations'
-import { adjustPolityLegacyPrestige } from '../helpers/attitudeHelpers'
-import { adjustPopAttitude } from '../mutations/attitudeMutations'
 import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
+import { getProvincePopulationPressure, getProvincePops } from '../selectors/popSelectors'
 
-function applyFamine(ctx: TickContext, polityId: PolityId): TickContext {
-  const polity = ctx.state.polities[polityId]
-  if (!polity) return ctx
+function applyFamine(ctx: TickContext, provinceId: ProvinceId): TickContext {
+  const province = ctx.state.provinces[provinceId]
+  if (!province) return ctx
 
-  const polityProvinceIds: ProvinceId[] = Object.keys(ctx.state.provinces)
-    .filter((pid) => {
-      const province = ctx.state.provinces[pid as ProvinceId]
-      if (!province) return false
-      return getProvinceTerminalPolityId(ctx.state, pid as ProvinceId) === polityId
-    })
-    .map((pid) => pid as ProvinceId)
+  let nextState = ctx.state
+  const r = adjustProvinceDevelopment(nextState, provinceId, -ctx.config.famineDevastation)
+  if (r.ok) nextState = r.value
 
-  const reliefCost = polityProvinceIds.length * ctx.config.disasterReliefCostPerProvince
-  const canAffordRelief = polity.treasury >= reliefCost
-
-  const developmentDelta = canAffordRelief
-    ? ctx.config.famineDevastation - ctx.config.famineReliefDevelopmentRecovery
-    : ctx.config.famineDevastation
-
-  let stateWithDev = ctx.state
-  for (const pid of polityProvinceIds) {
-    const r = adjustProvinceDevelopment(stateWithDev, pid, -developmentDelta)
-    if (r.ok) stateWithDev = r.value
-  }
-
-  const treasuryAfterRelief = canAffordRelief
-    ? Math.max(0, polity.treasury - reliefCost)
-    : polity.treasury
-
-  const updatedPolity = {
-    ...polity,
-    treasury: treasuryAfterRelief,
-  }
-
-  const stateWithPolity = {
-    ...stateWithDev,
-    polities: { ...stateWithDev.polities, [polityId]: updatedPolity },
-  }
-
-  // Apply legacyPrestige and attitude changes based on relief
-  let nextCtxState = stateWithPolity
-  const polityTarget = { kind: 'polity' as const, id: polityId }
-  if (canAffordRelief) {
-    nextCtxState = adjustPolityLegacyPrestige(nextCtxState, polityId, 1)
-    // Affected provinces pop attitudes
-    for (const pid of polityProvinceIds) {
-      const prov = nextCtxState.provinces[pid]
-      if (!prov) continue
-      for (const popId of prov.popGroupIds) {
-        const r = adjustPopAttitude(nextCtxState, popId, polityTarget, {
-          affection: 6,
-          respect: 2,
-        })
-        if (r.ok) nextCtxState = r.value
-      }
-    }
-  } else {
-    for (const pid of polityProvinceIds) {
-      const prov = nextCtxState.provinces[pid]
-      if (!prov) continue
-      for (const popId of prov.popGroupIds) {
-        const r = adjustPopAttitude(nextCtxState, popId, polityTarget, {
-          affection: -8,
-          respect: -4,
-        })
-        if (r.ok) nextCtxState = r.value
-      }
-    }
-  }
-
-  const nextCtx = { ...ctx, state: nextCtxState }
-
-  const wealthDamage =
-    ctx.config.famineWealthPenalty * (canAffordRelief ? ctx.config.famineReliefDamageMultiplier : 1)
-  const sizeDamage =
-    ctx.config.famineSizeDamage * (canAffordRelief ? ctx.config.famineReliefDamageMultiplier : 1)
-  let stateWithPopEffects = nextCtx.state
-  for (const pid of polityProvinceIds) {
-    stateWithPopEffects = adjustProvincePopWealthByClass(
-      stateWithPopEffects,
-      pid,
+  nextState = adjustProvincePopWealthByClass(
+    nextState,
+    provinceId,
+    'peasants',
+    -ctx.config.famineWealthPenalty,
+  )
+  const pops = getProvincePops(nextState, provinceId)
+  for (const pop of pops) {
+    if (pop.class !== 'peasants') continue
+    nextState = adjustProvincePopSizeByClass(
+      nextState,
+      provinceId,
       'peasants',
-      -wealthDamage,
-    )
-    stateWithPopEffects = adjustProvincePopSizeByClass(
-      stateWithPopEffects,
-      pid,
-      'peasants',
-      -sizeDamage,
+      -pop.size * ctx.config.famineSizeDamageRate,
     )
   }
 
-  const eventSourceCtx = { ...nextCtx, state: stateWithPopEffects }
-  const { id: eventId, ctx: eventCtx } = makeEventId(eventSourceCtx)
+  const nextCtx = { ...ctx, state: nextState }
+  const { id: eventId, ctx: eventCtx } = makeEventId(nextCtx)
   const event: SimEvent = {
     id: eventId,
     year: eventCtx.state.currentYear,
@@ -117,76 +48,37 @@ function applyFamine(ctx: TickContext, polityId: PolityId): TickContext {
     importance: 'major',
     actorIds: [],
     houseIds: [],
-    polityIds: [polityId],
-    provinceIds: polityProvinceIds,
+    polityIds: [],
+    provinceIds: [provinceId],
     holdingIds: [],
-    summary: `Famine strikes ${polity.name}!`,
+    summary: `Famine strikes ${province.name}!`,
     reasons: [],
     effects: [],
   }
-  const eventUpdatedCtx = {
-    ...eventCtx,
-    state: eventSourceCtx.state,
-    events: [...eventCtx.events, event],
-  }
-
-  const reliefEventType = canAffordRelief ? 'DISASTER_RELIEF_FUNDED' : 'DISASTER_RELIEF_FAILED'
-  const reliefSummary = canAffordRelief
-    ? `${polity.name} funded disaster relief.`
-    : `${polity.name} failed to fund disaster relief.`
-  const { id: reliefId, ctx: reliefCtx } = makeEventId(eventUpdatedCtx)
-  const reliefEvent: SimEvent = {
-    id: reliefId,
-    year: reliefCtx.state.currentYear,
-    weekOfYear: reliefCtx.state.currentWeekOfYear,
-    type: reliefEventType,
-    importance: 'normal',
-    actorIds: [],
-    houseIds: [],
-    polityIds: [polityId],
-    provinceIds: [],
-    holdingIds: [],
-    summary: reliefSummary,
-    reasons: [],
-    effects: [],
-  }
-  return { ...reliefCtx, state: eventUpdatedCtx.state, events: [...reliefCtx.events, reliefEvent] }
+  return { ...eventCtx, state: nextState, events: [...eventCtx.events, event] }
 }
 
-function applyPlague(ctx: TickContext, polityId: PolityId): TickContext {
-  const polity = ctx.state.polities[polityId]
-  if (!polity) return ctx
+function applyPlague(ctx: TickContext, provinceId: ProvinceId): TickContext {
+  const province = ctx.state.provinces[provinceId]
+  if (!province) return ctx
 
-  const polityProvinceIds: ProvinceId[] = Object.keys(ctx.state.provinces)
-    .filter((pid) => {
-      const province = ctx.state.provinces[pid as ProvinceId]
-      if (!province) return false
-      return getProvinceTerminalPolityId(ctx.state, pid as ProvinceId) === polityId
-    })
-    .map((pid) => pid as ProvinceId)
+  let nextState = ctx.state
+  const r = adjustProvinceDevelopment(nextState, provinceId, -ctx.config.plagueDevastation)
+  if (r.ok) nextState = r.value
 
-  let stateWithDev = ctx.state
-  for (const pid of polityProvinceIds) {
-    const r = adjustProvinceDevelopment(stateWithDev, pid, -ctx.config.plagueDevastation)
-    if (r.ok) stateWithDev = r.value
-  }
-
-  const nextCtx = { ...ctx, state: stateWithDev }
-  let stateWithPopEffects = nextCtx.state
-  for (const pid of polityProvinceIds) {
-    stateWithPopEffects = adjustProvincePopWealth(
-      stateWithPopEffects,
-      pid,
-      -ctx.config.plagueWealthPenalty,
-    )
-    stateWithPopEffects = adjustProvincePopSize(
-      stateWithPopEffects,
-      pid,
-      -ctx.config.plagueSizeDamage,
+  nextState = adjustProvincePopWealth(nextState, provinceId, -ctx.config.plagueWealthPenalty)
+  const pops = getProvincePops(nextState, provinceId)
+  for (const pop of pops) {
+    nextState = adjustProvincePopSizeByClass(
+      nextState,
+      provinceId,
+      pop.class,
+      -pop.size * ctx.config.plagueSizeDamageRate,
     )
   }
 
-  const { id: eventId, ctx: eventCtx } = makeEventId({ ...nextCtx, state: stateWithPopEffects })
+  const nextCtx = { ...ctx, state: nextState }
+  const { id: eventId, ctx: eventCtx } = makeEventId(nextCtx)
   const event: SimEvent = {
     id: eventId,
     year: eventCtx.state.currentYear,
@@ -195,67 +87,55 @@ function applyPlague(ctx: TickContext, polityId: PolityId): TickContext {
     importance: 'major',
     actorIds: [],
     houseIds: [],
-    polityIds: [polityId],
-    provinceIds: polityProvinceIds,
+    polityIds: [],
+    provinceIds: [provinceId],
     holdingIds: [],
-    summary: `Plague spreads through ${polity.name}!`,
+    summary: `Plague spreads through ${province.name}!`,
     reasons: [],
     effects: [],
   }
-  return { ...eventCtx, state: stateWithPopEffects, events: [...eventCtx.events, event] }
+  return { ...eventCtx, state: nextState, events: [...eventCtx.events, event] }
 }
 
-function applyBountifulHarvest(ctx: TickContext, polityId: PolityId): TickContext {
-  const polity = ctx.state.polities[polityId]
-  if (!polity) return ctx
+function applyBountifulHarvest(ctx: TickContext, provinceId: ProvinceId): TickContext {
+  const province = ctx.state.provinces[provinceId]
+  if (!province) return ctx
 
-  const polityProvinceIds: ProvinceId[] = Object.keys(ctx.state.provinces)
-    .filter((pid) => getProvinceTerminalPolityId(ctx.state, pid as ProvinceId) === polityId)
-    .map((pid) => pid as ProvinceId)
+  let nextState = ctx.state
+  const r = adjustProvinceDevelopment(
+    nextState,
+    provinceId,
+    ctx.config.bountifulHarvestDevelopmentGain,
+  )
+  if (r.ok) nextState = r.value
 
-  let stateWithDev = ctx.state
-  for (const pid of polityProvinceIds) {
-    const r = adjustProvinceDevelopment(
-      stateWithDev,
-      pid,
-      ctx.config.bountifulHarvestDevelopmentGain,
-    )
-    if (r.ok) stateWithDev = r.value
-  }
+  nextState = adjustProvincePopWealthByClass(
+    nextState,
+    provinceId,
+    'peasants',
+    ctx.config.bountifulHarvestPeasantWealthGain,
+  )
+  nextState = adjustProvincePopUnrestByClass(
+    nextState,
+    provinceId,
+    'peasants',
+    -ctx.config.bountifulHarvestPeasantUnrestReduction,
+  )
+  nextState = adjustProvincePopWealthByClass(
+    nextState,
+    provinceId,
+    'townsmen',
+    ctx.config.bountifulHarvestTownsmanWealthGain,
+  )
+  nextState = adjustProvincePopUnrestByClass(
+    nextState,
+    provinceId,
+    'townsmen',
+    -ctx.config.bountifulHarvestTownsmanUnrestReduction,
+  )
 
-  const nextCtxHarvest = { ...ctx, state: stateWithDev }
-  let stateWithPopEffects = nextCtxHarvest.state
-  for (const pid of polityProvinceIds) {
-    stateWithPopEffects = adjustProvincePopWealthByClass(
-      stateWithPopEffects,
-      pid,
-      'peasants',
-      ctx.config.bountifulHarvestPeasantWealthGain,
-    )
-    stateWithPopEffects = adjustProvincePopUnrestByClass(
-      stateWithPopEffects,
-      pid,
-      'peasants',
-      -ctx.config.bountifulHarvestPeasantUnrestReduction,
-    )
-    stateWithPopEffects = adjustProvincePopWealthByClass(
-      stateWithPopEffects,
-      pid,
-      'townsmen',
-      ctx.config.bountifulHarvestTownsmanWealthGain,
-    )
-    stateWithPopEffects = adjustProvincePopUnrestByClass(
-      stateWithPopEffects,
-      pid,
-      'townsmen',
-      -ctx.config.bountifulHarvestTownsmanUnrestReduction,
-    )
-  }
-
-  const { id: eventId, ctx: eventCtx } = makeEventId({
-    ...nextCtxHarvest,
-    state: stateWithPopEffects,
-  })
+  const nextCtx = { ...ctx, state: nextState }
+  const { id: eventId, ctx: eventCtx } = makeEventId(nextCtx)
   const event: SimEvent = {
     id: eventId,
     year: eventCtx.state.currentYear,
@@ -264,25 +144,38 @@ function applyBountifulHarvest(ctx: TickContext, polityId: PolityId): TickContex
     importance: 'normal',
     actorIds: [],
     houseIds: [],
-    polityIds: [polityId],
-    provinceIds: polityProvinceIds,
+    polityIds: [],
+    provinceIds: [provinceId],
     holdingIds: [],
-    summary: `A bountiful harvest blesses ${polity.name}.`,
+    summary: `A bountiful harvest blesses ${province.name}.`,
     reasons: [],
     effects: [],
   }
-  return { ...eventCtx, state: stateWithPopEffects, events: [...eventCtx.events, event] }
+  return { ...eventCtx, state: nextState, events: [...eventCtx.events, event] }
 }
 
 export function runDisasterSystem(ctx: TickContext): TickContext {
   if (!ctx.config.disasterEnabled) return ctx
 
   let currentCtx = ctx
-  const state = ctx.state
 
-  for (const polityId of Object.keys(state.polities).sort()) {
-    const polity = state.polities[polityId as PolityId]
+  for (const provinceIdStr of Object.keys(ctx.state.provinces).sort()) {
+    const provinceId = provinceIdStr as ProvinceId
+    const province = ctx.state.provinces[provinceId]
+    if (!province) continue
+
+    const terminalPolityId = getProvinceTerminalPolityId(currentCtx.state, provinceId)
+    if (!terminalPolityId) continue
+    const polity = currentCtx.state.polities[terminalPolityId]
     if (!polity || !polity.active) continue
+
+    const pressure = getProvincePopulationPressure(currentCtx.state, currentCtx.config, provinceId)
+    const pressureExcess = Math.max(0, pressure - ctx.config.populationPressureThreshold)
+
+    const famineChance =
+      ctx.config.famineBaseChancePerYear + ctx.config.faminePressureChanceBonus * pressureExcess
+    const plagueChance =
+      ctx.config.plagueBaseChancePerYear + ctx.config.plaguePressureChanceBonus * pressureExcess
 
     const { value: famineRoll, rng: rng1 } = randomFloat(currentCtx.rng)
     currentCtx = { ...currentCtx, rng: rng1 }
@@ -293,16 +186,16 @@ export function runDisasterSystem(ctx: TickContext): TickContext {
     const { value: harvestRoll, rng: rng3 } = randomFloat(currentCtx.rng)
     currentCtx = { ...currentCtx, rng: rng3 }
 
-    if (famineRoll < ctx.config.famineBaseChancePerYear) {
-      currentCtx = applyFamine(currentCtx, polityId as PolityId)
+    if (famineRoll < famineChance) {
+      currentCtx = applyFamine(currentCtx, provinceId)
     }
 
-    if (plagueRoll < ctx.config.plagueBaseChancePerYear) {
-      currentCtx = applyPlague(currentCtx, polityId as PolityId)
+    if (plagueRoll < plagueChance) {
+      currentCtx = applyPlague(currentCtx, provinceId)
     }
 
     if (harvestRoll < ctx.config.bountifulHarvestBaseChancePerYear) {
-      currentCtx = applyBountifulHarvest(currentCtx, polityId as PolityId)
+      currentCtx = applyBountifulHarvest(currentCtx, provinceId)
     }
   }
 

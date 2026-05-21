@@ -12,6 +12,7 @@ import {
   getProvinceTerminalPolityId,
   getProvincePolityControlFromHoldings,
 } from '@sim/selectors/landContractSelectors'
+import { getProvinceUnrest, getPopUnrestByClass } from '@sim/selectors/popSelectors'
 import { buildActivityReport } from '@sim/report/activityReport'
 import { takeSnapshot } from '@sim/report/snapshot'
 import type { ActivitySnapshot } from '@sim/report/types'
@@ -302,6 +303,53 @@ function countHoldingBailiffsByKind(state: WorldState): {
   return { normal, placeholder, vacant }
 }
 
+function computeUnrestStats(state: WorldState): {
+  avgUnrest: number
+  avgPeasantUnrest: number
+  avgTownsmenUnrest: number
+  avgNobleUnrest: number
+  highUnrestCount: number
+  totalProvinces: number
+} {
+  const provinceIds = Object.keys(state.provinces) as ProvinceId[]
+  let totalUnrest = 0
+  let totalPeasant = 0
+  let totalTownsmen = 0
+  let totalNoble = 0
+  let highUnrestCount = 0
+  let count = 0
+
+  for (const pid of provinceIds) {
+    const unrest = getProvinceUnrest(state, pid)
+    totalUnrest += unrest
+    totalPeasant += getPopUnrestByClass(state, pid, 'peasants')
+    totalTownsmen += getPopUnrestByClass(state, pid, 'townsmen')
+    totalNoble += getPopUnrestByClass(state, pid, 'nobles')
+    if (unrest > 50) highUnrestCount++
+    count++
+  }
+
+  if (count === 0) {
+    return {
+      avgUnrest: 0,
+      avgPeasantUnrest: 0,
+      avgTownsmenUnrest: 0,
+      avgNobleUnrest: 0,
+      highUnrestCount: 0,
+      totalProvinces: 0,
+    }
+  }
+
+  return {
+    avgUnrest: Math.round((totalUnrest / count) * 10) / 10,
+    avgPeasantUnrest: Math.round((totalPeasant / count) * 10) / 10,
+    avgTownsmenUnrest: Math.round((totalTownsmen / count) * 10) / 10,
+    avgNobleUnrest: Math.round((totalNoble / count) * 10) / 10,
+    highUnrestCount,
+    totalProvinces: count,
+  }
+}
+
 function countRebelPolities(state: WorldState): number {
   let count = 0
   for (const id of Object.keys(state.polities)) {
@@ -525,6 +573,21 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
       for (const count of Object.values(eventCounts)) {
         totalYearEvents += count
       }
+      const unrestStats = computeUnrestStats(result.state)
+      console.log(
+        '  Unrest: avg=' +
+          unrestStats.avgUnrest.toFixed(1) +
+          ' (peasants=' +
+          unrestStats.avgPeasantUnrest.toFixed(1) +
+          ', townsmen=' +
+          unrestStats.avgTownsmenUnrest.toFixed(1) +
+          ', nobles=' +
+          unrestStats.avgNobleUnrest.toFixed(1) +
+          ') | high(>50): ' +
+          unrestStats.highUnrestCount +
+          '/' +
+          unrestStats.totalProvinces,
+      )
       console.log('  Major events this year: ' + totalYearEvents)
       console.log('')
     }

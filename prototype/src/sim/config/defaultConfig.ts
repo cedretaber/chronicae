@@ -171,6 +171,7 @@ export type SimulationConfig = {
   povertyUnrestGain: number
   prosperityWealthThreshold: number
   prosperityUnrestReduction: number
+  unrestNaturalDecayRate: number
   retainedWealthGainByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
   overExtractionThreshold: number
   overExtractionWealthSafeThreshold: number
@@ -196,10 +197,12 @@ export type SimulationConfig = {
   warPeasantSizeDamage: number
   warTownsmanSizeDamage: number
   famineWealthPenalty: number
-  famineSizeDamage: number
+  famineSizeDamageRate: number
   famineReliefDamageMultiplier: number
+  faminePressureChanceBonus: number
   plagueWealthPenalty: number
-  plagueSizeDamage: number
+  plagueSizeDamageRate: number
+  plaguePressureChanceBonus: number
   // Military v0.9
   houseManpowerPowerFactor: number
   houseMilitaryWealthReserve: number
@@ -642,6 +645,7 @@ export const defaultConfig: SimulationConfig = {
   povertyUnrestGain: 0.02,
   prosperityWealthThreshold: 70,
   prosperityUnrestReduction: 0.01,
+  unrestNaturalDecayRate: 0.005,
   retainedWealthGainByClass: { peasants: 0.3, townsmen: 0.45, nobles: 0.25 },
   overExtractionThreshold: 0.95,
   overExtractionWealthSafeThreshold: 55,
@@ -666,11 +670,13 @@ export const defaultConfig: SimulationConfig = {
   warUnrestDamage: 10,
   warPeasantSizeDamage: 0.5,
   warTownsmanSizeDamage: 0.3,
-  famineWealthPenalty: 15,
-  famineSizeDamage: 2,
+  famineWealthPenalty: 8,
+  famineSizeDamageRate: 0.1,
   famineReliefDamageMultiplier: 0.3,
+  faminePressureChanceBonus: 9.2,
   plagueWealthPenalty: 10,
-  plagueSizeDamage: 3,
+  plagueSizeDamageRate: 0.05,
+  plaguePressureChanceBonus: 2.0,
   // Military v0.9
   houseManpowerPowerFactor: 1.0,
   houseMilitaryWealthReserve: 100,
@@ -690,7 +696,7 @@ export const defaultConfig: SimulationConfig = {
   provinceRevoltThreshold: 90,
   provinceRevoltChanceDivisor: 300,
   provinceRevoltMaxChance: 0.35,
-  provinceRevoltUnrestFactor: 0.8,
+  provinceRevoltUnrestFactor: 1.2,
   provinceRevoltLowHouseControlFactor: 0.2,
   provinceRevoltLowCountryControlFactor: 0.2,
   provinceRevoltStabilitySuppressionFactor: 0.2,
