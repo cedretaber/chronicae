@@ -7,7 +7,7 @@ import type { HouseId, ProvinceId, PolityId, PersonId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Person } from '../types/person'
-import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { extinctHouse } from './worldStructureMutations'
 
 function makeCtx(world: WorldState): TickContext {

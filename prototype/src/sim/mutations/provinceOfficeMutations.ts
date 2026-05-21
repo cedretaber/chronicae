@@ -1,7 +1,7 @@
 import type { WorldState } from '../types/world'
 import type { HoldingId, PolityId, PersonId, HoldingOfficeAssignmentId } from '../types/ids'
 import type { HoldingOfficeAssignment } from '../types/landContract'
-import { PLACEHOLDER_PERSON_ID } from '../types/landContract'
+import { PLACEHOLDER_PERSON_ID } from '../types/person'
 import { createHoldingOfficeAssignmentId } from '../types/ids'
 
 type AppointHoldingBailiffParams = {

@@ -8,7 +8,8 @@ import type {
   HoldingId,
 } from '../types/ids'
 import type { LandContract, LandContractGrantor, Holding } from '../types/landContract'
-import { ANONYMOUS_HOUSE_ID, ROOT_WORLD } from '../types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '../types/house'
+import { ROOT_WORLD } from '../types/landContract'
 import type { PolityRank } from '../types/polity'
 
 export function getProvinceLandContractChain(

@@ -28,7 +28,7 @@ import {
   getFactionViabilityScore,
   getFactionOpportunityScore,
 } from '@sim/selectors/factionSelectors'
-import { ANONYMOUS_HOUSE_ID } from '@sim/types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '@sim/types/house'
 import { ABILITY_AGE_CURVES } from '@sim/constants/abilityConstants'
 import { getProvinceDevelopmentMultiplier } from '@/sim/selectors/developmentSelectors'
 import {

@@ -12,7 +12,7 @@ import {
   dispersePersonsToAnonymousHouse,
   addPersonToAnonymousHouse,
 } from './houseMutations'
-import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { makeEmptyV016State, withHouse, withPerson } from '../testFixtures'
 
 function makeFixture(): {

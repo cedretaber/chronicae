@@ -8,7 +8,7 @@ import {
 import type { PolityId, HouseId, PersonId, OfficeAssignmentId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { expireOfficeTermAssignment } from './officeMutations'
-import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '../types/house'
 
 function makeOfficeState(): {
   state: WorldState

@@ -29,7 +29,9 @@ import type {
   StateRegionId,
 } from './types/ids'
 import { createHoldingId } from './types/ids'
-import { ANONYMOUS_HOUSE_ID, PLACEHOLDER_PERSON_ID, ROOT_WORLD } from './types/landContract'
+import { ROOT_WORLD } from './types/landContract'
+import { ANONYMOUS_HOUSE_ID } from './types/house'
+import { PLACEHOLDER_PERSON_ID } from './types/person'
 
 const DEFAULT_ABILITIES = {
   valor: 50,

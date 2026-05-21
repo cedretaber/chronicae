@@ -5,7 +5,7 @@ import { makeEventId } from './context'
 import { getPolityHouseIds } from '../selectors/polityRelations'
 import { removeOrganizationShare } from '../mutations/shareMutations'
 import { revokeOfficeAssignment } from '../mutations/officeMutations'
-import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '../types/house'
 
 // v0.15 §11.4: PolityOwnerConsistencySystem の後段で実行。
 // Polity Share / Office の保持資格を監査し、不適格を削除/revoke する。

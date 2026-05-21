@@ -12,7 +12,7 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runOfficeTermSystem } from './officeTermSystem'
 import { expireOfficeTermAssignment } from '../mutations/officeMutations'
-import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '../types/house'
 
 function makeBaseState(): WorldState {
   const anon = {

@@ -4,7 +4,7 @@ import type { HouseId, PolityId, ProvinceId, PersonId } from '../types/ids'
 import type { House } from '../types/house'
 import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
-import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
 

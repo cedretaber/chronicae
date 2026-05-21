@@ -9,7 +9,7 @@ import {
   isLandlessHouseMember,
   getUnaffiliatedPersons,
 } from './availabilitySelectors'
-import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import {
   makeEmptyV016State,
   withHouse,

@@ -40,7 +40,9 @@ import type {
   HoldingOfficeAssignment,
   HoldingOfficeIndex,
 } from '../types/landContract'
-import { ROOT_WORLD, ANONYMOUS_HOUSE_ID, PLACEHOLDER_PERSON_ID } from '../types/landContract'
+import { ROOT_WORLD } from '../types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '../types/house'
+import { PLACEHOLDER_PERSON_ID } from '../types/person'
 import { createRng, randomInt, randomFloat } from '../rng/rng'
 import { generateProvinces } from './generateProvinces'
 import { distributePolities } from './distributePolities'

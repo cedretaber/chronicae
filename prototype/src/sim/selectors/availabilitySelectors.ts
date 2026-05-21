@@ -1,6 +1,6 @@
 import type { WorldState } from '@sim/types/world'
 import type { PersonId, HouseId } from '@sim/types/ids'
-import { ANONYMOUS_HOUSE_ID } from '@sim/types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '@sim/types/house'
 import { getHouseControlledProvinceIds } from '@sim/selectors/landContractSelectors'
 
 export function isPersonInAnonymousHouse(state: WorldState, personId: PersonId): boolean {

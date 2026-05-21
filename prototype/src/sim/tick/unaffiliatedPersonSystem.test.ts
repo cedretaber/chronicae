@@ -7,7 +7,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runUnaffiliatedPersonSystem } from './unaffiliatedPersonSystem'
-import { ANONYMOUS_HOUSE_ID } from '../types/landContract'
+import { ANONYMOUS_HOUSE_ID } from '../types/house'
 
 function makeBaseState(): WorldState {
   const anon = {

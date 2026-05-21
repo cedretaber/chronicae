@@ -1,6 +1,8 @@
 import type { PersonId, HouseId } from './ids'
 import type { AttitudeMap } from './attitude'
 
+export const PLACEHOLDER_PERSON_ID: PersonId = 'pe-anon-placeholder' as PersonId
+
 export type Sex = 'male' | 'female'
 export type BirthStatus = 'legitimate' | 'illegitimate' | 'unknown'
 export type PersonKind = 'normal' | 'placeholder'
