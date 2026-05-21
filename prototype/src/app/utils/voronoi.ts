@@ -30,7 +30,11 @@ function edgeKey(x1: number, y1: number, x2: number, y2: number): string {
   return a < b ? `${a}-${b}` : `${b}-${a}`
 }
 
-export function computeVoronoi(provinces: VoronoiInput[], margin = 60): VoronoiResult {
+export function computeVoronoi(
+  provinces: VoronoiInput[],
+  margin = 60,
+  excludeStateIds?: Set<string>,
+): VoronoiResult {
   if (provinces.length === 0) {
     return {
       cells: [],
@@ -68,6 +72,7 @@ export function computeVoronoi(provinces: VoronoiInput[], margin = 60): VoronoiR
     const polygon = voronoi.cellPolygon(i)
     if (!polygon) continue
     const prov = provinces[i]!
+    if (excludeStateIds?.has(prov.stateId)) continue
     cells.push({
       provinceId: prov.id,
       stateId: prov.stateId,
@@ -100,6 +105,7 @@ export function computeVoronoi(provinces: VoronoiInput[], margin = 60): VoronoiR
 
   for (const [key, { stateA, stateB }] of edgeCells) {
     if (!stateB) continue // boundary edge (only one cell)
+    if (excludeStateIds?.has(stateA) || excludeStateIds?.has(stateB)) continue
     const parts = key.split('-')
     const [sx1, sy1] = parts[0]!.split(',')
     const [sx2, sy2] = parts[1]!.split(',')
@@ -116,9 +122,52 @@ export function computeVoronoi(provinces: VoronoiInput[], margin = 60): VoronoiR
     }
   }
 
+  // Clip border segments to the real province bounding box (with padding)
+  if (excludeStateIds && excludeStateIds.size > 0) {
+    let rxMin = Infinity
+    let ryMin = Infinity
+    let rxMax = -Infinity
+    let ryMax = -Infinity
+    for (const p of provinces) {
+      if (excludeStateIds.has(p.stateId)) continue
+      if (p.x < rxMin) rxMin = p.x
+      if (p.y < ryMin) ryMin = p.y
+      if (p.x > rxMax) rxMax = p.x
+      if (p.y > ryMax) ryMax = p.y
+    }
+    const clipPad = margin * 0.8
+    const clipBounds = {
+      xMin: rxMin - clipPad,
+      yMin: ryMin - clipPad,
+      xMax: rxMax + clipPad,
+      yMax: ryMax + clipPad,
+    }
+
+    function clipSegments(segs: BorderSegment[]): BorderSegment[] {
+      return segs.filter((s) => {
+        const [x1, y1, x2, y2] = s
+        const inside1 =
+          x1 >= clipBounds.xMin &&
+          x1 <= clipBounds.xMax &&
+          y1 >= clipBounds.yMin &&
+          y1 <= clipBounds.yMax
+        const inside2 =
+          x2 >= clipBounds.xMin &&
+          x2 <= clipBounds.xMax &&
+          y2 >= clipBounds.yMin &&
+          y2 <= clipBounds.yMax
+        return inside1 || inside2
+      })
+    }
+
+    stateBorders.splice(0, stateBorders.length, ...clipSegments(stateBorders))
+    intraBorders.splice(0, intraBorders.length, ...clipSegments(intraBorders))
+  }
+
   // Centroids per state
   const stateAccum = new Map<string, { sx: number; sy: number; count: number }>()
   for (const p of provinces) {
+    if (excludeStateIds?.has(p.stateId)) continue
     const key = p.stateId as string
     const acc = stateAccum.get(key)
     if (acc) {

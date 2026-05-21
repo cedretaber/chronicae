@@ -1,0 +1,640 @@
+import { useMemo, useState, useCallback, useRef } from 'react'
+import { useSimulationStore, type MapView } from '@/app/stores/simulationStore'
+import { buildPolityColorMap, buildHouseColorMap, unrestToColor } from '@/app/utils/polityColors'
+import { computeVoronoi, polygonToSvgPath, type VoronoiCell } from '@/app/utils/voronoi'
+import { addOceanPoints, OCEAN_STATE_ID } from '@/app/utils/oceanPoints'
+import {
+  computeProvinceTiers,
+  computeStateTiers,
+  TIER_OPACITY,
+  type HighlightTier,
+} from '@/app/utils/mapHighlights'
+import { usePanZoom, type Transform } from '@/app/hooks/usePanZoom'
+import { MAP_ICON_CONFIG, UNIFIED_ICON_SIZE, getZoomTier } from '@/app/constants/mapConstants'
+import { MapLegend } from './MapLegend'
+import type { ProvinceId, StateRegionId } from '@sim/types/ids'
+import type { WorldState } from '@sim/types/world'
+import {
+  getStateDominantPolityId,
+  getStateDominantRootPolityId,
+  getStateDominantOwnerHouseId,
+  getStatePopulation,
+  getStateAverageUnrest,
+} from '@sim/selectors/stateRegionSelectors'
+import {
+  getProvinceTerminalPolityId,
+  getProvinceRootPolityId,
+  getProvinceEffectiveOwnerHouseId,
+} from '@sim/selectors/landContractSelectors'
+import { getProvincePops, getProvinceUnrest } from '@sim/selectors/popSelectors'
+import { getHousePolitySharePercent } from '@sim/selectors/shareSelectors'
+import stateMapBackground from '@/assets/map/state-map-background.png'
+import provinceUrbanIcon from '@/assets/map/province-urban.png'
+import provinceRuralIcon from '@/assets/map/province-rural.png'
+import provinceCastleIcon from '@/assets/map/badge-castle.png'
+import provinceManorIcon from '@/assets/map/badge-manor.png'
+
+function computeStateColor(
+  world: WorldState,
+  stateId: StateRegionId,
+  mapView: MapView,
+  polityColorMap: Record<string, string>,
+  houseColorMap: Record<string, string>,
+): { fill: string; opacity: number } {
+  if (mapView === 'terminal') {
+    const pid = getStateDominantPolityId(world, stateId)
+    return { fill: pid ? (polityColorMap[pid] ?? '#888') : '#888', opacity: 1 }
+  }
+  if (mapView === 'root') {
+    const pid = getStateDominantRootPolityId(world, stateId)
+    return { fill: pid ? (polityColorMap[pid] ?? '#888') : '#888', opacity: 1 }
+  }
+  if (mapView === 'house') {
+    const hid = getStateDominantOwnerHouseId(world, stateId)
+    return { fill: hid ? (houseColorMap[hid] ?? '#888') : '#888', opacity: 1 }
+  }
+  if (mapView === 'share') {
+    const pid = getStateDominantPolityId(world, stateId)
+    return { fill: pid ? (polityColorMap[pid] ?? '#888') : '#888', opacity: 0.7 }
+  }
+  const unrest = getStateAverageUnrest(world, stateId)
+  return { fill: unrestToColor(unrest / 100), opacity: 1 }
+}
+
+function computeProvinceColor(
+  world: WorldState,
+  provinceId: ProvinceId,
+  mapView: MapView,
+  polityColorMap: Record<string, string>,
+  houseColorMap: Record<string, string>,
+): { fill: string; opacity: number } {
+  const terminalPolityId = getProvinceTerminalPolityId(world, provinceId)
+  if (mapView === 'terminal') {
+    return {
+      fill: terminalPolityId ? (polityColorMap[terminalPolityId] ?? '#888') : '#888',
+      opacity: 1,
+    }
+  }
+  if (mapView === 'root') {
+    const rootId = getProvinceRootPolityId(world, provinceId)
+    return { fill: rootId ? (polityColorMap[rootId] ?? '#888') : '#888', opacity: 1 }
+  }
+  if (mapView === 'house') {
+    const hid = getProvinceEffectiveOwnerHouseId(world, provinceId)
+    return { fill: hid ? (houseColorMap[hid] ?? '#888') : '#888', opacity: 1 }
+  }
+  if (mapView === 'share') {
+    const fill = terminalPolityId ? (polityColorMap[terminalPolityId] ?? '#888') : '#888'
+    const ownerHouseId = getProvinceEffectiveOwnerHouseId(world, provinceId)
+    if (terminalPolityId && ownerHouseId) {
+      const pct = getHousePolitySharePercent(world, terminalPolityId, ownerHouseId)
+      return { fill, opacity: 0.4 + (Math.max(0, Math.min(100, pct)) / 100) * 0.6 }
+    }
+    return { fill, opacity: 0.4 }
+  }
+  const u = getProvinceUnrest(world, provinceId)
+  return { fill: unrestToColor(u / 100), opacity: 1 }
+}
+
+export function UnifiedMap() {
+  const session = useSimulationStore((s) => s.session)
+  const mapView = useSimulationStore((s) => s.mapView)
+  const openWindows = useSimulationStore((s) => s.openWindows)
+  const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
+  const [hoveredProvinceId, setHoveredProvinceId] = useState<ProvinceId | null>(null)
+  const [hoveredStateId, setHoveredStateId] = useState<StateRegionId | null>(null)
+  const { transform, handlers, animateTo } = usePanZoom()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const zoomTier = getZoomTier(transform.scale)
+
+  const polities = session?.currentState.polities
+  const houses = session?.currentState.houses
+  const provinces = session?.currentState.provinces
+
+  const polityColorMap = useMemo(() => {
+    if (!polities) return {}
+    return buildPolityColorMap(Object.keys(polities))
+  }, [polities])
+
+  const houseColorMap = useMemo(() => {
+    if (!houses) return {}
+    return buildHouseColorMap(Object.keys(houses))
+  }, [houses])
+
+  const voronoi = useMemo(() => {
+    if (!provinces) return null
+    const input = Object.values(provinces).map((p) => ({
+      id: p.id,
+      stateId: p.stateId,
+      x: p.x,
+      y: p.y,
+    }))
+    const { allPoints } = addOceanPoints(input)
+    const excludeIds = new Set([OCEAN_STATE_ID])
+    return computeVoronoi(allPoints, 60, excludeIds)
+  }, [provinces])
+
+  // State-level colors
+  const stateColors = useMemo(() => {
+    if (!session || !voronoi) return new Map<string, { fill: string; opacity: number }>()
+    const world = session.currentState
+    const colors = new Map<string, { fill: string; opacity: number }>()
+    for (const [stateId] of voronoi.centroids) {
+      colors.set(stateId, computeStateColor(world, stateId, mapView, polityColorMap, houseColorMap))
+    }
+    return colors
+  }, [session, voronoi, mapView, polityColorMap, houseColorMap])
+
+  // Province-level colors
+  const provinceColors = useMemo(() => {
+    if (!session || !voronoi) return new Map<string, { fill: string; opacity: number }>()
+    const world = session.currentState
+    const colors = new Map<string, { fill: string; opacity: number }>()
+    for (const cell of voronoi.cells) {
+      colors.set(
+        cell.provinceId,
+        computeProvinceColor(world, cell.provinceId, mapView, polityColorMap, houseColorMap),
+      )
+    }
+    return colors
+  }, [session, voronoi, mapView, polityColorMap, houseColorMap])
+
+  // Highlight tiers
+  const focused = useMemo(() => {
+    if (openWindows.length === 0) return undefined
+    const top = openWindows.reduce((a, b) => (a.zIndex >= b.zIndex ? a : b))
+    return { type: top.entityType, id: top.entityId }
+  }, [openWindows])
+
+  const provinceTiers = useMemo(() => {
+    if (!session) return new Map<ProvinceId, HighlightTier>()
+    return computeProvinceTiers(session.currentState, focused)
+  }, [session, focused])
+
+  const stateTiers = useMemo(() => {
+    if (!session) return new Map<StateRegionId, HighlightTier>()
+    return computeStateTiers(provinceTiers, session.currentState)
+  }, [session, provinceTiers])
+
+  // State labels
+  const stateLabels = useMemo(() => {
+    if (!session || !voronoi) return []
+    const world = session.currentState
+    return Array.from(voronoi.centroids.entries()).map(([stateId, { cx, cy }]) => {
+      const stateRegion = world.states[stateId]
+      const pop = getStatePopulation(world, stateId)
+      const unrest = getStateAverageUnrest(world, stateId)
+      return {
+        stateId,
+        name: stateRegion?.name ?? '?',
+        provinceCount: stateRegion?.provinceIds.length ?? 0,
+        population: Math.round(pop),
+        unrest,
+        cx,
+        cy,
+      }
+    })
+  }, [session, voronoi])
+
+  // Province data for icons and labels
+  const provinceData = useMemo(() => {
+    if (!session || !provinces) return []
+    const world = session.currentState
+    const popGroups = world.popGroups
+    const capitalIds = new Set(Object.values(world.polities).map((p) => p.capitalProvinceId))
+    const seatIds = new Set(Object.values(world.houses).map((h) => h.seatProvinceId))
+
+    return Object.values(provinces).map((prov) => {
+      const pops = popGroups ? getProvincePops(world, prov.id) : []
+      const peasants = pops.find((p) => p.class === 'peasants')?.size ?? 0
+      const townsmen = pops.find((p) => p.class === 'townsmen')?.size ?? 0
+      const urbanRatio = peasants + townsmen > 0 ? townsmen / (peasants + townsmen) : 0
+      return {
+        id: prov.id,
+        stateId: prov.stateId,
+        name: prov.name,
+        x: prov.x,
+        y: prov.y,
+        neighbors: prov.neighbors,
+        isUrban: urbanRatio >= MAP_ICON_CONFIG.provinceUrbanIconThreshold,
+        isCapital: capitalIds.has(prov.id),
+        isSeat: seatIds.has(prov.id),
+      }
+    })
+  }, [session, provinces])
+
+  // Neighbor edges (deduplicated)
+  const neighborEdges = useMemo(() => {
+    if (!provinces) return []
+    const edges: {
+      a: ProvinceId
+      b: ProvinceId
+      ax: number
+      ay: number
+      bx: number
+      by: number
+    }[] = []
+    const seen = new Set<string>()
+    for (const prov of Object.values(provinces)) {
+      for (const nid of prov.neighbors) {
+        const key = prov.id < nid ? `${prov.id}-${nid}` : `${nid}-${prov.id}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        const neighbor = provinces[nid]
+        if (!neighbor) continue
+        edges.push({ a: prov.id, b: nid, ax: prov.x, ay: prov.y, bx: neighbor.x, by: neighbor.y })
+      }
+    }
+    return edges
+  }, [provinces])
+
+  // Group cells by stateId for far-zoom hover
+  const cellsByState = useMemo(() => {
+    if (!voronoi) return new Map<string, VoronoiCell[]>()
+    const map = new Map<string, VoronoiCell[]>()
+    for (const cell of voronoi.cells) {
+      const key = cell.stateId as string
+      const arr = map.get(key)
+      if (arr) arr.push(cell)
+      else map.set(key, [cell])
+    }
+    return map
+  }, [voronoi])
+
+  // Click handlers
+  const handleCellClick = useCallback(
+    (provinceId: ProvinceId, stateId: StateRegionId) => {
+      if (!session || !containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+
+      if (zoomTier === 'near') {
+        openDetailWindow('province', provinceId)
+        return
+      }
+
+      // Compute bounding box of target area
+      const world = session.currentState
+      let targetProvIds: ProvinceId[]
+      if (zoomTier === 'far') {
+        const state = world.states[stateId]
+        targetProvIds = state?.provinceIds ?? [provinceId]
+      } else {
+        targetProvIds = [provinceId]
+      }
+
+      let bxMin = Infinity
+      let byMin = Infinity
+      let bxMax = -Infinity
+      let byMax = -Infinity
+      for (const pid of targetProvIds) {
+        const p = world.provinces[pid]
+        if (!p) continue
+        if (p.x < bxMin) bxMin = p.x
+        if (p.y < byMin) byMin = p.y
+        if (p.x > bxMax) bxMax = p.x
+        if (p.y > byMax) byMax = p.y
+      }
+
+      if (!voronoi || !isFinite(bxMin)) return
+      const [vx0, vy0, vx1, vy1] = voronoi.bounds
+      const vw = vx1 - vx0
+      const vh = vy1 - vy0
+      const svgScaleX = rect.width / vw
+      const svgScaleY = rect.height / vh
+      const baseSvgScale = Math.min(svgScaleX, svgScaleY)
+
+      const pad = zoomTier === 'far' ? 60 : 30
+      const bboxW = bxMax - bxMin + pad * 2
+      const bboxH = byMax - byMin + pad * 2
+      const fitScaleX = rect.width / (bboxW * baseSvgScale)
+      const fitScaleY = rect.height / (bboxH * baseSvgScale)
+      const targetScale = Math.min(fitScaleX, fitScaleY) * 0.85
+
+      const bboxCx = (bxMin + bxMax) / 2 - vx0
+      const bboxCy = (byMin + byMax) / 2 - vy0
+      const cx = bboxCx * baseSvgScale
+      const cy = bboxCy * baseSvgScale
+
+      const target: Transform = {
+        x: rect.width / 2 - cx * targetScale,
+        y: rect.height / 2 - cy * targetScale,
+        scale: targetScale,
+      }
+      animateTo(target, 400)
+    },
+    [session, zoomTier, voronoi, openDetailWindow, animateTo],
+  )
+
+  if (!session || !voronoi) {
+    return (
+      <div className="flex h-full items-center justify-center text-gray-400">No world loaded</div>
+    )
+  }
+
+  const [bx0, by0, bx1, by1] = voronoi.bounds
+  const vw = bx1 - bx0
+  const vh = by1 - by0
+  const viewBox = `${bx0} ${by0} ${vw} ${vh}`
+
+  const isFar = zoomTier === 'far'
+  const isNear = zoomTier === 'near'
+  const isMediumOrNear = !isFar
+
+  const stateBorderWidth = isFar ? 3 : isNear ? 1 : 2
+  const intraBorderWidth = isFar ? 0.5 : isNear ? 1.5 : 1
+  const intraBorderOpacity = isFar ? 0.1 : isNear ? 0.6 : 0.4
+  const iconSize = isNear ? UNIFIED_ICON_SIZE.near : UNIFIED_ICON_SIZE.medium
+  const badgeSize = isNear ? UNIFIED_ICON_SIZE.badgeNear : UNIFIED_ICON_SIZE.badgeMedium
+
+  return (
+    <div className="relative h-full w-full">
+      <div
+        className="pointer-events-none absolute inset-0 z-0"
+        style={{
+          backgroundImage: `url(${stateMapBackground})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: MAP_ICON_CONFIG.backgroundOpacity,
+        }}
+      />
+      <MapLegend />
+      <div
+        ref={containerRef}
+        className="relative z-10 h-full w-full overflow-hidden"
+        style={{ cursor: zoomTier === 'near' ? 'pointer' : 'grab' }}
+        {...handlers}
+      >
+        <svg
+          viewBox={viewBox}
+          className="h-full w-full"
+          style={{
+            transform: `translate(${transform.x}px,${transform.y}px) scale(${transform.scale})`,
+            transformOrigin: '0 0',
+          }}
+        >
+          {/* Layer 1: Province cells — state-colored (far) */}
+          <g
+            style={{
+              opacity: isFar ? 1 : 0,
+              transition: 'opacity 0.25s',
+              pointerEvents: isFar ? 'auto' : 'none',
+            }}
+          >
+            {Array.from(cellsByState.entries()).map(([stateKey, cells]) => {
+              const color = stateColors.get(stateKey)
+              const tier = stateTiers.get(stateKey as StateRegionId) ?? 'direct'
+              const tierOp = TIER_OPACITY[tier] ?? 1
+              const isHovered = hoveredStateId !== null && (hoveredStateId as string) === stateKey
+              const isDimmed = hoveredStateId !== null && (hoveredStateId as string) !== stateKey
+              return (
+                <g
+                  key={`s-${stateKey}`}
+                  opacity={(isDimmed ? 0.45 : 1) * tierOp}
+                  style={{ transition: 'opacity 0.15s' }}
+                  onMouseEnter={() => setHoveredStateId(stateKey as StateRegionId)}
+                  onMouseLeave={() => setHoveredStateId(null)}
+                  onClick={() => {
+                    const firstCell = cells[0]
+                    if (firstCell) handleCellClick(firstCell.provinceId, stateKey as StateRegionId)
+                  }}
+                  cursor="pointer"
+                >
+                  {cells.map((cell) => (
+                    <path
+                      key={cell.provinceId}
+                      d={polygonToSvgPath(cell.polygon)}
+                      fill={color?.fill ?? '#888'}
+                      fillOpacity={0.08}
+                      stroke={color?.fill ?? '#888'}
+                      strokeWidth={4}
+                      strokeOpacity={0.5}
+                      paintOrder="stroke"
+                    />
+                  ))}
+                  {isHovered &&
+                    cells.map((cell) => (
+                      <path
+                        key={`h-${cell.provinceId}`}
+                        d={polygonToSvgPath(cell.polygon)}
+                        fill="white"
+                        fillOpacity={0.12}
+                        stroke="none"
+                        pointerEvents="none"
+                      />
+                    ))}
+                </g>
+              )
+            })}
+          </g>
+
+          {/* Layer 1b: Province cells — province-colored (medium/near) */}
+          <g
+            style={{
+              opacity: isFar ? 0 : 1,
+              transition: 'opacity 0.25s',
+              pointerEvents: isFar ? 'none' : 'auto',
+            }}
+          >
+            {voronoi.cells.map((cell) => {
+              const color = provinceColors.get(cell.provinceId)
+              const tier = provinceTiers.get(cell.provinceId) ?? 'direct'
+              const tierOp = TIER_OPACITY[tier] ?? 1
+              const isHovered = hoveredProvinceId !== null && hoveredProvinceId === cell.provinceId
+              return (
+                <g key={`p-${cell.provinceId}`}>
+                  <path
+                    d={polygonToSvgPath(cell.polygon)}
+                    fill={color?.fill ?? '#888'}
+                    fillOpacity={0.08 * tierOp}
+                    stroke={color?.fill ?? '#888'}
+                    strokeWidth={3}
+                    strokeOpacity={0.45 * tierOp}
+                    paintOrder="stroke"
+                    onMouseEnter={() => setHoveredProvinceId(cell.provinceId)}
+                    onMouseLeave={() => setHoveredProvinceId(null)}
+                    onClick={() => handleCellClick(cell.provinceId, cell.stateId)}
+                    cursor="pointer"
+                  />
+                  {isHovered && (
+                    <path
+                      d={polygonToSvgPath(cell.polygon)}
+                      fill="white"
+                      fillOpacity={0.15}
+                      stroke="none"
+                      pointerEvents="none"
+                    />
+                  )}
+                </g>
+              )
+            })}
+          </g>
+
+          {/* Layer 2: Intra-state borders */}
+          <g pointerEvents="none">
+            {voronoi.intraBorders.map((seg, i) => (
+              <line
+                key={`ib-${i}`}
+                x1={seg[0]}
+                y1={seg[1]}
+                x2={seg[2]}
+                y2={seg[3]}
+                stroke="#9ca3af"
+                strokeWidth={intraBorderWidth}
+                opacity={intraBorderOpacity}
+              />
+            ))}
+          </g>
+
+          {/* Layer 3: State borders */}
+          <g pointerEvents="none">
+            {voronoi.stateBorders.map((seg, i) => (
+              <line
+                key={`sb-${i}`}
+                x1={seg[0]}
+                y1={seg[1]}
+                x2={seg[2]}
+                y2={seg[3]}
+                stroke="#1a1a2e"
+                strokeWidth={stateBorderWidth}
+                strokeLinecap="round"
+              />
+            ))}
+          </g>
+
+          {/* Layer 4: Province neighbor edges (medium+ zoom) */}
+          {isMediumOrNear && (
+            <g pointerEvents="none" opacity={0.35}>
+              {neighborEdges.map((e) => (
+                <line
+                  key={`ne-${e.a}-${e.b}`}
+                  x1={e.ax}
+                  y1={e.ay}
+                  x2={e.bx}
+                  y2={e.by}
+                  stroke="#78716c"
+                  strokeWidth={isNear ? 1.2 : 0.6}
+                />
+              ))}
+            </g>
+          )}
+
+          {/* Layer 5: Province icons (medium+ zoom) */}
+          {isMediumOrNear && (
+            <g pointerEvents="none">
+              {provinceData.map((prov) => {
+                const tier = provinceTiers.get(prov.id) ?? 'direct'
+                const tierOp = TIER_OPACITY[tier] ?? 1
+                return (
+                  <g key={`icon-${prov.id}`} opacity={tierOp}>
+                    <image
+                      href={prov.isUrban ? provinceUrbanIcon : provinceRuralIcon}
+                      x={prov.x - iconSize / 2}
+                      y={prov.y - iconSize / 2}
+                      width={iconSize}
+                      height={iconSize}
+                    />
+                    {prov.isCapital && (
+                      <image
+                        href={provinceCastleIcon}
+                        x={prov.x + iconSize / 2 - badgeSize}
+                        y={prov.y + iconSize / 2 - badgeSize}
+                        width={badgeSize}
+                        height={badgeSize}
+                      />
+                    )}
+                    {prov.isSeat && (
+                      <image
+                        href={provinceManorIcon}
+                        x={
+                          prov.isCapital ? prov.x - iconSize / 2 : prov.x + iconSize / 2 - badgeSize
+                        }
+                        y={prov.y + iconSize / 2 - badgeSize}
+                        width={badgeSize}
+                        height={badgeSize}
+                      />
+                    )}
+                  </g>
+                )
+              })}
+            </g>
+          )}
+
+          {/* Layer 6: Province labels (medium+ zoom) */}
+          {isMediumOrNear && (
+            <g pointerEvents="none">
+              {provinceData.map((prov) => {
+                const tier = provinceTiers.get(prov.id) ?? 'direct'
+                const tierOp = TIER_OPACITY[tier] ?? 1
+                return (
+                  <text
+                    key={`pl-${prov.id}`}
+                    x={prov.x}
+                    y={prov.y + iconSize / 2 + (isNear ? 8 : 5)}
+                    textAnchor="middle"
+                    fontSize={isNear ? 8 : 5}
+                    fill="white"
+                    stroke="#1a1a2e"
+                    strokeWidth={isNear ? 2 : 1.5}
+                    paintOrder="stroke"
+                    opacity={tierOp}
+                  >
+                    {prov.name}
+                  </text>
+                )
+              })}
+            </g>
+          )}
+
+          {/* Layer 7: State labels (far + medium zoom) */}
+          {!isNear && (
+            <g pointerEvents="none">
+              {stateLabels.map((label) => (
+                <g key={`sl-${label.stateId}`} transform={`translate(${label.cx},${label.cy})`}>
+                  <text
+                    textAnchor="middle"
+                    dy={isFar ? -8 : -4}
+                    fontSize={isFar ? 14 : 9}
+                    fontWeight="bold"
+                    fill="white"
+                    stroke="#1a1a2e"
+                    strokeWidth={isFar ? 3 : 2}
+                    paintOrder="stroke"
+                  >
+                    {label.name}
+                  </text>
+                  {isFar && (
+                    <>
+                      <text
+                        textAnchor="middle"
+                        dy={8}
+                        fontSize={10}
+                        fill="#d1d5db"
+                        stroke="#1a1a2e"
+                        strokeWidth={2}
+                        paintOrder="stroke"
+                      >
+                        {label.provinceCount} prov · pop {label.population}
+                      </text>
+                      <text
+                        textAnchor="middle"
+                        dy={20}
+                        fontSize={9}
+                        fill={label.unrest > 40 ? '#f87171' : '#9ca3af'}
+                        stroke="#1a1a2e"
+                        strokeWidth={2}
+                        paintOrder="stroke"
+                      >
+                        unrest {label.unrest.toFixed(0)}
+                      </text>
+                    </>
+                  )}
+                </g>
+              ))}
+            </g>
+          )}
+        </svg>
+      </div>
+    </div>
+  )
+}

@@ -11,19 +11,8 @@ const VIEWS: { key: MapView; label: string; tooltip: string }[] = [
 export function MapViewSwitcher() {
   const mapView = useSimulationStore((s) => s.mapView)
   const setMapView = useSimulationStore((s) => s.setMapView)
-  const mapLevel = useSimulationStore((s) => s.mapLevel)
-  const exitToStateMap = useSimulationStore((s) => s.exitToStateMap)
   return (
     <div className="flex w-12 flex-col items-stretch border-r border-gray-800 bg-gray-900">
-      {mapLevel === 'province' && (
-        <button
-          className="flex h-12 items-center justify-center text-sm font-bold text-amber-300 hover:bg-gray-700"
-          onClick={exitToStateMap}
-          title="Back to State Map"
-        >
-          ◀
-        </button>
-      )}
       {VIEWS.map((v) => {
         const active = v.key === mapView
         return (

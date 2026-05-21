@@ -5,8 +5,6 @@ import { defaultConfig } from '@sim/config/defaultConfig'
 import type { SimulationSession } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { WorldPresetName } from '@sim/worldgen/worldPresets'
-import type { StateRegionId } from '@sim/types/ids'
-
 export type EntityType = 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction'
 // Backwards-friendly alias retained as named export (some modules import SelectedType)
 export type SelectedType = EntityType
@@ -25,8 +23,6 @@ type SimState = {
   isRunning: boolean
   speed: number
   mapView: MapView
-  mapLevel: 'state' | 'province'
-  focusedStateId: StateRegionId | null
   openWindows: DetailWindow[]
   nextZIndex: number
   watchlist: string[]
@@ -43,8 +39,6 @@ type SimActions = {
   setRunning: (running: boolean) => void
   setSpeed: (speed: number) => void
   setMapView: (view: MapView) => void
-  focusState: (stateId: StateRegionId) => void
-  exitToStateMap: () => void
   openDetailWindow: (entityType: EntityType, entityId: string) => void
   closeDetailWindow: (windowId: string) => void
   focusDetailWindow: (windowId: string) => void
@@ -80,8 +74,6 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   isRunning: false,
   speed: 1,
   mapView: 'terminal',
-  mapLevel: 'state' as const,
-  focusedStateId: null as StateRegionId | null,
   openWindows: [],
   nextZIndex: 1,
   watchlist: [],
@@ -185,14 +177,6 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
 
   setMapView: (view) => {
     set({ mapView: view })
-  },
-
-  focusState: (stateId: StateRegionId) => {
-    set({ mapLevel: 'province', focusedStateId: stateId })
-  },
-
-  exitToStateMap: () => {
-    set({ mapLevel: 'state', focusedStateId: null })
   },
 
   openDetailWindow: (entityType, entityId) => {
