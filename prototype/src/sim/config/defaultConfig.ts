@@ -473,6 +473,7 @@ export type SimulationConfig = {
   // v0.17 Office overlap / Share
   polityShareOfficeOverlapBonusMax: number
   // v0.17 Unaffiliated persons
+  unaffiliatedPersonsPerHolding: number
   targetUnaffiliatedPersons: number
   softMaxUnaffiliatedPersons: number
   hardMaxUnaffiliatedPersons: number
@@ -954,6 +955,7 @@ export const defaultConfig: SimulationConfig = {
   // v0.17 Office overlap / Share
   polityShareOfficeOverlapBonusMax: 0.5,
   // v0.17 Unaffiliated persons
+  unaffiliatedPersonsPerHolding: 0.5,
   targetUnaffiliatedPersons: 30,
   softMaxUnaffiliatedPersons: 50,
   hardMaxUnaffiliatedPersons: 80,

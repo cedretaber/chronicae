@@ -10,7 +10,13 @@ import type {
   HoldingId,
   HoldingOfficeAssignmentId,
 } from '../types/ids'
-import { newPopGroupId, createPolityId, createHouseId, createHoldingId } from '../types/ids'
+import {
+  newPopGroupId,
+  createPolityId,
+  createHouseId,
+  createHoldingId,
+  createPersonId,
+} from '../types/ids'
 import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Polity } from '../types/polity'
@@ -40,6 +46,8 @@ import { generateProvinces } from './generateProvinces'
 import { distributePolities } from './distributePolities'
 import { distributeHouses } from './distributeHouses'
 import { generatePersons } from './generatePersons'
+import { samplePerson } from '../helpers/personFactory'
+import { pickNameBySex } from './nameGenerators'
 import {
   houseName,
   polityName,
@@ -1374,6 +1382,62 @@ export function generateWorld(
     attitudes: {},
   }
   personsRecord[PLACEHOLDER_PERSON_ID] = placeholderSingleton
+
+  // Generate initial unaffiliated persons proportional to holdings count
+  const holdingsCount = Object.keys(holdingsRecord).length
+  const initialUnaffiliatedCount = Math.ceil(
+    holdingsCount * defaultConfig.unaffiliatedPersonsPerHolding,
+  )
+  if (initialUnaffiliatedCount > 0) {
+    let maxPeIndex = 0
+    for (const pid of Object.keys(personsRecord)) {
+      if (pid.startsWith('pe-')) {
+        const n = parseInt(pid.slice(3), 10)
+        if (!isNaN(n) && n > maxPeIndex) maxPeIndex = n
+      }
+    }
+    let peIndex = maxPeIndex + 1
+    const occupations: Array<'wanderer' | 'merchant' | 'scholar' | 'mercenary' | 'adventurer'> = [
+      'wanderer',
+      'merchant',
+      'scholar',
+      'mercenary',
+      'adventurer',
+    ]
+    for (let i = 0; i < initialUnaffiliatedCount; i++) {
+      const personId = createPersonId('pe', peIndex)
+      peIndex++
+
+      const { value: sexRoll, rng: rng_s } = randomFloat(rng)
+      rng = rng_s
+      const sex: 'male' | 'female' = sexRoll < 0.5 ? 'male' : 'female'
+      const { name, rng: rng_n } = pickNameBySex(sex, rng)
+      rng = rng_n
+      const { value: age, rng: rng_a } = randomInt(rng, defaultConfig.adultAge, 45)
+      rng = rng_a
+      const { value: ambition, rng: rng_am } = randomFloat(rng)
+      rng = rng_am
+      const { value: caution, rng: rng_ca } = randomFloat(rng)
+      rng = rng_ca
+      const { value: prestige, rng: rng_pr } = randomInt(rng, 0, 20)
+      rng = rng_pr
+      const { value: person, rng: rng_sp } = samplePerson(rng, defaultConfig, {
+        id: personId,
+        name,
+        sex,
+        age,
+        houseId: ANONYMOUS_HOUSE_ID,
+        birthStatus: 'unknown',
+        traits: { ambition, caution },
+        legacyPrestige: prestige,
+        wealth: 0,
+      })
+      rng = rng_sp
+      const occupation = occupations[i % occupations.length]!
+      personsRecord[personId] = { ...person, occupation, lastHouseTransferYear: 1 }
+      anonymousHouse.memberIds.push(personId)
+    }
+  }
 
   const world: WorldState = {
     currentYear: 1,

@@ -15,16 +15,29 @@ import { getActiveFactionMembership } from '../selectors/factionSelectors'
 
 // v0.17 §5.4: UnaffiliatedPersonSystem
 // Every January, maintain AnonymousHouse normal Person count via birth and fading.
+function computeEffectiveTargets(ctx: TickContext): {
+  target: number
+  softMax: number
+  hardMax: number
+} {
+  const holdingsCount = Object.keys(ctx.state.holdings).length
+  const holdingsBased = Math.ceil(holdingsCount * ctx.config.unaffiliatedPersonsPerHolding)
+  const target = Math.max(ctx.config.targetUnaffiliatedPersons, holdingsBased)
+  const softMax = Math.max(ctx.config.softMaxUnaffiliatedPersons, Math.ceil(target * 1.5))
+  const hardMax = Math.max(ctx.config.hardMaxUnaffiliatedPersons, target * 2)
+  return { target, softMax, hardMax }
+}
+
 export function runUnaffiliatedPersonSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
-  const config = ctx.config
+  const { target, softMax, hardMax } = computeEffectiveTargets(ctx)
 
   const unaffiliatedIds = getUnaffiliatedPersons(currentCtx.state)
   const count = unaffiliatedIds.length
 
   // 1. Create if below target
-  if (count < config.targetUnaffiliatedPersons) {
-    const toCreate = config.targetUnaffiliatedPersons - count
+  if (count < target) {
+    const toCreate = target - count
     for (let i = 0; i < toCreate; i++) {
       currentCtx = createUnaffiliatedPerson(currentCtx)
     }
@@ -33,11 +46,11 @@ export function runUnaffiliatedPersonSystem(ctx: TickContext): TickContext {
   // 2. Prune if above softMax
   const afterCreateIds = getUnaffiliatedPersons(currentCtx.state)
   const afterCreateCount = afterCreateIds.length
-  if (afterCreateCount > config.softMaxUnaffiliatedPersons) {
+  if (afterCreateCount > softMax) {
     const targetReduction =
-      afterCreateCount > config.hardMaxUnaffiliatedPersons
-        ? afterCreateCount - config.softMaxUnaffiliatedPersons
-        : Math.floor((afterCreateCount - config.softMaxUnaffiliatedPersons) / 2)
+      afterCreateCount > hardMax
+        ? afterCreateCount - softMax
+        : Math.floor((afterCreateCount - softMax) / 2)
     currentCtx = pruneUnaffiliated(currentCtx, targetReduction)
   }
 
