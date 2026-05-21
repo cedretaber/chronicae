@@ -27,8 +27,8 @@ export const WORLD_PRESETS: Record<WorldPresetName, WorldPreset> = {
     kingdoms: 1,
     duchies: 2,
     counties: 6,
-    holdingsPerProvinceMin: 1,
-    holdingsPerProvinceMax: 1,
+    holdingsPerProvinceMin: 2,
+    holdingsPerProvinceMax: 2,
   },
   small: {
     name: 'small',

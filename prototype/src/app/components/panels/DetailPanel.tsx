@@ -72,6 +72,8 @@ import {
   getHouseControlledProvinceIds,
   getProvinceLandContractChain,
   getHouseOwnedPolityIds,
+  getProvinceHoldings,
+  getHoldingLandContractChain,
 } from '@sim/selectors/landContractSelectors'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
@@ -2179,65 +2181,80 @@ export function ProvinceDetail({
         </div>
       </div>
 
-      {currentState && (
-        <>
-          <div className="text-sm font-semibold text-gray-300">Land Tenure Chain</div>
-          <div className="text-sm">
-            {(() => {
-              const chain = getProvinceLandContractChain(currentState, province.id)
-              if (chain.length === 0) {
-                return <div className="text-gray-500">— no contracts —</div>
-              }
-              return chain.map((contract, idx) => {
-                const grantee = currentState.polities[contract.granteePolityId]
-                const isRoot = contract.parentContractId === undefined
-                const isTerminal = idx === chain.length - 1
-                const role = isRoot ? 'root' : isTerminal ? 'terminal' : 'intermediate'
+      <div className="text-sm font-semibold text-gray-300">
+        Holdings ({province.holdingIds.length})
+      </div>
+      {currentState &&
+        getProvinceHoldings(currentState, province.id).map((holding) => {
+          const bailiff = getHoldingBailiffPerson(currentState, holding.id)
+          return (
+            <div
+              key={holding.id}
+              className="mb-1 rounded border border-gray-700 bg-gray-800 p-1.5 text-sm"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-gray-200">{holding.name}</span>
+                <span
+                  className={`rounded px-1 text-xs ${holding.kind === 'city' ? 'bg-amber-800 text-amber-200' : 'bg-green-900 text-green-300'}`}
+                >
+                  {holding.kind}
+                </span>
+              </div>
+              <div className="mt-0.5 grid grid-cols-2 gap-x-2 text-xs text-gray-400">
+                <span>Dev: {holding.development.toFixed(1)}</span>
+                <span>Control: {holding.polityControl.toFixed(0)}%</span>
+                <span>Quality: {holding.landQuality.toFixed(2)}</span>
+                <span>Weight: {holding.weight.toFixed(1)}</span>
+              </div>
+              {(() => {
+                const chain = getHoldingLandContractChain(currentState, holding.id)
+                if (chain.length === 0) return null
                 return (
-                  <div
-                    key={contract.id}
-                    className="flex justify-between border-l border-gray-700 pl-2"
-                  >
-                    <span className="text-gray-400">
-                      {'  '.repeat(idx)}↳ {role} (rank {grantee?.rank ?? '?'})
-                    </span>
-                    {grantee ? (
-                      <button
-                        className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
-                        onClick={() => onPolityClick(grantee.id, 'polity')}
-                      >
-                        {grantee.name} {(contract.terms.taxRateToGrantor * 100).toFixed(0)}%
-                      </button>
-                    ) : (
-                      <span className="text-gray-500">—</span>
-                    )}
+                  <div className="mt-0.5 text-xs">
+                    <span className="text-gray-500">Chain:</span>
+                    {chain.map((contract, idx) => {
+                      const grantee = currentState.polities[contract.granteePolityId]
+                      const isTerminal = idx === chain.length - 1
+                      return (
+                        <div key={contract.id} className="border-l border-gray-700 pl-2">
+                          {grantee ? (
+                            <button
+                              className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
+                              onClick={() => onPolityClick(grantee.id, 'polity')}
+                            >
+                              {grantee.name}
+                              {isTerminal
+                                ? ''
+                                : ` (${(contract.terms.taxRateToGrantor * 100).toFixed(0)}%)`}
+                            </button>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )
-              })
-            })()}
-            <div className="mt-1 flex justify-between">
-              <span className="text-gray-400">Bailiff:</span>
-              {(() => {
-                const bailiff = getHoldingBailiffPerson(
-                  currentState,
-                  province.holdingIds[0] ?? ('' as HoldingId),
-                )
-                if (!bailiff) return <span className="text-gray-500">vacant</span>
-                if (bailiff.kind === 'placeholder') {
-                  return <span className="text-gray-500 italic">placeholder</span>
-                }
-                return (
-                  <PersonLink
-                    personId={bailiff.id}
-                    persons={currentState.persons ?? {}}
-                    onClick={onPersonClick}
-                  />
-                )
               })()}
+              <div className="mt-0.5 text-xs text-gray-400">
+                Bailiff:{' '}
+                {bailiff ? (
+                  bailiff.kind === 'placeholder' ? (
+                    <span className="text-gray-500 italic">placeholder</span>
+                  ) : (
+                    <PersonLink
+                      personId={bailiff.id}
+                      persons={currentState.persons ?? {}}
+                      onClick={onPersonClick}
+                    />
+                  )
+                ) : (
+                  <span className="text-gray-500">vacant</span>
+                )}
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          )
+        })}
 
       <div className="text-sm font-semibold text-gray-300">Population</div>
       <div className="text-sm">

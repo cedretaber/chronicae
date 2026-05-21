@@ -65,7 +65,11 @@ import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 // 型レベル保証 (runtime 不要): #10, #20, #22, #26, #32 = 5 項目
 // コードレビューで担保 (runtime 困難): #25 = 1 項目
 // (warn → error 昇格 済み: #19)
-export function collectIntegrityErrors(state: WorldState): SimError[] {
+export function collectIntegrityErrors(
+  state: WorldState,
+  options?: { debug?: boolean },
+): SimError[] {
+  const debug = options?.debug ?? false
   const errors: SimError[] = []
 
   // §17.1 Time invariants (v0.19)
@@ -402,7 +406,7 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
       const office = officeKey
         ? state.officeAssignments[officeKey as import('../types/ids').OfficeAssignmentId]
         : undefined
-      if (office && office.active) {
+      if (debug && office && office.active) {
         console.warn(
           `Active Polity ${polityId} has active polity:leader Office via House ${polity.ownerHouseId}`,
         )
@@ -425,7 +429,7 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
       const office = officeKey
         ? state.officeAssignments[officeKey as import('../types/ids').OfficeAssignmentId]
         : undefined
-      if (office && office.active) {
+      if (debug && office && office.active) {
         console.warn(`Active House ${houseId} has active house:leader Office`)
       }
     }
@@ -440,7 +444,7 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     if (!polity || !polity.active) continue
     if (polity.ownerHouseId === undefined) continue
     const ownerHouse = state.houses[polity.ownerHouseId]
-    if (!ownerHouse || !ownerHouse.active) {
+    if (debug && (!ownerHouse || !ownerHouse.active)) {
       console.warn(
         `INTEGRITY (Stage B warn): Polity ${polityId} ownerHouseId ${polity.ownerHouseId} is missing or inactive`,
       )
@@ -455,9 +459,11 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     if (
       getHouseProvinceIdsByPolity(state, polity.ownerHouseId, polityId as PolityId).length === 0
     ) {
-      console.warn(
-        `INTEGRITY (Stage B warn): Polity ${polityId} ownerHouse ${polity.ownerHouseId} owns no Province in this Polity`,
-      )
+      if (debug) {
+        console.warn(
+          `INTEGRITY (Stage B warn): Polity ${polityId} ownerHouse ${polity.ownerHouseId} owns no Province in this Polity`,
+        )
+      }
     }
   }
 
@@ -471,9 +477,11 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     if (!polity || !polity.active) continue
     if (share.holder.kind !== 'house') continue
     if (getHouseProvinceIdsByPolity(state, share.holder.id, share.organization.id).length === 0) {
-      console.warn(
-        `INTEGRITY (Stage B warn): OrganizationShare ${shareId} holder House ${share.holder.id} owns no Province in Polity ${share.organization.id}`,
-      )
+      if (debug) {
+        console.warn(
+          `INTEGRITY (Stage B warn): OrganizationShare ${shareId} holder House ${share.holder.id} owns no Province in Polity ${share.organization.id}`,
+        )
+      }
     }
   }
 
@@ -495,9 +503,11 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     const isCommonwealthRebelHolder =
       polity.kind === 'commonwealth' && houseId === ANONYMOUS_HOUSE_ID
     if (!ownsProvince && !isOwnerHouse && !isCommonwealthRebelHolder) {
-      console.warn(
-        `INTEGRITY (Stage B warn): OfficeAssignment ${officeId} holder Person ${office.holderPersonId} belongs to House ${houseId}, which is not in Polity ${polity.id}`,
-      )
+      if (debug) {
+        console.warn(
+          `INTEGRITY (Stage B warn): OfficeAssignment ${officeId} holder Person ${office.holderPersonId} belongs to House ${houseId}, which is not in Polity ${polity.id}`,
+        )
+      }
     }
   }
 
@@ -1420,7 +1430,7 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
 }
 
 export function runIntegritySystem(ctx: TickContext): TickContext {
-  const errors = collectIntegrityErrors(ctx.state)
+  const errors = collectIntegrityErrors(ctx.state, { debug: ctx.config.debug })
 
   if (errors.length > 0) {
     for (const error of errors) {
