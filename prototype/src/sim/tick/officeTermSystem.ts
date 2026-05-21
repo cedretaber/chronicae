@@ -1,9 +1,9 @@
 import type { TickContext } from './context'
-import type { SimEvent } from '../types/event'
-import type { OfficeAssignmentId, HouseId, PolityId } from '../types/ids'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
+import type { OfficeAssignmentId } from '../types/ids'
 import { isOfficeTermExpired } from '../selectors/officeSelectors'
 import { expireOfficeTermAssignment } from '../mutations/officeMutations'
+import { nameParam, entityRef } from '../types/event'
 
 // v0.17 §6.5: Every January, expire non-leader offices whose term has elapsed.
 export function runOfficeTermSystem(ctx: TickContext): TickContext {
@@ -22,25 +22,26 @@ export function runOfficeTermSystem(ctx: TickContext): TickContext {
     const expiredState = expireOfficeTermAssignment(currentCtx.state, officeId)
     currentCtx = { ...currentCtx, state: expiredState }
 
-    const { id: eventId, ctx: ec } = makeEventId(currentCtx)
-    const houseIds: HouseId[] = holderHouseId ? [holderHouseId] : []
-    const polityIds: PolityId[] =
-      office.organization.kind === 'polity' ? [office.organization.id] : []
-    const event: SimEvent = {
-      id: eventId,
-      year: ec.state.currentYear,
-      weekOfYear: ec.state.currentWeekOfYear,
+    const { event, ctx: ec } = createSimEvent(currentCtx, {
       type: 'OFFICE_TERM_ENDED',
       importance: 'normal',
-      actorIds: [office.holderPersonId],
-      houseIds,
-      polityIds,
-      provinceIds: [],
-      holdingIds: [],
-      summary: `${holder?.name ?? office.holderPersonId}'s term as ${office.role} ended.`,
-      reasons: [],
-      effects: [],
-    }
+      messageKey: 'office.term_ended',
+      messageParams: {
+        person: holder ? nameParam('person', holder.nameKey, holder.name) : office.holderPersonId,
+        role: office.role,
+      },
+      entityRefs: [
+        entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
+        ...(holderHouseId ? [entityRef('house', holderHouseId, 'house')] : []),
+        ...(office.organization.kind === 'polity'
+          ? [entityRef('polity', office.organization.id, 'organization')]
+          : []),
+      ],
+      legacySummary: `${holder?.name ?? office.holderPersonId}'s term as ${office.role} ended.`,
+      legacyActorIds: [office.holderPersonId],
+      legacyHouseIds: holderHouseId ? [holderHouseId] : [],
+      legacyPolityIds: office.organization.kind === 'polity' ? [office.organization.id] : [],
+    })
     currentCtx = { ...ec, events: [...ec.events, event] }
   }
 

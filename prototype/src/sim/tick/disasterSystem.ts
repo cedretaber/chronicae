@@ -1,8 +1,8 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import { randomFloat } from '../rng/rng'
 import type { ProvinceId } from '../types/ids'
-import type { SimEvent } from '../types/event'
+import { nameParam, entityRef } from '../types/event'
 import {
   adjustProvincePopWealthByClass,
   adjustProvincePopSizeByClass,
@@ -39,22 +39,17 @@ function applyFamine(ctx: TickContext, provinceId: ProvinceId): TickContext {
   }
 
   const nextCtx = { ...ctx, state: nextState }
-  const { id: eventId, ctx: eventCtx } = makeEventId(nextCtx)
-  const event: SimEvent = {
-    id: eventId,
-    year: eventCtx.state.currentYear,
-    weekOfYear: eventCtx.state.currentWeekOfYear,
+  const { event, ctx: eventCtx } = createSimEvent(nextCtx, {
     type: 'FAMINE',
     importance: 'major',
-    actorIds: [],
-    houseIds: [],
-    polityIds: [],
-    provinceIds: [provinceId],
-    holdingIds: [],
-    summary: `Famine strikes ${province.name}!`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'disaster.famine',
+    messageParams: {
+      province: nameParam('province', province.nameKey, province.name),
+    },
+    entityRefs: [entityRef('province', provinceId, 'province', province.nameKey)],
+    legacySummary: `Famine strikes ${province.name}!`,
+    legacyProvinceIds: [provinceId],
+  })
   return { ...eventCtx, state: nextState, events: [...eventCtx.events, event] }
 }
 
@@ -78,22 +73,17 @@ function applyPlague(ctx: TickContext, provinceId: ProvinceId): TickContext {
   }
 
   const nextCtx = { ...ctx, state: nextState }
-  const { id: eventId, ctx: eventCtx } = makeEventId(nextCtx)
-  const event: SimEvent = {
-    id: eventId,
-    year: eventCtx.state.currentYear,
-    weekOfYear: eventCtx.state.currentWeekOfYear,
+  const { event, ctx: eventCtx } = createSimEvent(nextCtx, {
     type: 'PLAGUE',
     importance: 'major',
-    actorIds: [],
-    houseIds: [],
-    polityIds: [],
-    provinceIds: [provinceId],
-    holdingIds: [],
-    summary: `Plague spreads through ${province.name}!`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'disaster.plague',
+    messageParams: {
+      province: nameParam('province', province.nameKey, province.name),
+    },
+    entityRefs: [entityRef('province', provinceId, 'province', province.nameKey)],
+    legacySummary: `Plague spreads through ${province.name}!`,
+    legacyProvinceIds: [provinceId],
+  })
   return { ...eventCtx, state: nextState, events: [...eventCtx.events, event] }
 }
 
@@ -135,22 +125,17 @@ function applyBountifulHarvest(ctx: TickContext, provinceId: ProvinceId): TickCo
   )
 
   const nextCtx = { ...ctx, state: nextState }
-  const { id: eventId, ctx: eventCtx } = makeEventId(nextCtx)
-  const event: SimEvent = {
-    id: eventId,
-    year: eventCtx.state.currentYear,
-    weekOfYear: eventCtx.state.currentWeekOfYear,
+  const { event, ctx: eventCtx } = createSimEvent(nextCtx, {
     type: 'BOUNTIFUL_HARVEST',
     importance: 'normal',
-    actorIds: [],
-    houseIds: [],
-    polityIds: [],
-    provinceIds: [provinceId],
-    holdingIds: [],
-    summary: `A bountiful harvest blesses ${province.name}.`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'disaster.bountiful_harvest',
+    messageParams: {
+      province: nameParam('province', province.nameKey, province.name),
+    },
+    entityRefs: [entityRef('province', provinceId, 'province', province.nameKey)],
+    legacySummary: `A bountiful harvest blesses ${province.name}.`,
+    legacyProvinceIds: [provinceId],
+  })
   return { ...eventCtx, state: nextState, events: [...eventCtx.events, event] }
 }
 

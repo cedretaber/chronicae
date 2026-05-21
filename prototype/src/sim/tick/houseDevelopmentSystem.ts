@@ -1,10 +1,10 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
 import { calcHouseHeadDevelopmentChanceBonus } from '../selectors/personAbilityEffects'
 import type { HouseId, ProvinceId } from '../types/ids'
-import type { SimEvent } from '../types/event'
+import { nameParam, entityRef } from '../types/event'
 import {
   getHouseControlledProvinceIds,
   getProvinceDevelopmentFromHoldings,
@@ -98,22 +98,22 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
       },
     }
 
-    const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
-    const event: SimEvent = {
-      id: eventId,
-      year: eventCtx.state.currentYear,
-      weekOfYear: eventCtx.state.currentWeekOfYear,
+    const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
       type: 'HOUSE_LAND_DEVELOPED',
       importance: 'minor',
-      actorIds: [],
-      houseIds: [houseId as HouseId],
-      polityIds: [],
-      provinceIds: [bestProvinceId],
-      holdingIds: [],
-      summary: `${house.name} invested in developing ${targetProvince.name}.`,
-      reasons: [],
-      effects: [],
-    }
+      messageKey: 'house.land_developed',
+      messageParams: {
+        house: nameParam('house', house.nameKey, house.name),
+        province: nameParam('province', targetProvince.nameKey, targetProvince.name),
+      },
+      entityRefs: [
+        entityRef('house', houseId, 'house', house.nameKey),
+        entityRef('province', bestProvinceId, 'province', targetProvince.nameKey),
+      ],
+      legacySummary: `${house.name} invested in developing ${targetProvince.name}.`,
+      legacyHouseIds: [houseId as HouseId],
+      legacyProvinceIds: [bestProvinceId],
+    })
     currentCtx = {
       ...eventCtx,
       state: currentCtx.state,

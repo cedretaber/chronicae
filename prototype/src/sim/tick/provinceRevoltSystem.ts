@@ -1,11 +1,11 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
+import { nameParam, entityRef } from '../types/event'
 import { clamp } from '../utils/math'
 import { randomFloat, type RngState } from '../rng/rng'
 import type { ProvinceId, PolityId, PopGroupId } from '../types/ids'
 import { createDiplomaticPlayId } from '../types/ids'
 import type { PopClass, PopGroup } from '../types/popGroup'
-import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
@@ -327,24 +327,28 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
     },
   }
 
-  // REVOLT_NEGOTIATION_STARTED event (旧 PROVINCE_REVOLT_STARTED の置換)
-  const { id: startEventId, ctx: ctxStart } = makeEventId(nextCtx)
-  const startEvent: SimEvent = {
-    id: startEventId,
-    year: ctxStart.state.currentYear,
-    weekOfYear: ctxStart.state.currentWeekOfYear,
+  // REVOLT_NEGOTIATION_STARTED event
+  const { event, ctx: ctxStart } = createSimEvent(nextCtx, {
     type: 'REVOLT_NEGOTIATION_STARTED',
     importance: 'major',
-    actorIds: [rebelLeaderId],
-    houseIds: [ownerHouseId],
-    polityIds: [rebelPolityId, terminalPolityId],
-    provinceIds: [provinceId],
-    holdingIds: [],
-    summary: `A ${rebelClass} revolt has broken out in ${province.name} — negotiations begin.`,
-    reasons: [],
-    effects: [],
-  }
-  return { ...ctxStart, events: [...ctxStart.events, startEvent] }
+    messageKey: 'revolt.negotiation_started',
+    messageParams: {
+      rebelClass: rebelClass,
+      province: nameParam('province', province.nameKey, province.name),
+    },
+    entityRefs: [
+      entityRef('person', rebelLeaderId, 'leader'),
+      entityRef('polity', rebelPolityId, 'rebel'),
+      entityRef('polity', terminalPolityId, 'target'),
+      entityRef('province', provinceId, 'province'),
+    ],
+    legacySummary: `A ${rebelClass} revolt has broken out in ${province.name} — negotiations begin.`,
+    legacyActorIds: [rebelLeaderId],
+    legacyHouseIds: [ownerHouseId],
+    legacyPolityIds: [rebelPolityId, terminalPolityId],
+    legacyProvinceIds: [provinceId],
+  })
+  return { ...ctxStart, events: [...ctxStart.events, event] }
 }
 
 export function runProvinceRevoltSystem(ctx: TickContext): TickContext {

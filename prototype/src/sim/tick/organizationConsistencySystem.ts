@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
+import { createSimEvent } from './context'
 import type { PolityId } from '../types/ids'
-import type { SimEvent } from '../types/event'
-import { makeEventId } from './context'
+import { nameParam, entityRef } from '../types/event'
 import { getPolityHouseIds } from '../selectors/polityRelations'
 import { removeOrganizationShare } from '../mutations/shareMutations'
 import { revokeOfficeAssignment } from '../mutations/officeMutations'
@@ -71,22 +71,28 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
       if (houseEligible || isCommonwealthRebelHolder) continue
 
       const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)
-      const { id: eventId, ctx: eventCtx } = makeEventId({ ...currentCtx, state: revokedState })
-      const event: SimEvent = {
-        id: eventId,
-        year: eventCtx.state.currentYear,
-        weekOfYear: eventCtx.state.currentWeekOfYear,
-        type: 'OFFICE_REVOKED',
-        importance: 'normal',
-        actorIds: [office.holderPersonId],
-        houseIds: house ? [house.id] : [],
-        polityIds: [polityId],
-        provinceIds: [],
-        holdingIds: [],
-        summary: `Office of ${office.role} in ${polity.name} was revoked as the holder's house no longer holds province in this polity.`,
-        reasons: [],
-        effects: [],
-      }
+      const holder = revokedState.persons[office.holderPersonId]
+      const { event, ctx: eventCtx } = createSimEvent(
+        { ...currentCtx, state: revokedState },
+        {
+          type: 'OFFICE_REVOKED',
+          importance: 'normal',
+          messageKey: 'office.revoked',
+          messageParams: {
+            role: office.role,
+            organization: nameParam('polity', polity.nameKey, polity.name),
+          },
+          entityRefs: [
+            entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
+            ...(house ? [entityRef('house', house.id, 'house', house.nameKey)] : []),
+            entityRef('polity', polityId, 'organization', polity?.nameKey),
+          ],
+          legacySummary: `Office of ${office.role} in ${polity.name} was revoked as the holder's house no longer holds province in this polity.`,
+          legacyActorIds: [office.holderPersonId],
+          legacyHouseIds: house ? [house.id] : [],
+          legacyPolityIds: [polityId],
+        },
+      )
       currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }
     }
   }

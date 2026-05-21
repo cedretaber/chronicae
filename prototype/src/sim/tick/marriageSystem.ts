@@ -1,15 +1,15 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import { randomFloat } from '../rng/rng'
 import { shuffle } from '../rng/rng'
 import { movePersonToHouse } from '../mutations/personMutations'
 import { setSpouse } from '../mutations/relationshipMutations'
 import type { PersonId } from '../types/ids'
-import type { SimEvent } from '../types/event'
 import { isForbiddenMarriagePair } from '../selectors/kinshipSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { createLogger } from '../debug/logger'
 import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
+import { nameParam, entityRef } from '../types/event'
 
 const MARRIAGE_CALLS_PER_YEAR = 12
 
@@ -85,25 +85,26 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
     const femalePerson = currentCtx.state.persons[chosenFemaleId]
     if (!malePerson || !femalePerson) continue
 
-    const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
-
+    const maleHouse = currentCtx.state.houses[male.houseId]
     const malePolityId = getPersonPrimaryPolityId(currentCtx.state, maleId)
-    const event: SimEvent = {
-      id: eventId,
-      year: currentCtx.state.currentYear,
-      weekOfYear: currentCtx.state.currentWeekOfYear,
+    const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
       type: 'MARRIAGE_FORMED',
       importance: 'normal',
-      actorIds: [maleId, chosenFemaleId],
-      houseIds: [male.houseId],
-      polityIds: malePolityId ? [malePolityId] : [],
-      provinceIds: [],
-      holdingIds: [],
-      summary: malePerson.name + ' married ' + femalePerson.name,
-      description: malePerson.name + ' married ' + femalePerson.name,
-      reasons: [],
-      effects: [],
-    }
+      messageKey: 'marriage.formed',
+      messageParams: {
+        male: nameParam('person', malePerson.nameKey, malePerson.name),
+        female: nameParam('person', femalePerson.nameKey, femalePerson.name),
+      },
+      entityRefs: [
+        entityRef('person', maleId, 'groom', malePerson.nameKey),
+        entityRef('person', chosenFemaleId, 'bride', femalePerson.nameKey),
+        entityRef('house', male.houseId, 'house', maleHouse?.nameKey),
+      ],
+      legacySummary: malePerson.name + ' married ' + femalePerson.name,
+      legacyActorIds: [maleId, chosenFemaleId],
+      legacyHouseIds: [male.houseId],
+      legacyPolityIds: malePolityId ? [malePolityId] : [],
+    })
 
     currentCtx = {
       ...eventCtx,

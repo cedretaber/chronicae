@@ -1,11 +1,11 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import { randomFloat } from '../rng/rng'
 import { markPersonDead } from '../mutations/personMutations'
 import type { PersonId } from '../types/ids'
-import type { SimEvent } from '../types/event'
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { nameParam, entityRef } from '../types/event'
 
 export function runMortalitySystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -36,23 +36,27 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
 
       const importance = wasHouseLeader ? 'normal' : 'minor'
 
-      const { id: eventId, ctx: eventCtx } = makeEventId({ ...currentCtx, state: currentState })
-
-      const event: SimEvent = {
-        id: eventId,
-        year: currentState.currentYear,
-        weekOfYear: currentState.currentWeekOfYear,
-        type: 'PERSON_DIED',
-        importance,
-        actorIds: [personId as PersonId],
-        houseIds: [person.houseId],
-        polityIds: personPrimaryPolityId ? [personPrimaryPolityId] : [],
-        provinceIds: [],
-        holdingIds: [],
-        summary: person.name + ' has died at age ' + person.age + '.',
-        reasons: [],
-        effects: [],
-      }
+      const house = currentState.houses[person.houseId]
+      const { event, ctx: eventCtx } = createSimEvent(
+        { ...currentCtx, state: currentState },
+        {
+          type: 'PERSON_DIED',
+          importance,
+          messageKey: 'person.died',
+          messageParams: {
+            person: nameParam('person', person.nameKey, person.name),
+            age: person.age,
+          },
+          entityRefs: [
+            entityRef('person', personId, 'deceased', person.nameKey),
+            entityRef('house', person.houseId, 'house', house?.nameKey),
+          ],
+          legacySummary: person.name + ' has died at age ' + person.age + '.',
+          legacyActorIds: [personId as PersonId],
+          legacyHouseIds: [person.houseId],
+          legacyPolityIds: personPrimaryPolityId ? [personPrimaryPolityId] : [],
+        },
+      )
 
       currentCtx = {
         ...eventCtx,

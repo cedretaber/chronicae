@@ -1,16 +1,16 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import { randomFloat } from '../rng/rng'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { createLogger } from '../debug/logger'
 import type { PersonId } from '../types/ids'
-import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { birthChild } from '../mutations/personMutations'
 import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { inheritAptitudes, sampleAptitudes } from '../selectors/abilitySelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { nameParam, entityRef } from '../types/event'
 
 const BIRTH_CALLS_PER_YEAR = 12
 
@@ -135,25 +135,25 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     } = birthResult.value
     currentCtx = ctxAfterBirth
 
-    const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
-
     const childPrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, person.houseId)
-    const event: SimEvent = {
-      id: eventId,
-      year: currentCtx.state.currentYear,
-      weekOfYear: currentCtx.state.currentWeekOfYear,
+    const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
       type: 'CHILD_BORN',
       importance: 'minor',
-      actorIds: motherId ? [childId, person.id, motherId] : [childId, person.id],
-      houseIds: [person.houseId],
-      polityIds: childPrimaryPolityId ? [childPrimaryPolityId] : [],
-      provinceIds: [],
-      holdingIds: [],
-      summary: childName + ' was born',
-      description: childName + ' was born',
-      reasons: [],
-      effects: [],
-    }
+      messageKey: 'person.born',
+      messageParams: {
+        child: nameParam('person', childNameKey, childName),
+      },
+      entityRefs: [
+        entityRef('person', childId, 'child', childNameKey),
+        entityRef('person', person.id, 'father', person.nameKey),
+        ...(motherId ? [entityRef('person', motherId, 'mother')] : []),
+        entityRef('house', person.houseId, 'house'),
+      ],
+      legacySummary: childName + ' was born',
+      legacyActorIds: motherId ? [childId, person.id, motherId] : [childId, person.id],
+      legacyHouseIds: [person.houseId],
+      legacyPolityIds: childPrimaryPolityId ? [childPrimaryPolityId] : [],
+    })
 
     currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }
 

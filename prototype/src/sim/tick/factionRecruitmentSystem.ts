@@ -1,9 +1,9 @@
 import type { TickContext } from './context'
+import { createSimEvent } from './context'
 import type { PersonId, FactionId, HouseId } from '../types/ids'
-import type { SimEvent } from '../types/event'
+import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
-import { makeEventId } from './context'
 import {
   getActiveFactions,
   getActiveFactionMembership,
@@ -119,22 +119,23 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
     if (cToL.ok) currentCtx = { ...currentCtx, state: cToL.value }
 
     // event
-    const { id: eventId, ctx: ec } = makeEventId(currentCtx)
-    const event: SimEvent = {
-      id: eventId,
-      year: ec.state.currentYear,
-      weekOfYear: ec.state.currentWeekOfYear,
+    const { event, ctx: ec } = createSimEvent(currentCtx, {
       type: 'PERSON_RECRUITED_TO_FACTION',
       importance: 'normal',
-      actorIds: [faction.leaderPersonId, candidateId],
-      houseIds: collectHouseIds(ec.state, [faction.leaderPersonId, candidateId]),
-      polityIds: [],
-      provinceIds: [],
-      holdingIds: [],
-      summary: `${candidate.name} joined ${faction.name}.`,
-      reasons: [],
-      effects: [],
-    }
+      messageKey: 'faction.member_recruited',
+      messageParams: {
+        person: nameParam('person', candidate.nameKey, candidate.name),
+        faction: faction.name,
+      },
+      entityRefs: [
+        entityRef('person', candidateId, 'recruit', candidate.nameKey),
+        entityRef('person', faction.leaderPersonId, 'leader'),
+        entityRef('faction', factionId, 'faction'),
+      ],
+      legacySummary: `${candidate.name} joined ${faction.name}.`,
+      legacyActorIds: [faction.leaderPersonId, candidateId],
+      legacyHouseIds: collectHouseIds(currentCtx.state, [faction.leaderPersonId, candidateId]),
+    })
     currentCtx = { ...ec, events: [...ec.events, event] }
     recruited++
   }

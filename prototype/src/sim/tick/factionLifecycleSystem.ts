@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
-import type { PersonId, FactionId, HouseId, PolityId } from '../types/ids'
-import type { SimEvent } from '../types/event'
-import { makeEventId } from './context'
+import type { PersonId, FactionId, HouseId } from '../types/ids'
+import { createSimEvent } from './context'
+import { nameParam, entityRef } from '../types/event'
 import {
   getFactionByLeader,
   getActiveFactionMembership,
@@ -54,22 +54,22 @@ function checkDissolutions(ctx: TickContext): TickContext {
 
     if (reasonsToDissolve.length > 0) {
       if (reasonsToDissolve.includes('leader bankrupt')) {
-        const { id: eventId, ctx: ec } = makeEventId(currentCtx)
-        const event: SimEvent = {
-          id: eventId,
-          year: ec.state.currentYear,
-          weekOfYear: ec.state.currentWeekOfYear,
+        const { event, ctx: ec } = createSimEvent(currentCtx, {
           type: 'FACTION_LEADER_BANKRUPT',
           importance: 'normal',
-          actorIds: [faction.leaderPersonId],
-          houseIds: [leader.houseId],
-          polityIds: [],
-          provinceIds: [],
-          holdingIds: [],
-          summary: `${leader.name}'s fortunes are exhausted, putting ${faction.name} in jeopardy.`,
-          reasons: [],
-          effects: [],
-        }
+          messageKey: 'faction.leader_bankrupt',
+          messageParams: {
+            person: nameParam('person', leader.nameKey, leader.name),
+            faction: faction.name,
+          },
+          entityRefs: [
+            entityRef('person', faction.leaderPersonId, 'leader', leader.nameKey),
+            entityRef('faction', factionId, 'faction'),
+          ],
+          legacySummary: `${leader.name}'s fortunes are exhausted, putting ${faction.name} in jeopardy.`,
+          legacyActorIds: [faction.leaderPersonId],
+          legacyHouseIds: [leader.houseId],
+        })
         currentCtx = { ...ec, events: [...ec.events, event] }
       }
       currentCtx = dissolveFaction(
@@ -129,22 +129,24 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
   }
   const ctx1: TickContext = { ...ctx, state: result.value }
   const newLeader = ctx1.state.persons[newLeaderId]
-  const { id: eventId, ctx: ec } = makeEventId(ctx1)
-  const event: SimEvent = {
-    id: eventId,
-    year: ec.state.currentYear,
-    weekOfYear: ec.state.currentWeekOfYear,
+  const { event, ctx: ec } = createSimEvent(ctx1, {
     type: 'FACTION_LEADER_CHANGED',
     importance: 'normal',
-    actorIds: [faction.leaderPersonId, newLeaderId],
-    houseIds: newLeader ? [newLeader.houseId] : [],
-    polityIds: [],
-    provinceIds: [],
-    holdingIds: [],
-    summary: `${newLeader?.name ?? newLeaderId} succeeded ${oldLeader?.name ?? faction.leaderPersonId} as the head of ${faction.name}.`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'faction.leader_changed',
+    messageParams: {
+      newLeader: nameParam('person', newLeader?.nameKey, newLeader?.name ?? newLeaderId),
+      oldLeader: nameParam('person', oldLeader?.nameKey, oldLeader?.name ?? faction.leaderPersonId),
+      faction: faction.name,
+    },
+    entityRefs: [
+      entityRef('person', newLeaderId, 'newLeader', newLeader?.nameKey),
+      entityRef('person', faction.leaderPersonId, 'oldLeader', oldLeader?.nameKey),
+      entityRef('faction', factionId, 'faction'),
+    ],
+    legacySummary: `${newLeader?.name ?? newLeaderId} succeeded ${oldLeader?.name ?? faction.leaderPersonId} as the head of ${faction.name}.`,
+    legacyActorIds: [faction.leaderPersonId, newLeaderId],
+    legacyHouseIds: newLeader ? [newLeader.houseId] : [],
+  })
   return { ...ec, events: [...ec.events, event] }
 }
 
@@ -155,22 +157,22 @@ function dissolveFaction(ctx: TickContext, factionId: FactionId, summary: string
   if (!result.ok) return ctx
   const ctx1: TickContext = { ...ctx, state: result.value }
   const oldLeader = ctx1.state.persons[faction.leaderPersonId]
-  const { id: eventId, ctx: ec } = makeEventId(ctx1)
-  const event: SimEvent = {
-    id: eventId,
-    year: ec.state.currentYear,
-    weekOfYear: ec.state.currentWeekOfYear,
+  const { event, ctx: ec } = createSimEvent(ctx1, {
     type: 'FACTION_DISSOLVED',
     importance: 'normal',
-    actorIds: [faction.leaderPersonId],
-    houseIds: oldLeader ? [oldLeader.houseId] : [],
-    polityIds: [],
-    provinceIds: [],
-    holdingIds: [],
-    summary,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'faction.dissolved',
+    messageParams: {
+      faction: faction.name,
+      reasons: summary,
+    },
+    entityRefs: [
+      entityRef('person', faction.leaderPersonId, 'leader', oldLeader?.nameKey),
+      entityRef('faction', factionId, 'faction'),
+    ],
+    legacySummary: summary,
+    legacyActorIds: [faction.leaderPersonId],
+    legacyHouseIds: oldLeader ? [oldLeader.houseId] : [],
+  })
   return { ...ec, events: [...ec.events, event] }
 }
 
@@ -267,28 +269,29 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
     if (memberToLeader.ok) currentCtx = { ...currentCtx, state: memberToLeader.value }
   }
 
-  const { id: eventId, ctx: ec } = makeEventId(currentCtx)
   const housesInvolved: HouseId[] = [leader.houseId]
   for (const mid of initialMemberIds) {
-    const m = ec.state.persons[mid]
+    const m = currentCtx.state.persons[mid]
     if (m && !housesInvolved.includes(m.houseId)) housesInvolved.push(m.houseId)
   }
-  const polityIds: PolityId[] = []
-  const event: SimEvent = {
-    id: eventId,
-    year: ec.state.currentYear,
-    weekOfYear: ec.state.currentWeekOfYear,
+
+  const { event, ctx: ec } = createSimEvent(currentCtx, {
     type: 'FACTION_FOUNDED',
     importance: 'normal',
-    actorIds: [leaderId, ...initialMemberIds],
-    houseIds: housesInvolved,
-    polityIds,
-    provinceIds: [],
-    holdingIds: [],
-    summary: `${leader.name} founded the faction ${factionName}.`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'faction.founded',
+    messageParams: {
+      person: nameParam('person', leader.nameKey, leader.name),
+      faction: factionName,
+    },
+    entityRefs: [
+      entityRef('person', leaderId, 'leader', leader.nameKey),
+      entityRef('faction', factionId, 'faction'),
+      ...initialMemberIds.map((mid) => entityRef('person', mid, 'member')),
+    ],
+    legacySummary: `${leader.name} founded the faction ${factionName}.`,
+    legacyActorIds: [leaderId, ...initialMemberIds],
+    legacyHouseIds: housesInvolved,
+  })
   return { ...ec, events: [...ec.events, event] }
 }
 

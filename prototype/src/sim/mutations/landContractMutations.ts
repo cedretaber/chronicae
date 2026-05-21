@@ -5,8 +5,8 @@ import { ROOT_WORLD } from '../types/landContract'
 import { createLandContractId } from '../types/ids'
 import { clampTaxRate } from '../helpers/landContractHelpers'
 import type { TickContext } from '../tick/context'
-import { makeEventId } from '../tick/context'
-import type { SimEvent } from '../types/event'
+import { createSimEvent } from '../tick/context'
+import { entityRef } from '../types/event'
 import type { CtxResult } from './result'
 import { ok, err } from './result'
 import {
@@ -579,30 +579,38 @@ export function applyLandContractTransferGoal(
   }
   let nextCtx: TickContext = { ...ctx, state: newState }
 
-  // LAND_CONTRACT_TRANSFERRED event (低レベル)
+  // Compute values needed for events
   const ownerHouseIds: HouseId[] = []
   if (fromPolity?.ownerHouseId !== undefined) ownerHouseIds.push(fromPolity.ownerHouseId)
   if (toPolity.ownerHouseId !== undefined) ownerHouseIds.push(toPolity.ownerHouseId)
   const fromName = fromPolity?.name ?? fromPolityId
   const toName = toPolity.name
 
-  const { id: transferEventId, ctx: ctxAfterTransfer } = makeEventId(nextCtx)
-  const transferEv: SimEvent = {
-    id: transferEventId,
-    year: ctxAfterTransfer.state.currentYear,
-    weekOfYear: ctxAfterTransfer.state.currentWeekOfYear,
+  // LAND_CONTRACT_TRANSFERRED event
+  const { event: transferEvent, ctx: ctxAfterTransfer } = createSimEvent(nextCtx, {
     type: 'LAND_CONTRACT_TRANSFERRED',
     importance: 'normal',
-    actorIds: [],
-    houseIds: ownerHouseIds,
-    polityIds: [fromPolityId, input.toPolityId],
-    provinceIds: [provinceId],
-    holdingIds: [input.holdingId],
-    summary: `${holding.name} transferred from ${fromName} to ${toName} (${input.reason}).`,
-    reasons: [],
-    effects: [],
-  }
-  nextCtx = { ...ctxAfterTransfer, events: [...ctxAfterTransfer.events, transferEv] }
+    messageKey: 'land_contract.transferred',
+    messageParams: {
+      holding: holding.name,
+      from: fromName,
+      to: toName,
+      reason: input.reason,
+    },
+    entityRefs: [
+      entityRef('holding', input.holdingId, 'holding'),
+      entityRef('polity', fromPolityId, 'from'),
+      entityRef('polity', input.toPolityId, 'to'),
+      entityRef('province', provinceId, 'province'),
+    ],
+    legacySummary: `${holding.name} transferred from ${fromName} to ${toName} (${input.reason}).`,
+    legacyActorIds: [],
+    legacyHouseIds: ownerHouseIds,
+    legacyPolityIds: [fromPolityId, input.toPolityId],
+    legacyProvinceIds: [provinceId],
+    legacyHoldingIds: [input.holdingId],
+  })
+  nextCtx = { ...ctxAfterTransfer, events: [...ctxAfterTransfer.events, transferEvent] }
 
   // reason 別の追加 domain event (Stage F: purchase / cession / war / revolt)
   let outcomeEventType:
@@ -623,23 +631,34 @@ export function applyLandContractTransferGoal(
   }
 
   if (outcomeEventType && outcomeSummary) {
-    const { id: outcomeEventId, ctx: ctxAfterOutcome } = makeEventId(nextCtx)
-    const outcomeEv: SimEvent = {
-      id: outcomeEventId,
-      year: ctxAfterOutcome.state.currentYear,
-      weekOfYear: ctxAfterOutcome.state.currentWeekOfYear,
+    const messageKeyMap: Record<string, string> = {
+      LAND_CONTRACT_PURCHASED: 'land_contract.purchased',
+      LAND_CONTRACT_CEDED: 'land_contract.ceded',
+      LAND_CONTRACT_CONQUERED: 'land_contract.conquered',
+    }
+    const { event: outcomeEvent, ctx: ctxAfterOutcome } = createSimEvent(nextCtx, {
       type: outcomeEventType,
       importance: 'major',
-      actorIds: [],
-      houseIds: ownerHouseIds,
-      polityIds: [fromPolityId, input.toPolityId],
-      provinceIds: [provinceId],
-      holdingIds: [input.holdingId],
-      summary: outcomeSummary,
-      reasons: [],
-      effects: [],
-    }
-    nextCtx = { ...ctxAfterOutcome, events: [...ctxAfterOutcome.events, outcomeEv] }
+      messageKey: messageKeyMap[outcomeEventType]!,
+      messageParams: {
+        to: toName,
+        holding: holding.name,
+        from: fromName,
+      },
+      entityRefs: [
+        entityRef('holding', input.holdingId, 'holding'),
+        entityRef('polity', fromPolityId, 'from'),
+        entityRef('polity', input.toPolityId, 'to'),
+        entityRef('province', provinceId, 'province'),
+      ],
+      legacySummary: outcomeSummary,
+      legacyActorIds: [],
+      legacyHouseIds: ownerHouseIds,
+      legacyPolityIds: [fromPolityId, input.toPolityId],
+      legacyProvinceIds: [provinceId],
+      legacyHoldingIds: [input.holdingId],
+    })
+    nextCtx = { ...ctxAfterOutcome, events: [...ctxAfterOutcome.events, outcomeEvent] }
   }
 
   return ok({ ctx: nextCtx, value: undefined })

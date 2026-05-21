@@ -1,9 +1,9 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
 import type { PolityId, HouseId, ProvinceId } from '../types/ids'
-import type { SimEvent } from '../types/event'
+import { nameParam, entityRef } from '../types/event'
 import { calcTreasurerDevelopmentCostModifier } from '../selectors/personAbilityEffects'
 import { getPolityLeaderHouse } from '../selectors/officeSelectors'
 import type { WorldState } from '../types/world'
@@ -102,22 +102,22 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       },
     }
 
-    const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
-    const event: SimEvent = {
-      id: eventId,
-      year: eventCtx.state.currentYear,
-      weekOfYear: eventCtx.state.currentWeekOfYear,
+    const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
       type: 'POP_LAND_DEVELOPED',
       importance: 'normal',
-      actorIds: [],
-      houseIds: [],
-      polityIds: [polityId as PolityId],
-      provinceIds: [bestProvinceId],
-      holdingIds: [],
-      summary: `${polity.name} invested in land development in ${targetProvince.name}.`,
-      reasons: [],
-      effects: [],
-    }
+      messageKey: 'polity.land_developed',
+      messageParams: {
+        polity: nameParam('polity', polity.nameKey, polity.name),
+        province: nameParam('province', targetProvince.nameKey, targetProvince.name),
+      },
+      entityRefs: [
+        entityRef('polity', polityId, 'polity', polity.nameKey),
+        entityRef('province', bestProvinceId, 'province', targetProvince.nameKey),
+      ],
+      legacySummary: `${polity.name} invested in land development in ${targetProvince.name}.`,
+      legacyPolityIds: [polityId as PolityId],
+      legacyProvinceIds: [bestProvinceId],
+    })
     currentCtx = {
       ...eventCtx,
       state: currentCtx.state,

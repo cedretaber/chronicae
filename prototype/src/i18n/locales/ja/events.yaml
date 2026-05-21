@@ -1,0 +1,115 @@
+# Event message templates (ja)
+# Keys correspond to SimEvent.messageKey values.
+
+person:
+  died: '{{person}}が{{age}}歳で死去した。'
+  born: '{{child}}が誕生した。'
+  born_in_obscurity: '無名の{{occupation}}、{{person}}が現れた。'
+  faded_from_history: '{{person}}は歴史の彼方へ消えた。'
+
+marriage:
+  formed: '{{male}}と{{female}}が結婚した。'
+
+house:
+  split: '{{person}}が{{house}}から独立し、新たな家門を興した。'
+  extinct: '{{house}}は後継者なく断絶した。'
+  extinct_inherited: '{{house}}は断絶したが、その領土は別の家門に継承された。'
+  extinct_legacy: '{{house}}は断絶したが、その遺産は別の家門に引き継がれた。'
+  extinct_fallen: '{{house}}は全領地を失い没落した。'
+  members_dispersed: '{{house}}の残党は散り散りになった。'
+  leader_changed: '{{person}}が{{house}}の新たな当主となった。'
+  land_developed: '{{house}}が{{province}}の開発に投資した。'
+
+polity:
+  leader_changed: '{{person}}が{{polity}}の新たな統治者となった。'
+  owner_changed: '{{polity}}の支配家門が{{newHouse}}に交代し、首都が{{province}}に移った。'
+  owner_changed_initial: '{{polity}}の支配家門が{{newHouse}}に定まり、首都が{{province}}に置かれた。'
+  owner_changed_extinction: '{{oldHouse}}の断絶により、{{polity}}の支配家門が{{newHouse}}に交代した。'
+  extinct_no_provinces: '{{polity}}は領土を全て失い解体された。'
+  extinct_no_owner: '{{polity}}は支配家門を失い解体された。'
+  extinct_lost_owner: '{{polity}}は支配家門を失い解体された。'
+  landless: '{{polity}}はもはやいかなる領土も保持していない。'
+  land_developed: '{{polity}}が{{province}}の開発に投資した。'
+
+succession:
+  crisis: '{{house}}で継承危機が勃発した！'
+  crisis_split: 家門分裂により継承危機が勃発した！
+
+plot:
+  started: '{{person}}が{{plotType}}の陰謀を開始した。'
+  succeeded: '{{person}}の{{plotType}}陰謀が成功した。'
+  failed: '{{person}}の{{plotType}}陰謀が失敗した。'
+
+office:
+  assigned_polity: '{{person}}が{{polity}}の{{role}}に任命された。'
+  assigned_house: '{{person}}が{{house}}の{{role}}に任命された。'
+  revoked: '{{organization}}における{{role}}の職が、保持者の家門が領地を持たなくなったため解任された。'
+  term_ended: '{{person}}の{{role}}としての任期が終了した。'
+  salary_unpaid: 役職者の給与が未払いとなった。
+  salary_partially_paid: 役職者の給与が一部未払いとなった。
+
+estate:
+  settled: '{{person}}の遺産{{wealth}}が分配された：家門に{{houseAmount}}、相続人に{{heirAmount}}。'
+  disputed: '{{count}}人の相続人が{{person}}の遺産を争っている。'
+
+disaster:
+  famine: '{{province}}で飢饉が発生した！'
+  plague: '{{province}}で疫病が蔓延した！'
+  bountiful_harvest: '{{province}}で豊作に恵まれた。'
+
+pop:
+  land_developed: '{{province}}の住民が土地を改良した。'
+
+war:
+  won: '{{winner}}が{{loser}}との戦争に勝利した。'
+  lost: '{{loser}}が{{winner}}に敗北した。'
+
+revolt:
+  negotiation_started: '{{province}}で{{rebelClass}}の反乱が勃発し、交渉が始まった。'
+  polity_founded: '{{person}}の反乱により{{province}}で{{polity}}が建国された！'
+  settled: '{{province}}の反乱は交渉により解決した。指導者は{{aftermathText}}、州は{{restorePolity}}に帰属する。'
+  suppressed: '{{province}}の反乱は鎮圧された。指導者は{{aftermathText}}、州は{{restorePolity}}に帰属する。'
+
+diplomatic_play:
+  started_with_offer: '{{initiator}}が{{target}}と{{province}}について交渉を開始した。'
+  started_no_offer: '{{initiator}}が{{target}}に{{province}}の割譲を迫った。'
+  progress: '{{province}}を巡る外交交渉が続いている。'
+  settled_revolt: '{{province}}での反乱交渉が妥結した。'
+  settled_tax: '{{province}}の税率改定が妥結した。'
+  settled_purchase: '{{initiator}}が{{defender}}から{{province}}を{{price}}金で購入した。'
+  settled_cession: '{{defender}}が圧力を受け{{province}}を{{initiator}}に割譲した。'
+  failed_revolt: '{{province}}での反乱交渉は決裂した。'
+  failed_claim: '{{initiator}}の{{province}}への請求権は消滅した。'
+  escalated_revolt: '{{province}}での膠着した反乱が期限切れで武力衝突に発展した。'
+  escalated_claim: '膠着した請求権争いが武力衝突に発展：{{initiator}}が{{province}}へ攻撃。'
+  resolved_by_conflict: '{{summary}}'
+
+actor_intent:
+  created_sell_land: '{{seller}}が{{province}}を{{buyer}}に{{price}}金で売却しようとしている。'
+  created_acquire_land: '{{acquirer}}が{{target}}の保有する{{province}}に目を付けている。'
+  created_improve_terms: '{{initiator}}が{{target}}に{{province}}の減税を要求している。'
+  created_demand_tax: '{{initiator}}が{{target}}に{{province}}の増税を要求している。'
+  converted_with_offer: '{{initiator}}が{{target}}から{{province}}を代償付きで取得する交渉を開始した。'
+  converted_no_offer: '{{initiator}}が{{target}}に{{province}}の無条件割譲を要求した。'
+
+land_contract:
+  transferred: '{{holding}}が{{from}}から{{to}}に移転された（{{reason}}）。'
+  purchased: '{{to}}が{{from}}から{{holding}}を購入した。'
+  ceded: '{{from}}が{{holding}}を{{to}}に割譲した。'
+  conquered: '{{to}}が{{from}}から{{holding}}を征服した。'
+  tax_revised: '{{province}}の税率が{{initiator}}と{{defender}}の間で{{rate}}%に改定された。'
+  eliminated: '{{province}}の契約構造が{{initiator}}と{{defender}}の間で変更された。'
+
+bailiff:
+  appointed: '{{person}}が{{province}}の代官に任命された。'
+  vacated: '{{person}}が{{province}}の代官を辞した。'
+  placeholder_installed: '{{province}}に匿名の代官が配置された。'
+
+faction:
+  founded: '{{person}}が派閥{{faction}}を結成した。'
+  dissolved: '{{faction}}が解散した（{{reasons}}）。'
+  leader_changed: '{{newLeader}}が{{oldLeader}}に代わり{{faction}}の指導者となった。'
+  leader_bankrupt: '{{person}}の財力が尽き、{{faction}}が危機に瀕している。'
+  member_recruited: '{{person}}が{{faction}}に参加した。'
+  member_abandoned: '{{person}}が{{faction}}を離脱した。'
+  funds_shortage: '{{person}}の{{faction}}が資金難に陥った。'

@@ -1,5 +1,6 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
+import { nameParam, entityRef } from '../types/event'
 import { createOfficeAssignment, revokeOfficesByHolder } from '../mutations/officeMutations'
 import {
   getPolityLeader,
@@ -12,7 +13,6 @@ import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeH
 import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
 import type { PersonId, PolityId, HouseId } from '../types/ids'
 import type { OfficeRole, OrganizationRef } from '../types/office'
-import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { FactionId } from '../types/ids'
@@ -319,22 +319,24 @@ function tryAppointPolityOffice(
   if (person) {
     const house = currentCtx.state.houses[person.houseId]
     if (house) {
-      const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
-      const event: SimEvent = {
-        id: eventId,
-        year: currentCtx.state.currentYear,
-        weekOfYear: currentCtx.state.currentWeekOfYear,
+      const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
         type: 'OFFICE_ASSIGNED',
         importance: 'normal',
-        actorIds: [best.id],
-        houseIds: [person.houseId],
-        polityIds: [polity.id],
-        provinceIds: [],
-        holdingIds: [],
-        summary: `${person.name} was appointed as ${def.displayName} of ${polity.name}.`,
-        reasons: [],
-        effects: [],
-      }
+        messageKey: 'office.assigned_polity',
+        messageParams: {
+          person: nameParam('person', person.nameKey, person.name),
+          role: def.displayName,
+          polity: nameParam('polity', polity.nameKey, polity.name),
+        },
+        entityRefs: [
+          entityRef('person', best.id, 'appointee', person.nameKey),
+          entityRef('polity', polity.id, 'organization', polity.nameKey),
+        ],
+        legacySummary: `${person.name} was appointed as ${def.displayName} of ${polity.name}.`,
+        legacyActorIds: [best.id],
+        legacyHouseIds: [person.houseId],
+        legacyPolityIds: [polity.id],
+      })
       currentCtx = {
         ...eventCtx,
         state: currentCtx.state,
@@ -419,22 +421,23 @@ function tryAppointHouseOffice(
 
   const person = currentCtx.state.persons[best.id]
   if (person) {
-    const { id: eventId, ctx: eventCtx } = makeEventId(currentCtx)
-    const event: SimEvent = {
-      id: eventId,
-      year: currentCtx.state.currentYear,
-      weekOfYear: currentCtx.state.currentWeekOfYear,
+    const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
       type: 'OFFICE_ASSIGNED',
       importance: 'normal',
-      actorIds: [best.id],
-      houseIds: [person.houseId],
-      polityIds: [],
-      provinceIds: [],
-      holdingIds: [],
-      summary: `${person.name} was appointed as ${def.displayName} of ${house.name}.`,
-      reasons: [],
-      effects: [],
-    }
+      messageKey: 'office.assigned_house',
+      messageParams: {
+        person: nameParam('person', person.nameKey, person.name),
+        role: def.displayName,
+        house: nameParam('house', house.nameKey, house.name),
+      },
+      entityRefs: [
+        entityRef('person', best.id, 'appointee', person.nameKey),
+        entityRef('house', house.id, 'organization', house.nameKey),
+      ],
+      legacySummary: `${person.name} was appointed as ${def.displayName} of ${house.name}.`,
+      legacyActorIds: [best.id],
+      legacyHouseIds: [person.houseId],
+    })
     currentCtx = { ...eventCtx, state: currentCtx.state, events: [...eventCtx.events, event] }
   }
 

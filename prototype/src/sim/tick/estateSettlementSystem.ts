@@ -1,8 +1,9 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import type { PersonId, HouseId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import type { SimEvent } from '../types/event'
+import type { EventImportance } from '../types/event'
+import { nameParam, entityRef } from '../types/event'
 import { addPersonWealth, clearPersonWealth } from '../mutations/personMutations'
 import { addHouseWealth } from '../mutations/houseMutations'
 import { getPersonHouseSharePercent } from '../selectors/shareSelectors'
@@ -135,7 +136,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
     const normalWealthThreshold =
       currentCtx.config.estateSettledNormalWealthRatio * (house?.wealth ?? 0)
     const roleInfo = currentCtx.deathRolesThisTick[deceasedId]
-    let importance: SimEvent['importance'] = 'minor'
+    let importance: EventImportance = 'minor'
     if (roleInfo?.wasPolityLeader) {
       importance = 'major'
     } else if (roleInfo?.wasHouseLeader || wealth >= normalWealthThreshold) {
@@ -143,35 +144,32 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
     }
 
     // ESTATE_SETTLED は常に発火 (§5.7)
-    const { id: settledId, ctx: ctxAfterSettled } = makeEventId({
-      ...currentCtx,
-      state: newState,
-    })
     const primaryPolityId = getHousePrimaryPolityId(newState, person.houseId)
-    const settledEvent: SimEvent = {
-      id: settledId,
-      year: newState.currentYear,
-      weekOfYear: newState.currentWeekOfYear,
-      type: 'ESTATE_SETTLED',
-      importance,
-      actorIds: [deceasedId, ...heirs],
-      houseIds,
-      polityIds: primaryPolityId ? [primaryPolityId] : [],
-      provinceIds: [],
-      holdingIds: [],
-      summary:
-        person.name +
-        "'s estate of " +
-        wealth +
-        ' distributed: ' +
-        houseAmount +
-        ' to house, ' +
-        (remainingWealth - (leftover > 0 ? leftover : 0)) +
-        ' to heirs.',
-      reasons: [],
-      effects: [{ label: 'houseWealth', value: houseAmount }],
-    }
-
+    const { event: settledEvent, ctx: ctxAfterSettled } = createSimEvent(
+      {
+        ...currentCtx,
+        state: newState,
+      },
+      {
+        type: 'ESTATE_SETTLED',
+        importance,
+        messageKey: 'estate.settled',
+        messageParams: {
+          person: nameParam('person', person.nameKey, person.name),
+          wealth,
+          houseAmount,
+          heirAmount: remainingWealth - leftover,
+        },
+        entityRefs: [
+          entityRef('person', deceasedId, 'deceased', person.nameKey),
+          ...heirs.map((h) => entityRef('person', h, 'heir')),
+        ],
+        legacySummary: `${person.name}'s estate of ${wealth} distributed: ${houseAmount} to house, ${remainingWealth - leftover} to heirs.`,
+        legacyActorIds: [deceasedId, ...heirs],
+        legacyHouseIds: houseIds,
+        legacyPolityIds: primaryPolityId ? [primaryPolityId] : [],
+      },
+    )
     currentCtx = {
       ...ctxAfterSettled,
       state: newState,
@@ -180,22 +178,24 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
 
     // 争いがあれば ESTATE_DISPUTED を ESTATE_SETTLED と並んで追加発火 (§5.7)
     if (heirs.length >= ESTATE_DISPUTE_HEIR_THRESHOLD) {
-      const { id: disputedId, ctx: ctxAfterDisputed } = makeEventId(currentCtx)
-      const disputedEvent: SimEvent = {
-        id: disputedId,
-        year: newState.currentYear,
-        weekOfYear: newState.currentWeekOfYear,
+      const { event: disputedEvent, ctx: ctxAfterDisputed } = createSimEvent(currentCtx, {
         type: 'ESTATE_DISPUTED',
         importance: 'minor',
-        actorIds: [deceasedId, ...heirs],
-        houseIds,
-        polityIds: primaryPolityId ? [primaryPolityId] : [],
-        provinceIds: [],
-        holdingIds: [],
-        summary: 'Multiple heirs (' + heirs.length + ') contest ' + person.name + "'s estate.",
+        messageKey: 'estate.disputed',
+        messageParams: {
+          count: heirs.length,
+          person: nameParam('person', person.nameKey, person.name),
+        },
+        entityRefs: [
+          entityRef('person', deceasedId, 'deceased', person.nameKey),
+          ...heirs.map((h) => entityRef('person', h, 'heir')),
+        ],
+        legacySummary: `Multiple heirs (${heirs.length}) contest ${person.name}'s estate.`,
+        legacyActorIds: [deceasedId, ...heirs],
+        legacyHouseIds: houseIds,
+        legacyPolityIds: primaryPolityId ? [primaryPolityId] : [],
         reasons: [{ label: 'Multiple heirs', value: heirs.length }],
-        effects: [],
-      }
+      })
       currentCtx = {
         ...ctxAfterDisputed,
         events: [...ctxAfterDisputed.events, disputedEvent],

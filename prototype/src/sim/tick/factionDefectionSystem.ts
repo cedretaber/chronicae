@@ -1,8 +1,8 @@
 import type { TickContext } from './context'
 import type { PersonId, FactionMembershipId } from '../types/ids'
-import type { SimEvent } from '../types/event'
+import { createSimEvent } from './context'
+import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
-import { makeEventId } from './context'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import { getActiveFactions } from '../selectors/factionSelectors'
 import { removeFactionMembership } from '../mutations/factionMutations'
@@ -79,22 +79,23 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
 
       currentCtx = { ...currentCtx, state: stateAfter }
 
-      const { id: eventId, ctx: ec } = makeEventId(currentCtx)
-      const event: SimEvent = {
-        id: eventId,
-        year: ec.state.currentYear,
-        weekOfYear: ec.state.currentWeekOfYear,
+      const { event, ctx: ec } = createSimEvent(currentCtx, {
         type: 'FACTION_MEMBER_ABANDONED',
         importance: 'minor',
-        actorIds: [membership.personId, faction.leaderPersonId],
-        houseIds: [member.houseId],
-        polityIds: [],
-        provinceIds: [],
-        holdingIds: [],
-        summary: `${member.name} abandoned ${faction.name}.`,
-        reasons: [],
-        effects: [],
-      }
+        messageKey: 'faction.member_abandoned',
+        messageParams: {
+          person: nameParam('person', member.nameKey, member.name),
+          faction: faction.name,
+        },
+        entityRefs: [
+          entityRef('person', membership.personId, 'defector', member.nameKey),
+          entityRef('person', faction.leaderPersonId, 'leader'),
+          entityRef('faction', faction.id, 'faction'),
+        ],
+        legacySummary: `${member.name} abandoned ${faction.name}.`,
+        legacyActorIds: [membership.personId, faction.leaderPersonId],
+        legacyHouseIds: [member.houseId],
+      })
       currentCtx = { ...ec, events: [...ec.events, event] }
     }
   }

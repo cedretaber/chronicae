@@ -1,10 +1,10 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import type { ActorIntentId, HoldingId, PolityId, ProvinceId } from '../types/ids'
 import { createDiplomaticPlayId } from '../types/ids'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
-import type { SimEvent } from '../types/event'
+import { entityRef } from '../types/event'
 import { defaultLandContractConfig } from '../config/landContractConfig'
 import {
   getProvinceTerminalContract,
@@ -413,54 +413,57 @@ function emitConversionAndStartEvents(
   let currentCtx = ctx
   const { initiator, target, provinceId, holdingId, hasOffer } = input
 
-  const { id: convEventId, ctx: ctxConv } = makeEventId(currentCtx)
-  const initiatorName =
-    ctxConv.state.polities[initiator.id as PolityId]?.name ?? String(initiator.id)
-  const targetName = ctxConv.state.polities[target.id as PolityId]?.name ?? String(target.id)
-  const provinceName = ctxConv.state.provinces[provinceId]?.name ?? provinceId
-  const polityIds = [initiator.id, target.id] as PolityId[]
+  const initiatorId = initiator.id as PolityId
+  const targetId = target.id as PolityId
+  const initiatorName = currentCtx.state.polities[initiatorId]?.name ?? String(initiator.id)
+  const targetName = currentCtx.state.polities[targetId]?.name ?? String(target.id)
+  const provinceName = currentCtx.state.provinces[provinceId]?.name ?? provinceId
+  const entityRefs = [
+    entityRef('polity', initiatorId, 'initiator'),
+    entityRef('polity', targetId, 'target'),
+    entityRef('province', provinceId, 'province'),
+    entityRef('holding', holdingId, 'holding'),
+  ]
 
   // hasOffer (補償金あり) か否かで summary を分ける
+  const convMessageKey = hasOffer
+    ? 'actor_intent.converted_with_offer'
+    : 'actor_intent.converted_no_offer'
   const convSummary = hasOffer
     ? `${initiatorName} opens negotiations to acquire ${provinceName} from ${targetName} with compensation.`
     : `${initiatorName} demands ${provinceName} from ${targetName} without compensation.`
+
+  const { event: convEv, ctx: ctxConv } = createSimEvent(currentCtx, {
+    type: 'ACTOR_INTENT_CONVERTED',
+    importance: 'normal',
+    messageKey: convMessageKey,
+    messageParams: { initiator: initiatorName, target: targetName, province: provinceName },
+    entityRefs,
+    legacySummary: convSummary,
+    legacyPolityIds: [initiatorId, targetId],
+    legacyProvinceIds: [provinceId],
+    legacyHoldingIds: [holdingId],
+  })
+  currentCtx = { ...ctxConv, events: [...ctxConv.events, convEv] }
+
+  const startMessageKey = hasOffer
+    ? 'diplomatic_play.started_with_offer'
+    : 'diplomatic_play.started_no_offer'
   const startSummary = hasOffer
     ? `${initiatorName} negotiates with ${targetName} for ${provinceName}.`
     : `${initiatorName} pressures ${targetName} to cede ${provinceName}.`
 
-  const convEv: SimEvent = {
-    id: convEventId,
-    year: ctxConv.state.currentYear,
-    weekOfYear: ctxConv.state.currentWeekOfYear,
-    type: 'ACTOR_INTENT_CONVERTED',
-    importance: 'normal',
-    actorIds: [],
-    houseIds: [],
-    polityIds,
-    provinceIds: [provinceId],
-    holdingIds: [holdingId],
-    summary: convSummary,
-    reasons: [],
-    effects: [],
-  }
-  currentCtx = { ...ctxConv, events: [...ctxConv.events, convEv] }
-
-  const { id: startEventId, ctx: ctxStart } = makeEventId(currentCtx)
-  const startEv: SimEvent = {
-    id: startEventId,
-    year: ctxStart.state.currentYear,
-    weekOfYear: ctxStart.state.currentWeekOfYear,
+  const { event: startEv, ctx: ctxStart } = createSimEvent(currentCtx, {
     type: 'DIPLOMATIC_PLAY_STARTED',
     importance: 'normal',
-    actorIds: [],
-    houseIds: [],
-    polityIds,
-    provinceIds: [provinceId],
-    holdingIds: [holdingId],
-    summary: startSummary,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: startMessageKey,
+    messageParams: { initiator: initiatorName, target: targetName, province: provinceName },
+    entityRefs,
+    legacySummary: startSummary,
+    legacyPolityIds: [initiatorId, targetId],
+    legacyProvinceIds: [provinceId],
+    legacyHoldingIds: [holdingId],
+  })
   currentCtx = { ...ctxStart, events: [...ctxStart.events, startEv] }
   return currentCtx
 }

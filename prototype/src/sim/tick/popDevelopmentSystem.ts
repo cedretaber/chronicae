@@ -1,14 +1,14 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
 import type { PopClass } from '../types/popGroup'
 import type { ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import type { SimEvent } from '../types/event'
 import { getProvinceAveragePopWealth, getProvinceUnrest } from '../selectors/popSelectors'
 import { adjustProvincePopWealth } from '../mutations/popMutations'
 import { getProvinceHoldings, getProvinceHoldingsByKind } from '../selectors/landContractSelectors'
+import { nameParam, entityRef } from '../types/event'
 
 function getDominantPopClass(state: WorldState, provinceId: ProvinceId): PopClass {
   const province = state.provinces[provinceId]
@@ -88,26 +88,23 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
       -currentCtx.config.popDevelopmentCost,
     )
 
-    const { id: eventId, ctx: eventCtx } = makeEventId({
-      ...newCtx,
-      state: updatedState,
-    })
-
-    const event: SimEvent = {
-      id: eventId,
-      year: eventCtx.state.currentYear,
-      weekOfYear: eventCtx.state.currentWeekOfYear,
-      type: 'POP_LAND_DEVELOPED',
-      importance: 'minor',
-      actorIds: [],
-      houseIds: [],
-      polityIds: [],
-      provinceIds: [provinceId as ProvinceId],
-      holdingIds: [],
-      summary: `The people of ${province.name} improved their lands.`,
-      reasons: [],
-      effects: [],
-    }
+    const { event, ctx: eventCtx } = createSimEvent(
+      {
+        ...newCtx,
+        state: updatedState,
+      },
+      {
+        type: 'POP_LAND_DEVELOPED',
+        importance: 'minor',
+        messageKey: 'pop.land_developed',
+        messageParams: {
+          province: nameParam('province', province.nameKey, province.name),
+        },
+        entityRefs: [entityRef('province', provinceId, 'province', province?.nameKey)],
+        legacySummary: `The people of ${province.name} improved their lands.`,
+        legacyProvinceIds: [provinceId as ProvinceId],
+      },
+    )
 
     currentCtx = {
       ...eventCtx,

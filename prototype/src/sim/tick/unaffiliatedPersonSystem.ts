@@ -1,8 +1,8 @@
 import type { TickContext } from './context'
-import { makePersonId, makeEventId } from './context'
+import { makePersonId, createSimEvent } from './context'
 import type { PersonId } from '../types/ids'
 import type { Person, UnaffiliatedOccupation } from '../types/person'
-import type { SimEvent } from '../types/event'
+import { nameParam, entityRef } from '../types/event'
 import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { randomInt, randomFloat } from '../rng/rng'
 import type { RngState } from '../rng/rng'
@@ -135,22 +135,19 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
   let newCtx: TickContext = { ...ctxWithId, rng: rngAfterSample, state: addResult.value }
 
   // 11. PERSON_BORN_IN_OBSCURITY event
-  const { id: eventId, ctx: ec } = makeEventId(newCtx)
-  const event: SimEvent = {
-    id: eventId,
-    year: ec.state.currentYear,
-    weekOfYear: ec.state.currentWeekOfYear,
+  const { event, ctx: ec } = createSimEvent(newCtx, {
     type: 'PERSON_BORN_IN_OBSCURITY',
     importance: 'minor',
-    actorIds: [personId],
-    houseIds: [ANONYMOUS_HOUSE_ID],
-    polityIds: [],
-    provinceIds: [],
-    holdingIds: [],
-    summary: `An unknown ${occupation} named ${name} appeared.`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'person.born_in_obscurity',
+    messageParams: {
+      occupation,
+      person: nameParam('person', nameKey, name),
+    },
+    entityRefs: [entityRef('person', personId, 'person', nameKey)],
+    legacySummary: `An unknown ${occupation} named ${name} appeared.`,
+    legacyActorIds: [personId],
+    legacyHouseIds: [ANONYMOUS_HOUSE_ID],
+  })
   newCtx = { ...ec, events: [...ec.events, event] }
 
   return newCtx
@@ -224,22 +221,18 @@ function pruneUnaffiliated(ctx: TickContext, targetReduction: number): TickConte
     if (!deadResult.ok) continue
     currentCtx = { ...currentCtx, state: deadResult.value }
 
-    const { id: eventId, ctx: ec } = makeEventId(currentCtx)
-    const event: SimEvent = {
-      id: eventId,
-      year: ec.state.currentYear,
-      weekOfYear: ec.state.currentWeekOfYear,
+    const { event, ctx: ec } = createSimEvent(currentCtx, {
       type: 'PERSON_FADED_FROM_HISTORY',
       importance: 'minor',
-      actorIds: [personId],
-      houseIds: [ANONYMOUS_HOUSE_ID],
-      polityIds: [],
-      provinceIds: [],
-      holdingIds: [],
-      summary: `${person.name} faded from the chronicles.`,
-      reasons: [],
-      effects: [],
-    }
+      messageKey: 'person.faded_from_history',
+      messageParams: {
+        person: nameParam('person', person.nameKey, person.name),
+      },
+      entityRefs: [entityRef('person', personId, 'person', person.nameKey)],
+      legacySummary: `${person.name} faded from the chronicles.`,
+      legacyActorIds: [personId],
+      legacyHouseIds: [ANONYMOUS_HOUSE_ID],
+    })
     currentCtx = { ...ec, events: [...ec.events, event] }
   }
 

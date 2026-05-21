@@ -1,7 +1,8 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import type { OfficeAssignmentId } from '@sim/types/ids'
 import type { SimEvent } from '@sim/types/event'
+import { entityRef } from '@sim/types/event'
 import { getOfficeDefinition } from '@sim/config/officeDefinitions'
 import { adjustPersonAttitude } from '@sim/mutations/attitudeMutations'
 import type { WorldState } from '@sim/types/world'
@@ -97,24 +98,26 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
 
       // Emit OFFICE_SALARY_UNPAID or OFFICE_SALARY_PARTIALLY_PAID event
       const eventType = paid > 0 ? 'OFFICE_SALARY_PARTIALLY_PAID' : 'OFFICE_SALARY_UNPAID'
-      const { id: eventId, ctx: newCtx } = makeEventId({ ...ctx, state, events })
-      const event: SimEvent = {
-        id: eventId,
-        year: state.currentYear,
-        weekOfYear: state.currentWeekOfYear,
-        type: eventType,
-        importance: 'minor',
-        actorIds: [office.holderPersonId],
-        houseIds: [],
-        polityIds: org.kind === 'polity' ? [org.id] : [],
-        provinceIds: [],
-        holdingIds: [],
-        summary: `Salary ${paid > 0 ? 'partially ' : ''}unpaid for office holder.`,
-        reasons: [],
-        effects: [],
-      }
+      const evMessageKey = paid > 0 ? 'office.salary_partially_paid' : 'office.salary_unpaid'
+      const holder = state.persons[office.holderPersonId]
+      const { event, ctx: ec } = createSimEvent(
+        { ...ctx, state, events },
+        {
+          type: eventType,
+          importance: 'minor',
+          messageKey: evMessageKey,
+          messageParams: {},
+          entityRefs: [
+            entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
+            ...(org.kind === 'polity' ? [entityRef('polity', org.id, 'organization')] : []),
+          ],
+          legacySummary: `Salary ${paid > 0 ? 'partially ' : ''}unpaid for office holder.`,
+          legacyActorIds: [office.holderPersonId],
+          legacyPolityIds: org.kind === 'polity' ? [org.id] : [],
+        },
+      )
       events.push(event)
-      ctx = { ...newCtx, state, events }
+      ctx = { ...ec, state, events }
     } else {
       newUnpaidCount = Math.max(0, office.unpaidCount - 1)
     }

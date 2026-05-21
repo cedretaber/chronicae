@@ -1,5 +1,5 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import { clamp } from '../utils/math'
 import type { DiplomaticPlayId, PolityId, ProvinceId, PopGroupId, HoldingId } from '../types/ids'
 import type {
@@ -7,7 +7,9 @@ import type {
   DiplomaticPlayStatus,
   TerminalDiplomaticPlayStatus,
 } from '../types/diplomaticPlay'
-import type { SimEvent, EventType } from '../types/event'
+import type { EventType, EventMessageParams, EventEntityRef } from '../types/event'
+import type { SimEvent } from '../types/event'
+import { entityRef } from '../types/event'
 import { adjustProvincePopUnrestByClass, adjustProvincePopUnrest } from '../mutations/popMutations'
 import { adjustProvinceDevelopment } from '../mutations/provinceMutations'
 import { disbandRebelPolity, type RebelLeaderAftermath } from '../mutations/worldStructureMutations'
@@ -96,19 +98,41 @@ function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickCo
       nextCtx = { ...nextCtx, state: reducedState }
     }
     // 既存 conflictResolutionSystem.ts は spec §18 互換のため REVOLT_POLITY_ESTABLISHED 発火
+    const provinceName = nextCtx.state.provinces[provinceId]?.name ?? provinceId
     nextCtx = emitEvent(nextCtx, {
       type: 'REVOLT_POLITY_ESTABLISHED',
       importance: 'critical',
       polityIds: [rebelPolityId, targetPolityId],
       provinceIds: [provinceId],
       holdingIds: [],
-      summary: `The revolt in ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} has triumphed — independence is achieved.`,
+      summary: `The revolt in ${provinceName ?? provinceId} has triumphed — independence is achieved.`,
+      messageKey: 'revolt.triumphant',
+      messageParams: { province: provinceName },
+      eventEntityRefs: [
+        entityRef('province', provinceId, 'province', provinceName),
+        entityRef(
+          'polity',
+          rebelPolityId,
+          'rebel_polity',
+          nextCtx.state.polities[rebelPolityId]?.name,
+        ),
+        entityRef(
+          'polity',
+          targetPolityId,
+          'target_polity',
+          nextCtx.state.polities[targetPolityId]?.name,
+        ),
+      ],
     })
     return emitResolvedByConflictEvent(nextCtx, play, {
       polityIds: [rebelPolityId, targetPolityId],
       provinceIds: [provinceId],
       holdingIds: [],
       summary: `Conflict over ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} ended with rebel victory.`,
+      messageKey: 'diplomatic_play.resolved_by_conflict',
+      messageParams: {
+        summary: `Conflict over ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} ended with rebel victory.`,
+      },
     })
   }
 
@@ -168,6 +192,10 @@ function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickCo
     provinceIds: [provinceId],
     holdingIds: [],
     summary: `Revolt in ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} was put down by force.`,
+    messageKey: 'diplomatic_play.resolved_by_conflict',
+    messageParams: {
+      summary: `Revolt in ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} was put down by force.`,
+    },
   })
 }
 
@@ -250,17 +278,26 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
     })
 
     nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
+    const attackerName = nextCtx.state.polities[attackerPolityId]?.name
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.name
+    const provinceName = nextCtx.state.provinces[provinceId]?.name
     nextCtx = emitWarOutcomeEvents(nextCtx, {
       winner: attackerPolityId,
       loser: defenderPolityId,
       provinceId,
       holdingIds: [holdingId],
+      winnerName: attackerName,
+      loserName: defenderName,
     })
     return emitResolvedByConflictEvent(nextCtx, play, {
       polityIds: [attackerPolityId, defenderPolityId],
       provinceIds: [provinceId],
       holdingIds: [holdingId],
-      summary: `${nextCtx.state.polities[attackerPolityId]?.name ?? attackerPolityId} seized ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} from ${nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId}.`,
+      summary: `${attackerName ?? attackerPolityId} seized ${provinceName ?? provinceId} from ${defenderName ?? defenderPolityId}.`,
+      messageKey: 'diplomatic_play.resolved_by_conflict',
+      messageParams: {
+        summary: `${attackerName ?? attackerPolityId} seized ${provinceName ?? provinceId} from ${defenderName ?? defenderPolityId}.`,
+      },
     })
   }
 
@@ -276,17 +313,26 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
   })
 
   nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
+  const attackerName = nextCtx.state.polities[attackerPolityId]?.name
+  const defenderName = nextCtx.state.polities[defenderPolityId]?.name
+  const provinceName = nextCtx.state.provinces[provinceId]?.name
   nextCtx = emitWarOutcomeEvents(nextCtx, {
     winner: defenderPolityId,
     loser: attackerPolityId,
     provinceId,
     holdingIds: [holdingId],
+    winnerName: defenderName,
+    loserName: attackerName,
   })
   return emitResolvedByConflictEvent(nextCtx, play, {
     polityIds: [attackerPolityId, defenderPolityId],
     provinceIds: [provinceId],
     holdingIds: [holdingId],
-    summary: `${nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId} repelled ${nextCtx.state.polities[attackerPolityId]?.name ?? attackerPolityId}'s claim on ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
+    summary: `${defenderName ?? defenderPolityId} repelled ${attackerName ?? attackerPolityId}'s claim on ${provinceName ?? provinceId}.`,
+    messageKey: 'diplomatic_play.resolved_by_conflict',
+    messageParams: {
+      summary: `${defenderName ?? defenderPolityId} repelled ${attackerName ?? attackerPolityId}'s claim on ${provinceName ?? provinceId}.`,
+    },
   })
 }
 
@@ -381,17 +427,26 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
     })
 
     nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
+    const attackerName = nextCtx.state.polities[attackerPolityId]?.name
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.name
+    const provinceName = nextCtx.state.provinces[provinceId]?.name
     nextCtx = emitWarOutcomeEvents(nextCtx, {
       winner: attackerPolityId,
       loser: defenderPolityId,
       provinceId,
       holdingIds: [holdingId],
+      winnerName: attackerName,
+      loserName: defenderName,
     })
     return emitResolvedByConflictEvent(nextCtx, play, {
       polityIds: [attackerPolityId, defenderPolityId],
       provinceIds: [provinceId],
       holdingIds: [holdingId],
-      summary: `${nextCtx.state.polities[attackerPolityId]?.name ?? attackerPolityId} prevails in the tax dispute over ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
+      summary: `${attackerName ?? attackerPolityId} prevails in the tax dispute over ${provinceName ?? provinceId}.`,
+      messageKey: 'diplomatic_play.resolved_by_conflict',
+      messageParams: {
+        summary: `${attackerName ?? attackerPolityId} prevails in the tax dispute over ${provinceName ?? provinceId}.`,
+      },
     })
   }
 
@@ -407,17 +462,26 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
   })
 
   nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
+  const attackerName = nextCtx.state.polities[attackerPolityId]?.name
+  const defenderName = nextCtx.state.polities[defenderPolityId]?.name
+  const provinceName = nextCtx.state.provinces[provinceId]?.name
   nextCtx = emitWarOutcomeEvents(nextCtx, {
     winner: defenderPolityId,
     loser: attackerPolityId,
     provinceId,
     holdingIds: [holdingId],
+    winnerName: defenderName,
+    loserName: attackerName,
   })
   return emitResolvedByConflictEvent(nextCtx, play, {
     polityIds: [attackerPolityId, defenderPolityId],
     provinceIds: [provinceId],
     holdingIds: [holdingId],
-    summary: `${nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId} repels the tax revision demand for ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
+    summary: `${defenderName ?? defenderPolityId} repels the tax revision demand for ${provinceName ?? provinceId}.`,
+    messageKey: 'diplomatic_play.resolved_by_conflict',
+    messageParams: {
+      summary: `${defenderName ?? defenderPolityId} repels the tax revision demand for ${provinceName ?? provinceId}.`,
+    },
   })
 }
 
@@ -540,7 +604,14 @@ function applyConflictDamage(
 
 function emitWarOutcomeEvents(
   ctx: TickContext,
-  input: { winner: PolityId; loser: PolityId; provinceId: ProvinceId; holdingIds: HoldingId[] },
+  input: {
+    winner: PolityId
+    loser: PolityId
+    provinceId: ProvinceId
+    holdingIds: HoldingId[]
+    winnerName: string | undefined
+    loserName: string | undefined
+  },
 ): TickContext {
   let nextCtx = emitEvent(ctx, {
     type: 'WAR_WON',
@@ -548,7 +619,22 @@ function emitWarOutcomeEvents(
     polityIds: [input.winner, input.loser],
     provinceIds: [input.provinceId],
     holdingIds: input.holdingIds,
-    summary: `${ctx.state.polities[input.winner]?.name ?? input.winner} prevailed in war against ${ctx.state.polities[input.loser]?.name ?? input.loser}.`,
+    summary: `${input.winnerName ?? input.winner} prevailed in war against ${input.loserName ?? input.loser}.`,
+    messageKey: 'war.won',
+    messageParams: {
+      winner: input.winnerName ?? input.winner,
+      loser: input.loserName ?? input.loser,
+    },
+    eventEntityRefs: [
+      entityRef('polity', input.winner, 'winner', input.winnerName),
+      entityRef('polity', input.loser, 'loser', input.loserName),
+      entityRef(
+        'province',
+        input.provinceId,
+        'province',
+        ctx.state.provinces[input.provinceId]?.name,
+      ),
+    ],
   })
   nextCtx = emitEvent(nextCtx, {
     type: 'WAR_LOST',
@@ -556,7 +642,22 @@ function emitWarOutcomeEvents(
     polityIds: [input.loser, input.winner],
     provinceIds: [input.provinceId],
     holdingIds: input.holdingIds,
-    summary: `${ctx.state.polities[input.loser]?.name ?? input.loser} was defeated by ${ctx.state.polities[input.winner]?.name ?? input.winner}.`,
+    summary: `${input.loserName ?? input.loser} was defeated by ${input.winnerName ?? input.winner}.`,
+    messageKey: 'war.lost',
+    messageParams: {
+      loser: input.loserName ?? input.loser,
+      winner: input.winnerName ?? input.winner,
+    },
+    eventEntityRefs: [
+      entityRef('polity', input.loser, 'loser', input.loserName),
+      entityRef('polity', input.winner, 'winner', input.winnerName),
+      entityRef(
+        'province',
+        input.provinceId,
+        'province',
+        ctx.state.provinces[input.provinceId]?.name,
+      ),
+    ],
   })
   return nextCtx
 }
@@ -571,6 +672,8 @@ function emitResolvedByConflictEvent(
     provinceIds: ProvinceId[]
     holdingIds: HoldingId[]
     summary: string
+    messageKey: string
+    messageParams: EventMessageParams
   },
 ): TickContext {
   return emitEvent(ctx, {
@@ -580,6 +683,9 @@ function emitResolvedByConflictEvent(
     provinceIds: meta.provinceIds,
     holdingIds: meta.holdingIds,
     summary: meta.summary,
+    messageKey: meta.messageKey,
+    messageParams: meta.messageParams,
+    eventEntityRefs: [],
   })
 }
 
@@ -592,25 +698,23 @@ function emitEvent(
     provinceIds: ProvinceId[]
     holdingIds: import('../types/ids').HoldingId[]
     summary: string
+    messageKey: string
+    messageParams: EventMessageParams
+    eventEntityRefs: EventEntityRef[]
   },
 ): TickContext {
-  const { id: eid, ctx: ctxEv } = makeEventId(ctx)
-  const ev: SimEvent = {
-    id: eid,
-    year: ctxEv.state.currentYear,
-    weekOfYear: ctxEv.state.currentWeekOfYear,
+  const { event, ctx: ctxEv } = createSimEvent(ctx, {
     type: input.type,
     importance: input.importance,
-    actorIds: [],
-    houseIds: [],
-    polityIds: input.polityIds,
-    provinceIds: input.provinceIds,
-    holdingIds: input.holdingIds,
-    summary: input.summary,
-    reasons: [],
-    effects: [],
-  }
-  return { ...ctxEv, events: [...ctxEv.events, ev] }
+    messageKey: input.messageKey,
+    messageParams: input.messageParams,
+    entityRefs: input.eventEntityRefs,
+    legacySummary: input.summary,
+    legacyPolityIds: input.polityIds,
+    legacyProvinceIds: input.provinceIds,
+    legacyHoldingIds: input.holdingIds,
+  })
+  return { ...ctxEv, events: [...ctxEv.events, event] }
 }
 
 function setPlayStatus(

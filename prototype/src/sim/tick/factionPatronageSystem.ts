@@ -1,8 +1,8 @@
 import type { TickContext } from './context'
 import type { PersonId } from '../types/ids'
-import type { SimEvent } from '../types/event'
+import { createSimEvent } from './context'
+import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
-import { makeEventId } from './context'
 import { getActiveFactions, getFactionActiveMemberIds } from '../selectors/factionSelectors'
 import { addPersonWealth } from '../mutations/personMutations'
 import { adjustPersonAttitudeIfExists } from '../mutations/attitudeMutations'
@@ -93,22 +93,22 @@ export function runFactionPatronageSystem(ctx: TickContext): TickContext {
     if (unpaidCount >= 1) {
       const leaderAfter = currentCtx.state.persons[faction.leaderPersonId]
       if (leaderAfter && leaderAfter.wealth >= config.factionDisbandWealthFloor) {
-        const { id: eventId, ctx: ec } = makeEventId(currentCtx)
-        const event: SimEvent = {
-          id: eventId,
-          year: ec.state.currentYear,
-          weekOfYear: ec.state.currentWeekOfYear,
+        const { event, ctx: ec } = createSimEvent(currentCtx, {
           type: 'FACTION_FUNDS_SHORTAGE',
           importance: 'normal',
-          actorIds: [faction.leaderPersonId],
-          houseIds: [leaderAfter.houseId],
-          polityIds: [],
-          provinceIds: [],
-          holdingIds: [],
-          summary: `${leaderAfter.name}'s ${faction.name} faces a financial crisis.`,
-          reasons: [],
-          effects: [],
-        }
+          messageKey: 'faction.funds_shortage',
+          messageParams: {
+            person: nameParam('person', leaderAfter.nameKey, leaderAfter.name),
+            faction: faction.name,
+          },
+          entityRefs: [
+            entityRef('person', faction.leaderPersonId, 'leader', leaderAfter.nameKey),
+            entityRef('faction', faction.id, 'faction'),
+          ],
+          legacySummary: `${leaderAfter.name}'s ${faction.name} faces a financial crisis.`,
+          legacyActorIds: [faction.leaderPersonId],
+          legacyHouseIds: [leaderAfter.houseId],
+        })
         currentCtx = { ...ec, events: [...ec.events, event] }
       }
     }

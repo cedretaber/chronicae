@@ -1,7 +1,15 @@
 import type { TickContext } from '../tick/context'
-import { makeHouseId, makePersonId, makePolityId, makeEventId } from '../tick/context'
+import {
+  makeHouseId,
+  makePersonId,
+  makePolityId,
+  makeEventId,
+  createSimEvent,
+} from '../tick/context'
+import { nameParam, entityRef } from '../types/event'
 import { randomFloat, randomInt } from '../rng/rng'
-import type { HouseId, PersonId, ProvinceId, PolityId } from '../types/ids'
+import type { HouseId, PersonId, ProvinceId, PolityId, HoldingId } from '../types/ids'
+import type { EventReason, EventEffect } from '../types/event'
 import type { House } from '../types/house'
 import type { Person } from '../types/person'
 import type { Polity } from '../types/polity'
@@ -184,6 +192,9 @@ export function splitHouse(
   }
 
   const housePolityId = getHousePrimaryPolityId(resultCtx.state, house.id)
+
+  // v0.16 TODO Stage B: split された Province を新 House 配下に移すには新規 sub-Polity を作る必要がある。
+  // Stage A では Province 帰属の更新を行わない (新 House は controlled 0 で start)。
   if (housePolityId) {
     const newPolities = { ...resultCtx.state.polities }
     const polity = resultCtx.state.polities[housePolityId]
@@ -195,22 +206,28 @@ export function splitHouse(
     resultCtx = { ...resultCtx, state: { ...resultCtx.state, polities: newPolities } }
   }
 
-  const { id: eventId, ctx: eventCtx } = makeEventId(resultCtx)
-  const splitEvent: SimEvent = {
-    id: eventId,
-    year: resultCtx.state.currentYear,
-    weekOfYear: resultCtx.state.currentWeekOfYear,
+  // HOUSE_SPLIT event
+  const { event: splitEvent, ctx: eventCtx } = createSimEvent(resultCtx, {
     type: 'HOUSE_SPLIT',
     importance: 'major',
-    actorIds: [splitterPerson.id],
-    houseIds: [input.houseId, newHouseId],
-    polityIds: [housePolityId ?? ('' as PolityId)],
-    provinceIds: splitProvinces,
-    holdingIds: [],
-    summary: `${splitterPerson.name} has split from ${house.name} to form a new house.`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'house.split',
+    messageParams: {
+      person: nameParam('person', splitterPerson.nameKey, splitterPerson.name),
+      fromHouse: nameParam('house', house.nameKey, house.name),
+      toHouse: nameParam('house', undefined, splitterPerson.name + "'s House"),
+    },
+    entityRefs: [
+      entityRef('person', splitterPerson.id, 'splitter', splitterPerson.nameKey),
+      entityRef('house', input.houseId, 'from_house', house.nameKey),
+      entityRef('house', newHouseId, 'to_house'),
+      ...(housePolityId ? [entityRef('polity', housePolityId, 'polity')] : []),
+    ],
+    legacySummary: `${splitterPerson.name} has split from ${house.name} to form a new house.`,
+    legacyActorIds: [splitterPerson.id],
+    legacyHouseIds: [input.houseId, newHouseId],
+    legacyPolityIds: [housePolityId ?? ('' as PolityId)],
+    legacyProvinceIds: splitProvinces,
+  })
   resultCtx = { ...eventCtx, state: resultCtx.state, events: [...eventCtx.events, splitEvent] }
 
   const log = createLogger(ctx.config.debug)
@@ -222,22 +239,31 @@ export function splitHouse(
     new_house: newHouseId,
   })
 
-  const { id: crisisId, ctx: crisisCtx } = makeEventId(resultCtx)
-  const crisisEvent: SimEvent = {
-    id: crisisId,
-    year: resultCtx.state.currentYear,
-    weekOfYear: resultCtx.state.currentWeekOfYear,
+  // SUCCESSION_CRISIS event
+  const { event: crisisEvent, ctx: crisisCtx } = createSimEvent(resultCtx, {
     type: 'SUCCESSION_CRISIS',
     importance: 'major',
-    actorIds: [splitterPerson.id],
-    houseIds: [input.houseId],
-    polityIds: [housePolityId ?? ('' as PolityId)],
-    provinceIds: [],
-    holdingIds: [],
-    summary: `A succession crisis has erupted due to the house split!`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'succession.crisis_split',
+    messageParams: {
+      house: nameParam('house', house.nameKey, house.name),
+      polity: housePolityId
+        ? nameParam(
+            'polity',
+            resultCtx.state.polities[housePolityId]?.nameKey,
+            resultCtx.state.polities[housePolityId]?.name ?? String(housePolityId),
+          )
+        : '',
+    },
+    entityRefs: [
+      entityRef('house', input.houseId, 'crisis_house', house.nameKey),
+      entityRef('person', splitterPerson.id, 'splitter', splitterPerson.nameKey),
+      ...(housePolityId ? [entityRef('polity', housePolityId, 'polity')] : []),
+    ],
+    legacySummary: `A succession crisis has erupted due to the house split!`,
+    legacyActorIds: [splitterPerson.id],
+    legacyHouseIds: [input.houseId],
+    legacyPolityIds: [housePolityId ?? ('' as PolityId)],
+  })
   resultCtx = { ...crisisCtx, state: resultCtx.state, events: [...crisisCtx.events, crisisEvent] }
 
   return ok({ ctx: resultCtx, value: { newHouseId } })
@@ -417,42 +443,38 @@ function handleNormalHouseExtinction(
     let eventCtx: TickContext = { ...ctx, state: finalState }
 
     if (livingMemberIds.length > 0) {
-      const { id: dispersedEventId, ctx: ec1 } = makeEventId(eventCtx)
-      const dispersedEvent: SimEvent = {
-        id: dispersedEventId,
-        year: finalState.currentYear,
-        weekOfYear: finalState.currentWeekOfYear,
+      const { event: dispersedEvent, ctx: ec1 } = createSimEvent(eventCtx, {
         type: 'HOUSE_MEMBERS_DISPERSED',
         importance: 'normal',
-        actorIds: livingMemberIds,
-        houseIds: [houseId, ANONYMOUS_HOUSE_ID],
-        polityIds: [],
-        provinceIds: [],
-        holdingIds: [],
-        summary: `The remnants of ${house.name} dispersed into obscurity.`,
-        reasons: [],
-        effects: [],
-      }
+        messageKey: 'house.members_dispersed',
+        messageParams: {
+          house: nameParam('house', house.nameKey, house.name),
+        },
+        entityRefs: [
+          entityRef('house', houseId, 'house', house.nameKey),
+          entityRef('house', ANONYMOUS_HOUSE_ID, 'anonymous'),
+        ],
+        legacySummary: `The remnants of ${house.name} dispersed into obscurity.`,
+        legacyActorIds: livingMemberIds,
+        legacyHouseIds: [houseId, ANONYMOUS_HOUSE_ID],
+      })
       eventCtx = { ...ec1, events: [...ec1.events, dispersedEvent] }
     }
 
-    const { id: eventId, ctx: ec2 } = makeEventId(eventCtx)
-    const event: SimEvent = {
-      id: eventId,
-      year: finalState.currentYear,
-      weekOfYear: finalState.currentWeekOfYear,
+    const { event: event2, ctx: ec2 } = createSimEvent(eventCtx, {
       type: 'HOUSE_EXTINCT',
       importance: 'major',
-      actorIds: [],
-      houseIds: [houseId],
-      polityIds: eventPolityIds,
-      provinceIds: [],
-      holdingIds: [],
-      summary: `${house.name} has become extinct with no surviving house to inherit its legacy.`,
-      reasons: [],
-      effects: [],
-    }
-    return { ...ec2, events: [...ec2.events, event] }
+      messageKey: 'house.extinct',
+      messageParams: {
+        house: nameParam('house', house.nameKey, house.name),
+      },
+      entityRefs: [entityRef('house', houseId, 'house', house.nameKey)],
+      legacySummary: `${house.name} has become extinct with no surviving house to inherit its legacy.`,
+      legacyActorIds: [],
+      legacyHouseIds: [houseId],
+      legacyPolityIds: eventPolityIds,
+    })
+    return { ...ec2, events: [...ec2.events, event2] }
   }
 
   let resultCtx = ctx
@@ -508,21 +530,34 @@ function handleNormalHouseExtinction(
 
     // POLITY_OWNER_CHANGED イベントを後でまとめて発火するため記録
     const receiverHouse = chainState.houses[receiverHouseId]
-    ownerChangedEvents.push({
+    const partialEvent = {
       id: '' as ReturnType<typeof makeEventId>['id'], // 後で発番
       year: chainState.currentYear,
       weekOfYear: chainState.currentWeekOfYear,
-      type: 'POLITY_OWNER_CHANGED',
-      importance: 'major',
-      actorIds: [],
+      type: 'POLITY_OWNER_CHANGED' as const,
+      importance: 'major' as const,
+      actorIds: [] as PersonId[],
       houseIds: [houseId, receiverHouseId],
       polityIds: [polityId],
-      provinceIds: [],
-      holdingIds: [],
+      provinceIds: [] as ProvinceId[],
+      holdingIds: [] as HoldingId[],
       summary: `${polity.name}'s ruling house changed from ${house.name} to ${receiverHouse?.name ?? receiverHouseId} after the extinction.`,
-      reasons: [],
-      effects: [],
-    })
+      reasons: [] as EventReason[],
+      effects: [] as EventEffect[],
+      // i18n fields from createSimEvent pattern
+      messageKey: 'polity.owner_changed_extinction',
+      messageParams: {
+        polity: nameParam('polity', polity.nameKey, polity.name),
+        fromHouse: nameParam('house', house.nameKey, house.name),
+        toHouse: nameParam('house', receiverHouse?.nameKey, receiverHouse?.name ?? receiverHouseId),
+      },
+      entityRefs: [
+        entityRef('house', houseId, 'from_house', house.nameKey),
+        entityRef('house', receiverHouseId, 'to_house', receiverHouse?.nameKey),
+        entityRef('polity', polityId, 'polity', polity.nameKey),
+      ],
+    }
+    ownerChangedEvents.push(partialEvent)
   }
   resultCtx = { ...resultCtx, state: chainState }
 
@@ -546,25 +581,30 @@ function handleNormalHouseExtinction(
 
   const finalState = { ...resultCtx.state, houses: newHouses }
 
-  const { id: eventId, ctx: eventCtx } = makeEventId({ ...resultCtx, state: finalState })
-  const event: SimEvent = {
-    id: eventId,
-    year: finalState.currentYear,
-    weekOfYear: finalState.currentWeekOfYear,
-    type: 'HOUSE_EXTINCT',
-    importance: 'major',
-    actorIds: [],
-    houseIds: [houseId, receiverHouseId],
-    polityIds: eventPolityIds,
-    provinceIds: sortedProvinceIds,
-    holdingIds: [],
-    summary:
-      inheritedPolityIds.length > 0
-        ? `${house.name} has become extinct; its realm is inherited by another house.`
-        : `${house.name} has become extinct; its legacy passes to another house.`,
-    reasons: [],
-    effects: [],
-  }
+  const { event: event3, ctx: eventCtx } = createSimEvent(
+    { ...resultCtx, state: finalState },
+    {
+      type: 'HOUSE_EXTINCT',
+      importance: 'major',
+      messageKey:
+        inheritedPolityIds.length > 0 ? 'house.extinct_inherited' : 'house.extinct_legacy',
+      messageParams: {
+        house: nameParam('house', house.nameKey, house.name),
+      },
+      entityRefs: [
+        entityRef('house', houseId, 'extinct_house', house.nameKey),
+        entityRef('house', receiverHouseId, 'inheriting_house'),
+      ],
+      legacySummary:
+        inheritedPolityIds.length > 0
+          ? `${house.name} has become extinct; its realm is inherited by another house.`
+          : `${house.name} has become extinct; its legacy passes to another house.`,
+      legacyActorIds: [],
+      legacyHouseIds: [houseId, receiverHouseId],
+      legacyPolityIds: eventPolityIds,
+      legacyProvinceIds: sortedProvinceIds,
+    },
+  )
 
   const log = createLogger(ctx.config.debug)
   log.log('HOUSE_EXTINCT', {
@@ -575,7 +615,7 @@ function handleNormalHouseExtinction(
     receiver: receiverHouseId,
   })
 
-  return { ...eventCtx, state: finalState, events: [...eventCtx.events, event] }
+  return { ...eventCtx, state: finalState, events: [...eventCtx.events, event3] }
 }
 
 // v0.15 §22.3: affectedPolityIds は所領喪失前の getHousePolityIds スナップショット。
@@ -818,22 +858,24 @@ export function createRebelPolity(
 
         // Emit HOUSE_EXTINCT event
         ctx = { ...ctx, state: newState }
-        const { id: extinctEventId, ctx: ctxE } = makeEventId(ctx)
-        const extinctEvent: SimEvent = {
-          id: extinctEventId,
-          year: ctxE.state.currentYear,
-          weekOfYear: ctxE.state.currentWeekOfYear,
+        const { event: extinctEvent, ctx: ctxE } = createSimEvent(ctx, {
           type: 'HOUSE_EXTINCT',
           importance: 'major',
-          actorIds: [],
-          houseIds: [oldOwnerHouseId],
-          polityIds: [oldPolityId],
-          provinceIds: [provinceId],
-          holdingIds: [],
-          summary: `${oldOwnerHouse.name} has fallen from power after losing all lands.`,
-          reasons: [],
-          effects: [],
-        }
+          messageKey: 'house.extinct_fallen',
+          messageParams: {
+            house: nameParam('house', oldOwnerHouse.nameKey, oldOwnerHouse.name),
+          },
+          entityRefs: [
+            entityRef('house', oldOwnerHouseId, 'fallen_house', oldOwnerHouse.nameKey),
+            entityRef('polity', oldPolityId, 'polity'),
+            entityRef('province', provinceId, 'province'),
+          ],
+          legacySummary: `${oldOwnerHouse.name} has fallen from power after losing all lands.`,
+          legacyActorIds: [],
+          legacyHouseIds: [oldOwnerHouseId],
+          legacyPolityIds: [oldPolityId],
+          legacyProvinceIds: [provinceId],
+        })
         ctx = { ...ctxE, events: [...ctxE.events, extinctEvent] }
       } else {
         ctx = { ...ctx, state: newState }
@@ -846,23 +888,28 @@ export function createRebelPolity(
   }
 
   // Emit REVOLT_POLITY_FOUNDED event
-  const { id: eventId, ctx: ctx4 } = makeEventId(ctx)
-  const event: SimEvent = {
-    id: eventId,
-    year: ctx4.state.currentYear,
-    weekOfYear: ctx4.state.currentWeekOfYear,
+  const { event: revoltEvent, ctx: ctx4 } = createSimEvent(ctx, {
     type: 'REVOLT_POLITY_FOUNDED',
     importance: 'critical',
-    actorIds: [newPersonId],
-    houseIds: [],
-    polityIds: [newPolityId, oldPolityId],
-    provinceIds: [provinceId],
-    holdingIds: [],
-    summary: `${newPolityObj.name} has been founded by ${newLeader.name} through revolt in ${province.name}!`,
-    reasons: [],
-    effects: [],
-  }
-  ctx = { ...ctx4, events: [...ctx4.events, event] }
+    messageKey: 'revolt.polity_founded',
+    messageParams: {
+      polity: nameParam('polity', newPolityObj.nameKey ?? '', newPolityObj.name),
+      leader: nameParam('person', newLeader.nameKey, newLeader.name),
+      province: nameParam('province', province.nameKey, province.name),
+    },
+    entityRefs: [
+      entityRef('person', newPersonId, 'leader', newLeader.nameKey),
+      entityRef('polity', newPolityId, 'new_polity', newPolityObj.nameKey),
+      entityRef('polity', oldPolityId, 'old_polity'),
+      entityRef('province', provinceId, 'province', province.nameKey),
+    ],
+    legacySummary: `${newPolityObj.name} has been founded by ${newLeader.name} through revolt in ${province.name}!`,
+    legacyActorIds: [newPersonId],
+    legacyHouseIds: [],
+    legacyPolityIds: [newPolityId, oldPolityId],
+    legacyProvinceIds: [provinceId],
+  })
+  ctx = { ...ctx4, events: [...ctx4.events, revoltEvent] }
 
   return ok({ ctx, value: { polityId: newPolityId, personId: newPersonId } })
 }
@@ -1009,30 +1056,45 @@ export function disbandRebelPolity(
   let nextCtx: TickContext = { ...ctx, state }
 
   // 7. event 発火
-  const { id: eventId, ctx: ctxEvent } = makeEventId(nextCtx)
   const aftermathText = REBEL_AFTERMATH_NARRATIONS[input.leaderAftermath]
-  const restoreName = ctxEvent.state.polities[input.restoreToPolityId]?.name ?? 'the realm'
-  const provinceName = ctxEvent.state.provinces[input.provinceId]?.name ?? input.provinceId
-  const summary =
-    input.reason === 'settlement'
-      ? `The revolt in ${provinceName} has been settled by negotiation — its leader ${aftermathText}, and the province returns to ${restoreName}.`
-      : `The revolt in ${provinceName} has been suppressed — its leader ${aftermathText}, and the province returns to ${restoreName}.`
-  const event: SimEvent = {
-    id: eventId,
-    year: ctxEvent.state.currentYear,
-    weekOfYear: ctxEvent.state.currentWeekOfYear,
-    type: input.reason === 'settlement' ? 'REVOLT_SETTLED' : 'REVOLT_SUPPRESSED',
+  const restoreName = state.polities[input.restoreToPolityId]?.name ?? 'the realm'
+  const provinceName = state.provinces[input.provinceId]?.name ?? input.provinceId
+  const eventType = input.reason === 'settlement' ? 'REVOLT_SETTLED' : 'REVOLT_SUPPRESSED'
+  const messageKey = input.reason === 'settlement' ? 'revolt.settled' : 'revolt.suppressed'
+  const { event: revoltEvent, ctx: ctxEvent } = createSimEvent(nextCtx, {
+    type: eventType,
     importance: 'major',
-    actorIds: rebelLeaderId !== undefined ? [rebelLeaderId] : [],
-    houseIds: [],
-    polityIds: [input.rebelPolityId, input.restoreToPolityId],
-    provinceIds: [input.provinceId],
-    holdingIds: [],
-    summary,
-    reasons: [],
-    effects: [],
-  }
-  nextCtx = { ...ctxEvent, events: [...ctxEvent.events, event] }
+    messageKey,
+    messageParams: {
+      province: nameParam('province', province.nameKey, province.name),
+      leader:
+        rebelLeaderId !== undefined
+          ? nameParam(
+              'person',
+              state.persons[rebelLeaderId]?.nameKey,
+              state.persons[rebelLeaderId]?.name ?? '',
+            )
+          : '',
+      polity: nameParam('polity', restorePolity.nameKey, restorePolity.name),
+    },
+    entityRefs: [
+      rebelLeaderId !== undefined
+        ? entityRef('person', rebelLeaderId, 'leader')
+        : entityRef('person', '', 'leader'),
+      entityRef('polity', input.rebelPolityId, 'rebel_polity'),
+      entityRef('polity', input.restoreToPolityId, 'restored_polity', restorePolity.nameKey),
+      entityRef('province', input.provinceId, 'province', province.nameKey),
+    ].filter((ref): ref is typeof ref & { id: string } => ref.id !== ''),
+    legacySummary:
+      input.reason === 'settlement'
+        ? `The revolt in ${provinceName} has been settled by negotiation — its leader ${aftermathText}, and the province returns to ${restoreName}.`
+        : `The revolt in ${provinceName} has been suppressed — its leader ${aftermathText}, and the province returns to ${restoreName}.`,
+    legacyActorIds: rebelLeaderId !== undefined ? [rebelLeaderId] : [],
+    legacyHouseIds: [],
+    legacyPolityIds: [input.rebelPolityId, input.restoreToPolityId],
+    legacyProvinceIds: [input.provinceId],
+  })
+  nextCtx = { ...ctxEvent, events: [...ctxEvent.events, revoltEvent] }
 
   return ok({ ctx: nextCtx, value: undefined })
 }

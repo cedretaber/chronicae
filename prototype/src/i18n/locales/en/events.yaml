@@ -1,0 +1,116 @@
+# Event message templates (en)
+# Keys correspond to SimEvent.messageKey values.
+# i18next interpolation: {{variable}}
+
+person:
+  died: '{{person}} has died at age {{age}}.'
+  born: '{{child}} was born.'
+  born_in_obscurity: 'An unknown {{occupation}} named {{person}} appeared.'
+  faded_from_history: '{{person}} faded from the chronicles.'
+
+marriage:
+  formed: '{{male}} married {{female}}.'
+
+house:
+  split: '{{person}} has split from {{house}} to form a new house.'
+  extinct: '{{house}} has become extinct with no surviving house to inherit its legacy.'
+  extinct_inherited: '{{house}} has become extinct; its realm is inherited by another house.'
+  extinct_legacy: '{{house}} has become extinct; its legacy passes to another house.'
+  extinct_fallen: '{{house}} has fallen from power after losing all lands.'
+  members_dispersed: 'The remnants of {{house}} dispersed into obscurity.'
+  leader_changed: '{{person}} has become the new head of {{house}}.'
+  land_developed: '{{house}} invested in developing {{province}}.'
+
+polity:
+  leader_changed: '{{person}} has become the new ruler of {{polity}}.'
+  owner_changed: "{{polity}}'s ruling house changed to {{newHouse}}, and the capital moved to {{province}}."
+  owner_changed_initial: "{{polity}}'s ruling house is now {{newHouse}}; capital set to {{province}}."
+  owner_changed_extinction: "{{polity}}'s ruling house changed from {{oldHouse}} to {{newHouse}} after the extinction."
+  extinct_no_provinces: '{{polity}} has dissolved without remaining provinces.'
+  extinct_no_owner: '{{polity}} has dissolved without an owning house.'
+  extinct_lost_owner: '{{polity}} has dissolved after losing its owning house.'
+  landless: '{{polity}} no longer holds any land.'
+  land_developed: '{{polity}} invested in land development in {{province}}.'
+
+succession:
+  crisis: 'A succession crisis has erupted in {{house}}!'
+  crisis_split: A succession crisis has erupted due to the house split!
+
+plot:
+  started: '{{person}} began a {{plotType}} plot.'
+  succeeded: "{{person}}'s {{plotType}} plot succeeded."
+  failed: "{{person}}'s {{plotType}} plot failed."
+
+office:
+  assigned_polity: '{{person}} was appointed as {{role}} of {{polity}}.'
+  assigned_house: '{{person}} was appointed as {{role}} of {{house}}.'
+  revoked: "Office of {{role}} in {{organization}} was revoked as the holder's house no longer holds province in this polity."
+  term_ended: "{{person}}'s term as {{role}} ended."
+  salary_unpaid: Salary unpaid for office holder.
+  salary_partially_paid: Salary partially unpaid for office holder.
+
+estate:
+  settled: "{{person}}'s estate of {{wealth}} distributed: {{houseAmount}} to house, {{heirAmount}} to heirs."
+  disputed: "Multiple heirs ({{count}}) contest {{person}}'s estate."
+
+disaster:
+  famine: 'Famine strikes {{province}}!'
+  plague: 'Plague spreads through {{province}}!'
+  bountiful_harvest: 'A bountiful harvest blesses {{province}}.'
+
+pop:
+  land_developed: 'The people of {{province}} improved their lands.'
+
+war:
+  won: '{{winner}} prevailed in war against {{loser}}.'
+  lost: '{{loser}} was defeated by {{winner}}.'
+
+revolt:
+  negotiation_started: 'A {{rebelClass}} revolt has broken out in {{province}} — negotiations begin.'
+  polity_founded: '{{polity}} has been founded by {{person}} through revolt in {{province}}!'
+  settled: 'The revolt in {{province}} has been settled by negotiation — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.'
+  suppressed: 'The revolt in {{province}} has been suppressed — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.'
+
+diplomatic_play:
+  started_with_offer: '{{initiator}} negotiates with {{target}} for {{province}}.'
+  started_no_offer: '{{initiator}} pressures {{target}} to cede {{province}}.'
+  progress: 'Diplomatic negotiations continue over {{province}}.'
+  settled_revolt: 'Revolt negotiation in {{province}} settled — concessions granted.'
+  settled_tax: 'Tax revision for {{province}} settled.'
+  settled_purchase: '{{initiator}} purchased {{province}} from {{defender}} for {{price}} gold.'
+  settled_cession: '{{defender}} ceded {{province}} to {{initiator}} under pressure.'
+  failed_revolt: 'Revolt negotiation in {{province}} ended without resolution.'
+  failed_claim: "{{initiator}}'s claim on {{province}} faded out."
+  escalated_revolt: 'Deadlocked revolt in {{province}} erupts at deadline.'
+  escalated_claim: 'Deadlocked claim erupts: {{initiator}} attacks for {{province}}.'
+  resolved_by_conflict: '{{summary}}'
+
+actor_intent:
+  created_sell_land: '{{seller}} seeks to sell {{province}} to {{buyer}} for {{price}} gold.'
+  created_acquire_land: '{{acquirer}} eyes {{province}} held by {{target}}.'
+  created_improve_terms: '{{initiator}} demands lower taxes from {{target}} for {{province}}.'
+  created_demand_tax: '{{initiator}} demands higher taxes from {{target}} for {{province}}.'
+  converted_with_offer: '{{initiator}} opens negotiations to acquire {{province}} from {{target}} with compensation.'
+  converted_no_offer: '{{initiator}} demands {{province}} from {{target}} without compensation.'
+
+land_contract:
+  transferred: '{{holding}} transferred from {{from}} to {{to}} ({{reason}}).'
+  purchased: '{{to}} purchased {{holding}} from {{from}}.'
+  ceded: '{{from}} ceded {{holding}} to {{to}}.'
+  conquered: '{{to}} conquered {{holding}} from {{from}}.'
+  tax_revised: 'Tax rate for {{province}} revised to {{rate}}% between {{initiator}} and {{defender}}.'
+  eliminated: 'Contract chain for {{province}} altered between {{initiator}} and {{defender}}.'
+
+bailiff:
+  appointed: '{{person}} was appointed bailiff of {{province}}.'
+  vacated: '{{person}} stepped down as bailiff of {{province}}.'
+  placeholder_installed: 'An anonymous placeholder oversees {{province}}.'
+
+faction:
+  founded: '{{person}} founded the faction {{faction}}.'
+  dissolved: '{{faction}} dissolved ({{reasons}}).'
+  leader_changed: '{{newLeader}} succeeded {{oldLeader}} as the head of {{faction}}.'
+  leader_bankrupt: "{{person}}'s fortunes are exhausted, putting {{faction}} in jeopardy."
+  member_recruited: '{{person}} joined {{faction}}.'
+  member_abandoned: '{{person}} abandoned {{faction}}.'
+  funds_shortage: "{{person}}'s {{faction}} faces a financial crisis."

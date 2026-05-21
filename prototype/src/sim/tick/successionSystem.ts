@@ -1,5 +1,6 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
+import { nameParam, entityRef } from '../types/event'
 import {
   needsSuccession,
   getAdultSuccessionCandidates,
@@ -11,7 +12,6 @@ import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { maybeSplitHouseAfterSuccession } from './houseSplitSystem'
 import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
 import type { HouseId, PolityId } from '../types/ids'
-import type { SimEvent } from '../types/event'
 import type { SuccessionCandidate } from '../selectors/successionSelectors'
 import { createLogger } from '../debug/logger'
 import { adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
@@ -76,22 +76,27 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
     )
 
     const newRuler = newState.persons[newRulerPersonId]
-    const { id: eventId, ctx: eventCtx } = makeEventId({ ...currentCtx, state: newState })
-    const event: SimEvent = {
-      id: eventId,
-      year: newState.currentYear,
-      weekOfYear: newState.currentWeekOfYear,
-      type: 'POLITY_LEADER_CHANGED',
-      importance: 'critical',
-      actorIds: [newRulerPersonId],
-      houseIds: [bestHouseId],
-      polityIds: [polityId as PolityId],
-      provinceIds: [],
-      holdingIds: [],
-      summary: `${newRuler?.name ?? 'Unknown'} has become the new ruler of ${polity.name}.`,
-      reasons: [],
-      effects: [],
-    }
+    const { event, ctx: eventCtx } = createSimEvent(
+      { ...currentCtx, state: newState },
+      {
+        type: 'POLITY_LEADER_CHANGED',
+        importance: 'critical',
+        messageKey: 'polity.leader_changed',
+        messageParams: {
+          person: newRuler ? nameParam('person', newRuler.nameKey, newRuler.name) : 'Unknown',
+          polity: nameParam('polity', polity.nameKey, polity.name),
+        },
+        entityRefs: [
+          entityRef('person', newRulerPersonId, 'ruler', newRuler?.nameKey),
+          entityRef('polity', polityId, 'polity', polity.nameKey),
+          entityRef('house', bestHouseId, 'house'),
+        ],
+        legacySummary: `${newRuler?.name ?? 'Unknown'} has become the new ruler of ${polity.name}.`,
+        legacyActorIds: [newRulerPersonId],
+        legacyHouseIds: [bestHouseId],
+        legacyPolityIds: [polityId as PolityId],
+      },
+    )
 
     currentCtx = {
       ...eventCtx,
@@ -130,22 +135,25 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
         'leader',
         oldestMinor.id,
       )
-      const { id: eventId, ctx: eventCtx } = makeEventId({ ...ctx, state: newState })
-      const event: SimEvent = {
-        id: eventId,
-        year: newState.currentYear,
-        weekOfYear: newState.currentWeekOfYear,
-        type: 'HOUSE_LEADER_CHANGED',
-        importance: 'normal',
-        actorIds: [oldestMinor.id],
-        houseIds: [houseId],
-        polityIds: [],
-        provinceIds: [],
-        holdingIds: [],
-        summary: oldestMinor.name + ' has become the new head of ' + house.name + '.',
-        reasons: [],
-        effects: [],
-      }
+      const { event, ctx: eventCtx } = createSimEvent(
+        { ...ctx, state: newState },
+        {
+          type: 'HOUSE_LEADER_CHANGED',
+          importance: 'normal',
+          messageKey: 'house.leader_changed',
+          messageParams: {
+            person: nameParam('person', oldestMinor.nameKey, oldestMinor.name),
+            house: nameParam('house', house.nameKey, house.name),
+          },
+          entityRefs: [
+            entityRef('person', oldestMinor.id, 'leader', oldestMinor.nameKey),
+            entityRef('house', houseId, 'house', house.nameKey),
+          ],
+          legacySummary: oldestMinor.name + ' has become the new head of ' + house.name + '.',
+          legacyActorIds: [oldestMinor.id],
+          legacyHouseIds: [houseId],
+        },
+      )
 
       log.log('SUCCESSION', {
         year: newState.currentYear,
@@ -175,22 +183,25 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
     'leader',
     successor.person.id,
   )
-  const { id: eventId, ctx: eventCtx } = makeEventId({ ...ctx, state: newStateAfterHead })
-  const event: SimEvent = {
-    id: eventId,
-    year: newStateAfterHead.currentYear,
-    weekOfYear: newStateAfterHead.currentWeekOfYear,
-    type: 'HOUSE_LEADER_CHANGED',
-    importance: 'normal',
-    actorIds: [successor.person.id],
-    houseIds: [houseId],
-    polityIds: [],
-    provinceIds: [],
-    holdingIds: [],
-    summary: successor.person.name + ' has become the new head of ' + house.name + '.',
-    reasons: [],
-    effects: [],
-  }
+  const { event, ctx: eventCtx } = createSimEvent(
+    { ...ctx, state: newStateAfterHead },
+    {
+      type: 'HOUSE_LEADER_CHANGED',
+      importance: 'normal',
+      messageKey: 'house.leader_changed',
+      messageParams: {
+        person: nameParam('person', successor.person.nameKey, successor.person.name),
+        house: nameParam('house', house.nameKey, house.name),
+      },
+      entityRefs: [
+        entityRef('person', successor.person.id, 'leader', successor.person.nameKey),
+        entityRef('house', houseId, 'house', house.nameKey),
+      ],
+      legacySummary: successor.person.name + ' has become the new head of ' + house.name + '.',
+      legacyActorIds: [successor.person.id],
+      legacyHouseIds: [houseId],
+    },
+  )
 
   log.log('SUCCESSION', {
     year: newStateAfterHead.currentYear,
@@ -213,22 +224,21 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
       secondCandidate &&
       successor.score - secondCandidate.score <= ctx.config.successionCrisisScoreGap
     ) {
-      const { id: crisisId, ctx: crisisCtx } = makeEventId(resultCtx)
-      const crisisEvent: SimEvent = {
-        id: crisisId,
-        year: resultCtx.state.currentYear,
-        weekOfYear: resultCtx.state.currentWeekOfYear,
+      const { event: crisisEvent, ctx: crisisCtx } = createSimEvent(resultCtx, {
         type: 'SUCCESSION_CRISIS',
         importance: 'major',
-        actorIds: [successor.person.id],
-        houseIds: [houseId],
-        polityIds: [],
-        provinceIds: [],
-        holdingIds: [],
-        summary: 'A succession crisis has erupted in ' + house.name + '!',
-        reasons: [],
-        effects: [],
-      }
+        messageKey: 'succession.crisis',
+        messageParams: {
+          house: nameParam('house', house.nameKey, house.name),
+        },
+        entityRefs: [
+          entityRef('person', successor.person.id, 'claimant', successor.person.nameKey),
+          entityRef('house', houseId, 'house', house.nameKey),
+        ],
+        legacySummary: 'A succession crisis has erupted in ' + house.name + '!',
+        legacyActorIds: [successor.person.id],
+        legacyHouseIds: [houseId],
+      })
       log.log('SUCCESSION_CRISIS', {
         year: resultCtx.state.currentYear,
         week: resultCtx.state.currentWeekOfYear,

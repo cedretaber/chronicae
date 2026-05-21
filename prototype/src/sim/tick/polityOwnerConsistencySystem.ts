@@ -1,8 +1,8 @@
 import type { TickContext } from './context'
+import { createSimEvent } from './context'
 import type { PolityId, HouseId, ProvinceId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import type { SimEvent } from '../types/event'
-import { makeEventId } from './context'
+import { entityRef } from '../types/event'
 import {
   getPolityProvinceIds,
   getPolityHouseIds,
@@ -54,43 +54,42 @@ function chooseOwner(
   return ranked[0]?.houseId
 }
 
-function emitPolityExtinct(ctx: TickContext, polityId: PolityId, summary: string): TickContext {
-  const { id: eventId, ctx: c1 } = makeEventId(ctx)
-  const event: SimEvent = {
-    id: eventId,
-    year: c1.state.currentYear,
-    weekOfYear: c1.state.currentWeekOfYear,
+function emitPolityExtinct(
+  ctx: TickContext,
+  polityId: PolityId,
+  summary: string,
+  messageKey: string,
+): TickContext {
+  const polity = ctx.state.polities[polityId]
+  const polityName = polity?.name ?? polityId
+  const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'POLITY_EXTINCT',
     importance: 'major',
-    actorIds: [],
-    houseIds: [],
-    polityIds: [polityId],
-    provinceIds: [],
-    holdingIds: [],
-    summary,
-    reasons: [],
-    effects: [],
-  }
+    messageKey,
+    messageParams: { polity: polityName },
+    entityRefs: [entityRef('polity', polityId, 'polity', polityName)],
+    legacySummary: summary,
+    legacyPolityIds: [polityId],
+    legacyProvinceIds: [],
+    legacyHoldingIds: [],
+  })
   return { ...c1, events: [...c1.events, event] }
 }
 
 function emitPolityLandless(ctx: TickContext, polityId: PolityId, summary: string): TickContext {
-  const { id: eventId, ctx: c1 } = makeEventId(ctx)
-  const event: SimEvent = {
-    id: eventId,
-    year: c1.state.currentYear,
-    weekOfYear: c1.state.currentWeekOfYear,
+  const polity = ctx.state.polities[polityId]
+  const polityName = polity?.name ?? polityId
+  const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'POLITY_LANDLESS',
     importance: 'major',
-    actorIds: [],
-    houseIds: [],
-    polityIds: [polityId],
-    provinceIds: [],
-    holdingIds: [],
-    summary,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'polity.landless',
+    messageParams: { polity: polityName },
+    entityRefs: [entityRef('polity', polityId, 'polity', polityName)],
+    legacySummary: summary,
+    legacyPolityIds: [polityId],
+    legacyProvinceIds: [],
+    legacyHoldingIds: [],
+  })
   return { ...c1, events: [...c1.events, event] }
 }
 
@@ -110,22 +109,27 @@ function emitPolityOwnerChanged(
   const summary = oldOwnerId
     ? `${polityName}'s ruling house changed to ${newHouseName}, and the capital moved to ${capName}.`
     : `${polityName}'s ruling house is now ${newHouseName}; capital set to ${capName}.`
-  const { id: eventId, ctx: c1 } = makeEventId(ctx)
-  const event: SimEvent = {
-    id: eventId,
-    year: c1.state.currentYear,
-    weekOfYear: c1.state.currentWeekOfYear,
+  const messageKey = oldOwnerId ? 'polity.owner_changed' : 'polity.owner_changed_initial'
+  const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'POLITY_OWNER_CHANGED',
     importance: 'major',
-    actorIds: [],
-    houseIds: oldOwnerId ? [oldOwnerId, newOwnerId] : [newOwnerId],
-    polityIds: [polityId],
-    provinceIds: [newCapitalProvinceId],
-    holdingIds: [],
-    summary,
-    reasons: [],
-    effects: [],
-  }
+    messageKey,
+    messageParams: {
+      polity: polityName,
+      new_owner: newHouseName,
+      capital: capName,
+    },
+    entityRefs: [
+      entityRef('polity', polityId, 'polity', polityName),
+      entityRef('house', newOwnerId, 'new_owner', newHouseName),
+      entityRef('province', newCapitalProvinceId, 'capital', capName),
+    ],
+    legacySummary: summary,
+    legacyHouseIds: oldOwnerId ? [oldOwnerId, newOwnerId] : [newOwnerId],
+    legacyPolityIds: [polityId],
+    legacyProvinceIds: [newCapitalProvinceId],
+    legacyHoldingIds: [],
+  })
   return { ...c1, events: [...c1.events, event] }
 }
 
@@ -218,6 +222,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
         currentCtx,
         polityId,
         `${polity.name} has dissolved without remaining provinces.`,
+        'polity.extinct_no_provinces',
       )
       continue
     }
@@ -241,6 +246,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
           currentCtx,
           polityId,
           `${polity.name} has dissolved without an owning house.`,
+          'polity.extinct_no_owner',
         )
         continue
       }
@@ -295,6 +301,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
         currentCtx,
         polityId,
         `${polity.name} has dissolved after losing its owning house.`,
+        'polity.extinct_lost_owner',
       )
       continue
     }

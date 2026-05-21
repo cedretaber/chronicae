@@ -13,7 +13,10 @@ import { adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
 import type { OrganizationRef, OfficeRole } from '../types/office'
 import type { PlotId, HouseId, PersonId, PolityId } from '../types/ids'
 import type { Plot, PlotType } from '../types/plot'
-import type { SimEvent, EventType } from '../types/event'
+import type { EventType } from '../types/event'
+import { createSimEvent } from './context'
+import { nameParam, entityRef } from '../types/event'
+import type { EventEntityRef } from '../types/event'
 import type { Person } from '../types/person'
 import { getRoleScore } from '../selectors/abilitySelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
@@ -26,23 +29,21 @@ function emitEvent(
   houseIds: HouseId[],
   polityIds: PolityId[],
   summary: string,
+  messageKey: string,
+  messageParams: import('../types/event').EventMessageParams,
+  eventEntityRefs: EventEntityRef[],
 ): TickContext {
-  const { id: eventId, ctx: eventCtx } = makeEventId(ctx)
-  const event: SimEvent = {
-    id: eventId,
-    year: eventCtx.state.currentYear,
-    weekOfYear: eventCtx.state.currentWeekOfYear,
+  const { event, ctx: eventCtx } = createSimEvent(ctx, {
     type,
     importance,
-    actorIds,
-    houseIds,
-    polityIds,
-    provinceIds: [],
-    holdingIds: [],
-    summary,
-    reasons: [],
-    effects: [],
-  }
+    messageKey,
+    messageParams,
+    entityRefs: eventEntityRefs,
+    legacySummary: summary,
+    legacyActorIds: actorIds,
+    legacyHouseIds: houseIds,
+    legacyPolityIds: polityIds,
+  })
   return { ...eventCtx, events: [...eventCtx.events, event] }
 }
 
@@ -175,6 +176,12 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
         [leader.houseId],
         polityIds,
         `${leader.name}'s ${plot.type} plot succeeded.`,
+        'plot.succeeded',
+        { person: nameParam('person', leader.nameKey, leader.name), plotType: plot.type },
+        [
+          entityRef('person', plot.leaderId, 'leader', leader.nameKey),
+          entityRef('house', leader.houseId, 'house'),
+        ],
       )
     }
 
@@ -206,6 +213,12 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
         [leader.houseId],
         polityIds,
         `${leader.name}'s ${plot.type} plot succeeded.`,
+        'plot.succeeded',
+        { person: nameParam('person', leader.nameKey, leader.name), plotType: plot.type },
+        [
+          entityRef('person', plot.leaderId, 'leader', leader.nameKey),
+          entityRef('house', leader.houseId, 'house'),
+        ],
       )
     }
 
@@ -234,6 +247,12 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
         [leader.houseId],
         polityIds,
         `${leader.name}'s ${plot.type} plot succeeded.`,
+        'plot.succeeded',
+        { person: nameParam('person', leader.nameKey, leader.name), plotType: plot.type },
+        [
+          entityRef('person', plot.leaderId, 'leader', leader.nameKey),
+          entityRef('house', leader.houseId, 'house'),
+        ],
       )
     }
   }
@@ -258,6 +277,12 @@ function applyPlotFailure(currentCtx: TickContext, plot: Plot, leader: Person): 
         [leader.houseId],
         polityIds,
         `${leader.name}'s ${plot.type} plot failed.`,
+        'plot.failed',
+        { person: nameParam('person', leader.nameKey, leader.name), plotType: plot.type },
+        [
+          entityRef('person', plot.leaderId, 'leader', leader.nameKey),
+          entityRef('house', leader.houseId, 'house'),
+        ],
       )
     }
 
@@ -276,6 +301,12 @@ function applyPlotFailure(currentCtx: TickContext, plot: Plot, leader: Person): 
         [leader.houseId],
         polityIds,
         `${leader.name}'s ${plot.type} plot failed.`,
+        'plot.failed',
+        { person: nameParam('person', leader.nameKey, leader.name), plotType: plot.type },
+        [
+          entityRef('person', plot.leaderId, 'leader', leader.nameKey),
+          entityRef('house', leader.houseId, 'house'),
+        ],
       )
     }
 
@@ -294,6 +325,12 @@ function applyPlotFailure(currentCtx: TickContext, plot: Plot, leader: Person): 
         [leader.houseId],
         polityIds,
         `${leader.name}'s ${plot.type} plot failed.`,
+        'plot.failed',
+        { person: nameParam('person', leader.nameKey, leader.name), plotType: plot.type },
+        [
+          entityRef('person', plot.leaderId, 'leader', leader.nameKey),
+          entityRef('house', leader.houseId, 'house'),
+        ],
       )
     }
   }
@@ -448,6 +485,9 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
     [houseId],
     polityIds,
     `${head.name} began a ${plotType} plot.`,
+    'plot.started',
+    { person: nameParam('person', head.nameKey, head.name), plotType: plotType },
+    [entityRef('person', leaderId, 'leader', head.nameKey), entityRef('house', houseId, 'house')],
   )
 }
 

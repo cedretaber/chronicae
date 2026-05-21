@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
-import { makeEventId } from './context'
+import { createSimEvent } from './context'
 import type { HoldingId, PolityId, PersonId, ProvinceId } from '../types/ids'
-import type { SimEvent } from '../types/event'
+import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
@@ -257,26 +257,28 @@ function emitBailiffAppointed(
   polityId: PolityId,
   holderPersonId: PersonId,
 ): TickContext {
-  const { id: eventId, ctx: c1 } = makeEventId(ctx)
-  const province = c1.state.provinces[provinceId]
-  const person = c1.state.persons[holderPersonId]
+  const province = ctx.state.provinces[provinceId]
+  const person = ctx.state.persons[holderPersonId]
   const provinceName = province?.name ?? provinceId
   const personName = person?.name ?? holderPersonId
-  const event: SimEvent = {
-    id: eventId,
-    year: c1.state.currentYear,
-    weekOfYear: c1.state.currentWeekOfYear,
+  const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'BAILIFF_APPOINTED',
     importance: 'minor',
-    actorIds: [holderPersonId],
-    houseIds: person?.houseId ? [person.houseId] : [],
-    polityIds: [polityId],
-    provinceIds: [provinceId],
-    holdingIds: [],
-    summary: `${personName} was appointed bailiff of ${provinceName}.`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'bailiff.appointed',
+    messageParams: {
+      person: nameParam('person', person?.nameKey, personName),
+      province: provinceName,
+    },
+    entityRefs: [
+      entityRef('person', holderPersonId, 'bailiff', person?.nameKey),
+      entityRef('province', provinceId, 'province'),
+    ],
+    legacySummary: `${personName} was appointed bailiff of ${provinceName}.`,
+    legacyActorIds: [holderPersonId],
+    legacyHouseIds: person?.houseId ? [person.houseId] : [],
+    legacyPolityIds: [polityId],
+    legacyProvinceIds: [provinceId],
+  })
   return { ...c1, events: [...c1.events, event] }
 }
 
@@ -285,26 +287,26 @@ function emitBailiffVacated(
   provinceId: ProvinceId,
   holderPersonId: PersonId,
 ): TickContext {
-  const { id: eventId, ctx: c1 } = makeEventId(ctx)
-  const province = c1.state.provinces[provinceId]
-  const person = c1.state.persons[holderPersonId]
+  const province = ctx.state.provinces[provinceId]
+  const person = ctx.state.persons[holderPersonId]
   const provinceName = province?.name ?? provinceId
   const personName = person?.name ?? holderPersonId
-  const event: SimEvent = {
-    id: eventId,
-    year: c1.state.currentYear,
-    weekOfYear: c1.state.currentWeekOfYear,
+  const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'BAILIFF_VACATED',
     importance: 'minor',
-    actorIds: [holderPersonId],
-    houseIds: [],
-    polityIds: [],
-    provinceIds: [provinceId],
-    holdingIds: [],
-    summary: `${personName} stepped down as bailiff of ${provinceName}.`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'bailiff.vacated',
+    messageParams: {
+      person: personName,
+      province: provinceName,
+    },
+    entityRefs: [
+      entityRef('person', holderPersonId, 'bailiff'),
+      entityRef('province', provinceId, 'province'),
+    ],
+    legacySummary: `${personName} stepped down as bailiff of ${provinceName}.`,
+    legacyActorIds: [holderPersonId],
+    legacyProvinceIds: [provinceId],
+  })
   return { ...c1, events: [...c1.events, event] }
 }
 
@@ -313,23 +315,19 @@ function emitBailiffPlaceholderInstalled(
   provinceId: ProvinceId,
   polityId: PolityId,
 ): TickContext {
-  const { id: eventId, ctx: c1 } = makeEventId(ctx)
-  const province = c1.state.provinces[provinceId]
+  const province = ctx.state.provinces[provinceId]
   const provinceName = province?.name ?? provinceId
-  const event: SimEvent = {
-    id: eventId,
-    year: c1.state.currentYear,
-    weekOfYear: c1.state.currentWeekOfYear,
+  const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'BAILIFF_PLACEHOLDER_INSTALLED',
     importance: 'minor',
-    actorIds: [],
-    houseIds: [],
-    polityIds: [polityId],
-    provinceIds: [provinceId],
-    holdingIds: [],
-    summary: `An anonymous placeholder oversees ${provinceName}.`,
-    reasons: [],
-    effects: [],
-  }
+    messageKey: 'bailiff.placeholder_installed',
+    messageParams: {
+      province: provinceName,
+    },
+    entityRefs: [entityRef('province', provinceId, 'province')],
+    legacySummary: `An anonymous placeholder oversees ${provinceName}.`,
+    legacyPolityIds: [polityId],
+    legacyProvinceIds: [provinceId],
+  })
   return { ...c1, events: [...c1.events, event] }
 }

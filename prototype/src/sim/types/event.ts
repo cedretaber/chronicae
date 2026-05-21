@@ -141,6 +141,29 @@ export type EventMessageParamValue =
 
 export type EventMessageParams = Record<string, EventMessageParamValue>
 
+export function nameParam(
+  category: string,
+  nameKey: string | undefined,
+  fallbackName: string,
+): EventMessageParamValue {
+  if (nameKey) return { kind: 'name', category, key: nameKey }
+  return fallbackName
+}
+
+export function entityRef(
+  kind: EventEntityKind,
+  id: string,
+  role?: string,
+  nameKey?: string,
+): EventEntityRef {
+  return {
+    kind,
+    id,
+    ...(role !== undefined ? { role } : {}),
+    ...(nameKey !== undefined ? { nameKey } : {}),
+  }
+}
+
 export type EventImportance = 'minor' | 'normal' | 'major' | 'critical'
 
 export type SimEvent = {
