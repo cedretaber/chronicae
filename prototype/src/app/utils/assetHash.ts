@@ -1,6 +1,3 @@
-import provinceMapBg from '@/assets/map/province-map-background.png'
-import provinceMapBgAlt from '@/assets/map/province-map-background-alt.png'
-
 import provinceForest01 from '@/assets/province/province_forest_01.png'
 import provinceForest02 from '@/assets/province/province_forest_02.png'
 import provinceForest03 from '@/assets/province/province_forest_03.png'
@@ -66,13 +63,6 @@ function simpleHash(id: string): number {
     h = (h * 31 + id.charCodeAt(i)) | 0
   }
   return Math.abs(h)
-}
-
-const PROVINCE_MAP_BACKGROUNDS = [provinceMapBg, provinceMapBgAlt]
-
-export function getProvinceMapBackground(stateId: string | undefined): string {
-  if (!stateId) return provinceMapBg
-  return PROVINCE_MAP_BACKGROUNDS[simpleHash(stateId) % PROVINCE_MAP_BACKGROUNDS.length]!
 }
 
 export function getProvinceImage(provinceId: string): string {

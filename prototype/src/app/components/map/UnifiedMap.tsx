@@ -103,7 +103,8 @@ export function UnifiedMap() {
   const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
   const [hoveredProvinceId, setHoveredProvinceId] = useState<ProvinceId | null>(null)
   const [hoveredStateId, setHoveredStateId] = useState<StateRegionId | null>(null)
-  const { transform, handlers, animateTo } = usePanZoom()
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
+  const { transform, handlers, animateTo, zoomBy, resetZoom } = usePanZoom()
   const containerRef = useRef<HTMLDivElement>(null)
 
   const zoomTier = getZoomTier(transform.scale)
@@ -268,20 +269,15 @@ export function UnifiedMap() {
       if (!session || !containerRef.current) return
       const rect = containerRef.current.getBoundingClientRect()
 
-      if (zoomTier === 'near') {
+      if (zoomTier !== 'far') {
         openDetailWindow('province', provinceId)
         return
       }
 
       // Compute bounding box of target area
       const world = session.currentState
-      let targetProvIds: ProvinceId[]
-      if (zoomTier === 'far') {
-        const state = world.states[stateId]
-        targetProvIds = state?.provinceIds ?? [provinceId]
-      } else {
-        targetProvIds = [provinceId]
-      }
+      const state = world.states[stateId]
+      const targetProvIds = state?.provinceIds ?? [provinceId]
 
       let bxMin = Infinity
       let byMin = Infinity
@@ -300,25 +296,26 @@ export function UnifiedMap() {
       const [vx0, vy0, vx1, vy1] = voronoi.bounds
       const vw = vx1 - vx0
       const vh = vy1 - vy0
-      const svgScaleX = rect.width / vw
-      const svgScaleY = rect.height / vh
-      const baseSvgScale = Math.min(svgScaleX, svgScaleY)
+
+      // SVG viewBox → element-local coordinate mapping
+      // preserveAspectRatio="xMidYMid meet" (default) scales uniformly and centers
+      const svgScale = Math.min(rect.width / vw, rect.height / vh)
+      const offsetX = (rect.width - vw * svgScale) / 2
+      const offsetY = (rect.height - vh * svgScale) / 2
 
       const pad = zoomTier === 'far' ? 60 : 30
       const bboxW = bxMax - bxMin + pad * 2
       const bboxH = byMax - byMin + pad * 2
-      const fitScaleX = rect.width / (bboxW * baseSvgScale)
-      const fitScaleY = rect.height / (bboxH * baseSvgScale)
-      const targetScale = Math.min(fitScaleX, fitScaleY) * 0.85
+      const targetScale =
+        Math.min(rect.width / (bboxW * svgScale), rect.height / (bboxH * svgScale)) * 0.85
 
-      const bboxCx = (bxMin + bxMax) / 2 - vx0
-      const bboxCy = (byMin + byMax) / 2 - vy0
-      const cx = bboxCx * baseSvgScale
-      const cy = bboxCy * baseSvgScale
+      // Center of target bbox in element-local coordinates
+      const elX = offsetX + ((bxMin + bxMax) / 2 - vx0) * svgScale
+      const elY = offsetY + ((byMin + byMax) / 2 - vy0) * svgScale
 
       const target: Transform = {
-        x: rect.width / 2 - cx * targetScale,
-        y: rect.height / 2 - cy * targetScale,
+        x: rect.width / 2 - elX * targetScale,
+        y: rect.height / 2 - elY * targetScale,
         scale: targetScale,
       }
       animateTo(target, 400)
@@ -359,6 +356,30 @@ export function UnifiedMap() {
         }}
       />
       <MapLegend />
+      {/* Zoom controls */}
+      <div className="absolute bottom-3 left-3 z-20 flex flex-col gap-1">
+        <button
+          className="flex h-8 w-8 items-center justify-center rounded bg-gray-800/80 text-lg text-white hover:bg-gray-700"
+          onClick={() => zoomBy(1.5, containerRef.current)}
+          title="Zoom in"
+        >
+          +
+        </button>
+        <button
+          className="flex h-8 w-8 items-center justify-center rounded bg-gray-800/80 text-lg text-white hover:bg-gray-700"
+          onClick={() => zoomBy(1 / 1.5, containerRef.current)}
+          title="Zoom out"
+        >
+          -
+        </button>
+        <button
+          className="flex h-8 w-8 items-center justify-center rounded bg-gray-800/80 text-sm text-white hover:bg-gray-700"
+          onClick={resetZoom}
+          title="Reset zoom"
+        >
+          ⟲
+        </button>
+      </div>
       <div
         ref={containerRef}
         className="relative z-10 h-full w-full overflow-hidden"
@@ -452,7 +473,11 @@ export function UnifiedMap() {
                     strokeOpacity={0.45 * tierOp}
                     paintOrder="stroke"
                     onMouseEnter={() => setHoveredProvinceId(cell.provinceId)}
-                    onMouseLeave={() => setHoveredProvinceId(null)}
+                    onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                    onMouseLeave={() => {
+                      setHoveredProvinceId(null)
+                      setTooltipPos(null)
+                    }}
                     onClick={() => handleCellClick(cell.provinceId, cell.stateId)}
                     cursor="pointer"
                   />
@@ -634,6 +659,36 @@ export function UnifiedMap() {
             </g>
           )}
         </svg>
+        {/* Tooltip */}
+        {hoveredProvinceId &&
+          tooltipPos &&
+          isMediumOrNear &&
+          session &&
+          (() => {
+            const prov = session.currentState.provinces[hoveredProvinceId]
+            if (!prov) return null
+            const world = session.currentState
+            const pop = getProvincePops(world, hoveredProvinceId)
+            const totalPop = pop.reduce((s, p) => s + p.size, 0)
+            const unrest = getProvinceUnrest(world, hoveredProvinceId)
+            const terminalPolity = getProvinceTerminalPolityId(world, hoveredProvinceId)
+            const polityName = terminalPolity ? world.polities[terminalPolity]?.name : undefined
+            const stateName = world.states[prov.stateId]?.name
+            return (
+              <div
+                className="pointer-events-none fixed z-50 rounded bg-gray-900/90 px-2.5 py-1.5 text-xs text-white shadow-lg"
+                style={{ left: tooltipPos.x + 12, top: tooltipPos.y - 10 }}
+              >
+                <div className="font-bold">{prov.name}</div>
+                <div className="text-gray-400">{stateName}</div>
+                {polityName && <div>Polity: {polityName}</div>}
+                <div>
+                  Pop: {Math.round(totalPop)} · Unrest: {unrest.toFixed(0)}
+                </div>
+                <div>Holdings: {prov.holdingIds.length}</div>
+              </div>
+            )
+          })()}
       </div>
     </div>
   )

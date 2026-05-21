@@ -6,8 +6,8 @@ export const MAP_ICON_CONFIG = {
 }
 
 export const ZOOM_THRESHOLDS = {
-  FAR_TO_MEDIUM: 1.2,
-  MEDIUM_TO_NEAR: 2.5,
+  FAR_TO_MEDIUM: 1.8,
+  MEDIUM_TO_NEAR: 3.5,
 } as const
 
 export type ZoomTier = 'far' | 'medium' | 'near'

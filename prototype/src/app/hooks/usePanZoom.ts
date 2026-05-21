@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 
 export type Transform = { x: number; y: number; scale: number }
 
-const MIN_SCALE = 0.3
+const MIN_SCALE = 1.0
 const MAX_SCALE = 5
 const ZOOM_SENSITIVITY = 0.001
 
@@ -103,7 +103,30 @@ export function usePanZoom() {
     [cancelAnimation],
   )
 
+  const zoomBy = useCallback(
+    (factor: number, containerEl?: HTMLElement | null) => {
+      cancelAnimation()
+      setTransform((t) => {
+        const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, t.scale * factor))
+        const ratio = newScale / t.scale
+        const cx = containerEl ? containerEl.clientWidth / 2 : 0
+        const cy = containerEl ? containerEl.clientHeight / 2 : 0
+        return {
+          x: cx - ratio * (cx - t.x),
+          y: cy - ratio * (cy - t.y),
+          scale: newScale,
+        }
+      })
+    },
+    [cancelAnimation],
+  )
+
+  const resetZoom = useCallback(() => {
+    cancelAnimation()
+    setTransform({ x: 0, y: 0, scale: 1 })
+  }, [cancelAnimation])
+
   const handlers = { onMouseDown, onMouseMove, onMouseUp, onWheel }
 
-  return { transform, setTransform, handlers, animateTo }
+  return { transform, setTransform, handlers, animateTo, zoomBy, resetZoom }
 }
