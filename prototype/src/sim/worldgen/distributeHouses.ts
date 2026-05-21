@@ -52,6 +52,10 @@ export function distributeHouses(
       } else {
         count = total
       }
+      const remainingHousesAfter = housesPerPolity - houseIndex - 1
+      if (remainingHousesAfter > 0 && total > remainingHousesAfter) {
+        count = Math.min(count, total - remainingHousesAfter)
+      }
 
       let shuffledProvinces: ProvinceId[]
       if (remainingProvinces.length > 1) {
