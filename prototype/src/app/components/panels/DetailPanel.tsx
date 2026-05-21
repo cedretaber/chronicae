@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getProvinceImage, getHoldingImage } from '@/app/utils/assetHash'
 import { formatScore, formatAmount, formatPower, formatPolityRank } from '@/app/utils/format'
 import {
@@ -692,6 +693,7 @@ function ShareholderSection({
   onPersonClick: ClickHandler
   onHouseClick: ClickHandler
 }) {
+  const { t } = useTranslation()
   if (shareholders.length === 0) return <span className="text-gray-500">—</span>
   const othersPercent = Math.max(0, 100 - shareholders.reduce((s, h) => s + h.percent, 0))
   const slices = shareholders.map((h, i) => ({
@@ -727,7 +729,7 @@ function ShareholderSection({
               className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ backgroundColor: SHARE_COLORS[SHARE_COLORS.length - 1] }}
             />
-            <span className="text-gray-400">Others</span>
+            <span className="text-gray-400">{t('detail.polity.others')}</span>
             <span className="ml-auto shrink-0 text-gray-200">{othersPercent.toFixed(1)}%</span>
           </div>
         )}
@@ -749,6 +751,7 @@ function AttitudeList({
   onHouseClick: ClickHandler
   onPersonClick: (id: string) => void
 }) {
+  const { t } = useTranslation()
   if (!worldState) return null
   const entries = Object.entries(attitudes)
   return (
@@ -813,11 +816,11 @@ function AttitudeList({
           <div key={key} className="rounded bg-gray-700 p-1 text-xs">
             <div className="font-medium text-gray-300">{linkNode}</div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Affection:</span>
+              <span className="text-gray-400">{t('detail.person.affection')}:</span>
               <span className={affColor}>{attitude.affection.toFixed(0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Respect:</span>
+              <span className="text-gray-400">{t('detail.person.respect')}:</span>
               <span className={resColor}>{attitude.respect.toFixed(0)}</span>
             </div>
           </div>
@@ -977,6 +980,7 @@ export function CountryDetail({
   onHouseClick: ClickHandler
   onProvinceClick: (id: string) => void
 }) {
+  const { t } = useTranslation()
   const isWatching = watchlist.includes(polity.id)
   const currentState = session?.currentState
   if (!currentState) return null
@@ -993,10 +997,10 @@ export function CountryDetail({
   const stability = worldState ? getPolityStability(worldState, defaultConfig, polity.id) : 50
 
   const roleLabels: Record<string, string> = {
-    leader: 'Ruler',
-    administrator: 'Administrator',
-    military: 'Military',
-    treasurer: 'Treasurer',
+    leader: t('detail.polity.ruler'),
+    administrator: t('roles.polity.administrator', { ns: 'roles' }),
+    military: t('roles.polity.military', { ns: 'roles' }),
+    treasurer: t('roles.polity.treasurer', { ns: 'roles' }),
   }
 
   // v0.15: この Polity に Province を持つ active House を、所領 Province 数とともに表示する。
@@ -1033,7 +1037,9 @@ export function CountryDetail({
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold">{polity.name}</span>
           {!polity.active && (
-            <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">Annexed</span>
+            <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">
+              {t('detail.annexed')}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-1.5">
@@ -1044,14 +1050,14 @@ export function CountryDetail({
 
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Rank:</span>
+          <span className="text-gray-400">{t('detail.polity.rank')}:</span>
           <span>
             {formatPolityRank(polity.rank)}{' '}
             <span className="text-gray-500">(rank {polity.rank})</span>
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Capital:</span>
+          <span className="text-gray-400">{t('detail.polity.capital')}:</span>
           <button
             className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
             onClick={() => onProvinceClick(polity.capitalProvinceId)}
@@ -1060,7 +1066,7 @@ export function CountryDetail({
           </button>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Ruler:</span>
+          <span className="text-gray-400">{t('detail.polity.ruler')}:</span>
           {(() => {
             if (!currentState) return <span className="text-gray-500">\u2014</span>
             const rulerId = getPolityLeader(currentState, polity.id)
@@ -1069,7 +1075,7 @@ export function CountryDetail({
           })()}
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Royal House:</span>
+          <span className="text-gray-400">{t('detail.polity.royal_house')}:</span>
           {(() => {
             if (!currentState) return <span className="text-gray-500">\u2014</span>
             const rulerHouseId = getPolityLeaderHouse(currentState, polity.id)
@@ -1078,7 +1084,7 @@ export function CountryDetail({
           })()}
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Dominant House:</span>
+          <span className="text-gray-400">{t('detail.polity.dominant_house')}:</span>
           {(() => {
             if (!currentState) return <span className="text-gray-500">\u2014</span>
             const dominantHouseId = getDominantPolityHouse(currentState, polity.id)
@@ -1089,31 +1095,33 @@ export function CountryDetail({
           })()}
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Treasury:</span>
+          <span className="text-gray-400">{t('detail.polity.treasury')}:</span>
           <span>{formatAmount(polity.treasury)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Legitimacy:</span>
+          <span className="text-gray-400">{t('detail.polity.legitimacy')}:</span>
           <span>{formatScore(legitimacy)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">AdminPower:</span>
+          <span className="text-gray-400">{t('detail.polity.admin_power')}:</span>
           <span>{formatScore(polity.adminPower)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Stability:</span>
+          <span className="text-gray-400">{t('detail.polity.stability')}:</span>
           <span>{formatScore(stability)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Military Power:</span>
+          <span className="text-gray-400">{t('detail.polity.military_power')}:</span>
           <span>{formatPower(totalMilitaryPower)}</span>
         </div>
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">Administration:</div>
+      <div className="text-sm font-semibold text-gray-300">
+        {t('detail.polity.administration')}:
+      </div>
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Capacity:</span>
+          <span className="text-gray-400">{t('detail.polity.capacity')}:</span>
           <span>
             {worldState
               ? getAdministrativeCapacity(worldState, defaultConfig, polity.id).toFixed(1)
@@ -1121,7 +1129,7 @@ export function CountryDetail({
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Load:</span>
+          <span className="text-gray-400">{t('detail.polity.load')}:</span>
           <span>
             {worldState
               ? getAdministrativeLoad(worldState, defaultConfig, polity.id).toFixed(1)
@@ -1129,7 +1137,7 @@ export function CountryDetail({
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Efficiency:</span>
+          <span className="text-gray-400">{t('detail.polity.efficiency')}:</span>
           <span>
             {worldState
               ? `x${getAdministrativeEfficiency(worldState, defaultConfig, polity.id).toFixed(2)}`
@@ -1138,7 +1146,7 @@ export function CountryDetail({
         </div>
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">Roles:</div>
+      <div className="text-sm font-semibold text-gray-300">{t('detail.polity.roles')}:</div>
       <div className="text-sm">
         {(['leader', 'administrator', 'military', 'treasurer'] as const).map((role) => (
           <div key={role} className="flex justify-between">
@@ -1154,7 +1162,9 @@ export function CountryDetail({
         ))}
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">Top Shareholders:</div>
+      <div className="text-sm font-semibold text-gray-300">
+        {t('detail.polity.top_shareholders')}:
+      </div>
       {worldState ? (
         <ShareholderSection
           shareholders={getTopShareholders(worldState, { kind: 'polity', id: polity.id }, 5)}
@@ -1167,7 +1177,9 @@ export function CountryDetail({
         <span className="text-sm text-gray-500">—</span>
       )}
 
-      <div className="text-sm font-semibold text-gray-300">Houses with land here:</div>
+      <div className="text-sm font-semibold text-gray-300">
+        {t('detail.polity.houses_with_land')}:
+      </div>
       <ul className="list-inside list-disc text-sm">
         {inHouseNames.length > 0 ? inHouseNames : <li className="text-gray-500">\u2014</li>}
       </ul>
@@ -1202,6 +1214,7 @@ export function HouseDetail({
   onProvinceClick: (id: string) => void
   eventHistory: SimEvent[]
 }) {
+  const { t } = useTranslation()
   const renderEvent = useRenderEvent()
   const isWatching = watchlist.includes(house.id)
   const currentState = session?.currentState
@@ -1265,7 +1278,7 @@ export function HouseDetail({
 
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Primary Polity:</span>
+          <span className="text-gray-400">{t('detail.house.primary_polity')}:</span>
           {(() => {
             const primaryPolityId = getHousePrimaryPolityId(currentState, house.id)
             if (!primaryPolityId) return <span className="text-gray-500">\u2014</span>
@@ -1286,7 +1299,7 @@ export function HouseDetail({
           if (ownedIds.length <= 1) {
             return (
               <div className="flex justify-between">
-                <span className="text-gray-400">Owned Polity:</span>
+                <span className="text-gray-400">{t('detail.house.owned_polity')}:</span>
                 {ownedIds.length === 0 ? (
                   <span className="text-gray-500">\u2014</span>
                 ) : (
@@ -1309,7 +1322,9 @@ export function HouseDetail({
           }
           return (
             <div className="flex flex-col gap-0.5">
-              <span className="text-gray-400">Owned Polities ({ownedIds.length}):</span>
+              <span className="text-gray-400">
+                {t('detail.house.owned_polities')} ({ownedIds.length}):
+              </span>
               <ul className="flex flex-col gap-0.5 pl-3">
                 {ownedIds.map((pid) => {
                   const p = currentState.polities[pid]
@@ -1333,7 +1348,7 @@ export function HouseDetail({
           )
         })()}
         <div className="flex justify-between">
-          <span className="text-gray-400">Seat:</span>
+          <span className="text-gray-400">{t('detail.house.seat')}:</span>
           <button
             className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
             onClick={() => onProvinceClick(house.seatProvinceId)}
@@ -1342,62 +1357,62 @@ export function HouseDetail({
           </button>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Prestige:</span>
+          <span className="text-gray-400">{t('detail.house.prestige')}:</span>
           <span>{formatScore(house.legacyPrestige)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Cohesion:</span>
+          <span className="text-gray-400">{t('detail.house.cohesion')}:</span>
           <span>{formatScore(cohesion)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Loyalty:</span>
+          <span className="text-gray-400">{t('detail.house.loyalty')}:</span>
           <span>{formatScore(loyaltyToPolity)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Wealth:</span>
+          <span className="text-gray-400">{t('detail.house.wealth')}:</span>
           <span>{formatAmount(house.wealth)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Provinces:</span>
+          <span className="text-gray-400">{t('detail.house.provinces')}:</span>
           <span>{worldState ? getHouseControlledProvinceIds(worldState, house.id).length : 0}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Rebellion Tendency:</span>
+          <span className="text-gray-400">{t('detail.house.rebellion_tendency')}:</span>
           <span className={rebellionTendency >= 70 ? 'text-red-400' : 'text-gray-200'}>
             {rebellionTendency.toFixed(1)}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Plot Tendency:</span>
+          <span className="text-gray-400">{t('detail.house.plot_tendency')}:</span>
           <span className={plotTendency >= 65 ? 'text-yellow-400' : 'text-gray-200'}>
             {plotTendency.toFixed(1)}
           </span>
         </div>
       </div>
 
-      <div className="mt-1 text-sm font-semibold text-gray-300">Military</div>
+      <div className="mt-1 text-sm font-semibold text-gray-300">{t('detail.house.military')}</div>
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Levy Power:</span>
+          <span className="text-gray-400">{t('detail.house.levy_power')}:</span>
           <span>{formatPower(levyPower)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Mercenary Power:</span>
+          <span className="text-gray-400">{t('detail.house.mercenary_power')}:</span>
           <span>{formatPower(mercenaryPower)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Commander Mod:</span>
+          <span className="text-gray-400">{t('detail.house.commander_mod')}:</span>
           <span>{commanderModifier.toFixed(2)}x</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Total Military:</span>
+          <span className="text-gray-400">{t('detail.house.total_military')}:</span>
           <span className="font-medium">{formatPower(totalMilitaryPower)}</span>
         </div>
       </div>
 
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Leader:</span>
+          <span className="text-gray-400">{t('detail.house.leader')}:</span>
           {head ? (
             <PersonLink
               personId={leaderId as PersonId}
@@ -1408,19 +1423,12 @@ export function HouseDetail({
             <span className="text-gray-500">\u2014</span>
           )}
         </div>
-        <div className="mt-1 text-sm font-semibold text-gray-300">Offices</div>
+        <div className="mt-1 text-sm font-semibold text-gray-300">{t('detail.house.offices')}</div>
         <div className="text-sm">
           {(['administrator', 'treasurer', 'military', 'advisor'] as const).map((role) => {
             const houseRef = { kind: 'house' as const, id: house.id }
             const holderIds = worldState ? getActiveOfficeHolders(worldState, houseRef, role) : []
-            const roleLabel =
-              role === 'administrator'
-                ? 'Steward'
-                : role === 'treasurer'
-                  ? 'Treasurer'
-                  : role === 'military'
-                    ? 'Guard Captain'
-                    : 'Advisor'
+            const roleLabel = t(`roles.house.${role}`, { ns: 'roles' })
             return (
               <div key={role} className="flex justify-between">
                 <span className="text-gray-400">{roleLabel}:</span>
@@ -1442,7 +1450,9 @@ export function HouseDetail({
             )
           })}
         </div>
-        <div className="mt-1 text-sm font-semibold text-gray-300">Top Shareholders</div>
+        <div className="mt-1 text-sm font-semibold text-gray-300">
+          {t('detail.house.top_shareholders')}
+        </div>
         {worldState ? (
           <ShareholderSection
             shareholders={getTopShareholders(worldState, { kind: 'house', id: house.id }, 5)}
@@ -1455,7 +1465,9 @@ export function HouseDetail({
           <span className="text-sm text-gray-500">—</span>
         )}
         <div>
-          <div className="text-sm font-semibold text-gray-300">Members ({aliveMembers} alive):</div>
+          <div className="text-sm font-semibold text-gray-300">
+            {t('detail.house.members')} ({aliveMembers} {t('detail.house.alive')}):
+          </div>
           <div className="flex flex-col gap-0.5 text-sm">
             {house.memberIds
               .filter((pid) => currentState?.persons?.[pid]?.alive === true)
@@ -1477,26 +1489,28 @@ export function HouseDetail({
 
       {house.founderId !== undefined && (
         <div className="flex justify-between">
-          <span className="text-gray-400">Founder:</span>
+          <span className="text-gray-400">{t('detail.house.founder')}:</span>
           <span>{currentState?.persons?.[house.founderId]?.name ?? house.founderId}</span>
         </div>
       )}
       {house.parentHouseId !== undefined && (
         <div className="flex justify-between">
-          <span className="text-gray-400">Parent House:</span>
+          <span className="text-gray-400">{t('detail.house.parent_house')}:</span>
           <span>{currentState?.houses?.[house.parentHouseId]?.name ?? house.parentHouseId}</span>
         </div>
       )}
       {house.cadetHouseIds.length > 0 && (
         <div className="flex justify-between">
-          <span className="text-gray-400">Cadet Houses:</span>
+          <span className="text-gray-400">{t('detail.house.cadet_houses')}:</span>
           <span>{house.cadetHouseIds.length}</span>
         </div>
       )}
 
       {recentEvents.length > 0 && (
         <div>
-          <div className="text-sm font-semibold text-gray-300">Recent Events:</div>
+          <div className="text-sm font-semibold text-gray-300">
+            {t('detail.house.recent_events')}:
+          </div>
           {recentEvents.map((e) => (
             <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
               [{e.year}/W{e.weekOfYear}] {renderEvent(e)}
@@ -1531,6 +1545,7 @@ export function PersonDetail({
   onProvinceClick: (id: string) => void
   eventHistory: SimEvent[]
 }) {
+  const { t } = useTranslation()
   const [abilityView, setAbilityView] = useState<'table' | 'radar'>('table')
   const isWatching = watchlist.includes(person.id)
   const currentState = session?.currentState
@@ -1618,23 +1633,23 @@ export function PersonDetail({
 
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Age:</span>
+          <span className="text-gray-400">{t('detail.person.age')}:</span>
           <span>{person.age}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Alive:</span>
+          <span className="text-gray-400">{t('detail.person.alive')}:</span>
           <span>
             {person.alive
-              ? 'Yes'
+              ? t('detail.person.alive_yes')
               : person.deathCircumstance === 'faded_from_history'
-                ? `Faded from history (${worldState.currentYear})`
-                : 'No'}
+                ? `${t('detail.person.faded')} (${worldState.currentYear})`
+                : t('detail.person.alive_no')}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">House:</span>
+          <span className="text-gray-400">{t('detail.person.house')}:</span>
           {person.houseId === ANONYMOUS_HOUSE_ID ? (
-            <span className="text-gray-400">(Unaffiliated)</span>
+            <span className="text-gray-400">({t('detail.person.unaffiliated')})</span>
           ) : (
             <span className="flex items-center gap-1">
               <HouseLink
@@ -1650,7 +1665,7 @@ export function PersonDetail({
         </div>
         {person.occupation && (
           <div className="flex justify-between">
-            <span className="text-gray-400">Occupation:</span>
+            <span className="text-gray-400">{t('detail.person.occupation')}:</span>
             <span>{person.occupation}</span>
           </div>
         )}
@@ -1664,7 +1679,7 @@ export function PersonDetail({
           const roleLabel = factionAsLeader ? 'leader' : 'member'
           return (
             <div className="flex justify-between">
-              <span className="text-gray-400">Faction:</span>
+              <span className="text-gray-400">{t('detail.person.faction')}:</span>
               <span>
                 ◈{' '}
                 <button
@@ -1680,12 +1695,12 @@ export function PersonDetail({
         })()}
         {isUnaffiliatedPerson(worldState, person.id) && person.houseId !== ANONYMOUS_HOUSE_ID && (
           <div className="flex justify-between">
-            <span className="text-gray-400">Status:</span>
-            <span className="text-amber-400">Unaffiliated</span>
+            <span className="text-gray-400">{t('detail.person.status')}:</span>
+            <span className="text-amber-400">{t('detail.person.unaffiliated')}</span>
           </div>
         )}
         <div className="flex justify-between">
-          <span className="text-gray-400">Primary Polity:</span>
+          <span className="text-gray-400">{t('detail.person.primary_polity')}:</span>
           {(() => {
             if (!primaryPolityId) return <span className="text-gray-500">\u2014</span>
             if (!currentState) return <span className="text-gray-500">\u2014</span>
@@ -1702,28 +1717,36 @@ export function PersonDetail({
           })()}
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Sex:</span>
-          <span>{person.sex === 'male' ? 'Male' : person.sex === 'female' ? 'Female' : '—'}</span>
+          <span className="text-gray-400">{t('detail.person.sex')}:</span>
+          <span>
+            {person.sex === 'male'
+              ? t('sex.male', { ns: 'statuses' })
+              : person.sex === 'female'
+                ? t('sex.female', { ns: 'statuses' })
+                : '—'}
+          </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Birth Status:</span>
+          <span className="text-gray-400">{t('detail.person.birth_status')}:</span>
           <span>
             {person.birthStatus === 'legitimate'
-              ? 'Legitimate'
+              ? t('birth_status.legitimate', { ns: 'statuses' })
               : person.birthStatus === 'illegitimate'
-                ? 'Illegitimate'
-                : 'Unknown'}
+                ? t('birth_status.illegitimate', { ns: 'statuses' })
+                : t('birth_status.unknown', { ns: 'statuses' })}
           </span>
         </div>
         <div className="mt-1">
-          <span className="text-sm text-gray-400">Offices</span>
+          <span className="text-sm text-gray-400">{t('detail.person.offices')}</span>
           {allOffices.length === 0 && bailiffAssignments.length === 0 ? (
             <div className="ml-1 text-sm text-gray-500">—</div>
           ) : (
             <div className="ml-1 text-sm">
               {polityOffices.length > 0 && (
                 <div>
-                  <span className="text-xs text-gray-500">Country</span>
+                  <span className="text-xs text-gray-500">
+                    {t('detail.person.country_offices')}
+                  </span>
                   {polityOffices.map((o) => (
                     <div key={o.id} className="flex justify-between gap-2">
                       <span className="text-gray-300">{officeDisplayName(o)}</span>
@@ -1734,7 +1757,7 @@ export function PersonDetail({
               )}
               {houseOffices.length > 0 && (
                 <div className={polityOffices.length > 0 ? 'mt-0.5' : ''}>
-                  <span className="text-xs text-gray-500">House</span>
+                  <span className="text-xs text-gray-500">{t('detail.person.house_offices')}</span>
                   {houseOffices.map((o) => (
                     <div key={o.id} className="flex justify-between gap-2">
                       <span className="text-gray-300">{officeDisplayName(o)}</span>
@@ -1747,12 +1770,16 @@ export function PersonDetail({
                 <div
                   className={polityOffices.length > 0 || houseOffices.length > 0 ? 'mt-0.5' : ''}
                 >
-                  <span className="text-xs text-gray-500">Bailiff</span>
+                  <span className="text-xs text-gray-500">
+                    {t('detail.person.bailiff_offices')}
+                  </span>
                   {bailiffAssignments.map((a) => {
                     const holding = worldState.holdings[a.holdingId]
                     return (
                       <div key={a.id} className="flex justify-between gap-2">
-                        <span className="text-gray-300">代官</span>
+                        <span className="text-gray-300">
+                          {t('holding.bailiff', { ns: 'roles' })}
+                        </span>
                         <button
                           className="text-right text-blue-400 underline underline-offset-2 hover:text-blue-300"
                           onClick={() => onProvinceClick(holding?.provinceId ?? '')}
@@ -1770,7 +1797,7 @@ export function PersonDetail({
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-gray-300">Abilities</span>
+        <span className="text-sm font-semibold text-gray-300">{t('detail.person.abilities')}</span>
         <div className="flex gap-0.5 rounded bg-gray-700 p-0.5 text-[10px]">
           <button
             className={`rounded px-1.5 py-0.5 ${abilityView === 'table' ? 'bg-gray-500 text-gray-100' : 'text-gray-400 hover:text-gray-200'}`}
@@ -1841,28 +1868,30 @@ export function PersonDetail({
           <div className="mt-1 flex justify-center gap-3 text-[10px]">
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-3 rounded bg-blue-400/40" />
-              <span className="text-gray-400">Ability</span>
+              <span className="text-gray-400">{t('detail.person.ability')}</span>
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-3 rounded bg-gray-400/30" />
-              <span className="text-gray-400">Aptitude</span>
+              <span className="text-gray-400">{t('detail.person.aptitude')}</span>
             </span>
           </div>
         </div>
       )}
 
-      <div className="text-sm font-semibold text-gray-300">Derived Scores:</div>
+      <div className="text-sm font-semibold text-gray-300">
+        {t('detail.person.derived_scores')}:
+      </div>
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Governance:</span>
+          <span className="text-gray-400">{t('detail.person.governance')}:</span>
           <span>{Math.round((getRoleScore(worldState, person.id, 'governance') / 10) * 10)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Stewardship:</span>
+          <span className="text-gray-400">{t('detail.person.stewardship')}:</span>
           <span>{Math.round((getRoleScore(worldState, person.id, 'stewardship') / 10) * 10)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Diplomacy:</span>
+          <span className="text-gray-400">{t('detail.person.diplomacy')}:</span>
           <span>{Math.round((getRoleScore(worldState, person.id, 'diplomacy') / 10) * 10)}</span>
         </div>
         <div className="flex justify-between">
@@ -1870,40 +1899,40 @@ export function PersonDetail({
           <span>{Math.round((getRoleScore(worldState, person.id, 'intrigue') / 10) * 10)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">WarCommand:</span>
+          <span className="text-gray-400">{t('detail.person.war_command')}:</span>
           <span>{Math.round((getRoleScore(worldState, person.id, 'warCommand') / 10) * 10)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Prestige:</span>
+          <span className="text-gray-400">{t('detail.house.prestige')}:</span>
           <span>{formatScore(person.legacyPrestige)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Wealth:</span>
+          <span className="text-gray-400">{t('detail.house.wealth')}:</span>
           <span>{formatAmount(person.wealth)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Importance:</span>
+          <span className="text-gray-400">{t('detail.person.importance')}:</span>
           <span className="text-yellow-400">{Math.round(importanceScore)}</span>
         </div>
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">Traits:</div>
+      <div className="text-sm font-semibold text-gray-300">{t('detail.person.traits')}:</div>
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Ambition:</span>
+          <span className="text-gray-400">{t('detail.person.ambition')}:</span>
           <span>{formatScore(person.traits.ambition)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Caution:</span>
+          <span className="text-gray-400">{t('detail.person.caution')}:</span>
           <span>{formatScore(person.traits.caution)}</span>
         </div>
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">Family:</div>
+      <div className="text-sm font-semibold text-gray-300">{t('detail.person.family')}:</div>
       <div className="text-sm">
         {person.fatherId !== undefined && (
           <div className="flex justify-between">
-            <span className="text-gray-400">Father:</span>
+            <span className="text-gray-400">{t('detail.person.father')}:</span>
             <PersonLink
               personId={person.fatherId}
               persons={currentState?.persons ?? {}}
@@ -1913,7 +1942,7 @@ export function PersonDetail({
         )}
         {person.motherId !== undefined && (
           <div className="flex justify-between">
-            <span className="text-gray-400">Mother:</span>
+            <span className="text-gray-400">{t('detail.person.mother')}:</span>
             <PersonLink
               personId={person.motherId}
               persons={currentState?.persons ?? {}}
@@ -1923,7 +1952,7 @@ export function PersonDetail({
         )}
         {person.spouseId !== undefined && (
           <div className="flex justify-between">
-            <span className="text-gray-400">Spouse:</span>
+            <span className="text-gray-400">{t('detail.person.spouse')}:</span>
             <PersonLink
               personId={person.spouseId}
               persons={currentState?.persons ?? {}}
@@ -1933,7 +1962,7 @@ export function PersonDetail({
         )}
         {person.childIds.length > 0 && (
           <div>
-            <div className="text-gray-400">Children:</div>
+            <div className="text-gray-400">{t('detail.person.children')}:</div>
             <div className="flex flex-col gap-0.5">
               {person.childIds.slice(0, 8).map((cid) => (
                 <PersonLink
@@ -1951,7 +1980,7 @@ export function PersonDetail({
         )}
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">Attitudes:</div>
+      <div className="text-sm font-semibold text-gray-300">{t('detail.person.attitudes')}:</div>
       <AttitudeList
         attitudes={person.attitudes}
         worldState={worldState}
@@ -2057,6 +2086,7 @@ export function ProvinceDetail({
   onProvinceClick: (id: string) => void
   onPopGroupClick: (id: string) => void
 }) {
+  const { t } = useTranslation()
   const currentState = session?.currentState
   const holdingDev = currentState
     ? getProvinceDevelopmentFromHoldings(currentState, province.id)
@@ -2185,7 +2215,7 @@ export function ProvinceDetail({
 
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Primary Polity:</span>
+          <span className="text-gray-400">{t('detail.province.terminal_polity')}:</span>
           <PolityLink
             polityId={
               currentState ? getProvinceTerminalPolityId(currentState, province.id) : undefined
@@ -2195,7 +2225,7 @@ export function ProvinceDetail({
           />
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Owner:</span>
+          <span className="text-gray-400">{t('detail.province.effective_owner')}:</span>
           <HouseLink
             houseId={
               currentState ? getProvinceEffectiveOwnerHouseId(currentState, province.id) : undefined
@@ -2209,7 +2239,7 @@ export function ProvinceDetail({
           <span>{formatScore(province.habitability)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Development:</span>
+          <span className="text-gray-400">{t('detail.province.development')}:</span>
           <span>
             {formatScore(holdingDev)} {getDevelopmentLabel(holdingDev)}
           </span>
@@ -2225,7 +2255,7 @@ export function ProvinceDetail({
       </div>
 
       <div className="text-sm font-semibold text-gray-300">
-        Holdings ({province.holdingIds.length})
+        {t('detail.province.holdings')} ({province.holdingIds.length})
       </div>
       {currentState &&
         getProvinceHoldings(currentState, province.id).map((holding) => {
@@ -2261,7 +2291,7 @@ export function ProvinceDetail({
                   if (chain.length === 0) return null
                   return (
                     <div className="mt-0.5 text-xs">
-                      <span className="text-gray-500">Chain:</span>
+                      <span className="text-gray-500">{t('detail.province.contract_chain')}:</span>
                       {chain.map((contract, idx) => {
                         const grantee = currentState.polities[contract.granteePolityId]
                         const isTerminal = idx === chain.length - 1
@@ -2287,7 +2317,7 @@ export function ProvinceDetail({
                   )
                 })()}
                 <div className="mt-0.5 text-xs text-gray-400">
-                  Bailiff:{' '}
+                  {t('detail.province.bailiff')}:{' '}
                   {bailiff ? (
                     bailiff.kind === 'placeholder' ? (
                       <span className="text-gray-500 italic">placeholder</span>
@@ -2307,53 +2337,57 @@ export function ProvinceDetail({
           )
         })}
 
-      <div className="text-sm font-semibold text-gray-300">Population</div>
+      <div className="text-sm font-semibold text-gray-300">
+        {t('detail.province.population_section')}
+      </div>
       <div className="text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Carrying Capacity:</span>
+          <span className="text-gray-400">{t('detail.province.carrying_capacity')}:</span>
           <span>{carryingCapacity.toFixed(0)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Total Population:</span>
+          <span className="text-gray-400">{t('detail.province.population')}:</span>
           <span>{totalPopulation.toFixed(1)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Pop. Pressure:</span>
+          <span className="text-gray-400">{t('detail.province.pop_pressure')}:</span>
           <span className={populationPressure > 0.9 ? 'text-red-400' : 'text-gray-200'}>
             {(populationPressure * 100).toFixed(1)}%
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Avg Wealth:</span>
+          <span className="text-gray-400">{t('detail.province.avg_wealth')}:</span>
           <span>{avgWealth.toFixed(1)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Unrest:</span>
+          <span className="text-gray-400">{t('detail.province.unrest')}:</span>
           <span className={derivedUnrest > 60 ? 'text-red-400' : 'text-gray-200'}>
             {derivedUnrest.toFixed(1)}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Production:</span>
+          <span className="text-gray-400">{t('detail.province.production')}:</span>
           <span>{derivedProduction.toFixed(2)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Manpower:</span>
+          <span className="text-gray-400">{t('detail.province.manpower')}:</span>
           <span>{derivedManpower.toFixed(2)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Country Manpower:</span>
+          <span className="text-gray-400">{t('detail.province.country_manpower')}:</span>
           <span>{countryManpower.toFixed(2)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">House Manpower:</span>
+          <span className="text-gray-400">{t('detail.province.house_manpower')}:</span>
           <span>{houseManpower.toFixed(2)}</span>
         </div>
       </div>
 
       {pops.length > 0 && (
         <>
-          <div className="text-sm font-semibold text-gray-300">POP Groups</div>
+          <div className="text-sm font-semibold text-gray-300">
+            {t('detail.province.pop_groups')}
+          </div>
           {pops.map((pop) => (
             <div key={pop.id} className="rounded bg-gray-700 p-1.5 text-xs">
               <button
@@ -2381,7 +2415,7 @@ export function ProvinceDetail({
         </>
       )}
 
-      <div className="text-sm font-semibold text-gray-300">Revolt Risk</div>
+      <div className="text-sm font-semibold text-gray-300">{t('detail.province.revolt_risk')}</div>
       <div className="text-sm">
         {(
           [
@@ -2434,6 +2468,7 @@ export function FactionDetail({
   onPersonClick: ClickHandler
   onHouseClick: ClickHandler
 }) {
+  const { t } = useTranslation()
   const currentState = session?.currentState
   const worldState: WorldState | null = currentState ?? null
   if (!worldState) return null
@@ -2542,7 +2577,7 @@ export function FactionDetail({
           <span className="text-xs text-gray-500">{faction.id}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Founded:</span>
+          <span className="text-gray-400">{t('detail.faction.founded')}:</span>
           <span>
             {(() => {
               const f = weekToYearWeek(faction.foundingWeek)
@@ -2554,7 +2589,7 @@ export function FactionDetail({
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Leader:</span>
+          <span className="text-gray-400">{t('detail.faction.leader')}:</span>
           {leader ? (
             <PersonLink personId={leader.id} persons={persons} onClick={onPersonClick} />
           ) : (
@@ -2563,20 +2598,20 @@ export function FactionDetail({
         </div>
         {leader && (
           <div className="flex justify-between">
-            <span className="text-gray-400">Leader House:</span>
+            <span className="text-gray-400">{t('detail.faction.leader_house')}:</span>
             <HouseLink houseId={leader.houseId} houses={houses} onClick={onHouseClick} />
           </div>
         )}
         <div className="flex justify-between">
-          <span className="text-gray-400">Members:</span>
+          <span className="text-gray-400">{t('detail.faction.members')}:</span>
           <span>{memberIds.length}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Viability:</span>
+          <span className="text-gray-400">{t('detail.faction.viability')}:</span>
           <span>{formatScore(viability)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Leader Opportunity:</span>
+          <span className="text-gray-400">{t('detail.faction.opportunity')}:</span>
           <span>{formatScore(leaderOpportunity)}</span>
         </div>
       </div>
@@ -2588,7 +2623,9 @@ export function FactionDetail({
         const totalRoster = memberRows.length
         return (
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-300">Roster</span>
+            <span className="text-sm font-semibold text-gray-300">
+              {t('detail.faction.roster')}
+            </span>
             {totalRoster > 0 && (
               <span className="text-xs text-gray-400">
                 有職: {employedCount}/{totalRoster}
