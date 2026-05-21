@@ -86,7 +86,6 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
     if (!malePerson || !femalePerson) continue
 
     const maleHouse = currentCtx.state.houses[male.houseId]
-    const malePolityId = getPersonPrimaryPolityId(currentCtx.state, maleId)
     const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
       type: 'MARRIAGE_FORMED',
       importance: 'normal',
@@ -100,10 +99,6 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
         entityRef('person', chosenFemaleId, 'bride', femalePerson.nameKey),
         entityRef('house', male.houseId, 'house', maleHouse?.nameKey),
       ],
-      legacySummary: malePerson.name + ' married ' + femalePerson.name,
-      legacyActorIds: [maleId, chosenFemaleId],
-      legacyHouseIds: [male.houseId],
-      legacyPolityIds: malePolityId ? [malePolityId] : [],
     })
 
     currentCtx = {

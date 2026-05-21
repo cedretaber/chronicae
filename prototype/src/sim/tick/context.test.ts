@@ -182,17 +182,11 @@ describe('toResult', () => {
       weekOfYear: 1,
       type: 'PERSON_DIED',
       importance: 'minor',
-      actorIds: [],
-      houseIds: [],
-      polityIds: [],
-      provinceIds: [],
-      holdingIds: [],
-      summary: 'test',
-      reasons: [],
-      effects: [],
       messageKey: 'test.person_died',
       messageParams: {},
       entityRefs: [],
+      reasons: [],
+      effects: [],
     })
 
     const result2 = toResult(ctx)

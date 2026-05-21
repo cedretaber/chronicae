@@ -92,6 +92,7 @@ import { normalizedStat } from '@/sim/selectors/personAbilityEffects'
 import { OFFICE_DEFINITIONS } from '@sim/config/officeDefinitions'
 import { clamp } from '@/sim/utils/math'
 import type { SimEvent } from '@/sim/types/event'
+import { hasEntityId, renderEventSummary } from '@sim/types/event'
 
 function getImportanceColor(importance: SimEvent['importance']): string {
   switch (importance) {
@@ -1246,13 +1247,7 @@ export function HouseDetail({
   const totalMilitaryPower = (levyPower + mercenaryPower) * commanderModifier
 
   const recentEvents = eventHistory
-    .filter(
-      (e) =>
-        e.houseIds.some((id) => (id as string) === house.id) ||
-        e.actorIds.some((aid) =>
-          house.memberIds.some((mid) => (mid as string) === (aid as string)),
-        ),
-    )
+    .filter((e) => hasEntityId(e, house.id) || house.memberIds.some((mid) => hasEntityId(e, mid)))
     .slice(-3)
     .reverse()
 
@@ -1502,7 +1497,7 @@ export function HouseDetail({
           <div className="text-sm font-semibold text-gray-300">Recent Events:</div>
           {recentEvents.map((e) => (
             <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
-              [{e.year}/W{e.weekOfYear}] {e.summary}
+              [{e.year}/W{e.weekOfYear}] {renderEventSummary(e)}
             </div>
           ))}
         </div>

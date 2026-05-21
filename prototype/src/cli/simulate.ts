@@ -7,6 +7,7 @@ import { runIntegritySystem } from '@sim/tick/integritySystem'
 import { createLogger } from '@sim/debug/logger'
 import type { WorldState } from '@sim/types/world'
 import type { SimEvent } from '@sim/types/event'
+import type { EventMessageParams } from '@sim/types/event'
 import type { ProvinceId, HoldingId } from '@sim/types/ids'
 import {
   getProvinceTerminalPolityId,
@@ -23,6 +24,11 @@ import YAML from 'yaml'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
 import { loadNameDisplayData } from '@sim/namegen/loadNameDisplayData'
 import type { NamePoolData } from '@sim/namegen/namePoolTypes'
+import { createChronicaeI18n } from '../i18n'
+import { createNodeResourceLoader } from '../i18n/loaders/nodeResourceLoader'
+import { createNameTranslator } from '../i18n/nameTranslator'
+import { createEventRenderer } from '../i18n/eventRenderer'
+import type { LocaleCode } from '../i18n/types'
 
 function printUsage(): void {
   console.log(`Usage: npm run cli [options]
@@ -41,6 +47,7 @@ Options:
   --report-snapshot <n> Capture a snapshot every <n> years for the report (default: off)
   --perf                Output performance summary (entity counts, elapsed time, tick time)
   --preset <name>       World size preset (tiny, small, standard, perfLarge)
+  --locale <code>       Locale for event rendering (en, ja; default: en)
   --help                Show this help message`)
 }
 
@@ -58,6 +65,7 @@ function parseArgs(argv: string[]): {
   reportPath: string | undefined
   reportSnapshotYears: number
   preset: WorldPresetName | undefined
+  locale: LocaleCode
   showHelp: boolean
 } {
   let seed = 'chronicae-default'
@@ -73,6 +81,7 @@ function parseArgs(argv: string[]): {
   let reportPath: string | undefined = undefined
   let reportSnapshotYears = 0
   let preset: WorldPresetName | undefined = undefined
+  let locale: LocaleCode = 'en'
   let showHelp = false
 
   let i = 2
@@ -146,6 +155,15 @@ function parseArgs(argv: string[]): {
         console.error('Error: --preset must be one of: tiny, small, standard, perfLarge')
         process.exit(1)
       }
+    } else if (arg === '--locale') {
+      i++
+      const val = argv[i]
+      if (val && (val === 'en' || val === 'ja')) {
+        locale = val
+      } else {
+        console.error('Error: --locale must be one of: en, ja')
+        process.exit(1)
+      }
     } else if (arg === '--help') {
       showHelp = true
     }
@@ -166,6 +184,7 @@ function parseArgs(argv: string[]): {
     reportPath,
     reportSnapshotYears,
     preset,
+    locale,
     showHelp,
   }
 }
@@ -392,409 +411,432 @@ function formatTreasury(treasury: number): string {
   return String(Math.round(treasury))
 }
 
-const args = parseArgs(process.argv)
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv)
 
-if (args.showHelp) {
-  printUsage()
-  process.exit(0)
-}
-
-if (args.years !== undefined && args.weeks !== undefined) {
-  console.error('Error: --years and --weeks cannot be specified together')
-  process.exit(1)
-}
-
-const totalTicks = args.weeks !== undefined ? args.weeks : args.years * 48
-
-// Load NamePoolService and NameDisplayData for CLI
-const namePoolsPath = path.resolve(import.meta.dirname, '../sim/namegen/namePools.yaml')
-const namePoolsYaml = fs.readFileSync(namePoolsPath, 'utf-8')
-const namePoolData = YAML.parse(namePoolsYaml) as NamePoolData
-const namePoolService = createNamePoolService(namePoolData)
-const nameDisplayData = loadNameDisplayData()
-
-const { world, rng: initialRng } = generateWorld(
-  args.seed,
-  args.preset,
-  namePoolService,
-  nameDisplayData,
-)
-
-const initialPolityCount = countActivePolities(world)
-const initialHouseCount = countActiveHouses(world)
-
-const polityAnnexedInfo: Record<string, { name: string; year: number }> = {}
-for (const id of Object.keys(world.polities)) {
-  const polity = world.polities[id as keyof typeof world.polities]
-  if (!polity) continue
-  polityAnnexedInfo[id] = { name: polity.name, year: 0 }
-}
-
-let state: WorldState = world
-let currentRng = initialRng
-const allEvents: SimEvent[] = []
-const validConfigKeys = new Set(Object.keys(defaultConfig))
-for (const key of Object.keys(args.configOverrides)) {
-  if (!validConfigKeys.has(key)) {
-    console.error(`Warning: unknown config key "${key}" (ignored)`)
-  }
-}
-const configBase: typeof defaultConfig = Object.assign({}, defaultConfig, args.configOverrides)
-const config = args.debug ? { ...configBase, debug: true } : configBase
-const snapshots: ActivitySnapshot[] = []
-// 初期状態 (year 0) のスナップショットも取る (--report-snapshot 有効時のみ)
-if (args.reportPath !== undefined && args.reportSnapshotYears > 0) {
-  snapshots.push(takeSnapshot(state, state.currentYear))
-}
-
-if (!args.json && !args.digest) {
-  console.log('Starting simulation with seed:', args.seed)
-  console.log('Simulating', args.years, 'years,', totalTicks, 'ticks')
-  console.log('')
-}
-
-const simStartTime = performance.now()
-let tickTimeTotal = 0
-const systemTimingsTotal: Record<string, number> = {}
-
-for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
-  const tickT0 = performance.now()
-  const result = tick({ state, rng: currentRng, config, namePoolService })
-  tickTimeTotal += performance.now() - tickT0
-
-  if (result.systemTimings) {
-    for (const [sys, ms] of Object.entries(result.systemTimings)) {
-      systemTimingsTotal[sys] = (systemTimingsTotal[sys] ?? 0) + ms
-    }
+  if (args.showHelp) {
+    printUsage()
+    process.exit(0)
   }
 
-  if (args.integrityCheck) {
-    const ctx = createTickContext({ state: result.state, rng: result.rng, config })
-    runIntegritySystem(ctx)
+  if (args.years !== undefined && args.weeks !== undefined) {
+    console.error('Error: --years and --weeks cannot be specified together')
+    process.exit(1)
   }
 
-  const year = result.state.currentYear
-  const weekOfYear = result.state.currentWeekOfYear
-  const events = result.events
-  const activePolities = countActivePolities(result.state)
-  const activeHouses = countActiveHouses(result.state)
+  const totalTicks = args.weeks !== undefined ? args.weeks : args.years * 48
 
-  for (const event of events) {
-    if (event.type === 'POLITY_ANNEXED') {
-      for (const polityId of event.polityIds) {
-        const info = polityAnnexedInfo[polityId]
-        if (info) {
-          info.year = year
-        }
-      }
-    }
-  }
+  // Load NamePoolService and NameDisplayData for CLI
+  const namePoolsPath = path.resolve(import.meta.dirname, '../sim/namegen/namePools.yaml')
+  const namePoolsYaml = fs.readFileSync(namePoolsPath, 'utf-8')
+  const namePoolData = YAML.parse(namePoolsYaml) as NamePoolData
+  const namePoolService = createNamePoolService(namePoolData)
+  const nameDisplayData = loadNameDisplayData()
 
-  if (events.length > 0 && !args.digest) {
-    if (args.json) {
-      const output = {
-        year,
-        week: weekOfYear,
-        events: events.map((e) => ({ type: e.type, summary: e.summary })),
-        activePolities,
-        activeHouses,
-      }
-      console.log(JSON.stringify(output))
-    } else {
-      console.log('Year ' + year + ', Week ' + weekOfYear)
-      for (const event of events) {
-        if (args.debug) {
-          const ids = [
-            ...(event.actorIds as string[]),
-            ...(event.houseIds as string[]),
-            ...(event.polityIds as string[]),
-            ...(event.provinceIds as string[]),
-          ]
-          const idStr = ids.length > 0 ? ' [' + ids.join(', ') + ']' : ''
-          console.log('  ' + event.type + ': ' + event.summary + idStr)
-        } else {
-          console.log('  ' + event.type + ': ' + event.summary)
-        }
-      }
-      console.log('')
-    }
-  }
-
-  if (weekOfYear === 48) {
-    if (args.debug) {
-      const debugLog = createLogger(true)
-      let livingPersons = 0
-      for (const p of Object.values(result.state.persons)) {
-        if (p?.alive) livingPersons++
-      }
-      debugLog.log('YEAR', {
-        year,
-        persons: livingPersons,
-        houses: activeHouses,
-        polities: activePolities,
-      })
-    }
-
-    if (args.json) {
-      const output = {
-        year,
-        week: weekOfYear,
-        events: events.map((e) => ({ type: e.type, summary: e.summary })),
-        activePolities,
-        activeHouses,
-      }
-      console.log(JSON.stringify(output))
-    } else if (!args.digest) {
-      console.log('')
-      console.log('--- Year ' + year + ' Summary ---')
-      console.log('  Polities: ' + activePolities + ' active | Houses: ' + activeHouses + ' active')
-      const avgPolityControl = computeAvgPolityControl(result.state)
-      const avgHouseControl = computeAvgHouseControl(result.state)
-      console.log(
-        '  Provinces: avg polityControl=' +
-          avgPolityControl.toFixed(1) +
-          ', avg houseControl=' +
-          avgHouseControl.toFixed(1),
-      )
-      const holdingCount = countHoldings(result.state)
-      const avgHDev = computeAvgHoldingDevelopment(result.state)
-      const avgHCtrl = computeAvgHoldingPolityControl(result.state)
-      console.log(
-        '  Holdings: ' +
-          holdingCount +
-          ', avg dev=' +
-          avgHDev.toFixed(1) +
-          ', avg polityControl=' +
-          avgHCtrl.toFixed(1),
-      )
-      const chainDepth = avgChainDepth(result.state)
-      const lcCount = countLandContracts(result.state)
-      const holdingBailiffs = countHoldingBailiffsByKind(result.state)
-      const rebelCount = countRebelPolities(result.state)
-      console.log(
-        '  Land: ' +
-          lcCount +
-          ' contracts, avg chain depth=' +
-          chainDepth.toFixed(1) +
-          (rebelCount > 0 ? ' | Rebel polities: ' + rebelCount : ''),
-      )
-      console.log(
-        '  Bailiffs: ' +
-          holdingBailiffs.normal +
-          ' normal / ' +
-          holdingBailiffs.placeholder +
-          ' placeholder' +
-          (holdingBailiffs.vacant > 0 ? ' / ' + holdingBailiffs.vacant + ' vacant' : ''),
-      )
-      const eventCounts = countEventsByType(events)
-      let totalYearEvents = 0
-      for (const count of Object.values(eventCounts)) {
-        totalYearEvents += count
-      }
-      const unrestStats = computeUnrestStats(result.state)
-      console.log(
-        '  Unrest: avg=' +
-          unrestStats.avgUnrest.toFixed(1) +
-          ' (peasants=' +
-          unrestStats.avgPeasantUnrest.toFixed(1) +
-          ', townsmen=' +
-          unrestStats.avgTownsmenUnrest.toFixed(1) +
-          ', nobles=' +
-          unrestStats.avgNobleUnrest.toFixed(1) +
-          ') | high(>50): ' +
-          unrestStats.highUnrestCount +
-          '/' +
-          unrestStats.totalProvinces,
-      )
-      console.log('  Major events this year: ' + totalYearEvents)
-      console.log('')
-    }
-  }
-
-  state = result.state
-  currentRng = result.rng
-  for (const event of events) {
-    allEvents.push(event)
-  }
-
-  // --report-snapshot 指定時、年末 (weekOfYear=52) かつ指定間隔で snapshot を取る
-  if (
-    args.reportPath !== undefined &&
-    args.reportSnapshotYears > 0 &&
-    weekOfYear === 48 &&
-    year % args.reportSnapshotYears === 0
-  ) {
-    snapshots.push(takeSnapshot(result.state, year))
-  }
-}
-
-const simElapsedMs = performance.now() - simStartTime
-
-if (args.perf) {
-  const perfData = {
-    elapsed: {
-      totalMs: Math.round(simElapsedMs),
-      tickTotalMs: Math.round(tickTimeTotal),
-      tickAvgMs: Math.round((tickTimeTotal / totalTicks) * 1000) / 1000,
-      ticks: totalTicks,
-    },
-    entities: {
-      states: Object.keys(state.states).length,
-      provinces: Object.keys(state.provinces).length,
-      holdings: countHoldings(state),
-      polities: countActivePolities(state),
-      houses: countActiveHouses(state),
-      persons: countLivingPersons(state),
-      landContracts: countLandContracts(state),
-    },
-    seed: args.seed,
-    preset: args.preset ?? 'default',
-    years: args.years,
-    systemTimings: Object.fromEntries(
-      Object.entries(systemTimingsTotal)
-        .sort(([, a], [, b]) => b - a)
-        .map(([k, v]) => [k, Math.round(v)]),
-    ),
-  }
-  if (args.json) {
-    console.log(JSON.stringify(perfData))
-  } else {
-    process.stderr.write('\n=== PERF SUMMARY ===\n')
-    process.stderr.write(
-      `Seed: ${perfData.seed} | Preset: ${perfData.preset} | Years: ${perfData.years}\n`,
-    )
-    process.stderr.write(
-      `Elapsed: ${perfData.elapsed.totalMs}ms (tick total: ${perfData.elapsed.tickTotalMs}ms, avg: ${perfData.elapsed.tickAvgMs}ms/tick, ${perfData.elapsed.ticks} ticks)\n`,
-    )
-    process.stderr.write(
-      `Entities: ${perfData.entities.states} states, ${perfData.entities.provinces} provinces, ${perfData.entities.holdings} holdings, ${perfData.entities.polities} polities, ${perfData.entities.houses} houses, ${perfData.entities.persons} persons, ${perfData.entities.landContracts} contracts\n`,
-    )
-    process.stderr.write('System timings (ms):\n')
-    for (const [sys, ms] of Object.entries(perfData.systemTimings)) {
-      process.stderr.write(`  ${sys.padEnd(34)} ${String(ms).padStart(8)}\n`)
-    }
-  }
-}
-
-if (args.dumpWorld) {
-  process.stderr.write(JSON.stringify(state, null, 2) + '\n')
-}
-
-if (args.reportPath !== undefined) {
-  const report = buildActivityReport(state, allEvents, config, snapshots, {
-    seed: args.seed,
-    years: args.years,
+  // Initialize i18n for locale-aware event rendering
+  const i18n = await createChronicaeI18n({
+    locale: args.locale,
+    fallbackLocale: 'en',
+    resourceLoader: createNodeResourceLoader(),
   })
-  const json = JSON.stringify(report, null, 2)
-  if (args.reportPath === '-') {
-    console.log(json)
-  } else {
-    writeFileSync(args.reportPath, json + '\n')
-    process.stderr.write('Wrote activity report to ' + args.reportPath + '\n')
-  }
-}
+  const nodeLoader = createNodeResourceLoader()
+  const localeNames = await nodeLoader.loadAllNameTranslations(args.locale)
+  const fallbackNames =
+    args.locale !== 'en' ? await nodeLoader.loadAllNameTranslations('en') : undefined
+  const nameTranslator = createNameTranslator(localeNames, fallbackNames)
+  const eventRenderer = createEventRenderer(i18n, nameTranslator)
+  const renderEvent = (e: { messageKey: string; messageParams: EventMessageParams }): string =>
+    eventRenderer.render(e.messageKey, e.messageParams)
 
-if (args.digest) {
-  const bailiffs = countHoldingBailiffsByKind(state)
-  const digest = {
-    seed: args.seed,
-    years: args.years,
-    finalYear: state.currentYear,
-    finalWeekOfYear: state.currentWeekOfYear,
-    activePolities: countActivePolities(state),
-    activeHouses: countActiveHouses(state),
-    livingPersons: countLivingPersons(state),
-    totalProvinces: Object.keys(state.provinces).length,
-    totalHoldings: countHoldings(state),
-    totalStates: Object.keys(state.states).length,
-    avgHoldingDevelopment: computeAvgHoldingDevelopment(state),
-    avgHoldingPolityControl: computeAvgHoldingPolityControl(state),
-    avgPolityControl: computeAvgPolityControl(state),
-    avgHouseControl: computeAvgHouseControl(state),
-    landContracts: countLandContracts(state),
-    avgChainDepth: avgChainDepth(state),
-    bailiffNormal: bailiffs.normal,
-    bailiffPlaceholder: bailiffs.placeholder,
-    bailiffVacant: bailiffs.vacant,
-    rebelPolities: countRebelPolities(state),
-    systemHouses: countSystemHouses(state),
-    placeholderPersons: countPlaceholderPersons(state),
-    eventCounts: countEventsByType(allEvents),
-    totalEvents: allEvents.length,
-  }
-  console.log(JSON.stringify(digest, null, 2))
-}
+  const { world, rng: initialRng } = generateWorld(
+    args.seed,
+    args.preset,
+    namePoolService,
+    nameDisplayData,
+  )
 
-if (args.json) {
-  const finalOutput = {
-    year: state.currentYear,
-    week: state.currentWeekOfYear,
-    events: allEvents.map((e) => ({ type: e.type, summary: e.summary })),
-    activePolities: countActivePolities(state),
-    activeHouses: countActiveHouses(state),
-  }
-  console.log(JSON.stringify(finalOutput))
-} else if (!args.digest) {
-  console.log('=== FINAL SUMMARY (after ' + args.years + ' years, ' + totalTicks + ' ticks) ===')
-  const finalActivePolities = countActivePolities(state)
-  const finalActiveHouses = countActiveHouses(state)
-  console.log('Polities: ' + finalActivePolities + ' active / ' + initialPolityCount + ' initial')
+  const initialPolityCount = countActivePolities(world)
+  const initialHouseCount = countActiveHouses(world)
 
-  const provinceCounts = countProvincesPerPolity(state)
-  for (const id of Object.keys(state.polities)) {
-    const polity = state.polities[id as keyof typeof state.polities]
+  const polityAnnexedInfo: Record<string, { name: string; year: number }> = {}
+  for (const id of Object.keys(world.polities)) {
+    const polity = world.polities[id as keyof typeof world.polities]
     if (!polity) continue
-    const info = polityAnnexedInfo[id]
-    if (!info) continue
-    const name = info.name
-    if (polity.active) {
-      const provCount = provinceCounts[id] || 0
-      console.log(
-        '  ' + name + ': ' + provCount + ' provinces, treasury=' + formatTreasury(polity.treasury),
-      )
-    } else {
-      console.log('  [ANNEXED] ' + name + ' -> annexed (year ' + info.year + ')')
+    polityAnnexedInfo[id] = { name: polity.name, year: 0 }
+  }
+
+  let state: WorldState = world
+  let currentRng = initialRng
+  const allEvents: SimEvent[] = []
+  const validConfigKeys = new Set(Object.keys(defaultConfig))
+  for (const key of Object.keys(args.configOverrides)) {
+    if (!validConfigKeys.has(key)) {
+      console.error(`Warning: unknown config key "${key}" (ignored)`)
+    }
+  }
+  const configBase: typeof defaultConfig = Object.assign({}, defaultConfig, args.configOverrides)
+  const config = args.debug ? { ...configBase, debug: true } : configBase
+  const snapshots: ActivitySnapshot[] = []
+  // 初期状態 (year 0) のスナップショットも取る (--report-snapshot 有効時のみ)
+  if (args.reportPath !== undefined && args.reportSnapshotYears > 0) {
+    snapshots.push(takeSnapshot(state, state.currentYear))
+  }
+
+  if (!args.json && !args.digest) {
+    console.log('Starting simulation with seed:', args.seed)
+    console.log('Simulating', args.years, 'years,', totalTicks, 'ticks')
+    console.log('')
+  }
+
+  const simStartTime = performance.now()
+  let tickTimeTotal = 0
+  const systemTimingsTotal: Record<string, number> = {}
+
+  for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
+    const tickT0 = performance.now()
+    const result = tick({ state, rng: currentRng, config, namePoolService })
+    tickTimeTotal += performance.now() - tickT0
+
+    if (result.systemTimings) {
+      for (const [sys, ms] of Object.entries(result.systemTimings)) {
+        systemTimingsTotal[sys] = (systemTimingsTotal[sys] ?? 0) + ms
+      }
+    }
+
+    if (args.integrityCheck) {
+      const ctx = createTickContext({ state: result.state, rng: result.rng, config })
+      runIntegritySystem(ctx)
+    }
+
+    const year = result.state.currentYear
+    const weekOfYear = result.state.currentWeekOfYear
+    const events = result.events
+    const activePolities = countActivePolities(result.state)
+    const activeHouses = countActiveHouses(result.state)
+
+    for (const event of events) {
+      if (event.type === 'POLITY_ANNEXED') {
+        const refs = event.entityRefs ?? []
+        for (const ref of refs) {
+          if (ref.kind !== 'polity') continue
+          const info = polityAnnexedInfo[ref.id]
+          if (info) {
+            info.year = year
+          }
+        }
+      }
+    }
+
+    if (events.length > 0 && !args.digest) {
+      if (args.json) {
+        const output = {
+          year,
+          week: weekOfYear,
+          events: events.map((e) => ({ type: e.type, summary: renderEvent(e) })),
+          activePolities,
+          activeHouses,
+        }
+        console.log(JSON.stringify(output))
+      } else {
+        console.log('Year ' + year + ', Week ' + weekOfYear)
+        for (const event of events) {
+          if (args.debug) {
+            const ids = (event.entityRefs ?? []).map((r) => r.id)
+            const idStr = ids.length > 0 ? ' [' + ids.join(', ') + ']' : ''
+            console.log('  ' + event.type + ': ' + renderEvent(event) + idStr)
+          } else {
+            console.log('  ' + event.type + ': ' + renderEvent(event))
+          }
+        }
+        console.log('')
+      }
+    }
+
+    if (weekOfYear === 48) {
+      if (args.debug) {
+        const debugLog = createLogger(true)
+        let livingPersons = 0
+        for (const p of Object.values(result.state.persons)) {
+          if (p?.alive) livingPersons++
+        }
+        debugLog.log('YEAR', {
+          year,
+          persons: livingPersons,
+          houses: activeHouses,
+          polities: activePolities,
+        })
+      }
+
+      if (args.json) {
+        const output = {
+          year,
+          week: weekOfYear,
+          events: events.map((e) => ({ type: e.type, summary: renderEvent(e) })),
+          activePolities,
+          activeHouses,
+        }
+        console.log(JSON.stringify(output))
+      } else if (!args.digest) {
+        console.log('')
+        console.log('--- Year ' + year + ' Summary ---')
+        console.log(
+          '  Polities: ' + activePolities + ' active | Houses: ' + activeHouses + ' active',
+        )
+        const avgPolityControl = computeAvgPolityControl(result.state)
+        const avgHouseControl = computeAvgHouseControl(result.state)
+        console.log(
+          '  Provinces: avg polityControl=' +
+            avgPolityControl.toFixed(1) +
+            ', avg houseControl=' +
+            avgHouseControl.toFixed(1),
+        )
+        const holdingCount = countHoldings(result.state)
+        const avgHDev = computeAvgHoldingDevelopment(result.state)
+        const avgHCtrl = computeAvgHoldingPolityControl(result.state)
+        console.log(
+          '  Holdings: ' +
+            holdingCount +
+            ', avg dev=' +
+            avgHDev.toFixed(1) +
+            ', avg polityControl=' +
+            avgHCtrl.toFixed(1),
+        )
+        const chainDepth = avgChainDepth(result.state)
+        const lcCount = countLandContracts(result.state)
+        const holdingBailiffs = countHoldingBailiffsByKind(result.state)
+        const rebelCount = countRebelPolities(result.state)
+        console.log(
+          '  Land: ' +
+            lcCount +
+            ' contracts, avg chain depth=' +
+            chainDepth.toFixed(1) +
+            (rebelCount > 0 ? ' | Rebel polities: ' + rebelCount : ''),
+        )
+        console.log(
+          '  Bailiffs: ' +
+            holdingBailiffs.normal +
+            ' normal / ' +
+            holdingBailiffs.placeholder +
+            ' placeholder' +
+            (holdingBailiffs.vacant > 0 ? ' / ' + holdingBailiffs.vacant + ' vacant' : ''),
+        )
+        const eventCounts = countEventsByType(events)
+        let totalYearEvents = 0
+        for (const count of Object.values(eventCounts)) {
+          totalYearEvents += count
+        }
+        const unrestStats = computeUnrestStats(result.state)
+        console.log(
+          '  Unrest: avg=' +
+            unrestStats.avgUnrest.toFixed(1) +
+            ' (peasants=' +
+            unrestStats.avgPeasantUnrest.toFixed(1) +
+            ', townsmen=' +
+            unrestStats.avgTownsmenUnrest.toFixed(1) +
+            ', nobles=' +
+            unrestStats.avgNobleUnrest.toFixed(1) +
+            ') | high(>50): ' +
+            unrestStats.highUnrestCount +
+            '/' +
+            unrestStats.totalProvinces,
+        )
+        console.log('  Major events this year: ' + totalYearEvents)
+        console.log('')
+      }
+    }
+
+    state = result.state
+    currentRng = result.rng
+    for (const event of events) {
+      allEvents.push(event)
+    }
+
+    // --report-snapshot 指定時、年末 (weekOfYear=52) かつ指定間隔で snapshot を取る
+    if (
+      args.reportPath !== undefined &&
+      args.reportSnapshotYears > 0 &&
+      weekOfYear === 48 &&
+      year % args.reportSnapshotYears === 0
+    ) {
+      snapshots.push(takeSnapshot(result.state, year))
     }
   }
 
-  console.log('Houses: ' + finalActiveHouses + ' active / ' + initialHouseCount + ' initial')
+  const simElapsedMs = performance.now() - simStartTime
 
-  const holdingTotal = countHoldings(state)
-  const avgHDev = computeAvgHoldingDevelopment(state)
-  const avgHCtrl = computeAvgHoldingPolityControl(state)
-  const holdingBailiffs = countHoldingBailiffsByKind(state)
-  console.log(
-    'Holdings: ' +
-      holdingTotal +
-      ', avg dev=' +
-      avgHDev.toFixed(1) +
-      ', avg polityControl=' +
-      avgHCtrl.toFixed(1) +
-      ' | Bailiffs: ' +
-      holdingBailiffs.normal +
-      ' normal / ' +
-      holdingBailiffs.placeholder +
-      ' placeholder' +
-      (holdingBailiffs.vacant > 0 ? ' / ' + holdingBailiffs.vacant + ' vacant' : ''),
-  )
-
-  const finalBailiffs = countHoldingBailiffsByKind(state)
-  console.log(
-    'Land: ' +
-      countLandContracts(state) +
-      ' contracts, avg chain depth=' +
-      avgChainDepth(state).toFixed(1) +
-      ' | Bailiffs: ' +
-      finalBailiffs.normal +
-      ' normal / ' +
-      finalBailiffs.placeholder +
-      ' placeholder' +
-      (finalBailiffs.vacant > 0 ? ' / ' + finalBailiffs.vacant + ' vacant' : ''),
-  )
-  const finalRebelCount = countRebelPolities(state)
-  if (finalRebelCount > 0) {
-    console.log('Rebel polities ever formed: ' + finalRebelCount)
+  if (args.perf) {
+    const perfData = {
+      elapsed: {
+        totalMs: Math.round(simElapsedMs),
+        tickTotalMs: Math.round(tickTimeTotal),
+        tickAvgMs: Math.round((tickTimeTotal / totalTicks) * 1000) / 1000,
+        ticks: totalTicks,
+      },
+      entities: {
+        states: Object.keys(state.states).length,
+        provinces: Object.keys(state.provinces).length,
+        holdings: countHoldings(state),
+        polities: countActivePolities(state),
+        houses: countActiveHouses(state),
+        persons: countLivingPersons(state),
+        landContracts: countLandContracts(state),
+      },
+      seed: args.seed,
+      preset: args.preset ?? 'default',
+      years: args.years,
+      systemTimings: Object.fromEntries(
+        Object.entries(systemTimingsTotal)
+          .sort(([, a], [, b]) => b - a)
+          .map(([k, v]) => [k, Math.round(v)]),
+      ),
+    }
+    if (args.json) {
+      console.log(JSON.stringify(perfData))
+    } else {
+      process.stderr.write('\n=== PERF SUMMARY ===\n')
+      process.stderr.write(
+        `Seed: ${perfData.seed} | Preset: ${perfData.preset} | Years: ${perfData.years}\n`,
+      )
+      process.stderr.write(
+        `Elapsed: ${perfData.elapsed.totalMs}ms (tick total: ${perfData.elapsed.tickTotalMs}ms, avg: ${perfData.elapsed.tickAvgMs}ms/tick, ${perfData.elapsed.ticks} ticks)\n`,
+      )
+      process.stderr.write(
+        `Entities: ${perfData.entities.states} states, ${perfData.entities.provinces} provinces, ${perfData.entities.holdings} holdings, ${perfData.entities.polities} polities, ${perfData.entities.houses} houses, ${perfData.entities.persons} persons, ${perfData.entities.landContracts} contracts\n`,
+      )
+      process.stderr.write('System timings (ms):\n')
+      for (const [sys, ms] of Object.entries(perfData.systemTimings)) {
+        process.stderr.write(`  ${sys.padEnd(34)} ${String(ms).padStart(8)}\n`)
+      }
+    }
   }
 
-  console.log('Total events: ' + allEvents.length)
-}
+  if (args.dumpWorld) {
+    process.stderr.write(JSON.stringify(state, null, 2) + '\n')
+  }
+
+  if (args.reportPath !== undefined) {
+    const report = buildActivityReport(state, allEvents, config, snapshots, {
+      seed: args.seed,
+      years: args.years,
+    })
+    const json = JSON.stringify(report, null, 2)
+    if (args.reportPath === '-') {
+      console.log(json)
+    } else {
+      writeFileSync(args.reportPath, json + '\n')
+      process.stderr.write('Wrote activity report to ' + args.reportPath + '\n')
+    }
+  }
+
+  if (args.digest) {
+    const bailiffs = countHoldingBailiffsByKind(state)
+    const digest = {
+      seed: args.seed,
+      years: args.years,
+      finalYear: state.currentYear,
+      finalWeekOfYear: state.currentWeekOfYear,
+      activePolities: countActivePolities(state),
+      activeHouses: countActiveHouses(state),
+      livingPersons: countLivingPersons(state),
+      totalProvinces: Object.keys(state.provinces).length,
+      totalHoldings: countHoldings(state),
+      totalStates: Object.keys(state.states).length,
+      avgHoldingDevelopment: computeAvgHoldingDevelopment(state),
+      avgHoldingPolityControl: computeAvgHoldingPolityControl(state),
+      avgPolityControl: computeAvgPolityControl(state),
+      avgHouseControl: computeAvgHouseControl(state),
+      landContracts: countLandContracts(state),
+      avgChainDepth: avgChainDepth(state),
+      bailiffNormal: bailiffs.normal,
+      bailiffPlaceholder: bailiffs.placeholder,
+      bailiffVacant: bailiffs.vacant,
+      rebelPolities: countRebelPolities(state),
+      systemHouses: countSystemHouses(state),
+      placeholderPersons: countPlaceholderPersons(state),
+      eventCounts: countEventsByType(allEvents),
+      totalEvents: allEvents.length,
+    }
+    console.log(JSON.stringify(digest, null, 2))
+  }
+
+  if (args.json) {
+    const finalOutput = {
+      year: state.currentYear,
+      week: state.currentWeekOfYear,
+      events: allEvents.map((e) => ({ type: e.type, summary: renderEvent(e) })),
+      activePolities: countActivePolities(state),
+      activeHouses: countActiveHouses(state),
+    }
+    console.log(JSON.stringify(finalOutput))
+  } else if (!args.digest) {
+    console.log('=== FINAL SUMMARY (after ' + args.years + ' years, ' + totalTicks + ' ticks) ===')
+    const finalActivePolities = countActivePolities(state)
+    const finalActiveHouses = countActiveHouses(state)
+    console.log('Polities: ' + finalActivePolities + ' active / ' + initialPolityCount + ' initial')
+
+    const provinceCounts = countProvincesPerPolity(state)
+    for (const id of Object.keys(state.polities)) {
+      const polity = state.polities[id as keyof typeof state.polities]
+      if (!polity) continue
+      const info = polityAnnexedInfo[id]
+      if (!info) continue
+      const name = info.name
+      if (polity.active) {
+        const provCount = provinceCounts[id] || 0
+        console.log(
+          '  ' +
+            name +
+            ': ' +
+            provCount +
+            ' provinces, treasury=' +
+            formatTreasury(polity.treasury),
+        )
+      } else {
+        console.log('  [ANNEXED] ' + name + ' -> annexed (year ' + info.year + ')')
+      }
+    }
+
+    console.log('Houses: ' + finalActiveHouses + ' active / ' + initialHouseCount + ' initial')
+
+    const holdingTotal = countHoldings(state)
+    const avgHDev = computeAvgHoldingDevelopment(state)
+    const avgHCtrl = computeAvgHoldingPolityControl(state)
+    const holdingBailiffs = countHoldingBailiffsByKind(state)
+    console.log(
+      'Holdings: ' +
+        holdingTotal +
+        ', avg dev=' +
+        avgHDev.toFixed(1) +
+        ', avg polityControl=' +
+        avgHCtrl.toFixed(1) +
+        ' | Bailiffs: ' +
+        holdingBailiffs.normal +
+        ' normal / ' +
+        holdingBailiffs.placeholder +
+        ' placeholder' +
+        (holdingBailiffs.vacant > 0 ? ' / ' + holdingBailiffs.vacant + ' vacant' : ''),
+    )
+
+    const finalBailiffs = countHoldingBailiffsByKind(state)
+    console.log(
+      'Land: ' +
+        countLandContracts(state) +
+        ' contracts, avg chain depth=' +
+        avgChainDepth(state).toFixed(1) +
+        ' | Bailiffs: ' +
+        finalBailiffs.normal +
+        ' normal / ' +
+        finalBailiffs.placeholder +
+        ' placeholder' +
+        (finalBailiffs.vacant > 0 ? ' / ' + finalBailiffs.vacant + ' vacant' : ''),
+    )
+    const finalRebelCount = countRebelPolities(state)
+    if (finalRebelCount > 0) {
+      console.log('Rebel polities ever formed: ' + finalRebelCount)
+    }
+
+    console.log('Total events: ' + allEvents.length)
+  }
+} // end async main()
+
+void main()

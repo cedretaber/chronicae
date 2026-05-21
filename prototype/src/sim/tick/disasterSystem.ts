@@ -47,8 +47,6 @@ function applyFamine(ctx: TickContext, provinceId: ProvinceId): TickContext {
       province: nameParam('province', province.nameKey, province.name),
     },
     entityRefs: [entityRef('province', provinceId, 'province', province.nameKey)],
-    legacySummary: `Famine strikes ${province.name}!`,
-    legacyProvinceIds: [provinceId],
   })
   return { ...eventCtx, state: nextState, events: [...eventCtx.events, event] }
 }
@@ -81,8 +79,6 @@ function applyPlague(ctx: TickContext, provinceId: ProvinceId): TickContext {
       province: nameParam('province', province.nameKey, province.name),
     },
     entityRefs: [entityRef('province', provinceId, 'province', province.nameKey)],
-    legacySummary: `Plague spreads through ${province.name}!`,
-    legacyProvinceIds: [provinceId],
   })
   return { ...eventCtx, state: nextState, events: [...eventCtx.events, event] }
 }
@@ -133,8 +129,6 @@ function applyBountifulHarvest(ctx: TickContext, provinceId: ProvinceId): TickCo
       province: nameParam('province', province.nameKey, province.name),
     },
     entityRefs: [entityRef('province', provinceId, 'province', province.nameKey)],
-    legacySummary: `A bountiful harvest blesses ${province.name}.`,
-    legacyProvinceIds: [provinceId],
   })
   return { ...eventCtx, state: nextState, events: [...eventCtx.events, event] }
 }

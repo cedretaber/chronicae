@@ -10,7 +10,7 @@ import type {
   EventReason,
   EventEffect,
 } from '../types/event'
-import type { EventId, PersonId, HouseId, PolityId, ProvinceId, HoldingId } from '../types/ids'
+import type { EventId, PersonId, HouseId, PolityId } from '../types/ids'
 
 export type TickInput = {
   state: WorldState
@@ -116,13 +116,6 @@ export type CreateSimEventInput = {
   messageKey: string
   messageParams: EventMessageParams
   entityRefs?: EventEntityRef[]
-  // Legacy fields for migration period
-  legacySummary: string
-  legacyActorIds?: PersonId[]
-  legacyHouseIds?: HouseId[]
-  legacyPolityIds?: PolityId[]
-  legacyProvinceIds?: ProvinceId[]
-  legacyHoldingIds?: HoldingId[]
   reasons?: EventReason[]
   effects?: EventEffect[]
 }
@@ -138,17 +131,11 @@ export function createSimEvent(
     weekOfYear: nextCtx.state.currentWeekOfYear,
     type: input.type,
     importance: input.importance,
-    actorIds: input.legacyActorIds ?? [],
-    houseIds: input.legacyHouseIds ?? [],
-    polityIds: input.legacyPolityIds ?? [],
-    provinceIds: input.legacyProvinceIds ?? [],
-    holdingIds: input.legacyHoldingIds ?? [],
-    summary: input.legacySummary,
-    reasons: input.reasons ?? [],
-    effects: input.effects ?? [],
     messageKey: input.messageKey,
     messageParams: input.messageParams,
     entityRefs: input.entityRefs ?? [],
+    reasons: input.reasons ?? [],
+    effects: input.effects ?? [],
   }
   return { event, ctx: nextCtx }
 }

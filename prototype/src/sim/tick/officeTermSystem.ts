@@ -37,10 +37,6 @@ export function runOfficeTermSystem(ctx: TickContext): TickContext {
           ? [entityRef('polity', office.organization.id, 'organization')]
           : []),
       ],
-      legacySummary: `${holder?.name ?? office.holderPersonId}'s term as ${office.role} ended.`,
-      legacyActorIds: [office.holderPersonId],
-      legacyHouseIds: holderHouseId ? [holderHouseId] : [],
-      legacyPolityIds: office.organization.kind === 'polity' ? [office.organization.id] : [],
     })
     currentCtx = { ...ec, events: [...ec.events, event] }
   }

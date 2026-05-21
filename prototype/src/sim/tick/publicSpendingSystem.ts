@@ -114,9 +114,6 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
         entityRef('polity', polityId, 'polity', polity.nameKey),
         entityRef('province', bestProvinceId, 'province', targetProvince.nameKey),
       ],
-      legacySummary: `${polity.name} invested in land development in ${targetProvince.name}.`,
-      legacyPolityIds: [polityId as PolityId],
-      legacyProvinceIds: [bestProvinceId],
     })
     currentCtx = {
       ...eventCtx,

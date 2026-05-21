@@ -166,7 +166,7 @@ describe('runUnaffiliatedPersonSystem', () => {
     for (const ev of result.events) {
       expect(ev.type).toBe('PERSON_BORN_IN_OBSCURITY')
       expect(ev.importance).toBe('minor')
-      expect(ev.houseIds).toContain(ANONYMOUS_HOUSE_ID)
+      expect(ev.entityRefs.some((r) => r.kind === 'person')).toBe(true)
     }
   })
 
@@ -276,7 +276,7 @@ describe('runUnaffiliatedPersonSystem', () => {
     const fadedEvents = result.events.filter((e) => e.type === 'PERSON_FADED_FROM_HISTORY')
     expect(fadedEvents.length).toBeGreaterThanOrEqual(1)
     for (const e of fadedEvents) {
-      expect(e.actorIds[0]).not.toBe(protectedId)
+      expect(e.entityRefs.find((r) => r.kind === 'person')?.id).not.toBe(protectedId)
     }
   })
 })

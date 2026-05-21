@@ -9,6 +9,7 @@ import YAML from 'yaml'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
 import type { NamePoolService } from '@sim/namegen/namePoolTypes'
 import type { NameDisplayData } from '@sim/namegen/nameDisplayResolver'
+import { renderEventSummary } from '@sim/types/event'
 export type EntityType = 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction'
 // Backwards-friendly alias retained as named export (some modules import SelectedType)
 export type SelectedType = EntityType
@@ -177,7 +178,7 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
 
     const newNotifications = result.events
       .filter((e) => e.importance === 'critical')
-      .map((e) => ({ id: e.id, message: e.summary, timestamp: Date.now() }))
+      .map((e) => ({ id: e.id, message: renderEventSummary(e), timestamp: Date.now() }))
 
     const allEvents = [...currentSession.eventHistory, ...result.events]
     const cappedEvents =

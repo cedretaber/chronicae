@@ -57,7 +57,7 @@ function chooseOwner(
 function emitPolityExtinct(
   ctx: TickContext,
   polityId: PolityId,
-  summary: string,
+  _summary: string,
   messageKey: string,
 ): TickContext {
   const polity = ctx.state.polities[polityId]
@@ -68,15 +68,11 @@ function emitPolityExtinct(
     messageKey,
     messageParams: { polity: polityName },
     entityRefs: [entityRef('polity', polityId, 'polity', polityName)],
-    legacySummary: summary,
-    legacyPolityIds: [polityId],
-    legacyProvinceIds: [],
-    legacyHoldingIds: [],
   })
   return { ...c1, events: [...c1.events, event] }
 }
 
-function emitPolityLandless(ctx: TickContext, polityId: PolityId, summary: string): TickContext {
+function emitPolityLandless(ctx: TickContext, polityId: PolityId): TickContext {
   const polity = ctx.state.polities[polityId]
   const polityName = polity?.name ?? polityId
   const { event, ctx: c1 } = createSimEvent(ctx, {
@@ -85,10 +81,6 @@ function emitPolityLandless(ctx: TickContext, polityId: PolityId, summary: strin
     messageKey: 'polity.landless',
     messageParams: { polity: polityName },
     entityRefs: [entityRef('polity', polityId, 'polity', polityName)],
-    legacySummary: summary,
-    legacyPolityIds: [polityId],
-    legacyProvinceIds: [],
-    legacyHoldingIds: [],
   })
   return { ...c1, events: [...c1.events, event] }
 }
@@ -106,9 +98,6 @@ function emitPolityOwnerChanged(
   const polityName = polity?.name ?? polityId
   const newHouseName = newHouse?.name ?? newOwnerId
   const capName = capProv?.name ?? newCapitalProvinceId
-  const summary = oldOwnerId
-    ? `${polityName}'s ruling house changed to ${newHouseName}, and the capital moved to ${capName}.`
-    : `${polityName}'s ruling house is now ${newHouseName}; capital set to ${capName}.`
   const messageKey = oldOwnerId ? 'polity.owner_changed' : 'polity.owner_changed_initial'
   const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'POLITY_OWNER_CHANGED',
@@ -124,11 +113,6 @@ function emitPolityOwnerChanged(
       entityRef('house', newOwnerId, 'new_owner', newHouseName),
       entityRef('province', newCapitalProvinceId, 'capital', capName),
     ],
-    legacySummary: summary,
-    legacyHouseIds: oldOwnerId ? [oldOwnerId, newOwnerId] : [newOwnerId],
-    legacyPolityIds: [polityId],
-    legacyProvinceIds: [newCapitalProvinceId],
-    legacyHoldingIds: [],
   })
   return { ...c1, events: [...c1.events, event] }
 }
@@ -212,11 +196,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
     // Step 1: provinceIds=0 なら POLITY_LANDLESS を発火し、inactive 化 + Share/Office 全削除 + POLITY_EXTINCT
     const provinceIds = getPolityProvinceIds(currentCtx.state, polityId)
     if (provinceIds.length === 0) {
-      currentCtx = emitPolityLandless(
-        currentCtx,
-        polityId,
-        `${polity.name} no longer holds any land.`,
-      )
+      currentCtx = emitPolityLandless(currentCtx, polityId)
       currentCtx = deactivatePolityInline(currentCtx, polityId)
       currentCtx = emitPolityExtinct(
         currentCtx,

@@ -342,11 +342,6 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
       entityRef('polity', terminalPolityId, 'target'),
       entityRef('province', provinceId, 'province'),
     ],
-    legacySummary: `A ${rebelClass} revolt has broken out in ${province.name} — negotiations begin.`,
-    legacyActorIds: [rebelLeaderId],
-    legacyHouseIds: [ownerHouseId],
-    legacyPolityIds: [rebelPolityId, terminalPolityId],
-    legacyProvinceIds: [provinceId],
   })
   return { ...ctxStart, events: [...ctxStart.events, event] }
 }

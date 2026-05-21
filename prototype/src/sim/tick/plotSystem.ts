@@ -25,10 +25,10 @@ function emitEvent(
   ctx: TickContext,
   type: EventType,
   importance: 'minor' | 'normal' | 'major' | 'critical',
-  actorIds: PersonId[],
-  houseIds: HouseId[],
-  polityIds: PolityId[],
-  summary: string,
+  _actorIds: PersonId[],
+  _houseIds: HouseId[],
+  _polityIds: PolityId[],
+  _summary: string,
   messageKey: string,
   messageParams: import('../types/event').EventMessageParams,
   eventEntityRefs: EventEntityRef[],
@@ -39,10 +39,6 @@ function emitEvent(
     messageKey,
     messageParams,
     entityRefs: eventEntityRefs,
-    legacySummary: summary,
-    legacyActorIds: actorIds,
-    legacyHouseIds: houseIds,
-    legacyPolityIds: polityIds,
   })
   return { ...eventCtx, events: [...eventCtx.events, event] }
 }

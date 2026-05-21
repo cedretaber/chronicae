@@ -8,3 +8,9 @@ export type {
 
 export { createChronicaeI18n } from './createI18n'
 export type { CreateI18nOptions } from './createI18n'
+
+export { createNameTranslator } from './nameTranslator'
+export type { NameTranslator } from './nameTranslator'
+
+export { createEventRenderer } from './eventRenderer'
+export type { EventRenderer } from './eventRenderer'

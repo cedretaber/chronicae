@@ -376,9 +376,15 @@ describe('runOfficeTermSystem', () => {
     expect(result.state.officeAssignments[officeId]).toBeUndefined()
     expect(result.events.length).toBe(1)
     expect(result.events[0]!.type).toBe('OFFICE_TERM_ENDED')
-    expect(result.events[0]!.actorIds).toContain(personId)
-    expect(result.events[0]!.houseIds).toContain(houseId)
-    expect(result.events[0]!.polityIds).toContain(polityId)
+    expect(result.events[0]!.entityRefs.some((r) => r.kind === 'person' && r.id === personId)).toBe(
+      true,
+    )
+    expect(result.events[0]!.entityRefs.some((r) => r.kind === 'house' && r.id === houseId)).toBe(
+      true,
+    )
+    expect(result.events[0]!.entityRefs.some((r) => r.kind === 'polity' && r.id === polityId)).toBe(
+      true,
+    )
   })
 
   it('inactive Office → not touched', () => {

@@ -110,9 +110,6 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
         entityRef('house', houseId, 'house', house.nameKey),
         entityRef('province', bestProvinceId, 'province', targetProvince.nameKey),
       ],
-      legacySummary: `${house.name} invested in developing ${targetProvince.name}.`,
-      legacyHouseIds: [houseId as HouseId],
-      legacyProvinceIds: [bestProvinceId],
     })
     currentCtx = {
       ...eventCtx,

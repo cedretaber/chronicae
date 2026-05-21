@@ -297,8 +297,8 @@ describe('runFactionDefectionSystem', () => {
     // event 発火
     expect(result.events).toHaveLength(1)
     expect(result.events[0]?.type).toBe('FACTION_MEMBER_ABANDONED')
-    expect(result.events[0]?.actorIds[0]).toBe(memberId)
-    expect(result.events[0]?.actorIds[1]).toBe(leaderId)
+    expect(result.events[0]?.entityRefs.find((r) => r.kind === 'person')?.id).toBe(memberId)
+    expect(result.events[0]?.entityRefs.filter((r) => r.kind === 'person')[1]?.id).toBe(leaderId)
     // attitude penalty 適用
     expect(result.state.persons[memberId]?.attitudes[`person:${leaderId}`]?.affection).toBe(10 - 3)
     expect(result.state.persons[memberId]?.attitudes[`person:${leaderId}`]?.respect).toBe(5 - 2)

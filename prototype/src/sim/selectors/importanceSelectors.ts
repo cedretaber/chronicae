@@ -1,6 +1,7 @@
 import type { PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { SimEvent } from '../types/event'
+import { hasEntityId } from '../types/event'
 import { getRoleScore } from './abilitySelectors'
 
 const OFFICE_BONUS: Record<string, number> = {
@@ -35,7 +36,7 @@ export function calcPersonImportanceScore(
   const cutoffWeek = state.absoluteWeek - 52
   const recentInvolvement = eventHistory.filter((e) => {
     const eWeek = e.year * 52 + e.weekOfYear - 1
-    return eWeek >= cutoffWeek && e.actorIds.some((id) => (id as string) === (personId as string))
+    return eWeek >= cutoffWeek && hasEntityId(e, personId)
   }).length
 
   return (

@@ -1,0 +1,21 @@
+# Status labels and polity ranks (en)
+polity_rank:
+  '1': 'Empire'
+  '2': 'Kingdom'
+  '3': 'Duchy'
+  '4': 'County'
+  '5': 'Rebel Domain'
+
+person_status:
+  alive: 'Alive'
+  dead: 'Dead'
+  faded: 'Faded from history'
+
+birth_status:
+  legitimate: 'Legitimate'
+  illegitimate: 'Illegitimate'
+  unknown: 'Unknown'
+
+sex:
+  male: 'Male'
+  female: 'Female'

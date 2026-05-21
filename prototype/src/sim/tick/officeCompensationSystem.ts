@@ -111,9 +111,6 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
             entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
             ...(org.kind === 'polity' ? [entityRef('polity', org.id, 'organization')] : []),
           ],
-          legacySummary: `Salary ${paid > 0 ? 'partially ' : ''}unpaid for office holder.`,
-          legacyActorIds: [office.holderPersonId],
-          legacyPolityIds: org.kind === 'polity' ? [org.id] : [],
         },
       )
       events.push(event)

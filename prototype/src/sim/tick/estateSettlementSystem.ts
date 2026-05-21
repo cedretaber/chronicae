@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
-import type { PersonId, HouseId } from '../types/ids'
+import type { PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { EventImportance } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
@@ -10,7 +10,6 @@ import { getPersonHouseSharePercent } from '../selectors/shareSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { clamp } from '../utils/math'
 import { ESTATE_DISPUTE_HEIR_THRESHOLD } from '../constants/abilityConstants'
-import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
 export function findHeirs(state: WorldState, deceased: PersonId): PersonId[] {
   const person = state.persons[deceased]
@@ -132,7 +131,6 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
       if (houseResult.ok) newState = houseResult.value
     }
 
-    const houseIds: HouseId[] = house ? [person.houseId] : []
     const normalWealthThreshold =
       currentCtx.config.estateSettledNormalWealthRatio * (house?.wealth ?? 0)
     const roleInfo = currentCtx.deathRolesThisTick[deceasedId]
@@ -144,7 +142,6 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
     }
 
     // ESTATE_SETTLED は常に発火 (§5.7)
-    const primaryPolityId = getHousePrimaryPolityId(newState, person.houseId)
     const { event: settledEvent, ctx: ctxAfterSettled } = createSimEvent(
       {
         ...currentCtx,
@@ -164,10 +161,6 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
           entityRef('person', deceasedId, 'deceased', person.nameKey),
           ...heirs.map((h) => entityRef('person', h, 'heir')),
         ],
-        legacySummary: `${person.name}'s estate of ${wealth} distributed: ${houseAmount} to house, ${remainingWealth - leftover} to heirs.`,
-        legacyActorIds: [deceasedId, ...heirs],
-        legacyHouseIds: houseIds,
-        legacyPolityIds: primaryPolityId ? [primaryPolityId] : [],
       },
     )
     currentCtx = {
@@ -190,10 +183,6 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
           entityRef('person', deceasedId, 'deceased', person.nameKey),
           ...heirs.map((h) => entityRef('person', h, 'heir')),
         ],
-        legacySummary: `Multiple heirs (${heirs.length}) contest ${person.name}'s estate.`,
-        legacyActorIds: [deceasedId, ...heirs],
-        legacyHouseIds: houseIds,
-        legacyPolityIds: primaryPolityId ? [primaryPolityId] : [],
         reasons: [{ label: 'Multiple heirs', value: heirs.length }],
       })
       currentCtx = {

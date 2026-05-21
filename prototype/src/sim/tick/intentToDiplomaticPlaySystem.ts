@@ -429,40 +429,24 @@ function emitConversionAndStartEvents(
   const convMessageKey = hasOffer
     ? 'actor_intent.converted_with_offer'
     : 'actor_intent.converted_no_offer'
-  const convSummary = hasOffer
-    ? `${initiatorName} opens negotiations to acquire ${provinceName} from ${targetName} with compensation.`
-    : `${initiatorName} demands ${provinceName} from ${targetName} without compensation.`
-
   const { event: convEv, ctx: ctxConv } = createSimEvent(currentCtx, {
     type: 'ACTOR_INTENT_CONVERTED',
     importance: 'normal',
     messageKey: convMessageKey,
     messageParams: { initiator: initiatorName, target: targetName, province: provinceName },
     entityRefs,
-    legacySummary: convSummary,
-    legacyPolityIds: [initiatorId, targetId],
-    legacyProvinceIds: [provinceId],
-    legacyHoldingIds: [holdingId],
   })
   currentCtx = { ...ctxConv, events: [...ctxConv.events, convEv] }
 
   const startMessageKey = hasOffer
     ? 'diplomatic_play.started_with_offer'
     : 'diplomatic_play.started_no_offer'
-  const startSummary = hasOffer
-    ? `${initiatorName} negotiates with ${targetName} for ${provinceName}.`
-    : `${initiatorName} pressures ${targetName} to cede ${provinceName}.`
-
   const { event: startEv, ctx: ctxStart } = createSimEvent(currentCtx, {
     type: 'DIPLOMATIC_PLAY_STARTED',
     importance: 'normal',
     messageKey: startMessageKey,
     messageParams: { initiator: initiatorName, target: targetName, province: provinceName },
     entityRefs,
-    legacySummary: startSummary,
-    legacyPolityIds: [initiatorId, targetId],
-    legacyProvinceIds: [provinceId],
-    legacyHoldingIds: [holdingId],
   })
   currentCtx = { ...ctxStart, events: [...ctxStart.events, startEv] }
   return currentCtx

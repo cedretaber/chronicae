@@ -92,9 +92,6 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
           entityRef('person', faction.leaderPersonId, 'leader'),
           entityRef('faction', faction.id, 'faction'),
         ],
-        legacySummary: `${member.name} abandoned ${faction.name}.`,
-        legacyActorIds: [membership.personId, faction.leaderPersonId],
-        legacyHouseIds: [member.houseId],
       })
       currentCtx = { ...ec, events: [...ec.events, event] }
     }

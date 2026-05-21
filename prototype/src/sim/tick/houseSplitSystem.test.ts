@@ -333,8 +333,14 @@ describe('maybeSplitHouseAfterSuccession', () => {
 
     const event = splitEvents[0]!
     expect(event.importance).toBe('major')
-    expect(event.actorIds).toContain('pe-1' as PersonId)
-    expect(event.houseIds).toContain('h-0' as HouseId)
-    expect(event.polityIds).toContain('dp-0' as PolityId)
+    expect(event.entityRefs.some((r) => r.kind === 'person' && r.id === ('pe-1' as PersonId))).toBe(
+      true,
+    )
+    expect(event.entityRefs.some((r) => r.kind === 'house' && r.id === ('h-0' as HouseId))).toBe(
+      true,
+    )
+    expect(event.entityRefs.some((r) => r.kind === 'polity' && r.id === ('dp-0' as PolityId))).toBe(
+      true,
+    )
   })
 })

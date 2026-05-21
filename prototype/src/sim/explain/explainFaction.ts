@@ -1,4 +1,10 @@
 import type { SimEvent } from '../types/event'
+import {
+  getEntityIdsByKind,
+  getEntityRefByRole,
+  getFirstEntityId,
+  renderEventSummary,
+} from '../types/event'
 import type { WorldState } from '../types/world'
 import type { PersonId, HouseId, FactionId } from '../types/ids'
 
@@ -11,16 +17,16 @@ type FactionEventType =
   | 'FACTION_MEMBER_ABANDONED'
   | 'FACTION_LEADER_BANKRUPT'
 
-function findFactionByActor(state: WorldState, actorIds: PersonId[]): FactionId | undefined {
-  for (const actor of actorIds) {
-    const factionIds = state.factionIndex.byLeader[actor]
+function findFactionByActor(state: WorldState, personIds: string[]): FactionId | undefined {
+  for (const actor of personIds) {
+    const factionIds = state.factionIndex.byLeader[actor as PersonId]
     if (factionIds) {
       for (const fid of factionIds) {
         const f = state.factions[fid]
         if (f) return fid
       }
     }
-    const membershipIds = state.factionIndex.byMember[actor]
+    const membershipIds = state.factionIndex.byMember[actor as PersonId]
     if (membershipIds) {
       for (const mid of membershipIds) {
         const m = state.factionMemberships[mid]
@@ -31,54 +37,60 @@ function findFactionByActor(state: WorldState, actorIds: PersonId[]): FactionId 
   return undefined
 }
 
-// v0.17 §19.4: Faction 関連イベントの explain (Chronicle 表示用)。
-// SimEvent.summary は既に存在するが、explain は actor / house の追加文脈を付与する。
 export function explainFaction(state: WorldState, event: SimEvent): string {
-  if (!isFactionEvent(event.type)) return event.summary
+  if (!isFactionEvent(event.type)) return renderEventSummary(event)
 
-  const factionId = findFactionByActor(state, event.actorIds)
+  const personIds = getEntityIdsByKind(event, 'person')
+  const factionId = findFactionByActor(state, personIds)
   const faction = factionId ? state.factions[factionId] : undefined
   const factionName = faction?.name ?? 'an unknown faction'
 
-  const namesOf = (ids: PersonId[]): string =>
+  const namesOf = (ids: string[]): string =>
     ids
-      .map((id) => state.persons[id]?.name)
+      .map((id) => state.persons[id as PersonId]?.name)
       .filter((n): n is string => n !== undefined)
       .join(', ')
 
-  const houseName = (id: HouseId | undefined): string | undefined =>
-    id ? state.houses[id]?.name : undefined
+  const houseId = getFirstEntityId(event, 'house')
+  const houseName = houseId ? state.houses[houseId as HouseId]?.name : undefined
 
   switch (event.type) {
     case 'FACTION_FOUNDED': {
-      const leaderName = state.persons[event.actorIds[0] as PersonId]?.name ?? '?'
-      const memberNames = namesOf(event.actorIds.slice(1))
-      const where = houseName(event.houseIds[0])
-      const seat = where ? ` (${where})` : ''
+      const leaderRef = getEntityRefByRole(event, 'leader')
+      const leaderName = leaderRef ? (state.persons[leaderRef.id as PersonId]?.name ?? '?') : '?'
+      const memberIds = personIds.filter((id) => id !== leaderRef?.id)
+      const memberNames = namesOf(memberIds)
+      const seat = houseName ? ` (${houseName})` : ''
       return memberNames
         ? `${leaderName}${seat} founded the faction ${factionName}, joined by ${memberNames}.`
         : `${leaderName}${seat} founded the faction ${factionName}.`
     }
     case 'FACTION_DISSOLVED':
-      return event.summary
+      return renderEventSummary(event)
     case 'FACTION_LEADER_CHANGED': {
-      const oldName = state.persons[event.actorIds[0] as PersonId]?.name ?? '?'
-      const newName = state.persons[event.actorIds[1] as PersonId]?.name ?? '?'
+      const oldRef = getEntityRefByRole(event, 'oldLeader')
+      const newRef = getEntityRefByRole(event, 'newLeader')
+      const oldName = oldRef ? (state.persons[oldRef.id as PersonId]?.name ?? '?') : '?'
+      const newName = newRef ? (state.persons[newRef.id as PersonId]?.name ?? '?') : '?'
       return `${newName} succeeded ${oldName} as the head of ${factionName}.`
     }
     case 'PERSON_RECRUITED_TO_FACTION': {
-      const leaderName = state.persons[event.actorIds[0] as PersonId]?.name ?? '?'
-      const candName = state.persons[event.actorIds[1] as PersonId]?.name ?? '?'
+      const leaderRef = getEntityRefByRole(event, 'leader')
+      const recruitRef = getEntityRefByRole(event, 'recruit')
+      const leaderName = leaderRef ? (state.persons[leaderRef.id as PersonId]?.name ?? '?') : '?'
+      const candName = recruitRef ? (state.persons[recruitRef.id as PersonId]?.name ?? '?') : '?'
       return `${candName} joined ${factionName} (recruited by ${leaderName}).`
     }
     case 'FACTION_FUNDS_SHORTAGE':
       return `${factionName} faces a financial crisis.`
     case 'FACTION_MEMBER_ABANDONED': {
-      const memberName = state.persons[event.actorIds[0] as PersonId]?.name ?? '?'
+      const personId = getFirstEntityId(event, 'person')
+      const memberName = personId ? (state.persons[personId as PersonId]?.name ?? '?') : '?'
       return `${memberName} abandoned ${factionName}.`
     }
     case 'FACTION_LEADER_BANKRUPT': {
-      const leaderName = state.persons[event.actorIds[0] as PersonId]?.name ?? '?'
+      const personId = getFirstEntityId(event, 'person')
+      const leaderName = personId ? (state.persons[personId as PersonId]?.name ?? '?') : '?'
       return `${leaderName}'s fortunes are exhausted, putting ${factionName} in jeopardy.`
     }
   }

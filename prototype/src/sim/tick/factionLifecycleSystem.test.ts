@@ -296,7 +296,9 @@ describe('runFactionLifecycleSystem', () => {
     expect(bankruptIdx).toBeGreaterThanOrEqual(0)
     expect(dissolvedIdx).toBeGreaterThanOrEqual(0)
     expect(bankruptIdx).toBeLessThan(dissolvedIdx)
-    expect(result.events[bankruptIdx]?.actorIds[0]).toBe(leaderId)
+    expect(result.events[bankruptIdx]?.entityRefs.find((r) => r.kind === 'person')?.id).toBe(
+      leaderId,
+    )
   })
 
   it('v0.17.4: dead member membership is removed during processExistingFactions', () => {

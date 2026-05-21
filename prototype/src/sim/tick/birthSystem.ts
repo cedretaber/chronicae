@@ -9,7 +9,6 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import { birthChild } from '../mutations/personMutations'
 import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { inheritAptitudes, sampleAptitudes } from '../selectors/abilitySelectors'
-import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import { nameParam, entityRef } from '../types/event'
 
 const BIRTH_CALLS_PER_YEAR = 12
@@ -135,7 +134,6 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     } = birthResult.value
     currentCtx = ctxAfterBirth
 
-    const childPrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, person.houseId)
     const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
       type: 'CHILD_BORN',
       importance: 'minor',
@@ -149,10 +147,6 @@ export function runBirthSystem(ctx: TickContext): TickContext {
         ...(motherId ? [entityRef('person', motherId, 'mother')] : []),
         entityRef('house', person.houseId, 'house'),
       ],
-      legacySummary: childName + ' was born',
-      legacyActorIds: motherId ? [childId, person.id, motherId] : [childId, person.id],
-      legacyHouseIds: [person.houseId],
-      legacyPolityIds: childPrimaryPolityId ? [childPrimaryPolityId] : [],
     })
 
     currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }

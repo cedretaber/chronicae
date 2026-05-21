@@ -66,9 +66,6 @@ function checkDissolutions(ctx: TickContext): TickContext {
             entityRef('person', faction.leaderPersonId, 'leader', leader.nameKey),
             entityRef('faction', factionId, 'faction'),
           ],
-          legacySummary: `${leader.name}'s fortunes are exhausted, putting ${faction.name} in jeopardy.`,
-          legacyActorIds: [faction.leaderPersonId],
-          legacyHouseIds: [leader.houseId],
         })
         currentCtx = { ...ec, events: [...ec.events, event] }
       }
@@ -143,9 +140,6 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
       entityRef('person', faction.leaderPersonId, 'oldLeader', oldLeader?.nameKey),
       entityRef('faction', factionId, 'faction'),
     ],
-    legacySummary: `${newLeader?.name ?? newLeaderId} succeeded ${oldLeader?.name ?? faction.leaderPersonId} as the head of ${faction.name}.`,
-    legacyActorIds: [faction.leaderPersonId, newLeaderId],
-    legacyHouseIds: newLeader ? [newLeader.houseId] : [],
   })
   return { ...ec, events: [...ec.events, event] }
 }
@@ -169,9 +163,6 @@ function dissolveFaction(ctx: TickContext, factionId: FactionId, summary: string
       entityRef('person', faction.leaderPersonId, 'leader', oldLeader?.nameKey),
       entityRef('faction', factionId, 'faction'),
     ],
-    legacySummary: summary,
-    legacyActorIds: [faction.leaderPersonId],
-    legacyHouseIds: oldLeader ? [oldLeader.houseId] : [],
   })
   return { ...ec, events: [...ec.events, event] }
 }
@@ -288,9 +279,6 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
       entityRef('faction', factionId, 'faction'),
       ...initialMemberIds.map((mid) => entityRef('person', mid, 'member')),
     ],
-    legacySummary: `${leader.name} founded the faction ${factionName}.`,
-    legacyActorIds: [leaderId, ...initialMemberIds],
-    legacyHouseIds: housesInvolved,
   })
   return { ...ec, events: [...ec.events, event] }
 }

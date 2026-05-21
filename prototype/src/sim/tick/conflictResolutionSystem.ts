@@ -709,10 +709,6 @@ function emitEvent(
     messageKey: input.messageKey,
     messageParams: input.messageParams,
     entityRefs: input.eventEntityRefs,
-    legacySummary: input.summary,
-    legacyPolityIds: input.polityIds,
-    legacyProvinceIds: input.provinceIds,
-    legacyHoldingIds: input.holdingIds,
   })
   return { ...ctxEv, events: [...ctxEv.events, event] }
 }

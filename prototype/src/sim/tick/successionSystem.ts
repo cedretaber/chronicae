@@ -91,10 +91,6 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
           entityRef('polity', polityId, 'polity', polity.nameKey),
           entityRef('house', bestHouseId, 'house'),
         ],
-        legacySummary: `${newRuler?.name ?? 'Unknown'} has become the new ruler of ${polity.name}.`,
-        legacyActorIds: [newRulerPersonId],
-        legacyHouseIds: [bestHouseId],
-        legacyPolityIds: [polityId as PolityId],
       },
     )
 
@@ -149,9 +145,6 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
             entityRef('person', oldestMinor.id, 'leader', oldestMinor.nameKey),
             entityRef('house', houseId, 'house', house.nameKey),
           ],
-          legacySummary: oldestMinor.name + ' has become the new head of ' + house.name + '.',
-          legacyActorIds: [oldestMinor.id],
-          legacyHouseIds: [houseId],
         },
       )
 
@@ -197,9 +190,6 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
         entityRef('person', successor.person.id, 'leader', successor.person.nameKey),
         entityRef('house', houseId, 'house', house.nameKey),
       ],
-      legacySummary: successor.person.name + ' has become the new head of ' + house.name + '.',
-      legacyActorIds: [successor.person.id],
-      legacyHouseIds: [houseId],
     },
   )
 
@@ -235,9 +225,6 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
           entityRef('person', successor.person.id, 'claimant', successor.person.nameKey),
           entityRef('house', houseId, 'house', house.nameKey),
         ],
-        legacySummary: 'A succession crisis has erupted in ' + house.name + '!',
-        legacyActorIds: [successor.person.id],
-        legacyHouseIds: [houseId],
       })
       log.log('SUCCESSION_CRISIS', {
         year: resultCtx.state.currentYear,

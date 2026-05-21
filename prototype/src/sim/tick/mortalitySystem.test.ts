@@ -238,7 +238,7 @@ describe('runMortalitySystem', () => {
         expect(event.type).toBe('PERSON_DIED')
         // pe-0 (the head) is processed first (sorted by ID). If it dies, importance is 'normal'.
         // If only pe-1 dies, importance is 'minor'. Both are valid outcomes.
-        if (event.actorIds[0] === ('pe-0' as PersonId)) {
+        if (event.entityRefs.find((r) => r.kind === 'person')?.id === ('pe-0' as PersonId)) {
           expect(event.importance).toBe('normal')
         } else {
           expect(event.importance).toBe('minor')

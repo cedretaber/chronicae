@@ -332,10 +332,6 @@ function tryAppointPolityOffice(
           entityRef('person', best.id, 'appointee', person.nameKey),
           entityRef('polity', polity.id, 'organization', polity.nameKey),
         ],
-        legacySummary: `${person.name} was appointed as ${def.displayName} of ${polity.name}.`,
-        legacyActorIds: [best.id],
-        legacyHouseIds: [person.houseId],
-        legacyPolityIds: [polity.id],
       })
       currentCtx = {
         ...eventCtx,
@@ -434,9 +430,6 @@ function tryAppointHouseOffice(
         entityRef('person', best.id, 'appointee', person.nameKey),
         entityRef('house', house.id, 'organization', house.nameKey),
       ],
-      legacySummary: `${person.name} was appointed as ${def.displayName} of ${house.name}.`,
-      legacyActorIds: [best.id],
-      legacyHouseIds: [person.houseId],
     })
     currentCtx = { ...eventCtx, state: currentCtx.state, events: [...eventCtx.events, event] }
   }

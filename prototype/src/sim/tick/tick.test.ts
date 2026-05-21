@@ -87,11 +87,8 @@ describe('tick', () => {
       expect(event.weekOfYear).toBeDefined()
       expect(event.type).toBeDefined()
       expect(['minor', 'normal', 'major', 'critical']).toContain(event.importance)
-      expect(Array.isArray(event.actorIds)).toBe(true)
-      expect(Array.isArray(event.houseIds)).toBe(true)
-      expect(Array.isArray(event.polityIds)).toBe(true)
-      expect(Array.isArray(event.provinceIds)).toBe(true)
-      expect(typeof event.summary).toBe('string')
+      expect(Array.isArray(event.entityRefs)).toBe(true)
+      expect(typeof event.messageKey).toBe('string')
       expect(Array.isArray(event.reasons)).toBe(true)
       expect(Array.isArray(event.effects)).toBe(true)
     }

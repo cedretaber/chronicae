@@ -1,0 +1,17 @@
+# Office role display names (en)
+polity:
+  leader: 'Ruler'
+  administrator: 'Chancellor'
+  treasurer: 'Treasurer'
+  military: 'General'
+  advisor: 'Court Advisor'
+
+house:
+  leader: 'House Head'
+  administrator: 'Steward'
+  treasurer: 'House Treasurer'
+  military: 'Guard Captain'
+  advisor: 'House Advisor'
+
+holding:
+  bailiff: 'Bailiff'

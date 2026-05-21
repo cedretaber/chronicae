@@ -152,7 +152,9 @@ describe('extinctHouseAfterFailedSuccession', () => {
 
       const event = extinctEvents[0]!
       expect(event.importance).toBe('major')
-      expect(event.houseIds).toContain('h-0' as HouseId)
+      expect(event.entityRefs.some((r) => r.kind === 'house' && r.id === ('h-0' as HouseId))).toBe(
+        true,
+      )
     })
 
     it('extinct house marked inactive', () => {
@@ -293,7 +295,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
     }
 
     it('HOUSE_EXTINCT event emitted', () => {
-      const { ctx, houseId, polityId } = makeRulerExtinctionCtx()
+      const { ctx, houseId } = makeRulerExtinctionCtx()
       const result = extinctHouseAfterFailedSuccession(ctx, houseId)
 
       const houseExtinctEvents = result.events.filter((e) => e.type === 'HOUSE_EXTINCT')
@@ -301,8 +303,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
 
       const event = houseExtinctEvents[0]!
       expect(event.importance).toBe('major')
-      expect(event.houseIds).toContain(houseId)
-      expect(event.polityIds).toContain(polityId)
+      expect(event.entityRefs.some((r) => r.kind === 'house' && r.id === houseId)).toBe(true)
     })
 
     it.todo('legacyPrestige reduced', () => {

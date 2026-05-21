@@ -79,7 +79,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
           week: beforeVacate.absoluteWeek,
         })
         currentCtx = { ...currentCtx, state: afterPlaceholder }
-        currentCtx = emitBailiffPlaceholderInstalled(currentCtx, provinceId, polityId)
+        currentCtx = emitBailiffPlaceholderInstalled(currentCtx, provinceId)
       }
     }
 
@@ -106,7 +106,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
         week: beforeVacate.absoluteWeek,
       })
       currentCtx = { ...currentCtx, state: afterPlaceholder }
-      currentCtx = emitBailiffPlaceholderInstalled(currentCtx, provinceId, polityId)
+      currentCtx = emitBailiffPlaceholderInstalled(currentCtx, provinceId)
     }
 
     // 2) placeholder bailiff の交代:
@@ -254,7 +254,7 @@ function hasActiveHoldingOffice(state: WorldState, personId: PersonId): boolean 
 function emitBailiffAppointed(
   ctx: TickContext,
   provinceId: ProvinceId,
-  polityId: PolityId,
+  _polityId: PolityId,
   holderPersonId: PersonId,
 ): TickContext {
   const province = ctx.state.provinces[provinceId]
@@ -273,11 +273,6 @@ function emitBailiffAppointed(
       entityRef('person', holderPersonId, 'bailiff', person?.nameKey),
       entityRef('province', provinceId, 'province'),
     ],
-    legacySummary: `${personName} was appointed bailiff of ${provinceName}.`,
-    legacyActorIds: [holderPersonId],
-    legacyHouseIds: person?.houseId ? [person.houseId] : [],
-    legacyPolityIds: [polityId],
-    legacyProvinceIds: [provinceId],
   })
   return { ...c1, events: [...c1.events, event] }
 }
@@ -303,18 +298,11 @@ function emitBailiffVacated(
       entityRef('person', holderPersonId, 'bailiff'),
       entityRef('province', provinceId, 'province'),
     ],
-    legacySummary: `${personName} stepped down as bailiff of ${provinceName}.`,
-    legacyActorIds: [holderPersonId],
-    legacyProvinceIds: [provinceId],
   })
   return { ...c1, events: [...c1.events, event] }
 }
 
-function emitBailiffPlaceholderInstalled(
-  ctx: TickContext,
-  provinceId: ProvinceId,
-  polityId: PolityId,
-): TickContext {
+function emitBailiffPlaceholderInstalled(ctx: TickContext, provinceId: ProvinceId): TickContext {
   const province = ctx.state.provinces[provinceId]
   const provinceName = province?.name ?? provinceId
   const { event, ctx: c1 } = createSimEvent(ctx, {
@@ -325,9 +313,6 @@ function emitBailiffPlaceholderInstalled(
       province: provinceName,
     },
     entityRefs: [entityRef('province', provinceId, 'province')],
-    legacySummary: `An anonymous placeholder oversees ${provinceName}.`,
-    legacyPolityIds: [polityId],
-    legacyProvinceIds: [provinceId],
   })
   return { ...c1, events: [...c1.events, event] }
 }

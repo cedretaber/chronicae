@@ -105,9 +105,6 @@ export function runFactionPatronageSystem(ctx: TickContext): TickContext {
             entityRef('person', faction.leaderPersonId, 'leader', leaderAfter.nameKey),
             entityRef('faction', faction.id, 'faction'),
           ],
-          legacySummary: `${leaderAfter.name}'s ${faction.name} faces a financial crisis.`,
-          legacyActorIds: [faction.leaderPersonId],
-          legacyHouseIds: [leaderAfter.houseId],
         })
         currentCtx = { ...ec, events: [...ec.events, event] }
       }

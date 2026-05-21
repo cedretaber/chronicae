@@ -4,6 +4,7 @@ import { calcPolityMilitaryPower } from '@sim/selectors/militarySelectors'
 import { getPolityLegitimacy, getPolityStability } from '@sim/selectors/statusSelectors'
 import { getActiveFactions, getFactionActiveMemberIds } from '@sim/selectors/factionSelectors'
 import type { SimEvent } from '@sim/types/event'
+import { hasEntityId } from '@sim/types/event'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import type { Polity } from '@/sim/types/polity'
 import type { House } from '@/sim/types/house'
@@ -42,13 +43,7 @@ function getRecentEventCount(
   const cutoffWeek = currentYear * 48 + currentWeekOfYear - 48
   return eventHistory.filter((e) => {
     const eWeek = e.year * 48 + e.weekOfYear
-    return (
-      eWeek >= cutoffWeek &&
-      (e.actorIds.some((id) => (id as string) === watchId) ||
-        e.houseIds.some((id) => (id as string) === watchId) ||
-        e.polityIds.some((id) => (id as string) === watchId) ||
-        e.provinceIds.some((id) => (id as string) === watchId))
-    )
+    return eWeek >= cutoffWeek && hasEntityId(e, watchId)
   }).length
 }
 

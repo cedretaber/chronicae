@@ -87,10 +87,6 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
             ...(house ? [entityRef('house', house.id, 'house', house.nameKey)] : []),
             entityRef('polity', polityId, 'organization', polity?.nameKey),
           ],
-          legacySummary: `Office of ${office.role} in ${polity.name} was revoked as the holder's house no longer holds province in this polity.`,
-          legacyActorIds: [office.holderPersonId],
-          legacyHouseIds: house ? [house.id] : [],
-          legacyPolityIds: [polityId],
         },
       )
       currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }

@@ -243,7 +243,7 @@ describe('runFactionPatronageSystem', () => {
 
     const fundsShortageEvents = result.events.filter((e) => e.type === 'FACTION_FUNDS_SHORTAGE')
     expect(fundsShortageEvents).toHaveLength(1)
-    expect(fundsShortageEvents[0]?.actorIds[0]).toBe(leaderId)
+    expect(fundsShortageEvents[0]?.entityRefs.find((r) => r.kind === 'person')?.id).toBe(leaderId)
   })
 
   it('v0.17.4: FACTION_FUNDS_SHORTAGE does NOT fire when no unpaid members', () => {

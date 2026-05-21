@@ -89,9 +89,6 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
           entityRef('polity', buyerPolityId, 'buyer'),
           entityRef('province', provinceId, 'province'),
         ],
-        legacySummary: `${sellerName} seeks to sell ${provinceName} to ${buyerName} for ${Math.round(c.price)} gold.`,
-        legacyPolityIds: [sellerPolityId, buyerPolityId],
-        legacyProvinceIds: [provinceId],
       })
       currentCtx = { ...ctxEv, events: [...ctxEv.events, event] }
     }
@@ -157,9 +154,6 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
           entityRef('polity', targetPolityId, 'target'),
           entityRef('province', provinceId, 'province'),
         ],
-        legacySummary: `${acquirerName} eyes ${provinceName} held by ${targetName}.`,
-        legacyPolityIds: [acquirerPolityId, targetPolityId],
-        legacyProvinceIds: [provinceId],
       })
       currentCtx = { ...ctxEv, events: [...ctxEv.events, event] }
     }
@@ -225,9 +219,6 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
           entityRef('polity', targetPolityId, 'target'),
           entityRef('province', provinceId, 'province'),
         ],
-        legacySummary: `${initiatorName} demands lower taxes from ${targetName} for ${provinceName}.`,
-        legacyPolityIds: [initiatorPolityId, targetPolityId],
-        legacyProvinceIds: [provinceId],
       })
       currentCtx = { ...ctxEv, events: [...ctxEv.events, event] }
     }
@@ -293,9 +284,6 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
           entityRef('polity', targetPolityId, 'target'),
           entityRef('province', provinceId, 'province'),
         ],
-        legacySummary: `${initiatorName} demands higher taxes from ${targetName} for ${provinceName}.`,
-        legacyPolityIds: [initiatorPolityId, targetPolityId],
-        legacyProvinceIds: [provinceId],
       })
       currentCtx = { ...ctxEv, events: [...ctxEv.events, event] }
     }

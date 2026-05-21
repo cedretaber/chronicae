@@ -101,8 +101,6 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
           province: nameParam('province', province.nameKey, province.name),
         },
         entityRefs: [entityRef('province', provinceId, 'province', province?.nameKey)],
-        legacySummary: `The people of ${province.name} improved their lands.`,
-        legacyProvinceIds: [provinceId as ProvinceId],
       },
     )
 

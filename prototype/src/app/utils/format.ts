@@ -1,3 +1,5 @@
+import i18next from 'i18next'
+
 const dash = '—'
 
 export function formatScore(value: number | undefined | null): string {
@@ -29,15 +31,20 @@ export function formatSigned(value: number | undefined | null): string {
   return value >= 0 ? `+${formatted}` : formatted
 }
 
-const POLITY_RANK_LABEL: Record<number, string> = {
-  1: '帝国',
-  2: '王国',
-  3: '公爵領',
-  4: '伯爵領',
-  5: '反乱領',
+const POLITY_RANK_FALLBACK: Record<number, string> = {
+  1: 'Empire',
+  2: 'Kingdom',
+  3: 'Duchy',
+  4: 'County',
+  5: 'Rebel Domain',
 }
 
 export function formatPolityRank(rank: number | undefined | null): string {
   if (rank == null) return dash
-  return POLITY_RANK_LABEL[rank] ?? `rank ${rank}`
+  if (i18next.isInitialized) {
+    const key = `polity_rank.${rank}`
+    const translated = i18next.t(key, { ns: 'statuses' })
+    if (translated !== key) return translated
+  }
+  return POLITY_RANK_FALLBACK[rank] ?? `rank ${rank}`
 }

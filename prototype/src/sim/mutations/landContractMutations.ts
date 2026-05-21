@@ -1,5 +1,5 @@
 import type { WorldState } from '../types/world'
-import type { ProvinceId, PolityId, LandContractId, HouseId, HoldingId } from '../types/ids'
+import type { ProvinceId, PolityId, LandContractId, HoldingId } from '../types/ids'
 import type { LandContract, LandContractIndex, RootAuthorityId } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
 import { createLandContractId } from '../types/ids'
@@ -579,10 +579,6 @@ export function applyLandContractTransferGoal(
   }
   let nextCtx: TickContext = { ...ctx, state: newState }
 
-  // Compute values needed for events
-  const ownerHouseIds: HouseId[] = []
-  if (fromPolity?.ownerHouseId !== undefined) ownerHouseIds.push(fromPolity.ownerHouseId)
-  if (toPolity.ownerHouseId !== undefined) ownerHouseIds.push(toPolity.ownerHouseId)
   const fromName = fromPolity?.name ?? fromPolityId
   const toName = toPolity.name
 
@@ -603,12 +599,6 @@ export function applyLandContractTransferGoal(
       entityRef('polity', input.toPolityId, 'to'),
       entityRef('province', provinceId, 'province'),
     ],
-    legacySummary: `${holding.name} transferred from ${fromName} to ${toName} (${input.reason}).`,
-    legacyActorIds: [],
-    legacyHouseIds: ownerHouseIds,
-    legacyPolityIds: [fromPolityId, input.toPolityId],
-    legacyProvinceIds: [provinceId],
-    legacyHoldingIds: [input.holdingId],
   })
   nextCtx = { ...ctxAfterTransfer, events: [...ctxAfterTransfer.events, transferEvent] }
 
@@ -651,12 +641,6 @@ export function applyLandContractTransferGoal(
         entityRef('polity', input.toPolityId, 'to'),
         entityRef('province', provinceId, 'province'),
       ],
-      legacySummary: outcomeSummary,
-      legacyActorIds: [],
-      legacyHouseIds: ownerHouseIds,
-      legacyPolityIds: [fromPolityId, input.toPolityId],
-      legacyProvinceIds: [provinceId],
-      legacyHoldingIds: [input.holdingId],
     })
     nextCtx = { ...ctxAfterOutcome, events: [...ctxAfterOutcome.events, outcomeEvent] }
   }

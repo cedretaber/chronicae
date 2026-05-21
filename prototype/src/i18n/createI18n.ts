@@ -26,8 +26,6 @@ const ALL_NAMESPACES: I18nNamespace[] = [
 export async function createChronicaeI18n(options: CreateI18nOptions): Promise<i18n> {
   const { locale, fallbackLocale, resourceLoader } = options
 
-  const instance = i18next.createInstance()
-
   const localesToLoad: LocaleCode[] =
     locale === fallbackLocale ? [locale] : [locale, fallbackLocale]
 
@@ -44,7 +42,7 @@ export async function createChronicaeI18n(options: CreateI18nOptions): Promise<i
     }
   }
 
-  await instance.init({
+  await i18next.init({
     lng: locale,
     fallbackLng: fallbackLocale,
     ns: ALL_NAMESPACES,
@@ -55,5 +53,5 @@ export async function createChronicaeI18n(options: CreateI18nOptions): Promise<i
     },
   })
 
-  return instance
+  return i18next
 }

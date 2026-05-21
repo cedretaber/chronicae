@@ -1,4 +1,4 @@
-import type { EventId, PersonId, HouseId, PolityId, ProvinceId, HoldingId } from './ids'
+import type { EventId } from './ids'
 
 export type EventType =
   | 'PERSON_DIED'
@@ -164,6 +164,165 @@ export function entityRef(
   }
 }
 
+export function getEntityIdsByKind(
+  event: { entityRefs: readonly EventEntityRef[] },
+  kind: EventEntityKind,
+): string[] {
+  return event.entityRefs.filter((r) => r.kind === kind).map((r) => r.id)
+}
+
+export function getFirstEntityId(
+  event: { entityRefs: readonly EventEntityRef[] },
+  kind: EventEntityKind,
+): string | undefined {
+  const ref = event.entityRefs.find((r) => r.kind === kind)
+  return ref?.id
+}
+
+export function getEntityRefsByKind(
+  event: { entityRefs: readonly EventEntityRef[] },
+  kind: EventEntityKind,
+): EventEntityRef[] {
+  return event.entityRefs.filter((r) => r.kind === kind)
+}
+
+export function getEntityRefByRole(
+  event: { entityRefs: readonly EventEntityRef[] },
+  role: string,
+): EventEntityRef | undefined {
+  return event.entityRefs.find((r) => r.role === role)
+}
+
+export function hasEntityId(event: { entityRefs: readonly EventEntityRef[] }, id: string): boolean {
+  return event.entityRefs.some((r) => r.id === id)
+}
+
+export function renderEventSummary(event: {
+  messageKey: string
+  messageParams: EventMessageParams
+}): string {
+  return resolveMessageTemplate(event.messageKey, event.messageParams)
+}
+
+function resolveMessageTemplate(messageKey: string, params: EventMessageParams): string {
+  const template = EVENT_TEMPLATES[messageKey]
+  if (!template) return messageKey
+  return template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
+    const value = params[key]
+    if (value === undefined) return `{{${key}}}`
+    if (typeof value === 'string') return value
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+    if (value.kind === 'name') return value.key
+    if (value.kind === 'entity') return value.id
+    return String(value)
+  })
+}
+
+const EVENT_TEMPLATES: Record<string, string> = {
+  'person.died': '{{person}} has died at age {{age}}.',
+  'person.born': '{{child}} was born.',
+  'person.born_in_obscurity': 'An unknown {{occupation}} named {{person}} appeared.',
+  'person.faded_from_history': '{{person}} faded from the chronicles.',
+  'marriage.formed': '{{male}} married {{female}}.',
+  'house.split': '{{person}} has split from {{house}} to form a new house.',
+  'house.extinct': '{{house}} has become extinct with no surviving house to inherit its legacy.',
+  'house.extinct_inherited':
+    '{{house}} has become extinct; its realm is inherited by another house.',
+  'house.extinct_legacy': '{{house}} has become extinct; its legacy passes to another house.',
+  'house.extinct_fallen': '{{house}} has fallen from power after losing all lands.',
+  'house.members_dispersed': 'The remnants of {{house}} dispersed into obscurity.',
+  'house.leader_changed': '{{person}} has become the new head of {{house}}.',
+  'house.land_developed': '{{house}} invested in developing {{province}}.',
+  'polity.leader_changed': '{{person}} has become the new ruler of {{polity}}.',
+  'polity.owner_changed':
+    "{{polity}}'s ruling house changed to {{newHouse}}, and the capital moved to {{province}}.",
+  'polity.owner_changed_initial':
+    "{{polity}}'s ruling house is now {{newHouse}}; capital set to {{province}}.",
+  'polity.owner_changed_extinction':
+    "{{polity}}'s ruling house changed from {{oldHouse}} to {{newHouse}} after the extinction.",
+  'polity.extinct_no_provinces': '{{polity}} has dissolved without remaining provinces.',
+  'polity.extinct_no_owner': '{{polity}} has dissolved without an owning house.',
+  'polity.extinct_lost_owner': '{{polity}} has dissolved after losing its owning house.',
+  'polity.landless': '{{polity}} no longer holds any land.',
+  'polity.land_developed': '{{polity}} invested in land development in {{province}}.',
+  'succession.crisis': 'A succession crisis has erupted in {{house}}!',
+  'succession.crisis_split': 'A succession crisis has erupted due to the house split!',
+  'plot.started': '{{person}} began a {{plotType}} plot.',
+  'plot.succeeded': "{{person}}'s {{plotType}} plot succeeded.",
+  'plot.failed': "{{person}}'s {{plotType}} plot failed.",
+  'office.assigned_polity': '{{person}} was appointed as {{role}} of {{polity}}.',
+  'office.assigned_house': '{{person}} was appointed as {{role}} of {{house}}.',
+  'office.revoked':
+    "Office of {{role}} in {{organization}} was revoked as the holder's house no longer holds province in this polity.",
+  'office.term_ended': "{{person}}'s term as {{role}} ended.",
+  'office.salary_unpaid': 'Salary unpaid for office holder.',
+  'office.salary_partially_paid': 'Salary partially unpaid for office holder.',
+  'estate.settled':
+    "{{person}}'s estate of {{wealth}} distributed: {{houseAmount}} to house, {{heirAmount}} to heirs.",
+  'estate.disputed': "Multiple heirs ({{count}}) contest {{person}}'s estate.",
+  'disaster.famine': 'Famine strikes {{province}}!',
+  'disaster.plague': 'Plague spreads through {{province}}!',
+  'disaster.bountiful_harvest': 'A bountiful harvest blesses {{province}}.',
+  'pop.land_developed': 'The people of {{province}} improved their lands.',
+  'war.won': '{{winner}} prevailed in war against {{loser}}.',
+  'war.lost': '{{loser}} was defeated by {{winner}}.',
+  'revolt.negotiation_started':
+    'A {{rebelClass}} revolt has broken out in {{province}} — negotiations begin.',
+  'revolt.polity_founded':
+    '{{polity}} has been founded by {{person}} through revolt in {{province}}!',
+  'revolt.settled':
+    'The revolt in {{province}} has been settled by negotiation — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.',
+  'revolt.suppressed':
+    'The revolt in {{province}} has been suppressed — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.',
+  'diplomatic_play.started_with_offer':
+    '{{initiator}} negotiates with {{target}} for {{province}}.',
+  'diplomatic_play.started_no_offer': '{{initiator}} pressures {{target}} to cede {{province}}.',
+  'diplomatic_play.progress': 'Diplomatic negotiations continue over {{province}}.',
+  'diplomatic_play.settled_revolt':
+    'Revolt negotiation in {{province}} settled — concessions granted.',
+  'diplomatic_play.settled_tax': 'Tax revision for {{province}} settled.',
+  'diplomatic_play.settled_purchase':
+    '{{initiator}} purchased {{province}} from {{defender}} for {{price}} gold.',
+  'diplomatic_play.settled_cession':
+    '{{defender}} ceded {{province}} to {{initiator}} under pressure.',
+  'diplomatic_play.failed_revolt': 'Revolt negotiation in {{province}} ended without resolution.',
+  'diplomatic_play.failed_claim': "{{initiator}}'s claim on {{province}} faded out.",
+  'diplomatic_play.escalated_revolt': 'Deadlocked revolt in {{province}} erupts at deadline.',
+  'diplomatic_play.escalated_claim':
+    'Deadlocked claim erupts: {{initiator}} attacks for {{province}}.',
+  'diplomatic_play.resolved_by_conflict': '{{summary}}',
+  'actor_intent.created_sell_land':
+    '{{seller}} seeks to sell {{province}} to {{buyer}} for {{price}} gold.',
+  'actor_intent.created_acquire_land': '{{acquirer}} eyes {{province}} held by {{target}}.',
+  'actor_intent.created_improve_terms':
+    '{{initiator}} demands lower taxes from {{target}} for {{province}}.',
+  'actor_intent.created_demand_tax':
+    '{{initiator}} demands higher taxes from {{target}} for {{province}}.',
+  'actor_intent.converted_with_offer':
+    '{{initiator}} opens negotiations to acquire {{province}} from {{target}} with compensation.',
+  'actor_intent.converted_no_offer':
+    '{{initiator}} demands {{province}} from {{target}} without compensation.',
+  'land_contract.transferred': '{{holding}} transferred from {{from}} to {{to}} ({{reason}}).',
+  'land_contract.purchased': '{{to}} purchased {{holding}} from {{from}}.',
+  'land_contract.ceded': '{{from}} ceded {{holding}} to {{to}}.',
+  'land_contract.conquered': '{{to}} conquered {{holding}} from {{from}}.',
+  'land_contract.tax_revised':
+    'Tax rate for {{province}} revised to {{rate}}% between {{initiator}} and {{defender}}.',
+  'land_contract.eliminated':
+    'Contract chain for {{province}} altered between {{initiator}} and {{defender}}.',
+  'bailiff.appointed': '{{person}} was appointed bailiff of {{province}}.',
+  'bailiff.vacated': '{{person}} stepped down as bailiff of {{province}}.',
+  'bailiff.placeholder_installed': 'An anonymous placeholder oversees {{province}}.',
+  'faction.founded': '{{person}} founded the faction {{faction}}.',
+  'faction.dissolved': '{{faction}} dissolved ({{reasons}}).',
+  'faction.leader_changed': '{{newLeader}} succeeded {{oldLeader}} as the head of {{faction}}.',
+  'faction.leader_bankrupt':
+    "{{person}}'s fortunes are exhausted, putting {{faction}} in jeopardy.",
+  'faction.member_recruited': '{{person}} joined {{faction}}.',
+  'faction.member_abandoned': '{{person}} abandoned {{faction}}.',
+  'faction.funds_shortage': "{{person}}'s {{faction}} faces a financial crisis.",
+}
+
 export type EventImportance = 'minor' | 'normal' | 'major' | 'critical'
 
 export type SimEvent = {
@@ -172,17 +331,9 @@ export type SimEvent = {
   weekOfYear: number
   type: EventType
   importance: EventImportance
-  actorIds: PersonId[]
-  houseIds: HouseId[]
-  polityIds: PolityId[]
-  provinceIds: ProvinceId[]
-  holdingIds: HoldingId[]
-  summary: string
-  description?: string
+  messageKey: string
+  messageParams: EventMessageParams
+  entityRefs: EventEntityRef[]
   reasons: EventReason[]
   effects: EventEffect[]
-  // v0.21 i18n fields (optional during migration)
-  messageKey?: string
-  messageParams?: EventMessageParams
-  entityRefs?: EventEntityRef[]
 }

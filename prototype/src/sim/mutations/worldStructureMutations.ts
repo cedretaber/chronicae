@@ -222,11 +222,6 @@ export function splitHouse(
       entityRef('house', newHouseId, 'to_house'),
       ...(housePolityId ? [entityRef('polity', housePolityId, 'polity')] : []),
     ],
-    legacySummary: `${splitterPerson.name} has split from ${house.name} to form a new house.`,
-    legacyActorIds: [splitterPerson.id],
-    legacyHouseIds: [input.houseId, newHouseId],
-    legacyPolityIds: [housePolityId ?? ('' as PolityId)],
-    legacyProvinceIds: splitProvinces,
   })
   resultCtx = { ...eventCtx, state: resultCtx.state, events: [...eventCtx.events, splitEvent] }
 
@@ -259,10 +254,6 @@ export function splitHouse(
       entityRef('person', splitterPerson.id, 'splitter', splitterPerson.nameKey),
       ...(housePolityId ? [entityRef('polity', housePolityId, 'polity')] : []),
     ],
-    legacySummary: `A succession crisis has erupted due to the house split!`,
-    legacyActorIds: [splitterPerson.id],
-    legacyHouseIds: [input.houseId],
-    legacyPolityIds: [housePolityId ?? ('' as PolityId)],
   })
   resultCtx = { ...crisisCtx, state: resultCtx.state, events: [...crisisCtx.events, crisisEvent] }
 
@@ -409,9 +400,6 @@ function handleNormalHouseExtinction(
     return ctx
   }
 
-  // event 用 polityIds は affectedPolityIds を使う（喪失前のスナップショット）
-  const eventPolityIds = affectedPolityIds.length > 0 ? affectedPolityIds : []
-
   const receiverHouseId = chooseReceiverHouse(ctx.state, houseId, affectedPolityIds)
 
   if (!receiverHouseId) {
@@ -454,9 +442,6 @@ function handleNormalHouseExtinction(
           entityRef('house', houseId, 'house', house.nameKey),
           entityRef('house', ANONYMOUS_HOUSE_ID, 'anonymous'),
         ],
-        legacySummary: `The remnants of ${house.name} dispersed into obscurity.`,
-        legacyActorIds: livingMemberIds,
-        legacyHouseIds: [houseId, ANONYMOUS_HOUSE_ID],
       })
       eventCtx = { ...ec1, events: [...ec1.events, dispersedEvent] }
     }
@@ -469,16 +454,11 @@ function handleNormalHouseExtinction(
         house: nameParam('house', house.nameKey, house.name),
       },
       entityRefs: [entityRef('house', houseId, 'house', house.nameKey)],
-      legacySummary: `${house.name} has become extinct with no surviving house to inherit its legacy.`,
-      legacyActorIds: [],
-      legacyHouseIds: [houseId],
-      legacyPolityIds: eventPolityIds,
     })
     return { ...ec2, events: [...ec2.events, event2] }
   }
 
   let resultCtx = ctx
-  const sortedProvinceIds = [...getHouseControlledProvinceIds(resultCtx.state, houseId)].sort()
 
   // v0.16 §22.3: extinct House が ownerHouse である Polity すべてを receiver House に継承させる
   // (王朝交代)。LandContracts は変更しない (Polity と Province の関係は不変、ownerHouse のみ差し替え)。
@@ -595,14 +575,6 @@ function handleNormalHouseExtinction(
         entityRef('house', houseId, 'extinct_house', house.nameKey),
         entityRef('house', receiverHouseId, 'inheriting_house'),
       ],
-      legacySummary:
-        inheritedPolityIds.length > 0
-          ? `${house.name} has become extinct; its realm is inherited by another house.`
-          : `${house.name} has become extinct; its legacy passes to another house.`,
-      legacyActorIds: [],
-      legacyHouseIds: [houseId, receiverHouseId],
-      legacyPolityIds: eventPolityIds,
-      legacyProvinceIds: sortedProvinceIds,
     },
   )
 
@@ -870,11 +842,6 @@ export function createRebelPolity(
             entityRef('polity', oldPolityId, 'polity'),
             entityRef('province', provinceId, 'province'),
           ],
-          legacySummary: `${oldOwnerHouse.name} has fallen from power after losing all lands.`,
-          legacyActorIds: [],
-          legacyHouseIds: [oldOwnerHouseId],
-          legacyPolityIds: [oldPolityId],
-          legacyProvinceIds: [provinceId],
         })
         ctx = { ...ctxE, events: [...ctxE.events, extinctEvent] }
       } else {
@@ -903,11 +870,6 @@ export function createRebelPolity(
       entityRef('polity', oldPolityId, 'old_polity'),
       entityRef('province', provinceId, 'province', province.nameKey),
     ],
-    legacySummary: `${newPolityObj.name} has been founded by ${newLeader.name} through revolt in ${province.name}!`,
-    legacyActorIds: [newPersonId],
-    legacyHouseIds: [],
-    legacyPolityIds: [newPolityId, oldPolityId],
-    legacyProvinceIds: [provinceId],
   })
   ctx = { ...ctx4, events: [...ctx4.events, revoltEvent] }
 
@@ -922,13 +884,6 @@ export function createRebelPolity(
 // ============================================================================
 
 export type RebelLeaderAftermath = 'returned_to_obscurity' | 'vanished' | 'executed' | 'exiled'
-
-const REBEL_AFTERMATH_NARRATIONS: Record<RebelLeaderAftermath, string> = {
-  returned_to_obscurity: 'has returned to obscurity',
-  vanished: 'has vanished without a trace',
-  executed: 'has been executed',
-  exiled: 'has been exiled',
-}
 
 export type DisbandRebelPolityInput = {
   rebelPolityId: PolityId
@@ -1056,9 +1011,6 @@ export function disbandRebelPolity(
   let nextCtx: TickContext = { ...ctx, state }
 
   // 7. event 発火
-  const aftermathText = REBEL_AFTERMATH_NARRATIONS[input.leaderAftermath]
-  const restoreName = state.polities[input.restoreToPolityId]?.name ?? 'the realm'
-  const provinceName = state.provinces[input.provinceId]?.name ?? input.provinceId
   const eventType = input.reason === 'settlement' ? 'REVOLT_SETTLED' : 'REVOLT_SUPPRESSED'
   const messageKey = input.reason === 'settlement' ? 'revolt.settled' : 'revolt.suppressed'
   const { event: revoltEvent, ctx: ctxEvent } = createSimEvent(nextCtx, {
@@ -1085,14 +1037,6 @@ export function disbandRebelPolity(
       entityRef('polity', input.restoreToPolityId, 'restored_polity', restorePolity.nameKey),
       entityRef('province', input.provinceId, 'province', province.nameKey),
     ].filter((ref): ref is typeof ref & { id: string } => ref.id !== ''),
-    legacySummary:
-      input.reason === 'settlement'
-        ? `The revolt in ${provinceName} has been settled by negotiation — its leader ${aftermathText}, and the province returns to ${restoreName}.`
-        : `The revolt in ${provinceName} has been suppressed — its leader ${aftermathText}, and the province returns to ${restoreName}.`,
-    legacyActorIds: rebelLeaderId !== undefined ? [rebelLeaderId] : [],
-    legacyHouseIds: [],
-    legacyPolityIds: [input.rebelPolityId, input.restoreToPolityId],
-    legacyProvinceIds: [input.provinceId],
   })
   nextCtx = { ...ctxEvent, events: [...ctxEvent.events, revoltEvent] }
 

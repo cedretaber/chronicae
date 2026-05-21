@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
-import type { SimEvent } from '@/sim/types/event'
-import type { EventType } from '@/sim/types/event'
+import type { SimEvent } from '@sim/types/event'
+import type { EventType } from '@sim/types/event'
+import { getFirstEntityId, hasEntityId, renderEventSummary } from '@sim/types/event'
 
 type LinkItem = { id: string; type: EntityType; name: string }
 
@@ -13,19 +14,19 @@ function EventLinks({ event }: { event: SimEvent }) {
   const state = session.currentState
 
   const items: LinkItem[] = []
-  const polityId = event.polityIds[0]
+  const polityId = getFirstEntityId(event, 'polity')
   if (polityId) {
-    const polity = state.polities[polityId]
+    const polity = state.polities[polityId as keyof typeof state.polities]
     if (polity) items.push({ id: polity.id, type: 'polity', name: polity.name })
   }
-  const houseId = event.houseIds[0]
+  const houseId = getFirstEntityId(event, 'house')
   if (houseId) {
-    const house = state.houses[houseId]
+    const house = state.houses[houseId as keyof typeof state.houses]
     if (house) items.push({ id: house.id, type: 'house', name: house.name })
   }
-  const actorId = event.actorIds[0]
+  const actorId = getFirstEntityId(event, 'person')
   if (actorId) {
-    const person = state.persons[actorId]
+    const person = state.persons[actorId as keyof typeof state.persons]
     if (person) items.push({ id: person.id, type: 'person', name: person.name })
   }
 
@@ -141,12 +142,7 @@ function getEventIcon(type: EventType): string {
 }
 
 function isWatchlistRelated(event: SimEvent, watchlist: string[]): boolean {
-  return (
-    event.actorIds.some((id) => watchlist.includes(id)) ||
-    event.houseIds.some((id) => watchlist.includes(id)) ||
-    event.polityIds.some((id) => watchlist.includes(id)) ||
-    event.provinceIds.some((id) => watchlist.includes(id))
-  )
+  return watchlist.some((id) => hasEntityId(event, id))
 }
 
 function RawLogRow({ event }: { event: SimEvent }) {
@@ -158,7 +154,7 @@ function RawLogRow({ event }: { event: SimEvent }) {
       <span className="text-gray-500">
         [{event.year}/{event.weekOfYear}] {getEventIcon(event.type)} {typeLabel}
       </span>
-      <span>{event.summary}</span>
+      <span>{renderEventSummary(event)}</span>
       <EventLinks event={event} />
     </div>
   )
@@ -177,7 +173,7 @@ function ChronicleRow({ event, isHighlighted }: { event: SimEvent; isHighlighted
       <span className="text-gray-500">
         [{event.year}/{event.weekOfYear}] {icon}
       </span>
-      <span>{event.summary}</span>
+      <span>{renderEventSummary(event)}</span>
       <EventLinks event={event} />
     </div>
   )
@@ -197,7 +193,7 @@ function TimelineYear({ year, events }: YearGroup) {
           className={`flex flex-wrap items-center gap-2 px-3 py-0.5 text-xs ${getImportanceColor(e.importance)}`}
         >
           <span className="text-gray-500">[W{e.weekOfYear}] </span>
-          <span>{e.summary}</span>
+          <span>{renderEventSummary(e)}</span>
           <EventLinks event={e} />
         </div>
       ))}

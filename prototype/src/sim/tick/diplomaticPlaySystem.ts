@@ -200,10 +200,6 @@ function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): Tick
           nextCtx.state.polities[targetPolityId]?.name,
         ),
       ],
-      legacySummary: `Revolt negotiation in ${provinceName ?? provinceId} ended without resolution.`,
-      legacyPolityIds: [rebelPolityId, targetPolityId],
-      legacyProvinceIds: [provinceId],
-      legacyHoldingIds: [],
     })
     return { ...ctxEv, events: [...ctxEv.events, event] }
   }
@@ -317,10 +313,6 @@ function applyRevoltSettlement(
         nextCtx.state.polities[targetPolityId]?.name,
       ),
     ],
-    legacySummary: `Revolt negotiation in ${provinceName ?? demand.provinceId} settled — concessions granted.`,
-    legacyPolityIds: [rebelPolityId, targetPolityId],
-    legacyProvinceIds: [demand.provinceId],
-    legacyHoldingIds: [],
   })
   return { ...ctxEv, events: [...ctxEv.events, event] }
 }
@@ -495,10 +487,6 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
         ),
         entityRef('province', provinceId, 'province', provinceName),
       ],
-      legacySummary: `${initiatorName ?? initiatorPolityId}'s claim on ${provinceName ?? provinceId} faded out.`,
-      legacyPolityIds: [initiatorPolityId, defenderPolityId],
-      legacyProvinceIds: [provinceId],
-      legacyHoldingIds: [],
     })
     return { ...ctxEv, events: [...ctxEv.events, event] }
   }
@@ -700,10 +688,6 @@ function applyContractTaxRevisionSettlement(
         entityRef('polity', defenderPolityId, 'defender', defenderName),
         entityRef('province', provinceId, 'province', provinceName),
       ],
-      legacySummary: `Tax rate for ${provinceName} revised to ${Math.round(newRate * 100)}% between ${initiatorName} and ${defenderName}.`,
-      legacyPolityIds: [initiatorPolityId, defenderPolityId],
-      legacyProvinceIds: [provinceId],
-      legacyHoldingIds: [],
     })
     nextCtx = { ...ctxEvTax, events: [...ctxEvTax.events, taxEvent] }
   } else {
@@ -750,10 +734,6 @@ function applyContractTaxRevisionSettlement(
         entityRef('polity', defenderPolityId, 'defender', defenderName),
         entityRef('province', provinceId, 'province', provinceName),
       ],
-      legacySummary: `Contract chain for ${provinceName} altered between ${initiatorName} and ${defenderName}.`,
-      legacyPolityIds: [initiatorPolityId, defenderPolityId],
-      legacyProvinceIds: [provinceId],
-      legacyHoldingIds: [],
     })
     nextCtx = { ...ctxEvElim, events: [...ctxEvElim.events, elimEvent] }
   }
@@ -780,10 +760,6 @@ function applyContractTaxRevisionSettlement(
         nextCtx.state.polities[defenderPolityId]?.name,
       ),
     ],
-    legacySummary: `Tax revision for ${provinceName} settled.`,
-    legacyPolityIds: [initiatorPolityId, defenderPolityId],
-    legacyProvinceIds: [provinceId],
-    legacyHoldingIds: [],
   })
   nextCtx = { ...ctxSettledNext, events: [...ctxSettledNext.events, settledEvent] }
 
@@ -868,10 +844,6 @@ function applyLandClaimSettlement(
         entityRef('province', provinceId!, 'province', String(provinceName)),
         entityRef('holding', holdingId, 'holding', nextCtx.state.holdings[holdingId]?.name),
       ],
-      legacySummary: `${initiatorName} purchased ${provinceName} from ${defenderName} for ${Math.round(offeredPrice)} gold.`,
-      legacyPolityIds: [initiatorPolityId, defenderPolityId],
-      legacyProvinceIds: [provinceId!],
-      legacyHoldingIds: [holdingId],
     })
     return { ...ctxEv, events: [...ctxEv.events, ev] }
   }
@@ -910,10 +882,6 @@ function applyLandClaimSettlement(
       entityRef('province', provinceId!, 'province', String(provinceName)),
       entityRef('holding', holdingId, 'holding', nextCtx.state.holdings[holdingId]?.name),
     ],
-    legacySummary: `${defenderName} ceded ${provinceName} to ${initiatorName} under pressure.`,
-    legacyPolityIds: [initiatorPolityId, defenderPolityId],
-    legacyProvinceIds: [provinceId!],
-    legacyHoldingIds: [holdingId],
   })
   return { ...ctxEv, events: [...ctxEv.events, ev] }
 }
@@ -959,10 +927,6 @@ function markPlayEscalated(
     messageKey: eventMeta.messageKey,
     messageParams: eventMeta.messageParams,
     entityRefs: eventMeta.eventEntityRefs,
-    legacySummary: eventMeta.summary,
-    legacyPolityIds: eventMeta.polityIds,
-    legacyProvinceIds: eventMeta.provinceIds,
-    legacyHoldingIds: eventMeta.holdingIds,
   })
   return { ...ctxEv, events: [...ctxEv.events, event] }
 }

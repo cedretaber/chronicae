@@ -51,10 +51,6 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
             entityRef('person', personId, 'deceased', person.nameKey),
             entityRef('house', person.houseId, 'house', house?.nameKey),
           ],
-          legacySummary: person.name + ' has died at age ' + person.age + '.',
-          legacyActorIds: [personId as PersonId],
-          legacyHouseIds: [person.houseId],
-          legacyPolityIds: personPrimaryPolityId ? [personPrimaryPolityId] : [],
         },
       )
 

@@ -1,0 +1,21 @@
+# Status labels and polity ranks (ja)
+polity_rank:
+  '1': '帝国'
+  '2': '王国'
+  '3': '公爵領'
+  '4': '伯爵領'
+  '5': '反乱領'
+
+person_status:
+  alive: '存命'
+  dead: '死亡'
+  faded: '歴史から消えた'
+
+birth_status:
+  legitimate: '嫡出'
+  illegitimate: '庶出'
+  unknown: '不明'
+
+sex:
+  male: '男性'
+  female: '女性'

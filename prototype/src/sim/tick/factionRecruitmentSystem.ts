@@ -1,8 +1,7 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
-import type { PersonId, FactionId, HouseId } from '../types/ids'
+import type { PersonId, FactionId } from '../types/ids'
 import { nameParam, entityRef } from '../types/event'
-import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
 import {
   getActiveFactions,
@@ -132,24 +131,12 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
         entityRef('person', faction.leaderPersonId, 'leader'),
         entityRef('faction', factionId, 'faction'),
       ],
-      legacySummary: `${candidate.name} joined ${faction.name}.`,
-      legacyActorIds: [faction.leaderPersonId, candidateId],
-      legacyHouseIds: collectHouseIds(currentCtx.state, [faction.leaderPersonId, candidateId]),
     })
     currentCtx = { ...ec, events: [...ec.events, event] }
     recruited++
   }
 
   return currentCtx
-}
-
-function collectHouseIds(state: WorldState, personIds: PersonId[]): HouseId[] {
-  const ids: HouseId[] = []
-  for (const pid of personIds) {
-    const p = state.persons[pid]
-    if (p && !ids.includes(p.houseId)) ids.push(p.houseId)
-  }
-  return ids
 }
 
 function computeRecruitmentScore(ctx: TickContext, leader: Person, candidate: Person): number {

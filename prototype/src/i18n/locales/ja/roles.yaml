@@ -1,0 +1,17 @@
+# Office role display names (ja)
+polity:
+  leader: '君主'
+  administrator: '宰相'
+  treasurer: '財務官'
+  military: '将軍'
+  advisor: '宮廷顧問'
+
+house:
+  leader: '家長'
+  administrator: '家宰'
+  treasurer: '家計官'
+  military: '護衛隊長'
+  advisor: '家顧問'
+
+holding:
+  bailiff: '代官'

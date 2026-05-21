@@ -20,32 +20,34 @@ import {
 } from '../testFixtures'
 import { buildActivityReport } from './activityReport'
 
+import type { EventEntityRef, EventMessageParams } from '../types/event'
+
 function makeEvent(
   id: number,
   year: number,
   type: SimEvent['type'],
-  summary: string,
+  _summary: string,
   actors: PersonId[],
   houses: HouseId[],
   polities: PolityId[],
+  extra?: { messageParams?: EventMessageParams; entityRefs?: EventEntityRef[] },
 ): SimEvent {
+  const refs: EventEntityRef[] = extra?.entityRefs ?? [
+    ...actors.map((pid) => ({ kind: 'person' as const, id: pid })),
+    ...houses.map((hid) => ({ kind: 'house' as const, id: hid })),
+    ...polities.map((pid) => ({ kind: 'polity' as const, id: pid })),
+  ]
   return {
     id: `e-${year}-${id}` as EventId,
     year,
     weekOfYear: 1,
     type,
     importance: 'minor',
-    actorIds: actors,
-    houseIds: houses,
-    polityIds: polities,
-    provinceIds: [],
-    holdingIds: [],
-    summary,
+    messageKey: `test.${type.toLowerCase()}`,
+    messageParams: extra?.messageParams ?? {},
+    entityRefs: refs,
     reasons: [],
     effects: [],
-    messageKey: `test.${type.toLowerCase()}`,
-    messageParams: {},
-    entityRefs: [],
   }
 }
 
@@ -140,6 +142,7 @@ describe('buildActivityReport', () => {
         [adminPid],
         [ownerHouseId],
         [polityId],
+        { messageParams: { role: 'Chancellor' } },
       ),
       makeEvent(2, 1054, 'OFFICE_TERM_ENDED', "Admin's term ended.", [adminPid], [], []),
       // Polity Office: advisor assigned via factional (outsider house member)
@@ -151,6 +154,7 @@ describe('buildActivityReport', () => {
         [factionMemberId],
         [outsiderHouseId],
         [polityId],
+        { messageParams: { role: 'Advisor' } },
       ),
       // House Office (no polityIds): owner-house treasurer
       makeEvent(
@@ -161,6 +165,7 @@ describe('buildActivityReport', () => {
         [adminPid],
         [ownerHouseId],
         [],
+        { messageParams: { role: 'Treasurer' } },
       ),
       // Faction lifecycle
       makeEvent(

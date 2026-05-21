@@ -144,9 +144,6 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
       person: nameParam('person', nameKey, name),
     },
     entityRefs: [entityRef('person', personId, 'person', nameKey)],
-    legacySummary: `An unknown ${occupation} named ${name} appeared.`,
-    legacyActorIds: [personId],
-    legacyHouseIds: [ANONYMOUS_HOUSE_ID],
   })
   newCtx = { ...ec, events: [...ec.events, event] }
 
@@ -229,9 +226,6 @@ function pruneUnaffiliated(ctx: TickContext, targetReduction: number): TickConte
         person: nameParam('person', person.nameKey, person.name),
       },
       entityRefs: [entityRef('person', personId, 'person', person.nameKey)],
-      legacySummary: `${person.name} faded from the chronicles.`,
-      legacyActorIds: [personId],
-      legacyHouseIds: [ANONYMOUS_HOUSE_ID],
     })
     currentCtx = { ...ec, events: [...ec.events, event] }
   }

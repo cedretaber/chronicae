@@ -144,7 +144,7 @@ describe('runIntentGenerationSystem', () => {
     const next = runIntentGenerationSystem(ctx)
     // event の summary に "eyes" (acquire_land 用) が入っていること
     const acquireEvent = next.events.find(
-      (e) => e.type === 'ACTOR_INTENT_CREATED' && e.summary.includes('eyes'),
+      (e) => e.type === 'ACTOR_INTENT_CREATED' && e.messageKey.includes('acquire'),
     )
     expect(acquireEvent).toBeDefined()
   })

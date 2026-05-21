@@ -1,7 +1,8 @@
 import type { WorldState } from '../types/world'
 import type { SimEvent } from '../types/event'
+import { getFirstEntityId, getEntityIdsByKind } from '../types/event'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PolityId, HouseId } from '../types/ids'
+import type { PersonId, PolityId, HouseId } from '../types/ids'
 import type {
   ActivityReport,
   ActivitySnapshot,
@@ -39,19 +40,18 @@ export function buildActivityReport(
   const houseAssignments = new Map<string, SimEvent[]>()
 
   for (const e of events) {
-    const polityId = e.polityIds[0]
-    const houseIdAtAssignment = e.houseIds[0]
+    const polityId = getFirstEntityId(e, 'polity')
+    const houseIdAtAssignment = getFirstEntityId(e, 'house')
     if (e.type === 'OFFICE_ASSIGNED') {
-      const role = inferRoleFromSummary(e.summary)
+      const role = inferRoleFromEvent(e)
       bumpChurn(officeAggregate, role, 'assignments')
-      // Polity Office / House Office の区別: polityIds[0] があれば Polity Office と判定
       if (polityId) {
         push(polityAssignments, polityId, e)
       } else if (houseIdAtAssignment) {
         push(houseAssignments, houseIdAtAssignment, e)
       }
     } else if (e.type === 'OFFICE_REVOKED') {
-      const role = inferRoleFromSummary(e.summary)
+      const role = inferRoleFromEvent(e)
       bumpChurn(officeAggregate, role, 'revokes')
     } else if (e.type === 'OFFICE_TERM_ENDED') {
       bumpChurn(officeAggregate, 'unknown', 'termEnds')
@@ -96,21 +96,25 @@ export function buildActivityReport(
   return report
 }
 
-// OFFICE_ASSIGNED.summary は `${name} was appointed as ${displayName} of ${polity.name}` 形式。
-// OFFICE_REVOKED.summary は `Office of ${role} in ${polity.name} was revoked ...` 形式。
-// displayName / role 名から role を逆引きする (displayName は OFFICE_DEFINITIONS に依存)。
-// 厳密性より粗い分類で十分なので簡易マップで対応。
-function inferRoleFromSummary(summary: string): string {
-  // OFFICE_REVOKED 形式 ("Office of administrator in X was revoked")
-  const revokeMatch = /Office of (\w+) in /.exec(summary)
-  if (revokeMatch && revokeMatch[1]) return revokeMatch[1]
-  // OFFICE_ASSIGNED 形式 (displayName ベース)
-  if (summary.includes('Chancellor') || summary.includes('Steward')) return 'administrator'
-  if (summary.includes('Treasurer')) return 'treasurer'
-  if (summary.includes('General') || summary.includes('Guard Captain')) return 'military'
-  if (summary.includes('Advisor')) return 'advisor'
-  if (summary.includes('Ruler') || summary.includes('House Head')) return 'leader'
+function inferRoleFromEvent(e: SimEvent): string {
+  const role = e.messageParams?.role
+  if (typeof role === 'string') return normalizeRoleToCategory(role)
   return 'unknown'
+}
+
+const DISPLAY_NAME_TO_ROLE: Record<string, string> = {
+  Chancellor: 'administrator',
+  Steward: 'administrator',
+  Treasurer: 'treasurer',
+  General: 'military',
+  'Guard Captain': 'military',
+  Advisor: 'advisor',
+  Ruler: 'leader',
+  'House Head': 'leader',
+}
+
+function normalizeRoleToCategory(role: string): string {
+  return DISPLAY_NAME_TO_ROLE[role] ?? role
 }
 
 function bumpChurn(
@@ -141,12 +145,12 @@ function buildPolityReports(
     const byRole: Record<string, { assignments: number; uniqueHolders: Set<string> }> = {}
     const houseDist: Record<string, number> = {}
     for (const e of events) {
-      const role = inferRoleFromSummary(e.summary)
+      const role = inferRoleFromEvent(e)
       if (!byRole[role]) byRole[role] = { assignments: 0, uniqueHolders: new Set<string>() }
       byRole[role].assignments++
-      const holder = e.actorIds[0]
+      const holder = getFirstEntityId(e, 'person')
       if (holder) byRole[role].uniqueHolders.add(holder)
-      const houseId = e.houseIds[0]
+      const houseId = getFirstEntityId(e, 'house')
       if (houseId) houseDist[houseId] = (houseDist[houseId] ?? 0) + 1
     }
     const officesByRole: Record<string, { assignments: number; uniqueHolders: number }> = {}
@@ -189,10 +193,10 @@ function buildHouseReports(
     // assignmentsByHouse 側に振り分け済み (buildActivityReport で polityIds[0] あり = Polity)
     const byRole: Record<string, { assignments: number; uniqueHolders: Set<string> }> = {}
     for (const e of events) {
-      const role = inferRoleFromSummary(e.summary)
+      const role = inferRoleFromEvent(e)
       if (!byRole[role]) byRole[role] = { assignments: 0, uniqueHolders: new Set<string>() }
       byRole[role].assignments++
-      const holder = e.actorIds[0]
+      const holder = getFirstEntityId(e, 'person')
       if (holder) byRole[role].uniqueHolders.add(holder)
     }
     const officesByRole: Record<string, { assignments: number; uniqueHolders: number }> = {}
@@ -259,13 +263,14 @@ function buildFactionReport(
   // event → faction の対応付け: actorIds に含まれる Person から
   // factionIndex を辿って判定する (final state ベースの近似)
   const findFactionFromActors = (e: SimEvent): string | undefined => {
-    for (const actorId of e.actorIds) {
-      const factionIds = finalState.factionIndex.byLeader[actorId]
+    const personIds = getEntityIdsByKind(e, 'person')
+    for (const actorId of personIds) {
+      const factionIds = finalState.factionIndex.byLeader[actorId as PersonId]
       if (factionIds && factionIds.length > 0) {
         const first = factionIds[0]
         if (first) return first
       }
-      const membershipIds = finalState.factionIndex.byMember[actorId]
+      const membershipIds = finalState.factionIndex.byMember[actorId as PersonId]
       if (membershipIds && membershipIds.length > 0) {
         for (const mid of membershipIds) {
           const m = finalState.factionMemberships[mid]
@@ -306,7 +311,7 @@ function buildFactionReport(
           const s = byFaction.get(fid)
           if (s) {
             s.recruitments++
-            const houseId = e.houseIds[0]
+            const houseId = getFirstEntityId(e, 'house')
             if (houseId) s.recruitHouses.add(houseId)
           }
         }
@@ -423,10 +428,10 @@ function buildBailiffReport(
   for (const e of events) {
     if (e.type === 'BAILIFF_APPOINTED') {
       totalAppointments++
-      const polityId = e.polityIds[0]
-      const houseAtAssignment = e.houseIds[0]
+      const polityId = getFirstEntityId(e, 'polity')
+      const houseAtAssignment = getFirstEntityId(e, 'house')
       if (polityId && houseAtAssignment) {
-        const polity = finalState.polities[polityId]
+        const polity = finalState.polities[polityId as PolityId]
         if (polity && polity.ownerHouseId === houseAtAssignment) ownerHouseSource++
         else otherHouseSource++
       } else {
