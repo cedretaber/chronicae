@@ -147,21 +147,40 @@ function giveBailiffSalary(
 ): { state: WorldState; paid: number } {
   if (retained <= 0 || bailiffRevenueShare <= 0) return { state, paid: 0 }
   const province = state.provinces[provinceId]
-  if (!province) return { state, paid: 0 }
-  const holdingId = province.holdingIds[0]
-  if (!holdingId) return { state, paid: 0 }
-  const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]
-  if (!assignmentId) return { state, paid: 0 }
-  const assignment = state.holdingOfficeAssignments[assignmentId]
-  if (!assignment || !assignment.active) return { state, paid: 0 }
-  const holderId = assignment.holderPersonId
-  if (isPlaceholderPerson(state, holderId)) return { state, paid: 0 }
-  const holder = state.persons[holderId]
-  if (!holder || !holder.alive) return { state, paid: 0 }
+  if (!province || province.holdingIds.length === 0) return { state, paid: 0 }
 
-  const salary = retained * bailiffRevenueShare
-  if (salary <= 0) return { state, paid: 0 }
-  const result = addPersonWealth(state, holderId, salary)
-  if (!result.ok) return { state, paid: 0 }
-  return { state: result.value, paid: salary }
+  let totalWeight = 0
+  for (const hid of province.holdingIds) {
+    const h = state.holdings[hid]
+    if (h) totalWeight += h.weight
+  }
+  if (totalWeight <= 0) return { state, paid: 0 }
+
+  let currentState = state
+  let totalPaid = 0
+
+  for (const holdingId of province.holdingIds) {
+    const holding = currentState.holdings[holdingId]
+    if (!holding) continue
+
+    const holdingRetained = retained * (holding.weight / totalWeight)
+    const salary = holdingRetained * bailiffRevenueShare
+    if (salary <= 0) continue
+
+    const assignmentId = currentState.holdingOfficeIndex.byHolding[holdingId]
+    if (!assignmentId) continue
+    const assignment = currentState.holdingOfficeAssignments[assignmentId]
+    if (!assignment || !assignment.active) continue
+    const holderId = assignment.holderPersonId
+    if (isPlaceholderPerson(currentState, holderId)) continue
+    const holder = currentState.persons[holderId]
+    if (!holder || !holder.alive) continue
+
+    const result = addPersonWealth(currentState, holderId, salary)
+    if (!result.ok) continue
+    currentState = result.value
+    totalPaid += salary
+  }
+
+  return { state: currentState, paid: totalPaid }
 }

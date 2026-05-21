@@ -309,19 +309,23 @@ export function bindProvinceToPolity(
   }
   const province = state.provinces[provinceId]
   const contractId = ('lc-' + state.nextLandContractId) as LandContractId
-  const holdingId = province.holdingIds[0]
+  const firstHoldingId = province.holdingIds[0]
   const contract: LandContract = {
     id: contractId,
     provinceId,
-    ...(holdingId ? { holdingId } : {}),
+    ...(firstHoldingId ? { holdingId: firstHoldingId } : {}),
     rootAuthorityId: ROOT_WORLD,
     granteePolityId: polityId,
     terms: { taxRateToGrantor: 0 },
   }
   const granteeSlot = state.landContractIndex.byGranteePolity[polityId] ?? []
   const byHolding = { ...state.landContractIndex.byHolding }
-  if (holdingId) {
-    byHolding[holdingId] = [contractId]
+  for (const hid of province.holdingIds) {
+    byHolding[hid] = [contractId]
+  }
+  const holdingCache = { ...state.holdingTerminalPolityCache }
+  for (const hid of province.holdingIds) {
+    holdingCache[hid] = polityId
   }
   let nextState: WorldState = {
     ...state,
@@ -335,13 +339,10 @@ export function bindProvinceToPolity(
       },
       byParent: { ...state.landContractIndex.byParent },
     },
-    holdingTerminalPolityCache: holdingId
-      ? { ...state.holdingTerminalPolityCache, [holdingId]: polityId }
-      : state.holdingTerminalPolityCache,
+    holdingTerminalPolityCache: holdingCache,
     nextLandContractId: state.nextLandContractId + 1,
   }
-  // Install Holding placeholder bailiff
-  if (holdingId) {
+  for (const holdingId of province.holdingIds) {
     const hoaId = ('ho-' + nextState.nextHoldingOfficeAssignmentId) as HoldingOfficeAssignmentId
     const hoa: HoldingOfficeAssignment = {
       id: hoaId,

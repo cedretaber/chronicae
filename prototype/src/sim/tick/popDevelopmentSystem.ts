@@ -2,11 +2,29 @@ import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
+import type { PopClass } from '../types/popGroup'
+import type { ProvinceId } from '../types/ids'
+import type { WorldState } from '../types/world'
+import type { SimEvent } from '../types/event'
 import { getProvinceAveragePopWealth, getProvinceUnrest } from '../selectors/popSelectors'
 import { adjustProvincePopWealth } from '../mutations/popMutations'
-import type { ProvinceId } from '../types/ids'
-import type { SimEvent } from '../types/event'
-import { getProvincePrimaryHolding } from '../selectors/landContractSelectors'
+import { getProvinceHoldings, getProvinceHoldingsByKind } from '../selectors/landContractSelectors'
+
+function getDominantPopClass(state: WorldState, provinceId: ProvinceId): PopClass {
+  const province = state.provinces[provinceId]
+  if (!province) return 'peasants'
+  let bestClass: PopClass = 'peasants'
+  let bestSize = 0
+  for (const pgId of province.popGroupIds) {
+    const pg = state.popGroups[pgId]
+    if (!pg) continue
+    if (pg.size > bestSize) {
+      bestSize = pg.size
+      bestClass = pg.class
+    }
+  }
+  return bestClass
+}
 
 export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
   if (!ctx.config.popDevelopmentEnabled) return ctx
@@ -22,9 +40,21 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
 
     if (averageWealth < currentCtx.config.popDevelopmentWealthThreshold) continue
     if (unrest > currentCtx.config.popDevelopmentUnrestMax) continue
-    const primaryHolding = getProvincePrimaryHolding(currentCtx.state, provinceId as ProvinceId)
-    if (!primaryHolding) continue
-    if (primaryHolding.development >= currentCtx.config.popDevelopmentMaxDevelopment) continue
+    const dominantClass = getDominantPopClass(currentCtx.state, provinceId as ProvinceId)
+    const preferredKind: 'manor' | 'city' = dominantClass === 'townsmen' ? 'city' : 'manor'
+    const kindHoldings = getProvinceHoldingsByKind(
+      currentCtx.state,
+      provinceId as ProvinceId,
+      preferredKind,
+    )
+    const allHoldings = getProvinceHoldings(currentCtx.state, provinceId as ProvinceId)
+    const candidates = kindHoldings.length > 0 ? kindHoldings : allHoldings
+    if (candidates.length === 0) continue
+    const targetHolding = candidates.reduce((best, h) =>
+      h.development < best.development ? h : best,
+    )
+
+    if (targetHolding.development >= currentCtx.config.popDevelopmentMaxDevelopment) continue
 
     const chance = clamp(
       currentCtx.config.popDevelopmentMonthlyChance +
@@ -42,22 +72,18 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
     const newCtx = { ...currentCtx, rng: newRng }
 
     const newDev = clamp(
-      primaryHolding.development + currentCtx.config.popDevelopmentGain,
+      targetHolding.development + currentCtx.config.popDevelopmentGain,
       -100,
       100,
     )
 
     const newHoldings = {
       ...newCtx.state.holdings,
-      [primaryHolding.id]: { ...primaryHolding, development: newDev },
-    }
-    const newProvinces = {
-      ...newCtx.state.provinces,
-      [provinceId]: { ...province, development: newDev },
+      [targetHolding.id]: { ...targetHolding, development: newDev },
     }
 
     const updatedState = adjustProvincePopWealth(
-      { ...newCtx.state, holdings: newHoldings, provinces: newProvinces },
+      { ...newCtx.state, holdings: newHoldings },
       provinceId as ProvinceId,
       -currentCtx.config.popDevelopmentCost,
     )

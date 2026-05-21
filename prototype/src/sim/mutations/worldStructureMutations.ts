@@ -744,10 +744,9 @@ export function createRebelPolity(
   }
 
   // v0.16 §17: 当該 Province の bailiff を新 Polity 配下の placeholder に installHoldingPlaceholderBailiff
-  const primaryHoldingId = province.holdingIds[0]
-  if (primaryHoldingId) {
+  for (const holdingId of province.holdingIds) {
     newState = installHoldingPlaceholderBailiff(newState, {
-      holdingId: primaryHoldingId,
+      holdingId,
       appointingPolityId: newPolityId,
       year: newState.currentYear,
       week: newState.currentWeekOfYear,
@@ -943,14 +942,15 @@ export function disbandRebelPolity(
   //    placeholder bailiff を再 install。次 tick の bailiffAppointmentSystem が通常ルールで
   //    本任命する。IntegrityCheck §25 #23 違反を avoid するための immediate placeholder)
   const restoreProvince = state.provinces[input.provinceId]
-  const restoreHoldingId = restoreProvince?.holdingIds[0]
-  if (restoreHoldingId) {
-    state = installHoldingPlaceholderBailiff(state, {
-      holdingId: restoreHoldingId,
-      appointingPolityId: input.restoreToPolityId,
-      year: state.currentYear,
-      week: state.currentWeekOfYear,
-    })
+  if (restoreProvince) {
+    for (const restoreHoldingId of restoreProvince.holdingIds) {
+      state = installHoldingPlaceholderBailiff(state, {
+        holdingId: restoreHoldingId,
+        appointingPolityId: input.restoreToPolityId,
+        year: state.currentYear,
+        week: state.currentWeekOfYear,
+      })
+    }
   }
 
   // 5. rebel leader を死亡処理 (markPersonDead 内部で revokeOfficesByHolder 連鎖)

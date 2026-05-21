@@ -1341,6 +1341,17 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     }
   }
 
+  // H0: Every Province must have at least one Holding
+  for (const province of Object.values(state.provinces)) {
+    if (!province) continue
+    if (province.holdingIds.length === 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${province.id} has no Holdings`,
+      })
+    }
+  }
+
   // H1: Every Province.holdingIds entry exists in state.holdings with matching provinceId
   for (const province of Object.values(state.provinces)) {
     if (!province) continue

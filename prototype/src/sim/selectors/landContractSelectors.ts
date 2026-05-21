@@ -49,11 +49,51 @@ export function getProvinceTerminalPolityId(
   state: WorldState,
   provinceId: ProvinceId,
 ): PolityId | undefined {
+  return getProvinceDominantTerminalPolityId(state, provinceId)
+}
+
+export function getProvinceDominantTerminalPolityId(
+  state: WorldState,
+  provinceId: ProvinceId,
+): PolityId | undefined {
   const province = state.provinces[provinceId]
   if (!province) return undefined
-  const holdingId = province.holdingIds[0]
-  if (!holdingId) return undefined
-  return state.holdingTerminalPolityCache[holdingId]
+  if (province.holdingIds.length === 0) return undefined
+  if (province.holdingIds.length === 1) {
+    return state.holdingTerminalPolityCache[province.holdingIds[0]!]
+  }
+  const breakdown = getProvinceTerminalPolityBreakdown(state, provinceId)
+  if (breakdown.length === 0) return undefined
+  return breakdown[0]!.polityId
+}
+
+export function getProvinceTerminalPolityBreakdown(
+  state: WorldState,
+  provinceId: ProvinceId,
+): Array<{ polityId: PolityId; holdingCount: number; weight: number }> {
+  const province = state.provinces[provinceId]
+  if (!province) return []
+  const map = new Map<PolityId, { holdingCount: number; weight: number }>()
+  for (const hid of province.holdingIds) {
+    const polityId = state.holdingTerminalPolityCache[hid]
+    if (!polityId) continue
+    const holding = state.holdings[hid]
+    const w = holding?.weight ?? 1
+    const entry = map.get(polityId)
+    if (entry) {
+      entry.holdingCount++
+      entry.weight += w
+    } else {
+      map.set(polityId, { holdingCount: 1, weight: w })
+    }
+  }
+  return [...map.entries()]
+    .map(([polityId, data]) => ({ polityId, ...data }))
+    .sort((a, b) => {
+      if (b.weight !== a.weight) return b.weight - a.weight
+      if (b.holdingCount !== a.holdingCount) return b.holdingCount - a.holdingCount
+      return a.polityId.localeCompare(b.polityId)
+    })
 }
 
 export function getProvinceRootPolityId(
@@ -259,6 +299,14 @@ export function getProvincePrimaryHolding(
   const holdingId = province.holdingIds[0]
   if (!holdingId) return undefined
   return state.holdings[holdingId]
+}
+
+export function getProvinceHoldingsByKind(
+  state: WorldState,
+  provinceId: ProvinceId,
+  kind: 'manor' | 'city',
+): Holding[] {
+  return getProvinceHoldings(state, provinceId).filter((h) => h.kind === kind)
 }
 
 export function getProvinceHoldings(state: WorldState, provinceId: ProvinceId): Holding[] {

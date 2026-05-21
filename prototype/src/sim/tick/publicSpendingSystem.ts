@@ -10,7 +10,7 @@ import type { WorldState } from '../types/world'
 import {
   getProvinceTerminalPolityId,
   getProvinceEffectiveOwnerHouseId,
-  getProvincePrimaryHolding,
+  getProvinceHoldings,
   getProvinceDevelopmentFromHoldings,
 } from '../selectors/landContractSelectors'
 
@@ -73,21 +73,20 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
     const targetProvince = currentCtx.state.provinces[bestProvinceId]
     if (!targetProvince) continue
 
-    const primaryHolding = getProvincePrimaryHolding(currentCtx.state, bestProvinceId)
-    if (!primaryHolding) continue
+    const holdings = getProvinceHoldings(currentCtx.state, bestProvinceId)
+    if (holdings.length === 0) continue
+    const targetHolding = holdings.reduce((best, h) =>
+      h.development < best.development ? h : best,
+    )
 
     const newDevelopment = clamp(
-      primaryHolding.development + ctx.config.polityLandDevelopmentGain,
+      targetHolding.development + ctx.config.polityLandDevelopmentGain,
       -100,
       100,
     )
     const newHoldings = {
       ...currentCtx.state.holdings,
-      [primaryHolding.id]: { ...primaryHolding, development: newDevelopment },
-    }
-    const newProvinces = {
-      ...currentCtx.state.provinces,
-      [bestProvinceId]: { ...targetProvince, development: newDevelopment },
+      [targetHolding.id]: { ...targetHolding, development: newDevelopment },
     }
     const updatedPolity = {
       ...polity,
@@ -99,7 +98,6 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       state: {
         ...currentCtx.state,
         holdings: newHoldings,
-        provinces: newProvinces,
         polities: { ...currentCtx.state.polities, [polityId as PolityId]: updatedPolity },
       },
     }

@@ -29,6 +29,10 @@ function chooseOwner(
     .map((houseId) => {
       const house = ctx.state.houses[houseId]
       const provinceIdsInPolity = getHouseProvinceIdsByPolity(ctx.state, houseId, polityId)
+      let holdingCount = 0
+      for (const pid of provinceIdsInPolity) {
+        holdingCount += ctx.state.provinces[pid]?.holdingIds.length ?? 0
+      }
       let devSum = 0
       for (const pid of provinceIdsInPolity) {
         const p = ctx.state.provinces[pid]
@@ -36,13 +40,13 @@ function chooseOwner(
       }
       return {
         houseId,
-        provinceCount: provinceIdsInPolity.length,
+        holdingCount,
         devSum,
         legacyPrestige: house?.legacyPrestige ?? 0,
       }
     })
     .sort((a, b) => {
-      if (b.provinceCount !== a.provinceCount) return b.provinceCount - a.provinceCount
+      if (b.holdingCount !== a.holdingCount) return b.holdingCount - a.holdingCount
       if (b.devSum !== a.devSum) return b.devSum - a.devSum
       if (b.legacyPrestige !== a.legacyPrestige) return b.legacyPrestige - a.legacyPrestige
       return a.houseId.localeCompare(b.houseId)

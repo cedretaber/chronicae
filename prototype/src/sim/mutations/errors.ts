@@ -23,6 +23,7 @@ export type SimErrorCode =
   | 'PERSON_ALREADY_EXISTS'
   | 'HOUSE_MISMATCH'
   | 'CONTRACT_NOT_FOUND'
+  | 'HOLDING_NOT_FOUND'
 
 export type SimError = {
   code: SimErrorCode

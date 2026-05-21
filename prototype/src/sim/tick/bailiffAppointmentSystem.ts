@@ -53,9 +53,9 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
     for (const provinceId of terminalProvinceIds) {
       const province = currentCtx.state.provinces[provinceId]
       if (!province) continue
-      const holdingId = province.holdingIds[0]
-      if (!holdingId) continue
-      terminalHoldings.push({ provinceId, holdingId })
+      for (const holdingId of province.holdingIds) {
+        terminalHoldings.push({ provinceId, holdingId })
+      }
     }
 
     // Term-based vacating (v0.17 §15.2): insert before step 1

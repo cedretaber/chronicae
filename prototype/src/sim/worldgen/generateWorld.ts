@@ -41,8 +41,7 @@ import type {
   HoldingOfficeIndex,
 } from '../types/landContract'
 import { ROOT_WORLD, ANONYMOUS_HOUSE_ID, PLACEHOLDER_PERSON_ID } from '../types/landContract'
-import { createRng } from '../rng/rng'
-import { randomInt } from '../rng/rng'
+import { createRng, randomInt, randomFloat } from '../rng/rng'
 import { generateProvinces } from './generateProvinces'
 import { distributePolities } from './distributePolities'
 import { distributeHouses } from './distributeHouses'
@@ -1203,7 +1202,7 @@ export function generateWorld(
     provinceTerminalPolityCache[province.id] = terminalPolityId
   }
 
-  // v0.20-ab: Holding 生成 (1P=1H)
+  // v0.20-b1: Holding 生成 (複数 Holding / Province)
   const holdingsRecord: Record<HoldingId, Holding> = {}
   const holdingTerminalPolityCache: HoldingTerminalPolityCache = {}
   const holdingOfficeAssignments: Record<HoldingOfficeAssignmentId, HoldingOfficeAssignment> = {}
@@ -1216,56 +1215,117 @@ export function generateWorld(
   let nextHoldingOfficeAssignmentId = 0
 
   for (const province of provinces) {
-    const holdingId = createHoldingId(nextHoldingId++)
+    // Determine holding count from preset
+    let holdingCount: number
+    if (preset.holdingsPerProvinceMin === preset.holdingsPerProvinceMax) {
+      holdingCount = preset.holdingsPerProvinceMin
+    } else {
+      const { value: hc, rng: r } = randomInt(
+        rng,
+        preset.holdingsPerProvinceMin,
+        preset.holdingsPerProvinceMax,
+      )
+      rng = r
+      holdingCount = hc
+    }
+
+    // Determine if this province gets a city (§14.4)
+    const cityProvinceChance = 0.2
+    const minHoldingsForCity = 3
+    let hasCity = false
+    if (holdingCount >= minHoldingsForCity) {
+      const { value: cityRoll, rng: r2 } = randomFloat(rng)
+      rng = r2
+      hasCity = cityRoll < cityProvinceChance
+    }
+
     const holdingDev = developmentMap.get(province.id) ?? 0
     const holdingControl = controlMap.get(province.id) ?? 0
-    const holding: Holding = {
-      id: holdingId,
-      provinceId: province.id,
-      kind: 'manor',
-      name: province.name,
-      development: holdingDev,
-      polityControl: holdingControl,
-      landQuality: province.habitability,
-      weight: 1,
-    }
-    holdingsRecord[holdingId] = holding
+    const holdingIds: HoldingId[] = []
 
+    for (let i = 0; i < holdingCount; i++) {
+      const holdingId = createHoldingId(nextHoldingId++)
+
+      // Determine kind and weight
+      const isCity = hasCity && i === holdingCount - 1
+      let kind: 'manor' | 'city'
+      let weight: number
+      let name: string
+
+      if (isCity) {
+        kind = 'city'
+        const { value: w, rng: rw } = randomFloat(rng)
+        rng = rw
+        weight = 2.0 + w * 1.0
+        name = `${province.name} City`
+      } else {
+        kind = 'manor'
+        weight = 1.0
+        name = holdingCount === 1 ? province.name : `${province.name} Manor ${i + 1}`
+      }
+
+      // landQuality: randomFloat(0.6, 1.4)
+      const { value: lqRoll, rng: rlq } = randomFloat(rng)
+      rng = rlq
+      const landQuality = 0.6 + lqRoll * 0.8
+
+      const holding: Holding = {
+        id: holdingId,
+        provinceId: province.id,
+        kind,
+        name,
+        development: holdingDev,
+        polityControl: holdingControl,
+        landQuality,
+        weight,
+      }
+      holdingsRecord[holdingId] = holding
+      holdingIds.push(holdingId)
+
+      // Map holding to same contract chain as province
+      const contractIds = landContractIndex.byProvince[province.id] ?? []
+      landContractIndex.byHolding[holdingId] = contractIds
+
+      // Set holdingId on contracts (use first holding for backward compat)
+      if (i === 0) {
+        for (const cid of contractIds) {
+          const contract = landContractsRecord[cid]
+          if (contract) {
+            landContractsRecord[cid] = { ...contract, holdingId }
+          }
+        }
+      }
+
+      // Terminal polity cache
+      const terminalPolityId = provinceTerminalPolityCache[province.id]
+      if (terminalPolityId) {
+        holdingTerminalPolityCache[holdingId] = terminalPolityId
+
+        // Create placeholder bailiff for each holding
+        const hoaId = ('ho-' + nextHoldingOfficeAssignmentId) as HoldingOfficeAssignmentId
+        nextHoldingOfficeAssignmentId++
+        const hoa: HoldingOfficeAssignment = {
+          id: hoaId,
+          holdingId,
+          role: 'bailiff',
+          holderPersonId: PLACEHOLDER_PERSON_ID,
+          appointingPolityId: terminalPolityId,
+          active: true,
+          startYear: 1,
+          startWeek: 1,
+          unpaidCount: 0,
+        }
+        holdingOfficeAssignments[hoaId] = hoa
+        holdingOfficeIndex.byHolding[holdingId] = hoaId
+        const politySlot = holdingOfficeIndex.byAppointingPolity[terminalPolityId] ?? []
+        holdingOfficeIndex.byAppointingPolity[terminalPolityId] = [...politySlot, hoaId]
+      }
+    }
+
+    // Update province with all holding IDs
     provincesRecord[province.id] = {
       ...provincesRecord[province.id]!,
-      holdingIds: [holdingId],
-    }
-
-    const contractIds = landContractIndex.byProvince[province.id] ?? []
-    for (const cid of contractIds) {
-      const contract = landContractsRecord[cid]
-      if (contract) {
-        landContractsRecord[cid] = { ...contract, holdingId }
-      }
-    }
-    landContractIndex.byHolding[holdingId] = contractIds
-
-    const terminalPolityId = provinceTerminalPolityCache[province.id]
-    if (terminalPolityId) {
-      holdingTerminalPolityCache[holdingId] = terminalPolityId
-
-      const hoaId = ('ho-' + nextHoldingOfficeAssignmentId) as HoldingOfficeAssignmentId
-      nextHoldingOfficeAssignmentId++
-      const hoa: HoldingOfficeAssignment = {
-        id: hoaId,
-        holdingId,
-        role: 'bailiff',
-        holderPersonId: PLACEHOLDER_PERSON_ID,
-        appointingPolityId: terminalPolityId,
-        active: true,
-        startYear: 1,
-        startWeek: 1,
-        unpaidCount: 0,
-      }
-      holdingOfficeAssignments[hoaId] = hoa
-      holdingOfficeIndex.byHolding[holdingId] = hoaId
-      const politySlot = holdingOfficeIndex.byAppointingPolity[terminalPolityId] ?? []
-      holdingOfficeIndex.byAppointingPolity[terminalPolityId] = [...politySlot, hoaId]
+      holdingIds,
     }
   }
 

@@ -9,6 +9,7 @@ import type {
 } from '../types/diplomaticPlay'
 import type { SimEvent, EventType } from '../types/event'
 import { adjustProvincePopUnrestByClass, adjustProvincePopUnrest } from '../mutations/popMutations'
+import { adjustProvinceDevelopment } from '../mutations/provinceMutations'
 import { disbandRebelPolity, type RebelLeaderAftermath } from '../mutations/worldStructureMutations'
 import {
   applyLandContractTransferGoal,
@@ -135,18 +136,13 @@ function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickCo
   }
   const province = state.provinces[provinceId]
   if (province) {
-    const holdingId = province.holdingIds[0]
-    const holding = holdingId ? state.holdings[holdingId] : undefined
-    const currentDev = holding ? holding.development : 0
-    const newDev = clamp(currentDev - config.revoltSuppressedDevelopmentDamage, -100, 100)
-    if (holdingId && holding) {
-      state = {
-        ...state,
-        holdings: {
-          ...state.holdings,
-          [holdingId]: { ...holding, development: newDev },
-        },
-      }
+    const devResult = adjustProvinceDevelopment(
+      state,
+      provinceId,
+      -config.revoltSuppressedDevelopmentDamage,
+    )
+    if (devResult.ok) {
+      state = devResult.value
     }
   }
   const targetPolityNow = state.polities[targetPolityId]
@@ -477,18 +473,13 @@ function applyConflictDamage(
   // 対象 Province の development 低下
   const province = state.provinces[input.provinceId]
   if (province) {
-    const holdingId = province.holdingIds[0]
-    const holding = holdingId ? state.holdings[holdingId] : undefined
-    const currentDev = holding ? holding.development : 0
-    const newDev = clamp(currentDev - config.conflictProvinceDevastation, -100, 100)
-    if (holdingId && holding) {
-      state = {
-        ...state,
-        holdings: {
-          ...state.holdings,
-          [holdingId]: { ...holding, development: newDev },
-        },
-      }
+    const devResult = adjustProvinceDevelopment(
+      state,
+      input.provinceId,
+      -config.conflictProvinceDevastation,
+    )
+    if (devResult.ok) {
+      state = devResult.value
     }
   }
   // 主 PopGroup damage

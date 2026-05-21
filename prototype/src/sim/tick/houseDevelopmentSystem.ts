@@ -8,7 +8,7 @@ import type { SimEvent } from '../types/event'
 import {
   getHouseControlledProvinceIds,
   getProvinceDevelopmentFromHoldings,
-  getProvincePrimaryHolding,
+  getProvinceHoldings,
 } from '../selectors/landContractSelectors'
 import type { WorldState } from '../types/world'
 
@@ -65,21 +65,20 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
     const targetProvince = currentCtx.state.provinces[bestProvinceId]
     if (!targetProvince) continue
 
-    const primaryHolding = getProvincePrimaryHolding(currentCtx.state, bestProvinceId)
-    if (!primaryHolding) continue
+    const holdings = getProvinceHoldings(currentCtx.state, bestProvinceId)
+    if (holdings.length === 0) continue
+    const targetHolding = holdings.reduce((best, h) =>
+      h.development < best.development ? h : best,
+    )
 
     const effectiveGain =
       currentCtx.config.houseLandDevelopmentGain *
-      (1 - Math.max(0, primaryHolding.development) / 100)
-    const newDevelopment = clamp(primaryHolding.development + effectiveGain, -100, 100)
+      (1 - Math.max(0, targetHolding.development) / 100)
+    const newDevelopment = clamp(targetHolding.development + effectiveGain, -100, 100)
 
     const newHoldings = {
       ...currentCtx.state.holdings,
-      [primaryHolding.id]: { ...primaryHolding, development: newDevelopment },
-    }
-    const newProvinces = {
-      ...currentCtx.state.provinces,
-      [bestProvinceId]: { ...targetProvince, development: newDevelopment },
+      [targetHolding.id]: { ...targetHolding, development: newDevelopment },
     }
     const newHouse = {
       ...house,
@@ -95,7 +94,6 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
       state: {
         ...currentCtx.state,
         holdings: newHoldings,
-        provinces: newProvinces,
         houses: newHouses,
       },
     }

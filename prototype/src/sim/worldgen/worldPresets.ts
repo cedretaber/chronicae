@@ -11,6 +11,8 @@ export type WorldPreset = {
   kingdoms: number
   duchies: number
   counties: number
+  holdingsPerProvinceMin: number
+  holdingsPerProvinceMax: number
 }
 
 export const WORLD_PRESETS: Record<WorldPresetName, WorldPreset> = {
@@ -25,6 +27,8 @@ export const WORLD_PRESETS: Record<WorldPresetName, WorldPreset> = {
     kingdoms: 1,
     duchies: 2,
     counties: 6,
+    holdingsPerProvinceMin: 1,
+    holdingsPerProvinceMax: 1,
   },
   small: {
     name: 'small',
@@ -37,6 +41,8 @@ export const WORLD_PRESETS: Record<WorldPresetName, WorldPreset> = {
     kingdoms: 2,
     duchies: 5,
     counties: 15,
+    holdingsPerProvinceMin: 2,
+    holdingsPerProvinceMax: 3,
   },
   standard: {
     name: 'standard',
@@ -49,6 +55,8 @@ export const WORLD_PRESETS: Record<WorldPresetName, WorldPreset> = {
     kingdoms: 4,
     duchies: 10,
     counties: 30,
+    holdingsPerProvinceMin: 4,
+    holdingsPerProvinceMax: 4,
   },
   perfLarge: {
     name: 'perfLarge',
@@ -61,6 +69,8 @@ export const WORLD_PRESETS: Record<WorldPresetName, WorldPreset> = {
     kingdoms: 6,
     duchies: 16,
     counties: 50,
+    holdingsPerProvinceMin: 3,
+    holdingsPerProvinceMax: 5,
   },
 } as const
 

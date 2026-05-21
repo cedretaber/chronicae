@@ -1,4 +1,4 @@
-import type { ProvinceId, HouseId, PolityId } from '../types/ids'
+import type { ProvinceId, HouseId, PolityId, HoldingId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { StateResult } from './result'
 import { ok, err } from './result'
@@ -61,24 +61,36 @@ export function adjustProvinceDevelopment(
   const min = options?.min ?? -100
   const max = options?.max ?? 100
 
-  // Read development from primary Holding (Province no longer stores development)
-  const holdingId = province.holdingIds[0]
-  const holding = holdingId ? state.holdings[holdingId] : undefined
-  const currentDev = holding ? holding.development : 0
-  const newDev = clamp(currentDev + delta, min, max)
-
-  if (!holdingId || !holding) {
-    return ok(state)
+  let holdings = state.holdings
+  for (const holdingId of province.holdingIds) {
+    const holding = holdings[holdingId]
+    if (!holding) continue
+    const newDev = clamp(holding.development + delta, min, max)
+    holdings = { ...holdings, [holdingId]: { ...holding, development: newDev } }
   }
 
-  const nextState: WorldState = {
+  if (holdings === state.holdings) return ok(state)
+  return ok({ ...state, holdings })
+}
+
+export function adjustHoldingDevelopment(
+  state: WorldState,
+  holdingId: HoldingId,
+  delta: number,
+  options?: { min?: number; max?: number },
+): StateResult {
+  const holding = state.holdings[holdingId]
+  if (!holding)
+    return err({ code: 'HOLDING_NOT_FOUND', message: 'Holding not found: ' + holdingId })
+
+  const min = options?.min ?? -100
+  const max = options?.max ?? 100
+  const newDev = clamp(holding.development + delta, min, max)
+
+  return ok({
     ...state,
-    holdings: {
-      ...state.holdings,
-      [holdingId]: { ...holding, development: newDev },
-    },
-  }
-  return ok(nextState)
+    holdings: { ...state.holdings, [holdingId]: { ...holding, development: newDev } },
+  })
 }
 
 // v0.16: toOwnerHouseId は ownership chain の整合確認用 (toPolityId.ownerHouseId と一致するはず)。
