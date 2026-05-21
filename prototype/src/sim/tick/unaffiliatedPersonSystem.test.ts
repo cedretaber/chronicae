@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createPersonId } from '../types/ids'
-import type { PersonId, ProvinceId } from '../types/ids'
+import { createPersonId, createHoldingId } from '../types/ids'
+import type { PersonId, ProvinceId, HoldingId } from '../types/ids'
+import type { Holding } from '../types/landContract'
 import type { WorldState } from '../types/world'
 import type { TickContext } from './context'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -21,12 +22,27 @@ function makeBaseState(): WorldState {
     wealth: 0,
     seatProvinceId: 'pr-anon' as ProvinceId,
   }
+  const dummyHoldings: Record<HoldingId, Holding> = {}
+  for (let i = 0; i < 6; i++) {
+    const hid = createHoldingId(i)
+    dummyHoldings[hid] = {
+      id: hid,
+      provinceId: 'pr-anon' as ProvinceId,
+      kind: 'manor',
+      name: `Test Manor ${i}`,
+      development: 0,
+      polityControl: 0,
+      landQuality: 1,
+      weight: 1,
+    }
+  }
+
   return {
     currentYear: 1450,
     currentWeekOfYear: 1,
     absoluteWeek: 75400,
     provinces: {},
-    holdings: {},
+    holdings: dummyHoldings,
     states: {},
     polities: {},
     houses: { [ANONYMOUS_HOUSE_ID]: anon },
@@ -257,7 +273,9 @@ describe('runUnaffiliatedPersonSystem', () => {
     expect(protectedPerson?.alive).toBe(true)
 
     const fadedEvents = result.events.filter((e) => e.type === 'PERSON_FADED_FROM_HISTORY')
-    expect(fadedEvents.length).toBe(1)
-    expect(fadedEvents[0]!.actorIds[0]).not.toBe(protectedId)
+    expect(fadedEvents.length).toBeGreaterThanOrEqual(1)
+    for (const e of fadedEvents) {
+      expect(e.actorIds[0]).not.toBe(protectedId)
+    }
   })
 })

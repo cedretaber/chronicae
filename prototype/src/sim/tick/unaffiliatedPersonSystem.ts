@@ -21,10 +21,9 @@ function computeEffectiveTargets(ctx: TickContext): {
   hardMax: number
 } {
   const holdingsCount = Object.keys(ctx.state.holdings).length
-  const holdingsBased = Math.ceil(holdingsCount * ctx.config.unaffiliatedPersonsPerHolding)
-  const target = Math.max(ctx.config.targetUnaffiliatedPersons, holdingsBased)
-  const softMax = Math.max(ctx.config.softMaxUnaffiliatedPersons, Math.ceil(target * 1.5))
-  const hardMax = Math.max(ctx.config.hardMaxUnaffiliatedPersons, target * 2)
+  const target = Math.ceil(holdingsCount * ctx.config.unaffiliatedPersonsPerHolding)
+  const softMax = Math.ceil(target * 1.5)
+  const hardMax = target * 2
   return { target, softMax, hardMax }
 }
 
@@ -68,7 +67,7 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
   // 2. Sex: 50/50
   const { value: sexRoll, rng: rngAfterSex } = randomFloat(rng)
   rng = rngAfterSex
-  const sex: 'male' | 'female' = sexRoll < 0.5 ? 'male' : 'female'
+  const sex: 'male' | 'female' = sexRoll < config.unaffiliatedMaleRatio ? 'male' : 'female'
 
   // 3. Name
   const { name, rng: rngAfterName } = pickNameBySex(sex, rng)

@@ -94,7 +94,7 @@ const scheduledSystems: ScheduledSystem[] = [
   { name: 'birthSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runBirthSystem },
   {
     name: 'unaffiliatedPersonSystem',
-    intervalWeeks: WEEKS_PER_YEAR,
+    intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runUnaffiliatedPersonSystem,
   },
