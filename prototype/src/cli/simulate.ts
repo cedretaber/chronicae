@@ -32,6 +32,7 @@ Options:
   --config <json>       Override config values with a JSON object (e.g. '{"taxRevisionTaxChangeAmount":0.10}')
   --report <path>       Write Activity Report (4-axis observation JSON) to <path>; use "-" for stdout
   --report-snapshot <n> Capture a snapshot every <n> years for the report (default: off)
+  --perf                Output performance summary (entity counts, elapsed time, tick time)
   --preset <name>       World size preset (tiny, small, standard, perfLarge)
   --help                Show this help message`)
 }
@@ -43,6 +44,7 @@ function parseArgs(argv: string[]): {
   json: boolean
   integrityCheck: boolean
   debug: boolean
+  perf: boolean
   dumpWorld: boolean
   digest: boolean
   configOverrides: Record<string, unknown>
@@ -57,6 +59,7 @@ function parseArgs(argv: string[]): {
   let json = false
   let integrityCheck = false
   let debug = false
+  let perf = false
   let dumpWorld = false
   let digest = false
   let configOverrides: Record<string, unknown> = {}
@@ -92,6 +95,8 @@ function parseArgs(argv: string[]): {
       integrityCheck = true
     } else if (arg === '--debug') {
       debug = true
+    } else if (arg === '--perf') {
+      perf = true
     } else if (arg === '--dump-world') {
       dumpWorld = true
     } else if (arg === '--digest') {
@@ -147,6 +152,7 @@ function parseArgs(argv: string[]): {
     json,
     integrityCheck,
     debug,
+    perf,
     dumpWorld,
     digest,
     configOverrides,
@@ -381,8 +387,13 @@ if (!args.json && !args.digest) {
   console.log('')
 }
 
+const simStartTime = performance.now()
+let tickTimeTotal = 0
+
 for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
+  const tickT0 = performance.now()
   const result = tick({ state, rng: currentRng, config })
+  tickTimeTotal += performance.now() - tickT0
 
   if (args.integrityCheck) {
     const ctx = createTickContext({ state: result.state, rng: result.rng, config })
@@ -526,6 +537,45 @@ for (let tickIndex = 0; tickIndex < totalTicks; tickIndex++) {
     year % args.reportSnapshotYears === 0
   ) {
     snapshots.push(takeSnapshot(result.state, year))
+  }
+}
+
+const simElapsedMs = performance.now() - simStartTime
+
+if (args.perf) {
+  const perfData = {
+    elapsed: {
+      totalMs: Math.round(simElapsedMs),
+      tickTotalMs: Math.round(tickTimeTotal),
+      tickAvgMs: Math.round((tickTimeTotal / totalTicks) * 1000) / 1000,
+      ticks: totalTicks,
+    },
+    entities: {
+      states: Object.keys(state.states).length,
+      provinces: Object.keys(state.provinces).length,
+      holdings: countHoldings(state),
+      polities: countActivePolities(state),
+      houses: countActiveHouses(state),
+      persons: countLivingPersons(state),
+      landContracts: countLandContracts(state),
+    },
+    seed: args.seed,
+    preset: args.preset ?? 'default',
+    years: args.years,
+  }
+  if (args.json) {
+    console.log(JSON.stringify(perfData))
+  } else {
+    process.stderr.write('\n=== PERF SUMMARY ===\n')
+    process.stderr.write(
+      `Seed: ${perfData.seed} | Preset: ${perfData.preset} | Years: ${perfData.years}\n`,
+    )
+    process.stderr.write(
+      `Elapsed: ${perfData.elapsed.totalMs}ms (tick total: ${perfData.elapsed.tickTotalMs}ms, avg: ${perfData.elapsed.tickAvgMs}ms/tick, ${perfData.elapsed.ticks} ticks)\n`,
+    )
+    process.stderr.write(
+      `Entities: ${perfData.entities.states} states, ${perfData.entities.provinces} provinces, ${perfData.entities.holdings} holdings, ${perfData.entities.polities} polities, ${perfData.entities.houses} houses, ${perfData.entities.persons} persons, ${perfData.entities.landContracts} contracts\n`,
+    )
   }
 }
 
