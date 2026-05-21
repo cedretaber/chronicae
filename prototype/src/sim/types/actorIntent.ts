@@ -1,4 +1,4 @@
-import type { ActorIntentId, ProvinceId, PolityId, LandContractId } from './ids'
+import type { ActorIntentId, ProvinceId, PolityId, LandContractId, HoldingId } from './ids'
 import type { PoliticalActorRef } from './actor'
 
 // v0.18 Stage A §6.2 / §6.3
@@ -41,6 +41,7 @@ export type ActorIntent = {
 
   targetActor?: PoliticalActorRef
   targetProvinceId?: ProvinceId
+  targetHoldingId?: HoldingId
   targetLandContractId?: LandContractId
 
   // House actor の場合、この Polity に土地を編入する。

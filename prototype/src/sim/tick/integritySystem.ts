@@ -11,6 +11,7 @@ import type {
   ActorIntentId,
   DiplomaticPlayId,
   StateRegionId,
+  HoldingId,
 } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -553,27 +554,26 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     }
   }
 
-  // §25 #1: 各 Province に root contract が 1 本存在する
+  // §25 #1: 各 Holding の byHolding chain 先頭が root contract (parentContractId === undefined)
   // §25 #4: chain 上の child contract は最大 1 つ (枝分かれしない)
   {
-    const rootCount: Record<ProvinceId, number> = {}
+    for (const holdingIdStr of Object.keys(state.holdings)) {
+      const holdingChain = state.landContractIndex.byHolding[holdingIdStr as HoldingId] ?? []
+      if (holdingChain.length === 0) continue
+      const rootContract = state.landContracts[holdingChain[0]!]
+      if (rootContract && rootContract.parentContractId !== undefined) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Holding ${holdingIdStr} chain root ${holdingChain[0]} has parentContractId (not a true root) (§25 #1)`,
+        })
+      }
+    }
     const childCount: Record<LandContractId, number> = {}
     for (const contractIdStr of Object.keys(state.landContracts)) {
       const contract = state.landContracts[contractIdStr as LandContractId]
       if (!contract) continue
-      if (contract.parentContractId === undefined) {
-        rootCount[contract.provinceId] = (rootCount[contract.provinceId] ?? 0) + 1
-      } else {
+      if (contract.parentContractId !== undefined) {
         childCount[contract.parentContractId] = (childCount[contract.parentContractId] ?? 0) + 1
-      }
-    }
-    for (const provId of Object.keys(state.provinces)) {
-      const c = rootCount[provId as ProvinceId] ?? 0
-      if (c !== 1) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Province ${provId} has ${c} root LandContract(s), expected 1 (§25 #1)`,
-        })
       }
     }
     for (const parentId of Object.keys(childCount)) {
@@ -600,7 +600,6 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
       continue
     }
     let prev: LandContractId | undefined = undefined
-    let ok = true
     for (const id of chain) {
       const c = state.landContracts[id]
       if (!c) {
@@ -608,7 +607,6 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
           code: 'INTEGRITY_VIOLATION',
           message: `landContractIndex.byProvince[${provId}] references missing contract ${id} (§25 #12)`,
         })
-        ok = false
         break
       }
       if (c.provinceId !== provId) {
@@ -616,7 +614,6 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
           code: 'INTEGRITY_VIOLATION',
           message: `landContractIndex.byProvince[${provId}] contains contract ${id} with mismatched provinceId ${c.provinceId} (§25 #12)`,
         })
-        ok = false
         break
       }
       if (prev === undefined) {
@@ -625,7 +622,6 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
             code: 'INTEGRITY_VIOLATION',
             message: `landContractIndex.byProvince[${provId}] first element ${id} has parent (expected root) (§25 #12)`,
           })
-          ok = false
           break
         }
       } else {
@@ -634,28 +630,28 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
             code: 'INTEGRITY_VIOLATION',
             message: `landContractIndex.byProvince[${provId}] entry ${id} parent=${c.parentContractId} expected ${prev} (§25 #12 chain order)`,
           })
-          ok = false
           break
         }
       }
       prev = id
     }
-    if (ok && prev !== undefined) {
-      const terminal = state.landContracts[prev]
-      if (terminal) {
-        const province = state.provinces[provId]
-        if (province) {
-          for (const hid of province.holdingIds) {
-            const cached = state.holdingTerminalPolityCache[hid]
-            if (cached !== terminal.granteePolityId) {
-              errors.push({
-                code: 'INTEGRITY_VIOLATION',
-                message: `holdingTerminalPolityCache[${hid}]=${cached} differs from terminal grantee ${terminal.granteePolityId} for province ${provId} (§25 #15)`,
-              })
-            }
-          }
-        }
-      }
+  }
+
+  // §25 #15: holdingTerminalPolityCache は各 Holding の byHolding chain terminal grantee と一致
+  for (const holdingIdStr of Object.keys(state.holdings)) {
+    const hid = holdingIdStr as HoldingId
+    const holdingChain = state.landContractIndex.byHolding[hid] ?? []
+    if (holdingChain.length === 0) continue
+    const terminalId = holdingChain[holdingChain.length - 1]!
+    const terminal = state.landContracts[terminalId]
+    if (!terminal) continue
+    const cached = state.holdingTerminalPolityCache[hid]
+    if (cached !== terminal.granteePolityId) {
+      const holding = state.holdings[hid]
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `holdingTerminalPolityCache[${hid}]=${cached} differs from byHolding chain terminal grantee ${terminal.granteePolityId} for province ${holding?.provinceId} (§25 #15)`,
+      })
     }
   }
 
@@ -1193,11 +1189,19 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     const demand = play.primaryDemand
     switch (demand.kind) {
       case 'transfer_land_contract': {
-        if (!state.provinces[demand.provinceId]) {
+        if (!state.holdings[demand.holdingId]) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
-            message: `DiplomaticPlay ${idStr} primaryDemand.provinceId ${demand.provinceId} does not exist (§20)`,
+            message: `DiplomaticPlay ${idStr} primaryDemand.holdingId ${demand.holdingId} does not exist (§20)`,
           })
+        } else {
+          const provinceId = state.holdings[demand.holdingId]!.provinceId
+          if (!state.provinces[provinceId]) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `DiplomaticPlay ${idStr} primaryDemand.holdingId ${demand.holdingId} points to non-existent province ${provinceId} (§20)`,
+            })
+          }
         }
         const toPolity = state.polities[demand.toPolityId]
         if (!toPolity || !toPolity.active) {
@@ -1209,6 +1213,12 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
         break
       }
       case 'change_contract_tax_rate': {
+        if (!state.holdings[demand.holdingId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} primaryDemand.holdingId ${demand.holdingId} does not exist (§20)`,
+          })
+        }
         if (!state.landContracts[demand.landContractId]) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
@@ -1388,11 +1398,11 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     }
   }
 
-  // H3: holdingTerminalPolityCache consistent with LandContract chain terminal
+  // H3: holdingTerminalPolityCache consistent with per-Holding byHolding chain terminal
   for (const holding of Object.values(state.holdings)) {
     if (!holding) continue
     const holdingTerminal = state.holdingTerminalPolityCache[holding.id]
-    const chain = state.landContractIndex.byProvince[holding.provinceId] ?? []
+    const chain = state.landContractIndex.byHolding[holding.id] ?? []
     const terminalContractId = chain[chain.length - 1]
     const terminalContract = terminalContractId
       ? state.landContracts[terminalContractId]
@@ -1401,7 +1411,7 @@ export function collectIntegrityErrors(state: WorldState): SimError[] {
     if (holdingTerminal !== expectedPolity) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `Holding ${holding.id} holdingTerminalPolityCache (${holdingTerminal}) != LandContract chain terminal grantee (${expectedPolity}) for province ${holding.provinceId}`,
+        message: `Holding ${holding.id} holdingTerminalPolityCache (${holdingTerminal}) != byHolding chain terminal grantee (${expectedPolity}) for province ${holding.provinceId}`,
       })
     }
   }

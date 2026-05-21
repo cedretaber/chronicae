@@ -17,7 +17,7 @@ import type { StateRegion } from './types/stateRegion'
 import type { Polity } from './types/polity'
 import type { House } from './types/house'
 import type { Person } from './types/person'
-import type { LandContract, Holding, HoldingOfficeAssignment } from './types/landContract'
+import type { Holding, HoldingOfficeAssignment } from './types/landContract'
 import type {
   ProvinceId,
   PolityId,
@@ -308,39 +308,57 @@ export function bindProvinceToPolity(
     throw new Error(`bindProvinceToPolity: Province ${provinceId} already has a LandContract chain`)
   }
   const province = state.provinces[provinceId]
-  const contractId = ('lc-' + state.nextLandContractId) as LandContractId
-  const firstHoldingId = province.holdingIds[0]
-  const contract: LandContract = {
-    id: contractId,
-    provinceId,
-    ...(firstHoldingId ? { holdingId: firstHoldingId } : {}),
-    rootAuthorityId: ROOT_WORLD,
-    granteePolityId: polityId,
-    terms: { taxRateToGrantor: 0 },
-  }
-  const granteeSlot = state.landContractIndex.byGranteePolity[polityId] ?? []
+  let nextLcId = state.nextLandContractId
+  const newContracts = { ...state.landContracts }
   const byHolding = { ...state.landContractIndex.byHolding }
-  for (const hid of province.holdingIds) {
-    byHolding[hid] = [contractId]
-  }
   const holdingCache = { ...state.holdingTerminalPolityCache }
+  let granteeSlot = [...(state.landContractIndex.byGranteePolity[polityId] ?? [])]
+  let firstContractId: LandContractId | undefined
+
   for (const hid of province.holdingIds) {
+    const contractId = ('lc-' + nextLcId) as LandContractId
+    nextLcId++
+    if (!firstContractId) firstContractId = contractId
+    newContracts[contractId] = {
+      id: contractId,
+      provinceId,
+      holdingId: hid,
+      rootAuthorityId: ROOT_WORLD,
+      granteePolityId: polityId,
+      terms: { taxRateToGrantor: 0 },
+    }
+    byHolding[hid] = [contractId]
     holdingCache[hid] = polityId
+    granteeSlot = [...granteeSlot, contractId]
   }
+
+  if (!firstContractId && province.holdingIds.length === 0) {
+    firstContractId = ('lc-' + nextLcId) as LandContractId
+    nextLcId++
+    newContracts[firstContractId] = {
+      id: firstContractId,
+      provinceId,
+      rootAuthorityId: ROOT_WORLD,
+      granteePolityId: polityId,
+      terms: { taxRateToGrantor: 0 },
+    }
+    granteeSlot = [...granteeSlot, firstContractId]
+  }
+
   let nextState: WorldState = {
     ...state,
-    landContracts: { ...state.landContracts, [contractId]: contract },
+    landContracts: newContracts,
     landContractIndex: {
-      byProvince: { ...state.landContractIndex.byProvince, [provinceId]: [contractId] },
-      byHolding,
-      byGranteePolity: {
-        ...state.landContractIndex.byGranteePolity,
-        [polityId]: [...granteeSlot, contractId],
+      byProvince: {
+        ...state.landContractIndex.byProvince,
+        [provinceId]: firstContractId ? [firstContractId] : [],
       },
+      byHolding,
+      byGranteePolity: { ...state.landContractIndex.byGranteePolity, [polityId]: granteeSlot },
       byParent: { ...state.landContractIndex.byParent },
     },
     holdingTerminalPolityCache: holdingCache,
-    nextLandContractId: state.nextLandContractId + 1,
+    nextLandContractId: nextLcId,
   }
   for (const holdingId of province.holdingIds) {
     const hoaId = ('ho-' + nextState.nextHoldingOfficeAssignmentId) as HoldingOfficeAssignmentId

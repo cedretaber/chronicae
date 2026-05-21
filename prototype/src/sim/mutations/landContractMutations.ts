@@ -1,5 +1,5 @@
 import type { WorldState } from '../types/world'
-import type { ProvinceId, PolityId, LandContractId, HouseId } from '../types/ids'
+import type { ProvinceId, PolityId, LandContractId, HouseId, HoldingId } from '../types/ids'
 import type { LandContract, LandContractIndex, RootAuthorityId } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
 import { createLandContractId } from '../types/ids'
@@ -10,7 +10,7 @@ import type { SimEvent } from '../types/event'
 import type { CtxResult } from './result'
 import { ok, err } from './result'
 import {
-  getProvinceLandContractChain,
+  getHoldingLandContractChain,
   getLandContractGrantor,
   getGrantorRank,
 } from '../selectors/landContractSelectors'
@@ -26,6 +26,7 @@ type CreateChildContractParams = {
   parentContractId: LandContractId
   granteePolityId: PolityId
   taxRateToGrantor: number
+  holdingId?: HoldingId
 }
 
 type CreateResult = {
@@ -45,27 +46,22 @@ function recomputeHoldingTerminalCache(
   state: WorldState,
   provinceId: ProvinceId,
 ): WorldState['holdingTerminalPolityCache'] {
-  const ids = state.landContractIndex.byProvince[provinceId] ?? []
-  const terminalId = ids[ids.length - 1]
-  if (!terminalId) {
-    const nextCache = { ...state.holdingTerminalPolityCache }
-    const province = state.provinces[provinceId]
-    if (province) {
-      for (const hid of province.holdingIds) {
-        delete nextCache[hid]
-      }
-    }
-    return nextCache
-  }
-  const terminal = state.landContracts[terminalId]
-  if (!terminal) return state.holdingTerminalPolityCache
-  const polityId = terminal.granteePolityId
-  const nextCache = { ...state.holdingTerminalPolityCache }
   const province = state.provinces[provinceId]
-  if (province) {
-    for (const hid of province.holdingIds) {
-      nextCache[hid] = polityId
+  if (!province) return state.holdingTerminalPolityCache
+  const nextCache = { ...state.holdingTerminalPolityCache }
+  for (const hid of province.holdingIds) {
+    const holdingChain = state.landContractIndex.byHolding[hid] ?? []
+    const terminalId = holdingChain[holdingChain.length - 1]
+    if (!terminalId) {
+      delete nextCache[hid]
+      continue
     }
+    const terminal = state.landContracts[terminalId]
+    if (!terminal) {
+      delete nextCache[hid]
+      continue
+    }
+    nextCache[hid] = terminal.granteePolityId
   }
   return nextCache
 }
@@ -126,8 +122,18 @@ export function createChildLandContract(
     ...state,
     landContracts: { ...state.landContracts, [id]: contract },
     landContractIndex: {
-      byProvince: { ...state.landContractIndex.byProvince, [params.provinceId]: [...chain, id] },
-      byHolding: state.landContractIndex.byHolding,
+      byProvince: params.holdingId
+        ? state.landContractIndex.byProvince
+        : { ...state.landContractIndex.byProvince, [params.provinceId]: [...chain, id] },
+      byHolding: params.holdingId
+        ? {
+            ...state.landContractIndex.byHolding,
+            [params.holdingId]: [
+              ...(state.landContractIndex.byHolding[params.holdingId] ?? []),
+              id,
+            ],
+          }
+        : state.landContractIndex.byHolding,
       byGranteePolity: {
         ...state.landContractIndex.byGranteePolity,
         [params.granteePolityId]: [...granteeSlot, id],
@@ -219,6 +225,7 @@ export function insertIntermediateLandContract(
     belowContractId: LandContractId
     newGranteePolityId: PolityId
     taxRateToGrantor: number
+    holdingId?: HoldingId
   },
 ): { state: WorldState; contractId: LandContractId } {
   const below = state.landContracts[params.belowContractId]
@@ -265,8 +272,20 @@ export function insertIntermediateLandContract(
       [params.belowContractId]: updatedBelow,
     },
     landContractIndex: {
-      byProvince: { ...state.landContractIndex.byProvince, [params.provinceId]: newChain },
-      byHolding: state.landContractIndex.byHolding,
+      byProvince: params.holdingId
+        ? state.landContractIndex.byProvince
+        : { ...state.landContractIndex.byProvince, [params.provinceId]: newChain },
+      byHolding: params.holdingId
+        ? (() => {
+            const holdingChain = state.landContractIndex.byHolding[params.holdingId] ?? []
+            const hIdx = holdingChain.findIndex((cid) => cid === params.belowContractId)
+            const newHoldingChain =
+              hIdx >= 0
+                ? [...holdingChain.slice(0, hIdx), id, ...holdingChain.slice(hIdx)]
+                : [...holdingChain, id]
+            return { ...state.landContractIndex.byHolding, [params.holdingId]: newHoldingChain }
+          })()
+        : state.landContractIndex.byHolding,
       byGranteePolity: {
         ...state.landContractIndex.byGranteePolity,
         [params.newGranteePolityId]: [...granteeSlot, id],
@@ -404,18 +423,26 @@ export type LandContractTransferReason = 'purchase' | 'cession' | 'war' | 'revol
 export function applyLandContractTransferGoal(
   ctx: TickContext,
   input: {
-    provinceId: ProvinceId
+    holdingId: HoldingId
     fromPolityId: PolityId
     toPolityId: PolityId
     reason: LandContractTransferReason
   },
 ): CtxResult<void> {
   const state = ctx.state
-  const province = state.provinces[input.provinceId]
+  const holding = state.holdings[input.holdingId]
+  if (!holding) {
+    return err({
+      code: 'HOLDING_NOT_FOUND',
+      message: `applyLandContractTransferGoal: holding ${input.holdingId} not found`,
+    })
+  }
+  const provinceId = holding.provinceId
+  const province = state.provinces[provinceId]
   if (!province) {
     return err({
       code: 'PROVINCE_NOT_FOUND',
-      message: `applyLandContractTransferGoal: province ${input.provinceId} not found`,
+      message: `applyLandContractTransferGoal: province ${provinceId} not found`,
     })
   }
   const toPolity = state.polities[input.toPolityId]
@@ -425,13 +452,12 @@ export function applyLandContractTransferGoal(
       message: `applyLandContractTransferGoal: target polity ${input.toPolityId} is missing or inactive`,
     })
   }
-  // chain 内で fromPolityId が grantee の契約を探す
-  const chain = getProvinceLandContractChain(state, input.provinceId)
+  const chain = getHoldingLandContractChain(state, input.holdingId)
   const targetContract = chain.find((c) => c.granteePolityId === input.fromPolityId)
   if (!targetContract) {
     return err({
       code: 'CONTRACT_NOT_FOUND',
-      message: `applyLandContractTransferGoal: no contract with grantee ${input.fromPolityId} in chain of province ${input.provinceId}`,
+      message: `applyLandContractTransferGoal: no contract with grantee ${input.fromPolityId} in chain of holding ${input.holdingId}`,
     })
   }
   if (targetContract.granteePolityId === input.toPolityId) {
@@ -481,10 +507,11 @@ export function applyLandContractTransferGoal(
     }
     if (isTerminal) {
       const result = createChildLandContract(state, {
-        provinceId: input.provinceId,
+        provinceId,
         parentContractId: targetContract.id,
         granteePolityId: input.toPolityId,
         taxRateToGrantor: 0.3,
+        holdingId: input.holdingId,
       })
       newState = result.state
     } else {
@@ -496,10 +523,11 @@ export function applyLandContractTransferGoal(
         })
       }
       const result = insertIntermediateLandContract(state, {
-        provinceId: input.provinceId,
+        provinceId,
         belowContractId: childContractId,
         newGranteePolityId: input.toPolityId,
         taxRateToGrantor: 0.3,
+        holdingId: input.holdingId,
       })
       newState = result.state
     }
@@ -510,7 +538,6 @@ export function applyLandContractTransferGoal(
   const ownerHouseIds: HouseId[] = []
   if (fromPolity?.ownerHouseId !== undefined) ownerHouseIds.push(fromPolity.ownerHouseId)
   if (toPolity.ownerHouseId !== undefined) ownerHouseIds.push(toPolity.ownerHouseId)
-  const provinceName = province.name
   const fromName = fromPolity?.name ?? fromPolityId
   const toName = toPolity.name
 
@@ -524,9 +551,9 @@ export function applyLandContractTransferGoal(
     actorIds: [],
     houseIds: ownerHouseIds,
     polityIds: [fromPolityId, input.toPolityId],
-    provinceIds: [input.provinceId],
-    holdingIds: [],
-    summary: `${provinceName} transferred from ${fromName} to ${toName} (${input.reason}).`,
+    provinceIds: [provinceId],
+    holdingIds: [input.holdingId],
+    summary: `${holding.name} transferred from ${fromName} to ${toName} (${input.reason}).`,
     reasons: [],
     effects: [],
   }
@@ -541,13 +568,13 @@ export function applyLandContractTransferGoal(
   let outcomeSummary: string | undefined
   if (input.reason === 'purchase') {
     outcomeEventType = 'LAND_CONTRACT_PURCHASED'
-    outcomeSummary = `${toName} purchased ${provinceName} from ${fromName}.`
+    outcomeSummary = `${toName} purchased ${holding.name} from ${fromName}.`
   } else if (input.reason === 'cession') {
     outcomeEventType = 'LAND_CONTRACT_CEDED'
-    outcomeSummary = `${fromName} ceded ${provinceName} to ${toName}.`
+    outcomeSummary = `${fromName} ceded ${holding.name} to ${toName}.`
   } else if (input.reason === 'war') {
     outcomeEventType = 'LAND_CONTRACT_CONQUERED'
-    outcomeSummary = `${toName} conquered ${provinceName} from ${fromName}.`
+    outcomeSummary = `${toName} conquered ${holding.name} from ${fromName}.`
   }
 
   if (outcomeEventType && outcomeSummary) {
@@ -561,8 +588,8 @@ export function applyLandContractTransferGoal(
       actorIds: [],
       houseIds: ownerHouseIds,
       polityIds: [fromPolityId, input.toPolityId],
-      provinceIds: [input.provinceId],
-      holdingIds: [],
+      provinceIds: [provinceId],
+      holdingIds: [input.holdingId],
       summary: outcomeSummary,
       reasons: [],
       effects: [],

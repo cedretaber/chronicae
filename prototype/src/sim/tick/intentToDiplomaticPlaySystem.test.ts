@@ -11,7 +11,14 @@ import { defaultConfig } from '../config/defaultConfig'
 import { createTickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { ActorIntent } from '../types/actorIntent'
-import type { ActorIntentId, HouseId, PolityId, ProvinceId, DiplomaticPlayId } from '../types/ids'
+import type {
+  ActorIntentId,
+  HouseId,
+  PolityId,
+  ProvinceId,
+  DiplomaticPlayId,
+  HoldingId,
+} from '../types/ids'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import { runIntentToDiplomaticPlaySystem } from './intentToDiplomaticPlaySystem'
 
@@ -99,7 +106,7 @@ describe('runIntentToDiplomaticPlaySystem', () => {
     expect(play?.target.id).toBe(sellerPolityId)
     expect(play?.status).toBe('active')
     if (play?.primaryDemand.kind === 'transfer_land_contract') {
-      expect(play.primaryDemand.provinceId).toBe(provinceSellerId)
+      expect(play.primaryDemand.holdingId).toBeDefined()
       expect(play.primaryDemand.toPolityId).toBe(buyerPolityId)
     } else {
       throw new Error('expected transfer_land_contract demand')
@@ -117,6 +124,7 @@ describe('runIntentToDiplomaticPlaySystem', () => {
 
   it('suppresses duplicate Play when an active land_claim already exists for same (buyer, seller, province)', () => {
     const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld()
+    const holdingId = state.provinces[provinceSellerId]?.holdingIds[0] as HoldingId
     const existingPlay: DiplomaticPlay = {
       id: 'dp-existing' as DiplomaticPlayId,
       kind: 'land_claim',
@@ -124,7 +132,7 @@ describe('runIntentToDiplomaticPlaySystem', () => {
       target: { kind: 'polity', id: sellerPolityId },
       primaryDemand: {
         kind: 'transfer_land_contract',
-        provinceId: provinceSellerId,
+        holdingId,
         toPolityId: buyerPolityId,
       },
       status: 'active',
@@ -205,7 +213,7 @@ describe('runIntentToDiplomaticPlaySystem', () => {
     expect(play?.tension).toBeGreaterThan(0)
     if (play?.primaryDemand.kind === 'transfer_land_contract') {
       expect(play.primaryDemand.toPolityId).toBe(buyerPolityId)
-      expect(play.primaryDemand.provinceId).toBe(provinceSellerId)
+      expect(play.primaryDemand.holdingId).toBeDefined()
     } else {
       throw new Error('expected transfer_land_contract demand')
     }

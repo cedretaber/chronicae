@@ -227,12 +227,15 @@ function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<st
   const badge = statusBadge[play.status] ?? { label: play.status, bg: 'bg-gray-600' }
   const kindLabelText = kindLabel[play.kind] ?? play.kind
   const dl = weekToYearWeek(play.deadlineWeek)
-  const provinceId =
-    play.primaryDemand.kind === 'transfer_land_contract'
-      ? play.primaryDemand.provinceId
-      : play.primaryDemand.kind === 'revolt_concession'
-        ? play.primaryDemand.provinceId
-        : undefined
+  const worldState = useSimulationStore((s) => s.session?.currentState)
+  let provinceId: string | undefined
+  if (play.primaryDemand.kind === 'transfer_land_contract') {
+    provinceId = worldState?.holdings[play.primaryDemand.holdingId]?.provinceId
+  } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
+    provinceId = worldState?.holdings[play.primaryDemand.holdingId]?.provinceId
+  } else if (play.primaryDemand.kind === 'revolt_concession') {
+    provinceId = play.primaryDemand.provinceId
+  }
   // counterDemand 有無で land_claim の色付けを表現 (補償あり=合意ベース、なし=威圧ベース)
   const hasOffer = play.counterDemand?.kind === 'pay_wealth' && play.counterDemand.amount > 0
   const naturePrefix = play.kind === 'land_claim' ? (hasOffer ? '\u{1F4B0} ' : '\u{2694} ') : ''

@@ -5,6 +5,7 @@ import type {
   PolityId,
   LandContractId,
   PopGroupId,
+  HoldingId,
 } from './ids'
 import type { PoliticalActorRef } from './actor'
 
@@ -43,13 +44,13 @@ export const TERMINAL_DIPLOMATIC_PLAY_STATUSES: ReadonlyArray<TerminalDiplomatic
 export type DiplomaticDemand =
   | {
       kind: 'transfer_land_contract'
-      provinceId: ProvinceId
+      holdingId: HoldingId
       toPolityId: PolityId
       beneficiaryActor?: PoliticalActorRef
     }
   | {
       kind: 'change_contract_tax_rate'
-      provinceId: ProvinceId
+      holdingId: HoldingId
       landContractId: LandContractId
       newTaxRateToGrantor: number
     }

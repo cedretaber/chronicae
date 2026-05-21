@@ -1,12 +1,12 @@
 import type { TickContext } from './context'
-import type { ProvinceId, PolityId } from '../types/ids'
+import type { ProvinceId, PolityId, HoldingId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { PopClass } from '../types/popGroup'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
 import { getProvinceProduction } from '../selectors/popEconomySelectors'
 import { getProvinceAveragePopWealth, getProvinceUnrest } from '../selectors/popSelectors'
 import {
-  getProvinceLandContractChain,
+  getHoldingLandContractChain,
   isPlaceholderPerson,
 } from '../selectors/landContractSelectors'
 import {
@@ -19,12 +19,12 @@ import { defaultLandContractConfig } from '../config/landContractConfig'
 import { getProvincePolityControlFromHoldings } from '../selectors/landContractSelectors'
 
 // v0.16 §18: LandRevenueSystem
-// 各 Province の生産物を chain 上の Polity に配る。
-// 1) terminal Polity が production * polityControl を一次徴収
-// 2) chain を terminal → root と逆順に走査し、taxRateToGrantor の比率で grantor に上納
+// 各 Province の生産物を per-Holding chain 上の Polity に配る。
+// 1) 各 Holding について production weight-share * polityControl を一次徴収
+// 2) 各 Holding の chain を terminal → root と逆順に走査し、taxRateToGrantor の比率で grantor に上納
 // 3) root contract の taxRateToGrantor は 0 のため、最終的に world (実体なし) に流れる分は捨てる
 // 4) 残りは Province の POP に再分配 (旧 retainedWealthGainByClass を流用)
-// 5) 過徴税ペナルティは polityControl 単独判定で継続
+// 5) 過徴税ペナルティは polityControl 単独判定で継続 (Province 単位)
 export function runLandRevenueSystem(ctx: TickContext): TickContext {
   const treasuryDeltas = new Map<PolityId, number>()
   let currentState = ctx.state
@@ -38,47 +38,55 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     const grossTax = production * cc
 
     if (grossTax <= 0) {
-      // POP 還元はゼロでも適用しない (extracted=0 → retainedRatio=1 だが追加効果は限定的)
       continue
     }
 
-    // chain 走査: terminal → root の逆順で上納。
-    const chain = getProvinceLandContractChain(ctx.state, province.id)
-    if (chain.length === 0) continue
-
-    // remaining = 各段で granter に渡されない (= 自分のものとして留まる) 分
-    let remaining = grossTax
-    // chain[chain.length - 1] が terminal (Province を直接握る), chain[0] が root
-    for (let i = chain.length - 1; i >= 0; i--) {
-      const contract = chain[i]!
-      const taxRate = contract.terms.taxRateToGrantor
-      // この段の Polity に残る分 = remaining * (1 - taxRate)
-      let retained = remaining * (1 - taxRate)
-      // v0.17.1: terminal 段で normal bailiff に salary を分配する。
-      // - placeholder bailiff は対象外 (100% 国庫)
-      // - bailiff が存在しない (= unowned 等) Province も 100% 国庫
-      // - normal bailiff のみ retained * bailiffRevenueShare を wealth に直接加算
-      if (i === chain.length - 1) {
-        const bailiffShare = giveBailiffSalary(
-          currentState,
-          province.id,
-          retained,
-          ctx.config.bailiffRevenueShare,
-        )
-        currentState = bailiffShare.state
-        retained -= bailiffShare.paid
-      }
-      treasuryDeltas.set(
-        contract.granteePolityId,
-        (treasuryDeltas.get(contract.granteePolityId) ?? 0) + retained,
-      )
-      // 上に渡す分
-      remaining = remaining * taxRate
+    // Compute total weight for the province
+    let totalWeight = 0
+    for (const hid of province.holdingIds) {
+      const h = currentState.holdings[hid]
+      if (h) totalWeight += h.weight
     }
-    // root contract の taxRateToGrantor は 0 のため remaining はこの時点で 0 になる想定。
-    // 非 0 (root が非標準で taxRate>0) の場合は捨てる (world authority に実体がないため)。
+    if (totalWeight <= 0) continue
 
-    // 過徴税ペナルティ (旧 economySystem から踏襲)
+    // Per-Holding revenue distribution
+    for (const holdingId of province.holdingIds) {
+      const holding = currentState.holdings[holdingId]
+      if (!holding) continue
+
+      const holdingShare = production * (holding.weight / totalWeight)
+      const holdingRevenue = holdingShare * (holding.polityControl / 100)
+      if (holdingRevenue <= 0) continue
+
+      const chain = getHoldingLandContractChain(currentState, holdingId)
+      if (chain.length === 0) continue
+
+      let remaining = holdingRevenue
+      for (let i = chain.length - 1; i >= 0; i--) {
+        const contract = chain[i]!
+        const taxRate = contract.terms.taxRateToGrantor
+        let retained = remaining * (1 - taxRate)
+
+        // bailiff salary for terminal holding
+        if (i === chain.length - 1) {
+          const bailiffSalary = giveSingleHoldingBailiffSalary(
+            currentState,
+            holdingId,
+            retained,
+            ctx.config.bailiffRevenueShare,
+          )
+          currentState = bailiffSalary.state
+          retained -= bailiffSalary.paid
+        }
+        treasuryDeltas.set(
+          contract.granteePolityId,
+          (treasuryDeltas.get(contract.granteePolityId) ?? 0) + retained,
+        )
+        remaining = remaining * taxRate
+      }
+    }
+
+    // 過徴税ペナルティ (Province 単位)
     const extracted = grossTax
     const retainedToPop = Math.max(0, production - extracted)
     const retainedRatio = production > 0 ? retainedToPop / production : 0
@@ -137,50 +145,24 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
   }
 }
 
-// v0.17.1 §15.4: terminal Polity の retained 分から normal bailiff に salary を渡す。
-// 返り値: 更新後 state と、実際に bailiff に支払った額 (treasury から差し引く分)。
-function giveBailiffSalary(
+// v0.17.1 §15.4: single holding の bailiff に salary を支払う。
+function giveSingleHoldingBailiffSalary(
   state: WorldState,
-  provinceId: ProvinceId,
+  holdingId: HoldingId,
   retained: number,
   bailiffRevenueShare: number,
 ): { state: WorldState; paid: number } {
   if (retained <= 0 || bailiffRevenueShare <= 0) return { state, paid: 0 }
-  const province = state.provinces[provinceId]
-  if (!province || province.holdingIds.length === 0) return { state, paid: 0 }
-
-  let totalWeight = 0
-  for (const hid of province.holdingIds) {
-    const h = state.holdings[hid]
-    if (h) totalWeight += h.weight
-  }
-  if (totalWeight <= 0) return { state, paid: 0 }
-
-  let currentState = state
-  let totalPaid = 0
-
-  for (const holdingId of province.holdingIds) {
-    const holding = currentState.holdings[holdingId]
-    if (!holding) continue
-
-    const holdingRetained = retained * (holding.weight / totalWeight)
-    const salary = holdingRetained * bailiffRevenueShare
-    if (salary <= 0) continue
-
-    const assignmentId = currentState.holdingOfficeIndex.byHolding[holdingId]
-    if (!assignmentId) continue
-    const assignment = currentState.holdingOfficeAssignments[assignmentId]
-    if (!assignment || !assignment.active) continue
-    const holderId = assignment.holderPersonId
-    if (isPlaceholderPerson(currentState, holderId)) continue
-    const holder = currentState.persons[holderId]
-    if (!holder || !holder.alive) continue
-
-    const result = addPersonWealth(currentState, holderId, salary)
-    if (!result.ok) continue
-    currentState = result.value
-    totalPaid += salary
-  }
-
-  return { state: currentState, paid: totalPaid }
+  const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]
+  if (!assignmentId) return { state, paid: 0 }
+  const assignment = state.holdingOfficeAssignments[assignmentId]
+  if (!assignment || !assignment.active) return { state, paid: 0 }
+  if (isPlaceholderPerson(state, assignment.holderPersonId)) return { state, paid: 0 }
+  const holder = state.persons[assignment.holderPersonId]
+  if (!holder || !holder.alive) return { state, paid: 0 }
+  const salary = retained * bailiffRevenueShare
+  if (salary <= 0) return { state, paid: 0 }
+  const result = addPersonWealth(state, assignment.holderPersonId, salary)
+  if (!result.ok) return { state, paid: 0 }
+  return { state: result.value, paid: salary }
 }

@@ -189,6 +189,8 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
     defenderPolityId: PolityId,
     provinceId: ProvinceId,
   ): TickContext {
+    const holdingId = ctx.state.provinces[provinceId]?.holdingIds[0]
+    if (!holdingId) throw new Error(`No holding in province ${provinceId}`)
     const playId = 'dp-ltd-esc' as DiplomaticPlayId
     const play: DiplomaticPlay = {
       id: playId,
@@ -197,7 +199,7 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
       target: { kind: 'polity', id: defenderPolityId },
       primaryDemand: {
         kind: 'transfer_land_contract',
-        provinceId,
+        holdingId,
         toPolityId: attackerPolityId,
       },
       status: 'escalated',

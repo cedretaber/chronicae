@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
-import type { ActorIntentId, PolityId, ProvinceId } from '../types/ids'
+import type { ActorIntentId, HoldingId, PolityId, ProvinceId } from '../types/ids'
 import { createDiplomaticPlayId } from '../types/ids'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
@@ -11,6 +11,7 @@ import {
   getProvinceLandContractChain,
   getLandContractGrantor,
   getProvinceDevelopmentFromHoldings,
+  selectTargetHoldingInProvince,
 } from '../selectors/landContractSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import type { WorldState } from '../types/world'
@@ -43,14 +44,16 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
   const activePlayProvinceIds = new Set<ProvinceId>()
   for (const play of Object.values(currentCtx.state.diplomaticPlays)) {
     if (!play || (play.status !== 'active' && play.status !== 'escalated')) continue
-    const key = playDedupeKey(play)
+    const key = playDedupeKey(play, currentCtx.state)
     if (key) existingActivePlayKeys.add(key)
     if (play.primaryDemand.kind === 'transfer_land_contract') {
-      activePlayProvinceIds.add(play.primaryDemand.provinceId)
+      const provinceId = currentCtx.state.holdings[play.primaryDemand.holdingId]?.provinceId
+      if (provinceId) activePlayProvinceIds.add(provinceId)
     } else if (play.primaryDemand.kind === 'revolt_concession') {
       activePlayProvinceIds.add(play.primaryDemand.provinceId)
     } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
-      activePlayProvinceIds.add(play.primaryDemand.provinceId)
+      const provinceId = currentCtx.state.holdings[play.primaryDemand.holdingId]?.provinceId
+      if (provinceId) activePlayProvinceIds.add(provinceId)
     }
   }
 
@@ -115,11 +118,19 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
         continue
       }
 
+      // Resolve province to holding for the demand
+      const holdingId = selectTargetHoldingInProvince(currentCtx.state, provinceId)
+      if (!holdingId) {
+        currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
+        continue
+      }
+
       currentCtx = createLandClaimPlay(currentCtx, {
         intentId: intent.id,
         initiator,
         target,
         provinceId,
+        holdingId,
         counterDemandAmount,
         initialProgress,
         initialTension,
@@ -175,11 +186,19 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
         continue
       }
 
+      // Resolve province to holding for the demand
+      const holdingId = selectTargetHoldingInProvince(currentCtx.state, provinceId)
+      if (!holdingId) {
+        currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
+        continue
+      }
+
       currentCtx = createLandClaimPlay(currentCtx, {
         intentId: intent.id,
         initiator,
         target,
         provinceId,
+        holdingId,
         counterDemandAmount,
         initialProgress,
         initialTension,
@@ -230,6 +249,13 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
       const initiator = intent.actor
       const target = intent.targetActor
 
+      // Resolve province to holding for the demand
+      const holdingId = selectTargetHoldingInProvince(currentCtx.state, provinceId)
+      if (!holdingId) {
+        currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
+        continue
+      }
+
       const dedupeKey = `contract_tax_revision|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
       if (existingActivePlayKeys.has(dedupeKey)) {
         currentCtx = setIntentStatus(currentCtx, intent.id, 'expired')
@@ -250,7 +276,7 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
         originIntentId: intent.id,
         primaryDemand: {
           kind: 'change_contract_tax_rate',
-          provinceId,
+          holdingId,
           landContractId: subjectContract.id,
           newTaxRateToGrantor: newRate,
         },
@@ -277,6 +303,7 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
         initiator,
         target,
         provinceId,
+        holdingId,
         hasOffer: false,
       })
       existingActivePlayKeys.add(dedupeKey)
@@ -294,6 +321,7 @@ type CreateLandClaimInput = {
   initiator: PoliticalActorRef
   target: PoliticalActorRef
   provinceId: ProvinceId
+  holdingId: HoldingId
   counterDemandAmount: number // 0 なら counterDemand 省略 (威圧要求)
   initialProgress: number
   initialTension: number
@@ -306,6 +334,7 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
     initiator,
     target,
     provinceId,
+    holdingId,
     counterDemandAmount,
     initialProgress,
     initialTension,
@@ -324,7 +353,7 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
     originIntentId: intentId,
     primaryDemand: {
       kind: 'transfer_land_contract',
-      provinceId,
+      holdingId,
       toPolityId: initiator.id as PolityId,
       beneficiaryActor: initiator,
     },
@@ -361,6 +390,7 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
     initiator,
     target,
     provinceId,
+    holdingId,
     hasOffer: counterDemandAmount > 0,
   })
   return currentCtx
@@ -376,11 +406,12 @@ function emitConversionAndStartEvents(
     initiator: PoliticalActorRef
     target: PoliticalActorRef
     provinceId: ProvinceId
+    holdingId: HoldingId
     hasOffer: boolean
   },
 ): TickContext {
   let currentCtx = ctx
-  const { initiator, target, provinceId, hasOffer } = input
+  const { initiator, target, provinceId, holdingId, hasOffer } = input
 
   const { id: convEventId, ctx: ctxConv } = makeEventId(currentCtx)
   const initiatorName =
@@ -407,7 +438,7 @@ function emitConversionAndStartEvents(
     houseIds: [],
     polityIds,
     provinceIds: [provinceId],
-    holdingIds: [],
+    holdingIds: [holdingId],
     summary: convSummary,
     reasons: [],
     effects: [],
@@ -425,7 +456,7 @@ function emitConversionAndStartEvents(
     houseIds: [],
     polityIds,
     provinceIds: [provinceId],
-    holdingIds: [],
+    holdingIds: [holdingId],
     summary: startSummary,
     reasons: [],
     effects: [],
@@ -480,15 +511,20 @@ function computeLandPurchasePrice(state: WorldState, provinceId: ProvinceId): nu
   )
 }
 
-function playDedupeKey(play: DiplomaticPlay): string | undefined {
-  const provinceId = getPlayProvinceId(play)
+function playDedupeKey(play: DiplomaticPlay, state: WorldState): string | undefined {
+  const provinceId = getPlayProvinceId(play, state)
   if (!provinceId) return undefined
   return `${play.kind}|${play.initiator.kind}:${play.initiator.id}|${play.target.kind}:${play.target.id}|${provinceId}`
 }
 
-function getPlayProvinceId(play: DiplomaticPlay): string | undefined {
+function getPlayProvinceId(play: DiplomaticPlay, state: WorldState): string | undefined {
   const d = play.primaryDemand
-  if (d.kind === 'transfer_land_contract') return d.provinceId
+  if (d.kind === 'transfer_land_contract') {
+    return state.holdings[d.holdingId]?.provinceId
+  }
+  if (d.kind === 'change_contract_tax_rate') {
+    return state.holdings[d.holdingId]?.provinceId
+  }
   if (d.kind === 'revolt_concession') return d.provinceId
   return undefined
 }

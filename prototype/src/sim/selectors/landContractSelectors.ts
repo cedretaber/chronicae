@@ -349,3 +349,18 @@ export function getProvinceDevelopmentFromHoldings(
   }
   return totalWeight > 0 ? weightedDev / totalWeight : 0
 }
+
+export function selectTargetHoldingInProvince(
+  state: WorldState,
+  provinceId: ProvinceId,
+): HoldingId | undefined {
+  const holdings = getProvinceHoldings(state, provinceId)
+  if (holdings.length === 0) return undefined
+  if (holdings.length === 1) return holdings[0]!.id
+  let best = holdings[0]!
+  for (let i = 1; i < holdings.length; i++) {
+    const h = holdings[i]!
+    if (h.weight > best.weight) best = h
+  }
+  return best.id
+}

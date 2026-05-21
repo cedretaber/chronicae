@@ -270,6 +270,8 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
     provinceId: ProvinceId,
     overrides: Partial<DiplomaticPlay> = {},
   ): TickContext {
+    const holdingId = ctx.state.provinces[provinceId]?.holdingIds[0]
+    if (!holdingId) throw new Error(`No holding in province ${provinceId}`)
     const playId = 'dp-lp-1' as DiplomaticPlayId
     const play: DiplomaticPlay = {
       id: playId,
@@ -278,7 +280,7 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
       target: { kind: 'polity', id: sellerPolityId },
       primaryDemand: {
         kind: 'transfer_land_contract',
-        provinceId,
+        holdingId,
         toPolityId: buyerPolityId,
       },
       counterDemand: {
@@ -410,6 +412,8 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
     provinceId: ProvinceId,
     overrides: Partial<DiplomaticPlay> = {},
   ): TickContext {
+    const holdingId = ctx.state.provinces[provinceId]?.holdingIds[0]
+    if (!holdingId) throw new Error(`No holding in province ${provinceId}`)
     const playId = 'dp-ltd-1' as DiplomaticPlayId
     const play: DiplomaticPlay = {
       id: playId,
@@ -418,7 +422,7 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
       target: { kind: 'polity', id: defenderPolityId },
       primaryDemand: {
         kind: 'transfer_land_contract',
-        provinceId,
+        holdingId,
         toPolityId: attackerPolityId,
       },
       status: 'active',

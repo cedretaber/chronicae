@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import { makeEventId } from './context'
 import { clamp } from '../utils/math'
-import type { DiplomaticPlayId, PolityId, ProvinceId, PopGroupId } from '../types/ids'
+import type { DiplomaticPlayId, PolityId, ProvinceId, PopGroupId, HoldingId } from '../types/ids'
 import type {
   DiplomaticPlay,
   DiplomaticPlayStatus,
@@ -17,7 +17,7 @@ import {
   eliminateContractFromChain,
 } from '../mutations/landContractMutations'
 import { resolveRevoltConflict } from './provinceRevoltSystem'
-import { getProvinceLandContractChain } from '../selectors/landContractSelectors'
+import { getHoldingLandContractChain } from '../selectors/landContractSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { calcGeneralWarPowerModifier } from '../selectors/personAbilityEffects'
 import { randomFloat } from '../rng/rng'
@@ -101,11 +101,13 @@ function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickCo
       importance: 'critical',
       polityIds: [rebelPolityId, targetPolityId],
       provinceIds: [provinceId],
+      holdingIds: [],
       summary: `The revolt in ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} has triumphed — independence is achieved.`,
     })
     return emitResolvedByConflictEvent(nextCtx, play, {
       polityIds: [rebelPolityId, targetPolityId],
       provinceIds: [provinceId],
+      holdingIds: [],
       summary: `Conflict over ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} ended with rebel victory.`,
     })
   }
@@ -164,6 +166,7 @@ function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickCo
   return emitResolvedByConflictEvent(nextCtx, play, {
     polityIds: [rebelPolityId, targetPolityId],
     provinceIds: [provinceId],
+    holdingIds: [],
     summary: `Revolt in ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} was put down by force.`,
   })
 }
@@ -185,9 +188,11 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
   }
   const config = ctx.config
   const demand = play.primaryDemand
+  const holdingId = demand.holdingId
+  const provinceId = ctx.state.holdings[holdingId]?.provinceId
+  if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
   const attackerPolityId = play.initiator.id
   const defenderPolityId = play.target.id
-  const provinceId = demand.provinceId
 
   const state = ctx.state
   const attacker = state.polities[attackerPolityId]
@@ -195,7 +200,7 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
   if (!attacker || !attacker.active || !defender || !defender.active) {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
-  const claimChain = getProvinceLandContractChain(state, provinceId)
+  const claimChain = getHoldingLandContractChain(state, holdingId)
   if (!claimChain.some((c) => c.granteePolityId === defenderPolityId)) {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
@@ -223,7 +228,7 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
 
   if (attackerWins) {
     const transferResult = applyLandContractTransferGoal(nextCtx, {
-      provinceId,
+      holdingId,
       fromPolityId: defenderPolityId,
       toPolityId: attackerPolityId,
       reason: 'war',
@@ -249,10 +254,12 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
       winner: attackerPolityId,
       loser: defenderPolityId,
       provinceId,
+      holdingIds: [holdingId],
     })
     return emitResolvedByConflictEvent(nextCtx, play, {
       polityIds: [attackerPolityId, defenderPolityId],
       provinceIds: [provinceId],
+      holdingIds: [holdingId],
       summary: `${nextCtx.state.polities[attackerPolityId]?.name ?? attackerPolityId} seized ${nextCtx.state.provinces[provinceId]?.name ?? provinceId} from ${nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId}.`,
     })
   }
@@ -273,10 +280,12 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
     winner: defenderPolityId,
     loser: attackerPolityId,
     provinceId,
+    holdingIds: [holdingId],
   })
   return emitResolvedByConflictEvent(nextCtx, play, {
     polityIds: [attackerPolityId, defenderPolityId],
     provinceIds: [provinceId],
+    holdingIds: [holdingId],
     summary: `${nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId} repelled ${nextCtx.state.polities[attackerPolityId]?.name ?? attackerPolityId}'s claim on ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
   })
 }
@@ -290,9 +299,11 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
   }
   const config = ctx.config
   const demand = play.primaryDemand
+  const holdingId = demand.holdingId
+  const provinceId = ctx.state.holdings[holdingId]?.provinceId
+  if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
   const attackerPolityId = play.initiator.id
   const defenderPolityId = play.target.id
-  const provinceId = demand.provinceId
 
   const state = ctx.state
   const attacker = state.polities[attackerPolityId]
@@ -302,7 +313,7 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
   }
 
   // Verify contract still in chain
-  const chain = getProvinceLandContractChain(state, provinceId)
+  const chain = getHoldingLandContractChain(state, holdingId)
   if (!chain.some((c) => c.id === demand.landContractId)) {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
@@ -374,10 +385,12 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
       winner: attackerPolityId,
       loser: defenderPolityId,
       provinceId,
+      holdingIds: [holdingId],
     })
     return emitResolvedByConflictEvent(nextCtx, play, {
       polityIds: [attackerPolityId, defenderPolityId],
       provinceIds: [provinceId],
+      holdingIds: [holdingId],
       summary: `${nextCtx.state.polities[attackerPolityId]?.name ?? attackerPolityId} prevails in the tax dispute over ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
     })
   }
@@ -398,10 +411,12 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
     winner: defenderPolityId,
     loser: attackerPolityId,
     provinceId,
+    holdingIds: [holdingId],
   })
   return emitResolvedByConflictEvent(nextCtx, play, {
     polityIds: [attackerPolityId, defenderPolityId],
     provinceIds: [provinceId],
+    holdingIds: [holdingId],
     summary: `${nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId} repels the tax revision demand for ${nextCtx.state.provinces[provinceId]?.name ?? provinceId}.`,
   })
 }
@@ -525,13 +540,14 @@ function applyConflictDamage(
 
 function emitWarOutcomeEvents(
   ctx: TickContext,
-  input: { winner: PolityId; loser: PolityId; provinceId: ProvinceId },
+  input: { winner: PolityId; loser: PolityId; provinceId: ProvinceId; holdingIds: HoldingId[] },
 ): TickContext {
   let nextCtx = emitEvent(ctx, {
     type: 'WAR_WON',
     importance: 'major',
     polityIds: [input.winner, input.loser],
     provinceIds: [input.provinceId],
+    holdingIds: input.holdingIds,
     summary: `${ctx.state.polities[input.winner]?.name ?? input.winner} prevailed in war against ${ctx.state.polities[input.loser]?.name ?? input.loser}.`,
   })
   nextCtx = emitEvent(nextCtx, {
@@ -539,6 +555,7 @@ function emitWarOutcomeEvents(
     importance: 'major',
     polityIds: [input.loser, input.winner],
     provinceIds: [input.provinceId],
+    holdingIds: input.holdingIds,
     summary: `${ctx.state.polities[input.loser]?.name ?? input.loser} was defeated by ${ctx.state.polities[input.winner]?.name ?? input.winner}.`,
   })
   return nextCtx
@@ -549,13 +566,19 @@ function emitWarOutcomeEvents(
 function emitResolvedByConflictEvent(
   ctx: TickContext,
   _play: DiplomaticPlay,
-  meta: { polityIds: PolityId[]; provinceIds: ProvinceId[]; summary: string },
+  meta: {
+    polityIds: PolityId[]
+    provinceIds: ProvinceId[]
+    holdingIds: HoldingId[]
+    summary: string
+  },
 ): TickContext {
   return emitEvent(ctx, {
     type: 'DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT',
     importance: 'major',
     polityIds: meta.polityIds,
     provinceIds: meta.provinceIds,
+    holdingIds: meta.holdingIds,
     summary: meta.summary,
   })
 }
@@ -567,6 +590,7 @@ function emitEvent(
     importance: SimEvent['importance']
     polityIds: PolityId[]
     provinceIds: ProvinceId[]
+    holdingIds: import('../types/ids').HoldingId[]
     summary: string
   },
 ): TickContext {
@@ -581,7 +605,7 @@ function emitEvent(
     houseIds: [],
     polityIds: input.polityIds,
     provinceIds: input.provinceIds,
-    holdingIds: [],
+    holdingIds: input.holdingIds,
     summary: input.summary,
     reasons: [],
     effects: [],

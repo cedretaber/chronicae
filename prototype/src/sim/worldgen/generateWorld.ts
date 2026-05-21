@@ -1282,18 +1282,45 @@ export function generateWorld(
       holdingsRecord[holdingId] = holding
       holdingIds.push(holdingId)
 
-      // Map holding to same contract chain as province
-      const contractIds = landContractIndex.byProvince[province.id] ?? []
-      landContractIndex.byHolding[holdingId] = contractIds
-
-      // Set holdingId on contracts (use first holding for backward compat)
+      const provinceChainIds = landContractIndex.byProvince[province.id] ?? []
       if (i === 0) {
-        for (const cid of contractIds) {
+        for (const cid of provinceChainIds) {
           const contract = landContractsRecord[cid]
           if (contract) {
             landContractsRecord[cid] = { ...contract, holdingId }
           }
         }
+        landContractIndex.byHolding[holdingId] = provinceChainIds
+      } else {
+        const newChainIds: LandContractId[] = []
+        const oldToNew = new Map<LandContractId, LandContractId>()
+        for (const oldCid of provinceChainIds) {
+          const newCid = ('lc-' + nextLandContractId) as LandContractId
+          nextLandContractId++
+          oldToNew.set(oldCid, newCid)
+          newChainIds.push(newCid)
+        }
+        for (let j = 0; j < provinceChainIds.length; j++) {
+          const oldContract = landContractsRecord[provinceChainIds[j]!]
+          if (!oldContract) continue
+          const newCid = newChainIds[j]!
+          const parentId = oldContract.parentContractId
+            ? (oldToNew.get(oldContract.parentContractId) ?? oldContract.parentContractId)
+            : undefined
+          const newContract: LandContract = {
+            ...oldContract,
+            id: newCid,
+            holdingId,
+            ...(parentId !== undefined ? { parentContractId: parentId } : {}),
+          }
+          landContractsRecord[newCid] = newContract
+          const granteeSlot = landContractIndex.byGranteePolity[newContract.granteePolityId] ?? []
+          landContractIndex.byGranteePolity[newContract.granteePolityId] = [...granteeSlot, newCid]
+          if (parentId !== undefined) {
+            landContractIndex.byParent[parentId] = newCid
+          }
+        }
+        landContractIndex.byHolding[holdingId] = newChainIds
       }
 
       // Terminal polity cache
