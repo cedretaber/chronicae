@@ -58,7 +58,15 @@ import type { Province } from '@/sim/types/province'
 import type { PopGroup } from '@/sim/types/popGroup'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import type { AttitudeMap } from '@/sim/types/attitude'
-import type { PolityId, HouseId, PersonId, FactionId, HoldingId } from '@/sim/types/ids'
+import type {
+  PolityId,
+  HouseId,
+  PersonId,
+  FactionId,
+  HoldingId,
+  LandContractId,
+  ProvinceId,
+} from '@/sim/types/ids'
 import type { Faction } from '@/sim/types/faction'
 import type { ShareHolderRef } from '@/sim/types/office'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
@@ -830,20 +838,39 @@ function PolityLandContracts({
   const contractIds = worldState.landContractIndex.byGranteePolity[polity.id] ?? []
   if (contractIds.length === 0) return null
 
-  const contracts = contractIds
-    .map((cid) => {
-      const c = worldState.landContracts[cid]
-      if (!c) return undefined
-      const province = worldState.provinces[c.provinceId]
-      const isRoot = c.parentContractId === undefined
-      const isTerminal = worldState.landContractIndex.byParent[c.id] === undefined
-      const chain = getProvinceLandContractChain(worldState, c.provinceId)
+  type ContractInfo = {
+    id: LandContractId
+    holdingId: HoldingId | undefined
+    holdingName: string
+    taxRate: number
+    isRoot: boolean
+    isTerminal: boolean
+    estimatedRevenue: number
+  }
+  type ProvinceGroup = {
+    provinceId: ProvinceId
+    provinceName: string
+    holdings: ContractInfo[]
+    totalRevenue: number
+  }
+
+  const groupMap = new Map<string, ProvinceGroup>()
+
+  for (const cid of contractIds) {
+    const c = worldState.landContracts[cid]
+    if (!c) continue
+    const province = worldState.provinces[c.provinceId]
+    const isRoot = c.parentContractId === undefined
+    const isTerminal = worldState.landContractIndex.byParent[c.id] === undefined
+    const holdingId = c.holdingId
+    const holding = holdingId ? worldState.holdings[holdingId] : undefined
+
+    let estimatedRevenue = 0
+    if (province && holdingId) {
+      const chain = getHoldingLandContractChain(worldState, holdingId)
       const idx = chain.findIndex((cc) => cc.id === c.id)
-      let estimatedRevenue = 0
-      if (province && idx >= 0) {
-        const polityControl = worldState
-          ? getProvincePolityControlFromHoldings(worldState, c.provinceId)
-          : 0
+      if (idx >= 0) {
+        const polityControl = getProvincePolityControlFromHoldings(worldState, c.provinceId)
         const grossTax =
           getProvinceProduction(worldState, defaultConfig, c.provinceId) * (polityControl / 100)
         let remaining = grossTax
@@ -859,62 +886,73 @@ function PolityLandContracts({
           remaining = remaining * rate
         }
       }
-      return {
-        id: c.id,
+    }
+
+    const key = c.provinceId as string
+    let group = groupMap.get(key)
+    if (!group) {
+      group = {
         provinceId: c.provinceId,
         provinceName: province?.name ?? String(c.provinceId),
-        taxRate: c.terms.taxRateToGrantor,
-        isRoot,
-        isTerminal,
-        estimatedRevenue,
+        holdings: [],
+        totalRevenue: 0,
       }
+      groupMap.set(key, group)
+    }
+    group.holdings.push({
+      id: c.id,
+      holdingId,
+      holdingName: holding?.name ?? '(unknown)',
+      taxRate: c.terms.taxRateToGrantor,
+      isRoot,
+      isTerminal,
+      estimatedRevenue,
     })
-    .filter((x): x is NonNullable<typeof x> => x !== undefined)
-    .sort((a, b) => b.estimatedRevenue - a.estimatedRevenue)
+    group.totalRevenue += estimatedRevenue
+  }
+
+  const groups = [...groupMap.values()].sort((a, b) => b.totalRevenue - a.totalRevenue)
+  const totalContracts = groups.reduce((sum, g) => sum + g.holdings.length, 0)
 
   return (
     <div className="mt-1">
-      <div className="text-sm font-semibold text-gray-300">
-        Land Contracts ({contracts.length}):
-      </div>
+      <div className="text-sm font-semibold text-gray-300">Land Contracts ({totalContracts}):</div>
       <div className="max-h-48 overflow-y-auto text-sm">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-gray-400">
-              <th className="text-left font-normal">Province</th>
-              <th className="text-right font-normal">Tax</th>
-              <th className="text-right font-normal">Rev</th>
-              <th className="text-right font-normal">Type</th>
-            </tr>
-          </thead>
-          <tbody>
-            {contracts.map((c) => (
-              <tr key={c.id} className="border-t border-gray-700/30">
-                <td>
-                  <button
-                    className="text-left text-blue-300 hover:underline"
-                    onClick={() => onProvinceClick(c.provinceId)}
-                  >
-                    {c.provinceName}
-                  </button>
-                </td>
-                <td className="text-right text-gray-300">{Math.round(c.taxRate * 100)}%</td>
-                <td className="text-right text-amber-300">
-                  {c.estimatedRevenue > 0 ? c.estimatedRevenue.toFixed(1) : '—'}
-                </td>
-                <td className="text-right text-gray-400">
-                  {c.isRoot && c.isTerminal
-                    ? 'R+T'
-                    : c.isRoot
-                      ? 'Root'
-                      : c.isTerminal
-                        ? 'Term'
-                        : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {groups.map((g) => (
+          <div key={g.provinceId} className="mb-1">
+            <div className="flex items-baseline gap-1">
+              <button
+                className="text-xs font-semibold text-blue-300 hover:underline"
+                onClick={() => onProvinceClick(g.provinceId)}
+              >
+                {g.provinceName}
+              </button>
+              <span className="text-xs text-gray-500">({g.holdings.length})</span>
+            </div>
+            <table className="w-full text-xs">
+              <tbody>
+                {g.holdings.map((c) => (
+                  <tr key={c.id} className="border-t border-gray-700/20">
+                    <td className="pl-2 text-gray-400">{c.holdingName}</td>
+                    <td className="text-right text-gray-300">{Math.round(c.taxRate * 100)}%</td>
+                    <td className="text-right text-amber-300">
+                      {c.estimatedRevenue > 0 ? c.estimatedRevenue.toFixed(1) : '—'}
+                    </td>
+                    <td className="text-right text-gray-400">
+                      {c.isRoot && c.isTerminal
+                        ? 'R+T'
+                        : c.isRoot
+                          ? 'Root'
+                          : c.isTerminal
+                            ? 'Term'
+                            : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </div>
     </div>
   )
