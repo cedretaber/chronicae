@@ -50,6 +50,21 @@ export function markPersonDead(
   const spouseResult = clearSpouse(newState, personId)
   if (spouseResult.ok) newState = spouseResult.value
   newState = revokeOfficesByHolder(newState, personId)
+
+  const house = newState.houses[person.houseId]
+  if (house && house.memberIds.includes(personId)) {
+    newState = {
+      ...newState,
+      houses: {
+        ...newState.houses,
+        [person.houseId]: {
+          ...house,
+          memberIds: house.memberIds.filter((id) => id !== personId),
+        },
+      },
+    }
+  }
+
   return ok(newState)
 }
 

@@ -36,6 +36,7 @@ export function getUnaffiliatedPersons(state: WorldState): PersonId[] {
   for (const memberId of anon.memberIds) {
     const person = state.persons[memberId]
     if (!person) continue
+    if (!person.alive) continue
     if (person.kind === 'placeholder') continue
     result.push(memberId)
   }
