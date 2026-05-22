@@ -4,7 +4,6 @@ import { MapViewSwitcher } from './components/map/MapViewSwitcher'
 import { Sidebar } from './components/panels/Sidebar'
 import { EventLog } from './components/logs/EventLog'
 import { WindowManager } from './components/windows/WindowManager'
-import { NotificationOverlay } from './components/notifications/NotificationOverlay'
 
 export function App() {
   return (
@@ -23,7 +22,6 @@ export function App() {
         </div>
       </div>
       <WindowManager />
-      <NotificationOverlay />
     </div>
   )
 }

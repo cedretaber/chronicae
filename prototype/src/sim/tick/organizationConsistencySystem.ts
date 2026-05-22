@@ -80,7 +80,7 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
           messageKey: 'office.revoked',
           messageParams: {
             role: office.role,
-            organization: nameParam('polity', polity.nameKey, polity.name),
+            organization: nameParam('polity', polity.nameKey),
           },
           entityRefs: [
             entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),

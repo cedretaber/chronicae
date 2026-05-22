@@ -91,8 +91,8 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
       importance: 'normal',
       messageKey: 'marriage.formed',
       messageParams: {
-        male: nameParam('person', malePerson.nameKey, malePerson.name),
-        female: nameParam('person', femalePerson.nameKey, femalePerson.name),
+        male: nameParam('person', malePerson.nameKey),
+        female: nameParam('person', femalePerson.nameKey),
       },
       entityRefs: [
         entityRef('person', maleId, 'groom', malePerson.nameKey),

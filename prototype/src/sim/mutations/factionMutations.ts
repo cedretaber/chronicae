@@ -8,7 +8,6 @@ import { ok, err } from './result'
 
 export type CreateFactionInput = {
   leaderPersonId: PersonId
-  name: string
   week: number
 }
 
@@ -42,7 +41,6 @@ export function createFaction(
 
   const faction: Faction = {
     id: factionId,
-    name: input.name,
     leaderPersonId: input.leaderPersonId,
     active: true,
     foundingWeek: input.week,

@@ -26,7 +26,7 @@ const DEFAULT_ABILITIES = {
 function makePerson(id: PersonId): Person {
   return {
     id,
-    name: 'Person-' + id,
+    nameKey: 'Person-' + id,
     sex: 'male',
     age: 30,
     alive: true,
@@ -148,7 +148,7 @@ function makeCtx({
     polities: {
       [polityId]: {
         id: polityId,
-        name: 'C0',
+        nameKey: 'C0',
         rank: 2,
         ownerHouseId: houseId,
         treasury,
@@ -161,7 +161,7 @@ function makeCtx({
     houses: {
       [houseId]: {
         id: houseId,
-        name: 'H0',
+        nameKey: 'H0',
         active: true,
         memberIds: [headPersonId],
         cadetHouseIds: [],

@@ -27,7 +27,7 @@ export function runOfficeTermSystem(ctx: TickContext): TickContext {
       importance: 'normal',
       messageKey: 'office.term_ended',
       messageParams: {
-        person: holder ? nameParam('person', holder.nameKey, holder.name) : office.holderPersonId,
+        person: holder ? nameParam('person', holder.nameKey) : office.holderPersonId,
         role: office.role,
       },
       entityRefs: [

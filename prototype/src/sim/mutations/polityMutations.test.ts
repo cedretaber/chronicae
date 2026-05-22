@@ -34,16 +34,16 @@ function makeFixture(): {
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
-  state = withProvince(state, provinceId, { name: 'Test Province' })
-  state = withProvince(state, province2Id, { name: 'Test Province 2', x: 1, y: 1 })
+  state = withProvince(state, provinceId, { nameKey: 'Test Province' })
+  state = withProvince(state, province2Id, { nameKey: 'Test Province 2', x: 1, y: 1 })
   state = withHouse(state, house1Id, {
-    name: 'House 1',
+    nameKey: 'House 1',
     memberIds: [person1Id],
     seatProvinceId: provinceId,
   })
-  state = withHouse(state, house2Id, { name: 'House 2', seatProvinceId: province2Id })
+  state = withHouse(state, house2Id, { nameKey: 'House 2', seatProvinceId: province2Id })
   state = withPolity(state, polity1Id, {
-    name: 'Polity 1',
+    nameKey: 'Polity 1',
     ownerHouseId: house1Id,
     treasury: 100,
     legacyPrestige: 50,
@@ -51,7 +51,7 @@ function makeFixture(): {
     capitalProvinceId: provinceId,
   })
   state = withPolity(state, polity2Id, {
-    name: 'Polity 2',
+    nameKey: 'Polity 2',
     ownerHouseId: house2Id,
     treasury: 100,
     legacyPrestige: 50,
@@ -61,7 +61,7 @@ function makeFixture(): {
   state = bindProvinceToHouseViaPolity(state, provinceId, polity1Id, house1Id)
   state = bindProvinceToHouseViaPolity(state, province2Id, polity2Id, house2Id)
   state = withPerson(state, person1Id, {
-    name: 'Test Person',
+    nameKey: 'Test Person',
     houseId: house1Id,
     birthStatus: 'unknown',
     legacyPrestige: 50,
@@ -106,7 +106,7 @@ describe('createPolity', () => {
     const { state, house1Id } = makeFixture()
     const ctx = makeCtx(state)
     const result = createPolity(ctx, {
-      name: 'New Polity',
+      nameKey: 'New Polity',
       treasury: 200,
       legacyPrestige: 30,
       ownerHouseId: house1Id,
@@ -118,7 +118,7 @@ describe('createPolity', () => {
     const { polityId } = result.value.value
     const newPolity = result.value.ctx.state.polities[polityId]
     expect(newPolity).toBeDefined()
-    expect(newPolity!.name).toBe('New Polity')
+    expect(newPolity!.nameKey).toBe('New Polity')
     expect(newPolity!.treasury).toBe(200)
     expect(newPolity!.legacyPrestige).toBe(30)
     expect(newPolity!.active).toBe(true)
@@ -127,7 +127,7 @@ describe('createPolity', () => {
   it('allocates a unique dp- prefixed polityId', () => {
     const { state, house1Id } = makeFixture()
     const ctx = makeCtx(state)
-    const result = createPolity(ctx, { name: 'Polity X', ownerHouseId: house1Id })
+    const result = createPolity(ctx, { nameKey: 'Polity X', ownerHouseId: house1Id })
 
     expect(result.ok).toBe(true)
     if (!result.ok) return

@@ -7,27 +7,23 @@ import { randomFloat, randomInt } from '../rng/rng'
 import { pickNameBySex } from './nameGenerators'
 import { samplePerson } from '../helpers/personFactory'
 import type { NamePoolService } from '../namegen/namePoolTypes'
-import type { NameDisplayData } from '../namegen/nameDisplayResolver'
-import { resolveNameDisplay } from '../namegen/nameDisplayResolver'
 
 function pickPersonName(
   sex: Sex,
   rng: RngState,
   namePoolService?: NamePoolService,
-  nameDisplayData?: NameDisplayData,
   nameCultureId?: string,
-): { name: string; nameKey: string | undefined; rng: RngState } {
+): { nameKey: string; rng: RngState } {
   if (namePoolService) {
     const { value: key, rng: nextRng } = namePoolService.pickNameKey(rng, {
       nameCultureId: nameCultureId ?? 'western',
       category: 'person',
       path: [sex],
     })
-    const display = nameDisplayData ? resolveNameDisplay(nameDisplayData, 'person', key) : key
-    return { name: display, nameKey: key, rng: nextRng }
+    return { nameKey: key, rng: nextRng }
   }
   const { name, rng: nextRng } = pickNameBySex(sex, rng)
-  return { name, nameKey: undefined, rng: nextRng }
+  return { nameKey: name, rng: nextRng }
 }
 
 export function generatePersons(
@@ -36,7 +32,6 @@ export function generatePersons(
   config: SimulationConfig,
   rng: RngState,
   namePoolService?: NamePoolService,
-  nameDisplayData?: NameDisplayData,
 ): { persons: Person[]; rng: RngState } {
   const persons: Person[] = []
   let globalIndex = 0
@@ -126,31 +121,22 @@ export function generatePersons(
     rng = rngW8
 
     const nps = namePoolService
-    const ndd = nameDisplayData
     const nci = config.nameCultureId
-    const r0 = pickPersonName('male', rng, nps, ndd, nci)
-    const oldFatherName = r0.name
+    const r0 = pickPersonName('male', rng, nps, nci)
     const oldFatherNameKey = r0.nameKey
-    const r1 = pickPersonName('female', r0.rng, nps, ndd, nci)
-    const oldMotherName = r1.name
+    const r1 = pickPersonName('female', r0.rng, nps, nci)
     const oldMotherNameKey = r1.nameKey
-    const r2 = pickPersonName('male', r1.rng, nps, ndd, nci)
-    const headName = r2.name
+    const r2 = pickPersonName('male', r1.rng, nps, nci)
     const headNameKey = r2.nameKey
-    const r3 = pickPersonName(siblingSexVal, r2.rng, nps, ndd, nci)
-    const siblingName = r3.name
+    const r3 = pickPersonName(siblingSexVal, r2.rng, nps, nci)
     const siblingNameKey = r3.nameKey
-    const r4 = pickPersonName('female', r3.rng, nps, ndd, nci)
-    const spouseName = r4.name
+    const r4 = pickPersonName('female', r3.rng, nps, nci)
     const spouseNameKey = r4.nameKey
-    const r5 = pickPersonName(child1SexVal, r4.rng, nps, ndd, nci)
-    const child1Name = r5.name
+    const r5 = pickPersonName(child1SexVal, r4.rng, nps, nci)
     const child1NameKey = r5.nameKey
-    const r6 = pickPersonName(child2SexVal, r5.rng, nps, ndd, nci)
-    const child2Name = r6.name
+    const r6 = pickPersonName(child2SexVal, r5.rng, nps, nci)
     const child2NameKey = r6.nameKey
-    const r7 = pickPersonName(relativeSexVal, r6.rng, nps, ndd, nci)
-    const relativeName = r7.name
+    const r7 = pickPersonName(relativeSexVal, r6.rng, nps, nci)
     const relativeNameKey = r7.nameKey
     rng = r7.rng
 
@@ -175,8 +161,7 @@ export function generatePersons(
     const { value: oldFatherCaution, rng: rngOFC } = randomFloat(rngOFA)
     const { value: oldFather, rng: rngOF } = samplePerson(rngOFC, config, {
       id: oldFatherId,
-      name: oldFatherName,
-      ...(oldFatherNameKey !== undefined ? { nameKey: oldFatherNameKey } : {}),
+      nameKey: oldFatherNameKey,
       sex: 'male',
       age: oldFatherAge,
       houseId,
@@ -191,8 +176,7 @@ export function generatePersons(
     const { value: oldMotherCaution, rng: rngOMC } = randomFloat(rngOMA)
     const { value: oldMother, rng: rngOM } = samplePerson(rngOMC, config, {
       id: oldMotherId,
-      name: oldMotherName,
-      ...(oldMotherNameKey !== undefined ? { nameKey: oldMotherNameKey } : {}),
+      nameKey: oldMotherNameKey,
       sex: 'female',
       age: oldMotherAge,
       houseId,
@@ -207,8 +191,7 @@ export function generatePersons(
     const { value: headCaution, rng: rngHC } = randomFloat(rngHA)
     const { value: head, rng: rngH } = samplePerson(rngHC, config, {
       id: headId,
-      name: headName,
-      ...(headNameKey !== undefined ? { nameKey: headNameKey } : {}),
+      nameKey: headNameKey,
       sex: 'male',
       age: headAge,
       houseId,
@@ -225,8 +208,7 @@ export function generatePersons(
     const { value: siblingCaution, rng: rngSC } = randomFloat(rngSA)
     const { value: sibling, rng: rngS } = samplePerson(rngSC, config, {
       id: siblingId,
-      name: siblingName,
-      ...(siblingNameKey !== undefined ? { nameKey: siblingNameKey } : {}),
+      nameKey: siblingNameKey,
       sex: siblingSexVal,
       age: siblingAge,
       houseId,
@@ -243,8 +225,7 @@ export function generatePersons(
     const { value: spouseCaution, rng: rngSpC } = randomFloat(rngSpA)
     const { value: spouse, rng: rngSp } = samplePerson(rngSpC, config, {
       id: spouseId,
-      name: spouseName,
-      ...(spouseNameKey !== undefined ? { nameKey: spouseNameKey } : {}),
+      nameKey: spouseNameKey,
       sex: 'female',
       age: spouseAge,
       houseId,
@@ -259,8 +240,7 @@ export function generatePersons(
     const { value: child1Caution, rng: rngC1C } = randomFloat(rngC1A)
     const { value: child1, rng: rngCh1 } = samplePerson(rngC1C, config, {
       id: child1Id,
-      name: child1Name,
-      ...(child1NameKey !== undefined ? { nameKey: child1NameKey } : {}),
+      nameKey: child1NameKey,
       sex: child1SexVal,
       age: child1Age,
       houseId,
@@ -277,8 +257,7 @@ export function generatePersons(
     const { value: child2Caution, rng: rngC2C } = randomFloat(rngC2A)
     const { value: child2, rng: rngCh2 } = samplePerson(rngC2C, config, {
       id: child2Id,
-      name: child2Name,
-      ...(child2NameKey !== undefined ? { nameKey: child2NameKey } : {}),
+      nameKey: child2NameKey,
       sex: child2SexVal,
       age: child2Age,
       houseId,
@@ -295,8 +274,7 @@ export function generatePersons(
     const { value: relativeCaution, rng: rngRC } = randomFloat(rngRA)
     const { value: relative, rng: rngR } = samplePerson(rngRC, config, {
       id: relativeId,
-      name: relativeName,
-      ...(relativeNameKey !== undefined ? { nameKey: relativeNameKey } : {}),
+      nameKey: relativeNameKey,
       sex: relativeSexVal,
       age: relativeAge,
       houseId,

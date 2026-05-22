@@ -2,7 +2,7 @@ import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import type { PolityId, HouseId, ProvinceId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { entityRef } from '../types/event'
+import { entityRef, nameParam } from '../types/event'
 import {
   getPolityProvinceIds,
   getPolityHouseIds,
@@ -61,26 +61,26 @@ function emitPolityExtinct(
   messageKey: string,
 ): TickContext {
   const polity = ctx.state.polities[polityId]
-  const polityName = polity?.name ?? polityId
+  const polityName = nameParam('polity', polity?.nameKey ?? polityId)
   const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'POLITY_EXTINCT',
     importance: 'major',
     messageKey,
     messageParams: { polity: polityName },
-    entityRefs: [entityRef('polity', polityId, 'polity', polityName)],
+    entityRefs: [entityRef('polity', polityId, 'polity', polity?.nameKey)],
   })
   return { ...c1, events: [...c1.events, event] }
 }
 
 function emitPolityLandless(ctx: TickContext, polityId: PolityId): TickContext {
   const polity = ctx.state.polities[polityId]
-  const polityName = polity?.name ?? polityId
+  const polityName = nameParam('polity', polity?.nameKey ?? polityId)
   const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'POLITY_LANDLESS',
     importance: 'major',
     messageKey: 'polity.landless',
     messageParams: { polity: polityName },
-    entityRefs: [entityRef('polity', polityId, 'polity', polityName)],
+    entityRefs: [entityRef('polity', polityId, 'polity', polity?.nameKey)],
   })
   return { ...c1, events: [...c1.events, event] }
 }
@@ -95,9 +95,9 @@ function emitPolityOwnerChanged(
   const polity = ctx.state.polities[polityId]
   const newHouse = ctx.state.houses[newOwnerId]
   const capProv = ctx.state.provinces[newCapitalProvinceId]
-  const polityName = polity?.name ?? polityId
-  const newHouseName = newHouse?.name ?? newOwnerId
-  const capName = capProv?.name ?? newCapitalProvinceId
+  const polityName = nameParam('polity', polity?.nameKey ?? polityId)
+  const newHouseName = nameParam('house', newHouse?.nameKey ?? newOwnerId)
+  const capName = nameParam('province', capProv?.nameKey ?? newCapitalProvinceId)
   const messageKey = oldOwnerId ? 'polity.owner_changed' : 'polity.owner_changed_initial'
   const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'POLITY_OWNER_CHANGED',
@@ -109,9 +109,9 @@ function emitPolityOwnerChanged(
       capital: capName,
     },
     entityRefs: [
-      entityRef('polity', polityId, 'polity', polityName),
-      entityRef('house', newOwnerId, 'new_owner', newHouseName),
-      entityRef('province', newCapitalProvinceId, 'capital', capName),
+      entityRef('polity', polityId, 'polity', polity?.nameKey),
+      entityRef('house', newOwnerId, 'new_owner', newHouse?.nameKey),
+      entityRef('province', newCapitalProvinceId, 'capital', capProv?.nameKey),
     ],
   })
   return { ...c1, events: [...c1.events, event] }
@@ -201,7 +201,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
       currentCtx = emitPolityExtinct(
         currentCtx,
         polityId,
-        `${polity.name} has dissolved without remaining provinces.`,
+        `${polity.nameKey} has dissolved without remaining provinces.`,
         'polity.extinct_no_provinces',
       )
       continue
@@ -225,7 +225,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
         currentCtx = emitPolityExtinct(
           currentCtx,
           polityId,
-          `${polity.name} has dissolved without an owning house.`,
+          `${polity.nameKey} has dissolved without an owning house.`,
           'polity.extinct_no_owner',
         )
         continue
@@ -280,7 +280,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
       currentCtx = emitPolityExtinct(
         currentCtx,
         polityId,
-        `${polity.name} has dissolved after losing its owning house.`,
+        `${polity.nameKey} has dissolved after losing its owning house.`,
         'polity.extinct_lost_owner',
       )
       continue

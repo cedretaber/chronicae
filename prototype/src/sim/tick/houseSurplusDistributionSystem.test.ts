@@ -38,7 +38,7 @@ describe('runHouseSurplusDistributionSystem', () => {
     const houseId = 'dh-0' as HouseId
     let state = makeEmptyV016State()
     state = withHouse(state, houseId, {
-      name: 'RichHouse',
+      nameKey: 'RichHouse',
       wealth: 50,
       kind: 'normal',
     })
@@ -53,7 +53,7 @@ describe('runHouseSurplusDistributionSystem', () => {
     const houseId = 'dh-0' as HouseId
     let state = makeEmptyV016State()
     state = withHouse(state, houseId, {
-      name: 'RichHouse',
+      nameKey: 'RichHouse',
       wealth: 200,
       kind: 'normal',
     })
@@ -77,7 +77,7 @@ describe('runHouseSurplusDistributionSystem', () => {
 
     let state = makeEmptyV016State()
     state = withHouse(state, houseId, {
-      name: 'RichHouse',
+      nameKey: 'RichHouse',
       wealth: 200,
       memberIds: [personAId, personBId],
       kind: 'normal',
@@ -120,7 +120,7 @@ describe('runHouseSurplusDistributionSystem', () => {
     const anonHouseId = 'dh-anon' as HouseId
     let state = makeEmptyV016State()
     state = withHouse(state, anonHouseId, {
-      name: 'Anonymous',
+      nameKey: 'Anonymous',
       wealth: 1000,
       kind: 'system',
     })
@@ -141,7 +141,7 @@ describe('runHouseSurplusDistributionSystem', () => {
     const houseId = 'dh-0' as HouseId
     let state = makeEmptyV016State()
     state = withHouse(state, houseId, {
-      name: 'InactiveHouse',
+      nameKey: 'InactiveHouse',
       wealth: 1000,
       active: false,
       kind: 'normal',
@@ -167,7 +167,7 @@ describe('runHouseSurplusDistributionSystem', () => {
 
     let state = makeEmptyV016State()
     state = withHouse(state, houseId, {
-      name: 'TestHouse',
+      nameKey: 'TestHouse',
       wealth: 300,
       memberIds: [alivePersonId, deadPersonId, placeholderPersonId],
       kind: 'normal',

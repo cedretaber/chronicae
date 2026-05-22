@@ -37,7 +37,7 @@ function makeAbilities(overrides: Partial<AbilityScores> = {}): AbilityScores {
 function makePerson(ambition: number, caution: number): Person {
   return {
     id: 'pe-0' as PersonId,
-    name: 'TestPerson',
+    nameKey: 'TestPerson',
     sex: 'male',
     age: 30,
     alive: true,
@@ -126,7 +126,7 @@ function makeWorldState(
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-  state = withProvince(state, provinceId, { name: 'P0' })
+  state = withProvince(state, provinceId, { nameKey: 'P0' })
   // Set Holding polityControl to 50 for runControlSystem tests
   const p0HoldingId = state.provinces[provinceId]!.holdingIds[0]!
   state = {
@@ -137,7 +137,7 @@ function makeWorldState(
     },
   }
   state = withHouse(state, houseId, {
-    name: 'H0',
+    nameKey: 'H0',
     memberIds: [person.id],
     deceasedMemberIds: [],
     legacyPrestige: 50,
@@ -145,7 +145,7 @@ function makeWorldState(
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    name: 'C0',
+    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury,
     legacyPrestige: 50,
@@ -296,7 +296,7 @@ describe('runControlSystem — capital province maxControl', () => {
         [provinceId]: {
           id: provinceId,
           stateId: 'sr-0' as import('../types/ids').StateRegionId,
-          name: 'Capital',
+          nameKey: 'Capital',
           x: 0,
           y: 0,
           neighbors: [],
@@ -310,7 +310,6 @@ describe('runControlSystem — capital province maxControl', () => {
           id: holdingId,
           provinceId,
           kind: 'manor' as const,
-          name: 'Capital',
           development: 0,
           polityControl: 100,
           landQuality: 50,
@@ -321,7 +320,7 @@ describe('runControlSystem — capital province maxControl', () => {
       polities: {
         [polityId]: {
           id: polityId,
-          name: 'C0',
+          nameKey: 'C0',
           rank: 2,
           ownerHouseId: houseId,
           treasury: 100,
@@ -334,7 +333,7 @@ describe('runControlSystem — capital province maxControl', () => {
       houses: {
         [houseId]: {
           id: houseId,
-          name: 'H0',
+          nameKey: 'H0',
           active: true,
           memberIds: [],
           deceasedMemberIds: [],
@@ -513,9 +512,9 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
 
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, provinceId, { name: 'P0' })
+    state = withProvince(state, provinceId, { nameKey: 'P0' })
     state = withHouse(state, houseId, {
-      name: 'H0',
+      nameKey: 'H0',
       memberIds: [headPerson.id],
       deceasedMemberIds: [],
       legacyPrestige: 50,
@@ -523,7 +522,7 @@ describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
       seatProvinceId: provinceId,
     })
     state = withPolity(state, polityId, {
-      name: 'C0',
+      nameKey: 'C0',
       ownerHouseId: houseId,
       treasury: 500,
       legacyPrestige: 50,

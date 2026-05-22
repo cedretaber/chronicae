@@ -14,8 +14,7 @@ export type BirthChildInput = {
   fatherId: PersonId
   motherId?: PersonId
   birthStatus: BirthStatus
-  name: string
-  nameKey?: string
+  nameKey: string
   sex: Sex
   aptitudes: AbilityScores
   traits: { ambition: number; caution: number }
@@ -181,8 +180,7 @@ export function birthChild(
 
   const childPerson = buildPerson({
     id: childId,
-    name: input.name,
-    ...(input.nameKey !== undefined ? { nameKey: input.nameKey } : {}),
+    nameKey: input.nameKey,
     sex: input.sex,
     age: 0,
     houseId: father.houseId,

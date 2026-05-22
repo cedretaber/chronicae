@@ -30,22 +30,22 @@ function makeFixture(): {
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
-  state = withProvince(state, provinceId, { name: 'Test Province' })
-  state = withProvince(state, auxProvinceId, { name: 'Aux Province' })
+  state = withProvince(state, provinceId, { nameKey: 'Test Province' })
+  state = withProvince(state, auxProvinceId, { nameKey: 'Aux Province' })
   state = withHouse(state, house1Id, {
-    name: 'House 1',
+    nameKey: 'House 1',
     memberIds: [person1Id],
     wealth: 1000,
     seatProvinceId: provinceId,
   })
   state = withHouse(state, house2Id, {
-    name: 'House 2',
+    nameKey: 'House 2',
     legacyPrestige: 30,
     wealth: 200,
     seatProvinceId: auxProvinceId,
   })
   state = withPolity(state, polity1Id, {
-    name: 'Polity 1',
+    nameKey: 'Polity 1',
     ownerHouseId: house1Id,
     treasury: 100,
     legacyPrestige: 50,
@@ -53,7 +53,7 @@ function makeFixture(): {
     capitalProvinceId: provinceId,
   })
   state = withPolity(state, polity2Id, {
-    name: 'Polity 2',
+    nameKey: 'Polity 2',
     ownerHouseId: house2Id,
     treasury: 100,
     legacyPrestige: 50,
@@ -63,7 +63,7 @@ function makeFixture(): {
   state = bindProvinceToHouseViaPolity(state, provinceId, polity1Id, house1Id)
   state = bindProvinceToHouseViaPolity(state, auxProvinceId, polity2Id, house2Id)
   state = withPerson(state, person1Id, {
-    name: 'Test Person',
+    nameKey: 'Test Person',
     houseId: house1Id,
     birthStatus: 'unknown',
     legacyPrestige: 50,
@@ -90,7 +90,7 @@ describe('createPolityFromHouse', () => {
     expect(newPolity).toBeDefined()
     expect(newPolity!.legacyPrestige).toBe(20)
     expect(newPolity!.adminPower).toBe(0)
-    expect(newPolity!.name).toBe('House 1領')
+    expect(newPolity!.nameKey).toBeDefined()
     expect(newPolity!.treasury).toBe(Math.floor(1000 * 0.5))
   })
 

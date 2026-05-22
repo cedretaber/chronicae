@@ -415,9 +415,9 @@ function emitConversionAndStartEvents(
 
   const initiatorId = initiator.id as PolityId
   const targetId = target.id as PolityId
-  const initiatorName = currentCtx.state.polities[initiatorId]?.name ?? String(initiator.id)
-  const targetName = currentCtx.state.polities[targetId]?.name ?? String(target.id)
-  const provinceName = currentCtx.state.provinces[provinceId]?.name ?? provinceId
+  const initiatorName = currentCtx.state.polities[initiatorId]?.nameKey ?? String(initiator.id)
+  const targetName = currentCtx.state.polities[targetId]?.nameKey ?? String(target.id)
+  const provinceName = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
   const entityRefs = [
     entityRef('polity', initiatorId, 'initiator'),
     entityRef('polity', targetId, 'target'),

@@ -123,8 +123,11 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
       importance: 'normal',
       messageKey: 'faction.member_recruited',
       messageParams: {
-        person: nameParam('person', candidate.nameKey, candidate.name),
-        faction: faction.name,
+        person: nameParam('person', candidate.nameKey),
+        factionLeader: nameParam(
+          'person',
+          currentCtx.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown',
+        ),
       },
       entityRefs: [
         entityRef('person', candidateId, 'recruit', candidate.nameKey),

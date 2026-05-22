@@ -17,7 +17,7 @@ const DEFAULT_ABILITIES = {
 function makePerson(id: PersonId, age: number, alive: boolean): Person {
   return {
     id,
-    name: 'Person-' + id,
+    nameKey: 'Person-' + id,
     sex: 'male',
     age,
     alive,
@@ -49,7 +49,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
       polities: {
         [polityId]: {
           id: polityId,
-          name: 'C0',
+          nameKey: 'C0',
           rank: 2,
           ownerHouseId: houseId,
           treasury: 100,
@@ -62,7 +62,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
       houses: {
         [houseId]: {
           id: houseId,
-          name: 'H0',
+          nameKey: 'H0',
           active: true,
           memberIds: [person.id],
           deceasedMemberIds: [],
@@ -173,7 +173,7 @@ describe('runMortalitySystem', () => {
           polities: {
             [polityId]: {
               id: polityId,
-              name: 'C0',
+              nameKey: 'C0',
               rank: 2,
               ownerHouseId: houseId,
               treasury: 100,
@@ -186,7 +186,7 @@ describe('runMortalitySystem', () => {
           houses: {
             [houseId]: {
               id: houseId,
-              name: 'H0',
+              nameKey: 'H0',
               active: true,
               memberIds: [head.id, member.id],
               deceasedMemberIds: [],
@@ -309,7 +309,7 @@ describe('runMortalitySystem', () => {
           polities: {
             [polityId]: {
               id: polityId,
-              name: 'C0',
+              nameKey: 'C0',
               rank: 2,
               ownerHouseId: houseId,
               treasury: 100,
@@ -322,7 +322,7 @@ describe('runMortalitySystem', () => {
           houses: {
             [houseId]: {
               id: houseId,
-              name: 'H0',
+              nameKey: 'H0',
               active: true,
               memberIds: [husband.id, wife.id],
               deceasedMemberIds: [],

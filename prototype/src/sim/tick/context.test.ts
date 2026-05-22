@@ -20,7 +20,7 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
   for (const id of personIds) {
     persons[id] = {
       id,
-      name: 'Test',
+      nameKey: 'Test',
       sex: 'male',
       age: 30,
       alive: true,

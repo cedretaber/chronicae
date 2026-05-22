@@ -334,7 +334,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
     messageKey: 'revolt.negotiation_started',
     messageParams: {
       rebelClass: rebelClass,
-      province: nameParam('province', province.nameKey, province.name),
+      province: nameParam('province', province.nameKey),
     },
     entityRefs: [
       entityRef('person', rebelLeaderId, 'leader'),

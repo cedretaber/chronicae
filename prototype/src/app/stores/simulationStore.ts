@@ -8,8 +8,7 @@ import type { WorldPresetName } from '@sim/worldgen/worldPresets'
 import YAML from 'yaml'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
 import type { NamePoolService } from '@sim/namegen/namePoolTypes'
-import type { NameDisplayData } from '@sim/namegen/nameDisplayResolver'
-import { renderEventSummary } from '@sim/types/event'
+
 export type EntityType = 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction'
 // Backwards-friendly alias retained as named export (some modules import SelectedType)
 export type SelectedType = EntityType
@@ -32,7 +31,6 @@ type SimState = {
   nextZIndex: number
   watchlist: string[]
   config: SimulationConfig
-  pendingNotifications: { id: string; message: string; timestamp: number }[]
 }
 
 type SimActions = {
@@ -50,7 +48,6 @@ type SimActions = {
   moveDetailWindow: (windowId: string, position: { x: number; y: number }) => void
   toggleWatchlist: (id: string) => void
   setConfig: (partial: Partial<SimulationConfig>) => void
-  dismissNotification: (id: string) => void
 }
 
 type SimStore = SimState & SimActions
@@ -74,19 +71,11 @@ const WINDOW_INITIAL_Y = 80
 // 360px window width 想定で、おおむね右端を超えない位置に折り返す
 const WINDOW_MAX_X = 600
 
-// Lazy NamePoolService and NameDisplayData initialization
+// Lazy NamePoolService initialization
 let _namePoolService: NamePoolService | null = null
-let _nameDisplayData: NameDisplayData | null = null
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 const namePoolsRaw = import.meta.glob('../../sim/namegen/namePools.yaml', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>
-
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-const nameDisplayRaw = import.meta.glob('../../i18n/locales/en/names/*.yaml', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -103,27 +92,6 @@ function getNamePoolService(): NamePoolService {
   return _namePoolService
 }
 
-function getNameDisplayData(): NameDisplayData {
-  if (!_nameDisplayData) {
-    const data: NameDisplayData = {}
-    for (const [path, raw] of Object.entries(nameDisplayRaw)) {
-      const match = path.match(/\/names\/(\w+)\.yaml$/)
-      if (match && match[1]) {
-        const parsed: unknown = YAML.parse(raw)
-        if (parsed && typeof parsed === 'object') {
-          const result: Record<string, string> = {}
-          for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-            if (typeof v === 'string') result[k] = v
-          }
-          data[match[1]] = result
-        }
-      }
-    }
-    _nameDisplayData = data
-  }
-  return _nameDisplayData
-}
-
 export const useSimulationStore = create<SimStore>((set, get) => ({
   session: null,
   isRunning: false,
@@ -133,12 +101,10 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   nextZIndex: 1,
   watchlist: [],
   config: { ...defaultConfig },
-  pendingNotifications: [],
 
   generateNewWorld: (seed: string, preset?: WorldPresetName) => {
     const nps = getNamePoolService()
-    const ndd = getNameDisplayData()
-    const { world, rng } = generateWorld(seed, preset, nps, ndd)
+    const { world, rng } = generateWorld(seed, preset, nps)
     const session: SimulationSession = {
       initialSeed: seed,
       currentState: world,
@@ -152,8 +118,7 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
     const { session: currentSession } = get()
     if (!currentSession) return
     const nps = getNamePoolService()
-    const ndd = getNameDisplayData()
-    const { world, rng } = generateWorld(currentSession.initialSeed, undefined, nps, ndd)
+    const { world, rng } = generateWorld(currentSession.initialSeed, undefined, nps)
     const session: SimulationSession = {
       initialSeed: currentSession.initialSeed,
       currentState: world,
@@ -176,18 +141,11 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
     }
     const result = tick(input)
 
-    const newNotifications = result.events
-      .filter((e) => e.importance === 'critical')
-      .map((e) => ({ id: e.id, message: renderEventSummary(e), timestamp: Date.now() }))
-
     const allEvents = [...currentSession.eventHistory, ...result.events]
     const cappedEvents =
       allEvents.length > config.maxRawEvents
         ? allEvents.slice(allEvents.length - config.maxRawEvents)
         : allEvents
-
-    const combined = [...get().pendingNotifications, ...newNotifications]
-    const cappedNotifications = combined.length > 5 ? combined.slice(combined.length - 5) : combined
 
     set({
       session: {
@@ -196,7 +154,6 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
         rng: result.rng,
         eventHistory: cappedEvents,
       },
-      pendingNotifications: cappedNotifications,
     })
   },
 
@@ -305,12 +262,6 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   },
 
   setConfig: (partial) => set((state) => ({ config: { ...state.config, ...partial } })),
-
-  dismissNotification: (id) => {
-    set((state) => ({
-      pendingNotifications: state.pendingNotifications.filter((n) => n.id !== id),
-    }))
-  },
 }))
 
 // Initialize by generating a default world

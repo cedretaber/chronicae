@@ -69,19 +69,19 @@ function buildBaseState(currentYear = 1500): {
     currentWeekOfYear: 1,
     absoluteWeek: currentYear * 48,
   }
-  state = withProvince(state, provinceId, { name: 'Province0' })
+  state = withProvince(state, provinceId, { nameKey: 'Province0' })
   state = withHouse(state, houseId, {
-    name: 'House0',
+    nameKey: 'House0',
     memberIds: [leaderId],
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    name: 'Polity0',
+    nameKey: 'Polity0',
     ownerHouseId: houseId,
     capitalProvinceId: provinceId,
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
-  state = withPerson(state, leaderId, { name: 'Leader', houseId, wealth: 1000, alive: true })
+  state = withPerson(state, leaderId, { nameKey: 'Leader', houseId, wealth: 1000, alive: true })
 
   return { state, leaderId, provinceId, polityId, houseId }
 }
@@ -93,7 +93,6 @@ function addFaction(
 ): WorldState {
   const faction: Faction = {
     id: factionId,
-    name: 'Faction0',
     leaderPersonId,
     active: true,
     foundingWeek: state.currentYear * 48 + state.currentWeekOfYear - 1,
@@ -191,7 +190,7 @@ describe('runFactionDefectionSystem', () => {
     let s = addFaction(state, createFactionId(0), leaderId)
     // 別 member を追加 (Office なし、idle 長期) → defection は起きるが leader は無関係
     const memberId = createPersonId('pe', 1)
-    s = withPerson(s, memberId, { name: 'Member', houseId, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'Member', houseId, alive: true })
     s = addMembership(
       s,
       createFactionMembershipId(0),
@@ -216,7 +215,7 @@ describe('runFactionDefectionSystem', () => {
     const memberId = createPersonId('pe', 1)
     const { state, leaderId, houseId } = buildBaseState(1500)
     let s = state
-    s = withPerson(s, memberId, { name: 'Member', houseId, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'Member', houseId, alive: true })
     s = addFaction(s, createFactionId(0), leaderId)
     // joinedYear 1480 → idle 20 だが Office 持ちなので保護される
     s = addMembership(
@@ -246,7 +245,7 @@ describe('runFactionDefectionSystem', () => {
     const memberId = createPersonId('pe', 1)
     const { state, leaderId, houseId } = buildBaseState(1500)
     let s = state
-    s = withPerson(s, memberId, { name: 'Member', houseId, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'Member', houseId, alive: true })
     s = addFaction(s, createFactionId(0), leaderId)
     // joinedWeek 77740 → idle = (78000-77740)/52 = 5 years (< grace 8 years)
     s = addMembership(s, createFactionMembershipId(0), createFactionId(0), memberId, 77740)
@@ -268,7 +267,7 @@ describe('runFactionDefectionSystem', () => {
     let s = state
     // member の attitudes に leader への key を事前作成して penalty を確認できるようにする
     s = withPerson(s, memberId, {
-      name: 'Member',
+      nameKey: 'Member',
       houseId,
       alive: true,
       attitudes: { [`person:${leaderId}`]: { affection: 10, respect: 5 } },
@@ -308,7 +307,7 @@ describe('runFactionDefectionSystem', () => {
     const memberId = createPersonId('pe', 1)
     const { state, leaderId, houseId } = buildBaseState(1500)
     let s = state
-    s = withPerson(s, memberId, { name: 'Member', houseId, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'Member', houseId, alive: true })
     s = addFaction(s, createFactionId(0), leaderId)
     // idle = 9, grace 8 → prob = (9-8)*0.001 = 0.001 → ほぼ確実に roll >= prob
     s = addMembership(
@@ -334,7 +333,7 @@ describe('runFactionDefectionSystem', () => {
     const memberId = createPersonId('pe', 1)
     const { state, leaderId, houseId } = buildBaseState(1500)
     let s = state
-    s = withPerson(s, memberId, { name: 'Member', houseId, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'Member', houseId, alive: true })
     s = addFaction(s, createFactionId(0), leaderId)
     s = addMembership(s, createFactionMembershipId(0), createFactionId(0), memberId, 1470)
 

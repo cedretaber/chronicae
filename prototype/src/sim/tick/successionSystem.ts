@@ -83,8 +83,8 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
         importance: 'critical',
         messageKey: 'polity.leader_changed',
         messageParams: {
-          person: newRuler ? nameParam('person', newRuler.nameKey, newRuler.name) : 'Unknown',
-          polity: nameParam('polity', polity.nameKey, polity.name),
+          person: newRuler ? nameParam('person', newRuler.nameKey) : 'Unknown',
+          polity: nameParam('polity', polity.nameKey),
         },
         entityRefs: [
           entityRef('person', newRulerPersonId, 'ruler', newRuler?.nameKey),
@@ -138,8 +138,8 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
           importance: 'normal',
           messageKey: 'house.leader_changed',
           messageParams: {
-            person: nameParam('person', oldestMinor.nameKey, oldestMinor.name),
-            house: nameParam('house', house.nameKey, house.name),
+            person: nameParam('person', oldestMinor.nameKey),
+            house: nameParam('house', house.nameKey),
           },
           entityRefs: [
             entityRef('person', oldestMinor.id, 'leader', oldestMinor.nameKey),
@@ -183,8 +183,8 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
       importance: 'normal',
       messageKey: 'house.leader_changed',
       messageParams: {
-        person: nameParam('person', successor.person.nameKey, successor.person.name),
-        house: nameParam('house', house.nameKey, house.name),
+        person: nameParam('person', successor.person.nameKey),
+        house: nameParam('house', house.nameKey),
       },
       entityRefs: [
         entityRef('person', successor.person.id, 'leader', successor.person.nameKey),
@@ -219,7 +219,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
         importance: 'major',
         messageKey: 'succession.crisis',
         messageParams: {
-          house: nameParam('house', house.nameKey, house.name),
+          house: nameParam('house', house.nameKey),
         },
         entityRefs: [
           entityRef('person', successor.person.id, 'claimant', successor.person.nameKey),

@@ -84,8 +84,11 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
         importance: 'minor',
         messageKey: 'faction.member_abandoned',
         messageParams: {
-          person: nameParam('person', member.nameKey, member.name),
-          faction: faction.name,
+          person: nameParam('person', member.nameKey),
+          factionLeader: nameParam(
+            'person',
+            currentCtx.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown',
+          ),
         },
         entityRefs: [
           entityRef('person', membership.personId, 'defector', member.nameKey),

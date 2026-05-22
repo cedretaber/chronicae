@@ -37,36 +37,36 @@ function makeFixture(): {
 
   let state = makeEmptyV016State()
   state = withHouse(state, house1Id, {
-    name: 'Landed House',
+    nameKey: 'Landed House',
     active: true,
     memberIds: [landedPersonId],
     seatProvinceId: province1Id,
   })
   state = withHouse(state, landlessHouseId, {
-    name: 'Landless House',
+    nameKey: 'Landless House',
     active: true,
     memberIds: [landlessPersonId],
     seatProvinceId: createProvinceId('p', 2),
   })
   state = withPolity(state, polity1Id, {
-    name: 'Landed Polity',
+    nameKey: 'Landed Polity',
     ownerHouseId: house1Id,
     rank: 2,
     active: true,
     capitalProvinceId: province1Id,
   })
-  state = withProvince(state, province1Id, { name: 'Landed Province' })
+  state = withProvince(state, province1Id, { nameKey: 'Landed Province' })
   state = bindProvinceToHouseViaPolity(state, province1Id, polity1Id, house1Id)
   state = withPerson(state, anonPersonId, {
-    name: 'Unaffiliated Person',
+    nameKey: 'Unaffiliated Person',
     houseId: ANONYMOUS_HOUSE_ID,
   })
   state = withPerson(state, landedPersonId, {
-    name: 'Landed Person',
+    nameKey: 'Landed Person',
     houseId: house1Id,
   })
   state = withPerson(state, landlessPersonId, {
-    name: 'Landless Person',
+    nameKey: 'Landless Person',
     houseId: landlessHouseId,
   })
   return {
@@ -106,7 +106,7 @@ describe('isUnaffiliatedPerson', () => {
     const { state } = makeFixture()
     const placeholderId = createPersonId('pe', 99)
     const updatedState = withPerson(state, placeholderId, {
-      name: 'Placeholder',
+      nameKey: 'Placeholder',
       houseId: ANONYMOUS_HOUSE_ID,
       kind: 'placeholder',
     })
@@ -181,7 +181,7 @@ describe('getUnaffiliatedPersons', () => {
     const { state } = makeFixture()
     const placeholderId = createPersonId('pe', 99)
     const updatedState = withPerson(state, placeholderId, {
-      name: 'Placeholder',
+      nameKey: 'Placeholder',
       houseId: ANONYMOUS_HOUSE_ID,
       kind: 'placeholder',
     })

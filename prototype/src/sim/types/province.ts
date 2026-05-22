@@ -3,8 +3,7 @@ import type { ProvinceId, PopGroupId, StateRegionId, HoldingId } from './ids'
 export type Province = {
   id: ProvinceId
   stateId: StateRegionId
-  name: string
-  nameKey?: string
+  nameKey: string
   x: number
   y: number
   neighbors: ProvinceId[]

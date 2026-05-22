@@ -37,17 +37,17 @@ function makeFixture(): {
   const province2Id = createProvinceId('pr', 1)
 
   let state = makeEmptyV016State()
-  state = withProvince(state, province1Id, { name: 'Province 1' })
-  state = withProvince(state, province2Id, { name: 'Province 2' })
+  state = withProvince(state, province1Id, { nameKey: 'Province 1' })
+  state = withProvince(state, province2Id, { nameKey: 'Province 2' })
   state = withHouse(state, houseId, {
-    name: 'H0',
+    nameKey: 'H0',
     memberIds: [headId],
     legacyPrestige: 50,
     wealth: 100,
     seatProvinceId: province1Id,
   })
   state = withPolity(state, polityId, {
-    name: 'C0',
+    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
@@ -57,7 +57,7 @@ function makeFixture(): {
   state = bindProvinceToHouseViaPolity(state, province1Id, polityId, houseId)
   state = bindProvinceToHouseViaPolity(state, province2Id, polityId, houseId)
   state = withPerson(state, headId, {
-    name: 'Person-' + headId,
+    nameKey: 'Person-' + headId,
     houseId,
     birthStatus: 'unknown',
     traits: { ambition: 0.8, caution: 0.2 },

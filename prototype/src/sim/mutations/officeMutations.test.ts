@@ -24,7 +24,7 @@ function makeOfficeState(): {
 
   const anon = {
     id: ANONYMOUS_HOUSE_ID,
-    name: 'Anonymous',
+    nameKey: 'Anonymous',
     active: true,
     kind: 'system' as const,
     memberIds: [],
@@ -44,7 +44,7 @@ function makeOfficeState(): {
     polities: {
       [polityId]: {
         id: polityId,
-        name: 'C',
+        nameKey: 'C',
         rank: 2,
         treasury: 0,
         adminPower: 0,
@@ -58,7 +58,7 @@ function makeOfficeState(): {
       [ANONYMOUS_HOUSE_ID]: anon,
       [houseId]: {
         id: houseId,
-        name: 'H',
+        nameKey: 'H',
         active: true,
         memberIds: [],
         deceasedMemberIds: [],
@@ -71,7 +71,7 @@ function makeOfficeState(): {
     persons: {
       [holderId]: {
         id: holderId,
-        name: 'Holder',
+        nameKey: 'Holder',
         sex: 'male',
         age: 30,
         alive: true,

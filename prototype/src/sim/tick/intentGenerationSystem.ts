@@ -71,9 +71,9 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const sellerPolityId = c.sellerPolityId
       const buyerPolityId = c.buyerPolityId
       const provinceId = c.provinceId
-      const sellerName = currentCtx.state.polities[sellerPolityId]?.name ?? sellerPolityId
-      const buyerName = currentCtx.state.polities[buyerPolityId]?.name ?? buyerPolityId
-      const provinceName = currentCtx.state.provinces[provinceId]?.name ?? provinceId
+      const sellerName = currentCtx.state.polities[sellerPolityId]?.nameKey ?? sellerPolityId
+      const buyerName = currentCtx.state.polities[buyerPolityId]?.nameKey ?? buyerPolityId
+      const provinceName = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
       const { event, ctx: ctxEv } = createSimEvent(currentCtx, {
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
@@ -141,9 +141,9 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const acquirerPolityId = c.acquirerPolityId
       const targetPolityId = c.targetPolityId
       const provinceId = c.provinceId
-      const acquirerName = currentCtx.state.polities[acquirerPolityId]?.name ?? acquirerPolityId
-      const targetName = currentCtx.state.polities[targetPolityId]?.name ?? targetPolityId
-      const provinceName = currentCtx.state.provinces[provinceId]?.name ?? provinceId
+      const acquirerName = currentCtx.state.polities[acquirerPolityId]?.nameKey ?? acquirerPolityId
+      const targetName = currentCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId
+      const provinceName = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
       const { event, ctx: ctxEv } = createSimEvent(currentCtx, {
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
@@ -206,9 +206,10 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const initiatorPolityId = c.initiatorPolityId
       const targetPolityId = c.targetPolityId
       const provinceId = c.provinceId
-      const initiatorName = currentCtx.state.polities[initiatorPolityId]?.name ?? initiatorPolityId
-      const targetName = currentCtx.state.polities[targetPolityId]?.name ?? targetPolityId
-      const provinceName = currentCtx.state.provinces[provinceId]?.name ?? provinceId
+      const initiatorName =
+        currentCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
+      const targetName = currentCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId
+      const provinceName = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
       const { event, ctx: ctxEv } = createSimEvent(currentCtx, {
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
@@ -271,9 +272,10 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const initiatorPolityId = c.initiatorPolityId
       const targetPolityId = c.targetPolityId
       const provinceId = c.provinceId
-      const initiatorName = currentCtx.state.polities[initiatorPolityId]?.name ?? initiatorPolityId
-      const targetName = currentCtx.state.polities[targetPolityId]?.name ?? targetPolityId
-      const provinceName = currentCtx.state.provinces[provinceId]?.name ?? provinceId
+      const initiatorName =
+        currentCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
+      const targetName = currentCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId
+      const provinceName = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
       const { event, ctx: ctxEv } = createSimEvent(currentCtx, {
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',

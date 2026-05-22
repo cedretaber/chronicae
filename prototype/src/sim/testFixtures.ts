@@ -47,7 +47,7 @@ export function makeEmptyV016State(): WorldState {
   // worldgen と整合 (PLACEHOLDER_PERSON_ID は AnonymousHouse.memberIds に常駐)。
   const placeholderSingleton: Person = {
     id: PLACEHOLDER_PERSON_ID,
-    name: 'Anonymous',
+    nameKey: 'anonymous',
     sex: 'male',
     age: 30,
     alive: true,
@@ -80,7 +80,7 @@ export function makeEmptyV016State(): WorldState {
   }
   const anon: House = {
     id: ANONYMOUS_HOUSE_ID,
-    name: 'Anonymous',
+    nameKey: 'anonymous',
     active: true,
     kind: 'system',
     memberIds: [PLACEHOLDER_PERSON_ID],
@@ -99,7 +99,7 @@ export function makeEmptyV016State(): WorldState {
     states: {
       ['sr-0' as StateRegionId]: {
         id: 'sr-0' as StateRegionId,
-        name: 'Default Region',
+        nameKey: 'default_region',
         provinceIds: [],
         centerX: 0,
         centerY: 0,
@@ -148,7 +148,6 @@ export function withProvince(
     id: holdingId,
     provinceId: id,
     kind: 'manor',
-    name: (anyOverrides.name as string) ?? 'P',
     development: (anyOverrides.development as number) ?? 1,
     polityControl: (anyOverrides.polityControl as number) ?? 100,
     landQuality: (anyOverrides.habitability as number) ?? 50,
@@ -164,7 +163,7 @@ export function withProvince(
   const province: Province = {
     id,
     stateId: stateRegionId,
-    name: 'P',
+    nameKey: 'p',
     x: 0,
     y: 0,
     neighbors: autoNeighbors,
@@ -206,7 +205,6 @@ export function withHolding(
     id: holdingId,
     provinceId,
     kind: 'manor',
-    name: 'H',
     development: 1,
     polityControl: 100,
     landQuality: 50,
@@ -233,7 +231,7 @@ export function withPolity(
 ): WorldState {
   const polity: Polity = {
     id,
-    name: 'C',
+    nameKey: 'c',
     rank: 2,
     treasury: 0,
     adminPower: 0,
@@ -264,7 +262,7 @@ export function withHouse(
 ): WorldState {
   const house: House = {
     id,
-    name: 'H',
+    nameKey: 'h',
     active: true,
     memberIds: [],
     deceasedMemberIds: [],
@@ -284,7 +282,7 @@ export function withPerson(
 ): WorldState {
   const person: Person = {
     id,
-    name: 'P',
+    nameKey: 'p',
     sex: 'male',
     age: 30,
     alive: true,

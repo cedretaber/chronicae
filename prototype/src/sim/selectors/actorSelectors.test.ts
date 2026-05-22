@@ -24,14 +24,14 @@ describe('actorSelectors', () => {
     it('returns polity name for polity actor', () => {
       let s = makeEmptyV016State()
       s = withProvince(s, 'pr-0' as ProvinceId)
-      s = withPolity(s, 'c-1' as PolityId, { name: 'Aquilonia' })
+      s = withPolity(s, 'c-1' as PolityId, { nameKey: 'Aquilonia' })
       expect(getActorName(s, polityActor('c-1' as PolityId))).toBe('Aquilonia')
     })
 
     it('returns house name for house actor', () => {
       let s = makeEmptyV016State()
       s = withProvince(s, 'pr-0' as ProvinceId)
-      s = withHouse(s, 'h-1' as HouseId, { name: 'House Stark' })
+      s = withHouse(s, 'h-1' as HouseId, { nameKey: 'House Stark' })
       expect(getActorName(s, houseActor('h-1' as HouseId))).toBe('House Stark')
     })
 

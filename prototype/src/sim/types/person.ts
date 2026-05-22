@@ -33,8 +33,7 @@ export type AbilityKey = keyof AbilityScores
 
 export type Person = {
   id: PersonId
-  name: string
-  nameKey?: string
+  nameKey: string
   sex: Sex
   age: number
   alive: boolean

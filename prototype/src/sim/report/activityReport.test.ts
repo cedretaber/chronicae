@@ -66,27 +66,29 @@ describe('buildActivityReport', () => {
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1100, currentWeekOfYear: 12, absoluteWeek: 57211 }
     state = withProvince(state, provinceId)
-    state = withHouse(state, ownerHouseId, { name: 'OwnerHouse', memberIds: [rulerId, adminPid] })
+    state = withHouse(state, ownerHouseId, {
+      nameKey: 'OwnerHouse',
+      memberIds: [rulerId, adminPid],
+    })
     state = withHouse(state, outsiderHouseId, {
-      name: 'OutsiderHouse',
+      nameKey: 'OutsiderHouse',
       memberIds: [factionLeaderId, factionMemberId],
     })
     state = withPolity(state, polityId, {
-      name: 'TestPolity',
+      nameKey: 'TestPolity',
       ownerHouseId,
       capitalProvinceId: provinceId,
     })
     state = bindProvinceToHouseViaPolity(state, provinceId, polityId, ownerHouseId)
-    state = withPerson(state, rulerId, { name: 'Ruler', houseId: ownerHouseId })
-    state = withPerson(state, adminPid, { name: 'Admin', houseId: ownerHouseId })
-    state = withPerson(state, factionLeaderId, { name: 'FLeader', houseId: outsiderHouseId })
-    state = withPerson(state, factionMemberId, { name: 'FMember', houseId: outsiderHouseId })
+    state = withPerson(state, rulerId, { nameKey: 'Ruler', houseId: ownerHouseId })
+    state = withPerson(state, adminPid, { nameKey: 'Admin', houseId: ownerHouseId })
+    state = withPerson(state, factionLeaderId, { nameKey: 'FLeader', houseId: outsiderHouseId })
+    state = withPerson(state, factionMemberId, { nameKey: 'FMember', houseId: outsiderHouseId })
 
     // Faction + memberships
     const factionId = 'f-0' as FactionId
     const faction: Faction = {
       id: factionId,
-      name: 'TestFaction',
       leaderPersonId: factionLeaderId,
       active: true,
       foundingWeek: 54600,

@@ -25,7 +25,7 @@ function EventLinks({ event }: { event: SimEvent }) {
       items.push({
         id: polity.id,
         type: 'polity',
-        name: resolveName('polity', polity.nameKey, polity.name),
+        name: resolveName('polity', polity.nameKey, polity.nameKey),
       })
   }
   const houseId = getFirstEntityId(event, 'house')
@@ -35,7 +35,7 @@ function EventLinks({ event }: { event: SimEvent }) {
       items.push({
         id: house.id,
         type: 'house',
-        name: resolveName('house', house.nameKey, house.name),
+        name: resolveName('house', house.nameKey, house.nameKey),
       })
   }
   const actorId = getFirstEntityId(event, 'person')
@@ -45,7 +45,7 @@ function EventLinks({ event }: { event: SimEvent }) {
       items.push({
         id: person.id,
         type: 'person',
-        name: resolveName('person', person.nameKey, person.name),
+        name: resolveName('person', person.nameKey, person.nameKey),
       })
   }
 

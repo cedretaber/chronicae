@@ -20,7 +20,7 @@ function makeProvinceState(development: number): WorldState {
       [provinceId]: {
         id: provinceId,
         stateId: 'sr-0' as import('../types/ids').StateRegionId,
-        name: 'P0',
+        nameKey: 'P0',
         x: 0,
         y: 0,
         neighbors: [],
@@ -34,7 +34,6 @@ function makeProvinceState(development: number): WorldState {
         id: holdingId,
         provinceId,
         kind: 'manor' as const,
-        name: 'P0',
         development,
         polityControl: 100,
         landQuality: 50,
@@ -45,7 +44,7 @@ function makeProvinceState(development: number): WorldState {
     polities: {
       [polityId]: {
         id: polityId,
-        name: 'C0',
+        nameKey: 'C0',
         rank: 2,
         ownerHouseId: houseId,
         treasury: 100,
@@ -58,7 +57,7 @@ function makeProvinceState(development: number): WorldState {
     houses: {
       [houseId]: {
         id: houseId,
-        name: 'H0',
+        nameKey: 'H0',
         active: true,
         memberIds: [],
         deceasedMemberIds: [],

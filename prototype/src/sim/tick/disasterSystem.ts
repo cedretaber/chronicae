@@ -44,7 +44,7 @@ function applyFamine(ctx: TickContext, provinceId: ProvinceId): TickContext {
     importance: 'major',
     messageKey: 'disaster.famine',
     messageParams: {
-      province: nameParam('province', province.nameKey, province.name),
+      province: nameParam('province', province.nameKey),
     },
     entityRefs: [entityRef('province', provinceId, 'province', province.nameKey)],
   })
@@ -76,7 +76,7 @@ function applyPlague(ctx: TickContext, provinceId: ProvinceId): TickContext {
     importance: 'major',
     messageKey: 'disaster.plague',
     messageParams: {
-      province: nameParam('province', province.nameKey, province.name),
+      province: nameParam('province', province.nameKey),
     },
     entityRefs: [entityRef('province', provinceId, 'province', province.nameKey)],
   })
@@ -126,7 +126,7 @@ function applyBountifulHarvest(ctx: TickContext, provinceId: ProvinceId): TickCo
     importance: 'normal',
     messageKey: 'disaster.bountiful_harvest',
     messageParams: {
-      province: nameParam('province', province.nameKey, province.name),
+      province: nameParam('province', province.nameKey),
     },
     entityRefs: [entityRef('province', provinceId, 'province', province.nameKey)],
   })

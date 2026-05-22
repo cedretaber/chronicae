@@ -54,19 +54,19 @@ function buildBaseState(): {
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-  state = withProvince(state, provinceId, { name: 'Province0' })
+  state = withProvince(state, provinceId, { nameKey: 'Province0' })
   state = withHouse(state, houseId, {
-    name: 'House0',
+    nameKey: 'House0',
     memberIds: [leaderId],
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    name: 'Polity0',
+    nameKey: 'Polity0',
     ownerHouseId: houseId,
     capitalProvinceId: provinceId,
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
-  state = withPerson(state, leaderId, { name: 'Leader', houseId, wealth: 1000, alive: true })
+  state = withPerson(state, leaderId, { nameKey: 'Leader', houseId, wealth: 1000, alive: true })
 
   return { state, leaderId, provinceId, polityId, houseId }
 }
@@ -78,7 +78,6 @@ function addFaction(
 ): { state: WorldState; faction: Faction } {
   const faction: Faction = {
     id: factionId,
-    name: 'Faction0',
     leaderPersonId,
     active: true,
     foundingWeek: 69312,
@@ -134,7 +133,7 @@ describe('runFactionRecruitmentSystem', () => {
     const candidateId = createPersonId('pe', 1)
     let s = state
     s = withPerson(s, candidateId, {
-      name: 'Candidate',
+      nameKey: 'Candidate',
       houseId: 'h-anon' as import('../types/ids').HouseId,
       wealth: 50,
       alive: true,
@@ -179,7 +178,7 @@ describe('runFactionRecruitmentSystem', () => {
     const candidateId = createPersonId('pe', 1)
     let s = state
     s = withPerson(s, candidateId, {
-      name: 'Candidate',
+      nameKey: 'Candidate',
       houseId: 'h-anon' as import('../types/ids').HouseId,
       wealth: 50,
       alive: true,
@@ -214,7 +213,7 @@ describe('runFactionRecruitmentSystem', () => {
     const candidateId = createPersonId('pe', 1)
     let s = state
     s = withPerson(s, candidateId, {
-      name: 'Candidate',
+      nameKey: 'Candidate',
       houseId: 'h-anon' as import('../types/ids').HouseId,
       wealth: 50,
       alive: true,
@@ -228,7 +227,6 @@ describe('runFactionRecruitmentSystem', () => {
     const otherFactionId = createFactionId(1)
     const otherFaction: Faction = {
       id: otherFactionId,
-      name: 'OtherFaction',
       leaderPersonId: candidateId,
       active: true,
       foundingWeek: 69312,
@@ -270,7 +268,7 @@ describe('runFactionRecruitmentSystem', () => {
     const candidateId = createPersonId('pe', 1)
     let s = state
     s = withPerson(s, candidateId, {
-      name: 'Candidate',
+      nameKey: 'Candidate',
       houseId: 'h-anon' as import('../types/ids').HouseId,
       wealth: 50,
       alive: true,

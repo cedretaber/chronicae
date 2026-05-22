@@ -3,37 +3,8 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { RngState } from '../rng/rng'
 import type { ProvinceId, HouseId, PersonId, PolityId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
+import type { NamePoolService } from '../namegen/namePoolTypes'
 import { pickUniqueName, polityNamePool, polityName } from '../worldgen/nameGenerators'
-
-const ROMAN_NUMERALS = ['II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI']
-
-function ensureUniqueName(
-  baseName: string,
-  usedNames: Set<string>,
-  rng: RngState,
-): { name: string; rng: RngState } {
-  if (!usedNames.has(baseName)) {
-    return { name: baseName, rng }
-  }
-  for (let i = 0; i < ROMAN_NUMERALS.length; i++) {
-    const candidate = `${baseName} ${ROMAN_NUMERALS[i]}`
-    if (!usedNames.has(candidate)) {
-      return { name: candidate, rng }
-    }
-  }
-  // Fallback to worldgen pool after 10 attempts
-  const pool = polityNamePool()
-  const fallbackIndex = Math.floor(Math.random() * pool.length)
-  return pickUniqueName(pool, usedNames, polityName, fallbackIndex, rng)
-}
-
-function buildUsedNames(state: WorldState): Set<string> {
-  return new Set(
-    Object.values(state.polities)
-      .filter((c): c is NonNullable<typeof c> => c !== undefined)
-      .map((c) => c.name),
-  )
-}
 
 export type PolityNameOrigin =
   | 'worldgen'
@@ -53,54 +24,50 @@ export type PolityNameContext = {
   rebelClass?: PopClass
 }
 
-export function generatePolityName(
+function buildUsedNameKeys(state: WorldState): Set<string> {
+  return new Set(
+    Object.values(state.polities)
+      .filter((c): c is NonNullable<typeof c> => c !== undefined)
+      .map((c) => c.nameKey),
+  )
+}
+
+export function generatePolityNameKey(
   state: WorldState,
   _config: SimulationConfig,
   rng: RngState,
-  context: PolityNameContext,
-): { name: string; rng: RngState } {
-  switch (context.origin) {
-    case 'worldgen': {
-      const usedNames = new Set(
-        Object.values(state.polities)
-          .filter((c): c is NonNullable<typeof c> => c !== undefined)
-          .map((c) => c.name),
-      )
-      const { name, rng: nextRng } = pickUniqueName(
-        polityNamePool(),
-        usedNames,
-        polityName,
-        Object.keys(state.polities).length,
-        rng,
-      )
-      return { name, rng: nextRng }
-    }
+  _context: PolityNameContext,
+  namePoolService?: NamePoolService,
+): { nameKey: string; rng: RngState } {
+  const usedKeys = buildUsedNameKeys(state)
 
-    case 'house_independence':
-    case 'rebellion_independence': {
-      const usedNames = buildUsedNames(state)
-      const house = context.rulingHouseId ? state.houses[context.rulingHouseId] : undefined
-      const baseName = house ? `${house.name}領` : 'Unknown Kingdom'
-      return ensureUniqueName(baseName, usedNames, rng)
-    }
-
-    case 'province_revolt_independence': {
-      const usedNames = buildUsedNames(state)
-      const capital = context.capitalProvinceId
-        ? state.provinces[context.capitalProvinceId]
-        : undefined
-      const baseName = capital ? `${capital.name}領` : 'Unknown Realm'
-      return ensureUniqueName(baseName, usedNames, rng)
-    }
-
-    default: {
-      const usedNames = buildUsedNames(state)
-      const capital = context.capitalProvinceId
-        ? state.provinces[context.capitalProvinceId]
-        : undefined
-      const house = context.rulingHouseId ? state.houses[context.rulingHouseId] : undefined
-      const name = capital?.name ?? house?.name ?? 'Unknown'
-      return ensureUniqueName(name, usedNames, rng)
-    }
+  if (namePoolService) {
+    const { value: key, rng: nextRng } = namePoolService.pickUniqueNameKey(
+      rng,
+      usedKeys,
+      {
+        nameCultureId: 'western',
+        category: 'polity',
+        path: ['default'],
+      },
+      'polity',
+      Object.keys(state.polities).length,
+    )
+    return { nameKey: key, rng: nextRng }
   }
+
+  // Fallback without namePoolService: use legacy pool
+  const pool = polityNamePool()
+  const available = pool.filter((n) => !usedKeys.has(n))
+  if (available.length > 0) {
+    const { name, rng: nextRng } = pickUniqueName(
+      pool,
+      usedKeys,
+      polityName,
+      Object.keys(state.polities).length,
+      rng,
+    )
+    return { nameKey: name, rng: nextRng }
+  }
+  return { nameKey: polityName(Object.keys(state.polities).length), rng }
 }

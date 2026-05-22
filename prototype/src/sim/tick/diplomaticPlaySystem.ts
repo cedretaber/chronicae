@@ -8,7 +8,7 @@ import type {
   TerminalDiplomaticPlayStatus,
 } from '../types/diplomaticPlay'
 import type { EventEntityRef, EventMessageParams } from '../types/event'
-import { entityRef } from '../types/event'
+import { entityRef, nameParam } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { adjustProvincePopUnrestByClass, adjustProvincePopUnrest } from '../mutations/popMutations'
@@ -122,27 +122,28 @@ function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): Tick
     return applyRevoltSettlement(nextCtx, play, demand, rebelPolityId, targetPolityId)
   }
   if (nextTension >= config.diplomaticPlayEscalationThreshold) {
-    const provinceName = nextCtx.state.provinces[provinceId]?.name
+    const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+    const provinceParam = nameParam('province', provinceNameKey)
     return markPlayEscalated(nextCtx, play.id, {
       polityIds: [rebelPolityId, targetPolityId],
       provinceIds: [provinceId],
       holdingIds: [],
-      summary: `Revolt in ${provinceName ?? provinceId} has escalated to open conflict.`,
+      summary: `Revolt in ${provinceNameKey} has escalated to open conflict.`,
       messageKey: 'diplomatic_play.escalated_revolt',
-      messageParams: { province: provinceName ?? provinceId },
+      messageParams: { province: provinceParam },
       eventEntityRefs: [
-        entityRef('province', provinceId, 'province', provinceName),
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
         entityRef(
           'polity',
           rebelPolityId,
           'rebel_polity',
-          nextCtx.state.polities[rebelPolityId]?.name,
+          nextCtx.state.polities[rebelPolityId]?.nameKey,
         ),
         entityRef(
           'polity',
           targetPolityId,
           'target_polity',
-          nextCtx.state.polities[targetPolityId]?.name,
+          nextCtx.state.polities[targetPolityId]?.nameKey,
         ),
       ],
     })
@@ -153,51 +154,60 @@ function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): Tick
       return applyRevoltSettlement(nextCtx, play, demand, rebelPolityId, targetPolityId)
     }
     if (nextTension > nextProgress) {
-      const provinceName = nextCtx.state.provinces[provinceId]?.name
+      const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+      const provinceParam = nameParam('province', provinceNameKey)
       return markPlayEscalated(nextCtx, play.id, {
         polityIds: [rebelPolityId, targetPolityId],
         provinceIds: [provinceId],
         holdingIds: [],
-        summary: `Deadlocked revolt in ${provinceName ?? provinceId} erupts at deadline.`,
+        summary: `Deadlocked revolt in ${provinceNameKey} erupts at deadline.`,
         messageKey: 'diplomatic_play.escalated_revolt',
-        messageParams: { province: provinceName ?? provinceId },
+        messageParams: { province: provinceParam },
         eventEntityRefs: [
-          entityRef('province', provinceId, 'province', provinceName),
+          entityRef(
+            'province',
+            provinceId,
+            'province',
+            nextCtx.state.provinces[provinceId]?.nameKey,
+          ),
           entityRef(
             'polity',
             rebelPolityId,
             'rebel_polity',
-            nextCtx.state.polities[rebelPolityId]?.name,
+            nextCtx.state.polities[rebelPolityId]?.nameKey,
           ),
           entityRef(
             'polity',
             targetPolityId,
             'target_polity',
-            nextCtx.state.polities[targetPolityId]?.name,
+            nextCtx.state.polities[targetPolityId]?.nameKey,
           ),
         ],
       })
     }
     nextCtx = setPlayStatus(nextCtx, play.id, 'failed')
-    const provinceName = nextCtx.state.provinces[provinceId]?.name
+    const provinceName = nameParam(
+      'province',
+      nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+    )
     const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
       type: 'DIPLOMATIC_PLAY_FAILED',
       importance: 'normal',
       messageKey: 'diplomatic_play.failed_revolt',
-      messageParams: { province: provinceName ?? provinceId },
+      messageParams: { province: provinceName },
       entityRefs: [
-        entityRef('province', provinceId, 'province', provinceName),
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
         entityRef(
           'polity',
           rebelPolityId,
           'rebel_polity',
-          nextCtx.state.polities[rebelPolityId]?.name,
+          nextCtx.state.polities[rebelPolityId]?.nameKey,
         ),
         entityRef(
           'polity',
           targetPolityId,
           'target_polity',
-          nextCtx.state.polities[targetPolityId]?.name,
+          nextCtx.state.polities[targetPolityId]?.nameKey,
         ),
       ],
     })
@@ -292,25 +302,33 @@ function applyRevoltSettlement(
   nextCtx = { ...nextCtx, state }
   nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
 
-  const provinceName = nextCtx.state.provinces[demand.provinceId]?.name ?? demand.provinceId
+  const provinceName = nameParam(
+    'province',
+    nextCtx.state.provinces[demand.provinceId]?.nameKey ?? demand.provinceId,
+  )
   const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
     type: 'DIPLOMATIC_PLAY_SETTLED',
     importance: 'major',
     messageKey: 'diplomatic_play.settled_revolt',
     messageParams: { province: provinceName },
     entityRefs: [
-      entityRef('province', demand.provinceId, 'province', provinceName),
+      entityRef(
+        'province',
+        demand.provinceId,
+        'province',
+        nextCtx.state.provinces[demand.provinceId]?.nameKey,
+      ),
       entityRef(
         'polity',
         rebelPolityId,
         'rebel_polity',
-        nextCtx.state.polities[rebelPolityId]?.name,
+        nextCtx.state.polities[rebelPolityId]?.nameKey,
       ),
       entityRef(
         'polity',
         targetPolityId,
         'target_polity',
-        nextCtx.state.polities[targetPolityId]?.name,
+        nextCtx.state.polities[targetPolityId]?.nameKey,
       ),
     ],
   })
@@ -412,24 +430,25 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
     )
   }
   if (nextTension >= config.diplomaticPlayEscalationThreshold) {
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.name
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.name
-    const provinceName = nextCtx.state.provinces[provinceId]?.name
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+    const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+    const provinceParam = nameParam('province', provinceNameKey)
     return markPlayEscalated(nextCtx, play.id, {
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
       holdingIds: [holdingId],
-      summary: `${initiatorName ?? initiatorPolityId} mobilises against ${defenderName ?? defenderPolityId} over ${provinceName ?? provinceId}.`,
+      summary: `${initiatorName ?? initiatorPolityId} mobilises against ${defenderName ?? defenderPolityId} over ${provinceNameKey}.`,
       messageKey: 'diplomatic_play.escalated_claim',
       messageParams: {
         initiator: initiatorName ?? initiatorPolityId,
-        province: provinceName ?? provinceId,
+        province: provinceParam,
       },
       eventEntityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
         entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', provinceName),
-        entityRef('holding', holdingId, 'holding', nextCtx.state.holdings[holdingId]?.name),
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+        entityRef('holding', holdingId, 'holding'),
       ],
     })
   }
@@ -445,37 +464,46 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
       )
     }
     if (nextTension > nextProgress) {
-      const initiatorName = nextCtx.state.polities[initiatorPolityId]?.name
-      const defenderName = nextCtx.state.polities[defenderPolityId]?.name
-      const provinceName = nextCtx.state.provinces[provinceId]?.name
+      const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
+      const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+      const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+      const provinceParam = nameParam('province', provinceNameKey)
       return markPlayEscalated(nextCtx, play.id, {
         polityIds: [initiatorPolityId, defenderPolityId],
         provinceIds: [provinceId],
         holdingIds: [holdingId],
-        summary: `Deadlocked claim erupts: ${initiatorName ?? initiatorPolityId} attacks for ${provinceName ?? provinceId}.`,
+        summary: `Deadlocked claim erupts: ${initiatorName ?? initiatorPolityId} attacks for ${provinceNameKey}.`,
         messageKey: 'diplomatic_play.escalated_claim',
         messageParams: {
           initiator: initiatorName ?? initiatorPolityId,
-          province: provinceName ?? provinceId,
+          province: provinceParam,
         },
         eventEntityRefs: [
           entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
           entityRef('polity', defenderPolityId, 'defender', defenderName),
-          entityRef('province', provinceId, 'province', provinceName),
-          entityRef('holding', holdingId, 'holding', nextCtx.state.holdings[holdingId]?.name),
+          entityRef(
+            'province',
+            provinceId,
+            'province',
+            nextCtx.state.provinces[provinceId]?.nameKey,
+          ),
+          entityRef('holding', holdingId, 'holding'),
         ],
       })
     }
     nextCtx = setPlayStatus(nextCtx, play.id, 'failed')
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.name
-    const provinceName = nextCtx.state.provinces[provinceId]?.name
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
+    const provinceName = nameParam(
+      'province',
+      nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+    )
     const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
       type: 'DIPLOMATIC_PLAY_FAILED',
       importance: 'normal',
       messageKey: 'diplomatic_play.failed_claim',
       messageParams: {
         initiator: initiatorName ?? initiatorPolityId,
-        province: provinceName ?? provinceId,
+        province: provinceName,
       },
       entityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
@@ -483,9 +511,9 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
           'polity',
           defenderPolityId,
           'defender',
-          nextCtx.state.polities[defenderPolityId]?.name,
+          nextCtx.state.polities[defenderPolityId]?.nameKey,
         ),
-        entityRef('province', provinceId, 'province', provinceName),
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
       ],
     })
     return { ...ctxEv, events: [...ctxEv.events, event] }
@@ -589,24 +617,25 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
     return applyContractTaxRevisionSettlement(nextCtx, play, demand, holdingId)
   }
   if (tension >= config.diplomaticPlayEscalationThreshold) {
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.name
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.name
-    const provinceName = nextCtx.state.provinces[provinceId]?.name
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+    const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+    const provinceParam = nameParam('province', provinceNameKey)
     return markPlayEscalated(nextCtx, play.id, {
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
       holdingIds: [holdingId],
-      summary: `${initiatorName ?? initiatorPolityId} demands tax changes from ${defenderName ?? defenderPolityId} over ${provinceName ?? provinceId}.`,
+      summary: `${initiatorName ?? initiatorPolityId} demands tax changes from ${defenderName ?? defenderPolityId} over ${provinceNameKey}.`,
       messageKey: 'diplomatic_play.escalated_claim',
       messageParams: {
         initiator: initiatorName ?? initiatorPolityId,
-        province: provinceName ?? provinceId,
+        province: provinceParam,
       },
       eventEntityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
         entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', provinceName),
-        entityRef('holding', holdingId, 'holding', nextCtx.state.holdings[holdingId]?.name),
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+        entityRef('holding', holdingId, 'holding'),
       ],
     })
   }
@@ -614,30 +643,31 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
     if (progress > tension) {
       return applyContractTaxRevisionSettlement(nextCtx, play, demand, holdingId)
     }
-    const provinceName = nextCtx.state.provinces[provinceId]?.name
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.name ?? initiatorPolityId
+    const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+    const provinceParam = nameParam('province', provinceNameKey)
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
     return markPlayEscalated(nextCtx, play.id, {
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
       holdingIds: [holdingId],
-      summary: `Tax revision dispute over ${provinceName ?? provinceId} escalates to conflict.`,
+      summary: `Tax revision dispute over ${provinceNameKey} escalates to conflict.`,
       messageKey: 'diplomatic_play.escalated_claim',
-      messageParams: { initiator: initiatorName, province: provinceName ?? provinceId },
+      messageParams: { initiator: initiatorName, province: provinceParam },
       eventEntityRefs: [
         entityRef(
           'polity',
           initiatorPolityId,
           'initiator',
-          nextCtx.state.polities[initiatorPolityId]?.name,
+          nextCtx.state.polities[initiatorPolityId]?.nameKey,
         ),
         entityRef(
           'polity',
           defenderPolityId,
           'defender',
-          nextCtx.state.polities[defenderPolityId]?.name,
+          nextCtx.state.polities[defenderPolityId]?.nameKey,
         ),
-        entityRef('province', provinceId, 'province', provinceName),
-        entityRef('holding', holdingId, 'holding', nextCtx.state.holdings[holdingId]?.name),
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+        entityRef('holding', holdingId, 'holding'),
       ],
     })
   }
@@ -670,9 +700,12 @@ function applyContractTaxRevisionSettlement(
     nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
 
     // Emit CONTRACT_TAX_REVISED
-    const provinceName = nextCtx.state.provinces[provinceId]?.name ?? provinceId
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.name ?? initiatorPolityId
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId
+    const provinceName = nameParam(
+      'province',
+      nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+    )
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
     const { event: taxEvent, ctx: ctxEvTax } = createSimEvent(nextCtx, {
       type: 'CONTRACT_TAX_REVISED',
       importance: 'major',
@@ -686,7 +719,7 @@ function applyContractTaxRevisionSettlement(
       entityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
         entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', provinceName),
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
       ],
     })
     nextCtx = { ...ctxEvTax, events: [...ctxEvTax.events, taxEvent] }
@@ -717,9 +750,12 @@ function applyContractTaxRevisionSettlement(
     nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
 
     // Emit CONTRACT_ELIMINATED
-    const provinceName = nextCtx.state.provinces[provinceId]?.name ?? provinceId
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.name ?? initiatorPolityId
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId
+    const provinceName = nameParam(
+      'province',
+      nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+    )
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
     const { event: elimEvent, ctx: ctxEvElim } = createSimEvent(nextCtx, {
       type: 'CONTRACT_ELIMINATED',
       importance: 'major',
@@ -732,32 +768,35 @@ function applyContractTaxRevisionSettlement(
       entityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
         entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', provinceName),
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
       ],
     })
     nextCtx = { ...ctxEvElim, events: [...ctxEvElim.events, elimEvent] }
   }
 
   // Emit DIPLOMATIC_PLAY_SETTLED
-  const provinceName = nextCtx.state.provinces[provinceId]?.name ?? provinceId
+  const provinceName = nameParam(
+    'province',
+    nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+  )
   const { event: settledEvent, ctx: ctxSettledNext } = createSimEvent(nextCtx, {
     type: 'DIPLOMATIC_PLAY_SETTLED',
     importance: 'major',
     messageKey: 'diplomatic_play.settled_tax',
     messageParams: { province: provinceName },
     entityRefs: [
-      entityRef('province', provinceId, 'province', provinceName),
+      entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
       entityRef(
         'polity',
         initiatorPolityId,
         'initiator',
-        nextCtx.state.polities[initiatorPolityId]?.name,
+        nextCtx.state.polities[initiatorPolityId]?.nameKey,
       ),
       entityRef(
         'polity',
         defenderPolityId,
         'defender',
-        nextCtx.state.polities[defenderPolityId]?.name,
+        nextCtx.state.polities[defenderPolityId]?.nameKey,
       ),
     ],
   })
@@ -823,26 +862,27 @@ function applyLandClaimSettlement(
     nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
 
     const provinceId = nextCtx.state.holdings[holdingId]?.provinceId
-    const provinceName = provinceId
-      ? (nextCtx.state.provinces[provinceId]?.name ?? provinceId)
+    const provinceNameKey = provinceId
+      ? (nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId)
       : holdingId
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.name ?? initiatorPolityId
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId
+    const provinceParam = nameParam('province', provinceNameKey)
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
     const { event: ev, ctx: ctxEv } = createSimEvent(nextCtx, {
       type: 'DIPLOMATIC_PLAY_SETTLED',
       importance: 'major',
       messageKey: 'diplomatic_play.settled_purchase',
       messageParams: {
         initiator: initiatorName,
-        province: String(provinceName),
+        province: provinceParam,
         defender: defenderName,
         price: Math.round(offeredPrice),
       },
       entityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
         entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId!, 'province', String(provinceName)),
-        entityRef('holding', holdingId, 'holding', nextCtx.state.holdings[holdingId]?.name),
+        entityRef('province', provinceId!, 'province', provinceNameKey),
+        entityRef('holding', holdingId, 'holding'),
       ],
     })
     return { ...ctxEv, events: [...ctxEv.events, ev] }
@@ -862,25 +902,26 @@ function applyLandClaimSettlement(
   nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
 
   const provinceId = nextCtx.state.holdings[holdingId]?.provinceId
-  const provinceName = provinceId
-    ? (nextCtx.state.provinces[provinceId]?.name ?? provinceId)
+  const provinceNameKey = provinceId
+    ? (nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId)
     : holdingId
-  const initiatorName = nextCtx.state.polities[initiatorPolityId]?.name ?? initiatorPolityId
-  const defenderName = nextCtx.state.polities[defenderPolityId]?.name ?? defenderPolityId
+  const provinceParam = nameParam('province', provinceNameKey)
+  const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
+  const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
   const { event: ev, ctx: ctxEv } = createSimEvent(nextCtx, {
     type: 'DIPLOMATIC_PLAY_SETTLED',
     importance: 'major',
     messageKey: 'diplomatic_play.settled_cession',
     messageParams: {
       defender: defenderName,
-      province: String(provinceName),
+      province: provinceParam,
       initiator: initiatorName,
     },
     entityRefs: [
       entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
       entityRef('polity', defenderPolityId, 'defender', defenderName),
-      entityRef('province', provinceId!, 'province', String(provinceName)),
-      entityRef('holding', holdingId, 'holding', nextCtx.state.holdings[holdingId]?.name),
+      entityRef('province', provinceId!, 'province', provinceNameKey),
+      entityRef('holding', holdingId, 'holding'),
     ],
   })
   return { ...ctxEv, events: [...ctxEv.events, ev] }

@@ -6,8 +6,7 @@ export type HouseKind = 'normal' | 'system'
 
 export type House = {
   id: HouseId
-  name: string
-  nameKey?: string
+  nameKey: string
   active: boolean
   kind?: HouseKind
   memberIds: PersonId[]
@@ -15,7 +14,6 @@ export type House = {
   founderId?: PersonId
   parentHouseId?: HouseId
   cadetHouseIds: HouseId[]
-  nameSource?: 'pool' | 'province' | 'founder' | 'fallback'
   legacyPrestige: number // 0..100
   wealth: number // >= 0
   seatProvinceId: ProvinceId

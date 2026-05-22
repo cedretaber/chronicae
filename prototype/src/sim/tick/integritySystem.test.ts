@@ -49,7 +49,7 @@ describe('runIntegritySystem', () => {
 
     const person: Person = {
       id: personId,
-      name: 'DeadPerson',
+      nameKey: 'DeadPerson',
       sex: 'male',
       age: 50,
       alive: false,
@@ -66,7 +66,7 @@ describe('runIntegritySystem', () => {
 
     const house: House = {
       id: houseId,
-      name: 'H0',
+      nameKey: 'H0',
       active: true,
       memberIds: [personId],
       deceasedMemberIds: [],
@@ -78,7 +78,7 @@ describe('runIntegritySystem', () => {
 
     const polity: Polity = {
       id: polityId,
-      name: 'C0',
+      nameKey: 'C0',
       rank: 2,
       ownerHouseId: houseId,
       treasury: 100,
@@ -150,7 +150,7 @@ describe('runIntegritySystem', () => {
 
     const deadLeader: Person = {
       id: deadLeaderId,
-      name: 'DeadLeader',
+      nameKey: 'DeadLeader',
       sex: 'male',
       age: 50,
       alive: false,
@@ -167,7 +167,7 @@ describe('runIntegritySystem', () => {
 
     const aliveMember: Person = {
       id: 'pe-alive' as PersonId,
-      name: 'AliveMember',
+      nameKey: 'AliveMember',
       sex: 'female',
       age: 30,
       alive: true,
@@ -184,7 +184,7 @@ describe('runIntegritySystem', () => {
 
     const house: House = {
       id: houseId,
-      name: 'H0',
+      nameKey: 'H0',
       active: true,
       memberIds: [deadLeaderId, 'pe-alive' as PersonId],
       deceasedMemberIds: [],
@@ -196,7 +196,7 @@ describe('runIntegritySystem', () => {
 
     const polity: Polity = {
       id: polityId,
-      name: 'C0',
+      nameKey: 'C0',
       rank: 2,
       ownerHouseId: houseId,
       treasury: 100,
@@ -268,7 +268,7 @@ describe('runIntegritySystem', () => {
 
     const deadHolder: Person = {
       id: deadHolderId,
-      name: 'DeadHolder',
+      nameKey: 'DeadHolder',
       sex: 'male',
       age: 40,
       alive: false,
@@ -285,7 +285,7 @@ describe('runIntegritySystem', () => {
 
     const house: House = {
       id: houseId,
-      name: 'H0',
+      nameKey: 'H0',
       active: true,
       memberIds: [deadHolderId],
       deceasedMemberIds: [],
@@ -297,7 +297,7 @@ describe('runIntegritySystem', () => {
 
     const polity: Polity = {
       id: polityId,
-      name: 'C0',
+      nameKey: 'C0',
       rank: 2,
       ownerHouseId: houseId,
       treasury: 100,
@@ -369,7 +369,7 @@ describe('runIntegritySystem', () => {
 
     const aliveHolder: Person = {
       id: aliveHolderId,
-      name: 'AliveHolder',
+      nameKey: 'AliveHolder',
       sex: 'male',
       age: 30,
       alive: true,
@@ -386,7 +386,7 @@ describe('runIntegritySystem', () => {
 
     const house: House = {
       id: houseId,
-      name: 'H0',
+      nameKey: 'H0',
       active: true,
       memberIds: [aliveHolderId],
       deceasedMemberIds: [],
@@ -398,7 +398,7 @@ describe('runIntegritySystem', () => {
 
     const polity: Polity = {
       id: polityId,
-      name: 'C0',
+      nameKey: 'C0',
       rank: 2,
       ownerHouseId: houseId,
       treasury: 100,
@@ -470,7 +470,7 @@ describe('runIntegritySystem', () => {
 
     const aliveHolder: Person = {
       id: aliveHolderId,
-      name: 'AliveHolder',
+      nameKey: 'AliveHolder',
       sex: 'male',
       age: 30,
       alive: true,
@@ -487,7 +487,7 @@ describe('runIntegritySystem', () => {
 
     const house: House = {
       id: houseId,
-      name: 'H0',
+      nameKey: 'H0',
       active: true,
       memberIds: [aliveHolderId],
       deceasedMemberIds: [],
@@ -499,7 +499,7 @@ describe('runIntegritySystem', () => {
 
     const polity: Polity = {
       id: polityId,
-      name: 'C0',
+      nameKey: 'C0',
       rank: 2,
       ownerHouseId: houseId,
       treasury: 100,
@@ -571,7 +571,7 @@ describe('runIntegritySystem', () => {
 
     const alivePerson: Person = {
       id: alivePersonId,
-      name: 'AlivePerson',
+      nameKey: 'AlivePerson',
       sex: 'male',
       age: 30,
       alive: true,
@@ -589,7 +589,7 @@ describe('runIntegritySystem', () => {
 
     const house: House = {
       id: houseId,
-      name: 'H0',
+      nameKey: 'H0',
       active: true,
       memberIds: [alivePersonId],
       deceasedMemberIds: [],
@@ -601,7 +601,7 @@ describe('runIntegritySystem', () => {
 
     const polity: Polity = {
       id: polityId,
-      name: 'C0',
+      nameKey: 'C0',
       rank: 2,
       ownerHouseId: houseId,
       treasury: 100,
@@ -660,7 +660,7 @@ describe('runIntegritySystem', () => {
 
     const placeholderPerson: Person = {
       id: placeholderPersonId,
-      name: 'Placeholder',
+      nameKey: 'Placeholder',
       sex: 'male',
       age: 25,
       alive: true,
@@ -679,7 +679,7 @@ describe('runIntegritySystem', () => {
 
     const house: House = {
       id: houseId,
-      name: 'H0',
+      nameKey: 'H0',
       active: true,
       memberIds: [placeholderPersonId],
       deceasedMemberIds: [],
@@ -691,7 +691,7 @@ describe('runIntegritySystem', () => {
 
     const polity: Polity = {
       id: polityId,
-      name: 'C0',
+      nameKey: 'C0',
       rank: 2,
       ownerHouseId: houseId,
       treasury: 100,

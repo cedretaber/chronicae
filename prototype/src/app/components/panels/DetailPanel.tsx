@@ -169,14 +169,23 @@ function buildEntitySnapshot(
     : null
   const ws = currentState
 
-  const houseName = (id: HouseId | undefined): string | null =>
-    id ? (ws?.houses[id]?.name ?? null) : null
-  const polityName = (id: PolityId | undefined): string | null =>
-    id ? (ws?.polities[id]?.name ?? null) : null
-  const personName = (id: PersonId | undefined): string | null =>
-    id ? (ws?.persons[id]?.name ?? null) : null
-  const provinceName = (id: string | undefined): string | null =>
-    id ? (ws?.provinces[id as import('@sim/types/ids').ProvinceId]?.name ?? null) : null
+  const houseNameKey = (id: HouseId | undefined): string | null =>
+    id ? (ws?.houses[id]?.nameKey ?? null) : null
+  const polityNameKey = (id: PolityId | undefined): string | null =>
+    id ? (ws?.polities[id]?.nameKey ?? null) : null
+  const personNameKey = (id: PersonId | undefined): string | null =>
+    id ? (ws?.persons[id]?.nameKey ?? null) : null
+  const provinceNameKey = (id: string | undefined): string | null =>
+    id ? (ws?.provinces[id as import('@sim/types/ids').ProvinceId]?.nameKey ?? null) : null
+  const factionLeaderNameKey = (
+    factionId: import('@sim/types/ids').FactionId | undefined,
+  ): string | null => {
+    if (!factionId || !ws) return null
+    const f = ws.factions[factionId]
+    if (!f) return null
+    const leader = ws.persons[f.leaderPersonId]
+    return leader?.nameKey ?? null
+  }
 
   if (kind === 'polity') {
     const p = entity as Polity
@@ -190,7 +199,7 @@ function buildEntitySnapshot(
       ? getTopShareholders(ws, { kind: 'polity', id: p.id }, 5).map(({ holder, percent }) => ({
           holderKind: holder.kind,
           holderId: holder.id,
-          holderName: holder.kind === 'house' ? houseName(holder.id) : personName(holder.id),
+          holderName: holder.kind === 'house' ? houseNameKey(holder.id) : personNameKey(holder.id),
           percent: Math.round(percent * 10) / 10,
         }))
       : []
@@ -225,7 +234,7 @@ function buildEntitySnapshot(
             return {
               contractId: c.id,
               provinceId: c.provinceId,
-              provinceName: province?.name ?? String(c.provinceId),
+              provinceName: province?.nameKey ?? String(c.provinceId),
               taxRateToGrantor: Math.round(c.terms.taxRateToGrantor * 100),
               isRoot,
               isTerminal,
@@ -239,12 +248,12 @@ function buildEntitySnapshot(
       meta,
       entity: p,
       derived: {
-        ownerHouseName: houseName(p.ownerHouseId),
-        capitalProvinceName: provinceName(p.capitalProvinceId),
+        ownerHouseName: houseNameKey(p.ownerHouseId),
+        capitalProvinceName: provinceNameKey(p.capitalProvinceId),
         rulerPersonId: ws ? getPolityLeader(ws, p.id) : null,
-        rulerPersonName: ws ? personName(getPolityLeader(ws, p.id) ?? undefined) : null,
+        rulerPersonName: ws ? personNameKey(getPolityLeader(ws, p.id) ?? undefined) : null,
         terminalProvinceIds: terminalIds,
-        terminalProvinceNames: terminalIds.map((pid) => provinceName(pid)),
+        terminalProvinceNames: terminalIds.map((pid) => provinceNameKey(pid)),
         topShareholders,
         landContracts,
       },
@@ -258,7 +267,7 @@ function buildEntitySnapshot(
       ? getTopShareholders(ws, { kind: 'house', id: h.id }, 5).map(({ holder, percent }) => ({
           holderKind: holder.kind,
           holderId: holder.id,
-          holderName: holder.kind === 'person' ? personName(holder.id) : String(holder.id),
+          holderName: holder.kind === 'person' ? personNameKey(holder.id) : String(holder.id),
           percent: Math.round(percent * 10) / 10,
         }))
       : []
@@ -268,13 +277,15 @@ function buildEntitySnapshot(
       entity: h,
       derived: {
         headPersonId: ws ? getHouseLeader(ws, h.id) : null,
-        headPersonName: ws ? personName(getHouseLeader(ws, h.id) ?? undefined) : null,
+        headPersonName: ws ? personNameKey(getHouseLeader(ws, h.id) ?? undefined) : null,
         primaryPolityId: ws ? getHousePrimaryPolityId(ws, h.id) : null,
-        primaryPolityName: ws ? polityName(getHousePrimaryPolityId(ws, h.id) ?? undefined) : null,
+        primaryPolityName: ws
+          ? polityNameKey(getHousePrimaryPolityId(ws, h.id) ?? undefined)
+          : null,
         ownedPolityIds,
-        ownedPolityNames: ownedPolityIds.map((pid) => polityName(pid)),
+        ownedPolityNames: ownedPolityIds.map((pid) => polityNameKey(pid)),
         controlledProvinceIds,
-        controlledProvinceNames: controlledProvinceIds.map((pid) => provinceName(pid)),
+        controlledProvinceNames: controlledProvinceIds.map((pid) => provinceNameKey(pid)),
         topShareholders: houseTopShareholders,
       },
     }
@@ -284,11 +295,15 @@ function buildEntitySnapshot(
     const factionMembership = ws ? getActiveFactionMembership(ws, pe.id) : null
     const leaderFaction = ws ? getFactionByLeader(ws, pe.id) : null
     const factionInfo = leaderFaction
-      ? { factionId: leaderFaction.id, factionName: leaderFaction.name, role: 'leader' as const }
+      ? {
+          factionId: leaderFaction.id,
+          factionName: factionLeaderNameKey(leaderFaction.id),
+          role: 'leader' as const,
+        }
       : factionMembership
         ? {
             factionId: factionMembership.factionId,
-            factionName: ws?.factions[factionMembership.factionId]?.name ?? null,
+            factionName: factionLeaderNameKey(factionMembership.factionId),
             role: 'member' as const,
           }
         : null
@@ -302,8 +317,8 @@ function buildEntitySnapshot(
             orgId: o.organization.id,
             orgName:
               o.organization.kind === 'polity'
-                ? polityName(o.organization.id)
-                : houseName(o.organization.id),
+                ? polityNameKey(o.organization.id)
+                : houseNameKey(o.organization.id),
             role: o.role,
             displayName:
               OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? null,
@@ -318,7 +333,7 @@ function buildEntitySnapshot(
           .map((a) => ({
             holdingId: a.holdingId,
             appointingPolityId: a.appointingPolityId,
-            appointingPolityName: polityName(a.appointingPolityId),
+            appointingPolityName: polityNameKey(a.appointingPolityId),
             startWeek: a.startWeek,
           }))
       : []
@@ -327,9 +342,11 @@ function buildEntitySnapshot(
       meta,
       entity: pe,
       derived: {
-        houseName: houseName(pe.houseId),
+        houseName: houseNameKey(pe.houseId),
         primaryPolityId: ws ? getPersonPrimaryPolityId(ws, pe.id) : null,
-        primaryPolityName: ws ? polityName(getPersonPrimaryPolityId(ws, pe.id) ?? undefined) : null,
+        primaryPolityName: ws
+          ? polityNameKey(getPersonPrimaryPolityId(ws, pe.id) ?? undefined)
+          : null,
         faction: factionInfo,
         activeOffices,
         bailiffOf,
@@ -349,20 +366,20 @@ function buildEntitySnapshot(
       derived: {
         terminalPolityId: ws ? getProvinceTerminalPolityId(ws, pv.id) : null,
         terminalPolityName: ws
-          ? polityName(getProvinceTerminalPolityId(ws, pv.id) ?? undefined)
+          ? polityNameKey(getProvinceTerminalPolityId(ws, pv.id) ?? undefined)
           : null,
         effectiveOwnerHouseId: ws ? getProvinceEffectiveOwnerHouseId(ws, pv.id) : null,
         effectiveOwnerHouseName: ws
-          ? houseName(getProvinceEffectiveOwnerHouseId(ws, pv.id) ?? undefined)
+          ? houseNameKey(getProvinceEffectiveOwnerHouseId(ws, pv.id) ?? undefined)
           : null,
         landContractChain: chain.map((c) => ({
           id: c.id,
           granteePolityId: c.granteePolityId,
-          granteePolityName: polityName(c.granteePolityId),
+          granteePolityName: polityNameKey(c.granteePolityId),
           taxRateToGrantor: c.terms.taxRateToGrantor,
         })),
         bailiffPersonId: bailiff?.id ?? null,
-        bailiffPersonName: bailiff?.name ?? null,
+        bailiffPersonName: bailiff?.nameKey ?? null,
         bailiffIsPlaceholder: bailiff?.kind === 'placeholder',
       },
     }
@@ -374,7 +391,7 @@ function buildEntitySnapshot(
       meta,
       entity: pg,
       derived: {
-        provinceName: provinceName(pg.provinceId),
+        provinceName: provinceNameKey(pg.provinceId),
       },
     }
   }
@@ -408,7 +425,7 @@ function buildEntitySnapshot(
         const o = polityOfficesLocal[0]!
         const displayName =
           OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
-        const orgName = ws.polities[o.organization.id as PolityId]?.name ?? o.organization.id
+        const orgName = ws.polities[o.organization.id as PolityId]?.nameKey ?? o.organization.id
         return {
           label: `${displayName} (${orgName})`,
           extraCount: total - 1,
@@ -419,7 +436,7 @@ function buildEntitySnapshot(
         const o = houseOfficesLocal[0]!
         const displayName =
           OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
-        const orgName = ws.houses[o.organization.id as HouseId]?.name ?? o.organization.id
+        const orgName = ws.houses[o.organization.id as HouseId]?.nameKey ?? o.organization.id
         return {
           label: `${displayName} (${orgName})`,
           extraCount: total - 1,
@@ -428,7 +445,8 @@ function buildEntitySnapshot(
       }
       if (bailiffs.length > 0) {
         const a = bailiffs[0]!
-        const holdingName = ws.holdings[a.holdingId]?.name ?? a.holdingId
+        const h = ws.holdings[a.holdingId]
+        const holdingName = h ? (ws.provinces[h.provinceId]?.nameKey ?? a.holdingId) : a.holdingId
         return {
           label: `代官 (${holdingName})`,
           extraCount: total - 1,
@@ -443,9 +461,9 @@ function buildEntitySnapshot(
       const isUnaffiliated = hid === ANONYMOUS_HOUSE_ID
       return {
         personId: pid,
-        personName: p?.name ?? null,
+        personName: p?.nameKey ?? null,
         houseId: hid ?? null,
-        houseName: isUnaffiliated ? null : houseName(hid),
+        houseName: isUnaffiliated ? null : houseNameKey(hid),
         isUnaffiliated,
         representativeOffice: representativeOfficeFor(pid),
       }
@@ -458,9 +476,9 @@ function buildEntitySnapshot(
       meta,
       entity: f,
       derived: {
-        leaderPersonName: personName(f.leaderPersonId),
+        leaderPersonName: personNameKey(f.leaderPersonId),
         leaderHouseId: leaderHouseId ?? null,
-        leaderHouseName: houseName(leaderHouseId),
+        leaderHouseName: houseNameKey(leaderHouseId),
         memberCount: memberIds.length,
         employedCount,
         members,
@@ -487,7 +505,7 @@ function PersonLink({
       className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
       onClick={() => onClick(personId, 'person')}
     >
-      {resolveName('person', person.nameKey, person.name)}
+      {resolveName('person', person.nameKey, person.nameKey)}
     </button>
   )
 }
@@ -510,7 +528,7 @@ function HouseLink({
       className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
       onClick={() => onClick(houseId, 'house')}
     >
-      {resolveName('house', house.nameKey, house.name)}
+      {resolveName('house', house.nameKey, house.nameKey)}
     </button>
   )
 }
@@ -533,7 +551,7 @@ function PolityLink({
       className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
       onClick={() => onClick(polityId, 'polity')}
     >
-      {resolveName('polity', polity.nameKey, polity.name)}
+      {resolveName('polity', polity.nameKey, polity.nameKey)}
     </button>
   )
 }
@@ -764,7 +782,7 @@ function AttitudeList({
         let linkNode: React.ReactNode
         if (prefix === 'polity') {
           const p = worldState.polities[id as PolityId]
-          const displayName = p ? resolveName('polity', p.nameKey, p.name) : id
+          const displayName = p ? resolveName('polity', p.nameKey, p.nameKey) : id
           linkNode = (
             <button
               className="cursor-pointer text-blue-400 hover:text-blue-300"
@@ -775,7 +793,7 @@ function AttitudeList({
           )
         } else if (prefix === 'house') {
           const h = worldState.houses[id as HouseId]
-          const displayName = h ? resolveName('house', h.nameKey, h.name) : id
+          const displayName = h ? resolveName('house', h.nameKey, h.nameKey) : id
           linkNode = (
             <button
               className="cursor-pointer text-blue-400 hover:text-blue-300"
@@ -786,7 +804,7 @@ function AttitudeList({
           )
         } else if (prefix === 'person') {
           const p = worldState.persons[id as PersonId]
-          const displayName = p ? resolveName('person', p.nameKey, p.name) : id
+          const displayName = p ? resolveName('person', p.nameKey, p.nameKey) : id
           linkNode = (
             <button
               className="cursor-pointer text-blue-400 hover:text-blue-300"
@@ -899,7 +917,7 @@ function PolityLandContracts({
     if (!group) {
       group = {
         provinceId: c.provinceId,
-        provinceName: province?.name ?? String(c.provinceId),
+        provinceName: province?.nameKey ?? String(c.provinceId),
         holdings: [],
         totalRevenue: 0,
       }
@@ -908,7 +926,9 @@ function PolityLandContracts({
     group.holdings.push({
       id: c.id,
       holdingId,
-      holdingName: holding?.name ?? '(unknown)',
+      holdingName: holding
+        ? (worldState.provinces[holding.provinceId]?.nameKey ?? '(unknown)')
+        : '(unknown)',
       taxRate: c.terms.taxRateToGrantor,
       isRoot,
       isTerminal,
@@ -1040,7 +1060,7 @@ export function CountryDetail({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold">
-            {resolveName('polity', polity.nameKey, polity.name)}
+            {resolveName('polity', polity.nameKey, polity.nameKey)}
           </span>
           {!polity.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">
@@ -1070,7 +1090,7 @@ export function CountryDetail({
           >
             {(() => {
               const p = currentState.provinces?.[polity.capitalProvinceId]
-              return p ? resolveName('province', p.nameKey, p.name) : polity.capitalProvinceId
+              return p ? resolveName('province', p.nameKey, p.nameKey) : polity.capitalProvinceId
             })()}
           </button>
         </div>
@@ -1279,7 +1299,9 @@ export function HouseDetail({
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-lg font-bold">{resolveName('house', house.nameKey, house.name)}</span>
+        <span className="text-lg font-bold">
+          {resolveName('house', house.nameKey, house.nameKey)}
+        </span>
         <div className="flex items-center gap-1.5">
           <CopyJsonButton payload={buildEntitySnapshot('house', house, currentState ?? null)} />
           <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(house.id)} />
@@ -1299,7 +1321,7 @@ export function HouseDetail({
                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                 onClick={() => onPolityClick(primaryPolityId, 'polity')}
               >
-                {p.name}
+                {resolveName('polity', p.nameKey, p.nameKey)}
               </button>
             )
           })()}
@@ -1322,7 +1344,7 @@ export function HouseDetail({
                         className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                         onClick={() => onPolityClick(pid, 'polity')}
                       >
-                        {p.name}
+                        {resolveName('polity', p.nameKey, p.nameKey)}
                       </button>
                     )
                   })()
@@ -1345,7 +1367,7 @@ export function HouseDetail({
                         className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                         onClick={() => onPolityClick(pid, 'polity')}
                       >
-                        {p.name}
+                        {resolveName('polity', p.nameKey, p.nameKey)}
                       </button>
                       <span className="ml-1 text-xs text-gray-500">
                         ({formatPolityRank(p.rank)})
@@ -1365,7 +1387,7 @@ export function HouseDetail({
           >
             {(() => {
               const p = currentState.provinces?.[house.seatProvinceId]
-              return p ? resolveName('province', p.nameKey, p.name) : house.seatProvinceId
+              return p ? resolveName('province', p.nameKey, p.nameKey) : house.seatProvinceId
             })()}
           </button>
         </div>
@@ -1506,7 +1528,7 @@ export function HouseDetail({
           <span>
             {(() => {
               const p = currentState?.persons?.[house.founderId]
-              return p ? resolveName('person', p.nameKey, p.name) : house.founderId
+              return p ? resolveName('person', p.nameKey, p.nameKey) : house.founderId
             })()}
           </span>
         </div>
@@ -1517,7 +1539,7 @@ export function HouseDetail({
           <span>
             {(() => {
               const h = currentState?.houses?.[house.parentHouseId]
-              return h ? resolveName('house', h.nameKey, h.name) : house.parentHouseId
+              return h ? resolveName('house', h.nameKey, h.nameKey) : house.parentHouseId
             })()}
           </span>
         </div>
@@ -1628,10 +1650,10 @@ export function PersonDetail({
     const org = office.organization
     if (org.kind === 'polity') {
       const p = worldState.polities[org.id]
-      return p ? resolveName('polity', p.nameKey, p.name) : org.id
+      return p ? resolveName('polity', p.nameKey, p.nameKey) : org.id
     }
     const h = worldState.houses[org.id]
-    return h ? resolveName('house', h.nameKey, h.name) : org.id
+    return h ? resolveName('house', h.nameKey, h.nameKey) : org.id
   }
 
   const sortByRole = (a: (typeof allOffices)[number], b: (typeof allOffices)[number]) =>
@@ -1650,7 +1672,7 @@ export function PersonDetail({
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
         <span className="text-lg font-bold">
-          {resolveName('person', person.nameKey, person.name)}
+          {resolveName('person', person.nameKey, person.nameKey)}
         </span>
         <div className="flex items-center gap-1.5">
           <CopyJsonButton payload={buildEntitySnapshot('person', person, currentState ?? null)} />
@@ -1704,6 +1726,10 @@ export function PersonDetail({
           const faction = targetFactionId ? worldState.factions[targetFactionId] : undefined
           if (!faction) return null
           const roleLabel = factionAsLeader ? 'leader' : 'member'
+          const factionLeader = worldState.persons[faction.leaderPersonId]
+          const factionDisplayName = factionLeader
+            ? `${factionLeader.nameKey}'s faction`
+            : faction.id
           return (
             <div className="flex justify-between">
               <span className="text-gray-400">{t('detail.person.faction')}:</span>
@@ -1713,7 +1739,7 @@ export function PersonDetail({
                   className="cursor-pointer text-blue-400 underline underline-offset-2 hover:text-blue-300"
                   onClick={() => onFactionClick(faction.id)}
                 >
-                  {faction.name}
+                  {factionDisplayName}
                 </button>{' '}
                 <span className="text-xs text-gray-500">({roleLabel})</span>
               </span>
@@ -1738,7 +1764,7 @@ export function PersonDetail({
                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                 onClick={() => onPolityClick(primaryPolityId, 'polity')}
               >
-                {p.name}
+                {resolveName('polity', p.nameKey, p.nameKey)}
               </button>
             )
           })()}
@@ -1811,7 +1837,9 @@ export function PersonDetail({
                           className="text-right text-blue-400 underline underline-offset-2 hover:text-blue-300"
                           onClick={() => onProvinceClick(holding?.provinceId ?? '')}
                         >
-                          {holding?.name ?? a.holdingId}
+                          {holding
+                            ? (worldState.provinces[holding.provinceId]?.nameKey ?? a.holdingId)
+                            : a.holdingId}
                         </button>
                       </div>
                     )
@@ -2062,7 +2090,7 @@ export function PopGroupDetail({
           className="cursor-pointer text-blue-400 hover:text-blue-300"
           onClick={() => onProvinceClick(popGroup.provinceId)}
         >
-          {province ? resolveName('province', province.nameKey, province.name) : '—'}
+          {province ? resolveName('province', province.nameKey, province.nameKey) : '—'}
         </button>
       </div>
 
@@ -2234,14 +2262,14 @@ export function ProvinceDetail({
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
         <span className="text-lg font-bold">
-          {resolveName('province', province.nameKey, province.name)}
+          {resolveName('province', province.nameKey, province.nameKey)}
         </span>
         <CopyJsonButton payload={buildEntitySnapshot('province', province, currentState ?? null)} />
       </div>
 
       <img
         src={getProvinceImage(province.id)}
-        alt={resolveName('province', province.nameKey, province.name)}
+        alt={resolveName('province', province.nameKey, province.nameKey)}
         className="h-24 w-full rounded object-cover"
         draggable={false}
       />
@@ -2293,6 +2321,10 @@ export function ProvinceDetail({
       {currentState &&
         getProvinceHoldings(currentState, province.id).map((holding) => {
           const bailiff = getHoldingBailiffPerson(currentState, holding.id)
+          const holdingProv = currentState.provinces[holding.provinceId]
+          const holdingDisplay = holdingProv
+            ? `${resolveName('province', holdingProv.nameKey, holdingProv.nameKey)} ${holding.kind}`
+            : holding.id
           return (
             <div
               key={holding.id}
@@ -2300,13 +2332,13 @@ export function ProvinceDetail({
             >
               <img
                 src={getHoldingImage(holding.id, holding.kind)}
-                alt={holding.name}
+                alt={holdingDisplay}
                 className="h-16 w-16 flex-shrink-0 rounded object-cover"
                 draggable={false}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-gray-200">{holding.name}</span>
+                  <span className="font-medium text-gray-200">{holdingDisplay}</span>
                   <span
                     className={`rounded px-1 text-xs ${holding.kind === 'city' ? 'bg-amber-800 text-amber-200' : 'bg-green-900 text-green-300'}`}
                   >
@@ -2343,7 +2375,7 @@ export function ProvinceDetail({
                                 className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
                                 onClick={() => onPolityClick(grantee.id, 'polity')}
                               >
-                                {grantee.name}
+                                {resolveName('polity', grantee.nameKey, grantee.nameKey)}
                                 {isTerminal
                                   ? ''
                                   : ` (${(contract.terms.taxRateToGrantor * 100).toFixed(0)}%)`}
@@ -2494,7 +2526,7 @@ export function ProvinceDetail({
               >
                 {(() => {
                   const np = currentState?.provinces?.[nid]
-                  return np ? resolveName('province', np.nameKey, np.name) : nid
+                  return np ? resolveName('province', np.nameKey, np.nameKey) : nid
                 })()}
               </button>
             ))}
@@ -2517,7 +2549,6 @@ export function FactionDetail({
   onHouseClick: ClickHandler
 }) {
   const { t } = useTranslation()
-  const resolveName = useEntityName()
   const currentState = session?.currentState
   const worldState: WorldState | null = currentState ?? null
   if (!worldState) return null
@@ -2576,7 +2607,7 @@ export function FactionDetail({
       const o = polityOfficesLocal[0]!
       const displayName =
         OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
-      const orgName = ws.polities[o.organization.id as PolityId]?.name ?? o.organization.id
+      const orgName = ws.polities[o.organization.id as PolityId]?.nameKey ?? o.organization.id
       return {
         label: `${displayName} (${orgName})`,
         extraCount: total - 1,
@@ -2587,7 +2618,7 @@ export function FactionDetail({
       const o = houseOfficesLocal[0]!
       const displayName =
         OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
-      const orgName = ws.houses[o.organization.id as HouseId]?.name ?? o.organization.id
+      const orgName = ws.houses[o.organization.id as HouseId]?.nameKey ?? o.organization.id
       return {
         label: `${displayName} (${orgName})`,
         extraCount: total - 1,
@@ -2596,7 +2627,8 @@ export function FactionDetail({
     }
     if (bailiffs.length > 0) {
       const a = bailiffs[0]!
-      const holdingName = ws.holdings[a.holdingId]?.name ?? a.holdingId
+      const hld = ws.holdings[a.holdingId]
+      const holdingName = hld ? (ws.provinces[hld.provinceId]?.nameKey ?? a.holdingId) : a.holdingId
       return {
         label: `代官 (${holdingName})`,
         extraCount: total - 1,
@@ -2611,7 +2643,7 @@ export function FactionDetail({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold">
-            {resolveName('faction', undefined, faction.name)}
+            {leader ? `${leader.nameKey}'s faction` : faction.id}
           </span>
           {!faction.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">

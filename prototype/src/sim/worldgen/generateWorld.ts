@@ -68,14 +68,11 @@ import { getHouseLeader } from '../selectors/officeSelectors'
 import { WORLD_PRESETS, DEFAULT_PRESET } from './worldPresets'
 import type { WorldPreset, WorldPresetName } from './worldPresets'
 import type { NamePoolService } from '../namegen/namePoolTypes'
-import type { NameDisplayData } from '../namegen/nameDisplayResolver'
-import { resolveNameDisplay } from '../namegen/nameDisplayResolver'
 
 export function generateWorld(
   seedText: string,
   presetName?: WorldPresetName,
   namePoolService?: NamePoolService,
-  nameDisplayData?: NameDisplayData,
 ): { world: WorldState; rng: RngState } {
   let rng = createRng(seedText)
 
@@ -85,12 +82,11 @@ export function generateWorld(
     provinces,
     stateCenters,
     rng: rng0,
-  } = generateProvinces(rng, defaultMapConfig, preset, namePoolService, nameDisplayData)
+  } = generateProvinces(rng, defaultMapConfig, preset, namePoolService)
   rng = rng0
 
   // Generate StateRegion records
   const statesRecord: Record<StateRegionId, StateRegion> = {}
-  const usedStateNames = new Set<string>()
   const usedStateNameKeys = new Set<string>()
   const statePool = stateNamePool()
 
@@ -100,8 +96,7 @@ export function generateWorld(
       .filter((p) => (p.stateId as string) === (center.id as string))
       .map((p) => p.id)
 
-    let sName: string
-    let sKey: string | undefined
+    let sNameKey: string
     if (namePoolService) {
       const { value: key, rng: rS } = namePoolService.pickUniqueNameKey(
         rng,
@@ -115,22 +110,19 @@ export function generateWorld(
         i,
       )
       rng = rS
-      sKey = key
-      sName = nameDisplayData ? resolveNameDisplay(nameDisplayData, 'state_region', key) : key
-      usedStateNames.add(sName)
+      sNameKey = key
     } else {
-      const { name, rng: rS } = pickUniqueName(statePool, usedStateNames, stateName, i, rng)
+      const { name, rng: rS } = pickUniqueName(statePool, usedStateNameKeys, stateName, i, rng)
       rng = rS
-      sName = name
+      sNameKey = name
     }
 
     statesRecord[center.id] = {
       id: center.id,
-      name: sName,
+      nameKey: sNameKey,
       provinceIds: provinceIdsInState,
       centerX: center.x,
       centerY: center.y,
-      ...(sKey !== undefined ? { nameKey: sKey } : {}),
     }
   }
 
@@ -158,7 +150,6 @@ export function generateWorld(
     defaultConfig,
     rng,
     namePoolService,
-    nameDisplayData,
   )
   rng = rng3
 
@@ -195,8 +186,6 @@ export function generateWorld(
   const houses: House[] = []
   const sortedHouseIds = Array.from(houseProvinces.keys()).sort()
 
-  const usedPolityNames = new Set<string>()
-  const usedHouseNames = new Set<string>()
   const usedPolityNameKeys = new Set<string>()
   const usedHouseNameKeys = new Set<string>()
 
@@ -315,8 +304,7 @@ export function generateWorld(
 
     const houseIndex = parseInt(houseId.split('-')[1] ?? '0', 10)
 
-    let hName: string
-    let hKey: string | undefined
+    let hNameKey: string
     if (namePoolService) {
       const { value: key, rng: rH } = namePoolService.pickUniqueNameKey(
         rng,
@@ -330,24 +318,22 @@ export function generateWorld(
         houseIndex,
       )
       rng = rH
-      hKey = key
-      hName = nameDisplayData ? resolveNameDisplay(nameDisplayData, 'house', key) : key
-      usedHouseNames.add(hName)
+      hNameKey = key
     } else {
       const { name, rng: rH } = pickUniqueName(
         houseNamePool(),
-        usedHouseNames,
+        usedHouseNameKeys,
         houseName,
         houseIndex,
         rng,
       )
       rng = rH
-      hName = name
+      hNameKey = name
     }
 
     const houseObj: House = {
       id: houseId,
-      name: hName,
+      nameKey: hNameKey,
       active: true,
       memberIds,
       deceasedMemberIds: [],
@@ -355,9 +341,6 @@ export function generateWorld(
       legacyPrestige,
       wealth,
       seatProvinceId,
-    }
-    if (hKey !== undefined) {
-      houseObj.nameKey = hKey
     }
 
     houses.push(houseObj)
@@ -449,8 +432,7 @@ export function generateWorld(
     const { value: legacyPrestige, rng: r2 } = randomInt(r1, 20, 60)
     rng = r2
 
-    let cName: string
-    let cKey: string | undefined
+    let cNameKey: string
     if (namePoolService) {
       const { value: key, rng: rC } = namePoolService.pickUniqueNameKey(
         rng,
@@ -464,19 +446,17 @@ export function generateWorld(
         polityNameCounter,
       )
       rng = rC
-      cKey = key
-      cName = nameDisplayData ? resolveNameDisplay(nameDisplayData, 'polity', key) : key
-      usedPolityNames.add(cName)
+      cNameKey = key
     } else {
       const { name, rng: rC } = pickUniqueName(
         polityNamePool(),
-        usedPolityNames,
+        usedPolityNameKeys,
         polityName,
         polityNameCounter,
         rng,
       )
       rng = rC
-      cName = name
+      cNameKey = name
     }
     polityNameCounter++
 
@@ -484,7 +464,7 @@ export function generateWorld(
 
     const newPolityObj: Polity = {
       id: info.polityId,
-      name: cName,
+      nameKey: cNameKey,
       treasury,
       legacyPrestige,
       adminPower: 50,
@@ -492,9 +472,6 @@ export function generateWorld(
       capitalProvinceId,
       rank: info.rank,
       ownerHouseId: house.id,
-    }
-    if (cKey !== undefined) {
-      newPolityObj.nameKey = cKey
     }
 
     polities.push(newPolityObj)
@@ -1326,18 +1303,15 @@ export function generateWorld(
       const isCity = hasCity && i === holdingCount - 1
       let kind: 'manor' | 'city'
       let weight: number
-      let name: string
 
       if (isCity) {
         kind = 'city'
         const { value: w, rng: rw } = randomFloat(rng)
         rng = rw
         weight = 2.0 + w * 1.0
-        name = `${province.name} City`
       } else {
         kind = 'manor'
         weight = 1.0
-        name = holdingCount === 1 ? province.name : `${province.name} Manor ${i + 1}`
       }
 
       // landQuality: randomFloat(0.6, 1.4)
@@ -1349,7 +1323,6 @@ export function generateWorld(
         id: holdingId,
         provinceId: province.id,
         kind,
-        name,
         development: holdingDev,
         polityControl: holdingControl,
         landQuality,
@@ -1442,7 +1415,7 @@ export function generateWorld(
   // AnonymousHouse (system house) を 1 つ追加。全 placeholder Person の所属先。
   const anonymousHouse: House = {
     id: ANONYMOUS_HOUSE_ID,
-    name: 'Anonymous Placeholder House',
+    nameKey: 'anonymous_placeholder_house',
     active: true,
     kind: 'system',
     memberIds: [],
@@ -1459,7 +1432,7 @@ export function generateWorld(
   // AnonymousHouse.memberIds が累積していた。singleton 化で state が安定する。
   const placeholderSingleton: Person = {
     id: PLACEHOLDER_PERSON_ID,
-    name: 'Anonymous',
+    nameKey: 'anonymous',
     sex: 'male',
     age: 30,
     alive: true,
@@ -1505,8 +1478,7 @@ export function generateWorld(
       rng = rng_s
       const sex: 'male' | 'female' = sexRoll < 0.5 ? 'male' : 'female'
 
-      let unName: string
-      let unKey: string | undefined
+      let unNameKey: string
       if (namePoolService) {
         const { value: key, rng: rng_n } = namePoolService.pickNameKey(rng, {
           nameCultureId: 'western',
@@ -1514,12 +1486,11 @@ export function generateWorld(
           path: [sex === 'male' ? 'male' : 'female'],
         })
         rng = rng_n
-        unKey = key
-        unName = key
+        unNameKey = key
       } else {
         const { name, rng: rng_n } = pickNameBySex(sex, rng)
         rng = rng_n
-        unName = name
+        unNameKey = name
       }
 
       const { value: age, rng: rng_a } = randomInt(rng, defaultConfig.adultAge, 45)
@@ -1532,7 +1503,7 @@ export function generateWorld(
       rng = rng_pr
       const { value: person, rng: rng_sp } = samplePerson(rng, defaultConfig, {
         id: personId,
-        name: unName,
+        nameKey: unNameKey,
         sex,
         age,
         houseId: ANONYMOUS_HOUSE_ID,
@@ -1544,9 +1515,6 @@ export function generateWorld(
       rng = rng_sp
       const occupation = occupations[i % occupations.length]!
       const personWithKey: Person = { ...person, occupation, lastHouseTransferYear: 1 }
-      if (unKey !== undefined) {
-        personWithKey.nameKey = unKey
-      }
       personsRecord[personId] = personWithKey
       anonymousHouse.memberIds.push(personId)
     }

@@ -33,7 +33,7 @@ function makeMinimalWorld(): WorldState {
 
   const person: Person = {
     id: personId,
-    name: 'TestPerson',
+    nameKey: 'TestPerson',
     sex: 'male',
     age: 30,
     alive: true,
@@ -64,7 +64,7 @@ function makeMinimalWorld(): WorldState {
 
   const house: House = {
     id: houseId,
-    name: 'H0',
+    nameKey: 'H0',
     active: true,
     memberIds: [personId],
     deceasedMemberIds: [],
@@ -78,7 +78,7 @@ function makeMinimalWorld(): WorldState {
 
   const polity = {
     id: polityId,
-    name: 'C0',
+    nameKey: 'C0',
     rank: 2 as const,
     ownerHouseId: houseId,
     treasury: 100,
@@ -91,7 +91,7 @@ function makeMinimalWorld(): WorldState {
   const province: Province = {
     id: provinceId,
     stateId: 'sr-0' as import('../types/ids').StateRegionId,
-    name: 'Capital',
+    nameKey: 'Capital',
     x: 0,
     y: 0,
     habitability: 50,
@@ -102,7 +102,7 @@ function makeMinimalWorld(): WorldState {
 
   const anonHouse: House = {
     id: ANONYMOUS_HOUSE_ID,
-    name: 'Anonymous',
+    nameKey: 'Anonymous',
     active: true,
     memberIds: [],
     deceasedMemberIds: [],
@@ -183,7 +183,7 @@ describe('handleNormalHouseExtinction — last-normal-house guard', () => {
     const secondPersonId = 'pe-1' as PersonId
     const secondPerson: Person = {
       id: secondPersonId,
-      name: 'SecondPerson',
+      nameKey: 'SecondPerson',
       sex: 'female',
       age: 25,
       alive: true,
@@ -213,7 +213,7 @@ describe('handleNormalHouseExtinction — last-normal-house guard', () => {
     }
     const secondHouse: House = {
       id: secondHouseId,
-      name: 'H1',
+      nameKey: 'H1',
       active: true,
       memberIds: [secondPersonId],
       deceasedMemberIds: [],

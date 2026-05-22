@@ -42,7 +42,7 @@ export function WindowManager() {
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`Polity: ${resolveName('polity', polity.nameKey, polity.name)}`}
+              title={`Polity: ${resolveName('polity', polity.nameKey, polity.nameKey)}`}
             >
               <CountryDetail
                 polity={polity}
@@ -63,7 +63,7 @@ export function WindowManager() {
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`House: ${resolveName('house', house.nameKey, house.name)}`}
+              title={`House: ${resolveName('house', house.nameKey, house.nameKey)}`}
             >
               <HouseDetail
                 house={house}
@@ -86,7 +86,7 @@ export function WindowManager() {
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`Person: ${resolveName('person', person.nameKey, person.name)}`}
+              title={`Person: ${resolveName('person', person.nameKey, person.nameKey)}`}
             >
               <PersonDetail
                 person={person}
@@ -110,7 +110,7 @@ export function WindowManager() {
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`Province: ${resolveName('province', province.nameKey, province.name)}`}
+              title={`Province: ${resolveName('province', province.nameKey, province.nameKey)}`}
             >
               <ProvinceDetail
                 province={province}
@@ -143,8 +143,12 @@ export function WindowManager() {
         if (entityType === 'faction') {
           const faction = state.factions[entityId as FactionId]
           if (!faction) return null
+          const leader = state.persons[faction.leaderPersonId]
+          const factionDisplayName = leader
+            ? `${resolveName('person', leader.nameKey, leader.nameKey)}'s faction`
+            : faction.id
           return (
-            <DraggableWindow key={win.id} win={win} title={`Faction: ${faction.name}`}>
+            <DraggableWindow key={win.id} win={win} title={`Faction: ${factionDisplayName}`}>
               <FactionDetail
                 faction={faction}
                 session={session}

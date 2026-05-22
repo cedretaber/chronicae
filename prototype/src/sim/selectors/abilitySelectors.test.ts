@@ -27,7 +27,7 @@ const DEFAULT_ABILITIES: AbilityScores = {
 function makeAptitudeOnlyPerson(aptitudes: AbilityScores): import('../types/person').Person {
   return {
     id: 'pe-0' as PersonId,
-    name: 'Dummy',
+    nameKey: 'Dummy',
     sex: 'male',
     age: 30,
     alive: true,
@@ -209,7 +209,7 @@ describe('getRoleScore', () => {
       persons: {
         [personId]: {
           id: personId,
-          name: 'Test',
+          nameKey: 'Test',
           sex: 'male',
           age: 30,
           alive: true,
@@ -243,7 +243,7 @@ describe('getRoleScore', () => {
       persons: {
         [personId]: {
           id: personId,
-          name: 'Test',
+          nameKey: 'Test',
           sex: 'male',
           age: 30,
           alive: true,
@@ -283,7 +283,7 @@ describe('getRoleScore', () => {
       persons: {
         [personId]: {
           id: personId,
-          name: 'Test',
+          nameKey: 'Test',
           sex: 'male',
           age: 30,
           alive: true,

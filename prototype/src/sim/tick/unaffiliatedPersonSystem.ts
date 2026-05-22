@@ -70,8 +70,7 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
   const sex: 'male' | 'female' = sexRoll < config.unaffiliatedMaleRatio ? 'male' : 'female'
 
   // 3. Name
-  let name: string
-  let nameKey: string | undefined
+  let nameKey: string
   if (ctx.namePoolService) {
     const { value: key, rng: rngAfterName } = ctx.namePoolService.pickNameKey(rng, {
       nameCultureId: ctx.config.nameCultureId,
@@ -80,11 +79,10 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
     })
     rng = rngAfterName
     nameKey = key
-    name = key
   } else {
     const { name: n, rng: rngAfterName } = pickNameBySex(sex, rng)
     rng = rngAfterName
-    name = n
+    nameKey = n
   }
 
   // 4. Occupation (weighted)
@@ -108,8 +106,7 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
   // 8. Build Person via samplePerson
   const { value: person, rng: rngAfterSample } = samplePerson(ctxWithId.rng, ctxWithId.config, {
     id: personId,
-    name,
-    ...(nameKey !== undefined ? { nameKey } : {}),
+    nameKey,
     sex,
     age,
     houseId: ANONYMOUS_HOUSE_ID,
@@ -141,7 +138,7 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
     messageKey: 'person.born_in_obscurity',
     messageParams: {
       occupation,
-      person: nameParam('person', nameKey, name),
+      person: nameParam('person', nameKey),
     },
     entityRefs: [entityRef('person', personId, 'person', nameKey)],
   })
@@ -223,7 +220,7 @@ function pruneUnaffiliated(ctx: TickContext, targetReduction: number): TickConte
       importance: 'minor',
       messageKey: 'person.faded_from_history',
       messageParams: {
-        person: nameParam('person', person.nameKey, person.name),
+        person: nameParam('person', person.nameKey),
       },
       entityRefs: [entityRef('person', personId, 'person', person.nameKey)],
     })

@@ -28,7 +28,7 @@ export function takeSnapshot(state: WorldState, year: number): ActivitySnapshot 
     const provinceCount = getPolityTerminalProvinceIds(state, polityId).length
     polities.push({
       polityId: polityId,
-      name: polity.name,
+      name: polity.nameKey,
       rank: polity.rank,
       active: polity.active,
       ownerHouseId: polity.ownerHouseId,
@@ -52,9 +52,10 @@ export function takeSnapshot(state: WorldState, year: number): ActivitySnapshot 
       memberHouseCounts[houseId] = (memberHouseCounts[houseId] ?? 0) + 1
     }
     const leader = state.persons[f.leaderPersonId]
+    const factionName = state.persons[f.leaderPersonId]?.nameKey ?? f.id
     factions.push({
       factionId: f.id,
-      name: f.name,
+      name: factionName,
       leaderPersonId: f.leaderPersonId,
       leaderHouseId: leader?.houseId,
       memberCount,

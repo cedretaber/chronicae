@@ -39,12 +39,12 @@ function makeFixture(): {
   state = withProvince(state, provinceId)
   state = withProvince(state, 'p-1' as ProvinceId)
   state = withHouse(state, house1Id, {
-    name: 'House 1',
+    nameKey: 'House 1',
     memberIds: [leaderId],
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polity1Id, {
-    name: 'Polity 1',
+    nameKey: 'Polity 1',
     ownerHouseId: house1Id,
     treasury: 100,
     legacyPrestige: 50,
@@ -54,7 +54,7 @@ function makeFixture(): {
   state = bindProvinceToHouseViaPolity(state, provinceId, polity1Id, house1Id)
   state = bindProvinceToPolity(state, 'p-1' as ProvinceId, polity1Id)
   state = withPerson(state, leaderId, {
-    name: 'Leader',
+    nameKey: 'Leader',
     age: 35,
     houseId: house1Id,
     traits: { ambition: 0.7, caution: 0.3 },

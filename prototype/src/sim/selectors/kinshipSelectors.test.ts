@@ -19,7 +19,7 @@ function makePerson(overrides: Partial<Person> = {}): Person {
   const houseId = overrides.houseId ?? createHouseId('h', 0)
   return {
     id,
-    name: 'Person',
+    nameKey: 'Person',
     sex: 'male',
     age: 30,
     alive: true,
@@ -49,7 +49,7 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
     houses: {
       [firstHouseId]: {
         id: firstHouseId,
-        name: 'House',
+        nameKey: 'House',
         active: true,
         memberIds: Object.values(persons).map((p) => p.id),
         deceasedMemberIds: [],

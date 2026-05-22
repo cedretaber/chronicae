@@ -98,7 +98,7 @@ export function runPopDevelopmentSystem(ctx: TickContext): TickContext {
         importance: 'minor',
         messageKey: 'pop.land_developed',
         messageParams: {
-          province: nameParam('province', province.nameKey, province.name),
+          province: nameParam('province', province.nameKey),
         },
         entityRefs: [entityRef('province', provinceId, 'province', province?.nameKey)],
       },

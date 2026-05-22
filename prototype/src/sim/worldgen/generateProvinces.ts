@@ -11,8 +11,6 @@ import { poissonDiskSample } from './poissonDisk'
 import { kruskalMST } from './mst'
 import { UnionFind } from './unionFind'
 import type { NamePoolService } from '../namegen/namePoolTypes'
-import type { NameDisplayData } from '../namegen/nameDisplayResolver'
-import { resolveNameDisplay } from '../namegen/nameDisplayResolver'
 
 type StateCenter = { id: StateRegionId; x: number; y: number }
 type ProvincePoint = { index: number; stateIndex: number; x: number; y: number }
@@ -22,7 +20,6 @@ export function generateProvinces(
   mapConfig: MapGenerationConfig,
   preset: WorldPreset,
   namePoolService?: NamePoolService,
-  nameDisplayData?: NameDisplayData,
 ): {
   provinces: Province[]
   stateCenters: StateCenter[]
@@ -363,7 +360,6 @@ export function generateProvinces(
   }
 
   // Step 13: Name provinces and build final array
-  const usedNames = new Set<string>()
   const usedNameKeys = new Set<string>()
   const pool = provinceNamePool()
   const provinces: Province[] = []
@@ -373,8 +369,7 @@ export function generateProvinces(
     const stateId = createStateRegionId(pt.stateIndex)
     const neighbors = (neighborMap.get(pt.index) ?? []).map((ni) => createProvinceId('p', ni))
 
-    let pName: string
-    let pKey: string | undefined
+    let pNameKey: string
     if (namePoolService) {
       const { value: key, rng: nr } = namePoolService.pickUniqueNameKey(
         rng,
@@ -388,28 +383,23 @@ export function generateProvinces(
         pt.index,
       )
       rng = nr
-      pKey = key
-      pName = nameDisplayData ? resolveNameDisplay(nameDisplayData, 'province', key) : key
-      usedNames.add(pName)
+      pNameKey = key
     } else {
-      const { name, rng: nr } = pickUniqueName(pool, usedNames, provinceName, pt.index, rng)
+      const { name, rng: nr } = pickUniqueName(pool, usedNameKeys, provinceName, pt.index, rng)
       rng = nr
-      pName = name
+      pNameKey = name
     }
 
     const provinceObj: Province = {
       id,
       stateId,
-      name: pName,
+      nameKey: pNameKey,
       x: pt.x,
       y: pt.y,
       neighbors,
       habitability: 0,
       holdingIds: [],
       popGroupIds: [] as PopGroupId[],
-    }
-    if (pKey !== undefined) {
-      provinceObj.nameKey = pKey
     }
     provinces.push(provinceObj)
   }

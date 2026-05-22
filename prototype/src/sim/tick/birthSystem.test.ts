@@ -17,7 +17,7 @@ const DEFAULT_ABILITIES = {
 
 function makePerson(
   id: PersonId,
-  name: string,
+  nameKey: string,
   sex: 'male' | 'female',
   age: number,
   alive: boolean,
@@ -25,7 +25,7 @@ function makePerson(
 ): Person {
   return {
     id,
-    name,
+    nameKey,
     sex,
     age,
     alive,
@@ -49,7 +49,7 @@ function makePolity(
   const provId = provinceId ?? ('p-0' as ProvinceId)
   return {
     id,
-    name: 'C',
+    nameKey: 'C',
     rank: 2,
     ownerHouseId: houseId,
     treasury: 100,
@@ -67,7 +67,7 @@ function makeHouse(
   const provId = provinceId ?? ('p-0' as ProvinceId)
   return {
     id,
-    name: 'H',
+    nameKey: 'H',
     active: true,
     memberIds: [],
     deceasedMemberIds: [],

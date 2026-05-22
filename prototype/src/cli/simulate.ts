@@ -22,7 +22,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
-import { loadNameDisplayData } from '@sim/namegen/loadNameDisplayData'
 import type { NamePoolData } from '@sim/namegen/namePoolTypes'
 import { createChronicaeI18n } from '../i18n'
 import { createNodeResourceLoader } from '../i18n/loaders/nodeResourceLoader'
@@ -426,12 +425,11 @@ async function main(): Promise<void> {
 
   const totalTicks = args.weeks !== undefined ? args.weeks : args.years * 48
 
-  // Load NamePoolService and NameDisplayData for CLI
+  // Load NamePoolService for CLI
   const namePoolsPath = path.resolve(import.meta.dirname, '../sim/namegen/namePools.yaml')
   const namePoolsYaml = fs.readFileSync(namePoolsPath, 'utf-8')
   const namePoolData = YAML.parse(namePoolsYaml) as NamePoolData
   const namePoolService = createNamePoolService(namePoolData)
-  const nameDisplayData = loadNameDisplayData()
 
   // Initialize i18n for locale-aware event rendering
   const i18n = await createChronicaeI18n({
@@ -448,21 +446,16 @@ async function main(): Promise<void> {
   const renderEvent = (e: { messageKey: string; messageParams: EventMessageParams }): string =>
     eventRenderer.render(e.messageKey, e.messageParams)
 
-  const { world, rng: initialRng } = generateWorld(
-    args.seed,
-    args.preset,
-    namePoolService,
-    nameDisplayData,
-  )
+  const { world, rng: initialRng } = generateWorld(args.seed, args.preset, namePoolService)
 
   const initialPolityCount = countActivePolities(world)
   const initialHouseCount = countActiveHouses(world)
 
-  const polityAnnexedInfo: Record<string, { name: string; year: number }> = {}
+  const polityAnnexedInfo: Record<string, { nameKey: string; year: number }> = {}
   for (const id of Object.keys(world.polities)) {
     const polity = world.polities[id as keyof typeof world.polities]
     if (!polity) continue
-    polityAnnexedInfo[id] = { name: polity.name, year: 0 }
+    polityAnnexedInfo[id] = { nameKey: polity.nameKey, year: 0 }
   }
 
   let state: WorldState = world
@@ -780,7 +773,7 @@ async function main(): Promise<void> {
       if (!polity) continue
       const info = polityAnnexedInfo[id]
       if (!info) continue
-      const name = info.name
+      const name = info.nameKey
       if (polity.active) {
         const provCount = provinceCounts[id] || 0
         console.log(

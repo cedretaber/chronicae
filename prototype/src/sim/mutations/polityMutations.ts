@@ -10,14 +10,14 @@ import { defaultConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 import { createOfficeAssignment } from './officeMutations'
 import { getHouseLeader } from '../selectors/officeSelectors'
-import { generatePolityName } from '../selectors/polityNamingService'
+import { generatePolityNameKey } from '../selectors/polityNamingService'
 import { getPolityHouseIds } from '../selectors/polityRelations'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import { getPolityTerminalProvinceIds } from '../selectors/landContractSelectors'
 import { transferAllProvincesToPolity } from './landContractMutations'
 
 export type CreatePolityInput = {
-  name: string
+  nameKey: string
   capitalProvinceId?: ProvinceId
   treasury?: number
   legacyPrestige?: number
@@ -33,7 +33,7 @@ export function createPolity(
 
   const newPolity: Polity = {
     id: polityId,
-    name: input.name,
+    nameKey: input.nameKey,
     treasury: input.treasury ?? 0,
     adminPower: input.adminPower ?? 0,
     legacyPrestige: input.legacyPrestige ?? 0,
@@ -139,7 +139,7 @@ export function createPolityFromHouse(
   state: WorldState,
   rebelHouseId: HouseId,
   newPolityId: PolityId,
-  name?: string,
+  nameKey?: string,
 ): WorldState {
   const rebelHouse = state.houses[rebelHouseId]
   if (!rebelHouse) return state
@@ -150,11 +150,11 @@ export function createPolityFromHouse(
   const oldPolity = state.polities[oldPolityId]
   if (!oldPolity) return state
 
-  const polityName = name ?? rebelHouse.name + '領'
+  const polityNameKey = nameKey ?? rebelHouse.nameKey + '領'
 
   const newPolity: Polity = {
     id: newPolityId,
-    name: polityName,
+    nameKey: polityNameKey,
     treasury: Math.floor(rebelHouse.wealth * 0.5),
     legacyPrestige: 20,
     adminPower: 0,
@@ -214,20 +214,26 @@ export function createPolityFromProvinces(
 ): { polity: Polity; ctx: TickContext } {
   const { id, ctx: ctx1 } = makePolityId(ctx)
 
-  const { name, rng: rng1 } = generatePolityName(ctx1.state, ctx1.config, ctx1.rng, {
-    origin: 'province_revolt_independence',
-    capitalProvinceId: params.capitalProvinceId,
-    rulingHouseId: params.rulerHouseId,
-    sourcePolityId: params.sourcePolityId,
-    ...(params.provinceIds !== undefined && { provinceIds: params.provinceIds }),
-    ...(params.founderPersonId !== undefined && { founderPersonId: params.founderPersonId }),
-    ...(params.rebelClass !== undefined && { rebelClass: params.rebelClass }),
-  })
+  const { nameKey, rng: rng1 } = generatePolityNameKey(
+    ctx1.state,
+    ctx1.config,
+    ctx1.rng,
+    {
+      origin: 'province_revolt_independence',
+      capitalProvinceId: params.capitalProvinceId,
+      rulingHouseId: params.rulerHouseId,
+      sourcePolityId: params.sourcePolityId,
+      ...(params.provinceIds !== undefined && { provinceIds: params.provinceIds }),
+      ...(params.founderPersonId !== undefined && { founderPersonId: params.founderPersonId }),
+      ...(params.rebelClass !== undefined && { rebelClass: params.rebelClass }),
+    },
+    ctx1.namePoolService,
+  )
   const finalCtx = { ...ctx1, rng: rng1 }
 
   const polity: Polity = {
     id,
-    name,
+    nameKey,
     treasury: finalCtx.config.revoltPolityInitialTreasury,
     legacyPrestige: finalCtx.config.revoltPolityInitialLegacyPrestige,
     adminPower: 0,

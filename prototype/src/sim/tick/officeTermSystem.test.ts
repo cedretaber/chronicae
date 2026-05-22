@@ -17,7 +17,7 @@ import { ANONYMOUS_HOUSE_ID } from '../types/house'
 function makeBaseState(): WorldState {
   const anon = {
     id: ANONYMOUS_HOUSE_ID,
-    name: 'Anonymous',
+    nameKey: 'Anonymous',
     active: true,
     kind: 'system' as const,
     memberIds: [],
@@ -140,7 +140,7 @@ describe('runOfficeTermSystem', () => {
     state.polities = {
       [polityId]: {
         id: polityId,
-        name: 'C',
+        nameKey: 'C',
         rank: 2,
         treasury: 0,
         adminPower: 0,
@@ -154,7 +154,7 @@ describe('runOfficeTermSystem', () => {
       ...state.houses,
       [houseId]: {
         id: houseId,
-        name: 'H',
+        nameKey: 'H',
         active: true,
         memberIds: [],
         deceasedMemberIds: [],
@@ -167,7 +167,7 @@ describe('runOfficeTermSystem', () => {
     state.persons = {
       [personId]: {
         id: personId,
-        name: 'Leader',
+        nameKey: 'Leader',
         sex: 'male',
         age: 30,
         alive: true,
@@ -216,7 +216,7 @@ describe('runOfficeTermSystem', () => {
     state.polities = {
       [polityId]: {
         id: polityId,
-        name: 'C',
+        nameKey: 'C',
         rank: 2,
         treasury: 0,
         adminPower: 0,
@@ -230,7 +230,7 @@ describe('runOfficeTermSystem', () => {
       ...state.houses,
       [houseId]: {
         id: houseId,
-        name: 'H',
+        nameKey: 'H',
         active: true,
         memberIds: [],
         deceasedMemberIds: [],
@@ -243,7 +243,7 @@ describe('runOfficeTermSystem', () => {
     state.persons = {
       [personId]: {
         id: personId,
-        name: 'Official',
+        nameKey: 'Official',
         sex: 'male',
         age: 30,
         alive: true,
@@ -302,7 +302,7 @@ describe('runOfficeTermSystem', () => {
     state.polities = {
       [polityId]: {
         id: polityId,
-        name: 'C',
+        nameKey: 'C',
         rank: 2,
         treasury: 0,
         adminPower: 0,
@@ -316,7 +316,7 @@ describe('runOfficeTermSystem', () => {
       ...state.houses,
       [houseId]: {
         id: houseId,
-        name: 'H',
+        nameKey: 'H',
         active: true,
         memberIds: [],
         deceasedMemberIds: [],
@@ -329,7 +329,7 @@ describe('runOfficeTermSystem', () => {
     state.persons = {
       [personId]: {
         id: personId,
-        name: 'Official',
+        nameKey: 'Official',
         sex: 'male',
         age: 30,
         alive: true,
@@ -398,7 +398,7 @@ describe('runOfficeTermSystem', () => {
     state.polities = {
       [polityId]: {
         id: polityId,
-        name: 'C',
+        nameKey: 'C',
         rank: 2,
         treasury: 0,
         adminPower: 0,
@@ -412,7 +412,7 @@ describe('runOfficeTermSystem', () => {
       ...state.houses,
       [houseId]: {
         id: houseId,
-        name: 'H',
+        nameKey: 'H',
         active: true,
         memberIds: [],
         deceasedMemberIds: [],
@@ -425,7 +425,7 @@ describe('runOfficeTermSystem', () => {
     state.persons = {
       [personId]: {
         id: personId,
-        name: 'Official',
+        nameKey: 'Official',
         sex: 'male',
         age: 30,
         alive: true,
@@ -494,7 +494,7 @@ describe('expireOfficeTermAssignment', () => {
 
     const anon = {
       id: ANONYMOUS_HOUSE_ID,
-      name: 'Anonymous',
+      nameKey: 'Anonymous',
       active: true,
       kind: 'system' as const,
       memberIds: [],
@@ -514,7 +514,7 @@ describe('expireOfficeTermAssignment', () => {
       polities: {
         [polityId]: {
           id: polityId,
-          name: 'C',
+          nameKey: 'C',
           rank: 2,
           treasury: 0,
           adminPower: 0,
@@ -528,7 +528,7 @@ describe('expireOfficeTermAssignment', () => {
         [ANONYMOUS_HOUSE_ID]: anon,
         [houseId]: {
           id: houseId,
-          name: 'H',
+          nameKey: 'H',
           active: true,
           memberIds: [],
           deceasedMemberIds: [],
@@ -541,7 +541,7 @@ describe('expireOfficeTermAssignment', () => {
       persons: {
         [holderId]: {
           id: holderId,
-          name: 'Holder',
+          nameKey: 'Holder',
           sex: 'male',
           age: 30,
           alive: true,

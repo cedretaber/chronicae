@@ -24,7 +24,7 @@ export function MapLegend() {
       .filter((p) => p.active)
       .map((p) => ({
         id: p.id,
-        name: p.name,
+        nameKey: p.nameKey,
         size: getPolityTerminalProvinceIds(state, p.id).length,
       }))
       .filter((p) => p.size > 0)
@@ -39,7 +39,7 @@ export function MapLegend() {
       .filter((h) => h.active && h.kind !== 'system')
       .sort((a, b) => b.legacyPrestige - a.legacyPrestige)
       .slice(0, 5)
-      .map((h) => ({ id: h.id, name: h.name }))
+      .map((h) => ({ id: h.id, nameKey: h.nameKey }))
   }, [session])
 
   if (!session) return null
@@ -61,7 +61,7 @@ export function MapLegend() {
                   style={{ background: polityColorMap[p.id] ?? '#888' }}
                 />
                 <span className="truncate" style={{ maxWidth: 130 }}>
-                  {p.name}
+                  {p.nameKey}
                 </span>
               </div>
             ))
@@ -81,7 +81,7 @@ export function MapLegend() {
                   style={{ background: houseColorMap[h.id] ?? '#888' }}
                 />
                 <span className="truncate" style={{ maxWidth: 130 }}>
-                  {h.name}
+                  {h.nameKey}
                 </span>
               </div>
             ))

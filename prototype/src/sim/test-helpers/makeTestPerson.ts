@@ -13,7 +13,7 @@ const DEFAULT_ABILITIES: AbilityScores = {
 export function makeTestPerson(overrides: Partial<Person> = {}): Person {
   return {
     id: 'pe-0' as PersonId,
-    name: 'Test Person',
+    nameKey: 'Test Person',
     sex: 'male',
     age: 30,
     alive: true,

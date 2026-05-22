@@ -57,25 +57,25 @@ function makeBaseState(): {
   // houseVassal は別 House として残すが、polity1 の Office 候補としては寄与しない。
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-  state = withProvince(state, provinceRulerId, { name: 'Ruler Province' })
+  state = withProvince(state, provinceRulerId, { nameKey: 'Ruler Province' })
   state = withProvince(state, provinceVassalId, {
-    name: 'Vassal Province',
+    nameKey: 'Vassal Province',
     x: 1,
     y: 1,
   })
   state = withHouse(state, houseRulerId, {
-    name: 'Ruler House',
+    nameKey: 'Ruler House',
     memberIds: [personRulerId, personVassalId],
     legacyPrestige: 50,
     seatProvinceId: provinceRulerId,
   })
   state = withHouse(state, houseVassalId, {
-    name: 'Vassal House',
+    nameKey: 'Vassal House',
     legacyPrestige: 50,
     seatProvinceId: provinceVassalId,
   })
   state = withPolity(state, polityId, {
-    name: 'Polity 1',
+    nameKey: 'Polity 1',
     ownerHouseId: houseRulerId,
     treasury: 100,
     legacyPrestige: 50,
@@ -85,14 +85,14 @@ function makeBaseState(): {
   state = bindProvinceToHouseViaPolity(state, provinceRulerId, polityId, houseRulerId)
   state = bindProvinceToHouseViaPolity(state, provinceVassalId, polityId, houseRulerId)
   state = withPerson(state, personRulerId, {
-    name: 'Ruler Person',
+    nameKey: 'Ruler Person',
     houseId: houseRulerId,
     birthStatus: 'unknown',
     traits: { ambition: 0.3, caution: 0.5 },
     legacyPrestige: 30,
   })
   state = withPerson(state, personVassalId, {
-    name: 'Vassal Person',
+    nameKey: 'Vassal Person',
     age: 35,
     houseId: houseRulerId,
     birthStatus: 'unknown',
@@ -523,15 +523,15 @@ describe('runAppointmentSystem', () => {
 
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, createProvinceId('p', 0), { name: 'P0' })
+    state = withProvince(state, createProvinceId('p', 0), { nameKey: 'P0' })
     state = withHouse(state, houseId, {
-      name: 'Test House',
+      nameKey: 'Test House',
       memberIds: [rulerId, factionMemberId, leaderId],
       legacyPrestige: 50,
       seatProvinceId: createProvinceId('p', 0),
     })
     state = withPolity(state, polityId, {
-      name: 'Test Polity',
+      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -540,14 +540,14 @@ describe('runAppointmentSystem', () => {
     })
     state = bindProvinceToHouseViaPolity(state, createProvinceId('p', 0), polityId, houseId)
     state = withPerson(state, rulerId, {
-      name: 'Ruler',
+      nameKey: 'Ruler',
       houseId,
       birthStatus: 'unknown',
       traits: { ambition: 0.3, caution: 0.5 },
       legacyPrestige: 30,
     })
     state = withPerson(state, factionMemberId, {
-      name: 'FactionMember',
+      nameKey: 'FactionMember',
       age: 30,
       houseId,
       birthStatus: 'unknown',
@@ -563,7 +563,7 @@ describe('runAppointmentSystem', () => {
       },
     })
     state = withPerson(state, leaderId, {
-      name: 'FactionLeader',
+      nameKey: 'FactionLeader',
       age: 35,
       houseId,
       birthStatus: 'unknown',
@@ -572,7 +572,6 @@ describe('runAppointmentSystem', () => {
     })
     state.factions[factionId] = {
       id: factionId,
-      name: 'Test Faction',
       leaderPersonId: leaderId,
       active: true,
       foundingWeek: 1440 * 48 + 1 - 1,
@@ -631,15 +630,15 @@ describe('runAppointmentSystem', () => {
 
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, createProvinceId('p', 0), { name: 'P0' })
+    state = withProvince(state, createProvinceId('p', 0), { nameKey: 'P0' })
     state = withHouse(state, houseId, {
-      name: 'Test House',
+      nameKey: 'Test House',
       memberIds: [rulerId, factionMemberId, leaderId],
       legacyPrestige: 50,
       seatProvinceId: createProvinceId('p', 0),
     })
     state = withPolity(state, polityId, {
-      name: 'Test Polity',
+      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -648,14 +647,14 @@ describe('runAppointmentSystem', () => {
     })
     state = bindProvinceToHouseViaPolity(state, createProvinceId('p', 0), polityId, houseId)
     state = withPerson(state, rulerId, {
-      name: 'Ruler',
+      nameKey: 'Ruler',
       houseId,
       birthStatus: 'unknown',
       traits: { ambition: 0.3, caution: 0.5 },
       legacyPrestige: 30,
     })
     state = withPerson(state, factionMemberId, {
-      name: 'FactionMember',
+      nameKey: 'FactionMember',
       age: 30,
       houseId,
       birthStatus: 'unknown',
@@ -671,7 +670,7 @@ describe('runAppointmentSystem', () => {
       },
     })
     state = withPerson(state, leaderId, {
-      name: 'FactionLeader',
+      nameKey: 'FactionLeader',
       age: 35,
       houseId,
       birthStatus: 'unknown',
@@ -680,7 +679,6 @@ describe('runAppointmentSystem', () => {
     })
     state.factions[factionId] = {
       id: factionId,
-      name: 'Test Faction',
       leaderPersonId: leaderId,
       active: true,
       foundingWeek: 1440 * 48 + 1 - 1,
@@ -744,16 +742,16 @@ describe('runAppointmentSystem', () => {
 
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, provinceId, { name: 'P0' })
+    state = withProvince(state, provinceId, { nameKey: 'P0' })
     state = withHouse(state, houseId, {
-      name: 'Test House',
+      nameKey: 'Test House',
       memberIds: [rulerId, candidateId],
       legacyPrestige: 50,
       seatProvinceId: provinceId,
     })
     // Commonwealth: no ownerHouseId
     state = withPolity(state, polityId, {
-      name: 'Commonwealth',
+      nameKey: 'Commonwealth',
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 10,
@@ -761,14 +759,14 @@ describe('runAppointmentSystem', () => {
     })
     state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
     state = withPerson(state, rulerId, {
-      name: 'Ruler',
+      nameKey: 'Ruler',
       houseId,
       birthStatus: 'unknown',
       traits: { ambition: 0.3, caution: 0.5 },
       legacyPrestige: 30,
     })
     state = withPerson(state, candidateId, {
-      name: 'Candidate',
+      nameKey: 'Candidate',
       age: 30,
       houseId,
       birthStatus: 'unknown',
@@ -826,15 +824,15 @@ describe('runAppointmentSystem', () => {
 
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, provinceId, { name: 'P0' })
+    state = withProvince(state, provinceId, { nameKey: 'P0' })
     state = withHouse(state, houseId, {
-      name: 'Test House',
+      nameKey: 'Test House',
       memberIds: [rulerId],
       legacyPrestige: 50,
       seatProvinceId: provinceId,
     })
     state = withPolity(state, polityId, {
-      name: 'Test Polity',
+      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -843,7 +841,7 @@ describe('runAppointmentSystem', () => {
     })
     state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
     state = withPerson(state, rulerId, {
-      name: 'Ruler',
+      nameKey: 'Ruler',
       houseId,
       birthStatus: 'unknown',
       traits: { ambition: 0.3, caution: 0.5 },
@@ -851,7 +849,7 @@ describe('runAppointmentSystem', () => {
     })
     // Candidate in anonymous house (system house) — v0.17 §14.6: eligible now
     state = withPerson(state, candidateId, {
-      name: 'AnonymousMember',
+      nameKey: 'AnonymousMember',
       age: 30,
       houseId: 'h-anon' as HouseId,
       birthStatus: 'unknown',

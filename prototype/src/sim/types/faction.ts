@@ -2,7 +2,6 @@ import type { PersonId, FactionId, FactionMembershipId } from './ids'
 
 export type Faction = {
   id: FactionId
-  name: string
   leaderPersonId: PersonId
   active: boolean
   foundingWeek: number

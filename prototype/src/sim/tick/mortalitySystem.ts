@@ -44,7 +44,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
           importance,
           messageKey: 'person.died',
           messageParams: {
-            person: nameParam('person', person.nameKey, person.name),
+            person: nameParam('person', person.nameKey),
             age: person.age,
           },
           entityRefs: [

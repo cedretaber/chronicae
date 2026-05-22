@@ -191,7 +191,7 @@ export function UnifiedMap() {
       return {
         stateId,
         name: stateRegion
-          ? resolveName('state_region', stateRegion.nameKey, stateRegion.name)
+          ? resolveName('state_region', stateRegion.nameKey, stateRegion.nameKey)
           : '?',
         provinceCount: stateRegion?.provinceIds.length ?? 0,
         population: Math.round(pop),
@@ -218,7 +218,7 @@ export function UnifiedMap() {
       return {
         id: prov.id,
         stateId: prov.stateId,
-        name: resolveName('province', prov.nameKey, prov.name),
+        name: resolveName('province', prov.nameKey, prov.nameKey),
         x: prov.x,
         y: prov.y,
         neighbors: prov.neighbors,
@@ -676,14 +676,16 @@ export function UnifiedMap() {
             const totalPop = pop.reduce((s, p) => s + p.size, 0)
             const unrest = getProvinceUnrest(world, hoveredProvinceId)
             const terminalPolity = getProvinceTerminalPolityId(world, hoveredProvinceId)
-            const polityName = terminalPolity ? world.polities[terminalPolity]?.name : undefined
-            const stateName = world.states[prov.stateId]?.name
+            const polityName = terminalPolity ? world.polities[terminalPolity]?.nameKey : undefined
+            const stateName = world.states[prov.stateId]?.nameKey
             return (
               <div
                 className="pointer-events-none fixed z-50 rounded bg-gray-900/90 px-2.5 py-1.5 text-xs text-white shadow-lg"
                 style={{ left: tooltipPos.x + 12, top: tooltipPos.y - 10 }}
               >
-                <div className="font-bold">{prov.name}</div>
+                <div className="font-bold">
+                  {resolveName('province', prov.nameKey, prov.nameKey)}
+                </div>
                 <div className="text-gray-400">{stateName}</div>
                 {polityName && <div>Polity: {polityName}</div>}
                 <div>

@@ -324,9 +324,9 @@ function tryAppointPolityOffice(
         importance: 'normal',
         messageKey: 'office.assigned_polity',
         messageParams: {
-          person: nameParam('person', person.nameKey, person.name),
+          person: nameParam('person', person.nameKey),
           role: def.displayName,
-          polity: nameParam('polity', polity.nameKey, polity.name),
+          polity: nameParam('polity', polity.nameKey),
         },
         entityRefs: [
           entityRef('person', best.id, 'appointee', person.nameKey),
@@ -422,9 +422,9 @@ function tryAppointHouseOffice(
       importance: 'normal',
       messageKey: 'office.assigned_house',
       messageParams: {
-        person: nameParam('person', person.nameKey, person.name),
+        person: nameParam('person', person.nameKey),
         role: def.displayName,
-        house: nameParam('house', house.nameKey, house.name),
+        house: nameParam('house', house.nameKey),
       },
       entityRefs: [
         entityRef('person', best.id, 'appointee', person.nameKey),

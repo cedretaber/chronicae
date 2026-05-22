@@ -49,7 +49,6 @@ export type Holding = {
   id: HoldingId
   provinceId: ProvinceId
   kind: HoldingKind
-  name: string
   development: number
   polityControl: number
   landQuality: number

@@ -25,7 +25,7 @@ const DEFAULT_ABILITIES = {
 
 function makePerson(
   id: PersonId,
-  name: string,
+  nameKey: string,
   age: number,
   alive: boolean,
   houseId: HouseId,
@@ -40,7 +40,7 @@ function makePerson(
 ): Person {
   const person: Person = {
     id,
-    name,
+    nameKey,
     sex,
     age,
     alive,
@@ -94,20 +94,20 @@ function makeSplitTestCtx(config: typeof defaultConfig): TickContext {
   state = { ...state, currentYear: 10, currentWeekOfYear: 6, absoluteWeek: 525 }
   for (let i = 0; i < provinceIds.length; i++) {
     state = withProvince(state, provinceIds[i] as ProvinceId, {
-      name: `Province${i}`,
+      nameKey: `province_${i}`,
       x: i,
       y: i,
     })
   }
   state = withHouse(state, houseId, {
-    name: 'H0',
+    nameKey: 'H0',
     memberIds: ['pe-0' as PersonId, 'pe-1' as PersonId, 'pe-2' as PersonId],
     legacyPrestige: 50,
     wealth: 100,
     seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
   })
   state = withPolity(state, polityId, {
-    name: 'C0',
+    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
@@ -162,20 +162,20 @@ function makeSplitCtx(
   state = { ...state, currentYear: 10, currentWeekOfYear: 6, absoluteWeek: 525 }
   for (let i = 0; i < provinceCount; i++) {
     state = withProvince(state, provinceIds[i] as ProvinceId, {
-      name: `Province${i}`,
+      nameKey: `province_${i}`,
       x: i,
       y: i,
     })
   }
   state = withHouse(state, houseId, {
-    name: 'H0',
+    nameKey: 'H0',
     memberIds,
     legacyPrestige: 50,
     wealth: 100,
     seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
   })
   state = withPolity(state, polityId, {
-    name: 'C0',
+    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,

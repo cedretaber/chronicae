@@ -497,7 +497,7 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
             [thirdPartyId]: {
               ...ctx.state.polities[setup.defenderPolityId]!,
               id: thirdPartyId,
-              name: 'Third',
+              nameKey: 'Third',
             },
           },
           landContracts: {

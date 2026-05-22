@@ -33,7 +33,7 @@ function makeFixture(): {
       [provinceId]: {
         id: provinceId,
         stateId: 'sr-0' as import('../types/ids').StateRegionId,
-        name: 'Test Province',
+        nameKey: 'Test Province',
         x: 0,
         y: 0,
         neighbors: [],
@@ -47,7 +47,7 @@ function makeFixture(): {
     polities: {
       [polity1Id]: {
         id: polity1Id,
-        name: 'Polity 1',
+        nameKey: 'Polity 1',
         rank: 2,
         ownerHouseId: house1Id,
         treasury: 100,
@@ -60,7 +60,7 @@ function makeFixture(): {
     houses: {
       [house1Id]: {
         id: house1Id,
-        name: 'House 1',
+        nameKey: 'House 1',
         active: true,
         memberIds: [],
         deceasedMemberIds: [],
@@ -119,7 +119,7 @@ describe('createHouse', () => {
   it('creates a house with correct initial values', () => {
     const { state, polity1Id } = makeFixture()
     const ctx = makeCtx(state)
-    const result = createHouse(ctx, { name: 'New House', polityId: polity1Id })
+    const result = createHouse(ctx, { nameKey: 'New House', polityId: polity1Id })
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -127,7 +127,7 @@ describe('createHouse', () => {
     const { houseId } = result.value.value
     const newHouse = result.value.ctx.state.houses[houseId]
     expect(newHouse).toBeDefined()
-    expect(newHouse!.name).toBe('New House')
+    expect(newHouse!.nameKey).toBe('New House')
     expect(newHouse!.active).toBe(true)
     expect(newHouse!.memberIds).toEqual([])
   })
@@ -136,7 +136,7 @@ describe('createHouse', () => {
     const { state, polity1Id, house1Id } = makeFixture()
     const ctx = makeCtx(state)
     const result = createHouse(ctx, {
-      name: 'Cadet House',
+      nameKey: 'Cadet House',
       polityId: polity1Id,
       parentHouseId: house1Id,
     })
@@ -152,7 +152,7 @@ describe('createHouse', () => {
   it('returns err when polity not found', () => {
     const { state } = makeFixture()
     const ctx = makeCtx(state)
-    const result = createHouse(ctx, { name: 'X', polityId: createPolityId('c', 99) })
+    const result = createHouse(ctx, { nameKey: 'X', polityId: createPolityId('c', 99) })
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('POLITY_NOT_FOUND')
@@ -227,18 +227,22 @@ describe('dispersePersonsToAnonymousHouse', () => {
 
     let state = makeEmptyV016State()
     state = withHouse(state, sourceHouseId, {
-      name: 'Source House',
+      nameKey: 'Source House',
       active: true,
       memberIds: [livingPersonId, deadPersonId, placeholderPersonId],
     })
     state = withPerson(state, livingPersonId, {
-      name: 'Living',
+      nameKey: 'Living',
       houseId: sourceHouseId,
       alive: true,
     })
-    state = withPerson(state, deadPersonId, { name: 'Dead', houseId: sourceHouseId, alive: false })
+    state = withPerson(state, deadPersonId, {
+      nameKey: 'Dead',
+      houseId: sourceHouseId,
+      alive: false,
+    })
     state = withPerson(state, placeholderPersonId, {
-      name: 'Placeholder',
+      nameKey: 'Placeholder',
       houseId: sourceHouseId,
       alive: true,
       kind: 'placeholder',
@@ -345,7 +349,7 @@ describe('addPersonToAnonymousHouse', () => {
     const { state, personId } = makeAddPersonFixture()
     const person = {
       id: personId,
-      name: 'New Person',
+      nameKey: 'New Person',
       sex: 'male' as const,
       age: 25,
       alive: true,
@@ -373,7 +377,7 @@ describe('addPersonToAnonymousHouse', () => {
     const newState = { ...state, houses: {} }
     const person = {
       id: personId,
-      name: 'New Person',
+      nameKey: 'New Person',
       sex: 'male' as const,
       age: 25,
       alive: true,
@@ -396,7 +400,7 @@ describe('addPersonToAnonymousHouse', () => {
     const { state, personId } = makeAddPersonFixture()
     const existingPerson = {
       id: personId,
-      name: 'Existing',
+      nameKey: 'Existing',
       sex: 'male' as const,
       age: 30,
       alive: true,
@@ -414,7 +418,7 @@ describe('addPersonToAnonymousHouse', () => {
     const newPerson = {
       ...existingPerson,
       id: personId,
-      name: 'Duplicate',
+      nameKey: 'Duplicate',
     }
     const result = addPersonToAnonymousHouse(updatedState, { person: newPerson })
     expect(result.ok).toBe(false)
@@ -425,7 +429,7 @@ describe('addPersonToAnonymousHouse', () => {
     const { state, personId, otherHouseId } = makeAddPersonFixture()
     const person = {
       id: personId,
-      name: 'Wrong House',
+      nameKey: 'Wrong House',
       sex: 'male' as const,
       age: 25,
       alive: true,

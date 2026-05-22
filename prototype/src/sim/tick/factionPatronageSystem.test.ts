@@ -63,19 +63,19 @@ function buildBaseState(): {
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-  state = withProvince(state, provinceId, { name: 'Province0' })
+  state = withProvince(state, provinceId, { nameKey: 'Province0' })
   state = withHouse(state, houseId, {
-    name: 'House0',
+    nameKey: 'House0',
     memberIds: [leaderId],
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    name: 'Polity0',
+    nameKey: 'Polity0',
     ownerHouseId: houseId,
     capitalProvinceId: provinceId,
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
-  state = withPerson(state, leaderId, { name: 'Leader', houseId, wealth: 1000, alive: true })
+  state = withPerson(state, leaderId, { nameKey: 'Leader', houseId, wealth: 1000, alive: true })
 
   return { state, leaderId, provinceId, polityId, houseId }
 }
@@ -87,7 +87,6 @@ function addFaction(
 ): { state: WorldState; faction: Faction } {
   const faction: Faction = {
     id: factionId,
-    name: 'Faction0',
     leaderPersonId,
     active: true,
     foundingWeek: 69312,
@@ -191,7 +190,7 @@ describe('runFactionPatronageSystem', () => {
     const { state, leaderId, houseId } = buildBaseState()
 
     let s = state
-    s = withPerson(s, memberId, { name: 'Member', houseId, wealth: 500, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'Member', houseId, wealth: 500, alive: true })
     const { state: s2, faction } = addFaction(s, factionId, leaderId)
     const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
     // member has an office (non-leader role)
@@ -229,7 +228,7 @@ describe('runFactionPatronageSystem', () => {
     // ただし factionDisbandWealthFloor (default 10) は上回るので BANKRUPT ではない
     let s = state
     s = { ...s, persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, wealth: 100 } } }
-    s = withPerson(s, memberId, { name: 'NoOfficeMember', houseId, wealth: 0, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'NoOfficeMember', houseId, wealth: 0, alive: true })
     const s2 = addFaction(s, factionId, leaderId).state
     const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
 
@@ -253,7 +252,7 @@ describe('runFactionPatronageSystem', () => {
     const { state, leaderId, houseId } = buildBaseState()
 
     let s = state
-    s = withPerson(s, memberId, { name: 'NoOfficeMember', houseId, wealth: 0, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'NoOfficeMember', houseId, wealth: 0, alive: true })
     const s2 = addFaction(s, factionId, leaderId).state
     const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
 
@@ -274,7 +273,7 @@ describe('runFactionPatronageSystem', () => {
     // Leader wealth 5 (< factionDisbandWealthFloor=10) → bankrupt 状態
     let s = state
     s = { ...s, persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, wealth: 5 } } }
-    s = withPerson(s, memberId, { name: 'NoOfficeMember', houseId, wealth: 0, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'NoOfficeMember', houseId, wealth: 0, alive: true })
     const s2 = addFaction(s, factionId, leaderId).state
     const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
 
@@ -300,8 +299,8 @@ describe('runFactionPatronageSystem', () => {
 
     let s = state
     s = { ...s, persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, wealth: 100 } } }
-    s = withPerson(s, member1Id, { name: 'M1', houseId, wealth: 0, alive: true })
-    s = withPerson(s, member2Id, { name: 'M2', houseId, wealth: 0, alive: true })
+    s = withPerson(s, member1Id, { nameKey: 'M1', houseId, wealth: 0, alive: true })
+    s = withPerson(s, member2Id, { nameKey: 'M2', houseId, wealth: 0, alive: true })
     let s2 = addFaction(s, factionId, leaderId).state
     s2 = addFactionMembership(s2, membership1Id, factionId, member1Id)
     s2 = addFactionMembership(s2, membership2Id, factionId, member2Id)
@@ -324,7 +323,7 @@ describe('runFactionPatronageSystem', () => {
     const { state, leaderId, houseId } = buildBaseState()
 
     let s = state
-    s = withPerson(s, memberId, { name: 'NoOfficeMember', houseId, wealth: 0, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'NoOfficeMember', houseId, wealth: 0, alive: true })
     const s2 = addFaction(s, factionId, leaderId).state
     const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
 
@@ -355,7 +354,7 @@ describe('runFactionPatronageSystem', () => {
     // Leader has low wealth
     let s = state
     s = { ...s, persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, wealth: 400 } } }
-    s = withPerson(s, memberId, { name: 'NoOfficeMember', houseId, wealth: 0, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'NoOfficeMember', houseId, wealth: 0, alive: true })
     const s2 = addFaction(s, factionId, leaderId).state
     const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
 
@@ -383,7 +382,7 @@ describe('runFactionPatronageSystem', () => {
     const { state, leaderId, houseId } = buildBaseState()
 
     let s = state
-    s = withPerson(s, memberId, { name: 'Member', houseId, wealth: 500, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'Member', houseId, wealth: 500, alive: true })
     const s2 = addFaction(s, factionId, leaderId).state
     const s3 = addFactionMembership(s2, membershipId, factionId, memberId)
     const s4 = addOffice(s3, officeId, memberId, 'administrator', { kind: 'house', id: houseId })
@@ -426,7 +425,7 @@ describe('runFactionPatronageSystem', () => {
     const { state, leaderId, houseId } = buildBaseState()
 
     let s = state
-    s = withPerson(s, memberId, { name: 'Member', houseId, wealth: 500, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'Member', houseId, wealth: 500, alive: true })
     // Give leader an existing attitude key for member (so leader→member attitude update works)
     const leaderAttKey = `person:${memberId}`
     const leaderPerson = s.persons[leaderId]!
@@ -471,7 +470,7 @@ describe('runFactionPatronageSystem', () => {
     const { state, leaderId, polityId, provinceId, houseId } = buildBaseState()
 
     let s = state
-    s = withPerson(s, memberId, { name: 'BailiffMember', houseId, wealth: 500, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'BailiffMember', houseId, wealth: 500, alive: true })
     s = addFaction(s, factionId, leaderId).state
     s = addFactionMembership(s, membershipId, factionId, memberId)
     // Install member as Bailiff (ProvinceOffice) — no Polity/House Office
@@ -507,7 +506,7 @@ describe('runFactionPatronageSystem', () => {
 
     let s = state
     // Member has 0 wealth → no donation eligibility, but also Bailiff → should not receive stipend
-    s = withPerson(s, memberId, { name: 'BailiffMember', houseId, wealth: 0, alive: true })
+    s = withPerson(s, memberId, { nameKey: 'BailiffMember', houseId, wealth: 0, alive: true })
     s = addFaction(s, factionId, leaderId).state
     s = addFactionMembership(s, membershipId, factionId, memberId)
     const holdingId = s.provinces[provinceId]!.holdingIds[0]!

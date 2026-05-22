@@ -53,15 +53,15 @@ function makeBaseState(): {
 
   let s = makeEmptyV016State()
   s = { ...s, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-  s = withProvince(s, provinceId, { name: 'P0' })
+  s = withProvince(s, provinceId, { nameKey: 'P0' })
   s = withHouse(s, houseId, {
-    name: 'Test House',
+    nameKey: 'Test House',
     memberIds: [rulerId],
     legacyPrestige: 50,
     seatProvinceId: provinceId,
   })
   s = withPolity(s, polityId, {
-    name: 'Test Polity',
+    nameKey: 'Test Polity',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
@@ -70,7 +70,7 @@ function makeBaseState(): {
   })
   s = bindProvinceToPolity(s, provinceId, polityId)
   s = withPerson(s, rulerId, {
-    name: 'Ruler',
+    nameKey: 'Ruler',
     houseId,
     birthStatus: 'unknown',
     traits: { ambition: 0.3, caution: 0.5 },
@@ -98,7 +98,7 @@ describe('runBailiffAppointmentSystem', () => {
 
     const bailiffId = createPersonId('pe', 10)
     const stateWithBailiff = withPerson(s, bailiffId, {
-      name: 'Bailiff',
+      nameKey: 'Bailiff',
       age: 30,
       houseId,
       birthStatus: 'unknown',
@@ -150,7 +150,7 @@ describe('runBailiffAppointmentSystem', () => {
     const bailiffId = createPersonId('pe', 10)
 
     const stateWithBailiff = withPerson(baseState, bailiffId, {
-      name: 'Bailiff',
+      nameKey: 'Bailiff',
       age: 30,
       houseId,
       birthStatus: 'unknown',
@@ -208,7 +208,7 @@ describe('runBailiffAppointmentSystem', () => {
     // Faction leader sits in the ownerHouse → NP gets +0.3 (ownerHouse bonus) → meets threshold (0.30)
     const leaderId = createPersonId('pe', 5)
     s = withPerson(s, leaderId, {
-      name: 'FactionLeader',
+      nameKey: 'FactionLeader',
       age: 35,
       houseId,
       birthStatus: 'unknown',
@@ -219,10 +219,10 @@ describe('runBailiffAppointmentSystem', () => {
 
     // Faction member in a DIFFERENT house (outside the ownerHouse) — pool expansion target
     const memberHouseId = createHouseId('h', 1)
-    s = withHouse(s, memberHouseId, { name: 'OutsiderHouse', memberIds: [] })
+    s = withHouse(s, memberHouseId, { nameKey: 'OutsiderHouse', memberIds: [] })
     const memberId = createPersonId('pe', 6)
     s = withPerson(s, memberId, {
-      name: 'OutsiderFactionMember',
+      nameKey: 'OutsiderFactionMember',
       age: 30,
       houseId: memberHouseId,
       birthStatus: 'unknown',
@@ -237,7 +237,6 @@ describe('runBailiffAppointmentSystem', () => {
     const memberMembershipId = 'fm-1' as unknown as FactionMembershipId
     const faction: Faction = {
       id: factionId,
-      name: 'TestFaction',
       leaderPersonId: leaderId,
       active: true,
       foundingWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
@@ -301,7 +300,7 @@ describe('runBailiffAppointmentSystem', () => {
     // Faction leader in ownerHouse to satisfy NP
     const leaderId = createPersonId('pe', 5)
     s = withPerson(s, leaderId, {
-      name: 'FactionLeader',
+      nameKey: 'FactionLeader',
       age: 35,
       houseId,
       birthStatus: 'unknown',
@@ -311,10 +310,10 @@ describe('runBailiffAppointmentSystem', () => {
     })
 
     const memberHouseId = createHouseId('h', 1)
-    s = withHouse(s, memberHouseId, { name: 'OutsiderHouse', memberIds: [] })
+    s = withHouse(s, memberHouseId, { nameKey: 'OutsiderHouse', memberIds: [] })
     const memberId = createPersonId('pe', 6)
     s = withPerson(s, memberId, {
-      name: 'BusyMember',
+      nameKey: 'BusyMember',
       age: 30,
       houseId: memberHouseId,
       birthStatus: 'unknown',
@@ -359,7 +358,7 @@ describe('runBailiffAppointmentSystem', () => {
         ...s.factions,
         [factionId]: {
           id: factionId,
-          name: 'F',
+          nameKey: 'F',
           leaderPersonId: leaderId,
           active: true,
           foundingWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
@@ -419,10 +418,10 @@ describe('runBailiffAppointmentSystem', () => {
     // Install an outsider bailiff (alive, normal, not in ownerHouse) — simulates a factional bailiff
     // that was already appointed in a previous tick. The new step 1 must NOT vacate this person.
     const outsiderHouseId = createHouseId('h', 9)
-    s = withHouse(s, outsiderHouseId, { name: 'OutsiderHouse' })
+    s = withHouse(s, outsiderHouseId, { nameKey: 'OutsiderHouse' })
     const bailiffId = createPersonId('pe', 50)
     s = withPerson(s, bailiffId, {
-      name: 'FactionalBailiff',
+      nameKey: 'FactionalBailiff',
       age: 30,
       houseId: outsiderHouseId,
       birthStatus: 'unknown',
@@ -474,7 +473,7 @@ describe('runBailiffAppointmentSystem', () => {
 
     const bailiffId = createPersonId('pe', 51)
     s = withPerson(s, bailiffId, {
-      name: 'DeadBailiff',
+      nameKey: 'DeadBailiff',
       age: 30,
       houseId,
       birthStatus: 'unknown',

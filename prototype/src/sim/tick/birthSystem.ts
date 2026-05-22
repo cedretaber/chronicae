@@ -78,8 +78,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     const { value: amb1, rng: rng1 } = randomFloat(currentCtx.rng)
     const { value: amb3, rng: rng2 } = randomFloat(rng1)
     currentCtx = { ...currentCtx, rng: rng2 }
-    let childName: string
-    let childNameKey: string | undefined
+    let childNameKey: string
     if (currentCtx.namePoolService) {
       const { value: key, rng: rngAfterName } = currentCtx.namePoolService.pickNameKey(
         currentCtx.rng,
@@ -91,11 +90,10 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       )
       currentCtx = { ...currentCtx, rng: rngAfterName }
       childNameKey = key
-      childName = key
     } else {
       const { name, rng: rngAfterName } = pickNameBySex(childSex, currentCtx.rng)
       currentCtx = { ...currentCtx, rng: rngAfterName }
-      childName = name
+      childNameKey = name
     }
 
     const childMother = motherId !== undefined ? currentCtx.state.persons[motherId] : undefined
@@ -120,8 +118,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       fatherId: person.id,
       ...(motherId !== undefined ? { motherId } : {}),
       birthStatus,
-      name: childName,
-      ...(childNameKey !== undefined ? { nameKey: childNameKey } : {}),
+      nameKey: childNameKey,
       sex: childSex,
       aptitudes: childAptitudes,
       traits: { ambition: amb1, caution: amb3 },
@@ -139,7 +136,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       importance: 'minor',
       messageKey: 'person.born',
       messageParams: {
-        child: nameParam('person', childNameKey, childName),
+        child: nameParam('person', childNameKey),
       },
       entityRefs: [
         entityRef('person', childId, 'child', childNameKey),

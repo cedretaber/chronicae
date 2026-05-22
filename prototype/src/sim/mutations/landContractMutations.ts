@@ -6,7 +6,7 @@ import { createLandContractId } from '../types/ids'
 import { clampTaxRate } from '../helpers/landContractHelpers'
 import type { TickContext } from '../tick/context'
 import { createSimEvent } from '../tick/context'
-import { entityRef } from '../types/event'
+import { entityRef, nameParam } from '../types/event'
 import type { CtxResult } from './result'
 import { ok, err } from './result'
 import {
@@ -579,8 +579,9 @@ export function applyLandContractTransferGoal(
   }
   let nextCtx: TickContext = { ...ctx, state: newState }
 
-  const fromName = fromPolity?.name ?? fromPolityId
-  const toName = toPolity.name
+  const fromName = fromPolity?.nameKey ?? fromPolityId
+  const toName = toPolity.nameKey
+  const holdingProvince = state.provinces[holding.provinceId]
 
   // LAND_CONTRACT_TRANSFERRED event
   const { event: transferEvent, ctx: ctxAfterTransfer } = createSimEvent(nextCtx, {
@@ -588,7 +589,7 @@ export function applyLandContractTransferGoal(
     importance: 'normal',
     messageKey: 'land_contract.transferred',
     messageParams: {
-      holding: holding.name,
+      holding: nameParam('province', holdingProvince?.nameKey ?? holding.provinceId),
       from: fromName,
       to: toName,
       reason: input.reason,
@@ -611,13 +612,13 @@ export function applyLandContractTransferGoal(
   let outcomeSummary: string | undefined
   if (input.reason === 'purchase') {
     outcomeEventType = 'LAND_CONTRACT_PURCHASED'
-    outcomeSummary = `${toName} purchased ${holding.name} from ${fromName}.`
+    outcomeSummary = `${toName} purchased ${holdingProvince?.nameKey ?? holding.provinceId} from ${fromName}.`
   } else if (input.reason === 'cession') {
     outcomeEventType = 'LAND_CONTRACT_CEDED'
-    outcomeSummary = `${fromName} ceded ${holding.name} to ${toName}.`
+    outcomeSummary = `${fromName} ceded ${holdingProvince?.nameKey ?? holding.provinceId} to ${toName}.`
   } else if (input.reason === 'war') {
     outcomeEventType = 'LAND_CONTRACT_CONQUERED'
-    outcomeSummary = `${toName} conquered ${holding.name} from ${fromName}.`
+    outcomeSummary = `${toName} conquered ${holdingProvince?.nameKey ?? holding.provinceId} from ${fromName}.`
   }
 
   if (outcomeEventType && outcomeSummary) {
@@ -632,7 +633,7 @@ export function applyLandContractTransferGoal(
       messageKey: messageKeyMap[outcomeEventType]!,
       messageParams: {
         to: toName,
-        holding: holding.name,
+        holding: nameParam('province', holdingProvince?.nameKey ?? holding.provinceId),
         from: fromName,
       },
       entityRefs: [

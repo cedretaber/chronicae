@@ -59,8 +59,11 @@ function checkDissolutions(ctx: TickContext): TickContext {
           importance: 'normal',
           messageKey: 'faction.leader_bankrupt',
           messageParams: {
-            person: nameParam('person', leader.nameKey, leader.name),
-            faction: faction.name,
+            person: nameParam('person', leader.nameKey),
+            factionLeader: nameParam(
+              'person',
+              currentCtx.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown',
+            ),
           },
           entityRefs: [
             entityRef('person', faction.leaderPersonId, 'leader', leader.nameKey),
@@ -72,7 +75,7 @@ function checkDissolutions(ctx: TickContext): TickContext {
       currentCtx = dissolveFaction(
         currentCtx,
         factionId,
-        `${faction.name} dissolved (${reasonsToDissolve.join(', ')}).`,
+        `${faction.id} dissolved (${reasonsToDissolve.join(', ')}).`,
       )
     }
   }
@@ -115,14 +118,14 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
     return dissolveFaction(
       ctx,
       factionId,
-      `${faction.name} dissolved after the death of ${oldLeader?.name ?? faction.leaderPersonId}.`,
+      `${faction.id} dissolved after the death of ${oldLeader?.nameKey ?? faction.leaderPersonId}.`,
     )
   }
 
   const newLeaderId = candidates[0].personId
   const result = transitionFactionLeader(ctx.state, { factionId, newLeaderPersonId: newLeaderId })
   if (!result.ok) {
-    return dissolveFaction(ctx, factionId, `${faction.name} dissolved (leader transition failed).`)
+    return dissolveFaction(ctx, factionId, `${faction.id} dissolved (leader transition failed).`)
   }
   const ctx1: TickContext = { ...ctx, state: result.value }
   const newLeader = ctx1.state.persons[newLeaderId]
@@ -131,9 +134,9 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
     importance: 'normal',
     messageKey: 'faction.leader_changed',
     messageParams: {
-      newLeader: nameParam('person', newLeader?.nameKey, newLeader?.name ?? newLeaderId),
-      oldLeader: nameParam('person', oldLeader?.nameKey, oldLeader?.name ?? faction.leaderPersonId),
-      faction: faction.name,
+      newLeader: nameParam('person', newLeader?.nameKey ?? 'unknown'),
+      oldLeader: nameParam('person', oldLeader?.nameKey ?? 'unknown'),
+      factionLeader: nameParam('person', ctx1.state.persons[newLeaderId]?.nameKey ?? 'unknown'),
     },
     entityRefs: [
       entityRef('person', newLeaderId, 'newLeader', newLeader?.nameKey),
@@ -156,7 +159,10 @@ function dissolveFaction(ctx: TickContext, factionId: FactionId, summary: string
     importance: 'normal',
     messageKey: 'faction.dissolved',
     messageParams: {
-      faction: faction.name,
+      factionLeader: nameParam(
+        'person',
+        ctx1.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown',
+      ),
       reasons: summary,
     },
     entityRefs: [
@@ -209,7 +215,7 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
   const leader = ctx.state.persons[leaderId]
   if (!leader) return ctx
 
-  const factionName = `${leader.name}'s Circle`
+  const factionName = `${leader.nameKey}'s Circle`
   const candidates = pickInitialMemberCandidates(ctx, leaderId)
   const slots = config.initialFactionMemberMax
   const selected = candidates.slice(0, slots)
@@ -220,7 +226,6 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
 
   const createResult = createFaction(ctx, {
     leaderPersonId: leaderId,
-    name: factionName,
     week: ctx.state.absoluteWeek,
   })
   if (!createResult.ok) return ctx
@@ -271,7 +276,7 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
     importance: 'normal',
     messageKey: 'faction.founded',
     messageParams: {
-      person: nameParam('person', leader.nameKey, leader.name),
+      person: nameParam('person', leader.nameKey),
       faction: factionName,
     },
     entityRefs: [

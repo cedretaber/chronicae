@@ -27,7 +27,7 @@ const DEFAULT_ABILITIES = {
 
 function makePerson(
   id: PersonId,
-  name: string,
+  nameKey: string,
   age: number,
   alive: boolean,
   houseId: HouseId,
@@ -42,7 +42,7 @@ function makePerson(
 ): Person {
   const person: Person = {
     id,
-    name,
+    nameKey,
     sex,
     age,
     alive,
@@ -77,9 +77,9 @@ function makeCtx(members: Person[], houseActive: boolean = true, month: number =
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1, currentWeekOfYear: month, absoluteWeek: 51 + month }
-  state = withProvince(state, provinceId, { name: 'Capital' })
+  state = withProvince(state, provinceId, { nameKey: 'Capital' })
   state = withHouse(state, houseId, {
-    name: 'H0',
+    nameKey: 'H0',
     active: houseActive,
     memberIds,
     legacyPrestige: 50,
@@ -87,7 +87,7 @@ function makeCtx(members: Person[], houseActive: boolean = true, month: number =
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    name: 'C0',
+    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
@@ -181,7 +181,7 @@ describe('runSuccessionSystem', () => {
       { ...baseState, houses: { ...baseState.houses } },
       secondHouseId,
       {
-        name: 'H1',
+        nameKey: 'H1',
         active: true,
         memberIds: [],
         deceasedMemberIds: [],
@@ -232,7 +232,7 @@ describe('runSuccessionSystem', () => {
         polities: {
           [polityId]: {
             id: polityId,
-            name: 'C0',
+            nameKey: 'C0',
             rank: 2,
             ownerHouseId: houseId,
             treasury: 100,
@@ -245,7 +245,7 @@ describe('runSuccessionSystem', () => {
         houses: {
           [houseId]: {
             id: houseId,
-            name: 'H0',
+            nameKey: 'H0',
             active: true,
             memberIds: ['pe-1' as PersonId, 'pe-2' as PersonId],
             deceasedMemberIds: [],
@@ -320,7 +320,7 @@ describe('runSuccessionSystem', () => {
         polities: {
           [polityId]: {
             id: polityId,
-            name: 'C0',
+            nameKey: 'C0',
             rank: 2,
             ownerHouseId: houseId,
             treasury: 100,
@@ -333,7 +333,7 @@ describe('runSuccessionSystem', () => {
         houses: {
           [houseId]: {
             id: houseId,
-            name: 'H0',
+            nameKey: 'H0',
             active: true,
             memberIds: ['pe-1' as PersonId, 'pe-2' as PersonId],
             deceasedMemberIds: [],
@@ -399,9 +399,9 @@ describe('applyMinorHeadPenalties', () => {
     const provinceId = 'p-0' as ProvinceId
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1, currentWeekOfYear: 1, absoluteWeek: 48 }
-    state = withProvince(state, provinceId, { name: 'Capital' })
+    state = withProvince(state, provinceId, { nameKey: 'Capital' })
     state = withHouse(state, houseId, {
-      name: 'H0',
+      nameKey: 'H0',
       memberIds: [memberId],
       deceasedMemberIds: [],
       legacyPrestige: 50,
@@ -409,7 +409,7 @@ describe('applyMinorHeadPenalties', () => {
       seatProvinceId: provinceId,
     })
     state = withPolity(state, polityId, {
-      name: 'C0',
+      nameKey: 'C0',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,

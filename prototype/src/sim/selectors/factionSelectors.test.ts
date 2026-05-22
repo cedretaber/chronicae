@@ -44,18 +44,17 @@ function makeFixture(): {
 
   let state = makeEmptyV016State()
   state = withHouse(state, houseId, {
-    name: 'Test House',
+    nameKey: 'Test House',
     memberIds: [leaderId, member1Id, member2Id],
   })
-  state = withPerson(state, leaderId, { name: 'Leader', houseId })
-  state = withPerson(state, member1Id, { name: 'Member1', houseId })
-  state = withPerson(state, member2Id, { name: 'Member2', houseId })
+  state = withPerson(state, leaderId, { nameKey: 'Leader', houseId })
+  state = withPerson(state, member1Id, { nameKey: 'Member1', houseId })
+  state = withPerson(state, member2Id, { nameKey: 'Member2', houseId })
 
   const faction1Id = createFactionId(0)
   const faction2Id = createFactionId(1)
   state.factions[faction1Id] = {
     id: faction1Id,
-    name: 'Active Faction',
     leaderPersonId: leaderId,
     active: true,
     foundingWeek: 69312,
@@ -81,7 +80,6 @@ function makeFixture(): {
   const inactiveFactionId = createFactionId(2)
   state.factions[inactiveFactionId] = {
     id: inactiveFactionId,
-    name: 'Inactive Faction',
     leaderPersonId: member2Id,
     active: false,
     foundingWeek: 74891,
@@ -118,7 +116,7 @@ describe('getFaction', () => {
     const { state, faction1Id } = makeFixture()
     const result = getFaction(state, faction1Id)
     expect(result).toBeDefined()
-    expect(result!.name).toBe('Active Faction')
+    expect(result!.leaderPersonId).toBeDefined()
   })
 
   it('returns undefined for missing faction', () => {
@@ -193,7 +191,6 @@ describe('getFactionActiveMemberIds', () => {
     const emptyFactionId = createFactionId(99)
     state.factions[emptyFactionId] = {
       id: emptyFactionId,
-      name: 'Empty',
       leaderPersonId: createPersonId('pe', 99),
       active: true,
       foundingWeek: 69312,
@@ -232,7 +229,6 @@ describe('getFactionViabilityScore', () => {
     const inactiveFactionId = createFactionId(99)
     state.factions[inactiveFactionId] = {
       id: inactiveFactionId,
-      name: 'Inactive',
       leaderPersonId: createPersonId('pe', 99),
       active: false,
       foundingWeek: 69312,
@@ -322,11 +318,11 @@ describe('getFactionNominationPower', () => {
     const membershipId = createFactionMembershipId(0)
 
     let state = makeEmptyV016State()
-    state = withHouse(state, houseId, { name: 'Test House', memberIds: [leaderId, member1Id] })
-    state = withPerson(state, leaderId, { name: 'Leader', houseId })
-    state = withPerson(state, member1Id, { name: 'Member', houseId })
+    state = withHouse(state, houseId, { nameKey: 'Test House', memberIds: [leaderId, member1Id] })
+    state = withPerson(state, leaderId, { nameKey: 'Leader', houseId })
+    state = withPerson(state, member1Id, { nameKey: 'Member', houseId })
     state = withPolity(state, polityId, {
-      name: 'Test Polity',
+      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -335,7 +331,6 @@ describe('getFactionNominationPower', () => {
     })
     state.factions[faction1Id] = {
       id: faction1Id,
-      name: 'Active Faction',
       leaderPersonId: leaderId,
       active: true,
       foundingWeek: 69312,
@@ -369,11 +364,11 @@ describe('getFactionNominationPower', () => {
     const membershipId = createFactionMembershipId(0)
 
     let state = makeEmptyV016State()
-    state = withHouse(state, houseId, { name: 'Test House', memberIds: [leaderId, member1Id] })
-    state = withPerson(state, leaderId, { name: 'Leader', houseId })
-    state = withPerson(state, member1Id, { name: 'Member', houseId })
+    state = withHouse(state, houseId, { nameKey: 'Test House', memberIds: [leaderId, member1Id] })
+    state = withPerson(state, leaderId, { nameKey: 'Leader', houseId })
+    state = withPerson(state, member1Id, { nameKey: 'Member', houseId })
     state = withPolity(state, polityId, {
-      name: 'Commonwealth',
+      nameKey: 'Commonwealth',
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 10,
@@ -381,7 +376,6 @@ describe('getFactionNominationPower', () => {
     })
     state.factions[faction1Id] = {
       id: faction1Id,
-      name: 'Active Faction',
       leaderPersonId: leaderId,
       active: true,
       foundingWeek: 69312,
@@ -433,11 +427,11 @@ describe('hasRelevantFactionForAppointment', () => {
     const membershipId = createFactionMembershipId(0)
 
     let state = makeEmptyV016State()
-    state = withHouse(state, houseId, { name: 'Test House', memberIds: [leaderId, member1Id] })
-    state = withPerson(state, leaderId, { name: 'Leader', houseId })
-    state = withPerson(state, member1Id, { name: 'Member', houseId })
+    state = withHouse(state, houseId, { nameKey: 'Test House', memberIds: [leaderId, member1Id] })
+    state = withPerson(state, leaderId, { nameKey: 'Leader', houseId })
+    state = withPerson(state, member1Id, { nameKey: 'Member', houseId })
     state = withPolity(state, polityId, {
-      name: 'Test Polity',
+      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -446,7 +440,6 @@ describe('hasRelevantFactionForAppointment', () => {
     })
     state.factions[faction1Id] = {
       id: faction1Id,
-      name: 'Active Faction',
       leaderPersonId: leaderId,
       active: true,
       foundingWeek: 69312,
@@ -488,14 +481,14 @@ describe('getFactionRecommendationScore', () => {
 
     let state = makeEmptyV016State()
     state = withHouse(state, houseId, {
-      name: 'Test House',
+      nameKey: 'Test House',
       memberIds: [leaderId, lovedId, hatedId],
     })
-    state = withPerson(state, leaderId, { name: 'Leader', houseId })
-    state = withPerson(state, lovedId, { name: 'Loved', houseId })
-    state = withPerson(state, hatedId, { name: 'Hated', houseId })
+    state = withPerson(state, leaderId, { nameKey: 'Leader', houseId })
+    state = withPerson(state, lovedId, { nameKey: 'Loved', houseId })
+    state = withPerson(state, hatedId, { nameKey: 'Hated', houseId })
     state = withPolity(state, polityId, {
-      name: 'Test Polity',
+      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -504,7 +497,6 @@ describe('getFactionRecommendationScore', () => {
     })
     state.factions[faction1Id] = {
       id: faction1Id,
-      name: 'Active Faction',
       leaderPersonId: leaderId,
       active: true,
       foundingWeek: 69312,
@@ -582,12 +574,12 @@ describe('getFactionalCandidateScore', () => {
 
     let state = makeEmptyV016State()
     state = withHouse(state, houseId, {
-      name: 'Test House',
+      nameKey: 'Test House',
       memberIds: [leaderId, candidateId],
     })
-    state = withPerson(state, leaderId, { name: 'Leader', houseId })
+    state = withPerson(state, leaderId, { nameKey: 'Leader', houseId })
     state = withPerson(state, candidateId, {
-      name: 'Candidate',
+      nameKey: 'Candidate',
       houseId,
       abilities: {
         valor: 50,
@@ -599,7 +591,7 @@ describe('getFactionalCandidateScore', () => {
       },
     })
     state = withPolity(state, polityId, {
-      name: 'Test Polity',
+      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -608,7 +600,6 @@ describe('getFactionalCandidateScore', () => {
     })
     state.factions[faction1Id] = {
       id: faction1Id,
-      name: 'Active Faction',
       leaderPersonId: leaderId,
       active: true,
       foundingWeek: 69312,

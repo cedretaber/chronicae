@@ -35,15 +35,15 @@ function makeFixture(): {
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
-  state = withProvince(state, provinceId, { name: 'Test Province' })
+  state = withProvince(state, provinceId, { nameKey: 'Test Province' })
   state = withProvince(state, 'p-1' as ProvinceId)
   state = withHouse(state, houseId, {
-    name: 'House 1',
+    nameKey: 'House 1',
     memberIds: [person1Id, person2Id],
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    name: 'Polity 1',
+    nameKey: 'Polity 1',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
@@ -53,12 +53,12 @@ function makeFixture(): {
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
   state = bindProvinceToPolity(state, 'p-1' as ProvinceId, polityId)
   state = withPerson(state, person1Id, {
-    name: 'Person 1',
+    nameKey: 'Person 1',
     houseId,
     legacyPrestige: 10,
   })
   state = withPerson(state, person2Id, {
-    name: 'Person 2',
+    nameKey: 'Person 2',
     sex: 'female',
     age: 28,
     alive: false,

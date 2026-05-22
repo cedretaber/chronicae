@@ -107,8 +107,8 @@ export function runPublicSpendingSystem(ctx: TickContext): TickContext {
       importance: 'normal',
       messageKey: 'polity.land_developed',
       messageParams: {
-        polity: nameParam('polity', polity.nameKey, polity.name),
-        province: nameParam('province', targetProvince.nameKey, targetProvince.name),
+        polity: nameParam('polity', polity.nameKey),
+        province: nameParam('province', targetProvince.nameKey),
       },
       entityRefs: [
         entityRef('polity', polityId, 'polity', polity.nameKey),

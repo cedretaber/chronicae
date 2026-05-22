@@ -17,7 +17,7 @@ const DEFAULT_ABILITIES = {
 
 function makePerson(
   id: PersonId,
-  name: string,
+  nameKey: string,
   sex: 'male' | 'female',
   age: number,
   alive: boolean,
@@ -25,7 +25,7 @@ function makePerson(
 ): Person {
   return {
     id,
-    name,
+    nameKey,
     sex,
     age,
     alive,
@@ -99,7 +99,7 @@ function makeBaseCtx(
 function makePolity(id: PolityId, houseId: HouseId): NonNullable<WorldState['polities'][PolityId]> {
   return {
     id,
-    name: 'C',
+    nameKey: 'C',
     rank: 2,
     ownerHouseId: houseId,
     treasury: 100,
@@ -113,7 +113,7 @@ function makePolity(id: PolityId, houseId: HouseId): NonNullable<WorldState['pol
 function makeHouse(id: HouseId): NonNullable<WorldState['houses'][HouseId]> {
   return {
     id,
-    name: 'H',
+    nameKey: 'H',
     active: true,
     memberIds: [],
     deceasedMemberIds: [],

@@ -167,7 +167,7 @@ function buildPolityReports(
     }
     result.push({
       polityId: polityIdStr,
-      name: polity.name,
+      name: polity.nameKey,
       rank: polity.rank,
       active: polity.active,
       ownerHouseId: polity.ownerHouseId,
@@ -206,7 +206,7 @@ function buildHouseReports(
     const kind: 'normal' | 'system' = house.kind === 'system' ? 'system' : 'normal'
     result.push({
       houseId: houseIdStr,
-      name: house.name,
+      name: house.nameKey,
       active: house.active,
       kind,
       officesByRole,
@@ -356,6 +356,7 @@ function buildFactionReport(
     const f = finalState.factions[fidStr as keyof typeof finalState.factions]
     if (!f) continue
     const leader = finalState.persons[f.leaderPersonId]
+    const factionName = finalState.persons[f.leaderPersonId]?.nameKey ?? f.id
     let memberCount = 0
     for (const m of Object.values(finalState.factionMemberships)) {
       if (m && m.active && m.factionId === f.id) memberCount++
@@ -369,7 +370,7 @@ function buildFactionReport(
     }
     factions.push({
       factionId: fidStr,
-      name: f.name,
+      name: factionName,
       active: f.active,
       leaderPersonId: f.leaderPersonId,
       leaderHouseId: leader?.houseId,

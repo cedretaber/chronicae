@@ -39,7 +39,7 @@ function makeFixture(): {
   const auxProvinceId = createProvinceId('p', 1)
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
-  state = withProvince(state, provinceId, { name: 'Test Province' })
+  state = withProvince(state, provinceId, { nameKey: 'Test Province' })
   // Set Holding development to 0 for adjustProvinceDevelopment tests
   const p0HoldingId = state.provinces[provinceId]!.holdingIds[0]!
   state = {
@@ -49,11 +49,11 @@ function makeFixture(): {
       [p0HoldingId]: { ...state.holdings[p0HoldingId]!, development: 0 },
     },
   }
-  state = withProvince(state, auxProvinceId, { name: 'Aux Province' })
-  state = withHouse(state, house1Id, { name: 'House 1', seatProvinceId: provinceId })
-  state = withHouse(state, house2Id, { name: 'House 2', seatProvinceId: auxProvinceId })
+  state = withProvince(state, auxProvinceId, { nameKey: 'Aux Province' })
+  state = withHouse(state, house1Id, { nameKey: 'House 1', seatProvinceId: provinceId })
+  state = withHouse(state, house2Id, { nameKey: 'House 2', seatProvinceId: auxProvinceId })
   state = withPolity(state, polity1Id, {
-    name: 'Polity 1',
+    nameKey: 'Polity 1',
     treasury: 100,
     legacyPrestige: 50,
     adminPower: 10,
@@ -61,7 +61,7 @@ function makeFixture(): {
     ownerHouseId: house1Id,
   })
   state = withPolity(state, polity2Id, {
-    name: 'Polity 2',
+    nameKey: 'Polity 2',
     treasury: 100,
     legacyPrestige: 50,
     adminPower: 10,

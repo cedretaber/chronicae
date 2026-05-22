@@ -28,7 +28,7 @@ function makePerson(overrides: Partial<Person> = {}): Person {
   const houseId = overrides.houseId ?? createHouseId('h', 0)
   return {
     id,
-    name: 'Person',
+    nameKey: 'Person',
     sex: 'male',
     age: 30,
     alive: true,
@@ -49,7 +49,7 @@ function makeHouse(memberIds: Person[], overrides: Partial<House> = {}): House {
   const houseId = overrides.id ?? createHouseId('h', 0)
   return {
     id: houseId,
-    name: 'House',
+    nameKey: 'House',
     active: true,
     memberIds: memberIds.map((p) => p.id),
     deceasedMemberIds: [],

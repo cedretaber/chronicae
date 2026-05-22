@@ -25,7 +25,7 @@ const DEFAULT_ABILITIES = {
 
 function makePerson(
   id: PersonId,
-  name: string,
+  nameKey: string,
   age: number,
   alive: boolean,
   houseId: HouseId,
@@ -36,7 +36,7 @@ function makePerson(
 ): Person {
   return {
     id,
-    name,
+    nameKey,
     sex,
     age,
     alive,
@@ -86,24 +86,24 @@ function makeNormalExtinctionCtx(): TickContext {
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 10, currentWeekOfYear: 6, absoluteWeek: 525 }
-  state = withProvince(state, province0Id, { name: 'Province0' })
-  state = withProvince(state, province1Id, { name: 'Province1', x: 1, y: 1 })
+  state = withProvince(state, province0Id, { nameKey: 'Province0' })
+  state = withProvince(state, province1Id, { nameKey: 'Province1', x: 1, y: 1 })
   state = withHouse(state, houseId, {
-    name: 'ExtinctHouse',
+    nameKey: 'ExtinctHouse',
     memberIds: ['pe-0' as PersonId],
     legacyPrestige: 50,
     wealth: 100,
     seatProvinceId: province0Id,
   })
   state = withHouse(state, rulerHouseId, {
-    name: 'RulerHouse',
+    nameKey: 'RulerHouse',
     memberIds: ['pe-10' as PersonId],
     legacyPrestige: 80,
     wealth: 200,
     seatProvinceId: province1Id,
   })
   state = withPolity(state, polityId, {
-    name: 'C0',
+    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
@@ -218,24 +218,24 @@ describe('extinctHouseAfterFailedSuccession', () => {
 
       let state = makeEmptyV016State()
       state = { ...state, currentYear: 10, currentWeekOfYear: 6, absoluteWeek: 525 }
-      state = withProvince(state, province0Id, { name: 'Province0' })
-      state = withProvince(state, province1Id, { name: 'Province1', x: 1, y: 1 })
+      state = withProvince(state, province0Id, { nameKey: 'Province0' })
+      state = withProvince(state, province1Id, { nameKey: 'Province1', x: 1, y: 1 })
       state = withHouse(state, houseId, {
-        name: 'RulerHouse',
+        nameKey: 'RulerHouse',
         memberIds: ['pe-0' as PersonId],
         legacyPrestige: 90,
         wealth: 100,
         seatProvinceId: province0Id,
       })
       state = withHouse(state, candidateHouseId, {
-        name: 'CandidateHouse',
+        nameKey: 'CandidateHouse',
         memberIds: ['pe-1' as PersonId],
         legacyPrestige: 40,
         wealth: 50,
         seatProvinceId: province1Id,
       })
       state = withPolity(state, polityId, {
-        name: 'C0',
+        nameKey: 'C0',
         ownerHouseId: houseId,
         treasury: 100,
         legacyPrestige: 50,

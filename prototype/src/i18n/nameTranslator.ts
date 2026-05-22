@@ -1,4 +1,4 @@
-import type { NameDisplayData } from '@sim/namegen/nameDisplayResolver'
+export type NameDisplayData = Record<string, Record<string, string>>
 
 export type NameTranslator = {
   resolve(category: string, nameKey: string): string

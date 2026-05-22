@@ -36,15 +36,15 @@ function makeBaseState(): {
   const provinceId = 'dp-pr-0' as ProvinceId
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
-  state = withProvince(state, provinceId, { name: 'Province0' })
+  state = withProvince(state, provinceId, { nameKey: 'Province0' })
   state = withProvince(state, 'dp-pr-1' as ProvinceId)
   state = withHouse(state, houseId, {
-    name: 'House',
+    nameKey: 'House',
     legacyPrestige: 50,
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    name: 'Kingdom',
+    nameKey: 'Kingdom',
     ownerHouseId: houseId,
     treasury: 500,
     legacyPrestige: 50,
@@ -78,7 +78,7 @@ function makePerson(
 ): import('../types/person').Person {
   return {
     id,
-    name: 'Person',
+    nameKey: 'Person',
     sex: 'male' as const,
     age: 40,
     alive: true,

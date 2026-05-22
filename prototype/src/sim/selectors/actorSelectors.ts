@@ -19,9 +19,9 @@ import {
 
 export function getActorName(state: WorldState, actor: PoliticalActorRef): string {
   if (actor.kind === 'polity') {
-    return state.polities[actor.id]?.name ?? 'Unknown Polity'
+    return state.polities[actor.id]?.nameKey ?? 'Unknown Polity'
   }
-  return state.houses[actor.id]?.name ?? 'Unknown House'
+  return state.houses[actor.id]?.nameKey ?? 'Unknown House'
 }
 
 export function getActorLeaderPersonId(

@@ -152,7 +152,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
         importance,
         messageKey: 'estate.settled',
         messageParams: {
-          person: nameParam('person', person.nameKey, person.name),
+          person: nameParam('person', person.nameKey),
           wealth,
           houseAmount,
           heirAmount: remainingWealth - leftover,
@@ -177,7 +177,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
         messageKey: 'estate.disputed',
         messageParams: {
           count: heirs.length,
-          person: nameParam('person', person.nameKey, person.name),
+          person: nameParam('person', person.nameKey),
         },
         entityRefs: [
           entityRef('person', deceasedId, 'deceased', person.nameKey),

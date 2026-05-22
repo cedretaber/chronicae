@@ -9,7 +9,7 @@ import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
 
 export type CreateHouseInput = {
-  name: string
+  nameKey: string
   polityId: PolityId
   seatProvinceId?: ProvinceId
   founderId?: PersonId
@@ -32,7 +32,7 @@ export function createHouse(
 
   const houseBase: House = {
     id: houseId,
-    name: input.name,
+    nameKey: input.nameKey,
     active: true,
     memberIds: [],
     deceasedMemberIds: [],

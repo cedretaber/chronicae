@@ -37,15 +37,15 @@ function makeBaseState(): {
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312 }
-  state = withProvince(state, provinceId, { name: 'Capital' })
+  state = withProvince(state, provinceId, { nameKey: 'Capital' })
   state = withHouse(state, houseId, {
-    name: 'Test House',
+    nameKey: 'Test House',
     memberIds: [personId],
     legacyPrestige: 50,
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    name: 'Polity 1',
+    nameKey: 'Polity 1',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
@@ -54,7 +54,7 @@ function makeBaseState(): {
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
   state = withPerson(state, personId, {
-    name: 'Test Person',
+    nameKey: 'Test Person',
     houseId,
     birthStatus: 'unknown',
     legacyPrestige: 50,

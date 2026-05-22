@@ -259,14 +259,14 @@ function emitBailiffAppointed(
 ): TickContext {
   const province = ctx.state.provinces[provinceId]
   const person = ctx.state.persons[holderPersonId]
-  const provinceName = province?.name ?? provinceId
-  const personName = person?.name ?? holderPersonId
+  const provinceName = nameParam('province', province?.nameKey ?? provinceId)
+  const personName = nameParam('person', person?.nameKey ?? holderPersonId)
   const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'BAILIFF_APPOINTED',
     importance: 'minor',
     messageKey: 'bailiff.appointed',
     messageParams: {
-      person: nameParam('person', person?.nameKey, personName),
+      person: personName,
       province: provinceName,
     },
     entityRefs: [
@@ -284,8 +284,8 @@ function emitBailiffVacated(
 ): TickContext {
   const province = ctx.state.provinces[provinceId]
   const person = ctx.state.persons[holderPersonId]
-  const provinceName = province?.name ?? provinceId
-  const personName = person?.name ?? holderPersonId
+  const provinceName = nameParam('province', province?.nameKey ?? provinceId)
+  const personName = nameParam('person', person?.nameKey ?? holderPersonId)
   const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'BAILIFF_VACATED',
     importance: 'minor',
@@ -304,7 +304,7 @@ function emitBailiffVacated(
 
 function emitBailiffPlaceholderInstalled(ctx: TickContext, provinceId: ProvinceId): TickContext {
   const province = ctx.state.provinces[provinceId]
-  const provinceName = province?.name ?? provinceId
+  const provinceName = nameParam('province', province?.nameKey ?? provinceId)
   const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'BAILIFF_PLACEHOLDER_INSTALLED',
     importance: 'minor',

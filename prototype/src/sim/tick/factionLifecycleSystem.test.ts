@@ -53,19 +53,19 @@ function buildBaseState(): {
 
   let state = makeEmptyV016State()
   state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-  state = withProvince(state, provinceId, { name: 'Province0' })
+  state = withProvince(state, provinceId, { nameKey: 'Province0' })
   state = withHouse(state, houseId, {
-    name: 'House0',
+    nameKey: 'House0',
     memberIds: [leaderId],
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    name: 'Polity0',
+    nameKey: 'Polity0',
     ownerHouseId: houseId,
     capitalProvinceId: provinceId,
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
-  state = withPerson(state, leaderId, { name: 'Leader', houseId, wealth: 1000, alive: true })
+  state = withPerson(state, leaderId, { nameKey: 'Leader', houseId, wealth: 1000, alive: true })
 
   return { state, leaderId, provinceId, polityId, houseId }
 }
@@ -77,7 +77,6 @@ function addFaction(
 ): { state: WorldState; faction: Faction } {
   const faction: Faction = {
     id: factionId,
-    name: 'Faction0',
     leaderPersonId,
     active: true,
     foundingWeek: 69312,
@@ -151,21 +150,21 @@ describe('runFactionLifecycleSystem', () => {
 
     let s = makeEmptyV016State()
     s = { ...s, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    s = withProvince(s, provinceId, { name: 'Province0' })
+    s = withProvince(s, provinceId, { nameKey: 'Province0' })
     s = withHouse(s, houseId, {
-      name: 'House0',
+      nameKey: 'House0',
       memberIds: [leaderId, member1Id, member2Id],
       seatProvinceId: provinceId,
     })
     s = withPolity(s, polityId, {
-      name: 'Polity0',
+      nameKey: 'Polity0',
       ownerHouseId: houseId,
       capitalProvinceId: provinceId,
     })
     s = bindProvinceToHouseViaPolity(s, provinceId, polityId, houseId)
-    s = withPerson(s, leaderId, { name: 'Leader', houseId, wealth: 1000, alive: true, age: 25 })
-    s = withPerson(s, member1Id, { name: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
-    s = withPerson(s, member2Id, { name: 'Member2', houseId, wealth: 100, alive: true, age: 22 })
+    s = withPerson(s, leaderId, { nameKey: 'Leader', houseId, wealth: 1000, alive: true, age: 25 })
+    s = withPerson(s, member1Id, { nameKey: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
+    s = withPerson(s, member2Id, { nameKey: 'Member2', houseId, wealth: 100, alive: true, age: 22 })
 
     const ctx = makeCtx(s, { config: configWithLowThreshold })
     const result = runFactionLifecycleSystem(ctx)
@@ -199,7 +198,7 @@ describe('runFactionLifecycleSystem', () => {
     // Add a member to the faction
     const member1Id = createPersonId('pe', 1)
     let s = state
-    s = withPerson(s, member1Id, { name: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
+    s = withPerson(s, member1Id, { nameKey: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
 
     // Add faction with leader
     const { state: s2 } = addFaction(s, factionId, leaderId)
@@ -252,7 +251,7 @@ describe('runFactionLifecycleSystem', () => {
     // Add a member
     const member1Id = createPersonId('pe', 1)
     let s = state
-    s = withPerson(s, member1Id, { name: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
+    s = withPerson(s, member1Id, { nameKey: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
 
     // Add faction
     const { state: s2 } = addFaction(s, factionId, leaderId)
@@ -280,7 +279,7 @@ describe('runFactionLifecycleSystem', () => {
     const factionId = createFactionId(0)
     const member1Id = createPersonId('pe', 1)
     let s = state
-    s = withPerson(s, member1Id, { name: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
+    s = withPerson(s, member1Id, { nameKey: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
     const { state: s2 } = addFaction(s, factionId, leaderId)
     const s3: WorldState = {
       ...s2,
@@ -310,8 +309,8 @@ describe('runFactionLifecycleSystem', () => {
     const aliveMembershipId = createFactionMembershipId(2)
 
     let s = state
-    s = withPerson(s, deadMemberId, { name: 'Dead', houseId, wealth: 0, alive: false, age: 70 })
-    s = withPerson(s, aliveMemberId, { name: 'Alive', houseId, wealth: 0, alive: true, age: 25 })
+    s = withPerson(s, deadMemberId, { nameKey: 'Dead', houseId, wealth: 0, alive: false, age: 70 })
+    s = withPerson(s, aliveMemberId, { nameKey: 'Alive', houseId, wealth: 0, alive: true, age: 25 })
     const { state: s2 } = addFaction(s, factionId, leaderId)
 
     // 手動で 2 membership 追加 (helper は leaderMembership だけ作るので拡張)
@@ -366,7 +365,7 @@ describe('runFactionLifecycleSystem', () => {
     // ensure leader stays wealthy
     s = { ...s, persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, wealth: 10000 } } }
     s = withPerson(s, createPersonId('pe', 1), {
-      name: 'Other',
+      nameKey: 'Other',
       houseId,
       wealth: 0,
       alive: true,

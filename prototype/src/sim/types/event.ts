@@ -141,13 +141,8 @@ export type EventMessageParamValue =
 
 export type EventMessageParams = Record<string, EventMessageParamValue>
 
-export function nameParam(
-  category: string,
-  nameKey: string | undefined,
-  fallbackName: string,
-): EventMessageParamValue {
-  if (nameKey) return { kind: 'name', category, key: nameKey }
-  return fallbackName
+export function nameParam(category: string, nameKey: string): LocalizedNameParam {
+  return { kind: 'name', category, key: nameKey }
 }
 
 export function entityRef(

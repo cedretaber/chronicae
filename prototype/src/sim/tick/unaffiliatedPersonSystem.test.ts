@@ -13,7 +13,7 @@ import { ANONYMOUS_HOUSE_ID } from '../types/house'
 function makeBaseState(): WorldState {
   const anon = {
     id: ANONYMOUS_HOUSE_ID,
-    name: 'Anonymous',
+    nameKey: 'Anonymous',
     active: true,
     kind: 'system' as const,
     memberIds: [],
@@ -30,7 +30,6 @@ function makeBaseState(): WorldState {
       id: hid,
       provinceId: 'pr-anon' as ProvinceId,
       kind: 'manor',
-      name: `Test Manor ${i}`,
       development: 0,
       polityControl: 0,
       landQuality: 1,
@@ -103,7 +102,7 @@ function withUnaffiliatedPerson(
 ): WorldState {
   const person = {
     id,
-    name: 'Unaffiliated',
+    nameKey: 'Unaffiliated',
     sex: 'male' as const,
     age: 25,
     alive: personInfo.alive,

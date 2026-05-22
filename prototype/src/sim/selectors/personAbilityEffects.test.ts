@@ -28,7 +28,7 @@ import {
 function makePerson(overrides: Partial<Person> = {}): Person {
   return {
     id: createPersonId('pe', 0),
-    name: 'Test Person',
+    nameKey: 'Test Person',
     sex: 'male',
     age: 30,
     alive: true,
@@ -95,7 +95,7 @@ function makeWorldState(
   const province = {
     id: provinceId,
     stateId: 'sr-0' as import('../types/ids').StateRegionId,
-    name: 'Test Province',
+    nameKey: 'Test Province',
     x: 0,
     y: 0,
     neighbors: [],
@@ -121,7 +121,7 @@ function makeWorldState(
     polities: {
       [polity1Id]: {
         id: polity1Id,
-        name: 'Polity 1',
+        nameKey: 'Polity 1',
         rank: 2,
         ownerHouseId: house1Id,
         treasury: 100,
@@ -134,7 +134,7 @@ function makeWorldState(
     houses: {
       [house1Id]: {
         id: house1Id,
-        name: 'House 1',
+        nameKey: 'House 1',
         active: true,
         memberIds: [personId],
         deceasedMemberIds: [],

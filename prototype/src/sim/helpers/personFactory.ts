@@ -7,8 +7,7 @@ import { sampleAptitudes, sampleAbilitiesFromAptitudes } from '../selectors/abil
 
 export type BuildPersonInput = {
   id: PersonId
-  name: string
-  nameKey?: string
+  nameKey: string
   sex: Sex
   age: number
   houseId: HouseId
@@ -29,8 +28,7 @@ export type BuildPersonInput = {
 export function buildPerson(input: BuildPersonInput): Person {
   const base: Person = {
     id: input.id,
-    name: input.name,
-    ...(input.nameKey !== undefined ? { nameKey: input.nameKey } : {}),
+    nameKey: input.nameKey,
     sex: input.sex,
     age: input.age,
     alive: input.alive ?? true,

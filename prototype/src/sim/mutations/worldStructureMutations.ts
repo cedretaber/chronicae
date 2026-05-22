@@ -24,7 +24,7 @@ import { dispersePersonsToAnonymousHouse, addPersonToAnonymousHouse } from './ho
 import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { getHouseLeader, getPolityLeader, getPolityLeaderHouse } from '../selectors/officeSelectors'
 import { pickNameBySex } from '../worldgen/nameGenerators'
-import { generatePolityName } from '../selectors/polityNamingService'
+import { generatePolityNameKey } from '../selectors/polityNamingService'
 import {
   getHousePrimaryPolityId,
   getHouseProvinceIdsByPolity,
@@ -71,7 +71,8 @@ export function splitHouse(
   // Province fraction selection
   const controlMin = ctx.config.houseSplitControlMin / 100
   const controlMax = ctx.config.houseSplitControlMax / 100
-  const { value: controlFraction, rng: rngAfterControl } = randomFloat(ctx.rng)
+  const { value: controlFraction } = randomFloat(ctx.rng)
+  let rngAfterControl = ctx.rng
   const F = controlMin + controlFraction * (controlMax - controlMin)
   const sortedProvinceIds = [...getHouseControlledProvinceIds(ctx.state, input.houseId)].sort()
   const splitCount = Math.max(1, Math.floor(sortedProvinceIds.length * F))
@@ -112,9 +113,30 @@ export function splitHouse(
 
   // v0.16: 親 Polity ID は polityIndex.byOwnerHouse 経由で取得。Stage A では実際の Polity 帰属変更は行わない (Stage B で LandContract 操作に置換)
   const newHousePolityId = getHousePrimaryPolityId(ctxWithId.state, house.id)
+
+  let newHouseNameKey: string
+  if (ctx.namePoolService) {
+    const usedKeys = new Set(
+      Object.values(ctx.state.houses)
+        .filter((h): h is NonNullable<typeof h> => h !== undefined)
+        .map((h) => h.nameKey),
+    )
+    const { value: key, rng: rngH } = ctx.namePoolService.pickUniqueNameKey(
+      ctxWithId.rng,
+      usedKeys,
+      { nameCultureId: 'western', category: 'house', path: ['noble'] },
+      'house',
+      Object.keys(ctx.state.houses).length,
+    )
+    rngAfterControl = rngH
+    newHouseNameKey = key
+  } else {
+    newHouseNameKey = `house_${Object.keys(ctx.state.houses).length}`
+  }
+
   const newHouseObj: House = {
     id: newHouseId,
-    name: splitterPerson.name + "'s House",
+    nameKey: newHouseNameKey,
     active: true,
     memberIds: [splitterPerson.id],
     deceasedMemberIds: [],
@@ -212,9 +234,9 @@ export function splitHouse(
     importance: 'major',
     messageKey: 'house.split',
     messageParams: {
-      person: nameParam('person', splitterPerson.nameKey, splitterPerson.name),
-      fromHouse: nameParam('house', house.nameKey, house.name),
-      toHouse: nameParam('house', undefined, splitterPerson.name + "'s House"),
+      person: nameParam('person', splitterPerson.nameKey),
+      fromHouse: nameParam('house', house.nameKey),
+      toHouse: nameParam('house', newHouseNameKey),
     },
     entityRefs: [
       entityRef('person', splitterPerson.id, 'splitter', splitterPerson.nameKey),
@@ -240,13 +262,9 @@ export function splitHouse(
     importance: 'major',
     messageKey: 'succession.crisis_split',
     messageParams: {
-      house: nameParam('house', house.nameKey, house.name),
+      house: nameParam('house', house.nameKey),
       polity: housePolityId
-        ? nameParam(
-            'polity',
-            resultCtx.state.polities[housePolityId]?.nameKey,
-            resultCtx.state.polities[housePolityId]?.name ?? String(housePolityId),
-          )
+        ? nameParam('polity', resultCtx.state.polities[housePolityId]?.nameKey ?? '')
         : '',
     },
     entityRefs: [
@@ -436,7 +454,7 @@ function handleNormalHouseExtinction(
         importance: 'normal',
         messageKey: 'house.members_dispersed',
         messageParams: {
-          house: nameParam('house', house.nameKey, house.name),
+          house: nameParam('house', house.nameKey),
         },
         entityRefs: [
           entityRef('house', houseId, 'house', house.nameKey),
@@ -451,7 +469,7 @@ function handleNormalHouseExtinction(
       importance: 'major',
       messageKey: 'house.extinct',
       messageParams: {
-        house: nameParam('house', house.nameKey, house.name),
+        house: nameParam('house', house.nameKey),
       },
       entityRefs: [entityRef('house', houseId, 'house', house.nameKey)],
     })
@@ -521,15 +539,15 @@ function handleNormalHouseExtinction(
       polityIds: [polityId],
       provinceIds: [] as ProvinceId[],
       holdingIds: [] as HoldingId[],
-      summary: `${polity.name}'s ruling house changed from ${house.name} to ${receiverHouse?.name ?? receiverHouseId} after the extinction.`,
+      summary: `${polity.nameKey}'s ruling house changed from ${house.nameKey} to ${receiverHouse?.nameKey ?? receiverHouseId} after the extinction.`,
       reasons: [] as EventReason[],
       effects: [] as EventEffect[],
       // i18n fields from createSimEvent pattern
       messageKey: 'polity.owner_changed_extinction',
       messageParams: {
-        polity: nameParam('polity', polity.nameKey, polity.name),
-        fromHouse: nameParam('house', house.nameKey, house.name),
-        toHouse: nameParam('house', receiverHouse?.nameKey, receiverHouse?.name ?? receiverHouseId),
+        polity: nameParam('polity', polity.nameKey),
+        fromHouse: nameParam('house', house.nameKey),
+        toHouse: nameParam('house', receiverHouse?.nameKey ?? ''),
       },
       entityRefs: [
         entityRef('house', houseId, 'from_house', house.nameKey),
@@ -569,7 +587,7 @@ function handleNormalHouseExtinction(
       messageKey:
         inheritedPolityIds.length > 0 ? 'house.extinct_inherited' : 'house.extinct_legacy',
       messageParams: {
-        house: nameParam('house', house.nameKey, house.name),
+        house: nameParam('house', house.nameKey),
       },
       entityRefs: [
         entityRef('house', houseId, 'extinct_house', house.nameKey),
@@ -649,14 +667,20 @@ export function createRebelPolity(
 
   // Generate polity name (rulingHouseId は不使用: province_revolt_independence origin は
   // capitalProvinceId から命名する)
-  const { name: newPolityName, rng: rng0 } = generatePolityName(ctx.state, ctx.config, ctx.rng, {
-    origin: 'province_revolt_independence',
-    provinceIds: [provinceId],
-    capitalProvinceId: provinceId,
-    founderPersonId: newPersonId,
-    sourcePolityId: oldPolityId,
-    rebelClass,
-  })
+  const { nameKey: newPolityNameKey, rng: rng0 } = generatePolityNameKey(
+    ctx.state,
+    ctx.config,
+    ctx.rng,
+    {
+      origin: 'province_revolt_independence',
+      provinceIds: [provinceId],
+      capitalProvinceId: provinceId,
+      founderPersonId: newPersonId,
+      sourcePolityId: oldPolityId,
+      rebelClass,
+    },
+    ctx.namePoolService,
+  )
   ctx = { ...ctx, rng: rng0 }
 
   // Generate leader (§17 step 4: sex 50/50, age range from config)
@@ -664,8 +688,7 @@ export function createRebelPolity(
   ctx = { ...ctx, rng: rngSex }
   const leaderSex: 'male' | 'female' = sexRoll === 0 ? 'male' : 'female'
 
-  let leaderName: string
-  let leaderNameKey: string | undefined
+  let leaderNameKey: string
   if (ctx.namePoolService) {
     const { value: key, rng: rng1 } = ctx.namePoolService.pickNameKey(ctx.rng, {
       nameCultureId: ctx.config.nameCultureId,
@@ -674,11 +697,10 @@ export function createRebelPolity(
     })
     ctx = { ...ctx, rng: rng1 }
     leaderNameKey = key
-    leaderName = key
   } else {
     const { name, rng: rng1 } = pickNameBySex(leaderSex, ctx.rng)
     ctx = { ...ctx, rng: rng1 }
-    leaderName = name
+    leaderNameKey = name
   }
 
   const [ageMin, ageMax] = defaultLandContractConfig.rebelLeaderAgeRange
@@ -694,8 +716,7 @@ export function createRebelPolity(
   // v0.18-pre: rebel Person は AnonymousHouse 所属。dynasty 樹立は将来「家の設立」イベントで。
   const { value: newLeader, rng: rngAfterLeader } = samplePerson(ctx.rng, ctx.config, {
     id: newPersonId,
-    name: leaderName,
-    ...(leaderNameKey !== undefined ? { nameKey: leaderNameKey } : {}),
+    nameKey: leaderNameKey,
     sex: leaderSex,
     age,
     houseId: ANONYMOUS_HOUSE_ID,
@@ -714,7 +735,7 @@ export function createRebelPolity(
   // ownerHouseId === undefined を恒常的に許容する。
   const newPolityObj: Polity = {
     id: newPolityId,
-    name: newPolityName,
+    nameKey: newPolityNameKey,
     treasury: config.revoltPolityInitialTreasury,
     legacyPrestige: config.revoltPolityInitialLegacyPrestige,
     adminPower: 0,
@@ -835,7 +856,7 @@ export function createRebelPolity(
           importance: 'major',
           messageKey: 'house.extinct_fallen',
           messageParams: {
-            house: nameParam('house', oldOwnerHouse.nameKey, oldOwnerHouse.name),
+            house: nameParam('house', oldOwnerHouse.nameKey),
           },
           entityRefs: [
             entityRef('house', oldOwnerHouseId, 'fallen_house', oldOwnerHouse.nameKey),
@@ -860,9 +881,9 @@ export function createRebelPolity(
     importance: 'critical',
     messageKey: 'revolt.polity_founded',
     messageParams: {
-      polity: nameParam('polity', newPolityObj.nameKey ?? '', newPolityObj.name),
-      leader: nameParam('person', newLeader.nameKey, newLeader.name),
-      province: nameParam('province', province.nameKey, province.name),
+      polity: nameParam('polity', newPolityObj.nameKey),
+      leader: nameParam('person', newLeader.nameKey),
+      province: nameParam('province', province.nameKey),
     },
     entityRefs: [
       entityRef('person', newPersonId, 'leader', newLeader.nameKey),
@@ -1018,16 +1039,12 @@ export function disbandRebelPolity(
     importance: 'major',
     messageKey,
     messageParams: {
-      province: nameParam('province', province.nameKey, province.name),
+      province: nameParam('province', province.nameKey),
       leader:
         rebelLeaderId !== undefined
-          ? nameParam(
-              'person',
-              state.persons[rebelLeaderId]?.nameKey,
-              state.persons[rebelLeaderId]?.name ?? '',
-            )
+          ? nameParam('person', state.persons[rebelLeaderId]?.nameKey ?? '')
           : '',
-      polity: nameParam('polity', restorePolity.nameKey, restorePolity.name),
+      polity: nameParam('polity', restorePolity.nameKey),
     },
     entityRefs: [
       rebelLeaderId !== undefined

@@ -103,8 +103,8 @@ export function runHouseDevelopmentSystem(ctx: TickContext): TickContext {
       importance: 'minor',
       messageKey: 'house.land_developed',
       messageParams: {
-        house: nameParam('house', house.nameKey, house.name),
-        province: nameParam('province', targetProvince.nameKey, targetProvince.name),
+        house: nameParam('house', house.nameKey),
+        province: nameParam('province', targetProvince.nameKey),
       },
       entityRefs: [
         entityRef('house', houseId, 'house', house.nameKey),

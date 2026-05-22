@@ -83,7 +83,7 @@ function PolityRow({
     >
       <div className="flex items-center gap-2">
         <span className="inline-block h-3 w-3 shrink-0 rounded-sm" style={{ background: color }} />
-        <span className="font-bold">{resolveName('polity', polity.nameKey, polity.name)}</span>
+        <span className="font-bold">{resolveName('polity', polity.nameKey, polity.nameKey)}</span>
       </div>
       <div className="text-gray-300">
         Leg: {formatScore(legitimacy)} | Stab: {formatScore(stability)} | Mil:{' '}
@@ -116,7 +116,7 @@ function HouseRow({
       }`}
       onClick={onClick}
     >
-      <div className="font-bold">{resolveName('house', house.nameKey, house.name)}</div>
+      <div className="font-bold">{resolveName('house', house.nameKey, house.nameKey)}</div>
       <div className="flex items-center gap-1.5 text-xs text-gray-400">
         <span
           className="inline-block h-2 w-2 shrink-0 rounded-sm"
@@ -151,7 +151,7 @@ function PersonRow({
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
-        <span className="font-bold">{resolveName('person', person.nameKey, person.name)}</span>
+        <span className="font-bold">{resolveName('person', person.nameKey, person.nameKey)}</span>
         <span className="text-xs text-yellow-400">{Math.round(score)}</span>
       </div>
       <div className="text-gray-300">
@@ -200,7 +200,7 @@ function FactionRow({
       }`}
       onClick={onClick}
     >
-      <div className="font-bold">{faction.name}</div>
+      <div className="font-bold">{leaderName}</div>
       <div className="text-xs text-gray-400">Leader: {leaderName}</div>
       <div className="text-gray-300">
         Members: {memberCount} | Founded: {founded.year}/W
@@ -222,8 +222,8 @@ function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<st
     escalated: { label: 'escalated', bg: 'bg-red-700' },
   }
 
-  const initiatorName = polities[play.initiator.id]?.name ?? play.initiator.id
-  const targetName = polities[play.target.id]?.name ?? play.target.id
+  const initiatorName = polities[play.initiator.id]?.nameKey ?? play.initiator.id
+  const targetName = polities[play.target.id]?.nameKey ?? play.target.id
   const badge = statusBadge[play.status] ?? { label: play.status, bg: 'bg-gray-600' }
   const kindLabelText = kindLabel[play.kind] ?? play.kind
   const dl = weekToYearWeek(play.deadlineWeek)
@@ -417,7 +417,9 @@ export function Sidebar() {
             const leader = persons?.[f.leaderPersonId]
             return {
               faction: f,
-              leaderName: leader ? resolveName('person', leader.nameKey, leader.name) : '(unknown)',
+              leaderName: leader
+                ? resolveName('person', leader.nameKey, leader.nameKey)
+                : '(unknown)',
               memberCount: getFactionActiveMemberIds(session.currentState, f.id).length,
             }
           })
@@ -495,7 +497,7 @@ export function Sidebar() {
                   primaryPolityId
                     ? (() => {
                         const p = polities?.[primaryPolityId]
-                        return p ? resolveName('polity', p.nameKey, p.name) : ''
+                        return p ? resolveName('polity', p.nameKey, p.nameKey) : ''
                       })()
                     : ''
                 }
@@ -555,13 +557,13 @@ export function Sidebar() {
       let name = watchId
       if (type === 'polity' && polities) {
         const found = Object.values(polities).find((p) => p.id === watchId)
-        if (found) name = resolveName('polity', found.nameKey, found.name)
+        if (found) name = resolveName('polity', found.nameKey, found.nameKey)
       } else if (type === 'house' && houses) {
         const found = Object.values(houses).find((h) => h.id === watchId)
-        if (found) name = resolveName('house', found.nameKey, found.name)
+        if (found) name = resolveName('house', found.nameKey, found.nameKey)
       } else if (type === 'person' && persons) {
         const found = Object.values(persons).find((p) => p.id === watchId)
-        if (found) name = resolveName('person', found.nameKey, found.name)
+        if (found) name = resolveName('person', found.nameKey, found.nameKey)
       }
 
       const currentState = session?.currentState
