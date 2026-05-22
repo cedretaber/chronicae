@@ -14,7 +14,14 @@ export type I18nNamespace =
   | 'decision_reasons'
   | 'perceptions'
 
-export type NameCategory = 'person' | 'house' | 'province' | 'polity' | 'holding' | 'state_region'
+export type NameCategory =
+  | 'person'
+  | 'house'
+  | 'province'
+  | 'polity'
+  | 'holding'
+  | 'state_region'
+  | 'role'
 
 export type I18nResourceBundle = Record<string, unknown>
 

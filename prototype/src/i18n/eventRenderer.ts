@@ -28,7 +28,8 @@ export function createEventRenderer(
 
 function resolveParam(value: EventMessageParamValue, nameTranslator: NameTranslator): string {
   if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (typeof value === 'number') return String(Math.round(value))
+  if (typeof value === 'boolean') return String(value)
   if (value.kind === 'name') return nameTranslator.resolve(value.category, value.key)
   if (value.kind === 'entity') return value.id
   return String(value)

@@ -37,3 +37,16 @@ export function getPseudoMonthFromWeek(weekOfYear: number): number {
 export function getWeekOfPseudoMonth(weekOfYear: number): number {
   return ((weekOfYear - 1) % WEEKS_PER_PSEUDO_MONTH) + 1
 }
+
+export function weekToYearMonthWeek(absoluteWeek: number): {
+  year: number
+  month: number
+  weekOfMonth: number
+} {
+  const { year, weekOfYear } = weekToYearWeek(absoluteWeek)
+  return {
+    year,
+    month: getPseudoMonthFromWeek(weekOfYear),
+    weekOfMonth: getWeekOfPseudoMonth(weekOfYear),
+  }
+}

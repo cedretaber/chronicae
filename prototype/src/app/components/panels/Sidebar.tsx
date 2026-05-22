@@ -23,7 +23,7 @@ import { buildPolityColorMap } from '@/app/utils/polityColors'
 import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
 import type { PolityRank } from '@/sim/types/polity'
 import { defaultConfig } from '@/sim/config/defaultConfig'
-import { weekToYearWeek } from '@sim/utils/timeUtils'
+import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 
 type SectionKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist' | 'plays'
 
@@ -192,7 +192,8 @@ function FactionRow({
   isSelected: boolean
   onClick: () => void
 }) {
-  const founded = weekToYearWeek(faction.foundingWeek)
+  const { t } = useTranslation()
+  const founded = weekToYearMonthWeek(faction.foundingWeek)
   return (
     <div
       className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
@@ -201,10 +202,12 @@ function FactionRow({
       onClick={onClick}
     >
       <div className="font-bold">{leaderName}</div>
-      <div className="text-xs text-gray-400">Leader: {leaderName}</div>
+      <div className="text-xs text-gray-400">
+        {t('detail.faction.leader')}: {leaderName}
+      </div>
       <div className="text-gray-300">
-        Members: {memberCount} | Founded: {founded.year}/W
-        {String(founded.weekOfYear).padStart(2, '0')}
+        {t('detail.faction.members')}: {memberCount} | {t('detail.faction.founded')}: {founded.year}
+        /{founded.month}/{founded.weekOfMonth}
       </div>
     </div>
   )
@@ -212,21 +215,25 @@ function FactionRow({
 
 // v0.18 Stage E/F §21: Active DiplomaticPlay 一覧の row
 function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<string, Polity> }) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
   const kindLabel: Record<string, string> = {
-    revolt_negotiation: 'Revolt',
-    land_claim: 'Claim',
-    contract_tax_revision: 'Tax',
+    revolt_negotiation: t('sidebar.play_kind.revolt'),
+    land_claim: t('sidebar.play_kind.claim'),
+    contract_tax_revision: t('sidebar.play_kind.tax'),
   }
   const statusBadge: Record<string, { label: string; bg: string }> = {
-    active: { label: 'active', bg: 'bg-blue-700' },
-    escalated: { label: 'escalated', bg: 'bg-red-700' },
+    active: { label: t('sidebar.play_status.active'), bg: 'bg-blue-700' },
+    escalated: { label: t('sidebar.play_status.escalated'), bg: 'bg-red-700' },
   }
 
-  const initiatorName = polities[play.initiator.id]?.nameKey ?? play.initiator.id
-  const targetName = polities[play.target.id]?.nameKey ?? play.target.id
+  const initiatorNameKey = polities[play.initiator.id]?.nameKey ?? play.initiator.id
+  const targetNameKey = polities[play.target.id]?.nameKey ?? play.target.id
+  const initiatorName = resolveName('polity', initiatorNameKey, initiatorNameKey)
+  const targetName = resolveName('polity', targetNameKey, targetNameKey)
   const badge = statusBadge[play.status] ?? { label: play.status, bg: 'bg-gray-600' }
   const kindLabelText = kindLabel[play.kind] ?? play.kind
-  const dl = weekToYearWeek(play.deadlineWeek)
+  const dl = weekToYearMonthWeek(play.deadlineWeek)
   const worldState = useSimulationStore((s) => s.session?.currentState)
   let provinceId: string | undefined
   if (play.primaryDemand.kind === 'transfer_land_contract') {
@@ -253,11 +260,24 @@ function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<st
       </div>
       <div className="mt-1 truncate text-xs text-gray-300">
         <span className="font-bold">{initiatorName}</span> → {targetName}
-        {provinceId && <span className="text-gray-500"> ({provinceId})</span>}
+        {provinceId && (
+          <span className="text-gray-500">
+            {' '}
+            (
+            {resolveName(
+              'province',
+              worldState?.provinces[provinceId as import('@sim/types/ids').ProvinceId]?.nameKey ??
+                provinceId,
+              provinceId,
+            )}
+            )
+          </span>
+        )}
       </div>
       <div className="text-xs text-gray-400">
-        Prog {Math.round(play.progress)} | Tens {Math.round(play.tension)} | DL {dl.year}/W
-        {String(dl.weekOfYear).padStart(2, '0')}
+        {t('sidebar.play_progress')}: {Math.round(play.progress)} | {t('sidebar.play_tension')}:{' '}
+        {Math.round(play.tension)} | {t('sidebar.play_deadline')}: {dl.year}/{dl.month}/
+        {dl.weekOfMonth}
       </div>
     </div>
   )
@@ -524,7 +544,9 @@ export function Sidebar() {
     }
     if (key === 'factions') {
       if (factionEntries.length === 0) {
-        return <div className="px-3 py-2 text-xs text-gray-500">No active factions</div>
+        return (
+          <div className="px-3 py-2 text-xs text-gray-500">{t('sidebar.no_active_factions')}</div>
+        )
       }
       return factionEntries.map(({ faction, leaderName, memberCount }) => (
         <FactionRow

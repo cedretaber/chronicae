@@ -441,7 +441,7 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
       summary: `${initiatorName ?? initiatorPolityId} mobilises against ${defenderName ?? defenderPolityId} over ${provinceNameKey}.`,
       messageKey: 'diplomatic_play.escalated_claim',
       messageParams: {
-        initiator: initiatorName ?? initiatorPolityId,
+        initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
         province: provinceParam,
       },
       eventEntityRefs: [
@@ -475,7 +475,7 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
         summary: `Deadlocked claim erupts: ${initiatorName ?? initiatorPolityId} attacks for ${provinceNameKey}.`,
         messageKey: 'diplomatic_play.escalated_claim',
         messageParams: {
-          initiator: initiatorName ?? initiatorPolityId,
+          initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
           province: provinceParam,
         },
         eventEntityRefs: [
@@ -502,7 +502,7 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
       importance: 'normal',
       messageKey: 'diplomatic_play.failed_claim',
       messageParams: {
-        initiator: initiatorName ?? initiatorPolityId,
+        initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
         province: provinceName,
       },
       entityRefs: [
@@ -628,7 +628,7 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
       summary: `${initiatorName ?? initiatorPolityId} demands tax changes from ${defenderName ?? defenderPolityId} over ${provinceNameKey}.`,
       messageKey: 'diplomatic_play.escalated_claim',
       messageParams: {
-        initiator: initiatorName ?? initiatorPolityId,
+        initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
         province: provinceParam,
       },
       eventEntityRefs: [
@@ -652,7 +652,7 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
       holdingIds: [holdingId],
       summary: `Tax revision dispute over ${provinceNameKey} escalates to conflict.`,
       messageKey: 'diplomatic_play.escalated_claim',
-      messageParams: { initiator: initiatorName, province: provinceParam },
+      messageParams: { initiator: nameParam('polity', initiatorName), province: provinceParam },
       eventEntityRefs: [
         entityRef(
           'polity',
@@ -713,8 +713,8 @@ function applyContractTaxRevisionSettlement(
       messageParams: {
         province: provinceName,
         rate: Math.round(newRate * 100),
-        initiator: initiatorName,
-        defender: defenderName,
+        initiator: nameParam('polity', initiatorName),
+        defender: nameParam('polity', defenderName),
       },
       entityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
@@ -762,8 +762,8 @@ function applyContractTaxRevisionSettlement(
       messageKey: 'land_contract.eliminated',
       messageParams: {
         province: provinceName,
-        initiator: initiatorName,
-        defender: defenderName,
+        initiator: nameParam('polity', initiatorName),
+        defender: nameParam('polity', defenderName),
       },
       entityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
@@ -873,9 +873,9 @@ function applyLandClaimSettlement(
       importance: 'major',
       messageKey: 'diplomatic_play.settled_purchase',
       messageParams: {
-        initiator: initiatorName,
+        initiator: nameParam('polity', initiatorName),
         province: provinceParam,
-        defender: defenderName,
+        defender: nameParam('polity', defenderName),
         price: Math.round(offeredPrice),
       },
       entityRefs: [
@@ -913,9 +913,9 @@ function applyLandClaimSettlement(
     importance: 'major',
     messageKey: 'diplomatic_play.settled_cession',
     messageParams: {
-      defender: defenderName,
+      defender: nameParam('polity', defenderName),
       province: provinceParam,
-      initiator: initiatorName,
+      initiator: nameParam('polity', initiatorName),
     },
     entityRefs: [
       entityRef('polity', initiatorPolityId, 'initiator', initiatorName),

@@ -9,7 +9,7 @@ import {
   getHouseLoyaltyToPolity,
 } from '@sim/selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '@sim/helpers/attitudeHelpers'
-import { weekToYearWeek } from '@sim/utils/timeUtils'
+import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import {
   getPolityLeaderHouse,
   getPolityLeader,
@@ -556,36 +556,6 @@ function PolityLink({
   )
 }
 
-function RoleDisplay({
-  role,
-  polityId,
-  persons,
-  onClick,
-  currentState,
-}: {
-  role: string
-  polityId: PolityId
-  persons: Record<string, Person>
-  onClick: ClickHandler
-  currentState: import('@sim/types/world').WorldState | null
-}) {
-  const polityRef = {
-    kind: 'polity' as const,
-    id: polityId,
-  }
-  if (!currentState) return <span className="text-gray-500">\u2014</span>
-  const holderIds = getActiveOfficeHolders(
-    currentState,
-    polityRef,
-    role as import('@sim/types/office').OfficeRole,
-  )
-  if (holderIds.length === 0) return <span className="text-gray-500">\u2014</span>
-  const personId = holderIds[0]
-  const person = persons[personId as PersonId]
-  if (!person) return <span className="text-gray-500">\u2014</span>
-  return <PersonLink personId={personId as PersonId} persons={persons} onClick={onClick} />
-}
-
 const ABILITY_KEYS = ['valor', 'command', 'numeracy', 'learning', 'charisma', 'insight'] as const
 
 function AbilityRadarChart({
@@ -1029,6 +999,7 @@ export function CountryDetail({
     administrator: t('polity.administrator', { ns: 'roles' }),
     military: t('polity.military', { ns: 'roles' }),
     treasurer: t('polity.treasurer', { ns: 'roles' }),
+    advisor: t('polity.advisor', { ns: 'roles' }),
   }
 
   // v0.15: この Polity に Province を持つ active House を、所領 Province 数とともに表示する。
@@ -1181,18 +1152,29 @@ export function CountryDetail({
 
       <div className="text-sm font-semibold text-gray-300">{t('detail.polity.roles')}:</div>
       <div className="text-sm">
-        {(['leader', 'administrator', 'military', 'treasurer'] as const).map((role) => (
-          <div key={role} className="flex justify-between">
-            <span className="text-gray-400">{roleLabels[role]}:</span>
-            <RoleDisplay
-              role={role}
-              polityId={polity.id}
-              persons={persons}
-              onClick={onPersonClick}
-              currentState={session?.currentState ?? null}
-            />
-          </div>
-        ))}
+        {(['leader', 'administrator', 'military', 'treasurer', 'advisor'] as const).map((role) => {
+          const polityRef = { kind: 'polity' as const, id: polity.id }
+          const holderIds = worldState ? getActiveOfficeHolders(worldState, polityRef, role) : []
+          return (
+            <div key={role} className="flex justify-between">
+              <span className="text-gray-400">{roleLabels[role]}:</span>
+              <div className="flex flex-col items-end gap-0.5">
+                {holderIds.length === 0 ? (
+                  <span className="text-gray-500">—</span>
+                ) : (
+                  holderIds.map((pid) => (
+                    <PersonLink
+                      key={pid as string}
+                      personId={pid}
+                      persons={persons}
+                      onClick={onPersonClick}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       <div className="text-sm font-semibold text-gray-300">
@@ -1719,7 +1701,9 @@ export function PersonDetail({
         {person.occupation && (
           <div className="flex justify-between">
             <span className="text-gray-400">{t('detail.person.occupation')}:</span>
-            <span>{person.occupation}</span>
+            <span>
+              {t(`detail.occupations.${person.occupation}`, { defaultValue: person.occupation })}
+            </span>
           </div>
         )}
         {(() => {
@@ -2553,6 +2537,7 @@ export function FactionDetail({
   onHouseClick: ClickHandler
 }) {
   const { t } = useTranslation()
+  const resolveName = useEntityName()
   const currentState = session?.currentState
   const worldState: WorldState | null = currentState ?? null
   if (!worldState) return null
@@ -2578,9 +2563,6 @@ export function FactionDetail({
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
     .sort((a, b) => b.legacyPrestige - a.legacyPrestige)
 
-  // v0.17.4 UI: 各 member の代表官職を抽出する。
-  // 優先順位: Polity Office > House Office > Bailiff > 無職。
-  // ROLE_ORDER で leader, administrator, treasurer, military, advisor の順に並べる。
   const ROSTER_ROLE_ORDER = ['leader', 'administrator', 'treasurer', 'military', 'advisor']
   const ws: WorldState = worldState
   function getMemberRepresentativeOffice(personId: PersonId): {
@@ -2609,22 +2591,22 @@ export function FactionDetail({
     const total = offices.length + bailiffs.length
     if (polityOfficesLocal.length > 0) {
       const o = polityOfficesLocal[0]!
-      const displayName =
-        OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
-      const orgName = ws.polities[o.organization.id as PolityId]?.nameKey ?? o.organization.id
+      const roleName = resolveName('role', `${o.organization.kind}_${o.role}`, o.role)
+      const orgNameKey = ws.polities[o.organization.id as PolityId]?.nameKey ?? o.organization.id
+      const orgName = resolveName('polity', orgNameKey, orgNameKey)
       return {
-        label: `${displayName} (${orgName})`,
+        label: `${roleName} (${orgName})`,
         extraCount: total - 1,
         isUnemployed: false,
       }
     }
     if (houseOfficesLocal.length > 0) {
       const o = houseOfficesLocal[0]!
-      const displayName =
-        OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
-      const orgName = ws.houses[o.organization.id as HouseId]?.nameKey ?? o.organization.id
+      const roleName = resolveName('role', `${o.organization.kind}_${o.role}`, o.role)
+      const orgNameKey = ws.houses[o.organization.id as HouseId]?.nameKey ?? o.organization.id
+      const orgName = resolveName('house', orgNameKey, orgNameKey)
       return {
-        label: `${displayName} (${orgName})`,
+        label: `${roleName} (${orgName})`,
         extraCount: total - 1,
         isUnemployed: false,
       }
@@ -2632,14 +2614,15 @@ export function FactionDetail({
     if (bailiffs.length > 0) {
       const a = bailiffs[0]!
       const hld = ws.holdings[a.holdingId]
-      const holdingName = hld ? (ws.provinces[hld.provinceId]?.nameKey ?? a.holdingId) : a.holdingId
+      const provNameKey = hld ? (ws.provinces[hld.provinceId]?.nameKey ?? a.holdingId) : a.holdingId
+      const provName = resolveName('province', provNameKey, provNameKey)
       return {
-        label: `代官 (${holdingName})`,
+        label: `${t('detail.faction.bailiff_label')} (${provName})`,
         extraCount: total - 1,
         isUnemployed: false,
       }
     }
-    return { label: '無職', extraCount: 0, isUnemployed: true }
+    return { label: t('detail.faction.unemployed_label'), extraCount: 0, isUnemployed: true }
   }
 
   return (
@@ -2651,7 +2634,7 @@ export function FactionDetail({
           </span>
           {!faction.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">
-              Dissolved
+              {t('detail.faction.dissolved')}
             </span>
           )}
         </div>
@@ -2667,11 +2650,11 @@ export function FactionDetail({
           <span className="text-gray-400">{t('detail.faction.founded')}:</span>
           <span>
             {(() => {
-              const f = weekToYearWeek(faction.foundingWeek)
-              return `${f.year}/W${String(f.weekOfYear).padStart(2, '0')}`
+              const f = weekToYearMonthWeek(faction.foundingWeek)
+              return `${f.year}/${f.month}/${f.weekOfMonth}`
             })()}{' '}
             <span className="text-xs text-gray-500">
-              ({ageYears} year{ageYears === 1 ? '' : 's'} ago)
+              {t('detail.faction.years_ago', { years: ageYears })}
             </span>
           </span>
         </div>
@@ -2715,14 +2698,17 @@ export function FactionDetail({
             </span>
             {totalRoster > 0 && (
               <span className="text-xs text-gray-400">
-                有職: {employedCount}/{totalRoster}
+                {t('detail.faction.employed_count', {
+                  employed: employedCount,
+                  total: totalRoster,
+                })}
               </span>
             )}
           </div>
         )
       })()}
       {memberRows.length === 0 ? (
-        <div className="text-xs text-gray-500">(leader only)</div>
+        <div className="text-xs text-gray-500">{t('detail.faction.leader_only')}</div>
       ) : (
         <div className="flex flex-col gap-0.5 text-sm">
           {memberRows.map((p) => {
@@ -2733,11 +2719,13 @@ export function FactionDetail({
                   <PersonLink personId={p.id} persons={persons} onClick={onPersonClick} />
                   <span className="text-xs text-gray-400">
                     {p.houseId === ANONYMOUS_HOUSE_ID ? (
-                      <span className="text-gray-500">(Unaffiliated)</span>
+                      <span className="text-gray-500">
+                        {t('detail.faction.unaffiliated_member')}
+                      </span>
                     ) : (
                       <HouseLink houseId={p.houseId} houses={houses} onClick={onHouseClick} />
                     )}{' '}
-                    · age {p.age}
+                    · {t('detail.faction.age_label', { age: p.age })}
                   </span>
                   <span
                     className={`text-xs ${
@@ -2751,7 +2739,7 @@ export function FactionDetail({
                   </span>
                 </div>
                 <span className="text-xs text-gray-400">
-                  Prestige {formatScore(p.legacyPrestige)}
+                  {t('detail.faction.prestige_label')} {formatScore(p.legacyPrestige)}
                 </span>
               </div>
             )

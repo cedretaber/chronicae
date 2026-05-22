@@ -6,6 +6,9 @@ import { getPolityHouseIds } from '../selectors/polityRelations'
 import { removeOrganizationShare } from '../mutations/shareMutations'
 import { revokeOfficeAssignment } from '../mutations/officeMutations'
 import { ANONYMOUS_HOUSE_ID } from '../types/house'
+import { getActiveFactionMembership } from '../selectors/factionSelectors'
+import { getActiveOfficeHolders, getEffectiveOfficeMaxHolders } from '../selectors/officeSelectors'
+import type { OfficeRole, OrganizationRef } from '../types/office'
 
 // v0.15 §11.4: PolityOwnerConsistencySystem の後段で実行。
 // Polity Share / Office の保持資格を監査し、不適格を削除/revoke する。
@@ -41,7 +44,9 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
           const house = currentCtx.state.houses[person.houseId]
           const isCommonwealthRebelHolder =
             polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
-          if (!isCommonwealthRebelHolder) {
+          const isFactionMember =
+            getActiveFactionMembership(currentCtx.state, share.holder.id) !== undefined
+          if (!isCommonwealthRebelHolder && !isFactionMember) {
             if (!house || !house.active || !eligibleHouseIds.has(house.id)) {
               shouldRemove = true
             }
@@ -68,7 +73,9 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
       const houseEligible = house && house.active && eligibleHouseIds.has(house.id)
       const isCommonwealthRebelHolder =
         polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
-      if (houseEligible || isCommonwealthRebelHolder) continue
+      const isFactionMember =
+        getActiveFactionMembership(currentCtx.state, office.holderPersonId) !== undefined
+      if (houseEligible || isCommonwealthRebelHolder || isFactionMember) continue
 
       const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)
       const holder = revokedState.persons[office.holderPersonId]
@@ -79,7 +86,7 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
           importance: 'normal',
           messageKey: 'office.revoked',
           messageParams: {
-            role: office.role,
+            role: nameParam('role', `polity_${office.role}`),
             organization: nameParam('polity', polity.nameKey),
           },
           entityRefs: [
@@ -90,6 +97,61 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
         },
       )
       currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }
+    }
+
+    // Step 3: rank ベースの定員超過 revoke
+    // polity の rank / province 数に対して effective maxHolders を超える役職者を解任する。
+    // 最も新しい任命（startYear が大きい）から順に解任。
+    const POLITY_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
+    const polityRef: OrganizationRef = { kind: 'polity', id: polityId }
+    for (const role of POLITY_ROLES) {
+      const effectiveMax = getEffectiveOfficeMaxHolders(
+        currentCtx.state,
+        currentCtx.config,
+        polityRef,
+        role,
+      )
+      const holderIds = getActiveOfficeHolders(currentCtx.state, polityRef, role)
+      if (holderIds.length <= effectiveMax) continue
+
+      const assignments = holderIds
+        .flatMap((pid) => {
+          const ids = currentCtx.state.officeIndex.byOrganization[orgKey] ?? []
+          for (const oid of ids) {
+            const o = currentCtx.state.officeAssignments[oid]
+            if (o && o.active && o.role === role && o.holderPersonId === pid) {
+              return [o]
+            }
+          }
+          return []
+        })
+        .sort((a, b) => b.startYear - a.startYear)
+
+      const excess = assignments.slice(0, assignments.length - effectiveMax)
+      for (const office of excess) {
+        const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)
+        const holder = revokedState.persons[office.holderPersonId]
+        const houseId = holder?.houseId
+        const house = houseId ? revokedState.houses[houseId] : undefined
+        const { event, ctx: eventCtx } = createSimEvent(
+          { ...currentCtx, state: revokedState },
+          {
+            type: 'OFFICE_REVOKED',
+            importance: 'normal',
+            messageKey: 'office.revoked',
+            messageParams: {
+              role: nameParam('role', `polity_${office.role}`),
+              organization: nameParam('polity', polity.nameKey),
+            },
+            entityRefs: [
+              entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
+              ...(house ? [entityRef('house', house.id, 'house', house.nameKey)] : []),
+              entityRef('polity', polityId, 'organization', polity?.nameKey),
+            ],
+          },
+        )
+        currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }
+      }
     }
   }
 

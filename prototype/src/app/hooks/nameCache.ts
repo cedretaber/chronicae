@@ -8,6 +8,7 @@ const NAME_CATEGORIES: NameCategory[] = [
   'polity',
   'holding',
   'state_region',
+  'role',
 ]
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion

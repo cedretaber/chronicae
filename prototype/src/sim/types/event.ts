@@ -206,7 +206,8 @@ function resolveMessageTemplate(messageKey: string, params: EventMessageParams):
     const value = params[key]
     if (value === undefined) return `{{${key}}}`
     if (typeof value === 'string') return value
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+    if (typeof value === 'number') return String(Math.round(value))
+    if (typeof value === 'boolean') return String(value)
     if (value.kind === 'name') return value.key
     if (value.kind === 'entity') return value.id
     return String(value)
@@ -265,6 +266,7 @@ const EVENT_TEMPLATES: Record<string, string> = {
     'A {{rebelClass}} revolt has broken out in {{province}} — negotiations begin.',
   'revolt.polity_founded':
     '{{polity}} has been founded by {{person}} through revolt in {{province}}!',
+  'revolt.triumphant': 'The revolt in {{province}} has triumphed — independence is achieved.',
   'revolt.settled':
     'The revolt in {{province}} has been settled by negotiation — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.',
   'revolt.suppressed':
@@ -286,6 +288,12 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'diplomatic_play.escalated_claim':
     'Deadlocked claim erupts: {{initiator}} attacks for {{province}}.',
   'diplomatic_play.resolved_by_conflict': '{{summary}}',
+  'conflict.land_seized': '{{attacker}} seized {{province}} from {{defender}}.',
+  'conflict.land_repelled': "{{defender}} repelled {{attacker}}'s claim on {{province}}.",
+  'conflict.tax_won': '{{attacker}} prevailed in the tax dispute over {{province}}.',
+  'conflict.tax_repelled': '{{defender}} repelled the tax revision demand for {{province}}.',
+  'conflict.revolt_rebel_victory': 'The conflict over {{province}} ended with rebel victory.',
+  'conflict.revolt_suppressed': 'The revolt in {{province}} was put down by force.',
   'actor_intent.created_sell_land':
     '{{seller}} seeks to sell {{province}} to {{buyer}} for {{price}} gold.',
   'actor_intent.created_acquire_land': '{{acquirer}} eyes {{province}} held by {{target}}.',

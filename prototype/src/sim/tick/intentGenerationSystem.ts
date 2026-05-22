@@ -4,7 +4,7 @@ import type { ActorIntentId } from '../types/ids'
 import { createActorIntentId } from '../types/ids'
 import type { ActorIntent } from '../types/actorIntent'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
-import { entityRef } from '../types/event'
+import { entityRef, nameParam } from '../types/event'
 import { findLandPurchaseIntentCandidates } from '../selectors/landPurchaseCandidates'
 import { findLandAcquireIntentCandidates } from '../selectors/landAcquireCandidates'
 import {
@@ -71,17 +71,17 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const sellerPolityId = c.sellerPolityId
       const buyerPolityId = c.buyerPolityId
       const provinceId = c.provinceId
-      const sellerName = currentCtx.state.polities[sellerPolityId]?.nameKey ?? sellerPolityId
-      const buyerName = currentCtx.state.polities[buyerPolityId]?.nameKey ?? buyerPolityId
-      const provinceName = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+      const sellerNameKey = currentCtx.state.polities[sellerPolityId]?.nameKey ?? sellerPolityId
+      const buyerNameKey = currentCtx.state.polities[buyerPolityId]?.nameKey ?? buyerPolityId
+      const provinceNameKey = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
       const { event, ctx: ctxEv } = createSimEvent(currentCtx, {
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
         messageKey: 'actor_intent.created_sell_land',
         messageParams: {
-          seller: sellerName,
-          province: provinceName,
-          buyer: buyerName,
+          seller: nameParam('polity', sellerNameKey),
+          province: nameParam('province', provinceNameKey),
+          buyer: nameParam('polity', buyerNameKey),
           price: Math.round(c.price),
         },
         entityRefs: [
@@ -141,14 +141,19 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const acquirerPolityId = c.acquirerPolityId
       const targetPolityId = c.targetPolityId
       const provinceId = c.provinceId
-      const acquirerName = currentCtx.state.polities[acquirerPolityId]?.nameKey ?? acquirerPolityId
-      const targetName = currentCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId
-      const provinceName = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+      const acquirerNameKey =
+        currentCtx.state.polities[acquirerPolityId]?.nameKey ?? acquirerPolityId
+      const targetNameKey = currentCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId
+      const provinceNameKey = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
       const { event, ctx: ctxEv } = createSimEvent(currentCtx, {
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
         messageKey: 'actor_intent.created_acquire_land',
-        messageParams: { acquirer: acquirerName, province: provinceName, target: targetName },
+        messageParams: {
+          acquirer: nameParam('polity', acquirerNameKey),
+          province: nameParam('province', provinceNameKey),
+          target: nameParam('polity', targetNameKey),
+        },
         entityRefs: [
           entityRef('polity', acquirerPolityId, 'acquirer'),
           entityRef('polity', targetPolityId, 'target'),
@@ -206,15 +211,19 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const initiatorPolityId = c.initiatorPolityId
       const targetPolityId = c.targetPolityId
       const provinceId = c.provinceId
-      const initiatorName =
+      const initiatorNameKey =
         currentCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
-      const targetName = currentCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId
-      const provinceName = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+      const targetNameKey = currentCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId
+      const provinceNameKey = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
       const { event, ctx: ctxEv } = createSimEvent(currentCtx, {
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
         messageKey: 'actor_intent.created_improve_terms',
-        messageParams: { initiator: initiatorName, target: targetName, province: provinceName },
+        messageParams: {
+          initiator: nameParam('polity', initiatorNameKey),
+          target: nameParam('polity', targetNameKey),
+          province: nameParam('province', provinceNameKey),
+        },
         entityRefs: [
           entityRef('polity', initiatorPolityId, 'initiator'),
           entityRef('polity', targetPolityId, 'target'),
@@ -272,15 +281,19 @@ export function runIntentGenerationSystem(ctx: TickContext): TickContext {
       const initiatorPolityId = c.initiatorPolityId
       const targetPolityId = c.targetPolityId
       const provinceId = c.provinceId
-      const initiatorName =
+      const initiatorNameKey =
         currentCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
-      const targetName = currentCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId
-      const provinceName = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+      const targetNameKey = currentCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId
+      const provinceNameKey = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
       const { event, ctx: ctxEv } = createSimEvent(currentCtx, {
         type: 'ACTOR_INTENT_CREATED',
         importance: 'normal',
         messageKey: 'actor_intent.created_demand_tax',
-        messageParams: { initiator: initiatorName, target: targetName, province: provinceName },
+        messageParams: {
+          initiator: nameParam('polity', initiatorNameKey),
+          target: nameParam('polity', targetNameKey),
+          province: nameParam('province', provinceNameKey),
+        },
         entityRefs: [
           entityRef('polity', initiatorPolityId, 'initiator'),
           entityRef('polity', targetPolityId, 'target'),

@@ -67,6 +67,7 @@ war:
 revolt:
   negotiation_started: '{{province}}で{{rebelClass}}の反乱が勃発し、交渉が始まった。'
   polity_founded: '{{person}}の反乱により{{province}}で{{polity}}が建国された！'
+  triumphant: '{{province}}の反乱が勝利し、独立を達成した。'
   settled: '{{province}}の反乱は交渉により解決した。指導者は{{aftermathText}}、州は{{restorePolity}}に帰属する。'
   suppressed: '{{province}}の反乱は鎮圧された。指導者は{{aftermathText}}、州は{{restorePolity}}に帰属する。'
 
@@ -83,6 +84,14 @@ diplomatic_play:
   escalated_revolt: '{{province}}での膠着した反乱が期限切れで武力衝突に発展した。'
   escalated_claim: '膠着した請求権争いが武力衝突に発展：{{initiator}}が{{province}}へ攻撃。'
   resolved_by_conflict: '{{summary}}'
+
+conflict:
+  land_seized: '{{attacker}}が{{defender}}から{{province}}を奪取した。'
+  land_repelled: '{{defender}}が{{attacker}}の{{province}}への侵攻を退けた。'
+  tax_won: '{{attacker}}が{{province}}の税制紛争に勝利した。'
+  tax_repelled: '{{defender}}が{{province}}の税率改定要求を退けた。'
+  revolt_rebel_victory: '{{province}}を巡る紛争は反乱側の勝利に終わった。'
+  revolt_suppressed: '{{province}}の反乱は武力で鎮圧された。'
 
 actor_intent:
   created_sell_land: '{{seller}}が{{province}}を{{buyer}}に{{price}}金で売却しようとしている。'

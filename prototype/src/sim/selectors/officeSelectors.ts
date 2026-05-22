@@ -281,7 +281,7 @@ export function getEffectiveOfficeMaxHolders(
   const def = OFFICE_DEFINITIONS[`${organization.kind}:${role}`]
   const baseMax = def ? def.maxHolders : 1
 
-  if (organization.kind === 'house') return baseMax
+  if (organization.kind === 'house') return role === 'leader' ? baseMax : 1
 
   const polity = state.polities[organization.id]
   if (!polity || !polity.active) return baseMax
@@ -290,6 +290,7 @@ export function getEffectiveOfficeMaxHolders(
   const rankRow = config.polityOfficeMaxByRank[polity.rank]
   if (!rankRow) return baseMax
   const rankCap = rankRow[role]
+  if (rankCap <= 0) return 0
 
   const provinceCount = getPolityTerminalProvinceIds(state, organization.id).length
   let factor: number

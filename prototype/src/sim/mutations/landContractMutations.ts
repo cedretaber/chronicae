@@ -579,8 +579,8 @@ export function applyLandContractTransferGoal(
   }
   let nextCtx: TickContext = { ...ctx, state: newState }
 
-  const fromName = fromPolity?.nameKey ?? fromPolityId
-  const toName = toPolity.nameKey
+  const fromNameKey = fromPolity?.nameKey ?? fromPolityId
+  const toNameKey = toPolity.nameKey
   const holdingProvince = state.provinces[holding.provinceId]
 
   // LAND_CONTRACT_TRANSFERRED event
@@ -590,8 +590,8 @@ export function applyLandContractTransferGoal(
     messageKey: 'land_contract.transferred',
     messageParams: {
       holding: nameParam('province', holdingProvince?.nameKey ?? holding.provinceId),
-      from: fromName,
-      to: toName,
+      from: nameParam('polity', fromNameKey),
+      to: nameParam('polity', toNameKey),
       reason: input.reason,
     },
     entityRefs: [
@@ -612,13 +612,13 @@ export function applyLandContractTransferGoal(
   let outcomeSummary: string | undefined
   if (input.reason === 'purchase') {
     outcomeEventType = 'LAND_CONTRACT_PURCHASED'
-    outcomeSummary = `${toName} purchased ${holdingProvince?.nameKey ?? holding.provinceId} from ${fromName}.`
+    outcomeSummary = `${toNameKey} purchased ${holdingProvince?.nameKey ?? holding.provinceId} from ${fromNameKey}.`
   } else if (input.reason === 'cession') {
     outcomeEventType = 'LAND_CONTRACT_CEDED'
-    outcomeSummary = `${fromName} ceded ${holdingProvince?.nameKey ?? holding.provinceId} to ${toName}.`
+    outcomeSummary = `${fromNameKey} ceded ${holdingProvince?.nameKey ?? holding.provinceId} to ${toNameKey}.`
   } else if (input.reason === 'war') {
     outcomeEventType = 'LAND_CONTRACT_CONQUERED'
-    outcomeSummary = `${toName} conquered ${holdingProvince?.nameKey ?? holding.provinceId} from ${fromName}.`
+    outcomeSummary = `${toNameKey} conquered ${holdingProvince?.nameKey ?? holding.provinceId} from ${fromNameKey}.`
   }
 
   if (outcomeEventType && outcomeSummary) {
@@ -632,9 +632,9 @@ export function applyLandContractTransferGoal(
       importance: 'major',
       messageKey: messageKeyMap[outcomeEventType]!,
       messageParams: {
-        to: toName,
+        to: nameParam('polity', toNameKey),
         holding: nameParam('province', holdingProvince?.nameKey ?? holding.provinceId),
-        from: fromName,
+        from: nameParam('polity', fromNameKey),
       },
       entityRefs: [
         entityRef('holding', input.holdingId, 'holding'),

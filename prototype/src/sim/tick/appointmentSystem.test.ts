@@ -81,6 +81,7 @@ function makeBaseState(): {
     legacyPrestige: 50,
     adminPower: 10,
     capitalProvinceId: provinceRulerId,
+    rank: 1,
   })
   state = bindProvinceToHouseViaPolity(state, provinceRulerId, polityId, houseRulerId)
   state = bindProvinceToHouseViaPolity(state, provinceVassalId, polityId, houseRulerId)

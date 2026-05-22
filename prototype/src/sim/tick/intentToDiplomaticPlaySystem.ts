@@ -4,7 +4,7 @@ import type { ActorIntentId, HoldingId, PolityId, ProvinceId } from '../types/id
 import { createDiplomaticPlayId } from '../types/ids'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
-import { entityRef } from '../types/event'
+import { entityRef, nameParam } from '../types/event'
 import { defaultLandContractConfig } from '../config/landContractConfig'
 import {
   getProvinceTerminalContract,
@@ -415,9 +415,9 @@ function emitConversionAndStartEvents(
 
   const initiatorId = initiator.id as PolityId
   const targetId = target.id as PolityId
-  const initiatorName = currentCtx.state.polities[initiatorId]?.nameKey ?? String(initiator.id)
-  const targetName = currentCtx.state.polities[targetId]?.nameKey ?? String(target.id)
-  const provinceName = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+  const initiatorNameKey = currentCtx.state.polities[initiatorId]?.nameKey ?? String(initiator.id)
+  const targetNameKey = currentCtx.state.polities[targetId]?.nameKey ?? String(target.id)
+  const provinceNameKey = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
   const entityRefs = [
     entityRef('polity', initiatorId, 'initiator'),
     entityRef('polity', targetId, 'target'),
@@ -433,7 +433,11 @@ function emitConversionAndStartEvents(
     type: 'ACTOR_INTENT_CONVERTED',
     importance: 'normal',
     messageKey: convMessageKey,
-    messageParams: { initiator: initiatorName, target: targetName, province: provinceName },
+    messageParams: {
+      initiator: nameParam('polity', initiatorNameKey),
+      target: nameParam('polity', targetNameKey),
+      province: nameParam('province', provinceNameKey),
+    },
     entityRefs,
   })
   currentCtx = { ...ctxConv, events: [...ctxConv.events, convEv] }
@@ -445,7 +449,11 @@ function emitConversionAndStartEvents(
     type: 'DIPLOMATIC_PLAY_STARTED',
     importance: 'normal',
     messageKey: startMessageKey,
-    messageParams: { initiator: initiatorName, target: targetName, province: provinceName },
+    messageParams: {
+      initiator: nameParam('polity', initiatorNameKey),
+      target: nameParam('polity', targetNameKey),
+      province: nameParam('province', provinceNameKey),
+    },
     entityRefs,
   })
   currentCtx = { ...ctxStart, events: [...ctxStart.events, startEv] }

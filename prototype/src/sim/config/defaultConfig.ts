@@ -943,10 +943,10 @@ export const defaultConfig: SimulationConfig = {
   // rank は数値が小さいほど上位 (1=帝国, 5=反乱領)。大国ほど官職枠が多い。
   polityOfficeMaxByRank: {
     1: { administrator: 3, treasurer: 3, military: 5, advisor: 5 },
-    2: { administrator: 3, treasurer: 3, military: 4, advisor: 4 },
-    3: { administrator: 2, treasurer: 2, military: 3, advisor: 3 },
-    4: { administrator: 1, treasurer: 1, military: 2, advisor: 2 },
-    5: { administrator: 1, treasurer: 1, military: 1, advisor: 1 },
+    2: { administrator: 2, treasurer: 2, military: 3, advisor: 3 },
+    3: { administrator: 1, treasurer: 1, military: 1, advisor: 0 },
+    4: { administrator: 1, treasurer: 0, military: 0, advisor: 0 },
+    5: { administrator: 0, treasurer: 0, military: 0, advisor: 0 },
   },
   polityOfficeMaxProvinceFactor: {
     small: 0.4,

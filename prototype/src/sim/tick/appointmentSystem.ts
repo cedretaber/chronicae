@@ -10,7 +10,7 @@ import {
 import { getHousePolitySharePercent, getPersonHouseSharePercent } from '../selectors/shareSelectors'
 import { getPersonPrestige } from '../selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
-import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
+
 import type { PersonId, PolityId, HouseId } from '../types/ids'
 import type { OfficeRole, OrganizationRef } from '../types/office'
 import type { WorldState } from '../types/world'
@@ -27,7 +27,10 @@ import {
   getFactionNominationPower,
   getFactionActiveMemberIds,
 } from '../selectors/factionSelectors'
-import { getOfficeCompatibilityPenalty } from '../selectors/officeSelectors'
+import {
+  getOfficeCompatibilityPenalty,
+  getEffectiveOfficeMaxHolders,
+} from '../selectors/officeSelectors'
 
 const POLITY_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
 const HOUSE_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
@@ -249,7 +252,6 @@ function tryAppointPolityOffice(
   polity: Polity,
   rulerId: PersonId,
   role: OfficeRole,
-  def: { displayName: string; maxHolders: number },
 ): TickContext {
   const config = ctx.config
   const polityRef: OrganizationRef = { kind: 'polity', id: polity.id }
@@ -265,7 +267,8 @@ function tryAppointPolityOffice(
   }
 
   const activeHolders = getActiveOfficeHolders(currentCtx.state, polityRef, role)
-  if (activeHolders.length >= def.maxHolders) return currentCtx
+  const effectiveMax = getEffectiveOfficeMaxHolders(currentCtx.state, config, polityRef, role)
+  if (activeHolders.length >= effectiveMax) return currentCtx
   const alreadyHolding = new Set(activeHolders.map((id) => id as string))
 
   let best: { id: PersonId; score: number } | undefined
@@ -325,7 +328,7 @@ function tryAppointPolityOffice(
         messageKey: 'office.assigned_polity',
         messageParams: {
           person: nameParam('person', person.nameKey),
-          role: def.displayName,
+          role: nameParam('role', `polity_${role}`),
           polity: nameParam('polity', polity.nameKey),
         },
         entityRefs: [
@@ -349,7 +352,6 @@ function tryAppointHouseOffice(
   house: House,
   leaderId: PersonId,
   role: OfficeRole,
-  def: { displayName: string; maxHolders: number },
 ): TickContext {
   const config = ctx.config
   const houseRef: OrganizationRef = { kind: 'house', id: house.id }
@@ -365,7 +367,8 @@ function tryAppointHouseOffice(
   }
 
   const activeHolders = getActiveOfficeHolders(currentCtx.state, houseRef, role)
-  if (activeHolders.length >= def.maxHolders) return currentCtx
+  const effectiveMax = getEffectiveOfficeMaxHolders(currentCtx.state, config, houseRef, role)
+  if (activeHolders.length >= effectiveMax) return currentCtx
   const alreadyHolding = new Set(activeHolders.map((id) => id as string))
 
   let best: { id: PersonId; score: number } | undefined
@@ -423,7 +426,7 @@ function tryAppointHouseOffice(
       messageKey: 'office.assigned_house',
       messageParams: {
         person: nameParam('person', person.nameKey),
-        role: def.displayName,
+        role: nameParam('role', `house_${role}`),
         house: nameParam('house', house.nameKey),
       },
       entityRefs: [
@@ -449,10 +452,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
     if (!rulerId) continue
 
     for (const role of POLITY_APPOINTABLE_ROLES) {
-      const def = OFFICE_DEFINITIONS[`polity:${role}`]
-      if (!def) continue
-
-      currentCtx = tryAppointPolityOffice(currentCtx, polity, rulerId, role, def)
+      currentCtx = tryAppointPolityOffice(currentCtx, polity, rulerId, role)
     }
   }
 
@@ -466,10 +466,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
     if (!leaderId) continue
 
     for (const role of HOUSE_APPOINTABLE_ROLES) {
-      const def = OFFICE_DEFINITIONS[`house:${role}`]
-      if (!def) continue
-
-      currentCtx = tryAppointHouseOffice(currentCtx, house, leaderId, role, def)
+      currentCtx = tryAppointHouseOffice(currentCtx, house, leaderId, role)
     }
   }
 

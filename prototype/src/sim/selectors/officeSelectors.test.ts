@@ -87,7 +87,7 @@ function makeFixture(): {
 }
 
 describe('getEffectiveOfficeMaxHolders', () => {
-  it('returns baseMax for house organization', () => {
+  it('returns 1 for house non-leader role', () => {
     const { state, config, houseId } = makeFixture()
     const result = getEffectiveOfficeMaxHolders(
       state,
@@ -95,8 +95,7 @@ describe('getEffectiveOfficeMaxHolders', () => {
       { kind: 'house', id: houseId },
       'administrator',
     )
-    const def = OFFICE_DEFINITIONS['house:administrator']
-    expect(result).toBe(def.maxHolders)
+    expect(result).toBe(1)
   })
 
   it('returns baseMax for polity leader role', () => {

@@ -6,6 +6,7 @@ import type { EventType } from '@sim/types/event'
 import { getFirstEntityId, hasEntityId } from '@sim/types/event'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { ANONYMOUS_HOUSE_ID } from '@sim/types/house'
 
 type LinkItem = { id: string; type: EntityType; name: string }
 
@@ -29,7 +30,7 @@ function EventLinks({ event }: { event: SimEvent }) {
       })
   }
   const houseId = getFirstEntityId(event, 'house')
-  if (houseId) {
+  if (houseId && houseId !== (ANONYMOUS_HOUSE_ID as string)) {
     const house = state.houses[houseId as keyof typeof state.houses]
     if (house)
       items.push({
@@ -160,6 +161,16 @@ function isWatchlistRelated(event: SimEvent, watchlist: string[]): boolean {
   return watchlist.some((id) => hasEntityId(event, id))
 }
 
+function useEventTypeLabel(): (type: EventType) => string {
+  const { t } = useTranslation('ui')
+  return (type: EventType) => {
+    const key = `event_type.${type}`
+    const translated = t(key, { defaultValue: '' })
+    if (translated && translated !== key) return translated
+    return type.replace(/_/g, ' ')
+  }
+}
+
 function RawLogRow({
   event,
   renderEvent,
@@ -168,7 +179,8 @@ function RawLogRow({
   renderEvent: (e: SimEvent) => string
 }) {
   const colorClass = getImportanceColor(event.importance)
-  const typeLabel = event.type.replace(/_/g, ' ').toUpperCase()
+  const getTypeLabel = useEventTypeLabel()
+  const typeLabel = getTypeLabel(event.type)
 
   return (
     <div className={`flex flex-wrap items-center gap-2 py-0.5 text-xs ${colorClass}`}>

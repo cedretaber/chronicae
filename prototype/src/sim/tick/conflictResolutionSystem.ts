@@ -131,9 +131,8 @@ function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickCo
       provinceIds: [provinceId],
       holdingIds: [],
       summary: `Conflict over ${provNameKey} ended with rebel victory.`,
-      messageKey: 'diplomatic_play.resolved_by_conflict',
+      messageKey: 'conflict.revolt_rebel_victory',
       messageParams: {
-        summary: `Conflict over ${provNameKey} ended with rebel victory.`,
         province: nameParam('province', provNameKey),
       },
     })
@@ -195,9 +194,9 @@ function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickCo
     provinceIds: [provinceId],
     holdingIds: [],
     summary: `Revolt in ${provNameKey} was put down by force.`,
-    messageKey: 'diplomatic_play.resolved_by_conflict',
+    messageKey: 'conflict.revolt_suppressed',
     messageParams: {
-      summary: `Revolt in ${provNameKey} was put down by force.`,
+      province: nameParam('province', provNameKey),
     },
   })
 }
@@ -298,9 +297,10 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
       provinceIds: [provinceId],
       holdingIds: [holdingId],
       summary: `${attackerName ?? attackerPolityId} seized ${provinceNameKey} from ${defenderName ?? defenderPolityId}.`,
-      messageKey: 'diplomatic_play.resolved_by_conflict',
+      messageKey: 'conflict.land_seized',
       messageParams: {
-        summary: `${attackerName ?? attackerPolityId} seized ${provinceNameKey} from ${defenderName ?? defenderPolityId}.`,
+        attacker: nameParam('polity', attackerName ?? attackerPolityId),
+        defender: nameParam('polity', defenderName ?? defenderPolityId),
         province: provinceParam,
       },
     })
@@ -335,9 +335,10 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
     provinceIds: [provinceId],
     holdingIds: [holdingId],
     summary: `${defenderName ?? defenderPolityId} repelled ${attackerName ?? attackerPolityId}'s claim on ${provinceNameKey}.`,
-    messageKey: 'diplomatic_play.resolved_by_conflict',
+    messageKey: 'conflict.land_repelled',
     messageParams: {
-      summary: `${defenderName ?? defenderPolityId} repelled ${attackerName ?? attackerPolityId}'s claim on ${provinceNameKey}.`,
+      attacker: nameParam('polity', attackerName ?? attackerPolityId),
+      defender: nameParam('polity', defenderName ?? defenderPolityId),
       province: provinceParam,
     },
   })
@@ -451,9 +452,9 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
       provinceIds: [provinceId],
       holdingIds: [holdingId],
       summary: `${attackerName ?? attackerPolityId} prevails in the tax dispute over ${provinceNameKey}.`,
-      messageKey: 'diplomatic_play.resolved_by_conflict',
+      messageKey: 'conflict.tax_won',
       messageParams: {
-        summary: `${attackerName ?? attackerPolityId} prevails in the tax dispute over ${provinceNameKey}.`,
+        attacker: nameParam('polity', attackerName ?? attackerPolityId),
         province: provinceParam,
       },
     })
@@ -488,9 +489,9 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
     provinceIds: [provinceId],
     holdingIds: [holdingId],
     summary: `${defenderName ?? defenderPolityId} repels the tax revision demand for ${provinceNameKey}.`,
-    messageKey: 'diplomatic_play.resolved_by_conflict',
+    messageKey: 'conflict.tax_repelled',
     messageParams: {
-      summary: `${defenderName ?? defenderPolityId} repels the tax revision demand for ${provinceNameKey}.`,
+      defender: nameParam('polity', defenderName ?? defenderPolityId),
       province: provinceParam,
     },
   })
@@ -633,8 +634,8 @@ function emitWarOutcomeEvents(
     summary: `${input.winnerName ?? input.winner} prevailed in war against ${input.loserName ?? input.loser}.`,
     messageKey: 'war.won',
     messageParams: {
-      winner: input.winnerName ?? input.winner,
-      loser: input.loserName ?? input.loser,
+      winner: nameParam('polity', input.winnerName ?? input.winner),
+      loser: nameParam('polity', input.loserName ?? input.loser),
     },
     eventEntityRefs: [
       entityRef('polity', input.winner, 'winner', input.winnerName),
@@ -656,8 +657,8 @@ function emitWarOutcomeEvents(
     summary: `${input.loserName ?? input.loser} was defeated by ${input.winnerName ?? input.winner}.`,
     messageKey: 'war.lost',
     messageParams: {
-      loser: input.loserName ?? input.loser,
-      winner: input.winnerName ?? input.winner,
+      loser: nameParam('polity', input.loserName ?? input.loser),
+      winner: nameParam('polity', input.winnerName ?? input.winner),
     },
     eventEntityRefs: [
       entityRef('polity', input.loser, 'loser', input.loserName),

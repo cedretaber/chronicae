@@ -68,6 +68,7 @@ war:
 revolt:
   negotiation_started: 'A {{rebelClass}} revolt has broken out in {{province}} — negotiations begin.'
   polity_founded: '{{polity}} has been founded by {{person}} through revolt in {{province}}!'
+  triumphant: 'The revolt in {{province}} has triumphed — independence is achieved.'
   settled: 'The revolt in {{province}} has been settled by negotiation — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.'
   suppressed: 'The revolt in {{province}} has been suppressed — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.'
 
@@ -84,6 +85,14 @@ diplomatic_play:
   escalated_revolt: 'Deadlocked revolt in {{province}} erupts at deadline.'
   escalated_claim: 'Deadlocked claim erupts: {{initiator}} attacks for {{province}}.'
   resolved_by_conflict: '{{summary}}'
+
+conflict:
+  land_seized: '{{attacker}} seized {{province}} from {{defender}}.'
+  land_repelled: "{{defender}} repelled {{attacker}}'s claim on {{province}}."
+  tax_won: '{{attacker}} prevailed in the tax dispute over {{province}}.'
+  tax_repelled: '{{defender}} repelled the tax revision demand for {{province}}.'
+  revolt_rebel_victory: 'The conflict over {{province}} ended with rebel victory.'
+  revolt_suppressed: 'The revolt in {{province}} was put down by force.'
 
 actor_intent:
   created_sell_land: '{{seller}} seeks to sell {{province}} to {{buyer}} for {{price}} gold.'
