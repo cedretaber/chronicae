@@ -858,6 +858,7 @@ function PolityLandContracts({
   onProvinceClick: (id: string) => void
 }) {
   const { t } = useTranslation()
+  const resolveName = useEntityName()
   if (!worldState) return null
   const contractIds = worldState.landContractIndex.byGranteePolity[polity.id] ?? []
   if (contractIds.length === 0) return null
@@ -917,17 +918,20 @@ function PolityLandContracts({
     if (!group) {
       group = {
         provinceId: c.provinceId,
-        provinceName: province?.nameKey ?? String(c.provinceId),
+        provinceName: province
+          ? resolveName('province', province.nameKey, province.nameKey)
+          : String(c.provinceId),
         holdings: [],
         totalRevenue: 0,
       }
       groupMap.set(key, group)
     }
+    const holdingProvince = holding ? worldState.provinces[holding.provinceId] : undefined
     group.holdings.push({
       id: c.id,
       holdingId,
-      holdingName: holding
-        ? (worldState.provinces[holding.provinceId]?.nameKey ?? '(unknown)')
+      holdingName: holdingProvince
+        ? `${resolveName('province', holdingProvince.nameKey, holdingProvince.nameKey)} ${holding!.kind}`
         : '(unknown)',
       taxRate: c.terms.taxRateToGrantor,
       isRoot,
