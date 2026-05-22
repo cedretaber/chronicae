@@ -569,14 +569,6 @@ function RoleDisplay({
 }
 
 const ABILITY_KEYS = ['valor', 'command', 'numeracy', 'learning', 'charisma', 'insight'] as const
-const ABILITY_LABELS: Record<(typeof ABILITY_KEYS)[number], string> = {
-  valor: '武勇',
-  command: '統率',
-  numeracy: '数理',
-  learning: '学識',
-  charisma: '魅力',
-  insight: '洞察',
-}
 
 function AbilityRadarChart({
   abilities,
@@ -587,6 +579,7 @@ function AbilityRadarChart({
   aptitudes: Record<string, number>
   size?: number
 }) {
+  const { t } = useTranslation()
   const cx = size / 2
   const cy = size / 2
   const maxVal = 100
@@ -642,7 +635,7 @@ function AbilityRadarChart({
             dominantBaseline="central"
             className="fill-gray-400 text-[9px]"
           >
-            {ABILITY_LABELS[k]}
+            {t(`detail.person.ability_${k}`)}
           </text>
         )
       })}
@@ -1849,16 +1842,8 @@ export function PersonDetail({
       </div>
       {abilityView === 'table' ? (
         <div className="text-sm">
-          {(
-            [
-              ['武勇 Valor', 'valor'],
-              ['統率 Command', 'command'],
-              ['数理 Numeracy', 'numeracy'],
-              ['学識 Learning', 'learning'],
-              ['魅力 Charisma', 'charisma'],
-              ['洞察 Insight', 'insight'],
-            ] as const
-          ).map(([label, key]) => {
+          {ABILITY_KEYS.map((key) => {
+            const label = t(`detail.person.ability_${key}`)
             const curve = ABILITY_AGE_CURVES[key]
             const curveIcon = curve === 'youthPeak' ? '▲' : curve === 'midLifePeak' ? '●' : '↗'
             const curveColor =
