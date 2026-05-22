@@ -81,7 +81,11 @@ export function generateWorld(
 
   const preset = WORLD_PRESETS[presetName ?? DEFAULT_PRESET]
 
-  const { provinces, stateCenters, rng: rng0 } = generateProvinces(rng, defaultMapConfig, preset)
+  const {
+    provinces,
+    stateCenters,
+    rng: rng0,
+  } = generateProvinces(rng, defaultMapConfig, preset, namePoolService, nameDisplayData)
   rng = rng0
 
   // Generate StateRegion records
