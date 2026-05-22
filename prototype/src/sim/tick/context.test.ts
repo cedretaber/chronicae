@@ -70,6 +70,15 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
     diplomaticPlays: {},
     nextActorIntentId: 0,
     nextDiplomaticPlayId: 0,
+    // v0.22 Goal/Aim system
+    goals: {},
+    aims: {},
+    decisionReasons: {},
+    goalIndex: { byOwner: {} },
+    aimIndex: { byOwner: {}, byGoal: {} },
+    nextGoalId: 0,
+    nextAimId: 0,
+    nextDecisionReasonId: 0,
   }
 }
 

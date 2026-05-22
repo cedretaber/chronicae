@@ -16,6 +16,9 @@ import {
   createHouseId,
   createHoldingId,
   createPersonId,
+  createGoalId,
+  createAimId,
+  createDecisionReasonId,
 } from '../types/ids'
 import type { Province } from '../types/province'
 import type { House } from '../types/house'
@@ -68,6 +71,125 @@ import { getHouseLeader } from '../selectors/officeSelectors'
 import { WORLD_PRESETS, DEFAULT_PRESET } from './worldPresets'
 import type { WorldPreset, WorldPresetName } from './worldPresets'
 import type { NamePoolService } from '../namegen/namePoolTypes'
+import type { Goal, Aim, DecisionReason } from '../types/goal'
+import { decisionSubjectKey } from '../types/goal'
+import type { DecisionSubjectRef } from '../types/goal'
+import type { SimulationConfig } from '../config/defaultConfig'
+import { selectGoalKind, pickAimForGoal } from '../selectors/goalSelectors'
+
+function seedGoalAndAim(
+  state: WorldState,
+  config: SimulationConfig,
+  owner: DecisionSubjectRef,
+  rng: RngState,
+): { state: WorldState; rng: RngState } | undefined {
+  const goalSelection = selectGoalKind(state, config, owner, rng)
+  if (!goalSelection) return undefined
+
+  const { kind: goalKind, rng: rng1 } = goalSelection
+  const absoluteWeek = state.absoluteWeek
+
+  // Create DecisionReason for Goal
+  const goalReasonId = createDecisionReasonId(state.nextDecisionReasonId)
+  const goalReason: DecisionReason = {
+    id: goalReasonId,
+    owner,
+    summaryKey: `decision.reason.goal.${goalKind}`,
+    weight: 1,
+    createdWeek: absoluteWeek,
+  }
+
+  // Create Goal
+  const goalId = createGoalId(state.nextGoalId)
+  const goal: Goal = {
+    id: goalId,
+    owner,
+    kind: goalKind,
+    priority: 1,
+    progress: 0,
+    targetProgress: 100,
+    createdWeek: absoluteWeek,
+    minimumUntilWeek: absoluteWeek + config.goalMinimumDurationWeeks,
+    lastReviewWeek: absoluteWeek,
+    nextReviewWeek: absoluteWeek + config.goalReviewIntervalWeeks,
+    status: 'active',
+    reasonIds: [goalReasonId],
+  }
+
+  const ownerKey = decisionSubjectKey(owner)
+  const existingOwnerGoals = state.goalIndex.byOwner[ownerKey] ?? []
+
+  let nextState: WorldState = {
+    ...state,
+    goals: { ...state.goals, [goalId]: goal },
+    decisionReasons: { ...state.decisionReasons, [goalReasonId]: goalReason },
+    goalIndex: {
+      byOwner: {
+        ...state.goalIndex.byOwner,
+        [ownerKey]: [...existingOwnerGoals, goalId],
+      },
+    },
+    nextGoalId: state.nextGoalId + 1,
+    nextDecisionReasonId: state.nextDecisionReasonId + 1,
+  }
+
+  // Create Aim for the Goal
+  const aimResult = pickAimForGoal(nextState, config, goal, rng1)
+  if (!aimResult) return { state: nextState, rng: rng1 }
+
+  const { kind: aimKind, target, rng: rng2 } = aimResult
+
+  const aimReasonId = createDecisionReasonId(nextState.nextDecisionReasonId)
+  const aimReason: DecisionReason = {
+    id: aimReasonId,
+    owner,
+    summaryKey: `decision.reason.aim.${aimKind}`,
+    weight: 1,
+    createdWeek: absoluteWeek,
+  }
+
+  const aimId = createAimId(nextState.nextAimId)
+  const aim: Aim = {
+    id: aimId,
+    owner,
+    goalId,
+    origin: 'goal_driven',
+    kind: aimKind,
+    priority: 1,
+    progress: 0,
+    targetProgress: 1,
+    createdWeek: absoluteWeek,
+    deadlineWeek: absoluteWeek + config.aimDefaultDeadlineWeeks,
+    successfulIntentCount: 0,
+    failedIntentCount: 0,
+    status: 'active',
+    reasonIds: [aimReasonId],
+    ...(target ? { target } : {}),
+  }
+
+  const existingOwnerAims = nextState.aimIndex.byOwner[ownerKey] ?? []
+  const existingGoalAims = nextState.aimIndex.byGoal[goalId as string] ?? []
+
+  nextState = {
+    ...nextState,
+    aims: { ...nextState.aims, [aimId]: aim },
+    decisionReasons: { ...nextState.decisionReasons, [aimReasonId]: aimReason },
+    aimIndex: {
+      byOwner: {
+        ...nextState.aimIndex.byOwner,
+        [ownerKey]: [...existingOwnerAims, aimId],
+      },
+      byGoal: {
+        ...nextState.aimIndex.byGoal,
+        [goalId as string]: [...existingGoalAims, aimId],
+      },
+    },
+    nextAimId: nextState.nextAimId + 1,
+    nextDecisionReasonId: nextState.nextDecisionReasonId + 1,
+  }
+
+  return { state: nextState, rng: rng2 }
+}
 
 export function generateWorld(
   seedText: string,
@@ -440,7 +562,7 @@ export function generateWorld(
         {
           nameCultureId: 'western',
           category: 'polity',
-          path: ['kingdom'],
+          path: ['default'],
         },
         'polity',
         polityNameCounter,
@@ -1557,7 +1679,43 @@ export function generateWorld(
     // v0.18 Stage A
     nextActorIntentId: 0,
     nextDiplomaticPlayId: 0,
+    // v0.22 Goal/Aim system
+    goals: {},
+    aims: {},
+    decisionReasons: {},
+    goalIndex: { byOwner: {} },
+    aimIndex: { byOwner: {}, byGoal: {} },
+    nextGoalId: 0,
+    nextAimId: 0,
+    nextDecisionReasonId: 0,
   }
 
-  return { world, rng }
+  // v0.22: Seed initial Goal + Aim for all active Polities and Houses
+  let seededWorld = world
+  let seedRng = rng
+
+  // Seed Polity goals
+  for (const [, polity] of Object.entries(seededWorld.polities)) {
+    if (!polity || !polity.active) continue
+    const owner: DecisionSubjectRef = { kind: 'polity', id: polity.id }
+    const result = seedGoalAndAim(seededWorld, defaultConfig, owner, seedRng)
+    if (result) {
+      seededWorld = result.state
+      seedRng = result.rng
+    }
+  }
+
+  // Seed House goals
+  for (const [, house] of Object.entries(seededWorld.houses)) {
+    if (!house || !house.active) continue
+    if (house.kind === 'system') continue
+    const owner: DecisionSubjectRef = { kind: 'house', id: house.id }
+    const result = seedGoalAndAim(seededWorld, defaultConfig, owner, seedRng)
+    if (result) {
+      seededWorld = result.state
+      seedRng = result.rng
+    }
+  }
+
+  return { world: seededWorld, rng: seedRng }
 }

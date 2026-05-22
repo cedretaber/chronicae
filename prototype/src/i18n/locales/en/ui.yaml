@@ -43,6 +43,8 @@ sidebar:
 
 detail:
   annexed: 'Annexed'
+  common:
+    year: 'Year'
   # Polity (Country) detail
   polity:
     rank: 'Rank'
@@ -65,6 +67,11 @@ detail:
     land_contracts: 'Land Contracts'
     others: 'Others'
     non_primary: 'non-primary'
+    current_goal: 'Current Goal'
+    goal_progress: 'Progress'
+    active_aim: 'Active Aim'
+    aim_progress: 'Progress'
+    aim_deadline: 'Deadline'
 
   # House detail
   house:
@@ -95,6 +102,11 @@ detail:
     recent_events: 'Recent Events'
     ruling: 'Ruling'
     landless: 'Landless'
+    current_goal: 'Current Goal'
+    goal_progress: 'Progress'
+    active_aim: 'Active Aim'
+    aim_progress: 'Progress'
+    aim_deadline: 'Deadline'
 
   # Person detail
   person:

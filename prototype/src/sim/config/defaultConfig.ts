@@ -70,12 +70,6 @@ export type SimulationConfig = {
   // Polity land development
   polityLandDevelopmentBaseCost: number
   polityLandDevelopmentGain: number
-  // House land development
-  houseDevelopmentEnabled: boolean
-  houseDevelopmentYearlyChance: number
-  houseLandDevelopmentBaseCost: number
-  houseLandDevelopmentGain: number
-  houseWealthReserve: number
   // v0.7 Person Ability Effects
   personAbilityEffectsEnabled: boolean
   chancellorAdminControlGrowthEffect: number
@@ -94,8 +88,6 @@ export type SimulationConfig = {
   maxWarDeclareThreshold: number
   chancellorAmbitionLandDevelopmentScoreEffect: number
   chancellorCautionLandDevelopmentScoreEffect: number
-  houseHeadAdminDevelopmentChanceEffect: number
-  houseHeadCautionDevelopmentChanceEffect: number
   controlAbilityMinimumFloor: number
   // v0.7 Marriage
   marriageEnabled: boolean
@@ -338,6 +330,26 @@ export type SimulationConfig = {
   acquireLandIntentEnabled: boolean
   acquireLandMinTreasury: number
   acquireLandMaxIntentsPerActor: number
+  // v0.22 Goal/Aim system
+  goalReviewIntervalWeeks: number
+  goalMinimumDurationWeeks: number
+  goalSwitchThreshold: number
+  goalProgressOnAimSucceeded: number
+  goalProgressOnAimFailed: number
+  goalProgressOnAimAbandoned: number
+  aimDefaultDeadlineWeeks: number
+  aimIntentCooldownWeeks: number
+  developHoldingCost: number
+  developHoldingGain: number
+  expandPolityShareCost: number
+  expandPolityShareRawPowerGain: number
+  promotePolicyShiftCost: number
+  patronizeArtistCost: number
+  patronizeArtistPrestigeGain: number
+  commissionChronicleCost: number
+  commissionChroniclePrestigeGain: number
+  policyInfluenceBonusBase: number
+  policyInfluenceBonusShareFactor: number
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: number
   rulerAdminCapacityFactor: number
@@ -529,11 +541,6 @@ export const defaultConfig: SimulationConfig = {
   bountifulHarvestDevelopmentGain: 3,
   polityLandDevelopmentBaseCost: 70,
   polityLandDevelopmentGain: 8,
-  houseDevelopmentEnabled: true,
-  houseDevelopmentYearlyChance: 0.25,
-  houseLandDevelopmentBaseCost: 40,
-  houseLandDevelopmentGain: 6,
-  houseWealthReserve: 50,
   // Control system
   controlMaxDistancePenalty: 10,
   controlMaxMinimum: 40,
@@ -572,8 +579,6 @@ export const defaultConfig: SimulationConfig = {
   maxWarDeclareThreshold: 0.75,
   chancellorAmbitionLandDevelopmentScoreEffect: 10,
   chancellorCautionLandDevelopmentScoreEffect: 20,
-  houseHeadAdminDevelopmentChanceEffect: 0.1,
-  houseHeadCautionDevelopmentChanceEffect: 0.1,
   controlAbilityMinimumFloor: 35,
   // v0.7 Marriage
   marriageEnabled: true,
@@ -811,6 +816,26 @@ export const defaultConfig: SimulationConfig = {
   acquireLandIntentEnabled: true,
   acquireLandMinTreasury: 200,
   acquireLandMaxIntentsPerActor: 1,
+  // v0.22 Goal/Aim system
+  goalReviewIntervalWeeks: 48,
+  goalMinimumDurationWeeks: 144,
+  goalSwitchThreshold: 20,
+  goalProgressOnAimSucceeded: 25,
+  goalProgressOnAimFailed: -10,
+  goalProgressOnAimAbandoned: -5,
+  aimDefaultDeadlineWeeks: 240,
+  aimIntentCooldownWeeks: 4,
+  developHoldingCost: 30,
+  developHoldingGain: 5,
+  expandPolityShareCost: 40,
+  expandPolityShareRawPowerGain: 10,
+  promotePolicyShiftCost: 0,
+  patronizeArtistCost: 25,
+  patronizeArtistPrestigeGain: 3,
+  commissionChronicleCost: 40,
+  commissionChroniclePrestigeGain: 5,
+  policyInfluenceBonusBase: 10,
+  policyInfluenceBonusShareFactor: 0.5,
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: 20,
   rulerAdminCapacityFactor: 4,

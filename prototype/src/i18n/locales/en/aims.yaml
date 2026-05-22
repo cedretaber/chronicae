@@ -1,1 +1,12 @@
-# aims namespace (en) — placeholder for future use
+# AimKind translations (en)
+polity:
+  consolidate_province_holdings: Consolidate Province Holdings
+  seize_weak_remote_holdings: Seize Weak Remote Holdings
+  develop_owned_holding: Develop Owned Holding
+  improve_owned_contract_terms: Improve Contract Terms
+house:
+  increase_polity_share: Increase Polity Share
+  steer_polity_external_expansion: Steer Polity Toward Expansion
+  steer_polity_internal_development: Steer Polity Toward Development
+  patronize_artist: Patronize an Artist
+  commission_chronicle: Commission a Chronicle

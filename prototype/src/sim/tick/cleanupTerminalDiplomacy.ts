@@ -1,8 +1,9 @@
 import type { TickContext } from './context'
-import type { ActorIntentId, DiplomaticPlayId } from '../types/ids'
+import type { ActorIntentId, AimId, GoalId, DiplomaticPlayId } from '../types/ids'
 import type { ActorIntent } from '../types/actorIntent'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
+import type { DecisionSubjectRef } from '../types/goal'
 import type { WorldState } from '../types/world'
 import {
   TERMINAL_ACTOR_INTENT_STATUSES,
@@ -57,6 +58,8 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
   }
 
   let nextPlays: Record<DiplomaticPlayId, DiplomaticPlay> | undefined
+  // Collect IDs of plays that will be removed
+  const removedPlayIds = new Set<string>()
   for (const idStr of Object.keys(plays)) {
     const play = plays[idStr as DiplomaticPlayId]
     if (!play) continue
@@ -64,15 +67,69 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     if (!isActorActive(ctx.state, play.initiator) || !isActorActive(ctx.state, play.target)) {
       if (!nextPlays) nextPlays = { ...plays }
       delete nextPlays[idStr as DiplomaticPlayId]
+      removedPlayIds.add(idStr)
       continue
     }
     if (TERMINAL_PLAY_SET.has(play.status as TerminalDiplomaticPlayStatus)) {
       if (!nextPlays) nextPlays = { ...plays }
       delete nextPlays[idStr as DiplomaticPlayId]
+      removedPlayIds.add(idStr)
     }
   }
 
-  if (!nextIntents && !nextPlays) return ctx
+  // Clean up aims that reference removed intents or plays
+  const removedIntentIds = new Set<string>()
+  if (nextIntents) {
+    for (const idStr of Object.keys(intents)) {
+      if (!nextIntents[idStr as ActorIntentId]) {
+        removedIntentIds.add(idStr)
+      }
+    }
+  }
+
+  let nextAims: Record<AimId, (typeof ctx.state.aims)[AimId]> | undefined
+  for (const idStr of Object.keys(ctx.state.aims)) {
+    const aim = ctx.state.aims[idStr as AimId]
+    if (!aim) continue
+    const playRemoved = aim.activeDiplomaticPlayId && removedPlayIds.has(aim.activeDiplomaticPlayId)
+    const intentRemoved = aim.activeIntentId && removedIntentIds.has(aim.activeIntentId)
+    if (playRemoved || intentRemoved) {
+      if (!nextAims) nextAims = { ...ctx.state.aims }
+      const keysToRemove = new Set<string>()
+      if (playRemoved) keysToRemove.add('activeDiplomaticPlayId')
+      if (intentRemoved) keysToRemove.add('activeIntentId')
+      const entries = Object.entries(aim).filter(([k]) => !keysToRemove.has(k))
+      nextAims[idStr as AimId] = Object.fromEntries(entries) as typeof aim
+    }
+  }
+
+  // v0.22: Abandon Goals/Aims whose owners became inactive this tick
+  let nextGoals: Record<GoalId, (typeof ctx.state.goals)[GoalId]> | undefined
+  for (const [idStr, goal] of Object.entries(ctx.state.goals)) {
+    if (!goal || goal.status !== 'active') continue
+    if (!isDecisionSubjectActive(ctx.state, goal.owner)) {
+      if (!nextGoals) nextGoals = { ...ctx.state.goals }
+      nextGoals[idStr as GoalId] = { ...goal, status: 'abandoned' }
+    }
+  }
+
+  const currentGoals = nextGoals ?? ctx.state.goals
+  for (const [idStr, aim] of Object.entries(nextAims ?? ctx.state.aims)) {
+    if (!aim || aim.status !== 'active') continue
+    let shouldAbandon = false
+    if (!isDecisionSubjectActive(ctx.state, aim.owner)) {
+      shouldAbandon = true
+    } else if (aim.goalId) {
+      const parentGoal = currentGoals[aim.goalId]
+      if (parentGoal && parentGoal.status !== 'active') shouldAbandon = true
+    }
+    if (shouldAbandon) {
+      if (!nextAims) nextAims = { ...ctx.state.aims }
+      nextAims[idStr as AimId] = { ...aim, status: 'abandoned' }
+    }
+  }
+
+  if (!nextIntents && !nextPlays && !nextAims && !nextGoals) return ctx
 
   return {
     ...ctx,
@@ -80,6 +137,19 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
       ...ctx.state,
       actorIntents: nextIntents ?? intents,
       diplomaticPlays: nextPlays ?? plays,
+      aims: nextAims ?? ctx.state.aims,
+      goals: nextGoals ?? ctx.state.goals,
     },
   }
+}
+
+function isDecisionSubjectActive(state: WorldState, owner: DecisionSubjectRef): boolean {
+  if (owner.kind === 'polity') {
+    return state.polities[owner.id]?.active === true
+  }
+  if (owner.kind === 'house') {
+    const house = state.houses[owner.id]
+    return house !== undefined && house.active && house.kind !== 'system'
+  }
+  return false
 }

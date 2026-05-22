@@ -448,10 +448,63 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **CLI**: 年末サマリーに unrest 統計出力を追加（avg / class 別 / high count）
 - **リファクタ**: `ANONYMOUS_HOUSE_ID` を `house.ts` に、`PLACEHOLDER_PERSON_ID` を `person.ts` に移動
 
+### v0.21 で実装済み（UI i18n 強化 + rank ベース役職制限）
+
+- **UI i18n 強化**:
+  - イベントログ: 数値丸め、`nameParam()` による polity/province/role 名のロケール解決
+  - conflict/revolt 系イベントに個別 `messageKey` を追加（英語 summary 文字列 → `conflict.land_seized` 等 6 種の i18n 対応テンプレートに分割）
+  - `role.yaml` (en/ja) 新設、`NameCategory` に `'role'` 追加。polity/house 役職名をロケール解決
+  - イベント種別ラベル (`event_type.*`) 92 種翻訳、派閥詳細パネル、人物職業名 (9 種)、Sidebar FactionRow/PlayRow 等の翻訳追加
+  - 日付表示を `weekToYearMonthWeek()` で年/月/月内週形式に統一
+- **rank ベース役職制限**:
+  - `polityOfficeMaxByRank` の値を改定: rank 5 (反乱領) は leader のみ、rank 4 (伯領) は +administrator、rank 3 (公領) は +treasurer+military、rank 2 (王国) は全役職、rank 1 (帝国) はフル枠
+  - `getEffectiveOfficeMaxHolders` で `rankCap <= 0` → return 0 に変更（従来は `Math.max(1, ...)` で最低 1 だった）
+  - `appointmentSystem` が `def.maxHolders` の代わりに `getEffectiveOfficeMaxHolders` を使用するよう統一
+  - `organizationConsistencySystem` に Step 3（rank 超過分の自動解任）を追加
+  - House 役職は leader 以外 maxHolders = 1 に制限（`getEffectiveOfficeMaxHolders` 内で house 非 leader → return 1）
+- **派閥メンバーの役職解任免除**:
+  - `organizationConsistencySystem` の Step 1/Step 2 で `getActiveFactionMembership` チェックを追加。派閥に所属する人物は、家門の領地条件を満たさなくても polity 役職を維持できる。派閥解散 or 本人離脱で次回チェック時に通常の領地条件に戻り自然に解任
+- **Polity 詳細パネル改善**: 全 holder 表示に変更（従来は `holderIds[0]` の1人目のみ）、advisor 役職を表示に追加
+- **EventLinks で AnonymousHouse のリンクを非表示に**
+
+### v0.22 で実装済み（国・家の目標システム）
+
+詳細仕様は `docs/drafts/spec-v022-update.md` 参照。
+
+- **Goal → Aim → Intent 階層的目標システム**: Polity / House が長期目標 (Goal) → 中期計画 (Aim) → 短期意図 (Intent) の階層で一貫した行動を取る
+- **Polity Goal 2 種**: external_expansion / internal_development。スコアリングで自動選択
+- **House Goal 3 種**: expand_power_base / preserve_power_base / cultivate_prestige
+- **Polity Aim 4 種**: consolidate_province_holdings / seize_weak_remote_holdings / develop_owned_holding / improve_owned_contract_terms
+- **House Aim 5 種**: increase_polity_share / steer_polity_external_expansion / steer_polity_internal_development / patronize_artist / commission_chronicle
+- **新設システム 7 個**:
+  - GoalMaintenanceSystem (4w, 内部 48w ゲート): Goal 生成・レビュー・abandon
+  - AimMaintenanceSystem (4w, 内部 48w ゲート): Aim 生成・deadline/target チェック
+  - AimToIntentGenerationSystem (4w): Aim → Intent 生成
+  - IntentActionSystem (4w): Action 系 Intent の即時処理 (develop_holding / expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle)
+  - AimOutcomeSystem (4w): DiplomaticPlay 結果 → Aim progress 反映
+  - GoalOutcomeSystem (4w): Aim 結果 → Goal progress 反映
+  - CleanupTerminalDecisions (4w): terminal Goal/Aim/orphan DecisionReason の GC
+- **IntentGenerationSystem を sell_land 専用に縮小**: acquire_land / improve_contract_terms / demand_tax_increase は Goal/Aim 系が生成
+- **houseDevelopmentSystem 廃止**: 土地開発は Polity develop_holding に一本化。House は Polity Share・政策誘導で関与
+- **House actor の最小実動**: expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle
+- **House の Polity Goal 誘導**: steer_polity_* Aim が GoalMaintenanceSystem の Goal review 時に policyInfluenceBonus を加算
+- **DecisionReason**: Goal / Aim の生成理由を i18n 翻訳キーで記録し、UI で表示
+- **WorldGen 初期 Goal/Aim 生成**: 全 active Polity / House に初期 Goal + Aim を生成
+- **DiplomaticPlay に goalId/aimId 継承**: IntentToDiplomaticPlaySystem が Intent → Play 変換時に継承
+- **IntegrityCheck 拡張**: Goal/Aim/ActorIntent/DiplomaticPlay の整合性チェック追加
+- **UI**: Polity / House の DetailPanel に Goal/Aim/progress/reasons を表示
+- **i18n**: goals / aims / decision_reasons / events 翻訳を en/ja で追加。Aim の日本語訳は「目論見」（将来の Project 「計画」との衝突回避）
+- **CLI JSON 出力**: buildDecisionSummary で Goal/Aim/Intent/DecisionReason データを年末出力に追加
+- **EventType 13 種追加**: GOAL_CREATED / GOAL_SUCCEEDED / GOAL_FAILED / GOAL_ABANDONED / GOAL_REVIEWED / AIM_CREATED / AIM_SUCCEEDED / AIM_FAILED / AIM_ABANDONED / HOUSE_POLITY_SHARE_EXPANDED / HOUSE_POLICY_INFLUENCE / HOUSE_PATRONIZED_ARTIST / HOUSE_COMMISSIONED_CHRONICLE
+- **EventType 1 種削除**: HOUSE_LAND_DEVELOPED (houseDevelopmentSystem 廃止)
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系
 
+- **派閥リクルート改善**: 現状 `recruitCap = 1`（季節ごと = 年4人/派閥）が制約的で、十分な規模に成長する前に解散するケースが多い。代官候補の確保にも影響。リクルート上限・頻度・対象条件の見直しが必要。
+- **代官候補プールの拡大**: rank ベース役職制限と house maxHolders=1 制限により polity/house 役職の消費は改善したが、代官候補は「他の役職を一切持たない free adult」に限定されるため、少人数の ownerHouse では依然として候補が枯渇する。代官候補条件の緩和（house 役職持ちでも可）、または在野人物の直接雇用経路（派閥を経由しない）の検討が必要。
 - **同派閥婚姻ボーナス / leader 意思決定の派閥圧力 / 軍事 contribution の Share-based 集計**: v0.17 では未実装。派閥が「人事と恩顧」のみ。
 - ~~**Faction 独立 UI**~~: v0.17.4 で実装済み (sidebar Factions タブ + DetailPanel FactionDetail)。
 - ~~**bailiff の factional 推薦 (§15.3)**~~: v0.17.1 で実装済み (派閥員候補プール拡大 + 兼任全面禁止 + Bailiff salary 経路)。
@@ -464,12 +517,12 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 
 #### v0.18 外交劇の残課題 (v0.19+ で検討)
 
-- **長期 GoalSystem**: 現在の短期 Intent を本格的な中長期目標システムに発展
+- ~~**長期 GoalSystem**~~: v0.22 で Goal/Aim/Intent 階層を実装済み
 - **Person ActionSystem**: 個人の行動意思決定システム
 - **DiplomaticRelation**: Polity 間の長期外交関係
 - **第三者参加外交 / 同盟 / 保証 / 参戦 / 仲裁**: DiplomaticPlay への第三者介入
 - **本格 War entity / WarScore / PeaceSettlement**: 詳細戦争システム
-- **House actor を主体とする外交劇の有効化**: Faction policy preference 接続
+- ~~**House actor を主体とする外交劇の有効化**~~: v0.22 で House actor の最小実動を導入済み（expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle）。DiplomaticPlay 主体としての House actor は将来課題
 - **install_owner / dynasty change 要求**: 王朝交代要求 DiplomaticDemand
 - **AppointmentPolicy 抽象による commonwealth ad-hoc 分岐の整理**
 - **intentCooldownWeeks の本格運用**: v0.18 では未使用 (config のみ用意。v0.19 で Weeks に改名)

@@ -35,8 +35,7 @@
 | WAR_LOST | major | 戦争敗北 |
 | PROVINCE_CONQUERED | major | Province 征服 (v0.16 では WarSystem が依然発火、LAND_CONTRACT_* への置換は Faction 段階) |
 | POLITY_ANNEXED | critical | 国家消滅（併合） |
-| COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発 |
-| HOUSE_LAND_DEVELOPED | normal | 家による土地開発 |
+| COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発（v0.22: develop_holding Intent による Holding 開発も含む） |
 | POP_LAND_DEVELOPED | minor | POP 自主開発（§6.18） |
 | PROVINCE_REVOLT_STARTED | normal | Province / POP 反乱が発生 |
 | PROVINCE_REVOLT_SUCCEEDED | major | Province 反乱が concession で成功 |
@@ -67,6 +66,23 @@
 | BAILIFF_APPOINTED | normal | placeholder → 通常人物への Bailiff 交代（v0.16） |
 | BAILIFF_VACATED | normal | Bailiff が不在化（v0.16） |
 | BAILIFF_PLACEHOLDER_INSTALLED | minor | terminal Polity 変更時の Bailiff placeholder 設置（v0.16） |
+| GOAL_CREATED | minor | Goal 生成（v0.22） |
+| GOAL_SUCCEEDED | normal | Goal 達成（v0.22） |
+| GOAL_FAILED | normal | Goal 失敗（v0.22、予約。現状未発火） |
+| GOAL_ABANDONED | minor | Goal 放棄（v0.22） |
+| GOAL_REVIEWED | minor | Goal レビュー（v0.22） |
+| AIM_CREATED | minor | Aim 生成（v0.22） |
+| AIM_SUCCEEDED | normal | Aim 達成（v0.22） |
+| AIM_FAILED | minor | Aim 失敗（v0.22） |
+| AIM_ABANDONED | minor | Aim 放棄（v0.22） |
+| HOUSE_POLITY_SHARE_EXPANDED | normal | House の Polity Share 拡大（v0.22） |
+| HOUSE_POLICY_INFLUENCE | minor | House の政策誘導（v0.22） |
+| HOUSE_PATRONIZED_ARTIST | normal | 芸術家後援（v0.22） |
+| HOUSE_COMMISSIONED_CHRONICLE | normal | 年代記編纂（v0.22） |
+
+**v0.22 で削除された EventType**:
+
+- `HOUSE_LAND_DEVELOPED` — houseDevelopmentSystem 廃止により発火源消失。土地開発は Polity develop_holding に一本化
 
 **v0.16 で削除された EventType**:
 

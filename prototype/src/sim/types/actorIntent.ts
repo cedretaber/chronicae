@@ -1,4 +1,14 @@
-import type { ActorIntentId, ProvinceId, PolityId, LandContractId, HoldingId } from './ids'
+import type {
+  ActorIntentId,
+  ProvinceId,
+  PolityId,
+  LandContractId,
+  HoldingId,
+  GoalId,
+  AimId,
+  PressureId,
+  DecisionReasonId,
+} from './ids'
 import type { PoliticalActorRef } from './actor'
 
 // v0.18 Stage A §6.2 / §6.3
@@ -22,6 +32,12 @@ export type ActorIntentKind =
   | 'demand_tax_increase'
   | 'suppress_unrest'
   | 'revolt'
+  // v0.22 Action Intent kinds
+  | 'develop_holding'
+  | 'expand_polity_share'
+  | 'promote_policy_shift'
+  | 'patronize_artist'
+  | 'commission_chronicle'
 
 export type IntentRationale =
   | 'expand_territory'
@@ -33,6 +49,9 @@ export type IntentRationale =
   | 'recover_lost_land'
   | 'pacify_unrest'
   | 'popular_grievance'
+  // v0.22
+  | 'goal_driven'
+  | 'pressure_response'
 
 export type ActorIntent = {
   id: ActorIntentId
@@ -55,4 +74,10 @@ export type ActorIntent = {
 
   createdWeek: number
   expiresWeek: number
+
+  // v0.22 Goal/Aim connection (all optional for backward compat)
+  goalId?: GoalId
+  aimId?: AimId
+  pressureId?: PressureId
+  reasonIds?: DecisionReasonId[]
 }

@@ -8,11 +8,7 @@ import type { Person, AbilityScores } from '../types/person'
 import type { OfficeAssignment, OrganizationRef } from '../types/office'
 import { runControlSystem } from './controlSystem'
 import { runLandRevenueSystem } from './landRevenueSystem'
-import { runHouseDevelopmentSystem } from './houseDevelopmentSystem'
-import {
-  calcGeneralDeclareThreshold,
-  calcHouseHeadDevelopmentChanceBonus,
-} from '../selectors/personAbilityEffects'
+import { calcGeneralDeclareThreshold } from '../selectors/personAbilityEffects'
 import {
   bindProvinceToHouseViaPolity,
   makeEmptyV016State,
@@ -172,6 +168,15 @@ function makeWorldState(
     diplomaticPlays: {},
     nextActorIntentId: 0,
     nextDiplomaticPlayId: 0,
+    // v0.22 Goal/Aim system
+    goals: {},
+    aims: {},
+    decisionReasons: {},
+    goalIndex: { byOwner: {} },
+    aimIndex: { byOwner: {}, byGoal: {} },
+    nextGoalId: 0,
+    nextAimId: 0,
+    nextDecisionReasonId: 0,
   }
   return state
 }
@@ -371,6 +376,15 @@ describe('runControlSystem — capital province maxControl', () => {
       diplomaticPlays: {},
       nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
+      // v0.22 Goal/Aim system
+      goals: {},
+      aims: {},
+      decisionReasons: {},
+      goalIndex: { byOwner: {} },
+      aimIndex: { byOwner: {}, byGoal: {} },
+      nextGoalId: 0,
+      nextAimId: 0,
+      nextDecisionReasonId: 0,
     }
 
     const result = runControlSystem(makeCtx(world))
@@ -463,92 +477,5 @@ describe('calcGeneralDeclareThreshold — integration with defaultConfig', () =>
     const disabledConfig = { ...defaultConfig, personAbilityEffectsEnabled: false }
     const threshold = calcGeneralDeclareThreshold(state, 'dp-0' as PolityId, disabledConfig)
     expect(threshold).toBe(0.45)
-  })
-})
-
-describe('runHouseDevelopmentSystem — admin/caution bonus', () => {
-  it('admin=10, caution=1.0 head produces higher abilityChanceBonus than admin=5', () => {
-    const govMax = makeAbilities({ numeracy: 100, learning: 100, charisma: 100, insight: 100 })
-    const highBonusState = makeWorldState(
-      { abilities: govMax, aptitudes: govMax, traits: { ambition: 0.5, caution: 1.0 } },
-      {},
-    )
-    const highBonusBonus = calcHouseHeadDevelopmentChanceBonus(
-      highBonusState,
-      highBonusState.houses['h-0' as HouseId]!,
-      defaultConfig,
-    )
-
-    const neutralPerson = makePerson(0.5, 0.5)
-    const neutralState = makeWorldState(neutralPerson, {})
-    const neutralBonus = calcHouseHeadDevelopmentChanceBonus(
-      neutralState,
-      neutralState.houses['h-0' as HouseId]!,
-      defaultConfig,
-    )
-
-    expect(highBonusBonus).toBeGreaterThan(neutralBonus)
-  })
-
-  it('admin=10, caution=1.0 produces abilityChanceBonus of approximately 0.15', () => {
-    const govMax = makeAbilities({ numeracy: 100, learning: 100, charisma: 100, insight: 100 })
-    const highBonusState = makeWorldState(
-      { abilities: govMax, aptitudes: govMax, traits: { ambition: 0.5, caution: 1.0 } },
-      {},
-    )
-    const bonus = calcHouseHeadDevelopmentChanceBonus(
-      highBonusState,
-      highBonusState.houses['h-0' as HouseId]!,
-      defaultConfig,
-    )
-    expect(bonus).toBeCloseTo(0.15, 5)
-  })
-
-  it('system emits HOUSE_LAND_DEVELOPED event with high wealth and chance=1.0', () => {
-    const headPerson = makePerson(0.5, 1.0)
-    const houseId = 'h-0' as HouseId
-    const provinceId = 'p-0' as ProvinceId
-    const polityId = 'dp-0' as PolityId
-
-    let state = makeEmptyV016State()
-    state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
-    state = withProvince(state, provinceId, { nameKey: 'P0' })
-    state = withHouse(state, houseId, {
-      nameKey: 'H0',
-      memberIds: [headPerson.id],
-      deceasedMemberIds: [],
-      legacyPrestige: 50,
-      wealth: 500,
-      seatProvinceId: provinceId,
-    })
-    state = withPolity(state, polityId, {
-      nameKey: 'C0',
-      ownerHouseId: houseId,
-      treasury: 500,
-      legacyPrestige: 50,
-      adminPower: 10,
-      capitalProvinceId: provinceId,
-    })
-    state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
-    state = { ...state, persons: { ...state.persons, [headPerson.id]: headPerson } }
-
-    const config = { ...defaultConfig, houseDevelopmentYearlyChance: 1.0 }
-    const ctx = { ...makeCtx(state), config }
-    const result = runHouseDevelopmentSystem(ctx)
-
-    const devEvents = result.events.filter((e) => e.type === 'HOUSE_LAND_DEVELOPED')
-    expect(devEvents.length).toBeGreaterThan(0)
-  })
-
-  it('disabled effects produce zero abilityChanceBonus', () => {
-    const highBonusPerson = makePerson(0.5, 1.0)
-    const highBonusState = makeWorldState(highBonusPerson, {})
-    const disabledConfig = { ...defaultConfig, personAbilityEffectsEnabled: false }
-    const bonus = calcHouseHeadDevelopmentChanceBonus(
-      highBonusState,
-      highBonusState.houses['h-0' as HouseId]!,
-      disabledConfig,
-    )
-    expect(bonus).toBe(0)
   })
 })

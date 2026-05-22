@@ -139,6 +139,8 @@ sidebar:
 
 detail:
   annexed: '併合済'
+  common:
+    year: '年'
   # 国家詳細
   polity:
     rank: '階級'
@@ -161,6 +163,11 @@ detail:
     land_contracts: '土地契約'
     others: 'その他'
     non_primary: '外様'
+    current_goal: '現在の目標'
+    goal_progress: '進捗'
+    active_aim: '現在の目論見'
+    aim_progress: '進捗'
+    aim_deadline: '期限'
 
   # 家系詳細
   house:
@@ -191,6 +198,11 @@ detail:
     recent_events: '最近の出来事'
     ruling: '支配家'
     landless: '亡命家'
+    current_goal: '現在の目標'
+    goal_progress: '進捗'
+    active_aim: '現在の目論見'
+    aim_progress: '進捗'
+    aim_deadline: '期限'
 
   # 人物詳細
   person:

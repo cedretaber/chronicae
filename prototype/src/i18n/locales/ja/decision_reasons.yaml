@@ -1,1 +1,19 @@
-# decision_reasons namespace (ja) — placeholder for future use
+# DecisionReason summaryKey translations (ja)
+decision:
+  reason:
+    goal:
+      external_expansion: 隣接する所領が獲得可能
+      internal_development: 所有する所領を開発可能
+      expand_power_base: 政治的影響力を拡大する好機
+      preserve_power_base: 現在の地位を維持する必要がある
+      cultivate_prestige: 文化的遺産を築く意欲
+    aim:
+      consolidate_province_holdings: 分裂したプロヴィンスの支配権統合
+      seize_weak_remote_holdings: 弱小の近隣を攻略
+      develop_owned_holding: 未開発の所領を発展させる
+      improve_owned_contract_terms: 不利な税率を改善
+      increase_polity_share: 国政への影響力を拡大
+      steer_polity_external_expansion: 国を対外拡張へ誘導
+      steer_polity_internal_development: 国を内政充実へ誘導
+      patronize_artist: 芸術を振興
+      commission_chronicle: 家の歴史を記録

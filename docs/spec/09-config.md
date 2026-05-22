@@ -15,6 +15,15 @@
 | houseShareAppointmentFactor | 0.08 | House Share 割合のスコア寄与係数 |
 | ownerHouseAppointmentBonus | 4 | 候補者の家が polity.ownerHouseId と一致する場合の加算 |
 | sameHousePolityOfficePenalty | 2 | 同 House の Polity Office 保有数 1 つにつき減算（Polity Office 独占抑制） |
+| **Rank ベース役職上限（v0.21）** | | |
+| polityOfficeMaxByRank[1] | admin:3 treas:3 mil:5 adv:5 | 帝国: 全役職フル枠 |
+| polityOfficeMaxByRank[2] | admin:2 treas:2 mil:3 adv:3 | 王国: 全役職（枠数制限） |
+| polityOfficeMaxByRank[3] | admin:1 treas:1 mil:1 adv:0 | 公領: advisor 不可 |
+| polityOfficeMaxByRank[4] | admin:1 treas:0 mil:0 adv:0 | 伯領: administrator のみ |
+| polityOfficeMaxByRank[5] | admin:0 treas:0 mil:0 adv:0 | 反乱領: leader のみ |
+| polityOfficeMaxProvinceFactor.small | 0.4 | 1 Province 以下の係数 |
+| polityOfficeMaxProvinceFactor.medium | 0.7 | 2-3 Province の係数 |
+| polityOfficeMaxProvinceFactor.large | 1.0 | 4 Province 以上の係数 |
 | samePrimaryPolityMarriageBonus | 0.08 | 同 primary Polity 間婚姻ボーナス（v0.15、旧 0.1 から微減） |
 | maxRawEvents | 10000 | 全イベント保持上限 |
 | maxChronicleEvents | 1000 | Chronicle イベント保持上限 |
@@ -104,11 +113,11 @@
 | bountifulHarvestDevelopmentGain | 3 | 豊作による development 上昇 |
 | polityLandDevelopmentBaseCost | 70 | Polity土地開発コスト |
 | polityLandDevelopmentGain | 8 | Polity土地開発による development 上昇 |
-| houseDevelopmentEnabled | true | 家の土地開発有効 |
-| houseDevelopmentYearlyChance | 0.25 | 家の土地開発年間基本確率 |
-| houseLandDevelopmentBaseCost | 40 | 家の土地開発コスト |
-| houseLandDevelopmentGain | 6 | 家の土地開発による development 上昇（基本値） |
-| houseWealthReserve | 50 | 家が開発前に確保する wealth 予備 |
+| ~~houseDevelopmentEnabled~~ | — | **v0.22 で削除**。houseDevelopmentSystem 廃止 |
+| ~~houseDevelopmentYearlyChance~~ | — | **v0.22 で削除** |
+| ~~houseLandDevelopmentBaseCost~~ | — | **v0.22 で削除** |
+| ~~houseLandDevelopmentGain~~ | — | **v0.22 で削除** |
+| ~~houseWealthReserve~~ | — | **v0.22 で削除** |
 | **Control System** | | |
 | controlMaxDistancePenalty | 10 | 距離 1 あたりの支配力上限ペナルティ |
 | controlMaxMinimum | 40 | 支配力上限の最低値 |
@@ -308,6 +317,26 @@
 | estateRecoveryRateMin | 0.2 | v0.14: 家回収率の下限 |
 | estateRecoveryRateMax | 0.9 | v0.14: 家回収率の上限 |
 | estateSettledNormalWealthRatio | 0.2 | v0.14: ESTATE_SETTLED の importance を normal に昇格させる wealth/house.wealth 閾値 |
+| **Goal / Aim システム（v0.22）** | | |
+| goalReviewIntervalWeeks | 48 | Goal レビュー間隔（週） |
+| goalMinimumDurationWeeks | 144 | Goal 最低維持期間（週、3年相当） |
+| goalSwitchThreshold | 20 | Goal 差し替えに必要な候補スコア差 |
+| goalProgressOnAimSucceeded | 25 | Aim 成功時の Goal progress 増分 |
+| goalProgressOnAimFailed | -10 | Aim 失敗時の Goal progress 変化 |
+| goalProgressOnAimAbandoned | -5 | Aim 放棄時の Goal progress 変化 |
+| aimDefaultDeadlineWeeks | 240 | Aim のデフォルト期限（週、5年相当） |
+| aimIntentCooldownWeeks | 4 | Intent 生成後の cooldown（週） |
+| developHoldingCost | 30 | develop_holding の Polity treasury コスト |
+| developHoldingGain | 5 | develop_holding の Holding development 上昇量 |
+| expandPolityShareCost | 40 | expand_polity_share の House wealth コスト |
+| expandPolityShareRawPowerGain | 10 | expand_polity_share の OrganizationShare rawPower 増分 |
+| promotePolicyShiftCost | 0 | promote_policy_shift のコスト（cooldown で乱発防止） |
+| patronizeArtistCost | 25 | patronize_artist の House wealth コスト |
+| patronizeArtistPrestigeGain | 3 | patronize_artist の legacyPrestige 上昇量 |
+| commissionChronicleCost | 40 | commission_chronicle の House wealth コスト |
+| commissionChroniclePrestigeGain | 5 | commission_chronicle の legacyPrestige 上昇量 |
+| policyInfluenceBonusBase | 10 | steer_polity_* Aim の基礎補正量 |
+| policyInfluenceBonusShareFactor | 0.5 | Share 割合ごとの追加補正係数 |
 
 ---
 

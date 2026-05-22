@@ -368,7 +368,7 @@ house:
 
 polity:
   western:
-    kingdom:
+    default:
       - aldoria
       - bergund
       - caldria

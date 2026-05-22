@@ -1,1 +1,19 @@
-# decision_reasons namespace (en) — placeholder for future use
+# DecisionReason summaryKey translations (en)
+decision:
+  reason:
+    goal:
+      external_expansion: Neighboring holdings are acquirable
+      internal_development: Own holdings can be developed
+      expand_power_base: Opportunity to expand political influence
+      preserve_power_base: Need to maintain current standing
+      cultivate_prestige: Desire to build cultural legacy
+    aim:
+      consolidate_province_holdings: Control fragmented province
+      seize_weak_remote_holdings: Exploit weak neighbors
+      develop_owned_holding: Develop an underdeveloped holding
+      improve_owned_contract_terms: Reduce unfavorable tax burden
+      increase_polity_share: Increase political influence
+      steer_polity_external_expansion: Guide polity toward expansion
+      steer_polity_internal_development: Guide polity toward development
+      patronize_artist: Support the arts
+      commission_chronicle: Record house history

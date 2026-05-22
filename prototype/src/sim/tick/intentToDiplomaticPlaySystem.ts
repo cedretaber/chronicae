@@ -1,6 +1,13 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
-import type { ActorIntentId, HoldingId, PolityId, ProvinceId } from '../types/ids'
+import type {
+  ActorIntentId,
+  AimId,
+  DiplomaticPlayId,
+  HoldingId,
+  PolityId,
+  ProvinceId,
+} from '../types/ids'
 import { createDiplomaticPlayId } from '../types/ids'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
@@ -127,6 +134,7 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
 
       currentCtx = createLandClaimPlay(currentCtx, {
         intentId: intent.id,
+        aimId: intent.aimId,
         initiator,
         target,
         provinceId,
@@ -195,6 +203,7 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
 
       currentCtx = createLandClaimPlay(currentCtx, {
         intentId: intent.id,
+        aimId: intent.aimId,
         initiator,
         target,
         provinceId,
@@ -274,6 +283,8 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
         initiator,
         target,
         originIntentId: intent.id,
+        ...(intent.goalId ? { goalId: intent.goalId } : {}),
+        ...(intent.aimId ? { aimId: intent.aimId } : {}),
         primaryDemand: {
           kind: 'change_contract_tax_rate',
           holdingId,
@@ -308,6 +319,11 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
       })
       existingActivePlayKeys.add(dedupeKey)
       activePlayProvinceIds.add(provinceId)
+
+      // Update Aim: clear activeIntentId, set activeDiplomaticPlayId
+      if (intent.aimId) {
+        currentCtx = updateAimForPlayConversion(currentCtx, intent.aimId, playId)
+      }
     }
   }
 
@@ -318,6 +334,7 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
 
 type CreateLandClaimInput = {
   intentId: ActorIntentId
+  aimId: AimId | undefined
   initiator: PoliticalActorRef
   target: PoliticalActorRef
   provinceId: ProvinceId
@@ -331,6 +348,7 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
   let currentCtx = ctx
   const {
     intentId,
+    aimId,
     initiator,
     target,
     provinceId,
@@ -339,6 +357,10 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
     initialProgress,
     initialTension,
   } = input
+
+  // Look up the intent to get goalId
+  const intent = ctx.state.actorIntents[intentId]
+  const goalId = intent?.goalId
   const playId = createDiplomaticPlayId(currentCtx.state.nextDiplomaticPlayId)
   const deadlineWeek = computeDeadline(
     currentCtx,
@@ -351,6 +373,8 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
     initiator,
     target,
     originIntentId: intentId,
+    ...(goalId ? { goalId: goalId } : {}),
+    ...(aimId ? { aimId: aimId } : {}),
     primaryDemand: {
       kind: 'transfer_land_contract',
       holdingId,
@@ -393,6 +417,9 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
     holdingId,
     hasOffer: counterDemandAmount > 0,
   })
+  if (aimId) {
+    currentCtx = updateAimForPlayConversion(currentCtx, aimId, playId)
+  }
   return currentCtx
 }
 
@@ -539,6 +566,28 @@ function setIntentStatus(
         ...ctx.state.actorIntents,
         [intentId]: { ...intent, status },
       },
+    },
+  }
+}
+
+function updateAimForPlayConversion(
+  ctx: TickContext,
+  aimId: AimId,
+  playId: DiplomaticPlayId,
+): TickContext {
+  const aim = ctx.state.aims[aimId]
+  if (!aim) return ctx
+
+  // Build new aim without activeIntentId, with activeDiplomaticPlayId
+  const entries = Object.entries(aim).filter(([k]) => k !== 'activeIntentId')
+  const cleaned = Object.fromEntries(entries) as typeof aim
+  const updated = { ...cleaned, activeDiplomaticPlayId: playId }
+
+  return {
+    ...ctx,
+    state: {
+      ...ctx.state,
+      aims: { ...ctx.state.aims, [aimId]: updated },
     },
   }
 }

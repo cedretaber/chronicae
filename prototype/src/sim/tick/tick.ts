@@ -19,14 +19,20 @@ import { runAppointmentSystem } from './appointmentSystem'
 import { runShareUpdateSystem } from './shareUpdateSystem'
 import { runOfficeCompensationSystem } from './officeCompensationSystem'
 import { runPublicSpendingSystem } from './publicSpendingSystem'
-import { runHouseDevelopmentSystem } from './houseDevelopmentSystem'
 import { runControlSystem } from './controlSystem'
 import { runPlotSystem } from './plotSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import { runDiplomaticPlaySystem } from './diplomaticPlaySystem'
 import { runIntentGenerationSystem } from './intentGenerationSystem'
+import { runAimToIntentGenerationSystem } from './aimToIntentGenerationSystem'
 import { runIntentToDiplomaticPlaySystem } from './intentToDiplomaticPlaySystem'
+import { runIntentActionSystem } from './intentActionSystem'
+import { runGoalMaintenanceSystem } from './goalMaintenanceSystem'
+import { runAimMaintenanceSystem } from './aimMaintenanceSystem'
 import { runConflictResolutionSystem } from './conflictResolutionSystem'
+import { runAimOutcomeSystem } from './aimOutcomeSystem'
+import { runGoalOutcomeSystem } from './goalOutcomeSystem'
+import { runCleanupTerminalDecisions } from './cleanupTerminalDecisions'
 import { runPolityOwnerConsistencySystem } from './polityOwnerConsistencySystem'
 import { runOrganizationConsistencySystem } from './organizationConsistencySystem'
 import { runAttitudeDecaySystem } from './attitudeDecaySystem'
@@ -166,12 +172,6 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runPublicSpendingSystem,
   },
   {
-    name: 'houseDevelopmentSystem',
-    intervalWeeks: WEEKS_PER_YEAR,
-    phaseOffsetWeeks: 0,
-    run: runHouseDevelopmentSystem,
-  },
-  {
     name: 'popDevelopmentSystem',
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
@@ -179,16 +179,40 @@ const scheduledSystems: ScheduledSystem[] = [
   },
   { name: 'plotSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPlotSystem },
   {
+    name: 'goalMaintenanceSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runGoalMaintenanceSystem,
+  },
+  {
+    name: 'aimMaintenanceSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runAimMaintenanceSystem,
+  },
+  {
     name: 'intentGenerationSystem',
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runIntentGenerationSystem,
   },
   {
+    name: 'aimToIntentGenerationSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runAimToIntentGenerationSystem,
+  },
+  {
     name: 'intentToDiplomaticPlaySystem',
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runIntentToDiplomaticPlaySystem,
+  },
+  {
+    name: 'intentActionSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runIntentActionSystem,
   },
   {
     name: 'provinceRevoltSystem',
@@ -207,6 +231,18 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runConflictResolutionSystem,
+  },
+  {
+    name: 'aimOutcomeSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runAimOutcomeSystem,
+  },
+  {
+    name: 'goalOutcomeSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runGoalOutcomeSystem,
   },
   {
     name: 'polityOwnerConsistencySystem',
@@ -238,6 +274,12 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runCleanupTerminalDiplomacy,
+  },
+  {
+    name: 'cleanupTerminalDecisions',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runCleanupTerminalDecisions,
   },
 ]
 

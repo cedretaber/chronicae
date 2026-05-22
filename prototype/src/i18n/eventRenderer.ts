@@ -17,13 +17,33 @@ export function createEventRenderer(
         defaultValue: messageKey,
       })
 
+      const ownerCategory = resolveOwnerCategory(messageParams)
+
       return template.replace(/\{\{(\w+)\}\}/g, (_match: string, key: string) => {
         const value = messageParams[key]
         if (value === undefined) return `{{${key}}}`
+
+        if (key === 'kind' && typeof value === 'string' && ownerCategory) {
+          const ns = messageKey.startsWith('goal.') ? 'goals' : 'aims'
+          const translated = i18nInstance.t(`${ownerCategory}.${value}`, {
+            ns,
+            defaultValue: '',
+          })
+          if (translated) return translated
+        }
+
         return resolveParam(value, nameTranslator)
       })
     },
   }
+}
+
+function resolveOwnerCategory(params: EventMessageParams): string | undefined {
+  const owner = params['owner']
+  if (owner && typeof owner === 'object' && 'kind' in owner && owner.kind === 'name') {
+    return owner.category
+  }
+  return undefined
 }
 
 function resolveParam(value: EventMessageParamValue, nameTranslator: NameTranslator): string {

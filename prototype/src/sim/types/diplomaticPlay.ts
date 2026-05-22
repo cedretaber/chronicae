@@ -6,6 +6,8 @@ import type {
   LandContractId,
   PopGroupId,
   HoldingId,
+  GoalId,
+  AimId,
 } from './ids'
 import type { PoliticalActorRef } from './actor'
 
@@ -76,6 +78,10 @@ export type DiplomaticPlay = {
   target: PoliticalActorRef
 
   originIntentId?: ActorIntentId
+
+  // v0.22 Goal/Aim connection
+  goalId?: GoalId
+  aimId?: AimId
 
   primaryDemand: DiplomaticDemand
   counterDemand?: DiplomaticDemand

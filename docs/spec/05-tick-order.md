@@ -73,20 +73,27 @@ const WEEKS_PER_SEASON = 12
 | 14g | PersonGrowthSystem | 48 | 旧毎年 |
 | 15 | AmbitionSystem | 4 | 旧毎月 |
 | 16 | PublicSpendingSystem | 48 | 旧毎年 |
-| 17 | HouseDevelopmentSystem | 48 | 旧毎年 |
+| 17 | ~~HouseDevelopmentSystem~~ | — | **v0.22 で廃止**（§6.17）。土地開発は Polity develop_holding に一本化 |
 | 18 | PopDevelopmentSystem | 4 | 旧毎月 |
 | 19 | PlotSystem | 4 | 旧毎月 |
-| 20a | IntentGenerationSystem | 48 | 旧毎年 |
-| 20b | IntentToDiplomaticPlaySystem | 4 | 旧毎月 |
+| 20 | GoalMaintenanceSystem | 4 | v0.22。生成・レビューは内部 48w ゲート |
+| 20b | AimMaintenanceSystem | 4 | v0.22。生成は内部 48w ゲート |
+| 20c | IntentGenerationSystem | 48 | 旧毎年。v0.22 で sell_land 専用に縮小 |
+| 20d | AimToIntentGenerationSystem | 4 | v0.22 |
+| 20e | IntentToDiplomaticPlaySystem | 4 | 旧毎月。v0.22 で goalId/aimId 継承 |
+| 20f | IntentActionSystem | 4 | v0.22。Action 系 Intent の即時処理 |
 | 21 | ProvinceRevoltSystem | 48 | 旧毎年 |
 | 21b | DiplomaticPlaySystem | 4 | 旧毎月 |
 | 21c | ConflictResolutionSystem | 4 | 旧毎月 |
+| 21d | AimOutcomeSystem | 4 | v0.22。DiplomaticPlay 結果 → Aim progress |
+| 21e | GoalOutcomeSystem | 4 | v0.22。Aim 結果 → Goal progress |
 | 22b | PolityOwnerConsistencySystem | 4 | 旧毎月 |
 | 22c | OrganizationConsistencySystem | 4 | 旧毎月 |
 | 23 | AttitudeDecaySystem | 4 | 旧毎月 |
 | 24 | GovernanceSystem | 48 | 旧毎年 |
 | 25 | normalizePopSizes | 4 | 旧毎月 |
 | 25b | CleanupTerminalDiplomacy | 4 | 旧毎月 |
+| 25c | CleanupTerminalDecisions | 4 | v0.22。terminal Goal/Aim/orphan DecisionReason 削除 |
 | 26 | IntegrityCheck | ※3モード | debug=毎tick(try-catch), integrity-check=毎tick(throw), 通常=week48(throw) |
 
 全 system の `phaseOffsetWeeks = 0`（v0.19 時点）。

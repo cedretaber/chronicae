@@ -27,11 +27,16 @@ import type {
   HoldingOfficeAssignmentId,
   HoldingId,
   StateRegionId,
+  GoalId,
+  AimId,
 } from './types/ids'
 import { createHoldingId } from './types/ids'
 import { ROOT_WORLD } from './types/landContract'
 import { ANONYMOUS_HOUSE_ID } from './types/house'
 import { PLACEHOLDER_PERSON_ID } from './types/person'
+import type { Goal, Aim } from './types/goal'
+import { decisionSubjectKey } from './types/goal'
+import type { DecisionSubjectRef, GoalKind, AimKind } from './types/goal'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -133,6 +138,15 @@ export function makeEmptyV016State(): WorldState {
     diplomaticPlays: {},
     nextActorIntentId: 0,
     nextDiplomaticPlayId: 0,
+    // v0.22 Goal/Aim system
+    goals: {},
+    aims: {},
+    decisionReasons: {},
+    goalIndex: { byOwner: {} },
+    aimIndex: { byOwner: {}, byGoal: {} },
+    nextGoalId: 0,
+    nextAimId: 0,
+    nextDecisionReasonId: 0,
   }
 }
 
@@ -441,6 +455,87 @@ export function bindProvinceToHouseViaPolity(
   }
   nextState = bindProvinceToPolity(nextState, provinceId, polityId)
   return nextState
+}
+
+export function withGoal(
+  state: WorldState,
+  id: GoalId,
+  owner: DecisionSubjectRef,
+  kind: GoalKind,
+  overrides: Partial<Goal> = {},
+): WorldState {
+  const goal: Goal = {
+    id,
+    owner,
+    kind,
+    priority: 1,
+    progress: 0,
+    targetProgress: 100,
+    createdWeek: state.absoluteWeek,
+    minimumUntilWeek: state.absoluteWeek + 144,
+    lastReviewWeek: state.absoluteWeek,
+    nextReviewWeek: state.absoluteWeek + 48,
+    status: 'active',
+    reasonIds: [],
+    ...overrides,
+  }
+  const ownerKey = decisionSubjectKey(owner)
+  const existingGoals = state.goalIndex.byOwner[ownerKey] ?? []
+  return {
+    ...state,
+    goals: { ...state.goals, [id]: goal },
+    goalIndex: {
+      byOwner: {
+        ...state.goalIndex.byOwner,
+        [ownerKey]: [...existingGoals, id],
+      },
+    },
+  }
+}
+
+export function withAim(
+  state: WorldState,
+  id: AimId,
+  owner: DecisionSubjectRef,
+  kind: AimKind,
+  overrides: Partial<Aim> & { goalId?: GoalId } = {},
+): WorldState {
+  const aim: Aim = {
+    id,
+    owner,
+    origin: 'goal_driven',
+    kind,
+    priority: 1,
+    progress: 0,
+    targetProgress: 1,
+    createdWeek: state.absoluteWeek,
+    deadlineWeek: state.absoluteWeek + 240,
+    successfulIntentCount: 0,
+    failedIntentCount: 0,
+    status: 'active',
+    reasonIds: [],
+    ...overrides,
+  }
+  const ownerKey = decisionSubjectKey(owner)
+  const existingOwnerAims = state.aimIndex.byOwner[ownerKey] ?? []
+  const goalKey = aim.goalId ? (aim.goalId as string) : ''
+  const existingGoalAims = goalKey ? (state.aimIndex.byGoal[goalKey] ?? []) : []
+  return {
+    ...state,
+    aims: { ...state.aims, [id]: aim },
+    aimIndex: {
+      byOwner: {
+        ...state.aimIndex.byOwner,
+        [ownerKey]: [...existingOwnerAims, id],
+      },
+      byGoal: goalKey
+        ? {
+            ...state.aimIndex.byGoal,
+            [goalKey]: [...existingGoalAims, id],
+          }
+        : state.aimIndex.byGoal,
+    },
+  }
 }
 
 // Convenience: void unused-vars compiler complaint for HoldingOfficeAssignmentId

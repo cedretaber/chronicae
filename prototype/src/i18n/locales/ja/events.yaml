@@ -19,6 +19,10 @@ house:
   members_dispersed: '{{house}}の残党は散り散りになった。'
   leader_changed: '{{person}}が{{house}}の新たな当主となった。'
   land_developed: '{{house}}が{{province}}の開発に投資した。'
+  polity_share_expanded: '{{house}}は{{polity}}における影響力を拡大した。'
+  policy_influence: '{{house}}は{{polity}}の政策に影響を及ぼした。'
+  patronized_artist: '{{house}}は芸術家を後援し、威信を高めた。'
+  commissioned_chronicle: '{{house}}は年代記の編纂を命じた。'
 
 polity:
   leader_changed: '{{person}}が{{polity}}の新たな統治者となった。'
@@ -122,3 +126,15 @@ faction:
   member_recruited: '{{person}}が{{faction}}に参加した。'
   member_abandoned: '{{person}}が{{faction}}を離脱した。'
   funds_shortage: '{{person}}の{{faction}}が資金難に陥った。'
+
+goal:
+  created: '{{owner}}は新たな目標を掲げた：{{kind}}'
+  succeeded: '{{owner}}は{{kind}}の目標を達成した。'
+  failed: '{{owner}}は{{kind}}の目標を達成できなかった。'
+  abandoned: '{{owner}}は{{kind}}の目標を放棄した。'
+  reviewed: '{{owner}}は{{kind}}の目標を見直した。'
+aim:
+  created: '{{owner}}は{{target}}を目標に{{kind}}に着手した。'
+  succeeded: '{{owner}}は{{kind}}を完遂した。'
+  failed: '{{owner}}は{{kind}}に失敗した。'
+  abandoned: '{{owner}}は{{kind}}を断念した。'

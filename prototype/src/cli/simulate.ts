@@ -406,6 +406,73 @@ function countEventsByType(events: SimEvent[]): Record<string, number> {
   return result
 }
 
+function buildDecisionSummary(state: WorldState): {
+  goals: {
+    id: string
+    owner: string
+    kind: string
+    status: string
+    progress: number
+    targetProgress: number
+  }[]
+  aims: {
+    id: string
+    owner: string
+    goalId: string
+    kind: string
+    status: string
+    progress: number
+    targetProgress: number
+    deadline: number
+  }[]
+  intents: { id: string; actor: string; kind: string; aimId?: string; status: string }[]
+  decisionReasonCount: number
+} {
+  const goals = Object.values(state.goals)
+    .filter((g): g is NonNullable<typeof g> => g !== undefined)
+    .map((g) => ({
+      id: g.id,
+      owner: `${g.owner.kind}:${g.owner.id}`,
+      kind: g.kind,
+      status: g.status,
+      progress: g.progress,
+      targetProgress: g.targetProgress,
+    }))
+
+  const aims = Object.values(state.aims)
+    .filter((a): a is NonNullable<typeof a> => a !== undefined)
+    .map((a) => ({
+      id: a.id,
+      owner: `${a.owner.kind}:${a.owner.id}`,
+      goalId: a.goalId ?? '',
+      kind: a.kind,
+      status: a.status,
+      progress: a.progress,
+      targetProgress: a.targetProgress,
+      deadline: a.deadlineWeek,
+    }))
+
+  const intents = Object.values(state.actorIntents)
+    .filter((i): i is NonNullable<typeof i> => i !== undefined)
+    .map((i) => {
+      const base: { id: string; actor: string; kind: string; aimId?: string; status: string } = {
+        id: i.id,
+        actor: `${i.actor.kind}:${i.actor.id}`,
+        kind: i.kind,
+        status: i.status,
+      }
+      if (i.aimId) base.aimId = i.aimId
+      return base
+    })
+
+  return {
+    goals,
+    aims,
+    intents,
+    decisionReasonCount: Object.keys(state.decisionReasons).length,
+  }
+}
+
 function formatTreasury(treasury: number): string {
   return String(Math.round(treasury))
 }
@@ -567,6 +634,7 @@ async function main(): Promise<void> {
           events: events.map((e) => ({ type: e.type, summary: renderEvent(e) })),
           activePolities,
           activeHouses,
+          decisions: buildDecisionSummary(result.state),
         }
         console.log(JSON.stringify(output))
       } else if (!args.digest) {

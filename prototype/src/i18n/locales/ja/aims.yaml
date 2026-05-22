@@ -1,1 +1,12 @@
-# aims namespace (ja) — placeholder for future use
+# AimKind translations (ja)
+polity:
+  consolidate_province_holdings: プロヴィンス支配の統合
+  seize_weak_remote_holdings: 弱小領主の所領奪取
+  develop_owned_holding: 所領開発
+  improve_owned_contract_terms: 契約条件の改善
+house:
+  increase_polity_share: 国政における発言力の拡大
+  steer_polity_external_expansion: 国の対外拡張を主導
+  steer_polity_internal_development: 国の内政充実を主導
+  patronize_artist: 芸術家の後援
+  commission_chronicle: 年代記の編纂

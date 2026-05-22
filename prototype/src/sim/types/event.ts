@@ -25,7 +25,6 @@ export type EventType =
   | 'DISASTER_RELIEF_FUNDED'
   | 'DISASTER_RELIEF_FAILED'
   | 'COUNTRY_LAND_DEVELOPED'
-  | 'HOUSE_LAND_DEVELOPED'
   | 'POP_LAND_DEVELOPED'
   | 'POP_HARDSHIP'
   | 'POP_PROSPERITY'
@@ -89,6 +88,20 @@ export type EventType =
   // v0.18 contract_tax_revision
   | 'CONTRACT_TAX_REVISED'
   | 'CONTRACT_ELIMINATED'
+  // v0.22 Goal/Aim events
+  | 'GOAL_CREATED'
+  | 'GOAL_SUCCEEDED'
+  | 'GOAL_FAILED'
+  | 'GOAL_ABANDONED'
+  | 'GOAL_REVIEWED'
+  | 'AIM_CREATED'
+  | 'AIM_SUCCEEDED'
+  | 'AIM_FAILED'
+  | 'AIM_ABANDONED'
+  | 'HOUSE_POLITY_SHARE_EXPANDED'
+  | 'HOUSE_POLICY_INFLUENCE'
+  | 'HOUSE_PATRONIZED_ARTIST'
+  | 'HOUSE_COMMISSIONED_CHRONICLE'
 
 export type EventReason = {
   label: string
@@ -112,6 +125,8 @@ export type EventEntityKind =
   | 'diplomaticPlay'
   | 'actorIntent'
   | 'faction'
+  | 'goal'
+  | 'aim'
 
 export type EventEntityRef = {
   kind: EventEntityKind
@@ -228,7 +243,6 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'house.extinct_fallen': '{{house}} has fallen from power after losing all lands.',
   'house.members_dispersed': 'The remnants of {{house}} dispersed into obscurity.',
   'house.leader_changed': '{{person}} has become the new head of {{house}}.',
-  'house.land_developed': '{{house}} invested in developing {{province}}.',
   'polity.leader_changed': '{{person}} has become the new ruler of {{polity}}.',
   'polity.owner_changed':
     "{{polity}}'s ruling house changed to {{newHouse}}, and the capital moved to {{province}}.",
@@ -324,6 +338,19 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'faction.member_recruited': '{{person}} joined {{faction}}.',
   'faction.member_abandoned': '{{person}} abandoned {{faction}}.',
   'faction.funds_shortage': "{{person}}'s {{faction}} faces a financial crisis.",
+  'goal.created': '{{owner}} set a new goal: {{kind}}.',
+  'goal.succeeded': '{{owner}} achieved their goal of {{kind}}.',
+  'goal.failed': '{{owner}} failed to achieve {{kind}}.',
+  'goal.abandoned': '{{owner}} abandoned the goal of {{kind}}.',
+  'goal.reviewed': '{{owner}} reviewed their goal of {{kind}}.',
+  'aim.created': '{{owner}} began working on {{kind}} targeting {{target}}.',
+  'aim.succeeded': '{{owner}} successfully completed {{kind}}.',
+  'aim.failed': '{{owner}} failed at {{kind}}.',
+  'aim.abandoned': '{{owner}} abandoned {{kind}}.',
+  'house.polity_share_expanded': '{{house}} expanded its influence in {{polity}}.',
+  'house.policy_influence': '{{house}} influenced the policies of {{polity}}.',
+  'house.patronized_artist': '{{house}} patronized an artist, gaining prestige.',
+  'house.commissioned_chronicle': '{{house}} commissioned a chronicle of their deeds.',
 }
 
 export type EventImportance = 'minor' | 'normal' | 'major' | 'critical'

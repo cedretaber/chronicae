@@ -86,6 +86,7 @@ import {
   getHoldingLandContractChain,
 } from '@sim/selectors/landContractSelectors'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
+import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goalSelectors'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { calcPolityMilitaryPower } from '@/sim/selectors/militarySelectors'
@@ -1204,6 +1205,56 @@ export function CountryDetail({
         worldState={worldState}
         onProvinceClick={onProvinceClick}
       />
+
+      {/* v0.22 Goal/Aim */}
+      {worldState &&
+        (() => {
+          const owner = { kind: 'polity' as const, id: polity.id }
+          const goal = getActiveGoalForOwner(worldState, owner)
+          if (!goal) return null
+          const activeAims = getActiveAimsForGoal(worldState, goal.id)
+          const activeAim = activeAims[0]
+          return (
+            <div style={{ marginTop: 8 }}>
+              <strong>{t('detail.polity.current_goal')}</strong>
+              <div style={{ marginLeft: 8 }}>
+                <div>{t(`goals:polity.${goal.kind}`)}</div>
+                {goal.reasonIds.length > 0 && (
+                  <ul style={{ margin: '2px 0', paddingLeft: 20 }}>
+                    {goal.reasonIds.map((rid) => {
+                      const reason = worldState.decisionReasons[rid]
+                      if (!reason) return null
+                      return (
+                        <li key={rid} style={{ fontSize: '0.9em', opacity: 0.85 }}>
+                          {t(reason.summaryKey, { ns: 'decision_reasons' })}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                <div>
+                  {t('detail.polity.goal_progress')}: {goal.progress} / {goal.targetProgress}
+                </div>
+              </div>
+              {activeAim && (
+                <div style={{ marginLeft: 8, marginTop: 4 }}>
+                  <strong>{t('detail.polity.active_aim')}</strong>
+                  <div style={{ marginLeft: 8 }}>
+                    <div>{t(`aims:polity.${activeAim.kind}`)}</div>
+                    <div>
+                      {t('detail.polity.aim_progress')}: {activeAim.progress} /{' '}
+                      {activeAim.targetProgress}
+                    </div>
+                    <div>
+                      {t('detail.polity.aim_deadline')}: {t('detail.common.year')}{' '}
+                      {Math.ceil(activeAim.deadlineWeek / 48)}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
     </div>
   )
 }
@@ -1549,6 +1600,56 @@ export function HouseDetail({
           ))}
         </div>
       )}
+
+      {/* v0.22 Goal/Aim */}
+      {currentState &&
+        (() => {
+          const owner = { kind: 'house' as const, id: house.id }
+          const goal = getActiveGoalForOwner(currentState, owner)
+          if (!goal) return null
+          const activeAims = getActiveAimsForGoal(currentState, goal.id)
+          const activeAim = activeAims[0]
+          return (
+            <div style={{ marginTop: 8 }}>
+              <strong>{t('detail.house.current_goal')}</strong>
+              <div style={{ marginLeft: 8 }}>
+                <div>{t(`goals:house.${goal.kind}`)}</div>
+                {goal.reasonIds.length > 0 && currentState && (
+                  <ul style={{ margin: '2px 0', paddingLeft: 20 }}>
+                    {goal.reasonIds.map((rid) => {
+                      const reason = currentState.decisionReasons[rid]
+                      if (!reason) return null
+                      return (
+                        <li key={rid} style={{ fontSize: '0.9em', opacity: 0.85 }}>
+                          {t(reason.summaryKey, { ns: 'decision_reasons' })}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                <div>
+                  {t('detail.house.goal_progress')}: {goal.progress} / {goal.targetProgress}
+                </div>
+              </div>
+              {activeAim && (
+                <div style={{ marginLeft: 8, marginTop: 4 }}>
+                  <strong>{t('detail.house.active_aim')}</strong>
+                  <div style={{ marginLeft: 8 }}>
+                    <div>{t(`aims:house.${activeAim.kind}`)}</div>
+                    <div>
+                      {t('detail.house.aim_progress')}: {activeAim.progress} /{' '}
+                      {activeAim.targetProgress}
+                    </div>
+                    <div>
+                      {t('detail.house.aim_deadline')}: {t('detail.common.year')}{' '}
+                      {Math.ceil(activeAim.deadlineWeek / 48)}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
     </div>
   )
 }
@@ -1616,6 +1717,15 @@ export function PersonDetail({
     diplomaticPlays: {},
     nextActorIntentId: 0,
     nextDiplomaticPlayId: 0,
+    // v0.22 Goal/Aim system
+    goals: {},
+    aims: {},
+    decisionReasons: {},
+    goalIndex: { byOwner: {} },
+    aimIndex: { byOwner: {}, byGoal: {} },
+    nextGoalId: 0,
+    nextAimId: 0,
+    nextDecisionReasonId: 0,
   }
   const allOfficeIds = worldState.officeIndex.byHolderPerson[person.id] ?? []
   const allOffices = allOfficeIds.flatMap((id) => {

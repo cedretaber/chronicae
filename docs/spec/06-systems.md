@@ -513,7 +513,9 @@ score = relevantStat(role) * 1.0
 
 **任命判定**:
 - 最高スコア候補が `minAppointmentScore` 未満の場合は任命しない（空席を維持）
-- 最高スコア候補が `maxHolders` に達していない空席を補充する（既存担当者は交代させない）
+- `getEffectiveOfficeMaxHolders(state, config, org, role)` で算出される動的上限に達していない空席を補充する（既存担当者は交代させない）
+  - Polity 役職: `polityOfficeMaxByRank[rank][role]` × province 数係数で決定。`rankCap = 0` の場合はその役職を設置不可（例: rank 4 伯領は administrator のみ）
+  - House 役職: leader 以外は一律 maxHolders = 1（v0.21）
 - 死亡者の役職は自動的に revoke される
 
 **イベント**: `OFFICE_ASSIGNED`（importance: `normal`）
@@ -531,11 +533,9 @@ score = relevantStat(role) * 1.0
 
 **イベント**: `OFFICE_SALARY_UNPAID`（importance: `minor`）/ `OFFICE_SALARY_PARTIALLY_PAID`（importance: `minor`）
 
-### 6.14e BailiffAppointmentSystem（24週ごと、v0.16 / v0.20）
+### 6.14e BailiffAppointmentSystem（12週ごと = 季節ごと、v0.16 / v0.20）
 
 terminal Polity ごとに HoldingOfficeAssignment (Bailiff) を走査し、placeholder Person で空席化している **Holding** を通常人物で埋める。逆に、通常人物の Bailiff が死亡・離反などで不在化した場合は placeholder Person に戻す。
-
-config `bailiffAppointmentInterval` で起動頻度を制御する（暫定 6 = 半年に 1 回）。
 
 **任期判定（v0.20）**: `absoluteWeek - office.startWeek >= termYears * WEEKS_PER_YEAR`。`startYear` は廃止。
 
@@ -639,25 +639,11 @@ if (ability[k] < effectiveCeil) {
 **記念碑建設の廃止**:
 v0.16 後の整理で `MONUMENT_BUILT` イベントは削除された（ログを埋めるだけで観賞価値が薄く、polityControl 補強の代替経路として独立した存在意義に乏しいため）。これに伴い `monumentScore` vs `landDevelopmentScore` の二択分岐構造、関連 config (`monumentBaseCost` / `monumentPolityControlGain` / `chancellorAmbition,CautionMonumentScoreEffect`)、selector (`calcChancellorMonumentScoreBonus`) もすべて削除された。
 
-### 6.17 HouseDevelopmentSystem（48週ごと = 毎年）
+### 6.17 HouseDevelopmentSystem（v0.22 で廃止）
 
-`houseDevelopmentEnabled` が true のとき動作。全 active House に対して：
+House が直接 Holding / Province を開発する仕組みは、土地契約・代官任命・徴税・実効支配を Polity が担う v0.20 以降の土地統治モデルと整合しない。v0.22 で廃止し、土地開発は Polity の Aim / Intent (develop_holding) に一本化した。House は Polity Share・政策誘導（steer_polity_internal_development）を通じて関与する。
 
-- 条件: `house.wealth >= houseLandDevelopmentBaseCost + houseWealthReserve`
-- 発動確率:
-  ```
-  chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 0, 1)
-  wealthBonus      = clamp((wealth - cost - reserve) / 300, 0, 0.25)
-  abilityChanceBonus = 家長 admin / caution による補正（§10 参照）
-  ```
-- 効果:
-  ```
-  effectiveGain = houseLandDevelopmentGain * (1 - max(0, development) / 100)
-  development += effectiveGain（clamp）
-  house.wealth -= houseLandDevelopmentBaseCost
-  ```
-  v0.16 で `houseControl` 加算は廃止された (Province.houseControl 自体が無い)。
-- イベント: `HOUSE_LAND_DEVELOPED`
+廃止に伴い、`houseDevelopmentEnabled` / `houseDevelopmentYearlyChance` / `houseLandDevelopmentBaseCost` / `houseLandDevelopmentGain` / `houseWealthReserve` config と `HOUSE_LAND_DEVELOPED` EventType を削除した。
 
 ### 6.18 PopDevelopmentSystem（4週ごと）
 
@@ -908,14 +894,33 @@ for each polity in active polities:
     houseEligible = house and house.active and house.id in eligibleHouseIds
     // v0.18-pre: commonwealth の rebel founder (AnonymousHouse 所属) は eligible 扱い
     isCommonwealthRebelHolder = polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
-    if houseEligible or isCommonwealthRebelHolder: continue
+    // v0.21: active な派閥に所属する人物は eligible 扱い（派閥経由の任命を維持するため）
+    isFactionMember = getActiveFactionMembership(state, office.holderPersonId) !== undefined
+    if houseEligible or isCommonwealthRebelHolder or isFactionMember: continue
     revokeOfficeAssignment(office.id)
     emit OFFICE_REVOKED
+
+  // Step 3: rank ベースの定員超過 revoke (v0.21)
+  // polity の rank / province 数に対して getEffectiveOfficeMaxHolders を超える役職者を解任する。
+  // 最も新しい任命（startYear が大きい）から順に解任。
+  for each role in [administrator, treasurer, military, advisor]:
+    effectiveMax = getEffectiveOfficeMaxHolders(state, config, polityRef, role)
+    holderIds = getActiveOfficeHolders(state, polityRef, role)
+    if holderIds.length <= effectiveMax: continue
+    // startYear desc でソートし、超過分（最新任命から）を revoke
+    excess = assignments sorted by startYear desc, take (count - effectiveMax)
+    for each excess assignment:
+      revokeOfficeAssignment(assignment.id)
+      emit OFFICE_REVOKED
 ```
 
 これにより:
 - Share 削除責任は OrganizationConsistencySystem に**一本化**される（ShareUpdateSystem は削除を行わない）
-- Polity Office holder は常に「対象 Polity 内に Province を持つ active House の人物」、または「commonwealth Polity の AnonymousHouse 所属 rebel founder」に限定される
+- Polity Office holder は常に以下のいずれかに限定される:
+  - 対象 Polity 内に Province を持つ active House の人物
+  - commonwealth Polity の AnonymousHouse 所属 rebel founder
+  - active な派閥に所属する人物（派閥が解散すれば次回チェックで revoke される）
+- Step 3 により、Polity の rank 降格時に定員超過の役職者が自動的に整理される
 - rebel founder が死亡したら `markPersonDead → revokeOfficesByHolder` 経路で Office が revoke され、Step 1 の `!person.alive` 分岐で Share も削除される (commonwealth Polity は leader 死後も active=true で存続するが、Office / Share holder は不在になる)
 
 v0.18-pre 時点では `polity.kind === 'commonwealth' && houseId === ANONYMOUS_HOUSE_ID` という ad-hoc な分岐になっており、将来的には `AppointmentPolicy` 抽象化 (Polity ごとの任命方針) として一般化する予定。詳細は `docs/drafts/spec-v018-pre-update.md` §5 参照。
@@ -1024,19 +1029,16 @@ Commonwealth Polity:
 - kind === 'commonwealth' なら ownerHouseId === undefined を許容
 - commonwealth の active DiplomaticPlay の initiator になるのは revolt_negotiation のみ
 
-### 6.25 IntentGenerationSystem（48週ごと = 毎年、v0.18）
+### 6.25 IntentGenerationSystem（48週ごと = 毎年、v0.18 / v0.22 縮小）
 
-短期 Intent を生成する。Polity actor のみ。
+**v0.22 で sell_land 専用に縮小。** `acquire_land` / `improve_contract_terms` / `demand_tax_increase` は Goal/Aim 系（AimToIntentGenerationSystem §6.30b）が生成するため除外。
 
 生成対象:
-- `acquire_land`: 隣接 Province を持つ他 Polity への土地獲得意図
 - `sell_land`: 財政難の Polity が辺境 Province を売却したい意図
-- `improve_contract_terms`: 上位契約者への税率引き下げ要求
-- `demand_tax_increase`: 下位契約者への税率引き上げ要求
 
-commonwealth Polity は `revolt_negotiation` 以外の Intent を生成しない。House actor は型のみ導入し、Intent 生成は v0.18 では無効化。Faction は v0.18 では IntentGeneration に影響しない (v0.19+ で GoalSystem / PolicyPreference と接続)。
+`sell_land` は本来 Pressure: `financial_strain` に対する Response Aim に属する行動だが、v0.22 では Pressure を本格実装しないため旧経路で暫定維持。将来 Pressure-response Aim に移行後、本 system を完全廃止する。
 
-候補生成は selector (`landAcquireCandidates` / `landPurchaseCandidates` / `taxRevisionCandidates`) に委譲。
+旧 IntentGenerationSystem が生成する Intent は `goalId` / `aimId` を持たない（許容）。
 
 ### 6.26 IntentToDiplomaticPlaySystem（4週ごと、v0.18）
 
@@ -1079,6 +1081,65 @@ WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / developme
 ### 6.29 CleanupTerminalDiplomacy（4週ごと、v0.18）
 
 terminal status の ActorIntent / DiplomaticPlay を state から削除する GC。IntegrityCheck の直前に置く。v0.17.3 で inactive OfficeAssignment / FactionMembership の累積が perf 問題を引き起こした経験を踏まえ、最初から完全削除設計。
+
+### 6.30 GoalMaintenanceSystem（4週ごと、v0.22）
+
+Goal の生成・レビュー・abandon を管理する。tick 登録は 4w だが、生成・レビューは内部 48w ゲートで制御。
+
+**4w で実行する処理**: inactive になった Polity / House の Goal を abandoned にする。
+**48w ゲートで実行する処理**: active Goal がない主体に Goal を生成。review timing の Goal を評価し、steer_polity_* House Aim から policyInfluenceBonus を加算して差し替え判断。
+
+GoalKind のスコアリング（§11.4 相当）は `goalSelectors.ts` の `scorePolityGoalKind` / `scoreHouseGoalKind` で実装。system House は除外。
+
+イベント: `GOAL_CREATED` / `GOAL_REVIEWED` / `GOAL_ABANDONED`
+
+### 6.30a AimMaintenanceSystem（4週ごと、v0.22）
+
+Aim の生成・deadline 判定・target 無効化を管理する。tick 登録は 4w だが、Aim 新規生成は内部 48w ゲートで制御。
+
+**4w で実行する処理**: deadline 到達 Aim を failed に。target 無効 Aim を failed/abandoned に。parent Goal が terminal の Aim を abandoned に。
+**48w ゲートで実行する処理**: active Goal に対応する active Aim がなければ生成。
+
+Aim target 選定は `goalSelectors.ts` の `pickAimForGoal` で実装。
+
+イベント: `AIM_CREATED` / `AIM_FAILED` / `AIM_ABANDONED`
+
+### 6.30b AimToIntentGenerationSystem（4週ごと、v0.22）
+
+active Aim から ActorIntent を生成する。Aim.activeIntentId / activeDiplomaticPlayId が設定済みならスキップ。cooldown（nextIntentAllowedWeek）チェック。
+
+外交劇系: acquire_land / improve_contract_terms / demand_tax_increase。
+Action 系: develop_holding / expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle。
+
+### 6.30c IntentActionSystem（4週ごと、v0.22）
+
+Action 系 Intent を即時処理し、結果を Aim progress に直接反映する。
+
+| Intent kind | Actor | 効果 |
+|---|---|---|
+| develop_holding | Polity | treasury -= 30, Holding development += 5, COUNTRY_LAND_DEVELOPED |
+| expand_polity_share | House | wealth -= 40, OrganizationShare rawPower += 10, HOUSE_POLITY_SHARE_EXPANDED |
+| promote_policy_shift | House | Aim progress +1, HOUSE_POLICY_INFLUENCE |
+| patronize_artist | House | wealth -= 25, legacyPrestige += 3, HOUSE_PATRONIZED_ARTIST |
+| commission_chronicle | House | wealth -= 40, legacyPrestige += 5, HOUSE_COMMISSIONED_CHRONICLE |
+
+処理済み Intent は terminal status にして cleanup 対象。
+
+### 6.30d AimOutcomeSystem（4週ごと、v0.22）
+
+terminal DiplomaticPlay の aimId を確認し、Play の結果に応じて Aim progress を更新する。settled / resolved_by_conflict（勝利）→ progress +1, successfulIntentCount +1。failed / resolved_by_conflict（敗北）→ failedIntentCount +1。activeDiplomaticPlayId をクリア。progress >= targetProgress で Aim succeeded。
+
+イベント: `AIM_SUCCEEDED`
+
+### 6.30e GoalOutcomeSystem（4週ごと、v0.22）
+
+terminal Aim の goalId を確認し、Aim 結果に応じて Goal progress を更新する。succeeded → +25、failed → -10、abandoned → -5（config 経由）。progress を 0..targetProgress にクランプ。progress >= targetProgress で Goal succeeded。
+
+イベント: `GOAL_SUCCEEDED`
+
+### 6.30f CleanupTerminalDecisions（4週ごと、v0.22）
+
+terminal Goal / Aim を WorldState から削除。orphan DecisionReason を削除。goalIndex / aimIndex を更新。CleanupTerminalDiplomacy の後に配置。
 
 ---
 

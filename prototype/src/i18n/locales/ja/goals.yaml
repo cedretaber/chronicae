@@ -1,1 +1,8 @@
-# goals namespace (ja) — placeholder for future use
+# GoalKind translations (ja)
+polity:
+  external_expansion: 対外拡張
+  internal_development: 国内開発
+house:
+  expand_power_base: 勢力拡大
+  preserve_power_base: 勢力維持
+  cultivate_prestige: 威信の涵養

@@ -91,3 +91,20 @@ export type HoldingOfficeAssignmentId = Branded<string, 'HoldingOfficeAssignment
 export function createHoldingOfficeAssignmentId(n: number): HoldingOfficeAssignmentId {
   return ('ho-' + n) as HoldingOfficeAssignmentId
 }
+
+export type GoalId = Branded<string, 'GoalId'>
+export type AimId = Branded<string, 'AimId'>
+export type DecisionReasonId = Branded<string, 'DecisionReasonId'>
+export type PressureId = Branded<string, 'PressureId'>
+
+export function createGoalId(n: number): GoalId {
+  return ('go-' + n) as GoalId
+}
+
+export function createAimId(n: number): AimId {
+  return ('am-' + n) as AimId
+}
+
+export function createDecisionReasonId(n: number): DecisionReasonId {
+  return ('dr-' + n) as DecisionReasonId
+}

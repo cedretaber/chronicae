@@ -187,11 +187,6 @@ export function ConfigPanel() {
             onChange={(v) => setConfig({ publicSpendingEnabled: v })}
           />
           <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Development</div>
-          <ToggleRow
-            label="House Development"
-            value={config.houseDevelopmentEnabled}
-            onChange={(v) => setConfig({ houseDevelopmentEnabled: v })}
-          />
           <ConfigRow
             label="Positive Decay/mo"
             value={config.developmentPositiveMonthlyDecay}
@@ -218,15 +213,6 @@ export function ConfigPanel() {
             step={10}
             displayValue={String(config.polityLandDevelopmentBaseCost)}
             onChange={(v) => setConfig({ polityLandDevelopmentBaseCost: v })}
-          />
-          <ConfigRow
-            label="House Dev Cost"
-            value={config.houseLandDevelopmentBaseCost}
-            min={20}
-            max={150}
-            step={5}
-            displayValue={String(config.houseLandDevelopmentBaseCost)}
-            onChange={(v) => setConfig({ houseLandDevelopmentBaseCost: v })}
           />
           <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Control System</div>
           <ConfigRow

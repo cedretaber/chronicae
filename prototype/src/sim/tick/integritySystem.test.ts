@@ -136,6 +136,15 @@ describe('runIntegritySystem', () => {
       diplomaticPlays: {},
       nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
+      // v0.22 Goal/Aim system
+      goals: {},
+      aims: {},
+      decisionReasons: {},
+      goalIndex: { byOwner: {} },
+      aimIndex: { byOwner: {}, byGoal: {} },
+      nextGoalId: 0,
+      nextAimId: 0,
+      nextDecisionReasonId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -254,6 +263,15 @@ describe('runIntegritySystem', () => {
       diplomaticPlays: {},
       nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
+      // v0.22 Goal/Aim system
+      goals: {},
+      aims: {},
+      decisionReasons: {},
+      goalIndex: { byOwner: {} },
+      aimIndex: { byOwner: {}, byGoal: {} },
+      nextGoalId: 0,
+      nextAimId: 0,
+      nextDecisionReasonId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -355,6 +373,15 @@ describe('runIntegritySystem', () => {
       diplomaticPlays: {},
       nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
+      // v0.22 Goal/Aim system
+      goals: {},
+      aims: {},
+      decisionReasons: {},
+      goalIndex: { byOwner: {} },
+      aimIndex: { byOwner: {}, byGoal: {} },
+      nextGoalId: 0,
+      nextAimId: 0,
+      nextDecisionReasonId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -456,6 +483,15 @@ describe('runIntegritySystem', () => {
       diplomaticPlays: {},
       nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
+      // v0.22 Goal/Aim system
+      goals: {},
+      aims: {},
+      decisionReasons: {},
+      goalIndex: { byOwner: {} },
+      aimIndex: { byOwner: {}, byGoal: {} },
+      nextGoalId: 0,
+      nextAimId: 0,
+      nextDecisionReasonId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -555,6 +591,15 @@ describe('runIntegritySystem', () => {
       diplomaticPlays: {},
       nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
+      // v0.22 Goal/Aim system
+      goals: {},
+      aims: {},
+      decisionReasons: {},
+      goalIndex: { byOwner: {} },
+      aimIndex: { byOwner: {}, byGoal: {} },
+      nextGoalId: 0,
+      nextAimId: 0,
+      nextDecisionReasonId: 0,
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 1,
     }
@@ -644,6 +689,15 @@ describe('runIntegritySystem', () => {
       diplomaticPlays: {},
       nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
+      // v0.22 Goal/Aim system
+      goals: {},
+      aims: {},
+      decisionReasons: {},
+      goalIndex: { byOwner: {} },
+      aimIndex: { byOwner: {}, byGoal: {} },
+      nextGoalId: 0,
+      nextAimId: 0,
+      nextDecisionReasonId: 0,
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 0,
     }
@@ -734,6 +788,15 @@ describe('runIntegritySystem', () => {
       diplomaticPlays: {},
       nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
+      // v0.22 Goal/Aim system
+      goals: {},
+      aims: {},
+      decisionReasons: {},
+      goalIndex: { byOwner: {} },
+      aimIndex: { byOwner: {}, byGoal: {} },
+      nextGoalId: 0,
+      nextAimId: 0,
+      nextDecisionReasonId: 0,
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 0,
     }

@@ -1550,6 +1550,270 @@ export function collectIntegrityErrors(
     }
   }
 
+  // --- v0.22 Goal integrity ---
+  const activeGoalCountByOwner: Record<string, number> = {}
+
+  for (const [goalIdStr, goal] of Object.entries(state.goals)) {
+    if (!goal) continue
+
+    // Owner must be active
+    if (goal.owner.kind === 'polity') {
+      const polity = state.polities[goal.owner.id]
+      if (!polity) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Goal ${goalIdStr}: owner polity ${goal.owner.id as string} does not exist`,
+        })
+      } else if (!polity.active && goal.status === 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Goal ${goalIdStr}: owner polity ${goal.owner.id as string} is inactive but Goal is active`,
+        })
+      }
+    } else if (goal.owner.kind === 'house') {
+      const house = state.houses[goal.owner.id]
+      if (!house) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Goal ${goalIdStr}: owner house ${goal.owner.id as string} does not exist`,
+        })
+      } else if (!house.active && goal.status === 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Goal ${goalIdStr}: owner house ${goal.owner.id as string} is inactive but Goal is active`,
+        })
+      }
+    }
+
+    // Progress in range
+    if (goal.progress < 0 || goal.progress > goal.targetProgress) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Goal ${goalIdStr}: progress ${goal.progress} outside [0, ${goal.targetProgress}]`,
+      })
+    }
+
+    // Active goal count per owner (max 1)
+    if (goal.status === 'active') {
+      const ownerKey = `${goal.owner.kind}:${goal.owner.id}`
+      activeGoalCountByOwner[ownerKey] = (activeGoalCountByOwner[ownerKey] ?? 0) + 1
+    }
+
+    // ReasonIds reference existing DecisionReasons
+    for (const rid of goal.reasonIds) {
+      if (!state.decisionReasons[rid]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Goal ${goalIdStr}: reasonId ${rid as string} does not exist`,
+        })
+      }
+    }
+  }
+
+  // Check active goal count per owner
+  for (const [ownerKey, count] of Object.entries(activeGoalCountByOwner)) {
+    if (count > 1) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Owner ${ownerKey} has ${count} active Goals (max 1)`,
+      })
+    }
+  }
+
+  // --- v0.22 Aim integrity ---
+  const activeAimCountByOwner: Record<string, number> = {}
+
+  for (const [aimIdStr, aim] of Object.entries(state.aims)) {
+    if (!aim) continue
+
+    // Owner must be active (for active aims)
+    if (aim.owner.kind === 'polity') {
+      const polity = state.polities[aim.owner.id]
+      if (!polity) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: owner polity ${aim.owner.id as string} does not exist`,
+        })
+      } else if (!polity.active && aim.status === 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: owner polity ${aim.owner.id as string} is inactive but Aim is active`,
+        })
+      }
+    } else if (aim.owner.kind === 'house') {
+      const house = state.houses[aim.owner.id]
+      if (!house) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: owner house ${aim.owner.id as string} does not exist`,
+        })
+      } else if (!house.active && aim.status === 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: owner house ${aim.owner.id as string} is inactive but Aim is active`,
+        })
+      }
+    }
+
+    // goal_driven Aim must have goalId
+    if (aim.origin === 'goal_driven' && !aim.goalId) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Aim ${aimIdStr}: origin is goal_driven but goalId is missing`,
+      })
+    }
+
+    // goalId must point to existing Goal with same owner
+    if (aim.goalId) {
+      const parentGoal = state.goals[aim.goalId]
+      if (!parentGoal) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: goalId ${aim.goalId as string} does not exist`,
+        })
+      } else {
+        if (
+          parentGoal.owner.kind !== aim.owner.kind ||
+          (parentGoal.owner.id as string) !== (aim.owner.id as string)
+        ) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Aim ${aimIdStr}: owner mismatch with Goal ${aim.goalId as string}`,
+          })
+        }
+      }
+    }
+
+    // Progress in range
+    if (aim.progress < 0 || aim.progress > aim.targetProgress) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Aim ${aimIdStr}: progress ${aim.progress} outside [0, ${aim.targetProgress}]`,
+      })
+    }
+
+    // Deadline >= createdWeek
+    if (aim.deadlineWeek < aim.createdWeek) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Aim ${aimIdStr}: deadlineWeek ${aim.deadlineWeek} < createdWeek ${aim.createdWeek}`,
+      })
+    }
+
+    // activeIntentId must reference an existing active Intent
+    if (aim.activeIntentId) {
+      const intent = state.actorIntents[aim.activeIntentId]
+      if (!intent) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: activeIntentId ${aim.activeIntentId as string} does not exist`,
+        })
+      } else if (intent.status !== 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: activeIntentId ${aim.activeIntentId as string} is not active (status: ${intent.status})`,
+        })
+      }
+    }
+
+    // activeDiplomaticPlayId must reference an existing active/escalated Play
+    if (aim.activeDiplomaticPlayId) {
+      const play = state.diplomaticPlays[aim.activeDiplomaticPlayId]
+      if (!play) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: activeDiplomaticPlayId ${aim.activeDiplomaticPlayId as string} does not exist`,
+        })
+      } else if (play.status !== 'active' && play.status !== 'escalated') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: activeDiplomaticPlayId ${aim.activeDiplomaticPlayId as string} is not active/escalated (status: ${play.status})`,
+        })
+      }
+    }
+
+    // Active aim count per owner (max 1 for goal_driven)
+    if (aim.status === 'active' && aim.origin === 'goal_driven') {
+      const ownerKey = `${aim.owner.kind}:${aim.owner.id}`
+      activeAimCountByOwner[ownerKey] = (activeAimCountByOwner[ownerKey] ?? 0) + 1
+    }
+
+    // ReasonIds reference existing DecisionReasons
+    for (const rid of aim.reasonIds) {
+      if (!state.decisionReasons[rid]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: reasonId ${rid as string} does not exist`,
+        })
+      }
+    }
+  }
+
+  // Check active aim count per owner
+  for (const [ownerKey, count] of Object.entries(activeAimCountByOwner)) {
+    if (count > 1) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Owner ${ownerKey} has ${count} active goal_driven Aims (max 1)`,
+      })
+    }
+  }
+
+  // --- v0.22 ActorIntent Goal/Aim cross-references ---
+  for (const [intentIdStr, intent] of Object.entries(state.actorIntents)) {
+    if (!intent) continue
+
+    if (intent.goalId) {
+      if (!state.goals[intent.goalId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `ActorIntent ${intentIdStr}: goalId ${intent.goalId as string} does not exist`,
+        })
+      }
+    }
+
+    if (intent.aimId) {
+      const aim = state.aims[intent.aimId]
+      if (!aim) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `ActorIntent ${intentIdStr}: aimId ${intent.aimId as string} does not exist`,
+        })
+      } else if (
+        aim.owner.kind !== intent.actor.kind ||
+        (aim.owner.id as string) !== (intent.actor.id as string)
+      ) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `ActorIntent ${intentIdStr}: actor ${intent.actor.kind}:${intent.actor.id} does not match Aim ${intent.aimId as string} owner ${aim.owner.kind}:${aim.owner.id}`,
+        })
+      }
+    }
+  }
+
+  // --- v0.22 DiplomaticPlay Goal/Aim cross-references ---
+  for (const [playIdStr, play] of Object.entries(state.diplomaticPlays)) {
+    if (!play) continue
+
+    if (play.goalId) {
+      if (!state.goals[play.goalId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${playIdStr}: goalId ${play.goalId as string} does not exist`,
+        })
+      }
+    }
+
+    if (play.aimId) {
+      if (!state.aims[play.aimId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${playIdStr}: aimId ${play.aimId as string} does not exist`,
+        })
+      }
+    }
+  }
+
   return errors
 }
 

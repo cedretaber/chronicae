@@ -22,7 +22,6 @@ import {
   calcTreasurerTaxEfficiency,
   calcGeneralWarPowerModifier,
   calcGeneralDeclareThreshold,
-  calcHouseHeadDevelopmentChanceBonus,
 } from './personAbilityEffects'
 
 function makePerson(overrides: Partial<Person> = {}): Person {
@@ -173,6 +172,15 @@ function makeWorldState(
     diplomaticPlays: {},
     nextActorIntentId: 0,
     nextDiplomaticPlayId: 0,
+    // v0.22 Goal/Aim system
+    goals: {},
+    aims: {},
+    decisionReasons: {},
+    goalIndex: { byOwner: {} },
+    aimIndex: { byOwner: {}, byGoal: {} },
+    nextGoalId: 0,
+    nextAimId: 0,
+    nextDecisionReasonId: 0,
   }
   const polity = state.polities[polity1Id]!
   const house = state.houses[house1Id]!
@@ -663,91 +671,5 @@ describe('calcGeneralDeclareThreshold', () => {
     const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
     const result = calcGeneralDeclareThreshold(state, polity.id, config)
     expect(result).toBe(0.45)
-  })
-})
-
-describe('calcHouseHeadDevelopmentChanceBonus', () => {
-  it('returns 0.15 with head admin=10, caution=1.0', () => {
-    const { state, house } = makeWorldState(
-      {
-        abilities: {
-          valor: 50,
-          command: 50,
-          numeracy: 100,
-          learning: 100,
-          charisma: 100,
-          insight: 100,
-        },
-        aptitudes: {
-          valor: 50,
-          command: 50,
-          numeracy: 100,
-          learning: 100,
-          charisma: 100,
-          insight: 100,
-        },
-        traits: { ambition: 0.5, caution: 1.0 },
-      },
-      {},
-    )
-    const config = { ...defaultConfig }
-    const result = calcHouseHeadDevelopmentChanceBonus(state, house, config)
-    expect(result).toBeCloseTo(0.15, 10)
-  })
-
-  it('returns 0 with head admin=5, caution=0.5', () => {
-    const { state, house } = makeWorldState(
-      {
-        abilities: {
-          valor: 50,
-          command: 50,
-          numeracy: 50,
-          learning: 50,
-          charisma: 50,
-          insight: 50,
-        },
-        aptitudes: {
-          valor: 50,
-          command: 50,
-          numeracy: 50,
-          learning: 50,
-          charisma: 50,
-          insight: 50,
-        },
-        traits: { ambition: 0.5, caution: 0.5 },
-      },
-      {},
-    )
-    const config = { ...defaultConfig }
-    const result = calcHouseHeadDevelopmentChanceBonus(state, house, config)
-    expect(result).toBe(0)
-  })
-
-  it('returns 0 when personAbilityEffectsEnabled is false', () => {
-    const { state, house } = makeWorldState(
-      {
-        abilities: {
-          valor: 50,
-          command: 50,
-          numeracy: 100,
-          learning: 100,
-          charisma: 100,
-          insight: 100,
-        },
-        aptitudes: {
-          valor: 50,
-          command: 50,
-          numeracy: 100,
-          learning: 100,
-          charisma: 100,
-          insight: 100,
-        },
-        traits: { ambition: 0.5, caution: 1.0 },
-      },
-      {},
-    )
-    const config = { ...defaultConfig, personAbilityEffectsEnabled: false }
-    const result = calcHouseHeadDevelopmentChanceBonus(state, house, config)
-    expect(result).toBe(0)
   })
 })

@@ -427,11 +427,11 @@ type PoliticalActorRef =
   | { kind: 'house'; id: HouseId }
 ```
 
-v0.18 では Polity actor のみ実動。House actor は型のみ。
+v0.18 では Polity actor のみ実動。v0.22 で House actor の最小実動を導入（expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle）。
 
 #### ActorIntent
 
-短期的な行動意図。毎年 IntentGenerationSystem が生成する。`createdWeek` / `expiresWeek` を absoluteWeek で保持 (v0.19)。
+短期的な行動意図。Goal/Aim 系からは AimToIntentGenerationSystem が、sell_land のみ旧 IntentGenerationSystem が生成する。`createdWeek` / `expiresWeek` を absoluteWeek で保持 (v0.19)。
 
 ```ts
 type ActorIntentKind =
@@ -441,7 +441,24 @@ type ActorIntentKind =
   | 'demand_tax_increase'
   | 'suppress_unrest'
   | 'revolt'
+  // v0.22 追加 (Action 即時処理系)
+  | 'develop_holding'
+  | 'expand_polity_share'
+  | 'promote_policy_shift'
+  | 'patronize_artist'
+  | 'commission_chronicle'
 ```
+
+v0.22 では Intent に Goal/Aim 接続フィールドを追加:
+
+```ts
+goalId?: GoalId
+aimId?: AimId
+pressureId?: PressureId
+reasonIds?: DecisionReasonId[]
+```
+
+旧 IntentGenerationSystem 由来の Intent は `goalId` / `aimId` を持たない（許容）。
 
 terminal status ('converted' / 'expired' / 'cancelled') に達した Intent は同 tick 末に削除。
 
@@ -460,6 +477,15 @@ type TerminalDiplomaticPlayStatus = 'settled' | 'failed' | 'resolved_by_conflict
 ```
 
 progress (妥協方向) / tension (緊張方向) の 2 軸で進行し、閾値到達で settlement / escalation に分岐する。`startedWeek` / `deadlineWeek` を absoluteWeek で保持 (v0.19)。terminal status に達した Play は同 tick 末に削除。
+
+v0.22 では DiplomaticPlay に Goal/Aim 接続フィールドを追加:
+
+```ts
+goalId?: GoalId
+aimId?: AimId
+```
+
+IntentToDiplomaticPlaySystem が Intent → Play 変換時に goalId/aimId を継承。AimOutcomeSystem が Play の terminal status から Aim progress を更新する。
 
 #### DiplomaticDemand
 
@@ -485,6 +511,110 @@ type WorldState = {
 ```
 
 terminal status の ActorIntent / DiplomaticPlay は tick 末の `cleanupTerminalDiplomacy` phase で state から完全削除される。履歴は Event ログに残す。
+
+### 3.10 目標システム (v0.22)
+
+Polity / House が長期目標 Goal → 中期計画 Aim → 短期意図 Intent の階層で一貫した行動を取る。詳細仕様は `docs/drafts/spec-v022-update.md` 参照。
+
+#### Goal
+
+```ts
+type GoalStatus = 'active' | 'succeeded' | 'failed' | 'abandoned'
+type PolityGoalKind = 'external_expansion' | 'internal_development'
+type HouseGoalKind = 'expand_power_base' | 'preserve_power_base' | 'cultivate_prestige'
+
+type Goal = {
+  id: GoalId
+  owner: DecisionSubjectRef  // { kind: 'polity' | 'house' | 'person'; id }
+  kind: GoalKind
+  priority: number
+  progress: number        // 0..targetProgress
+  targetProgress: number  // 原則 100
+  createdWeek: number
+  minimumUntilWeek: number
+  lastReviewWeek: number
+  nextReviewWeek: number
+  status: GoalStatus
+  reasonIds: DecisionReasonId[]
+}
+```
+
+各 Polity / House は active Goal を原則 1 つだけ持つ。Aim の成功で progress +25、失敗で -10、abandon で -5。progress が targetProgress に達すると succeeded。
+
+#### Aim
+
+```ts
+type AimStatus = 'active' | 'succeeded' | 'failed' | 'abandoned'
+type AimOrigin = 'goal_driven' | 'pressure_response'
+type PolityAimKind = 'consolidate_province_holdings' | 'seize_weak_remote_holdings' | 'develop_owned_holding' | 'improve_owned_contract_terms'
+type HouseAimKind = 'increase_polity_share' | 'steer_polity_external_expansion' | 'steer_polity_internal_development' | 'patronize_artist' | 'commission_chronicle'
+
+type Aim = {
+  id: AimId
+  owner: DecisionSubjectRef
+  goalId?: GoalId
+  pressureId?: PressureId
+  origin: AimOrigin
+  kind: AimKind
+  target?: EntityRef
+  priority: number
+  progress: number
+  targetProgress: number
+  createdWeek: number
+  deadlineWeek: number
+  lastIntentGeneratedWeek?: number
+  nextIntentAllowedWeek?: number
+  activeIntentId?: ActorIntentId
+  activeDiplomaticPlayId?: DiplomaticPlayId
+  successfulIntentCount: number
+  failedIntentCount: number
+  status: AimStatus
+  reasonIds: DecisionReasonId[]
+}
+```
+
+Aim は中期計画。期限と成功条件を持ち、複数の Intent を順次生成できる。v0.22 では active Aim は原則 1 つ/主体。
+
+#### DecisionReason
+
+Goal / Aim の生成理由を UI で説明するための記録。
+
+```ts
+type DecisionReason = {
+  id: DecisionReasonId
+  owner: DecisionSubjectRef
+  summaryKey: string       // i18n 翻訳キー
+  params?: Record<string, string | number>
+  weight: number
+  createdWeek: number
+}
+```
+
+#### WorldState 追加 (v0.22)
+
+```ts
+type WorldState = {
+  ...
+  goals: Record<GoalId, Goal>
+  aims: Record<AimId, Aim>
+  decisionReasons: Record<DecisionReasonId, DecisionReason>
+  goalIndex: { byOwner: Record<string, GoalId[]> }
+  aimIndex: { byOwner: Record<string, AimId[]>; byGoal: Record<GoalId, AimId[]> }
+  nextGoalId: number
+  nextAimId: number
+  nextDecisionReasonId: number
+}
+```
+
+terminal Goal / Aim は tick 末の `cleanupTerminalDecisions` phase で state から完全削除される。
+
+ID prefix:
+
+| Type | Prefix |
+|---|---|
+| `GoalId` | `go-` |
+| `AimId` | `am-` |
+| `DecisionReasonId` | `dr-` |
 
 ---
 

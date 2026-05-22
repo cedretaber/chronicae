@@ -1,1 +1,8 @@
-# goals namespace (en) — placeholder for future use
+# GoalKind translations (en)
+polity:
+  external_expansion: External Expansion
+  internal_development: Internal Development
+house:
+  expand_power_base: Expand Power Base
+  preserve_power_base: Preserve Power Base
+  cultivate_prestige: Cultivate Prestige

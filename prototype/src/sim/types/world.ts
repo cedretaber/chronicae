@@ -16,6 +16,9 @@ import type {
   StateRegionId,
   HoldingId,
   HoldingOfficeAssignmentId,
+  GoalId,
+  AimId,
+  DecisionReasonId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -38,6 +41,7 @@ import type { Faction, FactionMembership, FactionIndex } from './faction'
 import type { ActorIntent } from './actorIntent'
 import type { DiplomaticPlay } from './diplomaticPlay'
 import type { StateRegion } from './stateRegion'
+import type { Goal, Aim, DecisionReason, GoalIndex, AimIndex } from './goal'
 
 export type WorldState = {
   currentYear: number
@@ -66,7 +70,17 @@ export type WorldState = {
   factionIndex: FactionIndex
   // v0.18 Stage A §6.6
   actorIntents: Record<ActorIntentId, ActorIntent>
+  // v0.22 Goal/Aim system
+  goals: Record<GoalId, Goal>
+  aims: Record<AimId, Aim>
+  decisionReasons: Record<DecisionReasonId, DecisionReason>
+  goalIndex: GoalIndex
+  aimIndex: AimIndex
   diplomaticPlays: Record<DiplomaticPlayId, DiplomaticPlay>
+  // v0.22
+  nextGoalId: number
+  nextAimId: number
+  nextDecisionReasonId: number
   nextOrganizationShareId: number
   nextOfficeAssignmentId: number
   nextLandContractId: number

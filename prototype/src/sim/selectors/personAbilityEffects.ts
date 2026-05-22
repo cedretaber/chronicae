@@ -162,27 +162,3 @@ export function calcChancellorLandDevelopmentScoreBonus(
     normalizedTrait(ambition) * config.chancellorAmbitionLandDevelopmentScoreEffect
   )
 }
-
-export function calcHouseHeadDevelopmentChanceBonus(
-  state: WorldState,
-  house: House,
-  config: SimulationConfig,
-): number {
-  if (!config.personAbilityEffectsEnabled) return 0
-  const headId = getHouseLeader(state, house.id)
-  const head = headId ? state.persons[headId] : undefined
-  if (!head || !head.alive) {
-    const admin = 5
-    const caution = 0.5
-    return (
-      normalizedStat(admin) * config.houseHeadAdminDevelopmentChanceEffect +
-      normalizedTrait(caution) * config.houseHeadCautionDevelopmentChanceEffect
-    )
-  }
-  const admin = getRoleScore(state, head.id, 'governance') / 10
-  const caution = head.traits.caution
-  return (
-    normalizedStat(admin) * config.houseHeadAdminDevelopmentChanceEffect +
-    normalizedTrait(caution) * config.houseHeadCautionDevelopmentChanceEffect
-  )
-}
