@@ -1074,7 +1074,10 @@ export function CountryDetail({
             className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
             onClick={() => onProvinceClick(polity.capitalProvinceId)}
           >
-            {currentState.provinces?.[polity.capitalProvinceId]?.name ?? polity.capitalProvinceId}
+            {(() => {
+              const p = currentState.provinces?.[polity.capitalProvinceId]
+              return p ? resolveName('province', p.nameKey, p.name) : polity.capitalProvinceId
+            })()}
           </button>
         </div>
         <div className="flex justify-between">
@@ -1366,7 +1369,10 @@ export function HouseDetail({
             className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
             onClick={() => onProvinceClick(house.seatProvinceId)}
           >
-            {currentState.provinces?.[house.seatProvinceId]?.name ?? house.seatProvinceId}
+            {(() => {
+              const p = currentState.provinces?.[house.seatProvinceId]
+              return p ? resolveName('province', p.nameKey, p.name) : house.seatProvinceId
+            })()}
           </button>
         </div>
         <div className="flex justify-between">
@@ -1503,13 +1509,23 @@ export function HouseDetail({
       {house.founderId !== undefined && (
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.house.founder')}:</span>
-          <span>{currentState?.persons?.[house.founderId]?.name ?? house.founderId}</span>
+          <span>
+            {(() => {
+              const p = currentState?.persons?.[house.founderId]
+              return p ? resolveName('person', p.nameKey, p.name) : house.founderId
+            })()}
+          </span>
         </div>
       )}
       {house.parentHouseId !== undefined && (
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.house.parent_house')}:</span>
-          <span>{currentState?.houses?.[house.parentHouseId]?.name ?? house.parentHouseId}</span>
+          <span>
+            {(() => {
+              const h = currentState?.houses?.[house.parentHouseId]
+              return h ? resolveName('house', h.nameKey, h.name) : house.parentHouseId
+            })()}
+          </span>
         </div>
       )}
       {house.cadetHouseIds.length > 0 && (
@@ -1617,9 +1633,11 @@ export function PersonDetail({
   function officeOrgName(office: (typeof allOffices)[number]): string {
     const org = office.organization
     if (org.kind === 'polity') {
-      return worldState.polities[org.id]?.name ?? org.id
+      const p = worldState.polities[org.id]
+      return p ? resolveName('polity', p.nameKey, p.name) : org.id
     }
-    return worldState.houses[org.id]?.name ?? org.id
+    const h = worldState.houses[org.id]
+    return h ? resolveName('house', h.nameKey, h.name) : org.id
   }
 
   const sortByRole = (a: (typeof allOffices)[number], b: (typeof allOffices)[number]) =>
@@ -2030,6 +2048,7 @@ export function PopGroupDetail({
   onPersonClick: (id: string) => void
   onProvinceClick: (id: string) => void
 }) {
+  const resolveName = useEntityName()
   const currentState = session?.currentState
   const province = currentState?.provinces[popGroup.provinceId]
 
@@ -2047,7 +2066,7 @@ export function PopGroupDetail({
           className="cursor-pointer text-blue-400 hover:text-blue-300"
           onClick={() => onProvinceClick(popGroup.provinceId)}
         >
-          {province?.name ?? '—'}
+          {province ? resolveName('province', province.nameKey, province.name) : '—'}
         </button>
       </div>
 
@@ -2226,7 +2245,7 @@ export function ProvinceDetail({
 
       <img
         src={getProvinceImage(province.id)}
-        alt={province.name}
+        alt={resolveName('province', province.nameKey, province.name)}
         className="h-24 w-full rounded object-cover"
         draggable={false}
       />
@@ -2477,7 +2496,10 @@ export function ProvinceDetail({
                 className="text-left text-blue-400 underline underline-offset-2 hover:text-blue-300"
                 onClick={() => onProvinceClick(nid)}
               >
-                {currentState?.provinces?.[nid]?.name ?? nid}
+                {(() => {
+                  const np = currentState?.provinces?.[nid]
+                  return np ? resolveName('province', np.nameKey, np.name) : nid
+                })()}
               </button>
             ))}
           </div>

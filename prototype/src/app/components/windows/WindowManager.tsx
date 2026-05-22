@@ -1,4 +1,5 @@
 import { useSimulationStore } from '@/app/stores/simulationStore'
+import { useEntityName } from '@/app/hooks/useEntityName'
 import type { FactionId } from '@/sim/types/ids'
 import {
   CountryDetail,
@@ -17,6 +18,7 @@ export function WindowManager() {
   const toggleWatchlist = useSimulationStore((s) => s.toggleWatchlist)
   const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
 
+  const resolveName = useEntityName()
   const state = session?.currentState
   if (!state) return null
 
@@ -37,7 +39,11 @@ export function WindowManager() {
           const polity = Object.values(state.polities).find((p) => p.id === entityId)
           if (!polity) return null
           return (
-            <DraggableWindow key={win.id} win={win} title={`Polity: ${polity.name}`}>
+            <DraggableWindow
+              key={win.id}
+              win={win}
+              title={`Polity: ${resolveName('polity', polity.nameKey, polity.name)}`}
+            >
               <CountryDetail
                 polity={polity}
                 session={session}
@@ -54,7 +60,11 @@ export function WindowManager() {
           const house = Object.values(state.houses).find((h) => h.id === entityId)
           if (!house) return null
           return (
-            <DraggableWindow key={win.id} win={win} title={`House: ${house.name}`}>
+            <DraggableWindow
+              key={win.id}
+              win={win}
+              title={`House: ${resolveName('house', house.nameKey, house.name)}`}
+            >
               <HouseDetail
                 house={house}
                 session={session}
@@ -73,7 +83,11 @@ export function WindowManager() {
           const person = Object.values(state.persons).find((p) => p.id === entityId)
           if (!person) return null
           return (
-            <DraggableWindow key={win.id} win={win} title={`Person: ${person.name}`}>
+            <DraggableWindow
+              key={win.id}
+              win={win}
+              title={`Person: ${resolveName('person', person.nameKey, person.name)}`}
+            >
               <PersonDetail
                 person={person}
                 session={session}
@@ -93,7 +107,11 @@ export function WindowManager() {
           const province = Object.values(state.provinces).find((pv) => pv.id === entityId)
           if (!province) return null
           return (
-            <DraggableWindow key={win.id} win={win} title={`Province: ${province.name}`}>
+            <DraggableWindow
+              key={win.id}
+              win={win}
+              title={`Province: ${resolveName('province', province.nameKey, province.name)}`}
+            >
               <ProvinceDetail
                 province={province}
                 session={session}
