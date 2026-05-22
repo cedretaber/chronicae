@@ -5,12 +5,14 @@ import type { SimEvent } from '@sim/types/event'
 import type { EventType } from '@sim/types/event'
 import { getFirstEntityId, hasEntityId } from '@sim/types/event'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
+import { useEntityName } from '@/app/hooks/useEntityName'
 
 type LinkItem = { id: string; type: EntityType; name: string }
 
 function EventLinks({ event }: { event: SimEvent }) {
   const session = useSimulationStore((s) => s.session)
   const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
+  const resolveName = useEntityName()
 
   if (!session) return null
   const state = session.currentState
@@ -19,17 +21,32 @@ function EventLinks({ event }: { event: SimEvent }) {
   const polityId = getFirstEntityId(event, 'polity')
   if (polityId) {
     const polity = state.polities[polityId as keyof typeof state.polities]
-    if (polity) items.push({ id: polity.id, type: 'polity', name: polity.name })
+    if (polity)
+      items.push({
+        id: polity.id,
+        type: 'polity',
+        name: resolveName('polity', polity.nameKey, polity.name),
+      })
   }
   const houseId = getFirstEntityId(event, 'house')
   if (houseId) {
     const house = state.houses[houseId as keyof typeof state.houses]
-    if (house) items.push({ id: house.id, type: 'house', name: house.name })
+    if (house)
+      items.push({
+        id: house.id,
+        type: 'house',
+        name: resolveName('house', house.nameKey, house.name),
+      })
   }
   const actorId = getFirstEntityId(event, 'person')
   if (actorId) {
     const person = state.persons[actorId as keyof typeof state.persons]
-    if (person) items.push({ id: person.id, type: 'person', name: person.name })
+    if (person)
+      items.push({
+        id: person.id,
+        type: 'person',
+        name: resolveName('person', person.nameKey, person.name),
+      })
   }
 
   if (items.length === 0) return null

@@ -314,6 +314,7 @@ export function Sidebar() {
     plays: false,
   })
   const { t } = useTranslation()
+  const resolveName = useEntityName()
   const toggleSection = (key: SectionKey) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
 
   const session = useSimulationStore((s) => s.session)
@@ -416,7 +417,7 @@ export function Sidebar() {
             const leader = persons?.[f.leaderPersonId]
             return {
               faction: f,
-              leaderName: leader?.name ?? '(unknown)',
+              leaderName: leader ? resolveName('person', leader.nameKey, leader.name) : '(unknown)',
               memberCount: getFactionActiveMemberIds(session.currentState, f.id).length,
             }
           })
@@ -490,7 +491,14 @@ export function Sidebar() {
               <HouseRow
                 key={house.id}
                 house={house}
-                polityName={primaryPolityId ? (polities?.[primaryPolityId]?.name ?? '') : ''}
+                polityName={
+                  primaryPolityId
+                    ? (() => {
+                        const p = polities?.[primaryPolityId]
+                        return p ? resolveName('polity', p.nameKey, p.name) : ''
+                      })()
+                    : ''
+                }
                 polityColor={primaryPolityId ? (polityColorMap[primaryPolityId] ?? '#888') : '#888'}
                 provinceCount={provinceCount}
                 isSelected={focusedId === house.id && focusedType === 'house'}
@@ -547,13 +555,13 @@ export function Sidebar() {
       let name = watchId
       if (type === 'polity' && polities) {
         const found = Object.values(polities).find((p) => p.id === watchId)
-        if (found) name = found.name
+        if (found) name = resolveName('polity', found.nameKey, found.name)
       } else if (type === 'house' && houses) {
         const found = Object.values(houses).find((h) => h.id === watchId)
-        if (found) name = found.name
+        if (found) name = resolveName('house', found.nameKey, found.name)
       } else if (type === 'person' && persons) {
         const found = Object.values(persons).find((p) => p.id === watchId)
-        if (found) name = found.name
+        if (found) name = resolveName('person', found.nameKey, found.name)
       }
 
       const currentState = session?.currentState

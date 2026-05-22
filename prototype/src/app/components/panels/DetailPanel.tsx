@@ -758,6 +758,7 @@ function AttitudeList({
   onPersonClick: (id: string) => void
 }) {
   const { t } = useTranslation()
+  const resolveName = useEntityName()
   if (!worldState) return null
   const entries = Object.entries(attitudes)
   return (
@@ -770,35 +771,35 @@ function AttitudeList({
         let linkNode: React.ReactNode
         if (prefix === 'polity') {
           const p = worldState.polities[id as PolityId]
-          const name = p?.name ?? id
+          const displayName = p ? resolveName('polity', p.nameKey, p.name) : id
           linkNode = (
             <button
               className="cursor-pointer text-blue-400 hover:text-blue-300"
               onClick={() => onPolityClick(id as PolityId, 'polity')}
             >
-              {name}
+              {displayName}
             </button>
           )
         } else if (prefix === 'house') {
           const h = worldState.houses[id as HouseId]
-          const name = h?.name ?? id
+          const displayName = h ? resolveName('house', h.nameKey, h.name) : id
           linkNode = (
             <button
               className="cursor-pointer text-blue-400 hover:text-blue-300"
               onClick={() => onHouseClick(id as HouseId, 'house')}
             >
-              {name}
+              {displayName}
             </button>
           )
         } else if (prefix === 'person') {
           const p = worldState.persons[id as PersonId]
-          const name = p?.name ?? id
+          const displayName = p ? resolveName('person', p.nameKey, p.name) : id
           linkNode = (
             <button
               className="cursor-pointer text-blue-400 hover:text-blue-300"
               onClick={() => onPersonClick(id)}
             >
-              {name}
+              {displayName}
             </button>
           )
         } else {
@@ -2101,7 +2102,7 @@ export function PopGroupDetail({
         </div>
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">Attitudes:</div>
+      <div className="text-sm font-semibold text-gray-300">{t('detail.person.attitudes')}:</div>
       <AttitudeList
         attitudes={popGroup.attitudes}
         worldState={worldState}
