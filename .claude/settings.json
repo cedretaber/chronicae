@@ -8,9 +8,20 @@
       "Bash(grep *)",
       "Bash(find *)",
       "Bash(cat *)",
+      "Bash(head *)",
       "Bash(tail *)",
+      "Bash(sed *)",
       "Bash(git *)",
-      "Bash(npm run *)"
+      "Bash(jq *)",
+      "Bash(npm run check *)",
+      "Bash(npm run cli *)",
+      "Bash(npm run typecheck *)",
+      "Bash(npm run lint *)",
+      "Bash(npm run lint:fix *)",
+      "Bash(npm run format *)",
+      "Bash(npm run format:check *)",
+      "Bash(npm run test *)",
+      "Bash(npm run dev *)"
     ]
   }
 }

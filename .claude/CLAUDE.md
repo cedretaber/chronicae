@@ -67,9 +67,23 @@ Chronicae/
         └── sim/     # シミュレーション層（types, tick, selectors など）
 ```
 
+### レイヤー間の依存ルール
+
+`sim/` は純粋なシミュレーション層であり、**`i18n/` や `app/` に依存してはならない**。
+
+- `sim/` が扱うテキストデータは nameKey（ロケール中立な識別子）で保持する。ロケール固有の表示文字列への解決は `app/` または `i18n/` 層の責務。
+- SimEvent の `messageParams` にも nameKey や raw enum 値を格納し、翻訳キーへの変換は eventRenderer（`i18n/`）側で行う。
+- `app/` → `sim/` の参照は `@sim/` エイリアス経由で許可。逆方向（`sim/` → `app/`、`sim/` → `i18n/`）は禁止。
+
 すべての npm コマンドは `prototype/` ディレクトリ内で実行する。
 
 `npx` は使わず、常に `npm run <script>` を使う。
+単一ファイルのみに適用したい場合は `--` でパスを渡す:
+
+```bash
+npm run format -- src/sim/tick/someFile.ts
+npm run lint -- src/sim/tick/someFile.ts
+```
 
 ## 検証コマンド
 
