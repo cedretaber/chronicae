@@ -12,6 +12,7 @@ import {
 import { usePanZoom, type Transform } from '@/app/hooks/usePanZoom'
 import { MAP_ICON_CONFIG, UNIFIED_ICON_SIZE, getZoomTier } from '@/app/constants/mapConstants'
 import { MapLegend } from './MapLegend'
+import { useEntityName } from '@/app/hooks/useEntityName'
 import type { ProvinceId, StateRegionId } from '@sim/types/ids'
 import type { WorldState } from '@sim/types/world'
 import {
@@ -97,6 +98,7 @@ function computeProvinceColor(
 }
 
 export function UnifiedMap() {
+  const resolveName = useEntityName()
   const session = useSimulationStore((s) => s.session)
   const mapView = useSimulationStore((s) => s.mapView)
   const openWindows = useSimulationStore((s) => s.openWindows)
@@ -188,7 +190,9 @@ export function UnifiedMap() {
       const unrest = getStateAverageUnrest(world, stateId)
       return {
         stateId,
-        name: stateRegion?.name ?? '?',
+        name: stateRegion
+          ? resolveName('state_region', stateRegion.nameKey, stateRegion.name)
+          : '?',
         provinceCount: stateRegion?.provinceIds.length ?? 0,
         population: Math.round(pop),
         unrest,
@@ -196,7 +200,7 @@ export function UnifiedMap() {
         cy,
       }
     })
-  }, [session, voronoi])
+  }, [session, voronoi, resolveName])
 
   // Province data for icons and labels
   const provinceData = useMemo(() => {
@@ -214,7 +218,7 @@ export function UnifiedMap() {
       return {
         id: prov.id,
         stateId: prov.stateId,
-        name: prov.name,
+        name: resolveName('province', prov.nameKey, prov.name),
         x: prov.x,
         y: prov.y,
         neighbors: prov.neighbors,
@@ -223,7 +227,7 @@ export function UnifiedMap() {
         isSeat: seatIds.has(prov.id),
       }
     })
-  }, [session, provinces])
+  }, [session, provinces, resolveName])
 
   // Neighbor edges (deduplicated)
   const neighborEdges = useMemo(() => {

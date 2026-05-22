@@ -2048,16 +2048,26 @@ export function PopGroupDetail({
   onPersonClick: (id: string) => void
   onProvinceClick: (id: string) => void
 }) {
+  const { t } = useTranslation()
   const resolveName = useEntityName()
   const currentState = session?.currentState
   const province = currentState?.provinces[popGroup.provinceId]
 
   const worldState: WorldState | null = currentState ?? null
 
+  const classLabel =
+    popGroup.class === 'peasants'
+      ? t('detail.province.peasants')
+      : popGroup.class === 'townsmen'
+        ? t('detail.province.townsmen')
+        : popGroup.class === 'nobles'
+          ? t('detail.province.nobles')
+          : popGroup.class
+
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-lg font-bold capitalize">{popGroup.class}</span>
+        <span className="text-lg font-bold">{classLabel}</span>
         <CopyJsonButton payload={buildEntitySnapshot('popGroup', popGroup, worldState)} />
       </div>
       <div className="text-sm text-gray-400">
@@ -2076,15 +2086,15 @@ export function PopGroupDetail({
           <span className="text-xs text-gray-500">{popGroup.id}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Size:</span>
+          <span className="text-gray-400">{t('detail.province.size')}:</span>
           <span>{popGroup.size.toFixed(1)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Wealth:</span>
+          <span className="text-gray-400">{t('detail.province.wealth')}:</span>
           <span>{popGroup.wealth.toFixed(1)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Unrest:</span>
+          <span className="text-gray-400">{t('detail.province.unrest')}:</span>
           <span className={popGroup.unrest > 60 ? 'text-red-400' : 'text-gray-200'}>
             {popGroup.unrest.toFixed(1)}
           </span>
@@ -2441,7 +2451,7 @@ export function ProvinceDetail({
                 className="w-full cursor-pointer text-left font-medium text-blue-400 capitalize hover:text-blue-300"
                 onClick={() => onPopGroupClick(pop.id)}
               >
-                {pop.class} →
+                {t(`detail.province.${pop.class}`, { defaultValue: pop.class })} →
               </button>
               <div className="flex justify-between">
                 <span className="text-gray-400">{t('detail.province.size')}:</span>
