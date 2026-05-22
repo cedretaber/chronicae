@@ -11,7 +11,7 @@ if (!root) throw new Error('root element not found')
 
 async function main(): Promise<void> {
   const i18n = await createChronicaeI18n({
-    locale: 'en',
+    locale: 'ja',
     fallbackLocale: 'en',
     resourceLoader: createWebResourceLoader(),
     preloadLocales: ['en', 'ja'],
