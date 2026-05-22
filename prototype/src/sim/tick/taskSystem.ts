@@ -8,10 +8,12 @@ import type { PersonActivityLog } from '../types/task'
 import type { WorldState } from '../types/world'
 import type { EntityRef } from '../types/goal'
 import type { ActorIntent } from '../types/actorIntent'
-import type { PersonId } from '../types/ids'
+import type { DiplomaticPlay } from '../types/diplomaticPlay'
+import type { PersonId, DiplomaticPlayId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { AbilityKey } from '../types/person'
 import type { AbilityTrainingExperience } from '../types/task'
+import { clamp } from '../utils/math'
 import { getPersonWeeklyActionCapacity, computeWeeklyEffort } from '../selectors/taskSelectors'
 import { createNextTaskForAim } from '../selectors/taskSelectors'
 import { removeTask } from '../selectors/taskSelectors'
@@ -87,6 +89,18 @@ function autoCancelTasks(ctx: TickContext): TickContext {
       }
     }
 
+    // Check diplomatic_play-targeted tasks
+    if (!shouldCancel && task.targetRef.kind === 'diplomatic_play') {
+      const play = state.diplomaticPlays[task.targetRef.id]
+      if (!play) {
+        shouldCancel = true
+        cancelReason = 'target_removed'
+      } else if (play.status !== 'active' && play.status !== 'escalated') {
+        shouldCancel = true
+        cancelReason = 'target_terminal'
+      }
+    }
+
     if (shouldCancel) {
       const ownerKey = decisionSubjectKey(task.owner)
       const ownerAimIds = state.aimIndex.byOwner[ownerKey] ?? []
@@ -116,6 +130,11 @@ function autoCancelTasks(ctx: TickContext): TickContext {
             actorIntents: { ...newState.actorIntents, [intent.id]: cleaned },
           }
         }
+      }
+
+      // Clear play activeTaskIds if this was a diplomatic_play-targeted task
+      if (task.targetRef.kind === 'diplomatic_play') {
+        newState = removeDiplomaticPlayTaskId(newState, task.targetRef.id, task.id)
       }
 
       // Update the owning Aim if found
@@ -479,6 +498,23 @@ function handleTaskCompletion(
       newState = createActivityLogForTask(newState, config, personId, task, outcome, absoluteWeek)
       newState = removeTask(newState, task.id)
       currentCtx = { ...currentCtx, state: newState }
+    } else if (task.targetRef.kind === 'diplomatic_play') {
+      // Diplomatic play-targeted task completed: apply negotiation effects
+      const playId = task.targetRef.id
+      const play = newState.diplomaticPlays[playId]
+      if (play && (play.status === 'active' || play.status === 'escalated')) {
+        const isInitiator = play.initiatorActiveTaskIds.some(
+          (id) => (id as string) === (task.id as string),
+        )
+        const side: 'initiator' | 'target' = isInitiator ? 'initiator' : 'target'
+
+        newState = applyDiplomaticTaskEffect(newState, config, playId, task, side)
+        newState = removeDiplomaticPlayTaskId(newState, playId, task.id)
+      }
+
+      newState = createActivityLogForTask(newState, config, personId, task, outcome, absoluteWeek)
+      newState = removeTask(newState, task.id)
+      currentCtx = { ...currentCtx, state: newState }
     } else {
       // No owning aim found — just remove task and log
       newState = removeTask(newState, task.id)
@@ -731,4 +767,128 @@ export function runTaskSystem(ctx: TickContext): TickContext {
   currentCtx = reviewWaitingAims(currentCtx)
 
   return currentCtx
+}
+
+// --- DiplomaticPlay Task helpers ---
+
+function removeDiplomaticPlayTaskId(
+  state: WorldState,
+  playId: DiplomaticPlayId,
+  taskId: import('../types/ids').TaskId,
+): WorldState {
+  const play = state.diplomaticPlays[playId]
+  if (!play) return state
+  const updatedPlay: DiplomaticPlay = {
+    ...play,
+    initiatorActiveTaskIds: play.initiatorActiveTaskIds.filter(
+      (id) => (id as string) !== (taskId as string),
+    ),
+    targetActiveTaskIds: play.targetActiveTaskIds.filter(
+      (id) => (id as string) !== (taskId as string),
+    ),
+  }
+  return {
+    ...state,
+    diplomaticPlays: { ...state.diplomaticPlays, [playId]: updatedPlay },
+  }
+}
+
+function applyDiplomaticTaskEffect(
+  state: WorldState,
+  config: SimulationConfig,
+  playId: DiplomaticPlayId,
+  task: Task,
+  side: 'initiator' | 'target',
+): WorldState {
+  const play = state.diplomaticPlays[playId]
+  if (!play) return state
+
+  const updated: DiplomaticPlay = { ...play }
+
+  switch (task.kind) {
+    case 'prepare_argument':
+      if (side === 'initiator') {
+        updated.initiatorLeverage = clamp(
+          play.initiatorLeverage + config.diplomaticPlayTaskLeverageGainSmall,
+          0,
+          100,
+        )
+      } else {
+        updated.targetLeverage = clamp(
+          play.targetLeverage + config.diplomaticPlayTaskLeverageGainSmall,
+          0,
+          100,
+        )
+      }
+      break
+    case 'gather_claim_evidence':
+      if (side === 'initiator') {
+        updated.initiatorLeverage = clamp(
+          play.initiatorLeverage + config.diplomaticPlayTaskLeverageGainMedium,
+          0,
+          100,
+        )
+      } else {
+        updated.targetLeverage = clamp(
+          play.targetLeverage + config.diplomaticPlayTaskLeverageGainMedium,
+          0,
+          100,
+        )
+      }
+      break
+    case 'secure_internal_support':
+      if (side === 'initiator') {
+        updated.initiatorCommitment = clamp(
+          play.initiatorCommitment + config.diplomaticPlayTaskCommitmentGainMedium,
+          0,
+          100,
+        )
+      } else {
+        updated.targetCommitment = clamp(
+          play.targetCommitment + config.diplomaticPlayTaskCommitmentGainMedium,
+          0,
+          100,
+        )
+      }
+      break
+    case 'negotiate_terms':
+      updated.progress = clamp(play.progress + config.diplomaticPlayTaskProgressGainMedium, 0, 100)
+      break
+    case 'pressure_counterparty':
+      updated.tension = clamp(play.tension + config.diplomaticPlayTaskTensionGainMedium, 0, 100)
+      if (side === 'initiator') {
+        updated.targetCommitment = Math.max(
+          0,
+          play.targetCommitment - config.diplomaticPlayTaskOpponentPressureGainMedium,
+        )
+      } else {
+        updated.initiatorCommitment = Math.max(
+          0,
+          play.initiatorCommitment - config.diplomaticPlayTaskOpponentPressureGainMedium,
+        )
+      }
+      break
+    case 'offer_compromise':
+      updated.progress = clamp(play.progress + config.diplomaticPlayTaskProgressGainMedium, 0, 100)
+      updated.tension = Math.max(0, play.tension - config.diplomaticPlayTaskTensionReductionSmall)
+      break
+    case 'undermine_counterparty_position':
+      if (side === 'initiator') {
+        updated.targetLeverage = Math.max(
+          0,
+          play.targetLeverage - config.diplomaticPlayTaskOpponentLeverageReductionSmall,
+        )
+      } else {
+        updated.initiatorLeverage = Math.max(
+          0,
+          play.initiatorLeverage - config.diplomaticPlayTaskOpponentLeverageReductionSmall,
+        )
+      }
+      break
+  }
+
+  return {
+    ...state,
+    diplomaticPlays: { ...state.diplomaticPlays, [playId]: updated },
+  }
 }

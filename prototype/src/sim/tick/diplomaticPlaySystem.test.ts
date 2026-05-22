@@ -98,6 +98,14 @@ function injectPlay(
     deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
     progress: 0,
     tension: 0,
+    initiatorPreparation: 0,
+    initiatorLeverage: 0,
+    initiatorCommitment: 0,
+    targetPreparation: 0,
+    targetLeverage: 0,
+    targetCommitment: 0,
+    initiatorActiveTaskIds: [],
+    targetActiveTaskIds: [],
     ...overrides,
   }
   return {
@@ -134,6 +142,14 @@ describe('runDiplomaticPlaySystem', () => {
       deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
       progress: 0,
       tension: 0,
+      initiatorPreparation: 0,
+      initiatorLeverage: 0,
+      initiatorCommitment: 0,
+      targetPreparation: 0,
+      targetLeverage: 0,
+      targetCommitment: 0,
+      initiatorActiveTaskIds: [],
+      targetActiveTaskIds: [],
     }
     ctx = {
       ...ctx,
@@ -156,7 +172,7 @@ describe('runDiplomaticPlaySystem', () => {
       setup.provinceId,
       setup.popId,
       {
-        progress: 55, // すぐ threshold 60 を超えるよう設定
+        progress: 57, // structuralProgressFactor 適用後でも threshold 60 を超えるよう設定
         tension: 0,
       },
     )
@@ -294,6 +310,14 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
       deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
       progress: 0,
       tension: 0,
+      initiatorPreparation: 0,
+      initiatorLeverage: 0,
+      initiatorCommitment: 0,
+      targetPreparation: 0,
+      targetLeverage: 0,
+      targetCommitment: 0,
+      initiatorActiveTaskIds: [],
+      targetActiveTaskIds: [],
       ...overrides,
     }
     return {
@@ -430,6 +454,14 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
       deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
       progress: 0,
       tension: 0,
+      initiatorPreparation: 0,
+      initiatorLeverage: 0,
+      initiatorCommitment: 0,
+      targetPreparation: 0,
+      targetLeverage: 0,
+      targetCommitment: 0,
+      initiatorActiveTaskIds: [],
+      targetActiveTaskIds: [],
       ...overrides,
     }
     return {

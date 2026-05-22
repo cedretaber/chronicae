@@ -357,6 +357,22 @@ export type SimulationConfig = {
   trainingExperienceDecayRate: number
   appointmentTaskModifierValue: number
   appointmentTaskModifierDurationWeeks: number
+  // v0.23 Phase D: DiplomaticPlay Task-driven
+  diplomaticPlayStructuralProgressFactor: number
+  diplomaticPlayStructuralPowerWeight: number
+  diplomaticPlayAdvantageWeight: number
+  diplomaticPlayDelegateSkillImpactMax: number
+  diplomaticPlayRandomnessMax: number
+  diplomaticPlayTaskLeverageGainSmall: number
+  diplomaticPlayTaskLeverageGainMedium: number
+  diplomaticPlayTaskCommitmentGainMedium: number
+  diplomaticPlayTaskProgressGainMedium: number
+  diplomaticPlayTaskTensionGainMedium: number
+  diplomaticPlayTaskTensionReductionSmall: number
+  diplomaticPlayTaskOpponentPressureGainMedium: number
+  diplomaticPlayTaskOpponentLeverageReductionSmall: number
+  diplomaticPlayTaskUndermineFailTensionGain: number
+  diplomaticPlayMaxActiveTasksPerSide: number
   goalProgressOnPersonAimSucceeded: number
   goalProgressOnPersonAimFailed: number
   weeklyActionCapacityBase: number
@@ -879,6 +895,22 @@ export const defaultConfig: SimulationConfig = {
   trainingExperienceDecayRate: 0.5,
   appointmentTaskModifierValue: 4,
   appointmentTaskModifierDurationWeeks: 16,
+  // v0.23 Phase D: DiplomaticPlay Task-driven
+  diplomaticPlayStructuralProgressFactor: 0.33,
+  diplomaticPlayStructuralPowerWeight: 0.7,
+  diplomaticPlayAdvantageWeight: 0.3,
+  diplomaticPlayDelegateSkillImpactMax: 10,
+  diplomaticPlayRandomnessMax: 5,
+  diplomaticPlayTaskLeverageGainSmall: 8,
+  diplomaticPlayTaskLeverageGainMedium: 15,
+  diplomaticPlayTaskCommitmentGainMedium: 15,
+  diplomaticPlayTaskProgressGainMedium: 10,
+  diplomaticPlayTaskTensionGainMedium: 10,
+  diplomaticPlayTaskTensionReductionSmall: 5,
+  diplomaticPlayTaskOpponentPressureGainMedium: 12,
+  diplomaticPlayTaskOpponentLeverageReductionSmall: 8,
+  diplomaticPlayTaskUndermineFailTensionGain: 12,
+  diplomaticPlayMaxActiveTasksPerSide: 2,
   goalProgressOnPersonAimSucceeded: 15,
   goalProgressOnPersonAimFailed: -5,
   weeklyActionCapacityBase: 2.0,

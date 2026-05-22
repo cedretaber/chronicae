@@ -1,6 +1,8 @@
 import type {
   DiplomaticPlayId,
   ActorIntentId,
+  TaskId,
+  PersonId,
   ProvinceId,
   PolityId,
   LandContractId,
@@ -93,4 +95,20 @@ export type DiplomaticPlay = {
 
   progress: number // 0..100
   tension: number // 0..100
+
+  // v0.23 Phase D: delegate persons
+  initiatorDelegatePersonId?: PersonId
+  targetDelegatePersonId?: PersonId
+
+  // v0.23 Phase D: negotiation parameters (per side, 0..100)
+  initiatorPreparation: number
+  initiatorLeverage: number
+  initiatorCommitment: number
+  targetPreparation: number
+  targetLeverage: number
+  targetCommitment: number
+
+  // v0.23 Phase D: active Tasks
+  initiatorActiveTaskIds: TaskId[]
+  targetActiveTaskIds: TaskId[]
 }

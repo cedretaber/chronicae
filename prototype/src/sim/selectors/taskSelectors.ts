@@ -8,6 +8,8 @@ import { targetRefKey } from '../types/task'
 import type { TaskTargetRef } from '../types/task'
 import type { ActorIntent } from '../types/actorIntent'
 import type { ActorIntentKind } from '../types/actorIntent'
+import type { DiplomaticPlay } from '../types/diplomaticPlay'
+import type { PoliticalActorRef } from '../types/actor'
 import type { PersonId } from '../types/ids'
 import type { AbilityKey } from '../types/person'
 import { createTaskId } from '../types/ids'
@@ -30,6 +32,7 @@ const HEAVY_TASKS: ReadonlySet<TaskKind> = new Set([
   'pressure_counterparty',
   'offer_compromise',
   'undermine_counterparty_position',
+  'secure_internal_support',
 ])
 
 // --- getPersonWeeklyActionCapacity ---
@@ -105,6 +108,14 @@ export function getTaskRelevantAbility(kind: TaskKind): AbilityKey {
       return 'charisma'
     case 'commission_chronicle_work':
       return 'learning'
+    case 'gather_claim_evidence':
+      return 'learning'
+    case 'offer_compromise':
+      return 'charisma'
+    case 'secure_internal_support':
+      return 'charisma'
+    case 'undermine_counterparty_position':
+      return 'insight'
     default:
       return 'insight'
   }
@@ -472,6 +483,76 @@ export function createTaskForIntent(
     assigneePersonId: assignee,
     kind: taskKind,
     targetRef: { kind: 'intent', id: intent.id },
+    absoluteWeek,
+  })
+}
+
+// --- DiplomaticPlay Task helpers (v0.23 Phase D) ---
+
+function isValidDelegate(state: WorldState, personId: PersonId): boolean {
+  const person = state.persons[personId]
+  return person !== undefined && person.alive && person.kind !== 'placeholder'
+}
+
+export function getDiplomaticPlayDelegate(
+  state: WorldState,
+  actor: PoliticalActorRef,
+): PersonId | undefined {
+  if (actor.kind === 'polity') {
+    const polityId = actor.id
+    const advisor = getPrimaryOfficeHolder(state, { kind: 'polity', id: polityId }, 'advisor')
+    if (advisor && isValidDelegate(state, advisor)) return advisor
+    const admin = getPrimaryOfficeHolder(state, { kind: 'polity', id: polityId }, 'administrator')
+    if (admin && isValidDelegate(state, admin)) return admin
+    const leader = getPolityLeader(state, polityId)
+    if (leader && isValidDelegate(state, leader)) return leader
+    return undefined
+  }
+  if (actor.kind === 'house') {
+    const leader = getHouseLeader(state, actor.id)
+    if (leader && isValidDelegate(state, leader)) return leader
+    return undefined
+  }
+  return undefined
+}
+
+export function selectDiplomaticTaskKind(
+  play: DiplomaticPlay,
+  side: 'initiator' | 'target',
+): TaskKind {
+  const prep = side === 'initiator' ? play.initiatorPreparation : play.targetPreparation
+  const lev = side === 'initiator' ? play.initiatorLeverage : play.targetLeverage
+  const commit = side === 'initiator' ? play.initiatorCommitment : play.targetCommitment
+
+  if (prep < 30) return 'prepare_argument'
+  if (lev < 30) return 'gather_claim_evidence'
+  if (commit < 30) return 'secure_internal_support'
+  if (play.tension > 60) return 'offer_compromise'
+  if (play.progress < 40) return 'negotiate_terms'
+  return 'pressure_counterparty'
+}
+
+export function createTaskForDiplomaticPlay(
+  state: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  side: 'initiator' | 'target',
+  taskKind: TaskKind,
+  absoluteWeek: number,
+): { task: Task; state: WorldState } | undefined {
+  const delegateId =
+    side === 'initiator' ? play.initiatorDelegatePersonId : play.targetDelegatePersonId
+  if (!delegateId) return undefined
+
+  const actor = side === 'initiator' ? play.initiator : play.target
+  const owner: DecisionSubjectRef =
+    actor.kind === 'polity' ? { kind: 'polity', id: actor.id } : { kind: 'house', id: actor.id }
+
+  return createTask(state, config, {
+    owner,
+    assigneePersonId: delegateId,
+    kind: taskKind,
+    targetRef: { kind: 'diplomatic_play', id: play.id },
     absoluteWeek,
   })
 }

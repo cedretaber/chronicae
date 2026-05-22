@@ -5,6 +5,7 @@ import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { WorldState } from '../types/world'
+import { removeTask } from '../selectors/taskSelectors'
 import {
   TERMINAL_ACTOR_INTENT_STATUSES,
   type TerminalActorIntentStatus,
@@ -129,16 +130,40 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     }
   }
 
-  if (!nextIntents && !nextPlays && !nextAims && !nextGoals) return ctx
+  // v0.23 Phase D: Remove Tasks associated with removed DiplomaticPlays
+  let taskCleanedState: WorldState | undefined
+  if (removedPlayIds.size > 0) {
+    let tempState = ctx.state
+    for (const playIdStr of removedPlayIds) {
+      const play = plays[playIdStr as DiplomaticPlayId]
+      if (!play) continue
+      for (const taskId of play.initiatorActiveTaskIds) {
+        if (tempState.tasks[taskId]) {
+          tempState = removeTask(tempState, taskId)
+        }
+      }
+      for (const taskId of play.targetActiveTaskIds) {
+        if (tempState.tasks[taskId]) {
+          tempState = removeTask(tempState, taskId)
+        }
+      }
+    }
+    if (tempState !== ctx.state) {
+      taskCleanedState = tempState
+    }
+  }
 
+  if (!nextIntents && !nextPlays && !nextAims && !nextGoals && !taskCleanedState) return ctx
+
+  const baseState = taskCleanedState ?? ctx.state
   return {
     ...ctx,
     state: {
-      ...ctx.state,
-      actorIntents: nextIntents ?? intents,
-      diplomaticPlays: nextPlays ?? plays,
-      aims: nextAims ?? ctx.state.aims,
-      goals: nextGoals ?? ctx.state.goals,
+      ...baseState,
+      actorIntents: nextIntents ?? baseState.actorIntents,
+      diplomaticPlays: nextPlays ?? baseState.diplomaticPlays,
+      aims: nextAims ?? baseState.aims,
+      goals: nextGoals ?? baseState.goals,
     },
   }
 }

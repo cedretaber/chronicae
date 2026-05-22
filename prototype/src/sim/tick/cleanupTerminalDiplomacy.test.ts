@@ -58,6 +58,14 @@ function makePlay(id: string, status: DiplomaticPlay['status']): DiplomaticPlay 
     deadlineWeek: 1000 * 48 + 7 - 1,
     progress: 0,
     tension: 0,
+    initiatorPreparation: 0,
+    initiatorLeverage: 0,
+    initiatorCommitment: 0,
+    targetPreparation: 0,
+    targetLeverage: 0,
+    targetCommitment: 0,
+    initiatorActiveTaskIds: [],
+    targetActiveTaskIds: [],
   }
 }
 

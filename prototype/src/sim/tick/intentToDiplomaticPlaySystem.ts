@@ -21,6 +21,7 @@ import {
   selectTargetHoldingInProvince,
 } from '../selectors/landContractSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
+import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import type { WorldState } from '../types/world'
 
 // v0.18 Stage C/D/F §9: IntentToDiplomaticPlaySystem
@@ -277,6 +278,8 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
       )
 
       const playId = createDiplomaticPlayId(currentCtx.state.nextDiplomaticPlayId)
+      const taxInitiatorDelegate = getDiplomaticPlayDelegate(currentCtx.state, initiator)
+      const taxTargetDelegate = getDiplomaticPlayDelegate(currentCtx.state, target)
       const play: DiplomaticPlay = {
         id: playId,
         kind: 'contract_tax_revision',
@@ -296,6 +299,16 @@ export function runIntentToDiplomaticPlaySystem(ctx: TickContext): TickContext {
         deadlineWeek,
         progress: hasAdvantage ? currentCtx.config.taxRevisionInitialProgressOnAdvantage : 0,
         tension: hasAdvantage ? 0 : currentCtx.config.taxRevisionInitialTensionOnPressure,
+        ...(taxInitiatorDelegate ? { initiatorDelegatePersonId: taxInitiatorDelegate } : {}),
+        ...(taxTargetDelegate ? { targetDelegatePersonId: taxTargetDelegate } : {}),
+        initiatorPreparation: 0,
+        initiatorLeverage: 0,
+        initiatorCommitment: 0,
+        targetPreparation: 0,
+        targetLeverage: 0,
+        targetCommitment: 0,
+        initiatorActiveTaskIds: [],
+        targetActiveTaskIds: [],
       }
 
       currentCtx = {
@@ -367,6 +380,8 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
     currentCtx.config.landClaimNegotiationDurationWeeks,
   )
 
+  const initiatorDelegate = getDiplomaticPlayDelegate(currentCtx.state, initiator)
+  const targetDelegate = getDiplomaticPlayDelegate(currentCtx.state, target)
   const play: DiplomaticPlay = {
     id: playId,
     kind: 'land_claim',
@@ -396,6 +411,16 @@ function createLandClaimPlay(ctx: TickContext, input: CreateLandClaimInput): Tic
     deadlineWeek,
     progress: initialProgress,
     tension: initialTension,
+    ...(initiatorDelegate ? { initiatorDelegatePersonId: initiatorDelegate } : {}),
+    ...(targetDelegate ? { targetDelegatePersonId: targetDelegate } : {}),
+    initiatorPreparation: 0,
+    initiatorLeverage: 0,
+    initiatorCommitment: 0,
+    targetPreparation: 0,
+    targetLeverage: 0,
+    targetCommitment: 0,
+    initiatorActiveTaskIds: [],
+    targetActiveTaskIds: [],
   }
 
   currentCtx = {

@@ -97,6 +97,14 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
       deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
       progress: 30,
       tension: 70,
+      initiatorPreparation: 0,
+      initiatorLeverage: 0,
+      initiatorCommitment: 0,
+      targetPreparation: 0,
+      targetLeverage: 0,
+      targetCommitment: 0,
+      initiatorActiveTaskIds: [],
+      targetActiveTaskIds: [],
     }
     return {
       ...ctx,
@@ -141,6 +149,14 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
       deadlineWeek: (setup.ctx.state.currentYear + 1) * 48 + setup.ctx.state.currentWeekOfYear - 1,
       progress: 50,
       tension: 30,
+      initiatorPreparation: 0,
+      initiatorLeverage: 0,
+      initiatorCommitment: 0,
+      targetPreparation: 0,
+      targetLeverage: 0,
+      targetCommitment: 0,
+      initiatorActiveTaskIds: [],
+      targetActiveTaskIds: [],
     }
     const ctx0: TickContext = {
       ...setup.ctx,
@@ -207,6 +223,14 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
       deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
       progress: 10,
       tension: 70,
+      initiatorPreparation: 0,
+      initiatorLeverage: 0,
+      initiatorCommitment: 0,
+      targetPreparation: 0,
+      targetLeverage: 0,
+      targetCommitment: 0,
+      initiatorActiveTaskIds: [],
+      targetActiveTaskIds: [],
     }
     return {
       ...ctx,
@@ -303,6 +327,14 @@ describe('runConflictResolutionSystem (unsupported kind)', () => {
       deadlineWeek: (s.currentYear + 1) * 48 + s.currentWeekOfYear,
       progress: 10,
       tension: 70,
+      initiatorPreparation: 0,
+      initiatorLeverage: 0,
+      initiatorCommitment: 0,
+      targetPreparation: 0,
+      targetLeverage: 0,
+      targetCommitment: 0,
+      initiatorActiveTaskIds: [],
+      targetActiveTaskIds: [],
     }
     s = { ...s, diplomaticPlays: { [playId]: play } }
     const ctx = makeCtx(s)

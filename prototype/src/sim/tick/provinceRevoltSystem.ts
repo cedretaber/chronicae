@@ -10,6 +10,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import { getProvincePopulationPressure, getPopWealthByClass } from '../selectors/popSelectors'
+import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { getProvinceProduction } from '../selectors/popEconomySelectors'
 import {
   getProvinceManpowerBase,
@@ -298,6 +299,10 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
   // revolt_negotiation DiplomaticPlay を生成
   const playId = createDiplomaticPlayId(nextCtx.state.nextDiplomaticPlayId)
   const deadlineWeek = nextCtx.state.absoluteWeek + config.revoltNegotiationDurationWeeks
+  const targetDelegate = getDiplomaticPlayDelegate(nextCtx.state, {
+    kind: 'polity',
+    id: terminalPolityId,
+  })
   const play: DiplomaticPlay = {
     id: playId,
     kind: 'revolt_negotiation',
@@ -314,6 +319,15 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
     deadlineWeek,
     progress: 0,
     tension: 0,
+    ...(targetDelegate ? { targetDelegatePersonId: targetDelegate } : {}),
+    initiatorPreparation: 0,
+    initiatorLeverage: 0,
+    initiatorCommitment: 0,
+    targetPreparation: 0,
+    targetLeverage: 0,
+    targetCommitment: 0,
+    initiatorActiveTaskIds: [],
+    targetActiveTaskIds: [],
   }
   nextCtx = {
     ...nextCtx,

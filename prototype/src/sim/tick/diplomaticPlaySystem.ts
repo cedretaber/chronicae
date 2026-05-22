@@ -29,6 +29,11 @@ import {
 } from '../selectors/landContractSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { calcGeneralWarPowerModifier } from '../selectors/personAbilityEffects'
+import {
+  getDiplomaticPlayDelegate,
+  selectDiplomaticTaskKind,
+  createTaskForDiplomaticPlay,
+} from '../selectors/taskSelectors'
 import { randomFloat } from '../rng/rng'
 
 // v0.18 Stage B/C/D §10 / §11 / §13
@@ -60,6 +65,15 @@ export function runDiplomaticPlaySystem(ctx: TickContext): TickContext {
       currentCtx = progressContractTaxRevision(currentCtx, play)
     }
   }
+
+  // Phase 2: Create diplomatic Tasks for active plays
+  for (const playIdStr of Object.keys(currentCtx.state.diplomaticPlays).sort()) {
+    const play = currentCtx.state.diplomaticPlays[playIdStr as DiplomaticPlayId]
+    if (!play) continue
+    if (play.status !== 'active') continue
+    currentCtx = ensureDiplomaticTasks(currentCtx, play)
+  }
+
   return currentCtx
 }
 
@@ -584,13 +598,14 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
     rateImbalance -
     provinceValue * config.taxRevisionProvinceValueFactor
 
+  const factor = config.diplomaticPlayStructuralProgressFactor
   let { progress, tension } = play
   if (acceptanceScore > 0) {
-    progress += acceptanceScore
-    tension += 1
+    progress += acceptanceScore * factor
+    tension += 1 * factor
   } else {
-    tension += Math.abs(acceptanceScore)
-    progress += 1
+    tension += Math.abs(acceptanceScore) * factor
+    progress += 1 * factor
   }
 
   // Clamp
@@ -934,15 +949,16 @@ function applyAcceptanceUpdate(
   acceptanceScore: number,
   config: SimulationConfig,
 ): { nextProgress: number; nextTension: number } {
+  const factor = config.diplomaticPlayStructuralProgressFactor
   if (acceptanceScore >= 0) {
     return {
-      nextProgress: clamp(play.progress + clamp(acceptanceScore * 0.2, 1, 12), 0, 100),
-      nextTension: clamp(play.tension + config.diplomaticPlayBaseTensionGain, 0, 100),
+      nextProgress: clamp(play.progress + clamp(acceptanceScore * 0.2 * factor, 0.33, 4), 0, 100),
+      nextTension: clamp(play.tension + config.diplomaticPlayBaseTensionGain * factor, 0, 100),
     }
   }
   return {
     nextProgress: play.progress,
-    nextTension: clamp(play.tension + clamp(-acceptanceScore * 0.2, 1, 12), 0, 100),
+    nextTension: clamp(play.tension + clamp(-acceptanceScore * 0.2 * factor, 0.33, 4), 0, 100),
   }
 }
 
@@ -1036,4 +1052,93 @@ function computePrestigeLoss(rank: number): number {
   // rank が高い (= 数値が小さい) 大国ほど Province 喪失の prestige loss が大きい
   // rank 1 → 50, rank 2 → 40, rank 3 → 30, rank 4 → 20, rank 5 → 10
   return clamp(60 - rank * 10, 10, 50)
+}
+
+// ─── v0.23 Phase D: Task 生成 & playAdvantage ───
+
+export function computePlayAdvantage(play: DiplomaticPlay, side: 'initiator' | 'target'): number {
+  const prep = side === 'initiator' ? play.initiatorPreparation : play.targetPreparation
+  const lev = side === 'initiator' ? play.initiatorLeverage : play.targetLeverage
+  const commit = side === 'initiator' ? play.initiatorCommitment : play.targetCommitment
+  return (prep + lev + commit) / 3
+}
+
+function ensureDiplomaticTasks(ctx: TickContext, play: DiplomaticPlay): TickContext {
+  let currentCtx = ctx
+  const config = currentCtx.config
+  const absoluteWeek = currentCtx.state.absoluteWeek
+
+  for (const side of ['initiator', 'target'] as const) {
+    const latestPlay = currentCtx.state.diplomaticPlays[play.id]
+    if (!latestPlay || latestPlay.status !== 'active') break
+
+    const activeTaskIds =
+      side === 'initiator' ? latestPlay.initiatorActiveTaskIds : latestPlay.targetActiveTaskIds
+    if (activeTaskIds.length >= config.diplomaticPlayMaxActiveTasksPerSide) continue
+
+    // Check delegate validity, reassign if needed
+    const actor = side === 'initiator' ? latestPlay.initiator : latestPlay.target
+    const currentDelegate =
+      side === 'initiator'
+        ? latestPlay.initiatorDelegatePersonId
+        : latestPlay.targetDelegatePersonId
+
+    let hasValidDelegate = false
+    if (currentDelegate) {
+      const person = currentCtx.state.persons[currentDelegate]
+      hasValidDelegate = !!person && person.alive && person.kind !== 'placeholder'
+    }
+
+    if (!hasValidDelegate) {
+      const newDelegate = getDiplomaticPlayDelegate(currentCtx.state, actor)
+      if (!newDelegate) continue
+
+      const updatedPlay = { ...currentCtx.state.diplomaticPlays[play.id]! }
+      if (side === 'initiator') {
+        updatedPlay.initiatorDelegatePersonId = newDelegate
+      } else {
+        updatedPlay.targetDelegatePersonId = newDelegate
+      }
+      currentCtx = {
+        ...currentCtx,
+        state: {
+          ...currentCtx.state,
+          diplomaticPlays: {
+            ...currentCtx.state.diplomaticPlays,
+            [play.id]: updatedPlay,
+          },
+        },
+      }
+    }
+
+    const taskKind = selectDiplomaticTaskKind(currentCtx.state.diplomaticPlays[play.id]!, side)
+    const result = createTaskForDiplomaticPlay(
+      currentCtx.state,
+      config,
+      currentCtx.state.diplomaticPlays[play.id]!,
+      side,
+      taskKind,
+      absoluteWeek,
+    )
+    if (!result) continue
+
+    const updatedPlay2 = { ...result.state.diplomaticPlays[play.id]! }
+    if (side === 'initiator') {
+      updatedPlay2.initiatorActiveTaskIds = [...updatedPlay2.initiatorActiveTaskIds, result.task.id]
+    } else {
+      updatedPlay2.targetActiveTaskIds = [...updatedPlay2.targetActiveTaskIds, result.task.id]
+    }
+    currentCtx = {
+      ...currentCtx,
+      state: {
+        ...result.state,
+        diplomaticPlays: {
+          ...result.state.diplomaticPlays,
+          [play.id]: updatedPlay2,
+        },
+      },
+    }
+  }
+
+  return currentCtx
 }

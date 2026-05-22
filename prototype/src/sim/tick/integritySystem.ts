@@ -1295,6 +1295,92 @@ export function collectIntegrityErrors(
         })
       }
     }
+
+    // v0.23 Phase D: negotiation parameters range
+    for (const field of [
+      'initiatorPreparation',
+      'initiatorLeverage',
+      'initiatorCommitment',
+      'targetPreparation',
+      'targetLeverage',
+      'targetCommitment',
+    ] as const) {
+      const val = play[field]
+      if (val < 0 || val > 100) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} ${field}=${val} outside [0, 100] (§10)`,
+        })
+      }
+    }
+
+    // v0.23 Phase D: activeTaskIds must reference valid active Tasks
+    for (const taskId of play.initiatorActiveTaskIds) {
+      const task = state.tasks[taskId]
+      if (!task) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr}: initiatorActiveTaskIds references missing task ${taskId as string} (§10)`,
+        })
+      } else if (task.status !== 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr}: initiatorActiveTaskIds references non-active task ${taskId as string} (status=${task.status}) (§10)`,
+        })
+      }
+    }
+    for (const taskId of play.targetActiveTaskIds) {
+      const task = state.tasks[taskId]
+      if (!task) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr}: targetActiveTaskIds references missing task ${taskId as string} (§10)`,
+        })
+      } else if (task.status !== 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr}: targetActiveTaskIds references non-active task ${taskId as string} (status=${task.status}) (§10)`,
+        })
+      }
+    }
+
+    // v0.23 Phase D: delegate validity
+    if (play.initiatorDelegatePersonId) {
+      const person = state.persons[play.initiatorDelegatePersonId]
+      if (!person || !person.alive || person.kind === 'placeholder') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr}: initiatorDelegatePersonId ${play.initiatorDelegatePersonId as string} is not alive/normal (§10)`,
+        })
+      }
+    }
+    if (play.targetDelegatePersonId) {
+      const person = state.persons[play.targetDelegatePersonId]
+      if (!person || !person.alive || person.kind === 'placeholder') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr}: targetDelegatePersonId ${play.targetDelegatePersonId as string} is not alive/normal (§10)`,
+        })
+      }
+    }
+  }
+
+  // v0.23 Phase D: active Tasks targeting diplomatic_play must reference existing active/escalated Play
+  for (const [taskIdStr, task] of Object.entries(state.tasks)) {
+    if (!task || task.status !== 'active') continue
+    if (task.targetRef.kind !== 'diplomatic_play') continue
+    const play = state.diplomaticPlays[task.targetRef.id]
+    if (!play) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Task ${taskIdStr}: targets diplomatic_play ${task.targetRef.id as string} which does not exist (§10)`,
+      })
+    } else if (play.status !== 'active' && play.status !== 'escalated') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Task ${taskIdStr}: targets diplomatic_play ${task.targetRef.id as string} which has terminal status ${play.status} (§10)`,
+      })
+    }
   }
 
   // ─── State-Province consistency checks (v0.20-a) ───
