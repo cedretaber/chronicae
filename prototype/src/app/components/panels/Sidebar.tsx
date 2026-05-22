@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useEntityName } from '@/app/hooks/useEntityName'
 import { calcPersonImportanceScore } from '@sim/selectors/importanceSelectors'
 import { calcPolityMilitaryPower } from '@sim/selectors/militarySelectors'
 import { getPolityLegitimacy, getPolityStability } from '@sim/selectors/statusSelectors'
@@ -70,6 +71,7 @@ function PolityRow({
   onClick: () => void
   worldState: WorldState | null
 }) {
+  const resolveName = useEntityName()
   const legitimacy = worldState ? getPolityLegitimacy(worldState, polity.id) : 50
   const stability = worldState ? getPolityStability(worldState, defaultConfig, polity.id) : 50
   return (
@@ -81,7 +83,7 @@ function PolityRow({
     >
       <div className="flex items-center gap-2">
         <span className="inline-block h-3 w-3 shrink-0 rounded-sm" style={{ background: color }} />
-        <span className="font-bold">{polity.name}</span>
+        <span className="font-bold">{resolveName('polity', polity.nameKey, polity.name)}</span>
       </div>
       <div className="text-gray-300">
         Leg: {formatScore(legitimacy)} | Stab: {formatScore(stability)} | Mil:{' '}
@@ -106,6 +108,7 @@ function HouseRow({
   isSelected: boolean
   onClick: () => void
 }) {
+  const resolveName = useEntityName()
   return (
     <div
       className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
@@ -113,7 +116,7 @@ function HouseRow({
       }`}
       onClick={onClick}
     >
-      <div className="font-bold">{house.name}</div>
+      <div className="font-bold">{resolveName('house', house.nameKey, house.name)}</div>
       <div className="flex items-center gap-1.5 text-xs text-gray-400">
         <span
           className="inline-block h-2 w-2 shrink-0 rounded-sm"
@@ -139,6 +142,7 @@ function PersonRow({
   isSelected: boolean
   onClick: () => void
 }) {
+  const resolveName = useEntityName()
   return (
     <div
       className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
@@ -147,7 +151,7 @@ function PersonRow({
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
-        <span className="font-bold">{person.name}</span>
+        <span className="font-bold">{resolveName('person', person.nameKey, person.name)}</span>
         <span className="text-xs text-yellow-400">{Math.round(score)}</span>
       </div>
       <div className="text-gray-300">

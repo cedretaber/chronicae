@@ -95,6 +95,7 @@ import { clamp } from '@/sim/utils/math'
 import type { SimEvent } from '@/sim/types/event'
 import { hasEntityId } from '@sim/types/event'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
+import { useEntityName } from '@/app/hooks/useEntityName'
 
 function getImportanceColor(importance: SimEvent['importance']): string {
   switch (importance) {
@@ -478,6 +479,7 @@ function PersonLink({
   persons: Record<string, Person>
   onClick: ClickHandler
 }) {
+  const resolveName = useEntityName()
   const person = persons[personId]
   if (!person) return <span className="text-gray-500">\u2014</span>
   return (
@@ -485,7 +487,7 @@ function PersonLink({
       className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
       onClick={() => onClick(personId, 'person')}
     >
-      {person.name}
+      {resolveName('person', person.nameKey, person.name)}
     </button>
   )
 }
@@ -499,6 +501,7 @@ function HouseLink({
   houses: Record<string, House>
   onClick: ClickHandler
 }) {
+  const resolveName = useEntityName()
   if (!houseId) return <span className="text-gray-500">\u2014</span>
   const house = houses[houseId]
   if (!house) return <span className="text-gray-500">\u2014</span>
@@ -507,7 +510,7 @@ function HouseLink({
       className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
       onClick={() => onClick(houseId, 'house')}
     >
-      {house.name}
+      {resolveName('house', house.nameKey, house.name)}
     </button>
   )
 }
@@ -521,6 +524,7 @@ function PolityLink({
   polities: Record<string, Polity>
   onClick: ClickHandler
 }) {
+  const resolveName = useEntityName()
   if (!polityId) return <span className="text-gray-500">\u2014</span>
   const polity = polities[polityId]
   if (!polity) return <span className="text-gray-500">\u2014</span>
@@ -529,7 +533,7 @@ function PolityLink({
       className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
       onClick={() => onClick(polityId, 'polity')}
     >
-      {polity.name}
+      {resolveName('polity', polity.nameKey, polity.name)}
     </button>
   )
 }
@@ -986,6 +990,7 @@ export function CountryDetail({
   onProvinceClick: (id: string) => void
 }) {
   const { t } = useTranslation()
+  const resolveName = useEntityName()
   const isWatching = watchlist.includes(polity.id)
   const currentState = session?.currentState
   if (!currentState) return null
@@ -1040,7 +1045,9 @@ export function CountryDetail({
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-bold">{polity.name}</span>
+          <span className="text-lg font-bold">
+            {resolveName('polity', polity.nameKey, polity.name)}
+          </span>
           {!polity.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">
               {t('detail.annexed')}
@@ -1220,6 +1227,7 @@ export function HouseDetail({
   eventHistory: SimEvent[]
 }) {
   const { t } = useTranslation()
+  const resolveName = useEntityName()
   const renderEvent = useRenderEvent()
   const isWatching = watchlist.includes(house.id)
   const currentState = session?.currentState
@@ -1274,7 +1282,7 @@ export function HouseDetail({
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-lg font-bold">{house.name}</span>
+        <span className="text-lg font-bold">{resolveName('house', house.nameKey, house.name)}</span>
         <div className="flex items-center gap-1.5">
           <CopyJsonButton payload={buildEntitySnapshot('house', house, currentState ?? null)} />
           <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(house.id)} />
@@ -1551,6 +1559,7 @@ export function PersonDetail({
   eventHistory: SimEvent[]
 }) {
   const { t } = useTranslation()
+  const resolveName = useEntityName()
   const [abilityView, setAbilityView] = useState<'table' | 'radar'>('table')
   const isWatching = watchlist.includes(person.id)
   const currentState = session?.currentState
@@ -1628,7 +1637,9 @@ export function PersonDetail({
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-lg font-bold">{person.name}</span>
+        <span className="text-lg font-bold">
+          {resolveName('person', person.nameKey, person.name)}
+        </span>
         <div className="flex items-center gap-1.5">
           <CopyJsonButton payload={buildEntitySnapshot('person', person, currentState ?? null)} />
           <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(person.id)} />
@@ -2091,6 +2102,7 @@ export function ProvinceDetail({
   onPopGroupClick: (id: string) => void
 }) {
   const { t } = useTranslation()
+  const resolveName = useEntityName()
   const currentState = session?.currentState
   const holdingDev = currentState
     ? getProvinceDevelopmentFromHoldings(currentState, province.id)
@@ -2206,7 +2218,9 @@ export function ProvinceDetail({
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-lg font-bold">{province.name}</span>
+        <span className="text-lg font-bold">
+          {resolveName('province', province.nameKey, province.name)}
+        </span>
         <CopyJsonButton payload={buildEntitySnapshot('province', province, currentState ?? null)} />
       </div>
 
@@ -2485,6 +2499,7 @@ export function FactionDetail({
   onHouseClick: ClickHandler
 }) {
   const { t } = useTranslation()
+  const resolveName = useEntityName()
   const currentState = session?.currentState
   const worldState: WorldState | null = currentState ?? null
   if (!worldState) return null
@@ -2577,7 +2592,9 @@ export function FactionDetail({
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-bold">{faction.name}</span>
+          <span className="text-lg font-bold">
+            {resolveName('faction', undefined, faction.name)}
+          </span>
           {!faction.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">
               Dissolved
