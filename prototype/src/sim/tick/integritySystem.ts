@@ -1845,6 +1845,50 @@ export function collectIntegrityErrors(
         })
       }
     }
+    // Active intent-targeted task must reference an existing active intent
+    if (task.status === 'active' && task.targetRef.kind === 'intent') {
+      const targetIntent = state.actorIntents[task.targetRef.id]
+      if (!targetIntent) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Task ${taskIdStr}: active task targets missing intent ${task.targetRef.id as string}`,
+        })
+      } else if (targetIntent.status !== 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Task ${taskIdStr}: active task targets terminal intent ${task.targetRef.id as string} (status=${targetIntent.status})`,
+        })
+      }
+    }
+  }
+
+  // --- v0.23 Phase C: Intent activeTaskId integrity ---
+  for (const [intentIdStr, intent] of Object.entries(state.actorIntents)) {
+    if (!intent || intent.status !== 'active') continue
+    if (intent.activeTaskId) {
+      const task = state.tasks[intent.activeTaskId]
+      if (!task) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Intent ${intentIdStr}: activeTaskId ${intent.activeTaskId as string} does not exist`,
+        })
+      } else if (task.status !== 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Intent ${intentIdStr}: activeTaskId ${intent.activeTaskId as string} is not active (status=${task.status})`,
+        })
+      }
+    }
+    if (
+      intent.progress !== undefined &&
+      intent.targetProgress !== undefined &&
+      intent.progress > intent.targetProgress
+    ) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Intent ${intentIdStr}: progress ${intent.progress} exceeds targetProgress ${intent.targetProgress}`,
+      })
+    }
   }
 
   // --- v0.23: Person Goal integrity ---

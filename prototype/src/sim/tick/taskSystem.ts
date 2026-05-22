@@ -7,6 +7,7 @@ import type { Task, TaskOutcomeKind } from '../types/task'
 import type { PersonActivityLog } from '../types/task'
 import type { WorldState } from '../types/world'
 import type { EntityRef } from '../types/goal'
+import type { ActorIntent } from '../types/actorIntent'
 import type { PersonId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { AbilityKey } from '../types/person'
@@ -74,6 +75,18 @@ function autoCancelTasks(ctx: TickContext): TickContext {
       }
     }
 
+    // Check intent-targeted tasks
+    if (!shouldCancel && task.targetRef.kind === 'intent') {
+      const intent = state.actorIntents[task.targetRef.id]
+      if (!intent) {
+        shouldCancel = true
+        cancelReason = 'target_removed'
+      } else if (intent.status !== 'active') {
+        shouldCancel = true
+        cancelReason = 'target_terminal'
+      }
+    }
+
     if (shouldCancel) {
       const ownerKey = decisionSubjectKey(task.owner)
       const ownerAimIds = state.aimIndex.byOwner[ownerKey] ?? []
@@ -90,6 +103,20 @@ function autoCancelTasks(ctx: TickContext): TickContext {
 
       // Remove the task from state
       let newState = removeTask(state, task.id)
+
+      // Clear intent.activeTaskId if this was an intent-targeted task
+      if (task.targetRef.kind === 'intent') {
+        const intent = newState.actorIntents[task.targetRef.id]
+        if (intent && intent.activeTaskId === task.id) {
+          const cleaned = Object.fromEntries(
+            Object.entries(intent).filter(([k]) => k !== 'activeTaskId'),
+          ) as ActorIntent
+          newState = {
+            ...newState,
+            actorIntents: { ...newState.actorIntents, [intent.id]: cleaned },
+          }
+        }
+      }
 
       // Update the owning Aim if found
       if (ownerAim) {
@@ -432,6 +459,26 @@ function handleTaskCompletion(
         }
         currentCtx = { ...currentCtx, state: newState }
       }
+    } else if (task.targetRef.kind === 'intent') {
+      // Intent-targeted task completed: increment intent.progress, clear activeTaskId
+      const intent = newState.actorIntents[task.targetRef.id]
+      if (intent && intent.status === 'active') {
+        const cleaned = Object.fromEntries(
+          Object.entries(intent).filter(([k]) => k !== 'activeTaskId'),
+        ) as ActorIntent
+        const updatedIntent: ActorIntent = {
+          ...cleaned,
+          progress: (intent.progress ?? 0) + 1,
+        }
+        newState = {
+          ...newState,
+          actorIntents: { ...newState.actorIntents, [intent.id]: updatedIntent },
+        }
+      }
+
+      newState = createActivityLogForTask(newState, config, personId, task, outcome, absoluteWeek)
+      newState = removeTask(newState, task.id)
+      currentCtx = { ...currentCtx, state: newState }
     } else {
       // No owning aim found — just remove task and log
       newState = removeTask(newState, task.id)

@@ -1,5 +1,6 @@
 import type {
   ActorIntentId,
+  TaskId,
   ProvinceId,
   PolityId,
   LandContractId,
@@ -80,4 +81,9 @@ export type ActorIntent = {
   aimId?: AimId
   pressureId?: PressureId
   reasonIds?: DecisionReasonId[]
+
+  // v0.23 Task-driven Intent
+  activeTaskId?: TaskId
+  progress?: number
+  targetProgress?: number
 }

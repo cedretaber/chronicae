@@ -6,38 +6,130 @@ import { nameParam, entityRef } from '../types/event'
 import { clamp } from '../utils/math'
 import type { OrganizationShareId } from '../types/ids'
 import { createOrganizationShareId } from '../types/ids'
+import {
+  isActionIntentKind,
+  getIntentTargetProgress,
+  getInitialIntentTaskKind,
+  getNextIntentTaskKind,
+  createTaskForIntent,
+} from '../selectors/taskSelectors'
+import type { TaskKind } from '../types/task'
 
 export function runIntentActionSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
+  const absoluteWeek = currentCtx.state.absoluteWeek
 
   for (const [, intent] of Object.entries(currentCtx.state.actorIntents)) {
     if (!intent || intent.status !== 'active') continue
+    if (!isActionIntentKind(intent.kind)) continue
 
-    switch (intent.kind) {
-      case 'develop_holding':
-        currentCtx = processDevelopHolding(currentCtx, intent)
-        break
-      case 'expand_polity_share':
-        currentCtx = processExpandPolityShare(currentCtx, intent)
-        break
-      case 'promote_policy_shift':
-        currentCtx = processPromotePolicyShift(currentCtx, intent)
-        break
-      case 'patronize_artist':
-        currentCtx = processPatronizeArtist(currentCtx, intent)
-        break
-      case 'commission_chronicle':
-        currentCtx = processCommissionChronicle(currentCtx, intent)
-        break
-      default:
-        continue
+    // Task in progress — skip
+    if (intent.activeTaskId) {
+      const task = currentCtx.state.tasks[intent.activeTaskId]
+      if (task && task.status === 'active') continue
     }
+
+    // Initialize progress tracking for newly created intents
+    if (intent.progress === undefined) {
+      const updatedIntent: ActorIntent = {
+        ...intent,
+        progress: 0,
+        targetProgress: getIntentTargetProgress(intent.kind),
+      }
+      currentCtx = {
+        ...currentCtx,
+        state: {
+          ...currentCtx.state,
+          actorIntents: {
+            ...currentCtx.state.actorIntents,
+            [intent.id]: updatedIntent,
+          },
+        },
+      }
+      currentCtx = createIntentTask(currentCtx, updatedIntent, undefined, absoluteWeek)
+      continue
+    }
+
+    // All tasks completed — apply effect
+    if (intent.progress >= (intent.targetProgress ?? 1)) {
+      currentCtx = applyIntentEffect(currentCtx, intent)
+      continue
+    }
+
+    // Previous task completed, create next task
+    const prevTaskKind = findPreviousIntentTaskKind(currentCtx, intent)
+    currentCtx = createIntentTask(currentCtx, intent, prevTaskKind, absoluteWeek)
   }
 
   return currentCtx
 }
 
-function processDevelopHolding(ctx: TickContext, intent: ActorIntent): TickContext {
+function findPreviousIntentTaskKind(_ctx: TickContext, intent: ActorIntent): TaskKind | undefined {
+  // Look up the most recent completed task for this intent from activity logs
+  // Simple approach: derive from progress count and intent kind
+  if (intent.kind === 'develop_holding' && intent.progress === 1) {
+    return 'secure_development_budget'
+  }
+  return getInitialIntentTaskKind(intent.kind)
+}
+
+function createIntentTask(
+  ctx: TickContext,
+  intent: ActorIntent,
+  previousTaskKind: TaskKind | undefined,
+  absoluteWeek: number,
+): TickContext {
+  // Re-read intent from state (may have been updated)
+  const currentIntent = ctx.state.actorIntents[intent.id]
+  if (!currentIntent || currentIntent.status !== 'active') return ctx
+
+  let taskKind: TaskKind | undefined
+  if (previousTaskKind) {
+    taskKind = getNextIntentTaskKind(currentIntent.kind, previousTaskKind)
+  }
+  if (!taskKind) {
+    taskKind = getInitialIntentTaskKind(currentIntent.kind)
+  }
+  if (!taskKind) return markFailed(ctx, currentIntent)
+
+  const result = createTaskForIntent(ctx.state, ctx.config, currentIntent, taskKind, absoluteWeek)
+  if (!result) return markFailed(ctx, currentIntent)
+
+  const updatedIntent: ActorIntent = {
+    ...currentIntent,
+    activeTaskId: result.task.id,
+  }
+
+  return {
+    ...ctx,
+    state: {
+      ...result.state,
+      actorIntents: {
+        ...result.state.actorIntents,
+        [currentIntent.id]: updatedIntent,
+      },
+    },
+  }
+}
+
+function applyIntentEffect(ctx: TickContext, intent: ActorIntent): TickContext {
+  switch (intent.kind) {
+    case 'develop_holding':
+      return applyDevelopHolding(ctx, intent)
+    case 'expand_polity_share':
+      return applyExpandPolityShare(ctx, intent)
+    case 'promote_policy_shift':
+      return applyPromotePolicyShift(ctx, intent)
+    case 'patronize_artist':
+      return applyPatronizeArtist(ctx, intent)
+    case 'commission_chronicle':
+      return applyCommissionChronicle(ctx, intent)
+    default:
+      return markFailed(ctx, intent)
+  }
+}
+
+function applyDevelopHolding(ctx: TickContext, intent: ActorIntent): TickContext {
   if (intent.actor.kind !== 'polity') return markFailed(ctx, intent)
   const polityId = intent.actor.id
   const polity = ctx.state.polities[polityId]
@@ -49,7 +141,6 @@ function processDevelopHolding(ctx: TickContext, intent: ActorIntent): TickConte
   const holding = ctx.state.holdings[holdingId]
   if (!holding) return markFailed(ctx, intent)
 
-  // Check terminal polity matches
   const tp = ctx.state.holdingTerminalPolityCache[holdingId]
   if (!tp || (tp as string) !== (polityId as string)) return markFailed(ctx, intent)
 
@@ -69,7 +160,6 @@ function processDevelopHolding(ctx: TickContext, intent: ActorIntent): TickConte
     },
   }
 
-  // Emit event
   const provinceId = holding.provinceId
   const polityNameKey = polity.nameKey
   const provinceNameKey = currentCtx.state.provinces[provinceId]?.nameKey ?? provinceId
@@ -91,7 +181,7 @@ function processDevelopHolding(ctx: TickContext, intent: ActorIntent): TickConte
   return markSucceeded(currentCtx, intent)
 }
 
-function processExpandPolityShare(ctx: TickContext, intent: ActorIntent): TickContext {
+function applyExpandPolityShare(ctx: TickContext, intent: ActorIntent): TickContext {
   if (intent.actor.kind !== 'house') return markFailed(ctx, intent)
   const houseId = intent.actor.id
   const house = ctx.state.houses[houseId]
@@ -103,7 +193,6 @@ function processExpandPolityShare(ctx: TickContext, intent: ActorIntent): TickCo
   const polity = ctx.state.polities[polityId]
   if (!polity || !polity.active) return markFailed(ctx, intent)
 
-  // Find existing share or create new one
   const shareIds = ctx.state.shareIndex.byOrganization[polityId] ?? []
   let existingShareId: OrganizationShareId | undefined
   for (const sid of shareIds) {
@@ -142,7 +231,6 @@ function processExpandPolityShare(ctx: TickContext, intent: ActorIntent): TickCo
       }
     }
   } else {
-    // Create new share
     const newShareId = createOrganizationShareId(currentCtx.state.nextOrganizationShareId)
     const newShare = {
       id: newShareId,
@@ -173,7 +261,6 @@ function processExpandPolityShare(ctx: TickContext, intent: ActorIntent): TickCo
     }
   }
 
-  // Emit event
   const houseNameKey = house.nameKey
   const polityNameKey = polity.nameKey
   const { event, ctx: evCtx } = createSimEvent(currentCtx, {
@@ -194,7 +281,7 @@ function processExpandPolityShare(ctx: TickContext, intent: ActorIntent): TickCo
   return markSucceeded(currentCtx, intent)
 }
 
-function processPromotePolicyShift(ctx: TickContext, intent: ActorIntent): TickContext {
+function applyPromotePolicyShift(ctx: TickContext, intent: ActorIntent): TickContext {
   if (intent.actor.kind !== 'house') return markFailed(ctx, intent)
   const houseId = intent.actor.id
   const house = ctx.state.houses[houseId]
@@ -206,8 +293,6 @@ function processPromotePolicyShift(ctx: TickContext, intent: ActorIntent): TickC
   if (!polity || !polity.active) return markFailed(ctx, intent)
 
   let currentCtx = ctx
-
-  // No cost for promote_policy_shift
 
   const houseNameKey = house.nameKey
   const polityNameKey = polity.nameKey
@@ -229,7 +314,7 @@ function processPromotePolicyShift(ctx: TickContext, intent: ActorIntent): TickC
   return markSucceeded(currentCtx, intent)
 }
 
-function processPatronizeArtist(ctx: TickContext, intent: ActorIntent): TickContext {
+function applyPatronizeArtist(ctx: TickContext, intent: ActorIntent): TickContext {
   if (intent.actor.kind !== 'house') return markFailed(ctx, intent)
   const houseId = intent.actor.id
   const house = ctx.state.houses[houseId]
@@ -264,7 +349,7 @@ function processPatronizeArtist(ctx: TickContext, intent: ActorIntent): TickCont
   return markSucceeded(currentCtx, intent)
 }
 
-function processCommissionChronicle(ctx: TickContext, intent: ActorIntent): TickContext {
+function applyCommissionChronicle(ctx: TickContext, intent: ActorIntent): TickContext {
   if (intent.actor.kind !== 'house') return markFailed(ctx, intent)
   const houseId = intent.actor.id
   const house = ctx.state.houses[houseId]
@@ -299,9 +384,7 @@ function processCommissionChronicle(ctx: TickContext, intent: ActorIntent): Tick
   return markSucceeded(currentCtx, intent)
 }
 
-// Mark intent as converted and update Aim progress
 function markSucceeded(ctx: TickContext, intent: ActorIntent): TickContext {
-  // Set intent to converted
   let currentCtx: TickContext = {
     ...ctx,
     state: {
@@ -313,11 +396,9 @@ function markSucceeded(ctx: TickContext, intent: ActorIntent): TickContext {
     },
   }
 
-  // Update Aim progress
   if (intent.aimId) {
     const aim = currentCtx.state.aims[intent.aimId]
     if (aim) {
-      // Build new aim without activeIntentId, with updated progress
       const entries = Object.entries(aim).filter(([k]) => k !== 'activeIntentId')
       const cleaned = Object.fromEntries(entries) as typeof aim
       const newProgress = clamp(aim.progress + 1, 0, aim.targetProgress)
@@ -372,7 +453,6 @@ function markFailed(ctx: TickContext, intent: ActorIntent): TickContext {
   if (intent.aimId) {
     const aim = currentCtx.state.aims[intent.aimId]
     if (aim) {
-      // Build new aim without activeIntentId, with updated failed count
       const entries = Object.entries(aim).filter(([k]) => k !== 'activeIntentId')
       const cleaned = Object.fromEntries(entries) as typeof aim
       const updated = {
