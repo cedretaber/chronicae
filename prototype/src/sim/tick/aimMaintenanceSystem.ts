@@ -210,7 +210,7 @@ function getOwnerNameKey(ctx: TickContext, owner: DecisionSubjectRef): string {
   if (owner.kind === 'house') {
     return ctx.state.houses[owner.id]?.nameKey ?? owner.id
   }
-  return owner.id
+  return ctx.state.persons[owner.id]?.nameKey ?? owner.id
 }
 
 function getTargetName(ctx: TickContext, target: EntityRef): string {
@@ -222,6 +222,28 @@ function getTargetName(ctx: TickContext, target: EntityRef): string {
   }
   if (target.kind === 'province') {
     return ctx.state.provinces[target.id]?.nameKey ?? target.id
+  }
+  if (target.kind === 'state') {
+    return ctx.state.states[target.id]?.nameKey ?? target.id
+  }
+  if (target.kind === 'holding') {
+    return target.id
+  }
+  if (target.kind === 'land_contract') {
+    return target.id
+  }
+  if (target.kind === 'aim') {
+    return target.id
+  }
+  if (target.kind === 'office') {
+    const org =
+      target.organization.kind === 'polity'
+        ? ctx.state.polities[target.organization.id]?.nameKey
+        : ctx.state.houses[target.organization.id]?.nameKey
+    return org ? `${org}:${target.role}` : target.role
+  }
+  if (target.kind === 'ability') {
+    return target.ability
   }
   return target.id
 }

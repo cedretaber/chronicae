@@ -29,6 +29,9 @@ import { runIntentToDiplomaticPlaySystem } from './intentToDiplomaticPlaySystem'
 import { runIntentActionSystem } from './intentActionSystem'
 import { runGoalMaintenanceSystem } from './goalMaintenanceSystem'
 import { runAimMaintenanceSystem } from './aimMaintenanceSystem'
+import { runPersonGoalMaintenanceSystem } from './personGoalMaintenanceSystem'
+import { runPersonAimMaintenanceSystem } from './personAimMaintenanceSystem'
+import { runTaskSystem } from './taskSystem'
 import { runConflictResolutionSystem } from './conflictResolutionSystem'
 import { runAimOutcomeSystem } from './aimOutcomeSystem'
 import { runGoalOutcomeSystem } from './goalOutcomeSystem'
@@ -117,6 +120,7 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runShareUpdateSystem,
   },
   { name: 'appointmentSystem', intervalWeeks: 12, phaseOffsetWeeks: 0, run: runAppointmentSystem },
+  { name: 'taskSystem', intervalWeeks: 1, phaseOffsetWeeks: 0, run: runTaskSystem },
   {
     name: 'bailiffAppointmentSystem',
     intervalWeeks: 12,
@@ -178,6 +182,18 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runPopDevelopmentSystem,
   },
   { name: 'plotSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPlotSystem },
+  {
+    name: 'personGoalMaintenanceSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runPersonGoalMaintenanceSystem,
+  },
+  {
+    name: 'personAimMaintenanceSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runPersonAimMaintenanceSystem,
+  },
   {
     name: 'goalMaintenanceSystem',
     intervalWeeks: 4,

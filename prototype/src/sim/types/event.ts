@@ -102,6 +102,14 @@ export type EventType =
   | 'HOUSE_POLICY_INFLUENCE'
   | 'HOUSE_PATRONIZED_ARTIST'
   | 'HOUSE_COMMISSIONED_CHRONICLE'
+  // v0.23 Person Goal/Aim/Task
+  | 'PERSON_GOAL_CREATED'
+  | 'PERSON_AIM_CREATED'
+  | 'PERSON_AIM_SUCCEEDED'
+  | 'PERSON_AIM_FAILED'
+  | 'TASK_COMPLETED'
+  | 'TASK_FAILED'
+  | 'TASK_CANCELLED'
 
 export type EventReason = {
   label: string
@@ -351,6 +359,12 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'house.policy_influence': '{{house}} influenced the policies of {{polity}}.',
   'house.patronized_artist': '{{house}} patronized an artist, gaining prestige.',
   'house.commissioned_chronicle': '{{house}} commissioned a chronicle of their deeds.',
+  'person.goal.created': '{{owner}} set a personal goal: {{kind}}.',
+  'person.aim.created': '{{owner}} began pursuing {{kind}}.',
+  'person.aim.succeeded': '{{owner}} successfully achieved {{kind}}.',
+  'person.aim.failed': '{{owner}} failed at {{kind}}.',
+  'task.cancelled': "{{person}}'s task {{task}} was cancelled ({{reason}}).",
+  'task.review_waiting': '{{person}} is waiting for an opportunity regarding {{kind}}.',
 }
 
 export type EventImportance = 'minor' | 'normal' | 'major' | 'critical'

@@ -10,6 +10,7 @@ import {
 import { getHousePolitySharePercent, getPersonHouseSharePercent } from '../selectors/shareSelectors'
 import { getPersonPrestige } from '../selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
+import { getAppointmentTaskModifier } from '../selectors/appointmentTaskSelectors'
 
 import type { PersonId, PolityId, HouseId } from '../types/ids'
 import type { OfficeRole, OrganizationRef } from '../types/office'
@@ -198,7 +199,8 @@ function computePolityScoreV017(
     personSharePct * config.houseShareAppointmentFactor +
     ownerHouseBonus -
     compatibilityPenalty -
-    sameHouseEffective
+    sameHouseEffective +
+    getAppointmentTaskModifier(state, config, personId, { kind: 'polity', id: polity.id }, role)
   )
 }
 
@@ -239,7 +241,8 @@ function computeHouseScoreV017(
     leaderRespect * 5 +
     houseAffection * 3 +
     personSharePct * 0.1 -
-    compatibilityPenalty
+    compatibilityPenalty +
+    getAppointmentTaskModifier(state, config, personId, { kind: 'house', id: house.id }, role)
   )
 }
 

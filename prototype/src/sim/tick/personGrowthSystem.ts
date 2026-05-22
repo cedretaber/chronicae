@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import type { PersonId } from '../types/ids'
-import type { AbilityScores } from '../types/person'
+import type { AbilityScores, AbilityKey } from '../types/person'
 import { ABILITY_KEYS, ABILITY_AGE_CURVES, ABILITY_HARD_CAP } from '../constants/abilityConstants'
 import { naturalFraction, hadRelevantExperience } from '../selectors/abilitySelectors'
 import { randomFloat } from '../rng/rng'
@@ -28,7 +28,12 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
 
       // Growth
       if (ability < effectiveCeil && effectiveCeil > 0) {
-        const gainChance = ctx.config.abilityGrowthChanceBase * (1 - ability / effectiveCeil)
+        let gainChance = ctx.config.abilityGrowthChanceBase * (1 - ability / effectiveCeil)
+        const personExp = ctx.state.personTrainingExperience[person.id]
+        const trainingExp = personExp ? ((personExp as Record<string, number>)[k] ?? 0) : 0
+        if (trainingExp > 0) {
+          gainChance += trainingExp * 0.05
+        }
         const { value: roll, rng: nextRng } = randomFloat(rng)
         rng = nextRng
         if (roll < gainChance / 100) {
@@ -51,6 +56,45 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
           if (roll < declineChance / 100) {
             newAbilities[k] = Math.max(ability - 1, 0)
             changed = true
+          }
+        }
+      }
+    }
+
+    // Decay training experience for this person
+    {
+      const existingExp = ctx.state.personTrainingExperience[person.id]
+      if (existingExp) {
+        const decayed: Partial<Record<AbilityKey, number>> = {}
+        let hasAny = false
+        for (const [ek, ev] of Object.entries(existingExp) as [AbilityKey, number][]) {
+          const newVal = ev * ctx.config.trainingExperienceDecayRate
+          if (newVal >= 0.1) {
+            decayed[ek] = newVal
+            hasAny = true
+          }
+        }
+        if (hasAny) {
+          ctx = {
+            ...ctx,
+            state: {
+              ...ctx.state,
+              personTrainingExperience: {
+                ...ctx.state.personTrainingExperience,
+                [person.id]: decayed,
+              },
+            },
+          }
+        } else {
+          ctx = {
+            ...ctx,
+            state: {
+              ...ctx.state,
+              personTrainingExperience: {
+                ...ctx.state.personTrainingExperience,
+                [person.id]: {},
+              },
+            },
           }
         }
       }

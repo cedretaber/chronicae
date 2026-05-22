@@ -339,6 +339,31 @@ export type SimulationConfig = {
   goalProgressOnAimAbandoned: number
   aimDefaultDeadlineWeeks: number
   aimIntentCooldownWeeks: number
+  // v0.23 Person Goal/Aim/Task
+  personGoalReviewIntervalWeeks: number
+  personAimReviewIntervalWeeks: number
+  maxActivityLogsPerPerson: number
+  wealthAccumulationThreshold: number
+  personAimDeadlineObtainOffice: number
+  personAimDeadlineRetainOffice: number
+  personAimDeadlineDefault: number
+  taskActionCostLight: number
+  taskActionCostNormal: number
+  taskActionCostHeavy: number
+  taskEffortRequiredLight: number
+  taskEffortRequiredNormal: number
+  taskEffortRequiredHeavy: number
+  taskTrainingExperienceGain: number
+  trainingExperienceDecayRate: number
+  appointmentTaskModifierValue: number
+  appointmentTaskModifierDurationWeeks: number
+  goalProgressOnPersonAimSucceeded: number
+  goalProgressOnPersonAimFailed: number
+  weeklyActionCapacityBase: number
+  weeklyActionCapacityAmbitionBonus: number
+  weeklyActionCapacityAgeReduction: number
+  weeklyActionCapacityAmbitionThreshold: number
+  weeklyActionCapacityAgeThreshold: number
   developHoldingCost: number
   developHoldingGain: number
   expandPolityShareCost: number
@@ -836,6 +861,31 @@ export const defaultConfig: SimulationConfig = {
   commissionChroniclePrestigeGain: 5,
   policyInfluenceBonusBase: 10,
   policyInfluenceBonusShareFactor: 0.5,
+  // v0.23 Person Goal/Aim/Task
+  personGoalReviewIntervalWeeks: 48,
+  personAimReviewIntervalWeeks: 4,
+  maxActivityLogsPerPerson: 30,
+  wealthAccumulationThreshold: 50,
+  personAimDeadlineObtainOffice: 96,
+  personAimDeadlineRetainOffice: 48,
+  personAimDeadlineDefault: 96,
+  taskActionCostLight: 0.5,
+  taskActionCostNormal: 1.0,
+  taskActionCostHeavy: 1.0,
+  taskEffortRequiredLight: 2,
+  taskEffortRequiredNormal: 3,
+  taskEffortRequiredHeavy: 4,
+  taskTrainingExperienceGain: 2.0,
+  trainingExperienceDecayRate: 0.5,
+  appointmentTaskModifierValue: 4,
+  appointmentTaskModifierDurationWeeks: 16,
+  goalProgressOnPersonAimSucceeded: 15,
+  goalProgressOnPersonAimFailed: -5,
+  weeklyActionCapacityBase: 2.0,
+  weeklyActionCapacityAmbitionBonus: 0.5,
+  weeklyActionCapacityAgeReduction: 0.5,
+  weeklyActionCapacityAmbitionThreshold: 0.7,
+  weeklyActionCapacityAgeThreshold: 60,
   // v0.12 Administrative capacity
   baseCountryInstitutionalCapacity: 20,
   rulerAdminCapacityFactor: 4,

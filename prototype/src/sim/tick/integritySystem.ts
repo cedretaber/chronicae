@@ -1814,6 +1814,122 @@ export function collectIntegrityErrors(
     }
   }
 
+  // --- v0.23: Task integrity ---
+  for (const [taskIdStr, task] of Object.entries(state.tasks)) {
+    if (!task) continue
+    // Assignee must exist, be alive, and not be placeholder
+    const assignee = state.persons[task.assigneePersonId]
+    if (!assignee) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Task ${taskIdStr}: assignee ${task.assigneePersonId} does not exist`,
+      })
+    } else if (!assignee.alive) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Task ${taskIdStr}: assignee ${task.assigneePersonId} is dead`,
+      })
+    } else if (assignee.kind === 'placeholder') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Task ${taskIdStr}: assignee ${task.assigneePersonId} is placeholder`,
+      })
+    }
+    // Active task target should not be terminal
+    if (task.status === 'active' && task.targetRef.kind === 'aim') {
+      const targetAim = state.aims[task.targetRef.id]
+      if (targetAim && targetAim.status !== 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Task ${taskIdStr}: active task targets terminal aim ${task.targetRef.id} (status=${targetAim.status})`,
+        })
+      }
+    }
+  }
+
+  // --- v0.23: Person Goal integrity ---
+  for (const [personIdStr, person] of Object.entries(state.persons)) {
+    if (!person || !person.alive) continue
+    if (person.kind === 'placeholder') continue
+    if (person.age < 15) continue // adultAge
+
+    const house = state.houses[person.houseId]
+    if (!house || !house.active) continue
+
+    // Count active Person Goals (check for > 1, which is always invalid)
+    const ownerKey = `person:${personIdStr}`
+    const goalIds = state.goalIndex.byOwner[ownerKey]
+    let activeGoalCount = 0
+    if (goalIds) {
+      for (const gid of goalIds) {
+        const goal = state.goals[gid]
+        if (goal && goal.status === 'active') activeGoalCount++
+      }
+    }
+    if (activeGoalCount > 1) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Person ${personIdStr}: expected at most 1 active Person Goal, found ${activeGoalCount}`,
+      })
+    }
+  }
+
+  // --- v0.23: Aim activeTaskId / activeIntentId / activeDiplomaticPlayId mutual exclusion ---
+  for (const [aimIdStr, aim] of Object.entries(state.aims)) {
+    if (!aim || aim.status !== 'active') continue
+    let count = 0
+    if (aim.activeTaskId) count++
+    if (aim.activeIntentId) count++
+    if (aim.activeDiplomaticPlayId) count++
+    if (count > 1) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Aim ${aimIdStr}: has ${count} active refs (activeTaskId/activeIntentId/activeDiplomaticPlayId) but at most 1 is allowed`,
+      })
+    }
+  }
+
+  // --- v0.23: Person Goal progress range ---
+  for (const [goalIdStr, goal] of Object.entries(state.goals)) {
+    if (!goal) continue
+    if (goal.owner.kind === 'person') {
+      if (goal.progress < 0 || goal.progress > 100) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Person Goal ${goalIdStr}: progress ${goal.progress} outside range [0, 100]`,
+        })
+      }
+    }
+  }
+
+  // --- v0.23: support_organization_aim target integrity ---
+  for (const [aimIdStr, aim] of Object.entries(state.aims)) {
+    if (!aim) continue
+    if (aim.kind !== 'support_organization_aim') continue
+    if (aim.status !== 'active') continue
+
+    if (!aim.target || aim.target.kind !== 'aim') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `support_organization_aim ${aimIdStr}: missing or invalid target (expected kind='aim')`,
+      })
+      continue
+    }
+
+    const targetAim = state.aims[aim.target.id]
+    if (!targetAim) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `support_organization_aim ${aimIdStr}: target aim ${aim.target.id as string} not found`,
+      })
+    } else if (targetAim.status !== 'active') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `support_organization_aim ${aimIdStr}: active but target aim ${aim.target.id as string} is ${targetAim.status}`,
+      })
+    }
+  }
+
   return errors
 }
 

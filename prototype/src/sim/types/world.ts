@@ -19,6 +19,8 @@ import type {
   GoalId,
   AimId,
   DecisionReasonId,
+  TaskId,
+  PersonActivityLogId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -42,6 +44,14 @@ import type { ActorIntent } from './actorIntent'
 import type { DiplomaticPlay } from './diplomaticPlay'
 import type { StateRegion } from './stateRegion'
 import type { Goal, Aim, DecisionReason, GoalIndex, AimIndex } from './goal'
+import type {
+  Task,
+  TaskIndex,
+  PersonActivityLog,
+  PersonActivityLogIndex,
+  AbilityTrainingExperience,
+  WaitingAimIndex,
+} from './task'
 
 export type WorldState = {
   currentYear: number
@@ -77,6 +87,13 @@ export type WorldState = {
   goalIndex: GoalIndex
   aimIndex: AimIndex
   diplomaticPlays: Record<DiplomaticPlayId, DiplomaticPlay>
+  // v0.23 Task/ActivityLog
+  tasks: Record<TaskId, Task>
+  taskIndex: TaskIndex
+  personActivityLogs: Record<PersonActivityLogId, PersonActivityLog>
+  personActivityLogIndex: PersonActivityLogIndex
+  personTrainingExperience: Record<PersonId, AbilityTrainingExperience>
+  waitingAimIds: WaitingAimIndex
   // v0.22
   nextGoalId: number
   nextAimId: number
@@ -90,6 +107,9 @@ export type WorldState = {
   // v0.18 Stage A §6.6
   nextActorIntentId: number
   nextDiplomaticPlayId: number
+  // v0.23
+  nextTaskId: number
+  nextPersonActivityLogId: number
 }
 
 export type SimulationSession = {

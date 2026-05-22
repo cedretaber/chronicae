@@ -27,6 +27,7 @@ const ALL_NAMESPACES: I18nNamespace[] = [
   'goals',
   'aims',
   'intents',
+  'tasks',
   'decision_reasons',
   'perceptions',
 ]

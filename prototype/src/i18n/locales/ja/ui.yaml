@@ -117,6 +117,13 @@ event_type:
   ACTOR_INTENT_CREATED: '意図表明'
   ACTOR_INTENT_CONVERTED: '意図転換'
   DIPLOMATIC_PLAY_ESCALATED: '外交激化'
+  PERSON_GOAL_CREATED: '個人目標'
+  PERSON_AIM_CREATED: '個人目論見'
+  PERSON_AIM_SUCCEEDED: '目論見達成'
+  PERSON_AIM_FAILED: '目論見失敗'
+  TASK_COMPLETED: 'タスク完了'
+  TASK_FAILED: 'タスク失敗'
+  TASK_CANCELLED: 'タスク中止'
 
 sidebar:
   watchlist: 'ウォッチリスト'
@@ -251,6 +258,15 @@ detail:
     attitudes: '感情'
     affection: '親愛'
     respect: '敬意'
+    current_goal: '人生目標'
+    goal_fulfillment: '充足度'
+    active_aim: '現在の目論見'
+    aim_progress: '進捗'
+    aim_deadline: '期限'
+    aim_status_waiting: '待機中'
+    active_task: '現在の仕事'
+    task_effort: '進行度'
+    recent_activities: '近況'
 
   # プロヴィンス詳細
   province:

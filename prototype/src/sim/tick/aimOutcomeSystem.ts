@@ -88,5 +88,5 @@ function getOwnerNameKey(ctx: TickContext, owner: DecisionSubjectRef): string {
   if (owner.kind === 'house') {
     return ctx.state.houses[owner.id]?.nameKey ?? owner.id
   }
-  return owner.id
+  return ctx.state.persons[owner.id]?.nameKey ?? owner.id
 }

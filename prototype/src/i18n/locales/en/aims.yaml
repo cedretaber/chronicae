@@ -10,3 +10,10 @@ house:
   steer_polity_internal_development: Steer Polity Toward Development
   patronize_artist: Patronize an Artist
   commission_chronicle: Commission a Chronicle
+person:
+  support_organization_aim: Support Organization's Aim
+  increase_house_influence: Increase House Influence
+  obtain_office: Obtain Office
+  retain_office: Retain Office
+  accumulate_wealth: Accumulate Wealth
+  improve_ability: Improve Ability

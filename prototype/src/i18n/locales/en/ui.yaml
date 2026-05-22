@@ -155,6 +155,15 @@ detail:
     attitudes: 'Attitudes'
     affection: 'Affection'
     respect: 'Respect'
+    current_goal: 'Life Goal'
+    goal_fulfillment: 'Fulfillment'
+    active_aim: 'Current Pursuit'
+    aim_progress: 'Progress'
+    aim_deadline: 'Deadline'
+    aim_status_waiting: 'Waiting'
+    active_task: 'Current Task'
+    task_effort: 'Effort'
+    recent_activities: 'Recent Activities'
 
   # Province detail
   province:

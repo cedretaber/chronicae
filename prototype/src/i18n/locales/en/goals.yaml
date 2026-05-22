@@ -6,3 +6,9 @@ house:
   expand_power_base: Expand Power Base
   preserve_power_base: Preserve Power Base
   cultivate_prestige: Cultivate Prestige
+person:
+  house_loyalty: Loyalty to House
+  public_service: Public Service
+  personal_advancement: Personal Advancement
+  wealth_building: Wealth Building
+  self_cultivation: Self-Cultivation

@@ -33,11 +33,13 @@ export function runGoalOutcomeSystem(ctx: TickContext): TickContext {
       progressDelta = currentCtx.config.goalProgressOnAimAbandoned
     }
 
-    const newProgress = clamp(goal.progress + progressDelta, 0, goal.targetProgress)
+    const isPersonGoal = goal.owner.kind === 'person'
+    const progressCeil = isPersonGoal ? 100 : goal.targetProgress
+    const newProgress = clamp(goal.progress + progressDelta, 0, progressCeil)
     let updatedGoal: Goal = { ...goal, progress: newProgress }
 
-    // Check if goal should succeed
-    if (updatedGoal.progress >= updatedGoal.targetProgress) {
+    // Person Goal は fulfillment であり succeeded にならない
+    if (!isPersonGoal && updatedGoal.progress >= updatedGoal.targetProgress) {
       updatedGoal = { ...updatedGoal, status: 'succeeded' }
 
       const ownerNameKey = getOwnerNameKey(currentCtx, goal.owner)
@@ -73,5 +75,5 @@ function getOwnerNameKey(ctx: TickContext, owner: DecisionSubjectRef): string {
   if (owner.kind === 'house') {
     return ctx.state.houses[owner.id]?.nameKey ?? owner.id
   }
-  return owner.id
+  return ctx.state.persons[owner.id]?.nameKey ?? owner.id
 }

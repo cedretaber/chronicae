@@ -151,5 +151,9 @@ function isDecisionSubjectActive(state: WorldState, owner: DecisionSubjectRef): 
     const house = state.houses[owner.id]
     return house !== undefined && house.active && house.kind !== 'system'
   }
+  if (owner.kind === 'person') {
+    const person = state.persons[owner.id]
+    return person !== undefined && person.alive && person.kind !== 'placeholder'
+  }
   return false
 }

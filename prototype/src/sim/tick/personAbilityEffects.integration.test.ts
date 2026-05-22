@@ -385,6 +385,14 @@ describe('runControlSystem — capital province maxControl', () => {
       nextGoalId: 0,
       nextAimId: 0,
       nextDecisionReasonId: 0,
+      tasks: {},
+      taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
+      personActivityLogs: {},
+      personActivityLogIndex: { byPerson: {} },
+      personTrainingExperience: {},
+      waitingAimIds: [],
+      nextTaskId: 0,
+      nextPersonActivityLogId: 0,
     }
 
     const result = runControlSystem(makeCtx(world))

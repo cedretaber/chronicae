@@ -76,6 +76,9 @@ import { decisionSubjectKey } from '../types/goal'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { selectGoalKind, pickAimForGoal } from '../selectors/goalSelectors'
+import { selectPersonGoalKind } from '../selectors/personGoalSelectors'
+import { pickPersonAim } from '../selectors/personAimSelectors'
+import { createInitialTaskForAim } from '../selectors/taskSelectors'
 
 function seedGoalAndAim(
   state: WorldState,
@@ -1688,6 +1691,15 @@ export function generateWorld(
     nextGoalId: 0,
     nextAimId: 0,
     nextDecisionReasonId: 0,
+    // v0.23 Task/ActivityLog
+    tasks: {},
+    taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
+    personActivityLogs: {},
+    personActivityLogIndex: { byPerson: {} },
+    personTrainingExperience: {},
+    waitingAimIds: [],
+    nextTaskId: 0,
+    nextPersonActivityLogId: 0,
   }
 
   // v0.22: Seed initial Goal + Aim for all active Polities and Houses
@@ -1714,6 +1726,136 @@ export function generateWorld(
     if (result) {
       seededWorld = result.state
       seedRng = result.rng
+    }
+  }
+
+  // v0.23: Seed Person goals and aims
+  for (const personId of Object.keys(seededWorld.persons).sort()) {
+    const person = seededWorld.persons[personId as PersonId]
+    if (!person || !person.alive) continue
+    if (person.kind === 'placeholder') continue
+    if (person.age < defaultConfig.adultAge) continue
+    const house = seededWorld.houses[person.houseId]
+    if (!house || !house.active) continue
+
+    // Create Person Goal
+    const goalSelection = selectPersonGoalKind(
+      seededWorld,
+      defaultConfig,
+      personId as PersonId,
+      seedRng,
+    )
+    if (!goalSelection) continue
+    const { kind: goalKind, rng: rng1 } = goalSelection
+    seedRng = rng1
+
+    const owner: DecisionSubjectRef = { kind: 'person', id: personId as PersonId }
+    const goalReasonId = createDecisionReasonId(seededWorld.nextDecisionReasonId)
+    const goalReason: DecisionReason = {
+      id: goalReasonId,
+      owner,
+      summaryKey: `decision.reason.goal.${goalKind}`,
+      weight: 1,
+      createdWeek: seededWorld.absoluteWeek,
+    }
+    const goalId = createGoalId(seededWorld.nextGoalId)
+    const goal: Goal = {
+      id: goalId,
+      owner,
+      kind: goalKind,
+      priority: 1,
+      progress: 0,
+      targetProgress: 100,
+      createdWeek: seededWorld.absoluteWeek,
+      minimumUntilWeek: seededWorld.absoluteWeek + defaultConfig.goalMinimumDurationWeeks,
+      lastReviewWeek: seededWorld.absoluteWeek,
+      nextReviewWeek: seededWorld.absoluteWeek + defaultConfig.personGoalReviewIntervalWeeks,
+      status: 'active',
+      reasonIds: [goalReasonId],
+    }
+
+    const ownerKey = decisionSubjectKey(owner)
+    const existingGoalIds = seededWorld.goalIndex.byOwner[ownerKey] ?? []
+
+    seededWorld = {
+      ...seededWorld,
+      goals: { ...seededWorld.goals, [goalId]: goal },
+      decisionReasons: { ...seededWorld.decisionReasons, [goalReasonId]: goalReason },
+      goalIndex: {
+        byOwner: { ...seededWorld.goalIndex.byOwner, [ownerKey]: [...existingGoalIds, goalId] },
+      },
+      nextGoalId: seededWorld.nextGoalId + 1,
+      nextDecisionReasonId: seededWorld.nextDecisionReasonId + 1,
+    }
+
+    // Create Person Aim
+    const aimResult = pickPersonAim(seededWorld, defaultConfig, personId as PersonId, goal, seedRng)
+    if (!aimResult) continue
+    const { kind: aimKind, target, rng: rng2 } = aimResult
+    seedRng = rng2
+
+    const aimReasonId = createDecisionReasonId(seededWorld.nextDecisionReasonId)
+    const aimReason: DecisionReason = {
+      id: aimReasonId,
+      owner,
+      summaryKey: `decision.reason.aim.${aimKind}`,
+      weight: 1,
+      createdWeek: seededWorld.absoluteWeek,
+    }
+    const aimId = createAimId(seededWorld.nextAimId)
+    const deadlineWeeks =
+      aimKind === 'obtain_office'
+        ? defaultConfig.personAimDeadlineObtainOffice
+        : aimKind === 'retain_office'
+          ? defaultConfig.personAimDeadlineRetainOffice
+          : defaultConfig.personAimDeadlineDefault
+    const targetProgress = aimKind === 'obtain_office' ? 2 : 3
+    const aim: Aim = {
+      id: aimId,
+      owner,
+      goalId,
+      origin: 'goal_driven',
+      kind: aimKind,
+      priority: 1,
+      progress: 0,
+      targetProgress,
+      createdWeek: seededWorld.absoluteWeek,
+      deadlineWeek: seededWorld.absoluteWeek + deadlineWeeks,
+      successfulIntentCount: 0,
+      failedIntentCount: 0,
+      status: 'active',
+      reasonIds: [aimReasonId],
+      ...(target !== undefined ? { target } : {}),
+    }
+
+    const existingAimOwner = seededWorld.aimIndex.byOwner[ownerKey] ?? []
+    const existingAimGoal = seededWorld.aimIndex.byGoal[goalId as string] ?? []
+
+    seededWorld = {
+      ...seededWorld,
+      aims: { ...seededWorld.aims, [aimId]: aim },
+      decisionReasons: { ...seededWorld.decisionReasons, [aimReasonId]: aimReason },
+      aimIndex: {
+        byOwner: { ...seededWorld.aimIndex.byOwner, [ownerKey]: [...existingAimOwner, aimId] },
+        byGoal: { ...seededWorld.aimIndex.byGoal, [goalId as string]: [...existingAimGoal, aimId] },
+      },
+      nextAimId: seededWorld.nextAimId + 1,
+      nextDecisionReasonId: seededWorld.nextDecisionReasonId + 1,
+    }
+
+    // Create initial Task for the Aim
+    const taskResult = createInitialTaskForAim(
+      seededWorld,
+      defaultConfig,
+      aim,
+      seededWorld.absoluteWeek,
+    )
+    if (taskResult) {
+      const aimWithTask: Aim = { ...aim, activeTaskId: taskResult.task.id }
+      seededWorld = {
+        ...taskResult.state,
+        aims: { ...taskResult.state.aims, [aimId]: aimWithTask },
+      }
     }
   }
 

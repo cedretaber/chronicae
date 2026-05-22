@@ -6,6 +6,12 @@ person:
   born: '{{child}}が誕生した。'
   born_in_obscurity: '無名の{{occupation}}、{{person}}が現れた。'
   faded_from_history: '{{person}}は歴史の彼方へ消えた。'
+  goal:
+    created: '{{owner}}は個人的な目標を掲げた：{{kind}}'
+  aim:
+    created: '{{owner}}は{{kind}}に取り組み始めた。'
+    succeeded: '{{owner}}は{{kind}}を成し遂げた。'
+    failed: '{{owner}}は{{kind}}に挫折した。'
 
 marriage:
   formed: '{{male}}と{{female}}が結婚した。'
@@ -138,3 +144,7 @@ aim:
   succeeded: '{{owner}}は{{kind}}を完遂した。'
   failed: '{{owner}}は{{kind}}に失敗した。'
   abandoned: '{{owner}}は{{kind}}を断念した。'
+
+task:
+  cancelled: '{{person}}の{{task}}が中止された（{{reason}}）。'
+  review_waiting: '{{person}}は{{kind}}の機会を窺っている。'

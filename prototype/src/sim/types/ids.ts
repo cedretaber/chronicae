@@ -108,3 +108,14 @@ export function createAimId(n: number): AimId {
 export function createDecisionReasonId(n: number): DecisionReasonId {
   return ('dr-' + n) as DecisionReasonId
 }
+
+export type TaskId = Branded<string, 'TaskId'>
+export type PersonActivityLogId = Branded<string, 'PersonActivityLogId'>
+
+export function createTaskId(n: number): TaskId {
+  return ('tk-' + n) as TaskId
+}
+
+export function createPersonActivityLogId(n: number): PersonActivityLogId {
+  return ('al-' + n) as PersonActivityLogId
+}

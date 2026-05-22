@@ -145,6 +145,14 @@ describe('runIntegritySystem', () => {
       nextGoalId: 0,
       nextAimId: 0,
       nextDecisionReasonId: 0,
+      tasks: {},
+      taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
+      personActivityLogs: {},
+      personActivityLogIndex: { byPerson: {} },
+      personTrainingExperience: {},
+      waitingAimIds: [],
+      nextTaskId: 0,
+      nextPersonActivityLogId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -272,6 +280,14 @@ describe('runIntegritySystem', () => {
       nextGoalId: 0,
       nextAimId: 0,
       nextDecisionReasonId: 0,
+      tasks: {},
+      taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
+      personActivityLogs: {},
+      personActivityLogIndex: { byPerson: {} },
+      personTrainingExperience: {},
+      waitingAimIds: [],
+      nextTaskId: 0,
+      nextPersonActivityLogId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -382,6 +398,14 @@ describe('runIntegritySystem', () => {
       nextGoalId: 0,
       nextAimId: 0,
       nextDecisionReasonId: 0,
+      tasks: {},
+      taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
+      personActivityLogs: {},
+      personActivityLogIndex: { byPerson: {} },
+      personTrainingExperience: {},
+      waitingAimIds: [],
+      nextTaskId: 0,
+      nextPersonActivityLogId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -492,6 +516,14 @@ describe('runIntegritySystem', () => {
       nextGoalId: 0,
       nextAimId: 0,
       nextDecisionReasonId: 0,
+      tasks: {},
+      taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
+      personActivityLogs: {},
+      personActivityLogIndex: { byPerson: {} },
+      personTrainingExperience: {},
+      waitingAimIds: [],
+      nextTaskId: 0,
+      nextPersonActivityLogId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -602,6 +634,15 @@ describe('runIntegritySystem', () => {
       nextDecisionReasonId: 0,
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 1,
+      // v0.23 Task/ActivityLog
+      tasks: {},
+      taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
+      personActivityLogs: {},
+      personActivityLogIndex: { byPerson: {} },
+      personTrainingExperience: {},
+      waitingAimIds: [],
+      nextTaskId: 0,
+      nextPersonActivityLogId: 0,
     }
 
     const errors = collectIntegrityErrors(world)
@@ -700,6 +741,15 @@ describe('runIntegritySystem', () => {
       nextDecisionReasonId: 0,
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 0,
+      // v0.23 Task/ActivityLog
+      tasks: {},
+      taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
+      personActivityLogs: {},
+      personActivityLogIndex: { byPerson: {} },
+      personTrainingExperience: {},
+      waitingAimIds: [],
+      nextTaskId: 0,
+      nextPersonActivityLogId: 0,
     }
 
     const errors = collectIntegrityErrors(world)
@@ -799,6 +849,15 @@ describe('runIntegritySystem', () => {
       nextDecisionReasonId: 0,
       nextOrganizationShareId: 0,
       nextOfficeAssignmentId: 0,
+      // v0.23 Task/ActivityLog
+      tasks: {},
+      taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
+      personActivityLogs: {},
+      personActivityLogIndex: { byPerson: {} },
+      personTrainingExperience: {},
+      waitingAimIds: [],
+      nextTaskId: 0,
+      nextPersonActivityLogId: 0,
     }
 
     const errors = collectIntegrityErrors(world)

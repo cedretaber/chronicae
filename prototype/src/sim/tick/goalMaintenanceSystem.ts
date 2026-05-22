@@ -245,6 +245,10 @@ function isOwnerActive(ctx: TickContext, owner: DecisionSubjectRef): boolean {
     const house = ctx.state.houses[owner.id]
     return house !== undefined && house.active && house.kind !== 'system'
   }
+  if (owner.kind === 'person') {
+    const person = ctx.state.persons[owner.id]
+    return person !== undefined && person.alive && person.kind !== 'placeholder'
+  }
   return false
 }
 
@@ -255,5 +259,5 @@ function getOwnerNameKey(ctx: TickContext, owner: DecisionSubjectRef): string {
   if (owner.kind === 'house') {
     return ctx.state.houses[owner.id]?.nameKey ?? owner.id
   }
-  return owner.id
+  return ctx.state.persons[owner.id]?.nameKey ?? owner.id
 }

@@ -10,3 +10,10 @@ house:
   steer_polity_internal_development: 国の内政充実を主導
   patronize_artist: 芸術家の後援
   commission_chronicle: 年代記の編纂
+person:
+  support_organization_aim: 組織目標への協力
+  increase_house_influence: 家門の影響力拡大
+  obtain_office: 官職の獲得
+  retain_office: 官職の維持
+  accumulate_wealth: 蓄財
+  improve_ability: 能力の向上

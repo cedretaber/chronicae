@@ -7,6 +7,12 @@ person:
   born: '{{child}} was born.'
   born_in_obscurity: 'An unknown {{occupation}} named {{person}} appeared.'
   faded_from_history: '{{person}} faded from the chronicles.'
+  goal:
+    created: '{{owner}} set a personal goal: {{kind}}.'
+  aim:
+    created: '{{owner}} began pursuing {{kind}}.'
+    succeeded: '{{owner}} successfully achieved {{kind}}.'
+    failed: '{{owner}} failed at {{kind}}.'
 
 marriage:
   formed: '{{male}} married {{female}}.'
@@ -139,3 +145,7 @@ aim:
   succeeded: '{{owner}} successfully completed {{kind}}.'
   failed: '{{owner}} failed at {{kind}}.'
   abandoned: '{{owner}} abandoned {{kind}}.'
+
+task:
+  cancelled: "{{person}}'s task {{task}} was cancelled ({{reason}})."
+  review_waiting: '{{person}} is waiting for an opportunity regarding {{kind}}.'

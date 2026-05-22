@@ -86,7 +86,12 @@ import {
   getHoldingLandContractChain,
 } from '@sim/selectors/landContractSelectors'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
-import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goalSelectors'
+import {
+  getActiveGoalForOwner,
+  getActiveAimsForGoal,
+  getActiveAimForOwner,
+} from '@sim/selectors/goalSelectors'
+import { getPersonGoalFulfillment } from '@sim/selectors/personGoalSelectors'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { calcPolityMilitaryPower } from '@/sim/selectors/militarySelectors'
@@ -1726,6 +1731,14 @@ export function PersonDetail({
     nextGoalId: 0,
     nextAimId: 0,
     nextDecisionReasonId: 0,
+    tasks: {},
+    taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
+    personActivityLogs: {},
+    personActivityLogIndex: { byPerson: {} },
+    personTrainingExperience: {},
+    waitingAimIds: [],
+    nextTaskId: 0,
+    nextPersonActivityLogId: 0,
   }
   const allOfficeIds = worldState.officeIndex.byHolderPerson[person.id] ?? []
   const allOffices = allOfficeIds.flatMap((id) => {
@@ -2133,6 +2146,100 @@ export function PersonDetail({
         onHouseClick={onHouseClick}
         onPersonClick={onPersonClick}
       />
+
+      {/* v0.23 Person Goal/Aim/Task */}
+      {person.alive &&
+        person.kind !== 'placeholder' &&
+        (() => {
+          const owner = { kind: 'person' as const, id: person.id }
+          const goal = getActiveGoalForOwner(worldState, owner)
+          if (!goal) return null
+          const fulfillment = getPersonGoalFulfillment(worldState, person.id)
+          const activeAim = getActiveAimForOwner(worldState, owner)
+          const taskIds = worldState.taskIndex.byAssignee[`person:${person.id}`] ?? []
+          const activeTask = taskIds
+            .map((tid) => worldState.tasks[tid])
+            .find((t) => t && t.status === 'active')
+          const activityLogIds =
+            worldState.personActivityLogIndex.byPerson[person.id as string] ?? []
+          const recentLogs = activityLogIds
+            .map((lid) => worldState.personActivityLogs[lid])
+            .filter((l): l is NonNullable<typeof l> => l !== undefined)
+            .sort((a, b) => b.week - a.week)
+            .slice(0, 5)
+
+          return (
+            <>
+              <div className="text-sm font-semibold text-gray-300">
+                {t('detail.person.current_goal')}:
+              </div>
+              <div className="text-sm" style={{ marginLeft: 8 }}>
+                <div>{t(`goals:person.${goal.kind}`)}</div>
+                <div>
+                  {t('detail.person.goal_fulfillment')}: {Math.round(fulfillment)}%
+                </div>
+              </div>
+
+              {activeAim && (
+                <>
+                  <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
+                    {t('detail.person.active_aim')}:
+                  </div>
+                  <div className="text-sm" style={{ marginLeft: 8 }}>
+                    <div>{t(`aims:person.${activeAim.kind}`)}</div>
+                    <div>
+                      {t('detail.person.aim_progress')}: {activeAim.progress} /{' '}
+                      {activeAim.targetProgress}
+                    </div>
+                    <div>
+                      {t('detail.person.aim_deadline')}: {t('detail.common.year')}{' '}
+                      {Math.ceil(activeAim.deadlineWeek / 48)}
+                    </div>
+                    {activeAim.waitingReasonKey && (
+                      <div className="text-xs text-yellow-400">
+                        {t('detail.person.aim_status_waiting')}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {activeTask && (
+                <>
+                  <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
+                    {t('detail.person.active_task')}:
+                  </div>
+                  <div className="text-sm" style={{ marginLeft: 8 }}>
+                    <div>{t(activeTask.kind, { ns: 'tasks' })}</div>
+                    <div>
+                      {t('detail.person.task_effort')}: {Math.round(activeTask.effortDone)} /{' '}
+                      {activeTask.effortRequired}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {recentLogs.length > 0 && (
+                <>
+                  <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
+                    {t('detail.person.recent_activities')}:
+                  </div>
+                  <div className="text-sm" style={{ marginLeft: 8 }}>
+                    {recentLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        className={`text-xs ${log.outcome === 'success' ? 'text-green-400' : log.outcome === 'failure' ? 'text-red-400' : 'text-gray-400'}`}
+                      >
+                        [Y{Math.ceil(log.week / 48)}/W{((log.week - 1) % 48) + 1}]{' '}
+                        {t(log.taskKind, { ns: 'tasks' })} {log.outcome === 'success' ? '✓' : '✗'}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )
+        })()}
     </div>
   )
 }

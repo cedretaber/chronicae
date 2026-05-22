@@ -14,6 +14,7 @@ export function runAimToIntentGenerationSystem(ctx: TickContext): TickContext {
   for (const [, aim] of Object.entries(currentCtx.state.aims)) {
     if (!aim || aim.status !== 'active') continue
     if (aim.origin !== 'goal_driven') continue
+    if (aim.owner.kind === 'person') continue
 
     // Skip if there's already an active intent or play
     if (aim.activeIntentId) continue

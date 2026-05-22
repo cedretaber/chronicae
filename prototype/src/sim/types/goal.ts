@@ -12,7 +12,12 @@ import type {
   ActorIntentId,
   DiplomaticPlayId,
   StateRegionId,
+  TaskId,
 } from './ids'
+import type { PoliticalActorRef } from './actor'
+import type { OfficeRole } from './office'
+import type { AbilityKey } from './person'
+import type { TaskTargetRef } from './task'
 
 // --- DecisionSubjectRef ---
 export type DecisionSubjectRef =
@@ -33,12 +38,20 @@ export type EntityRef =
   | { kind: 'province'; id: ProvinceId }
   | { kind: 'holding'; id: HoldingId }
   | { kind: 'land_contract'; id: LandContractId }
+  | { kind: 'aim'; id: AimId }
+  | { kind: 'office'; organization: PoliticalActorRef; role: OfficeRole }
+  | { kind: 'ability'; ability: AbilityKey }
 
 // --- Goal ---
 export type PolityGoalKind = 'external_expansion' | 'internal_development'
 export type HouseGoalKind = 'expand_power_base' | 'preserve_power_base' | 'cultivate_prestige'
-export type PersonGoalKind = never // v0.22 reserved
-export type GoalKind = PolityGoalKind | HouseGoalKind
+export type PersonGoalKind =
+  | 'house_loyalty'
+  | 'public_service'
+  | 'personal_advancement'
+  | 'wealth_building'
+  | 'self_cultivation'
+export type GoalKind = PolityGoalKind | HouseGoalKind | PersonGoalKind
 
 export type ActiveGoalStatus = 'active'
 export type TerminalGoalStatus = 'succeeded' | 'failed' | 'abandoned'
@@ -83,8 +96,14 @@ export type HouseAimKind =
   | 'patronize_artist'
   | 'commission_chronicle'
 
-export type PersonAimKind = never // v0.22 reserved
-export type AimKind = PolityAimKind | HouseAimKind
+export type PersonAimKind =
+  | 'support_organization_aim'
+  | 'increase_house_influence'
+  | 'obtain_office'
+  | 'retain_office'
+  | 'accumulate_wealth'
+  | 'improve_ability'
+export type AimKind = PolityAimKind | HouseAimKind | PersonAimKind
 
 export type AimOrigin = 'goal_driven' | 'pressure_response'
 
@@ -122,6 +141,11 @@ export type Aim = {
 
   activeIntentId?: ActorIntentId
   activeDiplomaticPlayId?: DiplomaticPlayId
+  activeTaskId?: TaskId
+  waitingFor?: TaskTargetRef
+  waitingReasonKey?: string
+  blockedReasonKey?: string
+  nextReviewWeek?: number
   successfulIntentCount: number
   failedIntentCount: number
 

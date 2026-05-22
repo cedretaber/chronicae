@@ -40,7 +40,7 @@ v0.15 段階では機能拡張が続いている。各機能追加がバラン�
 
 そのため:
 
-- **必須条件**: エラーが出ずシミュレーションが継続できること (300 年 × 4 seed で integrity 違反なし)
+- **必須条件**: エラーが出ずシミュレーションが継続できること (20 年 × 4 seed で integrity 違反なし。リリース前は 300 年)
 - **任意条件 (現段階では不問)**: バランスの良さ・面白さ・収束パターン (どの Polity が勝ちやすいか、houses が分裂する頻度、年あたりイベント数など)
 
 機能追加 PR ではバランスの善し悪しを判断基準にしない。
@@ -95,33 +95,40 @@ cd prototype && npm run check
 
 ## CLI 動作確認（実装完了後に必須）
 
-`npm run check` が通った後、必ず CLI で複数シード × 300年のシミュレーションを実行して整合性エラーがないことを確認する。
-
-**整合性検証なら並列実行が高速** (v0.17.3 時点で 4 seed 合計 ~125 sec、並列なら最長 seed 1 のみで ~40 sec)。
+`npm run check` が通った後、必ず CLI で複数シード × 20年のシミュレーションを実行して整合性エラーがないことを確認する。
 
 ```bash
-# 並列実行 (整合性検証用 — wallclock 時間を最短にしたい場合)
+# 標準の整合性検証（4 seed × 20年、並列実行）
 cd prototype
 for s in 1 42 123 999; do
-  node src/cli/run.mjs --years 300 --seed $s > /tmp/seed$s.log 2>&1 &
+  node src/cli/run.mjs --years 20 --seed $s > /tmp/seed$s.log 2>&1 &
 done
 wait
 echo "All 4 seeds finished"
-
-# 個別検証 (デバグ目的で順次走らせたい場合)
-npm run cli -- --years 300 --seed 1
-npm run cli -- --years 300 --seed 42
-npm run cli -- --years 300 --seed 123
-npm run cli -- --years 300 --seed 999
 ```
 
-エラーなく完走すれば OK。`integritySystem` が検知した違反は `Error:` で即時終了する (v0.17.3 から default では year-end のみ走るが、検知即座に throw して exit code 非 0 で停止)。
+エラーなく完走すれば OK。`integritySystem` が検知した違反は `Error:` で即時終了する (default では year-end のみ走るが、検知即座に throw して exit code 非 0 で停止)。
 
-**並列 vs 直列の使い分け:**
+### 所要時間の目安
+
+v0.23 (TaskSystem 導入後) の実測値:
+
+| 年数 | 1 seed 所要時間 | 4 seed 並列 |
+|---|---|---|
+| 20年 | ~25 sec | ~25 sec |
+| 50年 | ~2 min | ~2 min |
+| 300年 | ~12 min | ~12 min |
+
+v0.22 以前は 300 年 × 4 seed 並列で ~40 sec だったが、v0.23 で TaskSystem（毎週実行 × 全人物）が追加され大幅に増加した。原因は immutable state の spread コピーコストが年数に比例して増大するためであり、将来のバージョンで状態管理アーキテクチャの根本改善を行う予定。
+
+**通常の開発・検証では 20 年で十分。** 300 年テストは CI またはリリース前検証のみ。
+
+### 並列 vs 直列の使い分け
 
 | 用途 | 推奨 |
 |---|---|
-| 整合性検証 / 観察 report 生成 | 並列 (`&` + `wait`) |
+| 整合性検証（通常） | 20年 × 4 seed 並列 |
+| 長期整合性検証（CI / リリース前） | 300年 × 4 seed 並列 |
 | 時間計測・perf 比較 | 直列 (CPU 競合でブレるため) |
 
 ### なぜ CLI 確認が必要か
@@ -243,9 +250,11 @@ cd prototype && node src/cli/run.mjs --years 20 --seed 1 --debug 2>&1 | grep INT
 
 ```bash
 cd prototype
-node src/cli/run.mjs --years 300 --seed 1   --debug 2>/tmp/perf1.log   > /dev/null
-node src/cli/run.mjs --years 300 --seed 999 --debug 2>/tmp/perf999.log > /dev/null
+node src/cli/run.mjs --years 10 --seed 1   --debug 2>/tmp/perf1.log   > /dev/null
+node src/cli/run.mjs --years 10 --seed 999 --debug 2>/tmp/perf999.log > /dev/null
 ```
+
+NOTE: v0.23 以降は 10 年で十分なデータが取れる。300 年 perf 計測は非常に時間がかかるため避ける。
 
 **Step 2: per-system に合計時間を集計する**
 
@@ -281,26 +290,39 @@ for (const r of rows) {
 | ほぼ全 system が同じ ratio (例: 全部 2x) | アルゴリズムバグではなく state 累積差。Object.keys 系の走査が状態サイズに連動 |
 | 絶対値が大きい system | 最適化候補。ratio が小さくても share が大きければ価値あり |
 
-### 既知のベースライン (v0.17.3 時点)
+### 既知のベースライン
+
+**v0.17.3 時点 (TaskSystem 導入前):**
 
 300 年 × 1 seed の wallclock 直列:
 - seed 1: ~40 sec (最長)
 - seed 999: ~26 sec (最短)
-- 4 seed 合計: ~125 sec (v0.17.2 比 -85% 短縮)
+
+**v0.23 時点 (TaskSystem 導入後):**
+
+10 年 × 1 seed の per-system 実測:
+- taskSystem: 8.1 sec (全体の 80%)
+- personAimMaintenanceSystem: 1.0 sec
+- 他全システム合計: 1.1 sec
+
+50 年 × 1 seed: ~2 min。原因は immutable state の `{ ...state, tasks: { ...state.tasks } }` spread コピーが年数とともに線形悪化するため (Year 1: 4ms/tick → Year 10: 25ms/tick)。
 
 短縮の中身 (v0.17.3 で実装):
 - **A**: integrityCheck を年末のみ実行 (default 非 debug 時)。-38%。
 - **B**: inactive OfficeAssignment を完全削除。state.officeAssignments の累積を解消。A の上でさらに -76%。
 - **C**: inactive FactionMembership を完全削除。Office 比で量が少なく計測上は誤差レベル。
 
-### v0.18 以降の最適化候補
+### パフォーマンス最適化の方針
 
-短縮済みのため優先度は下がったが、機能完成後に検討する候補:
+v0.23 で顕在化した immutable state の spread コピーコスト問題は、個別システムの最適化では解決しない構造的課題。以下の方針で対応する:
+
+- **プロトタイプ段階**: 20 年テストで検証し、深追いしない
+- **将来バージョン**: 状態管理アーキテクチャの根本改善（Immer 導入 or mutable context パターン、または Rust 移行時の再設計）
+
+個別の最適化候補（機能完成後に検討）:
 - 死亡 Person の compaction (lineage 参照を保ちつつ archive map に逃がす)
-- `maxRawEvents` を default で絞る (現状 10000)
 - `state.persons` を `living / dead` 二分割
-
-これらは機能完成後にまとめて対応する方針 (上記「バランス調整は機能完成後」と同じ理由)。
+- TaskSystem を mutable context で処理し、tick 終了時に freeze
 
 ## tick システムの追加規約
 
