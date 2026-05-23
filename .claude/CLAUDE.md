@@ -321,6 +321,14 @@ for (const r of rows) {
 - 50 年 × 1 seed: ~5 sec (v0.23.1 比 5.4x 高速化)
 - 300 年 × 4 seed 並列: ~68 sec
 
+**v0.23.3 時点 (personAimMaintenanceSystem mutable draft 後):**
+
+10 年 × 1 seed の per-system 実測:
+- integrityCheck: 283 ms (debug only)
+- taskSystem: 247 ms
+- personAimMaintenanceSystem: 50 ms — 59% 削減
+- 全体: 951 ms (v0.23.2 比 8% 削減)
+
 最適化の中身 (v0.23.1):
 - **taskSystem mutable draft**: 1 tick あたり数十回の WorldState spread を初回/最終の1回に集約。-93%。
 - **Schwartzian transform**: batchProcessTasks の priority sort で computeEffectivePriority の呼び出しを O(n log n) → O(n) に削減。
@@ -330,6 +338,9 @@ for (const r of rows) {
 - **taskIndex 空エントリ purge**: removeTaskMut で filter 後に空配列となった byAssignee/byOwner/byTarget エントリを delete。state spread コスト削減。
 - **死亡者 personActivityLog purge**: deadPersonLogPurgeSystem を新設。死亡時にログを収集してから削除。state 全体の 60-70% を占めていた死亡者ログを解消。
 
+最適化の中身 (v0.23.3):
+- **personAimMaintenanceSystem mutable draft**: taskSystem と同パターンを適用。createInitialTaskForAim のインライン mutable 版、emitEvent ローカル accumulator、RNG ローカル追跡を導入。-59%。
+
 過去の最適化 (v0.17.3):
 - integrityCheck を年末のみ実行 (default 非 debug 時)。-38%。
 - inactive OfficeAssignment を完全削除。state.officeAssignments の累積を解消。-76%。
@@ -337,7 +348,7 @@ for (const r of rows) {
 
 ### パフォーマンス最適化の方針
 
-v0.23.1 で taskSystem の mutable draft パターンを導入済み。今後同様のボトルネックが発生した場合は同パターンの適用を検討する。
+v0.23.1 / v0.23.3 で taskSystem・personAimMaintenanceSystem に mutable draft パターンを導入済み。今後同様のボトルネックが発生した場合は同パターンの適用を検討する。
 
 残る最適化候補（機能完成後に検討）:
 - 死亡 Person の compaction (lineage 参照を保ちつつ archive map に逃がす)
