@@ -24,6 +24,7 @@ export type LandContract = {
   terms: {
     taxRateToGrantor: number
   }
+  termsProtectedUntilWeek?: number
 }
 
 export type LandContractGrantor =

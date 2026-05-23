@@ -683,5 +683,5 @@ v0.17.3 観察 (House Corvin — 9 人の血統メンバー + Lionel 派閥所�
 - **食料生産**: carrying capacity / population pressure を foodProduction / foodDemand に拡張
 - **詳細な戦争**: War エンティティ、戦場、包囲戦
 - **施設システム**: 城塞・道路・港・市場
-- **詳細外交**: 同盟・条約・婚姻
+- **詳細外交**: 同盟・条約・婚姻。現在 LandContract.termsProtectedUntilWeek で実装している契約保護期間は、条約システム導入時に汎用的な「二国間条約」エンティティに置き換える想定
 - **継承権・請求権**: 血縁関係に基づく他家への継承権主張

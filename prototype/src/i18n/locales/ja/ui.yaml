@@ -337,6 +337,8 @@ detail:
     pop_pressure: '人口圧力'
     avg_wealth: '平均資産'
     contract_chain: '契約チェーン'
+    terms_protected: '保護期間'
+    terms_protected_until: '残り{{years}}年'
     bailiff: '代官'
     placeholder: '仮任'
     vacant: '空位'

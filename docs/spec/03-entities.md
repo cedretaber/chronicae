@@ -341,6 +341,7 @@ type LandContract = {
   rootAuthorityId?: RootAuthorityId  // parent と相互排他: root contract のみ rootAuthorityId
   granteePolityId: PolityId          // この契約で土地を受け取る Polity
   terms: { taxRateToGrantor: number }  // grantor への上納率。root contract は 0 固定
+  termsProtectedUntilWeek?: number   // 契約保護期間の終了週。この週まで税率改定の再交渉を禁止
 }
 ```
 

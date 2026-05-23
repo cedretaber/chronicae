@@ -9,7 +9,7 @@ import {
   getHouseLoyaltyToPolity,
 } from '@sim/selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '@sim/helpers/attitudeHelpers'
-import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
+import { weekToYearMonthWeek, WEEKS_PER_YEAR } from '@sim/utils/timeUtils'
 import {
   getPolityLeaderHouse,
   getPolityLeader,
@@ -2687,21 +2687,41 @@ export function HoldingDetail({
               <div className="text-gray-400">{t('detail.province.contract_chain')}:</div>
               {chain.map((contract, idx) => {
                 const grantee = currentState.polities[contract.granteePolityId]
-                const isTerminal = idx === chain.length - 1
+                const nextContract = idx + 1 < chain.length ? chain[idx + 1] : undefined
+                const protectedRemaining =
+                  nextContract?.termsProtectedUntilWeek &&
+                  currentState.absoluteWeek < nextContract.termsProtectedUntilWeek
+                    ? Math.ceil(
+                        (nextContract.termsProtectedUntilWeek - currentState.absoluteWeek) /
+                          WEEKS_PER_YEAR,
+                      )
+                    : null
                 return (
-                  <div key={contract.id} className="border-l border-gray-700 pl-2 text-sm">
-                    {grantee ? (
-                      <button
-                        className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
-                        onClick={() => onPolityClick(grantee.id, 'polity')}
-                      >
-                        {resolveName('polity', grantee.nameKey, grantee.nameKey)}
-                        {isTerminal
-                          ? ''
-                          : ` (${(contract.terms.taxRateToGrantor * 100).toFixed(0)}%)`}
-                      </button>
-                    ) : (
-                      <span className="text-gray-500">—</span>
+                  <div key={contract.id}>
+                    <div className="border-l border-gray-700 pl-2 text-sm">
+                      {grantee ? (
+                        <button
+                          className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
+                          onClick={() => onPolityClick(grantee.id, 'polity')}
+                        >
+                          {resolveName('polity', grantee.nameKey, grantee.nameKey)}
+                        </button>
+                      ) : (
+                        <span className="text-gray-500">—</span>
+                      )}
+                    </div>
+                    {nextContract && (
+                      <div className="border-l border-gray-700 pl-3 text-xs text-gray-500">
+                        ↓ {(nextContract.terms.taxRateToGrantor * 100).toFixed(0)}%
+                        {protectedRemaining != null && (
+                          <span className="ml-1 text-yellow-500">
+                            🛡{' '}
+                            {t('detail.province.terms_protected_until', {
+                              years: protectedRemaining,
+                            })}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                 )
@@ -3067,21 +3087,25 @@ export function ProvinceDetail({
                       <span className="text-gray-500">{t('detail.province.contract_chain')}:</span>
                       {chain.map((contract, idx) => {
                         const grantee = currentState.polities[contract.granteePolityId]
-                        const isTerminal = idx === chain.length - 1
+                        const nextContract = idx + 1 < chain.length ? chain[idx + 1] : undefined
                         return (
-                          <div key={contract.id} className="border-l border-gray-700 pl-2">
-                            {grantee ? (
-                              <button
-                                className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
-                                onClick={() => onPolityClick(grantee.id, 'polity')}
-                              >
-                                {resolveName('polity', grantee.nameKey, grantee.nameKey)}
-                                {isTerminal
-                                  ? ''
-                                  : ` (${(contract.terms.taxRateToGrantor * 100).toFixed(0)}%)`}
-                              </button>
-                            ) : (
-                              <span className="text-gray-500">—</span>
+                          <div key={contract.id}>
+                            <div className="border-l border-gray-700 pl-2">
+                              {grantee ? (
+                                <button
+                                  className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
+                                  onClick={() => onPolityClick(grantee.id, 'polity')}
+                                >
+                                  {resolveName('polity', grantee.nameKey, grantee.nameKey)}
+                                </button>
+                              ) : (
+                                <span className="text-gray-500">—</span>
+                              )}
+                            </div>
+                            {nextContract && (
+                              <div className="border-l border-gray-700 pl-3 text-gray-500">
+                                ↓ {(nextContract.terms.taxRateToGrantor * 100).toFixed(0)}%
+                              </div>
                             )}
                           </div>
                         )

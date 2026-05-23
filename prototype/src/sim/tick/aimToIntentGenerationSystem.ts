@@ -230,6 +230,11 @@ function findImproveTarget(
   for (const cid of contractIds) {
     const contract = ctx.state.landContracts[cid]
     if (!contract) continue
+    if (
+      contract.termsProtectedUntilWeek &&
+      ctx.state.absoluteWeek < contract.termsProtectedUntilWeek
+    )
+      continue
     if (contract.terms.taxRateToGrantor <= 0.15) continue
     const grantor = getLandContractGrantor(ctx.state, cid)
     if (!grantor || grantor.kind !== 'polity') continue
@@ -257,6 +262,8 @@ function findDemandTaxIncreaseTarget(
     if (childContractId === undefined) continue
     const child = ctx.state.landContracts[childContractId]
     if (!child) continue
+    if (child.termsProtectedUntilWeek && ctx.state.absoluteWeek < child.termsProtectedUntilWeek)
+      continue
     if (child.terms.taxRateToGrantor >= ctx.config.taxRevisionMaxRateForIncrease) continue
     const vassalPolity = ctx.state.polities[child.granteePolityId]
     if (vassalPolity && vassalPolity.active) {

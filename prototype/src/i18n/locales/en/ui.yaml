@@ -244,6 +244,8 @@ detail:
     pop_pressure: 'POP Pressure'
     avg_wealth: 'Avg Wealth'
     contract_chain: 'Contract Chain'
+    terms_protected: 'Protected'
+    terms_protected_until: '{{years}}yr left'
     bailiff: 'Bailiff'
     placeholder: 'placeholder'
     vacant: 'vacant'

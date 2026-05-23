@@ -1140,7 +1140,7 @@ active な DiplomaticPlay を進行させる。
 
 Play kind 別の処理:
 - `land_claim`: 土地契約の移転。rank ベースの契約選択 (3-a/3-b/3-c) と操作 (5-a/5-b/5-c)。settlement 時の分岐: counterDemand (pay_wealth) あり → reason='purchase' (LAND_CONTRACT_PURCHASED)、なし → reason='cession' (LAND_CONTRACT_CEDED)。
-- `contract_tax_revision`: 税率 ±5% 変更。下限 5% / 上限 80% 超で契約破棄 (`eliminateContractFromChain` mutation による chain 再接続)。
+- `contract_tax_revision`: 税率 ±5% 変更。下限 5% / 上限 80% 超で契約破棄 (`eliminateContractFromChain` mutation による chain 再接続)。Play 決着時（成否問わず）に対象契約に `termsProtectedUntilWeek` を設定し、`taxRevisionGracePeriodYears`（default 5年）間は同一契約への再交渉を禁止する。
 - `revolt_negotiation`: 叛乱交渉。妥協 / 鎮圧 / 独立の 3 分岐。
 
 ### 6.28 ConflictResolutionSystem（4週ごと、v0.18）
@@ -1223,6 +1223,9 @@ Aim の生成・deadline 判定・target 無効化を管理する。tick 登録�
 **48w ゲートで実行する処理**: active Goal に対応する active Aim がなければ生成。
 
 Aim target 選定は `goalSelectors.ts` の `pickAimForGoal` で実装。
+
+- `improve_owned_contract_terms` / `demand_tax_increase_from_vassal` は `external_expansion` / `internal_development` 両方の goal で候補に入る（税率交渉は対外・内政どちらの文脈でも合理的なため）
+- 対象契約の `termsProtectedUntilWeek` が現在週を超えている場合はスキップ
 
 イベント: `AIM_CREATED` / `AIM_FAILED` / `AIM_ABANDONED`
 

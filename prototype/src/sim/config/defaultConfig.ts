@@ -337,6 +337,7 @@ export type SimulationConfig = {
   taxRevisionRateImbalanceFactor: number
   taxRevisionInitialProgressOnAdvantage: number
   taxRevisionInitialTensionOnPressure: number
+  taxRevisionGracePeriodYears: number
   // v0.18 Stage D: 汎用 conflict (§13.2)
   conflictResolutionEnabled: boolean
   maxConflictsResolvedPerTick: number
@@ -900,6 +901,7 @@ export const defaultConfig: SimulationConfig = {
   taxRevisionRateImbalanceFactor: 50,
   taxRevisionInitialProgressOnAdvantage: 10,
   taxRevisionInitialTensionOnPressure: 10,
+  taxRevisionGracePeriodYears: 5,
   // v0.18 Stage D: 汎用 conflict (§13.2)
   conflictResolutionEnabled: true,
   maxConflictsResolvedPerTick: 5,

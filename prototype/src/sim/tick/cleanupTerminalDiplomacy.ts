@@ -4,8 +4,11 @@ import type { ActorIntent } from '../types/actorIntent'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type { DecisionSubjectRef } from '../types/goal'
+import type { LandContractId } from '../types/ids'
+import type { LandContract } from '../types/landContract'
 import type { WorldState } from '../types/world'
 import { removeTask, getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import {
   TERMINAL_ACTOR_INTENT_STATUSES,
   type TerminalActorIntentStatus,
@@ -187,7 +190,35 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     }
   }
 
-  if (!nextIntents && !nextPlays && !nextAims && !nextGoals && !taskCleanedState) return ctx
+  // Set contract grace period for terminal contract_tax_revision plays
+  let nextLandContracts: Record<LandContractId, LandContract> | undefined
+  if (removedPlayIds.size > 0) {
+    const gracePeriodWeeks = ctx.config.taxRevisionGracePeriodYears * WEEKS_PER_YEAR
+    for (const playIdStr of removedPlayIds) {
+      const play = plays[playIdStr as DiplomaticPlayId]
+      if (!play || play.kind !== 'contract_tax_revision') continue
+      if (play.primaryDemand.kind !== 'change_contract_tax_rate') continue
+      const contractId = play.primaryDemand.landContractId
+      const base = nextLandContracts ?? ctx.state.landContracts
+      const contract = base[contractId]
+      if (!contract) continue
+      if (!nextLandContracts) nextLandContracts = { ...ctx.state.landContracts }
+      nextLandContracts[contractId] = {
+        ...contract,
+        termsProtectedUntilWeek: ctx.state.absoluteWeek + gracePeriodWeeks,
+      }
+    }
+  }
+
+  if (
+    !nextIntents &&
+    !nextPlays &&
+    !nextAims &&
+    !nextGoals &&
+    !taskCleanedState &&
+    !nextLandContracts
+  )
+    return ctx
 
   const baseState = taskCleanedState ?? ctx.state
   return {
@@ -198,6 +229,7 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
       diplomaticPlays: nextPlays ?? baseState.diplomaticPlays,
       aims: nextAims ?? baseState.aims,
       goals: nextGoals ?? baseState.goals,
+      landContracts: nextLandContracts ?? baseState.landContracts,
     },
   }
 }
