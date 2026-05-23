@@ -92,7 +92,7 @@ type PopGroup = {
 
 **v0.24 で以下の変更を実施:**
 - PopGroup は Province ではなく **Holding** に所属する
-- `occupation` により職業状態を表現する。`none` は職業枠からあぶれた POP（無職・土地なし・扶持なし）
+- `occupation` により職業状態を表現する。`none` は職業枠からあぶれた POP（失業者・土地なし・扶持なし）
 - `occupation !== 'none'` の POP は `minPopSizeByClass` で下限保証。`none` POP は size が `popSizeEpsilon` 以下で削除される
 - 同一 merge key (`holdingId + class + occupation`) の POP は原則 1 つに統合される
 - Province 単位の POP は Holding POP から selector で集計する（§4.2 参照）

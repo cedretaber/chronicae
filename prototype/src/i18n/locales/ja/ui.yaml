@@ -401,4 +401,4 @@ popOccupation:
   agriculture: '農業'
   urban_labor: '都市労働'
   elite_service: '扶持・軍役'
-  none: '無職'
+  none: '失業者'
