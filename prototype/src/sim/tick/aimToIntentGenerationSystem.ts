@@ -4,7 +4,7 @@ import { createActorIntentId } from '../types/ids'
 import type { ActorIntent } from '../types/actorIntent'
 import type { Aim } from '../types/goal'
 import type { PolityId, HoldingId, ProvinceId } from '../types/ids'
-import { getProvinceHoldings } from '../selectors/landContractSelectors'
+import { getProvinceHoldings, getLandContractGrantor } from '../selectors/landContractSelectors'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
 export function runAimToIntentGenerationSystem(ctx: TickContext): TickContext {
@@ -116,6 +116,20 @@ function buildIntentForAim(
       return { intent, intentId }
     }
 
+    case 'demand_tax_increase_from_vassal': {
+      if (aim.owner.kind !== 'polity') return undefined
+      const target = findDemandTaxIncreaseTarget(ctx, aim)
+      if (!target) return undefined
+      const intent: ActorIntent = {
+        ...base,
+        actor: { kind: 'polity', id: aim.owner.id },
+        kind: 'demand_tax_increase',
+        targetActor: { kind: 'polity', id: target.targetPolityId },
+        targetProvinceId: target.provinceId,
+      }
+      return { intent, intentId }
+    }
+
     case 'develop_owned_holding': {
       if (aim.owner.kind !== 'polity') return undefined
       if (!aim.target || aim.target.kind !== 'holding') return undefined
@@ -212,21 +226,41 @@ function findImproveTarget(
   if (aim.owner.kind !== 'polity') return undefined
   const polityId = aim.owner.id
 
-  // Find contracts where this polity is grantee with high tax rate
   const contractIds = ctx.state.landContractIndex.byGranteePolity[polityId] ?? []
   for (const cid of contractIds) {
     const contract = ctx.state.landContracts[cid]
     if (!contract) continue
     if (contract.terms.taxRateToGrantor <= 0.15) continue
-    // Find the grantor (parent contract's grantee or ROOT_WORLD)
-    if (contract.rootAuthorityId && (contract.rootAuthorityId as string) !== 'ROOT_WORLD') {
-      const grantorPolity = ctx.state.polities[contract.rootAuthorityId as unknown as PolityId]
-      if (grantorPolity && grantorPolity.active) {
-        return {
-          targetPolityId: contract.rootAuthorityId as unknown as PolityId,
-          provinceId: contract.provinceId,
-        }
-      }
+    const grantor = getLandContractGrantor(ctx.state, cid)
+    if (!grantor || grantor.kind !== 'polity') continue
+    const grantorPolity = ctx.state.polities[grantor.id]
+    if (grantorPolity && grantorPolity.active) {
+      return { targetPolityId: grantor.id, provinceId: contract.provinceId }
+    }
+  }
+
+  return undefined
+}
+
+function findDemandTaxIncreaseTarget(
+  ctx: TickContext,
+  aim: Aim,
+): { targetPolityId: PolityId; provinceId: ProvinceId } | undefined {
+  if (aim.owner.kind !== 'polity') return undefined
+  const polityId = aim.owner.id
+
+  const contractIds = ctx.state.landContractIndex.byGranteePolity[polityId] ?? []
+  for (const cid of contractIds) {
+    const contract = ctx.state.landContracts[cid]
+    if (!contract) continue
+    const childContractId = ctx.state.landContractIndex.byParent[contract.id]
+    if (childContractId === undefined) continue
+    const child = ctx.state.landContracts[childContractId]
+    if (!child) continue
+    if (child.terms.taxRateToGrantor >= ctx.config.taxRevisionMaxRateForIncrease) continue
+    const vassalPolity = ctx.state.polities[child.granteePolityId]
+    if (vassalPolity && vassalPolity.active) {
+      return { targetPolityId: child.granteePolityId, provinceId: child.provinceId }
     }
   }
 

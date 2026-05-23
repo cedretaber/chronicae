@@ -274,6 +274,26 @@ function pickPolityAim(
         })
       }
     }
+
+    // demand_tax_increase_from_vassal: overlord demands higher tax from vassal
+    for (const cid of contractIds) {
+      const contract = state.landContracts[cid]
+      if (!contract) continue
+      const childContractId = state.landContractIndex.byParent[contract.id]
+      if (childContractId === undefined) continue
+      const child = state.landContracts[childContractId]
+      if (!child) continue
+      if (child.terms.taxRateToGrantor >= config.taxRevisionMaxRateForIncrease) continue
+      const vassalPolity = state.polities[child.granteePolityId]
+      if (!vassalPolity || !vassalPolity.active) continue
+      candidates.push({
+        kind: 'demand_tax_increase_from_vassal',
+        target: child.holdingId
+          ? { kind: 'holding', id: child.holdingId }
+          : { kind: 'province', id: child.provinceId },
+        score: 15 + (config.taxRevisionMaxRateForIncrease - child.terms.taxRateToGrantor) * 50,
+      })
+    }
   }
 
   if (candidates.length === 0) return undefined
