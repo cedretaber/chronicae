@@ -32,6 +32,7 @@ import { runGoalMaintenanceSystem } from './goalMaintenanceSystem'
 import { runAimMaintenanceSystem } from './aimMaintenanceSystem'
 import { runPersonGoalMaintenanceSystem } from './personGoalMaintenanceSystem'
 import { runPersonAimMaintenanceSystem } from './personAimMaintenanceSystem'
+import { runBailiffRevenueTaskSystem } from './bailiffRevenueTaskSystem'
 import { runTaskSystem } from './taskSystem'
 import { runConflictResolutionSystem } from './conflictResolutionSystem'
 import { runAimOutcomeSystem } from './aimOutcomeSystem'
@@ -135,6 +136,12 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runShareUpdateSystem,
   },
   { name: 'appointmentSystem', intervalWeeks: 12, phaseOffsetWeeks: 0, run: runAppointmentSystem },
+  {
+    name: 'bailiffRevenueTaskSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runBailiffRevenueTaskSystem,
+  },
   { name: 'taskSystem', intervalWeeks: 1, phaseOffsetWeeks: 0, run: runTaskSystem },
   {
     name: 'bailiffAppointmentSystem',

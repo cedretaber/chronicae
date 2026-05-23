@@ -1,30 +1,30 @@
 import type { TickContext } from './context'
-import type { ProvinceId, PolityId, HoldingId } from '../types/ids'
+import type { ProvinceId, PolityId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { PopClass } from '../types/popGroup'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
 import { getHoldingProduction, getProvinceProduction } from '../selectors/popEconomySelectors'
-import { getProvinceAveragePopWealth, getProvinceUnrest } from '../selectors/popSelectors'
 import {
   getHoldingLandContractChain,
   isPlaceholderPerson,
 } from '../selectors/landContractSelectors'
-import {
-  adjustProvincePopWealth,
-  adjustProvincePopUnrest,
-  adjustProvincePopWealthByClass,
-} from '../mutations/popMutations'
+import { adjustProvincePopWealthByClass } from '../mutations/popMutations'
 import { addPersonWealth } from '../mutations/personMutations'
+import { adjustPopAttitude } from '../mutations/attitudeMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
+import {
+  getBailiffLocalExtractionRate,
+  getBailiffCollectionEfficiency,
+  getBailiffFeeRate,
+  computeBailiffBurdenComponents,
+  getRecentBailiffRevenueTaskStatus,
+  getBailiffPolicy,
+} from '../selectors/bailiffSelectors'
+import { clamp } from '../utils/math'
+import { createLogger } from '../debug/logger'
 
-// v0.16 §18: LandRevenueSystem
-// 各 Province の生産物を per-Holding chain 上の Polity に配る。
-// 1) 各 Holding について production weight-share * polityControl を一次徴収
-// 2) 各 Holding の chain を terminal → root と逆順に走査し、taxRateToGrantor の比率で grantor に上納
-// 3) root contract の taxRateToGrantor は 0 のため、最終的に world (実体なし) に流れる分は捨てる
-// 4) 残りは Province の POP に再分配 (旧 retainedWealthGainByClass を流用)
-// 5) 過徴税ペナルティは polityControl 単独判定で継続 (Province 単位)
 export function runLandRevenueSystem(ctx: TickContext): TickContext {
+  const log = createLogger(ctx.config.debug)
   const treasuryDeltas = new Map<PolityId, number>()
   let currentState = ctx.state
 
@@ -32,36 +32,156 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     const province = ctx.state.provinces[provinceId]
     if (!province) continue
 
-    let provinceGrossTax = 0
+    let provinceCollected = 0
 
     for (const holdingId of province.holdingIds) {
       const holding = currentState.holdings[holdingId]
       if (!holding) continue
 
-      const holdingRevenue = getHoldingProduction(currentState, ctx.config, holdingId)
-      if (holdingRevenue <= 0) continue
-      provinceGrossTax += holdingRevenue
+      const grossHoldingRevenue = getHoldingProduction(currentState, ctx.config, holdingId)
+      if (grossHoldingRevenue <= 0) continue
+
+      const assignmentId = currentState.holdingOfficeIndex.byHolding[holdingId]
+      let remittanceToTerminal: number
+
+      if (!assignmentId) {
+        remittanceToTerminal = grossHoldingRevenue
+        provinceCollected += grossHoldingRevenue
+      } else {
+        const assignment = currentState.holdingOfficeAssignments[assignmentId]
+        if (!assignment || !assignment.active) {
+          remittanceToTerminal = grossHoldingRevenue
+          provinceCollected += grossHoldingRevenue
+        } else {
+          const recentTaskStatus = getRecentBailiffRevenueTaskStatus(currentState, assignmentId)
+          const localExtractionRate = getBailiffLocalExtractionRate(
+            currentState,
+            ctx.config,
+            assignmentId,
+          )
+          const collectionEfficiency = getBailiffCollectionEfficiency(
+            currentState,
+            ctx.config,
+            assignmentId,
+            recentTaskStatus,
+          )
+          const collected = grossHoldingRevenue * localExtractionRate * collectionEfficiency
+          const bailiffFeeRate = getBailiffFeeRate(currentState, ctx.config, assignmentId)
+          const bailiffFee = collected * bailiffFeeRate
+          remittanceToTerminal = collected - bailiffFee
+          provinceCollected += collected
+
+          if (!isPlaceholderPerson(currentState, assignment.holderPersonId) && bailiffFee > 0) {
+            const holder = currentState.persons[assignment.holderPersonId]
+            if (holder && holder.alive) {
+              const result = addPersonWealth(currentState, assignment.holderPersonId, bailiffFee)
+              if (result.ok) currentState = result.value
+            }
+          }
+
+          const burdenComponents = computeBailiffBurdenComponents(
+            localExtractionRate,
+            collectionEfficiency,
+            ctx.config.collectionFrictionFactor,
+          )
+
+          const popIds = currentState.popIndex.byHolding[holdingId]
+          if (popIds) {
+            if (burdenComponents.collectionFrictionBurdenRate > 0) {
+              const newPopGroups = { ...currentState.popGroups }
+              for (const popId of popIds) {
+                const pop = newPopGroups[popId]
+                if (!pop) continue
+                const newWealth = clamp(
+                  pop.wealth -
+                    burdenComponents.collectionFrictionBurdenRate *
+                      ctx.config.localExtractionWealthPenalty,
+                  0,
+                  100,
+                )
+                if (newWealth !== pop.wealth) {
+                  newPopGroups[popId] = { ...pop, wealth: newWealth }
+                }
+              }
+              currentState = { ...currentState, popGroups: newPopGroups }
+            }
+
+            const burdenOverComfort = Math.max(
+              0,
+              burdenComponents.totalBurdenRate - ctx.config.comfortableLocalExtractionRate,
+            )
+            if (burdenOverComfort > 0) {
+              const newPopGroups = { ...currentState.popGroups }
+              for (const popId of popIds) {
+                const pop = newPopGroups[popId]
+                if (!pop) continue
+                const newUnrest = clamp(
+                  pop.unrest + burdenOverComfort * ctx.config.localExtractionUnrestGain,
+                  0,
+                  100,
+                )
+                if (newUnrest !== pop.unrest) {
+                  newPopGroups[popId] = { ...pop, unrest: newUnrest }
+                }
+              }
+              currentState = { ...currentState, popGroups: newPopGroups }
+            }
+
+            if (!isPlaceholderPerson(currentState, assignment.holderPersonId)) {
+              const policy = getBailiffPolicy(currentState, ctx.config, assignmentId)
+
+              const affectionDelta = clamp(
+                -burdenOverComfort * ctx.config.bailiffBurdenAffectionPenaltyFactor +
+                  (policy === 'protect_residents'
+                    ? ctx.config.bailiffProtectResidentsAffectionBonus
+                    : 0),
+                -1.0,
+                0.5,
+              )
+              const respectDelta = clamp(
+                recentTaskStatus === 'completed' ? ctx.config.bailiffTaskCompletedRespectGain : 0,
+                -0.5,
+                0.5,
+              )
+
+              if (affectionDelta !== 0 || respectDelta !== 0) {
+                for (const popId of popIds) {
+                  const pop = currentState.popGroups[popId]
+                  if (!pop) continue
+                  const attResult = adjustPopAttitude(
+                    currentState,
+                    popId,
+                    { kind: 'person', id: assignment.holderPersonId },
+                    { affection: affectionDelta, respect: respectDelta },
+                  )
+                  if (attResult.ok) currentState = attResult.value
+                }
+              }
+            }
+          }
+
+          if (ctx.config.debug) {
+            log.log('BAILIFF', {
+              holdingId,
+              collected: collected.toFixed(2),
+              bailiffFee: bailiffFee.toFixed(2),
+              remittance: remittanceToTerminal.toFixed(2),
+              localExtractionRate: localExtractionRate.toFixed(3),
+              collectionEfficiency: collectionEfficiency.toFixed(3),
+              totalBurdenRate: burdenComponents.totalBurdenRate.toFixed(3),
+            })
+          }
+        }
+      }
 
       const chain = getHoldingLandContractChain(currentState, holdingId)
       if (chain.length === 0) continue
 
-      let remaining = holdingRevenue
+      let remaining = remittanceToTerminal
       for (let i = chain.length - 1; i >= 0; i--) {
         const contract = chain[i]!
         const taxRate = contract.terms.taxRateToGrantor
-        let retained = remaining * (1 - taxRate)
-
-        // bailiff salary for terminal holding
-        if (i === chain.length - 1) {
-          const bailiffSalary = giveSingleHoldingBailiffSalary(
-            currentState,
-            holdingId,
-            retained,
-            ctx.config.bailiffRevenueShare,
-          )
-          currentState = bailiffSalary.state
-          retained -= bailiffSalary.paid
-        }
+        const retained = remaining * (1 - taxRate)
         treasuryDeltas.set(
           contract.granteePolityId,
           (treasuryDeltas.get(contract.granteePolityId) ?? 0) + retained,
@@ -70,44 +190,18 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       }
     }
 
-    // Over-extraction penalty (Province level)
-    const provinceProduction = getProvinceProduction(currentState, ctx.config, province.id)
-    const extractionRatio = provinceProduction > 0 ? provinceGrossTax / provinceProduction : 0
-
-    if (extractionRatio > ctx.config.overExtractionThreshold) {
-      const averageWealth = getProvinceAveragePopWealth(ctx.state, province.id)
-      const provinceUnrest = getProvinceUnrest(ctx.state, province.id)
-      if (
-        averageWealth < ctx.config.overExtractionWealthSafeThreshold ||
-        provinceUnrest > ctx.config.overExtractionUnrestSafeThreshold
-      ) {
-        const over = extractionRatio - ctx.config.overExtractionThreshold
-        currentState = adjustProvincePopWealth(
-          currentState,
-          province.id,
-          -over * ctx.config.overExtractionWealthPenalty,
-        )
-        currentState = adjustProvincePopUnrest(
-          currentState,
-          province.id,
-          over * ctx.config.overExtractionUnrestGain,
-        )
-      }
-    }
-
-    // POP wealth retention
-    const retainedToPop = Math.max(0, provinceProduction - provinceGrossTax)
+    const provinceProduction = getProvinceProduction(currentState, ctx.config, provinceId)
+    const retainedToPop = Math.max(0, provinceProduction - provinceCollected)
     const retainedRatio = provinceProduction > 0 ? retainedToPop / provinceProduction : 0
     const retainedWealthGainByClass = ctx.config.retainedWealthGainByClass
     const popClasses: PopClass[] = ['peasants', 'townsmen', 'nobles']
 
     for (const popClass of popClasses) {
       const delta = retainedRatio * retainedWealthGainByClass[popClass]
-      currentState = adjustProvincePopWealthByClass(currentState, province.id, popClass, delta)
+      currentState = adjustProvincePopWealthByClass(currentState, provinceId, popClass, delta)
     }
   }
 
-  // treasurer の taxEfficiency を適用して polity.treasury に書き込み
   const newPolities = { ...currentState.polities }
   for (const polityIdStr of Object.keys(currentState.polities).sort()) {
     const polityId = polityIdStr as PolityId
@@ -129,26 +223,4 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       polities: newPolities,
     } satisfies WorldState,
   }
-}
-
-// v0.17.1 §15.4: single holding の bailiff に salary を支払う。
-function giveSingleHoldingBailiffSalary(
-  state: WorldState,
-  holdingId: HoldingId,
-  retained: number,
-  bailiffRevenueShare: number,
-): { state: WorldState; paid: number } {
-  if (retained <= 0 || bailiffRevenueShare <= 0) return { state, paid: 0 }
-  const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]
-  if (!assignmentId) return { state, paid: 0 }
-  const assignment = state.holdingOfficeAssignments[assignmentId]
-  if (!assignment || !assignment.active) return { state, paid: 0 }
-  if (isPlaceholderPerson(state, assignment.holderPersonId)) return { state, paid: 0 }
-  const holder = state.persons[assignment.holderPersonId]
-  if (!holder || !holder.alive) return { state, paid: 0 }
-  const salary = retained * bailiffRevenueShare
-  if (salary <= 0) return { state, paid: 0 }
-  const result = addPersonWealth(state, assignment.holderPersonId, salary)
-  if (!result.ok) return { state, paid: 0 }
-  return { state: result.value, paid: salary }
 }

@@ -71,7 +71,6 @@ export function buildActivityReport(
       finalYear: finalState.currentYear,
       finalWeekOfYear: finalState.currentWeekOfYear,
       keyConfig: {
-        bailiffRevenueShare: config.bailiffRevenueShare,
         factionBailiffNominationWeight: config.factionBailiffNominationWeight,
         factionNominationPowerThreshold: config.factionNominationPowerThreshold,
         polityOfficeMaxByRank: config.polityOfficeMaxByRank,

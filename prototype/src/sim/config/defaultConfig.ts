@@ -541,8 +541,6 @@ export type SimulationConfig = {
   provinceOfficeTermYears: {
     bailiff: number
   }
-  // v0.17.1 Bailiff revenue share (fraction of terminal retained)
-  bailiffRevenueShare: number
   // v0.25 Bailiff system
   defaultContractedRemittanceRate: number
   defaultExpectedBailiffFeeRate: number
@@ -1127,8 +1125,6 @@ export const defaultConfig: SimulationConfig = {
   provinceOfficeTermYears: {
     bailiff: 3,
   },
-  // v0.17.1 Bailiff salary path: terminal retained のうち bailiff 個人に渡す比率
-  bailiffRevenueShare: 0.1,
   // v0.25 Bailiff system
   defaultContractedRemittanceRate: 0.4,
   defaultExpectedBailiffFeeRate: 0.1,

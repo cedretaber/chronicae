@@ -151,7 +151,6 @@ export type ActivityReport = {
     finalWeekOfYear: number
     // 主要パラメータの抜粋 (再現性のため)
     keyConfig: {
-      bailiffRevenueShare: number
       factionBailiffNominationWeight: number
       factionNominationPowerThreshold: number
       polityOfficeMaxByRank: Record<number, Record<string, number>>

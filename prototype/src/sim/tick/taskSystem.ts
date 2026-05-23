@@ -417,6 +417,14 @@ function autoCancelTasksMut(ws: WorldState, emitEvent: (input: CreateSimEventInp
       }
     }
 
+    if (!shouldCancel && task.targetRef.kind === 'holding_office_assignment') {
+      const assignment = ws.holdingOfficeAssignments[task.targetRef.id]
+      if (!assignment || !assignment.active) {
+        shouldCancel = true
+        cancelReason = 'target_removed'
+      }
+    }
+
     if (!shouldCancel) continue
 
     const ownerKey = decisionSubjectKey(task.owner)

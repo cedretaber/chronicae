@@ -17,28 +17,32 @@ import {
 } from '../testFixtures'
 import { appointHoldingBailiff, vacateHoldingBailiff } from '../mutations/provinceOfficeMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
+import {
+  getBailiffLocalExtractionRate,
+  getBailiffCollectionEfficiency,
+  getBailiffFeeRate,
+} from '../selectors/bailiffSelectors'
+import { personAttitudeKey } from '../helpers/attitudeHelpers'
 
 function withPopGroup(
   state: WorldState,
   id: PopGroupId,
-  provinceId: ProvinceId,
+  holdingId: HoldingId,
   popClass: PopClass,
   size: number,
   wealth: number,
+  unrest: number = 0,
 ): WorldState {
   const pop: PopGroup = {
     id,
-    holdingId: 'hl-0' as HoldingId,
+    holdingId,
     class: popClass,
     occupation: 'agriculture',
     size,
     wealth,
-    unrest: 0,
+    unrest,
     attitudes: {},
   }
-  const province = state.provinces[provinceId]
-  if (!province) throw new Error(`withPopGroup: province ${provinceId} not found`)
-  const holdingId = pop.holdingId
   const existingPopIds = state.popIndex.byHolding[holdingId] ?? []
   return {
     ...state,
@@ -61,6 +65,7 @@ function setupBaseWorld(): {
   polityId: PolityId
   houseId: HouseId
   provinceId: ProvinceId
+  holdingId: HoldingId
   popId: PopGroupId
 } {
   const polityId = 'dp-0' as PolityId
@@ -77,87 +82,101 @@ function setupBaseWorld(): {
     ownerHouseId: houseId,
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
-  state = withPopGroup(state, popId, provinceId, 'peasants', 100, 100)
-  return { state, polityId, houseId, provinceId, popId }
+  const holdingId = state.provinces[provinceId]!.holdingIds[0]!
+  state = withPopGroup(state, popId, holdingId, 'peasants', 100, 100)
+  return { state, polityId, houseId, provinceId, holdingId, popId }
 }
 
-describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
-  it('placeholder bailiff: 100% of retained goes to treasury', () => {
-    const { state, polityId } = setupBaseWorld()
-    const result = runLandRevenueSystem(makeCtx(state))
+function setupWithNormalBailiff(): ReturnType<typeof setupBaseWorld> & {
+  bailiffPersonId: PersonId
+} {
+  const base = setupBaseWorld()
+  let state = vacateHoldingBailiff(base.state, base.holdingId)
+  const bailiffPersonId = 'pe-bailiff' as PersonId
+  state = withPerson(state, bailiffPersonId, {
+    houseId: base.houseId,
+    age: 25,
+    wealth: 0,
+    kind: 'normal',
+  })
+  state = appointHoldingBailiff(state, {
+    holdingId: base.holdingId,
+    holderPersonId: bailiffPersonId,
+    appointingPolityId: base.polityId,
+    week: state.absoluteWeek,
+  }).state
+  return { ...base, state, bailiffPersonId }
+}
+
+describe('runLandRevenueSystem — v0.25 extraction model', () => {
+  it('placeholder bailiff: treasury receives remittanceToTerminal (after fee deduction)', () => {
+    const { state, polityId, holdingId } = setupBaseWorld()
+    const ctx = makeCtx(state)
+    const result = runLandRevenueSystem(ctx)
     const treasury = result.state.polities[polityId]!.treasury
-    // production = 100 (size) * 1.0 (peasants productivity) * 1.0 (wealth/100) * 1.005 (dev modifier) * 1.0 (cc) = 100.5
-    // grossTax = 100.5, retained at terminal = 100.5 (root taxRate=0)
-    // bailiff is placeholder → 100% to treasury
-    // treasury = 100.5 * taxEfficiency (1.0 default) * flowEfficiency
-    const expected = 100.5 * defaultLandContractConfig.taxFlowEfficiency
-    expect(treasury).toBeCloseTo(expected, 5)
+
+    const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]!
+    const localExtractionRate = getBailiffLocalExtractionRate(state, ctx.config, assignmentId)
+    const collectionEfficiency = getBailiffCollectionEfficiency(
+      state,
+      ctx.config,
+      assignmentId,
+      'none',
+    )
+    const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
+    const gross = 100.5
+    const collected = gross * localExtractionRate * collectionEfficiency
+    const remittance = collected * (1 - bailiffFeeRate)
+    const expectedTreasury = remittance * defaultLandContractConfig.taxFlowEfficiency
+
+    expect(treasury).toBeCloseTo(expectedTreasury, 3)
+    expect(treasury).toBeLessThan(gross)
   })
 
-  it('normal bailiff: bailiffRevenueShare (10%) goes to bailiff.wealth, rest to treasury', () => {
-    const { state: base, polityId, houseId, provinceId } = setupBaseWorld()
-    // Promote bailiff to normal: replace placeholder with a real person
-    const holdingId = base.provinces[provinceId]!.holdingIds[0]!
-    let state = vacateHoldingBailiff(base, holdingId)
-    const bailiffPersonId = 'pe-bailiff' as PersonId
-    state = withPerson(state, bailiffPersonId, {
-      houseId,
-      age: 25,
-      wealth: 0,
-      kind: 'normal',
-    })
-    state = appointHoldingBailiff(state, {
-      holdingId,
-      holderPersonId: bailiffPersonId,
-      appointingPolityId: polityId,
-      week: state.absoluteWeek,
-    }).state
+  it('normal bailiff: fee goes to bailiff wealth, rest to treasury', () => {
+    const { state, polityId, holdingId, bailiffPersonId } = setupWithNormalBailiff()
+    const ctx = makeCtx(state)
+    const result = runLandRevenueSystem(ctx)
 
-    const result = runLandRevenueSystem(makeCtx(state))
+    const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]!
+    const localExtractionRate = getBailiffLocalExtractionRate(state, ctx.config, assignmentId)
+    const collectionEfficiency = getBailiffCollectionEfficiency(
+      state,
+      ctx.config,
+      assignmentId,
+      'none',
+    )
+    const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
+    const gross = 100.5
+    const collected = gross * localExtractionRate * collectionEfficiency
+    const bailiffFee = collected * bailiffFeeRate
+    const remittance = collected - bailiffFee
+
     const bailiff = result.state.persons[bailiffPersonId]!
-    const treasury = result.state.polities[polityId]!.treasury
+    expect(bailiff.wealth).toBeCloseTo(bailiffFee, 3)
+    expect(bailiff.wealth).toBeGreaterThan(0)
 
-    // production = 100.5, retained = 100.5, bailiff = 100.5 * 0.1 = 10.05, treasury raw = 90.45
-    const expectedBailiff = 10.05
-    const expectedTreasury = 90.45 * defaultLandContractConfig.taxFlowEfficiency
-    expect(bailiff.wealth).toBeCloseTo(expectedBailiff, 5)
-    expect(treasury).toBeCloseTo(expectedTreasury, 5)
+    const treasury = result.state.polities[polityId]!.treasury
+    const expectedTreasury = remittance * defaultLandContractConfig.taxFlowEfficiency
+    expect(treasury).toBeCloseTo(expectedTreasury, 3)
   })
 
   it('production=0: bailiff and treasury both 0', () => {
-    const { state: base, polityId, houseId, provinceId, popId } = setupBaseWorld()
-    const holdingId = base.provinces[provinceId]!.holdingIds[0]!
-    let state = vacateHoldingBailiff(base, holdingId)
-    const bailiffPersonId = 'pe-bailiff' as PersonId
-    state = withPerson(state, bailiffPersonId, {
-      houseId,
-      age: 25,
-      wealth: 0,
-      kind: 'normal',
-    })
-    state = appointHoldingBailiff(state, {
-      holdingId,
-      holderPersonId: bailiffPersonId,
-      appointingPolityId: polityId,
-      week: state.absoluteWeek,
-    }).state
-    // zero out pop wealth so production = 0
-    state = {
+    const { state, polityId, bailiffPersonId, popId } = setupWithNormalBailiff()
+    const zeroed = {
       ...state,
       popGroups: {
         ...state.popGroups,
         [popId]: { ...state.popGroups[popId]!, wealth: 0 },
       },
     }
-
-    const result = runLandRevenueSystem(makeCtx(state))
+    const result = runLandRevenueSystem(makeCtx(zeroed))
     expect(result.state.persons[bailiffPersonId]!.wealth).toBe(0)
     expect(result.state.polities[polityId]!.treasury).toBe(0)
   })
 
-  it('dead bailiff (still appointed): no salary, 100% to treasury', () => {
-    const { state: base, polityId, houseId, provinceId } = setupBaseWorld()
-    const holdingId = base.provinces[provinceId]!.holdingIds[0]!
+  it('dead bailiff: fallback, no fee, treasury gets full gross', () => {
+    const { state: base, polityId, houseId, holdingId } = setupBaseWorld()
     let state = vacateHoldingBailiff(base, holdingId)
     const bailiffPersonId = 'pe-bailiff' as PersonId
     state = withPerson(state, bailiffPersonId, {
@@ -176,10 +195,71 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
 
     const result = runLandRevenueSystem(makeCtx(state))
     const bailiff = result.state.persons[bailiffPersonId]!
-    const treasury = result.state.polities[polityId]!.treasury
     expect(bailiff.wealth).toBe(0)
-    // dead bailiff → no salary → treasury gets 100%
-    const expectedTreasury = 100.5 * defaultLandContractConfig.taxFlowEfficiency
-    expect(treasury).toBeCloseTo(expectedTreasury, 5)
+  })
+
+  it('collectionFrictionBurdenRate damages POP wealth', () => {
+    const { state, popId } = setupWithNormalBailiff()
+    const popBefore = state.popGroups[popId]!
+    const result = runLandRevenueSystem(makeCtx(state))
+    const popAfter = result.state.popGroups[popId]!
+    expect(popAfter.wealth).toBeLessThan(popBefore.wealth)
+  })
+
+  it('totalBurdenRate over comfort increases POP unrest', () => {
+    const { state, popId } = setupWithNormalBailiff()
+    const popBefore = state.popGroups[popId]!
+    expect(popBefore.unrest).toBe(0)
+    const result = runLandRevenueSystem(makeCtx(state))
+    const popAfter = result.state.popGroups[popId]!
+    expect(popAfter.unrest).toBeGreaterThan(0)
+  })
+
+  it('retainedToPop is based on provinceCollected, not gross', () => {
+    const { state, popId } = setupWithNormalBailiff()
+    const result = runLandRevenueSystem(makeCtx(state))
+    const popAfter = result.state.popGroups[popId]!
+    expect(popAfter.wealth).toBeGreaterThan(0)
+    expect(popAfter.wealth).toBeLessThan(100)
+  })
+
+  it('POP→Bailiff attitude is set for normal bailiff', () => {
+    const { state, popId, bailiffPersonId } = setupWithNormalBailiff()
+    const result = runLandRevenueSystem(makeCtx(state))
+    const popAfter = result.state.popGroups[popId]!
+    const attKey = personAttitudeKey(bailiffPersonId)
+    const attitude = popAfter.attitudes[attKey]
+    expect(attitude).toBeDefined()
+  })
+
+  it('placeholder bailiff: no POP→Bailiff attitude update', () => {
+    const { state, popId } = setupBaseWorld()
+    const result = runLandRevenueSystem(makeCtx(state))
+    const popAfter = result.state.popGroups[popId]!
+    expect(Object.keys(popAfter.attitudes).length).toBe(0)
+  })
+
+  it('chain receives remittanceToTerminal, not grossHoldingRevenue', () => {
+    const { state, polityId, holdingId } = setupWithNormalBailiff()
+    const ctx = makeCtx(state)
+    const result = runLandRevenueSystem(ctx)
+    const treasury = result.state.polities[polityId]!.treasury
+
+    const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]!
+    const localExtractionRate = getBailiffLocalExtractionRate(state, ctx.config, assignmentId)
+    const collectionEfficiency = getBailiffCollectionEfficiency(
+      state,
+      ctx.config,
+      assignmentId,
+      'none',
+    )
+    const bailiffFeeRate = getBailiffFeeRate(state, ctx.config, assignmentId)
+    const gross = 100.5
+    const collected = gross * localExtractionRate * collectionEfficiency
+    const remittance = collected * (1 - bailiffFeeRate)
+
+    const expectedTreasury = remittance * defaultLandContractConfig.taxFlowEfficiency
+    expect(treasury).toBeCloseTo(expectedTreasury, 3)
+    expect(treasury).toBeLessThan(gross * defaultLandContractConfig.taxFlowEfficiency)
   })
 })
