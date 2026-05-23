@@ -2394,19 +2394,19 @@ export function PersonDetail({
                             {task.targetRef.kind === 'intent' &&
                               (() => {
                                 const intent = worldState.actorIntents[task.targetRef.id]
-                                if (!intent) return t('detail.person.task_target_intent')
-                                if (intent.actor.kind === 'house') {
-                                  const h = worldState.houses[intent.actor.id]
+                                const actor = intent?.actor ?? task.owner
+                                if (actor.kind === 'house') {
+                                  const h = worldState.houses[actor.id]
                                   const name = h
                                     ? resolveName('house', h.nameKey, h.nameKey)
-                                    : intent.actor.id
+                                    : actor.id
                                   return t('detail.person.task_target_house_intent', { name })
                                 }
-                                if (intent.actor.kind === 'polity') {
-                                  const p = worldState.polities[intent.actor.id]
+                                if (actor.kind === 'polity') {
+                                  const p = worldState.polities[actor.id]
                                   const name = p
                                     ? resolveName('polity', p.nameKey, p.nameKey)
-                                    : intent.actor.id
+                                    : actor.id
                                   return t('detail.person.task_target_polity_intent', { name })
                                 }
                                 return t('detail.person.task_target_intent')

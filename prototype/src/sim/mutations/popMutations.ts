@@ -269,8 +269,8 @@ export function addToOrCreatePopGroupMut(
         ws.popGroups[popId] = {
           ...existing,
           size: newSize,
-          wealth: (existing.wealth * oldSize + sourceWealth * input.size) / newSize,
-          unrest: (existing.unrest * oldSize + sourceUnrest * input.size) / newSize,
+          wealth: clamp((existing.wealth * oldSize + sourceWealth * input.size) / newSize, 0, 100),
+          unrest: clamp((existing.unrest * oldSize + sourceUnrest * input.size) / newSize, 0, 100),
           attitudes: mergeAttitudesWeightedBySize([
             { attitudes: existing.attitudes, size: oldSize },
             { attitudes: sourceAttitudes, size: input.size },
@@ -435,8 +435,8 @@ export function mergeCompatiblePopsMut(ws: WorldState): void {
     ws.popGroups[keepId] = {
       ...keepPop,
       size: totalSize,
-      wealth: weightedWealth / totalSize,
-      unrest: weightedUnrest / totalSize,
+      wealth: clamp(weightedWealth / totalSize, 0, 100),
+      unrest: clamp(weightedUnrest / totalSize, 0, 100),
       attitudes: mergeAttitudesWeightedBySize(allPops.map(({ pop }) => pop)),
     }
 

@@ -8,10 +8,11 @@ import {
   chooseSuccessor,
 } from '../selectors/successionSelectors'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
+import { installHoldingPlaceholderBailiff } from '../mutations/provinceOfficeMutations'
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { maybeSplitHouseAfterSuccession } from './houseSplitSystem'
 import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
-import type { HouseId, PolityId } from '../types/ids'
+import type { HouseId, PersonId, PolityId } from '../types/ids'
 import type { SuccessionCandidate } from '../selectors/successionSelectors'
 import { createLogger } from '../debug/logger'
 import { adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
@@ -157,7 +158,13 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
         type: 'minor',
       })
 
-      return { ...eventCtx, state: newState, events: [...eventCtx.events, event] }
+      let minorCtx: TickContext = {
+        ...eventCtx,
+        state: newState,
+        events: [...eventCtx.events, event],
+      }
+      minorCtx = vacatePersonBailiffPositions(minorCtx, oldestMinor.id)
+      return minorCtx
     }
 
     return extinctHouseAfterFailedSuccession(ctx, houseId)
@@ -207,6 +214,8 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
     state: newStateAfterHead,
     events: [...eventCtx.events, event],
   }
+
+  resultCtx = vacatePersonBailiffPositions(resultCtx, successor.person.id)
 
   if (adultCandidates.length >= 2) {
     const secondCandidate = adultCandidates[1]
@@ -291,4 +300,20 @@ export function applyMinorHeadPenalties(ctx: TickContext): TickContext {
   }
 
   return currentCtx
+}
+
+function vacatePersonBailiffPositions(ctx: TickContext, personId: PersonId): TickContext {
+  const ids = ctx.state.holdingOfficeIndex.byHolderPerson[personId] ?? []
+  let state = ctx.state
+  for (const assignmentId of ids) {
+    const assignment = state.holdingOfficeAssignments[assignmentId]
+    if (!assignment || !assignment.active) continue
+    state = installHoldingPlaceholderBailiff(state, {
+      holdingId: assignment.holdingId,
+      appointingPolityId: assignment.appointingPolityId,
+      week: state.absoluteWeek,
+    })
+  }
+  if (state === ctx.state) return ctx
+  return { ...ctx, state }
 }
