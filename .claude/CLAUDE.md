@@ -95,13 +95,13 @@ cd prototype && npm run check
 
 ## CLI 動作確認（実装完了後に必須）
 
-`npm run check` が通った後、必ず CLI で複数シード × 100年のシミュレーションを実行して整合性エラーがないことを確認する。
+`npm run check` が通った後、必ず CLI で複数シード × 300年のシミュレーションを実行して整合性エラーがないことを確認する。
 
 ```bash
-# 標準の整合性検証（4 seed × 100年、並列実行）
+# 標準の整合性検証（4 seed × 300年、並列実行）
 cd prototype
 for s in 1 42 123 999; do
-  node src/cli/run.mjs --years 100 --seed $s > /tmp/seed$s.log 2>&1 &
+  node src/cli/run.mjs --years 300 --seed $s > /tmp/seed$s.log 2>&1 &
 done
 wait
 echo "All 4 seeds finished"
@@ -111,20 +111,21 @@ echo "All 4 seeds finished"
 
 ### 所要時間の目安
 
-v0.23.1 (TaskSystem mutable draft 最適化後) の実測値:
+v0.23.2 (taskIndex 空エントリ purge + 死亡者ログ purge 後) の実測値:
 
 | 年数 | 1 seed 所要時間 | 4 seed 並列 |
 |---|---|---|
-| 50年 | ~27 sec | ~27 sec |
-| 100年 | ~1 min 21 sec | ~1 min 21 sec |
+| 50年 | ~5 sec | ~5 sec |
+| 100年 | ~12 sec | ~12 sec |
+| 300年 | ~48 sec | ~68 sec |
 
-**通常の開発・検証では 100 年 × 4 seed を推奨。** 20年では検出できない長期蓄積バグが100年で顕在化した実績がある（DiplomaticPlay delegate 死亡バグ等）。
+**通常の開発・検証では 300 年 × 4 seed を推奨。** 20年では検出できない長期蓄積バグが100年で顕在化した実績がある（DiplomaticPlay delegate 死亡バグ等）。
 
 ### 並列 vs 直列の使い分け
 
 | 用途 | 推奨 |
 |---|---|
-| 整合性検証（通常） | 100年 × 4 seed 並列 |
+| 整合性検証（通常） | 300年 × 4 seed 並列 |
 | 長期整合性検証（CI / リリース前） | 300年 × 4 seed 並列 |
 | 時間計測・perf 比較 | 直列 (CPU 競合でブレるため) |
 
@@ -311,10 +312,23 @@ for (const r of rows) {
 - 他全システム合計: 0.8 sec
 - 50 年 × 1 seed: ~27 sec (5.9x 高速化)
 
+**v0.23.2 時点 (taskIndex 空エントリ purge + 死亡者ログ purge 後):**
+
+10 年 × 1 seed の per-system 実測:
+- integrityCheck: 303 ms (debug only)
+- taskSystem: 264 ms — さらに 42% 削減
+- personAimMaintenanceSystem: 129 ms — 84% 削減
+- 50 年 × 1 seed: ~5 sec (v0.23.1 比 5.4x 高速化)
+- 300 年 × 4 seed 並列: ~68 sec
+
 最適化の中身 (v0.23.1):
 - **taskSystem mutable draft**: 1 tick あたり数十回の WorldState spread を初回/最終の1回に集約。-93%。
 - **Schwartzian transform**: batchProcessTasks の priority sort で computeEffectivePriority の呼び出しを O(n log n) → O(n) に削減。
 - **officeIndex 活用**: personAimSelectors の officeAssignment 全走査を byHolderPerson インデックス参照に置換。-9%。
+
+最適化の中身 (v0.23.2):
+- **taskIndex 空エントリ purge**: removeTaskMut で filter 後に空配列となった byAssignee/byOwner/byTarget エントリを delete。state spread コスト削減。
+- **死亡者 personActivityLog purge**: deadPersonLogPurgeSystem を新設。死亡時にログを収集してから削除。state 全体の 60-70% を占めていた死亡者ログを解消。
 
 過去の最適化 (v0.17.3):
 - integrityCheck を年末のみ実行 (default 非 debug 時)。-38%。
@@ -328,8 +342,6 @@ v0.23.1 で taskSystem の mutable draft パターンを導入済み。今後同
 残る最適化候補（機能完成後に検討）:
 - 死亡 Person の compaction (lineage 参照を保ちつつ archive map に逃がす)
 - `state.persons` を `living / dead` 二分割
-- personActivityLogs の死亡者分を定期 purge (state 全体の 70% を占める)
-- taskIndex.byTarget の空エントリ cleanup (99.5% が空配列)
 
 ## tick システムの追加規約
 

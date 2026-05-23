@@ -12,6 +12,7 @@ import { runPolitySurplusDistributionSystem } from './politySurplusDistributionS
 import { runBailiffAppointmentSystem } from './bailiffAppointmentSystem'
 import { runDisasterSystem } from './disasterSystem'
 import { runMortalitySystem } from './mortalitySystem'
+import { runDeadPersonLogPurgeSystem } from './deadPersonLogPurgeSystem'
 import { runSuccessionSystem } from './successionSystem'
 import { runMarriageSystem } from './marriageSystem'
 import { runBirthSystem } from './birthSystem'
@@ -92,6 +93,12 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runDisasterSystem,
   },
   { name: 'mortalitySystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runMortalitySystem },
+  {
+    name: 'deadPersonLogPurgeSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runDeadPersonLogPurgeSystem,
+  },
   {
     name: 'estateSettlementSystem',
     intervalWeeks: 4,

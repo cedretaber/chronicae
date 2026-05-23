@@ -98,19 +98,21 @@ function removeTaskMut(ws: WorldState, taskId: TaskId): void {
 
   const byAssignee = ws.taskIndex.byAssignee[assigneeKey]
   if (byAssignee) {
-    ws.taskIndex.byAssignee[assigneeKey] = byAssignee.filter(
-      (id) => (id as string) !== (taskId as string),
-    )
+    const filtered = byAssignee.filter((id) => (id as string) !== (taskId as string))
+    if (filtered.length > 0) ws.taskIndex.byAssignee[assigneeKey] = filtered
+    else delete ws.taskIndex.byAssignee[assigneeKey]
   }
   const byOwner = ws.taskIndex.byOwner[ownerKey]
   if (byOwner) {
-    ws.taskIndex.byOwner[ownerKey] = byOwner.filter((id) => (id as string) !== (taskId as string))
+    const filtered = byOwner.filter((id) => (id as string) !== (taskId as string))
+    if (filtered.length > 0) ws.taskIndex.byOwner[ownerKey] = filtered
+    else delete ws.taskIndex.byOwner[ownerKey]
   }
   const byTarget = ws.taskIndex.byTarget[targetKey]
   if (byTarget) {
-    ws.taskIndex.byTarget[targetKey] = byTarget.filter(
-      (id) => (id as string) !== (taskId as string),
-    )
+    const filtered = byTarget.filter((id) => (id as string) !== (taskId as string))
+    if (filtered.length > 0) ws.taskIndex.byTarget[targetKey] = filtered
+    else delete ws.taskIndex.byTarget[targetKey]
   }
 }
 
