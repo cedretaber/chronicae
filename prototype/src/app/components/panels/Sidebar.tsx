@@ -214,7 +214,15 @@ function FactionRow({
 }
 
 // v0.18 Stage E/F §21: Active DiplomaticPlay 一覧の row
-function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<string, Polity> }) {
+function PlayRow({
+  play,
+  polities,
+  onClick,
+}: {
+  play: DiplomaticPlay
+  polities: Record<string, Polity>
+  onClick: () => void
+}) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
   const kindLabel: Record<string, string> = {
@@ -233,22 +241,14 @@ function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<st
   const targetName = resolveName('polity', targetNameKey, targetNameKey)
   const badge = statusBadge[play.status] ?? { label: play.status, bg: 'bg-gray-600' }
   const kindLabelText = kindLabel[play.kind] ?? play.kind
-  const dl = weekToYearMonthWeek(play.deadlineWeek)
-  const worldState = useSimulationStore((s) => s.session?.currentState)
-  let provinceId: string | undefined
-  if (play.primaryDemand.kind === 'transfer_land_contract') {
-    provinceId = worldState?.holdings[play.primaryDemand.holdingId]?.provinceId
-  } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
-    provinceId = worldState?.holdings[play.primaryDemand.holdingId]?.provinceId
-  } else if (play.primaryDemand.kind === 'revolt_concession') {
-    provinceId = play.primaryDemand.provinceId
-  }
-  // counterDemand 有無で land_claim の色付けを表現 (補償あり=合意ベース、なし=威圧ベース)
   const hasOffer = play.counterDemand?.kind === 'pay_wealth' && play.counterDemand.amount > 0
   const naturePrefix = play.kind === 'land_claim' ? (hasOffer ? '\u{1F4B0} ' : '\u{2694} ') : ''
 
   return (
-    <div className="cursor-default border-b border-gray-700/50 px-3 py-1.5 text-sm">
+    <div
+      className="cursor-pointer border-b border-gray-700/50 px-3 py-1.5 text-sm hover:bg-gray-700"
+      onClick={onClick}
+    >
       <div className="flex items-center gap-2">
         <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-white">
           {naturePrefix}
@@ -260,24 +260,6 @@ function PlayRow({ play, polities }: { play: DiplomaticPlay; polities: Record<st
       </div>
       <div className="mt-1 truncate text-xs text-gray-300">
         <span className="font-bold">{initiatorName}</span> → {targetName}
-        {provinceId && (
-          <span className="text-gray-500">
-            {' '}
-            (
-            {resolveName(
-              'province',
-              worldState?.provinces[provinceId as import('@sim/types/ids').ProvinceId]?.nameKey ??
-                provinceId,
-              provinceId,
-            )}
-            )
-          </span>
-        )}
-      </div>
-      <div className="text-xs text-gray-400">
-        {t('sidebar.play_progress')}: {Math.round(play.progress)} | {t('sidebar.play_tension')}:{' '}
-        {Math.round(play.tension)} | {t('sidebar.play_deadline')}: {dl.year}/{dl.month}/
-        {dl.weekOfMonth}
       </div>
     </div>
   )
@@ -565,7 +547,12 @@ export function Sidebar() {
       }
       const politiesMap = polities ?? {}
       return activePlays.map((play) => (
-        <PlayRow key={play.id} play={play} polities={politiesMap as Record<string, Polity>} />
+        <PlayRow
+          key={play.id}
+          play={play}
+          polities={politiesMap as Record<string, Polity>}
+          onClick={() => openDetailWindow('diplomaticPlay', play.id)}
+        />
       ))
     }
     // watchlist

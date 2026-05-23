@@ -143,6 +143,9 @@ sidebar:
   play_progress: '進展'
   play_tension: '緊張'
   play_deadline: '期限'
+  play_delegates: '代表'
+  play_negotiation: '交渉'
+  play_tasks: 'タスク'
 
 detail:
   annexed: '併合済'
@@ -175,6 +178,11 @@ detail:
     active_aim: '現在の目論見'
     aim_progress: '進捗'
     aim_deadline: '期限'
+    active_intent: '実行中の意図'
+    intent_progress: '進捗'
+    active_task: '実行中のタスク'
+    task_effort: '進行度'
+    active_play: '進行中の外交劇'
 
   # 家系詳細
   house:
@@ -210,6 +218,11 @@ detail:
     active_aim: '現在の目論見'
     aim_progress: '進捗'
     aim_deadline: '期限'
+    active_intent: '実行中の意図'
+    intent_progress: '進捗'
+    active_task: '実行中のタスク'
+    task_effort: '進行度'
+    active_play: '進行中の外交劇'
 
   # 人物詳細
   person:
@@ -265,8 +278,34 @@ detail:
     aim_deadline: '期限'
     aim_status_waiting: '待機中'
     active_task: '現在の仕事'
+    assigned_tasks: '担当タスク'
     task_effort: '進行度'
+    task_target_aim: '目論見のため'
+    task_target_intent: '意図のため'
+    task_target_play: '外交劇のため'
     recent_activities: '近況'
+
+  # 外交劇詳細
+  play:
+    initiator: '発起方'
+    target: '対象方'
+    province: '州'
+    started: '開始'
+    delegate: '代表'
+    initiator_side: '発起方'
+    target_side: '対象方'
+    active_tasks: '実行中のタスク'
+    demand: '主要要求'
+    counter_demand: '対抗要求'
+    demand_transfer_land: '土地移転'
+    demand_tax_change: '税率変更'
+    demand_revolt_concession: '反乱譲歩'
+    demand_status_quo: '現状維持'
+    demand_pay_wealth: '金銭支払'
+    status_settled: '妥結'
+    status_failed: '決裂'
+    status_resolved_by_conflict: '武力解決'
+    status_cancelled: '中止'
 
   # プロヴィンス詳細
   province:

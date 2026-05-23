@@ -1,1 +1,17 @@
-# diplomacy namespace (ja) — placeholder for future use
+# DiplomaticPlay detail translations (ja)
+play_kind:
+  land_claim: 土地請求
+  contract_tax_revision: 税率改定
+  revolt_negotiation: 反乱交渉
+
+delegate:
+  initiator: 発起方代表
+  target: 対象方代表
+
+params:
+  preparation: 準備
+  leverage: 影響力
+  commitment: 決意
+
+tasks:
+  active_count: 実行中タスク

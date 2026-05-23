@@ -40,6 +40,19 @@ sidebar:
   houses: 'Houses'
   persons: 'Persons'
   factions: 'Factions'
+  play_kind:
+    revolt: 'Revolt'
+    claim: 'Claim'
+    tax: 'Tax'
+  play_status:
+    active: 'Active'
+    escalated: 'Escalated'
+  play_progress: 'Progress'
+  play_tension: 'Tension'
+  play_deadline: 'Deadline'
+  play_delegates: 'Delegates'
+  play_negotiation: 'Negotiation'
+  play_tasks: 'Tasks'
 
 detail:
   annexed: 'Annexed'
@@ -72,6 +85,11 @@ detail:
     active_aim: 'Active Aim'
     aim_progress: 'Progress'
     aim_deadline: 'Deadline'
+    active_intent: 'Active Intent'
+    intent_progress: 'Progress'
+    active_task: 'Active Task'
+    task_effort: 'Effort'
+    active_play: 'Active Diplomatic Play'
 
   # House detail
   house:
@@ -107,6 +125,11 @@ detail:
     active_aim: 'Active Aim'
     aim_progress: 'Progress'
     aim_deadline: 'Deadline'
+    active_intent: 'Active Intent'
+    intent_progress: 'Progress'
+    active_task: 'Active Task'
+    task_effort: 'Effort'
+    active_play: 'Active Diplomatic Play'
 
   # Person detail
   person:
@@ -162,8 +185,34 @@ detail:
     aim_deadline: 'Deadline'
     aim_status_waiting: 'Waiting'
     active_task: 'Current Task'
+    assigned_tasks: 'Assigned Tasks'
     task_effort: 'Effort'
+    task_target_aim: 'For: Aim'
+    task_target_intent: 'For: Intent'
+    task_target_play: 'For: Diplomatic Play'
     recent_activities: 'Recent Activities'
+
+  # DiplomaticPlay detail
+  play:
+    initiator: 'Initiator'
+    target: 'Target'
+    province: 'Province'
+    started: 'Started'
+    delegate: 'Delegate'
+    initiator_side: 'Initiator Side'
+    target_side: 'Target Side'
+    active_tasks: 'Active Tasks'
+    demand: 'Primary Demand'
+    counter_demand: 'Counter Demand'
+    demand_transfer_land: 'Transfer Land'
+    demand_tax_change: 'Change Tax Rate'
+    demand_revolt_concession: 'Revolt Concession'
+    demand_status_quo: 'Status Quo'
+    demand_pay_wealth: 'Pay Wealth'
+    status_settled: 'Settled'
+    status_failed: 'Failed'
+    status_resolved_by_conflict: 'Resolved by Conflict'
+    status_cancelled: 'Cancelled'
 
   # Province detail
   province:

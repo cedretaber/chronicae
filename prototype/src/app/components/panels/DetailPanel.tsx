@@ -974,6 +974,7 @@ export function CountryDetail({
   onPersonClick,
   onHouseClick,
   onProvinceClick,
+  onDiplomaticPlayClick,
 }: {
   polity: Polity
   session: SimulationSession | null
@@ -982,6 +983,7 @@ export function CountryDetail({
   onPersonClick: ClickHandler
   onHouseClick: ClickHandler
   onProvinceClick: (id: string) => void
+  onDiplomaticPlayClick?: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -1257,6 +1259,67 @@ export function CountryDetail({
                   </div>
                 </div>
               )}
+              {activeAim?.activeIntentId &&
+                (() => {
+                  const intent = worldState.actorIntents[activeAim.activeIntentId]
+                  if (!intent || intent.status !== 'active') return null
+                  return (
+                    <div style={{ marginLeft: 8, marginTop: 4 }}>
+                      <strong>{t('detail.polity.active_intent')}</strong>
+                      <div style={{ marginLeft: 8 }}>
+                        <div>{t(intent.kind, { ns: 'intents' })}</div>
+                        <div>
+                          {t('detail.polity.intent_progress')}: {intent.progress ?? 0} /{' '}
+                          {intent.targetProgress ?? 1}
+                        </div>
+                      </div>
+                      {intent.activeTaskId &&
+                        (() => {
+                          const task = worldState.tasks[intent.activeTaskId]
+                          if (!task || task.status !== 'active') return null
+                          return (
+                            <div style={{ marginLeft: 8, marginTop: 4 }}>
+                              <strong>{t('detail.polity.active_task')}</strong>
+                              <div style={{ marginLeft: 8 }}>
+                                <div>{t(task.kind, { ns: 'tasks' })}</div>
+                                <div>
+                                  {t('detail.polity.task_effort')}: {Math.round(task.effortDone)} /{' '}
+                                  {task.effortRequired}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })()}
+                    </div>
+                  )
+                })()}
+              {activeAim?.activeDiplomaticPlayId &&
+                (() => {
+                  const play = worldState.diplomaticPlays[activeAim.activeDiplomaticPlayId]
+                  if (!play || (play.status !== 'active' && play.status !== 'escalated'))
+                    return null
+                  return (
+                    <div style={{ marginLeft: 8, marginTop: 4 }}>
+                      <strong>{t('detail.polity.active_play')}</strong>
+                      <div style={{ marginLeft: 8 }}>
+                        {onDiplomaticPlayClick ? (
+                          <button
+                            className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                            onClick={() => onDiplomaticPlayClick(play.id)}
+                          >
+                            {t(`play_kind.${play.kind}`, { ns: 'diplomacy' })}
+                          </button>
+                        ) : (
+                          <div>{t(`play_kind.${play.kind}`, { ns: 'diplomacy' })}</div>
+                        )}
+                        <div>
+                          {t('sidebar.play_progress')}: {Math.round(play.progress)} |{' '}
+                          {t('sidebar.play_tension')}: {Math.round(play.tension)}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
             </div>
           )
         })()}
@@ -1273,6 +1336,7 @@ export function HouseDetail({
   onHouseClick,
   onPolityClick,
   onProvinceClick,
+  onDiplomaticPlayClick,
   eventHistory,
 }: {
   house: House
@@ -1283,6 +1347,7 @@ export function HouseDetail({
   onHouseClick: ClickHandler
   onPolityClick: ClickHandler
   onProvinceClick: (id: string) => void
+  onDiplomaticPlayClick?: (id: string) => void
   eventHistory: SimEvent[]
 }) {
   const { t } = useTranslation()
@@ -1652,6 +1717,67 @@ export function HouseDetail({
                   </div>
                 </div>
               )}
+              {activeAim?.activeIntentId &&
+                (() => {
+                  const intent = currentState.actorIntents[activeAim.activeIntentId]
+                  if (!intent || intent.status !== 'active') return null
+                  return (
+                    <div style={{ marginLeft: 8, marginTop: 4 }}>
+                      <strong>{t('detail.house.active_intent')}</strong>
+                      <div style={{ marginLeft: 8 }}>
+                        <div>{t(intent.kind, { ns: 'intents' })}</div>
+                        <div>
+                          {t('detail.house.intent_progress')}: {intent.progress ?? 0} /{' '}
+                          {intent.targetProgress ?? 1}
+                        </div>
+                      </div>
+                      {intent.activeTaskId &&
+                        (() => {
+                          const task = currentState.tasks[intent.activeTaskId]
+                          if (!task || task.status !== 'active') return null
+                          return (
+                            <div style={{ marginLeft: 8, marginTop: 4 }}>
+                              <strong>{t('detail.house.active_task')}</strong>
+                              <div style={{ marginLeft: 8 }}>
+                                <div>{t(task.kind, { ns: 'tasks' })}</div>
+                                <div>
+                                  {t('detail.house.task_effort')}: {Math.round(task.effortDone)} /{' '}
+                                  {task.effortRequired}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })()}
+                    </div>
+                  )
+                })()}
+              {activeAim?.activeDiplomaticPlayId &&
+                (() => {
+                  const play = currentState.diplomaticPlays[activeAim.activeDiplomaticPlayId]
+                  if (!play || (play.status !== 'active' && play.status !== 'escalated'))
+                    return null
+                  return (
+                    <div style={{ marginLeft: 8, marginTop: 4 }}>
+                      <strong>{t('detail.house.active_play')}</strong>
+                      <div style={{ marginLeft: 8 }}>
+                        {onDiplomaticPlayClick ? (
+                          <button
+                            className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                            onClick={() => onDiplomaticPlayClick(play.id)}
+                          >
+                            {t(`play_kind.${play.kind}`, { ns: 'diplomacy' })}
+                          </button>
+                        ) : (
+                          <div>{t(`play_kind.${play.kind}`, { ns: 'diplomacy' })}</div>
+                        )}
+                        <div>
+                          {t('sidebar.play_progress')}: {Math.round(play.progress)} |{' '}
+                          {t('sidebar.play_tension')}: {Math.round(play.tension)}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
             </div>
           )
         })()}
@@ -2156,10 +2282,10 @@ export function PersonDetail({
           if (!goal) return null
           const fulfillment = getPersonGoalFulfillment(worldState, person.id)
           const activeAim = getActiveAimForOwner(worldState, owner)
-          const taskIds = worldState.taskIndex.byAssignee[`person:${person.id}`] ?? []
-          const activeTask = taskIds
+          const taskIds = worldState.taskIndex.byAssignee[person.id as string] ?? []
+          const activeTasks = taskIds
             .map((tid) => worldState.tasks[tid])
-            .find((t) => t && t.status === 'active')
+            .filter((t): t is NonNullable<typeof t> => t !== undefined && t.status === 'active')
           const activityLogIds =
             worldState.personActivityLogIndex.byPerson[person.id as string] ?? []
           const recentLogs = activityLogIds
@@ -2204,17 +2330,28 @@ export function PersonDetail({
                 </>
               )}
 
-              {activeTask && (
+              {activeTasks.length > 0 && (
                 <>
                   <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
-                    {t('detail.person.active_task')}:
+                    {t('detail.person.assigned_tasks')} ({activeTasks.length}):
                   </div>
                   <div className="text-sm" style={{ marginLeft: 8 }}>
-                    <div>{t(activeTask.kind, { ns: 'tasks' })}</div>
-                    <div>
-                      {t('detail.person.task_effort')}: {Math.round(activeTask.effortDone)} /{' '}
-                      {activeTask.effortRequired}
-                    </div>
+                    {activeTasks.map((task) => (
+                      <div key={task.id} className="mb-1 rounded bg-gray-700/50 px-2 py-1 text-xs">
+                        <div className="text-gray-200">{t(task.kind, { ns: 'tasks' })}</div>
+                        <div className="text-gray-400">
+                          {t('detail.person.task_effort')}: {Math.round(task.effortDone)} /{' '}
+                          {task.effortRequired}
+                        </div>
+                        <div className="text-gray-500">
+                          {task.targetRef.kind === 'aim' && t('detail.person.task_target_aim')}
+                          {task.targetRef.kind === 'intent' &&
+                            t('detail.person.task_target_intent')}
+                          {task.targetRef.kind === 'diplomatic_play' &&
+                            t('detail.person.task_target_play')}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </>
               )}
@@ -2963,6 +3100,249 @@ export function FactionDetail({
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+export function DiplomaticPlayDetail({
+  play,
+  session,
+  onPersonClick,
+  onPolityClick,
+  onProvinceClick,
+}: {
+  play: import('@sim/types/diplomaticPlay').DiplomaticPlay
+  session: SimulationSession | null
+  onPersonClick: ClickHandler
+  onPolityClick: ClickHandler
+  onProvinceClick: (id: string) => void
+}) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
+  const worldState = session?.currentState ?? null
+  if (!worldState) return null
+
+  const polities = worldState.polities
+  const persons = worldState.persons
+
+  const started = weekToYearMonthWeek(play.startedWeek)
+  const deadline = weekToYearMonthWeek(play.deadlineWeek)
+
+  const statusBadge: Record<string, { label: string; bg: string }> = {
+    active: { label: t('sidebar.play_status.active'), bg: 'bg-blue-700' },
+    escalated: { label: t('sidebar.play_status.escalated'), bg: 'bg-red-700' },
+    settled: { label: t('detail.play.status_settled'), bg: 'bg-green-700' },
+    failed: { label: t('detail.play.status_failed'), bg: 'bg-gray-600' },
+    resolved_by_conflict: {
+      label: t('detail.play.status_resolved_by_conflict'),
+      bg: 'bg-orange-700',
+    },
+    cancelled: { label: t('detail.play.status_cancelled'), bg: 'bg-gray-600' },
+  }
+  const badge = statusBadge[play.status] ?? { label: play.status, bg: 'bg-gray-600' }
+
+  let provinceId: ProvinceId | undefined
+  if (play.primaryDemand.kind === 'transfer_land_contract') {
+    provinceId = worldState.holdings[play.primaryDemand.holdingId]?.provinceId
+  } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
+    provinceId = worldState.holdings[play.primaryDemand.holdingId]?.provinceId
+  } else if (play.primaryDemand.kind === 'revolt_concession') {
+    provinceId = play.primaryDemand.provinceId
+  }
+
+  const initiatorPolity = polities[play.initiator.id as PolityId]
+  const targetPolity = polities[play.target.id as PolityId]
+
+  const initiatorTasks = play.initiatorActiveTaskIds
+    .map((tid) => worldState.tasks[tid])
+    .filter((tk): tk is NonNullable<typeof tk> => !!tk)
+  const targetTasks = play.targetActiveTaskIds
+    .map((tid) => worldState.tasks[tid])
+    .filter((tk): tk is NonNullable<typeof tk> => !!tk)
+
+  return (
+    <div className="flex flex-col gap-1 p-3">
+      <div className="flex items-center gap-2">
+        <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-white">
+          {t(`play_kind.${play.kind}`, { ns: 'diplomacy' })}
+        </span>
+        <span className={`rounded px-1.5 py-0.5 text-xs text-white ${badge.bg}`}>
+          {badge.label}
+        </span>
+      </div>
+
+      <div className="text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.play.initiator')}:</span>
+          {initiatorPolity ? (
+            <PolityLink polityId={initiatorPolity.id} polities={polities} onClick={onPolityClick} />
+          ) : (
+            <span>{play.initiator.id}</span>
+          )}
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.play.target')}:</span>
+          {targetPolity ? (
+            <PolityLink polityId={targetPolity.id} polities={polities} onClick={onPolityClick} />
+          ) : (
+            <span>{play.target.id}</span>
+          )}
+        </div>
+        {provinceId && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.play.province')}:</span>
+            <button
+              className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+              onClick={() => onProvinceClick(provinceId)}
+            >
+              {resolveName(
+                'province',
+                worldState.provinces[provinceId]?.nameKey ?? provinceId,
+                provinceId,
+              )}
+            </button>
+          </div>
+        )}
+
+        <div className="my-1 border-t border-gray-700" />
+
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('sidebar.play_progress')}:</span>
+          <span>{Math.round(play.progress)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('sidebar.play_tension')}:</span>
+          <span>{Math.round(play.tension)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.play.started')}:</span>
+          <span>
+            {started.year}/{started.month}/{started.weekOfMonth}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('sidebar.play_deadline')}:</span>
+          <span>
+            {deadline.year}/{deadline.month}/{deadline.weekOfMonth}
+          </span>
+        </div>
+
+        <div className="my-1 border-t border-gray-700" />
+
+        <div className="text-sm font-semibold text-gray-300">{t('detail.play.initiator_side')}</div>
+        <div style={{ marginLeft: 8 }}>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.play.delegate')}:</span>
+            {play.initiatorDelegatePersonId ? (
+              <PersonLink
+                personId={play.initiatorDelegatePersonId}
+                persons={persons}
+                onClick={onPersonClick}
+              />
+            ) : (
+              <span className="text-gray-500">—</span>
+            )}
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('diplomacy:params.preparation')}:</span>
+            <span>{Math.round(play.initiatorPreparation)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('diplomacy:params.leverage')}:</span>
+            <span>{Math.round(play.initiatorLeverage)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('diplomacy:params.commitment')}:</span>
+            <span>{Math.round(play.initiatorCommitment)}</span>
+          </div>
+          {initiatorTasks.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <div className="text-xs font-semibold text-gray-400">
+                {t('detail.play.active_tasks')}:
+              </div>
+              {initiatorTasks.map((task) => (
+                <div key={task.id} className="text-xs text-gray-300" style={{ marginLeft: 8 }}>
+                  {t(task.kind, { ns: 'tasks' })} — {Math.round(task.effortDone)}/
+                  {task.effortRequired}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
+          {t('detail.play.target_side')}
+        </div>
+        <div style={{ marginLeft: 8 }}>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.play.delegate')}:</span>
+            {play.targetDelegatePersonId ? (
+              <PersonLink
+                personId={play.targetDelegatePersonId}
+                persons={persons}
+                onClick={onPersonClick}
+              />
+            ) : (
+              <span className="text-gray-500">—</span>
+            )}
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('diplomacy:params.preparation')}:</span>
+            <span>{Math.round(play.targetPreparation)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('diplomacy:params.leverage')}:</span>
+            <span>{Math.round(play.targetLeverage)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('diplomacy:params.commitment')}:</span>
+            <span>{Math.round(play.targetCommitment)}</span>
+          </div>
+          {targetTasks.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <div className="text-xs font-semibold text-gray-400">
+                {t('detail.play.active_tasks')}:
+              </div>
+              {targetTasks.map((task) => (
+                <div key={task.id} className="text-xs text-gray-300" style={{ marginLeft: 8 }}>
+                  {t(task.kind, { ns: 'tasks' })} — {Math.round(task.effortDone)}/
+                  {task.effortRequired}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="my-1 border-t border-gray-700" />
+
+        <div className="text-sm font-semibold text-gray-300">{t('detail.play.demand')}</div>
+        <div className="text-xs text-gray-400" style={{ marginLeft: 8 }}>
+          {play.primaryDemand.kind === 'transfer_land_contract' &&
+            `${t('detail.play.demand_transfer_land')}`}
+          {play.primaryDemand.kind === 'change_contract_tax_rate' &&
+            `${t('detail.play.demand_tax_change')} → ${Math.round(play.primaryDemand.newTaxRateToGrantor * 100)}%`}
+          {play.primaryDemand.kind === 'revolt_concession' &&
+            `${t('detail.play.demand_revolt_concession')} (${play.primaryDemand.concessionLevel})`}
+          {play.primaryDemand.kind === 'status_quo' && t('detail.play.demand_status_quo')}
+          {play.primaryDemand.kind === 'pay_wealth' &&
+            `${t('detail.play.demand_pay_wealth')} ${formatAmount(play.primaryDemand.amount)}`}
+        </div>
+        {play.counterDemand && play.counterDemand.kind !== 'status_quo' && (
+          <>
+            <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 2 }}>
+              {t('detail.play.counter_demand')}
+            </div>
+            <div className="text-xs text-gray-400" style={{ marginLeft: 8 }}>
+              {play.counterDemand.kind === 'pay_wealth' &&
+                `${t('detail.play.demand_pay_wealth')} ${formatAmount(play.counterDemand.amount)}`}
+              {play.counterDemand.kind === 'transfer_land_contract' &&
+                t('detail.play.demand_transfer_land')}
+              {play.counterDemand.kind === 'change_contract_tax_rate' &&
+                `${t('detail.play.demand_tax_change')} → ${Math.round(play.counterDemand.newTaxRateToGrantor * 100)}%`}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

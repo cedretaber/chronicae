@@ -1,1 +1,12 @@
-# intents namespace (ja) — placeholder for future use
+# ActorIntentKind translations (ja)
+acquire_land: 土地の獲得
+sell_land: 土地の売却
+improve_contract_terms: 契約条件の改善
+demand_tax_increase: 増税の要求
+suppress_unrest: 不穏の鎮圧
+revolt: 反乱
+develop_holding: 所領の開発
+expand_polity_share: 国家持分の拡大
+promote_policy_shift: 政策転換の推進
+patronize_artist: 芸術家の後援
+commission_chronicle: 年代記の編纂

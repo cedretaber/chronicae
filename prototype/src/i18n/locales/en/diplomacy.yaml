@@ -1,1 +1,17 @@
-# diplomacy namespace (en) — placeholder for future use
+# DiplomaticPlay detail translations (en)
+play_kind:
+  land_claim: Land Claim
+  contract_tax_revision: Tax Revision
+  revolt_negotiation: Revolt Negotiation
+
+delegate:
+  initiator: Initiator Delegate
+  target: Target Delegate
+
+params:
+  preparation: Prep
+  leverage: Lev
+  commitment: Com
+
+tasks:
+  active_count: Active Tasks

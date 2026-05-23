@@ -1,1 +1,12 @@
-# intents namespace (en) — placeholder for future use
+# ActorIntentKind translations (en)
+acquire_land: Acquire Land
+sell_land: Sell Land
+improve_contract_terms: Improve Contract Terms
+demand_tax_increase: Demand Tax Increase
+suppress_unrest: Suppress Unrest
+revolt: Revolt
+develop_holding: Develop Holding
+expand_polity_share: Expand Polity Share
+promote_policy_shift: Promote Policy Shift
+patronize_artist: Patronize Artist
+commission_chronicle: Commission Chronicle

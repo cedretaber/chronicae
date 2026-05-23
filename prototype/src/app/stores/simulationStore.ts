@@ -9,7 +9,14 @@ import YAML from 'yaml'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
 import type { NamePoolService } from '@sim/namegen/namePoolTypes'
 
-export type EntityType = 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction'
+export type EntityType =
+  | 'polity'
+  | 'house'
+  | 'person'
+  | 'province'
+  | 'popGroup'
+  | 'faction'
+  | 'diplomaticPlay'
 // Backwards-friendly alias retained as named export (some modules import SelectedType)
 export type SelectedType = EntityType
 export type MapView = 'terminal' | 'root' | 'house' | 'share' | 'unrest'

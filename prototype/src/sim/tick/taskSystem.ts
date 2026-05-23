@@ -808,14 +808,14 @@ function applyDiplomaticTaskEffect(
   switch (task.kind) {
     case 'prepare_argument':
       if (side === 'initiator') {
-        updated.initiatorLeverage = clamp(
-          play.initiatorLeverage + config.diplomaticPlayTaskLeverageGainSmall,
+        updated.initiatorPreparation = clamp(
+          play.initiatorPreparation + config.diplomaticPlayTaskLeverageGainSmall,
           0,
           100,
         )
       } else {
-        updated.targetLeverage = clamp(
-          play.targetLeverage + config.diplomaticPlayTaskLeverageGainSmall,
+        updated.targetPreparation = clamp(
+          play.targetPreparation + config.diplomaticPlayTaskLeverageGainSmall,
           0,
           100,
         )

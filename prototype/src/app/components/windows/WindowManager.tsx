@@ -1,6 +1,6 @@
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import type { FactionId } from '@/sim/types/ids'
+import type { FactionId, DiplomaticPlayId } from '@/sim/types/ids'
 import {
   CountryDetail,
   HouseDetail,
@@ -8,6 +8,7 @@ import {
   PopGroupDetail,
   ProvinceDetail,
   FactionDetail,
+  DiplomaticPlayDetail,
 } from '@/app/components/panels/DetailPanel'
 import { DraggableWindow } from './DraggableWindow'
 
@@ -30,6 +31,7 @@ export function WindowManager() {
   const onProvinceClick = (id: string) => openDetailWindow('province', id)
   const onPopGroupClick = (id: string) => openDetailWindow('popGroup', id)
   const onFactionClick = (id: FactionId) => openDetailWindow('faction', id)
+  const onDiplomaticPlayClick = (id: string) => openDetailWindow('diplomaticPlay', id)
 
   return (
     <>
@@ -52,6 +54,7 @@ export function WindowManager() {
                 onPersonClick={onPersonClick}
                 onHouseClick={onHouseClick}
                 onProvinceClick={onProvinceClick}
+                onDiplomaticPlayClick={onDiplomaticPlayClick}
               />
             </DraggableWindow>
           )
@@ -74,6 +77,7 @@ export function WindowManager() {
                 onHouseClick={onHouseClick}
                 onPolityClick={onPolityClick}
                 onProvinceClick={onProvinceClick}
+                onDiplomaticPlayClick={onDiplomaticPlayClick}
                 eventHistory={eventHistory}
               />
             </DraggableWindow>
@@ -154,6 +158,30 @@ export function WindowManager() {
                 session={session}
                 onPersonClick={onPersonClick}
                 onHouseClick={onHouseClick}
+              />
+            </DraggableWindow>
+          )
+        }
+        if (entityType === 'diplomaticPlay') {
+          const play = state.diplomaticPlays[entityId as DiplomaticPlayId]
+          if (!play) return null
+          const kindLabel: Record<string, string> = {
+            land_claim: 'Land Claim',
+            contract_tax_revision: 'Tax Revision',
+            revolt_negotiation: 'Revolt Negotiation',
+          }
+          return (
+            <DraggableWindow
+              key={win.id}
+              win={win}
+              title={`Play: ${kindLabel[play.kind] ?? play.kind}`}
+            >
+              <DiplomaticPlayDetail
+                play={play}
+                session={session}
+                onPersonClick={onPersonClick}
+                onPolityClick={onPolityClick}
+                onProvinceClick={onProvinceClick}
               />
             </DraggableWindow>
           )
