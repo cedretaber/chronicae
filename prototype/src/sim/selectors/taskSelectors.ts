@@ -23,6 +23,7 @@ const LIGHT_TASKS: ReadonlySet<TaskKind> = new Set([
   'practice_arms',
   'courtly_training',
   'manage_accounts',
+  'collect_holding_revenue',
 ])
 
 const HEAVY_TASKS: ReadonlySet<TaskKind> = new Set([
@@ -116,6 +117,8 @@ export function getTaskRelevantAbility(kind: TaskKind): AbilityKey {
       return 'charisma'
     case 'undermine_counterparty_position':
       return 'insight'
+    case 'collect_holding_revenue':
+      return 'numeracy'
     default:
       return 'insight'
   }

@@ -60,6 +60,8 @@ export type HoldingTerminalPolityCache = Record<HoldingId, PolityId>
 
 export type HoldingOfficeRole = 'bailiff'
 
+export type BailiffPolicy = 'passive' | 'loyal_remittance' | 'profit_seeking' | 'protect_residents'
+
 export type HoldingOfficeAssignment = {
   id: HoldingOfficeAssignmentId
   holdingId: HoldingId
@@ -69,6 +71,8 @@ export type HoldingOfficeAssignment = {
   active: boolean
   startWeek: number
   unpaidCount: number
+  contractedRemittanceRate: number
+  expectedFeeRate: number
 }
 
 export type HoldingOfficeIndex = {

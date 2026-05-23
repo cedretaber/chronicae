@@ -1371,6 +1371,8 @@ export function generateWorld(
           active: true,
           startWeek: 1,
           unpaidCount: 0,
+          contractedRemittanceRate: defaultConfig.defaultContractedRemittanceRate,
+          expectedFeeRate: defaultConfig.defaultExpectedBailiffFeeRate,
         }
         holdingOfficeAssignments[hoaId] = hoa
         holdingOfficeIndex.byHolding[holdingId] = hoaId

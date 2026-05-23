@@ -6,6 +6,7 @@ import type {
   ActorIntentId,
   DiplomaticPlayId,
   DecisionReasonId,
+  HoldingOfficeAssignmentId,
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
 import type { AbilityKey } from './person'
@@ -15,6 +16,7 @@ export type TaskTargetRef =
   | { kind: 'aim'; id: AimId }
   | { kind: 'intent'; id: ActorIntentId }
   | { kind: 'diplomatic_play'; id: DiplomaticPlayId }
+  | { kind: 'holding_office_assignment'; id: HoldingOfficeAssignmentId }
 
 export function targetRefKey(ref: TaskTargetRef): string {
   return `${ref.kind}:${ref.id}`
@@ -60,6 +62,7 @@ export type TaskKind =
   | 'pressure_counterparty'
   | 'offer_compromise'
   | 'undermine_counterparty_position'
+  | 'collect_holding_revenue'
 
 // --- Task ---
 export type Task = {
@@ -91,7 +94,13 @@ export type TaskIndex = {
 export type WaitingAimIndex = AimId[]
 
 // --- PersonActivityLog ---
-export type PersonActivityKind = 'task_completed' | 'task_failed' | 'task_cancelled'
+export type PersonActivityKind =
+  | 'task_completed'
+  | 'task_failed'
+  | 'task_cancelled'
+  | 'task_expired'
+
+export type BailiffRevenueTaskStatus = 'completed' | 'none'
 
 export type PersonActivityLog = {
   id: PersonActivityLogId

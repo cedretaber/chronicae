@@ -543,6 +543,24 @@ export type SimulationConfig = {
   }
   // v0.17.1 Bailiff revenue share (fraction of terminal retained)
   bailiffRevenueShare: number
+  // v0.25 Bailiff system
+  defaultContractedRemittanceRate: number
+  defaultExpectedBailiffFeeRate: number
+  minLocalExtractionRate: number
+  maxLocalExtractionRate: number
+  comfortableLocalExtractionRate: number
+  minBailiffCollectionEfficiency: number
+  baseBailiffCollectionEfficiency: number
+  placeholderBailiffCollectionEfficiency: number
+  collectionFrictionFactor: number
+  maxBailiffFeeRate: number
+  bailiffTaskCompletedCollectionModifier: number
+  bailiffTaskNoneCollectionModifier: number
+  localExtractionWealthPenalty: number
+  localExtractionUnrestGain: number
+  bailiffBurdenAffectionPenaltyFactor: number
+  bailiffProtectResidentsAffectionBonus: number
+  bailiffTaskCompletedRespectGain: number
   // v0.17 Office max (Polity rank x province count)
   polityOfficeMaxByRank: Record<PolityRank, Record<Exclude<OfficeRole, 'leader'>, number>>
   polityOfficeMaxProvinceFactor: {
@@ -1111,6 +1129,24 @@ export const defaultConfig: SimulationConfig = {
   },
   // v0.17.1 Bailiff salary path: terminal retained のうち bailiff 個人に渡す比率
   bailiffRevenueShare: 0.1,
+  // v0.25 Bailiff system
+  defaultContractedRemittanceRate: 0.4,
+  defaultExpectedBailiffFeeRate: 0.1,
+  minLocalExtractionRate: 0.1,
+  maxLocalExtractionRate: 0.8,
+  comfortableLocalExtractionRate: 0.35,
+  minBailiffCollectionEfficiency: 0.3,
+  baseBailiffCollectionEfficiency: 0.55,
+  placeholderBailiffCollectionEfficiency: 0.4,
+  collectionFrictionFactor: 0.5,
+  maxBailiffFeeRate: 0.25,
+  bailiffTaskCompletedCollectionModifier: 0.05,
+  bailiffTaskNoneCollectionModifier: 0.0,
+  localExtractionWealthPenalty: 4,
+  localExtractionUnrestGain: 3,
+  bailiffBurdenAffectionPenaltyFactor: 2,
+  bailiffProtectResidentsAffectionBonus: 0.2,
+  bailiffTaskCompletedRespectGain: 0.2,
   // v0.17 Office max
   // v0.17.1: rank の方向を spec §7.2 に合わせて修正。
   // rank は数値が小さいほど上位 (1=帝国, 5=反乱領)。大国ほど官職枠が多い。
