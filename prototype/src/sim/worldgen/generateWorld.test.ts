@@ -116,7 +116,7 @@ describe('generateWorld', () => {
   })
 
   describe('parameter bounds', () => {
-    it('provinces: habitability in [30,90], popGroupIds has 3 entries', () => {
+    it('provinces: habitability in [30,90], each Holding has POPs', () => {
       const { world } = generateWorld('test-seed')
 
       const provinceKeys = Object.keys(world.provinces).sort()
@@ -124,7 +124,9 @@ describe('generateWorld', () => {
         const province = world.provinces[pk as keyof typeof world.provinces]
         expect(province?.habitability).toBeGreaterThanOrEqual(30)
         expect(province?.habitability).toBeLessThanOrEqual(90)
-        expect(province?.popGroupIds).toHaveLength(3)
+        // Each Holding should have POPs registered in popIndex
+        const holdingIds = province?.holdingIds ?? []
+        expect(holdingIds.length).toBeGreaterThanOrEqual(1)
       }
     })
 

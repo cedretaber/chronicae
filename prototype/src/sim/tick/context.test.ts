@@ -47,6 +47,8 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
     persons,
     activePlots: {},
     popGroups: {},
+    popIndex: { byHolding: {} },
+    nextPopGroupId: 0,
     organizationShares: {},
     officeAssignments: {},
     shareIndex: { byOrganization: {}, byHolder: {} },

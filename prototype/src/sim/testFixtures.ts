@@ -155,6 +155,8 @@ export function makeEmptyV016State(): WorldState {
     waitingAimIds: [],
     nextTaskId: 0,
     nextPersonActivityLogId: 0,
+    popIndex: { byHolding: {} },
+    nextPopGroupId: 0,
   }
 }
 
@@ -190,7 +192,6 @@ export function withProvince(
     y: 0,
     neighbors: autoNeighbors,
     habitability: 50,
-    popGroupIds: [],
     ...overrides,
     holdingIds: overrides.holdingIds ?? [holdingId],
   }

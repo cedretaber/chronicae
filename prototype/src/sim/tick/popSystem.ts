@@ -41,51 +41,55 @@ export function runPopSystem(ctx: TickContext): TickContext {
     const prosperityWealthThreshold = ctx.config.prosperityWealthThreshold
     const prosperityUnrestReduction = ctx.config.prosperityUnrestReduction
 
-    for (const popGroupId of province.popGroupIds) {
-      const pop = ctx.state.popGroups[popGroupId]
-      if (!pop) continue
+    for (const holdingId of province.holdingIds) {
+      const holdingPopIds = ctx.state.popIndex.byHolding[holdingId]
+      if (!holdingPopIds) continue
+      for (const popGroupId of holdingPopIds) {
+        const pop = ctx.state.popGroups[popGroupId]
+        if (!pop) continue
 
-      // 1. Population growth (§7.3)
-      const growthFactor = clamp(1 - pressure, -0.5, 1.0)
-      const baseGrowth = baseMonthlyGrowthByClass[pop.class]
-      const wealthFactor = clamp(0.5 + pop.wealth / 100, 0.5, 1.5)
-      const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)
-      const delta = pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor
-      const newSize = pop.size + delta
+        // 1. Population growth (§7.3)
+        const growthFactor = clamp(1 - pressure, -0.5, 1.0)
+        const baseGrowth = baseMonthlyGrowthByClass[pop.class]
+        const wealthFactor = clamp(0.5 + pop.wealth / 100, 0.5, 1.5)
+        const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)
+        const delta = pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor
+        const newSize = pop.size + delta
 
-      // 2. Population pressure effect (§7.4)
-      let newWealth = pop.wealth
-      let newUnrest = pop.unrest
+        // 2. Population pressure effect (§7.4)
+        let newWealth = pop.wealth
+        let newUnrest = pop.unrest
 
-      if (pressure > populationPressureThreshold) {
-        const excess = pressure - populationPressureThreshold
-        newWealth = pop.wealth - excess * populationPressureWealthPenalty
-        newUnrest = pop.unrest + excess * populationPressureUnrestGain
-      }
+        if (pressure > populationPressureThreshold) {
+          const excess = pressure - populationPressureThreshold
+          newWealth = pop.wealth - excess * populationPressureWealthPenalty
+          newUnrest = pop.unrest + excess * populationPressureUnrestGain
+        }
 
-      // 3. Poverty effect (§7.5)
-      if (pop.wealth < povertyWealthThreshold) {
-        newUnrest += (povertyWealthThreshold - pop.wealth) * povertyUnrestGain
-      }
+        // 3. Poverty effect (§7.5)
+        if (pop.wealth < povertyWealthThreshold) {
+          newUnrest += (povertyWealthThreshold - pop.wealth) * povertyUnrestGain
+        }
 
-      // 4. Prosperity effect (§7.5)
-      if (pop.wealth > prosperityWealthThreshold) {
-        newUnrest -= (pop.wealth - prosperityWealthThreshold) * prosperityUnrestReduction
-      }
+        // 4. Prosperity effect (§7.5)
+        if (pop.wealth > prosperityWealthThreshold) {
+          newUnrest -= (pop.wealth - prosperityWealthThreshold) * prosperityUnrestReduction
+        }
 
-      // 4.5. Natural decay
-      newUnrest *= 1 - ctx.config.unrestNaturalDecayRate
+        // 4.5. Natural decay
+        newUnrest *= 1 - ctx.config.unrestNaturalDecayRate
 
-      // 5. Clamp (§7.6)
-      const finalSize = Math.max(minPopSizeByClass[pop.class], newSize)
-      const finalWealth = clamp(newWealth, 0, 100)
-      const finalUnrest = clamp(newUnrest, 0, 100)
+        // 5. Clamp (§7.6)
+        const finalSize = Math.max(minPopSizeByClass[pop.class], newSize)
+        const finalWealth = clamp(newWealth, 0, 100)
+        const finalUnrest = clamp(newUnrest, 0, 100)
 
-      newPopGroups[pop.id] = {
-        ...pop,
-        size: finalSize,
-        wealth: finalWealth,
-        unrest: finalUnrest,
+        newPopGroups[pop.id] = {
+          ...pop,
+          size: finalSize,
+          wealth: finalWealth,
+          unrest: finalUnrest,
+        }
       }
     }
   }

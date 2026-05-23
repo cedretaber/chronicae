@@ -297,7 +297,6 @@ export function generateWorld(
     rng = r1
 
     province.habitability = habitability
-    province.popGroupIds = []
   }
 
   // Compute development values for Holdings (Province no longer stores development)
@@ -666,63 +665,6 @@ export function generateWorld(
   }
   // v0.16: houseControl BFS は廃止 (§8.2 §8.3)。Province の統治実効性は polityControl 単独。
 
-  const popGroupsRecord: Record<PopGroupId, PopGroup> = {}
-  const { populationCapacityPerHabitability, minProvinceCarryingCapacity, minPopSizeByClass } =
-    defaultConfig
-
-  for (const province of provinces) {
-    const baseCapacity = province.habitability * populationCapacityPerHabitability
-    const dev = developmentMap.get(province.id) ?? 0
-    const devMod = Math.min(1.5, Math.max(0.5, 1 + dev / 200))
-    const capacity = Math.max(minProvinceCarryingCapacity, baseCapacity * devMod)
-
-    const { value: peasantSizePct, rng: rp1 } = randomInt(rng, 55, 75)
-    const { value: townsmanSizePct, rng: rp2 } = randomInt(rp1, 5, 15)
-    const { value: noblesSizePct, rng: rp3 } = randomInt(rp2, 2, 5)
-    const { value: peasantWealth, rng: rp4 } = randomInt(rp3, 35, 60)
-    const { value: townsmanWealth, rng: rp5 } = randomInt(rp4, 45, 70)
-    const { value: noblesWealth, rng: rp6 } = randomInt(rp5, 50, 80)
-    const { value: peasantUnrest, rng: rp7 } = randomInt(rp6, 10, 30)
-    const { value: townsmanUnrest, rng: rp8 } = randomInt(rp7, 10, 25)
-    const { value: noblesUnrest, rng: rp9 } = randomInt(rp8, 5, 25)
-    rng = rp9
-
-    const pid = province.id
-    const peasantsId = newPopGroupId(`pop-${pid}-peasants`)
-    const townsmanId = newPopGroupId(`pop-${pid}-townsmen`)
-    const noblesId = newPopGroupId(`pop-${pid}-nobles`)
-
-    popGroupsRecord[peasantsId] = {
-      id: peasantsId,
-      provinceId: pid,
-      class: 'peasants',
-      size: Math.max(minPopSizeByClass.peasants, (capacity * peasantSizePct) / 100),
-      wealth: peasantWealth,
-      unrest: peasantUnrest,
-      attitudes: {},
-    }
-    popGroupsRecord[townsmanId] = {
-      id: townsmanId,
-      provinceId: pid,
-      class: 'townsmen',
-      size: Math.max(minPopSizeByClass.townsmen, (capacity * townsmanSizePct) / 100),
-      wealth: townsmanWealth,
-      unrest: townsmanUnrest,
-      attitudes: {},
-    }
-    popGroupsRecord[noblesId] = {
-      id: noblesId,
-      provinceId: pid,
-      class: 'nobles',
-      size: Math.max(minPopSizeByClass.nobles, (capacity * noblesSizePct) / 100),
-      wealth: noblesWealth,
-      unrest: noblesUnrest,
-      attitudes: {},
-    }
-
-    province.popGroupIds = [peasantsId, townsmanId, noblesId]
-  }
-
   // §6.1 Person attitude initialization
   const updatedPersons = persons.map((p) => {
     if (!p.alive) return p
@@ -826,93 +768,6 @@ export function generateWorld(
     return { ...p, attitudes }
   })
 
-  // §6.2 PopGroup attitude initialization
-  for (const popGroupId of Object.keys(popGroupsRecord) as PopGroupId[]) {
-    const pop = popGroupsRecord[popGroupId]
-    if (!pop) continue
-    const province = provinceMap.get(pop.provinceId)
-    if (!province) continue
-
-    const provincePolityId = assignments.get(province.id) ?? ('' as PolityId)
-    const polityKey = polityAttitudeKey(provincePolityId)
-    const { value: aff1, rng: rp1 } = randomInt(rng, 10, 60)
-    const { value: res1, rng: rp2 } = randomInt(rp1, 20, 70)
-    rng = rp2
-    let attitudes = {
-      [polityKey]: { affection: aff1, respect: res1 },
-    }
-
-    const ownerHouseId = provinceToHouse.get(province.id) ?? ('' as HouseId)
-    if (ownerHouseId) {
-      const houseKey = houseAttitudeKey(ownerHouseId)
-      const { value: aff2, rng: rp3 } = randomInt(rng, 10, 60)
-      const { value: res2, rng: rp4 } = randomInt(rp3, 20, 70)
-      rng = rp4
-      attitudes = {
-        ...attitudes,
-        [houseKey]: { affection: aff2, respect: res2 },
-      }
-    }
-
-    // Apply class adjustments
-    if (pop.class === 'peasants') {
-      const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
-      if (ownerHouseAttitude) {
-        attitudes = {
-          ...attitudes,
-          [houseAttitudeKey(ownerHouseId)]: {
-            ...ownerHouseAttitude,
-            respect: clamp(ownerHouseAttitude.respect + 5, -100, 100),
-          },
-        }
-      }
-    } else if (pop.class === 'townsmen') {
-      const polityAttitude = attitudes[polityKey]
-      if (polityAttitude) {
-        attitudes = {
-          ...attitudes,
-          [polityKey]: {
-            ...polityAttitude,
-            respect: clamp(polityAttitude.respect + 5, -100, 100),
-          },
-        }
-      }
-      const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
-      if (ownerHouseAttitude) {
-        attitudes = {
-          ...attitudes,
-          [houseAttitudeKey(ownerHouseId)]: {
-            ...ownerHouseAttitude,
-            respect: clamp(ownerHouseAttitude.respect - 5, -100, 100),
-          },
-        }
-      }
-    } else if (pop.class === 'nobles') {
-      const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
-      if (ownerHouseAttitude) {
-        attitudes = {
-          ...attitudes,
-          [houseAttitudeKey(ownerHouseId)]: {
-            ...ownerHouseAttitude,
-            respect: clamp(ownerHouseAttitude.respect + 10, -100, 100),
-          },
-        }
-      }
-      const polityAttitude = attitudes[polityKey]
-      if (polityAttitude) {
-        attitudes = {
-          ...attitudes,
-          [polityKey]: {
-            ...polityAttitude,
-            affection: clamp(polityAttitude.affection - 5, -100, 100),
-          },
-        }
-      }
-    }
-
-    popGroupsRecord[popGroupId] = { ...pop, attitudes: attitudes }
-  }
-
   const provincesRecord: Record<ProvinceId, Province> = {}
   for (const p of provinces) {
     provincesRecord[p.id] = p
@@ -934,6 +789,8 @@ export function generateWorld(
   }
 
   // Initialize offices via createOfficeAssignment
+  const popGroupsRecord: Record<PopGroupId, PopGroup> = {}
+
   let officeState = {
     currentYear: 1,
     currentWeekOfYear: 1,
@@ -1645,6 +1502,171 @@ export function generateWorld(
     }
   }
 
+  // §6.3 POP generation (Holding-based)
+  const popIndexByHolding: Record<HoldingId, PopGroupId[]> = {}
+  const { populationCapacityPerHabitability, minProvinceCarryingCapacity, minPopSizeByClass } =
+    defaultConfig
+
+  for (const province of provinces) {
+    const baseCapacity = province.habitability * populationCapacityPerHabitability
+    const dev = developmentMap.get(province.id) ?? 0
+    const devMod = Math.min(1.5, Math.max(0.5, 1 + dev / 200))
+    const capacity = Math.max(minProvinceCarryingCapacity, baseCapacity * devMod)
+
+    // Calculate total Holding weight for proportional distribution
+    const holdingWeights: number[] = []
+    for (const hid of province.holdingIds) {
+      const h = holdingsRecord[hid]
+      holdingWeights.push(h ? h.weight * h.landQuality : 1)
+    }
+    const totalWeight = holdingWeights.reduce((s, w) => s + w, 0)
+
+    for (let hi = 0; hi < province.holdingIds.length; hi++) {
+      const holdingId = province.holdingIds[hi]!
+      const holdingCapacity =
+        totalWeight > 0
+          ? capacity * (holdingWeights[hi]! / totalWeight)
+          : capacity / province.holdingIds.length
+
+      // Random percentages and values for this Holding's POPs
+      const { value: peasantSizePct, rng: rp1 } = randomInt(rng, 55, 75)
+      const { value: townsmanSizePct, rng: rp2 } = randomInt(rp1, 5, 15)
+      const { value: noblesSizePct, rng: rp3 } = randomInt(rp2, 2, 5)
+      const { value: peasantWealth, rng: rp4 } = randomInt(rp3, 35, 60)
+      const { value: townsmanWealth, rng: rp5 } = randomInt(rp4, 45, 70)
+      const { value: noblesWealth, rng: rp6 } = randomInt(rp5, 50, 80)
+      const { value: peasantUnrest, rng: rp7 } = randomInt(rp6, 10, 30)
+      const { value: townsmanUnrest, rng: rp8 } = randomInt(rp7, 10, 25)
+      const { value: noblesUnrest, rng: rp9 } = randomInt(rp8, 5, 25)
+      rng = rp9
+
+      const peasantsId = newPopGroupId(`pop-${holdingId as string}-peasants`)
+      const townsmanId = newPopGroupId(`pop-${holdingId as string}-townsmen`)
+      const noblesId = newPopGroupId(`pop-${holdingId as string}-nobles`)
+
+      popGroupsRecord[peasantsId] = {
+        id: peasantsId,
+        holdingId,
+        class: 'peasants',
+        occupation: 'agriculture',
+        size: Math.max(minPopSizeByClass.peasants, (holdingCapacity * peasantSizePct) / 100),
+        wealth: peasantWealth,
+        unrest: peasantUnrest,
+        attitudes: {},
+      }
+      popGroupsRecord[townsmanId] = {
+        id: townsmanId,
+        holdingId,
+        class: 'townsmen',
+        occupation: 'urban_labor',
+        size: Math.max(minPopSizeByClass.townsmen, (holdingCapacity * townsmanSizePct) / 100),
+        wealth: townsmanWealth,
+        unrest: townsmanUnrest,
+        attitudes: {},
+      }
+      popGroupsRecord[noblesId] = {
+        id: noblesId,
+        holdingId,
+        class: 'nobles',
+        occupation: 'elite_service',
+        size: Math.max(minPopSizeByClass.nobles, (holdingCapacity * noblesSizePct) / 100),
+        wealth: noblesWealth,
+        unrest: noblesUnrest,
+        attitudes: {},
+      }
+
+      popIndexByHolding[holdingId] = [peasantsId, townsmanId, noblesId]
+    }
+  }
+
+  // §6.4 PopGroup attitude initialization (Holding-based)
+  for (const popGroupId of Object.keys(popGroupsRecord) as PopGroupId[]) {
+    const pop = popGroupsRecord[popGroupId]
+    if (!pop) continue
+    const holding = holdingsRecord[pop.holdingId]
+    const province = holding ? provinceMap.get(holding.provinceId) : undefined
+    if (!province) continue
+
+    const provincePolityId = assignments.get(province.id) ?? ('' as PolityId)
+    const polityKey = polityAttitudeKey(provincePolityId)
+    const { value: aff1, rng: rp1 } = randomInt(rng, 10, 60)
+    const { value: res1, rng: rp2 } = randomInt(rp1, 20, 70)
+    rng = rp2
+    let attitudes = {
+      [polityKey]: { affection: aff1, respect: res1 },
+    }
+
+    const ownerHouseId = provinceToHouse.get(province.id) ?? ('' as HouseId)
+    if (ownerHouseId) {
+      const houseKey = houseAttitudeKey(ownerHouseId)
+      const { value: aff2, rng: rp3 } = randomInt(rng, 10, 60)
+      const { value: res2, rng: rp4 } = randomInt(rp3, 20, 70)
+      rng = rp4
+      attitudes = {
+        ...attitudes,
+        [houseKey]: { affection: aff2, respect: res2 },
+      }
+    }
+
+    // Apply class adjustments
+    if (pop.class === 'peasants') {
+      const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
+      if (ownerHouseAttitude) {
+        attitudes = {
+          ...attitudes,
+          [houseAttitudeKey(ownerHouseId)]: {
+            ...ownerHouseAttitude,
+            respect: clamp(ownerHouseAttitude.respect + 5, -100, 100),
+          },
+        }
+      }
+    } else if (pop.class === 'townsmen') {
+      const polityAttitude = attitudes[polityKey]
+      if (polityAttitude) {
+        attitudes = {
+          ...attitudes,
+          [polityKey]: {
+            ...polityAttitude,
+            respect: clamp(polityAttitude.respect + 5, -100, 100),
+          },
+        }
+      }
+      const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
+      if (ownerHouseAttitude) {
+        attitudes = {
+          ...attitudes,
+          [houseAttitudeKey(ownerHouseId)]: {
+            ...ownerHouseAttitude,
+            respect: clamp(ownerHouseAttitude.respect - 5, -100, 100),
+          },
+        }
+      }
+    } else if (pop.class === 'nobles') {
+      const ownerHouseAttitude = attitudes[houseAttitudeKey(ownerHouseId)]
+      if (ownerHouseAttitude) {
+        attitudes = {
+          ...attitudes,
+          [houseAttitudeKey(ownerHouseId)]: {
+            ...ownerHouseAttitude,
+            respect: clamp(ownerHouseAttitude.respect + 10, -100, 100),
+          },
+        }
+      }
+      const polityAttitude = attitudes[polityKey]
+      if (polityAttitude) {
+        attitudes = {
+          ...attitudes,
+          [polityKey]: {
+            ...polityAttitude,
+            affection: clamp(polityAttitude.affection - 5, -100, 100),
+          },
+        }
+      }
+    }
+
+    popGroupsRecord[popGroupId] = { ...pop, attitudes: attitudes }
+  }
+
   const world: WorldState = {
     currentYear: 1,
     currentWeekOfYear: 1,
@@ -1657,6 +1679,7 @@ export function generateWorld(
     persons: personsRecord,
     activePlots: {},
     popGroups: popGroupsRecord,
+    popIndex: { byHolding: popIndexByHolding },
     organizationShares,
     officeAssignments: officeState.officeAssignments,
     landContracts: landContractsRecord,
@@ -1700,6 +1723,7 @@ export function generateWorld(
     waitingAimIds: [],
     nextTaskId: 0,
     nextPersonActivityLogId: 0,
+    nextPopGroupId: 0,
   }
 
   // v0.22: Seed initial Goal + Aim for all active Polities and Houses

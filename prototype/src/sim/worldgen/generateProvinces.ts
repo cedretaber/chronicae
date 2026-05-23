@@ -1,5 +1,5 @@
 import { Delaunay } from 'd3-delaunay'
-import type { PopGroupId, StateRegionId } from '../types/ids'
+import type { StateRegionId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { RngState } from '../rng/rng'
 import type { MapGenerationConfig } from './mapConfig'
@@ -399,7 +399,6 @@ export function generateProvinces(
       neighbors,
       habitability: 0,
       holdingIds: [],
-      popGroupIds: [] as PopGroupId[],
     }
     provinces.push(provinceObj)
   }

@@ -97,7 +97,6 @@ function makeMinimalWorld(): WorldState {
     habitability: 50,
     neighbors: [],
     holdingIds: [],
-    popGroupIds: [],
   }
 
   const anonHouse: House = {
@@ -126,6 +125,8 @@ function makeMinimalWorld(): WorldState {
     persons: { [personId]: person },
     activePlots: {},
     popGroups: {},
+    popIndex: { byHolding: {} },
+    nextPopGroupId: 0,
     organizationShares: {},
     officeAssignments: {},
     shareIndex: { byOrganization: {}, byHolder: {} },

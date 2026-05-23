@@ -26,11 +26,9 @@ function buildWorld(opts: {
 
   s = withProvince(s, provinceAId, {
     neighbors: [provinceBId],
-    popGroupIds: [],
   })
   s = withProvince(s, provinceBId, {
     neighbors: [provinceAId],
-    popGroupIds: [],
   })
   s = withHouse(s, acquirerHouseId, { seatProvinceId: provinceAId })
   s = withHouse(s, targetHouseId, { seatProvinceId: provinceBId })
@@ -137,8 +135,8 @@ describe('findLandAcquireIntentCandidates', () => {
     const acquirerHouseId = 'h-acquirer' as HouseId
     const targetHouseId = 'h-target' as HouseId
 
-    s = withProvince(s, provinceAId, { neighbors: [provinceBId], popGroupIds: [] })
-    s = withProvince(s, provinceBId, { neighbors: [provinceAId], popGroupIds: [] })
+    s = withProvince(s, provinceAId, { neighbors: [provinceBId] })
+    s = withProvince(s, provinceBId, { neighbors: [provinceAId] })
     s = withHouse(s, acquirerHouseId, { seatProvinceId: provinceAId })
     s = withHouse(s, targetHouseId, { seatProvinceId: provinceBId })
     s = withPolity(s, acquirerPolityId, {

@@ -6,12 +6,12 @@ import type {
   ProvinceId,
   PolityId,
   LandContractId,
-  PopGroupId,
   HoldingId,
   GoalId,
   AimId,
 } from './ids'
 import type { PoliticalActorRef } from './actor'
+import type { PopClass } from './popGroup'
 
 // v0.18 Stage A §6.4 / §6.5
 
@@ -67,7 +67,7 @@ export type DiplomaticDemand =
   | {
       kind: 'revolt_concession'
       provinceId: ProvinceId
-      popGroupId: PopGroupId
+      popClass: PopClass
       concessionLevel: 'minor' | 'major'
     }
   | { kind: 'status_quo' }

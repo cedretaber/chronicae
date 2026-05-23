@@ -76,27 +76,23 @@ function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickCo
   const rebelPolityId = play.initiator.id
   const targetPolityId = play.target.id
   const provinceId = demand.provinceId
-  const popGroupId = demand.popGroupId
 
   const { result, rng: nextRng } = resolveRevoltConflict(ctx.state, config, ctx.rng, {
     provinceId,
-    popGroupId,
+    popClass: demand.popClass,
     targetPolityId,
   })
   let nextCtx: TickContext = { ...ctx, rng: nextRng }
 
   if (result.rebelWins) {
     nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
-    const pop = nextCtx.state.popGroups[popGroupId]
-    if (pop) {
-      const reducedState = adjustProvincePopUnrestByClass(
-        nextCtx.state,
-        provinceId,
-        pop.class,
-        -config.revoltSettlementMainUnrestReduction,
-      )
-      nextCtx = { ...nextCtx, state: reducedState }
-    }
+    const reducedState = adjustProvincePopUnrestByClass(
+      nextCtx.state,
+      provinceId,
+      demand.popClass,
+      -config.revoltSettlementMainUnrestReduction,
+    )
+    nextCtx = { ...nextCtx, state: reducedState }
     // 既存 conflictResolutionSystem.ts は spec §18 互換のため REVOLT_POLITY_ESTABLISHED 発火
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
     const provinceParam = nameParam('province', provinceNameKey)
@@ -152,16 +148,13 @@ function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickCo
   nextCtx = disbandResult.value.ctx
 
   let state = nextCtx.state
-  const pop = state.popGroups[popGroupId]
-  if (pop) {
-    state = adjustProvincePopUnrestByClass(
-      state,
-      provinceId,
-      pop.class,
-      -config.revoltSuppressedMainUnrestReduction,
-    )
-    state = adjustProvincePopUnrest(state, provinceId, -config.revoltSuppressedOtherUnrestReduction)
-  }
+  state = adjustProvincePopUnrestByClass(
+    state,
+    provinceId,
+    demand.popClass,
+    -config.revoltSuppressedMainUnrestReduction,
+  )
+  state = adjustProvincePopUnrest(state, provinceId, -config.revoltSuppressedOtherUnrestReduction)
   const province = state.provinces[provinceId]
   if (province) {
     const devResult = adjustProvinceDevelopment(
@@ -505,12 +498,16 @@ function getMainPopOfProvince(
   if (!province) return undefined
   let maxSize = 0
   let result: PopGroupId | undefined
-  for (const popId of province.popGroupIds) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    if (pop.size > maxSize) {
-      maxSize = pop.size
-      result = popId
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
+      const pop = state.popGroups[popId]
+      if (!pop) continue
+      if (pop.size > maxSize) {
+        maxSize = pop.size
+        result = popId
+      }
     }
   }
   return result

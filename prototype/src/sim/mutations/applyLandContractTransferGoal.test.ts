@@ -36,7 +36,7 @@ function buildWorld() {
   const sellerHouseId = 'h-seller' as HouseId
   const buyerHouseId = 'h-buyer' as HouseId
 
-  s = withProvince(s, provinceId, { popGroupIds: [] })
+  s = withProvince(s, provinceId)
   s = withHouse(s, sellerHouseId, { seatProvinceId: provinceId })
   s = withHouse(s, buyerHouseId, { seatProvinceId: provinceId })
   s = withPolity(s, sellerPolityId, { rank: 2, capitalProvinceId: provinceId })
@@ -126,7 +126,7 @@ describe('applyLandContractTransferGoal', () => {
     const polityA = 'c-a' as PolityId
     const polityB = 'c-b' as PolityId
     const houseA = 'h-a' as HouseId
-    s = withProvince(s, provinceId, { popGroupIds: [] })
+    s = withProvince(s, provinceId)
     s = withHouse(s, houseA, { seatProvinceId: provinceId })
     s = withPolity(s, polityA, { rank: 1, capitalProvinceId: provinceId })
     s = withPolity(s, polityB, { rank: 1, capitalProvinceId: provinceId })

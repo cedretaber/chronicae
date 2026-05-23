@@ -15,12 +15,16 @@ function getDominantPopClass(state: WorldState, provinceId: ProvinceId): PopClas
   if (!province) return 'peasants'
   let bestClass: PopClass = 'peasants'
   let bestSize = 0
-  for (const pgId of province.popGroupIds) {
-    const pg = state.popGroups[pgId]
-    if (!pg) continue
-    if (pg.size > bestSize) {
-      bestSize = pg.size
-      bestClass = pg.class
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const pgId of popIds) {
+      const pg = state.popGroups[pgId]
+      if (!pg) continue
+      if (pg.size > bestSize) {
+        bestSize = pg.size
+        bestClass = pg.class
+      }
     }
   }
   return bestClass

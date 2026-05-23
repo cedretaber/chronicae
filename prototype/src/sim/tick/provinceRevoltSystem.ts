@@ -3,7 +3,7 @@ import { createSimEvent } from './context'
 import { nameParam, entityRef } from '../types/event'
 import { clamp } from '../utils/math'
 import { randomFloat, type RngState } from '../rng/rng'
-import type { ProvinceId, PolityId, PopGroupId } from '../types/ids'
+import type { ProvinceId, PolityId } from '../types/ids'
 import { createDiplomaticPlayId } from '../types/ids'
 import type { PopClass, PopGroup } from '../types/popGroup'
 import type { WorldState } from '../types/world'
@@ -60,13 +60,20 @@ function calcRevoltTendency(
   const ownerHouse = state.houses[ownerHouseId]
   if (!ownerHouse) return 0
 
-  const pop = (() => {
-    for (const popId of province.popGroupIds) {
+  // Find pop of the given class using popIndex (via Holdings)
+  let pop: PopGroup | undefined
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
       const p = state.popGroups[popId]
-      if (p && p.class === rebelClass) return p
+      if (p && p.class === rebelClass) {
+        pop = p
+        break
+      }
     }
-    return undefined
-  })()
+    if (pop) break
+  }
   if (!pop) return 0
 
   // v0.16: houseControl は廃止。lowHouseControl 因子は polityControl で代用 (係数は流用)
@@ -159,9 +166,13 @@ function findPopByClass(
 ): PopGroup | undefined {
   const province = state.provinces[provinceId]
   if (!province) return undefined
-  for (const popId of province.popGroupIds) {
-    const p = state.popGroups[popId]
-    if (p && p.class === cls) return p
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
+      const p = state.popGroups[popId]
+      if (p && p.class === cls) return p
+    }
   }
   return undefined
 }
@@ -182,22 +193,36 @@ export function resolveRevoltConflict(
   rng: RngState,
   input: {
     provinceId: ProvinceId
-    popGroupId: PopGroupId
+    popClass: PopClass
     targetPolityId: PolityId
   },
 ): { result: RevoltConflictResult; rng: RngState } {
-  const pop = state.popGroups[input.popGroupId]
   const targetPolity = state.polities[input.targetPolityId]
   const province = state.provinces[input.provinceId]
-  if (!pop || !targetPolity || !province) {
+  if (!targetPolity || !province) {
     return {
       result: { rebelWins: false, rebelPower: 0, suppressionPower: 1, successChance: 0 },
       rng,
     }
   }
 
+  // Aggregate size and weighted unrest for the rebel class across all Holdings
+  let totalSize = 0
+  let weightedUnrest = 0
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
+      const p = state.popGroups[popId]
+      if (!p || p.class !== input.popClass) continue
+      totalSize += p.size
+      weightedUnrest += p.unrest * p.size
+    }
+  }
+  const averageUnrest = totalSize > 0 ? weightedUnrest / totalSize : 0
+
   const rebelPower =
-    pop.size * config.popRevoltPowerFactorByClass[pop.class] * (0.5 + pop.unrest / 100)
+    totalSize * config.popRevoltPowerFactorByClass[input.popClass] * (0.5 + averageUnrest / 100)
 
   const polityManpower = getProvinceManpowerBase(state, config, input.provinceId)
   let suppressionPower =
@@ -254,7 +279,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
   ctx = { ...ctx, rng: rng1 }
   if (roll1 >= revoltChance) return ctx
 
-  // 反乱 PopGroup を特定 (Play.primaryDemand.popGroupId の source of truth)
+  // 反乱 PopGroup を特定 (Play.primaryDemand.popClass の source of truth)
   const pop = findPopByClass(ctx.state, provinceId, rebelClass)
   if (!pop) return ctx
 
@@ -311,7 +336,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
     primaryDemand: {
       kind: 'revolt_concession',
       provinceId,
-      popGroupId: pop.id,
+      popClass: rebelClass,
       concessionLevel: 'minor',
     },
     status: 'active',

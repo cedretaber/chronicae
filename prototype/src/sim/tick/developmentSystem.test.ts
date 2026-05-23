@@ -25,7 +25,6 @@ function makeProvinceState(development: number): WorldState {
         y: 0,
         neighbors: [],
         habitability: 50,
-        popGroupIds: [],
         holdingIds: [holdingId],
       },
     },
@@ -110,6 +109,8 @@ function makeProvinceState(development: number): WorldState {
     waitingAimIds: [],
     nextTaskId: 0,
     nextPersonActivityLogId: 0,
+    popIndex: { byHolding: {} },
+    nextPopGroupId: 0,
   }
 }
 

@@ -13,14 +13,19 @@ export function adjustProvincePopWealth(
   if (!province) return state
 
   let newPopGroups: typeof state.popGroups | undefined
-  for (const popGroupId of province.popGroupIds) {
-    const pop = state.popGroups[popGroupId]
-    if (!pop) continue
-
-    if (!newPopGroups) {
-      newPopGroups = { ...state.popGroups }
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popGroupId of popIds) {
+      const pop = state.popGroups[popGroupId]
+      if (!pop) continue
+      const newWealth = clamp(pop.wealth + delta, 0, 100)
+      if (newWealth === pop.wealth) continue
+      if (!newPopGroups) {
+        newPopGroups = { ...state.popGroups }
+      }
+      newPopGroups[popGroupId] = { ...pop, wealth: newWealth }
     }
-    newPopGroups[popGroupId] = { ...pop, wealth: clamp(pop.wealth + delta, 0, 100) }
   }
 
   if (!newPopGroups) return state
@@ -38,14 +43,19 @@ export function adjustProvincePopUnrest(
   if (!province) return state
 
   let newPopGroups: typeof state.popGroups | undefined
-  for (const popGroupId of province.popGroupIds) {
-    const pop = state.popGroups[popGroupId]
-    if (!pop) continue
-
-    if (!newPopGroups) {
-      newPopGroups = { ...state.popGroups }
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popGroupId of popIds) {
+      const pop = state.popGroups[popGroupId]
+      if (!pop) continue
+      const newUnrest = clamp(pop.unrest + delta, 0, 100)
+      if (newUnrest === pop.unrest) continue
+      if (!newPopGroups) {
+        newPopGroups = { ...state.popGroups }
+      }
+      newPopGroups[popGroupId] = { ...pop, unrest: newUnrest }
     }
-    newPopGroups[popGroupId] = { ...pop, unrest: clamp(pop.unrest + delta, 0, 100) }
   }
 
   if (!newPopGroups) return state
@@ -63,14 +73,19 @@ export function adjustProvincePopSize(
   if (!province) return state
 
   let newPopGroups: typeof state.popGroups | undefined
-  for (const popGroupId of province.popGroupIds) {
-    const pop = state.popGroups[popGroupId]
-    if (!pop) continue
-
-    if (!newPopGroups) {
-      newPopGroups = { ...state.popGroups }
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popGroupId of popIds) {
+      const pop = state.popGroups[popGroupId]
+      if (!pop) continue
+      const newSize = Math.max(0, pop.size + delta)
+      if (newSize === pop.size) continue
+      if (!newPopGroups) {
+        newPopGroups = { ...state.popGroups }
+      }
+      newPopGroups[popGroupId] = { ...pop, size: newSize }
     }
-    newPopGroups[popGroupId] = { ...pop, size: Math.max(0, pop.size + delta) }
   }
 
   if (!newPopGroups) return state
@@ -89,14 +104,19 @@ export function adjustProvincePopWealthByClass(
   if (!province) return state
 
   let newPopGroups: typeof state.popGroups | undefined
-  for (const popGroupId of province.popGroupIds) {
-    const pop = state.popGroups[popGroupId]
-    if (!pop || pop.class !== popClass) continue
-
-    if (!newPopGroups) {
-      newPopGroups = { ...state.popGroups }
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popGroupId of popIds) {
+      const pop = state.popGroups[popGroupId]
+      if (!pop || pop.class !== popClass) continue
+      const newWealth = clamp(pop.wealth + delta, 0, 100)
+      if (newWealth === pop.wealth) continue
+      if (!newPopGroups) {
+        newPopGroups = { ...state.popGroups }
+      }
+      newPopGroups[popGroupId] = { ...pop, wealth: newWealth }
     }
-    newPopGroups[popGroupId] = { ...pop, wealth: clamp(pop.wealth + delta, 0, 100) }
   }
 
   if (!newPopGroups) return state
@@ -115,14 +135,19 @@ export function adjustProvincePopUnrestByClass(
   if (!province) return state
 
   let newPopGroups: typeof state.popGroups | undefined
-  for (const popGroupId of province.popGroupIds) {
-    const pop = state.popGroups[popGroupId]
-    if (!pop || pop.class !== popClass) continue
-
-    if (!newPopGroups) {
-      newPopGroups = { ...state.popGroups }
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popGroupId of popIds) {
+      const pop = state.popGroups[popGroupId]
+      if (!pop || pop.class !== popClass) continue
+      const newUnrest = clamp(pop.unrest + delta, 0, 100)
+      if (newUnrest === pop.unrest) continue
+      if (!newPopGroups) {
+        newPopGroups = { ...state.popGroups }
+      }
+      newPopGroups[popGroupId] = { ...pop, unrest: newUnrest }
     }
-    newPopGroups[popGroupId] = { ...pop, unrest: clamp(pop.unrest + delta, 0, 100) }
   }
 
   if (!newPopGroups) return state
@@ -141,14 +166,19 @@ export function adjustProvincePopSizeByClass(
   if (!province) return state
 
   let newPopGroups: typeof state.popGroups | undefined
-  for (const popGroupId of province.popGroupIds) {
-    const pop = state.popGroups[popGroupId]
-    if (!pop || pop.class !== popClass) continue
-
-    if (!newPopGroups) {
-      newPopGroups = { ...state.popGroups }
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popGroupId of popIds) {
+      const pop = state.popGroups[popGroupId]
+      if (!pop || pop.class !== popClass) continue
+      const newSize = Math.max(0, pop.size + delta)
+      if (newSize === pop.size) continue
+      if (!newPopGroups) {
+        newPopGroups = { ...state.popGroups }
+      }
+      newPopGroups[popGroupId] = { ...pop, size: newSize }
     }
-    newPopGroups[popGroupId] = { ...pop, size: Math.max(0, pop.size + delta) }
   }
 
   if (!newPopGroups) return state

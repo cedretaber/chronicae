@@ -31,8 +31,8 @@ function buildWorld(opts: { sameRank?: boolean } = {}) {
   const buyerHouseId = 'h-buyer' as HouseId
   const sellerHouseId = 'h-seller' as HouseId
 
-  s = withProvince(s, provinceBuyerId, { neighbors: [provinceSellerId], popGroupIds: [] })
-  s = withProvince(s, provinceSellerId, { neighbors: [provinceBuyerId], popGroupIds: [] })
+  s = withProvince(s, provinceBuyerId, { neighbors: [provinceSellerId] })
+  s = withProvince(s, provinceSellerId, { neighbors: [provinceBuyerId] })
   s = withHouse(s, buyerHouseId, { seatProvinceId: provinceBuyerId })
   s = withHouse(s, sellerHouseId, { seatProvinceId: provinceSellerId })
   s = withPolity(s, buyerPolityId, { rank: 2, treasury: 2000, capitalProvinceId: provinceBuyerId })

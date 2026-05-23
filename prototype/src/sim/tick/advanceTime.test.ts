@@ -18,6 +18,8 @@ function makeCtx(year: number, weekOfYear: number): TickContext {
       persons: {},
       activePlots: {},
       popGroups: {},
+      popIndex: { byHolding: {} },
+      nextPopGroupId: 0,
       organizationShares: {},
       officeAssignments: {},
       shareIndex: { byOrganization: {}, byHolder: {} },

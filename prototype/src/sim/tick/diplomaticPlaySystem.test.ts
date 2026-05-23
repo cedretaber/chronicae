@@ -20,6 +20,7 @@ import type {
   ProvinceId,
   PopGroupId,
   DiplomaticPlayId,
+  HoldingId,
 } from '../types/ids'
 import { createRebelPolity } from '../mutations/worldStructureMutations'
 import { runDiplomaticPlaySystem } from './diplomaticPlaySystem'
@@ -37,23 +38,31 @@ function setupRebel(unrest = 60, popSize = 1000) {
   const leaderId = 'p-leader' as PersonId
   const popId = 'pg-peasants' as PopGroupId
 
-  s = withProvince(s, provinceId, { popGroupIds: [popId] })
+  s = withProvince(s, provinceId, {})
   s = withPolity(s, polityId, { treasury: 200, capitalProvinceId: provinceId })
   s = withHouse(s, houseId, { seatProvinceId: provinceId, wealth: 50 })
   s = withPerson(s, leaderId, { houseId, age: 35 })
   s = bindProvinceToHouseViaPolity(s, provinceId, polityId, houseId)
+  const holdingId = 'hl-0' as HoldingId
   s = {
     ...s,
     popGroups: {
       ...s.popGroups,
       [popId]: {
         id: popId,
-        provinceId,
+        holdingId,
         class: 'peasants',
+        occupation: 'agriculture',
         size: popSize,
         wealth: 30,
         unrest,
         attitudes: {},
+      },
+    },
+    popIndex: {
+      byHolding: {
+        ...s.popIndex.byHolding,
+        [holdingId]: [popId],
       },
     },
   }
@@ -78,7 +87,7 @@ function injectPlay(
   rebelPolityId: PolityId,
   oldPolityId: PolityId,
   provinceId: ProvinceId,
-  popId: PopGroupId,
+  _popId: PopGroupId,
   overrides: Partial<DiplomaticPlay> = {},
 ): TickContext {
   const playId = `dp-test-1` as DiplomaticPlayId
@@ -90,7 +99,7 @@ function injectPlay(
     primaryDemand: {
       kind: 'revolt_concession',
       provinceId,
-      popGroupId: popId,
+      popClass: 'peasants' as const,
       concessionLevel: 'minor',
     },
     status: 'active',
@@ -260,8 +269,8 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
     const buyerHouseId = 'h-buyer' as HouseId
     const sellerHouseId = 'h-seller' as HouseId
 
-    s = withProvince(s, provinceBuyerId, { neighbors: [provinceSellerId], popGroupIds: [] })
-    s = withProvince(s, provinceSellerId, { neighbors: [provinceBuyerId], popGroupIds: [] })
+    s = withProvince(s, provinceBuyerId, { neighbors: [provinceSellerId] })
+    s = withProvince(s, provinceSellerId, { neighbors: [provinceBuyerId] })
     s = withHouse(s, buyerHouseId, { seatProvinceId: provinceBuyerId })
     s = withHouse(s, sellerHouseId, { seatProvinceId: provinceSellerId })
     s = withPolity(s, buyerPolityId, {
@@ -410,8 +419,8 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
     const attackerHouseId = 'h-att' as HouseId
     const defenderHouseId = 'h-def' as HouseId
 
-    s = withProvince(s, provinceAttackerId, { neighbors: [provinceDefenderId], popGroupIds: [] })
-    s = withProvince(s, provinceDefenderId, { neighbors: [provinceAttackerId], popGroupIds: [] })
+    s = withProvince(s, provinceAttackerId, { neighbors: [provinceDefenderId] })
+    s = withProvince(s, provinceDefenderId, { neighbors: [provinceAttackerId] })
     s = withHouse(s, attackerHouseId, { seatProvinceId: provinceAttackerId })
     s = withHouse(s, defenderHouseId, { seatProvinceId: provinceDefenderId })
     s = withPolity(s, attackerPolityId, {

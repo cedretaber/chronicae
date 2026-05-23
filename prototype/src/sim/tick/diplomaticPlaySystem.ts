@@ -18,6 +18,7 @@ import {
   adjustLandContractTaxRate,
   eliminateContractFromChain,
 } from '../mutations/landContractMutations'
+import { getProvincePops } from '../selectors/popSelectors'
 import {
   getProvinceManpowerBase,
   getProvinceHouseManpowerBase,
@@ -90,7 +91,7 @@ function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): Tick
 
   const demand = play.primaryDemand
   const provinceId = demand.provinceId
-  const popGroupId = demand.popGroupId
+  const popClass = demand.popClass
   if (play.target.kind !== 'polity') return ctx
   const targetPolityId = play.target.id
   if (play.initiator.kind !== 'polity') return ctx
@@ -98,15 +99,24 @@ function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): Tick
 
   const targetPolity = state.polities[targetPolityId]
   const rebelPolity = state.polities[rebelPolityId]
-  const pop = state.popGroups[popGroupId]
-  if (!targetPolity || !targetPolity.active || !rebelPolity || !rebelPolity.active || !pop) {
+  if (!targetPolity || !targetPolity.active || !rebelPolity || !rebelPolity.active) {
+    return setPlayStatus(ctx, play.id, 'cancelled')
+  }
+
+  // Get POP stats for the rebel class (aggregated across Holdings)
+  const pops = getProvincePops(state, provinceId).filter((p) => p.class === popClass)
+  const totalSize = pops.reduce((s, p) => s + p.size, 0)
+  const averageUnrest =
+    totalSize > 0 ? pops.reduce((s, p) => s + p.unrest * p.size, 0) / totalSize : 0
+
+  if (totalSize === 0) {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
 
   // §10.3.1 acceptanceScore (target Polity 視点)
-  const provinceUnrest = pop.unrest
+  const provinceUnrest = averageUnrest
   const rebelPower =
-    pop.size * config.popRevoltPowerFactorByClass[pop.class] * (0.5 + pop.unrest / 100)
+    totalSize * config.popRevoltPowerFactorByClass[popClass] * (0.5 + averageUnrest / 100)
   const suppressionPower = estimateSuppressionPower(state, config, provinceId, targetPolityId)
   const concessionSeverity =
     demand.concessionLevel === 'minor'
@@ -280,20 +290,17 @@ function applyRevoltSettlement(
   let nextCtx = disbandResult.value.ctx
   let state = nextCtx.state
 
-  const pop = state.popGroups[demand.popGroupId]
-  if (pop) {
-    state = adjustProvincePopUnrestByClass(
-      state,
-      demand.provinceId,
-      pop.class,
-      -config.revoltSettlementMainUnrestReduction,
-    )
-    state = adjustProvincePopUnrest(
-      state,
-      demand.provinceId,
-      -config.revoltSettlementOtherUnrestReduction,
-    )
-  }
+  state = adjustProvincePopUnrestByClass(
+    state,
+    demand.provinceId,
+    demand.popClass,
+    -config.revoltSettlementMainUnrestReduction,
+  )
+  state = adjustProvincePopUnrest(
+    state,
+    demand.provinceId,
+    -config.revoltSettlementOtherUnrestReduction,
+  )
 
   const cost =
     demand.concessionLevel === 'major'

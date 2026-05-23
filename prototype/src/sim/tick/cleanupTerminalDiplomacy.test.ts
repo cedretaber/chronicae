@@ -5,13 +5,7 @@ import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import type { WorldState } from '../types/world'
-import type {
-  ActorIntentId,
-  DiplomaticPlayId,
-  PolityId,
-  ProvinceId,
-  PopGroupId,
-} from '../types/ids'
+import type { ActorIntentId, DiplomaticPlayId, PolityId, ProvinceId } from '../types/ids'
 import type { ActorIntent } from '../types/actorIntent'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 
@@ -50,7 +44,7 @@ function makePlay(id: string, status: DiplomaticPlay['status']): DiplomaticPlay 
     primaryDemand: {
       kind: 'revolt_concession',
       provinceId: 'pr-0' as ProvinceId,
-      popGroupId: 'pg-0' as PopGroupId,
+      popClass: 'peasants' as const,
       concessionLevel: 'minor',
     },
     status,

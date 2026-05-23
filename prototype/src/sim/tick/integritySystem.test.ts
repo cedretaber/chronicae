@@ -153,6 +153,8 @@ describe('runIntegritySystem', () => {
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      popIndex: { byHolding: {} },
+      nextPopGroupId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -288,6 +290,8 @@ describe('runIntegritySystem', () => {
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      popIndex: { byHolding: {} },
+      nextPopGroupId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -406,6 +410,8 @@ describe('runIntegritySystem', () => {
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      popIndex: { byHolding: {} },
+      nextPopGroupId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -524,6 +530,8 @@ describe('runIntegritySystem', () => {
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      popIndex: { byHolding: {} },
+      nextPopGroupId: 0,
     }
 
     const ctx = makeCtx(world)
@@ -643,6 +651,8 @@ describe('runIntegritySystem', () => {
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      popIndex: { byHolding: {} },
+      nextPopGroupId: 0,
     }
 
     const errors = collectIntegrityErrors(world)
@@ -750,6 +760,8 @@ describe('runIntegritySystem', () => {
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      popIndex: { byHolding: {} },
+      nextPopGroupId: 0,
     }
 
     const errors = collectIntegrityErrors(world)
@@ -858,6 +870,8 @@ describe('runIntegritySystem', () => {
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      popIndex: { byHolding: {} },
+      nextPopGroupId: 0,
     }
 
     const errors = collectIntegrityErrors(world)

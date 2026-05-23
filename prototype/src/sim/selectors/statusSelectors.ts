@@ -68,14 +68,18 @@ export function getPolityLegitimacy(state: WorldState, countryId: PolityId): num
     const province = state.provinces[provinceId]
     if (!province) continue
     if (getProvinceTerminalPolityId(state, provinceId) !== countryId) continue
-    for (const popId of province.popGroupIds) {
-      const pop = state.popGroups[popId]
-      if (!pop) continue
-      const att = getAttitudeOrDefault(state, pop, countryTarget)
-      // affection weight 0.40, respect weight 0.60
-      const score =
-        attitudeValueToScore(att.affection) * 0.4 + attitudeValueToScore(att.respect) * 0.6
-      popValues.push({ value: score, weight: pop.size })
+    for (const holdingId of province.holdingIds) {
+      const holdingPopIds = state.popIndex.byHolding[holdingId]
+      if (!holdingPopIds) continue
+      for (const popId of holdingPopIds) {
+        const pop = state.popGroups[popId]
+        if (!pop) continue
+        const att = getAttitudeOrDefault(state, pop, countryTarget)
+        // affection weight 0.40, respect weight 0.60
+        const score =
+          attitudeValueToScore(att.affection) * 0.4 + attitudeValueToScore(att.respect) * 0.6
+        popValues.push({ value: score, weight: pop.size })
+      }
     }
   }
   const popScore = weightedAverage(popValues, 50)

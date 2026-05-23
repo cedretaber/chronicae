@@ -101,10 +101,6 @@ function makeWorldState(
     ownerHouseId: house1Id,
     polityId: polity1Id,
     habitability: 50,
-    popGroupIds: [],
-    development: 50,
-    polityControl: 50,
-    houseControl: 50,
     holdingIds: [],
   } as unknown as Province
 
@@ -189,6 +185,8 @@ function makeWorldState(
     waitingAimIds: [],
     nextTaskId: 0,
     nextPersonActivityLogId: 0,
+    popIndex: { byHolding: {} },
+    nextPopGroupId: 0,
   }
   const polity = state.polities[polity1Id]!
   const house = state.houses[house1Id]!

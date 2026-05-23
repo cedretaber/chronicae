@@ -13,10 +13,10 @@ export function getPopProduction(
 ): number {
   const pop = state.popGroups[popId]
   if (!pop) return 0
-
-  const polityControl = getProvincePolityControlFromHoldings(state, pop.provinceId)
+  const holding = state.holdings[pop.holdingId]
+  if (!holding) return 0
   const productivity = config.productivityByClass[pop.class]
-  return pop.size * productivity * (pop.wealth / 100) * (polityControl / 100)
+  return pop.size * productivity * (pop.wealth / 100) * (holding.polityControl / 100)
 }
 
 // Sum of all pop productions in a province
@@ -29,8 +29,12 @@ export function getProvinceProduction(
   if (!province) return 0
 
   let total = 0
-  for (const popId of province.popGroupIds) {
-    total += getPopProduction(state, config, popId)
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
+      total += getPopProduction(state, config, popId)
+    }
   }
   return total
 }
@@ -55,13 +59,17 @@ export function getProvinceCountryManpowerBase(
   const province = state.provinces[provinceId]
   if (!province) return 0
 
-  const polityControl = getProvincePolityControlFromHoldings(state, provinceId)
   let total = 0
-  for (const popId of province.popGroupIds) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    const manpowerFactor = config.manpowerFactorByClass[pop.class]
-    total += pop.size * manpowerFactor * (polityControl / 100)
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    const polityControl = state.holdings[holdingId]?.polityControl ?? 0
+    for (const popId of popIds) {
+      const pop = state.popGroups[popId]
+      if (!pop) continue
+      const manpowerFactor = config.manpowerFactorByClass[pop.class]
+      total += pop.size * manpowerFactor * (polityControl / 100)
+    }
   }
   return total
 }

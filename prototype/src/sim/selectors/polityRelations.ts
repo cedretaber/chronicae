@@ -14,6 +14,7 @@ import {
   getHouseControlledProvinceIds,
   getProvinceDevelopmentFromHoldings,
 } from './landContractSelectors'
+import { getProvincePopulation } from './popSelectors'
 
 // §8.1 — Province の terminal Polity
 export function getProvincePolity(state: WorldState, provinceId: ProvinceId): Polity | undefined {
@@ -200,7 +201,7 @@ export function getHouseSeatProvinceInPolity(
   }
 
   // 2) development が最大の Province
-  // 3) 同値なら popGroupIds.length (人口の代理) が最大
+  // 3) 同値なら人口が最大
   // 4) 同値なら ProvinceId 昇順
   const sorted = [...candidates].sort((a, b) => {
     const pa = state.provinces[a]
@@ -209,9 +210,9 @@ export function getHouseSeatProvinceInPolity(
     const devA = getProvinceDevelopmentFromHoldings(state, a)
     const devB = getProvinceDevelopmentFromHoldings(state, b)
     if (devB !== devA) return devB - devA
-    if (pb.popGroupIds.length !== pa.popGroupIds.length) {
-      return pb.popGroupIds.length - pa.popGroupIds.length
-    }
+    const popA = getProvincePopulation(state, a)
+    const popB = getProvincePopulation(state, b)
+    if (popB !== popA) return popB - popA
     return a.localeCompare(b)
   })
   return sorted[0]

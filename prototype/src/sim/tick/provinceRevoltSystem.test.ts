@@ -41,9 +41,7 @@ function buildWorld(opts: {
   const leaderId = 'p-leader' as PersonId
   const popId = 'pg-peasants' as PopGroupId
 
-  s = withProvince(s, provinceId, {
-    popGroupIds: [popId],
-  })
+  s = withProvince(s, provinceId, {})
   s = withPolity(s, polityId, {
     treasury: opts.treasury,
     capitalProvinceId: provinceId,
@@ -51,18 +49,26 @@ function buildWorld(opts: {
   s = withHouse(s, houseId, { seatProvinceId: provinceId, wealth: 30 })
   s = withPerson(s, leaderId, { houseId, age: 35 })
   s = bindProvinceToHouseViaPolity(s, provinceId, polityId, houseId)
+  const holdingId = 'hl-0' as import('../types/ids').HoldingId
   s = {
     ...s,
     popGroups: {
       ...s.popGroups,
       [popId]: {
         id: popId,
-        provinceId,
+        holdingId,
         class: 'peasants',
+        occupation: 'agriculture',
         size: opts.popSize,
         wealth: 10,
         unrest: opts.popUnrest,
         attitudes: {},
+      },
+    },
+    popIndex: {
+      byHolding: {
+        ...s.popIndex.byHolding,
+        [holdingId]: [popId],
       },
     },
   }
@@ -172,7 +178,7 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
 
 describe('resolveRevoltConflict', () => {
   it('returns rebelWins=false when target has overwhelming suppression power', () => {
-    const { state, provinceId, polityId, popId } = buildWorld({
+    const { state, provinceId, polityId } = buildWorld({
       popUnrest: 50,
       popSize: 100,
       development: 50,
@@ -182,7 +188,7 @@ describe('resolveRevoltConflict', () => {
     const rng = createRng('conflict-1')
     const { result } = resolveRevoltConflict(state, defaultConfig, rng, {
       provinceId,
-      popGroupId: popId,
+      popClass: 'peasants',
       targetPolityId: polityId,
     })
     expect(result.rebelPower).toBeGreaterThan(0)
@@ -192,7 +198,7 @@ describe('resolveRevoltConflict', () => {
   })
 
   it('returns sensible values when pop is large and target weak', () => {
-    const { state, provinceId, polityId, popId } = buildWorld({
+    const { state, provinceId, polityId } = buildWorld({
       popUnrest: 95,
       popSize: 5000,
       development: 0,
@@ -202,7 +208,7 @@ describe('resolveRevoltConflict', () => {
     const rng = createRng('conflict-2')
     const { result } = resolveRevoltConflict(state, defaultConfig, rng, {
       provinceId,
-      popGroupId: popId,
+      popClass: 'peasants',
       targetPolityId: polityId,
     })
     expect(result.rebelPower).toBeGreaterThan(0)

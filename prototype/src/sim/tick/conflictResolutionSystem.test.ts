@@ -19,6 +19,7 @@ import type {
   ProvinceId,
   PopGroupId,
   DiplomaticPlayId,
+  HoldingId,
 } from '../types/ids'
 import { createRebelPolity } from '../mutations/worldStructureMutations'
 import { runConflictResolutionSystem } from './conflictResolutionSystem'
@@ -37,7 +38,7 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
     const leaderId = 'p-leader' as PersonId
     const popId = 'pg-peasants' as PopGroupId
 
-    s = withProvince(s, provinceId, { popGroupIds: [popId] })
+    s = withProvince(s, provinceId, {})
     s = withPolity(s, polityId, { treasury: 200, capitalProvinceId: provinceId })
     s = withHouse(s, houseId, { seatProvinceId: provinceId, wealth: 50 })
     s = withPerson(s, leaderId, { houseId, age: 35 })
@@ -48,8 +49,9 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
         ...s.popGroups,
         [popId]: {
           id: popId,
-          provinceId,
+          holdingId: 'hl-0' as HoldingId,
           class: 'peasants',
+          occupation: 'agriculture',
           size: 1000,
           wealth: 30,
           unrest: 50,
@@ -78,7 +80,6 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
     rebelPolityId: PolityId,
     oldPolityId: PolityId,
     provinceId: ProvinceId,
-    popId: PopGroupId,
   ): TickContext {
     const playId = 'dp-revolt-esc' as DiplomaticPlayId
     const play: DiplomaticPlay = {
@@ -89,7 +90,7 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
       primaryDemand: {
         kind: 'revolt_concession',
         provinceId,
-        popGroupId: popId,
+        popClass: 'peasants' as const,
         concessionLevel: 'minor',
       },
       status: 'escalated',
@@ -122,7 +123,6 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
       setup.rebelPolityId,
       setup.oldPolityId,
       setup.provinceId,
-      setup.popId,
     )
     ctx = runConflictResolutionSystem(ctx)
     const play = Object.values(ctx.state.diplomaticPlays)[0]
@@ -141,7 +141,7 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
       primaryDemand: {
         kind: 'revolt_concession',
         provinceId: setup.provinceId,
-        popGroupId: setup.popId,
+        popClass: 'peasants' as const,
         concessionLevel: 'minor',
       },
       status: 'active',
@@ -180,8 +180,8 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
     const attackerHouseId = 'h-att' as HouseId
     const defenderHouseId = 'h-def' as HouseId
 
-    s = withProvince(s, provinceAttackerId, { neighbors: [provinceDefenderId], popGroupIds: [] })
-    s = withProvince(s, provinceDefenderId, { neighbors: [provinceAttackerId], popGroupIds: [] })
+    s = withProvince(s, provinceAttackerId, { neighbors: [provinceDefenderId] })
+    s = withProvince(s, provinceDefenderId, { neighbors: [provinceAttackerId] })
     s = withHouse(s, attackerHouseId, { seatProvinceId: provinceAttackerId, wealth: 200 })
     s = withHouse(s, defenderHouseId, { seatProvinceId: provinceDefenderId, wealth: 50 })
     s = withPolity(s, attackerPolityId, {
@@ -303,8 +303,8 @@ describe('runConflictResolutionSystem (unsupported kind)', () => {
     const polityBId = 'c-b' as PolityId
     const houseAId = 'h-a' as HouseId
     const houseBId = 'h-b' as HouseId
-    s = withProvince(s, provinceAId, { neighbors: [provinceBId], popGroupIds: [] })
-    s = withProvince(s, provinceBId, { neighbors: [provinceAId], popGroupIds: [] })
+    s = withProvince(s, provinceAId, { neighbors: [provinceBId] })
+    s = withProvince(s, provinceBId, { neighbors: [provinceAId] })
     s = withHouse(s, houseAId, { seatProvinceId: provinceAId })
     s = withHouse(s, houseBId, { seatProvinceId: provinceBId })
     s = withPolity(s, polityAId, { rank: 2, treasury: 1000, capitalProvinceId: provinceAId })

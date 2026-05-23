@@ -53,7 +53,7 @@ function setupWorldWithRebelPolity(): {
   const leaderId = 'p-leader' as PersonId
   const popId = 'pg-peasants' as PopGroupId
 
-  s = withProvince(s, provinceId, { popGroupIds: [popId] })
+  s = withProvince(s, provinceId)
   s = withPolity(s, polityId, {
     treasury: 500,
     capitalProvinceId: provinceId,

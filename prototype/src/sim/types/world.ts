@@ -28,7 +28,7 @@ import type { House } from './house'
 import type { Person } from './person'
 import type { Plot } from './plot'
 import type { SimEvent } from './event'
-import type { PopGroup } from './popGroup'
+import type { PopGroup, PopIndex } from './popGroup'
 import type { OrganizationShare, OfficeAssignment, ShareIndex, OfficeIndex } from './office'
 import type {
   LandContract,
@@ -65,6 +65,7 @@ export type WorldState = {
   persons: Record<PersonId, Person>
   activePlots: Record<PlotId, Plot>
   popGroups: Record<PopGroupId, PopGroup>
+  popIndex: PopIndex
   organizationShares: Record<OrganizationShareId, OrganizationShare>
   officeAssignments: Record<OfficeAssignmentId, OfficeAssignment>
   landContracts: Record<LandContractId, LandContract>
@@ -110,6 +111,8 @@ export type WorldState = {
   // v0.23
   nextTaskId: number
   nextPersonActivityLogId: number
+  // v0.24
+  nextPopGroupId: number
 }
 
 export type SimulationSession = {

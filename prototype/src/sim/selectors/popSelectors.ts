@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { ProvinceId } from '../types/ids'
+import type { ProvinceId, HoldingId } from '../types/ids'
 import type { PopGroup } from '../types/popGroup'
 import type { PopClass } from '../types/popGroup'
 import { clamp } from '../utils/math'
@@ -12,10 +12,14 @@ export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopG
   if (!province) return []
 
   const result: PopGroup[] = []
-  for (const popId of province.popGroupIds) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    result.push(pop)
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
+      const pop = state.popGroups[popId]
+      if (!pop) continue
+      result.push(pop)
+    }
   }
   return result
 }
@@ -26,10 +30,14 @@ export function getProvincePopulation(state: WorldState, provinceId: ProvinceId)
   if (!province) return 0
 
   let total = 0
-  for (const popId of province.popGroupIds) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    total += pop.size
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
+      const pop = state.popGroups[popId]
+      if (!pop) continue
+      total += pop.size
+    }
   }
   return total
 }
@@ -41,11 +49,15 @@ export function getProvinceAveragePopWealth(state: WorldState, provinceId: Provi
 
   let weightedSum = 0
   let totalPopulation = 0
-  for (const popId of province.popGroupIds) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    weightedSum += pop.wealth * pop.size
-    totalPopulation += pop.size
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
+      const pop = state.popGroups[popId]
+      if (!pop) continue
+      weightedSum += pop.wealth * pop.size
+      totalPopulation += pop.size
+    }
   }
   if (totalPopulation === 0) return 0
   return weightedSum / totalPopulation
@@ -87,17 +99,21 @@ export function getProvinceUnrest(state: WorldState, provinceId: ProvinceId): nu
 
   let weightedSum = 0
   let totalPopulation = 0
-  for (const popId of province.popGroupIds) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    weightedSum += pop.unrest * pop.size
-    totalPopulation += pop.size
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
+      const pop = state.popGroups[popId]
+      if (!pop) continue
+      weightedSum += pop.unrest * pop.size
+      totalPopulation += pop.size
+    }
   }
   if (totalPopulation === 0) return 0
   return weightedSum / totalPopulation
 }
 
-// Returns the unrest value of the PopGroup with the given class in the province (0 if not found)
+// Returns the weighted average unrest of all POPs with the given class in the province
 export function getPopUnrestByClass(
   state: WorldState,
   provinceId: ProvinceId,
@@ -105,15 +121,22 @@ export function getPopUnrestByClass(
 ): number {
   const province = state.provinces[provinceId]
   if (!province) return 0
-  for (const popId of province.popGroupIds) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    if (pop.class === popClass) return pop.unrest
+  let weightedSum = 0
+  let totalSize = 0
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
+      const pop = state.popGroups[popId]
+      if (!pop || pop.class !== popClass) continue
+      weightedSum += pop.unrest * pop.size
+      totalSize += pop.size
+    }
   }
-  return 0
+  return totalSize > 0 ? weightedSum / totalSize : 0
 }
 
-// Returns the wealth value of the PopGroup with the given class in the province (0 if not found)
+// Returns the weighted average wealth of all POPs with the given class in the province
 export function getPopWealthByClass(
   state: WorldState,
   provinceId: ProvinceId,
@@ -121,10 +144,46 @@ export function getPopWealthByClass(
 ): number {
   const province = state.provinces[provinceId]
   if (!province) return 0
-  for (const popId of province.popGroupIds) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    if (pop.class === popClass) return pop.wealth
+  let weightedSum = 0
+  let totalSize = 0
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popId of popIds) {
+      const pop = state.popGroups[popId]
+      if (!pop || pop.class !== popClass) continue
+      weightedSum += pop.wealth * pop.size
+      totalSize += pop.size
+    }
   }
-  return 0
+  return totalSize > 0 ? weightedSum / totalSize : 0
+}
+
+// --- Holding POP selectors ---
+
+export function getHoldingPops(state: WorldState, holdingId: HoldingId): PopGroup[] {
+  const popIds = state.popIndex.byHolding[holdingId]
+  if (!popIds) return []
+  const result: PopGroup[] = []
+  for (const popId of popIds) {
+    const pop = state.popGroups[popId]
+    if (pop) result.push(pop)
+  }
+  return result
+}
+
+export function getHoldingPopsByClass(
+  state: WorldState,
+  holdingId: HoldingId,
+  popClass: PopClass,
+): PopGroup[] {
+  return getHoldingPops(state, holdingId).filter((p) => p.class === popClass)
+}
+
+export function getHoldingPopSizeByClass(
+  state: WorldState,
+  holdingId: HoldingId,
+  popClass: PopClass,
+): number {
+  return getHoldingPopsByClass(state, holdingId, popClass).reduce((sum, p) => sum + p.size, 0)
 }

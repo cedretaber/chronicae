@@ -102,6 +102,8 @@ function makeOfficeState(): {
     },
     activePlots: {},
     popGroups: {},
+    popIndex: { byHolding: {} },
+    nextPopGroupId: 0,
     organizationShares: {},
     officeAssignments: {
       [officeId]: {

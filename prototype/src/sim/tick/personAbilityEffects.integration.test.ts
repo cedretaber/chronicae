@@ -177,6 +177,8 @@ function makeWorldState(
     nextGoalId: 0,
     nextAimId: 0,
     nextDecisionReasonId: 0,
+    popIndex: { byHolding: {} },
+    nextPopGroupId: 0,
   }
   return state
 }
@@ -306,7 +308,6 @@ describe('runControlSystem — capital province maxControl', () => {
           y: 0,
           neighbors: [],
           habitability: 50,
-          popGroupIds: [],
           holdingIds: [holdingId],
         },
       },
@@ -393,6 +394,8 @@ describe('runControlSystem — capital province maxControl', () => {
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      popIndex: { byHolding: {} },
+      nextPopGroupId: 0,
     }
 
     const result = runControlSystem(makeCtx(world))

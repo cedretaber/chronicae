@@ -25,10 +25,9 @@ function buildWorld(opts: {
   const buyerHouseId = 'h-buyer' as HouseId
   const sellerHouseId = 'h-seller' as HouseId
 
-  s = withProvince(s, provinceBuyerId, { neighbors: [provinceSellerId], popGroupIds: [] })
+  s = withProvince(s, provinceBuyerId, { neighbors: [provinceSellerId] })
   s = withProvince(s, provinceSellerId, {
     neighbors: [provinceBuyerId],
-    popGroupIds: [],
   })
   s = withHouse(s, buyerHouseId, { seatProvinceId: provinceBuyerId })
   s = withHouse(s, sellerHouseId, { seatProvinceId: provinceSellerId })

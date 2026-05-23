@@ -398,7 +398,7 @@ function buildEntitySnapshot(
       meta,
       entity: pg,
       derived: {
-        provinceName: provinceNameKey(pg.provinceId),
+        provinceName: ws ? provinceNameKey(ws.holdings[pg.holdingId]?.provinceId) : null,
       },
     }
   }
@@ -1863,6 +1863,8 @@ export function PersonDetail({
     personActivityLogs: {},
     personActivityLogIndex: { byPerson: {} },
     personTrainingExperience: {},
+    popIndex: { byHolding: {} },
+    nextPopGroupId: 0,
     waitingAimIds: [],
     nextTaskId: 0,
     nextPersonActivityLogId: 0,
@@ -2481,7 +2483,13 @@ export function PopGroupDetail({
   const { t } = useTranslation()
   const resolveName = useEntityName()
   const currentState = session?.currentState
-  const province = currentState?.provinces[popGroup.provinceId]
+  const province = (() => {
+    const holdingId = popGroup.holdingId
+    if (!currentState) return undefined
+    const holding = currentState.holdings[holdingId]
+    if (!holding) return undefined
+    return currentState.provinces[holding.provinceId]
+  })()
 
   const worldState: WorldState | null = currentState ?? null
 
@@ -2504,7 +2512,11 @@ export function PopGroupDetail({
         of{' '}
         <button
           className="cursor-pointer text-blue-400 hover:text-blue-300"
-          onClick={() => onProvinceClick(popGroup.provinceId)}
+          onClick={() => {
+            const holdingId = popGroup.holdingId
+            const holding = worldState?.holdings[holdingId]
+            if (holding) onProvinceClick(holding.provinceId)
+          }}
         >
           {province ? resolveName('province', province.nameKey, province.nameKey) : '—'}
         </button>
@@ -2609,9 +2621,17 @@ export function ProvinceDetail({
     const ownerHouse = ws.houses[ownerHouseId]
     if (!ownerHouse) return 0
 
-    const pop = Object.values(ws.popGroups).find(
-      (p) => p?.provinceId === province.id && p?.class === popClass,
-    )
+    const pop = (() => {
+      for (const holdingId of province.holdingIds) {
+        const popIds = ws.popIndex?.byHolding[holdingId]
+        if (!popIds) continue
+        for (const popId of popIds) {
+          const p = ws.popGroups[popId]
+          if (p && p.class === popClass) return p
+        }
+      }
+      return undefined
+    })()
     if (!pop) return 0
 
     // v0.16: houseControl 廃止により、polityControl のみ参照する
@@ -2639,9 +2659,17 @@ export function ProvinceDetail({
           defaultConfig.townsmenRevoltProductionFactor
       }
     } else if (popClass === 'nobles') {
-      const noblesPop = Object.values(ws.popGroups).find(
-        (p) => p?.provinceId === province.id && p?.class === 'nobles',
-      )
+      const noblesPop = (() => {
+        for (const holdingId of province.holdingIds) {
+          const popIds = ws.popIndex?.byHolding[holdingId]
+          if (!popIds) continue
+          for (const popId of popIds) {
+            const p = ws.popGroups[popId]
+            if (p && p.class === 'nobles') return p
+          }
+        }
+        return undefined
+      })()
       if (noblesPop) {
         const a_house = getAttitudeOrDefault(ws, noblesPop, {
           kind: 'house',

@@ -6,7 +6,7 @@ import { createTickContext } from './context'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { PopGroup, PopClass } from '../types/popGroup'
-import type { ProvinceId, PolityId, HouseId, PersonId, PopGroupId } from '../types/ids'
+import type { ProvinceId, PolityId, HouseId, PersonId, PopGroupId, HoldingId } from '../types/ids'
 import {
   makeEmptyV016State,
   withProvince,
@@ -28,8 +28,9 @@ function withPopGroup(
 ): WorldState {
   const pop: PopGroup = {
     id,
-    provinceId,
+    holdingId: 'hl-0' as HoldingId,
     class: popClass,
+    occupation: 'agriculture',
     size,
     wealth,
     unrest: 0,
@@ -37,12 +38,16 @@ function withPopGroup(
   }
   const province = state.provinces[provinceId]
   if (!province) throw new Error(`withPopGroup: province ${provinceId} not found`)
+  const holdingId = pop.holdingId
+  const existingPopIds = state.popIndex.byHolding[holdingId] ?? []
   return {
     ...state,
     popGroups: { ...state.popGroups, [id]: pop },
-    provinces: {
-      ...state.provinces,
-      [provinceId]: { ...province, popGroupIds: [...province.popGroupIds, id] },
+    popIndex: {
+      byHolding: {
+        ...state.popIndex.byHolding,
+        [holdingId]: [...existingPopIds, id],
+      },
     },
   }
 }
@@ -120,7 +125,7 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
   })
 
   it('production=0: bailiff and treasury both 0', () => {
-    const { state: base, polityId, houseId, provinceId } = setupBaseWorld()
+    const { state: base, polityId, houseId, provinceId, popId } = setupBaseWorld()
     const holdingId = base.provinces[provinceId]!.holdingIds[0]!
     let state = vacateHoldingBailiff(base, holdingId)
     const bailiffPersonId = 'pe-bailiff' as PersonId
@@ -137,8 +142,6 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
       week: state.absoluteWeek,
     }).state
     // zero out pop wealth so production = 0
-    const province = state.provinces[provinceId]!
-    const popId = province.popGroupIds[0]!
     state = {
       ...state,
       popGroups: {

@@ -1260,10 +1260,11 @@ export function collectIntegrityErrors(
             message: `DiplomaticPlay ${idStr} primaryDemand.provinceId ${demand.provinceId} does not exist (§20)`,
           })
         }
-        if (!state.popGroups[demand.popGroupId]) {
+        const validPopClasses: string[] = ['peasants', 'townsmen', 'nobles']
+        if (!validPopClasses.includes(demand.popClass)) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
-            message: `DiplomaticPlay ${idStr} primaryDemand.popGroupId ${demand.popGroupId} does not exist (§20)`,
+            message: `DiplomaticPlay ${idStr} primaryDemand.popClass ${demand.popClass} is not a valid PopClass (§20)`,
           })
         }
         break
