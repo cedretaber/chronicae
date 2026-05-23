@@ -1,11 +1,11 @@
 import type { TickContext } from './context'
-import type { ActorIntentId, AimId, GoalId, DiplomaticPlayId } from '../types/ids'
+import type { ActorIntentId, AimId, GoalId, DiplomaticPlayId, PersonId } from '../types/ids'
 import type { ActorIntent } from '../types/actorIntent'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { WorldState } from '../types/world'
-import { removeTask } from '../selectors/taskSelectors'
+import { removeTask, getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import {
   TERMINAL_ACTOR_INTENT_STATUSES,
   type TerminalActorIntentStatus,
@@ -75,6 +75,40 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
       if (!nextPlays) nextPlays = { ...plays }
       delete nextPlays[idStr as DiplomaticPlayId]
       removedPlayIds.add(idStr)
+    }
+  }
+
+  // Reassign dead delegates in active plays
+  const activePlays = nextPlays ?? plays
+  for (const idStr of Object.keys(activePlays)) {
+    const play = activePlays[idStr as DiplomaticPlayId]
+    if (!play) continue
+    if (TERMINAL_PLAY_SET.has(play.status as TerminalDiplomaticPlayStatus)) continue
+
+    const initDead =
+      play.initiatorDelegatePersonId && !isPersonAlive(ctx.state, play.initiatorDelegatePersonId)
+    const targDead =
+      play.targetDelegatePersonId && !isPersonAlive(ctx.state, play.targetDelegatePersonId)
+    if (initDead || targDead) {
+      if (!nextPlays) nextPlays = { ...plays }
+      const updated: DiplomaticPlay = { ...play }
+      if (initDead) {
+        const replacement = getDiplomaticPlayDelegate(ctx.state, play.initiator)
+        if (replacement) {
+          updated.initiatorDelegatePersonId = replacement
+        } else {
+          delete updated.initiatorDelegatePersonId
+        }
+      }
+      if (targDead) {
+        const replacement = getDiplomaticPlayDelegate(ctx.state, play.target)
+        if (replacement) {
+          updated.targetDelegatePersonId = replacement
+        } else {
+          delete updated.targetDelegatePersonId
+        }
+      }
+      nextPlays[idStr as DiplomaticPlayId] = updated
     }
   }
 
@@ -166,6 +200,11 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
       goals: nextGoals ?? baseState.goals,
     },
   }
+}
+
+function isPersonAlive(state: WorldState, personId: PersonId): boolean {
+  const person = state.persons[personId]
+  return person !== undefined && person.alive && person.kind !== 'placeholder'
 }
 
 function isDecisionSubjectActive(state: WorldState, owner: DecisionSubjectRef): boolean {
