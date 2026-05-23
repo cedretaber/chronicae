@@ -3,21 +3,12 @@ import type { ProvinceId, PolityId, HoldingId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { PopClass } from '../types/popGroup'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
-import { getProvinceProduction } from '../selectors/popEconomySelectors'
+import { getHoldingProduction, getProvinceProduction } from '../selectors/popEconomySelectors'
 import { getProvinceAveragePopWealth, getProvinceUnrest } from '../selectors/popSelectors'
 import {
   getHoldingLandContractChain,
   isPlaceholderPerson,
 } from '../selectors/landContractSelectors'
-import type { HoldingKind } from '../types/landContract'
-
-function kindMultiplier(kind: HoldingKind): number {
-  return kind === 'city' ? 1.3 : 1.0
-}
-
-function holdingShareWeight(weight: number, landQuality: number, kind: HoldingKind): number {
-  return weight * landQuality * kindMultiplier(kind)
-}
 import {
   adjustProvincePopWealth,
   adjustProvincePopUnrest,
@@ -25,7 +16,6 @@ import {
 } from '../mutations/popMutations'
 import { addPersonWealth } from '../mutations/personMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
-import { getProvincePolityControlFromHoldings } from '../selectors/landContractSelectors'
 
 // v0.16 §18: LandRevenueSystem
 // 各 Province の生産物を per-Holding chain 上の Polity に配る。
@@ -42,31 +32,15 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     const province = ctx.state.provinces[provinceId]
     if (!province) continue
 
-    const production = getProvinceProduction(ctx.state, ctx.config, province.id)
-    const cc = getProvincePolityControlFromHoldings(ctx.state, province.id) / 100
-    const grossTax = production * cc
+    let provinceGrossTax = 0
 
-    if (grossTax <= 0) {
-      continue
-    }
-
-    // Compute total share weight for the province (§12.3)
-    let totalShareWeight = 0
-    for (const hid of province.holdingIds) {
-      const h = currentState.holdings[hid]
-      if (h) totalShareWeight += holdingShareWeight(h.weight, h.landQuality, h.kind)
-    }
-    if (totalShareWeight <= 0) continue
-
-    // Per-Holding revenue distribution
     for (const holdingId of province.holdingIds) {
       const holding = currentState.holdings[holdingId]
       if (!holding) continue
 
-      const share = holdingShareWeight(holding.weight, holding.landQuality, holding.kind)
-      const holdingShare = production * (share / totalShareWeight)
-      const holdingRevenue = holdingShare * (holding.polityControl / 100)
+      const holdingRevenue = getHoldingProduction(currentState, ctx.config, holdingId)
       if (holdingRevenue <= 0) continue
+      provinceGrossTax += holdingRevenue
 
       const chain = getHoldingLandContractChain(currentState, holdingId)
       if (chain.length === 0) continue
@@ -96,19 +70,10 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       }
     }
 
-    // 過徴税ペナルティ (Province 単位)
-    const extracted = grossTax
-    const retainedToPop = Math.max(0, production - extracted)
-    const retainedRatio = production > 0 ? retainedToPop / production : 0
-    const retainedWealthGainByClass = ctx.config.retainedWealthGainByClass
-    const popClasses: PopClass[] = ['peasants', 'townsmen', 'nobles']
+    // Over-extraction penalty (Province level)
+    const provinceProduction = getProvinceProduction(currentState, ctx.config, province.id)
+    const extractionRatio = provinceProduction > 0 ? provinceGrossTax / provinceProduction : 0
 
-    for (const popClass of popClasses) {
-      const delta = retainedRatio * retainedWealthGainByClass[popClass]
-      currentState = adjustProvincePopWealthByClass(currentState, province.id, popClass, delta)
-    }
-
-    const extractionRatio = production > 0 ? extracted / production : 0
     if (extractionRatio > ctx.config.overExtractionThreshold) {
       const averageWealth = getProvinceAveragePopWealth(ctx.state, province.id)
       const provinceUnrest = getProvinceUnrest(ctx.state, province.id)
@@ -128,6 +93,17 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
           over * ctx.config.overExtractionUnrestGain,
         )
       }
+    }
+
+    // POP wealth retention
+    const retainedToPop = Math.max(0, provinceProduction - provinceGrossTax)
+    const retainedRatio = provinceProduction > 0 ? retainedToPop / provinceProduction : 0
+    const retainedWealthGainByClass = ctx.config.retainedWealthGainByClass
+    const popClasses: PopClass[] = ['peasants', 'townsmen', 'nobles']
+
+    for (const popClass of popClasses) {
+      const delta = retainedRatio * retainedWealthGainByClass[popClass]
+      currentState = adjustProvincePopWealthByClass(currentState, province.id, popClass, delta)
     }
   }
 

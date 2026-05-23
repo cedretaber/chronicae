@@ -116,6 +116,10 @@ export function createTaskId(n: number): TaskId {
   return ('tk-' + n) as TaskId
 }
 
+export function createPopGroupId(n: number): PopGroupId {
+  return ('pg-' + n) as PopGroupId
+}
+
 export function createPersonActivityLogId(n: number): PersonActivityLogId {
   return ('al-' + n) as PersonActivityLogId
 }

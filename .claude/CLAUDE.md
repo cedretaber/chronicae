@@ -85,6 +85,17 @@ npm run format -- src/sim/tick/someFile.ts
 npm run lint -- src/sim/tick/someFile.ts
 ```
 
+## 動作確認の方針
+
+動作確認は **CLI を基本** とする。ブラウザ（Chrome DevTools / Playwright 等）は UI 表示の確認が必要な場合のみ使用する。
+
+- **ロジック・状態の確認**: CLI (`node src/cli/run.mjs`) + `--debug` フラグ
+- **整合性検証**: CLI × 複数シード（後述）
+- **パフォーマンス計測**: CLI × `--debug` の PERF ログ
+- **UI 表示の確認**: ブラウザ（dev server `npm run dev` 起動後）
+
+ブラウザは起動・操作に時間がかかるため、ロジックのデバッグには使わないこと。
+
 ## 検証コマンド
 
 ```bash

@@ -44,6 +44,9 @@ import {
   getProvinceAveragePopWealth,
   getProvinceUnrest,
   getPopWealthByClass,
+  getHoldingOccupationCapacity,
+  getHoldingPopSizeByClassAndOccupation,
+  getHoldingPops,
 } from '@sim/selectors/popSelectors'
 import {
   getProvinceProduction,
@@ -58,7 +61,9 @@ import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
 import type { Province } from '@/sim/types/province'
 import type { PopGroup } from '@/sim/types/popGroup'
+import { getPrimaryOccupationForClass } from '@/sim/types/popGroup'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
+import type { Holding } from '@/sim/types/landContract'
 import type { AttitudeMap } from '@/sim/types/attitude'
 import type {
   PolityId,
@@ -2483,13 +2488,8 @@ export function PopGroupDetail({
   const { t } = useTranslation()
   const resolveName = useEntityName()
   const currentState = session?.currentState
-  const province = (() => {
-    const holdingId = popGroup.holdingId
-    if (!currentState) return undefined
-    const holding = currentState.holdings[holdingId]
-    if (!holding) return undefined
-    return currentState.provinces[holding.provinceId]
-  })()
+  const holding = currentState?.holdings[popGroup.holdingId]
+  const province = holding ? currentState?.provinces[holding.provinceId] : undefined
 
   const worldState: WorldState | null = currentState ?? null
 
@@ -2506,6 +2506,9 @@ export function PopGroupDetail({
     <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
         <span className="text-lg font-bold">{classLabel}</span>
+        <span className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300">
+          {t(`popOccupation.${popGroup.occupation}`)}
+        </span>
         <CopyJsonButton payload={buildEntitySnapshot('popGroup', popGroup, worldState)} />
       </div>
       <div className="text-sm text-gray-400">
@@ -2518,7 +2521,9 @@ export function PopGroupDetail({
             if (holding) onProvinceClick(holding.provinceId)
           }}
         >
-          {province ? resolveName('province', province.nameKey, province.nameKey) : '—'}
+          {province
+            ? `${resolveName('province', province.nameKey, province.nameKey)} ${holding?.kind ?? ''}`
+            : '—'}
         </button>
       </div>
 
@@ -2543,6 +2548,24 @@ export function PopGroupDetail({
         </div>
       </div>
 
+      {popGroup.occupation !== 'none' && currentState && (
+        <div className="text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.province.capacity')}:</span>
+            <span>
+              {popGroup.size.toFixed(1)} /{' '}
+              {getHoldingOccupationCapacity(
+                currentState,
+                defaultConfig,
+                popGroup.holdingId,
+                popGroup.class,
+                popGroup.occupation,
+              ).toFixed(1)}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="text-sm font-semibold text-gray-300">{t('detail.person.attitudes')}:</div>
       <AttitudeList
         attitudes={popGroup.attitudes}
@@ -2555,6 +2578,232 @@ export function PopGroupDetail({
   )
 }
 
+export function HoldingDetail({
+  holding,
+  session,
+  onPolityClick,
+  onPersonClick,
+  onProvinceClick,
+  onPopGroupClick,
+}: {
+  holding: Holding
+  session: SimulationSession | null
+  onPolityClick: ClickHandler
+  onPersonClick: (id: string) => void
+  onProvinceClick: (id: string) => void
+  onPopGroupClick: (id: string) => void
+}) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
+  const currentState = session?.currentState
+  const province = currentState?.provinces[holding.provinceId]
+
+  const holdingDisplay = province
+    ? `${resolveName('province', province.nameKey, province.nameKey)} ${holding.kind}`
+    : holding.id
+
+  return (
+    <div className="flex flex-col gap-1 p-3">
+      {/* Header image */}
+      <img
+        src={getHoldingImage(holding.id, holding.kind)}
+        alt={holdingDisplay}
+        className="h-24 w-full rounded object-cover"
+        draggable={false}
+      />
+      {/* Header: Holding name + kind badge */}
+      <div className="flex items-center justify-between">
+        <span className="text-lg font-bold">{holdingDisplay}</span>
+        <span
+          className={`rounded px-1.5 py-0.5 text-xs ${holding.kind === 'city' ? 'bg-amber-800 text-amber-200' : 'bg-green-900 text-green-300'}`}
+        >
+          {holding.kind}
+        </span>
+      </div>
+
+      {/* Province link */}
+      {province && (
+        <div className="text-sm text-gray-400">
+          <button
+            className="cursor-pointer text-blue-400 hover:text-blue-300"
+            onClick={() => onProvinceClick(province.id)}
+          >
+            {resolveName('province', province.nameKey, province.nameKey)}
+          </button>
+        </div>
+      )}
+
+      {/* Basic stats */}
+      <div className="text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.province.dev')}:</span>
+          <span>{holding.development.toFixed(1)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.province.control')}:</span>
+          <span>{holding.polityControl.toFixed(0)}%</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.province.quality')}:</span>
+          <span>{holding.landQuality.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.province.weight')}:</span>
+          <span>{holding.weight.toFixed(1)}</span>
+        </div>
+      </div>
+
+      {/* Bailiff */}
+      {currentState &&
+        (() => {
+          const bailiff = getHoldingBailiffPerson(currentState, holding.id)
+          return (
+            <div className="text-sm">
+              <span className="text-gray-400">{t('detail.province.bailiff')}: </span>
+              {bailiff ? (
+                bailiff.kind === 'placeholder' ? (
+                  <span className="text-gray-500 italic">{t('detail.province.placeholder')}</span>
+                ) : (
+                  <PersonLink
+                    personId={bailiff.id}
+                    persons={currentState.persons ?? {}}
+                    onClick={onPersonClick}
+                  />
+                )
+              ) : (
+                <span className="text-gray-500">{t('detail.province.vacant')}</span>
+              )}
+            </div>
+          )
+        })()}
+
+      {/* Contract chain */}
+      {currentState &&
+        (() => {
+          const chain = getHoldingLandContractChain(currentState, holding.id)
+          if (chain.length === 0) return null
+          return (
+            <div className="text-sm">
+              <div className="text-gray-400">{t('detail.province.contract_chain')}:</div>
+              {chain.map((contract, idx) => {
+                const grantee = currentState.polities[contract.granteePolityId]
+                const isTerminal = idx === chain.length - 1
+                return (
+                  <div key={contract.id} className="border-l border-gray-700 pl-2 text-sm">
+                    {grantee ? (
+                      <button
+                        className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
+                        onClick={() => onPolityClick(grantee.id, 'polity')}
+                      >
+                        {resolveName('polity', grantee.nameKey, grantee.nameKey)}
+                        {isTerminal
+                          ? ''
+                          : ` (${(contract.terms.taxRateToGrantor * 100).toFixed(0)}%)`}
+                      </button>
+                    ) : (
+                      <span className="text-gray-500">—</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+
+      {/* POP breakdown by class */}
+      {currentState && (
+        <>
+          <div className="text-sm font-semibold text-gray-300">POP</div>
+          {(['peasants', 'townsmen', 'nobles'] as const).map((popClass) => {
+            const primaryOcc = getPrimaryOccupationForClass(popClass)
+            const employed = getHoldingPopSizeByClassAndOccupation(
+              currentState,
+              holding.id,
+              popClass,
+              primaryOcc,
+            )
+            const cap = getHoldingOccupationCapacity(
+              currentState,
+              defaultConfig,
+              holding.id,
+              popClass,
+              primaryOcc,
+            )
+            const unemployed = getHoldingPopSizeByClassAndOccupation(
+              currentState,
+              holding.id,
+              popClass,
+              'none',
+            )
+            if (employed === 0 && unemployed === 0) return null
+            return (
+              <div key={popClass} className="text-sm">
+                <div className="font-medium text-gray-300">{t(`detail.province.${popClass}`)}</div>
+                <div className="ml-2 text-gray-400">
+                  <div className="flex justify-between">
+                    <span>{t(`popOccupation.${primaryOcc}`)}:</span>
+                    <span>
+                      {employed.toFixed(1)} / {cap.toFixed(1)}
+                    </span>
+                  </div>
+                  {unemployed > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-yellow-400">{t('popOccupation.none')}:</span>
+                      <span className="text-yellow-400">{unemployed.toFixed(1)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </>
+      )}
+
+      {/* Individual POP group list (clickable) */}
+      {currentState &&
+        (() => {
+          const pops = getHoldingPops(currentState, holding.id)
+          if (pops.length === 0) return null
+          return (
+            <>
+              <div className="text-sm font-semibold text-gray-300">
+                {t('detail.province.pop_groups')}
+              </div>
+              {pops.map((pop) => (
+                <div key={pop.id} className="rounded bg-gray-700 p-1.5 text-xs">
+                  <button
+                    className="w-full cursor-pointer text-left font-medium text-blue-400 capitalize hover:text-blue-300"
+                    onClick={() => onPopGroupClick(pop.id)}
+                  >
+                    {t(`detail.province.${pop.class}`, { defaultValue: pop.class })}{' '}
+                    <span className="text-xs font-normal text-gray-400">
+                      ({t(`popOccupation.${pop.occupation}`)})
+                    </span>{' '}
+                    →
+                  </button>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">{t('detail.province.size')}:</span>
+                    <span>{pop.size.toFixed(1)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">{t('detail.province.wealth')}:</span>
+                    <span>{pop.wealth.toFixed(1)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">{t('detail.province.unrest')}:</span>
+                    <span className={pop.unrest > 60 ? 'text-red-400' : 'text-gray-200'}>
+                      {pop.unrest.toFixed(1)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </>
+          )
+        })()}
+    </div>
+  )
+}
+
 export function ProvinceDetail({
   province,
   session,
@@ -2563,6 +2812,7 @@ export function ProvinceDetail({
   onPersonClick,
   onProvinceClick,
   onPopGroupClick,
+  onHoldingClick,
 }: {
   province: Province
   session: SimulationSession | null
@@ -2571,6 +2821,7 @@ export function ProvinceDetail({
   onPersonClick: ClickHandler
   onProvinceClick: (id: string) => void
   onPopGroupClick: (id: string) => void
+  onHoldingClick: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -2782,7 +3033,12 @@ export function ProvinceDetail({
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-gray-200">{holdingDisplay}</span>
+                  <button
+                    className="cursor-pointer font-medium text-blue-400 hover:text-blue-300"
+                    onClick={() => onHoldingClick(holding.id)}
+                  >
+                    {holdingDisplay}
+                  </button>
                   <span
                     className={`rounded px-1 text-xs ${holding.kind === 'city' ? 'bg-amber-800 text-amber-200' : 'bg-green-900 text-green-300'}`}
                   >
@@ -2851,6 +3107,47 @@ export function ProvinceDetail({
                     <span className="text-gray-500">{t('detail.province.vacant')}</span>
                   )}
                 </div>
+                <div className="mt-1 border-t border-gray-700 pt-1">
+                  {(['peasants', 'townsmen', 'nobles'] as const).map((popClass) => {
+                    const primaryOcc = getPrimaryOccupationForClass(popClass)
+                    const employed = getHoldingPopSizeByClassAndOccupation(
+                      currentState,
+                      holding.id,
+                      popClass,
+                      primaryOcc,
+                    )
+                    const cap = getHoldingOccupationCapacity(
+                      currentState,
+                      defaultConfig,
+                      holding.id,
+                      popClass,
+                      primaryOcc,
+                    )
+                    const unemployed = getHoldingPopSizeByClassAndOccupation(
+                      currentState,
+                      holding.id,
+                      popClass,
+                      'none',
+                    )
+                    if (employed === 0 && unemployed === 0) return null
+                    return (
+                      <div key={popClass} className="text-xs text-gray-400">
+                        <span className="text-gray-300">{t(`detail.province.${popClass}`)}</span>
+                        <div className="ml-2">
+                          <span>
+                            {t(`popOccupation.${primaryOcc}`)}: {employed.toFixed(1)} /{' '}
+                            {cap.toFixed(1)}
+                          </span>
+                          {unemployed > 0 && (
+                            <span className="ml-2 text-yellow-400">
+                              {t('popOccupation.none')}: {unemployed.toFixed(1)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )
@@ -2913,7 +3210,11 @@ export function ProvinceDetail({
                 className="w-full cursor-pointer text-left font-medium text-blue-400 capitalize hover:text-blue-300"
                 onClick={() => onPopGroupClick(pop.id)}
               >
-                {t(`detail.province.${pop.class}`, { defaultValue: pop.class })} →
+                {t(`detail.province.${pop.class}`, { defaultValue: pop.class })}{' '}
+                <span className="text-xs font-normal text-gray-400">
+                  ({t(`popOccupation.${pop.occupation}`)})
+                </span>{' '}
+                →
               </button>
               <div className="flex justify-between">
                 <span className="text-gray-400">{t('detail.province.size')}:</span>

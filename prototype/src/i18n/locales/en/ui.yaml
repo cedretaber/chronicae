@@ -264,6 +264,8 @@ detail:
     root: 'Root'
     term: 'Term'
     neighbors: 'Neighbors'
+    capacity: 'Capacity'
+    employment_rate: 'Employment Rate'
 
   # Faction detail
   faction:
@@ -278,3 +280,9 @@ detail:
     employed: 'employed'
     unemployed: 'unemployed'
     attitudes: 'Attitudes'
+
+popOccupation:
+  agriculture: 'Agriculture'
+  urban_labor: 'Urban Labor'
+  elite_service: 'Elite Service'
+  none: 'Unemployed'

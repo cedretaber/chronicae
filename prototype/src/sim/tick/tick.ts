@@ -43,6 +43,8 @@ import { runAttitudeDecaySystem } from './attitudeDecaySystem'
 import { runGovernanceSystem } from './governanceSystem'
 import { runIntegritySystem } from './integritySystem'
 import { runPopSystem, normalizePopSizes } from './popSystem'
+import { runEmploymentRebalanceSystem } from './employmentRebalanceSystem'
+import { mergeCompatiblePopsMut } from '../mutations/popMutations'
 import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { runPopDevelopmentSystem } from './popDevelopmentSystem'
 import { runPersonGrowthSystem } from './personGrowthSystem'
@@ -73,6 +75,12 @@ const scheduledSystems: ScheduledSystem[] = [
   { name: 'developmentSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runDevelopmentSystem },
   { name: 'controlSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runControlSystem },
   { name: 'popSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPopSystem },
+  {
+    name: 'employmentRebalanceSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runEmploymentRebalanceSystem,
+  },
   { name: 'landRevenueSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runLandRevenueSystem },
   {
     name: 'politySurplusDistributionSystem',
@@ -292,6 +300,20 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runGovernanceSystem,
   },
   { name: 'normalizePopSizes', intervalWeeks: 4, phaseOffsetWeeks: 0, run: normalizePopSizes },
+  {
+    name: 'mergeCompatiblePops',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: (ctx: TickContext): TickContext => {
+      const ws = {
+        ...ctx.state,
+        popGroups: { ...ctx.state.popGroups },
+        popIndex: { byHolding: { ...ctx.state.popIndex.byHolding } },
+      }
+      mergeCompatiblePopsMut(ws)
+      return { ...ctx, state: ws }
+    },
+  },
   {
     name: 'cleanupTerminalDiplomacy',
     intervalWeeks: 4,

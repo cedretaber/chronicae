@@ -1,10 +1,8 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId, HoldingId } from '../types/ids'
-import type { PopGroup } from '../types/popGroup'
-import type { PopClass } from '../types/popGroup'
+import type { PopGroup, PopClass, PopOccupation } from '../types/popGroup'
 import { clamp } from '../utils/math'
-import { getProvinceDevelopmentFromHoldings } from './landContractSelectors'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -63,8 +61,12 @@ export function getProvinceAveragePopWealth(state: WorldState, provinceId: Provi
   return weightedSum / totalPopulation
 }
 
-// Returns carrying capacity: max(minProvinceCarryingCapacity, habitability * populationCapacityPerHabitability * devMod)
-// devMod = clamp(1 + development/200, 0.5, 1.5)
+const CLASS_OCCUPATION_PAIRS: [PopClass, PopOccupation][] = [
+  ['peasants', 'agriculture'],
+  ['townsmen', 'urban_labor'],
+  ['nobles', 'elite_service'],
+]
+
 export function getProvinceCarryingCapacity(
   state: WorldState,
   config: SimulationConfig,
@@ -73,10 +75,13 @@ export function getProvinceCarryingCapacity(
   const province = state.provinces[provinceId]
   if (!province) return config.minProvinceCarryingCapacity
 
-  const development = getProvinceDevelopmentFromHoldings(state, provinceId)
-  const devMod = clamp(1 + development / 200, 0.5, 1.5)
-  const capacity = province.habitability * config.populationCapacityPerHabitability * devMod
-  return Math.max(config.minProvinceCarryingCapacity, capacity)
+  let totalCapacity = 0
+  for (const holdingId of province.holdingIds) {
+    for (const [popClass, occupation] of CLASS_OCCUPATION_PAIRS) {
+      totalCapacity += getHoldingOccupationCapacity(state, config, holdingId, popClass, occupation)
+    }
+  }
+  return Math.max(config.minProvinceCarryingCapacity, totalCapacity)
 }
 
 // Returns population pressure: population / carryingCapacity (clamped to 0..2)
@@ -186,4 +191,86 @@ export function getHoldingPopSizeByClass(
   popClass: PopClass,
 ): number {
   return getHoldingPopsByClass(state, holdingId, popClass).reduce((sum, p) => sum + p.size, 0)
+}
+
+// --- v0.24 Occupation capacity selectors ---
+
+export function getHoldingPopsByClassAndOccupation(
+  state: WorldState,
+  holdingId: HoldingId,
+  popClass: PopClass,
+  occupation: PopOccupation,
+): PopGroup[] {
+  return getHoldingPops(state, holdingId).filter(
+    (p) => p.class === popClass && p.occupation === occupation,
+  )
+}
+
+export function getHoldingPopSizeByClassAndOccupation(
+  state: WorldState,
+  holdingId: HoldingId,
+  popClass: PopClass,
+  occupation: PopOccupation,
+): number {
+  return getHoldingPopsByClassAndOccupation(state, holdingId, popClass, occupation).reduce(
+    (sum, p) => sum + p.size,
+    0,
+  )
+}
+
+export function getHoldingOccupationCapacity(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  _popClass: PopClass,
+  occupation: PopOccupation,
+): number {
+  if (occupation === 'none') return 0
+  const holding = state.holdings[holdingId]
+  if (!holding) return 0
+  const baseCapacity = config.occupationCapacityBaseByHoldingKind[holding.kind]?.[occupation]
+  if (baseCapacity === undefined) return 0
+  const developmentModifier = clamp(1 + holding.development / 200, 0.5, 1.5)
+  return baseCapacity * holding.weight * holding.landQuality * developmentModifier
+}
+
+export function getHoldingOccupationRemainingCapacity(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  popClass: PopClass,
+  occupation: PopOccupation,
+): number {
+  const capacity = getHoldingOccupationCapacity(state, config, holdingId, popClass, occupation)
+  const used = getHoldingPopSizeByClassAndOccupation(state, holdingId, popClass, occupation)
+  return Math.max(0, capacity - used)
+}
+
+export function getHoldingLaborShortage(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  popClass: PopClass,
+  occupation: PopOccupation,
+): number {
+  return getHoldingOccupationRemainingCapacity(state, config, holdingId, popClass, occupation)
+}
+
+export function getHoldingUnemployedPopSize(
+  state: WorldState,
+  holdingId: HoldingId,
+  popClass: PopClass,
+): number {
+  return getHoldingPopSizeByClassAndOccupation(state, holdingId, popClass, 'none')
+}
+
+export function getHoldingEmploymentRateByClass(
+  state: WorldState,
+  holdingId: HoldingId,
+  popClass: PopClass,
+): number {
+  const total = getHoldingPopSizeByClass(state, holdingId, popClass)
+  if (total <= 0) return 1
+  const unemployed = getHoldingUnemployedPopSize(state, holdingId, popClass)
+  return clamp(1 - unemployed / total, 0, 1)
 }

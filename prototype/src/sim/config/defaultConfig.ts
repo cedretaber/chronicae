@@ -1,6 +1,8 @@
 import type { OfficeRole } from '../types/office'
 import type { PolityRank } from '../types/polity'
 import type { UnaffiliatedOccupation } from '../types/person'
+import type { HoldingKind } from '../types/landContract'
+import type { PopOccupation, PopClass } from '../types/popGroup'
 
 export type SimulationConfig = {
   uiLocale: 'en' | 'ja'
@@ -153,7 +155,6 @@ export type SimulationConfig = {
   // v0.8 POP system
   popSystemEnabled: boolean
   minPopSizeByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
-  populationCapacityPerHabitability: number
   minProvinceCarryingCapacity: number
   productivityByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
   manpowerFactorByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
@@ -172,6 +173,23 @@ export type SimulationConfig = {
   overExtractionUnrestSafeThreshold: number
   overExtractionWealthPenalty: number
   overExtractionUnrestGain: number
+  // v0.24 Occupation capacity
+  occupationCapacityBaseByHoldingKind: Record<
+    HoldingKind,
+    Record<Exclude<PopOccupation, 'none'>, number>
+  >
+  // v0.24 Occupation production/manpower multipliers
+  occupationProductivityMultiplier: Record<PopOccupation, number>
+  occupationManpowerMultiplier: Record<PopOccupation, number>
+  // v0.24 Unemployed POP penalties
+  unemployedWealthDecayByClass: Record<PopClass, number>
+  unemployedUnrestGainByClass: Record<PopClass, number>
+  unemployedGrowthModifierByClass: Record<PopClass, number>
+  // v0.24 Initial POP generation
+  initialPopFillRatioMin: number
+  initialPopFillRatioMax: number
+  // v0.24 POP epsilon
+  popSizeEpsilon: number
   bountifulHarvestPeasantWealthGain: number
   bountifulHarvestPeasantUnrestReduction: number
   bountifulHarvestTownsmanWealthGain: number
@@ -695,7 +713,6 @@ export const defaultConfig: SimulationConfig = {
   // v0.8 POP system
   popSystemEnabled: true,
   minPopSizeByClass: { peasants: 5, townsmen: 1, nobles: 1 },
-  populationCapacityPerHabitability: 10,
   minProvinceCarryingCapacity: 50,
   productivityByClass: { peasants: 1.0, townsmen: 1.5, nobles: 0.6 },
   manpowerFactorByClass: { peasants: 0.03, townsmen: 0.01, nobles: 0.06 },
@@ -714,6 +731,33 @@ export const defaultConfig: SimulationConfig = {
   overExtractionUnrestSafeThreshold: 45,
   overExtractionWealthPenalty: 1.0,
   overExtractionUnrestGain: 1.5,
+  // v0.24 Occupation capacity
+  occupationCapacityBaseByHoldingKind: {
+    manor: { agriculture: 80, urban_labor: 8, elite_service: 3 },
+    city: { agriculture: 15, urban_labor: 70, elite_service: 5 },
+  },
+  // v0.24 Occupation production/manpower multipliers
+  occupationProductivityMultiplier: {
+    agriculture: 1.0,
+    urban_labor: 1.0,
+    elite_service: 1.0,
+    none: 0.1,
+  },
+  occupationManpowerMultiplier: {
+    agriculture: 1.0,
+    urban_labor: 0.8,
+    elite_service: 1.2,
+    none: 0.5,
+  },
+  // v0.24 Unemployed POP penalties
+  unemployedWealthDecayByClass: { peasants: 0.2, townsmen: 0.3, nobles: 0.15 },
+  unemployedUnrestGainByClass: { peasants: 0.2, townsmen: 0.35, nobles: 0.45 },
+  unemployedGrowthModifierByClass: { peasants: 0.6, townsmen: 0.5, nobles: 0.7 },
+  // v0.24 Initial POP generation
+  initialPopFillRatioMin: 70,
+  initialPopFillRatioMax: 95,
+  // v0.24 POP epsilon
+  popSizeEpsilon: 0.01,
   bountifulHarvestPeasantWealthGain: 10,
   bountifulHarvestPeasantUnrestReduction: 5,
   bountifulHarvestTownsmanWealthGain: 2,

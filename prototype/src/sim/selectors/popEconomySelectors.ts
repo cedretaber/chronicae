@@ -1,11 +1,12 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { ProvinceId } from '../types/ids'
+import type { ProvinceId, HoldingId } from '../types/ids'
 import type { PopGroupId } from '../types/ids'
+import { clamp } from '../utils/math'
 import { getProvincePolityControlFromHoldings } from './landContractSelectors'
 
 // POP production formula:
-// production = pop.size * config.productivityByClass[pop.class] * (pop.wealth / 100) * (holding.polityControl / 100)
+// production = pop.size * config.productivityByClass[pop.class] * config.occupationProductivityMultiplier[pop.occupation] * (pop.wealth / 100) * clamp(1 + holding.development / 200, 0.5, 1.5) * (holding.polityControl / 100)
 export function getPopProduction(
   state: WorldState,
   config: SimulationConfig,
@@ -16,7 +17,30 @@ export function getPopProduction(
   const holding = state.holdings[pop.holdingId]
   if (!holding) return 0
   const productivity = config.productivityByClass[pop.class]
-  return pop.size * productivity * (pop.wealth / 100) * (holding.polityControl / 100)
+  const holdingDevelopmentModifier = clamp(1 + holding.development / 200, 0.5, 1.5)
+  return (
+    pop.size *
+    productivity *
+    config.occupationProductivityMultiplier[pop.occupation] *
+    (pop.wealth / 100) *
+    holdingDevelopmentModifier *
+    (holding.polityControl / 100)
+  )
+}
+
+// Sum of all pop productions in a holding
+export function getHoldingProduction(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): number {
+  const popIds = state.popIndex.byHolding[holdingId]
+  if (!popIds) return 0
+  let total = 0
+  for (const popId of popIds) {
+    total += getPopProduction(state, config, popId)
+  }
+  return total
 }
 
 // Sum of all pop productions in a province
@@ -50,7 +74,7 @@ export function getProvinceTaxBase(
 }
 
 // Province country manpower base:
-// sum over pops: pop.size * config.manpowerFactorByClass[pop.class] * (holding.polityControl / 100)
+// sum over pops: pop.size * config.manpowerFactorByClass[pop.class] * config.occupationManpowerMultiplier[pop.occupation] * (holding.polityControl / 100)
 export function getProvinceCountryManpowerBase(
   state: WorldState,
   config: SimulationConfig,
@@ -68,7 +92,11 @@ export function getProvinceCountryManpowerBase(
       const pop = state.popGroups[popId]
       if (!pop) continue
       const manpowerFactor = config.manpowerFactorByClass[pop.class]
-      total += pop.size * manpowerFactor * (polityControl / 100)
+      total +=
+        pop.size *
+        manpowerFactor *
+        config.occupationManpowerMultiplier[pop.occupation] *
+        (polityControl / 100)
     }
   }
   return total

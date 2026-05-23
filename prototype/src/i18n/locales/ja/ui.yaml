@@ -357,6 +357,8 @@ detail:
     root: '根'
     term: '末端'
     neighbors: '隣接州'
+    capacity: '容量'
+    employment_rate: '就業率'
 
   # 派閥詳細
   faction:
@@ -392,3 +394,9 @@ detail:
     physician: '医師'
     jurist: '法律家'
     wanderer: '放浪者'
+
+popOccupation:
+  agriculture: '農業'
+  urban_labor: '都市労働'
+  elite_service: '扶持・軍役'
+  none: '無職'

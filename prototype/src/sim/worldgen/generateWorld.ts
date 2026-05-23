@@ -1502,37 +1502,33 @@ export function generateWorld(
     }
   }
 
-  // §6.3 POP generation (Holding-based)
+  // §6.3 POP generation (Holding-based, occupation capacity driven)
   const popIndexByHolding: Record<HoldingId, PopGroupId[]> = {}
-  const { populationCapacityPerHabitability, minProvinceCarryingCapacity, minPopSizeByClass } =
-    defaultConfig
+  const { minPopSizeByClass, occupationCapacityBaseByHoldingKind } = defaultConfig
 
-  for (const province of provinces) {
-    const baseCapacity = province.habitability * populationCapacityPerHabitability
-    const dev = developmentMap.get(province.id) ?? 0
-    const devMod = Math.min(1.5, Math.max(0.5, 1 + dev / 200))
-    const capacity = Math.max(minProvinceCarryingCapacity, baseCapacity * devMod)
+  for (const provinceBase of provinces) {
+    const province = provincesRecord[provinceBase.id]!
 
-    // Calculate total Holding weight for proportional distribution
-    const holdingWeights: number[] = []
-    for (const hid of province.holdingIds) {
-      const h = holdingsRecord[hid]
-      holdingWeights.push(h ? h.weight * h.landQuality : 1)
-    }
-    const totalWeight = holdingWeights.reduce((s, w) => s + w, 0)
+    for (const holdingId of province.holdingIds) {
+      const holding = holdingsRecord[holdingId]
+      if (!holding) continue
 
-    for (let hi = 0; hi < province.holdingIds.length; hi++) {
-      const holdingId = province.holdingIds[hi]!
-      const holdingCapacity =
-        totalWeight > 0
-          ? capacity * (holdingWeights[hi]! / totalWeight)
-          : capacity / province.holdingIds.length
+      const capBase = occupationCapacityBaseByHoldingKind[holding.kind]
+      const devMod = Math.min(1.5, Math.max(0.5, 1 + holding.development / 200))
+      const wlq = holding.weight * holding.landQuality * devMod
 
-      // Random percentages and values for this Holding's POPs
-      const { value: peasantSizePct, rng: rp1 } = randomInt(rng, 55, 75)
-      const { value: townsmanSizePct, rng: rp2 } = randomInt(rp1, 5, 15)
-      const { value: noblesSizePct, rng: rp3 } = randomInt(rp2, 2, 5)
-      const { value: peasantWealth, rng: rp4 } = randomInt(rp3, 35, 60)
+      const agriCap = (capBase?.agriculture ?? 0) * wlq
+      const urbanCap = (capBase?.urban_labor ?? 0) * wlq
+      const eliteCap = (capBase?.elite_service ?? 0) * wlq
+
+      const { value: fillPct, rng: rf1 } = randomInt(
+        rng,
+        defaultConfig.initialPopFillRatioMin,
+        defaultConfig.initialPopFillRatioMax,
+      )
+      const fillRatio = fillPct / 100
+
+      const { value: peasantWealth, rng: rp4 } = randomInt(rf1, 35, 60)
       const { value: townsmanWealth, rng: rp5 } = randomInt(rp4, 45, 70)
       const { value: noblesWealth, rng: rp6 } = randomInt(rp5, 50, 80)
       const { value: peasantUnrest, rng: rp7 } = randomInt(rp6, 10, 30)
@@ -1549,7 +1545,7 @@ export function generateWorld(
         holdingId,
         class: 'peasants',
         occupation: 'agriculture',
-        size: Math.max(minPopSizeByClass.peasants, (holdingCapacity * peasantSizePct) / 100),
+        size: Math.max(minPopSizeByClass.peasants, agriCap * fillRatio),
         wealth: peasantWealth,
         unrest: peasantUnrest,
         attitudes: {},
@@ -1559,7 +1555,7 @@ export function generateWorld(
         holdingId,
         class: 'townsmen',
         occupation: 'urban_labor',
-        size: Math.max(minPopSizeByClass.townsmen, (holdingCapacity * townsmanSizePct) / 100),
+        size: Math.max(minPopSizeByClass.townsmen, urbanCap * fillRatio),
         wealth: townsmanWealth,
         unrest: townsmanUnrest,
         attitudes: {},
@@ -1569,7 +1565,7 @@ export function generateWorld(
         holdingId,
         class: 'nobles',
         occupation: 'elite_service',
-        size: Math.max(minPopSizeByClass.nobles, (holdingCapacity * noblesSizePct) / 100),
+        size: Math.max(minPopSizeByClass.nobles, eliteCap * fillRatio),
         wealth: noblesWealth,
         unrest: noblesUnrest,
         attitudes: {},

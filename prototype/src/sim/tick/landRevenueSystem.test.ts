@@ -86,11 +86,11 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
     const { state, polityId } = setupBaseWorld()
     const result = runLandRevenueSystem(makeCtx(state))
     const treasury = result.state.polities[polityId]!.treasury
-    // production = 100 (size) * 1.0 (peasants productivity) * 1.0 (wealth/100) * 1.0 (cc) = 100
-    // grossTax = 100, retained at terminal = 100 (root taxRate=0)
+    // production = 100 (size) * 1.0 (peasants productivity) * 1.0 (wealth/100) * 1.005 (dev modifier) * 1.0 (cc) = 100.5
+    // grossTax = 100.5, retained at terminal = 100.5 (root taxRate=0)
     // bailiff is placeholder → 100% to treasury
-    // treasury = 100 * taxEfficiency (1.0 default) * flowEfficiency
-    const expected = 100 * defaultLandContractConfig.taxFlowEfficiency
+    // treasury = 100.5 * taxEfficiency (1.0 default) * flowEfficiency
+    const expected = 100.5 * defaultLandContractConfig.taxFlowEfficiency
     expect(treasury).toBeCloseTo(expected, 5)
   })
 
@@ -117,9 +117,9 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
     const bailiff = result.state.persons[bailiffPersonId]!
     const treasury = result.state.polities[polityId]!.treasury
 
-    // retained = 100, bailiff = 10, treasury raw = 90, treasury net = 90 * 1.0 * flowEfficiency
-    const expectedBailiff = 10
-    const expectedTreasury = 90 * defaultLandContractConfig.taxFlowEfficiency
+    // production = 100.5, retained = 100.5, bailiff = 100.5 * 0.1 = 10.05, treasury raw = 90.45
+    const expectedBailiff = 10.05
+    const expectedTreasury = 90.45 * defaultLandContractConfig.taxFlowEfficiency
     expect(bailiff.wealth).toBeCloseTo(expectedBailiff, 5)
     expect(treasury).toBeCloseTo(expectedTreasury, 5)
   })
@@ -179,7 +179,7 @@ describe('runLandRevenueSystem — bailiff salary path (v0.17.1)', () => {
     const treasury = result.state.polities[polityId]!.treasury
     expect(bailiff.wealth).toBe(0)
     // dead bailiff → no salary → treasury gets 100%
-    const expectedTreasury = 100 * defaultLandContractConfig.taxFlowEfficiency
+    const expectedTreasury = 100.5 * defaultLandContractConfig.taxFlowEfficiency
     expect(treasury).toBeCloseTo(expectedTreasury, 5)
   })
 })

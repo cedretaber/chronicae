@@ -1,6 +1,6 @@
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import type { FactionId, DiplomaticPlayId } from '@/sim/types/ids'
+import type { FactionId, DiplomaticPlayId, HoldingId } from '@/sim/types/ids'
 import {
   CountryDetail,
   HouseDetail,
@@ -9,6 +9,7 @@ import {
   ProvinceDetail,
   FactionDetail,
   DiplomaticPlayDetail,
+  HoldingDetail,
 } from '@/app/components/panels/DetailPanel'
 import { DraggableWindow } from './DraggableWindow'
 
@@ -32,6 +33,7 @@ export function WindowManager() {
   const onPopGroupClick = (id: string) => openDetailWindow('popGroup', id)
   const onFactionClick = (id: FactionId) => openDetailWindow('faction', id)
   const onDiplomaticPlayClick = (id: string) => openDetailWindow('diplomaticPlay', id)
+  const onHoldingClick = (id: string) => openDetailWindow('holding', id)
 
   return (
     <>
@@ -124,6 +126,7 @@ export function WindowManager() {
                 onPersonClick={onPersonClick}
                 onProvinceClick={onProvinceClick}
                 onPopGroupClick={onPopGroupClick}
+                onHoldingClick={onHoldingClick}
               />
             </DraggableWindow>
           )
@@ -132,7 +135,11 @@ export function WindowManager() {
           const popGroup = Object.values(state.popGroups).find((pg) => pg?.id === entityId)
           if (!popGroup) return null
           return (
-            <DraggableWindow key={win.id} win={win} title={`Pop: ${popGroup.class}`}>
+            <DraggableWindow
+              key={win.id}
+              win={win}
+              title={`Pop: ${popGroup.class} (${popGroup.occupation})`}
+            >
               <PopGroupDetail
                 popGroup={popGroup}
                 session={session}
@@ -182,6 +189,26 @@ export function WindowManager() {
                 onPersonClick={onPersonClick}
                 onPolityClick={onPolityClick}
                 onProvinceClick={onProvinceClick}
+              />
+            </DraggableWindow>
+          )
+        }
+        if (entityType === 'holding') {
+          const holding = state.holdings[entityId as HoldingId]
+          if (!holding) return null
+          const holdingProvince = state.provinces[holding.provinceId]
+          const holdingTitle = holdingProvince
+            ? `${resolveName('province', holdingProvince.nameKey, holdingProvince.nameKey)} ${holding.kind}`
+            : holding.id
+          return (
+            <DraggableWindow key={win.id} win={win} title={`Holding: ${holdingTitle}`}>
+              <HoldingDetail
+                holding={holding}
+                session={session}
+                onPolityClick={onPolityClick}
+                onPersonClick={onPersonClick}
+                onProvinceClick={onProvinceClick}
+                onPopGroupClick={onPopGroupClick}
               />
             </DraggableWindow>
           )

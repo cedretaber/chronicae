@@ -393,6 +393,121 @@ export function collectIntegrityErrors(
     }
   }
 
+  // PopGroup merge key uniqueness: no duplicate (holdingId, class, occupation) combinations
+  for (const holdingIdStr of Object.keys(state.popIndex.byHolding).sort()) {
+    const holdingId = holdingIdStr as HoldingId
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+
+    const seen = new Set<string>()
+    for (const popId of popIds) {
+      const pop = state.popGroups[popId]
+      if (!pop) continue
+      const mergeKey = `${pop.class}|${pop.occupation}`
+      if (seen.has(mergeKey)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `PopGroup merge key duplicate: holding=${holdingId} class=${pop.class} occupation=${pop.occupation} (popId=${popId as string})`,
+        })
+      }
+      seen.add(mergeKey)
+    }
+  }
+
+  // PopIndex.byHolding consistency: all referenced PopGroups exist and match holdingId
+  for (const holdingIdStr of Object.keys(state.popIndex.byHolding).sort()) {
+    const holdingId = holdingIdStr as HoldingId
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+
+    for (const popId of popIds) {
+      const pop = state.popGroups[popId]
+      if (!pop) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `PopIndex references non-existent PopGroup: holding=${holdingId} popId=${popId as string}`,
+        })
+        continue
+      }
+      if ((pop.holdingId as string) !== (holdingId as string)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `PopIndex holdingId mismatch: index has holding=${holdingId} but PopGroup.holdingId=${pop.holdingId as string} (popId=${popId as string})`,
+        })
+      }
+    }
+  }
+
+  // PopGroup field validity checks (§17.2)
+  const VALID_POP_CLASSES = ['peasants', 'townsmen', 'nobles']
+  const VALID_POP_OCCUPATIONS = ['agriculture', 'urban_labor', 'elite_service', 'none']
+  for (const popGroupId of Object.keys(state.popGroups).sort() as PopGroupId[]) {
+    const pop = state.popGroups[popGroupId]
+    if (!pop) continue
+
+    // 1. holdingId exists
+    if (!state.holdings[pop.holdingId]) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PopGroup ${popGroupId} references non-existent Holding ${pop.holdingId}`,
+      })
+    }
+
+    // 2. class is valid
+    if (!VALID_POP_CLASSES.includes(pop.class)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PopGroup ${popGroupId} has invalid class '${pop.class}'`,
+      })
+    }
+
+    // 3. occupation is valid
+    if (!VALID_POP_OCCUPATIONS.includes(pop.occupation)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PopGroup ${popGroupId} has invalid occupation '${pop.occupation}'`,
+      })
+    }
+
+    // 4. size >= 0
+    if (pop.size < 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PopGroup ${popGroupId} has negative size ${pop.size}`,
+      })
+    }
+
+    // 5. wealth in [0, 100]
+    if (pop.wealth < 0 || pop.wealth > 100) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PopGroup ${popGroupId} has wealth ${pop.wealth} outside [0, 100]`,
+      })
+    }
+
+    // 6. unrest in [0, 100]
+    if (pop.unrest < 0 || pop.unrest > 100) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PopGroup ${popGroupId} has unrest ${pop.unrest} outside [0, 100]`,
+      })
+    }
+
+    // 7. Not an orphan
+    const indexEntry = state.popIndex.byHolding[pop.holdingId]
+    if (!indexEntry || !indexEntry.some((id) => id === pop.id)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PopGroup ${popGroupId} is orphaned: not found in popIndex.byHolding[${pop.holdingId}]`,
+      })
+    }
+  }
+
+  // Capacity over-exceed warnings (§17.2 item 8)
+  if (debug) {
+    // TODO: capacity over-exceed warning (§17.2 item 8) — requires selector import, deferred
+  }
+
   // 18. Active Polity has active polity:leader Office (WARN)
   for (const polityId of Object.keys(state.polities)) {
     const polity = state.polities[polityId as PolityId]

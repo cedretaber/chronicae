@@ -1,104 +1,193 @@
 import { clamp } from '../utils/math'
 import type { TickContext } from './context'
-import type { ProvinceId, PopGroupId } from '../types/ids'
-import type { PopGroup } from '../types/popGroup'
-import { getProvincePopulationPressure } from '../selectors/popSelectors'
+import type { WorldState } from '../types/world'
+import type { PopGroupId, ProvinceId } from '../types/ids'
+import {
+  getProvincePopulationPressure,
+  getHoldingOccupationCapacity,
+  getHoldingPopSizeByClassAndOccupation,
+} from '../selectors/popSelectors'
+import { addToOrCreatePopGroupMut, removePopGroupMut } from '../mutations/popMutations'
 
 export function normalizePopSizes(ctx: TickContext): TickContext {
   const minSizeByClass = ctx.config.minPopSizeByClass
-  let newPopGroups: Record<PopGroupId, PopGroup> | undefined
+  const epsilon = ctx.config.popSizeEpsilon
+  let changed = false
 
+  // Check if any changes are needed
   for (const popGroupId of Object.keys(ctx.state.popGroups).sort()) {
     const pop = ctx.state.popGroups[popGroupId as PopGroupId]
     if (!pop) continue
-    const minSize = minSizeByClass[pop.class]
-    if (pop.size < minSize) {
-      if (!newPopGroups) newPopGroups = { ...ctx.state.popGroups }
-      newPopGroups[pop.id] = { ...pop, size: minSize }
+    if (pop.occupation !== 'none' && pop.size < minSizeByClass[pop.class]) {
+      changed = true
+      break
+    }
+    if (pop.occupation === 'none' && pop.size <= epsilon) {
+      changed = true
+      break
     }
   }
 
-  if (!newPopGroups) return ctx
-  return { ...ctx, state: { ...ctx.state, popGroups: newPopGroups } }
-}
+  if (!changed) return ctx
 
-export function runPopSystem(ctx: TickContext): TickContext {
-  const newPopGroups: Record<PopGroupId, PopGroup> = { ...ctx.state.popGroups }
+  const ws: WorldState = {
+    ...ctx.state,
+    popGroups: { ...ctx.state.popGroups },
+    popIndex: { byHolding: { ...ctx.state.popIndex.byHolding } },
+  }
 
-  for (const provinceId of Object.keys(ctx.state.provinces).sort()) {
-    const province = ctx.state.provinces[provinceId as ProvinceId]
-    if (!province) continue
+  // Collect none POPs to remove (can't modify while iterating)
+  const toRemove: PopGroupId[] = []
 
-    const pressure = getProvincePopulationPressure(ctx.state, ctx.config, province.id)
+  for (const popGroupId of Object.keys(ws.popGroups).sort() as PopGroupId[]) {
+    const pop = ws.popGroups[popGroupId]
+    if (!pop) continue
 
-    const baseMonthlyGrowthByClass = ctx.config.baseMonthlyGrowthByClass
-    const minPopSizeByClass = ctx.config.minPopSizeByClass
-    const populationPressureThreshold = ctx.config.populationPressureThreshold
-    const populationPressureWealthPenalty = ctx.config.populationPressureWealthPenalty
-    const populationPressureUnrestGain = ctx.config.populationPressureUnrestGain
-    const povertyWealthThreshold = ctx.config.povertyWealthThreshold
-    const povertyUnrestGain = ctx.config.povertyUnrestGain
-    const prosperityWealthThreshold = ctx.config.prosperityWealthThreshold
-    const prosperityUnrestReduction = ctx.config.prosperityUnrestReduction
-
-    for (const holdingId of province.holdingIds) {
-      const holdingPopIds = ctx.state.popIndex.byHolding[holdingId]
-      if (!holdingPopIds) continue
-      for (const popGroupId of holdingPopIds) {
-        const pop = ctx.state.popGroups[popGroupId]
-        if (!pop) continue
-
-        // 1. Population growth (§7.3)
-        const growthFactor = clamp(1 - pressure, -0.5, 1.0)
-        const baseGrowth = baseMonthlyGrowthByClass[pop.class]
-        const wealthFactor = clamp(0.5 + pop.wealth / 100, 0.5, 1.5)
-        const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)
-        const delta = pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor
-        const newSize = pop.size + delta
-
-        // 2. Population pressure effect (§7.4)
-        let newWealth = pop.wealth
-        let newUnrest = pop.unrest
-
-        if (pressure > populationPressureThreshold) {
-          const excess = pressure - populationPressureThreshold
-          newWealth = pop.wealth - excess * populationPressureWealthPenalty
-          newUnrest = pop.unrest + excess * populationPressureUnrestGain
-        }
-
-        // 3. Poverty effect (§7.5)
-        if (pop.wealth < povertyWealthThreshold) {
-          newUnrest += (povertyWealthThreshold - pop.wealth) * povertyUnrestGain
-        }
-
-        // 4. Prosperity effect (§7.5)
-        if (pop.wealth > prosperityWealthThreshold) {
-          newUnrest -= (pop.wealth - prosperityWealthThreshold) * prosperityUnrestReduction
-        }
-
-        // 4.5. Natural decay
-        newUnrest *= 1 - ctx.config.unrestNaturalDecayRate
-
-        // 5. Clamp (§7.6)
-        const finalSize = Math.max(minPopSizeByClass[pop.class], newSize)
-        const finalWealth = clamp(newWealth, 0, 100)
-        const finalUnrest = clamp(newUnrest, 0, 100)
-
-        newPopGroups[pop.id] = {
-          ...pop,
-          size: finalSize,
-          wealth: finalWealth,
-          unrest: finalUnrest,
-        }
+    if (pop.occupation !== 'none') {
+      // Non-none: enforce minimum size
+      const minSize = minSizeByClass[pop.class]
+      if (pop.size < minSize) {
+        ws.popGroups[pop.id] = { ...pop, size: minSize }
+      }
+    } else {
+      // None: delete if below epsilon
+      if (pop.size <= epsilon) {
+        toRemove.push(pop.id)
       }
     }
   }
 
-  return {
-    ...ctx,
-    state: {
-      ...ctx.state,
-      popGroups: newPopGroups,
-    },
+  for (const popId of toRemove) {
+    removePopGroupMut(ws, popId)
   }
+
+  return { ...ctx, state: ws }
+}
+
+export function runPopSystem(ctx: TickContext): TickContext {
+  const ws: WorldState = {
+    ...ctx.state,
+    popGroups: { ...ctx.state.popGroups },
+    popIndex: { byHolding: { ...ctx.state.popIndex.byHolding } },
+    nextPopGroupId: ctx.state.nextPopGroupId,
+  }
+
+  // Snapshot POP IDs before loop — new POPs created by overflow won't be processed
+  const popIdSnapshot = Object.keys(ws.popGroups).sort() as PopGroupId[]
+
+  // Pre-compute pressure per province
+  const pressureByProvince = new Map<string, number>()
+  for (const provinceId of Object.keys(ws.provinces).sort()) {
+    pressureByProvince.set(
+      provinceId,
+      getProvincePopulationPressure(ws, ctx.config, provinceId as ProvinceId),
+    )
+  }
+
+  for (const popGroupId of popIdSnapshot) {
+    const pop = ws.popGroups[popGroupId]
+    if (!pop) continue
+
+    const holding = ws.holdings[pop.holdingId]
+    if (!holding) continue
+
+    const pressure = pressureByProvince.get(holding.provinceId) ?? 0
+
+    // 1. Population growth
+    const growthFactor = clamp(1 - pressure, -0.5, 1.0)
+    const baseGrowth = ctx.config.baseMonthlyGrowthByClass[pop.class]
+    const wealthFactor = clamp(0.5 + pop.wealth / 100, 0.5, 1.5)
+    const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)
+
+    // Occupation growth modifier: none POPs grow slower
+    const occupationGrowthModifier: number =
+      pop.occupation === 'none' ? ctx.config.unemployedGrowthModifierByClass[pop.class] : 1
+
+    const delta =
+      pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor * occupationGrowthModifier
+
+    // 2. Apply growth with overflow
+    let newSize: number
+    if (delta <= 0) {
+      newSize = Math.max(0, pop.size + delta)
+    } else if (pop.occupation === 'none') {
+      // None POPs: growth stays in same POP
+      newSize = pop.size + delta
+    } else {
+      // Non-none POPs: check occupation capacity for overflow
+      const capacity = getHoldingOccupationCapacity(
+        ws,
+        ctx.config,
+        pop.holdingId,
+        pop.class,
+        pop.occupation,
+      )
+      const current = getHoldingPopSizeByClassAndOccupation(
+        ws,
+        pop.holdingId,
+        pop.class,
+        pop.occupation,
+      )
+      const room = Math.max(0, capacity - current)
+      const toOriginal = Math.min(delta, room)
+      const overflow = delta - toOriginal
+
+      newSize = pop.size + toOriginal
+
+      if (overflow > 0) {
+        addToOrCreatePopGroupMut(ws, {
+          holdingId: pop.holdingId,
+          class: pop.class,
+          occupation: 'none',
+          size: overflow,
+          inheritFrom: pop,
+        })
+      }
+    }
+
+    // 3. Population pressure effect
+    let newWealth = pop.wealth
+    let newUnrest = pop.unrest
+
+    if (pressure > ctx.config.populationPressureThreshold) {
+      const excess = pressure - ctx.config.populationPressureThreshold
+      newWealth = pop.wealth - excess * ctx.config.populationPressureWealthPenalty
+      newUnrest = pop.unrest + excess * ctx.config.populationPressureUnrestGain
+    }
+
+    // 4. Poverty effect
+    if (pop.wealth < ctx.config.povertyWealthThreshold) {
+      newUnrest += (ctx.config.povertyWealthThreshold - pop.wealth) * ctx.config.povertyUnrestGain
+    }
+
+    // 5. Prosperity effect
+    if (pop.wealth > ctx.config.prosperityWealthThreshold) {
+      newUnrest -=
+        (pop.wealth - ctx.config.prosperityWealthThreshold) * ctx.config.prosperityUnrestReduction
+    }
+
+    // 5.5. Natural unrest decay
+    newUnrest *= 1 - ctx.config.unrestNaturalDecayRate
+
+    // 6. None POP penalties
+    if (pop.occupation === 'none') {
+      newWealth -= ctx.config.unemployedWealthDecayByClass[pop.class]
+      newUnrest += ctx.config.unemployedUnrestGainByClass[pop.class]
+    }
+
+    // 7. Clamp
+    const minSize = ctx.config.minPopSizeByClass[pop.class]
+    const finalSize = pop.occupation !== 'none' ? Math.max(minSize, newSize) : Math.max(0, newSize)
+    const finalWealth = clamp(newWealth, 0, 100)
+    const finalUnrest = clamp(newUnrest, 0, 100)
+
+    ws.popGroups[pop.id] = {
+      ...pop,
+      size: finalSize,
+      wealth: finalWealth,
+      unrest: finalUnrest,
+    }
+  }
+
+  return { ...ctx, state: ws }
 }
