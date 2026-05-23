@@ -1,40 +1,89 @@
 import type { TickContext } from './context'
-import { createSimEvent } from './context'
+import type { CreateSimEventInput } from './context'
+import type { SimEvent } from '../types/event'
+import { nameParam, entityRef } from '../types/event'
 import type { Aim, DecisionSubjectRef, DecisionReason, PersonAimKind, Goal } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
-import type { AimId, DecisionReasonId, PersonId } from '../types/ids'
-import { createAimId, createDecisionReasonId } from '../types/ids'
-import { nameParam, entityRef } from '../types/event'
+import type { AimId, DecisionReasonId, PersonId, EventId, TaskId } from '../types/ids'
+import { createAimId, createDecisionReasonId, createTaskId } from '../types/ids'
+import type { Task, TaskKind } from '../types/task'
+import { targetRefKey } from '../types/task'
+import type { WorldState } from '../types/world'
+import type { RngState } from '../rng/rng'
 import { getActivePersonGoal } from '../selectors/personGoalSelectors'
 import { pickPersonAim } from '../selectors/personAimSelectors'
-import { createInitialTaskForAim } from '../selectors/taskSelectors'
+import {
+  getInitialTaskKind,
+  getInitialTaskKindForAbilityTarget,
+  getTaskActionCost,
+  getTaskEffortRequired,
+} from '../selectors/taskSelectors'
 import type { SimulationConfig } from '../config/defaultConfig'
 
 export function runPersonAimMaintenanceSystem(ctx: TickContext): TickContext {
-  let currentCtx = ctx
-  const absoluteWeek = currentCtx.state.absoluteWeek
+  const absoluteWeek = ctx.state.absoluteWeek
 
-  // Runs every 4 weeks
-  if (absoluteWeek % 4 !== 0) return currentCtx
+  if (absoluteWeek % 4 !== 0) return ctx
 
-  for (const [, person] of Object.entries(currentCtx.state.persons)) {
+  // --- Mutable draft: shallow clone only records we'll mutate ---
+  const ws: WorldState = {
+    ...ctx.state,
+    aims: { ...ctx.state.aims },
+    decisionReasons: { ...ctx.state.decisionReasons },
+    aimIndex: {
+      byOwner: { ...ctx.state.aimIndex.byOwner },
+      byGoal: { ...ctx.state.aimIndex.byGoal },
+    },
+    tasks: { ...ctx.state.tasks },
+    taskIndex: {
+      byAssignee: { ...ctx.state.taskIndex.byAssignee },
+      byOwner: { ...ctx.state.taskIndex.byOwner },
+      byTarget: { ...ctx.state.taskIndex.byTarget },
+    },
+  }
+
+  // --- Event accumulator ---
+  const newEvents: SimEvent[] = []
+  let nextEventIndex = ctx.nextEventIndex
+
+  function emitEvent(input: CreateSimEventInput): void {
+    const id = `e-${ws.absoluteWeek}-${nextEventIndex}` as EventId
+    nextEventIndex++
+    newEvents.push({
+      id,
+      year: ws.currentYear,
+      weekOfYear: ws.currentWeekOfYear,
+      type: input.type,
+      importance: input.importance,
+      messageKey: input.messageKey,
+      messageParams: input.messageParams,
+      entityRefs: input.entityRefs ?? [],
+      reasons: input.reasons ?? [],
+      effects: input.effects ?? [],
+    })
+  }
+
+  // --- RNG tracking ---
+  let rng = ctx.rng
+
+  // --- Phase 1: Create aims for persons without active aim ---
+  for (const [, person] of Object.entries(ws.persons)) {
     if (!person || !person.alive) continue
     if (person.kind === 'placeholder') continue
-    if (person.age < currentCtx.config.adultAge) continue
+    if (person.age < ctx.config.adultAge) continue
 
-    const house = currentCtx.state.houses[person.houseId]
+    const house = ws.houses[person.houseId]
     if (!house || !house.active) continue
 
-    const goal = getActivePersonGoal(currentCtx.state, person.id)
+    const goal = getActivePersonGoal(ws, person.id)
     if (!goal) continue
 
-    // Check for existing active aim
     const ownerKey = decisionSubjectKey({ kind: 'person', id: person.id })
-    const aimIds = currentCtx.state.aimIndex.byOwner[ownerKey]
+    const aimIds = ws.aimIndex.byOwner[ownerKey]
     let hasActiveAim = false
     if (aimIds) {
       for (const aid of aimIds) {
-        const aim = currentCtx.state.aims[aid]
+        const aim = ws.aims[aid]
         if (aim && aim.status === 'active') {
           hasActiveAim = true
           break
@@ -43,15 +92,24 @@ export function runPersonAimMaintenanceSystem(ctx: TickContext): TickContext {
     }
 
     if (!hasActiveAim) {
-      currentCtx = createPersonAim(currentCtx, person.id, goal, absoluteWeek)
+      rng = createPersonAimMut(ws, ctx.config, person.id, goal, absoluteWeek, rng, emitEvent)
     }
   }
 
-  // Check deadline/validity of existing Person Aims
-  currentCtx = checkPersonAimDeadlines(currentCtx)
+  // --- Phase 2: Check deadline/validity of existing Person Aims ---
+  checkPersonAimDeadlinesMut(ws, emitEvent)
 
-  return currentCtx
+  // --- Exit: single immutable construction ---
+  return {
+    ...ctx,
+    state: ws,
+    rng,
+    events: [...ctx.events, ...newEvents],
+    nextEventIndex,
+  }
 }
+
+// --- Pure helpers (unchanged) ---
 
 function getAimDeadlineWeeks(config: SimulationConfig, kind: PersonAimKind): number {
   if (kind === 'obtain_office') return config.personAimDeadlineObtainOffice
@@ -64,21 +122,70 @@ function getAimTargetProgress(kind: PersonAimKind): number {
   return 3
 }
 
-function createPersonAim(
-  ctx: TickContext,
+// --- Mutable task creation (inlined from taskSelectors.createInitialTaskForAim + createTask) ---
+
+function createInitialTaskForAimMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  aim: Aim,
+  absoluteWeek: number,
+): Task | undefined {
+  const personId = aim.owner.kind === 'person' ? aim.owner.id : undefined
+  if (!personId) return undefined
+
+  let taskKind: TaskKind | undefined = getInitialTaskKind(aim.kind as PersonAimKind)
+  if (aim.kind === 'improve_ability' && !taskKind) {
+    taskKind = getInitialTaskKindForAbilityTarget(aim.target)
+  }
+  if (!taskKind) return undefined
+
+  const taskId: TaskId = createTaskId(ws.nextTaskId)
+  const task: Task = {
+    id: taskId,
+    owner: aim.owner,
+    assigneePersonId: personId,
+    kind: taskKind,
+    targetRef: { kind: 'aim', id: aim.id },
+    priority: 1,
+    actionCost: getTaskActionCost(config, taskKind),
+    effortRequired: getTaskEffortRequired(config, taskKind),
+    effortDone: 0,
+    createdWeek: absoluteWeek,
+    status: 'active',
+    reasonIds: [],
+  }
+
+  const ownerKey = decisionSubjectKey(aim.owner)
+  const tKey = targetRefKey({ kind: 'aim', id: aim.id })
+  const assigneeKey = personId as string
+
+  ws.tasks[taskId] = task
+  ws.taskIndex.byAssignee[assigneeKey] = [...(ws.taskIndex.byAssignee[assigneeKey] ?? []), taskId]
+  ws.taskIndex.byOwner[ownerKey] = [...(ws.taskIndex.byOwner[ownerKey] ?? []), taskId]
+  ws.taskIndex.byTarget[tKey] = [...(ws.taskIndex.byTarget[tKey] ?? []), taskId]
+  ws.nextTaskId++
+
+  return task
+}
+
+// --- Mutable aim creation ---
+
+function createPersonAimMut(
+  ws: WorldState,
+  config: SimulationConfig,
   personId: PersonId,
   goal: Goal,
   absoluteWeek: number,
-): TickContext {
-  const result = pickPersonAim(ctx.state, ctx.config, personId, goal, ctx.rng)
-  if (!result) return ctx
+  rng: RngState,
+  emitEvent: (input: CreateSimEventInput) => void,
+): RngState {
+  const result = pickPersonAim(ws, config, personId, goal, rng)
+  if (!result) return rng
 
   const { kind, target, rng: nextRng } = result
-  let currentCtx = { ...ctx, rng: nextRng }
-
   const owner: DecisionSubjectRef = { kind: 'person', id: personId }
 
-  const reasonId: DecisionReasonId = createDecisionReasonId(currentCtx.state.nextDecisionReasonId)
+  const reasonId: DecisionReasonId = createDecisionReasonId(ws.nextDecisionReasonId)
   const reason: DecisionReason = {
     id: reasonId,
     owner,
@@ -86,15 +193,16 @@ function createPersonAim(
     weight: 1,
     createdWeek: absoluteWeek,
   }
+  ws.decisionReasons[reasonId] = reason
+  ws.nextDecisionReasonId++
 
-  const aimId: AimId = createAimId(currentCtx.state.nextAimId)
-  const deadlineWeeks = getAimDeadlineWeeks(currentCtx.config, kind)
+  const aimId: AimId = createAimId(ws.nextAimId)
+  const deadlineWeeks = getAimDeadlineWeeks(config, kind)
   const targetProgress = getAimTargetProgress(kind)
 
   let deadlineWeek = absoluteWeek + deadlineWeeks
-  // support_organization_aim: cap deadline at target Aim's deadline
   if (kind === 'support_organization_aim' && target?.kind === 'aim') {
-    const targetAim = currentCtx.state.aims[target.id]
+    const targetAim = ws.aims[target.id]
     if (targetAim) {
       deadlineWeek = Math.min(deadlineWeek, targetAim.deadlineWeek)
     }
@@ -118,47 +226,22 @@ function createPersonAim(
     ...(target !== undefined ? { target } : {}),
   }
 
-  const ownerKey = decisionSubjectKey(owner)
-  const existingOwnerAims = currentCtx.state.aimIndex.byOwner[ownerKey] ?? []
-  const existingGoalAims = currentCtx.state.aimIndex.byGoal[goal.id as string] ?? []
+  ws.aims[aimId] = aim
+  ws.aimIndex.byOwner[decisionSubjectKey(owner)] = [
+    ...(ws.aimIndex.byOwner[decisionSubjectKey(owner)] ?? []),
+    aimId,
+  ]
+  ws.aimIndex.byGoal[goal.id as string] = [...(ws.aimIndex.byGoal[goal.id as string] ?? []), aimId]
+  ws.nextAimId++
 
-  currentCtx = {
-    ...currentCtx,
-    state: {
-      ...currentCtx.state,
-      aims: { ...currentCtx.state.aims, [aimId]: aim },
-      decisionReasons: { ...currentCtx.state.decisionReasons, [reasonId]: reason },
-      aimIndex: {
-        byOwner: {
-          ...currentCtx.state.aimIndex.byOwner,
-          [ownerKey]: [...existingOwnerAims, aimId],
-        },
-        byGoal: {
-          ...currentCtx.state.aimIndex.byGoal,
-          [goal.id as string]: [...existingGoalAims, aimId],
-        },
-      },
-      nextAimId: currentCtx.state.nextAimId + 1,
-      nextDecisionReasonId: currentCtx.state.nextDecisionReasonId + 1,
-    },
+  const task = createInitialTaskForAimMut(ws, config, aim, absoluteWeek)
+  if (task) {
+    ws.aims[aimId] = { ...aim, activeTaskId: task.id }
   }
 
-  // Create initial task for the aim
-  const taskResult = createInitialTaskForAim(currentCtx.state, currentCtx.config, aim, absoluteWeek)
-  if (taskResult) {
-    const aimWithTask = { ...aim, activeTaskId: taskResult.task.id }
-    currentCtx = {
-      ...currentCtx,
-      state: {
-        ...taskResult.state,
-        aims: { ...taskResult.state.aims, [aimId]: aimWithTask },
-      },
-    }
-  }
-
-  const person = currentCtx.state.persons[personId]
+  const person = ws.persons[personId]
   const personNameKey = person?.nameKey ?? personId
-  const { event, ctx: evCtx } = createSimEvent(currentCtx, {
+  emitEvent({
     type: 'PERSON_AIM_CREATED',
     importance: 'minor',
     messageKey: 'person.aim.created',
@@ -168,38 +251,34 @@ function createPersonAim(
     },
     entityRefs: [entityRef('person', personId, 'owner', personNameKey)],
   })
-  currentCtx = { ...evCtx, events: [...evCtx.events, event] }
 
-  return currentCtx
+  return nextRng
 }
 
-function checkPersonAimDeadlines(ctx: TickContext): TickContext {
-  let currentCtx = ctx
-  const absoluteWeek = currentCtx.state.absoluteWeek
+// --- Mutable deadline check ---
 
-  for (const [, aim] of Object.entries(currentCtx.state.aims)) {
+function checkPersonAimDeadlinesMut(
+  ws: WorldState,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  const absoluteWeek = ws.absoluteWeek
+
+  for (const [, aim] of Object.entries(ws.aims)) {
     if (!aim || aim.status !== 'active') continue
-    // Only check Person Aims (not Polity or House Aims)
     if (aim.owner.kind !== 'person') continue
 
     // support_organization_aim: fail if target Aim is terminal
     if (aim.kind === 'support_organization_aim' && aim.target?.kind === 'aim') {
-      const targetAim = currentCtx.state.aims[aim.target.id]
+      const targetAim = ws.aims[aim.target.id]
       if (!targetAim || targetAim.status !== 'active') {
         const newStatus = targetAim?.status === 'succeeded' ? 'succeeded' : 'failed'
-        const updatedAim: Aim = { ...aim, status: newStatus }
-        currentCtx = {
-          ...currentCtx,
-          state: {
-            ...currentCtx.state,
-            aims: { ...currentCtx.state.aims, [aim.id]: updatedAim },
-          },
-        }
-        const person = currentCtx.state.persons[aim.owner.id]
+        ws.aims[aim.id] = { ...aim, status: newStatus }
+
+        const person = ws.persons[aim.owner.id]
         const personNameKey = person?.nameKey ?? aim.owner.id
         const evType = newStatus === 'succeeded' ? 'PERSON_AIM_SUCCEEDED' : 'PERSON_AIM_FAILED'
         const evKey = newStatus === 'succeeded' ? 'person.aim.succeeded' : 'person.aim.failed'
-        const { event, ctx: evCtx } = createSimEvent(currentCtx, {
+        emitEvent({
           type: evType,
           importance: 'minor',
           messageKey: evKey,
@@ -209,25 +288,16 @@ function checkPersonAimDeadlines(ctx: TickContext): TickContext {
           },
           entityRefs: [entityRef('person', aim.owner.id, 'owner', personNameKey)],
         })
-        currentCtx = { ...evCtx, events: [...evCtx.events, event] }
         continue
       }
     }
 
-    // Deadline check
     if (absoluteWeek >= aim.deadlineWeek) {
-      const updatedAim: Aim = { ...aim, status: 'failed' }
-      currentCtx = {
-        ...currentCtx,
-        state: {
-          ...currentCtx.state,
-          aims: { ...currentCtx.state.aims, [aim.id]: updatedAim },
-        },
-      }
+      ws.aims[aim.id] = { ...aim, status: 'failed' }
 
-      const person = currentCtx.state.persons[aim.owner.id]
+      const person = ws.persons[aim.owner.id]
       const personNameKey = person?.nameKey ?? aim.owner.id
-      const { event, ctx: evCtx } = createSimEvent(currentCtx, {
+      emitEvent({
         type: 'PERSON_AIM_FAILED',
         importance: 'minor',
         messageKey: 'person.aim.failed',
@@ -237,9 +307,6 @@ function checkPersonAimDeadlines(ctx: TickContext): TickContext {
         },
         entityRefs: [entityRef('person', aim.owner.id, 'owner', personNameKey)],
       })
-      currentCtx = { ...evCtx, events: [...evCtx.events, event] }
     }
   }
-
-  return currentCtx
 }
