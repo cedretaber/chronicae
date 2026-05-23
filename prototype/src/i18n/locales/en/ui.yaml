@@ -188,8 +188,15 @@ detail:
     assigned_tasks: 'Assigned Tasks'
     task_effort: 'Effort'
     task_target_aim: 'For: Aim'
+    task_target_own_aim: 'For own aim'
+    task_target_house_aim: "For House {{name}}'s aim"
+    task_target_polity_aim: "For {{name}}'s aim"
     task_target_intent: 'For: Intent'
+    task_target_house_intent: "For House {{name}}'s intent"
+    task_target_polity_intent: "For {{name}}'s intent"
     task_target_play: 'For: Diplomatic Play'
+    task_target_house_play: "For House {{name}}'s diplomatic play"
+    task_target_polity_play: "For {{name}}'s diplomatic play"
     recent_activities: 'Recent Activities'
 
   # DiplomaticPlay detail

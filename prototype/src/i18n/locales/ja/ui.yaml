@@ -281,8 +281,15 @@ detail:
     assigned_tasks: '担当タスク'
     task_effort: '進行度'
     task_target_aim: '目論見のため'
+    task_target_own_aim: '自身の目論見のため'
+    task_target_house_aim: '{{name}}家の目論見のため'
+    task_target_polity_aim: '{{name}}国の目論見のため'
     task_target_intent: '意図のため'
+    task_target_house_intent: '{{name}}家の意図のため'
+    task_target_polity_intent: '{{name}}国の意図のため'
     task_target_play: '外交劇のため'
+    task_target_house_play: '{{name}}家の外交劇のため'
+    task_target_polity_play: '{{name}}国の外交劇のため'
     recent_activities: '近況'
 
   # 外交劇詳細

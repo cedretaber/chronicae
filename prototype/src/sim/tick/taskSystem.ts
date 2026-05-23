@@ -14,7 +14,12 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { AbilityKey } from '../types/person'
 import type { AbilityTrainingExperience } from '../types/task'
 import { clamp } from '../utils/math'
-import { getPersonWeeklyActionCapacity, computeWeeklyEffort } from '../selectors/taskSelectors'
+import {
+  getPersonWeeklyActionCapacity,
+  computeWeeklyEffort,
+  computeEffectivePriority,
+  getTaskRelevantAbility,
+} from '../selectors/taskSelectors'
 import { createNextTaskForAim } from '../selectors/taskSelectors'
 import { removeTask } from '../selectors/taskSelectors'
 import { checkEntityExists } from '../selectors/taskSelectors'
@@ -708,7 +713,17 @@ function batchProcessTasks(ctx: TickContext): {
 
     let remainingCapacity = capacity
 
-    for (const tid of taskIds) {
+    const sortedTaskIds = [...taskIds].sort((a, b) => {
+      const taskA = state.tasks[a]
+      const taskB = state.tasks[b]
+      if (!taskA || !taskB) return 0
+      return (
+        computeEffectivePriority(state, config, taskB) -
+        computeEffectivePriority(state, config, taskA)
+      )
+    })
+
+    for (const tid of sortedTaskIds) {
       const task = state.tasks[tid]
       if (!task || task.status !== 'active') continue
       if (task.actionCost > remainingCapacity) continue
@@ -793,6 +808,14 @@ function removeDiplomaticPlayTaskId(
   }
 }
 
+function getDiplomaticEffectMultiplier(state: WorldState, task: Task): number {
+  const person = state.persons[task.assigneePersonId]
+  if (!person) return 1.0
+  const ability = getTaskRelevantAbility(task.kind)
+  const abilityValue = person.abilities[ability]
+  return 0.5 + abilityValue / 100
+}
+
 function applyDiplomaticTaskEffect(
   state: WorldState,
   config: SimulationConfig,
@@ -804,18 +827,19 @@ function applyDiplomaticTaskEffect(
   if (!play) return state
 
   const updated: DiplomaticPlay = { ...play }
+  const mul = getDiplomaticEffectMultiplier(state, task)
 
   switch (task.kind) {
     case 'prepare_argument':
       if (side === 'initiator') {
         updated.initiatorPreparation = clamp(
-          play.initiatorPreparation + config.diplomaticPlayTaskLeverageGainSmall,
+          play.initiatorPreparation + config.diplomaticPlayTaskLeverageGainSmall * mul,
           0,
           100,
         )
       } else {
         updated.targetPreparation = clamp(
-          play.targetPreparation + config.diplomaticPlayTaskLeverageGainSmall,
+          play.targetPreparation + config.diplomaticPlayTaskLeverageGainSmall * mul,
           0,
           100,
         )
@@ -824,13 +848,13 @@ function applyDiplomaticTaskEffect(
     case 'gather_claim_evidence':
       if (side === 'initiator') {
         updated.initiatorLeverage = clamp(
-          play.initiatorLeverage + config.diplomaticPlayTaskLeverageGainMedium,
+          play.initiatorLeverage + config.diplomaticPlayTaskLeverageGainMedium * mul,
           0,
           100,
         )
       } else {
         updated.targetLeverage = clamp(
-          play.targetLeverage + config.diplomaticPlayTaskLeverageGainMedium,
+          play.targetLeverage + config.diplomaticPlayTaskLeverageGainMedium * mul,
           0,
           100,
         )
@@ -839,49 +863,64 @@ function applyDiplomaticTaskEffect(
     case 'secure_internal_support':
       if (side === 'initiator') {
         updated.initiatorCommitment = clamp(
-          play.initiatorCommitment + config.diplomaticPlayTaskCommitmentGainMedium,
+          play.initiatorCommitment + config.diplomaticPlayTaskCommitmentGainMedium * mul,
           0,
           100,
         )
       } else {
         updated.targetCommitment = clamp(
-          play.targetCommitment + config.diplomaticPlayTaskCommitmentGainMedium,
+          play.targetCommitment + config.diplomaticPlayTaskCommitmentGainMedium * mul,
           0,
           100,
         )
       }
       break
     case 'negotiate_terms':
-      updated.progress = clamp(play.progress + config.diplomaticPlayTaskProgressGainMedium, 0, 100)
+      updated.progress = clamp(
+        play.progress + config.diplomaticPlayTaskProgressGainMedium * mul,
+        0,
+        100,
+      )
       break
     case 'pressure_counterparty':
-      updated.tension = clamp(play.tension + config.diplomaticPlayTaskTensionGainMedium, 0, 100)
+      updated.tension = clamp(
+        play.tension + config.diplomaticPlayTaskTensionGainMedium * mul,
+        0,
+        100,
+      )
       if (side === 'initiator') {
         updated.targetCommitment = Math.max(
           0,
-          play.targetCommitment - config.diplomaticPlayTaskOpponentPressureGainMedium,
+          play.targetCommitment - config.diplomaticPlayTaskOpponentPressureGainMedium * mul,
         )
       } else {
         updated.initiatorCommitment = Math.max(
           0,
-          play.initiatorCommitment - config.diplomaticPlayTaskOpponentPressureGainMedium,
+          play.initiatorCommitment - config.diplomaticPlayTaskOpponentPressureGainMedium * mul,
         )
       }
       break
     case 'offer_compromise':
-      updated.progress = clamp(play.progress + config.diplomaticPlayTaskProgressGainMedium, 0, 100)
-      updated.tension = Math.max(0, play.tension - config.diplomaticPlayTaskTensionReductionSmall)
+      updated.progress = clamp(
+        play.progress + config.diplomaticPlayTaskProgressGainMedium * mul,
+        0,
+        100,
+      )
+      updated.tension = Math.max(
+        0,
+        play.tension - config.diplomaticPlayTaskTensionReductionSmall * mul,
+      )
       break
     case 'undermine_counterparty_position':
       if (side === 'initiator') {
         updated.targetLeverage = Math.max(
           0,
-          play.targetLeverage - config.diplomaticPlayTaskOpponentLeverageReductionSmall,
+          play.targetLeverage - config.diplomaticPlayTaskOpponentLeverageReductionSmall * mul,
         )
       } else {
         updated.initiatorLeverage = Math.max(
           0,
-          play.initiatorLeverage - config.diplomaticPlayTaskOpponentLeverageReductionSmall,
+          play.initiatorLeverage - config.diplomaticPlayTaskOpponentLeverageReductionSmall * mul,
         )
       }
       break

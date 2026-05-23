@@ -52,6 +52,7 @@ import {
   getProvinceHouseManpowerBase,
 } from '@sim/selectors/popEconomySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
+import { computeEffectivePriority } from '@sim/selectors/taskSelectors'
 import type { Polity } from '@/sim/types/polity'
 import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
@@ -2286,6 +2287,11 @@ export function PersonDetail({
           const activeTasks = taskIds
             .map((tid) => worldState.tasks[tid])
             .filter((t): t is NonNullable<typeof t> => t !== undefined && t.status === 'active')
+            .sort(
+              (a, b) =>
+                computeEffectivePriority(worldState, defaultConfig, b) -
+                computeEffectivePriority(worldState, defaultConfig, a),
+            )
           const activityLogIds =
             worldState.personActivityLogIndex.byPerson[person.id as string] ?? []
           const recentLogs = activityLogIds
@@ -2336,22 +2342,90 @@ export function PersonDetail({
                     {t('detail.person.assigned_tasks')} ({activeTasks.length}):
                   </div>
                   <div className="text-sm" style={{ marginLeft: 8 }}>
-                    {activeTasks.map((task) => (
-                      <div key={task.id} className="mb-1 rounded bg-gray-700/50 px-2 py-1 text-xs">
-                        <div className="text-gray-200">{t(task.kind, { ns: 'tasks' })}</div>
-                        <div className="text-gray-400">
-                          {t('detail.person.task_effort')}: {Math.round(task.effortDone)} /{' '}
-                          {task.effortRequired}
+                    {activeTasks.map((task) => {
+                      const ep = computeEffectivePriority(worldState, defaultConfig, task)
+                      return (
+                        <div
+                          key={task.id}
+                          className="mb-1 rounded bg-gray-700/50 px-2 py-1 text-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-200">{t(task.kind, { ns: 'tasks' })}</span>
+                            <span className="text-gray-500">P:{ep}</span>
+                          </div>
+                          <div className="text-gray-400">
+                            {t('detail.person.task_effort')}: {Math.round(task.effortDone)} /{' '}
+                            {task.effortRequired}
+                          </div>
+                          <div className="text-gray-500">
+                            {task.targetRef.kind === 'aim' &&
+                              (() => {
+                                const aim = worldState.aims[task.targetRef.id]
+                                if (!aim) return t('detail.person.task_target_aim')
+                                if (
+                                  aim.owner.kind === 'person' &&
+                                  (aim.owner.id as string) === (person.id as string)
+                                ) {
+                                  return t('detail.person.task_target_own_aim')
+                                }
+                                if (aim.owner.kind === 'house') {
+                                  const h = worldState.houses[aim.owner.id]
+                                  const name = h
+                                    ? resolveName('house', h.nameKey, h.nameKey)
+                                    : aim.owner.id
+                                  return t('detail.person.task_target_house_aim', { name })
+                                }
+                                if (aim.owner.kind === 'polity') {
+                                  const p = worldState.polities[aim.owner.id]
+                                  const name = p
+                                    ? resolveName('polity', p.nameKey, p.nameKey)
+                                    : aim.owner.id
+                                  return t('detail.person.task_target_polity_aim', { name })
+                                }
+                                return t('detail.person.task_target_aim')
+                              })()}
+                            {task.targetRef.kind === 'intent' &&
+                              (() => {
+                                const intent = worldState.actorIntents[task.targetRef.id]
+                                if (!intent) return t('detail.person.task_target_intent')
+                                if (intent.actor.kind === 'house') {
+                                  const h = worldState.houses[intent.actor.id]
+                                  const name = h
+                                    ? resolveName('house', h.nameKey, h.nameKey)
+                                    : intent.actor.id
+                                  return t('detail.person.task_target_house_intent', { name })
+                                }
+                                if (intent.actor.kind === 'polity') {
+                                  const p = worldState.polities[intent.actor.id]
+                                  const name = p
+                                    ? resolveName('polity', p.nameKey, p.nameKey)
+                                    : intent.actor.id
+                                  return t('detail.person.task_target_polity_intent', { name })
+                                }
+                                return t('detail.person.task_target_intent')
+                              })()}
+                            {task.targetRef.kind === 'diplomatic_play' &&
+                              (() => {
+                                if (task.owner.kind === 'house') {
+                                  const h = worldState.houses[task.owner.id]
+                                  const name = h
+                                    ? resolveName('house', h.nameKey, h.nameKey)
+                                    : task.owner.id
+                                  return t('detail.person.task_target_house_play', { name })
+                                }
+                                if (task.owner.kind === 'polity') {
+                                  const p = worldState.polities[task.owner.id]
+                                  const name = p
+                                    ? resolveName('polity', p.nameKey, p.nameKey)
+                                    : task.owner.id
+                                  return t('detail.person.task_target_polity_play', { name })
+                                }
+                                return t('detail.person.task_target_play')
+                              })()}
+                          </div>
                         </div>
-                        <div className="text-gray-500">
-                          {task.targetRef.kind === 'aim' && t('detail.person.task_target_aim')}
-                          {task.targetRef.kind === 'intent' &&
-                            t('detail.person.task_target_intent')}
-                          {task.targetRef.kind === 'diplomatic_play' &&
-                            t('detail.person.task_target_play')}
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </>
               )}

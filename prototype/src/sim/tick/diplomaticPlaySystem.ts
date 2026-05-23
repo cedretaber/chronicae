@@ -1111,7 +1111,11 @@ function ensureDiplomaticTasks(ctx: TickContext, play: DiplomaticPlay): TickCont
       }
     }
 
-    const taskKind = selectDiplomaticTaskKind(currentCtx.state.diplomaticPlays[play.id]!, side)
+    const taskKind = selectDiplomaticTaskKind(
+      currentCtx.state,
+      currentCtx.state.diplomaticPlays[play.id]!,
+      side,
+    )
     const result = createTaskForDiplomaticPlay(
       currentCtx.state,
       config,

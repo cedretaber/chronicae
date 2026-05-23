@@ -147,6 +147,7 @@ export function createTask(
     kind: TaskKind
     targetRef: TaskTargetRef
     absoluteWeek: number
+    deadlineWeek?: number
   },
 ): { task: Task; state: WorldState } {
   const taskId = createTaskId(state.nextTaskId)
@@ -161,6 +162,7 @@ export function createTask(
     effortRequired: getTaskEffortRequired(config, input.kind),
     effortDone: 0,
     createdWeek: input.absoluteWeek,
+    ...(input.deadlineWeek !== undefined ? { deadlineWeek: input.deadlineWeek } : {}),
     status: 'active',
     reasonIds: [],
   }
@@ -517,6 +519,7 @@ export function getDiplomaticPlayDelegate(
 }
 
 export function selectDiplomaticTaskKind(
+  state: WorldState,
   play: DiplomaticPlay,
   side: 'initiator' | 'target',
 ): TaskKind {
@@ -524,12 +527,71 @@ export function selectDiplomaticTaskKind(
   const lev = side === 'initiator' ? play.initiatorLeverage : play.targetLeverage
   const commit = side === 'initiator' ? play.initiatorCommitment : play.targetCommitment
 
+  // Critical deficits always take priority
   if (prep < 30) return 'prepare_argument'
   if (lev < 30) return 'gather_claim_evidence'
   if (commit < 30) return 'secure_internal_support'
-  if (play.tension > 60) return 'offer_compromise'
-  if (play.progress < 40) return 'negotiate_terms'
-  return 'pressure_counterparty'
+
+  // After basics covered: score candidates by delegate ability + side role
+  const delegateId =
+    side === 'initiator' ? play.initiatorDelegatePersonId : play.targetDelegatePersonId
+  const person = delegateId ? state.persons[delegateId] : undefined
+  const abilities = person?.abilities
+
+  type Candidate = { kind: TaskKind; score: number }
+  const candidates: Candidate[] = []
+
+  // negotiate_terms (insight) — both sides benefit, slight target preference
+  if (play.progress < 80) {
+    const base = side === 'target' ? 12 : 8
+    const abilityBonus = abilities ? abilities.insight * 0.15 : 0
+    candidates.push({ kind: 'negotiate_terms', score: base + abilityBonus })
+  }
+
+  // offer_compromise (charisma) — tension relief, target prefers
+  if (play.tension > 30) {
+    const urgency = Math.min(20, (play.tension - 30) * 0.3)
+    const base = side === 'target' ? 10 + urgency : 5 + urgency
+    const abilityBonus = abilities ? abilities.charisma * 0.15 : 0
+    candidates.push({ kind: 'offer_compromise', score: base + abilityBonus })
+  }
+
+  // pressure_counterparty (command) — initiator prefers
+  {
+    const base = side === 'initiator' ? 12 : 6
+    const abilityBonus = abilities ? abilities.command * 0.15 : 0
+    candidates.push({ kind: 'pressure_counterparty', score: base + abilityBonus })
+  }
+
+  // undermine_counterparty_position (insight) — initiator prefers
+  {
+    const opponentLev = side === 'initiator' ? play.targetLeverage : play.initiatorLeverage
+    if (opponentLev > 30) {
+      const base = side === 'initiator' ? 10 : 7
+      const abilityBonus = abilities ? abilities.insight * 0.1 : 0
+      candidates.push({ kind: 'undermine_counterparty_position', score: base + abilityBonus })
+    }
+  }
+
+  // gather more leverage/preparation if still below strong thresholds
+  if (lev < 60) {
+    const base = side === 'initiator' ? 8 : 5
+    const abilityBonus = abilities ? abilities.learning * 0.1 : 0
+    candidates.push({ kind: 'gather_claim_evidence', score: base + abilityBonus })
+  }
+  if (prep < 60) {
+    const base = 6
+    const abilityBonus = abilities ? abilities.learning * 0.1 : 0
+    candidates.push({ kind: 'prepare_argument', score: base + abilityBonus })
+  }
+
+  // Pick highest-scoring candidate
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => b.score - a.score)
+    return candidates[0]!.kind
+  }
+
+  return 'negotiate_terms'
 }
 
 export function createTaskForDiplomaticPlay(
@@ -554,7 +616,104 @@ export function createTaskForDiplomaticPlay(
     kind: taskKind,
     targetRef: { kind: 'diplomatic_play', id: play.id },
     absoluteWeek,
+    deadlineWeek: play.deadlineWeek,
   })
+}
+
+// --- computeEffectivePriority ---
+
+const DIPLOMATIC_TASK_KINDS: ReadonlySet<TaskKind> = new Set([
+  'prepare_argument',
+  'gather_claim_evidence',
+  'negotiate_terms',
+  'pressure_counterparty',
+  'offer_compromise',
+  'undermine_counterparty_position',
+  'secure_internal_support',
+])
+
+const GOAL_ALIGNMENT_MAP: Record<string, (task: Task) => boolean> = {
+  house_loyalty: (task) => task.owner.kind === 'house',
+  public_service: (task) => task.owner.kind === 'polity',
+  personal_advancement: (task) =>
+    task.kind === 'seek_office_support' ||
+    task.kind === 'display_competence' ||
+    task.kind === 'defend_office_position',
+  wealth_building: (task) =>
+    task.kind === 'manage_accounts' ||
+    task.kind === 'seek_profitable_assignment' ||
+    task.kind === 'arrange_patronage',
+  self_cultivation: (task) =>
+    task.kind === 'study_law' ||
+    task.kind === 'study_accounts' ||
+    task.kind === 'practice_arms' ||
+    task.kind === 'courtly_training',
+}
+
+export function computeEffectivePriority(
+  state: WorldState,
+  config: SimulationConfig,
+  task: Task,
+): number {
+  let priority = task.priority
+
+  // ownerDutyBonus: assignee holds office in the task's owner organization
+  const assigneeKey = task.assigneePersonId as string
+  const holderOfficeIds = state.officeIndex.byHolderPerson[assigneeKey] ?? []
+  for (const oaId of holderOfficeIds) {
+    const oa = state.officeAssignments[oaId]
+    if (!oa || !oa.active) continue
+    if (
+      oa.organization.kind === task.owner.kind &&
+      (oa.organization.id as string) === (task.owner.id as string)
+    ) {
+      priority += config.effectivePriorityOwnerDutyBonus
+      break
+    }
+  }
+
+  // goalAlignmentBonus: assignee's active goal kind matches task nature
+  const personGoalIds = state.goalIndex.byOwner[`person:${task.assigneePersonId}`] ?? []
+  for (const gid of personGoalIds) {
+    const goal = state.goals[gid]
+    if (!goal || goal.status !== 'active') continue
+    const matcher = GOAL_ALIGNMENT_MAP[goal.kind]
+    if (matcher && matcher(task)) {
+      priority += config.effectivePriorityGoalAlignmentBonus
+    }
+    break // only check the first active goal
+  }
+
+  // urgencyBonus: based on deadlineWeek proximity
+  if (task.deadlineWeek !== undefined) {
+    const weeksLeft = task.deadlineWeek - state.absoluteWeek
+    if (weeksLeft <= 0) {
+      priority += config.effectivePriorityUrgencyMaxBonus
+    } else if (weeksLeft <= 4) {
+      priority += config.effectivePriorityUrgencyMediumBonus
+    } else if (weeksLeft <= 12) {
+      priority += config.effectivePriorityUrgencySmallBonus
+    }
+  }
+
+  // taskKindPriorityBonus
+  if (DIPLOMATIC_TASK_KINDS.has(task.kind) && task.targetRef.kind === 'diplomatic_play') {
+    priority += config.effectivePriorityDiplomaticTaskBonus
+  } else if (task.kind === 'perform_office_duties') {
+    priority += config.effectivePriorityOfficeDutyBonus
+  }
+
+  // overloadPenalty
+  const assigneeTaskIds = state.taskIndex.byAssignee[assigneeKey] ?? []
+  let activeCount = 0
+  for (const tid of assigneeTaskIds) {
+    const t = state.tasks[tid]
+    if (t && t.status === 'active') activeCount++
+  }
+  const overload = Math.max(0, activeCount - config.effectivePriorityOverloadThreshold)
+  priority -= overload * config.effectivePriorityOverloadPenaltyPerTask
+
+  return priority
 }
 
 // --- isEntityTerminal for EntityRef ---

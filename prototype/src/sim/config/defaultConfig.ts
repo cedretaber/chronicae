@@ -375,6 +375,16 @@ export type SimulationConfig = {
   diplomaticPlayMaxActiveTasksPerSide: number
   goalProgressOnPersonAimSucceeded: number
   goalProgressOnPersonAimFailed: number
+  // v0.23 effectivePriority
+  effectivePriorityOwnerDutyBonus: number
+  effectivePriorityGoalAlignmentBonus: number
+  effectivePriorityUrgencyMaxBonus: number
+  effectivePriorityUrgencyMediumBonus: number
+  effectivePriorityUrgencySmallBonus: number
+  effectivePriorityDiplomaticTaskBonus: number
+  effectivePriorityOfficeDutyBonus: number
+  effectivePriorityOverloadThreshold: number
+  effectivePriorityOverloadPenaltyPerTask: number
   weeklyActionCapacityBase: number
   weeklyActionCapacityAmbitionBonus: number
   weeklyActionCapacityAgeReduction: number
@@ -913,6 +923,16 @@ export const defaultConfig: SimulationConfig = {
   diplomaticPlayMaxActiveTasksPerSide: 2,
   goalProgressOnPersonAimSucceeded: 15,
   goalProgressOnPersonAimFailed: -5,
+  // v0.23 effectivePriority
+  effectivePriorityOwnerDutyBonus: 20,
+  effectivePriorityGoalAlignmentBonus: 10,
+  effectivePriorityUrgencyMaxBonus: 15,
+  effectivePriorityUrgencyMediumBonus: 10,
+  effectivePriorityUrgencySmallBonus: 5,
+  effectivePriorityDiplomaticTaskBonus: 10,
+  effectivePriorityOfficeDutyBonus: 5,
+  effectivePriorityOverloadThreshold: 3,
+  effectivePriorityOverloadPenaltyPerTask: 3,
   weeklyActionCapacityBase: 2.0,
   weeklyActionCapacityAmbitionBonus: 0.5,
   weeklyActionCapacityAgeReduction: 0.5,
