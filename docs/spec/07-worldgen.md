@@ -10,17 +10,25 @@ habitability = randomInt(30, 90)
 
 将来的には地形・沿岸・河川・気候などで補正する。
 
-### 7.2 PopGroup 初期生成
+### 7.2 PopGroup 初期生成（v0.24 更新）
 
-各 Province に peasants / townsmen / nobles の 3 PopGroup を生成する。
+各 **Holding** に peasants / townsmen / nobles の 3 PopGroup を生成する。POP サイズは occupation capacity に基づく。
 
-**size の初期値**（carrying capacity に基づく）:
+**size の初期値**（occupation capacity ベース）:
 ```ts
-const capacity = max(minProvinceCarryingCapacity, habitability * populationCapacityPerHabitability * devMod)
-peasants.size  = capacity * randomInt(55, 75) / 100
-townsmen.size  = capacity * randomInt(5, 15) / 100
-nobles.size    = capacity * randomInt(2, 5) / 100
+// 各 Holding について、class ごとに occupation capacity を算出
+const agriCap = occupationCapacityBase[holding.kind].agriculture * weight * landQuality * devMod
+const urbanCap = occupationCapacityBase[holding.kind].urban_labor * weight * landQuality * devMod
+const eliteCap = occupationCapacityBase[holding.kind].elite_service * weight * landQuality * devMod
+
+const fillRatio = rng.nextFloat(initialPopFillRatioMin, initialPopFillRatioMax) / 100
+
+peasants.size  = max(minPopSizeByClass.peasants, agriCap * fillRatio)
+townsmen.size  = max(minPopSizeByClass.townsmen, urbanCap * fillRatio)
+nobles.size    = max(minPopSizeByClass.nobles, eliteCap * fillRatio)
 ```
+
+全 POP は `occupation` に対応する標準職業（peasants→agriculture, townsmen→urban_labor, nobles→elite_service）で生成する。worldgen では `none` POP を生成しない。
 
 **wealth の初期値**（class ごとに差をつける）:
 ```ts
@@ -35,6 +43,8 @@ peasants.unrest  = randomInt(10, 30)
 townsmen.unrest  = randomInt(10, 25)
 nobles.unrest    = randomInt(5, 25)
 ```
+
+**popIndex の初期化**: 各 POP 生成時に `popIndex.byHolding` を更新する。
 
 ### 7.3 WorldPreset と階層構造の生成（v0.16 / v0.20 / v0.20.1 更新）
 

@@ -244,14 +244,14 @@
 | houseShareWealthFactor | 0.05 | Person wealth の Share 寄与係数 |
 | houseShareStatFactor | 1 | Person (admin + martial) の Share 寄与係数 |
 | rulerHouseRebellionSuppression | 30 | 支配家への反乱抑圧ボーナス（Share 計算外） |
-| **POP システム（v0.8）** | | |
+| **POP システム（v0.8 / v0.24 更新）** | | |
 | popSystemEnabled | true | POP システム有効 |
-| minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別） |
-| populationCapacityPerHabitability | 10 | habitability 1 あたりの人口キャパシティ |
+| minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別、occupation:none 以外） |
+| ~~populationCapacityPerHabitability~~ | — | **v0.24 で削除**。carrying capacity を occupation capacity 合計に変更 |
 | minProvinceCarryingCapacity | 50 | Province の最小 carrying capacity |
 | productivityByClass | {peasants:1.0, townsmen:1.5, nobles:0.6} | POP 生産性係数（class 別） |
 | manpowerFactorByClass | {peasants:0.03, townsmen:0.01, nobles:0.06} | 兵力換算係数（class 別） |
-| baseMonthlyGrowthByClass | {peasants:0.0010, townsmen:0.0008, nobles:0.0004} | 月次基本成長率（class 別） |
+| baseMonthlyGrowthByClass | {peasants:0.008, townsmen:0.002, nobles:0.001} | 4週基本成長率（class 別、v0.24 で増量） |
 | populationPressureThreshold | 0.90 | pressure がこれを超えると wealth/unrest に影響 |
 | populationPressureWealthPenalty | 0.2 | pressure 超過時の wealth 低下係数 |
 | populationPressureUnrestGain | 0.3 | pressure 超過時の unrest 上昇係数 |
@@ -266,6 +266,16 @@
 | overExtractionUnrestSafeThreshold | 45 | この unrest 以下ならペナルティ回避 |
 | overExtractionWealthPenalty | 1.0 | 過剰徴収による wealth 低下係数 |
 | overExtractionUnrestGain | 1.5 | 過剰徴収による unrest 上昇係数 |
+| **v0.24 Occupation capacity** | | |
+| occupationCapacityBaseByHoldingKind | manor:{agri:80,urban:8,elite:3}, city:{agri:15,urban:70,elite:5} | Holding 種別ごとの occupation 基礎容量 |
+| occupationProductivityMultiplier | {agri:1.0,urban:1.0,elite:1.0,none:0.1} | occupation 別の生産性倍率 |
+| occupationManpowerMultiplier | {agri:1.0,urban:0.8,elite:1.2,none:0.5} | occupation 別の兵力倍率 |
+| unemployedWealthDecayByClass | {peasants:0.20,townsmen:0.30,nobles:0.15} | none POP の 4 週あたり wealth 減衰量 |
+| unemployedUnrestGainByClass | {peasants:0.20,townsmen:0.35,nobles:0.45} | none POP の 4 週あたり unrest 上昇量 |
+| unemployedGrowthModifierByClass | {peasants:0.6,townsmen:0.5,nobles:0.7} | none POP の成長率倍率 |
+| initialPopFillRatioMin | 70 | 初期 POP 充填率の下限（%） |
+| initialPopFillRatioMax | 95 | 初期 POP 充填率の上限（%） |
+| popSizeEpsilon | 0.01 | none POP がこのサイズ以下で削除 |
 | **POP 自主開発（v0.8）** | | |
 | popDevelopmentEnabled | true | POP 自主開発有効 |
 | popDevelopmentMonthlyChance | 0.02 | 月次発動基本確率 |

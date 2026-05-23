@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-23（v0.23 Person Goal / Aim / Task-driven Decision System）
+最終更新: 2026-05-24（v0.24 Holding POP 所属化と職業・無職 POP システム）
 
 ---
 

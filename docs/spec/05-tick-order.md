@@ -50,6 +50,7 @@ const WEEKS_PER_SEASON = 12
 | 2 | DevelopmentSystem | 4 | 旧毎月 |
 | 3 | ControlSystem | 4 | 旧毎月 |
 | 4 | PopSystem | 4 | 旧毎月 |
+| 4b | EmploymentRebalanceSystem | 4 | v0.24 追加。capacity 超過→失業、none→再就業 |
 | 5 | LandRevenueSystem | 4 | 旧毎月 |
 | 6 | PolitySurplusDistributionSystem | 4 | 旧毎月 |
 | 6b | HouseSurplusDistributionSystem | 4 | 旧毎月 |
@@ -97,6 +98,7 @@ const WEEKS_PER_SEASON = 12
 | 25 | normalizePopSizes | 4 | 旧毎月 |
 | 25b | CleanupTerminalDiplomacy | 4 | 旧毎月 |
 | 25c | CleanupTerminalDecisions | 4 | v0.22。terminal Goal/Aim/orphan DecisionReason 削除 |
+| 25d | mergeCompatiblePops | 48 | v0.24 追加。年末安全弁として同一 merge key の POP を統合 |
 | 26 | IntegrityCheck | ※3モード | debug=毎tick(try-catch), integrity-check=毎tick(throw), 通常=week48(throw) |
 
 全 system の `phaseOffsetWeeks = 0`（v0.19 時点）。
@@ -117,7 +119,7 @@ Consistency 系 2 つは所領変動 system の直後に走り、所領異動の
 
 ### 5.7 順序の理由
 
-PopSystem を LandRevenueSystem より前に置くことで、当 tick の POP 状態変化を反映して生産量を計算する。LandRevenueSystem の直後に PolitySurplusDistributionSystem を置くことで、上納後の余剰を即座に Share holder に分配する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。AppointmentSystem を TaskSystem より前に置くことで、同一週に完了した Task が即座に任官に反映されない（前週までの結果のみが材料になる）自然な順序を実現する。PersonGoalMaintenanceSystem / PersonAimMaintenanceSystem は AppointmentSystem の後だが、TaskSystem が毎週実行されるため前週までの Task 結果は常に利用可能。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当 tick に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は年次実行され、次の 1 年間の各システムで使われる。
+PopSystem を LandRevenueSystem より前に置くことで、当 tick の POP 状態変化を反映して生産量を計算する。EmploymentRebalanceSystem を PopSystem と LandRevenueSystem の間に置くことで、人口増加 → 失業/再就業 → 当 tick の就業状態で生産量計算の自然な順序を実現する。LandRevenueSystem の直後に PolitySurplusDistributionSystem を置くことで、上納後の余剰を即座に Share holder に分配する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。AppointmentSystem を TaskSystem より前に置くことで、同一週に完了した Task が即座に任官に反映されない（前週までの結果のみが材料になる）自然な順序を実現する。PersonGoalMaintenanceSystem / PersonAimMaintenanceSystem は AppointmentSystem の後だが、TaskSystem が毎週実行されるため前週までの Task 結果は常に利用可能。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当 tick に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は年次実行され、次の 1 年間の各システムで使われる。
 
 ---
 

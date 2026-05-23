@@ -79,20 +79,44 @@ target.houseControl = clamp(neighbor.houseControl - penalty, newControlMin, newC
 summary: "${新House.name} absorbed ${province.name} from ${旧House.name}."
 ```
 
-### 6.4 PopSystem（4週ごと）
+### 6.4 PopSystem（4週ごと、v0.24 更新）
 
-POP の自然変化を処理する。Province の carrying capacity に基づいた人口圧制御、wealth/unrest の自然変化を担当する。
+POP の自然変化を処理する。Province の carrying capacity に基づいた人口圧制御、occupation overflow、wealth/unrest の自然変化を担当する。
 
-**6.4.1 人口成長**
+**6.4.1 人口成長（v0.24 更新）**
+
+成長抑制式は `1 - pressure²`（二次関数）を使用する。`occupation:none` POP は成長が鈍化する。
 
 ```ts
 const pressure = getProvincePopulationPressure(state, config, province.id)
-const growthFactor = clamp(1 - pressure, -0.5, 1.0)
+const growthFactor = clamp(1 - pressure * pressure, -0.5, 1.0)
 const baseGrowth = config.baseMonthlyGrowthByClass[pop.class]
 const wealthFactor = clamp(0.5 + pop.wealth / 100, 0.5, 1.5)
 const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)
-const delta = pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor
+const occupationGrowthModifier =
+  pop.occupation === 'none' ? config.unemployedGrowthModifierByClass[pop.class] : 1
+const delta = pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor * occupationGrowthModifier
 ```
+
+**6.4.1b 人口増加時の overflow（v0.24 追加）**
+
+人口増加分はまず元 POP に追加する。ただし `occupation !== 'none'` の POP で occupation capacity を超える場合、超過分は同 Holding / 同 class の `occupation:none` POP に移す。`none` POP の増加はそのまま none POP に留まる。
+
+```ts
+if (pop.occupation !== 'none') {
+  const capacity = getHoldingOccupationCapacity(state, config, pop.holdingId, pop.class, pop.occupation)
+  const current = getHoldingPopSizeByClassAndOccupation(state, pop.holdingId, pop.class, pop.occupation)
+  const room = Math.max(0, capacity - current)
+  const toOriginal = Math.min(delta, room)
+  const overflow = delta - toOriginal
+  pop.size += toOriginal
+  if (overflow > 0) {
+    addToOrCreatePopGroup(state, { holdingId: pop.holdingId, class: pop.class, occupation: 'none', size: overflow, inheritFrom: pop })
+  }
+}
+```
+
+実装注意: PopSystem は mutable draft パターンを使用し、ループ開始前に POP リストの snapshot を取る。overflow で生成された新 POP が同 tick 内で二重処理されないようにする。
 
 **6.4.2 population pressure の影響**
 
@@ -109,11 +133,9 @@ if (pressure > config.populationPressureThreshold) {
 **6.4.3 poverty / prosperity 効果**
 
 ```ts
-// 貧困: wealth が低い POP は不満が上がりやすい
 if (pop.wealth < config.povertyWealthThreshold) {
   pop.unrest += (config.povertyWealthThreshold - pop.wealth) * config.povertyUnrestGain
 }
-// 繁栄: wealth が高い POP は不満が下がりやすい
 if (pop.wealth > config.prosperityWealthThreshold) {
   pop.unrest -= (pop.wealth - config.prosperityWealthThreshold) * config.prosperityUnrestReduction
 }
@@ -121,21 +143,65 @@ if (pop.wealth > config.prosperityWealthThreshold) {
 
 **6.4.4 unrest 自然減衰**（v0.20.3 追加）
 
-prosperity / poverty による増減の後、unrest に自然減衰を適用する。明示的な減少要因がなくても unrest が徐々に安定に向かう。
-
 ```ts
-pop.unrest *= 1 - config.unrestNaturalDecayRate  // default: 0.005（月 0.5% 減衰）
+pop.unrest *= 1 - config.unrestNaturalDecayRate
 ```
 
-**6.4.5 clamp**
+**6.4.4b none POP ペナルティ（v0.24 追加）**
 
 ```ts
-pop.size = Math.max(config.minPopSizeByClass[pop.class], pop.size + delta)
+if (pop.occupation === 'none') {
+  pop.wealth -= config.unemployedWealthDecayByClass[pop.class]
+  pop.unrest += config.unemployedUnrestGainByClass[pop.class]
+}
+```
+
+**6.4.5 clamp（v0.24 更新）**
+
+`occupation !== 'none'` の POP は `minPopSizeByClass` で下限保証。`none` POP は 0 まで減少可能。
+
+```ts
+const minSize = pop.occupation !== 'none' ? config.minPopSizeByClass[pop.class] : 0
+pop.size = Math.max(minSize, newSize)
 pop.wealth = clamp(pop.wealth, 0, 100)
 pop.unrest = clamp(pop.unrest, 0, 100)
 ```
 
-**normalizePopSizes**（IntegrityCheck 直前）: 全 POP について `size < minPopSizeByClass[class]` の場合、最低値に切り上げる。疫病・戦争などでサイズが最低値を下回った場合のフェイルセーフ。
+**normalizePopSizes**（IntegrityCheck 直前、v0.24 更新）: `occupation !== 'none'` の POP は `minPopSizeByClass` で下限保証。`occupation === 'none'` の POP は size が `popSizeEpsilon` 以下で削除する。
+
+### 6.4b EmploymentRebalanceSystem（4週ごと、v0.24 追加）
+
+PopSystem 直後、LandRevenueSystem 直前に実行。Holding × PopClass ごとに capacity 超過の強制失業化と、none POP の再就業を処理する。
+
+**処理順**:
+1. 各 Holding / class / occupation で capacity 超過を検査。超過分を none POP に移す
+2. none POP を確認。class に対応する primary occupation に空きがあれば再就業
+
+```ts
+for (const holding of Object.values(state.holdings)) {
+  for (const popClass of POP_CLASSES) {
+    // Phase 1: 強制失業化
+    const primaryOccupation = getPrimaryOccupationForClass(popClass)
+    const capacity = getHoldingOccupationCapacity(state, config, holding.id, popClass, primaryOccupation)
+    const employed = getHoldingPopSizeByClassAndOccupation(state, holding.id, popClass, primaryOccupation)
+    if (employed > capacity) {
+      const excess = employed - capacity
+      movePopSizeToOccupation(state, { sourcePopId, targetOccupation: 'none', size: excess })
+    }
+
+    // Phase 2: 再就業
+    const room = getHoldingOccupationRemainingCapacity(state, config, holding.id, popClass, primaryOccupation)
+    if (room > 0) {
+      const nonePops = getHoldingPopsByClassAndOccupation(state, holding.id, popClass, 'none')
+      for (const nonePop of nonePops) {
+        movePopSizeToOccupation(state, { sourcePopId: nonePop.id, targetOccupation: primaryOccupation, size: moved })
+      }
+    }
+  }
+}
+```
+
+再就業時の wealth / unrest / attitudes は移動元と移動先の人口加重平均で統合される。
 
 ### 6.5 EconomySystem（v0.16 で廃止 → LandRevenue + PolitySurplusDistribution に分割）
 
@@ -146,15 +212,16 @@ pop.unrest = clamp(pop.unrest, 0, 100)
 
 過徴税ペナルティは LandRevenueSystem 側で継続。`houseControl` 経由の二重収入経路 (`houseIncome`) は廃止された。House への富の流れは Polity Share 経由でのみ発生する（§6.5b）。
 
-### 6.5a LandRevenueSystem（4週ごと、v0.16 / v0.20）
+### 6.5a LandRevenueSystem（4週ごと、v0.16 / v0.20 / v0.24 更新）
 
 Province の生産を **Holding 単位で分配**し、各 Holding の LandContract chain に沿って上納する。
 
-**6.5a.1 生産量算出**
+**6.5a.1 生産量算出（v0.24 更新）**
+
+v0.24 で occupation productivity multiplier を追加。各 POP の生産量は `pop.size * productivityByClass * occupationProductivityMultiplier * (wealth/100) * holdingDevMod * holdingControlMod` で算出する。`none` POP の生産性は 0.1（最低限の日雇い・自給を表す）。
 
 ```ts
 const production = getProvinceProduction(state, config, province.id)
-// = sum(pop.size * productivityByClass[pop.class] * (pop.wealth/100) * (provinceDev multiplier))
 ```
 
 **6.5a.2 per-Holding 分配と chain 上納（v0.20）**
@@ -1007,9 +1074,12 @@ Person / House の不変条件（v0.15 以前から継続）:
 32. Province.development / polityControl / PopGroup.size/wealth/unrest が範囲内
 33. ability ≤ aptitude かつ両者が `[0, ABILITY_HARD_CAP=120]` の範囲内、死亡者の wealth が 0
 
-PopGroup / Polity 数値範囲:
+PopGroup / Polity 数値範囲 (v0.24 更新):
 - Polity.legacyPrestige / House.legacyPrestige が 0..100 (型レベル + 範囲チェック)
-- PopGroup.provinceId 双方向、Province あたり peasants / townsmen / nobles を 1 つずつ
+- PopGroup.holdingId が有効な Holding を指す
+- PopGroup.occupation / class が有効な値
+- 同一 merge key (holdingId + class + occupation) の POP が複数存在しない
+- popIndex.byHolding の整合性（POP の holdingId と index が一致）
 - OrganizationRef.kind は `'polity' | 'house'` のみ (型レベル)
 - AttitudeTarget / attitude key に `country:` が残っていない (型レベル)
 

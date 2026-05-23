@@ -13,10 +13,47 @@ function getProvinceDevelopmentFromHoldings(state: WorldState, provinceId: Provi
 
 `getEffectiveProvinceTax` / `getEffectiveProvinceManpower` は v0.8 で廃止。代わりに POP Economy セレクターを使用する。
 
-### 4.2 POP セレクター
+### 4.2 POP セレクター（v0.24 更新）
+
+#### Holding POP セレクター
 
 ```ts
-// Province の全 PopGroup を返す
+// Holding の全 PopGroup を返す（popIndex.byHolding 経由）
+function getHoldingPops(state: WorldState, holdingId: HoldingId): PopGroup[]
+
+function getHoldingPopsByClass(state: WorldState, holdingId: HoldingId, popClass: PopClass): PopGroup[]
+
+function getHoldingPopsByClassAndOccupation(state: WorldState, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): PopGroup[]
+
+function getHoldingPopSizeByClass(state: WorldState, holdingId: HoldingId, popClass: PopClass): number
+
+function getHoldingPopSizeByClassAndOccupation(state: WorldState, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): number
+```
+
+#### Occupation capacity セレクター
+
+```ts
+// Holding の職業キャパシティ: baseCapacity * weight * landQuality * devMod
+// occupation === 'none' の場合は 0 を返す
+function getHoldingOccupationCapacity(state: WorldState, config: SimulationConfig, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): number
+
+// 残容量: capacity - used
+function getHoldingOccupationRemainingCapacity(state: WorldState, config: SimulationConfig, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): number
+
+// 労働力不足 = remainingCapacity
+function getHoldingLaborShortage(state: WorldState, config: SimulationConfig, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): number
+
+// 無職 POP の合計サイズ
+function getHoldingUnemployedPopSize(state: WorldState, holdingId: HoldingId, popClass: PopClass): number
+
+// 雇用率: 1 - (unemployed / total)
+function getHoldingEmploymentRateByClass(state: WorldState, holdingId: HoldingId, popClass: PopClass): number
+```
+
+#### Province POP セレクター（Holding POP から集計）
+
+```ts
+// Province の全 PopGroup を Holding 経由で集計
 function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[]
 
 // POP size の合計（総人口）
@@ -28,40 +65,42 @@ function getProvinceAveragePopWealth(state: WorldState, provinceId: ProvinceId):
 // POP unrest の人口加重平均
 function getProvinceUnrest(state: WorldState, provinceId: ProvinceId): number
 
-// carrying capacity: max(minProvinceCarryingCapacity, habitability * populationCapacityPerHabitability * devMod)
-// devMod = clamp(1 + development / 200, 0.5, 1.5)
+// v0.24: carrying capacity = Province 内全 Holding の全職業キャパシティ合計
+// 旧来の habitability × populationCapacityPerHabitability ベースの算出は廃止
 function getProvinceCarryingCapacity(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
 // population pressure: clamp(population / carryingCapacity, 0, 2)
 function getProvincePopulationPressure(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// class 別の unrest を返す（該当 class の PopGroup の unrest 値。見つからない場合は 0）
+// class 別の unrest（Province 内の該当 class POP の人口加重平均）
 function getPopUnrestByClass(state: WorldState, provinceId: ProvinceId, popClass: PopClass): number
 
-// class 別の wealth を返す（該当 class の PopGroup の wealth 値。見つからない場合は 0）
+// class 別の wealth（Province 内の該当 class POP の人口加重平均）
 function getPopWealthByClass(state: WorldState, provinceId: ProvinceId, popClass: PopClass): number
 ```
 
-### 4.3 POP Economy セレクター
+### 4.3 POP Economy セレクター（v0.24 更新）
 
 ```ts
-// POP 1件の生産量
-// pop.size * productivityByClass[pop.class] * (pop.wealth / 100) * (province.polityControl / 100)
+// POP 1件の生産量（v0.24: occupation multiplier 追加、Holding 単位 dev/control）
+// pop.size * productivityByClass[pop.class] * occupationProductivityMultiplier[pop.occupation]
+//   * (pop.wealth / 100) * holdingDevelopmentModifier * holdingControlModifier
 function getPopProduction(state: WorldState, config: SimulationConfig, popId: PopGroupId): number
 
-// Province の総生産量（全 POP の生産量合計）
+// Province の総生産量（全 Holding POP の生産量合計）
 function getProvinceProduction(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
 // Province の税基盤: getProvinceProduction * (polityControl / 100)
 function getProvinceTaxBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// Polity 用の Province 兵力基盤: sum(pop.size * manpowerFactorByClass[pop.class] * (polityControl / 100))
-function getProvincePolityManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+// Polity 用の Province 兵力基盤（v0.24: occupation manpower multiplier 追加）
+// sum(pop.size * manpowerFactorByClass[pop.class] * occupationManpowerMultiplier[pop.occupation] * (polityControl / 100))
+function getProvinceCountryManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
 // House 用の Province 兵力基盤 (v0.16): polityManpowerBase と同等 (houseControl は廃止)
 function getProvinceHouseManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// 後方互換 wrapper: getProvincePolityManpowerBase を呼ぶ
+// 後方互換 wrapper: getProvinceCountryManpowerBase を呼ぶ
 function getProvinceManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 ```
 

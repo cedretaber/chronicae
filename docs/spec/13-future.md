@@ -521,6 +521,31 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **i18n**: goals / aims / tasks / fulfillment / blocked / waiting / activity 翻訳を en/ja で追加
 - **検証**: CLI 4 seed × 20 年 IntegrityCheck violation 0 件。66 テストファイル / 566 tests pass
 
+### v0.24 で実装済み（Holding POP 所属化と職業・無職 POP システム）
+
+詳細仕様は `docs/drafts/spec-v024-update.md` 参照。
+
+- **PopGroup の Holding 所属化**: `PopGroup.provinceId` → `PopGroup.holdingId` に変更。`Province.popGroupIds` を廃止。Province POP は Holding POP から selector で集計
+- **PopOccupation 型追加**: `agriculture` / `urban_labor` / `elite_service` / `none`。各 class に標準 occupation を対応させ、職業枠からあぶれた POP を `none` として表現
+- **occupation capacity**: Holding の kind / weight / landQuality / development から selector で導出。生産・兵力に occupation multiplier を追加
+- **popIndex (WorldState)**: `popIndex.byHolding: Record<HoldingId, PopGroupId[]>` で Holding → POP の効率的参照
+- **Province carrying capacity の再定義**: 旧 `habitability × populationCapacityPerHabitability` を廃止し、Province 内全 Holding の全職業キャパシティ合計に変更
+- **成長式の変更**: `1 - pressure` (線形) → `1 - pressure²` (二次) に変更。fill ratio ~0.70-0.75 で均衡
+- **baseMonthlyGrowthByClass 増量**: peasants 0.001→0.008、townsmen 0.0008→0.002、nobles 0.0004→0.001。災害損失を上回る成長率を確保
+- **PopSystem の overflow**: 人口増加で occupation capacity を超える分は同 Holding / 同 class の `none` POP に移す
+- **EmploymentRebalanceSystem 新設**: PopSystem 直後・LandRevenueSystem 直前。capacity 超過の強制失業化、none POP の再就業を処理
+- **POP mutation 追加**: `addToOrCreatePopGroupMut` / `splitPopGroupMut` / `movePopSizeToOccupationMut` / `removePopGroupMut` / `mergeCompatiblePopsMut`
+- **mergeCompatiblePops 年末安全弁**: 同一 merge key (holdingId + class + occupation) の POP を年末に統合
+- **normalizePopSizes 更新**: `none` POP は size が `popSizeEpsilon` 以下で削除
+- **Worldgen の POP 生成**: occupation capacity ベースの初期生成。`initialPopFillRatioMin/Max` (70/95) で充填率を制御
+- **DiplomaticDemand.revolt_concession**: `popGroupId` → `popClass` に変更（merge で消滅しうるため）
+- **周辺システム適応**: disasterSystem / conflictResolutionSystem / provinceRevoltSystem / popDevelopmentSystem / statusSelectors / polityRelations を Holding POP 参照に変更
+- **IntegrityCheck 更新**: PopGroup.holdingId 存在チェック、merge key 一意性、popIndex 整合性を追加
+- **UI**: Holding 詳細に POP / occupation / capacity 表示
+- **Config 追加**: occupationCapacityBaseByHoldingKind / occupationProductivityMultiplier / occupationManpowerMultiplier / unemployedWealthDecayByClass / unemployedUnrestGainByClass / unemployedGrowthModifierByClass / popSizeEpsilon / initialPopFillRatioMin/Max
+- **Config 削除**: `populationCapacityPerHabitability`
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系

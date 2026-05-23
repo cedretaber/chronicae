@@ -12,7 +12,6 @@ type Province = {
   neighbors: ProvinceId[]
   habitability: number    // 0..100
   holdingIds: HoldingId[]
-  popGroupIds: PopGroupId[]
 }
 ```
 
@@ -66,15 +65,18 @@ type Holding = {
 - `weight`: Holding の相対的な重み。収入分配・Province 集計の加重に使用
 - Holding-Province 対応はゲーム中不変（v0.20 scope ではゲーム中の Holding 追加・削除はない）
 
-### 3.2 PopClass / PopGroup（民衆集団）
+### 3.2 PopClass / PopOccupation / PopGroup（民衆集団、v0.24 更新）
 
 ```ts
 type PopClass = 'peasants' | 'townsmen' | 'nobles'
 
+type PopOccupation = 'agriculture' | 'urban_labor' | 'elite_service' | 'none'
+
 type PopGroup = {
   id: PopGroupId
-  provinceId: ProvinceId
+  holdingId: HoldingId       // v0.24: Province → Holding 所属に変更
   class: PopClass
+  occupation: PopOccupation  // v0.24 追加
   size: number       // 抽象人口規模（実人数ではない）
   wealth: number     // 0..100（豊かさ指数。金額ではない）
   unrest: number     // 0..100
@@ -82,13 +84,19 @@ type PopGroup = {
 }
 ```
 
-| class | 意味 | 主な役割 |
-|-------|------|----------|
-| peasants | 農民・村落民 | 人口・基礎生産・兵力の中心 |
-| townsmen | 都市民・商工民 | 税収・富・都市的発展 |
-| nobles | 在地貴族・有力者 | 兵力・家支配・貴族的不満 |
+| class | 意味 | 主な役割 | 標準 occupation |
+|-------|------|----------|----------------|
+| peasants | 農民・村落民 | 人口・基礎生産・兵力の中心 | agriculture |
+| townsmen | 都市民・商工民 | 税収・富・都市的発展 | urban_labor |
+| nobles | 在地貴族・有力者 | 兵力・家支配・貴族的不満 | elite_service |
 
-各 Province は必ず peasants / townsmen / nobles の 3 PopGroup を持つ。PopGroup は消滅しない（`minPopSizeByClass` で下限保証）。
+**v0.24 で以下の変更を実施:**
+- PopGroup は Province ではなく **Holding** に所属する
+- `occupation` により職業状態を表現する。`none` は職業枠からあぶれた POP（無職・土地なし・扶持なし）
+- `occupation !== 'none'` の POP は `minPopSizeByClass` で下限保証。`none` POP は size が `popSizeEpsilon` 以下で削除される
+- 同一 merge key (`holdingId + class + occupation`) の POP は原則 1 つに統合される
+- Province 単位の POP は Holding POP から selector で集計する（§4.2 参照）
+- 旧 `Province.popGroupIds` は廃止。POP の参照は `popIndex.byHolding` 経由
 
 Province の unrest は POP unrest の人口加重平均として selector で算出する（§4 参照）。
 
@@ -397,6 +405,10 @@ holdingOfficeIndex: {
 
 polityIndex: { byOwnerHouse: Record<HouseId, PolityId[]> }
 
+// v0.24: POP index
+popIndex: { byHolding: Record<HoldingId, PopGroupId[]> }
+nextPopGroupId: number
+
 nextLandContractId: number
 nextHoldingOfficeAssignmentId: number
 ```
@@ -494,7 +506,7 @@ type DiplomaticDemand =
   | { kind: 'transfer_land_contract'; holdingId: HoldingId; toPolityId; beneficiaryActor? }
   | { kind: 'change_contract_tax_rate'; holdingId: HoldingId; landContractId; newTaxRateToGrantor }
   | { kind: 'pay_wealth'; from; to; amount }
-  | { kind: 'revolt_concession'; provinceId; popGroupId; concessionLevel }
+  | { kind: 'revolt_concession'; provinceId; popClass: PopClass; concessionLevel }  // v0.24: popGroupId → popClass
   | { kind: 'status_quo' }
 ```
 
