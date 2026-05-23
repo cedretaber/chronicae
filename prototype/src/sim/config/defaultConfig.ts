@@ -716,7 +716,7 @@ export const defaultConfig: SimulationConfig = {
   minProvinceCarryingCapacity: 50,
   productivityByClass: { peasants: 1.0, townsmen: 1.5, nobles: 0.6 },
   manpowerFactorByClass: { peasants: 0.03, townsmen: 0.01, nobles: 0.06 },
-  baseMonthlyGrowthByClass: { peasants: 0.001, townsmen: 0.0008, nobles: 0.0004 },
+  baseMonthlyGrowthByClass: { peasants: 0.008, townsmen: 0.002, nobles: 0.001 },
   populationPressureThreshold: 0.9,
   populationPressureWealthPenalty: 0.2,
   populationPressureUnrestGain: 0.3,

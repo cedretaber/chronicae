@@ -94,7 +94,7 @@ export function runPopSystem(ctx: TickContext): TickContext {
     const pressure = pressureByProvince.get(holding.provinceId) ?? 0
 
     // 1. Population growth
-    const growthFactor = clamp(1 - pressure, -0.5, 1.0)
+    const growthFactor = clamp(1 - pressure * pressure, -0.5, 1.0)
     const baseGrowth = ctx.config.baseMonthlyGrowthByClass[pop.class]
     const wealthFactor = clamp(0.5 + pop.wealth / 100, 0.5, 1.5)
     const unrestFactor = clamp(1 - pop.unrest / 150, 0.3, 1)

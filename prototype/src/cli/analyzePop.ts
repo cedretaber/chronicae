@@ -3,7 +3,7 @@ import { tick } from '@sim/tick/tick'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import type { WorldState } from '@sim/types/world'
 import type { PopClass, PopOccupation } from '@sim/types/popGroup'
-import type { ProvinceId, HoldingId } from '@sim/types/ids'
+import type { ProvinceId } from '@sim/types/ids'
 import {
   getProvincePopulation,
   getProvinceCarryingCapacity,
@@ -32,7 +32,18 @@ function collectPopStats(state: WorldState) {
   let totalUnrest = 0
   let popCount = 0
 
-  const byClass: Record<string, { pop: number; capacity: number; employed: number; unemployed: number; wealth: number; unrest: number; count: number }> = {
+  const byClass: Record<
+    string,
+    {
+      pop: number
+      capacity: number
+      employed: number
+      unemployed: number
+      wealth: number
+      unrest: number
+      count: number
+    }
+  > = {
     peasants: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealth: 0, unrest: 0, count: 0 },
     townsmen: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealth: 0, unrest: 0, count: 0 },
     nobles: { pop: 0, capacity: 0, employed: 0, unemployed: 0, wealth: 0, unrest: 0, count: 0 },
@@ -44,14 +55,27 @@ function collectPopStats(state: WorldState) {
 
     for (const holdingId of province.holdingIds) {
       for (const [popClass, occupation] of CLASS_OCCUPATION_PAIRS) {
-        const cap = getHoldingOccupationCapacity(state, defaultConfig, holdingId, popClass, occupation)
-        const employed = getHoldingPopSizeByClassAndOccupation(state, holdingId, popClass, occupation)
+        const cap = getHoldingOccupationCapacity(
+          state,
+          defaultConfig,
+          holdingId,
+          popClass,
+          occupation,
+        )
+        const employed = getHoldingPopSizeByClassAndOccupation(
+          state,
+          holdingId,
+          popClass,
+          occupation,
+        )
         const unemployed = getHoldingPopSizeByClassAndOccupation(state, holdingId, popClass, 'none')
 
-        byClass[popClass].capacity += cap
-        byClass[popClass].employed += employed
-        byClass[popClass].unemployed += unemployed
-        byClass[popClass].pop += employed + unemployed
+        const cls = byClass[popClass]
+        if (!cls) continue
+        cls.capacity += cap
+        cls.employed += employed
+        cls.unemployed += unemployed
+        cls.pop += employed + unemployed
 
         totalCapacity += cap
         totalEmployed += employed
@@ -91,7 +115,8 @@ function collectPopStats(state: WorldState) {
     if (cap > 0) pressures.push(clamp(pop / cap, 0, 2))
   }
 
-  const avgPressure = pressures.length > 0 ? pressures.reduce((a, b) => a + b, 0) / pressures.length : 0
+  const avgPressure =
+    pressures.length > 0 ? pressures.reduce((a, b) => a + b, 0) / pressures.length : 0
   const maxPressure = pressures.length > 0 ? Math.max(...pressures) : 0
   const overPressureCount = pressures.filter((p) => p > 1).length
 
@@ -114,9 +139,9 @@ function collectPopStats(state: WorldState) {
 }
 
 function formatRow(year: number, stats: ReturnType<typeof collectPopStats>): string {
-  const p = stats.byClass.peasants
-  const t = stats.byClass.townsmen
-  const n = stats.byClass.nobles
+  const p = stats.byClass.peasants!
+  const t = stats.byClass.townsmen!
+  const n = stats.byClass.nobles!
   return [
     String(year).padStart(4),
     String(stats.totalPop).padStart(7),
@@ -162,31 +187,38 @@ function printHeader(): void {
   console.log('-'.repeat(header.length))
 }
 
-async function main() {
+function main() {
   const args = process.argv.slice(2)
   let seed = '1'
   let years = 20
   let preset = 'small'
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--seed' && args[i + 1]) seed = args[++i]
-    else if (args[i] === '--years' && args[i + 1]) years = parseInt(args[++i], 10)
-    else if (args[i] === '--preset' && args[i + 1]) preset = args[++i]
+    if (args[i] === '--seed' && args[i + 1]) {
+      i++
+      seed = args[i]!
+    } else if (args[i] === '--years' && args[i + 1]) {
+      i++
+      years = parseInt(args[i]!, 10)
+    } else if (args[i] === '--preset' && args[i + 1]) {
+      i++
+      preset = args[i]!
+    }
   }
 
-  const namePoolPaths = [
-    path.resolve(process.cwd(), 'src/sim/namegen/pools/western.yaml'),
-  ]
-  const pools: NamePoolData[] = namePoolPaths
-    .filter((p) => fs.existsSync(p))
-    .map((p) => YAML.parse(fs.readFileSync(p, 'utf8')) as NamePoolData)
-  const nameService = createNamePoolService(pools)
+  const namePoolPath = path.resolve(process.cwd(), 'src/sim/namegen/namePools.yaml')
+  const poolData = YAML.parse(fs.readFileSync(namePoolPath, 'utf8')) as NamePoolData
+  const nameService = createNamePoolService(poolData)
 
   console.log(`=== POP Dynamics Analysis ===`)
   console.log(`Seed: ${seed} | Years: ${years} | Preset: ${preset}`)
   console.log('')
 
-  const worldResult = generateWorld(seed, preset as 'tiny' | 'small' | 'standard' | 'perfLarge', nameService)
+  const worldResult = generateWorld(
+    seed,
+    preset as 'tiny' | 'small' | 'standard' | 'perfLarge',
+    nameService,
+  )
   let state = worldResult.world
   let rng = worldResult.rng
 
@@ -201,7 +233,6 @@ async function main() {
       state,
       rng,
       config: defaultConfig,
-      debug: false,
     })
     state = result.state
     rng = result.rng
@@ -219,24 +250,26 @@ async function main() {
     const empRate = data.pop > 0 ? ((data.employed / data.pop) * 100).toFixed(1) : '100.0'
     console.log(
       `  ${cls.padEnd(10)}: pop=${Math.round(data.pop).toString().padStart(6)}, ` +
-      `cap=${Math.round(data.capacity).toString().padStart(6)}, ` +
-      `employed=${Math.round(data.employed).toString().padStart(6)}, ` +
-      `unemployed=${Math.round(data.unemployed).toString().padStart(6)}, ` +
-      `empRate=${empRate}%, ` +
-      `wealth=${data.wealth.toFixed(1)}, unrest=${data.unrest.toFixed(1)}`
+        `cap=${Math.round(data.capacity).toString().padStart(6)}, ` +
+        `employed=${Math.round(data.employed).toString().padStart(6)}, ` +
+        `unemployed=${Math.round(data.unemployed).toString().padStart(6)}, ` +
+        `empRate=${empRate}%, ` +
+        `wealth=${data.wealth.toFixed(1)}, unrest=${data.unrest.toFixed(1)}`,
     )
   }
   console.log(
     `  ${'TOTAL'.padEnd(10)}: pop=${final.totalPop.toString().padStart(6)}, ` +
-    `cap=${final.totalCapacity.toString().padStart(6)}, ` +
-    `employed=${final.totalEmployed.toString().padStart(6)}, ` +
-    `unemployed=${final.totalUnemployed.toString().padStart(6)}, ` +
-    `empRate=${(final.employmentRate * 100).toFixed(1)}%, ` +
-    `fill=${final.fillRatio.toFixed(2)}, pressure=${final.avgPressure.toFixed(2)}`
+      `cap=${final.totalCapacity.toString().padStart(6)}, ` +
+      `employed=${final.totalEmployed.toString().padStart(6)}, ` +
+      `unemployed=${final.totalUnemployed.toString().padStart(6)}, ` +
+      `empRate=${(final.employmentRate * 100).toFixed(1)}%, ` +
+      `fill=${final.fillRatio.toFixed(2)}, pressure=${final.avgPressure.toFixed(2)}`,
   )
 }
 
-main().catch((err) => {
+try {
+  main()
+} catch (err) {
   console.error(err)
   process.exit(1)
-})
+}
