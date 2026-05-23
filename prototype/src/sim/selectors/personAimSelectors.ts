@@ -39,9 +39,10 @@ export function scorePersonAimKind(
   let heldHouseOffice: { organization: PoliticalActorRef; role: OfficeRole } | undefined
   let hasAnyOffice = false
 
-  for (const [, oa] of Object.entries(state.officeAssignments)) {
+  const holderOfficeIds = state.officeIndex.byHolderPerson[personId as string] ?? []
+  for (const oaId of holderOfficeIds) {
+    const oa = state.officeAssignments[oaId]
     if (!oa || !oa.active) continue
-    if ((oa.holderPersonId as string) !== (personId as string)) continue
     hasAnyOffice = true
     if (oa.organization.kind === 'polity') {
       heldPolityOffice = {
@@ -119,12 +120,11 @@ export function scorePersonAimKind(
             'advisor',
           ]
           for (const role of roles) {
-            // Check if person already holds this specific office
             let alreadyHolds = false
-            for (const [, oa] of Object.entries(state.officeAssignments)) {
+            for (const oaId of holderOfficeIds) {
+              const oa = state.officeAssignments[oaId]
               if (!oa || !oa.active) continue
               if (
-                (oa.holderPersonId as string) === (personId as string) &&
                 oa.organization.kind === 'house' &&
                 (oa.organization.id as string) === (person.houseId as string) &&
                 oa.role === role
@@ -153,10 +153,10 @@ export function scorePersonAimKind(
               ) {
                 for (const role of roles) {
                   let alreadyHolds = false
-                  for (const [, oa] of Object.entries(state.officeAssignments)) {
+                  for (const oaId of holderOfficeIds) {
+                    const oa = state.officeAssignments[oaId]
                     if (!oa || !oa.active) continue
                     if (
-                      (oa.holderPersonId as string) === (personId as string) &&
                       oa.organization.kind === 'polity' &&
                       (oa.organization.id as string) === (share.organization.id as string) &&
                       oa.role === role
