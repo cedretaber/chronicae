@@ -79,6 +79,13 @@
 | HOUSE_POLICY_INFLUENCE | minor | House の政策誘導（v0.22） |
 | HOUSE_PATRONIZED_ARTIST | normal | 芸術家後援（v0.22） |
 | HOUSE_COMMISSIONED_CHRONICLE | normal | 年代記編纂（v0.22） |
+| PERSON_GOAL_CREATED | minor | Person Goal 生成（v0.23） |
+| PERSON_AIM_CREATED | minor | Person Aim 生成（v0.23） |
+| PERSON_AIM_SUCCEEDED | normal | Person Aim 達成（v0.23） |
+| PERSON_AIM_FAILED | minor | Person Aim 失敗（v0.23） |
+| TASK_COMPLETED | minor | Task 完了（v0.23） |
+| TASK_FAILED | minor | Task 失敗（v0.23） |
+| TASK_CANCELLED | minor | Task キャンセル（v0.23） |
 
 **v0.22 で削除された EventType**:
 

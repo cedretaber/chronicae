@@ -128,6 +128,19 @@ holding.polityControl = maxControl(capitalProvinceId からの BFS 距離)
 
 全 **Holding** に `bailiff` HoldingOfficeAssignment を生成し、holder は **placeholder Person** (AnonymousHouse 所属) とする。BailiffAppointmentSystem (§6.14e) が実行されると順次通常人物に置き換わる。
 
+### 7.8a Person Goal / Aim 初期生成（v0.23）
+
+全 adult normal Person に初期 Person Goal を生成する。Goal 生成後、各 Person に初期 Person Aim と initial Task も生成する。
+
+```ts
+for each alive adult normal person:
+  1. PersonGoalKind をスコアリングで選択
+  2. Goal を生成（progress = baseFulfillment 初期値）
+  3. PersonAimKind をスコアリングで選択（support_organization_aim は除外）
+  4. Aim を生成（activeTaskId 付き）
+  5. initial Task を生成
+```
+
 ### 7.8 エンティティ名称の生成
 
 Polity / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` に定義された名前プールから seed 付き RNG で選択する。

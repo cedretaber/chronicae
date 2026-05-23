@@ -512,9 +512,9 @@ type WorldState = {
 
 terminal status の ActorIntent / DiplomaticPlay は tick 末の `cleanupTerminalDiplomacy` phase で state から完全削除される。履歴は Event ログに残す。
 
-### 3.10 目標システム (v0.22)
+### 3.10 目標システム (v0.22 / v0.23 拡張)
 
-Polity / House が長期目標 Goal → 中期計画 Aim → 短期意図 Intent の階層で一貫した行動を取る。詳細仕様は `docs/drafts/spec-v022-update.md` 参照。
+Polity / House / Person が長期目標 Goal → 中期計画 Aim → 短期意図 Intent / Task の階層で一貫した行動を取る。詳細仕様は `docs/drafts/spec-v022-update.md` / `docs/drafts/spec-v023-update.md` 参照。
 
 #### Goal
 
@@ -522,13 +522,16 @@ Polity / House が長期目標 Goal → 中期計画 Aim → 短期意図 Intent
 type GoalStatus = 'active' | 'succeeded' | 'failed' | 'abandoned'
 type PolityGoalKind = 'external_expansion' | 'internal_development'
 type HouseGoalKind = 'expand_power_base' | 'preserve_power_base' | 'cultivate_prestige'
+// v0.23 追加
+type PersonGoalKind = 'house_loyalty' | 'public_service' | 'personal_advancement' | 'wealth_building' | 'self_cultivation'
+type GoalKind = PolityGoalKind | HouseGoalKind | PersonGoalKind
 
 type Goal = {
   id: GoalId
   owner: DecisionSubjectRef  // { kind: 'polity' | 'house' | 'person'; id }
   kind: GoalKind
   priority: number
-  progress: number        // 0..targetProgress
+  progress: number        // 0..targetProgress（Person Goal では baseFulfillment として 0..100 にクランプ）
   targetProgress: number  // 原則 100
   createdWeek: number
   minimumUntilWeek: number
@@ -539,7 +542,7 @@ type Goal = {
 }
 ```
 
-各 Polity / House は active Goal を原則 1 つだけ持つ。Aim の成功で progress +25、失敗で -10、abandon で -5。progress が targetProgress に達すると succeeded。
+各 Polity / House / Person は active Goal を原則 1 つだけ持つ。Aim の成功で progress +25、失敗で -10、abandon で -5。progress が targetProgress に達すると succeeded（ただし Person Goal は succeeded にならず、fulfillment として 0..100 で維持）。
 
 #### Aim
 
@@ -548,6 +551,9 @@ type AimStatus = 'active' | 'succeeded' | 'failed' | 'abandoned'
 type AimOrigin = 'goal_driven' | 'pressure_response'
 type PolityAimKind = 'consolidate_province_holdings' | 'seize_weak_remote_holdings' | 'develop_owned_holding' | 'improve_owned_contract_terms'
 type HouseAimKind = 'increase_polity_share' | 'steer_polity_external_expansion' | 'steer_polity_internal_development' | 'patronize_artist' | 'commission_chronicle'
+// v0.23 追加
+type PersonAimKind = 'support_organization_aim' | 'increase_house_influence' | 'obtain_office' | 'retain_office' | 'accumulate_wealth' | 'improve_ability'
+type AimKind = PolityAimKind | HouseAimKind | PersonAimKind
 
 type Aim = {
   id: AimId
@@ -566,6 +572,12 @@ type Aim = {
   nextIntentAllowedWeek?: number
   activeIntentId?: ActorIntentId
   activeDiplomaticPlayId?: DiplomaticPlayId
+  // v0.23 追加
+  activeTaskId?: TaskId
+  waitingFor?: TaskTargetRef
+  waitingReasonKey?: string
+  blockedReasonKey?: string
+  nextReviewWeek?: number
   successfulIntentCount: number
   failedIntentCount: number
   status: AimStatus
@@ -573,7 +585,7 @@ type Aim = {
 }
 ```
 
-Aim は中期計画。期限と成功条件を持ち、複数の Intent を順次生成できる。v0.22 では active Aim は原則 1 つ/主体。
+Aim は中期計画。期限と成功条件を持つ。Person Aim は Task で直接進行し、Polity / House Aim は Intent / DiplomaticPlay 経由で進行する。activeTaskId / activeIntentId / activeDiplomaticPlayId は同時に最大 1 つのみセット。
 
 #### DecisionReason
 
@@ -608,6 +620,123 @@ type WorldState = {
 
 terminal Goal / Aim は tick 末の `cleanupTerminalDecisions` phase で state から完全削除される。
 
+### 3.11 Task / ActivityLog システム (v0.23)
+
+#### Task
+
+Task は特定の人物が週単位で処理する具体的な仕事。ephemeral であり、active Task のみ state に保持する。
+
+```ts
+type TaskStatus = 'active' | 'succeeded' | 'failed' | 'cancelled'
+type TaskOutcomeKind = 'success' | 'failure' | 'partial'
+
+type TaskKind =
+  | 'support_organization_plan' | 'promote_house_influence' | 'perform_office_duties'
+  | 'seek_office_support' | 'display_competence' | 'defend_office_position'
+  | 'manage_accounts' | 'seek_profitable_assignment'
+  | 'study_law' | 'study_accounts' | 'practice_arms' | 'courtly_training'
+  | 'prepare_intent' | 'secure_internal_support'
+  | 'secure_development_budget' | 'supervise_holding_development'
+  | 'arrange_patronage' | 'commission_chronicle_work'
+  | 'prepare_argument' | 'gather_claim_evidence' | 'negotiate_terms'
+  | 'pressure_counterparty' | 'offer_compromise' | 'undermine_counterparty_position'
+
+type TaskTargetRef =
+  | { kind: 'aim'; id: AimId }
+  | { kind: 'intent'; id: ActorIntentId }
+  | { kind: 'diplomatic_play'; id: DiplomaticPlayId }
+
+type Task = {
+  id: TaskId
+  owner: DecisionSubjectRef
+  assigneePersonId: PersonId
+  kind: TaskKind
+  targetRef: TaskTargetRef
+  priority: number
+  actionCost: number
+  effortRequired: number
+  effortDone: number
+  createdWeek: number
+  deadlineWeek?: number
+  status: TaskStatus
+  reasonIds: DecisionReasonId[]
+}
+```
+
+完了・失敗・キャンセルされた Task は ActivityLog 作成後に state.tasks から削除。ID は再利用しない。
+
+#### PersonActivityLog
+
+Task 完了・失敗・キャンセル時に作成される軽量な行動記録。
+
+```ts
+type PersonActivityKind = 'task_completed' | 'task_failed' | 'task_cancelled'
+
+type PersonActivityLog = {
+  id: PersonActivityLogId
+  personId: PersonId
+  week: number
+  kind: PersonActivityKind
+  outcome: TaskOutcomeKind
+  taskKind: TaskKind
+  sourceRef?: TaskTargetRef
+  relatedRefs: EntityRef[]
+  summaryKey: string
+  params?: Record<string, string | number>
+  importance: number
+}
+```
+
+person ごとに最新 `maxActivityLogsPerPerson` 件（デフォルト 30）まで保持。超過時は importance が最も低い古い log から削除。
+
+#### DiplomaticPlay 拡張 (v0.23)
+
+DiplomaticPlay に delegate と交渉パラメータを追加。
+
+```ts
+type DiplomaticPlay = {
+  ...existing fields...
+  // v0.23 追加
+  initiatorDelegatePersonId?: PersonId
+  targetDelegatePersonId?: PersonId
+  initiatorPreparation: number   // 0..100
+  initiatorLeverage: number      // 0..100
+  initiatorCommitment: number    // 0..100
+  targetPreparation: number
+  targetLeverage: number
+  targetCommitment: number
+  initiatorActiveTaskIds: TaskId[]
+  targetActiveTaskIds: TaskId[]
+}
+```
+
+#### WorldState 追加 (v0.23)
+
+```ts
+type WorldState = {
+  ...
+  // Task
+  tasks: Record<TaskId, Task>
+  taskIndex: {
+    byAssignee: Record<PersonId, TaskId[]>
+    byOwner: Record<string, TaskId[]>
+    byTarget: Record<string, TaskId[]>
+  }
+  waitingAimIds: WaitingAimIndex
+  nextTaskId: number
+
+  // ActivityLog
+  personActivityLogs: Record<PersonActivityLogId, PersonActivityLog>
+  personActivityLogIndex: {
+    byPerson: Record<PersonId, PersonActivityLogId[]>
+  }
+  nextPersonActivityLogId: number
+
+  // 能力訓練経験
+  personTrainingExperience: Record<PersonId, Partial<Record<AbilityKey, number>>>
+}
+```
+
 ID prefix:
 
 | Type | Prefix |
@@ -615,6 +744,8 @@ ID prefix:
 | `GoalId` | `go-` |
 | `AimId` | `am-` |
 | `DecisionReasonId` | `dr-` |
+| `TaskId` | `t-` |
+| `PersonActivityLogId` | `pal-` |
 
 ---
 

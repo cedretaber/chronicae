@@ -474,7 +474,7 @@ v0.14 では `handleRulerHouseExtinction` が ruler house extinct で Country �
 
 イベント: `HOUSE_EXTINCT`（importance: `major`）
 
-### 6.14 AppointmentSystem（48週ごと = 毎年）
+### 6.14 AppointmentSystem（12週ごと = 3ヶ月ごと、v0.23 で頻度変更）
 
 Polity と House それぞれの役職（leader 以外の 4 種）に対して、空席を最適候補で補充する。
 
@@ -518,9 +518,11 @@ score = relevantStat(role) * 1.0
   - House 役職: leader 以外は一律 maxHolders = 1（v0.21）
 - 死亡者の役職は自動的に revoke される
 
+**v0.23 追加**: `getAppointmentTaskModifier(state, personId, organization, role)` による Person Aim / Task 効果の補正を候補スコアに加算。obtain_office / retain_office Aim が active、または seek_office_support / display_competence の直近 ActivityLog がある候補は +appointmentTaskModifierValue（デフォルト 4）の補正を受ける。
+
 **イベント**: `OFFICE_ASSIGNED`（importance: `normal`）
 
-### 6.14b OfficeCompensationSystem（48週ごと = 毎年）
+### 6.14b OfficeCompensationSystem（4週ごと、v0.23 で頻度変更）
 
 アクティブな OfficeAssignment に対して、`baseSalary`（§3.7 参照）に基づく給与を支払う。
 
@@ -607,6 +609,8 @@ if (ability[k] < effectiveCeil) {
 * **経験あり** → `effectiveCeil = aptitude[k]`（能力は aptitude を目指して伸びる）
 * **経験なし** → `effectiveCeil = naturalCeil`（年齢曲線の自然到達水準で頭打ち）
 
+**v0.23 追加**: `personTrainingExperience` がある場合、成長判定の `gainChance` に bonus を加算する。年次処理後、使用した ability の experience を `trainingExperienceDecayRate`（0.5）倍に減衰させる（50% 残留）。値が 0.1 未満になった場合は削除。
+
 **衰退判定**: `youthPeak` / `midLifePeak` 曲線の能力で、`ability > naturalCeil` の場合に発火。経験あり人物は `abilityActiveDeclineMultiplier`（0.3）で衰退速度が鈍化する。`lifelongGrowth`（numeracy / learning）は衰退しない。
 
 **経験イベント対応表（hadRelevantExperience）**:
@@ -621,6 +625,7 @@ if (ability[k] < effectiveCeil) {
 | House military (marshal) 在任 | command, valor |
 | 戦争 active 期間中（48 週以内に lastWarWeek）の在国 | valor, command |
 | PlotSystem の active リーダー | insight |
+| improve_ability Task の personTrainingExperience (v0.23) | 対象 ability |
 
 ### 6.15 AmbitionSystem（4週ごと）
 
@@ -1052,11 +1057,13 @@ Province 単位 dedup: 同一 Province に対して同時進行できる外交�
 
 **v0.20**: Play 生成時に `selectTargetHoldingInProvince` で対象 Holding を選定し、DiplomaticDemand の `holdingId` に設定する。dedup は引き続き Province 単位。
 
-### 6.27 DiplomaticPlaySystem（4週ごと、v0.18）
+### 6.27 DiplomaticPlaySystem（4週ごと、v0.18 / v0.23 Task-driven 化）
 
 active な DiplomaticPlay を進行させる。
 
-各 Play kind の acceptanceScore を計算し、progress / tension を更新。
+**v0.23**: structuralProgress を `structuralProgressFactor`（0.33）で弱化。delegate 選定・Task 生成・交渉パラメータ更新を追加。
+
+各 Play kind の acceptanceScore を計算し、progress / tension を更新（v0.23 では ×0.33 の弱化係数を適用）。
 - progress >= settlementThreshold (60) → settlement
 - tension >= escalationThreshold (40) → escalation (status='escalated')
 - deadline 到達 → progress > tension なら settlement、それ以外 escalation
@@ -1082,12 +1089,57 @@ WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / developme
 
 terminal status の ActorIntent / DiplomaticPlay を state から削除する GC。IntegrityCheck の直前に置く。v0.17.3 で inactive OfficeAssignment / FactionMembership の累積が perf 問題を引き起こした経験を踏まえ、最初から完全削除設計。
 
+### 6.29b PersonGoalMaintenanceSystem（48週ごと、v0.23）
+
+Person Goal（人生目標）の生成と管理。成人時または初期生成時に 1 つの PersonGoalKind を選択。Person Goal は原則として固定であり、GoalMaintenanceSystem のレビュー・差し替え対象にはならない。
+
+**生成対象**: alive / normal / adultAge 以上 / active House 所属の Person。placeholder は除外。
+
+**PersonGoalKind スコアリング**: trait (ambition/caution)、ability、attitude、office 保有、組織コンテキストから score を計算し、最高スコアの kind を選択。
+
+**fulfillment**: Goal.progress を baseFulfillment として使用。`getPersonGoalFulfillment` selector で baseFulfillment + 現在状況由来の modifier を算出（0..100 に clamp）。
+
+イベント: `PERSON_GOAL_CREATED`
+
+### 6.29c PersonAimMaintenanceSystem（4週ごと、v0.23）
+
+Person Aim の生成・deadline 判定・waiting 再評価を管理。
+
+**4w で実行する処理**: deadline 到達 Aim を failed に。target 無効 Aim を failed/abandoned に。waiting Aim の再評価（nextReviewWeek 到達時）。active Aim がない Person に Aim を生成。
+
+**PersonAimKind 選択**: Goal Kind と状況に基づいてスコアリング。Phase A では `support_organization_aim` を除外。
+
+**Aim → Task 接続**: Aim 作成時に initial Task を生成し、activeTaskId を設定。
+
+イベント: `PERSON_AIM_CREATED` / `PERSON_AIM_SUCCEEDED` / `PERSON_AIM_FAILED`
+
+### 6.29d TaskSystem（毎週、v0.23）
+
+Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で完結する一体型 system。
+
+**処理フロー**:
+1. active Task の自動キャンセル判定（assignee 死亡/placeholder、owner inactive、target 消滅/terminal）
+2. active Task を assigneePersonId ごとに集める
+3. effectivePriority を計算（ownerDutyBonus + goalAlignmentBonus + urgencyBonus + taskKindPriorityBonus - overloadPenalty）
+4. actionCapacity が許す限り Task を処理（base 2.0、ambition ≥ 0.7 で +0.5、age ≥ 60 で -0.5）
+5. effortDone を加算（weeklyEffort = 1.0 × (1 + relevantAbility / 100)）
+6. 完了した Task の outcome を解決（effortDone >= effortRequired で完了）
+7. ActivityLog を作成
+8. target entity に結果を反映（Aim progress 更新、次 Task 生成、waiting/blocked 状態管理）
+9. 完了・失敗・キャンセルされた Task を state から削除
+
+**DiplomaticPlay Task**: delegate に割り当て。side (initiator/target) で Task 種類の base score が異なる。delegate 能力が効果量に倍率（0.5 + ability/100）で影響。
+
+イベント: `TASK_COMPLETED` / `TASK_FAILED` / `TASK_CANCELLED`
+
 ### 6.30 GoalMaintenanceSystem（4週ごと、v0.22）
 
 Goal の生成・レビュー・abandon を管理する。tick 登録は 4w だが、生成・レビューは内部 48w ゲートで制御。
 
 **4w で実行する処理**: inactive になった Polity / House の Goal を abandoned にする。
 **48w ゲートで実行する処理**: active Goal がない主体に Goal を生成。review timing の Goal を評価し、steer_polity_* House Aim から policyInfluenceBonus を加算して差し替え判断。
+
+**v0.23**: `owner.kind === 'person'` の Goal はスキップ（PersonGoalMaintenanceSystem で個別管理）。
 
 GoalKind のスコアリング（§11.4 相当）は `goalSelectors.ts` の `scorePolityGoalKind` / `scoreHouseGoalKind` で実装。system House は除外。
 
@@ -1106,7 +1158,7 @@ Aim target 選定は `goalSelectors.ts` の `pickAimForGoal` で実装。
 
 ### 6.30b AimToIntentGenerationSystem（4週ごと、v0.22）
 
-active Aim から ActorIntent を生成する。Aim.activeIntentId / activeDiplomaticPlayId が設定済みならスキップ。cooldown（nextIntentAllowedWeek）チェック。
+active Aim から ActorIntent を生成する。Aim.activeIntentId / activeDiplomaticPlayId が設定済みならスキップ。cooldown（nextIntentAllowedWeek）チェック。**v0.23**: `owner.kind === 'person'` の Aim はスキップ（Person Aim は Intent を生成せず Task で直接進行）。
 
 外交劇系: acquire_land / improve_contract_terms / demand_tax_increase。
 Action 系: develop_holding / expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle。
@@ -1131,9 +1183,11 @@ terminal DiplomaticPlay の aimId を確認し、Play の結果に応じて Aim 
 
 イベント: `AIM_SUCCEEDED`
 
-### 6.30e GoalOutcomeSystem（4週ごと、v0.22）
+### 6.30e GoalOutcomeSystem（4週ごと、v0.22 / v0.23 拡張）
 
 terminal Aim の goalId を確認し、Aim 結果に応じて Goal progress を更新する。succeeded → +25、failed → -10、abandoned → -5（config 経由）。progress を 0..targetProgress にクランプ。progress >= targetProgress で Goal succeeded。
+
+**v0.23**: `owner.kind === 'person'` の Goal は progress を 0..100 にクランプし、succeeded にはしない（Person Goal は人生目標であり達成判定を行わない）。
 
 イベント: `GOAL_SUCCEEDED`
 

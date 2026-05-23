@@ -62,9 +62,10 @@ const WEEKS_PER_SEASON = 12
 | 11b | UnaffiliatedPersonSystem | 48 | 旧毎年 |
 | 11c | OfficeTermSystem | 48 | 旧毎年 |
 | 12 | ShareUpdateSystem | 48 | 旧毎年 |
-| 13 | AppointmentSystem | 48 | 旧毎年 |
-| 13b | BailiffAppointmentSystem | 24 | 旧6ヶ月ごと |
-| 14 | OfficeCompensationSystem | 48 | 旧毎年 |
+| 13 | AppointmentSystem | 12 | v0.23: 48→12 に変更。3ヶ月ごと |
+| 13b | TaskSystem | 1 | v0.23 追加。毎週。Task 生成・処理・outcome・cleanup 一体 |
+| 13c | BailiffAppointmentSystem | 12 | 旧6ヶ月ごと |
+| 14 | OfficeCompensationSystem | 4 | 旧毎年→4週ごとに変更 |
 | 14b | FactionPatronageSystem | 48 | 旧毎年 |
 | 14c | FactionDefectionSystem | 48 | 旧毎年 |
 | 14d | FactionMaintenanceSystem | 4 | v0.19 で分割: leader 死亡時継承・死亡 member 整理 |
@@ -76,7 +77,9 @@ const WEEKS_PER_SEASON = 12
 | 17 | ~~HouseDevelopmentSystem~~ | — | **v0.22 で廃止**（§6.17）。土地開発は Polity develop_holding に一本化 |
 | 18 | PopDevelopmentSystem | 4 | 旧毎月 |
 | 19 | PlotSystem | 4 | 旧毎月 |
-| 20 | GoalMaintenanceSystem | 4 | v0.22。生成・レビューは内部 48w ゲート |
+| 19b | PersonGoalMaintenanceSystem | 48 | v0.23 追加。Person Goal 生成・fulfillment 管理 |
+| 19c | PersonAimMaintenanceSystem | 4 | v0.23 追加。Person Aim 生成・deadline/waiting 管理 |
+| 20 | GoalMaintenanceSystem | 4 | v0.22。生成・レビューは内部 48w ゲート。owner.kind === 'person' はスキップ |
 | 20b | AimMaintenanceSystem | 4 | v0.22。生成は内部 48w ゲート |
 | 20c | IntentGenerationSystem | 48 | 旧毎年。v0.22 で sell_land 専用に縮小 |
 | 20d | AimToIntentGenerationSystem | 4 | v0.22 |
@@ -114,7 +117,7 @@ Consistency 系 2 つは所領変動 system の直後に走り、所領異動の
 
 ### 5.7 順序の理由
 
-PopSystem を LandRevenueSystem より前に置くことで、当 tick の POP 状態変化を反映して生産量を計算する。LandRevenueSystem の直後に PolitySurplusDistributionSystem を置くことで、上納後の余剰を即座に Share holder に分配する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当 tick に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は年次実行され、次の 1 年間の各システムで使われる。
+PopSystem を LandRevenueSystem より前に置くことで、当 tick の POP 状態変化を反映して生産量を計算する。LandRevenueSystem の直後に PolitySurplusDistributionSystem を置くことで、上納後の余剰を即座に Share holder に分配する。ShareUpdateSystem を BirthSystem の後・AppointmentSystem の前に置くことで、最新の人口・家構成を反映した Share 計算結果に基づいて役職候補評価が行われる。AppointmentSystem を TaskSystem より前に置くことで、同一週に完了した Task が即座に任官に反映されない（前週までの結果のみが材料になる）自然な順序を実現する。PersonGoalMaintenanceSystem / PersonAimMaintenanceSystem は AppointmentSystem の後だが、TaskSystem が毎週実行されるため前週までの Task 結果は常に利用可能。AttitudeDecaySystem を反乱・revolt の後に置くことで、各システムが当 tick に書き込んだ態度変化が減衰前に反映される。GovernanceSystem（adminPower キャッシュ計算）は年次実行され、次の 1 年間の各システムで使われる。
 
 ---
 

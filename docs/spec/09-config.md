@@ -337,6 +337,27 @@
 | commissionChroniclePrestigeGain | 5 | commission_chronicle の legacyPrestige 上昇量 |
 | policyInfluenceBonusBase | 10 | steer_polity_* Aim の基礎補正量 |
 | policyInfluenceBonusShareFactor | 0.5 | Share 割合ごとの追加補正係数 |
+| **Task / effectivePriority システム（v0.23）** | | |
+| effectivePriorityOwnerDutyBonus | 20 | 役職義務一致時の ownerDutyBonus |
+| effectivePriorityGoalAlignmentBonus | 10 | Person Goal 一致時の goalAlignmentBonus |
+| effectivePriorityUrgencyMaxBonus | 15 | deadline 超過時の urgencyBonus |
+| effectivePriorityUrgencyMediumBonus | 10 | 残り 4 週以内の urgencyBonus |
+| effectivePriorityUrgencySmallBonus | 5 | 残り 12 週以内の urgencyBonus |
+| effectivePriorityDiplomaticTaskBonus | 10 | 外交系 Task の taskKindPriorityBonus |
+| effectivePriorityOfficeDutyBonus | 5 | perform_office_duties の taskKindPriorityBonus |
+| effectivePriorityOverloadThreshold | 3 | overloadPenalty 発動の active Task 数閾値 |
+| effectivePriorityOverloadPenaltyPerTask | 3 | 超過 1 件あたりの overloadPenalty |
+| **DiplomaticPlay Task（v0.23）** | | |
+| diplomaticPlayStructuralProgressFactor | 0.33 | 構造的進行の弱化係数 |
+| diplomaticPlayMaxActiveTasksPerSide | 1 | 各 side の同時 active Task 数上限 |
+| **Appointment modifier（v0.23）** | | |
+| appointmentTaskModifierValue | 4 | Aim/ActivityLog ベースの任官補正値 |
+| appointmentTaskModifierDurationWeeks | 16 | ActivityLog 参照期間（週） |
+| **PersonActivityLog（v0.23）** | | |
+| maxActivityLogsPerPerson | 30 | person ごとの ActivityLog 保持上限 |
+| **Training（v0.23）** | | |
+| taskTrainingExperienceGain | 2.0 | improve_ability Task 完了時の experience 加算量 |
+| trainingExperienceDecayRate | 0.5 | 年次成長判定後の experience 減衰率 |
 
 ---
 

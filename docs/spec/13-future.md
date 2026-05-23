@@ -499,6 +499,28 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **EventType 1 種削除**: HOUSE_LAND_DEVELOPED (houseDevelopmentSystem 廃止)
 - **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
 
+### v0.23 で実装済み（Person Goal / Aim / Task-driven Decision System）
+
+詳細仕様は `docs/drafts/spec-v023-update.md` 参照。
+
+- **Person Goal**: 人生目標 5 種（house_loyalty / public_service / personal_advancement / wealth_building / self_cultivation）。fulfillment 管理。原則固定で succeeded にならない
+- **Person Aim**: 中期方針 6 種（support_organization_aim / increase_house_influence / obtain_office / retain_office / accumulate_wealth / improve_ability）。Task で直接進行
+- **Task entity**: 23 種の TaskKind。assignee が週単位で処理。ephemeral（完了時に state から削除）
+- **TaskSystem**: 毎週実行。effectivePriority 計算（5 項）、actionCapacity 管理、effort 処理、完了判定、ActivityLog 作成、次 Task 生成
+- **PersonGoalMaintenanceSystem**: 48 週ごと。Person Goal 生成・fulfillment 管理
+- **PersonAimMaintenanceSystem**: 4 週ごと。Person Aim 生成・deadline/waiting 管理
+- **PersonActivityLog**: Task 完了・失敗・キャンセル時の軽量行動記録。person ごとに最大 30 件保持
+- **DiplomaticPlay Task-driven 化**: delegate 選定、交渉パラメータ（preparation / leverage / commitment）、structuralProgress 弱化（×0.33）、delegate 能力による効果量倍率
+- **AppointmentSystem 接続**: getAppointmentTaskModifier。obtain_office / retain_office Aim / ActivityLog から任官補正
+- **personTrainingExperience**: improve_ability Task → experience 蓄積 → personGrowthSystem で bonus → 50% 減衰
+- **effectivePriority**: ownerDutyBonus, goalAlignmentBonus, urgencyBonus, taskKindPriorityBonus, overloadPenalty
+- **UI**: Person DetailPanel に Goal / fulfillment / Aim / Task / ActivityLog 表示。DiplomaticPlay に delegate / 交渉パラメータ / active Task 表示
+- **IntegrityCheck 拡張**: Task / Person Goal / Aim / DiplomaticPlay delegate の整合性チェック
+- **既存システム Person 対応**: goalMaintenanceSystem / aimToIntentGenerationSystem で Person skip、goalOutcomeSystem で Person Goal 非 succeeded 化、generateWorld.ts で初期 Person Goal / Aim 生成
+- **EventType 7 種追加**: PERSON_GOAL_CREATED / PERSON_AIM_CREATED / PERSON_AIM_SUCCEEDED / PERSON_AIM_FAILED / TASK_COMPLETED / TASK_FAILED / TASK_CANCELLED
+- **i18n**: goals / aims / tasks / fulfillment / blocked / waiting / activity 翻訳を en/ja で追加
+- **検証**: CLI 4 seed × 20 年 IntegrityCheck violation 0 件。66 テストファイル / 566 tests pass
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系
@@ -518,7 +540,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 #### v0.18 外交劇の残課題 (v0.19+ で検討)
 
 - ~~**長期 GoalSystem**~~: v0.22 で Goal/Aim/Intent 階層を実装済み
-- **Person ActionSystem**: 個人の行動意思決定システム
+- ~~**Person ActionSystem**~~: v0.23 で Task-driven Decision System として実装済み
 - **DiplomaticRelation**: Polity 間の長期外交関係
 - **第三者参加外交 / 同盟 / 保証 / 参戦 / 仲裁**: DiplomaticPlay への第三者介入
 - **本格 War entity / WarScore / PeaceSettlement**: 詳細戦争システム

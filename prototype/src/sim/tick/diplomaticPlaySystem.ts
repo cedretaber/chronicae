@@ -1054,14 +1054,7 @@ function computePrestigeLoss(rank: number): number {
   return clamp(60 - rank * 10, 10, 50)
 }
 
-// ─── v0.23 Phase D: Task 生成 & playAdvantage ───
-
-export function computePlayAdvantage(play: DiplomaticPlay, side: 'initiator' | 'target'): number {
-  const prep = side === 'initiator' ? play.initiatorPreparation : play.targetPreparation
-  const lev = side === 'initiator' ? play.initiatorLeverage : play.targetLeverage
-  const commit = side === 'initiator' ? play.initiatorCommitment : play.targetCommitment
-  return (prep + lev + commit) / 3
-}
+// ─── v0.23 Phase D: Task 生成 ───
 
 function ensureDiplomaticTasks(ctx: TickContext, play: DiplomaticPlay): TickContext {
   let currentCtx = ctx

@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-23（v0.22 国・家の目標システム）
+最終更新: 2026-05-23（v0.23 Person Goal / Aim / Task-driven Decision System）
 
 ---
 

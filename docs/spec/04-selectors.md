@@ -291,5 +291,24 @@ warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
 * 既存システム（successionSelectors / personAbilityEffects / militarySelectors / officeSelectors / publicSpendingSystem / plotSystem 等）は `getRoleScore(state, p.id, role) / 10` で正規化して旧 admin/martial（0..10）相当のスケールに揃える
 * 通常範囲は 0..10、限界突破帯（v0.15 以降の機構）では最大 12
 
+### 4.8 Task / Goal セレクター（v0.23）
+
+```ts
+// Person Goal の currentFulfillment（baseFulfillment + 現在状況 modifier、0..100）
+function getPersonGoalFulfillment(state: WorldState, personId: PersonId): number
+
+// Person の週あたり行動力（base 2.0 + ambition bonus - age penalty）
+function getPersonWeeklyActionCapacity(state: WorldState, config: SimulationConfig, personId: PersonId): number
+
+// Aim / ActivityLog ベースの任官補正値
+function getAppointmentTaskModifier(
+  state: WorldState, config: SimulationConfig,
+  personId: PersonId, organization: PoliticalActorRef, role: OfficeRole
+): number
+
+// Task の effectivePriority（ownerDutyBonus + goalAlignmentBonus + urgencyBonus + taskKindPriorityBonus - overloadPenalty）
+function computeEffectivePriority(state: WorldState, config: SimulationConfig, task: Task): number
+```
+
 ---
 
