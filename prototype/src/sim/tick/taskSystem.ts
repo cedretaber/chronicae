@@ -1009,7 +1009,7 @@ function buildProjectFieldsForAim(
   switch (projectKind) {
     case 'develop_holding': {
       const holdingId = aim.target?.kind === 'holding' ? aim.target.id : undefined
-      return { holdingId, budget: config.developHoldingCost, spentBudget: 0 }
+      return { holdingId, budget: 0, spentBudget: 0 }
     }
     case 'expand_polity_share': {
       const polityId = aim.target?.kind === 'polity' ? aim.target.id : undefined

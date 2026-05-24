@@ -3,6 +3,7 @@ import type { PolityRank } from '../types/polity'
 import type { UnaffiliatedOccupation } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
 import type { PopOccupation, PopClass } from '../types/popGroup'
+import type { HoldingImprovementKind } from '../types/holdingImprovement'
 
 export type SimulationConfig = {
   uiLocale: 'en' | 'ja'
@@ -33,9 +34,6 @@ export type SimulationConfig = {
   // Public Spending
   publicSpendingEnabled: boolean
   publicSpendingYearlyChance: number
-  // Development decay/recovery
-  developmentPositiveMonthlyDecay: number
-  developmentNegativeMonthlyRecovery: number
   // War devastation
   warConqueredProvinceDevastation: number
   warBorderProvinceDevastation: number
@@ -69,9 +67,6 @@ export type SimulationConfig = {
   // Annexation
   annexedPolityControl: number
   newRulerHouseControl: number
-  // Polity land development
-  polityLandDevelopmentBaseCost: number
-  polityLandDevelopmentGain: number
   // v0.7 Person Ability Effects
   personAbilityEffectsEnabled: boolean
   chancellorAdminControlGrowthEffect: number
@@ -409,8 +404,6 @@ export type SimulationConfig = {
   weeklyActionCapacityAgeReduction: number
   weeklyActionCapacityAmbitionThreshold: number
   weeklyActionCapacityAgeThreshold: number
-  developHoldingCost: number
-  developHoldingGain: number
   expandPolityShareCost: number
   expandPolityShareRawPowerGain: number
   promotePolicyShiftCost: number
@@ -609,6 +602,19 @@ export type SimulationConfig = {
   officeWorkloadWeight: number
   activeTaskWorkloadWeight: number
   taskOutcomeSuccessMargin: number
+  // v0.27 HoldingImprovement / development selector
+  holdingImprovementDevelopmentScorePerLevel: Record<HoldingImprovementKind, number>
+  holdingImprovementMaxLevelByHoldingKind: Record<
+    HoldingKind,
+    Record<HoldingImprovementKind, number>
+  >
+  developHoldingTargetDevelopmentThreshold: number
+  developHoldingProjectBaseCostByImprovementKind: Record<HoldingImprovementKind, number>
+  developHoldingProjectBaseProgressByImprovementKind: Record<HoldingImprovementKind, number>
+  improvementLevelCostMultiplier: Record<number, number>
+  improvementLevelProgressMultiplier: Record<number, number>
+  projectBudgetTaskConsumptionFailureMultiplier: number
+  projectCompletedRespectGain: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -637,8 +643,6 @@ export const defaultConfig: SimulationConfig = {
   disasterReliefCostPerProvince: 20,
   publicSpendingEnabled: true,
   publicSpendingYearlyChance: 0.35,
-  developmentPositiveMonthlyDecay: 0.1,
-  developmentNegativeMonthlyRecovery: 0.25,
   warConqueredProvinceDevastation: 8,
   warBorderProvinceDevastation: 3,
   failedWarBorderDevastation: 3,
@@ -649,8 +653,6 @@ export const defaultConfig: SimulationConfig = {
   famineReliefDevelopmentRecovery: 2,
   plagueDevastation: 8,
   bountifulHarvestDevelopmentGain: 3,
-  polityLandDevelopmentBaseCost: 70,
-  polityLandDevelopmentGain: 8,
   // Control system
   controlMaxDistancePenalty: 10,
   controlMaxMinimum: 40,
@@ -803,7 +805,7 @@ export const defaultConfig: SimulationConfig = {
   bountifulHarvestPeasantUnrestReduction: 5,
   bountifulHarvestTownsmanWealthGain: 2,
   bountifulHarvestTownsmanUnrestReduction: 1,
-  popDevelopmentEnabled: true,
+  popDevelopmentEnabled: false,
   popDevelopmentMonthlyChance: 0.02,
   popDevelopmentMaxMonthlyChance: 0.08,
   popDevelopmentWealthThreshold: 65,
@@ -962,8 +964,6 @@ export const defaultConfig: SimulationConfig = {
   goalProgressOnAimAbandoned: -5,
   aimDefaultDeadlineWeeks: 240,
   projectCooldownWeeks: 4,
-  developHoldingCost: 30,
-  developHoldingGain: 5,
   expandPolityShareCost: 40,
   expandPolityShareRawPowerGain: 10,
   promotePolicyShiftCost: 0,
@@ -1235,4 +1235,42 @@ export const defaultConfig: SimulationConfig = {
   officeWorkloadWeight: 1,
   activeTaskWorkloadWeight: 1,
   taskOutcomeSuccessMargin: 20,
+  // v0.27 HoldingImprovement / development selector
+  holdingImprovementDevelopmentScorePerLevel: {
+    agricultural_infrastructure: 8,
+    urban_infrastructure: 8,
+    storage_infrastructure: 5,
+    transport_infrastructure: 5,
+  },
+  holdingImprovementMaxLevelByHoldingKind: {
+    manor: {
+      agricultural_infrastructure: 3,
+      urban_infrastructure: 1,
+      storage_infrastructure: 3,
+      transport_infrastructure: 3,
+    },
+    city: {
+      agricultural_infrastructure: 1,
+      urban_infrastructure: 3,
+      storage_infrastructure: 3,
+      transport_infrastructure: 3,
+    },
+  },
+  developHoldingTargetDevelopmentThreshold: 40,
+  developHoldingProjectBaseCostByImprovementKind: {
+    agricultural_infrastructure: 30,
+    urban_infrastructure: 35,
+    storage_infrastructure: 25,
+    transport_infrastructure: 30,
+  },
+  developHoldingProjectBaseProgressByImprovementKind: {
+    agricultural_infrastructure: 100,
+    urban_infrastructure: 100,
+    storage_infrastructure: 80,
+    transport_infrastructure: 100,
+  },
+  improvementLevelCostMultiplier: { 1: 1, 2: 2, 3: 4 },
+  improvementLevelProgressMultiplier: { 1: 1, 2: 2, 3: 3 },
+  projectBudgetTaskConsumptionFailureMultiplier: 0.5,
+  projectCompletedRespectGain: 5,
 }

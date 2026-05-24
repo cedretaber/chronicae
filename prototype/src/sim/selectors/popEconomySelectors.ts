@@ -2,11 +2,11 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId, HoldingId } from '../types/ids'
 import type { PopGroupId } from '../types/ids'
-import { clamp } from '../utils/math'
 import { getProvincePolityControlFromHoldings } from './landContractSelectors'
+import { getHoldingDevelopmentModifier } from './holdingImprovementSelectors'
 
 // POP production formula:
-// production = pop.size * config.productivityByClass[pop.class] * config.occupationProductivityMultiplier[pop.occupation] * (pop.wealth / 100) * clamp(1 + holding.development / 200, 0.5, 1.5) * (holding.polityControl / 100)
+// production = pop.size * productivityByClass * occupationProductivityMultiplier * (wealth / 100) * developmentModifier * (polityControl / 100)
 export function getPopProduction(
   state: WorldState,
   config: SimulationConfig,
@@ -17,7 +17,7 @@ export function getPopProduction(
   const holding = state.holdings[pop.holdingId]
   if (!holding) return 0
   const productivity = config.productivityByClass[pop.class]
-  const holdingDevelopmentModifier = clamp(1 + holding.development / 200, 0.5, 1.5)
+  const holdingDevelopmentModifier = getHoldingDevelopmentModifier(state, config, pop.holdingId)
   return (
     pop.size *
     productivity *

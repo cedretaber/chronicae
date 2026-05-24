@@ -6,7 +6,6 @@ import {
   toResult,
 } from './context'
 import { advanceTime } from './advanceTime'
-import { runDevelopmentSystem } from './developmentSystem'
 import { runLandRevenueSystem } from './landRevenueSystem'
 import { runPolitySurplusDistributionSystem } from './politySurplusDistributionSystem'
 import { runBailiffAppointmentSystem } from './bailiffAppointmentSystem'
@@ -43,7 +42,6 @@ import { runPopSystem, normalizePopSizes } from './popSystem'
 import { runEmploymentRebalanceSystem } from './employmentRebalanceSystem'
 import { mergeCompatiblePopsMut } from '../mutations/popMutations'
 import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
-import { runPopDevelopmentSystem } from './popDevelopmentSystem'
 import { runPersonGrowthSystem } from './personGrowthSystem'
 import { runEstateSettlementSystem } from './estateSettlementSystem'
 import { runHouseSurplusDistributionSystem } from './houseSurplusDistributionSystem'
@@ -74,7 +72,6 @@ function shouldRun(system: ScheduledSystem, absoluteWeek: number): boolean {
 }
 
 const scheduledSystems: ScheduledSystem[] = [
-  { name: 'developmentSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runDevelopmentSystem },
   { name: 'controlSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runControlSystem },
   { name: 'popSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPopSystem },
   {
@@ -197,12 +194,6 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runPublicSpendingSystem,
-  },
-  {
-    name: 'popDevelopmentSystem',
-    intervalWeeks: 4,
-    phaseOffsetWeeks: 0,
-    run: runPopDevelopmentSystem,
   },
   { name: 'plotSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPlotSystem },
   {

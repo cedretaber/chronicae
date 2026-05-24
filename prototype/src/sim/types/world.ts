@@ -16,6 +16,7 @@ import type {
   StateRegionId,
   HoldingId,
   HoldingOfficeAssignmentId,
+  HoldingImprovementId,
   GoalId,
   AimId,
   DecisionReasonId,
@@ -40,6 +41,7 @@ import type {
   HoldingOfficeIndex,
 } from './landContract'
 import type { Faction, FactionMembership, FactionIndex } from './faction'
+import type { HoldingImprovement } from './holdingImprovement'
 import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay } from './diplomaticPlay'
 import type { StateRegion } from './stateRegion'
@@ -79,6 +81,10 @@ export type WorldState = {
   factions: Record<FactionId, Faction>
   factionMemberships: Record<FactionMembershipId, FactionMembership>
   factionIndex: FactionIndex
+  // v0.27 HoldingImprovement
+  holdingImprovements: Record<HoldingImprovementId, HoldingImprovement>
+  holdingImprovementIndex: { byHolding: Record<string, HoldingImprovementId[]> }
+  nextHoldingImprovementId: number
   // v0.26 Project system
   projects: Record<ProjectId, Project>
   projectIndex: ProjectIndex

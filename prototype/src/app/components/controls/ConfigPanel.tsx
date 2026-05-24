@@ -186,34 +186,6 @@ export function ConfigPanel() {
             value={config.publicSpendingEnabled}
             onChange={(v) => setConfig({ publicSpendingEnabled: v })}
           />
-          <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Development</div>
-          <ConfigRow
-            label="Positive Decay/mo"
-            value={config.developmentPositiveMonthlyDecay}
-            min={0}
-            max={0.5}
-            step={0.05}
-            displayValue={String(config.developmentPositiveMonthlyDecay)}
-            onChange={(v) => setConfig({ developmentPositiveMonthlyDecay: v })}
-          />
-          <ConfigRow
-            label="Negative Recovery/mo"
-            value={config.developmentNegativeMonthlyRecovery}
-            min={0}
-            max={0.5}
-            step={0.05}
-            displayValue={String(config.developmentNegativeMonthlyRecovery)}
-            onChange={(v) => setConfig({ developmentNegativeMonthlyRecovery: v })}
-          />
-          <ConfigRow
-            label="Polity Dev Cost"
-            value={config.polityLandDevelopmentBaseCost}
-            min={30}
-            max={200}
-            step={10}
-            displayValue={String(config.polityLandDevelopmentBaseCost)}
-            onChange={(v) => setConfig({ polityLandDevelopmentBaseCost: v })}
-          />
           <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Control System</div>
           <ConfigRow
             label="Distance Penalty"

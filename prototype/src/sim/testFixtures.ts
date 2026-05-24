@@ -134,6 +134,10 @@ export function makeEmptyV016State(): WorldState {
     nextHoldingOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
+    // v0.27 HoldingImprovement
+    holdingImprovements: {},
+    holdingImprovementIndex: { byHolding: {} },
+    nextHoldingImprovementId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {
@@ -181,7 +185,6 @@ export function withProvince(
     id: holdingId,
     provinceId: id,
     kind: 'manor',
-    development: (anyOverrides.development as number) ?? 1,
     polityControl: (anyOverrides.polityControl as number) ?? 100,
     landQuality: (anyOverrides.habitability as number) ?? 50,
     weight: 1,
@@ -237,7 +240,6 @@ export function withHolding(
     id: holdingId,
     provinceId,
     kind: 'manor',
-    development: 1,
     polityControl: 100,
     landQuality: 50,
     weight: 1,

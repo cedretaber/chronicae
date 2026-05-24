@@ -299,14 +299,6 @@ export function generateWorld(
     province.habitability = habitability
   }
 
-  // Compute development values for Holdings (Province no longer stores development)
-  const developmentMap = new Map<ProvinceId, number>()
-  for (const province of provinceList) {
-    const { value: development, rng: r2 } = randomInt(rng, -10, 10)
-    rng = r2
-    developmentMap.set(province.id, development)
-  }
-
   const houses: House[] = []
   const sortedHouseIds = Array.from(houseProvinces.keys()).sort()
 
@@ -812,6 +804,10 @@ export function generateWorld(
     factionIndex: { byLeader: {}, byMember: {} },
     nextFactionId: 0,
     nextFactionMembershipId: 0,
+    // v0.27 HoldingImprovement
+    holdingImprovements: {},
+    holdingImprovementIndex: { byHolding: {} },
+    nextHoldingImprovementId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {
@@ -1282,7 +1278,6 @@ export function generateWorld(
       hasCity = cityRoll < cityProvinceChance
     }
 
-    const holdingDev = developmentMap.get(province.id) ?? 0
     const holdingControl = controlMap.get(province.id) ?? 0
     const holdingIds: HoldingId[] = []
 
@@ -1313,7 +1308,6 @@ export function generateWorld(
         id: holdingId,
         provinceId: province.id,
         kind,
-        development: holdingDev,
         polityControl: holdingControl,
         landQuality,
         weight,
@@ -1524,7 +1518,7 @@ export function generateWorld(
       if (!holding) continue
 
       const capBase = occupationCapacityBaseByHoldingKind[holding.kind]
-      const devMod = Math.min(1.5, Math.max(0.5, 1 + holding.development / 200))
+      const devMod = 1.0
       const wlq = holding.weight * holding.landQuality * devMod
 
       const agriCap = (capBase?.agriculture ?? 0) * wlq
@@ -1699,6 +1693,10 @@ export function generateWorld(
     factions: {},
     factionMemberships: {},
     factionIndex: { byLeader: {}, byMember: {} },
+    // v0.27 HoldingImprovement
+    holdingImprovements: {},
+    holdingImprovementIndex: { byHolding: {} },
+    nextHoldingImprovementId: 0,
     // v0.26 Project system
     projects: {},
     projectIndex: {

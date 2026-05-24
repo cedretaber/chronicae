@@ -102,10 +102,6 @@ export function getTaskRelevantAbility(kind: TaskKind): AbilityKey {
       return 'command'
     case 'negotiate_terms':
       return 'insight'
-    case 'secure_development_budget':
-      return 'numeracy'
-    case 'supervise_holding_development':
-      return 'command'
     case 'arrange_patronage':
       return 'charisma'
     case 'commission_chronicle_work':
@@ -148,8 +144,6 @@ const TASK_KIND_OUTCOME_DEFAULTS: Record<
   practice_arms: { difficulty: 35, relevantAbility: 'command' },
   courtly_training: { difficulty: 35, relevantAbility: 'learning' },
   secure_internal_support: { difficulty: 30, relevantAbility: 'charisma' },
-  secure_development_budget: { difficulty: 30, relevantAbility: 'numeracy' },
-  supervise_holding_development: { difficulty: 30, relevantAbility: 'numeracy' },
   arrange_patronage: { difficulty: 25, relevantAbility: 'charisma' },
   commission_chronicle_work: { difficulty: 25, relevantAbility: 'learning' },
   prepare_argument: { difficulty: 40, relevantAbility: 'learning' },

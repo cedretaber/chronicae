@@ -51,8 +51,6 @@ export type TaskKind =
   | 'practice_arms'
   | 'courtly_training'
   | 'secure_internal_support'
-  | 'secure_development_budget'
-  | 'supervise_holding_development'
   | 'arrange_patronage'
   | 'commission_chronicle_work'
   | 'prepare_argument'

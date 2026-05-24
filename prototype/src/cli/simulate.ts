@@ -6,6 +6,7 @@ import { createTickContext } from '@sim/tick/context'
 import { runIntegritySystem } from '@sim/tick/integritySystem'
 import { createLogger } from '@sim/debug/logger'
 import type { WorldState } from '@sim/types/world'
+import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import type { SimEvent } from '@sim/types/event'
 import type { EventMessageParams } from '@sim/types/event'
 import type { ProvinceId, HoldingId } from '@sim/types/ids'
@@ -275,7 +276,7 @@ function computeAvgHoldingDevelopment(state: WorldState): number {
   let count = 0
   for (const holding of Object.values(state.holdings)) {
     if (!holding) continue
-    total += holding.development
+    total += getHoldingDevelopment(state, defaultConfig, holding.id)
     count++
   }
   if (count === 0) return 0

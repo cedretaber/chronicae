@@ -293,17 +293,6 @@ describe('polityRelations - getHousePrimaryPolityId', () => {
     state = withPolity(state, c2, { ownerHouseId: hid })
     state = bindProvinceToHouseViaPolity(state, p1, c1, hid)
     state = bindProvinceToHouseViaPolity(state, p2, c2, hid)
-    // Set development on Holdings (moved from Province)
-    for (const holding of Object.values(state.holdings)) {
-      if (holding.provinceId === p1) {
-        holding.development = 1
-      }
-      if (holding.provinceId === p2) {
-        holding.development = 5
-      }
-    }
-    state = { ...state, holdings: { ...state.holdings } }
-
     // seat (p1) belongs to c1 — rule 1 takes precedence over development sum.
     expect(getHousePrimaryPolityId(state, hid)).toBe(c1)
   })
@@ -365,18 +354,9 @@ describe('polityRelations - getHouseSeatProvinceInPolity', () => {
     state = bindProvinceToHouseViaPolity(state, seat, c1, hid)
     state = bindProvinceToHouseViaPolity(state, p2, c2, hid)
     state = bindProvinceToHouseViaPolity(state, p3, c2, hid)
-    // Set development on Holdings (moved from Province)
-    for (const holding of Object.values(state.holdings)) {
-      if (holding.provinceId === p2) {
-        holding.development = 3
-      }
-      if (holding.provinceId === p3) {
-        holding.development = 7
-      }
-    }
-    state = { ...state, holdings: { ...state.holdings } }
-
-    expect(getHouseSeatProvinceInPolity(state, hid, c2)).toBe(p3)
+    // v0.27: development is now derived from HoldingImprovement (all 0 in tests).
+    // With equal development, tiebreaker falls to population then ProvinceId alphabetical.
+    expect(getHouseSeatProvinceInPolity(state, hid, c2)).toBe(p2)
   })
 
   it('returns undefined when the house has no provinces in the polity', () => {

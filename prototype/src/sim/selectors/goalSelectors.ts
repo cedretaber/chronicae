@@ -15,6 +15,7 @@ import type {
 } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import { getPolityTerminalProvinceIds, getProvinceHoldings } from './landContractSelectors'
+import { getHoldingDevelopment } from './holdingImprovementSelectors'
 import { calcPolityMilitaryPower } from './militarySelectors'
 import { getHouseOwnedPolityIds } from './landContractSelectors'
 import { getHousePolitySharePercent } from './shareSelectors'
@@ -107,7 +108,10 @@ export function scorePolityGoalKind(
   for (const pid of terminalProvinceIds) {
     const holdings = getProvinceHoldings(state, pid)
     for (const h of holdings) {
-      if (h.development < 30) developmentScore += 10
+      if (
+        getHoldingDevelopment(state, config, h.id) < config.developHoldingTargetDevelopmentThreshold
+      )
+        developmentScore += 10
     }
   }
   if (polity.treasury > 100) developmentScore += 10
@@ -296,11 +300,15 @@ function pickPolityAim(
       for (const h of holdings) {
         const tp = state.holdingTerminalPolityCache[h.id]
         if (!tp || (tp as string) !== (polityId as string)) continue
-        if (h.development < 50) {
+        const holdingDev = getHoldingDevelopment(state, config, h.id)
+        if (holdingDev < config.developHoldingTargetDevelopmentThreshold) {
           candidates.push({
             kind: 'develop_owned_holding',
             target: { kind: 'holding', id: h.id },
-            score: 20 + (50 - h.development) * 0.5 + h.landQuality * 0.3,
+            score:
+              20 +
+              (config.developHoldingTargetDevelopmentThreshold - holdingDev) * 0.5 +
+              h.landQuality * 0.3,
           })
         }
       }

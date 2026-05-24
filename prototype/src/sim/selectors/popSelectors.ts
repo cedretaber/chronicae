@@ -3,6 +3,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId, HoldingId } from '../types/ids'
 import type { PopGroup, PopClass, PopOccupation } from '../types/popGroup'
 import { clamp } from '../utils/math'
+import { getHoldingDevelopmentModifier } from './holdingImprovementSelectors'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -230,7 +231,7 @@ export function getHoldingOccupationCapacity(
   if (!holding) return 0
   const baseCapacity = config.occupationCapacityBaseByHoldingKind[holding.kind]?.[occupation]
   if (baseCapacity === undefined) return 0
-  const developmentModifier = clamp(1 + holding.development / 200, 0.5, 1.5)
+  const developmentModifier = getHoldingDevelopmentModifier(state, config, holdingId)
   return baseCapacity * holding.weight * holding.landQuality * developmentModifier
 }
 

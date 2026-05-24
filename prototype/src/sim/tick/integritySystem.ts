@@ -1626,12 +1626,6 @@ export function collectIntegrityErrors(
   // H4: Holding field range checks (§18.3)
   for (const holding of Object.values(state.holdings)) {
     if (!holding) continue
-    if (holding.development < -100 || holding.development > 100) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Holding ${holding.id} development=${holding.development} out of range [-100,100] (§18.3)`,
-      })
-    }
     if (holding.polityControl < 0 || holding.polityControl > 100) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',

@@ -414,7 +414,9 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
   const defenderPower =
     getActorMilitaryPower(state, config, play.target) *
     calcGeneralWarPowerModifier(state, defenderPolityId, config)
-  const provinceValue = computeProvinceValue(getProvinceDevelopmentFromHoldings(state, provinceId))
+  const provinceValue = computeProvinceValue(
+    getProvinceDevelopmentFromHoldings(state, provinceId, config),
+  )
   const strategicLoss = computeStrategicValue(state, provinceId, defenderPolityId)
   const prestigeLoss = computePrestigeLoss(defender.rank)
 
@@ -597,7 +599,9 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
     ? (currentRate - 0.3) * config.taxRevisionRateImbalanceFactor
     : (0.5 - currentRate) * config.taxRevisionRateImbalanceFactor
 
-  const provinceValue = computeProvinceValue(getProvinceDevelopmentFromHoldings(state, provinceId))
+  const provinceValue = computeProvinceValue(
+    getProvinceDevelopmentFromHoldings(state, provinceId, config),
+  )
 
   const acceptanceScore =
     initiatorPower * config.taxRevisionPressureFactor -

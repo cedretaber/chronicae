@@ -36,7 +36,7 @@ function chooseOwner(
       let devSum = 0
       for (const pid of provinceIdsInPolity) {
         const p = ctx.state.provinces[pid]
-        if (p) devSum += getProvinceDevelopmentFromHoldings(ctx.state, pid)
+        if (p) devSum += getProvinceDevelopmentFromHoldings(ctx.state, pid, ctx.config)
       }
       return {
         houseId,

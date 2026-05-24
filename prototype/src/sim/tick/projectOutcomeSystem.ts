@@ -150,9 +150,11 @@ function applyNonDiplomaticEffectMut(
   }
 }
 
+// v0.27 Phase A: development direct addition removed.
+// Phase B will replace this with HoldingImprovement creation.
 function applyDevelopHoldingMut(
   ws: WorldState,
-  config: SimulationConfig,
+  _config: SimulationConfig,
   project: Project,
   emitEvent: (input: CreateSimEventInput) => void,
 ): void {
@@ -160,7 +162,6 @@ function applyDevelopHoldingMut(
   const polityId = project.owner.id
   const polity = ws.polities[polityId]
   if (!polity || !polity.active) return
-  if (polity.treasury < config.developHoldingCost) return
 
   const holdingId = 'holdingId' in project ? project.holdingId : undefined
   if (!holdingId) return
@@ -169,10 +170,6 @@ function applyDevelopHoldingMut(
 
   const tp = ws.holdingTerminalPolityCache[holdingId]
   if (!tp || (tp as string) !== (polityId as string)) return
-
-  const newDev = clamp(holding.development + config.developHoldingGain, -100, 100)
-  ws.polities[polityId] = { ...polity, treasury: polity.treasury - config.developHoldingCost }
-  ws.holdings[holdingId] = { ...holding, development: newDev }
 
   const polityNameKey = polity.nameKey
   const provinceNameKey = ws.provinces[holding.provinceId]?.nameKey ?? holding.provinceId
@@ -701,8 +698,12 @@ function checkLandPurchaseEligibility(
   return false
 }
 
-function computeLandPurchasePrice(state: WorldState, provinceId: ProvinceId): number {
-  const development = getProvinceDevelopmentFromHoldings(state, provinceId)
+function computeLandPurchasePrice(
+  state: WorldState,
+  provinceId: ProvinceId,
+  config?: SimulationConfig,
+): number {
+  const development = getProvinceDevelopmentFromHoldings(state, provinceId, config)
   return Math.max(
     defaultLandContractConfig.purchasePriceBase,
     defaultLandContractConfig.purchasePriceBase +

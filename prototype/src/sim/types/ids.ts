@@ -87,6 +87,12 @@ export function createHoldingOfficeAssignmentId(n: number): HoldingOfficeAssignm
   return ('ho-' + n) as HoldingOfficeAssignmentId
 }
 
+export type HoldingImprovementId = Branded<string, 'HoldingImprovementId'>
+
+export function createHoldingImprovementId(n: number): HoldingImprovementId {
+  return ('hi-' + n) as HoldingImprovementId
+}
+
 export type ProjectId = Branded<string, 'ProjectId'>
 
 export function createProjectId(n: number): ProjectId {

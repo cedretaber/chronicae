@@ -1,4 +1,6 @@
 import type { WorldState } from '../types/world'
+import type { SimulationConfig } from '../config/defaultConfig'
+import { getHoldingDevelopment } from './holdingImprovementSelectors'
 import type {
   ProvinceId,
   PolityId,
@@ -339,14 +341,16 @@ export function getProvincePolityControlFromHoldings(
 export function getProvinceDevelopmentFromHoldings(
   state: WorldState,
   provinceId: ProvinceId,
+  config?: SimulationConfig,
 ): number {
+  if (!config) return 0
   const holdings = getProvinceHoldings(state, provinceId)
   if (holdings.length === 0) return 0
   let totalWeight = 0
   let weightedDev = 0
   for (const h of holdings) {
     totalWeight += h.weight
-    weightedDev += h.development * h.weight
+    weightedDev += getHoldingDevelopment(state, config, h.id) * h.weight
   }
   return totalWeight > 0 ? weightedDev / totalWeight : 0
 }

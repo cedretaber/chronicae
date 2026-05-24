@@ -7,7 +7,6 @@ import { describe, expect, it } from 'vitest'
 import { createPolityId, createHouseId, createProvinceId } from '../types/ids'
 import type { PolityId, HouseId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { collectIntegrityErrors } from '../tick/integritySystem'
 import {
   transferProvinceToHouse,
   transferProvinceToPolity,
@@ -181,42 +180,11 @@ describe('transferProvinceToHouse (v0.16)', () => {
 })
 
 describe('adjustProvinceDevelopment', () => {
-  it('adds delta to development', () => {
+  it('is a no-op (v0.27: development is derived from HoldingImprovement)', () => {
     const { state, provinceId } = makeFixture()
-    const holdingId = state.provinces[provinceId]!.holdingIds[0]!
     const result = adjustProvinceDevelopment(state, provinceId, 10)
-
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.holdings[holdingId]!.development).toBe(10)
-  })
-
-  it('clamps to -100..100 by default', () => {
-    const { state, provinceId } = makeFixture()
-    const holdingId = state.provinces[provinceId]!.holdingIds[0]!
-    const r1 = adjustProvinceDevelopment(state, provinceId, 200)
-    const r2 = adjustProvinceDevelopment(state, provinceId, -200)
-
-    expect(r1.ok && r1.value.holdings[holdingId]!.development).toBe(100)
-    expect(r2.ok && r2.value.holdings[holdingId]!.development).toBe(-100)
-  })
-
-  it('respects custom min/max options', () => {
-    const { state, provinceId } = makeFixture()
-    const holdingId = state.provinces[provinceId]!.holdingIds[0]!
-    const result = adjustProvinceDevelopment(state, provinceId, 50, { min: -50, max: 30 })
-
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.value.holdings[holdingId]!.development).toBe(30)
-    expect(collectIntegrityErrors(result.value)).toEqual([])
-  })
-
-  it('returns err when province not found', () => {
-    const { state } = makeFixture()
-    const result = adjustProvinceDevelopment(state, createProvinceId('p', 99), 10)
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('PROVINCE_NOT_FOUND')
+    expect(result.value).toBe(state)
   })
 })

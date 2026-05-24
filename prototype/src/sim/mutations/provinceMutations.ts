@@ -2,7 +2,6 @@ import type { ProvinceId, HouseId, PolityId, HoldingId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { StateResult } from './result'
 import { ok, err } from './result'
-import { clamp } from '../utils/math'
 import {
   getProvinceTerminalContract,
   getProvinceTerminalPolityId,
@@ -48,49 +47,28 @@ export function transferProvinceToHouse(
   return ok(transferLandContractGrantee(state, terminal.id, targetPolityId))
 }
 
+// v0.27: development is now derived from HoldingImprovement via selectors.
+// These functions are kept as no-ops for future devastation/condition system.
 export function adjustProvinceDevelopment(
-  state: WorldState,
-  provinceId: ProvinceId,
-  delta: number,
-  options?: { min?: number; max?: number },
+  ...args: [
+    state: WorldState,
+    provinceId: ProvinceId,
+    delta: number,
+    options?: { min?: number; max?: number },
+  ]
 ): StateResult {
-  const province = state.provinces[provinceId]
-  if (!province)
-    return err({ code: 'PROVINCE_NOT_FOUND', message: 'Province not found: ' + provinceId })
-
-  const min = options?.min ?? -100
-  const max = options?.max ?? 100
-
-  let holdings = state.holdings
-  for (const holdingId of province.holdingIds) {
-    const holding = holdings[holdingId]
-    if (!holding) continue
-    const newDev = clamp(holding.development + delta, min, max)
-    holdings = { ...holdings, [holdingId]: { ...holding, development: newDev } }
-  }
-
-  if (holdings === state.holdings) return ok(state)
-  return ok({ ...state, holdings })
+  return ok(args[0])
 }
 
 export function adjustHoldingDevelopment(
-  state: WorldState,
-  holdingId: HoldingId,
-  delta: number,
-  options?: { min?: number; max?: number },
+  ...args: [
+    state: WorldState,
+    holdingId: HoldingId,
+    delta: number,
+    options?: { min?: number; max?: number },
+  ]
 ): StateResult {
-  const holding = state.holdings[holdingId]
-  if (!holding)
-    return err({ code: 'HOLDING_NOT_FOUND', message: 'Holding not found: ' + holdingId })
-
-  const min = options?.min ?? -100
-  const max = options?.max ?? 100
-  const newDev = clamp(holding.development + delta, min, max)
-
-  return ok({
-    ...state,
-    holdings: { ...state.holdings, [holdingId]: { ...holding, development: newDev } },
-  })
+  return ok(args[0])
 }
 
 // v0.16: toOwnerHouseId は ownership chain の整合確認用 (toPolityId.ownerHouseId と一致するはず)。

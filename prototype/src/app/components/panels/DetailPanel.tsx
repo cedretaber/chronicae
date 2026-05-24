@@ -55,6 +55,7 @@ import {
   getProvinceHouseManpowerBase,
 } from '@sim/selectors/popEconomySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
+import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { computeEffectivePriority } from '@sim/selectors/taskSelectors'
 import type { Polity } from '@/sim/types/polity'
 import type { House } from '@/sim/types/house'
@@ -1954,6 +1955,9 @@ export function PersonDetail({
     factions: {},
     factionMemberships: {},
     factionIndex: { byLeader: {}, byMember: {} },
+    holdingImprovements: {},
+    holdingImprovementIndex: { byHolding: {} },
+    nextHoldingImprovementId: 0,
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
     nextLandContractId: 0,
@@ -2852,7 +2856,12 @@ export function HoldingDetail({
       <div className="text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.dev')}:</span>
-          <span>{holding.development.toFixed(1)}</span>
+          <span>
+            {(currentState
+              ? getHoldingDevelopment(currentState, defaultConfig, holding.id)
+              : 0
+            ).toFixed(1)}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.control')}:</span>
@@ -3408,7 +3417,11 @@ export function ProvinceDetail({
                 </div>
                 <div className="mt-0.5 grid grid-cols-2 gap-x-2 text-xs text-gray-400">
                   <span>
-                    {t('detail.province.dev')}: {holding.development.toFixed(1)}
+                    {t('detail.province.dev')}:{' '}
+                    {(currentState
+                      ? getHoldingDevelopment(currentState, defaultConfig, holding.id)
+                      : 0
+                    ).toFixed(1)}
                   </span>
                   <span>
                     {t('detail.province.control')}: {holding.polityControl.toFixed(0)}%
