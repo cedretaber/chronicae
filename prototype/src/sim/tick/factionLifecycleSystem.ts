@@ -103,6 +103,8 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
     const candidate = ctx.state.persons[candidateId]
     if (!candidate || !candidate.alive) continue
     if (candidate.kind === 'placeholder') continue
+    const candidateHouse = ctx.state.houses[candidate.houseId]
+    if (!candidateHouse || !candidateHouse.active || candidateHouse.kind === 'system') continue
 
     let attitudeProduct = 0
     if (oldLeader) {
