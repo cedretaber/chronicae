@@ -92,6 +92,12 @@ export function createHoldingOfficeAssignmentId(n: number): HoldingOfficeAssignm
   return ('ho-' + n) as HoldingOfficeAssignmentId
 }
 
+export type ProjectId = Branded<string, 'ProjectId'>
+
+export function createProjectId(n: number): ProjectId {
+  return ('pr-' + n) as ProjectId
+}
+
 export type GoalId = Branded<string, 'GoalId'>
 export type AimId = Branded<string, 'AimId'>
 export type DecisionReasonId = Branded<string, 'DecisionReasonId'>

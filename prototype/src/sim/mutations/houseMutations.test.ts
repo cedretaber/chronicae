@@ -96,6 +96,16 @@ function makeFixture(): {
     actorIntents: {},
     diplomaticPlays: {},
     nextActorIntentId: 0,
+    projects: {},
+    projectIndex: {
+      byOwner: {},
+      byAim: {},
+      byParentProject: {},
+      byCreatorPerson: {},
+      bySupervisorPerson: {},
+      byRelatedEntity: {},
+    },
+    nextProjectId: 0,
     nextDiplomaticPlayId: 0,
     // v0.22 Goal/Aim system
     goals: {},

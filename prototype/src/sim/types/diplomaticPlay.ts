@@ -1,6 +1,7 @@
 import type {
   DiplomaticPlayId,
   ActorIntentId,
+  ProjectId,
   TaskId,
   PersonId,
   ProvinceId,
@@ -80,6 +81,7 @@ export type DiplomaticPlay = {
   target: PoliticalActorRef
 
   originIntentId?: ActorIntentId
+  originProjectId?: ProjectId
 
   // v0.22 Goal/Aim connection
   goalId?: GoalId

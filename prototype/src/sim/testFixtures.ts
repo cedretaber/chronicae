@@ -135,8 +135,19 @@ export function makeEmptyV016State(): WorldState {
     nextFactionId: 0,
     nextFactionMembershipId: 0,
     actorIntents: {},
+    // v0.26 Project system
+    projects: {},
+    projectIndex: {
+      byOwner: {},
+      byAim: {},
+      byParentProject: {},
+      byCreatorPerson: {},
+      bySupervisorPerson: {},
+      byRelatedEntity: {},
+    },
     diplomaticPlays: {},
     nextActorIntentId: 0,
+    nextProjectId: 0,
     nextDiplomaticPlayId: 0,
     // v0.22 Goal/Aim system
     goals: {},
@@ -523,6 +534,8 @@ export function withAim(
     deadlineWeek: state.absoluteWeek + 240,
     successfulIntentCount: 0,
     failedIntentCount: 0,
+    successfulProjectCount: 0,
+    failedProjectCount: 0,
     status: 'active',
     reasonIds: [],
     ...overrides,

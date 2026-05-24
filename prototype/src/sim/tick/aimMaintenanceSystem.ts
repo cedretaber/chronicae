@@ -100,6 +100,8 @@ function createAimForGoal(ctx: TickContext, goal: Goal, absoluteWeek: number): T
     deadlineWeek: absoluteWeek + currentCtx.config.aimDefaultDeadlineWeeks,
     successfulIntentCount: 0,
     failedIntentCount: 0,
+    successfulProjectCount: 0,
+    failedProjectCount: 0,
     status: 'active',
     reasonIds: [reasonId],
   }

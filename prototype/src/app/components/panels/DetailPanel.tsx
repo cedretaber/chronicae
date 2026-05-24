@@ -1884,8 +1884,18 @@ export function PersonDetail({
     nextFactionId: 0,
     nextFactionMembershipId: 0,
     actorIntents: {},
+    projects: {},
+    projectIndex: {
+      byOwner: {},
+      byAim: {},
+      byParentProject: {},
+      byCreatorPerson: {},
+      bySupervisorPerson: {},
+      byRelatedEntity: {},
+    },
     diplomaticPlays: {},
     nextActorIntentId: 0,
+    nextProjectId: 0,
     nextDiplomaticPlayId: 0,
     // v0.22 Goal/Aim system
     goals: {},

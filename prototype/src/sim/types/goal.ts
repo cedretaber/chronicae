@@ -140,6 +140,9 @@ export type Aim = {
   lastIntentGeneratedWeek?: number
   nextIntentAllowedWeek?: number
 
+  lastProjectPreparedWeek?: number
+  nextProjectAllowedWeek?: number
+
   activeIntentId?: ActorIntentId
   activeDiplomaticPlayId?: DiplomaticPlayId
   activeTaskId?: TaskId
@@ -149,6 +152,9 @@ export type Aim = {
   nextReviewWeek?: number
   successfulIntentCount: number
   failedIntentCount: number
+
+  successfulProjectCount: number
+  failedProjectCount: number
 
   status: AimStatus
   reasonIds: DecisionReasonId[]

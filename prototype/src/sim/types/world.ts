@@ -12,6 +12,7 @@ import type {
   FactionId,
   FactionMembershipId,
   ActorIntentId,
+  ProjectId,
   DiplomaticPlayId,
   StateRegionId,
   HoldingId,
@@ -41,6 +42,7 @@ import type {
 } from './landContract'
 import type { Faction, FactionMembership, FactionIndex } from './faction'
 import type { ActorIntent } from './actorIntent'
+import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay } from './diplomaticPlay'
 import type { StateRegion } from './stateRegion'
 import type { Goal, Aim, DecisionReason, GoalIndex, AimIndex } from './goal'
@@ -81,6 +83,9 @@ export type WorldState = {
   factionIndex: FactionIndex
   // v0.18 Stage A §6.6
   actorIntents: Record<ActorIntentId, ActorIntent>
+  // v0.26 Project system
+  projects: Record<ProjectId, Project>
+  projectIndex: ProjectIndex
   // v0.22 Goal/Aim system
   goals: Record<GoalId, Goal>
   aims: Record<AimId, Aim>
@@ -107,6 +112,8 @@ export type WorldState = {
   nextFactionMembershipId: number
   // v0.18 Stage A §6.6
   nextActorIntentId: number
+  // v0.26
+  nextProjectId: number
   nextDiplomaticPlayId: number
   // v0.23
   nextTaskId: number

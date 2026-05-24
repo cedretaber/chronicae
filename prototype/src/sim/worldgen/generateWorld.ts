@@ -165,6 +165,8 @@ function seedGoalAndAim(
     deadlineWeek: absoluteWeek + config.aimDefaultDeadlineWeeks,
     successfulIntentCount: 0,
     failedIntentCount: 0,
+    successfulProjectCount: 0,
+    failedProjectCount: 0,
     status: 'active',
     reasonIds: [aimReasonId],
     ...(target ? { target } : {}),
@@ -814,8 +816,19 @@ export function generateWorld(
     nextFactionMembershipId: 0,
     // v0.18 Stage A: 外交劇 entity を空で初期化
     actorIntents: {},
+    // v0.26 Project system
+    projects: {},
+    projectIndex: {
+      byOwner: {},
+      byAim: {},
+      byParentProject: {},
+      byCreatorPerson: {},
+      bySupervisorPerson: {},
+      byRelatedEntity: {},
+    },
     diplomaticPlays: {},
     nextActorIntentId: 0,
+    nextProjectId: 0,
     nextDiplomaticPlayId: 0,
   } as unknown as WorldState
 
@@ -1693,6 +1706,16 @@ export function generateWorld(
     factionIndex: { byLeader: {}, byMember: {} },
     // v0.18 Stage A: 外交劇 entity を空で初期化
     actorIntents: {},
+    // v0.26 Project system
+    projects: {},
+    projectIndex: {
+      byOwner: {},
+      byAim: {},
+      byParentProject: {},
+      byCreatorPerson: {},
+      bySupervisorPerson: {},
+      byRelatedEntity: {},
+    },
     diplomaticPlays: {},
     nextOrganizationShareId,
     nextOfficeAssignmentId: officeState.nextOfficeAssignmentId,
@@ -1702,6 +1725,7 @@ export function generateWorld(
     nextFactionMembershipId: 0,
     // v0.18 Stage A
     nextActorIntentId: 0,
+    nextProjectId: 0,
     nextDiplomaticPlayId: 0,
     // v0.22 Goal/Aim system
     goals: {},
@@ -1845,6 +1869,8 @@ export function generateWorld(
       deadlineWeek: seededWorld.absoluteWeek + deadlineWeeks,
       successfulIntentCount: 0,
       failedIntentCount: 0,
+      successfulProjectCount: 0,
+      failedProjectCount: 0,
       status: 'active',
       reasonIds: [aimReasonId],
       ...(target !== undefined ? { target } : {}),

@@ -4,6 +4,7 @@ import type {
   PersonId,
   AimId,
   ActorIntentId,
+  ProjectId,
   DiplomaticPlayId,
   DecisionReasonId,
   HoldingOfficeAssignmentId,
@@ -15,6 +16,7 @@ import type { AbilityKey } from './person'
 export type TaskTargetRef =
   | { kind: 'aim'; id: AimId }
   | { kind: 'intent'; id: ActorIntentId }
+  | { kind: 'project'; id: ProjectId }
   | { kind: 'diplomatic_play'; id: DiplomaticPlayId }
   | { kind: 'holding_office_assignment'; id: HoldingOfficeAssignmentId }
 
@@ -63,6 +65,8 @@ export type TaskKind =
   | 'offer_compromise'
   | 'undermine_counterparty_position'
   | 'collect_holding_revenue'
+  | 'prepare_project'
+  | 'advance_project'
 
 // --- Task ---
 export type Task = {

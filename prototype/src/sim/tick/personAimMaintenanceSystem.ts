@@ -221,6 +221,8 @@ function createPersonAimMut(
     deadlineWeek,
     successfulIntentCount: 0,
     failedIntentCount: 0,
+    successfulProjectCount: 0,
+    failedProjectCount: 0,
     status: 'active',
     reasonIds: [reasonId],
     ...(target !== undefined ? { target } : {}),
