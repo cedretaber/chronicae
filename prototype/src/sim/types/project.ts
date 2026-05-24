@@ -10,6 +10,7 @@ import type {
   DecisionReasonId,
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
+import type { HoldingImprovementKind } from './holdingImprovement'
 
 export type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
 
@@ -42,11 +43,25 @@ export type BaseProject = {
   reasonIds: DecisionReasonId[]
 }
 
+export type ProjectStageKey = 'find_supervisor' | 'secure_budget' | 'execute_project'
+
+export type ProjectBudgetSource = { kind: 'owner' }
+
+export type ProjectBudget = {
+  required: number
+  allocated: number
+  remaining: number
+  spent: number
+  source: ProjectBudgetSource
+}
+
 export type DevelopHoldingProject = BaseProject & {
   kind: 'develop_holding'
-  holdingId?: HoldingId
-  budget: number
-  spentBudget: number
+  holdingId: HoldingId
+  improvementKind: HoldingImprovementKind
+  targetImprovementLevel: number
+  currentStageKey: ProjectStageKey
+  budget: ProjectBudget
 }
 
 export type ExpandPolityShareProject = BaseProject & {

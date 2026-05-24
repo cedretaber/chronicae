@@ -4,6 +4,11 @@ import type { SimEvent } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { Project, LandClaimProject, ContractRevisionProject } from '../types/project'
+import type { PersonActivityLog } from '../types/task'
+import type { HoldingImprovementId } from '../types/ids'
+import { createHoldingImprovementId, createPersonActivityLogId } from '../types/ids'
+import { adjustPersonAttitude } from '../mutations/attitudeMutations'
+import { getPolityLeader } from '../selectors/officeSelectors'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type {
@@ -52,6 +57,15 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
       byHolder: { ...ctx.state.shareIndex.byHolder },
     },
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
+    holdingImprovements: { ...ctx.state.holdingImprovements },
+    holdingImprovementIndex: {
+      byHolding: { ...ctx.state.holdingImprovementIndex.byHolding },
+    },
+    persons: { ...ctx.state.persons },
+    personActivityLogs: { ...ctx.state.personActivityLogs },
+    personActivityLogIndex: {
+      byPerson: { ...ctx.state.personActivityLogIndex.byPerson },
+    },
   }
 
   const newEvents: SimEvent[] = []
@@ -102,11 +116,48 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
           ws.aims[aim.id] = { ...aim, successfulProjectCount: aim.successfulProjectCount + 1 }
         }
       }
-    } else if (project.status === 'failed') {
-      if (project.origin.kind === 'aim') {
+    } else if (project.status === 'failed' || project.status === 'cancelled') {
+      if (project.status === 'failed' && project.origin.kind === 'aim') {
         const aim = ws.aims[project.origin.aimId]
         if (aim) {
           ws.aims[aim.id] = { ...aim, failedProjectCount: aim.failedProjectCount + 1 }
+        }
+      }
+      // Budget refund for develop_holding
+      if (project.kind === 'develop_holding' && project.budget.remaining > 0) {
+        if (project.owner.kind === 'polity') {
+          const polity = ws.polities[project.owner.id]
+          if (polity) {
+            ws.polities[project.owner.id] = {
+              ...polity,
+              treasury: polity.treasury + project.budget.remaining,
+            }
+          }
+        }
+        // ProjectActivityLog for failed
+        if (project.status === 'failed') {
+          const supervisor = ws.persons[project.supervisorPersonId]
+          if (supervisor?.alive) {
+            const logId = createPersonActivityLogId(ws.nextPersonActivityLogId)
+            ws.nextPersonActivityLogId++
+            const actLog: PersonActivityLog = {
+              id: logId,
+              personId: project.supervisorPersonId,
+              week: ws.absoluteWeek,
+              kind: 'project_failed',
+              projectKind: 'develop_holding',
+              sourceRef: { kind: 'project', id: project.id },
+              relatedRefs: [{ kind: 'holding', id: project.holdingId }],
+              summaryKey: 'activity.project_failed',
+              importance: 10,
+            }
+            ws.personActivityLogs[logId] = actLog
+            const pKey = project.supervisorPersonId as string
+            ws.personActivityLogIndex.byPerson[pKey] = [
+              ...(ws.personActivityLogIndex.byPerson[pKey] ?? []),
+              logId,
+            ]
+          }
         }
       }
     }
@@ -150,28 +201,120 @@ function applyNonDiplomaticEffectMut(
   }
 }
 
-// v0.27 Phase A: development direct addition removed.
-// Phase B will replace this with HoldingImprovement creation.
 function applyDevelopHoldingMut(
   ws: WorldState,
-  _config: SimulationConfig,
+  config: SimulationConfig,
   project: Project,
   emitEvent: (input: CreateSimEventInput) => void,
 ): void {
-  if (project.owner.kind !== 'polity') return
-  const polityId = project.owner.id
-  const polity = ws.polities[polityId]
-  if (!polity || !polity.active) return
-
-  const holdingId = 'holdingId' in project ? project.holdingId : undefined
-  if (!holdingId) return
+  if (project.kind !== 'develop_holding') return
+  const holdingId = project.holdingId
   const holding = ws.holdings[holdingId]
   if (!holding) return
 
-  const tp = ws.holdingTerminalPolityCache[holdingId]
-  if (!tp || (tp as string) !== (polityId as string)) return
+  // HoldingImprovement 作成 or level up
+  const existingImpIds = ws.holdingImprovementIndex.byHolding[holdingId as string] ?? []
+  let existingImpId: HoldingImprovementId | undefined
+  for (const impId of existingImpIds) {
+    const imp = ws.holdingImprovements[impId]
+    if (imp?.kind === project.improvementKind) {
+      existingImpId = impId
+      break
+    }
+  }
 
-  const polityNameKey = polity.nameKey
+  if (existingImpId) {
+    const existing = ws.holdingImprovements[existingImpId]!
+    ws.holdingImprovements[existingImpId] = {
+      ...existing,
+      level: project.targetImprovementLevel,
+    }
+  } else {
+    const newId = createHoldingImprovementId(ws.nextHoldingImprovementId)
+    ws.holdingImprovements[newId] = {
+      id: newId,
+      holdingId,
+      kind: project.improvementKind,
+      level: project.targetImprovementLevel,
+      condition: 100,
+      createdWeek: ws.absoluteWeek,
+    }
+    ws.holdingImprovementIndex.byHolding[holdingId as string] = [...existingImpIds, newId]
+    ws.nextHoldingImprovementId++
+  }
+
+  // Budget remaining → supervisor.wealth
+  if (project.budget.remaining > 0) {
+    const supervisor = ws.persons[project.supervisorPersonId]
+    if (supervisor) {
+      ws.persons[project.supervisorPersonId] = {
+        ...supervisor,
+        wealth: supervisor.wealth + project.budget.remaining,
+      }
+    }
+  }
+
+  // Respect: creator → supervisor
+  if ((project.creatorPersonId as string) !== (project.supervisorPersonId as string)) {
+    const result = adjustPersonAttitude(
+      ws,
+      project.creatorPersonId,
+      {
+        kind: 'person',
+        id: project.supervisorPersonId,
+      },
+      { respect: config.projectCompletedRespectGain },
+    )
+    if (result.ok) {
+      ws.persons = result.value.persons
+    }
+  }
+
+  // Respect: owner leader → supervisor
+  if (project.owner.kind === 'polity') {
+    const leaderId = getPolityLeader(ws, project.owner.id)
+    if (leaderId && (leaderId as string) !== (project.supervisorPersonId as string)) {
+      const result = adjustPersonAttitude(
+        ws,
+        leaderId,
+        {
+          kind: 'person',
+          id: project.supervisorPersonId,
+        },
+        { respect: config.projectCompletedRespectGain },
+      )
+      if (result.ok) {
+        ws.persons = result.value.persons
+      }
+    }
+  }
+
+  // ProjectActivityLog for supervisor
+  const logId = createPersonActivityLogId(ws.nextPersonActivityLogId)
+  ws.nextPersonActivityLogId++
+  const actLog: PersonActivityLog = {
+    id: logId,
+    personId: project.supervisorPersonId,
+    week: ws.absoluteWeek,
+    kind: 'project_completed',
+    projectKind: 'develop_holding',
+    sourceRef: { kind: 'project', id: project.id },
+    relatedRefs: [{ kind: 'holding', id: holdingId }],
+    summaryKey: 'activity.project_completed',
+    importance: 20,
+  }
+  ws.personActivityLogs[logId] = actLog
+  const pKey = project.supervisorPersonId as string
+  ws.personActivityLogIndex.byPerson[pKey] = [
+    ...(ws.personActivityLogIndex.byPerson[pKey] ?? []),
+    logId,
+  ]
+
+  // Event
+  const polityNameKey =
+    project.owner.kind === 'polity'
+      ? (ws.polities[project.owner.id]?.nameKey ?? project.owner.id)
+      : ''
   const provinceNameKey = ws.provinces[holding.provinceId]?.nameKey ?? holding.provinceId
   emitEvent({
     type: 'COUNTRY_LAND_DEVELOPED',
@@ -182,7 +325,7 @@ function applyDevelopHoldingMut(
       province: nameParam('province', provinceNameKey),
     },
     entityRefs: [
-      entityRef('polity', polityId, 'polity', polityNameKey),
+      entityRef('polity', project.owner.id, 'polity', polityNameKey),
       entityRef('province', holding.provinceId, 'province', provinceNameKey),
     ],
   })

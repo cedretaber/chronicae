@@ -10,6 +10,7 @@ import type {
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
 import type { AbilityKey } from './person'
+import type { ProjectKind } from './project'
 
 // --- TaskTargetRef ---
 export type TaskTargetRef =
@@ -100,22 +101,37 @@ export type PersonActivityKind =
   | 'task_failed'
   | 'task_cancelled'
   | 'task_expired'
+  | 'project_completed'
+  | 'project_failed'
 
 export type BailiffRevenueTaskStatus = 'completed' | 'none'
 
-export type PersonActivityLog = {
+type TaskActivityKind = 'task_completed' | 'task_failed' | 'task_cancelled' | 'task_expired'
+
+type PersonActivityLogBase = {
   id: PersonActivityLogId
   personId: PersonId
   week: number
-  kind: PersonActivityKind
-  outcome: TaskOutcomeKind
-  taskKind: TaskKind
-  sourceRef?: TaskTargetRef
   relatedRefs: EntityRef[]
   summaryKey: string
   params?: Record<string, string | number>
   importance: number
 }
+
+export type TaskActivityLog = PersonActivityLogBase & {
+  kind: TaskActivityKind
+  outcome: TaskOutcomeKind
+  taskKind: TaskKind
+  sourceRef?: TaskTargetRef
+}
+
+export type ProjectActivityLog = PersonActivityLogBase & {
+  kind: 'project_completed' | 'project_failed'
+  projectKind: ProjectKind
+  sourceRef: { kind: 'project'; id: ProjectId }
+}
+
+export type PersonActivityLog = TaskActivityLog | ProjectActivityLog
 
 export type PersonActivityLogIndex = {
   byPerson: Record<string, PersonActivityLogId[]>

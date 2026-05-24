@@ -186,10 +186,15 @@ describe('runBailiffRevenueTaskSystem', () => {
     expect((activeTasks[0]!.id as string) !== (existingTaskId as string)).toBe(true)
 
     const logs = Object.values(result.state.personActivityLogs).filter(
-      (l) => l && l.kind === 'task_expired' && l.taskKind === 'collect_holding_revenue',
+      (l) =>
+        l &&
+        l.kind === 'task_expired' &&
+        'taskKind' in l &&
+        l.taskKind === 'collect_holding_revenue',
     )
     expect(logs.length).toBe(1)
-    expect(logs[0]!.outcome).toBe('failure')
+    const firstLog = logs[0]!
+    expect('outcome' in firstLog ? firstLog.outcome : undefined).toBe('failure')
   })
 
   it('inactive assignment generates no Task', () => {

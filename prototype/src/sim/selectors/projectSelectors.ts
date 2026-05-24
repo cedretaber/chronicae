@@ -13,7 +13,7 @@ import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 export function getProjectRelatedRefs(project: Project): EntityRef[] {
   switch (project.kind) {
     case 'develop_holding':
-      return project.holdingId ? [{ kind: 'holding', id: project.holdingId }] : []
+      return [{ kind: 'holding', id: project.holdingId }]
 
     case 'expand_polity_share':
       return [

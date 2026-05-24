@@ -23,12 +23,22 @@ import type {
   AimId,
   PersonActivityLogId,
   EventId,
+  HoldingId,
 } from '../types/ids'
 import { createTaskId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { AbilityKey } from '../types/person'
 import type { ProjectId } from '../types/ids'
-import type { Project, LandClaimProject, ContractRevisionProject } from '../types/project'
+import type {
+  Project,
+  LandClaimProject,
+  ContractRevisionProject,
+  ProjectBudget,
+  ProjectStageKey,
+} from '../types/project'
+import type { HoldingImprovementKind } from '../types/holdingImprovement'
+import type { HoldingKind } from '../types/landContract'
+import { getHoldingImprovementLevel } from '../selectors/holdingImprovementSelectors'
 import { createProjectId } from '../types/ids'
 import { clamp } from '../utils/math'
 import {
@@ -54,6 +64,7 @@ import {
   determineTaskOutcome,
 } from '../selectors/taskSelectors'
 import type { RngState } from '../rng/rng'
+import { tryResolveDevelopHoldingStages } from './projectStageHelpers'
 
 // --- Types ---
 
@@ -950,6 +961,10 @@ function handlePrepareProjectCompletionMut(
   }
 
   const fields = buildProjectFieldsForAim(ws, config, aim, projectKind)
+  if (!fields) {
+    ws.aims[aim.id] = { ...aim, activeTaskId: undefined } as unknown as Aim
+    return
+  }
 
   const supervisorId =
     selectProjectSupervisor(ws, config, aim.owner, projectKind, creatorPersonId) ?? creatorPersonId
@@ -985,6 +1000,11 @@ function handlePrepareProjectCompletionMut(
   ws.nextProjectId++
   addProjectToIndexMut(ws, project)
 
+  // develop_holding: 即時 stage 解決を試行
+  if (project.kind === 'develop_holding') {
+    tryResolveDevelopHoldingStages(ws, config, projectId, absoluteWeek)
+  }
+
   ws.aims[aim.id] = { ...aim, activeTaskId: undefined } as unknown as Aim
 
   const ownerNameKey = getOwnerNameKeyForProject(ws, aim.owner)
@@ -1000,16 +1020,74 @@ function handlePrepareProjectCompletionMut(
   })
 }
 
+function selectImprovementKind(
+  ws: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  holdingKind: HoldingKind,
+): HoldingImprovementKind | undefined {
+  const maxByKind = config.holdingImprovementMaxLevelByHoldingKind[holdingKind]
+  const kinds: HoldingImprovementKind[] = [
+    'agricultural_infrastructure',
+    'urban_infrastructure',
+    'storage_infrastructure',
+    'transport_infrastructure',
+  ]
+  let bestKind: HoldingImprovementKind | undefined
+  let bestLevel = Infinity
+  for (const k of kinds) {
+    const maxLevel = maxByKind[k]
+    const curLevel = getHoldingImprovementLevel(ws, holdingId, k)
+    if (curLevel >= maxLevel) continue
+    if (curLevel < bestLevel) {
+      bestLevel = curLevel
+      bestKind = k
+    }
+  }
+  return bestKind
+}
+
 function buildProjectFieldsForAim(
   ws: WorldState,
   config: SimulationConfig,
   aim: Aim,
   projectKind: string,
-): Record<string, unknown> {
+): Record<string, unknown> | undefined {
   switch (projectKind) {
     case 'develop_holding': {
       const holdingId = aim.target?.kind === 'holding' ? aim.target.id : undefined
-      return { holdingId, budget: 0, spentBudget: 0 }
+      if (!holdingId) return undefined
+      const holding = ws.holdings[holdingId]
+      if (!holding) return undefined
+
+      const improvementKind = selectImprovementKind(ws, config, holdingId, holding.kind)
+      if (!improvementKind) return undefined
+
+      const currentLevel = getHoldingImprovementLevel(ws, holdingId, improvementKind)
+      const targetLevel = currentLevel + 1
+
+      const baseCost = config.developHoldingProjectBaseCostByImprovementKind[improvementKind]
+      const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
+      const required = baseCost * costMult
+
+      const baseProgress =
+        config.developHoldingProjectBaseProgressByImprovementKind[improvementKind]
+      const progMult = config.improvementLevelProgressMultiplier[targetLevel] ?? 1
+
+      return {
+        holdingId,
+        improvementKind,
+        targetImprovementLevel: targetLevel,
+        currentStageKey: 'find_supervisor' satisfies ProjectStageKey,
+        budget: {
+          required,
+          allocated: 0,
+          remaining: 0,
+          spent: 0,
+          source: { kind: 'owner' },
+        } satisfies ProjectBudget,
+        targetProgress: baseProgress * progMult,
+      }
     }
     case 'expand_polity_share': {
       const polityId = aim.target?.kind === 'polity' ? aim.target.id : undefined
@@ -1180,6 +1258,25 @@ function handleAdvanceProjectCompletionMut(
         ? config.projectAdvanceProgressPartial
         : config.projectAdvanceProgressFailure
   const newProgress = Math.min(project.progress + progressGain, project.targetProgress)
+
+  if (project.kind === 'develop_holding') {
+    const expectedTasks = Math.max(
+      1,
+      Math.ceil(project.targetProgress / config.projectAdvanceProgressSuccess),
+    )
+    let consumption = project.budget.required / expectedTasks
+    if (outcome === 'failure') {
+      consumption *= config.projectBudgetTaskConsumptionFailureMultiplier
+    }
+    const actualConsumption = Math.min(consumption, project.budget.remaining)
+    const newBudget: ProjectBudget = {
+      ...project.budget,
+      remaining: project.budget.remaining - actualConsumption,
+      spent: project.budget.spent + actualConsumption,
+    }
+    ws.projects[projectId] = { ...project, progress: newProgress, budget: newBudget }
+    return
+  }
 
   if (isDiplomaticProjectKind(project.kind)) {
     const lcp = project as LandClaimProject | ContractRevisionProject

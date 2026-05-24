@@ -2602,10 +2602,20 @@ export function PersonDetail({
                     {recentLogs.map((log) => (
                       <div
                         key={log.id}
-                        className={`text-xs ${log.outcome === 'success' ? 'text-green-400' : log.outcome === 'failure' ? 'text-red-400' : 'text-gray-400'}`}
+                        className={`text-xs ${'outcome' in log ? (log.outcome === 'success' ? 'text-green-400' : log.outcome === 'failure' ? 'text-red-400' : 'text-gray-400') : log.kind === 'project_completed' ? 'text-blue-400' : 'text-red-400'}`}
                       >
                         [Y{Math.ceil(log.week / 48)}/W{((log.week - 1) % 48) + 1}]{' '}
-                        {t(log.taskKind, { ns: 'tasks' })} {log.outcome === 'success' ? '✓' : '✗'}
+                        {'taskKind' in log ? (
+                          <>
+                            {t(log.taskKind, { ns: 'tasks' })}{' '}
+                            {log.outcome === 'success' ? '✓' : '✗'}
+                          </>
+                        ) : (
+                          <>
+                            {t(`project.${log.projectKind}`, { ns: 'tasks' })}{' '}
+                            {log.kind === 'project_completed' ? '✓' : '✗'}
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>

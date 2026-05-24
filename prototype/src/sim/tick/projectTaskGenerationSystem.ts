@@ -28,6 +28,8 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
 
   for (const [, project] of Object.entries(ws.projects)) {
     if (!project || project.status !== 'active') continue
+    if (project.kind === 'develop_holding' && project.currentStageKey !== 'execute_project')
+      continue
 
     if (project.deadlineWeek != null && absoluteWeek > project.deadlineWeek) continue
 

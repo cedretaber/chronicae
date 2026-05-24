@@ -7,6 +7,7 @@ import type { WorldState } from '../types/world'
 import type { EventId } from '../types/ids'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { removeProjectFromIndexMut, addProjectToIndexMut } from '../mutations/projectMutations'
+import { tryResolveDevelopHoldingStages } from './projectStageHelpers'
 
 export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
   const absoluteWeek = ctx.state.absoluteWeek
@@ -24,6 +25,13 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
     },
     aims: { ...ctx.state.aims },
+    polities: { ...ctx.state.polities },
+    holdingOfficeAssignments: { ...ctx.state.holdingOfficeAssignments },
+    holdingOfficeIndex: {
+      byHolding: { ...ctx.state.holdingOfficeIndex.byHolding },
+      byHolderPerson: { ...ctx.state.holdingOfficeIndex.byHolderPerson },
+      byAppointingPolity: { ...ctx.state.holdingOfficeIndex.byAppointingPolity },
+    },
   }
 
   const newEvents: SimEvent[] = []
@@ -46,8 +54,22 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
     })
   }
 
-  for (const [, project] of Object.entries(ws.projects)) {
-    if (!project || project.status !== 'active') continue
+  for (const [, origProject] of Object.entries(ws.projects)) {
+    if (!origProject || origProject.status !== 'active') continue
+    let project = origProject
+
+    // v0.27: develop_holding stage retry
+    if (project.kind === 'develop_holding') {
+      if (
+        project.currentStageKey === 'find_supervisor' ||
+        project.currentStageKey === 'secure_budget'
+      ) {
+        tryResolveDevelopHoldingStages(ws, config, project.id, absoluteWeek)
+        const updated = ws.projects[project.id]
+        if (!updated || updated.status !== 'active') continue
+        project = updated
+      }
+    }
 
     // 1. Owner disappeared → cancelled
     if (!isOwnerActive(ws, project.owner)) {
@@ -103,6 +125,25 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
         project.owner,
         'PROJECT_FAILED',
         'project.failed.no_supervisor',
+        project.kind,
+        emitEvent,
+      )
+      continue
+    }
+
+    // 3b. Budget exhausted (develop_holding)
+    if (
+      project.kind === 'develop_holding' &&
+      project.currentStageKey === 'execute_project' &&
+      project.budget.remaining <= 0 &&
+      project.progress < project.targetProgress
+    ) {
+      ws.projects[project.id] = { ...project, status: 'failed' }
+      emitProjectEvent(
+        ws,
+        project.owner,
+        'PROJECT_FAILED',
+        'project.failed.budget',
         project.kind,
         emitEvent,
       )

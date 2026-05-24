@@ -72,6 +72,7 @@ export type HoldingOfficeAssignment = {
   unpaidCount: number
   contractedRemittanceRate: number
   expectedFeeRate: number
+  termProtectedUntilWeek?: number
 }
 
 export type HoldingOfficeIndex = {

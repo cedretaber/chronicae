@@ -71,6 +71,12 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       // Term expiration: week-based comparison
       const termWeeks = currentCtx.config.provinceOfficeTermYears.bailiff * WEEKS_PER_YEAR
       if (currentCtx.state.absoluteWeek - office.startWeek >= termWeeks) {
+        // v0.27: Project 使用中の bailiff は通常任期交代から保護
+        if (
+          office.termProtectedUntilWeek &&
+          currentCtx.state.absoluteWeek < office.termProtectedUntilWeek
+        )
+          continue
         currentCtx = emitBailiffVacated(currentCtx, provinceId, office.holderPersonId)
         const beforeVacate = currentCtx.state
         const afterPlaceholder = installHoldingPlaceholderBailiff(beforeVacate, {

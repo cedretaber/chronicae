@@ -50,6 +50,20 @@ export function runProjectPreparationSystem(ctx: TickContext): TickContext {
     }
     if (hasActiveProject) continue
 
+    // v0.27 §15: concurrent limit — same holdingId can have only 1 active develop_holding
+    if (projectKind === 'develop_holding') {
+      const holdingId = aim.target?.kind === 'holding' ? aim.target.id : undefined
+      if (holdingId) {
+        const refKey = `holding:${holdingId}`
+        const existingPids = ws.projectIndex.byRelatedEntity[refKey] ?? []
+        const hasActiveDev = existingPids.some((pid) => {
+          const p = ws.projects[pid]
+          return p && p.kind === 'develop_holding' && p.status === 'active'
+        })
+        if (hasActiveDev) continue
+      }
+    }
+
     if (aim.activeTaskId) continue
     if (aim.activeDiplomaticPlayId) continue
 
