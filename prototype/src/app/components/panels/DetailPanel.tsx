@@ -1298,6 +1298,45 @@ export function CountryDetail({
                   </div>
                 </div>
               )}
+              {activeAim &&
+                worldState &&
+                (() => {
+                  const aimKey = `aim:${activeAim.id}`
+                  const projectIds = worldState.projectIndex.byAim[aimKey] ?? []
+                  const activeProjects = projectIds
+                    .map((pid) => worldState.projects[pid])
+                    .filter(
+                      (p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active',
+                    )
+                  if (activeProjects.length === 0) return null
+                  return activeProjects.map((project) => {
+                    const supervisor = worldState.persons[project.supervisorPersonId]
+                    const supervisorName = supervisor
+                      ? resolveName('person', supervisor.nameKey, supervisor.nameKey)
+                      : '?'
+                    return (
+                      <div key={project.id} style={{ marginLeft: 8, marginTop: 4 }}>
+                        <strong>{t('detail.polity.active_project')}</strong>
+                        <div style={{ marginLeft: 8 }}>
+                          <div>{t(`detail.project_kind.${project.kind}`)}</div>
+                          <div>
+                            {t('detail.polity.project_progress')}: {project.progress} /{' '}
+                            {project.targetProgress}
+                          </div>
+                          <div>
+                            {t('detail.polity.project_supervisor')}: {supervisorName}
+                          </div>
+                          {project.deadlineWeek && (
+                            <div>
+                              {t('detail.polity.project_deadline')}: {t('detail.common.year')}{' '}
+                              {Math.ceil(project.deadlineWeek / 48)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })
+                })()}
               {activeAim?.activeDiplomaticPlayId &&
                 (() => {
                   const play = worldState.diplomaticPlays[activeAim.activeDiplomaticPlayId]
@@ -1325,6 +1364,40 @@ export function CountryDetail({
                     </div>
                   )
                 })()}
+            </div>
+          )
+        })()}
+
+      {/* Projects Section */}
+      {worldState &&
+        (() => {
+          const ownerKey = `polity:${polity.id}`
+          const projectIds = worldState.projectIndex.byOwner[ownerKey] ?? []
+          const activeProjects = projectIds
+            .map((pid) => worldState.projects[pid])
+            .filter((p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active')
+          if (activeProjects.length === 0) return null
+          return (
+            <div className="mt-2">
+              <div className="text-sm font-semibold text-gray-300">
+                {t('detail.polity.projects_section')} ({activeProjects.length})
+              </div>
+              <ul className="list-inside text-sm">
+                {activeProjects.map((project) => {
+                  const supervisor = worldState.persons[project.supervisorPersonId]
+                  const supervisorName = supervisor
+                    ? resolveName('person', supervisor.nameKey, supervisor.nameKey)
+                    : '?'
+                  return (
+                    <li key={project.id} className="mb-1 text-gray-400">
+                      <span className="text-gray-200">
+                        {t(`detail.project_kind.${project.kind}`)}
+                      </span>{' '}
+                      — {project.progress}/{project.targetProgress} — {supervisorName}
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
           )
         })()}
@@ -1722,6 +1795,44 @@ export function HouseDetail({
                   </div>
                 </div>
               )}
+              {activeAim &&
+                (() => {
+                  const aimKey = `aim:${activeAim.id}`
+                  const projectIds = currentState.projectIndex.byAim[aimKey] ?? []
+                  const activeProjects = projectIds
+                    .map((pid) => currentState.projects[pid])
+                    .filter(
+                      (p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active',
+                    )
+                  if (activeProjects.length === 0) return null
+                  return activeProjects.map((project) => {
+                    const supervisor = currentState.persons[project.supervisorPersonId]
+                    const supervisorName = supervisor
+                      ? resolveName('person', supervisor.nameKey, supervisor.nameKey)
+                      : '?'
+                    return (
+                      <div key={project.id} style={{ marginLeft: 8, marginTop: 4 }}>
+                        <strong>{t('detail.house.active_project')}</strong>
+                        <div style={{ marginLeft: 8 }}>
+                          <div>{t(`detail.project_kind.${project.kind}`)}</div>
+                          <div>
+                            {t('detail.house.project_progress')}: {project.progress} /{' '}
+                            {project.targetProgress}
+                          </div>
+                          <div>
+                            {t('detail.house.project_supervisor')}: {supervisorName}
+                          </div>
+                          {project.deadlineWeek && (
+                            <div>
+                              {t('detail.house.project_deadline')}: {t('detail.common.year')}{' '}
+                              {Math.ceil(project.deadlineWeek / 48)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })
+                })()}
               {activeAim?.activeDiplomaticPlayId &&
                 (() => {
                   const play = currentState.diplomaticPlays[activeAim.activeDiplomaticPlayId]
@@ -1749,6 +1860,40 @@ export function HouseDetail({
                     </div>
                   )
                 })()}
+            </div>
+          )
+        })()}
+
+      {/* Projects Section */}
+      {currentState &&
+        (() => {
+          const ownerKey = `house:${house.id}`
+          const projectIds = currentState.projectIndex.byOwner[ownerKey] ?? []
+          const activeProjects = projectIds
+            .map((pid) => currentState.projects[pid])
+            .filter((p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active')
+          if (activeProjects.length === 0) return null
+          return (
+            <div className="mt-2">
+              <div className="text-sm font-semibold text-gray-300">
+                {t('detail.house.projects_section')} ({activeProjects.length})
+              </div>
+              <ul className="list-inside text-sm">
+                {activeProjects.map((project) => {
+                  const supervisor = currentState.persons[project.supervisorPersonId]
+                  const supervisorName = supervisor
+                    ? resolveName('person', supervisor.nameKey, supervisor.nameKey)
+                    : '?'
+                  return (
+                    <li key={project.id} className="mb-1 text-gray-400">
+                      <span className="text-gray-200">
+                        {t(`detail.project_kind.${project.kind}`)}
+                      </span>{' '}
+                      — {project.progress}/{project.targetProgress} — {supervisorName}
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
           )
         })()}
@@ -2387,6 +2532,24 @@ export function PersonDetail({
                                   return t('detail.person.task_target_polity_aim', { name })
                                 }
                                 return t('detail.person.task_target_aim')
+                              })()}
+                            {task.targetRef.kind === 'project' &&
+                              (() => {
+                                if (task.owner.kind === 'house') {
+                                  const h = worldState.houses[task.owner.id]
+                                  const name = h
+                                    ? resolveName('house', h.nameKey, h.nameKey)
+                                    : task.owner.id
+                                  return t('detail.person.task_target_house_project', { name })
+                                }
+                                if (task.owner.kind === 'polity') {
+                                  const p = worldState.polities[task.owner.id]
+                                  const name = p
+                                    ? resolveName('polity', p.nameKey, p.nameKey)
+                                    : task.owner.id
+                                  return t('detail.person.task_target_polity_project', { name })
+                                }
+                                return t('detail.person.task_target_project')
                               })()}
                             {task.targetRef.kind === 'diplomatic_play' &&
                               (() => {

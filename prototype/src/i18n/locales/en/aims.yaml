@@ -4,6 +4,7 @@ polity:
   seize_weak_remote_holdings: Seize Weak Remote Holdings
   develop_owned_holding: Develop Owned Holding
   improve_owned_contract_terms: Improve Contract Terms
+  demand_tax_increase_from_vassal: Demand Tax Increase
 house:
   increase_polity_share: Increase Polity Share
   steer_polity_external_expansion: Steer Polity Toward Expansion

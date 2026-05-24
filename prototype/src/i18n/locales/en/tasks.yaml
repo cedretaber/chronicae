@@ -23,3 +23,5 @@ pressure_counterparty: Pressure Counterparty
 offer_compromise: Offer Compromise
 undermine_counterparty_position: Undermine Counterparty Position
 collect_holding_revenue: Collect Revenue (Holding)
+prepare_project: Prepare Project
+advance_project: Advance Project
