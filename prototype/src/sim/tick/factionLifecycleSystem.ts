@@ -48,7 +48,11 @@ function checkDissolutions(ctx: TickContext): TickContext {
     const viability = getFactionViabilityScore(currentCtx.state, currentCtx.config, factionId)
     const config = currentCtx.config
 
+    const leaderHouse = currentCtx.state.houses[leader.houseId]
+
     const reasonsToDissolve: string[] = []
+    if (!leaderHouse || !leaderHouse.active || leaderHouse.kind === 'system')
+      reasonsToDissolve.push('leader unaffiliated')
     if (memberIds.length < config.minimumFactionMembers)
       reasonsToDissolve.push('insufficient members')
     if (viability < config.factionDisbandThreshold) reasonsToDissolve.push('low viability')
