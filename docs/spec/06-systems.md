@@ -212,9 +212,9 @@ for (const holding of Object.values(state.holdings)) {
 
 過徴税ペナルティは LandRevenueSystem 側で継続。`houseControl` 経由の二重収入経路 (`houseIncome`) は廃止された。House への富の流れは Polity Share 経由でのみ発生する（§6.5b）。
 
-### 6.5a LandRevenueSystem（4週ごと、v0.16 / v0.20 / v0.24 更新）
+### 6.5a LandRevenueSystem（4週ごと、v0.16 / v0.20 / v0.24 / v0.25 更新）
 
-Province の生産を **Holding 単位で分配**し、各 Holding の LandContract chain に沿って上納する。
+Province の生産を **Holding 単位で分配**し、代官による現地徴収を挟んだ上で、各 Holding の LandContract chain に沿って上納する。
 
 **6.5a.1 生産量算出（v0.24 更新）**
 
@@ -224,7 +224,7 @@ v0.24 で occupation productivity multiplier を追加。各 POP の生産量は
 const production = getProvinceProduction(state, config, province.id)
 ```
 
-**6.5a.2 per-Holding 分配と chain 上納（v0.20）**
+**6.5a.2 per-Holding 分配と代官徴収（v0.20 / v0.25 extraction model）**
 
 Province 生産を各 Holding の share weight に応じて分配する。
 
@@ -238,13 +238,28 @@ totalShareWeight = sum(holdingShareWeight for each Holding in Province)
 
 // per-Holding 収入
 holdingShare = production * (holdingShareWeight / totalShareWeight)
-holdingRevenue = holdingShare * (holding.polityControl / 100)
+grossHoldingRevenue = holdingShare * (holding.polityControl / 100)
 ```
 
-各 Holding について、その byHolding chain を terminal → root の順に走査し上納する。
+**v0.25**: 各 Holding の代官による現地徴収を挟む。
 
 ```ts
-let remaining = holdingRevenue * taxEfficiency
+const localExtractionRate = getBailiffLocalExtractionRate(state, config, assignment.id)
+const collectionEfficiency = getBailiffCollectionEfficiency(state, config, assignment.id, recentTaskStatus)
+const collected = grossHoldingRevenue * localExtractionRate * collectionEfficiency
+const bailiffFeeRate = getBailiffFeeRate(state, config, assignment.id)
+const bailiffFee = collected * bailiffFeeRate
+const remittanceToTerminal = collected - bailiffFee
+```
+
+通常人物代官には `bailiffFee` を `person.wealth` に加算する。placeholder 代官には加算しない。
+
+**6.5a.2b chain 上納（v0.25 更新）**
+
+各 Holding について、`remittanceToTerminal`（v0.25 以前は `holdingRevenue`）を chain に流す。
+
+```ts
+let remaining = remittanceToTerminal * taxEfficiency
 for (const contract of chain.slice().reverse()) {
   const tax = remaining * contract.terms.taxRateToGrantor
   granteePolity.treasury += (remaining - tax)
@@ -256,27 +271,44 @@ for (const contract of chain.slice().reverse()) {
 
 **6.5a.3 Polity treasurer の taxEfficiency**
 
-terminal Polity の treasurer に能力補正がかかる（§10 参照）。
+terminal Polity の treasurer に能力補正がかかる（§10 参照）。`collectionEfficiency`（代官の現地徴収能力）とは別概念。
 
-**6.5a.4 過徴税ペナルティ**
+**6.5a.4 ~~過徴税ペナルティ~~ → Holding 単位の徴税負担処理（v0.25 で置換）**
 
-`extractionRatio` の入力は `polityControl` 単独になる。判定式は旧 EconomySystem と同じ。
+**v0.25 で旧 Province 単位の `overExtractionPenalty` を廃止**し、Holding 単位の `totalBurdenRate` ベース処理に置換した。
 
 ```ts
-if (
-  extractionRatio > config.overExtractionThreshold &&
-  (averageWealth < config.overExtractionWealthSafeThreshold ||
-   provinceUnrest > config.overExtractionUnrestSafeThreshold)
-) {
-  const over = extractionRatio - config.overExtractionThreshold
-  adjustProvincePopWealth(state, province.id, -over * config.overExtractionWealthPenalty)
-  adjustProvincePopUnrest(state, province.id, over * config.overExtractionUnrestGain)
-}
+const { collectionFrictionBurdenRate, totalBurdenRate } =
+  computeBailiffBurdenComponents(localExtractionRate, collectionEfficiency, config.collectionFrictionFactor)
+
+// POP wealth: 徴税摩擦による追加損耗
+pop.wealth -= collectionFrictionBurdenRate * config.localExtractionWealthPenalty
+
+// POP unrest: totalBurdenRate が comfort を超えた分で上昇
+const burdenOverComfort = Math.max(0, totalBurdenRate - config.comfortableLocalExtractionRate)
+pop.unrest += burdenOverComfort * config.localExtractionUnrestGain
+
+// POP → Bailiff Attitude（通常人物代官のみ）
+affectionDelta -= burdenOverComfort * config.bailiffBurdenAffectionPenaltyFactor
+if (policy === 'protect_residents') affectionDelta += config.bailiffProtectResidentsAffectionBonus
+if (recentTaskStatus === 'completed') respectDelta += config.bailiffTaskCompletedRespectGain
+// clamp: affection [-1.0, 0.5], respect [-0.5, 0.5]
 ```
 
-**6.5a.5 retained wealth の POP 反映**
+**6.5a.5 retained wealth の POP 反映（v0.25 更新）**
 
-回収されなかった富は POP wealth に反映される（旧 EconomySystem と同じ式、`polityControl` 単独入力）。
+v0.25 では `retainedToPop` を `provinceCollected`（各 Holding で実際に徴収された額の合計）ベースで計算する。
+
+```ts
+const provinceCollected = sum(collected for each Holding)
+const retainedToPop = Math.max(0, provinceProduction - provinceCollected)
+```
+
+POP は生産の過半（標準で約 65%）を保持する。`retainedWealthGainByClass` による class 別 POP wealth 回復は維持。
+
+**6.5a.6 debug log（v0.25）**
+
+`config.debug === true` 時に `[BAILIFF]` ログを stderr に出力する。holdingId / collected / bailiffFee / remittance / rates / burden 等。
 
 ### 6.5b PolitySurplusDistributionSystem（4週ごと、v0.16）
 
@@ -589,7 +621,7 @@ score = relevantStat(role) * 1.0
 
 **イベント**: `OFFICE_ASSIGNED`（importance: `normal`）
 
-### 6.14b OfficeCompensationSystem（4週ごと、v0.23 で頻度変更）
+### 6.14b OfficeCompensationSystem（4週ごと、v0.23 で頻度変更 / v0.25 bailiff 給与廃止）
 
 アクティブな OfficeAssignment に対して、`baseSalary`（§3.7 参照）に基づく給与を支払う。
 
@@ -600,7 +632,36 @@ score = relevantStat(role) * 1.0
   - ペナルティは `officeDignityUnpaidPenaltyReduction` × dignity 値で軽減
 - `unpaidCount` が 0 の完全支払い時にはリセット
 
+**v0.25**: bailiff（HoldingOfficeAssignment）の給与支払い処理を廃止。代官の収入は LandRevenueSystem 内の `bailiffFee`（§6.5a.2）に一本化。旧 `giveSingleHoldingBailiffSalary()` および `config.bailiffRevenueShare` も廃止。
+
 **イベント**: `OFFICE_SALARY_UNPAID`（importance: `minor`）/ `OFFICE_SALARY_PARTIALLY_PAID`（importance: `minor`）
+
+### 6.14a2 BailiffRevenueTaskSystem（4週ごと、v0.25）
+
+代官の月次徴税業務 Task を管理する。
+
+**責務**:
+1. 前回の未完了 `collect_holding_revenue` Task を期限切れ処理する
+2. 今月分の `collect_holding_revenue` Task を生成する
+3. placeholder 代官は除外する
+
+**生成条件**:
+- `assignment.role === 'bailiff'` / `assignment.active === true`
+- `holderPersonId` が通常人物（`kind !== 'placeholder'`）かつ `alive`
+
+**期限切れ処理**: 同じ `holding_office_assignment` を target に持つ active `collect_holding_revenue` Task が残っている場合、`failTaskAsExpired` で締め、`PersonActivityLog`（`kind: 'task_expired'`, `outcome: 'failure'`）を作成する。
+
+**Task パラメータ**:
+```ts
+kind: 'collect_holding_revenue'
+targetRef: { kind: 'holding_office_assignment', id: assignment.id }
+priority: 1
+actionCost: config.taskActionCostLight
+effortRequired: Math.ceil(config.taskEffortRequiredLight * 1.5)
+deadlineWeek: absoluteWeek + 4
+```
+
+Task の実際の処理（effort 消費 → 完了）は既存 TaskSystem に任せる。`collect_holding_revenue` は既存 Task と `weeklyActionCapacity` を共有する。
 
 ### 6.14e BailiffAppointmentSystem（12週ごと = 季節ごと、v0.16 / v0.20）
 
@@ -1103,6 +1164,28 @@ Revolt:
 Commonwealth Polity:
 - kind === 'commonwealth' なら ownerHouseId === undefined を許容
 - commonwealth の active DiplomaticPlay の initiator になるのは revolt_negotiation のみ
+
+**v0.25 追加チェック項目**:
+
+HoldingOfficeAssignment:
+- active HoldingOfficeAssignment の holderPersonId が alive または placeholder
+- `contractedRemittanceRate` が 0..1
+- `expectedFeeRate` が 0..1
+- `contractedRemittanceRate + expectedFeeRate` <= `maxLocalExtractionRate * 1.1`
+- 同一 Holding に active bailiff assignment が複数存在しない
+- 同一通常人物が active bailiff assignment を複数持たない
+
+collect_holding_revenue Task:
+- targetRef.kind は `'holding_office_assignment'`
+- targetRef.id が存在する active HoldingOfficeAssignment を指す
+- placeholder 代官を holder とする collect_holding_revenue Task が存在しない
+- 同一 assignment を target とする active collect_holding_revenue Task が複数存在しない
+
+Selector range（debug/integrity-check モード）:
+- `localExtractionRate` が `[minLocalExtractionRate, maxLocalExtractionRate]`
+- `collectionEfficiency` が `[minBailiffCollectionEfficiency, 1.0]`
+- `bailiffFeeRate` が `[0, maxBailiffFeeRate]`
+- `totalBurdenRate` が `[0, maxLocalExtractionRate]`
 
 ### 6.25 IntentGenerationSystem（48週ごと = 毎年、v0.18 / v0.22 縮小）
 

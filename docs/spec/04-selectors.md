@@ -349,5 +349,45 @@ function getAppointmentTaskModifier(
 function computeEffectivePriority(state: WorldState, config: SimulationConfig, task: Task): number
 ```
 
+### 4.9 代官 selector（v0.25）
+
+`prototype/src/sim/selectors/bailiffSelectors.ts` に集約。
+
+```ts
+// 代官の事務能力スコア（BailiffPolicy 判定と collectionEfficiency で共用）
+// numeracy*0.50 + learning*0.20 + insight*0.20 + caution*120*0.10
+function getBailiffStewardshipScore(person: Person): number
+
+// Holding 内 POP の size 加重平均 unrest（POP なしは 0）
+function getHoldingAverageUnrest(state: WorldState, holdingId: HoldingId): number
+
+// 代官方針: 能力・性格・現地 unrest から最大スコアの policy を返す
+// placeholder は 'passive' 固定
+function getBailiffPolicy(state: WorldState, config: SimulationConfig, assignmentId: HoldingOfficeAssignmentId): BailiffPolicy
+
+// 方針スコア詳細（デバッグ・UI 用）
+function getBailiffPolicyScores(state: WorldState, config: SimulationConfig, assignmentId: HoldingOfficeAssignmentId): Record<BailiffPolicy, number>
+
+// 現地徴収率: contractedRemittanceRate + expectedFeeRate + policyModifier, clamp [min, max]
+function getBailiffLocalExtractionRate(state: WorldState, config: SimulationConfig, assignmentId: HoldingOfficeAssignmentId): number
+
+// 徴税効率: base + skill + policy + task modifier, clamp [min, 1.0]
+// placeholder は placeholderBailiffCollectionEfficiency 固定
+function getBailiffCollectionEfficiency(state: WorldState, config: SimulationConfig, assignmentId: HoldingOfficeAssignmentId, recentTaskStatus: BailiffRevenueTaskStatus): number
+
+// 代官取り分率: expectedFeeRate + policyModifier, clamp [0, max]
+function getBailiffFeeRate(state: WorldState, config: SimulationConfig, assignmentId: HoldingOfficeAssignmentId): number
+
+// 徴税負担の分解: actualExtraction + collectionFriction = totalBurden
+function computeBailiffBurdenComponents(
+  localExtractionRate: number,
+  collectionEfficiency: number,
+  collectionFrictionFactor: number,
+): { actualExtractionBurdenRate: number; collectionFrictionBurdenRate: number; totalBurdenRate: number }
+
+// 直近 4 週の collect_holding_revenue Task 完了状態
+function getRecentBailiffRevenueTaskStatus(state: WorldState, assignmentId: HoldingOfficeAssignmentId): BailiffRevenueTaskStatus
+```
+
 ---
 

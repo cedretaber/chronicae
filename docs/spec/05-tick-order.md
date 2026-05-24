@@ -64,6 +64,7 @@ const WEEKS_PER_SEASON = 12
 | 11c | OfficeTermSystem | 48 | 旧毎年 |
 | 12 | ShareUpdateSystem | 48 | 旧毎年 |
 | 13 | AppointmentSystem | 12 | v0.23: 48→12 に変更。3ヶ月ごと |
+| 13a | BailiffRevenueTaskSystem | 4 | v0.25 追加。代官月次 collect_holding_revenue Task 生成・期限切れ処理 |
 | 13b | TaskSystem | 1 | v0.23 追加。毎週。Task 生成・処理・outcome・cleanup 一体 |
 | 13c | BailiffAppointmentSystem | 12 | 旧6ヶ月ごと |
 | 14 | OfficeCompensationSystem | 4 | 旧毎年→4週ごとに変更 |

@@ -372,10 +372,15 @@ type HoldingOfficeAssignment = {
   active: boolean
   startWeek: number                   // absoluteWeek
   unpaidCount: number
+
+  // v0.25 追加: 代官徴税条件
+  contractedRemittanceRate: number    // 末端契約者への送金率 (default 0.40)
+  expectedFeeRate: number             // 慣習的な代官取り分率 (default 0.10)
 }
 ```
 
 - **v0.20**: `provinceId` → `holdingId` に変更。`startYear` を廃止し `startWeek` (absoluteWeek) に統一。term expiry は `absoluteWeek - startWeek >= termYears * WEEKS_PER_YEAR` で判定
+- **v0.25**: `contractedRemittanceRate` / `expectedFeeRate` を追加。代官の徴税条件を表す。`bailiffRevenueShare` は廃止。代官報酬は `bailiffFeeRate` selector で算出する
 
 **AnonymousHouse**: placeholder Person を集約する固定 ID House (`h-anon`、`kind: 'system'`)。worldgen で 1 つ生成され、Bailiff の placeholder Person が所属する。succession / split / extinction / marriage / birth / mortality からは除外される。
 
@@ -427,6 +432,20 @@ ID prefix:
 | `HoldingId` | `hl-` |
 | `StateRegionId` | `st-` |
 | `AnonymousHouse` (固定 ID) | `h-anon` |
+
+#### BailiffPolicy / BailiffRevenueTaskStatus（v0.25）
+
+```ts
+// 代官方針: selector で導出。保存しない
+type BailiffPolicy = 'passive' | 'loyal_remittance' | 'profit_seeking' | 'protect_residents'
+
+// 直近 collect_holding_revenue Task の完了状態
+type BailiffRevenueTaskStatus = 'completed' | 'none'
+```
+
+- `BailiffPolicy` は人物の能力・性格・現地 POP 状況から `getBailiffPolicy` selector で毎回導出する
+- placeholder 代官は常に `'passive'`
+- `BailiffRevenueTaskStatus` は `getRecentBailiffRevenueTaskStatus` selector で直近 4 週の ActivityLog から判定
 
 ### 3.9 外交劇システム (v0.18)
 
@@ -653,11 +672,13 @@ type TaskKind =
   | 'arrange_patronage' | 'commission_chronicle_work'
   | 'prepare_argument' | 'gather_claim_evidence' | 'negotiate_terms'
   | 'pressure_counterparty' | 'offer_compromise' | 'undermine_counterparty_position'
+  | 'collect_holding_revenue'  // v0.25: 代官月次徴税業務
 
 type TaskTargetRef =
   | { kind: 'aim'; id: AimId }
   | { kind: 'intent'; id: ActorIntentId }
   | { kind: 'diplomatic_play'; id: DiplomaticPlayId }
+  | { kind: 'holding_office_assignment'; id: HoldingOfficeAssignmentId }  // v0.25
 
 type Task = {
   id: TaskId
@@ -683,7 +704,7 @@ type Task = {
 Task 完了・失敗・キャンセル時に作成される軽量な行動記録。
 
 ```ts
-type PersonActivityKind = 'task_completed' | 'task_failed' | 'task_cancelled'
+type PersonActivityKind = 'task_completed' | 'task_failed' | 'task_cancelled' | 'task_expired'  // v0.25: task_expired 追加
 
 type PersonActivityLog = {
   id: PersonActivityLogId

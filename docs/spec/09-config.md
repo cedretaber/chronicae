@@ -368,6 +368,26 @@
 | **Training（v0.23）** | | |
 | taskTrainingExperienceGain | 2.0 | improve_ability Task 完了時の experience 加算量 |
 | trainingExperienceDecayRate | 0.5 | 年次成長判定後の experience 減衰率 |
+| **代官システム（v0.25）** | | |
+| defaultContractedRemittanceRate | 0.40 | HoldingOfficeAssignment 作成時の送金率デフォルト |
+| defaultExpectedBailiffFeeRate | 0.10 | HoldingOfficeAssignment 作成時の代官取り分率デフォルト |
+| minLocalExtractionRate | 0.10 | 現地徴収率の下限 |
+| maxLocalExtractionRate | 0.80 | 現地徴収率の上限 |
+| comfortableLocalExtractionRate | 0.35 | この totalBurdenRate 以下なら POP ペナルティなし |
+| minBailiffCollectionEfficiency | 0.30 | 徴税効率の下限 |
+| baseBailiffCollectionEfficiency | 0.55 | 徴税効率の基礎値 |
+| placeholderBailiffCollectionEfficiency | 0.40 | placeholder 代官の徴税効率 |
+| collectionFrictionFactor | 0.50 | 徴税摩擦係数（未徴収分の社会的損耗率） |
+| maxBailiffFeeRate | 0.25 | 代官取り分率の上限 |
+| bailiffTaskCompletedCollectionModifier | 0.05 | Task completed 時の徴税効率ボーナス |
+| bailiffTaskNoneCollectionModifier | 0.00 | Task none 時の徴税効率ペナルティ（v0.25 では 0） |
+| localExtractionWealthPenalty | 4 | collectionFrictionBurdenRate × この値で POP wealth 損耗 |
+| localExtractionUnrestGain | 3 | burdenOverComfort × この値で POP unrest 上昇 |
+| bailiffBurdenAffectionPenaltyFactor | 2 | burdenOverComfort × この値で POP→代官 affection 低下 |
+| bailiffProtectResidentsAffectionBonus | 0.2 | protect_residents 時の POP→代官 affection ボーナス |
+| bailiffTaskCompletedRespectGain | 0.2 | Task completed 時の POP→代官 respect ボーナス |
+| **v0.25 廃止** | | |
+| ~~bailiffRevenueShare~~ | — | **v0.25 で廃止**。代官報酬は bailiffFeeRate に一本化 |
 
 ---
 

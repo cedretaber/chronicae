@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-24（v0.24 POP 失業者ラベル変更）
+最終更新: 2026-05-24（v0.25 代官システム改修: Bailiff, Local Extraction, Revenue Task）
 
 ---
 
