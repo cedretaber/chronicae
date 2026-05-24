@@ -37,6 +37,8 @@ import {
 } from '../selectors/bailiffSelectors'
 import { targetRefKey } from '../types/task'
 
+const VALID_ABILITY_KEYS: ReadonlySet<string> = new Set(ABILITY_KEYS)
+
 // v0.16 §25 IntegrityCheck 33 項目の実装状況サマリ:
 //
 //   #1  各 Province に root contract 1 本               → 後段「§25 #1: 各 Province に root contract が 1 本」で error throw
@@ -2019,6 +2021,18 @@ export function collectIntegrityErrors(
       errors.push({
         code: 'INTEGRITY_VIOLATION',
         message: `Task ${taskIdStr}: assignee ${task.assigneePersonId} is placeholder`,
+      })
+    }
+    if (task.difficulty < 0 || task.difficulty > 100) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Task ${taskIdStr}: difficulty ${task.difficulty} out of range [0,100]`,
+      })
+    }
+    if (!VALID_ABILITY_KEYS.has(task.relevantAbility)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Task ${taskIdStr}: relevantAbility '${task.relevantAbility}' is not a valid AbilityKey`,
       })
     }
     // Active task target should not be terminal

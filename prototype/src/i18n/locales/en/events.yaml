@@ -138,6 +138,16 @@ aim:
   failed: '{{owner}} failed at {{kind}}.'
   abandoned: '{{owner}} abandoned {{kind}}.'
 
+project:
+  started: '{{owner}} launched a new project: {{kind}}.'
+  completed: '{{owner}} completed a project: {{kind}}.'
+  failed:
+    no_supervisor: "{{owner}}'s project {{kind}} failed — no supervisor available."
+    deadline: "{{owner}}'s project {{kind}} failed — deadline exceeded."
+  cancelled:
+    owner_inactive: "{{owner}}'s project {{kind}} was cancelled — owner dissolved."
+    aim_terminal: "{{owner}}'s project {{kind}} was cancelled — aim no longer active."
+
 task:
   cancelled: "{{person}}'s task {{task}} was cancelled ({{reason}})."
   review_waiting: '{{person}} is waiting for an opportunity regarding {{kind}}.'

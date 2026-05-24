@@ -8,6 +8,7 @@ import { getRoleScore } from './abilitySelectors'
 import { getPolityLeader } from './officeSelectors'
 import { getHouseLeader } from './officeSelectors'
 import { getPolityPersonIds } from './polityRelations'
+import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 
 export function getProjectRelatedRefs(project: Project): EntityRef[] {
   switch (project.kind) {
@@ -73,7 +74,11 @@ const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   demand_tax_increase: 'stewardship',
 }
 
-export function getPersonProjectWorkload(state: WorldState, personId: PersonId): number {
+export function getPersonProjectWorkload(
+  state: WorldState,
+  config: SimulationConfig,
+  personId: PersonId,
+): number {
   const pKey = personId as string
   const taskIds = state.taskIndex.byAssignee[pKey] ?? []
   let activeTasks = 0
@@ -96,7 +101,11 @@ export function getPersonProjectWorkload(state: WorldState, personId: PersonId):
     if (oa && oa.active) activeOffices++
   }
 
-  return activeTasks + activeProjects * 2 + activeOffices
+  return (
+    activeTasks * config.activeTaskWorkloadWeight +
+    activeProjects * config.supervisedProjectWorkloadWeight +
+    activeOffices * config.officeWorkloadWeight
+  )
 }
 
 function getCandidatePersonIds(state: WorldState, owner: DecisionSubjectRef): PersonId[] {
@@ -139,7 +148,7 @@ export function selectProjectCreator(
     if (!isEligibleCandidate(state, config, pid)) continue
 
     const abilityScore = getRoleScore(state, pid, roleKey) / 10
-    const workload = getPersonProjectWorkload(state, pid)
+    const workload = getPersonProjectWorkload(state, config, pid)
     const workloadPenalty = workload * 0.5
 
     let leaderBonus = 0
@@ -211,12 +220,14 @@ export function selectProjectSupervisor(
   let bestId: PersonId | undefined
   let bestScore = -Infinity
 
+  const creator = state.persons[creatorPersonId]
+
   for (const pid of candidates) {
     if (!isEligibleCandidate(state, config, pid)) continue
     if ((pid as string) === (creatorPersonId as string)) continue
 
     const abilityScore = getRoleScore(state, pid, roleKey) / 10
-    const workload = getPersonProjectWorkload(state, pid)
+    const workload = getPersonProjectWorkload(state, config, pid)
     const workloadPenalty = workload * 0.5
 
     let officeBonus = 0
@@ -233,7 +244,22 @@ export function selectProjectSupervisor(
       }
     }
 
-    const score = abilityScore + officeBonus - workloadPenalty
+    let creatorBias = 0
+    if (creator) {
+      const att = getAttitudeOrDefault(state, creator, { kind: 'person', id: pid })
+      creatorBias = (att.affection * 0.6 + att.respect * 0.4) / 100
+    }
+
+    let leaderBonus = 0
+    if (owner.kind === 'polity') {
+      const leaderId = getPolityLeader(state, owner.id)
+      if (leaderId && (leaderId as string) === (pid as string)) leaderBonus = 1
+    } else if (owner.kind === 'house') {
+      const leaderId = getHouseLeader(state, owner.id)
+      if (leaderId && (leaderId as string) === (pid as string)) leaderBonus = 1
+    }
+
+    const score = abilityScore + officeBonus + creatorBias + leaderBonus - workloadPenalty
 
     if (score > bestScore) {
       bestScore = score

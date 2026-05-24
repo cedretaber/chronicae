@@ -80,6 +80,8 @@ export type Task = {
   deadlineWeek?: number
   status: TaskStatus
   reasonIds: DecisionReasonId[]
+  difficulty: number
+  relevantAbility: AbilityKey
 }
 
 // --- TaskIndex ---

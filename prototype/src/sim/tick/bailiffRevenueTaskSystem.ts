@@ -7,6 +7,7 @@ import { targetRefKey } from '../types/task'
 import { decisionSubjectKey } from '../types/goal'
 import { isPlaceholderPerson } from '../selectors/landContractSelectors'
 import type { SimulationConfig } from '../config/defaultConfig'
+import { getTaskDefaultDifficulty, getTaskDefaultRelevantAbility } from '../selectors/taskSelectors'
 import { createLogger } from '../debug/logger'
 
 const BAILIFF_REVENUE_EFFORT_MULTIPLIER = 1.5
@@ -72,11 +73,12 @@ function createRevenueTaskMut(
   const taskId = createTaskId(ws.nextTaskId)
   ws.nextTaskId++
 
+  const taskKind = 'collect_holding_revenue' as const
   const task: Task = {
     id: taskId,
     owner: { kind: 'person', id: personId },
     assigneePersonId: personId,
-    kind: 'collect_holding_revenue',
+    kind: taskKind,
     targetRef: { kind: 'holding_office_assignment', id: assignmentId },
     priority: 1,
     actionCost: config.taskActionCostLight,
@@ -86,6 +88,8 @@ function createRevenueTaskMut(
     deadlineWeek: ws.absoluteWeek + 4,
     status: 'active',
     reasonIds: [],
+    difficulty: getTaskDefaultDifficulty(taskKind),
+    relevantAbility: getTaskDefaultRelevantAbility(taskKind),
   }
 
   ws.tasks[taskId] = task

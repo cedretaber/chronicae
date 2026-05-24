@@ -77,9 +77,6 @@ export type EventType =
   | 'DIPLOMATIC_PLAY_SETTLED'
   | 'DIPLOMATIC_PLAY_FAILED'
   | 'DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT'
-  // v0.18 Stage C §18.1
-  | 'ACTOR_INTENT_CREATED'
-  | 'ACTOR_INTENT_CONVERTED'
   // v0.18 Stage D §18.1
   | 'DIPLOMATIC_PLAY_ESCALATED'
   // v0.18 Stage F §18.1: land_claim outcome の色分け event
@@ -136,7 +133,6 @@ export type EventEntityKind =
   | 'popGroup'
   | 'landContract'
   | 'diplomaticPlay'
-  | 'actorIntent'
   | 'faction'
   | 'goal'
   | 'aim'
@@ -322,17 +318,6 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'conflict.tax_repelled': '{{defender}} repelled the tax revision demand for {{province}}.',
   'conflict.revolt_rebel_victory': 'The conflict over {{province}} ended with rebel victory.',
   'conflict.revolt_suppressed': 'The revolt in {{province}} was put down by force.',
-  'actor_intent.created_sell_land':
-    '{{seller}} seeks to sell {{province}} to {{buyer}} for {{price}} gold.',
-  'actor_intent.created_acquire_land': '{{acquirer}} eyes {{province}} held by {{target}}.',
-  'actor_intent.created_improve_terms':
-    '{{initiator}} demands lower taxes from {{target}} for {{province}}.',
-  'actor_intent.created_demand_tax':
-    '{{initiator}} demands higher taxes from {{target}} for {{province}}.',
-  'actor_intent.converted_with_offer':
-    '{{initiator}} opens negotiations to acquire {{province}} from {{target}} with compensation.',
-  'actor_intent.converted_no_offer':
-    '{{initiator}} demands {{province}} from {{target}} without compensation.',
   'land_contract.transferred': '{{holding}} transferred from {{from}} to {{to}} ({{reason}}).',
   'land_contract.purchased': '{{to}} purchased {{holding}} from {{from}}.',
   'land_contract.ceded': '{{from}} ceded {{holding}} to {{to}}.',

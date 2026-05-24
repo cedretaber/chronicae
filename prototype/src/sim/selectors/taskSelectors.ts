@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { Task, TaskKind } from '../types/task'
+import type { Task, TaskKind, TaskOutcomeKind } from '../types/task'
 import type { Aim, PersonAimKind } from '../types/goal'
 import type { DecisionSubjectRef, EntityRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
@@ -10,8 +10,11 @@ import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type { PersonId } from '../types/ids'
 import type { AbilityKey } from '../types/person'
+import type { ProjectKind } from '../types/project'
 import { createTaskId } from '../types/ids'
 import { getPrimaryOfficeHolder, getPolityLeader, getHouseLeader } from './officeSelectors'
+import type { RngState } from '../rng/rng'
+import { randomFloat } from '../rng/rng'
 
 // --- Task cost/effort classification ---
 
@@ -126,6 +129,79 @@ export function getTaskRelevantAbility(kind: TaskKind): AbilityKey {
   }
 }
 
+// --- Task outcome defaults (v0.26.1) ---
+
+const TASK_KIND_OUTCOME_DEFAULTS: Record<
+  TaskKind,
+  { difficulty: number; relevantAbility: AbilityKey }
+> = {
+  support_organization_plan: { difficulty: 25, relevantAbility: 'insight' },
+  promote_house_influence: { difficulty: 30, relevantAbility: 'charisma' },
+  perform_office_duties: { difficulty: 20, relevantAbility: 'numeracy' },
+  seek_office_support: { difficulty: 40, relevantAbility: 'charisma' },
+  display_competence: { difficulty: 30, relevantAbility: 'insight' },
+  defend_office_position: { difficulty: 35, relevantAbility: 'charisma' },
+  manage_accounts: { difficulty: 20, relevantAbility: 'numeracy' },
+  seek_profitable_assignment: { difficulty: 30, relevantAbility: 'insight' },
+  study_law: { difficulty: 35, relevantAbility: 'learning' },
+  study_accounts: { difficulty: 35, relevantAbility: 'learning' },
+  practice_arms: { difficulty: 35, relevantAbility: 'command' },
+  courtly_training: { difficulty: 35, relevantAbility: 'learning' },
+  secure_internal_support: { difficulty: 30, relevantAbility: 'charisma' },
+  secure_development_budget: { difficulty: 30, relevantAbility: 'numeracy' },
+  supervise_holding_development: { difficulty: 30, relevantAbility: 'numeracy' },
+  arrange_patronage: { difficulty: 25, relevantAbility: 'charisma' },
+  commission_chronicle_work: { difficulty: 25, relevantAbility: 'learning' },
+  prepare_argument: { difficulty: 40, relevantAbility: 'learning' },
+  gather_claim_evidence: { difficulty: 40, relevantAbility: 'insight' },
+  negotiate_terms: { difficulty: 45, relevantAbility: 'charisma' },
+  pressure_counterparty: { difficulty: 45, relevantAbility: 'command' },
+  offer_compromise: { difficulty: 35, relevantAbility: 'charisma' },
+  undermine_counterparty_position: { difficulty: 50, relevantAbility: 'insight' },
+  collect_holding_revenue: { difficulty: 20, relevantAbility: 'numeracy' },
+  prepare_project: { difficulty: 30, relevantAbility: 'insight' },
+  advance_project: { difficulty: 35, relevantAbility: 'insight' },
+}
+
+export function getTaskDefaultDifficulty(kind: TaskKind): number {
+  return TASK_KIND_OUTCOME_DEFAULTS[kind].difficulty
+}
+
+export function getTaskDefaultRelevantAbility(kind: TaskKind): AbilityKey {
+  return TASK_KIND_OUTCOME_DEFAULTS[kind].relevantAbility
+}
+
+export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
+  develop_holding: 'numeracy',
+  expand_polity_share: 'charisma',
+  promote_policy_shift: 'charisma',
+  patronize_artist: 'charisma',
+  commission_chronicle: 'learning',
+  acquire_land: 'command',
+  sell_land: 'numeracy',
+  improve_contract_terms: 'numeracy',
+  demand_tax_increase: 'numeracy',
+}
+
+export function determineTaskOutcome(
+  state: WorldState,
+  config: SimulationConfig,
+  task: Task,
+  rng: RngState,
+): { outcome: TaskOutcomeKind; rng: RngState } {
+  const person = state.persons[task.assigneePersonId]
+  const abilityScore = person ? person.abilities[task.relevantAbility] : 0
+  const { value: roll, rng: nextRng } = randomFloat(rng)
+  const randomValue = roll * 100
+  const effectiveScore = abilityScore + randomValue
+  const threshold = task.difficulty * 2
+  const successMargin = config.taskOutcomeSuccessMargin
+
+  if (effectiveScore >= threshold + successMargin) return { outcome: 'success', rng: nextRng }
+  if (effectiveScore >= threshold) return { outcome: 'partial', rng: nextRng }
+  return { outcome: 'failure', rng: nextRng }
+}
+
 // --- computeWeeklyEffort ---
 
 export function computeWeeklyEffort(
@@ -153,6 +229,8 @@ export function createTask(
     targetRef: TaskTargetRef
     absoluteWeek: number
     deadlineWeek?: number
+    difficulty?: number
+    relevantAbility?: AbilityKey
   },
 ): { task: Task; state: WorldState } {
   const taskId = createTaskId(state.nextTaskId)
@@ -170,6 +248,8 @@ export function createTask(
     ...(input.deadlineWeek !== undefined ? { deadlineWeek: input.deadlineWeek } : {}),
     status: 'active',
     reasonIds: [],
+    difficulty: input.difficulty ?? getTaskDefaultDifficulty(input.kind),
+    relevantAbility: input.relevantAbility ?? getTaskDefaultRelevantAbility(input.kind),
   }
 
   const ownerKey = decisionSubjectKey(input.owner)

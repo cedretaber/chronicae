@@ -114,8 +114,6 @@ event_type:
   DIPLOMATIC_PLAY_SETTLED: '外交妥結'
   DIPLOMATIC_PLAY_FAILED: '外交決裂'
   DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT: '武力解決'
-  ACTOR_INTENT_CREATED: '意図表明'
-  ACTOR_INTENT_CONVERTED: '意図転換'
   DIPLOMATIC_PLAY_ESCALATED: '外交激化'
   PERSON_GOAL_CREATED: '個人目標'
   PERSON_AIM_CREATED: '個人目論見'
@@ -124,6 +122,10 @@ event_type:
   TASK_COMPLETED: 'タスク完了'
   TASK_FAILED: 'タスク失敗'
   TASK_CANCELLED: 'タスク中止'
+  PROJECT_STARTED: 'プロジェクト開始'
+  PROJECT_COMPLETED: 'プロジェクト完了'
+  PROJECT_FAILED: 'プロジェクト失敗'
+  PROJECT_CANCELLED: 'プロジェクト中止'
 
 sidebar:
   watchlist: 'ウォッチリスト'
@@ -309,6 +311,8 @@ detail:
     task_target_bailiff_duty: '代官業務'
     task_target_bailiff_holding: '{{name}}の代官業務'
     recent_activities: '近況'
+    supervised_projects: '監督中のプロジェクト'
+    created_projects: '起案したプロジェクト'
 
   # 外交劇詳細
   play:

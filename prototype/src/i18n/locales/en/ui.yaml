@@ -216,6 +216,8 @@ detail:
     task_target_bailiff_duty: 'Bailiff duty'
     task_target_bailiff_holding: 'Bailiff duty at {{name}}'
     recent_activities: 'Recent Activities'
+    supervised_projects: 'Supervised Projects'
+    created_projects: 'Created Projects'
 
   # DiplomaticPlay detail
   play:

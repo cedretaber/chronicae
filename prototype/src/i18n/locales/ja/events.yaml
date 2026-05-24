@@ -137,6 +137,16 @@ aim:
   failed: '{{owner}}は{{kind}}に失敗した。'
   abandoned: '{{owner}}は{{kind}}を断念した。'
 
+project:
+  started: '{{owner}}が新たなプロジェクトを立ち上げた：{{kind}}。'
+  completed: '{{owner}}がプロジェクトを完了した：{{kind}}。'
+  failed:
+    no_supervisor: '{{owner}}のプロジェクト{{kind}}が頓挫した——監督者不在。'
+    deadline: '{{owner}}のプロジェクト{{kind}}が頓挫した——期限超過。'
+  cancelled:
+    owner_inactive: '{{owner}}のプロジェクト{{kind}}が中止された——主体の消滅。'
+    aim_terminal: '{{owner}}のプロジェクト{{kind}}が中止された——目標の終了。'
+
 task:
   cancelled: '{{person}}の{{task}}が中止された（{{reason}}）。'
   review_waiting: '{{person}}は{{kind}}の機会を窺っている。'

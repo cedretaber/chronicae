@@ -8,7 +8,12 @@ import type { TaskId, PersonId } from '../types/ids'
 import { createTaskId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { selectProjectCreator } from '../selectors/projectSelectors'
-import { getTaskActionCost, getTaskEffortRequired } from '../selectors/taskSelectors'
+import {
+  getTaskActionCost,
+  getTaskEffortRequired,
+  getTaskDefaultDifficulty,
+  PROJECT_KIND_ABILITY_MAP,
+} from '../selectors/taskSelectors'
 import { aimKindToProjectKind } from '../mutations/projectMutations'
 
 export function runProjectPreparationSystem(ctx: TickContext): TickContext {
@@ -79,6 +84,7 @@ function createPrepareProjectTaskMut(
 ): Task | undefined {
   const taskKind: TaskKind = 'prepare_project'
   const taskId: TaskId = createTaskId(ws.nextTaskId)
+  const projectKind = aimKindToProjectKind(aim.kind)
   const task: Task = {
     id: taskId,
     owner: aim.owner,
@@ -92,6 +98,8 @@ function createPrepareProjectTaskMut(
     createdWeek: absoluteWeek,
     status: 'active',
     reasonIds: [],
+    difficulty: getTaskDefaultDifficulty(taskKind),
+    relevantAbility: projectKind ? PROJECT_KIND_ABILITY_MAP[projectKind] : 'insight',
   }
 
   const ownerKey = decisionSubjectKey(aim.owner)

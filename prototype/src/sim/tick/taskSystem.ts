@@ -46,10 +46,14 @@ import {
   getTaskRelevantAbility,
   getTaskActionCost,
   getTaskEffortRequired,
+  getTaskDefaultDifficulty,
+  getTaskDefaultRelevantAbility,
   getNextTaskKind,
   checkEntityExists,
   isEntityTerminal,
+  determineTaskOutcome,
 } from '../selectors/taskSelectors'
+import type { RngState } from '../rng/rng'
 
 // --- Types ---
 
@@ -136,6 +140,8 @@ function createTaskMut(
     targetRef: TaskTargetRef
     absoluteWeek: number
     deadlineWeek?: number
+    difficulty?: number
+    relevantAbility?: AbilityKey
   },
 ): Task {
   const taskId = createTaskId(ws.nextTaskId)
@@ -153,6 +159,8 @@ function createTaskMut(
     ...(input.deadlineWeek !== undefined ? { deadlineWeek: input.deadlineWeek } : {}),
     status: 'active',
     reasonIds: [],
+    difficulty: input.difficulty ?? getTaskDefaultDifficulty(input.kind),
+    relevantAbility: input.relevantAbility ?? getTaskDefaultRelevantAbility(input.kind),
   }
 
   const ownerKey = decisionSubjectKey(input.owner)
@@ -585,9 +593,11 @@ function handleTaskCompletionMut(
   originalTask: Task,
   personId: PersonId,
   emitEvent: (input: CreateSimEventInput) => void,
-): void {
+  rng: RngState,
+): RngState {
   const task = originalTask
-  const outcome: TaskOutcomeKind = 'success'
+  const { outcome, rng: nextRng } = determineTaskOutcome(ws, config, task, rng)
+  rng = nextRng
   const absoluteWeek = ws.absoluteWeek
 
   const ownerKey = decisionSubjectKey(task.owner)
@@ -604,13 +614,29 @@ function handleTaskCompletionMut(
 
   if (ownerAim) {
     if (task.kind === 'prepare_project') {
-      handlePrepareProjectCompletionMut(ws, config, ownerAim, personId, absoluteWeek, emitEvent)
+      handlePrepareProjectCompletionMut(
+        ws,
+        config,
+        ownerAim,
+        personId,
+        absoluteWeek,
+        emitEvent,
+        outcome,
+      )
       createActivityLogMut(ws, config, personId, task, outcome)
       removeTaskMut(ws, task.id)
-      return
+      return rng
     }
 
     const aimId = ownerAim.id
+
+    if (outcome !== 'success') {
+      createActivityLogMut(ws, config, personId, task, outcome)
+      removeTaskMut(ws, task.id)
+      ws.aims[aimId] = { ...ownerAim, activeTaskId: undefined } as unknown as Aim
+      return rng
+    }
+
     const aimProgress = ownerAim.progress + 1
     const aimSucceeded = aimProgress >= ownerAim.targetProgress
 
@@ -702,13 +728,15 @@ function handleTaskCompletionMut(
     createActivityLogMut(ws, config, personId, task, outcome)
     removeTaskMut(ws, task.id)
   } else if (task.targetRef.kind === 'project') {
-    handleAdvanceProjectCompletionMut(ws, config, task.targetRef.id)
+    handleAdvanceProjectCompletionMut(ws, config, task.targetRef.id, outcome)
     createActivityLogMut(ws, config, personId, task, outcome)
     removeTaskMut(ws, task.id)
   } else {
     removeTaskMut(ws, task.id)
     createActivityLogMut(ws, config, personId, task, outcome)
   }
+
+  return rng
 }
 
 function reviewWaitingAimsMut(
@@ -881,8 +909,9 @@ export function runTaskSystem(ctx: TickContext): TickContext {
   }
 
   // Step 4: Process completed tasks
+  let rng = ctx.rng
   for (const { task, personId } of completed) {
-    handleTaskCompletionMut(ws, config, task, personId, emitEvent)
+    rng = handleTaskCompletionMut(ws, config, task, personId, emitEvent, rng)
   }
 
   // Step 5: Review waiting aims
@@ -892,6 +921,7 @@ export function runTaskSystem(ctx: TickContext): TickContext {
   return {
     ...ctx,
     state: ws,
+    rng,
     events: [...ctx.events, ...newEvents],
     nextEventIndex,
   }
@@ -906,9 +936,15 @@ function handlePrepareProjectCompletionMut(
   creatorPersonId: PersonId,
   absoluteWeek: number,
   emitEvent: (input: CreateSimEventInput) => void,
+  outcome: TaskOutcomeKind,
 ): void {
   const projectKind = aimKindToProjectKind(aim.kind)
   if (!projectKind) {
+    ws.aims[aim.id] = { ...aim, activeTaskId: undefined } as unknown as Aim
+    return
+  }
+
+  if (outcome === 'failure') {
     ws.aims[aim.id] = { ...aim, activeTaskId: undefined } as unknown as Aim
     return
   }
@@ -924,6 +960,11 @@ function handlePrepareProjectCompletionMut(
     ? Math.min(aim.deadlineWeek, absoluteWeek + deadlineWeeks)
     : absoluteWeek + deadlineWeeks
 
+  const targetProgress =
+    outcome === 'partial'
+      ? config.projectDefaultTargetProgress + config.prepareProjectPartialTargetProgressPenalty
+      : config.projectDefaultTargetProgress
+
   const project: Project = {
     id: projectId,
     owner: aim.owner,
@@ -933,7 +974,7 @@ function handlePrepareProjectCompletionMut(
     supervisorPersonId: supervisorId,
     status: 'active',
     progress: 0,
-    targetProgress: config.projectDefaultTargetProgress,
+    targetProgress,
     createdWeek: absoluteWeek,
     deadlineWeek,
     reasonIds: [...aim.reasonIds],
@@ -1127,21 +1168,45 @@ function handleAdvanceProjectCompletionMut(
   ws: WorldState,
   config: SimulationConfig,
   projectId: ProjectId,
+  outcome: TaskOutcomeKind,
 ): void {
   const project = ws.projects[projectId]
   if (!project || project.status !== 'active') return
 
-  const progressGain = config.projectAdvanceProgressSuccess
+  const progressGain =
+    outcome === 'success'
+      ? config.projectAdvanceProgressSuccess
+      : outcome === 'partial'
+        ? config.projectAdvanceProgressPartial
+        : config.projectAdvanceProgressFailure
   const newProgress = Math.min(project.progress + progressGain, project.targetProgress)
 
   if (isDiplomaticProjectKind(project.kind)) {
     const lcp = project as LandClaimProject | ContractRevisionProject
+    const prepGain =
+      outcome === 'success'
+        ? config.diplomaticProjectPreparationGainSuccess
+        : outcome === 'partial'
+          ? config.diplomaticProjectPreparationGainPartial
+          : 0
+    const levGain =
+      outcome === 'success'
+        ? config.diplomaticProjectLeverageGainSuccess
+        : outcome === 'partial'
+          ? config.diplomaticProjectLeverageGainPartial
+          : 0
+    const comGain =
+      outcome === 'success'
+        ? config.diplomaticProjectCommitmentGainSuccess
+        : outcome === 'partial'
+          ? config.diplomaticProjectCommitmentGainPartial
+          : 0
     ws.projects[projectId] = {
       ...lcp,
       progress: newProgress,
-      preparation: lcp.preparation + config.diplomaticProjectPreparationGainSuccess,
-      leverage: lcp.leverage + config.diplomaticProjectLeverageGainSuccess,
-      commitment: lcp.commitment + config.diplomaticProjectCommitmentGainSuccess,
+      preparation: Math.min(lcp.preparation + prepGain, 100),
+      leverage: Math.min(lcp.leverage + levGain, 100),
+      commitment: Math.min(lcp.commitment + comGain, 100),
     }
   } else {
     ws.projects[projectId] = { ...project, progress: newProgress }

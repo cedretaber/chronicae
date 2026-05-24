@@ -146,6 +146,8 @@ describe('runBailiffRevenueTaskSystem', () => {
       deadlineWeek: state.absoluteWeek,
       status: 'active',
       reasonIds: [],
+      difficulty: 20,
+      relevantAbility: 'numeracy',
     }
 
     const ownerKey = decisionSubjectKey({ kind: 'person', id: bailiffPersonId })

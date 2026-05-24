@@ -49,7 +49,38 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
   for (const [, project] of Object.entries(ws.projects)) {
     if (!project || project.status !== 'active') continue
 
-    // 1. Supervisor dead → re-select, fail if can't
+    // 1. Owner disappeared → cancelled
+    if (!isOwnerActive(ws, project.owner)) {
+      ws.projects[project.id] = { ...project, status: 'cancelled' }
+      emitProjectEvent(
+        ws,
+        project.owner,
+        'PROJECT_CANCELLED',
+        'project.cancelled.owner_inactive',
+        project.kind,
+        emitEvent,
+      )
+      continue
+    }
+
+    // 2. Origin aim non-active → cancelled
+    if (project.origin.kind === 'aim') {
+      const aim = ws.aims[project.origin.aimId]
+      if (!aim || aim.status !== 'active') {
+        ws.projects[project.id] = { ...project, status: 'cancelled' }
+        emitProjectEvent(
+          ws,
+          project.owner,
+          'PROJECT_CANCELLED',
+          'project.cancelled.aim_terminal',
+          project.kind,
+          emitEvent,
+        )
+        continue
+      }
+    }
+
+    // 3. Supervisor dead → re-select, fail if can't
     const supervisor = ws.persons[project.supervisorPersonId]
     if (!supervisor || !supervisor.alive || supervisor.kind === 'placeholder') {
       const newSupervisor = selectProjectSupervisor(
@@ -78,41 +109,10 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    // 2. Owner disappeared → cancelled
-    if (!isOwnerActive(ws, project.owner)) {
-      ws.projects[project.id] = { ...project, status: 'cancelled' }
-      emitProjectEvent(
-        ws,
-        project.owner,
-        'PROJECT_CANCELLED',
-        'project.cancelled.owner_inactive',
-        project.kind,
-        emitEvent,
-      )
-      continue
-    }
-
-    // 3. Origin aim non-active → cancelled
-    if (project.origin.kind === 'aim') {
-      const aim = ws.aims[project.origin.aimId]
-      if (!aim || aim.status !== 'active') {
-        ws.projects[project.id] = { ...project, status: 'cancelled' }
-        emitProjectEvent(
-          ws,
-          project.owner,
-          'PROJECT_CANCELLED',
-          'project.cancelled.aim_terminal',
-          project.kind,
-          emitEvent,
-        )
-        continue
-      }
-    }
-
     // 4. Deadline exceeded
     if (
       project.deadlineWeek &&
-      absoluteWeek >= project.deadlineWeek &&
+      absoluteWeek > project.deadlineWeek &&
       project.progress < project.targetProgress
     ) {
       ws.projects[project.id] = { ...project, status: 'failed' }

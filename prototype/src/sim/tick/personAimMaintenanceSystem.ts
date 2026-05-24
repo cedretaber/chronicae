@@ -17,6 +17,8 @@ import {
   getInitialTaskKindForAbilityTarget,
   getTaskActionCost,
   getTaskEffortRequired,
+  getTaskDefaultDifficulty,
+  getTaskDefaultRelevantAbility,
 } from '../selectors/taskSelectors'
 import type { SimulationConfig } from '../config/defaultConfig'
 
@@ -153,6 +155,8 @@ function createInitialTaskForAimMut(
     createdWeek: absoluteWeek,
     status: 'active',
     reasonIds: [],
+    difficulty: getTaskDefaultDifficulty(taskKind),
+    relevantAbility: getTaskDefaultRelevantAbility(taskKind),
   }
 
   const ownerKey = decisionSubjectKey(aim.owner)

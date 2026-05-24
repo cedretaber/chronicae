@@ -5,7 +5,12 @@ import { targetRefKey } from '../types/task'
 import { decisionSubjectKey } from '../types/goal'
 import type { TaskId } from '../types/ids'
 import { createTaskId } from '../types/ids'
-import { getTaskActionCost, getTaskEffortRequired } from '../selectors/taskSelectors'
+import {
+  getTaskActionCost,
+  getTaskEffortRequired,
+  getTaskDefaultDifficulty,
+  PROJECT_KIND_ABILITY_MAP,
+} from '../selectors/taskSelectors'
 
 export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
   const absoluteWeek = ctx.state.absoluteWeek
@@ -23,6 +28,8 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
 
   for (const [, project] of Object.entries(ws.projects)) {
     if (!project || project.status !== 'active') continue
+
+    if (project.deadlineWeek != null && absoluteWeek > project.deadlineWeek) continue
 
     const supervisor = ws.persons[project.supervisorPersonId]
     if (!supervisor || !supervisor.alive || supervisor.kind === 'placeholder') continue
@@ -54,6 +61,8 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
       createdWeek: absoluteWeek,
       status: 'active',
       reasonIds: [],
+      difficulty: getTaskDefaultDifficulty(taskKind),
+      relevantAbility: PROJECT_KIND_ABILITY_MAP[project.kind],
     }
 
     const ownerKey = decisionSubjectKey(project.owner)

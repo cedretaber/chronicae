@@ -2610,6 +2610,65 @@ export function PersonDetail({
             </>
           )
         })()}
+
+      {/* Supervised / Created Projects */}
+      {(() => {
+        const pKey = person.id as string
+        const supervisedIds = worldState.projectIndex.bySupervisorPerson[pKey] ?? []
+        const supervisedProjects = supervisedIds
+          .map((pid) => worldState.projects[pid])
+          .filter((p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active')
+        const createdIds = worldState.projectIndex.byCreatorPerson[pKey] ?? []
+        const createdProjects = createdIds
+          .map((pid) => worldState.projects[pid])
+          .filter(
+            (p): p is NonNullable<typeof p> =>
+              p !== undefined && p.status === 'active' && (p.supervisorPersonId as string) !== pKey,
+          )
+        if (supervisedProjects.length === 0 && createdProjects.length === 0) return null
+        return (
+          <div className="mt-2">
+            {supervisedProjects.length > 0 && (
+              <>
+                <div className="text-sm font-semibold text-gray-300">
+                  {t('detail.person.supervised_projects')} ({supervisedProjects.length})
+                </div>
+                <ul className="list-inside text-sm">
+                  {supervisedProjects.map((project) => (
+                    <li key={project.id} className="mb-1 text-gray-400">
+                      <span className="text-gray-200">
+                        {t(`detail.project_kind.${project.kind}`)}
+                      </span>{' '}
+                      — {project.progress}/{project.targetProgress}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {createdProjects.length > 0 && (
+              <>
+                <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
+                  {t('detail.person.created_projects')} ({createdProjects.length})
+                </div>
+                <ul className="list-inside text-sm">
+                  {createdProjects.map((project) => {
+                    const sup = worldState.persons[project.supervisorPersonId]
+                    const supName = sup ? resolveName('person', sup.nameKey, sup.nameKey) : '?'
+                    return (
+                      <li key={project.id} className="mb-1 text-gray-400">
+                        <span className="text-gray-200">
+                          {t(`detail.project_kind.${project.kind}`)}
+                        </span>{' '}
+                        — {project.progress}/{project.targetProgress} — {supName}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
