@@ -7,6 +7,8 @@ import {
   getActiveFactions,
   getActiveFactionMembership,
   getFactionByLeader,
+  getFactionActiveMemberIds,
+  getFactionMemberCap,
   getBestRoleScore,
   getOccupationRoleFitBonus,
 } from '../selectors/factionSelectors'
@@ -60,11 +62,15 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
   }
   candidates.sort((a, b) => b.score - a.score)
 
+  const memberCap = getFactionMemberCap(ctx.state, config, factionId)
+  const currentMemberCount = getFactionActiveMemberIds(ctx.state, factionId).length
+  if (currentMemberCount >= memberCap) return ctx
+
   let currentCtx = ctx
-  const recruitCap = 1
-  let recruited = 0
   for (const { personId: candidateId } of candidates) {
-    if (recruited >= recruitCap) break
+    const updatedMemberCount = getFactionActiveMemberIds(currentCtx.state, factionId).length
+    if (updatedMemberCount >= memberCap) break
+
     const candidate = currentCtx.state.persons[candidateId]
     if (!candidate || !candidate.alive) continue
 
@@ -76,7 +82,7 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
     const signingBonus = Math.floor(cost * config.factionRecruitmentSigningBonusRate)
 
     const currentLeader = currentCtx.state.persons[faction.leaderPersonId]
-    if (!currentLeader || currentLeader.wealth < cost) break // leader cannot afford anyone else
+    if (!currentLeader || currentLeader.wealth < cost) break
 
     // wealth transfers
     const lResult = addPersonWealth(currentCtx.state, faction.leaderPersonId, -Math.floor(cost))
@@ -95,7 +101,7 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
     if (!addResult.ok) continue
     currentCtx = { ...currentCtx, state: addResult.value.state }
 
-    // initial attitude (Recruitment is an important event → key creation OK)
+    // initial attitude
     const lToC = setPersonAttitude(
       currentCtx.state,
       faction.leaderPersonId,
@@ -136,7 +142,6 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
       ],
     })
     currentCtx = { ...ec, events: [...ec.events, event] }
-    recruited++
   }
 
   return currentCtx

@@ -1,5 +1,6 @@
 import type { TickContext } from './context'
 import type { PersonId, FactionId, HouseId } from '../types/ids'
+import type { ShareHolderRef } from '../types/office'
 import { createSimEvent } from './context'
 import { nameParam, entityRef } from '../types/event'
 import {
@@ -9,6 +10,7 @@ import {
   getFactionOpportunityScore,
   getFactionViabilityScore,
 } from '../selectors/factionSelectors'
+import { getTopShareholders, getPersonHouseSharePercent } from '../selectors/shareSelectors'
 import {
   createFaction,
   addFactionMembership,
@@ -177,6 +179,22 @@ function formNewFactions(ctx: TickContext): TickContext {
   let currentCtx = ctx
   const config = currentCtx.config
 
+  const topShareholderCache = new Map<
+    string,
+    Array<{ holder: ShareHolderRef; rawPower: number; percent: number }>
+  >()
+  function getTopShareholdersForHouse(houseId: HouseId) {
+    const cached = topShareholderCache.get(houseId)
+    if (cached) return cached
+    const result = getTopShareholders(
+      currentCtx.state,
+      { kind: 'house', id: houseId },
+      config.factionFounderShareRank,
+    )
+    topShareholderCache.set(houseId, result)
+    return result
+  }
+
   const founders: { personId: PersonId; score: number }[] = []
   for (const pid of Object.keys(currentCtx.state.persons).sort() as PersonId[]) {
     const person = currentCtx.state.persons[pid]
@@ -191,10 +209,15 @@ function formNewFactions(ctx: TickContext): TickContext {
     if (getActiveFactionMembership(currentCtx.state, pid)) continue
     if (person.wealth < config.minimumFactionFounderWealth) continue
 
-    const oppScore = getFactionOpportunityScore(currentCtx.state, currentCtx.config, pid)
-    if (oppScore < config.factionFormationThreshold) continue
+    const topHolders = getTopShareholdersForHouse(house.id)
+    const isTopShareHolder = topHolders.some(
+      (s) => s.holder.kind === 'person' && s.holder.id === pid,
+    )
+    if (!isTopShareHolder) continue
 
-    const score = oppScore * 1.0 + person.traits.ambition * 5 + (person.legacyPrestige / 100) * 3
+    const sharePercent = getPersonHouseSharePercent(currentCtx.state, house.id, pid)
+    const score =
+      sharePercent * 0.1 + person.traits.ambition * 5 + (person.legacyPrestige / 100) * 3
     founders.push({ personId: pid, score })
   }
   founders.sort((a, b) => b.score - a.score)

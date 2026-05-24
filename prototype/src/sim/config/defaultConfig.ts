@@ -490,6 +490,7 @@ export type SimulationConfig = {
   estateSettledNormalWealthRatio: number
   // v0.17 Faction lifecycle
   factionFormationThreshold: number
+  factionFounderShareRank: number
   factionDisbandThreshold: number
   factionDisbandWealthFloor: number
   minimumFactionFounderWealth: number
@@ -1069,7 +1070,8 @@ export const defaultConfig: SimulationConfig = {
   estateSettledNormalWealthRatio: 0.2,
   // v0.17 Faction lifecycle
   factionFormationThreshold: 5.0,
-  factionDisbandThreshold: 2.5,
+  factionFounderShareRank: 3,
+  factionDisbandThreshold: 1.5,
   factionDisbandWealthFloor: 10,
   minimumFactionFounderWealth: 50,
   initialFactionMemberMax: 3,

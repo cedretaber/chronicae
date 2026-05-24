@@ -8,6 +8,7 @@ import { getEffectiveOfficeMaxHolders, getHouseLeader } from '@sim/selectors/off
 import {
   getPersonHouseSharePercent,
   getHousePolitySharePercent,
+  getTopShareholders,
 } from '@sim/selectors/shareSelectors'
 import { getHousePolityIds } from '@sim/selectors/polityRelations'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
@@ -81,6 +82,34 @@ const NON_LEADER_OFFICE_ROLES: ReadonlyArray<Exclude<OfficeRole, 'leader'>> = [
   'advisor',
 ]
 
+export function computeAvailableOfficeSlots(
+  state: WorldState,
+  config: SimulationConfig,
+  houseId: HouseId,
+): number {
+  let houseOfficeSlots = 0
+  for (const role of NON_LEADER_OFFICE_ROLES) {
+    const slots = getEffectiveOfficeMaxHolders(state, config, { kind: 'house', id: houseId }, role)
+    houseOfficeSlots += slots * config.officeOpportunityRoleWeights[role]
+  }
+
+  let polityOfficeSlots = 0
+  for (const polityId of getHousePolityIds(state, houseId)) {
+    const housePolityShare = getHousePolitySharePercent(state, polityId, houseId) / 100
+    for (const role of NON_LEADER_OFFICE_ROLES) {
+      const slots = getEffectiveOfficeMaxHolders(
+        state,
+        config,
+        { kind: 'polity', id: polityId },
+        role,
+      )
+      polityOfficeSlots += slots * housePolityShare * config.officeOpportunityRoleWeights[role]
+    }
+  }
+
+  return houseOfficeSlots + polityOfficeSlots
+}
+
 export function getFactionOpportunityScore(
   state: WorldState,
   config: SimulationConfig,
@@ -94,31 +123,28 @@ export function getFactionOpportunityScore(
   if (!house || !house.active) return 0
 
   const personHouseShare = getPersonHouseSharePercent(state, house.id, personId) / 100
+  const officeSlots = computeAvailableOfficeSlots(state, config, house.id)
 
-  let houseOfficeSlots = 0
-  for (const role of NON_LEADER_OFFICE_ROLES) {
-    const slots = getEffectiveOfficeMaxHolders(state, config, { kind: 'house', id: house.id }, role)
-    houseOfficeSlots += slots * config.officeOpportunityRoleWeights[role]
-  }
-
-  let polityOfficeSlots = 0
-  for (const polityId of getHousePolityIds(state, house.id)) {
-    const housePolityShare = getHousePolitySharePercent(state, polityId, house.id) / 100
-    for (const role of NON_LEADER_OFFICE_ROLES) {
-      const slots = getEffectiveOfficeMaxHolders(
-        state,
-        config,
-        { kind: 'polity', id: polityId },
-        role,
-      )
-      polityOfficeSlots += slots * housePolityShare * config.officeOpportunityRoleWeights[role]
-    }
-  }
-
-  return personHouseShare * (houseOfficeSlots + polityOfficeSlots)
+  return personHouseShare * officeSlots
 }
 
-// v0.17 §13.6: Faction viability score — whether the faction has a reason to survive.
+export function getFactionMemberCap(
+  state: WorldState,
+  config: SimulationConfig,
+  factionId: FactionId,
+): number {
+  const faction = state.factions[factionId]
+  if (!faction || !faction.active) return config.minimumFactionMembers
+
+  const leader = state.persons[faction.leaderPersonId]
+  if (!leader) return config.minimumFactionMembers
+
+  const officeSlots = computeAvailableOfficeSlots(state, config, leader.houseId)
+  return Math.max(config.minimumFactionMembers, Math.floor(officeSlots))
+}
+
+// Faction viability score — whether the faction has a reason to survive.
+// Leader must remain in top (factionFounderShareRank + 2) shareholders to contribute share viability.
 export function getFactionViabilityScore(
   state: WorldState,
   config: SimulationConfig,
@@ -127,7 +153,23 @@ export function getFactionViabilityScore(
   const faction = state.factions[factionId]
   if (!faction || !faction.active) return 0
 
-  const leaderOppScore = getFactionOpportunityScore(state, config, faction.leaderPersonId)
+  const leader = state.persons[faction.leaderPersonId]
+  let leaderShareViability = 0
+  if (leader) {
+    const viabilityRankLimit = config.factionFounderShareRank + 2
+    const topHolders = getTopShareholders(
+      state,
+      { kind: 'house', id: leader.houseId },
+      viabilityRankLimit,
+    )
+    const isTopHolder = topHolders.some(
+      (s) => s.holder.kind === 'person' && (s.holder.id as string) === (leader.id as string),
+    )
+    if (isTopHolder) {
+      const sharePercent = getPersonHouseSharePercent(state, leader.houseId, leader.id)
+      leaderShareViability = sharePercent * 0.05
+    }
+  }
 
   const memberIds = getFactionActiveMemberIds(state, factionId)
   let officeHolderCount = 0
@@ -145,13 +187,12 @@ export function getFactionViabilityScore(
   }
   const activeMemberCount = memberIds.length
 
-  const leader = state.persons[faction.leaderPersonId]
   const leaderWealthFactor = leader
     ? Math.min(leader.wealth / Math.max(1, config.factionLeaderReserveWealth), 3)
     : 0
 
   return (
-    leaderOppScore * 1.0 +
+    leaderShareViability +
     activeMemberCount * config.factionViabilityMemberCountWeight +
     officeHolderCount * config.factionViabilityOfficeHolderWeight +
     leaderWealthFactor * config.factionViabilityWealthWeight

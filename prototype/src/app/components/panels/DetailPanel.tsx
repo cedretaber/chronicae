@@ -2082,10 +2082,22 @@ export function PersonDetail({
                   </span>
                   {bailiffAssignments.map((a) => {
                     const holding = worldState.holdings[a.holdingId]
+                    const policy = getBailiffPolicy(worldState, defaultConfig, a.id)
+                    const policyColor: Record<string, string> = {
+                      passive: 'text-gray-400',
+                      loyal_remittance: 'text-blue-400',
+                      profit_seeking: 'text-amber-400',
+                      protect_residents: 'text-green-400',
+                    }
                     return (
-                      <div key={a.id} className="flex justify-between gap-2">
+                      <div key={a.id} className="flex items-center justify-between gap-2">
                         <span className="text-gray-300">
                           {t('holding.bailiff', { ns: 'roles' })}
+                          <span
+                            className={`ml-1 text-xs ${policyColor[policy] ?? 'text-gray-300'}`}
+                          >
+                            ({t(`detail.province.bailiff_policy_${policy}`)})
+                          </span>
                         </span>
                         <button
                           className="text-right text-blue-400 underline underline-offset-2 hover:text-blue-300"

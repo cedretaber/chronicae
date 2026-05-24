@@ -10,6 +10,7 @@ import {
   createFactionMembershipId,
   createProvinceId,
   createPolityId,
+  createOrganizationShareId,
 } from '../types/ids'
 import type { PersonId, ProvinceId, PolityId, HouseId } from '../types/ids'
 import type { TickContext } from './context'
@@ -165,6 +166,27 @@ describe('runFactionLifecycleSystem', () => {
     s = withPerson(s, leaderId, { nameKey: 'Leader', houseId, wealth: 1000, alive: true, age: 25 })
     s = withPerson(s, member1Id, { nameKey: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
     s = withPerson(s, member2Id, { nameKey: 'Member2', houseId, wealth: 100, alive: true, age: 22 })
+
+    const shareId = createOrganizationShareId(0)
+    const orgKey = `house:${houseId}`
+    const holderKey = `person:${leaderId}`
+    s = {
+      ...s,
+      organizationShares: {
+        ...s.organizationShares,
+        [shareId]: {
+          id: shareId,
+          organization: { kind: 'house' as const, id: houseId },
+          holder: { kind: 'person' as const, id: leaderId },
+          rawPower: 100,
+        },
+      },
+      shareIndex: {
+        ...s.shareIndex,
+        byOrganization: { ...s.shareIndex.byOrganization, [orgKey]: [shareId] },
+        byHolder: { ...s.shareIndex.byHolder, [holderKey]: [shareId] },
+      },
+    }
 
     const ctx = makeCtx(s, { config: configWithLowThreshold })
     const result = runFactionLifecycleSystem(ctx)
