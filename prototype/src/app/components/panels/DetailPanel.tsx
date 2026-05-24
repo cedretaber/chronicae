@@ -2728,9 +2728,9 @@ export function HoldingDetail({
                 <span className="text-gray-500">{t('detail.province.vacant')}</span>
               )}
               {bailiff &&
-                bailiff.kind !== 'placeholder' &&
                 assignmentId &&
                 (() => {
+                  const isPlaceholder = bailiff.kind === 'placeholder'
                   const policy = getBailiffPolicy(currentState, defaultConfig, assignmentId)
                   const localExtractionRate = getBailiffLocalExtractionRate(
                     currentState,
@@ -2757,24 +2757,6 @@ export function HoldingDetail({
                     collectionEfficiency,
                     defaultConfig.collectionFrictionFactor,
                   )
-
-                  const popIds = currentState.popIndex.byHolding[holding.id] ?? []
-                  let totalAffection = 0
-                  let totalRespect = 0
-                  let totalSize = 0
-                  const attKey = personAttitudeKey(bailiff.id)
-                  for (const popId of popIds) {
-                    const pop = currentState.popGroups[popId]
-                    if (!pop) continue
-                    const att = pop.attitudes[attKey]
-                    if (att) {
-                      totalAffection += (att.affection ?? 0) * pop.size
-                      totalRespect += (att.respect ?? 0) * pop.size
-                    }
-                    totalSize += pop.size
-                  }
-                  const avgAffection = totalSize > 0 ? totalAffection / totalSize : 0
-                  const avgRespect = totalSize > 0 ? totalRespect / totalSize : 0
 
                   return (
                     <div className="mt-1 ml-2 space-y-0.5 text-xs text-gray-400">
@@ -2804,30 +2786,61 @@ export function HoldingDetail({
                         <span>{t('detail.province.bailiff_friction')}:</span>
                         <span>{(burden.collectionFrictionBurdenRate * 100).toFixed(1)}%</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span>{t('detail.province.bailiff_recent_task')}:</span>
-                        <span>
-                          {recentTaskStatus === 'completed'
-                            ? t('detail.province.bailiff_task_completed')
-                            : t('detail.province.bailiff_task_none')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>{t('detail.province.bailiff_pop_attitude')}:</span>
-                        <span>
-                          {t('detail.province.bailiff_affection')}{' '}
-                          <span className={avgAffection >= 0 ? 'text-green-400' : 'text-red-400'}>
-                            {avgAffection >= 0 ? '+' : ''}
-                            {avgAffection.toFixed(2)}
-                          </span>
-                          {' / '}
-                          {t('detail.province.bailiff_respect')}{' '}
-                          <span className={avgRespect >= 0 ? 'text-blue-400' : 'text-red-400'}>
-                            {avgRespect >= 0 ? '+' : ''}
-                            {avgRespect.toFixed(2)}
-                          </span>
-                        </span>
-                      </div>
+                      {!isPlaceholder && (
+                        <>
+                          <div className="flex justify-between">
+                            <span>{t('detail.province.bailiff_recent_task')}:</span>
+                            <span>
+                              {recentTaskStatus === 'completed'
+                                ? t('detail.province.bailiff_task_completed')
+                                : t('detail.province.bailiff_task_none')}
+                            </span>
+                          </div>
+                          {(() => {
+                            const popIds = currentState.popIndex.byHolding[holding.id] ?? []
+                            let totalAffection = 0
+                            let totalRespect = 0
+                            let totalSize = 0
+                            const attKey = personAttitudeKey(bailiff.id)
+                            for (const popId of popIds) {
+                              const pop = currentState.popGroups[popId]
+                              if (!pop) continue
+                              const att = pop.attitudes[attKey]
+                              if (att) {
+                                totalAffection += (att.affection ?? 0) * pop.size
+                                totalRespect += (att.respect ?? 0) * pop.size
+                              }
+                              totalSize += pop.size
+                            }
+                            const avgAffection = totalSize > 0 ? totalAffection / totalSize : 0
+                            const avgRespect = totalSize > 0 ? totalRespect / totalSize : 0
+                            return (
+                              <div className="flex justify-between">
+                                <span>{t('detail.province.bailiff_pop_attitude')}:</span>
+                                <span>
+                                  {t('detail.province.bailiff_affection')}{' '}
+                                  <span
+                                    className={
+                                      avgAffection >= 0 ? 'text-green-400' : 'text-red-400'
+                                    }
+                                  >
+                                    {avgAffection >= 0 ? '+' : ''}
+                                    {avgAffection.toFixed(2)}
+                                  </span>
+                                  {' / '}
+                                  {t('detail.province.bailiff_respect')}{' '}
+                                  <span
+                                    className={avgRespect >= 0 ? 'text-blue-400' : 'text-red-400'}
+                                  >
+                                    {avgRespect >= 0 ? '+' : ''}
+                                    {avgRespect.toFixed(2)}
+                                  </span>
+                                </span>
+                              </div>
+                            )
+                          })()}
+                        </>
+                      )}
                     </div>
                   )
                 })()}
