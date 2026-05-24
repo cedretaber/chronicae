@@ -90,6 +90,7 @@ import {
   getHouseOwnedPolityIds,
   getProvinceHoldings,
   getHoldingLandContractChain,
+  getHoldingTerminalPolityId,
 } from '@sim/selectors/landContractSelectors'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import {
@@ -181,7 +182,7 @@ function CopyJsonButton({ payload }: { payload: unknown }) {
 // raw entity + \u89e3\u6c7a\u6e08\u307f\u53c2\u7167 (House/Polity/Person \u540d\u7b49) + \u6642\u523b\u6587\u8108\u3092\u542b\u3080\u3002
 // LLM \u3078\u306e\u69cb\u9020\u5316\u5171\u6709\u3092\u60f3\u5b9a \u2014 \u904e\u5ea6\u306a derived \u306f\u5165\u308c\u305a\u3001\u751f\u30c7\u30fc\u30bf\u306b\u8584\u3044 overlay \u3092\u88ab\u305b\u308b\u65b9\u91dd\u3002
 function buildEntitySnapshot(
-  kind: 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction',
+  kind: 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction' | 'holding',
   entity: unknown,
   currentState: WorldState | null,
 ): unknown {
@@ -503,6 +504,29 @@ function buildEntitySnapshot(
         memberCount: memberIds.length,
         employedCount,
         members,
+      },
+    }
+  }
+  if (kind === 'holding') {
+    const h = entity as Holding
+    const bailiff = ws ? getHoldingBailiffPerson(ws, h.id) : null
+    const assignmentId = ws?.holdingOfficeIndex.byHolding[h.id]
+    const assignment = assignmentId ? ws?.holdingOfficeAssignments[assignmentId] : undefined
+    return {
+      kind,
+      meta,
+      entity: h,
+      derived: {
+        provinceName: provinceNameKey(h.provinceId),
+        terminalPolityId: ws ? getHoldingTerminalPolityId(ws, h.id) : null,
+        terminalPolityName: ws
+          ? polityNameKey(getHoldingTerminalPolityId(ws, h.id) ?? undefined)
+          : null,
+        bailiffPersonId: bailiff?.id ?? null,
+        bailiffPersonName: bailiff?.nameKey ?? null,
+        bailiffIsPlaceholder: bailiff?.kind === 'placeholder',
+        contractedRemittanceRate: assignment?.contractedRemittanceRate ?? null,
+        expectedFeeRate: assignment?.expectedFeeRate ?? null,
       },
     }
   }
@@ -2649,6 +2673,19 @@ export function HoldingDetail({
 
   return (
     <div className="flex flex-col gap-1 p-3">
+      {/* Header: Holding name + kind badge + copy */}
+      <div className="flex items-center justify-between">
+        <span className="text-lg font-bold">{holdingDisplay}</span>
+        <div className="flex items-center gap-1.5">
+          <CopyJsonButton payload={buildEntitySnapshot('holding', holding, currentState ?? null)} />
+          <span
+            className={`rounded px-1.5 py-0.5 text-xs ${holding.kind === 'city' ? 'bg-amber-800 text-amber-200' : 'bg-green-900 text-green-300'}`}
+          >
+            {holding.kind}
+          </span>
+        </div>
+      </div>
+
       {/* Header image */}
       <img
         src={getHoldingImage(holding.id, holding.kind)}
@@ -2656,15 +2693,6 @@ export function HoldingDetail({
         className="h-24 w-full rounded object-cover"
         draggable={false}
       />
-      {/* Header: Holding name + kind badge */}
-      <div className="flex items-center justify-between">
-        <span className="text-lg font-bold">{holdingDisplay}</span>
-        <span
-          className={`rounded px-1.5 py-0.5 text-xs ${holding.kind === 'city' ? 'bg-amber-800 text-amber-200' : 'bg-green-900 text-green-300'}`}
-        >
-          {holding.kind}
-        </span>
-      </div>
 
       {/* Province link */}
       {province && (
