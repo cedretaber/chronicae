@@ -94,14 +94,54 @@ effectiveThreshold = clamp(
 
 v0.16 後の整理で記念碑建設機能が削除されたため、`monumentScore` / `landDevelopmentScore` の二択構造そのものが廃止された。現在は `publicSpendingYearlyChance` の確率試行成功時に Polity 土地開発を実行するのみ。Polity treasurer の admin による開発コスト割引 (`calcTreasurerDevelopmentCostModifier`) のみが残っており、Polity administrator の ambition / caution 補正は `calcChancellorLandDevelopmentScoreBonus` selector として残置されているが現状未参照（将来の活用余地として保持）。
 
-### 10.7 HouseDevelopmentSystem への効果
+### 10.7 HouseDevelopmentSystem への効果（v0.22 で廃止）
 
-**家長（house head）→ 開発発動確率**:
+HouseDevelopmentSystem は v0.22 で廃止。config は残置。
+
+### 10.8 Task outcome 判定への能力効果（v0.26.1）
+
+Task 完了時の outcome 判定は `determineTaskOutcome` で行う。各 Task は `relevantAbility: AbilityKey` を持ち、assignee の該当能力スコアが判定に使われる。
+
+**判定式**:
 ```ts
-abilityChanceBonus = normalizedStat(admin)    * houseHeadAdminDevelopmentChanceEffect
-                   + normalizedTrait(caution) * houseHeadCautionDevelopmentChanceEffect
-chance = clamp(houseDevelopmentYearlyChance + wealthBonus + abilityChanceBonus, 0, 1)
+effectiveScore = person.abilities[task.relevantAbility] + roll * 100  // 0〜220
+threshold = task.difficulty * 2                                        // 0〜200
+successMargin = config.taskOutcomeSuccessMargin                        // default 20
+
+effectiveScore >= threshold + successMargin → success
+effectiveScore >= threshold                 → partial
+effectiveScore < threshold                  → failure
 ```
+
+**TaskKind → relevantAbility マッピング**（outcome 判定用。effort 計算用の `getTaskRelevantAbility` とは 8 TaskKind で値が異なる）:
+
+| TaskKind | difficulty | relevantAbility |
+|---|---|---|
+| support_organization_plan | 25 | insight |
+| promote_house_influence | 30 | charisma |
+| perform_office_duties | 20 | numeracy |
+| seek_office_support | 40 | charisma |
+| display_competence | 30 | insight |
+| defend_office_position | 35 | charisma |
+| manage_accounts | 20 | numeracy |
+| seek_profitable_assignment | 30 | insight |
+| study_law | 35 | learning |
+| study_accounts | 35 | learning |
+| practice_arms | 35 | command |
+| courtly_training | 35 | learning |
+| prepare_project / advance_project | 30 / 35 | ProjectKind に応じて変動（§4.9 参照） |
+| collect_holding_revenue | 20 | numeracy |
+| 外交劇系 (6 種) | 35〜50 | learning / insight / charisma / command |
+
+**ProjectKind → relevantAbility マッピング**（prepare_project / advance_project で使用）:
+
+| ProjectKind | relevantAbility |
+|---|---|
+| develop_holding | numeracy |
+| expand_polity_share / promote_policy_shift / patronize_artist | charisma |
+| commission_chronicle | learning |
+| acquire_land | command |
+| sell_land / improve_contract_terms / demand_tax_increase | numeracy |
 
 ---
 

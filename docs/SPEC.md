@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-24（v0.25 代官システム改修: Bailiff, Local Extraction, Revenue Task）
+最終更新: 2026-05-24（v0.26.1 Task 成否判定: Project システム導入・Intent 廃止・Task outcome 判定）
 
 ---
 

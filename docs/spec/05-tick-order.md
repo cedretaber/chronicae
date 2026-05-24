@@ -83,10 +83,11 @@ const WEEKS_PER_SEASON = 12
 | 19c | PersonAimMaintenanceSystem | 4 | v0.23 追加。Person Aim 生成・deadline/waiting 管理 |
 | 20 | GoalMaintenanceSystem | 4 | v0.22。生成・レビューは内部 48w ゲート。owner.kind === 'person' はスキップ |
 | 20b | AimMaintenanceSystem | 4 | v0.22。生成は内部 48w ゲート |
-| 20c | IntentGenerationSystem | 48 | 旧毎年。v0.22 で sell_land 専用に縮小 |
-| 20d | AimToIntentGenerationSystem | 4 | v0.22 |
-| 20e | IntentToDiplomaticPlaySystem | 4 | 旧毎月。v0.22 で goalId/aimId 継承 |
-| 20f | IntentActionSystem | 4 | v0.22。Action 系 Intent の即時処理 |
+| 20c | ProjectPreparationSystem | 4 | v0.26。Aim から prepare_project Task を生成 |
+| 20d | SellLandProjectGenerationSystem | 48 | v0.26。財政難 Polity の sell_land Project 直接生成 |
+| 20e | ProjectTaskGenerationSystem | 1 | v0.26。active Project から advance_project Task を生成 |
+| 20f | ProjectMaintenanceSystem | 4 | v0.26。Project 完了/失敗判定、supervisor 再選定 |
+| 20g | ProjectOutcomeSystem | 4 | v0.26。Project 効果解決、DiplomaticPlay 生成、cleanup |
 | 21 | ProvinceRevoltSystem | 48 | 旧毎年 |
 | 21b | DiplomaticPlaySystem | 4 | 旧毎月 |
 | 21c | ConflictResolutionSystem | 4 | 旧毎月 |

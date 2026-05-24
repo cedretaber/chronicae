@@ -335,7 +335,7 @@
 | goalProgressOnAimFailed | -10 | Aim 失敗時の Goal progress 変化 |
 | goalProgressOnAimAbandoned | -5 | Aim 放棄時の Goal progress 変化 |
 | aimDefaultDeadlineWeeks | 240 | Aim のデフォルト期限（週、5年相当） |
-| aimIntentCooldownWeeks | 4 | Intent 生成後の cooldown（週） |
+| ~~aimIntentCooldownWeeks~~ | — | **v0.26 で廃止**。projectPreparationCooldownWeeks に置換 |
 | developHoldingCost | 30 | develop_holding の Polity treasury コスト |
 | developHoldingGain | 5 | develop_holding の Holding development 上昇量 |
 | expandPolityShareCost | 40 | expand_polity_share の House wealth コスト |
@@ -388,6 +388,35 @@
 | bailiffTaskCompletedRespectGain | 0.2 | Task completed 時の POP→代官 respect ボーナス |
 | **v0.25 廃止** | | |
 | ~~bailiffRevenueShare~~ | — | **v0.25 で廃止**。代官報酬は bailiffFeeRate に一本化 |
+| **Project システム（v0.26）** | | |
+| projectDefaultTargetProgress | 100 | Project の標準 targetProgress |
+| projectAdvanceProgressSuccess | 25 | advance_project 成功時の progress 加算量 |
+| projectAdvanceProgressPartial | 10 | advance_project 部分成功時の progress 加算量 |
+| projectAdvanceProgressFailure | 0 | advance_project 失敗時の progress 加算量 |
+| diplomaticProjectPreparationGainSuccess | 10 | 外交系 Project の preparation 加算（成功） |
+| diplomaticProjectLeverageGainSuccess | 5 | 外交系 Project の leverage 加算（成功） |
+| diplomaticProjectCommitmentGainSuccess | 5 | 外交系 Project の commitment 加算（成功） |
+| diplomaticProjectPreparationGainPartial | 5 | 外交系 Project の preparation 加算（部分成功） |
+| diplomaticProjectLeverageGainPartial | 2 | 外交系 Project の leverage 加算（部分成功） |
+| diplomaticProjectCommitmentGainPartial | 2 | 外交系 Project の commitment 加算（部分成功） |
+| supervisedProjectWorkloadWeight | 2 | supervisor workload 計算時の Project 重み |
+| officeWorkloadWeight | 1 | supervisor workload 計算時の Office 重み |
+| activeTaskWorkloadWeight | 1 | supervisor workload 計算時の active Task 重み |
+| aimProgressGainLandOrContractProject | 50 | 外交系 Project 成功時の Aim progress 加算量 |
+| aimProgressGainDevelopmentProject | 33 | 土地開発系 Project 完了時の Aim progress 加算量 |
+| aimProgressGainPowerProject | 33 | Share/Policy 系 Project 完了時の Aim progress 加算量 |
+| aimProgressGainCultureProject | 25 | 文化系 Project 完了時の Aim progress 加算量 |
+| aimProgressCompletionTolerance | 1 | Aim progress が targetProgress に到達する際の許容誤差 |
+| projectBudgetDevelopHolding | 30 | develop_holding 完了時の treasury コスト |
+| projectBudgetExpandPolityShare | 40 | expand_polity_share 完了時の wealth コスト |
+| projectBudgetPatronizeArtist | 25 | patronize_artist 完了時の wealth コスト |
+| projectBudgetCommissionChronicle | 40 | commission_chronicle 完了時の wealth コスト |
+| projectDeadlineWeeksDevelopment | 48 | 非外交系 Project のデフォルト deadline（週） |
+| projectDeadlineWeeksDiplomatic | 24 | 外交系 Project のデフォルト deadline（週） |
+| prepareProjectPartialTargetProgressPenalty | 10 | prepare_project 部分成功時の targetProgress ペナルティ |
+| projectPreparationCooldownWeeks | 4 | ProjectPreparationSystem のクールダウン（週） |
+| **Task 成否判定（v0.26.1）** | | |
+| taskOutcomeSuccessMargin | 20 | outcome 判定の success/partial 境界マージン |
 
 ---
 

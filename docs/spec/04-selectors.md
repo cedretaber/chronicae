@@ -349,7 +349,36 @@ function getAppointmentTaskModifier(
 function computeEffectivePriority(state: WorldState, config: SimulationConfig, task: Task): number
 ```
 
-### 4.9 代官 selector（v0.25）
+### 4.9 Project / Task outcome selector（v0.26 / v0.26.1）
+
+`prototype/src/sim/selectors/taskSelectors.ts` および `prototype/src/sim/selectors/projectSelectors.ts` に集約。
+
+```ts
+// Task のデフォルト difficulty / relevantAbility（TaskKind ごとの定数マッピング）
+function getTaskDefaultDifficulty(kind: TaskKind): number
+function getTaskDefaultRelevantAbility(kind: TaskKind): AbilityKey
+
+// ProjectKind → relevantAbility マッピング（prepare_project / advance_project 用）
+const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey>
+
+// Task 完了時の outcome 判定（v0.26.1）
+// effectiveScore = abilityScore + roll*100 vs threshold = difficulty*2
+function determineTaskOutcome(
+  state: WorldState, config: SimulationConfig, task: Task, rng: RngState,
+): { outcome: TaskOutcomeKind; rng: RngState }
+
+// Project の関連エンティティ参照（ProjectKind ごとに異なる）
+function getProjectRelatedRefs(project: Project): EntityRef[]
+
+// Person の Project workload（active Task + supervised Project + Office）
+function getPersonProjectWorkload(state: WorldState, personId: PersonId): number
+
+// Project creator / supervisor 選定
+function selectProjectCreator(state: WorldState, config: SimulationConfig, aim: Aim): PersonId | undefined
+function selectProjectSupervisor(state: WorldState, config: SimulationConfig, projectDraft: ProjectDraft, creatorPersonId: PersonId): PersonId | undefined
+```
+
+### 4.9b 代官 selector（v0.25）
 
 `prototype/src/sim/selectors/bailiffSelectors.ts` に集約。
 

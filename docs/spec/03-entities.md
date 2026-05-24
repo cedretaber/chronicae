@@ -447,7 +447,7 @@ type BailiffRevenueTaskStatus = 'completed' | 'none'
 - placeholder 代官は常に `'passive'`
 - `BailiffRevenueTaskStatus` は `getRecentBailiffRevenueTaskStatus` selector で直近 4 週の ActivityLog から判定
 
-### 3.9 外交劇システム (v0.18)
+### 3.9 外交劇システム (v0.18 / v0.26 更新)
 
 #### PoliticalActorRef
 
@@ -461,42 +461,9 @@ type PoliticalActorRef =
 
 v0.18 では Polity actor のみ実動。v0.22 で House actor の最小実動を導入（expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle）。
 
-#### ActorIntent
-
-短期的な行動意図。Goal/Aim 系からは AimToIntentGenerationSystem が、sell_land のみ旧 IntentGenerationSystem が生成する。`createdWeek` / `expiresWeek` を absoluteWeek で保持 (v0.19)。
-
-```ts
-type ActorIntentKind =
-  | 'acquire_land'
-  | 'sell_land'
-  | 'improve_contract_terms'
-  | 'demand_tax_increase'
-  | 'suppress_unrest'
-  | 'revolt'
-  // v0.22 追加 (Action 即時処理系)
-  | 'develop_holding'
-  | 'expand_polity_share'
-  | 'promote_policy_shift'
-  | 'patronize_artist'
-  | 'commission_chronicle'
-```
-
-v0.22 では Intent に Goal/Aim 接続フィールドを追加:
-
-```ts
-goalId?: GoalId
-aimId?: AimId
-pressureId?: PressureId
-reasonIds?: DecisionReasonId[]
-```
-
-旧 IntentGenerationSystem 由来の Intent は `goalId` / `aimId` を持たない（許容）。
-
-terminal status ('converted' / 'expired' / 'cancelled') に達した Intent は同 tick 末に削除。
-
 #### DiplomaticPlay
 
-外交劇本体。Intent から変換されて生成される。
+外交劇本体。**v0.26**: Project 完了時に生成される（旧 Intent → Play 変換は廃止）。
 
 ```ts
 type DiplomaticPlayKind =
@@ -515,9 +482,10 @@ v0.22 では DiplomaticPlay に Goal/Aim 接続フィールドを追加:
 ```ts
 goalId?: GoalId
 aimId?: AimId
+originProjectId?: ProjectId  // v0.26: Project 由来の Play を追跡
 ```
 
-IntentToDiplomaticPlaySystem が Intent → Play 変換時に goalId/aimId を継承。AimOutcomeSystem が Play の terminal status から Aim progress を更新する。
+**v0.26**: `originIntentId` を廃止し `originProjectId` を追加。ProjectOutcomeSystem が外交系 Project 完了時に DiplomaticPlay を生成し、origin の Aim に `activeDiplomaticPlayId` を設定する。AimOutcomeSystem が Play の terminal status から Aim progress を更新する。
 
 #### DiplomaticDemand
 
@@ -530,19 +498,19 @@ type DiplomaticDemand =
   | { kind: 'status_quo' }
 ```
 
-#### WorldState 追加 (v0.18)
+#### WorldState 追加 (v0.18 / v0.26 更新)
 
 ```ts
 type WorldState = {
   ...
-  actorIntents: Record<ActorIntentId, ActorIntent>
   diplomaticPlays: Record<DiplomaticPlayId, DiplomaticPlay>
-  nextActorIntentId: number
   nextDiplomaticPlayId: number
 }
 ```
 
-terminal status の ActorIntent / DiplomaticPlay は tick 末の `cleanupTerminalDiplomacy` phase で state から完全削除される。履歴は Event ログに残す。
+**v0.26**: `actorIntents` / `nextActorIntentId` を削除。ActorIntent 型を全廃し、Project システムに置換。
+
+terminal status の DiplomaticPlay は tick 末の `cleanupTerminalDiplomacy` phase で state から完全削除される。履歴は Event ログに残す。
 
 ### 3.10 目標システム (v0.22 / v0.23 拡張)
 
@@ -597,12 +565,11 @@ type Aim = {
   target?: EntityRef
   priority: number
   progress: number
-  targetProgress: number
+  targetProgress: number    // v0.26: 標準値を 1 → 100 に変更
   createdWeek: number
   deadlineWeek: number
-  lastIntentGeneratedWeek?: number
-  nextIntentAllowedWeek?: number
-  activeIntentId?: ActorIntentId
+  lastProjectPreparedWeek?: number   // v0.26: 旧 lastIntentGeneratedWeek を置換
+  nextProjectAllowedWeek?: number    // v0.26: 旧 nextIntentAllowedWeek を置換
   activeDiplomaticPlayId?: DiplomaticPlayId
   // v0.23 追加
   activeTaskId?: TaskId
@@ -610,14 +577,16 @@ type Aim = {
   waitingReasonKey?: string
   blockedReasonKey?: string
   nextReviewWeek?: number
-  successfulIntentCount: number
-  failedIntentCount: number
+  successfulProjectCount: number     // v0.26: 旧 successfulIntentCount を置換
+  failedProjectCount: number         // v0.26: 旧 failedIntentCount を置換
   status: AimStatus
   reasonIds: DecisionReasonId[]
 }
 ```
 
-Aim は中期計画。期限と成功条件を持つ。Person Aim は Task で直接進行し、Polity / House Aim は Intent / DiplomaticPlay 経由で進行する。activeTaskId / activeIntentId / activeDiplomaticPlayId は同時に最大 1 つのみセット。
+Aim は中期計画。期限と成功条件を持つ。Person Aim は Task で直接進行し、Polity / House Aim は Project / DiplomaticPlay 経由で進行する。activeTaskId / activeDiplomaticPlayId は同時に最大 1 つのみセット。
+
+**v0.26**: `activeIntentId` / `lastIntentGeneratedWeek` / `nextIntentAllowedWeek` / `successfulIntentCount` / `failedIntentCount` を削除し、Project 系フィールドに置換。`targetProgress` を 1 → 100 に変更（複数 Project 完了で Aim succeeded）。`activeProjectId` は追加しない（`projectIndex.byAim` で検索可能なため）。
 
 #### DecisionReason
 
@@ -652,7 +621,7 @@ type WorldState = {
 
 terminal Goal / Aim は tick 末の `cleanupTerminalDecisions` phase で state から完全削除される。
 
-### 3.11 Task / ActivityLog システム (v0.23)
+### 3.11 Task / ActivityLog システム (v0.23 / v0.26 更新 / v0.26.1 outcome 判定)
 
 #### Task
 
@@ -667,7 +636,8 @@ type TaskKind =
   | 'seek_office_support' | 'display_competence' | 'defend_office_position'
   | 'manage_accounts' | 'seek_profitable_assignment'
   | 'study_law' | 'study_accounts' | 'practice_arms' | 'courtly_training'
-  | 'prepare_intent' | 'secure_internal_support'
+  | 'prepare_project' | 'advance_project'            // v0.26: prepare_intent を廃止し追加
+  | 'secure_internal_support'
   | 'secure_development_budget' | 'supervise_holding_development'
   | 'arrange_patronage' | 'commission_chronicle_work'
   | 'prepare_argument' | 'gather_claim_evidence' | 'negotiate_terms'
@@ -676,7 +646,7 @@ type TaskKind =
 
 type TaskTargetRef =
   | { kind: 'aim'; id: AimId }
-  | { kind: 'intent'; id: ActorIntentId }
+  | { kind: 'project'; id: ProjectId }                // v0.26: intent を廃止し追加
   | { kind: 'diplomatic_play'; id: DiplomaticPlayId }
   | { kind: 'holding_office_assignment'; id: HoldingOfficeAssignmentId }  // v0.25
 
@@ -694,6 +664,8 @@ type Task = {
   deadlineWeek?: number
   status: TaskStatus
   reasonIds: DecisionReasonId[]
+  difficulty: number          // v0.26.1: 0〜100。outcome 判定の難易度
+  relevantAbility: AbilityKey // v0.26.1: outcome 判定に使う能力
 }
 ```
 
@@ -780,6 +752,75 @@ ID prefix:
 | `DecisionReasonId` | `dr-` |
 | `TaskId` | `t-` |
 | `PersonActivityLogId` | `pal-` |
+| `ProjectId` | `pj-` |
+
+### 3.12 Project システム (v0.26)
+
+#### Project
+
+Project は「誰かが作成し、誰かが遂行する具体的案件」。Aim を具体化した行動単位であり、Task によって進行する。completed / failed / cancelled の terminal Project は ProjectOutcomeSystem で効果解決後に state から削除される。
+
+```ts
+type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
+
+type ProjectOrigin =
+  | { kind: 'aim'; aimId: AimId }
+  | { kind: 'system'; reasonKey: string }
+
+type ProjectKind =
+  | 'develop_holding'
+  | 'expand_polity_share'
+  | 'promote_policy_shift'
+  | 'patronize_artist'
+  | 'commission_chronicle'
+  | 'acquire_land'
+  | 'sell_land'
+  | 'improve_contract_terms'
+  | 'demand_tax_increase'
+
+type BaseProject = {
+  id: ProjectId
+  owner: DecisionSubjectRef
+  origin: ProjectOrigin
+  kind: ProjectKind
+  creatorPersonId: PersonId
+  supervisorPersonId: PersonId
+  parentProjectId?: ProjectId
+  status: ProjectStatus
+  progress: number
+  targetProgress: number      // default 100
+  createdWeek: number
+  deadlineWeek?: number
+  reasonIds: DecisionReasonId[]
+}
+```
+
+7 つの派生型 union で構成:
+- `DevelopHoldingProject`: holdingId / budget / spentBudget
+- `ExpandPolityShareProject`: polityId / houseId / budget / spentBudget
+- `PromotePolicyShiftProject`: polityId / houseId / policyKey
+- `PatronizeArtistProject`: houseId / budget / spentBudget / artistPersonId
+- `CommissionChronicleProject`: houseId / budget / spentBudget / subjectRef
+- `LandClaimProject` (acquire_land / sell_land): holdingId / provinceId / counterpartyPolityId / preparation / leverage / commitment
+- `ContractRevisionProject` (improve_contract_terms / demand_tax_increase): holdingId / landContractId / counterpartyPolityId / desiredTaxRateToGrantor / preparation / leverage / commitment
+
+#### WorldState 追加 (v0.26)
+
+```ts
+type WorldState = {
+  ...
+  projects: Record<ProjectId, Project>
+  projectIndex: {
+    byOwner: Record<string, ProjectId[]>
+    byAim: Record<AimId, ProjectId[]>
+    byParentProject: Record<ProjectId, ProjectId[]>
+    byCreatorPerson: Record<PersonId, ProjectId[]>
+    bySupervisorPerson: Record<PersonId, ProjectId[]>
+    byRelatedEntity: Record<string, ProjectId[]>
+  }
+  nextProjectId: number
+}
+```
 
 ---
 

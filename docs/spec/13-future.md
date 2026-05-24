@@ -546,6 +546,53 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **Config 削除**: `populationCapacityPerHabitability`
 - **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
 
+### v0.25 で実装済み（代官システム改修: Bailiff, Local Extraction, Revenue Task）
+
+詳細仕様は `docs/drafts/spec-v025-update.md` 参照。
+
+- **代官徴税モデル刷新**: `bailiffRevenueShare` を廃止し、`contractedRemittanceRate` / `expectedFeeRate` / `BailiffPolicy` / `collectionEfficiency` による多段階徴税モデルに置換
+- **BailiffRevenueTaskSystem 新設**: 代官の月次 `collect_holding_revenue` Task を生成・期限切れ処理
+- **BailiffPolicy selector**: `passive` / `loyal_remittance` / `profit_seeking` / `protect_residents` の 4 方針を能力・性格・現地 POP 状況から導出
+- **LandRevenueSystem 改修**: per-Holding の代官現地徴収を挟む。`totalBurdenRate` ベースの POP 影響処理
+- **OfficeCompensationSystem**: bailiff 給与支払い廃止。代官収入は LandRevenueSystem の bailiffFee に一本化
+- **IntegrityCheck 拡張**: HoldingOfficeAssignment / collect_holding_revenue Task / selector range チェック追加
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
+
+### v0.26 で実装済み（Project システム導入 / Intent 廃止）
+
+詳細仕様は `docs/drafts/spec-v026-update.md` 参照（Phase A/B/C すべて完了）。
+
+- **Project エンティティ追加**: ProjectId / ProjectStatus / ProjectOrigin / ProjectKind / BaseProject + 7 variant 型。`projects` / `projectIndex` (6 index) / `nextProjectId` を WorldState に追加
+- **ActorIntent 全廃**: ActorIntent / ActorIntentId / ActorIntentKind / IntentRationale 型を削除。WorldState から `actorIntents` / `nextActorIntentId` を削除。DiplomaticPlay の `originIntentId` → `originProjectId` に置換
+- **Aim 型変更**: `activeIntentId` / `lastIntentGeneratedWeek` / `nextIntentAllowedWeek` / `successfulIntentCount` / `failedIntentCount` を削除。`lastProjectPreparedWeek` / `nextProjectAllowedWeek` / `successfulProjectCount` / `failedProjectCount` を追加。`targetProgress` を 1 → 100 に変更
+- **TaskKind 変更**: `prepare_intent` 廃止、`prepare_project` / `advance_project` 追加。`TaskTargetRef { kind: 'intent' }` 廃止、`{ kind: 'project' }` 追加
+- **新設 system 5 個**: ProjectPreparationSystem / SellLandProjectGenerationSystem / ProjectTaskGenerationSystem / ProjectMaintenanceSystem / ProjectOutcomeSystem
+- **廃止 system 4 個**: IntentGenerationSystem / AimToIntentGenerationSystem / IntentToDiplomaticPlaySystem / IntentActionSystem
+- **Project creator / supervisor 選定**: `selectProjectCreator` / `selectProjectSupervisor` selector。能力・Share・workload ベースのスコアリング
+- **外交系 Project**: acquire_land / sell_land / improve_contract_terms / demand_tax_increase は Project 完了時に DiplomaticPlay を生成。preparation / leverage / commitment を advance_project Task で蓄積
+- **非外交系 Project 効果**: develop_holding (Holding.development +5) / expand_polity_share (rawPower +10) / promote_policy_shift / patronize_artist (legacyPrestige +3) / commission_chronicle (legacyPrestige +5)
+- **EventType 変更**: PROJECT_STARTED / PROJECT_COMPLETED / PROJECT_FAILED / PROJECT_CANCELLED 追加。ACTOR_INTENT_CREATED / ACTOR_INTENT_CONVERTED 削除
+- **UI**: DetailPanel に active Project 表示（Polity / House / Person）
+- **IntegrityCheck**: Project 基本・index 整合・Intent 廃止確認チェック追加
+- **Config 追加**: projectDefaultTargetProgress / projectAdvanceProgress* / diplomaticProject*Gain* / aimProgressGain* / projectBudget* / projectDeadlineWeeks* / prepareProjectPartialTargetProgressPenalty / projectPreparationCooldownWeeks 等
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。65 テストファイル / 598 tests pass
+
+### v0.26.1 で実装済み（Task 成否判定システム）
+
+詳細仕様は `docs/drafts/spec-v0261-update.md` 参照。
+
+- **Task 型に `difficulty` / `relevantAbility` フィールド追加**: 0〜100 の難易度と outcome 判定に使う AbilityKey
+- **`determineTaskOutcome` 関数**: `effectiveScore = abilityScore + roll*100` vs `threshold = difficulty*2`。`taskOutcomeSuccessMargin` (20) で success/partial/failure を判定
+- **TASK_KIND_OUTCOME_DEFAULTS**: 全 26 TaskKind に difficulty / relevantAbility のデフォルト値を定義
+- **PROJECT_KIND_ABILITY_MAP**: 9 ProjectKind → AbilityKey マッピング（prepare_project / advance_project の relevantAbility をオーバーライド）
+- **prepare_project outcome 分岐**: failure → Project 不生成、partial → targetProgress にペナルティ加算
+- **advance_project outcome 分岐**: success +25 / partial +10 / failure +0。外交系 preparation/leverage/commitment も同様
+- **Aim 系 Task outcome 分岐**: failure/partial → progress 加算なし、aim は active 維持
+- **IntegrityCheck**: difficulty 範囲 [0,100]、relevantAbility 有効性チェック追加
+- **Config 追加**: `taskOutcomeSuccessMargin: 20`
+- **バランス結果**: Project 成功率が 89-97% (v0.26) → 約 55% (v0.26.1) に低下。能力の高い人物を supervisor に選ぶ動機が機能
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。65 テストファイル / 598 tests pass
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系
@@ -572,7 +619,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - ~~**House actor を主体とする外交劇の有効化**~~: v0.22 で House actor の最小実動を導入済み（expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle）。DiplomaticPlay 主体としての House actor は将来課題
 - **install_owner / dynasty change 要求**: 王朝交代要求 DiplomaticDemand
 - **AppointmentPolicy 抽象による commonwealth ad-hoc 分岐の整理**
-- **intentCooldownWeeks の本格運用**: v0.18 では未使用 (config のみ用意。v0.19 で Weeks に改名)
+- ~~**intentCooldownWeeks の本格運用**~~: v0.26 で Intent 全廃に伴い削除。Project 系に置換 (`projectPreparationCooldownWeeks`)
 - **Rebel Polity の rank 昇格** (rank=5 → rank=4): v0.18 では現行 rank 決定を維持
 - **DiplomaticPlay の settlement/escalation 閾値の非対称化調整**: escalation 経路が支配的 (Stage E 確認済)
 - **CONTRACT_ELIMINATED の発生頻度調整**: 現状 4 seed × 300 年で 0 件

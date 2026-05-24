@@ -1144,12 +1144,25 @@ PopGroup / Polity 数値範囲 (v0.24 更新):
 - OrganizationRef.kind は `'polity' | 'house'` のみ (型レベル)
 - AttitudeTarget / attitude key に `country:` が残っていない (型レベル)
 
-**v0.18 追加チェック項目**:
+**v0.26 追加チェック項目**:
 
-ActorIntent:
-- すべての entry の status === 'active' (terminal status は tick 末で削除される前提)
-- actor が存在する active actor を指す
-- targetProvinceId が存在する場合、Province が存在する
+Project:
+- 全 Project の id が key と一致
+- terminal Project が state に残っていない
+- creator / supervisor Person が存在する
+- active Project の supervisor は alive
+- origin.kind === 'aim' の場合、Aim が存在する
+- projectIndex の 6 方向整合（byOwner / byAim / byParentProject / byCreatorPerson / bySupervisorPerson / byRelatedEntity）
+
+Task（v0.26.1 追加）:
+- active Task の difficulty が 0〜100 の範囲内
+- active Task の relevantAbility が有効な AbilityKey
+
+Intent 廃止確認（v0.26）:
+- ActorIntent チェックを全削除
+- TaskTargetRef { kind: 'intent' } の Task が存在しない
+
+**v0.18 追加チェック項目（v0.26 更新）**:
 
 DiplomaticPlay:
 - すべての entry の status ∈ {'active', 'escalated'} (terminal status は tick 末で削除される前提)
@@ -1187,28 +1200,45 @@ Selector range（debug/integrity-check モード）:
 - `bailiffFeeRate` が `[0, maxBailiffFeeRate]`
 - `totalBurdenRate` が `[0, maxLocalExtractionRate]`
 
-### 6.25 IntentGenerationSystem（48週ごと = 毎年、v0.18 / v0.22 縮小）
+### 6.25 IntentGenerationSystem（v0.26 で廃止）
 
-**v0.22 で sell_land 専用に縮小。** `acquire_land` / `improve_contract_terms` / `demand_tax_increase` は Goal/Aim 系（AimToIntentGenerationSystem §6.30b）が生成するため除外。
+**v0.26 で廃止。** sell_land の生成ロジックは SellLandProjectGenerationSystem (§6.25b) に移植。
 
-生成対象:
-- `sell_land`: 財政難の Polity が辺境 Province を売却したい意図
+### 6.25a ProjectPreparationSystem（4週ごと、v0.26）
 
-`sell_land` は本来 Pressure: `financial_strain` に対する Response Aim に属する行動だが、v0.22 では Pressure を本格実装しないため旧経路で暫定維持。将来 Pressure-response Aim に移行後、本 system を完全廃止する。
+active Aim を走査し、必要に応じて `prepare_project` Task を生成する。走査対象は `aim.origin === 'goal_driven'` かつ `aim.owner.kind !== 'person'`（Polity / House Aim のみ）。
 
-旧 IntentGenerationSystem が生成する Intent は `goalId` / `aimId` を持たない（許容）。
+**抑制条件**: `projectIndex.byAim[aim.id]` に active Project が存在する / `aim.activeTaskId` が設定中 / `aim.activeDiplomaticPlayId` が設定中 / `nextProjectAllowedWeek` 未到達。
 
-### 6.26 IntentToDiplomaticPlaySystem（4週ごと、v0.18）
+AimKind → ProjectKind マッピング:
+- Polity: `consolidate_province_holdings` / `seize_weak_remote_holdings` → `acquire_land`、`develop_owned_holding` → `develop_holding`、`improve_owned_contract_terms` → `improve_contract_terms`、`demand_tax_increase_from_vassal` → `demand_tax_increase`
+- House: `increase_polity_share` → `expand_polity_share`、`steer_polity_*` → `promote_policy_shift`、`patronize_artist` / `commission_chronicle` → 同名
 
-active な ActorIntent を DiplomaticPlay に変換する。
+`selectProjectCreator` で起案者を選定（候補なしなら待機）。prepare_project Task の assignee は creator。
 
-変換マッピング:
-- `sell_land` / `acquire_land` → `land_claim`
-- `improve_contract_terms` / `demand_tax_increase` → `contract_tax_revision`
+### 6.25b SellLandProjectGenerationSystem（48週ごと、v0.26）
 
-Province 単位 dedup: 同一 Province に対して同時進行できる外交劇は高々 1 つ。全 DiplomaticPlayKind 横断で適用。
+旧 IntentGenerationSystem の sell_land ロジックを移植。Polity の財政難から直接 sell_land Project を生成する（prepare_project Task を経由しない）。`origin: { kind: 'system', reasonKey: 'fiscal_pressure' }`。
 
-**v0.20**: Play 生成時に `selectTargetHoldingInProvince` で対象 Holding を選定し、DiplomaticDemand の `holdingId` に設定する。dedup は引き続き Province 単位。
+### 6.25c ProjectTaskGenerationSystem（毎週、v0.26）
+
+active Project を走査し、`advance_project` Task を生成する。生成条件: supervisor が alive / 同 Project を target にする active advance_project Task がない / deadline 未超過。
+
+### 6.25d ProjectMaintenanceSystem（4週ごと、v0.26）
+
+active Project の状態更新。owner inactive → cancelled、origin Aim が non-active → cancelled、supervisor 死亡 → 再選定（失敗なら failed）、deadline 超過 → failed、progress >= targetProgress → completed。
+
+### 6.25e ProjectOutcomeSystem（4週ごと、v0.26）
+
+terminal Project の効果解決・ログ出力・cleanup を担当。
+
+- 非外交系 Project: treasury/wealth/development/prestige 等の直接効果を適用し、Aim progress を加算
+- 外交系 Project: DiplomaticPlay を生成し、Aim.activeDiplomaticPlayId を設定（Aim progress は AimOutcomeSystem に委ねる）
+- Project を state.projects / projectIndex から削除
+
+### 6.26 IntentToDiplomaticPlaySystem（v0.26 で廃止）
+
+**v0.26 で廃止。** DiplomaticPlay の生成は ProjectOutcomeSystem (§6.25e) に移植。
 
 ### 6.27 DiplomaticPlaySystem（4週ごと、v0.18 / v0.23 Task-driven 化）
 
@@ -1238,9 +1268,11 @@ revolt_negotiation の決裂時は通常の actor military power ではなく、
 
 WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / development / unrest) を適用。
 
-### 6.29 CleanupTerminalDiplomacy（4週ごと、v0.18）
+### 6.29 CleanupTerminalDiplomacy（4週ごと、v0.18 / v0.26 更新）
 
-terminal status の ActorIntent / DiplomaticPlay を state から削除する GC。IntegrityCheck の直前に置く。v0.17.3 で inactive OfficeAssignment / FactionMembership の累積が perf 問題を引き起こした経験を踏まえ、最初から完全削除設計。
+terminal status の DiplomaticPlay を state から削除する GC。IntegrityCheck の直前に置く。v0.17.3 で inactive OfficeAssignment / FactionMembership の累積が perf 問題を引き起こした経験を踏まえ、最初から完全削除設計。
+
+**v0.26**: ActorIntent の cleanup ロジックを削除（ActorIntent 全廃のため）。
 
 ### 6.29b PersonGoalMaintenanceSystem（48週ごと、v0.23）
 
@@ -1266,7 +1298,7 @@ Person Aim の生成・deadline 判定・waiting 再評価を管理。
 
 イベント: `PERSON_AIM_CREATED` / `PERSON_AIM_SUCCEEDED` / `PERSON_AIM_FAILED`
 
-### 6.29d TaskSystem（毎週、v0.23）
+### 6.29d TaskSystem（毎週、v0.23 / v0.26 更新 / v0.26.1 outcome 判定）
 
 Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で完結する一体型 system。
 
@@ -1276,10 +1308,31 @@ Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で�
 3. effectivePriority を計算（ownerDutyBonus + goalAlignmentBonus + urgencyBonus + taskKindPriorityBonus - overloadPenalty）
 4. actionCapacity が許す限り Task を処理（base 2.0、ambition ≥ 0.7 で +0.5、age ≥ 60 で -0.5）
 5. effortDone を加算（weeklyEffort = 1.0 × (1 + relevantAbility / 100)）
-6. 完了した Task の outcome を解決（effortDone >= effortRequired で完了）
+6. 完了した Task の outcome を判定（`determineTaskOutcome`、v0.26.1）
 7. ActivityLog を作成
-8. target entity に結果を反映（Aim progress 更新、次 Task 生成、waiting/blocked 状態管理）
+8. target entity に結果を反映（outcome に応じた分岐処理）
 9. 完了・失敗・キャンセルされた Task を state から削除
+
+**v0.26.1 outcome 判定** (`determineTaskOutcome`):
+- `effectiveScore = abilityScore + roll * 100` (0〜220 の範囲)
+- `threshold = difficulty * 2` (0〜200 の範囲)
+- `effectiveScore >= threshold + successMargin` → success
+- `effectiveScore >= threshold` → partial
+- `effectiveScore < threshold` → failure
+
+**v0.26 prepare_project outcome 分岐**:
+- success: Project を作成（creator を prepare_project の assignee、supervisor を selectProjectSupervisor で選定）
+- partial: Project を作成するが targetProgress にペナルティ加算
+- failure: Project を作成しない
+
+**v0.26 advance_project outcome 分岐**:
+- success: progress += 25、外交系は preparation/leverage/commitment を success 値で加算
+- partial: progress += 10、外交系は partial 値で加算
+- failure: progress += 0、外交系も加算なし
+
+**v0.26.1 Aim 系 Task outcome 分岐**:
+- success: 通常処理（Aim progress +1、次 Task 生成等）
+- partial / failure: progress を加算せず、aim は active のまま維持（次の personAimMaintenanceSystem サイクルで新 Task が生成される）
 
 **DiplomaticPlay Task**: delegate に割り当て。side (initiator/target) で Task 種類の base score が異なる。delegate 能力が効果量に倍率（0.5 + ability/100）で影響。
 
@@ -1312,30 +1365,19 @@ Aim target 選定は `goalSelectors.ts` の `pickAimForGoal` で実装。
 
 イベント: `AIM_CREATED` / `AIM_FAILED` / `AIM_ABANDONED`
 
-### 6.30b AimToIntentGenerationSystem（4週ごと、v0.22）
+### 6.30b AimToIntentGenerationSystem（v0.26 で廃止）
 
-active Aim から ActorIntent を生成する。Aim.activeIntentId / activeDiplomaticPlayId が設定済みならスキップ。cooldown（nextIntentAllowedWeek）チェック。**v0.23**: `owner.kind === 'person'` の Aim はスキップ（Person Aim は Intent を生成せず Task で直接進行）。
+**v0.26 で廃止。** Aim から Project への具体化は ProjectPreparationSystem (§6.25a) が担当。
 
-外交劇系: acquire_land / improve_contract_terms / demand_tax_increase。
-Action 系: develop_holding / expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle。
+### 6.30c IntentActionSystem（v0.26 で廃止）
 
-### 6.30c IntentActionSystem（4週ごと、v0.22）
+**v0.26 で廃止。** Action 系の効果は ProjectOutcomeSystem (§6.25e) が Project 完了時に適用。
 
-Action 系 Intent を即時処理し、結果を Aim progress に直接反映する。
+### 6.30d AimOutcomeSystem（4週ごと、v0.22 / v0.26 更新）
 
-| Intent kind | Actor | 効果 |
-|---|---|---|
-| develop_holding | Polity | treasury -= 30, Holding development += 5, COUNTRY_LAND_DEVELOPED |
-| expand_polity_share | House | wealth -= 40, OrganizationShare rawPower += 10, HOUSE_POLITY_SHARE_EXPANDED |
-| promote_policy_shift | House | Aim progress +1, HOUSE_POLICY_INFLUENCE |
-| patronize_artist | House | wealth -= 25, legacyPrestige += 3, HOUSE_PATRONIZED_ARTIST |
-| commission_chronicle | House | wealth -= 40, legacyPrestige += 5, HOUSE_COMMISSIONED_CHRONICLE |
+terminal DiplomaticPlay の aimId を確認し、Play の結果に応じて Aim progress を更新する。settled / resolved_by_conflict（勝利）→ progress += `aimProgressGainLandOrContractProject` (50), successfulProjectCount +1。failed / resolved_by_conflict（敗北）→ failedProjectCount +1。activeDiplomaticPlayId をクリア。`progress >= targetProgress - aimProgressCompletionTolerance` で progress を targetProgress に丸め、Aim succeeded。
 
-処理済み Intent は terminal status にして cleanup 対象。
-
-### 6.30d AimOutcomeSystem（4週ごと、v0.22）
-
-terminal DiplomaticPlay の aimId を確認し、Play の結果に応じて Aim progress を更新する。settled / resolved_by_conflict（勝利）→ progress +1, successfulIntentCount +1。failed / resolved_by_conflict（敗北）→ failedIntentCount +1。activeDiplomaticPlayId をクリア。progress >= targetProgress で Aim succeeded。
+**v0.26**: `successfulIntentCount` / `failedIntentCount` → `successfulProjectCount` / `failedProjectCount` に改名。progress 加算値を targetProgress=100 ベースに変更。非外交系 Project の Aim progress は ProjectOutcomeSystem が加算する（二重加算防止）。
 
 イベント: `AIM_SUCCEEDED`
 

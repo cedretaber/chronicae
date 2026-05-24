@@ -50,8 +50,10 @@
 | LAND_CONTRACT_PURCHASED | major | 金銭による契約譲渡が成立（v0.16 / v0.18 で補償あり土地購入に拡張） |
 | LAND_CONTRACT_CEDED | major | 補償なし土地譲渡（v0.18） |
 | LAND_CONTRACT_CONQUERED | major | 武力による土地奪取（v0.18） |
-| ACTOR_INTENT_CREATED | minor | Intent 生成（v0.18） |
-| ACTOR_INTENT_CONVERTED | minor | Intent → Play 変換（v0.18） |
+| PROJECT_STARTED | minor | Project 開始（v0.26） |
+| PROJECT_COMPLETED | normal | Project 完了（v0.26） |
+| PROJECT_FAILED | minor | Project 失敗（v0.26） |
+| PROJECT_CANCELLED | minor | Project 中止（v0.26） |
 | DIPLOMATIC_PLAY_STARTED | normal | 外交劇開始（v0.18） |
 | DIPLOMATIC_PLAY_SETTLED | major | 外交劇妥協成立（v0.18） |
 | DIPLOMATIC_PLAY_FAILED | normal | 外交劇失敗（v0.18） |
@@ -86,6 +88,11 @@
 | TASK_COMPLETED | minor | Task 完了（v0.23） |
 | TASK_FAILED | minor | Task 失敗（v0.23） |
 | TASK_CANCELLED | minor | Task キャンセル（v0.23） |
+
+**v0.26 で削除された EventType**:
+
+- `ACTOR_INTENT_CREATED` — ActorIntent 全廃に伴い削除
+- `ACTOR_INTENT_CONVERTED` — ActorIntent 全廃に伴い削除
 
 **v0.22 で削除された EventType**:
 
