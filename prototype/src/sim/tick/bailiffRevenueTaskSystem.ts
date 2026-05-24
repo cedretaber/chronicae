@@ -6,7 +6,10 @@ import { createTaskId, createPersonActivityLogId } from '../types/ids'
 import { targetRefKey } from '../types/task'
 import { decisionSubjectKey } from '../types/goal'
 import { isPlaceholderPerson } from '../selectors/landContractSelectors'
+import type { SimulationConfig } from '../config/defaultConfig'
 import { createLogger } from '../debug/logger'
+
+const BAILIFF_REVENUE_EFFORT_MULTIPLIER = 1.5
 
 function removeTaskFromIndicesMut(ws: WorldState, task: Task): void {
   const ownerKey = decisionSubjectKey(task.owner)
@@ -62,6 +65,7 @@ function createExpiredActivityLogMut(ws: WorldState, personId: PersonId, task: T
 
 function createRevenueTaskMut(
   ws: WorldState,
+  config: SimulationConfig,
   assignmentId: HoldingOfficeAssignmentId,
   personId: PersonId,
 ): void {
@@ -75,8 +79,8 @@ function createRevenueTaskMut(
     kind: 'collect_holding_revenue',
     targetRef: { kind: 'holding_office_assignment', id: assignmentId },
     priority: 1,
-    actionCost: 1,
-    effortRequired: 1,
+    actionCost: config.taskActionCostLight,
+    effortRequired: Math.ceil(config.taskEffortRequiredLight * BAILIFF_REVENUE_EFFORT_MULTIPLIER),
     effortDone: 0,
     createdWeek: ws.absoluteWeek,
     deadlineWeek: ws.absoluteWeek + 4,
@@ -140,7 +144,7 @@ export function runBailiffRevenueTaskSystem(ctx: TickContext): TickContext {
       }
     }
 
-    createRevenueTaskMut(ws, assignmentId, personId)
+    createRevenueTaskMut(ws, ctx.config, assignmentId, personId)
     generated++
   }
 

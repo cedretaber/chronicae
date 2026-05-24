@@ -197,6 +197,8 @@ detail:
     task_target_play: 'For: Diplomatic Play'
     task_target_house_play: "For House {{name}}'s diplomatic play"
     task_target_polity_play: "For {{name}}'s diplomatic play"
+    task_target_bailiff_duty: 'Bailiff duty'
+    task_target_bailiff_holding: 'Bailiff duty at {{name}}'
     recent_activities: 'Recent Activities'
 
   # DiplomaticPlay detail
@@ -249,6 +251,22 @@ detail:
     bailiff: 'Bailiff'
     placeholder: 'placeholder'
     vacant: 'vacant'
+    bailiff_policy: 'Policy'
+    bailiff_policy_passive: 'Passive'
+    bailiff_policy_loyal_remittance: 'Loyal Remittance'
+    bailiff_policy_profit_seeking: 'Profit Seeking'
+    bailiff_policy_protect_residents: 'Protect Residents'
+    bailiff_local_extraction: 'Local Extraction'
+    bailiff_collection_efficiency: 'Collection Eff.'
+    bailiff_fee_rate: 'Bailiff Fee'
+    bailiff_total_burden: 'Total Burden'
+    bailiff_friction: 'Collection Friction'
+    bailiff_recent_task: 'Recent Task'
+    bailiff_task_completed: 'Completed'
+    bailiff_task_none: 'None'
+    bailiff_pop_attitude: 'Pop Attitude'
+    bailiff_affection: 'Affection'
+    bailiff_respect: 'Respect'
     holdings: 'Holdings'
     population_section: 'Population'
     pop_groups: 'POP Groups'

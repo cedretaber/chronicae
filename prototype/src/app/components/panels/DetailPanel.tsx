@@ -93,6 +93,15 @@ import {
 } from '@sim/selectors/landContractSelectors'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import {
+  getBailiffPolicy,
+  getBailiffLocalExtractionRate,
+  getBailiffCollectionEfficiency,
+  getBailiffFeeRate,
+  computeBailiffBurdenComponents,
+  getRecentBailiffRevenueTaskStatus,
+} from '@sim/selectors/bailiffSelectors'
+import { personAttitudeKey } from '@sim/helpers/attitudeHelpers'
+import {
   getActiveGoalForOwner,
   getActiveAimsForGoal,
   getActiveAimForOwner,
@@ -2281,7 +2290,7 @@ export function PersonDetail({
         onPersonClick={onPersonClick}
       />
 
-      {/* v0.23 Person Goal/Aim/Task */}
+      {/* v0.23 Person Goal/Aim */}
       {person.alive &&
         person.kind !== 'placeholder' &&
         (() => {
@@ -2290,22 +2299,6 @@ export function PersonDetail({
           if (!goal) return null
           const fulfillment = getPersonGoalFulfillment(worldState, person.id)
           const activeAim = getActiveAimForOwner(worldState, owner)
-          const taskIds = worldState.taskIndex.byAssignee[person.id as string] ?? []
-          const activeTasks = taskIds
-            .map((tid) => worldState.tasks[tid])
-            .filter((t): t is NonNullable<typeof t> => t !== undefined && t.status === 'active')
-            .sort(
-              (a, b) =>
-                computeEffectivePriority(worldState, defaultConfig, b) -
-                computeEffectivePriority(worldState, defaultConfig, a),
-            )
-          const activityLogIds =
-            worldState.personActivityLogIndex.byPerson[person.id as string] ?? []
-          const recentLogs = activityLogIds
-            .map((lid) => worldState.personActivityLogs[lid])
-            .filter((l): l is NonNullable<typeof l> => l !== undefined)
-            .sort((a, b) => b.week - a.week)
-            .slice(0, 5)
 
           return (
             <>
@@ -2342,7 +2335,35 @@ export function PersonDetail({
                   </div>
                 </>
               )}
+            </>
+          )
+        })()}
 
+      {/* Task list + Activity log (independent of Goal) */}
+      {person.alive &&
+        person.kind !== 'placeholder' &&
+        (() => {
+          const taskIds = worldState.taskIndex.byAssignee[person.id as string] ?? []
+          const activeTasks = taskIds
+            .map((tid) => worldState.tasks[tid])
+            .filter((t): t is NonNullable<typeof t> => t !== undefined && t.status === 'active')
+            .sort(
+              (a, b) =>
+                computeEffectivePriority(worldState, defaultConfig, b) -
+                computeEffectivePriority(worldState, defaultConfig, a),
+            )
+          const activityLogIds =
+            worldState.personActivityLogIndex.byPerson[person.id as string] ?? []
+          const recentLogs = activityLogIds
+            .map((lid) => worldState.personActivityLogs[lid])
+            .filter((l): l is NonNullable<typeof l> => l !== undefined)
+            .sort((a, b) => b.week - a.week)
+            .slice(0, 5)
+
+          if (activeTasks.length === 0 && recentLogs.length === 0) return null
+
+          return (
+            <>
               {activeTasks.length > 0 && (
                 <>
                   <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
@@ -2428,6 +2449,18 @@ export function PersonDetail({
                                   return t('detail.person.task_target_polity_play', { name })
                                 }
                                 return t('detail.person.task_target_play')
+                              })()}
+                            {task.targetRef.kind === 'holding_office_assignment' &&
+                              (() => {
+                                const hoa = worldState.holdingOfficeAssignments[task.targetRef.id]
+                                if (!hoa) return t('detail.person.task_target_bailiff_duty')
+                                const holding = worldState.holdings[hoa.holdingId]
+                                if (!holding) return t('detail.person.task_target_bailiff_duty')
+                                const prov = worldState.provinces[holding.provinceId]
+                                const name = prov
+                                  ? resolveName('province', prov.nameKey, prov.nameKey)
+                                  : (holding.provinceId as string)
+                                return t('detail.person.task_target_bailiff_holding', { name })
                               })()}
                           </div>
                         </div>
@@ -2657,6 +2690,15 @@ export function HoldingDetail({
       {currentState &&
         (() => {
           const bailiff = getHoldingBailiffPerson(currentState, holding.id)
+          const assignmentId = currentState.holdingOfficeIndex.byHolding[holding.id]
+
+          const policyColorMap: Record<string, string> = {
+            passive: 'text-gray-400',
+            loyal_remittance: 'text-blue-400',
+            profit_seeking: 'text-amber-400',
+            protect_residents: 'text-green-400',
+          }
+
           return (
             <div className="text-sm">
               <span className="text-gray-400">{t('detail.province.bailiff')}: </span>
@@ -2673,6 +2715,110 @@ export function HoldingDetail({
               ) : (
                 <span className="text-gray-500">{t('detail.province.vacant')}</span>
               )}
+              {bailiff &&
+                bailiff.kind !== 'placeholder' &&
+                assignmentId &&
+                (() => {
+                  const policy = getBailiffPolicy(currentState, defaultConfig, assignmentId)
+                  const localExtractionRate = getBailiffLocalExtractionRate(
+                    currentState,
+                    defaultConfig,
+                    assignmentId,
+                  )
+                  const recentTaskStatus = getRecentBailiffRevenueTaskStatus(
+                    currentState,
+                    assignmentId,
+                  )
+                  const collectionEfficiency = getBailiffCollectionEfficiency(
+                    currentState,
+                    defaultConfig,
+                    assignmentId,
+                    recentTaskStatus,
+                  )
+                  const bailiffFeeRate = getBailiffFeeRate(
+                    currentState,
+                    defaultConfig,
+                    assignmentId,
+                  )
+                  const burden = computeBailiffBurdenComponents(
+                    localExtractionRate,
+                    collectionEfficiency,
+                    defaultConfig.collectionFrictionFactor,
+                  )
+
+                  const popIds = currentState.popIndex.byHolding[holding.id] ?? []
+                  let totalAffection = 0
+                  let totalRespect = 0
+                  let totalSize = 0
+                  const attKey = personAttitudeKey(bailiff.id)
+                  for (const popId of popIds) {
+                    const pop = currentState.popGroups[popId]
+                    if (!pop) continue
+                    const att = pop.attitudes[attKey]
+                    if (att) {
+                      totalAffection += (att.affection ?? 0) * pop.size
+                      totalRespect += (att.respect ?? 0) * pop.size
+                    }
+                    totalSize += pop.size
+                  }
+                  const avgAffection = totalSize > 0 ? totalAffection / totalSize : 0
+                  const avgRespect = totalSize > 0 ? totalRespect / totalSize : 0
+
+                  return (
+                    <div className="mt-1 ml-2 space-y-0.5 text-xs text-gray-400">
+                      <div className="flex justify-between">
+                        <span>{t('detail.province.bailiff_policy')}:</span>
+                        <span className={policyColorMap[policy] ?? 'text-gray-300'}>
+                          {t(`detail.province.bailiff_policy_${policy}`)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t('detail.province.bailiff_local_extraction')}:</span>
+                        <span>{(localExtractionRate * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t('detail.province.bailiff_collection_efficiency')}:</span>
+                        <span>{(collectionEfficiency * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t('detail.province.bailiff_fee_rate')}:</span>
+                        <span>{(bailiffFeeRate * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t('detail.province.bailiff_total_burden')}:</span>
+                        <span>{(burden.totalBurdenRate * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t('detail.province.bailiff_friction')}:</span>
+                        <span>{(burden.collectionFrictionBurdenRate * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t('detail.province.bailiff_recent_task')}:</span>
+                        <span>
+                          {recentTaskStatus === 'completed'
+                            ? t('detail.province.bailiff_task_completed')
+                            : t('detail.province.bailiff_task_none')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t('detail.province.bailiff_pop_attitude')}:</span>
+                        <span>
+                          {t('detail.province.bailiff_affection')}{' '}
+                          <span className={avgAffection >= 0 ? 'text-green-400' : 'text-red-400'}>
+                            {avgAffection >= 0 ? '+' : ''}
+                            {avgAffection.toFixed(2)}
+                          </span>
+                          {' / '}
+                          {t('detail.province.bailiff_respect')}{' '}
+                          <span className={avgRespect >= 0 ? 'text-blue-400' : 'text-red-400'}>
+                            {avgRespect >= 0 ? '+' : ''}
+                            {avgRespect.toFixed(2)}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()}
             </div>
           )
         })()}

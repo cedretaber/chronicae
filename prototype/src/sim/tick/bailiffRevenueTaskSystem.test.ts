@@ -98,8 +98,8 @@ describe('runBailiffRevenueTaskSystem', () => {
     expect(tasks.length).toBe(1)
     const task = tasks[0]!
 
-    expect(task.actionCost).toBe(1)
-    expect(task.effortRequired).toBe(1)
+    expect(task.actionCost).toBe(defaultConfig.taskActionCostLight)
+    expect(task.effortRequired).toBe(Math.ceil(defaultConfig.taskEffortRequiredLight * 1.5))
     expect(task.priority).toBe(1)
     expect(task.deadlineWeek).toBe(state.absoluteWeek + 4)
     expect(task.assigneePersonId).toBe(bailiffPersonId)

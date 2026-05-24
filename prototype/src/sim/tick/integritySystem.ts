@@ -12,6 +12,7 @@ import type {
   DiplomaticPlayId,
   StateRegionId,
   HoldingId,
+  HoldingOfficeAssignmentId,
 } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -25,6 +26,16 @@ import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import type { PoliticalActorRef } from '../types/actor'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
+import type { SimulationConfig } from '../config/defaultConfig'
+import { isPlaceholderPerson } from '../selectors/landContractSelectors'
+import {
+  getBailiffLocalExtractionRate,
+  getBailiffCollectionEfficiency,
+  getBailiffFeeRate,
+  computeBailiffBurdenComponents,
+  getRecentBailiffRevenueTaskStatus,
+} from '../selectors/bailiffSelectors'
+import { targetRefKey } from '../types/task'
 
 // v0.16 §25 IntegrityCheck 33 項目の実装状況サマリ:
 //
@@ -68,9 +79,10 @@ import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 // (warn → error 昇格 済み: #19)
 export function collectIntegrityErrors(
   state: WorldState,
-  options?: { debug?: boolean },
+  options?: { debug?: boolean; config?: SimulationConfig },
 ): SimError[] {
   const debug = options?.debug ?? false
+  const config = options?.config
   const errors: SimError[] = []
 
   // §17.1 Time invariants (v0.19)
@@ -1752,6 +1764,79 @@ export function collectIntegrityErrors(
     }
   }
 
+  // --- v0.25 §17.1: HoldingOfficeAssignment extended checks ---
+  {
+    const activeHoldingsByPerson: Record<string, HoldingOfficeAssignmentId[]> = {}
+    const activeHoldingsByHolding: Record<string, HoldingOfficeAssignmentId[]> = {}
+
+    for (const hoaIdStr of Object.keys(state.holdingOfficeAssignments)) {
+      const hoaId = hoaIdStr as HoldingOfficeAssignmentId
+      const hoa = state.holdingOfficeAssignments[hoaId]
+      if (!hoa || !hoa.active) continue
+
+      const holder = state.persons[hoa.holderPersonId]
+      if (holder && !holder.alive && holder.kind !== 'placeholder') {
+        if (debug) {
+          console.warn(
+            `INTEGRITY (§17.1 warn): HoldingOfficeAssignment ${hoaIdStr}: holder ${hoa.holderPersonId as string} is dead non-placeholder (transient: awaiting bailiffAppointmentSystem cleanup)`,
+          )
+        }
+      }
+
+      if (hoa.contractedRemittanceRate < 0 || hoa.contractedRemittanceRate > 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingOfficeAssignment ${hoaIdStr}: contractedRemittanceRate=${hoa.contractedRemittanceRate} outside [0, 1] (§17.1)`,
+        })
+      }
+      if (hoa.expectedFeeRate < 0 || hoa.expectedFeeRate > 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingOfficeAssignment ${hoaIdStr}: expectedFeeRate=${hoa.expectedFeeRate} outside [0, 1] (§17.1)`,
+        })
+      }
+      if (
+        config &&
+        hoa.contractedRemittanceRate + hoa.expectedFeeRate > config.maxLocalExtractionRate * 1.1
+      ) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingOfficeAssignment ${hoaIdStr}: contractedRemittanceRate+expectedFeeRate=${(hoa.contractedRemittanceRate + hoa.expectedFeeRate).toFixed(3)} exceeds maxLocalExtractionRate*1.1=${(config.maxLocalExtractionRate * 1.1).toFixed(3)} (§17.1)`,
+        })
+      }
+
+      const holdingKey = hoa.holdingId as string
+      const holdingList = activeHoldingsByHolding[holdingKey] ?? []
+      holdingList.push(hoaId)
+      activeHoldingsByHolding[holdingKey] = holdingList
+
+      if (holder && holder.kind !== 'placeholder') {
+        const personKey = hoa.holderPersonId as string
+        const personList = activeHoldingsByPerson[personKey] ?? []
+        personList.push(hoaId)
+        activeHoldingsByPerson[personKey] = personList
+      }
+    }
+
+    for (const [holdingKey, hoaIds] of Object.entries(activeHoldingsByHolding)) {
+      if (hoaIds.length > 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Holding ${holdingKey} has ${hoaIds.length} active bailiff assignments (§17.1)`,
+        })
+      }
+    }
+
+    for (const [personKey, hoaIds] of Object.entries(activeHoldingsByPerson)) {
+      if (hoaIds.length > 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Normal person ${personKey} has ${hoaIds.length} active bailiff assignments (§17.1 no concurrency)`,
+        })
+      }
+    }
+  }
+
   // --- v0.22 Goal integrity ---
   const activeGoalCountByOwner: Record<string, number> = {}
 
@@ -2064,6 +2149,117 @@ export function collectIntegrityErrors(
     }
   }
 
+  // --- v0.25 §17.2: collect_holding_revenue Task integrity ---
+  {
+    const activeRevenueTasksByTarget: Record<string, number> = {}
+
+    for (const [taskIdStr, task] of Object.entries(state.tasks)) {
+      if (!task) continue
+      if (task.kind !== 'collect_holding_revenue') continue
+
+      if (task.targetRef.kind !== 'holding_office_assignment') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Task ${taskIdStr}: collect_holding_revenue has targetRef.kind=${task.targetRef.kind}, expected holding_office_assignment (§17.2)`,
+        })
+        continue
+      }
+
+      const assignment = state.holdingOfficeAssignments[task.targetRef.id]
+      if (!assignment) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Task ${taskIdStr}: collect_holding_revenue targets missing HoldingOfficeAssignment ${task.targetRef.id as string} (§17.2)`,
+        })
+      } else if (!assignment.active) {
+        if (task.status === 'active') {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Task ${taskIdStr}: active collect_holding_revenue targets inactive HoldingOfficeAssignment ${task.targetRef.id as string} (§17.2)`,
+          })
+        }
+      } else {
+        if (isPlaceholderPerson(state, assignment.holderPersonId)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Task ${taskIdStr}: collect_holding_revenue exists for placeholder holder ${assignment.holderPersonId as string} (§17.2)`,
+          })
+        }
+      }
+
+      if (task.status === 'active') {
+        const tKey = targetRefKey(task.targetRef)
+        activeRevenueTasksByTarget[tKey] = (activeRevenueTasksByTarget[tKey] ?? 0) + 1
+      }
+    }
+
+    for (const [tKey, count] of Object.entries(activeRevenueTasksByTarget)) {
+      if (count > 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `${count} active collect_holding_revenue Tasks for target ${tKey} (§17.2 max 1)`,
+        })
+      }
+    }
+  }
+
+  // --- v0.25 §17.3: Selector range checks (debug + config only) ---
+  if (debug && config) {
+    for (const hoaIdStr of Object.keys(state.holdingOfficeAssignments)) {
+      const hoaId = hoaIdStr as HoldingOfficeAssignmentId
+      const hoa = state.holdingOfficeAssignments[hoaId]
+      if (!hoa || !hoa.active) continue
+
+      const localExtractionRate = getBailiffLocalExtractionRate(state, config, hoaId)
+      if (
+        localExtractionRate < config.minLocalExtractionRate ||
+        localExtractionRate > config.maxLocalExtractionRate
+      ) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingOfficeAssignment ${hoaIdStr}: localExtractionRate=${localExtractionRate.toFixed(3)} outside [${config.minLocalExtractionRate}, ${config.maxLocalExtractionRate}] (§17.3)`,
+        })
+      }
+
+      const recentTaskStatus = getRecentBailiffRevenueTaskStatus(state, hoaId)
+      const collectionEfficiency = getBailiffCollectionEfficiency(
+        state,
+        config,
+        hoaId,
+        recentTaskStatus,
+      )
+      if (
+        collectionEfficiency < config.minBailiffCollectionEfficiency ||
+        collectionEfficiency > 1.0
+      ) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingOfficeAssignment ${hoaIdStr}: collectionEfficiency=${collectionEfficiency.toFixed(3)} outside [${config.minBailiffCollectionEfficiency}, 1.0] (§17.3)`,
+        })
+      }
+
+      const bailiffFeeRate = getBailiffFeeRate(state, config, hoaId)
+      if (bailiffFeeRate < 0 || bailiffFeeRate > config.maxBailiffFeeRate) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingOfficeAssignment ${hoaIdStr}: bailiffFeeRate=${bailiffFeeRate.toFixed(3)} outside [0, ${config.maxBailiffFeeRate}] (§17.3)`,
+        })
+      }
+
+      const burden = computeBailiffBurdenComponents(
+        localExtractionRate,
+        collectionEfficiency,
+        config.collectionFrictionFactor,
+      )
+      if (burden.totalBurdenRate < 0 || burden.totalBurdenRate > config.maxLocalExtractionRate) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingOfficeAssignment ${hoaIdStr}: totalBurdenRate=${burden.totalBurdenRate.toFixed(3)} outside [0, ${config.maxLocalExtractionRate}] (§17.3)`,
+        })
+      }
+    }
+  }
+
   // --- v0.23 Phase C: Intent activeTaskId integrity ---
   for (const [intentIdStr, intent] of Object.entries(state.actorIntents)) {
     if (!intent || intent.status !== 'active') continue
@@ -2180,7 +2376,7 @@ export function collectIntegrityErrors(
 }
 
 export function runIntegritySystem(ctx: TickContext): TickContext {
-  const errors = collectIntegrityErrors(ctx.state, { debug: ctx.config.debug })
+  const errors = collectIntegrityErrors(ctx.state, { debug: ctx.config.debug, config: ctx.config })
 
   if (errors.length > 0) {
     for (const error of errors) {
