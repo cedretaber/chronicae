@@ -119,6 +119,10 @@ export function getTaskRelevantAbility(kind: TaskKind): AbilityKey {
       return 'insight'
     case 'collect_holding_revenue':
       return 'numeracy'
+    case 'prepare_project':
+      return 'insight'
+    case 'advance_project':
+      return 'insight'
     default:
       return 'insight'
   }

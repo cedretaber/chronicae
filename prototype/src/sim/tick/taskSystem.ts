@@ -28,7 +28,18 @@ import type {
 import { createTaskId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { AbilityKey } from '../types/person'
+import type { ProjectId } from '../types/ids'
+import type { Project, LandClaimProject, ContractRevisionProject } from '../types/project'
+import { createProjectId } from '../types/ids'
 import { clamp } from '../utils/math'
+import {
+  addProjectToIndexMut,
+  aimKindToProjectKind,
+  isDiplomaticProjectKind,
+  getProjectDeadlineWeeks,
+} from '../mutations/projectMutations'
+import { selectProjectSupervisor } from '../selectors/projectSelectors'
+import { getProvinceHoldings, getLandContractGrantor } from '../selectors/landContractSelectors'
 import {
   getPersonWeeklyActionCapacity,
   computeWeeklyEffort,
@@ -417,6 +428,17 @@ function autoCancelTasksMut(ws: WorldState, emitEvent: (input: CreateSimEventInp
       }
     }
 
+    if (!shouldCancel && task.targetRef.kind === 'project') {
+      const project = ws.projects[task.targetRef.id]
+      if (!project) {
+        shouldCancel = true
+        cancelReason = 'target_removed'
+      } else if (project.status !== 'active') {
+        shouldCancel = true
+        cancelReason = 'target_terminal'
+      }
+    }
+
     if (!shouldCancel && task.targetRef.kind === 'holding_office_assignment') {
       const assignment = ws.holdingOfficeAssignments[task.targetRef.id]
       if (!assignment || !assignment.active) {
@@ -602,6 +624,13 @@ function handleTaskCompletionMut(
   }
 
   if (ownerAim) {
+    if (task.kind === 'prepare_project') {
+      handlePrepareProjectCompletionMut(ws, config, ownerAim, personId, absoluteWeek, emitEvent)
+      createActivityLogMut(ws, config, personId, task, outcome)
+      removeTaskMut(ws, task.id)
+      return
+    }
+
     const aimId = ownerAim.id
     const aimProgress = ownerAim.progress + 1
     const aimSucceeded = aimProgress >= ownerAim.targetProgress
@@ -705,6 +734,10 @@ function handleTaskCompletionMut(
       removeDiplomaticPlayTaskIdMut(ws, playId, task.id)
     }
 
+    createActivityLogMut(ws, config, personId, task, outcome)
+    removeTaskMut(ws, task.id)
+  } else if (task.targetRef.kind === 'project') {
+    handleAdvanceProjectCompletionMut(ws, config, task.targetRef.id)
     createActivityLogMut(ws, config, personId, task, outcome)
     removeTaskMut(ws, task.id)
   } else {
@@ -825,6 +858,15 @@ export function runTaskSystem(ctx: TickContext): TickContext {
       byTarget: { ...ctx.state.taskIndex.byTarget },
     },
     aims: { ...ctx.state.aims },
+    projects: { ...ctx.state.projects },
+    projectIndex: {
+      byOwner: { ...ctx.state.projectIndex.byOwner },
+      byAim: { ...ctx.state.projectIndex.byAim },
+      byParentProject: { ...ctx.state.projectIndex.byParentProject },
+      byCreatorPerson: { ...ctx.state.projectIndex.byCreatorPerson },
+      bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
+      byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
+    },
     actorIntents: { ...ctx.state.actorIntents },
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
     personActivityLogs: { ...ctx.state.personActivityLogs },
@@ -888,5 +930,256 @@ export function runTaskSystem(ctx: TickContext): TickContext {
     state: ws,
     events: [...ctx.events, ...newEvents],
     nextEventIndex,
+  }
+}
+
+// --- prepare_project completion ---
+
+function handlePrepareProjectCompletionMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  aim: Aim,
+  creatorPersonId: PersonId,
+  absoluteWeek: number,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  const projectKind = aimKindToProjectKind(aim.kind)
+  if (!projectKind) {
+    ws.aims[aim.id] = { ...aim, activeTaskId: undefined } as unknown as Aim
+    return
+  }
+
+  const fields = buildProjectFieldsForAim(ws, config, aim, projectKind)
+
+  const supervisorId =
+    selectProjectSupervisor(ws, config, aim.owner, projectKind, creatorPersonId) ?? creatorPersonId
+
+  const projectId: ProjectId = createProjectId(ws.nextProjectId)
+  const deadlineWeeks = getProjectDeadlineWeeks(config, projectKind)
+  const deadlineWeek = aim.deadlineWeek
+    ? Math.min(aim.deadlineWeek, absoluteWeek + deadlineWeeks)
+    : absoluteWeek + deadlineWeeks
+
+  const project: Project = {
+    id: projectId,
+    owner: aim.owner,
+    origin: { kind: 'aim', aimId: aim.id },
+    kind: projectKind,
+    creatorPersonId,
+    supervisorPersonId: supervisorId,
+    status: 'active',
+    progress: 0,
+    targetProgress: config.projectDefaultTargetProgress,
+    createdWeek: absoluteWeek,
+    deadlineWeek,
+    reasonIds: [...aim.reasonIds],
+    ...fields,
+  } as Project
+
+  ws.projects[projectId] = project
+  ws.nextProjectId++
+  addProjectToIndexMut(ws, project)
+
+  ws.aims[aim.id] = { ...aim, activeTaskId: undefined } as unknown as Aim
+
+  const ownerNameKey = getOwnerNameKeyForProject(ws, aim.owner)
+  emitEvent({
+    type: 'PROJECT_STARTED',
+    importance: 'minor',
+    messageKey: 'project.started',
+    messageParams: {
+      owner: nameParam(aim.owner.kind, ownerNameKey),
+      kind: projectKind,
+    },
+    entityRefs: [entityRef(aim.owner.kind, aim.owner.id, 'owner', ownerNameKey)],
+  })
+}
+
+function buildProjectFieldsForAim(
+  ws: WorldState,
+  config: SimulationConfig,
+  aim: Aim,
+  projectKind: string,
+): Record<string, unknown> {
+  switch (projectKind) {
+    case 'develop_holding': {
+      const holdingId = aim.target?.kind === 'holding' ? aim.target.id : undefined
+      return { holdingId, budget: config.developHoldingCost, spentBudget: 0 }
+    }
+    case 'expand_polity_share': {
+      const polityId = aim.target?.kind === 'polity' ? aim.target.id : undefined
+      const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      return {
+        polityId,
+        houseId,
+        budget: config.expandPolityShareCost,
+        spentBudget: 0,
+      }
+    }
+    case 'promote_policy_shift': {
+      const polityId = aim.target?.kind === 'polity' ? aim.target.id : undefined
+      const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      return { polityId, houseId }
+    }
+    case 'patronize_artist': {
+      const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      return { houseId, budget: config.patronizeArtistCost, spentBudget: 0 }
+    }
+    case 'commission_chronicle': {
+      const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      return { houseId, budget: config.commissionChronicleCost, spentBudget: 0 }
+    }
+    case 'acquire_land': {
+      if (aim.owner.kind !== 'polity') return { preparation: 0, leverage: 0, commitment: 0 }
+      const target = findAcquireTargetForProject(ws, aim)
+      return {
+        holdingId: target?.holdingId,
+        provinceId: target?.provinceId,
+        counterpartyPolityId: target?.targetPolityId,
+        preparation: 0,
+        leverage: 0,
+        commitment: 0,
+      }
+    }
+    case 'improve_contract_terms': {
+      if (aim.owner.kind !== 'polity') return { preparation: 0, leverage: 0, commitment: 0 }
+      const target = findImproveTargetForProject(ws, config, aim)
+      return {
+        holdingId: target?.holdingId,
+        landContractId: target?.contractId,
+        counterpartyPolityId: target?.targetPolityId,
+        preparation: 0,
+        leverage: 0,
+        commitment: 0,
+      }
+    }
+    case 'demand_tax_increase': {
+      if (aim.owner.kind !== 'polity') return { preparation: 0, leverage: 0, commitment: 0 }
+      const target = findDemandTaxIncreaseTargetForProject(ws, config, aim)
+      return {
+        holdingId: target?.holdingId,
+        landContractId: target?.contractId,
+        counterpartyPolityId: target?.targetPolityId,
+        preparation: 0,
+        leverage: 0,
+        commitment: 0,
+      }
+    }
+    default:
+      return {}
+  }
+}
+
+function findAcquireTargetForProject(
+  ws: WorldState,
+  aim: Aim,
+): { targetPolityId: string; provinceId: string; holdingId: string } | undefined {
+  if (aim.owner.kind !== 'polity') return undefined
+  const polityId = aim.owner.id
+  if (aim.target && aim.target.kind === 'province') {
+    const holdings = getProvinceHoldings(ws, aim.target.id)
+    for (const h of holdings) {
+      const tp = ws.holdingTerminalPolityCache[h.id]
+      if (tp && (tp as string) !== (polityId as string)) {
+        const targetPolity = ws.polities[tp]
+        if (targetPolity && targetPolity.active) {
+          return { targetPolityId: tp, provinceId: aim.target.id, holdingId: h.id }
+        }
+      }
+    }
+  }
+  return undefined
+}
+
+function findImproveTargetForProject(
+  ws: WorldState,
+  _config: SimulationConfig,
+  aim: Aim,
+): { targetPolityId: string; holdingId?: string; contractId?: string } | undefined {
+  if (aim.owner.kind !== 'polity') return undefined
+  const polityId = aim.owner.id
+  const contractIds = ws.landContractIndex.byGranteePolity[polityId] ?? []
+  for (const cid of contractIds) {
+    const contract = ws.landContracts[cid]
+    if (!contract) continue
+    if (contract.termsProtectedUntilWeek && ws.absoluteWeek < contract.termsProtectedUntilWeek)
+      continue
+    if (contract.terms.taxRateToGrantor <= 0.15) continue
+    const grantor = getLandContractGrantor(ws, cid)
+    if (!grantor || grantor.kind !== 'polity') continue
+    const grantorPolity = ws.polities[grantor.id]
+    if (grantorPolity && grantorPolity.active) {
+      const holdings = getProvinceHoldings(ws, contract.provinceId)
+      const firstHolding = holdings[0]
+      const base = { targetPolityId: grantor.id as string, contractId: cid as string }
+      if (firstHolding) return { ...base, holdingId: firstHolding.id }
+      return base
+    }
+  }
+  return undefined
+}
+
+function findDemandTaxIncreaseTargetForProject(
+  ws: WorldState,
+  config: SimulationConfig,
+  aim: Aim,
+): { targetPolityId: string; holdingId?: string; contractId?: string } | undefined {
+  if (aim.owner.kind !== 'polity') return undefined
+  const polityId = aim.owner.id
+  const contractIds = ws.landContractIndex.byGranteePolity[polityId] ?? []
+  for (const cid of contractIds) {
+    const contract = ws.landContracts[cid]
+    if (!contract) continue
+    const childContractId = ws.landContractIndex.byParent[contract.id]
+    if (childContractId === undefined) continue
+    const child = ws.landContracts[childContractId]
+    if (!child) continue
+    if (child.termsProtectedUntilWeek && ws.absoluteWeek < child.termsProtectedUntilWeek) continue
+    if (child.terms.taxRateToGrantor >= config.taxRevisionMaxRateForIncrease) continue
+    const vassalPolity = ws.polities[child.granteePolityId]
+    if (vassalPolity && vassalPolity.active) {
+      const holdings = getProvinceHoldings(ws, child.provinceId)
+      const firstHolding = holdings[0]
+      const base = {
+        targetPolityId: child.granteePolityId as string,
+        contractId: child.id as string,
+      }
+      if (firstHolding) return { ...base, holdingId: firstHolding.id }
+      return base
+    }
+  }
+  return undefined
+}
+
+function getOwnerNameKeyForProject(ws: WorldState, owner: DecisionSubjectRef): string {
+  if (owner.kind === 'polity') return ws.polities[owner.id]?.nameKey ?? owner.id
+  if (owner.kind === 'house') return ws.houses[owner.id]?.nameKey ?? owner.id
+  return ws.persons[owner.id]?.nameKey ?? owner.id
+}
+
+// --- advance_project completion ---
+
+function handleAdvanceProjectCompletionMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  projectId: ProjectId,
+): void {
+  const project = ws.projects[projectId]
+  if (!project || project.status !== 'active') return
+
+  const progressGain = config.projectAdvanceProgressSuccess
+  const newProgress = Math.min(project.progress + progressGain, project.targetProgress)
+
+  if (isDiplomaticProjectKind(project.kind)) {
+    const lcp = project as LandClaimProject | ContractRevisionProject
+    ws.projects[projectId] = {
+      ...lcp,
+      progress: newProgress,
+      preparation: lcp.preparation + config.diplomaticProjectPreparationGainSuccess,
+      leverage: lcp.leverage + config.diplomaticProjectLeverageGainSuccess,
+      commitment: lcp.commitment + config.diplomaticProjectCommitmentGainSuccess,
+    }
+  } else {
+    ws.projects[projectId] = { ...project, progress: newProgress }
   }
 }

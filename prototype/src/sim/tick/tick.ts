@@ -58,6 +58,11 @@ import { runFactionMaintenanceSystem } from './factionMaintenanceSystem'
 import { runFactionRecruitmentSystem } from './factionRecruitmentSystem'
 import { runFactionPatronageSystem } from './factionPatronageSystem'
 import { runFactionDefectionSystem } from './factionDefectionSystem'
+import { runProjectPreparationSystem } from './projectPreparationSystem'
+import { runSellLandProjectGenerationSystem } from './sellLandProjectGenerationSystem'
+import { runProjectTaskGenerationSystem } from './projectTaskGenerationSystem'
+import { runProjectMaintenanceSystem } from './projectMaintenanceSystem'
+import { runProjectOutcomeSystem } from './projectOutcomeSystem'
 import { createLogger } from '../debug/logger'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
@@ -229,6 +234,24 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runAimMaintenanceSystem,
   },
   {
+    name: 'projectPreparationSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runProjectPreparationSystem,
+  },
+  {
+    name: 'sellLandProjectGenerationSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runSellLandProjectGenerationSystem,
+  },
+  {
+    name: 'projectTaskGenerationSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runProjectTaskGenerationSystem,
+  },
+  {
     name: 'intentGenerationSystem',
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
@@ -251,6 +274,18 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runIntentActionSystem,
+  },
+  {
+    name: 'projectMaintenanceSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runProjectMaintenanceSystem,
+  },
+  {
+    name: 'projectOutcomeSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runProjectOutcomeSystem,
   },
   {
     name: 'provinceRevoltSystem',

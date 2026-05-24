@@ -586,6 +586,25 @@ export type SimulationConfig = {
   protectionPrestigeThreshold: number
   // v0.17 Occupation抽選 weights
   occupationWeights: Record<UnaffiliatedOccupation, number>
+  // v0.26 Project system
+  projectDefaultTargetProgress: number
+  projectAdvanceProgressSuccess: number
+  projectAdvanceProgressPartial: number
+  projectAdvanceProgressFailure: number
+  prepareProjectPartialTargetProgressPenalty: number
+  diplomaticProjectPreparationGainSuccess: number
+  diplomaticProjectLeverageGainSuccess: number
+  diplomaticProjectCommitmentGainSuccess: number
+  diplomaticProjectPreparationGainPartial: number
+  diplomaticProjectLeverageGainPartial: number
+  diplomaticProjectCommitmentGainPartial: number
+  aimProgressGainLandOrContractProject: number
+  aimProgressGainDevelopmentProject: number
+  aimProgressGainPowerProject: number
+  aimProgressGainCultureProject: number
+  aimProgressCompletionTolerance: number
+  projectDeadlineWeeksDevelopment: number
+  projectDeadlineWeeksDiplomatic: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -1189,4 +1208,23 @@ export const defaultConfig: SimulationConfig = {
     jurist: 0.7,
     wanderer: 1.0,
   },
+  // v0.26 Project system
+  projectDefaultTargetProgress: 100,
+  projectAdvanceProgressSuccess: 25,
+  projectAdvanceProgressPartial: 10,
+  projectAdvanceProgressFailure: 0,
+  prepareProjectPartialTargetProgressPenalty: 10,
+  diplomaticProjectPreparationGainSuccess: 10,
+  diplomaticProjectLeverageGainSuccess: 5,
+  diplomaticProjectCommitmentGainSuccess: 5,
+  diplomaticProjectPreparationGainPartial: 5,
+  diplomaticProjectLeverageGainPartial: 2,
+  diplomaticProjectCommitmentGainPartial: 2,
+  aimProgressGainLandOrContractProject: 50,
+  aimProgressGainDevelopmentProject: 33,
+  aimProgressGainPowerProject: 33,
+  aimProgressGainCultureProject: 25,
+  aimProgressCompletionTolerance: 1,
+  projectDeadlineWeeksDevelopment: 48,
+  projectDeadlineWeeksDiplomatic: 24,
 }

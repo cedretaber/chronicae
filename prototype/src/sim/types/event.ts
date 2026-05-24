@@ -110,6 +110,11 @@ export type EventType =
   | 'TASK_COMPLETED'
   | 'TASK_FAILED'
   | 'TASK_CANCELLED'
+  // v0.26 Project
+  | 'PROJECT_STARTED'
+  | 'PROJECT_COMPLETED'
+  | 'PROJECT_FAILED'
+  | 'PROJECT_CANCELLED'
 
 export type EventReason = {
   label: string
@@ -135,6 +140,7 @@ export type EventEntityKind =
   | 'faction'
   | 'goal'
   | 'aim'
+  | 'project'
 
 export type EventEntityRef = {
   kind: EventEntityKind

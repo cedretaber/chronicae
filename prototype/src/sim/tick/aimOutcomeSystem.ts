@@ -21,36 +21,43 @@ export function runAimOutcomeSystem(ctx: TickContext): TickContext {
     let progressDelta = 0
     let succeeded = false
 
+    const isProjectLinked = play.originProjectId !== undefined
+
     if (play.status === 'settled') {
-      progressDelta = 1
+      progressDelta = isProjectLinked ? currentCtx.config.aimProgressGainLandOrContractProject : 1
       succeeded = true
     } else if (play.status === 'resolved_by_conflict') {
-      // Check if initiator won (initiator matches aim owner's polity)
       const initiatorIsOwner =
         aim.owner.kind === 'polity' &&
         play.initiator.kind === 'polity' &&
         (play.initiator.id as string) === (aim.owner.id as string)
       if (initiatorIsOwner) {
-        progressDelta = 1
+        progressDelta = isProjectLinked ? currentCtx.config.aimProgressGainLandOrContractProject : 1
         succeeded = true
       }
     }
-    // failed / cancelled → no progress change, just count
 
     const updatedAim: Aim = {
       ...aim,
       progress: clamp(aim.progress + progressDelta, 0, aim.targetProgress),
-      successfulIntentCount: aim.successfulIntentCount + (succeeded ? 1 : 0),
-      failedIntentCount: aim.failedIntentCount + (succeeded ? 0 : 1),
+      ...(isProjectLinked
+        ? {
+            successfulProjectCount: aim.successfulProjectCount + (succeeded ? 1 : 0),
+            failedProjectCount: aim.failedProjectCount + (succeeded ? 0 : 1),
+          }
+        : {
+            successfulIntentCount: aim.successfulIntentCount + (succeeded ? 1 : 0),
+            failedIntentCount: aim.failedIntentCount + (succeeded ? 0 : 1),
+          }),
     }
 
-    // Clear activeDiplomaticPlayId
     const entries = Object.entries(updatedAim).filter(([k]) => k !== 'activeDiplomaticPlayId')
     const cleanedAim = Object.fromEntries(entries) as Aim
 
-    // Check if aim should succeed
-    const aimSucceeded = cleanedAim.progress >= cleanedAim.targetProgress
+    const tolerance = currentCtx.config.aimProgressCompletionTolerance
+    const aimSucceeded = cleanedAim.progress >= cleanedAim.targetProgress - tolerance
     if (aimSucceeded) {
+      cleanedAim.progress = cleanedAim.targetProgress
       cleanedAim.status = 'succeeded'
     }
 

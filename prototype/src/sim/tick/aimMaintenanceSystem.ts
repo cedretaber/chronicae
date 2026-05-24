@@ -95,7 +95,7 @@ function createAimForGoal(ctx: TickContext, goal: Goal, absoluteWeek: number): T
     kind,
     priority: 1,
     progress: 0,
-    targetProgress: 1,
+    targetProgress: currentCtx.config.projectDefaultTargetProgress,
     createdWeek: absoluteWeek,
     deadlineWeek: absoluteWeek + currentCtx.config.aimDefaultDeadlineWeeks,
     successfulIntentCount: 0,

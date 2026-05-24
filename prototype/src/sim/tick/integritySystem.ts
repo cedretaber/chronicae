@@ -28,6 +28,7 @@ import type { PoliticalActorRef } from '../types/actor'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { isPlaceholderPerson } from '../selectors/landContractSelectors'
+import { decisionSubjectKey } from '../types/goal'
 import {
   getBailiffLocalExtractionRate,
   getBailiffCollectionEfficiency,
@@ -2317,17 +2318,21 @@ export function collectIntegrityErrors(
   }
 
   // --- v0.23: Aim activeTaskId / activeIntentId / activeDiplomaticPlayId mutual exclusion ---
+  // Phase B (v0.26): Polity/House Aims may have both activeTaskId (from prepare_project)
+  // and activeIntentId (from Intent system) simultaneously. Only enforce for Person Aims.
   for (const [aimIdStr, aim] of Object.entries(state.aims)) {
     if (!aim || aim.status !== 'active') continue
-    let count = 0
-    if (aim.activeTaskId) count++
-    if (aim.activeIntentId) count++
-    if (aim.activeDiplomaticPlayId) count++
-    if (count > 1) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Aim ${aimIdStr}: has ${count} active refs (activeTaskId/activeIntentId/activeDiplomaticPlayId) but at most 1 is allowed`,
-      })
+    if (aim.owner.kind === 'person') {
+      let count = 0
+      if (aim.activeTaskId) count++
+      if (aim.activeIntentId) count++
+      if (aim.activeDiplomaticPlayId) count++
+      if (count > 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Aim ${aimIdStr}: has ${count} active refs (activeTaskId/activeIntentId/activeDiplomaticPlayId) but at most 1 is allowed`,
+        })
+      }
     }
   }
 
@@ -2369,6 +2374,128 @@ export function collectIntegrityErrors(
         code: 'INTEGRITY_VIOLATION',
         message: `support_organization_aim ${aimIdStr}: active but target aim ${aim.target.id as string} is ${targetAim.status}`,
       })
+    }
+  }
+
+  // --- Project integrity ---
+  for (const [idStr, project] of Object.entries(state.projects)) {
+    if (!project) continue
+
+    if ((project.id as string) !== idStr) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Project ${idStr}: id mismatch (${project.id})`,
+      })
+    }
+
+    if (
+      project.status === 'completed' ||
+      project.status === 'failed' ||
+      project.status === 'cancelled'
+    ) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Project ${idStr}: terminal project in state (status=${project.status})`,
+      })
+    }
+
+    const creator = state.persons[project.creatorPersonId]
+    if (!creator) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Project ${idStr}: creator ${project.creatorPersonId} does not exist`,
+      })
+    }
+
+    const supervisor = state.persons[project.supervisorPersonId]
+    if (!supervisor) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Project ${idStr}: supervisor ${project.supervisorPersonId} does not exist`,
+      })
+    } else if (project.status === 'active' && !supervisor.alive) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Project ${idStr}: active project but supervisor ${project.supervisorPersonId} is dead`,
+      })
+    }
+
+    if (project.origin.kind === 'aim') {
+      const aim = state.aims[project.origin.aimId]
+      if (!aim) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: origin aim ${project.origin.aimId} does not exist`,
+        })
+      }
+    }
+  }
+
+  // Project index forward consistency
+  for (const [key, pids] of Object.entries(state.projectIndex.byOwner)) {
+    for (const pid of pids ?? []) {
+      const p = state.projects[pid]
+      if (!p) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `projectIndex.byOwner[${key}]: project ${pid} does not exist`,
+        })
+      } else if (decisionSubjectKey(p.owner) !== key) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `projectIndex.byOwner[${key}]: project ${pid} has owner ${decisionSubjectKey(p.owner)}`,
+        })
+      }
+    }
+  }
+
+  for (const [key, pids] of Object.entries(state.projectIndex.byAim)) {
+    for (const pid of pids ?? []) {
+      const p = state.projects[pid]
+      if (!p) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `projectIndex.byAim[${key}]: project ${pid} does not exist`,
+        })
+      }
+    }
+  }
+
+  for (const [key, pids] of Object.entries(state.projectIndex.byCreatorPerson)) {
+    for (const pid of pids ?? []) {
+      const p = state.projects[pid]
+      if (!p) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `projectIndex.byCreatorPerson[${key}]: project ${pid} does not exist`,
+        })
+      }
+    }
+  }
+
+  for (const [key, pids] of Object.entries(state.projectIndex.bySupervisorPerson)) {
+    for (const pid of pids ?? []) {
+      const p = state.projects[pid]
+      if (!p) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `projectIndex.bySupervisorPerson[${key}]: project ${pid} does not exist`,
+        })
+      }
+    }
+  }
+
+  // Task targetRef project validation
+  for (const [, task] of Object.entries(state.tasks)) {
+    if (!task || task.status !== 'active') continue
+    if (task.targetRef.kind === 'project') {
+      const project = state.projects[task.targetRef.id]
+      if (!project) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Task ${task.id}: targetRef project ${task.targetRef.id} does not exist`,
+        })
+      }
     }
   }
 
