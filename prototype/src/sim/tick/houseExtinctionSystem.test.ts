@@ -273,9 +273,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
         factionIndex: { byLeader: {}, byMember: {} },
         nextFactionId: 0,
         nextFactionMembershipId: 0,
-        actorIntents: {},
         diplomaticPlays: {},
-        nextActorIntentId: 0,
         nextDiplomaticPlayId: 0,
       }
 

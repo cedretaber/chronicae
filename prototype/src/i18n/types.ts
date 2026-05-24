@@ -10,7 +10,6 @@ export type I18nNamespace =
   | 'explain'
   | 'goals'
   | 'aims'
-  | 'intents'
   | 'tasks'
   | 'decision_reasons'
   | 'perceptions'

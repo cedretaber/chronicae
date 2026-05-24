@@ -127,9 +127,7 @@ describe('buildActivityReport', () => {
       },
       nextFactionId: 1,
       nextFactionMembershipId: 2,
-      actorIntents: {},
       diplomaticPlays: {},
-      nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
     }
 

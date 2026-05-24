@@ -63,12 +63,7 @@ export function createFactionMembershipId(n: number): FactionMembershipId {
   return ('fm-' + n) as FactionMembershipId
 }
 
-export type ActorIntentId = Branded<string, 'ActorIntentId'>
 export type DiplomaticPlayId = Branded<string, 'DiplomaticPlayId'>
-
-export function createActorIntentId(n: number): ActorIntentId {
-  return ('ai-' + n) as ActorIntentId
-}
 
 export function createDiplomaticPlayId(n: number): DiplomaticPlayId {
   return ('dp-' + n) as DiplomaticPlayId

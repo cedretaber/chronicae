@@ -273,9 +273,7 @@ describe('runBailiffAppointmentSystem', () => {
       },
       nextFactionId: 1,
       nextFactionMembershipId: 2,
-      actorIntents: {},
       diplomaticPlays: {},
-      nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
     }
 
@@ -391,9 +389,7 @@ describe('runBailiffAppointmentSystem', () => {
       },
       nextFactionId: 1,
       nextFactionMembershipId: 2,
-      actorIntents: {},
       diplomaticPlays: {},
-      nextActorIntentId: 0,
       nextDiplomaticPlayId: 0,
     }
 

@@ -60,7 +60,7 @@ export function runProjectPreparationSystem(ctx: TickContext): TickContext {
       ...aim,
       activeTaskId: task.id,
       lastProjectPreparedWeek: absoluteWeek,
-      nextProjectAllowedWeek: absoluteWeek + config.aimIntentCooldownWeeks,
+      nextProjectAllowedWeek: absoluteWeek + config.projectCooldownWeeks,
     }
   }
 

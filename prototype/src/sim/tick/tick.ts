@@ -24,10 +24,6 @@ import { runControlSystem } from './controlSystem'
 import { runPlotSystem } from './plotSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import { runDiplomaticPlaySystem } from './diplomaticPlaySystem'
-import { runIntentGenerationSystem } from './intentGenerationSystem'
-import { runAimToIntentGenerationSystem } from './aimToIntentGenerationSystem'
-import { runIntentToDiplomaticPlaySystem } from './intentToDiplomaticPlaySystem'
-import { runIntentActionSystem } from './intentActionSystem'
 import { runGoalMaintenanceSystem } from './goalMaintenanceSystem'
 import { runAimMaintenanceSystem } from './aimMaintenanceSystem'
 import { runPersonGoalMaintenanceSystem } from './personGoalMaintenanceSystem'
@@ -250,30 +246,6 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runProjectTaskGenerationSystem,
-  },
-  {
-    name: 'intentGenerationSystem',
-    intervalWeeks: WEEKS_PER_YEAR,
-    phaseOffsetWeeks: 0,
-    run: runIntentGenerationSystem,
-  },
-  {
-    name: 'aimToIntentGenerationSystem',
-    intervalWeeks: 4,
-    phaseOffsetWeeks: 0,
-    run: runAimToIntentGenerationSystem,
-  },
-  {
-    name: 'intentToDiplomaticPlaySystem',
-    intervalWeeks: 4,
-    phaseOffsetWeeks: 0,
-    run: runIntentToDiplomaticPlaySystem,
-  },
-  {
-    name: 'intentActionSystem',
-    intervalWeeks: 4,
-    phaseOffsetWeeks: 0,
-    run: runIntentActionSystem,
   },
   {
     name: 'projectMaintenanceSystem',

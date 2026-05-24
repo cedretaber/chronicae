@@ -5,12 +5,9 @@ import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import type { WorldState } from '../types/world'
-import type { ActorIntentId, DiplomaticPlayId, PolityId, ProvinceId } from '../types/ids'
-import type { ActorIntent } from '../types/actorIntent'
+import type { DiplomaticPlayId, PolityId, ProvinceId } from '../types/ids'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 
-// v0.18 Stage D 追加: cleanup は inactive actor 参照 Play / Intent も削除する。
-// テストでは fixture で active な c-1 / c-2 polity を用意しておく。
 function makeStateWithActors(): WorldState {
   let s = makeEmptyV016State()
   s = withPolity(s, 'c-1' as PolityId, { rank: 2, treasury: 100 })
@@ -20,19 +17,6 @@ function makeStateWithActors(): WorldState {
 
 function makeCtx(state: WorldState) {
   return createTickContext({ state, rng: createRng('cleanup-test'), config: defaultConfig })
-}
-
-function makeIntent(id: string, status: ActorIntent['status']): ActorIntent {
-  return {
-    id: id as ActorIntentId,
-    actor: { kind: 'polity', id: 'c-1' as PolityId },
-    kind: 'acquire_land',
-    priority: 1,
-    rationale: 'expand_territory',
-    status,
-    createdWeek: 1000 * 48 + 1 - 1,
-    expiresWeek: 1001 * 48 + 1 - 1,
-  }
 }
 
 function makePlay(id: string, status: DiplomaticPlay['status']): DiplomaticPlay {
@@ -64,45 +48,23 @@ function makePlay(id: string, status: DiplomaticPlay['status']): DiplomaticPlay 
 }
 
 describe('cleanupTerminalDiplomacy', () => {
-  it('returns state unchanged when both records are empty', () => {
+  it('returns state unchanged when records are empty', () => {
     const s = makeEmptyV016State()
     const ctx = makeCtx(s)
     const next = runCleanupTerminalDiplomacy(ctx)
     expect(next).toBe(ctx)
   })
 
-  it('keeps active Intent and Play untouched', () => {
+  it('keeps active Play untouched', () => {
     let s = makeStateWithActors()
-    const intent = makeIntent('ai-1', 'active')
     const play = makePlay('dp-1', 'active')
     s = {
       ...s,
-      actorIntents: { [intent.id]: intent },
       diplomaticPlays: { [play.id]: play },
     }
     const ctx = makeCtx(s)
     const next = runCleanupTerminalDiplomacy(ctx)
-    expect(next).toBe(ctx) // no changes => same reference
-  })
-
-  it('removes terminal Intent (converted / expired / cancelled)', () => {
-    let s = makeStateWithActors()
-    const active = makeIntent('ai-active', 'active')
-    const converted = makeIntent('ai-converted', 'converted')
-    const expired = makeIntent('ai-expired', 'expired')
-    const cancelled = makeIntent('ai-cancelled', 'cancelled')
-    s = {
-      ...s,
-      actorIntents: {
-        [active.id]: active,
-        [converted.id]: converted,
-        [expired.id]: expired,
-        [cancelled.id]: cancelled,
-      },
-    }
-    const ctx = makeCtx(s)
-    const next = runCleanupTerminalDiplomacy(ctx)
-    expect(Object.keys(next.state.actorIntents)).toEqual(['ai-active'])
+    expect(next).toBe(ctx)
   })
 
   it('removes terminal Play (settled / failed / resolved_by_conflict / cancelled)', () => {
@@ -127,21 +89,18 @@ describe('cleanupTerminalDiplomacy', () => {
     expect(Object.keys(next.state.diplomaticPlays)).toEqual(['dp-active'])
   })
 
-  it('does not roll back nextActorIntentId / nextDiplomaticPlayId on deletion', () => {
+  it('does not roll back nextDiplomaticPlayId on deletion', () => {
     let s = makeStateWithActors()
     s = {
       ...s,
-      actorIntents: { 'ai-1': makeIntent('ai-1', 'expired') } as Record<ActorIntentId, ActorIntent>,
       diplomaticPlays: { 'dp-1': makePlay('dp-1', 'settled') } as Record<
         DiplomaticPlayId,
         DiplomaticPlay
       >,
-      nextActorIntentId: 5,
       nextDiplomaticPlayId: 3,
     }
     const ctx = makeCtx(s)
     const next = runCleanupTerminalDiplomacy(ctx)
-    expect(next.state.nextActorIntentId).toBe(5)
     expect(next.state.nextDiplomaticPlayId).toBe(3)
   })
 })

@@ -6,8 +6,6 @@ import type { DecisionSubjectRef, EntityRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import { targetRefKey } from '../types/task'
 import type { TaskTargetRef } from '../types/task'
-import type { ActorIntent } from '../types/actorIntent'
-import type { ActorIntentKind } from '../types/actorIntent'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type { PersonId } from '../types/ids'
@@ -406,94 +404,6 @@ export function checkEntityExists(state: WorldState, ref: EntityRef): boolean {
     default:
       return false
   }
-}
-
-// --- Intent-Task helpers (v0.23 Phase C) ---
-
-const ACTION_INTENT_KINDS: ReadonlySet<ActorIntentKind> = new Set([
-  'develop_holding',
-  'expand_polity_share',
-  'promote_policy_shift',
-  'patronize_artist',
-  'commission_chronicle',
-])
-
-export function isActionIntentKind(kind: ActorIntentKind): boolean {
-  return ACTION_INTENT_KINDS.has(kind)
-}
-
-export function getIntentTargetProgress(intentKind: ActorIntentKind): number {
-  if (intentKind === 'develop_holding') return 2
-  return 1
-}
-
-export function getInitialIntentTaskKind(intentKind: ActorIntentKind): TaskKind | undefined {
-  switch (intentKind) {
-    case 'develop_holding':
-      return 'secure_development_budget'
-    case 'expand_polity_share':
-      return 'promote_house_influence'
-    case 'patronize_artist':
-      return 'arrange_patronage'
-    case 'commission_chronicle':
-      return 'commission_chronicle_work'
-    case 'promote_policy_shift':
-      return 'promote_house_influence'
-    default:
-      return undefined
-  }
-}
-
-export function getNextIntentTaskKind(
-  intentKind: ActorIntentKind,
-  previousTaskKind: TaskKind,
-): TaskKind | undefined {
-  if (intentKind === 'develop_holding' && previousTaskKind === 'secure_development_budget') {
-    return 'supervise_holding_development'
-  }
-  return undefined
-}
-
-export function getIntentTaskAssignee(
-  state: WorldState,
-  intent: ActorIntent,
-): PersonId | undefined {
-  if (intent.actor.kind === 'polity') {
-    const polityId = intent.actor.id
-    const admin = getPrimaryOfficeHolder(state, { kind: 'polity', id: polityId }, 'administrator')
-    if (admin) return admin
-    return getPolityLeader(state, polityId)
-  }
-
-  if (intent.actor.kind === 'house') {
-    return getHouseLeader(state, intent.actor.id)
-  }
-
-  return undefined
-}
-
-export function createTaskForIntent(
-  state: WorldState,
-  config: SimulationConfig,
-  intent: ActorIntent,
-  taskKind: TaskKind,
-  absoluteWeek: number,
-): { task: Task; state: WorldState } | undefined {
-  const assignee = getIntentTaskAssignee(state, intent)
-  if (!assignee) return undefined
-
-  const owner: DecisionSubjectRef =
-    intent.actor.kind === 'polity'
-      ? { kind: 'polity', id: intent.actor.id }
-      : { kind: 'house', id: intent.actor.id }
-
-  return createTask(state, config, {
-    owner,
-    assigneePersonId: assignee,
-    kind: taskKind,
-    targetRef: { kind: 'intent', id: intent.id },
-    absoluteWeek,
-  })
 }
 
 // --- DiplomaticPlay Task helpers (v0.23 Phase D) ---

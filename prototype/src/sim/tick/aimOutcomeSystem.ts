@@ -21,10 +21,8 @@ export function runAimOutcomeSystem(ctx: TickContext): TickContext {
     let progressDelta = 0
     let succeeded = false
 
-    const isProjectLinked = play.originProjectId !== undefined
-
     if (play.status === 'settled') {
-      progressDelta = isProjectLinked ? currentCtx.config.aimProgressGainLandOrContractProject : 1
+      progressDelta = currentCtx.config.aimProgressGainLandOrContractProject
       succeeded = true
     } else if (play.status === 'resolved_by_conflict') {
       const initiatorIsOwner =
@@ -32,7 +30,7 @@ export function runAimOutcomeSystem(ctx: TickContext): TickContext {
         play.initiator.kind === 'polity' &&
         (play.initiator.id as string) === (aim.owner.id as string)
       if (initiatorIsOwner) {
-        progressDelta = isProjectLinked ? currentCtx.config.aimProgressGainLandOrContractProject : 1
+        progressDelta = currentCtx.config.aimProgressGainLandOrContractProject
         succeeded = true
       }
     }
@@ -40,15 +38,8 @@ export function runAimOutcomeSystem(ctx: TickContext): TickContext {
     const updatedAim: Aim = {
       ...aim,
       progress: clamp(aim.progress + progressDelta, 0, aim.targetProgress),
-      ...(isProjectLinked
-        ? {
-            successfulProjectCount: aim.successfulProjectCount + (succeeded ? 1 : 0),
-            failedProjectCount: aim.failedProjectCount + (succeeded ? 0 : 1),
-          }
-        : {
-            successfulIntentCount: aim.successfulIntentCount + (succeeded ? 1 : 0),
-            failedIntentCount: aim.failedIntentCount + (succeeded ? 0 : 1),
-          }),
+      successfulProjectCount: aim.successfulProjectCount + (succeeded ? 1 : 0),
+      failedProjectCount: aim.failedProjectCount + (succeeded ? 0 : 1),
     }
 
     const entries = Object.entries(updatedAim).filter(([k]) => k !== 'activeDiplomaticPlayId')

@@ -12,13 +12,12 @@ export function runCleanupTerminalDecisions(ctx: TickContext): TickContext {
   const aims = ctx.state.aims
   const reasons = ctx.state.decisionReasons
 
-  // Collect aim/goal IDs still referenced by active Intents or DiplomaticPlays
+  // Collect aim/goal IDs still referenced by active Projects or DiplomaticPlays
   const referencedAimIds = new Set<string>()
   const referencedGoalIds = new Set<string>()
-  for (const [, intent] of Object.entries(ctx.state.actorIntents)) {
-    if (!intent) continue
-    if (intent.aimId) referencedAimIds.add(intent.aimId)
-    if (intent.goalId) referencedGoalIds.add(intent.goalId)
+  for (const [, project] of Object.entries(ctx.state.projects)) {
+    if (!project || project.status !== 'active') continue
+    if (project.origin.kind === 'aim') referencedAimIds.add(project.origin.aimId)
   }
   for (const [, play] of Object.entries(ctx.state.diplomaticPlays)) {
     if (!play) continue

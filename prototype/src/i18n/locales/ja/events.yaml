@@ -103,14 +103,6 @@ conflict:
   revolt_rebel_victory: '{{province}}を巡る紛争は反乱側の勝利に終わった。'
   revolt_suppressed: '{{province}}の反乱は武力で鎮圧された。'
 
-actor_intent:
-  created_sell_land: '{{seller}}が{{province}}を{{buyer}}に{{price}}金で売却しようとしている。'
-  created_acquire_land: '{{acquirer}}が{{target}}の保有する{{province}}に目を付けている。'
-  created_improve_terms: '{{initiator}}が{{target}}に{{province}}の減税を要求している。'
-  created_demand_tax: '{{initiator}}が{{target}}に{{province}}の増税を要求している。'
-  converted_with_offer: '{{initiator}}が{{target}}から{{province}}を代償付きで取得する交渉を開始した。'
-  converted_no_offer: '{{initiator}}が{{target}}に{{province}}の無条件割譲を要求した。'
-
 land_contract:
   transferred: '{{holding}}が{{from}}から{{to}}に移転された（{{reason}}）。'
   purchased: '{{to}}が{{from}}から{{holding}}を購入した。'

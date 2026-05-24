@@ -146,9 +146,7 @@ function makeMinimalWorld(): WorldState {
     nextFactionMembershipId: 0,
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
-    actorIntents: {},
     diplomaticPlays: {},
-    nextActorIntentId: 0,
     projects: {},
     projectIndex: {
       byOwner: {},

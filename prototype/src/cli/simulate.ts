@@ -425,7 +425,14 @@ function buildDecisionSummary(state: WorldState): {
     targetProgress: number
     deadline: number
   }[]
-  intents: { id: string; actor: string; kind: string; aimId?: string; status: string }[]
+  projects: {
+    id: string
+    owner: string
+    kind: string
+    status: string
+    progress: number
+    targetProgress: number
+  }[]
   decisionReasonCount: number
 } {
   const goals = Object.values(state.goals)
@@ -452,23 +459,21 @@ function buildDecisionSummary(state: WorldState): {
       deadline: a.deadlineWeek,
     }))
 
-  const intents = Object.values(state.actorIntents)
-    .filter((i): i is NonNullable<typeof i> => i !== undefined)
-    .map((i) => {
-      const base: { id: string; actor: string; kind: string; aimId?: string; status: string } = {
-        id: i.id,
-        actor: `${i.actor.kind}:${i.actor.id}`,
-        kind: i.kind,
-        status: i.status,
-      }
-      if (i.aimId) base.aimId = i.aimId
-      return base
-    })
+  const projects = Object.values(state.projects)
+    .filter((p): p is NonNullable<typeof p> => p !== undefined)
+    .map((p) => ({
+      id: p.id,
+      owner: `${p.owner.kind}:${p.owner.id}`,
+      kind: p.kind,
+      status: p.status,
+      progress: p.progress,
+      targetProgress: p.targetProgress,
+    }))
 
   return {
     goals,
     aims,
-    intents,
+    projects,
     decisionReasonCount: Object.keys(state.decisionReasons).length,
   }
 }

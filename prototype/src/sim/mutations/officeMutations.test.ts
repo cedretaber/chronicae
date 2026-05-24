@@ -136,9 +136,7 @@ function makeOfficeState(): {
     nextHoldingOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
-    actorIntents: {},
     diplomaticPlays: {},
-    nextActorIntentId: 0,
     projects: {},
     projectIndex: {
       byOwner: {},

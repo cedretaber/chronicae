@@ -58,9 +58,7 @@ function makeBaseState(): WorldState {
     nextHoldingOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
-    actorIntents: {},
     diplomaticPlays: {},
-    nextActorIntentId: 0,
     projects: {},
     projectIndex: {
       byOwner: {},
@@ -633,9 +631,7 @@ describe('expireOfficeTermAssignment', () => {
       nextHoldingOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
-      actorIntents: {},
       diplomaticPlays: {},
-      nextActorIntentId: 0,
       projects: {},
       projectIndex: {
         byOwner: {},

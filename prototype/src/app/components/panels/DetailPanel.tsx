@@ -1298,40 +1298,6 @@ export function CountryDetail({
                   </div>
                 </div>
               )}
-              {activeAim?.activeIntentId &&
-                (() => {
-                  const intent = worldState.actorIntents[activeAim.activeIntentId]
-                  if (!intent || intent.status !== 'active') return null
-                  return (
-                    <div style={{ marginLeft: 8, marginTop: 4 }}>
-                      <strong>{t('detail.polity.active_intent')}</strong>
-                      <div style={{ marginLeft: 8 }}>
-                        <div>{t(intent.kind, { ns: 'intents' })}</div>
-                        <div>
-                          {t('detail.polity.intent_progress')}: {intent.progress ?? 0} /{' '}
-                          {intent.targetProgress ?? 1}
-                        </div>
-                      </div>
-                      {intent.activeTaskId &&
-                        (() => {
-                          const task = worldState.tasks[intent.activeTaskId]
-                          if (!task || task.status !== 'active') return null
-                          return (
-                            <div style={{ marginLeft: 8, marginTop: 4 }}>
-                              <strong>{t('detail.polity.active_task')}</strong>
-                              <div style={{ marginLeft: 8 }}>
-                                <div>{t(task.kind, { ns: 'tasks' })}</div>
-                                <div>
-                                  {t('detail.polity.task_effort')}: {Math.round(task.effortDone)} /{' '}
-                                  {task.effortRequired}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })()}
-                    </div>
-                  )
-                })()}
               {activeAim?.activeDiplomaticPlayId &&
                 (() => {
                   const play = worldState.diplomaticPlays[activeAim.activeDiplomaticPlayId]
@@ -1756,40 +1722,6 @@ export function HouseDetail({
                   </div>
                 </div>
               )}
-              {activeAim?.activeIntentId &&
-                (() => {
-                  const intent = currentState.actorIntents[activeAim.activeIntentId]
-                  if (!intent || intent.status !== 'active') return null
-                  return (
-                    <div style={{ marginLeft: 8, marginTop: 4 }}>
-                      <strong>{t('detail.house.active_intent')}</strong>
-                      <div style={{ marginLeft: 8 }}>
-                        <div>{t(intent.kind, { ns: 'intents' })}</div>
-                        <div>
-                          {t('detail.house.intent_progress')}: {intent.progress ?? 0} /{' '}
-                          {intent.targetProgress ?? 1}
-                        </div>
-                      </div>
-                      {intent.activeTaskId &&
-                        (() => {
-                          const task = currentState.tasks[intent.activeTaskId]
-                          if (!task || task.status !== 'active') return null
-                          return (
-                            <div style={{ marginLeft: 8, marginTop: 4 }}>
-                              <strong>{t('detail.house.active_task')}</strong>
-                              <div style={{ marginLeft: 8 }}>
-                                <div>{t(task.kind, { ns: 'tasks' })}</div>
-                                <div>
-                                  {t('detail.house.task_effort')}: {Math.round(task.effortDone)} /{' '}
-                                  {task.effortRequired}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })()}
-                    </div>
-                  )
-                })()}
               {activeAim?.activeDiplomaticPlayId &&
                 (() => {
                   const play = currentState.diplomaticPlays[activeAim.activeDiplomaticPlayId]
@@ -1883,7 +1815,6 @@ export function PersonDetail({
     nextHoldingOfficeAssignmentId: 0,
     nextFactionId: 0,
     nextFactionMembershipId: 0,
-    actorIntents: {},
     projects: {},
     projectIndex: {
       byOwner: {},
@@ -1894,7 +1825,6 @@ export function PersonDetail({
       byRelatedEntity: {},
     },
     diplomaticPlays: {},
-    nextActorIntentId: 0,
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
     // v0.22 Goal/Aim system
@@ -2457,26 +2387,6 @@ export function PersonDetail({
                                   return t('detail.person.task_target_polity_aim', { name })
                                 }
                                 return t('detail.person.task_target_aim')
-                              })()}
-                            {task.targetRef.kind === 'intent' &&
-                              (() => {
-                                const intent = worldState.actorIntents[task.targetRef.id]
-                                const actor = intent?.actor ?? task.owner
-                                if (actor.kind === 'house') {
-                                  const h = worldState.houses[actor.id]
-                                  const name = h
-                                    ? resolveName('house', h.nameKey, h.nameKey)
-                                    : actor.id
-                                  return t('detail.person.task_target_house_intent', { name })
-                                }
-                                if (actor.kind === 'polity') {
-                                  const p = worldState.polities[actor.id]
-                                  const name = p
-                                    ? resolveName('polity', p.nameKey, p.nameKey)
-                                    : actor.id
-                                  return t('detail.person.task_target_polity_intent', { name })
-                                }
-                                return t('detail.person.task_target_intent')
                               })()}
                             {task.targetRef.kind === 'diplomatic_play' &&
                               (() => {

@@ -8,7 +8,6 @@ import type {
   FactionId,
   FactionMembershipId,
   PersonId,
-  ActorIntentId,
   DiplomaticPlayId,
   StateRegionId,
   HoldingId,
@@ -1203,7 +1202,7 @@ export function collectIntegrityErrors(
     }
   }
 
-  // ─── v0.18 Stage A §20: ActorIntent / DiplomaticPlay 整合性 ───
+  // ─── §20: DiplomaticPlay 整合性 ───
 
   // actor が存在する active actor を指すかチェック (Polity の active / House の active を確認)
   const isActiveActor = (actor: PoliticalActorRef): boolean => {
@@ -1213,59 +1212,6 @@ export function collectIntegrityErrors(
     }
     const h = state.houses[actor.id]
     return Boolean(h && h.active)
-  }
-
-  // ActorIntent integrity (§20)
-  const seenIntentIds = new Set<string>()
-  for (const idStr of Object.keys(state.actorIntents)) {
-    const intent = state.actorIntents[idStr as ActorIntentId]
-    if (!intent) continue
-    // id 一意性
-    if (seenIntentIds.has(idStr)) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `ActorIntent ${idStr} duplicate id (§20)`,
-      })
-    }
-    seenIntentIds.add(idStr)
-    // すべての entry の status === 'active' (terminal は cleanup phase で削除済み)
-    if (intent.status !== 'active') {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `ActorIntent ${idStr} has non-active status ${intent.status} (terminal must be cleaned up) (§20)`,
-      })
-    }
-    // actor が active を指す
-    if (!isActiveActor(intent.actor)) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `ActorIntent ${idStr} actor ${intent.actor.kind}:${intent.actor.id} is not active (§20)`,
-      })
-    }
-    // targetActor (存在する場合) が active
-    if (intent.targetActor && !isActiveActor(intent.targetActor)) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `ActorIntent ${idStr} targetActor ${intent.targetActor.kind}:${intent.targetActor.id} is not active (§20)`,
-      })
-    }
-    // targetProvinceId (存在する場合) が存在する Province
-    if (intent.targetProvinceId !== undefined && !state.provinces[intent.targetProvinceId]) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `ActorIntent ${idStr} targetProvinceId ${intent.targetProvinceId} does not exist (§20)`,
-      })
-    }
-    // beneficiaryPolityId (存在する場合) が active Polity
-    if (intent.beneficiaryPolityId !== undefined) {
-      const bene = state.polities[intent.beneficiaryPolityId]
-      if (!bene || !bene.active) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `ActorIntent ${idStr} beneficiaryPolityId ${intent.beneficiaryPolityId} is missing or inactive (§20)`,
-        })
-      }
-    }
   }
 
   // DiplomaticPlay integrity (§20)
@@ -1988,22 +1934,6 @@ export function collectIntegrityErrors(
       })
     }
 
-    // activeIntentId must reference an existing active Intent
-    if (aim.activeIntentId) {
-      const intent = state.actorIntents[aim.activeIntentId]
-      if (!intent) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Aim ${aimIdStr}: activeIntentId ${aim.activeIntentId as string} does not exist`,
-        })
-      } else if (intent.status !== 'active') {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Aim ${aimIdStr}: activeIntentId ${aim.activeIntentId as string} is not active (status: ${intent.status})`,
-        })
-      }
-    }
-
     // activeDiplomaticPlayId must reference an existing active/escalated Play
     if (aim.activeDiplomaticPlayId) {
       const play = state.diplomaticPlays[aim.activeDiplomaticPlayId]
@@ -2044,38 +1974,6 @@ export function collectIntegrityErrors(
         code: 'INTEGRITY_VIOLATION',
         message: `Owner ${ownerKey} has ${count} active goal_driven Aims (max 1)`,
       })
-    }
-  }
-
-  // --- v0.22 ActorIntent Goal/Aim cross-references ---
-  for (const [intentIdStr, intent] of Object.entries(state.actorIntents)) {
-    if (!intent) continue
-
-    if (intent.goalId) {
-      if (!state.goals[intent.goalId]) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `ActorIntent ${intentIdStr}: goalId ${intent.goalId as string} does not exist`,
-        })
-      }
-    }
-
-    if (intent.aimId) {
-      const aim = state.aims[intent.aimId]
-      if (!aim) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `ActorIntent ${intentIdStr}: aimId ${intent.aimId as string} does not exist`,
-        })
-      } else if (
-        aim.owner.kind !== intent.actor.kind ||
-        (aim.owner.id as string) !== (intent.actor.id as string)
-      ) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `ActorIntent ${intentIdStr}: actor ${intent.actor.kind}:${intent.actor.id} does not match Aim ${intent.aimId as string} owner ${aim.owner.kind}:${aim.owner.id}`,
-        })
-      }
     }
   }
 
@@ -2130,21 +2028,6 @@ export function collectIntegrityErrors(
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `Task ${taskIdStr}: active task targets terminal aim ${task.targetRef.id} (status=${targetAim.status})`,
-        })
-      }
-    }
-    // Active intent-targeted task must reference an existing active intent
-    if (task.status === 'active' && task.targetRef.kind === 'intent') {
-      const targetIntent = state.actorIntents[task.targetRef.id]
-      if (!targetIntent) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Task ${taskIdStr}: active task targets missing intent ${task.targetRef.id as string}`,
-        })
-      } else if (targetIntent.status !== 'active') {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Task ${taskIdStr}: active task targets terminal intent ${task.targetRef.id as string} (status=${targetIntent.status})`,
         })
       }
     }
@@ -2261,35 +2144,6 @@ export function collectIntegrityErrors(
     }
   }
 
-  // --- v0.23 Phase C: Intent activeTaskId integrity ---
-  for (const [intentIdStr, intent] of Object.entries(state.actorIntents)) {
-    if (!intent || intent.status !== 'active') continue
-    if (intent.activeTaskId) {
-      const task = state.tasks[intent.activeTaskId]
-      if (!task) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Intent ${intentIdStr}: activeTaskId ${intent.activeTaskId as string} does not exist`,
-        })
-      } else if (task.status !== 'active') {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Intent ${intentIdStr}: activeTaskId ${intent.activeTaskId as string} is not active (status=${task.status})`,
-        })
-      }
-    }
-    if (
-      intent.progress !== undefined &&
-      intent.targetProgress !== undefined &&
-      intent.progress > intent.targetProgress
-    ) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Intent ${intentIdStr}: progress ${intent.progress} exceeds targetProgress ${intent.targetProgress}`,
-      })
-    }
-  }
-
   // --- v0.23: Person Goal integrity ---
   for (const [personIdStr, person] of Object.entries(state.persons)) {
     if (!person || !person.alive) continue
@@ -2317,22 +2171,17 @@ export function collectIntegrityErrors(
     }
   }
 
-  // --- v0.23: Aim activeTaskId / activeIntentId / activeDiplomaticPlayId mutual exclusion ---
-  // Phase B (v0.26): Polity/House Aims may have both activeTaskId (from prepare_project)
-  // and activeIntentId (from Intent system) simultaneously. Only enforce for Person Aims.
+  // --- Aim activeTaskId / activeDiplomaticPlayId mutual exclusion ---
   for (const [aimIdStr, aim] of Object.entries(state.aims)) {
     if (!aim || aim.status !== 'active') continue
-    if (aim.owner.kind === 'person') {
-      let count = 0
-      if (aim.activeTaskId) count++
-      if (aim.activeIntentId) count++
-      if (aim.activeDiplomaticPlayId) count++
-      if (count > 1) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Aim ${aimIdStr}: has ${count} active refs (activeTaskId/activeIntentId/activeDiplomaticPlayId) but at most 1 is allowed`,
-        })
-      }
+    let count = 0
+    if (aim.activeTaskId) count++
+    if (aim.activeDiplomaticPlayId) count++
+    if (count > 1) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Aim ${aimIdStr}: has ${count} active refs (activeTaskId/activeDiplomaticPlayId) but at most 1 is allowed`,
+      })
     }
   }
 

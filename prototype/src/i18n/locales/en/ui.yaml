@@ -85,8 +85,6 @@ detail:
     active_aim: 'Active Aim'
     aim_progress: 'Progress'
     aim_deadline: 'Deadline'
-    active_intent: 'Active Intent'
-    intent_progress: 'Progress'
     active_task: 'Active Task'
     task_effort: 'Effort'
     active_play: 'Active Diplomatic Play'
@@ -125,8 +123,6 @@ detail:
     active_aim: 'Active Aim'
     aim_progress: 'Progress'
     aim_deadline: 'Deadline'
-    active_intent: 'Active Intent'
-    intent_progress: 'Progress'
     active_task: 'Active Task'
     task_effort: 'Effort'
     active_play: 'Active Diplomatic Play'
@@ -191,9 +187,6 @@ detail:
     task_target_own_aim: 'For own aim'
     task_target_house_aim: "For House {{name}}'s aim"
     task_target_polity_aim: "For {{name}}'s aim"
-    task_target_intent: 'For: Intent'
-    task_target_house_intent: "For House {{name}}'s intent"
-    task_target_polity_intent: "For {{name}}'s intent"
     task_target_play: 'For: Diplomatic Play'
     task_target_house_play: "For House {{name}}'s diplomatic play"
     task_target_polity_play: "For {{name}}'s diplomatic play"

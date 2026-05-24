@@ -7,7 +7,7 @@ import {
   bindProvinceToHouseViaPolity,
 } from '../testFixtures'
 import type { HouseId, PolityId, ProvinceId } from '../types/ids'
-import { findLandPurchaseIntentCandidates } from './landPurchaseCandidates'
+import { findSellLandCandidates } from './landPurchaseCandidates'
 import { defaultLandContractConfig } from '../config/landContractConfig'
 
 function buildWorld(opts: {
@@ -78,13 +78,13 @@ function buildWorld(opts: {
   return { state: s, buyerPolityId, sellerPolityId, provinceBuyerId, provinceSellerId }
 }
 
-describe('findLandPurchaseIntentCandidates', () => {
+describe('findSellLandCandidates', () => {
   it('returns candidate when conditions are met (seller poor + buyer rich + same rank + adjacent + same grantor)', () => {
     const { state, sellerPolityId, buyerPolityId, provinceSellerId } = buildWorld({
       buyerTreasury: defaultLandContractConfig.purchaseBuyerTreasuryThreshold + 1000,
       sellerTreasury: defaultLandContractConfig.purchaseSellerTreasuryThreshold - 100,
     })
-    const candidates = findLandPurchaseIntentCandidates(state)
+    const candidates = findSellLandCandidates(state)
     expect(candidates.length).toBe(1)
     expect(candidates[0]?.sellerPolityId).toBe(sellerPolityId)
     expect(candidates[0]?.buyerPolityId).toBe(buyerPolityId)
@@ -97,7 +97,7 @@ describe('findLandPurchaseIntentCandidates', () => {
       buyerTreasury: defaultLandContractConfig.purchaseBuyerTreasuryThreshold + 1000,
       sellerTreasury: defaultLandContractConfig.purchaseSellerTreasuryThreshold + 100,
     })
-    expect(findLandPurchaseIntentCandidates(state)).toEqual([])
+    expect(findSellLandCandidates(state)).toEqual([])
   })
 
   it('returns empty when buyer is commonwealth', () => {
@@ -106,7 +106,7 @@ describe('findLandPurchaseIntentCandidates', () => {
       sellerTreasury: defaultLandContractConfig.purchaseSellerTreasuryThreshold - 100,
       buyerCommonwealth: true,
     })
-    expect(findLandPurchaseIntentCandidates(state)).toEqual([])
+    expect(findSellLandCandidates(state)).toEqual([])
   })
 
   it('returns empty when seller is commonwealth', () => {
@@ -115,7 +115,7 @@ describe('findLandPurchaseIntentCandidates', () => {
       sellerTreasury: defaultLandContractConfig.purchaseSellerTreasuryThreshold - 100,
       sellerCommonwealth: true,
     })
-    expect(findLandPurchaseIntentCandidates(state)).toEqual([])
+    expect(findSellLandCandidates(state)).toEqual([])
   })
 
   it('returns empty when ranks differ', () => {
@@ -124,6 +124,6 @@ describe('findLandPurchaseIntentCandidates', () => {
       sellerTreasury: defaultLandContractConfig.purchaseSellerTreasuryThreshold - 100,
       sameRank: false,
     })
-    expect(findLandPurchaseIntentCandidates(state)).toEqual([])
+    expect(findSellLandCandidates(state)).toEqual([])
   })
 })

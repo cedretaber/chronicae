@@ -2,7 +2,6 @@ import type { TickContext } from './context'
 import type { CreateSimEventInput } from './context'
 import type { SimEvent } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
-import type { Aim } from '../types/goal'
 import type { WorldState } from '../types/world'
 import type { Project, LandClaimProject, ContractRevisionProject } from '../types/project'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
@@ -539,9 +538,7 @@ function createLandClaimPlayFromProjectMut(
   if (project.origin.kind === 'aim') {
     const aim = ws.aims[project.origin.aimId]
     if (aim) {
-      const entries = Object.entries(aim).filter(([k]) => k !== 'activeIntentId')
-      const cleaned = Object.fromEntries(entries) as Aim
-      ws.aims[aim.id] = { ...cleaned, activeDiplomaticPlayId: playId }
+      ws.aims[aim.id] = { ...aim, activeDiplomaticPlayId: playId }
     }
   }
 
@@ -650,9 +647,7 @@ function createContractRevisionPlayFromProjectMut(
   if (project.origin.kind === 'aim') {
     const aim = ws.aims[project.origin.aimId]
     if (aim) {
-      const entries = Object.entries(aim).filter(([k]) => k !== 'activeIntentId')
-      const cleaned = Object.fromEntries(entries) as Aim
-      ws.aims[aim.id] = { ...cleaned, activeDiplomaticPlayId: playId }
+      ws.aims[aim.id] = { ...aim, activeDiplomaticPlayId: playId }
     }
   }
 

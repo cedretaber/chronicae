@@ -11,7 +11,6 @@ import type {
   LandContractId,
   FactionId,
   FactionMembershipId,
-  ActorIntentId,
   ProjectId,
   DiplomaticPlayId,
   StateRegionId,
@@ -41,7 +40,6 @@ import type {
   HoldingOfficeIndex,
 } from './landContract'
 import type { Faction, FactionMembership, FactionIndex } from './faction'
-import type { ActorIntent } from './actorIntent'
 import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay } from './diplomaticPlay'
 import type { StateRegion } from './stateRegion'
@@ -81,8 +79,6 @@ export type WorldState = {
   factions: Record<FactionId, Faction>
   factionMemberships: Record<FactionMembershipId, FactionMembership>
   factionIndex: FactionIndex
-  // v0.18 Stage A §6.6
-  actorIntents: Record<ActorIntentId, ActorIntent>
   // v0.26 Project system
   projects: Record<ProjectId, Project>
   projectIndex: ProjectIndex
@@ -110,8 +106,6 @@ export type WorldState = {
   nextHoldingOfficeAssignmentId: number
   nextFactionId: number
   nextFactionMembershipId: number
-  // v0.18 Stage A §6.6
-  nextActorIntentId: number
   // v0.26
   nextProjectId: number
   nextDiplomaticPlayId: number

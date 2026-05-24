@@ -9,7 +9,6 @@ import type {
   ProvinceId,
   HoldingId,
   LandContractId,
-  ActorIntentId,
   DiplomaticPlayId,
   StateRegionId,
   TaskId,
@@ -137,22 +136,15 @@ export type Aim = {
   createdWeek: number
   deadlineWeek: number
 
-  lastIntentGeneratedWeek?: number
-  nextIntentAllowedWeek?: number
-
   lastProjectPreparedWeek?: number
   nextProjectAllowedWeek?: number
 
-  activeIntentId?: ActorIntentId
   activeDiplomaticPlayId?: DiplomaticPlayId
   activeTaskId?: TaskId
   waitingFor?: TaskTargetRef
   waitingReasonKey?: string
   blockedReasonKey?: string
   nextReviewWeek?: number
-  successfulIntentCount: number
-  failedIntentCount: number
-
   successfulProjectCount: number
   failedProjectCount: number
 

@@ -9,7 +9,7 @@ import type { EventId, ProjectId } from '../types/ids'
 import { createProjectId } from '../types/ids'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
-import { findLandPurchaseIntentCandidates } from '../selectors/landPurchaseCandidates'
+import { findSellLandCandidates } from '../selectors/landPurchaseCandidates'
 import { addProjectToIndexMut, getProjectDeadlineWeeks } from '../mutations/projectMutations'
 import { selectTargetHoldingInProvince } from '../selectors/landContractSelectors'
 
@@ -50,7 +50,7 @@ export function runSellLandProjectGenerationSystem(ctx: TickContext): TickContex
     })
   }
 
-  const candidates = findLandPurchaseIntentCandidates(ws)
+  const candidates = findSellLandCandidates(ws)
 
   const existingKeys = new Set<string>()
   for (const [, project] of Object.entries(ws.projects)) {

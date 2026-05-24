@@ -3,7 +3,6 @@ import type {
   PersonActivityLogId,
   PersonId,
   AimId,
-  ActorIntentId,
   ProjectId,
   DiplomaticPlayId,
   DecisionReasonId,
@@ -15,7 +14,6 @@ import type { AbilityKey } from './person'
 // --- TaskTargetRef ---
 export type TaskTargetRef =
   | { kind: 'aim'; id: AimId }
-  | { kind: 'intent'; id: ActorIntentId }
   | { kind: 'project'; id: ProjectId }
   | { kind: 'diplomatic_play'; id: DiplomaticPlayId }
   | { kind: 'holding_office_assignment'; id: HoldingOfficeAssignmentId }
@@ -52,7 +50,6 @@ export type TaskKind =
   | 'study_accounts'
   | 'practice_arms'
   | 'courtly_training'
-  | 'prepare_intent'
   | 'secure_internal_support'
   | 'secure_development_budget'
   | 'supervise_holding_development'

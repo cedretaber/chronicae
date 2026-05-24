@@ -164,9 +164,7 @@ function makeWorldState(
     factionIndex: { byLeader: {}, byMember: {} },
     nextFactionId: 0,
     nextFactionMembershipId: 0,
-    actorIntents: {},
     diplomaticPlays: {},
-    nextActorIntentId: 0,
     projects: {},
     projectIndex: {
       byOwner: {},
@@ -383,9 +381,7 @@ describe('runControlSystem — capital province maxControl', () => {
       nextHoldingOfficeAssignmentId: 0,
       nextFactionId: 0,
       nextFactionMembershipId: 0,
-      actorIntents: {},
       diplomaticPlays: {},
-      nextActorIntentId: 0,
       projects: {},
       projectIndex: {
         byOwner: {},

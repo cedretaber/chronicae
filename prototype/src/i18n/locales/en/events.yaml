@@ -104,14 +104,6 @@ conflict:
   revolt_rebel_victory: 'The conflict over {{province}} ended with rebel victory.'
   revolt_suppressed: 'The revolt in {{province}} was put down by force.'
 
-actor_intent:
-  created_sell_land: '{{seller}} seeks to sell {{province}} to {{buyer}} for {{price}} gold.'
-  created_acquire_land: '{{acquirer}} eyes {{province}} held by {{target}}.'
-  created_improve_terms: '{{initiator}} demands lower taxes from {{target}} for {{province}}.'
-  created_demand_tax: '{{initiator}} demands higher taxes from {{target}} for {{province}}.'
-  converted_with_offer: '{{initiator}} opens negotiations to acquire {{province}} from {{target}} with compensation.'
-  converted_no_offer: '{{initiator}} demands {{province}} from {{target}} without compensation.'
-
 land_contract:
   transferred: '{{holding}} transferred from {{from}} to {{to}} ({{reason}}).'
   purchased: '{{to}} purchased {{holding}} from {{from}}.'

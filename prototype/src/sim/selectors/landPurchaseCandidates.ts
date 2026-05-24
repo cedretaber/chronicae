@@ -32,7 +32,7 @@ export type LandPurchaseCandidate = {
   price: number
 }
 
-export function findLandPurchaseIntentCandidates(state: WorldState): LandPurchaseCandidate[] {
+export function findSellLandCandidates(state: WorldState): LandPurchaseCandidate[] {
   const config = defaultLandContractConfig
   const results: LandPurchaseCandidate[] = []
 

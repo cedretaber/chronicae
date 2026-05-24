@@ -357,7 +357,7 @@ export type SimulationConfig = {
   goalProgressOnAimFailed: number
   goalProgressOnAimAbandoned: number
   aimDefaultDeadlineWeeks: number
-  aimIntentCooldownWeeks: number
+  projectCooldownWeeks: number
   // v0.23 Person Goal/Aim/Task
   personGoalReviewIntervalWeeks: number
   personAimReviewIntervalWeeks: number
@@ -957,7 +957,7 @@ export const defaultConfig: SimulationConfig = {
   goalProgressOnAimFailed: -10,
   goalProgressOnAimAbandoned: -5,
   aimDefaultDeadlineWeeks: 240,
-  aimIntentCooldownWeeks: 4,
+  projectCooldownWeeks: 4,
   developHoldingCost: 30,
   developHoldingGain: 5,
   expandPolityShareCost: 40,

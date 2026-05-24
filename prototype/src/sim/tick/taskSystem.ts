@@ -15,7 +15,6 @@ import type {
 } from '../types/task'
 import { targetRefKey } from '../types/task'
 import type { WorldState } from '../types/world'
-import type { ActorIntent } from '../types/actorIntent'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type {
   PersonId,
@@ -406,17 +405,6 @@ function autoCancelTasksMut(ws: WorldState, emitEvent: (input: CreateSimEventInp
       }
     }
 
-    if (!shouldCancel && task.targetRef.kind === 'intent') {
-      const intent = ws.actorIntents[task.targetRef.id]
-      if (!intent) {
-        shouldCancel = true
-        cancelReason = 'target_removed'
-      } else if (intent.status !== 'active') {
-        shouldCancel = true
-        cancelReason = 'target_terminal'
-      }
-    }
-
     if (!shouldCancel && task.targetRef.kind === 'diplomatic_play') {
       const play = ws.diplomaticPlays[task.targetRef.id]
       if (!play) {
@@ -462,15 +450,6 @@ function autoCancelTasksMut(ws: WorldState, emitEvent: (input: CreateSimEventInp
     }
 
     removeTaskMut(ws, task.id)
-
-    if (task.targetRef.kind === 'intent') {
-      const intent = ws.actorIntents[task.targetRef.id]
-      if (intent && intent.activeTaskId === task.id) {
-        ws.actorIntents[task.targetRef.id] = Object.fromEntries(
-          Object.entries(intent).filter(([k]) => k !== 'activeTaskId'),
-        ) as ActorIntent
-      }
-    }
 
     if (task.targetRef.kind === 'diplomatic_play') {
       removeDiplomaticPlayTaskIdMut(ws, task.targetRef.id, task.id)
@@ -707,20 +686,6 @@ function handleTaskCompletionMut(
         })
       }
     }
-  } else if (task.targetRef.kind === 'intent') {
-    const intent = ws.actorIntents[task.targetRef.id]
-    if (intent && intent.status === 'active') {
-      const cleaned = Object.fromEntries(
-        Object.entries(intent).filter(([k]) => k !== 'activeTaskId'),
-      ) as ActorIntent
-      ws.actorIntents[intent.id] = {
-        ...cleaned,
-        progress: (intent.progress ?? 0) + 1,
-      }
-    }
-
-    createActivityLogMut(ws, config, personId, task, outcome)
-    removeTaskMut(ws, task.id)
   } else if (task.targetRef.kind === 'diplomatic_play') {
     const playId = task.targetRef.id
     const play = ws.diplomaticPlays[playId]
@@ -867,7 +832,6 @@ export function runTaskSystem(ctx: TickContext): TickContext {
       bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
       byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
     },
-    actorIntents: { ...ctx.state.actorIntents },
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
     personActivityLogs: { ...ctx.state.personActivityLogs },
     personActivityLogIndex: {
