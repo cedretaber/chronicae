@@ -150,8 +150,11 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    // 4. Deadline exceeded
+    // 4. Deadline exceeded (skip for develop_holding still in preparatory stages)
+    const deadlineApplies =
+      project.kind !== 'develop_holding' || project.currentStageKey === 'execute_project'
     if (
+      deadlineApplies &&
       project.deadlineWeek &&
       absoluteWeek > project.deadlineWeek &&
       project.progress < project.targetProgress
