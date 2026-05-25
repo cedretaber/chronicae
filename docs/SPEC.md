@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-25（v0.27 HoldingImprovement / ProjectStage / ProjectBudget 導入・DevelopmentSystem 廃止・development selector 化）
+最終更新: 2026-05-25（v0.28 POP wealth 安定化・Polity 保留額動的化・Project deadline 比例化・バランス観察記録追加）
 
 ---
 
@@ -21,3 +21,4 @@
 | 11 | [UI 構成](spec/11-ui.md) | `spec/11-ui.md` |
 | 12 | [アーキテクチャ原則](spec/12-architecture.md) | `spec/12-architecture.md` |
 | 13 | [今後の課題（未実装）](spec/13-future.md) | `spec/13-future.md` |
+| 14 | [ゲームバランス観察記録](spec/14-balance.md) | `spec/14-balance.md` |
