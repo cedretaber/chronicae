@@ -110,7 +110,7 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
 
 `INTERMEDIATE_TAX_RATE = 0.3` で固定。root contract の `taxRateToGrantor` は 0 固定。`byHolding` が正規 index。`byProvince` は最初の Holding の chain を legacy 互換として保持。
 
-### 7.3b Holding の生成（v0.20）
+### 7.3b Holding の生成（v0.20 / v0.27 更新）
 
 各 Province に `holdingsPerProvinceMin..Max` の Holding を生成する。
 
@@ -118,7 +118,25 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
 - `name`: Province 名 + 連番サフィックス (e.g. "Aldoria-1", "Aldoria-2")
 - `weight`: 1.0 (基本) + manor 0.0〜0.3 / city 0.5〜1.0 の乱数加算
 - `landQuality`: 0.8〜1.2 の乱数
-- `development`: Province の habitability から初期値 (-10〜+10) を設定
+- ~~`development`~~: **v0.27 で削除**。代わりに初期 HoldingImprovement を配置（§7.3c 参照）
+
+### 7.3c 初期 HoldingImprovement の配置（v0.27）
+
+完全未整備世界を避けるため、Holding kind に応じて Lv.1 Improvement を一定確率で配置する。
+
+```text
+manor:
+  agricultural_infrastructure Lv.1 — 一定確率で配置
+  storage_infrastructure Lv.1 — 低確率で配置
+  transport_infrastructure Lv.1 — 低確率で配置
+
+city:
+  urban_infrastructure Lv.1 — 一定確率で配置
+  storage_infrastructure Lv.1 — 低〜中確率で配置
+  transport_infrastructure Lv.1 — 低〜中確率で配置
+```
+
+具体確率は config で制御。v0.27 では worldgen の土地初期化ロジックが変更されるため、同一 seed に対する v0.26.1 以前との世界互換性は保証しない。v0.27 内では同一 seed に対して決定的な worldgen を維持する。
 
 ### 7.4 seatProvinceId / capitalProvinceId の決定
 

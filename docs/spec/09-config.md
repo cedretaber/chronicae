@@ -98,9 +98,9 @@
 | **Public Spending** | | |
 | publicSpendingEnabled | true | 公共支出有効 |
 | publicSpendingYearlyChance | 0.35 | 公共支出年間発動確率 |
-| **Development** | | |
-| developmentPositiveMonthlyDecay | 0.1 | 正 development の月次減衰 |
-| developmentNegativeMonthlyRecovery | 0.25 | 負 development の月次回復 |
+| **Development（v0.27 更新）** | | |
+| ~~developmentPositiveMonthlyDecay~~ | — | **v0.27 で削除**。DevelopmentSystem 廃止 |
+| ~~developmentNegativeMonthlyRecovery~~ | — | **v0.27 で削除**。DevelopmentSystem 廃止 |
 | warConqueredProvinceDevastation | 8 | 征服 Province への荒廃 |
 | warBorderProvinceDevastation | 3 | 境界 Province への荒廃（戦争勝利時） |
 | failedWarBorderDevastation | 3 | 境界 Province への荒廃（戦争敗北時） |
@@ -111,8 +111,8 @@
 | famineReliefDevelopmentRecovery | 2 | 飢饉救済による荒廃軽減 |
 | plagueDevastation | 8 | 疫病による荒廃 |
 | bountifulHarvestDevelopmentGain | 3 | 豊作による development 上昇 |
-| polityLandDevelopmentBaseCost | 70 | Polity土地開発コスト |
-| polityLandDevelopmentGain | 8 | Polity土地開発による development 上昇 |
+| ~~polityLandDevelopmentBaseCost~~ | — | **v0.27 で削除**。publicSpendingSystem の development 直接加算廃止 |
+| ~~polityLandDevelopmentGain~~ | — | **v0.27 で削除**。同上 |
 | ~~houseDevelopmentEnabled~~ | — | **v0.22 で削除**。houseDevelopmentSystem 廃止 |
 | ~~houseDevelopmentYearlyChance~~ | — | **v0.22 で削除** |
 | ~~houseLandDevelopmentBaseCost~~ | — | **v0.22 で削除** |
@@ -276,8 +276,8 @@
 | initialPopFillRatioMin | 70 | 初期 POP 充填率の下限（%） |
 | initialPopFillRatioMax | 95 | 初期 POP 充填率の上限（%） |
 | popSizeEpsilon | 0.01 | none POP がこのサイズ以下で削除 |
-| **POP 自主開発（v0.8）** | | |
-| popDevelopmentEnabled | true | POP 自主開発有効 |
+| **POP 自主開発（v0.8 / v0.27 で無効化）** | | |
+| popDevelopmentEnabled | false | POP 自主開発有効（**v0.27 で false に設定**。system も tick から外した） |
 | popDevelopmentMonthlyChance | 0.02 | 月次発動基本確率 |
 | popDevelopmentMaxMonthlyChance | 0.08 | 月次発動確率の上限 |
 | popDevelopmentWealthThreshold | 65 | 発動に必要な最低 avgWealth |
@@ -336,8 +336,8 @@
 | goalProgressOnAimAbandoned | -5 | Aim 放棄時の Goal progress 変化 |
 | aimDefaultDeadlineWeeks | 240 | Aim のデフォルト期限（週、5年相当） |
 | ~~aimIntentCooldownWeeks~~ | — | **v0.26 で廃止**。projectPreparationCooldownWeeks に置換 |
-| developHoldingCost | 30 | develop_holding の Polity treasury コスト |
-| developHoldingGain | 5 | develop_holding の Holding development 上昇量 |
+| ~~developHoldingCost~~ | — | **v0.27 で削除**。ProjectBudget.required に移行 |
+| ~~developHoldingGain~~ | — | **v0.27 で削除**。development は HoldingImprovement level から算出 |
 | expandPolityShareCost | 40 | expand_polity_share の House wealth コスト |
 | expandPolityShareRawPowerGain | 10 | expand_polity_share の OrganizationShare rawPower 増分 |
 | promotePolicyShiftCost | 0 | promote_policy_shift のコスト（cooldown で乱発防止） |
@@ -417,6 +417,16 @@
 | projectPreparationCooldownWeeks | 4 | ProjectPreparationSystem のクールダウン（週） |
 | **Task 成否判定（v0.26.1）** | | |
 | taskOutcomeSuccessMargin | 20 | outcome 判定の success/partial 境界マージン |
+| **HoldingImprovement / ProjectBudget（v0.27）** | | |
+| holdingImprovementDevelopmentScorePerLevel | {agricultural:8, urban:8, storage:5, transport:5} | Improvement kind ごとの level あたり development 寄与 |
+| holdingImprovementMaxLevelByHoldingKind | manor:{ag:3,ur:1,st:3,tr:3}, city:{ag:1,ur:3,st:3,tr:3} | HoldingKind × ImprovementKind ごとの max level |
+| developHoldingProjectBaseCostByImprovementKind | {agricultural:30, urban:40, storage:20, transport:25} | ImprovementKind ごとの基礎コスト |
+| developHoldingProjectBaseProgressByImprovementKind | {agricultural:100, urban:120, storage:80, transport:90} | ImprovementKind ごとの基礎 targetProgress |
+| improvementLevelCostMultiplier | {1:1, 2:2, 3:4} | level ごとのコスト倍率 |
+| improvementLevelProgressMultiplier | {1:1, 2:2, 3:3} | level ごとの targetProgress 倍率 |
+| projectBudgetMarginMultiplier | 2 | 予算見積もり時のマージン倍率 |
+| projectCompletedRespectGain | 5 | Project 完了時の supervisor への respect 上昇量 |
+| developHoldingTargetDevelopmentThreshold | 40 | goalSelectors の develop_holding 候補判定閾値 |
 
 ---
 

@@ -1,15 +1,25 @@
 # 4. セレクター
 
-### 4.1 Development セレクター
+### 4.1 Development セレクター（v0.27 更新）
 
 ```ts
-// development multiplier: clamp(1 + development / 100, 0, 2)
-// development -100 → 0倍、0 → 1倍、+100 → 2倍
-function getProvinceDevelopmentMultiplier(development: number): number
+// v0.27: HoldingImprovement から development を算出
+// development = sum(improvement.level * scorePerLevel[improvement.kind])
+function getHoldingDevelopment(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
 
-// v0.20: Province の development は Holding の weight 加重平均
-function getProvinceDevelopmentFromHoldings(state: WorldState, provinceId: ProvinceId): number
+// v0.27: development modifier（production / occupation capacity で使用）
+// modifier = clamp(1.0 + development / 150, 0.75, 1.75)
+// development 0 → 1.0（ペナルティなし）、development 62 → 1.41（最大）
+function getHoldingDevelopmentModifier(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
+
+// v0.27: Holding の Improvement level を取得（存在しなければ 0）
+function getHoldingImprovementLevel(state: WorldState, holdingId: HoldingId, kind: HoldingImprovementKind): number
+
+// v0.20: Province の development は Holding の weight 加重平均（v0.27: getHoldingDevelopment 経由で算出）
+function getProvinceDevelopmentFromHoldings(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 ```
+
+**v0.27 変更**: `Holding.development` 保存値を廃止。development は HoldingImprovement の level から selector で算出する。旧 `getProvinceDevelopmentMultiplier` は `getHoldingDevelopmentModifier` に置換。
 
 `getEffectiveProvinceTax` / `getEffectiveProvinceManpower` は v0.8 で廃止。代わりに POP Economy セレクターを使用する。
 

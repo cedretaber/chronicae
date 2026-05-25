@@ -47,7 +47,7 @@ const WEEKS_PER_SEASON = 12
 | 順序 | システム | intervalWeeks | 備考 |
 |------|----------|---:|------|
 | 1 | advanceTime | 毎tick | schedule 対象外。毎 tick 実行 |
-| 2 | DevelopmentSystem | 4 | 旧毎月 |
+| ~~2~~ | ~~DevelopmentSystem~~ | — | **v0.27 で削除**。development は HoldingImprovement selector に移行 |
 | 3 | ControlSystem | 4 | 旧毎月 |
 | 4 | PopSystem | 4 | 旧毎月 |
 | 4b | EmploymentRebalanceSystem | 4 | v0.24 追加。capacity 超過→失業、none→再就業 |
@@ -77,7 +77,7 @@ const WEEKS_PER_SEASON = 12
 | 15 | AmbitionSystem | 4 | 旧毎月 |
 | 16 | PublicSpendingSystem | 48 | 旧毎年 |
 | 17 | ~~HouseDevelopmentSystem~~ | — | **v0.22 で廃止**（§6.17）。土地開発は Polity develop_holding に一本化 |
-| 18 | PopDevelopmentSystem | 4 | 旧毎月 |
+| ~~18~~ | ~~PopDevelopmentSystem~~ | — | **v0.27 で無効化**。将来 POP 主導 Project として再導入予定 |
 | 19 | PlotSystem | 4 | 旧毎月 |
 | 19b | PersonGoalMaintenanceSystem | 48 | v0.23 追加。Person Goal 生成・fulfillment 管理 |
 | 19c | PersonAimMaintenanceSystem | 4 | v0.23 追加。Person Aim 生成・deadline/waiting 管理 |

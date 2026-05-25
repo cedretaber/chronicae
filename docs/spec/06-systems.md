@@ -1,14 +1,8 @@
 # 6. 各システムの仕様
 
-### 6.1 DevelopmentSystem（4週ごと）
+### 6.1 DevelopmentSystem（v0.27 で削除）
 
-全 Province に対して自然減衰・回復を適用：
-
-```
-development > 0 → development = max(0, development - developmentPositiveMonthlyDecay)
-development < 0 → development = min(0, development + developmentNegativeMonthlyRecovery)
-結果を clamp(-100, 100)
-```
+**v0.27 で削除。** `Holding.development` 保存値が廃止され、development は HoldingImprovement から selector で算出する（§4.1 参照）。関連 config（`developmentPositiveMonthlyDecay` / `developmentNegativeMonthlyRecovery`）も削除。
 
 ### 6.2 ControlSystem（4週ごと）
 
@@ -357,17 +351,17 @@ pressure 1.0 で飢饉確率 100%（`faminePressureChanceBonus: 9.2`）。人口
 
 | 災害 | 基礎確率 | 圧力ボーナス | 効果 |
 |------|------|------|------|
-| Famine（飢饉） | 8% | +9.2/excess | Province dev 低下、peasants wealth -8・population -10% |
-| Plague（疫病） | 3% | +2.0/excess | Province dev 低下、全 POP wealth -10・population -5% |
-| BountifulHarvest（豊作） | 5% | なし | Province dev 上昇、peasants/townsmen wealth 上昇・unrest 低下 |
+| Famine（飢饉） | 8% | +9.2/excess | ~~Province dev 低下~~（v0.27 無効化）、peasants wealth -8・population -10% |
+| Plague（疫病） | 3% | +2.0/excess | ~~Province dev 低下~~（v0.27 無効化）、全 POP wealth -10・population -5% |
+| BountifulHarvest（豊作） | 5% | なし | ~~Province dev 上昇~~（v0.27 無効化）、peasants/townsmen wealth 上昇・unrest 低下 |
 
 **Famine の詳細**:
-- dev -= `famineDevastation`
+- ~~dev -= `famineDevastation`~~（v0.27 で無効化。将来 devastation/condition で再接続）
 - peasants wealth -= `famineWealthPenalty`（default: 8）
 - peasants size *= `(1 - famineSizeDamageRate)`（default: -10%）
 
 **Plague の詳細**:
-- dev -= `plagueDevastation`
+- ~~dev -= `plagueDevastation`~~（v0.27 で無効化）
 - 全 POP wealth -= `plagueWealthPenalty`
 - 全 POP size *= `(1 - plagueSizeDamageRate)`（default: -5%）
 
@@ -759,18 +753,14 @@ if (ability[k] < effectiveCeil) {
 
 人物・家ごとに野心スコアを計算し、将来の陰謀・反乱の素地を作る。
 
-### 6.16 PublicSpendingSystem（48週ごと = 毎年）
+### 6.16 PublicSpendingSystem（48週ごと = 毎年、v0.27 で development 直接加算を削除）
 
-`publicSpendingYearlyChance`（35%）で発動。Polity treasury から terminal Province 1 つを選んで土地開発する。
+**v0.27**: development 直接加算ロジックを削除。土地開発は develop_holding Project に一本化。system 自体は残すが、v0.27 時点では no-op。
 
-**Polity土地開発（POP_LAND_DEVELOPED）**:
-- 条件: treasury >= effectiveCost（Polity treasurer の admin による割引あり）
-- 対象 Province: 当該 Polity が terminal な Province の中から、ruler House の所領 (`getProvinceEffectiveOwnerHouseId === rulerHouseId`) と recovery score (負の development の絶対値) で最高スコアを選ぶ
-- 効果: development += gain（clamp）、treasury -= effectiveCost
-- v0.16: `houseControl` 廃止に伴い旧来の `landDevelopmentHouseControlGain` 加算は無効化された (config は残置するが未使用)
+旧仕様（参考）: `publicSpendingYearlyChance`（35%）で発動。Polity treasury から terminal Province 1 つを選んで development += gain を行っていた。関連 config（`polityLandDevelopmentBaseCost` / `polityLandDevelopmentGain`）も削除。
 
 **記念碑建設の廃止**:
-v0.16 後の整理で `MONUMENT_BUILT` イベントは削除された（ログを埋めるだけで観賞価値が薄く、polityControl 補強の代替経路として独立した存在意義に乏しいため）。これに伴い `monumentScore` vs `landDevelopmentScore` の二択分岐構造、関連 config (`monumentBaseCost` / `monumentPolityControlGain` / `chancellorAmbition,CautionMonumentScoreEffect`)、selector (`calcChancellorMonumentScoreBonus`) もすべて削除された。
+v0.16 後の整理で `MONUMENT_BUILT` イベントは削除された。
 
 ### 6.17 HouseDevelopmentSystem（v0.22 で廃止）
 
@@ -778,9 +768,11 @@ House が直接 Holding / Province を開発する仕組みは、土地契約・
 
 廃止に伴い、`houseDevelopmentEnabled` / `houseDevelopmentYearlyChance` / `houseLandDevelopmentBaseCost` / `houseLandDevelopmentGain` / `houseWealthReserve` config と `HOUSE_LAND_DEVELOPED` EventType を削除した。
 
-### 6.18 PopDevelopmentSystem（4週ごと）
+### 6.18 PopDevelopmentSystem（v0.27 で無効化）
 
-`popDevelopmentEnabled` が true のとき動作。地元共同体・都市民・在地有力者による小規模な土地改善を表す。
+**v0.27 で無効化**。`popDevelopmentEnabled: false` に設定し、tick.ts の scheduled system 配列からも外した。将来 POP 主導 Project として再導入予定。ファイルは削除せず残す。
+
+旧仕様（参考）: `popDevelopmentEnabled` が true のとき動作。地元共同体・都市民・在地有力者による小規模な土地改善を表す。
 
 POP 自主開発は Polity / House 開発より明確に弱く、局所的・低効率に留める：
 
@@ -1194,6 +1186,35 @@ collect_holding_revenue Task:
 - placeholder 代官を holder とする collect_holding_revenue Task が存在しない
 - 同一 assignment を target とする active collect_holding_revenue Task が複数存在しない
 
+**v0.27 追加チェック項目**:
+
+HoldingImprovement:
+- id prefix が `hi-`
+- holdingId が存在する
+- kind が有効な HoldingImprovementKind
+- level >= 1、level <= max level for Holding kind
+- condition が 0..100
+- 同一 holdingId + kind が複数存在しない
+- `holdingImprovementIndex.byHolding` と実体が一致
+
+ProjectStage（develop_holding のみ）:
+- currentStageKey が有効な ProjectStageKey
+- execute_project stage: progress / targetProgress は BaseProject の不変量に準ずる
+
+ProjectBudget（develop_holding のみ）:
+- budget.required / allocated / remaining / spent が >= 0
+- active Project: `budget.allocated = budget.remaining + budget.spent`
+- secure_budget 未完了なら allocated / remaining / spent は 0
+
+develop_holding Project:
+- holdingId が存在する
+- improvementKind が有効
+- targetImprovementLevel が max level 以下
+- 同一 holdingId に active develop_holding Project が複数ない
+
+Holding.development 削除確認:
+- 旧 `Holding.development` 範囲チェック (-100..100) を削除
+
 Selector range（debug/integrity-check モード）:
 - `localExtractionRate` が `[minLocalExtractionRate, maxLocalExtractionRate]`
 - `collectionEfficiency` が `[minBailiffCollectionEfficiency, 1.0]`
@@ -1204,7 +1225,7 @@ Selector range（debug/integrity-check モード）:
 
 **v0.26 で廃止。** sell_land の生成ロジックは SellLandProjectGenerationSystem (§6.25b) に移植。
 
-### 6.25a ProjectPreparationSystem（4週ごと、v0.26）
+### 6.25a ProjectPreparationSystem（4週ごと、v0.26 / v0.27 stage 対応）
 
 active Aim を走査し、必要に応じて `prepare_project` Task を生成する。走査対象は `aim.origin === 'goal_driven'` かつ `aim.owner.kind !== 'person'`（Polity / House Aim のみ）。
 
@@ -1216,25 +1237,48 @@ AimKind → ProjectKind マッピング:
 
 `selectProjectCreator` で起案者を選定（候補なしなら待機）。prepare_project Task の assignee は creator。
 
+**v0.27 develop_holding stage 対応**: develop_holding Project 作成時に `currentStageKey = 'find_supervisor'`、`supervisorPersonId = creatorPersonId`（暫定）を設定し、作成直後に find_supervisor → secure_budget の即時解決を試みる。成功すれば `currentStageKey = 'execute_project'` で次の tick へ。同一 Holding に active develop_holding Project が既にある場合は作成しない。
+
+**find_supervisor 即時解決**: 対象 Holding の active bailiff を確認 → いれば採用、いなければ4段階カスケード（creator 派閥 → owner house → Share 保有家 → 派閥構成員）で候補を探し任命。成功時に `termProtectedUntilWeek` を設定。
+
+**secure_budget 即時解決**: Project owner の treasury/wealth から `budget.required` を確保。`budget.required = baseCost × levelCostMultiplier × projectBudgetMarginMultiplier`。資金不足時は secure_budget stage に留まる。
+
 ### 6.25b SellLandProjectGenerationSystem（48週ごと、v0.26）
 
 旧 IntentGenerationSystem の sell_land ロジックを移植。Polity の財政難から直接 sell_land Project を生成する（prepare_project Task を経由しない）。`origin: { kind: 'system', reasonKey: 'fiscal_pressure' }`。
 
-### 6.25c ProjectTaskGenerationSystem（毎週、v0.26）
+### 6.25c ProjectTaskGenerationSystem（毎週、v0.26 / v0.27 stage 対応）
 
 active Project を走査し、`advance_project` Task を生成する。生成条件: supervisor が alive / 同 Project を target にする active advance_project Task がない / deadline 未超過。
 
-### 6.25d ProjectMaintenanceSystem（4週ごと、v0.26）
+**v0.27**: develop_holding Project の場合、`currentStageKey === 'execute_project'` の場合のみ Task を生成。find_supervisor / secure_budget stage では生成しない。
+
+### 6.25d ProjectMaintenanceSystem（4週ごと、v0.26 / v0.27 stage 対応）
 
 active Project の状態更新。owner inactive → cancelled、origin Aim が non-active → cancelled、supervisor 死亡 → 再選定（失敗なら failed）、deadline 超過 → failed、progress >= targetProgress → completed。
 
-### 6.25e ProjectOutcomeSystem（4週ごと、v0.26）
+**v0.27 develop_holding 追加処理**:
+- find_supervisor / secure_budget stage に留まっている Project に対して即時解決を再試行
+- deadline は execute_project stage のみに適用（準備段階では treasury 回復・人材確保を待機可能）
+- budget.remaining が消費額未満の場合は Project を failed にする（追加予算は future）
+
+### 6.25e ProjectOutcomeSystem（4週ごと、v0.26 / v0.27 HoldingImprovement 対応）
 
 terminal Project の効果解決・ログ出力・cleanup を担当。
 
-- 非外交系 Project: treasury/wealth/development/prestige 等の直接効果を適用し、Aim progress を加算
+- 非外交系 Project: treasury/wealth/prestige 等の直接効果を適用し、Aim progress を加算
 - 外交系 Project: DiplomaticPlay を生成し、Aim.activeDiplomaticPlayId を設定（Aim progress は AimOutcomeSystem に委ねる）
 - Project を state.projects / projectIndex から削除
+
+**v0.27 develop_holding completed 時の追加処理**:
+1. HoldingImprovement を作成（新規）または level up（既存）
+2. `budget.remaining` → `supervisor.wealth`（成功報酬・節約分の取り分）
+3. `project_completed` PersonActivityLog を supervisor に追加（params に improvementKind / targetLevel / holdingId）
+4. creator → supervisor / owner leader → supervisor の respect を小幅上昇（`projectCompletedRespectGain`）
+
+**v0.27 develop_holding failed 時の追加処理**:
+1. `budget.remaining` → owner に返金
+2. `project_failed` PersonActivityLog を supervisor に追加
 
 ### 6.26 IntentToDiplomaticPlaySystem（v0.26 で廃止）
 
@@ -1266,7 +1310,7 @@ status='escalated' な DiplomaticPlay を武力衝突として解決する。
 
 revolt_negotiation の決裂時は通常の actor military power ではなく、ProvinceRevoltSystem の既存式 (rebelPower / suppressionPower) を利用する。
 
-WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / development / unrest) を適用。
+WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / ~~development~~ / unrest) を適用。**v0.27**: development 低下効果は無効化（`adjustProvinceDevelopment` が no-op）。将来 devastation/condition で再接続。
 
 ### 6.29 CleanupTerminalDiplomacy（4週ごと、v0.18 / v0.26 更新）
 
@@ -1329,6 +1373,8 @@ Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で�
 - success: progress += 25、外交系は preparation/leverage/commitment を success 値で加算
 - partial: progress += 10、外交系は partial 値で加算
 - failure: progress += 0、外交系も加算なし
+
+**v0.27 develop_holding budget 消費**: advance_project outcome 解決時に ProjectBudget を消費する。消費額 = `budget.required / (expectedTasks × projectBudgetMarginMultiplier)`。outcome に関わらず一律消費（費用はタスク内容に、進捗は結果に由来するため）。将来的に担当者能力による消費乗数を導入予定。
 
 **v0.26.1 Aim 系 Task outcome 分岐**:
 - success: 通常処理（Aim progress +1、次 Task 生成等）

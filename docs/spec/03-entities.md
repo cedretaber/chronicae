@@ -40,7 +40,7 @@ type StateRegion = {
 - State 間隣接は保存せず、selector (`getStateNeighborIds`) で Province.neighbors から動的に算出
 - State 境界ポリゴンは WorldState に保存しない。UI 側で Province の Voronoi セルから動的に算出
 
-### 3.1c Holding（v0.20）
+### 3.1c Holding（v0.20 / v0.27 更新）
 
 ```ts
 type HoldingKind = 'manor' | 'city'
@@ -49,8 +49,6 @@ type Holding = {
   id: HoldingId
   provinceId: ProvinceId
   kind: HoldingKind
-  name: string
-  development: number     // -100..100
   polityControl: number   // 0..100
   landQuality: number     // > 0
   weight: number          // > 0
@@ -59,11 +57,56 @@ type Holding = {
 
 - Province 内の個別土地区画。土地契約・実効支配・開発度・収入分配・代官任命の単位
 - `kind`: manor (農村荘園) / city (都市)。収入分配で city は kindMultiplier = 1.3
-- `development`: 荒廃〜発展。Province の development は全 Holding の weight 加重平均
 - `polityControl`: terminal Polity の実効支配力。ControlSystem が Holding 単位で更新
 - `landQuality`: 土地の基礎品質。収入分配の share weight に影響
 - `weight`: Holding の相対的な重み。収入分配・Province 集計の加重に使用
 - Holding-Province 対応はゲーム中不変（v0.20 scope ではゲーム中の Holding 追加・削除はない）
+- **v0.27**: `development` フィールドを削除。development は HoldingImprovement から `getHoldingDevelopment` selector で算出する（§4.1 / §3.1d 参照）
+
+### 3.1d HoldingImprovement（v0.27）
+
+```ts
+type HoldingImprovementId = string  // prefix: "hi-"
+
+type HoldingImprovementKind =
+  | 'agricultural_infrastructure'
+  | 'urban_infrastructure'
+  | 'storage_infrastructure'
+  | 'transport_infrastructure'
+
+type HoldingImprovement = {
+  id: HoldingImprovementId
+  holdingId: HoldingId
+  kind: HoldingImprovementKind
+  level: number        // >= 1
+  condition: number    // 0..100（v0.27 では常に 100）
+  createdWeek: number
+}
+```
+
+- Holding に付随する施設。同一 Holding / kind の Improvement は 1 件のみ
+- `level`: 施設の等級。Holding kind ごとに max level が異なる
+- `condition`: 老朽化・破壊は future。v0.27 では常に 100
+- development は各 Improvement の level × scorePerLevel の合計として `getHoldingDevelopment` selector で算出（§4.1 参照）
+
+**max level（HoldingKind ごと）**:
+
+| ImprovementKind | manor | city |
+|---|---|---|
+| agricultural_infrastructure | 3 | 1 |
+| urban_infrastructure | 1 | 3 |
+| storage_infrastructure | 3 | 3 |
+| transport_infrastructure | 3 | 3 |
+
+**WorldState 追加**:
+
+```ts
+holdingImprovements: Record<HoldingImprovementId, HoldingImprovement>
+holdingImprovementIndex: {
+  byHolding: Record<HoldingId, HoldingImprovementId[]>
+}
+nextHoldingImprovementId: number
+```
 
 ### 3.2 PopClass / PopOccupation / PopGroup（民衆集団、v0.24 更新）
 
@@ -376,6 +419,9 @@ type HoldingOfficeAssignment = {
   // v0.25 追加: 代官徴税条件
   contractedRemittanceRate: number    // 末端契約者への送金率 (default 0.40)
   expectedFeeRate: number             // 慣習的な代官取り分率 (default 0.10)
+
+  // v0.27 追加: 代官任期保護
+  termProtectedUntilWeek?: number     // この週まで通常の任期満了・交代から保護
 }
 ```
 
@@ -638,7 +684,6 @@ type TaskKind =
   | 'study_law' | 'study_accounts' | 'practice_arms' | 'courtly_training'
   | 'prepare_project' | 'advance_project'            // v0.26: prepare_intent を廃止し追加
   | 'secure_internal_support'
-  | 'secure_development_budget' | 'supervise_holding_development'
   | 'arrange_patronage' | 'commission_chronicle_work'
   | 'prepare_argument' | 'gather_claim_evidence' | 'negotiate_terms'
   | 'pressure_counterparty' | 'offer_compromise' | 'undermine_counterparty_position'
@@ -671,18 +716,20 @@ type Task = {
 
 完了・失敗・キャンセルされた Task は ActivityLog 作成後に state.tasks から削除。ID は再利用しない。
 
-#### PersonActivityLog
+#### PersonActivityLog（v0.27 discriminated union 化）
 
-Task 完了・失敗・キャンセル時に作成される軽量な行動記録。
+Task / Project の完了・失敗時に作成される軽量な行動記録。v0.27 で TaskActivityLog と ProjectActivityLog の discriminated union に変更。
 
 ```ts
-type PersonActivityKind = 'task_completed' | 'task_failed' | 'task_cancelled' | 'task_expired'  // v0.25: task_expired 追加
+type PersonActivityKind =
+  | 'task_completed' | 'task_failed' | 'task_cancelled' | 'task_expired'
+  | 'project_completed' | 'project_failed'  // v0.27 追加
 
-type PersonActivityLog = {
+type TaskActivityLog = {
   id: PersonActivityLogId
   personId: PersonId
   week: number
-  kind: PersonActivityKind
+  kind: 'task_completed' | 'task_failed' | 'task_cancelled' | 'task_expired'
   outcome: TaskOutcomeKind
   taskKind: TaskKind
   sourceRef?: TaskTargetRef
@@ -691,7 +738,24 @@ type PersonActivityLog = {
   params?: Record<string, string | number>
   importance: number
 }
+
+type ProjectActivityLog = {
+  id: PersonActivityLogId
+  personId: PersonId
+  week: number
+  kind: 'project_completed' | 'project_failed'
+  projectKind: ProjectKind
+  sourceRef: { kind: 'project'; id: ProjectId }
+  relatedRefs: EntityRef[]
+  summaryKey: string
+  params?: Record<string, string | number>
+  importance: number
+}
+
+type PersonActivityLog = TaskActivityLog | ProjectActivityLog
 ```
+
+判別は `'outcome' in log` で行う（TaskActivityLog のみ `outcome` フィールドを持つ）。
 
 person ごとに最新 `maxActivityLogsPerPerson` 件（デフォルト 30）まで保持。超過時は importance が最も低い古い log から削除。
 
@@ -796,13 +860,44 @@ type BaseProject = {
 ```
 
 7 つの派生型 union で構成:
-- `DevelopHoldingProject`: holdingId / budget / spentBudget
+- `DevelopHoldingProject`: holdingId / improvementKind / targetImprovementLevel / currentStageKey / budget (ProjectBudget) — v0.27 で Stage / Budget を導入
 - `ExpandPolityShareProject`: polityId / houseId / budget / spentBudget
 - `PromotePolicyShiftProject`: polityId / houseId / policyKey
 - `PatronizeArtistProject`: houseId / budget / spentBudget / artistPersonId
 - `CommissionChronicleProject`: houseId / budget / spentBudget / subjectRef
 - `LandClaimProject` (acquire_land / sell_land): holdingId / provinceId / counterpartyPolityId / preparation / leverage / commitment
 - `ContractRevisionProject` (improve_contract_terms / demand_tax_increase): holdingId / landContractId / counterpartyPolityId / desiredTaxRateToGrantor / preparation / leverage / commitment
+
+#### DevelopHoldingProject（v0.27 Stage / Budget 導入）
+
+```ts
+type ProjectStageKey = 'find_supervisor' | 'secure_budget' | 'execute_project'
+
+type ProjectBudgetSource = { kind: 'owner' }
+
+type ProjectBudget = {
+  required: number
+  allocated: number
+  remaining: number
+  spent: number
+  source: ProjectBudgetSource
+}
+
+type DevelopHoldingProject = BaseProject & {
+  kind: 'develop_holding'
+  holdingId: HoldingId
+  improvementKind: HoldingImprovementKind
+  targetImprovementLevel: number
+  currentStageKey: ProjectStageKey
+  budget: ProjectBudget
+}
+```
+
+- `currentStageKey`: find_supervisor → secure_budget → execute_project の線形遷移
+- `budget`: 事前確保方式。secure_budget stage で owner から確保し、advance_project Task で消費
+- find_supervisor / secure_budget は即時解決（Task を発行しない）。execute_project でのみ advance_project Task を生成
+- 同一 Holding に active develop_holding Project は 1 つまで
+- deadline は execute_project stage のみに適用（§6.25d 参照）
 
 #### WorldState 追加 (v0.26)
 
