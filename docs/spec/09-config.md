@@ -381,7 +381,7 @@
 | maxBailiffFeeRate | 0.25 | 代官取り分率の上限 |
 | bailiffTaskCompletedCollectionModifier | 0.05 | Task completed 時の徴税効率ボーナス |
 | bailiffTaskNoneCollectionModifier | 0.00 | Task none 時の徴税効率ペナルティ（v0.25 では 0） |
-| localExtractionWealthPenalty | 4 | collectionFrictionBurdenRate × この値で POP wealth 損耗 |
+| localExtractionWealthPenalty | 2 | collectionFrictionBurdenRate × この値 × (pop.wealth/100) で POP wealth 損耗（v0.28 で wealth 比例化、値 4→2） |
 | localExtractionUnrestGain | 3 | burdenOverComfort × この値で POP unrest 上昇 |
 | bailiffBurdenAffectionPenaltyFactor | 2 | burdenOverComfort × この値で POP→代官 affection 低下 |
 | bailiffProtectResidentsAffectionBonus | 0.2 | protect_residents 時の POP→代官 affection ボーナス |
@@ -411,7 +411,7 @@
 | projectBudgetExpandPolityShare | 40 | expand_polity_share 完了時の wealth コスト |
 | projectBudgetPatronizeArtist | 25 | patronize_artist 完了時の wealth コスト |
 | projectBudgetCommissionChronicle | 40 | commission_chronicle 完了時の wealth コスト |
-| projectDeadlineWeeksDevelopment | 48 | 非外交系 Project のデフォルト deadline（週） |
+| projectDeadlineWeeksDevelopment | 48 | develop_holding の base deadline（週）。実際の deadline = base × (targetProgress / 100)。Level 1=48, Level 2=96, Level 3=144 |
 | projectDeadlineWeeksDiplomatic | 24 | 外交系 Project のデフォルト deadline（週） |
 | prepareProjectPartialTargetProgressPenalty | 10 | prepare_project 部分成功時の targetProgress ペナルティ |
 | projectPreparationCooldownWeeks | 4 | ProjectPreparationSystem のクールダウン（週） |

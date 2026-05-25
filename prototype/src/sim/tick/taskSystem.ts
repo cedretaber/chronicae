@@ -970,15 +970,14 @@ function handlePrepareProjectCompletionMut(
     selectProjectSupervisor(ws, config, aim.owner, projectKind, creatorPersonId) ?? creatorPersonId
 
   const projectId: ProjectId = createProjectId(ws.nextProjectId)
-  const deadlineWeeks = getProjectDeadlineWeeks(config, projectKind)
-  const deadlineWeek = aim.deadlineWeek
-    ? Math.min(aim.deadlineWeek, absoluteWeek + deadlineWeeks)
-    : absoluteWeek + deadlineWeeks
-
   const targetProgress =
     outcome === 'partial'
       ? config.projectDefaultTargetProgress + config.prepareProjectPartialTargetProgressPenalty
       : config.projectDefaultTargetProgress
+  const deadlineWeeks = getProjectDeadlineWeeks(config, projectKind, targetProgress)
+  const deadlineWeek = aim.deadlineWeek
+    ? Math.min(aim.deadlineWeek, absoluteWeek + deadlineWeeks)
+    : absoluteWeek + deadlineWeeks
 
   const project: Project = {
     id: projectId,

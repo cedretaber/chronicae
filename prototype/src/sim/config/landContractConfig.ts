@@ -6,7 +6,9 @@ export type LandContractConfig = {
   // 余剰分配: treasury から OfficeCompensation 控除後の余剰を Share holder に分配する比率
   politySurplusDistributionRate: number
   // Polity treasury のリザーブ目標 (これを下回ると分配しない)
-  polityTreasuryReserveTarget: number
+  // reserveTarget = base + perHolding × holdingCount
+  polityTreasuryReserveBase: number
+  polityTreasuryReservePerHolding: number
   // BailiffAppointment 起動頻度。v0.19 では ScheduledSystem の intervalWeeks で制御 (6ヶ月 = 24週)
   bailiffAppointmentInterval: number
   // bailiff 候補者の最小年齢
@@ -31,7 +33,8 @@ export type LandContractConfig = {
 
 export const defaultLandContractConfig: LandContractConfig = {
   politySurplusDistributionRate: 0.15,
-  polityTreasuryReserveTarget: 100,
+  polityTreasuryReserveBase: 50,
+  polityTreasuryReservePerHolding: 50,
   bailiffAppointmentInterval: 6,
   bailiffMinAge: 16,
   rebelLeaderAgeRange: [20, 50],

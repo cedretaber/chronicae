@@ -2,15 +2,19 @@ import type { TickContext } from './context'
 import type { PolityId, HouseId, PersonId } from '../types/ids'
 import { getOrganizationShares, getTotalRawPower } from '../selectors/shareSelectors'
 import { defaultLandContractConfig } from '../config/landContractConfig'
+import { getPolityTerminalProvinceIds } from '../selectors/landContractSelectors'
 
 // v0.16 §18.2: PolitySurplusDistributionSystem
 // 給与控除後 (OfficeCompensation は別 system が treasury から引く) の余剰を Share holder に分配する。
 // distributable = max(0, treasury - reserveTarget) * distributionRate
+// reserveTarget = base + perHolding × holdingCount (所領規模に応じた動的保留)
 // Person Share holder → Person.wealth, House Share holder → House.wealth
 export function runPolitySurplusDistributionSystem(ctx: TickContext): TickContext {
-  // 毎月走るが、過剰分配を避けるため reserveTarget で抑制する
-  const reserveTarget = defaultLandContractConfig.polityTreasuryReserveTarget
-  const distributionRate = defaultLandContractConfig.politySurplusDistributionRate
+  const {
+    polityTreasuryReserveBase,
+    polityTreasuryReservePerHolding,
+    politySurplusDistributionRate: distributionRate,
+  } = defaultLandContractConfig
 
   let state = ctx.state
 
@@ -23,6 +27,13 @@ export function runPolitySurplusDistributionSystem(ctx: TickContext): TickContex
     const polity = state.polities[polityId]
     if (!polity || !polity.active) continue
 
+    const terminalProvinceIds = getPolityTerminalProvinceIds(state, polityId)
+    let holdingCount = 0
+    for (const pid of terminalProvinceIds) {
+      const province = state.provinces[pid]
+      if (province) holdingCount += province.holdingIds.length
+    }
+    const reserveTarget = polityTreasuryReserveBase + polityTreasuryReservePerHolding * holdingCount
     const distributable = Math.max(0, polity.treasury - reserveTarget) * distributionRate
     if (distributable <= 0) continue
 

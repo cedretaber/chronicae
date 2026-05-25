@@ -275,8 +275,8 @@ terminal Polity の treasurer に能力補正がかかる（§10 参照）。`co
 const { collectionFrictionBurdenRate, totalBurdenRate } =
   computeBailiffBurdenComponents(localExtractionRate, collectionEfficiency, config.collectionFrictionFactor)
 
-// POP wealth: 徴税摩擦による追加損耗
-pop.wealth -= collectionFrictionBurdenRate * config.localExtractionWealthPenalty
+// POP wealth: 徴税摩擦による追加損耗（v0.28 で wealth 比例化）
+pop.wealth -= collectionFrictionBurdenRate * config.localExtractionWealthPenalty * (pop.wealth / 100)
 
 // POP unrest: totalBurdenRate が comfort を超えた分で上昇
 const burdenOverComfort = Math.max(0, totalBurdenRate - config.comfortableLocalExtractionRate)
@@ -309,9 +309,14 @@ POP は生産の過半（標準で約 65%）を保持する。`retainedWealthGai
 各 Polity treasury から OrganizationShare に応じて Share holder に分配する。給与・維持費 (OfficeCompensationSystem §6.14b) は別 system で支払う。
 
 ```ts
+// v0.28: reserveTarget を所領規模に応じて動的に計算
+const holdingCount = /* polity の terminal province 全体の holding 数 */
+const reserveTarget = config.polityTreasuryReserveBase
+  + config.polityTreasuryReservePerHolding * holdingCount
+
 const distributable = Math.max(
   0,
-  polity.treasury - config.polityTreasuryReserveTarget
+  polity.treasury - reserveTarget
 ) * config.politySurplusDistributionRate
 
 // Polity の OrganizationShare 全 holder に rawPower 比で分配
@@ -328,7 +333,7 @@ for (const share of getOrganizationShares(state, { kind: 'polity', id: polityId 
 polity.treasury -= distributedTotal
 ```
 
-`reserveTarget` (`polityTreasuryReserveTarget`、暫定 100) は予備として残り、後続の OfficeCompensationSystem の給与原資となる（spec-v016-update.md §21）。
+`reserveTarget` は `polityTreasuryReserveBase`（暫定 50）+ `polityTreasuryReservePerHolding`（暫定 50）× holding 数で動的に算出される。大国ほど多くの運営資金を確保し、プロジェクト費用や給与の支払いに備える。後続の OfficeCompensationSystem の給与原資となる（spec-v016-update.md §21）。
 
 **Person Share holder の死亡 skip**: holder Person が `!alive` の場合は分配しない（暫定挙動。家・相続人への流入は将来の課題）。
 
@@ -1259,7 +1264,7 @@ active Project の状態更新。owner inactive → cancelled、origin Aim が n
 
 **v0.27 develop_holding 追加処理**:
 - find_supervisor / secure_budget stage に留まっている Project に対して即時解決を再試行
-- deadline は execute_project stage のみに適用（準備段階では treasury 回復・人材確保を待機可能）
+- deadline は execute_project stage のみに適用（準備段階では treasury 回復・人材確保を待機可能）。**v0.28**: deadline を `projectDeadlineWeeksDevelopment × (targetProgress / projectDefaultTargetProgress)` で算出。Level 2 (×2) / Level 3 (×3) の大規模工事に比例した期間を確保
 - budget.remaining が消費額未満の場合は Project を failed にする（追加予算は future）
 
 ### 6.25e ProjectOutcomeSystem（4週ごと、v0.26 / v0.27 HoldingImprovement 対応）

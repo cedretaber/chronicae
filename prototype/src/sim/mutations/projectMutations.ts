@@ -155,7 +155,17 @@ export function isDiplomaticProjectKind(kind: ProjectKind): boolean {
   )
 }
 
-export function getProjectDeadlineWeeks(config: SimulationConfig, kind: ProjectKind): number {
+export function getProjectDeadlineWeeks(
+  config: SimulationConfig,
+  kind: ProjectKind,
+  targetProgress?: number,
+): number {
   if (isDiplomaticProjectKind(kind)) return config.projectDeadlineWeeksDiplomatic
+  if (kind === 'develop_holding' && targetProgress !== undefined) {
+    return Math.ceil(
+      config.projectDeadlineWeeksDevelopment *
+        (targetProgress / config.projectDefaultTargetProgress),
+    )
+  }
   return config.projectDeadlineWeeksDevelopment
 }

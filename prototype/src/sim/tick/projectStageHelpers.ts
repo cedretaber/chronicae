@@ -2,7 +2,11 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { DevelopHoldingProject } from '../types/project'
 import type { FactionId, HouseId, PersonId, ProjectId } from '../types/ids'
-import { removeProjectFromIndexMut, addProjectToIndexMut } from '../mutations/projectMutations'
+import {
+  removeProjectFromIndexMut,
+  addProjectToIndexMut,
+  getProjectDeadlineWeeks,
+} from '../mutations/projectMutations'
 import { vacateHoldingBailiff, appointHoldingBailiff } from '../mutations/provinceOfficeMutations'
 import {
   getActiveFactionMembership,
@@ -126,7 +130,8 @@ function resolveSecureBudget(
     [polityId]: { ...polity, treasury: polity.treasury - project.budget.required },
   }
 
-  const executionDeadline = absoluteWeek + config.projectDeadlineWeeksDevelopment
+  const executionDeadline =
+    absoluteWeek + getProjectDeadlineWeeks(config, 'develop_holding', project.targetProgress)
 
   return {
     ...project,

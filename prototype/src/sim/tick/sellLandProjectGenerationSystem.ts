@@ -83,7 +83,11 @@ export function runSellLandProjectGenerationSystem(ctx: TickContext): TickContex
       selectProjectSupervisor(ws, config, owner, 'sell_land', creatorId) ?? creatorId
 
     const projectId: ProjectId = createProjectId(ws.nextProjectId)
-    const deadlineWeeks = getProjectDeadlineWeeks(config, 'sell_land')
+    const deadlineWeeks = getProjectDeadlineWeeks(
+      config,
+      'sell_land',
+      config.projectDefaultTargetProgress,
+    )
 
     const project: Project = {
       id: projectId,
