@@ -9,6 +9,7 @@ import type {
   StateRegionId,
   HoldingId,
   HoldingOfficeAssignmentId,
+  HoldingImprovementId,
 } from '../types/ids'
 import {
   newPopGroupId,
@@ -19,6 +20,7 @@ import {
   createGoalId,
   createAimId,
   createDecisionReasonId,
+  createHoldingImprovementId,
 } from '../types/ids'
 import type { Province } from '../types/province'
 import type { House } from '../types/house'
@@ -44,6 +46,7 @@ import type {
   HoldingOfficeIndex,
 } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
+import type { HoldingImprovement, HoldingImprovementKind } from '../types/holdingImprovement'
 import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { PLACEHOLDER_PERSON_ID } from '../types/person'
 import { createRng, randomInt, randomFloat } from '../rng/rng'
@@ -1390,6 +1393,50 @@ export function generateWorld(
     }
   }
 
+  // v0.27 Phase C: Initial HoldingImprovement placement (§17)
+  const holdingImprovements: Record<HoldingImprovementId, HoldingImprovement> = {}
+  const holdingImprovementIndexByHolding: Record<string, HoldingImprovementId[]> = {}
+  let nextHoldingImprovementId = 0
+
+  const initialImprovementChances: Record<
+    string,
+    { kind: HoldingImprovementKind; probability: number }[]
+  > = {
+    manor: [
+      { kind: 'agricultural_infrastructure', probability: 0.4 },
+      { kind: 'storage_infrastructure', probability: 0.15 },
+      { kind: 'transport_infrastructure', probability: 0.15 },
+    ],
+    city: [
+      { kind: 'urban_infrastructure', probability: 0.4 },
+      { kind: 'storage_infrastructure', probability: 0.25 },
+      { kind: 'transport_infrastructure', probability: 0.25 },
+    ],
+  }
+
+  for (const holding of Object.values(holdingsRecord)) {
+    if (!holding) continue
+    const chances = initialImprovementChances[holding.kind] ?? []
+    for (const cfg of chances) {
+      const { value: roll, rng: rNext } = randomFloat(rng)
+      rng = rNext
+      if (roll < cfg.probability) {
+        const impId = createHoldingImprovementId(nextHoldingImprovementId++)
+        holdingImprovements[impId] = {
+          id: impId,
+          holdingId: holding.id,
+          kind: cfg.kind,
+          level: 1,
+          condition: 100,
+          createdWeek: 1,
+        }
+        const slot = holdingImprovementIndexByHolding[holding.id as string] ?? []
+        slot.push(impId)
+        holdingImprovementIndexByHolding[holding.id as string] = slot
+      }
+    }
+  }
+
   // polityIndex.byOwnerHouse
   const polityIndex: PolityIndex = { byOwnerHouse: {} }
   for (const polity of polities) {
@@ -1694,9 +1741,9 @@ export function generateWorld(
     factionMemberships: {},
     factionIndex: { byLeader: {}, byMember: {} },
     // v0.27 HoldingImprovement
-    holdingImprovements: {},
-    holdingImprovementIndex: { byHolding: {} },
-    nextHoldingImprovementId: 0,
+    holdingImprovements,
+    holdingImprovementIndex: { byHolding: holdingImprovementIndexByHolding },
+    nextHoldingImprovementId,
     // v0.26 Project system
     projects: {},
     projectIndex: {

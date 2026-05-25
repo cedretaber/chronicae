@@ -12,6 +12,7 @@ import type {
   StateRegionId,
   HoldingId,
   HoldingOfficeAssignmentId,
+  HoldingImprovementId,
 } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -38,6 +39,19 @@ import {
 import { targetRefKey } from '../types/task'
 
 const VALID_ABILITY_KEYS: ReadonlySet<string> = new Set(ABILITY_KEYS)
+
+const VALID_HOLDING_IMPROVEMENT_KINDS: ReadonlySet<string> = new Set([
+  'agricultural_infrastructure',
+  'urban_infrastructure',
+  'storage_infrastructure',
+  'transport_infrastructure',
+])
+
+const VALID_PROJECT_STAGE_KEYS: ReadonlySet<string> = new Set([
+  'find_supervisor',
+  'secure_budget',
+  'execute_project',
+])
 
 // v0.16 §25 IntegrityCheck 33 項目の実装状況サマリ:
 //
@@ -1780,6 +1794,115 @@ export function collectIntegrityErrors(
     }
   }
 
+  // --- v0.27 §19.1: HoldingImprovement checks ---
+  {
+    const seenHoldingKindPairs = new Set<string>()
+    const improvementsByHolding: Record<string, HoldingImprovementId[]> = {}
+
+    for (const [idStr, imp] of Object.entries(state.holdingImprovements)) {
+      if (!imp) continue
+      const impId = idStr as HoldingImprovementId
+
+      if (!idStr.startsWith('hi-')) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingImprovement ${idStr}: id does not start with 'hi-' (§19.1)`,
+        })
+      }
+
+      const holding = state.holdings[imp.holdingId]
+      if (!holding) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingImprovement ${idStr}: holdingId ${imp.holdingId as string} does not exist (§19.1)`,
+        })
+      }
+
+      if (!VALID_HOLDING_IMPROVEMENT_KINDS.has(imp.kind)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingImprovement ${idStr}: kind=${imp.kind} is not valid (§19.1)`,
+        })
+      }
+
+      if (imp.level < 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingImprovement ${idStr}: level=${imp.level} must be >= 1 (§19.1)`,
+        })
+      }
+
+      if (holding && config) {
+        const maxByKind = config.holdingImprovementMaxLevelByHoldingKind[holding.kind]
+        const maxLevel = maxByKind?.[imp.kind]
+        if (maxLevel !== undefined && imp.level > maxLevel) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `HoldingImprovement ${idStr}: level=${imp.level} exceeds max ${maxLevel} for ${holding.kind}/${imp.kind} (§19.1)`,
+          })
+        }
+      }
+
+      if (imp.condition < 0 || imp.condition > 100) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingImprovement ${idStr}: condition=${imp.condition} outside [0, 100] (§19.1)`,
+        })
+      }
+
+      const pairKey = `${imp.holdingId as string}:${imp.kind}`
+      if (seenHoldingKindPairs.has(pairKey)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `HoldingImprovement ${idStr}: duplicate holdingId+kind pair ${pairKey} (§19.1)`,
+        })
+      }
+      seenHoldingKindPairs.add(pairKey)
+
+      const holdingKey = imp.holdingId as string
+      const list = improvementsByHolding[holdingKey] ?? []
+      list.push(impId)
+      improvementsByHolding[holdingKey] = list
+    }
+
+    for (const [holdingKey, indexedIds] of Object.entries(
+      state.holdingImprovementIndex.byHolding,
+    )) {
+      if (!indexedIds) continue
+      const actualIds = improvementsByHolding[holdingKey] ?? []
+      const indexedSet = new Set(indexedIds.map((id) => id as string))
+      const actualSet = new Set(actualIds.map((id) => id as string))
+
+      for (const id of indexedIds) {
+        if (!actualSet.has(id)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `holdingImprovementIndex.byHolding[${holdingKey}] contains ${id} which does not exist or has wrong holdingId (§19.1)`,
+          })
+        }
+      }
+      for (const id of actualIds) {
+        if (!indexedSet.has(id)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `HoldingImprovement ${id} belongs to holding ${holdingKey} but is not in holdingImprovementIndex.byHolding (§19.1)`,
+          })
+        }
+      }
+    }
+
+    for (const [holdingKey, actualIds] of Object.entries(improvementsByHolding)) {
+      if (!(holdingKey in state.holdingImprovementIndex.byHolding)) {
+        for (const id of actualIds) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `HoldingImprovement ${id as string} belongs to holding ${holdingKey} but holdingImprovementIndex.byHolding has no entry (§19.1)`,
+          })
+        }
+      }
+    }
+  }
+
   // --- v0.22 Goal integrity ---
   const activeGoalCountByOwner: Record<string, number> = {}
 
@@ -2283,6 +2406,121 @@ export function collectIntegrityErrors(
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `Project ${idStr}: origin aim ${project.origin.aimId} does not exist`,
+        })
+      }
+    }
+  }
+
+  // --- v0.27 §19.2-§19.4: develop_holding project checks ---
+  {
+    const activeDevelopByHolding: Record<string, string[]> = {}
+
+    for (const [idStr, project] of Object.entries(state.projects)) {
+      if (!project || project.kind !== 'develop_holding') continue
+      if (project.status !== 'active') continue
+
+      // §19.2: currentStageKey is valid
+      if (!VALID_PROJECT_STAGE_KEYS.has(project.currentStageKey)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: currentStageKey=${project.currentStageKey} is not valid (§19.2)`,
+        })
+      }
+
+      // §19.3: ProjectBudget non-negative
+      if (project.budget.required < 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: budget.required=${project.budget.required} must be >= 0 (§19.3)`,
+        })
+      }
+      if (project.budget.allocated < 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: budget.allocated=${project.budget.allocated} must be >= 0 (§19.3)`,
+        })
+      }
+      if (project.budget.remaining < 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: budget.remaining=${project.budget.remaining} must be >= 0 (§19.3)`,
+        })
+      }
+      if (project.budget.spent < 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: budget.spent=${project.budget.spent} must be >= 0 (§19.3)`,
+        })
+      }
+
+      // §19.3: allocated === remaining + spent
+      const budgetSum = project.budget.remaining + project.budget.spent
+      if (Math.abs(project.budget.allocated - budgetSum) > 0.01) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: budget.allocated (${project.budget.allocated}) !== remaining (${project.budget.remaining}) + spent (${project.budget.spent}) (§19.3)`,
+        })
+      }
+
+      // §19.3: pre-budget stages should have zero budget allocation
+      if (
+        project.currentStageKey === 'find_supervisor' ||
+        project.currentStageKey === 'secure_budget'
+      ) {
+        if (
+          project.budget.allocated !== 0 ||
+          project.budget.remaining !== 0 ||
+          project.budget.spent !== 0
+        ) {
+          if (debug) {
+            console.warn(
+              `INTEGRITY (§19.3 warn): Project ${idStr}: stage=${project.currentStageKey} but budget allocated/remaining/spent not all zero`,
+            )
+          }
+        }
+      }
+
+      // §19.4: holdingId exists
+      if (!state.holdings[project.holdingId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: holdingId=${project.holdingId as string} does not exist (§19.4)`,
+        })
+      }
+
+      // §19.4: improvementKind is valid
+      if (!VALID_HOLDING_IMPROVEMENT_KINDS.has(project.improvementKind)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: improvementKind=${project.improvementKind} is not valid (§19.4)`,
+        })
+      }
+
+      // §19.4: targetImprovementLevel <= max level
+      const holding = state.holdings[project.holdingId]
+      if (holding && config) {
+        const maxByKind = config.holdingImprovementMaxLevelByHoldingKind[holding.kind]
+        const maxLevel = maxByKind?.[project.improvementKind]
+        if (maxLevel !== undefined && project.targetImprovementLevel > maxLevel) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Project ${idStr}: targetImprovementLevel=${project.targetImprovementLevel} exceeds max ${maxLevel} for ${holding.kind}/${project.improvementKind} (§19.4)`,
+          })
+        }
+      }
+
+      // §19.4: at most 1 active develop_holding per holdingId
+      const holdingKey = project.holdingId as string
+      const activeList = activeDevelopByHolding[holdingKey] ?? []
+      activeList.push(idStr)
+      activeDevelopByHolding[holdingKey] = activeList
+    }
+
+    for (const [holdingKey, projectIds] of Object.entries(activeDevelopByHolding)) {
+      if (projectIds.length > 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Holding ${holdingKey}: ${projectIds.length} active develop_holding projects (limit 1) (§19.4)`,
         })
       }
     }

@@ -304,6 +304,20 @@ detail:
     neighbors: 'Neighbors'
     capacity: 'Capacity'
     employment_rate: 'Employment Rate'
+    improvements: 'Improvements'
+    improvement_agricultural_infrastructure: 'Agricultural Infrastructure'
+    improvement_urban_infrastructure: 'Urban Infrastructure'
+    improvement_storage_infrastructure: 'Storage Infrastructure'
+    improvement_transport_infrastructure: 'Transport Infrastructure'
+    improvement_level: 'Lv.{{level}}'
+    active_develop_project: 'Development Project'
+    project_stage: 'Stage'
+    project_stage_find_supervisor: 'Finding Supervisor'
+    project_stage_secure_budget: 'Securing Budget'
+    project_stage_execute_project: 'In Progress'
+    project_budget_total: 'Budget'
+    project_budget_remaining: 'Remaining'
+    project_budget_spent: 'Spent'
 
   # Faction detail
   faction:

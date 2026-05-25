@@ -399,6 +399,20 @@ detail:
     neighbors: '隣接州'
     capacity: '容量'
     employment_rate: '就業率'
+    improvements: '施設'
+    improvement_agricultural_infrastructure: '農業基盤'
+    improvement_urban_infrastructure: '都市基盤'
+    improvement_storage_infrastructure: '貯蔵基盤'
+    improvement_transport_infrastructure: '交通基盤'
+    improvement_level: 'Lv.{{level}}'
+    active_develop_project: '開発事業'
+    project_stage: '段階'
+    project_stage_find_supervisor: '監督者探索中'
+    project_stage_secure_budget: '予算確保中'
+    project_stage_execute_project: '実行中'
+    project_budget_total: '予算'
+    project_budget_remaining: '残額'
+    project_budget_spent: '支出済'
 
   # 派閥詳細
   faction:

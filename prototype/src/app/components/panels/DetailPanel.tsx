@@ -2612,7 +2612,7 @@ export function PersonDetail({
                           </>
                         ) : (
                           <>
-                            {t(`project.${log.projectKind}`, { ns: 'tasks' })}{' '}
+                            {t(`detail.project_kind.${log.projectKind}`)}{' '}
                             {log.kind === 'project_completed' ? '✓' : '✗'}
                           </>
                         )}
@@ -2886,6 +2886,103 @@ export function HoldingDetail({
           <span>{holding.weight.toFixed(1)}</span>
         </div>
       </div>
+
+      {/* Improvements */}
+      {currentState &&
+        (() => {
+          const impIds = currentState.holdingImprovementIndex.byHolding[holding.id as string] ?? []
+          const improvements = impIds
+            .map((id) => currentState.holdingImprovements[id])
+            .filter((imp): imp is NonNullable<typeof imp> => imp !== undefined)
+          if (improvements.length === 0) return null
+          return (
+            <div className="text-sm">
+              <div className="font-semibold text-gray-300">{t('detail.province.improvements')}</div>
+              {improvements.map((imp) => (
+                <div key={imp.id} className="ml-2 flex justify-between">
+                  <span className="text-gray-400">
+                    {t(`detail.province.improvement_${imp.kind}`)}
+                  </span>
+                  <span>{t('detail.province.improvement_level', { level: imp.level })}</span>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+
+      {/* Active develop_holding Project */}
+      {currentState &&
+        (() => {
+          const relKey = `holding:${holding.id}`
+          const projectIds = currentState.projectIndex.byRelatedEntity[relKey] ?? []
+          const activeProject = projectIds
+            .map((pid) => currentState.projects[pid])
+            .find(
+              (p): p is NonNullable<typeof p> =>
+                p !== undefined && p.status === 'active' && p.kind === 'develop_holding',
+            )
+          if (!activeProject || activeProject.kind !== 'develop_holding') return null
+          const supervisor = currentState.persons[activeProject.supervisorPersonId]
+          return (
+            <div className="text-sm">
+              <div className="font-semibold text-gray-300">
+                {t('detail.province.active_develop_project')}
+              </div>
+              <div className="ml-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">{t('detail.province.project_stage')}:</span>
+                  <span>{t(`detail.province.project_stage_${activeProject.currentStageKey}`)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">
+                    {t(`detail.province.improvement_${activeProject.improvementKind}`)}
+                  </span>
+                  <span>&rarr; Lv.{activeProject.targetImprovementLevel}</span>
+                </div>
+                {activeProject.currentStageKey === 'execute_project' && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">{t('detail.house.project_progress')}:</span>
+                    <span>
+                      {activeProject.progress}/{activeProject.targetProgress}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-400">
+                    {t('detail.province.project_budget_total')}:
+                  </span>
+                  <span>{activeProject.budget.required.toFixed(0)}</span>
+                </div>
+                {activeProject.currentStageKey === 'execute_project' && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">
+                        {t('detail.province.project_budget_remaining')}:
+                      </span>
+                      <span>{activeProject.budget.remaining.toFixed(0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">
+                        {t('detail.province.project_budget_spent')}:
+                      </span>
+                      <span>{activeProject.budget.spent.toFixed(0)}</span>
+                    </div>
+                  </>
+                )}
+                {supervisor && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">{t('detail.house.project_supervisor')}:</span>
+                    <PersonLink
+                      personId={supervisor.id}
+                      persons={currentState.persons}
+                      onClick={onPersonClick}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
       {/* Bailiff */}
       {currentState &&
