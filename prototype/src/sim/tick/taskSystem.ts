@@ -1068,7 +1068,7 @@ function buildProjectFieldsForAim(
 
       const baseCost = config.developHoldingProjectBaseCostByImprovementKind[improvementKind]
       const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
-      const required = baseCost * costMult
+      const required = baseCost * costMult * config.projectBudgetMarginMultiplier
 
       const baseProgress =
         config.developHoldingProjectBaseProgressByImprovementKind[improvementKind]
@@ -1264,10 +1264,8 @@ function handleAdvanceProjectCompletionMut(
       1,
       Math.ceil(project.targetProgress / config.projectAdvanceProgressSuccess),
     )
-    let consumption = project.budget.required / expectedTasks
-    if (outcome === 'failure') {
-      consumption *= config.projectBudgetTaskConsumptionFailureMultiplier
-    }
+    const consumption =
+      project.budget.required / (expectedTasks * config.projectBudgetMarginMultiplier)
     const actualConsumption = Math.min(consumption, project.budget.remaining)
     const newBudget: ProjectBudget = {
       ...project.budget,

@@ -613,7 +613,7 @@ export type SimulationConfig = {
   developHoldingProjectBaseProgressByImprovementKind: Record<HoldingImprovementKind, number>
   improvementLevelCostMultiplier: Record<number, number>
   improvementLevelProgressMultiplier: Record<number, number>
-  projectBudgetTaskConsumptionFailureMultiplier: number
+  projectBudgetMarginMultiplier: number
   projectCompletedRespectGain: number
 }
 
@@ -1271,6 +1271,6 @@ export const defaultConfig: SimulationConfig = {
   },
   improvementLevelCostMultiplier: { 1: 1, 2: 2, 3: 4 },
   improvementLevelProgressMultiplier: { 1: 1, 2: 2, 3: 3 },
-  projectBudgetTaskConsumptionFailureMultiplier: 0.5,
+  projectBudgetMarginMultiplier: 2,
   projectCompletedRespectGain: 5,
 }
