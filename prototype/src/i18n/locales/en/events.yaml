@@ -145,6 +145,7 @@ project:
     no_supervisor: "{{owner}}'s project {{kind}} failed — no supervisor available."
     deadline: "{{owner}}'s project {{kind}} failed — deadline exceeded."
     budget: "{{owner}}'s project {{kind}} failed — budget exhausted."
+    stage_max_attempts: "{{owner}}'s project {{kind}} failed — too many failed attempts."
   cancelled:
     owner_inactive: "{{owner}}'s project {{kind}} was cancelled — owner dissolved."
     aim_terminal: "{{owner}}'s project {{kind}} was cancelled — aim no longer active."

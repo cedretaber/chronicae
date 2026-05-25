@@ -34,7 +34,7 @@ import type {
   LandClaimProject,
   ContractRevisionProject,
   ProjectBudget,
-  ProjectStageKey,
+  ProjectKind,
 } from '../types/project'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { HoldingKind } from '../types/landContract'
@@ -64,7 +64,12 @@ import {
   determineTaskOutcome,
 } from '../selectors/taskSelectors'
 import type { RngState } from '../rng/rng'
-import { tryResolveDevelopHoldingStages } from './projectStageHelpers'
+import {
+  getInitialProjectStageKey,
+  getProjectStageType,
+  getNextProjectStageKey,
+} from '../config/projectStageSequences'
+import { resolveImmediateStages } from './projectStageSystem'
 
 // --- Types ---
 
@@ -739,7 +744,15 @@ function handleTaskCompletionMut(
     createActivityLogMut(ws, config, personId, task, outcome)
     removeTaskMut(ws, task.id)
   } else if (task.targetRef.kind === 'project') {
-    handleAdvanceProjectCompletionMut(ws, config, task.targetRef.id, outcome)
+    const targetProject = ws.projects[task.targetRef.id]
+    const targetStageType = targetProject
+      ? getProjectStageType(targetProject.kind, targetProject.currentStageKey)
+      : undefined
+    if (targetStageType === 'preparatory') {
+      handlePreparatoryStageCompletionMut(ws, config, task.targetRef.id, outcome)
+    } else {
+      handleAdvanceProjectCompletionMut(ws, config, task.targetRef.id, outcome)
+    }
     createActivityLogMut(ws, config, personId, task, outcome)
     removeTaskMut(ws, task.id)
   } else {
@@ -999,10 +1012,7 @@ function handlePrepareProjectCompletionMut(
   ws.nextProjectId++
   addProjectToIndexMut(ws, project)
 
-  // develop_holding: 即時 stage 解決を試行
-  if (project.kind === 'develop_holding') {
-    tryResolveDevelopHoldingStages(ws, config, projectId, absoluteWeek)
-  }
+  resolveImmediateStages(ws, config, projectId, absoluteWeek)
 
   ws.aims[aim.id] = { ...aim, activeTaskId: undefined } as unknown as Aim
 
@@ -1077,7 +1087,7 @@ function buildProjectFieldsForAim(
         holdingId,
         improvementKind,
         targetImprovementLevel: targetLevel,
-        currentStageKey: 'find_supervisor' satisfies ProjectStageKey,
+        currentStageKey: getInitialProjectStageKey('develop_holding'),
         budget: {
           required,
           allocated: 0,
@@ -1096,23 +1106,44 @@ function buildProjectFieldsForAim(
         houseId,
         budget: config.expandPolityShareCost,
         spentBudget: 0,
+        currentStageKey: getInitialProjectStageKey('expand_polity_share'),
       }
     }
     case 'promote_policy_shift': {
       const polityId = aim.target?.kind === 'polity' ? aim.target.id : undefined
       const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
-      return { polityId, houseId }
+      return {
+        polityId,
+        houseId,
+        currentStageKey: getInitialProjectStageKey('promote_policy_shift'),
+      }
     }
     case 'patronize_artist': {
       const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
-      return { houseId, budget: config.patronizeArtistCost, spentBudget: 0 }
+      return {
+        houseId,
+        budget: config.patronizeArtistCost,
+        spentBudget: 0,
+        currentStageKey: getInitialProjectStageKey('patronize_artist'),
+      }
     }
     case 'commission_chronicle': {
       const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
-      return { houseId, budget: config.commissionChronicleCost, spentBudget: 0 }
+      return {
+        houseId,
+        budget: config.commissionChronicleCost,
+        spentBudget: 0,
+        currentStageKey: getInitialProjectStageKey('commission_chronicle'),
+      }
     }
     case 'acquire_land': {
-      if (aim.owner.kind !== 'polity') return { preparation: 0, leverage: 0, commitment: 0 }
+      if (aim.owner.kind !== 'polity')
+        return {
+          preparation: 0,
+          leverage: 0,
+          commitment: 0,
+          currentStageKey: getInitialProjectStageKey('acquire_land'),
+        }
       const target = findAcquireTargetForProject(ws, aim)
       return {
         holdingId: target?.holdingId,
@@ -1121,10 +1152,17 @@ function buildProjectFieldsForAim(
         preparation: 0,
         leverage: 0,
         commitment: 0,
+        currentStageKey: getInitialProjectStageKey('acquire_land'),
       }
     }
     case 'improve_contract_terms': {
-      if (aim.owner.kind !== 'polity') return { preparation: 0, leverage: 0, commitment: 0 }
+      if (aim.owner.kind !== 'polity')
+        return {
+          preparation: 0,
+          leverage: 0,
+          commitment: 0,
+          currentStageKey: getInitialProjectStageKey('improve_contract_terms'),
+        }
       const target = findImproveTargetForProject(ws, config, aim)
       return {
         holdingId: target?.holdingId,
@@ -1133,10 +1171,17 @@ function buildProjectFieldsForAim(
         preparation: 0,
         leverage: 0,
         commitment: 0,
+        currentStageKey: getInitialProjectStageKey('improve_contract_terms'),
       }
     }
     case 'demand_tax_increase': {
-      if (aim.owner.kind !== 'polity') return { preparation: 0, leverage: 0, commitment: 0 }
+      if (aim.owner.kind !== 'polity')
+        return {
+          preparation: 0,
+          leverage: 0,
+          commitment: 0,
+          currentStageKey: getInitialProjectStageKey('demand_tax_increase'),
+        }
       const target = findDemandTaxIncreaseTargetForProject(ws, config, aim)
       return {
         holdingId: target?.holdingId,
@@ -1145,10 +1190,11 @@ function buildProjectFieldsForAim(
         preparation: 0,
         leverage: 0,
         commitment: 0,
+        currentStageKey: getInitialProjectStageKey('demand_tax_increase'),
       }
     }
     default:
-      return {}
+      return { currentStageKey: getInitialProjectStageKey(projectKind as ProjectKind) }
   }
 }
 
@@ -1304,5 +1350,67 @@ function handleAdvanceProjectCompletionMut(
     }
   } else {
     ws.projects[projectId] = { ...project, progress: newProgress }
+  }
+}
+
+// --- preparatory stage completion ---
+
+function handlePreparatoryStageCompletionMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  projectId: ProjectId,
+  outcome: TaskOutcomeKind,
+): void {
+  const project = ws.projects[projectId]
+  if (!project || project.status !== 'active') return
+
+  if (outcome === 'success') {
+    const updated = applyPreparatoryGainMut(project, config, 'full')
+    const nextKey = getNextProjectStageKey(updated)
+    if (nextKey) {
+      const nextProject = { ...updated, currentStageKey: nextKey }
+      delete nextProject.stageAttemptCount
+      ws.projects[projectId] = nextProject
+    } else {
+      ws.projects[projectId] = updated
+    }
+  } else if (outcome === 'partial') {
+    ws.projects[projectId] = applyPreparatoryGainMut(project, config, 'partial')
+  } else {
+    const newCount = (project.stageAttemptCount ?? 0) + 1
+    if (newCount >= config.projectStageMaxAttempts) {
+      ws.projects[projectId] = { ...project, status: 'failed' }
+    } else {
+      ws.projects[projectId] = { ...project, stageAttemptCount: newCount }
+    }
+  }
+}
+
+function applyPreparatoryGainMut(
+  project: Project,
+  config: SimulationConfig,
+  level: 'full' | 'partial',
+): Project {
+  if (!isDiplomaticProjectKind(project.kind)) return project
+
+  const lcp = project as LandClaimProject | ContractRevisionProject
+  const prepGain =
+    level === 'full'
+      ? config.diplomaticProjectPreparationGainSuccess
+      : config.diplomaticProjectPreparationGainPartial
+  const levGain =
+    level === 'full'
+      ? config.diplomaticProjectLeverageGainSuccess
+      : config.diplomaticProjectLeverageGainPartial
+  const comGain =
+    level === 'full'
+      ? config.diplomaticProjectCommitmentGainSuccess
+      : config.diplomaticProjectCommitmentGainPartial
+
+  return {
+    ...lcp,
+    preparation: Math.min(lcp.preparation + prepGain, 100),
+    leverage: Math.min(lcp.leverage + levGain, 100),
+    commitment: Math.min(lcp.commitment + comGain, 100),
   }
 }

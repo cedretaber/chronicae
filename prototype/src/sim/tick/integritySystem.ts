@@ -47,11 +47,7 @@ const VALID_HOLDING_IMPROVEMENT_KINDS: ReadonlySet<string> = new Set([
   'transport_infrastructure',
 ])
 
-const VALID_PROJECT_STAGE_KEYS: ReadonlySet<string> = new Set([
-  'find_supervisor',
-  'secure_budget',
-  'execute_project',
-])
+import { PROJECT_STAGE_SEQUENCES, getProjectStageType } from '../config/projectStageSequences'
 
 // v0.16 §25 IntegrityCheck 33 項目の実装状況サマリ:
 //
@@ -2411,21 +2407,25 @@ export function collectIntegrityErrors(
     }
   }
 
-  // --- v0.27 §19.2-§19.4: develop_holding project checks ---
+  // --- v0.29 §19.2: currentStageKey validation for all project kinds ---
+  for (const [idStr, project] of Object.entries(state.projects)) {
+    if (!project || project.status !== 'active') continue
+    const validKeys = PROJECT_STAGE_SEQUENCES[project.kind]
+    if (!validKeys.some((e) => e.key === project.currentStageKey)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Project ${idStr}: currentStageKey=${project.currentStageKey} is not valid for kind=${project.kind} (§19.2)`,
+      })
+    }
+  }
+
+  // --- v0.27 §19.3-§19.4: develop_holding project checks ---
   {
     const activeDevelopByHolding: Record<string, string[]> = {}
 
     for (const [idStr, project] of Object.entries(state.projects)) {
       if (!project || project.kind !== 'develop_holding') continue
       if (project.status !== 'active') continue
-
-      // §19.2: currentStageKey is valid
-      if (!VALID_PROJECT_STAGE_KEYS.has(project.currentStageKey)) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Project ${idStr}: currentStageKey=${project.currentStageKey} is not valid (§19.2)`,
-        })
-      }
 
       // §19.3: ProjectBudget non-negative
       if (project.budget.required < 0) {
@@ -2463,10 +2463,8 @@ export function collectIntegrityErrors(
       }
 
       // §19.3: pre-budget stages should have zero budget allocation
-      if (
-        project.currentStageKey === 'find_supervisor' ||
-        project.currentStageKey === 'secure_budget'
-      ) {
+      const stageType = getProjectStageType(project.kind, project.currentStageKey)
+      if (stageType === 'immediate') {
         if (
           project.budget.allocated !== 0 ||
           project.budget.remaining !== 0 ||

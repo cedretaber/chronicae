@@ -8,6 +8,7 @@ import type {
   LandContractId,
   AimId,
   DecisionReasonId,
+  DiplomaticPlayId,
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
 import type { HoldingImprovementKind } from './holdingImprovement'
@@ -26,6 +27,7 @@ export type ProjectKind =
   | 'sell_land'
   | 'improve_contract_terms'
   | 'demand_tax_increase'
+  | 'respond_to_pressure'
 
 export type BaseProject = {
   id: ProjectId
@@ -38,12 +40,21 @@ export type BaseProject = {
   status: ProjectStatus
   progress: number
   targetProgress: number
+  currentStageKey: ProjectStageKey
+  stageAttemptCount?: number
   createdWeek: number
   deadlineWeek?: number
   reasonIds: DecisionReasonId[]
 }
 
-export type ProjectStageKey = 'find_supervisor' | 'secure_budget' | 'execute_project'
+export type ProjectStageKey = string
+
+export type ProjectStageType = 'immediate' | 'preparatory' | 'final'
+
+export type ProjectStageEntry = {
+  key: ProjectStageKey
+  type: ProjectStageType
+}
 
 export type ProjectBudgetSource = { kind: 'owner' }
 
@@ -60,7 +71,6 @@ export type DevelopHoldingProject = BaseProject & {
   holdingId: HoldingId
   improvementKind: HoldingImprovementKind
   targetImprovementLevel: number
-  currentStageKey: ProjectStageKey
   budget: ProjectBudget
 }
 
@@ -100,6 +110,7 @@ export type LandClaimProject = BaseProject & {
   holdingId?: HoldingId
   provinceId?: ProvinceId
   counterpartyPolityId?: PolityId
+  diplomaticPlayId?: DiplomaticPlayId
   preparation: number
   leverage: number
   commitment: number
@@ -111,9 +122,15 @@ export type ContractRevisionProject = BaseProject & {
   landContractId?: LandContractId
   counterpartyPolityId?: PolityId
   desiredTaxRateToGrantor?: number
+  diplomaticPlayId?: DiplomaticPlayId
   preparation: number
   leverage: number
   commitment: number
+}
+
+export type RespondToPressureProject = BaseProject & {
+  kind: 'respond_to_pressure'
+  diplomaticPlayId?: DiplomaticPlayId
 }
 
 export type Project =
@@ -124,6 +141,7 @@ export type Project =
   | CommissionChronicleProject
   | LandClaimProject
   | ContractRevisionProject
+  | RespondToPressureProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

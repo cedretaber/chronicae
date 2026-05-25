@@ -175,6 +175,7 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   sell_land: 'numeracy',
   improve_contract_terms: 'numeracy',
   demand_tax_increase: 'numeracy',
+  respond_to_pressure: 'insight',
 }
 
 export function determineTaskOutcome(

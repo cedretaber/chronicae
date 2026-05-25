@@ -144,6 +144,7 @@ project:
     no_supervisor: '{{owner}}のプロジェクト{{kind}}が頓挫した——監督者不在。'
     deadline: '{{owner}}のプロジェクト{{kind}}が頓挫した——期限超過。'
     budget: '{{owner}}のプロジェクト{{kind}}が頓挫した——予算枯渇。'
+    stage_max_attempts: '{{owner}}のプロジェクト{{kind}}が頓挫した——試行回数超過。'
   cancelled:
     owner_inactive: '{{owner}}のプロジェクト{{kind}}が中止された——主体の消滅。'
     aim_terminal: '{{owner}}のプロジェクト{{kind}}が中止された——目標の終了。'

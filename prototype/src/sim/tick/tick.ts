@@ -57,6 +57,7 @@ import { runSellLandProjectGenerationSystem } from './sellLandProjectGenerationS
 import { runProjectTaskGenerationSystem } from './projectTaskGenerationSystem'
 import { runProjectMaintenanceSystem } from './projectMaintenanceSystem'
 import { runProjectOutcomeSystem } from './projectOutcomeSystem'
+import { runProjectStageSystem } from './projectStageSystem'
 import { createLogger } from '../debug/logger'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
@@ -231,6 +232,12 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runSellLandProjectGenerationSystem,
+  },
+  {
+    name: 'projectStageSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runProjectStageSystem,
   },
   {
     name: 'projectTaskGenerationSystem',

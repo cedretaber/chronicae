@@ -59,6 +59,9 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
           ? [{ kind: 'polity' as const, id: project.counterpartyPolityId }]
           : []),
       ]
+
+    case 'respond_to_pressure':
+      return []
   }
 }
 
@@ -72,6 +75,7 @@ const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   sell_land: 'stewardship',
   improve_contract_terms: 'stewardship',
   demand_tax_increase: 'stewardship',
+  respond_to_pressure: 'diplomacy',
 }
 
 export function getPersonProjectWorkload(

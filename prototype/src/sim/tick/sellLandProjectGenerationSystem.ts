@@ -11,6 +11,7 @@ import { getPolityLeader } from '../selectors/officeSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { findSellLandCandidates } from '../selectors/landPurchaseCandidates'
 import { addProjectToIndexMut, getProjectDeadlineWeeks } from '../mutations/projectMutations'
+import { getInitialProjectStageKey } from '../config/projectStageSequences'
 import { selectTargetHoldingInProvince } from '../selectors/landContractSelectors'
 
 export function runSellLandProjectGenerationSystem(ctx: TickContext): TickContext {
@@ -99,6 +100,7 @@ export function runSellLandProjectGenerationSystem(ctx: TickContext): TickContex
       status: 'active',
       progress: 0,
       targetProgress: config.projectDefaultTargetProgress,
+      currentStageKey: getInitialProjectStageKey('sell_land'),
       createdWeek: absoluteWeek,
       deadlineWeek: absoluteWeek + deadlineWeeks,
       reasonIds: [],

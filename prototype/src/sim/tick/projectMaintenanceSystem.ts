@@ -7,7 +7,7 @@ import type { WorldState } from '../types/world'
 import type { EventId } from '../types/ids'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { removeProjectFromIndexMut, addProjectToIndexMut } from '../mutations/projectMutations'
-import { tryResolveDevelopHoldingStages } from './projectStageHelpers'
+import { getProjectStageType } from '../config/projectStageSequences'
 
 export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
   const absoluteWeek = ctx.state.absoluteWeek
@@ -56,20 +56,7 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
 
   for (const [, origProject] of Object.entries(ws.projects)) {
     if (!origProject || origProject.status !== 'active') continue
-    let project = origProject
-
-    // v0.27: develop_holding stage retry
-    if (project.kind === 'develop_holding') {
-      if (
-        project.currentStageKey === 'find_supervisor' ||
-        project.currentStageKey === 'secure_budget'
-      ) {
-        tryResolveDevelopHoldingStages(ws, config, project.id, absoluteWeek)
-        const updated = ws.projects[project.id]
-        if (!updated || updated.status !== 'active') continue
-        project = updated
-      }
-    }
+    const project = origProject
 
     // 1. Owner disappeared → cancelled
     if (!isOwnerActive(ws, project.owner)) {
@@ -150,9 +137,9 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    // 4. Deadline exceeded (skip for develop_holding still in preparatory stages)
-    const deadlineApplies =
-      project.kind !== 'develop_holding' || project.currentStageKey === 'execute_project'
+    // 4. Deadline exceeded (only applies to final stages)
+    const stageType = getProjectStageType(project.kind, project.currentStageKey)
+    const deadlineApplies = stageType === 'final'
     if (
       deadlineApplies &&
       project.deadlineWeek &&

@@ -598,6 +598,8 @@ export type SimulationConfig = {
   aimProgressCompletionTolerance: number
   projectDeadlineWeeksDevelopment: number
   projectDeadlineWeeksDiplomatic: number
+  projectStageMaxAttempts: number
+  pressureResponseDefaultDeadlineWeeks: number
   supervisedProjectWorkloadWeight: number
   officeWorkloadWeight: number
   activeTaskWorkloadWeight: number
@@ -1231,6 +1233,8 @@ export const defaultConfig: SimulationConfig = {
   aimProgressCompletionTolerance: 1,
   projectDeadlineWeeksDevelopment: 48,
   projectDeadlineWeeksDiplomatic: 24,
+  projectStageMaxAttempts: 3,
+  pressureResponseDefaultDeadlineWeeks: 48,
   supervisedProjectWorkloadWeight: 2,
   officeWorkloadWeight: 1,
   activeTaskWorkloadWeight: 1,

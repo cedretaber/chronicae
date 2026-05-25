@@ -163,6 +163,7 @@ detail:
     sell_land: '領地売却'
     improve_contract_terms: '契約条件改善'
     demand_tax_increase: '増税要求'
+    respond_to_pressure: '外圧対応'
   activity:
     project_completed: '{{kind}}完了（Lv.{{level}}）'
     project_failed: '{{kind}}失敗（Lv.{{level}}）'
