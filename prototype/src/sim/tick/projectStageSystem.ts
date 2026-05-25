@@ -1,15 +1,19 @@
 import type { TickContext, CreateSimEventInput } from './context'
 import type { SimEvent } from '../types/event'
-import { nameParam } from '../types/event'
+import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type {
   DevelopHoldingProject,
   LandClaimProject,
   ContractRevisionProject,
+  RespondToPressureProject,
 } from '../types/project'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { EventId, PersonId, ProjectId } from '../types/ids'
+import type { PressureKind } from '../types/pressure'
+import type { PressureResponseStance } from '../types/pressure'
+import type { PoliticalActorRef } from '../types/actor'
 import {
   removeProjectFromIndexMut,
   addProjectToIndexMut,
@@ -19,6 +23,7 @@ import {
   buildExistingPlayKeys,
   createDiplomaticPlayFromProjectMut,
 } from '../mutations/diplomaticPlayCreation'
+import { createPressureMut } from '../mutations/pressureMutations'
 import { vacateHoldingBailiff, appointHoldingBailiff } from '../mutations/provinceOfficeMutations'
 import {
   getProjectStageType,
@@ -27,6 +32,7 @@ import {
   isProjectStageValid,
 } from '../config/projectStageSequences'
 import { findBailiffCandidateForProject } from './projectStageHelpers'
+import { getActorMilitaryPower } from '../selectors/actorSelectors'
 
 export function runProjectStageSystem(ctx: TickContext): TickContext {
   const config = ctx.config
@@ -72,6 +78,13 @@ export function runProjectStageSystem(ctx: TickContext): TickContext {
       byCreatorPerson: { ...ctx.state.projectIndex.byCreatorPerson },
       bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
       byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
+    },
+    pressures: { ...ctx.state.pressures },
+    pressureIndex: {
+      byTarget: { ...ctx.state.pressureIndex.byTarget },
+      bySource: { ...ctx.state.pressureIndex.bySource },
+      byDiplomaticPlay: { ...ctx.state.pressureIndex.byDiplomaticPlay },
+      byProject: { ...ctx.state.pressureIndex.byProject },
     },
   }
 
@@ -141,7 +154,10 @@ function resolveImmediateStage(
     return resolveOpenDiplomaticPlay(ws, config, projectId, absoluteWeek, emitEvent)
   }
 
-  // Phase C: choose_stance handler will be implemented here
+  if (project.kind === 'respond_to_pressure' && project.currentStageKey === 'choose_stance') {
+    return resolveChooseStance(ws, config, project, projectId)
+  }
+
   return false
 }
 
@@ -288,7 +304,6 @@ function resolveOpenDiplomaticPlay(
     const nextKey = getNextProjectStageKey(project)
     if (!nextKey) return false
 
-    // Set diplomaticPlayId and sync deadline with play
     const updatedProject: LandClaimProject | ContractRevisionProject = {
       ...(project as LandClaimProject | ContractRevisionProject),
       currentStageKey: nextKey,
@@ -296,6 +311,50 @@ function resolveOpenDiplomaticPlay(
       deadlineWeek: play.deadlineWeek,
     }
     ws.projects[projectId] = updatedProject
+
+    const pressureKind: PressureKind =
+      project.kind === 'acquire_land' || project.kind === 'sell_land'
+        ? 'diplomatic_land_claim'
+        : 'diplomatic_contract_revision'
+
+    const sourceRef: DecisionSubjectRef =
+      play.initiator.kind === 'polity'
+        ? { kind: 'polity', id: play.initiator.id }
+        : { kind: 'house', id: play.initiator.id }
+    const targetRef: DecisionSubjectRef =
+      play.target.kind === 'polity'
+        ? { kind: 'polity', id: play.target.id }
+        : { kind: 'house', id: play.target.id }
+
+    createPressureMut(ws, {
+      kind: pressureKind,
+      source: sourceRef,
+      target: targetRef,
+      relatedDiplomaticPlayId: result.playId,
+      relatedProjectId: projectId,
+      priority: 1,
+      createdWeek: ws.absoluteWeek,
+      deadlineWeek: play.deadlineWeek,
+      status: 'active',
+      reasonIds: [],
+    })
+
+    const sourceNameKey = getOwnerNameKey(ws, sourceRef)
+    const targetNameKey = getOwnerNameKey(ws, targetRef)
+    emitEvent({
+      type: 'PRESSURE_CREATED',
+      importance: 'minor',
+      messageKey: 'pressure.created',
+      messageParams: {
+        source: nameParam(sourceRef.kind, sourceNameKey),
+        target: nameParam(targetRef.kind, targetNameKey),
+      },
+      entityRefs: [
+        entityRef(sourceRef.kind, sourceRef.id, 'source', sourceNameKey),
+        entityRef(targetRef.kind, targetRef.id, 'target', targetNameKey),
+      ],
+    })
+
     return true
   }
 
@@ -317,6 +376,53 @@ function resolveOpenDiplomaticPlay(
 
   // invalid_inputs: retry next tick
   return false
+}
+
+function resolveChooseStance(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: RespondToPressureProject,
+  projectId: ProjectId,
+): boolean {
+  const pressure = ws.pressures[project.pressureId]
+  if (!pressure) return false
+
+  if (pressure.target.kind === 'person') return false
+
+  const targetActor: PoliticalActorRef =
+    pressure.target.kind === 'polity'
+      ? { kind: 'polity', id: pressure.target.id }
+      : { kind: 'house', id: pressure.target.id }
+
+  let stance: PressureResponseStance = 'negotiate'
+
+  if (pressure.source.kind !== 'person') {
+    const sourceActor: PoliticalActorRef =
+      pressure.source.kind === 'polity'
+        ? { kind: 'polity', id: pressure.source.id }
+        : { kind: 'house', id: pressure.source.id }
+    const targetPower = getActorMilitaryPower(ws, config, targetActor)
+    const sourcePower = getActorMilitaryPower(ws, config, sourceActor)
+
+    if (targetPower < sourcePower * 0.5) {
+      stance = 'concede'
+    } else if (targetPower >= sourcePower * 1.2) {
+      stance = 'resist'
+    }
+  }
+
+  const nextKey = getNextProjectStageKey(project)
+  if (!nextKey) return false
+
+  removeProjectFromIndexMut(ws, project)
+  const updated: RespondToPressureProject = {
+    ...project,
+    stance,
+    currentStageKey: nextKey,
+  }
+  ws.projects[projectId] = updated
+  addProjectToIndexMut(ws, updated)
+  return true
 }
 
 function getOwnerNameKey(ws: WorldState, owner: DecisionSubjectRef): string {

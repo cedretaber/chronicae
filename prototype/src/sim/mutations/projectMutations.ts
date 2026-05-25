@@ -151,7 +151,8 @@ export function isDiplomaticProjectKind(kind: ProjectKind): boolean {
     kind === 'acquire_land' ||
     kind === 'sell_land' ||
     kind === 'improve_contract_terms' ||
-    kind === 'demand_tax_increase'
+    kind === 'demand_tax_increase' ||
+    kind === 'respond_to_pressure'
   )
 }
 

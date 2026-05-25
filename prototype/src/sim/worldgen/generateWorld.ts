@@ -822,8 +822,11 @@ export function generateWorld(
       byRelatedEntity: {},
     },
     diplomaticPlays: {},
+    pressures: {},
+    pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
+    nextPressureId: 1,
   } as unknown as WorldState
 
   // House leader offices
@@ -1763,6 +1766,10 @@ export function generateWorld(
     nextFactionMembershipId: 0,
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
+    nextPressureId: 1,
+    // v0.29 Pressure
+    pressures: {},
+    pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
     // v0.22 Goal/Aim system
     goals: {},
     aims: {},

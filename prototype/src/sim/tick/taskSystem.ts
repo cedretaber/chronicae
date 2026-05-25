@@ -765,7 +765,37 @@ function handleTaskCompletionMut(
           }
         }
       }
-      // Phase C: target-side projects from Pressure.responseProjectId
+      const pressureIdsForPlay = ws.pressureIndex.byDiplomaticPlay[playId]
+      if (pressureIdsForPlay) {
+        for (const pressureId of pressureIdsForPlay) {
+          const pressure = ws.pressures[pressureId]
+          if (!pressure || pressure.status !== 'active') continue
+          if (!pressure.responseProjectId) continue
+          const responseProject = ws.projects[pressure.responseProjectId]
+          if (!responseProject || responseProject.status !== 'active') continue
+          if (side === 'target') {
+            const ownerMatchesTarget =
+              responseProject.owner.kind === play.target.kind &&
+              (responseProject.owner.id as string) === (play.target.id as string)
+            if (ownerMatchesTarget) {
+              const progressGain =
+                outcome === 'success'
+                  ? config.projectAdvanceProgressSuccess
+                  : outcome === 'partial'
+                    ? config.projectAdvanceProgressPartial
+                    : config.projectAdvanceProgressFailure
+              const newProgress = Math.min(
+                responseProject.progress + progressGain,
+                responseProject.targetProgress,
+              )
+              ws.projects[pressure.responseProjectId] = {
+                ...responseProject,
+                progress: newProgress,
+              }
+            }
+          }
+        }
+      }
 
       removeDiplomaticPlayTaskIdMut(ws, playId, task.id)
     }

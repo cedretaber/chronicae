@@ -104,6 +104,10 @@ export type AimId = Branded<string, 'AimId'>
 export type DecisionReasonId = Branded<string, 'DecisionReasonId'>
 export type PressureId = Branded<string, 'PressureId'>
 
+export function createPressureId(n: number): PressureId {
+  return ('ps-' + n) as PressureId
+}
+
 export function createGoalId(n: number): GoalId {
   return ('go-' + n) as GoalId
 }

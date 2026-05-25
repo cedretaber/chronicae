@@ -112,6 +112,10 @@ export type EventType =
   | 'PROJECT_COMPLETED'
   | 'PROJECT_FAILED'
   | 'PROJECT_CANCELLED'
+  // v0.29 Phase C Pressure
+  | 'PRESSURE_CREATED'
+  | 'PRESSURE_RESOLVED'
+  | 'PRESSURE_CANCELLED'
 
 export type EventReason = {
   label: string
@@ -137,6 +141,7 @@ export type EventEntityKind =
   | 'goal'
   | 'aim'
   | 'project'
+  | 'pressure'
 
 export type EventEntityRef = {
   kind: EventEntityKind

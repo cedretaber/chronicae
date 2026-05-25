@@ -13,6 +13,7 @@ import type {
   FactionMembershipId,
   ProjectId,
   DiplomaticPlayId,
+  PressureId,
   StateRegionId,
   HoldingId,
   HoldingOfficeAssignmentId,
@@ -44,6 +45,7 @@ import type { Faction, FactionMembership, FactionIndex } from './faction'
 import type { HoldingImprovement } from './holdingImprovement'
 import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay } from './diplomaticPlay'
+import type { Pressure, PressureIndex } from './pressure'
 import type { StateRegion } from './stateRegion'
 import type { Goal, Aim, DecisionReason, GoalIndex, AimIndex } from './goal'
 import type {
@@ -95,6 +97,9 @@ export type WorldState = {
   goalIndex: GoalIndex
   aimIndex: AimIndex
   diplomaticPlays: Record<DiplomaticPlayId, DiplomaticPlay>
+  // v0.29 Pressure
+  pressures: Record<PressureId, Pressure>
+  pressureIndex: PressureIndex
   // v0.23 Task/ActivityLog
   tasks: Record<TaskId, Task>
   taskIndex: TaskIndex
@@ -115,6 +120,8 @@ export type WorldState = {
   // v0.26
   nextProjectId: number
   nextDiplomaticPlayId: number
+  // v0.29
+  nextPressureId: number
   // v0.23
   nextTaskId: number
   nextPersonActivityLogId: number

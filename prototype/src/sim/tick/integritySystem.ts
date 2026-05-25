@@ -2592,6 +2592,133 @@ export function collectIntegrityErrors(
     }
   }
 
+  // --- Pressure integrity ---
+
+  // P1: Each Pressure's references must be valid
+  for (const [pidStr, pressure] of Object.entries(state.pressures)) {
+    if (!pressure) continue
+
+    // Terminal pressures should be purged by cleanupTerminalDiplomacy
+    if (pressure.status === 'resolved' || pressure.status === 'cancelled') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Pressure ${pidStr}: terminal status '${pressure.status}' should have been cleaned up`,
+      })
+    }
+
+    // relatedDiplomaticPlayId must reference existing DiplomaticPlay
+    if (pressure.relatedDiplomaticPlayId) {
+      const play = state.diplomaticPlays[pressure.relatedDiplomaticPlayId]
+      if (!play) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Pressure ${pidStr}: relatedDiplomaticPlayId ${pressure.relatedDiplomaticPlayId as string} does not exist`,
+        })
+      }
+    }
+
+    // responseProjectId must reference a Project with kind === 'respond_to_pressure' if it still exists.
+    // Projects are purged from state once terminal, so a missing project is acceptable (stale reference).
+    if (pressure.responseProjectId) {
+      const project = state.projects[pressure.responseProjectId]
+      if (project && project.kind !== 'respond_to_pressure') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Pressure ${pidStr}: responseProjectId ${pressure.responseProjectId as string} has kind '${project.kind}', expected 'respond_to_pressure'`,
+        })
+      }
+    }
+  }
+
+  // P2: Each active respond_to_pressure Project's pressureId must reference existing Pressure
+  for (const [projIdStr, project] of Object.entries(state.projects)) {
+    if (!project) continue
+    if (project.kind !== 'respond_to_pressure') continue
+    if (
+      project.status === 'completed' ||
+      project.status === 'failed' ||
+      project.status === 'cancelled'
+    )
+      continue
+
+    const pressure = state.pressures[project.pressureId]
+    if (!pressure) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Project ${projIdStr} (respond_to_pressure): pressureId ${project.pressureId as string} does not exist`,
+      })
+    }
+  }
+
+  // P3: pressureIndex consistency
+  for (const [key, pids] of Object.entries(state.pressureIndex.byTarget)) {
+    for (const pid of pids ?? []) {
+      const pressure = state.pressures[pid]
+      if (!pressure) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `pressureIndex.byTarget[${key}]: pressure ${pid as string} does not exist`,
+        })
+      } else if (decisionSubjectKey(pressure.target) !== key) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `pressureIndex.byTarget[${key}]: pressure ${pid as string} has target ${decisionSubjectKey(pressure.target)}`,
+        })
+      }
+    }
+  }
+
+  for (const [key, pids] of Object.entries(state.pressureIndex.bySource)) {
+    for (const pid of pids ?? []) {
+      const pressure = state.pressures[pid]
+      if (!pressure) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `pressureIndex.bySource[${key}]: pressure ${pid as string} does not exist`,
+        })
+      } else if (decisionSubjectKey(pressure.source) !== key) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `pressureIndex.bySource[${key}]: pressure ${pid as string} has source ${decisionSubjectKey(pressure.source)}`,
+        })
+      }
+    }
+  }
+
+  for (const [key, pids] of Object.entries(state.pressureIndex.byDiplomaticPlay)) {
+    for (const pid of pids ?? []) {
+      const pressure = state.pressures[pid]
+      if (!pressure) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `pressureIndex.byDiplomaticPlay[${key}]: pressure ${pid as string} does not exist`,
+        })
+      } else if ((pressure.relatedDiplomaticPlayId as string) !== key) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `pressureIndex.byDiplomaticPlay[${key}]: pressure ${pid as string} has relatedDiplomaticPlayId ${pressure.relatedDiplomaticPlayId as string}`,
+        })
+      }
+    }
+  }
+
+  for (const [key, pids] of Object.entries(state.pressureIndex.byProject)) {
+    for (const pid of pids ?? []) {
+      const pressure = state.pressures[pid]
+      if (!pressure) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `pressureIndex.byProject[${key}]: pressure ${pid as string} does not exist`,
+        })
+      } else if ((pressure.responseProjectId as string) !== key) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `pressureIndex.byProject[${key}]: pressure ${pid as string} has responseProjectId ${pressure.responseProjectId as string}`,
+        })
+      }
+    }
+  }
+
   return errors
 }
 

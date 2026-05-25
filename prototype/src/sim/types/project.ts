@@ -1,5 +1,6 @@
 import type {
   ProjectId,
+  PressureId,
   PersonId,
   PolityId,
   HouseId,
@@ -12,6 +13,7 @@ import type {
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
 import type { HoldingImprovementKind } from './holdingImprovement'
+import type { PressureResponseStance } from './pressure'
 
 export type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
 
@@ -130,7 +132,9 @@ export type ContractRevisionProject = BaseProject & {
 
 export type RespondToPressureProject = BaseProject & {
   kind: 'respond_to_pressure'
+  pressureId: PressureId
   diplomaticPlayId?: DiplomaticPlayId
+  stance?: PressureResponseStance
 }
 
 export type Project =

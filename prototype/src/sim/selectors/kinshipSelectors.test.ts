@@ -98,6 +98,9 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
     },
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
+    pressures: {},
+    pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+    nextPressureId: 1,
     // v0.22 Goal/Aim system
     goals: {},
     aims: {},

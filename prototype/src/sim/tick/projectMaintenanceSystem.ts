@@ -5,7 +5,11 @@ import { nameParam, entityRef } from '../types/event'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { WorldState } from '../types/world'
 import type { EventId } from '../types/ids'
-import type { LandClaimProject, ContractRevisionProject } from '../types/project'
+import type {
+  LandClaimProject,
+  ContractRevisionProject,
+  RespondToPressureProject,
+} from '../types/project'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import {
   removeProjectFromIndexMut,
@@ -147,7 +151,10 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
 
     // 3c. Diplomatic project in negotiate stage: play must exist and be active
     if (isDiplomaticProjectKind(project.kind) && project.currentStageKey === 'negotiate') {
-      const dpProject = project as LandClaimProject | ContractRevisionProject
+      const dpProject = project as
+        | LandClaimProject
+        | ContractRevisionProject
+        | RespondToPressureProject
       const dpPlayId = dpProject.diplomaticPlayId
       if (dpPlayId) {
         const play = ws.diplomaticPlays[dpPlayId]

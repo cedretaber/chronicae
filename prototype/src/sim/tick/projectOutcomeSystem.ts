@@ -39,6 +39,7 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
       byHolder: { ...ctx.state.shareIndex.byHolder },
     },
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
+    pressures: { ...ctx.state.pressures },
     holdingImprovements: { ...ctx.state.holdingImprovements },
     holdingImprovementIndex: {
       byHolding: { ...ctx.state.holdingImprovementIndex.byHolding },
@@ -87,6 +88,12 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
       if (!isDiplomaticProjectKind(project.kind)) {
         applyNonDiplomaticEffectMut(ws, config, project, emitEvent)
         addAimProgressForCompletedProjectMut(ws, config, project)
+      }
+      if (project.kind === 'respond_to_pressure') {
+        const pressure = ws.pressures[project.pressureId]
+        if (pressure && pressure.status === 'active') {
+          ws.pressures[project.pressureId] = { ...pressure, status: 'responded' }
+        }
       }
       if (project.origin.kind === 'aim') {
         const aim = ws.aims[project.origin.aimId]

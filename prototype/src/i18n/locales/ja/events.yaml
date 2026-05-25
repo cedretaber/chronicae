@@ -154,3 +154,8 @@ project:
 task:
   cancelled: '{{person}}の{{task}}が中止された（{{reason}}）。'
   review_waiting: '{{person}}は{{kind}}の機会を窺っている。'
+
+pressure:
+  created: '{{target}}が{{source}}から外交的圧力を受けている。'
+  resolved: '{{target}}に対する{{source}}の外交的圧力が解決された。'
+  cancelled: '{{target}}に対する{{source}}の外交的圧力が撤回された。'

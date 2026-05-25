@@ -58,9 +58,12 @@ import { runProjectTaskGenerationSystem } from './projectTaskGenerationSystem'
 import { runProjectMaintenanceSystem } from './projectMaintenanceSystem'
 import { runProjectOutcomeSystem } from './projectOutcomeSystem'
 import { runProjectStageSystem } from './projectStageSystem'
+import { runPressureSystem } from './pressureSystem'
 import { removeProjectFromIndexMut } from '../mutations/projectMutations'
 import { createLogger } from '../debug/logger'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
+import type { ProjectId } from '../types/ids'
+import type { WorldState } from '../types/world'
 
 type ScheduledSystem = {
   name: string
@@ -74,14 +77,14 @@ function shouldRun(system: ScheduledSystem, absoluteWeek: number): boolean {
 }
 
 function flushTerminalEntities(ctx: TickContext): TickContext {
-  const terminalProjectIds: import('../types/ids').ProjectId[] = []
+  const terminalProjectIds: ProjectId[] = []
   for (const [id, p] of Object.entries(ctx.state.projects)) {
     if (p && (p.status === 'completed' || p.status === 'failed' || p.status === 'cancelled')) {
-      terminalProjectIds.push(id as import('../types/ids').ProjectId)
+      terminalProjectIds.push(id as ProjectId)
     }
   }
   if (terminalProjectIds.length === 0) return ctx
-  const ws: import('../types/world').WorldState = {
+  const ws: WorldState = {
     ...ctx.state,
     projects: { ...ctx.state.projects },
     projectIndex: {
@@ -287,6 +290,12 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runProjectOutcomeSystem,
+  },
+  {
+    name: 'pressureSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runPressureSystem,
   },
   {
     name: 'provinceRevoltSystem',

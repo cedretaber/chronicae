@@ -9,6 +9,7 @@ import type {
   ProjectStageKey,
   LandClaimProject,
   ContractRevisionProject,
+  RespondToPressureProject,
 } from '../types/project'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import { TERMINAL_DIPLOMATIC_PLAY_STATUSES } from '../types/diplomaticPlay'
@@ -93,7 +94,7 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
       generateNegotiateTaskMut(
         ws,
         config,
-        project as LandClaimProject | ContractRevisionProject,
+        project as LandClaimProject | ContractRevisionProject | RespondToPressureProject,
         absoluteWeek,
       )
       continue
@@ -152,7 +153,7 @@ function actorRefsEqual(a: DecisionSubjectRef, b: PoliticalActorRef): boolean {
 function generateNegotiateTaskMut(
   ws: WorldState,
   config: SimulationConfig,
-  project: LandClaimProject | ContractRevisionProject,
+  project: LandClaimProject | ContractRevisionProject | RespondToPressureProject,
   absoluteWeek: number,
 ): void {
   const playId = project.diplomaticPlayId
@@ -186,7 +187,8 @@ function generateNegotiateTaskMut(
     ws.diplomaticPlays[playId] = updatedPlay
   }
 
-  const taskKind = selectDiplomaticTaskKind(ws, play, side)
+  const stance = project.kind === 'respond_to_pressure' ? project.stance : undefined
+  const taskKind = selectDiplomaticTaskKind(ws, play, side, stance)
 
   const taskId: TaskId = createTaskId(ws.nextTaskId)
   const actor = side === 'initiator' ? play.initiator : play.target

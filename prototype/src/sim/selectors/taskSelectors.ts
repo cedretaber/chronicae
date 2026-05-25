@@ -11,6 +11,7 @@ import type { PoliticalActorRef } from '../types/actor'
 import type { PersonId } from '../types/ids'
 import type { AbilityKey } from '../types/person'
 import type { ProjectKind } from '../types/project'
+import type { PressureResponseStance } from '../types/pressure'
 import { createTaskId } from '../types/ids'
 import { getPrimaryOfficeHolder, getPolityLeader, getHouseLeader } from './officeSelectors'
 import type { RngState } from '../rng/rng'
@@ -514,6 +515,7 @@ export function selectDiplomaticTaskKind(
   state: WorldState,
   play: DiplomaticPlay,
   side: 'initiator' | 'target',
+  stance?: PressureResponseStance,
 ): TaskKind {
   const prep = side === 'initiator' ? play.initiatorPreparation : play.targetPreparation
   const lev = side === 'initiator' ? play.initiatorLeverage : play.targetLeverage
@@ -577,7 +579,18 @@ export function selectDiplomaticTaskKind(
     candidates.push({ kind: 'prepare_argument', score: base + abilityBonus })
   }
 
-  // Pick highest-scoring candidate
+  if (stance === 'resist') {
+    for (const c of candidates) {
+      if (c.kind === 'pressure_counterparty' || c.kind === 'undermine_counterparty_position') {
+        c.score += 10
+      }
+    }
+  } else if (stance === 'concede') {
+    for (const c of candidates) {
+      if (c.kind === 'offer_compromise') c.score += 10
+    }
+  }
+
   if (candidates.length > 0) {
     candidates.sort((a, b) => b.score - a.score)
     return candidates[0]!.kind

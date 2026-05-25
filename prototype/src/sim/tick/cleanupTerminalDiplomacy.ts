@@ -1,12 +1,18 @@
 import type { TickContext } from './context'
-import type { AimId, GoalId, DiplomaticPlayId, PersonId } from '../types/ids'
+import type { SimEvent } from '../types/event'
+import { nameParam, entityRef } from '../types/event'
+import type { AimId, GoalId, DiplomaticPlayId, PressureId, ProjectId, PersonId } from '../types/ids'
+import type { EventId } from '../types/ids'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { LandContractId } from '../types/ids'
 import type { LandContract } from '../types/landContract'
+import type { Project } from '../types/project'
+import type { Pressure, PressureIndex } from '../types/pressure'
 import type { WorldState } from '../types/world'
 import { removeTask, getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
+import { removePressureFromIndexMut } from '../mutations/pressureMutations'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import {
   TERMINAL_DIPLOMATIC_PLAY_STATUSES,
@@ -139,6 +145,84 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     }
   }
 
+  // v0.29 Phase C: Sync Pressures + cancel response/initiator Projects for terminal plays
+  let nextPressures: Record<PressureId, Pressure> | undefined
+  let nextPressureIndex: PressureIndex | undefined
+  let nextProjects: Record<ProjectId, Project> | undefined
+  const newEvents: SimEvent[] = []
+  let nextEventIndex = ctx.nextEventIndex
+
+  if (removedPlayIds.size > 0) {
+    for (const playIdStr of removedPlayIds) {
+      const playId = playIdStr as DiplomaticPlayId
+      const pressureIds = ctx.state.pressureIndex.byDiplomaticPlay[playId]
+      if (!pressureIds) continue
+      for (const pid of pressureIds) {
+        const pressure = (nextPressures ?? ctx.state.pressures)[pid]
+        if (!pressure) continue
+        if (!nextPressures) nextPressures = { ...ctx.state.pressures }
+        if (!nextPressureIndex) {
+          nextPressureIndex = {
+            byTarget: { ...ctx.state.pressureIndex.byTarget },
+            bySource: { ...ctx.state.pressureIndex.bySource },
+            byDiplomaticPlay: { ...ctx.state.pressureIndex.byDiplomaticPlay },
+            byProject: { ...ctx.state.pressureIndex.byProject },
+          }
+        }
+
+        if (pressure.status === 'active' && pressure.responseProjectId) {
+          const base = nextProjects ?? ctx.state.projects
+          const respProject = base[pressure.responseProjectId]
+          if (respProject && respProject.status === 'active') {
+            if (!nextProjects) nextProjects = { ...ctx.state.projects }
+            nextProjects[pressure.responseProjectId] = { ...respProject, status: 'cancelled' }
+          }
+        }
+
+        if (pressure.status === 'active' && pressure.relatedProjectId) {
+          const base = nextProjects ?? ctx.state.projects
+          const initProject = base[pressure.relatedProjectId]
+          if (initProject && initProject.status === 'active') {
+            if (!nextProjects) nextProjects = { ...ctx.state.projects }
+            nextProjects[pressure.relatedProjectId] = { ...initProject, status: 'cancelled' }
+          }
+        }
+
+        const play = plays[playId]
+        const eventType = play?.status === 'cancelled' ? 'PRESSURE_CANCELLED' : 'PRESSURE_RESOLVED'
+        const sourceNameKey = getDecisionSubjectNameKey(ctx.state, pressure.source)
+        const targetNameKey = getDecisionSubjectNameKey(ctx.state, pressure.target)
+        const eventId = `e-${ctx.state.absoluteWeek}-${nextEventIndex}` as EventId
+        nextEventIndex++
+        newEvents.push({
+          id: eventId,
+          year: ctx.state.currentYear,
+          weekOfYear: ctx.state.currentWeekOfYear,
+          type: eventType,
+          importance: 'minor',
+          messageKey:
+            eventType === 'PRESSURE_CANCELLED' ? 'pressure.cancelled' : 'pressure.resolved',
+          messageParams: {
+            source: nameParam(pressure.source.kind, sourceNameKey),
+            target: nameParam(pressure.target.kind, targetNameKey),
+          },
+          entityRefs: [
+            entityRef(pressure.source.kind, pressure.source.id, 'source', sourceNameKey),
+            entityRef(pressure.target.kind, pressure.target.id, 'target', targetNameKey),
+          ],
+          reasons: [],
+          effects: [],
+        })
+
+        removePressureFromIndexMut(
+          { pressureIndex: nextPressureIndex } as unknown as WorldState,
+          pressure,
+        )
+        delete nextPressures[pid]
+      }
+    }
+  }
+
   // Set contract grace period for terminal contract_tax_revision plays
   let nextLandContracts: Record<LandContractId, LandContract> | undefined
   if (removedPlayIds.size > 0) {
@@ -159,7 +243,18 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     }
   }
 
-  if (!nextPlays && !nextAims && !nextGoals && !taskCleanedState && !nextLandContracts) return ctx
+  if (
+    !nextPlays &&
+    !nextAims &&
+    !nextGoals &&
+    !taskCleanedState &&
+    !nextLandContracts &&
+    !nextPressures &&
+    !nextPressureIndex &&
+    !nextProjects &&
+    newEvents.length === 0
+  )
+    return ctx
 
   const baseState = taskCleanedState ?? ctx.state
   return {
@@ -170,13 +265,24 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
       aims: nextAims ?? baseState.aims,
       goals: nextGoals ?? baseState.goals,
       landContracts: nextLandContracts ?? baseState.landContracts,
+      pressures: nextPressures ?? baseState.pressures,
+      pressureIndex: nextPressureIndex ?? baseState.pressureIndex,
+      projects: nextProjects ?? baseState.projects,
     },
+    events: newEvents.length > 0 ? [...ctx.events, ...newEvents] : ctx.events,
+    nextEventIndex,
   }
 }
 
 function isPersonAlive(state: WorldState, personId: PersonId): boolean {
   const person = state.persons[personId]
   return person !== undefined && person.alive && person.kind !== 'placeholder'
+}
+
+function getDecisionSubjectNameKey(state: WorldState, ref: DecisionSubjectRef): string {
+  if (ref.kind === 'polity') return state.polities[ref.id]?.nameKey ?? ref.id
+  if (ref.kind === 'house') return state.houses[ref.id]?.nameKey ?? ref.id
+  return state.persons[ref.id]?.nameKey ?? ref.id
 }
 
 function isDecisionSubjectActive(state: WorldState, owner: DecisionSubjectRef): boolean {
