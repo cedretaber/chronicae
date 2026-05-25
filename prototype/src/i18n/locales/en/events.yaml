@@ -144,6 +144,7 @@ project:
   failed:
     no_supervisor: "{{owner}}'s project {{kind}} failed — no supervisor available."
     deadline: "{{owner}}'s project {{kind}} failed — deadline exceeded."
+    budget: "{{owner}}'s project {{kind}} failed — budget exhausted."
   cancelled:
     owner_inactive: "{{owner}}'s project {{kind}} was cancelled — owner dissolved."
     aim_terminal: "{{owner}}'s project {{kind}} was cancelled — aim no longer active."

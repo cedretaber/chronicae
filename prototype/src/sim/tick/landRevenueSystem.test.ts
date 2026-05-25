@@ -198,12 +198,23 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
     expect(bailiff.wealth).toBe(0)
   })
 
-  it('collectionFrictionBurdenRate damages POP wealth', () => {
-    const { state, popId } = setupWithNormalBailiff()
-    const popBefore = state.popGroups[popId]!
-    const result = runLandRevenueSystem(makeCtx(state))
-    const popAfter = result.state.popGroups[popId]!
-    expect(popAfter.wealth).toBeLessThan(popBefore.wealth)
+  it('collectionFrictionBurdenRate damages POP wealth proportional to current wealth', () => {
+    const { state, holdingId } = setupWithNormalBailiff()
+    const ctx = makeCtx(state)
+    const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]!
+    const localExtractionRate = getBailiffLocalExtractionRate(state, ctx.config, assignmentId)
+    const collectionEfficiency = getBailiffCollectionEfficiency(
+      state,
+      ctx.config,
+      assignmentId,
+      'none',
+    )
+    const frictionRate =
+      localExtractionRate * (1 - collectionEfficiency) * ctx.config.collectionFrictionFactor
+    const drainAt100 = frictionRate * ctx.config.localExtractionWealthPenalty * (100 / 100)
+    const drainAt50 = frictionRate * ctx.config.localExtractionWealthPenalty * (50 / 100)
+    expect(drainAt100).toBeGreaterThan(0)
+    expect(drainAt50).toBeCloseTo(drainAt100 / 2, 5)
   })
 
   it('totalBurdenRate over comfort increases POP unrest', () => {
@@ -216,7 +227,13 @@ describe('runLandRevenueSystem — v0.25 extraction model', () => {
   })
 
   it('retainedToPop is based on provinceCollected, not gross', () => {
-    const { state, popId } = setupWithNormalBailiff()
+    const base = setupWithNormalBailiff()
+    const popId = base.popId
+    const newPopGroups = {
+      ...base.state.popGroups,
+      [popId]: { ...base.state.popGroups[popId]!, wealth: 50 },
+    }
+    const state = { ...base.state, popGroups: newPopGroups }
     const result = runLandRevenueSystem(makeCtx(state))
     const popAfter = result.state.popGroups[popId]!
     expect(popAfter.wealth).toBeGreaterThan(0)

@@ -95,7 +95,8 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
                 const newWealth = clamp(
                   pop.wealth -
                     burdenComponents.collectionFrictionBurdenRate *
-                      ctx.config.localExtractionWealthPenalty,
+                      ctx.config.localExtractionWealthPenalty *
+                      (pop.wealth / 100),
                   0,
                   100,
                 )

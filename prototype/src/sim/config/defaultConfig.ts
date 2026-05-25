@@ -1163,7 +1163,7 @@ export const defaultConfig: SimulationConfig = {
   maxBailiffFeeRate: 0.25,
   bailiffTaskCompletedCollectionModifier: 0.05,
   bailiffTaskNoneCollectionModifier: 0.0,
-  localExtractionWealthPenalty: 4,
+  localExtractionWealthPenalty: 2,
   localExtractionUnrestGain: 3,
   bailiffBurdenAffectionPenaltyFactor: 2,
   bailiffProtectResidentsAffectionBonus: 0.2,
