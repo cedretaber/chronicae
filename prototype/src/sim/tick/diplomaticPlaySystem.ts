@@ -30,11 +30,7 @@ import {
 } from '../selectors/landContractSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { calcGeneralWarPowerModifier } from '../selectors/personAbilityEffects'
-import {
-  getDiplomaticPlayDelegate,
-  selectDiplomaticTaskKind,
-  createTaskForDiplomaticPlay,
-} from '../selectors/taskSelectors'
+import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { randomFloat } from '../rng/rng'
 
 // v0.18 Stage B/C/D §10 / §11 / §13
@@ -54,6 +50,7 @@ import { randomFloat } from '../rng/rng'
 
 export function runDiplomaticPlaySystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
+
   for (const playIdStr of Object.keys(currentCtx.state.diplomaticPlays).sort()) {
     const play = currentCtx.state.diplomaticPlays[playIdStr as DiplomaticPlayId]
     if (!play) continue
@@ -67,15 +64,37 @@ export function runDiplomaticPlaySystem(ctx: TickContext): TickContext {
     }
   }
 
-  // Phase 2: Create diplomatic Tasks for active plays
+  // Phase 2: Ensure delegates are valid for active plays (spec §10)
   for (const playIdStr of Object.keys(currentCtx.state.diplomaticPlays).sort()) {
     const play = currentCtx.state.diplomaticPlays[playIdStr as DiplomaticPlayId]
     if (!play) continue
     if (play.status !== 'active') continue
-    currentCtx = ensureDiplomaticTasks(currentCtx, play)
+    currentCtx = ensureDelegates(currentCtx, play)
   }
 
   return currentCtx
+}
+
+export function cancelOrphanedPlays(ctx: TickContext): TickContext {
+  let nextPlays: Record<DiplomaticPlayId, DiplomaticPlay> | undefined
+  for (const [idStr, play] of Object.entries(ctx.state.diplomaticPlays)) {
+    if (!play || play.status !== 'active') continue
+    const d = play.primaryDemand
+    if (d.kind === 'change_contract_tax_rate') {
+      if (!ctx.state.landContracts[d.landContractId]) {
+        if (!nextPlays) nextPlays = { ...ctx.state.diplomaticPlays }
+        nextPlays[idStr as DiplomaticPlayId] = { ...play, status: 'cancelled' }
+      }
+    }
+    if (d.kind === 'transfer_land_contract') {
+      if (!ctx.state.holdings[d.holdingId]) {
+        if (!nextPlays) nextPlays = { ...ctx.state.diplomaticPlays }
+        nextPlays[idStr as DiplomaticPlayId] = { ...play, status: 'cancelled' }
+      }
+    }
+  }
+  if (!nextPlays) return ctx
+  return { ...ctx, state: { ...ctx.state, diplomaticPlays: nextPlays } }
 }
 
 function isDeadlineReached(state: { absoluteWeek: number }, play: DiplomaticPlay): boolean {
@@ -1065,22 +1084,15 @@ function computePrestigeLoss(rank: number): number {
   return clamp(60 - rank * 10, 10, 50)
 }
 
-// ─── v0.23 Phase D: Task 生成 ───
+// ─── Delegate management (spec §10: DiplomaticPlaySystem retains delegate alive check) ───
 
-function ensureDiplomaticTasks(ctx: TickContext, play: DiplomaticPlay): TickContext {
+function ensureDelegates(ctx: TickContext, play: DiplomaticPlay): TickContext {
   let currentCtx = ctx
-  const config = currentCtx.config
-  const absoluteWeek = currentCtx.state.absoluteWeek
 
   for (const side of ['initiator', 'target'] as const) {
     const latestPlay = currentCtx.state.diplomaticPlays[play.id]
     if (!latestPlay || latestPlay.status !== 'active') break
 
-    const activeTaskIds =
-      side === 'initiator' ? latestPlay.initiatorActiveTaskIds : latestPlay.targetActiveTaskIds
-    if (activeTaskIds.length >= config.diplomaticPlayMaxActiveTasksPerSide) continue
-
-    // Check delegate validity, reassign if needed
     const actor = side === 'initiator' ? latestPlay.initiator : latestPlay.target
     const currentDelegate =
       side === 'initiator'
@@ -1113,38 +1125,6 @@ function ensureDiplomaticTasks(ctx: TickContext, play: DiplomaticPlay): TickCont
           },
         },
       }
-    }
-
-    const taskKind = selectDiplomaticTaskKind(
-      currentCtx.state,
-      currentCtx.state.diplomaticPlays[play.id]!,
-      side,
-    )
-    const result = createTaskForDiplomaticPlay(
-      currentCtx.state,
-      config,
-      currentCtx.state.diplomaticPlays[play.id]!,
-      side,
-      taskKind,
-      absoluteWeek,
-    )
-    if (!result) continue
-
-    const updatedPlay2 = { ...result.state.diplomaticPlays[play.id]! }
-    if (side === 'initiator') {
-      updatedPlay2.initiatorActiveTaskIds = [...updatedPlay2.initiatorActiveTaskIds, result.task.id]
-    } else {
-      updatedPlay2.targetActiveTaskIds = [...updatedPlay2.targetActiveTaskIds, result.task.id]
-    }
-    currentCtx = {
-      ...currentCtx,
-      state: {
-        ...result.state,
-        diplomaticPlays: {
-          ...result.state.diplomaticPlays,
-          [play.id]: updatedPlay2,
-        },
-      },
     }
   }
 

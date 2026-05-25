@@ -22,7 +22,7 @@ import { runPublicSpendingSystem } from './publicSpendingSystem'
 import { runControlSystem } from './controlSystem'
 import { runPlotSystem } from './plotSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
-import { runDiplomaticPlaySystem } from './diplomaticPlaySystem'
+import { runDiplomaticPlaySystem, cancelOrphanedPlays } from './diplomaticPlaySystem'
 import { runGoalMaintenanceSystem } from './goalMaintenanceSystem'
 import { runAimMaintenanceSystem } from './aimMaintenanceSystem'
 import { runPersonGoalMaintenanceSystem } from './personGoalMaintenanceSystem'
@@ -58,6 +58,7 @@ import { runProjectTaskGenerationSystem } from './projectTaskGenerationSystem'
 import { runProjectMaintenanceSystem } from './projectMaintenanceSystem'
 import { runProjectOutcomeSystem } from './projectOutcomeSystem'
 import { runProjectStageSystem } from './projectStageSystem'
+import { removeProjectFromIndexMut } from '../mutations/projectMutations'
 import { createLogger } from '../debug/logger'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
@@ -70,6 +71,36 @@ type ScheduledSystem = {
 
 function shouldRun(system: ScheduledSystem, absoluteWeek: number): boolean {
   return (absoluteWeek - system.phaseOffsetWeeks) % system.intervalWeeks === 0
+}
+
+function flushTerminalEntities(ctx: TickContext): TickContext {
+  const terminalProjectIds: import('../types/ids').ProjectId[] = []
+  for (const [id, p] of Object.entries(ctx.state.projects)) {
+    if (p && (p.status === 'completed' || p.status === 'failed' || p.status === 'cancelled')) {
+      terminalProjectIds.push(id as import('../types/ids').ProjectId)
+    }
+  }
+  if (terminalProjectIds.length === 0) return ctx
+  const ws: import('../types/world').WorldState = {
+    ...ctx.state,
+    projects: { ...ctx.state.projects },
+    projectIndex: {
+      byOwner: { ...ctx.state.projectIndex.byOwner },
+      byAim: { ...ctx.state.projectIndex.byAim },
+      byParentProject: { ...ctx.state.projectIndex.byParentProject },
+      byCreatorPerson: { ...ctx.state.projectIndex.byCreatorPerson },
+      bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
+      byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
+    },
+  }
+  for (const pid of terminalProjectIds) {
+    const p = ws.projects[pid]
+    if (p) {
+      removeProjectFromIndexMut(ws, p)
+      delete ws.projects[pid]
+    }
+  }
+  return { ...ctx, state: ws }
 }
 
 const scheduledSystems: ScheduledSystem[] = [
@@ -264,6 +295,12 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runProvinceRevoltSystem,
   },
   {
+    name: 'cancelOrphanedPlays',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: cancelOrphanedPlays,
+  },
+  {
     name: 'diplomaticPlaySystem',
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
@@ -365,12 +402,14 @@ export function tick(input: TickInput): TickResult {
   }
 
   if (debug) {
+    run('preIntegrityFlush', flushTerminalEntities)
     try {
       run('integrityCheck', runIntegritySystem)
     } catch (e) {
       log.log('INTEGRITY', { error: String(e) })
     }
   } else if (ctx.state.currentWeekOfYear === WEEKS_PER_YEAR) {
+    ctx = flushTerminalEntities(ctx)
     ctx = runIntegritySystem(ctx)
   }
 

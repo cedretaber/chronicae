@@ -5,9 +5,17 @@ import { nameParam, entityRef } from '../types/event'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { WorldState } from '../types/world'
 import type { EventId } from '../types/ids'
+import type { LandClaimProject, ContractRevisionProject } from '../types/project'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
-import { removeProjectFromIndexMut, addProjectToIndexMut } from '../mutations/projectMutations'
+import {
+  removeProjectFromIndexMut,
+  addProjectToIndexMut,
+  isDiplomaticProjectKind,
+} from '../mutations/projectMutations'
 import { getProjectStageType } from '../config/projectStageSequences'
+import { TERMINAL_DIPLOMATIC_PLAY_STATUSES } from '../types/diplomaticPlay'
+
+const TERMINAL_PLAY_SET = new Set(TERMINAL_DIPLOMATIC_PLAY_STATUSES)
 
 export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
   const absoluteWeek = ctx.state.absoluteWeek
@@ -135,6 +143,30 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
         emitEvent,
       )
       continue
+    }
+
+    // 3c. Diplomatic project in negotiate stage: play must exist and be active
+    if (isDiplomaticProjectKind(project.kind) && project.currentStageKey === 'negotiate') {
+      const dpProject = project as LandClaimProject | ContractRevisionProject
+      const dpPlayId = dpProject.diplomaticPlayId
+      if (dpPlayId) {
+        const play = ws.diplomaticPlays[dpPlayId]
+        if (
+          !play ||
+          TERMINAL_PLAY_SET.has(play.status as (typeof TERMINAL_DIPLOMATIC_PLAY_STATUSES)[number])
+        ) {
+          ws.projects[project.id] = { ...project, status: 'cancelled' }
+          emitProjectEvent(
+            ws,
+            project.owner,
+            'PROJECT_CANCELLED',
+            'project.cancelled.play_terminal',
+            project.kind,
+            emitEvent,
+          )
+          continue
+        }
+      }
     }
 
     // 4. Deadline exceeded (only applies to final stages)

@@ -2,17 +2,33 @@ import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { Task, TaskKind } from '../types/task'
 import { targetRefKey } from '../types/task'
+import type { DecisionSubjectRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
-import type { ProjectKind, ProjectStageKey } from '../types/project'
-import type { TaskId } from '../types/ids'
+import type {
+  ProjectKind,
+  ProjectStageKey,
+  LandClaimProject,
+  ContractRevisionProject,
+} from '../types/project'
+import type { DiplomaticPlay } from '../types/diplomaticPlay'
+import { TERMINAL_DIPLOMATIC_PLAY_STATUSES } from '../types/diplomaticPlay'
+import type { PoliticalActorRef } from '../types/actor'
+import type { PersonId, TaskId } from '../types/ids'
 import { createTaskId } from '../types/ids'
+import type { SimulationConfig } from '../config/defaultConfig'
 import {
   getTaskActionCost,
   getTaskEffortRequired,
   getTaskDefaultDifficulty,
+  getTaskDefaultRelevantAbility,
   PROJECT_KIND_ABILITY_MAP,
+  selectDiplomaticTaskKind,
+  getDiplomaticPlayDelegate,
 } from '../selectors/taskSelectors'
 import { getProjectStageType } from '../config/projectStageSequences'
+import { isDiplomaticProjectKind } from '../mutations/projectMutations'
+
+const TERMINAL_PLAY_SET = new Set(TERMINAL_DIPLOMATIC_PLAY_STATUSES)
 
 const PREPARATORY_TASK_KIND_MAP: Record<string, TaskKind> = {
   'acquire_land:prepare_claim': 'gather_claim_evidence',
@@ -41,6 +57,7 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
       byOwner: { ...ctx.state.taskIndex.byOwner },
       byTarget: { ...ctx.state.taskIndex.byTarget },
     },
+    diplomaticPlays: { ...ctx.state.diplomaticPlays },
   }
 
   for (const [, project] of Object.entries(ws.projects)) {
@@ -72,6 +89,14 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
         }
       }
       if (hasActivePrepTask) continue
+    } else if (isDiplomaticProjectKind(project.kind)) {
+      generateNegotiateTaskMut(
+        ws,
+        config,
+        project as LandClaimProject | ContractRevisionProject,
+        absoluteWeek,
+      )
+      continue
     } else {
       taskKind = 'advance_project'
 
@@ -118,4 +143,94 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
     ...ctx,
     state: ws,
   }
+}
+
+function actorRefsEqual(a: DecisionSubjectRef, b: PoliticalActorRef): boolean {
+  return a.kind === b.kind && (a.id as string) === (b.id as string)
+}
+
+function generateNegotiateTaskMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: LandClaimProject | ContractRevisionProject,
+  absoluteWeek: number,
+): void {
+  const playId = project.diplomaticPlayId
+  if (!playId) return
+
+  const play = ws.diplomaticPlays[playId]
+  if (!play) return
+  if (TERMINAL_PLAY_SET.has(play.status as (typeof TERMINAL_DIPLOMATIC_PLAY_STATUSES)[number]))
+    return
+
+  const side: 'initiator' | 'target' = actorRefsEqual(project.owner, play.initiator)
+    ? 'initiator'
+    : 'target'
+
+  const activeTaskIds =
+    side === 'initiator' ? play.initiatorActiveTaskIds : play.targetActiveTaskIds
+  if (activeTaskIds.length >= config.diplomaticPlayMaxActiveTasksPerSide) return
+
+  let delegateId =
+    side === 'initiator' ? play.initiatorDelegatePersonId : play.targetDelegatePersonId
+  if (!delegateId || !isValidDelegate(ws, delegateId)) {
+    const actor = side === 'initiator' ? play.initiator : play.target
+    delegateId = getDiplomaticPlayDelegate(ws, actor)
+    if (!delegateId) return
+    const updatedPlay: DiplomaticPlay = { ...play }
+    if (side === 'initiator') {
+      updatedPlay.initiatorDelegatePersonId = delegateId
+    } else {
+      updatedPlay.targetDelegatePersonId = delegateId
+    }
+    ws.diplomaticPlays[playId] = updatedPlay
+  }
+
+  const taskKind = selectDiplomaticTaskKind(ws, play, side)
+
+  const taskId: TaskId = createTaskId(ws.nextTaskId)
+  const actor = side === 'initiator' ? play.initiator : play.target
+  const owner: DecisionSubjectRef =
+    actor.kind === 'polity' ? { kind: 'polity', id: actor.id } : { kind: 'house', id: actor.id }
+
+  const task: Task = {
+    id: taskId,
+    owner,
+    assigneePersonId: delegateId,
+    kind: taskKind,
+    targetRef: { kind: 'diplomatic_play', id: play.id },
+    priority: 1,
+    actionCost: getTaskActionCost(config, taskKind),
+    effortRequired: getTaskEffortRequired(config, taskKind),
+    effortDone: 0,
+    createdWeek: absoluteWeek,
+    deadlineWeek: play.deadlineWeek,
+    status: 'active',
+    reasonIds: [],
+    difficulty: getTaskDefaultDifficulty(taskKind),
+    relevantAbility: getTaskDefaultRelevantAbility(taskKind),
+  }
+
+  const ownerKey = decisionSubjectKey(owner)
+  const assigneeKey = delegateId as string
+  const tKey = targetRefKey({ kind: 'diplomatic_play', id: play.id })
+
+  ws.tasks[taskId] = task
+  ws.taskIndex.byAssignee[assigneeKey] = [...(ws.taskIndex.byAssignee[assigneeKey] ?? []), taskId]
+  ws.taskIndex.byOwner[ownerKey] = [...(ws.taskIndex.byOwner[ownerKey] ?? []), taskId]
+  ws.taskIndex.byTarget[tKey] = [...(ws.taskIndex.byTarget[tKey] ?? []), taskId]
+  ws.nextTaskId++
+
+  const updatedPlay: DiplomaticPlay = {
+    ...ws.diplomaticPlays[playId]!,
+    ...(side === 'initiator'
+      ? { initiatorActiveTaskIds: [...ws.diplomaticPlays[playId]!.initiatorActiveTaskIds, taskId] }
+      : { targetActiveTaskIds: [...ws.diplomaticPlays[playId]!.targetActiveTaskIds, taskId] }),
+  }
+  ws.diplomaticPlays[playId] = updatedPlay
+}
+
+function isValidDelegate(ws: WorldState, personId: PersonId): boolean {
+  const person = ws.persons[personId]
+  return person !== undefined && person.alive && person.kind !== 'placeholder'
 }

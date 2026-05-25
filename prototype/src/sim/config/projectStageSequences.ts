@@ -21,11 +21,26 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
 
   commission_chronicle: [{ key: 'write_chronicle', type: 'final' }],
 
-  // Phase A: transitional single-stage. Phase B replaces with spec §4 full sequence.
-  acquire_land: [{ key: 'execute_project', type: 'final' }],
-  sell_land: [{ key: 'execute_project', type: 'final' }],
-  improve_contract_terms: [{ key: 'execute_project', type: 'final' }],
-  demand_tax_increase: [{ key: 'execute_project', type: 'final' }],
+  acquire_land: [
+    { key: 'prepare_claim', type: 'preparatory' },
+    { key: 'open_diplomatic_play', type: 'immediate' },
+    { key: 'negotiate', type: 'final' },
+  ],
+  sell_land: [
+    { key: 'prepare_offer', type: 'preparatory' },
+    { key: 'open_diplomatic_play', type: 'immediate' },
+    { key: 'negotiate', type: 'final' },
+  ],
+  improve_contract_terms: [
+    { key: 'prepare_argument', type: 'preparatory' },
+    { key: 'open_diplomatic_play', type: 'immediate' },
+    { key: 'negotiate', type: 'final' },
+  ],
+  demand_tax_increase: [
+    { key: 'prepare_argument', type: 'preparatory' },
+    { key: 'open_diplomatic_play', type: 'immediate' },
+    { key: 'negotiate', type: 'final' },
+  ],
 
   respond_to_pressure: [
     { key: 'choose_stance', type: 'immediate' },

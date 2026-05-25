@@ -738,6 +738,35 @@ function handleTaskCompletionMut(
       const side: 'initiator' | 'target' = isInitiator ? 'initiator' : 'target'
 
       applyDiplomaticTaskEffectMut(ws, config, playId, task, side)
+
+      // Phase B: bridge negotiate task outcome to project progress
+      if (play.originProjectId) {
+        const originProject = ws.projects[play.originProjectId]
+        if (originProject && originProject.status === 'active') {
+          const ownerMatchesSide =
+            (side === 'initiator' &&
+              originProject.owner.kind === play.initiator.kind &&
+              (originProject.owner.id as string) === (play.initiator.id as string)) ||
+            (side === 'target' &&
+              originProject.owner.kind === play.target.kind &&
+              (originProject.owner.id as string) === (play.target.id as string))
+          if (ownerMatchesSide) {
+            const progressGain =
+              outcome === 'success'
+                ? config.projectAdvanceProgressSuccess
+                : outcome === 'partial'
+                  ? config.projectAdvanceProgressPartial
+                  : config.projectAdvanceProgressFailure
+            const newProgress = Math.min(
+              originProject.progress + progressGain,
+              originProject.targetProgress,
+            )
+            ws.projects[play.originProjectId] = { ...originProject, progress: newProgress }
+          }
+        }
+      }
+      // Phase C: target-side projects from Pressure.responseProjectId
+
       removeDiplomaticPlayTaskIdMut(ws, playId, task.id)
     }
 
@@ -1321,36 +1350,7 @@ function handleAdvanceProjectCompletionMut(
     return
   }
 
-  if (isDiplomaticProjectKind(project.kind)) {
-    const lcp = project as LandClaimProject | ContractRevisionProject
-    const prepGain =
-      outcome === 'success'
-        ? config.diplomaticProjectPreparationGainSuccess
-        : outcome === 'partial'
-          ? config.diplomaticProjectPreparationGainPartial
-          : 0
-    const levGain =
-      outcome === 'success'
-        ? config.diplomaticProjectLeverageGainSuccess
-        : outcome === 'partial'
-          ? config.diplomaticProjectLeverageGainPartial
-          : 0
-    const comGain =
-      outcome === 'success'
-        ? config.diplomaticProjectCommitmentGainSuccess
-        : outcome === 'partial'
-          ? config.diplomaticProjectCommitmentGainPartial
-          : 0
-    ws.projects[projectId] = {
-      ...lcp,
-      progress: newProgress,
-      preparation: Math.min(lcp.preparation + prepGain, 100),
-      leverage: Math.min(lcp.leverage + levGain, 100),
-      commitment: Math.min(lcp.commitment + comGain, 100),
-    }
-  } else {
-    ws.projects[projectId] = { ...project, progress: newProgress }
-  }
+  ws.projects[projectId] = { ...project, progress: newProgress }
 }
 
 // --- preparatory stage completion ---
