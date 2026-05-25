@@ -149,6 +149,11 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
               sourceRef: { kind: 'project', id: project.id },
               relatedRefs: [{ kind: 'holding', id: project.holdingId }],
               summaryKey: 'activity.project_failed',
+              params: {
+                improvementKind: project.improvementKind,
+                targetLevel: project.targetImprovementLevel,
+                holdingId: project.holdingId,
+              },
               importance: 10,
             }
             ws.personActivityLogs[logId] = actLog
@@ -301,6 +306,11 @@ function applyDevelopHoldingMut(
     sourceRef: { kind: 'project', id: project.id },
     relatedRefs: [{ kind: 'holding', id: holdingId }],
     summaryKey: 'activity.project_completed',
+    params: {
+      improvementKind: project.improvementKind,
+      targetLevel: project.targetImprovementLevel,
+      holdingId,
+    },
     importance: 20,
   }
   ws.personActivityLogs[logId] = actLog

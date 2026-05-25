@@ -2612,8 +2612,17 @@ export function PersonDetail({
                           </>
                         ) : (
                           <>
-                            {t(`detail.project_kind.${log.projectKind}`)}{' '}
-                            {log.kind === 'project_completed' ? '✓' : '✗'}
+                            {log.params?.improvementKind
+                              ? t(
+                                  `detail.activity.${log.kind === 'project_completed' ? 'project_completed' : 'project_failed'}`,
+                                  {
+                                    kind: t(
+                                      `detail.province.improvement_${log.params.improvementKind}`,
+                                    ),
+                                    level: log.params.targetLevel ?? '?',
+                                  },
+                                )
+                              : `${t(`detail.project_kind.${log.projectKind}`)} ${log.kind === 'project_completed' ? '✓' : '✗'}`}
                           </>
                         )}
                       </div>
@@ -2898,14 +2907,20 @@ export function HoldingDetail({
           return (
             <div className="text-sm">
               <div className="font-semibold text-gray-300">{t('detail.province.improvements')}</div>
-              {improvements.map((imp) => (
-                <div key={imp.id} className="ml-2 flex justify-between">
-                  <span className="text-gray-400">
-                    {t(`detail.province.improvement_${imp.kind}`)}
-                  </span>
-                  <span>{t('detail.province.improvement_level', { level: imp.level })}</span>
-                </div>
-              ))}
+              {improvements.map((imp) => {
+                const nameKey = `detail.province.improvement_name_${imp.kind}_${holding.kind}_${imp.level}`
+                const flavorName = t(nameKey)
+                const categoryName = t(`detail.province.improvement_${imp.kind}`)
+                return (
+                  <div key={imp.id} className="ml-2 flex items-baseline justify-between">
+                    <span className="text-gray-200">{flavorName}</span>
+                    <span className="text-xs text-gray-500">
+                      （{categoryName}{' '}
+                      {t('detail.province.improvement_level', { level: imp.level })}）
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           )
         })()}
