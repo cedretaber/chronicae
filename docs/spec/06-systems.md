@@ -1252,11 +1252,34 @@ AimKind → ProjectKind マッピング:
 
 旧 IntentGenerationSystem の sell_land ロジックを移植。Polity の財政難から直接 sell_land Project を生成する（prepare_project Task を経由しない）。`origin: { kind: 'system', reasonKey: 'fiscal_pressure' }`。
 
-### 6.25c ProjectTaskGenerationSystem（毎週、v0.26 / v0.27 stage 対応）
+### 6.25b2 ProjectStageSystem（毎週、v0.29）
 
-active Project を走査し、`advance_project` Task を生成する。生成条件: supervisor が alive / 同 Project を target にする active advance_project Task がない / deadline 未超過。
+active Project の immediate stage を即時解決する。毎 tick 実行（intervalWeeks: 1）。
 
-**v0.27**: develop_holding Project の場合、`currentStageKey === 'execute_project'` の場合のみ Task を生成。find_supervisor / secure_budget stage では生成しない。
+**immediate stage handler**:
+- `find_supervisor` (develop_holding): Bailiff を supervisor に採用。4段階カスケードで候補探索
+- `secure_budget` (develop_holding): owner treasury から budget 確保
+- `open_diplomatic_play` (acquire_land / sell_land / improve_contract_terms / demand_tax_increase): DiplomaticPlay を作成し、Pressure を生成。preparation / leverage / commitment を DiplomaticPlay に転写。重複チェックあり（duplicate → Project failed）
+- `choose_stance` (respond_to_pressure): 軍事力比較で stance 決定（target < source×0.5 → concede、target ≥ source×1.2 → resist、else → negotiate）
+
+**runtime fallback**: invalid な currentStageKey を持つ active Project に initial stage を補正する（防御的補正）。
+
+### 6.25c ProjectTaskGenerationSystem（毎週、v0.26 / v0.29 stage 対応）
+
+active Project の currentStageKey に応じて Task を生成する。immediate stage はスキップ。
+
+**(kind, stageKey) → TaskKind マッピング**:
+- final stage → `advance_project` (develop_holding, expand_polity_share, etc.)
+- preparatory stage → 専用 TaskKind (prepare_claim → gather_claim_evidence, prepare_offer / prepare_argument / prepare_response → prepare_argument)
+- negotiate stage → `selectDiplomaticTaskKind()` で DiplomaticPlay の状態に基づき決定。respond_to_pressure の場合は stance に応じた優先度調整
+
+**negotiate stage の共通フロー** (§12.5):
+1. project.diplomaticPlayId から DiplomaticPlay を取得（terminal なら Project cancelled）
+2. project.owner と play.initiator/target を比較して side 判定
+3. activeTaskIds の上限チェック
+4. selectDiplomaticTaskKind で TaskKind 決定（stance 反映）
+5. Task を生成（targetRef = diplomatic_play、assignee = delegate）
+6. play の activeTaskIds に追加
 
 ### 6.25d ProjectMaintenanceSystem（4週ごと、v0.26 / v0.27 stage 対応）
 
@@ -1267,12 +1290,13 @@ active Project の状態更新。owner inactive → cancelled、origin Aim が n
 - deadline は execute_project stage のみに適用（準備段階では treasury 回復・人材確保を待機可能）。**v0.28**: deadline を `projectDeadlineWeeksDevelopment × (targetProgress / projectDefaultTargetProgress)` で算出。Level 2 (×2) / Level 3 (×3) の大規模工事に比例した期間を確保
 - budget.remaining が消費額未満の場合は Project を failed にする（追加予算は future）
 
-### 6.25e ProjectOutcomeSystem（4週ごと、v0.26 / v0.27 HoldingImprovement 対応）
+### 6.25e ProjectOutcomeSystem（4週ごと、v0.26 / v0.29 更新）
 
 terminal Project の効果解決・ログ出力・cleanup を担当。
 
 - 非外交系 Project: treasury/wealth/prestige 等の直接効果を適用し、Aim progress を加算
-- 外交系 Project: DiplomaticPlay を生成し、Aim.activeDiplomaticPlayId を設定（Aim progress は AimOutcomeSystem に委ねる）
+- 外交系 Project (v0.29): DiplomaticPlay 生成は ProjectStageSystem の open_diplomatic_play handler に移管。ProjectOutcomeSystem は外交系 completed 時に追加効果を適用しない（交渉への影響は各 Task outcome で DiplomaticPlay に反映済み）
+- respond_to_pressure completed: Pressure.status を 'responded' に遷移
 - Project を state.projects / projectIndex から削除
 
 **v0.27 develop_holding completed 時の追加処理**:
@@ -1287,13 +1311,14 @@ terminal Project の効果解決・ログ出力・cleanup を担当。
 
 ### 6.26 IntentToDiplomaticPlaySystem（v0.26 で廃止）
 
-**v0.26 で廃止。** DiplomaticPlay の生成は ProjectOutcomeSystem (§6.25e) に移植。
+**v0.26 で廃止。** v0.29 では DiplomaticPlay の生成は ProjectStageSystem の open_diplomatic_play handler (§6.25b2) が担当。
 
-### 6.27 DiplomaticPlaySystem（4週ごと、v0.18 / v0.23 Task-driven 化）
+### 6.27 DiplomaticPlaySystem（4週ごと、v0.18 / v0.23 / v0.29 更新）
 
 active な DiplomaticPlay を進行させる。
 
-**v0.23**: structuralProgress を `structuralProgressFactor`（0.33）で弱化。delegate 選定・Task 生成・交渉パラメータ更新を追加。
+**v0.23**: structuralProgress を `structuralProgressFactor`（0.33）で弱化。delegate 選定・交渉パラメータ更新を追加。
+**v0.29**: Task 生成責務を ProjectTaskGenerationSystem に移管。DiplomaticPlaySystem は原則として Task を生成しない（delegate 生存確認・再任、progress/tension 管理、settlement/escalation/failed/cancelled 判定を担当）。revolt_negotiation は Project を持たないため、Task なしで deadline まで進行し多くの場合 escalation → conflict に至る。
 
 各 Play kind の acceptanceScore を計算し、progress / tension を更新（v0.23 では ×0.33 の弱化係数を適用）。
 - progress >= settlementThreshold (60) → settlement
@@ -1317,11 +1342,16 @@ revolt_negotiation の決裂時は通常の actor military power ではなく、
 
 WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / ~~development~~ / unrest) を適用。**v0.27**: development 低下効果は無効化（`adjustProvinceDevelopment` が no-op）。将来 devastation/condition で再接続。
 
-### 6.29 CleanupTerminalDiplomacy（4週ごと、v0.18 / v0.26 更新）
+### 6.29 CleanupTerminalDiplomacy（毎週、v0.18 / v0.29 更新）
 
-terminal status の DiplomaticPlay を state から削除する GC。IntegrityCheck の直前に置く。v0.17.3 で inactive OfficeAssignment / FactionMembership の累積が perf 問題を引き起こした経験を踏まえ、最初から完全削除設計。
+terminal status の DiplomaticPlay と関連 Pressure を state から削除する GC。IntegrityCheck の直前に置く。v0.29 で intervalWeeks を 1 に変更。
 
-**v0.26**: ActorIntent の cleanup ロジックを削除（ActorIntent 全廃のため）。
+**v0.29 Pressure 同期**:
+- terminal DiplomaticPlay に紐付く Pressure を `pressureIndex.byDiplomaticPlay` で取得
+- 関連 active な initiator Project（Pressure.relatedProjectId）を cancelled に
+- 関連 active な respond_to_pressure Project（Pressure.responseProjectId）を cancelled に
+- PRESSURE_RESOLVED / PRESSURE_CANCELLED Event を発火した後、Pressure を削除
+- Project cancel 対象の判定は Pressure.status によらない（responded 状態でも関連 active Project は cancel する）
 
 ### 6.29b PersonGoalMaintenanceSystem（48週ごと、v0.23）
 
@@ -1375,9 +1405,16 @@ Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で�
 - failure: Project を作成しない
 
 **v0.26 advance_project outcome 分岐**:
-- success: progress += 25、外交系は preparation/leverage/commitment を success 値で加算
-- partial: progress += 10、外交系は partial 値で加算
-- failure: progress += 0、外交系も加算なし
+- success: progress += 25
+- partial: progress += 10
+- failure: progress += 0
+
+**v0.29 preparatory stage outcome 分岐** (targetRef.kind === 'project' かつ preparatory stage):
+- success: preparation/leverage/commitment に full gain 加算（respond_to_pressure は gain 不適用）、stageAttemptCount リセット、次 stage へ遷移
+- partial: partial gain 加算、同 stage に留まる（attempt 消費なし）
+- failure: gain なし、stageAttemptCount increment、上限超過で Project failed
+
+**v0.29 target-side progress bridge**: DiplomaticPlay の target-side task 完了時に、`pressureIndex.byDiplomaticPlay` 経由で response Project を検索し、progress を加算する
 
 **v0.27 develop_holding budget 消費**: advance_project outcome 解決時に ProjectBudget を消費する。消費額 = `budget.required / (expectedTasks × projectBudgetMarginMultiplier)`。outcome に関わらず一律消費（費用はタスク内容に、進捗は結果に由来するため）。将来的に担当者能力による消費乗数を導入予定。
 
@@ -1423,6 +1460,18 @@ Aim target 選定は `goalSelectors.ts` の `pickAimForGoal` で実装。
 ### 6.30c IntentActionSystem（v0.26 で廃止）
 
 **v0.26 で廃止。** Action 系の効果は ProjectOutcomeSystem (§6.25e) が Project 完了時に適用。
+
+### 6.30c2 PressureSystem（毎週、v0.29）
+
+active Pressure に対して respond_to_pressure Project を自動生成する。
+
+**処理**: active かつ responseProjectId がない Pressure を走査し、target Polity の leader を取得。leader が alive / normal なら respond_to_pressure Project を作成。supervisor は `selectProjectSupervisor` で能力・workload ベースで選出（fallback: leader）。
+
+**Project 初期値**: owner = pressure.target、origin = { kind: 'system', reasonKey: 'pressure_response' }、currentStageKey = 'choose_stance'、deadlineWeek = DiplomaticPlay.deadlineWeek or absoluteWeek + pressureResponseDefaultDeadlineWeeks。
+
+**重複防止**: Pressure.responseProjectId が設定済みなら再生成しない。response Project が failed/cancelled でも responseProjectId を維持する（ループ防止）。
+
+イベント: `PROJECT_STARTED`
 
 ### 6.30d AimOutcomeSystem（4週ごと、v0.22 / v0.26 更新）
 

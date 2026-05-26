@@ -88,6 +88,9 @@
 | TASK_COMPLETED | minor | Task 完了（v0.23） |
 | TASK_FAILED | minor | Task 失敗（v0.23） |
 | TASK_CANCELLED | minor | Task キャンセル（v0.23） |
+| PRESSURE_CREATED | minor | 外交的圧力の発生（v0.29） |
+| PRESSURE_RESOLVED | minor | 外交的圧力の解決（v0.29） |
+| PRESSURE_CANCELLED | minor | 外交的圧力の撤回（v0.29） |
 
 **v0.26 で削除された EventType**:
 

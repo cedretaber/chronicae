@@ -621,6 +621,9 @@ function ProjectDetailCard({
       <div style={{ marginLeft: 8 }}>
         <div>{t(`detail.project_kind.${project.kind}`)}</div>
         <div>
+          {t('detail.play.project_stage')}: {t(`detail.play.stage_${project.currentStageKey}`)}
+        </div>
+        <div>
           {t('detail.polity.project_progress')}: {project.progress} / {project.targetProgress}
         </div>
         <div>
@@ -657,7 +660,8 @@ function ProjectListItem({
   return (
     <li className="mb-1 text-gray-400">
       <span className="text-gray-200">{t(`detail.project_kind.${project.kind}`)}</span> —{' '}
-      {project.progress}/{project.targetProgress}
+      {t(`detail.play.stage_${project.currentStageKey}`)} — {project.progress}/
+      {project.targetProgress}
       {showSupervisor && (
         <>
           {' — '}

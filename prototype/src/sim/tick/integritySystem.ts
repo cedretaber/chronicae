@@ -48,6 +48,12 @@ const VALID_HOLDING_IMPROVEMENT_KINDS: ReadonlySet<string> = new Set([
 ])
 
 import { PROJECT_STAGE_SEQUENCES, getProjectStageType } from '../config/projectStageSequences'
+import { isDiplomaticProjectKind } from '../mutations/projectMutations'
+import type {
+  LandClaimProject,
+  ContractRevisionProject,
+  RespondToPressureProject,
+} from '../types/project'
 
 // v0.16 §25 IntegrityCheck 33 項目の実装状況サマリ:
 //
@@ -2587,6 +2593,25 @@ export function collectIntegrityErrors(
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `Task ${task.id}: targetRef project ${task.targetRef.id} does not exist`,
+        })
+      }
+    }
+  }
+
+  // --- v0.29 §30: diplomatic Project diplomaticPlayId validation ---
+  for (const [idStr, project] of Object.entries(state.projects)) {
+    if (!project || project.status !== 'active') continue
+    if (!isDiplomaticProjectKind(project.kind)) continue
+    const dpProject = project as
+      | LandClaimProject
+      | ContractRevisionProject
+      | RespondToPressureProject
+    if (dpProject.diplomaticPlayId) {
+      const play = state.diplomaticPlays[dpProject.diplomaticPlayId]
+      if (!play) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: diplomaticPlayId ${dpProject.diplomaticPlayId as string} does not exist (§30)`,
         })
       }
     }

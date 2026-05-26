@@ -531,7 +531,8 @@ aimId?: AimId
 originProjectId?: ProjectId  // v0.26: Project 由来の Play を追跡
 ```
 
-**v0.26**: `originIntentId` を廃止し `originProjectId` を追加。ProjectOutcomeSystem が外交系 Project 完了時に DiplomaticPlay を生成し、origin の Aim に `activeDiplomaticPlayId` を設定する。AimOutcomeSystem が Play の terminal status から Aim progress を更新する。
+**v0.26**: `originIntentId` を廃止し `originProjectId` を追加。
+**v0.29**: DiplomaticPlay の生成を ProjectOutcomeSystem から ProjectStageSystem の `open_diplomatic_play` immediate stage に移管。Project の preparatory stage で preparation / leverage / commitment を蓄積し、DiplomaticPlay 作成時に転写する。DiplomaticPlay は Task を生成せず、Task 生成責務は ProjectTaskGenerationSystem に移管。
 
 #### DiplomaticDemand
 
@@ -816,7 +817,8 @@ ID prefix:
 | `DecisionReasonId` | `dr-` |
 | `TaskId` | `t-` |
 | `PersonActivityLogId` | `pal-` |
-| `ProjectId` | `pj-` |
+| `ProjectId` | `pr-` |
+| `PressureId` | `ps-` |
 
 ### 3.12 Project システム (v0.26)
 
@@ -841,6 +843,7 @@ type ProjectKind =
   | 'sell_land'
   | 'improve_contract_terms'
   | 'demand_tax_increase'
+  | 'respond_to_pressure'      // v0.29
 
 type BaseProject = {
   id: ProjectId
@@ -853,26 +856,61 @@ type BaseProject = {
   status: ProjectStatus
   progress: number
   targetProgress: number      // default 100
+  currentStageKey: ProjectStageKey   // v0.29: 全 Project に必須
+  stageAttemptCount?: number         // v0.29: preparatory stage のリトライ管理
   createdWeek: number
   deadlineWeek?: number
   reasonIds: DecisionReasonId[]
 }
 ```
 
-7 つの派生型 union で構成:
-- `DevelopHoldingProject`: holdingId / improvementKind / targetImprovementLevel / currentStageKey / budget (ProjectBudget) — v0.27 で Stage / Budget を導入
+8 つの派生型 union で構成:
+- `DevelopHoldingProject`: holdingId / improvementKind / targetImprovementLevel / budget (ProjectBudget) — v0.27 で Budget 導入
 - `ExpandPolityShareProject`: polityId / houseId / budget / spentBudget
 - `PromotePolicyShiftProject`: polityId / houseId / policyKey
 - `PatronizeArtistProject`: houseId / budget / spentBudget / artistPersonId
 - `CommissionChronicleProject`: houseId / budget / spentBudget / subjectRef
-- `LandClaimProject` (acquire_land / sell_land): holdingId / provinceId / counterpartyPolityId / preparation / leverage / commitment
-- `ContractRevisionProject` (improve_contract_terms / demand_tax_increase): holdingId / landContractId / counterpartyPolityId / desiredTaxRateToGrantor / preparation / leverage / commitment
+- `LandClaimProject` (acquire_land / sell_land): holdingId / provinceId / counterpartyPolityId / diplomaticPlayId / preparation / leverage / commitment — v0.29 で diplomaticPlayId 追加
+- `ContractRevisionProject` (improve_contract_terms / demand_tax_increase): holdingId / landContractId / counterpartyPolityId / desiredTaxRateToGrantor / diplomaticPlayId / preparation / leverage / commitment — v0.29 で diplomaticPlayId 追加
+- `RespondToPressureProject` (v0.29): pressureId / diplomaticPlayId / stance
 
-#### DevelopHoldingProject（v0.27 Stage / Budget 導入）
+#### ProjectStage 一般化（v0.29）
+
+v0.29 で全 Project に `currentStageKey` を一般化。`ProjectStageKey` は string 型とし、各 ProjectKind ごとに有効な stage sequence を定義する。
 
 ```ts
-type ProjectStageKey = 'find_supervisor' | 'secure_budget' | 'execute_project'
+type ProjectStageKey = string
 
+type ProjectStageType = 'immediate' | 'preparatory' | 'final'
+
+type ProjectStageEntry = {
+  key: ProjectStageKey
+  type: ProjectStageType
+}
+```
+
+**stage sequence**:
+
+| ProjectKind | stages |
+|---|---|
+| develop_holding | find_supervisor (imm) → secure_budget (imm) → execute_project (final) |
+| expand_polity_share | execute_project (final) |
+| promote_policy_shift | execute_project (final) |
+| patronize_artist | arrange_patronage (final) |
+| commission_chronicle | write_chronicle (final) |
+| acquire_land | prepare_claim (prep) → open_diplomatic_play (imm) → negotiate (final) |
+| sell_land | prepare_offer (prep) → open_diplomatic_play (imm) → negotiate (final) |
+| improve_contract_terms | prepare_argument (prep) → open_diplomatic_play (imm) → negotiate (final) |
+| demand_tax_increase | prepare_argument (prep) → open_diplomatic_play (imm) → negotiate (final) |
+| respond_to_pressure | choose_stance (imm) → prepare_response (prep) → negotiate (final) |
+
+- `immediate`: ProjectStageSystem が即時解決。Task を生成しない
+- `preparatory`: Task を生成。success → 次 stage 遷移、partial → 同 stage 継続、failure → stageAttemptCount increment → 上限超過で Project failed
+- `final`: Task を生成。Project.progress を蓄積し、targetProgress 到達で completed
+
+#### DevelopHoldingProject（v0.27 Budget 導入）
+
+```ts
 type ProjectBudgetSource = { kind: 'owner' }
 
 type ProjectBudget = {
@@ -888,16 +926,32 @@ type DevelopHoldingProject = BaseProject & {
   holdingId: HoldingId
   improvementKind: HoldingImprovementKind
   targetImprovementLevel: number
-  currentStageKey: ProjectStageKey
   budget: ProjectBudget
 }
 ```
 
-- `currentStageKey`: find_supervisor → secure_budget → execute_project の線形遷移
+- stage sequence: find_supervisor (imm) → secure_budget (imm) → execute_project (final)
 - `budget`: 事前確保方式。secure_budget stage で owner から確保し、advance_project Task で消費
 - find_supervisor / secure_budget は即時解決（Task を発行しない）。execute_project でのみ advance_project Task を生成
 - 同一 Holding に active develop_holding Project は 1 つまで
 - deadline は execute_project stage のみに適用（§6.25d 参照）
+
+#### RespondToPressureProject（v0.29）
+
+```ts
+type PressureResponseStance = 'resist' | 'negotiate' | 'concede'
+
+type RespondToPressureProject = BaseProject & {
+  kind: 'respond_to_pressure'
+  pressureId: PressureId
+  diplomaticPlayId?: DiplomaticPlayId
+  stance?: PressureResponseStance
+}
+```
+
+- PressureSystem が active Pressure に対して自動生成する（Aim / prepare_project を経由しない）
+- `stance`: choose_stance immediate stage で軍事力比較により決定（concede / negotiate / resist）
+- negotiate stage では stance に応じた Task 種別優先度調整を行う
 
 #### WorldState 追加 (v0.26)
 
@@ -914,6 +968,57 @@ type WorldState = {
     byRelatedEntity: Record<string, ProjectId[]>
   }
   nextProjectId: number
+}
+```
+
+### 3.13 Pressure システム (v0.29)
+
+外交劇を仕掛けられた側が自然に対応行動を取るための外圧エンティティ。
+
+#### Pressure
+
+```ts
+type PressureKind = 'diplomatic_land_claim' | 'diplomatic_contract_revision'
+type PressureStatus = 'active' | 'responded' | 'resolved' | 'cancelled'
+
+type Pressure = {
+  id: PressureId
+  kind: PressureKind
+  source: DecisionSubjectRef
+  target: DecisionSubjectRef
+  relatedDiplomaticPlayId?: DiplomaticPlayId
+  relatedProjectId?: ProjectId
+  responseProjectId?: ProjectId
+  priority: number
+  createdWeek: number
+  deadlineWeek?: number
+  status: PressureStatus
+  reasonIds: DecisionReasonId[]
+}
+
+type PressureIndex = {
+  byTarget: Record<string, PressureId[]>
+  bySource: Record<string, PressureId[]>
+  byDiplomaticPlay: Record<DiplomaticPlayId, PressureId[]>
+  byProject: Record<ProjectId, PressureId[]>
+}
+```
+
+- 外交系 Project の `open_diplomatic_play` stage で DiplomaticPlay 作成と同時に生成
+- `source`: DiplomaticPlay.initiator と同一
+- `target`: DiplomaticPlay.target と同一
+- `responseProjectId`: PressureSystem が生成した respond_to_pressure Project の ID
+- Pressure status 遷移: active → responded (response Project completed) → resolved/cancelled (DiplomaticPlay terminal)
+- DiplomaticPlay 削除時に Pressure も同時削除（cleanupTerminalDiplomacy）。履歴は Event に残す
+
+#### WorldState 追加 (v0.29)
+
+```ts
+type WorldState = {
+  ...
+  pressures: Record<PressureId, Pressure>
+  pressureIndex: PressureIndex
+  nextPressureId: number
 }
 ```
 

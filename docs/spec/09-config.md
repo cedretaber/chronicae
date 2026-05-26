@@ -427,6 +427,9 @@
 | projectBudgetMarginMultiplier | 2 | 予算見積もり時のマージン倍率 |
 | projectCompletedRespectGain | 5 | Project 完了時の supervisor への respect 上昇量 |
 | developHoldingTargetDevelopmentThreshold | 40 | goalSelectors の develop_holding 候補判定閾値 |
+| **ProjectStage / Pressure（v0.29）** | | |
+| projectStageMaxAttempts | 3 | preparatory stage の failure 連続上限。超過で Project failed |
+| pressureResponseDefaultDeadlineWeeks | 48 | respond_to_pressure Project の DiplomaticPlay 不在時 fallback deadline（1年 = 48週） |
 
 ---
 

@@ -170,7 +170,7 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
           }
         }
 
-        if (pressure.status === 'active' && pressure.responseProjectId) {
+        if (pressure.responseProjectId) {
           const base = nextProjects ?? ctx.state.projects
           const respProject = base[pressure.responseProjectId]
           if (respProject && respProject.status === 'active') {
@@ -179,7 +179,7 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
           }
         }
 
-        if (pressure.status === 'active' && pressure.relatedProjectId) {
+        if (pressure.relatedProjectId) {
           const base = nextProjects ?? ctx.state.projects
           const initProject = base[pressure.relatedProjectId]
           if (initProject && initProject.status === 'active') {

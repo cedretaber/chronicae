@@ -1407,6 +1407,7 @@ function applyPreparatoryGainMut(
   level: 'full' | 'partial',
 ): Project {
   if (!isDiplomaticProjectKind(project.kind)) return project
+  if (project.kind === 'respond_to_pressure') return project
 
   const lcp = project as LandClaimProject | ContractRevisionProject
   const prepGain =

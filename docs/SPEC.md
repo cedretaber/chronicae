@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-25（v0.28 POP wealth 安定化・Polity 保留額動的化・Project deadline 比例化・バランス観察記録追加）
+最終更新: 2026-05-27（v0.29 ProjectStage 一般化・DiplomaticPlay 責務整理・Pressure 導入）
 
 ---
 
