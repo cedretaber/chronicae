@@ -13,6 +13,7 @@ import type { Pressure, PressureIndex } from '../types/pressure'
 import type { WorldState } from '../types/world'
 import { removeTask, getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { removePressureFromIndexMut } from '../mutations/pressureMutations'
+import { createLogger } from '../debug/logger'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import {
   TERMINAL_DIPLOMATIC_PLAY_STATUSES,
@@ -241,6 +242,29 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
         termsProtectedUntilWeek: ctx.state.absoluteWeek + gracePeriodWeeks,
       }
     }
+  }
+
+  const log = createLogger(ctx.config.debug)
+  if (removedPlayIds.size > 0 || nextPressures || nextProjects) {
+    let cancelledProjectCount = 0
+    if (nextProjects) {
+      for (const [idStr, proj] of Object.entries(nextProjects)) {
+        const orig = ctx.state.projects[idStr as ProjectId]
+        if (orig && orig.status === 'active' && proj?.status === 'cancelled')
+          cancelledProjectCount++
+      }
+    }
+    let removedPressureCount = 0
+    if (nextPressures) {
+      for (const pid of Object.keys(ctx.state.pressures)) {
+        if (!(pid in nextPressures)) removedPressureCount++
+      }
+    }
+    log.log('CLEANUP_DIPLOMACY', {
+      removedPlays: removedPlayIds.size,
+      cancelledProjects: cancelledProjectCount,
+      removedPressures: removedPressureCount,
+    })
   }
 
   if (

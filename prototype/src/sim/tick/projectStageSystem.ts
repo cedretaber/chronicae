@@ -33,6 +33,7 @@ import {
 } from '../config/projectStageSequences'
 import { findBailiffCandidateForProject } from './projectStageHelpers'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
+import { createLogger } from '../debug/logger'
 
 export function runProjectStageSystem(ctx: TickContext): TickContext {
   const config = ctx.config
@@ -231,6 +232,14 @@ function resolveFindSupervisor(
   const nextKey = getNextProjectStageKey(project)
   if (!nextKey) return false
 
+  const log = createLogger(config.debug)
+  log.log('PROJECT_STAGE', {
+    projectId,
+    kind: project.kind,
+    from: project.currentStageKey,
+    to: nextKey,
+  })
+
   removeProjectFromIndexMut(ws, project)
   const updated: DevelopHoldingProject = {
     ...project,
@@ -264,6 +273,14 @@ function resolveSecureBudget(
 
   const nextKey = getNextProjectStageKey(project)
   if (!nextKey) return false
+
+  const log = createLogger(config.debug)
+  log.log('PROJECT_STAGE', {
+    projectId,
+    kind: project.kind,
+    from: project.currentStageKey,
+    to: nextKey,
+  })
 
   ws.projects[projectId] = {
     ...project,
@@ -303,6 +320,16 @@ function resolveOpenDiplomaticPlay(
 
     const nextKey = getNextProjectStageKey(project)
     if (!nextKey) return false
+
+    const log = createLogger(config.debug)
+    log.log('PROJECT_STAGE', {
+      projectId,
+      kind: project.kind,
+      from: project.currentStageKey,
+      to: nextKey,
+      action: 'open_diplomatic_play',
+      playId: result.playId,
+    })
 
     const updatedProject: LandClaimProject | ContractRevisionProject = {
       ...(project as LandClaimProject | ContractRevisionProject),
@@ -413,6 +440,16 @@ function resolveChooseStance(
 
   const nextKey = getNextProjectStageKey(project)
   if (!nextKey) return false
+
+  const log = createLogger(config.debug)
+  log.log('PROJECT_STAGE', {
+    projectId,
+    kind: project.kind,
+    from: project.currentStageKey,
+    to: nextKey,
+    action: 'choose_stance',
+    stance,
+  })
 
   removeProjectFromIndexMut(ws, project)
   const updated: RespondToPressureProject = {

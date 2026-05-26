@@ -40,6 +40,7 @@ Options:
   --json                Output each tick as NDJSON
   --integrity-check     Run integrity check after every tick
   --debug               Enable debug mode (entity IDs in events, structured debug log on stderr)
+  --integrity-per-system  Run integrity check after every system (very slow, for diagnosis)
   --dump-world          Dump full WorldState as JSON to stderr after simulation ends
   --digest              Output WorldDigest summary as JSON to stdout after simulation
   --config <json>       Override config values with a JSON object (e.g. '{"taxRevisionTaxChangeAmount":0.10}')
@@ -57,6 +58,7 @@ function parseArgs(argv: string[]): {
   weeks: number | undefined
   json: boolean
   integrityCheck: boolean
+  integrityPerSystem: boolean
   debug: boolean
   perf: boolean
   dumpWorld: boolean
@@ -73,6 +75,7 @@ function parseArgs(argv: string[]): {
   let weeks: number | undefined = undefined
   let json = false
   let integrityCheck = false
+  let integrityPerSystem = false
   let debug = false
   let perf = false
   let dumpWorld = false
@@ -109,6 +112,8 @@ function parseArgs(argv: string[]): {
       json = true
     } else if (arg === '--integrity-check') {
       integrityCheck = true
+    } else if (arg === '--integrity-per-system') {
+      integrityPerSystem = true
     } else if (arg === '--debug') {
       debug = true
     } else if (arg === '--perf') {
@@ -176,6 +181,7 @@ function parseArgs(argv: string[]): {
     weeks,
     json,
     integrityCheck,
+    integrityPerSystem,
     debug,
     perf,
     dumpWorld,
@@ -399,6 +405,41 @@ function countPlaceholderPersons(state: WorldState): number {
   return count
 }
 
+function countDecisionEntities(state: WorldState): {
+  activeProjects: number
+  activePlays: number
+  activePressures: number
+  activeTasks: number
+  activeGoals: number
+  activeAims: number
+} {
+  let activeProjects = 0
+  let activePlays = 0
+  let activePressures = 0
+  let activeTasks = 0
+  let activeGoals = 0
+  let activeAims = 0
+  for (const p of Object.values(state.projects)) {
+    if (p?.status === 'active') activeProjects++
+  }
+  for (const dp of Object.values(state.diplomaticPlays)) {
+    if (dp) activePlays++
+  }
+  for (const pr of Object.values(state.pressures)) {
+    if (pr?.status === 'active') activePressures++
+  }
+  for (const t of Object.values(state.tasks)) {
+    if (t?.status === 'active') activeTasks++
+  }
+  for (const g of Object.values(state.goals)) {
+    if (g?.status === 'active') activeGoals++
+  }
+  for (const a of Object.values(state.aims)) {
+    if (a?.status === 'active') activeAims++
+  }
+  return { activeProjects, activePlays, activePressures, activeTasks, activeGoals, activeAims }
+}
+
 function countEventsByType(events: SimEvent[]): Record<string, number> {
   const result: Record<string, number> = {}
   for (const event of events) {
@@ -541,7 +582,11 @@ async function main(): Promise<void> {
     }
   }
   const configBase: typeof defaultConfig = Object.assign({}, defaultConfig, args.configOverrides)
-  const config = args.debug ? { ...configBase, debug: true } : configBase
+  const config = {
+    ...configBase,
+    ...(args.debug ? { debug: true } : {}),
+    ...(args.integrityPerSystem ? { integrityPerSystem: true } : {}),
+  }
   const snapshots: ActivitySnapshot[] = []
   // 初期状態 (year 0) のスナップショットも取る (--report-snapshot 有効時のみ)
   if (args.reportPath !== undefined && args.reportSnapshotYears > 0) {
@@ -625,11 +670,18 @@ async function main(): Promise<void> {
         for (const p of Object.values(result.state.persons)) {
           if (p?.alive) livingPersons++
         }
+        const decisions = countDecisionEntities(result.state)
         debugLog.log('YEAR', {
           year,
           persons: livingPersons,
           houses: activeHouses,
           polities: activePolities,
+          projects: decisions.activeProjects,
+          plays: decisions.activePlays,
+          pressures: decisions.activePressures,
+          tasks: decisions.activeTasks,
+          goals: decisions.activeGoals,
+          aims: decisions.activeAims,
         })
       }
 
@@ -706,6 +758,22 @@ async function main(): Promise<void> {
             unrestStats.highUnrestCount +
             '/' +
             unrestStats.totalProvinces,
+        )
+        const decisions = countDecisionEntities(result.state)
+        console.log(
+          '  Decisions: ' +
+            decisions.activeProjects +
+            ' projects / ' +
+            decisions.activePlays +
+            ' plays / ' +
+            decisions.activePressures +
+            ' pressures | ' +
+            decisions.activeTasks +
+            ' tasks / ' +
+            decisions.activeGoals +
+            ' goals / ' +
+            decisions.activeAims +
+            ' aims',
         )
         console.log('  Major events this year: ' + totalYearEvents)
         console.log('')

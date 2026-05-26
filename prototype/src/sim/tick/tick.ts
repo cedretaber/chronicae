@@ -389,6 +389,7 @@ const scheduledSystems: ScheduledSystem[] = [
 export function tick(input: TickInput): TickResult {
   let ctx = createTickContext(input)
   const log = createLogger(ctx.config.debug)
+  const integrityLog = createLogger(ctx.config.integrityPerSystem)
   const debug = ctx.config.debug
   const timings: Record<string, number> = {}
 
@@ -399,6 +400,18 @@ export function tick(input: TickInput): TickResult {
     timings[label] = (timings[label] ?? 0) + elapsed
     if (debug) {
       log.perf(label, elapsed)
+    }
+    if (ctx.config.integrityPerSystem) {
+      try {
+        runIntegritySystem(ctx)
+      } catch (e) {
+        integrityLog.log('INTEGRITY_AFTER', {
+          system: label,
+          year: ctx.state.currentYear,
+          week: ctx.state.currentWeekOfYear,
+          error: String(e),
+        })
+      }
     }
   }
 

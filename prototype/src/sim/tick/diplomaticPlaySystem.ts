@@ -32,6 +32,7 @@ import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { calcGeneralWarPowerModifier } from '../selectors/personAbilityEffects'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { randomFloat } from '../rng/rng'
+import { createLogger } from '../debug/logger'
 
 // v0.18 Stage B/C/D §10 / §11 / §13
 // DiplomaticPlaySystem: active な DiplomaticPlay を毎月進行させる。
@@ -1041,6 +1042,13 @@ function setPlayAnyStatus(
 ): TickContext {
   const play = ctx.state.diplomaticPlays[playId]
   if (!play) return ctx
+  const log = createLogger(ctx.config.debug)
+  log.log('DIPLOMATIC_PLAY', {
+    playId,
+    kind: play.kind,
+    from: play.status,
+    to: status,
+  })
   return {
     ...ctx,
     state: {

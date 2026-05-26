@@ -9,6 +9,7 @@ export type SimulationConfig = {
   uiLocale: 'en' | 'ja'
   nameCultureId: string
   debug: boolean
+  integrityPerSystem: boolean
   minLivingMembersPerHouse: number
   maxNewPersonsPerHousePerYear: number
   basePlotSuccess: number
@@ -623,6 +624,7 @@ export const defaultConfig: SimulationConfig = {
   uiLocale: 'en',
   nameCultureId: 'western',
   debug: false,
+  integrityPerSystem: false,
   minLivingMembersPerHouse: 4,
   maxNewPersonsPerHousePerYear: 2,
   basePlotSuccess: 0.35,

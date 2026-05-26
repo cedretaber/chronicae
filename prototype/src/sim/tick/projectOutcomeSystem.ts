@@ -14,6 +14,7 @@ import { createOrganizationShareId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 import { removeProjectFromIndexMut, isDiplomaticProjectKind } from '../mutations/projectMutations'
+import { createLogger } from '../debug/logger'
 
 export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
   const config = ctx.config
@@ -83,7 +84,13 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     }
   }
 
+  const log = createLogger(config.debug)
   for (const project of terminalProjects) {
+    log.log('PROJECT_OUTCOME', {
+      projectId: project.id,
+      kind: project.kind,
+      status: project.status,
+    })
     if (project.status === 'completed') {
       if (!isDiplomaticProjectKind(project.kind)) {
         applyNonDiplomaticEffectMut(ws, config, project, emitEvent)
@@ -93,6 +100,10 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
         const pressure = ws.pressures[project.pressureId]
         if (pressure && pressure.status === 'active') {
           ws.pressures[project.pressureId] = { ...pressure, status: 'responded' }
+          log.log('PROJECT_OUTCOME', {
+            pressureId: project.pressureId,
+            action: 'responded',
+          })
         }
       }
       if (project.origin.kind === 'aim') {

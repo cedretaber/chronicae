@@ -70,6 +70,7 @@ import {
   getNextProjectStageKey,
 } from '../config/projectStageSequences'
 import { resolveImmediateStages } from './projectStageSystem'
+import { createLogger } from '../debug/logger'
 
 // --- Types ---
 
@@ -999,6 +1000,19 @@ export function runTaskSystem(ctx: TickContext): TickContext {
 
   // Step 5: Review waiting aims
   reviewWaitingAimsMut(ws, config, emitEvent)
+
+  // Debug summary
+  const log = createLogger(config.debug)
+  if (config.debug) {
+    let activeRemaining = 0
+    for (const t of Object.values(ws.tasks)) {
+      if (t?.status === 'active') activeRemaining++
+    }
+    log.log('TASK_SUMMARY', {
+      completed: completed.length,
+      activeRemaining,
+    })
+  }
 
   // Return final state (single immutable construction)
   return {

@@ -197,54 +197,31 @@ const id = person.id
 
 ## 状態整合性バグのデバッグ手法
 
-整合性違反（「`headId` が `memberIds` にない」など）が報告された場合、**コードを読んで仮説を立てる前に**、まず診断ログを仕込んで原因システムを実測で特定する。
+整合性違反（「`headId` が `memberIds` にない」など）が報告された場合、**コードを読んで仮説を立てる前に**、まず `--integrity-per-system` フラグで原因システムを実測で特定する。
 
 ### 手順
 
-**Step 1: `tick.ts` の `run` ラッパーに per-system チェックを追加する**
-
-```typescript
-const run = (label: string, fn: (c: TickContext) => TickContext): void => {
-  if (debug) {
-    const t0 = performance.now()
-    ctx = fn(ctx)
-    log.perf(label, performance.now() - t0)
-    // ← ここに診断チェックを追加
-    for (const [hid, house] of Object.entries(ctx.state.houses)) {
-      if (!house || !house.active) continue
-      if (!house.memberIds.some((m) => (m as string) === (house.headId as string))) {
-        log.log('INTEGRITY_VIOLATION', {
-          after: label,
-          year: ctx.state.currentYear,
-          month: ctx.state.currentMonth,
-          house: hid,
-          headId: house.headId,
-          memberIds: house.memberIds.join(','),
-        })
-      }
-    }
-  } else {
-    ctx = fn(ctx)
-  }
-}
-```
-
-**Step 2: CLI で debug モードを実行してログを確認する**
+**Step 1: `--integrity-per-system` フラグで CLI を実行する**
 
 ```bash
-cd prototype && node src/cli/run.mjs --years 20 --seed 1 --debug 2>&1 | grep INTEGRITY_VIOLATION | head -5
+cd prototype && node src/cli/run.mjs --years 20 --seed 1 --integrity-per-system 2>&1 | grep INTEGRITY_AFTER | head -5
 ```
 
-最初に `after=XXX` が出たシステムが原因。そのファイルだけ読めばよい。
+このフラグは各 system 実行後に `runIntegritySystem` を try-catch で走らせ、違反があれば `[DEBUG:INTEGRITY_AFTER] system=XXX year=Y week=Z error=...` を stderr に出力する。
 
-**Step 3: 診断コードを必ず削除してから `npm run check` を通す**
+最初に出たシステムが原因。そのファイルだけ読めばよい。
 
-診断チェックは一時的なものなので、バグ修正後は `tick.ts` を元に戻す。
+**注意**: 非常に遅い（全 system × integrity check のコスト）。20 年程度の短い年数で使うこと。300 年では使わない。
 
-### なぜこの順序か
+**Step 2: 中間状態の violation と本物の violation を区別する**
+
+一部の violation は正常な中間状態（例: mortalitySystem 後に dead person の wealth が残る → estateSettlementSystem が処理する）。
+同じ violation が最終 system まで残っていれば本物のバグ。grep 出力の `system=` を見て、どの system で初出し、どの system で解消されるかを追跡する。
+
+### なぜこの手法か
 
 - 状態空間が広いため、コード読解で原因システムを絞り込むのは非効率
-- CLI + debug モードが既にあるので、診断ログのコストは 5 分以下
+- `--integrity-per-system` はコード変更不要で即座に利用可能
 - 原因システムさえ特定できれば、そのファイルだけ読めば十分
 
 ## パフォーマンス分析手法 (per-system perf log)

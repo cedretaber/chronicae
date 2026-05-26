@@ -10,6 +10,7 @@ import { setPressureResponseProjectMut } from '../mutations/pressureMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
+import { createLogger } from '../debug/logger'
 
 export function runPressureSystem(ctx: TickContext): TickContext {
   const config = ctx.config
@@ -108,6 +109,13 @@ export function runPressureSystem(ctx: TickContext): TickContext {
     ws.projects[projectId] = project
     addProjectToIndexMut(ws, project)
     setPressureResponseProjectMut(ws, pressure.id, projectId)
+
+    const log = createLogger(config.debug)
+    log.log('PRESSURE', {
+      pressureId: pressure.id,
+      responseProjectId: projectId,
+      target: `${pressure.target.kind}:${pressure.target.id}`,
+    })
 
     const ownerNameKey = ws.polities[polityId]?.nameKey ?? polityId
     emitEvent({
