@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PolityId, HouseId, GoalId } from '../types/ids'
+import type { PolityId, HouseId, GoalId, ProvinceId } from '../types/ids'
 import type {
   DecisionSubjectRef,
   GoalKind,
@@ -205,33 +205,31 @@ function pickPolityAim(
   const candidates: { kind: PolityAimKind; target?: EntityRef; score: number }[] = []
 
   if (goalKind === 'external_expansion') {
-    // consolidate_province_holdings: find provinces where we have some holdings but not all
     const terminalProvinceIds = getPolityTerminalProvinceIds(state, polityId)
+
+    // consolidate_province_holdings: find provinces where we have some holdings but not all
+    const checkedForConsolidate = new Set<ProvinceId>()
     for (const pid of terminalProvinceIds) {
-      const province = state.provinces[pid]
-      if (!province) continue
-      for (const neighborId of province.neighbors) {
-        const nProvince = state.provinces[neighborId]
-        if (!nProvince) continue
-        const holdings = getProvinceHoldings(state, neighborId)
-        let ownCount = 0
-        let otherCount = 0
-        for (const h of holdings) {
-          const tp = state.holdingTerminalPolityCache[h.id]
-          if (tp && (tp as string) === (polityId as string)) ownCount++
-          else otherCount++
-        }
-        if (ownCount > 0 && otherCount > 0) {
-          candidates.push({
-            kind: 'consolidate_province_holdings',
-            target: { kind: 'province', id: neighborId },
-            score: 30 + ownCount * 10,
-          })
-        }
+      if (checkedForConsolidate.has(pid)) continue
+      checkedForConsolidate.add(pid)
+      const holdings = getProvinceHoldings(state, pid)
+      let ownCount = 0
+      let otherCount = 0
+      for (const h of holdings) {
+        const tp = state.holdingTerminalPolityCache[h.id]
+        if (tp && (tp as string) === (polityId as string)) ownCount++
+        else otherCount++
+      }
+      if (ownCount > 0 && otherCount > 0) {
+        candidates.push({
+          kind: 'consolidate_province_holdings',
+          target: { kind: 'province', id: pid },
+          score: 30 + ownCount * 10,
+        })
       }
     }
 
-    // seize_weak_remote_holdings: find weak polity holdings
+    // seize_weak_remote_holdings: find weak polity holdings in neighboring provinces
     const ownPower = calcPolityMilitaryPower(state, config, polityId)
     for (const pid of terminalProvinceIds) {
       const province = state.provinces[pid]
