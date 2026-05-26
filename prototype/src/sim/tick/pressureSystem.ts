@@ -8,6 +8,7 @@ import { createProjectId } from '../types/ids'
 import { addProjectToIndexMut } from '../mutations/projectMutations'
 import { setPressureResponseProjectMut } from '../mutations/pressureMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
+import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
 
 export function runPressureSystem(ctx: TickContext): TickContext {
@@ -65,6 +66,10 @@ export function runPressureSystem(ctx: TickContext): TickContext {
     const leader = ws.persons[leaderId]
     if (!leader || !leader.alive || leader.kind === 'placeholder') continue
 
+    const supervisorId =
+      selectProjectSupervisor(ws, config, pressure.target, 'respond_to_pressure', leaderId) ??
+      leaderId
+
     let deadlineWeek: number | undefined
     if (pressure.relatedDiplomaticPlayId) {
       const play = ws.diplomaticPlays[pressure.relatedDiplomaticPlayId]
@@ -83,7 +88,7 @@ export function runPressureSystem(ctx: TickContext): TickContext {
       origin: { kind: 'system', reasonKey: 'pressure_response' },
       kind: 'respond_to_pressure',
       creatorPersonId: leaderId,
-      supervisorPersonId: leaderId,
+      supervisorPersonId: supervisorId,
       pressureId: pressure.id,
       ...(pressure.relatedDiplomaticPlayId !== undefined && {
         diplomaticPlayId: pressure.relatedDiplomaticPlayId,

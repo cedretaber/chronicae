@@ -75,6 +75,7 @@ import type {
   LandContractId,
   ProvinceId,
 } from '@/sim/types/ids'
+import type { Project } from '@/sim/types/project'
 import type { Faction } from '@/sim/types/faction'
 import type { ShareHolderRef } from '@/sim/types/office'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
@@ -599,6 +600,75 @@ function PolityLink({
     >
       {resolveName('polity', polity.nameKey, polity.nameKey)}
     </button>
+  )
+}
+
+function ProjectDetailCard({
+  project,
+  persons,
+  onPersonClick,
+  label,
+}: {
+  project: Project
+  persons: Record<string, Person>
+  onPersonClick: ClickHandler
+  label: string
+}) {
+  const { t } = useTranslation()
+  return (
+    <div style={{ marginLeft: 8, marginTop: 4 }}>
+      <strong>{label}</strong>
+      <div style={{ marginLeft: 8 }}>
+        <div>{t(`detail.project_kind.${project.kind}`)}</div>
+        <div>
+          {t('detail.polity.project_progress')}: {project.progress} / {project.targetProgress}
+        </div>
+        <div>
+          {t('detail.polity.project_supervisor')}:{' '}
+          <PersonLink
+            personId={project.supervisorPersonId}
+            persons={persons}
+            onClick={onPersonClick}
+          />
+        </div>
+        {project.deadlineWeek && (
+          <div>
+            {t('detail.polity.project_deadline')}: {t('detail.common.year')}{' '}
+            {Math.ceil(project.deadlineWeek / 48)}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ProjectListItem({
+  project,
+  persons,
+  onPersonClick,
+  showSupervisor = true,
+}: {
+  project: Project
+  persons: Record<string, Person>
+  onPersonClick: ClickHandler
+  showSupervisor?: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <li className="mb-1 text-gray-400">
+      <span className="text-gray-200">{t(`detail.project_kind.${project.kind}`)}</span> —{' '}
+      {project.progress}/{project.targetProgress}
+      {showSupervisor && (
+        <>
+          {' — '}
+          <PersonLink
+            personId={project.supervisorPersonId}
+            persons={persons}
+            onClick={onPersonClick}
+          />
+        </>
+      )}
+    </li>
   )
 }
 
@@ -1310,33 +1380,15 @@ export function CountryDetail({
                       (p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active',
                     )
                   if (activeProjects.length === 0) return null
-                  return activeProjects.map((project) => {
-                    const supervisor = worldState.persons[project.supervisorPersonId]
-                    const supervisorName = supervisor
-                      ? resolveName('person', supervisor.nameKey, supervisor.nameKey)
-                      : '?'
-                    return (
-                      <div key={project.id} style={{ marginLeft: 8, marginTop: 4 }}>
-                        <strong>{t('detail.polity.active_project')}</strong>
-                        <div style={{ marginLeft: 8 }}>
-                          <div>{t(`detail.project_kind.${project.kind}`)}</div>
-                          <div>
-                            {t('detail.polity.project_progress')}: {project.progress} /{' '}
-                            {project.targetProgress}
-                          </div>
-                          <div>
-                            {t('detail.polity.project_supervisor')}: {supervisorName}
-                          </div>
-                          {project.deadlineWeek && (
-                            <div>
-                              {t('detail.polity.project_deadline')}: {t('detail.common.year')}{' '}
-                              {Math.ceil(project.deadlineWeek / 48)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })
+                  return activeProjects.map((project) => (
+                    <ProjectDetailCard
+                      key={project.id}
+                      project={project}
+                      persons={worldState.persons}
+                      onPersonClick={onPersonClick}
+                      label={t('detail.polity.active_project')}
+                    />
+                  ))
                 })()}
               {activeAim?.activeDiplomaticPlayId &&
                 (() => {
@@ -1384,20 +1436,14 @@ export function CountryDetail({
                 {t('detail.polity.projects_section')} ({activeProjects.length})
               </div>
               <ul className="list-inside text-sm">
-                {activeProjects.map((project) => {
-                  const supervisor = worldState.persons[project.supervisorPersonId]
-                  const supervisorName = supervisor
-                    ? resolveName('person', supervisor.nameKey, supervisor.nameKey)
-                    : '?'
-                  return (
-                    <li key={project.id} className="mb-1 text-gray-400">
-                      <span className="text-gray-200">
-                        {t(`detail.project_kind.${project.kind}`)}
-                      </span>{' '}
-                      — {project.progress}/{project.targetProgress} — {supervisorName}
-                    </li>
-                  )
-                })}
+                {activeProjects.map((project) => (
+                  <ProjectListItem
+                    key={project.id}
+                    project={project}
+                    persons={worldState.persons}
+                    onPersonClick={onPersonClick}
+                  />
+                ))}
               </ul>
             </div>
           )
@@ -1806,33 +1852,15 @@ export function HouseDetail({
                       (p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active',
                     )
                   if (activeProjects.length === 0) return null
-                  return activeProjects.map((project) => {
-                    const supervisor = currentState.persons[project.supervisorPersonId]
-                    const supervisorName = supervisor
-                      ? resolveName('person', supervisor.nameKey, supervisor.nameKey)
-                      : '?'
-                    return (
-                      <div key={project.id} style={{ marginLeft: 8, marginTop: 4 }}>
-                        <strong>{t('detail.house.active_project')}</strong>
-                        <div style={{ marginLeft: 8 }}>
-                          <div>{t(`detail.project_kind.${project.kind}`)}</div>
-                          <div>
-                            {t('detail.house.project_progress')}: {project.progress} /{' '}
-                            {project.targetProgress}
-                          </div>
-                          <div>
-                            {t('detail.house.project_supervisor')}: {supervisorName}
-                          </div>
-                          {project.deadlineWeek && (
-                            <div>
-                              {t('detail.house.project_deadline')}: {t('detail.common.year')}{' '}
-                              {Math.ceil(project.deadlineWeek / 48)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })
+                  return activeProjects.map((project) => (
+                    <ProjectDetailCard
+                      key={project.id}
+                      project={project}
+                      persons={currentState.persons}
+                      onPersonClick={onPersonClick}
+                      label={t('detail.house.active_project')}
+                    />
+                  ))
                 })()}
               {activeAim?.activeDiplomaticPlayId &&
                 (() => {
@@ -1880,20 +1908,14 @@ export function HouseDetail({
                 {t('detail.house.projects_section')} ({activeProjects.length})
               </div>
               <ul className="list-inside text-sm">
-                {activeProjects.map((project) => {
-                  const supervisor = currentState.persons[project.supervisorPersonId]
-                  const supervisorName = supervisor
-                    ? resolveName('person', supervisor.nameKey, supervisor.nameKey)
-                    : '?'
-                  return (
-                    <li key={project.id} className="mb-1 text-gray-400">
-                      <span className="text-gray-200">
-                        {t(`detail.project_kind.${project.kind}`)}
-                      </span>{' '}
-                      — {project.progress}/{project.targetProgress} — {supervisorName}
-                    </li>
-                  )
-                })}
+                {activeProjects.map((project) => (
+                  <ProjectListItem
+                    key={project.id}
+                    project={project}
+                    persons={currentState.persons}
+                    onPersonClick={onPersonClick}
+                  />
+                ))}
               </ul>
             </div>
           )
@@ -2661,12 +2683,13 @@ export function PersonDetail({
                 </div>
                 <ul className="list-inside text-sm">
                   {supervisedProjects.map((project) => (
-                    <li key={project.id} className="mb-1 text-gray-400">
-                      <span className="text-gray-200">
-                        {t(`detail.project_kind.${project.kind}`)}
-                      </span>{' '}
-                      — {project.progress}/{project.targetProgress}
-                    </li>
+                    <ProjectListItem
+                      key={project.id}
+                      project={project}
+                      persons={worldState.persons}
+                      onPersonClick={onPersonClick}
+                      showSupervisor={false}
+                    />
                   ))}
                 </ul>
               </>
@@ -2677,18 +2700,14 @@ export function PersonDetail({
                   {t('detail.person.created_projects')} ({createdProjects.length})
                 </div>
                 <ul className="list-inside text-sm">
-                  {createdProjects.map((project) => {
-                    const sup = worldState.persons[project.supervisorPersonId]
-                    const supName = sup ? resolveName('person', sup.nameKey, sup.nameKey) : '?'
-                    return (
-                      <li key={project.id} className="mb-1 text-gray-400">
-                        <span className="text-gray-200">
-                          {t(`detail.project_kind.${project.kind}`)}
-                        </span>{' '}
-                        — {project.progress}/{project.targetProgress} — {supName}
-                      </li>
-                    )
-                  })}
+                  {createdProjects.map((project) => (
+                    <ProjectListItem
+                      key={project.id}
+                      project={project}
+                      persons={worldState.persons}
+                      onPersonClick={onPersonClick}
+                    />
+                  ))}
                 </ul>
               </>
             )}
@@ -4016,12 +4035,14 @@ export function DiplomaticPlayDetail({
   onPersonClick,
   onPolityClick,
   onProvinceClick,
+  onHoldingClick,
 }: {
   play: import('@sim/types/diplomaticPlay').DiplomaticPlay
   session: SimulationSession | null
   onPersonClick: ClickHandler
   onPolityClick: ClickHandler
   onProvinceClick: (id: string) => void
+  onHoldingClick: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -4048,13 +4069,17 @@ export function DiplomaticPlayDetail({
   const badge = statusBadge[play.status] ?? { label: play.status, bg: 'bg-gray-600' }
 
   let provinceId: ProvinceId | undefined
+  let holdingId: HoldingId | undefined
   if (play.primaryDemand.kind === 'transfer_land_contract') {
-    provinceId = worldState.holdings[play.primaryDemand.holdingId]?.provinceId
+    holdingId = play.primaryDemand.holdingId
+    provinceId = worldState.holdings[holdingId]?.provinceId
   } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
-    provinceId = worldState.holdings[play.primaryDemand.holdingId]?.provinceId
+    holdingId = play.primaryDemand.holdingId
+    provinceId = worldState.holdings[holdingId]?.provinceId
   } else if (play.primaryDemand.kind === 'revolt_concession') {
     provinceId = play.primaryDemand.provinceId
   }
+  const holding = holdingId ? worldState.holdings[holdingId] : undefined
 
   const initiatorPolity = polities[play.initiator.id as PolityId]
   const targetPolity = polities[play.target.id as PolityId]
@@ -4065,6 +4090,18 @@ export function DiplomaticPlayDetail({
   const targetTasks = play.targetActiveTaskIds
     .map((tid) => worldState.tasks[tid])
     .filter((tk): tk is NonNullable<typeof tk> => !!tk)
+
+  // Related projects
+  const initiatorProject = play.originProjectId
+    ? worldState.projects[play.originProjectId]
+    : undefined
+  const pressureIds = worldState.pressureIndex.byDiplomaticPlay[play.id]
+  const targetPressure = pressureIds
+    ?.map((pid) => worldState.pressures[pid])
+    .find((p) => p && p.responseProjectId)
+  const targetProject = targetPressure?.responseProjectId
+    ? worldState.projects[targetPressure.responseProjectId]
+    : undefined
 
   return (
     <div className="flex flex-col gap-1 p-3">
@@ -4106,6 +4143,22 @@ export function DiplomaticPlayDetail({
                 worldState.provinces[provinceId]?.nameKey ?? provinceId,
                 provinceId,
               )}
+            </button>
+          </div>
+        )}
+        {holding && provinceId && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.play.holding')}:</span>
+            <button
+              className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+              onClick={() => onHoldingClick(holding.id)}
+            >
+              {resolveName(
+                'province',
+                worldState.provinces[provinceId]?.nameKey ?? provinceId,
+                provinceId,
+              )}{' '}
+              {holding.kind}
             </button>
           </div>
         )}
@@ -4226,7 +4279,11 @@ export function DiplomaticPlayDetail({
           {play.primaryDemand.kind === 'transfer_land_contract' &&
             `${t('detail.play.demand_transfer_land')}`}
           {play.primaryDemand.kind === 'change_contract_tax_rate' &&
-            `${t('detail.play.demand_tax_change')} → ${Math.round(play.primaryDemand.newTaxRateToGrantor * 100)}%`}
+            (() => {
+              const currentRate =
+                worldState.landContracts[play.primaryDemand.landContractId]?.terms.taxRateToGrantor
+              return `${t('detail.play.demand_tax_change')} ${currentRate != null ? Math.round(currentRate * 100) : '?'}% → ${Math.round(play.primaryDemand.newTaxRateToGrantor * 100)}%`
+            })()}
           {play.primaryDemand.kind === 'revolt_concession' &&
             `${t('detail.play.demand_revolt_concession')} (${play.primaryDemand.concessionLevel})`}
           {play.primaryDemand.kind === 'status_quo' && t('detail.play.demand_status_quo')}
@@ -4244,8 +4301,65 @@ export function DiplomaticPlayDetail({
               {play.counterDemand.kind === 'transfer_land_contract' &&
                 t('detail.play.demand_transfer_land')}
               {play.counterDemand.kind === 'change_contract_tax_rate' &&
-                `${t('detail.play.demand_tax_change')} → ${Math.round(play.counterDemand.newTaxRateToGrantor * 100)}%`}
+                (() => {
+                  const currentRate =
+                    worldState.landContracts[play.counterDemand.landContractId]?.terms
+                      .taxRateToGrantor
+                  return `${t('detail.play.demand_tax_change')} ${currentRate != null ? Math.round(currentRate * 100) : '?'}% → ${Math.round(play.counterDemand.newTaxRateToGrantor * 100)}%`
+                })()}
             </div>
+          </>
+        )}
+
+        {(initiatorProject || targetProject) && (
+          <>
+            <div className="my-1 border-t border-gray-700" />
+            <div className="text-sm font-semibold text-gray-300">
+              {t('detail.play.related_projects')}
+            </div>
+            {initiatorProject && (
+              <div style={{ marginLeft: 8 }}>
+                <div className="text-xs font-semibold text-gray-400">
+                  {t('detail.play.initiator_project')}
+                </div>
+                <div className="text-xs text-gray-300" style={{ marginLeft: 8 }}>
+                  <div>
+                    {t(`detail.project_kind.${initiatorProject.kind}`)} —{' '}
+                    <span className="text-gray-400">
+                      {t(`detail.play.stage_${initiatorProject.currentStageKey}`)}
+                    </span>
+                  </div>
+                  <div>
+                    {t('detail.play.project_progress')}: {Math.round(initiatorProject.progress)}/
+                    {initiatorProject.targetProgress}
+                  </div>
+                </div>
+              </div>
+            )}
+            {targetProject && (
+              <div style={{ marginLeft: 8, marginTop: 4 }}>
+                <div className="text-xs font-semibold text-gray-400">
+                  {t('detail.play.target_project')}
+                </div>
+                <div className="text-xs text-gray-300" style={{ marginLeft: 8 }}>
+                  <div>
+                    {t(`detail.project_kind.${targetProject.kind}`)} —{' '}
+                    <span className="text-gray-400">
+                      {t(`detail.play.stage_${targetProject.currentStageKey}`)}
+                    </span>
+                  </div>
+                  <div>
+                    {t('detail.play.project_progress')}: {Math.round(targetProject.progress)}/
+                    {targetProject.targetProgress}
+                  </div>
+                  {targetProject.kind === 'respond_to_pressure' && targetProject.stance && (
+                    <div>
+                      {t('detail.play.stance')}: {t(`detail.play.stance_${targetProject.stance}`)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

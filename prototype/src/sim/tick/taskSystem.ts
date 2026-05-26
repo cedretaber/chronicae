@@ -1196,18 +1196,13 @@ function buildProjectFieldsForAim(
       }
     }
     case 'acquire_land': {
-      if (aim.owner.kind !== 'polity')
-        return {
-          preparation: 0,
-          leverage: 0,
-          commitment: 0,
-          currentStageKey: getInitialProjectStageKey('acquire_land'),
-        }
+      if (aim.owner.kind !== 'polity') return undefined
       const target = findAcquireTargetForProject(ws, aim)
+      if (!target) return undefined
       return {
-        holdingId: target?.holdingId,
-        provinceId: target?.provinceId,
-        counterpartyPolityId: target?.targetPolityId,
+        holdingId: target.holdingId,
+        provinceId: target.provinceId,
+        counterpartyPolityId: target.targetPolityId,
         preparation: 0,
         leverage: 0,
         commitment: 0,
@@ -1215,18 +1210,13 @@ function buildProjectFieldsForAim(
       }
     }
     case 'improve_contract_terms': {
-      if (aim.owner.kind !== 'polity')
-        return {
-          preparation: 0,
-          leverage: 0,
-          commitment: 0,
-          currentStageKey: getInitialProjectStageKey('improve_contract_terms'),
-        }
+      if (aim.owner.kind !== 'polity') return undefined
       const target = findImproveTargetForProject(ws, config, aim)
+      if (!target) return undefined
       return {
-        holdingId: target?.holdingId,
-        landContractId: target?.contractId,
-        counterpartyPolityId: target?.targetPolityId,
+        holdingId: target.holdingId,
+        landContractId: target.contractId,
+        counterpartyPolityId: target.targetPolityId,
         preparation: 0,
         leverage: 0,
         commitment: 0,
@@ -1234,18 +1224,13 @@ function buildProjectFieldsForAim(
       }
     }
     case 'demand_tax_increase': {
-      if (aim.owner.kind !== 'polity')
-        return {
-          preparation: 0,
-          leverage: 0,
-          commitment: 0,
-          currentStageKey: getInitialProjectStageKey('demand_tax_increase'),
-        }
+      if (aim.owner.kind !== 'polity') return undefined
       const target = findDemandTaxIncreaseTargetForProject(ws, config, aim)
+      if (!target) return undefined
       return {
-        holdingId: target?.holdingId,
-        landContractId: target?.contractId,
-        counterpartyPolityId: target?.targetPolityId,
+        holdingId: target.holdingId,
+        landContractId: target.contractId,
+        counterpartyPolityId: target.targetPolityId,
         preparation: 0,
         leverage: 0,
         commitment: 0,

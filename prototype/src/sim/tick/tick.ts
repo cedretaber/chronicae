@@ -374,7 +374,7 @@ const scheduledSystems: ScheduledSystem[] = [
   },
   {
     name: 'cleanupTerminalDiplomacy',
-    intervalWeeks: 4,
+    intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runCleanupTerminalDiplomacy,
   },
