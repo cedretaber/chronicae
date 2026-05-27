@@ -248,13 +248,11 @@ export function evaluateOffer(
   offer: DiplomaticOffer,
   evaluator: PoliticalActorRef,
 ): OfferEvaluation {
-  // evaluator is reserved for Phase B per-side perspective adjustments
-  void evaluator
   switch (play.kind) {
     case 'land_claim':
-      return evaluateLandClaimOffer(state, config, play, offer)
+      return evaluateLandClaimOffer(state, config, play, offer, evaluator)
     case 'contract_tax_revision':
-      return evaluateContractTaxRevisionOffer(state, config, play, offer)
+      return evaluateContractTaxRevisionOffer(state, config, play, offer, evaluator)
     default:
       return {
         accepted: false,
@@ -266,6 +264,14 @@ export function evaluateOffer(
   }
 }
 
+function getEvaluatorNegotiationBonus(play: DiplomaticPlay, evaluator: PoliticalActorRef): number {
+  const isInitiator = isSameActor(evaluator, play.initiator)
+  const prep = isInitiator ? play.initiatorPreparation : play.targetPreparation
+  const lev = isInitiator ? play.initiatorLeverage : play.targetLeverage
+  const commit = isInitiator ? play.initiatorCommitment : play.targetCommitment
+  return prep * 0.05 + lev * 0.1 + commit * 0.1
+}
+
 // ─── Land claim evaluation (mirrors progressLandClaim formula) ───
 
 function evaluateLandClaimOffer(
@@ -273,6 +279,7 @@ function evaluateLandClaimOffer(
   config: SimulationConfig,
   play: DiplomaticPlay,
   offer: DiplomaticOffer,
+  evaluator: PoliticalActorRef,
 ): OfferEvaluation {
   if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
     return {
@@ -284,29 +291,13 @@ function evaluateLandClaimOffer(
     }
   }
 
-  const initiatorPolityId = play.initiator.id
-  const defenderPolityId = play.target.id
-  const defender = state.polities[defenderPolityId]
-  if (!defender?.active) {
-    return {
-      accepted: false,
-      score: -100,
-      progressDelta: 0,
-      tensionDelta: config.rejectedOfferTensionDelta,
-      reasonKey: 'missing_defender',
-    }
-  }
-
-  // Determine holdingId from issue or offer demands
   let holdingId: HoldingId | undefined
   if (play.issue?.kind === 'land_claim') {
     holdingId = play.issue.holdingId
   }
   if (!holdingId) {
-    const params = extractLandClaimOfferParams(offer)
-    holdingId = params.transferHoldingId
+    holdingId = extractLandClaimOfferParams(offer).transferHoldingId
   }
-
   if (!holdingId) {
     return {
       accepted: false,
@@ -329,28 +320,44 @@ function evaluateLandClaimOffer(
   }
 
   const params = extractLandClaimOfferParams(offer)
+  const evaluatorIsInitiator = isSameActor(evaluator, play.initiator)
 
-  const defenderTreasuryNeed = computeDefenderTreasuryNeed(defender.treasury)
-  const initiatorPower =
-    getActorMilitaryPower(state, config, play.initiator) *
-    calcGeneralWarPowerModifier(state, initiatorPolityId, config)
-  const defenderPower =
-    getActorMilitaryPower(state, config, play.target) *
-    calcGeneralWarPowerModifier(state, defenderPolityId, config)
+  const selfActor = evaluatorIsInitiator ? play.initiator : play.target
+  const opponentActor = evaluatorIsInitiator ? play.target : play.initiator
+  const selfPolity = state.polities[selfActor.id]
+  if (!selfPolity?.active) {
+    return {
+      accepted: false,
+      score: -100,
+      progressDelta: 0,
+      tensionDelta: config.rejectedOfferTensionDelta,
+      reasonKey: 'missing_defender',
+    }
+  }
+
+  const selfTreasuryNeed = computeDefenderTreasuryNeed(selfPolity.treasury)
+  const opponentPower =
+    getActorMilitaryPower(state, config, opponentActor) *
+    calcGeneralWarPowerModifier(state, opponentActor.id, config)
+  const selfPower =
+    getActorMilitaryPower(state, config, selfActor) *
+    calcGeneralWarPowerModifier(state, selfActor.id, config)
   const provinceValue = computeProvinceValue(
     getProvinceDevelopmentFromHoldings(state, provinceId, config),
   )
-  const strategicLoss = computeStrategicValue(state, provinceId, defenderPolityId)
-  const prestigeLoss = computePrestigeLoss(defender.rank)
+  const strategicLoss = computeStrategicValue(state, provinceId, selfActor.id)
+  const prestigeLoss = computePrestigeLoss(selfPolity.rank)
+  const negotiationBonus = getEvaluatorNegotiationBonus(play, evaluator)
 
   const score =
     params.offeredPrice * config.claimOfferedPriceFactor +
-    defenderTreasuryNeed +
-    initiatorPower * config.claimInitiatorPressureFactor -
-    defenderPower * config.claimDefenderResistFactor -
+    selfTreasuryNeed +
+    opponentPower * config.claimInitiatorPressureFactor -
+    selfPower * config.claimDefenderResistFactor -
     provinceValue * config.claimProvinceValueFactor -
     strategicLoss * config.claimStrategicLossFactor -
-    prestigeLoss * config.claimPrestigeLossFactor
+    prestigeLoss * config.claimPrestigeLossFactor +
+    negotiationBonus
 
   if (score >= 0) {
     return {
@@ -377,6 +384,7 @@ function evaluateContractTaxRevisionOffer(
   config: SimulationConfig,
   play: DiplomaticPlay,
   offer: DiplomaticOffer,
+  evaluator: PoliticalActorRef,
 ): OfferEvaluation {
   if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
     return {
@@ -388,16 +396,11 @@ function evaluateContractTaxRevisionOffer(
     }
   }
 
-  const initiatorPolityId = play.initiator.id
-  const defenderPolityId = play.target.id
-
-  // Determine holdingId from issue or demand
   let holdingId: HoldingId | undefined
   if (play.issue?.kind === 'contract_tax_revision') {
     holdingId = play.issue.holdingId
   }
   if (!holdingId) {
-    // Fall back to primary demand
     if (play.primaryDemand.kind === 'change_contract_tax_rate') {
       holdingId = play.primaryDemand.holdingId
     }
@@ -425,7 +428,6 @@ function evaluateContractTaxRevisionOffer(
 
   const params = extractContractTaxRevisionOfferParams(offer)
 
-  // Determine current rate from issue or contract
   let currentRate: number
   if (play.issue?.kind === 'contract_tax_revision') {
     currentRate = play.issue.baseTaxRateToGrantor
@@ -438,13 +440,17 @@ function evaluateContractTaxRevisionOffer(
 
   const newRate = params.newTaxRateToGrantor ?? currentRate
   const isReduction = newRate < currentRate
+  const evaluatorIsInitiator = isSameActor(evaluator, play.initiator)
 
-  const initiatorPower =
-    getActorMilitaryPower(state, config, play.initiator) *
-    calcGeneralWarPowerModifier(state, initiatorPolityId, config)
-  const defenderPower =
-    getActorMilitaryPower(state, config, play.target) *
-    calcGeneralWarPowerModifier(state, defenderPolityId, config)
+  const opponentActor = evaluatorIsInitiator ? play.target : play.initiator
+  const selfActor = evaluatorIsInitiator ? play.initiator : play.target
+
+  const opponentPower =
+    getActorMilitaryPower(state, config, opponentActor) *
+    calcGeneralWarPowerModifier(state, opponentActor.id, config)
+  const selfPower =
+    getActorMilitaryPower(state, config, selfActor) *
+    calcGeneralWarPowerModifier(state, selfActor.id, config)
 
   const rateImbalance = isReduction
     ? (currentRate - 0.3) * config.taxRevisionRateImbalanceFactor
@@ -454,12 +460,15 @@ function evaluateContractTaxRevisionOffer(
     getProvinceDevelopmentFromHoldings(state, provinceId, config),
   )
 
+  const negotiationBonus = getEvaluatorNegotiationBonus(play, evaluator)
+
   const score =
-    initiatorPower * config.taxRevisionPressureFactor -
-    defenderPower * config.taxRevisionResistFactor +
+    opponentPower * config.taxRevisionPressureFactor -
+    selfPower * config.taxRevisionResistFactor +
     rateImbalance -
     provinceValue * config.taxRevisionProvinceValueFactor +
-    params.paymentAmount * 0.01
+    params.paymentAmount * 0.01 +
+    negotiationBonus
 
   if (score >= 0) {
     return {

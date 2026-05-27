@@ -13,6 +13,7 @@ import type { DecisionSubjectRef } from '../types/goal'
 import type { EventId, PersonId, ProjectId } from '../types/ids'
 import type { PressureKind } from '../types/pressure'
 import type { PressureResponseStance } from '../types/pressure'
+import type { DiplomaticDemand } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import {
   removeProjectFromIndexMut,
@@ -33,6 +34,8 @@ import {
 } from '../config/projectStageSequences'
 import { findBailiffCandidateForProject } from './projectStageHelpers'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
+import { createDiplomaticOfferMut } from '../mutations/diplomaticOfferMutations'
+import { clamp } from '../utils/math'
 import { createLogger } from '../debug/logger'
 
 export function runProjectStageSystem(ctx: TickContext): TickContext {
@@ -157,6 +160,13 @@ function resolveImmediateStage(
 
   if (project.kind === 'respond_to_pressure' && project.currentStageKey === 'choose_stance') {
     return resolveChooseStance(ws, config, project, projectId)
+  }
+
+  if (
+    project.kind === 'respond_to_pressure' &&
+    project.currentStageKey === 'propose_initial_offer'
+  ) {
+    return resolveProposalInitialOffer(ws, config, project, projectId)
   }
 
   return false
@@ -455,6 +465,139 @@ function resolveChooseStance(
   const updated: RespondToPressureProject = {
     ...project,
     stance,
+    currentStageKey: nextKey,
+  }
+  ws.projects[projectId] = updated
+  addProjectToIndexMut(ws, updated)
+  return true
+}
+
+function resolveProposalInitialOffer(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: RespondToPressureProject,
+  projectId: ProjectId,
+): boolean {
+  if (!project.diplomaticPlayId) {
+    const nextKey = getNextProjectStageKey(project)
+    if (!nextKey) return false
+    removeProjectFromIndexMut(ws, project)
+    const updated1: RespondToPressureProject = { ...project, currentStageKey: nextKey }
+    ws.projects[projectId] = updated1
+    addProjectToIndexMut(ws, updated1)
+    return true
+  }
+
+  const play = ws.diplomaticPlays[project.diplomaticPlayId]
+  if (!play || play.status !== 'active' || !play.currentOfferId) {
+    const nextKey = getNextProjectStageKey(project)
+    if (!nextKey) return false
+    removeProjectFromIndexMut(ws, project)
+    const updated2: RespondToPressureProject = { ...project, currentStageKey: nextKey }
+    ws.projects[projectId] = updated2
+    addProjectToIndexMut(ws, updated2)
+    return true
+  }
+
+  const stance: PressureResponseStance = project.stance ?? 'negotiate'
+  const currentOffer = ws.diplomaticOffers[play.currentOfferId]
+  const demands: DiplomaticDemand[] = []
+
+  if (play.kind === 'land_claim') {
+    if (stance === 'concede') {
+      // Copy initiator's demands (transfer + same pay_wealth amount)
+      if (currentOffer) {
+        for (const d of currentOffer.demands) {
+          demands.push(d)
+        }
+      }
+    } else if (stance === 'negotiate') {
+      if (currentOffer) {
+        const payDemand = currentOffer.demands.find((d) => d.kind === 'pay_wealth')
+        if (payDemand && payDemand.kind === 'pay_wealth') {
+          // Copy transfer demands
+          for (const d of currentOffer.demands) {
+            if (d.kind === 'transfer_land_contract') {
+              demands.push(d)
+            }
+          }
+          // Demand higher price (x1.3)
+          demands.push({
+            kind: 'pay_wealth',
+            from: payDemand.from,
+            to: payDemand.to,
+            amount: Math.round(payDemand.amount * 1.3),
+          })
+        } else {
+          demands.push({ kind: 'status_quo' })
+        }
+      } else {
+        demands.push({ kind: 'status_quo' })
+      }
+    } else {
+      // resist
+      demands.push({ kind: 'status_quo' })
+    }
+  } else if (play.kind === 'contract_tax_revision') {
+    if (stance === 'concede') {
+      // Copy the change_contract_tax_rate demand as-is
+      if (currentOffer) {
+        for (const d of currentOffer.demands) {
+          demands.push(d)
+        }
+      }
+    } else if (stance === 'negotiate') {
+      // Create change_contract_tax_rate with halfway rate
+      const issue = play.issue
+      if (issue?.kind === 'contract_tax_revision') {
+        const halfwayRate = (issue.baseTaxRateToGrantor + issue.desiredTaxRateToGrantor) / 2
+        demands.push({
+          kind: 'change_contract_tax_rate',
+          holdingId: issue.holdingId,
+          landContractId: issue.landContractId,
+          newTaxRateToGrantor: halfwayRate,
+        })
+      } else {
+        demands.push({ kind: 'status_quo' })
+      }
+    } else {
+      // resist
+      demands.push({ kind: 'status_quo' })
+    }
+  }
+
+  if (demands.length === 0) {
+    demands.push({ kind: 'status_quo' })
+  }
+
+  // Target creates a counter-offer
+  createDiplomaticOfferMut(ws, play.id, play.target, demands, [])
+
+  // Update play progress
+  const updatedPlay = ws.diplomaticPlays[play.id]
+  if (updatedPlay) {
+    ws.diplomaticPlays[play.id] = {
+      ...updatedPlay,
+      progress: clamp(updatedPlay.progress + config.counterOfferProgressDelta, 0, 100),
+    }
+  }
+
+  const nextKey = getNextProjectStageKey(project)
+  if (!nextKey) return false
+
+  const log = createLogger(config.debug)
+  log.log('PROJECT_STAGE', {
+    projectId,
+    kind: project.kind,
+    from: project.currentStageKey,
+    to: nextKey,
+    action: 'propose_initial_offer',
+    stance,
+  })
+
+  removeProjectFromIndexMut(ws, project)
+  const updated: RespondToPressureProject = {
+    ...project,
     currentStageKey: nextKey,
   }
   ws.projects[projectId] = updated

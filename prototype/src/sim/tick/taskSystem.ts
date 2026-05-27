@@ -15,7 +15,12 @@ import type {
 } from '../types/task'
 import { targetRefKey } from '../types/task'
 import type { WorldState } from '../types/world'
-import type { DiplomaticPlay } from '../types/diplomaticPlay'
+import type {
+  DiplomaticPlay,
+  DiplomaticDemand,
+  ContractTaxRevisionIssue,
+} from '../types/diplomaticPlay'
+import type { PoliticalActorRef } from '../types/actor'
 import type {
   PersonId,
   DiplomaticPlayId,
@@ -24,6 +29,8 @@ import type {
   PersonActivityLogId,
   EventId,
   HoldingId,
+  LandContractId,
+  PolityId,
 } from '../types/ids'
 import { createTaskId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -70,6 +77,8 @@ import {
   getNextProjectStageKey,
 } from '../config/projectStageSequences'
 import { resolveImmediateStages } from './projectStageSystem'
+import { createDiplomaticOfferMut } from '../mutations/diplomaticOfferMutations'
+import { computeLandClaimCompensation } from './diplomaticOfferEvaluation'
 import { createLogger } from '../debug/logger'
 
 // --- Types ---
@@ -344,11 +353,7 @@ function applyDiplomaticTaskEffectMut(
       }
       break
     case 'negotiate_terms':
-      updated.progress = clamp(
-        play.progress + config.diplomaticPlayTaskProgressGainMedium * mul,
-        0,
-        100,
-      )
+      updated.progress = clamp(play.progress + config.negotiateTermsProgressDelta * mul, 0, 100)
       break
     case 'pressure_counterparty':
       updated.tension = clamp(
@@ -369,15 +374,13 @@ function applyDiplomaticTaskEffectMut(
       }
       break
     case 'offer_compromise':
-      updated.progress = clamp(
-        play.progress + config.diplomaticPlayTaskProgressGainMedium * mul,
-        0,
-        100,
-      )
+      updated.progress = clamp(play.progress + config.offerCompromiseProgressDelta * mul, 0, 100)
       updated.tension = Math.max(
         0,
         play.tension - config.diplomaticPlayTaskTensionReductionSmall * mul,
       )
+      // v0.30: Create compromise offer based on last rejected offer
+      buildAndCreateCompromiseOffer(ws, config, play, side)
       break
     case 'undermine_counterparty_position':
       if (side === 'initiator') {
@@ -395,6 +398,267 @@ function applyDiplomaticTaskEffectMut(
   }
 
   ws.diplomaticPlays[playId] = updated
+}
+
+// --- v0.30: Compromise offer builder ---
+
+const COMPROMISE_ADJUSTMENT = 0.3
+
+function buildAndCreateCompromiseOffer(
+  ws: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  side: 'initiator' | 'target',
+): void {
+  // revolt_negotiation plays do not use the offer system
+  if (play.kind === 'revolt_negotiation') return
+  // Only polity actors can create offers
+  if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') return
+
+  // Determine base offer: lastRejectedOffer > currentOffer > build from issue
+  const baseOfferId = play.lastRejectedOfferId ?? play.currentOfferId
+  const baseOffer = baseOfferId ? ws.diplomaticOffers[baseOfferId] : undefined
+  const baseDemands: DiplomaticDemand[] | undefined = baseOffer?.demands
+
+  const proposedBy: PoliticalActorRef = side === 'initiator' ? play.initiator : play.target
+
+  let adjustedDemands: DiplomaticDemand[] | undefined
+
+  if (play.kind === 'land_claim') {
+    adjustedDemands = buildLandClaimCompromiseDemands(ws, config, play, side, baseDemands)
+  } else if (play.kind === 'contract_tax_revision') {
+    adjustedDemands = buildTaxRevisionCompromiseDemands(ws, config, play, side, baseDemands)
+  }
+
+  if (!adjustedDemands || adjustedDemands.length === 0) return
+
+  createDiplomaticOfferMut(ws, play.id, proposedBy, adjustedDemands, [])
+}
+
+function buildLandClaimCompromiseDemands(
+  ws: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  side: 'initiator' | 'target',
+  baseDemands: DiplomaticDemand[] | undefined,
+): DiplomaticDemand[] | undefined {
+  // Need holdingId from issue or primaryDemand
+  let holdingId: HoldingId | undefined
+  if (play.issue?.kind === 'land_claim') {
+    holdingId = play.issue.holdingId
+  }
+  if (!holdingId && play.primaryDemand.kind === 'transfer_land_contract') {
+    holdingId = play.primaryDemand.holdingId
+  }
+  if (!holdingId) return undefined
+
+  if (baseDemands) {
+    return adjustLandClaimDemands(ws, config, play, side, baseDemands, holdingId)
+  }
+
+  // No base offer — create a default: transfer + pay using computeLandClaimCompensation
+  const compensation = computeLandClaimCompensation(ws, config, holdingId)
+  const demands: DiplomaticDemand[] = [
+    {
+      kind: 'transfer_land_contract',
+      holdingId,
+      toPolityId: play.initiator.id as PolityId,
+    },
+    {
+      kind: 'pay_wealth',
+      from: play.initiator,
+      to: play.target,
+      amount: Math.round(compensation),
+    },
+  ]
+  return demands
+}
+
+function adjustLandClaimDemands(
+  ws: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  side: 'initiator' | 'target',
+  baseDemands: DiplomaticDemand[],
+  holdingId: HoldingId,
+): DiplomaticDemand[] {
+  // Detect whether the base offer is a status_quo offer or a transfer offer.
+  // This determines how pay_wealth adjustment works for the target side:
+  //   - transfer offer: pay_wealth flows initiator→target (land price); target compromise = decrease
+  //   - status_quo offer: pay_wealth flows target→initiator (compensation); target compromise = increase
+  const isStatusQuoOffer = baseDemands.some((d) => d.kind === 'status_quo')
+
+  const result: DiplomaticDemand[] = []
+  let hasPayWealth = false
+
+  for (const demand of baseDemands) {
+    if (demand.kind === 'pay_wealth') {
+      hasPayWealth = true
+      if (side === 'initiator') {
+        // Initiator compromising toward target: increase pay_wealth by 30%
+        result.push({
+          ...demand,
+          amount: Math.round(demand.amount * (1 + COMPROMISE_ADJUSTMENT)),
+        })
+      } else if (isStatusQuoOffer) {
+        // Target compromising on status_quo: increase compensation by 30%
+        result.push({
+          ...demand,
+          amount: Math.round(demand.amount * (1 + COMPROMISE_ADJUSTMENT)),
+        })
+      } else {
+        // Target compromising on transfer: decrease pay_wealth by 30% (cheaper for initiator)
+        result.push({
+          ...demand,
+          amount: Math.round(demand.amount * (1 - COMPROMISE_ADJUSTMENT)),
+        })
+      }
+    } else {
+      result.push(demand)
+    }
+  }
+
+  // If side === 'initiator' and no pay_wealth existed, add one based on compensation
+  if (side === 'initiator' && !hasPayWealth) {
+    const compensation = computeLandClaimCompensation(ws, config, holdingId)
+    result.push({
+      kind: 'pay_wealth',
+      from: play.initiator,
+      to: play.target,
+      amount: Math.round(compensation * (1 + COMPROMISE_ADJUSTMENT)),
+    })
+  }
+
+  return result
+}
+
+function buildTaxRevisionCompromiseDemands(
+  ws: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  side: 'initiator' | 'target',
+  baseDemands: DiplomaticDemand[] | undefined,
+): DiplomaticDemand[] | undefined {
+  // Need issue or primaryDemand for contract info
+  let issue: ContractTaxRevisionIssue | undefined
+  if (play.issue?.kind === 'contract_tax_revision') {
+    issue = play.issue
+  }
+
+  // Determine holdingId and landContractId from issue or primaryDemand
+  let holdingId: HoldingId | undefined
+  let landContractId: LandContractId | undefined
+  if (issue) {
+    holdingId = issue.holdingId
+    landContractId = issue.landContractId
+  }
+  if (!holdingId && play.primaryDemand.kind === 'change_contract_tax_rate') {
+    holdingId = play.primaryDemand.holdingId
+    landContractId = play.primaryDemand.landContractId
+  }
+  if (!holdingId || !landContractId) return undefined
+
+  // Determine base rate
+  const baseTaxRate =
+    issue?.baseTaxRateToGrantor ??
+    (play.primaryDemand.kind === 'change_contract_tax_rate'
+      ? (ws.landContracts[play.primaryDemand.landContractId]?.terms.taxRateToGrantor ?? 0.3)
+      : 0.3)
+
+  if (baseDemands) {
+    return adjustTaxRevisionDemands(
+      ws,
+      config,
+      play,
+      side,
+      baseDemands,
+      holdingId,
+      landContractId,
+      baseTaxRate,
+      issue,
+    )
+  }
+
+  // No base offer — create default: change_contract_tax_rate with rate halfway between base and desired
+  const desiredRate =
+    issue?.desiredTaxRateToGrantor ??
+    (play.primaryDemand.kind === 'change_contract_tax_rate'
+      ? play.primaryDemand.newTaxRateToGrantor
+      : baseTaxRate)
+  const halfwayRate = clamp(
+    (baseTaxRate + desiredRate) / 2,
+    config.taxRevisionMinRate,
+    config.taxRevisionMaxRate,
+  )
+  const demands: DiplomaticDemand[] = [
+    {
+      kind: 'change_contract_tax_rate',
+      holdingId,
+      landContractId,
+      newTaxRateToGrantor: halfwayRate,
+    },
+  ]
+  return demands
+}
+
+function adjustTaxRevisionDemands(
+  _ws: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  _side: 'initiator' | 'target',
+  baseDemands: DiplomaticDemand[],
+  holdingId: HoldingId,
+  landContractId: LandContractId,
+  baseTaxRate: number,
+  issue: ContractTaxRevisionIssue | undefined,
+): DiplomaticDemand[] {
+  const result: DiplomaticDemand[] = []
+  let hasTaxChange = false
+
+  for (const demand of baseDemands) {
+    if (demand.kind === 'change_contract_tax_rate') {
+      hasTaxChange = true
+      // Move newTaxRateToGrantor 30% toward baseTaxRate (compromise toward status quo)
+      const currentRate = demand.newTaxRateToGrantor
+      const compromiseRate = clamp(
+        currentRate + (baseTaxRate - currentRate) * COMPROMISE_ADJUSTMENT,
+        config.taxRevisionMinRate,
+        config.taxRevisionMaxRate,
+      )
+      result.push({
+        ...demand,
+        newTaxRateToGrantor: compromiseRate,
+      })
+    } else {
+      result.push(demand)
+    }
+  }
+
+  // If no change_contract_tax_rate in base demands (e.g., status_quo offer),
+  // create one with halfway rate
+  if (!hasTaxChange) {
+    const desiredRate =
+      issue?.desiredTaxRateToGrantor ??
+      (play.primaryDemand.kind === 'change_contract_tax_rate'
+        ? play.primaryDemand.newTaxRateToGrantor
+        : baseTaxRate)
+    const halfwayRate = clamp(
+      (baseTaxRate + desiredRate) / 2,
+      config.taxRevisionMinRate,
+      config.taxRevisionMaxRate,
+    )
+    // Replace status_quo with tax change demand
+    const nonStatusQuo = result.filter((d) => d.kind !== 'status_quo')
+    nonStatusQuo.push({
+      kind: 'change_contract_tax_rate',
+      holdingId,
+      landContractId,
+      newTaxRateToGrantor: halfwayRate,
+    })
+    return nonStatusQuo
+  }
+
+  return result
 }
 
 // --- System functions ---

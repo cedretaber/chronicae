@@ -1,7 +1,11 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { Project, LandClaimProject, ContractRevisionProject } from '../types/project'
-import type { DiplomaticPlay } from '../types/diplomaticPlay'
+import type {
+  DiplomaticPlay,
+  DiplomaticDemand,
+  ContractTaxRevisionIssue,
+} from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type { DiplomaticPlayId, PolityId, ProvinceId } from '../types/ids'
 import type { CreateSimEventInput } from '../tick/context'
@@ -17,6 +21,8 @@ import {
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { defaultLandContractConfig } from '../config/landContractConfig'
+import { createDiplomaticOfferMut } from './diplomaticOfferMutations'
+import { computeTaxRevisionCompensation } from '../tick/diplomaticOfferEvaluation'
 
 export type CreatePlayResult =
   | { kind: 'created'; playId: DiplomaticPlayId }
@@ -183,6 +189,26 @@ function createLandClaimPlayFromProjectMut(
   }
 
   ws.diplomaticPlays[playId] = play
+
+  // Create initial offer from initiator
+  const initialOfferDemands: DiplomaticDemand[] = [
+    {
+      kind: 'transfer_land_contract',
+      holdingId,
+      toPolityId: initiator.id,
+      beneficiaryActor: initiator,
+    },
+  ]
+  if (counterDemandAmount > 0) {
+    initialOfferDemands.push({
+      kind: 'pay_wealth',
+      from: initiator,
+      to: target,
+      amount: counterDemandAmount,
+    })
+  }
+  createDiplomaticOfferMut(ws, playId, initiator, initialOfferDemands, [])
+
   ws.nextDiplomaticPlayId++
   existingPlayKeys.add(dedupeKey)
 
@@ -261,6 +287,15 @@ function createContractRevisionPlayFromProjectMut(
   const initiatorDelegate = getDiplomaticPlayDelegate(ws, initiator)
   const targetDelegate = getDiplomaticPlayDelegate(ws, target, initiatorDelegate)
 
+  const issue: ContractTaxRevisionIssue = {
+    kind: 'contract_tax_revision' as const,
+    holdingId,
+    landContractId: subjectContract.id,
+    baseTaxRateToGrantor: currentRate,
+    desiredTaxRateToGrantor: newRate,
+    direction: isReduction ? ('decrease' as const) : ('increase' as const),
+  }
+
   const play: DiplomaticPlay = {
     id: playId,
     kind: 'contract_tax_revision',
@@ -270,14 +305,7 @@ function createContractRevisionPlayFromProjectMut(
     ...(project.origin.kind === 'aim' && project.origin.aimId
       ? { aimId: project.origin.aimId }
       : {}),
-    issue: {
-      kind: 'contract_tax_revision' as const,
-      holdingId,
-      landContractId: subjectContract.id,
-      baseTaxRateToGrantor: currentRate,
-      desiredTaxRateToGrantor: newRate,
-      direction: isReduction ? ('decrease' as const) : ('increase' as const),
-    },
+    issue,
     primaryDemand: {
       kind: 'change_contract_tax_rate',
       holdingId,
@@ -303,6 +331,27 @@ function createContractRevisionPlayFromProjectMut(
   }
 
   ws.diplomaticPlays[playId] = play
+
+  // Create initial offer from initiator
+  const initialOfferDemands: DiplomaticDemand[] = [
+    {
+      kind: 'change_contract_tax_rate',
+      holdingId,
+      landContractId: subjectContract.id,
+      newTaxRateToGrantor: newRate,
+    },
+  ]
+  const compensation = computeTaxRevisionCompensation(ws, config, issue, newRate)
+  if (compensation > 0) {
+    initialOfferDemands.push({
+      kind: 'pay_wealth',
+      from: initiator,
+      to: target,
+      amount: Math.round(compensation),
+    })
+  }
+  createDiplomaticOfferMut(ws, playId, initiator, initialOfferDemands, [])
+
   ws.nextDiplomaticPlayId++
   existingPlayKeys.add(dedupeKey)
 
@@ -315,10 +364,13 @@ function createContractRevisionPlayFromProjectMut(
 
   const initiatorNameKey = ws.polities[initiator.id]?.nameKey ?? String(initiator.id)
   const targetNameKey = ws.polities[target.id]?.nameKey ?? String(target.id)
+  const hasInitialOffer = compensation > 0
   emitEvent({
     type: 'DIPLOMATIC_PLAY_STARTED',
     importance: 'normal',
-    messageKey: 'diplomatic_play.started_no_offer',
+    messageKey: hasInitialOffer
+      ? 'diplomatic_play.started_with_offer'
+      : 'diplomatic_play.started_no_offer',
     messageParams: {
       initiator: nameParam('polity', initiatorNameKey),
       target: nameParam('polity', targetNameKey),

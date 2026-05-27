@@ -20,11 +20,12 @@ import type {
   ProvinceId,
   PopGroupId,
   DiplomaticPlayId,
+  DiplomaticOfferId,
   HoldingId,
 } from '../types/ids'
 import { createRebelPolity } from '../mutations/worldStructureMutations'
 import { runDiplomaticPlaySystem } from './diplomaticPlaySystem'
-import type { DiplomaticPlay } from '../types/diplomaticPlay'
+import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types/diplomaticPlay'
 
 function makeCtx(state: WorldState, seed = 'play-test'): TickContext {
   return createTickContext({ state, rng: createRng(seed), config: defaultConfig })
@@ -300,11 +301,32 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
     const holdingId = ctx.state.provinces[provinceId]?.holdingIds[0]
     if (!holdingId) throw new Error(`No holding in province ${provinceId}`)
     const playId = 'dp-lp-1' as DiplomaticPlayId
+    const offerId = 'do-test-lp-1' as DiplomaticOfferId
+    const initiator = { kind: 'polity' as const, id: buyerPolityId }
+    const target = { kind: 'polity' as const, id: sellerPolityId }
+    const offerDemands: DiplomaticDemand[] = [
+      {
+        kind: 'transfer_land_contract',
+        holdingId,
+        toPolityId: buyerPolityId,
+        beneficiaryActor: initiator,
+      },
+      { kind: 'pay_wealth', from: initiator, to: target, amount: 500 },
+    ]
+    const offer: DiplomaticOffer = {
+      id: offerId,
+      playId,
+      proposedBy: initiator,
+      demands: offerDemands,
+      status: 'pending',
+      createdWeek: ctx.state.absoluteWeek,
+      reasonIds: [],
+    }
     const play: DiplomaticPlay = {
       id: playId,
       kind: 'land_claim',
-      initiator: { kind: 'polity', id: buyerPolityId },
-      target: { kind: 'polity', id: sellerPolityId },
+      initiator,
+      target,
       primaryDemand: {
         kind: 'transfer_land_contract',
         holdingId,
@@ -312,10 +334,13 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
       },
       counterDemand: {
         kind: 'pay_wealth',
-        from: { kind: 'polity', id: buyerPolityId },
-        to: { kind: 'polity', id: sellerPolityId },
+        from: initiator,
+        to: target,
         amount: 500,
       },
+      issue: { kind: 'land_claim', holdingId, provinceId },
+      currentOfferId: offerId,
+      offerHistoryIds: [offerId],
       status: 'active',
       startedWeek: ctx.state.currentYear * 48 + ctx.state.currentWeekOfYear,
       deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
@@ -329,7 +354,6 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
       targetCommitment: 0,
       initiatorActiveTaskIds: [],
       targetActiveTaskIds: [],
-      offerHistoryIds: [],
       ...overrides,
     }
     return {
@@ -337,11 +361,12 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
       state: {
         ...ctx.state,
         diplomaticPlays: { ...ctx.state.diplomaticPlays, [playId]: play },
+        diplomaticOffers: { ...ctx.state.diplomaticOffers, [offerId]: offer },
       },
     }
   }
 
-  it('settled: progress reaches threshold → LandContract transferred + treasury moved', () => {
+  it('settled: offer accepted → LandContract transferred + treasury moved', () => {
     const setup = setupLandPurchase({ sellerTreasury: 50, buyerTreasury: 2000 })
     let ctx = makeCtx(setup.state)
     ctx = injectLandPurchasePlay(
@@ -350,7 +375,7 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
       setup.sellerPolityId,
       setup.provinceSellerId,
       {
-        progress: 59, // すぐ threshold 60 を超える
+        progress: 0,
         tension: 0,
       },
     )
@@ -363,14 +388,15 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
     // treasury 移動: buyer -500, seller +500
     expect(ctx.state.polities[setup.buyerPolityId]?.treasury).toBe(1500)
     expect(ctx.state.polities[setup.sellerPolityId]?.treasury).toBe(550)
-    // events
-    expect(ctx.events.some((e) => e.type === 'LAND_CONTRACT_PURCHASED')).toBe(true)
+    // events (offer-driven settlement uses reason='cession')
+    expect(ctx.events.some((e) => e.type === 'LAND_CONTRACT_CEDED')).toBe(true)
     expect(ctx.events.some((e) => e.type === 'LAND_CONTRACT_TRANSFERRED')).toBe(true)
     expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_SETTLED')).toBe(true)
   })
 
-  // v0.18 Stage F: deadline で progress > tension なら settlement に倒す (§10.2 step 6)
-  it('deadline timeout with progress > tension → settled (purchase outcome)', () => {
+  // v0.30 Phase B: deadline で offer accepted なら settled、それ以外は escalated
+  // offer が先に evaluated & accepted されれば settled で抜けるため、deadline は escalation のみ
+  it('deadline timeout → escalated (offer already evaluated, deadline forces escalation)', () => {
     const setup = setupLandPurchase({ sellerTreasury: 50, buyerTreasury: 2000 })
     let ctx = makeCtx(setup.state)
     ctx = injectLandPurchasePlay(
@@ -382,16 +408,17 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
         progress: 30,
         tension: 5,
         deadlineWeek: 48000,
+        // Mark offer as already evaluated so no new evaluation happens at deadline
+        lastEvaluatedOfferId: 'do-test-lp-1' as DiplomaticOfferId,
       },
     )
     ctx = runDiplomaticPlaySystem(ctx)
     const play = Object.values(ctx.state.diplomaticPlays)[0]
-    expect(play?.status).toBe('settled')
-    // counterDemand 有 → purchase 経路 → grantee が buyer に
-    expect(ctx.events.some((e) => e.type === 'LAND_CONTRACT_PURCHASED')).toBe(true)
+    expect(play?.status).toBe('escalated')
+    expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_ESCALATED')).toBe(true)
   })
 
-  it('cancelled: buyer treasury too low to pay → Play cancelled, no transfer', () => {
+  it('insufficient treasury → offer rejected (invalid), play remains active with increased tension', () => {
     const setup = setupLandPurchase({ sellerTreasury: 50, buyerTreasury: 100 })
     let ctx = makeCtx(setup.state)
     ctx = injectLandPurchasePlay(
@@ -400,14 +427,21 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
       setup.sellerPolityId,
       setup.provinceSellerId,
       {
-        progress: 59,
+        progress: 0,
         tension: 0,
       },
     )
     ctx = runDiplomaticPlaySystem(ctx)
     const play = Object.values(ctx.state.diplomaticPlays)[0]
-    expect(play?.status).toBe('cancelled')
+    // Offer validation fails (insufficient_funds) → offer rejected, tension rises, play stays active
+    expect(play?.status).toBe('active')
+    expect(play?.tension ?? 0).toBeGreaterThan(0)
+    // Offer marked as rejected
+    const offer = Object.values(ctx.state.diplomaticOffers)[0]
+    expect(offer?.status).toBe('rejected')
     // LandContract grantee は seller のまま
+    const terminalPolityId = getProvinceTerminalPolityId(ctx.state, setup.provinceSellerId)
+    expect(terminalPolityId).toBe(setup.sellerPolityId)
   })
 })
 
@@ -451,16 +485,39 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
     const holdingId = ctx.state.provinces[provinceId]?.holdingIds[0]
     if (!holdingId) throw new Error(`No holding in province ${provinceId}`)
     const playId = 'dp-ltd-1' as DiplomaticPlayId
+    const offerId = 'do-test-ltd-1' as DiplomaticOfferId
+    const initiator = { kind: 'polity' as const, id: attackerPolityId }
+    const target = { kind: 'polity' as const, id: defenderPolityId }
+    const offerDemands: DiplomaticDemand[] = [
+      {
+        kind: 'transfer_land_contract',
+        holdingId,
+        toPolityId: attackerPolityId,
+        beneficiaryActor: initiator,
+      },
+    ]
+    const offer: DiplomaticOffer = {
+      id: offerId,
+      playId,
+      proposedBy: initiator,
+      demands: offerDemands,
+      status: 'pending',
+      createdWeek: ctx.state.absoluteWeek,
+      reasonIds: [],
+    }
     const play: DiplomaticPlay = {
       id: playId,
       kind: 'land_claim',
-      initiator: { kind: 'polity', id: attackerPolityId },
-      target: { kind: 'polity', id: defenderPolityId },
+      initiator,
+      target,
       primaryDemand: {
         kind: 'transfer_land_contract',
         holdingId,
         toPolityId: attackerPolityId,
       },
+      issue: { kind: 'land_claim', holdingId, provinceId },
+      currentOfferId: offerId,
+      offerHistoryIds: [offerId],
       status: 'active',
       startedWeek: ctx.state.currentYear * 48 + ctx.state.currentWeekOfYear,
       deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
@@ -474,7 +531,6 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
       targetCommitment: 0,
       initiatorActiveTaskIds: [],
       targetActiveTaskIds: [],
-      offerHistoryIds: [],
       ...overrides,
     }
     return {
@@ -482,11 +538,12 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
       state: {
         ...ctx.state,
         diplomaticPlays: { ...ctx.state.diplomaticPlays, [playId]: play },
+        diplomaticOffers: { ...ctx.state.diplomaticOffers, [offerId]: offer },
       },
     }
   }
 
-  it('settled: progress reaches threshold → LandContract transferred without compensation', () => {
+  it('offer evaluated → rejected or accepted based on evaluateOffer score', () => {
     const setup = setupLandTransferDemand()
     let ctx = makeCtx(setup.state)
     ctx = injectLTDPlay(
@@ -495,14 +552,14 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
       setup.defenderPolityId,
       setup.provinceDefenderId,
       {
-        progress: 59, // すぐ threshold 60 を超える
+        progress: 0,
         tension: 0,
       },
     )
     ctx = runDiplomaticPlaySystem(ctx)
     const play = Object.values(ctx.state.diplomaticPlays)[0]
-    // 攻撃側 rank 2 vs 防御側 rank 3 → progress 上昇は acceptanceScore による
-    // どちらに転んでも (settled / escalated) のいずれかが起きる
+    // Offer is evaluated; result depends on evaluateOffer score (military, treasury, province value)
+    // Without payment, offer is typically rejected → active with increased tension, or escalated
     expect(['settled', 'escalated', 'active']).toContain(play?.status)
   })
 

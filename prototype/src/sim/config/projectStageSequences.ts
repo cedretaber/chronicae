@@ -44,6 +44,7 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
 
   respond_to_pressure: [
     { key: 'choose_stance', type: 'immediate' },
+    { key: 'propose_initial_offer', type: 'immediate' },
     { key: 'prepare_response', type: 'preparatory' },
     { key: 'negotiate', type: 'final' },
   ],

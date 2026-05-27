@@ -1952,5 +1952,122 @@ export function generateWorld(
     }
   }
 
+  if (defaultConfig.debugMixedProvinceHoldingsRatio > 0) {
+    applyMixedHoldingsDebug(seededWorld, defaultConfig)
+  }
+
   return { world: seededWorld, rng: seedRng }
+}
+
+/**
+ * Debug/scenario helper: transfer one holding per selected province to a
+ * neighboring polity, creating mixed-ownership provinces that trigger
+ * `consolidate_province_holdings` aims and `land_claim` diplomatic plays.
+ *
+ * Mutates `ws` in place.
+ */
+function applyMixedHoldingsDebug(ws: WorldState, config: SimulationConfig): void {
+  const ratio = config.debugMixedProvinceHoldingsRatio
+
+  // 1. Find eligible provinces (2+ holdings, not a capital)
+  const candidates: ProvinceId[] = []
+  for (const [provinceIdStr, province] of Object.entries(ws.provinces)) {
+    if (!province) continue
+    const provinceId = provinceIdStr as ProvinceId
+    if (province.holdingIds.length < 2) continue
+
+    // Determine the terminal polity for this province via first holding
+    const firstHoldingId = province.holdingIds[0]
+    if (!firstHoldingId) continue
+    const terminalPolityId = ws.holdingTerminalPolityCache[firstHoldingId]
+    if (!terminalPolityId) continue
+    const terminalPolity = ws.polities[terminalPolityId]
+    if (!terminalPolity?.active) continue
+
+    // Skip capital provinces
+    if (terminalPolity.capitalProvinceId === provinceId) continue
+
+    candidates.push(provinceId)
+  }
+
+  if (candidates.length === 0) return
+
+  // 2. Select a fraction deterministically (no RNG needed for debug)
+  const count = Math.max(1, Math.round(candidates.length * ratio))
+  const step = Math.max(1, Math.floor(1 / ratio))
+  const selected: ProvinceId[] = []
+  for (let i = 0; i < candidates.length && selected.length < count; i += step) {
+    selected.push(candidates[i]!)
+  }
+
+  // 3. For each selected province, transfer the last holding to a neighbor
+  for (const provinceId of selected) {
+    const province = ws.provinces[provinceId]
+    if (!province) continue
+    if (province.holdingIds.length < 2) continue
+
+    // Current terminal polity (via first holding)
+    const firstHoldingId = province.holdingIds[0]
+    if (!firstHoldingId) continue
+    const currentPolityId = ws.holdingTerminalPolityCache[firstHoldingId]
+    if (!currentPolityId) continue
+    const currentPolity = ws.polities[currentPolityId]
+    if (!currentPolity?.active) continue
+
+    // Find a neighboring province owned by a different same-rank polity
+    let targetPolityId: PolityId | undefined
+    for (const neighborId of province.neighbors) {
+      const neighborProv = ws.provinces[neighborId]
+      if (!neighborProv) continue
+      const neighborFirstHolding = neighborProv.holdingIds[0]
+      if (!neighborFirstHolding) continue
+      const neighborPolityId = ws.holdingTerminalPolityCache[neighborFirstHolding]
+      if (!neighborPolityId || neighborPolityId === currentPolityId) continue
+      const neighborPolity = ws.polities[neighborPolityId]
+      if (!neighborPolity?.active) continue
+      if (neighborPolity.rank === currentPolity.rank) {
+        targetPolityId = neighborPolityId
+        break
+      }
+    }
+    if (!targetPolityId) continue
+
+    // Pick the last holding to transfer (keep the first/heaviest for original owner)
+    const holdingToTransfer = province.holdingIds[province.holdingIds.length - 1]
+    if (!holdingToTransfer) continue
+
+    // Find the terminal contract for this holding (last in chain = most grantee)
+    const contractIds = ws.landContractIndex.byHolding[holdingToTransfer]
+    if (!contractIds || contractIds.length === 0) continue
+
+    const terminalContractId = contractIds[contractIds.length - 1]
+    if (!terminalContractId) continue
+    const terminalContract = ws.landContracts[terminalContractId]
+    if (!terminalContract) continue
+
+    // Only transfer if the terminal contract's grantee is the current polity
+    if (terminalContract.granteePolityId !== currentPolityId) continue
+
+    // Update the grantee polity on the terminal contract
+    ws.landContracts[terminalContractId] = {
+      ...terminalContract,
+      granteePolityId: targetPolityId,
+    }
+
+    // Update byGranteePolity index: remove from old, add to new
+    const oldGranteeContracts = ws.landContractIndex.byGranteePolity[currentPolityId]
+    if (oldGranteeContracts) {
+      ws.landContractIndex.byGranteePolity[currentPolityId] = oldGranteeContracts.filter(
+        (id) => id !== terminalContractId,
+      )
+    }
+    const newGranteeContracts = ws.landContractIndex.byGranteePolity[targetPolityId] ?? []
+    ws.landContractIndex.byGranteePolity[targetPolityId] = [
+      ...newGranteeContracts,
+      terminalContractId,
+    ]
+
+    // Update holdingTerminalPolityCache
+    ws.holdingTerminalPolityCache[holdingToTransfer] = targetPolityId
+  }
 }

@@ -1,9 +1,16 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import { clamp } from '../utils/math'
-import type { DiplomaticPlayId, PolityId, ProvinceId, HoldingId } from '../types/ids'
+import type {
+  DiplomaticPlayId,
+  PolityId,
+  ProvinceId,
+  HoldingId,
+  LandContractId,
+} from '../types/ids'
 import type {
   DiplomaticPlay,
+  DiplomaticOffer,
   DiplomaticPlayStatus,
   TerminalDiplomaticPlayStatus,
 } from '../types/diplomaticPlay'
@@ -13,11 +20,6 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { adjustProvincePopUnrestByClass, adjustProvincePopUnrest } from '../mutations/popMutations'
 import { disbandRebelPolity, type RebelLeaderAftermath } from '../mutations/worldStructureMutations'
-import {
-  applyLandContractTransferGoal,
-  adjustLandContractTaxRate,
-  eliminateContractFromChain,
-} from '../mutations/landContractMutations'
 import { getProvincePops } from '../selectors/popSelectors'
 import {
   getProvinceManpowerBase,
@@ -25,12 +27,11 @@ import {
 } from '../selectors/popEconomySelectors'
 import {
   getProvinceTerminalPolityId,
-  getProvinceDevelopmentFromHoldings,
   getHoldingLandContractChain,
 } from '../selectors/landContractSelectors'
-import { getActorMilitaryPower } from '../selectors/actorSelectors'
-import { calcGeneralWarPowerModifier } from '../selectors/personAbilityEffects'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
+import { validateOffer, evaluateOffer, getOfferEvaluator } from './diplomaticOfferEvaluation'
+import { applySettledOffer } from '../mutations/diplomaticOfferMutations'
 import { randomFloat } from '../rng/rng'
 import { createLogger } from '../debug/logger'
 
@@ -392,18 +393,26 @@ function pickSettlementAftermath(ctx: TickContext): RebelLeaderAftermath {
   return value < 0.5 ? 'returned_to_obscurity' : 'exiled'
 }
 
-// ─── land_claim 進行 (Stage F §10.3 / §11、旧 land_purchase + land_transfer_demand 統合) ───
+// ─── land_claim 進行 (v0.30 Phase B: offer-driven evaluation) ───
 
 function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext {
   const config = ctx.config
   const state = ctx.state
-  if (play.primaryDemand.kind !== 'transfer_land_contract') return ctx
   if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') return ctx
 
-  const primary = play.primaryDemand
   const initiatorPolityId = play.initiator.id
   const defenderPolityId = play.target.id
-  const holdingId = primary.holdingId
+
+  // Get holdingId from issue, fall back to primaryDemand
+  let holdingId: HoldingId | undefined
+  if (play.issue?.kind === 'land_claim') {
+    holdingId = play.issue.holdingId
+  }
+  if (!holdingId && play.primaryDemand.kind === 'transfer_land_contract') {
+    holdingId = play.primaryDemand.holdingId
+  }
+  if (!holdingId) return setPlayStatus(ctx, play.id, 'cancelled')
+
   const provinceId = state.holdings[holdingId]?.provinceId
   if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
 
@@ -426,67 +435,101 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
 
-  // §10.3 融合 acceptanceScore (defender 視点で「土地を手放してもよい」度合い)
-  //   acceptanceScore =
-  //       offeredPrice * claimOfferedPriceFactor              // 補償金 (高いほど折れる)
-  //     + defenderTreasuryNeed                                // 困窮度 (低いほど折れる)
-  //     + initiatorPower * claimInitiatorPressureFactor       // 軍事威圧
-  //     - defenderPower * claimDefenderResistFactor           // 自軍力 (抵抗)
-  //     - provinceValue * claimProvinceValueFactor            // Province 価値
-  //     - strategicLoss * claimStrategicLossFactor            // 戦略損失
-  //     - prestigeLoss * claimPrestigeLossFactor              // 名誉損失
-  const offeredPrice =
-    play.counterDemand && play.counterDemand.kind === 'pay_wealth' ? play.counterDemand.amount : 0
-  const defenderTreasuryNeed = computeDefenderTreasuryNeed(defender.treasury)
-  const initiatorPower =
-    getActorMilitaryPower(state, config, play.initiator) *
-    calcGeneralWarPowerModifier(state, initiatorPolityId, config)
-  const defenderPower =
-    getActorMilitaryPower(state, config, play.target) *
-    calcGeneralWarPowerModifier(state, defenderPolityId, config)
-  const provinceValue = computeProvinceValue(
-    getProvinceDevelopmentFromHoldings(state, provinceId, config),
-  )
-  const strategicLoss = computeStrategicValue(state, provinceId, defenderPolityId)
-  const prestigeLoss = computePrestigeLoss(defender.rank)
+  // Structural tension update (every tick)
+  const factor = config.diplomaticPlayStructuralProgressFactor
+  let nextTension = clamp(play.tension + config.diplomaticPlayBaseTensionGain * factor, 0, 100)
+  let nextProgress = play.progress
 
-  const acceptanceScore =
-    offeredPrice * config.claimOfferedPriceFactor +
-    defenderTreasuryNeed +
-    initiatorPower * config.claimInitiatorPressureFactor -
-    defenderPower * config.claimDefenderResistFactor -
-    provinceValue * config.claimProvinceValueFactor -
-    strategicLoss * config.claimStrategicLossFactor -
-    prestigeLoss * config.claimPrestigeLossFactor
+  // Build play update object
+  const playUpdate: Partial<DiplomaticPlay> = {}
+  const offersUpdate: Record<string, DiplomaticOffer> = {}
 
-  const { nextProgress, nextTension } = applyAcceptanceUpdate(play, acceptanceScore, config)
+  // Offer evaluation (only when new offer exists)
+  const currentOfferId = play.currentOfferId
+  const needsEvaluation = currentOfferId && currentOfferId !== play.lastEvaluatedOfferId
+  let offerAccepted = false
+  let acceptedOffer: DiplomaticOffer | undefined
 
+  if (needsEvaluation) {
+    const offer = state.diplomaticOffers[currentOfferId]
+    if (offer) {
+      const validation = validateOffer(state, config, play, offer)
+      if (!validation.valid) {
+        offersUpdate[currentOfferId as string] = { ...offer, status: 'rejected' }
+        playUpdate.lastRejectedOfferId = currentOfferId
+        playUpdate.lastEvaluatedOfferId = currentOfferId
+        nextTension = clamp(nextTension + config.invalidOfferTensionDelta, 0, 100)
+      } else {
+        const evaluator = getOfferEvaluator(play, offer)
+        const evaluation = evaluateOffer(state, config, play, offer, evaluator)
+        playUpdate.lastEvaluatedOfferId = currentOfferId
+        if (evaluation.accepted) {
+          offersUpdate[currentOfferId as string] = { ...offer, status: 'accepted' }
+          offerAccepted = true
+          acceptedOffer = offer
+        } else {
+          offersUpdate[currentOfferId as string] = { ...offer, status: 'rejected' }
+          playUpdate.lastRejectedOfferId = currentOfferId
+          nextProgress = clamp(nextProgress + evaluation.progressDelta, 0, 100)
+          nextTension = clamp(nextTension + evaluation.tensionDelta, 0, 100)
+        }
+      }
+    }
+  }
+
+  // Apply state updates
   let nextCtx: TickContext = {
     ...ctx,
     state: {
       ...state,
       diplomaticPlays: {
         ...state.diplomaticPlays,
-        [play.id]: { ...play, progress: nextProgress, tension: nextTension },
+        [play.id]: { ...play, ...playUpdate, progress: nextProgress, tension: nextTension },
+      },
+      diplomaticOffers: {
+        ...state.diplomaticOffers,
+        ...offersUpdate,
       },
     },
   }
 
-  if (nextProgress >= config.diplomaticPlaySettlementThreshold) {
-    return applyLandClaimSettlement(
-      nextCtx,
-      play,
-      primary,
-      initiatorPolityId,
-      defenderPolityId,
-      holdingId,
-    )
+  // Handle accepted offer -> settlement
+  if (offerAccepted && acceptedOffer) {
+    nextCtx = applySettledOffer(nextCtx, play, acceptedOffer)
+    nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
+
+    const hasPay = acceptedOffer.demands.some((d) => d.kind === 'pay_wealth')
+    const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
+    const payAmount = acceptedOffer.demands.find((d) => d.kind === 'pay_wealth')
+    const { event: ev, ctx: ctxEv } = createSimEvent(nextCtx, {
+      type: 'DIPLOMATIC_PLAY_SETTLED',
+      importance: 'major',
+      messageKey: hasPay ? 'diplomatic_play.settled_purchase' : 'diplomatic_play.settled_cession',
+      messageParams: {
+        initiator: nameParam('polity', initiatorName),
+        province: nameParam('province', provinceNameKey),
+        defender: nameParam('polity', defenderName),
+        ...(payAmount && payAmount.kind === 'pay_wealth'
+          ? { price: Math.round(payAmount.amount) }
+          : {}),
+      },
+      entityRefs: [
+        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
+        entityRef('polity', defenderPolityId, 'defender', defenderName),
+        entityRef('province', provinceId, 'province', provinceNameKey),
+        entityRef('holding', holdingId, 'holding'),
+      ],
+    })
+    return { ...ctxEv, events: [...ctxEv.events, ev] }
   }
+
+  // Escalation check
   if (nextTension >= config.diplomaticPlayEscalationThreshold) {
     const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
     const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-    const provinceParam = nameParam('province', provinceNameKey)
     return markPlayEscalated(nextCtx, play.id, {
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
@@ -495,7 +538,7 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
       messageKey: 'diplomatic_play.escalated_claim',
       messageParams: {
         initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
-        province: provinceParam,
+        province: nameParam('province', provinceNameKey),
       },
       eventEntityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
@@ -505,100 +548,66 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
       ],
     })
   }
+
+  // Deadline check -- no 'failed', always escalate
   if (isDeadlineReached(nextCtx.state, play)) {
-    if (nextProgress > nextTension) {
-      return applyLandClaimSettlement(
-        nextCtx,
-        play,
-        primary,
-        initiatorPolityId,
-        defenderPolityId,
-        holdingId,
-      )
-    }
-    if (nextTension > nextProgress) {
-      const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
-      const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
-      const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-      const provinceParam = nameParam('province', provinceNameKey)
-      return markPlayEscalated(nextCtx, play.id, {
-        polityIds: [initiatorPolityId, defenderPolityId],
-        provinceIds: [provinceId],
-        holdingIds: [holdingId],
-        summary: `Deadlocked claim erupts: ${initiatorName ?? initiatorPolityId} attacks for ${provinceNameKey}.`,
-        messageKey: 'diplomatic_play.escalated_claim',
-        messageParams: {
-          initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
-          province: provinceParam,
-        },
-        eventEntityRefs: [
-          entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-          entityRef('polity', defenderPolityId, 'defender', defenderName),
-          entityRef(
-            'province',
-            provinceId,
-            'province',
-            nextCtx.state.provinces[provinceId]?.nameKey,
-          ),
-          entityRef('holding', holdingId, 'holding'),
-        ],
-      })
-    }
-    nextCtx = setPlayStatus(nextCtx, play.id, 'failed')
     const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
-    const provinceName = nameParam(
-      'province',
-      nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
-    )
-    const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
-      type: 'DIPLOMATIC_PLAY_FAILED',
-      importance: 'normal',
-      messageKey: 'diplomatic_play.failed_claim',
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+    const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+    return markPlayEscalated(nextCtx, play.id, {
+      polityIds: [initiatorPolityId, defenderPolityId],
+      provinceIds: [provinceId],
+      holdingIds: [holdingId],
+      summary: `Deadlocked claim erupts: ${initiatorName ?? initiatorPolityId} attacks for ${provinceNameKey}.`,
+      messageKey: 'diplomatic_play.escalated_claim',
       messageParams: {
         initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
-        province: provinceName,
+        province: nameParam('province', provinceNameKey),
       },
-      entityRefs: [
+      eventEntityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-        entityRef(
-          'polity',
-          defenderPolityId,
-          'defender',
-          nextCtx.state.polities[defenderPolityId]?.nameKey,
-        ),
+        entityRef('polity', defenderPolityId, 'defender', defenderName),
         entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+        entityRef('holding', holdingId, 'holding'),
       ],
     })
-    return { ...ctxEv, events: [...ctxEv.events, event] }
   }
+
   return nextCtx
 }
 
-// ─── contract_tax_revision 進行 ───
+// ─── contract_tax_revision 進行 (v0.30 Phase B: offer-driven evaluation) ───
 
 function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): TickContext {
   const config = ctx.config
   const state = ctx.state
-  if (play.primaryDemand.kind !== 'change_contract_tax_rate')
-    return setPlayStatus(ctx, play.id, 'cancelled')
+  if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') return ctx
 
-  const demand = play.primaryDemand
-  const holdingId = demand.holdingId
+  const initiatorPolityId = play.initiator.id
+  const defenderPolityId = play.target.id
+
+  // Get holdingId from issue, fall back to primaryDemand
+  let holdingId: HoldingId | undefined
+  if (play.issue?.kind === 'contract_tax_revision') {
+    holdingId = play.issue.holdingId
+  }
+  if (!holdingId && play.primaryDemand.kind === 'change_contract_tax_rate') {
+    holdingId = play.primaryDemand.holdingId
+  }
+  if (!holdingId) return setPlayStatus(ctx, play.id, 'cancelled')
+
   const provinceId = state.holdings[holdingId]?.provinceId
   if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
 
-  const contract = state.landContracts[demand.landContractId]
-  if (!contract) return setPlayStatus(ctx, play.id, 'cancelled')
-
-  const initiatorPolityId = play.initiator.id as PolityId
-  const defenderPolityId = play.target.id as PolityId
   const initiator = state.polities[initiatorPolityId]
   const defender = state.polities[defenderPolityId]
+  const province = state.provinces[provinceId]
   if (
     !initiator ||
     !initiator.active ||
     !defender ||
     !defender.active ||
+    !province ||
     initiator.ownerHouseId === undefined ||
     defender.ownerHouseId === undefined
   ) {
@@ -606,110 +615,119 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
   }
 
   // Verify contract still in chain
-  const chain = getHoldingLandContractChain(state, holdingId)
-  if (!chain.some((c) => c.id === demand.landContractId)) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
+  let landContractId: LandContractId | undefined
+  if (play.issue?.kind === 'contract_tax_revision') {
+    landContractId = play.issue.landContractId
+  } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
+    landContractId = play.primaryDemand.landContractId
+  }
+  if (landContractId) {
+    const chain = getHoldingLandContractChain(state, holdingId)
+    if (!chain.some((c) => c.id === landContractId)) {
+      return setPlayStatus(ctx, play.id, 'cancelled')
+    }
   }
 
-  const province = state.provinces[provinceId]
-  if (!province) return setPlayStatus(ctx, play.id, 'cancelled')
-
-  const currentRate = contract.terms.taxRateToGrantor
-  const desiredRate = demand.newTaxRateToGrantor
-  const isReduction = desiredRate < currentRate
-
-  const initiatorPower =
-    getActorMilitaryPower(state, config, play.initiator) *
-    calcGeneralWarPowerModifier(state, initiatorPolityId, config)
-  const defenderPower =
-    getActorMilitaryPower(state, config, play.target) *
-    calcGeneralWarPowerModifier(state, defenderPolityId, config)
-
-  const rateImbalance = isReduction
-    ? (currentRate - 0.3) * config.taxRevisionRateImbalanceFactor
-    : (0.5 - currentRate) * config.taxRevisionRateImbalanceFactor
-
-  const provinceValue = computeProvinceValue(
-    getProvinceDevelopmentFromHoldings(state, provinceId, config),
-  )
-
-  const acceptanceScore =
-    initiatorPower * config.taxRevisionPressureFactor -
-    defenderPower * config.taxRevisionResistFactor +
-    rateImbalance -
-    provinceValue * config.taxRevisionProvinceValueFactor
-
+  // Structural tension update (every tick)
   const factor = config.diplomaticPlayStructuralProgressFactor
-  let { progress, tension } = play
-  if (acceptanceScore > 0) {
-    progress += acceptanceScore * factor
-    tension += 1 * factor
-  } else {
-    tension += Math.abs(acceptanceScore) * factor
-    progress += 1 * factor
+  let nextTension = clamp(play.tension + config.diplomaticPlayBaseTensionGain * factor, 0, 100)
+  let nextProgress = play.progress
+
+  // Build play update object
+  const playUpdate: Partial<DiplomaticPlay> = {}
+  const offersUpdate: Record<string, DiplomaticOffer> = {}
+
+  // Offer evaluation (only when new offer exists)
+  const currentOfferId = play.currentOfferId
+  const needsEvaluation = currentOfferId && currentOfferId !== play.lastEvaluatedOfferId
+  let offerAccepted = false
+  let acceptedOffer: DiplomaticOffer | undefined
+
+  if (needsEvaluation) {
+    const offer = state.diplomaticOffers[currentOfferId]
+    if (offer) {
+      const validation = validateOffer(state, config, play, offer)
+      if (!validation.valid) {
+        offersUpdate[currentOfferId as string] = { ...offer, status: 'rejected' }
+        playUpdate.lastRejectedOfferId = currentOfferId
+        playUpdate.lastEvaluatedOfferId = currentOfferId
+        nextTension = clamp(nextTension + config.invalidOfferTensionDelta, 0, 100)
+      } else {
+        const evaluator = getOfferEvaluator(play, offer)
+        const evaluation = evaluateOffer(state, config, play, offer, evaluator)
+        playUpdate.lastEvaluatedOfferId = currentOfferId
+        if (evaluation.accepted) {
+          offersUpdate[currentOfferId as string] = { ...offer, status: 'accepted' }
+          offerAccepted = true
+          acceptedOffer = offer
+        } else {
+          offersUpdate[currentOfferId as string] = { ...offer, status: 'rejected' }
+          playUpdate.lastRejectedOfferId = currentOfferId
+          nextProgress = clamp(nextProgress + evaluation.progressDelta, 0, 100)
+          nextTension = clamp(nextTension + evaluation.tensionDelta, 0, 100)
+        }
+      }
+    }
   }
 
-  // Clamp
-  progress = Math.min(100, Math.max(0, progress))
-  tension = Math.min(100, Math.max(0, tension))
-
-  const nextCtx: TickContext = {
+  // Apply state updates
+  let nextCtx: TickContext = {
     ...ctx,
     state: {
       ...state,
       diplomaticPlays: {
         ...state.diplomaticPlays,
-        [play.id]: { ...play, progress, tension },
+        [play.id]: { ...play, ...playUpdate, progress: nextProgress, tension: nextTension },
+      },
+      diplomaticOffers: {
+        ...state.diplomaticOffers,
+        ...offersUpdate,
       },
     },
   }
 
-  // Check deadline
-  const currentAbsoluteWeek = state.absoluteWeek
-  const deadlineReached = currentAbsoluteWeek >= play.deadlineWeek
+  // Handle accepted offer -> settlement
+  if (offerAccepted && acceptedOffer) {
+    nextCtx = applySettledOffer(nextCtx, play, acceptedOffer)
+    nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
 
-  // Check thresholds
-  if (progress >= config.diplomaticPlaySettlementThreshold) {
-    return applyContractTaxRevisionSettlement(nextCtx, play, demand, holdingId)
-  }
-  if (tension >= config.diplomaticPlayEscalationThreshold) {
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+    // Determine newRate from accepted offer's change_contract_tax_rate demand
+    const taxDemand = acceptedOffer.demands.find((d) => d.kind === 'change_contract_tax_rate')
+    const newRate =
+      taxDemand && taxDemand.kind === 'change_contract_tax_rate'
+        ? taxDemand.newTaxRateToGrantor
+        : undefined
+
+    // Emit CONTRACT_TAX_REVISED
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-    const provinceParam = nameParam('province', provinceNameKey)
-    return markPlayEscalated(nextCtx, play.id, {
-      polityIds: [initiatorPolityId, defenderPolityId],
-      provinceIds: [provinceId],
-      holdingIds: [holdingId],
-      summary: `${initiatorName ?? initiatorPolityId} demands tax changes from ${defenderName ?? defenderPolityId} over ${provinceNameKey}.`,
-      messageKey: 'diplomatic_play.escalated_claim',
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
+    const { event: taxEvent, ctx: ctxEvTax } = createSimEvent(nextCtx, {
+      type: 'CONTRACT_TAX_REVISED',
+      importance: 'major',
+      messageKey: 'land_contract.tax_revised',
       messageParams: {
-        initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
-        province: provinceParam,
+        province: nameParam('province', provinceNameKey),
+        rate: newRate !== undefined ? Math.round(newRate * 100) : 0,
+        initiator: nameParam('polity', initiatorName),
+        defender: nameParam('polity', defenderName),
       },
-      eventEntityRefs: [
+      entityRefs: [
         entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
         entityRef('polity', defenderPolityId, 'defender', defenderName),
         entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-        entityRef('holding', holdingId, 'holding'),
       ],
     })
-  }
-  if (deadlineReached) {
-    if (progress > tension) {
-      return applyContractTaxRevisionSettlement(nextCtx, play, demand, holdingId)
-    }
-    const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-    const provinceParam = nameParam('province', provinceNameKey)
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
-    return markPlayEscalated(nextCtx, play.id, {
-      polityIds: [initiatorPolityId, defenderPolityId],
-      provinceIds: [provinceId],
-      holdingIds: [holdingId],
-      summary: `Tax revision dispute over ${provinceNameKey} escalates to conflict.`,
-      messageKey: 'diplomatic_play.escalated_claim',
-      messageParams: { initiator: nameParam('polity', initiatorName), province: provinceParam },
-      eventEntityRefs: [
+    nextCtx = { ...ctxEvTax, events: [...ctxEvTax.events, taxEvent] }
+
+    // Emit DIPLOMATIC_PLAY_SETTLED
+    const { event: settledEvent, ctx: ctxSettled } = createSimEvent(nextCtx, {
+      type: 'DIPLOMATIC_PLAY_SETTLED',
+      importance: 'major',
+      messageKey: 'diplomatic_play.settled_tax',
+      messageParams: { province: nameParam('province', provinceNameKey) },
+      entityRefs: [
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
         entityRef(
           'polity',
           initiatorPolityId,
@@ -722,6 +740,53 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
           'defender',
           nextCtx.state.polities[defenderPolityId]?.nameKey,
         ),
+      ],
+    })
+    return { ...ctxSettled, events: [...ctxSettled.events, settledEvent] }
+  }
+
+  // Escalation check
+  if (nextTension >= config.diplomaticPlayEscalationThreshold) {
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+    const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+    return markPlayEscalated(nextCtx, play.id, {
+      polityIds: [initiatorPolityId, defenderPolityId],
+      provinceIds: [provinceId],
+      holdingIds: [holdingId],
+      summary: `${initiatorName ?? initiatorPolityId} demands tax changes from ${defenderName ?? defenderPolityId} over ${provinceNameKey}.`,
+      messageKey: 'diplomatic_play.escalated_claim',
+      messageParams: {
+        initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
+        province: nameParam('province', provinceNameKey),
+      },
+      eventEntityRefs: [
+        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
+        entityRef('polity', defenderPolityId, 'defender', defenderName),
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+        entityRef('holding', holdingId, 'holding'),
+      ],
+    })
+  }
+
+  // Deadline check -- always escalate (no 'failed')
+  if (isDeadlineReached(nextCtx.state, play)) {
+    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
+    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+    const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+    return markPlayEscalated(nextCtx, play.id, {
+      polityIds: [initiatorPolityId, defenderPolityId],
+      provinceIds: [provinceId],
+      holdingIds: [holdingId],
+      summary: `Tax revision dispute over ${provinceNameKey} escalates to conflict.`,
+      messageKey: 'diplomatic_play.escalated_claim',
+      messageParams: {
+        initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
+        province: nameParam('province', provinceNameKey),
+      },
+      eventEntityRefs: [
+        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
+        entityRef('polity', defenderPolityId, 'defender', defenderName),
         entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
         entityRef('holding', holdingId, 'holding'),
       ],
@@ -729,258 +794,6 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
   }
 
   return nextCtx
-}
-
-function applyContractTaxRevisionSettlement(
-  ctx: TickContext,
-  play: DiplomaticPlay,
-  demand: Extract<DiplomaticPlay['primaryDemand'], { kind: 'change_contract_tax_rate' }>,
-  holdingId: HoldingId,
-): TickContext {
-  const config = ctx.config
-  const contract = ctx.state.landContracts[demand.landContractId]
-  if (!contract) return setPlayStatus(ctx, play.id, 'cancelled')
-
-  const newRate = demand.newTaxRateToGrantor
-  let nextCtx = ctx
-
-  const initiatorPolityId = play.initiator.id as PolityId
-  const defenderPolityId = play.target.id as PolityId
-  const provinceId = ctx.state.holdings[holdingId]?.provinceId
-  if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
-
-  if (newRate >= config.taxRevisionMinRate && newRate <= config.taxRevisionMaxRate) {
-    // Normal: adjust tax rate
-    const newState = adjustLandContractTaxRate(nextCtx.state, demand.landContractId, newRate)
-    nextCtx = { ...nextCtx, state: newState }
-    nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
-
-    // Emit CONTRACT_TAX_REVISED
-    const provinceName = nameParam(
-      'province',
-      nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
-    )
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
-    const { event: taxEvent, ctx: ctxEvTax } = createSimEvent(nextCtx, {
-      type: 'CONTRACT_TAX_REVISED',
-      importance: 'major',
-      messageKey: 'land_contract.tax_revised',
-      messageParams: {
-        province: provinceName,
-        rate: Math.round(newRate * 100),
-        initiator: nameParam('polity', initiatorName),
-        defender: nameParam('polity', defenderName),
-      },
-      entityRefs: [
-        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-        entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-      ],
-    })
-    nextCtx = { ...ctxEvTax, events: [...ctxEvTax.events, taxEvent] }
-  } else {
-    // Elimination: remove contract from chain
-    const isReduction = newRate < config.taxRevisionMinRate
-    const chain = getHoldingLandContractChain(nextCtx.state, holdingId)
-
-    if (isReduction) {
-      // Upper elimination: remove defender's (overlord's) contract from chain
-      // Find defender's contract in the chain
-      const defenderContract = chain.find((c) => c.granteePolityId === defenderPolityId)
-      if (!defenderContract) return setPlayStatus(nextCtx, play.id, 'cancelled')
-      const oldRateToParent = defenderContract.terms.taxRateToGrantor
-      const newState = eliminateContractFromChain(
-        nextCtx.state,
-        defenderContract.id,
-        oldRateToParent,
-      )
-      nextCtx = { ...nextCtx, state: newState }
-    } else {
-      // Lower elimination: remove target's (vassal's) contract
-      // The subject contract IS the target's contract
-      const newState = eliminateContractFromChain(nextCtx.state, demand.landContractId)
-      nextCtx = { ...nextCtx, state: newState }
-    }
-
-    nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
-
-    // Emit CONTRACT_ELIMINATED
-    const provinceName = nameParam(
-      'province',
-      nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
-    )
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
-    const { event: elimEvent, ctx: ctxEvElim } = createSimEvent(nextCtx, {
-      type: 'CONTRACT_ELIMINATED',
-      importance: 'major',
-      messageKey: 'land_contract.eliminated',
-      messageParams: {
-        province: provinceName,
-        initiator: nameParam('polity', initiatorName),
-        defender: nameParam('polity', defenderName),
-      },
-      entityRefs: [
-        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-        entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-      ],
-    })
-    nextCtx = { ...ctxEvElim, events: [...ctxEvElim.events, elimEvent] }
-  }
-
-  // Emit DIPLOMATIC_PLAY_SETTLED
-  const provinceName = nameParam(
-    'province',
-    nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
-  )
-  const { event: settledEvent, ctx: ctxSettledNext } = createSimEvent(nextCtx, {
-    type: 'DIPLOMATIC_PLAY_SETTLED',
-    importance: 'major',
-    messageKey: 'diplomatic_play.settled_tax',
-    messageParams: { province: provinceName },
-    entityRefs: [
-      entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-      entityRef(
-        'polity',
-        initiatorPolityId,
-        'initiator',
-        nextCtx.state.polities[initiatorPolityId]?.nameKey,
-      ),
-      entityRef(
-        'polity',
-        defenderPolityId,
-        'defender',
-        nextCtx.state.polities[defenderPolityId]?.nameKey,
-      ),
-    ],
-  })
-  nextCtx = { ...ctxSettledNext, events: [...ctxSettledNext.events, settledEvent] }
-
-  return nextCtx
-}
-
-// Stage F: counterDemand 有無で reason='purchase' / 'cession' を分岐
-function applyLandClaimSettlement(
-  ctx: TickContext,
-  play: DiplomaticPlay,
-  _primary: Extract<DiplomaticPlay['primaryDemand'], { kind: 'transfer_land_contract' }>,
-  initiatorPolityId: PolityId,
-  defenderPolityId: PolityId,
-  holdingId: HoldingId,
-): TickContext {
-  const offeredPrice =
-    play.counterDemand && play.counterDemand.kind === 'pay_wealth' ? play.counterDemand.amount : 0
-
-  if (offeredPrice > 0) {
-    // 補償あり → 購入経路
-    const initiator = ctx.state.polities[initiatorPolityId]
-    const defender = ctx.state.polities[defenderPolityId]
-    if (!initiator || !defender) return setPlayStatus(ctx, play.id, 'cancelled')
-    if (initiator.treasury < offeredPrice) {
-      return setPlayStatus(ctx, play.id, 'cancelled')
-    }
-
-    const transferResult = applyLandContractTransferGoal(ctx, {
-      holdingId,
-      fromPolityId: defenderPolityId,
-      toPolityId: initiatorPolityId,
-      reason: 'purchase',
-    })
-    if (!transferResult.ok) {
-      return setPlayStatus(ctx, play.id, 'cancelled')
-    }
-    let nextCtx = transferResult.value.ctx
-
-    const initiatorNow = nextCtx.state.polities[initiatorPolityId]
-    const defenderNow = nextCtx.state.polities[defenderPolityId]
-    if (initiatorNow && defenderNow) {
-      nextCtx = {
-        ...nextCtx,
-        state: {
-          ...nextCtx.state,
-          polities: {
-            ...nextCtx.state.polities,
-            [initiatorPolityId]: {
-              ...initiatorNow,
-              treasury: Math.max(0, initiatorNow.treasury - offeredPrice),
-            },
-            [defenderPolityId]: {
-              ...defenderNow,
-              treasury: defenderNow.treasury + offeredPrice,
-            },
-          },
-        },
-      }
-    }
-
-    nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
-
-    const provinceId = nextCtx.state.holdings[holdingId]?.provinceId
-    const provinceNameKey = provinceId
-      ? (nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId)
-      : holdingId
-    const provinceParam = nameParam('province', provinceNameKey)
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
-    const { event: ev, ctx: ctxEv } = createSimEvent(nextCtx, {
-      type: 'DIPLOMATIC_PLAY_SETTLED',
-      importance: 'major',
-      messageKey: 'diplomatic_play.settled_purchase',
-      messageParams: {
-        initiator: nameParam('polity', initiatorName),
-        province: provinceParam,
-        defender: nameParam('polity', defenderName),
-        price: Math.round(offeredPrice),
-      },
-      entityRefs: [
-        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-        entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId!, 'province', provinceNameKey),
-        entityRef('holding', holdingId, 'holding'),
-      ],
-    })
-    return { ...ctxEv, events: [...ctxEv.events, ev] }
-  }
-
-  // 補償なし → 譲歩経路
-  const transferResult = applyLandContractTransferGoal(ctx, {
-    holdingId,
-    fromPolityId: defenderPolityId,
-    toPolityId: initiatorPolityId,
-    reason: 'cession',
-  })
-  if (!transferResult.ok) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
-  }
-  let nextCtx = transferResult.value.ctx
-  nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
-
-  const provinceId = nextCtx.state.holdings[holdingId]?.provinceId
-  const provinceNameKey = provinceId
-    ? (nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId)
-    : holdingId
-  const provinceParam = nameParam('province', provinceNameKey)
-  const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
-  const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
-  const { event: ev, ctx: ctxEv } = createSimEvent(nextCtx, {
-    type: 'DIPLOMATIC_PLAY_SETTLED',
-    importance: 'major',
-    messageKey: 'diplomatic_play.settled_cession',
-    messageParams: {
-      defender: nameParam('polity', defenderName),
-      province: provinceParam,
-      initiator: nameParam('polity', initiatorName),
-    },
-    entityRefs: [
-      entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-      entityRef('polity', defenderPolityId, 'defender', defenderName),
-      entityRef('province', provinceId!, 'province', provinceNameKey),
-      entityRef('holding', holdingId, 'holding'),
-    ],
-  })
-  return { ...ctxEv, events: [...ctxEv.events, ev] }
 }
 
 // ─── 共通 helpers ───

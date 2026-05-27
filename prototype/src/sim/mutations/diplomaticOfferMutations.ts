@@ -1,10 +1,69 @@
-// v0.30 Phase A: Demand application functions for diplomatic offers.
-// Not wired into the main loop yet — will be connected in Phase B.
-
 import type { TickContext } from '../tick/context'
+import type { WorldState } from '../types/world'
 import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types/diplomaticPlay'
-import type { PolityId } from '../types/ids'
+import type { DiplomaticOfferId, DiplomaticPlayId, PolityId } from '../types/ids'
+import type { PoliticalActorRef } from '../types/actor'
+import { createDiplomaticOfferId } from '../types/ids'
 import { applyLandContractTransferGoal, adjustLandContractTaxRate } from './landContractMutations'
+
+// ─── Offer lifecycle mutations (mutable — operate on WorldState directly) ───
+
+export function createDiplomaticOfferMut(
+  ws: WorldState,
+  playId: DiplomaticPlayId,
+  proposedBy: PoliticalActorRef,
+  demands: DiplomaticDemand[],
+  reasonIds: import('../types/ids').DecisionReasonId[],
+): DiplomaticOfferId {
+  const play = ws.diplomaticPlays[playId]
+  if (play && play.currentOfferId) {
+    withdrawCurrentOfferMut(ws, play)
+  }
+
+  const offerId = createDiplomaticOfferId(ws.nextDiplomaticOfferId)
+  ws.nextDiplomaticOfferId++
+
+  const offer: DiplomaticOffer = {
+    id: offerId,
+    playId,
+    proposedBy,
+    demands,
+    status: 'pending',
+    createdWeek: ws.absoluteWeek,
+    reasonIds,
+  }
+  ws.diplomaticOffers[offerId] = offer
+
+  if (play) {
+    ws.diplomaticPlays[playId] = {
+      ...play,
+      currentOfferId: offerId,
+      offerHistoryIds: [...play.offerHistoryIds, offerId],
+    }
+  }
+
+  return offerId
+}
+
+export function withdrawCurrentOfferMut(ws: WorldState, play: DiplomaticPlay): void {
+  if (!play.currentOfferId) return
+  const offer = ws.diplomaticOffers[play.currentOfferId]
+  if (offer && offer.status === 'pending') {
+    ws.diplomaticOffers[play.currentOfferId] = { ...offer, status: 'withdrawn' }
+  }
+}
+
+export function rejectOfferMut(ws: WorldState, offerId: DiplomaticOfferId): void {
+  const offer = ws.diplomaticOffers[offerId]
+  if (!offer) return
+  ws.diplomaticOffers[offerId] = { ...offer, status: 'rejected' }
+}
+
+export function acceptOfferMut(ws: WorldState, offerId: DiplomaticOfferId): void {
+  const offer = ws.diplomaticOffers[offerId]
+  if (!offer) return
+  ws.diplomaticOffers[offerId] = { ...offer, status: 'accepted' }
+}
 
 // ─── Demand application ───
 
@@ -124,11 +183,28 @@ function applyChangeContractTaxRate(
   ctx: TickContext,
   demand: Extract<DiplomaticDemand, { kind: 'change_contract_tax_rate' }>,
 ): TickContext {
-  const newState = adjustLandContractTaxRate(
+  let newState = adjustLandContractTaxRate(
     ctx.state,
     demand.landContractId,
     demand.newTaxRateToGrantor,
   )
+  const updatedContract = newState.landContracts[demand.landContractId]
+  if (updatedContract) {
+    newState = {
+      ...newState,
+      landContracts: {
+        ...newState.landContracts,
+        [demand.landContractId]: {
+          ...updatedContract,
+          terms: {
+            ...updatedContract.terms,
+            termsProtectedUntilWeek:
+              ctx.state.absoluteWeek + ctx.config.taxRevisionGracePeriodYears * 52,
+          },
+        },
+      },
+    }
+  }
   return { ...ctx, state: newState }
 }
 
