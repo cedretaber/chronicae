@@ -1366,16 +1366,20 @@ for each active play:
 
 Play kind 別の処理:
 - `land_claim`: demands から `transfer_land_contract` / `pay_wealth` / `status_quo` を抽出し evaluateLandClaimOffer で score 計算。settlement 時は `applySettledOffer` で demands を適用。rank ベースの契約選択 (3-a/3-b/3-c) と操作 (5-a/5-b/5-c) は維持。
-- `contract_tax_revision`: demands から `change_contract_tax_rate` / `pay_wealth` / `status_quo` を抽出し evaluateContractTaxRevisionOffer で score 計算。`taxRevisionInitialDemandDelta` (0.10) で旧 `taxRevisionTaxChangeAmount` (0.05) を置換。下限 5% / 上限 80% 超で契約破棄は維持。Play 決着時（成否問わず）に `termsProtectedUntilWeek` を設定。
+- `contract_tax_revision`: demands から `change_contract_tax_rate` / `pay_wealth` / `status_quo` を抽出し evaluateContractTaxRevisionOffer で score 計算。`taxRevisionInitialDemandDelta` (0.10) で旧 `taxRevisionTaxChangeAmount` (0.05) を置換。下限 5% / 上限 80% 超で契約破棄は維持。Play 決着時（成否問わず）に `termsProtectedUntilWeek` を設定。**v0.30**: `applyChangeContractTaxRate` で `newRate <= taxRevisionMinRate` または `newRate >= taxRevisionMaxRate` の場合、率変更の代わりに `eliminateContractFromChain` で契約取消しを実行する（settlement / conflict 両経路共通）。status_quo 和平時は CONTRACT_TAX_REVISED を emit しない。
 - `revolt_negotiation`: 叛乱交渉。v0.30 では既存ロジック維持（妥協 / 鎮圧 / 独立の 3 分岐）。
 
-### 6.28 ConflictResolutionSystem（4週ごと、v0.18）
+**v0.30 契約取消し aim**: `eliminate_overlord_contract`（`taxRateToGrantor <= taxRevisionMinRateForReduction` で発火）/ `eliminate_vassal_contract`（`taxRateToGrantor >= taxRevisionMaxRateForIncrease` で発火）。既存の `improve_contract_terms` / `demand_tax_increase` project に mapping し、desiredRate が min/max 境界にクランプされる。escalation → conflict で勝利した場合に CONTRACT_ELIMINATED が発生する。両 Goal（external_expansion / internal_development）から候補に入る。
+
+### 6.28 ConflictResolutionSystem（4週ごと、v0.18 / v0.30 更新）
 
 status='escalated' な DiplomaticPlay を武力衝突として解決する。
 
 軍事力比較 → winChance → RNG 判定。
 - initiator 勝利: demand を適用 (土地移転 / 税率変更 / 独立)
 - defender 勝利: status_quo (revolt の場合は鎮圧)
+
+**v0.30**: contract_tax_revision の攻撃勝利時、`desiredTaxRateToGrantor` が `taxRevisionMinRate` 以下または `taxRevisionMaxRate` 以上の場合、通常の税率変更ではなく `eliminateContractFromChain` で契約取消しを実行する。CONTRACT_ELIMINATED イベントを emit。root contract は elimination 対象外。
 
 revolt_negotiation の決裂時は通常の actor military power ではなく、ProvinceRevoltSystem の既存式 (rebelPower / suppressionPower) を利用する。
 

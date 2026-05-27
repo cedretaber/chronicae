@@ -163,9 +163,10 @@ land_claim を自然に発生させるには、「他者の province の holding
 v0.30 で外交劇を offer-driven に構造改修したが、バランスの良し悪しは未検証。CLAUDE.md §4 の方針に従い、機能完成後にまとめて調整する。
 
 以下の項目は v0.30 で構造的に対応したが、バランスが適切かは別途観察が必要:
-- §14.3.1 の和平解決問題: offer 評価 + counterOffer + compromise で妥協点の探索が可能になったが、settlement 率が改善したかは未計測
+- §14.3.1 の和平解決問題: offer 評価 + counterOffer + compromise で妥協点の探索が可能になった。100yr × 4 seed 計測で和平率 51-80%（v0.26 の 8-13% から大幅改善）
 - §14.3.3 の land_claim 不発: `debugMixedProvinceHoldingsRatio` で検証経路を確保したが、自然発生率の改善は未確認
-- 税率改定 delta が 5% → 10% に拡大: CONTRACT_ELIMINATED の発生頻度に影響する可能性あり
+- 税率改定 delta が 5% → 10% に拡大
+- CONTRACT_ELIMINATED: 300yr × 4 seed で seed あたり 6-8 件発生。`eliminate_overlord_contract` aim から escalation → conflict 勝利の経路で到達。和平経路での elimination は offer 生成が境界値に達しにくいため稀
 
 ---
 

@@ -615,7 +615,11 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **cleanupTerminalDiplomacy**: offer cascade delete（offer 先 → play 後の順序）
 - **IntegrityCheck 追加**: terminal play の offer 残留検査、issue-demand 整合性検査
 - **Config 変更**: `taxRevisionTaxChangeAmount` 廃止。新規: taxRevisionInitialDemandDelta / taxRevisionReservationDelta / taxRevisionMaxDemandDelta / taxRevisionCompensationYears / invalidOfferTensionDelta / rejectedOfferTensionDelta / validOfferProgressDelta / counterOfferProgressDelta / offerCompromiseProgressDelta / negotiateTermsProgressDelta / debugMixedProvinceHoldingsRatio
-- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
+- **契約取消し (CONTRACT_ELIMINATED) の修復**: conflictResolutionSystem の税率境界比較を `>=` → `>` に修正。`eliminateContractFromChain` の byHolding index 更新漏れを修正。status_quo 和平時の CONTRACT_TAX_REVISED 誤表示（"revised to 0%"）を修正
+- **新 Aim**: `eliminate_overlord_contract` / `eliminate_vassal_contract` — 税率が `taxRevisionMinRateForReduction` (0.15) 以下 / `taxRevisionMaxRateForIncrease` (0.60) 以上に達した場合に契約取消しを目指す aim。既存の improve_contract_terms / demand_tax_increase project に mapping
+- **和平経路 elimination**: `applyChangeContractTaxRate` で newRate が min/max 境界値の場合、率変更の代わりに `eliminateContractFromChain` を実行。root contract は除外
+- **CONTRACT_ELIMINATED イベント emit**: conflict / settlement 両経路で正しく emit。i18n テンプレート（en/ja）は既存
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。CONTRACT_ELIMINATED は seed あたり 6-8 件発生
 
 ### v0.20 以降に送られる主要項目
 

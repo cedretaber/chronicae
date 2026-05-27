@@ -670,7 +670,7 @@ type Goal = {
 ```ts
 type AimStatus = 'active' | 'succeeded' | 'failed' | 'abandoned'
 type AimOrigin = 'goal_driven' | 'pressure_response'
-type PolityAimKind = 'consolidate_province_holdings' | 'seize_weak_remote_holdings' | 'develop_owned_holding' | 'improve_owned_contract_terms'
+type PolityAimKind = 'consolidate_province_holdings' | 'seize_weak_remote_holdings' | 'develop_owned_holding' | 'improve_owned_contract_terms' | 'eliminate_overlord_contract' | 'eliminate_vassal_contract'
 type HouseAimKind = 'increase_polity_share' | 'steer_polity_external_expansion' | 'steer_polity_internal_development' | 'patronize_artist' | 'commission_chronicle'
 // v0.23 追加
 type PersonAimKind = 'support_organization_aim' | 'increase_house_influence' | 'obtain_office' | 'retain_office' | 'accumulate_wealth' | 'improve_ability'
