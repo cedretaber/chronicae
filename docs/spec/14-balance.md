@@ -84,6 +84,12 @@ Level 1 (target=100) でも期限切れ率が高い主因は **supervisor の ac
 - **期限切れ**: supervisor の workload 管理・priority 調整、または advance_project の actionCost 軽減
 - **成功率全般**: v0.26 時点で89-97%と報告されていたが、v0.28 の deadline 比例化で自然に下がった
 
+### 14.2.4 sell_land プロジェクトが機能していない（v0.29 時点で確認）
+
+`sell_land` プロジェクトの買い手候補選定で `purchaseBuyerTreasuryThreshold: 1500` が高すぎるため、treasury がこの閾値を超える Polity がほぼ存在せず、候補が常に 0 になる。結果として sell_land が実質的に発動しない。
+
+閾値を Polity treasury の実勢値（通常 2000-5000）に対して現実的な値に下げるか、閾値の算出方式自体を見直す必要がある。
+
 ---
 
 ## 14.3 外交劇バランス（v0.26 時点）
@@ -105,6 +111,39 @@ Level 1 (target=100) でも期限切れ率が高い主因は **supervisor の ac
 - 税率変動が5%固定で CONTRACT_ELIMINATED に到達しにくい
 - 結果として Polity 数が膠着し、地図の変化に乏しい
 
+### 14.3.1 和平解決が構造的に困難な問題（v0.29 時点で確認）
+
+外交劇の和平解決率が極めて低い（v0.26 計測で 8-13%）。これはバランスの問題ではなく、交渉システム自体の設計ギャップに起因する。
+
+**原因: acceptanceScore が構造的に負になる**
+
+`land_claim` の場合、`acceptanceScore` の正の項は `offeredPrice`（counterDemand 未実装のためほぼ 0）と `defenderTreasuryNeed`（通常は小さい）のみ。一方、負の項（`defenderPower × 0.12`、`provinceValue × 0.3`、`strategicLoss × 0.2`、`prestigeLoss × 0.2`）が支配的で、構造的 progress はほぼ 0 のまま推移する。
+
+タスクベース progress（`negotiate_terms` / `offer_compromise`）で多少は蓄積できるが、同時に initiator 側の `pressure_counterparty` タスクが tension を加算し、構造的 tension 蓄積（毎週 0.33〜4.0）と合わせて escalation 閾値（40）に先に到達する。
+
+**本質的な欠如要素**（小手先のバランス調整では解決不可）:
+
+1. **対案・妥協点の探索** — 現状は「要求を受け入れるか拒絶するか」の二択。counterDemand（「代わりに金銭補償を」「別の土地なら」「税率を下げるなら」等）の応酬で双方の許容範囲が重なる点を見つける仕組みがない
+2. **情報の非対称性と駆け引き** — `leverage` / `commitment` / `preparation` の骨格はあるが、交渉テーブル上で実際に条件を動かす仕組みに接続されていない
+3. **敗北のコスト** — 武力衝突に負けても特別なペナルティがない。prestige 低下・同盟動揺・内部不満等がなければ、「素直に譲歩する」より「拒絶して戦争する」方が常に合理的
+
+これらは戦争・叛乱システムとの兼ね合いもあり、外交劇全体の設計改修として別途検討する。
+
+### 14.3.2 ステークホルダー共通の国同士の衝突（v0.29 時点で確認）
+
+複数の Polity に Share を持つ House が存在するため、ステークホルダーが共通する国同士が外交劇で衝突することがある。v0.29 で delegate の同一人物重複は防止したが、「そもそも利害が一致する国同士が衝突を起こすべきか」という根本的な問題は未解決。外交劇の設計改修で同時に取り扱う。
+
+### 14.3.3 land_claim が発生しない（v0.29 時点で確認）
+
+`land_claim` を生む aim が事実上発動しない。原因は2つの aim 条件がいずれも初期状態で満たされないこと:
+
+1. **`consolidate_province_holdings`** — 「同一 province 内に自分と他者の holding が混在」が条件。初期状態では各 province の holding は全て同一 polity が保持しており、混在しない。tax revision の結果は税率変更であって holding 移転ではないため、混在状態は自然には生じない
+2. **`seize_weak_remote_holdings`** — 隣接 province の holding を狙えるが、`ownPower > targetPower × 1.25` の軍事力差が必要。初期の均衡状態では条件を満たす組み合わせが少ない
+
+v0.29 で `consolidate_province_holdings` の走査バグ（隣接 province 経由ではなく自 province の直接走査に修正）は解決したが、条件自体は変えておらず根本問題は残存。
+
+land_claim を自然に発生させるには、「他者の province の holding を直接狙う」aim 条件（例: 隣接 province の holding を claim する）の追加、または holding 所有権が移動するイベント（戦争結果・相続等）による混在状態の自然発生が必要。外交劇の設計改修と合わせて検討する。
+
 ---
 
 ## 14.4 人口動態（既知の問題）
@@ -122,3 +161,4 @@ Level 1 (target=100) でも期限切れ率が高い主因は **supervisor の ac
 | バージョン | 変更内容 |
 |-----------|---------|
 | v0.28 | 初版作成。POP wealth 安定化、Polity 保留額動的化、Project deadline 比例化の観察結果を記録 |
+| v0.29 | §14.2.4 sell_land 機能不全、§14.3.1 和平解決構造的問題、§14.3.2 ステークホルダー共通衝突、§14.3.3 land_claim 不発を追記 |
