@@ -4,7 +4,11 @@ import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types
 import type { DiplomaticOfferId, DiplomaticPlayId, PolityId } from '../types/ids'
 import type { PoliticalActorRef } from '../types/actor'
 import { createDiplomaticOfferId } from '../types/ids'
-import { applyLandContractTransferGoal, adjustLandContractTaxRate } from './landContractMutations'
+import {
+  applyLandContractTransferGoal,
+  adjustLandContractTaxRate,
+  eliminateContractFromChain,
+} from './landContractMutations'
 
 // ─── Offer lifecycle mutations (mutable — operate on WorldState directly) ───
 
@@ -81,7 +85,7 @@ export function applyDemand(
       return applyTransferLandContract(ctx, play, demand, allDemands)
 
     case 'change_contract_tax_rate':
-      return applyChangeContractTaxRate(ctx, demand)
+      return applyChangeContractTaxRate(ctx, play, demand)
 
     case 'status_quo':
       return ctx
@@ -184,13 +188,43 @@ function applyTransferLandContract(
 
 function applyChangeContractTaxRate(
   ctx: TickContext,
+  play: DiplomaticPlay,
   demand: Extract<DiplomaticDemand, { kind: 'change_contract_tax_rate' }>,
 ): TickContext {
-  let newState = adjustLandContractTaxRate(
-    ctx.state,
-    demand.landContractId,
-    demand.newTaxRateToGrantor,
-  )
+  const newRate = demand.newTaxRateToGrantor
+  const config = ctx.config
+
+  if (newRate <= config.taxRevisionMinRate || newRate >= config.taxRevisionMaxRate) {
+    const contract = ctx.state.landContracts[demand.landContractId]
+    if (contract) {
+      const isReduction = newRate <= config.taxRevisionMinRate
+      if (isReduction && play.issue?.kind === 'contract_tax_revision') {
+        const chain = ctx.state.landContractIndex.byHolding[play.issue.holdingId] ?? []
+        const defenderPolityId = play.target.kind === 'polity' ? play.target.id : undefined
+        const defenderContract = defenderPolityId
+          ? chain
+              .map((cid) => ctx.state.landContracts[cid])
+              .filter((c): c is NonNullable<typeof c> => !!c)
+              .find((c) => c.granteePolityId === defenderPolityId && !c.rootAuthorityId)
+          : undefined
+        if (defenderContract) {
+          const newState = eliminateContractFromChain(
+            ctx.state,
+            defenderContract.id,
+            defenderContract.terms.taxRateToGrantor,
+          )
+          return { ...ctx, state: newState }
+        }
+      } else {
+        if (!contract.rootAuthorityId) {
+          const newState = eliminateContractFromChain(ctx.state, demand.landContractId)
+          return { ...ctx, state: newState }
+        }
+      }
+    }
+  }
+
+  let newState = adjustLandContractTaxRate(ctx.state, demand.landContractId, newRate)
   const updatedContract = newState.landContracts[demand.landContractId]
   if (updatedContract) {
     newState = {
@@ -202,7 +236,7 @@ function applyChangeContractTaxRate(
           terms: {
             ...updatedContract.terms,
             termsProtectedUntilWeek:
-              ctx.state.absoluteWeek + ctx.config.taxRevisionGracePeriodYears * 52,
+              ctx.state.absoluteWeek + config.taxRevisionGracePeriodYears * 52,
           },
         },
       },

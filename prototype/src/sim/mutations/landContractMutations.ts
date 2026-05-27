@@ -758,12 +758,18 @@ export function eliminateContractFromChain(
     }
   }
 
+  const newByHolding = { ...state.landContractIndex.byHolding }
+  if (contract.holdingId) {
+    const holdingChain = newByHolding[contract.holdingId] ?? []
+    newByHolding[contract.holdingId] = holdingChain.filter((cid) => cid !== contractId)
+  }
+
   const nextState: WorldState = {
     ...state,
     landContracts: nextLandContracts,
     landContractIndex: {
       byProvince: { ...state.landContractIndex.byProvince, [contract.provinceId]: newChain },
-      byHolding: state.landContractIndex.byHolding,
+      byHolding: newByHolding,
       byGranteePolity: {
         ...state.landContractIndex.byGranteePolity,
         [contract.granteePolityId]: newGranteeSlot,

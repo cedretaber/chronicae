@@ -198,6 +198,8 @@ function getProjectRoleForAim(aim: Aim): AppliedRoleKey {
       return 'warCommand'
     case 'improve_owned_contract_terms':
     case 'demand_tax_increase_from_vassal':
+    case 'eliminate_overlord_contract':
+    case 'eliminate_vassal_contract':
       return 'stewardship'
     case 'increase_polity_share':
     case 'steer_polity_external_expansion':

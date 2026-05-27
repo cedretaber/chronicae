@@ -676,34 +676,41 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
     nextCtx = applySettledOffer(nextCtx, play, acceptedOffer)
     nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
 
-    // Determine newRate from accepted offer's change_contract_tax_rate demand
-    const taxDemand = acceptedOffer.demands.find((d) => d.kind === 'change_contract_tax_rate')
-    const newRate =
-      taxDemand && taxDemand.kind === 'change_contract_tax_rate'
-        ? taxDemand.newTaxRateToGrantor
-        : undefined
-
-    // Emit CONTRACT_TAX_REVISED
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
-    const { event: taxEvent, ctx: ctxEvTax } = createSimEvent(nextCtx, {
-      type: 'CONTRACT_TAX_REVISED',
-      importance: 'major',
-      messageKey: 'land_contract.tax_revised',
-      messageParams: {
-        province: nameParam('province', provinceNameKey),
-        rate: newRate !== undefined ? Math.round(newRate * 100) : 0,
-        initiator: nameParam('polity', initiatorName),
-        defender: nameParam('polity', defenderName),
-      },
-      entityRefs: [
-        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-        entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-      ],
-    })
-    nextCtx = { ...ctxEvTax, events: [...ctxEvTax.events, taxEvent] }
+
+    // Emit CONTRACT_TAX_REVISED or CONTRACT_ELIMINATED based on the accepted offer
+    const taxDemand = acceptedOffer.demands.find((d) => d.kind === 'change_contract_tax_rate')
+    if (taxDemand && taxDemand.kind === 'change_contract_tax_rate') {
+      const isElimination =
+        taxDemand.newTaxRateToGrantor <= nextCtx.config.taxRevisionMinRate ||
+        taxDemand.newTaxRateToGrantor >= nextCtx.config.taxRevisionMaxRate
+      const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
+      const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
+      const eventType = isElimination ? 'CONTRACT_ELIMINATED' : 'CONTRACT_TAX_REVISED'
+      const messageKey = isElimination ? 'land_contract.eliminated' : 'land_contract.tax_revised'
+      const { event: taxEvent, ctx: ctxEvTax } = createSimEvent(nextCtx, {
+        type: eventType,
+        importance: 'major',
+        messageKey,
+        messageParams: {
+          province: nameParam('province', provinceNameKey),
+          rate: Math.round(taxDemand.newTaxRateToGrantor * 100),
+          initiator: nameParam('polity', initiatorName),
+          defender: nameParam('polity', defenderName),
+        },
+        entityRefs: [
+          entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
+          entityRef('polity', defenderPolityId, 'defender', defenderName),
+          entityRef(
+            'province',
+            provinceId,
+            'province',
+            nextCtx.state.provinces[provinceId]?.nameKey,
+          ),
+        ],
+      })
+      nextCtx = { ...ctxEvTax, events: [...ctxEvTax.events, taxEvent] }
+    }
 
     // Emit DIPLOMATIC_PLAY_SETTLED
     const { event: settledEvent, ctx: ctxSettled } = createSimEvent(nextCtx, {

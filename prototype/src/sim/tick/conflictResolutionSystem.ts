@@ -389,16 +389,18 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
     const newRate = issue.desiredTaxRateToGrantor
     const contract = state.landContracts[issue.landContractId]
 
-    if (contract && newRate >= config.taxRevisionMinRate && newRate <= config.taxRevisionMaxRate) {
+    if (contract && newRate > config.taxRevisionMinRate && newRate < config.taxRevisionMaxRate) {
       // Normal: adjust tax rate
       const newState = adjustLandContractTaxRate(nextCtx.state, issue.landContractId, newRate)
       nextCtx = { ...nextCtx, state: newState }
     } else if (contract) {
-      // Elimination
-      const isReduction = newRate < config.taxRevisionMinRate
+      // Elimination: desiredRate hit min/max boundary → contract removal
+      const isReduction = newRate <= config.taxRevisionMinRate
       if (isReduction) {
         // Upper elimination: remove defender's contract
-        const defenderContract = chain.find((c) => c.granteePolityId === defenderPolityId)
+        const defenderContract = chain.find(
+          (c) => c.granteePolityId === defenderPolityId && !c.rootAuthorityId,
+        )
         if (defenderContract) {
           const oldRateToParent = defenderContract.terms.taxRateToGrantor
           const newState = eliminateContractFromChain(
@@ -407,11 +409,25 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
             oldRateToParent,
           )
           nextCtx = { ...nextCtx, state: newState }
+          nextCtx = emitContractEliminatedEvent(
+            nextCtx,
+            defenderContract.id,
+            provinceId,
+            attackerPolityId,
+            defenderPolityId,
+          )
         }
       } else {
         // Lower elimination: remove target's contract
         const newState = eliminateContractFromChain(nextCtx.state, issue.landContractId)
         nextCtx = { ...nextCtx, state: newState }
+        nextCtx = emitContractEliminatedEvent(
+          nextCtx,
+          issue.landContractId,
+          provinceId,
+          attackerPolityId,
+          defenderPolityId,
+        )
       }
     }
 
@@ -739,4 +755,33 @@ function setPlayStatus(
       },
     },
   }
+}
+
+function emitContractEliminatedEvent(
+  ctx: TickContext,
+  contractId: import('../types/ids').LandContractId,
+  provinceId: ProvinceId,
+  attackerPolityId: PolityId,
+  defenderPolityId: PolityId,
+): TickContext {
+  const provinceNameKey = ctx.state.provinces[provinceId]?.nameKey ?? provinceId
+  const attackerName = ctx.state.polities[attackerPolityId]?.nameKey ?? attackerPolityId
+  const defenderName = ctx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
+  const { event, ctx: nextCtx } = createSimEvent(ctx, {
+    type: 'CONTRACT_ELIMINATED',
+    importance: 'major',
+    messageKey: 'land_contract.eliminated',
+    messageParams: {
+      province: nameParam('province', provinceNameKey),
+      initiator: nameParam('polity', attackerName),
+      defender: nameParam('polity', defenderName),
+      contractId,
+    },
+    entityRefs: [
+      entityRef('province', provinceId, 'province', provinceNameKey),
+      entityRef('polity', attackerPolityId, 'initiator', attackerName),
+      entityRef('polity', defenderPolityId, 'defender', defenderName),
+    ],
+  })
+  return { ...nextCtx, events: [...nextCtx.events, event] }
 }

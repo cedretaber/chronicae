@@ -129,8 +129,10 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
     case 'develop_owned_holding':
       return 'develop_holding'
     case 'improve_owned_contract_terms':
+    case 'eliminate_overlord_contract':
       return 'improve_contract_terms'
     case 'demand_tax_increase_from_vassal':
+    case 'eliminate_vassal_contract':
       return 'demand_tax_increase'
     case 'increase_polity_share':
       return 'expand_polity_share'

@@ -269,6 +269,23 @@ function pickPolityAim(
       })
     }
   }
+  // eliminate_overlord_contract: tax rate already at/near minimum → push for contract removal
+  for (const cid of contractIds) {
+    const contract = state.landContracts[cid]
+    if (!contract || contract.rootAuthorityId) continue
+    if (contract.termsProtectedUntilWeek && absoluteWeek < contract.termsProtectedUntilWeek)
+      continue
+    if (contract.terms.taxRateToGrantor <= config.taxRevisionMinRateForReduction) {
+      candidates.push({
+        kind: 'eliminate_overlord_contract',
+        target: contract.holdingId
+          ? { kind: 'holding', id: contract.holdingId }
+          : { kind: 'province', id: contract.provinceId },
+        score: 40 + (config.taxRevisionMinRateForReduction - contract.terms.taxRateToGrantor) * 200,
+      })
+    }
+  }
+
   for (const cid of contractIds) {
     const contract = state.landContracts[cid]
     if (!contract) continue
@@ -277,16 +294,26 @@ function pickPolityAim(
     const child = state.landContracts[childContractId]
     if (!child) continue
     if (child.termsProtectedUntilWeek && absoluteWeek < child.termsProtectedUntilWeek) continue
-    if (child.terms.taxRateToGrantor >= config.taxRevisionMaxRateForIncrease) continue
     const vassalPolity = state.polities[child.granteePolityId]
     if (!vassalPolity || !vassalPolity.active) continue
-    candidates.push({
-      kind: 'demand_tax_increase_from_vassal',
-      target: child.holdingId
-        ? { kind: 'holding', id: child.holdingId }
-        : { kind: 'province', id: child.provinceId },
-      score: 15 + (config.taxRevisionMaxRateForIncrease - child.terms.taxRateToGrantor) * 50,
-    })
+    if (child.terms.taxRateToGrantor >= config.taxRevisionMaxRateForIncrease) {
+      // eliminate_vassal_contract: tax rate already at/near maximum → push for contract removal
+      candidates.push({
+        kind: 'eliminate_vassal_contract',
+        target: child.holdingId
+          ? { kind: 'holding', id: child.holdingId }
+          : { kind: 'province', id: child.provinceId },
+        score: 40 + (child.terms.taxRateToGrantor - config.taxRevisionMaxRateForIncrease) * 200,
+      })
+    } else {
+      candidates.push({
+        kind: 'demand_tax_increase_from_vassal',
+        target: child.holdingId
+          ? { kind: 'holding', id: child.holdingId }
+          : { kind: 'province', id: child.provinceId },
+        score: 15 + (config.taxRevisionMaxRateForIncrease - child.terms.taxRateToGrantor) * 50,
+      })
+    }
   }
 
   if (goalKind !== 'external_expansion') {

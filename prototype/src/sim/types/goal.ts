@@ -88,6 +88,8 @@ export type PolityAimKind =
   | 'develop_owned_holding'
   | 'improve_owned_contract_terms'
   | 'demand_tax_increase_from_vassal'
+  | 'eliminate_overlord_contract'
+  | 'eliminate_vassal_contract'
 
 export type HouseAimKind =
   | 'increase_polity_share'

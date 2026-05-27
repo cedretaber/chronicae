@@ -5,6 +5,8 @@ polity:
   develop_owned_holding: 所領開発
   improve_owned_contract_terms: 契約条件の改善
   demand_tax_increase_from_vassal: 臣下への増税要求
+  eliminate_overlord_contract: 上位契約の取消し
+  eliminate_vassal_contract: 下位契約の取消し
 house:
   increase_polity_share: 国政における発言力の拡大
   steer_polity_external_expansion: 国の対外拡張を主導
