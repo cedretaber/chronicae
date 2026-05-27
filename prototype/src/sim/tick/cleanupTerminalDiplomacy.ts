@@ -65,7 +65,8 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
       if (!nextPlays) nextPlays = { ...plays }
       const updated: DiplomaticPlay = { ...play }
       if (initDead) {
-        const replacement = getDiplomaticPlayDelegate(ctx.state, play.initiator)
+        const exclude = targDead ? undefined : play.targetDelegatePersonId
+        const replacement = getDiplomaticPlayDelegate(ctx.state, play.initiator, exclude)
         if (replacement) {
           updated.initiatorDelegatePersonId = replacement
         } else {
@@ -73,7 +74,11 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
         }
       }
       if (targDead) {
-        const replacement = getDiplomaticPlayDelegate(ctx.state, play.target)
+        const replacement = getDiplomaticPlayDelegate(
+          ctx.state,
+          play.target,
+          updated.initiatorDelegatePersonId,
+        )
         if (replacement) {
           updated.targetDelegatePersonId = replacement
         } else {

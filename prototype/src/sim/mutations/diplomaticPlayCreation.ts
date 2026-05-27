@@ -131,7 +131,7 @@ function createLandClaimPlayFromProjectMut(
 
   const playId: DiplomaticPlayId = createDiplomaticPlayId(ws.nextDiplomaticPlayId)
   const initiatorDelegate = getDiplomaticPlayDelegate(ws, initiator)
-  const targetDelegate = getDiplomaticPlayDelegate(ws, target)
+  const targetDelegate = getDiplomaticPlayDelegate(ws, target, initiatorDelegate)
 
   const play: DiplomaticPlay = {
     id: playId,
@@ -252,7 +252,7 @@ function createContractRevisionPlayFromProjectMut(
 
   const playId: DiplomaticPlayId = createDiplomaticPlayId(ws.nextDiplomaticPlayId)
   const initiatorDelegate = getDiplomaticPlayDelegate(ws, initiator)
-  const targetDelegate = getDiplomaticPlayDelegate(ws, target)
+  const targetDelegate = getDiplomaticPlayDelegate(ws, target, initiatorDelegate)
 
   const play: DiplomaticPlay = {
     id: playId,

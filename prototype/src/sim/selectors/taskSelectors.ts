@@ -492,20 +492,23 @@ function isValidDelegate(state: WorldState, personId: PersonId): boolean {
 export function getDiplomaticPlayDelegate(
   state: WorldState,
   actor: PoliticalActorRef,
+  excludePersonId?: PersonId,
 ): PersonId | undefined {
+  const isCandidate = (id: PersonId): boolean =>
+    id !== excludePersonId && isValidDelegate(state, id)
   if (actor.kind === 'polity') {
     const polityId = actor.id
     const advisor = getPrimaryOfficeHolder(state, { kind: 'polity', id: polityId }, 'advisor')
-    if (advisor && isValidDelegate(state, advisor)) return advisor
+    if (advisor && isCandidate(advisor)) return advisor
     const admin = getPrimaryOfficeHolder(state, { kind: 'polity', id: polityId }, 'administrator')
-    if (admin && isValidDelegate(state, admin)) return admin
+    if (admin && isCandidate(admin)) return admin
     const leader = getPolityLeader(state, polityId)
-    if (leader && isValidDelegate(state, leader)) return leader
+    if (leader && isCandidate(leader)) return leader
     return undefined
   }
   if (actor.kind === 'house') {
     const leader = getHouseLeader(state, actor.id)
-    if (leader && isValidDelegate(state, leader)) return leader
+    if (leader && isCandidate(leader)) return leader
     return undefined
   }
   return undefined

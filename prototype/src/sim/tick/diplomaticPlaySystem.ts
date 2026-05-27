@@ -1114,7 +1114,11 @@ function ensureDelegates(ctx: TickContext, play: DiplomaticPlay): TickContext {
     }
 
     if (!hasValidDelegate) {
-      const newDelegate = getDiplomaticPlayDelegate(currentCtx.state, actor)
+      const otherSideDelegate =
+        side === 'initiator'
+          ? latestPlay.targetDelegatePersonId
+          : latestPlay.initiatorDelegatePersonId
+      const newDelegate = getDiplomaticPlayDelegate(currentCtx.state, actor, otherSideDelegate)
       if (!newDelegate) continue
 
       const updatedPlay = { ...currentCtx.state.diplomaticPlays[play.id]! }
