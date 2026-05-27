@@ -430,6 +430,20 @@
 | **ProjectStage / Pressure（v0.29）** | | |
 | projectStageMaxAttempts | 3 | preparatory stage の failure 連続上限。超過で Project failed |
 | pressureResponseDefaultDeadlineWeeks | 48 | respond_to_pressure Project の DiplomaticPlay 不在時 fallback deadline（1年 = 48週） |
+| **Offer-driven Negotiation（v0.30）** | | |
+| taxRevisionInitialDemandDelta | 0.10 | 税率改定の初期要求 delta（旧 `taxRevisionTaxChangeAmount` を置換） |
+| taxRevisionReservationDelta | 0.05 | 税率改定の reservation delta |
+| taxRevisionMaxDemandDelta | 0.15 | 税率改定の最大要求 delta |
+| taxRevisionCompensationYears | 3 | 税率改定補償金の算出年数 |
+| invalidOfferTensionDelta | 10 | invalid offer 時の tension 上昇量 |
+| rejectedOfferTensionDelta | 8 | rejected offer 時の tension 上昇量 |
+| validOfferProgressDelta | 5 | valid offer 提出時の progress 増分 |
+| counterOfferProgressDelta | 15 | counterOffer（propose_initial_offer stage）の progress 増分 |
+| offerCompromiseProgressDelta | 15 | offer_compromise Task 成功時の progress 増分（旧 progressGainMedium を置換） |
+| negotiateTermsProgressDelta | 8 | negotiate_terms Task 成功時の progress 増分（旧 progressGainMedium を置換） |
+| debugMixedProvinceHoldingsRatio | 0 | worldgen 後に mixed holdings を生成する Province の割合（0 = disabled） |
+| **v0.30 廃止** | | |
+| ~~taxRevisionTaxChangeAmount~~ | — | **v0.30 で廃止**。`taxRevisionInitialDemandDelta` に統合 |
 
 ---
 

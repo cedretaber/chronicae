@@ -1159,13 +1159,28 @@ Intent 廃止確認（v0.26）:
 - ActorIntent チェックを全削除
 - TaskTargetRef { kind: 'intent' } の Task が存在しない
 
-**v0.18 追加チェック項目（v0.26 更新）**:
+**v0.30 追加チェック項目**:
+
+DiplomaticOffer:
+- terminal play の offer が cleanup 後に残っていない（残留 offer 検査）
+- active/escalated play の currentOffer がある場合、issue-demand 整合性を検証:
+  - land_claim: offer に `change_contract_tax_rate` が含まれない、`transfer_land_contract.holdingId === issue.holdingId`
+  - contract_tax_revision: offer に `transfer_land_contract` が含まれない、`change_contract_tax_rate.landContractId === issue.landContractId`
+
+DiplomaticPlay (v0.30 追加):
+- land_claim / contract_tax_revision の active play は issue を持つ
+- issue.kind と play.kind が一致する
+- currentOfferId がある場合、対応する DiplomaticOffer が存在し offer.playId === play.id
+- offerHistoryIds の全 offer が存在し全 offer.playId === play.id
+- 非 revolt play に primaryDemand が存在しない
+
+**v0.18 追加チェック項目（v0.26 / v0.30 更新）**:
 
 DiplomaticPlay:
 - すべての entry の status ∈ {'active', 'escalated'} (terminal status は tick 末で削除される前提)
 - initiator / target が存在する
 - progress / tension は 0..100
-- primaryDemand が有効な対象を指す
+- primaryDemand が有効な対象を指す（revolt_negotiation のみ）
 
 Revolt:
 - revolt_negotiation の initiator は commonwealth Polity
@@ -1252,15 +1267,16 @@ AimKind → ProjectKind マッピング:
 
 旧 IntentGenerationSystem の sell_land ロジックを移植。Polity の財政難から直接 sell_land Project を生成する（prepare_project Task を経由しない）。`origin: { kind: 'system', reasonKey: 'fiscal_pressure' }`。
 
-### 6.25b2 ProjectStageSystem（毎週、v0.29）
+### 6.25b2 ProjectStageSystem（毎週、v0.29 / v0.30 更新）
 
 active Project の immediate stage を即時解決する。毎 tick 実行（intervalWeeks: 1）。
 
 **immediate stage handler**:
 - `find_supervisor` (develop_holding): Bailiff を supervisor に採用。4段階カスケードで候補探索
 - `secure_budget` (develop_holding): owner treasury から budget 確保
-- `open_diplomatic_play` (acquire_land / sell_land / improve_contract_terms / demand_tax_increase): DiplomaticPlay を作成し、Pressure を生成。preparation / leverage / commitment を DiplomaticPlay に転写。重複チェックあり（duplicate → Project failed）
+- `open_diplomatic_play` (acquire_land / sell_land / improve_contract_terms / demand_tax_increase): DiplomaticPlay を作成し、Pressure を生成。preparation / leverage / commitment を DiplomaticPlay に転写。重複チェックあり（duplicate → Project failed）。**v0.30**: play 作成と同時に initiator の初期 DiplomaticOffer を生成
 - `choose_stance` (respond_to_pressure): 軍事力比較で stance 決定（target < source×0.5 → concede、target ≥ source×1.2 → resist、else → negotiate）
+- `propose_initial_offer` (respond_to_pressure, v0.30): target 側が stance に基づく counter-offer を生成。concede → initiator の offer demands をコピー、negotiate → 中間案（land_claim: pay_wealth ×1.3、contract_tax_revision: halfway rate）、resist → status_quo。counter-offer 作成時に progress += counterOfferProgressDelta
 
 **runtime fallback**: invalid な currentStageKey を持つ active Project に initial stage を補正する（防御的補正）。
 
@@ -1313,22 +1329,45 @@ terminal Project の効果解決・ログ出力・cleanup を担当。
 
 **v0.26 で廃止。** v0.29 では DiplomaticPlay の生成は ProjectStageSystem の open_diplomatic_play handler (§6.25b2) が担当。
 
-### 6.27 DiplomaticPlaySystem（4週ごと、v0.18 / v0.23 / v0.29 更新）
+### 6.27 DiplomaticPlaySystem（4週ごと、v0.18 / v0.23 / v0.29 / v0.30 更新）
 
 active な DiplomaticPlay を進行させる。
 
 **v0.23**: structuralProgress を `structuralProgressFactor`（0.33）で弱化。delegate 選定・交渉パラメータ更新を追加。
 **v0.29**: Task 生成責務を ProjectTaskGenerationSystem に移管。DiplomaticPlaySystem は原則として Task を生成しない（delegate 生存確認・再任、progress/tension 管理、settlement/escalation/failed/cancelled 判定を担当）。revolt_negotiation は Project を持たないため、Task なしで deadline まで進行し多くの場合 escalation → conflict に至る。
+**v0.30**: offer-driven ハイブリッドモデルに移行。settlement は accepted offer によってのみ成立する。progress は settlement 判定に使わず UI 表示値として維持。旧 `progress > tension → settle` 分岐を廃止。
 
-各 Play kind の acceptanceScore を計算し、progress / tension を更新（v0.23 では ×0.33 の弱化係数を適用）。
-- progress >= settlementThreshold (60) → settlement
-- tension >= escalationThreshold (40) → escalation (status='escalated')
-- deadline 到達 → progress > tension なら settlement、それ以外 escalation
+**v0.30 メインループ（land_claim / contract_tax_revision）**:
+
+```txt
+for each active play:
+  1. orphan check (issue-based, cancelOrphanedPlays)
+  2. structural update: tension += baseTensionGain * structuralFactor
+  3. offer evaluation check:
+     if currentOfferId exists AND currentOfferId !== lastEvaluatedOfferId:
+       a. validateOffer
+       b. if invalid → reject, set lastEvaluatedOfferId
+       c. if valid → progress += validOfferProgressDelta, evaluateOffer
+       d. if accepted → applySettledOffer, play.status = 'settled'
+       e. if rejected → tension += evaluation.tensionDelta, set lastEvaluatedOfferId
+  4. escalation check: tension >= escalationThreshold → escalated
+  5. deadline check (v0.30 分岐):
+     - 未評価 pending offer あり → 強制 evaluateOffer → accepted なら settled / rejected なら escalated
+     - それ以外 → escalated
+```
+
+`revolt_negotiation` は v0.30 の offer-driven 化対象外。既存ロジックを維持する。
+
+**evaluator の決定**: `currentOffer.proposedBy` が initiator なら evaluator は target、逆も同様。
+
+**applySettledOffer**: accepted offer の demands を `applyDemand(ctx, play, demand, allDemands)` で順に適用する。`allDemands` 引数により `transfer_land_contract` の reason を導出（`pay_wealth` あり → 'purchase' / なし → 'cession'）。
+
+**evaluateOffer**: PlayKind 別に offer.demands からパラメータを抽出し score を計算。score >= 0 → accepted、score < 0 → rejected。評価時点の preparation / leverage / commitment が score に反映される。
 
 Play kind 別の処理:
-- `land_claim`: 土地契約の移転。rank ベースの契約選択 (3-a/3-b/3-c) と操作 (5-a/5-b/5-c)。settlement 時の分岐: counterDemand (pay_wealth) あり → reason='purchase' (LAND_CONTRACT_PURCHASED)、なし → reason='cession' (LAND_CONTRACT_CEDED)。
-- `contract_tax_revision`: 税率 ±5% 変更。下限 5% / 上限 80% 超で契約破棄 (`eliminateContractFromChain` mutation による chain 再接続)。Play 決着時（成否問わず）に対象契約に `termsProtectedUntilWeek` を設定し、`taxRevisionGracePeriodYears`（default 5年）間は同一契約への再交渉を禁止する。
-- `revolt_negotiation`: 叛乱交渉。妥協 / 鎮圧 / 独立の 3 分岐。
+- `land_claim`: demands から `transfer_land_contract` / `pay_wealth` / `status_quo` を抽出し evaluateLandClaimOffer で score 計算。settlement 時は `applySettledOffer` で demands を適用。rank ベースの契約選択 (3-a/3-b/3-c) と操作 (5-a/5-b/5-c) は維持。
+- `contract_tax_revision`: demands から `change_contract_tax_rate` / `pay_wealth` / `status_quo` を抽出し evaluateContractTaxRevisionOffer で score 計算。`taxRevisionInitialDemandDelta` (0.10) で旧 `taxRevisionTaxChangeAmount` (0.05) を置換。下限 5% / 上限 80% 超で契約破棄は維持。Play 決着時（成否問わず）に `termsProtectedUntilWeek` を設定。
+- `revolt_negotiation`: 叛乱交渉。v0.30 では既存ロジック維持（妥協 / 鎮圧 / 独立の 3 分岐）。
 
 ### 6.28 ConflictResolutionSystem（4週ごと、v0.18）
 
@@ -1342,9 +1381,14 @@ revolt_negotiation の決裂時は通常の actor military power ではなく、
 
 WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / ~~development~~ / unrest) を適用。**v0.27**: development 低下効果は無効化（`adjustProvinceDevelopment` が no-op）。将来 devastation/condition で再接続。
 
-### 6.29 CleanupTerminalDiplomacy（毎週、v0.18 / v0.29 更新）
+### 6.29 CleanupTerminalDiplomacy（毎週、v0.18 / v0.29 / v0.30 更新）
 
-terminal status の DiplomaticPlay と関連 Pressure を state から削除する GC。IntegrityCheck の直前に置く。v0.29 で intervalWeeks を 1 に変更。
+terminal status の DiplomaticPlay と関連 Pressure / DiplomaticOffer を state から削除する GC。IntegrityCheck の直前に置く。v0.29 で intervalWeeks を 1 に変更。
+
+**v0.30 offer cascade delete**:
+- terminal Play の `offerHistoryIds` をたどり、関連 DiplomaticOffer をすべて `state.diplomaticOffers` から削除
+- `currentOfferId` が `offerHistoryIds` に含まれていない場合、それも削除
+- **削除順序: offer 先、play 後**。play を先に削除すると `offerHistoryIds` が失われるため
 
 **v0.29 Pressure 同期**:
 - terminal DiplomaticPlay に紐付く Pressure を `pressureIndex.byDiplomaticPlay` で取得
@@ -1423,6 +1467,15 @@ Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で�
 - partial / failure: progress を加算せず、aim は active のまま維持（次の personAimMaintenanceSystem サイクルで新 Task が生成される）
 
 **DiplomaticPlay Task**: delegate に割り当て。side (initiator/target) で Task 種類の base score が異なる。delegate 能力が効果量に倍率（0.5 + ability/100）で影響。
+
+**v0.30 offer_compromise 拡張**: Task 成功時に新 DiplomaticOffer を作成する。
+1. progress += offerCompromiseProgressDelta (15)（既存 progressGainMedium は使わない）
+2. tension -= tensionReductionSmall (5)（既存通り）
+3. lastRejectedOfferId を基に ±30% 妥協方向へ調整した demands で新 offer を生成
+4. play.currentOfferId を新 offer に更新、play.offerHistoryIds に追加
+5. offer_compromise による progress は offerCompromiseProgressDelta に一本化（counterOfferProgressDelta との二重加算なし）
+
+**v0.30 negotiate_terms**: progress += negotiateTermsProgressDelta (8)（既存 progressGainMedium を置換）。
 
 イベント: `TASK_COMPLETED` / `TASK_FAILED` / `TASK_CANCELLED`
 

@@ -493,7 +493,7 @@ type BailiffRevenueTaskStatus = 'completed' | 'none'
 - placeholder 代官は常に `'passive'`
 - `BailiffRevenueTaskStatus` は `getRecentBailiffRevenueTaskStatus` selector で直近 4 週の ActivityLog から判定
 
-### 3.9 外交劇システム (v0.18 / v0.26 更新)
+### 3.9 外交劇システム (v0.18 / v0.26 / v0.30 更新)
 
 #### PoliticalActorRef
 
@@ -507,9 +507,66 @@ type PoliticalActorRef =
 
 v0.18 では Polity actor のみ実動。v0.22 で House actor の最小実動を導入（expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle）。
 
+#### DiplomaticIssue（v0.30）
+
+外交劇の不変争点 anchor。dedupe key / orphan check / cleanup / UI 表示の基準。actor 情報は `DiplomaticPlay.initiator` / `target` に一元化し、issue は対象 entity のみ保持する。
+
+```ts
+type DiplomaticIssue =
+  | LandClaimIssue
+  | ContractTaxRevisionIssue
+
+type LandClaimIssue = {
+  kind: 'land_claim'
+  holdingId: HoldingId
+  provinceId: ProvinceId
+}
+
+type TaxRevisionDirection = 'increase' | 'decrease'
+
+type ContractTaxRevisionIssue = {
+  kind: 'contract_tax_revision'
+  holdingId: HoldingId
+  landContractId: LandContractId
+  baseTaxRateToGrantor: number
+  desiredTaxRateToGrantor: number
+  direction: TaxRevisionDirection
+}
+```
+
+orphan check (issue-based):
+- land_claim: `issue.holdingId` / `issue.provinceId` が存在しなければ cancelled
+- contract_tax_revision: `issue.holdingId` / `issue.landContractId` が存在しなければ cancelled。`landContract.holdingId` が `issue.holdingId` と一致しなければ cancelled
+
+#### DiplomaticOffer（v0.30）
+
+外交劇において一方が提示する具体的な解決案。WorldState に top-level Record として保存し、DiplomaticPlay 内には ID のみ保持する。
+
+```ts
+type DiplomaticOfferId = Branded<string, 'DiplomaticOfferId'>  // prefix: "do-"
+
+type DiplomaticOfferStatus =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'withdrawn'
+
+type DiplomaticOffer = {
+  id: DiplomaticOfferId
+  playId: DiplomaticPlayId
+  proposedBy: PoliticalActorRef
+  demands: DiplomaticDemand[]
+  status: DiplomaticOfferStatus
+  createdWeek: number
+  reasonIds: DecisionReasonId[]
+}
+```
+
+`invalid` は `DiplomaticOfferStatus` に含めない。検証結果は `OfferValidationResult` で表す。
+
 #### DiplomaticPlay
 
-外交劇本体。**v0.26**: Project 完了時に生成される（旧 Intent → Play 変換は廃止）。
+外交劇本体。**v0.26**: Project 完了時に生成される（旧 Intent → Play 変換は廃止）。**v0.30**: offer-driven negotiation に移行（§6.27 参照）。
 
 ```ts
 type DiplomaticPlayKind =
@@ -521,7 +578,7 @@ type ActiveDiplomaticPlayStatus = 'active' | 'escalated'
 type TerminalDiplomaticPlayStatus = 'settled' | 'failed' | 'resolved_by_conflict' | 'cancelled'
 ```
 
-progress (妥協方向) / tension (緊張方向) の 2 軸で進行し、閾値到達で settlement / escalation に分岐する。`startedWeek` / `deadlineWeek` を absoluteWeek で保持 (v0.19)。terminal status に達した Play は同 tick 末に削除。
+**v0.30**: offer-driven ハイブリッドモデル — 毎 tick structural tension 微増 + offer 提出時の離散評価。settlement は accepted offer によってのみ成立する。progress は settlement 判定に使わず UI 表示値として維持。
 
 v0.22 では DiplomaticPlay に Goal/Aim 接続フィールドを追加:
 
@@ -533,6 +590,19 @@ originProjectId?: ProjectId  // v0.26: Project 由来の Play を追跡
 
 **v0.26**: `originIntentId` を廃止し `originProjectId` を追加。
 **v0.29**: DiplomaticPlay の生成を ProjectOutcomeSystem から ProjectStageSystem の `open_diplomatic_play` immediate stage に移管。Project の preparatory stage で preparation / leverage / commitment を蓄積し、DiplomaticPlay 作成時に転写する。DiplomaticPlay は Task を生成せず、Task 生成責務は ProjectTaskGenerationSystem に移管。
+**v0.30**: `issue` / offer 管理フィールド追加。`counterDemand` 完全削除。`primaryDemand` は `revolt_negotiation` 専用として維持。
+
+```ts
+type DiplomaticPlay = {
+  ...existing fields...
+  issue?: DiplomaticIssue          // v0.30: land_claim / contract_tax_revision では必須。revolt_negotiation では省略
+  primaryDemand?: DiplomaticDemand // revolt_negotiation 専用 (v0.30: 非 revolt では integrity violation)
+  currentOfferId?: DiplomaticOfferId
+  lastEvaluatedOfferId?: DiplomaticOfferId
+  lastRejectedOfferId?: DiplomaticOfferId
+  offerHistoryIds: DiplomaticOfferId[]
+}
+```
 
 #### DiplomaticDemand
 
@@ -545,19 +615,23 @@ type DiplomaticDemand =
   | { kind: 'status_quo' }
 ```
 
-#### WorldState 追加 (v0.18 / v0.26 更新)
+v0.30 で正式使用する組み合わせ: land_claim → transfer_land_contract + pay_wealth + status_quo、contract_tax_revision → change_contract_tax_rate + pay_wealth + status_quo。同一 offer 内で transfer_land_contract と change_contract_tax_rate を混在させない。
+
+#### WorldState 追加 (v0.18 / v0.26 / v0.30 更新)
 
 ```ts
 type WorldState = {
   ...
   diplomaticPlays: Record<DiplomaticPlayId, DiplomaticPlay>
   nextDiplomaticPlayId: number
+  diplomaticOffers: Record<DiplomaticOfferId, DiplomaticOffer>  // v0.30
+  nextDiplomaticOfferId: number  // v0.30
 }
 ```
 
 **v0.26**: `actorIntents` / `nextActorIntentId` を削除。ActorIntent 型を全廃し、Project システムに置換。
 
-terminal status の DiplomaticPlay は tick 末の `cleanupTerminalDiplomacy` phase で state から完全削除される。履歴は Event ログに残す。
+terminal status の DiplomaticPlay は tick 末の `cleanupTerminalDiplomacy` phase で state から完全削除される。関連 DiplomaticOffer も cascade delete される（v0.30）。履歴は Event ログに残す。
 
 ### 3.10 目標システム (v0.22 / v0.23 拡張)
 
@@ -819,6 +893,7 @@ ID prefix:
 | `PersonActivityLogId` | `pal-` |
 | `ProjectId` | `pr-` |
 | `PressureId` | `ps-` |
+| `DiplomaticOfferId` | `do-` |
 
 ### 3.12 Project システム (v0.26)
 
@@ -902,7 +977,7 @@ type ProjectStageEntry = {
 | sell_land | prepare_offer (prep) → open_diplomatic_play (imm) → negotiate (final) |
 | improve_contract_terms | prepare_argument (prep) → open_diplomatic_play (imm) → negotiate (final) |
 | demand_tax_increase | prepare_argument (prep) → open_diplomatic_play (imm) → negotiate (final) |
-| respond_to_pressure | choose_stance (imm) → prepare_response (prep) → negotiate (final) |
+| respond_to_pressure | choose_stance (imm) → propose_initial_offer (imm, v0.30) → prepare_response (prep) → negotiate (final) |
 
 - `immediate`: ProjectStageSystem が即時解決。Task を生成しない
 - `preparatory`: Task を生成。success → 次 stage 遷移、partial → 同 stage 継続、failure → stageAttemptCount increment → 上限超過で Project failed

@@ -593,6 +593,30 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **バランス結果**: Project 成功率が 89-97% (v0.26) → 約 55% (v0.26.1) に低下。能力の高い人物を supervisor に選ぶ動機が機能
 - **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。65 テストファイル / 598 tests pass
 
+### v0.30 で実装済み（Offer-driven Diplomatic Negotiation）
+
+詳細仕様は `docs/drafts/spec-v030-update.md` / `docs/drafts/spec-v030-review.md` 参照。
+
+- **DiplomaticIssue 型追加**: 外交劇の不変争点 anchor。`LandClaimIssue` (holdingId, provinceId) / `ContractTaxRevisionIssue` (holdingId, landContractId, baseTaxRateToGrantor, desiredTaxRateToGrantor, direction)。dedupe key / orphan check / cleanup / UI 表示の基準
+- **DiplomaticOffer 型追加**: `DiplomaticOfferId` (branded, prefix `do-`)。`DiplomaticOffer` (id, playId, proposedBy, demands, status, createdWeek, reasonIds)。`DiplomaticOfferStatus`: pending / accepted / rejected / withdrawn
+- **WorldState 拡張**: `diplomaticOffers: Record<DiplomaticOfferId, DiplomaticOffer>` / `nextDiplomaticOfferId: number`
+- **DiplomaticPlay 型変更**: `issue?: DiplomaticIssue` 追加（land_claim / contract_tax_revision では必須）、`currentOfferId? / lastEvaluatedOfferId? / lastRejectedOfferId? / offerHistoryIds` 追加、`counterDemand` 完全削除、`primaryDemand` は revolt_negotiation 専用として維持
+- **Offer validation**: `validateOffer` / `canApplyDemand` / `OfferValidationResult` / `OfferInvalidReason`。issue-demand 矛盾検査（§5.4 相当）
+- **Offer evaluation**: `evaluateOffer` / `OfferEvaluation`。PlayKind 別に demands からパラメータを抽出し score 計算。accepted (score ≥ 0) → settled、rejected → tension 上昇
+- **applySettledOffer / applyDemand**: accepted offer の demands を demand 種別ごとに適用。`allDemands` 引数で `transfer_land_contract` の reason 導出（pay_wealth あり → purchase / なし → cession）
+- **DiplomaticPlaySystem offer-driven 化**: 毎 tick structural tension 微増 + offer 評価（currentOfferId !== lastEvaluatedOfferId 時のみ）のハイブリッドモデル。progress は settlement 判定に使わず UI 表示値として維持。progress 駆動源: validOfferProgressDelta / counterOfferProgressDelta / offerCompromiseProgressDelta / negotiateTermsProgressDelta。deadline 到達時: 未評価 offer → 強制 evaluate、なし/rejected → escalated。旧 progress > tension → settle 分岐を廃止
+- **cancelOrphanedPlays 強化**: issue-based orphan check（holdingId / provinceId / landContractId 存在確認 + landContract chain 所属確認）
+- **初期 offer 生成**: `createDiplomaticPlayFromProjectMut` で play 作成と同時に initiator の初期 offer を生成。land_claim: transfer_land_contract + pay_wealth (purchasePrice)。contract_tax_revision: change_contract_tax_rate + pay_wealth (compensation)
+- **税率改定の desiredTaxRateToGrantor**: `taxRevisionTaxChangeAmount` (固定 ±5%) を廃止し、`taxRevisionInitialDemandDelta` (0.10) + clamp で算出
+- **税率改定の補償金**: `computeTaxRevisionCompensation` — taxBase × |newRate - baseRate| × compensationYears
+- **propose_initial_offer stage**: respond_to_pressure Project の immediate stage として追加。stance に応じた counter-offer 生成（concede: 要求コピー / negotiate: 中間案 / resist: status_quo）
+- **offer_compromise 拡張**: Task 完了時に新 DiplomaticOffer を作成。lastRejectedOfferId を基に ±30% 妥協調整。progress は offerCompromiseProgressDelta に一本化
+- **mixed holdings debug**: `debugMixedProvinceHoldingsRatio` config (default 0) で worldgen 後に一定割合の Province の Holding を近隣同 rank Polity に移転。land_claim の検証経路を確保
+- **cleanupTerminalDiplomacy**: offer cascade delete（offer 先 → play 後の順序）
+- **IntegrityCheck 追加**: terminal play の offer 残留検査、issue-demand 整合性検査
+- **Config 変更**: `taxRevisionTaxChangeAmount` 廃止。新規: taxRevisionInitialDemandDelta / taxRevisionReservationDelta / taxRevisionMaxDemandDelta / taxRevisionCompensationYears / invalidOfferTensionDelta / rejectedOfferTensionDelta / validOfferProgressDelta / counterOfferProgressDelta / offerCompromiseProgressDelta / negotiateTermsProgressDelta / debugMixedProvinceHoldingsRatio
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系
