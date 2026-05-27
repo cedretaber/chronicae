@@ -442,15 +442,8 @@ function buildLandClaimCompromiseDemands(
   side: 'initiator' | 'target',
   baseDemands: DiplomaticDemand[] | undefined,
 ): DiplomaticDemand[] | undefined {
-  // Need holdingId from issue or primaryDemand
-  let holdingId: HoldingId | undefined
-  if (play.issue?.kind === 'land_claim') {
-    holdingId = play.issue.holdingId
-  }
-  if (!holdingId && play.primaryDemand.kind === 'transfer_land_contract') {
-    holdingId = play.primaryDemand.holdingId
-  }
-  if (!holdingId) return undefined
+  if (!play.issue || play.issue.kind !== 'land_claim') return undefined
+  const holdingId = play.issue.holdingId
 
   if (baseDemands) {
     return adjustLandClaimDemands(ws, config, play, side, baseDemands, holdingId)
@@ -539,31 +532,11 @@ function buildTaxRevisionCompromiseDemands(
   side: 'initiator' | 'target',
   baseDemands: DiplomaticDemand[] | undefined,
 ): DiplomaticDemand[] | undefined {
-  // Need issue or primaryDemand for contract info
-  let issue: ContractTaxRevisionIssue | undefined
-  if (play.issue?.kind === 'contract_tax_revision') {
-    issue = play.issue
-  }
-
-  // Determine holdingId and landContractId from issue or primaryDemand
-  let holdingId: HoldingId | undefined
-  let landContractId: LandContractId | undefined
-  if (issue) {
-    holdingId = issue.holdingId
-    landContractId = issue.landContractId
-  }
-  if (!holdingId && play.primaryDemand.kind === 'change_contract_tax_rate') {
-    holdingId = play.primaryDemand.holdingId
-    landContractId = play.primaryDemand.landContractId
-  }
-  if (!holdingId || !landContractId) return undefined
-
-  // Determine base rate
-  const baseTaxRate =
-    issue?.baseTaxRateToGrantor ??
-    (play.primaryDemand.kind === 'change_contract_tax_rate'
-      ? (ws.landContracts[play.primaryDemand.landContractId]?.terms.taxRateToGrantor ?? 0.3)
-      : 0.3)
+  if (!play.issue || play.issue.kind !== 'contract_tax_revision') return undefined
+  const issue = play.issue
+  const holdingId = issue.holdingId
+  const landContractId = issue.landContractId
+  const baseTaxRate = issue.baseTaxRateToGrantor
 
   if (baseDemands) {
     return adjustTaxRevisionDemands(
@@ -580,11 +553,7 @@ function buildTaxRevisionCompromiseDemands(
   }
 
   // No base offer — create default: change_contract_tax_rate with rate halfway between base and desired
-  const desiredRate =
-    issue?.desiredTaxRateToGrantor ??
-    (play.primaryDemand.kind === 'change_contract_tax_rate'
-      ? play.primaryDemand.newTaxRateToGrantor
-      : baseTaxRate)
+  const desiredRate = issue.desiredTaxRateToGrantor
   const halfwayRate = clamp(
     (baseTaxRate + desiredRate) / 2,
     config.taxRevisionMinRate,
@@ -604,7 +573,7 @@ function buildTaxRevisionCompromiseDemands(
 function adjustTaxRevisionDemands(
   _ws: WorldState,
   config: SimulationConfig,
-  play: DiplomaticPlay,
+  _play: DiplomaticPlay,
   _side: 'initiator' | 'target',
   baseDemands: DiplomaticDemand[],
   holdingId: HoldingId,
@@ -637,11 +606,7 @@ function adjustTaxRevisionDemands(
   // If no change_contract_tax_rate in base demands (e.g., status_quo offer),
   // create one with halfway rate
   if (!hasTaxChange) {
-    const desiredRate =
-      issue?.desiredTaxRateToGrantor ??
-      (play.primaryDemand.kind === 'change_contract_tax_rate'
-        ? play.primaryDemand.newTaxRateToGrantor
-        : baseTaxRate)
+    const desiredRate = issue?.desiredTaxRateToGrantor ?? baseTaxRate
     const halfwayRate = clamp(
       (baseTaxRate + desiredRate) / 2,
       config.taxRevisionMinRate,

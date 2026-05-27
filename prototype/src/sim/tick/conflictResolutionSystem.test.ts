@@ -215,11 +215,7 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
       kind: 'land_claim',
       initiator: { kind: 'polity', id: attackerPolityId },
       target: { kind: 'polity', id: defenderPolityId },
-      primaryDemand: {
-        kind: 'transfer_land_contract',
-        holdingId,
-        toPolityId: attackerPolityId,
-      },
+      issue: { kind: 'land_claim', holdingId, provinceId },
       status: 'escalated',
       startedWeek: ctx.state.currentYear * 48 + ctx.state.currentWeekOfYear,
       deadlineWeek: (ctx.state.currentYear + 1) * 48 + ctx.state.currentWeekOfYear,
@@ -322,9 +318,6 @@ describe('runConflictResolutionSystem (unsupported kind)', () => {
       kind: 'contract_tax_revision',
       initiator: { kind: 'polity', id: polityAId },
       target: { kind: 'polity', id: polityBId },
-      primaryDemand: {
-        kind: 'status_quo',
-      },
       status: 'escalated',
       startedWeek: s.currentYear * 48 + s.currentWeekOfYear,
       deadlineWeek: (s.currentYear + 1) * 48 + s.currentWeekOfYear,

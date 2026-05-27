@@ -144,10 +144,10 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
         expect(play?.target.kind).toBe('polity')
         expect(play?.target.id).toBe(polityId)
         // primaryDemand は revolt_concession
-        if (play?.primaryDemand.kind === 'revolt_concession') {
+        if (play?.primaryDemand?.kind === 'revolt_concession') {
           expect(play.primaryDemand.provinceId).toBe(provinceId)
         } else {
-          throw new Error(`unexpected demand kind: ${play?.primaryDemand.kind}`)
+          throw new Error(`unexpected demand kind: ${play?.primaryDemand?.kind}`)
         }
         // REVOLT_NEGOTIATION_STARTED イベントが発火
         expect(next.events.some((e) => e.type === 'REVOLT_NEGOTIATION_STARTED')).toBe(true)

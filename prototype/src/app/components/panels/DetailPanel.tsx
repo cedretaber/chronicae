@@ -4076,13 +4076,13 @@ export function DiplomaticPlayDetail({
 
   let provinceId: ProvinceId | undefined
   let holdingId: HoldingId | undefined
-  if (play.primaryDemand.kind === 'transfer_land_contract') {
-    holdingId = play.primaryDemand.holdingId
+  if (play.issue?.kind === 'land_claim') {
+    holdingId = play.issue.holdingId
+    provinceId = play.issue.provinceId
+  } else if (play.issue?.kind === 'contract_tax_revision') {
+    holdingId = play.issue.holdingId
     provinceId = worldState.holdings[holdingId]?.provinceId
-  } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
-    holdingId = play.primaryDemand.holdingId
-    provinceId = worldState.holdings[holdingId]?.provinceId
-  } else if (play.primaryDemand.kind === 'revolt_concession') {
+  } else if (play.primaryDemand?.kind === 'revolt_concession') {
     provinceId = play.primaryDemand.provinceId
   }
   const holding = holdingId ? worldState.holdings[holdingId] : undefined
@@ -4282,40 +4282,16 @@ export function DiplomaticPlayDetail({
 
         <div className="text-sm font-semibold text-gray-300">{t('detail.play.demand')}</div>
         <div className="text-xs text-gray-400" style={{ marginLeft: 8 }}>
-          {play.primaryDemand.kind === 'transfer_land_contract' &&
-            `${t('detail.play.demand_transfer_land')}`}
-          {play.primaryDemand.kind === 'change_contract_tax_rate' &&
+          {play.issue?.kind === 'land_claim' && `${t('detail.play.demand_transfer_land')}`}
+          {play.issue?.kind === 'contract_tax_revision' &&
             (() => {
               const currentRate =
-                worldState.landContracts[play.primaryDemand.landContractId]?.terms.taxRateToGrantor
-              return `${t('detail.play.demand_tax_change')} ${currentRate != null ? Math.round(currentRate * 100) : '?'}% → ${Math.round(play.primaryDemand.newTaxRateToGrantor * 100)}%`
+                worldState.landContracts[play.issue.landContractId]?.terms.taxRateToGrantor
+              return `${t('detail.play.demand_tax_change')} ${currentRate != null ? Math.round(currentRate * 100) : '?'}% → ${Math.round(play.issue.desiredTaxRateToGrantor * 100)}%`
             })()}
-          {play.primaryDemand.kind === 'revolt_concession' &&
+          {play.primaryDemand?.kind === 'revolt_concession' &&
             `${t('detail.play.demand_revolt_concession')} (${play.primaryDemand.concessionLevel})`}
-          {play.primaryDemand.kind === 'status_quo' && t('detail.play.demand_status_quo')}
-          {play.primaryDemand.kind === 'pay_wealth' &&
-            `${t('detail.play.demand_pay_wealth')} ${formatAmount(play.primaryDemand.amount)}`}
         </div>
-        {play.counterDemand && play.counterDemand.kind !== 'status_quo' && (
-          <>
-            <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 2 }}>
-              {t('detail.play.counter_demand')}
-            </div>
-            <div className="text-xs text-gray-400" style={{ marginLeft: 8 }}>
-              {play.counterDemand.kind === 'pay_wealth' &&
-                `${t('detail.play.demand_pay_wealth')} ${formatAmount(play.counterDemand.amount)}`}
-              {play.counterDemand.kind === 'transfer_land_contract' &&
-                t('detail.play.demand_transfer_land')}
-              {play.counterDemand.kind === 'change_contract_tax_rate' &&
-                (() => {
-                  const currentRate =
-                    worldState.landContracts[play.counterDemand.landContractId]?.terms
-                      .taxRateToGrantor
-                  return `${t('detail.play.demand_tax_change')} ${currentRate != null ? Math.round(currentRate * 100) : '?'}% → ${Math.round(play.counterDemand.newTaxRateToGrantor * 100)}%`
-                })()}
-            </div>
-          </>
-        )}
 
         {(initiatorProject || targetProject) && (
           <>

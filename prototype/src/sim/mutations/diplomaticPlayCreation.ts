@@ -51,10 +51,7 @@ function getPlayProvinceId(play: DiplomaticPlay, state: WorldState): string | un
     if (play.issue.kind === 'contract_tax_revision')
       return state.holdings[play.issue.holdingId]?.provinceId
   }
-  const d = play.primaryDemand
-  if (d.kind === 'transfer_land_contract') return state.holdings[d.holdingId]?.provinceId
-  if (d.kind === 'change_contract_tax_rate') return state.holdings[d.holdingId]?.provinceId
-  if (d.kind === 'revolt_concession') return d.provinceId
+  if (play.primaryDemand?.kind === 'revolt_concession') return play.primaryDemand.provinceId
   return undefined
 }
 
@@ -154,22 +151,6 @@ function createLandClaimPlayFromProjectMut(
       ? { aimId: project.origin.aimId }
       : {}),
     issue: { kind: 'land_claim' as const, holdingId, provinceId },
-    primaryDemand: {
-      kind: 'transfer_land_contract',
-      holdingId,
-      toPolityId: initiator.id,
-      beneficiaryActor: initiator,
-    },
-    ...(counterDemandAmount > 0
-      ? {
-          counterDemand: {
-            kind: 'pay_wealth' as const,
-            from: initiator,
-            to: target,
-            amount: counterDemandAmount,
-          },
-        }
-      : {}),
     status: 'active',
     startedWeek: ws.absoluteWeek,
     deadlineWeek: ws.absoluteWeek + config.landClaimNegotiationDurationWeeks,
@@ -306,12 +287,6 @@ function createContractRevisionPlayFromProjectMut(
       ? { aimId: project.origin.aimId }
       : {}),
     issue,
-    primaryDemand: {
-      kind: 'change_contract_tax_rate',
-      holdingId,
-      landContractId: subjectContract.id,
-      newTaxRateToGrantor: newRate,
-    },
     status: 'active',
     startedWeek: ws.absoluteWeek,
     deadlineWeek: ws.absoluteWeek + config.taxRevisionNegotiationDurationWeeks,

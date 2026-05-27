@@ -1,15 +1,10 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import { clamp } from '../utils/math'
-import type {
-  DiplomaticPlayId,
-  PolityId,
-  ProvinceId,
-  HoldingId,
-  LandContractId,
-} from '../types/ids'
+import type { DiplomaticPlayId, PolityId, ProvinceId, HoldingId } from '../types/ids'
 import type {
   DiplomaticPlay,
+  DiplomaticDemand,
   DiplomaticOffer,
   DiplomaticPlayStatus,
   TerminalDiplomaticPlayStatus,
@@ -90,14 +85,6 @@ export function cancelOrphanedPlays(ctx: TickContext): TickContext {
       if (play.issue.kind === 'land_claim') {
         if (!ctx.state.holdings[play.issue.holdingId]) shouldCancel = true
       }
-    } else {
-      const d = play.primaryDemand
-      if (d.kind === 'change_contract_tax_rate') {
-        if (!ctx.state.landContracts[d.landContractId]) shouldCancel = true
-      }
-      if (d.kind === 'transfer_land_contract') {
-        if (!ctx.state.holdings[d.holdingId]) shouldCancel = true
-      }
     }
 
     if (shouldCancel) {
@@ -118,7 +105,7 @@ function isDeadlineReached(state: { absoluteWeek: number }, play: DiplomaticPlay
 function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): TickContext {
   const config = ctx.config
   const state = ctx.state
-  if (play.primaryDemand.kind !== 'revolt_concession') return ctx
+  if (!play.primaryDemand || play.primaryDemand.kind !== 'revolt_concession') return ctx
 
   const demand = play.primaryDemand
   const provinceId = demand.provinceId
@@ -301,7 +288,7 @@ function estimateSuppressionPower(
 function applyRevoltSettlement(
   ctx: TickContext,
   play: DiplomaticPlay,
-  demand: Extract<DiplomaticPlay['primaryDemand'], { kind: 'revolt_concession' }>,
+  demand: Extract<DiplomaticDemand, { kind: 'revolt_concession' }>,
   rebelPolityId: PolityId,
   targetPolityId: PolityId,
 ): TickContext {
@@ -403,15 +390,11 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
   const initiatorPolityId = play.initiator.id
   const defenderPolityId = play.target.id
 
-  // Get holdingId from issue, fall back to primaryDemand
-  let holdingId: HoldingId | undefined
-  if (play.issue?.kind === 'land_claim') {
-    holdingId = play.issue.holdingId
+  // Get holdingId from issue
+  if (!play.issue || play.issue.kind !== 'land_claim') {
+    return setPlayStatus(ctx, play.id, 'cancelled')
   }
-  if (!holdingId && play.primaryDemand.kind === 'transfer_land_contract') {
-    holdingId = play.primaryDemand.holdingId
-  }
-  if (!holdingId) return setPlayStatus(ctx, play.id, 'cancelled')
+  const holdingId = play.issue.holdingId
 
   const provinceId = state.holdings[holdingId]?.provinceId
   if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
@@ -586,15 +569,11 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
   const initiatorPolityId = play.initiator.id
   const defenderPolityId = play.target.id
 
-  // Get holdingId from issue, fall back to primaryDemand
-  let holdingId: HoldingId | undefined
-  if (play.issue?.kind === 'contract_tax_revision') {
-    holdingId = play.issue.holdingId
+  // Get holdingId from issue
+  if (!play.issue || play.issue.kind !== 'contract_tax_revision') {
+    return setPlayStatus(ctx, play.id, 'cancelled')
   }
-  if (!holdingId && play.primaryDemand.kind === 'change_contract_tax_rate') {
-    holdingId = play.primaryDemand.holdingId
-  }
-  if (!holdingId) return setPlayStatus(ctx, play.id, 'cancelled')
+  const holdingId = play.issue.holdingId
 
   const provinceId = state.holdings[holdingId]?.provinceId
   if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
@@ -615,13 +594,8 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
   }
 
   // Verify contract still in chain
-  let landContractId: LandContractId | undefined
-  if (play.issue?.kind === 'contract_tax_revision') {
-    landContractId = play.issue.landContractId
-  } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
-    landContractId = play.primaryDemand.landContractId
-  }
-  if (landContractId) {
+  const landContractId = play.issue.landContractId
+  {
     const chain = getHoldingLandContractChain(state, holdingId)
     if (!chain.some((c) => c.id === landContractId)) {
       return setPlayStatus(ctx, play.id, 'cancelled')

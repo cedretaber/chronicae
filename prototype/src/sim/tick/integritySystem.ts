@@ -1288,64 +1288,118 @@ export function collectIntegrityErrors(
         message: `DiplomaticPlay ${idStr} deadlineWeek=${play.deadlineWeek} is not after startedWeek=${play.startedWeek} (§20)`,
       })
     }
-    // primaryDemand が有効な対象を指す (kind 別の最小チェック)
-    const demand = play.primaryDemand
-    switch (demand.kind) {
-      case 'transfer_land_contract': {
-        if (!state.holdings[demand.holdingId]) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `DiplomaticPlay ${idStr} primaryDemand.holdingId ${demand.holdingId} does not exist (§20)`,
-          })
-        } else {
-          const provinceId = state.holdings[demand.holdingId]!.provinceId
-          if (!state.provinces[provinceId]) {
-            errors.push({
-              code: 'INTEGRITY_VIOLATION',
-              message: `DiplomaticPlay ${idStr} primaryDemand.holdingId ${demand.holdingId} points to non-existent province ${provinceId} (§20)`,
-            })
-          }
-        }
-        const toPolity = state.polities[demand.toPolityId]
-        if (!toPolity || !toPolity.active) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `DiplomaticPlay ${idStr} primaryDemand.toPolityId ${demand.toPolityId} is missing or inactive (§20)`,
-          })
-        }
-        break
+    // v0.30: issue 存在・整合性チェック
+    if (play.kind !== 'revolt_negotiation') {
+      if (!play.issue) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} (kind=${play.kind}) must have issue (§17)`,
+        })
+      } else if (play.issue.kind !== play.kind) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} issue.kind=${play.issue.kind} does not match play.kind=${play.kind} (§17)`,
+        })
       }
-      case 'change_contract_tax_rate': {
-        if (!state.holdings[demand.holdingId]) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `DiplomaticPlay ${idStr} primaryDemand.holdingId ${demand.holdingId} does not exist (§20)`,
-          })
-        }
-        if (!state.landContracts[demand.landContractId]) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `DiplomaticPlay ${idStr} primaryDemand.landContractId ${demand.landContractId} does not exist (§20)`,
-          })
-        }
-        break
+    }
+    // v0.30: issue anchor 検証
+    if (play.issue?.kind === 'land_claim') {
+      if (!state.holdings[play.issue.holdingId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} issue.holdingId ${play.issue.holdingId} does not exist (§17)`,
+        })
       }
-      case 'pay_wealth': {
-        if (!isActiveActor(demand.from)) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `DiplomaticPlay ${idStr} primaryDemand.from ${demand.from.kind}:${demand.from.id} is not active (§20)`,
-          })
-        }
-        if (!isActiveActor(demand.to)) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `DiplomaticPlay ${idStr} primaryDemand.to ${demand.to.kind}:${demand.to.id} is not active (§20)`,
-          })
-        }
-        break
+      if (!state.provinces[play.issue.provinceId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} issue.provinceId ${play.issue.provinceId} does not exist (§17)`,
+        })
       }
-      case 'revolt_concession': {
+    }
+    if (play.issue?.kind === 'contract_tax_revision') {
+      if (!state.holdings[play.issue.holdingId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} issue.holdingId ${play.issue.holdingId} does not exist (§17)`,
+        })
+      }
+      if (!state.landContracts[play.issue.landContractId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} issue.landContractId ${play.issue.landContractId} does not exist (§17)`,
+        })
+      }
+    }
+    // v0.30: offer 整合性チェック
+    if (play.currentOfferId) {
+      const offer = state.diplomaticOffers[play.currentOfferId]
+      if (!offer) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} currentOfferId ${play.currentOfferId as string} references missing offer (§17)`,
+        })
+      } else if (offer.playId !== play.id) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} currentOfferId offer.playId=${offer.playId} mismatch (§17)`,
+        })
+      }
+    }
+    for (const offerId of play.offerHistoryIds) {
+      const offer = state.diplomaticOffers[offerId]
+      if (!offer) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} offerHistoryIds references missing offer ${offerId as string} (§17)`,
+        })
+      } else if (offer.playId !== play.id) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} offerHistoryIds offer ${offerId as string} playId=${offer.playId} mismatch (§17)`,
+        })
+      }
+    }
+    if (play.lastEvaluatedOfferId) {
+      const inHistory = play.offerHistoryIds.includes(play.lastEvaluatedOfferId)
+      const isCurrent = play.lastEvaluatedOfferId === play.currentOfferId
+      if (!inHistory && !isCurrent) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} lastEvaluatedOfferId ${play.lastEvaluatedOfferId as string} not in offerHistoryIds or currentOfferId (§17)`,
+        })
+      }
+    }
+    // accepted offer should not remain on active play (settlement should have fired)
+    if (play.status === 'active' || play.status === 'escalated') {
+      const allOfferIds = play.currentOfferId
+        ? [...play.offerHistoryIds, play.currentOfferId]
+        : play.offerHistoryIds
+      for (const offerId of allOfferIds) {
+        const offer = state.diplomaticOffers[offerId]
+        if (offer?.status === 'accepted') {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} has accepted offer ${offerId as string} but is still ${play.status} (§17)`,
+          })
+        }
+      }
+    }
+    // primaryDemand: revolt_negotiation のみ存在必須、非 revolt には不要
+    if (play.kind !== 'revolt_negotiation' && play.primaryDemand) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticPlay ${idStr} (kind=${play.kind}) should not have primaryDemand (§17)`,
+      })
+    }
+    if (play.kind === 'revolt_negotiation') {
+      if (!play.primaryDemand) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr} revolt_negotiation must have primaryDemand (§20)`,
+        })
+      } else if (play.primaryDemand.kind === 'revolt_concession') {
+        const demand = play.primaryDemand
         if (!state.provinces[demand.provinceId]) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
@@ -1359,11 +1413,7 @@ export function collectIntegrityErrors(
             message: `DiplomaticPlay ${idStr} primaryDemand.popClass ${demand.popClass} is not a valid PopClass (§20)`,
           })
         }
-        break
       }
-      case 'status_quo':
-        // no target to validate
-        break
     }
     // revolt_negotiation 固有チェック (§20)
     if (play.kind === 'revolt_negotiation') {

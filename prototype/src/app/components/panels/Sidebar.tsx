@@ -241,7 +241,7 @@ function PlayRow({
   const targetName = resolveName('polity', targetNameKey, targetNameKey)
   const badge = statusBadge[play.status] ?? { label: play.status, bg: 'bg-gray-600' }
   const kindLabelText = kindLabel[play.kind] ?? play.kind
-  const hasOffer = play.counterDemand?.kind === 'pay_wealth' && play.counterDemand.amount > 0
+  const hasOffer = play.offerHistoryIds.length > 0
   const naturePrefix = play.kind === 'land_claim' ? (hasOffer ? '\u{1F4B0} ' : '\u{2694} ') : ''
 
   return (

@@ -66,7 +66,7 @@ export function runConflictResolutionSystem(ctx: TickContext): TickContext {
 
 function resolveRevoltEscalation(ctx: TickContext, play: DiplomaticPlay): TickContext {
   const config = ctx.config
-  if (play.primaryDemand.kind !== 'revolt_concession') {
+  if (!play.primaryDemand || play.primaryDemand.kind !== 'revolt_concession') {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
   if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
@@ -203,15 +203,14 @@ function pickSuppressionAftermath(ctx: TickContext): RebelLeaderAftermath {
 // ─── land_claim の escalation (§13.2、Stage F で land_transfer_demand から rename) ───
 
 function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): TickContext {
-  if (play.primaryDemand.kind !== 'transfer_land_contract') {
+  if (!play.issue || play.issue.kind !== 'land_claim') {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
   if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
   const config = ctx.config
-  const demand = play.primaryDemand
-  const holdingId = demand.holdingId
+  const holdingId = play.issue.holdingId
   const provinceId = ctx.state.holdings[holdingId]?.provinceId
   if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
   const attackerPolityId = play.initiator.id
@@ -338,15 +337,15 @@ function resolveLandClaimEscalation(ctx: TickContext, play: DiplomaticPlay): Tic
 }
 
 function resolveContractTaxRevisionEscalation(ctx: TickContext, play: DiplomaticPlay): TickContext {
-  if (play.primaryDemand.kind !== 'change_contract_tax_rate') {
+  if (!play.issue || play.issue.kind !== 'contract_tax_revision') {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
   if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
   const config = ctx.config
-  const demand = play.primaryDemand
-  const holdingId = demand.holdingId
+  const issue = play.issue
+  const holdingId = issue.holdingId
   const provinceId = ctx.state.holdings[holdingId]?.provinceId
   if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
   const attackerPolityId = play.initiator.id
@@ -361,7 +360,7 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
 
   // Verify contract still in chain
   const chain = getHoldingLandContractChain(state, holdingId)
-  if (!chain.some((c) => c.id === demand.landContractId)) {
+  if (!chain.some((c) => c.id === issue.landContractId)) {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
 
@@ -387,12 +386,12 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
 
   if (attackerWins) {
     // Attacker wins: apply the demand (tax change or elimination)
-    const newRate = demand.newTaxRateToGrantor
-    const contract = state.landContracts[demand.landContractId]
+    const newRate = issue.desiredTaxRateToGrantor
+    const contract = state.landContracts[issue.landContractId]
 
     if (contract && newRate >= config.taxRevisionMinRate && newRate <= config.taxRevisionMaxRate) {
       // Normal: adjust tax rate
-      const newState = adjustLandContractTaxRate(nextCtx.state, demand.landContractId, newRate)
+      const newState = adjustLandContractTaxRate(nextCtx.state, issue.landContractId, newRate)
       nextCtx = { ...nextCtx, state: newState }
     } else if (contract) {
       // Elimination
@@ -411,7 +410,7 @@ function resolveContractTaxRevisionEscalation(ctx: TickContext, play: Diplomatic
         }
       } else {
         // Lower elimination: remove target's contract
-        const newState = eliminateContractFromChain(nextCtx.state, demand.landContractId)
+        const newState = eliminateContractFromChain(nextCtx.state, issue.landContractId)
         nextCtx = { ...nextCtx, state: newState }
       }
     }

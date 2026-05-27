@@ -396,15 +396,7 @@ function evaluateContractTaxRevisionOffer(
     }
   }
 
-  let holdingId: HoldingId | undefined
-  if (play.issue?.kind === 'contract_tax_revision') {
-    holdingId = play.issue.holdingId
-  }
-  if (!holdingId) {
-    if (play.primaryDemand.kind === 'change_contract_tax_rate') {
-      holdingId = play.primaryDemand.holdingId
-    }
-  }
+  const holdingId = play.issue?.kind === 'contract_tax_revision' ? play.issue.holdingId : undefined
   if (!holdingId) {
     return {
       accepted: false,
@@ -428,15 +420,8 @@ function evaluateContractTaxRevisionOffer(
 
   const params = extractContractTaxRevisionOfferParams(offer)
 
-  let currentRate: number
-  if (play.issue?.kind === 'contract_tax_revision') {
-    currentRate = play.issue.baseTaxRateToGrantor
-  } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
-    const contract = state.landContracts[play.primaryDemand.landContractId]
-    currentRate = contract?.terms.taxRateToGrantor ?? 0.3
-  } else {
-    currentRate = 0.3
-  }
+  const currentRate =
+    play.issue?.kind === 'contract_tax_revision' ? play.issue.baseTaxRateToGrantor : 0.3
 
   const newRate = params.newTaxRateToGrantor ?? currentRate
   const isReduction = newRate < currentRate

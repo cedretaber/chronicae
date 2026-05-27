@@ -5,8 +5,8 @@ import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import type { WorldState } from '../types/world'
-import type { DiplomaticPlayId, PolityId, ProvinceId } from '../types/ids'
-import type { DiplomaticPlay } from '../types/diplomaticPlay'
+import type { DiplomaticPlayId, DiplomaticOfferId, PolityId, ProvinceId } from '../types/ids'
+import type { DiplomaticPlay, DiplomaticOffer } from '../types/diplomaticPlay'
 
 function makeStateWithActors(): WorldState {
   let s = makeEmptyV016State()
@@ -88,6 +88,68 @@ describe('cleanupTerminalDiplomacy', () => {
     const ctx = makeCtx(s)
     const next = runCleanupTerminalDiplomacy(ctx)
     expect(Object.keys(next.state.diplomaticPlays)).toEqual(['dp-active'])
+  })
+
+  it('cascade-deletes offers for terminal plays', () => {
+    let s = makeStateWithActors()
+    const play = makePlay('dp-1', 'settled')
+    const offer1: DiplomaticOffer = {
+      id: 'do-1' as DiplomaticOfferId,
+      playId: 'dp-1' as DiplomaticPlayId,
+      proposedBy: { kind: 'polity', id: 'c-1' as PolityId },
+      demands: [{ kind: 'status_quo' }],
+      status: 'accepted',
+      createdWeek: 100,
+      reasonIds: [],
+    }
+    const offer2: DiplomaticOffer = {
+      id: 'do-2' as DiplomaticOfferId,
+      playId: 'dp-1' as DiplomaticPlayId,
+      proposedBy: { kind: 'polity', id: 'c-2' as PolityId },
+      demands: [{ kind: 'status_quo' }],
+      status: 'withdrawn',
+      createdWeek: 101,
+      reasonIds: [],
+    }
+    play.offerHistoryIds = ['do-1' as DiplomaticOfferId, 'do-2' as DiplomaticOfferId]
+    play.currentOfferId = 'do-2' as DiplomaticOfferId
+    s = {
+      ...s,
+      diplomaticPlays: { [play.id]: play },
+      diplomaticOffers: {
+        [offer1.id]: offer1,
+        [offer2.id]: offer2,
+      },
+    }
+    const ctx = makeCtx(s)
+    const next = runCleanupTerminalDiplomacy(ctx)
+    expect(Object.keys(next.state.diplomaticPlays)).toEqual([])
+    expect(Object.keys(next.state.diplomaticOffers)).toEqual([])
+  })
+
+  it('preserves offers for active plays', () => {
+    let s = makeStateWithActors()
+    const activePlay = makePlay('dp-1', 'active')
+    const offer: DiplomaticOffer = {
+      id: 'do-1' as DiplomaticOfferId,
+      playId: 'dp-1' as DiplomaticPlayId,
+      proposedBy: { kind: 'polity', id: 'c-1' as PolityId },
+      demands: [{ kind: 'status_quo' }],
+      status: 'pending',
+      createdWeek: 100,
+      reasonIds: [],
+    }
+    activePlay.offerHistoryIds = ['do-1' as DiplomaticOfferId]
+    activePlay.currentOfferId = 'do-1' as DiplomaticOfferId
+    s = {
+      ...s,
+      diplomaticPlays: { [activePlay.id]: activePlay },
+      diplomaticOffers: { [offer.id]: offer },
+    }
+    const ctx = makeCtx(s)
+    const next = runCleanupTerminalDiplomacy(ctx)
+    expect(next).toBe(ctx)
+    expect(Object.keys(next.state.diplomaticOffers)).toEqual(['do-1'])
   })
 
   it('does not roll back nextDiplomaticPlayId on deletion', () => {

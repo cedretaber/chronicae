@@ -1,9 +1,17 @@
 import type { TickContext } from './context'
 import type { SimEvent } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
-import type { AimId, GoalId, DiplomaticPlayId, PressureId, ProjectId, PersonId } from '../types/ids'
+import type {
+  AimId,
+  GoalId,
+  DiplomaticPlayId,
+  DiplomaticOfferId,
+  PressureId,
+  ProjectId,
+  PersonId,
+} from '../types/ids'
 import type { EventId } from '../types/ids'
-import type { DiplomaticPlay } from '../types/diplomaticPlay'
+import type { DiplomaticPlay, DiplomaticOffer } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { LandContractId } from '../types/ids'
@@ -34,6 +42,7 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
 
   let nextPlays: Record<DiplomaticPlayId, DiplomaticPlay> | undefined
   const removedPlayIds = new Set<string>()
+  const offerIdsToDelete = new Set<DiplomaticOfferId>()
   for (const idStr of Object.keys(plays)) {
     const play = plays[idStr as DiplomaticPlayId]
     if (!play) continue
@@ -41,12 +50,25 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
       if (!nextPlays) nextPlays = { ...plays }
       delete nextPlays[idStr as DiplomaticPlayId]
       removedPlayIds.add(idStr)
+      collectPlayOfferIds(play, offerIdsToDelete)
       continue
     }
     if (TERMINAL_PLAY_SET.has(play.status as TerminalDiplomaticPlayStatus)) {
       if (!nextPlays) nextPlays = { ...plays }
       delete nextPlays[idStr as DiplomaticPlayId]
       removedPlayIds.add(idStr)
+      collectPlayOfferIds(play, offerIdsToDelete)
+    }
+  }
+
+  // v0.30 Phase C: cascade-delete offers for removed plays
+  let nextOffers: Record<DiplomaticOfferId, DiplomaticOffer> | undefined
+  if (offerIdsToDelete.size > 0) {
+    for (const offerId of offerIdsToDelete) {
+      if (ctx.state.diplomaticOffers[offerId]) {
+        if (!nextOffers) nextOffers = { ...ctx.state.diplomaticOffers }
+        delete nextOffers[offerId]
+      }
     }
   }
 
@@ -236,8 +258,8 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     for (const playIdStr of removedPlayIds) {
       const play = plays[playIdStr as DiplomaticPlayId]
       if (!play || play.kind !== 'contract_tax_revision') continue
-      if (play.primaryDemand.kind !== 'change_contract_tax_rate') continue
-      const contractId = play.primaryDemand.landContractId
+      if (!play.issue || play.issue.kind !== 'contract_tax_revision') continue
+      const contractId = play.issue.landContractId
       const base = nextLandContracts ?? ctx.state.landContracts
       const contract = base[contractId]
       if (!contract) continue
@@ -278,6 +300,7 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     !nextGoals &&
     !taskCleanedState &&
     !nextLandContracts &&
+    !nextOffers &&
     !nextPressures &&
     !nextPressureIndex &&
     !nextProjects &&
@@ -291,6 +314,7 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     state: {
       ...baseState,
       diplomaticPlays: nextPlays ?? baseState.diplomaticPlays,
+      diplomaticOffers: nextOffers ?? baseState.diplomaticOffers,
       aims: nextAims ?? baseState.aims,
       goals: nextGoals ?? baseState.goals,
       landContracts: nextLandContracts ?? baseState.landContracts,
@@ -312,6 +336,11 @@ function getDecisionSubjectNameKey(state: WorldState, ref: DecisionSubjectRef): 
   if (ref.kind === 'polity') return state.polities[ref.id]?.nameKey ?? ref.id
   if (ref.kind === 'house') return state.houses[ref.id]?.nameKey ?? ref.id
   return state.persons[ref.id]?.nameKey ?? ref.id
+}
+
+function collectPlayOfferIds(play: DiplomaticPlay, out: Set<DiplomaticOfferId>): void {
+  for (const offerId of play.offerHistoryIds) out.add(offerId)
+  if (play.currentOfferId && !out.has(play.currentOfferId)) out.add(play.currentOfferId)
 }
 
 function isDecisionSubjectActive(state: WorldState, owner: DecisionSubjectRef): boolean {
