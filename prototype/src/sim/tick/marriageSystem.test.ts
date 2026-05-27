@@ -85,6 +85,7 @@ function makeBaseCtx(
       nextFactionId: 0,
       nextFactionMembershipId: 0,
       diplomaticPlays: {},
+      diplomaticOffers: {},
       projects: {},
       projectIndex: {
         byOwner: {},
@@ -96,6 +97,7 @@ function makeBaseCtx(
       },
       nextProjectId: 0,
       nextDiplomaticPlayId: 0,
+      nextDiplomaticOfferId: 0,
       pressures: {},
       pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
       nextPressureId: 1,

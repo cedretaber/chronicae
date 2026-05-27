@@ -115,6 +115,7 @@ function injectPlay(
     targetCommitment: 0,
     initiatorActiveTaskIds: [],
     targetActiveTaskIds: [],
+    offerHistoryIds: [],
     ...overrides,
   }
   return {
@@ -159,6 +160,7 @@ describe('runDiplomaticPlaySystem', () => {
       targetCommitment: 0,
       initiatorActiveTaskIds: [],
       targetActiveTaskIds: [],
+      offerHistoryIds: [],
     }
     ctx = {
       ...ctx,
@@ -327,6 +329,7 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
       targetCommitment: 0,
       initiatorActiveTaskIds: [],
       targetActiveTaskIds: [],
+      offerHistoryIds: [],
       ...overrides,
     }
     return {
@@ -471,6 +474,7 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
       targetCommitment: 0,
       initiatorActiveTaskIds: [],
       targetActiveTaskIds: [],
+      offerHistoryIds: [],
       ...overrides,
     }
     return {

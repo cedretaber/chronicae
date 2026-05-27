@@ -100,6 +100,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
       nextFactionId: 0,
       nextFactionMembershipId: 0,
       diplomaticPlays: {},
+      diplomaticOffers: {},
       projects: {},
       projectIndex: {
         byOwner: {},
@@ -111,6 +112,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
       },
       nextProjectId: 0,
       nextDiplomaticPlayId: 0,
+      nextDiplomaticOfferId: 0,
       pressures: {},
       pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
       nextPressureId: 1,
@@ -251,6 +253,7 @@ describe('runMortalitySystem', () => {
           nextFactionId: 0,
           nextFactionMembershipId: 0,
           diplomaticPlays: {},
+          diplomaticOffers: {},
           projects: {},
           projectIndex: {
             byOwner: {},
@@ -262,6 +265,7 @@ describe('runMortalitySystem', () => {
           },
           nextProjectId: 0,
           nextDiplomaticPlayId: 0,
+          nextDiplomaticOfferId: 0,
           pressures: {},
           pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
           nextPressureId: 1,
@@ -400,6 +404,7 @@ describe('runMortalitySystem', () => {
           nextFactionId: 0,
           nextFactionMembershipId: 0,
           diplomaticPlays: {},
+          diplomaticOffers: {},
           projects: {},
           projectIndex: {
             byOwner: {},
@@ -411,6 +416,7 @@ describe('runMortalitySystem', () => {
           },
           nextProjectId: 0,
           nextDiplomaticPlayId: 0,
+          nextDiplomaticOfferId: 0,
           pressures: {},
           pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
           nextPressureId: 1,

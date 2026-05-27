@@ -149,10 +149,12 @@ export function makeEmptyV016State(): WorldState {
       byRelatedEntity: {},
     },
     diplomaticPlays: {},
+    diplomaticOffers: {},
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
+    nextDiplomaticOfferId: 0,
     nextPressureId: 1,
     // v0.22 Goal/Aim system
     goals: {},

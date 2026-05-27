@@ -71,6 +71,7 @@ function makeBaseState(): WorldState {
     nextFactionId: 0,
     nextFactionMembershipId: 0,
     diplomaticPlays: {},
+    diplomaticOffers: {},
     projects: {},
     projectIndex: {
       byOwner: {},
@@ -82,6 +83,7 @@ function makeBaseState(): WorldState {
     },
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
+    nextDiplomaticOfferId: 0,
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
     nextPressureId: 1,

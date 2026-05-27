@@ -80,18 +80,28 @@ export function cancelOrphanedPlays(ctx: TickContext): TickContext {
   let nextPlays: Record<DiplomaticPlayId, DiplomaticPlay> | undefined
   for (const [idStr, play] of Object.entries(ctx.state.diplomaticPlays)) {
     if (!play || play.status !== 'active') continue
-    const d = play.primaryDemand
-    if (d.kind === 'change_contract_tax_rate') {
-      if (!ctx.state.landContracts[d.landContractId]) {
-        if (!nextPlays) nextPlays = { ...ctx.state.diplomaticPlays }
-        nextPlays[idStr as DiplomaticPlayId] = { ...play, status: 'cancelled' }
+
+    let shouldCancel = false
+    if (play.issue) {
+      if (play.issue.kind === 'contract_tax_revision') {
+        if (!ctx.state.landContracts[play.issue.landContractId]) shouldCancel = true
+      }
+      if (play.issue.kind === 'land_claim') {
+        if (!ctx.state.holdings[play.issue.holdingId]) shouldCancel = true
+      }
+    } else {
+      const d = play.primaryDemand
+      if (d.kind === 'change_contract_tax_rate') {
+        if (!ctx.state.landContracts[d.landContractId]) shouldCancel = true
+      }
+      if (d.kind === 'transfer_land_contract') {
+        if (!ctx.state.holdings[d.holdingId]) shouldCancel = true
       }
     }
-    if (d.kind === 'transfer_land_contract') {
-      if (!ctx.state.holdings[d.holdingId]) {
-        if (!nextPlays) nextPlays = { ...ctx.state.diplomaticPlays }
-        nextPlays[idStr as DiplomaticPlayId] = { ...play, status: 'cancelled' }
-      }
+
+    if (shouldCancel) {
+      if (!nextPlays) nextPlays = { ...ctx.state.diplomaticPlays }
+      nextPlays[idStr as DiplomaticPlayId] = { ...play, status: 'cancelled' }
     }
   }
   if (!nextPlays) return ctx
@@ -1062,16 +1072,16 @@ function setPlayAnyStatus(
 }
 
 // 旧 computeSellerTreasuryNeed を rename (defender = seller/holder の財政困窮度)
-function computeDefenderTreasuryNeed(treasury: number): number {
+export function computeDefenderTreasuryNeed(treasury: number): number {
   const baseThreshold = 1000
   return clamp((baseThreshold - treasury) * 0.05, 0, 50)
 }
 
-function computeProvinceValue(development: number): number {
+export function computeProvinceValue(development: number): number {
   return clamp((development + 100) * 0.5, 0, 100)
 }
 
-function computeStrategicValue(
+export function computeStrategicValue(
   state: WorldState,
   provinceId: ProvinceId,
   ownerPolityId: PolityId,
@@ -1086,7 +1096,7 @@ function computeStrategicValue(
   return clamp(foreignNeighbors * 25, 0, 100)
 }
 
-function computePrestigeLoss(rank: number): number {
+export function computePrestigeLoss(rank: number): number {
   // rank が高い (= 数値が小さい) 大国ほど Province 喪失の prestige loss が大きい
   // rank 1 → 50, rank 2 → 40, rank 3 → 30, rank 4 → 20, rank 5 → 10
   return clamp(60 - rank * 10, 10, 50)

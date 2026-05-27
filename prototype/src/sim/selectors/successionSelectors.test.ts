@@ -97,6 +97,7 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     nextFactionId: 0,
     nextFactionMembershipId: 0,
     diplomaticPlays: {},
+    diplomaticOffers: {},
     projects: {},
     projectIndex: {
       byOwner: {},
@@ -108,6 +109,7 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     },
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
+    nextDiplomaticOfferId: 0,
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
     nextPressureId: 1,

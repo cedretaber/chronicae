@@ -44,6 +44,7 @@ function makePlay(id: string, status: DiplomaticPlay['status']): DiplomaticPlay 
     targetCommitment: 0,
     initiatorActiveTaskIds: [],
     targetActiveTaskIds: [],
+    offerHistoryIds: [],
   }
 }
 

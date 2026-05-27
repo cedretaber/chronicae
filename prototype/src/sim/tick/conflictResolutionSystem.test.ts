@@ -106,6 +106,7 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
       targetCommitment: 0,
       initiatorActiveTaskIds: [],
       targetActiveTaskIds: [],
+      offerHistoryIds: [],
     }
     return {
       ...ctx,
@@ -157,6 +158,7 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
       targetCommitment: 0,
       initiatorActiveTaskIds: [],
       targetActiveTaskIds: [],
+      offerHistoryIds: [],
     }
     const ctx0: TickContext = {
       ...setup.ctx,
@@ -231,6 +233,7 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
       targetCommitment: 0,
       initiatorActiveTaskIds: [],
       targetActiveTaskIds: [],
+      offerHistoryIds: [],
     }
     return {
       ...ctx,
@@ -335,6 +338,7 @@ describe('runConflictResolutionSystem (unsupported kind)', () => {
       targetCommitment: 0,
       initiatorActiveTaskIds: [],
       targetActiveTaskIds: [],
+      offerHistoryIds: [],
     }
     s = { ...s, diplomaticPlays: { [playId]: play } }
     const ctx = makeCtx(s)

@@ -1,0 +1,480 @@
+// v0.30 Phase A: Pure functions for validating and evaluating diplomatic offers.
+// Not wired into the main loop yet — will be connected in Phase B.
+
+import type { WorldState } from '../types/world'
+import type { SimulationConfig } from '../config/defaultConfig'
+import type { HoldingId, PolityId } from '../types/ids'
+import type {
+  DiplomaticPlay,
+  DiplomaticOffer,
+  DiplomaticDemand,
+  OfferValidationResult,
+  OfferEvaluation,
+  ContractTaxRevisionIssue,
+} from '../types/diplomaticPlay'
+import type { PoliticalActorRef } from '../types/actor'
+import { isSameActor } from '../selectors/actorSelectors'
+import { getActorMilitaryPower } from '../selectors/actorSelectors'
+import { calcGeneralWarPowerModifier } from '../selectors/personAbilityEffects'
+import { getProvinceDevelopmentFromHoldings } from '../selectors/landContractSelectors'
+import {
+  computeDefenderTreasuryNeed,
+  computeProvinceValue,
+  computeStrategicValue,
+  computePrestigeLoss,
+} from './diplomaticPlaySystem'
+import { defaultLandContractConfig } from '../config/landContractConfig'
+
+// ─── Extracted offer parameter types ───
+
+export type LandClaimOfferParams = {
+  transferHoldingId?: HoldingId
+  toPolityId?: PolityId
+  offeredPrice: number
+  statusQuo: boolean
+}
+
+export type ContractTaxRevisionOfferParams = {
+  newTaxRateToGrantor?: number
+  paymentAmount: number
+  statusQuo: boolean
+}
+
+// ─── Validation ───
+
+export function validateOffer(
+  state: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  offer: DiplomaticOffer,
+): OfferValidationResult {
+  if (offer.playId !== play.id) return { valid: false, reason: 'wrong_play' }
+  if (offer.status !== 'pending') return { valid: false, reason: 'offer_not_pending' }
+
+  if (
+    !isSameActor(offer.proposedBy, play.initiator) &&
+    !isSameActor(offer.proposedBy, play.target)
+  ) {
+    return { valid: false, reason: 'missing_actor' }
+  }
+
+  if (offer.demands.length === 0) return { valid: false, reason: 'invalid_demand' }
+
+  // Per-demand validation
+  for (const demand of offer.demands) {
+    const result = canApplyDemand(state, config, demand)
+    if (!result.valid) return result
+  }
+
+  // Check unsupported combinations: both transfer_land_contract AND change_contract_tax_rate
+  const hasTransfer = offer.demands.some((d) => d.kind === 'transfer_land_contract')
+  const hasTaxChange = offer.demands.some((d) => d.kind === 'change_contract_tax_rate')
+  if (hasTransfer && hasTaxChange) {
+    return { valid: false, reason: 'unsupported_demand_combination' }
+  }
+
+  // Issue-demand consistency checks
+  if (play.kind === 'land_claim') {
+    if (hasTaxChange) return { valid: false, reason: 'unsupported_demand_combination' }
+    if (play.issue?.kind === 'land_claim') {
+      for (const demand of offer.demands) {
+        if (demand.kind === 'transfer_land_contract') {
+          if (demand.holdingId !== play.issue.holdingId) {
+            return { valid: false, reason: 'invalid_demand' }
+          }
+        }
+      }
+    }
+  }
+
+  if (play.kind === 'contract_tax_revision') {
+    if (hasTransfer) return { valid: false, reason: 'unsupported_demand_combination' }
+    if (play.issue?.kind === 'contract_tax_revision') {
+      for (const demand of offer.demands) {
+        if (demand.kind === 'change_contract_tax_rate') {
+          if (demand.landContractId !== play.issue.landContractId) {
+            return { valid: false, reason: 'invalid_demand' }
+          }
+        }
+      }
+    }
+  }
+
+  return { valid: true }
+}
+
+export function canApplyDemand(
+  state: WorldState,
+  config: SimulationConfig,
+  demand: DiplomaticDemand,
+): OfferValidationResult {
+  switch (demand.kind) {
+    case 'transfer_land_contract': {
+      if (!state.holdings[demand.holdingId]) return { valid: false, reason: 'missing_holding' }
+      const toPolity = state.polities[demand.toPolityId]
+      if (!toPolity?.active) return { valid: false, reason: 'missing_actor' }
+      return { valid: true }
+    }
+
+    case 'change_contract_tax_rate': {
+      const contract = state.landContracts[demand.landContractId]
+      if (!contract) return { valid: false, reason: 'missing_land_contract' }
+      // Verify contract belongs to the holding's chain
+      const holdingChain = state.landContractIndex.byHolding[demand.holdingId] ?? []
+      if (!holdingChain.includes(demand.landContractId)) {
+        return { valid: false, reason: 'stale_land_contract' }
+      }
+      if (
+        demand.newTaxRateToGrantor < config.taxRevisionMinRate ||
+        demand.newTaxRateToGrantor > config.taxRevisionMaxRate
+      ) {
+        return { valid: false, reason: 'invalid_demand' }
+      }
+      return { valid: true }
+    }
+
+    case 'pay_wealth': {
+      // Verify actors exist
+      if (demand.from.kind === 'polity') {
+        const polity = state.polities[demand.from.id]
+        if (!polity?.active) return { valid: false, reason: 'missing_actor' }
+        if (polity.treasury < demand.amount) return { valid: false, reason: 'insufficient_funds' }
+      } else {
+        const house = state.houses[demand.from.id]
+        if (!house) return { valid: false, reason: 'missing_actor' }
+        if (house.wealth < demand.amount) return { valid: false, reason: 'insufficient_funds' }
+      }
+      if (demand.to.kind === 'polity') {
+        const polity = state.polities[demand.to.id]
+        if (!polity?.active) return { valid: false, reason: 'missing_actor' }
+      } else {
+        const house = state.houses[demand.to.id]
+        if (!house) return { valid: false, reason: 'missing_actor' }
+      }
+      return { valid: true }
+    }
+
+    case 'status_quo':
+      return { valid: true }
+
+    case 'revolt_concession':
+      return { valid: true }
+  }
+}
+
+// ─── Evaluator resolution ───
+
+export function getOfferEvaluator(play: DiplomaticPlay, offer: DiplomaticOffer): PoliticalActorRef {
+  if (isSameActor(offer.proposedBy, play.initiator)) {
+    return play.target
+  }
+  return play.initiator
+}
+
+// ─── Parameter extraction ───
+
+export function extractLandClaimOfferParams(offer: DiplomaticOffer): LandClaimOfferParams {
+  const result: LandClaimOfferParams = { offeredPrice: 0, statusQuo: false }
+
+  for (const demand of offer.demands) {
+    if (demand.kind === 'transfer_land_contract') {
+      result.transferHoldingId = demand.holdingId
+      result.toPolityId = demand.toPolityId
+    } else if (demand.kind === 'pay_wealth') {
+      result.offeredPrice = demand.amount
+    } else if (demand.kind === 'status_quo') {
+      result.statusQuo = true
+    }
+  }
+
+  return result
+}
+
+export function extractContractTaxRevisionOfferParams(
+  offer: DiplomaticOffer,
+): ContractTaxRevisionOfferParams {
+  const result: ContractTaxRevisionOfferParams = { paymentAmount: 0, statusQuo: false }
+
+  for (const demand of offer.demands) {
+    if (demand.kind === 'change_contract_tax_rate') {
+      result.newTaxRateToGrantor = demand.newTaxRateToGrantor
+    } else if (demand.kind === 'pay_wealth') {
+      result.paymentAmount = demand.amount
+    } else if (demand.kind === 'status_quo') {
+      result.statusQuo = true
+    }
+  }
+
+  return result
+}
+
+// ─── Compensation computation ───
+
+export function computeLandClaimCompensation(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): number {
+  const holding = state.holdings[holdingId]
+  if (!holding) return 0
+  const provinceId = holding.provinceId
+  const development = getProvinceDevelopmentFromHoldings(state, provinceId, config)
+  return Math.max(
+    defaultLandContractConfig.purchasePriceBase,
+    defaultLandContractConfig.purchasePriceBase +
+      development * defaultLandContractConfig.purchasePriceDevelopmentFactor,
+  )
+}
+
+export function computeTaxRevisionCompensation(
+  state: WorldState,
+  config: SimulationConfig,
+  issue: ContractTaxRevisionIssue,
+  newTaxRateToGrantor: number,
+): number {
+  const provinceId = state.holdings[issue.holdingId]?.provinceId
+  if (!provinceId) return 0
+  const taxBase = getProvinceDevelopmentFromHoldings(state, provinceId, config)
+  const annualDelta = taxBase * Math.abs(newTaxRateToGrantor - issue.baseTaxRateToGrantor)
+  return Math.round(annualDelta * config.taxRevisionCompensationYears)
+}
+
+// ─── Evaluation dispatch ───
+
+export function evaluateOffer(
+  state: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  offer: DiplomaticOffer,
+  evaluator: PoliticalActorRef,
+): OfferEvaluation {
+  // evaluator is reserved for Phase B per-side perspective adjustments
+  void evaluator
+  switch (play.kind) {
+    case 'land_claim':
+      return evaluateLandClaimOffer(state, config, play, offer)
+    case 'contract_tax_revision':
+      return evaluateContractTaxRevisionOffer(state, config, play, offer)
+    default:
+      return {
+        accepted: false,
+        score: -100,
+        progressDelta: 0,
+        tensionDelta: config.rejectedOfferTensionDelta,
+        reasonKey: 'unsupported_play_kind',
+      }
+  }
+}
+
+// ─── Land claim evaluation (mirrors progressLandClaim formula) ───
+
+function evaluateLandClaimOffer(
+  state: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  offer: DiplomaticOffer,
+): OfferEvaluation {
+  if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
+    return {
+      accepted: false,
+      score: -100,
+      progressDelta: 0,
+      tensionDelta: config.rejectedOfferTensionDelta,
+      reasonKey: 'invalid_actor_kind',
+    }
+  }
+
+  const initiatorPolityId = play.initiator.id
+  const defenderPolityId = play.target.id
+  const defender = state.polities[defenderPolityId]
+  if (!defender?.active) {
+    return {
+      accepted: false,
+      score: -100,
+      progressDelta: 0,
+      tensionDelta: config.rejectedOfferTensionDelta,
+      reasonKey: 'missing_defender',
+    }
+  }
+
+  // Determine holdingId from issue or offer demands
+  let holdingId: HoldingId | undefined
+  if (play.issue?.kind === 'land_claim') {
+    holdingId = play.issue.holdingId
+  }
+  if (!holdingId) {
+    const params = extractLandClaimOfferParams(offer)
+    holdingId = params.transferHoldingId
+  }
+
+  if (!holdingId) {
+    return {
+      accepted: false,
+      score: -100,
+      progressDelta: 0,
+      tensionDelta: config.rejectedOfferTensionDelta,
+      reasonKey: 'missing_holding',
+    }
+  }
+
+  const provinceId = state.holdings[holdingId]?.provinceId
+  if (!provinceId) {
+    return {
+      accepted: false,
+      score: -100,
+      progressDelta: 0,
+      tensionDelta: config.rejectedOfferTensionDelta,
+      reasonKey: 'missing_province',
+    }
+  }
+
+  const params = extractLandClaimOfferParams(offer)
+
+  const defenderTreasuryNeed = computeDefenderTreasuryNeed(defender.treasury)
+  const initiatorPower =
+    getActorMilitaryPower(state, config, play.initiator) *
+    calcGeneralWarPowerModifier(state, initiatorPolityId, config)
+  const defenderPower =
+    getActorMilitaryPower(state, config, play.target) *
+    calcGeneralWarPowerModifier(state, defenderPolityId, config)
+  const provinceValue = computeProvinceValue(
+    getProvinceDevelopmentFromHoldings(state, provinceId, config),
+  )
+  const strategicLoss = computeStrategicValue(state, provinceId, defenderPolityId)
+  const prestigeLoss = computePrestigeLoss(defender.rank)
+
+  const score =
+    params.offeredPrice * config.claimOfferedPriceFactor +
+    defenderTreasuryNeed +
+    initiatorPower * config.claimInitiatorPressureFactor -
+    defenderPower * config.claimDefenderResistFactor -
+    provinceValue * config.claimProvinceValueFactor -
+    strategicLoss * config.claimStrategicLossFactor -
+    prestigeLoss * config.claimPrestigeLossFactor
+
+  if (score >= 0) {
+    return {
+      accepted: true,
+      score,
+      progressDelta: 0,
+      tensionDelta: 0,
+      reasonKey: 'offer_accepted',
+    }
+  }
+  return {
+    accepted: false,
+    score,
+    progressDelta: 2,
+    tensionDelta: config.rejectedOfferTensionDelta,
+    reasonKey: 'offer_rejected_insufficient_value',
+  }
+}
+
+// ─── Contract tax revision evaluation (mirrors progressContractTaxRevision formula) ───
+
+function evaluateContractTaxRevisionOffer(
+  state: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  offer: DiplomaticOffer,
+): OfferEvaluation {
+  if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
+    return {
+      accepted: false,
+      score: -100,
+      progressDelta: 0,
+      tensionDelta: config.rejectedOfferTensionDelta,
+      reasonKey: 'invalid_actor_kind',
+    }
+  }
+
+  const initiatorPolityId = play.initiator.id
+  const defenderPolityId = play.target.id
+
+  // Determine holdingId from issue or demand
+  let holdingId: HoldingId | undefined
+  if (play.issue?.kind === 'contract_tax_revision') {
+    holdingId = play.issue.holdingId
+  }
+  if (!holdingId) {
+    // Fall back to primary demand
+    if (play.primaryDemand.kind === 'change_contract_tax_rate') {
+      holdingId = play.primaryDemand.holdingId
+    }
+  }
+  if (!holdingId) {
+    return {
+      accepted: false,
+      score: -100,
+      progressDelta: 0,
+      tensionDelta: config.rejectedOfferTensionDelta,
+      reasonKey: 'missing_holding',
+    }
+  }
+
+  const provinceId = state.holdings[holdingId]?.provinceId
+  if (!provinceId) {
+    return {
+      accepted: false,
+      score: -100,
+      progressDelta: 0,
+      tensionDelta: config.rejectedOfferTensionDelta,
+      reasonKey: 'missing_province',
+    }
+  }
+
+  const params = extractContractTaxRevisionOfferParams(offer)
+
+  // Determine current rate from issue or contract
+  let currentRate: number
+  if (play.issue?.kind === 'contract_tax_revision') {
+    currentRate = play.issue.baseTaxRateToGrantor
+  } else if (play.primaryDemand.kind === 'change_contract_tax_rate') {
+    const contract = state.landContracts[play.primaryDemand.landContractId]
+    currentRate = contract?.terms.taxRateToGrantor ?? 0.3
+  } else {
+    currentRate = 0.3
+  }
+
+  const newRate = params.newTaxRateToGrantor ?? currentRate
+  const isReduction = newRate < currentRate
+
+  const initiatorPower =
+    getActorMilitaryPower(state, config, play.initiator) *
+    calcGeneralWarPowerModifier(state, initiatorPolityId, config)
+  const defenderPower =
+    getActorMilitaryPower(state, config, play.target) *
+    calcGeneralWarPowerModifier(state, defenderPolityId, config)
+
+  const rateImbalance = isReduction
+    ? (currentRate - 0.3) * config.taxRevisionRateImbalanceFactor
+    : (0.5 - currentRate) * config.taxRevisionRateImbalanceFactor
+
+  const provinceValue = computeProvinceValue(
+    getProvinceDevelopmentFromHoldings(state, provinceId, config),
+  )
+
+  const score =
+    initiatorPower * config.taxRevisionPressureFactor -
+    defenderPower * config.taxRevisionResistFactor +
+    rateImbalance -
+    provinceValue * config.taxRevisionProvinceValueFactor +
+    params.paymentAmount * 0.01
+
+  if (score >= 0) {
+    return {
+      accepted: true,
+      score,
+      progressDelta: 0,
+      tensionDelta: 0,
+      reasonKey: 'offer_accepted',
+    }
+  }
+  return {
+    accepted: false,
+    score,
+    progressDelta: 2,
+    tensionDelta: config.rejectedOfferTensionDelta,
+    reasonKey: 'offer_rejected_insufficient_value',
+  }
+}

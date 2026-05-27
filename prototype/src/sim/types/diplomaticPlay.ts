@@ -1,5 +1,7 @@
 import type {
   DiplomaticPlayId,
+  DiplomaticOfferId,
+  DecisionReasonId,
   ProjectId,
   TaskId,
   PersonId,
@@ -72,6 +74,64 @@ export type DiplomaticDemand =
     }
   | { kind: 'status_quo' }
 
+// v0.30: DiplomaticIssue — immutable anchor for diplomatic play
+export type TaxRevisionDirection = 'increase' | 'decrease'
+
+export type LandClaimIssue = {
+  kind: 'land_claim'
+  holdingId: HoldingId
+  provinceId: ProvinceId
+}
+
+export type ContractTaxRevisionIssue = {
+  kind: 'contract_tax_revision'
+  holdingId: HoldingId
+  landContractId: LandContractId
+  baseTaxRateToGrantor: number
+  desiredTaxRateToGrantor: number
+  direction: TaxRevisionDirection
+}
+
+export type DiplomaticIssue = LandClaimIssue | ContractTaxRevisionIssue
+
+// v0.30: DiplomaticOffer — mutable proposal for resolving an issue
+export type DiplomaticOfferStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+
+export type DiplomaticOffer = {
+  id: DiplomaticOfferId
+  playId: DiplomaticPlayId
+  proposedBy: PoliticalActorRef
+  demands: DiplomaticDemand[]
+  status: DiplomaticOfferStatus
+  createdWeek: number
+  reasonIds: DecisionReasonId[]
+}
+
+// v0.30: Offer validation
+export type OfferInvalidReason =
+  | 'missing_offer'
+  | 'offer_not_pending'
+  | 'wrong_play'
+  | 'missing_actor'
+  | 'insufficient_funds'
+  | 'missing_holding'
+  | 'missing_land_contract'
+  | 'stale_land_contract'
+  | 'invalid_demand'
+  | 'unsupported_demand_combination'
+
+export type OfferValidationResult = { valid: true } | { valid: false; reason: OfferInvalidReason }
+
+// v0.30: Offer evaluation
+export type OfferEvaluation = {
+  accepted: boolean
+  score: number
+  progressDelta: number
+  tensionDelta: number
+  reasonKey: string
+  params?: Record<string, string | number>
+}
+
 export type DiplomaticPlay = {
   id: DiplomaticPlayId
   kind: DiplomaticPlayKind
@@ -87,6 +147,13 @@ export type DiplomaticPlay = {
 
   primaryDemand: DiplomaticDemand
   counterDemand?: DiplomaticDemand
+
+  // v0.30: issue anchor + offer tracking
+  issue?: DiplomaticIssue
+  currentOfferId?: DiplomaticOfferId
+  lastEvaluatedOfferId?: DiplomaticOfferId
+  lastRejectedOfferId?: DiplomaticOfferId
+  offerHistoryIds: DiplomaticOfferId[]
 
   status: DiplomaticPlayStatus
 

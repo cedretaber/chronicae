@@ -40,6 +40,11 @@ function playDedupeKey(play: DiplomaticPlay, state: WorldState): string | undefi
 }
 
 function getPlayProvinceId(play: DiplomaticPlay, state: WorldState): string | undefined {
+  if (play.issue) {
+    if (play.issue.kind === 'land_claim') return play.issue.provinceId
+    if (play.issue.kind === 'contract_tax_revision')
+      return state.holdings[play.issue.holdingId]?.provinceId
+  }
   const d = play.primaryDemand
   if (d.kind === 'transfer_land_contract') return state.holdings[d.holdingId]?.provinceId
   if (d.kind === 'change_contract_tax_rate') return state.holdings[d.holdingId]?.provinceId
@@ -142,6 +147,7 @@ function createLandClaimPlayFromProjectMut(
     ...(project.origin.kind === 'aim' && project.origin.aimId
       ? { aimId: project.origin.aimId }
       : {}),
+    issue: { kind: 'land_claim' as const, holdingId, provinceId },
     primaryDemand: {
       kind: 'transfer_land_contract',
       holdingId,
@@ -173,6 +179,7 @@ function createLandClaimPlayFromProjectMut(
     targetCommitment: 0,
     initiatorActiveTaskIds: [],
     targetActiveTaskIds: [],
+    offerHistoryIds: [],
   }
 
   ws.diplomaticPlays[playId] = play
@@ -263,6 +270,14 @@ function createContractRevisionPlayFromProjectMut(
     ...(project.origin.kind === 'aim' && project.origin.aimId
       ? { aimId: project.origin.aimId }
       : {}),
+    issue: {
+      kind: 'contract_tax_revision' as const,
+      holdingId,
+      landContractId: subjectContract.id,
+      baseTaxRateToGrantor: currentRate,
+      desiredTaxRateToGrantor: newRate,
+      direction: isReduction ? ('decrease' as const) : ('increase' as const),
+    },
     primaryDemand: {
       kind: 'change_contract_tax_rate',
       holdingId,
@@ -284,6 +299,7 @@ function createContractRevisionPlayFromProjectMut(
     targetCommitment: 0,
     initiatorActiveTaskIds: [],
     targetActiveTaskIds: [],
+    offerHistoryIds: [],
   }
 
   ws.diplomaticPlays[playId] = play

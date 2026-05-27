@@ -334,6 +334,20 @@ export type SimulationConfig = {
   taxRevisionInitialProgressOnAdvantage: number
   taxRevisionInitialTensionOnPressure: number
   taxRevisionGracePeriodYears: number
+  // v0.30: contract_tax_revision offer-driven
+  taxRevisionInitialDemandDelta: number
+  taxRevisionReservationDelta: number
+  taxRevisionMaxDemandDelta: number
+  taxRevisionCompensationYears: number
+  // v0.30: offer evaluation / negotiation
+  invalidOfferTensionDelta: number
+  rejectedOfferTensionDelta: number
+  validOfferProgressDelta: number
+  counterOfferProgressDelta: number
+  offerCompromiseProgressDelta: number
+  negotiateTermsProgressDelta: number
+  // v0.30: mixed holdings debug
+  debugMixedProvinceHoldingsRatio: number
   // v0.18 Stage D: 汎用 conflict (§13.2)
   conflictResolutionEnabled: boolean
   maxConflictsResolvedPerTick: number
@@ -948,6 +962,18 @@ export const defaultConfig: SimulationConfig = {
   taxRevisionInitialProgressOnAdvantage: 10,
   taxRevisionInitialTensionOnPressure: 10,
   taxRevisionGracePeriodYears: 5,
+  // v0.30
+  taxRevisionInitialDemandDelta: 0.1,
+  taxRevisionReservationDelta: 0.05,
+  taxRevisionMaxDemandDelta: 0.15,
+  taxRevisionCompensationYears: 3,
+  invalidOfferTensionDelta: 10,
+  rejectedOfferTensionDelta: 8,
+  validOfferProgressDelta: 5,
+  counterOfferProgressDelta: 15,
+  offerCompromiseProgressDelta: 15,
+  negotiateTermsProgressDelta: 8,
+  debugMixedProvinceHoldingsRatio: 0,
   // v0.18 Stage D: 汎用 conflict (§13.2)
   conflictResolutionEnabled: true,
   maxConflictsResolvedPerTick: 5,

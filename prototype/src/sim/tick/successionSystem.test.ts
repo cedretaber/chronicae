@@ -281,6 +281,7 @@ describe('runSuccessionSystem', () => {
         nextFactionId: 0,
         nextFactionMembershipId: 0,
         diplomaticPlays: {},
+        diplomaticOffers: {},
         projects: {},
         projectIndex: {
           byOwner: {},
@@ -292,6 +293,7 @@ describe('runSuccessionSystem', () => {
         },
         nextProjectId: 0,
         nextDiplomaticPlayId: 0,
+        nextDiplomaticOfferId: 0,
         pressures: {},
         pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
         nextPressureId: 1,
@@ -402,6 +404,7 @@ describe('runSuccessionSystem', () => {
         nextFactionId: 0,
         nextFactionMembershipId: 0,
         diplomaticPlays: {},
+        diplomaticOffers: {},
         projects: {},
         projectIndex: {
           byOwner: {},
@@ -413,6 +416,7 @@ describe('runSuccessionSystem', () => {
         },
         nextProjectId: 0,
         nextDiplomaticPlayId: 0,
+        nextDiplomaticOfferId: 0,
         pressures: {},
         pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
         nextPressureId: 1,

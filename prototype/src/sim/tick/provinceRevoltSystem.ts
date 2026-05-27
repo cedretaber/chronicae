@@ -353,6 +353,7 @@ function resolveRevolt(ctx: TickContext, candidate: RevoltCandidate): TickContex
     targetCommitment: 0,
     initiatorActiveTaskIds: [],
     targetActiveTaskIds: [],
+    offerHistoryIds: [],
   }
   nextCtx = {
     ...nextCtx,
