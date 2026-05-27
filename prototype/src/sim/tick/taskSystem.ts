@@ -404,7 +404,7 @@ function applyDiplomaticTaskEffectMut(
 
 const COMPROMISE_ADJUSTMENT = 0.3
 
-function buildAndCreateCompromiseOffer(
+export function buildAndCreateCompromiseOffer(
   ws: WorldState,
   config: SimulationConfig,
   play: DiplomaticPlay,
