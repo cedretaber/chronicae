@@ -1508,6 +1508,71 @@ export function collectIntegrityErrors(
     }
   }
 
+  // v0.30 §14: terminal play の offer が cleanup 後に残っていない
+  for (const [offerIdStr, offer] of Object.entries(state.diplomaticOffers)) {
+    if (!offer) continue
+    const play = state.diplomaticPlays[offer.playId]
+    if (!play) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticOffer ${offerIdStr} references missing play ${offer.playId as string} (§14)`,
+      })
+      continue
+    }
+    const isTerminal =
+      play.status === 'settled' ||
+      play.status === 'failed' ||
+      play.status === 'resolved_by_conflict' ||
+      play.status === 'cancelled'
+    if (isTerminal) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticOffer ${offerIdStr} belongs to terminal play ${offer.playId as string} (status=${play.status}) — should have been cascade-deleted (§14)`,
+      })
+    }
+  }
+
+  // v0.30 §14: active play の currentOffer demands が issue anchor と矛盾しない (§5.4)
+  for (const [idStr, play] of Object.entries(state.diplomaticPlays)) {
+    if (!play || (play.status !== 'active' && play.status !== 'escalated')) continue
+    if (!play.currentOfferId || !play.issue) continue
+    const offer = state.diplomaticOffers[play.currentOfferId]
+    if (!offer) continue
+    for (const demand of offer.demands) {
+      if (play.issue.kind === 'land_claim') {
+        if (demand.kind === 'change_contract_tax_rate') {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} (land_claim) currentOffer contains change_contract_tax_rate demand (§5.4)`,
+          })
+        }
+        if (demand.kind === 'transfer_land_contract' && demand.holdingId !== play.issue.holdingId) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} (land_claim) transfer_land_contract.holdingId=${demand.holdingId} !== issue.holdingId=${play.issue.holdingId} (§5.4)`,
+          })
+        }
+      }
+      if (play.issue.kind === 'contract_tax_revision') {
+        if (demand.kind === 'transfer_land_contract') {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} (contract_tax_revision) currentOffer contains transfer_land_contract demand (§5.4)`,
+          })
+        }
+        if (
+          demand.kind === 'change_contract_tax_rate' &&
+          demand.landContractId !== play.issue.landContractId
+        ) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `DiplomaticPlay ${idStr} (contract_tax_revision) change_contract_tax_rate.landContractId=${demand.landContractId} !== issue.landContractId=${play.issue.landContractId} (§5.4)`,
+          })
+        }
+      }
+    }
+  }
+
   // v0.23 Phase D: active Tasks targeting diplomatic_play must reference existing active/escalated Play
   for (const [taskIdStr, task] of Object.entries(state.tasks)) {
     if (!task || task.status !== 'active') continue

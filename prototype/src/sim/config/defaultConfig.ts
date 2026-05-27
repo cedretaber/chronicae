@@ -324,7 +324,6 @@ export type SimulationConfig = {
   taxRevisionMinTreasury: number
   taxRevisionMaxIntentsPerActor: number
   taxRevisionNegotiationDurationWeeks: number
-  taxRevisionTaxChangeAmount: number
   taxRevisionMinRate: number
   taxRevisionMaxRate: number
   taxRevisionPressureFactor: number
@@ -952,7 +951,6 @@ export const defaultConfig: SimulationConfig = {
   taxRevisionMinTreasury: 200,
   taxRevisionMaxIntentsPerActor: 2,
   taxRevisionNegotiationDurationWeeks: 48,
-  taxRevisionTaxChangeAmount: 0.05,
   taxRevisionMinRate: 0.05,
   taxRevisionMaxRate: 0.8,
   taxRevisionPressureFactor: 0.08,

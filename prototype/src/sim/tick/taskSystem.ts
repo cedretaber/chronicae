@@ -381,6 +381,15 @@ function applyDiplomaticTaskEffectMut(
       )
       // v0.30: Create compromise offer based on last rejected offer
       buildAndCreateCompromiseOffer(ws, config, play, side)
+      {
+        const refreshed = ws.diplomaticPlays[playId]
+        if (refreshed) {
+          if (refreshed.currentOfferId) updated.currentOfferId = refreshed.currentOfferId
+          if (refreshed.lastRejectedOfferId)
+            updated.lastRejectedOfferId = refreshed.lastRejectedOfferId
+          updated.offerHistoryIds = refreshed.offerHistoryIds
+        }
+      }
       break
     case 'undermine_counterparty_position':
       if (side === 'initiator') {

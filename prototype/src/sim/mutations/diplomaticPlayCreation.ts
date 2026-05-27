@@ -20,6 +20,7 @@ import {
 } from '../selectors/landContractSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
+import { clamp } from '../utils/math'
 import { defaultLandContractConfig } from '../config/landContractConfig'
 import { createDiplomaticOfferMut } from './diplomaticOfferMutations'
 import { computeTaxRevisionCompensation } from '../tick/diplomaticOfferEvaluation'
@@ -250,9 +251,12 @@ function createContractRevisionPlayFromProjectMut(
   if (!subjectContract) return { kind: 'invalid_inputs' }
 
   const currentRate = subjectContract.terms.taxRateToGrantor
-  const newRate = isReduction
-    ? currentRate - config.taxRevisionTaxChangeAmount
-    : currentRate + config.taxRevisionTaxChangeAmount
+  const desiredDelta = config.taxRevisionInitialDemandDelta
+  const newRate = clamp(
+    isReduction ? currentRate - desiredDelta : currentRate + desiredDelta,
+    config.taxRevisionMinRate,
+    config.taxRevisionMaxRate,
+  )
 
   const initiator: PoliticalActorRef = { kind: 'polity', id: project.owner.id }
   const target: PoliticalActorRef = { kind: 'polity', id: project.counterpartyPolityId }

@@ -30,20 +30,21 @@ import { applySettledOffer } from '../mutations/diplomaticOfferMutations'
 import { randomFloat } from '../rng/rng'
 import { createLogger } from '../debug/logger'
 
-// v0.18 Stage B/C/D §10 / §11 / §13
-// DiplomaticPlaySystem: active な DiplomaticPlay を毎月進行させる。
+// DiplomaticPlaySystem: active な DiplomaticPlay を毎 tick 進行させる。
 //
-// 役割:
-//   - active Play の acceptanceScore を計算し、progress / tension を更新する
-//   - progress >= settlementThreshold → settled (kind ごとの settlement 適用)
-//   - tension  >= escalationThreshold → 'escalated' に設定 (DIPLOMATIC_PLAY_ESCALATED 発火)
-//                                       本 system では status だけ変更、後段の
-//                                       ConflictResolutionSystem (§13) が同 tick 中に
-//                                       'resolved_by_conflict' に置換する
-//   - deadline 到達 → progress > tension なら settled、tension > progress なら escalated、
-//                     それ以外 failed
+// v0.30 offer-driven モデル (land_claim / contract_tax_revision):
+//   - structural tension を毎 tick 微増
+//   - 新 offer が currentOfferId に設定された tick のみ evaluateOffer を実行
+//   - accepted → settled、rejected → tension 上昇、play は active 継続
+//   - tension >= escalationThreshold → escalated
+//   - deadline 到達 → always escalated (no 'failed')
 //
-// 'escalated' は active 系 status (§10.2)。次 phase で resolve され terminal になる。
+// revolt_negotiation (旧モデル維持):
+//   - acceptanceScore で progress / tension を更新
+//   - progress >= settlementThreshold → settled
+//   - deadline → progress > tension なら settled、else escalated / failed
+//
+// 'escalated' は active 系 status。ConflictResolutionSystem が同 tick 中に解決する。
 
 export function runDiplomaticPlaySystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -79,11 +80,19 @@ export function cancelOrphanedPlays(ctx: TickContext): TickContext {
 
     let shouldCancel = false
     if (play.issue) {
-      if (play.issue.kind === 'contract_tax_revision') {
-        if (!ctx.state.landContracts[play.issue.landContractId]) shouldCancel = true
-      }
       if (play.issue.kind === 'land_claim') {
         if (!ctx.state.holdings[play.issue.holdingId]) shouldCancel = true
+        if (!ctx.state.provinces[play.issue.provinceId]) shouldCancel = true
+      }
+      if (play.issue.kind === 'contract_tax_revision') {
+        if (!ctx.state.holdings[play.issue.holdingId]) shouldCancel = true
+        const contract = ctx.state.landContracts[play.issue.landContractId]
+        if (!contract) {
+          shouldCancel = true
+        } else {
+          const holdingChain = ctx.state.landContractIndex.byHolding[play.issue.holdingId] ?? []
+          if (!holdingChain.includes(play.issue.landContractId)) shouldCancel = true
+        }
       }
     }
 
@@ -446,6 +455,7 @@ function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickContext 
         const evaluator = getOfferEvaluator(play, offer)
         const evaluation = evaluateOffer(state, config, play, offer, evaluator)
         playUpdate.lastEvaluatedOfferId = currentOfferId
+        nextProgress = clamp(nextProgress + config.validOfferProgressDelta, 0, 100)
         if (evaluation.accepted) {
           offersUpdate[currentOfferId as string] = { ...offer, status: 'accepted' }
           offerAccepted = true
@@ -630,6 +640,7 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
         const evaluator = getOfferEvaluator(play, offer)
         const evaluation = evaluateOffer(state, config, play, offer, evaluator)
         playUpdate.lastEvaluatedOfferId = currentOfferId
+        nextProgress = clamp(nextProgress + config.validOfferProgressDelta, 0, 100)
         if (evaluation.accepted) {
           offersUpdate[currentOfferId as string] = { ...offer, status: 'accepted' }
           offerAccepted = true
