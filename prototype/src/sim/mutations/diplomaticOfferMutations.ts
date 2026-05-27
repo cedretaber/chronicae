@@ -71,13 +71,14 @@ export function applyDemand(
   ctx: TickContext,
   play: DiplomaticPlay,
   demand: DiplomaticDemand,
+  allDemands: DiplomaticDemand[],
 ): TickContext {
   switch (demand.kind) {
     case 'pay_wealth':
       return applyPayWealth(ctx, demand)
 
     case 'transfer_land_contract':
-      return applyTransferLandContract(ctx, play, demand)
+      return applyTransferLandContract(ctx, play, demand, allDemands)
 
     case 'change_contract_tax_rate':
       return applyChangeContractTaxRate(ctx, demand)
@@ -164,15 +165,17 @@ function applyTransferLandContract(
   ctx: TickContext,
   play: DiplomaticPlay,
   demand: Extract<DiplomaticDemand, { kind: 'transfer_land_contract' }>,
+  allDemands: DiplomaticDemand[],
 ): TickContext {
   // Derive fromPolityId: the target (defender) of the play is the current holder
   const fromPolityId = play.target.id as PolityId
+  const reason = allDemands.some((d) => d.kind === 'pay_wealth') ? 'purchase' : 'cession'
 
   const result = applyLandContractTransferGoal(ctx, {
     holdingId: demand.holdingId,
     fromPolityId,
     toPolityId: demand.toPolityId,
-    reason: 'cession',
+    reason,
   })
 
   if (!result.ok) return ctx
@@ -217,7 +220,7 @@ export function applySettledOffer(
 ): TickContext {
   let currentCtx = ctx
   for (const demand of offer.demands) {
-    currentCtx = applyDemand(currentCtx, play, demand)
+    currentCtx = applyDemand(currentCtx, play, demand, offer.demands)
   }
   return currentCtx
 }

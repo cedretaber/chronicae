@@ -374,8 +374,8 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
     // treasury 移動: buyer -500, seller +500
     expect(ctx.state.polities[setup.buyerPolityId]?.treasury).toBe(1500)
     expect(ctx.state.polities[setup.sellerPolityId]?.treasury).toBe(550)
-    // events (offer-driven settlement uses reason='cession')
-    expect(ctx.events.some((e) => e.type === 'LAND_CONTRACT_CEDED')).toBe(true)
+    // events (offer includes pay_wealth → reason='purchase')
+    expect(ctx.events.some((e) => e.type === 'LAND_CONTRACT_PURCHASED')).toBe(true)
     expect(ctx.events.some((e) => e.type === 'LAND_CONTRACT_TRANSFERRED')).toBe(true)
     expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_SETTLED')).toBe(true)
   })
