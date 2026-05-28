@@ -187,21 +187,21 @@ describe('getAdultSuccessionCandidates', () => {
       alive: true,
       sex: 'male',
       houseId: head.houseId,
-    })
+    } as Partial<Person>)
     const adult2 = makePerson({
       id: createPersonId('pe', 2),
       age: 10,
       alive: true,
       sex: 'male',
       houseId: head.houseId,
-    })
+    } as Partial<Person>)
     const deadMember = makePerson({
       id: createPersonId('pe', 3),
       age: 40,
       alive: false,
       sex: 'male',
       houseId: head.houseId,
-    })
+    } as Partial<Person>)
     const house = makeHouse([head, adult1, adult2, deadMember])
     const state = makeState(
       { [head.id]: head, [adult1.id]: adult1, [adult2.id]: adult2, [deadMember.id]: deadMember },
@@ -219,14 +219,14 @@ describe('getAdultSuccessionCandidates', () => {
       alive: true,
       sex: 'male',
       houseId: head.houseId,
-    })
+    } as Partial<Person>)
     const adultFemale = makePerson({
       id: createPersonId('pe', 2),
       age: 25,
       alive: true,
       sex: 'female',
       houseId: head.houseId,
-    })
+    } as Partial<Person>)
     const house = makeHouse([head, adultMale, adultFemale])
     const state = makeState(
       { [head.id]: head, [adultMale.id]: adultMale, [adultFemale.id]: adultFemale },
@@ -244,7 +244,7 @@ describe('getAdultSuccessionCandidates', () => {
       alive: true,
       sex: 'female',
       houseId: head.houseId,
-    })
+    } as Partial<Person>)
     const house = makeHouse([head, adultFemale])
     const state = makeState(
       { [head.id]: head, [adultFemale.id]: adultFemale },
@@ -263,7 +263,7 @@ describe('getAdultSuccessionCandidates', () => {
       alive: true,
       sex: 'female',
       houseId: head.houseId,
-    })
+    } as Partial<Person>)
     const house = makeHouse([head, adultFemale])
     const state = makeState(
       { [head.id]: head, [adultFemale.id]: adultFemale },
@@ -290,19 +290,19 @@ describe('getMinorSuccessionCandidates', () => {
       age: 12,
       alive: true,
       houseId: head.houseId,
-    })
+    } as Partial<Person>)
     const minor2 = makePerson({
       id: createPersonId('pe', 2),
       age: 8,
       alive: true,
       houseId: head.houseId,
-    })
+    } as Partial<Person>)
     const deadMinor = makePerson({
       id: createPersonId('pe', 3),
       age: 10,
       alive: false,
       houseId: head.houseId,
-    })
+    } as Partial<Person>)
     const house = makeHouse([head, minor1, minor2, deadMinor])
     const state = makeState(
       { [head.id]: head, [minor1.id]: minor1, [minor2.id]: minor2, [deadMinor.id]: deadMinor },

@@ -9,10 +9,9 @@ import {
   createHouse,
   deactivateHouse,
   addHouseWealth,
-  dispersePersonsToAnonymousHouse,
-  addPersonToAnonymousHouse,
+  dispersePersonsToHouseless,
+  addHouselessPerson,
 } from './houseMutations'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { makeEmptyV016State, withHouse, withPerson } from '../testFixtures'
 
 function makeFixture(): {
@@ -246,7 +245,7 @@ describe('addHouseWealth', () => {
   })
 })
 
-describe('dispersePersonsToAnonymousHouse', () => {
+describe('dispersePersonsToHouseless', () => {
   function makeDisperseFixture(): {
     state: WorldState
     sourceHouseId: HouseId
@@ -284,21 +283,19 @@ describe('dispersePersonsToAnonymousHouse', () => {
     return { state, sourceHouseId, livingPersonId, deadPersonId, placeholderPersonId }
   }
 
-  it('moves living non-placeholder members to AnonymousHouse', () => {
+  it('moves living non-placeholder members to houseless state', () => {
     const { state, sourceHouseId, livingPersonId } = makeDisperseFixture()
-    const result = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    const result = dispersePersonsToHouseless(state, { houseId: sourceHouseId, year: 1450 })
     expect(result.ok).toBe(true)
     if (!result.ok) return
 
-    const anon = result.value.houses[ANONYMOUS_HOUSE_ID]!
-    expect(anon.memberIds).toContain(livingPersonId)
-    expect(result.value.persons[livingPersonId]!.houseId).toBe(ANONYMOUS_HOUSE_ID)
+    expect(result.value.persons[livingPersonId]!.houseId).toBeUndefined()
     expect(result.value.persons[livingPersonId]!.lastHouseTransferYear).toBe(1450)
   })
 
   it('keeps dead and placeholder members in source house', () => {
     const { state, sourceHouseId, deadPersonId, placeholderPersonId } = makeDisperseFixture()
-    const result = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    const result = dispersePersonsToHouseless(state, { houseId: sourceHouseId, year: 1450 })
     expect(result.ok).toBe(true)
     if (!result.ok) return
 
@@ -309,34 +306,16 @@ describe('dispersePersonsToAnonymousHouse', () => {
 
   it('sets lastHouseTransferYear on transferred persons', () => {
     const { state, sourceHouseId, livingPersonId } = makeDisperseFixture()
-    const result = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    const result = dispersePersonsToHouseless(state, { houseId: sourceHouseId, year: 1450 })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.value.persons[livingPersonId]!.lastHouseTransferYear).toBe(1450)
   })
 
-  it('appends to AnonymousHouse.memberIds without duplicates', () => {
-    const { state, sourceHouseId, livingPersonId } = makeDisperseFixture()
-    // First disperse
-    const first = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
-    expect(first.ok).toBe(true)
-    if (!first.ok) return
-    // Second disperse from same source (no living members left)
-    const second = dispersePersonsToAnonymousHouse(first.value, {
-      houseId: sourceHouseId,
-      year: 1451,
-    })
-    expect(second.ok).toBe(true)
-    if (!second.ok) return
-    const anon = second.value.houses[ANONYMOUS_HOUSE_ID]!
-    const count = anon.memberIds.filter((id) => id === livingPersonId).length
-    expect(count).toBe(1)
-  })
-
   it('filters source house.memberIds to remove transferred persons', () => {
     const { state, sourceHouseId, livingPersonId, deadPersonId, placeholderPersonId } =
       makeDisperseFixture()
-    const result = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    const result = dispersePersonsToHouseless(state, { houseId: sourceHouseId, year: 1450 })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     const source = result.value.houses[sourceHouseId]!
@@ -347,8 +326,8 @@ describe('dispersePersonsToAnonymousHouse', () => {
 
   it('is a no-op when source has no living member', () => {
     const { state, sourceHouseId } = makeDisperseFixture()
-    // Remove all living members by making the only living person dead
-    const result = dispersePersonsToAnonymousHouse(state, { houseId: sourceHouseId, year: 1450 })
+    // Remove all living members by dispersing them first
+    const result = dispersePersonsToHouseless(state, { houseId: sourceHouseId, year: 1450 })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     // Now source has only dead/placeholder members
@@ -358,7 +337,7 @@ describe('dispersePersonsToAnonymousHouse', () => {
 
   it('returns err when source house not found', () => {
     const { state } = makeFixture()
-    const result = dispersePersonsToAnonymousHouse(state, {
+    const result = dispersePersonsToHouseless(state, {
       houseId: createHouseId('h', 99),
       year: 1450,
     })
@@ -367,19 +346,17 @@ describe('dispersePersonsToAnonymousHouse', () => {
   })
 })
 
-describe('addPersonToAnonymousHouse', () => {
+describe('addHouselessPerson', () => {
   function makeAddPersonFixture(): {
     state: WorldState
     personId: PersonId
-    otherHouseId: HouseId
   } {
     const personId = createPersonId('pe', 20)
-    const otherHouseId = createHouseId('h', 20)
     const state = makeEmptyV016State()
-    return { state, personId, otherHouseId }
+    return { state, personId }
   }
 
-  it('valid input → person added, AnonymousHouse.memberIds appends', () => {
+  it('valid input → person added without houseId', () => {
     const { state, personId } = makeAddPersonFixture()
     const person = {
       id: personId,
@@ -387,7 +364,6 @@ describe('addPersonToAnonymousHouse', () => {
       sex: 'male' as const,
       age: 25,
       alive: true,
-      houseId: ANONYMOUS_HOUSE_ID,
       childIds: [],
       birthStatus: 'unknown' as const,
       abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
@@ -398,24 +374,22 @@ describe('addPersonToAnonymousHouse', () => {
       attitudes: {},
       lastHouseTransferYear: 1450,
     }
-    const result = addPersonToAnonymousHouse(state, { person })
+    const result = addHouselessPerson(state, person)
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.value.persons[personId]).toBeDefined()
-    const anon = result.value.houses[ANONYMOUS_HOUSE_ID]
-    expect(anon!.memberIds).toContain(personId)
+    expect(result.value.persons[personId]!.houseId).toBeUndefined()
   })
 
-  it('AnonymousHouse missing → err', () => {
+  it('person.houseId defined → err', () => {
     const { state, personId } = makeAddPersonFixture()
-    const newState = { ...state, houses: {} }
     const person = {
       id: personId,
-      nameKey: 'New Person',
+      nameKey: 'Wrong House',
       sex: 'male' as const,
       age: 25,
       alive: true,
-      houseId: ANONYMOUS_HOUSE_ID,
+      houseId: createHouseId('h', 99),
       childIds: [],
       birthStatus: 'unknown' as const,
       abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
@@ -425,9 +399,9 @@ describe('addPersonToAnonymousHouse', () => {
       wealth: 0,
       attitudes: {},
     }
-    const result = addPersonToAnonymousHouse(newState, { person })
+    const result = addHouselessPerson(state, person)
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
+    if (!result.ok) expect(result.error.code).toBe('HOUSE_MISMATCH')
   })
 
   it('Person.id already exists → err', () => {
@@ -438,7 +412,6 @@ describe('addPersonToAnonymousHouse', () => {
       sex: 'male' as const,
       age: 30,
       alive: true,
-      houseId: ANONYMOUS_HOUSE_ID,
       childIds: [],
       birthStatus: 'unknown' as const,
       abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
@@ -454,31 +427,8 @@ describe('addPersonToAnonymousHouse', () => {
       id: personId,
       nameKey: 'Duplicate',
     }
-    const result = addPersonToAnonymousHouse(updatedState, { person: newPerson })
+    const result = addHouselessPerson(updatedState, newPerson)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('PERSON_ALREADY_EXISTS')
-  })
-
-  it('Person.houseId !== ANONYMOUS_HOUSE_ID → err', () => {
-    const { state, personId, otherHouseId } = makeAddPersonFixture()
-    const person = {
-      id: personId,
-      nameKey: 'Wrong House',
-      sex: 'male' as const,
-      age: 25,
-      alive: true,
-      houseId: otherHouseId,
-      childIds: [],
-      birthStatus: 'unknown' as const,
-      abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
-      aptitudes: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
-      traits: { ambition: 0.5, caution: 0.5 },
-      legacyPrestige: 0,
-      wealth: 0,
-      attitudes: {},
-    }
-    const result = addPersonToAnonymousHouse(state, { person })
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('HOUSE_MISMATCH')
   })
 })

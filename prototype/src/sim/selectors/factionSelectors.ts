@@ -1,7 +1,7 @@
 import type { WorldState } from '@sim/types/world'
 import type { PersonId, FactionId, FactionMembershipId, HouseId, PolityId } from '@sim/types/ids'
 import type { Faction, FactionMembership } from '@sim/types/faction'
-import type { Person, UnaffiliatedOccupation } from '@sim/types/person'
+import type { Person, PersonBackgroundOccupation } from '@sim/types/person'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { OfficeRole, OrganizationRef } from '@sim/types/office'
 import { getEffectiveOfficeMaxHolders, getHouseLeader } from '@sim/selectors/officeSelectors'
@@ -119,6 +119,7 @@ export function getFactionOpportunityScore(
   if (!person || !person.alive) return 0
   if (person.kind === 'placeholder') return 0
 
+  if (!person.houseId) return 0
   const house = state.houses[person.houseId]
   if (!house || !house.active) return 0
 
@@ -137,7 +138,7 @@ export function getFactionMemberCap(
   if (!faction || !faction.active) return config.minimumFactionMembers
 
   const leader = state.persons[faction.leaderPersonId]
-  if (!leader) return config.minimumFactionMembers
+  if (!leader || !leader.houseId) return config.minimumFactionMembers
 
   const officeSlots = computeAvailableOfficeSlots(state, config, leader.houseId)
   return Math.max(config.minimumFactionMembers, Math.floor(officeSlots))
@@ -155,7 +156,7 @@ export function getFactionViabilityScore(
 
   const leader = state.persons[faction.leaderPersonId]
   let leaderShareViability = 0
-  if (leader) {
+  if (leader && leader.houseId) {
     const viabilityRankLimit = config.factionFounderShareRank + 2
     const topHolders = getTopShareholders(
       state,
@@ -212,7 +213,7 @@ export function getBestRoleScore(state: WorldState, personId: PersonId): number 
 
 // v0.17 §12.4: occupation × role fit. Stage B では candidate.occupation の汎用適性のみ
 // 評価する (faction の不足 role 個別解析は Stage C 以降)。
-const OCCUPATION_FIT_BONUS: Record<UnaffiliatedOccupation, number> = {
+const OCCUPATION_FIT_BONUS: Record<PersonBackgroundOccupation, number> = {
   adventurer: 4,
   mercenary: 4,
   scholar: 5,
@@ -227,7 +228,7 @@ const OCCUPATION_FIT_BONUS: Record<UnaffiliatedOccupation, number> = {
 export function getOccupationRoleFitBonus(candidate: Person): number {
   const occupation = candidate.occupation
   if (!occupation) return 0
-  return OCCUPATION_FIT_BONUS[occupation]
+  return OCCUPATION_FIT_BONUS[occupation] ?? 0
 }
 
 // ---------------------------------------------------------------------------
@@ -271,7 +272,7 @@ function getFactionNominationPowerForPolity(
   let power = 0
   for (const mid of memberIds) {
     const m = state.persons[mid]
-    if (!m) continue
+    if (!m || !m.houseId) continue
     const hid = m.houseId
     if (seenHouses.has(hid)) continue
     seenHouses.add(hid)

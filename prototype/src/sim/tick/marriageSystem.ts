@@ -72,6 +72,7 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
 
     if (!chosenFemaleId) continue
 
+    if (!male.houseId) continue
     marriedFemales.add(chosenFemaleId)
 
     const moveResult = movePersonToHouse(currentCtx.state, chosenFemaleId, male.houseId)
@@ -130,6 +131,7 @@ function collectUnmarriedMaleCandidates(ctx: TickContext): PersonId[] {
     if (person.spouseId) continue
     if (person.age < ctx.config.marriageMaleMinAge) continue
     if (person.age > ctx.config.marriageMaleMaxAge) continue
+    if (!person.houseId) continue
     const house = ctx.state.houses[person.houseId]
     if (!house || !house.active) continue
     maleIds.push(personId as PersonId)
@@ -148,6 +150,7 @@ function collectUnmarriedFemaleCandidates(ctx: TickContext): PersonId[] {
     if (person.spouseId) continue
     if (person.age < ctx.config.marriageFemaleMinAge) continue
     if (person.age > ctx.config.marriageFemaleMaxAge) continue
+    if (!person.houseId) continue
     const house = ctx.state.houses[person.houseId]
     if (!house || !house.active) continue
     if (getHouseLeader(ctx.state, house.id) === person.id) continue

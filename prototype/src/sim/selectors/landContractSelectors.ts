@@ -10,7 +10,6 @@ import type {
   HoldingId,
 } from '../types/ids'
 import type { LandContract, LandContractGrantor, Holding } from '../types/landContract'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { ROOT_WORLD } from '../types/landContract'
 import type { PolityRank } from '../types/polity'
 
@@ -260,16 +259,6 @@ export function isPlaceholderPerson(state: WorldState, personId: PersonId): bool
   const person = state.persons[personId]
   if (!person) return false
   return person.kind === 'placeholder'
-}
-
-export function getAnonymousHouseId(): HouseId {
-  return ANONYMOUS_HOUSE_ID
-}
-
-export function isSystemHouse(state: WorldState, houseId: HouseId): boolean {
-  const house = state.houses[houseId]
-  if (!house) return false
-  return house.kind === 'system'
 }
 
 export function getHoldingTerminalPolityId(

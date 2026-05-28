@@ -1,7 +1,5 @@
 import type { HouseId, ProvinceId, PersonId } from './ids'
 
-export const ANONYMOUS_HOUSE_ID: HouseId = 'h-anon' as HouseId
-
 export type HouseKind = 'normal' | 'system'
 
 export type House = {

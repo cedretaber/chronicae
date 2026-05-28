@@ -47,7 +47,6 @@ import type {
 } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
 import type { HoldingImprovement, HoldingImprovementKind } from '../types/holdingImprovement'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { PLACEHOLDER_PERSON_ID } from '../types/person'
 import { createRng, randomInt, randomFloat } from '../rng/rng'
 import { generateProvinces } from './generateProvinces'
@@ -664,13 +663,15 @@ export function generateWorld(
   const updatedPersons = persons.map((p) => {
     if (!p.alive) return p
     let attitudes = { ...p.attitudes }
-    const houseKey = houseAttitudeKey(p.houseId)
-    const { value: aff2, rng: r3 } = randomInt(rng, 30, 80)
-    const { value: res2, rng: r4 } = randomInt(r3, 20, 70)
-    rng = r4
-    attitudes = {
-      ...attitudes,
-      [houseKey]: { affection: aff2, respect: res2 },
+    if (p.houseId) {
+      const houseKey = houseAttitudeKey(p.houseId)
+      const { value: aff2, rng: r3 } = randomInt(rng, 30, 80)
+      const { value: res2, rng: r4 } = randomInt(r3, 20, 70)
+      rng = r4
+      attitudes = {
+        ...attitudes,
+        [houseKey]: { affection: aff2, respect: res2 },
+      }
     }
 
     const house = houses.find((h) => h.id === p.houseId)
@@ -1062,7 +1063,7 @@ export function generateWorld(
       .find((o) => o && o.active && o.role === 'leader')
     if (polityLeaderOffice) {
       const leaderPerson = personsRecord[polityLeaderOffice.holderPersonId]
-      if (leaderPerson) {
+      if (leaderPerson && leaderPerson.houseId) {
         rulerHouseIdForPolity.set(polity.id, leaderPerson.houseId)
       }
     }
@@ -1450,24 +1451,8 @@ export function generateWorld(
     polityIndex.byOwnerHouse[polity.ownerHouseId] = [...existing, polity.id]
   }
 
-  // AnonymousHouse (system house) を 1 つ追加。全 placeholder Person の所属先。
-  const anonymousHouse: House = {
-    id: ANONYMOUS_HOUSE_ID,
-    nameKey: 'anonymous_placeholder_house',
-    active: true,
-    kind: 'system',
-    memberIds: [],
-    deceasedMemberIds: [],
-    cadetHouseIds: [],
-    legacyPrestige: 0,
-    wealth: 0,
-    seatProvinceId: provinceList[0]?.id ?? ('' as ProvinceId),
-  }
-  housesRecord[ANONYMOUS_HOUSE_ID] = anonymousHouse
-
   // v0.17.2: 全 Province の placeholder bailiff は単一の singleton Person を共有する。
-  // 旧版は Province ごとに新規 Person を生成していたため、bailiff の vacate/install サイクルで
-  // AnonymousHouse.memberIds が累積していた。singleton 化で state が安定する。
+  // singleton Person は houseless (no houseId)。
   const placeholderSingleton: Person = {
     id: PLACEHOLDER_PERSON_ID,
     nameKey: 'anonymous',
@@ -1475,7 +1460,6 @@ export function generateWorld(
     age: 30,
     alive: true,
     kind: 'placeholder',
-    houseId: ANONYMOUS_HOUSE_ID,
     childIds: [],
     birthStatus: 'unknown',
     abilities: { valor: 0, command: 0, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
@@ -1489,10 +1473,8 @@ export function generateWorld(
 
   // Generate initial unaffiliated persons proportional to holdings count
   const holdingsCount = Object.keys(holdingsRecord).length
-  const initialUnaffiliatedCount = Math.ceil(
-    holdingsCount * defaultConfig.unaffiliatedPersonsPerHolding,
-  )
-  if (initialUnaffiliatedCount > 0) {
+  const initialHouselessCount = Math.ceil(holdingsCount * defaultConfig.houselessPersonsPerHolding)
+  if (initialHouselessCount > 0) {
     let maxPeIndex = 0
     for (const pid of Object.keys(personsRecord)) {
       if (pid.startsWith('pe-')) {
@@ -1508,7 +1490,7 @@ export function generateWorld(
       'mercenary',
       'adventurer',
     ]
-    for (let i = 0; i < initialUnaffiliatedCount; i++) {
+    for (let i = 0; i < initialHouselessCount; i++) {
       const personId = createPersonId('pe', peIndex)
       peIndex++
 
@@ -1544,7 +1526,6 @@ export function generateWorld(
         nameKey: unNameKey,
         sex,
         age,
-        houseId: ANONYMOUS_HOUSE_ID,
         birthStatus: 'unknown',
         traits: { ambition, caution },
         legacyPrestige: prestige,
@@ -1554,7 +1535,6 @@ export function generateWorld(
       const occupation = occupations[i % occupations.length]!
       const personWithKey: Person = { ...person, occupation, lastHouseTransferYear: 1 }
       personsRecord[personId] = personWithKey
-      anonymousHouse.memberIds.push(personId)
     }
   }
 
@@ -1828,6 +1808,7 @@ export function generateWorld(
     if (!person || !person.alive) continue
     if (person.kind === 'placeholder') continue
     if (person.age < defaultConfig.adultAge) continue
+    if (!person.houseId) continue
     const house = seededWorld.houses[person.houseId]
     if (!house || !house.active) continue
 

@@ -6,7 +6,6 @@ import type { EventType } from '@sim/types/event'
 import { getFirstEntityId, hasEntityId } from '@sim/types/event'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { ANONYMOUS_HOUSE_ID } from '@sim/types/house'
 
 type LinkItem = { id: string; type: EntityType; name: string }
 
@@ -30,7 +29,7 @@ function EventLinks({ event }: { event: SimEvent }) {
       })
   }
   const houseId = getFirstEntityId(event, 'house')
-  if (houseId && houseId !== (ANONYMOUS_HOUSE_ID as string)) {
+  if (houseId) {
     const house = state.houses[houseId as keyof typeof state.houses]
     if (house)
       items.push({

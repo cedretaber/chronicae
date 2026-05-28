@@ -4,7 +4,6 @@ import type { HouseId, PolityId, ProvinceId, PersonId } from '../types/ids'
 import type { House } from '../types/house'
 import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
 
@@ -100,35 +99,20 @@ export function addHouseWealth(state: WorldState, houseId: HouseId, delta: numbe
   })
 }
 
-export type DispersePersonsToAnonymousHouseInput = {
+export type DispersePersonsToHouselessInput = {
   houseId: HouseId
   year: number
 }
 
-// Moves all living, non-placeholder members of `houseId` into the AnonymousHouse.
-// - Each transferred person.houseId becomes ANONYMOUS_HOUSE_ID
-// - Each transferred person.lastHouseTransferYear becomes input.year
-// - The source house.memberIds is filtered to remove transferred persons (dead/placeholder members are left in place)
-// - The AnonymousHouse.memberIds gets the transferred persons appended (no duplicates)
-// Fails if source house or AnonymousHouse doesn't exist. No-op (ok) if no living member to disperse.
-export function dispersePersonsToAnonymousHouse(
+export function dispersePersonsToHouseless(
   state: WorldState,
-  input: DispersePersonsToAnonymousHouseInput,
+  input: DispersePersonsToHouselessInput,
 ): StateResult {
   const sourceHouse = state.houses[input.houseId]
   if (!sourceHouse)
     return err({
       code: 'HOUSE_NOT_FOUND',
-      message: 'dispersePersonsToAnonymousHouse: source house not found: ' + input.houseId,
-    })
-  if (input.houseId === ANONYMOUS_HOUSE_ID) {
-    return ok(state) // nothing to do
-  }
-  const anon = state.houses[ANONYMOUS_HOUSE_ID]
-  if (!anon)
-    return err({
-      code: 'HOUSE_NOT_FOUND',
-      message: 'dispersePersonsToAnonymousHouse: AnonymousHouse missing',
+      message: 'dispersePersonsToHouseless: source house not found: ' + input.houseId,
     })
 
   const transferIds: PersonId[] = []
@@ -146,62 +130,38 @@ export function dispersePersonsToAnonymousHouse(
   for (const pid of transferIds) {
     const p = newPersons[pid]
     if (!p) continue
-    newPersons[pid] = {
-      ...p,
-      houseId: ANONYMOUS_HOUSE_ID,
-      lastHouseTransferYear: input.year,
-    }
+    const copy: Record<string, unknown> = { ...p, lastHouseTransferYear: input.year }
+    delete copy['houseId']
+    newPersons[pid] = copy as typeof p
   }
 
   const transferSet = new Set<string>(transferIds.map((id) => id as string))
   const remainingSourceMembers = sourceHouse.memberIds.filter(
     (id) => !transferSet.has(id as string),
   )
-  const anonExisting = new Set<string>(anon.memberIds.map((id) => id as string))
-  const anonAppended = transferIds.filter((id) => !anonExisting.has(id as string))
 
   const newHouses = {
     ...state.houses,
     [input.houseId]: { ...sourceHouse, memberIds: remainingSourceMembers },
-    [ANONYMOUS_HOUSE_ID]: { ...anon, memberIds: [...anon.memberIds, ...anonAppended] },
   }
 
   return ok({ ...state, persons: newPersons, houses: newHouses })
 }
 
-export type AddPersonToAnonymousHouseInput = {
-  person: Person
-}
-
-// v0.17 §5.4.2: Atomically add an already-built Person to AnonymousHouse.
-// person.houseId must already be set to ANONYMOUS_HOUSE_ID by the caller.
-export function addPersonToAnonymousHouse(
-  state: WorldState,
-  input: AddPersonToAnonymousHouseInput,
-): StateResult {
-  const anon = state.houses[ANONYMOUS_HOUSE_ID]
-  if (!anon)
-    return err({
-      code: 'HOUSE_NOT_FOUND',
-      message: 'addPersonToAnonymousHouse: AnonymousHouse missing',
-    })
-  if (state.persons[input.person.id])
+export function addHouselessPerson(state: WorldState, person: Person): StateResult {
+  if (state.persons[person.id])
     return err({
       code: 'PERSON_ALREADY_EXISTS',
-      message: 'addPersonToAnonymousHouse: person already exists: ' + input.person.id,
+      message: 'addHouselessPerson: person already exists: ' + person.id,
     })
-  if (input.person.houseId !== ANONYMOUS_HOUSE_ID)
+  if (person.houseId !== undefined)
     return err({
       code: 'HOUSE_MISMATCH',
-      message: 'addPersonToAnonymousHouse: person.houseId must be ANONYMOUS_HOUSE_ID',
+      message: 'addHouselessPerson: person must not have houseId',
     })
 
   return ok({
     ...state,
-    persons: { ...state.persons, [input.person.id]: input.person },
-    houses: {
-      ...state.houses,
-      [ANONYMOUS_HOUSE_ID]: { ...anon, memberIds: [...anon.memberIds, input.person.id] },
-    },
+    persons: { ...state.persons, [person.id]: person },
   })
 }

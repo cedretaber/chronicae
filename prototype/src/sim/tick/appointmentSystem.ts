@@ -66,6 +66,7 @@ function collectPolityCandidatesTraditional(
     if (alreadyHolding.has(pid)) continue
     // v0.17.1 §15.3: active Bailiff (HoldingOffice) 保有者は候補外
     if (hasActiveHoldingOffice(state, pid)) continue
+    if (!p.houseId) continue
     const house = state.houses[p.houseId]
     if (!house || !house.active) continue
     // v0.17 §14.6: system House 所属者除外を撤廃 (placeholder のみ除外)
@@ -150,6 +151,7 @@ function computePolityScoreV017(
 ): number {
   const person = state.persons[personId]
   if (!person) return -Infinity
+  if (!person.houseId) return -Infinity
   const ruler = state.persons[rulerId]
 
   const prestige = getPersonPrestige(state, personId)
@@ -322,7 +324,7 @@ function tryAppointPolityOffice(
   currentCtx = { ...currentCtx, state: newState }
 
   const person = currentCtx.state.persons[best.id]
-  if (person) {
+  if (person && person.houseId) {
     const house = currentCtx.state.houses[person.houseId]
     if (house) {
       const { event, ctx: eventCtx } = createSimEvent(currentCtx, {

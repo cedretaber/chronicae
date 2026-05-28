@@ -159,7 +159,7 @@ detail:
     alive_no: 'No'
     faded: 'Faded from history'
     house: 'House'
-    unaffiliated: 'Unaffiliated'
+    houseless: 'Houseless'
     occupation: 'Occupation'
     faction: 'Faction'
     status: 'Status'

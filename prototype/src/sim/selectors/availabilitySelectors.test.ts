@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { createPersonId, createHouseId, createPolityId, createProvinceId } from '../types/ids'
 import type { PersonId, HouseId } from '../types/ids'
+import type { Person } from '../types/person'
 import type { WorldState } from '../types/world'
 import {
-  isPersonInAnonymousHouse,
-  isUnaffiliatedPerson,
+  isHouselessPerson,
   isHouseLandless,
   isLandlessHouseMember,
-  getUnaffiliatedPersons,
+  getHouselessPersons,
 } from './availabilitySelectors'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import {
   makeEmptyV016State,
   withHouse,
@@ -21,13 +20,13 @@ import {
 
 function makeFixture(): {
   state: WorldState
-  anonPersonId: PersonId
+  houselessPersonId: PersonId
   landedPersonId: PersonId
   landlessPersonId: PersonId
   house1Id: HouseId
   landlessHouseId: HouseId
 } {
-  const anonPersonId = createPersonId('pe', 0)
+  const houselessPersonId = createPersonId('pe', 0)
   const landedPersonId = createPersonId('pe', 1)
   const landlessPersonId = createPersonId('pe', 2)
   const house1Id = createHouseId('h', 1)
@@ -57,10 +56,22 @@ function makeFixture(): {
   })
   state = withProvince(state, province1Id, { nameKey: 'Landed Province' })
   state = bindProvinceToHouseViaPolity(state, province1Id, polity1Id, house1Id)
-  state = withPerson(state, anonPersonId, {
-    nameKey: 'Unaffiliated Person',
-    houseId: ANONYMOUS_HOUSE_ID,
-  })
+  // Create houseless person by setting houseId to a dummy value, then removing it
+  const houselessPersonWithHouse = {
+    nameKey: 'Houseless Person',
+    houseId: house1Id,
+  }
+  state = withPerson(state, houselessPersonId, houselessPersonWithHouse)
+  // Remove houseId to make person truly houseless
+  const houselessPerson = state.persons[houselessPersonId]
+  if (houselessPerson) {
+    const copy: Record<string, unknown> = { ...houselessPerson }
+    delete copy['houseId']
+    state = {
+      ...state,
+      persons: { ...state.persons, [houselessPersonId]: copy as typeof houselessPerson },
+    }
+  }
   state = withPerson(state, landedPersonId, {
     nameKey: 'Landed Person',
     houseId: house1Id,
@@ -71,7 +82,7 @@ function makeFixture(): {
   })
   return {
     state,
-    anonPersonId,
+    houselessPersonId,
     landedPersonId,
     landlessPersonId,
     house1Id,
@@ -79,48 +90,42 @@ function makeFixture(): {
   }
 }
 
-describe('isPersonInAnonymousHouse', () => {
-  it('returns true for AnonymousHouse member', () => {
-    const { state, anonPersonId } = makeFixture()
-    expect(isPersonInAnonymousHouse(state, anonPersonId)).toBe(true)
+describe('isHouselessPerson', () => {
+  it('returns true for person without houseId', () => {
+    const { state, houselessPersonId } = makeFixture()
+    expect(isHouselessPerson(state, houselessPersonId)).toBe(true)
   })
 
-  it('returns false for non-anonymous house member', () => {
+  it('returns false for person in a house', () => {
     const { state, landedPersonId } = makeFixture()
-    expect(isPersonInAnonymousHouse(state, landedPersonId)).toBe(false)
+    expect(isHouselessPerson(state, landedPersonId)).toBe(false)
   })
 
-  it('returns false for missing person', () => {
-    const { state } = makeFixture()
-    expect(isPersonInAnonymousHouse(state, createPersonId('pe', 99))).toBe(false)
-  })
-})
-
-describe('isUnaffiliatedPerson', () => {
-  it('returns true for non-placeholder AnonymousHouse member', () => {
-    const { state, anonPersonId } = makeFixture()
-    expect(isUnaffiliatedPerson(state, anonPersonId)).toBe(true)
-  })
-
-  it('returns false for placeholder person in AnonymousHouse', () => {
+  it('returns false for placeholder person without houseId', () => {
     const { state } = makeFixture()
     const placeholderId = createPersonId('pe', 99)
-    const updatedState = withPerson(state, placeholderId, {
+    const placeholderWithHouse: Partial<Person> & { houseId: HouseId } = {
       nameKey: 'Placeholder',
-      houseId: ANONYMOUS_HOUSE_ID,
       kind: 'placeholder',
-    })
-    expect(isUnaffiliatedPerson(updatedState, placeholderId)).toBe(false)
-  })
-
-  it('returns false for non-anonymous house member', () => {
-    const { state, landedPersonId } = makeFixture()
-    expect(isUnaffiliatedPerson(state, landedPersonId)).toBe(false)
+      houseId: createHouseId('h', 99),
+    }
+    let updatedState = withPerson(state, placeholderId, placeholderWithHouse)
+    // Remove houseId to make it houseless (but still placeholder)
+    const p = updatedState.persons[placeholderId]
+    if (p) {
+      const copy: Record<string, unknown> = { ...p }
+      delete copy['houseId']
+      updatedState = {
+        ...updatedState,
+        persons: { ...updatedState.persons, [placeholderId]: copy as typeof p },
+      }
+    }
+    expect(isHouselessPerson(updatedState, placeholderId)).toBe(false)
   })
 
   it('returns false for missing person', () => {
     const { state } = makeFixture()
-    expect(isUnaffiliatedPerson(state, createPersonId('pe', 99))).toBe(false)
+    expect(isHouselessPerson(state, createPersonId('pe', 99))).toBe(false)
   })
 })
 
@@ -159,9 +164,9 @@ describe('isLandlessHouseMember', () => {
     expect(isLandlessHouseMember(state, landedPersonId)).toBe(false)
   })
 
-  it('returns false for AnonymousHouse member', () => {
-    const { state, anonPersonId } = makeFixture()
-    expect(isLandlessHouseMember(state, anonPersonId)).toBe(false)
+  it('returns false for houseless person', () => {
+    const { state, houselessPersonId } = makeFixture()
+    expect(isLandlessHouseMember(state, houselessPersonId)).toBe(false)
   })
 
   it('returns false for missing person', () => {
@@ -170,37 +175,42 @@ describe('isLandlessHouseMember', () => {
   })
 })
 
-describe('getUnaffiliatedPersons', () => {
-  it('returns non-placeholder members of AnonymousHouse', () => {
-    const { state, anonPersonId } = makeFixture()
-    const result = getUnaffiliatedPersons(state)
-    expect(result).toContain(anonPersonId)
+describe('getHouselessPersons', () => {
+  it('returns persons without houseId (non-placeholder)', () => {
+    const { state, houselessPersonId } = makeFixture()
+    const result = getHouselessPersons(state)
+    expect(result).toContain(houselessPersonId)
   })
 
-  it('excludes placeholder members of AnonymousHouse', () => {
+  it('excludes placeholder persons without houseId', () => {
     const { state } = makeFixture()
     const placeholderId = createPersonId('pe', 99)
-    const updatedState = withPerson(state, placeholderId, {
+    const placeholderWithHouse: Partial<Person> & { houseId: HouseId } = {
       nameKey: 'Placeholder',
-      houseId: ANONYMOUS_HOUSE_ID,
       kind: 'placeholder',
-    })
-    const result = getUnaffiliatedPersons(updatedState)
+      houseId: createHouseId('h', 99),
+    }
+    let updatedState = withPerson(state, placeholderId, placeholderWithHouse)
+    // Remove houseId to make it houseless (but still placeholder)
+    const p = updatedState.persons[placeholderId]
+    if (p) {
+      const copy: Record<string, unknown> = { ...p }
+      delete copy['houseId']
+      updatedState = {
+        ...updatedState,
+        persons: { ...updatedState.persons, [placeholderId]: copy as typeof p },
+      }
+    }
+    const result = getHouselessPersons(updatedState)
     expect(result).not.toContain(placeholderId)
   })
 
-  it('returns empty if AnonymousHouse has no members', () => {
-    const { state } = makeFixture()
-    const result = getUnaffiliatedPersons(state)
-    expect(result.length).toBeGreaterThan(0) // anonPersonId is there
-  })
-
-  it('returns empty if AnonymousHouse does not exist', () => {
+  it('returns empty if no houseless persons exist', () => {
     const state: WorldState = {
       ...makeEmptyV016State(),
-      houses: {},
+      persons: {},
     }
-    const result = getUnaffiliatedPersons(state)
+    const result = getHouselessPersons(state)
     expect(result).toEqual([])
   })
 })

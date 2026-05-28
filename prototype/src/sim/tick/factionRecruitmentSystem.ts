@@ -12,7 +12,7 @@ import {
   getBestRoleScore,
   getOccupationRoleFitBonus,
 } from '../selectors/factionSelectors'
-import { isUnaffiliatedPerson, isLandlessHouseMember } from '../selectors/availabilitySelectors'
+import { isHouselessPerson, isLandlessHouseMember } from '../selectors/availabilitySelectors'
 import { addFactionMembership } from '../mutations/factionMutations'
 import { addPersonWealth } from '../mutations/personMutations'
 import { setPersonAttitude } from '../mutations/attitudeMutations'
@@ -41,7 +41,7 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
     if (!p || !p.alive) continue
     if (p.kind === 'placeholder') continue
     if (p.age < config.adultAge) continue
-    if (!(isUnaffiliatedPerson(ctx.state, pid) || isLandlessHouseMember(ctx.state, pid))) continue
+    if (!(isHouselessPerson(ctx.state, pid) || isLandlessHouseMember(ctx.state, pid))) continue
     if (getActiveFactionMembership(ctx.state, pid)) continue
     if (getFactionByLeader(ctx.state, pid)) continue
 

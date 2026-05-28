@@ -22,6 +22,7 @@ export function scorePersonGoalKind(
   const caution = person.traits.caution
 
   // Find person's house attitude
+  if (!person.houseId) return scores
   const houseAtt = getAttitudeOrDefault(state, person, { kind: 'house', id: person.houseId })
 
   // Find polity attitude - need to find a polity the person's house belongs to

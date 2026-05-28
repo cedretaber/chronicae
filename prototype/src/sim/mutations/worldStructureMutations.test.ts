@@ -7,8 +7,9 @@ import type { HouseId, ProvinceId, PolityId, PersonId } from '../types/ids'
 import type { Province } from '../types/province'
 import type { House } from '../types/house'
 import type { Person } from '../types/person'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { extinctHouse } from './worldStructureMutations'
+
+const HOUSELESS_HOUSE_ID = 'h-anon' as HouseId
 
 function makeCtx(world: WorldState): TickContext {
   return {
@@ -100,7 +101,7 @@ function makeMinimalWorld(): WorldState {
   }
 
   const anonHouse: House = {
-    id: ANONYMOUS_HOUSE_ID,
+    id: HOUSELESS_HOUSE_ID,
     nameKey: 'Anonymous',
     active: true,
     memberIds: [],
@@ -121,7 +122,7 @@ function makeMinimalWorld(): WorldState {
     holdings: {},
     states: {},
     polities: { [polityId]: polity },
-    houses: { [houseId]: house, [ANONYMOUS_HOUSE_ID]: anonHouse },
+    houses: { [houseId]: house, [HOUSELESS_HOUSE_ID]: anonHouse },
     persons: { [personId]: person },
     activePlots: {},
     popGroups: {},
@@ -192,7 +193,7 @@ describe('handleNormalHouseExtinction — last-normal-house guard', () => {
     const normalHouseId = 'h-0' as HouseId
 
     expect(world.houses[normalHouseId]?.active).toBe(true)
-    expect(world.houses[ANONYMOUS_HOUSE_ID]?.kind).toBe('system')
+    expect(world.houses[HOUSELESS_HOUSE_ID]?.kind).toBe('system')
 
     const ctx = makeCtx(world)
     const result = extinctHouse(ctx, {

@@ -15,6 +15,7 @@ export function runPersonGoalMaintenanceSystem(ctx: TickContext): TickContext {
     if (!person || !person.alive) continue
     if (person.kind === 'placeholder') continue
     if (person.age < currentCtx.config.adultAge) continue
+    if (!person.houseId) continue
 
     const house = currentCtx.state.houses[person.houseId]
     if (!house || !house.active) continue

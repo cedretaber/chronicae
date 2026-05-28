@@ -20,8 +20,7 @@ import type { CtxResult } from './result'
 import { ok, err } from './result'
 import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMutations'
 import { markPersonDead, movePersonToHouse } from './personMutations'
-import { dispersePersonsToAnonymousHouse, addPersonToAnonymousHouse } from './houseMutations'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
+import { dispersePersonsToHouseless, addHouselessPerson } from './houseMutations'
 import { getHouseLeader, getPolityLeader, getPolityLeaderHouse } from '../selectors/officeSelectors'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { generatePolityNameKey } from '../selectors/polityNamingService'
@@ -431,7 +430,7 @@ function handleNormalHouseExtinction(
       livingMemberIds.push(memberId)
     }
 
-    const disperseResult = dispersePersonsToAnonymousHouse(workingState, {
+    const disperseResult = dispersePersonsToHouseless(workingState, {
       houseId,
       year: workingState.currentYear,
     })
@@ -456,10 +455,7 @@ function handleNormalHouseExtinction(
         messageParams: {
           house: nameParam('house', house.nameKey),
         },
-        entityRefs: [
-          entityRef('house', houseId, 'house', house.nameKey),
-          entityRef('house', ANONYMOUS_HOUSE_ID, 'anonymous'),
-        ],
+        entityRefs: [entityRef('house', houseId, 'house', house.nameKey)],
       })
       eventCtx = { ...ec1, events: [...ec1.events, dispersedEvent] }
     }
@@ -713,13 +709,12 @@ export function createRebelPolity(
   const { value: legacyPrestige, rng: rng5 } = randomInt(ctx.rng, 5, 20)
   ctx = { ...ctx, rng: rng5 }
 
-  // v0.18-pre: rebel Person は AnonymousHouse 所属。dynasty 樹立は将来「家の設立」イベントで。
+  // v0.18-pre: rebel Person は houseless。dynasty 樹立は将来「家の設立」イベントで。
   const { value: newLeader, rng: rngAfterLeader } = samplePerson(ctx.rng, ctx.config, {
     id: newPersonId,
     nameKey: leaderNameKey,
     sex: leaderSex,
     age,
-    houseId: ANONYMOUS_HOUSE_ID,
     birthStatus: 'unknown',
     traits: { ambition: ambition / 10, caution: caution / 10 },
     legacyPrestige,
@@ -761,7 +756,7 @@ export function createRebelPolity(
   // ただし seat が当該 Province にあった場合の seat 移動は別 system に委ねる (Stage A では skip)。
 
   // v0.18-pre: Rebel Polity は commonwealth なので polityIndex.byOwnerHouse には登録しない。
-  // rebel Person は addPersonToAnonymousHouse 経由で AnonymousHouse.memberIds に追加する。
+  // rebel Person は addHouselessPerson 経由で houseless として登録する。
   let newState: WorldState = {
     ...ctx.state,
     holdings: updatedHoldings,
@@ -771,7 +766,7 @@ export function createRebelPolity(
     },
   }
 
-  const addPersonResult = addPersonToAnonymousHouse(newState, { person: newLeader })
+  const addPersonResult = addHouselessPerson(newState, newLeader)
   if (!addPersonResult.ok) {
     return err(addPersonResult.error)
   }

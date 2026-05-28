@@ -170,6 +170,7 @@ export function getHousePrimaryPolityId(state: WorldState, houseId: HouseId): Po
 export function getPersonRelevantPolityIds(state: WorldState, personId: PersonId): PolityId[] {
   const person = state.persons[personId]
   if (!person) return []
+  if (!person.houseId) return []
   return getHousePolityIds(state, person.houseId)
 }
 
@@ -180,6 +181,7 @@ export function getPersonPrimaryPolityId(
 ): PolityId | undefined {
   const person = state.persons[personId]
   if (!person) return undefined
+  if (!person.houseId) return undefined
   return getHousePrimaryPolityId(state, person.houseId)
 }
 

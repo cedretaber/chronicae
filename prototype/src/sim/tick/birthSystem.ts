@@ -7,7 +7,6 @@ import type { PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { birthChild } from '../mutations/personMutations'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { inheritAptitudes, sampleAptitudes } from '../selectors/abilitySelectors'
 import { nameParam, entityRef } from '../types/event'
 
@@ -29,9 +28,9 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     if (person.sex !== 'male') continue
     if (person.age < currentCtx.config.fatherMinChildAge) continue
     if (person.age > currentCtx.config.fatherMaxChildAge) continue
+    if (!person.houseId) continue
     const house = currentCtx.state.houses[person.houseId]
     if (!house || !house.active) continue
-    if (person.houseId === (ANONYMOUS_HOUSE_ID as string)) continue
 
     const { value: birthRoll, rng: rollRng } = randomFloat(currentCtx.rng)
     currentCtx = { ...currentCtx, rng: rollRng }
@@ -142,7 +141,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
         entityRef('person', childId, 'child', childNameKey),
         entityRef('person', person.id, 'father', person.nameKey),
         ...(motherId ? [entityRef('person', motherId, 'mother')] : []),
-        entityRef('house', person.houseId, 'house'),
+        ...(person.houseId ? [entityRef('house', person.houseId, 'house')] : []),
       ],
     })
 

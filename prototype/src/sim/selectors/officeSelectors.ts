@@ -92,6 +92,7 @@ export function getOfficeHolderPower(state: WorldState, office: OfficeAssignment
   if (org.kind === 'polity') {
     const countryId = org.id
     const houseId = person.houseId
+    if (!houseId) return 0
     const country = state.polities[countryId]
 
     const houseSharePct = getHousePolitySharePercent(state, countryId, houseId)
@@ -388,6 +389,7 @@ export function getOfficeCompatibilityPenalty(
 ): number {
   const candidate = state.persons[candidateId]
   if (!candidate) return 0
+  if (!candidate.houseId) return 0
 
   let total = 0
   const ownIds = state.officeIndex.byHolderPerson[candidateId] ?? []

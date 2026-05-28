@@ -155,7 +155,7 @@ export type ActivityReport = {
       factionNominationPowerThreshold: number
       polityOfficeMaxByRank: Record<number, Record<string, number>>
       targetLivingPersons: number
-      targetUnaffiliatedPersons: number
+      targetHouselessPersons: number
       adultAge: number
     }
   }

@@ -5,24 +5,12 @@ import type { Holding } from '../types/landContract'
 import type { WorldState } from '../types/world'
 import type { TickContext } from './context'
 import type { SimulationConfig } from '../config/defaultConfig'
+import type { Person } from '../types/person'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
-import { runUnaffiliatedPersonSystem } from './unaffiliatedPersonSystem'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
+import { runHouselessPersonGenerationSystem } from './houselessPersonGenerationSystem'
 
 function makeBaseState(): WorldState {
-  const anon = {
-    id: ANONYMOUS_HOUSE_ID,
-    nameKey: 'Anonymous',
-    active: true,
-    kind: 'system' as const,
-    memberIds: [],
-    deceasedMemberIds: [],
-    cadetHouseIds: [],
-    legacyPrestige: 0,
-    wealth: 0,
-    seatProvinceId: 'pr-anon' as ProvinceId,
-  }
   const dummyHoldings: Record<HoldingId, Holding> = {}
   for (let i = 0; i < 6; i++) {
     const hid = createHoldingId(i)
@@ -44,7 +32,7 @@ function makeBaseState(): WorldState {
     holdings: dummyHoldings,
     states: {},
     polities: {},
-    houses: { [ANONYMOUS_HOUSE_ID]: anon },
+    houses: {},
     persons: {},
     activePlots: {},
     popGroups: {},
@@ -87,7 +75,6 @@ function makeBaseState(): WorldState {
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
     nextPressureId: 1,
-    // v0.22 Goal/Aim system
     goals: {},
     aims: {},
     decisionReasons: {},
@@ -124,7 +111,7 @@ function makeCtx(state: WorldState, configOverride?: Partial<SimulationConfig>):
   }
 }
 
-function withUnaffiliatedPerson(
+function withHouselessPerson(
   state: WorldState,
   id: PersonId,
   personInfo: {
@@ -136,11 +123,10 @@ function withUnaffiliatedPerson(
 ): WorldState {
   const person = {
     id,
-    nameKey: 'Unaffiliated',
+    nameKey: 'Houseless',
     sex: 'male' as const,
     age: 25,
     alive: personInfo.alive,
-    houseId: ANONYMOUS_HOUSE_ID,
     childIds: [],
     birthStatus: 'unknown' as const,
     abilities: { valor: 50, command: 50, numeracy: 50, learning: 50, charisma: 50, insight: 50 },
@@ -151,33 +137,25 @@ function withUnaffiliatedPerson(
     attitudes: {},
     lastHouseTransferYear: personInfo.lastHouseTransferYear,
   }
-  const anon = state.houses[ANONYMOUS_HOUSE_ID]
-  const newAnon = anon
-    ? { ...anon, memberIds: [...anon.memberIds, id] }
-    : state.houses[ANONYMOUS_HOUSE_ID]
   return {
     ...state,
     persons: { ...state.persons, [id]: person },
-    houses: { ...state.houses, [ANONYMOUS_HOUSE_ID]: newAnon },
   }
 }
 
 const testConfig: Partial<SimulationConfig> = {
-  targetUnaffiliatedPersons: 3,
-  softMaxUnaffiliatedPersons: 5,
-  hardMaxUnaffiliatedPersons: 8,
-  unaffiliatedProtectionYears: 5,
+  houselessPersonsPerHolding: 0.5,
   protectionPrestigeThreshold: 60,
   pruningPrestigeThreshold: 20,
   pruningWealthThreshold: 30,
   pruningMinDwellYears: 3,
 }
 
-describe('runUnaffiliatedPersonSystem', () => {
-  it('AnonymousHouse has 0 normal Persons, target = 3 → 3 new normal Persons created', () => {
+describe('runHouselessPersonGenerationSystem', () => {
+  it('target = 0.5 per holding × 6 holdings → 3 new Persons created', () => {
     const state = makeBaseState()
     const ctx = makeCtx(state, testConfig)
-    const result = runUnaffiliatedPersonSystem(ctx)
+    const result = runHouselessPersonGenerationSystem(ctx)
 
     const personIds = Object.keys(result.state.persons)
     expect(personIds.length).toBe(3)
@@ -185,15 +163,12 @@ describe('runUnaffiliatedPersonSystem', () => {
     for (const pid of personIds) {
       const p = result.state.persons[pid as PersonId]
       expect(p).toBeDefined()
-      expect(p!.houseId).toBe(ANONYMOUS_HOUSE_ID)
+      expect(p!.houseId).toBeUndefined()
       expect(p!.alive).toBe(true)
       expect(p!.kind).toBeUndefined()
       expect(p!.occupation).toBeDefined()
       expect(p!.lastHouseTransferYear).toBe(1450)
     }
-
-    const anon = result.state.houses[ANONYMOUS_HOUSE_ID]
-    expect(anon!.memberIds.length).toBe(3)
 
     expect(result.events.length).toBe(3)
     for (const ev of result.events) {
@@ -218,7 +193,7 @@ describe('runUnaffiliatedPersonSystem', () => {
     state.absoluteWeek = state.currentYear * 48
 
     for (const pid of [person1Id, person2Id, person3Id, person4Id, person5Id, person6Id]) {
-      state = withUnaffiliatedPerson(state, pid, {
+      state = withHouselessPerson(state, pid, {
         lastHouseTransferYear: currentYear - 10,
         legacyPrestige: 5,
         wealth: 5,
@@ -227,9 +202,9 @@ describe('runUnaffiliatedPersonSystem', () => {
     }
 
     const ctx = makeCtx(state, testConfig)
-    const result = runUnaffiliatedPersonSystem(ctx)
+    const result = runHouselessPersonGenerationSystem(ctx)
 
-    const alivePersons = Object.values(result.state.persons).filter((p) => p.alive)
+    const alivePersons = Object.values(result.state.persons).filter((p: Person) => p.alive)
     expect(alivePersons.length).toBeGreaterThanOrEqual(3)
   })
 
@@ -248,7 +223,7 @@ describe('runUnaffiliatedPersonSystem', () => {
     state.absoluteWeek = state.currentYear * 48
 
     for (const pid of [person1Id, person2Id, person3Id, person4Id, person5Id, person6Id]) {
-      state = withUnaffiliatedPerson(state, pid, {
+      state = withHouselessPerson(state, pid, {
         lastHouseTransferYear: currentYear - 2,
         legacyPrestige: 5,
         wealth: 5,
@@ -257,7 +232,7 @@ describe('runUnaffiliatedPersonSystem', () => {
     }
 
     const ctx = makeCtx(state, testConfig)
-    const result = runUnaffiliatedPersonSystem(ctx)
+    const result = runHouselessPersonGenerationSystem(ctx)
 
     const fadedEvents = result.events.filter((e) => e.type === 'PERSON_FADED_FROM_HISTORY')
     expect(fadedEvents.length).toBe(0)
@@ -278,7 +253,7 @@ describe('runUnaffiliatedPersonSystem', () => {
     state.currentWeekOfYear = 1
     state.absoluteWeek = state.currentYear * 48
 
-    state = withUnaffiliatedPerson(state, protectedId, {
+    state = withHouselessPerson(state, protectedId, {
       lastHouseTransferYear: currentYear - 10,
       legacyPrestige: 60,
       wealth: 5,
@@ -292,7 +267,7 @@ describe('runUnaffiliatedPersonSystem', () => {
       pruneableId5,
       pruneableId6,
     ]) {
-      state = withUnaffiliatedPerson(state, pid, {
+      state = withHouselessPerson(state, pid, {
         lastHouseTransferYear: currentYear - 10,
         legacyPrestige: 5,
         wealth: 5,
@@ -301,7 +276,7 @@ describe('runUnaffiliatedPersonSystem', () => {
     }
 
     const ctx = makeCtx(state, testConfig)
-    const result = runUnaffiliatedPersonSystem(ctx)
+    const result = runHouselessPersonGenerationSystem(ctx)
 
     const protectedPerson = result.state.persons[protectedId]
     expect(protectedPerson?.alive).toBe(true)

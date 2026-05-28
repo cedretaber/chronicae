@@ -10,7 +10,7 @@ export type BuildPersonInput = {
   nameKey: string
   sex: Sex
   age: number
-  houseId: HouseId
+  houseId?: HouseId
   birthStatus: BirthStatus
   abilities: AbilityScores
   aptitudes: AbilityScores
@@ -32,7 +32,6 @@ export function buildPerson(input: BuildPersonInput): Person {
     sex: input.sex,
     age: input.age,
     alive: input.alive ?? true,
-    houseId: input.houseId,
     childIds: input.childIds ?? [],
     birthStatus: input.birthStatus,
     abilities: input.abilities,
@@ -44,6 +43,7 @@ export function buildPerson(input: BuildPersonInput): Person {
   }
   return {
     ...base,
+    ...(input.houseId !== undefined ? { houseId: input.houseId } : {}),
     ...(input.fatherId !== undefined ? { fatherId: input.fatherId } : {}),
     ...(input.motherId !== undefined ? { motherId: input.motherId } : {}),
     ...(input.spouseId !== undefined ? { spouseId: input.spouseId } : {}),

@@ -32,7 +32,6 @@ import type {
 } from './types/ids'
 import { createHoldingId } from './types/ids'
 import { ROOT_WORLD } from './types/landContract'
-import { ANONYMOUS_HOUSE_ID } from './types/house'
 import { PLACEHOLDER_PERSON_ID } from './types/person'
 import type { Goal, Aim } from './types/goal'
 import { decisionSubjectKey } from './types/goal'
@@ -49,7 +48,7 @@ const DEFAULT_ABILITIES = {
 
 export function makeEmptyV016State(): WorldState {
   // v0.17.2: singleton placeholder Person を含む状態で初期化する。
-  // worldgen と整合 (PLACEHOLDER_PERSON_ID は AnonymousHouse.memberIds に常駐)。
+  // worldgen と整合 (placeholder は houseless)。
   const placeholderSingleton: Person = {
     id: PLACEHOLDER_PERSON_ID,
     nameKey: 'anonymous',
@@ -57,7 +56,6 @@ export function makeEmptyV016State(): WorldState {
     age: 30,
     alive: true,
     kind: 'placeholder',
-    houseId: ANONYMOUS_HOUSE_ID,
     childIds: [],
     birthStatus: 'unknown',
     abilities: {
@@ -83,18 +81,6 @@ export function makeEmptyV016State(): WorldState {
     wealth: 0,
     attitudes: {},
   }
-  const anon: House = {
-    id: ANONYMOUS_HOUSE_ID,
-    nameKey: 'anonymous',
-    active: true,
-    kind: 'system',
-    memberIds: [PLACEHOLDER_PERSON_ID],
-    deceasedMemberIds: [],
-    cadetHouseIds: [],
-    legacyPrestige: 0,
-    wealth: 0,
-    seatProvinceId: 'pr-anon' as ProvinceId,
-  }
   return {
     currentYear: 1000,
     currentWeekOfYear: 1,
@@ -111,7 +97,7 @@ export function makeEmptyV016State(): WorldState {
       },
     },
     polities: {},
-    houses: { [ANONYMOUS_HOUSE_ID]: anon },
+    houses: {},
     persons: { [PLACEHOLDER_PERSON_ID]: placeholderSingleton },
     activePlots: {},
     popGroups: {},
@@ -335,11 +321,12 @@ export function withPerson(
     attitudes: {},
     ...overrides,
   }
-  const house = state.houses[person.houseId]
+  const personHouseId = person.houseId
+  const house = personHouseId ? state.houses[personHouseId] : undefined
   const houses = house
     ? {
         ...state.houses,
-        [person.houseId]: house.memberIds.includes(id)
+        [personHouseId!]: house.memberIds.includes(id)
           ? house
           : { ...house, memberIds: [...house.memberIds, id] },
       }

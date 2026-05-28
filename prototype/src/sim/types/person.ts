@@ -7,7 +7,7 @@ export type Sex = 'male' | 'female'
 export type BirthStatus = 'legitimate' | 'illegitimate' | 'unknown'
 export type PersonKind = 'normal' | 'placeholder'
 
-export type UnaffiliatedOccupation =
+export type PersonBackgroundOccupation =
   | 'adventurer'
   | 'merchant'
   | 'scholar'
@@ -38,7 +38,7 @@ export type Person = {
   age: number
   alive: boolean
   kind?: PersonKind
-  houseId: HouseId
+  houseId?: HouseId
   fatherId?: PersonId
   motherId?: PersonId
   spouseId?: PersonId
@@ -53,7 +53,7 @@ export type Person = {
   legacyPrestige: number // 0..100
   wealth: number // >= 0
   attitudes: AttitudeMap
-  occupation?: UnaffiliatedOccupation
+  occupation?: PersonBackgroundOccupation
   deathCircumstance?: DeathCircumstance
   lastHouseTransferYear?: number
 }

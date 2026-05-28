@@ -109,6 +109,7 @@ function resolvePlot(currentCtx: TickContext, plot: Plot): ResolveResult {
 }
 
 function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): TickContext {
+  if (!leader.houseId) return currentCtx
   let state = currentCtx.state
 
   switch (plot.type) {
@@ -255,6 +256,7 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
 }
 
 function applyPlotFailure(currentCtx: TickContext, plot: Plot, leader: Person): TickContext {
+  if (!leader.houseId) return currentCtx
   let state = currentCtx.state
 
   switch (plot.type) {

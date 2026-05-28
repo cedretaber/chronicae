@@ -48,6 +48,7 @@ function checkDissolutions(ctx: TickContext): TickContext {
     const viability = getFactionViabilityScore(currentCtx.state, currentCtx.config, factionId)
     const config = currentCtx.config
 
+    if (!leader.houseId) continue
     const leaderHouse = currentCtx.state.houses[leader.houseId]
 
     const reasonsToDissolve: string[] = []
@@ -103,6 +104,7 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
     const candidate = ctx.state.persons[candidateId]
     if (!candidate || !candidate.alive) continue
     if (candidate.kind === 'placeholder') continue
+    if (!candidate.houseId) continue
     const candidateHouse = ctx.state.houses[candidate.houseId]
     if (!candidateHouse || !candidateHouse.active || candidateHouse.kind === 'system') continue
 
@@ -207,6 +209,7 @@ function formNewFactions(ctx: TickContext): TickContext {
     if (!person || !person.alive) continue
     if (person.kind === 'placeholder') continue
     if (person.age < config.adultAge) continue
+    if (!person.houseId) continue
 
     const house = currentCtx.state.houses[person.houseId]
     if (!house || !house.active) continue
@@ -243,6 +246,7 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
   const config = ctx.config
   const leader = ctx.state.persons[leaderId]
   if (!leader) return ctx
+  if (!leader.houseId) return ctx
 
   const factionName = `${leader.nameKey}'s Circle`
   const candidates = pickInitialMemberCandidates(ctx, leaderId)
@@ -294,10 +298,10 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
     if (memberToLeader.ok) currentCtx = { ...currentCtx, state: memberToLeader.value }
   }
 
-  const housesInvolved: HouseId[] = [leader.houseId]
+  const housesInvolved: HouseId[] = leader.houseId ? [leader.houseId] : []
   for (const mid of initialMemberIds) {
     const m = currentCtx.state.persons[mid]
-    if (m && !housesInvolved.includes(m.houseId)) housesInvolved.push(m.houseId)
+    if (m && m.houseId && !housesInvolved.includes(m.houseId)) housesInvolved.push(m.houseId)
   }
 
   const { event, ctx: ec } = createSimEvent(currentCtx, {

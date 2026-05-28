@@ -110,6 +110,7 @@ export function scorePersonAimKind(
         } else {
           score += person.traits.ambition * 10
         }
+        if (!person.houseId) break
         // Find a target office - pick a random available role from house or polity
         // Simple: target the person's house, pick the first non-leader role not held
         {
@@ -235,6 +236,7 @@ export function scorePersonAimKind(
       }
 
       case 'support_organization_aim': {
+        if (!person.houseId) break
         const orgAim = findOrganizationActiveAim(state, person.houseId, personId)
         if (!orgAim) continue
         score += 10

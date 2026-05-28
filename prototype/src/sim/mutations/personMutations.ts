@@ -51,18 +51,20 @@ export function markPersonDead(
   if (spouseResult.ok) newState = spouseResult.value
   newState = revokeOfficesByHolder(newState, personId)
 
-  const house = newState.houses[person.houseId]
-  if (house && house.memberIds.includes(personId)) {
-    newState = {
-      ...newState,
-      houses: {
-        ...newState.houses,
-        [person.houseId]: {
-          ...house,
-          memberIds: house.memberIds.filter((id) => id !== personId),
-          deceasedMemberIds: [...(house.deceasedMemberIds ?? []), personId],
+  if (person.houseId) {
+    const house = newState.houses[person.houseId]
+    if (house && house.memberIds.includes(personId)) {
+      newState = {
+        ...newState,
+        houses: {
+          ...newState.houses,
+          [person.houseId]: {
+            ...house,
+            memberIds: house.memberIds.filter((id) => id !== personId),
+            deceasedMemberIds: [...(house.deceasedMemberIds ?? []), personId],
+          },
         },
-      },
+      }
     }
   }
 
@@ -88,13 +90,6 @@ export function movePersonToHouse(
       message: 'movePersonToHouse: target house not found: ' + newHouseId,
     })
 
-  const oldHouse = state.houses[person.houseId]
-  if (!oldHouse)
-    return err({
-      code: 'HOUSE_NOT_FOUND',
-      message: 'movePersonToHouse: source house not found: ' + person.houseId,
-    })
-
   if (person.houseId === newHouseId) {
     return ok(state)
   }
@@ -106,9 +101,14 @@ export function movePersonToHouse(
   }
 
   const newHouses = { ...state.houses }
-  newHouses[oldHouse.id] = {
-    ...oldHouse,
-    memberIds: oldHouse.memberIds.filter((id) => id !== personId),
+  if (person.houseId) {
+    const oldHouse = state.houses[person.houseId]
+    if (oldHouse) {
+      newHouses[oldHouse.id] = {
+        ...oldHouse,
+        memberIds: oldHouse.memberIds.filter((id) => id !== personId),
+      }
+    }
   }
   newHouses[newHouse.id] = {
     ...newHouse,
@@ -162,6 +162,11 @@ export function birthChild(
       message: 'birthChild: father not found: ' + input.fatherId,
     })
 
+  if (!father.houseId)
+    return err({
+      code: 'HOUSE_NOT_FOUND',
+      message: 'birthChild: father has no house: ' + input.fatherId,
+    })
   const house = ctx.state.houses[father.houseId]
   if (!house)
     return err({

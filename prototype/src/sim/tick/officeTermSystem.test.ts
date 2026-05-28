@@ -12,11 +12,12 @@ import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runOfficeTermSystem } from './officeTermSystem'
 import { expireOfficeTermAssignment } from '../mutations/officeMutations'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
+
+const HOUSELESS_HOUSE_ID = 'h-anon' as HouseId
 
 function makeBaseState(): WorldState {
   const anon = {
-    id: ANONYMOUS_HOUSE_ID,
+    id: HOUSELESS_HOUSE_ID,
     nameKey: 'Anonymous',
     active: true,
     kind: 'system' as const,
@@ -35,7 +36,7 @@ function makeBaseState(): WorldState {
     holdings: {},
     states: {},
     polities: {},
-    houses: { [ANONYMOUS_HOUSE_ID]: anon },
+    houses: { [HOUSELESS_HOUSE_ID]: anon },
     persons: {},
     activePlots: {},
     popGroups: {},
@@ -528,7 +529,7 @@ describe('expireOfficeTermAssignment', () => {
     const officeId = createOfficeAssignmentId(10)
 
     const anon = {
-      id: ANONYMOUS_HOUSE_ID,
+      id: HOUSELESS_HOUSE_ID,
       nameKey: 'Anonymous',
       active: true,
       kind: 'system' as const,
@@ -560,7 +561,7 @@ describe('expireOfficeTermAssignment', () => {
         },
       },
       houses: {
-        [ANONYMOUS_HOUSE_ID]: anon,
+        [HOUSELESS_HOUSE_ID]: anon,
         [houseId]: {
           id: houseId,
           nameKey: 'H',

@@ -1,6 +1,6 @@
 import type { OfficeRole } from '../types/office'
 import type { PolityRank } from '../types/polity'
-import type { UnaffiliatedOccupation } from '../types/person'
+import type { PersonBackgroundOccupation } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
 import type { PopOccupation, PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
@@ -580,19 +580,19 @@ export type SimulationConfig = {
   compatibleShareReductionMax: number
   // v0.17 Office overlap / Share
   polityShareOfficeOverlapBonusMax: number
-  // v0.17 Unaffiliated persons
-  unaffiliatedPersonsPerHolding: number
-  unaffiliatedMaleRatio: number
-  targetUnaffiliatedPersons: number
-  softMaxUnaffiliatedPersons: number
-  hardMaxUnaffiliatedPersons: number
-  unaffiliatedProtectionYears: number
+  // v0.17 Houseless persons
+  houselessPersonsPerHolding: number
+  houselessMaleRatio: number
+  targetHouselessPersons: number
+  softMaxHouselessPersons: number
+  hardMaxHouselessPersons: number
+  houselessProtectionYears: number
   pruningPrestigeThreshold: number
   pruningWealthThreshold: number
   pruningMinDwellYears: number
   protectionPrestigeThreshold: number
   // v0.17 Occupation抽選 weights
-  occupationWeights: Record<UnaffiliatedOccupation, number>
+  occupationWeights: Record<PersonBackgroundOccupation, number>
   // v0.26 Project system
   projectDefaultTargetProgress: number
   projectAdvanceProgressSuccess: number
@@ -1217,13 +1217,13 @@ export const defaultConfig: SimulationConfig = {
   compatibleShareReductionMax: 0.5,
   // v0.17 Office overlap / Share
   polityShareOfficeOverlapBonusMax: 0.5,
-  // v0.17 Unaffiliated persons
-  unaffiliatedPersonsPerHolding: 0.5,
-  unaffiliatedMaleRatio: 0.75,
-  targetUnaffiliatedPersons: 30,
-  softMaxUnaffiliatedPersons: 50,
-  hardMaxUnaffiliatedPersons: 80,
-  unaffiliatedProtectionYears: 5,
+  // v0.17 Houseless persons
+  houselessPersonsPerHolding: 0.5,
+  houselessMaleRatio: 0.75,
+  targetHouselessPersons: 30,
+  softMaxHouselessPersons: 50,
+  hardMaxHouselessPersons: 80,
+  houselessProtectionYears: 5,
   pruningPrestigeThreshold: 20,
   pruningWealthThreshold: 30,
   pruningMinDwellYears: 3,

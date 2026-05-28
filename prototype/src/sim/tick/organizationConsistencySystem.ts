@@ -5,7 +5,6 @@ import { nameParam, entityRef } from '../types/event'
 import { getPolityHouseIds } from '../selectors/polityRelations'
 import { removeOrganizationShare } from '../mutations/shareMutations'
 import { revokeOfficeAssignment } from '../mutations/officeMutations'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { getActiveFactionMembership } from '../selectors/factionSelectors'
 import { getActiveOfficeHolders, getEffectiveOfficeMaxHolders } from '../selectors/officeSelectors'
 import type { OfficeRole, OrganizationRef } from '../types/office'
@@ -40,13 +39,18 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
         const person = currentCtx.state.persons[share.holder.id]
         if (!person || !person.alive || person.kind === 'placeholder') {
           shouldRemove = true
-        } else {
-          const house = currentCtx.state.houses[person.houseId]
-          const isCommonwealthRebelHolder =
-            polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
+        } else if (!person.houseId) {
+          // houseless person with direct share — check faction membership
           const isFactionMember =
             getActiveFactionMembership(currentCtx.state, share.holder.id) !== undefined
-          if (!isCommonwealthRebelHolder && !isFactionMember) {
+          if (!isFactionMember) {
+            shouldRemove = true
+          }
+        } else {
+          const house = currentCtx.state.houses[person.houseId]
+          const isFactionMember =
+            getActiveFactionMembership(currentCtx.state, share.holder.id) !== undefined
+          if (!isFactionMember) {
             if (!house || !house.active || !eligibleHouseIds.has(house.id)) {
               shouldRemove = true
             }
@@ -69,13 +73,38 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
       if (!office || !office.active) continue
       const person = currentCtx.state.persons[office.holderPersonId]
       if (!person || !person.alive) continue // 別系統の不整合
+      if (!person.houseId) {
+        // houseless holder — only eligible if faction member
+        const isFactionMember =
+          getActiveFactionMembership(currentCtx.state, office.holderPersonId) !== undefined
+        if (!isFactionMember) {
+          const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)
+          const holder = revokedState.persons[office.holderPersonId]
+          const { event, ctx: eventCtx } = createSimEvent(
+            { ...currentCtx, state: revokedState },
+            {
+              type: 'OFFICE_REVOKED',
+              importance: 'normal',
+              messageKey: 'office.revoked',
+              messageParams: {
+                role: nameParam('role', `polity_${office.role}`),
+                organization: nameParam('polity', polity.nameKey),
+              },
+              entityRefs: [
+                entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
+                entityRef('polity', polityId, 'organization', polity?.nameKey),
+              ],
+            },
+          )
+          currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }
+        }
+        continue
+      }
       const house = currentCtx.state.houses[person.houseId]
       const houseEligible = house && house.active && eligibleHouseIds.has(house.id)
-      const isCommonwealthRebelHolder =
-        polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
       const isFactionMember =
         getActiveFactionMembership(currentCtx.state, office.holderPersonId) !== undefined
-      if (houseEligible || isCommonwealthRebelHolder || isFactionMember) continue
+      if (houseEligible || isFactionMember) continue
 
       const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)
       const holder = revokedState.persons[office.holderPersonId]

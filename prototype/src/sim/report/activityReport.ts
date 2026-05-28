@@ -75,7 +75,7 @@ export function buildActivityReport(
         factionNominationPowerThreshold: config.factionNominationPowerThreshold,
         polityOfficeMaxByRank: config.polityOfficeMaxByRank,
         targetLivingPersons: config.targetLivingPersons,
-        targetUnaffiliatedPersons: config.targetUnaffiliatedPersons,
+        targetHouselessPersons: config.targetHouselessPersons,
         adultAge: config.adultAge,
       },
     },

@@ -19,6 +19,7 @@ export function calcPersonImportanceScore(
 ): number {
   const person = state.persons[personId]
   if (!person || !person.alive) return 0
+  if (!person.houseId) return 0
 
   const house = state.houses[person.houseId]
   const housePrestige = house ? house.legacyPrestige : 0

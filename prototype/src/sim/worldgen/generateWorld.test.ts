@@ -17,7 +17,7 @@ describe('generateWorld', () => {
     expect(JSON.stringify(w1)).toEqual(JSON.stringify(w2))
   })
 
-  it('has correct structure: province count in expected range, 9 polities (1 kingdom + 2 duchies + 6 counties), 10 normal + 1 AnonymousHouse', () => {
+  it('has correct structure: province count in expected range, 9 polities (1 kingdom + 2 duchies + 6 counties), 9 normal houses', () => {
     const { world } = generateWorld('test-seed')
     const provinceCount = Object.keys(world.provinces).length
     const minProv = tinyPreset.stateCount * tinyPreset.provinceCountPerStateMin
@@ -34,7 +34,7 @@ describe('generateWorld', () => {
     const normalHouseCount = Object.values(world.houses).filter((h) => h?.kind !== 'system').length
     const systemHouseCount = Object.values(world.houses).filter((h) => h?.kind === 'system').length
     expect(normalHouseCount).toEqual(9)
-    expect(systemHouseCount).toEqual(1)
+    expect(systemHouseCount).toEqual(0)
   })
 
   it('has correct person count: varies by preset + 1 placeholder singleton', () => {
@@ -72,8 +72,10 @@ describe('generateWorld', () => {
         const person = world.persons[pk as keyof typeof world.persons]
         if (!person) continue
 
-        const house = world.houses[person.houseId]
-        expect(house).toBeDefined()
+        if (person.houseId) {
+          const house = world.houses[person.houseId]
+          expect(house).toBeDefined()
+        }
       }
     })
 

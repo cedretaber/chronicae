@@ -1,62 +1,61 @@
 import type { TickContext } from './context'
 import { makePersonId, createSimEvent } from './context'
 import type { PersonId } from '../types/ids'
-import type { Person, UnaffiliatedOccupation } from '../types/person'
+import type { Person, PersonBackgroundOccupation } from '../types/person'
 import { nameParam, entityRef } from '../types/event'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { randomInt, randomFloat } from '../rng/rng'
 import type { RngState } from '../rng/rng'
 import { samplePerson } from '../helpers/personFactory'
 import { pickNameBySex } from '../worldgen/nameGenerators'
-import { addPersonToAnonymousHouse } from '../mutations/houseMutations'
+import { addHouselessPerson } from '../mutations/houseMutations'
 import { markPersonDead } from '../mutations/personMutations'
-import { getUnaffiliatedPersons } from '../selectors/availabilitySelectors'
+import { getHouselessPersons } from '../selectors/availabilitySelectors'
 import { getActiveFactionMembership } from '../selectors/factionSelectors'
 
-// v0.17 §5.4: UnaffiliatedPersonSystem
-// Every January, maintain AnonymousHouse normal Person count via birth and fading.
+// v0.17 §5.4: HouselessPersonGenerationSystem
+// Every January, maintain houseless Person count via birth and fading.
 function computeEffectiveTargets(ctx: TickContext): {
   target: number
   softMax: number
   hardMax: number
 } {
   const holdingsCount = Object.keys(ctx.state.holdings).length
-  const target = Math.ceil(holdingsCount * ctx.config.unaffiliatedPersonsPerHolding)
+  const target = Math.ceil(holdingsCount * ctx.config.houselessPersonsPerHolding)
   const softMax = Math.ceil(target * 1.5)
   const hardMax = target * 2
   return { target, softMax, hardMax }
 }
 
-export function runUnaffiliatedPersonSystem(ctx: TickContext): TickContext {
+export function runHouselessPersonGenerationSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
   const { target, softMax, hardMax } = computeEffectiveTargets(ctx)
 
-  const unaffiliatedIds = getUnaffiliatedPersons(currentCtx.state)
-  const count = unaffiliatedIds.length
+  const houselessIds = getHouselessPersons(currentCtx.state)
+  const count = houselessIds.length
 
   // 1. Create if below target
   if (count < target) {
     const toCreate = target - count
     for (let i = 0; i < toCreate; i++) {
-      currentCtx = createUnaffiliatedPerson(currentCtx)
+      currentCtx = createHouselessPerson(currentCtx)
     }
   }
 
   // 2. Prune if above softMax
-  const afterCreateIds = getUnaffiliatedPersons(currentCtx.state)
+  const afterCreateIds = getHouselessPersons(currentCtx.state)
   const afterCreateCount = afterCreateIds.length
   if (afterCreateCount > softMax) {
     const targetReduction =
       afterCreateCount > hardMax
         ? afterCreateCount - softMax
         : Math.floor((afterCreateCount - softMax) / 2)
-    currentCtx = pruneUnaffiliated(currentCtx, targetReduction)
+    currentCtx = pruneHouseless(currentCtx, targetReduction)
   }
 
   return currentCtx
 }
 
-function createUnaffiliatedPerson(ctx: TickContext): TickContext {
+function createHouselessPerson(ctx: TickContext): TickContext {
   const config = ctx.config
   let rng: RngState = ctx.rng
 
@@ -67,7 +66,7 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
   // 2. Sex: 50/50
   const { value: sexRoll, rng: rngAfterSex } = randomFloat(rng)
   rng = rngAfterSex
-  const sex: 'male' | 'female' = sexRoll < config.unaffiliatedMaleRatio ? 'male' : 'female'
+  const sex: 'male' | 'female' = sexRoll < config.houselessMaleRatio ? 'male' : 'female'
 
   // 3. Name
   let nameKey: string
@@ -103,13 +102,12 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
   const ctxWithRng = { ...ctx, rng }
   const { id: personId, ctx: ctxWithId } = makePersonId(ctxWithRng)
 
-  // 8. Build Person via samplePerson
+  // 8. Build Person via samplePerson (no houseId — person is houseless)
   const { value: person, rng: rngAfterSample } = samplePerson(ctxWithId.rng, ctxWithId.config, {
     id: personId,
     nameKey,
     sex,
     age,
-    houseId: ANONYMOUS_HOUSE_ID,
     birthStatus: 'unknown',
     traits: { ambition: ambitionRoll, caution: cautionRoll },
     legacyPrestige: prestige,
@@ -123,8 +121,8 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
     lastHouseTransferYear: ctxWithId.state.currentYear,
   }
 
-  // 10. Add to AnonymousHouse
-  const addResult = addPersonToAnonymousHouse(ctxWithId.state, { person: personWithExtras })
+  // 10. Add as houseless person
+  const addResult = addHouselessPerson(ctxWithId.state, personWithExtras)
   if (!addResult.ok) {
     return { ...ctxWithId, rng: rngAfterSample }
   }
@@ -149,11 +147,11 @@ function createUnaffiliatedPerson(ctx: TickContext): TickContext {
 
 function sampleOccupation(
   rng: RngState,
-  weights: Record<UnaffiliatedOccupation, number>,
-): { occupation: UnaffiliatedOccupation; rng: RngState } {
-  const entries = (Object.keys(weights) as UnaffiliatedOccupation[]).map((k) => ({
+  weights: Record<PersonBackgroundOccupation, number>,
+): { occupation: PersonBackgroundOccupation; rng: RngState } {
+  const entries = (Object.keys(weights) as PersonBackgroundOccupation[]).map((k) => ({
     key: k,
-    weight: weights[k],
+    weight: weights[k] ?? 0,
   }))
   const total = entries.reduce((s, e) => s + e.weight, 0)
   const { value: roll, rng: nextRng } = randomFloat(rng)
@@ -166,20 +164,20 @@ function sampleOccupation(
   return { occupation: 'wanderer', rng: nextRng }
 }
 
-function pruneUnaffiliated(ctx: TickContext, targetReduction: number): TickContext {
+function pruneHouseless(ctx: TickContext, targetReduction: number): TickContext {
   if (targetReduction <= 0) return ctx
   const config = ctx.config
   const currentYear = ctx.state.currentYear
 
   const candidates: { personId: PersonId; score: number }[] = []
-  for (const pid of getUnaffiliatedPersons(ctx.state)) {
+  for (const pid of getHouselessPersons(ctx.state)) {
     const p = ctx.state.persons[pid]
     if (!p) continue
 
     const dwell = currentYear - (p.lastHouseTransferYear ?? currentYear)
 
     // Exclusion checks
-    if (dwell < config.unaffiliatedProtectionYears) continue
+    if (dwell < config.houselessProtectionYears) continue
     if (p.legacyPrestige >= config.protectionPrestigeThreshold) continue
     const officeIds = ctx.state.officeIndex.byHolderPerson[pid] ?? []
     let hasActiveOffice = false

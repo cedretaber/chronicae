@@ -73,6 +73,7 @@ export function runPersonAimMaintenanceSystem(ctx: TickContext): TickContext {
     if (!person || !person.alive) continue
     if (person.kind === 'placeholder') continue
     if (person.age < ctx.config.adultAge) continue
+    if (!person.houseId) continue
 
     const house = ws.houses[person.houseId]
     if (!house || !house.active) continue

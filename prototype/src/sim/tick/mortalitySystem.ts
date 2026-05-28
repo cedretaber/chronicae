@@ -22,6 +22,8 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
     currentCtx = { ...currentCtx, rng: nextRng }
 
     if (deathCheck < deathRate) {
+      if (!person.houseId) continue
+
       // Check if person was a house/polity leader BEFORE revoking
       const houseLeaderBefore = getHouseLeader(currentCtx.state, person.houseId)
       const wasHouseLeader = houseLeaderBefore === (personId as PersonId)
@@ -49,7 +51,9 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
           },
           entityRefs: [
             entityRef('person', personId, 'deceased', person.nameKey),
-            entityRef('house', person.houseId, 'house', house?.nameKey),
+            ...(person.houseId
+              ? [entityRef('house', person.houseId, 'house', house?.nameKey)]
+              : []),
           ],
         },
       )

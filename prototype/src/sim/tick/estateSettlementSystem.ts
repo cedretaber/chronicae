@@ -33,6 +33,7 @@ export function findHeirs(state: WorldState, deceased: PersonId): PersonId[] {
   }
 
   // 3. Siblings (alive, same houseId, same parents)
+  if (!person.houseId) return []
   const house = state.houses[person.houseId]
   if (house) {
     const siblings: PersonId[] = []
@@ -77,12 +78,13 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
     if (!person || person.wealth <= 0) continue
 
     const wealth = person.wealth
-    const house = currentCtx.state.houses[person.houseId]
+    const house = person.houseId ? currentCtx.state.houses[person.houseId] : undefined
 
     // house なし → houseRecoveryRate = 0、全額相続人へ（§5.4）
-    const share = house
-      ? getPersonHouseSharePercent(currentCtx.state, person.houseId, deceasedId) / 100
-      : 0
+    const share =
+      house && person.houseId
+        ? getPersonHouseSharePercent(currentCtx.state, person.houseId, deceasedId) / 100
+        : 0
     const houseRecoveryRate = house
       ? clamp(
           currentCtx.config.estateBaseRecoveryRate -
@@ -103,7 +105,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
     let newState = clearResult.value
 
     // Give house its share (only if house exists)
-    if (houseAmount > 0 && house) {
+    if (houseAmount > 0 && house && person.houseId) {
       const houseResult = addHouseWealth(newState, person.houseId, houseAmount)
       if (houseResult.ok) newState = houseResult.value
     }
@@ -126,7 +128,7 @@ export function runEstateSettlementSystem(ctx: TickContext): TickContext {
     }
 
     // Any leftover stays in house (only if house exists; otherwise vanishes per §5.5)
-    if (leftover > 0 && house) {
+    if (leftover > 0 && house && person.houseId) {
       const houseResult = addHouseWealth(newState, person.houseId, leftover)
       if (houseResult.ok) newState = houseResult.value
     }

@@ -21,7 +21,7 @@ import {
 } from '@sim/selectors/officeSelectors'
 import { getDominantPolityHouse, getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
-import { isUnaffiliatedPerson, isLandlessHouseMember } from '@sim/selectors/availabilitySelectors'
+import { isHouselessPerson, isLandlessHouseMember } from '@sim/selectors/availabilitySelectors'
 import {
   getActiveFactionMembership,
   getFactionByLeader,
@@ -29,7 +29,6 @@ import {
   getFactionViabilityScore,
   getFactionOpportunityScore,
 } from '@sim/selectors/factionSelectors'
-import { ANONYMOUS_HOUSE_ID } from '@sim/types/house'
 import { ABILITY_AGE_CURVES } from '@sim/constants/abilityConstants'
 import { getProvinceDevelopmentMultiplier } from '@/sim/selectors/developmentSelectors'
 import {
@@ -374,7 +373,7 @@ function buildEntitySnapshot(
         faction: factionInfo,
         activeOffices,
         bailiffOf,
-        isUnaffiliated: ws ? isUnaffiliatedPerson(ws, pe.id) : false,
+        isHouseless: ws ? isHouselessPerson(ws, pe.id) : false,
         isLandlessHouseMember: ws ? isLandlessHouseMember(ws, pe.id) : false,
       },
     }
@@ -482,13 +481,13 @@ function buildEntitySnapshot(
     const members = memberIds.map((pid) => {
       const p = ws?.persons[pid]
       const hid = p?.houseId
-      const isUnaffiliated = hid === ANONYMOUS_HOUSE_ID
+      const isHouseless = !hid
       return {
         personId: pid,
         personName: p?.nameKey ?? null,
         houseId: hid ?? null,
-        houseName: isUnaffiliated ? null : houseNameKey(hid),
-        isUnaffiliated,
+        houseName: isHouseless ? null : houseNameKey(hid),
+        isHouseless,
         representativeOffice: representativeOfficeFor(pid),
       }
     })
@@ -2093,8 +2092,8 @@ export function PersonDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.person.house')}:</span>
-          {person.houseId === ANONYMOUS_HOUSE_ID ? (
-            <span className="text-gray-400">({t('detail.person.unaffiliated')})</span>
+          {!person.houseId ? (
+            <span className="text-gray-400">({t('detail.person.houseless')})</span>
           ) : (
             <span className="flex items-center gap-1">
               <HouseLink
@@ -2144,10 +2143,10 @@ export function PersonDetail({
             </div>
           )
         })()}
-        {isUnaffiliatedPerson(worldState, person.id) && person.houseId !== ANONYMOUS_HOUSE_ID && (
+        {isHouselessPerson(worldState, person.id) && (
           <div className="flex justify-between">
             <span className="text-gray-400">{t('detail.person.status')}:</span>
-            <span className="text-amber-400">{t('detail.person.unaffiliated')}</span>
+            <span className="text-amber-400">{t('detail.person.houseless')}</span>
           </div>
         )}
         <div className="flex justify-between">
@@ -4003,10 +4002,8 @@ export function FactionDetail({
                 <div className="flex flex-col">
                   <PersonLink personId={p.id} persons={persons} onClick={onPersonClick} />
                   <span className="text-xs text-gray-400">
-                    {p.houseId === ANONYMOUS_HOUSE_ID ? (
-                      <span className="text-gray-500">
-                        {t('detail.faction.unaffiliated_member')}
-                      </span>
+                    {!p.houseId ? (
+                      <span className="text-gray-500">{t('detail.faction.houseless_member')}</span>
                     ) : (
                       <HouseLink houseId={p.houseId} houses={houses} onClick={onHouseClick} />
                     )}{' '}

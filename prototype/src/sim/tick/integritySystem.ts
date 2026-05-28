@@ -19,7 +19,6 @@ import { getHouseLeader } from '../selectors/officeSelectors'
 import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
 import { ABILITY_KEYS, ABILITY_HARD_CAP } from '../constants/abilityConstants'
 import { getHouseProvinceIdsByPolity } from '../selectors/polityRelations'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
 import { ROOT_WORLD } from '../types/landContract'
 import { getGrantorRank, getLandContractGrantor } from '../selectors/landContractSelectors'
 import type { SimError } from '../mutations/errors'
@@ -642,13 +641,15 @@ export function collectIntegrityErrors(
     if (!polity || !polity.active) continue
     const person = state.persons[office.holderPersonId]
     if (!person) continue
+    if (!person.houseId) continue
     const houseId = person.houseId
+    const isCommonwealthRebelHolder = polity.kind === 'commonwealth' && !houseId
+    if (isCommonwealthRebelHolder) continue
+    if (!houseId) continue
     const ownsProvince =
       getHouseProvinceIdsByPolity(state, houseId, office.organization.id).length > 0
     const isOwnerHouse = polity.ownerHouseId !== undefined && houseId === polity.ownerHouseId
-    const isCommonwealthRebelHolder =
-      polity.kind === 'commonwealth' && houseId === ANONYMOUS_HOUSE_ID
-    if (!ownsProvince && !isOwnerHouse && !isCommonwealthRebelHolder) {
+    if (!ownsProvince && !isOwnerHouse) {
       if (debug) {
         console.warn(
           `INTEGRITY (Stage B warn): OfficeAssignment ${officeId} holder Person ${office.holderPersonId} belongs to House ${houseId}, which is not in Polity ${polity.id}`,
@@ -946,80 +947,60 @@ export function collectIntegrityErrors(
     }
   }
 
-  // §25 #27: AnonymousHouse は worldgen 後に必ず 1 つ存在する
-  const anon = state.houses[ANONYMOUS_HOUSE_ID]
-  if (!anon) {
-    errors.push({
-      code: 'INTEGRITY_VIOLATION',
-      message: `AnonymousHouse ${ANONYMOUS_HOUSE_ID} does not exist (§25 #27)`,
-    })
-  } else if (anon.kind !== 'system') {
-    errors.push({
-      code: 'INTEGRITY_VIOLATION',
-      message: `AnonymousHouse ${ANONYMOUS_HOUSE_ID} kind=${anon.kind ?? 'normal'} expected 'system' (§25 #27)`,
-    })
-  }
-
-  // §25 #28: 全 placeholder Person の houseId は AnonymousHouse.id を指す
-  // v0.17 §21.4 A2: AnonymousHouse には normal Person も滞在してよい (旧 §25 #29 inverse / #31 廃止)
+  // v0.31 §16.2: placeholder は houseId を持たない
   for (const personIdStr of Object.keys(state.persons)) {
     const p = state.persons[personIdStr as PersonId]
     if (!p) continue
-    if (p.kind === 'placeholder') {
-      if (p.houseId !== ANONYMOUS_HOUSE_ID) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `Placeholder Person ${p.id} houseId=${p.houseId} expected ${ANONYMOUS_HOUSE_ID} (§25 #28)`,
-        })
-      }
+    if (p.kind === 'placeholder' && p.houseId !== undefined) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Placeholder Person ${p.id} has houseId=${p.houseId}, expected undefined`,
+      })
     }
   }
 
-  // §25 #29 also: normal House.memberIds は placeholder を含まない
+  // v0.31 §16.2: placeholder は House.memberIds に含まれてはならない
   for (const houseIdStr of Object.keys(state.houses)) {
     const houseId = houseIdStr as HouseId
     const h = state.houses[houseId]
-    if (!h || h.kind === 'system') continue
+    if (!h) continue
     for (const memberId of h.memberIds) {
       const p = state.persons[memberId]
       if (p && p.kind === 'placeholder') {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `Normal House ${houseId} contains placeholder member ${memberId} (§25 #29)`,
+          message: `House ${houseId} contains placeholder member ${memberId}`,
         })
       }
     }
   }
 
-  // §25 #30: AnonymousHouse は LandContract grantee / Polity.ownerHouseId / Share holder のいずれにもならない
-  for (const polityIdStr of Object.keys(state.polities)) {
-    const p = state.polities[polityIdStr as PolityId]
-    if (!p) continue
-    if (p.ownerHouseId === ANONYMOUS_HOUSE_ID) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Polity ${polityIdStr} ownerHouseId === AnonymousHouse (§25 #30)`,
-      })
+  // v0.31 §16.2: person.houseId ↔ House.memberIds 双方向整合 (alive person のみ)
+  for (const personIdStr of Object.keys(state.persons)) {
+    const p = state.persons[personIdStr as PersonId]
+    if (!p || !p.alive) continue
+    if (p.houseId) {
+      const h = state.houses[p.houseId]
+      if (h && !h.memberIds.includes(p.id)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Person ${p.id} has houseId=${p.houseId} but is not in House.memberIds`,
+        })
+      }
     }
   }
-  for (const shareIdStr of Object.keys(state.organizationShares)) {
-    const share = state.organizationShares[shareIdStr as import('../types/ids').OrganizationShareId]
-    if (!share) continue
-    if (share.holder.kind === 'house' && share.holder.id === ANONYMOUS_HOUSE_ID) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `OrganizationShare ${shareIdStr} holder is AnonymousHouse (§25 #30)`,
-      })
-    }
-  }
-
-  // v0.17 §21.4 A1: AnonymousHouse は active かつ kind === 'system'
-  if (anon) {
-    if (!anon.active) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `AnonymousHouse ${ANONYMOUS_HOUSE_ID} is not active (§21.4 A1)`,
-      })
+  for (const houseIdStr of Object.keys(state.houses)) {
+    const houseId = houseIdStr as HouseId
+    const h = state.houses[houseId]
+    if (!h) continue
+    for (const memberId of h.memberIds) {
+      const p = state.persons[memberId]
+      if (p && p.houseId !== houseId) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `House ${houseId} memberIds contains ${memberId} but person.houseId=${p.houseId ?? 'undefined'}`,
+        })
+      }
     }
   }
 
@@ -2397,6 +2378,7 @@ export function collectIntegrityErrors(
     if (!person || !person.alive) continue
     if (person.kind === 'placeholder') continue
     if (person.age < 15) continue // adultAge
+    if (!person.houseId) continue
 
     const house = state.houses[person.houseId]
     if (!house || !house.active) continue

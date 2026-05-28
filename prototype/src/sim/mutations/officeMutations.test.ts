@@ -8,7 +8,8 @@ import {
 import type { PolityId, HouseId, PersonId, OfficeAssignmentId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { expireOfficeTermAssignment } from './officeMutations'
-import { ANONYMOUS_HOUSE_ID } from '../types/house'
+
+const HOUSELESS_HOUSE_ID = 'h-anon' as HouseId
 
 function makeOfficeState(): {
   state: WorldState
@@ -23,7 +24,7 @@ function makeOfficeState(): {
   const officeId = createOfficeAssignmentId(10)
 
   const anon = {
-    id: ANONYMOUS_HOUSE_ID,
+    id: HOUSELESS_HOUSE_ID,
     nameKey: 'Anonymous',
     active: true,
     kind: 'system' as const,
@@ -55,7 +56,7 @@ function makeOfficeState(): {
       },
     },
     houses: {
-      [ANONYMOUS_HOUSE_ID]: anon,
+      [HOUSELESS_HOUSE_ID]: anon,
       [houseId]: {
         id: houseId,
         nameKey: 'H',
