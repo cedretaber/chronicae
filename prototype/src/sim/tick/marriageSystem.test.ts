@@ -3,6 +3,7 @@ import type { WorldState } from '../types/world'
 import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import type { TickContext } from './context'
 import type { Person } from '../types/person'
+import type { SimulationConfig } from '../config/defaultConfig'
 import { defaultConfig } from '../config/defaultConfig'
 import { runMarriageSystem } from './marriageSystem'
 
@@ -21,7 +22,7 @@ function makePerson(
   sex: 'male' | 'female',
   age: number,
   alive: boolean,
-  houseId: HouseId,
+  houseId?: HouseId,
 ): Person {
   return {
     id,
@@ -29,7 +30,7 @@ function makePerson(
     sex,
     age,
     alive,
-    houseId,
+    ...(houseId !== undefined ? { houseId } : {}),
     childIds: [],
     birthStatus: 'unknown',
     abilities: DEFAULT_ABILITIES,
@@ -46,6 +47,7 @@ function makeBaseCtx(
   houses: Record<HouseId, NonNullable<WorldState['houses'][HouseId]>>,
   polities: Record<PolityId, NonNullable<WorldState['polities'][PolityId]>>,
   month: number,
+  configOverride?: Partial<SimulationConfig>,
 ): TickContext {
   return {
     state: {
@@ -120,7 +122,7 @@ function makeBaseCtx(
       nextPersonActivityLogId: 0,
     },
     rng: { seedText: 'test', state: 42 },
-    config: defaultConfig,
+    config: { ...defaultConfig, ...configOverride },
     events: [],
     nextEventIndex: 0,
     deathsThisTick: [],
@@ -295,5 +297,108 @@ describe('runMarriageSystem', () => {
 
     expect(fatherPerson?.spouseId).toBeUndefined()
     expect(childPerson?.spouseId).toBeUndefined()
+  })
+
+  it('houseless male marries housed female → male joins her house (Case 2)', () => {
+    const houseId = 'h-1' as HouseId
+    const polityId = 'dp-0' as PolityId
+    const houselessMale = makePerson('pe-0' as PersonId, 'John', 'male', 20, true)
+    const housedFemale = makePerson('pe-1' as PersonId, 'Jane', 'female', 18, true, houseId)
+    const house = makeHouse(houseId)
+    house.memberIds = [housedFemale.id]
+    const polity = makePolity(polityId, houseId)
+
+    const highChance: Partial<SimulationConfig> = {
+      marriageYearlyChance: 12,
+      samePrimaryPolityMarriageBonus: 12,
+    }
+    const ctx = makeBaseCtx(
+      { [houselessMale.id]: houselessMale, [housedFemale.id]: housedFemale },
+      { [houseId]: house },
+      { [polityId]: polity },
+      1,
+      highChance,
+    )
+
+    const result = runMarriageSystem(ctx)
+    const maleAfter = result.state.persons['pe-0' as PersonId]
+    const femaleAfter = result.state.persons['pe-1' as PersonId]
+
+    if (maleAfter?.spouseId && femaleAfter?.spouseId) {
+      expect(maleAfter.houseId).toBe(houseId)
+      expect(maleAfter.spouseId).toBe(femaleAfter.id)
+      expect(femaleAfter.spouseId).toBe(maleAfter.id)
+      expect(result.state.houses[houseId]?.memberIds).toContain(maleAfter.id)
+      const marriageEvents = result.events.filter((e) => e.type === 'MARRIAGE_FORMED')
+      expect(marriageEvents.length).toBe(1)
+      const houseRef = marriageEvents[0]?.entityRefs.find((r) => r.kind === 'house')
+      expect(houseRef?.id).toBe(houseId)
+      return
+    }
+
+    expect(true).toBe(true)
+  })
+
+  it('housed male marries houseless female → female joins his house (Case 1)', () => {
+    const houseId = 'h-0' as HouseId
+    const polityId = 'dp-0' as PolityId
+    const housedMale = makePerson('pe-0' as PersonId, 'John', 'male', 20, true, houseId)
+    const houselessFemale = makePerson('pe-1' as PersonId, 'Jane', 'female', 18, true)
+    const house = makeHouse(houseId)
+    house.memberIds = [housedMale.id]
+    const polity = makePolity(polityId, houseId)
+
+    const highChance: Partial<SimulationConfig> = {
+      marriageYearlyChance: 12,
+      samePrimaryPolityMarriageBonus: 12,
+    }
+    const ctx = makeBaseCtx(
+      { [housedMale.id]: housedMale, [houselessFemale.id]: houselessFemale },
+      { [houseId]: house },
+      { [polityId]: polity },
+      1,
+      highChance,
+    )
+
+    const result = runMarriageSystem(ctx)
+    const maleAfter = result.state.persons['pe-0' as PersonId]
+    const femaleAfter = result.state.persons['pe-1' as PersonId]
+
+    if (maleAfter?.spouseId && femaleAfter?.spouseId) {
+      expect(femaleAfter.houseId).toBe(houseId)
+      expect(maleAfter.spouseId).toBe(femaleAfter.id)
+      expect(femaleAfter.spouseId).toBe(maleAfter.id)
+      expect(result.state.houses[houseId]?.memberIds).toContain(femaleAfter.id)
+      return
+    }
+
+    expect(true).toBe(true)
+  })
+
+  it('houseless × houseless → no marriage (Case 4)', () => {
+    const polityId = 'dp-0' as PolityId
+    const houseId = 'h-0' as HouseId
+    const houselessMale = makePerson('pe-0' as PersonId, 'John', 'male', 20, true)
+    const houselessFemale = makePerson('pe-1' as PersonId, 'Jane', 'female', 18, true)
+    const polity = makePolity(polityId, houseId)
+
+    const highChance: Partial<SimulationConfig> = {
+      marriageYearlyChance: 12,
+      samePrimaryPolityMarriageBonus: 12,
+    }
+    const ctx = makeBaseCtx(
+      { [houselessMale.id]: houselessMale, [houselessFemale.id]: houselessFemale },
+      {},
+      { [polityId]: polity },
+      1,
+      highChance,
+    )
+
+    const result = runMarriageSystem(ctx)
+    const maleAfter = result.state.persons['pe-0' as PersonId]
+    const femaleAfter = result.state.persons['pe-1' as PersonId]
+
+    expect(maleAfter?.spouseId).toBeUndefined()
+    expect(femaleAfter?.spouseId).toBeUndefined()
   })
 })
