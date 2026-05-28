@@ -14,13 +14,13 @@ export function getAppointmentTaskModifier(
   let modifier = 0
 
   // Check if person has an active obtain_office or retain_office Aim targeting this office
-  for (const [, aim] of Object.entries(state.aims)) {
+  const ownerKey = `person:${personId}`
+  const aimIds = state.aimIndex.byOwner[ownerKey] ?? []
+  for (const aimId of aimIds) {
+    const aim = state.aims[aimId]
     if (!aim || aim.status !== 'active') continue
-    if (aim.owner.kind !== 'person') continue
-    if ((aim.owner.id as string) !== (personId as string)) continue
 
     if (aim.kind === 'obtain_office' || aim.kind === 'retain_office') {
-      // Check if target matches this organization + role
       if (aim.target && aim.target.kind === 'office') {
         const targetOrg = aim.target.organization
         if (

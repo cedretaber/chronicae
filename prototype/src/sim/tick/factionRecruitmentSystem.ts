@@ -18,24 +18,9 @@ import { addPersonWealth } from '../mutations/personMutations'
 import { setPersonAttitude } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 
-// v0.17 §12: FactionRecruitmentSystem (yearly, Jan, after FactionLifecycle)
-export function runFactionRecruitmentSystem(ctx: TickContext): TickContext {
-  let currentCtx = ctx
-  for (const faction of getActiveFactions(currentCtx.state)) {
-    currentCtx = recruitForFaction(currentCtx, faction.id)
-  }
-  return currentCtx
-}
-
-function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext {
-  const faction = ctx.state.factions[factionId]
-  if (!faction || !faction.active) return ctx
-  const leader = ctx.state.persons[faction.leaderPersonId]
-  if (!leader || !leader.alive) return ctx
+function buildRecruitmentBasePool(ctx: TickContext): PersonId[] {
   const config = ctx.config
-
-  // candidate pool §12.3
-  const candidates: { personId: PersonId; score: number }[] = []
+  const result: PersonId[] = []
   for (const pid of Object.keys(ctx.state.persons).sort() as PersonId[]) {
     const p = ctx.state.persons[pid]
     if (!p || !p.alive) continue
@@ -45,7 +30,6 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
     if (getActiveFactionMembership(ctx.state, pid)) continue
     if (getFactionByLeader(ctx.state, pid)) continue
 
-    // Check for active office
     const officeIds = ctx.state.officeIndex.byHolderPerson[pid] ?? []
     let hasActiveOffice = false
     for (const oid of officeIds) {
@@ -56,7 +40,36 @@ function recruitForFaction(ctx: TickContext, factionId: FactionId): TickContext 
       }
     }
     if (hasActiveOffice) continue
+    result.push(pid)
+  }
+  return result
+}
 
+// v0.17 §12: FactionRecruitmentSystem (yearly, Jan, after FactionLifecycle)
+export function runFactionRecruitmentSystem(ctx: TickContext): TickContext {
+  let currentCtx = ctx
+  const basePool = buildRecruitmentBasePool(ctx)
+  for (const faction of getActiveFactions(currentCtx.state)) {
+    currentCtx = recruitForFaction(currentCtx, faction.id, basePool)
+  }
+  return currentCtx
+}
+
+function recruitForFaction(
+  ctx: TickContext,
+  factionId: FactionId,
+  basePool: PersonId[],
+): TickContext {
+  const faction = ctx.state.factions[factionId]
+  if (!faction || !faction.active) return ctx
+  const leader = ctx.state.persons[faction.leaderPersonId]
+  if (!leader || !leader.alive) return ctx
+  const config = ctx.config
+
+  const candidates: { personId: PersonId; score: number }[] = []
+  for (const pid of basePool) {
+    const p = ctx.state.persons[pid]
+    if (!p || !p.alive) continue
     const score = computeRecruitmentScore(ctx, leader, p)
     candidates.push({ personId: pid, score })
   }

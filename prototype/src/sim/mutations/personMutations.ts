@@ -7,6 +7,7 @@ import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
 import { clearSpouse } from './relationshipMutations'
 import { revokeOfficesByHolder } from './officeMutations'
+import { removePersonSharesInHouse } from './shareMutations'
 import { buildPerson } from '../helpers/personFactory'
 import { sampleAbilitiesFromAptitudes } from '../selectors/abilitySelectors'
 
@@ -94,15 +95,21 @@ export function movePersonToHouse(
     return ok(state)
   }
 
-  const newPersons = { ...state.persons }
+  let current = state
+  // Clean up shares in old house before moving
+  if (person.houseId) {
+    current = removePersonSharesInHouse(current, personId, person.houseId)
+  }
+
+  const newPersons = { ...current.persons }
   newPersons[personId] = {
     ...person,
     houseId: newHouseId,
   }
 
-  const newHouses = { ...state.houses }
+  const newHouses = { ...current.houses }
   if (person.houseId) {
-    const oldHouse = state.houses[person.houseId]
+    const oldHouse = current.houses[person.houseId]
     if (oldHouse) {
       newHouses[oldHouse.id] = {
         ...oldHouse,
@@ -116,7 +123,7 @@ export function movePersonToHouse(
   }
 
   return ok({
-    ...state,
+    ...current,
     persons: newPersons,
     houses: newHouses,
   })

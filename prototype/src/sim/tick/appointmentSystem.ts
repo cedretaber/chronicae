@@ -20,7 +20,7 @@ import type { FactionId } from '../types/ids'
 import type { Polity } from '../types/polity'
 import type { House } from '../types/house'
 import { getRoleScore } from '../selectors/abilitySelectors'
-import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
+import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import {
   hasRelevantFactionForAppointment,
   getFactionalCandidateScore,
@@ -46,37 +46,65 @@ function getRelevantStat(state: WorldState, personId: PersonId, role: OfficeRole
 }
 
 // ---------------------------------------------------------------------------
-// v0.17 §14.6: Traditional pool collection (system House exclusion removed)
+// v0.17 §14.6: Pre-computed polity candidate cache
 // ---------------------------------------------------------------------------
 
-function collectPolityCandidatesTraditional(
+type PolityCandidateCache = Map<string, PersonId[]>
+
+function buildPolityCandidateCache(
   state: WorldState,
   config: SimulationConfig,
-  polity: Polity,
-  alreadyHolding: Set<string>,
-): PersonId[] {
-  void config
-  const result: PersonId[] = []
+): PolityCandidateCache {
+  const housePrimaryPolity = new Map<string, PolityId>()
+  for (const houseId of Object.keys(state.houses)) {
+    const h = state.houses[houseId as HouseId]
+    if (!h || !h.active) continue
+    const polityId = getHousePrimaryPolityId(state, houseId as HouseId)
+    if (polityId) housePrimaryPolity.set(houseId, polityId)
+  }
+
+  const ownerHousePolities = new Map<string, PolityId[]>()
+  for (const polityId of Object.keys(state.polities)) {
+    const polity = state.polities[polityId as PolityId]
+    if (!polity || !polity.active) continue
+    if (polity.ownerHouseId !== undefined) {
+      const list = ownerHousePolities.get(polity.ownerHouseId) ?? []
+      list.push(polityId as PolityId)
+      ownerHousePolities.set(polity.ownerHouseId, list)
+    }
+  }
+
+  const cache: PolityCandidateCache = new Map()
   for (const pidStr of Object.keys(state.persons).sort()) {
     const pid = pidStr as PersonId
     const p = state.persons[pid]
     if (!p || !p.alive) continue
     if (p.kind === 'placeholder') continue
     if (p.age < config.adultAge) continue
-    if (alreadyHolding.has(pid)) continue
-    // v0.17.1 §15.3: active Bailiff (HoldingOffice) 保有者は候補外
     if (hasActiveHoldingOffice(state, pid)) continue
     if (!p.houseId) continue
     const house = state.houses[p.houseId]
     if (!house || !house.active) continue
-    // v0.17 §14.6: system House 所属者除外を撤廃 (placeholder のみ除外)
-    const personPrimaryPolityId = getPersonPrimaryPolityId(state, pid)
-    const isOwnerHouseMember =
-      polity.ownerHouseId !== undefined && p.houseId === polity.ownerHouseId
-    if (personPrimaryPolityId !== polity.id && !isOwnerHouseMember) continue
-    result.push(pid)
+
+    const addedPolities = new Set<string>()
+    const primaryPolity = housePrimaryPolity.get(p.houseId)
+    if (primaryPolity) {
+      const list = cache.get(primaryPolity) ?? []
+      list.push(pid)
+      cache.set(primaryPolity, list)
+      addedPolities.add(primaryPolity)
+    }
+    const ownerPolities = ownerHousePolities.get(p.houseId)
+    if (ownerPolities) {
+      for (const polityId of ownerPolities) {
+        if (addedPolities.has(polityId)) continue
+        const list = cache.get(polityId) ?? []
+        list.push(pid)
+        cache.set(polityId, list)
+      }
+    }
   }
-  return result
+  return cache
 }
 
 function collectHouseCandidatesTraditional(
@@ -257,6 +285,7 @@ function tryAppointPolityOffice(
   polity: Polity,
   rulerId: PersonId,
   role: OfficeRole,
+  cachedCandidates: PersonId[],
 ): TickContext {
   const config = ctx.config
   const polityRef: OrganizationRef = { kind: 'polity', id: polity.id }
@@ -300,14 +329,9 @@ function tryAppointPolityOffice(
     }
   }
 
-  // 3. traditional fallback
+  // 3. traditional fallback (uses pre-computed candidate cache)
   if (!best) {
-    const candidates = collectPolityCandidatesTraditional(
-      currentCtx.state,
-      config,
-      polity,
-      alreadyHolding,
-    )
+    const candidates = cachedCandidates.filter((id) => !alreadyHolding.has(id as string))
     const scored = candidates.map((id) => ({
       id,
       score: computePolityScoreV017(currentCtx.state, config, polity, rulerId, id, role),
@@ -357,6 +381,7 @@ function tryAppointHouseOffice(
   house: House,
   leaderId: PersonId,
   role: OfficeRole,
+  getFactionalCandidates: () => { factionId: FactionId; candidateId: PersonId }[] | null,
 ): TickContext {
   const config = ctx.config
   const houseRef: OrganizationRef = { kind: 'house', id: house.id }
@@ -378,9 +403,10 @@ function tryAppointHouseOffice(
 
   let best: { id: PersonId; score: number } | undefined
 
-  // 2. factional path
-  if (hasRelevantFactionForAppointment(currentCtx.state, config, houseRef, role)) {
-    const factional = collectFactionalCandidates(currentCtx.state, config, houseRef, role).filter(
+  // 2. factional path (lazy-computed once per house, shared across roles)
+  const cachedFactionalCandidates = getFactionalCandidates()
+  if (cachedFactionalCandidates) {
+    const factional = cachedFactionalCandidates.filter(
       (c) => !alreadyHolding.has(c.candidateId as string),
     )
     const scored = factional.map((c) => ({
@@ -448,6 +474,8 @@ function tryAppointHouseOffice(
 export function runAppointmentSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
+  const polityCandidateCache = buildPolityCandidateCache(currentCtx.state, currentCtx.config)
+
   // Polity offices
   for (const polityId of Object.keys(currentCtx.state.polities).sort()) {
     const polity = currentCtx.state.polities[polityId as PolityId]
@@ -456,8 +484,9 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
     const rulerId = getPolityLeader(currentCtx.state, polityId as PolityId)
     if (!rulerId) continue
 
+    const cachedCandidates = polityCandidateCache.get(polityId) ?? []
     for (const role of POLITY_APPOINTABLE_ROLES) {
-      currentCtx = tryAppointPolityOffice(currentCtx, polity, rulerId, role)
+      currentCtx = tryAppointPolityOffice(currentCtx, polity, rulerId, role, cachedCandidates)
     }
   }
 
@@ -470,8 +499,38 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
     const leaderId = getHouseLeader(currentCtx.state, houseId as HouseId)
     if (!leaderId) continue
 
+    // Lazily compute factional candidates (once per house, shared across roles)
+    let factionalCandidatesComputed = false
+    let factionalCandidates: { factionId: FactionId; candidateId: PersonId }[] | null = null
+    const getHouseFactionalCandidates = () => {
+      if (!factionalCandidatesComputed) {
+        factionalCandidatesComputed = true
+        const houseRef: OrganizationRef = { kind: 'house', id: house.id }
+        factionalCandidates = hasRelevantFactionForAppointment(
+          currentCtx.state,
+          currentCtx.config,
+          houseRef,
+          'administrator',
+        )
+          ? collectFactionalCandidates(
+              currentCtx.state,
+              currentCtx.config,
+              houseRef,
+              'administrator',
+            )
+          : null
+      }
+      return factionalCandidates
+    }
+
     for (const role of HOUSE_APPOINTABLE_ROLES) {
-      currentCtx = tryAppointHouseOffice(currentCtx, house, leaderId, role)
+      currentCtx = tryAppointHouseOffice(
+        currentCtx,
+        house,
+        leaderId,
+        role,
+        getHouseFactionalCandidates,
+      )
     }
   }
 
