@@ -116,6 +116,8 @@ export type EventType =
   | 'PRESSURE_CREATED'
   | 'PRESSURE_RESOLVED'
   | 'PRESSURE_CANCELLED'
+  // v0.31 House Founding
+  | 'HOUSE_FOUNDED'
 
 export type EventReason = {
   label: string
@@ -361,6 +363,7 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'person.aim.failed': '{{owner}} failed at {{kind}}.',
   'task.cancelled': "{{person}}'s task {{task}} was cancelled ({{reason}}).",
   'task.review_waiting': '{{person}} is waiting for an opportunity regarding {{kind}}.',
+  'house.founded': '{{person}} founded the house {{house}}.',
 }
 
 export type EventImportance = 'minor' | 'normal' | 'major' | 'critical'

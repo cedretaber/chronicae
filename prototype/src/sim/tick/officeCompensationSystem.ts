@@ -1,83 +1,70 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
-import type { OfficeAssignmentId } from '@sim/types/ids'
+import type { OfficeAssignmentId, PolityId, HouseId, PersonId } from '@sim/types/ids'
 import type { SimEvent } from '@sim/types/event'
 import { entityRef } from '@sim/types/event'
 import { getOfficeDefinition } from '@sim/config/officeDefinitions'
-import { adjustPersonAttitude } from '@sim/mutations/attitudeMutations'
 import type { WorldState } from '@sim/types/world'
+import type { Person } from '@sim/types/person'
+import type { Polity } from '@sim/types/polity'
+import type { House } from '@sim/types/house'
+import type { OfficeAssignment } from '@sim/types/office'
 
 const COMPENSATION_CALLS_PER_YEAR = 12
 
 export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
-  let state = ctx.state
+  const state = ctx.state
   const config = ctx.config
   const events: SimEvent[] = [...ctx.events]
 
+  const personsMut = { ...state.persons } as Record<PersonId, Person>
+  const politiesMut = { ...state.polities } as Record<PolityId, Polity>
+  const housesMut = { ...state.houses } as Record<HouseId, House>
+  const officesMut = { ...state.officeAssignments } as Record<OfficeAssignmentId, OfficeAssignment>
+
+  let currentCtx = ctx
+
   for (const officeId of Object.keys(state.officeAssignments)) {
-    const office = state.officeAssignments[officeId as OfficeAssignmentId]
+    const office = officesMut[officeId as OfficeAssignmentId]
     if (!office || !office.active) continue
 
     const def = getOfficeDefinition(office.organization.kind, office.role)
     if (!def || def.baseSalary <= 0) continue
 
     const due = def.baseSalary / COMPENSATION_CALLS_PER_YEAR
-    const person = state.persons[office.holderPersonId]
+    const person = personsMut[office.holderPersonId]
     if (!person) continue
 
     let payerFunds: number
-    let updatePayer: (funds: number) => WorldState
     const org = office.organization
 
     if (org.kind === 'polity') {
-      const polity = state.polities[org.id]
+      const polity = politiesMut[org.id]
       if (!polity) continue
       payerFunds = polity.treasury
-      updatePayer = (funds: number) => ({
-        ...state,
-        polities: {
-          ...state.polities,
-          [org.id]: { ...polity, treasury: funds },
-        },
-      })
     } else {
-      const house = state.houses[org.id]
+      const house = housesMut[org.id]
       if (!house) continue
       payerFunds = house.wealth
-      updatePayer = (funds: number) => ({
-        ...state,
-        houses: {
-          ...state.houses,
-          [org.id]: { ...house, wealth: funds },
-        },
-      })
     }
 
     const paid = Math.min(due, Math.max(0, payerFunds))
     const unpaid = due - paid
 
-    // Pay the person
-    state = updatePayer(payerFunds - paid)
-    const updatedPerson = state.persons[office.holderPersonId]
-    if (updatedPerson) {
-      state = {
-        ...state,
-        persons: {
-          ...state.persons,
-          [office.holderPersonId]: {
-            ...updatedPerson,
-            wealth: updatedPerson.wealth + paid,
-          },
-        },
-      }
+    if (org.kind === 'polity') {
+      const polity = politiesMut[org.id]
+      if (polity) politiesMut[org.id] = { ...polity, treasury: polity.treasury - paid }
+    } else {
+      const house = housesMut[org.id]
+      if (house) housesMut[org.id] = { ...house, wealth: house.wealth - paid }
     }
 
-    // Update unpaidCount
+    personsMut[office.holderPersonId] = { ...person, wealth: person.wealth + paid }
+
     let newUnpaidCount: number
     if (unpaid > 0) {
       newUnpaidCount = office.unpaidCount + 1
 
-      // Apply Attitude penalty (reduced by dignity)
       const dignityReduction =
         (def.baseDignityPower / 100) * config.officeDignityUnpaidPenaltyReduction
       const affPenalty =
@@ -85,49 +72,50 @@ export function runOfficeCompensationSystem(ctx: TickContext): TickContext {
       const resPenalty =
         (config.officeUnpaidRespectPenalty / COMPENSATION_CALLS_PER_YEAR) * (1 - dignityReduction)
 
-      const orgTarget =
-        org.kind === 'polity'
-          ? { kind: 'polity' as const, id: org.id }
-          : { kind: 'house' as const, id: org.id }
+      const attKey = org.kind === 'polity' ? `polity:${org.id}` : `house:${org.id}`
+      const currentPerson = personsMut[office.holderPersonId]
+      if (currentPerson) {
+        const currentAtt = currentPerson.attitudes[attKey]
+        const newAff = (currentAtt?.affection ?? 0) + affPenalty
+        const newRes = (currentAtt?.respect ?? 0) + resPenalty
+        personsMut[office.holderPersonId] = {
+          ...currentPerson,
+          attitudes: {
+            ...currentPerson.attitudes,
+            [attKey]: { affection: newAff, respect: newRes },
+          },
+        }
+      }
 
-      const r = adjustPersonAttitude(state, office.holderPersonId, orgTarget, {
-        affection: affPenalty,
-        respect: resPenalty,
-      })
-      if (r.ok) state = r.value
-
-      // Emit OFFICE_SALARY_UNPAID or OFFICE_SALARY_PARTIALLY_PAID event
       const eventType = paid > 0 ? 'OFFICE_SALARY_PARTIALLY_PAID' : 'OFFICE_SALARY_UNPAID'
       const evMessageKey = paid > 0 ? 'office.salary_partially_paid' : 'office.salary_unpaid'
-      const holder = state.persons[office.holderPersonId]
-      const { event, ctx: ec } = createSimEvent(
-        { ...ctx, state, events },
-        {
-          type: eventType,
-          importance: 'minor',
-          messageKey: evMessageKey,
-          messageParams: {},
-          entityRefs: [
-            entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
-            ...(org.kind === 'polity' ? [entityRef('polity', org.id, 'organization')] : []),
-          ],
-        },
-      )
+      const holder = personsMut[office.holderPersonId]
+      const { event, ctx: ec } = createSimEvent(currentCtx, {
+        type: eventType,
+        importance: 'minor',
+        messageKey: evMessageKey,
+        messageParams: {},
+        entityRefs: [
+          entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
+          ...(org.kind === 'polity' ? [entityRef('polity', org.id, 'organization')] : []),
+        ],
+      })
       events.push(event)
-      ctx = { ...ec, state, events }
+      currentCtx = ec
     } else {
       newUnpaidCount = Math.max(0, office.unpaidCount - 1)
     }
 
-    // Update office unpaidCount
-    state = {
-      ...state,
-      officeAssignments: {
-        ...state.officeAssignments,
-        [officeId]: { ...office, unpaidCount: newUnpaidCount },
-      },
-    }
+    officesMut[officeId as OfficeAssignmentId] = { ...office, unpaidCount: newUnpaidCount }
   }
 
-  return { ...ctx, state, events }
+  const newState: WorldState = {
+    ...state,
+    persons: personsMut,
+    polities: politiesMut,
+    houses: housesMut,
+    officeAssignments: officesMut,
+  }
+
+  return { ...currentCtx, state: newState, events }
 }

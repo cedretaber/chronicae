@@ -9,8 +9,8 @@ import { ok, err } from './result'
 
 export type CreateHouseInput = {
   nameKey: string
-  polityId: PolityId
-  seatProvinceId?: ProvinceId
+  polityId?: PolityId
+  seatProvinceId: ProvinceId
   founderId?: PersonId
   parentHouseId?: HouseId
   legacyPrestige?: number
@@ -21,7 +21,7 @@ export function createHouse(
   ctx: TickContext,
   input: CreateHouseInput,
 ): CtxResult<{ houseId: HouseId }> {
-  if (!ctx.state.polities[input.polityId])
+  if (input.polityId && !ctx.state.polities[input.polityId])
     return err({
       code: 'POLITY_NOT_FOUND',
       message: 'createHouse: polity not found: ' + input.polityId,
@@ -38,7 +38,7 @@ export function createHouse(
     cadetHouseIds: [],
     legacyPrestige: input.legacyPrestige ?? 0,
     wealth: input.wealth ?? 0,
-    seatProvinceId: input.seatProvinceId ?? ('' as ProvinceId),
+    seatProvinceId: input.seatProvinceId,
   }
   const houseWithOptionals: House = {
     ...houseBase,

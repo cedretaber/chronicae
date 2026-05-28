@@ -150,9 +150,13 @@ function makeCtx(state: WorldState): TickContext {
 
 describe('createHouse', () => {
   it('creates a house with correct initial values', () => {
-    const { state, polity1Id } = makeFixture()
+    const { state, polity1Id, provinceId } = makeFixture()
     const ctx = makeCtx(state)
-    const result = createHouse(ctx, { nameKey: 'New House', polityId: polity1Id })
+    const result = createHouse(ctx, {
+      nameKey: 'New House',
+      polityId: polity1Id,
+      seatProvinceId: provinceId,
+    })
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -166,11 +170,12 @@ describe('createHouse', () => {
   })
 
   it('updates parent house cadetHouseIds when parentHouseId is given', () => {
-    const { state, polity1Id, house1Id } = makeFixture()
+    const { state, polity1Id, house1Id, provinceId } = makeFixture()
     const ctx = makeCtx(state)
     const result = createHouse(ctx, {
       nameKey: 'Cadet House',
       polityId: polity1Id,
+      seatProvinceId: provinceId,
       parentHouseId: house1Id,
     })
 
@@ -183,12 +188,35 @@ describe('createHouse', () => {
   })
 
   it('returns err when polity not found', () => {
-    const { state } = makeFixture()
+    const { state, provinceId } = makeFixture()
     const ctx = makeCtx(state)
-    const result = createHouse(ctx, { nameKey: 'X', polityId: createPolityId('c', 99) })
+    const result = createHouse(ctx, {
+      nameKey: 'X',
+      polityId: createPolityId('c', 99),
+      seatProvinceId: provinceId,
+    })
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('POLITY_NOT_FOUND')
+  })
+
+  it('creates house without polityId (houseless founding)', () => {
+    const { state, provinceId } = makeFixture()
+    const ctx = makeCtx(state)
+    const result = createHouse(ctx, {
+      nameKey: 'Self-Made House',
+      seatProvinceId: provinceId,
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { houseId } = result.value.value
+    const newHouse = result.value.ctx.state.houses[houseId]
+    expect(newHouse).toBeDefined()
+    expect(newHouse!.nameKey).toBe('Self-Made House')
+    expect(newHouse!.seatProvinceId).toBe(provinceId)
+    expect(newHouse!.active).toBe(true)
   })
 })
 

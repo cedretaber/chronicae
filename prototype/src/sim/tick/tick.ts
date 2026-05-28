@@ -45,6 +45,7 @@ import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { runPersonGrowthSystem } from './personGrowthSystem'
 import { runEstateSettlementSystem } from './estateSettlementSystem'
 import { runHouseSurplusDistributionSystem } from './houseSurplusDistributionSystem'
+import { runHouseFoundingSystem } from './houseFoundingSystem'
 import { runHouselessPersonGenerationSystem } from './houselessPersonGenerationSystem'
 import { runOfficeTermSystem } from './officeTermSystem'
 import { runFactionLifecycleSystem } from './factionLifecycleSystem'
@@ -150,6 +151,12 @@ const scheduledSystems: ScheduledSystem[] = [
   { name: 'successionSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runSuccessionSystem },
   { name: 'marriageSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runMarriageSystem },
   { name: 'birthSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runBirthSystem },
+  {
+    name: 'houseFoundingSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runHouseFoundingSystem,
+  },
   {
     name: 'houselessPersonGenerationSystem',
     intervalWeeks: 4,

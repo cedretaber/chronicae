@@ -1,5 +1,7 @@
 import type { TickContext } from './context'
-import type { PolityId, HouseId } from '@sim/types/ids'
+import type { PersonId, PolityId, HouseId } from '@sim/types/ids'
+import type { WorldState } from '@sim/types/world'
+import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { OrganizationRef } from '@sim/types/office'
 import {
   removeOrganizationShare,
@@ -116,32 +118,12 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
     }
 
     // Update living persons
-    const houseOfficeAssignments = getOfficeAssignments(state, houseRef)
-
     for (const personId of house.memberIds) {
       const person = state.persons[personId]
       if (!person || !person.alive) continue
 
       const isLeader = personId === leaderId
-      const hasOffice =
-        houseOfficeAssignments.some((o) => o.active && o.holderPersonId === personId) ||
-        (() => {
-          const housePrimaryPolityId = getHousePrimaryPolityId(state, houseId)
-          if (!housePrimaryPolityId) return false
-          return getOfficeAssignments(state, { kind: 'polity', id: housePrimaryPolityId }).some(
-            (o) => o.active && o.holderPersonId === personId,
-          )
-        })()
-
-      const newRawPower =
-        config.houseShareBase +
-        (isLeader ? config.houseShareLeaderBonus : 0) +
-        (hasOffice ? config.houseShareOfficeBonus : 0) +
-        person.legacyPrestige * config.houseSharePrestigeFactor +
-        person.wealth * config.houseShareWealthFactor +
-        (getRoleScore(state, person.id, 'governance') / 10 +
-          getRoleScore(state, person.id, 'warCommand') / 10) *
-          config.houseShareStatFactor
+      const newRawPower = computeHouseShareRawPower(state, config, houseId, personId, isLeader)
 
       const upsertResult = upsertOrganizationShare(state, {
         organization: houseRef,
@@ -153,4 +135,38 @@ export function runShareUpdateSystem(ctx: TickContext): TickContext {
   }
 
   return { ...ctx, state }
+}
+
+export function computeHouseShareRawPower(
+  state: WorldState,
+  config: SimulationConfig,
+  houseId: HouseId,
+  personId: PersonId,
+  isLeader: boolean,
+): number {
+  const person = state.persons[personId]
+  if (!person) return 0
+
+  const houseRef: OrganizationRef = { kind: 'house', id: houseId }
+  const houseOfficeAssignments = getOfficeAssignments(state, houseRef)
+  const hasOffice =
+    houseOfficeAssignments.some((o) => o.active && o.holderPersonId === personId) ||
+    (() => {
+      const housePrimaryPolityId = getHousePrimaryPolityId(state, houseId)
+      if (!housePrimaryPolityId) return false
+      return getOfficeAssignments(state, { kind: 'polity', id: housePrimaryPolityId }).some(
+        (o) => o.active && o.holderPersonId === personId,
+      )
+    })()
+
+  return (
+    config.houseShareBase +
+    (isLeader ? config.houseShareLeaderBonus : 0) +
+    (hasOffice ? config.houseShareOfficeBonus : 0) +
+    person.legacyPrestige * config.houseSharePrestigeFactor +
+    person.wealth * config.houseShareWealthFactor +
+    (getRoleScore(state, person.id, 'governance') / 10 +
+      getRoleScore(state, person.id, 'warCommand') / 10) *
+      config.houseShareStatFactor
+  )
 }

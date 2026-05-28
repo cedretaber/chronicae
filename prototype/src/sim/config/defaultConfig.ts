@@ -631,6 +631,21 @@ export type SimulationConfig = {
   improvementLevelProgressMultiplier: Record<number, number>
   projectBudgetMarginMultiplier: number
   projectCompletedRespectGain: number
+  // v0.31 House Founding
+  houseFoundingEnabled: boolean
+  houseFoundingMinWealth: number
+  houseFoundingMinPrestige: number
+  houseFoundingMinActivityLogs: number
+  houseFoundingMonthlyChance: number
+  houseFoundingMaxPerMonth: number
+  houseFoundingWealthTransferRate: number
+  // v0.31 Founder Family Generation
+  founderFamilyGenerationEnabled: boolean
+  founderSpouseChanceYoung: number
+  founderSpouseChanceMid: number
+  founderSpouseChanceOld: number
+  founderChildBaseChance: number
+  founderMaxGeneratedChildren: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -1303,4 +1318,19 @@ export const defaultConfig: SimulationConfig = {
   improvementLevelProgressMultiplier: { 1: 1, 2: 2, 3: 3 },
   projectBudgetMarginMultiplier: 2,
   projectCompletedRespectGain: 5,
+  // v0.31 House Founding
+  houseFoundingEnabled: true,
+  houseFoundingMinWealth: 120,
+  houseFoundingMinPrestige: 45,
+  houseFoundingMinActivityLogs: 3,
+  houseFoundingMonthlyChance: 0.04,
+  houseFoundingMaxPerMonth: 2,
+  houseFoundingWealthTransferRate: 0.5,
+  // v0.31 Founder Family Generation
+  founderFamilyGenerationEnabled: true,
+  founderSpouseChanceYoung: 0.2,
+  founderSpouseChanceMid: 0.7,
+  founderSpouseChanceOld: 0.85,
+  founderChildBaseChance: 0.6,
+  founderMaxGeneratedChildren: 4,
 }
