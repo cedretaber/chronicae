@@ -34,6 +34,22 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   const log = createLogger(ctx.config.debug)
 
   if (!houseSplitEnabled) return ctx
+
+  // Phase D: cooldown check
+  if (house.lastSplitWeek !== undefined) {
+    const weeksSince = ctx.state.absoluteWeek - house.lastSplitWeek
+    if (weeksSince < ctx.config.houseSplitCooldownWeeks) {
+      log.log('HOUSE_SPLIT', {
+        year: ctx.state.currentYear,
+        weekOfYear: ctx.state.currentWeekOfYear,
+        house: input.houseId,
+        result: 'skipped',
+        reason: 'cooldown',
+      })
+      return ctx
+    }
+  }
+
   if (getHouseControlledProvinceIds(ctx.state, house.id).length < minProvincesForHouseSplit)
     return ctx
   if (input.splitCandidates.length < 1) return ctx
@@ -81,12 +97,13 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   const result = splitHouse(ctxAfterRoll, {
     houseId: input.houseId,
     splitterPersonId: splitter.person.id,
+    fromSuccession: true,
   })
   if (!result.ok) return ctxAfterRoll
   return result.value.ctx
 }
 
-function chooseSplitter(
+export function chooseSplitter(
   state: WorldState,
   candidates: SuccessionCandidate[],
   config: import('../config/defaultConfig').SimulationConfig,

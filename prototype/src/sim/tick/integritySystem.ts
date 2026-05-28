@@ -164,6 +164,16 @@ export function collectIntegrityErrors(
         })
       }
     }
+    // Phase D §13.4: house share holder person must belong to that house
+    if (share.organization.kind === 'house' && share.holder.kind === 'person') {
+      const holderPerson = state.persons[share.holder.id]
+      if (holderPerson && holderPerson.alive && holderPerson.houseId !== share.organization.id) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `OrganizationShare ${shareId} holder Person ${share.holder.id} has houseId=${holderPerson.houseId ?? 'undefined'} but share org is house:${share.organization.id}`,
+        })
+      }
+    }
   }
 
   // 2. OfficeAssignment integrity

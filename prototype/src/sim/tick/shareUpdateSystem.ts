@@ -7,6 +7,7 @@ import {
   removeOrganizationShare,
   transferShareRawPower,
   upsertOrganizationShare,
+  createOrganizationShare,
 } from '@sim/mutations/shareMutations'
 import { getOrganizationShares } from '@sim/selectors/shareSelectors'
 import { getHouseLeader } from '@sim/selectors/officeSelectors'
@@ -169,4 +170,29 @@ export function computeHouseShareRawPower(
       getRoleScore(state, person.id, 'warCommand') / 10) *
       config.houseShareStatFactor
   )
+}
+
+export function initializeHouseShares(
+  state: WorldState,
+  config: SimulationConfig,
+  houseId: HouseId,
+): WorldState {
+  const house = state.houses[houseId]
+  if (!house) return state
+
+  const leaderId = getHouseLeader(state, houseId)
+  let current = state
+  for (const personId of house.memberIds) {
+    const person = current.persons[personId]
+    if (!person || !person.alive) continue
+    const isLeader = personId === leaderId
+    const rawPower = computeHouseShareRawPower(current, config, houseId, personId, isLeader)
+    current = createOrganizationShare(
+      current,
+      { kind: 'house', id: houseId },
+      { kind: 'person', id: personId },
+      rawPower,
+    )
+  }
+  return current
 }

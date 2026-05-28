@@ -7,8 +7,7 @@ import type { RngState } from '../rng/rng'
 import { randomFloat, randomInt, shuffle } from '../rng/rng'
 import { getHouselessPersons } from '../selectors/availabilitySelectors'
 import { createOfficeAssignment } from '../mutations/officeMutations'
-import { createOrganizationShare } from '../mutations/shareMutations'
-import { computeHouseShareRawPower } from './shareUpdateSystem'
+import { initializeHouseShares } from './shareUpdateSystem'
 import { samplePerson } from '../helpers/personFactory'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { createLogger } from '../debug/logger'
@@ -112,7 +111,10 @@ export function runHouseFoundingSystem(ctx: TickContext): TickContext {
       currentCtx = generateFounderFamily(currentCtx, candidateId, newHouseId)
     }
 
-    currentCtx = initializeHouseShares(currentCtx, newHouseId)
+    currentCtx = {
+      ...currentCtx,
+      state: initializeHouseShares(currentCtx.state, currentCtx.config, newHouseId),
+    }
 
     const house = currentCtx.state.houses[newHouseId]
     const founder = currentCtx.state.persons[candidateId]
@@ -393,28 +395,4 @@ function generateFounderFamily(
   }
 
   return currentCtx
-}
-
-function initializeHouseShares(ctx: TickContext, houseId: HouseId): TickContext {
-  const house = ctx.state.houses[houseId]
-  if (!house) return ctx
-
-  const leaderId = house.memberIds[0]
-  let state = ctx.state
-
-  for (const personId of house.memberIds) {
-    const person = state.persons[personId]
-    if (!person || !person.alive) continue
-
-    const isLeader = personId === leaderId
-    const rawPower = computeHouseShareRawPower(state, ctx.config, houseId, personId, isLeader)
-    state = createOrganizationShare(
-      state,
-      { kind: 'house', id: houseId },
-      { kind: 'person', id: personId },
-      rawPower,
-    )
-  }
-
-  return { ...ctx, state }
 }

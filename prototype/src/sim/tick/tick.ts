@@ -46,6 +46,7 @@ import { runPersonGrowthSystem } from './personGrowthSystem'
 import { runEstateSettlementSystem } from './estateSettlementSystem'
 import { runHouseSurplusDistributionSystem } from './houseSurplusDistributionSystem'
 import { runHouseFoundingSystem } from './houseFoundingSystem'
+import { runHouseSplitEvaluationSystem } from './houseSplitEvaluationSystem'
 import { runHouselessPersonGenerationSystem } from './houselessPersonGenerationSystem'
 import { runOfficeTermSystem } from './officeTermSystem'
 import { runFactionLifecycleSystem } from './factionLifecycleSystem'
@@ -156,6 +157,12 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runHouseFoundingSystem,
+  },
+  {
+    name: 'houseSplitEvaluationSystem',
+    intervalWeeks: 12,
+    phaseOffsetWeeks: 0,
+    run: runHouseSplitEvaluationSystem,
   },
   {
     name: 'houselessPersonGenerationSystem',

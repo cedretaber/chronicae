@@ -136,6 +136,12 @@ export type SimulationConfig = {
   houseSplitControlMax: number
   houseSplitUnrestGain: number
   houseSplitWealthShare: number
+  // v0.31 Phase D: House Split Evaluation
+  houseSplitEvaluationIntervalWeeks: number
+  houseSplitCooldownWeeks: number
+  houseSplitMinLivingMembers: number
+  houseSplitMinWealth: number
+  houseSplitMinLegacyPrestige: number
   // v0.7 House Extinction
   houseExtinctionEnabled: boolean
   inheritedProvinceHouseControl: number
@@ -773,6 +779,11 @@ export const defaultConfig: SimulationConfig = {
   houseSplitControlMax: 80,
   houseSplitUnrestGain: 5,
   houseSplitWealthShare: 0.25,
+  houseSplitEvaluationIntervalWeeks: 12,
+  houseSplitCooldownWeeks: 48,
+  houseSplitMinLivingMembers: 5,
+  houseSplitMinWealth: 80,
+  houseSplitMinLegacyPrestige: 30,
   // v0.7 House Extinction
   houseExtinctionEnabled: true,
   inheritedProvinceHouseControl: 35,

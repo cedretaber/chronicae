@@ -15,4 +15,5 @@ export type House = {
   legacyPrestige: number // 0..100
   wealth: number // >= 0
   seatProvinceId: ProvinceId
+  lastSplitWeek?: number
 }

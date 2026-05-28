@@ -268,6 +268,42 @@ describe('maybeSplitHouseAfterSuccession', () => {
 
     const crisisEvents = result.events.filter((e) => e.type === 'SUCCESSION_CRISIS')
     expect(crisisEvents.length).toBeGreaterThan(0)
+
+    const cadetEvents = result.events.filter((e) => e.type === 'CADET_HOUSE_FOUNDED')
+    expect(cadetEvents.length).toBeGreaterThan(0)
+  })
+
+  it('no split when cooldown is active', () => {
+    const highSplitConfig = {
+      ...defaultConfig,
+      houseSplitEnabled: true,
+      baseHouseSplitChance: 1.0,
+      minProvincesForHouseSplit: 3,
+      houseSplitCohesionThreshold: 60,
+      houseSplitCooldownWeeks: 48,
+    }
+
+    const ctx = makeSplitTestCtx(highSplitConfig)
+    const houseId = 'h-0' as HouseId
+    const house = ctx.state.houses[houseId]!
+    const stateWithCooldown = {
+      ...ctx.state,
+      houses: {
+        ...ctx.state.houses,
+        [houseId]: { ...house, lastSplitWeek: ctx.state.absoluteWeek },
+      },
+    }
+    const ctxWithCooldown = { ...ctx, state: stateWithCooldown }
+    const persons = ctxWithCooldown.state.persons
+
+    const input: SplitInput = {
+      houseId: 'h-0' as HouseId,
+      successorId: 'pe-0' as PersonId,
+      splitCandidates: [{ person: persons['pe-1' as PersonId]!, score: 50 }],
+    }
+
+    const result = maybeSplitHouseAfterSuccession(ctxWithCooldown, input)
+    expect(result.events.filter((e) => e.type === 'HOUSE_SPLIT').length).toBe(0)
   })
 
   it('splitter moves to new house', () => {

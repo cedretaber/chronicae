@@ -1,5 +1,5 @@
 import type { WorldState } from '@sim/types/world'
-import type { OrganizationShareId } from '@sim/types/ids'
+import type { OrganizationShareId, PersonId, HouseId } from '@sim/types/ids'
 import type { OrganizationRef, ShareHolderRef } from '@sim/types/office'
 import { createOrganizationShareId } from '@sim/types/ids'
 import type { StateResult } from './result'
@@ -198,4 +198,22 @@ export function upsertOrganizationShare(state: WorldState, input: UpsertShareInp
 
   if (input.rawPower <= 0) return ok(state)
   return ok(createOrganizationShare(state, input.organization, input.holder, input.rawPower))
+}
+
+export function removePersonSharesInHouse(
+  state: WorldState,
+  personId: PersonId,
+  houseId: HouseId,
+): WorldState {
+  const holderKeyStr = `person:${personId}`
+  const ids = [...(state.shareIndex.byHolder[holderKeyStr] ?? [])]
+  let current = state
+  for (const id of ids) {
+    const share = current.organizationShares[id]
+    if (!share) continue
+    if (share.organization.kind === 'house' && share.organization.id === houseId) {
+      current = removeOrganizationShare(current, id)
+    }
+  }
+  return current
 }

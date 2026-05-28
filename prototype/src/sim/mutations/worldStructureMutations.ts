@@ -38,6 +38,8 @@ import {
 import { transferLandContractGrantee } from './landContractMutations'
 import { installHoldingPlaceholderBailiff } from './provinceOfficeMutations'
 import { createOrganizationShare, removeOrganizationShare } from './shareMutations'
+import { initializeHouseShares } from '../tick/shareUpdateSystem'
+import { removePersonSharesInHouse } from './shareMutations'
 import type { PolityRank } from '../types/polity'
 import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
@@ -51,7 +53,7 @@ import { defaultLandContractConfig } from '../config/landContractConfig'
 
 export function splitHouse(
   ctx: TickContext,
-  input: { houseId: HouseId; splitterPersonId: PersonId },
+  input: { houseId: HouseId; splitterPersonId: PersonId; fromSuccession?: boolean },
 ): CtxResult<{ newHouseId: HouseId }> {
   const house = ctx.state.houses[input.houseId]
   if (!house)
@@ -212,6 +214,37 @@ export function splitHouse(
     if (moveResult.ok) resultCtx = { ...resultCtx, state: moveResult.value }
   }
 
+  // Phase D: Clean up moved members' shares in the parent house
+  for (const personId of newMemberIds) {
+    resultCtx = {
+      ...resultCtx,
+      state: removePersonSharesInHouse(resultCtx.state, personId, input.houseId),
+    }
+  }
+
+  // Phase D: Initialize shares for the new house
+  resultCtx = {
+    ...resultCtx,
+    state: initializeHouseShares(resultCtx.state, ctx.config, newHouseId),
+  }
+
+  // Phase D: Set lastSplitWeek cooldown on both houses
+  const parentAfterSplit = resultCtx.state.houses[input.houseId]
+  const childAfterSplit = resultCtx.state.houses[newHouseId]
+  if (parentAfterSplit && childAfterSplit) {
+    resultCtx = {
+      ...resultCtx,
+      state: {
+        ...resultCtx.state,
+        houses: {
+          ...resultCtx.state.houses,
+          [input.houseId]: { ...parentAfterSplit, lastSplitWeek: resultCtx.state.absoluteWeek },
+          [newHouseId]: { ...childAfterSplit, lastSplitWeek: resultCtx.state.absoluteWeek },
+        },
+      },
+    }
+  }
+
   const housePolityId = getHousePrimaryPolityId(resultCtx.state, house.id)
 
   // v0.16 TODO Stage B: split された Province を新 House 配下に移すには新規 sub-Polity を作る必要がある。
@@ -226,6 +259,24 @@ export function splitHouse(
     }
     resultCtx = { ...resultCtx, state: { ...resultCtx.state, polities: newPolities } }
   }
+
+  // CADET_HOUSE_FOUNDED event
+  const { event: cadetEvent, ctx: cadetCtx } = createSimEvent(resultCtx, {
+    type: 'CADET_HOUSE_FOUNDED',
+    importance: 'major',
+    messageKey: 'house.cadet_founded',
+    messageParams: {
+      person: nameParam('person', splitterPerson.nameKey),
+      house: nameParam('house', newHouseNameKey),
+      parentHouse: nameParam('house', house.nameKey),
+    },
+    entityRefs: [
+      entityRef('person', splitterPerson.id, 'founder', splitterPerson.nameKey),
+      entityRef('house', newHouseId, 'house', newHouseNameKey),
+      entityRef('house', input.houseId, 'parent_house', house.nameKey),
+    ],
+  })
+  resultCtx = { ...cadetCtx, state: resultCtx.state, events: [...cadetCtx.events, cadetEvent] }
 
   // HOUSE_SPLIT event
   const { event: splitEvent, ctx: eventCtx } = createSimEvent(resultCtx, {
@@ -256,23 +307,25 @@ export function splitHouse(
   })
 
   // SUCCESSION_CRISIS event
-  const { event: crisisEvent, ctx: crisisCtx } = createSimEvent(resultCtx, {
-    type: 'SUCCESSION_CRISIS',
-    importance: 'major',
-    messageKey: 'succession.crisis_split',
-    messageParams: {
-      house: nameParam('house', house.nameKey),
-      polity: housePolityId
-        ? nameParam('polity', resultCtx.state.polities[housePolityId]?.nameKey ?? '')
-        : '',
-    },
-    entityRefs: [
-      entityRef('house', input.houseId, 'crisis_house', house.nameKey),
-      entityRef('person', splitterPerson.id, 'splitter', splitterPerson.nameKey),
-      ...(housePolityId ? [entityRef('polity', housePolityId, 'polity')] : []),
-    ],
-  })
-  resultCtx = { ...crisisCtx, state: resultCtx.state, events: [...crisisCtx.events, crisisEvent] }
+  if (input.fromSuccession) {
+    const { event: crisisEvent, ctx: crisisCtx } = createSimEvent(resultCtx, {
+      type: 'SUCCESSION_CRISIS',
+      importance: 'major',
+      messageKey: 'succession.crisis_split',
+      messageParams: {
+        house: nameParam('house', house.nameKey),
+        polity: housePolityId
+          ? nameParam('polity', resultCtx.state.polities[housePolityId]?.nameKey ?? '')
+          : '',
+      },
+      entityRefs: [
+        entityRef('house', input.houseId, 'crisis_house', house.nameKey),
+        entityRef('person', splitterPerson.id, 'splitter', splitterPerson.nameKey),
+        ...(housePolityId ? [entityRef('polity', housePolityId, 'polity')] : []),
+      ],
+    })
+    resultCtx = { ...crisisCtx, state: resultCtx.state, events: [...crisisCtx.events, crisisEvent] }
+  }
 
   return ok({ ctx: resultCtx, value: { newHouseId } })
 }
