@@ -795,6 +795,9 @@ export function generateWorld(
     polities: politiesRecord,
     houses: housesRecord,
     persons: personsRecord,
+    livingPersonIds: (Object.keys(personsRecord) as PersonId[])
+      .filter((id) => personsRecord[id]?.alive)
+      .sort(),
     activePlots: {},
     popGroups: popGroupsRecord,
     organizationShares: {},
@@ -1709,6 +1712,9 @@ export function generateWorld(
     states: statesRecord,
     houses: housesRecord,
     persons: personsRecord,
+    livingPersonIds: (Object.keys(personsRecord) as PersonId[])
+      .filter((id) => personsRecord[id]?.alive)
+      .sort(),
     activePlots: {},
     popGroups: popGroupsRecord,
     popIndex: { byHolding: popIndexByHolding },
@@ -1803,9 +1809,9 @@ export function generateWorld(
   }
 
   // v0.23: Seed Person goals and aims
-  for (const personId of Object.keys(seededWorld.persons).sort()) {
-    const person = seededWorld.persons[personId as PersonId]
-    if (!person || !person.alive) continue
+  for (const personId of seededWorld.livingPersonIds) {
+    const person = seededWorld.persons[personId]
+    if (!person) continue
     if (person.kind === 'placeholder') continue
     if (person.age < defaultConfig.adultAge) continue
     if (!person.houseId) continue
@@ -1813,17 +1819,12 @@ export function generateWorld(
     if (!house || !house.active) continue
 
     // Create Person Goal
-    const goalSelection = selectPersonGoalKind(
-      seededWorld,
-      defaultConfig,
-      personId as PersonId,
-      seedRng,
-    )
+    const goalSelection = selectPersonGoalKind(seededWorld, defaultConfig, personId, seedRng)
     if (!goalSelection) continue
     const { kind: goalKind, rng: rng1 } = goalSelection
     seedRng = rng1
 
-    const owner: DecisionSubjectRef = { kind: 'person', id: personId as PersonId }
+    const owner: DecisionSubjectRef = { kind: 'person', id: personId }
     const goalReasonId = createDecisionReasonId(seededWorld.nextDecisionReasonId)
     const goalReason: DecisionReason = {
       id: goalReasonId,
@@ -1863,7 +1864,7 @@ export function generateWorld(
     }
 
     // Create Person Aim
-    const aimResult = pickPersonAim(seededWorld, defaultConfig, personId as PersonId, goal, seedRng)
+    const aimResult = pickPersonAim(seededWorld, defaultConfig, personId, goal, seedRng)
     if (!aimResult) continue
     const { kind: aimKind, target, rng: rng2 } = aimResult
     seedRng = rng2
@@ -1935,6 +1936,13 @@ export function generateWorld(
 
   if (defaultConfig.debugMixedProvinceHoldingsRatio > 0) {
     applyMixedHoldingsDebug(seededWorld, defaultConfig)
+  }
+
+  seededWorld = {
+    ...seededWorld,
+    livingPersonIds: (Object.keys(seededWorld.persons) as PersonId[])
+      .filter((id) => seededWorld.persons[id]?.alive)
+      .sort(),
   }
 
   return { world: seededWorld, rng: seedRng }

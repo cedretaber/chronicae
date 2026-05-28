@@ -206,9 +206,9 @@ export function getPolityPrestige(state: WorldState, countryId: PolityId): numbe
   const respectScores: number[] = []
 
   // Collect respect from all Persons in the world
-  for (const personId of Object.keys(state.persons) as PersonId[]) {
+  for (const personId of state.livingPersonIds) {
     const person = state.persons[personId]
-    if (!person || !person.alive) continue
+    if (!person) continue
     const att = getExplicitAttitude(person.attitudes, countryTarget)
     if (att !== undefined) {
       respectScores.push(attitudeValueToScore(att.respect))
@@ -239,9 +239,9 @@ export function getHousePrestige(state: WorldState, houseId: HouseId): number {
   const houseTarget = { kind: 'house' as const, id: houseId }
   const respectScores: number[] = []
 
-  for (const personId of Object.keys(state.persons) as PersonId[]) {
+  for (const personId of state.livingPersonIds) {
     const person = state.persons[personId]
-    if (!person || !person.alive) continue
+    if (!person) continue
     const att = getExplicitAttitude(person.attitudes, houseTarget)
     if (att !== undefined) {
       respectScores.push(attitudeValueToScore(att.respect))
@@ -271,10 +271,10 @@ export function getPersonPrestige(state: WorldState, personId: PersonId): number
   const personTarget = { kind: 'person' as const, id: personId }
   const respectScores: number[] = []
 
-  for (const otherId of Object.keys(state.persons) as PersonId[]) {
+  for (const otherId of state.livingPersonIds) {
     if (otherId === personId) continue
     const other = state.persons[otherId]
-    if (!other || !other.alive) continue
+    if (!other) continue
     const att = getExplicitAttitude(other.attitudes, personTarget)
     if (att !== undefined) {
       respectScores.push(attitudeValueToScore(att.respect))

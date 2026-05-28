@@ -957,6 +957,28 @@ export function collectIntegrityErrors(
     }
   }
 
+  // v0.31.1: livingPersonIds ↔ persons 整合性チェック
+  const expectedLiving = (Object.keys(state.persons) as PersonId[])
+    .filter((id) => state.persons[id]?.alive)
+    .sort()
+  const actualLiving = state.livingPersonIds
+  if (expectedLiving.length !== actualLiving.length) {
+    errors.push({
+      code: 'INTEGRITY_VIOLATION',
+      message: `livingPersonIds count mismatch: expected ${expectedLiving.length}, got ${actualLiving.length}`,
+    })
+  } else {
+    for (let i = 0; i < expectedLiving.length; i++) {
+      if (expectedLiving[i] !== actualLiving[i]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `livingPersonIds[${i}] mismatch: expected ${expectedLiving[i]}, got ${actualLiving[i]}`,
+        })
+        break
+      }
+    }
+  }
+
   // v0.31 §16.2: placeholder は houseId を持たない
   for (const personIdStr of Object.keys(state.persons)) {
     const p = state.persons[personIdStr as PersonId]

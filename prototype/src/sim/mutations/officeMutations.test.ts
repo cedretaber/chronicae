@@ -101,6 +101,7 @@ function makeOfficeState(): {
         attitudes: {},
       },
     },
+    livingPersonIds: [holderId],
     activePlots: {},
     popGroups: {},
     popIndex: { byHolding: {} },

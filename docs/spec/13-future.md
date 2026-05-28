@@ -638,6 +638,14 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **Config 追加**: `houseFoundingEnabled` / `houseFoundingIntervalWeeks` / `houseFoundingMinWealth` / `houseFoundingMinPrestige` / `houseFoundingMinActivityLogs` / `houseFoundingMonthlyChance` / `houseFoundingMaxPerMonth` / `houseFoundingWealthTransferRate` / `founderFamilyGenerationEnabled` / `founderSpouseChanceYoung` / `founderSpouseChanceMid` / `founderSpouseChanceOld` / `founderChildBaseChance` / `founderMaxGeneratedChildren` / `influentialHousePolityShareThreshold` / `houseSplitEvaluationIntervalWeeks` / `houseSplitCooldownWeeks` / `houseSplitMinLivingMembers` / `houseSplitMinWealth` / `houseSplitMinLegacyPrestige`
 - **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
 
+### v0.31.1 で実装済み（livingPersonIds パフォーマンス最適化）
+
+- **`WorldState.livingPersonIds: PersonId[]`**: alive person のソート済みインデックスを追加。dead person の走査を回避し、person 走査を行う全 tick system・selector の反復コストを削減
+- **維持箇所**: `markPersonDead` で除去、`birthChild` / `addHouselessPerson` / `houseFoundingSystem` の person 生成時に追加
+- **integritySystem 整合性チェック**: `livingPersonIds` ↔ `state.persons` の一致を年次チェックで検証
+- **パフォーマンス改善**: 50 年で 21.2% (16.2s → 12.8s)。主要改善: appointmentSystem -37%, officeTermSystem -45%, mortalitySystem -47%
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系

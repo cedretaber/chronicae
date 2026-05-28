@@ -15,9 +15,9 @@ export function isHouselessPerson(state: WorldState, personId: PersonId): boolea
 
 export function getHouselessPersons(state: WorldState): PersonId[] {
   const result: PersonId[] = []
-  for (const person of Object.values(state.persons)) {
+  for (const personId of state.livingPersonIds) {
+    const person = state.persons[personId]
     if (!person) continue
-    if (!person.alive) continue
     if (person.kind === 'placeholder') continue
     if (person.houseId !== undefined) continue
     result.push(person.id)

@@ -47,13 +47,9 @@ export type TickContext = {
 
 export function createTickContext(input: TickInput): TickContext {
   let maxPersonIndex = -1
-  for (const personId of Object.keys(input.state.persons).sort()) {
-    const parts = personId.split('-')
-    const last = parts[parts.length - 1]
-    if (last !== undefined) {
-      const n = parseInt(last, 10)
-      if (!isNaN(n) && n > maxPersonIndex) maxPersonIndex = n
-    }
+  for (const personId of Object.keys(input.state.persons)) {
+    const n = parseInt(personId.slice(3), 10)
+    if (!isNaN(n) && n > maxPersonIndex) maxPersonIndex = n
   }
   let maxHouseIndex = -1
   for (const houseId of Object.keys(input.state.houses).sort()) {

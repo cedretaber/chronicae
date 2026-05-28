@@ -250,11 +250,7 @@ function computeAvgHouseControl(state: WorldState): number {
 }
 
 function countLivingPersons(state: WorldState): number {
-  let count = 0
-  for (const p of Object.values(state.persons)) {
-    if (p?.alive) count++
-  }
-  return count
+  return state.livingPersonIds.length
 }
 
 function countLandContracts(state: WorldState): number {

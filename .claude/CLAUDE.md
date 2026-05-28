@@ -106,10 +106,18 @@ cd prototype && npm run check
 
 ## CLI 動作確認（実装完了後に必須）
 
-`npm run check` が通った後、必ず CLI で複数シード × 300年のシミュレーションを実行して整合性エラーがないことを確認する。
+`npm run check` が通った後、CLI で複数シード × シミュレーションを実行して整合性エラーがないことを確認する。
 
 ```bash
-# 標準の整合性検証（4 seed × 300年、並列実行）
+# 開発中の繰り返し確認（4 seed × 100年、~60秒）
+cd prototype
+for s in 1 42 123 999; do
+  node src/cli/run.mjs --years 100 --seed $s > /tmp/seed$s.log 2>&1 &
+done
+wait
+echo "All 4 seeds finished"
+
+# commit 前・リリース前の確認（4 seed × 300年、~6分）
 cd prototype
 for s in 1 42 123 999; do
   node src/cli/run.mjs --years 300 --seed $s > /tmp/seed$s.log 2>&1 &
@@ -122,23 +130,24 @@ echo "All 4 seeds finished"
 
 ### 所要時間の目安
 
-v0.23.2 (taskIndex 空エントリ purge + 死亡者ログ purge 後) の実測値:
+v0.31.1 (livingPersonIds 最適化後) の実測値:
 
-| 年数 | 1 seed 所要時間 | 4 seed 並列 |
-|---|---|---|
-| 50年 | ~5 sec | ~5 sec |
-| 100年 | ~12 sec | ~12 sec |
-| 300年 | ~48 sec | ~68 sec |
-
-**通常の開発・検証では 300 年 × 4 seed を推奨。** 20年では検出できない長期蓄積バグが100年で顕在化した実績がある（DiplomaticPlay delegate 死亡バグ等）。
-
-### 並列 vs 直列の使い分け
-
-| 用途 | 推奨 |
+| 年数 | 4 seed 並列 |
 |---|---|
-| 整合性検証（通常） | 300年 × 4 seed 並列 |
-| 長期整合性検証（CI / リリース前） | 300年 × 4 seed 並列 |
-| 時間計測・perf 比較 | 直列 (CPU 競合でブレるため) |
+| 50年 | ~10 sec |
+| 100年 | ~60 sec |
+| 300年 | ~6 min |
+
+### 用途別の推奨設定
+
+| 用途 | 推奨 | 所要時間 |
+|---|---|---|
+| 開発中の繰り返し確認 | 100年 × 4 seed 並列 | ~60 sec |
+| commit 前の確認 | 300年 × 4 seed 並列 | ~6 min |
+| リリース前 | 300年 × 4 seed 並列 | ~6 min |
+| 時間計測・perf 比較 | 直列 (CPU 競合でブレるため) | — |
+
+20年では検出できない長期蓄積バグが100年で顕在化した実績がある（DiplomaticPlay delegate 死亡バグ等）。開発中でも最低 100 年は確認すること。
 
 ### なぜ CLI 確認が必要か
 

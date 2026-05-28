@@ -5,6 +5,7 @@ import type { TickContext } from './context'
 import type { Person } from '../types/person'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { defaultConfig } from '../config/defaultConfig'
+import { buildLivingPersonIds } from '../testFixtures'
 import { runMarriageSystem } from './marriageSystem'
 
 const DEFAULT_ABILITIES = {
@@ -60,6 +61,7 @@ function makeBaseCtx(
       polities,
       houses,
       persons,
+      livingPersonIds: buildLivingPersonIds(persons),
       activePlots: {},
       popGroups: {},
       popIndex: { byHolding: {} },

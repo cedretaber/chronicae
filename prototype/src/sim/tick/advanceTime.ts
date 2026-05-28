@@ -1,5 +1,4 @@
 import type { TickContext } from './context'
-import type { PersonId } from '../types/ids'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
 export function advanceTime(ctx: TickContext): TickContext {
@@ -9,10 +8,10 @@ export function advanceTime(ctx: TickContext): TickContext {
 
   if (nextWeekOfYear === 1) {
     const newPersons = { ...ctx.state.persons }
-    for (const personId of Object.keys(ctx.state.persons)) {
-      const person = newPersons[personId as PersonId]
+    for (const personId of ctx.state.livingPersonIds) {
+      const person = newPersons[personId]
       if (!person) continue
-      newPersons[personId as PersonId] = { ...person, age: person.age + 1 }
+      newPersons[personId] = { ...person, age: person.age + 1 }
     }
     return {
       ...ctx,

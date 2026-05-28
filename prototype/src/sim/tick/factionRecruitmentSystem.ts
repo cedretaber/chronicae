@@ -21,9 +21,9 @@ import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 function buildRecruitmentBasePool(ctx: TickContext): PersonId[] {
   const config = ctx.config
   const result: PersonId[] = []
-  for (const pid of Object.keys(ctx.state.persons).sort() as PersonId[]) {
+  for (const pid of ctx.state.livingPersonIds) {
     const p = ctx.state.persons[pid]
-    if (!p || !p.alive) continue
+    if (!p) continue
     if (p.kind === 'placeholder') continue
     if (p.age < config.adultAge) continue
     if (!(isHouselessPerson(ctx.state, pid) || isLandlessHouseMember(ctx.state, pid))) continue

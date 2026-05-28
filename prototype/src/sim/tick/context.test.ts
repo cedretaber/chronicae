@@ -5,6 +5,7 @@ import type { Person } from '../types/person'
 import { createTickContext, makeEventId, makePersonId, toResult } from './context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
+import { buildLivingPersonIds } from '../testFixtures'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -45,6 +46,7 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
     polities: {},
     houses: {},
     persons,
+    livingPersonIds: buildLivingPersonIds(persons),
     activePlots: {},
     popGroups: {},
     popIndex: { byHolding: {} },

@@ -141,12 +141,11 @@ export function runMarriageSystem(ctx: TickContext): TickContext {
 
 function collectUnmarriedMaleCandidates(ctx: TickContext): PersonId[] {
   const maleIds: PersonId[] = []
-  for (const personId of Object.keys(ctx.state.persons).sort()) {
-    const person = ctx.state.persons[personId as PersonId]
+  for (const personId of ctx.state.livingPersonIds) {
+    const person = ctx.state.persons[personId]
     if (!person) continue
     if (person.kind === 'placeholder') continue
     if (person.sex !== 'male') continue
-    if (!person.alive) continue
     if (person.spouseId) continue
     if (person.age < ctx.config.marriageMaleMinAge) continue
     if (person.age > ctx.config.marriageMaleMaxAge) continue
@@ -154,19 +153,18 @@ function collectUnmarriedMaleCandidates(ctx: TickContext): PersonId[] {
       const house = ctx.state.houses[person.houseId]
       if (!house || !house.active) continue
     }
-    maleIds.push(personId as PersonId)
+    maleIds.push(personId)
   }
   return maleIds
 }
 
 function collectUnmarriedFemaleCandidates(ctx: TickContext): PersonId[] {
   const femaleIds: PersonId[] = []
-  for (const personId of Object.keys(ctx.state.persons).sort()) {
-    const person = ctx.state.persons[personId as PersonId]
+  for (const personId of ctx.state.livingPersonIds) {
+    const person = ctx.state.persons[personId]
     if (!person) continue
     if (person.kind === 'placeholder') continue
     if (person.sex !== 'female') continue
-    if (!person.alive) continue
     if (person.spouseId) continue
     if (person.age < ctx.config.marriageFemaleMinAge) continue
     if (person.age > ctx.config.marriageFemaleMaxAge) continue
@@ -175,7 +173,7 @@ function collectUnmarriedFemaleCandidates(ctx: TickContext): PersonId[] {
       if (!house || !house.active) continue
       if (getHouseLeader(ctx.state, house.id) === person.id) continue
     }
-    femaleIds.push(personId as PersonId)
+    femaleIds.push(personId)
   }
   return femaleIds
 }

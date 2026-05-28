@@ -37,6 +37,10 @@ import type { Goal, Aim } from './types/goal'
 import { decisionSubjectKey } from './types/goal'
 import type { DecisionSubjectRef, GoalKind, AimKind } from './types/goal'
 
+export function buildLivingPersonIds(persons: Record<PersonId, Person>): PersonId[] {
+  return (Object.keys(persons) as PersonId[]).filter((id) => persons[id]?.alive).sort()
+}
+
 const DEFAULT_ABILITIES = {
   valor: 50,
   command: 50,
@@ -99,6 +103,7 @@ export function makeEmptyV016State(): WorldState {
     polities: {},
     houses: {},
     persons: { [PLACEHOLDER_PERSON_ID]: placeholderSingleton },
+    livingPersonIds: [PLACEHOLDER_PERSON_ID],
     activePlots: {},
     popGroups: {},
     organizationShares: {},
@@ -331,7 +336,11 @@ export function withPerson(
           : { ...house, memberIds: [...house.memberIds, id] },
       }
     : state.houses
-  return { ...state, persons: { ...state.persons, [id]: person }, houses }
+  const livingPersonIds =
+    person.alive && !state.livingPersonIds.includes(id)
+      ? [...state.livingPersonIds, id].sort()
+      : state.livingPersonIds
+  return { ...state, persons: { ...state.persons, [id]: person }, houses, livingPersonIds }
 }
 
 // Create a root LandContract (world → polity) for a Province, plus a placeholder bailiff.

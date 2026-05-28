@@ -73,7 +73,12 @@ function addHouselessPerson(
     attitudes: {},
     lastHouseTransferYear: 1440,
   }
-  return { ...state, persons: { ...state.persons, [id]: person } }
+  const alive = overrides.alive ?? true
+  return {
+    ...state,
+    persons: { ...state.persons, [id]: person },
+    livingPersonIds: alive ? [...state.livingPersonIds, id].sort() : state.livingPersonIds,
+  }
 }
 
 describe('runHouseFoundingSystem', () => {

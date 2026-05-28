@@ -163,5 +163,8 @@ export function addHouselessPerson(state: WorldState, person: Person): StateResu
   return ok({
     ...state,
     persons: { ...state.persons, [person.id]: person },
+    livingPersonIds: person.alive
+      ? [...state.livingPersonIds, person.id].sort()
+      : state.livingPersonIds,
   })
 }

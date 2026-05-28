@@ -3,6 +3,7 @@ import { createHouseId, createPersonId, createProvinceId } from '../types/ids'
 import type { House } from '../types/house'
 import type { Person } from '../types/person'
 import type { WorldState } from '../types/world'
+import { buildLivingPersonIds } from '../testFixtures'
 import { defaultConfig, type SimulationConfig } from '../config/defaultConfig'
 import {
   needsSuccession,
@@ -72,6 +73,7 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     polities: {},
     houses,
     persons,
+    livingPersonIds: buildLivingPersonIds(persons),
     activePlots: {},
     popGroups: {},
     organizationShares: {},

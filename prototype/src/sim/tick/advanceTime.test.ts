@@ -16,6 +16,7 @@ function makeCtx(year: number, weekOfYear: number): TickContext {
       polities: {},
       houses: {},
       persons: {},
+      livingPersonIds: [],
       activePlots: {},
       popGroups: {},
       popIndex: { byHolding: {} },

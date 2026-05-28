@@ -11,8 +11,9 @@ export function runPersonGoalMaintenanceSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
   const absoluteWeek = currentCtx.state.absoluteWeek
 
-  for (const [, person] of Object.entries(currentCtx.state.persons)) {
-    if (!person || !person.alive) continue
+  for (const personId of currentCtx.state.livingPersonIds) {
+    const person = currentCtx.state.persons[personId]
+    if (!person) continue
     if (person.kind === 'placeholder') continue
     if (person.age < currentCtx.config.adultAge) continue
     if (!person.houseId) continue

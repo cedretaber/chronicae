@@ -367,6 +367,7 @@ describe('runControlSystem — capital province maxControl', () => {
       persons: {
         [admin0Person.id]: admin0Person,
       },
+      livingPersonIds: [admin0Person.id],
       activePlots: {},
       popGroups: {},
       organizationShares: {},

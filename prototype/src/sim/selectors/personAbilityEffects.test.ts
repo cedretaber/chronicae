@@ -143,6 +143,7 @@ function makeWorldState(
     persons: {
       [personId]: person,
     },
+    livingPersonIds: [personId],
     activePlots: {},
     popGroups: {},
     organizationShares: {},

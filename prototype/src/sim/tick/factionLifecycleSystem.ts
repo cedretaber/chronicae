@@ -204,9 +204,9 @@ function formNewFactions(ctx: TickContext): TickContext {
   }
 
   const founders: { personId: PersonId; score: number }[] = []
-  for (const pid of Object.keys(currentCtx.state.persons).sort() as PersonId[]) {
+  for (const pid of currentCtx.state.livingPersonIds) {
     const person = currentCtx.state.persons[pid]
-    if (!person || !person.alive) continue
+    if (!person) continue
     if (person.kind === 'placeholder') continue
     if (person.age < config.adultAge) continue
     if (!person.houseId) continue
@@ -326,10 +326,10 @@ function pickInitialMemberCandidates(ctx: TickContext, leaderId: PersonId): Pers
   if (!leader) return []
   const candidates: { personId: PersonId; score: number }[] = []
 
-  for (const pid of Object.keys(ctx.state.persons).sort() as PersonId[]) {
+  for (const pid of ctx.state.livingPersonIds) {
     if (pid === leaderId) continue
     const p = ctx.state.persons[pid]
-    if (!p || !p.alive) continue
+    if (!p) continue
     if (p.kind === 'placeholder') continue
     if (p.age < ctx.config.adultAge) continue
     if (getActiveFactionMembership(ctx.state, pid)) continue

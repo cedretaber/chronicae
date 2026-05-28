@@ -2,7 +2,6 @@ import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import { randomFloat } from '../rng/rng'
 import { markPersonDead } from '../mutations/personMutations'
-import type { PersonId } from '../types/ids'
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import { nameParam, entityRef } from '../types/event'
@@ -10,9 +9,9 @@ import { nameParam, entityRef } from '../types/event'
 export function runMortalitySystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
-  for (const personId of Object.keys(ctx.state.persons).sort()) {
-    const person = currentCtx.state.persons[personId as PersonId]
-    if (!person || !person.alive) continue
+  for (const personId of ctx.state.livingPersonIds) {
+    const person = currentCtx.state.persons[personId]
+    if (!person) continue
     if (person.kind === 'placeholder') continue
 
     const deathRate =
@@ -26,14 +25,14 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
 
       // Check if person was a house/polity leader BEFORE revoking
       const houseLeaderBefore = getHouseLeader(currentCtx.state, person.houseId)
-      const wasHouseLeader = houseLeaderBefore === (personId as PersonId)
+      const wasHouseLeader = houseLeaderBefore === personId
       const personPrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, person.houseId)
       const polityRulerBefore = personPrimaryPolityId
         ? getPolityLeader(currentCtx.state, personPrimaryPolityId)
         : undefined
-      const wasPolityLeader = polityRulerBefore === (personId as PersonId)
+      const wasPolityLeader = polityRulerBefore === personId
 
-      const deadResult = markPersonDead(currentCtx.state, personId as PersonId)
+      const deadResult = markPersonDead(currentCtx.state, personId)
       const currentState = deadResult.ok ? deadResult.value : currentCtx.state
 
       const importance = wasHouseLeader ? 'normal' : 'minor'
@@ -62,7 +61,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
         ...eventCtx,
         state: currentState,
         events: [...eventCtx.events, event],
-        deathsThisTick: [...eventCtx.deathsThisTick, personId as PersonId],
+        deathsThisTick: [...eventCtx.deathsThisTick, personId],
         deathRolesThisTick: {
           ...eventCtx.deathRolesThisTick,
           [personId]: { wasHouseLeader, wasPolityLeader },

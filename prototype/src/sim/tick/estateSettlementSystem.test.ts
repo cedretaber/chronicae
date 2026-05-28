@@ -10,6 +10,7 @@ import { createOfficeAssignmentId } from '../types/ids'
 import {
   bindProvinceToHouseViaPolity,
   bindProvinceToPolity,
+  buildLivingPersonIds,
   makeEmptyV016State,
   withHouse,
   withPolity,
@@ -58,7 +59,7 @@ function makeBaseState(): {
 
 function makeCtx(state: WorldState, deathsThisTick: PersonId[] = []): TickContext {
   return {
-    state,
+    state: { ...state, livingPersonIds: buildLivingPersonIds(state.persons) },
     rng: createRng('estate-test'),
     config: defaultConfig,
     events: [],
@@ -437,10 +438,14 @@ describe('estateSettlementSystem 2-generation integration', () => {
     // tick 2: 父死亡。findHeirs(father) = [grandchild]
     // houseRecoveryRate = 0.5, houseAmount = 50, grandchild receives 50
     // 祖父 wealth=0, 父 wealth=0, 孫 wealth=50, 家 wealth=100
-    const intermediateState = { ...result1.state }
-    intermediateState.persons = {
+    const intermediatePersons = {
       ...result1.state.persons,
       [fatherId]: { ...result1.state.persons[fatherId]!, alive: false },
+    }
+    const intermediateState = {
+      ...result1.state,
+      persons: intermediatePersons,
+      livingPersonIds: buildLivingPersonIds(intermediatePersons),
     }
     const ctx2: TickContext = {
       ...result1,

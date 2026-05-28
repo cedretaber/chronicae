@@ -8,6 +8,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { Person } from '../types/person'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
+import { buildLivingPersonIds } from '../testFixtures'
 import { runHouselessPersonGenerationSystem } from './houselessPersonGenerationSystem'
 
 function makeBaseState(): WorldState {
@@ -34,6 +35,7 @@ function makeBaseState(): WorldState {
     polities: {},
     houses: {},
     persons: {},
+    livingPersonIds: [],
     activePlots: {},
     popGroups: {},
     organizationShares: {},
@@ -137,9 +139,12 @@ function withHouselessPerson(
     attitudes: {},
     lastHouseTransferYear: personInfo.lastHouseTransferYear,
   }
+  const nextPersons = { ...state.persons, [id]: person }
+  const livingPersonIds = buildLivingPersonIds(nextPersons)
   return {
     ...state,
-    persons: { ...state.persons, [id]: person },
+    persons: nextPersons,
+    livingPersonIds,
   }
 }
 

@@ -303,6 +303,7 @@ function generateFounderFamily(
               ...currentCtx.state.houses,
               [houseId]: { ...house, memberIds: [...house.memberIds, spouseId] },
             },
+            livingPersonIds: [...currentCtx.state.livingPersonIds, spouseId].sort(),
           },
         }
       }
@@ -396,6 +397,7 @@ function generateFounderFamily(
           ...currentCtx.state.houses,
           [houseId]: { ...house, memberIds: [...house.memberIds, childId] },
         },
+        livingPersonIds: [...currentCtx.state.livingPersonIds, childId].sort(),
       },
     }
   }

@@ -134,6 +134,7 @@ describe('runSuccessionSystem', () => {
         byOrganization: { 'house:h-0': [officeId] },
         byHolderPerson: { 'pe-0': [officeId] },
       },
+      livingPersonIds: ['pe-0' as PersonId],
     }
     const resultCtx: TickContext = { ...ctx, state: resultState }
 
@@ -256,6 +257,7 @@ describe('runSuccessionSystem', () => {
           },
         },
         persons,
+        livingPersonIds: ['pe-1' as PersonId, 'pe-2' as PersonId],
         activePlots: {},
         popGroups: {},
         organizationShares: {},
@@ -379,6 +381,7 @@ describe('runSuccessionSystem', () => {
           },
         },
         persons,
+        livingPersonIds: ['pe-1' as PersonId, 'pe-2' as PersonId],
         activePlots: {},
         popGroups: {},
         organizationShares: {},

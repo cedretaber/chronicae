@@ -89,8 +89,9 @@ export function takeSnapshot(state: WorldState, year: number): ActivitySnapshot 
 
   let populationLiving = 0
   let populationLivingNormal = 0
-  for (const p of Object.values(state.persons)) {
-    if (!p?.alive) continue
+  for (const personId of state.livingPersonIds) {
+    const p = state.persons[personId]
+    if (!p) continue
     populationLiving++
     if (p.kind !== 'placeholder') populationLivingNormal++
   }

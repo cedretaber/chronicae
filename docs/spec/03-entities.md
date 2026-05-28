@@ -1109,5 +1109,20 @@ type WorldState = {
 }
 ```
 
+#### WorldState 追加 (v0.31.1)
+
+```ts
+type WorldState = {
+  ...
+  livingPersonIds: PersonId[]  // alive person のソート済みインデックス
+}
+```
+
+- `livingPersonIds` は `state.persons` の alive person の ID をアルファベット順でソートした配列
+- person 走査を行う全 tick system・selector がこの配列を使用し、dead person の走査を回避する
+- `markPersonDead` で除去、`birthChild` / `addHouselessPerson` / `houseFoundingSystem` の person 生成時に追加される
+- `integritySystem` は dead person も検査対象のため `Object.keys(state.persons)` を引き続き使用する
+- `integritySystem` に `livingPersonIds` ↔ `state.persons` の整合性チェックを追加済み
+
 ---
 

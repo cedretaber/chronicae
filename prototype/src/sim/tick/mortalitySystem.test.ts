@@ -3,6 +3,7 @@ import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
 import type { TickContext } from './context'
 import type { Person } from '../types/person'
 import { defaultConfig } from '../config/defaultConfig'
+import { buildLivingPersonIds } from '../testFixtures'
 import { runMortalitySystem } from './mortalitySystem'
 
 const DEFAULT_ABILITIES = {
@@ -73,6 +74,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
         },
       },
       persons: personsRecord,
+      livingPersonIds: buildLivingPersonIds(personsRecord),
       activePlots: {},
       popGroups: {},
       popIndex: { byHolding: {} },
@@ -232,6 +234,7 @@ describe('runMortalitySystem', () => {
             },
           },
           persons: personsRecord,
+          livingPersonIds: buildLivingPersonIds(personsRecord),
           activePlots: {},
           popGroups: {},
           popIndex: { byHolding: {} },
@@ -383,6 +386,7 @@ describe('runMortalitySystem', () => {
             },
           },
           persons: personsRecord,
+          livingPersonIds: buildLivingPersonIds(personsRecord),
           activePlots: {},
           popGroups: {},
           popIndex: { byHolding: {} },

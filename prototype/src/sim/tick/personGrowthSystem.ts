@@ -9,9 +9,9 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
   let rng = ctx.rng
   const updatedPersons: Record<PersonId, AbilityScores> = {}
 
-  for (const personId of Object.keys(ctx.state.persons).sort()) {
-    const person = ctx.state.persons[personId as PersonId]
-    if (!person || !person.alive) continue
+  for (const personId of ctx.state.livingPersonIds) {
+    const person = ctx.state.persons[personId]
+    if (!person) continue
     if (person.kind === 'placeholder') continue
 
     let changed = false

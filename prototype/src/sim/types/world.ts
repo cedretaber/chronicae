@@ -68,6 +68,7 @@ export type WorldState = {
   polities: Record<PolityId, Polity>
   houses: Record<HouseId, House>
   persons: Record<PersonId, Person>
+  livingPersonIds: PersonId[]
   activePlots: Record<PlotId, Plot>
   popGroups: Record<PopGroupId, PopGroup>
   popIndex: PopIndex

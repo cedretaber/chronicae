@@ -75,10 +75,9 @@ function buildPolityCandidateCache(
   }
 
   const cache: PolityCandidateCache = new Map()
-  for (const pidStr of Object.keys(state.persons).sort()) {
-    const pid = pidStr as PersonId
+  for (const pid of state.livingPersonIds) {
     const p = state.persons[pid]
-    if (!p || !p.alive) continue
+    if (!p) continue
     if (p.kind === 'placeholder') continue
     if (p.age < config.adultAge) continue
     if (hasActiveHoldingOffice(state, pid)) continue

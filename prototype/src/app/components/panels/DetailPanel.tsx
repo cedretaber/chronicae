@@ -1965,6 +1965,7 @@ export function PersonDetail({
     polities: {},
     houses: {},
     persons: {},
+    livingPersonIds: [],
     activePlots: {},
     popGroups: {},
     organizationShares: {},

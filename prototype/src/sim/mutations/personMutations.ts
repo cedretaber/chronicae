@@ -47,6 +47,7 @@ export function markPersonDead(
   let newState: WorldState = {
     ...state,
     persons: { ...state.persons, [personId]: updatedPerson },
+    livingPersonIds: state.livingPersonIds.filter((id) => id !== personId),
   }
   const spouseResult = clearSpouse(newState, personId)
   if (spouseResult.ok) newState = spouseResult.value
@@ -233,7 +234,12 @@ export function birthChild(
     }
   }
 
-  const newState = { ...ctxWithId.state, persons: newPersons, houses: newHouses }
+  const newState = {
+    ...ctxWithId.state,
+    persons: newPersons,
+    houses: newHouses,
+    livingPersonIds: [...ctxWithId.state.livingPersonIds, childId].sort(),
+  }
   return ok({
     ctx: { ...ctxWithId, rng: rngAfterAbilities, state: newState },
     value: { childId },

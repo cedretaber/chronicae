@@ -3,6 +3,7 @@ import { createHouseId, createPersonId, createProvinceId } from '../types/ids'
 import type { PersonId } from '../types/ids'
 import type { Person } from '../types/person'
 import type { WorldState } from '../types/world'
+import { buildLivingPersonIds } from '../testFixtures'
 import { isForbiddenMarriagePair } from './kinshipSelectors'
 
 const DEFAULT_ABILITIES = {
@@ -60,6 +61,7 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
       },
     },
     persons,
+    livingPersonIds: buildLivingPersonIds(persons),
     activePlots: {},
     popGroups: {},
     popIndex: { byHolding: {} },

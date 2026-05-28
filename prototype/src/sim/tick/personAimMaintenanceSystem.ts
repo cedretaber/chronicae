@@ -69,8 +69,9 @@ export function runPersonAimMaintenanceSystem(ctx: TickContext): TickContext {
   let rng = ctx.rng
 
   // --- Phase 1: Create aims for persons without active aim ---
-  for (const [, person] of Object.entries(ws.persons)) {
-    if (!person || !person.alive) continue
+  for (const personId of ws.livingPersonIds) {
+    const person = ws.persons[personId]
+    if (!person) continue
     if (person.kind === 'placeholder') continue
     if (person.age < ctx.config.adultAge) continue
     if (!person.houseId) continue

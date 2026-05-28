@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-28（v0.31 House Lifecycle 刷新）
+最終更新: 2026-05-28（v0.31.1 livingPersonIds パフォーマンス最適化）
 
 ---
 

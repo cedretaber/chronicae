@@ -465,16 +465,14 @@ function buildPopulationReport(
 ): PopulationReport {
   let finalLivingNormal = 0
   let finalLivingPlaceholder = 0
-  let finalDeadCount = 0
-  for (const p of Object.values(finalState.persons)) {
+  for (const personId of finalState.livingPersonIds) {
+    const p = finalState.persons[personId]
     if (!p) continue
-    if (p.alive) {
-      if (p.kind === 'placeholder') finalLivingPlaceholder++
-      else finalLivingNormal++
-    } else {
-      finalDeadCount++
-    }
+    if (p.kind === 'placeholder') finalLivingPlaceholder++
+    else finalLivingNormal++
   }
+  const finalDeadCount =
+    Object.keys(finalState.persons).length - finalLivingNormal - finalLivingPlaceholder
 
   let totalBirths = 0
   let totalDeaths = 0
