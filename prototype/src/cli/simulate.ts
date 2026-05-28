@@ -694,8 +694,15 @@ async function main(): Promise<void> {
       } else if (!args.digest) {
         console.log('')
         console.log('--- Year ' + year + ' Summary ---')
+        const activeClans = Object.values(result.state.clans).filter((c) => c?.active).length
         console.log(
-          '  Polities: ' + activePolities + ' active | Houses: ' + activeHouses + ' active',
+          '  Polities: ' +
+            activePolities +
+            ' active | Houses: ' +
+            activeHouses +
+            ' active | Clans: ' +
+            activeClans +
+            ' active',
         )
         const avgPolityControl = computeAvgPolityControl(result.state)
         const avgHouseControl = computeAvgHouseControl(result.state)

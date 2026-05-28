@@ -132,6 +132,8 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     waitingAimIds: [],
     nextTaskId: 0,
     nextPersonActivityLogId: 0,
+    clans: {},
+    nextClanId: 1,
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,
   }

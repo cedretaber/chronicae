@@ -135,6 +135,8 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      clans: {},
+      nextClanId: 1,
     },
     rng: { seedText: 'test', state: rngSeed },
     config: defaultConfig,

@@ -90,6 +90,24 @@ export function isInfluentialHouseInAnyPolity(
   return false
 }
 
+export function isInfluentialHouse(
+  state: WorldState,
+  config: {
+    influentialHousePolityShareThreshold: number
+    influentialHouseWealthThreshold: number
+    influentialHouseLegacyPrestigeThreshold: number
+  },
+  houseId: HouseId,
+): boolean {
+  if (isRulingHouse(state, houseId)) return true
+  if (isInfluentialHouseInAnyPolity(state, config, houseId)) return true
+  const house = state.houses[houseId]
+  if (!house || !house.active) return false
+  if (house.wealth >= config.influentialHouseWealthThreshold) return true
+  if (house.legacyPrestige >= config.influentialHouseLegacyPrestigeThreshold) return true
+  return false
+}
+
 export function isPoliticallyEngagedPerson(
   state: WorldState,
   config: { influentialHousePolityShareThreshold: number },

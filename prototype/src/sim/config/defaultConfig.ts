@@ -656,6 +656,15 @@ export type SimulationConfig = {
   influentialHousePolityShareThreshold: number
   // v0.31 House Founding interval (used by tick.ts scheduled system)
   houseFoundingIntervalWeeks: number
+  // v0.32 Clan Formation
+  influentialHouseWealthThreshold: number
+  influentialHouseLegacyPrestigeThreshold: number
+  clanFormationIntervalWeeks: number
+  clanFormationMinDirectCadetHouses: number
+  clanFormationMinInfluentialHouses: number
+  clanFormationMinTotalLivingMembers: number
+  clanFormationMinTotalWealth: number
+  clanFormationMinTotalLegacyPrestige: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -1352,4 +1361,13 @@ export const defaultConfig: SimulationConfig = {
   influentialHousePolityShareThreshold: 0.1,
   // v0.31 House Founding interval
   houseFoundingIntervalWeeks: 4,
+  // v0.32 Clan Formation
+  influentialHouseWealthThreshold: 200,
+  influentialHouseLegacyPrestigeThreshold: 60,
+  clanFormationIntervalWeeks: 48,
+  clanFormationMinDirectCadetHouses: 3,
+  clanFormationMinInfluentialHouses: 2,
+  clanFormationMinTotalLivingMembers: 30,
+  clanFormationMinTotalWealth: 500,
+  clanFormationMinTotalLegacyPrestige: 150,
 }

@@ -13,6 +13,7 @@ import type {
   HoldingId,
   HoldingOfficeAssignmentId,
   HoldingImprovementId,
+  ClanId,
 } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -1176,6 +1177,104 @@ export function collectIntegrityErrors(
         code: 'INTEGRITY_VIOLATION',
         message: `FactionMembership ${membershipId} (person=${m.personId}) is not in factionIndex.byMember (§21.5 I4)`,
       })
+    }
+  }
+
+  // v0.32 §17: Clan 整合性チェック
+  // C1: House.clanId → Clan 存在 + memberHouseIds に含まれる
+  for (const houseIdStr of Object.keys(state.houses)) {
+    const houseId = houseIdStr as HouseId
+    const h = state.houses[houseId]
+    if (!h) continue
+    if (h.clanId !== undefined) {
+      const clan = state.clans[h.clanId]
+      if (!clan) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `House ${houseId} has clanId=${h.clanId as string} but Clan not found (§17 C1)`,
+        })
+      } else if (!clan.memberHouseIds.includes(houseId)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `House ${houseId} has clanId=${h.clanId as string} but not in Clan.memberHouseIds (§17 C1)`,
+        })
+      }
+      // C7: system House は clanId を持ってはならない
+      if (h.kind === 'system') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `System House ${houseId} has clanId=${h.clanId as string} (§17 C7)`,
+        })
+      }
+    }
+  }
+  // C2: Clan.memberHouseIds → House 存在 + house.clanId === clan.id
+  for (const clanIdStr of Object.keys(state.clans)) {
+    const clanId = clanIdStr as ClanId
+    const clan = state.clans[clanId]
+    if (!clan) continue
+    for (const memberHouseId of clan.memberHouseIds) {
+      const h = state.houses[memberHouseId]
+      if (!h) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Clan ${clanId as string} memberHouseIds contains ${memberHouseId as string} but House not found (§17 C2)`,
+        })
+      } else if (h.clanId !== clanId) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Clan ${clanId as string} memberHouseIds contains ${memberHouseId as string} but house.clanId=${h.clanId as string | undefined} (§17 C2)`,
+        })
+      }
+    }
+    // C3: rootHouseId 存在 + memberHouseIds に含まれる
+    if (!state.houses[clan.rootHouseId]) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Clan ${clanId as string} rootHouseId=${clan.rootHouseId as string} not found (§17 C3)`,
+      })
+    } else if (!clan.memberHouseIds.includes(clan.rootHouseId)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Clan ${clanId as string} rootHouseId=${clan.rootHouseId as string} not in memberHouseIds (§17 C3)`,
+      })
+    }
+    // C4: nameSourceHouseId 存在 + v0.32 では === rootHouseId
+    if (!state.houses[clan.nameSourceHouseId]) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Clan ${clanId as string} nameSourceHouseId=${clan.nameSourceHouseId as string} not found (§17 C4)`,
+      })
+    }
+    if (clan.nameSourceHouseId !== clan.rootHouseId) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Clan ${clanId as string} nameSourceHouseId=${clan.nameSourceHouseId as string} !== rootHouseId=${clan.rootHouseId as string} (§17 C4)`,
+      })
+    }
+    // C5: memberHouseIds に重複がない
+    const memberSet = new Set(clan.memberHouseIds.map((id) => id as string))
+    if (memberSet.size !== clan.memberHouseIds.length) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Clan ${clanId as string} memberHouseIds has duplicates (§17 C5)`,
+      })
+    }
+  }
+  // C6: clanId を持つ House の normal cadet が異なる clanId を持つ場合は violation
+  for (const houseIdStr of Object.keys(state.houses)) {
+    const houseId = houseIdStr as HouseId
+    const h = state.houses[houseId]
+    if (!h || h.clanId === undefined || h.kind === 'system') continue
+    for (const cadetId of h.cadetHouseIds) {
+      const cadet = state.houses[cadetId]
+      if (!cadet || cadet.kind === 'system') continue
+      if (cadet.clanId !== undefined && cadet.clanId !== h.clanId) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `House ${houseId} clanId=${h.clanId as string} but cadet ${cadetId as string} has clanId=${cadet.clanId as string} (§17 C6)`,
+        })
+      }
     }
   }
 

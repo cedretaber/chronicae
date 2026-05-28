@@ -47,6 +47,7 @@ import { runEstateSettlementSystem } from './estateSettlementSystem'
 import { runHouseSurplusDistributionSystem } from './houseSurplusDistributionSystem'
 import { runHouseFoundingSystem } from './houseFoundingSystem'
 import { runHouseSplitEvaluationSystem } from './houseSplitEvaluationSystem'
+import { runClanFormationSystem } from './clanFormationSystem'
 import { runHouselessPersonGenerationSystem } from './houselessPersonGenerationSystem'
 import { runOfficeTermSystem } from './officeTermSystem'
 import { runFactionLifecycleSystem } from './factionLifecycleSystem'
@@ -159,6 +160,12 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 12,
     phaseOffsetWeeks: 0,
     run: runHouseSplitEvaluationSystem,
+  },
+  {
+    name: 'clanFormationSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runClanFormationSystem,
   },
   {
     name: 'houselessPersonGenerationSystem',
@@ -430,6 +437,7 @@ export function tick(input: TickInput): TickResult {
   const intervalOverrides: Record<string, number> = {
     houseFoundingSystem: ctx.config.houseFoundingIntervalWeeks,
     houseSplitEvaluationSystem: ctx.config.houseSplitEvaluationIntervalWeeks,
+    clanFormationSystem: ctx.config.clanFormationIntervalWeeks,
   }
 
   for (const system of scheduledSystems) {

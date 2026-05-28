@@ -833,6 +833,9 @@ export function generateWorld(
     nextDiplomaticPlayId: 0,
     nextDiplomaticOfferId: 0,
     nextPressureId: 1,
+    // v0.32 Clan
+    clans: {},
+    nextClanId: 1,
   } as unknown as WorldState
 
   // House leader offices
@@ -1779,6 +1782,9 @@ export function generateWorld(
     nextTaskId: 0,
     nextPersonActivityLogId: 0,
     nextPopGroupId: 0,
+    // v0.32 Clan
+    clans: {},
+    nextClanId: 1,
   }
 
   // v0.22: Seed initial Goal + Aim for all active Polities and Houses

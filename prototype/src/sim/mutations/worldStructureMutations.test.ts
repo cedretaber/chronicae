@@ -185,6 +185,8 @@ function makeMinimalWorld(): WorldState {
     waitingAimIds: [],
     nextTaskId: 0,
     nextPersonActivityLogId: 0,
+    clans: {},
+    nextClanId: 1,
   }
 }
 

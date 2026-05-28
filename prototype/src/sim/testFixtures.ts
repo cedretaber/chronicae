@@ -119,6 +119,8 @@ export function makeEmptyV016State(): WorldState {
     factions: {},
     factionMemberships: {},
     factionIndex: { byLeader: {}, byMember: {} },
+    // v0.32 Clan
+    clans: {},
     nextOrganizationShareId: 0,
     nextOfficeAssignmentId: 0,
     nextLandContractId: 0,
@@ -166,6 +168,8 @@ export function makeEmptyV016State(): WorldState {
     nextPersonActivityLogId: 0,
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,
+    // v0.32
+    nextClanId: 1,
   }
 }
 

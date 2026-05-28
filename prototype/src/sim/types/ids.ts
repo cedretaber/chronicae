@@ -52,6 +52,12 @@ export function createLandContractId(n: number): LandContractId {
   return ('lc-' + n) as LandContractId
 }
 
+export type ClanId = Branded<string, 'ClanId'>
+
+export function createClanId(n: number): ClanId {
+  return ('cl-' + n) as ClanId
+}
+
 export type FactionId = Branded<string, 'FactionId'>
 export type FactionMembershipId = Branded<string, 'FactionMembershipId'>
 

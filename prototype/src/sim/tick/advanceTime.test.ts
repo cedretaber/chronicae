@@ -77,6 +77,8 @@ function makeCtx(year: number, weekOfYear: number): TickContext {
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      clans: {},
+      nextClanId: 1,
     },
     rng: createRng('test'),
     config: defaultConfig,

@@ -1,6 +1,6 @@
 import type { TickContext } from '../tick/context'
 import { makeHouseId } from '../tick/context'
-import type { HouseId, PolityId, ProvinceId, PersonId } from '../types/ids'
+import type { HouseId, PolityId, ProvinceId, PersonId, ClanId } from '../types/ids'
 import type { House } from '../types/house'
 import type { WorldState } from '../types/world'
 import type { Person } from '../types/person'
@@ -15,6 +15,7 @@ export type CreateHouseInput = {
   parentHouseId?: HouseId
   legacyPrestige?: number
   wealth?: number
+  clanId?: ClanId
 }
 
 export function createHouse(
@@ -44,6 +45,7 @@ export function createHouse(
     ...houseBase,
     ...(input.founderId !== undefined && { founderId: input.founderId }),
     ...(input.parentHouseId !== undefined && { parentHouseId: input.parentHouseId }),
+    ...(input.clanId !== undefined && { clanId: input.clanId }),
   }
 
   if (input.parentHouseId !== undefined) {

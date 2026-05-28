@@ -1,4 +1,4 @@
-import type { HouseId, ProvinceId, PersonId } from './ids'
+import type { HouseId, ProvinceId, PersonId, ClanId } from './ids'
 
 export type HouseKind = 'normal' | 'system'
 
@@ -30,4 +30,5 @@ export type House = {
   lastSplitWeek?: number
   creationKind?: HouseCreationKind
   creationReason?: HouseCreationReason
+  clanId?: ClanId
 }

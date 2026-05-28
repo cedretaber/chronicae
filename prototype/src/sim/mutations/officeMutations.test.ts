@@ -175,6 +175,8 @@ function makeOfficeState(): {
     waitingAimIds: [],
     nextTaskId: 0,
     nextPersonActivityLogId: 0,
+    clans: {},
+    nextClanId: 1,
   }
   return { state, officeId, holderId, houseId, polityId }
 }

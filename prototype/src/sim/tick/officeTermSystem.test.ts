@@ -99,6 +99,8 @@ function makeBaseState(): WorldState {
     nextPersonActivityLogId: 0,
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,
+    clans: {},
+    nextClanId: 1,
   }
 }
 
@@ -681,6 +683,8 @@ describe('expireOfficeTermAssignment', () => {
       nextPersonActivityLogId: 0,
       popIndex: { byHolding: {} },
       nextPopGroupId: 0,
+      clans: {},
+      nextClanId: 1,
     }
     return { state, officeId, holderId, houseId, polityId }
   }

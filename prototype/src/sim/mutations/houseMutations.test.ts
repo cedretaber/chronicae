@@ -130,6 +130,8 @@ function makeFixture(): {
     waitingAimIds: [],
     nextTaskId: 0,
     nextPersonActivityLogId: 0,
+    clans: {},
+    nextClanId: 1,
   }
   return { state, polity1Id, house1Id, provinceId }
 }

@@ -40,6 +40,7 @@ import { installHoldingPlaceholderBailiff } from './provinceOfficeMutations'
 import { createOrganizationShare, removeOrganizationShare } from './shareMutations'
 import { initializeHouseShares } from '../tick/shareUpdateSystem'
 import { removePersonSharesInHouse } from './shareMutations'
+import { addHouseToClan, syncClanActive } from './clanMutations'
 import type { PolityRank } from '../types/polity'
 import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
@@ -149,6 +150,7 @@ export function splitHouse(
     parentHouseId: house.id,
     creationKind: 'cadet_branch',
     creationReason: input.fromSuccession ? 'succession' : 'house_split',
+    ...(house.clanId !== undefined && { clanId: house.clanId }),
   }
 
   let stateWithNewHouse: WorldState = {
@@ -195,6 +197,10 @@ export function splitHouse(
     houses: { ...resultCtx.state.houses, [input.houseId]: newParentHouseObj },
   }
   resultCtx = { ...resultCtx, state: stateWithParentUpdate }
+
+  if (house.clanId !== undefined) {
+    resultCtx = { ...resultCtx, state: addHouseToClan(resultCtx.state, house.clanId, newHouseId) }
+  }
 
   // v0.16 TODO Stage B: split された Province を新 House 配下に移すには新規 sub-Polity を作る必要がある。
   // Stage A では Province 帰属の更新を行わない (新 House は controlled 0 で start)。
@@ -499,7 +505,11 @@ function handleNormalHouseExtinction(
       active: false,
       memberIds: extinctHouseObj.memberIds,
     }
-    const finalState = { ...workingState, houses: newHouses }
+    let stateForClanSync: WorldState = { ...workingState, houses: newHouses }
+    if (extinctHouseObj.clanId !== undefined) {
+      stateForClanSync = syncClanActive(stateForClanSync, extinctHouseObj.clanId)
+    }
+    const finalState = stateForClanSync
     let eventCtx: TickContext = { ...ctx, state: finalState }
 
     if (livingMemberIds.length > 0) {
@@ -628,7 +638,11 @@ function handleNormalHouseExtinction(
     memberIds: [],
   }
 
-  const finalState = { ...resultCtx.state, houses: newHouses }
+  let stateForClanSync: WorldState = { ...resultCtx.state, houses: newHouses }
+  if (extinctHouseObj.clanId !== undefined) {
+    stateForClanSync = syncClanActive(stateForClanSync, extinctHouseObj.clanId)
+  }
+  const finalState = stateForClanSync
 
   const { event: event3, ctx: eventCtx } = createSimEvent(
     { ...resultCtx, state: finalState },

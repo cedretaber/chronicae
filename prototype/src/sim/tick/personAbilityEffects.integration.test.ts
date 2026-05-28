@@ -195,6 +195,8 @@ function makeWorldState(
     nextDecisionReasonId: 0,
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,
+    clans: {},
+    nextClanId: 1,
   }
   return state
 }
@@ -428,6 +430,8 @@ describe('runControlSystem — capital province maxControl', () => {
       nextPersonActivityLogId: 0,
       popIndex: { byHolding: {} },
       nextPopGroupId: 0,
+      clans: {},
+      nextClanId: 1,
     }
 
     const result = runControlSystem(makeCtx(world))

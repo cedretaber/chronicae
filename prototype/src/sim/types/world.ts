@@ -24,6 +24,7 @@ import type {
   DecisionReasonId,
   TaskId,
   PersonActivityLogId,
+  ClanId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -43,6 +44,7 @@ import type {
   HoldingOfficeIndex,
 } from './landContract'
 import type { Faction, FactionMembership, FactionIndex } from './faction'
+import type { Clan } from './clan'
 import type { HoldingImprovement } from './holdingImprovement'
 import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay, DiplomaticOffer } from './diplomaticPlay'
@@ -85,6 +87,8 @@ export type WorldState = {
   factions: Record<FactionId, Faction>
   factionMemberships: Record<FactionMembershipId, FactionMembership>
   factionIndex: FactionIndex
+  // v0.32 Clan
+  clans: Record<ClanId, Clan>
   // v0.27 HoldingImprovement
   holdingImprovements: Record<HoldingImprovementId, HoldingImprovement>
   holdingImprovementIndex: { byHolding: Record<string, HoldingImprovementId[]> }
@@ -131,6 +135,8 @@ export type WorldState = {
   nextPersonActivityLogId: number
   // v0.24
   nextPopGroupId: number
+  // v0.32
+  nextClanId: number
 }
 
 export type SimulationSession = {

@@ -122,6 +122,8 @@ function makeBaseCtx(
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
+      clans: {},
+      nextClanId: 1,
     },
     rng: { seedText: 'test', state: 42 },
     config: { ...defaultConfig, ...configOverride },
