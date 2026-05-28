@@ -376,6 +376,7 @@ detail:
     roster: 'Roster'
     employed: 'employed'
     unemployed: 'unemployed'
+    houseless_member: '(Houseless)'
     attitudes: 'Attitudes'
 
 popOccupation:

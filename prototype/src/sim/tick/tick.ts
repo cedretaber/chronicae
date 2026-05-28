@@ -74,10 +74,6 @@ type ScheduledSystem = {
   run: (ctx: TickContext) => TickContext
 }
 
-function shouldRun(system: ScheduledSystem, absoluteWeek: number): boolean {
-  return (absoluteWeek - system.phaseOffsetWeeks) % system.intervalWeeks === 0
-}
-
 function flushTerminalEntities(ctx: TickContext): TickContext {
   const terminalProjectIds: ProjectId[] = []
   for (const [id, p] of Object.entries(ctx.state.projects)) {
@@ -431,8 +427,14 @@ export function tick(input: TickInput): TickResult {
 
   run('advanceTime', advanceTime)
 
+  const intervalOverrides: Record<string, number> = {
+    houseFoundingSystem: ctx.config.houseFoundingIntervalWeeks,
+    houseSplitEvaluationSystem: ctx.config.houseSplitEvaluationIntervalWeeks,
+  }
+
   for (const system of scheduledSystems) {
-    if (shouldRun(system, ctx.state.absoluteWeek)) {
+    const interval = intervalOverrides[system.name] ?? system.intervalWeeks
+    if ((ctx.state.absoluteWeek - system.phaseOffsetWeeks) % interval === 0) {
       run(system.name, system.run)
     }
   }

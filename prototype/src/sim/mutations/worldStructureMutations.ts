@@ -147,6 +147,8 @@ export function splitHouse(
     wealth: newHouseWealth,
     seatProvinceId: firstSplitProvince,
     parentHouseId: house.id,
+    creationKind: 'cadet_branch',
+    creationReason: input.fromSuccession ? 'succession' : 'house_split',
   }
 
   let stateWithNewHouse: WorldState = {

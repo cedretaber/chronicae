@@ -652,6 +652,10 @@ export type SimulationConfig = {
   founderSpouseChanceOld: number
   founderChildBaseChance: number
   founderMaxGeneratedChildren: number
+  // v0.31 Influential House / Political Engagement
+  influentialHousePolityShareThreshold: number
+  // v0.31 House Founding interval (used by tick.ts scheduled system)
+  houseFoundingIntervalWeeks: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -1344,4 +1348,8 @@ export const defaultConfig: SimulationConfig = {
   founderSpouseChanceOld: 0.85,
   founderChildBaseChance: 0.6,
   founderMaxGeneratedChildren: 4,
+  // v0.31 Influential House / Political Engagement
+  influentialHousePolityShareThreshold: 0.1,
+  // v0.31 House Founding interval
+  houseFoundingIntervalWeeks: 4,
 }

@@ -40,10 +40,9 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
         if (!person || !person.alive || person.kind === 'placeholder') {
           shouldRemove = true
         } else if (!person.houseId) {
-          // houseless person with direct share — check faction membership
-          const isFactionMember =
-            getActiveFactionMembership(currentCtx.state, share.holder.id) !== undefined
-          if (!isFactionMember) {
+          // houseless person with direct share — only commonwealth rebel holders are eligible
+          const isCommonwealthRebelHolder = polity.kind === 'commonwealth'
+          if (!isCommonwealthRebelHolder) {
             shouldRemove = true
           }
         } else {
@@ -74,10 +73,9 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
       const person = currentCtx.state.persons[office.holderPersonId]
       if (!person || !person.alive) continue // 別系統の不整合
       if (!person.houseId) {
-        // houseless holder — only eligible if faction member
-        const isFactionMember =
-          getActiveFactionMembership(currentCtx.state, office.holderPersonId) !== undefined
-        if (!isFactionMember) {
+        // houseless holder — only eligible if commonwealth rebel holder
+        const isCommonwealthRebelHolder = polity.kind === 'commonwealth'
+        if (!isCommonwealthRebelHolder) {
           const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)
           const holder = revokedState.persons[office.holderPersonId]
           const { event, ctx: eventCtx } = createSimEvent(

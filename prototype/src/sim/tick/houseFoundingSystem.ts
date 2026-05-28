@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import { createSimEvent, makeHouseId, makePersonId } from './context'
 import type { PersonId, HouseId, ProvinceId } from '../types/ids'
-import type { House } from '../types/house'
+import type { House, HouseCreationReason } from '../types/house'
 import type { WorldState } from '../types/world'
 import type { RngState } from '../rng/rng'
 import { randomFloat, randomInt, shuffle } from '../rng/rng'
@@ -18,14 +18,18 @@ export function runHouseFoundingSystem(ctx: TickContext): TickContext {
 
   let currentCtx = ctx
 
-  const candidateIds = getHouselessPersons(currentCtx.state).filter((pid) => {
+  const candidatesWithReasons: { id: PersonId; reason: HouseCreationReason }[] = []
+  for (const pid of getHouselessPersons(currentCtx.state)) {
     const person = currentCtx.state.persons[pid]
-    if (!person) return false
-    return isFoundingCandidate(currentCtx.state, currentCtx.config, person)
-  })
+    if (!person) continue
+    const reason = getFoundingReason(currentCtx.state, currentCtx.config, person)
+    if (reason) candidatesWithReasons.push({ id: pid, reason })
+  }
+  const candidateIds = candidatesWithReasons.map((c) => c.id)
 
   if (candidateIds.length === 0) return currentCtx
 
+  const reasonMap = new Map(candidatesWithReasons.map((c) => [c.id, c.reason]))
   const { value: shuffled, rng: rngAfterShuffle } = shuffle(currentCtx.rng, candidateIds)
   currentCtx = { ...currentCtx, rng: rngAfterShuffle }
 
@@ -90,6 +94,8 @@ export function runHouseFoundingSystem(ctx: TickContext): TickContext {
       legacyPrestige: houseLegacyPrestige,
       wealth: wealthTransfer,
       seatProvinceId,
+      creationKind: 'self_made_foundation',
+      creationReason: reasonMap.get(candidateId) ?? 'wealth',
     }
 
     const updatedCandidate = {
@@ -146,29 +152,29 @@ export function runHouseFoundingSystem(ctx: TickContext): TickContext {
   return currentCtx
 }
 
-function isFoundingCandidate(
+function getFoundingReason(
   state: WorldState,
   config: TickContext['config'],
   person: NonNullable<WorldState['persons'][PersonId]>,
-): boolean {
-  if (person.wealth >= config.houseFoundingMinWealth) return true
-  if (person.legacyPrestige >= config.houseFoundingMinPrestige) return true
+): HouseCreationReason | undefined {
+  if (person.wealth >= config.houseFoundingMinWealth) return 'wealth'
+  if (person.legacyPrestige >= config.houseFoundingMinPrestige) return 'prestige'
 
   const officeIds = state.officeIndex.byHolderPerson[person.id as string] ?? []
   for (const oaId of officeIds) {
     const oa = state.officeAssignments[oaId]
-    if (oa?.active) return true
+    if (oa?.active) return 'office'
   }
   const holdingOfficeIds = state.holdingOfficeIndex.byHolderPerson[person.id] ?? []
   for (const hoaId of holdingOfficeIds) {
     const hoa = state.holdingOfficeAssignments[hoaId]
-    if (hoa?.active) return true
+    if (hoa?.active) return 'office'
   }
 
   const logIds = state.personActivityLogIndex.byPerson[person.id as string] ?? []
-  if (logIds.length >= config.houseFoundingMinActivityLogs) return true
+  if (logIds.length >= config.houseFoundingMinActivityLogs) return 'prestige'
 
-  return false
+  return undefined
 }
 
 function determineSeatProvinceId(
