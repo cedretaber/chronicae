@@ -58,9 +58,11 @@ const WEEKS_PER_SEASON = 12
 | 8 | MortalitySystem | 4 | 旧毎月 |
 | 8b | EstateSettlementSystem | 4 | Mortality 直後 |
 | 9 | SuccessionSystem | 4 | 旧毎月 |
-| 10 | MarriageSystem | 48 | 旧毎年 |
-| 11 | BirthSystem | 48 | 旧毎年 |
-| 11b | UnaffiliatedPersonSystem | 48 | 旧毎年 |
+| 10 | MarriageSystem | 4 | v0.31 で 48→4 に変更 |
+| 11 | BirthSystem | 4 | v0.31 で 48→4 に変更 |
+| 11a | HouseFoundingSystem | config | v0.31 追加。config `houseFoundingIntervalWeeks` (default 4) |
+| 11a2 | HouseSplitEvaluationSystem | config | v0.31 追加。config `houseSplitEvaluationIntervalWeeks` (default 12) |
+| 11b | HouselessPersonGenerationSystem | 4 | 旧 UnaffiliatedPersonSystem を v0.31 で改名 |
 | 11c | OfficeTermSystem | 48 | 旧毎年 |
 | 12 | ShareUpdateSystem | 48 | 旧毎年 |
 | 13 | AppointmentSystem | 12 | v0.23: 48→12 に変更。3ヶ月ごと |
@@ -72,7 +74,7 @@ const WEEKS_PER_SEASON = 12
 | 14c | FactionDefectionSystem | 48 | 旧毎年 |
 | 14d | FactionMaintenanceSystem | 4 | v0.19 で分割: leader 死亡時継承・死亡 member 整理 |
 | 14e | FactionLifecycleSystem | 48 | v0.19 で分割: 解散判定・新規結成 (年次のみ) |
-| 14f | FactionRecruitmentSystem | 48 | 旧毎年 |
+| 14f | FactionRecruitmentSystem | 12 | v0.31 で 48→12 に変更 |
 | 14g | PersonGrowthSystem | 48 | 旧毎年 |
 | 15 | AmbitionSystem | 4 | 旧毎月 |
 | 16 | PublicSpendingSystem | 48 | 旧毎年 |

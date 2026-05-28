@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-27（v0.30 Offer-driven Diplomatic Negotiation）
+最終更新: 2026-05-28（v0.31 House Lifecycle 刷新）
 
 ---
 

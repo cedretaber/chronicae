@@ -427,26 +427,26 @@ toHeirsPool = wealth - toHouse
 
 `deathsThisTick` と `deathRolesThisTick` は次 tick の `advanceTime` で空にリセットされる。
 
-### 6.8 MarriageSystem（48週ごと = 毎年）
+### 6.8 MarriageSystem（4週ごと、v0.31 で 48→4 に変更）
 
 `marriageEnabled` が true のとき動作。未婚の男性候補を一覧し、それぞれに対して婚姻判定を行う。
 
-- **候補条件（男性）**: 生存・未婚・対象年齢（`marriageMaleMinAge`〜`marriageMaleMaxAge`）・所属家が active
-- **候補条件（女性）**: 生存・未婚・対象年齢（`marriageFemaleMinAge`〜`marriageFemaleMaxAge`）・所属家が active
-- **禁止組み合わせ**: 同一家・近親関係（`isForbiddenMarriagePair` によるチェック）
+- **候補条件（男性）**: 生存・未婚・対象年齢（`marriageMaleMinAge`〜`marriageMaleMaxAge`）・normal（placeholder 除外）。houseId がある場合は所属家が active であること。houseId がなくても候補に含める（v0.31）
+- **候補条件（女性）**: 生存・未婚・対象年齢（`marriageFemaleMinAge`〜`marriageFemaleMaxAge`）・normal（placeholder 除外）。houseId がある場合は所属家が active であること。houseId がなくても候補に含める（v0.31）
+- **禁止組み合わせ**: 同一家・近親関係（`isForbiddenMarriagePair` によるチェック）。**無家×無家は婚姻不可**（v0.31）
 - **同 Polity 婚ボーナス**（v0.15）: `getPersonPrimaryPolityId` で primary Polity を取得し、男女で一致なら `samePrimaryPolityMarriageBonus`（+0.08）を加算
-- **異 Polity 婚ペナルティ**（v0.15 で廃止）: 「単一 Polity 所属を強要しない」設計のためペナルティは加えない
 
-婚姻成立時の処理：
-- 女性が男性の家に `movePersonToHouse` で移動
+婚姻成立時の処理（v0.31 更新）：
+- 男女とも House 所属: 女性が男性の家に `movePersonToHouse` で移動（既存ルール）
+- 片方が無家: 無家側が有家側の House に `movePersonToHouse` で移動
 - `spouseId` を双方向に設定（`setSpouse`）
-- `house.memberIds` に女性を追加
+- `house.memberIds` に移動者を追加
 
 イベント: `MARRIAGE_FORMED`（importance: `normal`）
 
-### 6.9 BirthSystem（48週ごと = 毎年）
+### 6.9 BirthSystem（4週ごと、v0.31 で 48→4 に変更）
 
-`birthEnabled` が true のとき動作。対象年齢（`fatherMinChildAge`〜`fatherMaxChildAge`）の生存男性を走査し、出生判定を行う。AnonymousHouse 所属者は出産対象外（v0.20.3）。家を持たない在野人物が子を残すには、まず家系を創設する必要がある。
+`birthEnabled` が true のとき動作。対象年齢（`fatherMinChildAge`〜`fatherMaxChildAge`）の生存男性を走査し、出生判定を行う。**`houseId` がない人物は出生対象外**（v0.31）。家を持たない在野人物が子を残すには、まず家系を創設する必要がある。
 
 **出生確率補正**:
 ```
@@ -519,7 +519,32 @@ splitChance = baseHouseSplitChance
 - 元 House の `cadetHouseIds` に追加、新 House の `parentHouseId` を設定
 - 国の `houseIds` に新 House を追加
 
-イベント: `HOUSE_SPLIT`（importance: `major`）+ `SUCCESSION_CRISIS`（importance: `major`）
+イベント: `HOUSE_SPLIT`（importance: `major`）+ `CADET_HOUSE_FOUNDED`（importance: `major`、v0.31）+ `SUCCESSION_CRISIS`（importance: `major`、`fromSuccession` 時のみ）
+
+**v0.31 拡張**:
+- 分家に `creationKind: 'cadet_branch'` と `creationReason` (`'succession'` or `'house_split'`) を設定
+- `initializeHouseShares` で新 House の OrganizationShare を即時初期化
+- 移動元 House の古い Share を `removePersonSharesInHouse` で整理
+- 両 House に `lastSplitWeek = absoluteWeek` を設定（cooldown 用）
+- `houseSplitCooldownWeeks`（default 48）以内の再分裂を防止
+
+### 6.11b HouseSplitEvaluationSystem（config 依存の周期、v0.31 追加）
+
+巨大 House を定期評価して分家を生む scheduled system。`houseSplitEvaluationIntervalWeeks`（default 12）ごとに実行。
+
+**条件**:
+1. `houseSplitEnabled: true`
+2. `house.kind !== 'system'`
+3. cooldown 中でないこと（`lastSplitWeek + houseSplitCooldownWeeks > absoluteWeek` なら skip）
+4. `livingMemberCount >= houseSplitMinLivingMembers`
+5. `house.wealth >= houseSplitMinWealth`
+6. `house.legacyPrestige >= houseSplitMinLegacyPrestige`
+7. `getHouseControlledProvinceIds >= minProvincesForHouseSplit`
+8. `getHouseCohesion < houseSplitCohesionThreshold`
+
+候補選出は `getAdultSuccessionCandidates` → leader 除外 → `chooseSplitter`。
+
+**succession path との違い**: evaluation path では `SUCCESSION_CRISIS` event を発火しない。`creationReason` は `'house_split'`
 
 **cohesion（結束度）について**:
 - v0.11 より `house.cohesion` フィールドは廃止。`getHouseCohesion` セレクターで動的計算（§4.5 参照）
@@ -571,6 +596,38 @@ v0.14 では `handleRulerHouseExtinction` が ruler house extinct で Country �
 これにより HouseExtinction → 所領消失 → 当月内に PolityOwnerConsistency が owner 補充または `POLITY_EXTINCT` 発火、という分離した責務になる。
 
 イベント: `HOUSE_EXTINCT`（importance: `major`）
+
+### 6.13b HouseFoundingSystem（config 依存の周期、v0.31 追加）
+
+無家人物が条件を満たすと新 House を創設する system。`houseFoundingIntervalWeeks`（default 4）ごとに実行。
+
+**候補条件**: alive / normal / `houseId === undefined` で、以下のいずれかを満たす:
+- `wealth >= houseFoundingMinWealth` → reason: `'wealth'`
+- `legacyPrestige >= houseFoundingMinPrestige` → reason: `'prestige'`
+- active な OfficeAssignment または HoldingOfficeAssignment を保持 → reason: `'office'`
+- `personActivityLogIndex` のログ数が `houseFoundingMinActivityLogs` 以上 → reason: `'prestige'`
+
+**処理フロー**:
+1. 候補を収集し、shuffle（RNG 順序保証）
+2. 候補ごとに `houseFoundingMonthlyChance` で確率ロール
+3. `seatProvinceId` を決定（優先順: HoldingOffice の Province → Polity Office の capitalProvince → ランダム Province）
+4. 新 House を生成（`creationKind: 'self_made_foundation'`、`creationReason` は判定条件由来）
+5. founder の wealth の `houseFoundingWealthTransferRate`（default 0.5）を新 House に移転
+6. `legacyPrestige` を `floor(founder.legacyPrestige * 0.5)` で設定
+7. founder を `house:leader` Office に任命
+8. `founderFamilyGenerationEnabled` が true なら家族を後付け生成（配偶者・子供、年齢に応じた確率）
+9. `initializeHouseShares` で OrganizationShare を即時初期化
+10. `HOUSE_FOUNDED` event を発火
+
+**1 月あたり最大** `houseFoundingMaxPerMonth` 家まで創設。
+
+イベント: `HOUSE_FOUNDED`（importance: `major`）
+
+### 6.13c HouselessPersonGenerationSystem（4週ごと、v0.31 で改名）
+
+旧 `UnaffiliatedPersonSystem`。無家人物を生成・維持する。config key は `unaffiliated*` から `houseless*` に改名（`houselessPersonsPerHolding` / `houselessMaleRatio` / `targetHouselessPersons` / `softMaxHouselessPersons` / `hardMaxHouselessPersons` / `houselessProtectionYears`）。
+
+無家人物は `houseId === undefined` の normal Person として `state.persons` に直接追加される。House の `memberIds` には含まれない。
 
 ### 6.14 AppointmentSystem（12週ごと = 3ヶ月ごと、v0.23 で頻度変更）
 
@@ -1009,24 +1066,33 @@ for each polity in active polities:
       if person is missing or not alive or person.kind === 'placeholder':
         removeOrganizationShare(share.id)
       else:
-        // v0.18-pre: commonwealth の rebel founder (AnonymousHouse 所属) は eligible 扱い
-        isCommonwealthRebelHolder = polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
+        // v0.31: commonwealth Polity の houseless person (rebel founder) は eligible 扱い
+        isCommonwealthRebelHolder = polity.kind === 'commonwealth'
         if not isCommonwealthRebelHolder:
-          house = state.houses[person.houseId]
-          if house is missing or not active or house.id not in eligibleHouseIds:
             removeOrganizationShare(share.id)
+      else:
+          house = state.houses[person.houseId]
+          isFactionMember = getActiveFactionMembership(state, share.holder.id) !== undefined
+          if not isFactionMember:
+            if house is missing or not active or house.id not in eligibleHouseIds:
+              removeOrganizationShare(share.id)
 
   // Step 2: 不適格 Polity Office revoke
   for each active office where organization is { kind: 'polity', id: polity.id }:
     person = state.persons[office.holderPersonId]
     if not person.alive: continue  // 別系統の不整合（IntegrityCheck で検知）
+    if not person.houseId:
+      // v0.31: houseless holder は commonwealth rebel holder のみ eligible
+      isCommonwealthRebelHolder = polity.kind === 'commonwealth'
+      if not isCommonwealthRebelHolder:
+        revokeOfficeAssignment(office.id)
+        emit OFFICE_REVOKED
+      continue
     house = state.houses[person.houseId]
     houseEligible = house and house.active and house.id in eligibleHouseIds
-    // v0.18-pre: commonwealth の rebel founder (AnonymousHouse 所属) は eligible 扱い
-    isCommonwealthRebelHolder = polity.kind === 'commonwealth' && person.houseId === ANONYMOUS_HOUSE_ID
     // v0.21: active な派閥に所属する人物は eligible 扱い（派閥経由の任命を維持するため）
     isFactionMember = getActiveFactionMembership(state, office.holderPersonId) !== undefined
-    if houseEligible or isCommonwealthRebelHolder or isFactionMember: continue
+    if houseEligible or isFactionMember: continue
     revokeOfficeAssignment(office.id)
     emit OFFICE_REVOKED
 
@@ -1048,12 +1114,10 @@ for each polity in active polities:
 - Share 削除責任は OrganizationConsistencySystem に**一本化**される（ShareUpdateSystem は削除を行わない）
 - Polity Office holder は常に以下のいずれかに限定される:
   - 対象 Polity 内に Province を持つ active House の人物
-  - commonwealth Polity の AnonymousHouse 所属 rebel founder
+  - commonwealth Polity の houseless rebel founder（v0.31: `polity.kind === 'commonwealth' && !person.houseId`）
   - active な派閥に所属する人物（派閥が解散すれば次回チェックで revoke される）
 - Step 3 により、Polity の rank 降格時に定員超過の役職者が自動的に整理される
-- rebel founder が死亡したら `markPersonDead → revokeOfficesByHolder` 経路で Office が revoke され、Step 1 の `!person.alive` 分岐で Share も削除される (commonwealth Polity は leader 死後も active=true で存続するが、Office / Share holder は不在になる)
-
-v0.18-pre 時点では `polity.kind === 'commonwealth' && houseId === ANONYMOUS_HOUSE_ID` という ad-hoc な分岐になっており、将来的には `AppointmentPolicy` 抽象化 (Polity ごとの任命方針) として一般化する予定。詳細は `docs/drafts/spec-v018-pre-update.md` §5 参照。
+- rebel founder が死亡したら `markPersonDead → revokeOfficesByHolder` 経路で Office が revoke され、Step 1 の `!person.alive` 分岐で Share も削除される
 
 ### 6.23 AttitudeDecaySystem（4週ごと）
 

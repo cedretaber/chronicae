@@ -285,10 +285,9 @@ function getHouseRelevantProvinceIds(state, houseId): ProvinceId[]
 function getLandContractGrantor(state, contractId): LandContractGrantor | undefined
 function getGrantorRank(state, grantor): number   // root は 0
 
-// system house / placeholder Person 判定
+// placeholder Person 判定
 function isPlaceholderPerson(state, personId): boolean
-function getAnonymousHouseId(): HouseId
-function isSystemHouse(state, houseId): boolean
+// v0.31 で削除: getAnonymousHouseId(), isSystemHouse()
 
 // HoldingOffice / Bailiff (v0.20: Province → Holding に移行)
 function getHoldingBailiffPerson(state, holdingId): Person | undefined
@@ -426,6 +425,57 @@ function computeBailiffBurdenComponents(
 
 // 直近 4 週の collect_holding_revenue Task 完了状態
 function getRecentBailiffRevenueTaskStatus(state: WorldState, assignmentId: HoldingOfficeAssignmentId): BailiffRevenueTaskStatus
+```
+
+### 4.10 House / Person 可用性セレクター（v0.31）
+
+```ts
+// 支配者家門: 1 つ以上の active Polity の ownerHouseId になっている active normal House
+function isRulingHouse(state: WorldState, houseId: HouseId): boolean
+
+// 非支配者家門: active normal House だが ownerHouse として保持する active Polity が 0
+function isNonRulingHouse(state: WorldState, houseId: HouseId): boolean
+
+// 支配者家門 ID 一覧
+function getRulingHouseIds(state: WorldState): HouseId[]
+
+// 非支配者家門 ID 一覧
+function getNonRulingHouseIds(state: WorldState): HouseId[]
+
+// 有力家門: ownerHouse でない Polity で Share 比率が閾値以上
+function isInfluentialHouseInAnyPolity(
+  state: WorldState,
+  config: { influentialHousePolityShareThreshold: number },
+  houseId: HouseId,
+): boolean
+
+// 無家人物: houseId を持たない normal Person (placeholder 除外)
+function isHouselessPerson(state: WorldState, personId: PersonId): boolean
+
+// 無家人物 ID 一覧
+function getHouselessPersons(state: WorldState): PersonId[]
+
+// 政治的に関与している人物 (以下のいずれかに該当):
+//   - 所属 House が支配者家門 / 有力家門
+//   - active Faction 所属
+//   - active Office holder
+//   - active Project の supervisor
+//   - DiplomaticPlay の delegate
+function isPoliticallyEngagedPerson(
+  state: WorldState,
+  config: { influentialHousePolityShareThreshold: number },
+  personId: PersonId,
+): boolean
+
+// 在野人物 (登用候補): alive, normal, 政治的に非関与
+function isRecruitableOutsiderPerson(
+  state: WorldState,
+  config: { influentialHousePolityShareThreshold: number },
+  personId: PersonId,
+): boolean
+
+// 非支配者・非有力家門の土地なし House メンバー
+function isLandlessHouseMember(state: WorldState, personId: PersonId): boolean
 ```
 
 ---

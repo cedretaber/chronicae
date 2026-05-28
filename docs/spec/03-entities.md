@@ -191,30 +191,41 @@ type Polity = {
 ### 3.4 House（家）
 
 ```ts
+type HouseKind = 'normal' | 'system'
+
+type HouseCreationKind = 'cadet_branch' | 'self_made_foundation'
+
+type HouseCreationReason =
+  | 'house_split' | 'wealth' | 'office' | 'prestige'
+  | 'land_grant' | 'polity_grant' | 'succession' | 'peace_settlement'
+
 type House = {
   id: HouseId
   name: string
   active: boolean
-  kind?: 'system'            // 'system' = AnonymousHouse 等の内部 House (v0.16)
+  kind?: HouseKind           // v0.16 追加。v0.31 で AnonymousHouse 廃止後は実質未使用
   memberIds: PersonId[]      // 生存中のメンバー
   deceasedMemberIds: PersonId[]  // 死亡したメンバー（家系の歴史記録）
-  founderId?: PersonId       // 家の創設者（分裂新設家のみ設定）
+  founderId?: PersonId       // 家の創設者
   parentHouseId?: HouseId    // 分裂元の家
   cadetHouseIds: HouseId[]   // 分裂で生まれた傍系家のリスト
   nameSource?: 'pool' | 'province' | 'founder' | 'fallback'
   legacyPrestige: number     // 0..100（家の権威・伝統の蓄積）
   wealth: number             // >= 0
   seatProvinceId: ProvinceId
+  lastSplitWeek?: number     // v0.31: 直近の分家発生時の absoluteWeek（cooldown 用）
+  creationKind?: HouseCreationKind    // v0.31: 創設種別
+  creationReason?: HouseCreationReason  // v0.31: 創設理由
 }
 ```
 
-- `seatProvinceId`: 家本拠地の中心。v0.16 では House が支配していない Province を指してもよい（亡命・名目本拠地を許容）
-- `kind === 'system'` は AnonymousHouse（`h-anon` 固定 ID、placeholder Person の集約用）。UI / 整合性検査 / extinction / split から除外される（§3.8 / §20.4）
+- `seatProvinceId`: 家本拠地の中心。House が支配していない Province を指してもよい（亡命・名目本拠地を許容）
 - `prestige`・`cohesion`・`loyaltyToPolity` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
 - **v0.12**: `headId` を削除。家長は `OfficeAssignment`（role: 'leader'）で管理。`getHouseLeader` セレクターで取得（§4.6 参照）
 - **v0.15**: `polityId` フィールドを削除。House は単一 Polity に所属しない
-- **v0.16**: `provinceIds` フィールドを削除。House の関与 Province は LandContract chain から selector で取得（`getHouseControlledProvinceIds` / `getHouseRelevantProvinceIds`）。House active 判定は memberIds (血統) ベース（§9.1 / spec-v016-update.md）。土地ゼロでも `active=true` のまま「亡命家」として存続し、お家再興を待つ
-- **v0.20.3**: `memberIds` を生存中メンバーのみに限定し、`deceasedMemberIds` を追加。`markPersonDead` で memberIds → deceasedMemberIds に移動する。家系の歴史記録を保持しつつ、生存メンバー走査の効率を確保
+- **v0.16**: `provinceIds` フィールドを削除。House の関与 Province は LandContract chain から selector で取得（`getHouseControlledProvinceIds` / `getHouseRelevantProvinceIds`）。House active 判定は memberIds (血統) ベース。土地ゼロでも `active=true` のまま「亡命家」として存続し、お家再興を待つ
+- **v0.20.3**: `memberIds` を生存中メンバーのみに限定し、`deceasedMemberIds` を追加。`markPersonDead` で memberIds → deceasedMemberIds に移動する
+- **v0.31**: AnonymousHouse (`h-anon`, `kind: 'system'`) を廃止。`kind` フィールドは型上残存するが `'system'` の House は生成しない。`lastSplitWeek` / `creationKind` / `creationReason` を追加。v0.31 実動の creationReason は `house_split` / `wealth` / `office` / `prestige` / `succession`
 
 ### 3.5 Person（人物）
 
@@ -239,7 +250,7 @@ type Person = {
   sex: Sex
   age: number
   alive: boolean
-  houseId: HouseId
+  houseId?: HouseId              // v0.31: optional 化。undefined = 無家人物
   kind?: 'normal' | 'placeholder'  // 'placeholder' = ProvinceOffice 用の仮想人物 (v0.16)
   fatherId?: PersonId        // 父親（既知の場合）
   motherId?: PersonId        // 母親（既知の場合）
@@ -268,7 +279,8 @@ type Person = {
   - `aptitudes`: 才能上限（原則不変、遺伝で親から子へ平均回帰込みで伝わる）
   - 応用ロール（governance / stewardship / diplomacy / intrigue / warCommand）は派生 selector `getRoleScore(state, personId, role)` で計算する（§4.7 参照）
   - 死亡時、`wealth > 0` なら EstateSettlementSystem（§6.7b）が家・相続人へ分配する
-- **v0.16**: `kind` を追加。`'placeholder'` は ProvinceOffice (Bailiff) 用の仮想人物で、AnonymousHouse に所属し marriage / birth / death / succession などの Person-loop からはガード経由で除外される（§20.3）。`kind` 未設定または `'normal'` は通常人物
+- **v0.16**: `kind` を追加。`'placeholder'` は ProvinceOffice (Bailiff) 用の仮想人物で、marriage / birth / death / succession などの Person-loop からはガード経由で除外される。`kind` 未設定または `'normal'` は通常人物
+- **v0.31**: `houseId` を optional 化。`houseId` が undefined の normal Person は「無家人物 (houseless person)」として扱う。placeholder は常に `houseId === undefined`。旧 `UnaffiliatedOccupation` → `PersonBackgroundOccupation` に改名。旧 AnonymousHouse (`h-anon`) は廃止され、無家人物は `state.persons` に直接追加される
 
 ### 3.6 Attitude（態度）
 
@@ -428,7 +440,7 @@ type HoldingOfficeAssignment = {
 - **v0.20**: `provinceId` → `holdingId` に変更。`startYear` を廃止し `startWeek` (absoluteWeek) に統一。term expiry は `absoluteWeek - startWeek >= termYears * WEEKS_PER_YEAR` で判定
 - **v0.25**: `contractedRemittanceRate` / `expectedFeeRate` を追加。代官の徴税条件を表す。`bailiffRevenueShare` は廃止。代官報酬は `bailiffFeeRate` selector で算出する
 
-**AnonymousHouse**: placeholder Person を集約する固定 ID House (`h-anon`、`kind: 'system'`)。worldgen で 1 つ生成され、Bailiff の placeholder Person が所属する。succession / split / extinction / marriage / birth / mortality からは除外される。
+**AnonymousHouse（v0.31 で廃止）**: 旧 `h-anon`（`kind: 'system'`）は v0.31 で完全廃止。placeholder Person は `houseId === undefined` として直接 `state.persons` に格納される。House の `memberIds` には含まれない。
 
 **WorldState の追加フィールド（v0.16 / v0.20）**:
 
@@ -477,7 +489,7 @@ ID prefix:
 | `HoldingOfficeAssignmentId` | `ho-` |
 | `HoldingId` | `hl-` |
 | `StateRegionId` | `st-` |
-| `AnonymousHouse` (固定 ID) | `h-anon` |
+| ~~`AnonymousHouse`~~ | ~~`h-anon`~~ | **v0.31 で廃止** |
 
 #### BailiffPolicy / BailiffRevenueTaskStatus（v0.25）
 

@@ -17,6 +17,8 @@
 | MARRIAGE_FORMED | normal | 婚姻成立 |
 | CHILD_BORN | minor | 子誕生 |
 | HOUSE_SPLIT | major | 家の分裂（傍系家の独立） |
+| CADET_HOUSE_FOUNDED | major | 分家の創設（v0.31） |
+| HOUSE_FOUNDED | major | 無家人物による新 House の創設（v0.31） |
 | SUCCESSION_CRISIS | major | 継承危機 |
 | PLOT_STARTED | normal | 陰謀開始 |
 | PLOT_SUCCEEDED | major | 陰謀成功 |

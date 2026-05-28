@@ -621,6 +621,23 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **CONTRACT_ELIMINATED イベント emit**: conflict / settlement 両経路で正しく emit。i18n テンプレート（en/ja）は既存
 - **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。CONTRACT_ELIMINATED は seed あたり 6-8 件発生
 
+### v0.31 で実装済み（House Lifecycle 刷新）
+
+詳細仕様は `docs/drafts/spec-v031-update.md` 参照。
+
+- **Person.houseId optional 化**: `houseId?: HouseId`。undefined = 無家人物 (houseless person)
+- **AnonymousHouse 完全廃止**: `ANONYMOUS_HOUSE_ID` / `h-anon` / `kind: 'system'` の House / `addPersonToAnonymousHouse` / `dispersePersonsToAnonymousHouse` / `isPersonInAnonymousHouse` / `getAnonymousHouseId` / `isSystemHouse` を全削除。placeholder Person は `houseId === undefined` として直接 `state.persons` に格納
+- **unaffiliated → houseless 改名**: `UnaffiliatedOccupation` → `PersonBackgroundOccupation`。config key `unaffiliated*` → `houseless*`。`unaffiliatedPersonSystem` → `houselessPersonGenerationSystem`
+- **新 selector**: `isRulingHouse` / `isNonRulingHouse` / `getRulingHouseIds` / `getNonRulingHouseIds` / `isInfluentialHouseInAnyPolity` / `isHouselessPerson` / `getHouselessPersons` / `isPoliticallyEngagedPerson` / `isRecruitableOutsiderPerson`
+- **無家人物の婚姻対応 (Phase B)**: 無家×有家ペアの婚姻を許可。無家側が有家側の House に移動。無家×無家は婚姻不可。BirthSystem は `!person.houseId` を skip
+- **HouseFoundingSystem (Phase C)**: 無家人物が wealth / prestige / office / ActivityLog 条件で新 House を創設。founder family 後付け生成（年齢別 3 段階の配偶者確率）。`initializeHouseShares` で Share 即時初期化。`HOUSE_FOUNDED` event
+- **HouseSplitEvaluationSystem (Phase D)**: 巨大 House の定期評価。cooldown (`houseSplitCooldownWeeks`)、member 数 / wealth / prestige / cohesion 条件。`splitHouse` に Share init / cleanup / `CADET_HOUSE_FOUNDED` event を追加
+- **HouseCreationKind / HouseCreationReason 型**: House に `creationKind` (`cadet_branch` / `self_made_foundation`) と `creationReason` (`house_split` / `wealth` / `office` / `prestige` / `succession`) を記録
+- **OrganizationConsistencySystem 修正**: houseless person の share/office 保護条件を `polity.kind === 'commonwealth'` に統一
+- **IntegrityCheck 更新**: commonwealth rebel holder 例外、house share holder houseId 整合性チェック
+- **Config 追加**: `houseFoundingEnabled` / `houseFoundingIntervalWeeks` / `houseFoundingMinWealth` / `houseFoundingMinPrestige` / `houseFoundingMinActivityLogs` / `houseFoundingMonthlyChance` / `houseFoundingMaxPerMonth` / `houseFoundingWealthTransferRate` / `founderFamilyGenerationEnabled` / `founderSpouseChanceYoung` / `founderSpouseChanceMid` / `founderSpouseChanceOld` / `founderChildBaseChance` / `founderMaxGeneratedChildren` / `influentialHousePolityShareThreshold` / `houseSplitEvaluationIntervalWeeks` / `houseSplitCooldownWeeks` / `houseSplitMinLivingMembers` / `houseSplitMinWealth` / `houseSplitMinLegacyPrestige`
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系

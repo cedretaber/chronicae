@@ -66,6 +66,11 @@
 | houseSplitControlMax | 80 | 分裂 Province 割合の上限（%） |
 | houseSplitWealthShare | 0.25 | 分裂時に新 House が受け取る wealth 割合 |
 | houseSplitUnrestGain | 5 | 分裂 Province への POP unrest 増加量（PopMutation 経由） |
+| houseSplitEvaluationIntervalWeeks | 12 | v0.31: HouseSplitEvaluationSystem の実行間隔（週） |
+| houseSplitCooldownWeeks | 48 | v0.31: 分家後の再分裂防止期間（週、1年相当） |
+| houseSplitMinLivingMembers | 5 | v0.31: 評価パスの最小生存メンバー数 |
+| houseSplitMinWealth | 80 | v0.31: 評価パスの最小 wealth |
+| houseSplitMinLegacyPrestige | 30 | v0.31: 評価パスの最小 legacyPrestige |
 | extinctionUnrestGain | 8 | 家断絶後の継承 Province への POP unrest 増加量 |
 | **War** | | |
 | warEnabled | true | 戦争有効 |
@@ -287,13 +292,13 @@
 | popDevelopmentCost | 3 | 発動時の全 POP wealth 低下量 |
 | popDevelopmentGain | 0.25 | 発動時の development 上昇量 |
 | popDevelopmentMaxDevelopment | 40 | POP 自主開発の development 上限 |
-| **Unaffiliated Person（v0.17、v0.20.3 改修）** | | |
-| unaffiliatedPersonsPerHolding | 0.5 | holdings 数あたりの在野人物 target 比率 |
-| unaffiliatedMaleRatio | 0.75 | 在野人物生成時の男性比率 |
-| targetUnaffiliatedPersons | 30 | 在野人物の最低 target（holdings ベース計算の下限として使用） |
-| softMaxUnaffiliatedPersons | 50 | pruning 開始の閾値（実効値は target × 1.5） |
-| hardMaxUnaffiliatedPersons | 80 | 強制削減の閾値（実効値は target × 2） |
-| unaffiliatedProtectionYears | 5 | 新参者の削除保護期間 |
+| **Houseless Person（v0.17、v0.20.3 改修、v0.31 改名）** | | |
+| houselessPersonsPerHolding | 0.5 | holdings 数あたりの無家人物 target 比率 |
+| houselessMaleRatio | 0.75 | 無家人物生成時の男性比率 |
+| targetHouselessPersons | 30 | 無家人物の最低 target（holdings ベース計算の下限として使用） |
+| softMaxHouselessPersons | 50 | pruning 開始の閾値（実効値は target × 1.5） |
+| hardMaxHouselessPersons | 80 | 強制削減の閾値（実効値は target × 2） |
+| houselessProtectionYears | 5 | 新参者の削除保護期間 |
 | pruningPrestigeThreshold | 20 | この prestige 以上は削除対象外 |
 | pruningWealthThreshold | 30 | この wealth 以上は削除対象外 |
 | **Attitude システム（v0.11）** | | |
@@ -442,6 +447,24 @@
 | offerCompromiseProgressDelta | 15 | offer_compromise Task 成功時の progress 増分（旧 progressGainMedium を置換） |
 | negotiateTermsProgressDelta | 8 | negotiate_terms Task 成功時の progress 増分（旧 progressGainMedium を置換） |
 | debugMixedProvinceHoldingsRatio | 0 | worldgen 後に mixed holdings を生成する Province の割合（0 = disabled） |
+| **House Founding（v0.31）** | | |
+| houseFoundingEnabled | true | House 創設システム有効 |
+| houseFoundingIntervalWeeks | 4 | HouseFoundingSystem の実行間隔（週） |
+| houseFoundingMinWealth | 120 | 創設候補の最小 wealth |
+| houseFoundingMinPrestige | 45 | 創設候補の最小 legacyPrestige |
+| houseFoundingMinActivityLogs | 3 | 創設候補の最小 ActivityLog 数 |
+| houseFoundingMonthlyChance | 0.04 | 創設確率（月あたり） |
+| houseFoundingMaxPerMonth | 2 | 月あたりの最大創設数 |
+| houseFoundingWealthTransferRate | 0.5 | founder → House への wealth 移転率 |
+| **Founder Family Generation（v0.31）** | | |
+| founderFamilyGenerationEnabled | true | 創設時の家族後付け生成有効 |
+| founderSpouseChanceYoung | 0.2 | 若年 founder の配偶者生成確率 |
+| founderSpouseChanceMid | 0.7 | 中年 founder の配偶者生成確率 |
+| founderSpouseChanceOld | 0.85 | 高齢 founder の配偶者生成確率 |
+| founderChildBaseChance | 0.6 | 子供生成の基礎確率 |
+| founderMaxGeneratedChildren | 4 | 最大生成子供数 |
+| **Influential House（v0.31）** | | |
+| influentialHousePolityShareThreshold | 0.10 | 有力家門判定の Share 比率閾値 |
 | **v0.30 廃止** | | |
 | ~~taxRevisionTaxChangeAmount~~ | — | **v0.30 で廃止**。`taxRevisionInitialDemandDelta` に統合 |
 

@@ -57,7 +57,7 @@ nobles.unrest    = randomInt(5, 25)
 | standard | 16 | 14-18 | 224-288 | 4/10/30 | 4 |
 | perfLarge | 25 | 14-18 | 350-450 | 6/16/50 | 3-5 |
 
-各 Polity に 1 つの ownerHouse を割り当てる。加えて **AnonymousHouse (`h-anon`, kind: 'system')** を 1 つ生成し placeholder Person の集約用とする。
+各 Polity に 1 つの ownerHouse を割り当てる。**v0.31**: AnonymousHouse は廃止。placeholder Person は `houseId === undefined` として生成される。
 
 **StateRegion の生成（v0.20.1）**: 矩形グリッドを廃止し、Poisson disk sampling で State center を配置。各 State に Province を楕円クラスタで配置。Province 間の neighbors は Delaunay 三角形分割 → MST + 確率的 edge 選別で生成。
 
@@ -154,7 +154,7 @@ holding.polityControl = maxControl(capitalProvinceId からの BFS 距離)
 
 ### 7.7 HoldingOffice (Bailiff) の初期化（v0.16 / v0.20）
 
-全 **Holding** に `bailiff` HoldingOfficeAssignment を生成し、holder は **placeholder Person** (AnonymousHouse 所属) とする。BailiffAppointmentSystem (§6.14e) が実行されると順次通常人物に置き換わる。
+全 **Holding** に `bailiff` HoldingOfficeAssignment を生成し、holder は **placeholder Person** (`houseId === undefined`) とする。BailiffAppointmentSystem (§6.14e) が実行されると順次通常人物に置き換わる。
 
 ### 7.8a Person Goal / Aim 初期生成（v0.23）
 
