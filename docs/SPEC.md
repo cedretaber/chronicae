@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-30（家制度バランス調整: 家内出生↑＋自力設立絞り、§9 / §14.6）
+最終更新: 2026-05-30（v0.33 Province/Holding 拡張を統合仕様へ反映: terrain/features・HoldingImprovement 再編・capacity/production 分離・seat 選定変更、§3 / §4 / §6.24 / §7 / §9 / §13。家制度バランス調整は §9 / §14.6）
 
 ---
 

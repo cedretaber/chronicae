@@ -1328,6 +1328,29 @@ Selector range（debug/integrity-check モード）:
 - `bailiffFeeRate` が `[0, maxBailiffFeeRate]`
 - `totalBurdenRate` が `[0, maxLocalExtractionRate]`
 
+**v0.33 追加チェック項目**:
+
+Province（§13.1）:
+- terrain が有効な ProvinceTerrain
+- features が配列で、各値が有効な ProvinceFeature、重複なし
+- `habitability` は型から削除済み（コンパイル時担保、runtime チェック不要）
+
+HoldingImprovement（§13.2、max-level access 反転）:
+- valid kind は `VALID_HOLDING_IMPROVEMENT_KINDS = new Set(Object.keys(IMPROVEMENT_DEFINITIONS))` で判定（二重管理解消）
+- max-level access を `holdingImprovementMaxLevelByKind[kind][holdingKind] ?? 0` に反転。`0`（未定義含む）= 建設不可なので `level > maxLevel` で違反（improvement entity / develop_holding project の 2 箇所）
+- 削除済み kind（agricultural_infrastructure / urban_infrastructure）は型から消滅
+- canBuild の terrain / feature ゲートは terrain 不変（§15 スコープ外）＋ improvement 生成が常に canBuild 経由のため構造的に保証（専用 runtime ループは設けない）
+
+Config / Definition（§13.3、const を回すのみ）:
+- `IMPROVEMENT_DEFINITIONS` と config の各数値 Record が全 HoldingImprovementKind を持つ（コンパイル時保証の二重の保険）
+- `allowedHoldingKinds` に含まれる holdingKind は maxLevel >= 1、含まれない holdingKind は maxLevel が undefined または 0、負値は不正
+- `capacityRole === 'capacity'` の kind は targetOccupations の `occupationCapacityPerLevel` が正値で存在
+- terrain / feature multiplier の invalid キーはコンパイル時担保（runtime チェック省略）
+
+Capacity（§13.4）:
+- 全 holding × occupation で `getHoldingOccupationCapacity` が NaN / Infinity / 負を返さない
+- `occupation === 'none'` の capacity は 0
+
 ### 6.25 IntentGenerationSystem（v0.26 で廃止）
 
 **v0.26 で廃止。** sell_land の生成ロジックは SellLandProjectGenerationSystem (§6.25b) に移植。

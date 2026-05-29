@@ -667,6 +667,21 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **CLI summary**: 年次サマリに activeClans を表示
 - **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。68 テストファイル / 642 件 test pass
 
+### v0.33 で実装済み（Province / Holding 拡張）
+
+詳細仕様は `docs/drafts/spec-v033-update.md` を参照。
+
+- **Province 地形系（Phase A）**: `habitability`（dead field）を削除し、`terrain`（plains/forest/hills/mountains/wetlands・単一）と `features`（coastal/major_river/lake・複数可）を追加（§3.1 / §3.1a）。worldgen で StateRegion dominantTerrain 継承 + feature 抽選により確定（§7.1）。House seat 選定を `provinceTerrainSettlementSuitability` 最大（同点 ProvinceId 昇順）に変更（§7.4）
+- **HoldingImprovement 再編（Phase B）**: 抽象的な `agricultural_infrastructure` / `urban_infrastructure` を削除し、具体設備 5 種（field_system / pastoral_infrastructure / irrigation_infrastructure / market_infrastructure / workshop_infrastructure）を追加。storage / transport は維持し production 品質設備に位置づけ（§3.1d）
+- **IMPROVEMENT_DEFINITIONS 一元化**: 構造メタデータ（allowedHoldingKinds / allowedTerrains / requiredAnyFeatures / capacityRole / targetOccupations）を `config/improvementDefinitions.ts` の const に集約。数値バランスは `SimulationConfig` に分離（§9）
+- **capacity と production の分離**: occupation capacity を `(base + improvementDerivedCapacity) * weight * landQuality` に変更し、capacity 側から `developmentModifier` を除去（二重計上回避）。production 側は devMod 維持（§4.1 / §4.2）。terrain / feature capacity multiplier を導入
+- **canBuild ゲート**: `canBuildHoldingImprovementPure`（state 非依存）/ `canBuildHoldingImprovement`（state ラッパ）を新設。worldgen 初期生成・develop_holding の kind 選択（`selectImprovementKind`）が canBuild を通す。worldgen は canBuild 先判定→通過分のみ RNG draw で決定性維持
+- **maxLevel table の破壊的変更**: `holdingImprovementMaxLevelByHoldingKind` → `holdingImprovementMaxLevelByKind`（ネスト反転 + Partial 化、undefined/0 = 建設不可）
+- **IntegrityCheck**: Province terrain/features、improvement maxLevel access 反転、IMPROVEMENT_DEFINITIONS × config 整合、capacity 健全性（§6.24 v0.33 項目）
+- **UI**: ProvinceDetail に terrain/features 表示、Holding 詳細に occupation capacity 表示、improvement フレーバー名のフォールバック（flavor→category→kind）。ヘッダー画像を terrain/設備連動に（§11）
+- **HoldingImprovement.condition**: v0.33 でも常に 100（将来の荒廃・修復システム用に温存）
+- **スコープ外（v0.33 では入れない）**: 資源・商品・交易・価格・港湾・鉱山・採石・林業・果樹園・葡萄園・水車・城砦・戦争本体・軍事 occupation・荒廃/復興・都市創設・土地開墾・terrain のゲーム中変化・occupation 種類追加。後回し Improvement（forestry/mining/quarrying/harbor/fortification/orchard/vineyard/mill）は資源・戦争システム導入時に再検討
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系

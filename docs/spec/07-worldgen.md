@@ -1,25 +1,47 @@
 # 7. Worldgen 初期化
 
-### 7.1 Province habitability の生成
+### 7.1 Province terrain / features の生成（v0.33）
 
-worldgen 時に各 Province に `habitability` を乱数で生成する：
+worldgen 時に各 Province に `terrain`（5 種・単一）と `features`（3 種・複数可）を生成する（旧 `habitability` 乱数生成は v0.33 で削除）。すべて RNG (`randomFloat`) 経由で決定し `Math.random()` は使わない。terrain / features は Province オブジェクト生成時（`generateProvinces`）に確定し、House seat 選定（§7.4）より前に決定済みであることを保証する。
 
-```ts
-habitability = randomInt(30, 90)
+**terrain**（StateRegion 単位の傾向）:
+
+```txt
+StateRegion ごとに dominantTerrain を lazy fill（初回参照時に provinceTerrainWeights から抽選）。
+各 Province は randomFloat < stateRegionDominantTerrainInheritanceChance (0.70) なら dominantTerrain を継承、
+それ以外は provinceTerrainWeights から再抽選する。
 ```
 
-将来的には地形・沿岸・河川・気候などで補正する。
+**features**（terrain 抽選後に coastal → major_river → lake の順で判定、消費順固定）:
+
+```txt
+coastal:
+  地図外周マージン（provinceCoastalEdgeMarginRatio = 0.12）内の Province のみ
+  randomFloat を消費し、確率 provinceFeatureCoastalChance (0.50) で付与。
+  内陸 Province では draw を消費しない。
+major_river:
+  clamp01(provinceFeatureMajorRiverBaseChance 0.15 + terrainDelta) で常に 1 回 draw。
+  terrainDelta: plains +0.10 / wetlands +0.10 / mountains -0.10。
+lake:
+  clamp01(provinceFeatureLakeBaseChance 0.06 + terrainDelta) で常に 1 回 draw。
+  terrainDelta: wetlands +0.05 / plains +0.05。
+```
+
+config キーは §9（`provinceTerrainWeights` / `stateRegionDominantTerrainInheritanceChance` / `provinceFeature*`）。v0.33 で worldgen の draw 順が変わるため、同一 seed でも v0.32 以前とは異なる世界が生成される（プロトタイプとして許容）。同一バージョン・同一 seed の決定性は維持する。
 
 ### 7.2 PopGroup 初期生成（v0.24 更新）
 
 各 **Holding** に peasants / townsmen / nobles の 3 PopGroup を生成する。POP サイズは occupation capacity に基づく。
 
-**size の初期値**（occupation capacity ベース）:
+**size の初期値**（occupation capacity ベース、v0.33 更新）:
 ```ts
-// 各 Holding について、class ごとに occupation capacity を算出
-const agriCap = occupationCapacityBase[holding.kind].agriculture * weight * landQuality * devMod
-const urbanCap = occupationCapacityBase[holding.kind].urban_labor * weight * landQuality * devMod
-const eliteCap = occupationCapacityBase[holding.kind].elite_service * weight * landQuality * devMod
+// 各 Holding について、class ごとに occupation capacity を算出。
+// v0.33: state 非依存の pure helper computeHoldingOccupationCapacity を selector と共有し、
+// capacity = (base + improvementDerivedCapacity) * weight * landQuality で算出する
+// （旧 devMod = 1.0 固定計算は廃止）。改善配置（§7.3c）は POP seeding より前段で確定済み。
+const agriCap  = computeHoldingOccupationCapacity(holding.kind, weight, landQuality, terrain, features, improvements, config, 'agriculture')
+const urbanCap = computeHoldingOccupationCapacity(holding.kind, weight, landQuality, terrain, features, improvements, config, 'urban_labor')
+const eliteCap = computeHoldingOccupationCapacity(holding.kind, weight, landQuality, terrain, features, improvements, config, 'elite_service')
 
 const fillRatio = rng.nextFloat(initialPopFillRatioMin, initialPopFillRatioMax) / 100
 
@@ -117,30 +139,35 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
 - `kind`: 基本は `manor`。`cityProvinceChance` (20%) で最初の city を配置。`secondCityChance` (5%) で 2 つ目の city を許容
 - `name`: Province 名 + 連番サフィックス (e.g. "Aldoria-1", "Aldoria-2")
 - `weight`: 1.0 (基本) + manor 0.0〜0.3 / city 0.5〜1.0 の乱数加算
-- `landQuality`: 0.8〜1.2 の乱数
+- `landQuality`: 0.6〜1.4 の乱数（v0.33: terrain とは独立。terrain 傾向は Improvement の terrain multiplier 側で表現し landQuality には混ぜない、§3.1d / §4.2）
 - ~~`development`~~: **v0.27 で削除**。代わりに初期 HoldingImprovement を配置（§7.3c 参照）
 
-### 7.3c 初期 HoldingImprovement の配置（v0.27）
+### 7.3c 初期 HoldingImprovement の配置（v0.27 / v0.33 更新）
 
-完全未整備世界を避けるため、Holding kind に応じて Lv.1 Improvement を一定確率で配置する。
+完全未整備世界を避けるため、Holding kind に応じて Lv.1 Improvement を一定確率で配置する。v0.33 で候補 kind を新 ImprovementKind に置き換えた。
 
 ```text
 manor:
-  agricultural_infrastructure Lv.1 — 一定確率で配置
-  storage_infrastructure Lv.1 — 低確率で配置
-  transport_infrastructure Lv.1 — 低確率で配置
+  field_system               0.40
+  pastoral_infrastructure     0.20
+  irrigation_infrastructure   0.30  ← feature ゲートで実質低下
+  storage_infrastructure      0.15
+  transport_infrastructure    0.15
 
 city:
-  urban_infrastructure Lv.1 — 一定確率で配置
-  storage_infrastructure Lv.1 — 低〜中確率で配置
-  transport_infrastructure Lv.1 — 低〜中確率で配置
+  market_infrastructure       0.40
+  workshop_infrastructure      0.25
+  storage_infrastructure      0.25
+  transport_infrastructure    0.25
 ```
 
-具体確率は config で制御。v0.27 では worldgen の土地初期化ロジックが変更されるため、同一 seed に対する v0.26.1 以前との世界互換性は保証しない。v0.27 内では同一 seed に対して決定的な worldgen を維持する。
+**RNG 消費順（決定性）**: 各 holding × 候補 kind について、draw 前に `canBuildHoldingImprovementPure(holding.kind, terrain, features, 0, kind, config)` を判定する。**建設不可なら `randomFloat` を消費せず continue**、通過した kind のみ 1 回 draw して確率判定する。これにより同一バージョン・同一 seed の決定性を保証する。確率値は `generateWorld.ts` 内インライン（バランス調整で変更可）。
 
-### 7.4 seatProvinceId / capitalProvinceId の決定
+v0.33 では worldgen の土地初期化ロジックが変更されるため、同一 seed に対する v0.32 以前との世界互換性は保証しない。v0.33 内では同一 seed に対して決定的な worldgen を維持する。
 
-各 House の本拠地は、その House が ownerHouse である Polity の terminal Province のうち配分された Province の先頭。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
+### 7.4 seatProvinceId / capitalProvinceId の決定（v0.33 更新）
+
+各 House の本拠地 `seatProvinceId` は、その House が初期保有する Province のうち `provinceTerrainSettlementSuitability`（terrain 由来の居住適性重み、§9）が最も高い Province を選ぶ。同点は ProvinceId 昇順で決定する（v0.33: 旧 `habitability` 最大 Province ベースを置換）。seat 選定時点では Holding 未生成のため Holding ベースの指標（landQuality 平均 / weight 合計）は使わない。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
 
 ### 7.5 polityControl の初期値（v0.16 / v0.20）
 

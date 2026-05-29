@@ -6,21 +6,39 @@
 type Province = {
   id: ProvinceId
   stateId: StateRegionId
-  name: string
+  nameKey: string
   x: number
   y: number
   neighbors: ProvinceId[]
-  habitability: number    // 0..100
+  terrain: ProvinceTerrain      // v0.33: habitability スカラーを置換
+  features: ProvinceFeature[]   // v0.33: 複数可・順不同
   holdingIds: HoldingId[]
 }
+
+type ProvinceTerrain = 'plains' | 'forest' | 'hills' | 'mountains' | 'wetlands'
+type ProvinceFeature = 'coastal' | 'major_river' | 'lake'
 ```
 
 - `stateId`: 所属する StateRegion (v0.20)
-- `habitability`: Province の基礎的な居住性・土地ポテンシャル。0 = ほぼ居住不能、100 = 非常に居住・生産に適した土地
+- `nameKey`: ロケール中立の名前識別子。表示文字列への解決は `app/` / `i18n/` の責務（`sim/` 層規約）
 - `holdingIds`: この Province に属する Holding の一覧 (v0.20)。各 Holding が development / polityControl を持つ
 - `baseTax` / `manpower` / `unrest` は v0.8 で廃止。これらは POP から selector で算出する
 - **v0.16**: `polityId` / `ownerHouseId` / `houseControl` を削除。土地支配は §3.8 LandContract chain で表現する。Province の terminal owner は selector (`getProvinceTerminalPolityId` / `getProvinceEffectiveOwnerHouseId`) で取得する
 - **v0.20**: `development` / `polityControl` を Province から削除し Holding に移動。Province レベルの値は selector (`getProvinceDevelopmentFromHoldings` / `getProvincePolityControlFromHoldings`) で Holding の weight 加重平均から算出する
+- **v0.33**: `habitability`（dead field）を削除し、自然地形 `terrain`（5 種・単一）と地理特徴 `features`（3 種・複数可）を追加した。terrain は House seat 選定（`provinceTerrainSettlementSuitability`、§7.4）と Holding Improvement の建設可否・capacity multiplier（§3.1d / §4.2）に消費される。features は Improvement の建設可否（例: 灌漑は `major_river` / `lake` が必要）と capacity multiplier に効く。worldgen 時に確定しゲーム中は不変（§7.1）
+
+### 3.1a ProvinceTerrain / ProvinceFeature（v0.33）
+
+| Terrain | 意味 | | Feature | 意味 |
+|---|---|---|---|---|
+| `plains` | 農業・都市形成に向く平坦地 | | `coastal` | 海沿い |
+| `forest` | 森林地帯 | | `major_river` | 大河・重要河川を有する |
+| `hills` | 丘陵地帯 | | `lake` | 湖・大きな内水面を有する |
+| `mountains` | 山岳地帯 | | | |
+| `wetlands` | 沼沢地・湿地 | | | |
+
+- 海岸・大河・湖は terrain ではなく別軸の feature として扱い、`coastal mountains` / `river forest` のような複合表現を可能にする
+- 将来候補（v0.33 では未導入）: terrain に `steppe` / `desert` / `tundra`。`ruggedness` / `forestDensity` / `fertility` のような追加自然パラメータは使い先が明確になるまで入れない（habitability の二の舞を避ける）
 
 ### 3.1b StateRegion（v0.20 / v0.20.1 更新）
 
@@ -63,40 +81,63 @@ type Holding = {
 - Holding-Province 対応はゲーム中不変（v0.20 scope ではゲーム中の Holding 追加・削除はない）
 - **v0.27**: `development` フィールドを削除。development は HoldingImprovement から `getHoldingDevelopment` selector で算出する（§4.1 / §3.1d 参照）
 
-### 3.1d HoldingImprovement（v0.27）
+### 3.1d HoldingImprovement（v0.27 / v0.33 再編）
 
 ```ts
 type HoldingImprovementId = string  // prefix: "hi-"
 
 type HoldingImprovementKind =
-  | 'agricultural_infrastructure'
-  | 'urban_infrastructure'
   | 'storage_infrastructure'
   | 'transport_infrastructure'
+  | 'field_system'              // v0.33
+  | 'pastoral_infrastructure'   // v0.33
+  | 'irrigation_infrastructure' // v0.33
+  | 'market_infrastructure'     // v0.33
+  | 'workshop_infrastructure'   // v0.33
 
 type HoldingImprovement = {
   id: HoldingImprovementId
   holdingId: HoldingId
   kind: HoldingImprovementKind
   level: number        // >= 1
-  condition: number    // 0..100（v0.27 では常に 100）
+  condition: number    // 0..100（v0.27 / v0.33 では常に 100）
   createdWeek: number
 }
 ```
 
 - Holding に付随する施設。同一 Holding / kind の Improvement は 1 件のみ
-- `level`: 施設の等級。Holding kind ごとに max level が異なる
-- `condition`: 老朽化・破壊は future。v0.27 では常に 100
+- `level`: 施設の等級。kind × Holding kind ごとに max level が異なる（§9 config）
+- `condition`: 老朽化・破壊は future。v0.27 / v0.33 では常に 100 で capacity / production のいずれにも影響しない（将来の荒廃・修復システム用に温存）
 - development は各 Improvement の level × scorePerLevel の合計として `getHoldingDevelopment` selector で算出（§4.1 参照）
 
-**max level（HoldingKind ごと）**:
+**v0.33 再編**: 抽象的な `agricultural_infrastructure` / `urban_infrastructure` を削除し、具体設備 5 種を追加した。kind ごとの構造メタデータ（建設可能 HoldingKind / terrain / 必須 feature / capacityRole / 対象 occupation）は `sim/config/improvementDefinitions.ts` の `IMPROVEMENT_DEFINITIONS` const に一元化し、数値バランスは `SimulationConfig` に分離する（§9）。
+
+| Kind | 主な意味 | capacityRole | allowed kind / terrain / feature |
+|---|---|---|---|
+| `field_system` | 農地整備・穀物生産基盤 | capacity (agriculture) | manor / plains・hills・wetlands・forest |
+| `pastoral_infrastructure` | 牧草地・放牧・畜産基盤 | capacity (agriculture) | manor / plains・hills・mountains・forest |
+| `irrigation_infrastructure` | 灌漑・排水・水利 | capacity (agriculture) | manor / plains・wetlands・hills ＋ `major_river` か `lake` 必須 |
+| `market_infrastructure` | 市場・取引施設 | capacity (urban_labor + 少量 elite_service) | city |
+| `workshop_infrastructure` | 工房・加工設備 | capacity (urban_labor) | city |
+| `storage_infrastructure` | 倉庫・穀倉・貯蔵 | production_quality | manor / city |
+| `transport_infrastructure` | 道路・橋・水運 | production_quality | manor / city |
+
+- `capacityRole === 'capacity'` の設備は occupation capacity を生む（§4.2）。`production_quality`（storage / transport）は capacity を生まず、development → production modifier 側で効く
+- 後回し（v0.33 未導入）: forestry / mining / quarrying / harbor / fortification / orchard / vineyard / mill。資源・商品・交易・戦争システム導入時に再検討する
+
+**max level（kind × HoldingKind、0 = 建設不可）**:
 
 | ImprovementKind | manor | city |
 |---|---|---|
-| agricultural_infrastructure | 3 | 1 |
-| urban_infrastructure | 1 | 3 |
+| field_system | 3 | 0 |
+| pastoral_infrastructure | 3 | 0 |
+| irrigation_infrastructure | 3 | 0 |
+| market_infrastructure | 0 | 3 |
+| workshop_infrastructure | 0 | 3 |
 | storage_infrastructure | 3 | 3 |
 | transport_infrastructure | 3 | 3 |
+
+config は `holdingImprovementMaxLevelByKind: Record<ImprovementKind, Partial<Record<HoldingKind, number>>>`（v0.33 で旧 `...ByHoldingKind` からリネーム＋ネスト反転＋Partial 化）。`undefined` / `0` はどちらも建設不可（§9 / §4.2 canBuild）。
 
 **WorldState 追加**:
 

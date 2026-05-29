@@ -7,7 +7,7 @@
 // development = sum(improvement.level * scorePerLevel[improvement.kind])
 function getHoldingDevelopment(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
 
-// v0.27: development modifier（production / occupation capacity で使用）
+// v0.27: development modifier（v0.33: production 側でのみ使用。occupation capacity からは除外）
 // modifier = clamp(1.0 + development / 150, 0.75, 1.75)
 // development 0 → 1.0（ペナルティなし）、development 62 → 1.41（最大）
 function getHoldingDevelopmentModifier(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
@@ -17,9 +17,21 @@ function getHoldingImprovementLevel(state: WorldState, holdingId: HoldingId, kin
 
 // v0.20: Province の development は Holding の weight 加重平均（v0.27: getHoldingDevelopment 経由で算出）
 function getProvinceDevelopmentFromHoldings(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+
+// v0.33: state 非依存の純粋 capacity helper（selector / worldgen seeding が共有し計算ズレを防ぐ）
+// capacity = (base + improvementDerivedCapacity) * weight * landQuality（devMod 不使用）
+function computeHoldingOccupationCapacity(holdingKind, weight, landQuality, terrain, features, improvements, config, occupation): number
+
+// v0.33: state 非依存の建設可否判定（selector / worldgen 初期生成が共有）
+function canBuildHoldingImprovementPure(holdingKind, terrain, features, currentLevel, kind, config): boolean
+
+// v0.33: state を取る薄いラッパ。currentLevel は既存 improvement から導出
+function canBuildHoldingImprovement(state: WorldState, config: SimulationConfig, holdingId: HoldingId, kind: HoldingImprovementKind): boolean
 ```
 
 **v0.27 変更**: `Holding.development` 保存値を廃止。development は HoldingImprovement の level から selector で算出する。旧 `getProvinceDevelopmentMultiplier` は `getHoldingDevelopmentModifier` に置換。
+
+**v0.33 変更**: development と occupation capacity を分離した（§4.2）。`getHoldingDevelopmentModifier` は production 側でのみ使い、capacity からは外した（二重計上の回避）。pure helper（`computeHoldingOccupationCapacity` / `canBuildHoldingImprovementPure`）は `selectors/holdingImprovementSelectors.ts` に置き、selector・worldgen・taskSystem・integrity から共有する。
 
 `getEffectiveProvinceTax` / `getEffectiveProvinceManpower` は v0.8 で廃止。代わりに POP Economy セレクターを使用する。
 
@@ -43,8 +55,13 @@ function getHoldingPopSizeByClassAndOccupation(state: WorldState, holdingId: Hol
 #### Occupation capacity セレクター
 
 ```ts
-// Holding の職業キャパシティ: baseCapacity * weight * landQuality * devMod
-// occupation === 'none' の場合は 0 を返す
+// Holding の職業キャパシティ（v0.33: computeHoldingOccupationCapacity へ委譲）
+//   = (base + improvementDerivedCapacity) * weight * landQuality
+//   improvementDerivedCapacity = Σ level * capacityPerLevel[kind][occupation] * terrainMult * featureMult
+//   terrainMult = terrainCapacityMultiplier[kind]?.[terrain] ?? 1.0（clamp なし）
+//   featureMult = clamp(Π(featureCapacityMultiplier[kind]?.[f] ?? 1.0), 0.75, 1.50)（feature 無→空積 1.0）
+//   capacityPerLevel[kind][occupation] 未定義 → その occupation の寄与は 0
+// devMod は使わない（§4.1 / 二重計上回避）。occupation === 'none' は 0。popClass 引数は後方互換で保持（未使用）
 function getHoldingOccupationCapacity(state: WorldState, config: SimulationConfig, holdingId: HoldingId, popClass: PopClass, occupation: PopOccupation): number
 
 // 残容量: capacity - used

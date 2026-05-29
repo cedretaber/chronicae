@@ -422,16 +422,29 @@
 | projectPreparationCooldownWeeks | 4 | ProjectPreparationSystem のクールダウン（週） |
 | **Task 成否判定（v0.26.1）** | | |
 | taskOutcomeSuccessMargin | 20 | outcome 判定の success/partial 境界マージン |
-| **HoldingImprovement / ProjectBudget（v0.27）** | | |
-| holdingImprovementDevelopmentScorePerLevel | {agricultural:8, urban:8, storage:5, transport:5} | Improvement kind ごとの level あたり development 寄与 |
-| holdingImprovementMaxLevelByHoldingKind | manor:{ag:3,ur:1,st:3,tr:3}, city:{ag:1,ur:3,st:3,tr:3} | HoldingKind × ImprovementKind ごとの max level |
-| developHoldingProjectBaseCostByImprovementKind | {agricultural:30, urban:40, storage:20, transport:25} | ImprovementKind ごとの基礎コスト |
-| developHoldingProjectBaseProgressByImprovementKind | {agricultural:100, urban:120, storage:80, transport:90} | ImprovementKind ごとの基礎 targetProgress |
-| improvementLevelCostMultiplier | {1:1, 2:2, 3:4} | level ごとのコスト倍率 |
-| improvementLevelProgressMultiplier | {1:1, 2:2, 3:3} | level ごとの targetProgress 倍率 |
+| **HoldingImprovement / ProjectBudget（v0.27 / v0.33 再編）** | | |
+| holdingImprovementDevelopmentScorePerLevel | {field_system:4, pastoral:4, irrigation:6, market:6, workshop:6, storage:7, transport:7} | ImprovementKind ごとの level あたり development 寄与（v0.33: 7 種に置換） |
+| holdingImprovementMaxLevelByKind | field/pastoral/irrigation:{manor:3,city:0}, market/workshop:{manor:0,city:3}, storage/transport:{manor:3,city:3} | `Record<ImprovementKind, Partial<Record<HoldingKind, number>>>`（v0.33: 旧 `...ByHoldingKind` からリネーム＋ネスト反転＋Partial 化）。0/undefined = 建設不可 |
+| developHoldingProjectBaseCostByImprovementKind | {field:30, pastoral:28, irrigation:35, market:35, workshop:32, storage:25, transport:30} | ImprovementKind ごとの基礎コスト（v0.33: 7 種、storage/transport は既存値維持） |
+| developHoldingProjectBaseProgressByImprovementKind | {field:100, pastoral:100, irrigation:110, market:100, workshop:100, storage:80, transport:100} | ImprovementKind ごとの基礎 targetProgress（v0.33: 7 種） |
+| holdingImprovementOccupationCapacityPerLevel | field:{agri:60}, pastoral:{agri:45}, irrigation:{agri:25}, market:{urban:55,elite:5}, workshop:{urban:65}, storage:{}, transport:{} | v0.33: capacity 設備が level あたり生む occupation 枠。`Partial<Record<PopOccupation, number>>` |
+| holdingImprovementTerrainCapacityMultiplier | kind × terrain の乗数（未定義 → 1.0、clamp なし）。例: field={plains:1.3,wetlands:0.7,hills:0.75,forest:0.5,mountains:0.25} | v0.33: terrain 傾向。storage/transport は空 |
+| holdingImprovementFeatureCapacityMultiplier | kind × feature の乗数（積を clamp 0.75–1.50）。例: irrigation={major_river:1.3,lake:1.2}, market={coastal:1.15,major_river:1.15,lake:1.1} | v0.33: feature ボーナス。storage/transport/pastoral は空 |
+| improvementLevelCostMultiplier | {1:1, 2:2, 3:4} | level ごとのコスト倍率（v0.33 でも維持） |
+| improvementLevelProgressMultiplier | {1:1, 2:2, 3:3} | level ごとの targetProgress 倍率（v0.33 でも維持） |
 | projectBudgetMarginMultiplier | 2 | 予算見積もり時のマージン倍率 |
 | projectCompletedRespectGain | 5 | Project 完了時の supervisor への respect 上昇量 |
 | developHoldingTargetDevelopmentThreshold | 40 | goalSelectors の develop_holding 候補判定閾値 |
+| **Province terrain / features（v0.33）** | | |
+| provinceTerrainSettlementSuitability | {plains:100, hills:80, forest:65, wetlands:45, mountains:35} | House seat 選定の terrain 居住適性重み（旧 habitability 最大を置換、§7.4） |
+| provinceTerrainWeights | {plains:35, forest:25, hills:20, mountains:10, wetlands:10} | terrain 抽選の重み（worldgen、§7.1） |
+| stateRegionDominantTerrainInheritanceChance | 0.70 | Province が StateRegion の dominantTerrain を継承する確率 |
+| provinceFeatureCoastalChance | 0.50 | 外周マージン内 Province が coastal を持つ確率 |
+| provinceCoastalEdgeMarginRatio | 0.12 | 外周マージン比（mapConfig.worldMapWidth/Height に乗算）。内陸では coastal draw を消費しない |
+| provinceFeatureMajorRiverBaseChance | 0.15 | major_river の基礎確率（terrain delta 加算後 clamp01 して draw） |
+| provinceFeatureMajorRiverTerrainDelta | {plains:0.10, wetlands:0.10, mountains:-0.10} | major_river の terrain 補正（`Partial<Record<ProvinceTerrain, number>>`） |
+| provinceFeatureLakeBaseChance | 0.06 | lake の基礎確率 |
+| provinceFeatureLakeTerrainDelta | {wetlands:0.05, plains:0.05} | lake の terrain 補正 |
 | **ProjectStage / Pressure（v0.29）** | | |
 | projectStageMaxAttempts | 3 | preparatory stage の failure 連続上限。超過で Project failed |
 | pressureResponseDefaultDeadlineWeeks | 48 | respond_to_pressure Project の DiplomaticPlay 不在時 fallback deadline（1年 = 48週） |
