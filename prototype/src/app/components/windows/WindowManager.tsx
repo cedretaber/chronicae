@@ -1,6 +1,6 @@
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import type { FactionId, DiplomaticPlayId, HoldingId } from '@/sim/types/ids'
+import type { FactionId, DiplomaticPlayId, HoldingId, ClanId } from '@/sim/types/ids'
 import {
   CountryDetail,
   HouseDetail,
@@ -10,6 +10,7 @@ import {
   FactionDetail,
   DiplomaticPlayDetail,
   HoldingDetail,
+  ClanDetail,
 } from '@/app/components/panels/DetailPanel'
 import { DraggableWindow } from './DraggableWindow'
 
@@ -34,6 +35,7 @@ export function WindowManager() {
   const onFactionClick = (id: FactionId) => openDetailWindow('faction', id)
   const onDiplomaticPlayClick = (id: string) => openDetailWindow('diplomaticPlay', id)
   const onHoldingClick = (id: string) => openDetailWindow('holding', id)
+  const onClanClick = (id: string) => openDetailWindow('clan', id)
 
   return (
     <>
@@ -81,6 +83,7 @@ export function WindowManager() {
                 onProvinceClick={onProvinceClick}
                 onDiplomaticPlayClick={onDiplomaticPlayClick}
                 eventHistory={eventHistory}
+                onClanClick={onClanClick}
               />
             </DraggableWindow>
           )
@@ -210,6 +213,24 @@ export function WindowManager() {
                 onPersonClick={onPersonClick}
                 onProvinceClick={onProvinceClick}
                 onPopGroupClick={onPopGroupClick}
+              />
+            </DraggableWindow>
+          )
+        }
+        if (entityType === 'clan') {
+          const clan = state.clans[entityId as ClanId]
+          if (!clan) return null
+          const nameHouse = state.houses[clan.nameSourceHouseId]
+          const clanDisplayName = nameHouse
+            ? resolveName('house', nameHouse.nameKey, nameHouse.nameKey)
+            : entityId
+          return (
+            <DraggableWindow key={win.id} win={win} title={`Clan: ${clanDisplayName}`}>
+              <ClanDetail
+                clan={clan}
+                session={session}
+                onPersonClick={onPersonClick}
+                onHouseClick={onHouseClick}
               />
             </DraggableWindow>
           )

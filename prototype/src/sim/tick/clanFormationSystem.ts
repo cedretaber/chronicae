@@ -3,6 +3,8 @@ import type { WorldState } from '@sim/types/world'
 import type { HouseId, ClanId, PersonId } from '@sim/types/ids'
 import { isRulingHouse, isInfluentialHouse } from '@sim/selectors/availabilitySelectors'
 import { createClan, addHouseToClan, syncClanActive } from '@sim/mutations/clanMutations'
+import { createSimEvent } from './context'
+import { nameParam, entityRef } from '@sim/types/event'
 
 function collectMemberHouseIds(state: WorldState, rootHouseId: HouseId): HouseId[] {
   const result: HouseId[] = []
@@ -29,13 +31,13 @@ function collectMemberHouseIds(state: WorldState, rootHouseId: HouseId): HouseId
 }
 
 export function runClanFormationSystem(ctx: TickContext): TickContext {
-  let state = ctx.state
-  const config = ctx.config
+  let currentCtx = ctx
+  const config = currentCtx.config
 
   // --- Part 1: New clan formation ---
-  const houseIds = Object.keys(state.houses).sort() as HouseId[]
+  const houseIds = Object.keys(currentCtx.state.houses).sort() as HouseId[]
   for (const houseId of houseIds) {
-    const house = state.houses[houseId]
+    const house = currentCtx.state.houses[houseId]
     if (!house) continue
     if (!house.active) continue
     if (house.kind === 'system') continue
@@ -43,7 +45,7 @@ export function runClanFormationSystem(ctx: TickContext): TickContext {
 
     const formationGroup: HouseId[] = [houseId]
     for (const cadetId of house.cadetHouseIds) {
-      const cadet = state.houses[cadetId]
+      const cadet = currentCtx.state.houses[cadetId]
       if (!cadet) continue
       if (!cadet.active) continue
       if (cadet.kind === 'system') continue
@@ -56,7 +58,7 @@ export function runClanFormationSystem(ctx: TickContext): TickContext {
 
     let hasInfluence = false
     for (const fid of formationGroup) {
-      if (isRulingHouse(state, fid)) {
+      if (isRulingHouse(currentCtx.state, fid)) {
         hasInfluence = true
         break
       }
@@ -64,7 +66,7 @@ export function runClanFormationSystem(ctx: TickContext): TickContext {
     if (!hasInfluence) {
       let influentialCount = 0
       for (const fid of formationGroup) {
-        if (isInfluentialHouse(state, config, fid)) influentialCount++
+        if (isInfluentialHouse(currentCtx.state, config, fid)) influentialCount++
       }
       if (influentialCount < config.clanFormationMinInfluentialHouses) continue
     }
@@ -73,7 +75,7 @@ export function runClanFormationSystem(ctx: TickContext): TickContext {
     let totalWealth = 0
     let totalPrestige = 0
     for (const fid of formationGroup) {
-      const fHouse = state.houses[fid]
+      const fHouse = currentCtx.state.houses[fid]
       if (!fHouse || !fHouse.active) continue
       totalLiving += fHouse.memberIds.length
       totalWealth += fHouse.wealth
@@ -85,8 +87,8 @@ export function runClanFormationSystem(ctx: TickContext): TickContext {
       totalPrestige >= config.clanFormationMinTotalLegacyPrestige
     if (!quantityPass) continue
 
-    const memberHouseIds = collectMemberHouseIds(state, houseId)
-    const rootHouse = state.houses[houseId]
+    const memberHouseIds = collectMemberHouseIds(currentCtx.state, houseId)
+    const rootHouse = currentCtx.state.houses[houseId]
     const createParams: {
       rootHouseId: HouseId
       memberHouseIds: HouseId[]
@@ -95,34 +97,67 @@ export function runClanFormationSystem(ctx: TickContext): TickContext {
     } = {
       rootHouseId: houseId,
       memberHouseIds,
-      createdWeek: state.absoluteWeek,
+      createdWeek: currentCtx.state.absoluteWeek,
     }
     if (rootHouse?.founderId !== undefined) {
       createParams.founderPersonId = rootHouse.founderId
     }
-    const result = createClan(state, createParams)
-    state = result.state
+    const result = createClan(currentCtx.state, createParams)
+    currentCtx = { ...currentCtx, state: result.state }
+
+    const rootHouseForEvent = currentCtx.state.houses[houseId]
+    const rootHouseNameKey = rootHouseForEvent?.nameKey ?? ''
+    const activeCount = memberHouseIds.filter((mid) => {
+      const h = currentCtx.state.houses[mid]
+      return h !== undefined && h.active
+    }).length
+
+    const { event, ctx: ec } = createSimEvent(currentCtx, {
+      type: 'CLAN_FOUNDED',
+      importance: 'major',
+      messageKey: 'clan.founded',
+      messageParams: {
+        rootHouseName: nameParam('house', rootHouseNameKey),
+        memberHouseCount: memberHouseIds.length,
+        activeHouseCount: activeCount,
+      },
+      entityRefs: [
+        entityRef('clan', result.clan.id, 'clan'),
+        entityRef('house', houseId, 'rootHouse', rootHouseNameKey),
+        ...(createParams.founderPersonId !== undefined
+          ? [
+              entityRef(
+                'person',
+                createParams.founderPersonId,
+                'founder',
+                currentCtx.state.persons[createParams.founderPersonId]?.nameKey,
+              ),
+            ]
+          : []),
+      ],
+    })
+    currentCtx = { ...ec, events: [...ec.events, event] }
   }
 
   // --- Part 2: Existing clan maintenance ---
-  const clanIds = Object.keys(state.clans).sort() as ClanId[]
+  const clanIds = Object.keys(currentCtx.state.clans).sort() as ClanId[]
   for (const clanId of clanIds) {
-    const clan = state.clans[clanId]
+    const clan = currentCtx.state.clans[clanId]
     if (!clan) continue
 
     for (const memberHouseId of [...clan.memberHouseIds]) {
-      const memberHouse = state.houses[memberHouseId]
+      const memberHouse = currentCtx.state.houses[memberHouseId]
       if (!memberHouse) continue
       for (const cadetId of memberHouse.cadetHouseIds) {
-        const cadet = state.houses[cadetId]
+        const cadet = currentCtx.state.houses[cadetId]
         if (cadet && cadet.clanId === undefined && cadet.kind !== 'system') {
-          state = addHouseToClan(state, clanId, cadetId)
+          currentCtx = { ...currentCtx, state: addHouseToClan(currentCtx.state, clanId, cadetId) }
         }
       }
     }
 
-    state = syncClanActive(state, clanId)
+    currentCtx = { ...currentCtx, state: syncClanActive(currentCtx.state, clanId) }
   }
 
-  return { ...ctx, state }
+  return currentCtx
 }

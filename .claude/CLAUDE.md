@@ -96,6 +96,22 @@ npm run lint -- src/sim/tick/someFile.ts
 
 ブラウザは起動・操作に時間がかかるため、ロジックのデバッグには使わないこと。
 
+### CLI での config オーバーライド
+
+動作確認のために閾値を一時的に変更したい場合は、**`defaultConfig.ts` を編集せず** `--config` 引数で上書きする。
+
+```bash
+# 例: Clan 成立閾値を下げて動作確認
+node src/cli/run.mjs --years 50 --seed 1 --config '{"clanFormationMinDirectCadetHouses":1,"clanFormationMinInfluentialHouses":1,"clanFormationMinTotalLivingMembers":5}'
+
+# 例: 分家閾値も同時に緩和
+node src/cli/run.mjs --years 50 --seed 1 --config '{"minProvincesForHouseSplit":1,"baseHouseSplitChance":0.3,"houseSplitMinLivingMembers":3,"clanFormationMinDirectCadetHouses":1}'
+```
+
+`--config` は JSON オブジェクトを受け取り、`defaultConfig` のキーをそのまま上書きする。コード変更がないため戻し忘れのリスクがない。
+
+ブラウザでの UI 確認など CLI 以外が必要な場合のみ、やむを得ずコードを一時変更する（その場合も最小限にし、確認後に必ず元に戻す）。
+
 ## 検証コマンド
 
 ```bash

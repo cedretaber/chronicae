@@ -119,6 +119,8 @@ export type EventType =
   // v0.31 House Founding
   | 'HOUSE_FOUNDED'
   | 'CADET_HOUSE_FOUNDED'
+  // v0.32 Clan
+  | 'CLAN_FOUNDED'
 
 export type EventReason = {
   label: string
@@ -145,6 +147,7 @@ export type EventEntityKind =
   | 'aim'
   | 'project'
   | 'pressure'
+  | 'clan'
 
 export type EventEntityRef = {
   kind: EventEntityKind
@@ -367,6 +370,8 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'house.founded': '{{person}} founded the house {{house}}.',
   'house.cadet_founded':
     '{{person}} founded the cadet house {{house}}, branching from {{parentHouse}}.',
+  'clan.founded':
+    'The descendants of {{rootHouseName}} are now recognized as the {{rootHouseName}} Clan.',
 }
 
 export type EventImportance = 'minor' | 'normal' | 'major' | 'critical'

@@ -44,6 +44,8 @@ export function addHouseToClan(state: WorldState, clanId: ClanId, houseId: House
   if (!clan) return state
   const house = state.houses[houseId]
   if (!house) return state
+  if (house.kind === 'system') return state
+  if (house.clanId !== undefined && house.clanId !== clanId) return state
 
   const alreadyMember = clan.memberHouseIds.includes(houseId)
   const updatedClan: Clan = alreadyMember

@@ -7,3 +7,4 @@ entity:
   holding: 'Holding'
   pop_group: 'POP'
   faction: 'Faction'
+  clan: 'Clan'

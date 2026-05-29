@@ -482,6 +482,27 @@ detail:
     unemployed_label: '無職'
     bailiff_label: '代官'
 
+  # 氏族詳細
+  clan:
+    status_active: '存続中'
+    status_extinct: '断絶'
+    root_house: '本家'
+    founder: '始祖'
+    founded: '成立'
+    years_ago: '（{{years}}年前）'
+    total_houses: '構成家門数'
+    active_houses: '存続家門数'
+    extinct_houses: '断絶家門数'
+    living_members: '生存人数'
+    total_wealth: '総資産'
+    total_prestige: '総威信'
+    ruling_houses: '統治家門'
+    influential_houses: '有力家門'
+    member_houses: '所属家門'
+    name: '氏族'
+    role_root: '本家'
+    role_descendant: '分家'
+
   # 職業
   occupations:
     adventurer: '冒険者'

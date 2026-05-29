@@ -379,6 +379,27 @@ detail:
     houseless_member: '(Houseless)'
     attitudes: 'Attitudes'
 
+  # Clan detail
+  clan:
+    status_active: 'Active'
+    status_extinct: 'Extinct'
+    root_house: 'Root House'
+    founder: 'Founder'
+    founded: 'Founded'
+    years_ago: '({{years}} years ago)'
+    total_houses: 'Total Houses'
+    active_houses: 'Active Houses'
+    extinct_houses: 'Extinct Houses'
+    living_members: 'Living Members'
+    total_wealth: 'Total Wealth'
+    total_prestige: 'Total Prestige'
+    ruling_houses: 'Ruling Houses'
+    influential_houses: 'Influential Houses'
+    member_houses: 'Member Houses'
+    name: 'Clan'
+    role_root: 'Root'
+    role_descendant: 'Descendant'
+
 popOccupation:
   agriculture: 'Agriculture'
   urban_labor: 'Urban Labor'

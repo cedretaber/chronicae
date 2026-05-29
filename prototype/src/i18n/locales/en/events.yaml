@@ -160,3 +160,6 @@ pressure:
   created: '{{target}} faces diplomatic pressure from {{source}}.'
   resolved: 'Diplomatic pressure on {{target}} from {{source}} has been resolved.'
   cancelled: 'Diplomatic pressure on {{target}} from {{source}} was cancelled.'
+
+clan:
+  founded: 'The descendants of {{rootHouseName}} are now recognized as the {{rootHouseName}} Clan.'

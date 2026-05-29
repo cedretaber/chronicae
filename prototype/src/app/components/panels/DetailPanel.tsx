@@ -64,6 +64,7 @@ import type { PopGroup } from '@/sim/types/popGroup'
 import { getPrimaryOccupationForClass } from '@/sim/types/popGroup'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import type { Holding } from '@/sim/types/landContract'
+import type { Clan } from '@/sim/types/clan'
 import type { AttitudeMap } from '@/sim/types/attitude'
 import type {
   PolityId,
@@ -113,6 +114,15 @@ import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { calcPolityMilitaryPower } from '@/sim/selectors/militarySelectors'
 import { normalizedStat } from '@/sim/selectors/personAbilityEffects'
+import {
+  getClanActiveHouseIds,
+  getClanExtinctHouseIds,
+  getClanLivingMemberCount,
+  getClanTotalWealth,
+  getClanTotalLegacyPrestige,
+  getClanRulingHouseIds,
+  getHouseClanRole,
+} from '@sim/selectors/clanSelectors'
 import { OFFICE_DEFINITIONS } from '@sim/config/officeDefinitions'
 import { clamp } from '@/sim/utils/math'
 import type { SimEvent } from '@/sim/types/event'
@@ -183,7 +193,7 @@ function CopyJsonButton({ payload }: { payload: unknown }) {
 // raw entity + \u89e3\u6c7a\u6e08\u307f\u53c2\u7167 (House/Polity/Person \u540d\u7b49) + \u6642\u523b\u6587\u8108\u3092\u542b\u3080\u3002
 // LLM \u3078\u306e\u69cb\u9020\u5316\u5171\u6709\u3092\u60f3\u5b9a \u2014 \u904e\u5ea6\u306a derived \u306f\u5165\u308c\u305a\u3001\u751f\u30c7\u30fc\u30bf\u306b\u8584\u3044 overlay \u3092\u88ab\u305b\u308b\u65b9\u91dd\u3002
 function buildEntitySnapshot(
-  kind: 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction' | 'holding',
+  kind: 'polity' | 'house' | 'person' | 'province' | 'popGroup' | 'faction' | 'holding' | 'clan',
   entity: unknown,
   currentState: WorldState | null,
 ): unknown {
@@ -529,6 +539,32 @@ function buildEntitySnapshot(
         contractedRemittanceRate: assignment?.contractedRemittanceRate ?? null,
         expectedFeeRate: assignment?.expectedFeeRate ?? null,
       },
+    }
+  }
+  if (kind === 'clan') {
+    const c = entity as Clan
+    const nameHouse = ws?.houses[c.nameSourceHouseId]
+    const rootHouse = ws?.houses[c.rootHouseId]
+    const activeHouseIds = ws ? getClanActiveHouseIds(ws, c.id) : []
+    const extinctHouseIds = ws ? getClanExtinctHouseIds(ws, c.id) : []
+    return {
+      kind,
+      meta,
+      id: c.id,
+      active: c.active,
+      name: nameHouse?.nameKey ?? null,
+      rootHouseId: c.rootHouseId,
+      rootHouseName: rootHouse?.nameKey ?? null,
+      nameSourceHouseId: c.nameSourceHouseId,
+      founderPersonId: c.founderPersonId ?? null,
+      founderName: c.founderPersonId ? personNameKey(c.founderPersonId) : null,
+      createdWeek: c.createdWeek,
+      memberHouseCount: c.memberHouseIds.length,
+      activeHouseCount: activeHouseIds.length,
+      extinctHouseCount: extinctHouseIds.length,
+      livingMemberCount: ws ? getClanLivingMemberCount(ws, c.id) : 0,
+      totalWealth: ws ? getClanTotalWealth(ws, c.id) : 0,
+      totalPrestige: ws ? getClanTotalLegacyPrestige(ws, c.id) : 0,
     }
   }
   return { kind, meta, entity }
@@ -1465,6 +1501,7 @@ export function HouseDetail({
   onPolityClick,
   onProvinceClick,
   onDiplomaticPlayClick,
+  onClanClick,
   eventHistory,
 }: {
   house: House
@@ -1476,6 +1513,7 @@ export function HouseDetail({
   onPolityClick: ClickHandler
   onProvinceClick: (id: string) => void
   onDiplomaticPlayClick?: (id: string) => void
+  onClanClick?: (id: string) => void
   eventHistory: SimEvent[]
 }) {
   const { t } = useTranslation()
@@ -1785,6 +1823,40 @@ export function HouseDetail({
           <span>{house.cadetHouseIds.length}</span>
         </div>
       )}
+      {house.clanId !== undefined &&
+        (() => {
+          const clan = currentState.clans[house.clanId]
+          if (!clan) return null
+          const clanNameHouse = currentState.houses[clan.nameSourceHouseId]
+          const clanName = clanNameHouse
+            ? resolveName('house', clanNameHouse.nameKey, clanNameHouse.nameKey)
+            : clan.id
+          const role = getHouseClanRole(currentState, house.id)
+          return (
+            <>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('detail.clan.name')}:</span>
+                <span>
+                  {onClanClick ? (
+                    <button
+                      className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                      onClick={() => onClanClick(clan.id)}
+                    >
+                      {clanName}
+                    </button>
+                  ) : (
+                    clanName
+                  )}
+                  {role && (
+                    <span className="ml-1 text-xs text-gray-500">
+                      ({t(`detail.clan.role_${role}`)})
+                    </span>
+                  )}
+                </span>
+              </div>
+            </>
+          )
+        })()}
 
       {recentEvents.length > 0 && (
         <div>
@@ -4031,6 +4103,162 @@ export function FactionDetail({
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+export function ClanDetail({
+  clan,
+  session,
+  onPersonClick,
+  onHouseClick,
+}: {
+  clan: Clan
+  session: SimulationSession | null
+  onPersonClick: ClickHandler
+  onHouseClick: ClickHandler
+}) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
+  const currentState = session?.currentState
+  const worldState: WorldState | null = currentState ?? null
+  if (!worldState) return null
+
+  const houses = worldState.houses
+  const persons = worldState.persons
+  const nameHouse = houses[clan.nameSourceHouseId]
+  const clanDisplayName = nameHouse
+    ? resolveName('house', nameHouse.nameKey, nameHouse.nameKey)
+    : clan.id
+  const rootHouse = houses[clan.rootHouseId]
+  const founder = clan.founderPersonId ? persons[clan.founderPersonId] : undefined
+  const ageYears = Math.floor((worldState.absoluteWeek - clan.createdWeek) / 48)
+
+  const activeHouseIds = getClanActiveHouseIds(worldState, clan.id)
+  const extinctHouseIds = getClanExtinctHouseIds(worldState, clan.id)
+  const livingMemberCount = getClanLivingMemberCount(worldState, clan.id)
+  const totalWealth = getClanTotalWealth(worldState, clan.id)
+  const totalPrestige = getClanTotalLegacyPrestige(worldState, clan.id)
+  const rulingHouseIds = getClanRulingHouseIds(worldState, clan.id)
+
+  const MAX_HOUSES_SHOWN = 10
+
+  return (
+    <div className="flex flex-col gap-1 p-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-bold">{clanDisplayName}</span>
+          {!clan.active && (
+            <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">
+              {t('detail.clan.status_extinct')}
+            </span>
+          )}
+        </div>
+        <CopyJsonButton payload={buildEntitySnapshot('clan', clan, worldState)} />
+      </div>
+
+      <div className="text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-400">ID:</span>
+          <span className="text-xs text-gray-500">{clan.id}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.clan.founded')}:</span>
+          <span>
+            {(() => {
+              const f = weekToYearMonthWeek(clan.createdWeek)
+              return `${f.year}/${f.month}/${f.weekOfMonth}`
+            })()}{' '}
+            <span className="text-xs text-gray-500">
+              {t('detail.clan.years_ago', { years: ageYears })}
+            </span>
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.clan.root_house')}:</span>
+          {rootHouse ? (
+            <HouseLink houseId={rootHouse.id} houses={houses} onClick={onHouseClick} />
+          ) : (
+            <span className="text-gray-500">—</span>
+          )}
+        </div>
+        {founder && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.clan.founder')}:</span>
+            <PersonLink personId={founder.id} persons={persons} onClick={onPersonClick} />
+          </div>
+        )}
+      </div>
+
+      <div className="text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.clan.total_houses')}:</span>
+          <span>{clan.memberHouseIds.length}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.clan.active_houses')}:</span>
+          <span>{activeHouseIds.length}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.clan.extinct_houses')}:</span>
+          <span>{extinctHouseIds.length}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.clan.living_members')}:</span>
+          <span>{livingMemberCount}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.clan.total_wealth')}:</span>
+          <span>{formatAmount(totalWealth)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.clan.total_prestige')}:</span>
+          <span>{formatScore(totalPrestige)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.clan.ruling_houses')}:</span>
+          <span>{rulingHouseIds.length}</span>
+        </div>
+      </div>
+
+      <div className="text-sm font-semibold text-gray-300">{t('detail.clan.member_houses')}</div>
+      <div className="flex flex-col gap-0.5 text-sm">
+        {activeHouseIds.slice(0, MAX_HOUSES_SHOWN).map((hid) => {
+          const h = houses[hid]
+          if (!h) return null
+          const isRoot = hid === clan.rootHouseId
+          return (
+            <div key={hid} className="flex items-center justify-between">
+              <HouseLink houseId={hid} houses={houses} onClick={onHouseClick} />
+              {isRoot && (
+                <span className="text-xs text-amber-300">{t('detail.clan.role_root')}</span>
+              )}
+            </div>
+          )
+        })}
+        {activeHouseIds.length > MAX_HOUSES_SHOWN && (
+          <span className="text-xs text-gray-500">
+            +{activeHouseIds.length - MAX_HOUSES_SHOWN} more
+          </span>
+        )}
+        {extinctHouseIds.length > 0 && (
+          <div className="mt-1 text-xs text-gray-500">
+            {t('detail.clan.extinct_houses')} ({extinctHouseIds.length}):
+          </div>
+        )}
+        {extinctHouseIds.slice(0, 5).map((hid) => {
+          const h = houses[hid]
+          if (!h) return null
+          return (
+            <div key={hid} className="flex items-center justify-between text-gray-500">
+              <span>{resolveName('house', h.nameKey, h.nameKey)}</span>
+            </div>
+          )
+        })}
+        {extinctHouseIds.length > 5 && (
+          <span className="text-xs text-gray-500">+{extinctHouseIds.length - 5} more</span>
+        )}
+      </div>
     </div>
   )
 }

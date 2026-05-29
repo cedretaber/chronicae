@@ -1261,7 +1261,7 @@ export function collectIntegrityErrors(
       })
     }
   }
-  // C6: clanId を持つ House の normal cadet が異なる clanId を持つ場合は violation
+  // C6: clanId を持つ House の normal cadet は同じ clanId を持つべき
   for (const houseIdStr of Object.keys(state.houses)) {
     const houseId = houseIdStr as HouseId
     const h = state.houses[houseId]
@@ -1269,10 +1269,10 @@ export function collectIntegrityErrors(
     for (const cadetId of h.cadetHouseIds) {
       const cadet = state.houses[cadetId]
       if (!cadet || cadet.kind === 'system') continue
-      if (cadet.clanId !== undefined && cadet.clanId !== h.clanId) {
+      if (cadet.clanId !== h.clanId) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `House ${houseId} clanId=${h.clanId as string} but cadet ${cadetId as string} has clanId=${cadet.clanId as string} (§17 C6)`,
+          message: `House ${houseId} clanId=${h.clanId as string} but cadet ${cadetId as string} has clanId=${cadet.clanId === undefined ? 'undefined' : (cadet.clanId as string)} (§17 C6)`,
         })
       }
     }

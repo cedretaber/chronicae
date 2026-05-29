@@ -4,6 +4,7 @@ import { useSimulationStore, type EntityType } from '@/app/stores/simulationStor
 import type { SimEvent } from '@sim/types/event'
 import type { EventType } from '@sim/types/event'
 import { getFirstEntityId, hasEntityId } from '@sim/types/event'
+import type { ClanId } from '@sim/types/ids'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { useEntityName } from '@/app/hooks/useEntityName'
 
@@ -47,6 +48,17 @@ function EventLinks({ event }: { event: SimEvent }) {
         type: 'person',
         name: resolveName('person', person.nameKey, person.nameKey),
       })
+  }
+  const clanEntityId = getFirstEntityId(event, 'clan')
+  if (clanEntityId) {
+    const clan = state.clans[clanEntityId as ClanId]
+    if (clan) {
+      const nameHouse = state.houses[clan.nameSourceHouseId]
+      const clanName = nameHouse
+        ? resolveName('house', nameHouse.nameKey, nameHouse.nameKey)
+        : clanEntityId
+      items.push({ id: clan.id, type: 'clan', name: clanName })
+    }
   }
 
   if (items.length === 0) return null
@@ -150,6 +162,8 @@ const EVENT_ICON: Partial<Record<EventType, string>> = {
   PERSON_FADED_FROM_HISTORY: '✶',
   PERSON_BORN_IN_OBSCURITY: '✶',
   HOUSE_MEMBERS_DISPERSED: '✶',
+  // v0.32 Clan
+  CLAN_FOUNDED: '🏛',
 }
 
 function getEventIcon(type: EventType): string {
