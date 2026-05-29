@@ -17,11 +17,6 @@ concurrency:
 permissions:
   contents: read
 
-# corepack が package.json の packageManager (npm@11.6.1) を初回 DL する際、
-# プロンプトで停止しないようにする。
-env:
-  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
-
 jobs:
   # 軽量チェック: lint / format / typecheck / test
   check:
@@ -45,9 +40,11 @@ jobs:
       # 固定しないと Node 24 同梱の新しい npm が lockfile を別解決し、
       # WASM フォールバック (@tailwindcss/oxide-wasm32-wasi) が要求する
       # @emnapi/core / @emnapi/runtime を「Missing from lock file」と判定して
-      # npm ci が落ちる。corepack は cwd 非依存なので全ジョブで同じ。
-      - name: Pin npm via corepack
-        run: corepack enable
+      # npm ci が落ちる。corepack の shim は npm には効かないため明示インストールする。
+      - name: Pin npm to packageManager version
+        run: |
+          npm install -g npm@11.6.1
+          npm --version
 
       - name: Install dependencies
         run: npm ci
@@ -95,9 +92,11 @@ jobs:
       # 固定しないと Node 24 同梱の新しい npm が lockfile を別解決し、
       # WASM フォールバック (@tailwindcss/oxide-wasm32-wasi) が要求する
       # @emnapi/core / @emnapi/runtime を「Missing from lock file」と判定して
-      # npm ci が落ちる。corepack は cwd 非依存なので全ジョブで同じ。
-      - name: Pin npm via corepack
-        run: corepack enable
+      # npm ci が落ちる。corepack の shim は npm には効かないため明示インストールする。
+      - name: Pin npm to packageManager version
+        run: |
+          npm install -g npm@11.6.1
+          npm --version
 
       - name: Install dependencies
         run: npm ci
