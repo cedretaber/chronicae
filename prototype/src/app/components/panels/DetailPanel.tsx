@@ -130,6 +130,14 @@ import { hasEntityId } from '@sim/types/event'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { useEntityName } from '@/app/hooks/useEntityName'
 
+/** Holding の improvement を解決する（ヘッダー画像選択用。kind/level のみ参照）。 */
+function resolveHoldingImprovements(state: WorldState, holdingId: HoldingId) {
+  const ids = state.holdingImprovementIndex.byHolding[holdingId as string] ?? []
+  return ids
+    .map((id) => state.holdingImprovements[id])
+    .filter((imp): imp is NonNullable<typeof imp> => imp !== undefined)
+}
+
 function getImportanceColor(importance: SimEvent['importance']): string {
   switch (importance) {
     case 'critical':
@@ -2956,7 +2964,10 @@ export function HoldingDetail({
 
       {/* Header image */}
       <img
-        src={getHoldingImage(holding.id, holding.kind)}
+        src={getHoldingImage(
+          holding.kind,
+          currentState ? resolveHoldingImprovements(currentState, holding.id) : [],
+        )}
         alt={holdingDisplay}
         className="h-24 w-full rounded object-cover"
         draggable={false}
@@ -3563,7 +3574,7 @@ export function ProvinceDetail({
       </div>
 
       <img
-        src={getProvinceImage(province.id)}
+        src={getProvinceImage(province.terrain, province.features)}
         alt={resolveName('province', province.nameKey, province.nameKey)}
         className="h-24 w-full rounded object-cover"
         draggable={false}
@@ -3634,7 +3645,10 @@ export function ProvinceDetail({
               className="mb-1 flex gap-2 rounded border border-gray-700 bg-gray-800 p-1.5 text-sm"
             >
               <img
-                src={getHoldingImage(holding.id, holding.kind)}
+                src={getHoldingImage(
+                  holding.kind,
+                  resolveHoldingImprovements(currentState, holding.id),
+                )}
                 alt={holdingDisplay}
                 className="h-16 w-16 flex-shrink-0 rounded object-cover"
                 draggable={false}
