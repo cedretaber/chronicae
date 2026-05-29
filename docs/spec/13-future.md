@@ -37,7 +37,7 @@
 - **WarSystem の LandContract 化 (§13 / §16.1)**: `transferProvinceByWarGoal` mutation で case A / B-1 / B-2 / C を rank 比較で分岐。case C は v0.16 では no-op (税率調整は Faction 段階で配線)。
 - **createRebelPolity (mutation)**: provinceRevoltSystem の独立成功時に Rebel Polity + Rebel House + rebel leader を atomic 生成。`ownerHouseId === undefined` の commonwealth として生成し、OrganizationShare を rebel leader (Person) に 100% 付与 (§17)。
 - **House extinction inheritance (§22.3)**: extinct House が ownerHouse である Polity すべてを receiver House の所有に移す (王朝交代)。`Polity.ownerHouseId` と `polityIndex.byOwnerHouse` と `polity:leader` Office を同期更新、`POLITY_OWNER_CHANGED` 発火。LandContracts は変更しない (Polity と Province の関係は不変)。
-- **House active 判定の変更 (§9.1)**: 旧 `provinceIds.length === 0` ベース判定を廃止し、memberIds (血統) ベースに統一。土地を完全に失った House も active=true のまま「亡命家」として存続。
+- **House active 判定の変更 (§9.1)**: 旧 `provinceIds.length === 0` ベース判定を廃止し、memberIds (血統) ベースに統一。土地を完全に失った House も active=true のまま「無領家」として存続。
 - **institutionalPower 下限 (§22.1)**: `calcPolityMilitaryPower` に rank 別下限 (`institutionalPowerFloorByRank`) を被せ、Rebel Polity / 小 Polity の即死を防止。
 - **旧 system の廃止**: `economySystem` / `rebellionSystem` / `lordshipTransitionSystem` を tick から除去。`createRevoltHouse` / `createRevoltLeader` mutation を削除し `createRebelPolity` に統合。
 - **§25 IntegrityCheck 33 項目**: chain 不変条件 / index 同期 / AnonymousHouse / placeholder / ProvinceOffice / Polity-House 整合性等を 25 項目 error throw + 5 項目型レベル保証 + 1 項目コードレビューで担保。
@@ -358,7 +358,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **IntentToDiplomaticPlaySystem**: active Intent を DiplomaticPlay に変換
 - **DiplomaticPlaySystem**: active Play の progress / tension を毎月更新し settlement / escalation に分岐
 - **ConflictResolutionSystem**: escalated Play の武力衝突解決 (revolt 専用 + 汎用)
-- **UI**: Sidebar Plays タブ、DetailPanel topShareholders、亡命家分類改善
+- **UI**: Sidebar Plays タブ、DetailPanel topShareholders、無領家分類改善
 - **新規 EventType 16 種**: ACTOR_INTENT_CREATED / ACTOR_INTENT_CONVERTED / DIPLOMATIC_PLAY_STARTED / DIPLOMATIC_PLAY_SETTLED / DIPLOMATIC_PLAY_FAILED / DIPLOMATIC_PLAY_ESCALATED / DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT / LAND_CONTRACT_CEDED / LAND_CONTRACT_CONQUERED / CONTRACT_TAX_REVISED / CONTRACT_ELIMINATED / REVOLT_NEGOTIATION_STARTED / REVOLT_SETTLED / REVOLT_SUPPRESSED / REVOLT_POLITY_ESTABLISHED / LAND_CONTRACT_PURCHASED (既存拡張)
 - **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。592 tests pass
 
@@ -646,6 +646,27 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **パフォーマンス改善**: 50 年で 21.2% (16.2s → 12.8s)。主要改善: appointmentSystem -37%, officeTermSystem -45%, mortalitySystem -47%
 - **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件
 
+### v0.32 で実装済み（Clan System Phase A）
+
+詳細仕様は `docs/drafts/spec-v032-update.md` を参照（2026-05-29 完成）。
+
+- **Clan（氏族）エンティティの導入**: 共通祖 House から派生した複数 House を血縁集団としてまとめる上位ラベル。v0.32 では政治主体ではなく、系譜整理・宗家/分家関係の表示・血縁集団の可視化が目的
+- **型定義**: `ClanId` (prefix: `cl-`)、`Clan` 型 (rootHouseId / nameSourceHouseId / memberHouseIds / founderPersonId / createdWeek / active)。`House.clanId?: ClanId` を追加。`WorldState.clans` / `nextClanId` を追加
+- **ClanFormationSystem** (年 1 回): 3 条件 AND (分家数 + 影響力 + 量的条件) で Clan 成立を判定。所属範囲は rootHouseId から全 descendant。年次保守で未登録 descendant を補足、active 状態を同期
+- **isInfluentialHouse 汎用 selector**: `isRulingHouse || isInfluentialHouseInAnyPolity || wealth >= threshold || legacyPrestige >= threshold` の 4 条件 OR
+- **splitHouse での clanId 即時継承**: 親 House が Clan 所属なら新 House も同 Clan に追加。houseFoundingSystem（無家人物創設）では clanId 付与なし
+- **House 絶滅時の即時 syncClanActive**: `handleNormalHouseExtinction` 末尾で Clan の active 状態を同期更新
+- **clanMutations**: `createClan` / `addHouseToClan`（system house / 異 clanId 防御ガード付き）/ `syncClanActive`
+- **clanSelectors**: 11 関数（getClan / getHouseClan / getClanActiveHouseIds / getClanExtinctHouseIds / getClanLivingMemberCount / getClanTotalWealth / getClanTotalLegacyPrestige / getClanRulingHouseIds / getClanInfluentialHouseIds / getHouseClanRole / getDescendantHouseIdsIncludingSelf）
+- **IntegrityCheck**: C1-C7 の 7 項目。House.clanId ↔ Clan.memberHouseIds 双方向チェック、rootHouseId / nameSourceHouseId 存在確認、memberHouseIds 重複禁止、system house 除外、parent-cadet clanId 一致 (strict)
+- **CLAN_FOUNDED event** + EventEntityKind `'clan'`。EVENT_TEMPLATES に `clan.founded` 追加
+- **i18n**: events.yaml / entities.yaml / ui.yaml (en/ja) に Clan 関連キーを追加
+- **ClanDetail コンポーネント**: Clan 名 / active-extinct バッジ / root house / founder / 統計 / 所属家門一覧
+- **HouseDetail に Clan 表示追加**: 所属 Clan 名（クリックで ClanDetail 遷移）/ root or descendant 立場
+- **WindowManager / EventLog に Clan ルーティング追加**: EntityType `'clan'`、CLAN_FOUNDED アイコン、EventLinks に clan リンク
+- **CLI summary**: 年次サマリに activeClans を表示
+- **検証**: CLI 4 seed × 300 年 IntegrityCheck violation 0 件。68 テストファイル / 642 件 test pass
+
 ### v0.20 以降に送られる主要項目
 
 #### Faction 拡張系
@@ -769,7 +790,7 @@ v0.17.3 観察 (House Corvin — 9 人の血統メンバー + Lionel 派閥所�
 - **Polity 拡張**: ownershipMode / titlePropertyRegime / successionLaw / 同君連合
 - **LandContract の高度な機能**: 契約改竄 / claim / 分岐 chain / 共同保有等 (§27 参照)
 - **代官 / ProvinceOfficeAssignment の拡充**（Person.houseId optional 化、代官蓄財、bailiff 経済の独立）
-- **氏族 Clan**、巨大 House の Clan 化
+- ~~**氏族 Clan**~~: v0.32 Phase A で基盤実装済み。将来拡張: Clan treasury / Office / 派閥連動 / 請求権 / 僭称 / 派生 Clan (parentClanId) / CLAN_EXTINCT event / Clan chronicle
 - **socialFriction**（魅力 − 洞察 ペナルティ）— Attitude system 全体見直し
 - **ROLE_WEIGHTS の config 化**（シナリオごとに重み変更したいニーズが顕在化したとき）
 - **spymaster / disasterSystem 関連の役職** とその経験成長対応

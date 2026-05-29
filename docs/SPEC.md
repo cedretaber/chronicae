@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-28（v0.31.1 livingPersonIds パフォーマンス最適化）
+最終更新: 2026-05-29（v0.32 Clan System Phase A）
 
 ---
 

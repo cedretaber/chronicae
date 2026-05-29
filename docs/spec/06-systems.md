@@ -558,7 +558,7 @@ splitChance = baseHouseSplitChance
 
 後継者が存在しない家（生存メンバーが 0 または全員未成年かつ成人後継者なし）に対して断絶処理を行う。実体の状態書き換えは `extinctHouse` mutation（`worldStructureMutations.ts`）に集約されている（v0.13 / v0.15）。
 
-**v0.16 House active 判定の変更**: 旧 v0.15 までの「`house.provinceIds.length === 0` で即 extinction」判定は廃止された。House active は memberIds（血統）ベースで判定され、土地を完全に失っても active=true のまま「亡命家」として存続する（spec-v016-update.md §9.1）。お家再興 / 復古試行は将来の Faction 段階で動的に発生する想定で、v0.16 ではデータ上の存続のみ許す。
+**v0.16 House active 判定の変更**: 旧 v0.15 までの「`house.provinceIds.length === 0` で即 extinction」判定は廃止された。House active は memberIds（血統）ベースで判定され、土地を完全に失っても active=true のまま「無領家」として存続する（spec-v016-update.md §9.1）。お家再興 / 復古試行は将来の Faction 段階で動的に発生する想定で、v0.16 ではデータ上の存続のみ許す。
 
 **v0.15 §22.3 affectedPolityIds スナップショット**:
 
@@ -622,6 +622,29 @@ v0.14 では `handleRulerHouseExtinction` が ruler house extinct で Country �
 **1 月あたり最大** `houseFoundingMaxPerMonth` 家まで創設。
 
 イベント: `HOUSE_FOUNDED`（importance: `major`）
+
+### 6.13d ClanFormationSystem（config 依存の周期、v0.32 追加）
+
+年 1 回（`clanFormationIntervalWeeks`, default 48）。2 つの処理を行う。
+
+**Part 1: 新規 Clan 成立判定**
+
+active / normal / clanId undefined の各 House を root candidate として以下を評価:
+
+1. **分家数条件**: active direct cadet 数 >= `clanFormationMinDirectCadetHouses`
+2. **影響力条件**: formation group に ruling house が含まれる、または `isInfluentialHouse` が `clanFormationMinInfluentialHouses` 以上
+3. **量的条件**: formation group の total living members / wealth / legacyPrestige のいずれかが閾値以上
+
+3 条件すべてを満たすと Clan を成立させる。所属範囲は formation group（direct cadet のみ）ではなく、rootHouseId から下方向の全 descendant House。すでに別の clanId を持つ descendant とその下位はスキップする。
+
+イベント: `CLAN_FOUNDED`（importance: `major`）
+
+**Part 2: 既存 Clan の年次保守**
+
+- member House の cadet に clanId 未設定の normal House があれば同 Clan に追加（防御的フォールバック）
+- `syncClanActive`: memberHouseIds のうち active normal House が 0 になれば `clan.active = false`
+
+House 絶滅時の即時 `syncClanActive` は `handleNormalHouseExtinction`（`worldStructureMutations.ts`）の末尾で実行される。
 
 ### 6.13c HouselessPersonGenerationSystem（4週ごと、v0.31 で改名）
 

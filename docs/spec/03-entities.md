@@ -214,18 +214,40 @@ type House = {
   wealth: number             // >= 0
   seatProvinceId: ProvinceId
   lastSplitWeek?: number     // v0.31: 直近の分家発生時の absoluteWeek（cooldown 用）
+  clanId?: ClanId              // v0.32: 所属 Clan。最大 1 つ
   creationKind?: HouseCreationKind    // v0.31: 創設種別
   creationReason?: HouseCreationReason  // v0.31: 創設理由
 }
 ```
 
-- `seatProvinceId`: 家本拠地の中心。House が支配していない Province を指してもよい（亡命・名目本拠地を許容）
+- `seatProvinceId`: 家本拠地の中心。House が支配していない Province を指してもよい（無領家の名目本拠地を許容）
 - `prestige`・`cohesion`・`loyaltyToPolity` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
 - **v0.12**: `headId` を削除。家長は `OfficeAssignment`（role: 'leader'）で管理。`getHouseLeader` セレクターで取得（§4.6 参照）
 - **v0.15**: `polityId` フィールドを削除。House は単一 Polity に所属しない
-- **v0.16**: `provinceIds` フィールドを削除。House の関与 Province は LandContract chain から selector で取得（`getHouseControlledProvinceIds` / `getHouseRelevantProvinceIds`）。House active 判定は memberIds (血統) ベース。土地ゼロでも `active=true` のまま「亡命家」として存続し、お家再興を待つ
+- **v0.16**: `provinceIds` フィールドを削除。House の関与 Province は LandContract chain から selector で取得（`getHouseControlledProvinceIds` / `getHouseRelevantProvinceIds`）。House active 判定は memberIds (血統) ベース。土地ゼロでも `active=true` のまま「無領家」として存続し、お家再興を待つ
 - **v0.20.3**: `memberIds` を生存中メンバーのみに限定し、`deceasedMemberIds` を追加。`markPersonDead` で memberIds → deceasedMemberIds に移動する
 - **v0.31**: AnonymousHouse (`h-anon`, `kind: 'system'`) を廃止。`kind` フィールドは型上残存するが `'system'` の House は生成しない。`lastSplitWeek` / `creationKind` / `creationReason` を追加。v0.31 実動の creationReason は `house_split` / `wealth` / `office` / `prestige` / `succession`
+- **v0.32**: `clanId` を追加。House は最大 1 つの Clan に所属。多重 Clan 所属は禁止。`splitHouse` で親 House の clanId を即時継承、`houseFoundingSystem`（無家人物による創設）では付与しない
+
+### 3.4b Clan（氏族）（v0.32）
+
+```ts
+type Clan = {
+  id: ClanId                   // prefix: 'cl-'
+  active: boolean              // memberHouseIds のうち active normal House が 1 つ以上あれば true
+  rootHouseId: HouseId         // 系譜起点。この House より前の祖先には遡らない
+  nameSourceHouseId: HouseId   // 表示名の由来 House（v0.32 では rootHouseId と同値）
+  memberHouseIds: HouseId[]    // 所属 House 一覧（active / inactive 両方を含む。kind === 'system' は除外）
+  founderPersonId?: PersonId   // rootHouse.founderId があればそれを使用
+  createdWeek: number          // 成立時の absoluteWeek
+}
+```
+
+- Clan は政治主体ではない。treasury / Office / Share / LandContract / Project / Goal / Aim / DiplomaticPlay を持たない
+- Clan は自律行動しない。系譜整理・宗家/分家関係の表示・血縁集団の可視化が目的
+- `nameSourceHouseId` を介して House.nameKey を参照し「X 氏族」と表示する。Clan 固有の nameKey は持たない
+- `memberHouseIds` は direct cadet に限定せず、rootHouseId から下方向に再帰して到達する全 descendant House を含む。extinct House も残留する
+- `WorldState.clans: Record<ClanId, Clan>` / `WorldState.nextClanId: number` として保持
 
 ### 3.5 Person（人物）
 

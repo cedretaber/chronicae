@@ -19,6 +19,7 @@
 | HOUSE_SPLIT | major | 家の分裂（傍系家の独立） |
 | CADET_HOUSE_FOUNDED | major | 分家の創設（v0.31） |
 | HOUSE_FOUNDED | major | 無家人物による新 House の創設（v0.31） |
+| CLAN_FOUNDED | major | 氏族の成立（v0.32）。entityRefs: clan, rootHouse, founder（任意） |
 | SUCCESSION_CRISIS | major | 継承危機 |
 | PLOT_STARTED | normal | 陰謀開始 |
 | PLOT_SUCCEEDED | major | 陰謀成功 |

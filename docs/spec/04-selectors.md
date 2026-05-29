@@ -442,10 +442,22 @@ function getRulingHouseIds(state: WorldState): HouseId[]
 // 非支配者家門 ID 一覧
 function getNonRulingHouseIds(state: WorldState): HouseId[]
 
-// 有力家門: ownerHouse でない Polity で Share 比率が閾値以上
+// 有力家門 (Polity Share 限定): ownerHouse でない Polity で Share 比率が閾値以上
 function isInfluentialHouseInAnyPolity(
   state: WorldState,
   config: { influentialHousePolityShareThreshold: number },
+  houseId: HouseId,
+): boolean
+
+// 有力家門 (汎用判定、v0.32): 以下のいずれかを満たす
+//   isRulingHouse || isInfluentialHouseInAnyPolity || wealth >= threshold || legacyPrestige >= threshold
+function isInfluentialHouse(
+  state: WorldState,
+  config: {
+    influentialHousePolityShareThreshold: number
+    influentialHouseWealthThreshold: number
+    influentialHouseLegacyPrestigeThreshold: number
+  },
   houseId: HouseId,
 ): boolean
 
@@ -477,6 +489,47 @@ function isRecruitableOutsiderPerson(
 // 非支配者・非有力家門の土地なし House メンバー
 function isLandlessHouseMember(state: WorldState, personId: PersonId): boolean
 ```
+
+### 4.10b Clan セレクター（v0.32）
+
+`prototype/src/sim/selectors/clanSelectors.ts` に集約。
+
+```ts
+// Clan 取得
+function getClan(state: WorldState, clanId: ClanId): Clan | undefined
+
+// House の所属 Clan（house.clanId 経由 O(1)）
+function getHouseClan(state: WorldState, houseId: HouseId): Clan | undefined
+
+// Clan の active House 一覧
+function getClanActiveHouseIds(state: WorldState, clanId: ClanId): HouseId[]
+
+// Clan の extinct House 一覧
+function getClanExtinctHouseIds(state: WorldState, clanId: ClanId): HouseId[]
+
+// Clan 生存メンバー数（active House の memberIds.length 合計）
+function getClanLivingMemberCount(state: WorldState, clanId: ClanId): number
+
+// Clan 総資産（active House の wealth 合計）
+function getClanTotalWealth(state: WorldState, clanId: ClanId): number
+
+// Clan 総威信（active House の legacyPrestige 合計）
+function getClanTotalLegacyPrestige(state: WorldState, clanId: ClanId): number
+
+// Clan の支配者家門一覧
+function getClanRulingHouseIds(state: WorldState, clanId: ClanId): HouseId[]
+
+// Clan の有力家門一覧
+function getClanInfluentialHouseIds(state: WorldState, config, clanId: ClanId): HouseId[]
+
+// House の Clan 内の立場
+function getHouseClanRole(state: WorldState, houseId: HouseId): 'root' | 'descendant' | undefined
+
+// rootHouseId から下方向に再帰して到達する全 descendant House（汎用 utility、clanId フィルタなし）
+function getDescendantHouseIdsIncludingSelf(state: WorldState, rootHouseId: HouseId): HouseId[]
+```
+
+`getClanMemberHouseIds` は独立 selector として実装しない（`getClan(state, clanId)?.memberHouseIds` で直接参照可能）。
 
 ---
 

@@ -62,6 +62,7 @@ const WEEKS_PER_SEASON = 12
 | 11 | BirthSystem | 4 | v0.31 で 48→4 に変更 |
 | 11a | HouseFoundingSystem | config | v0.31 追加。config `houseFoundingIntervalWeeks` (default 4) |
 | 11a2 | HouseSplitEvaluationSystem | config | v0.31 追加。config `houseSplitEvaluationIntervalWeeks` (default 12) |
+| 11a3 | ClanFormationSystem | config | v0.32 追加。config `clanFormationIntervalWeeks` (default 48)。Clan 成立判定 + 年次保守 |
 | 11b | HouselessPersonGenerationSystem | 4 | 旧 UnaffiliatedPersonSystem を v0.31 で改名 |
 | 11c | OfficeTermSystem | 48 | 旧毎年 |
 | 12 | ShareUpdateSystem | 48 | 旧毎年 |

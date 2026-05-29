@@ -479,7 +479,7 @@ export function Sidebar() {
       return (
         [
           { key: 'ruling', label: '支配家', entries: rulingHouses },
-          { key: 'landless', label: '亡命家', entries: landlessHouses },
+          { key: 'landless', label: '無領家', entries: landlessHouses },
         ] as const
       ).map((section) => (
         <div key={section.key}>

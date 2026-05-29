@@ -463,8 +463,17 @@
 | founderSpouseChanceOld | 0.85 | 高齢 founder の配偶者生成確率 |
 | founderChildBaseChance | 0.6 | 子供生成の基礎確率 |
 | founderMaxGeneratedChildren | 4 | 最大生成子供数 |
-| **Influential House（v0.31）** | | |
+| **Influential House（v0.31 / v0.32 拡張）** | | |
 | influentialHousePolityShareThreshold | 0.10 | 有力家門判定の Share 比率閾値 |
+| influentialHouseWealthThreshold | 200 | v0.32: 汎用有力家門判定の wealth 閾値 |
+| influentialHouseLegacyPrestigeThreshold | 60 | v0.32: 汎用有力家門判定の legacyPrestige 閾値 |
+| **Clan Formation（v0.32）** | | |
+| clanFormationIntervalWeeks | 48 | ClanFormationSystem の実行間隔（週、年 1 回） |
+| clanFormationMinDirectCadetHouses | 3 | Clan 成立に必要な active direct cadet 数 |
+| clanFormationMinInfluentialHouses | 2 | Clan 成立に必要な有力家門数（影響力条件） |
+| clanFormationMinTotalLivingMembers | 30 | 量的条件: formation group の最小生存メンバー数 |
+| clanFormationMinTotalWealth | 500 | 量的条件: formation group の最小 wealth 合計 |
+| clanFormationMinTotalLegacyPrestige | 150 | 量的条件: formation group の最小 legacyPrestige 合計 |
 | **v0.30 廃止** | | |
 | ~~taxRevisionTaxChangeAmount~~ | — | **v0.30 で廃止**。`taxRevisionInitialDemandDelta` に統合 |
 
