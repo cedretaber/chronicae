@@ -13,6 +13,9 @@ node_modules/
 dist/
 *.local
 
+# CI simulation logs (per-seed logs emitted by the integrity job)
+sim-*.log
+
 # Environment
 .env
 .env.*

@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  # main への直接 push
+  push:
+    branches: [main]
+  # main をターゲットにした PR の作成・更新 (それ以外の base への PR では走らない)
+  pull_request:
+    branches: [main]
+
+# 同一 PR / ブランチで新しい push が来たら古い実行をキャンセルして CI 分を節約
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# このワークフローはコードを読んで検証するだけ。書き込み権限は不要（最小権限）。
+permissions:
+  contents: read
+
+jobs:
+  # 軽量チェック: lint / format / typecheck / test
+  check:
+    name: lint / format / typecheck / test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototype
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: prototype/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 4 つのチェックは個別ステップにし、!cancelled() で
+      # 1 つ落ちても残り全部を実行する（どこが壊れているか 1 回でわかる）
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: npm run typecheck
+
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: npm run lint
+
+      - name: Format check
+        if: ${{ !cancelled() }}
+        run: npm run format:check
+
+      - name: Test
+        if: ${{ !cancelled() }}
+        run: npm run test
+
+  # 整合性検証: 複数のランダムシードで長期シミュレーションを完走させる。
+  # 静的解析・ユニットテストでは捕まえられない、長期蓄積型の状態整合性バグを検出する。
+  simulation:
+    name: CLI integrity (300yr × random seeds)
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: prototype
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: prototype/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ランダムシード × 300 年を並列実行。違反があれば CLI が非ゼロ exit で落ちる。
+      # 失敗したシードは手元で同じ --seed を渡せば再現できる。
+      - name: Run multi-seed integrity simulation
+        run: |
+          set -uo pipefail
+
+          YEARS=300
+          SEED_COUNT=4
+
+          # ランダムシードを生成する。
+          # 手元では固定シードで回しているため、CI ではランダム性を入れて
+          # 別の RNG 分岐を踏ませる。GITHUB_RUN_ID を混ぜて run 間の衝突も避ける。
+          seeds=()
+          for _ in $(seq 1 "$SEED_COUNT"); do
+            seeds+=("ci-${GITHUB_RUN_ID}-${RANDOM}${RANDOM}")
+          done
+
+          echo "::notice title=Simulation seeds::${seeds[*]}"
+          echo "Running $SEED_COUNT seeds × $YEARS years in parallel:"
+          printf '  %s\n' "${seeds[@]}"
+
+          # 各シードをバックグラウンドで起動し、PID → seed を記録する。
+          # 出力はシードごとに別ファイルへ（並列実行でログが混ざらないように）。
+          declare -A seed_of
+          for s in "${seeds[@]}"; do
+            node src/cli/run.mjs --years "$YEARS" --seed "$s" > "sim-$s.log" 2>&1 &
+            seed_of[$!]="$s"
+          done
+
+          # 各プロセスの終了を待ち、落ちたシードを収集する。
+          # set -e は使わず、最初の失敗で止めずに全シードの結果を出す。
+          fail=0
+          for pid in "${!seed_of[@]}"; do
+            s="${seed_of[$pid]}"
+            if wait "$pid"; then
+              echo "✓ seed $s: OK"
+            else
+              fail=1
+              echo "::error title=Integrity violation::seed=$s failed — reproduce locally with: cd prototype && node src/cli/run.mjs --years $YEARS --seed $s"
+              echo "----- tail of sim-$s.log -----"
+              tail -n 60 "sim-$s.log"
+            fi
+          done
+
+          exit $fail
+
+      # 失敗時はフルログをアーティファクトとして残す（300 年分の全イベントを手元で確認できる）。
+      - name: Upload simulation logs on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulation-logs
+          path: prototype/sim-*.log
+          retention-days: 7
