@@ -41,7 +41,7 @@
 | fatherMaxChildAge | 60 | 父親になれる最高年齢 |
 | motherMinChildAge | 15 | 母親になれる最低年齢 |
 | motherMaxChildAge | 45 | 母親になれる最高年齢 |
-| baseBirthChancePerMalePerYear | 0.06 | 男性 1 人あたりの年間出生確率（基本） |
+| baseBirthChancePerMalePerYear | 0.09 | 男性 1 人あたりの年間出生確率（基本）。v0.33+ で 0.06→0.09（家制度バランス: 家内出生を増やし有力な大家系を出現させる。houseFounding 絞りとセット） |
 | spouseMotherChance | 0.90 | 配偶者が母親になる確率 |
 | maleBirthChance | 0.52 | 男子出生確率（通常） |
 | maleBirthChanceWhenAdultMaleShortage | 0.65 | 男子出生確率（成人男性不足時） |
@@ -453,8 +453,8 @@
 | houseFoundingMinWealth | 120 | 創設候補の最小 wealth |
 | houseFoundingMinPrestige | 45 | 創設候補の最小 legacyPrestige |
 | houseFoundingMinActivityLogs | 3 | 創設候補の最小 ActivityLog 数 |
-| houseFoundingMonthlyChance | 0.04 | 創設確率（月あたり） |
-| houseFoundingMaxPerMonth | 2 | 月あたりの最大創設数 |
+| houseFoundingMonthlyChance | 0.02 | 創設確率（月あたり）。v0.33+ で 0.04→0.02（家制度バランス: 自力設立を絞り極小家の量産を抑制。baseBirthChance 増とセット） |
+| houseFoundingMaxPerMonth | 1 | 月あたりの最大創設数。v0.33+ で 2→1（同上） |
 | houseFoundingWealthTransferRate | 0.5 | founder → House への wealth 移転率 |
 | **Founder Family Generation（v0.31）** | | |
 | founderFamilyGenerationEnabled | true | 創設時の家族後付け生成有効 |

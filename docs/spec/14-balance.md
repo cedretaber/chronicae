@@ -170,6 +170,44 @@ v0.30 で外交劇を offer-driven に構造改修したが、バランスの良
 
 ---
 
+## 14.6 家制度バランス: 有力家系の不在（v0.33+ で初期調整）
+
+### 14.6.1 問題と診断
+
+観察上の問題は「家が多すぎる」ことではなく **「有力な家（大きな多世代家系）が生まれないこと」**。実測（100/300yr × 4 seed, default config）で構造を特定した:
+
+- normal 人口は ~225 で安定均衡（`targetLivingPersons:180`、`baseBirthChancePerMalePerYear:0.06`）。`computeBirthMultiplier` は target 未満でのみブースト、target 超は 1.0 で抑制なし。`mortalitySystem` に密度依存死亡なし → 人口は上限でなく**自然均衡**（出生を上げれば総人口は増える＝ゼロサムでない）。
+- その固定的な人口を、増え続ける家が分割。**家の生成は 99% が自力設立（`houseFoundingSystem`）**で分家（`houseSplitEvaluationSystem`）はほぼ寄与なし（100年で cadet 0-3 件）。在野人物（`houselessPersonGenerationSystem`、houseless 目標 = holdings × `houselessPersonsPerHolding`）が設立の燃料。
+- 子は父の家に加入・妻は夫の家へ移籍するので家が育つ仕組みはあるが、**繁殖の差別化が無い**ため全家が平均（~2人）に収束。**size-7+ の家は year15 以降ほぼ 0、氏族(clan)は 300年通して 0**（氏族成立は root家＋複数 cadet＋有力家が前提で永遠に未達）。100年で ~300設立/~200絶滅 の高チャーン、定常 ~100家×平均2.1人。
+
+### 14.6.2 v0.33+ の初期調整（栄枯盛衰型・config のみ）
+
+`--config` 実験（100/300yr × 4 seed, snapshot 計測）で確認した事実:
+
+- **出生がゼロサムでない**ことを識別（`baseBirthChancePerMalePerYear` 0.12 で normal 人口 257→516）。出生こそが家サイズの主レバー。
+- **設立絞り単独では大家は育たない**（人口が下がるだけ）。**出生↑と設立絞りはセット**で初めて、人口を穏当に保ったまま少数の大家へ集約する。
+- ただし flat config で現れる大家は **持続せず栄枯盛衰**（houseId 追跡で year150 の上位12家は year300 で 2家のみ生存・0家が上位維持、初期名門は全滅、上位は全て self_made 成り上がり）。中立な birth-death 過程で大家に自己強化 force が無いため。
+
+採用値（F1）— 「有力家が栄枯盛衰しながら現れる」を狙う最小の一手:
+
+| config | 旧 | 新 |
+|---|---|---|
+| `baseBirthChancePerMalePerYear` | 0.06 | **0.09** |
+| `houseFoundingMonthlyChance` | 0.04 | **0.02** |
+| `houseFoundingMaxPerMonth` | 2 | **1** |
+
+効果（300yr × 4 seed）: size-7+ 家が baseline 0 → 2-3 家、maxH 5.8 → ~9、人口は現状規模 ~250 を維持、0 violation、fadedFromHistory 0（在野の無駄 prune なし）。
+
+### 14.6.3 持続 dynasty / 氏族は将来の別システム（権威）で
+
+数百年続く名門 → 分家 → 氏族 を恒常化するには自己強化 signal＋release valve の両方が要る。将来「権威(authority)」システムで対応予定: 一定期間存続した家に権威を付与 → 高権威家は跡継ぎが生まれやすい → かつ大きく/古くなった家を**分裂させやすく**する（cadet-split を valve に）。今回はスコープ外。
+
+### 14.6.4 役職保持の条件付け（別タスク）
+
+`appointmentSystem.tryAppointHouseOffice` は active 全家にサイズ/資産/領地ゲート無しで非 leader Office を埋める（active 家の ~90-95% が Office 保有、~55-70% が「living≤2 かつ役職保有」）。「2人の家に財務官」の不自然さは realism 修正として別タスクで対応予定（有力家出現の目標とは直交）。
+
+---
+
 ## 改訂履歴
 
 | バージョン | 変更内容 |
@@ -177,3 +215,4 @@ v0.30 で外交劇を offer-driven に構造改修したが、バランスの良
 | v0.28 | 初版作成。POP wealth 安定化、Polity 保留額動的化、Project deadline 比例化の観察結果を記録 |
 | v0.29 | §14.2.4 sell_land 機能不全、§14.3.1 和平解決構造的問題、§14.3.2 ステークホルダー共通衝突、§14.3.3 land_claim 不発を追記 |
 | v0.30 | §14.5 offer-driven 化後のバランス未検証の既知問題を追記 |
+| v0.33+ | §14.6 家制度バランス（有力家系の不在）の診断と初期調整（出生↑＋設立絞り）を追記。observation 基盤に houses/clans snapshot を追加 |

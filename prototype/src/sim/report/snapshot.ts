@@ -1,6 +1,12 @@
 import type { WorldState } from '../types/world'
-import type { PolityId, HoldingId } from '../types/ids'
-import type { ActivitySnapshot, ActivitySnapshotFaction, ActivitySnapshotPolity } from './types'
+import type { PolityId, HoldingId, HouseId } from '../types/ids'
+import type {
+  ActivitySnapshot,
+  ActivitySnapshotClans,
+  ActivitySnapshotFaction,
+  ActivitySnapshotHouses,
+  ActivitySnapshotPolity,
+} from './types'
 import { getPolityTerminalProvinceIds } from '../selectors/landContractSelectors'
 
 // v0.17.1 §observation: 軽量スナップショット。
@@ -96,12 +102,104 @@ export function takeSnapshot(state: WorldState, year: number): ActivitySnapshot 
     if (p.kind !== 'placeholder') populationLivingNormal++
   }
 
+  const houses = aggregateHouses(state)
+  const clans = aggregateClans(state)
+
   return {
     year,
     polities,
     factions,
+    houses,
+    clans,
     bailiffs: { normal: bailiffNormal, placeholder: bailiffPlaceholder, vacant: bailiffVacant },
     populationLiving,
     populationLivingNormal,
   }
+}
+
+// 非 leader Office を持つかどうか・その数を house 単位で数える。
+function countNonLeaderOffices(state: WorldState, houseId: HouseId): number {
+  const officeIds = state.officeIndex.byOrganization[`house:${houseId}`] ?? []
+  let count = 0
+  for (const oid of officeIds) {
+    const o = state.officeAssignments[oid]
+    if (o && o.active && o.role !== 'leader') count++
+  }
+  return count
+}
+
+function aggregateHouses(state: WorldState): ActivitySnapshotHouses {
+  let activeTotal = 0
+  let normal = 0
+  let system = 0
+  let cadetBranch = 0
+  let selfMade = 0
+  let creationKindUnknown = 0
+  let livingMembersInNormalHouses = 0
+  let maxLivingMembers = 0
+  const sizeDistribution = { s1: 0, s2to3: 0, s4to6: 0, s7plus: 0 }
+  let withNonLeaderOffices = 0
+  let totalNonLeaderOffices = 0
+  let smallWithOffices = 0
+
+  for (const houseIdStr of Object.keys(state.houses)) {
+    const houseId = houseIdStr as HouseId
+    const house = state.houses[houseId]
+    if (!house || !house.active) continue
+    activeTotal++
+
+    const nonLeaderOffices = countNonLeaderOffices(state, houseId)
+    totalNonLeaderOffices += nonLeaderOffices
+    if (nonLeaderOffices > 0) withNonLeaderOffices++
+
+    if (house.kind === 'system') {
+      system++
+      continue
+    }
+    normal++
+
+    if (house.creationKind === 'cadet_branch') cadetBranch++
+    else if (house.creationKind === 'self_made_foundation') selfMade++
+    else creationKindUnknown++
+
+    let living = 0
+    for (const pid of house.memberIds) {
+      const p = state.persons[pid]
+      if (p && p.alive) living++
+    }
+    livingMembersInNormalHouses += living
+    if (living > maxLivingMembers) maxLivingMembers = living
+    if (living <= 1) sizeDistribution.s1++
+    else if (living <= 3) sizeDistribution.s2to3++
+    else if (living <= 6) sizeDistribution.s4to6++
+    else sizeDistribution.s7plus++
+
+    if (living <= 2 && nonLeaderOffices > 0) smallWithOffices++
+  }
+
+  return {
+    activeTotal,
+    normal,
+    system,
+    cadetBranch,
+    selfMade,
+    creationKindUnknown,
+    livingMembersInNormalHouses,
+    maxLivingMembers,
+    sizeDistribution,
+    withNonLeaderOffices,
+    totalNonLeaderOffices,
+    smallWithOffices,
+  }
+}
+
+function aggregateClans(state: WorldState): ActivitySnapshotClans {
+  let activeTotal = 0
+  let totalMemberHouses = 0
+  for (const clan of Object.values(state.clans)) {
+    if (!clan || !clan.active) continue
+    activeTotal++
+    totalMemberHouses += clan.memberHouseIds.length
+  }
+  return { activeTotal, totalMemberHouses }
 }

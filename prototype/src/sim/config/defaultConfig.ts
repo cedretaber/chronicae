@@ -782,7 +782,9 @@ export const defaultConfig: SimulationConfig = {
   fatherMaxChildAge: 60,
   motherMinChildAge: 15,
   motherMaxChildAge: 45,
-  baseBirthChancePerMalePerYear: 0.06,
+  // v0.33+ 家制度バランス: 家内出生を中庸に増やし「有力な大家系が栄枯盛衰しながら現れる」状態を作る
+  // (0.06 では全家が平均~2人に希釈し size-7+ 家が出現しなかった。houseFounding 絞りとセット)
+  baseBirthChancePerMalePerYear: 0.09,
   spouseMotherChance: 0.9,
   maleBirthChance: 0.52,
   maleBirthChanceWhenAdultMaleShortage: 0.65,
@@ -1443,8 +1445,10 @@ export const defaultConfig: SimulationConfig = {
   houseFoundingMinWealth: 120,
   houseFoundingMinPrestige: 45,
   houseFoundingMinActivityLogs: 3,
-  houseFoundingMonthlyChance: 0.04,
-  houseFoundingMaxPerMonth: 2,
+  // v0.33+ 家制度バランス: 自力設立を絞り、固定的な人口が極小家へ断片化するのを抑える
+  // (在野からの設立が ~3/年と多く、平均~2人の短命家を量産していた。baseBirthChance 増とセット)
+  houseFoundingMonthlyChance: 0.02,
+  houseFoundingMaxPerMonth: 1,
   houseFoundingWealthTransferRate: 0.5,
   // v0.31 Founder Family Generation
   founderFamilyGenerationEnabled: true,

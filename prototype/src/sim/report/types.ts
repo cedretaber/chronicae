@@ -130,10 +130,44 @@ export type ActivitySnapshotFaction = {
   memberHouseCounts: Record<string, number>
 }
 
+// v0.33+ §observation: 家制度バランス観察用。設立(フロー)と active 数(ストック)を
+// 切り分けるため、creationKind 内訳・サイズ分布・Office 保有を時系列で追う。
+export type ActivitySnapshotHouses = {
+  // active house 総数 (全 kind)
+  activeTotal: number
+  // kind 別 (active)
+  normal: number
+  system: number
+  // creationKind 内訳 (active normal house のみ)。設立 vs 分家の出自を切り分ける
+  cadetBranch: number
+  selfMade: number
+  creationKindUnknown: number
+  // active normal house に属する living member 合計 (人口比のミクロ分母)
+  livingMembersInNormalHouses: number
+  // active normal house の最大 living member 数 (有力家=大家系が育っているかの直接指標)
+  maxLivingMembers: number
+  // living member 数のヒストグラム (active normal house)
+  sizeDistribution: { s1: number; s2to3: number; s4to6: number; s7plus: number }
+  // 非 leader Office を 1 つ以上持つ active house 数
+  withNonLeaderOffices: number
+  // active house の非 leader Office 総数
+  totalNonLeaderOffices: number
+  // living member <= 2 かつ 非 leader Office を持つ active house 数 (小さな家の役職保有)
+  smallWithOffices: number
+}
+
+export type ActivitySnapshotClans = {
+  activeTotal: number
+  // active clan の memberHouseIds 合計
+  totalMemberHouses: number
+}
+
 export type ActivitySnapshot = {
   year: number
   polities: ActivitySnapshotPolity[]
   factions: ActivitySnapshotFaction[]
+  houses: ActivitySnapshotHouses
+  clans: ActivitySnapshotClans
   bailiffs: {
     normal: number
     placeholder: number
