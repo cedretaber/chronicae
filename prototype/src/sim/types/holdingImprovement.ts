@@ -1,10 +1,13 @@
 import type { HoldingImprovementId, HoldingId } from './ids'
 
 export type HoldingImprovementKind =
-  | 'agricultural_infrastructure'
-  | 'urban_infrastructure'
   | 'storage_infrastructure'
   | 'transport_infrastructure'
+  | 'field_system'
+  | 'pastoral_infrastructure'
+  | 'irrigation_infrastructure'
+  | 'market_infrastructure'
+  | 'workshop_infrastructure'
 
 export type HoldingImprovement = {
   id: HoldingImprovementId

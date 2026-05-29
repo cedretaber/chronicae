@@ -2,8 +2,9 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId, HoldingId } from '../types/ids'
 import type { PopGroup, PopClass, PopOccupation } from '../types/popGroup'
+import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import { clamp } from '../utils/math'
-import { getHoldingDevelopmentModifier } from './holdingImprovementSelectors'
+import { computeHoldingOccupationCapacity } from './holdingImprovementSelectors'
 
 // Returns all PopGroups for a province (empty array if none)
 export function getProvincePops(state: WorldState, provinceId: ProvinceId): PopGroup[] {
@@ -229,10 +230,25 @@ export function getHoldingOccupationCapacity(
   if (occupation === 'none') return 0
   const holding = state.holdings[holdingId]
   if (!holding) return 0
-  const baseCapacity = config.occupationCapacityBaseByHoldingKind[holding.kind]?.[occupation]
-  if (baseCapacity === undefined) return 0
-  const developmentModifier = getHoldingDevelopmentModifier(state, config, holdingId)
-  return baseCapacity * holding.weight * holding.landQuality * developmentModifier
+  const province = state.provinces[holding.provinceId]
+  if (!province) return 0
+  // v0.33 §6.3: (base + improvementDerivedCapacity) * weight * landQuality。devMod は使わない。
+  const improvementIds = state.holdingImprovementIndex.byHolding[holdingId as string] ?? []
+  const improvements: { kind: HoldingImprovementKind; level: number }[] = []
+  for (const impId of improvementIds) {
+    const imp = state.holdingImprovements[impId]
+    if (imp) improvements.push({ kind: imp.kind, level: imp.level })
+  }
+  return computeHoldingOccupationCapacity(
+    holding.kind,
+    holding.weight,
+    holding.landQuality,
+    province.terrain,
+    province.features,
+    improvements,
+    config,
+    occupation,
+  )
 }
 
 export function getHoldingOccupationRemainingCapacity(

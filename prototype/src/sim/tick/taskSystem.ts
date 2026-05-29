@@ -44,8 +44,13 @@ import type {
   ProjectKind,
 } from '../types/project'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
-import type { HoldingKind } from '../types/landContract'
-import { getHoldingImprovementLevel } from '../selectors/holdingImprovementSelectors'
+import type { PopClass, PopOccupation } from '../types/popGroup'
+import {
+  getHoldingImprovementLevel,
+  canBuildHoldingImprovement,
+} from '../selectors/holdingImprovementSelectors'
+import { getHoldingOccupationRemainingCapacity } from '../selectors/popSelectors'
+import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { createProjectId } from '../types/ids'
 import { clamp } from '../utils/math'
 import {
@@ -1340,26 +1345,49 @@ function handlePrepareProjectCompletionMut(
   })
 }
 
+const OCCUPATION_TO_CLASS: Partial<Record<PopOccupation, PopClass>> = {
+  agriculture: 'peasants',
+  urban_labor: 'townsmen',
+  elite_service: 'nobles',
+}
+
+// v0.33 §11.2: IMPROVEMENT_DEFINITIONS 駆動。canBuildHoldingImprovement で候補を絞り
+// （生 maxLevel の >= 比較は undefined を無制限と誤読するため使わない）、
+// capacityRole='capacity' を優先、不足 occupation を増やせる kind を優先、同条件は level 最小。
 function selectImprovementKind(
   ws: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
-  holdingKind: HoldingKind,
 ): HoldingImprovementKind | undefined {
-  const maxByKind = config.holdingImprovementMaxLevelByHoldingKind[holdingKind]
-  const kinds: HoldingImprovementKind[] = [
-    'agricultural_infrastructure',
-    'urban_infrastructure',
-    'storage_infrastructure',
-    'transport_infrastructure',
-  ]
+  // 列挙順は IMPROVEMENT_DEFINITIONS のキー順で固定（決定性）。
+  const buildable = (Object.keys(IMPROVEMENT_DEFINITIONS) as HoldingImprovementKind[]).filter((k) =>
+    canBuildHoldingImprovement(ws, config, holdingId, k),
+  )
+  if (buildable.length === 0) return undefined
+
+  // capacity 設備を優先。capacity 候補が無いときのみ production_quality（storage/transport）を許可。
+  const capacityKinds = buildable.filter(
+    (k) => IMPROVEMENT_DEFINITIONS[k].capacityRole === 'capacity',
+  )
+  const pool = capacityKinds.length > 0 ? capacityKinds : buildable
+
+  // deficit = 対象 occupation の remaining capacity の最小値（小さいほど逼迫＝優先）。
+  // production_quality は targetOccupations 無し → deficit = Infinity（level tiebreak のみ）。
   let bestKind: HoldingImprovementKind | undefined
+  let bestDeficit = Infinity
   let bestLevel = Infinity
-  for (const k of kinds) {
-    const maxLevel = maxByKind[k]
+  for (const k of pool) {
+    const def = IMPROVEMENT_DEFINITIONS[k]
     const curLevel = getHoldingImprovementLevel(ws, holdingId, k)
-    if (curLevel >= maxLevel) continue
-    if (curLevel < bestLevel) {
+    let deficit = Infinity
+    for (const occ of def.targetOccupations ?? []) {
+      const popClass = OCCUPATION_TO_CLASS[occ]
+      if (!popClass) continue
+      const remaining = getHoldingOccupationRemainingCapacity(ws, config, holdingId, popClass, occ)
+      if (remaining < deficit) deficit = remaining
+    }
+    if (deficit < bestDeficit || (deficit === bestDeficit && curLevel < bestLevel)) {
+      bestDeficit = deficit
       bestLevel = curLevel
       bestKind = k
     }
@@ -1380,7 +1408,7 @@ function buildProjectFieldsForAim(
       const holding = ws.holdings[holdingId]
       if (!holding) return undefined
 
-      const improvementKind = selectImprovementKind(ws, config, holdingId, holding.kind)
+      const improvementKind = selectImprovementKind(ws, config, holdingId)
       if (!improvementKind) return undefined
 
       const currentLevel = getHoldingImprovementLevel(ws, holdingId, improvementKind)

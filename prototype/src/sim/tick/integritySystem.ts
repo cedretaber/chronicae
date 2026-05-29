@@ -37,15 +37,16 @@ import {
   getRecentBailiffRevenueTaskStatus,
 } from '../selectors/bailiffSelectors'
 import { targetRefKey } from '../types/task'
+import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
+import { getHoldingOccupationCapacity } from '../selectors/popSelectors'
+import type { HoldingImprovementKind } from '../types/holdingImprovement'
 
 const VALID_ABILITY_KEYS: ReadonlySet<string> = new Set(ABILITY_KEYS)
 
-const VALID_HOLDING_IMPROVEMENT_KINDS: ReadonlySet<string> = new Set([
-  'agricultural_infrastructure',
-  'urban_infrastructure',
-  'storage_infrastructure',
-  'transport_infrastructure',
-])
+// v0.33 §5.3: IMPROVEMENT_DEFINITIONS のキーから導出し二重管理を解消
+const VALID_HOLDING_IMPROVEMENT_KINDS: ReadonlySet<string> = new Set(
+  Object.keys(IMPROVEMENT_DEFINITIONS),
+)
 
 // v0.33 §13.1: Province terrain / features の妥当性検証
 const VALID_PROVINCE_TERRAINS: ReadonlySet<string> = new Set([
@@ -2107,9 +2108,10 @@ export function collectIntegrityErrors(
       }
 
       if (holding && config) {
-        const maxByKind = config.holdingImprovementMaxLevelByHoldingKind[holding.kind]
-        const maxLevel = maxByKind?.[imp.kind]
-        if (maxLevel !== undefined && imp.level > maxLevel) {
+        // v0.33 §13.2: access 反転 [kind][holdingKind] ?? 0。0（未定義含む）= 建設不可なので
+        // level >= 1 の improvement が存在する時点で違反（imp.level > maxLevel で両ケースを表現）。
+        const maxLevel = config.holdingImprovementMaxLevelByKind[imp.kind][holding.kind] ?? 0
+        if (imp.level > maxLevel) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
             message: `HoldingImprovement ${idStr}: level=${imp.level} exceeds max ${maxLevel} for ${holding.kind}/${imp.kind} (§19.1)`,
@@ -2173,6 +2175,79 @@ export function collectIntegrityErrors(
             message: `HoldingImprovement ${id as string} belongs to holding ${holdingKey} but holdingImprovementIndex.byHolding has no entry (§19.1)`,
           })
         }
+      }
+    }
+  }
+
+  // --- v0.33 §13.3: IMPROVEMENT_DEFINITIONS / config 整合（const を回すのみ・低コスト） ---
+  if (config) {
+    const HOLDING_KINDS = ['manor', 'city'] as const
+    for (const kind of Object.keys(IMPROVEMENT_DEFINITIONS) as HoldingImprovementKind[]) {
+      const def = IMPROVEMENT_DEFINITIONS[kind]
+      for (const hk of HOLDING_KINDS) {
+        const maxLevel = config.holdingImprovementMaxLevelByKind[kind][hk]
+        const allowed = def.allowedHoldingKinds.includes(hk)
+        if (maxLevel !== undefined && maxLevel < 0) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `IMPROVEMENT config: maxLevel for ${kind}/${hk} is negative (${maxLevel}) (§13.3)`,
+          })
+        }
+        // allowedHoldingKinds に含まれる holdingKind は maxLevel >= 1
+        if (allowed && (maxLevel === undefined || maxLevel < 1)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `IMPROVEMENT config: ${kind} allowed for ${hk} but maxLevel=${maxLevel ?? 'undefined'} (<1) (§13.3)`,
+          })
+        }
+        // allowedHoldingKinds に含まれない holdingKind は maxLevel が undefined または 0
+        if (!allowed && maxLevel !== undefined && maxLevel > 0) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `IMPROVEMENT config: ${kind} not allowed for ${hk} but maxLevel=${maxLevel} (>0) (§13.3)`,
+          })
+        }
+      }
+      // capacityRole==='capacity' は targetOccupations の capacityPerLevel が正値で存在
+      if (def.capacityRole === 'capacity') {
+        for (const occ of def.targetOccupations ?? []) {
+          const perLevel = config.holdingImprovementOccupationCapacityPerLevel[kind][occ]
+          if (perLevel === undefined || perLevel <= 0) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `IMPROVEMENT config: ${kind} capacityRole=capacity but occupationCapacityPerLevel[${occ}]=${perLevel ?? 'undefined'} (§13.3)`,
+            })
+          }
+        }
+      }
+    }
+  }
+
+  // --- v0.33 §13.4: occupation capacity の健全性（NaN/Infinity/負を返さない、none=0） ---
+  if (config) {
+    const CAP_PAIRS = [
+      ['peasants', 'agriculture'],
+      ['townsmen', 'urban_labor'],
+      ['nobles', 'elite_service'],
+    ] as const
+    for (const [holdingIdStr, holding] of Object.entries(state.holdings)) {
+      if (!holding) continue
+      const hid = holdingIdStr as HoldingId
+      for (const [popClass, occupation] of CAP_PAIRS) {
+        const cap = getHoldingOccupationCapacity(state, config, hid, popClass, occupation)
+        if (!Number.isFinite(cap) || cap < 0) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Holding ${holdingIdStr}: occupation capacity for ${occupation} is invalid (${cap}) (§13.4)`,
+          })
+        }
+      }
+      const noneCap = getHoldingOccupationCapacity(state, config, hid, 'peasants', 'none')
+      if (noneCap !== 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Holding ${holdingIdStr}: occupation 'none' capacity must be 0 (got ${noneCap}) (§13.4)`,
+        })
       }
     }
   }
@@ -2776,9 +2851,10 @@ export function collectIntegrityErrors(
       // §19.4: targetImprovementLevel <= max level
       const holding = state.holdings[project.holdingId]
       if (holding && config) {
-        const maxByKind = config.holdingImprovementMaxLevelByHoldingKind[holding.kind]
-        const maxLevel = maxByKind?.[project.improvementKind]
-        if (maxLevel !== undefined && project.targetImprovementLevel > maxLevel) {
+        // v0.33 §13.2: access 反転。0（未定義含む）= 建設不可。
+        const maxLevel =
+          config.holdingImprovementMaxLevelByKind[project.improvementKind][holding.kind] ?? 0
+        if (project.targetImprovementLevel > maxLevel) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
             message: `Project ${idStr}: targetImprovementLevel=${project.targetImprovementLevel} exceeds max ${maxLevel} for ${holding.kind}/${project.improvementKind} (§19.4)`,

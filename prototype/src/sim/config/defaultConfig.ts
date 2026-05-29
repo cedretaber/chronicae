@@ -4,7 +4,7 @@ import type { PersonBackgroundOccupation } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
 import type { PopOccupation, PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
-import type { ProvinceTerrain } from '../types/province'
+import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
 
 export type SimulationConfig = {
   uiLocale: 'en' | 'ja'
@@ -637,13 +637,27 @@ export type SimulationConfig = {
   taskOutcomeSuccessMargin: number
   // v0.27 HoldingImprovement / development selector
   holdingImprovementDevelopmentScorePerLevel: Record<HoldingImprovementKind, number>
-  holdingImprovementMaxLevelByHoldingKind: Record<
-    HoldingKind,
-    Record<HoldingImprovementKind, number>
+  // v0.33: ネスト反転 + Partial 化。未定義/0 = 建設不可。access は [kind]?.[holdingKind] ?? 0
+  holdingImprovementMaxLevelByKind: Record<
+    HoldingImprovementKind,
+    Partial<Record<HoldingKind, number>>
   >
   developHoldingTargetDevelopmentThreshold: number
   developHoldingProjectBaseCostByImprovementKind: Record<HoldingImprovementKind, number>
   developHoldingProjectBaseProgressByImprovementKind: Record<HoldingImprovementKind, number>
+  // v0.33: capacity 生成テーブル（§8.3-8.5）。Partial = 未定義は寄与 0 / multiplier 1.0
+  holdingImprovementOccupationCapacityPerLevel: Record<
+    HoldingImprovementKind,
+    Partial<Record<PopOccupation, number>>
+  >
+  holdingImprovementTerrainCapacityMultiplier: Record<
+    HoldingImprovementKind,
+    Partial<Record<ProvinceTerrain, number>>
+  >
+  holdingImprovementFeatureCapacityMultiplier: Record<
+    HoldingImprovementKind,
+    Partial<Record<ProvinceFeature, number>>
+  >
   improvementLevelCostMultiplier: Record<number, number>
   improvementLevelProgressMultiplier: Record<number, number>
   projectBudgetMarginMultiplier: number
@@ -1339,37 +1353,86 @@ export const defaultConfig: SimulationConfig = {
   taskOutcomeSuccessMargin: 20,
   // v0.27 HoldingImprovement / development selector
   holdingImprovementDevelopmentScorePerLevel: {
-    agricultural_infrastructure: 8,
-    urban_infrastructure: 8,
-    storage_infrastructure: 5,
-    transport_infrastructure: 5,
+    field_system: 4,
+    pastoral_infrastructure: 4,
+    irrigation_infrastructure: 6,
+    market_infrastructure: 6,
+    workshop_infrastructure: 6,
+    storage_infrastructure: 7,
+    transport_infrastructure: 7,
   },
-  holdingImprovementMaxLevelByHoldingKind: {
-    manor: {
-      agricultural_infrastructure: 3,
-      urban_infrastructure: 1,
-      storage_infrastructure: 3,
-      transport_infrastructure: 3,
-    },
-    city: {
-      agricultural_infrastructure: 1,
-      urban_infrastructure: 3,
-      storage_infrastructure: 3,
-      transport_infrastructure: 3,
-    },
+  holdingImprovementMaxLevelByKind: {
+    field_system: { manor: 3, city: 0 },
+    pastoral_infrastructure: { manor: 3, city: 0 },
+    irrigation_infrastructure: { manor: 3, city: 0 },
+    market_infrastructure: { manor: 0, city: 3 },
+    workshop_infrastructure: { manor: 0, city: 3 },
+    storage_infrastructure: { manor: 3, city: 3 },
+    transport_infrastructure: { manor: 3, city: 3 },
   },
   developHoldingTargetDevelopmentThreshold: 40,
   developHoldingProjectBaseCostByImprovementKind: {
-    agricultural_infrastructure: 30,
-    urban_infrastructure: 35,
+    field_system: 30,
+    pastoral_infrastructure: 28,
+    irrigation_infrastructure: 35,
+    market_infrastructure: 35,
+    workshop_infrastructure: 32,
     storage_infrastructure: 25,
     transport_infrastructure: 30,
   },
   developHoldingProjectBaseProgressByImprovementKind: {
-    agricultural_infrastructure: 100,
-    urban_infrastructure: 100,
+    field_system: 100,
+    pastoral_infrastructure: 100,
+    irrigation_infrastructure: 110,
+    market_infrastructure: 100,
+    workshop_infrastructure: 100,
     storage_infrastructure: 80,
     transport_infrastructure: 100,
+  },
+  holdingImprovementOccupationCapacityPerLevel: {
+    field_system: { agriculture: 60 },
+    pastoral_infrastructure: { agriculture: 45 },
+    irrigation_infrastructure: { agriculture: 25 },
+    market_infrastructure: { urban_labor: 55, elite_service: 5 },
+    workshop_infrastructure: { urban_labor: 65 },
+    storage_infrastructure: {},
+    transport_infrastructure: {},
+  },
+  holdingImprovementTerrainCapacityMultiplier: {
+    field_system: { plains: 1.3, wetlands: 0.7, hills: 0.75, forest: 0.5, mountains: 0.25 },
+    pastoral_infrastructure: {
+      plains: 1.0,
+      hills: 1.3,
+      mountains: 0.8,
+      forest: 0.65,
+      wetlands: 0.4,
+    },
+    irrigation_infrastructure: {
+      plains: 1.0,
+      wetlands: 1.4,
+      hills: 0.7,
+      forest: 0.5,
+      mountains: 0.3,
+    },
+    market_infrastructure: { plains: 1.1, hills: 0.9, forest: 0.8, wetlands: 0.75, mountains: 0.6 },
+    workshop_infrastructure: {
+      plains: 1.0,
+      hills: 0.9,
+      forest: 0.85,
+      wetlands: 0.75,
+      mountains: 0.7,
+    },
+    storage_infrastructure: {},
+    transport_infrastructure: {},
+  },
+  holdingImprovementFeatureCapacityMultiplier: {
+    field_system: { major_river: 1.1, lake: 1.05 },
+    pastoral_infrastructure: {},
+    irrigation_infrastructure: { major_river: 1.3, lake: 1.2 },
+    market_infrastructure: { coastal: 1.15, major_river: 1.15, lake: 1.1 },
+    workshop_infrastructure: { coastal: 1.05, major_river: 1.05 },
+    storage_infrastructure: {},
+    transport_infrastructure: {},
   },
   improvementLevelCostMultiplier: { 1: 1, 2: 2, 3: 4 },
   improvementLevelProgressMultiplier: { 1: 1, 2: 2, 3: 3 },

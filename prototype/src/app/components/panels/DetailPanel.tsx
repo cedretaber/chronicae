@@ -2723,6 +2723,7 @@ export function PersonDetail({
                                   {
                                     kind: t(
                                       `detail.province.improvement_${log.params.improvementKind}`,
+                                      { defaultValue: String(log.params.improvementKind) },
                                     ),
                                     level: log.params.targetLevel ?? '?',
                                   },
@@ -3011,8 +3012,11 @@ export function HoldingDetail({
               <div className="font-semibold text-gray-300">{t('detail.province.improvements')}</div>
               {improvements.map((imp) => {
                 const nameKey = `detail.province.improvement_name_${imp.kind}_${holding.kind}_${imp.level}`
-                const flavorName = t(nameKey)
-                const categoryName = t(`detail.province.improvement_${imp.kind}`)
+                // v0.33 §12.3: flavor → category → kind 文字列 のフォールバック（生キーを出さない）
+                const categoryName = t(`detail.province.improvement_${imp.kind}`, {
+                  defaultValue: imp.kind,
+                })
+                const flavorName = t(nameKey, { defaultValue: categoryName })
                 return (
                   <div key={imp.id} className="ml-2 flex items-baseline justify-between">
                     <span className="text-gray-200">{flavorName}</span>
@@ -3052,7 +3056,9 @@ export function HoldingDetail({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">
-                    {t(`detail.province.improvement_${activeProject.improvementKind}`)}
+                    {t(`detail.province.improvement_${activeProject.improvementKind}`, {
+                      defaultValue: String(activeProject.improvementKind),
+                    })}
                   </span>
                   <span>&rarr; Lv.{activeProject.targetImprovementLevel}</span>
                 </div>

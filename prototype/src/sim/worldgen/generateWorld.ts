@@ -70,6 +70,10 @@ import { clamp } from '../utils/math'
 import { polityAttitudeKey, houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 import { getHouseLeader } from '../selectors/officeSelectors'
+import {
+  computeHoldingOccupationCapacity,
+  canBuildHoldingImprovementPure,
+} from '../selectors/holdingImprovementSelectors'
 import { WORLD_PRESETS, DEFAULT_PRESET } from './worldPresets'
 import type { WorldPreset, WorldPresetName } from './worldPresets'
 import type { NamePoolService } from '../namegen/namePoolTypes'
@@ -1409,17 +1413,21 @@ export function generateWorld(
   const holdingImprovementIndexByHolding: Record<string, HoldingImprovementId[]> = {}
   let nextHoldingImprovementId = 0
 
+  // v0.33 §10.4: 候補を新 ImprovementKind に置換。数値はバランス調整で変更可。
   const initialImprovementChances: Record<
     string,
     { kind: HoldingImprovementKind; probability: number }[]
   > = {
     manor: [
-      { kind: 'agricultural_infrastructure', probability: 0.4 },
+      { kind: 'field_system', probability: 0.4 },
+      { kind: 'pastoral_infrastructure', probability: 0.2 },
+      { kind: 'irrigation_infrastructure', probability: 0.3 },
       { kind: 'storage_infrastructure', probability: 0.15 },
       { kind: 'transport_infrastructure', probability: 0.15 },
     ],
     city: [
-      { kind: 'urban_infrastructure', probability: 0.4 },
+      { kind: 'market_infrastructure', probability: 0.4 },
+      { kind: 'workshop_infrastructure', probability: 0.25 },
       { kind: 'storage_infrastructure', probability: 0.25 },
       { kind: 'transport_infrastructure', probability: 0.25 },
     ],
@@ -1427,8 +1435,24 @@ export function generateWorld(
 
   for (const holding of Object.values(holdingsRecord)) {
     if (!holding) continue
+    const province = provincesRecord[holding.provinceId]
+    if (!province) continue
     const chances = initialImprovementChances[holding.kind] ?? []
     for (const cfg of chances) {
+      // §10.4: canBuild を先に判定し、建設可能な kind に対してのみ randomFloat を消費する
+      // （建設不可 kind では draw を消費しない → 同一バージョン・同一 seed の決定性を保証）
+      if (
+        !canBuildHoldingImprovementPure(
+          holding.kind,
+          province.terrain,
+          province.features,
+          0,
+          cfg.kind,
+          defaultConfig,
+        )
+      ) {
+        continue
+      }
       const { value: roll, rng: rNext } = randomFloat(rng)
       rng = rNext
       if (roll < cfg.probability) {
@@ -1545,7 +1569,7 @@ export function generateWorld(
 
   // §6.3 POP generation (Holding-based, occupation capacity driven)
   const popIndexByHolding: Record<HoldingId, PopGroupId[]> = {}
-  const { minPopSizeByClass, occupationCapacityBaseByHoldingKind } = defaultConfig
+  const { minPopSizeByClass } = defaultConfig
 
   for (const provinceBase of provinces) {
     const province = provincesRecord[provinceBase.id]!
@@ -1554,13 +1578,44 @@ export function generateWorld(
       const holding = holdingsRecord[holdingId]
       if (!holding) continue
 
-      const capBase = occupationCapacityBaseByHoldingKind[holding.kind]
-      const devMod = 1.0
-      const wlq = holding.weight * holding.landQuality * devMod
-
-      const agriCap = (capBase?.agriculture ?? 0) * wlq
-      const urbanCap = (capBase?.urban_labor ?? 0) * wlq
-      const eliteCap = (capBase?.elite_service ?? 0) * wlq
+      // v0.33 §10.5: capacity を selector と同じ pure helper で計算（base + improvement-derived）。
+      // 配置済み improvement（この前段の loop で確定）と Province の terrain/features を引く。
+      const seedImpIds = holdingImprovementIndexByHolding[holding.id as string] ?? []
+      const seedImprovements: { kind: HoldingImprovementKind; level: number }[] = []
+      for (const impId of seedImpIds) {
+        const imp = holdingImprovements[impId]
+        if (imp) seedImprovements.push({ kind: imp.kind, level: imp.level })
+      }
+      const agriCap = computeHoldingOccupationCapacity(
+        holding.kind,
+        holding.weight,
+        holding.landQuality,
+        province.terrain,
+        province.features,
+        seedImprovements,
+        defaultConfig,
+        'agriculture',
+      )
+      const urbanCap = computeHoldingOccupationCapacity(
+        holding.kind,
+        holding.weight,
+        holding.landQuality,
+        province.terrain,
+        province.features,
+        seedImprovements,
+        defaultConfig,
+        'urban_labor',
+      )
+      const eliteCap = computeHoldingOccupationCapacity(
+        holding.kind,
+        holding.weight,
+        holding.landQuality,
+        province.terrain,
+        province.features,
+        seedImprovements,
+        defaultConfig,
+        'elite_service',
+      )
 
       const { value: fillPct, rng: rf1 } = randomInt(
         rng,
