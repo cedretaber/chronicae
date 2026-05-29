@@ -125,6 +125,14 @@ export function getActorRelevantProvinceIds(
   return getHouseControlledProvinceIds(state, actor.id)
 }
 
+// v0.34: PoliticalActorRef を index key 文字列に変換する共有 helper。
+// 形式は既存 inline (`${ref.kind}:${ref.id}`、例 projectMutations.ts) と同一で、
+// warIndex.byParticipant / IntegrityCheck §14.7 で使用する。
+// 例: { kind:'polity', id:'p-1' } -> "polity:p-1" / { kind:'house', id:'h-1' } -> "house:h-1"
+export function politicalActorKey(ref: PoliticalActorRef): string {
+  return `${ref.kind}:${ref.id as string}`
+}
+
 // 同一 actor かを比較する helper (kind+id で一致)。
 export function isSameActor(a: PoliticalActorRef, b: PoliticalActorRef): boolean {
   if (a.kind !== b.kind) return false

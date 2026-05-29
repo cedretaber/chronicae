@@ -14,6 +14,7 @@ import type {
   ProjectId,
   DiplomaticPlayId,
   DiplomaticOfferId,
+  WarId,
   PressureId,
   StateRegionId,
   HoldingId,
@@ -48,6 +49,7 @@ import type { Clan } from './clan'
 import type { HoldingImprovement } from './holdingImprovement'
 import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay, DiplomaticOffer } from './diplomaticPlay'
+import type { War } from './war'
 import type { Pressure, PressureIndex } from './pressure'
 import type { StateRegion } from './stateRegion'
 import type { Goal, Aim, DecisionReason, GoalIndex, AimIndex } from './goal'
@@ -104,6 +106,12 @@ export type WorldState = {
   aimIndex: AimIndex
   diplomaticPlays: Record<DiplomaticPlayId, DiplomaticPlay>
   diplomaticOffers: Record<DiplomaticOfferId, DiplomaticOffer>
+  // v0.34 War
+  wars: Record<WarId, War>
+  warIndex: {
+    byParticipant: Record<string, WarId[]>
+    byOriginDiplomaticPlay: Record<DiplomaticPlayId, WarId | undefined>
+  }
   // v0.29 Pressure
   pressures: Record<PressureId, Pressure>
   pressureIndex: PressureIndex
@@ -128,6 +136,8 @@ export type WorldState = {
   nextProjectId: number
   nextDiplomaticPlayId: number
   nextDiplomaticOfferId: number
+  // v0.34
+  nextWarId: number
   // v0.29
   nextPressureId: number
   // v0.23

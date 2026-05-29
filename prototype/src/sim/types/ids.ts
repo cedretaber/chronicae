@@ -81,6 +81,12 @@ export function createDiplomaticOfferId(n: number): DiplomaticOfferId {
   return ('do-' + n) as DiplomaticOfferId
 }
 
+export type WarId = Branded<string, 'WarId'>
+
+export function createWarId(n: number): WarId {
+  return ('w-' + n) as WarId
+}
+
 export type StateRegionId = Branded<string, 'StateRegionId'>
 
 export function createStateRegionId(n: number): StateRegionId {

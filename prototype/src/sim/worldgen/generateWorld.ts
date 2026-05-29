@@ -1812,6 +1812,9 @@ export function generateWorld(
     nextFactionMembershipId: 0,
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
+    wars: {},
+    warIndex: { byParticipant: {}, byOriginDiplomaticPlay: {} },
+    nextWarId: 0,
     nextDiplomaticOfferId: 0,
     nextPressureId: 1,
     // v0.29 Pressure

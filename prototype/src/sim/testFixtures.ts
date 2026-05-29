@@ -147,6 +147,9 @@ export function makeEmptyV016State(): WorldState {
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
+    wars: {},
+    warIndex: { byParticipant: {}, byOriginDiplomaticPlay: {} },
+    nextWarId: 0,
     nextDiplomaticOfferId: 0,
     nextPressureId: 1,
     // v0.22 Goal/Aim system

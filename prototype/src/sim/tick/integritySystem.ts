@@ -9,6 +9,7 @@ import type {
   FactionMembershipId,
   PersonId,
   DiplomaticPlayId,
+  WarId,
   StateRegionId,
   HoldingId,
   HoldingOfficeAssignmentId,
@@ -22,6 +23,7 @@ import { ABILITY_KEYS, ABILITY_HARD_CAP } from '../constants/abilityConstants'
 import { getHouseProvinceIdsByPolity } from '../selectors/polityRelations'
 import { ROOT_WORLD } from '../types/landContract'
 import { getGrantorRank, getLandContractGrantor } from '../selectors/landContractSelectors'
+import { politicalActorKey } from '../selectors/actorSelectors'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import type { PoliticalActorRef } from '../types/actor'
@@ -1745,6 +1747,249 @@ export function collectIntegrityErrors(
       errors.push({
         code: 'INTEGRITY_VIOLATION',
         message: `Task ${taskIdStr}: targets diplomatic_play ${task.targetRef.id as string} which has terminal status ${play.status} (§10)`,
+      })
+    }
+  }
+
+  // ─── §14 (v0.34): War 整合性 ───
+  const VALID_WAR_STATUSES = ['active', 'attacker_won', 'defender_won', 'white_peace', 'cancelled']
+  const seenWarIds = new Set<string>()
+  for (const idStr of Object.keys(state.wars)) {
+    const war = state.wars[idStr as WarId]
+    if (!war) continue
+
+    // §14.2 基本検査
+    if ((war.id as string) !== idStr) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `War ${idStr}: war.id=${war.id as string} does not match record key (§14.2)`,
+      })
+    }
+    if (seenWarIds.has(idStr)) {
+      errors.push({ code: 'INTEGRITY_VIOLATION', message: `War ${idStr} duplicate id (§14.2)` })
+    }
+    seenWarIds.add(idStr)
+    if (!VALID_WAR_STATUSES.includes(war.status)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `War ${idStr} has invalid status ${war.status} (§14.2)`,
+      })
+    }
+    if (!Number.isFinite(war.startedWeek)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `War ${idStr} startedWeek is not finite (§14.2)`,
+      })
+    }
+    if (war.endedWeek !== undefined && war.endedWeek < war.startedWeek) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `War ${idStr} endedWeek=${war.endedWeek} < startedWeek=${war.startedWeek} (§14.2)`,
+      })
+    }
+    if (!Number.isFinite(war.warScore)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `War ${idStr} warScore is not finite (§14.2)`,
+      })
+    } else if (war.warScore < -100 || war.warScore > 100) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `War ${idStr} warScore=${war.warScore} out of range -100..100 (§14.2)`,
+      })
+    }
+    if (!(war.targetWarScore > 0) || war.targetWarScore > 100) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `War ${idStr} targetWarScore=${war.targetWarScore} must be in 0<x<=100 (§14.2)`,
+      })
+    }
+
+    // §14.3 active / terminal 整合
+    if (war.status === 'active') {
+      if (war.endedWeek !== undefined) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `War ${idStr} active but endedWeek=${war.endedWeek} is set (§14.3)`,
+        })
+      }
+    } else if (war.endedWeek === undefined) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `War ${idStr} terminal (${war.status}) but endedWeek is undefined (§14.3)`,
+      })
+    }
+
+    // §14.4 participant 検査
+    if (war.attacker.key !== 'attacker') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `War ${idStr} attacker.key=${war.attacker.key} (§14.4)`,
+      })
+    }
+    if (war.defender.key !== 'defender') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `War ${idStr} defender.key=${war.defender.key} (§14.4)`,
+      })
+    }
+    const sides: Array<[string, typeof war.attacker]> = [
+      ['attacker', war.attacker],
+      ['defender', war.defender],
+    ]
+    for (const [sideName, side] of sides) {
+      if (side.participants.length !== 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `War ${idStr} ${sideName} participants.length=${side.participants.length} must be 1 in v0.34 (§14.4)`,
+        })
+      }
+      const primaryCount = side.participants.filter((p) => p.primary).length
+      if (primaryCount !== 1) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `War ${idStr} ${sideName} has ${primaryCount} primary participants, must be 1 (§14.4)`,
+        })
+      }
+      // active War のみ actor active を要求 (terminal War は retention 中の inactive 化を許容)。
+      // この検査は cancelOrphanedWarsSystem (§7.9) が active War の participant 消滅を回収する前提。
+      if (war.status === 'active') {
+        for (const p of side.participants) {
+          if (!isActiveActor(p.actor)) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `active War ${idStr} ${sideName} actor ${politicalActorKey(p.actor)} is not active (§14.4)`,
+            })
+          }
+        }
+      }
+    }
+
+    // §14.5 WarGoal 検査
+    for (const goal of war.warGoals) {
+      if (goal.kind === 'transfer_land_contract') {
+        if (!state.holdings[goal.holdingId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} transfer goal references missing holding ${goal.holdingId as string} (§14.5)`,
+          })
+        }
+        if (!state.polities[goal.fromPolityId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} transfer goal references missing fromPolityId ${goal.fromPolityId as string} (§14.5)`,
+          })
+        }
+        if (!state.polities[goal.toPolityId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} transfer goal references missing toPolityId ${goal.toPolityId as string} (§14.5)`,
+          })
+        }
+        if ((goal.fromPolityId as string) === (goal.toPolityId as string)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} transfer goal fromPolityId === toPolityId (§14.5)`,
+          })
+        }
+        if (!(goal.requiredWarScore > 0)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} transfer goal requiredWarScore=${goal.requiredWarScore} must be > 0 (§14.5)`,
+          })
+        }
+      } else {
+        if (!state.holdings[goal.holdingId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} tax goal references missing holding ${goal.holdingId as string} (§14.5)`,
+          })
+        }
+        const contract = state.landContracts[goal.landContractId]
+        if (!contract) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} tax goal references missing landContract ${goal.landContractId as string} (§14.5)`,
+          })
+        } else if ((contract.holdingId as string) !== (goal.holdingId as string)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} tax goal landContract.holdingId=${contract.holdingId as string} !== goal.holdingId=${goal.holdingId as string} (§14.5)`,
+          })
+        }
+        if (!(goal.newTaxRateToGrantor >= 0 && goal.newTaxRateToGrantor <= 1)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} tax goal newTaxRateToGrantor=${goal.newTaxRateToGrantor} out of range 0..1 (§14.5)`,
+          })
+        }
+        if (!(goal.requiredWarScore > 0)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} tax goal requiredWarScore=${goal.requiredWarScore} must be > 0 (§14.5)`,
+          })
+        }
+      }
+    }
+    // §14.6 originDiplomaticPlayId は weak ref のため存在検査しない。
+  }
+
+  // warIndex 双方向 (§14.7, Faction index パターン踏襲)
+  // forward: byParticipant[key] の各 warId は存在し、その War に key 一致の participant がいる
+  for (const [participantKey, warIds] of Object.entries(state.warIndex.byParticipant)) {
+    for (const wid of warIds ?? []) {
+      const war = state.wars[wid]
+      if (!war) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `warIndex.byParticipant[${participantKey}] references missing War ${wid as string} (§14.7)`,
+        })
+        continue
+      }
+      const keys = [...war.attacker.participants, ...war.defender.participants].map((p) =>
+        politicalActorKey(p.actor),
+      )
+      if (!keys.includes(participantKey)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `warIndex.byParticipant[${participantKey}] entry ${wid as string} has no matching participant (§14.7)`,
+        })
+      }
+    }
+  }
+  // reverse: active War の各 participant key は byParticipant に warId を持つ
+  for (const warIdStr of Object.keys(state.wars)) {
+    const warId = warIdStr as WarId
+    const war = state.wars[warId]
+    if (!war || war.status !== 'active') continue
+    for (const side of [war.attacker, war.defender]) {
+      for (const p of side.participants) {
+        const key = politicalActorKey(p.actor)
+        const indexed = state.warIndex.byParticipant[key] ?? []
+        if (!indexed.includes(warId)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `active War ${warIdStr} participant ${key} is not in warIndex.byParticipant (§14.7)`,
+          })
+        }
+      }
+    }
+  }
+  // byOriginDiplomaticPlay forward: 指す War が存在し originDiplomaticPlayId が一致
+  for (const [playIdStr, wid] of Object.entries(state.warIndex.byOriginDiplomaticPlay)) {
+    if (wid === undefined) continue
+    const war = state.wars[wid]
+    if (!war) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `warIndex.byOriginDiplomaticPlay[${playIdStr}] references missing War ${wid as string} (§14.7)`,
+      })
+      continue
+    }
+    if ((war.originDiplomaticPlayId as string | undefined) !== playIdStr) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `warIndex.byOriginDiplomaticPlay[${playIdStr}] entry ${wid as string} has originDiplomaticPlayId=${(war.originDiplomaticPlayId as string | undefined) ?? 'undefined'} (§14.7)`,
       })
     }
   }
