@@ -118,14 +118,22 @@ describe('generateWorld', () => {
   })
 
   describe('parameter bounds', () => {
-    it('provinces: habitability in [30,90], each Holding has POPs', () => {
+    it('provinces: valid terrain/features, each Holding has POPs', () => {
       const { world } = generateWorld('test-seed')
 
+      const validTerrains = ['plains', 'forest', 'hills', 'mountains', 'wetlands']
+      const validFeatures = ['coastal', 'major_river', 'lake']
       const provinceKeys = Object.keys(world.provinces).sort()
       for (const pk of provinceKeys) {
         const province = world.provinces[pk as keyof typeof world.provinces]
-        expect(province?.habitability).toBeGreaterThanOrEqual(30)
-        expect(province?.habitability).toBeLessThanOrEqual(90)
+        expect(validTerrains).toContain(province?.terrain)
+        expect(Array.isArray(province?.features)).toBe(true)
+        for (const f of province?.features ?? []) {
+          expect(validFeatures).toContain(f)
+        }
+        // features には重複が無い
+        const features = province?.features ?? []
+        expect(new Set(features).size).toBe(features.length)
         // Each Holding should have POPs registered in popIndex
         const holdingIds = province?.holdingIds ?? []
         expect(holdingIds.length).toBeGreaterThanOrEqual(1)

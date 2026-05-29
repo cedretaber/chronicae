@@ -3585,8 +3585,16 @@ export function ProvinceDetail({
           />
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.province.habitability')}:</span>
-          <span>{formatScore(province.habitability)}</span>
+          <span className="text-gray-400">{t('detail.province.terrain')}:</span>
+          <span>{t(`detail.province.terrain_value.${province.terrain}`)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.province.features')}:</span>
+          <span>
+            {province.features.length > 0
+              ? province.features.map((f) => t(`detail.province.feature_value.${f}`)).join(', ')
+              : t('detail.province.no_features')}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.development')}:</span>

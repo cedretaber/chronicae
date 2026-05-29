@@ -1,12 +1,13 @@
 import { Delaunay } from 'd3-delaunay'
 import type { StateRegionId } from '../types/ids'
-import type { Province } from '../types/province'
+import type { Province, ProvinceTerrain, ProvinceFeature } from '../types/province'
 import type { RngState } from '../rng/rng'
 import type { MapGenerationConfig } from './mapConfig'
 import type { WorldPreset } from './worldPresets'
 import { createProvinceId, createStateRegionId } from '../types/ids'
 import { pickUniqueName, provinceName, provinceNamePool } from './nameGenerators'
 import { randomFloat, randomInt } from '../rng/rng'
+import { defaultConfig } from '../config/defaultConfig'
 import { poissonDiskSample } from './poissonDisk'
 import { kruskalMST } from './mst'
 import { UnionFind } from './unionFind'
@@ -14,6 +15,32 @@ import type { NamePoolService } from '../namegen/namePoolTypes'
 
 type StateCenter = { id: StateRegionId; x: number; y: number }
 type ProvincePoint = { index: number; stateIndex: number; x: number; y: number }
+
+const TERRAIN_KEYS: readonly ProvinceTerrain[] = [
+  'plains',
+  'forest',
+  'hills',
+  'mountains',
+  'wetlands',
+]
+
+const clamp01 = (x: number): number => Math.max(0, Math.min(1, x))
+
+/** terrain weights から決定的に 1 種抽選する（randomFloat を 1 回消費）。 */
+function pickTerrain(
+  rng: RngState,
+  weights: Record<ProvinceTerrain, number>,
+): { value: ProvinceTerrain; rng: RngState } {
+  let total = 0
+  for (const k of TERRAIN_KEYS) total += weights[k]
+  const { value: roll, rng: nextRng } = randomFloat(rng)
+  let threshold = roll * total
+  for (const k of TERRAIN_KEYS) {
+    threshold -= weights[k]
+    if (threshold < 0) return { value: k, rng: nextRng }
+  }
+  return { value: TERRAIN_KEYS[TERRAIN_KEYS.length - 1]!, rng: nextRng }
+}
 
 export function generateProvinces(
   rng: RngState,
@@ -363,6 +390,8 @@ export function generateProvinces(
   const usedNameKeys = new Set<string>()
   const pool = provinceNamePool()
   const provinces: Province[] = []
+  // StateRegion ごとの dominantTerrain を lazy fill する（allPoints 走査順は決定的）
+  const dominantTerrainByState = new Map<number, ProvinceTerrain>()
 
   for (const pt of allPoints) {
     const id = createProvinceId('p', pt.index)
@@ -390,6 +419,61 @@ export function generateProvinces(
       pNameKey = name
     }
 
+    // terrain: state の dominantTerrain を高確率で継承し、残りは weights から抽選
+    let dominantTerrain = dominantTerrainByState.get(pt.stateIndex)
+    if (dominantTerrain === undefined) {
+      const picked = pickTerrain(rng, defaultConfig.provinceTerrainWeights)
+      rng = picked.rng
+      dominantTerrain = picked.value
+      dominantTerrainByState.set(pt.stateIndex, dominantTerrain)
+    }
+    let terrain: ProvinceTerrain
+    {
+      const { value: inheritRoll, rng: r1 } = randomFloat(rng)
+      rng = r1
+      if (inheritRoll < defaultConfig.stateRegionDominantTerrainInheritanceChance) {
+        terrain = dominantTerrain
+      } else {
+        const picked = pickTerrain(rng, defaultConfig.provinceTerrainWeights)
+        rng = picked.rng
+        terrain = picked.value
+      }
+    }
+
+    // features: coastal → major_river → lake の順で判定（§10.2 消費順を固定）
+    const features: ProvinceFeature[] = []
+    const marginX = mapConfig.worldMapWidth * defaultConfig.provinceCoastalEdgeMarginRatio
+    const marginY = mapConfig.worldMapHeight * defaultConfig.provinceCoastalEdgeMarginRatio
+    const nearEdge =
+      pt.x < marginX ||
+      pt.x > mapConfig.worldMapWidth - marginX ||
+      pt.y < marginY ||
+      pt.y > mapConfig.worldMapHeight - marginY
+    if (nearEdge) {
+      // 内陸 Province では coastal の draw を消費しない
+      const { value: roll, rng: r1 } = randomFloat(rng)
+      rng = r1
+      if (roll < defaultConfig.provinceFeatureCoastalChance) features.push('coastal')
+    }
+    {
+      const chance = clamp01(
+        defaultConfig.provinceFeatureMajorRiverBaseChance +
+          (defaultConfig.provinceFeatureMajorRiverTerrainDelta[terrain] ?? 0),
+      )
+      const { value: roll, rng: r1 } = randomFloat(rng)
+      rng = r1
+      if (roll < chance) features.push('major_river')
+    }
+    {
+      const chance = clamp01(
+        defaultConfig.provinceFeatureLakeBaseChance +
+          (defaultConfig.provinceFeatureLakeTerrainDelta[terrain] ?? 0),
+      )
+      const { value: roll, rng: r1 } = randomFloat(rng)
+      rng = r1
+      if (roll < chance) features.push('lake')
+    }
+
     const provinceObj: Province = {
       id,
       stateId,
@@ -397,7 +481,8 @@ export function generateProvinces(
       x: pt.x,
       y: pt.y,
       neighbors,
-      habitability: 0,
+      terrain,
+      features,
       holdingIds: [],
     }
     provinces.push(provinceObj)

@@ -4,6 +4,7 @@ import type { PersonBackgroundOccupation } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
 import type { PopOccupation, PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
+import type { ProvinceTerrain } from '../types/province'
 
 export type SimulationConfig = {
   uiLocale: 'en' | 'ja'
@@ -180,6 +181,16 @@ export type SimulationConfig = {
     HoldingKind,
     Record<Exclude<PopOccupation, 'none'>, number>
   >
+  // v0.33 Province terrain / features (habitability スカラーを置換)
+  provinceTerrainSettlementSuitability: Record<ProvinceTerrain, number>
+  provinceTerrainWeights: Record<ProvinceTerrain, number>
+  stateRegionDominantTerrainInheritanceChance: number
+  provinceFeatureCoastalChance: number
+  provinceCoastalEdgeMarginRatio: number
+  provinceFeatureMajorRiverBaseChance: number
+  provinceFeatureMajorRiverTerrainDelta: Partial<Record<ProvinceTerrain, number>>
+  provinceFeatureLakeBaseChance: number
+  provinceFeatureLakeTerrainDelta: Partial<Record<ProvinceTerrain, number>>
   // v0.24 Occupation production/manpower multipliers
   occupationProductivityMultiplier: Record<PopOccupation, number>
   occupationManpowerMultiplier: Record<PopOccupation, number>
@@ -835,6 +846,28 @@ export const defaultConfig: SimulationConfig = {
     manor: { agriculture: 80, urban_labor: 8, elite_service: 3 },
     city: { agriculture: 15, urban_labor: 70, elite_service: 5 },
   },
+  // v0.33 Province terrain / features (habitability スカラーを置換)
+  provinceTerrainSettlementSuitability: {
+    plains: 100,
+    hills: 80,
+    forest: 65,
+    wetlands: 45,
+    mountains: 35,
+  },
+  provinceTerrainWeights: {
+    plains: 35,
+    forest: 25,
+    hills: 20,
+    mountains: 10,
+    wetlands: 10,
+  },
+  stateRegionDominantTerrainInheritanceChance: 0.7,
+  provinceFeatureCoastalChance: 0.5,
+  provinceCoastalEdgeMarginRatio: 0.12,
+  provinceFeatureMajorRiverBaseChance: 0.15,
+  provinceFeatureMajorRiverTerrainDelta: { plains: 0.1, wetlands: 0.1, mountains: -0.1 },
+  provinceFeatureLakeBaseChance: 0.06,
+  provinceFeatureLakeTerrainDelta: { wetlands: 0.05, plains: 0.05 },
   // v0.24 Occupation production/manpower multipliers
   occupationProductivityMultiplier: {
     agriculture: 1.0,

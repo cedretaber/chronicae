@@ -292,14 +292,9 @@ export function generateWorld(
     }
   }
 
-  const provinceList = provinces.sort((a, b) => a.id.localeCompare(b.id))
-
-  for (const province of provinceList) {
-    const { value: habitability, rng: r1 } = randomInt(rng, 30, 90)
-    rng = r1
-
-    province.habitability = habitability
-  }
+  // terrain / features は generateProvinces で確定済み（旧 habitability 後付けパスは削除）。
+  // provinces の id 昇順ソートは下流の決定性のため維持する。
+  provinces.sort((a, b) => a.id.localeCompare(b.id))
 
   const houses: House[] = []
   const sortedHouseIds = Array.from(houseProvinces.keys()).sort()
@@ -328,16 +323,20 @@ export function generateWorld(
 
     let seatProvinceId: ProvinceId = '' as ProvinceId
     if (provinceIds.length > 0) {
+      // terrain の settlement suitability が最も高い Province を seat に選ぶ（§3）。
+      // 同点時は sortedProvinceIds[0] 初期値 + 昇順走査で ProvinceId 昇順を担保する。
       const sortedProvinceIds = [...provinceIds].sort()
       const firstId = sortedProvinceIds[0]!
       let bestId = firstId
-      let bestHabitability = provinceMap.get(firstId)!.habitability
+      let bestSuitability =
+        defaultConfig.provinceTerrainSettlementSuitability[provinceMap.get(firstId)!.terrain]
       for (let i = 1; i < sortedProvinceIds.length; i++) {
         const pid = sortedProvinceIds[i]!
         const prov = provinceMap.get(pid)
         if (!prov) continue
-        if (prov.habitability > bestHabitability) {
-          bestHabitability = prov.habitability
+        const suitability = defaultConfig.provinceTerrainSettlementSuitability[prov.terrain]
+        if (suitability > bestSuitability) {
+          bestSuitability = suitability
           bestId = pid
         }
       }

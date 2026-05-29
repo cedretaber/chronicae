@@ -95,7 +95,8 @@ function makeMinimalWorld(): WorldState {
     nameKey: 'Capital',
     x: 0,
     y: 0,
-    habitability: 50,
+    terrain: 'plains',
+    features: [],
     neighbors: [],
     holdingIds: [],
   }

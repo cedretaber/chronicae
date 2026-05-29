@@ -100,7 +100,8 @@ function makeWorldState(
     neighbors: [],
     ownerHouseId: house1Id,
     polityId: polity1Id,
-    habitability: 50,
+    terrain: 'plains',
+    features: [],
     holdingIds: [],
   } as unknown as Province
 

@@ -47,6 +47,17 @@ const VALID_HOLDING_IMPROVEMENT_KINDS: ReadonlySet<string> = new Set([
   'transport_infrastructure',
 ])
 
+// v0.33 §13.1: Province terrain / features の妥当性検証
+const VALID_PROVINCE_TERRAINS: ReadonlySet<string> = new Set([
+  'plains',
+  'forest',
+  'hills',
+  'mountains',
+  'wetlands',
+])
+
+const VALID_PROVINCE_FEATURES: ReadonlySet<string> = new Set(['coastal', 'major_river', 'lake'])
+
 import { PROJECT_STAGE_SEQUENCES, getProjectStageType } from '../config/projectStageSequences'
 import { isDiplomaticProjectKind } from '../mutations/projectMutations'
 import type {
@@ -751,6 +762,40 @@ export function collectIntegrityErrors(
           code: 'INTEGRITY_VIOLATION',
           message: `LandContract ${parentId} has ${c} child contracts (branching detected) (§25 #4)`,
         })
+      }
+    }
+  }
+
+  // v0.33 §13.1: 各 Province の terrain は有効値、features は有効値の重複なし配列
+  for (const [provIdStr, prov] of Object.entries(state.provinces)) {
+    if (!prov) continue
+    if (!VALID_PROVINCE_TERRAINS.has(prov.terrain)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provIdStr} has invalid terrain ${prov.terrain} (v0.33 §13.1)`,
+      })
+    }
+    if (!Array.isArray(prov.features)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Province ${provIdStr} features is not an array (v0.33 §13.1)`,
+      })
+    } else {
+      const seen = new Set<string>()
+      for (const f of prov.features) {
+        if (!VALID_PROVINCE_FEATURES.has(f)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Province ${provIdStr} has invalid feature ${f} (v0.33 §13.1)`,
+          })
+        }
+        if (seen.has(f)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Province ${provIdStr} has duplicate feature ${f} (v0.33 §13.1)`,
+          })
+        }
+        seen.add(f)
       }
     }
   }
