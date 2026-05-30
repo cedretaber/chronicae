@@ -85,6 +85,15 @@ npm run format -- src/sim/tick/someFile.ts
 npm run lint -- src/sim/tick/someFile.ts
 ```
 
+## 仕様書のナビゲーション
+
+仕様書を読む・編集する前に、まず **`docs/SPEC.md`（目次）を開く**。ファイル名は推測しない（過去に実在しない spec ファイル名を幻覚してコミットメッセージに書いた手戻りがある）。
+
+- **spec は章別構成**（機能別ファイルではない）。全サブシステムは `docs/spec/06-systems.md` に集約される（例: IntegrityCheck = §6.24、War ライフサイクル = §6.27a-d）。`12-war-lifecycle.md` のような直感的なファイルは**存在しない**。
+- **コードコメント・エラーメッセージ・型定義の `§X` は作業ドラフト (`docs/drafts/spec-v0XX-update.md`) の番号**で、統合 spec の §番号とは一致しない。さらにドラフト本体は git 管理外で repo に無いことがある（v0.34 の `spec-v034-update.md` は実在しない）。spec 上の該当箇所は **§番号で探さず、キーワードで内容検索する**（例: `grep "WarGoal" docs/spec/06-systems.md`）。コードの `(§X)` は引用ではなく主張として扱い、裏取りする。
+- **実装→spec 同期（§3 の責務）は `docs/spec/`（git 管理の正本）に対して行う**。§3 本文は「ドラフト spec を更新」とあるが、ドラフトが repo に無い場合は統合 spec の対応章（多くは `06-systems.md`）を更新するのが正しい同期先。
+- コミットメッセージやレポートに spec のパス・§番号・「spec ではこうなっている」と書く前に、**引用元を実際に開いて実在と内容を確認する**。
+
 ## 動作確認の方針
 
 動作確認は **CLI を基本** とする。ブラウザ（Chrome DevTools / Playwright 等）は UI 表示の確認が必要な場合のみ使用する。
@@ -242,6 +251,12 @@ cd prototype && node src/cli/run.mjs --years 20 --seed 1 --integrity-per-system 
 
 一部の violation は正常な中間状態（例: mortalitySystem 後に dead person の wealth が残る → estateSettlementSystem が処理する）。
 同じ violation が最終 system まで残っていれば本物のバグ。grep 出力の `system=` を見て、どの system で初出し、どの system で解消されるかを追跡する。
+
+**Step 3: 違反が指すエンティティの「状態」を、修正方針を立てる前に実測する**
+
+整合性メッセージは「何が壊れているか」は示すが「そのエンティティがどの状態か」は示さない。修正方針を分ける情報（例: War なら `status` が active か terminal か）を、エラーメッセージ生成箇所に一時的に足して再現実行し、**仮説で実装に進む前に実測で確定させる**。
+
+実例（v0.34 War）: 「War が消えた landContract を参照」違反は、`status` を足して実測したら active ではなく `defender_won`（terminal）だった。terminal／履歴レコードが retention 中に別システムの参照削除で dangling 化するケースがあり、**エンティティの状態次第で正しい修正が逆になる**（active war を救済する vs terminal war の dangling を許容する）。状態を見ずに仮説で実装したため、最初に書いた修正を巻き戻す手戻りが発生した。
 
 ### なぜこの手法か
 
