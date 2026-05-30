@@ -33,9 +33,12 @@
 | BOUNTIFUL_HARVEST | normal | 豊作 |
 | DISASTER_RELIEF_FUNDED | normal | 災害救済成功 |
 | DISASTER_RELIEF_FAILED | normal | 災害救済失敗 |
-| WAR_DECLARED | major | 宣戦布告 |
-| WAR_WON | major | 戦争勝利 |
-| WAR_LOST | major | 戦争敗北 |
+| WAR_DECLARED | major | 宣戦布告（v0.34: WarCreationSystem が War 作成時に発火。messageKey `war.declared`） |
+| WAR_WON | major | 戦争勝利（v0.34: PeaceSettlementSystem が attacker_won / defender_won の勝者に発火） |
+| WAR_LOST | major | 戦争敗北（v0.34: 同・敗者に発火） |
+| WAR_SCORE_CHANGED | normal | warScore が `warScoreEventThreshold` 以上変化（v0.34。WarProgressSystem。messageKey `war.score_changed`） |
+| WAR_ENDED | major | 勝敗が明確でない終結（v0.34。white_peace timeout / stale 安全終結 / cancelled orphan。messageKey `war.ended`） |
+| PEACE_SETTLEMENT_APPLIED | major | tax WarGoal を state に反映（v0.34。PeaceSettlementSystem。transfer は底層 mutation の LAND_CONTRACT_* に委譲し本 event は出さない） |
 | PROVINCE_CONQUERED | major | Province 征服 (v0.16 では WarSystem が依然発火、LAND_CONTRACT_* への置換は Faction 段階) |
 | POLITY_ANNEXED | critical | 国家消滅（併合） |
 | COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発（v0.22: develop_holding Intent による Holding 開発も含む） |

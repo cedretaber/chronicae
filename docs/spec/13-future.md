@@ -682,7 +682,32 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **HoldingImprovement.condition**: v0.33 でも常に 100（将来の荒廃・修復システム用に温存）
 - **スコープ外（v0.33 では入れない）**: 資源・商品・交易・価格・港湾・鉱山・採石・林業・果樹園・葡萄園・水車・城砦・戦争本体・軍事 occupation・荒廃/復興・都市創設・土地開墾・terrain のゲーム中変化・occupation 種類追加。後回し Improvement（forestry/mining/quarrying/harbor/fortification/orchard/vineyard/mill）は資源・戦争システム導入時に再検討
 
+### v0.34 で実装済み（War entity / WarScore / PeaceSettlement）
+
+詳細仕様は `docs/drafts/spec-v034-update.md` を参照。
+
+- **War entity 化**: escalated land_claim / contract_tax_revision の即時勝敗解決を、複数 tick かけて `warScore`（-100..100）で進行する War entity に置換（§3.9a / §6.27a–§6.27d / §6.28b）。WarCreationSystem → WarProgressSystem → PeaceSettlementSystem → cleanupWarSystem
+- **ConflictResolutionSystem の縮退**: revolt_negotiation 専用に kind-gate。land_claim / contract_tax_revision は War flow へ完全移行。二重処理防止は順序依存ではなく kind-gate（§6.28）
+- **warScore は決定的**: 乱数なし。`getActorMilitaryPower` の戦力比で更新し、`calcGeneralWarPowerModifier`（指揮官補正）は不使用
+- **white_peace timeout**: `maxWarDurationWeeks` 超過の拮抗 War を白紙和平で終結（active War 累積防止）。WarGoal stale も white_peace で安全終結
+- **cancelOrphanedWarsSystem**: participant 消滅 active War を cancelled 化。consistency 系の後ろ・1w（年末 IntegrityCheck 落ち防止のため必須。配置はドラフト案から変更。§5.6 / §6.27d）
+- **Event / UI / IntegrityCheck**: WAR_SCORE_CHANGED / WAR_ENDED / PEACE_SETTLEMENT_APPLIED 追加（既存 WAR_DECLARED / WAR_WON / WAR_LOST を流用）。Sidebar Wars 一覧 + WarDetail（warScore 綱引きバー）。War 整合性検査（§6.24 v0.34）
+- **v0.34 スコープ外（未実装）**: 戦場 / 総大将 / 指揮官 / 連隊 / 士気 / 充足率 / 補充 / 厭戦感情 / 兵站 / 荒廃 / 複数参加者の実動 / 個別講和 / 賠償金 / prestige 変更。`WarSide.participants` は配列で持つが各 side 1 件固定（将来の複数参戦に備えた構造のみ）。詳細は下記 v0.35+ 拡張を参照
+
 ### v0.20 以降に送られる主要項目
+
+#### War 拡張系（v0.35+、v0.34 で骨格のみ実装）
+
+v0.34 で War / WarScore / PeaceSettlement の配管が入った。以下は v0.34 では未実装で、後続バージョンで段階導入する。
+
+- **v0.35 Captain General / Commander / Battlefield**: `WarSide` に `captainGeneralPersonId?` / `commanderPersonIds`。WarProgress で `calcGeneralWarPowerModifier`（人物・指揮官による戦力補正、v0.34 では不使用）を再接続。Province terrain / features から BattlefieldKind を生成し battle result から warScore を更新
+- **多重臣従での参戦**: 1 House / Polity が複数の War に attacker / defender として参加。`WarSide.participants` の複数化（contributionScore / casualties / willingnessToContinue を持つ `WarParticipantState`）。第三勢力は作らず必ず attacker / defender に属させる
+- **v0.36 Regiment**: 連隊 entity 化。abstract military power から strength / morale / training / equipment へ段階移行
+- **v0.37 補充・厭戦感情**: `HouseWarState` / warWeariness / reinforcement / casualties
+- **v0.38 兵站・補給**: supply demand / local requisition / treasury supply / terrain・feature 補給補正
+- **v0.39 荒廃・復興**: ProvinceWarImpact / HoldingWarImpact / HoldingImprovement.condition 低下 / recovery project
+- **賠償金 / 懲罰的条件 / prestige**: defender 勝利時の counter-goal、pay_wealth WarGoal（賠償金）、Person prestige / House legacyPrestige 変更（v0.34 PeaceSettlement では未対応）
+- **House actor を主体とする War**: v0.34 は polity 同士のみ War 化。私戦・主君への参戦要請・家単位の参戦は整理が必要
 
 #### Faction 拡張系
 
@@ -704,7 +729,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - ~~**Person ActionSystem**~~: v0.23 で Task-driven Decision System として実装済み
 - **DiplomaticRelation**: Polity 間の長期外交関係
 - **第三者参加外交 / 同盟 / 保証 / 参戦 / 仲裁**: DiplomaticPlay への第三者介入
-- **本格 War entity / WarScore / PeaceSettlement**: 詳細戦争システム
+- ~~**本格 War entity / WarScore / PeaceSettlement**: 詳細戦争システム~~ → v0.34 で骨格実装済み（戦場・指揮官・連隊・荒廃等は v0.35+。上記「War 拡張系」参照）
 - ~~**House actor を主体とする外交劇の有効化**~~: v0.22 で House actor の最小実動を導入済み（expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle）。DiplomaticPlay 主体としての House actor は将来課題
 - **install_owner / dynasty change 要求**: 王朝交代要求 DiplomaticDemand
 - **AppointmentPolicy 抽象による commonwealth ad-hoc 分岐の整理**
@@ -817,7 +842,7 @@ v0.17.3 観察 (House Corvin — 9 人の血統メンバー + Lionel 派閥所�
 - **POP の移住**: population pressure・wealth・unrest・戦争荒廃に応じた Province 間移動
 - **文化・宗教**: PopGroup への cultureId / religionId 追加、同化・改宗・弾圧・寛容政策
 - **食料生産**: carrying capacity / population pressure を foodProduction / foodDemand に拡張
-- **詳細な戦争**: War エンティティ、戦場、包囲戦
+- **詳細な戦争**: ~~War エンティティ~~（v0.34 で実装済み）、戦場、包囲戦（v0.35+。上記「War 拡張系」参照）
 - **施設システム**: 城塞・道路・港・市場
 - **詳細外交**: 同盟・条約・婚姻。現在 LandContract.termsProtectedUntilWeek で実装している契約保護期間は、条約システム導入時に汎用的な「二国間条約」エンティティに置き換える想定
 - **継承権・請求権**: 血縁関係に基づく他家への継承権主張

@@ -96,15 +96,20 @@ const WEEKS_PER_SEASON = 12
 | 21 | ProvinceRevoltSystem | 12 | 旧毎年 |
 | 21a | cancelOrphanedPlays | 1 | v0.29。orphaned DiplomaticPlay のキャンセル |
 | 21b | DiplomaticPlaySystem | 4 | 旧毎月。v0.29 で Task 生成責務を ProjectTaskGenerationSystem に移管 |
-| 21c | ConflictResolutionSystem | 4 | 旧毎月 |
+| 21b2 | WarCreationSystem | 4 | v0.34 追加。旧 ConflictResolutionSystem の位置。escalated land_claim / contract_tax_revision を War 化 |
+| 21c | ConflictResolutionSystem | 4 | v0.34: revolt_negotiation 専用に kind-gate（land_claim / contract_tax_revision は WarCreationSystem へ移行。関数名は `runConflictResolutionSystem` のまま） |
+| 21c2 | WarProgressSystem | 4 | v0.34 追加。active War の warScore を戦力比で更新（冒頭 dead-participant guard） |
+| 21c3 | PeaceSettlementSystem | 4 | v0.34 追加。warScore 閾値到達で終結・WarGoal 実行（冒頭 dead-participant guard） |
 | 21d | AimOutcomeSystem | 4 | v0.22。DiplomaticPlay 結果 → Aim progress |
 | 21e | GoalOutcomeSystem | 4 | v0.22。Aim 結果 → Goal progress |
 | 22b | PolityOwnerConsistencySystem | 4 | 旧毎月 |
 | 22c | OrganizationConsistencySystem | 4 | 旧毎月 |
+| 22d | cancelOrphanedWarsSystem | 1 | v0.34 追加。**consistency 系の後ろ**。participant 消滅 active War を cancelled 化（理由は下記） |
 | 23 | AttitudeDecaySystem | 4 | 旧毎月 |
 | 24 | GovernanceSystem | 48 | 旧毎年 |
 | 25 | normalizePopSizes | 4 | 旧毎月 |
 | 25b | CleanupTerminalDiplomacy | 1 | v0.29 で interval を 1 に変更。Pressure 同期削除 + 関連 Project cancel |
+| 25b2 | cleanupWarSystem | 1 | v0.34 追加。terminal War を `terminalWarRetentionWeeks` 経過後に records / warIndex から削除 |
 | 25c | CleanupTerminalDecisions | 4 | v0.22。terminal Goal/Aim/orphan DecisionReason 削除 |
 | 25d | mergeCompatiblePops | 48 | v0.24 追加。年末安全弁として同一 merge key の POP を統合 |
 | 26 | IntegrityCheck | ※3モード | debug=毎tick(try-catch), integrity-check=毎tick(throw), 通常=week48(throw) |
@@ -124,6 +129,8 @@ IntegrityCheck は ScheduledSystem 配列に含めず、tick 末尾で直接制�
 **v0.16**: 旧 LordshipTransitionSystem / EconomySystem / RebellionSystem を廃止。**v0.18**: 旧 WarSystem / LandContractPurchaseSystem を廃止。
 
 Consistency 系 2 つは所領変動 system の直後に走り、所領異動の結果生じた Polity の owner / capital / Share / Office の整合性を即座に補正する（§6.22b / §6.22c 参照）。
+
+**v0.34 War 系の配置**: `WarCreationSystem` は旧 `ConflictResolutionSystem` の位置に入り、`ConflictResolutionSystem` 自身は revolt_negotiation 専用に縮退して直後に残る。二重処理防止は順序依存ではなく kind-gate で保証する（§6.27a / §6.28）。`cancelOrphanedWarsSystem` は当初案（Progress/Settlement の前）から変更し、**consistency 系 2 つの後ろ・intervalWeeks=1** に配置した。理由: PeaceSettlement の holding 移転で landless 化した polity を同 tick 後段の PolityOwnerConsistencySystem が extinct 化する。その polity が別の active War の participant だと、active War は active participant を要求する年末 IntegrityCheck（§6.24 v0.34 項目）で throw するため、consistency の後ろで orphaned War を cancelled 化して回収する。warScore 計算の安全は WarProgress / PeaceSettlement 冒頭の dead-participant guard が担保する。年末検査が必ず本 system 通過後になるよう 1w で走らせる。
 
 ### 5.7 順序の理由
 

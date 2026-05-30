@@ -708,6 +708,81 @@ type WorldState = {
 
 terminal status の DiplomaticPlay は tick 末の `cleanupTerminalDiplomacy` phase で state から完全削除される。関連 DiplomaticOffer も cascade delete される（v0.30）。履歴は Event ログに残す。
 
+`resolved_by_conflict`（v0.34）: escalated な land_claim / contract_tax_revision play が WarCreationSystem で War 化されると、元 play はこの terminal status になり cleanup される（§6.27a）。
+
+### 3.9a War（戦争）（v0.34）
+
+`escalated` な DiplomaticPlay の即時勝敗解決を、複数 tick かけて `warScore` で進行する War entity に置換する。詳細仕様は `docs/drafts/spec-v034-update.md` 参照。型は `src/sim/types/war.ts`。
+
+```ts
+type WarId = Branded<string, 'WarId'>  // prefix: "w-"
+
+type WarStatus = 'active' | 'attacker_won' | 'defender_won' | 'white_peace' | 'cancelled'
+type WarSideKey = 'attacker' | 'defender'
+
+type WarParticipant = {
+  actor: PoliticalActorRef
+  joinedWeek: number
+  primary: boolean
+}
+
+type WarSide = {
+  key: WarSideKey
+  participants: WarParticipant[]   // v0.34 では各 side 1 件・primary=true 固定
+}
+
+type War = {
+  id: WarId
+  originDiplomaticPlayId?: DiplomaticPlayId  // weak ref（元 play は cleanup 済みでも可。§14 / IntegrityCheck）
+  status: WarStatus
+  attacker: WarSide
+  defender: WarSide
+  warGoals: WarGoal[]              // v0.34 は原則 1 件
+  warScore: number                // -100..100。正=attacker 優勢、負=defender 優勢
+  targetWarScore: number          // 決着絶対値。warScore >= targetWarScore で attacker 勝利、<= -targetWarScore で defender 勝利
+  startedWeek: number
+  endedWeek?: number              // terminal 時のみ defined
+}
+```
+
+WarGoal は War 作成時に実行に必要な値をすべてコピーして固定化する（元 DiplomaticPlay / Offer が cleanup 済みでも PeaceSettlement で実行できるようにするため）。
+
+```ts
+type WarGoal = TransferLandContractWarGoal | ChangeContractTaxRateWarGoal
+
+type TransferLandContractWarGoal = {
+  kind: 'transfer_land_contract'
+  holdingId: HoldingId
+  fromPolityId: PolityId          // PoliticalActorRef ではなく明示的 PolityId
+  toPolityId: PolityId
+  requiredWarScore: number
+}
+
+type ChangeContractTaxRateWarGoal = {
+  kind: 'change_contract_tax_rate'
+  holdingId: HoldingId
+  landContractId: LandContractId
+  newTaxRateToGrantor: number
+  requiredWarScore: number
+}
+```
+
+**WorldState 追加（v0.34）**:
+
+```ts
+type WorldState = {
+  ...
+  wars: Record<WarId, War>
+  warIndex: {
+    byParticipant: Record<string, WarId[]>   // key = `${ref.kind}:${ref.id}`（例 "polity:p-1"）
+    byOriginDiplomaticPlay: Record<DiplomaticPlayId, WarId | undefined>
+  }
+  nextWarId: number
+}
+```
+
+terminal War は即削除せず一定期間（`terminalWarRetentionWeeks`）保持し、`cleanupWarSystem` が retention 超過後に削除する（履歴は Event ログに残る。§6.28b）。`politicalActorKey(ref): string` helper（`` `${ref.kind}:${ref.id}` `` を返す）を warIndex / IntegrityCheck で共用する。
+
 ### 3.10 目標システム (v0.22 / v0.23 拡張)
 
 Polity / House / Person が長期目標 Goal → 中期計画 Aim → 短期意図 Intent / Task の階層で一貫した行動を取る。詳細仕様は `docs/drafts/spec-v022-update.md` / `docs/drafts/spec-v023-update.md` 参照。

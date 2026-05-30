@@ -1351,6 +1351,32 @@ Capacity（§13.4）:
 - 全 holding × occupation で `getHoldingOccupationCapacity` が NaN / Infinity / 負を返さない
 - `occupation === 'none'` の capacity は 0
 
+**v0.34 追加チェック項目（War。`integritySystem.ts` §14 セクションに実装）**:
+
+War 基本:
+- `war.id` が record key と一致・重複なし、`status` が有効な WarStatus、`startedWeek` が finite
+- `endedWeek` がある場合 `endedWeek >= startedWeek`
+- `warScore` が finite かつ `-100..100`、`targetWarScore` が `0 < x <= 100`
+
+active / terminal 整合:
+- `status === 'active'` → `endedWeek` は undefined
+- `status !== 'active'` → `endedWeek` は defined
+
+participant:
+- `attacker.key === 'attacker'` / `defender.key === 'defender'`、各 side `participants.length === 1`（v0.34）、primary participant は各 side 1 人
+- **active War のみ** participant actor が active であること（`isActiveActor`）を要求。terminal War（cancelled / attacker_won / defender_won / white_peace）は retention 中の inactive 化を許容。この検査が成立するのは `cancelOrphanedWarsSystem`（§6.27d）が participant 消滅 active War を integrity より前に cancelled 化するため
+
+WarGoal:
+- transfer_land_contract: holding / fromPolityId / toPolityId が存在、`fromPolityId !== toPolityId`、`requiredWarScore > 0`
+- change_contract_tax_rate: holding / landContract が存在、`landContract.holdingId === goal.holdingId`、`newTaxRateToGrantor` が `0..1`、`requiredWarScore > 0`
+
+originDiplomaticPlayId は weak ref のため存在検査しない（cleanup 済みを許容。§3.9a）。
+
+warIndex（双方向。Faction index パターン踏襲）:
+- `byParticipant[key]` の各 warId が存在し、その War に key 一致の participant がいる（forward）
+- active War の各 participant key が `byParticipant` に warId を持つ（reverse）
+- `byOriginDiplomaticPlay[playId]` の指す War が存在し `originDiplomaticPlayId` が一致（forward）
+
 ### 6.25 IntentGenerationSystem（v0.26 で廃止）
 
 **v0.26 で廃止。** sell_land の生成ロジックは SellLandProjectGenerationSystem (§6.25b) に移植。
@@ -1481,7 +1507,9 @@ Play kind 別の処理:
 
 **v0.30 契約取消し aim**: `eliminate_overlord_contract`（`taxRateToGrantor <= taxRevisionMinRateForReduction` で発火）/ `eliminate_vassal_contract`（`taxRateToGrantor >= taxRevisionMaxRateForIncrease` で発火）。既存の `improve_contract_terms` / `demand_tax_increase` project に mapping し、desiredRate が min/max 境界にクランプされる。escalation → conflict で勝利した場合に CONTRACT_ELIMINATED が発生する。両 Goal（external_expansion / internal_development）から候補に入る。
 
-### 6.28 ConflictResolutionSystem（4週ごと、v0.18 / v0.30 更新）
+### 6.28 ConflictResolutionSystem（4週ごと、v0.18 / v0.30 / v0.34 更新）
+
+**v0.34: revolt_negotiation 専用に kind-gate**。land_claim / contract_tax_revision の即時解決は WarCreationSystem（§6.27a）以降の War flow へ完全移行した。本 system は冒頭で `play.kind !== 'revolt_negotiation'` を early-continue し、revolt の即時解決ロジックのみを残す。完全削除はせず、関数名も `runConflictResolutionSystem` のまま（別名化していない）。二重処理防止は順序依存ではなく kind-gate で保証する（WarCreation = land_claim / contract_tax_revision のみ、ConflictResolution = revolt_negotiation のみ）。
 
 status='escalated' な DiplomaticPlay を武力衝突として解決する。
 
@@ -1494,6 +1522,64 @@ status='escalated' な DiplomaticPlay を武力衝突として解決する。
 revolt_negotiation の決裂時は通常の actor military power ではなく、ProvinceRevoltSystem の既存式 (rebelPower / suppressionPower) を利用する。
 
 WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / ~~development~~ / unrest) を適用。**v0.27**: development 低下効果は無効化（`adjustProvinceDevelopment` が no-op）。将来 devastation/condition で再接続。
+
+### 6.27a WarCreationSystem（4週ごと、v0.34）
+
+旧 ConflictResolutionSystem の位置で、`status === 'escalated'` の DiplomaticPlay を即時解決せず War entity に変換する。詳細は `docs/drafts/spec-v034-update.md` §6 参照。
+
+**対象（すべて満たす play のみ War 化）**:
+- `play.kind === 'land_claim'` または `'contract_tax_revision'`（kind-gate。revolt_negotiation は skip → ConflictResolutionSystem へ）
+- `initiator.kind === 'polity'` かつ `target.kind === 'polity'`（v0.34 は polity 同士のみ。House を含むものは War 化しない）
+
+**変換**: initiator → attacker primary participant、target → defender primary participant（各 side 1 件・primary=true）。WarGoal は `play.issue` のみから 1 件構築する（offer / currentOfferId は見ない）。
+- transfer_land_contract: `holdingId = issue.holdingId`、`toPolityId = initiator.id`、`fromPolityId` = 対象 holding の land contract chain 上の現 terminal grantee（原則 target.id）
+- change_contract_tax_rate: `newTaxRateToGrantor = issue.desiredTaxRateToGrantor`、`landContractId` / `holdingId` は issue 由来
+- `requiredWarScore` は kind 別 config（`defaultTransferLandWarScore` / `defaultChangeContractTaxWarScore`）から設定し、`targetWarScore = max(warGoals.requiredWarScore)`
+
+**War 化しない（cancelled に倒す）条件**: initiator / target が missing / inactive、対象 holding / contract が無い、WarGoal へ変換不能、同一 `originDiplomaticPlayId` から作成済み、**同一 issue（holdingId / landContractId）を対象とする active War が既存**（重複抑止）。escalated のまま残すと cleanupTerminalDiplomacy が terminal しか消さず無限蓄積するため、War 化できなかった escalated play は cancelled に倒す。
+
+**War 作成後**: 元 play を `resolved_by_conflict`（terminal）にする。**`DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT` event は発行しない**（即時解決を含意するため）。戦争開始 event は `WAR_DECLARED`（major）のみ。
+
+### 6.27b WarProgressSystem（4週ごと、v0.34）
+
+active War の attacker / defender の抽象軍事力を比較し warScore を**決定的に**（乱数なし）更新する。終結判定はしない（PeaceSettlementSystem の責務）。
+
+- 軍事力は `getActorMilitaryPower(state, config, actor)` のみを使用。**`calcGeneralWarPowerModifier` は使わない**（Polity / House を統一に扱う。指揮官補正は v0.35 以降）。
+- `winChance = aP / (aP + dP + 1)`、`delta = clamp((winChance - 0.5) * warScoreProgressFactor, ±maxWarScoreDeltaPerTick)`、`warScore = clamp(warScore + delta, -100, 100)`。
+- 戦力崩壊: `aP <= warMinimumEffectivePower` で delta から `warScoreCollapseDelta` を引き、`dP <= ...` で足す（主に House actor 向けの保険）。
+- 各 tick、polity participant の `lastWarWeek = absoluteWeek` を更新する（valor / command の「直近戦争参加」ability 判定を温存するため）。
+- **dead-participant guard**: primary participant が missing / inactive な War は skip（消滅 actor は cancelOrphanedWarsSystem が cancelled 化する）。
+- **`WAR_SCORE_CHANGED`（normal）**: clamp 後の **applied delta** の絶対値が `warScoreEventThreshold` 以上のときのみ発行。
+
+### 6.27c PeaceSettlementSystem（4週ごと、v0.34）
+
+active War の warScore が閾値に達したら終結させ、WarGoal を state に反映する。冒頭に WarProgress と同じ **dead-participant guard**。
+
+- `warScore >= targetWarScore` → `attacker_won`。WarGoal を実行（attacker 側の目標として扱う）。
+- `warScore <= -targetWarScore` → `defender_won`。WarGoal は実行せず status quo（v0.34 では defender counter-goal なし）。
+- `absoluteWeek - startedWeek >= maxWarDurationWeeks` かつ未決着 → `white_peace`（timeout 終結）。拮抗 War の無限累積を防ぐ終結保証で、値はバランス項目だが「上限を設けること自体」は v0.34 の必須仕様。
+- WarGoal 適用が stale（対象 holding / contract / fromPolity が現状と不一致で底層 mutation が失敗）な場合は `white_peace` で安全終結し、simulation を落とさず IntegrityCheck 違反にもしない。
+
+**底層 mutation 呼び出し**（シグネチャが異なる）:
+- transfer: `applyLandContractTransferGoal(ctx, {...reason:'war'})` → `CtxResult<void>` を unwrap。`err` 時は white_peace 安全終結。
+- tax: `adjustLandContractTaxRate(state, contractId, newRate)` / `eliminateContractFromChain(state, contractId, inheritedTaxRate?)` → いずれも `WorldState` を返す（ctx は取らない）。elimination 判定条件は既存 `applyChangeContractTaxRate` / 旧 ConflictResolutionSystem を踏襲。
+
+**event 責務（経路別）**:
+- transfer: `applyLandContractTransferGoal` が `LAND_CONTRACT_*`（CONQUERED 等）を内部発行するため、PeaceSettlement 側で重複発行しない。
+- tax: 底層 mutation が event を出さないため、PeaceSettlement 側で `PEACE_SETTLEMENT_APPLIED`（major）を発行する。
+- 勝敗時に `WAR_WON` / `WAR_LOST`（major）、white_peace / cancelled 等の終結時に `WAR_ENDED`（major）。
+
+v0.34 では旧 ConflictResolutionSystem の `applyConflictDamage`（treasury / unrest / 荒廃 / 厭戦）は呼ばない（配管安定を優先。戦争被害は将来再設計）。
+
+### 6.27d cancelOrphanedWarsSystem（毎週、v0.34）
+
+active War の primary participant（attacker / defender いずれか）が missing / inactive になった場合、`cancelled` 終結（`endedWeek` 設定 + `WAR_ENDED` 発行、WarGoal 不実行）にする。戦争は数年続くため、その間に participant polity / house が別要因（属州独立・併合・revolt など）で消滅しうる。IntegrityCheck（§6.24 v0.34）が active War の participant を active 必須とするため、放置すると long-run で必ず throw する（`cancelOrphanedPlays` が DiplomaticPlay に対して存在するのと同じ理由）。v0.34 は安全側で `cancelled` に統一する（勝敗意味論は将来）。
+
+**配置（ドラフト §10 から変更し v0.34 実装で確定）**: PolityOwnerConsistencySystem / OrganizationConsistencySystem の**後ろ**・cleanupWarSystem の前に独立 system として置き、**intervalWeeks=1**。理由は §5.6 / §6.24 v0.34 項目を参照（PeaceSettlement 起因で同 tick に extinct 化した polity を参照する active War を、年末 IntegrityCheck より前に回収するため）。warScore 計算の安全は WarProgress / PeaceSettlement 冒頭の dead-participant guard が担保するので、本 system を Progress / Settlement より後ろに置いても問題ない。
+
+### 6.28b cleanupWarSystem（毎週、v0.34）
+
+terminal War（active 以外）が `endedWeek` から `terminalWarRetentionWeeks` 経過したら `state.wars` および `warIndex`（byParticipant / byOriginDiplomaticPlay）から削除する。履歴は Event ログに残るため長期保持は不要。
 
 ### 6.29 CleanupTerminalDiplomacy（毎週、v0.18 / v0.29 / v0.30 更新）
 

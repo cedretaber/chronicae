@@ -83,6 +83,16 @@
 | warUnrestDamage | 10 | 戦争時の全 POP unrest 上昇量 |
 | warPeasantSizeDamage | 0.5 | 戦争時の peasants size 減少量 |
 | warTownsmanSizeDamage | 0.3 | 戦争時の townsmen size 減少量 |
+| **War（v0.34 War entity / WarScore / PeaceSettlement）** | | |
+| warScoreProgressFactor | 20 | winChance→delta 係数（§6.27b） |
+| maxWarScoreDeltaPerTick | 8 | 1 tick の warScore delta 上限（§6.27b） |
+| warMinimumEffectivePower | 1 | 戦力崩壊判定の閾値（§6.27b） |
+| warScoreCollapseDelta | 12 | 戦力崩壊時の delta（§6.27b） |
+| maxWarDurationWeeks | 520 | timeout 終結（white_peace）の週数。約 10 年（§6.27c） |
+| defaultTransferLandWarScore | 60 | transfer goal の requiredWarScore（§6.27a） |
+| defaultChangeContractTaxWarScore | 50 | tax goal の requiredWarScore（§6.27a） |
+| warScoreEventThreshold | 4 | WAR_SCORE_CHANGED 発行の \|applied delta\| 閾値（§6.27b） |
+| terminalWarRetentionWeeks | 48 | terminal War 削除までの週数（§6.28b） |
 | **Disaster（v0.20.3 改修: Province 単位・割合ベース・圧力連動）** | | |
 | disasterEnabled | true | 災害有効 |
 | famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province |
