@@ -673,6 +673,13 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
 
   // Handle accepted offer -> settlement
   if (offerAccepted && acceptedOffer) {
+    // v0.34: 税率改定の before を applySettledOffer 前に捕捉する (歴史記述: 元→新)。
+    const preTaxDemand = acceptedOffer.demands.find((d) => d.kind === 'change_contract_tax_rate')
+    const beforeTaxRate =
+      preTaxDemand && preTaxDemand.kind === 'change_contract_tax_rate'
+        ? nextCtx.state.landContracts[preTaxDemand.landContractId]?.terms.taxRateToGrantor
+        : undefined
+
     nextCtx = applySettledOffer(nextCtx, play, acceptedOffer)
     nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
 
@@ -694,6 +701,9 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
         messageKey,
         messageParams: {
           province: nameParam('province', provinceNameKey),
+          // v0.34: 歴史記述用に before→after を記録 (rate は後方互換のため残置)。
+          fromRate: Math.round((beforeTaxRate ?? taxDemand.newTaxRateToGrantor) * 100),
+          toRate: Math.round(taxDemand.newTaxRateToGrantor * 100),
           rate: Math.round(taxDemand.newTaxRateToGrantor * 100),
           initiator: nameParam('polity', initiatorName),
           defender: nameParam('polity', defenderName),

@@ -1923,6 +1923,14 @@ export function collectIntegrityErrors(
             message: `War ${idStr} tax goal newTaxRateToGrantor=${goal.newTaxRateToGrantor} out of range 0..1 (§14.5)`,
           })
         }
+        // v0.34: baseTaxRateToGrantor は「開戦前の凍結 baseline」。0..1 の range のみ検査する。
+        //   live 契約 rate との一致は検査しない (和平適用で乖離するのが正常挙動のため)。
+        if (!(goal.baseTaxRateToGrantor >= 0 && goal.baseTaxRateToGrantor <= 1)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} tax goal baseTaxRateToGrantor=${goal.baseTaxRateToGrantor} out of range 0..1 (§14.5)`,
+          })
+        }
         if (!(goal.requiredWarScore > 0)) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',

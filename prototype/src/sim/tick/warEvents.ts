@@ -11,7 +11,11 @@ import type {
   EventEntityKind,
 } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
-import { getWarPrimaryAttacker, getWarPrimaryDefender } from '../mutations/warMutations'
+import {
+  getWarPrimaryAttacker,
+  getWarPrimaryDefender,
+  describeWarGoal,
+} from '../mutations/warMutations'
 
 // v0.34: War lifecycle system 群 (Creation / Progress / cancelOrphaned / PeaceSettlement) が
 //   共有する event 発行 helper。createSimEvent は event を返すだけで ctx.events に積まないため、
@@ -71,21 +75,70 @@ function attackerDefenderRefs(p: WarParties): EventEntityRef[] {
 }
 
 // §12.2 WAR_DECLARED — WarCreationSystem が War 作成時に発行 (major)。
+//   casus belli として「対象 + 戦争前の状態 + 変えようとする内容」を記録する (歴史記述)。
+//   War は terminalWarRetentionWeeks 後に cleanup されるため、永続記録はこの event params が担う。
 export function emitWarDeclared(ctx: TickContext, war: War, issueKind: string): TickContext {
   const p = warParties(ctx.state, war)
   if (!p) return ctx
+
+  const goal = war.warGoals[0]
+  // goal 不在は防御的 fallback (汎用 war.declared)。
+  if (!goal) {
+    return emit(
+      ctx,
+      'WAR_DECLARED',
+      'major',
+      'war.declared.generic',
+      {
+        warId: war.id,
+        attacker: nameParam(p.attacker.kind, p.attackerName),
+        defender: nameParam(p.defender.kind, p.defenderName),
+        issue: issueKind,
+      },
+      attackerDefenderRefs(p),
+    )
+  }
+
+  const desc = describeWarGoal(ctx.state, goal)
+  const subjectName = desc.provinceNameKey ?? desc.holdingId
+  const refs: EventEntityRef[] = [...attackerDefenderRefs(p)]
+  if (desc.provinceId) {
+    refs.push(entityRef('province', desc.provinceId, 'province', desc.provinceNameKey))
+  }
+
+  if (desc.kind === 'change_contract_tax_rate') {
+    return emit(
+      ctx,
+      'WAR_DECLARED',
+      'major',
+      'war.declared.change_tax',
+      {
+        warId: war.id,
+        attacker: nameParam(p.attacker.kind, p.attackerName),
+        defender: nameParam(p.defender.kind, p.defenderName),
+        subject: nameParam('province', subjectName),
+        fromRate: Math.round(desc.beforeRate * 100),
+        toRate: Math.round(desc.afterRate * 100),
+      },
+      refs,
+    )
+  }
+
+  // transfer_land_contract: 元保持者 (fromPolityId) を明示する。
+  const fromName = ctx.state.polities[desc.fromPolityId]?.nameKey ?? desc.fromPolityId
   return emit(
     ctx,
     'WAR_DECLARED',
     'major',
-    'war.declared',
+    'war.declared.transfer_land',
     {
       warId: war.id,
       attacker: nameParam(p.attacker.kind, p.attackerName),
       defender: nameParam(p.defender.kind, p.defenderName),
-      issue: issueKind,
+      subject: nameParam('province', subjectName),
+      from: nameParam('polity', fromName),
     },
-    attackerDefenderRefs(p),
+    refs,
   )
 }
 
@@ -199,6 +252,13 @@ export function emitPeaceSettlementApplied(ctx: TickContext, war: War, goal: War
       attacker: nameParam(p.attacker.kind, p.attackerName),
       defender: nameParam(p.defender.kind, p.defenderName),
       holding: nameParam('province', holdingDisplay),
+      // tax 経路は before→after の税率を記録する (歴史記述)。transfer は from/to を底層 LAND_CONTRACT_* が持つ。
+      ...(goal.kind === 'change_contract_tax_rate'
+        ? {
+            fromRate: Math.round(goal.baseTaxRateToGrantor * 100),
+            toRate: Math.round(goal.newTaxRateToGrantor * 100),
+          }
+        : {}),
     },
     refs,
   )

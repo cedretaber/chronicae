@@ -73,6 +73,15 @@ pop:
 war:
   won: '{{winner}}が{{loser}}との戦争に勝利した。'
   lost: '{{loser}}が{{winner}}に敗北した。'
+  declared:
+    generic: '{{attacker}}が{{issue}}を巡り{{defender}}に宣戦布告した。'
+    transfer_land: '{{attacker}}が{{from}}から{{subject}}を奪うべく{{defender}}に宣戦布告した。'
+    change_tax: '{{attacker}}が{{subject}}の税率（{{fromRate}}%→{{toRate}}%）を巡り{{defender}}に宣戦布告した。'
+  score_changed: '{{attacker}}と{{defender}}の戦争の趨勢が動いた（戦況 {{warScore}}）。'
+  ended: '{{attacker}}と{{defender}}の戦争は決着がつかずに終わった。'
+  peace_settlement:
+    transfer_land: '{{attacker}}が和平で{{defender}}から{{holding}}を獲得した。'
+    change_tax: '和平により{{holding}}の税率が{{fromRate}}%から{{toRate}}%に改定された（{{attacker}}有利）。'
 
 revolt:
   negotiation_started: '{{province}}で{{rebelClass}}の反乱が勃発し、交渉が始まった。'
@@ -108,7 +117,7 @@ land_contract:
   purchased: '{{to}}が{{from}}から{{holding}}を購入した。'
   ceded: '{{from}}が{{holding}}を{{to}}に割譲した。'
   conquered: '{{to}}が{{from}}から{{holding}}を征服した。'
-  tax_revised: '{{province}}の税率が{{initiator}}と{{defender}}の間で{{rate}}%に改定された。'
+  tax_revised: '{{province}}の税率が{{initiator}}と{{defender}}の間で{{fromRate}}%から{{toRate}}%に改定された。'
   eliminated: '{{province}}の契約構造が{{initiator}}と{{defender}}の間で変更された。'
 
 bailiff:

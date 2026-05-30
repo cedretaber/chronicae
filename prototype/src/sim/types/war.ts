@@ -48,6 +48,11 @@ export type ChangeContractTaxRateWarGoal = {
   kind: 'change_contract_tax_rate'
   holdingId: HoldingId
   landContractId: LandContractId
+  // v0.34: 開戦時に凍結する「戦争前の税率」(0..1)。歴史記述用に before→after を語れるようにするための baseline。
+  //   live な landContracts[...].terms.taxRateToGrantor とは意図的に乖離し得る
+  //   (和平で newTaxRateToGrantor が適用されると現税率がこの値から target へ動くため)。
+  //   integrity は 0..1 の range のみ検査し、live rate との一致は検査しない (§14.5)。
+  baseTaxRateToGrantor: number
   newTaxRateToGrantor: number
   requiredWarScore: number
 }

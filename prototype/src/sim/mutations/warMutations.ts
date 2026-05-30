@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { War, WarGoal, WarParticipant } from '../types/war'
-import type { WarId, DiplomaticPlayId } from '../types/ids'
+import type { WarId, DiplomaticPlayId, HoldingId, PolityId, ProvinceId } from '../types/ids'
 import type { PoliticalActorRef } from '../types/actor'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import { createWarId } from '../types/ids'
@@ -139,11 +139,68 @@ export function createWarGoalFromDiplomaticPlay(
   }
 
   // §6.6: contract_tax_revision。newTaxRateToGrantor <- issue.desiredTaxRateToGrantor。
+  //   baseTaxRateToGrantor は「開戦時点の live 契約税率」を凍結する (歴史記述用)。
+  //   交渉中に別経路で rate が動いていても honest な before を残せるよう issue 値コピーより live を優先。
+  const liveRate = state.landContracts[issue.landContractId]?.terms.taxRateToGrantor
   return {
     kind: 'change_contract_tax_rate',
     holdingId: issue.holdingId,
     landContractId: issue.landContractId,
+    baseTaxRateToGrantor: liveRate ?? issue.baseTaxRateToGrantor,
     newTaxRateToGrantor: issue.desiredTaxRateToGrantor,
     requiredWarScore,
+  }
+}
+
+// --- WarGoal 記述 (歴史記述の共有 seam) ---
+
+// v0.34: WarGoal を「対象 + before + after」のロケール中立な記述に正規化する。
+//   WarDetail (UI) と warEvents (永続 Chronicle) が共用し、「元々どうで、どう変えようとしたか」を
+//   live state に依存せず語れるようにする。新 WarGoal kind を足したらここ 1 箇所を更新すればよい。
+//   tax の before/after は rate(0..1)、transfer は polity id (表示名は consumer 側で解決)。
+export type WarGoalDescription =
+  | {
+      kind: 'transfer_land_contract'
+      holdingId: HoldingId
+      provinceId?: ProvinceId
+      provinceNameKey?: string
+      holdingKind?: string
+      fromPolityId: PolityId
+      toPolityId: PolityId
+    }
+  | {
+      kind: 'change_contract_tax_rate'
+      holdingId: HoldingId
+      provinceId?: ProvinceId
+      provinceNameKey?: string
+      holdingKind?: string
+      beforeRate: number
+      afterRate: number
+    }
+
+export function describeWarGoal(state: WorldState, goal: WarGoal): WarGoalDescription {
+  const holding = state.holdings[goal.holdingId]
+  const provinceId = holding?.provinceId
+  const provinceNameKey = provinceId ? state.provinces[provinceId]?.nameKey : undefined
+  // exactOptionalPropertyTypes: undefined を明示代入しないよう条件 spread。
+  const subject = {
+    holdingId: goal.holdingId,
+    ...(provinceId ? { provinceId } : {}),
+    ...(provinceNameKey ? { provinceNameKey } : {}),
+    ...(holding ? { holdingKind: holding.kind } : {}),
+  }
+  if (goal.kind === 'transfer_land_contract') {
+    return {
+      kind: 'transfer_land_contract',
+      ...subject,
+      fromPolityId: goal.fromPolityId,
+      toPolityId: goal.toPolityId,
+    }
+  }
+  return {
+    kind: 'change_contract_tax_rate',
+    ...subject,
+    beforeRate: goal.baseTaxRateToGrantor,
+    afterRate: goal.newTaxRateToGrantor,
   }
 }

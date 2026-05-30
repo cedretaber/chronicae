@@ -227,9 +227,37 @@ describe('createWarGoalFromDiplomaticPlay', () => {
       kind: 'change_contract_tax_rate',
       holdingId: 'hl-1',
       landContractId: 'lc-1',
+      // lc-1 は empty state に無いため liveRate=undefined → fallback で issue.baseTaxRateToGrantor。
+      baseTaxRateToGrantor: 0.2,
       newTaxRateToGrantor: 0.5,
       requiredWarScore: 50,
     })
+  })
+
+  it('contract_tax_revision: baseTaxRateToGrantor <- 開戦時の live 契約税率 (issue 値より優先)', () => {
+    const ws = makeEmptyV016State()
+    // 契約が存在する場合は live rate を凍結 baseline にする (issue.baseTaxRateToGrantor=0.2 ではなく 0.35)。
+    ws.landContracts['lc-1' as LandContractId] = {
+      terms: { taxRateToGrantor: 0.35 },
+    } as unknown as (typeof ws.landContracts)[LandContractId]
+    const play = {
+      issue: {
+        kind: 'contract_tax_revision',
+        holdingId: 'hl-1' as HoldingId,
+        landContractId: 'lc-1' as LandContractId,
+        baseTaxRateToGrantor: 0.2,
+        desiredTaxRateToGrantor: 0.5,
+        direction: 'increase',
+      },
+      initiator: pA,
+      target: pB,
+    } as unknown as DiplomaticPlay
+    const goal = createWarGoalFromDiplomaticPlay(ws, play, 50)
+    expect(goal?.kind).toBe('change_contract_tax_rate')
+    if (goal?.kind === 'change_contract_tax_rate') {
+      expect(goal.baseTaxRateToGrantor).toBe(0.35)
+      expect(goal.newTaxRateToGrantor).toBe(0.5)
+    }
   })
 
   it('returns undefined when issue is missing', () => {

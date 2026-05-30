@@ -4784,8 +4784,9 @@ export function WarDetail({
                   </div>
                 )
               }
-              const currentRate =
-                worldState.landContracts[goal.landContractId]?.terms.taxRateToGrantor
+              // v0.34: 開戦時に凍結した baseTaxRateToGrantor を before として表示する (live 契約 rate ではない)。
+              //   これにより終戦後 (税適用済み) も「元→新」が正しく残り、X%→X% の混乱を防ぐ。
+              const baseRate = goal.baseTaxRateToGrantor
               return (
                 <div key={idx} className="rounded bg-gray-800 px-2 py-1 text-xs">
                   <div>
@@ -4800,7 +4801,7 @@ export function WarDetail({
                     <span className="text-gray-500">(&plusmn;{goal.requiredWarScore})</span>
                   </div>
                   <div className="text-gray-400">
-                    {currentRate != null ? `${Math.round(currentRate * 100)}% ` : ''}&rarr;{' '}
+                    {Math.round(baseRate * 100)}% &rarr;{' '}
                     {Math.round(goal.newTaxRateToGrantor * 100)}%
                   </div>
                 </div>

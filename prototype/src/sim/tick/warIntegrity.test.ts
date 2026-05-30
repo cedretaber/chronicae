@@ -53,6 +53,7 @@ function freshValidTaxWar(): { world: WorldState; war: War } {
     kind: 'change_contract_tax_rate',
     holdingId: contract!.holdingId!,
     landContractId: contract!.id,
+    baseTaxRateToGrantor: 0.2,
     newTaxRateToGrantor: 0.3,
     requiredWarScore: 50,
   }
@@ -81,6 +82,7 @@ describe('War integrity (§14)', () => {
       kind: 'change_contract_tax_rate',
       holdingId: contract!.holdingId!,
       landContractId: contract!.id,
+      baseTaxRateToGrantor: 0.2,
       newTaxRateToGrantor: 0.3,
       requiredWarScore: 50,
     }

@@ -306,6 +306,7 @@ describe('PeaceSettlementSystem (§8) — decisive paths', () => {
           kind: 'change_contract_tax_rate',
           holdingId,
           landContractId: contract!.id,
+          baseTaxRateToGrantor: 0.2,
           newTaxRateToGrantor: 0.3,
           requiredWarScore: 50,
         },
