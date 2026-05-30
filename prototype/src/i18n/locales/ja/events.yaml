@@ -78,8 +78,8 @@ war:
     transfer_land: '{{attacker}}が{{from}}から{{subject}}を奪うべく{{defender}}に宣戦布告した。'
     change_tax: '{{attacker}}が{{subject}}の税率（{{fromRate}}%→{{toRate}}%）を巡り{{defender}}に宣戦布告した。'
   ended: '{{attacker}}と{{defender}}の戦争は決着がつかずに終わった。'
-  battle_occurred: '{{province}}の{{battlefieldKind}}にて戦闘が発生し、{{result}}。戦勝点変化: {{warScoreDelta}}。'
-  battle_avoided: '{{avoidingSide}}は{{province}}の{{battlefieldKind}}での戦闘を回避した。戦勝点変化: {{warScoreDelta}}。'
+  battle_occurred: '{{province}}で{{battlefieldKind}}が発生し、{{result}}。戦勝点変化: {{warScoreDelta}}。'
+  battle_avoided: '{{avoidingSide}}は{{province}}での{{battlefieldKind}}を回避した。戦勝点変化: {{warScoreDelta}}。'
   captain_general_changed: '{{actor}}の総大将が{{oldCaptainGeneral}}から{{newCaptainGeneral}}に交代した。'
   peace_settlement:
     transfer_land: '{{attacker}}が和平で{{defender}}から{{holding}}を獲得した。'
@@ -173,3 +173,27 @@ pressure:
 
 clan:
   founded: '{{rootHouseName}} から派生した諸家が「{{rootHouseName}} 氏族」として認識された。'
+
+# v0.35: battle event の enum 表示ラベル (battlefieldKind / result / avoidingSide)。
+#   sim 層の params は raw enum 文字列のまま。表示時に eventRenderer がここを参照する。
+#   battlefieldKind は戦闘類型名（〜戦）として記述する。terrain (detail.terrain_value) とは
+#   別概念（features 由来の渡河戦/海岸戦・将来の攻城戦を含む）なので地形ラベルと重複させない。
+#   テンプレは「{地名}で{類型}が発生」(例: 湿地戦が発生 / 攻城戦が発生)。
+enum:
+  battlefieldKind:
+    open_field: '野戦'
+    forest_battle: '森林戦'
+    hill_battle: '丘陵戦'
+    mountain_pass: '山道戦'
+    wetland_battle: '湿地戦'
+    river_crossing: '渡河戦'
+    coastal_battle: '海岸戦'
+    siege: '攻城戦'
+  result:
+    attacker_victory: '攻撃側の勝利'
+    defender_victory: '防衛側の勝利'
+    inconclusive: '決着つかず'
+  avoidingSide:
+    attacker: '攻撃側'
+    defender: '防衛側'
+    both: '両軍'

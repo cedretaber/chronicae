@@ -105,6 +105,10 @@ const EVENT_ICON: Partial<Record<EventType, string>> = {
   WAR_DECLARED: '⚔',
   WAR_WON: '⚔',
   WAR_LOST: '⚔',
+  // v0.35 WarManeuver
+  BATTLE_OCCURRED: '⚔',
+  BATTLE_AVOIDED: '🛡',
+  WAR_CAPTAIN_GENERAL_CHANGED: '🎖',
   PROVINCE_CONQUERED: '⚔',
   PROVINCE_REVOLT_STARTED: '🔥',
   PROVINCE_REVOLT_SUCCEEDED: '🔥',

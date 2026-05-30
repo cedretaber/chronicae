@@ -4614,23 +4614,73 @@ export function DiplomaticPlayDetail({
 export function WarDetail({
   war,
   session,
+  eventHistory,
+  onPersonClick,
   onPolityClick,
   onHouseClick,
   onHoldingClick,
 }: {
   war: import('@sim/types/war').War
   session: SimulationSession | null
+  eventHistory: SimEvent[]
+  onPersonClick: ClickHandler
   onPolityClick: ClickHandler
   onHouseClick: ClickHandler
   onHoldingClick: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
+  const renderEvent = useRenderEvent()
   const worldState = session?.currentState ?? null
   if (!worldState) return null
 
   const polities = worldState.polities
   const houses = worldState.houses
+  const persons = worldState.persons
+
+  // v0.35: war event は warId を entityRef ではなく messageParams.warId に持つ (EventEntityKind に 'war' が無い)。
+  //   warId 一致で「宣戦 → 戦闘/回避/総大将交代 → 決着」の full timeline を新しい順に最大 6 件表示する。
+  const recentWarEvents = eventHistory
+    .filter((e) => {
+      const wid = e.messageParams.warId
+      return typeof wid === 'string' && wid === (war.id as string)
+    })
+    .slice(-6)
+    .reverse()
+
+  // v0.35: WarSide ごとの総大将 / 現場指揮官候補 / 回避回数。captainGeneral / commander は soft reference。
+  const renderSideCommand = (label: string, side: import('@sim/types/war').WarSide) => {
+    const cg = side.captainGeneralPersonId
+    return (
+      <div className="rounded bg-gray-800 px-2 py-1 text-xs">
+        <div className="font-semibold text-gray-300">{label}</div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.war.captain_general')}:</span>
+          {cg ? (
+            <PersonLink personId={cg} persons={persons} onClick={onPersonClick} />
+          ) : (
+            <span className="text-gray-500">&mdash;</span>
+          )}
+        </div>
+        <div className="flex justify-between gap-2">
+          <span className="shrink-0 text-gray-400">{t('detail.war.commanders')}:</span>
+          {side.commanderPersonIds.length === 0 ? (
+            <span className="text-gray-500">&mdash;</span>
+          ) : (
+            <span className="flex flex-wrap justify-end gap-x-2">
+              {side.commanderPersonIds.map((pid) => (
+                <PersonLink key={pid} personId={pid} persons={persons} onClick={onPersonClick} />
+              ))}
+            </span>
+          )}
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.war.avoidance_count')}:</span>
+          <span className="text-gray-200">{side.avoidanceCount}</span>
+        </div>
+      </div>
+    )
+  }
 
   const statusBadge: Record<string, { label: string; bg: string }> = {
     active: { label: t('detail.war.status_active'), bg: 'bg-red-700' },
@@ -4722,6 +4772,13 @@ export function WarDetail({
 
         <div className="my-1 border-t border-gray-700" />
 
+        <div className="flex flex-col gap-1">
+          {renderSideCommand(t('detail.war.attacker'), war.attacker)}
+          {renderSideCommand(t('detail.war.defender'), war.defender)}
+        </div>
+
+        <div className="my-1 border-t border-gray-700" />
+
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.war.started')}:</span>
           <span>
@@ -4808,6 +4865,20 @@ export function WarDetail({
               )
             })}
           </div>
+        )}
+
+        {recentWarEvents.length > 0 && (
+          <>
+            <div className="my-1 border-t border-gray-700" />
+            <div className="font-semibold text-gray-300">{t('detail.war.recent_events')}:</div>
+            <div className="flex flex-col gap-0.5">
+              {recentWarEvents.map((e) => (
+                <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
+                  [{e.year}/W{e.weekOfYear}] {renderEvent(e)}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

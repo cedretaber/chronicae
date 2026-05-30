@@ -32,6 +32,19 @@ export function createEventRenderer(
           if (translated) return translated
         }
 
+        // v0.35: battle event の enum 文字列 (battlefieldKind / result / avoidingSide) を
+        //   events ns の enum.<key>.<value> ラベルへ解決する。未定義なら raw fallback。
+        if (
+          (key === 'battlefieldKind' || key === 'result' || key === 'avoidingSide') &&
+          typeof value === 'string'
+        ) {
+          const translated = i18nInstance.t(`enum.${key}.${value}`, {
+            ns: 'events',
+            defaultValue: '',
+          })
+          if (translated) return translated
+        }
+
         return resolveParam(value, nameTranslator)
       })
     },

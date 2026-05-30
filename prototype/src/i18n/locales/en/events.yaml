@@ -79,8 +79,8 @@ war:
     transfer_land: '{{attacker}} declared war on {{defender}} to seize {{subject}} from {{from}}.'
     change_tax: '{{attacker}} declared war on {{defender}} over the tax of {{subject}} (seeking {{fromRate}}% → {{toRate}}%).'
   ended: 'The war between {{attacker}} and {{defender}} ended without a decisive victor.'
-  battle_occurred: 'A battle occurred at {{battlefieldKind}} in {{province}}. Result: {{result}}. War score change: {{warScoreDelta}}.'
-  battle_avoided: '{{avoidingSide}} avoided battle at {{battlefieldKind}} in {{province}}. War score change: {{warScoreDelta}}.'
+  battle_occurred: 'A {{battlefieldKind}} broke out in {{province}}. Result: {{result}}. War score change: {{warScoreDelta}}.'
+  battle_avoided: '{{avoidingSide}} avoided a {{battlefieldKind}} in {{province}}. War score change: {{warScoreDelta}}.'
   captain_general_changed: '{{actor}} changed its captain general from {{oldCaptainGeneral}} to {{newCaptainGeneral}}.'
   peace_settlement:
     transfer_land: '{{attacker}} took {{holding}} from {{defender}} in the peace settlement.'
@@ -174,3 +174,27 @@ pressure:
 
 clan:
   founded: 'The descendants of {{rootHouseName}} are now recognized as the {{rootHouseName}} Clan.'
+
+# v0.35: display labels for battle event enums (battlefieldKind / result / avoidingSide).
+#   sim-layer params stay raw enum strings; eventRenderer resolves these at render time.
+#   battlefieldKind labels are battle-type names so the template "A {kind} broke out" reads
+#   naturally (e.g. "A Siege broke out"). Kept distinct from terrain (detail.terrain_value):
+#   battlefieldKind is a separate concept (feature-derived River/Coastal, future Siege).
+enum:
+  battlefieldKind:
+    open_field: 'Field Battle'
+    forest_battle: 'Forest Battle'
+    hill_battle: 'Hill Battle'
+    mountain_pass: 'Mountain Battle'
+    wetland_battle: 'Wetland Battle'
+    river_crossing: 'River-Crossing Battle'
+    coastal_battle: 'Coastal Battle'
+    siege: 'Siege'
+  result:
+    attacker_victory: 'Attacker Victory'
+    defender_victory: 'Defender Victory'
+    inconclusive: 'Inconclusive'
+  avoidingSide:
+    attacker: 'The attacker'
+    defender: 'The defender'
+    both: 'Both sides'

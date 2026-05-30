@@ -164,6 +164,7 @@ export function emitWarOutcome(ctx: TickContext, war: War, attackerWon: boolean)
     'major',
     'war.won',
     {
+      warId: war.id,
       winner: nameParam(winner.kind, winnerName),
       loser: nameParam(loser.kind, loserName),
     },
@@ -178,6 +179,7 @@ export function emitWarOutcome(ctx: TickContext, war: War, attackerWon: boolean)
     'major',
     'war.lost',
     {
+      warId: war.id,
       loser: nameParam(loser.kind, loserName),
       winner: nameParam(winner.kind, winnerName),
     },
@@ -237,6 +239,7 @@ export function emitPeaceSettlementApplied(ctx: TickContext, war: War, goal: War
     'major',
     messageKey,
     {
+      warId: war.id,
       attacker: nameParam(p.attacker.kind, p.attackerName),
       defender: nameParam(p.defender.kind, p.defenderName),
       holding: nameParam('province', holdingDisplay),

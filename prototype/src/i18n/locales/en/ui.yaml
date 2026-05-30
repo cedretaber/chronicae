@@ -390,6 +390,10 @@ detail:
     status_defender_won: 'Defender Won'
     status_white_peace: 'White Peace'
     status_cancelled: 'Cancelled'
+    captain_general: 'Captain General'
+    commanders: 'Commanders'
+    avoidance_count: 'Avoidances'
+    recent_events: 'Recent Events'
 
   # Faction detail
   faction:

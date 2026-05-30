@@ -485,6 +485,10 @@ detail:
     status_defender_won: '防衛側勝利'
     status_white_peace: '白紙和平'
     status_cancelled: '中止'
+    captain_general: '総大将'
+    commanders: '指揮官候補'
+    avoidance_count: '回避回数'
+    recent_events: '最近の出来事'
 
   # 派閥詳細
   faction:
