@@ -14,6 +14,9 @@ import type { Person } from '@/sim/types/person'
 import type { WorldState } from '@/sim/types/world'
 import type { Faction } from '@/sim/types/faction'
 import type { DiplomaticPlay } from '@/sim/types/diplomaticPlay'
+import type { War } from '@/sim/types/war'
+import type { PoliticalActorRef } from '@/sim/types/actor'
+import { getWarPrimaryAttacker, getWarPrimaryDefender } from '@sim/mutations/warMutations'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
   getHouseControlledProvinceIds,
@@ -25,11 +28,12 @@ import type { PolityRank } from '@/sim/types/polity'
 import { defaultConfig } from '@/sim/config/defaultConfig'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 
-type SectionKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist' | 'plays'
+type SectionKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist' | 'plays' | 'wars'
 
 const SECTION_KEYS: SectionKey[] = [
   'watchlist',
   'plays',
+  'wars',
   'countries',
   'houses',
   'persons',
@@ -265,6 +269,55 @@ function PlayRow({
   )
 }
 
+// v0.34 §16: Active War 一覧の row (PlayRow の縮小版)
+function WarRow({
+  war,
+  polities,
+  houses,
+  onClick,
+}: {
+  war: War
+  polities: Record<string, Polity>
+  houses: Record<string, House>
+  onClick: () => void
+}) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
+  const resolveActorName = (actor: PoliticalActorRef | undefined): string => {
+    if (!actor) return '—'
+    if (actor.kind === 'polity') {
+      const nameKey = polities[actor.id]?.nameKey ?? actor.id
+      return resolveName('polity', nameKey, nameKey)
+    }
+    const nameKey = houses[actor.id]?.nameKey ?? actor.id
+    return resolveName('house', nameKey, nameKey)
+  }
+  const attackerName = resolveActorName(getWarPrimaryAttacker(war)?.actor)
+  const defenderName = resolveActorName(getWarPrimaryDefender(war)?.actor)
+  const scoreRounded = Math.round(war.warScore)
+
+  return (
+    <div
+      className="cursor-pointer border-b border-gray-700/50 px-3 py-1.5 text-sm hover:bg-gray-700"
+      onClick={onClick}
+    >
+      <div className="flex items-center gap-2">
+        <span className="rounded bg-red-700 px-1.5 py-0.5 text-xs text-white">
+          {t('sidebar.war_status.active')}
+        </span>
+      </div>
+      <div className="mt-1 truncate text-xs text-gray-300">
+        <span className="font-bold">{attackerName}</span> {'⚔'} {defenderName}
+      </div>
+      <div className="text-xs text-gray-400">
+        {scoreRounded >= 0 ? '+' : ''}
+        {scoreRounded} / {'±'}
+        {war.targetWarScore}
+      </div>
+    </div>
+  )
+}
+
 function WatchlistRow({
   name,
   type,
@@ -314,6 +367,7 @@ export function Sidebar() {
     factions: false,
     watchlist: false,
     plays: false,
+    wars: false,
   })
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -443,6 +497,10 @@ export function Sidebar() {
         })
     : []
 
+  const activeWars: War[] = session?.currentState
+    ? Object.values(session.currentState.wars).filter((w): w is War => !!w && w.status === 'active')
+    : []
+
   const sectionCount: Record<SectionKey, number> = {
     countries: sortedPolities.length,
     houses: houseEntries.length,
@@ -450,6 +508,7 @@ export function Sidebar() {
     factions: factionEntries.length,
     watchlist: watchlist.length,
     plays: activePlays.length,
+    wars: activeWars.length,
   }
 
   const renderSectionBody = (key: SectionKey) => {
@@ -552,6 +611,22 @@ export function Sidebar() {
           play={play}
           polities={politiesMap as Record<string, Polity>}
           onClick={() => openDetailWindow('diplomaticPlay', play.id)}
+        />
+      ))
+    }
+    if (key === 'wars') {
+      if (activeWars.length === 0) {
+        return <div className="px-3 py-2 text-xs text-gray-500">No active wars</div>
+      }
+      const politiesMap = (polities ?? {}) as Record<string, Polity>
+      const housesMap = (session?.currentState.houses ?? {}) as Record<string, House>
+      return activeWars.map((war) => (
+        <WarRow
+          key={war.id}
+          war={war}
+          polities={politiesMap}
+          houses={housesMap}
+          onClick={() => openDetailWindow('war', war.id)}
         />
       ))
     }

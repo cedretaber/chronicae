@@ -130,11 +130,14 @@ event_type:
 sidebar:
   watchlist: 'ウォッチリスト'
   plays: '外交劇'
+  wars: '戦争'
   countries: '国家'
   houses: '家系'
   persons: '人物'
   factions: '派閥'
   no_active_factions: '活動中の派閥はありません'
+  war_status:
+    active: '戦争'
   play_kind:
     revolt: '反乱'
     claim: '請求'
@@ -465,6 +468,23 @@ detail:
     project_budget_total: '予算'
     project_budget_remaining: '残額'
     project_budget_spent: '支出済'
+
+  # 戦争詳細 (v0.34)
+  war:
+    attacker: '攻撃側'
+    defender: '防衛側'
+    war_score: '戦況'
+    target: '決着'
+    started: '開戦'
+    ended: '終戦'
+    goals: '戦争目標'
+    goal_transfer_land: '土地割譲'
+    goal_change_tax: '税率改定'
+    status_active: '進行中'
+    status_attacker_won: '攻撃側勝利'
+    status_defender_won: '防衛側勝利'
+    status_white_peace: '白紙和平'
+    status_cancelled: '中止'
 
   # 派閥詳細
   faction:

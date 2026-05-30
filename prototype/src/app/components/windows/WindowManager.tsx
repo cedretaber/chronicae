@@ -1,6 +1,6 @@
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import type { FactionId, DiplomaticPlayId, HoldingId, ClanId } from '@/sim/types/ids'
+import type { FactionId, DiplomaticPlayId, HoldingId, ClanId, WarId } from '@/sim/types/ids'
 import {
   CountryDetail,
   HouseDetail,
@@ -11,6 +11,7 @@ import {
   DiplomaticPlayDetail,
   HoldingDetail,
   ClanDetail,
+  WarDetail,
 } from '@/app/components/panels/DetailPanel'
 import { DraggableWindow } from './DraggableWindow'
 
@@ -231,6 +232,21 @@ export function WindowManager() {
                 session={session}
                 onPersonClick={onPersonClick}
                 onHouseClick={onHouseClick}
+              />
+            </DraggableWindow>
+          )
+        }
+        if (entityType === 'war') {
+          const war = state.wars[entityId as WarId]
+          if (!war) return null
+          return (
+            <DraggableWindow key={win.id} win={win} title={`War`}>
+              <WarDetail
+                war={war}
+                session={session}
+                onPolityClick={onPolityClick}
+                onHouseClick={onHouseClick}
+                onHoldingClick={onHoldingClick}
               />
             </DraggableWindow>
           )

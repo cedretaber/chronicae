@@ -36,10 +36,13 @@ tabs:
 sidebar:
   watchlist: 'Watchlist'
   plays: 'Plays'
+  wars: 'Wars'
   countries: 'Countries'
   houses: 'Houses'
   persons: 'Persons'
   factions: 'Factions'
+  war_status:
+    active: 'War'
   play_kind:
     revolt: 'Revolt'
     claim: 'Claim'
@@ -370,6 +373,23 @@ detail:
     project_budget_total: 'Budget'
     project_budget_remaining: 'Remaining'
     project_budget_spent: 'Spent'
+
+  # War detail (v0.34)
+  war:
+    attacker: 'Attacker'
+    defender: 'Defender'
+    war_score: 'War Score'
+    target: 'target'
+    started: 'Started'
+    ended: 'Ended'
+    goals: 'War Goals'
+    goal_transfer_land: 'Transfer Land'
+    goal_change_tax: 'Change Tax Rate'
+    status_active: 'Active'
+    status_attacker_won: 'Attacker Won'
+    status_defender_won: 'Defender Won'
+    status_white_peace: 'White Peace'
+    status_cancelled: 'Cancelled'
 
   # Faction detail
   faction:

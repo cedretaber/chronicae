@@ -56,6 +56,8 @@ import {
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { computeEffectivePriority } from '@sim/selectors/taskSelectors'
+import { getWarPrimaryAttacker, getWarPrimaryDefender } from '@sim/mutations/warMutations'
+import type { PoliticalActorRef } from '@/sim/types/actor'
 import type { Polity } from '@/sim/types/polity'
 import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
@@ -4602,6 +4604,209 @@ export function DiplomaticPlayDetail({
               </div>
             )}
           </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// v0.34 §16: War 詳細。DiplomaticPlayDetail の縮小版 (交渉系の要素は War に存在しないため全て削除)。
+export function WarDetail({
+  war,
+  session,
+  onPolityClick,
+  onHouseClick,
+  onHoldingClick,
+}: {
+  war: import('@sim/types/war').War
+  session: SimulationSession | null
+  onPolityClick: ClickHandler
+  onHouseClick: ClickHandler
+  onHoldingClick: (id: string) => void
+}) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
+  const worldState = session?.currentState ?? null
+  if (!worldState) return null
+
+  const polities = worldState.polities
+  const houses = worldState.houses
+
+  const statusBadge: Record<string, { label: string; bg: string }> = {
+    active: { label: t('detail.war.status_active'), bg: 'bg-red-700' },
+    attacker_won: { label: t('detail.war.status_attacker_won'), bg: 'bg-green-700' },
+    defender_won: { label: t('detail.war.status_defender_won'), bg: 'bg-green-700' },
+    white_peace: { label: t('detail.war.status_white_peace'), bg: 'bg-gray-600' },
+    cancelled: { label: t('detail.war.status_cancelled'), bg: 'bg-gray-600' },
+  }
+  const badge = statusBadge[war.status] ?? { label: war.status, bg: 'bg-gray-600' }
+
+  // WarParticipant.actor は PoliticalActorRef (polity | house)。actor.kind で narrowing する。
+  const renderActor = (actor: PoliticalActorRef | undefined) => {
+    if (!actor) return <span className="text-gray-500">&mdash;</span>
+    if (actor.kind === 'polity') {
+      return <PolityLink polityId={actor.id} polities={polities} onClick={onPolityClick} />
+    }
+    return <HouseLink houseId={actor.id} houses={houses} onClick={onHouseClick} />
+  }
+  const attacker = getWarPrimaryAttacker(war)?.actor
+  const defender = getWarPrimaryDefender(war)?.actor
+
+  const started = weekToYearMonthWeek(war.startedWeek)
+  const ended = war.endedWeek != null ? weekToYearMonthWeek(war.endedWeek) : null
+
+  // warScore (-100..100, 正=attacker優勢) を 0..100% にマップ。攻撃優勢=右/緑、防衛優勢=左/赤。
+  const clampedScore = Math.max(-100, Math.min(100, war.warScore))
+  const scorePos = (clampedScore + 100) / 2
+  const targetLow = (-war.targetWarScore + 100) / 2
+  const targetHigh = (war.targetWarScore + 100) / 2
+  const scoreRounded = Math.round(war.warScore)
+  const fillLeft = clampedScore >= 0 ? 50 : scorePos
+  const fillWidth = Math.abs(scorePos - 50)
+  const fillColor = clampedScore >= 0 ? 'bg-green-600' : 'bg-red-600'
+
+  return (
+    <div className="flex flex-col gap-1 p-3">
+      <div className="flex items-center gap-2">
+        <span className={`rounded px-1.5 py-0.5 text-xs text-white ${badge.bg}`}>
+          {badge.label}
+        </span>
+      </div>
+
+      <div className="text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.war.attacker')}:</span>
+          {renderActor(attacker)}
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.war.defender')}:</span>
+          {renderActor(defender)}
+        </div>
+
+        <div className="my-1 border-t border-gray-700" />
+
+        <div className="text-gray-400">{t('detail.war.war_score')}:</div>
+        <div className="relative my-1 h-2 w-full rounded bg-gray-700">
+          <div
+            className={`absolute top-0 h-2 ${fillColor}`}
+            style={{ left: `${fillLeft}%`, width: `${fillWidth}%` }}
+          />
+          {/* 中央 (warScore=0) */}
+          <div className="absolute top-0 h-2 w-px bg-gray-400" style={{ left: '50%' }} />
+          {/* 決着閾値 ±targetWarScore */}
+          <div
+            className="absolute -top-0.5 h-3 w-px bg-yellow-400"
+            style={{ left: `${targetLow}%` }}
+          />
+          <div
+            className="absolute -top-0.5 h-3 w-px bg-yellow-400"
+            style={{ left: `${targetHigh}%` }}
+          />
+          {/* 現在の warScore */}
+          <div
+            className="absolute -top-0.5 h-3 w-1 rounded bg-white"
+            style={{ left: `calc(${scorePos}% - 2px)` }}
+          />
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">{t('detail.war.defender')}</span>
+          <span className="text-gray-200">
+            {scoreRounded >= 0 ? '+' : ''}
+            {scoreRounded}{' '}
+            <span className="text-gray-400">
+              / {t('detail.war.target')} &plusmn;{war.targetWarScore}
+            </span>
+          </span>
+          <span className="text-gray-500">{t('detail.war.attacker')}</span>
+        </div>
+
+        <div className="my-1 border-t border-gray-700" />
+
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.war.started')}:</span>
+          <span>
+            {started.year}/{started.month}/{started.weekOfMonth}
+          </span>
+        </div>
+        {ended && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.war.ended')}:</span>
+            <span>
+              {ended.year}/{ended.month}/{ended.weekOfMonth}
+            </span>
+          </div>
+        )}
+
+        <div className="my-1 border-t border-gray-700" />
+
+        <div className="text-gray-400">{t('detail.war.goals')}:</div>
+        {war.warGoals.length === 0 ? (
+          <span className="text-gray-500">&mdash;</span>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {war.warGoals.map((goal, idx) => {
+              const holding = worldState.holdings[goal.holdingId]
+              const provinceId = holding?.provinceId
+              const provinceName = provinceId
+                ? resolveName(
+                    'province',
+                    worldState.provinces[provinceId]?.nameKey ?? provinceId,
+                    provinceId,
+                  )
+                : goal.holdingId
+              if (goal.kind === 'transfer_land_contract') {
+                return (
+                  <div key={idx} className="rounded bg-gray-800 px-2 py-1 text-xs">
+                    <div>
+                      <span className="text-gray-400">{t('detail.war.goal_transfer_land')}:</span>{' '}
+                      <button
+                        className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                        onClick={() => onHoldingClick(goal.holdingId)}
+                      >
+                        {provinceName}
+                        {holding ? ` ${holding.kind}` : ''}
+                      </button>{' '}
+                      <span className="text-gray-500">(&plusmn;{goal.requiredWarScore})</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-gray-400">
+                      <PolityLink
+                        polityId={goal.fromPolityId}
+                        polities={polities}
+                        onClick={onPolityClick}
+                      />
+                      <span>&rarr;</span>
+                      <PolityLink
+                        polityId={goal.toPolityId}
+                        polities={polities}
+                        onClick={onPolityClick}
+                      />
+                    </div>
+                  </div>
+                )
+              }
+              const currentRate =
+                worldState.landContracts[goal.landContractId]?.terms.taxRateToGrantor
+              return (
+                <div key={idx} className="rounded bg-gray-800 px-2 py-1 text-xs">
+                  <div>
+                    <span className="text-gray-400">{t('detail.war.goal_change_tax')}:</span>{' '}
+                    <button
+                      className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                      onClick={() => onHoldingClick(goal.holdingId)}
+                    >
+                      {provinceName}
+                      {holding ? ` ${holding.kind}` : ''}
+                    </button>{' '}
+                    <span className="text-gray-500">(&plusmn;{goal.requiredWarScore})</span>
+                  </div>
+                  <div className="text-gray-400">
+                    {currentRate != null ? `${Math.round(currentRate * 100)}% ` : ''}&rarr;{' '}
+                    {Math.round(goal.newTaxRateToGrantor * 100)}%
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
     </div>

@@ -19,6 +19,7 @@ export type EntityType =
   | 'diplomaticPlay'
   | 'holding'
   | 'clan'
+  | 'war'
 // Backwards-friendly alias retained as named export (some modules import SelectedType)
 export type SelectedType = EntityType
 export type MapView = 'terminal' | 'root' | 'house' | 'share' | 'unrest'
