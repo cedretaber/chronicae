@@ -32,6 +32,8 @@ import { runTaskSystem } from './taskSystem'
 import { runConflictResolutionSystem } from './conflictResolutionSystem'
 import { runWarCreationSystem } from './warCreationSystem'
 import { runWarManeuverSystem } from './warManeuverSystem'
+import { runRegimentRecoverySystem } from './regimentRecoverySystem'
+import { runRegimentMaintenanceSystem } from './regimentMaintenanceSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
 import { runCleanupWarSystem } from './cleanupWarSystem'
@@ -358,6 +360,13 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runWarManeuverSystem,
   },
   {
+    // v0.36 §13: WarManeuver の battle damage 適用後に organization を週次回復。
+    name: 'regimentRecoverySystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runRegimentRecoverySystem,
+  },
+  {
     name: 'peaceSettlementSystem',
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
@@ -394,6 +403,14 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runCancelOrphanedWarsSystem,
+  },
+  {
+    // v0.36 §14: consistency 系の後・cleanupWar の前。stale war demobilize /
+    //   owner 失効 disband / homeHolding 消失 disband / terminal 変化で owner 付け替え。
+    name: 'regimentMaintenanceSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runRegimentMaintenanceSystem,
   },
   {
     name: 'attitudeDecaySystem',

@@ -8,10 +8,11 @@ import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
 import { generateCandidateBattlefield } from '../selectors/warManeuverSelectors'
 import { runWarManeuverSystem } from './warManeuverSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
+import { politicalActorKey } from '../selectors/actorSelectors'
 import type { WorldState } from '../types/world'
 import type { War, BattlefieldKind } from '../types/war'
 import type { Province } from '../types/province'
-import type { HoldingId, PolityId, ProvinceId, PersonId } from '../types/ids'
+import type { HoldingId, PolityId, ProvinceId, PersonId, RegimentId } from '../types/ids'
 
 // v0.35 §19: WarManeuverSystem の回帰テスト。
 //   分岐 (両者回避 / 両者受諾 / 片側回避) は generated world では rng/戦力/traits 依存で不定なため、
@@ -379,5 +380,96 @@ describe('generateCandidateBattlefield (§6.3)', () => {
     expect(
       generateCandidateBattlefield(province('hills', ['lake']), rng, defaultConfig).value,
     ).toBe('hill_battle')
+  })
+})
+
+// v0.36 §9 / §11 / §12: WarManeuver の Regiment 接続。
+//   freshWorld は generateWorld で Regiment 生成済。injectWar の defender=owner は当該 holding 由来の
+//   Regiment を必ず所有するため、defender 側で mobilize / power / damage / destroy を検証する。
+describe('WarManeuverSystem Regiment 接続 (§9 / §11 / §12)', () => {
+  function ownerRegimentIds(world: WorldState, owner: PolityId): RegimentId[] {
+    return world.regimentIndex.byOwner[politicalActorKey({ kind: 'polity', id: owner })] ?? []
+  }
+
+  it('per-war prologue で owner Regiment を defender side に mobilize し byWar に登録する (§9.1)', () => {
+    const world = freshWorld()
+    const { war, owner } = injectWar(world)
+    const ownerRegs = ownerRegimentIds(world, owner)
+    expect(ownerRegs.length).toBeGreaterThan(0)
+
+    const next = runWarManeuverSystem(makeCtx(world))
+    for (const rid of ownerRegs) {
+      const r = next.state.regiments[rid]!
+      expect(r.currentWarId).toBe(war.id)
+      expect(r.currentSide).toBe('defender')
+      expect(r.mobilizedByPolityId).toBe(owner)
+    }
+    const byWar = next.state.regimentIndex.byWar[war.id] ?? []
+    expect(byWar.length).toBeGreaterThanOrEqual(ownerRegs.length)
+  })
+
+  it('both accept battle で Battle entity を生成し power=Regiment 合計・org を損耗させる (§11.3 / §12)', () => {
+    const world = freshWorld()
+    const { war, owner } = injectWar(world)
+    const ownerRegs = ownerRegimentIds(world, owner)
+    // 全 Regiment は t=0 で str=100/org=100 → effectivePower==basePower。
+    const expectedDefPower = ownerRegs.reduce(
+      (sum, rid) => sum + world.regiments[rid]!.basePower,
+      0,
+    )
+
+    const config = deterministicConfig({
+      warAvoidanceTerrainModifierByBattlefield: terrainAll(-10),
+    })
+    const next = runWarManeuverSystem(makeCtx(world, config))
+    expect(next.events.some((e) => e.type === 'BATTLE_OCCURRED')).toBe(true)
+
+    const bids = next.state.battleIndex.byWar[war.id] ?? []
+    expect(bids).toHaveLength(1)
+    const battle = next.state.battles[bids[0]!]!
+    expect(battle.warId).toBe(war.id)
+    expect(battle.defenderRegimentIds).toHaveLength(ownerRegs.length)
+    // defenderBasePower = defender Regiment effectivePower 合計 (旧 fallback でない)
+    expect(battle.defenderBasePower).toBeCloseTo(expectedDefPower)
+
+    // org 損耗: defender 全 mobilized Regiment の organization < 100 (winner でも min 4 削れる)
+    for (const rid of ownerRegs) {
+      expect(next.state.regiments[rid]!.organization).toBeLessThan(100)
+    }
+    const defResults = battle.regimentResults.filter((rr) => rr.side === 'defender')
+    expect(defResults).toHaveLength(ownerRegs.length)
+    expect(defResults.every((rr) => rr.organizationDamage > 0)).toBe(true)
+  })
+
+  it('strength が destroyedThreshold 以下になった Regiment を destroyed 化し byWar から外す (§12.6)', () => {
+    const world = freshWorld()
+    const { war, owner } = injectWar(world)
+    const ownerRegs = ownerRegimentIds(world, owner)
+    // defender Regiment を strength=1 に弱体化。どの battle 結果でも strength damage 5 で 0→destroyed。
+    for (const rid of ownerRegs) {
+      world.regiments[rid] = { ...world.regiments[rid]!, strength: 1 }
+    }
+    const config = deterministicConfig({
+      warAvoidanceTerrainModifierByBattlefield: terrainAll(-10),
+      regimentStrengthDamageWinnerMin: 5,
+      regimentStrengthDamageWinnerMax: 5,
+      regimentStrengthDamageLoserMin: 5,
+      regimentStrengthDamageLoserMax: 5,
+      regimentStrengthDamageInconclusiveMin: 5,
+      regimentStrengthDamageInconclusiveMax: 5,
+    })
+    const next = runWarManeuverSystem(makeCtx(world, config))
+    expect(next.events.some((e) => e.type === 'BATTLE_OCCURRED')).toBe(true)
+
+    const byWar = next.state.regimentIndex.byWar[war.id] ?? []
+    for (const rid of ownerRegs) {
+      const r = next.state.regiments[rid]!
+      expect(r.status).toBe('destroyed')
+      expect(r.currentWarId).toBeUndefined()
+      expect(byWar.includes(rid)).toBe(false)
+    }
+    // byOwner には残る (§10.4 (d) の 0-power 判定に必要)
+    const ownerKey = politicalActorKey({ kind: 'polity', id: owner })
+    expect(next.state.regimentIndex.byOwner[ownerKey] ?? []).toHaveLength(ownerRegs.length)
   })
 })

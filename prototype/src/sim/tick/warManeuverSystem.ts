@@ -2,9 +2,11 @@ import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { WarSide, WarSideKey, BattleResult, BattleInitiationKind } from '../types/war'
 import type { WarId, PersonId, PolityId } from '../types/ids'
+import type { Regiment } from '../types/regiment'
+import type { BattleRegimentResult } from '../types/battle'
 import type { RngState } from '../rng/rng'
 import type { SimulationConfig } from '../config/defaultConfig'
-import { randomFloat } from '../rng/rng'
+import { randomFloat, randomInt } from '../rng/rng'
 import { clamp } from '../utils/math'
 import {
   updateWar,
@@ -12,8 +14,15 @@ import {
   getWarPrimaryAttacker,
   getWarPrimaryDefender,
 } from '../mutations/warMutations'
-import { isActorActive, getActorMilitaryPower } from '../selectors/actorSelectors'
+import {
+  mobilizeRegimentsForWar,
+  updateRegimentMut,
+  destroyRegimentMut,
+} from '../mutations/regimentMutations'
+import { createBattle } from '../mutations/battleMutations'
+import { isActorActive } from '../selectors/actorSelectors'
 import { getRoleScore } from '../selectors/abilitySelectors'
+import { getRegimentPowerForWarSide, getRegimentsForWarSide } from '../selectors/regimentSelectors'
 import {
   getWarSidePrimaryPolityActor,
   selectCaptainGeneralForWarSide,
@@ -192,6 +201,70 @@ function resolveBattle(
   return { result, warScoreDelta, attackerEffectivePower, defenderEffectivePower, rng: rng2 }
 }
 
+type BattleDamageRole = 'winner' | 'loser' | 'inconclusive'
+
+// §12: 1 side の battle 後損耗。role から org/strength の damage を各 1 値 rng で決め (2 draw 消費)、
+//   その side の mobilized active Regiment 全部に同量適用する (頭割りでない。§12.4)。
+//   clamp 済 strength が destroyedThreshold 以下なら destroy (§12.6)。各 Regiment の before/after で
+//   BattleRegimentResult を返す (morale* は v0.36 では設定しない。§7.1)。
+function applySideBattleDamage(
+  ws: WorldState,
+  config: SimulationConfig,
+  rng: RngState,
+  side: WarSideKey,
+  regiments: Regiment[],
+  role: BattleDamageRole,
+): { rng: RngState; results: BattleRegimentResult[] } {
+  const [orgMin, orgMax, strMin, strMax] =
+    role === 'winner'
+      ? [
+          config.regimentOrganizationDamageWinnerMin,
+          config.regimentOrganizationDamageWinnerMax,
+          config.regimentStrengthDamageWinnerMin,
+          config.regimentStrengthDamageWinnerMax,
+        ]
+      : role === 'loser'
+        ? [
+            config.regimentOrganizationDamageLoserMin,
+            config.regimentOrganizationDamageLoserMax,
+            config.regimentStrengthDamageLoserMin,
+            config.regimentStrengthDamageLoserMax,
+          ]
+        : [
+            config.regimentOrganizationDamageInconclusiveMin,
+            config.regimentOrganizationDamageInconclusiveMax,
+            config.regimentStrengthDamageInconclusiveMin,
+            config.regimentStrengthDamageInconclusiveMax,
+          ]
+  const orgDraw = randomInt(rng, orgMin, orgMax)
+  const strDraw = randomInt(orgDraw.rng, strMin, strMax)
+  const orgDamage = orgDraw.value
+  const strengthDamage = strDraw.value
+
+  const results: BattleRegimentResult[] = []
+  for (const r of regiments) {
+    const orgBefore = r.organization
+    const strBefore = r.strength
+    const orgAfter = clamp(orgBefore - orgDamage, 0, 100)
+    const strAfter = clamp(strBefore - strengthDamage, 0, r.maxStrength)
+    updateRegimentMut(ws, r.id, { organization: orgAfter, strength: strAfter })
+    if (strAfter <= config.regimentDestroyedStrengthThreshold) {
+      destroyRegimentMut(ws, r.id)
+    }
+    results.push({
+      regimentId: r.id,
+      side,
+      strengthBefore: strBefore,
+      strengthAfter: strAfter,
+      strengthDamage: strBefore - strAfter,
+      organizationBefore: orgBefore,
+      organizationAfter: orgAfter,
+      organizationDamage: orgBefore - orgAfter,
+    })
+  }
+  return { rng: strDraw.rng, results }
+}
+
 // step 3: captainGeneral lazy refresh (§4.4)。現 CG が eligible なら据置。
 //   不適格/undefined なら再選出。変化時 event (初回任命 old===undefined は event なし)。
 function refreshCaptainGeneral(
@@ -250,10 +323,20 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
   if (activeWarIds.length === 0) return ctx
 
   // clone-once draft。以後 ws を破壊的に更新し、next.state は ws を参照し続ける。
+  //   v0.36: regiment / battle の mut helper が in-place で touch するため records / index を clone する。
   const ws: WorldState = {
     ...ctx.state,
     wars: { ...ctx.state.wars },
     polities: { ...ctx.state.polities },
+    regiments: { ...ctx.state.regiments },
+    regimentIndex: {
+      byOwner: { ...ctx.state.regimentIndex.byOwner },
+      byWar: { ...ctx.state.regimentIndex.byWar },
+      byHomeProvince: { ...ctx.state.regimentIndex.byHomeProvince },
+      byHomeHolding: { ...ctx.state.regimentIndex.byHomeHolding },
+    },
+    battles: { ...ctx.state.battles },
+    battleIndex: { byWar: { ...ctx.state.battleIndex.byWar } },
   }
   let next: TickContext = { ...ctx, state: ws }
 
@@ -276,6 +359,11 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
 
     // step 2.5: target 到達済みは warScore 凍結 (§7.2)。lastWarWeek は更新済。
     if (Math.abs(war.warScore) >= war.targetWarScore) continue
+
+    // step 2.6 (v0.36 §9.1): per-war prologue で Regiment を mobilize する (idempotent / rng 非消費)。
+    //   power 読み取り (§11.3) の直前に必ず動員され、「War 成立直後の初回 battle だけ fallback」事故を防ぐ。
+    mobilizeRegimentsForWar(ws, wid, 'attacker', absoluteWeek)
+    mobilizeRegimentsForWar(ws, wid, 'defender', absoluteWeek)
 
     // step 3: captainGeneral lazy refresh
     next = refreshCaptainGeneral(next, ws, wid, 'attacker')
@@ -310,8 +398,10 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
     const defCG = war3.defender.captainGeneralPersonId
     const atkCommander = war3.attacker.commanderPersonIds[0]
     const defCommander = war3.defender.commanderPersonIds[0]
-    const atkPower = getActorMilitaryPower(ws, config, atkActor)
-    const defPower = getActorMilitaryPower(ws, config, defActor)
+    // v0.36 §11.3: power 入力を Regiment 化 (単一計算箇所。avoidance 判断・回避成功・battle すべての入力)。
+    //   mobilize 済 (step 2.6) なので byWar から合計、Regiment record 無し actor は旧 power fallback (§10.4)。
+    const atkPower = getRegimentPowerForWarSide(ws, config, war3, 'attacker')
+    const defPower = getRegimentPowerForWarSide(ws, config, war3, 'defender')
     const atkAvoid0 = war3.attacker.avoidanceCount
     const defAvoid0 = war3.defender.avoidanceCount
     const before = war3.warScore
@@ -357,6 +447,56 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
       } else if (initiationKind === 'defender_avoidance_failed') {
         updateWarSideMut(ws, wid, 'defender', { avoidanceCount: defAvoid0 + 1 })
       }
+
+      // v0.36 §12: damage 前に mobilized active Regiment を両 side 確定 (destroy が byWar を変えるため)。
+      const atkRegiments = getRegimentsForWarSide(ws, wid, 'attacker').filter(
+        (r) => r.status === 'active',
+      )
+      const defRegiments = getRegimentsForWarSide(ws, wid, 'defender').filter(
+        (r) => r.status === 'active',
+      )
+      const atkRole: BattleDamageRole =
+        battle.result === 'attacker_victory'
+          ? 'winner'
+          : battle.result === 'defender_victory'
+            ? 'loser'
+            : 'inconclusive'
+      const defRole: BattleDamageRole =
+        battle.result === 'defender_victory'
+          ? 'winner'
+          : battle.result === 'attacker_victory'
+            ? 'loser'
+            : 'inconclusive'
+      const atkDmg = applySideBattleDamage(ws, config, nn.rng, 'attacker', atkRegiments, atkRole)
+      const defDmg = applySideBattleDamage(
+        ws,
+        config,
+        atkDmg.rng,
+        'defender',
+        defRegiments,
+        defRole,
+      )
+      nn = { ...nn, rng: defDmg.rng }
+
+      // v0.36 §7 / §11.3: Battle entity を記録 (cleanupWarSystem が war 削除時に piggyback cleanup)。
+      createBattle(ws, {
+        warId: wid,
+        week: absoluteWeek,
+        provinceId,
+        battlefieldKind,
+        initiationKind,
+        result: battle.result,
+        attackerRegimentIds: atkRegiments.map((r) => r.id),
+        defenderRegimentIds: defRegiments.map((r) => r.id),
+        regimentResults: [...atkDmg.results, ...defDmg.results],
+        attackerBasePower: atkPower,
+        defenderBasePower: defPower,
+        attackerEffectivePower: battle.attackerEffectivePower,
+        defenderEffectivePower: battle.defenderEffectivePower,
+        warScoreDelta: after - before,
+        warScoreAfter: after,
+      })
+
       const w = ws.wars[wid]
       if (!w) return nn
       nn = emitBattleOccurred(nn, w, {

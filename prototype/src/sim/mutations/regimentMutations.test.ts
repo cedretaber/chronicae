@@ -8,10 +8,12 @@ import {
   reassignRegimentOwnerMut,
   disbandRegimentMut,
   destroyRegimentMut,
+  mobilizeRegimentsForWar,
 } from './regimentMutations'
 import { politicalActorKey } from '../selectors/actorSelectors'
 import type { WorldState } from '../types/world'
 import type { PoliticalActorRef } from '../types/actor'
+import type { War } from '../types/war'
 import type { PolityId, HoldingId, ProvinceId, WarId } from '../types/ids'
 
 const pA: PoliticalActorRef = { kind: 'polity', id: 'po-1' as PolityId }
@@ -213,5 +215,101 @@ describe('updateRegimentMut', () => {
     expect(state.regiments[r.id]!.organization).toBe(40)
     expect(state.regiments[r.id]!.strength).toBe(90)
     expect(state.regiments[r.id]!.owner).toEqual(pA)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// mobilizeRegimentsForWar (§9.1-9.3) — WarManeuver per-war prologue から呼ぶ composite
+// ---------------------------------------------------------------------------
+
+function makeWar(id: WarId, attacker: PoliticalActorRef, defender: PoliticalActorRef): War {
+  return {
+    id,
+    status: 'active',
+    attacker: {
+      key: 'attacker',
+      participants: [{ actor: attacker, joinedWeek: 0, primary: true }],
+      commanderPersonIds: [],
+      avoidanceCount: 0,
+    },
+    defender: {
+      key: 'defender',
+      participants: [{ actor: defender, joinedWeek: 0, primary: true }],
+      commanderPersonIds: [],
+      avoidanceCount: 0,
+    },
+    warGoals: [],
+    warScore: 0,
+    targetWarScore: 50,
+    startedWeek: 0,
+  }
+}
+
+describe('mobilizeRegimentsForWar', () => {
+  it('owner の active かつ未動員の Regiment を当該 side に mobilize する', () => {
+    const state = makeEmptyV016State()
+    const war = makeWar('w-1' as WarId, pA, pB)
+    state.wars[war.id] = war
+    const r1 = makeReg(state, pA)
+    const r2 = makeReg(state, pA)
+
+    mobilizeRegimentsForWar(state, war.id, 'attacker', 5)
+
+    expect(state.regiments[r1.id]!.currentWarId).toBe('w-1')
+    expect(state.regiments[r1.id]!.currentSide).toBe('attacker')
+    expect(state.regiments[r1.id]!.lastMobilizedWeek).toBe(5)
+    expect(state.regiments[r2.id]!.currentWarId).toBe('w-1')
+    expect((state.regimentIndex.byWar['w-1' as WarId] ?? []).length).toBe(2)
+  })
+
+  it('別 side の owner Regiment は mobilize しない', () => {
+    const state = makeEmptyV016State()
+    const war = makeWar('w-1' as WarId, pA, pB)
+    state.wars[war.id] = war
+    const rA = makeReg(state, pA)
+    const rB = makeReg(state, pB)
+
+    mobilizeRegimentsForWar(state, war.id, 'attacker', 0)
+
+    expect(state.regiments[rA.id]!.currentWarId).toBe('w-1')
+    expect(state.regiments[rB.id]!.currentWarId).toBeUndefined() // defender 側 owner は対象外
+  })
+
+  it('別 War に出払い済 (currentWarId あり) の Regiment は mobilize しない', () => {
+    const state = makeEmptyV016State()
+    const war = makeWar('w-1' as WarId, pA, pB)
+    state.wars[war.id] = war
+    const r = makeReg(state, pA)
+    mobilizeRegimentMut(state, r.id, 'w-other' as WarId, 'attacker', 'po-1' as PolityId, 0)
+
+    mobilizeRegimentsForWar(state, war.id, 'attacker', 0)
+
+    expect(state.regiments[r.id]!.currentWarId).toBe('w-other') // 据え置き
+    expect(state.regimentIndex.byWar['w-1' as WarId]).toBeUndefined()
+  })
+
+  it('非 active (disbanded) Regiment は mobilize しない', () => {
+    const state = makeEmptyV016State()
+    const war = makeWar('w-1' as WarId, pA, pB)
+    state.wars[war.id] = war
+    const r = makeReg(state, pA)
+    disbandRegimentMut(state, r.id)
+
+    mobilizeRegimentsForWar(state, war.id, 'attacker', 0)
+
+    expect(state.regiments[r.id]!.currentWarId).toBeUndefined()
+    expect(state.regimentIndex.byWar['w-1' as WarId]).toBeUndefined()
+  })
+
+  it('idempotent: 2 回呼んでも byWar は重複しない', () => {
+    const state = makeEmptyV016State()
+    const war = makeWar('w-1' as WarId, pA, pB)
+    state.wars[war.id] = war
+    makeReg(state, pA)
+
+    mobilizeRegimentsForWar(state, war.id, 'attacker', 0)
+    mobilizeRegimentsForWar(state, war.id, 'attacker', 0)
+
+    expect((state.regimentIndex.byWar['w-1' as WarId] ?? []).length).toBe(1)
   })
 })

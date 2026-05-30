@@ -105,6 +105,31 @@ export function mobilizeRegimentMut(
   }
 }
 
+// v0.36 §9.1-9.3: 当該 War / side の各 polity participant が owner である active かつ未動員
+//   (currentWarId === undefined) の Regiment を、この War / side に mobilize する composite helper。
+//   WarManeuverSystem の per-war prologue から呼ぶ。idempotent (既動員はスキップ)。rng は消費しない。
+//   house participant は worldgen で Regiment 非生成のため skip (power は §10.4(a) の旧 power fallback に委ねる)。
+export function mobilizeRegimentsForWar(
+  ws: WorldState,
+  warId: WarId,
+  side: WarSideKey,
+  week: number,
+): void {
+  const war = ws.wars[warId]
+  if (!war) return
+  const sideObj = side === 'attacker' ? war.attacker : war.defender
+  for (const p of sideObj.participants) {
+    if (p.actor.kind !== 'polity') continue
+    const polityId = p.actor.id
+    const ids = ws.regimentIndex.byOwner[politicalActorKey(p.actor)] ?? []
+    for (const rid of ids) {
+      const r = ws.regiments[rid]
+      if (!r || r.status !== 'active' || r.currentWarId !== undefined) continue
+      mobilizeRegimentMut(ws, rid, warId, side, polityId, week)
+    }
+  }
+}
+
 export function demobilizeRegimentMut(ws: WorldState, regimentId: RegimentId): void {
   const r = ws.regiments[regimentId]
   if (!r) return

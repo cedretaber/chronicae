@@ -1,0 +1,93 @@
+import type { TickContext } from './context'
+import type { WorldState } from '../types/world'
+import type { RegimentId } from '../types/ids'
+import {
+  disbandRegimentMut,
+  demobilizeRegimentMut,
+  reassignRegimentOwnerMut,
+} from '../mutations/regimentMutations'
+import { isActorActive } from '../selectors/actorSelectors'
+
+// v0.36 §14 RegimentMaintenanceSystem
+//
+// active Regiment の owner / home / war 参照を lazy に整理する。consistency 系 system の後・
+// cleanupWarSystem の前に interval 1 で走る (§14.2 / §14.7)。
+// soft reference (currentWarId / owner active / homeHolding 存在) は IntegrityCheck の hard invariant
+// ではなく (§18.4)、本 system が遅延処理する。
+//
+// 処理順 (§14.6 注記を厳守):
+//   1. homeHolding 消失 → disband (§14.5)
+//   2. home terminal Polity が現 owner と異なる → owner 付け替え (§14.6。disband でなく)
+//   3. (付け替え後の) owner inactive → disband (§14.4)
+//   4. currentWarId が live(active) war を指していない → demobilize (§14.3)
+// disband は war 参照解除を兼ねるため demobilize と二重処理しない。
+//
+// perf: active 以外は skip。変更が出るまで draft を clone しない (lazy clone)。
+// 多くの週は land transfer / 滅亡 / 終戦が無く no-op で素通りする。
+
+export function runRegimentMaintenanceSystem(ctx: TickContext): TickContext {
+  const regimentIds = Object.keys(ctx.state.regiments)
+  if (regimentIds.length === 0) return ctx
+
+  let ws: WorldState = ctx.state
+  let cloned = false
+  const ensureDraft = (): void => {
+    if (cloned) return
+    ws = {
+      ...ctx.state,
+      regiments: { ...ctx.state.regiments },
+      regimentIndex: {
+        byOwner: { ...ctx.state.regimentIndex.byOwner },
+        byWar: { ...ctx.state.regimentIndex.byWar },
+        byHomeProvince: { ...ctx.state.regimentIndex.byHomeProvince },
+        byHomeHolding: { ...ctx.state.regimentIndex.byHomeHolding },
+      },
+    }
+    cloned = true
+  }
+
+  for (const idStr of regimentIds) {
+    const rid = idStr as RegimentId
+    const r0 = ws.regiments[rid]
+    if (!r0 || r0.status !== 'active') continue
+
+    // 1. homeHolding 消失 → disband (§14.5)
+    if (r0.homeHoldingId !== undefined && !ws.holdings[r0.homeHoldingId]) {
+      ensureDraft()
+      disbandRegimentMut(ws, rid)
+      continue
+    }
+
+    // 2. home terminal Polity 変化 → owner 付け替え (§14.6。basePower/strength/org/動員状態は維持)
+    if (r0.homeHoldingId !== undefined) {
+      const terminal = ws.holdingTerminalPolityCache[r0.homeHoldingId]
+      if (terminal !== undefined && r0.owner.kind === 'polity' && r0.owner.id !== terminal) {
+        ensureDraft()
+        reassignRegimentOwnerMut(ws, rid, { kind: 'polity', id: terminal })
+      }
+    }
+
+    // 付け替えで owner が変わった可能性があるため再 read。
+    const r = ws.regiments[rid]
+    if (!r || r.status !== 'active') continue
+
+    // 3. owner inactive → disband (§14.4)
+    if (!isActorActive(ws, r.owner)) {
+      ensureDraft()
+      disbandRegimentMut(ws, rid)
+      continue
+    }
+
+    // 4. currentWarId が live(active) war を指していない → demobilize (§14.3)
+    if (r.currentWarId !== undefined) {
+      const war = ws.wars[r.currentWarId]
+      if (!war || war.status !== 'active') {
+        ensureDraft()
+        demobilizeRegimentMut(ws, rid)
+      }
+    }
+  }
+
+  if (!cloned) return ctx
+  return { ...ctx, state: ws }
+}

@@ -28,10 +28,19 @@ export function runCleanupWarSystem(ctx: TickContext): TickContext {
       byParticipant: { ...ctx.state.warIndex.byParticipant },
       byOriginDiplomaticPlay: { ...ctx.state.warIndex.byOriginDiplomaticPlay },
     },
+    // v0.36 §7.3: terminal War 削除に Battle cleanup を piggyback する (短期 entity)。
+    battles: { ...ctx.state.battles },
+    battleIndex: { byWar: { ...ctx.state.battleIndex.byWar } },
   }
   for (const w of toRemove) {
     delete ws.wars[w.id]
     removeWarFromIndexMut(ws, w)
+    // v0.36 §7.3: この War に紐づく Battle を削除し byWar index を purge する。
+    const battleIds = ws.battleIndex.byWar[w.id]
+    if (battleIds) {
+      for (const bid of battleIds) delete ws.battles[bid]
+      delete ws.battleIndex.byWar[w.id]
+    }
   }
   return { ...ctx, state: ws }
 }
