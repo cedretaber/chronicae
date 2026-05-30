@@ -762,10 +762,13 @@ type ChangeContractTaxRateWarGoal = {
   kind: 'change_contract_tax_rate'
   holdingId: HoldingId
   landContractId: LandContractId
-  newTaxRateToGrantor: number
+  baseTaxRateToGrantor: number    // v0.34: 開戦時に凍結する「戦争前の税率」(0..1)。歴史記述の before。
+  newTaxRateToGrantor: number     // 目標税率 (after)
   requiredWarScore: number
 }
 ```
+
+`baseTaxRateToGrantor` は WarCreationSystem が **開戦時点の live 契約税率**（`createWarGoalFromDiplomaticPlay` で `landContracts[...].terms.taxRateToGrantor`、無ければ `issue.baseTaxRateToGrantor`）を凍結する。和平で `newTaxRateToGrantor` が適用されると現税率はこの baseline から target へ動くため、`baseTaxRateToGrantor` は live 契約税率と**意図的に乖離し得る**（WarGoal が live state に依存せず「元→新」を語れるようにするため）。integrity は 0..1 の range のみ検査し、live rate との一致は検査しない（§14.5）。
 
 **WorldState 追加（v0.34）**:
 
