@@ -1865,22 +1865,28 @@ export function collectIntegrityErrors(
       }
     }
 
-    // §14.5 WarGoal 検査
+    // §14 WarGoal 検査 (spec §6.24 v0.34 / §6.27c PeaceSettlementSystem)
+    //   参照存在 (holding/polity/landContract) は active War のみ要求する (participant 検査と対称)。
+    //   terminal War は cleanup されるまで参照不問 — retention 中に別システム (税率改定外交・併合など) が
+    //   参照先を消すのを許容する (WarGoal は和平適用済みの凍結履歴データのため)。
+    //   active War で参照先が消えた stale ケースは PeaceSettlementSystem が white_peace で安全終結させる。
+    //   range/value 検査 (税率 0..1, requiredWarScore>0, from≠to) は凍結値の不変条件なので status 無関係。
+    const checkWarGoalRefs = war.status === 'active'
     for (const goal of war.warGoals) {
       if (goal.kind === 'transfer_land_contract') {
-        if (!state.holdings[goal.holdingId]) {
+        if (checkWarGoalRefs && !state.holdings[goal.holdingId]) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
             message: `War ${idStr} transfer goal references missing holding ${goal.holdingId as string} (§14.5)`,
           })
         }
-        if (!state.polities[goal.fromPolityId]) {
+        if (checkWarGoalRefs && !state.polities[goal.fromPolityId]) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
             message: `War ${idStr} transfer goal references missing fromPolityId ${goal.fromPolityId as string} (§14.5)`,
           })
         }
-        if (!state.polities[goal.toPolityId]) {
+        if (checkWarGoalRefs && !state.polities[goal.toPolityId]) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
             message: `War ${idStr} transfer goal references missing toPolityId ${goal.toPolityId as string} (§14.5)`,
@@ -1899,23 +1905,25 @@ export function collectIntegrityErrors(
           })
         }
       } else {
-        if (!state.holdings[goal.holdingId]) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `War ${idStr} tax goal references missing holding ${goal.holdingId as string} (§14.5)`,
-          })
-        }
-        const contract = state.landContracts[goal.landContractId]
-        if (!contract) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `War ${idStr} tax goal references missing landContract ${goal.landContractId as string} (§14.5)`,
-          })
-        } else if ((contract.holdingId as string) !== (goal.holdingId as string)) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `War ${idStr} tax goal landContract.holdingId=${contract.holdingId as string} !== goal.holdingId=${goal.holdingId as string} (§14.5)`,
-          })
+        if (checkWarGoalRefs) {
+          if (!state.holdings[goal.holdingId]) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `War ${idStr} tax goal references missing holding ${goal.holdingId as string} (§14.5)`,
+            })
+          }
+          const contract = state.landContracts[goal.landContractId]
+          if (!contract) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `War ${idStr} tax goal references missing landContract ${goal.landContractId as string} (§14.5)`,
+            })
+          } else if ((contract.holdingId as string) !== (goal.holdingId as string)) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `War ${idStr} tax goal landContract.holdingId=${contract.holdingId as string} !== goal.holdingId=${goal.holdingId as string} (§14.5)`,
+            })
+          }
         }
         if (!(goal.newTaxRateToGrantor >= 0 && goal.newTaxRateToGrantor <= 1)) {
           errors.push({

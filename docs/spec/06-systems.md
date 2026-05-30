@@ -1366,9 +1366,11 @@ participant:
 - `attacker.key === 'attacker'` / `defender.key === 'defender'`、各 side `participants.length === 1`（v0.34）、primary participant は各 side 1 人
 - **active War のみ** participant actor が active であること（`isActiveActor`）を要求。terminal War（cancelled / attacker_won / defender_won / white_peace）は retention 中の inactive 化を許容。この検査が成立するのは `cancelOrphanedWarsSystem`（§6.27d）が participant 消滅 active War を integrity より前に cancelled 化するため
 
-WarGoal:
+WarGoal（**参照存在は active War のみ要求。participant 検査と対称**）:
 - transfer_land_contract: holding / fromPolityId / toPolityId が存在、`fromPolityId !== toPolityId`、`requiredWarScore > 0`
 - change_contract_tax_rate: holding / landContract が存在、`landContract.holdingId === goal.holdingId`、`newTaxRateToGrantor` が `0..1`、`requiredWarScore > 0`
+- **存在検査（holding / polity / landContract）は `status === 'active'` の War のみに適用する。** terminal War（attacker_won / defender_won / white_peace / cancelled）の WarGoal は和平適用済みの**凍結履歴データ**であり、`terminalWarRetentionWeeks` の retention 中に別システム（税率改定外交の contract 排除・併合など）が参照先を消しても違反としない（cleanup までの dangling を許容）。active War で参照先が stale になったケースは PeaceSettlementSystem（§6.27c）が `white_peace` で安全終結させるため、active で残る dangling は無い。
+- range / value 検査（`requiredWarScore > 0`、`fromPolityId !== toPolityId`、税率 `0..1`）は凍結値の不変条件なので status に関わらず常に検査する。
 
 originDiplomaticPlayId は weak ref のため存在検査しない（cleanup 済みを許容。§3.9a）。
 

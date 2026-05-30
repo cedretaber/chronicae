@@ -187,6 +187,18 @@ describe('War integrity (§14)', () => {
     expect(warErrors(world).some((m) => m.includes('missing landContract'))).toBe(true)
   })
 
+  // §14.5: 参照存在は active War のみ要求する。terminal War の WarGoal は凍結履歴データであり、
+  //   retention 中に別システムが landContract を消すのを許容する (今回の CI 違反の回帰テスト)。
+  it('does NOT flag a terminal war whose landContract was later deleted (frozen history)', () => {
+    const { world, war } = freshValidTaxWar()
+    const g = war.warGoals[0]
+    // war を terminal 化し、参照先 landContract が別システムで消えた状況を作る。
+    war.status = 'defender_won'
+    war.endedWeek = world.absoluteWeek
+    if (g?.kind === 'change_contract_tax_rate') delete world.landContracts[g.landContractId]
+    expect(warErrors(world).some((m) => m.includes('missing landContract'))).toBe(false)
+  })
+
   it('detects tax goal whose landContract.holdingId does not match goal.holdingId', () => {
     const { world, war } = freshValidTaxWar()
     const g = war.warGoals[0]
