@@ -809,6 +809,114 @@ type BattleInitiationKind = 'mutual_engagement' | 'attacker_avoidance_failed' | 
 
 `BattlefieldKind` は state には永続化せず、WarManeuverSystem が毎週その場で生成して battle 解決と event に使う一過性の値（terrain/features は Province 側に永続）。これら maneuver 用の値は War entity に蓄積しない（warScore と avoidanceCount のみが state に残る）。
 
+### 3.9b Regiment（連隊）（v0.36）
+
+これまで `getActorMilitaryPower` で抽象的に算出していた軍事力を、平時から state 上に存在する**永続 Regiment entity**（軍事動員単位）として表現する。worldgen で **1 Holding = 1 Regiment** を生成し（§7）、WarManeuverSystem の battle power 入力に用いる（§6.27b）。型は `src/sim/types/regiment.ts`、power 計算は `src/sim/selectors/regimentSelectors.ts`。
+
+```ts
+type RegimentId = Branded<string, 'RegimentId'>  // prefix: "rg-"
+
+type RegimentStatus = 'active' | 'disbanded' | 'destroyed'
+//   disbanded: owner/home 失効で解散。destroyed: 戦闘損耗で壊滅。
+//   どちらの非 active record も records / regimentIndex.byOwner には残す
+//   （case(c) の「record 在り → 0 power, fallback しない」判定に必要）。byWar からは外す。
+
+type RegimentSourceKind = 'levy' | 'urban_militia' | 'noble_retinue' | 'mercenary'  // mercenary は型予約のみ
+type RegimentTroopKind = 'infantry' | 'cavalry'
+
+type Regiment = {
+  id: RegimentId
+  owner: PoliticalActorRef            // 編制権を持つ主体。worldgen では homeHolding の terminal Polity
+  mobilizedByPolityId?: PolityId      // 現在この Regiment を戦争動員している Polity
+  status: RegimentStatus
+  sourceKind: RegimentSourceKind
+  troopKind: RegimentTroopKind
+  homeHoldingId?: HoldingId           // 由来 Holding / Province（v0.36 では原則すべて持つ）
+  homeProvinceId?: ProvinceId
+  currentWarId?: WarId                // 動員先の soft reference（IntegrityCheck で hard invariant にしない）
+  currentSide?: WarSideKey
+  strength: number                    // 兵員・装備・馬匹・従者の充足率 0..100。v0.36 通常戦闘では大きく削らない
+  organization: number                // 部隊統制 0..100。battle 後に主に削れる値
+  morale: number                      // 士気 0..100。v0.36 は write-once placeholder（recovery が補正で読むのみ）
+  maxStrength: number                 // 原則 100
+  basePower: number                   // 全快時の基礎戦闘力。worldgen 時点で凍結（§7）
+  createdWeek: number
+  lastMobilizedWeek?: number
+}
+```
+
+**有効戦力**（`getRegimentEffectivePower`）= `basePower × (strength/100) × (0.5 + 0.5 × organization/100)`。非 active は 0。
+
+**WorldState 追加（v0.36）**:
+
+```ts
+type WorldState = {
+  ...
+  regiments: Record<RegimentId, Regiment>
+  regimentIndex: {
+    byOwner: Record<string, RegimentId[]>          // key = politicalActorKey（"polity:p-1"）
+    byWar: Record<WarId, RegimentId[]>             // 動員中のみ。demobilize / destroy で外す
+    byHomeProvince: Record<ProvinceId, RegimentId[]>
+    byHomeHolding: Record<HoldingId, RegimentId[]>
+  }
+  nextRegimentId: number
+}
+```
+
+戦争 side の power は `getRegimentPowerForWarSide(state, config, war, side)` が算出する（§6.27b の battle 入力）:
+(a) 動員中 active Regiment があればその有効戦力の合計、
+(b) 無く且つ primary participant が Regiment を 1 つも所有しない（byOwner 空。house actor 等）なら旧 `getActorMilitaryPower` に fallback、
+(c) byOwner 非空だが動員可能な active が無いなら 0（fallback しない）。
+
+### 3.9c Battle（戦闘）（v0.36）
+
+WarManeuverSystem が 1 戦闘を解決するたびに記録する**短期 entity**。battle 内部 tick / frontline simulation はまだ行わず（v0.37 以降）、War detail / recent history 表示用に位置づける。`cleanupWarSystem` の terminal War 削除に piggyback して cleanup する（履歴は Event ログに残る。永続 record ではない。§6.28b）。型は `src/sim/types/battle.ts`。
+
+```ts
+type BattleId = Branded<string, 'BattleId'>  // prefix: "bt-"
+
+type BattleRegimentResult = {                // 1 Battle における 1 Regiment の損耗記録
+  regimentId: RegimentId
+  side: WarSideKey
+  strengthBefore: number; strengthAfter: number; strengthDamage: number
+  organizationBefore: number; organizationAfter: number; organizationDamage: number
+  moraleBefore?: number; moraleAfter?: number; moraleDamage?: number  // v0.36 では設定しない
+}
+
+type Battle = {
+  id: BattleId
+  warId: WarId
+  week: number
+  provinceId: ProvinceId
+  holdingId?: HoldingId
+  battlefieldKind: BattlefieldKind
+  initiationKind: BattleInitiationKind
+  result: BattleResult
+  attackerRegimentIds: RegimentId[]          // 当該戦闘に動員されていた active Regiment
+  defenderRegimentIds: RegimentId[]
+  regimentResults: BattleRegimentResult[]
+  attackerBasePower: number                  // = getRegimentPowerForWarSide（commander 補正前）
+  defenderBasePower: number
+  attackerEffectivePower: number             // commander / 総大将補正後（resolveBattle）
+  defenderEffectivePower: number
+  warScoreDelta: number
+  warScoreAfter: number
+  // outcomeQuality? / frontage? / tickUnit? / *RoutedRegimentIds? / *CommanderAssignments? 等は
+  //   v0.37 以降用の器（v0.36 では未設定）。
+}
+```
+
+**WorldState 追加（v0.36）**:
+
+```ts
+type WorldState = {
+  ...
+  battles: Record<BattleId, Battle>
+  battleIndex: { byWar: Record<WarId, BattleId[]> }
+  nextBattleId: number
+}
+```
+
 ### 3.10 目標システム (v0.22 / v0.23 拡張)
 
 Polity / House / Person が長期目標 Goal → 中期計画 Aim → 短期意図 Intent / Task の階層で一貫した行動を取る。詳細仕様は `docs/drafts/spec-v022-update.md` / `docs/drafts/spec-v023-update.md` 参照。

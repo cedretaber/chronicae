@@ -36,7 +36,7 @@
 | WAR_DECLARED | major | 宣戦布告（v0.34: WarCreationSystem が War 作成時に発火。casus belli として「対象 Province + 戦争前状態 + 目標」を記録。WarGoal kind で messageKey 分岐: `war.declared.change_tax`（`subject`/`fromRate`/`toRate`）/ `war.declared.transfer_land`（`subject`/元保持者 `from`）/ goal 不在時 `war.declared.generic`） |
 | WAR_WON | major | 戦争勝利（v0.34: PeaceSettlementSystem が attacker_won / defender_won の勝者に発火） |
 | WAR_LOST | major | 戦争敗北（v0.34: 同・敗者に発火） |
-| BATTLE_OCCURRED | normal | 戦闘発生（v0.35 WarManeuverSystem。messageKey `war.battle_occurred`。params: `warId` / `province` / `battlefieldKind` / `result` / `warScoreDelta` / `warScoreAfter` ほか。`battlefieldKind`・`result` は raw enum 値で持ち、表示時に i18n が label 化する。warScore 変化は本 event で表現し旧 WAR_SCORE_CHANGED を置換） |
+| BATTLE_OCCURRED | normal | 戦闘発生（v0.35 WarManeuverSystem。messageKey `war.battle_occurred`。params: `warId` / `province` / `battlefieldKind` / `result` / `warScoreDelta` / `warScoreAfter` ほか。**v0.36 追加: `battleId`（§3.9c Battle 参照）/ `attackerRegimentCount` / `defenderRegimentCount`（counts-only。damage summary は載せない）**。`battlefieldKind`・`result` は raw enum 値で持ち、表示時に i18n が label 化する。warScore 変化は本 event で表現し旧 WAR_SCORE_CHANGED を置換） |
 | BATTLE_AVOIDED | minor | 戦闘回避（v0.35 WarManeuverSystem。messageKey `war.battle_avoided`。params: `warId` / `province` / `battlefieldKind` / `avoidingSide`（attacker / defender / both）。両者回避は warScoreDelta=0） |
 | WAR_CAPTAIN_GENERAL_CHANGED | major/normal | 総大将の交代/喪失（v0.35 WarManeuverSystem。messageKey `war.captain_general_changed`。新総大将が undefined（喪失）のとき major、交代は normal。初回任命は発火しない） |
 | WAR_ENDED | major | 勝敗が明確でない終結（v0.34。white_peace timeout / stale 安全終結 / cancelled orphan。messageKey `war.ended`） |

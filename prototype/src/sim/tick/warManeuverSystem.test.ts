@@ -439,6 +439,13 @@ describe('WarManeuverSystem Regiment 接続 (§9 / §11 / §12)', () => {
     const defResults = battle.regimentResults.filter((rr) => rr.side === 'defender')
     expect(defResults).toHaveLength(ownerRegs.length)
     expect(defResults.every((rr) => rr.organizationDamage > 0)).toBe(true)
+
+    // v0.36 §16: BATTLE_OCCURRED の counts-only enrich。battleId / 両 side 連隊数が Battle entity と一致する。
+    const occurred = next.events.find((e) => e.type === 'BATTLE_OCCURRED')!
+    expect(occurred.messageParams.battleId).toBe(battle.id)
+    expect(occurred.messageParams.defenderRegimentCount).toBe(battle.defenderRegimentIds.length)
+    expect(occurred.messageParams.defenderRegimentCount).toBe(ownerRegs.length)
+    expect(occurred.messageParams.attackerRegimentCount).toBe(battle.attackerRegimentIds.length)
   })
 
   it('strength が destroyedThreshold 以下になった Regiment を destroyed 化し byWar から外す (§12.6)', () => {

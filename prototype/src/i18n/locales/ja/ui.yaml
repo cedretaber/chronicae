@@ -488,6 +488,8 @@ detail:
     captain_general: '総大将'
     commanders: '指揮官候補'
     avoidance_count: '回避回数'
+    mobilized: '動員連隊'
+    regiment_power: '連隊戦力'
     recent_events: '最近の出来事'
 
   # 派閥詳細

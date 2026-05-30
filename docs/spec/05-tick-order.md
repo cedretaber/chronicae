@@ -98,13 +98,15 @@ const WEEKS_PER_SEASON = 12
 | 21b | DiplomaticPlaySystem | 4 | 旧毎月。v0.29 で Task 生成責務を ProjectTaskGenerationSystem に移管 |
 | 21b2 | WarCreationSystem | 4 | v0.34 追加。旧 ConflictResolutionSystem の位置。escalated land_claim / contract_tax_revision を War 化 |
 | 21c | ConflictResolutionSystem | 4 | v0.34: revolt_negotiation 専用に kind-gate（land_claim / contract_tax_revision は WarCreationSystem へ移行。関数名は `runConflictResolutionSystem` のまま） |
-| 21c2 | WarManeuverSystem | 1 | v0.35: 旧 WarProgressSystem を置換（**interval 4→1 毎週**・旧スロット位置維持）。総大将/指揮官 lazy 選出 → 戦場生成 → 回避判断 → battle 解決で warScore 更新（冒頭 dead-participant guard） |
+| 21c2 | WarManeuverSystem | 1 | v0.35: 旧 WarProgressSystem を置換（**interval 4→1 毎週**・旧スロット位置維持）。総大将/指揮官 lazy 選出 → 戦場生成 → 回避判断 → battle 解決で warScore 更新（冒頭 dead-participant guard）。**v0.36: per-war mobilize prologue + battle power=Regiment + 損耗/Battle 記録** |
+| 21c2b | RegimentRecoverySystem | 1 | v0.36 追加。WarManeuver 直後。active Regiment の organization を週次回復（strength / morale は不変） |
 | 21c3 | PeaceSettlementSystem | 4 | v0.34 追加。warScore 閾値到達で終結・WarGoal 実行（冒頭 dead-participant guard） |
 | 21d | AimOutcomeSystem | 4 | v0.22。DiplomaticPlay 結果 → Aim progress |
 | 21e | GoalOutcomeSystem | 4 | v0.22。Aim 結果 → Goal progress |
 | 22b | PolityOwnerConsistencySystem | 4 | 旧毎月 |
 | 22c | OrganizationConsistencySystem | 4 | 旧毎月 |
 | 22d | cancelOrphanedWarsSystem | 1 | v0.34 追加。**consistency 系の後ろ**。participant 消滅 active War を cancelled 化（理由は下記） |
+| 22d2 | RegimentMaintenanceSystem | 1 | v0.36 追加。orphan 回収の後。Regiment の home 消失→disband / terminal 変化→owner 付け替え / owner 消滅→disband / stale war→demobilize（順序厳守。§6.27f） |
 | 23 | AttitudeDecaySystem | 4 | 旧毎月 |
 | 24 | GovernanceSystem | 48 | 旧毎年 |
 | 25 | normalizePopSizes | 4 | 旧毎月 |

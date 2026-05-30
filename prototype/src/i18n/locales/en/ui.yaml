@@ -393,6 +393,8 @@ detail:
     captain_general: 'Captain General'
     commanders: 'Commanders'
     avoidance_count: 'Avoidances'
+    mobilized: 'Mobilized'
+    regiment_power: 'Regiment Power'
     recent_events: 'Recent Events'
 
   # Faction detail

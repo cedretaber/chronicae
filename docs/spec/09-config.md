@@ -109,6 +109,19 @@
 | captainGeneralWarScoreEffect | 0.1 | 勝者総大将 warCommand が warScoreDelta に与える効率係数 |
 | warBattlefieldRiverCrossingChance | 0.35 | major_river feature → river_crossing になる確率 |
 | warBattlefieldCoastalBattleChance | 0.25 | coastal feature → coastal_battle になる確率 |
+| **Regiment / Battle（v0.36 — 仮値。CLI harness で balance 調整予定）** | | |
+| regimentOrganizationDamageWinnerMin / Max | 4 / 8 | 勝者側 Regiment の organization 損耗レンジ（battle 1 回・side 一律） |
+| regimentOrganizationDamageLoserMin / Max | 12 / 22 | 敗者側 organization 損耗レンジ |
+| regimentOrganizationDamageInconclusiveMin / Max | 8 / 14 | 引分時 organization 損耗レンジ |
+| regimentStrengthDamageWinnerMin / Max | 0 / 2 | 勝者側 strength 損耗レンジ |
+| regimentStrengthDamageLoserMin / Max | 2 / 6 | 敗者側 strength 損耗レンジ |
+| regimentStrengthDamageInconclusiveMin / Max | 1 / 3 | 引分時 strength 損耗レンジ |
+| regimentOrganizationRecoveryPerWeek | 8 | organization 週次回復の基礎値（実回復 = 基礎値 × (0.5 + morale/100)） |
+| regimentInitialMorale | 80 | worldgen 初期 morale |
+| regimentInitialStrength | 100 | worldgen 初期 strength |
+| regimentInitialOrganization | 100 | worldgen 初期 organization |
+| regimentMaxStrength | 100 | strength 上限 |
+| regimentDestroyedStrengthThreshold | 0 | clamp 後 strength がこの値以下で Regiment destroyed |
 | **Disaster（v0.20.3 改修: Province 単位・割合ベース・圧力連動）** | | |
 | disasterEnabled | true | 災害有効 |
 | famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province |

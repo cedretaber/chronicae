@@ -57,6 +57,10 @@ import { defaultConfig } from '@sim/config/defaultConfig'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { computeEffectivePriority } from '@sim/selectors/taskSelectors'
 import { getWarPrimaryAttacker, getWarPrimaryDefender } from '@sim/mutations/warMutations'
+import {
+  getRegimentsForWarSide,
+  getRegimentPowerForWarSide,
+} from '@sim/selectors/regimentSelectors'
 import type { PoliticalActorRef } from '@/sim/types/actor'
 import type { Polity } from '@/sim/types/polity'
 import type { House } from '@/sim/types/house'
@@ -4688,6 +4692,28 @@ export function WarDetail({
     )
   }
 
+  // v0.36: WarSide ごとの動員連隊数と連隊戦力。power は mobilized active Regiment の effective power 合計
+  //   (getRegimentPowerForWarSide。動員ゼロかつ owner が regiment 非保有なら getActorMilitaryPower へ fallback)。
+  const renderSideMobilization = (label: string, sideKey: import('@sim/types/war').WarSideKey) => {
+    const mobilizedCount = getRegimentsForWarSide(worldState, war.id, sideKey).filter(
+      (r) => r.status === 'active',
+    ).length
+    const power = Math.round(getRegimentPowerForWarSide(worldState, defaultConfig, war, sideKey))
+    return (
+      <div className="rounded bg-gray-800 px-2 py-1 text-xs">
+        <div className="font-semibold text-gray-300">{label}</div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.war.mobilized')}:</span>
+          <span className="text-gray-200">{mobilizedCount}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.war.regiment_power')}:</span>
+          <span className="text-gray-200">{power}</span>
+        </div>
+      </div>
+    )
+  }
+
   const statusBadge: Record<string, { label: string; bg: string }> = {
     active: { label: t('detail.war.status_active'), bg: 'bg-red-700' },
     attacker_won: { label: t('detail.war.status_attacker_won'), bg: 'bg-green-700' },
@@ -4781,6 +4807,13 @@ export function WarDetail({
         <div className="flex flex-col gap-1">
           {renderSideCommand(t('detail.war.attacker'), war.attacker)}
           {renderSideCommand(t('detail.war.defender'), war.defender)}
+        </div>
+
+        <div className="my-1 border-t border-gray-700" />
+
+        <div className="flex flex-col gap-1">
+          {renderSideMobilization(t('detail.war.attacker'), 'attacker')}
+          {renderSideMobilization(t('detail.war.defender'), 'defender')}
         </div>
 
         <div className="my-1 border-t border-gray-700" />

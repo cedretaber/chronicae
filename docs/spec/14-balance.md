@@ -208,6 +208,17 @@ v0.30 で外交劇を offer-driven に構造改修したが、バランスの良
 
 ---
 
+## 14.7 v0.36 Persistent Regiment（forced-harness 観察）
+
+計測条件: tick() 直接ハーネス（`measureWarB` パターン）、**強制戦争 config**（escalation 閾値↓ + settlement 閾値↑）で 60年 × 4 seed。素の CLI は戦争希少（v0.35 由来）で損耗ループをほぼ踏まないため、強制戦争で観察した。
+
+- **損耗ループは健全**: mobilize → organization/strength 損耗 → organization 回復 → demobilize → destroy → Battle cleanup の全行程が稼働。danglingMobilized=0、regiment 総数安定（maxEver==initial）、disbanded=0（§14.6 reassign が土地移転を吸収）。300年 × 4 seed standard は integrity 違反 0。
+- **destroy 率は戦争密度に比例する（要注意・調整保留）**: 強制 config で 60年に 58-123 戦争を詰め込むと active regiment の最大 ~半数が destroyed になった。素の 300年 standard では戦争希少のため decay は無視できる。これは config の knob 問題ではなく下記の構造に由来する。
+- **active regiment プールは構造的に非増加**: destroy は永続（strength は戦闘以外で回復しない。§3.9b / §6.27e）、生成は worldgen のみ（§7）、§14.6 reassign は土地移転で**数を保つ**だけで補充しない。よって戦争が頻繁になるほど軍事力は床なしで減衰する。**v0.36 では仕様どおり**（戦争希少なので顕在化しない）。将来 War 系で戦争頻度が上がる前に **v0.37 reinforcement / 補充**（§13）で床を入れる想定。**この decay はバグではない**——将来のバランス作業がそう誤認しないよう明記する。
+- 損耗 / 回復 config（damage レンジ・recovery 率・destroy 閾値）は仮値。CLAUDE.md §4 に従い、戦争系機能（v0.37+）がひと通り入った段階でまとめて調整する。
+
+---
+
 ## 改訂履歴
 
 | バージョン | 変更内容 |
@@ -216,3 +227,4 @@ v0.30 で外交劇を offer-driven に構造改修したが、バランスの良
 | v0.29 | §14.2.4 sell_land 機能不全、§14.3.1 和平解決構造的問題、§14.3.2 ステークホルダー共通衝突、§14.3.3 land_claim 不発を追記 |
 | v0.30 | §14.5 offer-driven 化後のバランス未検証の既知問題を追記 |
 | v0.33+ | §14.6 家制度バランス（有力家系の不在）の診断と初期調整（出生↑＋設立絞り）を追記。observation 基盤に houses/clans snapshot を追加 |
+| v0.36 | §14.7 Persistent Regiment forced-harness 観察を追記（損耗ループ健全・destroy 率は戦争密度比例・active プール非増加で v0.37 reinforcement まで decay は仕様）|

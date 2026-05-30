@@ -1561,7 +1561,7 @@ active War ごとに「誰が指揮し・どの戦場で・戦うか回避する
    - **両者交戦 / 回避失敗** → `resolveBattle` で warScore 更新、`BATTLE_OCCURRED`(normal)。回避失敗側は `avoidanceCount +1`。
 
 **battle 解決（`resolveBattle`、乱数 2 draw）**:
-- 各陣営の実効戦力 = `getActorMilitaryPower(actor) × commanderModifier(指揮官) × (1 ± warBattleRandomness)`。`commanderModifier = clamp(1 + normalized(warCommand−50) × warCommanderWarCommandEffect, minWarCommanderModifier, maxWarCommanderModifier)`。
+- 各陣営の実効戦力 = `power(side) × commanderModifier(指揮官) × (1 ± warBattleRandomness)`。**v0.36: `power(side)` は `getRegimentPowerForWarSide`（その side の動員 Regiment の有効戦力合計。§3.9b）。動員ゼロかつ primary participant が Regiment 非保有（byOwner 空。house actor 等）なら旧 `getActorMilitaryPower` に fallback、byOwner 非空だが動員 active 無しは 0**。`commanderModifier = clamp(1 + normalized(warCommand−50) × warCommanderWarCommandEffect, minWarCommanderModifier, maxWarCommanderModifier)`。
 - `advantage = atkEff / (atkEff + defEff + 1)`、`rawDelta = (advantage − 0.5) × warBattleScoreScale`。
 - `result`: `|rawDelta| > battleVictoryThreshold` で attacker_victory / defender_victory、それ以外 inconclusive。
 - 勝者側の総大将効率を乗算: `rawDelta ×= captainGeneralEfficiency = 1 + normalized(warCommand−50) × captainGeneralWarScoreEffect`。
@@ -1575,6 +1575,14 @@ active War ごとに「誰が指揮し・どの戦場で・戦うか回避する
 **cadence（毎週 maneuver × 4週 settlement）**: WarManeuver は毎週・PeaceSettlement は 4 週ごと。warScore が ±targetWarScore に到達しても settlement が走るまで最大 3 週ある。その間 step 3 が warScore を凍結し、到達済み War が余分な battle で行き過ぎるのを防ぐ。
 
 **バランス（v0.35）**: 決着までの戦闘数は概ね `targetWarScore / warBattleScoreScale` 比が支配する。実測（4seed×100yr）で中央値 4 戦になるよう `defaultTransferLandWarScore`=12 / `defaultChangeContractTaxWarScore`=10、`warBattleScoreScale`=24、`maxWarScoreDeltaPerBattle`=12 に調整（§9 config）。ほぼ互角の戦争は乱歩の性質上もつれて長引く（裾）が、これは構造的で config では中央値と裾を分離できない（圧縮は将来の機構追加に委ねる。§13）。
+
+**v0.36 Regiment 接続（損耗ループ）**: battle の power 入力を抽象 `getActorMilitaryPower` から永続 Regiment（§3.9b）に置換する。WarManeuverSystem は warScore 凍結判定（step 3）の後・総大将 refresh の前に **per-war mobilize prologue** を挟む（`mobilizeRegimentsForWar`。各 side の polity participant が所有する active かつ未動員 Regiment を当該 War/side へ動員する。決定的・乱数非消費・冪等）。battle が成立したら（mutual_engagement / 回避失敗）損耗を適用する:
+
+- 各 side の動員 active Regiment に、`result` に応じた role（winner / loser / inconclusive）別の **organization damage** と **strength damage** を config レンジから 1 値ずつ draw し（side ごと乱数 2 draw）、当該 side の全 Regiment に同量適用する（頭割りでない）。organization / strength は 0..max に clamp。
+- clamp 後 `strength <= regimentDestroyedStrengthThreshold`（既定 0）になった Regiment は `destroyed` 化（byWar から除去・status 遷移。byOwner には残す。§3.9b case(c)）。
+- 1 戦闘につき `Battle` entity（§3.9c）を 1 件記録する（`createBattle`）。`BATTLE_OCCURRED` event には battleId と両 side の動員連隊数を載せる（counts-only。§8）。
+- strength は v0.36 では戦闘以外で回復しない（§6.27e は organization のみ回復）ため、長期戦・連戦では strength が累積低下し destroyed に至りうる。
+- 総大将 / 指揮官の `commanderModifier` / `captainGeneralEfficiency` 補正は従来どおり（power 引数だけが Regiment 由来に変わる）。
 
 ### 6.27c PeaceSettlementSystem（4週ごと、v0.34）
 
@@ -1602,9 +1610,31 @@ active War の primary participant（attacker / defender いずれか）が miss
 
 **配置（ドラフト §10 から変更し v0.34 実装で確定）**: PolityOwnerConsistencySystem / OrganizationConsistencySystem の**後ろ**・cleanupWarSystem の前に独立 system として置き、**intervalWeeks=1**。理由は §5.6 / §6.24 v0.34 項目を参照（PeaceSettlement 起因で同 tick に extinct 化した polity を参照する active War を、年末 IntegrityCheck より前に回収するため）。warScore 計算の安全は WarProgress / PeaceSettlement 冒頭の dead-participant guard が担保するので、本 system を Progress / Settlement より後ろに置いても問題ない。
 
-### 6.28b cleanupWarSystem（毎週、v0.34）
+### 6.27e RegimentRecoverySystem（毎週、v0.36）
 
-terminal War（active 以外）が `endedWeek` から `terminalWarRetentionWeeks` 経過したら `state.wars` および `warIndex`（byParticipant / byOriginDiplomaticPlay）から削除する。履歴は Event ログに残るため長期保持は不要。
+active Regiment の organization を週次回復する（`runRegimentRecoverySystem`）。WarManeuverSystem の直後（PeaceSettlement の前）に interval 1 で走り、battle で削れた統制を平時に立て直す。
+
+- 対象は `status === 'active'` かつ `organization < 100` の Regiment のみ（それ以外は skip）。
+- `organization = clamp(organization + regimentOrganizationRecoveryPerWeek × (0.5 + morale/100), 0, 100)`。
+- **strength / morale は触らない**（strength は無回復＝§6.27b の損耗が累積。morale は §3.9b の write-once placeholder で recovery 係数として読むだけ）。
+- 回復対象が 0 件なら draft を clone せず ctx を素通しする（perf。lazy clone-once）。
+
+### 6.27f RegimentMaintenanceSystem（毎週、v0.36）
+
+active Regiment の owner / home / war 参照を lazy に整理する（`runRegimentMaintenanceSystem`）。soft reference（currentWarId / owner active / homeHolding 存在）は IntegrityCheck の hard invariant にしない方針（§3.9b / §6.24）なので、本 system が遅延処理で整合を回復する。consistency 系の後・cleanupWarSystem の前に interval 1 で走る（cancelOrphanedWarsSystem の直後）。
+
+active Regiment ごとに**順序を厳守**して処理する:
+
+1. `homeHoldingId` が set で `holdings` に存在しない → **disband**（home 消失）。
+2. `homeHoldingId` が set で holding 在り、`holdingTerminalPolityCache[homeHoldingId]` が現 owner（polity）と異なる → **owner 付け替え**（terminal Polity へ。basePower / strength / organization / 動員状態は維持。土地移転で Regiment 数が単調減少しないための要）。
+3. 付け替え後の owner を再 read し `!isActorActive(owner)` → **disband**（owner 消滅）。
+4. `currentWarId` が live(active) war を指していない（war 無し or terminal）→ **demobilize**（PeaceSettlement / cancel で終結した War に動員が残るのを遅延解除）。
+
+disband は war 参照解除を兼ねるため demobilize と二重処理しない。多くの週は土地移転 / 滅亡 / 終戦が無く no-op で素通りする（lazy clone-once）。
+
+### 6.28b cleanupWarSystem（毎週、v0.34 / v0.36）
+
+terminal War（active 以外）が `endedWeek` から `terminalWarRetentionWeeks` 経過したら `state.wars` および `warIndex`（byParticipant / byOriginDiplomaticPlay）から削除する。履歴は Event ログに残るため長期保持は不要。**v0.36: 同じ削除ループで当該 War の `Battle` entity（§3.9c）も piggyback cleanup する**（`battleIndex.byWar[warId]` の各 battle を `battles` から削除し、index entry も除去）。Battle は短期 entity なので、対応する War の retention 削除と同時に消える。
 
 ### 6.29 CleanupTerminalDiplomacy（毎週、v0.18 / v0.29 / v0.30 更新）
 

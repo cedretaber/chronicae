@@ -479,7 +479,7 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
       nn = { ...nn, rng: defDmg.rng }
 
       // v0.36 §7 / §11.3: Battle entity を記録 (cleanupWarSystem が war 削除時に piggyback cleanup)。
-      createBattle(ws, {
+      const battleEntity = createBattle(ws, {
         warId: wid,
         week: absoluteWeek,
         provinceId,
@@ -514,6 +514,10 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         defenderEffectivePower: battle.defenderEffectivePower,
         warScoreDelta: after - before,
         warScoreAfter: after,
+        // v0.36 §16: counts-only enrich (rng 非消費・bit-identical)。
+        battleId: battleEntity.id,
+        attackerRegimentCount: atkRegiments.length,
+        defenderRegimentCount: defRegiments.length,
       })
       return nn
     }

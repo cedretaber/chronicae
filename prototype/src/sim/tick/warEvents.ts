@@ -288,6 +288,10 @@ export type BattleOccurredInput = {
   defenderEffectivePower: number
   warScoreDelta: number
   warScoreAfter: number
+  // v0.36 §16: Battle entity 参照 + 両 side の動員連隊数 (counts-only enrich)。
+  battleId: string
+  attackerRegimentCount: number
+  defenderRegimentCount: number
 }
 
 // §11.1 BATTLE_OCCURRED (normal)。warScore 変化は warScoreDelta / warScoreAfter で表現。
@@ -320,6 +324,7 @@ export function emitBattleOccurred(
     'war.battle_occurred',
     {
       warId: war.id,
+      battleId: input.battleId,
       battlefieldKind: input.battlefieldKind,
       initiationKind: input.initiationKind,
       result: input.result,
@@ -329,6 +334,8 @@ export function emitBattleOccurred(
       defenderPower: input.defenderPower,
       attackerEffectivePower: input.attackerEffectivePower,
       defenderEffectivePower: input.defenderEffectivePower,
+      attackerRegimentCount: input.attackerRegimentCount,
+      defenderRegimentCount: input.defenderRegimentCount,
       warScoreDelta: input.warScoreDelta,
       warScoreAfter: input.warScoreAfter,
       ...(provinceNameKey ? { province: nameParam('province', provinceNameKey) } : {}),
