@@ -65,6 +65,7 @@ import {
   stateName,
 } from './nameGenerators'
 import { defaultConfig } from '../config/defaultConfig'
+import { generateInitialRegiments } from './generateInitialRegiments'
 import { defaultMapConfig } from './mapConfig'
 import { clamp } from '../utils/math'
 import { polityAttitudeKey, houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
@@ -1814,6 +1815,12 @@ export function generateWorld(
     nextDiplomaticPlayId: 0,
     wars: {},
     warIndex: { byParticipant: {}, byOriginDiplomaticPlay: {} },
+    regiments: {},
+    regimentIndex: { byOwner: {}, byWar: {}, byHomeProvince: {}, byHomeHolding: {} },
+    nextRegimentId: 0,
+    battles: {},
+    battleIndex: { byWar: {} },
+    nextBattleId: 0,
     nextWarId: 0,
     nextDiplomaticOfferId: 0,
     nextPressureId: 1,
@@ -2008,7 +2015,10 @@ export function generateWorld(
       .sort(),
   }
 
-  return { world: seededWorld, rng: seedRng }
+  // v0.36: persistent Regiment を post-pass で生成する (§8.1)。完成 WorldState を要求する
+  //   calcPolityMilitaryPower を使うため worldgen 本体の後に置く。sub-rng を内部で使い seedRng は消費しない
+  //   (→ sim trajectory は v0.35 と bit 一致)。
+  return { world: generateInitialRegiments(seededWorld, defaultConfig, seedText), rng: seedRng }
 }
 
 /**

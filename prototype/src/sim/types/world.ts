@@ -26,6 +26,8 @@ import type {
   TaskId,
   PersonActivityLogId,
   ClanId,
+  RegimentId,
+  BattleId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -50,6 +52,8 @@ import type { HoldingImprovement } from './holdingImprovement'
 import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay, DiplomaticOffer } from './diplomaticPlay'
 import type { War } from './war'
+import type { Regiment, RegimentIndex } from './regiment'
+import type { Battle, BattleIndex } from './battle'
 import type { Pressure, PressureIndex } from './pressure'
 import type { StateRegion } from './stateRegion'
 import type { Goal, Aim, DecisionReason, GoalIndex, AimIndex } from './goal'
@@ -112,6 +116,13 @@ export type WorldState = {
     byParticipant: Record<string, WarId[]>
     byOriginDiplomaticPlay: Record<DiplomaticPlayId, WarId | undefined>
   }
+  // v0.36 Regiment / Battle
+  regiments: Record<RegimentId, Regiment>
+  regimentIndex: RegimentIndex
+  nextRegimentId: number
+  battles: Record<BattleId, Battle>
+  battleIndex: BattleIndex
+  nextBattleId: number
   // v0.29 Pressure
   pressures: Record<PressureId, Pressure>
   pressureIndex: PressureIndex

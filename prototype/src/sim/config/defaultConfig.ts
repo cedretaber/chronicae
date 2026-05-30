@@ -406,6 +406,27 @@ export type SimulationConfig = {
   //   battlefield 生成 (feature 特殊化確率。spec §12.1 未記載・本実装で定義)
   warBattlefieldRiverCrossingChance: number
   warBattlefieldCoastalBattleChance: number
+  // v0.36 Regiment (§15): persistent Regiment の損耗 / 回復 / 初期値 / 壊滅閾値。
+  //   damage / recovery / destroyedThreshold は Phase B で WarManeuver / RecoverySystem が使う。
+  //   initial* は Phase A の worldgen generateInitialRegiments が使う (§8.6)。仮値・balance 調整対象。
+  regimentOrganizationDamageWinnerMin: number
+  regimentOrganizationDamageWinnerMax: number
+  regimentOrganizationDamageLoserMin: number
+  regimentOrganizationDamageLoserMax: number
+  regimentOrganizationDamageInconclusiveMin: number
+  regimentOrganizationDamageInconclusiveMax: number
+  regimentStrengthDamageWinnerMin: number
+  regimentStrengthDamageWinnerMax: number
+  regimentStrengthDamageLoserMin: number
+  regimentStrengthDamageLoserMax: number
+  regimentStrengthDamageInconclusiveMin: number
+  regimentStrengthDamageInconclusiveMax: number
+  regimentOrganizationRecoveryPerWeek: number
+  regimentInitialMorale: number
+  regimentInitialStrength: number
+  regimentInitialOrganization: number
+  regimentMaxStrength: number
+  regimentDestroyedStrengthThreshold: number
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: boolean
   acquireLandMinTreasury: number
@@ -1141,6 +1162,25 @@ export const defaultConfig: SimulationConfig = {
   captainGeneralWarScoreEffect: 0.1,
   warBattlefieldRiverCrossingChance: 0.35,
   warBattlefieldCoastalBattleChance: 0.25,
+  // v0.36 Regiment (§15) — 仮値。実装後 CLI harness で再校正する。
+  regimentOrganizationDamageWinnerMin: 4,
+  regimentOrganizationDamageWinnerMax: 8,
+  regimentOrganizationDamageLoserMin: 12,
+  regimentOrganizationDamageLoserMax: 22,
+  regimentOrganizationDamageInconclusiveMin: 8,
+  regimentOrganizationDamageInconclusiveMax: 14,
+  regimentStrengthDamageWinnerMin: 0,
+  regimentStrengthDamageWinnerMax: 2,
+  regimentStrengthDamageLoserMin: 2,
+  regimentStrengthDamageLoserMax: 6,
+  regimentStrengthDamageInconclusiveMin: 1,
+  regimentStrengthDamageInconclusiveMax: 3,
+  regimentOrganizationRecoveryPerWeek: 8,
+  regimentInitialMorale: 80,
+  regimentInitialStrength: 100,
+  regimentInitialOrganization: 100,
+  regimentMaxStrength: 100,
+  regimentDestroyedStrengthThreshold: 0,
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: true,
   acquireLandMinTreasury: 200,

@@ -15,6 +15,8 @@ import type {
   HoldingOfficeAssignmentId,
   HoldingImprovementId,
   ClanId,
+  RegimentId,
+  BattleId,
 } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -2022,6 +2024,184 @@ export function collectIntegrityErrors(
         code: 'INTEGRITY_VIOLATION',
         message: `warIndex.byOriginDiplomaticPlay[${playIdStr}] entry ${wid as string} has originDiplomaticPlayId=${(war.originDiplomaticPlayId as string | undefined) ?? 'undefined'} (§14.7)`,
       })
+    }
+  }
+
+  // ─── §18 (v0.36): Regiment / Battle 整合性 ───
+  //   値域・status・index↔record の構造整合のみ検査する。
+  //   soft reference (currentWarId/currentSide が live war を指す / owner active / homeHolding 存在) は
+  //   hard invariant にしない (§18.4。RegimentMaintenanceSystem が lazy 処理する)。
+  const VALID_REGIMENT_STATUSES = ['active', 'disbanded', 'destroyed']
+  const VALID_REGIMENT_SOURCE_KINDS = ['levy', 'urban_militia', 'noble_retinue', 'mercenary']
+  const VALID_REGIMENT_TROOP_KINDS = ['infantry', 'cavalry']
+  for (const idStr of Object.keys(state.regiments)) {
+    const regiment = state.regiments[idStr as RegimentId]
+    if (!regiment) continue
+    if ((regiment.id as string) !== idStr) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr}: regiment.id=${regiment.id as string} does not match record key (§18)`,
+      })
+    }
+    if (!VALID_REGIMENT_STATUSES.includes(regiment.status)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} has invalid status ${regiment.status} (§18.2)`,
+      })
+    }
+    if (!VALID_REGIMENT_SOURCE_KINDS.includes(regiment.sourceKind)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} has invalid sourceKind ${regiment.sourceKind} (§18)`,
+      })
+    }
+    if (!VALID_REGIMENT_TROOP_KINDS.includes(regiment.troopKind)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} has invalid troopKind ${regiment.troopKind} (§18)`,
+      })
+    }
+    if (!(regiment.maxStrength > 0)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} maxStrength=${regiment.maxStrength} must be > 0 (§18.1)`,
+      })
+    } else if (
+      !Number.isFinite(regiment.strength) ||
+      regiment.strength < 0 ||
+      regiment.strength > regiment.maxStrength
+    ) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} strength=${regiment.strength} out of range 0..maxStrength(${regiment.maxStrength}) (§18.1)`,
+      })
+    }
+    if (
+      !Number.isFinite(regiment.organization) ||
+      regiment.organization < 0 ||
+      regiment.organization > 100
+    ) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} organization=${regiment.organization} out of range 0..100 (§18.1)`,
+      })
+    }
+    if (!Number.isFinite(regiment.morale) || regiment.morale < 0 || regiment.morale > 100) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} morale=${regiment.morale} out of range 0..100 (§18.1)`,
+      })
+    }
+    if (!Number.isFinite(regiment.basePower) || regiment.basePower < 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} basePower=${regiment.basePower} must be finite and >= 0 (§18.1)`,
+      })
+    }
+    // currentWarId と currentSide は両方揃うか両方無いか (構造整合。war の liveness は検査しない)。
+    if ((regiment.currentWarId === undefined) !== (regiment.currentSide === undefined)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} currentWarId/currentSide must both be set or both unset (§18)`,
+      })
+    }
+  }
+  // index → record 整合 (§18.3)。liveness ではなく「index entry が指す Regiment が存在し key と一致するか」。
+  for (const [ownerKey, ids] of Object.entries(state.regimentIndex.byOwner)) {
+    for (const rid of ids) {
+      const r = state.regiments[rid]
+      if (!r) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `regimentIndex.byOwner[${ownerKey}] references missing Regiment ${rid as string} (§18.3)`,
+        })
+      } else if (politicalActorKey(r.owner) !== ownerKey) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `regimentIndex.byOwner[${ownerKey}] entry ${rid as string} has owner ${politicalActorKey(r.owner)} (§18.3)`,
+        })
+      }
+    }
+  }
+  for (const [warIdStr, ids] of Object.entries(state.regimentIndex.byWar)) {
+    for (const rid of ids) {
+      const r = state.regiments[rid]
+      if (!r) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `regimentIndex.byWar[${warIdStr}] references missing Regiment ${rid as string} (§18.3)`,
+        })
+      } else if ((r.currentWarId as string | undefined) !== warIdStr) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `regimentIndex.byWar[${warIdStr}] entry ${rid as string} has currentWarId=${(r.currentWarId as string | undefined) ?? 'undefined'} (§18.3)`,
+        })
+      }
+    }
+  }
+  for (const [holdingIdStr, ids] of Object.entries(state.regimentIndex.byHomeHolding)) {
+    for (const rid of ids) {
+      const r = state.regiments[rid]
+      if (!r) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `regimentIndex.byHomeHolding[${holdingIdStr}] references missing Regiment ${rid as string} (§18.3)`,
+        })
+      } else if ((r.homeHoldingId as string | undefined) !== holdingIdStr) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `regimentIndex.byHomeHolding[${holdingIdStr}] entry ${rid as string} home mismatch (§18.3)`,
+        })
+      }
+    }
+  }
+  for (const [provinceIdStr, ids] of Object.entries(state.regimentIndex.byHomeProvince)) {
+    for (const rid of ids) {
+      const r = state.regiments[rid]
+      if (!r) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `regimentIndex.byHomeProvince[${provinceIdStr}] references missing Regiment ${rid as string} (§18.3)`,
+        })
+      } else if ((r.homeProvinceId as string | undefined) !== provinceIdStr) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `regimentIndex.byHomeProvince[${provinceIdStr}] entry ${rid as string} home mismatch (§18.3)`,
+        })
+      }
+    }
+  }
+  // Battle: id↔key + warScore 値域 + battleIndex↔record 整合。
+  for (const idStr of Object.keys(state.battles)) {
+    const battle = state.battles[idStr as BattleId]
+    if (!battle) continue
+    if ((battle.id as string) !== idStr) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Battle ${idStr}: battle.id=${battle.id as string} does not match record key (§18)`,
+      })
+    }
+    if (!Number.isFinite(battle.warScoreAfter) || !Number.isFinite(battle.warScoreDelta)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Battle ${idStr} warScore values must be finite (§18)`,
+      })
+    }
+  }
+  for (const [warIdStr, ids] of Object.entries(state.battleIndex.byWar)) {
+    for (const bid of ids) {
+      const b = state.battles[bid]
+      if (!b) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `battleIndex.byWar[${warIdStr}] references missing Battle ${bid as string} (§18.3)`,
+        })
+      } else if ((b.warId as string) !== warIdStr) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `battleIndex.byWar[${warIdStr}] entry ${bid as string} has warId=${b.warId as string} (§18.3)`,
+        })
+      }
     }
   }
 

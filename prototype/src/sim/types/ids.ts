@@ -152,3 +152,15 @@ export function createPopGroupId(n: number): PopGroupId {
 export function createPersonActivityLogId(n: number): PersonActivityLogId {
   return ('al-' + n) as PersonActivityLogId
 }
+
+// v0.36 Regiment / Battle
+export type RegimentId = Branded<string, 'RegimentId'>
+export type BattleId = Branded<string, 'BattleId'>
+
+export function createRegimentId(n: number): RegimentId {
+  return ('rg-' + n) as RegimentId
+}
+
+export function createBattleId(n: number): BattleId {
+  return ('bt-' + n) as BattleId
+}
