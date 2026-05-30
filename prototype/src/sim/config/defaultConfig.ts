@@ -1104,8 +1104,10 @@ export const defaultConfig: SimulationConfig = {
   conflictPopUnrestGain: 12,
   // v0.34 War (§15): v0.35 で per-tick drift 系 5 件は WarManeuver 化により撤廃。値は暫定。
   maxWarDurationWeeks: 520,
-  defaultTransferLandWarScore: 60,
-  defaultChangeContractTaxWarScore: 50,
+  // v0.35 balance: 戦争の目標 warScore。実測で「決着まで中央値 4 戦」になるよう
+  //   60/50 → 12/10 に引き下げ (warBattleScoreScale 24 と対。target/scale≈0.5 が決着戦闘数を支配)。
+  defaultTransferLandWarScore: 12,
+  defaultChangeContractTaxWarScore: 10,
   terminalWarRetentionWeeks: 48,
   // v0.35 War Maneuver (§12.2): 初期値案。バランス調整は機能完成後 (.claude/CLAUDE.md §4)。
   warAvoidanceBaseChance: 0.65,
@@ -1128,8 +1130,10 @@ export const defaultConfig: SimulationConfig = {
   warEngagementAmbitionEffect: 0.15,
   warEngagementWarScoreUrgencyEffect: 0.3,
   warBattleRandomness: 0.1,
-  warBattleScoreScale: 12,
-  maxWarScoreDeltaPerBattle: 8,
+  // v0.35 balance: 1 戦闘あたりの warScore 振れ幅。12 → 24 (target 12/10 と対で決着まで中央値 4 戦)。
+  //   scale 単独で target=60 を維持すると 1 戦 ±数十の運ゲーになるため target 引き下げと併用する。
+  warBattleScoreScale: 24,
+  maxWarScoreDeltaPerBattle: 12,
   battleVictoryThreshold: 1.0,
   warCommanderWarCommandEffect: 0.25,
   minWarCommanderModifier: 0.75,
