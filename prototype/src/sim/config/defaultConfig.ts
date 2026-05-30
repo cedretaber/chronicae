@@ -371,6 +371,16 @@ export type SimulationConfig = {
   conflictProvinceDevastation: number
   conflictPopWealthDamage: number
   conflictPopUnrestGain: number
+  // v0.34 War (§15): DiplomaticPlay escalation を複数 tick の War entity で解決する
+  warScoreProgressFactor: number
+  maxWarScoreDeltaPerTick: number
+  warMinimumEffectivePower: number
+  warScoreCollapseDelta: number
+  maxWarDurationWeeks: number
+  defaultTransferLandWarScore: number
+  defaultChangeContractTaxWarScore: number
+  warScoreEventThreshold: number
+  terminalWarRetentionWeeks: number
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: boolean
   acquireLandMinTreasury: number
@@ -1067,6 +1077,16 @@ export const defaultConfig: SimulationConfig = {
   conflictProvinceDevastation: 4,
   conflictPopWealthDamage: 4,
   conflictPopUnrestGain: 12,
+  // v0.34 War (§15): warScore は乱数なしの戦力比依存。値は暫定 (バランス調整は機能完成後)。
+  warScoreProgressFactor: 20,
+  maxWarScoreDeltaPerTick: 8,
+  warMinimumEffectivePower: 1,
+  warScoreCollapseDelta: 12,
+  maxWarDurationWeeks: 520,
+  defaultTransferLandWarScore: 60,
+  defaultChangeContractTaxWarScore: 50,
+  warScoreEventThreshold: 4,
+  terminalWarRetentionWeeks: 48,
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: true,
   acquireLandMinTreasury: 200,

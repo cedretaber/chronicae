@@ -121,6 +121,10 @@ export type EventType =
   | 'CADET_HOUSE_FOUNDED'
   // v0.32 Clan
   | 'CLAN_FOUNDED'
+  // v0.34 War (WAR_DECLARED / WAR_WON / WAR_LOST は既存を流用)
+  | 'WAR_SCORE_CHANGED'
+  | 'WAR_ENDED'
+  | 'PEACE_SETTLEMENT_APPLIED'
 
 export type EventReason = {
   label: string
@@ -297,6 +301,14 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'pop.land_developed': 'The people of {{province}} improved their lands.',
   'war.won': '{{winner}} prevailed in war against {{loser}}.',
   'war.lost': '{{loser}} was defeated by {{winner}}.',
+  'war.declared': '{{attacker}} declared war on {{defender}} over {{issue}}.',
+  'war.score_changed':
+    'The war between {{attacker}} and {{defender}} shifts (warScore {{warScore}}).',
+  'war.ended': 'The war between {{attacker}} and {{defender}} ended without a decisive victor.',
+  'war.peace_settlement.transfer_land':
+    '{{attacker}} took {{holding}} from {{defender}} in the peace settlement.',
+  'war.peace_settlement.change_tax':
+    'The peace settlement revised the tax terms of {{holding}} in favor of {{attacker}}.',
   'revolt.negotiation_started':
     'A {{rebelClass}} revolt has broken out in {{province}} — negotiations begin.',
   'revolt.polity_founded':

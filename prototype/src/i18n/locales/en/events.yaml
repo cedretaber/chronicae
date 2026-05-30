@@ -74,6 +74,12 @@ pop:
 war:
   won: '{{winner}} prevailed in war against {{loser}}.'
   lost: '{{loser}} was defeated by {{winner}}.'
+  declared: '{{attacker}} declared war on {{defender}} over {{issue}}.'
+  score_changed: 'The war between {{attacker}} and {{defender}} shifts (warScore {{warScore}}).'
+  ended: 'The war between {{attacker}} and {{defender}} ended without a decisive victor.'
+  peace_settlement:
+    transfer_land: '{{attacker}} took {{holding}} from {{defender}} in the peace settlement.'
+    change_tax: 'The peace settlement revised the tax terms of {{holding}} in favor of {{attacker}}.'
 
 revolt:
   negotiation_started: 'A {{rebelClass}} revolt has broken out in {{province}} — negotiations begin.'

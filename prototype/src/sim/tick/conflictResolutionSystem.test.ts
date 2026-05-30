@@ -240,7 +240,7 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
     }
   }
 
-  it('resolves escalated land_claim → status=resolved_by_conflict + WAR_WON/LOST + LAND_CONTRACT_CONQUERED', () => {
+  it('v0.34: escalated land_claim は legacy では処理せず escalated のまま (WarCreationSystem が War 化する)', () => {
     const setup = setupLTD()
     let ctx = makeCtx(setup.state)
     ctx = injectEscalatedLTDPlay(
@@ -251,28 +251,13 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
     )
     ctx = runConflictResolutionSystem(ctx)
     const play = Object.values(ctx.state.diplomaticPlays)[0]
-    expect(play?.status).toBe('resolved_by_conflict')
-    expect(ctx.events.some((e) => e.type === 'WAR_WON')).toBe(true)
-    expect(ctx.events.some((e) => e.type === 'WAR_LOST')).toBe(true)
-    expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT')).toBe(true)
+    // kind-gate: legacy は revolt_negotiation のみ。land_claim は触らない。
+    expect(play?.status).toBe('escalated')
+    expect(ctx.events.some((e) => e.type === 'WAR_WON')).toBe(false)
+    expect(ctx.events.some((e) => e.type === 'WAR_LOST')).toBe(false)
   })
 
-  it('updates lastWarMonth on both Polities after conflict', () => {
-    const setup = setupLTD()
-    let ctx = makeCtx(setup.state)
-    ctx = injectEscalatedLTDPlay(
-      ctx,
-      setup.attackerPolityId,
-      setup.defenderPolityId,
-      setup.provinceDefenderId,
-    )
-    ctx = runConflictResolutionSystem(ctx)
-    const expected = ctx.state.absoluteWeek
-    expect(ctx.state.polities[setup.attackerPolityId]?.lastWarWeek).toBe(expected)
-    expect(ctx.state.polities[setup.defenderPolityId]?.lastWarWeek).toBe(expected)
-  })
-
-  it('cancels Play when conflictResolutionEnabled=false', () => {
+  it('disabled (conflictResolutionEnabled=false) でも escalated のまま', () => {
     const setup = setupLTD()
     let ctx = makeCtx(setup.state)
     ctx = injectEscalatedLTDPlay(
@@ -293,8 +278,8 @@ describe('runConflictResolutionSystem (land_transfer_demand)', () => {
   })
 })
 
-describe('runConflictResolutionSystem (unsupported kind)', () => {
-  it('cancels escalated Plays of unsupported kind (e.g., contract_tax_revision)', () => {
+describe('runConflictResolutionSystem (contract_tax_revision → WarCreationSystem に委譲)', () => {
+  it('v0.34: escalated contract_tax_revision は legacy では処理せず escalated のまま', () => {
     let s = makeEmptyV016State()
     const provinceAId = 'pr-a' as ProvinceId
     const provinceBId = 'pr-b' as ProvinceId
@@ -312,7 +297,7 @@ describe('runConflictResolutionSystem (unsupported kind)', () => {
     s = bindProvinceToHouseViaPolity(s, provinceBId, polityBId, houseBId)
 
     const playId = 'dp-tax-esc' as DiplomaticPlayId
-    // contract_tax_revision は conflictResolutionSystem の対象外 kind (Stage F 時点)
+    // v0.34: contract_tax_revision は WarCreationSystem が処理。legacy は触らない (kind-gate)。
     const play: DiplomaticPlay = {
       id: playId,
       kind: 'contract_tax_revision',
@@ -336,6 +321,7 @@ describe('runConflictResolutionSystem (unsupported kind)', () => {
     s = { ...s, diplomaticPlays: { [playId]: play } }
     const ctx = makeCtx(s)
     const next = runConflictResolutionSystem(ctx)
-    expect(next.state.diplomaticPlays[playId]?.status).toBe('cancelled')
+    // kind-gate: legacy は revolt_negotiation のみ。contract_tax_revision は触らない。
+    expect(next.state.diplomaticPlays[playId]?.status).toBe('escalated')
   })
 })

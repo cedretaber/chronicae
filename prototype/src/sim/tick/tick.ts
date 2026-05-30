@@ -30,6 +30,11 @@ import { runPersonAimMaintenanceSystem } from './personAimMaintenanceSystem'
 import { runBailiffRevenueTaskSystem } from './bailiffRevenueTaskSystem'
 import { runTaskSystem } from './taskSystem'
 import { runConflictResolutionSystem } from './conflictResolutionSystem'
+import { runWarCreationSystem } from './warCreationSystem'
+import { runWarProgressSystem } from './warProgressSystem'
+import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
+import { runPeaceSettlementSystem } from './peaceSettlementSystem'
+import { runCleanupWarSystem } from './cleanupWarSystem'
 import { runAimOutcomeSystem } from './aimOutcomeSystem'
 import { runGoalOutcomeSystem } from './goalOutcomeSystem'
 import { runCleanupTerminalDecisions } from './cleanupTerminalDecisions'
@@ -333,10 +338,28 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runDiplomaticPlaySystem,
   },
   {
+    name: 'warCreationSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runWarCreationSystem,
+  },
+  {
     name: 'conflictResolutionSystem',
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runConflictResolutionSystem,
+  },
+  {
+    name: 'warProgressSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runWarProgressSystem,
+  },
+  {
+    name: 'peaceSettlementSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runPeaceSettlementSystem,
   },
   {
     name: 'aimOutcomeSystem',
@@ -361,6 +384,14 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runOrganizationConsistencySystem,
+  },
+  {
+    // v0.34 §7.9 / §B advisor①: consistency 系の後ろに置き、PeaceSettlement 起因で
+    // 同 tick に extinct した polity を参照する active War を年末 integrity 前に cancelled 化する。
+    name: 'cancelOrphanedWarsSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runCancelOrphanedWarsSystem,
   },
   {
     name: 'attitudeDecaySystem',
@@ -394,6 +425,12 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runCleanupTerminalDiplomacy,
+  },
+  {
+    name: 'cleanupWarSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runCleanupWarSystem,
   },
   {
     name: 'cleanupTerminalDecisions',

@@ -973,6 +973,22 @@ async function main(): Promise<void> {
       console.log('Rebel polities ever formed: ' + finalRebelCount)
     }
 
+    // v0.34 War: active / total + status 内訳。total が時間で発散しなければ cleanupWarSystem が機能している。
+    const allWars = Object.values(state.wars)
+    const warStatusCounts: Record<string, number> = {}
+    for (const w of allWars) warStatusCounts[w.status] = (warStatusCounts[w.status] ?? 0) + 1
+    const warBreakdown = Object.entries(warStatusCounts)
+      .map(([k, v]) => k + '=' + v)
+      .join(', ')
+    console.log(
+      'Wars: ' +
+        (warStatusCounts['active'] ?? 0) +
+        ' active / ' +
+        allWars.length +
+        ' total' +
+        (warBreakdown ? ' (' + warBreakdown + ')' : ''),
+    )
+
     console.log('Total events: ' + allEvents.length)
   }
 } // end async main()

@@ -133,6 +133,17 @@ export function politicalActorKey(ref: PoliticalActorRef): string {
   return `${ref.kind}:${ref.id as string}`
 }
 
+// v0.34: actor (Polity / House) が存在し active かを判定する共有 helper。
+// IntegrityCheck §14.4 の active-participant 要求と、War lifecycle system の dead-participant guard で使う。
+export function isActorActive(state: WorldState, actor: PoliticalActorRef): boolean {
+  if (actor.kind === 'polity') {
+    const p = state.polities[actor.id]
+    return Boolean(p && p.active)
+  }
+  const h = state.houses[actor.id]
+  return Boolean(h && h.active)
+}
+
 // 同一 actor かを比較する helper (kind+id で一致)。
 export function isSameActor(a: PoliticalActorRef, b: PoliticalActorRef): boolean {
   if (a.kind !== b.kind) return false
