@@ -4,7 +4,14 @@ import { collectIntegrityErrors } from './integritySystem'
 import { createWar } from '../mutations/warMutations'
 import type { WorldState } from '../types/world'
 import type { War, WarGoal } from '../types/war'
-import type { PolityId, HoldingId, LandContractId, WarId, DiplomaticPlayId } from '../types/ids'
+import type {
+  PolityId,
+  HoldingId,
+  LandContractId,
+  PersonId,
+  WarId,
+  DiplomaticPlayId,
+} from '../types/ids'
 
 // §14 (v0.34) War 整合性検査の本体テスト。
 //   War は CLI ゲートでは 0 件 (vacuous pass) なので、各 §14 分岐は手組み war fixture でのみ検証できる。
@@ -221,5 +228,46 @@ describe('War integrity (§14)', () => {
         (m) => m.includes('byOriginDiplomaticPlay') && m.includes('references missing War'),
       ),
     ).toBe(true)
+  })
+})
+
+// v0.35 (§14.7) WarSide 作戦状態の不変条件。active War のみ検査・soft reference は不問。
+describe('War integrity v0.35 (§14.7)', () => {
+  it('a valid active war has no §14.7 errors (avoidanceCount=0, no commanders)', () => {
+    const { world } = freshValidWar()
+    expect(warErrors(world).filter((m) => m.includes('§14.7'))).toEqual([])
+  })
+
+  it('detects negative avoidanceCount on an active war', () => {
+    const { world, war } = freshValidWar()
+    war.attacker.avoidanceCount = -1
+    expect(warErrors(world).some((m) => m.includes('avoidanceCount') && m.includes('§14.7'))).toBe(
+      true,
+    )
+  })
+
+  it('detects non-finite avoidanceCount on an active war', () => {
+    const { world, war } = freshValidWar()
+    war.defender.avoidanceCount = NaN
+    expect(warErrors(world).some((m) => m.includes('avoidanceCount') && m.includes('§14.7'))).toBe(
+      true,
+    )
+  })
+
+  it('detects duplicate commanderPersonIds on an active war', () => {
+    const { world, war } = freshValidWar()
+    war.attacker.commanderPersonIds = ['pe-x' as PersonId, 'pe-x' as PersonId]
+    expect(
+      warErrors(world).some((m) => m.includes('commanderPersonIds') && m.includes('§14.7')),
+    ).toBe(true)
+  })
+
+  it('does NOT check §14.7 on a terminal war (soft reference may age during retention)', () => {
+    const { world, war } = freshValidWar()
+    war.status = 'attacker_won'
+    war.endedWeek = world.absoluteWeek
+    war.attacker.avoidanceCount = -1
+    war.attacker.commanderPersonIds = ['pe-y' as PersonId, 'pe-y' as PersonId]
+    expect(warErrors(world).filter((m) => m.includes('§14.7'))).toEqual([])
   })
 })

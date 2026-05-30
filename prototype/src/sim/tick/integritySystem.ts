@@ -1862,6 +1862,21 @@ export function collectIntegrityErrors(
             })
           }
         }
+        // v0.35 (§14.7): WarSide の作戦状態の不変条件。active War のみ検査する。
+        //   captainGeneral / commander の ID は soft reference のため存在・生存は検査しない
+        //   (WarManeuver が毎週 lazy 再選出する。terminal War は retention 中の aging を許容)。
+        if (!Number.isFinite(side.avoidanceCount) || side.avoidanceCount < 0) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `active War ${idStr} ${sideName} avoidanceCount=${side.avoidanceCount} must be finite and >= 0 (§14.7)`,
+          })
+        }
+        if (new Set(side.commanderPersonIds).size !== side.commanderPersonIds.length) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `active War ${idStr} ${sideName} commanderPersonIds has duplicates (§14.7)`,
+          })
+        }
       }
     }
 

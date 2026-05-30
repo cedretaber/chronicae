@@ -5,6 +5,7 @@ import {
   addWarToIndexMut,
   removeWarFromIndexMut,
   updateWar,
+  updateWarSideMut,
   getWarPrimaryAttacker,
   getWarPrimaryDefender,
   createWarGoalFromDiplomaticPlay,
@@ -17,6 +18,7 @@ import type {
   HoldingId,
   LandContractId,
   ProvinceId,
+  PersonId,
   WarId,
   DiplomaticPlayId,
 } from '../types/ids'
@@ -66,6 +68,22 @@ describe('createWar', () => {
 
     expect(ws.warIndex.byParticipant['polity:po-1']).toContain(war.id)
     expect(ws.warIndex.byParticipant['polity:po-2']).toContain(war.id)
+  })
+
+  it('initializes v0.35 WarSide command fields on both sides (inert defaults)', () => {
+    const ws = makeEmptyV016State()
+    const war = createWar(ws, {
+      attacker: pA,
+      defender: pB,
+      warGoals: [],
+      targetWarScore: 60,
+      startedWeek: 48,
+    })
+    for (const side of [war.attacker, war.defender]) {
+      expect(side.commanderPersonIds).toEqual([])
+      expect(side.avoidanceCount).toBe(0)
+      expect(side.captainGeneralPersonId).toBeUndefined()
+    }
   })
 
   it('records originDiplomaticPlayId in byOriginDiplomaticPlay only when provided', () => {
@@ -170,6 +188,41 @@ describe('updateWar / accessors', () => {
     })
     expect(getWarPrimaryAttacker(war)?.actor).toEqual(pA)
     expect(getWarPrimaryDefender(war)?.actor).toEqual(pB)
+  })
+})
+
+describe('updateWarSideMut', () => {
+  it('mutates only the targeted side and leaves the index intact', () => {
+    const ws = makeEmptyV016State()
+    const war = createWar(ws, {
+      attacker: pA,
+      defender: pB,
+      warGoals: [],
+      targetWarScore: 60,
+      startedWeek: 48,
+    })
+    updateWarSideMut(ws, war.id, 'attacker', {
+      avoidanceCount: 3,
+      captainGeneralPersonId: 'pe-1' as PersonId,
+      commanderPersonIds: ['pe-2' as PersonId],
+    })
+    const updated = ws.wars[war.id]
+    expect(updated?.attacker.avoidanceCount).toBe(3)
+    expect(updated?.attacker.captainGeneralPersonId).toBe('pe-1')
+    expect(updated?.attacker.commanderPersonIds).toEqual(['pe-2'])
+    // defender 側は不変
+    expect(updated?.defender.avoidanceCount).toBe(0)
+    expect(updated?.defender.captainGeneralPersonId).toBeUndefined()
+    // participant index は再構築不要 (side 更新は index に影響しない)
+    expect(ws.warIndex.byParticipant['polity:po-1']).toContain(war.id)
+    expect(ws.warIndex.byParticipant['polity:po-2']).toContain(war.id)
+  })
+
+  it('is a no-op for unknown war id', () => {
+    const ws = makeEmptyV016State()
+    expect(() =>
+      updateWarSideMut(ws, 'w-404' as WarId, 'attacker', { avoidanceCount: 1 }),
+    ).not.toThrow()
   })
 })
 

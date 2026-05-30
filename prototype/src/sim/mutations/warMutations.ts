@@ -1,5 +1,5 @@
 import type { WorldState } from '../types/world'
-import type { War, WarGoal, WarParticipant } from '../types/war'
+import type { War, WarGoal, WarParticipant, WarSide, WarSideKey } from '../types/war'
 import type { WarId, DiplomaticPlayId, HoldingId, PolityId, ProvinceId } from '../types/ids'
 import type { PoliticalActorRef } from '../types/actor'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
@@ -67,10 +67,15 @@ export function createWar(ws: WorldState, input: CreateWarInput): War {
     attacker: {
       key: 'attacker',
       participants: [{ actor: input.attacker, joinedWeek: input.startedWeek, primary: true }],
+      // v0.35: 総大将/指揮官は WarManeuver が lazy 選出するため生成時は空。
+      commanderPersonIds: [],
+      avoidanceCount: 0,
     },
     defender: {
       key: 'defender',
       participants: [{ actor: input.defender, joinedWeek: input.startedWeek, primary: true }],
+      commanderPersonIds: [],
+      avoidanceCount: 0,
     },
     warGoals: input.warGoals,
     warScore: 0,
@@ -92,6 +97,21 @@ export function updateWar(ws: WorldState, warId: WarId, patch: Partial<War>): vo
   const war = ws.wars[warId]
   if (!war) return
   ws.wars[warId] = { ...war, ...patch }
+}
+
+// v0.35: 指定 side の captainGeneral / commander / avoidanceCount 等を更新する。
+//   updateWar と同規約の mutating / void。WarManeuverSystem が clone-once → mutate-in-loop で使う。
+//   participants は更新しない (war index に影響しないので index 再構築不要)。
+export function updateWarSideMut(
+  ws: WorldState,
+  warId: WarId,
+  sideKey: WarSideKey,
+  patch: Partial<WarSide>,
+): void {
+  const war = ws.wars[warId]
+  if (!war) return
+  const side = sideKey === 'attacker' ? war.attacker : war.defender
+  updateWar(ws, warId, { [sideKey]: { ...side, ...patch } })
 }
 
 // --- accessors ---

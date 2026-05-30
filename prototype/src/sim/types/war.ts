@@ -1,4 +1,4 @@
-import type { WarId, DiplomaticPlayId, HoldingId, PolityId, LandContractId } from './ids'
+import type { WarId, DiplomaticPlayId, HoldingId, PolityId, LandContractId, PersonId } from './ids'
 import type { PoliticalActorRef } from './actor'
 
 // v0.34: DiplomaticPlay の escalation を、複数 tick かけて warScore で進行する War entity に置換する。
@@ -23,9 +23,21 @@ export type WarParticipant = {
 }
 
 // §4.4 WarSide
+//   v0.35: 「誰が指揮するか」を side に持たせる。captainGeneral / commander は soft reference
+//     (WarManeuver が毎週 lazy 再選出するため、participant のような hard invariant にはしない。§13)。
 export type WarSide = {
   key: WarSideKey
   participants: WarParticipant[]
+
+  // v0.35: この side 全体の総大将。soft reference。
+  //   不在 (undefined) を許容し、WarManeuverSystem が毎週 lazy 選出/再選出する。
+  captainGeneralPersonId?: PersonId
+
+  // v0.35: 現場指揮官候補。soft reference。WarManeuver が毎週 lazy 再構築する。
+  commanderPersonIds: PersonId[]
+
+  // v0.35: この side が「戦闘回避を選択した」累積回数。単調増加 (reset しない)。
+  avoidanceCount: number
 }
 
 // §4.7 WarGoal
