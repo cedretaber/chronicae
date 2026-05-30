@@ -729,6 +729,12 @@ type WarParticipant = {
 type WarSide = {
   key: WarSideKey
   participants: WarParticipant[]   // v0.34 では各 side 1 件・primary=true 固定
+
+  // v0.35 War Maneuver: いずれも soft reference（不在/死亡を許容し IntegrityCheck では検査しない）。
+  //   WarManeuverSystem が毎週 lazy に選出/再構築する。詳細は §6.27b。
+  captainGeneralPersonId?: PersonId  // この side の総大将。不在時 undefined（house actor war では管理しない）
+  commanderPersonIds: PersonId[]     // 現場指揮官候補。先頭が当該週の戦闘指揮官
+  avoidanceCount: number             // この side が戦闘回避を選んだ累積回数（単調増加・reset しない）
 }
 
 type War = {
@@ -785,6 +791,23 @@ type WorldState = {
 ```
 
 terminal War は即削除せず一定期間（`terminalWarRetentionWeeks`）保持し、`cleanupWarSystem` が retention 超過後に削除する（履歴は Event ログに残る。§6.28b）。`politicalActorKey(ref): string` helper（`` `${ref.kind}:${ref.id}` `` を返す）を warIndex / IntegrityCheck で共用する。
+
+**v0.35 War Maneuver の型（`src/sim/types/war.ts`）**:
+
+```ts
+// 想定戦場の地形種別。Province.terrain を基本に features で特殊化する（§6.27b / generateCandidateBattlefield）。
+type BattlefieldKind =
+  | 'open_field' | 'forest_battle' | 'hill_battle' | 'mountain_pass'
+  | 'wetland_battle' | 'river_crossing' | 'coastal_battle'
+  | 'siege'   // 型のみ用意し v0.35 では生成しない（要塞・包囲が未実装のため将来用に予約）
+
+type BattleResult = 'attacker_victory' | 'defender_victory' | 'inconclusive'
+
+// BATTLE_OCCURRED event に記録。戦闘がどう発生したか。
+type BattleInitiationKind = 'mutual_engagement' | 'attacker_avoidance_failed' | 'defender_avoidance_failed'
+```
+
+`BattlefieldKind` は state には永続化せず、WarManeuverSystem が毎週その場で生成して battle 解決と event に使う一過性の値（terrain/features は Province 側に永続）。これら maneuver 用の値は War entity に蓄積しない（warScore と avoidanceCount のみが state に残る）。
 
 ### 3.10 目標システム (v0.22 / v0.23 拡張)
 

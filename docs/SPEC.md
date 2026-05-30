@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-30（v0.34 War ライフサイクル拡張＋戦争前状態の記録（歴史記述の before→after 化）を統合仕様へ反映。§6.24 WarGoal 整合性検査を「参照存在は active War のみ」に明確化）
+最終更新: 2026-05-31（v0.35 War Maneuver を統合仕様へ反映: WarProgressSystem→WarManeuverSystem（毎週・総大将/指揮官/回避/戦場/battle）、BATTLE_OCCURRED/BATTLE_AVOIDED/WAR_CAPTAIN_GENERAL_CHANGED 追加・WAR_SCORE_CHANGED 廃止、戦勝点 balance（決着中央値4戦）。§3.9a / §4 / §5 / §6.27b / §8 / §9 / §11 / §13）
 
 ---
 

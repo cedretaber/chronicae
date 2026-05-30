@@ -686,6 +686,8 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 
 詳細仕様は `docs/drafts/spec-v034-update.md` を参照。
 
+> **※ v0.35 で更新**: 下記は v0.34 時点の記録。warScore 進行は v0.35 で **WarManeuverSystem（毎週・乱数・総大将/指揮官/回避/戦場/battle）に置換**された（§6.27b）。よって「WarProgressSystem」「warScore は決定的・`calcGeneralWarPowerModifier` 不使用」「WAR_SCORE_CHANGED」、および直下の「スコープ外（未実装）」欄の **戦場 / 総大将 / 指揮官** は v0.35 で更新・実装済み（下記 v0.35 項目を参照）。
+
 - **War entity 化**: escalated land_claim / contract_tax_revision の即時勝敗解決を、複数 tick かけて `warScore`（-100..100）で進行する War entity に置換（§3.9a / §6.27a–§6.27d / §6.28b）。WarCreationSystem → WarProgressSystem → PeaceSettlementSystem → cleanupWarSystem
 - **ConflictResolutionSystem の縮退**: revolt_negotiation 専用に kind-gate。land_claim / contract_tax_revision は War flow へ完全移行。二重処理防止は順序依存ではなく kind-gate（§6.28）
 - **warScore は決定的**: 乱数なし。`getActorMilitaryPower` の戦力比で更新し、`calcGeneralWarPowerModifier`（指揮官補正）は不使用
@@ -698,9 +700,9 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 
 #### War 拡張系（v0.35+、v0.34 で骨格のみ実装）
 
-v0.34 で War / WarScore / PeaceSettlement の配管が入った。以下は v0.34 では未実装で、後続バージョンで段階導入する。
+v0.34 で War / WarScore / PeaceSettlement の配管が入った。以下は後続バージョンで段階導入する。
 
-- **v0.35 Captain General / Commander / Battlefield**: `WarSide` に `captainGeneralPersonId?` / `commanderPersonIds`。WarProgress で `calcGeneralWarPowerModifier`（人物・指揮官による戦力補正、v0.34 では不使用）を再接続。Province terrain / features から BattlefieldKind を生成し battle result から warScore を更新
+- **v0.35 Captain General / Commander / Battlefield（実装済み）**: `WarSide` に `captainGeneralPersonId?` / `commanderPersonIds` / `avoidanceCount` を追加。WarProgressSystem を WarManeuverSystem（毎週）に置換し、`commanderModifier` / `captainGeneralEfficiency`（warCommand ability）で戦力・warScore 効率を補正。Province terrain / features から BattlefieldKind を生成し、回避判断 → battle 解決で warScore を更新。詳細は §6.27b / §3.9a。（旧 future-plan の `calcGeneralWarPowerModifier` ではなく上記 2 関数で実装した。`siege` は型のみで未生成・将来用予約。なお「ほぼ互角の戦争が長引く裾」を圧縮する機構（戦争期間上限の短縮 / 膠着時 urgency drift 等）は未実装で将来課題）
 - **多重臣従での参戦**: 1 House / Polity が複数の War に attacker / defender として参加。`WarSide.participants` の複数化（contributionScore / casualties / willingnessToContinue を持つ `WarParticipantState`）。第三勢力は作らず必ず attacker / defender に属させる
 - **v0.36 Regiment**: 連隊 entity 化。abstract military power から strength / morale / training / equipment へ段階移行
 - **v0.37 補充・厭戦感情**: `HouseWarState` / warWeariness / reinforcement / casualties

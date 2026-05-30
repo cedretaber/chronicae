@@ -98,7 +98,7 @@ const WEEKS_PER_SEASON = 12
 | 21b | DiplomaticPlaySystem | 4 | 旧毎月。v0.29 で Task 生成責務を ProjectTaskGenerationSystem に移管 |
 | 21b2 | WarCreationSystem | 4 | v0.34 追加。旧 ConflictResolutionSystem の位置。escalated land_claim / contract_tax_revision を War 化 |
 | 21c | ConflictResolutionSystem | 4 | v0.34: revolt_negotiation 専用に kind-gate（land_claim / contract_tax_revision は WarCreationSystem へ移行。関数名は `runConflictResolutionSystem` のまま） |
-| 21c2 | WarProgressSystem | 4 | v0.34 追加。active War の warScore を戦力比で更新（冒頭 dead-participant guard） |
+| 21c2 | WarManeuverSystem | 1 | v0.35: 旧 WarProgressSystem を置換（**interval 4→1 毎週**・旧スロット位置維持）。総大将/指揮官 lazy 選出 → 戦場生成 → 回避判断 → battle 解決で warScore 更新（冒頭 dead-participant guard） |
 | 21c3 | PeaceSettlementSystem | 4 | v0.34 追加。warScore 閾値到達で終結・WarGoal 実行（冒頭 dead-participant guard） |
 | 21d | AimOutcomeSystem | 4 | v0.22。DiplomaticPlay 結果 → Aim progress |
 | 21e | GoalOutcomeSystem | 4 | v0.22。Aim 結果 → Goal progress |

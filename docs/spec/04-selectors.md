@@ -145,6 +145,19 @@ function calcHouseMilitaryPower(state: WorldState, config: SimulationConfig, hou
 function calcPolityMilitaryPower(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 ```
 
+**v0.35 War Maneuver セレクター（`warManeuverSelectors.ts`。§6.27b で使用）**:
+
+```ts
+isEligibleWarPerson(state, personId): boolean              // 総大将になりうる person（生存・条件）
+selectCaptainGeneralForWarSide(state, polityId): PersonId?  // warCommand スコア順に総大将を選出
+isEligibleBattleCommander(state, personId): boolean         // 戦闘指揮官候補の条件
+buildWarSideCommanderCandidates(state, polityId, captainGeneralId?): PersonId[]
+getWarGoalProvince(state, war): ProvinceId?                 // battle 対象 Province の解決
+generateCandidateBattlefield(province, rng, config): BattlefieldKind  // terrain/features → 戦場
+```
+
+戦力は v0.34 と同じ `getActorMilitaryPower`（actorSelectors）を用い、指揮官補正は WarManeuverSystem 内の `commanderModifier` / `captainGeneralEfficiency`（`getRoleScore(person, 'warCommand')`）で乗算する。
+
 ### 4.5 Status セレクター（v0.11 / v0.15）
 
 v0.11 で legitimacy / stability / prestige / cohesion / loyaltyToPolity が格納フィールドから動的計算セレクターに移行した。v0.15 で Country → Polity rename。

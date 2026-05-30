@@ -84,15 +84,31 @@
 | warPeasantSizeDamage | 0.5 | 戦争時の peasants size 減少量 |
 | warTownsmanSizeDamage | 0.3 | 戦争時の townsmen size 減少量 |
 | **War（v0.34 War entity / WarScore / PeaceSettlement）** | | |
-| warScoreProgressFactor | 20 | winChance→delta 係数（§6.27b） |
-| maxWarScoreDeltaPerTick | 8 | 1 tick の warScore delta 上限（§6.27b） |
-| warMinimumEffectivePower | 1 | 戦力崩壊判定の閾値（§6.27b） |
-| warScoreCollapseDelta | 12 | 戦力崩壊時の delta（§6.27b） |
 | maxWarDurationWeeks | 520 | timeout 終結（white_peace）の週数。約 10 年（§6.27c） |
-| defaultTransferLandWarScore | 60 | transfer goal の requiredWarScore（§6.27a） |
-| defaultChangeContractTaxWarScore | 50 | tax goal の requiredWarScore（§6.27a） |
-| warScoreEventThreshold | 4 | WAR_SCORE_CHANGED 発行の \|applied delta\| 閾値（§6.27b） |
+| defaultTransferLandWarScore | 12 | transfer goal の requiredWarScore（§6.27a。v0.35 balance: 60→12） |
+| defaultChangeContractTaxWarScore | 10 | tax goal の requiredWarScore（§6.27a。v0.35 balance: 50→10） |
 | terminalWarRetentionWeeks | 48 | terminal War 削除までの週数（§6.28b） |
+| **War Maneuver（v0.35。§6.27b。旧 per-tick drift 5 件と warScoreEventThreshold は撤廃）** | | |
+| warAvoidanceBaseChance | 0.65 | 回避成功の基礎確率 |
+| warAvoidanceWarCommandEffect | 0.2 | 総大将 warCommand が回避成否に与える係数 |
+| warAvoidanceTerrainModifierByBattlefield | Record<BattlefieldKind, number> | 戦場別の回避しやすさ補正（open_field −0.1 … mountain_pass/wetland_battle +0.15 … siege −0.2） |
+| warAvoidanceCountPenalty | 0.2 | avoidanceCount 1 回ごとの回避欲求/確率ペナルティ |
+| maxWarAvoidanceCount | 4 | この回数以上は強制交戦（accept） |
+| warAvoidanceWarScorePenalty | 1.0 | 片側のみ回避成功時に非回避側へ動く warScore |
+| warEngagementRandomness | 0.1 | 交戦判断 noise 幅 |
+| warEngagementCautionEffect | 0.2 | 総大将 caution が回避欲求に与える係数 |
+| warEngagementAmbitionEffect | 0.15 | 総大将 ambition が交戦欲求に与える係数 |
+| warEngagementWarScoreUrgencyEffect | 0.3 | 負けている側ほど交戦を急ぐ urgency 係数 |
+| warBattleRandomness | 0.1 | battle 実効戦力の乱数幅（±10%） |
+| warBattleScoreScale | 24 | 1 戦闘の warScore 振れ幅係数（v0.35 balance: 12→24） |
+| maxWarScoreDeltaPerBattle | 12 | 1 戦闘の warScoreDelta clamp 上限（v0.35 balance: 8→12） |
+| battleVictoryThreshold | 1.0 | result ラベル（victory/inconclusive）の閾値 |
+| warCommanderWarCommandEffect | 0.25 | 指揮官 warCommand が実効戦力に与える係数 |
+| minWarCommanderModifier | 0.75 | commanderModifier 下限 |
+| maxWarCommanderModifier | 1.25 | commanderModifier 上限 |
+| captainGeneralWarScoreEffect | 0.1 | 勝者総大将 warCommand が warScoreDelta に与える効率係数 |
+| warBattlefieldRiverCrossingChance | 0.35 | major_river feature → river_crossing になる確率 |
+| warBattlefieldCoastalBattleChance | 0.25 | coastal feature → coastal_battle になる確率 |
 | **Disaster（v0.20.3 改修: Province 単位・割合ベース・圧力連動）** | | |
 | disasterEnabled | true | 災害有効 |
 | famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province |

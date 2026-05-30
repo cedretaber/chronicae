@@ -1542,25 +1542,48 @@ WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / ~~develop
 
 **War 作成後**: 元 play を `resolved_by_conflict`（terminal）にする。**`DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT` event は発行しない**（即時解決を含意するため）。戦争開始 event は `WAR_DECLARED`（major）のみ。
 
-### 6.27b WarProgressSystem（4週ごと、v0.34）
+### 6.27b WarManeuverSystem（毎週、v0.35。旧 WarProgressSystem を置換）
 
-active War の attacker / defender の抽象軍事力を比較し warScore を**決定的に**（乱数なし）更新する。終結判定はしない（PeaceSettlementSystem の責務）。
+active War ごとに「誰が指揮し・どの戦場で・戦うか回避するか」を毎週解決し、battle 結果で warScore を更新する。終結判定はしない（PeaceSettlementSystem の責務）。v0.34 の決定的 drift と異なり**乱数を使う**。selector は `warManeuverSelectors.ts`、battle/回避の数式は `warManeuverSystem.ts` のローカル関数。
 
-- 軍事力は `getActorMilitaryPower(state, config, actor)` のみを使用。**`calcGeneralWarPowerModifier` は使わない**（Polity / House を統一に扱う。指揮官補正は v0.35 以降）。
-- `winChance = aP / (aP + dP + 1)`、`delta = clamp((winChance - 0.5) * warScoreProgressFactor, ±maxWarScoreDeltaPerTick)`、`warScore = clamp(warScore + delta, -100, 100)`。
-- 戦力崩壊: `aP <= warMinimumEffectivePower` で delta から `warScoreCollapseDelta` を引き、`dP <= ...` で足す（主に House actor 向けの保険）。
-- 各 tick、polity participant の `lastWarWeek = absoluteWeek` を更新する（valor / command の「直近戦争参加」ability 判定を温存するため）。
-- **dead-participant guard**: primary participant が missing / inactive な War は skip（消滅 actor は cancelOrphanedWarsSystem が cancelled 化する）。
-- **`WAR_SCORE_CHANGED`（normal）**: clamp 後の **applied delta** の絶対値が `warScoreEventThreshold` 以上のときのみ発行。
+各 active War に対し以下を順に実行（attacker→defender の固定順で RNG を消費）:
+
+1. **lastWarWeek 更新**: polity actor 両陣営の `lastWarWeek = absoluteWeek`（valor/command の「直近戦争参加」ability 判定を温存）。dead-participant guard より後・early-continue より前に行う。
+2. **dead-participant guard**: primary participant が missing/inactive な War は skip（消滅 actor は cancelOrphanedWarsSystem が cancelled 化）。
+3. **warScore 凍結**: `|warScore| >= targetWarScore` の War は warScore を動かさず skip（PeaceSettlement 待ち。下記 cadence）。
+4. **総大将 lazy refresh**（polity actor のみ。house actor war は no-op）: 現 `captainGeneralPersonId` が eligible（`isEligibleWarPerson`）なら据置、不適格/不在なら `selectCaptainGeneralForWarSide`（warCommand スコア順）で再選出。変化時 `WAR_CAPTAIN_GENERAL_CHANGED`（喪失=major / 交代=normal）。初回任命（旧 undefined）は event なし。
+5. **指揮官候補 lazy refresh**: `buildWarSideCommanderCandidates` で再構築（変化時のみ state 更新・event なし）。先頭が当該週の戦闘指揮官。
+6. **戦場生成**: WarGoal 対象 Province から `generateCandidateBattlefield`。major_river feature は確率 `warBattlefieldRiverCrossingChance` で `river_crossing`、coastal feature は `warBattlefieldCoastalBattleChance` で `coastal_battle`、それ以外は `TERRAIN_TO_BATTLEFIELD[terrain]`（terrain 5 種 → open_field/forest_battle/hill_battle/mountain_pass/wetland_battle の 1:1）。対象 Province 未解決なら以降 skip。
+7. **回避判断**（両陣営 `decideEngagement`）: `avoidDesire = 戦力劣勢 + caution・地形回避性 − urgency(負けている側ほど高) − ambition − avoidanceCount ペナルティ + noise`。`avoidanceCount >= maxWarAvoidanceCount` は強制 accept。総大将不在は中立 traits(0.5) で計算。
+8. **戦闘 or 回避の解決**:
+   - **両者回避** → warScore 不変、両 `avoidanceCount +1`、`BATTLE_AVOIDED`(minor, avoidingSide='both')。
+   - **片側のみ回避成功** → 回避側 `avoidanceCount +1`、warScore は非回避側へ `warAvoidanceWarScorePenalty`(=1.0) 分だけ動く、`BATTLE_AVOIDED`(回避 side)。
+   - **両者交戦 / 回避失敗** → `resolveBattle` で warScore 更新、`BATTLE_OCCURRED`(normal)。回避失敗側は `avoidanceCount +1`。
+
+**battle 解決（`resolveBattle`、乱数 2 draw）**:
+- 各陣営の実効戦力 = `getActorMilitaryPower(actor) × commanderModifier(指揮官) × (1 ± warBattleRandomness)`。`commanderModifier = clamp(1 + normalized(warCommand−50) × warCommanderWarCommandEffect, minWarCommanderModifier, maxWarCommanderModifier)`。
+- `advantage = atkEff / (atkEff + defEff + 1)`、`rawDelta = (advantage − 0.5) × warBattleScoreScale`。
+- `result`: `|rawDelta| > battleVictoryThreshold` で attacker_victory / defender_victory、それ以外 inconclusive。
+- 勝者側の総大将効率を乗算: `rawDelta ×= captainGeneralEfficiency = 1 + normalized(warCommand−50) × captainGeneralWarScoreEffect`。
+- `warScoreDelta = clamp(rawDelta, ±maxWarScoreDeltaPerBattle)`、`warScore = clamp(warScore + warScoreDelta, −100, 100)`。
+
+**v0.34 からの主な変更**:
+- 旧 per-tick drift 5 config（`warScoreProgressFactor` / `maxWarScoreDeltaPerTick` / `warMinimumEffectivePower` / `warScoreCollapseDelta` / `warScoreEventThreshold`）と `WAR_SCORE_CHANGED` を**撤廃**。warScore 変化は `BATTLE_OCCURRED` の `warScoreDelta` / `warScoreAfter` で表現する。
+- v0.34 で「未使用」とした指揮官補正を `commanderModifier` / `captainGeneralEfficiency` として再接続（`getRoleScore(person, 'warCommand')`）。実体は旧 future-plan の `calcGeneralWarPowerModifier` ではなくこの 2 関数。
+- 総大将 / 指揮官候補 / avoidanceCount は **soft reference**。lazy 選出で不在を許容し、IntegrityCheck では検査しない（person 消滅で War を壊さないため。house actor war では総大将管理を行わない）。
+
+**cadence（毎週 maneuver × 4週 settlement）**: WarManeuver は毎週・PeaceSettlement は 4 週ごと。warScore が ±targetWarScore に到達しても settlement が走るまで最大 3 週ある。その間 step 3 が warScore を凍結し、到達済み War が余分な battle で行き過ぎるのを防ぐ。
+
+**バランス（v0.35）**: 決着までの戦闘数は概ね `targetWarScore / warBattleScoreScale` 比が支配する。実測（4seed×100yr）で中央値 4 戦になるよう `defaultTransferLandWarScore`=12 / `defaultChangeContractTaxWarScore`=10、`warBattleScoreScale`=24、`maxWarScoreDeltaPerBattle`=12 に調整（§9 config）。ほぼ互角の戦争は乱歩の性質上もつれて長引く（裾）が、これは構造的で config では中央値と裾を分離できない（圧縮は将来の機構追加に委ねる。§13）。
 
 ### 6.27c PeaceSettlementSystem（4週ごと、v0.34）
 
-active War の warScore が閾値に達したら終結させ、WarGoal を state に反映する。冒頭に WarProgress と同じ **dead-participant guard**。
+active War の warScore が閾値に達したら終結させ、WarGoal を state に反映する。冒頭に WarManeuver と同じ **dead-participant guard**。
 
 - `warScore >= targetWarScore` → `attacker_won`。WarGoal を実行（attacker 側の目標として扱う）。
 - `warScore <= -targetWarScore` → `defender_won`。WarGoal は実行せず status quo（v0.34 では defender counter-goal なし）。
 - `absoluteWeek - startedWeek >= maxWarDurationWeeks` かつ未決着 → `white_peace`（timeout 終結）。拮抗 War の無限累積を防ぐ終結保証で、値はバランス項目だが「上限を設けること自体」は v0.34 の必須仕様。
-- WarGoal 適用が stale（対象 holding / contract / fromPolity が現状と不一致で底層 mutation が失敗）な場合は `white_peace` で安全終結し、simulation を落とさず IntegrityCheck 違反にもしない。
+- WarGoal 適用が stale（対象 holding / contract / fromPolity が現状と不一致で底層 mutation が失敗）な場合は `white_peace` で安全終結し、simulation を落とさず IntegrityCheck 違反にもしない。v0.35: warScore が target に到達していても WarGoal が適用不能なら**能動的に white_peace 化**する（毎週 maneuver で warScore が target に達したまま放置されると、WarGoal が指す landContract を他システムが先に消した時に dangling 参照で crash しうるため。Phase B の年117 crash 修正）。
 
 **底層 mutation 呼び出し**（シグネチャが異なる）:
 - transfer: `applyLandContractTransferGoal(ctx, {...reason:'war'})` → `CtxResult<void>` を unwrap。`err` 時は white_peace 安全終結。
