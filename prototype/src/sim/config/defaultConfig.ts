@@ -427,6 +427,27 @@ export type SimulationConfig = {
   regimentInitialOrganization: number
   regimentMaxStrength: number
   regimentDestroyedStrengthThreshold: number
+  // v0.36 補充・再編成: active strength の月次補充 + destroyed Regiment の reform。
+  //   RegimentReinforcementSystem が使う (cadence は tick 登録の intervalWeeks=4 で固定)。仮値・balance 調整対象。
+  regimentReinforcementBasePerMonth: number
+  regimentReinforcementPeaceMultiplier: number
+  regimentReinforcementWarMultiplier: number
+  regimentReinforcementMobilizedMultiplier: number
+  // popFactor の正規化基準。class 間で POP スケールが大きく異なる (worldgen 実測: 該当 holding kind で
+  //   peasants ~85 / nobles ~2.5、townsmen は都市発達後) ため per-class 基準にする。
+  //   sourceKind→class: levy→peasants / urban_militia→townsmen / noble_retinue→nobles。
+  regimentReinforcementReferencePopByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
+  regimentReinforcementMinPopFactor: number
+  regimentReinforcementMaxPopFactor: number
+  regimentReinforcementCostPerStrength: number
+  regimentCavalryReinforcementMultiplier: number
+  regimentCavalryReinforcementCostMultiplier: number
+  destroyedRegimentReformDelayWeeks: number
+  destroyedRegimentReformInitialStrength: number
+  destroyedRegimentReformInitialOrganization: number
+  destroyedRegimentReformInitialMorale: number
+  destroyedRegimentReformCost: number
+  destroyedRegimentReformMinPopFactor: number
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: boolean
   acquireLandMinTreasury: number
@@ -1181,6 +1202,25 @@ export const defaultConfig: SimulationConfig = {
   regimentInitialOrganization: 100,
   regimentMaxStrength: 100,
   regimentDestroyedStrengthThreshold: 0,
+  // v0.36 補充・再編成 — 仮値。balance 調整対象 (機能完成後にまとめて)。
+  //   referencePopByClass は worldgen 実測 (manor: peasants median ~85 / nobles ~2.5、city townsmen は発達後)
+  //   から median holding が factor ~1.0 になるよう仮置き。
+  regimentReinforcementBasePerMonth: 4.0,
+  regimentReinforcementPeaceMultiplier: 1.0,
+  regimentReinforcementWarMultiplier: 0.4,
+  regimentReinforcementMobilizedMultiplier: 0.25,
+  regimentReinforcementReferencePopByClass: { peasants: 80, townsmen: 15, nobles: 2.5 },
+  regimentReinforcementMinPopFactor: 0.1,
+  regimentReinforcementMaxPopFactor: 1.5,
+  regimentReinforcementCostPerStrength: 0.2,
+  regimentCavalryReinforcementMultiplier: 0.75,
+  regimentCavalryReinforcementCostMultiplier: 1.5,
+  destroyedRegimentReformDelayWeeks: 24,
+  destroyedRegimentReformInitialStrength: 20,
+  destroyedRegimentReformInitialOrganization: 20,
+  destroyedRegimentReformInitialMorale: 40,
+  destroyedRegimentReformCost: 8,
+  destroyedRegimentReformMinPopFactor: 0.25,
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: true,
   acquireLandMinTreasury: 200,

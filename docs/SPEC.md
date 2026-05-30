@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-31（v0.36 Persistent Regiment を統合仕様へ反映: 抽象 getActorMilitaryPower を永続 Regiment entity に置換、Battle entity 導入、mobilize→損耗→recovery→demobilize ループ、RegimentRecoverySystem / RegimentMaintenanceSystem、BATTLE_OCCURRED に battleId/連隊数 counts-only enrich。§3.9b / §3.9c / §5 / §6.27b / §6.27e / §6.27f / §6.28b / §8 / §9 / §11 / §13。前回 v0.35 War Maneuver: WarProgressSystem→WarManeuverSystem、BATTLE_OCCURRED/BATTLE_AVOIDED/WAR_CAPTAIN_GENERAL_CHANGED 追加・WAR_SCORE_CHANGED 廃止、戦勝点 balance）
+最終更新: 2026-05-31（v0.36 補充・再編成を統合仕様へ反映: RegimentReinforcementSystem（§6.27g 月次）を追加。active strength の silent 月次補充（平時/戦時/動員中係数・home POP・treasury cap）+ destroyed の reform 再編成で active プールを自己修復（旧 §14.7「床なし減衰」を解消）。Regiment に destroyedWeek/lastReinforcedWeek、REGIMENT_REFORMED event、integrity 拡張。§3.9b / §6.27b / §6.27g / §8 / §9 / §13 / §14.7。前回 v0.36 Persistent Regiment: 抽象 getActorMilitaryPower を永続 Regiment entity に置換、Battle entity、mobilize→損耗→recovery→demobilize ループ、RegimentRecoverySystem / RegimentMaintenanceSystem、BATTLE_OCCURRED に battleId/連隊数 counts-only enrich）
 
 ---
 

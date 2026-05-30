@@ -2105,6 +2105,36 @@ export function collectIntegrityErrors(
         message: `Regiment ${idStr} currentWarId/currentSide must both be set or both unset (§18)`,
       })
     }
+    // v0.36 補充・再編成: destroyedWeek/lastReinforcedWeek は createdWeek..currentWeek の範囲。
+    if (
+      regiment.destroyedWeek !== undefined &&
+      (!Number.isFinite(regiment.destroyedWeek) ||
+        regiment.destroyedWeek < regiment.createdWeek ||
+        regiment.destroyedWeek > state.absoluteWeek)
+    ) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} destroyedWeek=${regiment.destroyedWeek} out of range createdWeek(${regiment.createdWeek})..currentWeek(${state.absoluteWeek}) (§18.1)`,
+      })
+    }
+    if (
+      regiment.lastReinforcedWeek !== undefined &&
+      (!Number.isFinite(regiment.lastReinforcedWeek) ||
+        regiment.lastReinforcedWeek < regiment.createdWeek ||
+        regiment.lastReinforcedWeek > state.absoluteWeek)
+    ) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} lastReinforcedWeek=${regiment.lastReinforcedWeek} out of range createdWeek(${regiment.createdWeek})..currentWeek(${state.absoluteWeek}) (§18.1)`,
+      })
+    }
+    // destroyedWeek は status==='destroyed' のときだけ持つ (reform で消去される)。
+    if (regiment.status !== 'destroyed' && regiment.destroyedWeek !== undefined) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} has destroyedWeek but status=${regiment.status} (§18.2)`,
+      })
+    }
   }
   // index → record 整合 (§18.3)。liveness ではなく「index entry が指す Regiment が存在し key と一致するか」。
   for (const [ownerKey, ids] of Object.entries(state.regimentIndex.byOwner)) {

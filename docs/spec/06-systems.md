@@ -1581,7 +1581,7 @@ active War ごとに「誰が指揮し・どの戦場で・戦うか回避する
 - 各 side の動員 active Regiment に、`result` に応じた role（winner / loser / inconclusive）別の **organization damage** と **strength damage** を config レンジから 1 値ずつ draw し（side ごと乱数 2 draw）、当該 side の全 Regiment に同量適用する（頭割りでない）。organization / strength は 0..max に clamp。
 - clamp 後 `strength <= regimentDestroyedStrengthThreshold`（既定 0）になった Regiment は `destroyed` 化（byWar から除去・status 遷移。byOwner には残す。§3.9b case(c)）。
 - 1 戦闘につき `Battle` entity（§3.9c）を 1 件記録する（`createBattle`）。`BATTLE_OCCURRED` event には battleId と両 side の動員連隊数を載せる（counts-only。§8）。
-- strength は v0.36 では戦闘以外で回復しない（§6.27e は organization のみ回復）ため、長期戦・連戦では strength が累積低下し destroyed に至りうる。
+- 戦闘では strength が累積低下し destroyed に至りうる。strength の回復は RegimentReinforcementSystem（§6.27g 月次、v0.36 補充・再編成）が担い、destroyed も同 system が reform で再編成する（§6.27e は organization のみ回復）。
 - 総大将 / 指揮官の `commanderModifier` / `captainGeneralEfficiency` 補正は従来どおり（power 引数だけが Regiment 由来に変わる）。
 
 ### 6.27c PeaceSettlementSystem（4週ごと、v0.34）
@@ -1631,6 +1631,29 @@ active Regiment ごとに**順序を厳守**して処理する:
 4. `currentWarId` が live(active) war を指していない（war 無し or terminal）→ **demobilize**（PeaceSettlement / cancel で終結した War に動員が残るのを遅延解除）。
 
 disband は war 参照解除を兼ねるため demobilize と二重処理しない。多くの週は土地移転 / 滅亡 / 終戦が無く no-op で素通りする（lazy clone-once）。
+
+### 6.27g RegimentReinforcementSystem（月次、v0.36 補充・再編成）
+
+`organization` は §6.27e が週次回復する一方、`strength` は戦闘以外で回復せず、destroy も永続だった。そのため active regiment プールは構造的に非増加で、戦争を重ねると軍事力が床なしで減衰した（旧 §14.7）。本 system はこれを補完し、**プールを自己修復**させる（`runRegimentReinforcementSystem`）。RegimentMaintenanceSystem の**直後**に interval 4（月次）で走る。maintenance が active regiment の owner を terminal に揃え・home 消失/owner 失効を disband 済なので、整合した owner/home を前提にできる。
+
+owner が Polity でない / `homeHoldingId` 無しは skip（v0.36 では worldgen が Polity owner のみ生成）。`treasury` は Polity 共有なので **RegimentId 昇順**（worldgen と同じ文字列比較）で決定的に処理する。rng は消費しない（deterministic だが strength が battle power にフィードバックするため **bit-identical ではない**）。
+
+各 Regiment を 2 系統で処理する:
+
+**A. active かつ `strength < maxStrength` → strength を silent 補充**（organization recovery と同じくイベント無し）。
+- `homeControlFactor` = `holdingTerminalPolityCache[homeHoldingId] === owner.id ? 1 : 0`（二値。holding 消失・terminal 不明・owner 不一致は 0 = 補充不可）。0 なら skip。占領・封臣・段階的支配の反映は future。
+- `popFactor` = `getRegimentHomeRecruitmentFactor`：homeHolding の該当 class POP（sourceKind→class: levy→peasants / urban_militia→townsmen / noble_retinue→nobles）を per-class reference で正規化し `[minPopFactor, maxPopFactor]` に clamp。POP は減らさない（源の厚みとして読むだけ）。
+- `warStateFactor`：mobilized（`currentWarId` 在り）→ `warMultiplier × mobilizedMultiplier` / owner が active War 参加中 → `warMultiplier` / それ以外 → `peaceMultiplier`。
+- `troopFactor` = cavalry なら `cavalryReinforcementMultiplier` else 1。
+- `desiredGain = min(basePerMonth × popFactor × homeControl × warState × troopFactor, maxStrength − strength)`。
+- **treasury は乗数でなく cap**：`costPerStrength = reinforcementCostPerStrength × (cavalry ? cavalryReinforcementCostMultiplier : 1)`、`affordable = treasury / costPerStrength`、`gain = min(desiredGain, affordable)`。`gain` 分 strength を増やし `treasury -= gain × costPerStrength`、`lastReinforcedWeek` を更新。
+
+**B. destroyed かつ `destroyedWeek` 在り → reform（active に再編成）**。
+- 条件：`currentWeek − destroyedWeek >= destroyedRegimentReformDelayWeeks` かつ homeControl=1 かつ owner active かつ `popFactor >= destroyedRegimentReformMinPopFactor` かつ `treasury >= destroyedRegimentReformCost`。
+- 満たせば status を active に戻し strength/organization/morale を `destroyedRegimentReformInitial*` にリセット、`destroyedWeek` を消去、`lastReinforcedWeek` を更新、`treasury -= destroyedRegimentReformCost`、`REGIMENT_REFORMED`（minor）を emit。byOwner/byHomeHolding には destroy 後も残っているため **index 操作は不要**（byWar には居ない）。
+- `disbanded` は再編成対象外（恒久解散）。
+
+**この補完で旧 §14.7 の「プールは構造的に非増加・床なし減衰」は成立しなくなる**（プールは戦間期に自己修復する）。ただし reform には ≥`reformDelayWeeks` の平時が要り、開戦 AI は連隊在庫を見ないため、「全滅直後の Polity が攻撃側で開戦」transient は完全には解消しない（開戦 AI gate は future）。
 
 ### 6.28b cleanupWarSystem（毎週、v0.34 / v0.36）
 

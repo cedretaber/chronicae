@@ -8,6 +8,7 @@ import {
   reassignRegimentOwnerMut,
   disbandRegimentMut,
   destroyRegimentMut,
+  reformRegimentMut,
   mobilizeRegimentsForWar,
 } from './regimentMutations'
 import { politicalActorKey } from '../selectors/actorSelectors'
@@ -182,9 +183,10 @@ describe('destroyRegimentMut — keeps owner/home indexes (CRITICAL)', () => {
     expect(r.id).toBeDefined()
     mobilizeRegimentMut(state, r.id, 'w-1' as WarId, 'attacker', 'po-1' as PolityId, 0)
 
-    destroyRegimentMut(state, r.id)
+    destroyRegimentMut(state, r.id, 12)
 
     expect(state.regiments[r.id]!.status).toBe('destroyed')
+    expect(state.regiments[r.id]!.destroyedWeek).toBe(12)
     expect(state.regiments[r.id]!.currentWarId).toBeUndefined()
     expect(state.regimentIndex.byWar['w-1' as WarId]).toBeUndefined()
 
@@ -197,6 +199,49 @@ describe('destroyRegimentMut — keeps owner/home indexes (CRITICAL)', () => {
 
     // byHomeProvince STILL contains r.id
     expect(state.regimentIndex.byHomeProvince['pr-1' as ProvinceId]).toContain(r.id)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// reformRegimentMut (v0.36 補充・再編成)
+// ---------------------------------------------------------------------------
+
+describe('reformRegimentMut — destroyed を active に戻す', () => {
+  it('reforms a destroyed regiment: status/values reset, destroyedWeek cleared, index unchanged', () => {
+    const state = makeEmptyV016State()
+    const r = makeReg(state)
+    destroyRegimentMut(state, r.id, 10)
+    expect(state.regiments[r.id]!.status).toBe('destroyed')
+    expect(state.regiments[r.id]!.destroyedWeek).toBe(10)
+
+    reformRegimentMut(state, r.id, { strength: 20, organization: 20, morale: 40 }, 34)
+
+    const reformed = state.regiments[r.id]!
+    expect(reformed.status).toBe('active')
+    expect(reformed.strength).toBe(20)
+    expect(reformed.organization).toBe(20)
+    expect(reformed.morale).toBe(40)
+    expect(reformed.destroyedWeek).toBeUndefined()
+    expect(reformed.lastReinforcedWeek).toBe(34)
+
+    // index は destroy 後も byOwner/byHomeHolding に残っていて reform でも不変。
+    expect(state.regimentIndex.byOwner[politicalActorKey(pA)]).toContain(r.id)
+    expect(state.regimentIndex.byHomeHolding['hl-1' as HoldingId]).toContain(r.id)
+    // byWar には居ない (destroy で外れたまま)。
+    expect(Object.keys(state.regimentIndex.byWar).length).toBe(0)
+  })
+
+  it('does NOT reform a disbanded regiment (no-op)', () => {
+    const state = makeEmptyV016State()
+    const r = makeReg(state)
+    disbandRegimentMut(state, r.id)
+    expect(state.regiments[r.id]!.status).toBe('disbanded')
+
+    reformRegimentMut(state, r.id, { strength: 20, organization: 20, morale: 40 }, 34)
+
+    // disbanded は再編成対象外 → status は disbanded のまま。
+    expect(state.regiments[r.id]!.status).toBe('disbanded')
+    expect(state.regiments[r.id]!.strength).toBe(100)
   })
 })
 

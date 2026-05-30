@@ -817,7 +817,9 @@ type BattleInitiationKind = 'mutual_engagement' | 'attacker_avoidance_failed' | 
 type RegimentId = Branded<string, 'RegimentId'>  // prefix: "rg-"
 
 type RegimentStatus = 'active' | 'disbanded' | 'destroyed'
-//   disbanded: owner/home 失効で解散。destroyed: 戦闘損耗で壊滅。
+//   disbanded: owner/home 失効で制度的に解散。再編成対象外（恒久）。
+//   destroyed: 戦闘損耗で壊滅。本拠地・owner 健在なら RegimentReinforcementSystem が
+//     reform 遅延を経て active に再編成する（v0.36 補充・再編成。§6.27g）。
 //   どちらの非 active record も records / regimentIndex.byOwner には残す
 //   （case(c) の「record 在り → 0 power, fallback しない」判定に必要）。byWar からは外す。
 
@@ -837,11 +839,13 @@ type Regiment = {
   currentSide?: WarSideKey
   strength: number                    // 兵員・装備・馬匹・従者の充足率 0..100。v0.36 通常戦闘では大きく削らない
   organization: number                // 部隊統制 0..100。battle 後に主に削れる値
-  morale: number                      // 士気 0..100。v0.36 は write-once placeholder（recovery が補正で読むのみ）
+  morale: number                      // 士気 0..100。recovery が補正で読む。reform 時のみ初期値に再書き込み
   maxStrength: number                 // 原則 100
   basePower: number                   // 全快時の基礎戦闘力。worldgen 時点で凍結（§7）
   createdWeek: number
   lastMobilizedWeek?: number
+  destroyedWeek?: number              // v0.36 補充・再編成: destroyed 化した週。reform 遅延判定（status==='destroyed' のみ）
+  lastReinforcedWeek?: number         // v0.36 補充・再編成: 最後に strength 補充 / reform を受けた週
 }
 ```
 

@@ -34,6 +34,7 @@ import { runWarCreationSystem } from './warCreationSystem'
 import { runWarManeuverSystem } from './warManeuverSystem'
 import { runRegimentRecoverySystem } from './regimentRecoverySystem'
 import { runRegimentMaintenanceSystem } from './regimentMaintenanceSystem'
+import { runRegimentReinforcementSystem } from './regimentReinforcementSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
 import { runCleanupWarSystem } from './cleanupWarSystem'
@@ -411,6 +412,14 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runRegimentMaintenanceSystem,
+  },
+  {
+    // v0.36 補充・再編成: maintenance 直後。active strength の月次補充 + destroyed reform。
+    //   maintenance が owner/home の不整合を整理した後なので整合した状態を前提にできる。
+    name: 'regimentReinforcementSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runRegimentReinforcementSystem,
   },
   {
     name: 'attitudeDecaySystem',

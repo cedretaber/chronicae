@@ -86,6 +86,9 @@ war:
     transfer_land: '{{attacker}} took {{holding}} from {{defender}} in the peace settlement.'
     change_tax: 'The peace settlement set the tax of {{holding}} from {{fromRate}}% to {{toRate}}% in favor of {{attacker}}.'
 
+regiment:
+  reformed: '{{owner}} reformed a destroyed regiment in {{province}}.'
+
 revolt:
   negotiation_started: 'A {{rebelClass}} revolt has broken out in {{province}} — negotiations begin.'
   polity_founded: '{{polity}} has been founded by {{person}} through revolt in {{province}}!'

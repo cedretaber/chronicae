@@ -129,6 +129,9 @@ export type EventType =
   | 'BATTLE_OCCURRED'
   | 'BATTLE_AVOIDED'
   | 'WAR_CAPTAIN_GENERAL_CHANGED'
+  // v0.36 補充・再編成: destroyed Regiment が active に再編成された (minor)。
+  //   strength の通常補充は organization recovery と同じく silent (イベント無し)。
+  | 'REGIMENT_REFORMED'
 
 export type EventReason = {
   label: string

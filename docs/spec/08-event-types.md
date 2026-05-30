@@ -39,6 +39,7 @@
 | BATTLE_OCCURRED | normal | 戦闘発生（v0.35 WarManeuverSystem。messageKey `war.battle_occurred`。params: `warId` / `province` / `battlefieldKind` / `result` / `warScoreDelta` / `warScoreAfter` ほか。**v0.36 追加: `battleId`（§3.9c Battle 参照）/ `attackerRegimentCount` / `defenderRegimentCount`（counts-only。damage summary は載せない）**。`battlefieldKind`・`result` は raw enum 値で持ち、表示時に i18n が label 化する。warScore 変化は本 event で表現し旧 WAR_SCORE_CHANGED を置換） |
 | BATTLE_AVOIDED | minor | 戦闘回避（v0.35 WarManeuverSystem。messageKey `war.battle_avoided`。params: `warId` / `province` / `battlefieldKind` / `avoidingSide`（attacker / defender / both）。両者回避は warScoreDelta=0） |
 | WAR_CAPTAIN_GENERAL_CHANGED | major/normal | 総大将の交代/喪失（v0.35 WarManeuverSystem。messageKey `war.captain_general_changed`。新総大将が undefined（喪失）のとき major、交代は normal。初回任命は発火しない） |
+| REGIMENT_REFORMED | minor | destroyed Regiment が active に再編成された（v0.36 補充・再編成 RegimentReinforcementSystem。messageKey `regiment.reformed`。params: `owner` / `province`）。**strength の通常補充は organization recovery と同じく silent（イベント無し）**——大量発生する補充をイベント化しない方針 |
 | WAR_ENDED | major | 勝敗が明確でない終結（v0.34。white_peace timeout / stale 安全終結 / cancelled orphan。messageKey `war.ended`） |
 | PEACE_SETTLEMENT_APPLIED | major | tax WarGoal を state に反映（v0.34。PeaceSettlementSystem。tax は before→after の税率を `fromRate`/`toRate`（整数%）で記録。transfer は底層 mutation の LAND_CONTRACT_* に委譲し本 event は出さない） |
 | PROVINCE_CONQUERED | major | Province 征服 (v0.16 では WarSystem が依然発火、LAND_CONTRACT_* への置換は Faction 段階) |

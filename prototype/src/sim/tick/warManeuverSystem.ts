@@ -214,6 +214,7 @@ function applySideBattleDamage(
   side: WarSideKey,
   regiments: Regiment[],
   role: BattleDamageRole,
+  week: number,
 ): { rng: RngState; results: BattleRegimentResult[] } {
   const [orgMin, orgMax, strMin, strMax] =
     role === 'winner'
@@ -249,7 +250,7 @@ function applySideBattleDamage(
     const strAfter = clamp(strBefore - strengthDamage, 0, r.maxStrength)
     updateRegimentMut(ws, r.id, { organization: orgAfter, strength: strAfter })
     if (strAfter <= config.regimentDestroyedStrengthThreshold) {
-      destroyRegimentMut(ws, r.id)
+      destroyRegimentMut(ws, r.id, week)
     }
     results.push({
       regimentId: r.id,
@@ -467,7 +468,15 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
           : battle.result === 'attacker_victory'
             ? 'loser'
             : 'inconclusive'
-      const atkDmg = applySideBattleDamage(ws, config, nn.rng, 'attacker', atkRegiments, atkRole)
+      const atkDmg = applySideBattleDamage(
+        ws,
+        config,
+        nn.rng,
+        'attacker',
+        atkRegiments,
+        atkRole,
+        absoluteWeek,
+      )
       const defDmg = applySideBattleDamage(
         ws,
         config,
@@ -475,6 +484,7 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         'defender',
         defRegiments,
         defRole,
+        absoluteWeek,
       )
       nn = { ...nn, rng: defDmg.rng }
 

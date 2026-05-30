@@ -214,7 +214,7 @@ export function disbandRegimentMut(ws: WorldState, regimentId: RegimentId): void
   ws.regiments[regimentId] = next
 }
 
-export function destroyRegimentMut(ws: WorldState, regimentId: RegimentId): void {
+export function destroyRegimentMut(ws: WorldState, regimentId: RegimentId, week: number): void {
   const r = ws.regiments[regimentId]
   if (!r) return
 
@@ -232,9 +232,36 @@ export function destroyRegimentMut(ws: WorldState, regimentId: RegimentId): void
     }
   }
 
-  const next: Regiment = { ...r, status: 'destroyed' }
+  // v0.36 補充・再編成: destroyedWeek を記録し RegimentReinforcementSystem の reform 遅延判定に使う。
+  const next: Regiment = { ...r, status: 'destroyed', destroyedWeek: week }
   delete next.currentWarId
   delete next.currentSide
   delete next.mobilizedByPolityId
+  ws.regiments[regimentId] = next
+}
+
+// v0.36 補充・再編成: destroyed Regiment を active に戻す。本拠地・owner が健在で reform 遅延を
+//   満たした場合に RegimentReinforcementSystem から呼ぶ。byOwner/byHomeHolding には destroy 後も
+//   残っているため index 操作は不要 (byWar には居ない)。strength/organization/morale を初期値に
+//   リセットし、destroyedWeek を消去して lastReinforcedWeek を更新する。
+export function reformRegimentMut(
+  ws: WorldState,
+  regimentId: RegimentId,
+  values: { strength: number; organization: number; morale: number },
+  week: number,
+): void {
+  const r = ws.regiments[regimentId]
+  if (!r) return
+  if (r.status !== 'destroyed') return
+
+  const next: Regiment = {
+    ...r,
+    status: 'active',
+    strength: values.strength,
+    organization: values.organization,
+    morale: values.morale,
+    lastReinforcedWeek: week,
+  }
+  delete next.destroyedWeek
   ws.regiments[regimentId] = next
 }

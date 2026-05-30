@@ -109,6 +109,8 @@ const EVENT_ICON: Partial<Record<EventType, string>> = {
   BATTLE_OCCURRED: '⚔',
   BATTLE_AVOIDED: '🛡',
   WAR_CAPTAIN_GENERAL_CHANGED: '🎖',
+  // v0.36 補充・再編成
+  REGIMENT_REFORMED: '🛡',
   PROVINCE_CONQUERED: '⚔',
   PROVINCE_REVOLT_STARTED: '🔥',
   PROVINCE_REVOLT_SUCCEEDED: '🔥',

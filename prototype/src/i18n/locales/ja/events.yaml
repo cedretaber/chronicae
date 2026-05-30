@@ -85,6 +85,9 @@ war:
     transfer_land: '{{attacker}}が和平で{{defender}}から{{holding}}を獲得した。'
     change_tax: '和平により{{holding}}の税率が{{fromRate}}%から{{toRate}}%に改定された（{{attacker}}有利）。'
 
+regiment:
+  reformed: '{{owner}}が{{province}}で壊滅した連隊を再編成した。'
+
 revolt:
   negotiation_started: '{{province}}で{{rebelClass}}の反乱が勃発し、交渉が始まった。'
   polity_founded: '{{person}}の反乱により{{province}}で{{polity}}が建国された！'

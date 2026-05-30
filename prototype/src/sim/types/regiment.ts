@@ -7,8 +7,9 @@ import type { WarSideKey } from './war'
 //   (spec docs/drafts/spec-v036-update.md §3-6)
 
 // §4.2 RegimentStatus
-//   disbanded: owner/home 失効で解散。v0.36 では再利用しない。
-//   destroyed: 戦闘損耗で壊滅。v0.36 では通常ほぼ発生しないが将来用に予約。
+//   disbanded: owner/home 失効で制度的に解散。再編成対象外 (恒久)。
+//   destroyed: 戦闘損耗で壊滅。本拠地・owner が健在なら RegimentReinforcementSystem が
+//     reform 遅延を経て active に再編成する (v0.36 補充・再編成)。
 //   どちらの非 active record も records / regimentIndex.byOwner には残す
 //   (§10.4 case(d) の「record 在り → 0 power, fallback しない」判定に必要)。
 export type RegimentStatus = 'active' | 'disbanded' | 'destroyed'
@@ -49,8 +50,8 @@ export type Regiment = {
   strength: number
   // §5.6 部隊としてまとまって行動できる度合い (0..100)。v0.36 では battle 後に主に削れる値。
   organization: number
-  // §5.7 士気 (0..100)。v0.36 では write-once placeholder
-  //   (worldgen 初期値を持ち、recovery が補正として読むだけ。低下も再書き込みもしない)。
+  // §5.7 士気 (0..100)。worldgen 初期値を持ち、recovery が補正として読む。
+  //   通常戦闘では低下させない。reform (destroyed→active 再編成) 時のみ初期値に再書き込みする。
   morale: number
   // §5.8 原則 100。将来 Regiment 規模差の表現に使う余地。
   maxStrength: number
@@ -59,6 +60,12 @@ export type Regiment = {
 
   createdWeek: number
   lastMobilizedWeek?: number
+
+  // v0.36 補充・再編成: status === 'destroyed' になった週。reform 遅延判定 (§ reinforcement) と
+  //   integrity (createdWeek <= destroyedWeek <= currentWeek) に使う。active/disbanded では持たない。
+  destroyedWeek?: number
+  // v0.36 補充・再編成: 最後に strength 補充 / reform を受けた週。silent 更新・UI/debug 表示用。
+  lastReinforcedWeek?: number
 }
 
 // §6 regimentIndex (WorldState に保持)。

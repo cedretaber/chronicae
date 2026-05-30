@@ -107,6 +107,7 @@ const WEEKS_PER_SEASON = 12
 | 22c | OrganizationConsistencySystem | 4 | 旧毎月 |
 | 22d | cancelOrphanedWarsSystem | 1 | v0.34 追加。**consistency 系の後ろ**。participant 消滅 active War を cancelled 化（理由は下記） |
 | 22d2 | RegimentMaintenanceSystem | 1 | v0.36 追加。orphan 回収の後。Regiment の home 消失→disband / terminal 変化→owner 付け替え / owner 消滅→disband / stale war→demobilize（順序厳守。§6.27f） |
+| 22d3 | RegimentReinforcementSystem | 4 | v0.36 補充・再編成。maintenance 直後。active strength の silent 月次補充（平時/戦時/動員中係数・home POP・treasury cap）+ destroyed reform（§6.27g） |
 | 23 | AttitudeDecaySystem | 4 | 旧毎月 |
 | 24 | GovernanceSystem | 48 | 旧毎年 |
 | 25 | normalizePopSizes | 4 | 旧毎月 |

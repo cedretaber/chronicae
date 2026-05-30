@@ -213,9 +213,11 @@ v0.30 で外交劇を offer-driven に構造改修したが、バランスの良
 計測条件: tick() 直接ハーネス（`measureWarB` パターン）、**強制戦争 config**（escalation 閾値↓ + settlement 閾値↑）で 60年 × 4 seed。素の CLI は戦争希少（v0.35 由来）で損耗ループをほぼ踏まないため、強制戦争で観察した。
 
 - **損耗ループは健全**: mobilize → organization/strength 損耗 → organization 回復 → demobilize → destroy → Battle cleanup の全行程が稼働。danglingMobilized=0、regiment 総数安定（maxEver==initial）、disbanded=0（§14.6 reassign が土地移転を吸収）。300年 × 4 seed standard は integrity 違反 0。
-- **destroy 率は戦争密度に比例する（要注意・調整保留）**: 強制 config で 60年に 58-123 戦争を詰め込むと active regiment の最大 ~半数が destroyed になった。素の 300年 standard では戦争希少のため decay は無視できる。これは config の knob 問題ではなく下記の構造に由来する。
-- **active regiment プールは構造的に非増加**: destroy は永続（strength は戦闘以外で回復しない。§3.9b / §6.27e）、生成は worldgen のみ（§7）、§14.6 reassign は土地移転で**数を保つ**だけで補充しない。よって戦争が頻繁になるほど軍事力は床なしで減衰する。**v0.36 では仕様どおり**（戦争希少なので顕在化しない）。将来 War 系で戦争頻度が上がる前に **v0.37 reinforcement / 補充**（§13）で床を入れる想定。**この decay はバグではない**——将来のバランス作業がそう誤認しないよう明記する。
-- 損耗 / 回復 config（damage レンジ・recovery 率・destroy 閾値）は仮値。CLAUDE.md §4 に従い、戦争系機能（v0.37+）がひと通り入った段階でまとめて調整する。
+- **destroy 率は戦争密度に比例する（調整保留）**: 強制 config で 60年に 58-123 戦争を詰め込むと active regiment の最大 ~半数が destroyed になった。素の 300年 standard では戦争希少のため decay は小さい。
+- **~~active regiment プールは構造的に非増加~~（v0.36 補充・再編成で解消済）**: かつて destroy 永続・生成は worldgen のみ・§14.6 reassign は数を保つだけ、で「戦争が頻繁になるほど軍事力が床なしで減衰する」構造があった。**v0.36 補充・再編成（§6.27g RegimentReinforcementSystem）でプールは自己修復するようになった**: active は strength を月次 silent 補充し、destroyed は reform 遅延後に再編成される。よって「床なし減衰」はもはや成立しない。
+  - ただし **transient は残る**: reform には ≥`destroyedRegimentReformDelayWeeks`（既定 24週）の平時が要り、開戦 AI は連隊在庫を見ないため、「全滅直後の Polity が攻撃側で開戦」は steady-state では解消するが瞬間的には起こりうる（開戦 AI gate は future。§13）。
+- **補充・再編成の実証（forced harness 60年 × 4seed, A/B 比較）**: 補充 OFF（対照）は旧 decay を再現（maxDestroyed 8-14・active 30→16 等）。**フル ON は maxDestroyed 0-1・active ほぼ初期維持・avgActiveStrength ~98-100**（strength 補充が destroy 到達前に回復させる＝一次機構）。フル ON で reform イベントが 0 件なのは destroy 自体が稀になるためで、バグでも設計限界でもない: 別途 strength 補充だけ OFF にして destroy を蓄積させると reform は 29-148 件発火し（active が再建で回復）、destroyed Regiment は home holding を保持（terminal==owner）したままのことが多く reform は到達可能と確認した（territory 喪失で恒久ブロックされる設計限界ではない）。reform は二次の安全網。
+- 損耗 / 回復 / 補充 / reform の config（damage レンジ・recovery 率・destroy 閾値・補充速度・reform 遅延等）は仮値。avgActiveStrength ~100（戦争がほぼ非攻城的になった）等の balance は CLAUDE.md §4 に従い戦争系機能がひと通り入った段階でまとめて調整する。
 
 ---
 
@@ -228,3 +230,4 @@ v0.30 で外交劇を offer-driven に構造改修したが、バランスの良
 | v0.30 | §14.5 offer-driven 化後のバランス未検証の既知問題を追記 |
 | v0.33+ | §14.6 家制度バランス（有力家系の不在）の診断と初期調整（出生↑＋設立絞り）を追記。observation 基盤に houses/clans snapshot を追加 |
 | v0.36 | §14.7 Persistent Regiment forced-harness 観察を追記（損耗ループ健全・destroy 率は戦争密度比例・active プール非増加で v0.37 reinforcement まで decay は仕様）|
+| v0.36 補充・再編成 | §14.7 を更新。RegimentReinforcementSystem（§6.27g）でプールが自己修復するため「床なし減衰」は解消。残る transient（全滅直後の開戦）と開戦 AI gate は future |

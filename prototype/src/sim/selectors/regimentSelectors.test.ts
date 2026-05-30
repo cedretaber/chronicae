@@ -269,7 +269,7 @@ describe('getRegimentPowerForWarSide', () => {
     })
 
     expect(r1.id).toBeDefined()
-    destroyRegimentMut(state, r1.id)
+    destroyRegimentMut(state, r1.id, 0)
 
     // Sanity: fallback WOULD be positive
     expect(getActorMilitaryPower(state, defaultConfig, pA)).toBeGreaterThan(0)

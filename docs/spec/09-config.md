@@ -122,6 +122,20 @@
 | regimentInitialOrganization | 100 | worldgen 初期 organization |
 | regimentMaxStrength | 100 | strength 上限 |
 | regimentDestroyedStrengthThreshold | 0 | clamp 後 strength がこの値以下で Regiment destroyed |
+| **Regiment 補充・再編成（v0.36 — 仮値。CLI harness で balance 調整予定。§6.27g）** | | |
+| regimentReinforcementBasePerMonth | 4.0 | active strength の月次補充基礎値（cadence は tick 登録 interval=4 で固定） |
+| regimentReinforcementPeaceMultiplier | 1.0 | 平時の補充速度係数 |
+| regimentReinforcementWarMultiplier | 0.4 | owner が active War 参加中の補充速度係数 |
+| regimentReinforcementMobilizedMultiplier | 0.25 | 動員中 Regiment に追加で掛かる係数（warMultiplier と乗算） |
+| regimentReinforcementReferencePopByClass | { peasants: 80, townsmen: 15, nobles: 2.5 } | popFactor 正規化基準（per-class。worldgen 実測より median holding が factor ~1.0） |
+| regimentReinforcementMinPopFactor / MaxPopFactor | 0.1 / 1.5 | popFactor の clamp 範囲 |
+| regimentReinforcementCostPerStrength | 0.2 | strength 1 補充あたり owner treasury から支払う費用 |
+| regimentCavalryReinforcementMultiplier | 0.75 | cavalry の補充速度係数（infantry=1.0） |
+| regimentCavalryReinforcementCostMultiplier | 1.5 | cavalry の補充費用係数（infantry=1.0） |
+| destroyedRegimentReformDelayWeeks | 24 | destroyed → reform 可能になるまでの最短週数 |
+| destroyedRegimentReformInitialStrength / Organization / Morale | 20 / 20 / 40 | reform 直後の初期値 |
+| destroyedRegimentReformCost | 8 | reform 1 件あたり owner treasury から支払う費用 |
+| destroyedRegimentReformMinPopFactor | 0.25 | reform に必要な popFactor 下限 |
 | **Disaster（v0.20.3 改修: Province 単位・割合ベース・圧力連動）** | | |
 | disasterEnabled | true | 災害有効 |
 | famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province |
