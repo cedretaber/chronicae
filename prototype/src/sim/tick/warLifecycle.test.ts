@@ -15,9 +15,7 @@ import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { HoldingId, PolityId, ProvinceId, HouseId, DiplomaticPlayId } from '../types/ids'
 import { createWar } from '../mutations/warMutations'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
-import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { runWarCreationSystem } from './warCreationSystem'
-import { runWarProgressSystem } from './warProgressSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
 import { runCleanupWarSystem } from './cleanupWarSystem'
@@ -164,68 +162,8 @@ describe('WarCreationSystem (§6)', () => {
   })
 })
 
-describe('WarProgressSystem (§7)', () => {
-  it('戦力差に応じて warScore が動き [-100,100] に収まる / lastWarWeek を更新する', () => {
-    const world = freshWorld()
-    const { holdingId, owner, other } = pickHoldingAndPolities(world)
-    createWar(world, {
-      attacker: { kind: 'polity', id: other },
-      defender: { kind: 'polity', id: owner },
-      warGoals: [
-        {
-          kind: 'transfer_land_contract',
-          holdingId,
-          fromPolityId: owner,
-          toPolityId: other,
-          requiredWarScore: 60,
-        },
-      ],
-      targetWarScore: 60,
-      startedWeek: world.absoluteWeek,
-    })
-    const ctx = makeCtx(world)
-    const aP = getActorMilitaryPower(ctx.state, ctx.config, { kind: 'polity', id: other })
-    const dP = getActorMilitaryPower(ctx.state, ctx.config, { kind: 'polity', id: owner })
-
-    const next = runWarProgressSystem(ctx)
-    const war = Object.values(next.state.wars)[0]
-    expect(war).toBeDefined()
-    expect(war!.warScore).toBeGreaterThanOrEqual(-100)
-    expect(war!.warScore).toBeLessThanOrEqual(100)
-    // 乱数なし → 戦力比で符号が決まる。
-    if (aP > dP) expect(war!.warScore).toBeGreaterThan(0)
-    else if (aP < dP) expect(war!.warScore).toBeLessThan(0)
-    // lastWarWeek (valor/command 用) を両 polity に立てる。
-    expect(next.state.polities[other]?.lastWarWeek).toBe(world.absoluteWeek)
-    expect(next.state.polities[owner]?.lastWarWeek).toBe(world.absoluteWeek)
-  })
-
-  it('inactive participant の War は warScore を触らない (dead-participant guard)', () => {
-    const world = freshWorld()
-    const { holdingId, owner, other } = pickHoldingAndPolities(world)
-    createWar(world, {
-      attacker: { kind: 'polity', id: other },
-      defender: { kind: 'polity', id: owner },
-      warGoals: [
-        {
-          kind: 'transfer_land_contract',
-          holdingId,
-          fromPolityId: owner,
-          toPolityId: other,
-          requiredWarScore: 60,
-        },
-      ],
-      targetWarScore: 60,
-      startedWeek: world.absoluteWeek,
-    })
-    const d = world.polities[owner]!
-    world.polities[owner] = { ...d, active: false }
-
-    const next = runWarProgressSystem(makeCtx(world))
-    const war = Object.values(next.state.wars)[0]
-    expect(war!.warScore).toBe(0)
-  })
-})
+// v0.35: WarProgressSystem (§7) は WarManeuverSystem に置換。lastWarWeek 更新 / dead-participant guard の
+//   等価カバレッジは warManeuverSystem.test.ts に移管した (per-tick drift 撤廃で warScore の符号確定テストは廃止)。
 
 describe('cancelOrphanedWarsSystem (§7.9)', () => {
   it('participant が inactive 化した active War を cancelled + endedWeek + WAR_ENDED', () => {

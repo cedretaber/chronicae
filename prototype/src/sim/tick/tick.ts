@@ -31,7 +31,7 @@ import { runBailiffRevenueTaskSystem } from './bailiffRevenueTaskSystem'
 import { runTaskSystem } from './taskSystem'
 import { runConflictResolutionSystem } from './conflictResolutionSystem'
 import { runWarCreationSystem } from './warCreationSystem'
-import { runWarProgressSystem } from './warProgressSystem'
+import { runWarManeuverSystem } from './warManeuverSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
 import { runCleanupWarSystem } from './cleanupWarSystem'
@@ -350,10 +350,12 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runConflictResolutionSystem,
   },
   {
-    name: 'warProgressSystem',
-    intervalWeeks: 4,
+    // v0.35: 旧 WarProgressSystem を WarManeuverSystem に置換。intervalWeeks 1 (毎週、§2.4)。
+    //   旧スロット位置を維持し、PeaceSettlement (interval 4 据え置き) の前に置く。
+    name: 'warManeuverSystem',
+    intervalWeeks: 1,
     phaseOffsetWeeks: 0,
-    run: runWarProgressSystem,
+    run: runWarManeuverSystem,
   },
   {
     name: 'peaceSettlementSystem',

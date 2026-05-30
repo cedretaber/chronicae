@@ -1,6 +1,7 @@
 import type { TickContext } from './context'
 import type { WarId, PolityId } from '../types/ids'
-import type { War, ChangeContractTaxRateWarGoal } from '../types/war'
+import type { War, WarGoal, ChangeContractTaxRateWarGoal } from '../types/war'
+import type { WorldState } from '../types/world'
 import { getWarPrimaryAttacker, getWarPrimaryDefender } from '../mutations/warMutations'
 import { isActorActive } from '../selectors/actorSelectors'
 import {
@@ -151,6 +152,26 @@ function settleAttackerWon(ctx: TickContext, warId: WarId): TickContext {
   return next
 }
 
+// §8.8: active War の WarGoal が参照する holding / polity / landContract が消えたら stale。
+//   integrity §14.5 の active-War 存在検査と同条件にし、stale War を timeout 前に白紙和平で終結させる。
+//   v0.35: per-tick drift 撤廃で互角戦が ~maxWarDurationWeeks 長期化するため、その間に別システムが
+//   landContract を再構成すると stale active War が integrity を踏む。これを能動的に解消する。
+function isWarGoalRefStale(state: WorldState, goal: WarGoal): boolean {
+  if (goal.kind === 'transfer_land_contract') {
+    return (
+      !state.holdings[goal.holdingId] ||
+      !state.polities[goal.fromPolityId] ||
+      !state.polities[goal.toPolityId]
+    )
+  }
+  const contract = state.landContracts[goal.landContractId]
+  return (
+    !state.holdings[goal.holdingId] ||
+    !contract ||
+    (contract.holdingId as string) !== (goal.holdingId as string)
+  )
+}
+
 export function runPeaceSettlementSystem(ctx: TickContext): TickContext {
   const config = ctx.config
   const activeWarIds = Object.keys(ctx.state.wars)
@@ -168,6 +189,12 @@ export function runPeaceSettlementSystem(ctx: TickContext): TickContext {
     const def = getWarPrimaryDefender(war)?.actor
     if (!atk || !def) continue
     if (!isActorActive(next.state, atk) || !isActorActive(next.state, def)) continue
+
+    // §8.8: WarGoal が stale (参照先消失) なら warScore/timeout を待たず白紙和平で安全終結する。
+    if (war.warGoals.some((g) => isWarGoalRefStale(next.state, g))) {
+      next = settleWhitePeace(next, wid)
+      continue
+    }
 
     const absoluteWeek = next.state.absoluteWeek
     if (war.warScore >= war.targetWarScore) {

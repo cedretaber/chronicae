@@ -77,8 +77,10 @@ war:
     generic: '{{attacker}}が{{issue}}を巡り{{defender}}に宣戦布告した。'
     transfer_land: '{{attacker}}が{{from}}から{{subject}}を奪うべく{{defender}}に宣戦布告した。'
     change_tax: '{{attacker}}が{{subject}}の税率（{{fromRate}}%→{{toRate}}%）を巡り{{defender}}に宣戦布告した。'
-  score_changed: '{{attacker}}と{{defender}}の戦争の趨勢が動いた（戦況 {{warScore}}）。'
   ended: '{{attacker}}と{{defender}}の戦争は決着がつかずに終わった。'
+  battle_occurred: '{{province}}の{{battlefieldKind}}にて戦闘が発生し、{{result}}。戦勝点変化: {{warScoreDelta}}。'
+  battle_avoided: '{{avoidingSide}}は{{province}}の{{battlefieldKind}}での戦闘を回避した。戦勝点変化: {{warScoreDelta}}。'
+  captain_general_changed: '{{actor}}の総大将が{{oldCaptainGeneral}}から{{newCaptainGeneral}}に交代した。'
   peace_settlement:
     transfer_land: '{{attacker}}が和平で{{defender}}から{{holding}}を獲得した。'
     change_tax: '和平により{{holding}}の税率が{{fromRate}}%から{{toRate}}%に改定された（{{attacker}}有利）。'

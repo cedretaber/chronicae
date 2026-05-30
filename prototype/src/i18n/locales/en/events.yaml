@@ -78,8 +78,10 @@ war:
     generic: '{{attacker}} declared war on {{defender}} over {{issue}}.'
     transfer_land: '{{attacker}} declared war on {{defender}} to seize {{subject}} from {{from}}.'
     change_tax: '{{attacker}} declared war on {{defender}} over the tax of {{subject}} (seeking {{fromRate}}% → {{toRate}}%).'
-  score_changed: 'The war between {{attacker}} and {{defender}} shifts (warScore {{warScore}}).'
   ended: 'The war between {{attacker}} and {{defender}} ended without a decisive victor.'
+  battle_occurred: 'A battle occurred at {{battlefieldKind}} in {{province}}. Result: {{result}}. War score change: {{warScoreDelta}}.'
+  battle_avoided: '{{avoidingSide}} avoided battle at {{battlefieldKind}} in {{province}}. War score change: {{warScoreDelta}}.'
+  captain_general_changed: '{{actor}} changed its captain general from {{oldCaptainGeneral}} to {{newCaptainGeneral}}.'
   peace_settlement:
     transfer_land: '{{attacker}} took {{holding}} from {{defender}} in the peace settlement.'
     change_tax: 'The peace settlement set the tax of {{holding}} from {{fromRate}}% to {{toRate}}% in favor of {{attacker}}.'

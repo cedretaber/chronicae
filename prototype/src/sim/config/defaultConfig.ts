@@ -5,6 +5,7 @@ import type { HoldingKind } from '../types/landContract'
 import type { PopOccupation, PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
+import type { BattlefieldKind } from '../types/war'
 
 export type SimulationConfig = {
   uiLocale: 'en' | 'ja'
@@ -372,15 +373,39 @@ export type SimulationConfig = {
   conflictPopWealthDamage: number
   conflictPopUnrestGain: number
   // v0.34 War (§15): DiplomaticPlay escalation を複数 tick の War entity で解決する
-  warScoreProgressFactor: number
-  maxWarScoreDeltaPerTick: number
-  warMinimumEffectivePower: number
-  warScoreCollapseDelta: number
+  //   v0.35: per-tick drift 系 (warScoreProgressFactor / maxWarScoreDeltaPerTick /
+  //   warMinimumEffectivePower / warScoreCollapseDelta / warScoreEventThreshold) は WarManeuver 化で撤廃。
   maxWarDurationWeeks: number
   defaultTransferLandWarScore: number
   defaultChangeContractTaxWarScore: number
-  warScoreEventThreshold: number
   terminalWarRetentionWeeks: number
+  // v0.35 War Maneuver (§12.1): WarManeuverSystem の総大将判断 / 回避 / 戦闘で warScore を動かす
+  //   avoidance
+  warAvoidanceBaseChance: number
+  warAvoidanceWarCommandEffect: number
+  warAvoidanceTerrainModifierByBattlefield: Record<BattlefieldKind, number>
+  warAvoidanceCountPenalty: number
+  maxWarAvoidanceCount: number
+  warAvoidanceWarScorePenalty: number
+  //   engagement decision
+  warEngagementRandomness: number
+  warEngagementCautionEffect: number
+  warEngagementAmbitionEffect: number
+  warEngagementWarScoreUrgencyEffect: number
+  //   battle
+  warBattleRandomness: number
+  warBattleScoreScale: number
+  maxWarScoreDeltaPerBattle: number
+  battleVictoryThreshold: number
+  //   commander
+  warCommanderWarCommandEffect: number
+  minWarCommanderModifier: number
+  maxWarCommanderModifier: number
+  //   captain general
+  captainGeneralWarScoreEffect: number
+  //   battlefield 生成 (feature 特殊化確率。spec §12.1 未記載・本実装で定義)
+  warBattlefieldRiverCrossingChance: number
+  warBattlefieldCoastalBattleChance: number
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: boolean
   acquireLandMinTreasury: number
@@ -1077,16 +1102,41 @@ export const defaultConfig: SimulationConfig = {
   conflictProvinceDevastation: 4,
   conflictPopWealthDamage: 4,
   conflictPopUnrestGain: 12,
-  // v0.34 War (§15): warScore は乱数なしの戦力比依存。値は暫定 (バランス調整は機能完成後)。
-  warScoreProgressFactor: 20,
-  maxWarScoreDeltaPerTick: 8,
-  warMinimumEffectivePower: 1,
-  warScoreCollapseDelta: 12,
+  // v0.34 War (§15): v0.35 で per-tick drift 系 5 件は WarManeuver 化により撤廃。値は暫定。
   maxWarDurationWeeks: 520,
   defaultTransferLandWarScore: 60,
   defaultChangeContractTaxWarScore: 50,
-  warScoreEventThreshold: 4,
   terminalWarRetentionWeeks: 48,
+  // v0.35 War Maneuver (§12.2): 初期値案。バランス調整は機能完成後 (.claude/CLAUDE.md §4)。
+  warAvoidanceBaseChance: 0.65,
+  warAvoidanceWarCommandEffect: 0.2,
+  warAvoidanceTerrainModifierByBattlefield: {
+    open_field: -0.1,
+    forest_battle: 0.1,
+    hill_battle: 0.05,
+    mountain_pass: 0.15,
+    wetland_battle: 0.15,
+    river_crossing: 0.05,
+    coastal_battle: 0.0,
+    siege: -0.2,
+  },
+  warAvoidanceCountPenalty: 0.2,
+  maxWarAvoidanceCount: 4,
+  warAvoidanceWarScorePenalty: 1.0,
+  warEngagementRandomness: 0.1,
+  warEngagementCautionEffect: 0.2,
+  warEngagementAmbitionEffect: 0.15,
+  warEngagementWarScoreUrgencyEffect: 0.3,
+  warBattleRandomness: 0.1,
+  warBattleScoreScale: 12,
+  maxWarScoreDeltaPerBattle: 8,
+  battleVictoryThreshold: 1.0,
+  warCommanderWarCommandEffect: 0.25,
+  minWarCommanderModifier: 0.75,
+  maxWarCommanderModifier: 1.25,
+  captainGeneralWarScoreEffect: 0.1,
+  warBattlefieldRiverCrossingChance: 0.35,
+  warBattlefieldCoastalBattleChance: 0.25,
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: true,
   acquireLandMinTreasury: 200,

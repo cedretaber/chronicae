@@ -1,6 +1,14 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
-import type { War, WarGoal } from '../types/war'
+import type {
+  War,
+  WarGoal,
+  WarSideKey,
+  BattlefieldKind,
+  BattleResult,
+  BattleInitiationKind,
+} from '../types/war'
+import type { PersonId, ProvinceId } from '../types/ids'
 import type { PoliticalActorRef } from '../types/actor'
 import type { WorldState } from '../types/world'
 import type {
@@ -142,26 +150,6 @@ export function emitWarDeclared(ctx: TickContext, war: War, issueKind: string): 
   )
 }
 
-// §12.3 WAR_SCORE_CHANGED — WarProgressSystem が |delta|>=threshold で発行 (normal)。
-export function emitWarScoreChanged(ctx: TickContext, war: War, delta: number): TickContext {
-  const p = warParties(ctx.state, war)
-  if (!p) return ctx
-  return emit(
-    ctx,
-    'WAR_SCORE_CHANGED',
-    'normal',
-    'war.score_changed',
-    {
-      warId: war.id,
-      attacker: nameParam(p.attacker.kind, p.attackerName),
-      defender: nameParam(p.defender.kind, p.defenderName),
-      warScore: war.warScore,
-      delta,
-    },
-    attackerDefenderRefs(p),
-  )
-}
-
 // §12.4 WAR_WON / WAR_LOST — PeaceSettlementSystem が決着時に勝者/敗者へ発行 (major)。
 export function emitWarOutcome(ctx: TickContext, war: War, attackerWon: boolean): TickContext {
   const p = warParties(ctx.state, war)
@@ -258,6 +246,200 @@ export function emitPeaceSettlementApplied(ctx: TickContext, war: War, goal: War
             fromRate: Math.round(goal.baseTaxRateToGrantor * 100),
             toRate: Math.round(goal.newTaxRateToGrantor * 100),
           }
+        : {}),
+    },
+    refs,
+  )
+}
+
+// ─── v0.35 §11: WarManeuver の Battle / Avoidance / 総大将交代 event ───
+//   Battle entity を持たないため params は self-contained (province 名・人物名・powers・warScore)。
+//   人物 (総大将 / commander) は entityRef('person', ...) で UI クリック可能化する。
+
+function personNameKeyOrId(state: WorldState, id: PersonId): string {
+  return state.persons[id]?.nameKey ?? id
+}
+
+// person ref を返す (undefined は積まない)。
+function personRef(
+  state: WorldState,
+  id: PersonId | undefined,
+  role: string,
+): EventEntityRef | undefined {
+  if (id === undefined) return undefined
+  return entityRef('person', id, role, state.persons[id]?.nameKey)
+}
+
+export type BattleOccurredInput = {
+  provinceId?: ProvinceId
+  battlefieldKind: BattlefieldKind
+  initiationKind: BattleInitiationKind
+  result: BattleResult
+  attackerCaptainGeneralId?: PersonId
+  defenderCaptainGeneralId?: PersonId
+  attackerCommanderId?: PersonId
+  defenderCommanderId?: PersonId
+  attackerPower: number
+  defenderPower: number
+  attackerEffectivePower: number
+  defenderEffectivePower: number
+  warScoreDelta: number
+  warScoreAfter: number
+}
+
+// §11.1 BATTLE_OCCURRED (normal)。warScore 変化は warScoreDelta / warScoreAfter で表現。
+export function emitBattleOccurred(
+  ctx: TickContext,
+  war: War,
+  input: BattleOccurredInput,
+): TickContext {
+  const state = ctx.state
+  const p = warParties(state, war)
+  if (!p) return ctx
+  const provinceNameKey = input.provinceId ? state.provinces[input.provinceId]?.nameKey : undefined
+  const refs: EventEntityRef[] = [...attackerDefenderRefs(p)]
+  if (input.provinceId) {
+    refs.push(entityRef('province', input.provinceId, 'province', provinceNameKey))
+  }
+  for (const [id, role] of [
+    [input.attackerCaptainGeneralId, 'attacker_captain_general'],
+    [input.defenderCaptainGeneralId, 'defender_captain_general'],
+    [input.attackerCommanderId, 'attacker_commander'],
+    [input.defenderCommanderId, 'defender_commander'],
+  ] as const) {
+    const r = personRef(state, id, role)
+    if (r) refs.push(r)
+  }
+  return emit(
+    ctx,
+    'BATTLE_OCCURRED',
+    'normal',
+    'war.battle_occurred',
+    {
+      warId: war.id,
+      battlefieldKind: input.battlefieldKind,
+      initiationKind: input.initiationKind,
+      result: input.result,
+      attacker: nameParam(p.attacker.kind, p.attackerName),
+      defender: nameParam(p.defender.kind, p.defenderName),
+      attackerPower: input.attackerPower,
+      defenderPower: input.defenderPower,
+      attackerEffectivePower: input.attackerEffectivePower,
+      defenderEffectivePower: input.defenderEffectivePower,
+      warScoreDelta: input.warScoreDelta,
+      warScoreAfter: input.warScoreAfter,
+      ...(provinceNameKey ? { province: nameParam('province', provinceNameKey) } : {}),
+      ...(input.attackerCommanderId
+        ? {
+            attackerCommander: nameParam(
+              'person',
+              personNameKeyOrId(state, input.attackerCommanderId),
+            ),
+          }
+        : {}),
+      ...(input.defenderCommanderId
+        ? {
+            defenderCommander: nameParam(
+              'person',
+              personNameKeyOrId(state, input.defenderCommanderId),
+            ),
+          }
+        : {}),
+    },
+    refs,
+  )
+}
+
+export type BattleAvoidedInput = {
+  provinceId?: ProvinceId
+  battlefieldKind: BattlefieldKind
+  avoidingSide: WarSideKey | 'both'
+  attackerCaptainGeneralId?: PersonId
+  defenderCaptainGeneralId?: PersonId
+  avoidanceSucceeded: boolean
+  attackerAvoidanceCountAfter: number
+  defenderAvoidanceCountAfter: number
+  warScoreDelta: number
+  warScoreAfter: number
+}
+
+// §11.2 BATTLE_AVOIDED (minor)。両者回避は avoidingSide='both' / warScoreDelta=0。
+export function emitBattleAvoided(
+  ctx: TickContext,
+  war: War,
+  input: BattleAvoidedInput,
+): TickContext {
+  const state = ctx.state
+  const p = warParties(state, war)
+  if (!p) return ctx
+  const provinceNameKey = input.provinceId ? state.provinces[input.provinceId]?.nameKey : undefined
+  const refs: EventEntityRef[] = [...attackerDefenderRefs(p)]
+  if (input.provinceId) {
+    refs.push(entityRef('province', input.provinceId, 'province', provinceNameKey))
+  }
+  for (const [id, role] of [
+    [input.attackerCaptainGeneralId, 'attacker_captain_general'],
+    [input.defenderCaptainGeneralId, 'defender_captain_general'],
+  ] as const) {
+    const r = personRef(state, id, role)
+    if (r) refs.push(r)
+  }
+  return emit(
+    ctx,
+    'BATTLE_AVOIDED',
+    'minor',
+    'war.battle_avoided',
+    {
+      warId: war.id,
+      battlefieldKind: input.battlefieldKind,
+      avoidingSide: input.avoidingSide,
+      attacker: nameParam(p.attacker.kind, p.attackerName),
+      defender: nameParam(p.defender.kind, p.defenderName),
+      avoidanceSucceeded: input.avoidanceSucceeded,
+      attackerAvoidanceCountAfter: input.attackerAvoidanceCountAfter,
+      defenderAvoidanceCountAfter: input.defenderAvoidanceCountAfter,
+      warScoreDelta: input.warScoreDelta,
+      warScoreAfter: input.warScoreAfter,
+      ...(provinceNameKey ? { province: nameParam('province', provinceNameKey) } : {}),
+    },
+    refs,
+  )
+}
+
+// §11.3 WAR_CAPTAIN_GENERAL_CHANGED。総大将喪失 (new undefined) は major、それ以外 normal。
+//   初回任命 (old undefined) では呼ばない (呼び出し側で gate)。
+export function emitCaptainGeneralChanged(
+  ctx: TickContext,
+  war: War,
+  sideKey: WarSideKey,
+  oldCaptainGeneralId: PersonId | undefined,
+  newCaptainGeneralId: PersonId | undefined,
+): TickContext {
+  const state = ctx.state
+  const side = sideKey === 'attacker' ? war.attacker : war.defender
+  const actor = side.participants.find((pp) => pp.primary)?.actor
+  if (!actor) return ctx
+  const actorName = actorNameKey(state, actor)
+  const importance: EventImportance = newCaptainGeneralId === undefined ? 'major' : 'normal'
+  const refs: EventEntityRef[] = [entityRef(actorEntityKind(actor), actor.id, 'actor', actorName)]
+  const oldRef = personRef(state, oldCaptainGeneralId, 'old_captain_general')
+  if (oldRef) refs.push(oldRef)
+  const newRef = personRef(state, newCaptainGeneralId, 'new_captain_general')
+  if (newRef) refs.push(newRef)
+  return emit(
+    ctx,
+    'WAR_CAPTAIN_GENERAL_CHANGED',
+    importance,
+    'war.captain_general_changed',
+    {
+      warId: war.id,
+      side: sideKey,
+      actor: nameParam(actor.kind, actorName),
+      ...(oldCaptainGeneralId
+        ? { oldCaptainGeneral: nameParam('person', personNameKeyOrId(state, oldCaptainGeneralId)) }
+        : {}),
+      ...(newCaptainGeneralId
+        ? { newCaptainGeneral: nameParam('person', personNameKeyOrId(state, newCaptainGeneralId)) }
         : {}),
     },
     refs,

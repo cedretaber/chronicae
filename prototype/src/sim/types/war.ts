@@ -40,6 +40,28 @@ export type WarSide = {
   avoidanceCount: number
 }
 
+// §6.1 BattlefieldKind
+//   想定戦場の地形種別。Province.terrain を基本に features で特殊化する (§6.3)。
+//   siege は型のみ用意し v0.35 では生成しない (要塞・包囲・占領が未実装のため future)。
+export type BattlefieldKind =
+  | 'open_field'
+  | 'forest_battle'
+  | 'hill_battle'
+  | 'mountain_pass'
+  | 'wetland_battle'
+  | 'river_crossing'
+  | 'coastal_battle'
+  | 'siege'
+
+// §10.5 BattleResult
+export type BattleResult = 'attacker_victory' | 'defender_victory' | 'inconclusive'
+
+// §11.1 BattleInitiationKind — Battle がどう発生したか (BATTLE_OCCURRED event に記録)。
+export type BattleInitiationKind =
+  | 'mutual_engagement'
+  | 'attacker_avoidance_failed'
+  | 'defender_avoidance_failed'
+
 // §4.7 WarGoal
 //   和平時に DiplomaticPlay / DiplomaticOffer が cleanup 済みでも実行できるよう、
 //   実行に必要な情報をすべてコピーして保持する。

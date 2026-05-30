@@ -1,6 +1,10 @@
 import type { WorldState } from '@sim/types/world'
-import type { War, WarSideKey } from '@sim/types/war'
+import type { War, WarSideKey, BattlefieldKind } from '@sim/types/war'
 import type { PersonId, PolityId, ProvinceId } from '@sim/types/ids'
+import type { Province, ProvinceTerrain } from '@sim/types/province'
+import type { SimulationConfig } from '@sim/config/defaultConfig'
+import type { RngState, RngResult } from '@sim/rng/rng'
+import { randomFloat } from '@sim/rng/rng'
 import { getActiveOfficeHolders, getPolityLeader } from '@sim/selectors/officeSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
 
@@ -13,7 +17,8 @@ import { getRoleScore } from '@sim/selectors/abilitySelectors'
 
 // 総大将 / 指揮官候補になれる人物の最小条件: 実在・生存・非 placeholder。
 //   getActiveOfficeHolders は office.active のみで filter し死亡者を除外しないため、ここで明示する。
-function isEligibleWarPerson(state: WorldState, personId: PersonId): boolean {
+//   WarManeuverSystem の captainGeneral lazy refresh が「現 CG が据置可能か」判定に再利用する。
+export function isEligibleWarPerson(state: WorldState, personId: PersonId): boolean {
   const p = state.persons[personId]
   return Boolean(p && p.alive && p.kind !== 'placeholder')
 }
@@ -97,4 +102,43 @@ export function getWarGoalProvince(state: WorldState, war: War): ProvinceId | un
   const goal = war.warGoals[0]
   if (!goal) return undefined
   return state.holdings[goal.holdingId]?.provinceId
+}
+
+// --- battlefield 生成 (§6.3 / §6.4) ---
+
+// terrain → base BattlefieldKind の素マッピング。
+const TERRAIN_TO_BATTLEFIELD: Record<ProvinceTerrain, BattlefieldKind> = {
+  plains: 'open_field',
+  forest: 'forest_battle',
+  hills: 'hill_battle',
+  mountains: 'mountain_pass',
+  wetlands: 'wetland_battle',
+}
+
+// 毎週 active War ごとに Candidate Battlefield を 1 つ生成する (§6.3)。
+//   base = terrain マッピング。feature による特殊化は固定優先順 (major_river → coastal)、
+//   先に roll 成功した方を採用し、両 miss / feature 無しは base terrain。
+//   lake は v0.35 では無効、siege は生成しない、off-terrain 低確率分岐は非採用。
+//   rng は feature 有無に応じ 0〜2 draw（state 依存なので deterministic replay を満たす）。
+export function generateCandidateBattlefield(
+  province: Province,
+  rng: RngState,
+  config: SimulationConfig,
+): RngResult<BattlefieldKind> {
+  let currentRng = rng
+  if (province.features.includes('major_river')) {
+    const { value, rng: nextRng } = randomFloat(currentRng)
+    currentRng = nextRng
+    if (value < config.warBattlefieldRiverCrossingChance) {
+      return { value: 'river_crossing', rng: currentRng }
+    }
+  }
+  if (province.features.includes('coastal')) {
+    const { value, rng: nextRng } = randomFloat(currentRng)
+    currentRng = nextRng
+    if (value < config.warBattlefieldCoastalBattleChance) {
+      return { value: 'coastal_battle', rng: currentRng }
+    }
+  }
+  return { value: TERRAIN_TO_BATTLEFIELD[province.terrain], rng: currentRng }
 }
