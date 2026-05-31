@@ -6,6 +6,7 @@ import { defaultConfig, type SimulationConfig } from '../config/defaultConfig'
 import { createWar } from '../mutations/warMutations'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
 import { generateCandidateBattlefield } from '../selectors/warManeuverSelectors'
+import { getRegimentEffectivePower } from '../selectors/regimentSelectors'
 import { runWarManeuverSystem } from './warManeuverSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
 import { politicalActorKey } from '../selectors/actorSelectors'
@@ -412,9 +413,11 @@ describe('WarManeuverSystem Regiment 接続 (§9 / §11 / §12)', () => {
     const world = freshWorld()
     const { war, owner } = injectWar(world)
     const ownerRegs = ownerRegimentIds(world, owner)
-    // 全 Regiment は t=0 で str=100/org=100 → effectivePower==basePower。
+    // defenderBasePower は getRegimentPowerForWarSide = Σ effectivePower を格納する (命名は basePower だが中身は
+    //   side 集計 effectivePower)。v0.37 B1 で初期 org=baseline(50) になり effectivePower≠basePower のため、
+    //   effectivePower 集計で期待値を組む。
     const expectedDefPower = ownerRegs.reduce(
-      (sum, rid) => sum + world.regiments[rid]!.basePower,
+      (sum, rid) => sum + getRegimentEffectivePower(world.regiments[rid]!),
       0,
     )
 

@@ -989,6 +989,54 @@ async function main(): Promise<void> {
         (warBreakdown ? ' (' + warBreakdown + ')' : ''),
     )
 
+    // v0.37 §19.2: Regiment 集計 (B1 の平時 baseline 収束観察用)。active の avg org/morale が
+    //   baseline 近傍 (org≈50 / morale≈30) なら recovery が機能。destroyed が時間で発散しないかも見る。
+    const allRegiments = Object.values(state.regiments)
+    let regActive = 0
+    let regDestroyed = 0
+    let regDisbanded = 0
+    let sumStr = 0
+    let sumOrg = 0
+    let sumMor = 0
+    let sumBaseOrg = 0
+    let sumBaseMor = 0
+    for (const r of allRegiments) {
+      if (r.status === 'active') {
+        regActive++
+        sumStr += r.strength
+        sumOrg += r.organization
+        sumMor += r.morale
+        sumBaseOrg += r.baselineOrganization
+        sumBaseMor += r.baselineMorale
+      } else if (r.status === 'destroyed') {
+        regDestroyed++
+      } else if (r.status === 'disbanded') {
+        regDisbanded++
+      }
+    }
+    const avgReg = (sum: number) => (regActive > 0 ? (sum / regActive).toFixed(1) : 'n/a')
+    console.log(
+      'Regiments: ' +
+        regActive +
+        ' active / ' +
+        allRegiments.length +
+        ' total (destroyed=' +
+        regDestroyed +
+        ', disbanded=' +
+        regDisbanded +
+        ') | active avg str=' +
+        avgReg(sumStr) +
+        ' org=' +
+        avgReg(sumOrg) +
+        ' morale=' +
+        avgReg(sumMor) +
+        ' (baseline org=' +
+        avgReg(sumBaseOrg) +
+        ' morale=' +
+        avgReg(sumBaseMor) +
+        ')',
+    )
+
     console.log('Total events: ' + allEvents.length)
   }
 } // end async main()

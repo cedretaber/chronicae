@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import { generateWorld } from './generateWorld'
 import { defaultConfig } from '../config/defaultConfig'
 import { calcPolityMilitaryPower } from '../selectors/militarySelectors'
-import { getRegimentEffectivePower } from '../selectors/regimentSelectors'
 import type { PolityId } from '../types/ids'
 
 // ---------------------------------------------------------------------------
@@ -34,14 +33,17 @@ describe('generateInitialRegiments (via generateWorld)', () => {
   it('per-owner basePower sum equals old calcPolityMilitaryPower at t=0', () => {
     const { world } = generateWorld('seed-1')
 
-    // Build Map<ownerKey, sum of effective power> from regimentIndex.byOwner
+    // Build Map<ownerKey, sum of basePower> from regimentIndex.byOwner.
+    // The worldgen 2-pass invariant is on basePower (Σ basePower ≈ calcPolityMilitaryPower),
+    // independent of initial organization. v0.37 B1 sets initial org = baseline (50), so
+    // effectivePower is no longer == basePower at t=0; basePower is the org-independent invariant.
     const sums = new Map<string, number>()
     for (const [ownerKey, ids] of Object.entries(world.regimentIndex.byOwner)) {
       let sum = 0
       for (const id of ids) {
         const r = world.regiments[id]
         if (r) {
-          sum += getRegimentEffectivePower(r)
+          sum += r.basePower
         }
       }
       sums.set(ownerKey, sum)

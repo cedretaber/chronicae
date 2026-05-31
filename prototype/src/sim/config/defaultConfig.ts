@@ -1257,10 +1257,10 @@ export const defaultConfig: SimulationConfig = {
   regimentStrengthDamageLoserMax: 6,
   regimentStrengthDamageInconclusiveMin: 1,
   regimentStrengthDamageInconclusiveMax: 3,
-  regimentOrganizationRecoveryPerWeek: 8,
-  regimentInitialMorale: 80,
+  regimentOrganizationRecoveryPerWeek: 8, // v0.37 B1: provisional, co-tuned with battle damage in B2a harness
+  regimentInitialMorale: 30, // v0.37 B1: = baselineMorale (was 80; start at baseline to avoid 80→30 transient)
   regimentInitialStrength: 100,
-  regimentInitialOrganization: 100,
+  regimentInitialOrganization: 50, // v0.37 B1: = baselineOrganization (was 100; start at baseline)
   regimentMaxStrength: 100,
   regimentDestroyedStrengthThreshold: 0,
   // v0.36 補充・再編成 — 仮値。balance 調整対象 (機能完成後にまとめて)。
