@@ -1353,7 +1353,7 @@ develop_holding Project:
 Holding.development 削除確認:
 - 旧 `Holding.development` 範囲チェック (-100..100) を削除
 
-Selector range（debug/integrity-check モード）:
+Selector range（debug モードのみ。`if (debug && config)` でゲート）:
 - `localExtractionRate` が `[minLocalExtractionRate, maxLocalExtractionRate]`
 - `collectionEfficiency` が `[minBailiffCollectionEfficiency, 1.0]`
 - `bailiffFeeRate` が `[0, maxBailiffFeeRate]`

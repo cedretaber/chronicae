@@ -29,7 +29,7 @@ function tick(input: TickInput): TickResult
 
 ```bash
 cd prototype
-npm run cli -- --seed <seed> --years <n> [--weeks <n>] [--integrity-check] [--json]
+npm run cli -- --seed <seed> --years <n> [--weeks <n>] [--integrity-per-system] [--json]
 ```
 
 コーディングエージェントがバグ検出・動作確認に利用することを想定している。

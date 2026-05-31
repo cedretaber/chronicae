@@ -95,7 +95,7 @@ v0.17.1 完成後、観察用 Activity Report (4 軸 JSON 出力) を導入し�
 
 CLI 実行時間の最適化。これ以降の機能追加・バランス調整サイクルの開発速度向上が目的。
 
-- **A. integrityCheck を年末 (month=12) のみ実行**: 旧版は default の非 debug モードでも毎 tick 走らせていた。違反検知は year-end でも原因 year は特定できるので CLI 検証用途として十分。`--integrity-check` flag は per-tick check を明示的に要求するときに使う。debug mode は per-system PERF log の都合で per-tick 継続。
+- **A. integrityCheck を年末 (month=12) のみ実行**: 旧版は default の非 debug モードでも毎 tick 走らせていた。違反検知は year-end でも原因 year は特定できるので CLI 検証用途として十分。（v0.38 更新: 整合性は本質的に「年末＝cleanup 後＋flush 後」にのみ成立する契約だと判明し、毎 tick throw する `--integrity-check` flag を除去。同根で毎 tick 走っていた debug mode も年末のみに統一した。mid-year の原因 system 特定は `--integrity-per-system` が担う。§5.5 参照。）
 - **B. inactive OfficeAssignment を完全削除**: 旧版は `revokeOfficeAssignment` / `expireOfficeTermAssignment` が `active: false` をセットして残置していた。state.officeAssignments / officeIndex から完全削除する形に変更。selectors はすべて `if (!o || !o.active) continue` のガードを通るため意味的に等価。
 - **C. inactive FactionMembership を完全削除**: B と同様の処理を `removeFactionMembership` / `deactivateFaction` / `transitionFactionLeader` に適用。Faction entity 自体は historical reference のため active=false で残置。
 - **検証**: CLI 300 年 × 4 seed の wallclock 計測:
@@ -372,7 +372,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **Months 系 config の移行**: `warCooldownMonths: 24` → `warCooldownWeeks: 96`、`revoltNegotiationDurationMonths: 12` → `revoltNegotiationDurationWeeks: 48`、`landClaimNegotiationDurationMonths: 18` → `landClaimNegotiationDurationWeeks: 72`、`taxRevisionNegotiationDurationMonths: 12` → `taxRevisionNegotiationDurationWeeks: 48`。`bailiffAppointmentInterval` は `intervalWeeks=24` で代替。
 - **FactionLifecycleSystem 分割**: 旧 FactionLifecycleSystem を `FactionMaintenanceSystem` (4週ごと: leader 死亡時継承・死亡 member cleanup) と `FactionLifecycleSystem` (年次: 解散判定・新規結成) に分割。
 - **Event の週次化**: `SimEvent.month` → `weekOfYear`。Event ID を `e-{absoluteWeek}-{index}` に変更。
-- **IntegrityCheck 3 モード制**: debug=毎tick+try-catch、--integrity-check=毎tick+throw、通常=week48+throw。時間不変条件（3値整合性）を追加。
+- **IntegrityCheck 3 モード制**: debug=毎tick+try-catch、--integrity-check=毎tick+throw、通常=week48+throw。時間不変条件（3値整合性）を追加。（v0.38 で 2 モード制に変更: 整合性は year-end 契約のため `--integrity-check` を除去し debug も week48+try-catch に統一。§5.5。）
 - **CLI 拡張**: `--weeks` 引数追加、`--years` は `years * 48` tick に変換。年サマリは `weekOfYear === 48` で出力。
 - **UI 改修**: 日付表示を `Year X / Month M / Week W` (擬似月 1-12、月内週 1-4) に変更。先送りボタンを週送り・月送り・年送りの 3 段階に。
 - **時間 utility**: `timeUtils.ts` に `WEEKS_PER_YEAR` / `weekToYearWeek` / `getSeason` / `getPseudoMonthFromWeek` / `getWeekOfPseudoMonth` を集約。

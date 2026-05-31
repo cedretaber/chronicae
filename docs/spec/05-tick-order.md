@@ -115,17 +115,21 @@ const WEEKS_PER_SEASON = 12
 | 25b2 | cleanupWarSystem | 1 | v0.34 追加。terminal War を `terminalWarRetentionWeeks` 経過後に records / warIndex から削除 |
 | 25c | CleanupTerminalDecisions | 4 | v0.22。terminal Goal/Aim/orphan DecisionReason 削除 |
 | 25d | mergeCompatiblePops | 48 | v0.24 追加。年末安全弁として同一 merge key の POP を統合 |
-| 26 | IntegrityCheck | ※3モード | debug=毎tick(try-catch), integrity-check=毎tick(throw), 通常=week48(throw) |
+| 26 | IntegrityCheck | ※2モード | debug=week48(try-catch), 通常=week48(throw)。flush も同タイミング |
 
 全 system の `phaseOffsetWeeks = 0`（v0.19 時点）。
 
-### 5.5 IntegrityCheck の 3 モード
+### 5.5 IntegrityCheck の 2 モード
 
-IntegrityCheck は ScheduledSystem 配列に含めず、tick 末尾で直接制御する：
+IntegrityCheck は ScheduledSystem 配列に含めず、tick 末尾で直接制御する。`flushTerminalEntities`（terminal Project の削除）を走らせた直後に実行する：
 
-- **debug モード**: 毎 tick 実行。違反は try-catch で stderr に出力して継続
-- **--integrity-check モード**: 毎 tick 実行。違反は throw して即時停止
-- **通常モード**: `currentWeekOfYear === 48`（年末）のみ実行。違反は throw
+- **通常モード**: `currentWeekOfYear === 48`（年末）のみ実行。違反は throw して即時停止
+- **debug モード**: 同じく年末のみ実行。違反は try-catch で stderr に出力して継続（観察継続のため非 fatal）
+
+> **設計契約: 整合性は「年末（cleanup 後 + flush 後）」にのみ成立する。**
+> 多くの system が複数週間隔（CleanupTerminalDecisions=4 週 / BailiffAppointment=12 週 / OfficeTerm=年次）で走り、その間は意図的な中間状態（未 flush の terminal Project / `Task → project` dangling / 死亡 office holder 等）を持つ。よって per-tick で IntegrityCheck を回すと必ず誤検知する。
+>
+> v0.38 で、毎 tick throw する `--integrity-check` flag を **除去**した（year-end fatal 検査と redundant で、固有の per-tick 部分が壊れていた）。同根で毎 tick 走っていた debug モードも **年末のみ**に揃えた（debug の flush cadence が通常と一致し determinism も整合）。**mid-year の原因 system 特定は `--integrity-per-system`**（各 system 後に try-catch で違反を log。最初に持続する違反を読む。`run` ヘルパー内で制御、本検査とは独立）が担う。
 
 ### 5.6 削除された System
 

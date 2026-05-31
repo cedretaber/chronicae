@@ -49,8 +49,11 @@ npm run cli
 # Custom seed and duration
 npm run cli -- --seed my-seed --years 20
 
-# Enable integrity checks after every tick (catches data consistency bugs)
-npm run cli -- --seed test-seed --years 5 --integrity-check
+# Long-run integrity verification (year-end integrity check, throws on violation)
+npm run cli -- --seed test-seed --years 300
+
+# Per-system integrity diagnosis (logs the first persistent violation; slow)
+npm run cli -- --seed test-seed --years 20 --integrity-per-system
 
 # NDJSON output (one JSON object per tick, for programmatic processing)
 npm run cli -- --json --years 3
@@ -88,7 +91,7 @@ npm run cli -- --help
 | `--seed <text>` | `chronicae-default` | World generation seed |
 | `--years <n>` | `10` | Number of years to simulate (1 year = 48 ticks) |
 | `--weeks <n>` | — | Number of weeks (ticks) to simulate. Cannot be used with `--years`. |
-| `--integrity-check` | off | Run data integrity checks after every tick |
+| `--integrity-per-system` | off | Run integrity check after every system (logs violations, for diagnosis; very slow) |
 | `--json` | off | Output NDJSON instead of human-readable text |
 | `--debug` | off | Debug mode (see below) |
 | `--dump-world` | off | Dump full WorldState JSON to stderr after simulation ends |

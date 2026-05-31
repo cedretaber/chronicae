@@ -2,8 +2,6 @@ import { generateWorld } from '@sim/worldgen/generateWorld'
 import type { WorldPresetName } from '@sim/worldgen/worldPresets'
 import { tick } from '@sim/tick/tick'
 import { defaultConfig } from '@sim/config/defaultConfig'
-import { createTickContext } from '@sim/tick/context'
-import { runIntegritySystem } from '@sim/tick/integritySystem'
 import { createLogger } from '@sim/debug/logger'
 import type { WorldState } from '@sim/types/world'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
@@ -38,7 +36,6 @@ Options:
   --years <n>           Number of years to simulate (default: 10)
   --weeks <n>           Number of weeks to simulate (alternative to --years)
   --json                Output each tick as NDJSON
-  --integrity-check     Run integrity check after every tick
   --debug               Enable debug mode (entity IDs in events, structured debug log on stderr)
   --integrity-per-system  Run integrity check after every system (very slow, for diagnosis)
   --dump-world          Dump full WorldState as JSON to stderr after simulation ends
@@ -57,7 +54,6 @@ function parseArgs(argv: string[]): {
   years: number
   weeks: number | undefined
   json: boolean
-  integrityCheck: boolean
   integrityPerSystem: boolean
   debug: boolean
   perf: boolean
@@ -74,7 +70,6 @@ function parseArgs(argv: string[]): {
   let years = 10
   let weeks: number | undefined = undefined
   let json = false
-  let integrityCheck = false
   let integrityPerSystem = false
   let debug = false
   let perf = false
@@ -110,8 +105,6 @@ function parseArgs(argv: string[]): {
       }
     } else if (arg === '--json') {
       json = true
-    } else if (arg === '--integrity-check') {
-      integrityCheck = true
     } else if (arg === '--integrity-per-system') {
       integrityPerSystem = true
     } else if (arg === '--debug') {
@@ -180,7 +173,6 @@ function parseArgs(argv: string[]): {
     years,
     weeks,
     json,
-    integrityCheck,
     integrityPerSystem,
     debug,
     perf,
@@ -608,11 +600,6 @@ async function main(): Promise<void> {
       for (const [sys, ms] of Object.entries(result.systemTimings)) {
         systemTimingsTotal[sys] = (systemTimingsTotal[sys] ?? 0) + ms
       }
-    }
-
-    if (args.integrityCheck) {
-      const ctx = createTickContext({ state: result.state, rng: result.rng, config })
-      runIntegritySystem(ctx)
     }
 
     const year = result.state.currentYear

@@ -523,16 +523,23 @@ export function tick(input: TickInput): TickResult {
     }
   }
 
-  if (debug) {
-    run('preIntegrityFlush', flushTerminalEntities)
-    try {
-      run('integrityCheck', runIntegritySystem)
-    } catch (e) {
-      log.log('INTEGRITY', { error: String(e) })
+  // 整合性 invariant は設計上「年末 (cleanup 後 + flush 後)」にのみ成立する契約。
+  // 多くの system が複数週間隔で走り、その間は意図的な中間状態 (terminal Project 未 flush /
+  // Task→project dangling / 死亡 office holder など) を持つため、per-tick で検査すると必ず
+  // 誤検知する。よって flush + integrity は debug/非 debug いずれも WEEKS_PER_YEAR でのみ実行する。
+  // debug 時は観察継続のため catch-and-log (非 fatal)、非 debug は throw でゲートにする。
+  if (ctx.state.currentWeekOfYear === WEEKS_PER_YEAR) {
+    if (debug) {
+      run('preIntegrityFlush', flushTerminalEntities)
+      try {
+        run('integrityCheck', runIntegritySystem)
+      } catch (e) {
+        log.log('INTEGRITY', { error: String(e) })
+      }
+    } else {
+      ctx = flushTerminalEntities(ctx)
+      ctx = runIntegritySystem(ctx)
     }
-  } else if (ctx.state.currentWeekOfYear === WEEKS_PER_YEAR) {
-    ctx = flushTerminalEntities(ctx)
-    ctx = runIntegritySystem(ctx)
   }
 
   return { ...toResult(ctx), systemTimings: timings }
