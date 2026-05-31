@@ -100,3 +100,93 @@ describe('eventRenderer battle enum localization (v0.35 C-2b)', () => {
     expect(text).toContain('made_up_kind')
   })
 })
+
+// v0.38: chronicle 専用 i18n キーが実 yaml で解決するか end-to-end 検証する。
+//   battle narrative (events ns) と category badge (ui ns) は CLI / unit test / npm check の
+//   どの自動経路も通らない (CLI は raw event ログ、unit test は projection の構造のみ)。
+//   解決失敗時の挙動: narrative は raw キー文字列、badge は `chronicle.category.war` に化ける退行。
+async function buildChronicleI18n(
+  locale: LocaleCode,
+): Promise<{ renderer: EventRenderer; inst: i18n }> {
+  const loader = createNodeResourceLoader()
+  const bundles = await loader.loadAllNamespaceResources(locale)
+  const inst: i18n = i18next.createInstance()
+  await inst.init({
+    lng: locale,
+    fallbackLng: 'en',
+    ns: ['events', 'ui'],
+    defaultNS: 'events',
+    resources: { [locale]: bundles },
+    interpolation: { escapeValue: false },
+  })
+  return { renderer: createEventRenderer(inst, createNameTranslator({}, undefined)), inst }
+}
+
+describe('v0.38 chronicle i18n keys resolve (battle narrative + category badge)', () => {
+  let jaR: EventRenderer
+  let enR: EventRenderer
+  let jaInst: i18n
+  let enInst: i18n
+  beforeAll(async () => {
+    const ja = await buildChronicleI18n('ja')
+    const en = await buildChronicleI18n('en')
+    jaR = ja.renderer
+    enR = en.renderer
+    jaInst = ja.inst
+    enInst = en.inst
+  })
+
+  const narrativeParams: EventMessageParams = {
+    province: 'TestProv',
+    battlefieldKind: 'open_field',
+    attackerRegimentCount: 3,
+    defenderRegimentCount: 6,
+    result: 'attacker_victory',
+    attackerRoutedCount: 1,
+    defenderRoutedCount: 4,
+    ticksElapsed: 3,
+    warScoreDelta: 7,
+  }
+
+  const narrativeKeys = [
+    'chronicle.battle.outnumbered_victory',
+    'chronicle.battle.decisive_victory',
+    'chronicle.battle.narrow_victory',
+  ]
+  for (const key of narrativeKeys) {
+    it(`renders ${key} (no raw key, no unresolved placeholder, enum resolved)`, () => {
+      const jaText = jaR.render(key, narrativeParams)
+      expect(jaText).not.toBe(key) // 解決した (未解決なら defaultValue=messageKey が返る)
+      expect(jaText).not.toContain('{{') // 全 placeholder 解決
+      expect(jaText).not.toContain('open_field') // battlefieldKind enum ラベル解決
+      expect(jaText).not.toContain('attacker_victory') // result enum ラベル解決
+
+      const enText = enR.render(key, narrativeParams)
+      expect(enText).not.toBe(key)
+      expect(enText).not.toContain('{{')
+    })
+  }
+
+  const categories = [
+    'war',
+    'battle',
+    'land',
+    'house',
+    'office',
+    'revolt',
+    'life',
+    'development',
+    'governance',
+    'disaster',
+  ]
+  it('resolves chronicle.category.* badge labels in the ui namespace (no raw-key regression)', () => {
+    expect(jaInst.t('chronicle.category.war', { ns: 'ui' })).toBe('戦争')
+    expect(jaInst.t('chronicle.category.office', { ns: 'ui' })).toBe('任官')
+    expect(enInst.t('chronicle.category.war', { ns: 'ui' })).toBe('War')
+    for (const cat of categories) {
+      const key = `chronicle.category.${cat}`
+      expect(jaInst.t(key, { ns: 'ui' })).not.toBe(key)
+      expect(enInst.t(key, { ns: 'ui' })).not.toBe(key)
+    }
+  })
+})
