@@ -38,6 +38,7 @@ import {
   getWarSidePrimaryPolityActor,
   selectCaptainGeneralForWarSide,
   buildWarSideCommanderCandidates,
+  buildBattleSimCommanderInputs,
   getWarGoalProvince,
   generateCandidateBattlefield,
   isEligibleWarPerson,
@@ -389,7 +390,9 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         (r) => r.status === 'active',
       )
 
-      // §6-12: internal BattleSimulation を実行 (commander pool は B では空 = 1.0 stub、C1 で配線)。
+      // §6-12: internal BattleSimulation を実行。§13: commander pool (warCommand desc 済) を数値化して渡す。
+      //   §14: 勝者側 captainGeneralEfficiency は warScore 経路 (computeWarScoreDelta) で別途。ここでは
+      //   battle 内 org/rout 補正用に CG の warCommand score を供給する (CG 不在 side は undefined → 効果 0)。
       const frontage = config.battlefieldFrontageByKind[battlefieldKind] ?? 1
       const simInput: BattleSimInput = {
         battleId: createBattleId(ws.nextBattleId),
@@ -400,8 +403,14 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         maxTicks: config.battleMaxTicks,
         attacker: atkRegiments.map((r) => toBattleSimRegiment(r, 'attacker')),
         defender: defRegiments.map((r) => toBattleSimRegiment(r, 'defender')),
-        attackerCommanders: [],
-        defenderCommanders: [],
+        attackerCommanders: buildBattleSimCommanderInputs(ws, war3.attacker.commanderPersonIds),
+        defenderCommanders: buildBattleSimCommanderInputs(ws, war3.defender.commanderPersonIds),
+        ...(atkCG
+          ? { attackerCaptainGeneralWarCommand: getRoleScore(ws, atkCG, 'warCommand') }
+          : {}),
+        ...(defCG
+          ? { defenderCaptainGeneralWarCommand: getRoleScore(ws, defCG, 'warCommand') }
+          : {}),
         config,
         rng: n.rng,
       }

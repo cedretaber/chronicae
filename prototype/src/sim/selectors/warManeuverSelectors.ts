@@ -7,6 +7,7 @@ import type { RngState, RngResult } from '@sim/rng/rng'
 import { randomFloat } from '@sim/rng/rng'
 import { getActiveOfficeHolders, getPolityLeader } from '@sim/selectors/officeSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
+import type { BattleSimCommanderInput } from '@sim/helpers/simulateBattle'
 
 // v0.35 Phase A: 「誰が指揮するか / どの province で戦うか」の構造 selector。
 //   pure / config 非依存 / sim 層 (i18n・app 非依存)。WarManeuverSystem (Phase B) が消費する。
@@ -95,6 +96,28 @@ export function buildWarSideCommanderCandidates(
   )
   const deduped = [...new Set(eligible)]
   return sortByWarCommandThenId(state, deduped)
+}
+
+// §13.2/§13.3: commander pool (PersonId[]) を BattleSimCommanderInput[] に変換する。
+//   fieldCommandScore = warCommand role score (§13.2、既存式を再利用)。
+//   breakthroughScore = command*0.5 + valor*0.4 + insight*0.1 (§13.3、突撃適性は valor 寄り)。
+//   不在人物は除外 (refreshCommanders で eligible 済だが防御的に skip)。順序は入力 (warCommand desc) を保つ。
+export function buildBattleSimCommanderInputs(
+  state: WorldState,
+  commanderPersonIds: readonly PersonId[],
+): BattleSimCommanderInput[] {
+  const out: BattleSimCommanderInput[] = []
+  for (const id of commanderPersonIds) {
+    const p = state.persons[id]
+    if (!p) continue
+    const a = p.abilities
+    out.push({
+      personId: id,
+      fieldCommandScore: getRoleScore(state, id, 'warCommand'),
+      breakthroughScore: a.command * 0.5 + a.valor * 0.4 + a.insight * 0.1,
+    })
+  }
+  return out
 }
 
 // War の係争 province を warGoals[0] から解決する。未解決 (goal / holding 不在) は undefined。

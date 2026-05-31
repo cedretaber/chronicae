@@ -1,9 +1,10 @@
 // v0.37 §6-12 BattleSimulation pure helper.
-//   WorldState 非依存。frontline/reserve deployment → internal tick loop (双方向 organization damage,
-//   morale damage, morale 感応 rout, reserve 補充) → 終了後 strength damage を 1 回算出。
-//   commander / captainGeneral の battle 内効果は B2a では 1.0 stub (C1 で実値化)。
+//   WorldState 非依存。frontline/reserve deployment → 指揮官割当 (§13.4) → internal tick loop (双方向
+//   organization damage, morale damage, morale 感応 rout, reserve 補充) → 終了後 strength damage を 1 回算出。
+//   commander (§13.5) / captainGeneral (§14) の battle 内効果は C1 で実値化済 (commander 空・CG 未供給なら 1.0)。
 //   RNG は input→output で thread。draw は damage 方向ごとの randomFactor のみ (§20 決定順:
 //   tick→side(atk→def)→frontline index→matchup atk damage→def damage, tie regimentId asc)。
+//   指揮官割当・効果は draw を消費しない (modifier は draw 後に乗算) ので RNG 順序は不変。
 //   effectivePower は frozen (戦闘前 1 回計算、org 削れても再計算しない。pairPowerFactor 暴走回避)。
 
 import type { RegimentId, BattleId, WarId, PersonId } from '../types/ids'
@@ -134,6 +135,7 @@ type WorkRegiment = {
   accumulatedOrgDamage: number // この battle で受けた org damage の累積 (§9.4 strength 用)
   wasInitialFrontline: boolean
   routed: boolean
+  commanderQ: number // §13.5 指揮官 quality bonus (signed, ∈[-effectMax, effectMax]、隣接は ratio 倍。default 0)
 }
 
 const BREAKTHROUGH_KINDS: ReadonlySet<BattlefieldKind> = new Set<BattlefieldKind>([
@@ -150,7 +152,101 @@ function toWork(input: BattleSimRegimentInput): WorkRegiment {
     accumulatedOrgDamage: 0,
     wasInitialFrontline: false,
     routed: false,
+    commanderQ: 0,
   }
+}
+
+// §13.5 指揮官 quality bonus。fieldCommandScore 50 を基準に ±。assigned regiment は full、隣接は ratio 倍。
+//   範囲 [-commanderAssignedRegimentEffectMax, +commanderAssignedRegimentEffectMax]。
+function commanderQualityBonus(fieldCommandScore: number, cfg: BattleSimConfigSlice): number {
+  return clamp((fieldCommandScore - 50) / 50, -1, 1) * cfg.commanderAssignedRegimentEffectMax
+}
+
+// §14 captainGeneral の被 org damage 軽減 (side-level, [0, captainGeneralBattleOrganizationDamageEffectMax])。
+//   CG は benefit 方向のみ (warCommand<50 でも penalty にはしない。warScore efficiency と二重 penalty を避ける)。
+function cgDamageReduction(warCommand: number | undefined, cfg: BattleSimConfigSlice): number {
+  if (warCommand === undefined) return 0
+  return clamp((warCommand - 50) / 50, 0, 1) * cfg.captainGeneralBattleOrganizationDamageEffectMax
+}
+
+// §14 captainGeneral の rout 耐性 (side-level, [0, captainGeneralRoutResistanceEffectMax])。benefit 方向のみ。
+function cgRoutResistance(warCommand: number | undefined, cfg: BattleSimConfigSlice): number {
+  if (warCommand === undefined) return 0
+  return clamp((warCommand - 50) / 50, 0, 1) * cfg.captainGeneralRoutResistanceEffectMax
+}
+
+// frontline index を中央寄り優先順に並べる (center-out)。例 n=5 → [2,1,3,0,4]。tie は低 index 優先 (deterministic)。
+function centerOutOrder(n: number): number[] {
+  const center = Math.floor((n - 1) / 2)
+  return Array.from({ length: n }, (_, i) => i).sort((a, b) => {
+    const da = Math.abs(a - center)
+    const db = Math.abs(b - center)
+    if (da !== db) return da - db
+    return a - b
+  })
+}
+
+// §13.4 指揮官割当 (deploy 後・draw 無し)。pool から target regiment に greedy 割当し、
+//   各 WorkRegiment.commanderQ を設定して BattleCommanderAssignment[] を返す。
+//   target 優先順: frontline infantry(center-out) → frontline cavalry(center-out) → reserve cavalry → reserve infantry。
+//   infantry target は fieldCommandScore 最大、cavalry target は breakthroughScore 最大を選ぶ (§13.4 step4)。tie personId asc。
+//   隣接 frontline 連隊 (自身に割当が無いもの) は、隣の assigned 正 q × ratio を最大で受ける。
+function assignCommanders(
+  frontline: WorkRegiment[],
+  reserve: WorkRegiment[],
+  pool: BattleSimCommanderInput[],
+  cfg: BattleSimConfigSlice,
+): BattleCommanderAssignment[] {
+  if (pool.length === 0) return []
+  const remaining = [...pool]
+
+  const order = centerOutOrder(frontline.length)
+  const flOrdered = order.map((i) => frontline[i]!)
+  const flInfantry = flOrdered.filter((w) => w.input.troopKind === 'infantry')
+  const flCavalry = flOrdered.filter((w) => w.input.troopKind !== 'infantry')
+  const resCavalry = reserve.filter((w) => w.input.troopKind !== 'infantry')
+  const resInfantry = reserve.filter((w) => w.input.troopKind === 'infantry')
+  const targets = [...flInfantry, ...flCavalry, ...resCavalry, ...resInfantry]
+
+  const assignments: BattleCommanderAssignment[] = []
+  const assignedQ = new Map<RegimentId, number>()
+  for (const tgt of targets) {
+    if (remaining.length === 0) break
+    const isCav = tgt.input.troopKind !== 'infantry'
+    const metric = (c: BattleSimCommanderInput) =>
+      isCav ? c.breakthroughScore : c.fieldCommandScore
+    let bestIdx = 0
+    for (let i = 1; i < remaining.length; i++) {
+      const mi = metric(remaining[i]!)
+      const mb = metric(remaining[bestIdx]!)
+      if (
+        mi > mb ||
+        (mi === mb && (remaining[i]!.personId as string) < (remaining[bestIdx]!.personId as string))
+      ) {
+        bestIdx = i
+      }
+    }
+    const cmd = remaining.splice(bestIdx, 1)[0]!
+    const q = commanderQualityBonus(cmd.fieldCommandScore, cfg)
+    tgt.commanderQ = q
+    assignedQ.set(tgt.input.regimentId, q)
+    assignments.push({ commanderPersonId: cmd.personId, regimentId: tgt.input.regimentId })
+  }
+
+  // 隣接 bonus: 割当を持たない frontline 連隊が、隣接 assigned 連隊の正 q × ratio を受ける (最大採用)。
+  for (let i = 0; i < frontline.length; i++) {
+    const w = frontline[i]!
+    if (assignedQ.has(w.input.regimentId)) continue
+    let best = 0
+    for (const j of [i - 1, i + 1]) {
+      if (j < 0 || j >= frontline.length) continue
+      const nq = assignedQ.get(frontline[j]!.input.regimentId)
+      if (nq !== undefined && nq > 0)
+        best = Math.max(best, nq * cfg.commanderAdjacentRegimentEffectRatio)
+    }
+    w.commanderQ = best
+  }
+  return assignments
 }
 
 // effectivePower 降順, tie regimentId 昇順 (deterministic, draw 無し)。
@@ -193,7 +289,9 @@ function wingIds(front: WorkRegiment[]): Set<RegimentId> {
   return ids
 }
 
-// 1 方向の organization damage (§9.2)。commander/cg modifier は B2a では 1.0 stub。
+// 1 方向の organization damage (§9.2)。commander/cg modifier は draw 後に乗算 (draw 数・順序不変)。
+//   §13.5: 攻撃側 src の commander quality で与 damage 増 (1+qSrc)、防御側 tgt の commander で被 damage 減 (1-qTgt)。
+//   §14: tgt side の captainGeneral が被 org damage を軽減 (1 - cgDmgReductionBySide[tgt.side])。
 function computeOrgDamage(
   src: WorkRegiment,
   tgt: WorkRegiment,
@@ -201,6 +299,7 @@ function computeOrgDamage(
   flankMult: number,
   input: BattleSimInput,
   cfg: BattleSimConfigSlice,
+  cgDmgReductionBySide: Record<WarSideKey, number>,
   rng: RngState,
 ): { dmg: number; rng: RngState } {
   const pairPower = clamp(src.input.effectivePower / (tgt.input.effectivePower + 1), 0.75, 1.35)
@@ -210,9 +309,16 @@ function computeOrgDamage(
   const { value, rng: nextRng } = randomFloat(rng)
   const randomFactor =
     cfg.battleRandomFactorMin + value * (cfg.battleRandomFactorMax - cfg.battleRandomFactorMin)
-  // commanderAttackMultiplier(src) * commanderDefenseMultiplier(tgt) * captainGeneralDamageMultiplier(src.side)
-  //   は B2a では 1.0 (C1 で実値化)。
-  const dmg = cfg.battleBaseOrganizationDamage * pairPower * terrainMult * flank * randomFactor
+  const commanderMult = (1 + src.commanderQ) * (1 - tgt.commanderQ)
+  const cgMult = 1 - cgDmgReductionBySide[tgt.input.side]
+  const dmg =
+    cfg.battleBaseOrganizationDamage *
+    pairPower *
+    terrainMult *
+    flank *
+    randomFactor *
+    commanderMult *
+    cgMult
   return { dmg, rng: nextRng }
 }
 
@@ -226,12 +332,19 @@ function applyOrgAndMorale(tgt: WorkRegiment, orgDmg: number, cfg: BattleSimConf
 
 // §11.1 retreat/rout 判定。frontline の生存者 (org > retreatThreshold かつ not routed) を返す。
 //   routed は flag を立て追加 morale damage (§9.3)。retreat は frontline から外すのみ (flag なし)。
-function classifyFrontline(front: WorkRegiment[], cfg: BattleSimConfigSlice): WorkRegiment[] {
+//   §13.5/§14: commander quality (正のみ) と side の captainGeneral rout 耐性で effRoute を下げ rout しにくくする。
+function classifyFrontline(
+  front: WorkRegiment[],
+  cfg: BattleSimConfigSlice,
+  cgRoutResist: number,
+): WorkRegiment[] {
   const survivors: WorkRegiment[] = []
   for (const w of front) {
+    const routResist = clamp(Math.max(0, w.commanderQ) + cgRoutResist, 0, 0.9)
     const effRoute =
-      cfg.routeOrganizationThreshold +
-      Math.max(0, w.input.baselineMorale - w.morale) * cfg.moraleRouteThresholdFactor
+      (cfg.routeOrganizationThreshold +
+        Math.max(0, w.input.baselineMorale - w.morale) * cfg.moraleRouteThresholdFactor) *
+      (1 - routResist)
     if (w.organization <= effRoute) {
       w.routed = true
       w.morale = clamp(w.morale - cfg.routAdditionalMoraleDamage, 0, w.input.maxMorale)
@@ -279,6 +392,30 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
   let defFront = defDeploy.frontline
   const defRes = defDeploy.reserve
 
+  // §13.4: deployment 確定後に指揮官割当 (draw 無し)。WorkRegiment.commanderQ を設定し assignment snapshot を得る。
+  const attackerCommanderAssignments = assignCommanders(
+    atkFront,
+    atkRes,
+    input.attackerCommanders,
+    cfg,
+  )
+  const defenderCommanderAssignments = assignCommanders(
+    defFront,
+    defRes,
+    input.defenderCommanders,
+    cfg,
+  )
+
+  // §14: captainGeneral side-level 補正 (CG 未供給 side は 0 = 無効)。
+  const cgDmgReductionBySide: Record<WarSideKey, number> = {
+    attacker: cgDamageReduction(input.attackerCaptainGeneralWarCommand, cfg),
+    defender: cgDamageReduction(input.defenderCaptainGeneralWarCommand, cfg),
+  }
+  const cgRoutResistBySide: Record<WarSideKey, number> = {
+    attacker: cgRoutResistance(input.attackerCaptainGeneralWarCommand, cfg),
+    defender: cgRoutResistance(input.defenderCaptainGeneralWarCommand, cfg),
+  }
+
   let ticksElapsed = 0
   let result: BattleResult | null = null
 
@@ -305,17 +442,17 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
     for (let i = 0; i < n; i++) {
       const A = atkFront[i]!
       const D = defFront[i]!
-      const toD = computeOrgDamage(A, D, defWing, flankMult, input, cfg, rng)
+      const toD = computeOrgDamage(A, D, defWing, flankMult, input, cfg, cgDmgReductionBySide, rng)
       rng = toD.rng
-      const toA = computeOrgDamage(D, A, atkWing, flankMult, input, cfg, rng)
+      const toA = computeOrgDamage(D, A, atkWing, flankMult, input, cfg, cgDmgReductionBySide, rng)
       rng = toA.rng
       applyOrgAndMorale(D, toD.dmg, cfg)
       applyOrgAndMorale(A, toA.dmg, cfg)
     }
 
     // 3. retreat / rout 判定 → frontline 生存者のみ残す
-    atkFront = classifyFrontline(atkFront, cfg)
-    defFront = classifyFrontline(defFront, cfg)
+    atkFront = classifyFrontline(atkFront, cfg, cgRoutResistBySide.attacker)
+    defFront = classifyFrontline(defFront, cfg, cgRoutResistBySide.defender)
 
     // 4. reserve から frontline 補充
     fillFrontline(atkFront, atkRes, input.frontage)
@@ -480,8 +617,8 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
     defenderRoutedRegimentIds,
     ...(breakthroughSide !== undefined ? { breakthroughSide } : {}),
     pursuitOccurred: false,
-    attackerCommanderAssignments: [], // B2a では割当生成しない (C1)
-    defenderCommanderAssignments: [],
+    attackerCommanderAssignments,
+    defenderCommanderAssignments,
     regimentResults,
     rng,
   }

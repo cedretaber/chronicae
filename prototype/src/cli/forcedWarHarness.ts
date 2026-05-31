@@ -8,12 +8,23 @@
 import { generateWorld } from '@sim/worldgen/generateWorld'
 import { tick } from '@sim/tick/tick'
 import { defaultConfig } from '@sim/config/defaultConfig'
+import type { SimulationConfig } from '@sim/config/defaultConfig'
 import { createWar } from '@sim/mutations/warMutations'
 import { disbandRegimentMut } from '@sim/mutations/regimentMutations'
 import { getHoldingTerminalPolityId } from '@sim/selectors/landContractSelectors'
 import { politicalActorKey } from '@sim/selectors/actorSelectors'
 import type { WorldState } from '@sim/types/world'
 import type { PolityId, HoldingId, WarId } from '@sim/types/ids'
+
+// C1: commander / captainGeneral の battle 内効果を 0 にした config (= B2b 1.0 stub 相当)。
+//   warScore 経路の captainGeneralEfficiency は別 config なので維持される。
+const effectsOffConfig: SimulationConfig = {
+  ...defaultConfig,
+  commanderAssignedRegimentEffectMax: 0,
+  commanderAdjacentRegimentEffectRatio: 0,
+  captainGeneralBattleOrganizationDamageEffectMax: 0,
+  captainGeneralRoutResistanceEffectMax: 0,
+}
 
 type Scenario = 'even' | 'attacker_strong' | 'defender_strong' | 'defender_empty'
 
@@ -88,6 +99,7 @@ function runScenario(
   seed: string,
   scenario: Scenario,
   maxWeeks: number,
+  config: SimulationConfig,
 ): {
   battles: BattleRow[]
   warWeeks: number
@@ -95,11 +107,12 @@ function runScenario(
   signViolations: number
   integrityViolations: number
   destroyedDelta: number
+  atkOrgDamage: number
+  defOrgDamage: number
 } {
   const gen = generateWorld(seed)
   let state = gen.world
   let rng = gen.rng
-  const config = defaultConfig
 
   const picked = pick(state)
   if (!picked) throw new Error(`no polities for seed ${seed}`)
@@ -139,6 +152,8 @@ function runScenario(
   let integrityViolations = 0
   let warWeeks = 0
   let termination = 'unresolved'
+  let atkOrgDamage = 0
+  let defOrgDamage = 0
 
   for (let w = 0; w < maxWeeks; w++) {
     // tick() 内部で year-end (flush 後) integrity が走り、違反時は throw する (正規ゲート)。
@@ -159,6 +174,11 @@ function runScenario(
         warScoreDelta: b.warScoreDelta,
         ticksElapsed: b.ticksElapsed,
       })
+      // side 別 org damage 合計 (C1: commander/CG 効果が連続量に効いているかの観察用)。
+      for (const rr of b.regimentResults) {
+        if (rr.side === 'attacker') atkOrgDamage += rr.organizationDamage
+        else defOrgDamage += rr.organizationDamage
+      }
       // §18 Battle summary invariants をインライン検証 (Battle の RegimentId[] は readonly string[] を満たす)。
       integrityViolations += validateBattleSummary(b)
       // 符号整合: result と warScoreDelta の符号一致 (§15.1)。
@@ -183,6 +203,8 @@ function runScenario(
     signViolations,
     integrityViolations,
     destroyedDelta: countDestroyed(state) - destroyedBefore,
+    atkOrgDamage,
+    defOrgDamage,
   }
 }
 
@@ -225,7 +247,7 @@ function main(): void {
     let destroyedTotal = 0
 
     for (const seed of seeds) {
-      const r = runScenario(seed, scenario, maxWeeks)
+      const r = runScenario(seed, scenario, maxWeeks, defaultConfig)
       totalSignViolations += r.signViolations
       totalIntegrityViolations += r.integrityViolations
       battleCount += r.battles.length
@@ -262,6 +284,53 @@ function main(): void {
     `§18 Battle summary integrity violations: ${totalIntegrityViolations} ${totalIntegrityViolations === 0 ? 'OK' : 'FAIL'}`,
   )
   console.log('(per-tick full integrity は tick() 内部の year-end check に委譲)')
+
+  // C1: commander / captainGeneral の battle 内効果 ON(default) vs OFF(B2b 1.0 stub 相当) の pool 健全性比較。
+  //   目的は「効果活性化が runaway (destroyed spike / pool 崩壊) を起こさないこと」の確認のみ。balance 調整はしない。
+  //   各 side 30% 減勢 (attacker_strong) で commander/CG 効果が最も効く非対称戦を回す。
+  console.log(`\n=== C1: commander/CG battle 効果 ON vs OFF (pool 健全性) ===`)
+  for (const [label, cfg] of [
+    ['OFF (B2b 相当)', effectsOffConfig],
+    ['ON  (default)', defaultConfig],
+  ] as const) {
+    const results: string[] = []
+    const ticksList: number[] = []
+    let battles = 0
+    let destroyed = 0
+    let sign = 0
+    let integ = 0
+    let atkOrg = 0
+    let defOrg = 0
+    for (const scenario of scenarios) {
+      for (const seed of seeds) {
+        const r = runScenario(seed, scenario, maxWeeks, cfg)
+        battles += r.battles.length
+        destroyed += r.destroyedDelta
+        sign += r.signViolations
+        integ += r.integrityViolations
+        atkOrg += r.atkOrgDamage
+        defOrg += r.defOrgDamage
+        for (const b of r.battles) {
+          results.push(b.result)
+          if (b.ticksElapsed !== undefined) ticksList.push(b.ticksElapsed)
+        }
+      }
+    }
+    console.log(`\n--- 効果 ${label} ---`)
+    console.log(
+      `  battles total=${battles} | destroyed 増加=${destroyed} | tick median=${median(ticksList)}`,
+    )
+    console.log(`  result: ${JSON.stringify(tally(results))}`)
+    // attacker 側に commander/CG が付きやすい forced-war 構成。ON では defender の被 org damage が増え、
+    //   attacker の被 org damage が減るはず (効果が連続量に効いている証跡)。
+    console.log(`  org damage 合計: attacker=${atkOrg.toFixed(0)} defender=${defOrg.toFixed(0)}`)
+    console.log(`  sign/integrity violations: ${sign}/${integ}`)
+  }
+  console.log(
+    `\n(判定: ON で destroyed が OFF より急増せず・result 分布が極端化しなければ bounded。` +
+      `org damage は ON で attacker 減/defender 増に振れる＝効果は効くが離散勝敗は count 支配で殆ど不変。` +
+      `CG/commander 側が僅かに有利なのは期待通りで保留)`,
+  )
 }
 
 main()

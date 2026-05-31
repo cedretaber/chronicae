@@ -3,7 +3,7 @@ import { simulateBattle } from './simulateBattle'
 import type { BattleSimInput, BattleSimRegimentInput } from './simulateBattle'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
-import type { RegimentId, BattleId, WarId } from '../types/ids'
+import type { RegimentId, BattleId, WarId, PersonId } from '../types/ids'
 import type { WarSideKey } from '../types/war'
 
 // v0.37 §6-12 simulateBattle pure helper の単体テスト。
@@ -152,6 +152,60 @@ describe('simulateBattle 両端ケース (§8.2)', () => {
     const inp = makeInput([reg('a1', 'attacker')], [reg('d1', 'defender')])
     const r = simulateBattle(inp)
     expect(r.rng.state).not.toBe(inp.rng.state)
+  })
+})
+
+describe('simulateBattle commander / captainGeneral 効果 (§13.5 / §14, C1)', () => {
+  // 1v1 / frontage 1 / maxTicks 1 で 1 回の damage 交換を取り出す。指揮官割当は draw を消費しないので
+  //   同一 rng 下では「割当の有無」だけが乗算で効き、厳密な比率を検証できる。
+  const orgDmgOf = (r: ReturnType<typeof simulateBattle>, id: string) =>
+    r.regimentResults.find((rr) => rr.regimentId === id)!.organizationDamage
+
+  function duel(overrides: Partial<BattleSimInput>): BattleSimInput {
+    return makeInput([reg('a1', 'attacker')], [reg('d1', 'defender')], {
+      frontage: 1,
+      maxTicks: 1,
+      ...overrides,
+    })
+  }
+
+  it('(a) 空 pool / CG 未供給 → assignment 空・commander 効果なし (B2b 回帰)', () => {
+    const r = simulateBattle(duel({}))
+    expect(r.attackerCommanderAssignments).toEqual([])
+    expect(r.defenderCommanderAssignments).toEqual([])
+  })
+
+  it('(b) 攻撃側 commander: 割当連隊は与 damage ×(1+q) / 被 damage ×(1-q)、bounded', () => {
+    const base = simulateBattle(duel({}))
+    const withCmd = simulateBattle(
+      duel({
+        attackerCommanders: [
+          { personId: 'p1' as PersonId, fieldCommandScore: 100, breakthroughScore: 50 },
+        ],
+      }),
+    )
+    // q = clamp((100-50)/50,-1,1) × commanderAssignedRegimentEffectMax(0.15) = 0.15。
+    const q = defaultConfig.commanderAssignedRegimentEffectMax
+    expect(withCmd.attackerCommanderAssignments).toEqual([
+      { commanderPersonId: 'p1', regimentId: 'a1' },
+    ])
+    // 与 damage 増: defender (d1) が受ける org damage は ×(1+q)。
+    expect(orgDmgOf(withCmd, 'd1') / orgDmgOf(base, 'd1')).toBeCloseTo(1 + q, 5)
+    // 被 damage 減: attacker (a1) が受ける org damage は ×(1-q)。
+    expect(orgDmgOf(withCmd, 'a1') / orgDmgOf(base, 'a1')).toBeCloseTo(1 - q, 5)
+    // bounded: 効果は effectMax 内。
+    expect(q).toBeLessThanOrEqual(0.15)
+  })
+
+  it('(c) 防御側 captainGeneral: 当該 side の被 org damage を最大 10% 軽減 (bounded)', () => {
+    const base = simulateBattle(duel({}))
+    const withCG = simulateBattle(duel({ defenderCaptainGeneralWarCommand: 100 }))
+    // cgReduction = clamp((100-50)/50,0,1) × captainGeneralBattleOrganizationDamageEffectMax(0.10) = 0.10。
+    const red = defaultConfig.captainGeneralBattleOrganizationDamageEffectMax
+    expect(orgDmgOf(withCG, 'd1') / orgDmgOf(base, 'd1')).toBeCloseTo(1 - red, 5)
+    // attacker 側は無補正。
+    expect(orgDmgOf(withCG, 'a1')).toBeCloseTo(orgDmgOf(base, 'a1'), 5)
+    expect(red).toBeLessThanOrEqual(0.1)
   })
 })
 
