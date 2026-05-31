@@ -381,16 +381,23 @@ function moveLivingMembersToHouse(
 
 // v0.15 §22.3: メンバー / 残 Province 移住先 House を選定する。
 // affectedPolityIds がスナップショット時点での関係 Polity 集合（所領喪失前）。
+// v0.36e 分割継承: excludeHouseIds で「既に他 Polity を割り当てた家」を全 stage からハード除外し、
+// 同一家への再集中を防ぐ。除外で候補が尽きた場合は呼び出し側が excludeHouseIds なしで再試行する。
 function chooseReceiverHouse(
   state: WorldState,
   extinctHouseId: HouseId,
   affectedPolityIds: PolityId[],
+  excludeHouseIds?: ReadonlySet<string>,
 ): HouseId | undefined {
+  const isExcluded = (id: HouseId): boolean =>
+    excludeHouseIds !== undefined && excludeHouseIds.has(id)
+
   // 1) affectedPolityIds 内で最大 Province 数を持つ active House
   let bestByProvinceCount: { houseId: HouseId; count: number } | undefined
   for (const polityId of affectedPolityIds) {
     for (const candidateId of getPolityHouseIds(state, polityId)) {
       if ((candidateId as string) === (extinctHouseId as string)) continue
+      if (isExcluded(candidateId)) continue
       const candidate = state.houses[candidateId]
       if (!candidate || !candidate.active) continue
       const count = getHouseProvinceIdsByPolity(state, candidateId, polityId).length
@@ -406,6 +413,7 @@ function chooseReceiverHouse(
   for (const polityId of affectedPolityIds) {
     for (const candidateId of getPolityHouseIds(state, polityId)) {
       if ((candidateId as string) === (extinctHouseId as string)) continue
+      if (isExcluded(candidateId)) continue
       const candidate = state.houses[candidateId]
       if (!candidate || !candidate.active) continue
       const share = getHousePolitySharePercent(state, polityId, candidateId)
@@ -426,6 +434,7 @@ function chooseReceiverHouse(
         if (!neighbor) continue
         const ownerHouseId = getProvinceEffectiveOwnerHouseId(state, neighborId)
         if (!ownerHouseId) continue
+        if (isExcluded(ownerHouseId)) continue
         const ownerHouse = state.houses[ownerHouseId]
         if (ownerHouse && ownerHouse.active && ownerHouse.id !== extinctHouseId) {
           return ownerHouse.id
@@ -434,12 +443,17 @@ function chooseReceiverHouse(
     }
   }
 
-  // 4) 世界全体で最大 controlled Province 数を持つ active 通常 House
+  // 4) 世界全体で最大 controlled Province 数を持つ active 通常 House。
+  // count=0 の tie-break が挿入順に依存しないよう houseId 昇順で安定走査する。
   let bestGlobal: { houseId: HouseId; count: number } | undefined
-  for (const candidate of Object.values(state.houses)) {
+  const sortedHouses = Object.values(state.houses).sort((a, b) =>
+    (a.id as string).localeCompare(b.id),
+  )
+  for (const candidate of sortedHouses) {
     if (!candidate || !candidate.active) continue
     if (candidate.kind === 'system') continue
     if ((candidate.id as string) === (extinctHouseId as string)) continue
+    if (isExcluded(candidate.id)) continue
     const count = getHouseControlledProvinceIds(state, candidate.id).length
     if (!bestGlobal || count > bestGlobal.count) {
       bestGlobal = { houseId: candidate.id, count }
@@ -478,7 +492,28 @@ function handleNormalHouseExtinction(
     return ctx
   }
 
-  const receiverHouseId = chooseReceiverHouse(ctx.state, houseId, affectedPolityIds)
+  // v0.36e 分割継承 — Phase 1 (decide): 滅亡前 state (ctx.state) を凍結したまま、
+  // 各 Polity の継承先を独立に決める。逐次 mutation を挟むと「先に継いだ家が controlled
+  // province 最大になり global fallback で残りも総取り」する再集中が起きるため、評価は
+  // 必ず凍結 state に対して行う。usedReceivers でハード除外し別々の家へ分配する。
+  const inheritedPolityIds = [...(ctx.state.polityIndex.byOwnerHouse[houseId] ?? [])]
+  const usedReceivers = new Set<string>()
+  const polityReceivers = new Map<PolityId, HouseId>()
+  for (const polityId of inheritedPolityIds) {
+    let r = chooseReceiverHouse(ctx.state, houseId, [polityId], usedReceivers)
+    // 除外で候補が尽きた場合のみ緩和して重複継承を許容する (85 家規模では実質発生しない)
+    if (r === undefined) r = chooseReceiverHouse(ctx.state, houseId, [polityId])
+    if (r !== undefined) {
+      polityReceivers.set(polityId, r)
+      usedReceivers.add(r)
+    }
+  }
+
+  // members の移籍先 (narrative のみ — 土地は polityReceivers で個別に動く): 先頭 Polity の
+  // 継承先を主継承先とする。Polity を持たない滅亡 (在野没落) は従来スコープで 1 家を選ぶ。
+  const receiverHouseId: HouseId | undefined =
+    (inheritedPolityIds.length > 0 ? polityReceivers.get(inheritedPolityIds[0]!) : undefined) ??
+    chooseReceiverHouse(ctx.state, houseId, affectedPolityIds)
 
   if (!receiverHouseId) {
     // v0.17 §5.6: 受け継ぎ家が見つからない場合、living non-placeholder member を AnonymousHouse に散らす。
@@ -545,39 +580,41 @@ function handleNormalHouseExtinction(
   // - polityIndex.byOwnerHouse 同期更新
   // - polity:leader Office を receiver の leader に差し替え
   // - POLITY_OWNER_CHANGED event 発火
-  const inheritedPolityIds = [...(resultCtx.state.polityIndex.byOwnerHouse[houseId] ?? [])]
   let chainState = resultCtx.state
   const ownerChangedEvents: SimEvent[] = []
   for (const polityId of inheritedPolityIds) {
     const polity = chainState.polities[polityId]
     if (!polity) continue
+    // 分割継承: この Polity の継承先 (Phase 1 で凍結 state から決定済み)
+    const polityReceiverHouseId = polityReceivers.get(polityId)
+    if (polityReceiverHouseId === undefined) continue
 
     // Polity.ownerHouseId 更新
     chainState = {
       ...chainState,
       polities: {
         ...chainState.polities,
-        [polityId]: { ...polity, ownerHouseId: receiverHouseId },
+        [polityId]: { ...polity, ownerHouseId: polityReceiverHouseId },
       },
     }
 
     // polityIndex.byOwnerHouse 更新
     const oldSlot = chainState.polityIndex.byOwnerHouse[houseId] ?? []
-    const newSlot = chainState.polityIndex.byOwnerHouse[receiverHouseId] ?? []
+    const newSlot = chainState.polityIndex.byOwnerHouse[polityReceiverHouseId] ?? []
     chainState = {
       ...chainState,
       polityIndex: {
         byOwnerHouse: {
           ...chainState.polityIndex.byOwnerHouse,
           [houseId]: oldSlot.filter((id) => id !== polityId),
-          [receiverHouseId]: newSlot.includes(polityId) ? newSlot : [...newSlot, polityId],
+          [polityReceiverHouseId]: newSlot.includes(polityId) ? newSlot : [...newSlot, polityId],
         },
       },
     }
 
     // polity:leader Office を receiver House の leader に差し替え
     chainState = revokeOfficesByOrganization(chainState, { kind: 'polity', id: polityId }, 'leader')
-    const newLeaderId = getHouseLeader(chainState, receiverHouseId)
+    const newLeaderId = getHouseLeader(chainState, polityReceiverHouseId)
     if (newLeaderId) {
       chainState = createOfficeAssignment(
         chainState,
@@ -588,7 +625,7 @@ function handleNormalHouseExtinction(
     }
 
     // POLITY_OWNER_CHANGED イベントを後でまとめて発火するため記録
-    const receiverHouse = chainState.houses[receiverHouseId]
+    const receiverHouse = chainState.houses[polityReceiverHouseId]
     const partialEvent = {
       id: '' as ReturnType<typeof makeEventId>['id'], // 後で発番
       year: chainState.currentYear,
@@ -596,11 +633,11 @@ function handleNormalHouseExtinction(
       type: 'POLITY_OWNER_CHANGED' as const,
       importance: 'major' as const,
       actorIds: [] as PersonId[],
-      houseIds: [houseId, receiverHouseId],
+      houseIds: [houseId, polityReceiverHouseId],
       polityIds: [polityId],
       provinceIds: [] as ProvinceId[],
       holdingIds: [] as HoldingId[],
-      summary: `${polity.nameKey}'s ruling house changed from ${house.nameKey} to ${receiverHouse?.nameKey ?? receiverHouseId} after the extinction.`,
+      summary: `${polity.nameKey}'s ruling house changed from ${house.nameKey} to ${receiverHouse?.nameKey ?? polityReceiverHouseId} after the extinction.`,
       reasons: [] as EventReason[],
       effects: [] as EventEffect[],
       // i18n fields from createSimEvent pattern
@@ -612,7 +649,7 @@ function handleNormalHouseExtinction(
       },
       entityRefs: [
         entityRef('house', houseId, 'from_house', house.nameKey),
-        entityRef('house', receiverHouseId, 'to_house', receiverHouse?.nameKey),
+        entityRef('house', polityReceiverHouseId, 'to_house', receiverHouse?.nameKey),
         entityRef('polity', polityId, 'polity', polity.nameKey),
       ],
     }

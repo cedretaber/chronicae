@@ -571,22 +571,41 @@ type HouseExtinctionInput = {
 
 呼び出し側で所領喪失前の Polity 集合を取得しておき、メンバー移住先選定のスコープとして使う。
 
-**移住先 House の選定（v0.15 §22.3 / v0.16）**:
+**継承先 House の選定（v0.15 §22.3 / v0.16 / v0.36e 分割継承）**:
 
-1. `affectedPolityIds` 内で最大 controlled Province 数を持つ active 通常 House (system house 除外)
-2. `affectedPolityIds` 内で最大 Polity Share を持つ active 通常 House
+選定アルゴリズム `chooseReceiverHouse(state, extinctHouseId, scopePolityIds, excludeHouseIds?)`。
+v0.36e 以降は **Polity 単位**で呼び出す（後述の分割継承）。`excludeHouseIds` に含まれる House は
+全 stage からハード除外する。
+
+1. `scopePolityIds` 内で最大 controlled Province 数を持つ active 通常 House (system house 除外)
+2. `scopePolityIds` 内で最大 Polity Share を持つ active 通常 House
 3. 旧 `seatProvinceId` に隣接する Province の effective ownerHouse
-4. 世界全体で最大 controlled Province 数を持つ active 通常 House (system house 除外、v0.16)
+4. 世界全体で最大 controlled Province 数を持つ active 通常 House (system house 除外、v0.16)。
+   count=0 の tie-break が House の挿入順に依存しないよう houseId 昇順で安定走査する（v0.36e）
 5. 見つからない場合、メンバーは inactive のまま House 解散
 
-選定後の処理（v0.16 §22.3）:
-- 断絶家が ownerHouse である **すべての Polity** を receiver House に継承（王朝交代）
+**Polity 継承（v0.36e 分割継承、two-phase decide → apply）**:
+
+v0.16〜v0.36 では「断絶家が ownerHouse である **すべての Polity** を単一の receiver House に継承」
+させていたが、これは「領土数が最大の House が空いた Polity 群を丸ごと総取りする」rich-get-richer
+ラチェットを生み、複数世代で全 Polity が単一 House に集中する退化が観測された（領土最大の House が
+選ばれるため、legacyPrestige が最高でも領土を持たない House は無視される）。v0.36e で **Polity 単位の
+分割継承**に変更:
+
+- **Phase 1 (decide)**: 断絶**前**の凍結 state に対し、断絶家が ownerHouse である各 Polity の継承先を
+  独立に選ぶ。各選定で `usedReceivers`（この断絶で既に他 Polity を割り当てた House 集合）をハード除外し、
+  別々の House へ分配する。除外で候補が尽きた場合のみ緩和して重複継承を許容する。
+  - 逐次に owner を書き換えながら選定すると、先に継いだ House が controlled Province 最大になり
+    stage 4 で残りも総取りするため、評価は必ず凍結 state に対して行う。
+- **Phase 2 (apply)**: 各 Polity を Phase 1 の割当先へ継承させる（王朝交代）:
   - `Polity.ownerHouseId = receiver.id`
   - `polityIndex.byOwnerHouse` 同期更新
   - `polity:leader` Office を receiver House の leader に差し替え
   - `POLITY_OWNER_CHANGED` event を Polity ごとに発火
 - LandContracts は変更しない（Polity と Province の関係は不変、王朝のみ交代）
-- `moveLivingMembersToHouse` で生存メンバーを継承先に移動
+- 生存メンバーは `moveLivingMembersToHouse` で **主継承先**（先頭 Polity の継承先。Polity を持たない
+  断絶は従来スコープ `affectedPolityIds` で 1 House を選定）へ移動する（narrative のみ。土地は Polity
+  単位で個別に動く）
 - 断絶家を `active: false`、`memberIds: []` に設定
 
 旧 v0.15 までの「断絶家の Province を transferProvinceToHouse で受け取り House の既存 Polity に移す」処理は v0.16 で廃止された（異 Polity 間の Province 跨ぎが不自然なため）。
