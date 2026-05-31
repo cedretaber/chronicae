@@ -335,6 +335,8 @@ polity.treasury -= distributedTotal
 
 `reserveTarget` は `polityTreasuryReserveBase`（暫定 50）+ `polityTreasuryReservePerHolding`（暫定 50）× holding 数で動的に算出される。大国ほど多くの運営資金を確保し、プロジェクト費用や給与の支払いに備える。後続の OfficeCompensationSystem の給与原資となる（spec-v016-update.md §21）。
 
+**v0.37**: 1 サイクルの `distributable = max(0, treasury - reserveTarget) × distributionRate` の計算を `getPolityDistributablePerCycle`（landContractSelectors）に集約し、本 system と House の投影年間収入 `getHouseProjectedAnnualIncome`（§6.14 支払能力ゲート）の両方から呼ぶ単一の正本とした（式の二重定義による drift 防止。挙動は bit-identical）。
+
 **Person Share holder の死亡 skip**: holder Person が `!alive` の場合は分配しない（暫定挙動。家・相続人への流入は将来の課題）。
 
 ### 6.6 DisasterSystem（48週ごと = 毎年）
@@ -715,6 +717,14 @@ score = relevantStat(role) * 1.0
   - House 役職: leader 以外は一律 maxHolders = 1（v0.21）
 - 死亡者の役職は自動的に revoke される
 
+**v0.37 House 役職の支払能力ゲート**: House 役職（有給 = administrator/treasurer/military/advisor）は、家が定常的に得る年間収入で既存役職＋新規役職の年間給与を賄えない場合は任命しない（leader は `baseSalary=0` なので常に対象外。Polity 役職は財庫から支払われ実測上ほぼ未払いにならないため不問）。
+- 投影年間収入 `getHouseProjectedAnnualIncome` = 家が定常的に得る収入の投影。定常収入は **PolitySurplusDistribution（§6.5b、share 比例）のみ**で、estate settlement や外交移転など不定期な収入は含めない。`Σ_polity（家の polity share% × getPolityDistributablePerCycle）× 12`（分配は 4 週ごと = 年 12 回）。
+- 任命可否: `getHouseAnnualOfficeSalary（既存 active house 役職の baseSalary 合計）+ 新役職 baseSalary ≤ 投影年間収入` のときのみ任命。
+- 動機: 収入の無い landless 小家系が役職を抱え、`OFFICE_SALARY_UNPAID` を量産する不自然さを解消（実測で家由来の未払いイベントが 100 年あたり 22〜27 万件 → 0 に）。有力 landed 大家系は投影収入が十分で全役職を維持する（landless→有給役職 0、landed→従来どおり、という二分が観測される）。
+- UI: House DetailPanel に「想定年収 / 役職給与 / 役職収支」を表示（`getHouseProjectedAnnualBalance`）。
+- 既存役職は本ゲートの対象外。`OfficeTermSystem`（§6.5）の任期満了 revoke を経て自然に再任命ゲートを通るため、収入を失った家の役職は数年のラグで減衰する。
+- 将来: 形骸化した帝国/王国の Polity 役職を「名誉職」として残す仕組みは今後の課題。現状は単純に収入ベースの役職数とする。
+
 **v0.23 追加**: `getAppointmentTaskModifier(state, personId, organization, role)` による Person Aim / Task 効果の補正を候補スコアに加算。obtain_office / retain_office Aim が active、または seek_office_support / display_competence の直近 ActivityLog がある候補は +appointmentTaskModifierValue（デフォルト 4）の補正を受ける。
 
 **イベント**: `OFFICE_ASSIGNED`（importance: `normal`）
@@ -731,6 +741,8 @@ score = relevantStat(role) * 1.0
 - `unpaidCount` が 0 の完全支払い時にはリセット
 
 **v0.25**: bailiff（HoldingOfficeAssignment）の給与支払い処理を廃止。代官の収入は LandRevenueSystem 内の `bailiffFee`（§6.5a.2）に一本化。旧 `giveSingleHoldingBailiffSalary()` および `config.bailiffRevenueShare` も廃止。
+
+**v0.37**: House 役職の `OFFICE_SALARY_UNPAID` は AppointmentSystem の支払能力ゲート（§6.14）で発生源を抑止する（収入で賄えない家にはそもそも有給役職を任命しない）。本 system 自体の支払いロジックは不変。
 
 **イベント**: `OFFICE_SALARY_UNPAID`（importance: `minor`）/ `OFFICE_SALARY_PARTIALLY_PAID`（importance: `minor`）
 

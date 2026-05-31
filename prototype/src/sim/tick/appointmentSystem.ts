@@ -32,6 +32,11 @@ import {
   getOfficeCompatibilityPenalty,
   getEffectiveOfficeMaxHolders,
 } from '../selectors/officeSelectors'
+import {
+  getHouseProjectedAnnualIncome,
+  getHouseAnnualOfficeSalary,
+} from '../selectors/houseFinanceSelectors'
+import { getOfficeDefinition } from '../config/officeDefinitions'
 
 const POLITY_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
 const HOUSE_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
@@ -381,6 +386,7 @@ function tryAppointHouseOffice(
   leaderId: PersonId,
   role: OfficeRole,
   getFactionalCandidates: () => { factionId: FactionId; candidateId: PersonId }[] | null,
+  projectedAnnualIncome: number,
 ): TickContext {
   const config = ctx.config
   const houseRef: OrganizationRef = { kind: 'house', id: house.id }
@@ -398,6 +404,17 @@ function tryAppointHouseOffice(
   const activeHolders = getActiveOfficeHolders(currentCtx.state, houseRef, role)
   const effectiveMax = getEffectiveOfficeMaxHolders(currentCtx.state, config, houseRef, role)
   if (activeHolders.length >= effectiveMax) return currentCtx
+
+  // v0.37: 家役職の支払能力ゲート。家が定常的に得る収入 (PolitySurplus) で
+  // 既存役職 + この役職の年間給与を賄えないなら任命しない (収入ベースの役職数)。
+  // 収入の無い landless 小家系が給与未払い (OFFICE_SALARY_UNPAID) を量産する問題への対処。
+  // leader (baseSalary=0) は対象外。Polity 役職は別経路で財庫から支払われるため不問。
+  const roleSalary = getOfficeDefinition('house', role)?.baseSalary ?? 0
+  if (roleSalary > 0) {
+    const currentSalary = getHouseAnnualOfficeSalary(currentCtx.state, house.id)
+    if (currentSalary + roleSalary > projectedAnnualIncome) return currentCtx
+  }
+
   const alreadyHolding = new Set(activeHolders.map((id) => id as string))
 
   let best: { id: PersonId; score: number } | undefined
@@ -498,6 +515,14 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
     const leaderId = getHouseLeader(currentCtx.state, houseId as HouseId)
     if (!leaderId) continue
 
+    // v0.37: 家の投影年間収入を 1 家につき 1 回だけ計算 (役職ループ内で共有)。
+    // 家役職の任命は当家収入を変えないため (share は年次の shareUpdateSystem でのみ更新)、
+    // ループ前に一度確定させてよい。
+    const projectedAnnualIncome = getHouseProjectedAnnualIncome(
+      currentCtx.state,
+      houseId as HouseId,
+    )
+
     // Lazily compute factional candidates (once per house, shared across roles)
     let factionalCandidatesComputed = false
     let factionalCandidates: { factionId: FactionId; candidateId: PersonId }[] | null = null
@@ -529,6 +554,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
         leaderId,
         role,
         getHouseFactionalCandidates,
+        projectedAnnualIncome,
       )
     }
   }

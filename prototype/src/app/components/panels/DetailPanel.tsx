@@ -20,6 +20,11 @@ import {
   getAdministrativeEfficiency,
 } from '@sim/selectors/officeSelectors'
 import { getDominantPolityHouse, getTopShareholders } from '@sim/selectors/shareSelectors'
+import {
+  getHouseProjectedAnnualIncome,
+  getHouseAnnualOfficeSalary,
+  getHouseProjectedAnnualBalance,
+} from '@sim/selectors/houseFinanceSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
 import { isHouselessPerson, isLandlessHouseMember } from '@sim/selectors/availabilitySelectors'
 import {
@@ -1693,6 +1698,31 @@ export function HouseDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.house.wealth')}:</span>
           <span>{formatAmount(house.wealth)}</span>
+        </div>
+        {/* v0.37: 投影年間収支 (定常収入 = PolitySurplus − 役職給与)。役職任命の可否はこの収支に基づく。 */}
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.house.projected_income')}:</span>
+          <span>
+            {worldState ? formatAmount(getHouseProjectedAnnualIncome(worldState, house.id)) : '-'}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.house.office_salary')}:</span>
+          <span>
+            {worldState ? formatAmount(getHouseAnnualOfficeSalary(worldState, house.id)) : '-'}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.house.office_balance')}:</span>
+          <span
+            className={
+              worldState && getHouseProjectedAnnualBalance(worldState, house.id) < 0
+                ? 'text-red-400'
+                : 'text-gray-200'
+            }
+          >
+            {worldState ? formatAmount(getHouseProjectedAnnualBalance(worldState, house.id)) : '-'}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.house.provinces')}:</span>

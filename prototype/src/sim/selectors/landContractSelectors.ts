@@ -12,6 +12,7 @@ import type {
 import type { LandContract, LandContractGrantor, Holding } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
 import type { PolityRank } from '../types/polity'
+import { defaultLandContractConfig } from '../config/landContractConfig'
 
 export function getProvinceLandContractChain(
   state: WorldState,
@@ -147,6 +148,36 @@ export function getPolityTerminalProvinceIds(state: WorldState, polityId: Polity
     result.push(c.provinceId)
   }
   return result
+}
+
+// v0.37: terminal Holding 総数 (polity 直轄領の規模)。PolitySurplus の reserveTarget や
+// 収入投影で共用する。
+export function getPolityHoldingCount(state: WorldState, polityId: PolityId): number {
+  let holdingCount = 0
+  for (const pid of getPolityTerminalProvinceIds(state, polityId)) {
+    const province = state.provinces[pid]
+    if (province) holdingCount += province.holdingIds.length
+  }
+  return holdingCount
+}
+
+// v0.37: 1 回の余剰分配サイクルで Share holder に分配可能な額。
+// politySurplusDistributionSystem と getHouseProjectedAnnualIncome の双方から呼ぶ
+// 単一の正本 (式が二重定義で drift するのを防ぐ)。
+// distributable = max(0, treasury - reserveTarget) * distributionRate
+// reserveTarget = base + perHolding × holdingCount
+export function getPolityDistributablePerCycle(state: WorldState, polityId: PolityId): number {
+  const polity = state.polities[polityId]
+  if (!polity || !polity.active) return 0
+  const {
+    polityTreasuryReserveBase,
+    polityTreasuryReservePerHolding,
+    politySurplusDistributionRate,
+  } = defaultLandContractConfig
+  const reserveTarget =
+    polityTreasuryReserveBase +
+    polityTreasuryReservePerHolding * getPolityHoldingCount(state, polityId)
+  return Math.max(0, polity.treasury - reserveTarget) * politySurplusDistributionRate
 }
 
 export function getPolityOverlordProvinceIds(state: WorldState, polityId: PolityId): ProvinceId[] {

@@ -26,6 +26,8 @@ import {
   withProvince,
 } from '../testFixtures'
 import { appointHoldingBailiff, vacateHoldingBailiff } from '../mutations/provinceOfficeMutations'
+import { createOrganizationShare } from '../mutations/shareMutations'
+import { createOfficeAssignment } from '../mutations/officeMutations'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -952,5 +954,56 @@ describe('runAppointmentSystem', () => {
     expect(holdsOfficeRole(result.state, personVassalId, 'treasurer')).toBe(false)
     expect(holdsOfficeRole(result.state, personVassalId, 'military')).toBe(false)
     expect(holdsOfficeRole(result.state, personVassalId, 'advisor')).toBe(false)
+  })
+
+  // v0.37: 家役職の支払能力ゲート。
+  // 収入の無い家 (PolitySurplus 収入 0) は有給の house 役職を任命しない。
+  // 収入のある家は従来どおり任命する。leader (baseSalary=0) は常に対象外。
+  describe('v0.37 house-office affordability gate', () => {
+    const polityId = createPolityId('c', 0)
+    const houseId = createHouseId('h', 0)
+    const leaderId = createPersonId('pe', 0)
+    const candidateId = createPersonId('pe', 1)
+
+    function buildHouseState(opts: { withIncome: boolean }): WorldState {
+      let state = makeEmptyV016State()
+      state = { ...state, currentWeekOfYear: 1 }
+      state = withPolity(state, polityId, { treasury: opts.withIncome ? 400 : 0 })
+      state = withHouse(state, houseId, { nameKey: 'Test House' })
+      state = withPerson(state, leaderId, { houseId, abilities: { ...DEFAULT_ABILITIES } })
+      state = withPerson(state, candidateId, { houseId, abilities: { ...DEFAULT_ABILITIES } })
+      // leader office (baseSalary 0) so getHouseLeader resolves
+      state = createOfficeAssignment(state, { kind: 'house', id: houseId }, 'leader', leaderId)
+      if (opts.withIncome) {
+        // sole share holder: distributable=(400-50)*0.15=52.5 → annual=630 ≥ 35
+        state = createOrganizationShare(
+          state,
+          { kind: 'polity', id: polityId },
+          { kind: 'house', id: houseId },
+          10,
+        )
+      }
+      return state
+    }
+
+    it('収入の無い家には有給 house 役職を任命しない', () => {
+      const result = toResult(
+        runAppointmentSystem(buildCtx(buildHouseState({ withIncome: false }), defaultConfig)),
+      )
+      for (const role of ['administrator', 'treasurer', 'military', 'advisor'] as OfficeRole[]) {
+        expect(holdsOfficeRole(result.state, leaderId, role)).toBe(false)
+        expect(holdsOfficeRole(result.state, candidateId, role)).toBe(false)
+      }
+    })
+
+    it('収入のある家には有給 house 役職を任命する', () => {
+      const result = toResult(
+        runAppointmentSystem(buildCtx(buildHouseState({ withIncome: true }), defaultConfig)),
+      )
+      const someoneHoldsAdmin =
+        holdsOfficeRole(result.state, leaderId, 'administrator') ||
+        holdsOfficeRole(result.state, candidateId, 'administrator')
+      expect(someoneHoldsAdmin).toBe(true)
+    })
   })
 })
