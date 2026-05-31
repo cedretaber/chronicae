@@ -106,6 +106,7 @@ import {
   getHoldingTerminalPolityId,
 } from '@sim/selectors/landContractSelectors'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
+import { getRegimentsForActor } from '@sim/selectors/regimentSelectors'
 import {
   getBailiffPolicy,
   getBailiffLocalExtractionRate,
@@ -1134,6 +1135,70 @@ function PolityLandContracts({
   )
 }
 
+// v0.36 Regiment: Polity が保有する連隊一覧。観賞用スナップショットなので active のみ表示
+//   (destroyed は再編成待ちの過渡状態・strength≈0、disbanded は恒久解散)。連隊詳細パネルは未実装。
+function PolityRegiments({
+  polity,
+  worldState,
+}: {
+  polity: Polity
+  worldState: WorldState | null
+}) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
+  if (!worldState) return null
+  const regiments = getRegimentsForActor(worldState, { kind: 'polity', id: polity.id }).filter(
+    (r) => r.status === 'active',
+  )
+  if (regiments.length === 0) return null
+
+  const rows = regiments
+    .map((r) => {
+      const province = r.homeProvinceId ? worldState.provinces[r.homeProvinceId] : undefined
+      const provinceName = province
+        ? resolveName('province', province.nameKey, province.nameKey)
+        : String(r.homeProvinceId ?? r.id)
+      return {
+        id: r.id,
+        name: `${provinceName} ${t('detail.polity.regiment_suffix')}`,
+        organization: Math.round(r.organization),
+        morale: Math.round(r.morale),
+        strength: Math.round(r.strength),
+      }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  return (
+    <div className="mt-1">
+      <div className="text-sm font-semibold text-gray-300">
+        {t('detail.polity.regiments')} ({rows.length}):
+      </div>
+      <div className="max-h-48 overflow-y-auto text-xs">
+        <table className="w-full">
+          <thead>
+            <tr className="text-gray-500">
+              <th className="text-left font-normal"></th>
+              <th className="text-right font-normal">{t('detail.polity.reg_organization')}</th>
+              <th className="text-right font-normal">{t('detail.polity.reg_morale')}</th>
+              <th className="text-right font-normal">{t('detail.polity.reg_strength')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-t border-gray-700/20">
+                <td className="text-gray-400">{r.name}</td>
+                <td className="text-right text-gray-300">{r.organization}%</td>
+                <td className="text-right text-gray-300">{r.morale}</td>
+                <td className="text-right text-gray-300">{r.strength}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export function CountryDetail({
   polity,
   session,
@@ -1380,6 +1445,8 @@ export function CountryDetail({
         worldState={worldState}
         onProvinceClick={onProvinceClick}
       />
+
+      <PolityRegiments polity={polity} worldState={worldState} />
 
       {/* v0.22 Goal/Aim */}
       {worldState &&
