@@ -1162,7 +1162,9 @@ function PolityRegiments({
         id: r.id,
         name: `${provinceName} ${t('detail.polity.regiment_suffix')}`,
         organization: Math.round(r.organization),
+        baselineOrganization: Math.round(r.baselineOrganization),
         morale: Math.round(r.morale),
+        baselineMorale: Math.round(r.baselineMorale),
         strength: Math.round(r.strength),
       }
     })
@@ -1172,6 +1174,9 @@ function PolityRegiments({
     <div className="mt-1">
       <div className="text-sm font-semibold text-gray-300">
         {t('detail.polity.regiments')} ({rows.length}):
+        <span className="ml-2 text-xs font-normal text-gray-500">
+          {t('detail.polity.reg_baseline_hint')}
+        </span>
       </div>
       <div className="max-h-48 overflow-y-auto text-xs">
         <table className="w-full">
@@ -1187,8 +1192,14 @@ function PolityRegiments({
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-gray-700/20">
                 <td className="text-gray-400">{r.name}</td>
-                <td className="text-right text-gray-300">{r.organization}%</td>
-                <td className="text-right text-gray-300">{r.morale}</td>
+                <td className="text-right text-gray-300">
+                  {r.organization}
+                  <span className="text-gray-500">/{r.baselineOrganization}</span>%
+                </td>
+                <td className="text-right text-gray-300">
+                  {r.morale}
+                  <span className="text-gray-500">/{r.baselineMorale}</span>
+                </td>
                 <td className="text-right text-gray-300">{r.strength}%</td>
               </tr>
             ))}

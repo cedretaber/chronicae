@@ -100,6 +100,7 @@ detail:
     reg_organization: 'Org'
     reg_morale: 'Morale'
     reg_strength: 'Fill'
+    reg_baseline_hint: 'value = current/baseline'
     others: 'Others'
     non_primary: 'non-primary'
     current_goal: 'Current Goal'

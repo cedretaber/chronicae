@@ -195,6 +195,7 @@ detail:
     reg_organization: '組織率'
     reg_morale: '士気'
     reg_strength: '充足率'
+    reg_baseline_hint: '値=現在/基準'
     others: 'その他'
     non_primary: '外様'
     current_goal: '現在の目標'
