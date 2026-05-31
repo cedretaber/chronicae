@@ -44,6 +44,7 @@ import {
   isEligibleWarPerson,
 } from '../selectors/warManeuverSelectors'
 import { emitBattleOccurred, emitBattleAvoided, emitCaptainGeneralChanged } from './warEvents'
+import { createLogger } from '../debug/logger'
 
 // v0.35 §7 WarManeuverSystem — 旧 WarProgressSystem を置換する (intervalWeeks 1 / 毎週)。
 //
@@ -268,6 +269,7 @@ function refreshCommanders(
 
 export function runWarManeuverSystem(ctx: TickContext): TickContext {
   const config = ctx.config
+  const log = createLogger(config.debug) // §19.1 [DEBUG:BATTLE_SIM] (非 debug 時は no-op)
   const absoluteWeek = ctx.state.absoluteWeek
   const activeWarIds = Object.keys(ctx.state.wars)
     .sort()
@@ -487,6 +489,27 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         pursuitOccurred: sim.pursuitOccurred,
         attackerCommanderAssignments: sim.attackerCommanderAssignments,
         defenderCommanderAssignments: sim.defenderCommanderAssignments,
+      })
+
+      // §19.1 [DEBUG:BATTLE_SIM] per-battle 観察ログ (debug 時のみ)。
+      log.log('BATTLE_SIM', {
+        warId: wid,
+        battleId: battleEntity.id,
+        battlefieldKind,
+        frontage,
+        ticksElapsed: sim.ticksElapsed,
+        atkFrontline: sim.attackerInitialFrontlineIds.length,
+        defFrontline: sim.defenderInitialFrontlineIds.length,
+        atkTotal: atkRegiments.length,
+        defTotal: defRegiments.length,
+        atkRouted: sim.attackerRoutedRegimentIds.length,
+        defRouted: sim.defenderRoutedRegimentIds.length,
+        atkCmd: simInput.attackerCommanders.length,
+        defCmd: simInput.defenderCommanders.length,
+        result: sim.result,
+        outcomeQuality: sim.outcomeQuality,
+        breakthroughSide: sim.breakthroughSide ?? 'none',
+        warScoreDelta: Math.round(rawDelta * 100) / 100,
       })
 
       const w = ws.wars[wid]
