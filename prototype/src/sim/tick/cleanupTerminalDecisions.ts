@@ -25,6 +25,20 @@ export function runCleanupTerminalDecisions(ctx: TickContext): TickContext {
     if (play.goalId) referencedGoalIds.add(play.goalId)
   }
 
+  // A Goal must not be deleted while an Aim that survives this cleanup still
+  // references it via goalId. An Aim survives if it is non-terminal, or if it is
+  // terminal but held alive by an active Project/Play (referencedAimIds). This
+  // completes the dependency chain active Project → origin Aim → Goal: a Project
+  // requires its origin Aim to exist (integrity), so the Aim's Goal must persist
+  // too. Without this, a terminal Goal could be deleted while a surviving Aim
+  // still points at it, leaving a dangling goalId reference (year-end integrity
+  // violation "Aim X: goalId Y does not exist").
+  for (const [aidStr, aim] of Object.entries(aims)) {
+    if (!aim || !aim.goalId) continue
+    const aimSurvives = !TERMINAL_AIM_SET.has(aim.status) || referencedAimIds.has(aidStr)
+    if (aimSurvives) referencedGoalIds.add(aim.goalId)
+  }
+
   // Collect terminal goal IDs (only if not referenced by active entities)
   const terminalGoalIds: GoalId[] = []
   let nextGoals: Record<GoalId, Goal> | undefined

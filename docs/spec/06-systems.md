@@ -1839,9 +1839,15 @@ terminal Aim の goalId を確認し、Aim 結果に応じて Goal progress を�
 
 イベント: `GOAL_SUCCEEDED`
 
-### 6.30f CleanupTerminalDecisions（4週ごと、v0.22）
+### 6.30f CleanupTerminalDecisions（4週ごと、v0.22 / v0.36 retention 修正）
 
 terminal Goal / Aim を WorldState から削除。orphan DecisionReason を削除。goalIndex / aimIndex を更新。CleanupTerminalDiplomacy の後に配置。
+
+**retention（削除しない条件）**: terminal でも以下に参照される間は削除しない。
+
+- Aim: active な Project（`origin.aimId`）または DiplomaticPlay（`aimId`）が参照する Aim は保持（Project は origin Aim の存在を要求するため）。
+- Goal: active な DiplomaticPlay（`goalId`）が参照する Goal は保持。
+- **Goal（v0.36 追加）**: 上記で生存する Aim が `goalId` で参照する Goal も保持し、`active Project → origin Aim → Goal` の依存チェーンを完結させる。これを欠くと、terminal Goal が「active Project に保持された terminal Aim」より先に削除され、Aim の `goalId` が dangling 化して年末 IntegrityCheck（`Aim X: goalId Y does not exist`）で throw する（特定 seed の RNG で long-run 顕在化。v0.22 から存在した既存バグの修正で、v0.36e 分割継承とは独立）。Project 完了で Aim が解放されると、次回 cleanup で Aim → Goal の順に削除され収束する。
 
 ---
 
