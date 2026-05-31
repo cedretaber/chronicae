@@ -7,6 +7,7 @@ import type {
   PolityId,
   ProvinceId,
   HoldingId,
+  WarId,
 } from '../types/ids'
 
 // id 配列を ChronicleEntry に解決し、存在しない id を除外し、時系列降順 (新しい順) に並べる。
@@ -51,4 +52,18 @@ export function getChronicleEntriesForHolding(
   holdingId: HoldingId,
 ): ChronicleEntry[] {
   return resolveChronicleEntries(state, state.chronicleIndex.byHolding[holdingId])
+}
+
+// War は EventEntityKind に 'war' が無く byWar index も持たない (v0.38 スコープ外) ため、
+//   WarDetail.recentWarEvents と同じく params.warId 一致で chronicleEntries を全走査する。
+//   表示専用 selector であり tick には配線しない。append-only でも detail panel render
+//   1 回の走査コストは許容範囲。
+export function getChronicleEntriesForWar(state: WorldState, warId: WarId): ChronicleEntry[] {
+  const target = warId as string
+  return Object.values(state.chronicleEntries)
+    .filter((entry) => {
+      const wid = entry.params.warId
+      return typeof wid === 'string' && wid === target
+    })
+    .sort((a, b) => b.year - a.year || b.weekOfYear - a.weekOfYear)
 }

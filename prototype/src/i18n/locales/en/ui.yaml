@@ -279,6 +279,7 @@ detail:
     stage_secure_budget: 'Securing Budget'
     stage_arrange_patronage: 'Arranging Patronage'
     stage_write_chronicle: 'Writing Chronicle'
+    chronicle: 'History'
 
   # Province detail
   province:
@@ -386,6 +387,10 @@ detail:
     project_budget_remaining: 'Remaining'
     project_budget_spent: 'Spent'
 
+  # Holding detail (v0.38 Chronicle)
+  holding:
+    chronicle: 'Holding History'
+
   # War detail (v0.34)
   war:
     attacker: 'Attacker'
@@ -408,6 +413,7 @@ detail:
     mobilized: 'Mobilized'
     regiment_power: 'Regiment Power'
     recent_events: 'Recent Events'
+    chronicle: 'War Records'
 
   # Faction detail
   faction:

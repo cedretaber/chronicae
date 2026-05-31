@@ -374,6 +374,7 @@ detail:
     stage_secure_budget: '予算確保'
     stage_arrange_patronage: '後援手配'
     stage_write_chronicle: '年代記執筆'
+    chronicle: '履歴'
 
   # プロヴィンス詳細
   province:
@@ -481,6 +482,10 @@ detail:
     project_budget_remaining: '残額'
     project_budget_spent: '支出済'
 
+  # 土地詳細 (v0.38 Chronicle)
+  holding:
+    chronicle: '土地の歴史'
+
   # 戦争詳細 (v0.34)
   war:
     attacker: '攻撃側'
@@ -503,6 +508,7 @@ detail:
     mobilized: '動員連隊'
     regiment_power: '連隊戦力'
     recent_events: '最近の出来事'
+    chronicle: '戦争の記録'
 
   # 派閥詳細
   faction:

@@ -111,6 +111,9 @@ import {
   getChronicleEntriesForPolity,
   getChronicleEntriesForHouse,
   getChronicleEntriesForProvince,
+  getChronicleEntriesForPerson,
+  getChronicleEntriesForHolding,
+  getChronicleEntriesForWar,
 } from '@sim/selectors/chronicleSelectors'
 import type { ChronicleEntry, ChronicleCategory } from '@sim/types/chronicle'
 import {
@@ -2984,6 +2987,12 @@ export function PersonDetail({
           </div>
         )
       })()}
+
+      {/* v0.38 §8: 履歴 (永続 Chronicle) */}
+      <EntityChronicleSection
+        title={t('detail.person.chronicle')}
+        entries={getChronicleEntriesForPerson(worldState, person.id)}
+      />
     </div>
   )
 }
@@ -3592,6 +3601,14 @@ export function HoldingDetail({
             </>
           )
         })()}
+
+      {/* v0.38 §8: 土地の歴史 (永続 Chronicle) */}
+      {currentState && (
+        <EntityChronicleSection
+          title={t('detail.holding.chronicle')}
+          entries={getChronicleEntriesForHolding(currentState, holding.id)}
+        />
+      )}
     </div>
   )
 }
@@ -5093,6 +5110,12 @@ export function WarDetail({
             </div>
           </>
         )}
+
+        {/* v0.38 §8: 戦争の記録 (永続 Chronicle)。byWar index が無いため params.warId で抽出。 */}
+        <EntityChronicleSection
+          title={t('detail.war.chronicle')}
+          entries={getChronicleEntriesForWar(worldState, war.id)}
+        />
       </div>
     </div>
   )
