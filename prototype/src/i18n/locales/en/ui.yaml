@@ -33,6 +33,20 @@ tabs:
   chronicle: 'Chronicle'
   timeline: 'Timeline'
 
+# v0.38: ChronicleEntry category badge labels (EntityChronicleSection)
+chronicle:
+  category:
+    war: 'War'
+    battle: 'Battle'
+    land: 'Land'
+    house: 'House'
+    office: 'Office'
+    revolt: 'Revolt'
+    life: 'Life'
+    development: 'Development'
+    governance: 'Governance'
+    disaster: 'Disaster'
+
 sidebar:
   watchlist: 'Watchlist'
   plays: 'Plays'

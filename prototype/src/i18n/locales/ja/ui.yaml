@@ -127,6 +127,20 @@ event_type:
   PROJECT_FAILED: 'プロジェクト失敗'
   PROJECT_CANCELLED: 'プロジェクト中止'
 
+# v0.38: ChronicleEntry の category バッジ表示名 (EntityChronicleSection)
+chronicle:
+  category:
+    war: '戦争'
+    battle: '戦闘'
+    land: '領地'
+    house: '家'
+    office: '任官'
+    revolt: '反乱'
+    life: '生涯'
+    development: '開発'
+    governance: '統治'
+    disaster: '災害'
+
 sidebar:
   watchlist: 'ウォッチリスト'
   plays: '外交劇'

@@ -35,14 +35,28 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   HOUSE_LEADER_CHANGED: { category: 'house' },
   // Governance
   POLITY_OWNER_CHANGED: { category: 'governance' },
+  // Land governance (v0.38 Phase 3): 税率改定。polity+province ref (holding ref は無い)。
+  CONTRACT_TAX_REVISED: { category: 'land' },
   // Revolt
   REVOLT_POLITY_FOUNDED: { category: 'revolt' },
   REVOLT_NEGOTIATION_STARTED: { category: 'revolt' },
+  // Revolt 帰結 (v0.38 Phase 3): province ref を持つ。叛乱の決着を地方史に乗せる。
+  REVOLT_SUPPRESSED: { category: 'revolt' },
+  REVOLT_SETTLED: { category: 'revolt' },
+  REVOLT_POLITY_ESTABLISHED: { category: 'revolt' },
   // Disaster
   FAMINE: { category: 'disaster' },
   PLAGUE: { category: 'disaster' },
   // Development
   COUNTRY_LAND_DEVELOPED: { category: 'development' },
+  // Office / 行政 (v0.38 Phase 3)
+  //   役職任命/任期終了は人物の「経歴」として byPerson 限定で投入する。
+  //   person 以外 (house/polity) の ref を index から外し、Polity/House 国史を行政ログで埋めない。
+  OFFICE_ASSIGNED: { category: 'office', retainRefKinds: ['person'] },
+  OFFICE_TERM_ENDED: { category: 'office', retainRefKinds: ['person'] },
+  //   代官任命/退任は person+province ref を持つ。人物経歴 + 地方統治史の両方に乗せる (無制限)。
+  BAILIFF_APPOINTED: { category: 'office' },
+  BAILIFF_VACATED: { category: 'office' },
   // Life
   IMPORTANT_PERSON_DIED: { category: 'life' },
 }

@@ -35,6 +35,14 @@ export function runChronicleProjectionSystem(ctx: TickContext): TickContext {
   for (const e of ctx.events) {
     const def = CHRONICLE_EVENT_TYPE_DEFINITIONS[e.type]
     if (!def) continue
+    // retainRefKinds 指定時は entityRefs をその kind だけに絞る (office を byPerson 限定にするため)。
+    //   絞った結果が空でも entry は作る (どの index にも載らないが integrity 上は無害)。
+    //   entry.entityRefs が絞り込み後と一致するので index↔entry の整合は保たれる。
+    const retain = def.retainRefKinds
+    const entityRefs = retain ? e.entityRefs.filter((r) => retain.includes(r.kind)) : e.entityRefs
+    // templateKey: 関数なら params から narrative key を選び、string なら固定、未指定なら messageKey。
+    const templateKey =
+      typeof def.templateKey === 'function' ? def.templateKey(e) : (def.templateKey ?? e.messageKey)
     createChronicleEntryMut(draft, {
       year: e.year,
       weekOfYear: e.weekOfYear,
@@ -42,9 +50,9 @@ export function runChronicleProjectionSystem(ctx: TickContext): TickContext {
       importance: e.importance,
       sourceEventId: e.id,
       sourceEventType: e.type,
-      templateKey: e.messageKey,
+      templateKey,
       params: e.messageParams,
-      entityRefs: e.entityRefs,
+      entityRefs,
     })
   }
 

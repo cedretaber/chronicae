@@ -187,6 +187,7 @@ function EntityChronicleSection({
   showCategories?: ReadonlySet<ChronicleCategory>
 }) {
   const renderEvent = useRenderEvent()
+  const { t } = useTranslation()
   const visible = (
     showCategories ? entries.filter((e) => showCategories.has(e.category)) : entries
   ).slice(0, limit)
@@ -197,7 +198,7 @@ function EntityChronicleSection({
       {visible.map((e) => (
         <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
           <span className="mr-1 rounded bg-gray-700 px-1 text-[10px] text-gray-400">
-            {e.category}
+            {t(`chronicle.category.${e.category}`)}
           </span>
           [{e.year}/W{e.weekOfYear}]{' '}
           {renderEvent({ messageKey: e.templateKey, messageParams: e.params })}
