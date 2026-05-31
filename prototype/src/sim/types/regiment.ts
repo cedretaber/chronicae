@@ -58,6 +58,14 @@ export type Regiment = {
   // §5.9 全快時の基礎戦闘力。worldgen 時点の calcPolityMilitaryPower / regiment 数で凍結 (§8.7)。
   basePower: number
 
+  // §3 (v0.37 Battlefront): organization / morale の定常水準 (baseline) と上限 (max)。
+  //   Phase A では生成時に config 定数で設定するのみ。recovery が baseline へ回復/減衰させ、
+  //   integrity が max を上限検査に使うのは Phase B 以降。
+  baselineOrganization: number
+  maxOrganization: number
+  baselineMorale: number
+  maxMorale: number
+
   createdWeek: number
   lastMobilizedWeek?: number
 

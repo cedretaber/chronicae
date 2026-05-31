@@ -56,6 +56,10 @@ function reg(overrides: Partial<Regiment>): Regiment {
     morale: 80,
     maxStrength: 100,
     basePower: 200,
+    baselineOrganization: 50,
+    maxOrganization: 100,
+    baselineMorale: 30,
+    maxMorale: 100,
     createdWeek: 0,
     ...overrides,
   }
@@ -117,6 +121,10 @@ describe('getRegimentsForActor / getRegimentsForWarSide', () => {
       morale: 80,
       maxStrength: 100,
       basePower: 100,
+      baselineOrganization: 50,
+      maxOrganization: 100,
+      baselineMorale: 30,
+      maxMorale: 100,
       createdWeek: 0,
     })
     const r2 = createRegiment(state, {
@@ -130,6 +138,10 @@ describe('getRegimentsForActor / getRegimentsForWarSide', () => {
       morale: 80,
       maxStrength: 100,
       basePower: 100,
+      baselineOrganization: 50,
+      maxOrganization: 100,
+      baselineMorale: 30,
+      maxMorale: 100,
       createdWeek: 0,
     })
 
@@ -153,6 +165,10 @@ describe('getRegimentsForActor / getRegimentsForWarSide', () => {
       morale: 80,
       maxStrength: 100,
       basePower: 100,
+      baselineOrganization: 50,
+      maxOrganization: 100,
+      baselineMorale: 30,
+      maxMorale: 100,
       createdWeek: 0,
     })
 
@@ -184,6 +200,10 @@ describe('getRegimentPowerForWarSide', () => {
       morale: 80,
       maxStrength: 100,
       basePower: 100,
+      baselineOrganization: 50,
+      maxOrganization: 100,
+      baselineMorale: 30,
+      maxMorale: 100,
       createdWeek: 0,
     })
     const r2 = createRegiment(state, {
@@ -197,6 +217,10 @@ describe('getRegimentPowerForWarSide', () => {
       morale: 80,
       maxStrength: 100,
       basePower: 100,
+      baselineOrganization: 50,
+      maxOrganization: 100,
+      baselineMorale: 30,
+      maxMorale: 100,
       createdWeek: 0,
     })
 
@@ -237,6 +261,10 @@ describe('getRegimentPowerForWarSide', () => {
       morale: 80,
       maxStrength: 100,
       basePower: 100,
+      baselineOrganization: 50,
+      maxOrganization: 100,
+      baselineMorale: 30,
+      maxMorale: 100,
       createdWeek: 0,
     })
 
@@ -265,6 +293,10 @@ describe('getRegimentPowerForWarSide', () => {
       morale: 80,
       maxStrength: 100,
       basePower: 100,
+      baselineOrganization: 50,
+      maxOrganization: 100,
+      baselineMorale: 30,
+      maxMorale: 100,
       createdWeek: 0,
     })
 

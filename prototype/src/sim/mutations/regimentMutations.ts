@@ -42,6 +42,11 @@ export type CreateRegimentInput = {
   morale: number
   maxStrength: number
   basePower: number
+  // §3 (v0.37): baseline / max。createRegiment caller が必ず設定する (§20 Phase A)。
+  baselineOrganization: number
+  maxOrganization: number
+  baselineMorale: number
+  maxMorale: number
   createdWeek: number
 }
 
@@ -60,6 +65,10 @@ export function createRegiment(ws: WorldState, input: CreateRegimentInput): Regi
     morale: input.morale,
     maxStrength: input.maxStrength,
     basePower: input.basePower,
+    baselineOrganization: input.baselineOrganization,
+    maxOrganization: input.maxOrganization,
+    baselineMorale: input.baselineMorale,
+    maxMorale: input.maxMorale,
     createdWeek: input.createdWeek,
   }
   ws.regiments[id] = regiment

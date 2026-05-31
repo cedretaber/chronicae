@@ -6,6 +6,7 @@ import type { PopOccupation, PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
 import type { BattlefieldKind } from '../types/war'
+import type { BattleTickUnit } from '../types/battle'
 
 export type SimulationConfig = {
   uiLocale: 'en' | 'ja'
@@ -448,6 +449,66 @@ export type SimulationConfig = {
   destroyedRegimentReformInitialMorale: number
   destroyedRegimentReformCost: number
   destroyedRegimentReformMinPopFactor: number
+  // v0.37 Battlefront (§21) — Phase A では誰も読まない (土台)。Phase B/C で battle sim / recovery が使う。
+  //   baseline / max
+  regimentBaselineOrganizationDefault: number
+  regimentBaselineMoraleDefault: number
+  regimentMaxOrganizationDefault: number
+  regimentMaxMoraleDefault: number
+  regimentMaxOrganizationHardCap: number
+  regimentMaxMoraleHardCap: number
+  //   recovery (regimentOrganizationRecoveryPerWeek は既存)
+  regimentOrganizationDecayAboveBaselinePerWeek: number
+  regimentMoraleRecoveryPerWeek: number
+  regimentMoraleDecayAboveBaselinePerWeek: number
+  //   battle internal tick
+  battleTickUnit: BattleTickUnit
+  battleMaxTicks: number
+  retreatOrganizationThreshold: number
+  routeOrganizationThreshold: number
+  minFightingStrengthThreshold: number
+  //   frontage / terrain
+  battlefieldFrontageByKind: Record<BattlefieldKind, number>
+  battleTerrainOrganizationDamageMultiplierByKind: Record<BattlefieldKind, number>
+  //   damage
+  battleBaseOrganizationDamage: number
+  battleMoraleDamageRatio: number
+  battleStrengthDamageRatio: number
+  winnerStrengthDamageMultiplier: number
+  loserStrengthDamageMultiplier: number
+  routedStrengthDamageMultiplier: number
+  routAdditionalMoraleDamage: number
+  battleStrengthOutcomeQualityMultiplierOrderly: number
+  battleStrengthOutcomeQualityMultiplierRout: number
+  battleStrengthPowerDisadvantageModifierMin: number
+  battleStrengthPowerDisadvantageModifierMax: number
+  //   相討ち tiebreak
+  battleSimOrganizationTiebreakEpsilon: number
+  //   morale → rout
+  moraleRouteThresholdFactor: number
+  //   randomness
+  battleRandomFactorMin: number
+  battleRandomFactorMax: number
+  //   flank
+  flankPressureBase: number
+  maxFlankPressureMultiplier: number
+  //   commander
+  commanderAssignedRegimentEffectMax: number
+  commanderAdjacentRegimentEffectRatio: number
+  captainGeneralBattleOrganizationDamageEffectMax: number
+  captainGeneralRoutResistanceEffectMax: number
+  //   outcome
+  routSideRoutedShareThreshold: number
+  //   warScoreDelta magnitude (§15.3。result から符号、ここから大きさ)
+  battleOrderlyVictoryScoreBase: number
+  battleRoutVictoryScoreBase: number
+  battleDecisivenessRoutedShareWeight: number
+  battleDecisivenessSpeedWeight: number
+  battleDecisivenessMin: number
+  battleDecisivenessMax: number
+  battlePreBattleEdgeWeight: number
+  battlePreBattleModifierMin: number
+  battlePreBattleModifierMax: number
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: boolean
   acquireLandMinTreasury: number
@@ -1221,6 +1282,84 @@ export const defaultConfig: SimulationConfig = {
   destroyedRegimentReformInitialMorale: 40,
   destroyedRegimentReformCost: 8,
   destroyedRegimentReformMinPopFactor: 0.25,
+  // v0.37 Battlefront (§21) — すべて仮置き。Phase B の連成 harness で co-tune。
+  //   baseline / max
+  regimentBaselineOrganizationDefault: 50,
+  regimentBaselineMoraleDefault: 30,
+  regimentMaxOrganizationDefault: 100,
+  regimentMaxMoraleDefault: 100,
+  regimentMaxOrganizationHardCap: 120,
+  regimentMaxMoraleHardCap: 100,
+  //   recovery
+  regimentOrganizationDecayAboveBaselinePerWeek: 1,
+  regimentMoraleRecoveryPerWeek: 1,
+  regimentMoraleDecayAboveBaselinePerWeek: 0.5,
+  //   battle internal tick
+  battleTickUnit: 'day',
+  battleMaxTicks: 5,
+  retreatOrganizationThreshold: 20,
+  routeOrganizationThreshold: 8,
+  minFightingStrengthThreshold: 10,
+  //   frontage / terrain
+  battlefieldFrontageByKind: {
+    open_field: 5,
+    coastal_battle: 4,
+    hill_battle: 3,
+    forest_battle: 2,
+    wetland_battle: 2,
+    river_crossing: 2,
+    mountain_pass: 1,
+    siege: 1,
+  },
+  battleTerrainOrganizationDamageMultiplierByKind: {
+    open_field: 1.0,
+    coastal_battle: 1.0,
+    hill_battle: 0.9,
+    forest_battle: 0.85,
+    wetland_battle: 0.85,
+    river_crossing: 0.8,
+    mountain_pass: 0.75,
+    siege: 0.75,
+  },
+  //   damage
+  battleBaseOrganizationDamage: 8,
+  battleMoraleDamageRatio: 0.25,
+  battleStrengthDamageRatio: 0.08,
+  winnerStrengthDamageMultiplier: 0.6,
+  loserStrengthDamageMultiplier: 1.4,
+  routedStrengthDamageMultiplier: 2.5,
+  routAdditionalMoraleDamage: 8,
+  battleStrengthOutcomeQualityMultiplierOrderly: 1.0,
+  battleStrengthOutcomeQualityMultiplierRout: 1.2,
+  battleStrengthPowerDisadvantageModifierMin: 1.0,
+  battleStrengthPowerDisadvantageModifierMax: 1.3,
+  //   相討ち tiebreak
+  battleSimOrganizationTiebreakEpsilon: 0,
+  //   morale → rout
+  moraleRouteThresholdFactor: 0.25,
+  //   randomness
+  battleRandomFactorMin: 0.85,
+  battleRandomFactorMax: 1.15,
+  //   flank
+  flankPressureBase: 0.15,
+  maxFlankPressureMultiplier: 1.3,
+  //   commander
+  commanderAssignedRegimentEffectMax: 0.15,
+  commanderAdjacentRegimentEffectRatio: 0.4,
+  captainGeneralBattleOrganizationDamageEffectMax: 0.1,
+  captainGeneralRoutResistanceEffectMax: 0.1,
+  //   outcome
+  routSideRoutedShareThreshold: 0.4,
+  //   warScoreDelta magnitude
+  battleOrderlyVictoryScoreBase: 6,
+  battleRoutVictoryScoreBase: 10,
+  battleDecisivenessRoutedShareWeight: 0.4,
+  battleDecisivenessSpeedWeight: 0.2,
+  battleDecisivenessMin: 0.7,
+  battleDecisivenessMax: 1.4,
+  battlePreBattleEdgeWeight: 0.2,
+  battlePreBattleModifierMin: 0.8,
+  battlePreBattleModifierMax: 1.2,
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: true,
   acquireLandMinTreasury: 200,

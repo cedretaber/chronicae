@@ -2079,17 +2079,48 @@ export function collectIntegrityErrors(
     if (
       !Number.isFinite(regiment.organization) ||
       regiment.organization < 0 ||
-      regiment.organization > 100
+      regiment.organization > regiment.maxOrganization
     ) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `Regiment ${idStr} organization=${regiment.organization} out of range 0..100 (§18.1)`,
+        message: `Regiment ${idStr} organization=${regiment.organization} out of range 0..maxOrganization(${regiment.maxOrganization}) (§18.1)`,
       })
     }
-    if (!Number.isFinite(regiment.morale) || regiment.morale < 0 || regiment.morale > 100) {
+    if (
+      !Number.isFinite(regiment.morale) ||
+      regiment.morale < 0 ||
+      regiment.morale > regiment.maxMorale
+    ) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `Regiment ${idStr} morale=${regiment.morale} out of range 0..100 (§18.1)`,
+        message: `Regiment ${idStr} morale=${regiment.morale} out of range 0..maxMorale(${regiment.maxMorale}) (§18.1)`,
+      })
+    }
+    // §3 (v0.37): baseline / max の構造整合。0 <= baseline <= max <= hardCap (hardCap は config 経由・任意)。
+    const orgHardCap = config?.regimentMaxOrganizationHardCap
+    if (
+      !Number.isFinite(regiment.baselineOrganization) ||
+      !Number.isFinite(regiment.maxOrganization) ||
+      regiment.baselineOrganization < 0 ||
+      regiment.baselineOrganization > regiment.maxOrganization ||
+      (orgHardCap !== undefined && regiment.maxOrganization > orgHardCap)
+    ) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} organization baseline/max invalid: baseline=${regiment.baselineOrganization} max=${regiment.maxOrganization} (need 0<=baseline<=max<=hardCap) (§18.1)`,
+      })
+    }
+    const moraleHardCap = config?.regimentMaxMoraleHardCap
+    if (
+      !Number.isFinite(regiment.baselineMorale) ||
+      !Number.isFinite(regiment.maxMorale) ||
+      regiment.baselineMorale < 0 ||
+      regiment.baselineMorale > regiment.maxMorale ||
+      (moraleHardCap !== undefined && regiment.maxMorale > moraleHardCap)
+    ) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Regiment ${idStr} morale baseline/max invalid: baseline=${regiment.baselineMorale} max=${regiment.maxMorale} (need 0<=baseline<=max<=hardCap) (§18.1)`,
       })
     }
     if (!Number.isFinite(regiment.basePower) || regiment.basePower < 0) {

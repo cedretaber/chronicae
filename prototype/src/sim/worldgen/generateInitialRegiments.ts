@@ -81,6 +81,11 @@ export function generateInitialRegiments(
         morale: config.regimentInitialMorale,
         maxStrength: config.regimentMaxStrength,
         basePower,
+        // §3 (v0.37): baseline / max を config 定数で設定 (RNG draw を増やさない → bit-identical)。
+        baselineOrganization: config.regimentBaselineOrganizationDefault,
+        maxOrganization: config.regimentMaxOrganizationDefault,
+        baselineMorale: config.regimentBaselineMoraleDefault,
+        maxMorale: config.regimentMaxMoraleDefault,
         createdWeek: state.absoluteWeek,
       })
     }

@@ -29,6 +29,10 @@ function addReg(
     morale: 80,
     maxStrength: 100,
     basePower: 100,
+    baselineOrganization: 50,
+    maxOrganization: 100,
+    baselineMorale: 30,
+    maxMorale: 100,
     createdWeek: 0,
   })
   if (opts.status === 'disbanded') {
