@@ -1589,14 +1589,21 @@ active War ごとに「誰が指揮し・どの戦場で・戦うか回避する
 8. **戦闘 or 回避の解決**:
    - **両者回避** → warScore 不変、両 `avoidanceCount +1`、`BATTLE_AVOIDED`(minor, avoidingSide='both')。
    - **片側のみ回避成功** → 回避側 `avoidanceCount +1`、warScore は非回避側へ `warAvoidanceWarScorePenalty`(=1.0) 分だけ動く、`BATTLE_AVOIDED`(回避 side)。
-   - **両者交戦 / 回避失敗** → `resolveBattle` で warScore 更新、`BATTLE_OCCURRED`(normal)。回避失敗側は `avoidanceCount +1`。
+   - **両者交戦 / 回避失敗** → `simulateBattle`（v0.37 内部 tick）で result を出し warScore 更新、`BATTLE_OCCURRED`(normal)。回避失敗側は `avoidanceCount +1`。
 
-**battle 解決（`resolveBattle`、乱数 2 draw）**:
-- 各陣営の実効戦力 = `power(side) × commanderModifier(指揮官) × (1 ± warBattleRandomness)`。**v0.36: `power(side)` は `getRegimentPowerForWarSide`（その side の動員 Regiment の有効戦力合計。§3.9b）。動員ゼロかつ primary participant が Regiment 非保有（byOwner 空。house actor 等）なら旧 `getActorMilitaryPower` に fallback、byOwner 非空だが動員 active 無しは 0**。`commanderModifier = clamp(1 + normalized(warCommand−50) × warCommanderWarCommandEffect, minWarCommanderModifier, maxWarCommanderModifier)`。
-- `advantage = atkEff / (atkEff + defEff + 1)`、`rawDelta = (advantage − 0.5) × warBattleScoreScale`。
-- `result`: `|rawDelta| > battleVictoryThreshold` で attacker_victory / defender_victory、それ以外 inconclusive。
-- 勝者側の総大将効率を乗算: `rawDelta ×= captainGeneralEfficiency = 1 + normalized(warCommand−50) × captainGeneralWarScoreEffect`。
-- `warScoreDelta = clamp(rawDelta, ±maxWarScoreDeltaPerBattle)`、`warScore = clamp(warScore + warScoreDelta, −100, 100)`。
+**battle 解決（v0.37: `simulateBattle` 内部 tick simulation）**:
+
+v0.37 で旧 `resolveBattle`（power 比 1 回判定）を撤去し、純粋 helper `simulateBattle`（`src/sim/helpers/simulateBattle.ts`、WorldState 非依存）に置換した。WarManeuver は動員 active Regiment の snapshot（effectivePower は `getRegimentEffectivePower` で**戦闘前 1 回 frozen**）と指揮官 pool・総大将 warCommand・地形 frontage を入力し、helper が deployment → 内部 tick loop → result / 損耗 / summary を返す。
+
+- **deployment**: candidate = `strength > minFightingStrengthThreshold && org > retreatOrganizationThreshold`。infantry を effectivePower 降順で frontline（地形 `battlefieldFrontageByKind` 幅）、残り frontage を cavalry で埋め、余りは reserve。draw 無し。
+- **内部 tick loop（最大 `battleMaxTicks`）**: 各 tick で frontline matchup ごとに**双方向 organization damage**を与える（`battleBaseOrganizationDamage × pairPowerFactor(frozen 比 clamp) × terrain × flank × randomFactor`、damage 方向ごとに 1 draw）。org に比例した morale damage（`battleMoraleDamageRatio`）。org が morale 感応の effRoute（`routeOrganizationThreshold + max(0, baselineMorale−morale) × moraleRouteThresholdFactor`）以下で **rout**（flag + 追加 morale damage）、retreat 閾値以下は frontline 離脱。欠員は reserve から補充。
+- **result 決定**: 片側の fighting 連隊が尽きれば相手勝利。相討ちは残存 org 合計 tiebreak。**maxTicks 到達（双方残存）は残存 org 合計の相対差が `battleMaxTicksDecisiveMarginRatio`(=0.1) 超で優勢側勝利、以下なら inconclusive**（通常規模は 1 戦で全滅させられず常に inconclusive になるのを防ぐ）。
+- **strength damage**: loop 後に累積 org damage × role（winner/loser/routed）× outcomeQuality × powerDisadvantage で 1 回算出（v0.37 損耗方針: strength は大きく削れない＝destroyed は v0.37 core では希少）。
+- **指揮官効果（C1）**: helper は deployment 後に commander pool（fieldCommandScore 降順、cavalry は breakthroughScore 優先、center-out infantry）を割当て `BattleCommanderAssignment[]` を出力。割当連隊は与 org damage `×(1+q)` / 被 org damage `×(1−q)` / rout 耐性（`q = clamp((fieldCommandScore−50)/50, −1, 1) × commanderAssignedRegimentEffectMax`、隣接は `× commanderAdjacentRegimentEffectRatio`）。
+- **総大将効果（C1）**: side-level で被 org damage 軽減（≤`captainGeneralBattleOrganizationDamageEffectMax`=10%）と rout 耐性（≤`captainGeneralRoutResistanceEffectMax`=10%）。benefit 方向のみ（warCommand<50 でも penalty にしない）。
+- 指揮官割当・効果・CG は **draw を消費しない**（modifier は draw 後に乗算）ので RNG 順序は不変。
+
+**warScoreDelta（C1。result から符号 + bounded magnitude）**: 旧 advantage×scale を撤去。`computeWarScoreDelta` が internal sim の `result` から符号を決め（attacker_victory=+ / defender_victory=− / inconclusive=0）、magnitude を `base(outcomeQuality: rout は `battleRoutVictoryScoreBase`、orderly は `battleOrderlyVictoryScoreBase`) × decisiveness(敗者 routed share + 早期決着) × preBattleModifier(勝者の preBattle edge のみ、控えめ) × 勝者側 captainGeneralEfficiency` で組み、`clamp(0, maxWarScoreDeltaPerBattle)`。`warScoreDelta = sign × magnitude`。post-battle power 比は使わない（rout / org collapse で 0/1 に寄り delta が暴走するため）。符号は result 由来・magnitude≥0 なので **常に result と整合**。Battle entity には **rawDelta** を保存（warScore saturation で applied delta が 0 化しても符号が崩れないように）、`warScoreAfter = clamp(before + rawDelta, −100, 100)`。
 
 **v0.34 からの主な変更**:
 - 旧 per-tick drift 5 config（`warScoreProgressFactor` / `maxWarScoreDeltaPerTick` / `warMinimumEffectivePower` / `warScoreCollapseDelta` / `warScoreEventThreshold`）と `WAR_SCORE_CHANGED` を**撤廃**。warScore 変化は `BATTLE_OCCURRED` の `warScoreDelta` / `warScoreAfter` で表現する。
@@ -1605,15 +1612,15 @@ active War ごとに「誰が指揮し・どの戦場で・戦うか回避する
 
 **cadence（毎週 maneuver × 4週 settlement）**: WarManeuver は毎週・PeaceSettlement は 4 週ごと。warScore が ±targetWarScore に到達しても settlement が走るまで最大 3 週ある。その間 step 3 が warScore を凍結し、到達済み War が余分な battle で行き過ぎるのを防ぐ。
 
-**バランス（v0.35）**: 決着までの戦闘数は概ね `targetWarScore / warBattleScoreScale` 比が支配する。実測（4seed×100yr）で中央値 4 戦になるよう `defaultTransferLandWarScore`=12 / `defaultChangeContractTaxWarScore`=10、`warBattleScoreScale`=24、`maxWarScoreDeltaPerBattle`=12 に調整（§9 config）。ほぼ互角の戦争は乱歩の性質上もつれて長引く（裾）が、これは構造的で config では中央値と裾を分離できない（圧縮は将来の機構追加に委ねる。§13）。
+**バランス（v0.35 → v0.37）**: v0.35 では決着戦闘数が `targetWarScore / warBattleScoreScale` 比に支配され、中央値 4 戦になるよう調整した。**v0.37 では warScoreDelta が `warBattleScoreScale` でなく上記 magnitude 式（outcomeQuality base × decisiveness × preBattle × cgEff、clamp `maxWarScoreDeltaPerBattle`=12）で決まる**ため、決着戦闘数は base/target 比に依存する。v0.37 観察（forced-war harness）では戦闘は残存 org 合計で決まり**数的優位が支配的**、決着まで中央値 ~7 戦、destroyed は実質発生せず（strength 損耗は小）、rout は実戦で稀。v0.37 戦闘系のバランス（avgStrength・CG fairness・median 等）は戦場/指揮官/消耗/兵站がひと通り入った後にまとめて調整する（現状は機能の bounded 動作を優先し config 非調整）。
 
-**v0.36 Regiment 接続（損耗ループ）**: battle の power 入力を抽象 `getActorMilitaryPower` から永続 Regiment（§3.9b）に置換する。WarManeuverSystem は warScore 凍結判定（step 3）の後・総大将 refresh の前に **per-war mobilize prologue** を挟む（`mobilizeRegimentsForWar`。各 side の polity participant が所有する active かつ未動員 Regiment を当該 War/side へ動員する。決定的・乱数非消費・冪等）。battle が成立したら（mutual_engagement / 回避失敗）損耗を適用する:
+**Regiment 接続（損耗ループ、v0.36 → v0.37）**: battle の入力は永続 Regiment（§3.9b）。WarManeuverSystem は warScore 凍結判定（step 3）の後・総大将 refresh の前に **per-war mobilize prologue** を挟む（`mobilizeRegimentsForWar`。各 side の polity participant が所有する active かつ未動員 Regiment を当該 War/side へ動員する。決定的・乱数非消費・冪等）。battle が成立したら（mutual_engagement / 回避失敗）`simulateBattle` を実行し損耗を適用する:
 
-- 各 side の動員 active Regiment に、`result` に応じた role（winner / loser / inconclusive）別の **organization damage** と **strength damage** を config レンジから 1 値ずつ draw し（side ごと乱数 2 draw）、当該 side の全 Regiment に同量適用する（頭割りでない）。organization / strength は 0..max に clamp。
-- clamp 後 `strength <= regimentDestroyedStrengthThreshold`（既定 0）になった Regiment は `destroyed` 化（byWar から除去・status 遷移。byOwner には残す。§3.9b case(c)）。
-- 1 戦闘につき `Battle` entity（§3.9c）を 1 件記録する（`createBattle`）。`BATTLE_OCCURRED` event には battleId と両 side の動員連隊数を載せる（counts-only。§8）。
-- 戦闘では strength が累積低下し destroyed に至りうる。strength の回復は RegimentReinforcementSystem（§6.27g 月次、v0.36 補充・再編成）が担い、destroyed も同 system が reform で再編成する（§6.27e は organization のみ回復）。
-- 総大将 / 指揮官の `commanderModifier` / `captainGeneralEfficiency` 補正は従来どおり（power 引数だけが Regiment 由来に変わる）。
+- **v0.37: 損耗は per-regiment**（v0.36 の「side 全連隊に同量」を撤去）。`simulateBattle` が連隊ごとに organization / morale / strength の after 値を返し、`updateRegimentMut` で反映する。organization は内部 tick で主に削れ（§6.27b battle 解決）、morale も削れる。strength は v0.37 損耗方針で大きくは削れない。
+- clamp 後 `strength <= regimentDestroyedStrengthThreshold`（既定 0）になった Regiment は `destroyed` 化（byWar から除去・status 遷移。byOwner には残す。§3.9b case(c)）。v0.37 core では deployment 閾値（strength>10）により全滅前に配置外となり **destroyed は実質発生しない**。
+- 1 戦闘につき `Battle` entity（§3.9c）を 1 件記録する（`createBattle`）。v0.37 summary（outcomeQuality / ticksElapsed / frontage / *InitialFrontlineIds / *RoutedRegimentIds / breakthroughSide / *CommanderAssignments / regimentResults の morale 込み）を保存する。`BATTLE_OCCURRED` event には battleId・連隊数に加え v0.37 summary（outcomeQuality / ticksElapsed / frontline・routed counts 等）を additive に載せる（§8 event 一覧、C2）。
+- strength の回復は RegimentReinforcementSystem（§6.27g 月次）、organization / morale の回復は RegimentRecoverySystem（§6.27e、v0.37 で baseline-aware 化）、destroyed の reform も §6.27g。
+- 総大将 / 指揮官は **warScore 経路**（勝者側 `captainGeneralEfficiency`）と **battle 内経路**（C1: 指揮官 org/rout 補正 + 総大将 side-level 補正）の両方に効く。`commanderModifier`（power 乗算）は v0.37 で撤去し、battle 内 org/rout 補正に置換した。
 
 ### 6.27c PeaceSettlementSystem（4週ごと、v0.34）
 
@@ -1641,14 +1648,18 @@ active War の primary participant（attacker / defender いずれか）が miss
 
 **配置（ドラフト §10 から変更し v0.34 実装で確定）**: PolityOwnerConsistencySystem / OrganizationConsistencySystem の**後ろ**・cleanupWarSystem の前に独立 system として置き、**intervalWeeks=1**。理由は §5.6 / §6.24 v0.34 項目を参照（PeaceSettlement 起因で同 tick に extinct 化した polity を参照する active War を、年末 IntegrityCheck より前に回収するため）。warScore 計算の安全は WarProgress / PeaceSettlement 冒頭の dead-participant guard が担保するので、本 system を Progress / Settlement より後ろに置いても問題ない。
 
-### 6.27e RegimentRecoverySystem（毎週、v0.36）
+### 6.27e RegimentRecoverySystem（毎週、v0.36 → v0.37 baseline-aware）
 
-active Regiment の organization を週次回復する（`runRegimentRecoverySystem`）。WarManeuverSystem の直後（PeaceSettlement の前）に interval 1 で走り、battle で削れた統制を平時に立て直す。
+active Regiment の organization と morale を週次で **baseline へ向けて回復 / 減衰**させる（`runRegimentRecoverySystem`）。WarManeuverSystem の直後（PeaceSettlement の前）に interval 1 で走り、battle で削れた統制・士気を平時に立て直す。
 
-- 対象は `status === 'active'` かつ `organization < 100` の Regiment のみ（それ以外は skip）。
-- `organization = clamp(organization + regimentOrganizationRecoveryPerWeek × (0.5 + morale/100), 0, 100)`。
-- **strength / morale は触らない**（strength は無回復＝§6.27b の損耗が累積。morale は §3.9b の write-once placeholder で recovery 係数として読むだけ）。
-- 回復対象が 0 件なら draft を clone せず ctx を素通しする（perf。lazy clone-once）。
+- 対象は `status === 'active'`。各連隊で **org recovery は tick 開始時の morale を参照**するため `moraleAtTickStart = morale` を先に退避する。
+- **organization**: `< baselineOrganization` なら `+ regimentOrganizationRecoveryPerWeek × (0.5 + moraleAtTickStart/100)`、`> baselineOrganization` なら `− regimentOrganizationDecayAboveBaselinePerWeek`。最後に `clamp(0, maxOrganization)`。baseline で静止中は変化なし。
+- **morale**（org と独立）: `< baselineMorale` なら `+ regimentMoraleRecoveryPerWeek`、`> baselineMorale` なら `− regimentMoraleDecayAboveBaselinePerWeek`。`clamp(0, maxMorale)`。
+- **strength は触らない**（回復は §6.27g RegimentReinforcementSystem）。
+- `nextOrg === organization && nextMorale === morale`（baseline 静止）なら連隊単位で skip。全連隊変化なしなら draft を clone せず素通し（perf。lazy clone-once）。
+- worldgen は initial = baseline（org 50 / morale 30）で生成するので、平時連隊は静止し recovery rate に依存しない（reform 連隊や battle 後の連隊のみ rate で baseline へ戻る）。
+
+v0.36 の「organization のみ・上限 100・morale は placeholder」を撤去し、§3.9b の baseline/max を使う双方向収束に置換した。
 
 ### 6.27f RegimentMaintenanceSystem（毎週、v0.36）
 

@@ -1,6 +1,6 @@
 # Chronicae プロトタイプ仕様書
 
-最終更新: 2026-05-31（v0.36 補充・再編成を統合仕様へ反映: RegimentReinforcementSystem（§6.27g 月次）を追加。active strength の silent 月次補充（平時/戦時/動員中係数・home POP・treasury cap）+ destroyed の reform 再編成で active プールを自己修復（旧 §14.7「床なし減衰」を解消）。Regiment に destroyedWeek/lastReinforcedWeek、REGIMENT_REFORMED event、integrity 拡張。§3.9b / §6.27b / §6.27g / §8 / §9 / §13 / §14.7。前回 v0.36 Persistent Regiment: 抽象 getActorMilitaryPower を永続 Regiment entity に置換、Battle entity、mobilize→損耗→recovery→demobilize ループ、RegimentRecoverySystem / RegimentMaintenanceSystem、BATTLE_OCCURRED に battleId/連隊数 counts-only enrich）
+最終更新: 2026-05-31（v0.37 Battlefront Simulation を統合仕様へ反映: 旧 resolveBattle（power 比 1 回判定）を純粋 helper `simulateBattle` の内部 tick simulation に置換。frontline/reserve deployment → 双方向 organization 主損耗 → morale 感応 rout → reserve 補充 → maxTicks org-margin 決着（§6.27b）。warScoreDelta は internal sim の result から符号 + bounded magnitude（outcomeQuality × decisiveness × preBattle × 勝者 captainGeneralEfficiency。§6.27b）。RegimentRecoverySystem を baseline-aware 化（org/morale を baseline へ収束、§6.27e）。Regiment に baseline/max org/morale、Battle に outcomeQuality/frontage/ticksElapsed/*FrontlineIds/*RoutedIds/breakthroughSide/CommanderAssignments（§3.9b/§3.9c）。指揮官（Battle 単位割当 + 与/被 org damage・rout 補正）・総大将（side-level 被 damage 軽減・rout 耐性、各 ≤10%）の battle 内効果を実値化（C1。§6.27b）。BATTLE_OCCURRED に v0.37 summary を additive enrich（C2。§8 event 一覧）。config 大量追加・旧 damage/commanderModifier 系は未使用化（§9）。前回 v0.36 補充・再編成: RegimentReinforcementSystem（§6.27g 月次）で active プール自己修復）
 
 ---
 

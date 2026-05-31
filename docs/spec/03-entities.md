@@ -837,11 +837,15 @@ type Regiment = {
   homeProvinceId?: ProvinceId
   currentWarId?: WarId                // 動員先の soft reference（IntegrityCheck で hard invariant にしない）
   currentSide?: WarSideKey
-  strength: number                    // 兵員・装備・馬匹・従者の充足率 0..100。v0.36 通常戦闘では大きく削らない
-  organization: number                // 部隊統制 0..100。battle 後に主に削れる値
-  morale: number                      // 士気 0..100。recovery が補正で読む。reform 時のみ初期値に再書き込み
+  strength: number                    // 兵員・装備・馬匹・従者の充足率 0..100。v0.37 でも battle で大きくは削れない（§6.27b）
+  organization: number                // 部隊統制 0..maxOrganization。battle 内で主に削れる値（v0.37 主損耗）
+  morale: number                      // 士気 0..maxMorale。v0.37 で battle 内に削れ・recovery で baseline へ戻る・rout 判定に効く
   maxStrength: number                 // 原則 100
   basePower: number                   // 全快時の基礎戦闘力。worldgen 時点で凍結（§7）
+  baselineOrganization: number        // v0.37: 平時に向かう統制（既定 50）。recovery の収束先
+  maxOrganization: number             // v0.37: 統制上限（既定 100、hardCap 120 以下）
+  baselineMorale: number              // v0.37: 平時に向かう士気（既定 30）。rout 判定の基準
+  maxMorale: number                   // v0.37: 士気上限（既定 100）
   createdWeek: number
   lastMobilizedWeek?: number
   destroyedWeek?: number              // v0.36 補充・再編成: destroyed 化した週。reform 遅延判定（status==='destroyed' のみ）
@@ -849,7 +853,9 @@ type Regiment = {
 }
 ```
 
-**有効戦力**（`getRegimentEffectivePower`）= `basePower × (strength/100) × (0.5 + 0.5 × organization/100)`。非 active は 0。
+**有効戦力**（`getRegimentEffectivePower`）= `basePower × (strength/100) × (0.5 + 0.5 × organization/100)`。非 active は 0。v0.37 でも式は不変（org factor は org/100 のまま）。baseline 50 では全連隊一律 0.75× になるが、engagement / battle は比ベースなので相対関係は保たれる。**battle 中の effectivePower は戦闘前に 1 回 frozen** し、内部 tick で org が削れても再計算しない（pairPowerFactor 暴走回避。§6.27b）。
+
+**v0.37 baseline / max の意味**: `organization` / `morale` は battle で baseline 以下へ削れ、平時に RegimentRecoverySystem（§6.27e）が baseline へ戻す。worldgen は initial = baseline（org 50 / morale 30）で生成し、100/80 起点の長期過渡を避ける。baseline/max は config 定数由来で worldgen 時に rng draw を増やさない（Phase A bit-identical 担保）。
 
 **WorldState 追加（v0.36）**:
 
@@ -872,19 +878,22 @@ type WorldState = {
 (b) 無く且つ primary participant が Regiment を 1 つも所有しない（byOwner 空。house actor 等）なら旧 `getActorMilitaryPower` に fallback、
 (c) byOwner 非空だが動員可能な active が無いなら 0（fallback しない）。
 
-### 3.9c Battle（戦闘）（v0.36）
+### 3.9c Battle（戦闘）（v0.36 / v0.37）
 
-WarManeuverSystem が 1 戦闘を解決するたびに記録する**短期 entity**。battle 内部 tick / frontline simulation はまだ行わず（v0.37 以降）、War detail / recent history 表示用に位置づける。`cleanupWarSystem` の terminal War 削除に piggyback して cleanup する（履歴は Event ログに残る。永続 record ではない。§6.28b）。型は `src/sim/types/battle.ts`。
+WarManeuverSystem が 1 戦闘を解決するたびに記録する**短期 entity**。**v0.37: 内部 tick / frontline simulation を `simulateBattle`（§6.27b）で実行**し、その summary を Battle に保存する。War detail / recent history 表示用。`cleanupWarSystem` の terminal War 削除に piggyback して cleanup する（履歴は Event ログに残る。永続 record ではない。§6.28b）。型は `src/sim/types/battle.ts`。
 
 ```ts
 type BattleId = Branded<string, 'BattleId'>  // prefix: "bt-"
+type BattleTickUnit = 'day' | 'week'
+type BattleOutcomeQuality = 'orderly_withdrawal' | 'rout' | 'encirclement'  // encirclement は Phase D 予約
+type BattleCommanderAssignment = { commanderPersonId: PersonId; regimentId: RegimentId }  // Battle 単位の一時割当 snapshot
 
 type BattleRegimentResult = {                // 1 Battle における 1 Regiment の損耗記録
   regimentId: RegimentId
   side: WarSideKey
   strengthBefore: number; strengthAfter: number; strengthDamage: number
   organizationBefore: number; organizationAfter: number; organizationDamage: number
-  moraleBefore?: number; moraleAfter?: number; moraleDamage?: number  // v0.36 では設定しない
+  moraleBefore?: number; moraleAfter?: number; moraleDamage?: number  // v0.37 で設定（v0.36 は未設定）
 }
 
 type Battle = {
@@ -899,14 +908,26 @@ type Battle = {
   attackerRegimentIds: RegimentId[]          // 当該戦闘に動員されていた active Regiment
   defenderRegimentIds: RegimentId[]
   regimentResults: BattleRegimentResult[]
-  attackerBasePower: number                  // = getRegimentPowerForWarSide（commander 補正前）
+  attackerBasePower: number                  // = Σ raw basePower（動員 active 連隊）
   defenderBasePower: number
-  attackerEffectivePower: number             // commander / 総大将補正後（resolveBattle）
+  attackerEffectivePower: number             // 戦闘前 side effectivePower（getRegimentPowerForWarSide。post-battle 比は使わない）
   defenderEffectivePower: number
-  warScoreDelta: number
-  warScoreAfter: number
-  // outcomeQuality? / frontage? / tickUnit? / *RoutedRegimentIds? / *CommanderAssignments? 等は
-  //   v0.37 以降用の器（v0.36 では未設定）。
+  warScoreDelta: number                      // v0.37: rawDelta（after−before でなく。warScore saturation で符号が崩れないように）
+  warScoreAfter: number                      // clamp 後の warScore
+  // v0.37 battle summary（§6.27b の simulateBattle 出力。ID 配列が正、counts は ID 配列から導出。C2 enrich）:
+  outcomeQuality?: BattleOutcomeQuality
+  frontage?: number
+  tickUnit?: BattleTickUnit
+  maxTicks?: number
+  ticksElapsed?: number
+  attackerInitialFrontlineIds?: RegimentId[]
+  defenderInitialFrontlineIds?: RegimentId[]
+  attackerRoutedRegimentIds?: RegimentId[]
+  defenderRoutedRegimentIds?: RegimentId[]
+  breakthroughSide?: WarSideKey              // cosmetic flag（§6.27b）
+  pursuitOccurred?: boolean                  // v0.37 core では false 固定（Phase D 予約）
+  attackerCommanderAssignments?: BattleCommanderAssignment[]
+  defenderCommanderAssignments?: BattleCommanderAssignment[]
 }
 ```
 

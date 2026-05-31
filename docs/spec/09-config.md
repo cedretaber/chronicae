@@ -99,29 +99,57 @@
 | warEngagementCautionEffect | 0.2 | 総大将 caution が回避欲求に与える係数 |
 | warEngagementAmbitionEffect | 0.15 | 総大将 ambition が交戦欲求に与える係数 |
 | warEngagementWarScoreUrgencyEffect | 0.3 | 負けている側ほど交戦を急ぐ urgency 係数 |
-| warBattleRandomness | 0.1 | battle 実効戦力の乱数幅（±10%） |
-| warBattleScoreScale | 24 | 1 戦闘の warScore 振れ幅係数（v0.35 balance: 12→24） |
-| maxWarScoreDeltaPerBattle | 12 | 1 戦闘の warScoreDelta clamp 上限（v0.35 balance: 8→12） |
-| battleVictoryThreshold | 1.0 | result ラベル（victory/inconclusive）の閾値 |
-| warCommanderWarCommandEffect | 0.25 | 指揮官 warCommand が実効戦力に与える係数 |
-| minWarCommanderModifier | 0.75 | commanderModifier 下限 |
-| maxWarCommanderModifier | 1.25 | commanderModifier 上限 |
-| captainGeneralWarScoreEffect | 0.1 | 勝者総大将 warCommand が warScoreDelta に与える効率係数 |
+| warBattleRandomness | 0.1 | **v0.37: 未使用（resolveBattle 撤去）**。旧 battle 実効戦力の乱数幅 |
+| warBattleScoreScale | 24 | **v0.37: 未使用**。旧 warScore 振れ幅係数（v0.37 は §6.27b magnitude 式に置換） |
+| maxWarScoreDeltaPerBattle | 12 | 1 戦闘の warScoreDelta clamp 上限（v0.37 も clamp 上限として流用） |
+| battleVictoryThreshold | 1.0 | **v0.37: 未使用**。旧 result ラベル閾値（v0.37 は internal sim の result が決める） |
+| warCommanderWarCommandEffect | 0.25 | **v0.37: 未使用**。旧 commanderModifier 係数（v0.37 は §6.27b battle 内補正に置換） |
+| minWarCommanderModifier | 0.75 | **v0.37: 未使用**。旧 commanderModifier 下限 |
+| maxWarCommanderModifier | 1.25 | **v0.37: 未使用**。旧 commanderModifier 上限 |
+| captainGeneralWarScoreEffect | 0.1 | 勝者総大将 warCommand が warScoreDelta に与える効率係数（v0.37 も §6.27b で維持） |
 | warBattlefieldRiverCrossingChance | 0.35 | major_river feature → river_crossing になる確率 |
 | warBattlefieldCoastalBattleChance | 0.25 | coastal feature → coastal_battle になる確率 |
-| **Regiment / Battle（v0.36 — 仮値。CLI harness で balance 調整予定）** | | |
-| regimentOrganizationDamageWinnerMin / Max | 4 / 8 | 勝者側 Regiment の organization 損耗レンジ（battle 1 回・side 一律） |
-| regimentOrganizationDamageLoserMin / Max | 12 / 22 | 敗者側 organization 損耗レンジ |
-| regimentOrganizationDamageInconclusiveMin / Max | 8 / 14 | 引分時 organization 損耗レンジ |
-| regimentStrengthDamageWinnerMin / Max | 0 / 2 | 勝者側 strength 損耗レンジ |
-| regimentStrengthDamageLoserMin / Max | 2 / 6 | 敗者側 strength 損耗レンジ |
-| regimentStrengthDamageInconclusiveMin / Max | 1 / 3 | 引分時 strength 損耗レンジ |
-| regimentOrganizationRecoveryPerWeek | 8 | organization 週次回復の基礎値（実回復 = 基礎値 × (0.5 + morale/100)） |
-| regimentInitialMorale | 80 | worldgen 初期 morale |
+| **Regiment / Battle 損耗（v0.36 — v0.37 で simulateBattle に置換、未使用化）** | | |
+| regimentOrganizationDamage{Winner/Loser/Inconclusive}Min/Max | — | **v0.37: 未使用**。旧 side 一律 org 損耗レンジ（v0.37 は per-regiment internal tick） |
+| regimentStrengthDamage{Winner/Loser/Inconclusive}Min/Max | — | **v0.37: 未使用**。旧 side 一律 strength 損耗レンジ |
+| regimentOrganizationRecoveryPerWeek | 8 | organization 週次回復の基礎値（v0.37 baseline-aware: baseline 未満時 × (0.5 + morale/100)。provisional） |
+| regimentInitialMorale | 30 | worldgen 初期 morale（v0.37 B1: 80→30、= baselineMorale） |
 | regimentInitialStrength | 100 | worldgen 初期 strength |
-| regimentInitialOrganization | 100 | worldgen 初期 organization |
+| regimentInitialOrganization | 50 | worldgen 初期 organization（v0.37 B1: 100→50、= baselineOrganization） |
 | regimentMaxStrength | 100 | strength 上限 |
 | regimentDestroyedStrengthThreshold | 0 | clamp 後 strength がこの値以下で Regiment destroyed |
+| **Regiment baseline / max（v0.37 §3.9b）** | | |
+| regimentBaselineOrganizationDefault / regimentBaselineMoraleDefault | 50 / 30 | 平時に向かう statistics（recovery 収束先） |
+| regimentMaxOrganizationDefault / regimentMaxMoraleDefault | 100 / 100 | org / morale 上限 |
+| regimentMaxOrganizationHardCap / regimentMaxMoraleHardCap | 120 / 100 | integrity 用 hard cap |
+| regimentOrganizationDecayAboveBaselinePerWeek | 1 | org が baseline 超のとき週次減衰 |
+| regimentMoraleRecoveryPerWeek / regimentMoraleDecayAboveBaselinePerWeek | 1 / 0.5 | morale の baseline 未満回復 / 超過減衰 |
+| **Battle internal tick（v0.37 §6.27b。仮値、balance 保留）** | | |
+| battleTickUnit / battleMaxTicks | 'day' / 5 | 内部 tick 単位 / 最大 tick 数 |
+| retreatOrganizationThreshold / routeOrganizationThreshold | 20 / 8 | frontline 離脱 / rout の org 閾値 |
+| minFightingStrengthThreshold | 10 | deployment 候補の最小 strength |
+| moraleRouteThresholdFactor | 0.25 | morale 低下が effRoute 閾値を上げる係数 |
+| battleBaseOrganizationDamage | 5 | 1 方向の基礎 org damage（B2a co-tune: 8→5、1 戦 ≈ baseline 1/2） |
+| battleMoraleDamageRatio / battleStrengthDamageRatio | 0.25 / 0.08 | org damage に比例する morale / strength damage 係数 |
+| winner/loser/routedStrengthDamageMultiplier | 0.6 / 1.4 / 2.5 | strength damage の role 係数 |
+| routAdditionalMoraleDamage | 8 | rout 時の追加 morale damage |
+| battleRandomFactorMin / Max | 0.85 / 1.15 | damage 方向ごとの乱数幅 |
+| flankPressureBase / maxFlankPressureMultiplier | 0.15 / 1.3 | flank pressure 基礎 / 上限 |
+| battleMaxTicksDecisiveMarginRatio | 0.1 | maxTicks 到達時に決着とみなす残存 org 合計の相対差 |
+| battleSimOrganizationTiebreakEpsilon | 0 | 相討ち org 合計 tiebreak の epsilon |
+| routSideRoutedShareThreshold | 0.4 | 敗者 routed share がこの値以上で outcomeQuality=rout |
+| battleStrengthOutcomeQualityMultiplier{Orderly/Rout} | 1.0 / 1.2 | strength damage の outcomeQuality 係数 |
+| battleStrengthPowerDisadvantageModifierMin / Max | 1.0 / 1.3 | 敗者 side の戦力劣勢 strength damage 係数 |
+| battleTerrainOrganizationDamageMultiplierByKind / battleFlankTerrainMultiplierByKind | (地形別 table) | org damage / flank の地形補正 |
+| **指揮官 / 総大将 battle 効果（v0.37 §6.27b、C1）** | | |
+| commanderAssignedRegimentEffectMax / commanderAdjacentRegimentEffectRatio | 0.15 / 0.4 | 割当連隊 q 上限 / 隣接連隊への伝播率 |
+| captainGeneralBattleOrganizationDamageEffectMax / captainGeneralRoutResistanceEffectMax | 0.1 / 0.1 | 総大将 side-level の被 damage 軽減 / rout 耐性（benefit 方向のみ） |
+| **warScoreDelta magnitude（v0.37 §6.27b、C1）** | | |
+| battleOrderlyVictoryScoreBase / battleRoutVictoryScoreBase | 6 / 10 | outcomeQuality 別の base magnitude |
+| battleDecisivenessRoutedShareWeight / SpeedWeight | 0.4 / 0.2 | decisiveness の routed share / 早期決着重み |
+| battleDecisivenessMin / Max | 0.7 / 1.4 | decisiveness clamp |
+| battlePreBattleEdgeWeight | 0.2 | 勝者 preBattle edge の反映係数 |
+| battlePreBattleModifierMin / Max | 0.8 / 1.2 | preBattleModifier clamp |
 | **Regiment 補充・再編成（v0.36 — 仮値。CLI harness で balance 調整予定。§6.27g）** | | |
 | regimentReinforcementBasePerMonth | 4.0 | active strength の月次補充基礎値（cadence は tick 登録 interval=4 で固定） |
 | regimentReinforcementPeaceMultiplier | 1.0 | 平時の補充速度係数 |
