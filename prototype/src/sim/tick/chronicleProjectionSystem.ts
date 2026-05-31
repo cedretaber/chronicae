@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import { CHRONICLE_EVENT_CATEGORIES } from '../config/chronicleEventDefinitions'
+import { CHRONICLE_EVENT_TYPE_DEFINITIONS } from '../config/chronicleEventDefinitions'
 import { createChronicleEntryMut } from '../mutations/chronicleMutations'
 
 // v0.38 §4: end-of-tick projection。ctx.events のうち allowlist に載る EventType だけを
@@ -10,7 +10,7 @@ export function runChronicleProjectionSystem(ctx: TickContext): TickContext {
   // 対象イベントが 1 件も無ければ state を clone せず no-op で返す。
   let hasTarget = false
   for (const e of ctx.events) {
-    if (CHRONICLE_EVENT_CATEGORIES[e.type]) {
+    if (CHRONICLE_EVENT_TYPE_DEFINITIONS[e.type]) {
       hasTarget = true
       break
     }
@@ -33,12 +33,12 @@ export function runChronicleProjectionSystem(ctx: TickContext): TickContext {
   }
 
   for (const e of ctx.events) {
-    const category = CHRONICLE_EVENT_CATEGORIES[e.type]
-    if (!category) continue
+    const def = CHRONICLE_EVENT_TYPE_DEFINITIONS[e.type]
+    if (!def) continue
     createChronicleEntryMut(draft, {
       year: e.year,
       weekOfYear: e.weekOfYear,
-      category,
+      category: def.category,
       importance: e.importance,
       sourceEventId: e.id,
       sourceEventType: e.type,
