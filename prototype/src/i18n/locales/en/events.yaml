@@ -79,7 +79,7 @@ war:
     transfer_land: '{{attacker}} declared war on {{defender}} to seize {{subject}} from {{from}}.'
     change_tax: '{{attacker}} declared war on {{defender}} over the tax of {{subject}} (seeking {{fromRate}}% → {{toRate}}%).'
   ended: 'The war between {{attacker}} and {{defender}} ended without a decisive victor.'
-  battle_occurred: 'A {{battlefieldKind}} broke out in {{province}} ({{attackerRegimentCount}} vs {{defenderRegimentCount}} regiments). Result: {{result}}. War score change: {{warScoreDelta}}.'
+  battle_occurred: 'A {{battlefieldKind}} broke out in {{province}} ({{attackerRegimentCount}} vs {{defenderRegimentCount}} regiments). After {{ticksElapsed}} days: {{result}} ({{outcomeQuality}}; routed atk {{attackerRoutedCount}}/def {{defenderRoutedCount}}). War score change: {{warScoreDelta}}.'
   battle_avoided: '{{avoidingSide}} avoided a {{battlefieldKind}} in {{province}}. War score change: {{warScoreDelta}}.'
   captain_general_changed: '{{actor}} changed its captain general from {{oldCaptainGeneral}} to {{newCaptainGeneral}}.'
   peace_settlement:
@@ -201,3 +201,10 @@ enum:
     attacker: 'The attacker'
     defender: 'The defender'
     both: 'Both sides'
+  outcomeQuality:
+    orderly_withdrawal: 'orderly withdrawal'
+    rout: 'rout'
+    encirclement: 'encirclement'
+  breakthroughSide:
+    attacker: 'attacker'
+    defender: 'defender'

@@ -69,6 +69,29 @@ describe('eventRenderer battle enum localization (v0.35 C-2b)', () => {
     expect(en.render('war.battle_avoided', avoidParams)).toContain('Both sides')
   })
 
+  it('resolves outcomeQuality label and fills all v0.37 battle summary params (ja/en, C2)', () => {
+    const params: EventMessageParams = {
+      province: 'TestProv',
+      battlefieldKind: 'open_field',
+      attackerRegimentCount: 5,
+      defenderRegimentCount: 4,
+      ticksElapsed: 3,
+      result: 'attacker_victory',
+      outcomeQuality: 'rout',
+      attackerRoutedCount: 0,
+      defenderRoutedCount: 2,
+      warScoreDelta: 8,
+    }
+    const jaText = ja.render('war.battle_occurred', params)
+    expect(jaText).toContain('敗走') // outcomeQuality=rout のラベル
+    expect(jaText).not.toContain('rout') // raw enum は残らない
+    expect(jaText).not.toContain('{{') // 全 placeholder 解決済 (param 欠落なし)
+
+    const enText = en.render('war.battle_occurred', params)
+    expect(enText).toContain('rout') // en の rout ラベルは 'rout'
+    expect(enText).not.toContain('{{')
+  })
+
   it('falls back to the raw enum string for an unknown value (safe degradation)', () => {
     const text = en.render('war.battle_occurred', {
       ...battleParams,

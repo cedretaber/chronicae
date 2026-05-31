@@ -506,10 +506,20 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         defenderEffectivePower: defPower,
         warScoreDelta: rawDelta,
         warScoreAfter: after,
-        // v0.36 §16: counts-only enrich (rng 非消費)。v0.37 summary enrich は C2。
+        // v0.36 §16: counts-only enrich (rng 非消費)。
         battleId: battleEntity.id,
         attackerRegimentCount: atkRegiments.length,
         defenderRegimentCount: defRegiments.length,
+        // v0.37 §17: battle summary enrich。counts は sim result の ID 配列長から導出 (§16.2)。
+        outcomeQuality: sim.outcomeQuality,
+        ticksElapsed: sim.ticksElapsed,
+        frontage,
+        attackerInitialFrontlineCount: sim.attackerInitialFrontlineIds.length,
+        defenderInitialFrontlineCount: sim.defenderInitialFrontlineIds.length,
+        attackerRoutedCount: sim.attackerRoutedRegimentIds.length,
+        defenderRoutedCount: sim.defenderRoutedRegimentIds.length,
+        ...(sim.breakthroughSide !== undefined ? { breakthroughSide: sim.breakthroughSide } : {}),
+        pursuitOccurred: sim.pursuitOccurred,
       })
       return nn
     }

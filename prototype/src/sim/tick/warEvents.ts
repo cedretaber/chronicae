@@ -8,6 +8,7 @@ import type {
   BattleResult,
   BattleInitiationKind,
 } from '../types/war'
+import type { BattleOutcomeQuality } from '../types/battle'
 import type { PersonId, ProvinceId } from '../types/ids'
 import type { PoliticalActorRef } from '../types/actor'
 import type { WorldState } from '../types/world'
@@ -292,6 +293,16 @@ export type BattleOccurredInput = {
   battleId: string
   attackerRegimentCount: number
   defenderRegimentCount: number
+  // v0.37 §17: battle summary enrich (additive)。counts は Battle entity の ID 配列から導出。
+  outcomeQuality?: BattleOutcomeQuality
+  ticksElapsed?: number
+  frontage?: number
+  attackerInitialFrontlineCount?: number
+  defenderInitialFrontlineCount?: number
+  attackerRoutedCount?: number
+  defenderRoutedCount?: number
+  breakthroughSide?: WarSideKey
+  pursuitOccurred?: boolean
 }
 
 // §11.1 BATTLE_OCCURRED (normal)。warScore 変化は warScoreDelta / warScoreAfter で表現。
@@ -338,6 +349,24 @@ export function emitBattleOccurred(
       defenderRegimentCount: input.defenderRegimentCount,
       warScoreDelta: input.warScoreDelta,
       warScoreAfter: input.warScoreAfter,
+      // v0.37 §17: battle summary (additive。raw 値/enum で渡し、表示解決は eventRenderer)。
+      ...(input.outcomeQuality ? { outcomeQuality: input.outcomeQuality } : {}),
+      ...(input.ticksElapsed !== undefined ? { ticksElapsed: input.ticksElapsed } : {}),
+      ...(input.frontage !== undefined ? { frontage: input.frontage } : {}),
+      ...(input.attackerInitialFrontlineCount !== undefined
+        ? { attackerInitialFrontlineCount: input.attackerInitialFrontlineCount }
+        : {}),
+      ...(input.defenderInitialFrontlineCount !== undefined
+        ? { defenderInitialFrontlineCount: input.defenderInitialFrontlineCount }
+        : {}),
+      ...(input.attackerRoutedCount !== undefined
+        ? { attackerRoutedCount: input.attackerRoutedCount }
+        : {}),
+      ...(input.defenderRoutedCount !== undefined
+        ? { defenderRoutedCount: input.defenderRoutedCount }
+        : {}),
+      ...(input.breakthroughSide ? { breakthroughSide: input.breakthroughSide } : {}),
+      ...(input.pursuitOccurred !== undefined ? { pursuitOccurred: input.pursuitOccurred } : {}),
       ...(provinceNameKey ? { province: nameParam('province', provinceNameKey) } : {}),
       ...(input.attackerCommanderId
         ? {
