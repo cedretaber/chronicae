@@ -470,6 +470,8 @@ export type SimulationConfig = {
   //   frontage / terrain
   battlefieldFrontageByKind: Record<BattlefieldKind, number>
   battleTerrainOrganizationDamageMultiplierByKind: Record<BattlefieldKind, number>
+  //   flank 地形補正 (§10.2。flankPressureMultiplier = 1 + flankPressureBase × これ)
+  battleFlankTerrainMultiplierByKind: Record<BattlefieldKind, number>
   //   damage
   battleBaseOrganizationDamage: number
   battleMoraleDamageRatio: number
@@ -484,6 +486,8 @@ export type SimulationConfig = {
   battleStrengthPowerDisadvantageModifierMax: number
   //   相討ち tiebreak
   battleSimOrganizationTiebreakEpsilon: number
+  //   maxTicks 到達時の決着 (§8.2 補足): 残存 org 合計の相対差がこの比を超えれば優勢側勝利、以下なら inconclusive
+  battleMaxTicksDecisiveMarginRatio: number
   //   morale → rout
   moraleRouteThresholdFactor: number
   //   randomness
@@ -1321,8 +1325,20 @@ export const defaultConfig: SimulationConfig = {
     mountain_pass: 0.75,
     siege: 0.75,
   },
+  //   flank 地形補正 (§10.2)
+  battleFlankTerrainMultiplierByKind: {
+    open_field: 1.0,
+    coastal_battle: 0.8,
+    hill_battle: 0.8,
+    forest_battle: 0.5,
+    wetland_battle: 0.5,
+    river_crossing: 0.4,
+    mountain_pass: 0.25,
+    siege: 0.2,
+  },
   //   damage
-  battleBaseOrganizationDamage: 8,
+  battleBaseOrganizationDamage: 5, // v0.37 B2a harness co-tune: 1 戦 org damage ≈ baseline 1/2 (24.7/50)
+
   battleMoraleDamageRatio: 0.25,
   battleStrengthDamageRatio: 0.08,
   winnerStrengthDamageMultiplier: 0.6,
@@ -1335,6 +1351,8 @@ export const defaultConfig: SimulationConfig = {
   battleStrengthPowerDisadvantageModifierMax: 1.3,
   //   相討ち tiebreak
   battleSimOrganizationTiebreakEpsilon: 0,
+  //   maxTicks 到達時の決着 (§8.2 補足。残存 org 合計の相対差 10% 超で優勢側勝利)
+  battleMaxTicksDecisiveMarginRatio: 0.1,
   //   morale → rout
   moraleRouteThresholdFactor: 0.25,
   //   randomness
