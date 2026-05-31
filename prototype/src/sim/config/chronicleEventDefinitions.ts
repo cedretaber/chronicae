@@ -15,6 +15,24 @@ export type ChronicleEventDefinition = {
   templateKey?: string | ((event: SimEvent) => string)
 }
 
+// v0.38 Phase 4: BATTLE_OCCURRED の chronicle templateKey を params の派生フラグで選ぶ。
+//   通常勝利・非勝利は既存 'war.battle_occurred' を流用し、特徴的な勝利だけ rich template に差し替える。
+//   outnumberedVictory / decisiveVictory は emitBattleOccurred が additive に算出済み。
+//   辛勝 (narrow) は「勝者自身も壊走連隊を出した」を既存の routed count params から判定 (enrich 不要)。
+function selectBattleTemplate(event: SimEvent): string {
+  const p = event.messageParams
+  const result = p.result
+  const isVictory = result === 'attacker_victory' || result === 'defender_victory'
+  if (!isVictory) return 'war.battle_occurred'
+  if (p.outnumberedVictory === true) return 'chronicle.battle.outnumbered_victory'
+  if (p.decisiveVictory === true) return 'chronicle.battle.decisive_victory'
+  const winnerRouted = result === 'attacker_victory' ? p.attackerRoutedCount : p.defenderRoutedCount
+  if (typeof winnerRouted === 'number' && winnerRouted > 0) {
+    return 'chronicle.battle.narrow_victory'
+  }
+  return 'war.battle_occurred'
+}
+
 export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   Record<EventType, ChronicleEventDefinition>
 > = {
@@ -24,7 +42,7 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   WAR_LOST: { category: 'war' },
   WAR_ENDED: { category: 'war' },
   PEACE_SETTLEMENT_APPLIED: { category: 'war' },
-  BATTLE_OCCURRED: { category: 'battle' },
+  BATTLE_OCCURRED: { category: 'battle', templateKey: selectBattleTemplate },
   // Land (LAND_CONTRACT_TRANSFERRED 一本。PURCHASED/CEDED/CONQUERED は二重計上回避で除外)
   LAND_CONTRACT_TRANSFERRED: { category: 'land' },
   // House

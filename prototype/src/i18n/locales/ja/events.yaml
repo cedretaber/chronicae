@@ -85,6 +85,14 @@ war:
     transfer_land: '{{attacker}}が和平で{{defender}}から{{holding}}を獲得した。'
     change_tax: '和平により{{holding}}の税率が{{fromRate}}%から{{toRate}}%に改定された（{{attacker}}有利）。'
 
+# v0.38 Phase 4: chronicle 専用の戦闘 narrative。BATTLE_OCCURRED の特徴的な勝利だけ
+#   selectBattleTemplate が差し替える (通常勝利・非勝利は war.battle_occurred を流用)。
+chronicle:
+  battle:
+    outnumbered_victory: '{{province}}での{{battlefieldKind}}（連隊 {{attackerRegimentCount}} 対 {{defenderRegimentCount}}）。数的劣勢を覆し、{{result}}を収めた。戦勝点変化: {{warScoreDelta}}。'
+    decisive_victory: '{{province}}での{{battlefieldKind}}（連隊 {{attackerRegimentCount}} 対 {{defenderRegimentCount}}）。{{result}}——敵軍を壊走させる大勝となった（壊走連隊 攻{{attackerRoutedCount}}・防{{defenderRoutedCount}}）。戦勝点変化: {{warScoreDelta}}。'
+    narrow_victory: '{{province}}での{{battlefieldKind}}（連隊 {{attackerRegimentCount}} 対 {{defenderRegimentCount}}）。{{ticksElapsed}}日の激戦の末、辛くも{{result}}を収めた（壊走連隊 攻{{attackerRoutedCount}}・防{{defenderRoutedCount}}）。戦勝点変化: {{warScoreDelta}}。'
+
 regiment:
   reformed: '{{owner}}が{{province}}で壊滅した連隊を再編成した。'
 

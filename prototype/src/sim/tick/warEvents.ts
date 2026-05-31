@@ -315,6 +315,19 @@ export function emitBattleOccurred(
   const p = warParties(state, war)
   if (!p) return ctx
   const provinceNameKey = input.provinceId ? state.provinces[input.provinceId]?.nameKey : undefined
+  // v0.38 Phase 4: chronicle narrative 用の派生フラグ (additive・純粋導出で RNG 不変)。
+  //   chronicleEventDefinitions.selectBattleTemplate が rich template 出し分けに使う。
+  const isVictory = input.result === 'attacker_victory' || input.result === 'defender_victory'
+  const winnerEffectivePower =
+    input.result === 'attacker_victory'
+      ? input.attackerEffectivePower
+      : input.defenderEffectivePower
+  const loserEffectivePower =
+    input.result === 'attacker_victory'
+      ? input.defenderEffectivePower
+      : input.attackerEffectivePower
+  const outnumberedVictory = isVictory && winnerEffectivePower < loserEffectivePower
+  const decisiveVictory = input.outcomeQuality === 'rout'
   const refs: EventEntityRef[] = [...attackerDefenderRefs(p)]
   if (input.provinceId) {
     refs.push(entityRef('province', input.provinceId, 'province', provinceNameKey))
@@ -349,6 +362,9 @@ export function emitBattleOccurred(
       defenderRegimentCount: input.defenderRegimentCount,
       warScoreDelta: input.warScoreDelta,
       warScoreAfter: input.warScoreAfter,
+      // v0.38 Phase 4: chronicle narrative 選択用フラグ (描画はせず template 出し分けにのみ使う)。
+      outnumberedVictory,
+      decisiveVictory,
       // v0.37 §17: battle summary (additive。raw 値/enum で渡し、表示解決は eventRenderer)。
       ...(input.outcomeQuality ? { outcomeQuality: input.outcomeQuality } : {}),
       ...(input.ticksElapsed !== undefined ? { ticksElapsed: input.ticksElapsed } : {}),
