@@ -41,6 +41,7 @@ import { runCleanupWarSystem } from './cleanupWarSystem'
 import { runAimOutcomeSystem } from './aimOutcomeSystem'
 import { runGoalOutcomeSystem } from './goalOutcomeSystem'
 import { runCleanupTerminalDecisions } from './cleanupTerminalDecisions'
+import { runChronicleProjectionSystem } from './chronicleProjectionSystem'
 import { runPolityOwnerConsistencySystem } from './polityOwnerConsistencySystem'
 import { runOrganizationConsistencySystem } from './organizationConsistencySystem'
 import { runAttitudeDecaySystem } from './attitudeDecaySystem'
@@ -465,6 +466,16 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runCleanupTerminalDecisions,
+  },
+  {
+    // v0.38 §4.3: scheduledSystems 末尾 (全 system / cleanup の後)。同 tick の ctx.events が
+    //   全量揃った状態で curated allowlist を ChronicleEntry に projection する。
+    //   flushTerminalEntities / integrityCheck の前に走るので、生成した chronicle の
+    //   index↔entry 整合を同 tick で検査できる (§7)。毎週実行。
+    name: 'chronicleProjectionSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runChronicleProjectionSystem,
   },
 ]
 

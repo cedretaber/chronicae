@@ -833,6 +833,10 @@ export function generateWorld(
     diplomaticOffers: {},
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+    // v0.38 Chronicle System
+    chronicleEntries: {},
+    chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+    nextChronicleEntryId: 0,
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
     nextDiplomaticOfferId: 0,
@@ -1827,6 +1831,10 @@ export function generateWorld(
     // v0.29 Pressure
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+    // v0.38 Chronicle System
+    chronicleEntries: {},
+    chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+    nextChronicleEntryId: 0,
     // v0.22 Goal/Aim system
     goals: {},
     aims: {},

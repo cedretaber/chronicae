@@ -211,6 +211,7 @@ detail:
     active_task: '実行中のタスク'
     task_effort: '進行度'
     active_play: '進行中の外交劇'
+    chronicle: '国史'
 
   # 家系詳細
   house:
@@ -257,6 +258,7 @@ detail:
     active_task: '実行中のタスク'
     task_effort: '進行度'
     active_play: '進行中の外交劇'
+    chronicle: '家の記録'
 
   # 人物詳細
   person:
@@ -446,6 +448,7 @@ detail:
     root: '根'
     term: '末端'
     neighbors: '隣接州'
+    chronicle: '地方史'
     capacity: '容量'
     employment_rate: '就業率'
     improvements: '施設'

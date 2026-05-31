@@ -164,3 +164,10 @@ export function createRegimentId(n: number): RegimentId {
 export function createBattleId(n: number): BattleId {
   return ('bt-' + n) as BattleId
 }
+
+// v0.38 Chronicle System
+export type ChronicleEntryId = Branded<string, 'ChronicleEntryId'>
+
+export function createChronicleEntryId(n: number): ChronicleEntryId {
+  return ('ch-' + n) as ChronicleEntryId
+}

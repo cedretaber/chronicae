@@ -28,6 +28,7 @@ import type {
   ClanId,
   RegimentId,
   BattleId,
+  ChronicleEntryId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -55,6 +56,7 @@ import type { War } from './war'
 import type { Regiment, RegimentIndex } from './regiment'
 import type { Battle, BattleIndex } from './battle'
 import type { Pressure, PressureIndex } from './pressure'
+import type { ChronicleEntry, ChronicleIndex } from './chronicle'
 import type { StateRegion } from './stateRegion'
 import type { Goal, Aim, DecisionReason, GoalIndex, AimIndex } from './goal'
 import type {
@@ -126,6 +128,10 @@ export type WorldState = {
   // v0.29 Pressure
   pressures: Record<PressureId, Pressure>
   pressureIndex: PressureIndex
+  // v0.38 Chronicle System (read-only historical archive; append-only, not used by simulation logic)
+  chronicleEntries: Record<ChronicleEntryId, ChronicleEntry>
+  chronicleIndex: ChronicleIndex
+  nextChronicleEntryId: number
   // v0.23 Task/ActivityLog
   tasks: Record<TaskId, Task>
   taskIndex: TaskIndex

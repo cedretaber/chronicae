@@ -35,14 +35,18 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
       const deadResult = markPersonDead(currentCtx.state, personId)
       const currentState = deadResult.ok ? deadResult.value : currentCtx.state
 
-      const importance = wasHouseLeader ? 'normal' : 'minor'
+      // v0.38 §6.3: notable death (house/polity leader) は IMPORTANT_PERSON_DIED に type 昇格し
+      //   importance を major にする。同一死亡で PERSON_DIED と両方は emit しない (単一イベント)。
+      //   notability は office 剥奪前 (上の wasHouseLeader/wasPolityLeader) でしか正確に取れないため
+      //   projection 側 filter ではなく emit 側で分岐する (案A)。
+      const isNotableDeath = wasHouseLeader || wasPolityLeader
 
       const house = currentState.houses[person.houseId]
       const { event, ctx: eventCtx } = createSimEvent(
         { ...currentCtx, state: currentState },
         {
-          type: 'PERSON_DIED',
-          importance,
+          type: isNotableDeath ? 'IMPORTANT_PERSON_DIED' : 'PERSON_DIED',
+          importance: isNotableDeath ? 'major' : 'minor',
           messageKey: 'person.died',
           messageParams: {
             person: nameParam('person', person.nameKey),

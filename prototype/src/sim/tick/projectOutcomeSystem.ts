@@ -333,6 +333,8 @@ function applyDevelopHoldingMut(
     entityRefs: [
       entityRef('polity', project.owner.id, 'polity', polityNameKey),
       entityRef('province', holding.provinceId, 'province', provinceNameKey),
+      // v0.38 §6.3: Holding 開発史を byHolding に乗せるため holding ref を additive 追加。
+      entityRef('holding', holdingId, 'holding'),
     ],
   })
 }

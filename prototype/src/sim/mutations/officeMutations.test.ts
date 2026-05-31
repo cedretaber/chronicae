@@ -166,6 +166,9 @@ function makeOfficeState(): {
     nextDiplomaticOfferId: 0,
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+    chronicleEntries: {},
+    chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+    nextChronicleEntryId: 0,
     nextPressureId: 1,
     // v0.22 Goal/Aim system
     goals: {},

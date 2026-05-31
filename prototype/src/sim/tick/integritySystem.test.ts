@@ -1,8 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { PersonId, HouseId, PolityId, ProvinceId } from '../types/ids'
+import type {
+  PersonId,
+  HouseId,
+  PolityId,
+  ProvinceId,
+  ChronicleEntryId,
+  EventId,
+} from '../types/ids'
 import type { Person } from '../types/person'
+import type { ChronicleEntry } from '../types/chronicle'
 import type { House } from '../types/house'
 import type { Polity } from '../types/polity'
 import { createRng } from '../rng/rng'
@@ -161,6 +169,9 @@ describe('runIntegritySystem', () => {
       nextDiplomaticOfferId: 0,
       pressures: {},
       pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+      chronicleEntries: {},
+      chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+      nextChronicleEntryId: 0,
       nextPressureId: 1,
       // v0.22 Goal/Aim system
       goals: {},
@@ -326,6 +337,9 @@ describe('runIntegritySystem', () => {
       nextDiplomaticOfferId: 0,
       pressures: {},
       pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+      chronicleEntries: {},
+      chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+      nextChronicleEntryId: 0,
       nextPressureId: 1,
       // v0.22 Goal/Aim system
       goals: {},
@@ -474,6 +488,9 @@ describe('runIntegritySystem', () => {
       nextDiplomaticOfferId: 0,
       pressures: {},
       pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+      chronicleEntries: {},
+      chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+      nextChronicleEntryId: 0,
       nextPressureId: 1,
       // v0.22 Goal/Aim system
       goals: {},
@@ -622,6 +639,9 @@ describe('runIntegritySystem', () => {
       nextDiplomaticOfferId: 0,
       pressures: {},
       pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+      chronicleEntries: {},
+      chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+      nextChronicleEntryId: 0,
       nextPressureId: 1,
       // v0.22 Goal/Aim system
       goals: {},
@@ -768,6 +788,9 @@ describe('runIntegritySystem', () => {
       nextDiplomaticOfferId: 0,
       pressures: {},
       pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+      chronicleEntries: {},
+      chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+      nextChronicleEntryId: 0,
       nextPressureId: 1,
       // v0.22 Goal/Aim system
       goals: {},
@@ -905,6 +928,9 @@ describe('runIntegritySystem', () => {
       nextDiplomaticOfferId: 0,
       pressures: {},
       pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+      chronicleEntries: {},
+      chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+      nextChronicleEntryId: 0,
       nextPressureId: 1,
       // v0.22 Goal/Aim system
       goals: {},
@@ -1043,6 +1069,9 @@ describe('runIntegritySystem', () => {
       nextDiplomaticOfferId: 0,
       pressures: {},
       pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+      chronicleEntries: {},
+      chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+      nextChronicleEntryId: 0,
       nextPressureId: 1,
       // v0.22 Goal/Aim system
       goals: {},
@@ -1080,3 +1109,50 @@ function makeValidWorldState(): WorldState {
   const { world } = generateWorld('integrity-valid')
   return world
 }
+
+// v0.38 §7.1: chronicle index ↔ entry の内部整合検査が「違反を検出できる」ことを確認する。
+//   300年×4seed clean は false-positive が無いことの証明にすぎず、catch 能力は別途検証が要る。
+describe('chronicle index ↔ entry integrity (v0.38 §7.1)', () => {
+  const PERSON_REF_ID = 'pe-chronicle-test'
+
+  // soft-ref なので参照先 person が world.persons に存在しなくてよい (合成 id で良い)。
+  function makeEntry(id: string): ChronicleEntry {
+    return {
+      id: id as ChronicleEntryId,
+      year: 10,
+      weekOfYear: 5,
+      category: 'life',
+      importance: 'major',
+      sourceEventId: 'e-test-0' as EventId,
+      sourceEventType: 'IMPORTANT_PERSON_DIED',
+      templateKey: 'person.died',
+      params: {},
+      entityRefs: [{ kind: 'person', id: PERSON_REF_ID }],
+    }
+  }
+
+  it('valid entry + matching index produces no chronicle violation', () => {
+    const world = makeValidWorldState()
+    const entry = makeEntry('ch-0')
+    world.chronicleEntries[entry.id] = entry
+    world.chronicleIndex.byPerson[PERSON_REF_ID] = [entry.id]
+    const errors = collectIntegrityErrors(world, { debug: false, config: defaultConfig })
+    expect(errors.some((e) => e.message.includes('§7.1'))).toBe(false)
+  })
+
+  it('fires when an index bucket references a missing ChronicleEntry (forward)', () => {
+    const world = makeValidWorldState()
+    world.chronicleIndex.byPerson[PERSON_REF_ID] = ['ch-missing' as ChronicleEntryId]
+    const errors = collectIntegrityErrors(world, { debug: false, config: defaultConfig })
+    expect(errors.some((e) => e.message.includes('references missing ChronicleEntry'))).toBe(true)
+  })
+
+  it('fires when an entry ref is not registered in the matching index (reverse)', () => {
+    const world = makeValidWorldState()
+    const entry = makeEntry('ch-0')
+    world.chronicleEntries[entry.id] = entry
+    // byPerson に登録しない → reverse 検査が拾うべき
+    const errors = collectIntegrityErrors(world, { debug: false, config: defaultConfig })
+    expect(errors.some((e) => e.message.includes('not registered in chronicleIndex'))).toBe(true)
+  })
+})

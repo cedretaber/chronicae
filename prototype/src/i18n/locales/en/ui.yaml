@@ -116,6 +116,7 @@ detail:
     active_task: 'Active Task'
     task_effort: 'Effort'
     active_play: 'Active Diplomatic Play'
+    chronicle: 'National Chronicle'
 
   # House detail
   house:
@@ -162,6 +163,7 @@ detail:
     active_task: 'Active Task'
     task_effort: 'Effort'
     active_play: 'Active Diplomatic Play'
+    chronicle: 'House Records'
 
   # Person detail
   person:
@@ -351,6 +353,7 @@ detail:
     root: 'Root'
     term: 'Term'
     neighbors: 'Neighbors'
+    chronicle: 'Provincial History'
     capacity: 'Capacity'
     employment_rate: 'Employment Rate'
     improvements: 'Improvements'

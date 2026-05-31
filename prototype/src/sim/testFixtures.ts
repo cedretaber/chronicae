@@ -145,6 +145,10 @@ export function makeEmptyV016State(): WorldState {
     diplomaticOffers: {},
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+    // v0.38 Chronicle System
+    chronicleEntries: {},
+    chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+    nextChronicleEntryId: 0,
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
     wars: {},

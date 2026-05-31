@@ -17,6 +17,7 @@ import type {
   ClanId,
   RegimentId,
   BattleId,
+  ChronicleEntryId,
 } from '../types/ids'
 import type { OrganizationKind, OfficeRole } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -3668,6 +3669,66 @@ export function collectIntegrityErrors(
           code: 'INTEGRITY_VIOLATION',
           message: `pressureIndex.byProject[${key}]: pressure ${pid as string} has responseProjectId ${pressure.responseProjectId as string}`,
         })
+      }
+    }
+  }
+
+  // ─── Chronicle index ↔ entry 内部整合 (v0.38 §7.1) ───
+  //   index↔entry の構造整合のみ検査する。entityRefs の参照先が現在 state に存在するか
+  //   (active か / 死亡人物か / 断絶家か / 終了 War か) は検査しない (soft-ref。§7.1)。
+  //   index 対象は person/house/polity/province/holding の 5 kind のみ。
+  const chronicleIndexAxes: ReadonlyArray<{
+    kind: 'person' | 'house' | 'polity' | 'province' | 'holding'
+    label: string
+    index: Record<string, ChronicleEntryId[]>
+  }> = [
+    { kind: 'person', label: 'byPerson', index: state.chronicleIndex.byPerson },
+    { kind: 'house', label: 'byHouse', index: state.chronicleIndex.byHouse },
+    { kind: 'polity', label: 'byPolity', index: state.chronicleIndex.byPolity },
+    { kind: 'province', label: 'byProvince', index: state.chronicleIndex.byProvince },
+    { kind: 'holding', label: 'byHolding', index: state.chronicleIndex.byHolding },
+  ]
+  // forward: index に載る entry id が実在し、その entityRefs に (kind, key) を含む
+  for (const axis of chronicleIndexAxes) {
+    for (const [key, eids] of Object.entries(axis.index)) {
+      for (const eid of eids ?? []) {
+        const entry = state.chronicleEntries[eid]
+        if (!entry) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `chronicleIndex.${axis.label}[${key}] references missing ChronicleEntry ${eid as string} (v0.38 §7.1)`,
+          })
+          continue
+        }
+        if (!entry.entityRefs.some((r) => r.kind === axis.kind && r.id === key)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `chronicleIndex.${axis.label}[${key}] entry ${eid as string} has no matching ${axis.kind} entityRef (v0.38 §7.1)`,
+          })
+        }
+      }
+    }
+  }
+  // reverse: 各 entry の 5 index 対象 kind の ref が、対応 index に entry id として登録済み
+  {
+    const bucketByKind: Partial<Record<string, Record<string, ChronicleEntryId[]>>> = {
+      person: state.chronicleIndex.byPerson,
+      house: state.chronicleIndex.byHouse,
+      polity: state.chronicleIndex.byPolity,
+      province: state.chronicleIndex.byProvince,
+      holding: state.chronicleIndex.byHolding,
+    }
+    for (const [eidStr, entry] of Object.entries(state.chronicleEntries)) {
+      for (const r of entry.entityRefs) {
+        const bucket = bucketByKind[r.kind]
+        if (!bucket) continue // faction/clan 等 index 非対象 kind は検査しない (§5.2)
+        const indexed = bucket[r.id] ?? []
+        if (!indexed.includes(entry.id)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `ChronicleEntry ${eidStr} ${r.kind} ref ${r.id} is not registered in chronicleIndex (v0.38 §7.1)`,
+          })
+        }
       }
     }
   }

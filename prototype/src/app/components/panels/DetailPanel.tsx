@@ -108,6 +108,12 @@ import {
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import { getRegimentsForActor } from '@sim/selectors/regimentSelectors'
 import {
+  getChronicleEntriesForPolity,
+  getChronicleEntriesForHouse,
+  getChronicleEntriesForProvince,
+} from '@sim/selectors/chronicleSelectors'
+import type { ChronicleEntry, ChronicleCategory } from '@sim/types/chronicle'
+import {
   getBailiffPolicy,
   getBailiffLocalExtractionRate,
   getBailiffCollectionEfficiency,
@@ -161,6 +167,41 @@ function getImportanceColor(importance: SimEvent['importance']): string {
     case 'minor':
       return 'text-gray-500'
   }
+}
+
+// v0.38 §8: 対象 entity の永続歴史 (ChronicleEntry) を時系列降順で表示する共通 section。
+//   entries は selector 側で既に降順 sort 済み。category filter を後付けできるよう
+//   showCategories prop を最初から受け取る (未指定なら全カテゴリ表示。§8.2)。
+function EntityChronicleSection({
+  title,
+  entries,
+  limit = 10,
+  showCategories,
+}: {
+  title: string
+  entries: ChronicleEntry[]
+  limit?: number
+  showCategories?: ReadonlySet<ChronicleCategory>
+}) {
+  const renderEvent = useRenderEvent()
+  const visible = (
+    showCategories ? entries.filter((e) => showCategories.has(e.category)) : entries
+  ).slice(0, limit)
+  if (visible.length === 0) return null
+  return (
+    <div className="mt-2">
+      <div className="text-sm font-semibold text-gray-300">{title}:</div>
+      {visible.map((e) => (
+        <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
+          <span className="mr-1 rounded bg-gray-700 px-1 text-[10px] text-gray-400">
+            {e.category}
+          </span>
+          [{e.year}/W{e.weekOfYear}]{' '}
+          {renderEvent({ messageKey: e.templateKey, messageParams: e.params })}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 type ClickHandler = (id: PolityId | HouseId | PersonId, type: 'person' | 'house' | 'polity') => void
@@ -1584,6 +1625,14 @@ export function CountryDetail({
             </div>
           )
         })()}
+
+      {/* v0.38 §8: 国史 (永続 Chronicle) */}
+      {worldState && (
+        <EntityChronicleSection
+          title={t('detail.polity.chronicle')}
+          entries={getChronicleEntriesForPolity(worldState, polity.id)}
+        />
+      )}
     </div>
   )
 }
@@ -1993,6 +2042,12 @@ export function HouseDetail({
         </div>
       )}
 
+      {/* v0.38 §8: 家の記録 (永続 Chronicle) */}
+      <EntityChronicleSection
+        title={t('detail.house.chronicle')}
+        entries={getChronicleEntriesForHouse(currentState, house.id)}
+      />
+
       {/* v0.22 Goal/Aim */}
       {currentState &&
         (() => {
@@ -2197,6 +2252,9 @@ export function PersonDetail({
     diplomaticOffers: {},
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+    chronicleEntries: {},
+    chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
+    nextChronicleEntryId: 0,
     nextProjectId: 0,
     nextDiplomaticPlayId: 0,
     wars: {},
@@ -4030,6 +4088,14 @@ export function ProvinceDetail({
             ))}
           </div>
         </>
+      )}
+
+      {/* v0.38 §8: 地方史 (永続 Chronicle) */}
+      {currentState && (
+        <EntityChronicleSection
+          title={t('detail.province.chronicle')}
+          entries={getChronicleEntriesForProvince(currentState, province.id)}
+        />
       )}
     </div>
   )
