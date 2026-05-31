@@ -1,12 +1,13 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { WarSide, WarSideKey, BattleResult, BattleInitiationKind } from '../types/war'
+import type { WarSide, WarSideKey, BattleInitiationKind } from '../types/war'
 import type { WarId, PersonId, PolityId } from '../types/ids'
+import { createBattleId } from '../types/ids'
 import type { Regiment } from '../types/regiment'
 import type { BattleRegimentResult } from '../types/battle'
 import type { RngState } from '../rng/rng'
 import type { SimulationConfig } from '../config/defaultConfig'
-import { randomFloat, randomInt } from '../rng/rng'
+import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
 import {
   updateWar,
@@ -22,7 +23,17 @@ import {
 import { createBattle } from '../mutations/battleMutations'
 import { isActorActive } from '../selectors/actorSelectors'
 import { getRoleScore } from '../selectors/abilitySelectors'
-import { getRegimentPowerForWarSide, getRegimentsForWarSide } from '../selectors/regimentSelectors'
+import {
+  getRegimentPowerForWarSide,
+  getRegimentsForWarSide,
+  getRegimentEffectivePower,
+} from '../selectors/regimentSelectors'
+import { simulateBattle } from '../helpers/simulateBattle'
+import type {
+  BattleSimInput,
+  BattleSimRegimentInput,
+  BattleSimResult,
+} from '../helpers/simulateBattle'
 import {
   getWarSidePrimaryPolityActor,
   selectCaptainGeneralForWarSide,
@@ -46,22 +57,7 @@ import { emitBattleOccurred, emitBattleAvoided, emitCaptainGeneralChanged } from
 //   - captainGeneral / commander は soft reference。冒頭で lazy 再選出/再構築 (§2.2)
 //   - per-tick drift は撤廃。warScore は battle / avoidance 時のみ動く (§7.1)
 
-// commander の warCommand による戦力補正 (§10.4)。undefined は 1.0。
-function commanderModifier(
-  state: WorldState,
-  config: SimulationConfig,
-  commanderId: PersonId | undefined,
-): number {
-  if (commanderId === undefined) return 1.0
-  const score = getRoleScore(state, commanderId, 'warCommand')
-  return clamp(
-    1 + ((score - 50) / 100) * config.warCommanderWarCommandEffect,
-    config.minWarCommanderModifier,
-    config.maxWarCommanderModifier,
-  )
-}
-
-// 総大将の warScore 効率 (§10.7)。勝者側に乗算。undefined は 1.0。
+// 総大将の warScore 効率 (§10.7 / §15.3)。勝者側に乗算。undefined は 1.0。
 function captainGeneralEfficiency(
   state: WorldState,
   config: SimulationConfig,
@@ -148,122 +144,76 @@ function resolveAvoidanceSuccess(
   return { success: value < clamp(chance, 0, 1), rng: nextRng }
 }
 
-type BattleParams = {
-  attackerPower: number
-  defenderPower: number
-  attackerCommanderId: PersonId | undefined
-  defenderCommanderId: PersonId | undefined
-  attackerCaptainGeneralId: PersonId | undefined
-  defenderCaptainGeneralId: PersonId | undefined
-}
-
-// §10 Battle resolution。2 draw 消費 (side ごと randomness)。
-//   warScoreDelta は cg 効率を勝者側に乗算後、maxWarScoreDeltaPerBattle で clamp 済みで返す。
-function resolveBattle(
+// §15.3 warScoreDelta。result から符号、outcomeQuality / decisiveness / 勝者 preBattle edge から
+//   bounded magnitude を組み、勝者側 captainGeneralEfficiency を乗算し maxWarScoreDeltaPerBattle で clamp。
+//   inconclusive は 0。sign は result から決まり magnitude >= 0 なので符号は常に result と整合 (§15.1)。
+//   attackerSidePower / defenderSidePower は戦闘前 sideEffectivePower (getRegimentPowerForWarSide)。
+function computeWarScoreDelta(
   state: WorldState,
   config: SimulationConfig,
-  rng: RngState,
-  p: BattleParams,
-): {
-  result: BattleResult
-  warScoreDelta: number
-  attackerEffectivePower: number
-  defenderEffectivePower: number
-  rng: RngState
-} {
-  const atkCmd = commanderModifier(state, config, p.attackerCommanderId)
-  const defCmd = commanderModifier(state, config, p.defenderCommanderId)
-  const { value: atkNoise, rng: rng1 } = randomFloat(rng)
-  const { value: defNoise, rng: rng2 } = randomFloat(rng1)
-  const atkRand = 1 + (atkNoise - 0.5) * 2 * config.warBattleRandomness
-  const defRand = 1 + (defNoise - 0.5) * 2 * config.warBattleRandomness
-  const attackerEffectivePower = p.attackerPower * atkCmd * atkRand
-  const defenderEffectivePower = p.defenderPower * defCmd * defRand
-  const advantage = attackerEffectivePower / (attackerEffectivePower + defenderEffectivePower + 1)
-  let rawDelta = (advantage - 0.5) * config.warBattleScoreScale
-  const result: BattleResult =
-    rawDelta > config.battleVictoryThreshold
-      ? 'attacker_victory'
-      : rawDelta < -config.battleVictoryThreshold
-        ? 'defender_victory'
-        : 'inconclusive'
-  // §10.7: 勝者側 captainGeneral の効率で warScoreDelta をスケール。
-  if (rawDelta > 0) {
-    rawDelta *= captainGeneralEfficiency(state, config, p.attackerCaptainGeneralId)
-  } else if (rawDelta < 0) {
-    rawDelta *= captainGeneralEfficiency(state, config, p.defenderCaptainGeneralId)
-  }
-  const warScoreDelta = clamp(
-    rawDelta,
-    -config.maxWarScoreDeltaPerBattle,
-    config.maxWarScoreDeltaPerBattle,
+  sim: BattleSimResult,
+  attackerSidePower: number,
+  defenderSidePower: number,
+  attackerCaptainGeneralId: PersonId | undefined,
+  defenderCaptainGeneralId: PersonId | undefined,
+): number {
+  if (sim.result === 'inconclusive') return 0
+  const winnerSide: WarSideKey = sim.result === 'attacker_victory' ? 'attacker' : 'defender'
+  const sign = sim.result === 'attacker_victory' ? 1 : -1
+  const base =
+    sim.outcomeQuality === 'rout'
+      ? config.battleRoutVictoryScoreBase
+      : config.battleOrderlyVictoryScoreBase
+  // 敗者側 routed share (decisiveness の一次入力)
+  const loserRouted =
+    winnerSide === 'attacker'
+      ? sim.defenderRoutedRegimentIds.length
+      : sim.attackerRoutedRegimentIds.length
+  const loserFrontline =
+    winnerSide === 'attacker'
+      ? sim.defenderInitialFrontlineIds.length
+      : sim.attackerInitialFrontlineIds.length
+  const loserRoutedShare = loserRouted / Math.max(1, loserFrontline)
+  const decisiveness = clamp(
+    1 +
+      config.battleDecisivenessRoutedShareWeight * loserRoutedShare +
+      config.battleDecisivenessSpeedWeight * (1 - sim.ticksElapsed / config.battleMaxTicks),
+    config.battleDecisivenessMin,
+    config.battleDecisivenessMax,
   )
-  return { result, warScoreDelta, attackerEffectivePower, defenderEffectivePower, rng: rng2 }
+  // 勝者の preBattle edge のみ反映 (敗者の強さは流さない＝番狂わせ控えめ。§15.3)
+  const winnerPower = winnerSide === 'attacker' ? attackerSidePower : defenderSidePower
+  const loserPower = winnerSide === 'attacker' ? defenderSidePower : attackerSidePower
+  const winnerPreBattleEdge = clamp(winnerPower / (loserPower + 1), 0, 2)
+  const preBattleModifier = clamp(
+    1 + config.battlePreBattleEdgeWeight * (winnerPreBattleEdge - 1),
+    config.battlePreBattleModifierMin,
+    config.battlePreBattleModifierMax,
+  )
+  let magnitude = base * decisiveness * preBattleModifier
+  const winnerCaptainGeneralId =
+    winnerSide === 'attacker' ? attackerCaptainGeneralId : defenderCaptainGeneralId
+  magnitude *= captainGeneralEfficiency(state, config, winnerCaptainGeneralId)
+  magnitude = clamp(magnitude, 0, config.maxWarScoreDeltaPerBattle)
+  return sign * magnitude
 }
 
-type BattleDamageRole = 'winner' | 'loser' | 'inconclusive'
-
-// §12: 1 side の battle 後損耗。role から org/strength の damage を各 1 値 rng で決め (2 draw 消費)、
-//   その side の mobilized active Regiment 全部に同量適用する (頭割りでない。§12.4)。
-//   clamp 済 strength が destroyedThreshold 以下なら destroy (§12.6)。各 Regiment の before/after で
-//   BattleRegimentResult を返す (morale* は v0.36 では設定しない。§7.1)。
-function applySideBattleDamage(
-  ws: WorldState,
-  config: SimulationConfig,
-  rng: RngState,
-  side: WarSideKey,
-  regiments: Regiment[],
-  role: BattleDamageRole,
-  week: number,
-): { rng: RngState; results: BattleRegimentResult[] } {
-  const [orgMin, orgMax, strMin, strMax] =
-    role === 'winner'
-      ? [
-          config.regimentOrganizationDamageWinnerMin,
-          config.regimentOrganizationDamageWinnerMax,
-          config.regimentStrengthDamageWinnerMin,
-          config.regimentStrengthDamageWinnerMax,
-        ]
-      : role === 'loser'
-        ? [
-            config.regimentOrganizationDamageLoserMin,
-            config.regimentOrganizationDamageLoserMax,
-            config.regimentStrengthDamageLoserMin,
-            config.regimentStrengthDamageLoserMax,
-          ]
-        : [
-            config.regimentOrganizationDamageInconclusiveMin,
-            config.regimentOrganizationDamageInconclusiveMax,
-            config.regimentStrengthDamageInconclusiveMin,
-            config.regimentStrengthDamageInconclusiveMax,
-          ]
-  const orgDraw = randomInt(rng, orgMin, orgMax)
-  const strDraw = randomInt(orgDraw.rng, strMin, strMax)
-  const orgDamage = orgDraw.value
-  const strengthDamage = strDraw.value
-
-  const results: BattleRegimentResult[] = []
-  for (const r of regiments) {
-    const orgBefore = r.organization
-    const strBefore = r.strength
-    const orgAfter = clamp(orgBefore - orgDamage, 0, 100)
-    const strAfter = clamp(strBefore - strengthDamage, 0, r.maxStrength)
-    updateRegimentMut(ws, r.id, { organization: orgAfter, strength: strAfter })
-    if (strAfter <= config.regimentDestroyedStrengthThreshold) {
-      destroyRegimentMut(ws, r.id, week)
-    }
-    results.push({
-      regimentId: r.id,
-      side,
-      strengthBefore: strBefore,
-      strengthAfter: strAfter,
-      strengthDamage: strBefore - strAfter,
-      organizationBefore: orgBefore,
-      organizationAfter: orgAfter,
-      organizationDamage: orgBefore - orgAfter,
-    })
+// mobilized active Regiment を simulateBattle の入力 snapshot に変換 (effectivePower は戦闘前に frozen)。
+function toBattleSimRegiment(r: Regiment, side: WarSideKey): BattleSimRegimentInput {
+  return {
+    regimentId: r.id,
+    side,
+    troopKind: r.troopKind,
+    strength: r.strength,
+    organization: r.organization,
+    morale: r.morale,
+    baselineOrganization: r.baselineOrganization,
+    maxOrganization: r.maxOrganization,
+    baselineMorale: r.baselineMorale,
+    maxMorale: r.maxMorale,
+    basePower: r.basePower,
+    effectivePower: getRegimentEffectivePower(r),
   }
-  return { rng: strDraw.rng, results }
 }
 
 // step 3: captainGeneral lazy refresh (§4.4)。現 CG が eligible なら据置。
@@ -431,16 +381,38 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
 
     // step 9-11: 戦闘ブランチ (both accept / 回避失敗) を解決し warScore 更新 + BATTLE_OCCURRED。
     const runBattleBranch = (initiationKind: BattleInitiationKind, n: TickContext): TickContext => {
-      const battle = resolveBattle(ws, config, n.rng, {
-        attackerPower: atkPower,
-        defenderPower: defPower,
-        attackerCommanderId: atkCommander,
-        defenderCommanderId: defCommander,
-        attackerCaptainGeneralId: atkCG,
-        defenderCaptainGeneralId: defCG,
-      })
-      let nn: TickContext = { ...n, rng: battle.rng }
-      const after = clamp(before + battle.warScoreDelta, -100, 100)
+      // §11.3: mobilized active Regiment を両 side 確定 (snapshot は damage 適用前に固定。destroy が byWar を変える)。
+      const atkRegiments = getRegimentsForWarSide(ws, wid, 'attacker').filter(
+        (r) => r.status === 'active',
+      )
+      const defRegiments = getRegimentsForWarSide(ws, wid, 'defender').filter(
+        (r) => r.status === 'active',
+      )
+
+      // §6-12: internal BattleSimulation を実行 (commander pool は B では空 = 1.0 stub、C1 で配線)。
+      const frontage = config.battlefieldFrontageByKind[battlefieldKind] ?? 1
+      const simInput: BattleSimInput = {
+        battleId: createBattleId(ws.nextBattleId),
+        warId: wid,
+        battlefieldKind,
+        frontage,
+        tickUnit: config.battleTickUnit,
+        maxTicks: config.battleMaxTicks,
+        attacker: atkRegiments.map((r) => toBattleSimRegiment(r, 'attacker')),
+        defender: defRegiments.map((r) => toBattleSimRegiment(r, 'defender')),
+        attackerCommanders: [],
+        defenderCommanders: [],
+        config,
+        rng: n.rng,
+      }
+      const sim: BattleSimResult = simulateBattle(simInput)
+      let nn: TickContext = { ...n, rng: sim.rng }
+
+      // §15.3: result から符号、bounded magnitude。preBattle sideEffectivePower (atkPower/defPower) を使う。
+      //   sign は result 由来・magnitude>=0 なので符号は常に result と整合。Battle entity には raw delta を保存
+      //   (warScore saturation で applied delta が 0 化しても符号が崩れないように。warScoreAfter は clamp 後)。
+      const rawDelta = computeWarScoreDelta(ws, config, sim, atkPower, defPower, atkCG, defCG)
+      const after = clamp(before + rawDelta, -100, 100)
       updateWar(ws, wid, { warScore: after })
       // 回避失敗 side の avoidanceCount を +1 (§9.4)。
       if (initiationKind === 'attacker_avoidance_failed') {
@@ -449,62 +421,63 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         updateWarSideMut(ws, wid, 'defender', { avoidanceCount: defAvoid0 + 1 })
       }
 
-      // v0.36 §12: damage 前に mobilized active Regiment を両 side 確定 (destroy が byWar を変えるため)。
-      const atkRegiments = getRegimentsForWarSide(ws, wid, 'attacker').filter(
-        (r) => r.status === 'active',
-      )
-      const defRegiments = getRegimentsForWarSide(ws, wid, 'defender').filter(
-        (r) => r.status === 'active',
-      )
-      const atkRole: BattleDamageRole =
-        battle.result === 'attacker_victory'
-          ? 'winner'
-          : battle.result === 'defender_victory'
-            ? 'loser'
-            : 'inconclusive'
-      const defRole: BattleDamageRole =
-        battle.result === 'defender_victory'
-          ? 'winner'
-          : battle.result === 'attacker_victory'
-            ? 'loser'
-            : 'inconclusive'
-      const atkDmg = applySideBattleDamage(
-        ws,
-        config,
-        nn.rng,
-        'attacker',
-        atkRegiments,
-        atkRole,
-        absoluteWeek,
-      )
-      const defDmg = applySideBattleDamage(
-        ws,
-        config,
-        atkDmg.rng,
-        'defender',
-        defRegiments,
-        defRole,
-        absoluteWeek,
-      )
-      nn = { ...nn, rng: defDmg.rng }
+      // §9 損耗を Regiment に反映。strength<=threshold で destroy (v0.37 core では希少)。
+      const regimentResults: BattleRegimentResult[] = sim.regimentResults.map((rr) => ({
+        regimentId: rr.regimentId,
+        side: rr.side,
+        strengthBefore: rr.strengthBefore,
+        strengthAfter: rr.strengthAfter,
+        strengthDamage: rr.strengthDamage,
+        organizationBefore: rr.organizationBefore,
+        organizationAfter: rr.organizationAfter,
+        organizationDamage: rr.organizationDamage,
+        moraleBefore: rr.moraleBefore,
+        moraleAfter: rr.moraleAfter,
+        moraleDamage: rr.moraleDamage,
+      }))
+      for (const rr of sim.regimentResults) {
+        updateRegimentMut(ws, rr.regimentId, {
+          organization: rr.organizationAfter,
+          morale: rr.moraleAfter,
+          strength: rr.strengthAfter,
+        })
+        if (rr.strengthAfter <= config.regimentDestroyedStrengthThreshold) {
+          destroyRegimentMut(ws, rr.regimentId, absoluteWeek)
+        }
+      }
 
-      // v0.36 §7 / §11.3: Battle entity を記録 (cleanupWarSystem が war 削除時に piggyback cleanup)。
+      // §16.1: Battle entity に summary を保存。effectivePower=戦闘前 sideEffectivePower、basePower=Σ raw basePower。
+      const atkBasePower = atkRegiments.reduce((s, r) => s + r.basePower, 0)
+      const defBasePower = defRegiments.reduce((s, r) => s + r.basePower, 0)
       const battleEntity = createBattle(ws, {
         warId: wid,
         week: absoluteWeek,
         provinceId,
         battlefieldKind,
         initiationKind,
-        result: battle.result,
+        result: sim.result,
         attackerRegimentIds: atkRegiments.map((r) => r.id),
         defenderRegimentIds: defRegiments.map((r) => r.id),
-        regimentResults: [...atkDmg.results, ...defDmg.results],
-        attackerBasePower: atkPower,
-        defenderBasePower: defPower,
-        attackerEffectivePower: battle.attackerEffectivePower,
-        defenderEffectivePower: battle.defenderEffectivePower,
-        warScoreDelta: after - before,
+        regimentResults,
+        attackerBasePower: atkBasePower,
+        defenderBasePower: defBasePower,
+        attackerEffectivePower: atkPower,
+        defenderEffectivePower: defPower,
+        warScoreDelta: rawDelta,
         warScoreAfter: after,
+        outcomeQuality: sim.outcomeQuality,
+        frontage,
+        tickUnit: config.battleTickUnit,
+        maxTicks: config.battleMaxTicks,
+        ticksElapsed: sim.ticksElapsed,
+        attackerInitialFrontlineIds: sim.attackerInitialFrontlineIds,
+        defenderInitialFrontlineIds: sim.defenderInitialFrontlineIds,
+        attackerRoutedRegimentIds: sim.attackerRoutedRegimentIds,
+        defenderRoutedRegimentIds: sim.defenderRoutedRegimentIds,
+        ...(sim.breakthroughSide !== undefined ? { breakthroughSide: sim.breakthroughSide } : {}),
+        pursuitOccurred: sim.pursuitOccurred,
+        attackerCommanderAssignments: sim.attackerCommanderAssignments,
+        defenderCommanderAssignments: sim.defenderCommanderAssignments,
       })
 
       const w = ws.wars[wid]
@@ -513,18 +486,18 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         provinceId,
         battlefieldKind,
         initiationKind,
-        result: battle.result,
+        result: sim.result,
         ...(atkCG ? { attackerCaptainGeneralId: atkCG } : {}),
         ...(defCG ? { defenderCaptainGeneralId: defCG } : {}),
         ...(atkCommander ? { attackerCommanderId: atkCommander } : {}),
         ...(defCommander ? { defenderCommanderId: defCommander } : {}),
         attackerPower: atkPower,
         defenderPower: defPower,
-        attackerEffectivePower: battle.attackerEffectivePower,
-        defenderEffectivePower: battle.defenderEffectivePower,
-        warScoreDelta: after - before,
+        attackerEffectivePower: atkPower,
+        defenderEffectivePower: defPower,
+        warScoreDelta: rawDelta,
         warScoreAfter: after,
-        // v0.36 §16: counts-only enrich (rng 非消費・bit-identical)。
+        // v0.36 §16: counts-only enrich (rng 非消費)。v0.37 summary enrich は C2。
         battleId: battleEntity.id,
         attackerRegimentCount: atkRegiments.length,
         defenderRegimentCount: defRegiments.length,

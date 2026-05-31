@@ -2248,6 +2248,68 @@ export function collectIntegrityErrors(
         message: `Battle ${idStr} warScore values must be finite (§18)`,
       })
     }
+
+    // §18 (v0.37): Battle summary invariants (set されたフィールドのみ検査)。
+    if (battle.frontage !== undefined && battle.frontage <= 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Battle ${idStr} frontage=${battle.frontage} must be > 0 (§18)`,
+      })
+    }
+    if (
+      battle.ticksElapsed !== undefined &&
+      battle.maxTicks !== undefined &&
+      battle.ticksElapsed > battle.maxTicks
+    ) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Battle ${idStr} ticksElapsed=${battle.ticksElapsed} > maxTicks=${battle.maxTicks} (§18)`,
+      })
+    }
+    const atkSet = new Set<RegimentId>(battle.attackerRegimentIds)
+    const defSet = new Set<RegimentId>(battle.defenderRegimentIds)
+    const unionSet = new Set<RegimentId>([
+      ...battle.attackerRegimentIds,
+      ...battle.defenderRegimentIds,
+    ])
+    const checkSubset = (
+      ids: RegimentId[] | undefined,
+      allowed: Set<RegimentId>,
+      label: string,
+    ): void => {
+      if (!ids) return
+      for (const id of ids) {
+        if (!allowed.has(id)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Battle ${idStr} ${label} references ${id} not in side regiments (§18)`,
+          })
+        }
+      }
+    }
+    checkSubset(battle.attackerInitialFrontlineIds, atkSet, 'attackerInitialFrontlineIds')
+    checkSubset(battle.defenderInitialFrontlineIds, defSet, 'defenderInitialFrontlineIds')
+    checkSubset(battle.attackerRoutedRegimentIds, atkSet, 'attackerRoutedRegimentIds')
+    checkSubset(battle.defenderRoutedRegimentIds, defSet, 'defenderRoutedRegimentIds')
+    for (const rr of battle.regimentResults) {
+      if (!unionSet.has(rr.regimentId)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Battle ${idStr} regimentResult references ${rr.regimentId} not in attacker∪defender (§18)`,
+        })
+      }
+    }
+    for (const ca of [
+      ...(battle.attackerCommanderAssignments ?? []),
+      ...(battle.defenderCommanderAssignments ?? []),
+    ]) {
+      if (!unionSet.has(ca.regimentId)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Battle ${idStr} commanderAssignment references ${ca.regimentId} not in attacker∪defender (§18)`,
+        })
+      }
+    }
   }
   for (const [warIdStr, ids] of Object.entries(state.battleIndex.byWar)) {
     for (const bid of ids) {

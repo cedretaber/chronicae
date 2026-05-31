@@ -413,9 +413,8 @@ describe('WarManeuverSystem Regiment 接続 (§9 / §11 / §12)', () => {
     const world = freshWorld()
     const { war, owner } = injectWar(world)
     const ownerRegs = ownerRegimentIds(world, owner)
-    // defenderBasePower は getRegimentPowerForWarSide = Σ effectivePower を格納する (命名は basePower だが中身は
-    //   side 集計 effectivePower)。v0.37 B1 で初期 org=baseline(50) になり effectivePower≠basePower のため、
-    //   effectivePower 集計で期待値を組む。
+    // §16.1: Battle.defenderEffectivePower = 戦闘前 sideEffectivePower (getRegimentPowerForWarSide =
+    //   Σ effectivePower)。v0.37 B1 で初期 org=baseline(50) のため effectivePower≠basePower。
     const expectedDefPower = ownerRegs.reduce(
       (sum, rid) => sum + getRegimentEffectivePower(world.regiments[rid]!),
       0,
@@ -432,16 +431,15 @@ describe('WarManeuverSystem Regiment 接続 (§9 / §11 / §12)', () => {
     const battle = next.state.battles[bids[0]!]!
     expect(battle.warId).toBe(war.id)
     expect(battle.defenderRegimentIds).toHaveLength(ownerRegs.length)
-    // defenderBasePower = defender Regiment effectivePower 合計 (旧 fallback でない)
-    expect(battle.defenderBasePower).toBeCloseTo(expectedDefPower)
+    expect(battle.defenderEffectivePower).toBeCloseTo(expectedDefPower)
 
-    // org 損耗: defender 全 mobilized Regiment の organization < 100 (winner でも min 4 削れる)
-    for (const rid of ownerRegs) {
-      expect(next.state.regiments[rid]!.organization).toBeLessThan(100)
-    }
+    // §9: org 損耗は frontline に出た連隊のみ (reserve は無傷)。損耗を受けた defender は必ず initial frontline。
     const defResults = battle.regimentResults.filter((rr) => rr.side === 'defender')
     expect(defResults).toHaveLength(ownerRegs.length)
-    expect(defResults.every((rr) => rr.organizationDamage > 0)).toBe(true)
+    const defFrontline = new Set(battle.defenderInitialFrontlineIds)
+    const damaged = defResults.filter((rr) => rr.organizationDamage > 0)
+    expect(damaged.length).toBeGreaterThan(0)
+    expect(damaged.every((rr) => defFrontline.has(rr.regimentId))).toBe(true)
 
     // v0.36 §16: BATTLE_OCCURRED の counts-only enrich。battleId / 両 side 連隊数が Battle entity と一致する。
     const occurred = next.events.find((e) => e.type === 'BATTLE_OCCURRED')!
@@ -451,30 +449,29 @@ describe('WarManeuverSystem Regiment 接続 (§9 / §11 / §12)', () => {
     expect(occurred.messageParams.attackerRegimentCount).toBe(battle.attackerRegimentIds.length)
   })
 
-  it('strength が destroyedThreshold 以下になった Regiment を destroyed 化し byWar から外す (§12.6)', () => {
+  it('battle 損耗で strength<=threshold になった Regiment を destroyed 化し byWar から外す (§9.4 / §12.6)', () => {
     const world = freshWorld()
     const { war, owner } = injectWar(world)
     const ownerRegs = ownerRegimentIds(world, owner)
-    // defender Regiment を strength=1 に弱体化。どの battle 結果でも strength damage 5 で 0→destroyed。
+    // defender Regiment を strength=0.01 に弱体化。通常 v0.37 では strength<minFightingStrengthThreshold(10) は
+    //   deployment 外で損耗しない (= destroyed は希少。§2)。destroy 配線を検証するため minFighting=0 で強制配置し、
+    //   frontline で org damage を受けた連隊が strength damage で 0→destroyed することを確認する。
     for (const rid of ownerRegs) {
-      world.regiments[rid] = { ...world.regiments[rid]!, strength: 1 }
+      world.regiments[rid] = { ...world.regiments[rid]!, strength: 0.01 }
     }
     const config = deterministicConfig({
       warAvoidanceTerrainModifierByBattlefield: terrainAll(-10),
-      regimentStrengthDamageWinnerMin: 5,
-      regimentStrengthDamageWinnerMax: 5,
-      regimentStrengthDamageLoserMin: 5,
-      regimentStrengthDamageLoserMax: 5,
-      regimentStrengthDamageInconclusiveMin: 5,
-      regimentStrengthDamageInconclusiveMax: 5,
+      minFightingStrengthThreshold: 0,
     })
     const next = runWarManeuverSystem(makeCtx(world, config))
     expect(next.events.some((e) => e.type === 'BATTLE_OCCURRED')).toBe(true)
 
     const byWar = next.state.regimentIndex.byWar[war.id] ?? []
-    for (const rid of ownerRegs) {
+    // 損耗を受けた (= 全滅した) 連隊が存在し、destroy 配線が機能している。
+    const destroyed = ownerRegs.filter((rid) => next.state.regiments[rid]!.status === 'destroyed')
+    expect(destroyed.length).toBeGreaterThan(0)
+    for (const rid of destroyed) {
       const r = next.state.regiments[rid]!
-      expect(r.status).toBe('destroyed')
       expect(r.currentWarId).toBeUndefined()
       expect(byWar.includes(rid)).toBe(false)
     }
