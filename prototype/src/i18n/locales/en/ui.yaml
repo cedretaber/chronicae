@@ -424,6 +424,7 @@ detail:
     status_active: 'Active'
     status_attacker_won: 'Attacker Won'
     status_defender_won: 'Defender Won'
+    status_won: 'Won'
     status_white_peace: 'White Peace'
     status_cancelled: 'Cancelled'
     captain_general: 'Captain General'

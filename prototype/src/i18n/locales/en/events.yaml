@@ -82,8 +82,10 @@ war:
     change_tax: '{{attacker}} declared war on {{defender}} over the tax of {{subject}} (seeking {{fromRate}}% → {{toRate}}%).'
     revolt: 'The rebels in {{province}} have declared war for independence against {{defender}}.'
   ended: 'The war between {{attacker}} and {{defender}} ended without a decisive victor.'
-  battle_occurred: 'A {{battlefieldKind}} broke out in {{province}} ({{attackerRegimentCount}} vs {{defenderRegimentCount}} regiments). After {{ticksElapsed}} days: {{result}}. Outcome: {{outcomeQuality}} (routed regiments — atk {{attackerRoutedCount}}, def {{defenderRoutedCount}}). War score change: {{warScoreDelta}}.'
-  battle_avoided: '{{avoidingSide}} avoided a {{battlefieldKind}} in {{province}}. War score change: {{warScoreDelta}}.'
+  battle_occurred: 'A {{battlefieldKind}} broke out in {{province}} ({{attackerName}} {{attackerRegimentCount}} vs {{defenderName}} {{defenderRegimentCount}} regiments). After {{ticksElapsed}} days: {{winnerName}} prevailed. Outcome: {{outcomeQuality}} (routed — {{attackerName}} {{attackerRoutedCount}}, {{defenderName}} {{defenderRoutedCount}}). War score change: {{warScoreDelta}}.'
+  battle_occurred_inconclusive: 'A {{battlefieldKind}} broke out in {{province}} ({{attackerName}} {{attackerRegimentCount}} vs {{defenderName}} {{defenderRegimentCount}} regiments). After {{ticksElapsed}} days: inconclusive. War score change: {{warScoreDelta}}.'
+  battle_avoided: '{{avoidingName}} avoided a {{battlefieldKind}} in {{province}}. War score change: {{warScoreDelta}}.'
+  battle_avoided_both: 'Both sides avoided a {{battlefieldKind}} in {{province}}. War score change: {{warScoreDelta}}.'
   captain_general_changed: '{{actor}} changed its captain general from {{oldCaptainGeneral}} to {{newCaptainGeneral}}.'
   peace_settlement:
     transfer_land: '{{attacker}} took {{holding}} from {{defender}} in the peace settlement.'
@@ -93,9 +95,9 @@ war:
 #   these only for distinctive victories (ordinary / non-victory reuse war.battle_occurred).
 chronicle:
   battle:
-    outnumbered_victory: 'A {{battlefieldKind}} at {{province}} ({{attackerRegimentCount}} vs {{defenderRegimentCount}} regiments). Against the odds, the result was {{result}}. War score change: {{warScoreDelta}}.'
-    decisive_victory: 'A {{battlefieldKind}} at {{province}} ({{attackerRegimentCount}} vs {{defenderRegimentCount}} regiments). {{result}} — a crushing rout (routed regiments: atk {{attackerRoutedCount}}, def {{defenderRoutedCount}}). War score change: {{warScoreDelta}}.'
-    narrow_victory: 'A {{battlefieldKind}} at {{province}} ({{attackerRegimentCount}} vs {{defenderRegimentCount}} regiments). After {{ticksElapsed}} days of hard fighting, a narrow {{result}} (routed regiments: atk {{attackerRoutedCount}}, def {{defenderRoutedCount}}). War score change: {{warScoreDelta}}.'
+    outnumbered_victory: 'A {{battlefieldKind}} at {{province}} ({{attackerName}} {{attackerRegimentCount}} vs {{defenderName}} {{defenderRegimentCount}} regiments). Against the odds, {{winnerName}} prevailed. War score change: {{warScoreDelta}}.'
+    decisive_victory: 'A {{battlefieldKind}} at {{province}} ({{attackerName}} {{attackerRegimentCount}} vs {{defenderName}} {{defenderRegimentCount}} regiments). {{winnerName}} won decisively — a crushing rout (routed: {{attackerName}} {{attackerRoutedCount}}, {{defenderName}} {{defenderRoutedCount}}). War score change: {{warScoreDelta}}.'
+    narrow_victory: 'A {{battlefieldKind}} at {{province}} ({{attackerName}} {{attackerRegimentCount}} vs {{defenderName}} {{defenderRegimentCount}} regiments). After {{ticksElapsed}} days of hard fighting, {{winnerName}} narrowly prevailed (routed: {{attackerName}} {{attackerRoutedCount}}, {{defenderName}} {{defenderRoutedCount}}). War score change: {{warScoreDelta}}.'
 
 regiment:
   reformed: '{{owner}} reformed a destroyed regiment in {{province}}.'

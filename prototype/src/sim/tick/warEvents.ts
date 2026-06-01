@@ -366,11 +366,25 @@ export function emitBattleOccurred(
     const r = personRef(state, id, role)
     if (r) refs.push(r)
   }
+  const winnerName =
+    input.result === 'attacker_victory'
+      ? p.attackerName
+      : input.result === 'defender_victory'
+        ? p.defenderName
+        : undefined
+  const loserName =
+    input.result === 'attacker_victory'
+      ? p.defenderName
+      : input.result === 'defender_victory'
+        ? p.attackerName
+        : undefined
+  const battleMessageKey =
+    input.result === 'inconclusive' ? 'war.battle_occurred_inconclusive' : 'war.battle_occurred'
   return emit(
     ctx,
     'BATTLE_OCCURRED',
     'normal',
-    'war.battle_occurred',
+    battleMessageKey,
     {
       warId: war.id,
       battleId: input.battleId,
@@ -379,6 +393,10 @@ export function emitBattleOccurred(
       result: input.result,
       attacker: nameParam(p.attacker.kind, p.attackerName),
       defender: nameParam(p.defender.kind, p.defenderName),
+      attackerName: nameParam(p.attacker.kind, p.attackerName),
+      defenderName: nameParam(p.defender.kind, p.defenderName),
+      ...(winnerName ? { winnerName: nameParam(p.attacker.kind, winnerName) } : {}),
+      ...(loserName ? { loserName: nameParam(p.defender.kind, loserName) } : {}),
       attackerPower: input.attackerPower,
       defenderPower: input.defenderPower,
       attackerEffectivePower: input.attackerEffectivePower,
@@ -464,17 +482,27 @@ export function emitBattleAvoided(
     const r = personRef(state, id, role)
     if (r) refs.push(r)
   }
+  const avoidedMessageKey =
+    input.avoidingSide === 'both' ? 'war.battle_avoided_both' : 'war.battle_avoided'
   return emit(
     ctx,
     'BATTLE_AVOIDED',
     'minor',
-    'war.battle_avoided',
+    avoidedMessageKey,
     {
       warId: war.id,
       battlefieldKind: input.battlefieldKind,
       avoidingSide: input.avoidingSide,
       attacker: nameParam(p.attacker.kind, p.attackerName),
       defender: nameParam(p.defender.kind, p.defenderName),
+      attackerName: nameParam(p.attacker.kind, p.attackerName),
+      defenderName: nameParam(p.defender.kind, p.defenderName),
+      avoidingName:
+        input.avoidingSide === 'attacker'
+          ? nameParam(p.attacker.kind, p.attackerName)
+          : input.avoidingSide === 'defender'
+            ? nameParam(p.defender.kind, p.defenderName)
+            : '',
       avoidanceSucceeded: input.avoidanceSucceeded,
       attackerAvoidanceCountAfter: input.attackerAvoidanceCountAfter,
       defenderAvoidanceCountAfter: input.defenderAvoidanceCountAfter,

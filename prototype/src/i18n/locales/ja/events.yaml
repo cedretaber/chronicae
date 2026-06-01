@@ -81,8 +81,10 @@ war:
     change_tax: '{{attacker}}が{{subject}}の税率（{{fromRate}}%→{{toRate}}%）を巡り{{defender}}に宣戦布告した。'
     revolt: '{{province}}の反乱軍が{{defender}}に対して独立戦争を開始した。'
   ended: '{{attacker}}と{{defender}}の戦争は決着がつかずに終わった。'
-  battle_occurred: '{{province}}で{{battlefieldKind}}が発生（連隊 {{attackerRegimentCount}} 対 {{defenderRegimentCount}}）。{{ticksElapsed}}日の戦闘の末、{{result}}。決着の質: {{outcomeQuality}}（壊走連隊 攻{{attackerRoutedCount}}・防{{defenderRoutedCount}}）。戦勝点変化: {{warScoreDelta}}。'
-  battle_avoided: '{{avoidingSide}}は{{province}}での{{battlefieldKind}}を回避した。戦勝点変化: {{warScoreDelta}}。'
+  battle_occurred: '{{province}}で{{battlefieldKind}}が発生（{{attackerName}} {{attackerRegimentCount}}連隊 対 {{defenderName}} {{defenderRegimentCount}}連隊）。{{ticksElapsed}}日の戦闘の末、{{winnerName}}が勝利。決着の質: {{outcomeQuality}}（壊走 {{attackerName}}{{attackerRoutedCount}}・{{defenderName}}{{defenderRoutedCount}}）。戦勝点変化: {{warScoreDelta}}。'
+  battle_occurred_inconclusive: '{{province}}で{{battlefieldKind}}が発生（{{attackerName}} {{attackerRegimentCount}}連隊 対 {{defenderName}} {{defenderRegimentCount}}連隊）。{{ticksElapsed}}日の戦闘の末、決着つかず。戦勝点変化: {{warScoreDelta}}。'
+  battle_avoided: '{{avoidingName}}は{{province}}での{{battlefieldKind}}を回避した。戦勝点変化: {{warScoreDelta}}。'
+  battle_avoided_both: '両軍が{{province}}での{{battlefieldKind}}を回避した。戦勝点変化: {{warScoreDelta}}。'
   captain_general_changed: '{{actor}}の総大将が{{oldCaptainGeneral}}から{{newCaptainGeneral}}に交代した。'
   peace_settlement:
     transfer_land: '{{attacker}}が和平で{{defender}}から{{holding}}を獲得した。'
@@ -92,9 +94,9 @@ war:
 #   selectBattleTemplate が差し替える (通常勝利・非勝利は war.battle_occurred を流用)。
 chronicle:
   battle:
-    outnumbered_victory: '{{province}}での{{battlefieldKind}}（連隊 {{attackerRegimentCount}} 対 {{defenderRegimentCount}}）。数的劣勢を覆し、{{result}}を収めた。戦勝点変化: {{warScoreDelta}}。'
-    decisive_victory: '{{province}}での{{battlefieldKind}}（連隊 {{attackerRegimentCount}} 対 {{defenderRegimentCount}}）。{{result}}——敵軍を壊走させる大勝となった（壊走連隊 攻{{attackerRoutedCount}}・防{{defenderRoutedCount}}）。戦勝点変化: {{warScoreDelta}}。'
-    narrow_victory: '{{province}}での{{battlefieldKind}}（連隊 {{attackerRegimentCount}} 対 {{defenderRegimentCount}}）。{{ticksElapsed}}日の激戦の末、辛くも{{result}}を収めた（壊走連隊 攻{{attackerRoutedCount}}・防{{defenderRoutedCount}}）。戦勝点変化: {{warScoreDelta}}。'
+    outnumbered_victory: '{{province}}での{{battlefieldKind}}（{{attackerName}} {{attackerRegimentCount}}連隊 対 {{defenderName}} {{defenderRegimentCount}}連隊）。数的劣勢を覆し、{{winnerName}}が勝利を収めた。戦勝点変化: {{warScoreDelta}}。'
+    decisive_victory: '{{province}}での{{battlefieldKind}}（{{attackerName}} {{attackerRegimentCount}}連隊 対 {{defenderName}} {{defenderRegimentCount}}連隊）。{{winnerName}}が大勝——敵軍を壊走させた（壊走 {{attackerName}}{{attackerRoutedCount}}・{{defenderName}}{{defenderRoutedCount}}）。戦勝点変化: {{warScoreDelta}}。'
+    narrow_victory: '{{province}}での{{battlefieldKind}}（{{attackerName}} {{attackerRegimentCount}}連隊 対 {{defenderName}} {{defenderRegimentCount}}連隊）。{{ticksElapsed}}日の激戦の末、{{winnerName}}が辛くも勝利を収めた（壊走 {{attackerName}}{{attackerRoutedCount}}・{{defenderName}}{{defenderRoutedCount}}）。戦勝点変化: {{warScoreDelta}}。'
 
 regiment:
   reformed: '{{owner}}が{{province}}で壊滅した連隊を再編成した。'

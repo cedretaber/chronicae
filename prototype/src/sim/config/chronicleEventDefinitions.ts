@@ -23,7 +23,7 @@ function selectBattleTemplate(event: SimEvent): string {
   const p = event.messageParams
   const result = p.result
   const isVictory = result === 'attacker_victory' || result === 'defender_victory'
-  if (!isVictory) return 'war.battle_occurred'
+  if (!isVictory) return 'war.battle_occurred_inconclusive'
   if (p.outnumberedVictory === true) return 'chronicle.battle.outnumbered_victory'
   if (p.decisiveVictory === true) return 'chronicle.battle.decisive_victory'
   const winnerRouted = result === 'attacker_victory' ? p.attackerRoutedCount : p.defenderRoutedCount

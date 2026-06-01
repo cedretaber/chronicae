@@ -4914,16 +4914,25 @@ export function WarDetail({
     )
   }
 
+  const attacker = getWarPrimaryAttacker(war)?.actor
+  const defender = getWarPrimaryDefender(war)?.actor
+  const attackerLabel =
+    attacker?.kind === 'polity'
+      ? (polities[attacker.id]?.nameKey ?? t('detail.war.attacker'))
+      : t('detail.war.attacker')
+  const defenderLabel =
+    defender?.kind === 'polity'
+      ? (polities[defender.id]?.nameKey ?? t('detail.war.defender'))
+      : t('detail.war.defender')
   const statusBadge: Record<string, { label: string; bg: string }> = {
     active: { label: t('detail.war.status_active'), bg: 'bg-red-700' },
-    attacker_won: { label: t('detail.war.status_attacker_won'), bg: 'bg-green-700' },
-    defender_won: { label: t('detail.war.status_defender_won'), bg: 'bg-green-700' },
+    attacker_won: { label: `${attackerLabel} ${t('detail.war.status_won')}`, bg: 'bg-green-700' },
+    defender_won: { label: `${defenderLabel} ${t('detail.war.status_won')}`, bg: 'bg-green-700' },
     white_peace: { label: t('detail.war.status_white_peace'), bg: 'bg-gray-600' },
     cancelled: { label: t('detail.war.status_cancelled'), bg: 'bg-gray-600' },
   }
   const badge = statusBadge[war.status] ?? { label: war.status, bg: 'bg-gray-600' }
 
-  // WarParticipant.actor は PoliticalActorRef (polity | house)。actor.kind で narrowing する。
   const renderActor = (actor: PoliticalActorRef | undefined) => {
     if (!actor) return <span className="text-gray-500">&mdash;</span>
     if (actor.kind === 'polity') {
@@ -4931,8 +4940,6 @@ export function WarDetail({
     }
     return <HouseLink houseId={actor.id} houses={houses} onClick={onHouseClick} />
   }
-  const attacker = getWarPrimaryAttacker(war)?.actor
-  const defender = getWarPrimaryDefender(war)?.actor
 
   const started = weekToYearMonthWeek(war.startedWeek)
   const ended = war.endedWeek != null ? weekToYearMonthWeek(war.endedWeek) : null
@@ -4956,25 +4963,14 @@ export function WarDetail({
       </div>
 
       <div className="text-sm">
-        {(() => {
-          const isRevolt = war.warGoals.some((g) => g.kind === 'popular_revolt_independence')
-          const attackerLabel = isRevolt ? t('detail.war.rebel_side') : t('detail.war.attacker')
-          const defenderLabel = isRevolt
-            ? t('detail.war.suppressor_side')
-            : t('detail.war.defender')
-          return (
-            <>
-              <div className="flex justify-between">
-                <span className="text-gray-400">{attackerLabel}:</span>
-                {renderActor(attacker)}
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">{defenderLabel}:</span>
-                {renderActor(defender)}
-              </div>
-            </>
-          )
-        })()}
+        <div className="flex justify-between">
+          <span className="text-gray-400">{attackerLabel}:</span>
+          {renderActor(attacker)}
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">{defenderLabel}:</span>
+          {renderActor(defender)}
+        </div>
 
         <div className="my-1 border-t border-gray-700" />
 
@@ -5002,7 +4998,7 @@ export function WarDetail({
           />
         </div>
         <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-500">{t('detail.war.defender')}</span>
+          <span className="text-gray-500">{defenderLabel}</span>
           <span className="text-gray-200">
             {scoreRounded >= 0 ? '+' : ''}
             {scoreRounded}{' '}
@@ -5010,21 +5006,21 @@ export function WarDetail({
               / {t('detail.war.target')} &plusmn;{war.targetWarScore}
             </span>
           </span>
-          <span className="text-gray-500">{t('detail.war.attacker')}</span>
+          <span className="text-gray-500">{attackerLabel}</span>
         </div>
 
         <div className="my-1 border-t border-gray-700" />
 
         <div className="flex flex-col gap-1">
-          {renderSideCommand(t('detail.war.attacker'), war.attacker)}
-          {renderSideCommand(t('detail.war.defender'), war.defender)}
+          {renderSideCommand(attackerLabel, war.attacker)}
+          {renderSideCommand(defenderLabel, war.defender)}
         </div>
 
         <div className="my-1 border-t border-gray-700" />
 
         <div className="flex flex-col gap-1">
-          {renderSideMobilization(t('detail.war.attacker'), 'attacker')}
-          {renderSideMobilization(t('detail.war.defender'), 'defender')}
+          {renderSideMobilization(attackerLabel, 'attacker')}
+          {renderSideMobilization(defenderLabel, 'defender')}
         </div>
 
         <div className="my-1 border-t border-gray-700" />

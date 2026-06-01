@@ -185,13 +185,13 @@ describe('selectBattleTemplate (BATTLE_OCCURRED の chronicle templateKey 選択
     ).toBe('war.battle_occurred')
   })
 
-  it('非勝利 (inconclusive) は war.battle_occurred', () => {
+  it('非勝利 (inconclusive) は war.battle_occurred_inconclusive', () => {
     expect(
       battleTemplateKey({
         result: 'inconclusive',
         outnumberedVictory: false,
         decisiveVictory: false,
       }),
-    ).toBe('war.battle_occurred')
+    ).toBe('war.battle_occurred_inconclusive')
   })
 })

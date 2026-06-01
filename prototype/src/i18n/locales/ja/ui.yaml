@@ -519,6 +519,7 @@ detail:
     status_active: '進行中'
     status_attacker_won: '攻撃側勝利'
     status_defender_won: '防衛側勝利'
+    status_won: '勝利'
     status_white_peace: '白紙和平'
     status_cancelled: '中止'
     captain_general: '総大将'

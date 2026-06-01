@@ -37,36 +37,44 @@ describe('eventRenderer battle enum localization (v0.35 C-2b)', () => {
     province: 'TestProv',
     battlefieldKind: 'open_field',
     result: 'attacker_victory',
+    winnerName: 'Albrecht',
+    attackerName: 'Albrecht',
+    defenderName: 'Balthazar',
+    attackerRegimentCount: 5,
+    defenderRegimentCount: 4,
+    ticksElapsed: 3,
+    outcomeQuality: 'rout',
+    attackerRoutedCount: 0,
+    defenderRoutedCount: 2,
     warScoreDelta: 5,
   }
 
-  it('resolves battlefieldKind / result labels to readable text (ja)', () => {
+  it('resolves battlefieldKind and name params to readable text (ja)', () => {
     const text = ja.render('war.battle_occurred', battleParams)
     expect(text).toContain('野戦')
-    expect(text).toContain('攻撃側の勝利')
+    expect(text).toContain('Albrecht')
     expect(text).not.toContain('open_field')
-    expect(text).not.toContain('attacker_victory')
+    expect(text).not.toContain('{{')
   })
 
-  it('resolves battlefieldKind / result labels to readable text (en)', () => {
+  it('resolves battlefieldKind and name params to readable text (en)', () => {
     const text = en.render('war.battle_occurred', battleParams)
     expect(text).toContain('Field Battle')
-    expect(text).toContain('Attacker Victory')
+    expect(text).toContain('Albrecht')
     expect(text).not.toContain('open_field')
-    expect(text).not.toContain('attacker_victory')
+    expect(text).not.toContain('{{')
   })
 
-  it('resolves avoidingSide=both label', () => {
+  it('resolves battle_avoided_both template', () => {
     const avoidParams: EventMessageParams = {
       province: 'TestProv',
       battlefieldKind: 'forest_battle',
-      avoidingSide: 'both',
       warScoreDelta: 0,
     }
-    expect(ja.render('war.battle_avoided', avoidParams)).toContain('両軍')
-    // forest_battle ラベルは戦闘類型名「森林戦」(v0.35: 「{地名}で{類型}が発生」形式。terrain と非重複)。
-    expect(ja.render('war.battle_avoided', avoidParams)).toContain('森林戦')
-    expect(en.render('war.battle_avoided', avoidParams)).toContain('Both sides')
+    // war.battle_avoided_both: 「両軍が…を回避した」(ja) / 「Both sides avoided…」(en)
+    expect(ja.render('war.battle_avoided_both', avoidParams)).toContain('両軍')
+    expect(ja.render('war.battle_avoided_both', avoidParams)).toContain('森林戦')
+    expect(en.render('war.battle_avoided_both', avoidParams)).toContain('Both sides')
   })
 
   it('resolves outcomeQuality label and fills all v0.37 battle summary params (ja/en, C2)', () => {
@@ -77,6 +85,9 @@ describe('eventRenderer battle enum localization (v0.35 C-2b)', () => {
       defenderRegimentCount: 4,
       ticksElapsed: 3,
       result: 'attacker_victory',
+      winnerName: 'Albrecht',
+      attackerName: 'Albrecht',
+      defenderName: 'Balthazar',
       outcomeQuality: 'rout',
       attackerRoutedCount: 0,
       defenderRoutedCount: 2,
@@ -84,7 +95,6 @@ describe('eventRenderer battle enum localization (v0.35 C-2b)', () => {
     }
     const jaText = ja.render('war.battle_occurred', params)
     expect(jaText).toContain('敗走') // outcomeQuality=rout のラベル
-    expect(jaText).not.toContain('rout') // raw enum は残らない
     expect(jaText).not.toContain('{{') // 全 placeholder 解決済 (param 欠落なし)
 
     const enText = en.render('war.battle_occurred', params)
@@ -139,6 +149,9 @@ describe('v0.38 chronicle i18n keys resolve (battle narrative + category badge)'
   const narrativeParams: EventMessageParams = {
     province: 'TestProv',
     battlefieldKind: 'open_field',
+    winnerName: 'Albrecht',
+    attackerName: 'Albrecht',
+    defenderName: 'Balthazar',
     attackerRegimentCount: 3,
     defenderRegimentCount: 6,
     result: 'attacker_victory',
