@@ -92,6 +92,9 @@ export function applyDemand(
 
     case 'revolt_concession':
       return ctx
+
+    case 'popular_tax_relief':
+      return ctx
   }
 }
 

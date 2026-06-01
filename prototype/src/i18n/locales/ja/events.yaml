@@ -104,6 +104,8 @@ revolt:
   triumphant: '{{province}}の反乱が勝利し、独立を達成した。'
   settled: '{{province}}の反乱は交渉により解決した。指導者は{{aftermathText}}、州は{{restorePolity}}に帰属する。'
   suppressed: '{{province}}の反乱は鎮圧された。指導者は{{aftermathText}}、州は{{restorePolity}}に帰属する。'
+  escalated: '{{province}}の反乱が武力衝突に発展した。'
+  regime_changed: '{{province}}の体制が民衆蜂起により転覆された。'
 
 diplomatic_play:
   started_with_offer: '{{initiator}}が{{target}}と{{province}}について交渉を開始した。'

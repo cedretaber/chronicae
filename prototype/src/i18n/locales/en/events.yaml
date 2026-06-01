@@ -105,6 +105,8 @@ revolt:
   triumphant: 'The revolt in {{province}} has triumphed — independence is achieved.'
   settled: 'The revolt in {{province}} has been settled by negotiation — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.'
   suppressed: 'The revolt in {{province}} has been suppressed — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.'
+  escalated: 'The revolt in {{province}} has escalated to armed conflict.'
+  regime_changed: 'The regime in {{province}} has been overthrown by popular revolt.'
 
 diplomatic_play:
   started_with_offer: '{{initiator}} negotiates with {{target}} for {{province}}.'

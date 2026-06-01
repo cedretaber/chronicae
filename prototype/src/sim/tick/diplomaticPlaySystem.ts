@@ -14,7 +14,12 @@ import { entityRef, nameParam } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { adjustProvincePopUnrestByClass, adjustProvincePopUnrest } from '../mutations/popMutations'
-import { disbandRebelPolity, type RebelLeaderAftermath } from '../mutations/worldStructureMutations'
+import {
+  disbandRebelPolity,
+  type RebelLeaderAftermath,
+  dissolveNegotiatingCommonwealth,
+} from '../mutations/worldStructureMutations'
+import { adjustLandContractTaxRate } from '../mutations/landContractMutations'
 import { getProvincePops } from '../selectors/popSelectors'
 import {
   getProvinceManpowerBase,
@@ -112,36 +117,321 @@ function isDeadlineReached(state: { absoluteWeek: number }, play: DiplomaticPlay
 // ─── revolt_negotiation 進行 (Stage B、escalation 経路は Stage D で ConflictResolution に移譲) ───
 
 function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): TickContext {
-  const config = ctx.config
   const state = ctx.state
-  if (!play.primaryDemand || play.primaryDemand.kind !== 'revolt_concession') return ctx
 
-  const demand = play.primaryDemand
-  const provinceId = demand.provinceId
-  const popClass = demand.popClass
   if (play.target.kind !== 'polity') return ctx
   const targetPolityId = play.target.id
   if (play.initiator.kind !== 'polity') return ctx
-  const rebelPolityId = play.initiator.id
+  const commonwealthId = play.initiator.id
 
   const targetPolity = state.polities[targetPolityId]
-  const rebelPolity = state.polities[rebelPolityId]
-  if (!targetPolity || !targetPolity.active || !rebelPolity || !rebelPolity.active) {
+  const commonwealth = state.polities[commonwealthId]
+  if (!targetPolity || !targetPolity.active || !commonwealth || !commonwealth.active) {
     return setPlayStatus(ctx, play.id, 'cancelled')
   }
 
-  // Get POP stats for the rebel class (aggregated across Holdings)
+  // v0.39: popular_tax_relief demand path
+  if (play.primaryDemand?.kind === 'popular_tax_relief') {
+    return progressPopularTaxRelief(ctx, play, play.primaryDemand, commonwealthId, targetPolityId)
+  }
+
+  // Legacy: revolt_concession demand path (existing plays from before v0.39)
+  if (play.primaryDemand?.kind === 'revolt_concession') {
+    return progressLegacyRevoltConcession(
+      ctx,
+      play,
+      play.primaryDemand,
+      commonwealthId,
+      targetPolityId,
+    )
+  }
+
+  return ctx
+}
+
+function progressPopularTaxRelief(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  demand: Extract<DiplomaticDemand, { kind: 'popular_tax_relief' }>,
+  commonwealthId: PolityId,
+  targetPolityId: PolityId,
+): TickContext {
+  const config = ctx.config
+  const state = ctx.state
+  const holdingId = demand.holdingId
+  const popClass = demand.claimantPopClass
+
+  const holding = state.holdings[holdingId]
+  if (!holding) return setPlayStatus(ctx, play.id, 'cancelled')
+  const provinceId = holding.provinceId
+
+  const popIds = state.popIndex.byHolding[holdingId]
+  let totalSize = 0
+  let weightedUnrest = 0
+  if (popIds) {
+    for (const popId of popIds) {
+      const p = state.popGroups[popId]
+      if (!p || p.class !== popClass) continue
+      totalSize += p.size
+      weightedUnrest += p.unrest * p.size
+    }
+  }
+  const averageUnrest = totalSize > 0 ? weightedUnrest / totalSize : 0
+
+  if (totalSize === 0) return setPlayStatus(ctx, play.id, 'cancelled')
+
+  const rebelPower =
+    totalSize * config.popRevoltPowerFactorByClass[popClass] * (0.5 + averageUnrest / 100)
+  const suppressionPower = estimateSuppressionPower(state, config, provinceId, targetPolityId)
+  const taxReliefSeverity =
+    (demand.currentTaxRate - demand.demandedTaxRate) * config.taxReliefSeverityFactor
+
+  const acceptanceScore =
+    averageUnrest +
+    rebelPower * config.revoltAcceptRebelPowerFactor -
+    suppressionPower * config.revoltAcceptSuppressionFactor -
+    taxReliefSeverity
+
+  const { nextProgress, nextTension } = applyAcceptanceUpdate(play, acceptanceScore, config)
+
+  const nextCtx: TickContext = {
+    ...ctx,
+    state: {
+      ...state,
+      diplomaticPlays: {
+        ...state.diplomaticPlays,
+        [play.id]: { ...play, progress: nextProgress, tension: nextTension },
+      },
+    },
+  }
+
+  if (nextProgress >= config.diplomaticPlaySettlementThreshold) {
+    return applyPopularTaxReliefSettlement(
+      nextCtx,
+      play,
+      demand,
+      commonwealthId,
+      targetPolityId,
+      provinceId,
+    )
+  }
+
+  // INV-1: Phase B では escalated にしない。dissolution + failed で処理。
+  if (
+    nextTension >= config.diplomaticPlayEscalationThreshold ||
+    (isDeadlineReached(nextCtx.state, play) && nextTension >= nextProgress)
+  ) {
+    return applyRevoltEscalationTransitional(
+      nextCtx,
+      play,
+      demand,
+      commonwealthId,
+      targetPolityId,
+      provinceId,
+    )
+  }
+
+  if (isDeadlineReached(nextCtx.state, play)) {
+    if (nextProgress > nextTension) {
+      return applyPopularTaxReliefSettlement(
+        nextCtx,
+        play,
+        demand,
+        commonwealthId,
+        targetPolityId,
+        provinceId,
+      )
+    }
+    // Equal or no winner: fail
+    return applyRevoltEscalationTransitional(
+      nextCtx,
+      play,
+      demand,
+      commonwealthId,
+      targetPolityId,
+      provinceId,
+    )
+  }
+  return nextCtx
+}
+
+function applyPopularTaxReliefSettlement(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  demand: Extract<DiplomaticDemand, { kind: 'popular_tax_relief' }>,
+  commonwealthId: PolityId,
+  targetPolityId: PolityId,
+  provinceId: ProvinceId,
+): TickContext {
+  const config = ctx.config
+  let state = ctx.state
+
+  // 1. Tax rate reduction
+  state = adjustLandContractTaxRate(state, demand.targetContractId, demand.demandedTaxRate)
+
+  // 2. Terms protection + history tracking
+  const contract = state.landContracts[demand.targetContractId]
+  if (contract) {
+    state = {
+      ...state,
+      landContracts: {
+        ...state.landContracts,
+        [demand.targetContractId]: {
+          ...contract,
+          termsProtectedUntilWeek: state.absoluteWeek + config.popularTaxReliefTermsProtectionWeeks,
+          lastTaxChangedWeek: state.absoluteWeek,
+          previousTaxRate: demand.currentTaxRate,
+        },
+      },
+    }
+  }
+
+  // 3. Reduce unrest
+  state = adjustProvincePopUnrestByClass(
+    state,
+    provinceId,
+    demand.claimantPopClass,
+    -config.revoltSettlementMainUnrestReduction,
+  )
+
+  // 4. Record settlement on Holding
+  const holding = state.holdings[demand.holdingId]
+  if (holding) {
+    state = {
+      ...state,
+      holdings: {
+        ...state.holdings,
+        [demand.holdingId]: { ...holding, lastRevoltSettledWeek: state.absoluteWeek },
+      },
+    }
+  }
+
+  // 5. Dissolve commonwealth (leader survives)
+  let nextCtx: TickContext = { ...ctx, state }
+  const dissolveResult = dissolveNegotiatingCommonwealth(nextCtx, {
+    commonwealthPolityId: commonwealthId,
+    leaderOutcome: 'alive',
+  })
+  if (dissolveResult.ok) {
+    nextCtx = dissolveResult.value.ctx
+  }
+
+  // 6. Set play status
+  nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
+
+  // 7. Event
+  const provinceName = nameParam(
+    'province',
+    nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+  )
+  const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+    type: 'REVOLT_SETTLED',
+    importance: 'major',
+    messageKey: 'revolt.settled',
+    messageParams: {
+      province: provinceName,
+      aftermathText: 'was pardoned',
+      restorePolity: nameParam(
+        'polity',
+        nextCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId,
+      ),
+    },
+    entityRefs: [
+      entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+      entityRef('polity', commonwealthId, 'rebel_polity'),
+      entityRef(
+        'polity',
+        targetPolityId,
+        'target_polity',
+        nextCtx.state.polities[targetPolityId]?.nameKey,
+      ),
+    ],
+  })
+  return { ...ctxEv, events: [...ctxEv.events, event] }
+}
+
+// Phase B transitional: escalation dissolves commonwealth and fails the play (INV-1)
+function applyRevoltEscalationTransitional(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  demand: Extract<DiplomaticDemand, { kind: 'popular_tax_relief' }>,
+  commonwealthId: PolityId,
+  targetPolityId: PolityId,
+  provinceId: ProvinceId,
+): TickContext {
+  let state = ctx.state
+
+  // Slight unrest increase on target POP
+  state = adjustProvincePopUnrestByClass(state, provinceId, demand.claimantPopClass, 5)
+
+  // Record suppression on Holding
+  const holding = state.holdings[demand.holdingId]
+  if (holding) {
+    state = {
+      ...state,
+      holdings: {
+        ...state.holdings,
+        [demand.holdingId]: { ...holding, lastRevoltSuppressedWeek: state.absoluteWeek },
+      },
+    }
+  }
+
+  // Dissolve commonwealth (leader pardoned)
+  let nextCtx: TickContext = { ...ctx, state }
+  const dissolveResult = dissolveNegotiatingCommonwealth(nextCtx, {
+    commonwealthPolityId: commonwealthId,
+    leaderOutcome: 'pardoned',
+  })
+  if (dissolveResult.ok) {
+    nextCtx = dissolveResult.value.ctx
+  }
+
+  // Set play to failed (NOT escalated — INV-1)
+  nextCtx = setPlayStatus(nextCtx, play.id, 'failed')
+
+  // Emit REVOLT_ESCALATED for chronicle
+  const provinceName = nameParam(
+    'province',
+    nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+  )
+  const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+    type: 'REVOLT_ESCALATED',
+    importance: 'major',
+    messageKey: 'revolt.escalated',
+    messageParams: { province: provinceName },
+    entityRefs: [
+      entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+      entityRef('polity', commonwealthId, 'rebel_polity'),
+      entityRef(
+        'polity',
+        targetPolityId,
+        'target_polity',
+        nextCtx.state.polities[targetPolityId]?.nameKey,
+      ),
+    ],
+  })
+  return { ...ctxEv, events: [...ctxEv.events, event] }
+}
+
+// Legacy revolt_concession handler (backward compatible)
+function progressLegacyRevoltConcession(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  demand: Extract<DiplomaticDemand, { kind: 'revolt_concession' }>,
+  rebelPolityId: PolityId,
+  targetPolityId: PolityId,
+): TickContext {
+  const config = ctx.config
+  const state = ctx.state
+  const provinceId = demand.provinceId
+  const popClass = demand.popClass
+
   const pops = getProvincePops(state, provinceId).filter((p) => p.class === popClass)
   const totalSize = pops.reduce((s, p) => s + p.size, 0)
   const averageUnrest =
     totalSize > 0 ? pops.reduce((s, p) => s + p.unrest * p.size, 0) / totalSize : 0
+  if (totalSize === 0) return setPlayStatus(ctx, play.id, 'cancelled')
 
-  if (totalSize === 0) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
-  }
-
-  // §10.3.1 acceptanceScore (target Polity 視点)
-  const provinceUnrest = averageUnrest
   const rebelPower =
     totalSize * config.popRevoltPowerFactorByClass[popClass] * (0.5 + averageUnrest / 100)
   const suppressionPower = estimateSuppressionPower(state, config, provinceId, targetPolityId)
@@ -149,16 +439,14 @@ function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): Tick
     demand.concessionLevel === 'minor'
       ? config.revoltConcessionSeverityMinor
       : config.revoltConcessionSeverityMajor
-
   const acceptanceScore =
-    provinceUnrest +
+    averageUnrest +
     rebelPower * config.revoltAcceptRebelPowerFactor -
     suppressionPower * config.revoltAcceptSuppressionFactor -
     concessionSeverity
 
   const { nextProgress, nextTension } = applyAcceptanceUpdate(play, acceptanceScore, config)
-
-  let nextCtx: TickContext = {
+  const nextCtx: TickContext = {
     ...ctx,
     state: {
       ...state,
@@ -174,95 +462,41 @@ function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay): Tick
   }
   if (nextTension >= config.diplomaticPlayEscalationThreshold) {
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-    const provinceParam = nameParam('province', provinceNameKey)
     return markPlayEscalated(nextCtx, play.id, {
       polityIds: [rebelPolityId, targetPolityId],
       provinceIds: [provinceId],
       holdingIds: [],
       summary: `Revolt in ${provinceNameKey} has escalated to open conflict.`,
       messageKey: 'diplomatic_play.escalated_revolt',
-      messageParams: { province: provinceParam },
+      messageParams: { province: nameParam('province', provinceNameKey) },
       eventEntityRefs: [
         entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-        entityRef(
-          'polity',
-          rebelPolityId,
-          'rebel_polity',
-          nextCtx.state.polities[rebelPolityId]?.nameKey,
-        ),
-        entityRef(
-          'polity',
-          targetPolityId,
-          'target_polity',
-          nextCtx.state.polities[targetPolityId]?.nameKey,
-        ),
+        entityRef('polity', rebelPolityId, 'rebel_polity'),
+        entityRef('polity', targetPolityId, 'target_polity'),
       ],
     })
   }
   if (isDeadlineReached(nextCtx.state, play)) {
-    // deadline: progress > tension なら settled、tension > progress なら escalated、それ以外 failed (§10.2 step 6)
     if (nextProgress > nextTension) {
       return applyRevoltSettlement(nextCtx, play, demand, rebelPolityId, targetPolityId)
     }
     if (nextTension > nextProgress) {
       const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-      const provinceParam = nameParam('province', provinceNameKey)
       return markPlayEscalated(nextCtx, play.id, {
         polityIds: [rebelPolityId, targetPolityId],
         provinceIds: [provinceId],
         holdingIds: [],
         summary: `Deadlocked revolt in ${provinceNameKey} erupts at deadline.`,
         messageKey: 'diplomatic_play.escalated_revolt',
-        messageParams: { province: provinceParam },
+        messageParams: { province: nameParam('province', provinceNameKey) },
         eventEntityRefs: [
-          entityRef(
-            'province',
-            provinceId,
-            'province',
-            nextCtx.state.provinces[provinceId]?.nameKey,
-          ),
-          entityRef(
-            'polity',
-            rebelPolityId,
-            'rebel_polity',
-            nextCtx.state.polities[rebelPolityId]?.nameKey,
-          ),
-          entityRef(
-            'polity',
-            targetPolityId,
-            'target_polity',
-            nextCtx.state.polities[targetPolityId]?.nameKey,
-          ),
+          entityRef('province', provinceId, 'province'),
+          entityRef('polity', rebelPolityId, 'rebel_polity'),
+          entityRef('polity', targetPolityId, 'target_polity'),
         ],
       })
     }
-    nextCtx = setPlayStatus(nextCtx, play.id, 'failed')
-    const provinceName = nameParam(
-      'province',
-      nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
-    )
-    const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
-      type: 'DIPLOMATIC_PLAY_FAILED',
-      importance: 'normal',
-      messageKey: 'diplomatic_play.failed_revolt',
-      messageParams: { province: provinceName },
-      entityRefs: [
-        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-        entityRef(
-          'polity',
-          rebelPolityId,
-          'rebel_polity',
-          nextCtx.state.polities[rebelPolityId]?.nameKey,
-        ),
-        entityRef(
-          'polity',
-          targetPolityId,
-          'target_polity',
-          nextCtx.state.polities[targetPolityId]?.nameKey,
-        ),
-      ],
-    })
-    return { ...ctxEv, events: [...ctxEv.events, event] }
+    return setPlayStatus(nextCtx, play.id, 'failed')
   }
   return nextCtx
 }

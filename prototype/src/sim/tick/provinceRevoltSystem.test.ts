@@ -143,8 +143,10 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
         // target は元 polity
         expect(play?.target.kind).toBe('polity')
         expect(play?.target.id).toBe(polityId)
-        // primaryDemand は revolt_concession
-        if (play?.primaryDemand?.kind === 'revolt_concession') {
+        // primaryDemand は popular_tax_relief (v0.39) or revolt_concession (legacy)
+        if (play?.primaryDemand?.kind === 'popular_tax_relief') {
+          expect(play.primaryDemand.claimantPopClass).toBeDefined()
+        } else if (play?.primaryDemand?.kind === 'revolt_concession') {
           expect(play.primaryDemand.provinceId).toBe(provinceId)
         } else {
           throw new Error(`unexpected demand kind: ${play?.primaryDemand?.kind}`)

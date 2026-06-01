@@ -83,6 +83,7 @@ function recruitmentPopClassForSource(sourceKind: RegimentSourceKind): PopClass 
     case 'noble_retinue':
       return 'nobles'
     case 'levy':
+    case 'local_levy':
     case 'mercenary':
       return 'peasants'
   }

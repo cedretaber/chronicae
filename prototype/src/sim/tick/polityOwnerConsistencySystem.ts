@@ -196,6 +196,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
     // Step 1: provinceIds=0 なら POLITY_LANDLESS を発火し、inactive 化 + Share/Office 全削除 + POLITY_EXTINCT
     const provinceIds = getPolityProvinceIds(currentCtx.state, polityId)
     if (provinceIds.length === 0) {
+      if (polity.kind === 'commonwealth' && polity.revoltState != null) continue
       currentCtx = emitPolityLandless(currentCtx, polityId)
       currentCtx = deactivatePolityInline(currentCtx, polityId)
       currentCtx = emitPolityExtinct(

@@ -62,6 +62,8 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   REVOLT_SUPPRESSED: { category: 'revolt' },
   REVOLT_SETTLED: { category: 'revolt' },
   REVOLT_POLITY_ESTABLISHED: { category: 'revolt' },
+  REVOLT_ESCALATED: { category: 'revolt' },
+  REVOLT_REGIME_CHANGED: { category: 'revolt' },
   // Disaster
   FAMINE: { category: 'disaster' },
   PLAGUE: { category: 'disaster' },

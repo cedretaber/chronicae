@@ -46,6 +46,8 @@ import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
 import { samplePerson } from '../helpers/personFactory'
 import { defaultLandContractConfig } from '../config/landContractConfig'
+import { getHouselessPersons } from '../selectors/availabilitySelectors'
+import { removeSharesByOrganization } from './shareMutations'
 
 // ============================================================================
 // Split House Orchestration
@@ -844,6 +846,15 @@ export function createRebelPolity(
     capitalProvinceId: provinceId,
     rank: rebelRank,
     kind: 'commonwealth',
+    origin: {
+      kind: 'popular_revolt',
+      originalPolityId: oldPolityId,
+      provinceId,
+      holdingIds: [...province.holdingIds],
+      popClass: rebelClass,
+      leaderPersonId: newPersonId,
+      startedWeek: state.absoluteWeek,
+    },
   }
 
   // v0.16: Holding の polityControl のみリセット。所有変更は LandContract chain で表現する。
@@ -1159,4 +1170,287 @@ export function disbandRebelPolity(
   nextCtx = { ...ctxEvent, events: [...ctxEvent.events, revoltEvent] }
 
   return ok({ ctx: nextCtx, value: undefined })
+}
+
+// ============================================================================
+// v0.39 B-2: selectOrCreateCommonwealthLeader
+// 在野人物の優先選出 + 新規生成。spec §14.1-14.2。
+// ============================================================================
+
+export function selectOrCreateCommonwealthLeader(ctx: TickContext): {
+  personId: PersonId
+  ctx: TickContext
+  created: boolean
+} {
+  const state = ctx.state
+  const houselessIds = getHouselessPersons(state)
+
+  let bestId: PersonId | undefined
+  let bestScore = -Infinity
+
+  for (const pid of houselessIds) {
+    const p = state.persons[pid]
+    if (!p || !p.alive) continue
+    if (p.kind === 'placeholder') continue
+
+    const activeOfficeIds = state.officeIndex.byHolderPerson[pid as string] ?? []
+    const hasActiveOffice = activeOfficeIds.some((oid) => {
+      const o = state.officeAssignments[oid]
+      return o && o.active
+    })
+    if (hasActiveOffice) continue
+
+    const score =
+      p.abilities.charisma + p.abilities.command + p.abilities.insight + p.traits.ambition * 100
+    if (score > bestScore || (score === bestScore && (pid as string) < (bestId as string))) {
+      bestScore = score
+      bestId = pid
+    }
+  }
+
+  if (bestId !== undefined) {
+    return { personId: bestId, ctx, created: false }
+  }
+
+  const { id: newPersonId, ctx: ctx1 } = makePersonId(ctx)
+  ctx = ctx1
+
+  const { value: sexRoll, rng: rngSex } = randomInt(ctx.rng, 0, 1)
+  ctx = { ...ctx, rng: rngSex }
+  const leaderSex: 'male' | 'female' = sexRoll === 0 ? 'male' : 'female'
+
+  let leaderNameKey: string
+  if (ctx.namePoolService) {
+    const { value: key, rng: rng1 } = ctx.namePoolService.pickNameKey(ctx.rng, {
+      nameCultureId: ctx.config.nameCultureId,
+      category: 'person',
+      path: [leaderSex],
+    })
+    ctx = { ...ctx, rng: rng1 }
+    leaderNameKey = key
+  } else {
+    const { name, rng: rng1 } = pickNameBySex(leaderSex, ctx.rng)
+    ctx = { ...ctx, rng: rng1 }
+    leaderNameKey = name
+  }
+
+  const { value: age, rng: rng2 } = randomInt(ctx.rng, 25, 55)
+  ctx = { ...ctx, rng: rng2 }
+  const { value: ambition, rng: rng3 } = randomInt(ctx.rng, 7, 10)
+  ctx = { ...ctx, rng: rng3 }
+  const { value: caution, rng: rng4 } = randomInt(ctx.rng, 2, 5)
+  ctx = { ...ctx, rng: rng4 }
+  const { value: legacyPrestige, rng: rng5 } = randomInt(ctx.rng, 5, 15)
+  ctx = { ...ctx, rng: rng5 }
+
+  const { value: newLeader, rng: rngAfterLeader } = samplePerson(ctx.rng, ctx.config, {
+    id: newPersonId,
+    nameKey: leaderNameKey,
+    sex: leaderSex,
+    age,
+    birthStatus: 'unknown',
+    traits: { ambition: ambition / 10, caution: caution / 10 },
+    legacyPrestige,
+  })
+  ctx = { ...ctx, rng: rngAfterLeader }
+
+  const addResult = addHouselessPerson(ctx.state, newLeader)
+  if (addResult.ok) {
+    ctx = { ...ctx, state: addResult.value }
+  }
+
+  return { personId: newPersonId, ctx, created: true }
+}
+
+// ============================================================================
+// v0.39 B-1: createNegotiatingCommonwealth
+// 交渉用 commonwealth を生成する。土地の LandContract 移転は行わない。
+// revoltState は呼び出し側で DiplomaticPlay 生成後に設定する。
+// ============================================================================
+
+export type CreateNegotiatingCommonwealthInput = {
+  holdingId: HoldingId
+  provinceId: ProvinceId
+  popClass: PopClass
+  targetPolityId: PolityId
+}
+
+export function createNegotiatingCommonwealth(
+  ctx: TickContext,
+  input: CreateNegotiatingCommonwealthInput,
+): CtxResult<{ polityId: PolityId; personId: PersonId }> {
+  const { holdingId, provinceId, popClass, targetPolityId } = input
+  const state = ctx.state
+
+  const province = state.provinces[provinceId]
+  if (!province)
+    return err({
+      code: 'PROVINCE_NOT_FOUND',
+      message: `createNegotiatingCommonwealth: province not found: ${provinceId}`,
+    })
+
+  const targetPolity = state.polities[targetPolityId]
+  if (!targetPolity)
+    return err({
+      code: 'POLITY_NOT_FOUND',
+      message: `createNegotiatingCommonwealth: target polity not found: ${targetPolityId}`,
+    })
+
+  const { id: newPolityId, ctx: ctx1 } = makePolityId(ctx)
+  ctx = ctx1
+
+  const { personId: leaderPersonId, ctx: ctx2, created } = selectOrCreateCommonwealthLeader(ctx)
+  ctx = ctx2
+
+  const { nameKey: newPolityNameKey, rng: rng0 } = generatePolityNameKey(
+    ctx.state,
+    ctx.config,
+    ctx.rng,
+    {
+      origin: 'province_revolt_independence',
+      provinceIds: [provinceId],
+      capitalProvinceId: provinceId,
+      founderPersonId: leaderPersonId,
+      sourcePolityId: targetPolityId,
+      rebelClass: popClass,
+    },
+    ctx.namePoolService,
+  )
+  ctx = { ...ctx, rng: rng0 }
+
+  const newPolityObj: Polity = {
+    id: newPolityId,
+    nameKey: newPolityNameKey,
+    treasury: 0,
+    legacyPrestige: 0,
+    adminPower: 0,
+    active: true,
+    capitalProvinceId: provinceId,
+    rank: 5,
+    kind: 'commonwealth',
+    origin: {
+      kind: 'popular_revolt',
+      originalPolityId: targetPolityId,
+      provinceId,
+      holdingIds: [holdingId],
+      popClass,
+      leaderPersonId,
+      startedWeek: state.absoluteWeek,
+    },
+  }
+
+  let newState: WorldState = {
+    ...ctx.state,
+    polities: {
+      ...ctx.state.polities,
+      [newPolityId]: newPolityObj,
+    },
+  }
+
+  newState = createOrganizationShare(
+    newState,
+    { kind: 'polity', id: newPolityId },
+    { kind: 'person', id: leaderPersonId },
+    100,
+  )
+
+  newState = createOfficeAssignment(
+    newState,
+    { kind: 'polity' as const, id: newPolityId },
+    'leader',
+    leaderPersonId,
+  )
+
+  ctx = { ...ctx, state: newState }
+
+  const leaderPerson = newState.persons[leaderPersonId]
+  const { event: revoltEvent, ctx: ctx3 } = createSimEvent(ctx, {
+    type: 'REVOLT_POLITY_FOUNDED',
+    importance: 'critical',
+    messageKey: 'revolt.polity_founded',
+    messageParams: {
+      polity: nameParam('polity', newPolityObj.nameKey),
+      person: nameParam('person', leaderPerson?.nameKey ?? ''),
+      province: nameParam('province', province.nameKey),
+    },
+    entityRefs: [
+      entityRef('person', leaderPersonId, 'leader', leaderPerson?.nameKey),
+      entityRef('polity', newPolityId, 'new_polity', newPolityObj.nameKey),
+      entityRef('polity', targetPolityId, 'old_polity', targetPolity.nameKey),
+      entityRef('province', provinceId, 'province', province.nameKey),
+    ],
+  })
+  ctx = { ...ctx3, events: [...ctx3.events, revoltEvent] }
+
+  void created
+
+  return ok({ ctx, value: { polityId: newPolityId, personId: leaderPersonId } })
+}
+
+// ============================================================================
+// v0.39 B-6: dissolveNegotiatingCommonwealth
+// negotiating / revolting commonwealth を解散する。
+// disbandRebelPolity と異なり LandContract 移転なし・leader を無条件に殺さない。
+// ============================================================================
+
+export type DissolveCommonwealthInput = {
+  commonwealthPolityId: PolityId
+  leaderOutcome: 'alive' | 'executed' | 'pardoned'
+}
+
+export function dissolveNegotiatingCommonwealth(
+  ctx: TickContext,
+  input: DissolveCommonwealthInput,
+): CtxResult<void> {
+  const polity = ctx.state.polities[input.commonwealthPolityId]
+  if (!polity)
+    return err({
+      code: 'POLITY_NOT_FOUND',
+      message: `dissolveNegotiatingCommonwealth: polity ${input.commonwealthPolityId} not found`,
+    })
+
+  let state = ctx.state
+
+  const leaderId = getPolityLeader(state, input.commonwealthPolityId)
+
+  state = revokeOfficesByOrganization(
+    state,
+    { kind: 'polity', id: input.commonwealthPolityId },
+    'leader',
+  )
+  state = removeSharesByOrganization(state, { kind: 'polity', id: input.commonwealthPolityId })
+
+  if (input.leaderOutcome === 'executed' && leaderId !== undefined) {
+    const deadResult = markPersonDead(state, leaderId, { deathCircumstance: 'natural' })
+    if (deadResult.ok) {
+      state = deadResult.value
+      const deadPerson = state.persons[leaderId]
+      if (deadPerson && deadPerson.wealth > 0) {
+        state = {
+          ...state,
+          persons: {
+            ...state.persons,
+            [leaderId]: { ...deadPerson, wealth: 0 },
+          },
+        }
+      }
+    }
+  }
+
+  const updatedPolity = state.polities[input.commonwealthPolityId]
+  if (updatedPolity) {
+    state = {
+      ...state,
+      polities: {
+        ...state.polities,
+        [input.commonwealthPolityId]: {
+          ...updatedPolity,
+          active: false,
+          revoltState: undefined,
+        },
+      },
+    }
+  }
+
+  return ok({ ctx: { ...ctx, state }, value: undefined })
 }

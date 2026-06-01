@@ -12,6 +12,13 @@ export type RootAuthorityId = string & { readonly __brand: 'RootAuthorityId' }
 
 export const ROOT_WORLD: RootAuthorityId = 'root:world' as RootAuthorityId
 
+export type LandContractSpecialStatus = {
+  kind: 'revolt_seizure'
+  revoltPolityId: PolityId
+  originalTerminalPolityId: PolityId
+  startedWeek: number
+}
+
 // provinceId は holdingId → Holding.provinceId から導出可能な冗長フィールドだが、
 // Holding-Province 対応はゲーム中不変のため壊れず、多数の参照箇所で間接参照を省ける。
 export type LandContract = {
@@ -25,6 +32,10 @@ export type LandContract = {
     taxRateToGrantor: number
   }
   termsProtectedUntilWeek?: number
+  specialStatus?: LandContractSpecialStatus
+  lastTaxChangedWeek?: number
+  previousTaxRate?: number
+  taxIncreaseCooldownUntilWeek?: number
 }
 
 export type LandContractGrantor =
@@ -53,6 +64,8 @@ export type Holding = {
   polityControl: number
   landQuality: number
   weight: number
+  lastRevoltSuppressedWeek?: number
+  lastRevoltSettledWeek?: number
 }
 
 export type HoldingTerminalPolityCache = Record<HoldingId, PolityId>

@@ -91,6 +91,18 @@ export type ChangeContractTaxRateWarGoal = {
   requiredWarScore: number
 }
 
+// v0.39: 民衆叛乱独立 WarGoal。Phase A では standalone export のみ。
+//   Phase B で WarGoal union に追加しハンドラを実装する。
+export type PopularRevoltIndependenceWarGoal = {
+  kind: 'popular_revolt_independence'
+  commonwealthPolityId: PolityId
+  originalHolderPolityId: PolityId
+  holdingIds: HoldingId[]
+  revoltSeizureContractIds: LandContractId[]
+  leaderPersonId: PersonId
+  requiredWarScore: number
+}
+
 // §4.6 War
 export type War = {
   id: WarId

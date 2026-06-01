@@ -307,6 +307,11 @@ export type SimulationConfig = {
   revoltAcceptSuppressionFactor: number
   revoltConcessionSeverityMinor: number
   revoltConcessionSeverityMajor: number
+  // v0.39: popular_tax_relief demand
+  minPopularDemandTaxRate: number
+  popularTaxReliefDemandDelta: number
+  taxReliefSeverityFactor: number
+  popularTaxReliefTermsProtectionWeeks: number
   // v0.18 Stage B: Revolt settlement effects (§12.4)
   revoltSettlementMainUnrestReduction: number
   revoltSettlementOtherUnrestReduction: number
@@ -317,6 +322,33 @@ export type SimulationConfig = {
   revoltSuppressedOtherUnrestReduction: number
   revoltSuppressedDevelopmentDamage: number
   revoltSuppressedWealthPenalty: number
+  // v0.39: Holding-level revolt tendency factors
+  taxBurdenWeight: number
+  recentTaxIncreaseWeight: number
+  recentTaxIncreaseDecayWeeks: number
+  recentSuppressionCooldownWeeks: number
+  recentSuppressionTendencyReduction: number
+  // v0.39: TaxRevisionSystem
+  taxRevisionSystemEnabled: boolean
+  taxRevisionTreasuryThreshold: number
+  taxRevisionTreasuryNeedFactor: number
+  taxRevisionLowUnrestFactor: number
+  taxRevisionUnrestSafeThreshold: number
+  taxRevisionHighUnrestPenalty: number
+  taxRevisionUnrestDangerThreshold: number
+  taxRevisionHighTaxThreshold: number
+  taxRevisionHighTaxPenalty: number
+  taxRevisionAmbitionFactor: number
+  taxRevisionCautionPenalty: number
+  taxRevisionInsightPenalty: number
+  taxRevisionWarBonus: number
+  taxRevisionDecisionThreshold: number
+  taxRevisionMinDelta: number
+  taxRevisionMaxDelta: number
+  taxRevisionSystemMaxRate: number
+  taxRevisionCooldownWeeks: number
+  taxRevisionRecentRevoltPenalty: number
+  taxRevisionRecentRevoltDecayWeeks: number
   // v0.18 Stage F: land_claim acceptance (旧 land_purchase + land_transfer_demand を統合)
   //   acceptanceScore =
   //     offeredPrice * claimOfferedPriceFactor
@@ -1150,6 +1182,10 @@ export const defaultConfig: SimulationConfig = {
   revoltAcceptSuppressionFactor: 0.05,
   revoltConcessionSeverityMinor: 10,
   revoltConcessionSeverityMajor: 25,
+  minPopularDemandTaxRate: 0.05,
+  popularTaxReliefDemandDelta: 0.1,
+  taxReliefSeverityFactor: 200,
+  popularTaxReliefTermsProtectionWeeks: 192,
   // v0.18 Stage B: Revolt settlement effects (§12.4)
   revoltSettlementMainUnrestReduction: 30,
   revoltSettlementOtherUnrestReduction: 8,
@@ -1160,6 +1196,31 @@ export const defaultConfig: SimulationConfig = {
   revoltSuppressedOtherUnrestReduction: 10,
   revoltSuppressedDevelopmentDamage: 4,
   revoltSuppressedWealthPenalty: 8,
+  taxBurdenWeight: 80,
+  recentTaxIncreaseWeight: 30,
+  recentTaxIncreaseDecayWeeks: 96,
+  recentSuppressionCooldownWeeks: 96,
+  recentSuppressionTendencyReduction: 40,
+  taxRevisionSystemEnabled: true,
+  taxRevisionTreasuryThreshold: 300,
+  taxRevisionTreasuryNeedFactor: 0.05,
+  taxRevisionLowUnrestFactor: 0.5,
+  taxRevisionUnrestSafeThreshold: 30,
+  taxRevisionHighUnrestPenalty: 0.8,
+  taxRevisionUnrestDangerThreshold: 50,
+  taxRevisionHighTaxThreshold: 0.35,
+  taxRevisionHighTaxPenalty: 1.0,
+  taxRevisionAmbitionFactor: 15,
+  taxRevisionCautionPenalty: -20,
+  taxRevisionInsightPenalty: -10,
+  taxRevisionWarBonus: 10,
+  taxRevisionDecisionThreshold: 15,
+  taxRevisionMinDelta: 0.02,
+  taxRevisionMaxDelta: 0.05,
+  taxRevisionSystemMaxRate: 0.6,
+  taxRevisionCooldownWeeks: 96,
+  taxRevisionRecentRevoltPenalty: 30,
+  taxRevisionRecentRevoltDecayWeeks: 96,
   // v0.18 Stage F: land_claim acceptance (§10.3, 旧 land_purchase + land_transfer_demand 統合)
   // 注: progressLandClaim 内で融合 acceptanceScore を計算する。
   //   offered スケール係数 0.05 は旧 land_purchase の hardcoded を config 化したもの。
@@ -1603,7 +1664,7 @@ export const defaultConfig: SimulationConfig = {
     2: { administrator: 2, treasurer: 2, military: 3, advisor: 3 },
     3: { administrator: 1, treasurer: 1, military: 1, advisor: 0 },
     4: { administrator: 1, treasurer: 0, military: 0, advisor: 0 },
-    5: { administrator: 0, treasurer: 0, military: 0, advisor: 0 },
+    5: { administrator: 1, treasurer: 0, military: 0, advisor: 0 },
   },
   polityOfficeMaxProvinceFactor: {
     small: 0.4,

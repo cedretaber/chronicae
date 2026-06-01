@@ -974,10 +974,12 @@ export function collectIntegrityErrors(
     if (!p) continue
     const granteed = state.landContractIndex.byGranteePolity[polityId] ?? []
     if (granteed.length === 0 && p.active) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `Polity ${polityId} is active but has 0 LandContract grantee (§25 #17)`,
-      })
+      if (!(p.kind === 'commonwealth' && p.revoltState != null)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Polity ${polityId} is active but has 0 LandContract grantee (§25 #17)`,
+        })
+      }
     }
     if (p.active && p.ownerHouseId !== undefined) {
       const owner = state.houses[p.ownerHouseId]
@@ -2033,7 +2035,13 @@ export function collectIntegrityErrors(
   //   soft reference (currentWarId/currentSide が live war を指す / owner active / homeHolding 存在) は
   //   hard invariant にしない (§18.4。RegimentMaintenanceSystem が lazy 処理する)。
   const VALID_REGIMENT_STATUSES = ['active', 'disbanded', 'destroyed']
-  const VALID_REGIMENT_SOURCE_KINDS = ['levy', 'urban_militia', 'noble_retinue', 'mercenary']
+  const VALID_REGIMENT_SOURCE_KINDS = [
+    'levy',
+    'urban_militia',
+    'noble_retinue',
+    'mercenary',
+    'local_levy',
+  ]
   const VALID_REGIMENT_TROOP_KINDS = ['infantry', 'cavalry']
   for (const idStr of Object.keys(state.regiments)) {
     const regiment = state.regiments[idStr as RegimentId]

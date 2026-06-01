@@ -15,7 +15,12 @@ import type { WarSideKey } from './war'
 export type RegimentStatus = 'active' | 'disbanded' | 'destroyed'
 
 // §4.3 RegimentSourceKind — 編制基盤の由来。mercenary は型予約のみ (v0.36 では生成しない)。
-export type RegimentSourceKind = 'levy' | 'urban_militia' | 'noble_retinue' | 'mercenary'
+export type RegimentSourceKind =
+  | 'levy'
+  | 'urban_militia'
+  | 'noble_retinue'
+  | 'mercenary'
+  | 'local_levy'
 
 // §4.4 RegimentTroopKind — 装備種ではなく戦場での役割分類。
 //   infantry: 戦線を形成・維持。cavalry: 突破・追撃・機動 (騎士団・精鋭を含む抽象分類)。
@@ -74,6 +79,7 @@ export type Regiment = {
   destroyedWeek?: number
   // v0.36 補充・再編成: 最後に strength 補充 / reform を受けた週。silent 更新・UI/debug 表示用。
   lastReinforcedWeek?: number
+  disbandAfterWar?: boolean
 }
 
 // §6 regimentIndex (WorldState に保持)。

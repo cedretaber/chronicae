@@ -22,6 +22,7 @@ import { runPublicSpendingSystem } from './publicSpendingSystem'
 import { runControlSystem } from './controlSystem'
 import { runPlotSystem } from './plotSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
+import { runTaxRevisionSystem } from './taxRevisionSystem'
 import { runDiplomaticPlaySystem, cancelOrphanedPlays } from './diplomaticPlaySystem'
 import { runGoalMaintenanceSystem } from './goalMaintenanceSystem'
 import { runAimMaintenanceSystem } from './aimMaintenanceSystem'
@@ -322,6 +323,12 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runPressureSystem,
+  },
+  {
+    name: 'taxRevisionSystem',
+    intervalWeeks: 48,
+    phaseOffsetWeeks: 0,
+    run: runTaxRevisionSystem,
   },
   {
     name: 'provinceRevoltSystem',

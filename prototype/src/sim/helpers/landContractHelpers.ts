@@ -11,7 +11,7 @@ export function defaultTaxRateByRank(rank: PolityRank): number {
     case 4:
       return 0.3
     case 5:
-      return 0.4
+      return 0.25
   }
 }
 

@@ -594,6 +594,7 @@ export function generateWorld(
       capitalProvinceId,
       rank: info.rank,
       ownerHouseId: house.id,
+      origin: { kind: 'worldgen' },
     }
 
     polities.push(newPolityObj)

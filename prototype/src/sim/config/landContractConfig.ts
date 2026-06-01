@@ -43,7 +43,7 @@ export const defaultLandContractConfig: LandContractConfig = {
     2: 0,
     3: 10,
     4: 20,
-    5: 30,
+    5: 15,
   },
   taxFlowEfficiency: 1.0,
   purchaseBuyerTreasuryThreshold: 1500,

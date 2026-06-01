@@ -71,6 +71,14 @@ export type DiplomaticDemand =
       popClass: PopClass
       concessionLevel: 'minor' | 'major'
     }
+  | {
+      kind: 'popular_tax_relief'
+      holdingId: HoldingId
+      targetContractId: LandContractId
+      currentTaxRate: number
+      demandedTaxRate: number
+      claimantPopClass: PopClass
+    }
   | { kind: 'status_quo' }
 
 // v0.30: DiplomaticIssue — immutable anchor for diplomatic play

@@ -72,6 +72,8 @@ export type EventType =
   | 'REVOLT_SETTLED'
   | 'REVOLT_SUPPRESSED'
   | 'REVOLT_POLITY_ESTABLISHED'
+  | 'REVOLT_ESCALATED'
+  | 'REVOLT_REGIME_CHANGED'
   | 'DIPLOMATIC_PLAY_STARTED'
   | 'DIPLOMATIC_PLAY_PROGRESS'
   | 'DIPLOMATIC_PLAY_SETTLED'
@@ -323,6 +325,8 @@ const EVENT_TEMPLATES: Record<string, string> = {
     'The revolt in {{province}} has been settled by negotiation — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.',
   'revolt.suppressed':
     'The revolt in {{province}} has been suppressed — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.',
+  'revolt.escalated': 'The revolt in {{province}} has escalated to armed conflict.',
+  'revolt.regime_changed': 'The regime in {{province}} has been overthrown by popular revolt.',
   'diplomatic_play.started_with_offer':
     '{{initiator}} negotiates with {{target}} for {{province}}.',
   'diplomatic_play.started_no_offer': '{{initiator}} pressures {{target}} to cede {{province}}.',
