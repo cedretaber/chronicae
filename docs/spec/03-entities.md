@@ -1423,3 +1423,63 @@ type WorldState = {
 
 ---
 
+### 3.14 Chronicle System（v0.38）
+
+生成された歴史を対象 entity 別に永続的に遡るための read-model。各 tick で発生した `SimEvent` を tick 終端で curated projection し、append-only の `ChronicleEntry` として materialize する（ChronicleProjectionSystem、§6.31）。
+
+**設計原則（厳守）**: `ChronicleEntry` は「歴史を読むための記録」であり「歴史を動かす状態」ではない。simulation logic の入力・判断には一切使わない（参照は selector / UI 表示専用、§4.11）。死亡人物・断絶家・終了 War 等への soft reference を持ってよく、参照先が現在の `WorldState` に存在しなくても integrity 違反にしない（§6.24）。v0.38 では削除・cap・圧縮・外部化を行わない（append-only）。`PersonActivityLog`（死亡時 purge、simulation で使用可）とは責務が異なる。
+
+```ts
+type ChronicleEntryId = Branded<string, 'ChronicleEntryId'>  // prefix 'ch-'
+
+type ChronicleCategory =
+  | 'war' | 'battle' | 'land' | 'house' | 'office' | 'faction'
+  | 'revolt' | 'life' | 'development' | 'governance' | 'disaster'
+
+type ChronicleEntry = {
+  id: ChronicleEntryId
+  year: number
+  weekOfYear: number
+  category: ChronicleCategory
+  importance: EventImportance
+  sourceEventId: EventId       // 由来 SimEvent。v0.38 は全 entry が projection 由来のため required
+  sourceEventType: EventType
+  templateKey: string          // 初期は SimEvent.messageKey を流用。rich narrative 用の専用 key も可
+  params: EventMessageParams   // ロケール中立（表示文字列を焼き込まない）
+  entityRefs: EventEntityRef[] // SimEvent.entityRefs をコピー（soft reference）
+  context?: ChronicleContext   // v0.38 では未 populate（将来の rich context 用 scaffold）
+}
+
+type ChronicleContext = BattleChronicleContext  // 現状 union member は 1
+type BattleChronicleContext = {
+  kind: 'battle'
+  outnumberedVictory?: boolean
+  decisiveVictory?: boolean
+  commanderContributionSide?: 'attacker' | 'defender'
+  decisiveCommanderId?: PersonId
+  warScoreDelta?: number
+}
+
+type ChronicleIndex = {  // キーは plain string（entityRef.id が string のため。warIndex 慣習に揃える）
+  byPerson: Record<string, ChronicleEntryId[]>
+  byHouse: Record<string, ChronicleEntryId[]>
+  byPolity: Record<string, ChronicleEntryId[]>
+  byProvince: Record<string, ChronicleEntryId[]>
+  byHolding: Record<string, ChronicleEntryId[]>
+}
+```
+
+**WorldState 追加（v0.38）**:
+
+```ts
+type WorldState = {
+  ...
+  chronicleEntries: Record<ChronicleEntryId, ChronicleEntry>
+  chronicleIndex: ChronicleIndex
+  nextChronicleEntryId: number
+}
+```
+
+- index 対象は person / house / polity / province / holding の 5 kind のみ。`faction` / `clan` / `goal` 等の ref は entry には保持されるが index には振らない。`war` / `battle` 用 index は v0.38 では非導入（関連 Polity / Province の chronicle 経由で戦争・戦闘も対象別履歴に乗る。War 史は `params.warId` 全走査の表示専用 selector で補う、§4.11）。
+- `ChronicleContext` 型は定義のみで、v0.38 ではどの entry にも populate しない。battle narrative の出し分けは `BATTLE_OCCURRED` の messageParams への additive enrich（`outnumberedVictory` / `decisiveVictory`）で行う（§6.31 / §8）。指揮官系 scalar は見送り。
+

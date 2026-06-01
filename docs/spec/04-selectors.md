@@ -563,3 +563,22 @@ function getDescendantHouseIdsIncludingSelf(state: WorldState, rootHouseId: Hous
 
 ---
 
+### 4.11 Chronicle セレクター（v0.38）
+
+`prototype/src/sim/selectors/chronicleSelectors.ts` に集約。**表示専用**であり simulation system からは使用しない（§3.14）。いずれも entry を時系列降順（新しい順）に並べて返す。`noUncheckedIndexedAccess` 下なので id 配列を `?? []` で受け、解決できない id を filter で除外する。
+
+```ts
+// 各 index 軸の ChronicleEntry 取得（byPerson / byHouse / byPolity / byProvince / byHolding）
+function getChronicleEntriesForPerson(state: WorldState, personId: PersonId): ChronicleEntry[]
+function getChronicleEntriesForHouse(state: WorldState, houseId: HouseId): ChronicleEntry[]
+function getChronicleEntriesForPolity(state: WorldState, polityId: PolityId): ChronicleEntry[]
+function getChronicleEntriesForProvince(state: WorldState, provinceId: ProvinceId): ChronicleEntry[]
+function getChronicleEntriesForHolding(state: WorldState, holdingId: HoldingId): ChronicleEntry[]
+
+// War は byWar index を持たない（§3.14）ため params.warId 一致で chronicleEntries を全走査する。
+//   WarDetail の「最近の戦闘イベント」と同じ述語。表示専用なので走査コストは許容範囲。
+function getChronicleEntriesForWar(state: WorldState, warId: WarId): ChronicleEntry[]
+```
+
+---
+

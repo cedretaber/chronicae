@@ -12,7 +12,7 @@
 | HOUSE_LEADER_CHANGED | normal | 家長交代（v0.12。旧 HOUSE_HEAD_CHANGED） |
 | SHARE_SHIFTED | minor | Share 分布の有意な変化（v0.12） |
 | PERSON_DIED | normal | 人物死亡 |
-| IMPORTANT_PERSON_DIED | major | 重要人物死亡 |
+| IMPORTANT_PERSON_DIED | major | 重要人物死亡（v0.38: `mortalitySystem` が notable death＝house / polity leader 相当を `PERSON_DIED` から type 昇格して emit。単一イベント・重複なし。Chronicle の life カテゴリを成立させる。§6.31） |
 | HOUSE_EXTINCT | major | 家の断絶（後継者不在）（v0.15: 旧 RULER_HOUSE_EXTINCT も統合） |
 | MARRIAGE_FORMED | normal | 婚姻成立 |
 | CHILD_BORN | minor | 子誕生 |
@@ -36,7 +36,7 @@
 | WAR_DECLARED | major | 宣戦布告（v0.34: WarCreationSystem が War 作成時に発火。casus belli として「対象 Province + 戦争前状態 + 目標」を記録。WarGoal kind で messageKey 分岐: `war.declared.change_tax`（`subject`/`fromRate`/`toRate`）/ `war.declared.transfer_land`（`subject`/元保持者 `from`）/ goal 不在時 `war.declared.generic`） |
 | WAR_WON | major | 戦争勝利（v0.34: PeaceSettlementSystem が attacker_won / defender_won の勝者に発火） |
 | WAR_LOST | major | 戦争敗北（v0.34: 同・敗者に発火） |
-| BATTLE_OCCURRED | normal | 戦闘発生（v0.35 WarManeuverSystem。messageKey `war.battle_occurred`。params: `warId` / `province` / `battlefieldKind` / `result` / `warScoreDelta` / `warScoreAfter` ほか。**v0.36 追加: `battleId`（§3.9c Battle 参照）/ `attackerRegimentCount` / `defenderRegimentCount`（counts-only）**。**v0.37 追加（additive。C2 enrich）: `outcomeQuality` / `ticksElapsed` / `frontage` / `attackerInitialFrontlineCount` / `defenderInitialFrontlineCount` / `attackerRoutedCount` / `defenderRoutedCount` / `breakthroughSide` / `pursuitOccurred`。counts は Battle entity の ID 配列から導出**。`battlefieldKind`・`result`・`outcomeQuality`・`breakthroughSide` は raw enum 値で持ち、表示時に i18n（`enum.<key>.<value>`）が label 化する。warScore 変化は本 event で表現し旧 WAR_SCORE_CHANGED を置換） |
+| BATTLE_OCCURRED | normal | 戦闘発生（v0.35 WarManeuverSystem。messageKey `war.battle_occurred`。params: `warId` / `province` / `battlefieldKind` / `result` / `warScoreDelta` / `warScoreAfter` ほか。**v0.36 追加: `battleId`（§3.9c Battle 参照）/ `attackerRegimentCount` / `defenderRegimentCount`（counts-only）**。**v0.37 追加（additive。C2 enrich）: `outcomeQuality` / `ticksElapsed` / `frontage` / `attackerInitialFrontlineCount` / `defenderInitialFrontlineCount` / `attackerRoutedCount` / `defenderRoutedCount` / `breakthroughSide` / `pursuitOccurred`。counts は Battle entity の ID 配列から導出**。`battlefieldKind`・`result`・`outcomeQuality`・`breakthroughSide` は raw enum 値で持ち、表示時に i18n（`enum.<key>.<value>`）が label 化する。warScore 変化は本 event で表現し旧 WAR_SCORE_CHANGED を置換。**v0.38 追加（additive。Chronicle narrative 用に既存 Battle field から純粋導出・RNG 不変）: `outnumberedVictory` / `decisiveVictory`**（`selectBattleTemplate` がこの 2 boolean と既存 routed count から数的不利勝利 / 大勝 / 辛勝 / 通常の chronicle template を選ぶ。§6.31）） |
 | BATTLE_AVOIDED | minor | 戦闘回避（v0.35 WarManeuverSystem。messageKey `war.battle_avoided`。params: `warId` / `province` / `battlefieldKind` / `avoidingSide`（attacker / defender / both）。両者回避は warScoreDelta=0） |
 | WAR_CAPTAIN_GENERAL_CHANGED | major/normal | 総大将の交代/喪失（v0.35 WarManeuverSystem。messageKey `war.captain_general_changed`。新総大将が undefined（喪失）のとき major、交代は normal。初回任命は発火しない） |
 | REGIMENT_REFORMED | minor | destroyed Regiment が active に再編成された（v0.36 補充・再編成 RegimentReinforcementSystem。messageKey `regiment.reformed`。params: `owner` / `province`）。**strength の通常補充は organization recovery と同じく silent（イベント無し）**——大量発生する補充をイベント化しない方針 |
@@ -44,7 +44,7 @@
 | PEACE_SETTLEMENT_APPLIED | major | tax WarGoal を state に反映（v0.34。PeaceSettlementSystem。tax は before→after の税率を `fromRate`/`toRate`（整数%）で記録。transfer は底層 mutation の LAND_CONTRACT_* に委譲し本 event は出さない） |
 | PROVINCE_CONQUERED | major | Province 征服 (v0.16 では WarSystem が依然発火、LAND_CONTRACT_* への置換は Faction 段階) |
 | POLITY_ANNEXED | critical | 国家消滅（併合） |
-| COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発（v0.22: develop_holding Intent による Holding 開発も含む） |
+| COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発（v0.22: develop_holding Intent による Holding 開発も含む。v0.38: Chronicle の Holding 開発史（byHolding）に載せるため holding ref を 1 件 additive 追加。§6.31） |
 | POP_LAND_DEVELOPED | minor | POP 自主開発（§6.18） |
 | PROVINCE_REVOLT_STARTED | normal | Province / POP 反乱が発生 |
 | PROVINCE_REVOLT_SUCCEEDED | major | Province 反乱が concession で成功 |

@@ -1410,6 +1410,13 @@ warIndex（双方向。Faction index パターン踏襲）:
 - active War の各 participant key が `byParticipant` に warId を持つ（reverse）
 - `byOriginDiplomaticPlay[playId]` の指す War が存在し `originDiplomaticPlayId` が一致（forward）
 
+**v0.38 追加チェック項目（Chronicle。index↔entry の内部整合のみ）**:
+
+chronicleIndex ↔ chronicleEntries（§3.14）:
+- forward: `byPerson` / `byHouse` / `byPolity` / `byProvince` / `byHolding` の各 index に載る entry id が `chronicleEntries` に実在し、その entry の entityRefs に対応する `(kind, key)` を含む
+- reverse: 各 entry の 5 index 対象 kind（person / house / polity / province / holding）の ref が、対応 index に entry id として登録済み（faction / clan 等 index 非対象 kind の ref は検査しない）
+- **entityRefs の参照先が現在 state に存在するか（active か / 死亡人物か / 断絶家か / 終了 War か）は検査しない。** ChronicleEntry は過去の記録であり、消えた entity への soft reference を保持するのが正しい（warIndex の `originDiplomaticPlayId` 同様、存在検査を意図的に省く）。これは「Chronicle を simulation logic に使わない」原則（§3.14）の integrity 表現であり、存在検査へ「修正」してはならない（長期実行で誤検知を生む）。
+
 ### 6.25 IntentGenerationSystem（v0.26 で廃止）
 
 **v0.26 で廃止。** sell_land の生成ロジックは SellLandProjectGenerationSystem (§6.25b) に移植。
@@ -1871,6 +1878,25 @@ terminal Goal / Aim を WorldState から削除。orphan DecisionReason を削�
 - Aim: active な Project（`origin.aimId`）または DiplomaticPlay（`aimId`）が参照する Aim は保持（Project は origin Aim の存在を要求するため）。
 - Goal: active な DiplomaticPlay（`goalId`）が参照する Goal は保持。
 - **Goal（v0.36 追加）**: 上記で生存する Aim が `goalId` で参照する Goal も保持し、`active Project → origin Aim → Goal` の依存チェーンを完結させる。これを欠くと、terminal Goal が「active Project に保持された terminal Aim」より先に削除され、Aim の `goalId` が dangling 化して年末 IntegrityCheck（`Aim X: goalId Y does not exist`）で throw する（特定 seed の RNG で long-run 顕在化。v0.22 から存在した既存バグの修正で、v0.36e 分割継承とは独立）。Project 完了で Aim が解放されると、次回 cleanup で Aim → Goal の順に削除され収束する。
+
+---
+
+### 6.31 ChronicleProjectionSystem（毎週、v0.38）
+
+歴史閲覧 read-model（`ChronicleEntry`、§3.14）を生成する system。`scheduledSystems` の**末尾**（全 system / cleanup 系の後、`flushTerminalEntities` / IntegrityCheck の前）に配置する。この tick の `ctx.events` のうち curated allowlist `CHRONICLE_EVENT_TYPE_DEFINITIONS` に載る EventType だけを `ChronicleEntry` に projection し、新たな `SimEvent` は emit しない。各 system からの dual-write にせず projection 一本にすることで Event と履歴の divergence を防ぐ。cleanup 後に走るため同 tick の event が全量揃い、IntegrityCheck の前なので生成分も同 tick で index↔entry 整合検査される（§6.24）。
+
+**allowlist の方針**: importance 閾値ではなく curated allowlist で対象を決める（`BATTLE_OCCURRED` は normal だが含めたい／`PERSON_AIM_SUCCEEDED` は major だが noise になりやすい）。各 EventType に `{ category, retainRefKinds?, templateKey? }` を割り当てる。
+
+- **category**（§3.14 の 11 種）— war: `WAR_DECLARED` / `WAR_WON` / `WAR_LOST` / `WAR_ENDED` / `PEACE_SETTLEMENT_APPLIED`。battle: `BATTLE_OCCURRED`。land: `LAND_CONTRACT_TRANSFERRED` / `CONTRACT_TAX_REVISED`。house: `HOUSE_FOUNDED` / `CADET_HOUSE_FOUNDED` / `HOUSE_SPLIT` / `HOUSE_EXTINCT` / `HOUSE_LEADER_CHANGED`。governance: `POLITY_OWNER_CHANGED`。revolt: `REVOLT_POLITY_FOUNDED` / `REVOLT_NEGOTIATION_STARTED` / `REVOLT_SUPPRESSED` / `REVOLT_SETTLED` / `REVOLT_POLITY_ESTABLISHED`。disaster: `FAMINE` / `PLAGUE`。development: `COUNTRY_LAND_DEVELOPED`。office: `OFFICE_ASSIGNED` / `OFFICE_TERM_ENDED` / `BAILIFF_APPOINTED` / `BAILIFF_VACATED`。faction: `FACTION_FOUNDED` / `PERSON_RECRUITED_TO_FACTION` / `FACTION_MEMBER_ABANDONED` / `FACTION_LEADER_CHANGED` / `FACTION_DISSOLVED`。life: `IMPORTANT_PERSON_DIED`。
+- **retainRefKinds**（projection 時に entityRefs をこの kind に絞る）— `OFFICE_ASSIGNED` / `OFFICE_TERM_ENDED` は `['person']`。役職任命は高頻度なので Person の「経歴」として byPerson だけに載せ、house / polity ref を落として国史・家史が行政ログで埋もれるのを防ぐ（役職名・Polity 名は params にあり、UI は entityRefs から link を描かないので表示は不変）。`BAILIFF_*` は person+province 無制限（人物経歴 + 地方統治史の両方に載せる）。faction 系は entityRefs が person（＋ index 非対象の faction kind）のみのため retainRefKinds 不要で自然に byPerson だけに載る（「誰と組んだか」を人物経歴に残す）。
+- **templateKey**: 通常は `event.messageKey` を流用。`BATTLE_OCCURRED` のみ関数 `selectBattleTemplate(event)` が messageParams の派生フラグから rich template を選ぶ（数的不利勝利 / 大勝 / 辛勝 / 通常、§8 / §11）。
+
+**v0.38 で前倒しした emit 整備**:
+
+- `mortalitySystem`: notable death（house / polity leader 相当）を `PERSON_DIED` から `IMPORTANT_PERSON_DIED`（major）へ type 昇格して emit する（単一イベント・重複なし・RNG 中立）。notability は office 剥奪前にしか正確に取れないため source で捕捉する。これで life カテゴリが成立する。
+- `COUNTRY_LAND_DEVELOPED`: holding ref を 1 件 additive 追加し、施設開発を Holding 史（byHolding）にも載せる。
+
+実 volume（300年×4seed 実測）: ~41-43 件/年。office が ~62% を占めるが byPerson 限定のため中核 panel（国史 / 家史 / 地方史）には出ない。
 
 ---
 

@@ -115,6 +115,7 @@ const WEEKS_PER_SEASON = 12
 | 25b2 | cleanupWarSystem | 1 | v0.34 追加。terminal War を `terminalWarRetentionWeeks` 経過後に records / warIndex から削除 |
 | 25c | CleanupTerminalDecisions | 4 | v0.22。terminal Goal/Aim/orphan DecisionReason 削除 |
 | 25d | mergeCompatiblePops | 48 | v0.24 追加。年末安全弁として同一 merge key の POP を統合 |
+| 25e | ChronicleProjectionSystem | 1 | v0.38 追加。**scheduledSystems 末尾**（全 cleanup の後・flush/IntegrityCheck の前）。この tick の event を curated allowlist で `ChronicleEntry` に projection（§6.31）。生成分も同 tick の年末 IntegrityCheck で index↔entry 検査される |
 | 26 | IntegrityCheck | ※2モード | debug=week48(try-catch), 通常=week48(throw)。flush も同タイミング |
 
 全 system の `phaseOffsetWeeks = 0`（v0.19 時点）。

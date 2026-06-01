@@ -706,10 +706,19 @@ v0.34 で War / WarScore / PeaceSettlement の配管が入った。以下は後�
 - **多重臣従での参戦**: 1 House / Polity が複数の War に attacker / defender として参加。`WarSide.participants` の複数化（contributionScore / casualties / willingnessToContinue を持つ `WarParticipantState`）。第三勢力は作らず必ず attacker / defender に属させる
 - **v0.36 Regiment（実装済み）**: 抽象 `getActorMilitaryPower` を永続 Regiment entity（1 Holding = 1 Regiment、worldgen で basePower 凍結）に置換。WarManeuver の battle power を `getRegimentPowerForWarSide`（動員 Regiment の有効戦力合計）に差し替え、mobilize → battle 損耗（organization / strength）→ recovery（organization）→ demobilize の損耗ループと Battle entity 記録を導入。**補充・再編成（実装済み）**: RegimentReinforcementSystem（§6.27g 月次）が active strength を silent 補充し、destroyed を reform で再編成してプールを自己修復させる（旧「プール非増加・床なし減衰」を解消）。詳細は §3.9b / §3.9c / §6.27b / §6.27e / §6.27f / §6.27g。**将来課題**: strength / morale を training / equipment 等へ細分化、morale を動的化（v0.36 は reform 時のみ書き込み）、Battle の内部 tick / frontline simulation（v0.37+）、REGIMENT_MOBILIZED / DESTROYED 等の専用 event（v0.36 は BATTLE_OCCURRED の counts-only enrich + REGIMENT_REFORMED のみ）、開戦 AI に連隊在庫 gate（0連隊での開戦抑止）
 - **v0.37 厭戦感情ほか**: `HouseWarState` / warWeariness / casualties（POP casualties）/ 強制徴募 / 補給線（reinforcement / 再編成は v0.36 で実装済み）
-- **v0.38 兵站・補給**: supply demand / local requisition / treasury supply / terrain・feature 補給補正
+- **兵站・補給**（当初 v0.38 想定 → 実際の v0.38 は Chronicle System に充当のため後続へ送り）: supply demand / local requisition / treasury supply / terrain・feature 補給補正
 - **v0.39 荒廃・復興**: ProvinceWarImpact / HoldingWarImpact / HoldingImprovement.condition 低下 / recovery project
 - **賠償金 / 懲罰的条件 / prestige**: defender 勝利時の counter-goal、pay_wealth WarGoal（賠償金）、Person prestige / House legacyPrestige 変更（v0.34 PeaceSettlement では未対応）
 - **House actor を主体とする War**: v0.34 は polity 同士のみ War 化。私戦・主君への参戦要請・家単位の参戦は整理が必要
+
+#### Chronicle 拡張系（v0.38 で基盤実装済み）
+
+v0.38 で永続 read-model `ChronicleEntry` + 対象別履歴 UI を実装した（§3.14 / §6.31 / §4.11 / §11）。append-only でプロトタイプ段階のため、以下は将来課題:
+
+- **外部化 / cap / purge / 圧縮**: v0.38 は無制限保持（300年×4seed で ~12-13k entries、memory / perf 問題なし）。alpha 以降で disk / DB / append-only log への外部化を検討する。
+- **視点相対（viewer-relative）レンダリング**: 戦争の勝敗等を「記録を表示している側」から見た記述にする（同じ戦争でも House A panel では「勝利」、House B panel では「敗北」）。entry は中立のまま、render 層で viewer entity を渡して描き分ける（sim/ に視点を持ち込まない）。
+- **ログの重複整理**: 同一の出来事に複数 EventType が emit され両方 allowlist にあると複数 entry が出る（cadet 分家の `CADET_HOUSE_FOUNDED` + `HOUSE_SPLIT`、代官任期更新時の同週・同一人物・同一 holding の `BAILIFF_VACATED` + `BAILIFF_APPOINTED` 等）。同一 source 群の畳み込み / 「留任（任期更新）」エントリ化を検討する。
+- **rich narrative の拡張**: 指揮官 narrative・`ChronicleContext` の populate（v0.38 は見送り）、統治評価 context、婚姻等の life イベント拡充。
 
 #### Faction 拡張系
 
