@@ -995,6 +995,20 @@ export function collectIntegrityErrors(
         })
       }
     }
+    if (p.revoltState != null) {
+      if (p.kind !== 'commonwealth') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Polity ${polityId} has revoltState but kind=${p.kind ?? 'undefined'} (v0.39 §17.2)`,
+        })
+      }
+      if (p.revoltState.kind === 'established' && !p.active) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Polity ${polityId} established commonwealth must be active (v0.39 §17.2)`,
+        })
+      }
+    }
   }
 
   // §25 #18: House.seatProvinceId は存在する Province を指す
@@ -2210,6 +2224,20 @@ export function collectIntegrityErrors(
         code: 'INTEGRITY_VIOLATION',
         message: `Regiment ${idStr} has destroyedWeek but status=${regiment.status} (§18.2)`,
       })
+    }
+    if (regiment.sourceKind === 'local_levy') {
+      if (regiment.disbandAfterWar !== true) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Regiment ${idStr} local_levy must have disbandAfterWar=true (v0.39 §17.3)`,
+        })
+      }
+      if (regiment.homeHoldingId === undefined) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Regiment ${idStr} local_levy must have homeHoldingId (v0.39 §17.3)`,
+        })
+      }
     }
   }
   // index → record 整合 (§18.3)。liveness ではなく「index entry が指す Regiment が存在し key と一致するか」。

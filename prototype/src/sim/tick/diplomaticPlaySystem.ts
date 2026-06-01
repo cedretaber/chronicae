@@ -24,6 +24,9 @@ import {
   createChildLandContract,
 } from '../mutations/landContractMutations'
 import { createRegiment } from '../mutations/regimentMutations'
+import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
+import { createOrganizationShare, removeSharesByOrganization } from '../mutations/shareMutations'
+import { getPolityLeader } from '../selectors/officeSelectors'
 import { getHoldingPopSizeByClass } from '../selectors/popSelectors'
 import { getProvincePops } from '../selectors/popSelectors'
 import {
@@ -354,14 +357,7 @@ function applyRevoltEscalation(
 
   // rank 5 → Phase D internal revolt (transitional: dissolve + fail)
   if (targetPolity && targetPolity.rank === 5) {
-    return applyRevoltEscalationRank5Transitional(
-      ctx,
-      play,
-      demand,
-      commonwealthId,
-      targetPolityId,
-      provinceId,
-    )
+    return resolveInternalRevolt(ctx, play, demand, commonwealthId, targetPolityId, provinceId)
   }
 
   // rank 2-4: revolt_seizure contract + Local Levy + escalated
@@ -484,8 +480,7 @@ function applyRevoltEscalation(
   return { ...ctxEv, events: [...ctxEv.events, event] }
 }
 
-// rank 5 transitional: dissolve + fail (Phase D will implement internal revolt)
-function applyRevoltEscalationRank5Transitional(
+function resolveInternalRevolt(
   ctx: TickContext,
   play: DiplomaticPlay,
   demand: Extract<DiplomaticDemand, { kind: 'popular_tax_relief' }>,
@@ -494,49 +489,164 @@ function applyRevoltEscalationRank5Transitional(
   provinceId: ProvinceId,
 ): TickContext {
   let state = ctx.state
+  const holdingId = demand.holdingId
 
-  state = adjustProvincePopUnrestByClass(state, provinceId, demand.claimantPopClass, 5)
+  // Simple force comparison (spec §13.6)
+  const popIds = state.popIndex.byHolding[holdingId]
+  let totalSize = 0
+  let weightedUnrest = 0
+  if (popIds) {
+    for (const popId of popIds) {
+      const p = state.popGroups[popId]
+      if (!p || p.class !== demand.claimantPopClass) continue
+      totalSize += p.size
+      weightedUnrest += p.unrest * p.size
+    }
+  }
+  const avgUnrest = totalSize > 0 ? weightedUnrest / totalSize : 0
 
-  const holding = state.holdings[demand.holdingId]
+  const cwOrigin = state.polities[commonwealthId]?.origin
+  const leaderPersonId = cwOrigin?.kind === 'popular_revolt' ? cwOrigin.leaderPersonId : undefined
+  const leader = leaderPersonId ? state.persons[leaderPersonId] : undefined
+  const leaderBonus = leader
+    ? leader.abilities.charisma * 0.5 + leader.abilities.command * 0.5 + leader.traits.ambition * 30
+    : 0
+
+  const rebelPower = totalSize * 0.5 * (0.5 + avgUnrest / 100) + leaderBonus
+
+  const targetPolity = state.polities[targetPolityId]
+  const targetLeaderId = targetPolity ? getPolityLeader(state, targetPolityId) : undefined
+  const targetLeader = targetLeaderId ? state.persons[targetLeaderId] : undefined
+  const defenderBonus = targetLeader
+    ? targetLeader.abilities.command * 0.5 + targetLeader.traits.caution * 20
+    : 0
+  const holding = state.holdings[holdingId]
+  const polityControl = holding?.polityControl ?? 50
+  const defenderPower = polityControl * 0.5 + defenderBonus
+
+  const successChance = rebelPower / (rebelPower + defenderPower + 1)
+  const { value: roll, rng: nextRng } = randomFloat(ctx.rng)
+  ctx = { ...ctx, rng: nextRng }
+  const success = roll < successChance
+
+  if (success && targetPolity && leaderPersonId && leader) {
+    // Internal revolt success: regime change
+    // 1. Transform target polity
+    state = {
+      ...state,
+      polities: {
+        ...state.polities,
+        [targetPolityId]: {
+          ...targetPolity,
+          kind: 'commonwealth',
+          ownerHouseId: undefined,
+          origin: {
+            kind: 'regime_changed_by_popular_revolt',
+            previousOwnerHouseId: targetPolity.ownerHouseId,
+            provinceId,
+            holdingId,
+            popClass: demand.claimantPopClass,
+            leaderPersonId,
+            week: state.absoluteWeek,
+          },
+          revoltState: { kind: 'established' },
+        },
+      },
+    }
+
+    // 2. Revoke old leader, appoint rebel leader
+    state = revokeOfficesByOrganization(state, { kind: 'polity', id: targetPolityId }, 'leader')
+    state = removeSharesByOrganization(state, { kind: 'polity', id: targetPolityId })
+    state = createOfficeAssignment(
+      state,
+      { kind: 'polity', id: targetPolityId },
+      'leader',
+      leaderPersonId,
+    )
+    state = createOrganizationShare(
+      state,
+      { kind: 'polity', id: targetPolityId },
+      { kind: 'person', id: leaderPersonId },
+      100,
+    )
+
+    // 3. Tax reduction
+    state = adjustLandContractTaxRate(state, demand.targetContractId, demand.demandedTaxRate)
+
+    // 4. Unrest reduction
+    state = adjustProvincePopUnrestByClass(state, provinceId, demand.claimantPopClass, -30)
+
+    // 5. Dissolve negotiating commonwealth
+    let nextCtx: TickContext = { ...ctx, state }
+    const dissolveResult = dissolveNegotiatingCommonwealth(nextCtx, {
+      commonwealthPolityId: commonwealthId,
+      leaderOutcome: 'alive',
+    })
+    if (dissolveResult.ok) nextCtx = dissolveResult.value.ctx
+
+    nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
+
+    const provinceName = nameParam(
+      'province',
+      nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+    )
+    const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+      type: 'REVOLT_REGIME_CHANGED',
+      importance: 'critical',
+      messageKey: 'revolt.regime_changed',
+      messageParams: { province: provinceName },
+      entityRefs: [
+        entityRef('province', provinceId, 'province'),
+        entityRef('polity', targetPolityId, 'polity'),
+        entityRef('person', leaderPersonId, 'leader'),
+      ],
+    })
+    return { ...ctxEv, events: [...ctxEv.events, event] }
+  }
+
+  // Internal revolt failure: suppression
+  state = adjustProvincePopUnrestByClass(state, provinceId, demand.claimantPopClass, -20)
+
   if (holding) {
     state = {
       ...state,
       holdings: {
         ...state.holdings,
-        [demand.holdingId]: { ...holding, lastRevoltSuppressedWeek: state.absoluteWeek },
+        [holdingId]: {
+          ...state.holdings[holdingId]!,
+          lastRevoltSuppressedWeek: state.absoluteWeek,
+        },
       },
     }
   }
 
   let nextCtx: TickContext = { ...ctx, state }
+  const leaderOutcome: 'executed' | 'pardoned' =
+    roll < successChance * 0.5 ? 'pardoned' : 'executed'
   const dissolveResult = dissolveNegotiatingCommonwealth(nextCtx, {
     commonwealthPolityId: commonwealthId,
-    leaderOutcome: 'pardoned',
+    leaderOutcome,
   })
-  if (dissolveResult.ok) {
-    nextCtx = dissolveResult.value.ctx
-  }
+  if (dissolveResult.ok) nextCtx = dissolveResult.value.ctx
 
-  nextCtx = setPlayStatus(nextCtx, play.id, 'failed')
+  nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
 
   const provinceName = nameParam(
     'province',
     nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
   )
   const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
-    type: 'REVOLT_ESCALATED',
+    type: 'REVOLT_SUPPRESSED',
     importance: 'major',
-    messageKey: 'revolt.escalated',
-    messageParams: { province: provinceName },
+    messageKey: 'revolt.suppressed',
+    messageParams: {
+      province: provinceName,
+      aftermathText: leaderOutcome === 'executed' ? 'was executed' : 'was pardoned',
+      restorePolity: nameParam('polity', targetPolity?.nameKey ?? ''),
+    },
     entityRefs: [
-      entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-      entityRef('polity', commonwealthId, 'rebel_polity'),
-      entityRef(
-        'polity',
-        targetPolityId,
-        'target_polity',
-        nextCtx.state.polities[targetPolityId]?.nameKey,
-      ),
+      entityRef('province', provinceId, 'province'),
+      entityRef('polity', targetPolityId, 'polity'),
     ],
   })
   return { ...ctxEv, events: [...ctxEv.events, event] }

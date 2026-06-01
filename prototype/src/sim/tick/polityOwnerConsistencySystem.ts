@@ -9,9 +9,10 @@ import {
   getHouseProvinceIdsByPolity,
   getHouseSeatProvinceInPolity,
 } from '../selectors/polityRelations'
-import { getHouseLeader } from '../selectors/officeSelectors'
+import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { revokeOfficesByOrganization, createOfficeAssignment } from '../mutations/officeMutations'
-import { removeSharesByOrganization } from '../mutations/shareMutations'
+import { createOrganizationShare, removeSharesByOrganization } from '../mutations/shareMutations'
+import { selectOrCreateCommonwealthLeader } from '../mutations/worldStructureMutations'
 import { getProvinceDevelopmentFromHoldings } from '../selectors/landContractSelectors'
 
 // v0.15 §10.2: 新 ownerHouse を選定する。
@@ -209,6 +210,31 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
     }
 
     const eligibleHouseIds = getPolityHouseIds(currentCtx.state, polityId)
+
+    // v0.39 D-2: established commonwealth の emergency leader 補充
+    if (polity.kind === 'commonwealth' && polity.revoltState?.kind === 'established') {
+      const leaderId = getPolityLeader(currentCtx.state, polityId)
+      if (leaderId === undefined) {
+        const { personId: newLeaderId, ctx: leaderCtx } =
+          selectOrCreateCommonwealthLeader(currentCtx)
+        currentCtx = leaderCtx
+        let state = currentCtx.state
+        state = createOfficeAssignment(
+          state,
+          { kind: 'polity', id: polityId },
+          'leader',
+          newLeaderId,
+        )
+        state = createOrganizationShare(
+          state,
+          { kind: 'polity', id: polityId },
+          { kind: 'person', id: newLeaderId },
+          100,
+        )
+        currentCtx = { ...currentCtx, state }
+      }
+      continue
+    }
 
     // Step 2: ownerHouseId が undefined の場合の補充
     if (polity.ownerHouseId === undefined) {
