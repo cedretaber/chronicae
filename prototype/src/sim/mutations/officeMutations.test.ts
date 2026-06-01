@@ -53,6 +53,7 @@ function makeOfficeState(): {
         active: true,
         capitalProvinceId: 'pr-0' as ProvinceId,
         ownerHouseId: houseId,
+        origin: { kind: 'worldgen' },
       },
     },
     houses: {

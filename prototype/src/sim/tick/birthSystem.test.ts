@@ -57,6 +57,7 @@ function makePolity(
     adminPower: 50,
     active: true,
     capitalProvinceId: provId,
+    origin: { kind: 'worldgen' },
   }
 }
 

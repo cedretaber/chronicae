@@ -286,6 +286,7 @@ export function withPolity(
     legacyPrestige: 0,
     active: true,
     capitalProvinceId: 'pr-0' as ProvinceId,
+    origin: { kind: 'worldgen' },
     ...overrides,
   }
   const nextPolities = { ...state.polities, [id]: polity }

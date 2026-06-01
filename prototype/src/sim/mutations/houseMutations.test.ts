@@ -54,6 +54,7 @@ function makeFixture(): {
         adminPower: 10,
         active: true,
         capitalProvinceId: provinceId,
+        origin: { kind: 'worldgen' },
       },
     },
     houses: {

@@ -87,6 +87,7 @@ function makeMinimalWorld(): WorldState {
     adminPower: 50,
     active: true,
     capitalProvinceId: provinceId,
+    origin: { kind: 'worldgen' },
   } as const
 
   const province: Province = {

@@ -41,6 +41,7 @@ export function createPolity(
     capitalProvinceId: input.capitalProvinceId ?? ('' as ProvinceId),
     rank: 2,
     ownerHouseId: input.ownerHouseId,
+    origin: { kind: 'worldgen' as const },
   }
 
   const newState = {
@@ -162,6 +163,7 @@ export function createPolityFromHouse(
     capitalProvinceId: rebelHouse.seatProvinceId,
     rank: 2,
     ownerHouseId: rebelHouseId,
+    origin: { kind: 'worldgen' as const },
   }
 
   const politiesWithNew = { ...state.polities, [newPolityId]: newPolity }
@@ -241,6 +243,7 @@ export function createPolityFromProvinces(
     capitalProvinceId: params.capitalProvinceId,
     rank: 2,
     ownerHouseId: params.rulerHouseId,
+    origin: { kind: 'worldgen' as const },
   }
 
   const stateWithPolity = {

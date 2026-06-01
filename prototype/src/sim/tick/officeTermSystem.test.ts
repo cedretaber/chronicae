@@ -199,6 +199,7 @@ describe('runOfficeTermSystem', () => {
         active: true,
         capitalProvinceId: 'pr-0' as ProvinceId,
         ownerHouseId: houseId,
+        origin: { kind: 'worldgen' },
       },
     }
     state.houses = {
@@ -275,6 +276,7 @@ describe('runOfficeTermSystem', () => {
         active: true,
         capitalProvinceId: 'pr-0' as ProvinceId,
         ownerHouseId: houseId,
+        origin: { kind: 'worldgen' },
       },
     }
     state.houses = {
@@ -361,6 +363,7 @@ describe('runOfficeTermSystem', () => {
         active: true,
         capitalProvinceId: 'pr-0' as ProvinceId,
         ownerHouseId: houseId,
+        origin: { kind: 'worldgen' },
       },
     }
     state.houses = {
@@ -457,6 +460,7 @@ describe('runOfficeTermSystem', () => {
         active: true,
         capitalProvinceId: 'pr-0' as ProvinceId,
         ownerHouseId: houseId,
+        origin: { kind: 'worldgen' },
       },
     }
     state.houses = {
@@ -573,6 +577,7 @@ describe('expireOfficeTermAssignment', () => {
           active: true,
           capitalProvinceId: 'pr-0' as ProvinceId,
           ownerHouseId: houseId,
+          origin: { kind: 'worldgen' },
         },
       },
       houses: {

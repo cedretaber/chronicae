@@ -160,6 +160,7 @@ function makePolity(id: PolityId, houseId: HouseId): NonNullable<WorldState['pol
     adminPower: 50,
     active: true,
     capitalProvinceId: '' as ProvinceId,
+    origin: { kind: 'worldgen' },
   }
 }
 

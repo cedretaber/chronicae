@@ -55,6 +55,6 @@ export type Polity = {
   ownerHouseId?: HouseId
   rank: PolityRank
   kind?: PolityKind
-  origin?: PolityOrigin
+  origin: PolityOrigin
   revoltState?: PopularRevoltState
 }

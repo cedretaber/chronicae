@@ -94,6 +94,7 @@ describe('runIntegritySystem', () => {
       adminPower: 50,
       active: true,
       capitalProvinceId: '' as ProvinceId,
+      origin: { kind: 'worldgen' },
     }
 
     const officeAssignmentId = 'oa-0' as import('../types/ids').OfficeAssignmentId
@@ -262,6 +263,7 @@ describe('runIntegritySystem', () => {
       adminPower: 50,
       active: true,
       capitalProvinceId: '' as ProvinceId,
+      origin: { kind: 'worldgen' },
     }
 
     const officeAssignmentId = 'oa-0' as import('../types/ids').OfficeAssignmentId
@@ -413,6 +415,7 @@ describe('runIntegritySystem', () => {
       adminPower: 50,
       active: true,
       capitalProvinceId: '' as ProvinceId,
+      origin: { kind: 'worldgen' },
     }
 
     const officeAssignmentId = 'oa-0' as import('../types/ids').OfficeAssignmentId
@@ -564,6 +567,7 @@ describe('runIntegritySystem', () => {
       adminPower: 50,
       active: true,
       capitalProvinceId: '' as ProvinceId,
+      origin: { kind: 'worldgen' },
     }
 
     const officeAssignmentId = 'oa-0' as import('../types/ids').OfficeAssignmentId
@@ -715,6 +719,7 @@ describe('runIntegritySystem', () => {
       adminPower: 50,
       active: true,
       capitalProvinceId: '' as ProvinceId,
+      origin: { kind: 'worldgen' },
     }
 
     const officeAssignmentId = 'oa-0' as import('../types/ids').OfficeAssignmentId
@@ -868,6 +873,7 @@ describe('runIntegritySystem', () => {
       adminPower: 50,
       active: true,
       capitalProvinceId: '' as ProvinceId,
+      origin: { kind: 'worldgen' },
     }
 
     const world: WorldState = {
@@ -1009,6 +1015,7 @@ describe('runIntegritySystem', () => {
       adminPower: 50,
       active: true,
       capitalProvinceId: '' as ProvinceId,
+      origin: { kind: 'worldgen' },
     }
 
     const world: WorldState = {

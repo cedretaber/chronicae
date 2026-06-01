@@ -241,6 +241,7 @@ describe('runSuccessionSystem', () => {
             adminPower: 50,
             active: true,
             capitalProvinceId: '' as ProvinceId,
+            origin: { kind: 'worldgen' },
           },
         },
         houses: {
@@ -379,6 +380,7 @@ describe('runSuccessionSystem', () => {
             adminPower: 50,
             active: true,
             capitalProvinceId: '' as ProvinceId,
+            origin: { kind: 'worldgen' },
           },
         },
         houses: {

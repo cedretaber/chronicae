@@ -58,6 +58,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
           adminPower: 50,
           active: true,
           capitalProvinceId: '' as ProvinceId,
+          origin: { kind: 'worldgen' },
         },
       },
       houses: {
