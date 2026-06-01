@@ -110,20 +110,25 @@ export function emitWarDeclared(ctx: TickContext, war: War, issueKind: string): 
 
   const desc = describeWarGoal(ctx.state, goal)
 
-  // v0.39: revolt WarGoal の WAR_DECLARED は generic fallback で発行する。
   if (desc.kind === 'popular_revolt_independence') {
+    const holdingId = desc.holdingIds?.[0]
+    const holding = holdingId ? ctx.state.holdings[holdingId] : undefined
+    const provId = holding?.provinceId
+    const prov = provId ? ctx.state.provinces[provId] : undefined
+    const revoltRefs: EventEntityRef[] = [...attackerDefenderRefs(p)]
+    if (provId) revoltRefs.push(entityRef('province', provId, 'province', prov?.nameKey))
     return emit(
       ctx,
       'WAR_DECLARED',
       'major',
-      'war.declared.generic',
+      'war.declared.revolt',
       {
         warId: war.id,
         attacker: nameParam(p.attacker.kind, p.attackerName),
         defender: nameParam(p.defender.kind, p.defenderName),
-        issue: issueKind,
+        province: nameParam('province', prov?.nameKey ?? ''),
       },
-      attackerDefenderRefs(p),
+      revoltRefs,
     )
   }
 

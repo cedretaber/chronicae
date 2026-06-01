@@ -1517,16 +1517,18 @@ export function establishCommonwealth(
   }
 
   let nextCtx: TickContext = { ...ctx, state }
+  const capitalProvince = state.provinces[cw.capitalProvinceId]
   const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
     type: 'REVOLT_POLITY_ESTABLISHED',
     importance: 'critical',
     messageKey: 'revolt.triumphant',
     messageParams: {
-      province: nameParam('province', cw.capitalProvinceId),
+      province: nameParam('province', capitalProvince?.nameKey ?? cw.capitalProvinceId),
     },
     entityRefs: [
       entityRef('polity', input.commonwealthPolityId, 'commonwealth', cw.nameKey),
       entityRef('person', input.leaderPersonId, 'leader'),
+      entityRef('province', cw.capitalProvinceId, 'province', capitalProvince?.nameKey),
     ],
   })
   nextCtx = { ...ctxEv, events: [...ctxEv.events, event] }
@@ -1589,16 +1591,29 @@ export function suppressRevolt(
 
   // 4. Event
   const cw = nextCtx.state.polities[input.commonwealthPolityId]
+  const capitalProvinceId = cw?.capitalProvinceId
+  const capitalProv = capitalProvinceId ? nextCtx.state.provinces[capitalProvinceId] : undefined
+  const originalPolityId =
+    cw?.origin?.kind === 'popular_revolt' ? cw.origin.originalPolityId : undefined
+  const originalPolity = originalPolityId ? nextCtx.state.polities[originalPolityId] : undefined
   const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
     type: 'REVOLT_SUPPRESSED',
     importance: 'major',
-    messageKey: 'revolt.suppressed',
+    messageKey:
+      leaderOutcome === 'executed' ? 'revolt.suppressed_executed' : 'revolt.suppressed_pardoned',
     messageParams: {
-      province: nameParam('province', cw?.capitalProvinceId ?? ''),
-      aftermathText: leaderOutcome === 'executed' ? 'was executed' : 'was pardoned',
-      restorePolity: '',
+      province: nameParam('province', capitalProv?.nameKey ?? capitalProvinceId ?? ''),
+      restorePolity: nameParam('polity', originalPolity?.nameKey ?? ''),
     },
-    entityRefs: [entityRef('polity', input.commonwealthPolityId, 'commonwealth')],
+    entityRefs: [
+      entityRef('polity', input.commonwealthPolityId, 'commonwealth'),
+      ...(originalPolityId
+        ? [entityRef('polity', originalPolityId, 'restore_polity', originalPolity?.nameKey)]
+        : []),
+      ...(capitalProvinceId
+        ? [entityRef('province', capitalProvinceId, 'province', capitalProv?.nameKey)]
+        : []),
+    ],
   })
   nextCtx = { ...ctxEv, events: [...ctxEv.events, event] }
 

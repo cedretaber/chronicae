@@ -321,10 +321,9 @@ function applyPopularTaxReliefSettlement(
   const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
     type: 'REVOLT_SETTLED',
     importance: 'major',
-    messageKey: 'revolt.settled',
+    messageKey: 'revolt.settled_pardoned',
     messageParams: {
       province: provinceName,
-      aftermathText: 'was pardoned',
       restorePolity: nameParam(
         'polity',
         nextCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId,
@@ -638,10 +637,10 @@ function resolveInternalRevolt(
   const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
     type: 'REVOLT_SUPPRESSED',
     importance: 'major',
-    messageKey: 'revolt.suppressed',
+    messageKey:
+      leaderOutcome === 'executed' ? 'revolt.suppressed_executed' : 'revolt.suppressed_pardoned',
     messageParams: {
       province: provinceName,
-      aftermathText: leaderOutcome === 'executed' ? 'was executed' : 'was pardoned',
       restorePolity: nameParam('polity', targetPolity?.nameKey ?? ''),
     },
     entityRefs: [

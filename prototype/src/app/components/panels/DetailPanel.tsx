@@ -4657,89 +4657,95 @@ export function DiplomaticPlayDetail({
 
         <div className="my-1 border-t border-gray-700" />
 
-        <div className="text-sm font-semibold text-gray-300">{t('detail.play.initiator_side')}</div>
-        <div style={{ marginLeft: 8 }}>
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('detail.play.delegate')}:</span>
-            {play.initiatorDelegatePersonId ? (
-              <PersonLink
-                personId={play.initiatorDelegatePersonId}
-                persons={persons}
-                onClick={onPersonClick}
-              />
-            ) : (
-              <span className="text-gray-500">—</span>
-            )}
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('diplomacy:params.preparation')}:</span>
-            <span>{Math.round(play.initiatorPreparation)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('diplomacy:params.leverage')}:</span>
-            <span>{Math.round(play.initiatorLeverage)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('diplomacy:params.commitment')}:</span>
-            <span>{Math.round(play.initiatorCommitment)}</span>
-          </div>
-          {initiatorTasks.length > 0 && (
-            <div style={{ marginTop: 4 }}>
-              <div className="text-xs font-semibold text-gray-400">
-                {t('detail.play.active_tasks')}:
-              </div>
-              {initiatorTasks.map((task) => (
-                <div key={task.id} className="text-xs text-gray-300" style={{ marginLeft: 8 }}>
-                  {t(task.kind, { ns: 'tasks' })} — {Math.round(task.effortDone)}/
-                  {task.effortRequired}
-                </div>
-              ))}
+        {play.kind !== 'revolt_negotiation' && (
+          <>
+            <div className="text-sm font-semibold text-gray-300">
+              {t('detail.play.initiator_side')}
             </div>
-          )}
-        </div>
+            <div style={{ marginLeft: 8 }}>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('detail.play.delegate')}:</span>
+                {play.initiatorDelegatePersonId ? (
+                  <PersonLink
+                    personId={play.initiatorDelegatePersonId}
+                    persons={persons}
+                    onClick={onPersonClick}
+                  />
+                ) : (
+                  <span className="text-gray-500">—</span>
+                )}
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('diplomacy:params.preparation')}:</span>
+                <span>{Math.round(play.initiatorPreparation)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('diplomacy:params.leverage')}:</span>
+                <span>{Math.round(play.initiatorLeverage)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('diplomacy:params.commitment')}:</span>
+                <span>{Math.round(play.initiatorCommitment)}</span>
+              </div>
+              {initiatorTasks.length > 0 && (
+                <div style={{ marginTop: 4 }}>
+                  <div className="text-xs font-semibold text-gray-400">
+                    {t('detail.play.active_tasks')}:
+                  </div>
+                  {initiatorTasks.map((task) => (
+                    <div key={task.id} className="text-xs text-gray-300" style={{ marginLeft: 8 }}>
+                      {t(task.kind, { ns: 'tasks' })} — {Math.round(task.effortDone)}/
+                      {task.effortRequired}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-        <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
-          {t('detail.play.target_side')}
-        </div>
-        <div style={{ marginLeft: 8 }}>
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('detail.play.delegate')}:</span>
-            {play.targetDelegatePersonId ? (
-              <PersonLink
-                personId={play.targetDelegatePersonId}
-                persons={persons}
-                onClick={onPersonClick}
-              />
-            ) : (
-              <span className="text-gray-500">—</span>
-            )}
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('diplomacy:params.preparation')}:</span>
-            <span>{Math.round(play.targetPreparation)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('diplomacy:params.leverage')}:</span>
-            <span>{Math.round(play.targetLeverage)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('diplomacy:params.commitment')}:</span>
-            <span>{Math.round(play.targetCommitment)}</span>
-          </div>
-          {targetTasks.length > 0 && (
-            <div style={{ marginTop: 4 }}>
-              <div className="text-xs font-semibold text-gray-400">
-                {t('detail.play.active_tasks')}:
-              </div>
-              {targetTasks.map((task) => (
-                <div key={task.id} className="text-xs text-gray-300" style={{ marginLeft: 8 }}>
-                  {t(task.kind, { ns: 'tasks' })} — {Math.round(task.effortDone)}/
-                  {task.effortRequired}
-                </div>
-              ))}
+            <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
+              {t('detail.play.target_side')}
             </div>
-          )}
-        </div>
+            <div style={{ marginLeft: 8 }}>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('detail.play.delegate')}:</span>
+                {play.targetDelegatePersonId ? (
+                  <PersonLink
+                    personId={play.targetDelegatePersonId}
+                    persons={persons}
+                    onClick={onPersonClick}
+                  />
+                ) : (
+                  <span className="text-gray-500">—</span>
+                )}
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('diplomacy:params.preparation')}:</span>
+                <span>{Math.round(play.targetPreparation)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('diplomacy:params.leverage')}:</span>
+                <span>{Math.round(play.targetLeverage)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('diplomacy:params.commitment')}:</span>
+                <span>{Math.round(play.targetCommitment)}</span>
+              </div>
+              {targetTasks.length > 0 && (
+                <div style={{ marginTop: 4 }}>
+                  <div className="text-xs font-semibold text-gray-400">
+                    {t('detail.play.active_tasks')}:
+                  </div>
+                  {targetTasks.map((task) => (
+                    <div key={task.id} className="text-xs text-gray-300" style={{ marginLeft: 8 }}>
+                      {t(task.kind, { ns: 'tasks' })} — {Math.round(task.effortDone)}/
+                      {task.effortRequired}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         <div className="my-1 border-t border-gray-700" />
 
@@ -4754,6 +4760,8 @@ export function DiplomaticPlayDetail({
             })()}
           {play.primaryDemand?.kind === 'revolt_concession' &&
             `${t('detail.play.demand_revolt_concession')} (${play.primaryDemand.concessionLevel})`}
+          {play.primaryDemand?.kind === 'popular_tax_relief' &&
+            `${t('detail.play.demand_tax_relief')} ${Math.round(play.primaryDemand.currentTaxRate * 100)}% → ${Math.round(play.primaryDemand.demandedTaxRate * 100)}%`}
         </div>
 
         {(initiatorProject || targetProject) && (
@@ -4948,14 +4956,25 @@ export function WarDetail({
       </div>
 
       <div className="text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.war.attacker')}:</span>
-          {renderActor(attacker)}
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.war.defender')}:</span>
-          {renderActor(defender)}
-        </div>
+        {(() => {
+          const isRevolt = war.warGoals.some((g) => g.kind === 'popular_revolt_independence')
+          const attackerLabel = isRevolt ? t('detail.war.rebel_side') : t('detail.war.attacker')
+          const defenderLabel = isRevolt
+            ? t('detail.war.suppressor_side')
+            : t('detail.war.defender')
+          return (
+            <>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{attackerLabel}:</span>
+                {renderActor(attacker)}
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">{defenderLabel}:</span>
+                {renderActor(defender)}
+              </div>
+            </>
+          )
+        })()}
 
         <div className="my-1 border-t border-gray-700" />
 
