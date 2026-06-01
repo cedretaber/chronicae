@@ -41,6 +41,7 @@ chronicle:
     land: 'Land'
     house: 'House'
     office: 'Office'
+    faction: 'Faction'
     revolt: 'Revolt'
     life: 'Life'
     development: 'Development'
@@ -250,6 +251,7 @@ detail:
     recent_activities: 'Recent Activities'
     supervised_projects: 'Supervised Projects'
     created_projects: 'Created Projects'
+    chronicle: 'History'
 
   # DiplomaticPlay detail
   play:
@@ -293,7 +295,6 @@ detail:
     stage_secure_budget: 'Securing Budget'
     stage_arrange_patronage: 'Arranging Patronage'
     stage_write_chronicle: 'Writing Chronicle'
-    chronicle: 'History'
 
   # Province detail
   province:

@@ -139,13 +139,13 @@ bailiff:
   placeholder_installed: '{{province}}に匿名の代官が配置された。'
 
 faction:
-  founded: '{{person}}が派閥{{faction}}を結成した。'
-  dissolved: '{{faction}}が解散した（{{reasons}}）。'
-  leader_changed: '{{newLeader}}が{{oldLeader}}に代わり{{faction}}の指導者となった。'
-  leader_bankrupt: '{{person}}の財力が尽き、{{faction}}が危機に瀕している。'
-  member_recruited: '{{person}}が{{faction}}に参加した。'
-  member_abandoned: '{{person}}が{{faction}}を離脱した。'
-  funds_shortage: '{{person}}の{{faction}}が資金難に陥った。'
+  founded: '{{person}}が派閥を結成した。'
+  dissolved: '{{leader}}の派閥が解散した（{{reasons}}）。'
+  leader_changed: '{{newLeader}}が{{oldLeader}}に代わり派閥を率いることになった。'
+  leader_bankrupt: '{{person}}の財力が尽き、その派閥が危機に瀕している。'
+  member_recruited: '{{person}}が{{leader}}の派閥に加わった。'
+  member_abandoned: '{{person}}が{{leader}}の派閥を去った。'
+  funds_shortage: '{{person}}の派閥が資金難に陥った。'
 
 goal:
   created: '{{owner}}は新たな目標を掲げた：{{kind}}'

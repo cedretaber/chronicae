@@ -143,7 +143,7 @@ function recruitForFaction(
       messageKey: 'faction.member_recruited',
       messageParams: {
         person: nameParam('person', candidate.nameKey),
-        factionLeader: nameParam(
+        leader: nameParam(
           'person',
           currentCtx.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown',
         ),

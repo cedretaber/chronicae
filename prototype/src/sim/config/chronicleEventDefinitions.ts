@@ -75,6 +75,15 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   //   代官任命/退任は person+province ref を持つ。人物経歴 + 地方統治史の両方に乗せる (無制限)。
   BAILIFF_APPOINTED: { category: 'office' },
   BAILIFF_VACATED: { category: 'office' },
+  // Faction / 派閥 (v0.38 Phase 3 追補): 「誰と組んだか」を人物の経歴に残す。
+  //   結成/加入/離脱/指導者交代/解散。entityRefs は person(+faction kind) のみで house/polity ref を持たず、
+  //   faction kind は chronicle index 対象外 (§5.2) なので retainRefKinds 不要で自然に byPerson だけに載る。
+  //   → 中核 panel (Polity/House/Province) は汚れず、関係する人物全員の panel に時系列で現れる。
+  FACTION_FOUNDED: { category: 'faction' },
+  PERSON_RECRUITED_TO_FACTION: { category: 'faction' },
+  FACTION_MEMBER_ABANDONED: { category: 'faction' },
+  FACTION_LEADER_CHANGED: { category: 'faction' },
+  FACTION_DISSOLVED: { category: 'faction' },
   // Life
   IMPORTANT_PERSON_DIED: { category: 'life' },
 }

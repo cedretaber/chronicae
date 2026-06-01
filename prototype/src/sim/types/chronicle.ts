@@ -8,6 +8,7 @@ export type ChronicleCategory =
   | 'land'
   | 'house'
   | 'office'
+  | 'faction'
   | 'revolt'
   | 'life'
   | 'development'

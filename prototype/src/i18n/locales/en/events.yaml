@@ -140,13 +140,13 @@ bailiff:
   placeholder_installed: 'An anonymous placeholder oversees {{province}}.'
 
 faction:
-  founded: '{{person}} founded the faction {{faction}}.'
-  dissolved: '{{faction}} dissolved ({{reasons}}).'
-  leader_changed: '{{newLeader}} succeeded {{oldLeader}} as the head of {{faction}}.'
-  leader_bankrupt: "{{person}}'s fortunes are exhausted, putting {{faction}} in jeopardy."
-  member_recruited: '{{person}} joined {{faction}}.'
-  member_abandoned: '{{person}} abandoned {{faction}}.'
-  funds_shortage: "{{person}}'s {{faction}} faces a financial crisis."
+  founded: '{{person}} founded a faction.'
+  dissolved: "{{leader}}'s faction dissolved ({{reasons}})."
+  leader_changed: '{{newLeader}} took over the faction from {{oldLeader}}.'
+  leader_bankrupt: "{{person}}'s fortunes are exhausted, putting their faction in jeopardy."
+  member_recruited: "{{person}} joined {{leader}}'s faction."
+  member_abandoned: "{{person}} left {{leader}}'s faction."
+  funds_shortage: "{{person}}'s faction faces a financial crisis."
 
 goal:
   created: '{{owner}} set a new goal: {{kind}}.'

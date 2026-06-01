@@ -99,10 +99,6 @@ export function runFactionPatronageSystem(ctx: TickContext): TickContext {
           messageKey: 'faction.funds_shortage',
           messageParams: {
             person: nameParam('person', leaderAfter.nameKey),
-            factionLeader: nameParam(
-              'person',
-              currentCtx.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown',
-            ),
           },
           entityRefs: [
             entityRef('person', faction.leaderPersonId, 'leader', leaderAfter.nameKey),

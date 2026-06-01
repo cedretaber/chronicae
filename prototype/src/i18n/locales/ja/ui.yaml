@@ -135,6 +135,7 @@ chronicle:
     land: '領地'
     house: '家'
     office: '任官'
+    faction: '派閥'
     revolt: '反乱'
     life: '生涯'
     development: '開発'
@@ -345,6 +346,7 @@ detail:
     recent_activities: '近況'
     supervised_projects: '監督中のプロジェクト'
     created_projects: '起案したプロジェクト'
+    chronicle: '履歴'
 
   # 外交劇詳細
   play:
@@ -388,7 +390,6 @@ detail:
     stage_secure_budget: '予算確保'
     stage_arrange_patronage: '後援手配'
     stage_write_chronicle: '年代記執筆'
-    chronicle: '履歴'
 
   # プロヴィンス詳細
   province:

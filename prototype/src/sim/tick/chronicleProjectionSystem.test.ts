@@ -99,6 +99,28 @@ describe('runChronicleProjectionSystem', () => {
     expect(Object.keys(result.state.chronicleEntries)).toHaveLength(0)
   })
 
+  it('projects a faction event onto each person, keeping the faction ref but not indexing it', () => {
+    const state = makeEmptyV016State()
+    const events = [
+      makeEvent(5, 1, 1, 'FACTION_FOUNDED', 'normal', 'faction.founded', [
+        entityRef('person', 'pe-1', 'leader'),
+        entityRef('faction', 'fa-1', 'faction'),
+        entityRef('person', 'pe-2', 'member'),
+      ]),
+    ]
+    const base = createTickContext({ state, rng: createRng('test'), config: defaultConfig })
+    const result = runChronicleProjectionSystem({ ...base, events })
+
+    const entries = Object.values(result.state.chronicleEntries)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]?.category).toBe('faction')
+    // faction kind は index 対象外 (§5.2) だが entry には保持される
+    expect(entries[0]?.entityRefs).toHaveLength(3)
+    // leader / member 双方の byPerson に載る (=「誰と組んだか」が各人の経歴に出る)
+    expect(result.state.chronicleIndex.byPerson['pe-1']).toHaveLength(1)
+    expect(result.state.chronicleIndex.byPerson['pe-2']).toHaveLength(1)
+  })
+
   it('copies event.messageKey into templateKey when no override', () => {
     const state = makeEmptyV016State()
     const events = [

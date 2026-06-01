@@ -173,6 +173,7 @@ describe('v0.38 chronicle i18n keys resolve (battle narrative + category badge)'
     'land',
     'house',
     'office',
+    'faction',
     'revolt',
     'life',
     'development',
@@ -182,11 +183,48 @@ describe('v0.38 chronicle i18n keys resolve (battle narrative + category badge)'
   it('resolves chronicle.category.* badge labels in the ui namespace (no raw-key regression)', () => {
     expect(jaInst.t('chronicle.category.war', { ns: 'ui' })).toBe('戦争')
     expect(jaInst.t('chronicle.category.office', { ns: 'ui' })).toBe('任官')
+    expect(jaInst.t('chronicle.category.faction', { ns: 'ui' })).toBe('派閥')
     expect(enInst.t('chronicle.category.war', { ns: 'ui' })).toBe('War')
+    expect(enInst.t('chronicle.category.faction', { ns: 'ui' })).toBe('Faction')
     for (const cat of categories) {
       const key = `chronicle.category.${cat}`
       expect(jaInst.t(key, { ns: 'ui' })).not.toBe(key)
       expect(enInst.t(key, { ns: 'ui' })).not.toBe(key)
+    }
+  })
+
+  // EntityChronicleSection の section title は detail.<kind>.chronicle (ui ns)。
+  //   過去に detail.person.chronicle が play ブロックへ誤配置され raw キーが表示される退行があった。
+  //   全 6 kind の title が ui ns で解決することを固定し、再発を防ぐ。
+  it('resolves all six detail.<kind>.chronicle section titles in the ui namespace', () => {
+    const kinds = ['polity', 'house', 'person', 'holding', 'province', 'war']
+    for (const kind of kinds) {
+      const key = `detail.${kind}.chronicle`
+      expect(jaInst.t(key, { ns: 'ui' })).not.toBe(key)
+      expect(enInst.t(key, { ns: 'ui' })).not.toBe(key)
+    }
+  })
+
+  // v0.38 Phase 3 追補: faction event を chronicle 化したので、その messageKey が実 emit params で
+  //   クリーンに解決するか検証する。leader-centric reword 前は {{faction}} が emit params に無く
+  //   literal 表示される既存バグがあった (EventLog も同様)。emit params を模した値で未解決が無いことを固定。
+  it('renders all faction.* event templates cleanly with their emitted params (no unresolved placeholder)', () => {
+    const cases: { key: string; params: EventMessageParams }[] = [
+      { key: 'faction.founded', params: { person: 'Albert' } },
+      { key: 'faction.dissolved', params: { leader: 'Albert', reasons: 'leader died' } },
+      { key: 'faction.leader_changed', params: { newLeader: 'Berna', oldLeader: 'Albert' } },
+      { key: 'faction.leader_bankrupt', params: { person: 'Albert' } },
+      { key: 'faction.member_recruited', params: { person: 'Kai', leader: 'Albert' } },
+      { key: 'faction.member_abandoned', params: { person: 'Kai', leader: 'Albert' } },
+      { key: 'faction.funds_shortage', params: { person: 'Albert' } },
+    ]
+    for (const { key, params } of cases) {
+      const jaText = jaR.render(key, params)
+      expect(jaText).not.toBe(key)
+      expect(jaText).not.toContain('{{')
+      const enText = enR.render(key, params)
+      expect(enText).not.toBe(key)
+      expect(enText).not.toContain('{{')
     }
   })
 })

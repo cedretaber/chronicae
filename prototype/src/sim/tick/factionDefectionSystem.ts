@@ -85,7 +85,7 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
         messageKey: 'faction.member_abandoned',
         messageParams: {
           person: nameParam('person', member.nameKey),
-          factionLeader: nameParam(
+          leader: nameParam(
             'person',
             currentCtx.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown',
           ),

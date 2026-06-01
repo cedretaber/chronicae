@@ -67,10 +67,6 @@ function checkDissolutions(ctx: TickContext): TickContext {
           messageKey: 'faction.leader_bankrupt',
           messageParams: {
             person: nameParam('person', leader.nameKey),
-            factionLeader: nameParam(
-              'person',
-              currentCtx.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown',
-            ),
           },
           entityRefs: [
             entityRef('person', faction.leaderPersonId, 'leader', leader.nameKey),
@@ -146,7 +142,6 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
     messageParams: {
       newLeader: nameParam('person', newLeader?.nameKey ?? 'unknown'),
       oldLeader: nameParam('person', oldLeader?.nameKey ?? 'unknown'),
-      factionLeader: nameParam('person', ctx1.state.persons[newLeaderId]?.nameKey ?? 'unknown'),
     },
     entityRefs: [
       entityRef('person', newLeaderId, 'newLeader', newLeader?.nameKey),
@@ -169,10 +164,7 @@ function dissolveFaction(ctx: TickContext, factionId: FactionId, summary: string
     importance: 'normal',
     messageKey: 'faction.dissolved',
     messageParams: {
-      factionLeader: nameParam(
-        'person',
-        ctx1.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown',
-      ),
+      leader: nameParam('person', ctx1.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown'),
       reasons: summary,
     },
     entityRefs: [
@@ -248,7 +240,6 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
   if (!leader) return ctx
   if (!leader.houseId) return ctx
 
-  const factionName = `${leader.nameKey}'s Circle`
   const candidates = pickInitialMemberCandidates(ctx, leaderId)
   const slots = config.initialFactionMemberMax
   const selected = candidates.slice(0, slots)
@@ -310,7 +301,6 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
     messageKey: 'faction.founded',
     messageParams: {
       person: nameParam('person', leader.nameKey),
-      faction: factionName,
     },
     entityRefs: [
       entityRef('person', leaderId, 'leader', leader.nameKey),
