@@ -18,6 +18,8 @@ marriage:
   formed: '{{male}} married {{female}}.'
 
 house:
+  founded: '{{person}} founded the house {{house}}.'
+  cadet_founded: '{{person}} founded the house {{house}} as a cadet branch of {{parentHouse}}.'
   split: '{{person}} has split from {{house}} to form a new house.'
   extinct: '{{house}} has become extinct with no surviving house to inherit its legacy.'
   extinct_inherited: '{{house}} has become extinct; its realm is inherited by another house.'
@@ -162,6 +164,8 @@ aim:
 
 project:
   started: '{{owner}} launched a new project: {{kind}}.'
+  sell_land:
+    started: '{{seller}} moved to sell land to {{buyer}}.'
   completed: '{{owner}} completed a project: {{kind}}.'
   failed:
     no_supervisor: "{{owner}}'s project {{kind}} failed — no supervisor available."

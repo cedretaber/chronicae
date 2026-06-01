@@ -17,6 +17,8 @@ marriage:
   formed: '{{male}}と{{female}}が結婚した。'
 
 house:
+  founded: '{{person}}が新たな家門{{house}}を興した。'
+  cadet_founded: '{{person}}が{{parentHouse}}の分家として家門{{house}}を立てた。'
   split: '{{person}}が{{house}}から独立し、新たな家門を興した。'
   extinct: '{{house}}は後継者なく断絶した。'
   extinct_inherited: '{{house}}は断絶したが、その領土は別の家門に継承された。'
@@ -161,6 +163,8 @@ aim:
 
 project:
   started: '{{owner}}が新たなプロジェクトを立ち上げた：{{kind}}。'
+  sell_land:
+    started: '{{seller}}が{{buyer}}への領地売却を持ちかけた。'
   completed: '{{owner}}がプロジェクトを完了した：{{kind}}。'
   failed:
     no_supervisor: '{{owner}}のプロジェクト{{kind}}が頓挫した——監督者不在。'
