@@ -65,7 +65,10 @@ export type BattleInitiationKind =
 // §4.7 WarGoal
 //   和平時に DiplomaticPlay / DiplomaticOffer が cleanup 済みでも実行できるよう、
 //   実行に必要な情報をすべてコピーして保持する。
-export type WarGoal = TransferLandContractWarGoal | ChangeContractTaxRateWarGoal
+export type WarGoal =
+  | TransferLandContractWarGoal
+  | ChangeContractTaxRateWarGoal
+  | PopularRevoltIndependenceWarGoal
 
 // §4.7.1
 export type TransferLandContractWarGoal = {

@@ -58,13 +58,22 @@ function hasActiveWarForIssue(ws: WorldState, play: DiplomaticPlay): boolean {
 // §14.5 integrity 前提を満たすか (満たさない WarGoal で War を作ると integrity throw するため事前に弾く)。
 function isWarGoalApplicable(ws: WorldState, goal: WarGoal): boolean {
   if (goal.requiredWarScore <= 0) return false
-  if (!ws.holdings[goal.holdingId]) return false
   if (goal.kind === 'transfer_land_contract') {
+    if (!ws.holdings[goal.holdingId]) return false
     if (goal.fromPolityId === goal.toPolityId) return false
     const from = ws.polities[goal.fromPolityId]
     const to = ws.polities[goal.toPolityId]
     return !!from && from.active && !!to && to.active
   }
+  if (goal.kind === 'popular_revolt_independence') {
+    if (goal.holdingIds.length === 0) return false
+    if (goal.holdingIds.some((hid) => !ws.holdings[hid])) return false
+    const cw = ws.polities[goal.commonwealthPolityId]
+    const orig = ws.polities[goal.originalHolderPolityId]
+    return !!cw && cw.active && !!orig && orig.active
+  }
+  // change_contract_tax_rate
+  if (!ws.holdings[goal.holdingId]) return false
   const contract = ws.landContracts[goal.landContractId]
   if (!contract || contract.holdingId !== goal.holdingId) return false
   return goal.newTaxRateToGrantor >= 0 && goal.newTaxRateToGrantor <= 1
@@ -80,7 +89,12 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
     const play = ctx.state.diplomaticPlays[id as DiplomaticPlayId]
     if (!play) continue
     if (play.status !== 'escalated') continue
-    if (play.kind !== 'land_claim' && play.kind !== 'contract_tax_revision') continue
+    if (
+      play.kind !== 'land_claim' &&
+      play.kind !== 'contract_tax_revision' &&
+      play.kind !== 'revolt_negotiation'
+    )
+      continue
     candidates.push(play)
   }
   if (candidates.length === 0) return ctx
@@ -112,7 +126,9 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
     const requiredWarScore =
       play.kind === 'land_claim'
         ? config.defaultTransferLandWarScore
-        : config.defaultChangeContractTaxWarScore
+        : play.kind === 'revolt_negotiation'
+          ? config.defaultPopularRevoltWarScore
+          : config.defaultChangeContractTaxWarScore
     const goal = createWarGoalFromDiplomaticPlay(ws, play, requiredWarScore)
     if (!goal || !isWarGoalApplicable(ws, goal)) {
       setPlayStatusMut(ws, play.id, 'cancelled')
@@ -129,6 +145,16 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
       startedWeek: absoluteWeek,
       originDiplomaticPlayId: play.id,
     })
+    // v0.39: revolt_negotiation の場合、revoltState.warId を補完
+    if (play.kind === 'revolt_negotiation' && play.initiator.kind === 'polity') {
+      const cw = ws.polities[play.initiator.id]
+      if (cw?.revoltState?.kind === 'revolting') {
+        ws.polities[play.initiator.id] = {
+          ...cw,
+          revoltState: { ...cw.revoltState, warId: war.id },
+        }
+      }
+    }
     // §6.8: War 化成功 → 元 play は resolved_by_conflict (WAR_DECLARED のみ emit)。
     setPlayStatusMut(ws, play.id, 'resolved_by_conflict')
     declared.push({ war, issueKind: play.kind })

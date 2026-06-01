@@ -1924,7 +1924,7 @@ export function collectIntegrityErrors(
             message: `War ${idStr} transfer goal requiredWarScore=${goal.requiredWarScore} must be > 0 (§14.5)`,
           })
         }
-      } else {
+      } else if (goal.kind === 'change_contract_tax_rate') {
         if (checkWarGoalRefs) {
           if (!state.holdings[goal.holdingId]) {
             errors.push({
@@ -1963,6 +1963,42 @@ export function collectIntegrityErrors(
           errors.push({
             code: 'INTEGRITY_VIOLATION',
             message: `War ${idStr} tax goal requiredWarScore=${goal.requiredWarScore} must be > 0 (§14.5)`,
+          })
+        }
+      } else if (goal.kind === 'popular_revolt_independence') {
+        // v0.39: 叛乱独立 WarGoal の integrity 検査。
+        if (checkWarGoalRefs) {
+          if (!state.polities[goal.commonwealthPolityId]) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `War ${idStr} revolt goal references missing commonwealthPolityId ${goal.commonwealthPolityId as string}`,
+            })
+          }
+          if (!state.polities[goal.originalHolderPolityId]) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `War ${idStr} revolt goal references missing originalHolderPolityId ${goal.originalHolderPolityId as string}`,
+            })
+          }
+          for (const hid of goal.holdingIds) {
+            if (!state.holdings[hid]) {
+              errors.push({
+                code: 'INTEGRITY_VIOLATION',
+                message: `War ${idStr} revolt goal references missing holding ${hid as string}`,
+              })
+            }
+          }
+        }
+        if (goal.holdingIds.length === 0) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} revolt goal holdingIds is empty`,
+          })
+        }
+        if (!(goal.requiredWarScore > 0)) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} revolt goal requiredWarScore=${goal.requiredWarScore} must be > 0`,
           })
         }
       }

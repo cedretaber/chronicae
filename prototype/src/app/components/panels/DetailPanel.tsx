@@ -5033,6 +5033,33 @@ export function WarDetail({
         ) : (
           <div className="flex flex-col gap-1">
             {war.warGoals.map((goal, idx) => {
+              if (goal.kind === 'popular_revolt_independence') {
+                return (
+                  <div key={idx} className="rounded bg-gray-800 px-2 py-1 text-xs">
+                    <div>
+                      <span className="text-gray-400">
+                        {t('detail.war.goal_revolt_independence')}:
+                      </span>{' '}
+                      <span className="text-gray-500">
+                        ({goal.holdingIds.length} holdings, &plusmn;{goal.requiredWarScore})
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-gray-400">
+                      <PolityLink
+                        polityId={goal.originalHolderPolityId}
+                        polities={polities}
+                        onClick={onPolityClick}
+                      />
+                      <span>&rarr;</span>
+                      <PolityLink
+                        polityId={goal.commonwealthPolityId}
+                        polities={polities}
+                        onClick={onPolityClick}
+                      />
+                    </div>
+                  </div>
+                )
+              }
               const holding = worldState.holdings[goal.holdingId]
               const provinceId = holding?.provinceId
               const provinceName = provinceId

@@ -114,7 +114,9 @@ describe('WarManeuverSystem lastWarWeek 継承 (§19.1)', () => {
     const world = freshWorld()
     const { war, owner, other } = injectWar(world)
     // warGoal の holding を欠落 id にし、getWarGoalProvince を未解決にする。
-    war.warGoals[0]!.holdingId = 'hl-999999' as HoldingId
+    const g0 = war.warGoals[0]!
+    if (g0.kind === 'popular_revolt_independence') throw new Error('unexpected goal kind')
+    g0.holdingId = 'hl-999999' as HoldingId
     const next = runWarManeuverSystem(makeCtx(world))
     expect(next.state.polities[owner]?.lastWarWeek).toBe(world.absoluteWeek)
     expect(next.state.polities[other]?.lastWarWeek).toBe(world.absoluteWeek)

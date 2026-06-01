@@ -1,6 +1,11 @@
 import type { WorldState } from '../types/world'
 import type { ProvinceId, PolityId, LandContractId, HoldingId } from '../types/ids'
-import type { LandContract, LandContractIndex, RootAuthorityId } from '../types/landContract'
+import type {
+  LandContract,
+  LandContractIndex,
+  RootAuthorityId,
+  LandContractSpecialStatus,
+} from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
 import { createLandContractId } from '../types/ids'
 import { clampTaxRate } from '../helpers/landContractHelpers'
@@ -27,6 +32,7 @@ type CreateChildContractParams = {
   granteePolityId: PolityId
   taxRateToGrantor: number
   holdingId?: HoldingId
+  specialStatus?: LandContractSpecialStatus
 }
 
 type CreateResult = {
@@ -115,6 +121,7 @@ export function createChildLandContract(
     parentContractId: params.parentContractId,
     granteePolityId: params.granteePolityId,
     terms: { taxRateToGrantor: clampTaxRate(params.taxRateToGrantor) },
+    ...(params.specialStatus ? { specialStatus: params.specialStatus } : {}),
   }
   const chain = emptyChainSlot(state.landContractIndex, params.provinceId)
   const granteeSlot = emptyGranteeSlot(state.landContractIndex, params.granteePolityId)

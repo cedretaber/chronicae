@@ -117,7 +117,7 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
     }
   }
 
-  it('resolves escalated revolt → status=resolved_by_conflict', () => {
+  it('v0.39: system is no-op (revolt escalation handled by warCreationSystem)', () => {
     const setup = setupRebel()
     let ctx = injectEscalatedPlay(
       setup.ctx,
@@ -127,8 +127,7 @@ describe('runConflictResolutionSystem (revolt_negotiation)', () => {
     )
     ctx = runConflictResolutionSystem(ctx)
     const play = Object.values(ctx.state.diplomaticPlays)[0]
-    expect(play?.status).toBe('resolved_by_conflict')
-    expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT')).toBe(true)
+    expect(play?.status).toBe('escalated')
   })
 
   it('ignores active (non-escalated) Plays', () => {

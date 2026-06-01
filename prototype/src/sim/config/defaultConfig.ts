@@ -411,6 +411,16 @@ export type SimulationConfig = {
   maxWarDurationWeeks: number
   defaultTransferLandWarScore: number
   defaultChangeContractTaxWarScore: number
+  defaultPopularRevoltWarScore: number
+  // v0.39: Local Levy
+  localLevyPeasantFactor: number
+  localLevyTownsmenFactor: number
+  localLevyNobleFactor: number
+  localLevyMinStrength: number
+  localLevyMaxStrength: number
+  localLevyBasePowerFactor: number
+  localLevyOrganization: number
+  localLevyMorale: number
   terminalWarRetentionWeeks: number
   // v0.35 War Maneuver (§12.1): WarManeuverSystem の総大将判断 / 回避 / 戦闘で warScore を動かす
   //   avoidance
@@ -1276,6 +1286,15 @@ export const defaultConfig: SimulationConfig = {
   //   60/50 → 12/10 に引き下げ (warBattleScoreScale 24 と対。target/scale≈0.5 が決着戦闘数を支配)。
   defaultTransferLandWarScore: 12,
   defaultChangeContractTaxWarScore: 10,
+  defaultPopularRevoltWarScore: 10,
+  localLevyPeasantFactor: 0.3,
+  localLevyTownsmenFactor: 0.5,
+  localLevyNobleFactor: 1.0,
+  localLevyMinStrength: 10,
+  localLevyMaxStrength: 60,
+  localLevyBasePowerFactor: 0.3,
+  localLevyOrganization: 30,
+  localLevyMorale: 30,
   terminalWarRetentionWeeks: 48,
   // v0.35 War Maneuver (§12.2): 初期値案。バランス調整は機能完成後 (.claude/CLAUDE.md §4)。
   warAvoidanceBaseChance: 0.65,

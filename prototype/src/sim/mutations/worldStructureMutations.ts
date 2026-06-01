@@ -8,7 +8,14 @@ import {
 } from '../tick/context'
 import { nameParam, entityRef } from '../types/event'
 import { randomFloat, randomInt } from '../rng/rng'
-import type { HouseId, PersonId, ProvinceId, PolityId, HoldingId } from '../types/ids'
+import type {
+  HouseId,
+  PersonId,
+  ProvinceId,
+  PolityId,
+  HoldingId,
+  LandContractId,
+} from '../types/ids'
 import type { EventReason, EventEffect } from '../types/event'
 import type { House } from '../types/house'
 import type { Person } from '../types/person'
@@ -1453,4 +1460,147 @@ export function dissolveNegotiatingCommonwealth(
   }
 
   return ok({ ctx: { ...ctx, state }, value: undefined })
+}
+
+// ============================================================================
+// v0.39 C-5: establishCommonwealth — revolt War 勝利時
+// ============================================================================
+
+export function establishCommonwealth(
+  ctx: TickContext,
+  input: {
+    commonwealthPolityId: PolityId
+    revoltSeizureContractIds: LandContractId[]
+    leaderPersonId: PersonId
+  },
+): CtxResult<void> {
+  let state = ctx.state
+
+  // 1. revoltState → established
+  const cw = state.polities[input.commonwealthPolityId]
+  if (!cw)
+    return err({
+      code: 'POLITY_NOT_FOUND',
+      message: `establishCommonwealth: ${input.commonwealthPolityId}`,
+    })
+  state = {
+    ...state,
+    polities: {
+      ...state.polities,
+      [input.commonwealthPolityId]: { ...cw, revoltState: { kind: 'established' } },
+    },
+  }
+
+  // 2. revolt_seizure 契約の specialStatus を除去（正式契約化）
+  for (const contractId of input.revoltSeizureContractIds) {
+    const c = state.landContracts[contractId]
+    if (c?.specialStatus?.kind === 'revolt_seizure') {
+      const updated = { ...c }
+      delete updated.specialStatus
+      state = { ...state, landContracts: { ...state.landContracts, [contractId]: updated } }
+    }
+  }
+
+  // 3. Leader prestige boost
+  const leader = state.persons[input.leaderPersonId]
+  if (leader) {
+    state = {
+      ...state,
+      persons: {
+        ...state.persons,
+        [input.leaderPersonId]: {
+          ...leader,
+          legacyPrestige: Math.min(100, leader.legacyPrestige + 15),
+        },
+      },
+    }
+  }
+
+  let nextCtx: TickContext = { ...ctx, state }
+  const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+    type: 'REVOLT_POLITY_ESTABLISHED',
+    importance: 'critical',
+    messageKey: 'revolt.triumphant',
+    messageParams: {
+      province: nameParam('province', cw.capitalProvinceId),
+    },
+    entityRefs: [
+      entityRef('polity', input.commonwealthPolityId, 'commonwealth', cw.nameKey),
+      entityRef('person', input.leaderPersonId, 'leader'),
+    ],
+  })
+  nextCtx = { ...ctxEv, events: [...ctxEv.events, event] }
+
+  return ok({ ctx: nextCtx, value: undefined })
+}
+
+// ============================================================================
+// v0.39 C-5: suppressRevolt — revolt War 鎮圧時
+// ============================================================================
+
+import { eliminateContractFromChain as eliminateContract } from './landContractMutations'
+
+export function suppressRevolt(
+  ctx: TickContext,
+  input: {
+    commonwealthPolityId: PolityId
+    revoltSeizureContractIds: LandContractId[]
+    holdingIds: HoldingId[]
+  },
+): CtxResult<void> {
+  let state = ctx.state
+
+  // 1. revolt_seizure 契約を削除
+  for (const contractId of input.revoltSeizureContractIds) {
+    const c = state.landContracts[contractId]
+    if (c) {
+      state = eliminateContract(state, contractId)
+    }
+  }
+
+  // 2. commonwealth 解散（leader outcome: 50% executed / 50% pardoned）
+  let nextCtx: TickContext = { ...ctx, state }
+  const { value: roll, rng: nextRng } = randomFloat(nextCtx.rng)
+  nextCtx = { ...nextCtx, rng: nextRng }
+  const leaderOutcome: 'executed' | 'pardoned' = roll < 0.5 ? 'executed' : 'pardoned'
+  const dissolveResult = dissolveNegotiatingCommonwealth(nextCtx, {
+    commonwealthPolityId: input.commonwealthPolityId,
+    leaderOutcome,
+  })
+  if (dissolveResult.ok) {
+    nextCtx = dissolveResult.value.ctx
+  }
+
+  // 3. Holding に lastRevoltSuppressedWeek 記録
+  let updatedState = nextCtx.state
+  for (const holdingId of input.holdingIds) {
+    const h = updatedState.holdings[holdingId]
+    if (h) {
+      updatedState = {
+        ...updatedState,
+        holdings: {
+          ...updatedState.holdings,
+          [holdingId]: { ...h, lastRevoltSuppressedWeek: updatedState.absoluteWeek },
+        },
+      }
+    }
+  }
+  nextCtx = { ...nextCtx, state: updatedState }
+
+  // 4. Event
+  const cw = nextCtx.state.polities[input.commonwealthPolityId]
+  const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+    type: 'REVOLT_SUPPRESSED',
+    importance: 'major',
+    messageKey: 'revolt.suppressed',
+    messageParams: {
+      province: nameParam('province', cw?.capitalProvinceId ?? ''),
+      aftermathText: leaderOutcome === 'executed' ? 'was executed' : 'was pardoned',
+      restorePolity: '',
+    },
+    entityRefs: [entityRef('polity', input.commonwealthPolityId, 'commonwealth')],
+  })
+  nextCtx = { ...ctxEv, events: [...ctxEv.events, event] }
+
+  return ok({ ctx: nextCtx, value: undefined })
 }

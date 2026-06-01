@@ -19,7 +19,12 @@ import {
   type RebelLeaderAftermath,
   dissolveNegotiatingCommonwealth,
 } from '../mutations/worldStructureMutations'
-import { adjustLandContractTaxRate } from '../mutations/landContractMutations'
+import {
+  adjustLandContractTaxRate,
+  createChildLandContract,
+} from '../mutations/landContractMutations'
+import { createRegiment } from '../mutations/regimentMutations'
+import { getHoldingPopSizeByClass } from '../selectors/popSelectors'
 import { getProvincePops } from '../selectors/popSelectors'
 import {
   getProvinceManpowerBase,
@@ -221,14 +226,7 @@ function progressPopularTaxRelief(
     nextTension >= config.diplomaticPlayEscalationThreshold ||
     (isDeadlineReached(nextCtx.state, play) && nextTension >= nextProgress)
   ) {
-    return applyRevoltEscalationTransitional(
-      nextCtx,
-      play,
-      demand,
-      commonwealthId,
-      targetPolityId,
-      provinceId,
-    )
+    return applyRevoltEscalation(nextCtx, play, demand, commonwealthId, targetPolityId, provinceId)
   }
 
   if (isDeadlineReached(nextCtx.state, play)) {
@@ -243,14 +241,7 @@ function progressPopularTaxRelief(
       )
     }
     // Equal or no winner: fail
-    return applyRevoltEscalationTransitional(
-      nextCtx,
-      play,
-      demand,
-      commonwealthId,
-      targetPolityId,
-      provinceId,
-    )
+    return applyRevoltEscalation(nextCtx, play, demand, commonwealthId, targetPolityId, provinceId)
   }
   return nextCtx
 }
@@ -350,8 +341,151 @@ function applyPopularTaxReliefSettlement(
   return { ...ctxEv, events: [...ctxEv.events, event] }
 }
 
-// Phase B transitional: escalation dissolves commonwealth and fails the play (INV-1)
-function applyRevoltEscalationTransitional(
+function applyRevoltEscalation(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  demand: Extract<DiplomaticDemand, { kind: 'popular_tax_relief' }>,
+  commonwealthId: PolityId,
+  targetPolityId: PolityId,
+  provinceId: ProvinceId,
+): TickContext {
+  const config = ctx.config
+  const targetPolity = ctx.state.polities[targetPolityId]
+
+  // rank 5 → Phase D internal revolt (transitional: dissolve + fail)
+  if (targetPolity && targetPolity.rank === 5) {
+    return applyRevoltEscalationRank5Transitional(
+      ctx,
+      play,
+      demand,
+      commonwealthId,
+      targetPolityId,
+      provinceId,
+    )
+  }
+
+  // rank 2-4: revolt_seizure contract + Local Levy + escalated
+  let state = ctx.state
+
+  // 1. Add revolt_seizure child contract
+  const holdingChain = state.landContractIndex.byHolding[demand.holdingId] ?? []
+  const terminalContractId = holdingChain[holdingChain.length - 1]
+  if (!terminalContractId) return setPlayStatus(ctx, play.id, 'failed')
+
+  const createResult = createChildLandContract(state, {
+    provinceId,
+    parentContractId: terminalContractId,
+    granteePolityId: commonwealthId,
+    taxRateToGrantor: 0,
+    holdingId: demand.holdingId,
+    specialStatus: {
+      kind: 'revolt_seizure',
+      revoltPolityId: commonwealthId,
+      originalTerminalPolityId: targetPolityId,
+      startedWeek: state.absoluteWeek,
+    },
+  })
+  state = createResult.state
+  const seizureContractId = createResult.contractId
+
+  // 2. Create Local Levy
+  const peasants = getHoldingPopSizeByClass(state, demand.holdingId, 'peasants')
+  const townsmen = getHoldingPopSizeByClass(state, demand.holdingId, 'townsmen')
+  const nobles = getHoldingPopSizeByClass(state, demand.holdingId, 'nobles')
+  const levyStrength = Math.max(
+    config.localLevyMinStrength,
+    Math.min(
+      config.localLevyMaxStrength,
+      peasants * config.localLevyPeasantFactor +
+        townsmen * config.localLevyTownsmenFactor +
+        nobles * config.localLevyNobleFactor,
+    ),
+  )
+  const holding = state.holdings[demand.holdingId]
+  if (holding) {
+    const levy = createRegiment(state, {
+      owner: { kind: 'polity', id: commonwealthId },
+      sourceKind: 'local_levy',
+      troopKind: 'infantry',
+      homeHoldingId: demand.holdingId,
+      homeProvinceId: provinceId,
+      strength: levyStrength,
+      organization: config.localLevyOrganization,
+      morale: config.localLevyMorale,
+      maxStrength: levyStrength,
+      basePower: levyStrength * config.localLevyBasePowerFactor,
+      baselineOrganization: config.localLevyOrganization,
+      maxOrganization: 50,
+      baselineMorale: config.localLevyMorale,
+      maxMorale: 50,
+      createdWeek: state.absoluteWeek,
+    })
+    levy.disbandAfterWar = true
+  }
+
+  // 3. Update revoltState to revolting
+  const commonwealth = state.polities[commonwealthId]
+  if (commonwealth) {
+    state = {
+      ...state,
+      polities: {
+        ...state.polities,
+        [commonwealthId]: {
+          ...commonwealth,
+          revoltState: {
+            kind: 'revolting',
+            revoltSeizureContractIds: [seizureContractId],
+          },
+        },
+      },
+    }
+  }
+
+  // 4. Mark play escalated (warCreationSystem will consume)
+  let nextCtx: TickContext = { ...ctx, state }
+  const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
+  nextCtx = markPlayEscalated(nextCtx, play.id, {
+    polityIds: [commonwealthId, targetPolityId],
+    provinceIds: [provinceId],
+    holdingIds: [demand.holdingId],
+    summary: `Revolt in ${provinceNameKey} has escalated to armed conflict.`,
+    messageKey: 'diplomatic_play.escalated_revolt',
+    messageParams: { province: nameParam('province', provinceNameKey) },
+    eventEntityRefs: [
+      entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+      entityRef('polity', commonwealthId, 'rebel_polity'),
+      entityRef(
+        'polity',
+        targetPolityId,
+        'target_polity',
+        nextCtx.state.polities[targetPolityId]?.nameKey,
+      ),
+    ],
+  })
+
+  // Emit REVOLT_ESCALATED
+  const provinceName = nameParam('province', provinceNameKey)
+  const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+    type: 'REVOLT_ESCALATED',
+    importance: 'major',
+    messageKey: 'revolt.escalated',
+    messageParams: { province: provinceName },
+    entityRefs: [
+      entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+      entityRef('polity', commonwealthId, 'rebel_polity'),
+      entityRef(
+        'polity',
+        targetPolityId,
+        'target_polity',
+        nextCtx.state.polities[targetPolityId]?.nameKey,
+      ),
+    ],
+  })
+  return { ...ctxEv, events: [...ctxEv.events, event] }
+}
+
+// rank 5 transitional: dissolve + fail (Phase D will implement internal revolt)
+function applyRevoltEscalationRank5Transitional(
   ctx: TickContext,
   play: DiplomaticPlay,
   demand: Extract<DiplomaticDemand, { kind: 'popular_tax_relief' }>,
@@ -361,10 +495,8 @@ function applyRevoltEscalationTransitional(
 ): TickContext {
   let state = ctx.state
 
-  // Slight unrest increase on target POP
   state = adjustProvincePopUnrestByClass(state, provinceId, demand.claimantPopClass, 5)
 
-  // Record suppression on Holding
   const holding = state.holdings[demand.holdingId]
   if (holding) {
     state = {
@@ -376,7 +508,6 @@ function applyRevoltEscalationTransitional(
     }
   }
 
-  // Dissolve commonwealth (leader pardoned)
   let nextCtx: TickContext = { ...ctx, state }
   const dissolveResult = dissolveNegotiatingCommonwealth(nextCtx, {
     commonwealthPolityId: commonwealthId,
@@ -386,10 +517,8 @@ function applyRevoltEscalationTransitional(
     nextCtx = dissolveResult.value.ctx
   }
 
-  // Set play to failed (NOT escalated — INV-1)
   nextCtx = setPlayStatus(nextCtx, play.id, 'failed')
 
-  // Emit REVOLT_ESCALATED for chronicle
   const provinceName = nameParam(
     'province',
     nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,

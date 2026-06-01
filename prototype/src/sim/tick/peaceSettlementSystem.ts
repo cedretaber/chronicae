@@ -11,6 +11,7 @@ import {
 } from '../mutations/landContractMutations'
 import { getHoldingLandContractChain } from '../selectors/landContractSelectors'
 import { emitWarOutcome, emitWarEnded, emitPeaceSettlementApplied } from './warEvents'
+import { establishCommonwealth, suppressRevolt } from '../mutations/worldStructureMutations'
 
 // v0.34 §8 PeaceSettlementSystem
 //
@@ -45,8 +46,25 @@ function settleWhitePeace(ctx: TickContext, warId: WarId): TickContext {
   return w ? emitWarEnded(next, w) : next
 }
 
-// §8.4 defender 勝利 → status quo (WarGoal 不実行)。
+// §8.4 defender 勝利 → status quo (WarGoal 不実行)。revolt の場合は suppressRevolt を実行。
 function settleDefenderWon(ctx: TickContext, warId: WarId): TickContext {
+  const war = ctx.state.wars[warId]
+  if (!war) return ctx
+
+  // v0.39: revolt War → suppression
+  const revoltGoal = war.warGoals.find((g) => g.kind === 'popular_revolt_independence')
+  if (revoltGoal && revoltGoal.kind === 'popular_revolt_independence') {
+    const result = suppressRevolt(ctx, {
+      commonwealthPolityId: revoltGoal.commonwealthPolityId,
+      revoltSeizureContractIds: revoltGoal.revoltSeizureContractIds,
+      holdingIds: revoltGoal.holdingIds,
+    })
+    let next = result.ok ? result.value.ctx : ctx
+    next = patchWar(next, warId, { status: 'defender_won', endedWeek: next.state.absoluteWeek })
+    const w = next.state.wars[warId]
+    return w ? emitWarOutcome(next, w, false) : next
+  }
+
   const next = patchWar(ctx, warId, { status: 'defender_won', endedWeek: ctx.state.absoluteWeek })
   const w = next.state.wars[warId]
   return w ? emitWarOutcome(next, w, false) : next
@@ -131,6 +149,22 @@ function settleAttackerWon(ctx: TickContext, warId: WarId): TickContext {
     return next
   }
 
+  if (goal.kind === 'popular_revolt_independence') {
+    const result = establishCommonwealth(ctx, {
+      commonwealthPolityId: goal.commonwealthPolityId,
+      revoltSeizureContractIds: goal.revoltSeizureContractIds,
+      leaderPersonId: goal.leaderPersonId,
+    })
+    if (!result.ok) return settleWhitePeace(ctx, warId)
+    let next = patchWar(result.value.ctx, warId, {
+      status: 'attacker_won',
+      endedWeek: result.value.ctx.state.absoluteWeek,
+    })
+    const w = next.state.wars[warId]
+    if (w) next = emitWarOutcome(next, w, true)
+    return next
+  }
+
   // change_contract_tax_rate
   const defActor = getWarPrimaryDefender(war)?.actor
   const defenderPolityId = defActor?.kind === 'polity' ? defActor.id : undefined
@@ -164,6 +198,13 @@ function isWarGoalRefStale(state: WorldState, goal: WarGoal): boolean {
       !state.polities[goal.toPolityId]
     )
   }
+  if (goal.kind === 'popular_revolt_independence') {
+    return (
+      !state.polities[goal.commonwealthPolityId] ||
+      !state.polities[goal.originalHolderPolityId] ||
+      goal.holdingIds.some((hid) => !state.holdings[hid])
+    )
+  }
   const contract = state.landContracts[goal.landContractId]
   return (
     !state.holdings[goal.holdingId] ||
@@ -193,6 +234,22 @@ export function runPeaceSettlementSystem(ctx: TickContext): TickContext {
     // §8.8: WarGoal が stale (参照先消失) なら warScore/timeout を待たず白紙和平で安全終結する。
     if (war.warGoals.some((g) => isWarGoalRefStale(next.state, g))) {
       next = settleWhitePeace(next, wid)
+      continue
+    }
+
+    // v0.39: revolt War — leader 死亡で即 defender 勝利
+    let leaderDied = false
+    for (const goal of war.warGoals) {
+      if (goal.kind === 'popular_revolt_independence') {
+        const leader = next.state.persons[goal.leaderPersonId]
+        if (!leader || !leader.alive) {
+          leaderDied = true
+          break
+        }
+      }
+    }
+    if (leaderDied) {
+      next = settleDefenderWon(next, wid)
       continue
     }
 

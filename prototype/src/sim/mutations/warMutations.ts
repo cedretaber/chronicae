@@ -1,5 +1,12 @@
 import type { WorldState } from '../types/world'
-import type { War, WarGoal, WarParticipant, WarSide, WarSideKey } from '../types/war'
+import type {
+  War,
+  WarGoal,
+  WarParticipant,
+  WarSide,
+  WarSideKey,
+  PopularRevoltIndependenceWarGoal,
+} from '../types/war'
 import type { WarId, DiplomaticPlayId, HoldingId, PolityId, ProvinceId } from '../types/ids'
 import type { PoliticalActorRef } from '../types/actor'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
@@ -132,11 +139,37 @@ export function getWarPrimaryDefender(war: War): WarParticipant | undefined {
 //   (§6.7。config キーは B-1 で追加されるため Phase A の本関数は config に依存しない)。
 //   issue 不在 / land_claim で initiator が polity でない / from polity 不明 の場合は
 //   undefined を返し、呼び出し側で War 作成を skip する。
+
+function createWarGoalFromRevoltPlay(
+  state: WorldState,
+  play: DiplomaticPlay,
+  requiredWarScore: number,
+): PopularRevoltIndependenceWarGoal | undefined {
+  if (play.initiator.kind !== 'polity') return undefined
+  const commonwealth = state.polities[play.initiator.id]
+  if (!commonwealth?.revoltState || commonwealth.revoltState.kind !== 'revolting') return undefined
+  const origin = commonwealth.origin
+  if (!origin || origin.kind !== 'popular_revolt') return undefined
+  if (play.target.kind !== 'polity') return undefined
+  return {
+    kind: 'popular_revolt_independence',
+    commonwealthPolityId: play.initiator.id,
+    originalHolderPolityId: play.target.id,
+    holdingIds: origin.holdingIds,
+    revoltSeizureContractIds: commonwealth.revoltState.revoltSeizureContractIds,
+    leaderPersonId: origin.leaderPersonId,
+    requiredWarScore,
+  }
+}
+
 export function createWarGoalFromDiplomaticPlay(
   state: WorldState,
   play: DiplomaticPlay,
   requiredWarScore: number,
 ): WarGoal | undefined {
+  if (play.kind === 'revolt_negotiation') {
+    return createWarGoalFromRevoltPlay(state, play, requiredWarScore)
+  }
   const issue = play.issue
   if (!issue) return undefined
 
@@ -197,8 +230,22 @@ export type WarGoalDescription =
       beforeRate: number
       afterRate: number
     }
+  | {
+      kind: 'popular_revolt_independence'
+      holdingIds: HoldingId[]
+      commonwealthPolityId: PolityId
+      originalHolderPolityId: PolityId
+    }
 
 export function describeWarGoal(state: WorldState, goal: WarGoal): WarGoalDescription {
+  if (goal.kind === 'popular_revolt_independence') {
+    return {
+      kind: 'popular_revolt_independence',
+      holdingIds: goal.holdingIds,
+      commonwealthPolityId: goal.commonwealthPolityId,
+      originalHolderPolityId: goal.originalHolderPolityId,
+    }
+  }
   const holding = state.holdings[goal.holdingId]
   const provinceId = holding?.provinceId
   const provinceNameKey = provinceId ? state.provinces[provinceId]?.nameKey : undefined

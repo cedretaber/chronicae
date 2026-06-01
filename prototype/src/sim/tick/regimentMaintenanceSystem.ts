@@ -59,10 +59,15 @@ export function runRegimentMaintenanceSystem(ctx: TickContext): TickContext {
     }
 
     // 2. home terminal Polity 変化 → owner 付け替え (§14.6。basePower/strength/org/動員状態は維持)
+    //    disbandAfterWar なら再割当ではなく disband
     if (r0.homeHoldingId !== undefined) {
       const terminal = ws.holdingTerminalPolityCache[r0.homeHoldingId]
       if (terminal !== undefined && r0.owner.kind === 'polity' && r0.owner.id !== terminal) {
         ensureDraft()
+        if (r0.disbandAfterWar === true) {
+          disbandRegimentMut(ws, rid)
+          continue
+        }
         reassignRegimentOwnerMut(ws, rid, { kind: 'polity', id: terminal })
       }
     }
@@ -79,11 +84,15 @@ export function runRegimentMaintenanceSystem(ctx: TickContext): TickContext {
     }
 
     // 4. currentWarId が live(active) war を指していない → demobilize (§14.3)
+    //    disbandAfterWar なら demobilize + disband
     if (r.currentWarId !== undefined) {
       const war = ws.wars[r.currentWarId]
       if (!war || war.status !== 'active') {
         ensureDraft()
         demobilizeRegimentMut(ws, rid)
+        if (r.disbandAfterWar === true) {
+          disbandRegimentMut(ws, rid)
+        }
       }
     }
   }

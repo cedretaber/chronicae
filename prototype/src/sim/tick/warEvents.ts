@@ -109,6 +109,24 @@ export function emitWarDeclared(ctx: TickContext, war: War, issueKind: string): 
   }
 
   const desc = describeWarGoal(ctx.state, goal)
+
+  // v0.39: revolt WarGoal の WAR_DECLARED は generic fallback で発行する。
+  if (desc.kind === 'popular_revolt_independence') {
+    return emit(
+      ctx,
+      'WAR_DECLARED',
+      'major',
+      'war.declared.generic',
+      {
+        warId: war.id,
+        attacker: nameParam(p.attacker.kind, p.attackerName),
+        defender: nameParam(p.defender.kind, p.defenderName),
+        issue: issueKind,
+      },
+      attackerDefenderRefs(p),
+    )
+  }
+
   const subjectName = desc.provinceNameKey ?? desc.holdingId
   const refs: EventEntityRef[] = [...attackerDefenderRefs(p)]
   if (desc.provinceId) {
@@ -216,6 +234,8 @@ export function emitWarEnded(ctx: TickContext, war: War): TickContext {
 export function emitPeaceSettlementApplied(ctx: TickContext, war: War, goal: WarGoal): TickContext {
   const p = warParties(ctx.state, war)
   if (!p) return ctx
+  // v0.39: revolt WarGoal のハンドラは未実装。event 発行不要。
+  if (goal.kind === 'popular_revolt_independence') return ctx
   const holding = ctx.state.holdings[goal.holdingId]
   const provinceId = holding?.provinceId
   const holdingDisplay = provinceId

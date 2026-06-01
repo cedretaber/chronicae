@@ -124,6 +124,12 @@ export function buildBattleSimCommanderInputs(
 export function getWarGoalProvince(state: WorldState, war: War): ProvinceId | undefined {
   const goal = war.warGoals[0]
   if (!goal) return undefined
+  if (goal.kind === 'popular_revolt_independence') {
+    // 叛乱 WarGoal は holdingIds[] を持つ。先頭の holding から province を解決する。
+    const firstHoldingId = goal.holdingIds[0]
+    if (!firstHoldingId) return undefined
+    return state.holdings[firstHoldingId]?.provinceId
+  }
   return state.holdings[goal.holdingId]?.provinceId
 }
 

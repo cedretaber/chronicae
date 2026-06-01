@@ -112,6 +112,7 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
     if (!r) continue
     if (r.owner.kind !== 'polity') continue
     if (r.homeHoldingId === undefined) continue
+    if (r.sourceKind === 'local_levy') continue
 
     // ── A. active strength 補充 (silent) ──
     if (r.status === 'active') {
