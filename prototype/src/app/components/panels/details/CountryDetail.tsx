@@ -15,6 +15,7 @@ import {
 import type { House } from '@/sim/types/house'
 import { HouseLink, PersonLink } from './shared/links'
 import {
+  PanelHeader,
   CopyJsonButton,
   WatchButton,
   ShareholderSection,
@@ -111,22 +112,22 @@ export function CountryDetail({
 
   return (
     <div className="flex flex-col gap-1 p-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-bold">
-            {resolveName('polity', polity.nameKey, polity.nameKey)}
-          </span>
-          {!polity.active && (
+      <PanelHeader
+        title={resolveName('polity', polity.nameKey, polity.nameKey)}
+        badge={
+          !polity.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">
               {t('detail.annexed')}
             </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <CopyJsonButton payload={buildEntitySnapshot('polity', polity, currentState ?? null)} />
-          <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(polity.id)} />
-        </div>
-      </div>
+          )
+        }
+        actions={
+          <>
+            <CopyJsonButton payload={buildEntitySnapshot('polity', polity, currentState ?? null)} />
+            <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(polity.id)} />
+          </>
+        }
+      />
 
       <div className="text-sm">
         <div className="flex justify-between">

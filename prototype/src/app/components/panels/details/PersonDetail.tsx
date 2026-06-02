@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
+  PanelHeader,
   CopyJsonButton,
   WatchButton,
   AttitudeList,
@@ -184,15 +185,15 @@ export function PersonDetail({
 
   return (
     <div className="flex flex-col gap-1 p-3">
-      <div className="flex items-center justify-between">
-        <span className="text-lg font-bold">
-          {resolveName('person', person.nameKey, person.nameKey)}
-        </span>
-        <div className="flex items-center gap-1.5">
-          <CopyJsonButton payload={buildEntitySnapshot('person', person, currentState ?? null)} />
-          <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(person.id)} />
-        </div>
-      </div>
+      <PanelHeader
+        title={resolveName('person', person.nameKey, person.nameKey)}
+        actions={
+          <>
+            <CopyJsonButton payload={buildEntitySnapshot('person', person, currentState ?? null)} />
+            <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(person.id)} />
+          </>
+        }
+      />
 
       <div className="text-sm">
         <div className="flex justify-between">

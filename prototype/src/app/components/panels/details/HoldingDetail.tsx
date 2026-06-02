@@ -4,7 +4,7 @@ import { buildEntitySnapshot, resolveHoldingImprovements } from './shared/helper
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { CopyJsonButton, EntityChronicleSection } from './shared/widgets'
+import { PanelHeader, CopyJsonButton, EntityChronicleSection } from './shared/widgets'
 import { getHoldingImage } from '@/app/utils/assetHash'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
@@ -56,17 +56,21 @@ export function HoldingDetail({
   return (
     <div className="flex flex-col gap-1 p-3">
       {/* Header: Holding name + kind badge + copy */}
-      <div className="flex items-center justify-between">
-        <span className="text-lg font-bold">{holdingDisplay}</span>
-        <div className="flex items-center gap-1.5">
-          <CopyJsonButton payload={buildEntitySnapshot('holding', holding, currentState ?? null)} />
-          <span
-            className={`rounded px-1.5 py-0.5 text-xs ${holding.kind === 'city' ? 'bg-amber-800 text-amber-200' : 'bg-green-900 text-green-300'}`}
-          >
-            {holding.kind}
-          </span>
-        </div>
-      </div>
+      <PanelHeader
+        title={holdingDisplay}
+        actions={
+          <>
+            <CopyJsonButton
+              payload={buildEntitySnapshot('holding', holding, currentState ?? null)}
+            />
+            <span
+              className={`rounded px-1.5 py-0.5 text-xs ${holding.kind === 'city' ? 'bg-amber-800 text-amber-200' : 'bg-green-900 text-green-300'}`}
+            >
+              {holding.kind}
+            </span>
+          </>
+        }
+      />
 
       {/* Header image */}
       <img

@@ -39,7 +39,7 @@ import {
 } from '@sim/selectors/landContractSelectors'
 import { getPolityStability } from '@sim/selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '@sim/helpers/attitudeHelpers'
-import { CopyJsonButton, EntityChronicleSection } from './shared/widgets'
+import { PanelHeader, CopyJsonButton, EntityChronicleSection } from './shared/widgets'
 import { getProvinceImage, getHoldingImage } from '@/app/utils/assetHash'
 import { PolityLink, HouseLink, PersonLink } from './shared/links'
 import { formatScore, formatPower } from '@/app/utils/format'
@@ -199,12 +199,14 @@ export function ProvinceDetail({
 
   return (
     <div className="flex flex-col gap-1 p-3">
-      <div className="flex items-center justify-between">
-        <span className="text-lg font-bold">
-          {resolveName('province', province.nameKey, province.nameKey)}
-        </span>
-        <CopyJsonButton payload={buildEntitySnapshot('province', province, currentState ?? null)} />
-      </div>
+      <PanelHeader
+        title={resolveName('province', province.nameKey, province.nameKey)}
+        actions={
+          <CopyJsonButton
+            payload={buildEntitySnapshot('province', province, currentState ?? null)}
+          />
+        }
+      />
 
       <img
         src={getProvinceImage(province.terrain, province.features)}

@@ -20,6 +20,7 @@ import { clamp } from '@/sim/utils/math'
 import { normalizedStat } from '@/sim/selectors/personAbilityEffects'
 import { hasEntityId } from '@sim/types/event'
 import {
+  PanelHeader,
   CopyJsonButton,
   WatchButton,
   ShareholderSection,
@@ -121,15 +122,15 @@ export function HouseDetail({
 
   return (
     <div className="flex flex-col gap-1 p-3">
-      <div className="flex items-center justify-between">
-        <span className="text-lg font-bold">
-          {resolveName('house', house.nameKey, house.nameKey)}
-        </span>
-        <div className="flex items-center gap-1.5">
-          <CopyJsonButton payload={buildEntitySnapshot('house', house, currentState ?? null)} />
-          <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(house.id)} />
-        </div>
-      </div>
+      <PanelHeader
+        title={resolveName('house', house.nameKey, house.nameKey)}
+        actions={
+          <>
+            <CopyJsonButton payload={buildEntitySnapshot('house', house, currentState ?? null)} />
+            <WatchButton isWatching={isWatching} onToggle={() => toggleWatchlist(house.id)} />
+          </>
+        }
+      />
 
       <div className="text-sm">
         <div className="flex justify-between">

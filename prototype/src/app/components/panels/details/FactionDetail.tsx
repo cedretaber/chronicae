@@ -11,7 +11,7 @@ import {
 } from '@sim/selectors/factionSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import type { PersonId, PolityId, HouseId } from '@/sim/types/ids'
-import { CopyJsonButton } from './shared/widgets'
+import { PanelHeader, CopyJsonButton } from './shared/widgets'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { PersonLink, HouseLink } from './shared/links'
 import { formatScore } from '@/app/utils/format'
@@ -118,19 +118,17 @@ export function FactionDetail({
 
   return (
     <div className="flex flex-col gap-1 p-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-bold">
-            {leader ? `${leader.nameKey}'s faction` : faction.id}
-          </span>
-          {!faction.active && (
+      <PanelHeader
+        title={leader ? `${leader.nameKey}'s faction` : faction.id}
+        badge={
+          !faction.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">
               {t('detail.faction.dissolved')}
             </span>
-          )}
-        </div>
-        <CopyJsonButton payload={buildEntitySnapshot('faction', faction, worldState)} />
-      </div>
+          )
+        }
+        actions={<CopyJsonButton payload={buildEntitySnapshot('faction', faction, worldState)} />}
+      />
 
       <div className="text-sm">
         <div className="flex justify-between">

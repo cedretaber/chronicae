@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getImportanceColor } from './helpers'
 import type { ClickHandler } from './helpers'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import type { Project } from '@/sim/types/project'
 import type { Person } from '@/sim/types/person'
 import { PersonLink, HouseLink } from './links'
@@ -28,6 +29,30 @@ import { getProvincePolityControlFromHoldings } from '@/sim/selectors/landContra
 import { getProvinceProduction } from '@sim/selectors/popEconomySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { getRegimentsForActor } from '@sim/selectors/regimentSelectors'
+
+// Detail パネル共通のヘッダー行。タイトル (text-lg font-bold) と、任意の badge
+// (タイトル右隣) / actions (右端、CopyJsonButton や WatchButton 等) を配置する。
+// title 直接 span だったパネルも gap-2 ラッパ・gap-1.5 ラッパで囲うが、単一子では
+// 視覚的に従来と同一。
+export function PanelHeader({
+  title,
+  badge,
+  actions,
+}: {
+  title: ReactNode
+  badge?: ReactNode
+  actions?: ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <span className="text-lg font-bold">{title}</span>
+        {badge}
+      </div>
+      {actions && <div className="flex items-center gap-1.5">{actions}</div>}
+    </div>
+  )
+}
 
 // v0.38 §8: 対象 entity の永続歴史 (ChronicleEntry) を時系列降順で表示する共通 section。
 //   entries は selector 側で既に降順 sort 済み。category filter を後付けできるよう

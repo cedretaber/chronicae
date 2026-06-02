@@ -12,7 +12,7 @@ import {
   getClanTotalLegacyPrestige,
   getClanRulingHouseIds,
 } from '@sim/selectors/clanSelectors'
-import { CopyJsonButton } from './shared/widgets'
+import { PanelHeader, CopyJsonButton } from './shared/widgets'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { HouseLink, PersonLink } from './shared/links'
 import { formatAmount, formatScore } from '@/app/utils/format'
@@ -55,17 +55,17 @@ export function ClanDetail({
 
   return (
     <div className="flex flex-col gap-1 p-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-bold">{clanDisplayName}</span>
-          {!clan.active && (
+      <PanelHeader
+        title={clanDisplayName}
+        badge={
+          !clan.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">
               {t('detail.clan.status_extinct')}
             </span>
-          )}
-        </div>
-        <CopyJsonButton payload={buildEntitySnapshot('clan', clan, worldState)} />
-      </div>
+          )
+        }
+        actions={<CopyJsonButton payload={buildEntitySnapshot('clan', clan, worldState)} />}
+      />
 
       <div className="text-sm">
         <div className="flex justify-between">
