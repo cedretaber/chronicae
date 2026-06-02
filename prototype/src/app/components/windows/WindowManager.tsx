@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import type { FactionId, DiplomaticPlayId, HoldingId, ClanId, WarId } from '@/sim/types/ids'
@@ -23,6 +24,7 @@ export function WindowManager() {
   const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
 
   const resolveName = useEntityName()
+  const { t } = useTranslation()
   const state = session?.currentState
   if (!state) return null
 
@@ -176,16 +178,11 @@ export function WindowManager() {
         if (entityType === 'diplomaticPlay') {
           const play = state.diplomaticPlays[entityId as DiplomaticPlayId]
           if (!play) return null
-          const kindLabel: Record<string, string> = {
-            land_claim: 'Land Claim',
-            contract_tax_revision: 'Tax Revision',
-            revolt_negotiation: 'Revolt Negotiation',
-          }
           return (
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`Play: ${kindLabel[play.kind] ?? play.kind}`}
+              title={`Play: ${t(`play_kind.${play.kind}`, { ns: 'diplomacy', defaultValue: play.kind })}`}
             >
               <DiplomaticPlayDetail
                 play={play}
