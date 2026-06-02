@@ -25,8 +25,11 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
     // House holder: 当該 House が Polity の eligibleHouseIds に含まれなければ削除
     // Person holder (§17 commonwealth / 独裁者・僭主): 当該 Person が dead / placeholder /
     //   不在、もしくは houseId が inactive または eligibleHouseIds に含まれなければ削除
-    // v0.18-pre: commonwealth Polity の AnonymousHouse 所属 Person-direct holder (rebel founder)
-    //            は houseId が eligibleHouseIds に含まれなくても eligible 扱いする
+    // commonwealth Polity の Person-direct holder (rebel leader) は houseId が
+    //   eligibleHouseIds に含まれなくても eligible 扱いする。commonwealth は owner house を
+    //   持たない person-direct share モデル (§17) であり、getPolityHouseIds は空を返すため、
+    //   house eligibility に紐付けると leader (houseless でも、独立元の国の支配家出身の
+    //   housed でも) の share が道連れで削除され commonwealth が headless 化する。
     const orgKey = `polity:${polityId}`
     const shareIds = [...(currentCtx.state.shareIndex.byOrganization[orgKey] ?? [])]
     for (const shareId of shareIds) {
@@ -39,12 +42,12 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
         const person = currentCtx.state.persons[share.holder.id]
         if (!person || !person.alive || person.kind === 'placeholder') {
           shouldRemove = true
+        } else if (polity.kind === 'commonwealth') {
+          // commonwealth の person-direct holder は houseId に関わらず eligible
+          shouldRemove = false
         } else if (!person.houseId) {
-          // houseless person with direct share — only commonwealth rebel holders are eligible
-          const isCommonwealthRebelHolder = polity.kind === 'commonwealth'
-          if (!isCommonwealthRebelHolder) {
-            shouldRemove = true
-          }
+          // 非 commonwealth の houseless direct holder は不適格
+          shouldRemove = true
         } else {
           const house = currentCtx.state.houses[person.houseId]
           const isFactionMember =
@@ -65,37 +68,36 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
     }
 
     // Step 2: 不適格 Polity Office revoke + OFFICE_REVOKED 発火
-    // v0.18-pre: commonwealth Polity の AnonymousHouse 所属 holder (rebel founder) は eligible 扱い
+    // commonwealth Polity の Person-direct holder (rebel leader) は Step 1 と同じく eligible 扱い
+    // (owner house を持たない person-direct モデルのため house eligibility に紐付けない)
     const officeIds = [...(currentCtx.state.officeIndex.byOrganization[orgKey] ?? [])]
     for (const officeId of officeIds) {
       const office = currentCtx.state.officeAssignments[officeId]
       if (!office || !office.active) continue
       const person = currentCtx.state.persons[office.holderPersonId]
       if (!person || !person.alive) continue // 別系統の不整合
+      if (polity.kind === 'commonwealth') continue // commonwealth holder は houseId 不問で eligible
       if (!person.houseId) {
-        // houseless holder — only eligible if commonwealth rebel holder
-        const isCommonwealthRebelHolder = polity.kind === 'commonwealth'
-        if (!isCommonwealthRebelHolder) {
-          const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)
-          const holder = revokedState.persons[office.holderPersonId]
-          const { event, ctx: eventCtx } = createSimEvent(
-            { ...currentCtx, state: revokedState },
-            {
-              type: 'OFFICE_REVOKED',
-              importance: 'normal',
-              messageKey: 'office.revoked',
-              messageParams: {
-                role: nameParam('role', `polity_${office.role}`),
-                organization: nameParam('polity', polity.nameKey),
-              },
-              entityRefs: [
-                entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
-                entityRef('polity', polityId, 'organization', polity?.nameKey),
-              ],
+        // 非 commonwealth の houseless holder は revoke
+        const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)
+        const holder = revokedState.persons[office.holderPersonId]
+        const { event, ctx: eventCtx } = createSimEvent(
+          { ...currentCtx, state: revokedState },
+          {
+            type: 'OFFICE_REVOKED',
+            importance: 'normal',
+            messageKey: 'office.revoked',
+            messageParams: {
+              role: nameParam('role', `polity_${office.role}`),
+              organization: nameParam('polity', polity.nameKey),
             },
-          )
-          currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }
-        }
+            entityRefs: [
+              entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
+              entityRef('polity', polityId, 'organization', polity?.nameKey),
+            ],
+          },
+        )
+        currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }
         continue
       }
       const house = currentCtx.state.houses[person.houseId]

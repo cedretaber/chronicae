@@ -51,8 +51,15 @@ export function getPolityTerminalProvinceIdsSorted(
 }
 
 // §8.2 — Polity に関係する active House の一覧。
-// 定義: その Polity が grantee である Province の effective owner House (= terminal Polity の ownerHouseId)
-// に加え、Polity 自身の ownerHouseId も含める。AnonymousHouse / system house は除外。
+// 定義: Polity 自身の ownerHouseId に加え、その Polity が chain 上に出現する各 Holding の
+// terminal owner House (= その Holding を terminal 支配する Polity の ownerHouseId) を含める。
+// AnonymousHouse / system house は除外。
+//
+// Holding 粒度で判定する理由: 1 つの Province を複数 Polity が holding 単位で分有する場合
+// (例: 反乱 commonwealth が Province 内の 1 holding だけを seizure した場合)、Province 全体の
+// dominant owner House を採ると、その holding を支配しない Polity に他家が混入する。
+// 旧実装 (getProvinceEffectiveOwnerHouseId を Province 単位で適用) は反乱国家の share holder に
+// 独立元の国の支配家が現れるバグの原因だった。
 export function getPolityHouseIds(state: WorldState, polityId: PolityId): HouseId[] {
   const seen = new Set<string>()
   const polity = state.polities[polityId]
@@ -63,11 +70,24 @@ export function getPolityHouseIds(state: WorldState, polityId: PolityId): HouseI
     }
   }
   for (const provinceId of getPolityGrantedProvinceIds(state, polityId)) {
-    const houseId = getProvinceEffectiveOwnerHouseId(state, provinceId)
-    if (!houseId) continue
-    const house = state.houses[houseId]
-    if (!house || !house.active || house.kind === 'system') continue
-    seen.add(houseId)
+    const province = state.provinces[provinceId]
+    if (!province) continue
+    for (const holdingId of province.holdingIds) {
+      // この Polity が当該 Holding の権利者 chain に出現するか
+      const chainIds = state.landContractIndex.byHolding[holdingId] ?? []
+      const polityInChain = chainIds.some(
+        (cid) => state.landContracts[cid]?.granteePolityId === polityId,
+      )
+      if (!polityInChain) continue
+      // 当該 Holding を terminal 支配する Polity の ownerHouse のみを加える
+      const terminalPolityId = state.holdingTerminalPolityCache[holdingId]
+      if (!terminalPolityId) continue
+      const houseId = state.polities[terminalPolityId]?.ownerHouseId
+      if (!houseId) continue
+      const house = state.houses[houseId]
+      if (!house || !house.active || house.kind === 'system') continue
+      seen.add(houseId)
+    }
   }
   return [...seen].sort((a, b) => a.localeCompare(b)).map((id) => id as HouseId)
 }
