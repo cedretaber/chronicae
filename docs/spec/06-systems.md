@@ -1465,6 +1465,8 @@ active Project の currentStageKey に応じて Task を生成する。immediate
 5. Task を生成（targetRef = diplomatic_play、assignee = delegate）
 6. play の activeTaskIds に追加
 
+**v0.39.1 revolt_negotiation タスク生成**: Project ループの後に、active revolt_negotiation play に対して直接タスクを生成。Project を経由しないが、共通フローの手順 3-6 と同様のロジックで両陣営（initiator = commonwealth leader、target = polity delegate）にタスクを割り当てる。initiatorDelegatePersonId は play 生成時に commonwealth leader に設定される。
+
 ### 6.25d ProjectMaintenanceSystem（4週ごと、v0.26 / v0.27 stage 対応）
 
 active Project の状態更新。owner inactive → cancelled、origin Aim が non-active → cancelled、supervisor 死亡 → 再選定（失敗なら failed）、deadline 超過 → failed、progress >= targetProgress → completed。
@@ -1502,7 +1504,8 @@ terminal Project の効果解決・ログ出力・cleanup を担当。
 active な DiplomaticPlay を進行させる。
 
 **v0.23**: structuralProgress を `structuralProgressFactor`（0.33）で弱化。delegate 選定・交渉パラメータ更新を追加。
-**v0.29**: Task 生成責務を ProjectTaskGenerationSystem に移管。DiplomaticPlaySystem は原則として Task を生成しない（delegate 生存確認・再任、progress/tension 管理、settlement/escalation/failed/cancelled 判定を担当）。revolt_negotiation は Project を持たないため、Task なしで deadline まで進行し多くの場合 escalation → conflict に至る。
+**v0.29**: Task 生成責務を ProjectTaskGenerationSystem に移管。DiplomaticPlaySystem は原則として Task を生成しない（delegate 生存確認・再任、progress/tension 管理、settlement/escalation/failed/cancelled 判定を担当）。
+**v0.39.1**: revolt_negotiation もタスク駆動化。Project は持たないが、ProjectTaskGenerationSystem が active revolt_negotiation play に対して直接タスクを生成（両陣営）。ハイブリッドモデル: タスク効果が主（preparation/leverage/commitment → 閾値調整）、環境因子（POP unrest/鎮圧力）が副（小幅構造的増分）。delegate の能力が交渉結果に影響する。
 **v0.30**: offer-driven ハイブリッドモデルに移行。settlement は accepted offer によってのみ成立する。progress は settlement 判定に使わず UI 表示値として維持。旧 `progress > tension → settle` 分岐を廃止。
 
 **v0.30 メインループ（land_claim / contract_tax_revision）**:
@@ -1524,7 +1527,7 @@ for each active play:
      - それ以外 → escalated
 ```
 
-`revolt_negotiation` は v0.30 の offer-driven 化対象外。既存ロジックを維持する。
+`revolt_negotiation` は v0.30 の offer-driven 化対象外。**v0.39.1 でタスク駆動ハイブリッドモデルに移行**（下記参照）。
 
 **evaluator の決定**: `currentOffer.proposedBy` が initiator なら evaluator は target、逆も同様。
 
@@ -1535,7 +1538,7 @@ for each active play:
 Play kind 別の処理:
 - `land_claim`: demands から `transfer_land_contract` / `pay_wealth` / `status_quo` を抽出し evaluateLandClaimOffer で score 計算。settlement 時は `applySettledOffer` で demands を適用。rank ベースの契約選択 (3-a/3-b/3-c) と操作 (5-a/5-b/5-c) は維持。
 - `contract_tax_revision`: demands から `change_contract_tax_rate` / `pay_wealth` / `status_quo` を抽出し evaluateContractTaxRevisionOffer で score 計算。`taxRevisionInitialDemandDelta` (0.10) で旧 `taxRevisionTaxChangeAmount` (0.05) を置換。下限 5% / 上限 80% 超で契約破棄は維持。Play 決着時（成否問わず）に `termsProtectedUntilWeek` を設定。**v0.30**: `applyChangeContractTaxRate` で `newRate <= taxRevisionMinRate` または `newRate >= taxRevisionMaxRate` の場合、率変更の代わりに `eliminateContractFromChain` で契約取消しを実行する（settlement / conflict 両経路共通）。status_quo 和平時は CONTRACT_TAX_REVISED を emit しない。
-- `revolt_negotiation`: v0.39 で `popular_tax_relief` demand ベースに全面改修。acceptanceScore で progress/tension を更新。settlement → 税率引下+commonwealth 解散。escalation → rank 2-4 は revolt_seizure+Local Levy+War、rank 5 は internal revolt 即時解決（§6.22c）。旧 `revolt_concession` demand は削除。
+- `revolt_negotiation`: v0.39 で `popular_tax_relief` demand ベースに全面改修。**v0.39.1 でタスク駆動ハイブリッドモデルに移行**: タスク効果（negotiate_terms/pressure_counterparty 等）が preparation/leverage/commitment を更新し、決着閾値を調整（initiator preparation/leverage が高いほど妥結しやすく、target commitment が高いほど激化しやすい）。環境因子（acceptanceScore: POP unrest/鎮圧力/税率負担）は小幅構造的増分として副次的に作用。settlement → 税率引下+commonwealth 解散。escalation → rank 2-4 は revolt_seizure+Local Levy+War、rank 5 は internal revolt 即時解決（§6.22c）。旧 `revolt_concession` demand は削除。
 
 **v0.30 契約取消し aim**: `eliminate_overlord_contract`（`taxRateToGrantor <= taxRevisionMinRateForReduction` で発火）/ `eliminate_vassal_contract`（`taxRateToGrantor >= taxRevisionMaxRateForIncrease` で発火）。既存の `improve_contract_terms` / `demand_tax_increase` project に mapping し、desiredRate が min/max 境界にクランプされる。escalation → conflict で勝利した場合に CONTRACT_ELIMINATED が発生する。両 Goal（external_expansion / internal_development）から候補に入る。
 

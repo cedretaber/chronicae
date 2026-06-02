@@ -185,7 +185,27 @@ function progressPopularTaxRelief(
     suppressionPower * config.revoltAcceptSuppressionFactor -
     taxReliefSeverity
 
-  const { nextProgress, nextTension } = applyAcceptanceUpdate(play, acceptanceScore, config)
+  // v0.39.1: hybrid model — environmental factors provide small structural increment,
+  // task effects (via applyDiplomaticTaskEffectMut) are the main driver
+  const envFactor = config.revoltNegotiationEnvFactor
+  const envProgressDelta = acceptanceScore > 0 ? clamp(acceptanceScore * envFactor, 0.1, 1.5) : 0
+  let envTensionDelta = acceptanceScore < 0 ? clamp(-acceptanceScore * envFactor, 0.1, 1.5) : 0
+  envTensionDelta += config.diplomaticPlayBaseTensionGain * envFactor
+
+  const nextProgress = clamp(play.progress + envProgressDelta, 0, 100)
+  const nextTension = clamp(play.tension + envTensionDelta, 0, 100)
+
+  // Adjusted thresholds based on preparation/leverage/commitment
+  const adjustedSettlementThreshold =
+    config.diplomaticPlaySettlementThreshold -
+    play.initiatorPreparation * config.revoltNegotiationSettlementPrepWeight -
+    play.initiatorLeverage * config.revoltNegotiationSettlementLeverageWeight +
+    play.targetLeverage * config.revoltNegotiationSettlementLeverageWeight
+
+  const adjustedEscalationThreshold =
+    config.diplomaticPlayEscalationThreshold -
+    play.targetCommitment * config.revoltNegotiationEscalationCommitmentWeight +
+    play.initiatorCommitment * config.revoltNegotiationEscalationCommitmentWeight
 
   const nextCtx: TickContext = {
     ...ctx,
@@ -198,7 +218,7 @@ function progressPopularTaxRelief(
     },
   }
 
-  if (nextProgress >= config.diplomaticPlaySettlementThreshold) {
+  if (nextProgress >= adjustedSettlementThreshold) {
     return applyPopularTaxReliefSettlement(
       nextCtx,
       play,
@@ -209,9 +229,8 @@ function progressPopularTaxRelief(
     )
   }
 
-  // INV-1: Phase B では escalated にしない。dissolution + failed で処理。
   if (
-    nextTension >= config.diplomaticPlayEscalationThreshold ||
+    nextTension >= adjustedEscalationThreshold ||
     (isDeadlineReached(nextCtx.state, play) && nextTension >= nextProgress)
   ) {
     return applyRevoltEscalation(nextCtx, play, demand, commonwealthId, targetPolityId, provinceId)
@@ -228,7 +247,6 @@ function progressPopularTaxRelief(
         provinceId,
       )
     }
-    // Equal or no winner: fail
     return applyRevoltEscalation(nextCtx, play, demand, commonwealthId, targetPolityId, provinceId)
   }
   return nextCtx
@@ -1097,24 +1115,6 @@ function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPlay): Ti
 }
 
 // ─── 共通 helpers ───
-
-function applyAcceptanceUpdate(
-  play: DiplomaticPlay,
-  acceptanceScore: number,
-  config: SimulationConfig,
-): { nextProgress: number; nextTension: number } {
-  const factor = config.diplomaticPlayStructuralProgressFactor
-  if (acceptanceScore >= 0) {
-    return {
-      nextProgress: clamp(play.progress + clamp(acceptanceScore * 0.2 * factor, 0.33, 4), 0, 100),
-      nextTension: clamp(play.tension + config.diplomaticPlayBaseTensionGain * factor, 0, 100),
-    }
-  }
-  return {
-    nextProgress: play.progress,
-    nextTension: clamp(play.tension + clamp(-acceptanceScore * 0.2 * factor, 0.33, 4), 0, 100),
-  }
-}
 
 // status='escalated' (active 系) に設定し DIPLOMATIC_PLAY_ESCALATED event を発火する。
 // 同 tick 内の conflictResolutionSystem が拾い上げて 'resolved_by_conflict' に置換する。

@@ -14,7 +14,7 @@ import type {
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import { TERMINAL_DIPLOMATIC_PLAY_STATUSES } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
-import type { PersonId, TaskId } from '../types/ids'
+import type { DiplomaticPlayId, PersonId, TaskId } from '../types/ids'
 import { createTaskId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import {
@@ -140,6 +140,8 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
     ws.nextTaskId++
   }
 
+  generateRevoltNegotiateTasksMut(ws, config, absoluteWeek)
+
   return {
     ...ctx,
     state: ws,
@@ -235,4 +237,87 @@ function generateNegotiateTaskMut(
 function isValidDelegate(ws: WorldState, personId: PersonId): boolean {
   const person = ws.persons[personId]
   return person !== undefined && person.alive && person.kind !== 'placeholder'
+}
+
+function generateRevoltNegotiateTasksMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  absoluteWeek: number,
+): void {
+  for (const [playIdStr, play] of Object.entries(ws.diplomaticPlays)) {
+    if (!play || play.kind !== 'revolt_negotiation' || play.status !== 'active') continue
+    const playId = playIdStr as DiplomaticPlayId
+
+    for (const side of ['initiator', 'target'] as const) {
+      const currentPlay = ws.diplomaticPlays[playId]
+      if (!currentPlay || currentPlay.status !== 'active') break
+
+      const activeTaskIds =
+        side === 'initiator' ? currentPlay.initiatorActiveTaskIds : currentPlay.targetActiveTaskIds
+      if (activeTaskIds.length >= config.diplomaticPlayMaxActiveTasksPerSide) continue
+
+      let delegateId =
+        side === 'initiator'
+          ? currentPlay.initiatorDelegatePersonId
+          : currentPlay.targetDelegatePersonId
+      if (!delegateId || !isValidDelegate(ws, delegateId)) {
+        const actor = side === 'initiator' ? currentPlay.initiator : currentPlay.target
+        delegateId = getDiplomaticPlayDelegate(ws, actor)
+        if (!delegateId) continue
+        const updatedPlay: DiplomaticPlay = { ...currentPlay }
+        if (side === 'initiator') {
+          updatedPlay.initiatorDelegatePersonId = delegateId
+        } else {
+          updatedPlay.targetDelegatePersonId = delegateId
+        }
+        ws.diplomaticPlays[playId] = updatedPlay
+      }
+
+      const taskKind = selectDiplomaticTaskKind(ws, currentPlay, side)
+
+      const taskId: TaskId = createTaskId(ws.nextTaskId)
+      const actor = side === 'initiator' ? currentPlay.initiator : currentPlay.target
+      const owner: DecisionSubjectRef =
+        actor.kind === 'polity' ? { kind: 'polity', id: actor.id } : { kind: 'house', id: actor.id }
+
+      const task: Task = {
+        id: taskId,
+        owner,
+        assigneePersonId: delegateId,
+        kind: taskKind,
+        targetRef: { kind: 'diplomatic_play', id: playId },
+        priority: 1,
+        actionCost: getTaskActionCost(config, taskKind),
+        effortRequired: getTaskEffortRequired(config, taskKind),
+        effortDone: 0,
+        createdWeek: absoluteWeek,
+        deadlineWeek: currentPlay.deadlineWeek,
+        status: 'active',
+        reasonIds: [],
+        difficulty: getTaskDefaultDifficulty(taskKind),
+        relevantAbility: getTaskDefaultRelevantAbility(taskKind),
+      }
+
+      const ownerKey = decisionSubjectKey(owner)
+      const assigneeKey = delegateId as string
+      const tKey = targetRefKey({ kind: 'diplomatic_play', id: playId })
+
+      ws.tasks[taskId] = task
+      ws.taskIndex.byAssignee[assigneeKey] = [
+        ...(ws.taskIndex.byAssignee[assigneeKey] ?? []),
+        taskId,
+      ]
+      ws.taskIndex.byOwner[ownerKey] = [...(ws.taskIndex.byOwner[ownerKey] ?? []), taskId]
+      ws.taskIndex.byTarget[tKey] = [...(ws.taskIndex.byTarget[tKey] ?? []), taskId]
+      ws.nextTaskId++
+
+      const refreshedPlay = ws.diplomaticPlays[playId]!
+      ws.diplomaticPlays[playId] = {
+        ...refreshedPlay,
+        ...(side === 'initiator'
+          ? { initiatorActiveTaskIds: [...refreshedPlay.initiatorActiveTaskIds, taskId] }
+          : { targetActiveTaskIds: [...refreshedPlay.targetActiveTaskIds, taskId] }),
+      }
+    }
+  }
 }

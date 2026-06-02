@@ -4655,7 +4655,7 @@ export function DiplomaticPlayDetail({
 
         <div className="my-1 border-t border-gray-700" />
 
-        {play.kind !== 'revolt_negotiation' && (
+        {
           <>
             <div className="text-sm font-semibold text-gray-300">
               {t('detail.play.initiator_side')}
@@ -4743,7 +4743,7 @@ export function DiplomaticPlayDetail({
               )}
             </div>
           </>
-        )}
+        }
 
         <div className="my-1 border-t border-gray-700" />
 

@@ -191,7 +191,7 @@ describe('runDiplomaticPlaySystem', () => {
       setup.provinceId,
       setup.popId,
       {
-        progress: 57, // structuralProgressFactor 適用後でも threshold 60 を超えるよう設定
+        progress: 59, // hybrid model: env increment is small, so start close to threshold 60
         tension: 0,
       },
     )

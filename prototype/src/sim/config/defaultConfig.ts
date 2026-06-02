@@ -312,6 +312,11 @@ export type SimulationConfig = {
   popularTaxReliefDemandDelta: number
   taxReliefSeverityFactor: number
   popularTaxReliefTermsProtectionWeeks: number
+  // v0.39.1: revolt_negotiation task-based hybrid model
+  revoltNegotiationEnvFactor: number
+  revoltNegotiationSettlementPrepWeight: number
+  revoltNegotiationSettlementLeverageWeight: number
+  revoltNegotiationEscalationCommitmentWeight: number
   // v0.18 Stage B: Revolt settlement effects (§12.4)
   revoltSettlementMainUnrestReduction: number
   revoltSettlementOtherUnrestReduction: number
@@ -1196,6 +1201,11 @@ export const defaultConfig: SimulationConfig = {
   popularTaxReliefDemandDelta: 0.1,
   taxReliefSeverityFactor: 200,
   popularTaxReliefTermsProtectionWeeks: 192,
+  // v0.39.1: revolt_negotiation task-based hybrid model
+  revoltNegotiationEnvFactor: 0.08,
+  revoltNegotiationSettlementPrepWeight: 0.15,
+  revoltNegotiationSettlementLeverageWeight: 0.1,
+  revoltNegotiationEscalationCommitmentWeight: 0.15,
   // v0.18 Stage B: Revolt settlement effects (§12.4)
   revoltSettlementMainUnrestReduction: 30,
   revoltSettlementOtherUnrestReduction: 8,

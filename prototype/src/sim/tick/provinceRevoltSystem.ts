@@ -290,6 +290,7 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
     deadlineWeek,
     progress: 0,
     tension: 0,
+    initiatorDelegatePersonId: leaderPersonId,
     ...(targetDelegate ? { targetDelegatePersonId: targetDelegate } : {}),
     initiatorPreparation: 0,
     initiatorLeverage: 0,
