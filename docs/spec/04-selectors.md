@@ -247,7 +247,11 @@ function getProvinceOwnerHouse(state: WorldState, provinceId: ProvinceId): House
 // Polity 内 Province / House / Person
 function getPolityProvinceIds(state: WorldState, polityId: PolityId): ProvinceId[]
 function getPolityHouseIds(state: WorldState, polityId: PolityId): HouseId[]
-// ↑ Polity 内に Province を 1 つ以上所有する active House の集合
+// ↑ Polity 自身の ownerHouse に加え、Polity が chain 上に出現する各 Holding を
+//   terminal 支配する Polity の ownerHouse の集合 (active House のみ)。
+//   Holding 粒度で判定するため、1 Province を複数 Polity が holding 単位で分有する
+//   場合 (反乱 commonwealth が 1 holding だけ seizure 等) に他家が混入しない。
+//   commonwealth (ownerHouse なし) は 0 House を返す。
 function getPolityPersonIds(state: WorldState, polityId: PolityId): PersonId[]
 // ↑ Polity 関係 House の alive member。複数 Polity 跨ぎ House の人物は重複可
 

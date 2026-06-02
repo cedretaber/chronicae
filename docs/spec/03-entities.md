@@ -477,6 +477,10 @@ type LandContract = {
 6. chain 内の各段で `granteePolityId` は重複しない
 7. `landContractIndex.byHolding` は chain 順 (root → terminal) を保つ
 8. grantor rank < grantee rank（rank 数値が大きいほど下位）
+9. Holding 単位で作られた契約 (root / child / intermediate いずれも) は `holdingId` を
+   record にも保持する。`byHolding` index に入れるだけで record の `holdingId` を欠落させると、
+   `removeContract` の cleanup・war/peace の `contract.holdingId === goal.holdingId` 照合・
+   UI の holding 名解決がすり抜ける
 
 **HoldingOfficeAssignment** (Bailiff): terminal Polity が Holding 単位で任命する代官。
 

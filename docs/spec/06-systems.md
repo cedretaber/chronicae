@@ -1173,28 +1173,32 @@ for each polity in active polities:
       person = state.persons[share.holder.id]
       if person is missing or not alive or person.kind === 'placeholder':
         removeOrganizationShare(share.id)
+      else if polity.kind === 'commonwealth':
+        // commonwealth は owner house を持たない person-direct share モデル (§17)。
+        // leader は houseless でも housed (独立元の国の支配家出身を含む) でも eligible。
+        // getPolityHouseIds が 0 House を返す commonwealth で house eligibility に
+        // 紐付けると leader 自身の share まで道連れ削除され headless 化するため。
+        keep (eligible)
+      else if not person.houseId:
+        // 非 commonwealth の houseless direct holder は不適格
+        removeOrganizationShare(share.id)
       else:
-        // v0.31: commonwealth Polity の houseless person (rebel founder) は eligible 扱い
-        isCommonwealthRebelHolder = polity.kind === 'commonwealth'
-        if not isCommonwealthRebelHolder:
+        house = state.houses[person.houseId]
+        isFactionMember = getActiveFactionMembership(state, share.holder.id) !== undefined
+        if not isFactionMember:
+          if house is missing or not active or house.id not in eligibleHouseIds:
             removeOrganizationShare(share.id)
-      else:
-          house = state.houses[person.houseId]
-          isFactionMember = getActiveFactionMembership(state, share.holder.id) !== undefined
-          if not isFactionMember:
-            if house is missing or not active or house.id not in eligibleHouseIds:
-              removeOrganizationShare(share.id)
 
   // Step 2: 不適格 Polity Office revoke
   for each active office where organization is { kind: 'polity', id: polity.id }:
     person = state.persons[office.holderPersonId]
     if not person.alive: continue  // 別系統の不整合（IntegrityCheck で検知）
+    if polity.kind === 'commonwealth': continue
+      // commonwealth holder は Step 1 と同じく houseId 不問で eligible (person-direct モデル)
     if not person.houseId:
-      // v0.31: houseless holder は commonwealth rebel holder のみ eligible
-      isCommonwealthRebelHolder = polity.kind === 'commonwealth'
-      if not isCommonwealthRebelHolder:
-        revokeOfficeAssignment(office.id)
-        emit OFFICE_REVOKED
+      // 非 commonwealth の houseless holder は revoke
+      revokeOfficeAssignment(office.id)
+      emit OFFICE_REVOKED
       continue
     house = state.houses[person.houseId]
     houseEligible = house and house.active and house.id in eligibleHouseIds
