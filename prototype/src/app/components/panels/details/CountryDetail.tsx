@@ -418,6 +418,8 @@ export function CountryDetail({
         <EntityChronicleSection
           title={t('detail.polity.chronicle')}
           entries={getChronicleEntriesForPolity(worldState, polity.id)}
+          entityType="polity"
+          entityId={polity.id}
         />
       )}
     </div>

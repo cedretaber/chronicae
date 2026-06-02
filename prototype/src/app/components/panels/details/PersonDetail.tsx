@@ -691,6 +691,8 @@ export function PersonDetail({
       <EntityChronicleSection
         title={t('detail.person.chronicle')}
         entries={getChronicleEntriesForPerson(worldState, person.id)}
+        entityType="person"
+        entityId={person.id}
       />
     </div>
   )

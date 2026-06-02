@@ -451,6 +451,8 @@ export function HouseDetail({
       <EntityChronicleSection
         title={t('detail.house.chronicle')}
         entries={getChronicleEntriesForHouse(currentState, house.id)}
+        entityType="house"
+        entityId={house.id}
       />
 
       {/* v0.22 Goal/Aim */}

@@ -24,10 +24,15 @@ export type EntityType =
 export type SelectedType = EntityType
 export type MapView = 'terminal' | 'root' | 'house' | 'share' | 'unrest'
 
+// view='detail' は通常の詳細パネル、view='chronicle' は対象の全履歴 (年代記) パネル。
+// 同一 entity でも別 window として共存させるため windowId に prefix を付けて区別する。
+export type DetailWindowView = 'detail' | 'chronicle'
+
 export type DetailWindow = {
   id: string
   entityType: EntityType
   entityId: string
+  view: DetailWindowView
   position: { x: number; y: number }
   zIndex: number
 }
@@ -53,6 +58,7 @@ type SimActions = {
   setSpeed: (speed: number) => void
   setMapView: (view: MapView) => void
   openDetailWindow: (entityType: EntityType, entityId: string) => void
+  openChronicleWindow: (entityType: EntityType, entityId: string) => void
   closeDetailWindow: (windowId: string) => void
   focusDetailWindow: (windowId: string) => void
   moveDetailWindow: (windowId: string, position: { x: number; y: number }) => void
@@ -80,6 +86,51 @@ const WINDOW_INITIAL_X = 300
 const WINDOW_INITIAL_Y = 80
 // 360px window width 想定で、おおむね右端を超えない位置に折り返す
 const WINDOW_MAX_X = 600
+
+// 新規ウィンドウの cascade 位置を、最後に focus されたウィンドウから +step した座標で求める。
+function computeCascadePosition(openWindows: DetailWindow[]): { x: number; y: number } {
+  const topWindow =
+    openWindows.length > 0
+      ? openWindows.reduce((a, b) => (a.zIndex >= b.zIndex ? a : b))
+      : undefined
+  let x = WINDOW_INITIAL_X
+  let y = WINDOW_INITIAL_Y
+  if (topWindow) {
+    x = topWindow.position.x + WINDOW_CASCADE_STEP
+    y = topWindow.position.y + WINDOW_CASCADE_STEP
+    if (x > WINDOW_MAX_X) x = 16
+    if (y > 360) y = 60
+  }
+  return { x, y }
+}
+
+// 既存ウィンドウがあれば最前面化、無ければ cascade 位置に新規追加した openWindows/nextZIndex を返す。
+function openWindowState(
+  openWindows: DetailWindow[],
+  nextZIndex: number,
+  entityType: EntityType,
+  entityId: string,
+  view: DetailWindowView,
+): { openWindows: DetailWindow[]; nextZIndex: number } {
+  const windowId =
+    view === 'chronicle' ? `chronicle:${entityType}:${entityId}` : `${entityType}:${entityId}`
+  const existing = openWindows.find((w) => w.id === windowId)
+  if (existing) {
+    return {
+      openWindows: openWindows.map((w) => (w.id === windowId ? { ...w, zIndex: nextZIndex } : w)),
+      nextZIndex: nextZIndex + 1,
+    }
+  }
+  const win: DetailWindow = {
+    id: windowId,
+    entityType,
+    entityId,
+    view,
+    position: computeCascadePosition(openWindows),
+    zIndex: nextZIndex,
+  }
+  return { openWindows: [...openWindows, win], nextZIndex: nextZIndex + 1 }
+}
 
 // Lazy NamePoolService initialization
 let _namePoolService: NamePoolService | null = null
@@ -208,38 +259,13 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   },
 
   openDetailWindow: (entityType, entityId) => {
-    const windowId = `${entityType}:${entityId}`
     const { openWindows, nextZIndex } = get()
-    const existing = openWindows.find((w) => w.id === windowId)
-    if (existing) {
-      // bring-to-front
-      set({
-        openWindows: openWindows.map((w) => (w.id === windowId ? { ...w, zIndex: nextZIndex } : w)),
-        nextZIndex: nextZIndex + 1,
-      })
-      return
-    }
-    // cascade: 最後に focus されたウィンドウから +step, +step。窓ゼロなら initial 位置
-    const topWindow =
-      openWindows.length > 0
-        ? openWindows.reduce((a, b) => (a.zIndex >= b.zIndex ? a : b))
-        : undefined
-    let x = WINDOW_INITIAL_X
-    let y = WINDOW_INITIAL_Y
-    if (topWindow) {
-      x = topWindow.position.x + WINDOW_CASCADE_STEP
-      y = topWindow.position.y + WINDOW_CASCADE_STEP
-      if (x > WINDOW_MAX_X) x = 16
-      if (y > 360) y = 60
-    }
-    const win: DetailWindow = {
-      id: windowId,
-      entityType,
-      entityId,
-      position: { x, y },
-      zIndex: nextZIndex,
-    }
-    set({ openWindows: [...openWindows, win], nextZIndex: nextZIndex + 1 })
+    set(openWindowState(openWindows, nextZIndex, entityType, entityId, 'detail'))
+  },
+
+  openChronicleWindow: (entityType, entityId) => {
+    const { openWindows, nextZIndex } = get()
+    set(openWindowState(openWindows, nextZIndex, entityType, entityId, 'chronicle'))
   },
 
   closeDetailWindow: (windowId) => {

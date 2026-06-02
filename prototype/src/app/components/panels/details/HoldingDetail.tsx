@@ -527,6 +527,8 @@ export function HoldingDetail({
         <EntityChronicleSection
           title={t('detail.holding.chronicle')}
           entries={getChronicleEntriesForHolding(currentState, holding.id)}
+          entityType="holding"
+          entityId={holding.id}
         />
       )}
     </div>

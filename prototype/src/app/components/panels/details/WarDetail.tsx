@@ -322,6 +322,8 @@ export function WarDetail({
         <EntityChronicleSection
           title={t('detail.war.chronicle')}
           entries={getChronicleEntriesForWar(worldState, war.id)}
+          entityType="war"
+          entityId={war.id}
         />
       </div>
     </div>

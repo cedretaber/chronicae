@@ -15,6 +15,7 @@ import { SHARE_COLORS } from './constants'
 import type { AttitudeMap } from '@/sim/types/attitude'
 import type { WorldState } from '@/sim/types/world'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
 import type {
   PolityId,
   HouseId,
@@ -54,38 +55,60 @@ export function PanelHeader({
   )
 }
 
+// 単一 ChronicleEntry の表示行 (category badge + [year/Wweek] + 翻訳済みテキスト)。
+//   EntityChronicleSection (直近 N 件) と FullChroniclePanel (全件) で共有する。
+export function ChronicleEntryLine({ entry }: { entry: ChronicleEntry }) {
+  const renderEvent = useRenderEvent()
+  const { t } = useTranslation()
+  return (
+    <div className={`text-xs ${getImportanceColor(entry.importance)}`}>
+      <span className="mr-1 rounded bg-gray-700 px-1 text-[10px] text-gray-400">
+        {t(`chronicle.category.${entry.category}`)}
+      </span>
+      [{entry.year}/W{entry.weekOfYear}]{' '}
+      {renderEvent({ messageKey: entry.templateKey, messageParams: entry.params })}
+    </div>
+  )
+}
+
 // v0.38 §8: 対象 entity の永続歴史 (ChronicleEntry) を時系列降順で表示する共通 section。
 //   entries は selector 側で既に降順 sort 済み。category filter を後付けできるよう
 //   showCategories prop を最初から受け取る (未指定なら全カテゴリ表示。§8.2)。
+//   entityType/entityId を渡すと「完全版を見る」ボタンを出し、全履歴パネルを開ける。
 export function EntityChronicleSection({
   title,
   entries,
   limit = 10,
   showCategories,
+  entityType,
+  entityId,
 }: {
   title: string
   entries: ChronicleEntry[]
   limit?: number
   showCategories?: ReadonlySet<ChronicleCategory>
+  entityType?: EntityType
+  entityId?: string
 }) {
-  const renderEvent = useRenderEvent()
   const { t } = useTranslation()
-  const visible = (
-    showCategories ? entries.filter((e) => showCategories.has(e.category)) : entries
-  ).slice(0, limit)
-  if (visible.length === 0) return null
+  const openChronicleWindow = useSimulationStore((s) => s.openChronicleWindow)
+  const filtered = showCategories ? entries.filter((e) => showCategories.has(e.category)) : entries
+  const visible = filtered.slice(0, limit)
+  if (filtered.length === 0) return null
   return (
     <div className="mt-2">
       <div className="text-sm font-semibold text-gray-300">{title}:</div>
       {visible.map((e) => (
-        <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
-          <span className="mr-1 rounded bg-gray-700 px-1 text-[10px] text-gray-400">
-            {t(`chronicle.category.${e.category}`)}
-          </span>
-          [{e.year}/W{e.weekOfYear}]{' '}
-          {renderEvent({ messageKey: e.templateKey, messageParams: e.params })}
-        </div>
+        <ChronicleEntryLine key={e.id} entry={e} />
       ))}
+      {entityType && entityId && (
+        <button
+          className="mt-1 text-xs text-blue-400 hover:text-blue-300"
+          onClick={() => openChronicleWindow(entityType, entityId)}
+        >
+          {t('detail.full_chronicle.open', { count: filtered.length })}
+        </button>
+      )}
     </div>
   )
 }

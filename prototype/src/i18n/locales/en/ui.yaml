@@ -76,6 +76,16 @@ detail:
   annexed: 'Annexed'
   common:
     year: 'Year'
+  # Full chronicle panel: the "view full" link in EntityChronicleSection and FullChroniclePanel
+  full_chronicle:
+    open: 'View full chronicle ({{count}} total)'
+    title_prefix: 'Chronicle'
+    war_title: 'War Chronicle'
+    count: '{{count}} entries'
+    order_asc: 'Oldest first'
+    order_desc: 'Newest first'
+    show_more: 'Show more (+{{count}})'
+    empty: 'No records'
   project_kind:
     develop_holding: 'Develop Holding'
     expand_polity_share: 'Expand Polity Share'

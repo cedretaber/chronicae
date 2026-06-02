@@ -14,6 +14,8 @@ import {
   ClanDetail,
   WarDetail,
 } from '@/app/components/panels/DetailPanel'
+import { FullChroniclePanel } from '@/app/components/panels/details/FullChroniclePanel'
+import type { PolityId, HouseId, PersonId, ProvinceId } from '@/sim/types/ids'
 import { DraggableWindow } from './DraggableWindow'
 
 export function WindowManager() {
@@ -44,6 +46,44 @@ export function WindowManager() {
     <>
       {openWindows.map((win) => {
         const { entityType, entityId } = win
+        // 全履歴 (年代記) パネルは entity 種別を問わず単一コンポーネントで描画する。
+        //   履歴は永続なので live entity の消滅で blank にせず、title だけ defensive に解決する。
+        if (win.view === 'chronicle') {
+          const prefix = t('detail.full_chronicle.title_prefix')
+          let title: string
+          if (entityType === 'war') {
+            title = t('detail.full_chronicle.war_title')
+          } else {
+            let name = entityId
+            if (entityType === 'polity') {
+              const p = state.polities[entityId as PolityId]
+              if (p) name = resolveName('polity', p.nameKey, p.nameKey)
+            } else if (entityType === 'house') {
+              const h = state.houses[entityId as HouseId]
+              if (h) name = resolveName('house', h.nameKey, h.nameKey)
+            } else if (entityType === 'person') {
+              const p = state.persons[entityId as PersonId]
+              if (p) name = resolveName('person', p.nameKey, p.nameKey)
+            } else if (entityType === 'province') {
+              const pv = state.provinces[entityId as ProvinceId]
+              if (pv) name = resolveName('province', pv.nameKey, pv.nameKey)
+            } else if (entityType === 'holding') {
+              const hd = state.holdings[entityId as HoldingId]
+              const hdProvince = hd ? state.provinces[hd.provinceId] : undefined
+              if (hd) {
+                name = hdProvince
+                  ? `${resolveName('province', hdProvince.nameKey, hdProvince.nameKey)} ${hd.kind}`
+                  : entityId
+              }
+            }
+            title = `${prefix}: ${name}`
+          }
+          return (
+            <DraggableWindow key={win.id} win={win} title={title}>
+              <FullChroniclePanel entityType={entityType} entityId={entityId} state={state} />
+            </DraggableWindow>
+          )
+        }
         if (entityType === 'polity') {
           const polity = Object.values(state.polities).find((p) => p.id === entityId)
           if (!polity) return null

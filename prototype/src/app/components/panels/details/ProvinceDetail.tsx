@@ -549,6 +549,8 @@ export function ProvinceDetail({
         <EntityChronicleSection
           title={t('detail.province.chronicle')}
           entries={getChronicleEntriesForProvince(currentState, province.id)}
+          entityType="province"
+          entityId={province.id}
         />
       )}
     </div>

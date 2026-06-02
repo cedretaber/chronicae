@@ -173,6 +173,16 @@ detail:
   annexed: '併合済'
   common:
     year: '年'
+  # 全履歴 (年代記) パネル: EntityChronicleSection の「完全版を見る」リンクと FullChroniclePanel
+  full_chronicle:
+    open: '完全版を見る (全{{count}}件)'
+    title_prefix: '年代記'
+    war_title: '戦争の年代記'
+    count: '全 {{count}} 件'
+    order_asc: '古い順'
+    order_desc: '新しい順'
+    show_more: 'さらに表示 (+{{count}})'
+    empty: '記録がありません'
   project_kind:
     develop_holding: '領地開発'
     expand_polity_share: '国内影響力拡大'
