@@ -1,8 +1,12 @@
 # 年代記紀 Chronicae
 
+[![CI](https://github.com/cedretaber/chronicae/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/cedretaber/chronicae/actions/workflows/ci.yml)
+
 Chronicae is a history-watching simulation where people, houses, and countries shape autonomous worlds.
 
 年代記紀（クロニカエ）は、個人・家・国家が自律的に動く歴史世界を眺める、歴史鑑賞シミュレーションです。
+
+**▶ Live demo: <https://cedretaber.github.io/chronicae/>** — runs entirely in your browser. Automatically updated on every push to `main` that passes CI.
 
 ## Repository Structure
 
