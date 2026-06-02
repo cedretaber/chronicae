@@ -66,12 +66,6 @@ export type DiplomaticDemand =
       amount: number
     }
   | {
-      kind: 'revolt_concession'
-      provinceId: ProvinceId
-      popClass: PopClass
-      concessionLevel: 'minor' | 'major'
-    }
-  | {
       kind: 'popular_tax_relief'
       holdingId: HoldingId
       targetContractId: LandContractId

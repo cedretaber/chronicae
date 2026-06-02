@@ -23,7 +23,6 @@ import type {
   DiplomaticOfferId,
   HoldingId,
 } from '../types/ids'
-import { createRebelPolity } from '../mutations/worldStructureMutations'
 import { runDiplomaticPlaySystem } from './diplomaticPlaySystem'
 import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types/diplomaticPlay'
 
@@ -38,6 +37,7 @@ function setupRebel(unrest = 60, popSize = 1000) {
   const houseId = 'h-1' as HouseId
   const leaderId = 'p-leader' as PersonId
   const popId = 'pg-peasants' as PopGroupId
+  const cwPolityId = 'c-cw' as PolityId
 
   s = withProvince(s, provinceId, {})
   s = withPolity(s, polityId, { treasury: 200, capitalProvinceId: provinceId })
@@ -67,18 +67,26 @@ function setupRebel(unrest = 60, popSize = 1000) {
       },
     },
   }
-  const ctx = makeCtx(s)
-  const createResult = createRebelPolity(ctx, {
-    provinceId,
-    rebelClass: 'peasants',
-    oldPolityId: polityId,
+  s = withPolity(s, cwPolityId, {
+    rank: 5,
+    kind: 'commonwealth',
+    treasury: 0,
+    capitalProvinceId: provinceId,
+    origin: {
+      kind: 'popular_revolt',
+      originalPolityId: polityId,
+      provinceId,
+      holdingIds: [holdingId],
+      popClass: 'peasants' as const,
+      leaderPersonId: leaderId,
+      startedWeek: 0,
+    },
   })
-  if (!createResult.ok) throw new Error(`createRebelPolity failed: ${createResult.error.message}`)
   return {
-    ctx: createResult.value.ctx,
+    ctx: makeCtx(s),
     provinceId,
     oldPolityId: polityId,
-    rebelPolityId: createResult.value.value.polityId,
+    rebelPolityId: cwPolityId,
     popId,
   }
 }
@@ -98,10 +106,12 @@ function injectPlay(
     initiator: { kind: 'polity', id: rebelPolityId },
     target: { kind: 'polity', id: oldPolityId },
     primaryDemand: {
-      kind: 'revolt_concession',
-      provinceId,
-      popClass: 'peasants' as const,
-      concessionLevel: 'minor',
+      kind: 'popular_tax_relief',
+      holdingId: ctx.state.provinces[provinceId]?.holdingIds[0] as HoldingId,
+      targetContractId: '' as import('../types/ids').LandContractId,
+      currentTaxRate: 0.4,
+      demandedTaxRate: 0.3,
+      claimantPopClass: 'peasants' as const,
     },
     status: 'active',
     startedWeek: ctx.state.currentYear * 48 + ctx.state.currentWeekOfYear,

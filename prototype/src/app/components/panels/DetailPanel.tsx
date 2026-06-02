@@ -4545,8 +4545,6 @@ export function DiplomaticPlayDetail({
   } else if (play.issue?.kind === 'contract_tax_revision') {
     holdingId = play.issue.holdingId
     provinceId = worldState.holdings[holdingId]?.provinceId
-  } else if (play.primaryDemand?.kind === 'revolt_concession') {
-    provinceId = play.primaryDemand.provinceId
   }
   const holding = holdingId ? worldState.holdings[holdingId] : undefined
 
@@ -4758,8 +4756,6 @@ export function DiplomaticPlayDetail({
                 worldState.landContracts[play.issue.landContractId]?.terms.taxRateToGrantor
               return `${t('detail.play.demand_tax_change')} ${currentRate != null ? Math.round(currentRate * 100) : '?'}% → ${Math.round(play.issue.desiredTaxRateToGrantor * 100)}%`
             })()}
-          {play.primaryDemand?.kind === 'revolt_concession' &&
-            `${t('detail.play.demand_revolt_concession')} (${play.primaryDemand.concessionLevel})`}
           {play.primaryDemand?.kind === 'popular_tax_relief' &&
             `${t('detail.play.demand_tax_relief')} ${Math.round(play.primaryDemand.currentTaxRate * 100)}% → ${Math.round(play.primaryDemand.demandedTaxRate * 100)}%`}
         </div>

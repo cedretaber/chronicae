@@ -70,10 +70,12 @@
 | DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT | major | 外交劇が武力衝突で解決（v0.18） |
 | CONTRACT_TAX_REVISED | normal | 税率改定成功（v0.18。v0.34: 歴史記述用に before→after を `fromRate`/`toRate`（整数%）で記録。`rate`(after) は後方互換のため残置） |
 | CONTRACT_ELIMINATED | major | 契約破棄（v0.18） |
-| REVOLT_NEGOTIATION_STARTED | normal | 叛乱交渉開始（v0.18） |
-| REVOLT_SETTLED | major | 叛乱妥協（v0.18） |
-| REVOLT_SUPPRESSED | major | 叛乱鎮圧（v0.18） |
-| REVOLT_POLITY_ESTABLISHED | critical | 叛乱独立成功（v0.18） |
+| REVOLT_NEGOTIATION_STARTED | normal | 叛乱交渉開始（v0.18 / v0.39: popular_tax_relief demand） |
+| REVOLT_SETTLED | major | 叛乱交渉成功・税率引下（v0.18 / v0.39） |
+| REVOLT_SUPPRESSED | major | 叛乱鎮圧。messageKey: suppressed_executed / suppressed_pardoned（v0.39） |
+| REVOLT_POLITY_ESTABLISHED | critical | 叛乱勝利・commonwealth 成立（v0.18 / v0.39） |
+| REVOLT_ESCALATED | major | 叛乱激化・武力化（v0.39） |
+| REVOLT_REGIME_CHANGED | critical | rank 5 内部政変・体制転覆（v0.39） |
 | BAILIFF_APPOINTED | normal | placeholder → 通常人物への Bailiff 交代（v0.16） |
 | BAILIFF_VACATED | normal | Bailiff が不在化（v0.16） |
 | BAILIFF_PLACEHOLDER_INSTALLED | minor | terminal Polity 変更時の Bailiff placeholder 設置（v0.16） |

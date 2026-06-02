@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { runProvinceRevoltSystem, resolveRevoltConflict } from './provinceRevoltSystem'
+import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import {
   makeEmptyV016State,
   withProvince,
@@ -120,7 +120,7 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
       'rev-23',
       'rev-24',
     ]) {
-      const { state, provinceId, polityId } = buildWorld({
+      const { state, polityId } = buildWorld({
         popUnrest: 99,
         popSize: 2000,
         development: 0,
@@ -143,13 +143,9 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
         // target は元 polity
         expect(play?.target.kind).toBe('polity')
         expect(play?.target.id).toBe(polityId)
-        // primaryDemand は popular_tax_relief (v0.39) or revolt_concession (legacy)
+        expect(play?.primaryDemand?.kind).toBe('popular_tax_relief')
         if (play?.primaryDemand?.kind === 'popular_tax_relief') {
           expect(play.primaryDemand.claimantPopClass).toBeDefined()
-        } else if (play?.primaryDemand?.kind === 'revolt_concession') {
-          expect(play.primaryDemand.provinceId).toBe(provinceId)
-        } else {
-          throw new Error(`unexpected demand kind: ${play?.primaryDemand?.kind}`)
         }
         // REVOLT_NEGOTIATION_STARTED イベントが発火
         expect(next.events.some((e) => e.type === 'REVOLT_NEGOTIATION_STARTED')).toBe(true)
@@ -175,46 +171,5 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
     const next = runProvinceRevoltSystem(ctx)
     expect(Object.keys(next.state.diplomaticPlays).length).toBe(0)
     expect(next.events.some((e) => e.type === 'REVOLT_NEGOTIATION_STARTED')).toBe(false)
-  })
-})
-
-describe('resolveRevoltConflict', () => {
-  it('returns rebelWins=false when target has overwhelming suppression power', () => {
-    const { state, provinceId, polityId } = buildWorld({
-      popUnrest: 50,
-      popSize: 100,
-      development: 50,
-      polityControl: 50,
-      treasury: 10000, // 巨額の treasury で suppressionPower が高い
-    })
-    const rng = createRng('conflict-1')
-    const { result } = resolveRevoltConflict(state, defaultConfig, rng, {
-      provinceId,
-      popClass: 'peasants',
-      targetPolityId: polityId,
-    })
-    expect(result.rebelPower).toBeGreaterThan(0)
-    expect(result.suppressionPower).toBeGreaterThan(result.rebelPower)
-    // successChance が低い
-    expect(result.successChance).toBeLessThan(0.2)
-  })
-
-  it('returns sensible values when pop is large and target weak', () => {
-    const { state, provinceId, polityId } = buildWorld({
-      popUnrest: 95,
-      popSize: 5000,
-      development: 0,
-      polityControl: 5,
-      treasury: 0,
-    })
-    const rng = createRng('conflict-2')
-    const { result } = resolveRevoltConflict(state, defaultConfig, rng, {
-      provinceId,
-      popClass: 'peasants',
-      targetPolityId: polityId,
-    })
-    expect(result.rebelPower).toBeGreaterThan(0)
-    expect(result.successChance).toBeGreaterThan(0)
-    expect(result.successChance).toBeLessThanOrEqual(1)
   })
 })

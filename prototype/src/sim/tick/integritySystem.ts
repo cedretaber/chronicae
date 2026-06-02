@@ -1577,21 +1577,6 @@ export function collectIntegrityErrors(
           code: 'INTEGRITY_VIOLATION',
           message: `DiplomaticPlay ${idStr} revolt_negotiation must have primaryDemand (§20)`,
         })
-      } else if (play.primaryDemand.kind === 'revolt_concession') {
-        const demand = play.primaryDemand
-        if (!state.provinces[demand.provinceId]) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `DiplomaticPlay ${idStr} primaryDemand.provinceId ${demand.provinceId} does not exist (§20)`,
-          })
-        }
-        const validPopClasses: string[] = ['peasants', 'townsmen', 'nobles']
-        if (!validPopClasses.includes(demand.popClass)) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `DiplomaticPlay ${idStr} primaryDemand.popClass ${demand.popClass} is not a valid PopClass (§20)`,
-          })
-        }
       }
     }
     // revolt_negotiation 固有チェック (§20)

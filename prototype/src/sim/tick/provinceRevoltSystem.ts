@@ -2,7 +2,7 @@ import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import { nameParam, entityRef } from '../types/event'
 import { clamp } from '../utils/math'
-import { randomFloat, type RngState } from '../rng/rng'
+import { randomFloat } from '../rng/rng'
 import type {
   ProvinceId,
   PolityId,
@@ -13,15 +13,10 @@ import type {
 import { createDiplomaticPlayId } from '../types/ids'
 import type { PopClass, PopGroup } from '../types/popGroup'
 import type { WorldState } from '../types/world'
-import type { SimulationConfig } from '../config/defaultConfig'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import { getProvincePopulationPressure, getPopWealthByClass } from '../selectors/popSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { getProvinceProduction } from '../selectors/popEconomySelectors'
-import {
-  getProvinceManpowerBase,
-  getProvinceHouseManpowerBase,
-} from '../selectors/popEconomySelectors'
 import { adjustProvincePopUnrestByClass } from '../mutations/popMutations'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 import { getPolityLegitimacy, getPolityStability } from '../selectors/statusSelectors'
@@ -163,15 +158,6 @@ function collectHoldingCandidates(ctx: TickContext): HoldingRevoltCandidate[] {
     if (!play || play.status !== 'active' || play.kind !== 'revolt_negotiation') continue
     if (play.primaryDemand?.kind === 'popular_tax_relief') {
       activeRevoltTargetHoldings.add(play.primaryDemand.holdingId)
-    }
-    if (play.primaryDemand?.kind === 'revolt_concession') {
-      // Legacy demand: block by province (all holdings)
-      const province = state.provinces[play.primaryDemand.provinceId]
-      if (province) {
-        for (const hid of province.holdingIds) {
-          activeRevoltTargetHoldings.add(hid)
-        }
-      }
     }
   }
 
@@ -355,79 +341,6 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
     ],
   })
   return { ...ctxStart, events: [...ctxStart.events, event] }
-}
-
-// v0.18 Stage B §13.3: revolt conflict 解決 (legacy — conflictResolutionSystem が参照)
-export type RevoltConflictResult = {
-  rebelWins: boolean
-  rebelPower: number
-  suppressionPower: number
-  successChance: number
-}
-
-export function resolveRevoltConflict(
-  state: WorldState,
-  config: SimulationConfig,
-  rng: RngState,
-  input: {
-    provinceId: ProvinceId
-    popClass: PopClass
-    targetPolityId: PolityId
-  },
-): { result: RevoltConflictResult; rng: RngState } {
-  const targetPolity = state.polities[input.targetPolityId]
-  const province = state.provinces[input.provinceId]
-  if (!targetPolity || !province) {
-    return {
-      result: { rebelWins: false, rebelPower: 0, suppressionPower: 1, successChance: 0 },
-      rng,
-    }
-  }
-
-  let totalSize = 0
-  let weightedUnrest = 0
-  for (const holdingId of province.holdingIds) {
-    const popIds = state.popIndex.byHolding[holdingId]
-    if (!popIds) continue
-    for (const popId of popIds) {
-      const p = state.popGroups[popId]
-      if (!p || p.class !== input.popClass) continue
-      totalSize += p.size
-      weightedUnrest += p.unrest * p.size
-    }
-  }
-  const averageUnrest = totalSize > 0 ? weightedUnrest / totalSize : 0
-
-  const rebelPower =
-    totalSize * config.popRevoltPowerFactorByClass[input.popClass] * (0.5 + averageUnrest / 100)
-
-  const polityManpower = getProvinceManpowerBase(state, config, input.provinceId)
-  let suppressionPower =
-    polityManpower * config.provinceRevoltCountrySuppressionFactor +
-    Math.log1p(targetPolity.treasury) * config.provinceRevoltTreasurySuppressionFactor
-
-  const targetOwnerHouseId = targetPolity.ownerHouseId
-  if (targetOwnerHouseId !== undefined) {
-    const targetOwnerHouse = state.houses[targetOwnerHouseId]
-    if (targetOwnerHouse) {
-      const houseManpower = getProvinceHouseManpowerBase(state, config, input.provinceId)
-      suppressionPower += houseManpower * config.provinceRevoltHouseSuppressionFactor
-      suppressionPower +=
-        Math.log1p(targetOwnerHouse.wealth) * config.provinceRevoltHouseWealthSuppressionFactor
-    }
-  }
-
-  const successChance = rebelPower / (rebelPower + suppressionPower + 1)
-  const { value: roll, rng: nextRng } = randomFloat(rng)
-  return {
-    result: {
-      rebelWins: roll < successChance,
-      rebelPower,
-      suppressionPower,
-      successChance,
-    },
-    rng: nextRng,
-  }
 }
 
 export function runProvinceRevoltSystem(ctx: TickContext): TickContext {

@@ -52,7 +52,6 @@ function getPlayProvinceId(play: DiplomaticPlay, state: WorldState): string | un
     if (play.issue.kind === 'contract_tax_revision')
       return state.holdings[play.issue.holdingId]?.provinceId
   }
-  if (play.primaryDemand?.kind === 'revolt_concession') return play.primaryDemand.provinceId
   return undefined
 }
 

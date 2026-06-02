@@ -90,9 +90,6 @@ export function applyDemand(
     case 'status_quo':
       return ctx
 
-    case 'revolt_concession':
-      return ctx
-
     case 'popular_tax_relief':
       return ctx
   }

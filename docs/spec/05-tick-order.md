@@ -93,11 +93,12 @@ const WEEKS_PER_SEASON = 12
 | 20g | ProjectMaintenanceSystem | 4 | v0.26。Project 完了/失敗判定、supervisor 再選定 |
 | 20h | ProjectOutcomeSystem | 4 | v0.26 / v0.29。Project 効果解決、cleanup。respond_to_pressure completed → Pressure responded |
 | 20i | PressureSystem | 1 | v0.29。active Pressure → respond_to_pressure Project 生成 |
-| 21 | ProvinceRevoltSystem | 12 | 旧毎年 |
+| 20j | TaxRevisionSystem | 48 | v0.39 追加。税率引上 → unrest↑ → 叛乱の上流要因。provinceRevoltSystem より前 |
+| 21 | ProvinceRevoltSystem | 12 | v0.39: Holding 単位判定に全面改修 |
 | 21a | cancelOrphanedPlays | 1 | v0.29。orphaned DiplomaticPlay のキャンセル |
 | 21b | DiplomaticPlaySystem | 4 | 旧毎月。v0.29 で Task 生成責務を ProjectTaskGenerationSystem に移管 |
-| 21b2 | WarCreationSystem | 4 | v0.34 追加。旧 ConflictResolutionSystem の位置。escalated land_claim / contract_tax_revision を War 化 |
-| 21c | ConflictResolutionSystem | 4 | v0.34: revolt_negotiation 専用に kind-gate（land_claim / contract_tax_revision は WarCreationSystem へ移行。関数名は `runConflictResolutionSystem` のまま） |
+| 21b2 | WarCreationSystem | 4 | v0.34 追加。escalated land_claim / contract_tax_revision / revolt_negotiation（v0.39）を War 化 |
+| 21c | ConflictResolutionSystem | 4 | v0.39: no-op（revolt_negotiation の escalation は warCreationSystem 経由で War 化） |
 | 21c2 | WarManeuverSystem | 1 | v0.35: 旧 WarProgressSystem を置換（**interval 4→1 毎週**・旧スロット位置維持）。総大将/指揮官 lazy 選出 → 戦場生成 → 回避判断 → battle 解決で warScore 更新（冒頭 dead-participant guard）。**v0.36: per-war mobilize prologue + battle power=Regiment + 損耗/Battle 記録** |
 | 21c2b | RegimentRecoverySystem | 1 | v0.36 追加。WarManeuver 直後。active Regiment の organization を週次回復（strength / morale は不変） |
 | 21c3 | PeaceSettlementSystem | 4 | v0.34 追加。warScore 閾値到達で終結・WarGoal 実行（冒頭 dead-participant guard） |

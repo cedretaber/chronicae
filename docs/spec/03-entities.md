@@ -686,7 +686,7 @@ type DiplomaticDemand =
   | { kind: 'transfer_land_contract'; holdingId: HoldingId; toPolityId; beneficiaryActor? }
   | { kind: 'change_contract_tax_rate'; holdingId: HoldingId; landContractId; newTaxRateToGrantor }
   | { kind: 'pay_wealth'; from; to; amount }
-  | { kind: 'revolt_concession'; provinceId; popClass: PopClass; concessionLevel }  // v0.24: popGroupId → popClass
+  | { kind: 'popular_tax_relief'; holdingId; targetContractId; currentTaxRate; demandedTaxRate; claimantPopClass }  // v0.39: revolt_concession を置換
   | { kind: 'status_quo' }
 ```
 

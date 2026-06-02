@@ -18,7 +18,6 @@ import type {
 } from '../types/ids'
 import type { EventReason, EventEffect } from '../types/event'
 import type { House } from '../types/house'
-import type { Person } from '../types/person'
 import type { Polity } from '../types/polity'
 import type { WorldState } from '../types/world'
 import type { SimEvent } from '../types/event'
@@ -28,7 +27,7 @@ import { ok, err } from './result'
 import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMutations'
 import { markPersonDead, movePersonToHouse } from './personMutations'
 import { dispersePersonsToHouseless, addHouselessPerson } from './houseMutations'
-import { getHouseLeader, getPolityLeader, getPolityLeaderHouse } from '../selectors/officeSelectors'
+import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { generatePolityNameKey } from '../selectors/polityNamingService'
 import {
@@ -39,22 +38,17 @@ import {
 import {
   getHouseControlledProvinceIds,
   getProvinceEffectiveOwnerHouseId,
-  getLandContractGrantor,
-  getGrantorRank,
 } from '../selectors/landContractSelectors'
-import { transferLandContractGrantee } from './landContractMutations'
-import { installHoldingPlaceholderBailiff } from './provinceOfficeMutations'
-import { createOrganizationShare, removeOrganizationShare } from './shareMutations'
+import { createOrganizationShare } from './shareMutations'
 import { initializeHouseShares } from '../tick/shareUpdateSystem'
 import { removePersonSharesInHouse } from './shareMutations'
 import { addHouseToClan, syncClanActive } from './clanMutations'
-import type { PolityRank } from '../types/polity'
 import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
 import { samplePerson } from '../helpers/personFactory'
-import { defaultLandContractConfig } from '../config/landContractConfig'
 import { getHouselessPersons } from '../selectors/availabilitySelectors'
 import { removeSharesByOrganization } from './shareMutations'
+import { adjustPopAttitude } from './attitudeMutations'
 
 // ============================================================================
 // Split House Orchestration
@@ -736,450 +730,6 @@ export function extinctHouse(ctx: TickContext, input: HouseExtinctionInput): Ctx
 }
 
 // ============================================================================
-// Create Rebel Polity (v0.18-pre)
-// v0.16 §17 で生成された Rebel Polity を commonwealth として恒常運用する形に書き換え:
-//   - rank = min(5, max(4, terminalRank+1))
-//   - bailiff を placeholder に installPlaceholderBailiff
-//   - rebel Person は AnonymousHouse 所属 (Rebel House は生成しない)
-//   - Polity.kind = 'commonwealth'、ownerHouseId は undefined のまま (永続)
-//   - polity:leader Office のみ rebel Person に付与 (house:leader は不在)
-// 将来「家の設立」イベントで AnonymousHouse から新規 House を立て上げ、dynasty 樹立可能。
-// ============================================================================
-
-export function createRebelPolity(
-  ctx: TickContext,
-  input: { provinceId: ProvinceId; rebelClass: PopClass; oldPolityId: PolityId },
-): CtxResult<{ polityId: PolityId; personId: PersonId }> {
-  const { provinceId, rebelClass, oldPolityId } = input
-  const config = ctx.config
-  const state = ctx.state
-
-  const province = state.provinces[provinceId]
-  if (!province)
-    return err({
-      code: 'PROVINCE_NOT_FOUND',
-      message: `createRebelPolity: province not found: ${provinceId}`,
-    })
-
-  const oldPolity = state.polities[oldPolityId]
-  if (!oldPolity)
-    return err({
-      code: 'POLITY_NOT_FOUND',
-      message: `createRebelPolity: old polity not found: ${oldPolityId}`,
-    })
-
-  const oldOwnerHouseId = getProvinceEffectiveOwnerHouseId(state, provinceId)
-  const oldOwnerHouse = oldOwnerHouseId ? state.houses[oldOwnerHouseId] : undefined
-
-  // Pre-generate IDs (v0.18-pre: Rebel House は作らないので HouseId は不要)
-  const { id: newPolityId, ctx: ctx1 } = makePolityId(ctx)
-  const { id: newPersonId, ctx: ctx2 } = makePersonId(ctx1)
-  ctx = ctx2
-
-  // Generate polity name (rulingHouseId は不使用: province_revolt_independence origin は
-  // capitalProvinceId から命名する)
-  const { nameKey: newPolityNameKey, rng: rng0 } = generatePolityNameKey(
-    ctx.state,
-    ctx.config,
-    ctx.rng,
-    {
-      origin: 'province_revolt_independence',
-      provinceIds: [provinceId],
-      capitalProvinceId: provinceId,
-      founderPersonId: newPersonId,
-      sourcePolityId: oldPolityId,
-      rebelClass,
-    },
-    ctx.namePoolService,
-  )
-  ctx = { ...ctx, rng: rng0 }
-
-  // Generate leader (§17 step 4: sex 50/50, age range from config)
-  const { value: sexRoll, rng: rngSex } = randomInt(ctx.rng, 0, 1)
-  ctx = { ...ctx, rng: rngSex }
-  const leaderSex: 'male' | 'female' = sexRoll === 0 ? 'male' : 'female'
-
-  let leaderNameKey: string
-  if (ctx.namePoolService) {
-    const { value: key, rng: rng1 } = ctx.namePoolService.pickNameKey(ctx.rng, {
-      nameCultureId: ctx.config.nameCultureId,
-      category: 'person',
-      path: [leaderSex],
-    })
-    ctx = { ...ctx, rng: rng1 }
-    leaderNameKey = key
-  } else {
-    const { name, rng: rng1 } = pickNameBySex(leaderSex, ctx.rng)
-    ctx = { ...ctx, rng: rng1 }
-    leaderNameKey = name
-  }
-
-  const [ageMin, ageMax] = defaultLandContractConfig.rebelLeaderAgeRange
-  const { value: age, rng: rng2 } = randomInt(ctx.rng, ageMin, ageMax)
-  ctx = { ...ctx, rng: rng2 }
-  const { value: ambition, rng: rng3 } = randomInt(ctx.rng, 7, 10)
-  ctx = { ...ctx, rng: rng3 }
-  const { value: caution, rng: rng4 } = randomInt(ctx.rng, 2, 7)
-  ctx = { ...ctx, rng: rng4 }
-  const { value: legacyPrestige, rng: rng5 } = randomInt(ctx.rng, 5, 20)
-  ctx = { ...ctx, rng: rng5 }
-
-  // v0.18-pre: rebel Person は houseless。dynasty 樹立は将来「家の設立」イベントで。
-  const { value: newLeader, rng: rngAfterLeader } = samplePerson(ctx.rng, ctx.config, {
-    id: newPersonId,
-    nameKey: leaderNameKey,
-    sex: leaderSex,
-    age,
-    birthStatus: 'unknown',
-    traits: { ambition: ambition / 10, caution: caution / 10 },
-    legacyPrestige,
-  })
-  ctx = { ...ctx, rng: rngAfterLeader }
-
-  // v0.16 §17: Rebel rank = min(5, max(4, terminalRank+1))
-  const terminalRank = oldPolity.rank
-  const rebelRank: PolityRank = Math.min(5, Math.max(4, terminalRank + 1)) as PolityRank
-
-  // v0.18-pre: Rebel Polity は commonwealth。kind = 'commonwealth' により
-  // polityOwnerConsistencySystem / successionSystem の補充ロジックを skip させ、
-  // ownerHouseId === undefined を恒常的に許容する。
-  const newPolityObj: Polity = {
-    id: newPolityId,
-    nameKey: newPolityNameKey,
-    treasury: config.revoltPolityInitialTreasury,
-    legacyPrestige: config.revoltPolityInitialLegacyPrestige,
-    adminPower: 0,
-    active: true,
-    capitalProvinceId: provinceId,
-    rank: rebelRank,
-    kind: 'commonwealth',
-    origin: {
-      kind: 'popular_revolt',
-      originalPolityId: oldPolityId,
-      provinceId,
-      holdingIds: [...province.holdingIds],
-      popClass: rebelClass,
-      leaderPersonId: newPersonId,
-      startedWeek: state.absoluteWeek,
-    },
-  }
-
-  // v0.16: Holding の polityControl のみリセット。所有変更は LandContract chain で表現する。
-  const updatedHoldings = { ...ctx.state.holdings }
-  for (const holdingId of province.holdingIds) {
-    const holding = updatedHoldings[holdingId]
-    if (holding) {
-      updatedHoldings[holdingId] = {
-        ...holding,
-        polityControl: config.provinceRevoltNewCountryControl,
-      }
-    }
-  }
-
-  // v0.16: 旧 ownerHouse の Province 帰属は LandContract chain 経由で動的に決まるため House 自体は触らない。
-  // ただし seat が当該 Province にあった場合の seat 移動は別 system に委ねる (Stage A では skip)。
-
-  // v0.18-pre: Rebel Polity は commonwealth なので polityIndex.byOwnerHouse には登録しない。
-  // rebel Person は addHouselessPerson 経由で houseless として登録する。
-  let newState: WorldState = {
-    ...ctx.state,
-    holdings: updatedHoldings,
-    polities: {
-      ...ctx.state.polities,
-      [newPolityId]: newPolityObj,
-    },
-  }
-
-  const addPersonResult = addHouselessPerson(newState, newLeader)
-  if (!addPersonResult.ok) {
-    return err(addPersonResult.error)
-  }
-  newState = addPersonResult.value
-
-  // v0.16 §17 step 6: Rebel Polity の OrganizationShare = rebel leader (Person) に rawPower 100%
-  // shareUpdateSystem の次回年次更新で再計算されるが、初期値として rebel leader 単独を置く
-  newState = createOrganizationShare(
-    newState,
-    { kind: 'polity', id: newPolityId },
-    { kind: 'person', id: newPersonId },
-    100,
-  )
-
-  // v0.20: 各 Holding の terminal LandContract grantee を newPolityId に差し替え
-  for (const holdingId of province.holdingIds) {
-    const holdingChain = newState.landContractIndex.byHolding[holdingId] ?? []
-    const terminalId = holdingChain[holdingChain.length - 1]
-    if (terminalId) {
-      newState = transferLandContractGrantee(newState, terminalId, newPolityId)
-    }
-  }
-
-  // v0.16 §17: 当該 Province の bailiff を新 Polity 配下の placeholder に installHoldingPlaceholderBailiff
-  for (const holdingId of province.holdingIds) {
-    newState = installHoldingPlaceholderBailiff(newState, {
-      holdingId,
-      appointingPolityId: newPolityId,
-      week: newState.absoluteWeek,
-    })
-  }
-
-  const oldOwnerIsRuler =
-    oldOwnerHouseId !== undefined && getPolityLeaderHouse(state, oldPolityId) === oldOwnerHouseId
-  void oldOwnerIsRuler
-
-  // v0.18-pre: polity:leader のみ rebel Person に付与 (house:leader は rebel に固有の House がないので作らない)
-  newState = createOfficeAssignment(
-    newState,
-    { kind: 'polity' as const, id: newPolityId },
-    'leader',
-    newPersonId,
-  )
-
-  // v0.16: 旧 ownerHouse が landless になった場合の処理は LandContract chain selector 経由で判定する。
-  if (oldOwnerHouseId !== undefined && oldOwnerHouse) {
-    const remainingControlled = getHouseControlledProvinceIds(newState, oldOwnerHouseId)
-    if (remainingControlled.length === 0) {
-      const rulerHouseId = getPolityLeaderHouse(newState, oldPolityId)
-      if (rulerHouseId && rulerHouseId !== oldOwnerHouseId) {
-        const rulerHouse = newState.houses[rulerHouseId]
-        const updatedPersons: Record<PersonId, Person> = { ...newState.persons }
-        const rulerMemberIds = rulerHouse ? [...rulerHouse.memberIds] : []
-
-        for (const memberId of oldOwnerHouse.memberIds) {
-          const member = updatedPersons[memberId]
-          if (member && member.alive) {
-            updatedPersons[memberId] = {
-              ...member,
-              houseId: rulerHouseId,
-            }
-            rulerMemberIds.push(memberId)
-          }
-        }
-
-        const updatedHouses: Record<HouseId, House> = { ...newState.houses }
-        updatedHouses[oldOwnerHouseId] = { ...oldOwnerHouse, active: false, memberIds: [] }
-        if (rulerHouse) {
-          updatedHouses[rulerHouseId] = { ...rulerHouse, memberIds: rulerMemberIds }
-        }
-
-        newState = {
-          ...newState,
-          persons: updatedPersons,
-          houses: updatedHouses,
-        }
-
-        // Emit HOUSE_EXTINCT event
-        ctx = { ...ctx, state: newState }
-        const { event: extinctEvent, ctx: ctxE } = createSimEvent(ctx, {
-          type: 'HOUSE_EXTINCT',
-          importance: 'major',
-          messageKey: 'house.extinct_fallen',
-          messageParams: {
-            house: nameParam('house', oldOwnerHouse.nameKey),
-          },
-          entityRefs: [
-            entityRef('house', oldOwnerHouseId, 'fallen_house', oldOwnerHouse.nameKey),
-            entityRef('polity', oldPolityId, 'polity'),
-            entityRef('province', provinceId, 'province'),
-          ],
-        })
-        ctx = { ...ctxE, events: [...ctxE.events, extinctEvent] }
-      } else {
-        ctx = { ...ctx, state: newState }
-      }
-    } else {
-      ctx = { ...ctx, state: newState }
-    }
-  } else {
-    ctx = { ...ctx, state: newState }
-  }
-
-  // Emit REVOLT_POLITY_FOUNDED event
-  const { event: revoltEvent, ctx: ctx4 } = createSimEvent(ctx, {
-    type: 'REVOLT_POLITY_FOUNDED',
-    importance: 'critical',
-    messageKey: 'revolt.polity_founded',
-    messageParams: {
-      polity: nameParam('polity', newPolityObj.nameKey),
-      leader: nameParam('person', newLeader.nameKey),
-      province: nameParam('province', province.nameKey),
-    },
-    entityRefs: [
-      entityRef('person', newPersonId, 'leader', newLeader.nameKey),
-      entityRef('polity', newPolityId, 'new_polity', newPolityObj.nameKey),
-      entityRef('polity', oldPolityId, 'old_polity'),
-      entityRef('province', provinceId, 'province', province.nameKey),
-    ],
-  })
-  ctx = { ...ctx4, events: [...ctx4.events, revoltEvent] }
-
-  return ok({ ctx, value: { polityId: newPolityId, personId: newPersonId } })
-}
-
-// ============================================================================
-// v0.18 Stage B §12.5: disbandRebelPolity
-// revolt_negotiation の妥協成立または鎮圧成功時に Rebel commonwealth Polity を解散する。
-// createRebelPolity の逆操作を担当 (LandContract grantee 復元 / Office revoke / Share 削除
-// / placeholder Bailiff 切り替え / leader 死亡処理 / Polity inactive)。
-// ============================================================================
-
-export type RebelLeaderAftermath = 'returned_to_obscurity' | 'vanished' | 'executed' | 'exiled'
-
-export type DisbandRebelPolityInput = {
-  rebelPolityId: PolityId
-  restoreToPolityId: PolityId
-  provinceId: ProvinceId
-  leaderAftermath: RebelLeaderAftermath
-  reason: 'settlement' | 'suppression'
-}
-
-export function disbandRebelPolity(
-  ctx: TickContext,
-  input: DisbandRebelPolityInput,
-): CtxResult<void> {
-  const rebelPolity = ctx.state.polities[input.rebelPolityId]
-  if (!rebelPolity) {
-    return err({
-      code: 'POLITY_NOT_FOUND',
-      message: `disbandRebelPolity: rebel Polity ${input.rebelPolityId} not found`,
-    })
-  }
-  if (rebelPolity.kind !== 'commonwealth') {
-    return err({
-      code: 'POLITY_INACTIVE',
-      message: `disbandRebelPolity: Polity ${input.rebelPolityId} is not a commonwealth`,
-    })
-  }
-  const restorePolity = ctx.state.polities[input.restoreToPolityId]
-  if (!restorePolity || !restorePolity.active) {
-    return err({
-      code: 'POLITY_NOT_FOUND',
-      message: `disbandRebelPolity: restore target Polity ${input.restoreToPolityId} not active`,
-    })
-  }
-  const province = ctx.state.provinces[input.provinceId]
-  if (!province) {
-    return err({
-      code: 'PROVINCE_NOT_FOUND',
-      message: `disbandRebelPolity: Province ${input.provinceId} not found`,
-    })
-  }
-
-  let state = ctx.state
-
-  // v0.20: 各 Holding の terminal LandContract grantee を restoreToPolityId に戻す
-  //    rank 不変条件 (§25 #7: grantor rank < grantee rank) を満たさない場合は abort
-  for (const hid of province.holdingIds) {
-    const holdingChain = state.landContractIndex.byHolding[hid] ?? []
-    const terminalId = holdingChain[holdingChain.length - 1]
-    if (!terminalId) continue
-    const terminalContract = state.landContracts[terminalId]
-    if (!terminalContract) continue
-    if ((terminalContract.granteePolityId as string) !== (input.rebelPolityId as string)) continue
-    const grantor = getLandContractGrantor(state, terminalId)
-    if (grantor) {
-      const grantorRank = getGrantorRank(state, grantor)
-      if (grantorRank >= restorePolity.rank) {
-        return err({
-          code: 'INTEGRITY_VIOLATION',
-          message: `disbandRebelPolity: restore would violate rank invariant (grantor rank ${grantorRank} >= restore polity rank ${restorePolity.rank})`,
-        })
-      }
-    }
-    state = transferLandContractGrantee(state, terminalId, input.restoreToPolityId)
-  }
-
-  // 2. Rebel Polity の active polity:leader Office を revoke
-  //    rebel leader を取得しておく (markPersonDead は revoke 後では取れなくなる)
-  const rebelLeaderId = getPolityLeader(state, input.rebelPolityId)
-  state = revokeOfficesByOrganization(state, { kind: 'polity', id: input.rebelPolityId }, 'leader')
-
-  // 3. Rebel Polity 関連の OrganizationShare を全削除
-  const orgKey = `polity:${input.rebelPolityId}`
-  const shareIds = state.shareIndex.byOrganization[orgKey] ?? []
-  for (const shareId of [...shareIds]) {
-    state = removeOrganizationShare(state, shareId)
-  }
-
-  // 4. placeholder Bailiff を restoreToPolityId に切り替える
-  //    (rebel polity が任命していた placeholder bailiff を vacate し、restore polity の
-  //    placeholder bailiff を再 install。次 tick の bailiffAppointmentSystem が通常ルールで
-  //    本任命する。IntegrityCheck §25 #23 違反を avoid するための immediate placeholder)
-  const restoreProvince = state.provinces[input.provinceId]
-  if (restoreProvince) {
-    for (const restoreHoldingId of restoreProvince.holdingIds) {
-      state = installHoldingPlaceholderBailiff(state, {
-        holdingId: restoreHoldingId,
-        appointingPolityId: input.restoreToPolityId,
-        week: state.absoluteWeek,
-      })
-    }
-  }
-
-  // 5. rebel leader を死亡処理 (markPersonDead 内部で revokeOfficesByHolder 連鎖)
-  //    estateSettlementSystem は tick 早期に走っているため、tick 末 IntegrityCheck #11
-  //    (dead person must have wealth === 0) を満たすため wealth も明示的にクリアする
-  if (rebelLeaderId !== undefined) {
-    const deadResult = markPersonDead(state, rebelLeaderId)
-    if (deadResult.ok) {
-      state = deadResult.value
-      const deadPerson = state.persons[rebelLeaderId]
-      if (deadPerson && deadPerson.wealth > 0) {
-        state = {
-          ...state,
-          persons: {
-            ...state.persons,
-            [rebelLeaderId]: { ...deadPerson, wealth: 0 },
-          },
-        }
-      }
-    }
-  }
-
-  // 6. Polity を inactive にする
-  const rebelPolityNow = state.polities[input.rebelPolityId]
-  if (rebelPolityNow) {
-    state = {
-      ...state,
-      polities: {
-        ...state.polities,
-        [input.rebelPolityId]: { ...rebelPolityNow, active: false },
-      },
-    }
-  }
-
-  let nextCtx: TickContext = { ...ctx, state }
-
-  // 7. event 発火
-  const eventType = input.reason === 'settlement' ? 'REVOLT_SETTLED' : 'REVOLT_SUPPRESSED'
-  const messageKey = input.reason === 'settlement' ? 'revolt.settled' : 'revolt.suppressed'
-  const { event: revoltEvent, ctx: ctxEvent } = createSimEvent(nextCtx, {
-    type: eventType,
-    importance: 'major',
-    messageKey,
-    messageParams: {
-      province: nameParam('province', province.nameKey),
-      leader:
-        rebelLeaderId !== undefined
-          ? nameParam('person', state.persons[rebelLeaderId]?.nameKey ?? '')
-          : '',
-      polity: nameParam('polity', restorePolity.nameKey),
-    },
-    entityRefs: [
-      rebelLeaderId !== undefined
-        ? entityRef('person', rebelLeaderId, 'leader')
-        : entityRef('person', '', 'leader'),
-      entityRef('polity', input.rebelPolityId, 'rebel_polity'),
-      entityRef('polity', input.restoreToPolityId, 'restored_polity', restorePolity.nameKey),
-      entityRef('province', input.provinceId, 'province', province.nameKey),
-    ].filter((ref): ref is typeof ref & { id: string } => ref.id !== ''),
-  })
-  nextCtx = { ...ctxEvent, events: [...ctxEvent.events, revoltEvent] }
-
-  return ok({ ctx: nextCtx, value: undefined })
-}
-
-// ============================================================================
 // v0.39 B-2: selectOrCreateCommonwealthLeader
 // 在野人物の優先選出 + 新規生成。spec §14.1-14.2。
 // ============================================================================
@@ -1444,6 +994,23 @@ export function dissolveNegotiatingCommonwealth(
     }
   }
 
+  // §14.6: pardoned leader の prestige ペナルティ
+  if (input.leaderOutcome === 'pardoned' && leaderId !== undefined) {
+    const leader = state.persons[leaderId]
+    if (leader) {
+      state = {
+        ...state,
+        persons: {
+          ...state.persons,
+          [leaderId]: {
+            ...leader,
+            legacyPrestige: Math.max(0, leader.legacyPrestige - 10),
+          },
+        },
+      }
+    }
+  }
+
   const updatedPolity = state.polities[input.commonwealthPolityId]
   if (updatedPolity) {
     state = {
@@ -1513,6 +1080,23 @@ export function establishCommonwealth(
           legacyPrestige: Math.min(100, leader.legacyPrestige + 15),
         },
       },
+    }
+  }
+
+  // 4. POP attitude boost toward commonwealth (§14.5)
+  if (cw.origin?.kind === 'popular_revolt') {
+    for (const hid of cw.origin.holdingIds) {
+      const popIds = state.popIndex.byHolding[hid]
+      if (!popIds) continue
+      for (const popId of popIds) {
+        const r = adjustPopAttitude(
+          state,
+          popId,
+          { kind: 'polity', id: input.commonwealthPolityId },
+          { affection: 15, respect: 10 },
+        )
+        if (r.ok) state = r.value
+      }
     }
   }
 

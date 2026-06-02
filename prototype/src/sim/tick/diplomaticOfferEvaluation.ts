@@ -157,9 +157,6 @@ export function canApplyDemand(
     case 'status_quo':
       return { valid: true }
 
-    case 'revolt_concession':
-      return { valid: true }
-
     case 'popular_tax_relief':
       return { valid: true }
   }

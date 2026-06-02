@@ -957,65 +957,57 @@ annexPolity (Polity 全体消滅) は v0.16 では LandContract chain が全部 
 
 ### 6.21 RebellionSystem（v0.16 で廃止）
 
-旧 v0.15 までの「反乱傾向が `rebellionThreshold` を超えた House が反乱を起こす」HouseRebellionSystem は v0.16 で廃止された。Province / POP 起点の反乱に統合され、すべて §6.22 ProvinceRevoltSystem の `createRebelPolity` で処理する。
+旧 v0.15 までの HouseRebellionSystem は v0.16 で廃止。Faction システム導入時に再設計される。
 
-`HouseRebellionSystem` のロジック (家門の反乱傾向計算 / 戦力比較 / 成功時の独立または支配家交代) は Faction システム導入時に派閥圧力ベースで再設計される。
+### 6.21b TaxRevisionSystem（48週ごと、v0.39 追加）
 
-### 6.22 ProvinceRevoltSystem（48週ごと = 毎年）
+土地保有者 Polity が LandContract の税率を引き上げる。provinceRevoltSystem より前に実行し、税率↑ → unrest↑ → 叛乱の循環を形成する。
 
-**v0.18 で外交劇化**: 叛乱判定で即時独立を行わず、Rebel commonwealth Polity を生成し revolt_negotiation DiplomaticPlay を開始する。交渉 → 妥協 / 鎮圧 / 独立の 3 分岐で処理される。旧 PROVINCE_REVOLT_SUCCEEDED / PROVINCE_REVOLT_FAILED の即時成否判定は廃止された。
+対象: active Polity の terminal holding（commonwealth・revolt_seizure 契約・cooldown 中・active revolt_negotiation 対象を除外）。
 
-Province / POP を起点とする社会的反乱を処理する。
+判断: increaseScore（treasury 不足・低 unrest・leader ambition・戦争中）vs avoidScore（高 unrest・recent revolt・高税率・leader caution/insight）で判定。上昇幅 +0.02〜0.05、`taxRevisionSystemMaxRate` でキャップ。`taxIncreaseCooldownUntilWeek` で連続増税を防止。
 
-毎年、全 active Province に対して POP class ごとの反乱傾向を評価し、最も傾向が高い class 1 つを候補とする。スナップショットパターンで実装（連鎖防止）。
+### 6.22 ProvinceRevoltSystem（12週ごと、v0.39 で Holding 単位に全面改修）
 
-**反乱傾向**:
+**v0.39 で Holding 単位判定に全面改修**。旧 Province 単位・createRebelPolity は廃止。交渉用 commonwealth（landless）を生成し `revolt_negotiation` DiplomaticPlay を開始する。
 
-```ts
+**Holding 単位 revoltTendency**:
+
+```
 revoltTendency =
-  pop.unrest * provinceRevoltUnrestFactor
-  + (100 - polityControl) * provinceRevoltLowHouseControlFactor  // v0.16: houseControl 廃止のため polityControl で代用 (係数は流用)
-  + (100 - polityControl) * provinceRevoltLowPolityControlFactor
-  - polity.stability * provinceRevoltStabilitySuppressionFactor
+  pop.unrest * unrestFactor
+  + (100 - polityControl) * lowControlFactor
+  - stability * stabilityFactor
   + [class 別補正]
+  + taxBurden * taxBurdenWeight          // v0.39 追加
+  + recentTaxIncrease * weight * decay   // v0.39 追加
+  - recentSuppression * reduction * decay // v0.39 追加
 ```
 
-class 別補正:
+taxBurden = `max(0, currentTaxRate - defaultTaxRateByRank(rank))`。
 
-| class | 補正内容 |
-|-------|----------|
-| peasants | 貧困 wealth ペナルティ + 人口圧力 |
-| townsmen | 低 wealth 時のみ搾取ペナルティ + 生産量補正 |
-| nobles | 低忠誠度補正 + 低正統性補正 |
+**発生時の処理** (`resolveHoldingRevolt`):
+1. `createNegotiatingCommonwealth` で交渉用 commonwealth 生成（landless、rank 5、treasury 0）
+2. Leader 選出: 在野人物優先（charisma+command+insight+ambition スコア）→ 不在時新規生成
+3. `popular_tax_relief` demand 付き `revolt_negotiation` DiplomaticPlay 生成
+4. `REVOLT_POLITY_FOUNDED` + `REVOLT_NEGOTIATION_STARTED` event
 
-**発生判定**: `revoltTendency >= provinceRevoltThreshold` のとき、`clamp(tendency / chanceDivisor, 0, maxChance)` の確率で発生。
+**交渉結果**（diplomaticPlaySystem 内）:
+- settlement: 税率引き下げ、`termsProtectedUntilWeek` 設定、commonwealth 解散（leader は在野へ）、`REVOLT_SETTLED`
+- escalation (rank 2-4): `revolt_seizure` 子契約追加 → Local Levy 生成 → `escalated` → warCreationSystem が War 化
+- escalation (rank 5): internal revolt 即時解決（§6.22c）
 
-**戦力比較**:
-- 反乱側: `pop.size * popRevoltPowerFactorByClass[class] * (0.5 + unrest/100)`
-- 鎮圧側: Province の house/polity manpower + log1p(treasury) + log1p(houseWealth)
+旧 `createRebelPolity` / `disbandRebelPolity` / `revolt_concession` demand は v0.39 で削除された。
 
-**成功 outcome**:
+### 6.22c Rank 5 Internal Popular Revolt（v0.39 追加）
 
-| outcome | 条件 | 効果 |
-|---------|------|------|
-| `concession` | 小幅成功 | 支配力低下・house wealth 低下、不満低下 |
-| `lordship_change` | 中〜大成功 | 新 Person・新 House を生成し Province の領主を交代 |
-| `independence` | nobles 反乱かつ両支配力が極低値かつ大差勝利 | 新 Person・新 House・新 Polity を生成し Province が独立 |
+rank 5 Polity 内の叛乱は War 化せず、diplomaticPlaySystem 内で即時解決する。
 
-`independence` 実行時の状態書き換えは v0.16 で `createRebelPolity` mutation (`worldStructureMutations.ts`) に統合され、v0.18-pre で AnonymousHouse 方式に書き換えられた。生成内容:
+力の比較: rebelPower（POP size × unrest + leader charisma/command/ambition）vs defenderPower（polityControl + leader command/caution）。
 
-1. Rebel Polity (rank = min(5, max(4, terminalRank+1)), `ownerHouseId === undefined` + `kind: 'commonwealth'`)
-2. Rebel leader Person (kind='normal', age 20-50 / sex 50/50 random、`rebelLeaderAgeRange` config 経由、`houseId: ANONYMOUS_HOUSE_ID`)
-3. `addPersonToAnonymousHouse` 経由で AnonymousHouse.memberIds に rebel Person を追加 (**Rebel House は生成しない**、v0.18-pre)
-4. Polity:leader OfficeAssignment 任命 (rebel Person 直接、house:leader は作らない)
-5. Rebel Polity の OrganizationShare を rebel leader (Person) に 100% 付与（§17 commonwealth）
-6. 当該 Province の **各 Holding** の terminal LandContract granteePolityId を Rebel Polity に差し替え（v0.20-b2 で per-Holding 化。旧 Province chain terminal ではなく `byHolding` chain terminal を走査）
-7. 当該 Province の Bailiff を placeholder に切り替え
-8. `REVOLT_POLITY_FOUNDED` / `BAILIFF_PLACEHOLDER_INSTALLED` event を発火 (REVOLT_POLITY_FOUNDED の `houseIds: []`)
+成功時: 既存 Polity を commonwealth に変換（`origin: regime_changed_by_popular_revolt`、`revoltState: established`）。旧 leader revoke、rebel leader 任命、Share 差替、税率引下、POP attitude ブースト、旧 ownerHouse attitude ペナルティ。`REVOLT_REGIME_CHANGED` event。
 
-将来 「家の設立」イベント (v0.18+) によって AnonymousHouse 内の rebel founder + 一族が新規 House を立て上げ、`Polity.kind` を `'normal'` に遷移できる素地を残している。
-
-旧 v0.13 の `foundRevoltPolity` mutation は v0.16 で `createRebelPolity` に統合され、関連ファイル (`createRevoltHouse.ts` / `createRevoltLeader.ts`) は削除された。v0.18-pre で Rebel House 生成ロジックも削除された。
+失敗時: commonwealth 解散（leader executed/pardoned）、unrest 低下、`lastRevoltSuppressedWeek` 記録。`REVOLT_SUPPRESSED` event。
 
 ### 6.22d LandContractPurchaseSystem（v0.18 で廃止）
 
@@ -1543,25 +1535,13 @@ for each active play:
 Play kind 別の処理:
 - `land_claim`: demands から `transfer_land_contract` / `pay_wealth` / `status_quo` を抽出し evaluateLandClaimOffer で score 計算。settlement 時は `applySettledOffer` で demands を適用。rank ベースの契約選択 (3-a/3-b/3-c) と操作 (5-a/5-b/5-c) は維持。
 - `contract_tax_revision`: demands から `change_contract_tax_rate` / `pay_wealth` / `status_quo` を抽出し evaluateContractTaxRevisionOffer で score 計算。`taxRevisionInitialDemandDelta` (0.10) で旧 `taxRevisionTaxChangeAmount` (0.05) を置換。下限 5% / 上限 80% 超で契約破棄は維持。Play 決着時（成否問わず）に `termsProtectedUntilWeek` を設定。**v0.30**: `applyChangeContractTaxRate` で `newRate <= taxRevisionMinRate` または `newRate >= taxRevisionMaxRate` の場合、率変更の代わりに `eliminateContractFromChain` で契約取消しを実行する（settlement / conflict 両経路共通）。status_quo 和平時は CONTRACT_TAX_REVISED を emit しない。
-- `revolt_negotiation`: 叛乱交渉。v0.30 では既存ロジック維持（妥協 / 鎮圧 / 独立の 3 分岐）。
+- `revolt_negotiation`: v0.39 で `popular_tax_relief` demand ベースに全面改修。acceptanceScore で progress/tension を更新。settlement → 税率引下+commonwealth 解散。escalation → rank 2-4 は revolt_seizure+Local Levy+War、rank 5 は internal revolt 即時解決（§6.22c）。旧 `revolt_concession` demand は削除。
 
 **v0.30 契約取消し aim**: `eliminate_overlord_contract`（`taxRateToGrantor <= taxRevisionMinRateForReduction` で発火）/ `eliminate_vassal_contract`（`taxRateToGrantor >= taxRevisionMaxRateForIncrease` で発火）。既存の `improve_contract_terms` / `demand_tax_increase` project に mapping し、desiredRate が min/max 境界にクランプされる。escalation → conflict で勝利した場合に CONTRACT_ELIMINATED が発生する。両 Goal（external_expansion / internal_development）から候補に入る。
 
-### 6.28 ConflictResolutionSystem（4週ごと、v0.18 / v0.30 / v0.34 更新）
+### 6.28 ConflictResolutionSystem（v0.39 で no-op 化）
 
-**v0.34: revolt_negotiation 専用に kind-gate**。land_claim / contract_tax_revision の即時解決は WarCreationSystem（§6.27a）以降の War flow へ完全移行した。本 system は冒頭で `play.kind !== 'revolt_negotiation'` を early-continue し、revolt の即時解決ロジックのみを残す。完全削除はせず、関数名も `runConflictResolutionSystem` のまま（別名化していない）。二重処理防止は順序依存ではなく kind-gate で保証する（WarCreation = land_claim / contract_tax_revision のみ、ConflictResolution = revolt_negotiation のみ）。
-
-status='escalated' な DiplomaticPlay を武力衝突として解決する。
-
-軍事力比較 → winChance → RNG 判定。
-- initiator 勝利: demand を適用 (土地移転 / 税率変更 / 独立)
-- defender 勝利: status_quo (revolt の場合は鎮圧)
-
-**v0.30**: contract_tax_revision の攻撃勝利時、`desiredTaxRateToGrantor` が `taxRevisionMinRate` 以下または `taxRevisionMaxRate` 以上の場合、通常の税率変更ではなく `eliminateContractFromChain` で契約取消しを実行する。CONTRACT_ELIMINATED イベントを emit。root contract は elimination 対象外。
-
-revolt_negotiation の決裂時は通常の actor military power ではなく、ProvinceRevoltSystem の既存式 (rebelPower / suppressionPower) を利用する。
-
-WAR_WON / WAR_LOST event を発火。敗者に戦争被害 (treasury / ~~development~~ / unrest) を適用。**v0.27**: development 低下効果は無効化（`adjustProvinceDevelopment` が no-op）。将来 devastation/condition で再接続。
+**v0.39**: revolt_negotiation の escalation は warCreationSystem 経由で War 化されるため、本 system は完全 no-op。関数名 `runConflictResolutionSystem` は後方互換のため維持するが、本体は `return ctx` のみ。旧 `resolveRevoltConflict` / `disbandRebelPolity` は削除済み。
 
 ### 6.27a WarCreationSystem（4週ごと、v0.34）
 
