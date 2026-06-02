@@ -121,6 +121,10 @@ export function createChildLandContract(
     parentContractId: params.parentContractId,
     granteePolityId: params.granteePolityId,
     terms: { taxRateToGrantor: clampTaxRate(params.taxRateToGrantor) },
+    // holdingId は byHolding index だけでなく contract record にも保持する。
+    // 欠落させると removeContract の byHolding cleanup (下記) や war/peace の
+    // contract.holdingId === goal.holdingId 照合・UI の holding 名解決がすり抜ける。
+    ...(params.holdingId ? { holdingId: params.holdingId } : {}),
     ...(params.specialStatus ? { specialStatus: params.specialStatus } : {}),
   }
   const chain = emptyChainSlot(state.landContractIndex, params.provinceId)
@@ -249,6 +253,8 @@ export function insertIntermediateLandContract(
     provinceId: params.provinceId,
     granteePolityId: params.newGranteePolityId,
     terms: { taxRateToGrantor: clampTaxRate(params.taxRateToGrantor) },
+    // createChildLandContract と同様、holdingId を record にも保持する。
+    ...(params.holdingId ? { holdingId: params.holdingId } : {}),
     ...(oldParentId !== undefined
       ? { parentContractId: oldParentId }
       : { rootAuthorityId: below.rootAuthorityId ?? ROOT_WORLD }),
