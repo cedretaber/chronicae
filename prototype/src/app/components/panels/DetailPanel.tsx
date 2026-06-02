@@ -4917,12 +4917,12 @@ export function WarDetail({
   const attacker = getWarPrimaryAttacker(war)?.actor
   const defender = getWarPrimaryDefender(war)?.actor
   const attackerLabel =
-    attacker?.kind === 'polity'
-      ? (polities[attacker.id]?.nameKey ?? t('detail.war.attacker'))
+    attacker?.kind === 'polity' && polities[attacker.id]?.nameKey
+      ? resolveName('polity', polities[attacker.id]!.nameKey, polities[attacker.id]!.nameKey)
       : t('detail.war.attacker')
   const defenderLabel =
-    defender?.kind === 'polity'
-      ? (polities[defender.id]?.nameKey ?? t('detail.war.defender'))
+    defender?.kind === 'polity' && polities[defender.id]?.nameKey
+      ? resolveName('polity', polities[defender.id]!.nameKey, polities[defender.id]!.nameKey)
       : t('detail.war.defender')
   const statusBadge: Record<string, { label: string; bg: string }> = {
     active: { label: t('detail.war.status_active'), bg: 'bg-red-700' },
@@ -4963,12 +4963,9 @@ export function WarDetail({
       </div>
 
       <div className="text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-400">{attackerLabel}:</span>
+        <div className="flex items-center gap-2">
           {renderActor(attacker)}
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{defenderLabel}:</span>
+          <span className="text-gray-500">vs</span>
           {renderActor(defender)}
         </div>
 
