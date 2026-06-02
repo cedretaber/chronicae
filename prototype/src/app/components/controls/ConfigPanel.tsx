@@ -63,11 +63,184 @@ function ToggleRow({
   )
 }
 
+// SimulationConfig のうち number / boolean 値を持つキーだけを許可する型。
+type NumericConfigKey = {
+  [K in keyof SimulationConfig]: SimulationConfig[K] extends number ? K : never
+}[keyof SimulationConfig]
+type BooleanConfigKey = {
+  [K in keyof SimulationConfig]: SimulationConfig[K] extends boolean ? K : never
+}[keyof SimulationConfig]
+
+type ConfigItem =
+  | { kind: 'header'; label: string }
+  | {
+      kind: 'slider'
+      key: NumericConfigKey
+      label: string
+      min: number
+      max: number
+      step: number
+      format?: 'percent' | 'weeks'
+    }
+  | { kind: 'toggle'; key: BooleanConfigKey; label: string }
+
+// Rebellion Mode の select より上に出る冒頭スライダー群。
+const TOP_SLIDERS: ConfigItem[] = [
+  {
+    kind: 'slider',
+    key: 'basePlotSuccess',
+    label: 'Plot Success Rate',
+    min: 0,
+    max: 1,
+    step: 0.05,
+    format: 'percent',
+  },
+  {
+    kind: 'slider',
+    key: 'rebellionThreshold',
+    label: 'Rebellion Threshold',
+    min: 0,
+    max: 150,
+    step: 5,
+  },
+  { kind: 'slider', key: 'plotThreshold', label: 'Plot Threshold', min: 0, max: 150, step: 5 },
+  {
+    kind: 'slider',
+    key: 'replacementThreshold',
+    label: 'Replacement Threshold',
+    min: 0,
+    max: 50,
+    step: 1,
+  },
+]
+
+// Rebellion Mode の select より下のセクション群。
+const SECTIONS: ConfigItem[] = [
+  { kind: 'header', label: 'War' },
+  { kind: 'toggle', key: 'warEnabled', label: 'War Enabled' },
+  {
+    kind: 'slider',
+    key: 'warCooldownWeeks',
+    label: 'War Cooldown',
+    min: 24,
+    max: 260,
+    step: 26,
+    format: 'weeks',
+  },
+  { kind: 'slider', key: 'maxWarsPerTick', label: 'Max Wars/Tick', min: 1, max: 5, step: 1 },
+  { kind: 'header', label: 'Disaster' },
+  { kind: 'toggle', key: 'disasterEnabled', label: 'Disaster Enabled' },
+  {
+    kind: 'slider',
+    key: 'famineBaseChancePerYear',
+    label: 'Famine Chance/Year',
+    min: 0,
+    max: 0.3,
+    step: 0.01,
+    format: 'percent',
+  },
+  { kind: 'header', label: 'Public Spending' },
+  { kind: 'toggle', key: 'publicSpendingEnabled', label: 'Public Spending' },
+  { kind: 'header', label: 'Control System' },
+  {
+    kind: 'slider',
+    key: 'controlMaxDistancePenalty',
+    label: 'Distance Penalty',
+    min: 5,
+    max: 20,
+    step: 1,
+  },
+  { kind: 'slider', key: 'controlMaxMinimum', label: 'Control Minimum', min: 10, max: 60, step: 5 },
+  { kind: 'slider', key: 'controlGrowthPerMonth', label: 'Growth/mo', min: 0.5, max: 5, step: 0.5 },
+  { kind: 'slider', key: 'controlDecayPerMonth', label: 'Decay/mo', min: 0.5, max: 5, step: 0.5 },
+  {
+    kind: 'slider',
+    key: 'disconnectedControlDecayPerMonth',
+    label: 'Disconnected Decay/mo',
+    min: 1,
+    max: 10,
+    step: 1,
+  },
+  {
+    kind: 'slider',
+    key: 'landDevelopmentHouseControlGain',
+    label: 'Dev House Control Gain',
+    min: 1,
+    max: 10,
+    step: 1,
+  },
+  { kind: 'header', label: 'Lordship Transition' },
+  {
+    kind: 'slider',
+    key: 'lordshipAbsorptionTargetThreshold',
+    label: 'Target Threshold',
+    min: 10,
+    max: 70,
+    step: 5,
+  },
+  {
+    kind: 'slider',
+    key: 'lordshipAbsorptionSourceMinimum',
+    label: 'Source Minimum',
+    min: 40,
+    max: 80,
+    step: 5,
+  },
+  {
+    kind: 'slider',
+    key: 'lordshipAbsorptionMonthlyChance',
+    label: 'Monthly Chance',
+    min: 0.01,
+    max: 0.2,
+    step: 0.01,
+    format: 'percent',
+  },
+]
+
+function formatSliderValue(value: number, format?: 'percent' | 'weeks'): string {
+  if (format === 'percent') return `${(value * 100).toFixed(0)}%`
+  if (format === 'weeks') return `${value} weeks`
+  return String(value)
+}
+
 export function ConfigPanel() {
   const [open, setOpen] = useState(false)
   const config = useSimulationStore((s) => s.config)
   const setConfig = useSimulationStore((s) => s.setConfig)
   const { i18n } = useTranslation()
+
+  const renderItem = (item: ConfigItem) => {
+    if (item.kind === 'header') {
+      return (
+        <div key={`h:${item.label}`} className="mt-3 mb-1 text-xs font-semibold text-gray-300">
+          {item.label}
+        </div>
+      )
+    }
+    if (item.kind === 'toggle') {
+      return (
+        <ToggleRow
+          key={item.key}
+          label={item.label}
+          value={config[item.key]}
+          onChange={(v) => setConfig({ [item.key]: v })}
+        />
+      )
+    }
+    const value = config[item.key]
+    return (
+      <ConfigRow
+        key={item.key}
+        label={item.label}
+        value={value}
+        min={item.min}
+        max={item.max}
+        step={item.step}
+        displayValue={formatSliderValue(value, item.format)}
+        onChange={(v) => setConfig({ [item.key]: v })}
+      />
+    )
+  }
 
   return (
     <div className="relative">
@@ -90,42 +263,7 @@ export function ConfigPanel() {
               <option value="ja">日本語</option>
             </select>
           </div>
-          <ConfigRow
-            label="Plot Success Rate"
-            value={config.basePlotSuccess}
-            min={0}
-            max={1}
-            step={0.05}
-            displayValue={`${(config.basePlotSuccess * 100).toFixed(0)}%`}
-            onChange={(v) => setConfig({ basePlotSuccess: v })}
-          />
-          <ConfigRow
-            label="Rebellion Threshold"
-            value={config.rebellionThreshold}
-            min={0}
-            max={150}
-            step={5}
-            displayValue={String(config.rebellionThreshold)}
-            onChange={(v) => setConfig({ rebellionThreshold: v })}
-          />
-          <ConfigRow
-            label="Plot Threshold"
-            value={config.plotThreshold}
-            min={0}
-            max={150}
-            step={5}
-            displayValue={String(config.plotThreshold)}
-            onChange={(v) => setConfig({ plotThreshold: v })}
-          />
-          <ConfigRow
-            label="Replacement Threshold"
-            value={config.replacementThreshold}
-            min={0}
-            max={50}
-            step={1}
-            displayValue={String(config.replacementThreshold)}
-            onChange={(v) => setConfig({ replacementThreshold: v })}
-          />
+          {TOP_SLIDERS.map(renderItem)}
           <div className="mt-2 flex items-center justify-between text-xs">
             <span className="text-gray-400">Rebellion Mode:</span>
             <select
@@ -141,134 +279,7 @@ export function ConfigPanel() {
               <option value="ruler_change">Ruler Change</option>
             </select>
           </div>
-          <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">War</div>
-          <ToggleRow
-            label="War Enabled"
-            value={config.warEnabled}
-            onChange={(v) => setConfig({ warEnabled: v })}
-          />
-          <ConfigRow
-            label="War Cooldown"
-            value={config.warCooldownWeeks}
-            min={24}
-            max={260}
-            step={26}
-            displayValue={`${config.warCooldownWeeks} weeks`}
-            onChange={(v) => setConfig({ warCooldownWeeks: v })}
-          />
-          <ConfigRow
-            label="Max Wars/Tick"
-            value={config.maxWarsPerTick}
-            min={1}
-            max={5}
-            step={1}
-            displayValue={String(config.maxWarsPerTick)}
-            onChange={(v) => setConfig({ maxWarsPerTick: v })}
-          />
-          <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Disaster</div>
-          <ToggleRow
-            label="Disaster Enabled"
-            value={config.disasterEnabled}
-            onChange={(v) => setConfig({ disasterEnabled: v })}
-          />
-          <ConfigRow
-            label="Famine Chance/Year"
-            value={config.famineBaseChancePerYear}
-            min={0}
-            max={0.3}
-            step={0.01}
-            displayValue={`${(config.famineBaseChancePerYear * 100).toFixed(0)}%`}
-            onChange={(v) => setConfig({ famineBaseChancePerYear: v })}
-          />
-          <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Public Spending</div>
-          <ToggleRow
-            label="Public Spending"
-            value={config.publicSpendingEnabled}
-            onChange={(v) => setConfig({ publicSpendingEnabled: v })}
-          />
-          <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Control System</div>
-          <ConfigRow
-            label="Distance Penalty"
-            value={config.controlMaxDistancePenalty}
-            min={5}
-            max={20}
-            step={1}
-            displayValue={String(config.controlMaxDistancePenalty)}
-            onChange={(v) => setConfig({ controlMaxDistancePenalty: v })}
-          />
-          <ConfigRow
-            label="Control Minimum"
-            value={config.controlMaxMinimum}
-            min={10}
-            max={60}
-            step={5}
-            displayValue={String(config.controlMaxMinimum)}
-            onChange={(v) => setConfig({ controlMaxMinimum: v })}
-          />
-          <ConfigRow
-            label="Growth/mo"
-            value={config.controlGrowthPerMonth}
-            min={0.5}
-            max={5}
-            step={0.5}
-            displayValue={String(config.controlGrowthPerMonth)}
-            onChange={(v) => setConfig({ controlGrowthPerMonth: v })}
-          />
-          <ConfigRow
-            label="Decay/mo"
-            value={config.controlDecayPerMonth}
-            min={0.5}
-            max={5}
-            step={0.5}
-            displayValue={String(config.controlDecayPerMonth)}
-            onChange={(v) => setConfig({ controlDecayPerMonth: v })}
-          />
-          <ConfigRow
-            label="Disconnected Decay/mo"
-            value={config.disconnectedControlDecayPerMonth}
-            min={1}
-            max={10}
-            step={1}
-            displayValue={String(config.disconnectedControlDecayPerMonth)}
-            onChange={(v) => setConfig({ disconnectedControlDecayPerMonth: v })}
-          />
-          <ConfigRow
-            label="Dev House Control Gain"
-            value={config.landDevelopmentHouseControlGain}
-            min={1}
-            max={10}
-            step={1}
-            displayValue={String(config.landDevelopmentHouseControlGain)}
-            onChange={(v) => setConfig({ landDevelopmentHouseControlGain: v })}
-          />
-          <div className="mt-3 mb-1 text-xs font-semibold text-gray-300">Lordship Transition</div>
-          <ConfigRow
-            label="Target Threshold"
-            value={config.lordshipAbsorptionTargetThreshold}
-            min={10}
-            max={70}
-            step={5}
-            displayValue={String(config.lordshipAbsorptionTargetThreshold)}
-            onChange={(v) => setConfig({ lordshipAbsorptionTargetThreshold: v })}
-          />
-          <ConfigRow
-            label="Source Minimum"
-            value={config.lordshipAbsorptionSourceMinimum}
-            min={40}
-            max={80}
-            step={5}
-            displayValue={String(config.lordshipAbsorptionSourceMinimum)}
-            onChange={(v) => setConfig({ lordshipAbsorptionSourceMinimum: v })}
-          />
-          <ConfigRow
-            label="Monthly Chance"
-            value={config.lordshipAbsorptionMonthlyChance}
-            min={0.01}
-            max={0.2}
-            step={0.01}
-            displayValue={`${(config.lordshipAbsorptionMonthlyChance * 100).toFixed(0)}%`}
-            onChange={(v) => setConfig({ lordshipAbsorptionMonthlyChance: v })}
-          />
+          {SECTIONS.map(renderItem)}
         </div>
       )}
     </div>
