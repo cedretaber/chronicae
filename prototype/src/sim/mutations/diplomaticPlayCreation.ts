@@ -212,6 +212,7 @@ function createLandClaimPlayFromProjectMut(
     messageParams: {
       initiator: nameParam('polity', initiatorNameKey),
       target: nameParam('polity', targetNameKey),
+      province: nameParam('province', ws.provinces[provinceId]?.nameKey ?? String(provinceId)),
     },
     entityRefs: [
       entityRef('polity', initiator.id, 'initiator', initiatorNameKey),
@@ -352,6 +353,7 @@ function createContractRevisionPlayFromProjectMut(
     messageParams: {
       initiator: nameParam('polity', initiatorNameKey),
       target: nameParam('polity', targetNameKey),
+      province: nameParam('province', ws.provinces[provinceId]?.nameKey ?? String(provinceId)),
     },
     entityRefs: [
       entityRef('polity', initiator.id, 'initiator', initiatorNameKey),

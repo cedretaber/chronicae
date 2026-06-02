@@ -297,8 +297,7 @@ export function splitHouse(
     messageKey: 'house.split',
     messageParams: {
       person: nameParam('person', splitterPerson.nameKey),
-      fromHouse: nameParam('house', house.nameKey),
-      toHouse: nameParam('house', newHouseNameKey),
+      house: nameParam('house', house.nameKey),
     },
     entityRefs: [
       entityRef('person', splitterPerson.id, 'splitter', splitterPerson.nameKey),
@@ -671,8 +670,8 @@ function handleNormalHouseExtinction(
       messageKey: 'polity.owner_changed_extinction',
       messageParams: {
         polity: nameParam('polity', polity.nameKey),
-        fromHouse: nameParam('house', house.nameKey),
-        toHouse: nameParam('house', receiverHouse?.nameKey ?? ''),
+        oldHouse: nameParam('house', house.nameKey),
+        newHouse: nameParam('house', receiverHouse?.nameKey ?? ''),
       },
       entityRefs: [
         entityRef('house', houseId, 'from_house', house.nameKey),
