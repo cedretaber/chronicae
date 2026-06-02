@@ -1,10 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { calcPersonImportanceScore } from '@sim/selectors/importanceSelectors'
-import { calcPolityMilitaryPower } from '@sim/selectors/militarySelectors'
 import { getPolityLegitimacy, getPolityStability } from '@sim/selectors/statusSelectors'
-import { getActiveFactions, getFactionActiveMemberIds } from '@sim/selectors/factionSelectors'
 import type { SimEvent } from '@sim/types/event'
 import { hasEntityId } from '@sim/types/event'
 import { useSimulationStore } from '@/app/stores/simulationStore'
@@ -18,27 +15,10 @@ import type { War } from '@/sim/types/war'
 import type { PoliticalActorRef } from '@/sim/types/actor'
 import { getWarPrimaryAttacker, getWarPrimaryDefender } from '@sim/mutations/warMutations'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
-import {
-  getHouseControlledProvinceIds,
-  getHouseOwnedPolityIds,
-} from '@sim/selectors/landContractSelectors'
-import { buildPolityColorMap } from '@/app/utils/polityColors'
 import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
-import type { PolityRank } from '@/sim/types/polity'
 import { defaultConfig } from '@/sim/config/defaultConfig'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
-
-type SectionKey = 'countries' | 'houses' | 'persons' | 'factions' | 'watchlist' | 'plays' | 'wars'
-
-const SECTION_KEYS: SectionKey[] = [
-  'watchlist',
-  'plays',
-  'wars',
-  'countries',
-  'houses',
-  'persons',
-  'factions',
-]
+import { useSidebarData, SECTION_KEYS, type SectionKey } from '@/app/hooks/useSidebarData'
 
 function getRecentEventCount(
   watchId: string,
@@ -392,124 +372,18 @@ export function Sidebar() {
   const houses = session?.currentState.houses
   const persons = session?.currentState.persons
 
-  const sortedPolities: Polity[] = polities
-    ? Object.values(polities)
-        .filter((p) => p.active)
-        .sort((a, b) => {
-          if (a.rank !== b.rank) return a.rank - b.rank
-          return b.legacyPrestige - a.legacyPrestige
-        })
-    : []
-
-  const polityGroups: { rank: PolityRank; polities: Polity[] }[] = []
-  for (const polity of sortedPolities) {
-    const last = polityGroups[polityGroups.length - 1]
-    if (last && last.rank === polity.rank) {
-      last.polities.push(polity)
-    } else {
-      polityGroups.push({ rank: polity.rank, polities: [polity] })
-    }
-  }
-
-  const polityColorMap = useMemo(
-    () => (polities ? buildPolityColorMap(Object.keys(polities)) : {}),
-    [polities],
-  )
-
-  const polityMilitaryPowers = useMemo(() => {
-    if (!session?.currentState) return {}
-    const state = session.currentState
-    return Object.fromEntries(
-      Object.values(state.polities ?? {}).map((p) => [
-        p.id,
-        calcPolityMilitaryPower(state, defaultConfig, p.id),
-      ]),
-    )
-  }, [session])
-
-  const houseEntries: { house: House; provinceCount: number }[] = houses
-    ? Object.values(houses)
-        .filter((h) => h.active && h.kind !== 'system')
-        .map((h) => ({
-          house: h,
-          provinceCount: session?.currentState
-            ? getHouseControlledProvinceIds(session.currentState, h.id).length
-            : 0,
-        }))
-        .sort((a, b) => b.house.legacyPrestige - a.house.legacyPrestige)
-    : []
-
-  const hasActivePolity = (houseId: import('@sim/types/ids').HouseId): boolean => {
-    if (!session?.currentState) return false
-    return getHouseOwnedPolityIds(session.currentState, houseId).some((pid) => {
-      const p = session.currentState.polities[pid]
-      return p?.active === true
-    })
-  }
-  const rulingHouses = houseEntries.filter(
-    (e) => e.provinceCount > 0 || hasActivePolity(e.house.id),
-  )
-  const landlessHouses = houseEntries.filter(
-    (e) => e.provinceCount === 0 && !hasActivePolity(e.house.id),
-  )
-
-  const sortedPersons: { person: Person; score: number }[] = persons
-    ? Object.values(persons)
-        .filter((p) => p.alive && p.kind !== 'placeholder')
-        .map((p) => ({
-          person: p,
-          score: session?.currentState
-            ? calcPersonImportanceScore(session.currentState, p.id, eventHistory)
-            : 0,
-        }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 50)
-    : []
-
-  const factionEntries: { faction: Faction; leaderName: string; memberCount: number }[] =
-    session?.currentState
-      ? getActiveFactions(session.currentState)
-          .map((f) => {
-            const leader = persons?.[f.leaderPersonId]
-            return {
-              faction: f,
-              leaderName: leader
-                ? resolveName('person', leader.nameKey, leader.nameKey)
-                : '(unknown)',
-              memberCount: getFactionActiveMemberIds(session.currentState, f.id).length,
-            }
-          })
-          .sort((a, b) => {
-            if (b.memberCount !== a.memberCount) return b.memberCount - a.memberCount
-            return a.faction.foundingWeek - b.faction.foundingWeek
-          })
-      : []
-
-  const activePlays: DiplomaticPlay[] = session?.currentState
-    ? Object.values(session.currentState.diplomaticPlays)
-        .filter(
-          (p): p is DiplomaticPlay => !!p && (p.status === 'active' || p.status === 'escalated'),
-        )
-        .sort((a, b) => {
-          // escalated を先、次に deadline 近いもの
-          if (a.status !== b.status) return a.status === 'escalated' ? -1 : 1
-          return a.deadlineWeek - b.deadlineWeek
-        })
-    : []
-
-  const activeWars: War[] = session?.currentState
-    ? Object.values(session.currentState.wars).filter((w): w is War => !!w && w.status === 'active')
-    : []
-
-  const sectionCount: Record<SectionKey, number> = {
-    countries: sortedPolities.length,
-    houses: houseEntries.length,
-    persons: sortedPersons.length,
-    factions: factionEntries.length,
-    watchlist: watchlist.length,
-    plays: activePlays.length,
-    wars: activeWars.length,
-  }
+  const {
+    polityGroups,
+    polityColorMap,
+    polityMilitaryPowers,
+    rulingHouses,
+    landlessHouses,
+    sortedPersons,
+    factionEntries,
+    activePlays,
+    activeWars,
+    sectionCount,
+  } = useSidebarData()
 
   const renderSectionBody = (key: SectionKey) => {
     if (key === 'countries') {
