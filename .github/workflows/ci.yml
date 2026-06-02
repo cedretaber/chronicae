@@ -155,3 +155,69 @@ jobs:
           name: simulation-logs
           path: prototype/sim-*.log
           retention-days: 7
+
+  # GitHub Pages デプロイ: main への push で、check と simulation が両方通った後だけ走る。
+  # PR 実行では走らない（push かつ ref が main のときに限定）。
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: [check, simulation]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototype
+
+    # Pages デプロイに必要な最小権限。トップレベルの contents: read を上書きする。
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    # デプロイの公開先環境。Actions の実行画面に公開 URL が表示される。
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    # 複数の main push が重なってもデプロイ同士が衝突しないようにする。
+    # トップレベルの concurrency とは別グループにし、進行中のデプロイはキャンセルしない。
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: prototype/package-lock.json
+
+      # check / simulation ジョブと同じ理由で npm を packageManager 版に固定する。
+      - name: Pin npm to packageManager version
+        run: |
+          npm install -g npm@11.6.1
+          npm --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      # プロジェクトページは https://cedretaber.github.io/chronicae/ に配信されるため
+      # アセット参照のベースを /chronicae/ にする。ローカル dev はルート配信のままにしたいので
+      # ここでだけ --base を渡す（vite.config.ts には書かない）。
+      - name: Build
+        run: npm run build -- --base=/chronicae/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: prototype/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
