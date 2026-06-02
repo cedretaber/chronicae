@@ -1,6 +1,7 @@
 import i18next, { type Resource } from 'i18next'
 import type { i18n } from 'i18next'
-import type { LocaleCode, I18nResourceLoader, I18nNamespace } from './types'
+import type { LocaleCode, I18nResourceLoader } from './types'
+import { ALL_NAMESPACES } from './loaders/resourceLoaderFactory'
 
 export type CreateI18nOptions = {
   locale: LocaleCode
@@ -8,21 +9,6 @@ export type CreateI18nOptions = {
   resourceLoader: I18nResourceLoader
   preloadLocales?: LocaleCode[]
 }
-
-const ALL_NAMESPACES: I18nNamespace[] = [
-  'ui',
-  'entities',
-  'roles',
-  'events',
-  'diplomacy',
-  'statuses',
-  'explain',
-  'goals',
-  'aims',
-  'tasks',
-  'decision_reasons',
-  'perceptions',
-]
 
 export async function createChronicaeI18n(options: CreateI18nOptions): Promise<i18n> {
   const { locale, fallbackLocale, resourceLoader } = options
