@@ -425,12 +425,10 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
       const rawDelta = computeWarScoreDelta(ws, config, sim, atkPower, defPower, atkCG, defCG)
       const after = clamp(before + rawDelta, -100, 100)
       updateWar(ws, wid, { warScore: after })
-      // 回避失敗 side の avoidanceCount を +1 (§9.4)。
-      if (initiationKind === 'attacker_avoidance_failed') {
-        updateWarSideMut(ws, wid, 'attacker', { avoidanceCount: atkAvoid0 + 1 })
-      } else if (initiationKind === 'defender_avoidance_failed') {
-        updateWarSideMut(ws, wid, 'defender', { avoidanceCount: defAvoid0 + 1 })
-      }
+      // 戦闘実行後: 両側の avoidanceCount をリセット。
+      // 回避失敗側は +1 してからリセットされるが、Battle entity の initiationKind に記録済み。
+      updateWarSideMut(ws, wid, 'attacker', { avoidanceCount: 0 })
+      updateWarSideMut(ws, wid, 'defender', { avoidanceCount: 0 })
 
       // §9 損耗を Regiment に反映。strength<=threshold で destroy (v0.37 core では希少)。
       const regimentResults: BattleRegimentResult[] = sim.regimentResults.map((rr) => ({
