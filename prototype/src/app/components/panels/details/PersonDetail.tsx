@@ -6,7 +6,6 @@ import type { FactionId } from '@/sim/types/ids'
 import type { SimEvent } from '@/sim/types/event'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { useState } from 'react'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
@@ -22,9 +21,7 @@ import { isLandlessHouseMember, isHouselessPerson } from '@sim/selectors/availab
 import { getFactionByLeader, getActiveFactionMembership } from '@sim/selectors/factionSelectors'
 import { getBailiffPolicy } from '@sim/selectors/bailiffSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
-import { AbilityRadarChart } from './shared/charts'
-import { ABILITY_KEYS } from './shared/constants'
-import { ABILITY_AGE_CURVES } from '@sim/constants/abilityConstants'
+import { PersonAbilitiesSection } from './PersonAbilitiesSection'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
 import { formatScore, formatAmount } from '@/app/utils/format'
 import { getActiveGoalForOwner, getActiveAimForOwner } from '@sim/selectors/goalSelectors'
@@ -57,95 +54,12 @@ export function PersonDetail({
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
-  const [abilityView, setAbilityView] = useState<'table' | 'radar'>('table')
   const isWatching = watchlist.includes(person.id)
   const currentState = session?.currentState
-  const worldState: WorldState = currentState ?? {
-    currentYear: 0,
-    currentWeekOfYear: 0,
-    absoluteWeek: 0,
-    provinces: {},
-    holdings: {},
-    states: {},
-    polities: {},
-    houses: {},
-    persons: {},
-    livingPersonIds: [],
-    activePlots: {},
-    popGroups: {},
-    organizationShares: {},
-    officeAssignments: {},
-    landContracts: {},
-    holdingOfficeAssignments: {},
-    holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    shareIndex: { byOrganization: {}, byHolder: {} },
-    officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
-    holdingTerminalPolityCache: {},
-    polityIndex: { byOwnerHouse: {} },
-    factions: {},
-    factionMemberships: {},
-    factionIndex: { byLeader: {}, byMember: {} },
-    holdingImprovements: {},
-    holdingImprovementIndex: { byHolding: {} },
-    nextHoldingImprovementId: 0,
-    nextOrganizationShareId: 0,
-    nextOfficeAssignmentId: 0,
-    nextLandContractId: 0,
-    nextHoldingOfficeAssignmentId: 0,
-    nextFactionId: 0,
-    nextFactionMembershipId: 0,
-    projects: {},
-    projectIndex: {
-      byOwner: {},
-      byAim: {},
-      byParentProject: {},
-      byCreatorPerson: {},
-      bySupervisorPerson: {},
-      byRelatedEntity: {},
-    },
-    diplomaticPlays: {},
-    diplomaticOffers: {},
-    pressures: {},
-    pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
-    chronicleEntries: {},
-    chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
-    nextChronicleEntryId: 0,
-    nextProjectId: 0,
-    nextDiplomaticPlayId: 0,
-    wars: {},
-    warIndex: { byParticipant: {}, byOriginDiplomaticPlay: {} },
-    regiments: {},
-    regimentIndex: { byOwner: {}, byWar: {}, byHomeProvince: {}, byHomeHolding: {} },
-    nextRegimentId: 0,
-    battles: {},
-    battleIndex: { byWar: {} },
-    nextBattleId: 0,
-    nextWarId: 0,
-    nextDiplomaticOfferId: 0,
-    nextPressureId: 1,
-    // v0.22 Goal/Aim system
-    goals: {},
-    aims: {},
-    decisionReasons: {},
-    goalIndex: { byOwner: {} },
-    aimIndex: { byOwner: {}, byGoal: {} },
-    nextGoalId: 0,
-    nextAimId: 0,
-    nextDecisionReasonId: 0,
-    tasks: {},
-    taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
-    personActivityLogs: {},
-    personActivityLogIndex: { byPerson: {} },
-    personTrainingExperience: {},
-    popIndex: { byHolding: {} },
-    nextPopGroupId: 0,
-    waitingAimIds: [],
-    nextTaskId: 0,
-    nextPersonActivityLogId: 0,
-    clans: {},
-    nextClanId: 1,
-  }
+  // 他の Detail パネルと同様、データ未ロード時は非表示にする
+  // (旧: 60 行超の空 WorldState を構築していたが型同期の負債だった)
+  if (!currentState) return null
+  const worldState: WorldState = currentState
   const allOfficeIds = worldState.officeIndex.byHolderPerson[person.id] ?? []
   const allOffices = allOfficeIds.flatMap((id) => {
     const o = worldState.officeAssignments[id]
@@ -380,79 +294,7 @@ export function PersonDetail({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-gray-300">{t('detail.person.abilities')}</span>
-        <div className="flex gap-0.5 rounded bg-gray-700 p-0.5 text-[10px]">
-          <button
-            className={`rounded px-1.5 py-0.5 ${abilityView === 'table' ? 'bg-gray-500 text-gray-100' : 'text-gray-400 hover:text-gray-200'}`}
-            onClick={() => setAbilityView('table')}
-          >
-            Table
-          </button>
-          <button
-            className={`rounded px-1.5 py-0.5 ${abilityView === 'radar' ? 'bg-gray-500 text-gray-100' : 'text-gray-400 hover:text-gray-200'}`}
-            onClick={() => setAbilityView('radar')}
-          >
-            Radar
-          </button>
-        </div>
-      </div>
-      {abilityView === 'table' ? (
-        <div className="text-sm">
-          {ABILITY_KEYS.map((key) => {
-            const label = t(`detail.person.ability_${key}`)
-            const curve = ABILITY_AGE_CURVES[key]
-            const curveIcon = curve === 'youthPeak' ? '▲' : curve === 'midLifePeak' ? '●' : '↗'
-            const curveColor =
-              curve === 'youthPeak'
-                ? 'text-yellow-400'
-                : curve === 'midLifePeak'
-                  ? 'text-orange-400'
-                  : 'text-green-400'
-            const abilityPct = (person.abilities[key] / 120) * 100
-            const aptitudePct = (person.aptitudes[key] / 120) * 100
-            return (
-              <div key={key} className="mb-0.5">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">
-                    <span className={`mr-1 text-xs ${curveColor}`}>{curveIcon}</span>
-                    {label}:
-                  </span>
-                  <span>
-                    <span className="text-gray-100">{person.abilities[key]}</span>
-                    <span className="text-gray-500"> / </span>
-                    <span className="text-gray-400">{person.aptitudes[key]}</span>
-                  </span>
-                </div>
-                <div className="relative h-1 w-full rounded bg-gray-600">
-                  <div
-                    className="absolute h-1 rounded bg-gray-400"
-                    style={{ width: `${aptitudePct}%` }}
-                  />
-                  <div
-                    className="absolute h-1 rounded bg-blue-400"
-                    style={{ width: `${abilityPct}%` }}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      ) : (
-        <div>
-          <AbilityRadarChart abilities={person.abilities} aptitudes={person.aptitudes} />
-          <div className="mt-1 flex justify-center gap-3 text-[10px]">
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-3 rounded bg-blue-400/40" />
-              <span className="text-gray-400">{t('detail.person.ability')}</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-3 rounded bg-gray-400/30" />
-              <span className="text-gray-400">{t('detail.person.aptitude')}</span>
-            </span>
-          </div>
-        </div>
-      )}
+      <PersonAbilitiesSection person={person} />
 
       <div className="text-sm font-semibold text-gray-300">
         {t('detail.person.derived_scores')}:
