@@ -4820,7 +4820,6 @@ export function DiplomaticPlayDetail({
 export function WarDetail({
   war,
   session,
-  eventHistory,
   onPersonClick,
   onPolityClick,
   onHouseClick,
@@ -4828,7 +4827,6 @@ export function WarDetail({
 }: {
   war: import('@sim/types/war').War
   session: SimulationSession | null
-  eventHistory: SimEvent[]
   onPersonClick: ClickHandler
   onPolityClick: ClickHandler
   onHouseClick: ClickHandler
@@ -4836,23 +4834,12 @@ export function WarDetail({
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
-  const renderEvent = useRenderEvent()
   const worldState = session?.currentState ?? null
   if (!worldState) return null
 
   const polities = worldState.polities
   const houses = worldState.houses
   const persons = worldState.persons
-
-  // v0.35: war event は warId を entityRef ではなく messageParams.warId に持つ (EventEntityKind に 'war' が無い)。
-  //   warId 一致で「宣戦 → 戦闘/回避/総大将交代 → 決着」の full timeline を新しい順に最大 6 件表示する。
-  const recentWarEvents = eventHistory
-    .filter((e) => {
-      const wid = e.messageParams.warId
-      return typeof wid === 'string' && wid === (war.id as string)
-    })
-    .slice(-6)
-    .reverse()
 
   // v0.35: WarSide ごとの総大将 / 現場指揮官候補 / 回避回数。captainGeneral / commander は soft reference。
   const renderSideCommand = (label: string, side: import('@sim/types/war').WarSide) => {
@@ -5131,20 +5118,6 @@ export function WarDetail({
               )
             })}
           </div>
-        )}
-
-        {recentWarEvents.length > 0 && (
-          <>
-            <div className="my-1 border-t border-gray-700" />
-            <div className="font-semibold text-gray-300">{t('detail.war.recent_events')}:</div>
-            <div className="flex flex-col gap-0.5">
-              {recentWarEvents.map((e) => (
-                <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
-                  [{e.year}/W{e.weekOfYear}] {renderEvent(e)}
-                </div>
-              ))}
-            </div>
-          </>
         )}
 
         {/* v0.38 §8: 戦争の記録 (永続 Chronicle)。byWar index が無いため params.warId で抽出。 */}

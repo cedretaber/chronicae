@@ -244,7 +244,6 @@ export function WindowManager() {
               <WarDetail
                 war={war}
                 session={session}
-                eventHistory={eventHistory}
                 onPersonClick={onPersonClick}
                 onPolityClick={onPolityClick}
                 onHouseClick={onHouseClick}
