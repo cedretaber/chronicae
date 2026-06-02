@@ -71,6 +71,7 @@
 | houseSplitMinLivingMembers | 5 | v0.31: 評価パスの最小生存メンバー数 |
 | houseSplitMinWealth | 80 | v0.31: 評価パスの最小 wealth |
 | houseSplitMinLegacyPrestige | 30 | v0.31: 評価パスの最小 legacyPrestige |
+| houseSplitExcludeTopSuccessionRanks | 1 | splitter から除外する継承順位上位人数（跡継ぎの分家を防ぐ。0 で無効）。§6.11 |
 | extinctionUnrestGain | 8 | 家断絶後の継承 Province への POP unrest 増加量 |
 | **War** | | |
 | warEnabled | true | 戦争有効 |

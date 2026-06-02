@@ -504,6 +504,11 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 3. `splitCandidates.length >= 1`（後継者以外の成人候補が存在する）
 4. `getHouseCohesion(house) < houseSplitCohesionThreshold`（デフォルト 60）
 
+**splitter（分家 founder）候補の制約**:
+- 当主（succession path では新当主 successor）を候補から除外する。
+- さらに **継承順位上位 `houseSplitExcludeTopSuccessionRanks` 人（default 1）を除外**する。跡継ぎ（次期当主の最有力候補）が自ら分家を興すのは不自然なため。`getAdultSuccessionCandidates` の血統スコアは「house 内の死亡メンバー」基準で算出されるため、当主が生存している evaluation path（§6.11b）では継承順位順にならない。そこで現当主（succession path では新当主）を基準に `getTopHeirIds(candidates, head, count, …)` で継承順位を再計算し、上位 `count` 人を除外する（候補プールは `getAdultSuccessionCandidates` と同一に保ち、sex gate の不一致で「除外したい跡継ぎが splitter プールに居ない」ズレを防ぐ）。
+- evaluation path（§6.11b）では加えて splitter を `young_adulthood` 以降に限る（v0.40 §8.2）。
+
 **分裂確率**:
 ```
 currentCohesion = getHouseCohesion(house)   // Attitude から動的計算（§4.5 参照）
@@ -544,7 +549,7 @@ splitChance = baseHouseSplitChance
 7. `getHouseControlledProvinceIds >= minProvincesForHouseSplit`
 8. `getHouseCohesion < houseSplitCohesionThreshold`
 
-候補選出は `getAdultSuccessionCandidates` → leader 除外 → `chooseSplitter`。
+候補選出は `getAdultSuccessionCandidates` → leader 除外 → 継承順位上位除外 + `young_adulthood` ゲート（§6.11「splitter 候補の制約」参照）→ `chooseSplitter`。
 
 **succession path との違い**: evaluation path では `SUCCESSION_CRISIS` event を発火しない。`creationReason` は `'house_split'`
 
@@ -595,8 +600,16 @@ v0.16〜v0.36 では「断絶家が ownerHouse である **すべての Polity**
 分割継承**に変更:
 
 - **Phase 1 (decide)**: 断絶**前**の凍結 state に対し、断絶家が ownerHouse である各 Polity の継承先を
-  独立に選ぶ。各選定で `usedReceivers`（この断絶で既に他 Polity を割り当てた House 集合）をハード除外し、
-  別々の House へ分配する。除外で候補が尽きた場合のみ緩和して重複継承を許容する。
+  独立に選ぶ。
+  - **分家優先継承**: 断絶家に active な分家（`cadetHouseIds`）があれば、それを最優先で継承先にする。
+    分家が無ければ active な親家（`parentHouseId`）。kin（分家群、無ければ親家）リストは凍結 state から
+    1 回だけ算出し、各 Polity を `i % kin.length` の巡回で割り当てる:
+    - 分家が 1 家 → 全 Polity をその分家が継ぐ（王朝が唯一の分家として存続）
+    - 分家が複数 → 巡回で複数分家に分散（下記 rich-get-richer 防止と両立）
+    kin 経路は同一王朝内での集約であり、「無関係な House のグローバル rich-get-richer」とは別物。
+  - **kin が居ない場合**は従来どおり `chooseReceiverHouse` で選定し、各選定で `usedReceivers`
+    （この断絶で既に他 Polity を割り当てた House 集合）をハード除外して別々の House へ分配する。
+    除外で候補が尽きた場合のみ緩和して重複継承を許容する。
   - 逐次に owner を書き換えながら選定すると、先に継いだ House が controlled Province 最大になり
     stage 4 で残りも総取りするため、評価は必ず凍結 state に対して行う。
 - **Phase 2 (apply)**: 各 Polity を Phase 1 の割当先へ継承させる（王朝交代）:
@@ -608,7 +621,11 @@ v0.16〜v0.36 では「断絶家が ownerHouse である **すべての Polity**
 - 生存メンバーは `moveLivingMembersToHouse` で **主継承先**（先頭 Polity の継承先。Polity を持たない
   断絶は従来スコープ `affectedPolityIds` で 1 House を選定）へ移動する（narrative のみ。土地は Polity
   単位で個別に動く）
-- 断絶家を `active: false`、`memberIds: []` に設定
+- **財産（wealth）継承**: 断絶家の `wealth` を Polity 継承先へ按分する。継承先（`polityReceivers`）を
+  normative source とし、受領 Polity 数で比例配分する（端数は主継承先へ）。分家優先で分家が receiver に
+  なっていれば wealth も自動的に分家へ流れる。Polity を持たない没落（`polityReceivers` 空で継承先が
+  定まらない）は据え置き（断絶家に残る）。
+- 断絶家を `active: false`、`memberIds: []` に設定（wealth を継承した場合は `wealth: 0`）
 
 旧 v0.15 までの「断絶家の Province を transferProvinceToHouse で受け取り House の既存 Polity に移す」処理は v0.16 で廃止された（異 Polity 間の Province 跨ぎが不自然なため）。
 

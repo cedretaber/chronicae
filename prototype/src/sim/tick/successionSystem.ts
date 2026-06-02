@@ -6,6 +6,7 @@ import {
   getAdultSuccessionCandidates,
   getMinorSuccessionCandidates,
   chooseSuccessor,
+  getTopHeirIds,
 } from '../selectors/successionSelectors'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { installHoldingPlaceholderBailiff } from '../mutations/provinceOfficeMutations'
@@ -251,8 +252,16 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
     }
   }
 
+  // 新当主を基準にした継承順位上位 N 人（= 新当主の跡継ぎ）は分家を興さない。
+  const heirIds = getTopHeirIds(
+    adultCandidates,
+    successor.person,
+    resultCtx.config.houseSplitExcludeTopSuccessionRanks,
+    resultCtx.state,
+    resultCtx.config,
+  )
   const splitCandidates: SuccessionCandidate[] = adultCandidates.filter(
-    (c) => c.person.id !== successor.person.id,
+    (c) => c.person.id !== successor.person.id && !heirIds.has(c.person.id),
   )
 
   return maybeSplitHouseAfterSuccession(resultCtx, {

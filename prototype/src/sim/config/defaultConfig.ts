@@ -152,6 +152,8 @@ export type SimulationConfig = {
   houseSplitMinLivingMembers: number
   houseSplitMinWealth: number
   houseSplitMinLegacyPrestige: number
+  // 分家 founder から除外する継承順位上位人数（跡継ぎが分家を興すのを防ぐ）。0 で無効。
+  houseSplitExcludeTopSuccessionRanks: number
   // v0.7 House Extinction
   houseExtinctionEnabled: boolean
   inheritedProvinceHouseControl: number
@@ -1041,6 +1043,7 @@ export const defaultConfig: SimulationConfig = {
   houseSplitMinLivingMembers: 5,
   houseSplitMinWealth: 80,
   houseSplitMinLegacyPrestige: 30,
+  houseSplitExcludeTopSuccessionRanks: 1,
   // v0.7 House Extinction
   houseExtinctionEnabled: true,
   inheritedProvinceHouseControl: 35,

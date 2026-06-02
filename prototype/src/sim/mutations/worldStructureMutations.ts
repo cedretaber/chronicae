@@ -496,17 +496,40 @@ function handleNormalHouseExtinction(
     return ctx
   }
 
-  // v0.36e 分割継承 — Phase 1 (decide): 滅亡前 state (ctx.state) を凍結したまま、
-  // 各 Polity の継承先を独立に決める。逐次 mutation を挟むと「先に継いだ家が controlled
-  // province 最大になり global fallback で残りも総取り」する再集中が起きるため、評価は
-  // 必ず凍結 state に対して行う。usedReceivers でハード除外し別々の家へ分配する。
+  // 分家優先継承 + v0.36e 分割継承 — Phase 1 (decide): 滅亡前 state (ctx.state) を凍結したまま、
+  // 各 Polity の継承先を決める。逐次 mutation を挟むと「先に継いだ家が controlled province
+  // 最大になり global fallback で残りも総取り」する再集中が起きるため、評価は必ず凍結 state に行う。
+  //
+  // 断絶家に active な分家 (cadet) があれば、それを最優先で継がせる (parentHouseId/cadetHouseIds
+  // を活用)。kin リストは凍結 state から 1 回だけ算出し、i % kin.length の巡回で割り当てる:
+  //   - cadet が 1 家 → 全 Polity をその分家が継ぐ (王朝が唯一の分家として存続)
+  //   - cadet が複数 → 巡回で複数分家に分散 (v0.36e の単一家独占防止と両立)
+  //   - cadet 不在 → parent house (あれば) → それも無ければ従来の chooseReceiverHouse + usedReceivers 散らし
+  // kin 経路は同一王朝内での集約であり「無関係な家のグローバル rich-get-richer」とは別物。
   const inheritedPolityIds = [...(ctx.state.polityIndex.byOwnerHouse[houseId] ?? [])]
+  const cadetHeirs = house.cadetHouseIds
+    .filter((id) => {
+      const h = ctx.state.houses[id]
+      return Boolean(h && h.active && h.kind !== 'system')
+    })
+    .sort((a, b) => a.localeCompare(b))
+  const parentHeir: HouseId[] =
+    house.parentHouseId !== undefined && ctx.state.houses[house.parentHouseId]?.active
+      ? [house.parentHouseId]
+      : []
+  const kin: HouseId[] = cadetHeirs.length > 0 ? cadetHeirs : parentHeir
   const usedReceivers = new Set<string>()
   const polityReceivers = new Map<PolityId, HouseId>()
-  for (const polityId of inheritedPolityIds) {
-    let r = chooseReceiverHouse(ctx.state, houseId, [polityId], usedReceivers)
-    // 除外で候補が尽きた場合のみ緩和して重複継承を許容する (85 家規模では実質発生しない)
-    if (r === undefined) r = chooseReceiverHouse(ctx.state, houseId, [polityId])
+  for (let i = 0; i < inheritedPolityIds.length; i++) {
+    const polityId = inheritedPolityIds[i]!
+    let r: HouseId | undefined
+    if (kin.length > 0) {
+      r = kin[i % kin.length]
+    } else {
+      r = chooseReceiverHouse(ctx.state, houseId, [polityId], usedReceivers)
+      // 除外で候補が尽きた場合のみ緩和して重複継承を許容する (85 家規模では実質発生しない)
+      if (r === undefined) r = chooseReceiverHouse(ctx.state, houseId, [polityId])
+    }
     if (r !== undefined) {
       polityReceivers.set(polityId, r)
       usedReceivers.add(r)
@@ -673,10 +696,42 @@ function handleNormalHouseExtinction(
   const newHouses = { ...resultCtx.state.houses }
   const extinctHouseObj = newHouses[houseId]
   if (!extinctHouseObj) return resultCtx
+
+  // 財産継承: 断絶家の wealth を Polity 継承先へ按分する (受領 Polity 数で比例配分、端数は主
+  //   継承先 receiverHouseId へ)。継承先は polityReceivers を normative source とするため、分家
+  //   優先で kin が receiver になっていれば wealth も自動的に kin へ流れる。Polity を持たない
+  //   没落 (polityReceivers 空) は継承先が定まらないため据え置き。
+  const inheritedWealth = extinctHouseObj.wealth
+  let extinctWealthAfter = inheritedWealth
+  if (inheritedWealth > 0 && polityReceivers.size > 0) {
+    const shareCount = new Map<HouseId, number>()
+    for (const r of polityReceivers.values()) {
+      shareCount.set(r, (shareCount.get(r) ?? 0) + 1)
+    }
+    const totalShares = [...shareCount.values()].reduce((a, b) => a + b, 0)
+    const sortedReceivers = [...shareCount.keys()].sort((a, b) => a.localeCompare(b))
+    const alloc = new Map<HouseId, number>()
+    let distributed = 0
+    for (const r of sortedReceivers) {
+      const amt = Math.floor((inheritedWealth * (shareCount.get(r) ?? 0)) / totalShares)
+      alloc.set(r, amt)
+      distributed += amt
+    }
+    const remainder = inheritedWealth - distributed
+    if (remainder > 0) alloc.set(receiverHouseId, (alloc.get(receiverHouseId) ?? 0) + remainder)
+    for (const [rId, amt] of alloc) {
+      if (amt <= 0) continue
+      const rh = newHouses[rId]
+      if (rh) newHouses[rId] = { ...rh, wealth: rh.wealth + amt }
+    }
+    extinctWealthAfter = 0
+  }
+
   newHouses[houseId] = {
     ...extinctHouseObj,
     active: false,
     memberIds: [],
+    wealth: extinctWealthAfter,
   }
 
   let stateForClanSync: WorldState = { ...resultCtx.state, houses: newHouses }

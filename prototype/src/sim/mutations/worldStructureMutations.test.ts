@@ -293,3 +293,79 @@ describe('handleNormalHouseExtinction — last-normal-house guard', () => {
     // We just verify the system ran without throwing
   })
 })
+
+describe('handleNormalHouseExtinction — 分家優先継承 + wealth 継承', () => {
+  const EXT = 'h-ext' as HouseId
+  const P1 = 'dp-1' as PolityId
+  const P2 = 'dp-2' as PolityId
+  const P3 = 'dp-3' as PolityId
+
+  // 断絶家 EXT が 3 Polity (P1/P2/P3) と wealth 300 を持ち、active な分家 cadetIds を持つ world。
+  function makeKinWorld(cadetIds: HouseId[]): WorldState {
+    const base = makeMinimalWorld()
+    const prov = 'p-0' as ProvinceId
+    const founder = 'pe-0' as PersonId
+    const baseP = base.polities['dp-0' as PolityId]!
+    const mkHouse = (id: HouseId, cadets: HouseId[], wealth: number): House => ({
+      id,
+      nameKey: id,
+      active: true,
+      memberIds: [],
+      deceasedMemberIds: [],
+      founderId: founder,
+      cadetHouseIds: cadets,
+      legacyPrestige: 50,
+      wealth,
+      seatProvinceId: prov,
+      kind: 'normal',
+    })
+    const mkPolity = (id: PolityId) => ({ ...baseP, id, ownerHouseId: EXT })
+    const houses: Record<string, House> = {
+      [EXT]: mkHouse(EXT, cadetIds, 300),
+      [HOUSELESS_HOUSE_ID]: base.houses[HOUSELESS_HOUSE_ID]!,
+    }
+    for (const c of cadetIds) houses[c] = mkHouse(c, [], 0)
+    return {
+      ...base,
+      houses,
+      polities: { [P1]: mkPolity(P1), [P2]: mkPolity(P2), [P3]: mkPolity(P3) },
+      polityIndex: { byOwnerHouse: { [EXT]: [P1, P2, P3] } },
+    }
+  }
+
+  it('複数分家 → Polity を round-robin 分散・wealth を受領 Polity 数で按分', () => {
+    const c1 = 'h-c1' as HouseId
+    const c2 = 'h-c2' as HouseId
+    const result = extinctHouse(makeCtx(makeKinWorld([c1, c2])), {
+      houseId: EXT,
+      affectedPolityIds: [P1, P2, P3],
+    })
+    if (!result.ok) throw new Error(`extinctHouse failed: ${result.error.message}`)
+    const s = result.value.ctx.state
+    // cadetHeirs は houseId 昇順 [h-c1, h-c2]、byOwnerHouse 順 [P1,P2,P3] を i%2 で巡回割当
+    expect(s.polities[P1]?.ownerHouseId).toBe(c1)
+    expect(s.polities[P2]?.ownerHouseId).toBe(c2)
+    expect(s.polities[P3]?.ownerHouseId).toBe(c1)
+    // wealth 300 を受領数で按分: c1=2/3→200, c2=1/3→100、断絶家は 0
+    expect(s.houses[c1]?.wealth).toBe(200)
+    expect(s.houses[c2]?.wealth).toBe(100)
+    expect(s.houses[EXT]?.wealth).toBe(0)
+    expect(s.houses[EXT]?.active).toBe(false)
+  })
+
+  it('単一分家 → 全 Polity・全 wealth をその分家が継承（王朝が唯一の分家として存続）', () => {
+    const c1 = 'h-c1' as HouseId
+    const result = extinctHouse(makeCtx(makeKinWorld([c1])), {
+      houseId: EXT,
+      affectedPolityIds: [P1, P2, P3],
+    })
+    if (!result.ok) throw new Error(`extinctHouse failed: ${result.error.message}`)
+    const s = result.value.ctx.state
+    expect(s.polities[P1]?.ownerHouseId).toBe(c1)
+    expect(s.polities[P2]?.ownerHouseId).toBe(c1)
+    expect(s.polities[P3]?.ownerHouseId).toBe(c1)
+    expect(s.houses[c1]?.wealth).toBe(300)
+    expect(s.houses[EXT]?.wealth).toBe(0)
+    expect(s.houses[EXT]?.active).toBe(false)
+  })
+})

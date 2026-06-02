@@ -1,5 +1,6 @@
 import type { Person } from '../types/person'
 import type { House } from '../types/house'
+import type { PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { getHouseLeader } from './officeSelectors'
@@ -148,6 +149,33 @@ export function calcSuccessionScore(
     candidate.traits.ambition * config.ambitionSuccessionWeight -
     birthPenalty
   )
+}
+
+/**
+ * head（現当主 or 新当主）を基準にした継承順位上位 count 件の PersonId 集合を返す。
+ * 分家 founder（splitter）から「跡継ぎ」を除外するために使う。
+ * candidates は getAdultSuccessionCandidates と同一プールを渡すこと（sex gate 不一致による
+ * 「除外したい heir が splitter プールに居ない」ズレを防ぐ）。head 自身は候補から外し、
+ * head 基準で calcSuccessionScore を再計算してソートする。
+ */
+export function getTopHeirIds(
+  candidates: SuccessionCandidate[],
+  head: Person,
+  count: number,
+  state: WorldState,
+  config: SimulationConfig,
+): ReadonlySet<PersonId> {
+  if (count <= 0) return new Set()
+  const ranked = candidates
+    .filter((c) => c.person.id !== head.id)
+    .map((c) => ({
+      id: c.person.id,
+      score: calcSuccessionScore(c.person, head, state, config),
+    }))
+    .sort((a, b) =>
+      b.score !== a.score ? b.score - a.score : a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+    )
+  return new Set(ranked.slice(0, count).map((r) => r.id))
 }
 
 export function chooseSuccessor(candidates: SuccessionCandidate[]): SuccessionCandidate {

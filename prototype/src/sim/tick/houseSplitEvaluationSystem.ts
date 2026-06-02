@@ -1,12 +1,12 @@
 import type { TickContext } from './context'
 import { randomFloat } from '../rng/rng'
-import type { HouseId } from '../types/ids'
+import type { HouseId, PersonId } from '../types/ids'
 import { createLogger } from '../debug/logger'
 import { getHouseCohesion } from '../selectors/statusSelectors'
 import { splitHouse } from '../mutations/worldStructureMutations'
 import { chooseSplitter } from './houseSplitSystem'
 import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
-import { getAdultSuccessionCandidates } from '../selectors/successionSelectors'
+import { getAdultSuccessionCandidates, getTopHeirIds } from '../selectors/successionSelectors'
 import { isLifeStageAtLeast } from '../types/person'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getRoleScore } from '../selectors/abilitySelectors'
@@ -55,10 +55,27 @@ export function runHouseSplitEvaluationSystem(ctx: TickContext): TickContext {
     // Find adult capable branch member (exclude current leader)
     const candidates = getAdultSuccessionCandidates(currentCtx.state, house, currentCtx.config)
     const leaderId = getHouseLeader(currentCtx.state, houseId)
+    const leader = leaderId ? currentCtx.state.persons[leaderId] : undefined
+    // 跡継ぎ（現当主基準の継承順位上位 N 人）は分家を興さない。getAdultSuccessionCandidates の
+    //   血統スコアは「house 内の死亡メンバー」基準で生存当主のケースでは heir 順にならないため、
+    //   現当主 leader を基準に getTopHeirIds で再計算して除外する。
+    const heirIds =
+      leader !== undefined
+        ? getTopHeirIds(
+            candidates,
+            leader,
+            currentCtx.config.houseSplitExcludeTopSuccessionRanks,
+            currentCtx.state,
+            currentCtx.config,
+          )
+        : new Set<PersonId>()
     // v0.40 §8.2: 分家を興す splitter（cadet house の founder）は young_adulthood 以降に限る。
     //   succession 用 helper（adultAge=15）は据え置きのまま、splitter にのみ追加ゲートをかける。
     const splitCandidates = candidates.filter(
-      (c) => c.person.id !== leaderId && isLifeStageAtLeast(c.person.lifeStage, 'young_adulthood'),
+      (c) =>
+        c.person.id !== leaderId &&
+        isLifeStageAtLeast(c.person.lifeStage, 'young_adulthood') &&
+        !heirIds.has(c.person.id),
     )
     if (splitCandidates.length < 1) continue
 

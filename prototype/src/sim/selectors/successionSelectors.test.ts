@@ -12,6 +12,7 @@ import {
   getBloodScore,
   calcSuccessionScore,
   chooseSuccessor,
+  getTopHeirIds,
   type SuccessionCandidate,
 } from './successionSelectors'
 
@@ -468,5 +469,55 @@ describe('chooseSuccessor', () => {
 
   it('throws when no candidates', () => {
     expect(() => chooseSuccessor([])).toThrow('chooseSuccessor: no candidates')
+  })
+})
+
+describe('getTopHeirIds', () => {
+  const headId = createPersonId('pe', 0)
+  const c1 = createPersonId('pe', 1)
+  const c2 = createPersonId('pe', 2)
+  const outsiderId = createPersonId('pe', 3)
+  // head の子 2 人は血統スコア 100、無関係者は血統スコア 20。
+  // 無関係者の legacyPrestige を最大にしても、血統スコア差で子が必ず上位に来る
+  //（= getTopHeirIds が head 基準で継承順位を正しく再計算していることの確認）。
+  const head = makePerson({ id: headId, childIds: [c1, c2] })
+  const child1 = makePerson({ id: c1, fatherId: headId, legacyPrestige: 80 })
+  const child2 = makePerson({ id: c2, fatherId: headId, legacyPrestige: 40 })
+  const outsider = makePerson({ id: outsiderId, legacyPrestige: 100 })
+  const persons = {
+    [headId]: head,
+    [c1]: child1,
+    [c2]: child2,
+    [outsiderId]: outsider,
+  }
+  const house = makeHouse([head, child1, child2, outsider])
+  const state = makeState(persons, { [house.id]: house })
+  const candidates: SuccessionCandidate[] = [child1, child2, outsider, head].map((person) => ({
+    person,
+    score: 0,
+  }))
+
+  it('returns the top heir relative to head (child outranks higher-prestige outsider)', () => {
+    const result = getTopHeirIds(candidates, head, 1, state, testConfig)
+    expect(result.has(c1)).toBe(true)
+    expect(result.has(c2)).toBe(false)
+    expect(result.has(outsiderId)).toBe(false)
+    expect(result.size).toBe(1)
+  })
+
+  it('excludes head itself even when present in candidates', () => {
+    const result = getTopHeirIds(candidates, head, 4, state, testConfig)
+    expect(result.has(headId)).toBe(false)
+  })
+
+  it('returns empty set when count is 0', () => {
+    expect(getTopHeirIds(candidates, head, 0, state, testConfig).size).toBe(0)
+  })
+
+  it('returns both children ahead of the outsider when count is 2', () => {
+    const result = getTopHeirIds(candidates, head, 2, state, testConfig)
+    expect(result.has(c1)).toBe(true)
+    expect(result.has(c2)).toBe(true)
+    expect(result.has(outsiderId)).toBe(false)
   })
 })
