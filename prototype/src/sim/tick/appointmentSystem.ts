@@ -1,5 +1,6 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
+import { isLifeStageAtLeast } from '../types/person'
 import { nameParam, entityRef } from '../types/event'
 import { createOfficeAssignment, revokeOfficesByHolder } from '../mutations/officeMutations'
 import {
@@ -56,10 +57,7 @@ function getRelevantStat(state: WorldState, personId: PersonId, role: OfficeRole
 
 type PolityCandidateCache = Map<string, PersonId[]>
 
-function buildPolityCandidateCache(
-  state: WorldState,
-  config: SimulationConfig,
-): PolityCandidateCache {
+function buildPolityCandidateCache(state: WorldState): PolityCandidateCache {
   const housePrimaryPolity = new Map<string, PolityId>()
   for (const houseId of Object.keys(state.houses)) {
     const h = state.houses[houseId as HouseId]
@@ -84,7 +82,7 @@ function buildPolityCandidateCache(
     const p = state.persons[pid]
     if (!p) continue
     if (p.kind === 'placeholder') continue
-    if (p.age < config.adultAge) continue
+    if (!isLifeStageAtLeast(p.lifeStage, 'young_adulthood')) continue
     if (hasActiveHoldingOffice(state, pid)) continue
     if (!p.houseId) continue
     const house = state.houses[p.houseId]
@@ -123,7 +121,7 @@ function collectHouseCandidatesTraditional(
     const member = state.persons[memberId]
     if (!member || !member.alive) continue
     if (member.kind === 'placeholder') continue
-    if (member.age < config.adultAge) continue
+    if (!isLifeStageAtLeast(member.lifeStage, 'young_adulthood')) continue
     if (alreadyHolding.has(memberId)) continue
     // v0.17.1 §15.3: active Bailiff (HoldingOffice) 保有者は候補外
     if (hasActiveHoldingOffice(state, memberId)) continue
@@ -160,7 +158,7 @@ function collectFactionalCandidates(
       const m = state.persons[mid]
       if (!m || !m.alive) continue
       if (m.kind === 'placeholder') continue
-      if (m.age < config.adultAge) continue
+      if (!isLifeStageAtLeast(m.lifeStage, 'young_adulthood')) continue
       // v0.17.1 §15.3: active Bailiff 保有者は Polity/House Office 候補から除外
       if (hasActiveHoldingOffice(state, mid)) continue
       result.push({ factionId: faction.id, candidateId: mid })
@@ -234,7 +232,9 @@ function computePolityScoreV017(
     ownerHouseBonus -
     compatibilityPenalty -
     sameHouseEffective +
-    getAppointmentTaskModifier(state, config, personId, { kind: 'polity', id: polity.id }, role)
+    getAppointmentTaskModifier(state, config, personId, { kind: 'polity', id: polity.id }, role) -
+    // v0.40 §9.3: old_age は固定減算（負スコアでも単調に不利化するため乗算でなく減算）。
+    (person.lifeStage === 'old_age' ? config.oldAgeAppointmentScorePenalty : 0)
   )
 }
 
@@ -276,7 +276,9 @@ function computeHouseScoreV017(
     houseAffection * 3 +
     personSharePct * 0.1 -
     compatibilityPenalty +
-    getAppointmentTaskModifier(state, config, personId, { kind: 'house', id: house.id }, role)
+    getAppointmentTaskModifier(state, config, personId, { kind: 'house', id: house.id }, role) -
+    // v0.40 §9.3: old_age は固定減算。
+    (person.lifeStage === 'old_age' ? config.oldAgeAppointmentScorePenalty : 0)
   )
 }
 
@@ -490,7 +492,7 @@ function tryAppointHouseOffice(
 export function runAppointmentSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
-  const polityCandidateCache = buildPolityCandidateCache(currentCtx.state, currentCtx.config)
+  const polityCandidateCache = buildPolityCandidateCache(currentCtx.state)
 
   // Polity offices
   for (const polityId of Object.keys(currentCtx.state.polities).sort()) {

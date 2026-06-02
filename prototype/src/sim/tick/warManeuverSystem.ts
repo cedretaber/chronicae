@@ -233,7 +233,7 @@ function refreshCaptainGeneral(
   const side = sideKey === 'attacker' ? war.attacker : war.defender
   const current = side.captainGeneralPersonId
   if (current !== undefined && isEligibleWarPerson(ws, current)) return ctx
-  const newCG = selectCaptainGeneralForWarSide(ws, polityId)
+  const newCG = selectCaptainGeneralForWarSide(ws, polityId, ctx.config)
   if (newCG === current) return ctx // 双方 undefined or 変化なし
   if (newCG === undefined) {
     // soft ref を消す (exactOptionalPropertyTypes: undefined 代入でなく key 削除)。
@@ -256,11 +256,17 @@ function refreshCommanders(
   wid: WarId,
   sideKey: WarSideKey,
   polityId: PolityId,
+  config: SimulationConfig,
 ): void {
   const war = ws.wars[wid]
   if (!war) return
   const side = sideKey === 'attacker' ? war.attacker : war.defender
-  const candidates = buildWarSideCommanderCandidates(ws, polityId, side.captainGeneralPersonId)
+  const candidates = buildWarSideCommanderCandidates(
+    ws,
+    polityId,
+    side.captainGeneralPersonId,
+    config,
+  )
   const same =
     candidates.length === side.commanderPersonIds.length &&
     candidates.every((id, i) => id === side.commanderPersonIds[i])
@@ -330,8 +336,8 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
     if (atkPolity === undefined || defPolity === undefined) continue // house actor war: maneuver no-op
 
     // step 4: commander candidates lazy refresh
-    refreshCommanders(ws, wid, 'attacker', atkPolity)
-    refreshCommanders(ws, wid, 'defender', defPolity)
+    refreshCommanders(ws, wid, 'attacker', atkPolity, config)
+    refreshCommanders(ws, wid, 'defender', defPolity, config)
     const war3 = ws.wars[wid]
     if (!war3) continue
 

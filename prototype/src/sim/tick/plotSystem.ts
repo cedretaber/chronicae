@@ -18,6 +18,7 @@ import { createSimEvent } from './context'
 import { nameParam, entityRef } from '../types/event'
 import type { EventEntityRef } from '../types/event'
 import type { Person } from '../types/person'
+import { isLifeStageAtLeast } from '../types/person'
 import { getRoleScore } from '../selectors/abilitySelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 
@@ -124,7 +125,7 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
             (p): p is NonNullable<typeof p> =>
               p !== undefined &&
               p.alive &&
-              p.age >= currentCtx.config.adultAge &&
+              isLifeStageAtLeast(p.lifeStage, 'young_adulthood') &&
               (p.id as string) !== (currentHeadId ?? ''),
           )
           .sort((a, b) => b.legacyPrestige - a.legacyPrestige)[0]

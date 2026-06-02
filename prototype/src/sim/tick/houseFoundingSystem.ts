@@ -9,6 +9,7 @@ import { getHouselessPersons } from '../selectors/availabilitySelectors'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 import { initializeHouseShares } from './shareUpdateSystem'
 import { samplePerson } from '../helpers/personFactory'
+import { isLifeStageAtLeast } from '../types/person'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { createLogger } from '../debug/logger'
 import { nameParam, entityRef } from '../types/event'
@@ -22,6 +23,8 @@ export function runHouseFoundingSystem(ctx: TickContext): TickContext {
   for (const pid of getHouselessPersons(currentCtx.state)) {
     const person = currentCtx.state.persons[pid]
     if (!person) continue
+    // v0.40 §8.2: 家を興せるのは社会的に成人した人物（young_adulthood 以降）に限る（founder 本人の資格判定のみ）。
+    if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) continue
     const reason = getFoundingReason(currentCtx.state, currentCtx.config, person)
     if (reason) candidatesWithReasons.push({ id: pid, reason })
   }

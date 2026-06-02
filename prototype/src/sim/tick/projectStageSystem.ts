@@ -194,7 +194,7 @@ function resolveFindSupervisor(
   }
 
   if (!supervisorId) {
-    supervisorId = findBailiffCandidateForProject(ws, config, project)
+    supervisorId = findBailiffCandidateForProject(ws, project)
     if (!supervisorId) return false
 
     const tp = ws.holdingTerminalPolityCache[holdingId]

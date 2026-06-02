@@ -1,7 +1,7 @@
 import type { WorldState } from '../types/world'
-import type { SimulationConfig } from '../config/defaultConfig'
 import type { DevelopHoldingProject } from '../types/project'
 import type { FactionId, HouseId, PersonId } from '../types/ids'
+import { isLifeStageAtLeast } from '../types/person'
 import {
   getActiveFactionMembership,
   getFactionActiveMemberIds,
@@ -11,7 +11,6 @@ import { getOrganizationShares } from '../selectors/shareSelectors'
 
 export function findBailiffCandidateForProject(
   ws: WorldState,
-  config: SimulationConfig,
   project: DevelopHoldingProject,
 ): PersonId | undefined {
   if (project.owner.kind !== 'polity') return undefined
@@ -24,13 +23,13 @@ export function findBailiffCandidateForProject(
     const membership = getActiveFactionMembership(ws, creator.id)
     if (membership) {
       const factionMembers = getFactionActiveMemberIds(ws, membership.factionId)
-      const found = pickBestCandidate(ws, config, factionMembers)
+      const found = pickBestCandidate(ws, factionMembers)
       if (found) return found
     }
   }
 
   const ownerMembers = collectHouseMemberIds(ws, polity.ownerHouseId)
-  const found2 = pickBestCandidate(ws, config, ownerMembers)
+  const found2 = pickBestCandidate(ws, ownerMembers)
   if (found2) return found2
 
   const shares = getOrganizationShares(ws, { kind: 'polity', id: polityId })
@@ -48,7 +47,7 @@ export function findBailiffCandidateForProject(
       }
     }
   }
-  const found3 = pickBestCandidate(ws, config, shareholderCandidates)
+  const found3 = pickBestCandidate(ws, shareholderCandidates)
   if (found3) return found3
 
   const factionSeen = new Set<FactionId>()
@@ -66,21 +65,17 @@ export function findBailiffCandidateForProject(
       }
     }
   }
-  return pickBestCandidate(ws, config, factionCandidates)
+  return pickBestCandidate(ws, factionCandidates)
 }
 
-function pickBestCandidate(
-  ws: WorldState,
-  config: SimulationConfig,
-  candidateIds: PersonId[],
-): PersonId | undefined {
+function pickBestCandidate(ws: WorldState, candidateIds: PersonId[]): PersonId | undefined {
   const candidates = candidateIds
     .map((mid) => ws.persons[mid])
     .filter((p): p is NonNullable<typeof p> => p !== undefined)
     .filter(
       (p) =>
         p.alive &&
-        p.age >= config.adultAge &&
+        isLifeStageAtLeast(p.lifeStage, 'young_adulthood') &&
         p.kind !== 'placeholder' &&
         !hasActiveOffice(ws, p.id) &&
         !hasActiveHoldingOffice(ws, p.id),

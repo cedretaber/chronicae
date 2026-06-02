@@ -7,6 +7,7 @@ import { splitHouse } from '../mutations/worldStructureMutations'
 import { chooseSplitter } from './houseSplitSystem'
 import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
 import { getAdultSuccessionCandidates } from '../selectors/successionSelectors'
+import { isLifeStageAtLeast } from '../types/person'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getRoleScore } from '../selectors/abilitySelectors'
 
@@ -54,7 +55,11 @@ export function runHouseSplitEvaluationSystem(ctx: TickContext): TickContext {
     // Find adult capable branch member (exclude current leader)
     const candidates = getAdultSuccessionCandidates(currentCtx.state, house, currentCtx.config)
     const leaderId = getHouseLeader(currentCtx.state, houseId)
-    const splitCandidates = candidates.filter((c) => c.person.id !== leaderId)
+    // v0.40 §8.2: 分家を興す splitter（cadet house の founder）は young_adulthood 以降に限る。
+    //   succession 用 helper（adultAge=15）は据え置きのまま、splitter にのみ追加ゲートをかける。
+    const splitCandidates = candidates.filter(
+      (c) => c.person.id !== leaderId && isLifeStageAtLeast(c.person.lifeStage, 'young_adulthood'),
+    )
     if (splitCandidates.length < 1) continue
 
     const splitter = chooseSplitter(currentCtx.state, splitCandidates, currentCtx.config)

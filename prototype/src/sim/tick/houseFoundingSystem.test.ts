@@ -62,6 +62,7 @@ function addHouselessPerson(
     nameKey: 'Houseless',
     sex: 'male' as const,
     age: 35,
+    lifeStage: 'young_adulthood' as const,
     alive: overrides.alive ?? true,
     childIds: [] as PersonId[],
     birthStatus: 'unknown' as const,

@@ -2,6 +2,7 @@ import type { TickContext } from './context'
 import type { CreateSimEventInput } from './context'
 import type { SimEvent } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
+import { isLifeStageAtLeast } from '../types/person'
 import type { Aim, DecisionSubjectRef, DecisionReason, PersonAimKind, Goal } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import type { AimId, DecisionReasonId, PersonId, EventId, TaskId } from '../types/ids'
@@ -73,7 +74,7 @@ export function runPersonAimMaintenanceSystem(ctx: TickContext): TickContext {
     const person = ws.persons[personId]
     if (!person) continue
     if (person.kind === 'placeholder') continue
-    if (person.age < ctx.config.adultAge) continue
+    if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) continue
     if (!person.houseId) continue
 
     const house = ws.houses[person.houseId]

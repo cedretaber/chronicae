@@ -1,6 +1,7 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { PersonId } from '../types/ids'
+import { isLifeStageAtLeast } from '../types/person'
 import type { EntityRef, Aim, DecisionSubjectRef } from '../types/goal'
 import type { Project, ProjectKind } from '../types/project'
 import type { AppliedRoleKey } from './abilitySelectors'
@@ -124,16 +125,12 @@ function getCandidatePersonIds(state: WorldState, owner: DecisionSubjectRef): Pe
   return [owner.id]
 }
 
-function isEligibleCandidate(
-  state: WorldState,
-  config: SimulationConfig,
-  personId: PersonId,
-): boolean {
+function isEligibleCandidate(state: WorldState, personId: PersonId): boolean {
   const person = state.persons[personId]
   if (!person) return false
   if (!person.alive) return false
   if (person.kind === 'placeholder') return false
-  if (person.age < config.adultAge) return false
+  if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) return false
   return true
 }
 
@@ -149,7 +146,7 @@ export function selectProjectCreator(
   let bestScore = -Infinity
 
   for (const pid of candidates) {
-    if (!isEligibleCandidate(state, config, pid)) continue
+    if (!isEligibleCandidate(state, pid)) continue
 
     const abilityScore = getRoleScore(state, pid, roleKey) / 10
     const workload = getPersonProjectWorkload(state, config, pid)
@@ -229,7 +226,7 @@ export function selectProjectSupervisor(
   const creator = state.persons[creatorPersonId]
 
   for (const pid of candidates) {
-    if (!isEligibleCandidate(state, config, pid)) continue
+    if (!isEligibleCandidate(state, pid)) continue
     if ((pid as string) === (creatorPersonId as string)) continue
 
     const abilityScore = getRoleScore(state, pid, roleKey) / 10

@@ -24,11 +24,30 @@ export function isEligibleWarPerson(state: WorldState, personId: PersonId): bool
   return Boolean(p && p.alive && p.kind !== 'placeholder')
 }
 
+// v0.40 §9.3: commander / captain general 選定スコア。warCommand role score を base にし、
+//   old_age は乗算でのみ不利化する（候補除外はしない＝指揮官不在を避ける）。config 省略時は無調整。
+function warCommandSelectionScore(
+  state: WorldState,
+  personId: PersonId,
+  config?: SimulationConfig,
+): number {
+  const base = getRoleScore(state, personId, 'warCommand')
+  if (!config) return base
+  const p = state.persons[personId]
+  if (p && p.lifeStage === 'old_age') return base * config.oldAgeCommandScoreMultiplier
+  return base
+}
+
 // warCommand 降順 → personId 昇順で安定ソートする (replay 決定性のための tie-break)。
-function sortByWarCommandThenId(state: WorldState, ids: PersonId[]): PersonId[] {
+//   config 指定時は old_age 乗算ペナルティを反映した選定スコアでソートする（§9.3）。
+function sortByWarCommandThenId(
+  state: WorldState,
+  ids: PersonId[],
+  config?: SimulationConfig,
+): PersonId[] {
   return [...ids].sort((a, b) => {
-    const scoreB = getRoleScore(state, b, 'warCommand')
-    const scoreA = getRoleScore(state, a, 'warCommand')
+    const scoreB = warCommandSelectionScore(state, b, config)
+    const scoreA = warCommandSelectionScore(state, a, config)
     if (scoreB !== scoreA) return scoreB - scoreA // warCommand desc
     return a.localeCompare(b) // personId asc
   })
@@ -50,6 +69,7 @@ export function getWarSidePrimaryPolityActor(war: War, sideKey: WarSideKey): Pol
 export function selectCaptainGeneralForWarSide(
   state: WorldState,
   polityId: PolityId,
+  config?: SimulationConfig,
 ): PersonId | undefined {
   const military = getActiveOfficeHolders(
     state,
@@ -57,7 +77,7 @@ export function selectCaptainGeneralForWarSide(
     'military',
   ).filter((id) => isEligibleWarPerson(state, id))
   if (military.length > 0) {
-    return sortByWarCommandThenId(state, military)[0]
+    return sortByWarCommandThenId(state, military, config)[0]
   }
   const leader = getPolityLeader(state, polityId)
   if (leader !== undefined && isEligibleWarPerson(state, leader)) return leader
@@ -89,13 +109,14 @@ export function buildWarSideCommanderCandidates(
   state: WorldState,
   polityId: PolityId,
   captainGeneralId: PersonId | undefined,
+  config?: SimulationConfig,
 ): PersonId[] {
   const military = getActiveOfficeHolders(state, { kind: 'polity', id: polityId }, 'military')
   const eligible = military.filter((id) =>
     isEligibleBattleCommander(state, polityId, id, captainGeneralId),
   )
   const deduped = [...new Set(eligible)]
-  return sortByWarCommandThenId(state, deduped)
+  return sortByWarCommandThenId(state, deduped, config)
 }
 
 // §13.2/§13.3: commander pool (PersonId[]) を BattleSimCommanderInput[] に変換する。

@@ -2,6 +2,7 @@ import type { TickContext } from './context'
 import type { PersonId, FactionId, HouseId } from '../types/ids'
 import type { ShareHolderRef } from '../types/office'
 import { createSimEvent } from './context'
+import { isLifeStageAtLeast } from '../types/person'
 import { nameParam, entityRef } from '../types/event'
 import {
   getFactionByLeader,
@@ -200,7 +201,7 @@ function formNewFactions(ctx: TickContext): TickContext {
     const person = currentCtx.state.persons[pid]
     if (!person) continue
     if (person.kind === 'placeholder') continue
-    if (person.age < config.adultAge) continue
+    if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) continue
     if (!person.houseId) continue
 
     const house = currentCtx.state.houses[person.houseId]
@@ -321,7 +322,7 @@ function pickInitialMemberCandidates(ctx: TickContext, leaderId: PersonId): Pers
     const p = ctx.state.persons[pid]
     if (!p) continue
     if (p.kind === 'placeholder') continue
-    if (p.age < ctx.config.adultAge) continue
+    if (!isLifeStageAtLeast(p.lifeStage, 'young_adulthood')) continue
     if (getActiveFactionMembership(ctx.state, pid)) continue
     if (getFactionByLeader(ctx.state, pid)) continue
 

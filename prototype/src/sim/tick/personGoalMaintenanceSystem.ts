@@ -1,5 +1,6 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
+import { isLifeStageAtLeast } from '../types/person'
 import type { Goal, DecisionSubjectRef, DecisionReason } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import type { GoalId, DecisionReasonId, PersonId } from '../types/ids'
@@ -15,7 +16,7 @@ export function runPersonGoalMaintenanceSystem(ctx: TickContext): TickContext {
     const person = currentCtx.state.persons[personId]
     if (!person) continue
     if (person.kind === 'placeholder') continue
-    if (person.age < currentCtx.config.adultAge) continue
+    if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) continue
     if (!person.houseId) continue
 
     const house = currentCtx.state.houses[person.houseId]

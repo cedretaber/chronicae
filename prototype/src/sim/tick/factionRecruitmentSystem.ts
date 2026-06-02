@@ -3,6 +3,7 @@ import { createSimEvent } from './context'
 import type { PersonId, FactionId } from '../types/ids'
 import { nameParam, entityRef } from '../types/event'
 import type { Person } from '../types/person'
+import { isLifeStageAtLeast } from '../types/person'
 import {
   getActiveFactions,
   getActiveFactionMembership,
@@ -19,13 +20,12 @@ import { setPersonAttitude } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 
 function buildRecruitmentBasePool(ctx: TickContext): PersonId[] {
-  const config = ctx.config
   const result: PersonId[] = []
   for (const pid of ctx.state.livingPersonIds) {
     const p = ctx.state.persons[pid]
     if (!p) continue
     if (p.kind === 'placeholder') continue
-    if (p.age < config.adultAge) continue
+    if (!isLifeStageAtLeast(p.lifeStage, 'young_adulthood')) continue
     if (!(isHouselessPerson(ctx.state, pid) || isLandlessHouseMember(ctx.state, pid))) continue
     if (getActiveFactionMembership(ctx.state, pid)) continue
     if (getFactionByLeader(ctx.state, pid)) continue
