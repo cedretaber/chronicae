@@ -53,6 +53,7 @@ import { runEmploymentRebalanceSystem } from './employmentRebalanceSystem'
 import { mergeCompatiblePopsMut } from '../mutations/popMutations'
 import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { runPersonGrowthSystem } from './personGrowthSystem'
+import { runLifeStageProgressionSystem } from './lifeStageProgressionSystem'
 import { runEstateSettlementSystem } from './estateSettlementSystem'
 import { runHouseSurplusDistributionSystem } from './houseSurplusDistributionSystem'
 import { runHouseFoundingSystem } from './houseFoundingSystem'
@@ -142,6 +143,15 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runDisasterSystem,
+  },
+  {
+    // v0.40 §5.3: advanceTime で age が上がった後、年次で LifeStage を一方向に進める。
+    //   Phase D で LifeStageInfluenceSystem をこの直前に挿入する（influence→progression）。
+    //   lifeStage を参照する appointment/faction/plot/project/personGoal より前に置く。
+    name: 'lifeStageProgressionSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runLifeStageProgressionSystem,
   },
   { name: 'mortalitySystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runMortalitySystem },
   {

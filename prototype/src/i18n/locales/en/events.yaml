@@ -5,6 +5,8 @@
 person:
   died: '{{person}} has died at age {{age}}.'
   born: '{{child}} was born.'
+  came_of_age: '{{person}} came of age at {{age}}.'
+  entered_old_age: '{{person}} entered old age at {{age}}.'
   born_in_obscurity: 'An unknown {{occupation}} named {{person}} appeared.'
   faded_from_history: '{{person}} faded from the chronicles.'
   goal:

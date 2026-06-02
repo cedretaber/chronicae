@@ -3289,6 +3289,55 @@ export function collectIntegrityErrors(
     }
   }
 
+  // --- v0.40 §13: Person.lifeStage 検査 ---
+  // alive normal person は lifeStage を持ち、union 内であり、age と極端に矛盾しない（緩い envelope）。
+  // placeholder は mature_adulthood 固定を別途検査し、age-lifeStage envelope からは除外する。
+  // 逆行検査は行わない（writer 側で一方向遷移を保証する）。
+  {
+    const LIFE_STAGES: readonly string[] = [
+      'childhood',
+      'adolescence',
+      'young_adulthood',
+      'mature_adulthood',
+      'old_age',
+    ]
+    // §13.4: 「明らかな破損のみ」を捕捉する意図的に緩い envelope（forced transition 上限より緩い）。
+    const AGE_ENVELOPE: Record<string, { min: number; max: number }> = {
+      childhood: { min: 0, max: 20 },
+      adolescence: { min: 8, max: 25 },
+      young_adulthood: { min: 16, max: 50 },
+      mature_adulthood: { min: 30, max: 75 },
+      old_age: { min: 55, max: Infinity },
+    }
+    for (const [personIdStr, person] of Object.entries(state.persons)) {
+      if (!person || !person.alive) continue
+      if (person.kind === 'placeholder') {
+        // §13.3: placeholder は mature_adulthood 固定。
+        if (person.lifeStage !== 'mature_adulthood') {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Placeholder Person ${personIdStr}: lifeStage must be 'mature_adulthood', got '${person.lifeStage}'`,
+          })
+        }
+        continue
+      }
+      if (!LIFE_STAGES.includes(person.lifeStage)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Person ${personIdStr}: lifeStage '${person.lifeStage}' is not a valid LifeStage`,
+        })
+        continue
+      }
+      const envelope = AGE_ENVELOPE[person.lifeStage]
+      if (envelope && (person.age < envelope.min || person.age > envelope.max)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Person ${personIdStr}: age ${person.age} outside envelope [${envelope.min}, ${envelope.max}] for lifeStage '${person.lifeStage}'`,
+        })
+      }
+    }
+  }
+
   // --- Aim activeTaskId / activeDiplomaticPlayId mutual exclusion ---
   for (const [aimIdStr, aim] of Object.entries(state.aims)) {
     if (!aim || aim.status !== 'active') continue

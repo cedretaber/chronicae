@@ -4,6 +4,8 @@
 person:
   died: '{{person}}が{{age}}歳で死去した。'
   born: '{{child}}が誕生した。'
+  came_of_age: '{{person}}が{{age}}歳で成人した。'
+  entered_old_age: '{{person}}が{{age}}歳で老年期に入った。'
   born_in_obscurity: '無名の{{occupation}}、{{person}}が現れた。'
   faded_from_history: '{{person}}は歴史の彼方へ消えた。'
   goal:

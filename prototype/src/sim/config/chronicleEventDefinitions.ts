@@ -88,4 +88,8 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   FACTION_DISSOLVED: { category: 'faction' },
   // Life
   IMPORTANT_PERSON_DIED: { category: 'life' },
+  // v0.40 §11: retainRefKinds は指定しない。byPerson/byHouse/byPolity の振り分けは
+  //   emit 時の entityRefs 出し分け（一般=person のみ / 主要=person+house+polity）で実現する。
+  PERSON_CAME_OF_AGE: { category: 'life' },
+  PERSON_ENTERED_OLD_AGE: { category: 'life' },
 }

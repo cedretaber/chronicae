@@ -88,6 +88,20 @@ const TAB_KEYS: TabKey[] = ['raw', 'chronicle', 'timeline']
 const MAX_RAW_EVENTS = 100
 const MAX_CHRONICLE_EVENTS = 50
 
+// v0.40 §10.6: メイン EventLog は major/critical のみ表示する。加えて成人/老年入りの
+//   life event は主要人物（importance==='normal'）のときのみ表示する例外を設ける。
+//   一般人物（minor）の life event は Person Chronicle のみで確認できる。
+function isMainLogEvent(e: SimEvent): boolean {
+  if (e.importance === 'major' || e.importance === 'critical') return true
+  if (
+    (e.type === 'PERSON_CAME_OF_AGE' || e.type === 'PERSON_ENTERED_OLD_AGE') &&
+    e.importance === 'normal'
+  ) {
+    return true
+  }
+  return false
+}
+
 function getImportanceColor(importance: SimEvent['importance']): string {
   switch (importance) {
     case 'critical':
@@ -275,12 +289,10 @@ export function EventLog() {
   const rawEvents = [...eventHistory].reverse().slice(0, MAX_RAW_EVENTS)
   const chronicleEvents = [...eventHistory]
     .reverse()
-    .filter((e) => e.importance === 'major' || e.importance === 'critical')
+    .filter(isMainLogEvent)
     .slice(0, MAX_CHRONICLE_EVENTS)
 
-  const timelineEvents = eventHistory.filter(
-    (e) => e.importance === 'major' || e.importance === 'critical',
-  )
+  const timelineEvents = eventHistory.filter(isMainLogEvent)
   const byYear = new Map<number, SimEvent[]>()
   for (const e of timelineEvents) {
     const arr = byYear.get(e.year) ?? []

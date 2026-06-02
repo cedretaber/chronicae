@@ -3,6 +3,8 @@ import type { EventId } from './ids'
 export type EventType =
   | 'PERSON_DIED'
   | 'IMPORTANT_PERSON_DIED'
+  | 'PERSON_CAME_OF_AGE'
+  | 'PERSON_ENTERED_OLD_AGE'
   | 'HOUSE_EXTINCT'
   | 'MARRIAGE_FORMED'
   | 'CHILD_BORN'
