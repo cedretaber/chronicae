@@ -20,6 +20,28 @@ export type PersonBackgroundOccupation =
 
 export type DeathCircumstance = 'natural' | 'faded_from_history'
 
+// v0.40 LifeStage（人生段階）
+export type LifeStage =
+  | 'childhood'
+  | 'adolescence'
+  | 'young_adulthood'
+  | 'mature_adulthood'
+  | 'old_age'
+
+// LifeStage を順序 index 化して比較する（将来段階を増やしても閾値判定が漏れない）
+export const LIFE_STAGE_ORDER: Record<LifeStage, number> = {
+  childhood: 0,
+  adolescence: 1,
+  young_adulthood: 2,
+  mature_adulthood: 3,
+  old_age: 4,
+}
+
+/** stage が threshold 以上の段階かを判定する（成人相当判定などに使う）。 */
+export function isLifeStageAtLeast(stage: LifeStage, threshold: LifeStage): boolean {
+  return LIFE_STAGE_ORDER[stage] >= LIFE_STAGE_ORDER[threshold]
+}
+
 export type AbilityScores = {
   valor: number // 個人戦闘力・身体能力・士気
   command: number // 組織を束ねる・軍指揮の規律
@@ -36,6 +58,7 @@ export type Person = {
   nameKey: string
   sex: Sex
   age: number
+  lifeStage: LifeStage
   alive: boolean
   kind?: PersonKind
   houseId?: HouseId

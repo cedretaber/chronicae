@@ -23,6 +23,7 @@ function makePerson(overrides: Partial<Person> = {}): Person {
     nameKey: 'Person',
     sex: 'male',
     age: 30,
+    lifeStage: 'young_adulthood',
     alive: true,
     houseId,
     childIds: [],

@@ -45,6 +45,16 @@ function makePerson(
     nameKey,
     sex,
     age,
+    lifeStage:
+      age <= 10
+        ? 'childhood'
+        : age <= 18
+          ? 'adolescence'
+          : age <= 35
+            ? 'young_adulthood'
+            : age <= 59
+              ? 'mature_adulthood'
+              : 'old_age',
     alive,
     houseId,
     childIds,
@@ -113,7 +123,21 @@ function makeCtx(members: Person[], houseActive: boolean = true, month: number =
 
 describe('runSuccessionSystem', () => {
   it('skips houses that do not need succession (has leader office assignment)', () => {
-    const head = makePerson('pe-0' as PersonId, 'Head', 50, true, 'h-0' as HouseId, 0.5, 30)
+    const head = makePerson(
+      'pe-0' as PersonId,
+      'Head',
+      50,
+      true,
+      'h-0' as HouseId,
+      0.5,
+      30,
+      'male',
+      'legitimate',
+      undefined,
+      undefined,
+      [],
+      undefined,
+    )
     const ctx = makeCtx([head])
     // Add leader office assignment so needsSuccession returns false
     const officeId = 'of-0' as import('../types/ids').OfficeAssignmentId
@@ -148,7 +172,21 @@ describe('runSuccessionSystem', () => {
   })
 
   it('HOUSE_LEADER_CHANGED event emitted when succession occurs', () => {
-    const adult = makePerson('pe-1' as PersonId, 'AdultChild', 30, true, 'h-0' as HouseId, 0.5, 10)
+    const adult = makePerson(
+      'pe-1' as PersonId,
+      'AdultChild',
+      30,
+      true,
+      'h-0' as HouseId,
+      0.5,
+      10,
+      'male',
+      'legitimate',
+      undefined,
+      undefined,
+      [],
+      undefined,
+    )
     const ctx = makeCtx([adult])
 
     const result = runSuccessionSystem(ctx)
@@ -157,8 +195,36 @@ describe('runSuccessionSystem', () => {
   })
 
   it('minor becomes head when no adults exist', () => {
-    const minor1 = makePerson('pe-1' as PersonId, 'MinorChild', 8, true, 'h-0' as HouseId, 0.3, 5)
-    const minor2 = makePerson('pe-2' as PersonId, 'OlderMinor', 12, true, 'h-0' as HouseId, 0.4, 8)
+    const minor1 = makePerson(
+      'pe-1' as PersonId,
+      'MinorChild',
+      8,
+      true,
+      'h-0' as HouseId,
+      0.3,
+      5,
+      'male',
+      'legitimate',
+      undefined,
+      undefined,
+      [],
+      undefined,
+    )
+    const minor2 = makePerson(
+      'pe-2' as PersonId,
+      'OlderMinor',
+      12,
+      true,
+      'h-0' as HouseId,
+      0.4,
+      8,
+      'male',
+      'legitimate',
+      undefined,
+      undefined,
+      [],
+      undefined,
+    )
     const ctx = makeCtx([minor1, minor2])
 
     const result = runSuccessionSystem(ctx)
@@ -354,8 +420,36 @@ describe('runSuccessionSystem', () => {
     const houseId = 'h-0' as HouseId
     const polityId = 'dp-0' as PolityId
 
-    const pe1 = makePerson('pe-1' as PersonId, 'HighScore', 30, true, houseId, 1.0, 100)
-    const pe2 = makePerson('pe-2' as PersonId, 'LowScore', 29, true, houseId, 0.0, 0)
+    const pe1 = makePerson(
+      'pe-1' as PersonId,
+      'HighScore',
+      30,
+      true,
+      houseId,
+      1.0,
+      100,
+      'male',
+      'legitimate',
+      undefined,
+      undefined,
+      [],
+      undefined,
+    )
+    const pe2 = makePerson(
+      'pe-2' as PersonId,
+      'LowScore',
+      29,
+      true,
+      houseId,
+      0.0,
+      0,
+      'male',
+      'legitimate',
+      undefined,
+      undefined,
+      [],
+      undefined,
+    )
 
     const persons: Record<PersonId, Person> = {}
     persons['pe-1' as PersonId] = pe1
@@ -498,7 +592,21 @@ describe('applyMinorHeadPenalties', () => {
     config = defaultConfig,
   ): TickContext {
     const memberId = 'pe-0' as PersonId
-    const member = makePerson(memberId, 'Member', age, true, houseId, 0.3, 10)
+    const member = makePerson(
+      memberId,
+      'Member',
+      age,
+      true,
+      houseId,
+      0.3,
+      10,
+      'male',
+      'legitimate',
+      undefined,
+      undefined,
+      [],
+      undefined,
+    )
     const provinceId = 'p-0' as ProvinceId
     let state = makeEmptyV016State()
     state = { ...state, currentYear: 1, currentWeekOfYear: 1, absoluteWeek: 48 }

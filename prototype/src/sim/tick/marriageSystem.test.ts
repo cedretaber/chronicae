@@ -30,6 +30,7 @@ function makePerson(
     nameKey,
     sex,
     age,
+    lifeStage: 'young_adulthood',
     alive,
     ...(houseId !== undefined ? { houseId } : {}),
     childIds: [],

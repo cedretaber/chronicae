@@ -1493,6 +1493,7 @@ export function generateWorld(
     nameKey: 'anonymous',
     sex: 'male',
     age: 30,
+    lifeStage: 'mature_adulthood',
     alive: true,
     kind: 'placeholder',
     childIds: [],

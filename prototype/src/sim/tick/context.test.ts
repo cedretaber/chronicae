@@ -24,6 +24,7 @@ function makeMinimalWorld(personIds: PersonId[] = []): WorldState {
       nameKey: 'Test',
       sex: 'male',
       age: 30,
+      lifeStage: 'young_adulthood',
       alive: true,
       houseId: 'h-0' as HouseId,
       childIds: [],

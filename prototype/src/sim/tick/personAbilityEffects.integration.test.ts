@@ -36,6 +36,7 @@ function makePerson(ambition: number, caution: number): Person {
     nameKey: 'TestPerson',
     sex: 'male',
     age: 30,
+    lifeStage: 'young_adulthood',
     alive: true,
     houseId: 'h-0' as HouseId,
     childIds: [],

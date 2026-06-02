@@ -37,6 +37,7 @@ function makePerson(
     nameKey: id,
     sex: 'male',
     age: 40,
+    lifeStage: 'mature_adulthood',
     alive: opts?.alive ?? true,
     ...(opts?.kind ? { kind: opts.kind } : {}),
     childIds: [],

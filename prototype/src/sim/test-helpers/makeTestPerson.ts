@@ -16,6 +16,7 @@ export function makeTestPerson(overrides: Partial<Person> = {}): Person {
     nameKey: 'Test Person',
     sex: 'male',
     age: 30,
+    lifeStage: 'young_adulthood',
     alive: true,
     houseId: 'dh-0' as HouseId,
     childIds: [],

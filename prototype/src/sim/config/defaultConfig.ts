@@ -1,12 +1,19 @@
 import type { OfficeRole } from '../types/office'
 import type { PolityRank } from '../types/polity'
-import type { PersonBackgroundOccupation } from '../types/person'
+import type { PersonBackgroundOccupation, LifeStage } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
 import type { PopOccupation, PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
 import type { BattlefieldKind } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'
+
+// v0.40 LifeStage 遷移年齢
+export type LifeStageTransitionAge = {
+  minAge: number
+  standardAge: number
+  maxAge: number
+}
 
 export type SimulationConfig = {
   uiLocale: 'en' | 'ja'
@@ -879,6 +886,27 @@ export type SimulationConfig = {
   clanFormationMinTotalLivingMembers: number
   clanFormationMinTotalWealth: number
   clanFormationMinTotalLegacyPrestige: number
+  // v0.40 LifeStage
+  lifeStageTransitionAges: {
+    adolescence: LifeStageTransitionAge
+    young_adulthood: LifeStageTransitionAge
+    mature_adulthood: LifeStageTransitionAge
+    old_age: LifeStageTransitionAge
+  }
+  lifeStageTransitionChanceEarly: number
+  lifeStageTransitionChanceStandard: number
+  // v0.40 LifeStage influence
+  lifeStageParentInfluenceRateByStage: Partial<Record<LifeStage, number>>
+  lifeStageHouseLeaderInfluenceRateByStage: Partial<Record<LifeStage, number>>
+  lifeStageHouseAdultInfluenceRateByStage: Partial<Record<LifeStage, number>>
+  lifeStageParentFactionInfluenceRateByStage: Partial<Record<LifeStage, number>>
+  maxLifeStageInfluencersPerChild: number
+  maxAttitudeTargetsInheritedPerInfluencer: number
+  // v0.40 parental ability bonus
+  parentalAbilityGrowthChanceBonus: number
+  // v0.40 old age candidate penalty（appointment=減算 / 軍事=乗算）
+  oldAgeAppointmentScorePenalty: number
+  oldAgeCommandScoreMultiplier: number
 }
 
 export const defaultConfig: SimulationConfig = {
@@ -1871,4 +1899,34 @@ export const defaultConfig: SimulationConfig = {
   clanFormationMinTotalLivingMembers: 30,
   clanFormationMinTotalWealth: 500,
   clanFormationMinTotalLegacyPrestige: 150,
+  // v0.40 LifeStage
+  lifeStageTransitionAges: {
+    adolescence: { minAge: 8, standardAge: 11, maxAge: 12 },
+    young_adulthood: { minAge: 16, standardAge: 19, maxAge: 20 },
+    mature_adulthood: { minAge: 32, standardAge: 36, maxAge: 40 },
+    old_age: { minAge: 55, standardAge: 60, maxAge: 65 },
+  },
+  lifeStageTransitionChanceEarly: 0.2,
+  lifeStageTransitionChanceStandard: 0.5,
+  lifeStageParentInfluenceRateByStage: {
+    childhood: 0.08,
+    adolescence: 0.04,
+  },
+  lifeStageHouseLeaderInfluenceRateByStage: {
+    childhood: 0.03,
+    adolescence: 0.04,
+  },
+  lifeStageHouseAdultInfluenceRateByStage: {
+    childhood: 0.01,
+    adolescence: 0.02,
+  },
+  lifeStageParentFactionInfluenceRateByStage: {
+    childhood: 0.01,
+    adolescence: 0.03,
+  },
+  maxLifeStageInfluencersPerChild: 5,
+  maxAttitudeTargetsInheritedPerInfluencer: 3,
+  parentalAbilityGrowthChanceBonus: 2.0,
+  oldAgeAppointmentScorePenalty: 5,
+  oldAgeCommandScoreMultiplier: 0.8,
 }

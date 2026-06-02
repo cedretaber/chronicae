@@ -76,6 +76,7 @@ function makeOfficeState(): {
         nameKey: 'Holder',
         sex: 'male',
         age: 30,
+        lifeStage: 'young_adulthood',
         alive: true,
         houseId,
         childIds: [],

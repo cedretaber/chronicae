@@ -196,6 +196,7 @@ export function birthChild(
     nameKey: input.nameKey,
     sex: input.sex,
     age: 0,
+    lifeStage: 'childhood',
     houseId: father.houseId,
     birthStatus: input.birthStatus,
     abilities,

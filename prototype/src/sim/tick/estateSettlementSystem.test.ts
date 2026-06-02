@@ -82,6 +82,7 @@ function makePerson(
     nameKey: 'Person',
     sex: 'male' as const,
     age: 40,
+    lifeStage: 'young_adulthood',
     alive: true,
     houseId,
     childIds: [],
@@ -105,18 +106,21 @@ describe('findHeirs', () => {
 
     state.persons[child1Id] = makePerson(child1Id, houseId, {
       age: 20,
+      lifeStage: 'young_adulthood',
       alive: true,
       birthStatus: 'legitimate',
       childIds: [],
     })
     state.persons[child2Id] = makePerson(child2Id, houseId, {
       age: 15,
+      lifeStage: 'adolescence',
       alive: true,
       birthStatus: 'legitimate',
       childIds: [],
     })
     state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
+      lifeStage: 'mature_adulthood',
       alive: false,
       childIds: [child1Id, child2Id],
       birthStatus: 'legitimate',
@@ -141,11 +145,13 @@ describe('findHeirs', () => {
     })
     state.persons[spouseId] = makePerson(spouseId, houseId, {
       age: 40,
+      lifeStage: 'young_adulthood',
       alive: true,
       childIds: [],
     })
     state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
+      lifeStage: 'mature_adulthood',
       alive: false,
       spouseId,
       childIds: [childId],
@@ -187,12 +193,14 @@ describe('findHeirs', () => {
 
     state.persons[siblingId] = makePerson(siblingId, houseId, {
       age: 35,
+      lifeStage: 'young_adulthood',
       alive: true,
       fatherId,
       childIds: [],
     })
     state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 30,
+      lifeStage: 'young_adulthood',
       alive: false,
       fatherId,
       childIds: [],
@@ -210,11 +218,13 @@ describe('findHeirs', () => {
 
     state.persons[leaderId] = makePerson(leaderId, houseId, {
       age: 50,
+      lifeStage: 'mature_adulthood',
       alive: true,
       childIds: [],
     })
     state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 30,
+      lifeStage: 'young_adulthood',
       alive: false,
       childIds: [],
     })
@@ -243,6 +253,7 @@ describe('findHeirs', () => {
 
     state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 30,
+      lifeStage: 'young_adulthood',
       alive: false,
       childIds: [],
     })
@@ -261,6 +272,7 @@ describe('runEstateSettlementSystem', () => {
 
     state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
+      lifeStage: 'mature_adulthood',
       alive: false,
       wealth: 100,
       childIds: [heirId],
@@ -268,6 +280,7 @@ describe('runEstateSettlementSystem', () => {
     })
     state.persons[heirId] = makePerson(heirId, houseId, {
       age: 20,
+      lifeStage: 'young_adulthood',
       alive: true,
       wealth: 0,
       birthStatus: 'legitimate',
@@ -294,6 +307,7 @@ describe('runEstateSettlementSystem', () => {
 
     state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
+      lifeStage: 'mature_adulthood',
       alive: false,
       wealth: 100,
       childIds: [heir1Id, heir2Id],
@@ -301,6 +315,7 @@ describe('runEstateSettlementSystem', () => {
     })
     state.persons[heir1Id] = makePerson(heir1Id, houseId, {
       age: 20,
+      lifeStage: 'young_adulthood',
       alive: true,
       wealth: 0,
       birthStatus: 'legitimate',
@@ -308,6 +323,7 @@ describe('runEstateSettlementSystem', () => {
     })
     state.persons[heir2Id] = makePerson(heir2Id, houseId, {
       age: 15,
+      lifeStage: 'adolescence',
       alive: true,
       wealth: 0,
       birthStatus: 'legitimate',
@@ -334,6 +350,7 @@ describe('runEstateSettlementSystem', () => {
 
     state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
+      lifeStage: 'mature_adulthood',
       alive: false,
       wealth: 100,
       childIds: [],
@@ -357,6 +374,7 @@ describe('runEstateSettlementSystem', () => {
 
     state.persons[deceasedId] = makePerson(deceasedId, houseId, {
       age: 45,
+      lifeStage: 'mature_adulthood',
       alive: false,
       wealth: 0,
       childIds: [],
@@ -386,6 +404,7 @@ describe('estateSettlementSystem 2-generation integration', () => {
     // 祖父 → 父 (嫡出子), 父 → 孫 (嫡出子)
     state.persons[grandfatherId] = makePerson(grandfatherId, houseId, {
       age: 70,
+      lifeStage: 'old_age',
       alive: true,
       wealth: 100,
       childIds: [fatherId],
@@ -393,6 +412,7 @@ describe('estateSettlementSystem 2-generation integration', () => {
     })
     state.persons[fatherId] = makePerson(fatherId, houseId, {
       age: 40,
+      lifeStage: 'young_adulthood',
       alive: true,
       wealth: 50,
       fatherId: grandfatherId,
@@ -401,6 +421,7 @@ describe('estateSettlementSystem 2-generation integration', () => {
     })
     state.persons[grandchildId] = makePerson(grandchildId, houseId, {
       age: 15,
+      lifeStage: 'adolescence',
       alive: true,
       wealth: 0,
       fatherId,

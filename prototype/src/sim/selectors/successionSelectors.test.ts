@@ -32,6 +32,7 @@ function makePerson(overrides: Partial<Person> = {}): Person {
     nameKey: 'Person',
     sex: 'male',
     age: 30,
+    lifeStage: 'young_adulthood',
     alive: true,
     houseId,
     childIds: [],
@@ -200,6 +201,7 @@ describe('getAdultSuccessionCandidates', () => {
     const adult1 = makePerson({
       id: createPersonId('pe', 1),
       age: 20,
+      lifeStage: 'young_adulthood',
       alive: true,
       sex: 'male',
       houseId: head.houseId,
@@ -207,6 +209,7 @@ describe('getAdultSuccessionCandidates', () => {
     const adult2 = makePerson({
       id: createPersonId('pe', 2),
       age: 10,
+      lifeStage: 'childhood',
       alive: true,
       sex: 'male',
       houseId: head.houseId,
@@ -214,6 +217,7 @@ describe('getAdultSuccessionCandidates', () => {
     const deadMember = makePerson({
       id: createPersonId('pe', 3),
       age: 40,
+      lifeStage: 'mature_adulthood',
       alive: false,
       sex: 'male',
       houseId: head.houseId,
@@ -232,6 +236,7 @@ describe('getAdultSuccessionCandidates', () => {
     const adultMale = makePerson({
       id: createPersonId('pe', 1),
       age: 20,
+      lifeStage: 'young_adulthood',
       alive: true,
       sex: 'male',
       houseId: head.houseId,
@@ -239,6 +244,7 @@ describe('getAdultSuccessionCandidates', () => {
     const adultFemale = makePerson({
       id: createPersonId('pe', 2),
       age: 25,
+      lifeStage: 'young_adulthood',
       alive: true,
       sex: 'female',
       houseId: head.houseId,
@@ -257,6 +263,7 @@ describe('getAdultSuccessionCandidates', () => {
     const adultFemale = makePerson({
       id: createPersonId('pe', 1),
       age: 25,
+      lifeStage: 'young_adulthood',
       alive: true,
       sex: 'female',
       houseId: head.houseId,
@@ -276,6 +283,7 @@ describe('getAdultSuccessionCandidates', () => {
     const adultFemale = makePerson({
       id: createPersonId('pe', 1),
       age: 25,
+      lifeStage: 'young_adulthood',
       alive: true,
       sex: 'female',
       houseId: head.houseId,
@@ -290,7 +298,12 @@ describe('getAdultSuccessionCandidates', () => {
   })
 
   it('excludes dead head from candidates', () => {
-    const head = makePerson({ id: createPersonId('pe', 0), age: 50, alive: false })
+    const head = makePerson({
+      id: createPersonId('pe', 0),
+      age: 50,
+      lifeStage: 'mature_adulthood',
+      alive: false,
+    })
     const house = makeHouse([head])
     const state = makeState({ [head.id]: head }, { [house.id]: house })
     const result = getAdultSuccessionCandidates(state, house, testConfig)
@@ -304,18 +317,21 @@ describe('getMinorSuccessionCandidates', () => {
     const minor1 = makePerson({
       id: createPersonId('pe', 1),
       age: 12,
+      lifeStage: 'adolescence',
       alive: true,
       houseId: head.houseId,
     } as Partial<Person>)
     const minor2 = makePerson({
       id: createPersonId('pe', 2),
       age: 8,
+      lifeStage: 'childhood',
       alive: true,
       houseId: head.houseId,
     } as Partial<Person>)
     const deadMinor = makePerson({
       id: createPersonId('pe', 3),
       age: 10,
+      lifeStage: 'childhood',
       alive: false,
       houseId: head.houseId,
     } as Partial<Person>)

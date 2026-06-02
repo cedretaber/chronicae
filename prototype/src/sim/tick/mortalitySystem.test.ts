@@ -21,6 +21,7 @@ function makePerson(id: PersonId, age: number, alive: boolean): Person {
     nameKey: 'Person-' + id,
     sex: 'male',
     age,
+    lifeStage: 'young_adulthood',
     alive,
     houseId: 'h-0' as HouseId,
     childIds: [],

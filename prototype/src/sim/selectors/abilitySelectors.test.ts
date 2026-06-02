@@ -30,6 +30,7 @@ function makeAptitudeOnlyPerson(aptitudes: AbilityScores): import('../types/pers
     nameKey: 'Dummy',
     sex: 'male',
     age: 30,
+    lifeStage: 'young_adulthood',
     alive: true,
     houseId: 'dh-0' as import('../types/ids').HouseId,
     abilities: { ...DEFAULT_ABILITIES },
@@ -212,6 +213,7 @@ describe('getRoleScore', () => {
           nameKey: 'Test',
           sex: 'male',
           age: 30,
+          lifeStage: 'young_adulthood',
           alive: true,
           houseId: 'dh-0' as import('../types/ids').HouseId,
           abilities: {
@@ -246,6 +248,7 @@ describe('getRoleScore', () => {
           nameKey: 'Test',
           sex: 'male',
           age: 30,
+          lifeStage: 'young_adulthood',
           alive: true,
           houseId: 'dh-0' as import('../types/ids').HouseId,
           abilities: {
@@ -286,6 +289,7 @@ describe('getRoleScore', () => {
           nameKey: 'Test',
           sex: 'male',
           age: 30,
+          lifeStage: 'young_adulthood',
           alive: true,
           houseId: 'dh-0' as import('../types/ids').HouseId,
           abilities: {

@@ -36,6 +36,7 @@ function makePerson(
     nameKey,
     sex: 'male',
     age,
+    lifeStage: 'young_adulthood',
     alive: overrides?.alive ?? true,
     houseId,
     childIds: [],
