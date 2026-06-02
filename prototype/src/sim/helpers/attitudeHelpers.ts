@@ -93,6 +93,21 @@ export function adjustAttitude(
   }
 }
 
+// v0.40 §7.2: current を target へ rate だけ近づける（線形補間）。
+//   current が undefined なら default { 0, 0 } から。値は -100..100 に clamp する。
+//   LifeStageInfluenceSystem が幼年期/思春期の Attitude 形成に使う。
+export function lerpAttitude(
+  current: Attitude | undefined,
+  target: Attitude,
+  rate: number,
+): Attitude {
+  const cur = current ?? { affection: 0, respect: 0 }
+  return {
+    affection: clamp(cur.affection + (target.affection - cur.affection) * rate, -100, 100),
+    respect: clamp(cur.respect + (target.respect - cur.respect) * rate, -100, 100),
+  }
+}
+
 // --- legacyPrestige adjusters (return new WorldState, immutable) ---
 
 // Adjusts polity.legacyPrestige by delta, clamping to 0..100

@@ -1,9 +1,29 @@
 import type { TickContext } from './context'
+import type { WorldState } from '../types/world'
 import type { PersonId } from '../types/ids'
-import type { AbilityScores, AbilityKey } from '../types/person'
+import type { AbilityScores, AbilityKey, Person } from '../types/person'
 import { ABILITY_KEYS, ABILITY_AGE_CURVES, ABILITY_HARD_CAP } from '../constants/abilityConstants'
 import { naturalFraction, hadRelevantExperience } from '../selectors/abilitySelectors'
 import { randomFloat } from '../rng/rng'
+
+// v0.40 §6.3: living な父母の該当 ability の平均（両親いれば平均・片親のみなら片親）。
+//   死亡済み親は含めない。親がいなければ undefined。
+function averageLivingParentAbility(
+  state: WorldState,
+  person: Person,
+  key: AbilityKey,
+): number | undefined {
+  const values: number[] = []
+  for (const parentId of [person.fatherId, person.motherId]) {
+    if (!parentId) continue
+    const parent = state.persons[parentId]
+    if (parent && parent.alive && parent.kind !== 'placeholder') {
+      values.push(parent.abilities[key])
+    }
+  }
+  if (values.length === 0) return undefined
+  return values.reduce((a, b) => a + b, 0) / values.length
+}
 
 export function runPersonGrowthSystem(ctx: TickContext): TickContext {
   let rng = ctx.rng
@@ -33,6 +53,14 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
         const trainingExp = personExp ? ((personExp as Record<string, number>)[k] ?? 0) : 0
         if (trainingExp > 0) {
           gainChance += trainingExp * 0.05
+        }
+        // v0.40 §6.3: childhood/adolescence は living 親能力が自分より高い ability で成長 chance に加点。
+        //   aptitudes/effectiveCeil/naturalFraction は不変（age-curve には触れない）。
+        if (person.lifeStage === 'childhood' || person.lifeStage === 'adolescence') {
+          const parentalAbility = averageLivingParentAbility(ctx.state, person, k)
+          if (parentalAbility !== undefined && parentalAbility > ability) {
+            gainChance += ctx.config.parentalAbilityGrowthChanceBonus
+          }
         }
         const { value: roll, rng: nextRng } = randomFloat(rng)
         rng = nextRng

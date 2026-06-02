@@ -54,6 +54,7 @@ import { mergeCompatiblePopsMut } from '../mutations/popMutations'
 import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { runPersonGrowthSystem } from './personGrowthSystem'
 import { runLifeStageProgressionSystem } from './lifeStageProgressionSystem'
+import { runLifeStageInfluenceSystem } from './lifeStageInfluenceSystem'
 import { runEstateSettlementSystem } from './estateSettlementSystem'
 import { runHouseSurplusDistributionSystem } from './houseSurplusDistributionSystem'
 import { runHouseFoundingSystem } from './houseFoundingSystem'
@@ -145,8 +146,16 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runDisasterSystem,
   },
   {
+    // v0.40 §7.3: progression の直前。幼年期/思春期はその年の段階として影響を受けてから遷移する。
+    //   RNG 不使用の決定的処理。
+    name: 'lifeStageInfluenceSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runLifeStageInfluenceSystem,
+  },
+  {
     // v0.40 §5.3: advanceTime で age が上がった後、年次で LifeStage を一方向に進める。
-    //   Phase D で LifeStageInfluenceSystem をこの直前に挿入する（influence→progression）。
+    //   influence→progression の順（直前に LifeStageInfluenceSystem）。
     //   lifeStage を参照する appointment/faction/plot/project/personGoal より前に置く。
     name: 'lifeStageProgressionSystem',
     intervalWeeks: WEEKS_PER_YEAR,
