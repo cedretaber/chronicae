@@ -861,6 +861,6 @@ v0.17.3 観察 (House Corvin — 9 人の血統メンバー + Lionel 派閥所�
   - **引退 / 隠居システム**: old_age の強制退任・`PERSON_RETIRED_FROM_OFFICE`・摂政・後見人・終身官 / 名誉職。v0.40 では old_age は登用ペナルティのみで強制退任しない
   - **遷移確率への個性反映**: ambition / caution / 親の地位 / 早期登用経験 / 学校・従士・師弟 / 戦争経験 / 健康状態を LifeStage 遷移確率に反映（v0.40 は minAge〜maxAge 範囲の乱数のみ）
   - **notable 判定の拡張**: 大国の王子（社会的関係性で子供でも重要人物）等。現状は leader / office holder の安価判定のみ。war commander / captain general を notable に含める安価な索引の導入も含む
-  - **Attitude 継承の拡張**: polity target の継承（v0.40 は person/house のみ）・影響元種別の追加・influencer / target 上限の調整。観察で attitude 総数の per-person 平均は ~10 で bounded（300年 seed1）だが、将来 influence 率・cap はバランス調整対象
+  - **Attitude 継承の拡張**: polity target の継承（v0.40 は person/house のみ）・**故人 / 消滅家への感情の継承**（「噂でだけ知る今はいない人物」への感情。v0.40 は現存エンティティのみ継承）・影響元種別の追加・influencer / target 上限の調整。観察で attitude 総数の per-person 平均は ~10 で bounded（300年 seed1）だが、将来 influence 率・cap はバランス調整対象
   - **追加 life event**: `PERSON_BECAME_ADOLESCENT` / `PERSON_ENTERED_MATURE_ADULTHOOD` 等（v0.40 は成人・老年入りのみ）
   - **Chronicle cap / purge / minor event filtering**: 一般人物 life event の蓄積に対する上限・purge（v0.40 は未実装）

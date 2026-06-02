@@ -877,7 +877,7 @@ if (ability[k] < effectiveCeil) {
 
 - 対象: alive / normal / `lifeStage === 'childhood' || 'adolescence'`（placeholder 除外）。
 - 影響元収集順（deterministic）: 父 → 母 → 同 House leader → 同家成人（`young_adulthood` 以降、PersonId 昇順）→ 親 active faction の active member（PersonId 昇順）。重複排除のうえ合計上限 `maxLifeStageInfluencersPerChild`（5）。father/mother を最優先。
-- 継承 target: influencer の attitudes のうち **person / house を指すもののみ**（polity は継承しない）。`abs(affection)+abs(respect)` 降順・key 昇順で上位 `maxAttitudeTargetsInheritedPerInfluencer`（3）。child 自身を指す target は除外。
+- 継承 target: influencer の attitudes のうち **person / house を指すもののみ**（polity は継承しない）。さらに **現存するエンティティのみ**（`person:` は生存している人物 `alive`、`house:` は active な家）。故人・消滅した家への感情は継承しない（噂でだけ知る対象は現段階では非対象。将来拡張候補は §13）。`abs(affection)+abs(respect)` 降順・key 昇順で上位 `maxAttitudeTargetsInheritedPerInfluencer`（3）を、この**現存フィルタ適用後**に選ぶ。child 自身を指す target は除外。
 - 適用: `lerpAttitude(current, target, rate)` で child の attitude を influencer の attitude へ rate だけ近づける（clamp ±100）。rate は影響元種別 × LifeStage のテーブル（§9 config）。
 - 既存 `attitudeDecaySystem` とは独立に毎年作用する。
 

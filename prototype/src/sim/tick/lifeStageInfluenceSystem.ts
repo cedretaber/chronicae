@@ -1,5 +1,5 @@
 import type { TickContext } from './context'
-import type { PersonId } from '../types/ids'
+import type { PersonId, HouseId } from '../types/ids'
 import type { Person, LifeStage } from '../types/person'
 import { isLifeStageAtLeast } from '../types/person'
 import type { AttitudeMap, AttitudeKey } from '../types/attitude'
@@ -33,6 +33,23 @@ function influenceRate(config: SimulationConfig, kind: InfluencerKind, stage: Li
 // person/house を指す attitude key のみ対象にする（§7.5: polity target は継承しない）。
 function isInheritableTargetKey(key: AttitudeKey): boolean {
   return key.startsWith('person:') || key.startsWith('house:')
+}
+
+// §7.5: 継承対象は「現存するエンティティ」のみ（v0.40 拡張）。
+//   person: → 生存している人物 / house: → active な家。
+//   故人・消滅した家への感情は引き継がない（噂でだけ知る対象は現段階では非対象）。
+function isLiveTargetKey(state: TickContext['state'], key: AttitudeKey): boolean {
+  if (key.startsWith('person:')) {
+    const id = key.slice('person:'.length) as PersonId
+    const p = state.persons[id]
+    return Boolean(p && p.alive)
+  }
+  if (key.startsWith('house:')) {
+    const id = key.slice('house:'.length) as HouseId
+    const h = state.houses[id]
+    return Boolean(h && h.active)
+  }
+  return false
 }
 
 // 有効な influencer（実在・生存・非 placeholder・child 自身でない）か。
@@ -111,13 +128,16 @@ function collectInfluencers(
 
 // §7.5: influencer の attitudes から person/house target を抽出し、
 //   abs(affection)+abs(respect) 降順・key 昇順で上位 maxAttitudeTargetsInheritedPerInfluencer 件を返す。
-//   child 自身を指す target は除外する。
+//   child 自身を指す target、および現存しない対象（故人・消滅家）は top-N 選択前に除外する。
 function selectTopTargets(
+  state: TickContext['state'],
   attitudes: AttitudeMap,
   limit: number,
   childKey: AttitudeKey,
 ): AttitudeKey[] {
-  const keys = Object.keys(attitudes).filter((k) => isInheritableTargetKey(k) && k !== childKey)
+  const keys = Object.keys(attitudes).filter(
+    (k) => isInheritableTargetKey(k) && k !== childKey && isLiveTargetKey(state, k),
+  )
   keys.sort((a, b) => {
     const av = attitudes[a]
     const bv = attitudes[b]
@@ -157,6 +177,7 @@ export function runLifeStageInfluenceSystem(ctx: TickContext): TickContext {
       if (!source) continue
 
       const targetKeys = selectTopTargets(
+        ctx.state,
         source.attitudes,
         config.maxAttitudeTargetsInheritedPerInfluencer,
         childKey,
