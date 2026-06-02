@@ -48,7 +48,7 @@ import { createLogger } from '../debug/logger'
 import { samplePerson } from '../helpers/personFactory'
 import { getHouselessPersons } from '../selectors/availabilitySelectors'
 import { removeSharesByOrganization } from './shareMutations'
-import { adjustPopAttitude } from './attitudeMutations'
+import { adjustPopAttitude, adjustHouseMembersAttitude } from './attitudeMutations'
 
 // ============================================================================
 // Split House Orchestration
@@ -1097,6 +1097,17 @@ export function establishCommonwealth(
         )
         if (r.ok) state = r.value
       }
+    }
+    // 4b. Old owner house attitude penalty (§14.5)
+    const origPolity = state.polities[cw.origin.originalPolityId]
+    if (origPolity?.ownerHouseId !== undefined) {
+      const r = adjustHouseMembersAttitude(
+        state,
+        origPolity.ownerHouseId,
+        { kind: 'polity', id: input.commonwealthPolityId },
+        { affection: -20, respect: -10 },
+      )
+      if (r.ok) state = r.value
     }
   }
 
