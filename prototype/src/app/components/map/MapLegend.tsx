@@ -1,21 +1,13 @@
 import { useMemo } from 'react'
 import { useSimulationStore } from '@/app/stores/simulationStore'
-import { buildPolityColorMap, buildHouseColorMap, unrestToColor } from '@/app/utils/polityColors'
-import { getPolityTerminalProvinceIds } from '@/sim/selectors/landContractSelectors'
+import { unrestToColor } from '@/app/utils/polityColors'
+import { getPolityTerminalProvinceIds } from '@sim/selectors/landContractSelectors'
+import { useMapColorMaps } from '@/app/hooks/useMapColorMaps'
 
 export function MapLegend() {
   const session = useSimulationStore((s) => s.session)
   const mapView = useSimulationStore((s) => s.mapView)
-
-  const polityColorMap = useMemo(() => {
-    if (!session) return {}
-    return buildPolityColorMap(Object.keys(session.currentState.polities))
-  }, [session])
-
-  const houseColorMap = useMemo(() => {
-    if (!session) return {}
-    return buildHouseColorMap(Object.keys(session.currentState.houses))
-  }, [session])
+  const { polityColorMap, houseColorMap } = useMapColorMaps()
 
   const polityTop5 = useMemo(() => {
     if (!session) return []

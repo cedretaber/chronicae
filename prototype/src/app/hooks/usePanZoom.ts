@@ -128,5 +128,5 @@ export function usePanZoom() {
 
   const handlers = { onMouseDown, onMouseMove, onMouseUp, onWheel }
 
-  return { transform, setTransform, handlers, animateTo, zoomBy, resetZoom }
+  return { transform, handlers, animateTo, zoomBy, resetZoom }
 }

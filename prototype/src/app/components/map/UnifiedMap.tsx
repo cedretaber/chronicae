@@ -1,6 +1,5 @@
 import { useMemo, useState, useCallback, useRef } from 'react'
-import { useSimulationStore, type MapView } from '@/app/stores/simulationStore'
-import { buildPolityColorMap, buildHouseColorMap, unrestToColor } from '@/app/utils/polityColors'
+import { useSimulationStore } from '@/app/stores/simulationStore'
 import { computeVoronoi, polygonToSvgPath, type VoronoiCell } from '@/app/utils/voronoi'
 import { addOceanPoints, OCEAN_STATE_ID } from '@/app/utils/oceanPoints'
 import {
@@ -9,93 +8,22 @@ import {
   TIER_OPACITY,
   type HighlightTier,
 } from '@/app/utils/mapHighlights'
-import { usePanZoom, type Transform } from '@/app/hooks/usePanZoom'
+import { usePanZoom } from '@/app/hooks/usePanZoom'
 import { MAP_ICON_CONFIG, UNIFIED_ICON_SIZE, getZoomTier } from '@/app/constants/mapConstants'
 import { MapLegend } from './MapLegend'
+import { computeStateColor, computeProvinceColor, FALLBACK_COLOR } from './mapColors'
+import { computeBounds, computeFocusTransform } from './mapGeometry'
+import { useMapColorMaps } from '@/app/hooks/useMapColorMaps'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import type { ProvinceId, StateRegionId } from '@sim/types/ids'
-import type { WorldState } from '@sim/types/world'
-import {
-  getStateDominantPolityId,
-  getStateDominantRootPolityId,
-  getStateDominantOwnerHouseId,
-  getStatePopulation,
-  getStateAverageUnrest,
-} from '@sim/selectors/stateRegionSelectors'
-import {
-  getProvinceTerminalPolityId,
-  getProvinceRootPolityId,
-  getProvinceEffectiveOwnerHouseId,
-} from '@sim/selectors/landContractSelectors'
+import { getStatePopulation, getStateAverageUnrest } from '@sim/selectors/stateRegionSelectors'
+import { getProvinceTerminalPolityId } from '@sim/selectors/landContractSelectors'
 import { getProvincePops, getProvinceUnrest } from '@sim/selectors/popSelectors'
-import { getHousePolitySharePercent } from '@sim/selectors/shareSelectors'
 import stateMapBackground from '@/assets/map/state-map-background.png'
 import provinceUrbanIcon from '@/assets/map/province-urban.png'
 import provinceRuralIcon from '@/assets/map/province-rural.png'
 import provinceCastleIcon from '@/assets/map/badge-castle.png'
 import provinceManorIcon from '@/assets/map/badge-manor.png'
-
-function computeStateColor(
-  world: WorldState,
-  stateId: StateRegionId,
-  mapView: MapView,
-  polityColorMap: Record<string, string>,
-  houseColorMap: Record<string, string>,
-): { fill: string; opacity: number } {
-  if (mapView === 'terminal') {
-    const pid = getStateDominantPolityId(world, stateId)
-    return { fill: pid ? (polityColorMap[pid] ?? '#888') : '#888', opacity: 1 }
-  }
-  if (mapView === 'root') {
-    const pid = getStateDominantRootPolityId(world, stateId)
-    return { fill: pid ? (polityColorMap[pid] ?? '#888') : '#888', opacity: 1 }
-  }
-  if (mapView === 'house') {
-    const hid = getStateDominantOwnerHouseId(world, stateId)
-    return { fill: hid ? (houseColorMap[hid] ?? '#888') : '#888', opacity: 1 }
-  }
-  if (mapView === 'share') {
-    const pid = getStateDominantPolityId(world, stateId)
-    return { fill: pid ? (polityColorMap[pid] ?? '#888') : '#888', opacity: 0.7 }
-  }
-  const unrest = getStateAverageUnrest(world, stateId)
-  return { fill: unrestToColor(unrest / 100), opacity: 1 }
-}
-
-function computeProvinceColor(
-  world: WorldState,
-  provinceId: ProvinceId,
-  mapView: MapView,
-  polityColorMap: Record<string, string>,
-  houseColorMap: Record<string, string>,
-): { fill: string; opacity: number } {
-  const terminalPolityId = getProvinceTerminalPolityId(world, provinceId)
-  if (mapView === 'terminal') {
-    return {
-      fill: terminalPolityId ? (polityColorMap[terminalPolityId] ?? '#888') : '#888',
-      opacity: 1,
-    }
-  }
-  if (mapView === 'root') {
-    const rootId = getProvinceRootPolityId(world, provinceId)
-    return { fill: rootId ? (polityColorMap[rootId] ?? '#888') : '#888', opacity: 1 }
-  }
-  if (mapView === 'house') {
-    const hid = getProvinceEffectiveOwnerHouseId(world, provinceId)
-    return { fill: hid ? (houseColorMap[hid] ?? '#888') : '#888', opacity: 1 }
-  }
-  if (mapView === 'share') {
-    const fill = terminalPolityId ? (polityColorMap[terminalPolityId] ?? '#888') : '#888'
-    const ownerHouseId = getProvinceEffectiveOwnerHouseId(world, provinceId)
-    if (terminalPolityId && ownerHouseId) {
-      const pct = getHousePolitySharePercent(world, terminalPolityId, ownerHouseId)
-      return { fill, opacity: 0.4 + (Math.max(0, Math.min(100, pct)) / 100) * 0.6 }
-    }
-    return { fill, opacity: 0.4 }
-  }
-  const u = getProvinceUnrest(world, provinceId)
-  return { fill: unrestToColor(u / 100), opacity: 1 }
-}
 
 export function UnifiedMap() {
   const resolveName = useEntityName()
@@ -111,19 +39,9 @@ export function UnifiedMap() {
 
   const zoomTier = getZoomTier(transform.scale)
 
-  const polities = session?.currentState.polities
-  const houses = session?.currentState.houses
   const provinces = session?.currentState.provinces
 
-  const polityColorMap = useMemo(() => {
-    if (!polities) return {}
-    return buildPolityColorMap(Object.keys(polities))
-  }, [polities])
-
-  const houseColorMap = useMemo(() => {
-    if (!houses) return {}
-    return buildHouseColorMap(Object.keys(houses))
-  }, [houses])
+  const { polityColorMap, houseColorMap } = useMapColorMaps()
 
   const voronoi = useMemo(() => {
     if (!provinces) return null
@@ -283,45 +201,20 @@ export function UnifiedMap() {
       const state = world.states[stateId]
       const targetProvIds = state?.provinceIds ?? [provinceId]
 
-      let bxMin = Infinity
-      let byMin = Infinity
-      let bxMax = -Infinity
-      let byMax = -Infinity
-      for (const pid of targetProvIds) {
-        const p = world.provinces[pid]
-        if (!p) continue
-        if (p.x < bxMin) bxMin = p.x
-        if (p.y < byMin) byMin = p.y
-        if (p.x > bxMax) bxMax = p.x
-        if (p.y > byMax) byMax = p.y
-      }
-
-      if (!voronoi || !isFinite(bxMin)) return
-      const [vx0, vy0, vx1, vy1] = voronoi.bounds
-      const vw = vx1 - vx0
-      const vh = vy1 - vy0
-
-      // SVG viewBox → element-local coordinate mapping
-      // preserveAspectRatio="xMidYMid meet" (default) scales uniformly and centers
-      const svgScale = Math.min(rect.width / vw, rect.height / vh)
-      const offsetX = (rect.width - vw * svgScale) / 2
-      const offsetY = (rect.height - vh * svgScale) / 2
+      const targetPoints = targetProvIds
+        .map((pid) => world.provinces[pid])
+        .filter((p): p is NonNullable<typeof p> => p !== undefined)
+      const bounds = computeBounds(targetPoints)
+      if (!voronoi || !bounds) return
 
       const pad = zoomTier === 'far' ? 60 : 30
-      const bboxW = bxMax - bxMin + pad * 2
-      const bboxH = byMax - byMin + pad * 2
-      const targetScale =
-        Math.min(rect.width / (bboxW * svgScale), rect.height / (bboxH * svgScale)) * 0.85
-
-      // Center of target bbox in element-local coordinates
-      const elX = offsetX + ((bxMin + bxMax) / 2 - vx0) * svgScale
-      const elY = offsetY + ((byMin + byMax) / 2 - vy0) * svgScale
-
-      const target: Transform = {
-        x: rect.width / 2 - elX * targetScale,
-        y: rect.height / 2 - elY * targetScale,
-        scale: targetScale,
-      }
+      const target = computeFocusTransform({
+        target: bounds,
+        viewBounds: voronoi.bounds,
+        rectWidth: rect.width,
+        rectHeight: rect.height,
+        pad,
+      })
       animateTo(target, 400)
     },
     [session, zoomTier, voronoi, openDetailWindow, animateTo],
@@ -429,9 +322,9 @@ export function UnifiedMap() {
                     <path
                       key={cell.provinceId}
                       d={polygonToSvgPath(cell.polygon)}
-                      fill={color?.fill ?? '#888'}
+                      fill={color?.fill ?? FALLBACK_COLOR}
                       fillOpacity={0.08}
-                      stroke={color?.fill ?? '#888'}
+                      stroke={color?.fill ?? FALLBACK_COLOR}
                       strokeWidth={4}
                       strokeOpacity={0.5}
                       paintOrder="stroke"
@@ -470,9 +363,9 @@ export function UnifiedMap() {
                 <g key={`p-${cell.provinceId}`}>
                   <path
                     d={polygonToSvgPath(cell.polygon)}
-                    fill={color?.fill ?? '#888'}
+                    fill={color?.fill ?? FALLBACK_COLOR}
                     fillOpacity={0.08 * tierOp}
-                    stroke={color?.fill ?? '#888'}
+                    stroke={color?.fill ?? FALLBACK_COLOR}
                     strokeWidth={3}
                     strokeOpacity={0.45 * tierOp}
                     paintOrder="stroke"
