@@ -47,6 +47,7 @@ import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
 import { samplePerson } from '../helpers/personFactory'
 import { getHouselessPersons } from '../selectors/availabilitySelectors'
+import { removeFactionMembership } from './factionMutations'
 import { removeSharesByOrganization } from './shareMutations'
 import { adjustPopAttitude, adjustHouseMembersAttitude } from './attitudeMutations'
 
@@ -757,6 +758,13 @@ export function selectOrCreateCommonwealthLeader(ctx: TickContext): {
     })
     if (hasActiveOffice) continue
 
+    const activeHoldingOfficeIds = state.holdingOfficeIndex.byHolderPerson[pid] ?? []
+    const hasActiveHoldingOffice = activeHoldingOfficeIds.some((hoid) => {
+      const ho = state.holdingOfficeAssignments[hoid]
+      return ho && ho.active
+    })
+    if (hasActiveHoldingOffice) continue
+
     const score =
       p.abilities.charisma + p.abilities.command + p.abilities.insight + p.traits.ambition * 100
     if (score > bestScore || (score === bestScore && (pid as string) < (bestId as string))) {
@@ -858,6 +866,18 @@ export function createNegotiatingCommonwealth(
 
   const { personId: leaderPersonId, ctx: ctx2, created } = selectOrCreateCommonwealthLeader(ctx)
   ctx = ctx2
+
+  if (!created) {
+    let leaderState = ctx.state
+    const membershipIds = leaderState.factionIndex.byMember[leaderPersonId] ?? []
+    for (const msId of membershipIds) {
+      const ms = leaderState.factionMemberships[msId]
+      if (!ms || !ms.active) continue
+      const result = removeFactionMembership(leaderState, msId)
+      if (result.ok) leaderState = result.value
+    }
+    ctx = { ...ctx, state: leaderState }
+  }
 
   const { nameKey: newPolityNameKey, rng: rng0 } = generatePolityNameKey(
     ctx.state,
