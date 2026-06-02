@@ -1579,7 +1579,7 @@ active War ごとに「誰が指揮し・どの戦場で・戦うか回避する
 8. **戦闘 or 回避の解決**:
    - **両者回避** → warScore 不変、両 `avoidanceCount +1`、`BATTLE_AVOIDED`(minor, avoidingSide='both')。
    - **片側のみ回避成功** → 回避側 `avoidanceCount +1`、warScore は非回避側へ `warAvoidanceWarScorePenalty`(=1.0) 分だけ動く、`BATTLE_AVOIDED`(回避 side)。
-   - **両者交戦 / 回避失敗** → `simulateBattle`（v0.37 内部 tick）で result を出し warScore 更新、`BATTLE_OCCURRED`(normal)。回避失敗側は `avoidanceCount +1`。
+   - **両者交戦 / 回避失敗** → `simulateBattle`（v0.37 内部 tick）で result を出し warScore 更新、`BATTLE_OCCURRED`(normal)。**戦闘後に両側の `avoidanceCount` を 0 にリセット**（v0.39.1）。
 
 **battle 解決（v0.37: `simulateBattle` 内部 tick simulation）**:
 
