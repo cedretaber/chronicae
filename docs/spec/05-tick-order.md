@@ -55,6 +55,8 @@ const WEEKS_PER_SEASON = 12
 | 6 | PolitySurplusDistributionSystem | 4 | 旧毎月 |
 | 6b | HouseSurplusDistributionSystem | 4 | 旧毎月 |
 | 7 | DisasterSystem | 48 | 旧毎年 |
+| 7b | LifeStageInfluenceSystem | 48 | **v0.40 追加**。幼年期/思春期が親・家・親 faction の Attitude を年次継承（§6）。RNG 不使用 |
+| 7c | LifeStageProgressionSystem | 48 | **v0.40 追加**。LifeStage を年次で一方向に進める（§6）。Influence の直後（influence→progression）。lifeStage を参照する appointment/faction/plot/project/personGoal より前 |
 | 8 | MortalitySystem | 4 | 旧毎月 |
 | 8b | EstateSettlementSystem | 4 | Mortality 直後 |
 | 9 | SuccessionSystem | 4 | 旧毎月 |

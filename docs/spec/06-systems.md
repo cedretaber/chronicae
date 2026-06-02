@@ -865,6 +865,51 @@ if (ability[k] < effectiveCeil) {
 | PlotSystem の active リーダー | insight |
 | improve_ability Task の personTrainingExperience (v0.23) | 対象 ability |
 
+### 6.14f LifeStage システム群（v0.40、48週ごと = 毎年）
+
+人物に人生段階（`LifeStage`）を導入し、年次で一方向に進める。社会活動資格・登用優先度・幼少期の社会的影響（Attitude / 能力成長補助）を LifeStage で表現する。
+
+**重要原則（二重適用の禁止）**: 能力成長カーブ（`ABILITY_AGE_CURVES` + `naturalFraction`）は **LifeStage で補正しない**。v0.14 の age-curve が伸び/衰退を既に表現しており、LifeStage 乗算を重ねるとバランスが崩れる。LifeStage が能力に関与するのは「親能力ボーナス」のみ（下記）。
+
+#### LifeStageInfluenceSystem（DisasterSystem 直後・LifeStageProgressionSystem 直前）
+
+幼年期 / 思春期の人物が、親・家 leader・同家成人・親 faction member の Attitude を少しずつ継承する（「思想」形成の最初の実装）。**RNG 不使用の決定的処理**。
+
+- 対象: alive / normal / `lifeStage === 'childhood' || 'adolescence'`（placeholder 除外）。
+- 影響元収集順（deterministic）: 父 → 母 → 同 House leader → 同家成人（`young_adulthood` 以降、PersonId 昇順）→ 親 active faction の active member（PersonId 昇順）。重複排除のうえ合計上限 `maxLifeStageInfluencersPerChild`（5）。father/mother を最優先。
+- 継承 target: influencer の attitudes のうち **person / house を指すもののみ**（polity は継承しない）。`abs(affection)+abs(respect)` 降順・key 昇順で上位 `maxAttitudeTargetsInheritedPerInfluencer`（3）。child 自身を指す target は除外。
+- 適用: `lerpAttitude(current, target, rate)` で child の attitude を influencer の attitude へ rate だけ近づける（clamp ±100）。rate は影響元種別 × LifeStage のテーブル（§9 config）。
+- 既存 `attitudeDecaySystem` とは独立に毎年作用する。
+
+#### LifeStageProgressionSystem（LifeStageInfluenceSystem 直後）
+
+`advanceTime` で age が上がった後に走り、age が遷移範囲に達した人物を確率的に次段階へ進める。
+
+- 対象: alive / normal / `lifeStage !== 'old_age'`（placeholder 除外）。`livingPersonIds` を iterate。
+- 遷移先ごとに `config.lifeStageTransitionAges[next]` の `{minAge, standardAge, maxAge}` を参照。`age < minAge` は遷移しない / `minAge <= age < standardAge` は early 確率 / `standardAge <= age < maxAge` は standard 確率 / `age >= maxAge` は必ず遷移。
+- RNG は既存の関数型パターン（`randomFloat` で thread）。逆行は writer 側で構造的に防ぐ（IntegrityCheck は逆行検査をせず、緩い age-lifeStage envelope のみ。§6.24 / §13）。
+- **life event emit**: `adolescence→young_adulthood` で `PERSON_CAME_OF_AGE`、`mature_adulthood→old_age` で `PERSON_ENTERED_OLD_AGE`（他の遷移は emit しない）。
+  - **notable 判定（安価な index ベースに限定）**: house leader / polity leader / active office holder のいずれかなら notable。`calcPersonImportanceScore` は全人物の年次遷移ごとに呼ぶには高コストのため**使わない**。war 時の field commander / captain general は O(1) index がなく（war side の soft reference のみ）、コスト優先で notable 判定からは**省略**する。
+  - importance: notable=`normal` / 一般=`minor`。entityRefs を出し分け（一般=`[person]` → byPerson のみ / 主要=`[person, house, polity]` → byPerson+byHouse+byPolity）。Chronicle allowlist は `{ category: 'life' }`（`retainRefKinds` 無指定。§6.31）。
+  - 全人物の成人・老年入りが個人 Chronicle（byPerson）に残り、主要人物のみ House/Polity Chronicle とメイン EventLog に載る（§11）。
+
+#### 親能力ボーナス（PersonGrowthSystem §6.14d 内）
+
+childhood / adolescence の人物について、`personGrowthSystem` の**成長ブロック内**（`ability < effectiveCeil && effectiveCeil > 0`）でのみ、living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。死亡済み親は含めない。`aptitudes` / `effectiveCeil` / `naturalFraction` は不変（age-curve には触れない）。新生児は `effectiveCeil = 0` で成長ブロックに入らずボーナスも効かない。
+
+#### 社会活動資格の `young_adulthood` 化
+
+`age >= config.adultAge`（15）で見ていた**社会活動・政治活動の資格**を `isLifeStageAtLeast(lifeStage, 'young_adulthood')`（標準 19 歳相当）へ置換する。置換対象: Appointment 候補 / Faction 成立・参加・recruitment / PersonGoal・PersonAim 生成 / Plot 参加 / Project actor・Bailiff candidate / House founding（founder 本人）/ House split（splitter＝cadet house の founder）。
+
+**据え置き（age config のまま）**: Succession（`adultAge`=15。minor-heir ペナルティ経路と結合するため）/ Marriage / Birth / BailiffMinAge / WeeklyActionCapacity / Worldgen 初期 leader。House split は succession 用 `getAdultSuccessionCandidates`（age 15）を変えず、splitter にのみ `young_adulthood` フィルタを追加する。
+
+#### old_age 登用ペナルティ
+
+old_age の人物は新規登用・指揮官選定で優先度が下がる（引退・除外ではない）。
+
+- **Appointment / delegate（固定減算）**: `computePolityScoreV017` / `computeHouseScoreV017` の候補スコアに `- oldAgeAppointmentScorePenalty`（5）。これらのスコアは `compatibilityPenalty` 等で負値になりうるため、乗算でなく**固定減算**で単調に不利化する。delegate は office 優先順（advisor→administrator→leader）で選ばれスコアを持たないため、old_age 反映は上流の appointment スコアで実現する（delegate 専用の減算 path は無い）。
+- **commander / captain general（乗算）**: `warManeuverSelectors` の選定スコア（`warCommand` role score ベース＝常に非負）に `* oldAgeCommandScoreMultiplier`（0.8）。候補からの**除外はしない**（指揮官不在を避ける）。選定（候補ソート順）にのみ適用し、battle 内部の `fieldCommandScore`（戦闘効果）には適用しない。
+
 ### 6.15 AmbitionSystem（4週ごと）
 
 人物・家ごとに野心スコアを計算し、将来の陰謀・反乱の素地を作る。

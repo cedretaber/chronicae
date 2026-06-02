@@ -13,6 +13,8 @@
 | SHARE_SHIFTED | minor | Share 分布の有意な変化（v0.12） |
 | PERSON_DIED | normal | 人物死亡 |
 | IMPORTANT_PERSON_DIED | major | 重要人物死亡（v0.38: `mortalitySystem` が notable death＝house / polity leader 相当を `PERSON_DIED` から type 昇格して emit。単一イベント・重複なし。Chronicle の life カテゴリを成立させる。§6.31） |
+| PERSON_CAME_OF_AGE | minor / normal | **v0.40**: adolescence→young_adulthood 遷移時に `lifeStageProgressionSystem` が emit（messageKey `person.came_of_age`）。一般人物=minor / 主要人物=normal。importance で entityRefs を出し分け（一般=`[person]` / 主要=`[person, house, polity]`）。主要人物のみメイン EventLog に表示（§11）。全人物が個人 Chronicle に残る（§6） |
+| PERSON_ENTERED_OLD_AGE | minor / normal | **v0.40**: mature_adulthood→old_age 遷移時に emit（messageKey `person.entered_old_age`）。importance / entityRefs 方針は PERSON_CAME_OF_AGE と同じ |
 | HOUSE_EXTINCT | major | 家の断絶（後継者不在）（v0.15: 旧 RULER_HOUSE_EXTINCT も統合） |
 | MARRIAGE_FORMED | normal | 婚姻成立 |
 | CHILD_BORN | minor | 子誕生 |

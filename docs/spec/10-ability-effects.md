@@ -143,5 +143,11 @@ effectiveScore < threshold                  → failure
 | acquire_land | command |
 | sell_land / improve_contract_terms / demand_tax_increase | numeracy |
 
+### 10.9 LifeStage と能力（v0.40）
+
+LifeStage は能力成長カーブには**直接関与しない**。v0.14 の `ABILITY_AGE_CURVES` + `naturalFraction(k, age, config)`（lifelongGrowth / youthPeak / midLifePeak）が年齢による伸び・衰退を既に表現しており、LifeStage 別の成長率 modifier を重ねると二重適用になる（禁止）。
+
+v0.40 が能力に加える唯一の効果は **親能力ボーナス**（§6.14d / §6.14f）: childhood / adolescence の人物について、成長判定ブロック内でのみ living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。`aptitudes` / `effectiveCeil` / `naturalFraction` は不変。これは「この時期は親・周囲から教育・模倣の影響を受けやすい」という社会的効果であり、能力カーブそのものの補正ではない。
+
 ---
 

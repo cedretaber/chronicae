@@ -19,3 +19,10 @@ birth_status:
 sex:
   male: 'Male'
   female: 'Female'
+
+life_stage:
+  childhood: 'Childhood'
+  adolescence: 'Adolescence'
+  young_adulthood: 'Young adulthood'
+  mature_adulthood: 'Mature adulthood'
+  old_age: 'Old age'

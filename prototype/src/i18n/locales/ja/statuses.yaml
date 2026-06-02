@@ -19,3 +19,10 @@ birth_status:
 sex:
   male: '男性'
   female: '女性'
+
+life_stage:
+  childhood: '幼年期'
+  adolescence: '思春期'
+  young_adulthood: '青年期'
+  mature_adulthood: '熟年期'
+  old_age: '老年期'

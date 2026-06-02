@@ -568,6 +568,19 @@
 | clanFormationMinTotalLivingMembers | 30 | 量的条件: formation group の最小生存メンバー数 |
 | clanFormationMinTotalWealth | 500 | 量的条件: formation group の最小 wealth 合計 |
 | clanFormationMinTotalLegacyPrestige | 150 | 量的条件: formation group の最小 legacyPrestige 合計 |
+| **v0.40 LifeStage** | | |
+| lifeStageTransitionAges | （下記） | 遷移先ごとの `{ minAge, standardAge, maxAge }`。adolescence `{8,11,12}` / young_adulthood `{16,19,20}` / mature_adulthood `{32,36,40}` / old_age `{55,60,65}` |
+| lifeStageTransitionChanceEarly | 0.20 | `minAge <= age < standardAge` 区間の遷移確率 |
+| lifeStageTransitionChanceStandard | 0.50 | `standardAge <= age < maxAge` 区間の遷移確率（`age >= maxAge` は必ず遷移） |
+| lifeStageParentInfluenceRateByStage | childhood:0.08, adolescence:0.04 | 親からの Attitude 継承率（LifeStage 別） |
+| lifeStageHouseLeaderInfluenceRateByStage | childhood:0.03, adolescence:0.04 | 家 leader からの継承率 |
+| lifeStageHouseAdultInfluenceRateByStage | childhood:0.01, adolescence:0.02 | 同家成人からの継承率 |
+| lifeStageParentFactionInfluenceRateByStage | childhood:0.01, adolescence:0.03 | 親 faction member からの継承率 |
+| maxLifeStageInfluencersPerChild | 5 | 子 1 人あたりの influencer 合計上限（種別個別上限は持たない。father/mother 優先） |
+| maxAttitudeTargetsInheritedPerInfluencer | 3 | influencer ごとに継承する target 上限（person/house のみ。polity は継承しない） |
+| parentalAbilityGrowthChanceBonus | 2.0 | childhood/adolescence で living 親能力が子より高い時、成長 `gainChance` への加算（percentage point） |
+| oldAgeAppointmentScorePenalty | 5 | old_age の appointment / delegate 候補スコアへの固定減算（負スコア対策で乗算でなく減算） |
+| oldAgeCommandScoreMultiplier | 0.8 | old_age の commander / captain general 選定スコアへの乗算（候補除外はしない。0 不可） |
 | **v0.30 廃止** | | |
 | ~~taxRevisionTaxChangeAmount~~ | — | **v0.30 で廃止**。`taxRevisionInitialDemandDelta` に統合 |
 

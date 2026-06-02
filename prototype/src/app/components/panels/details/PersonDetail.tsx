@@ -115,6 +115,10 @@ export function PersonDetail({
           <span>{person.age}</span>
         </div>
         <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.person.life_stage')}:</span>
+          <span>{t(`life_stage.${person.lifeStage}`, { ns: 'statuses' })}</span>
+        </div>
+        <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.person.alive')}:</span>
           <span>
             {person.alive

@@ -312,6 +312,7 @@ type Person = {
   name: string
   sex: Sex
   age: number
+  lifeStage: LifeStage           // v0.40: 人生段階（required）。年次で一方向に進む
   alive: boolean
   houseId?: HouseId              // v0.31: optional 化。undefined = 無家人物
   kind?: 'normal' | 'placeholder'  // 'placeholder' = ProvinceOffice 用の仮想人物 (v0.16)
@@ -332,6 +333,7 @@ type Person = {
 }
 ```
 
+- **v0.40**: `lifeStage` 追加（required）。`'childhood' | 'adolescence' | 'young_adulthood' | 'mature_adulthood' | 'old_age'` の union。生成時は `deriveLifeStageFromAge(age, config)` で `config.lifeStageTransitionAges[*].standardAge` から初期値を導出（純関数）。出生児は `'childhood'`、placeholder は `'mature_adulthood'` 固定。ゲーム中の遷移は LifeStageProgressionSystem が年次・一方向で行う（逆行しない）。`LIFE_STAGE_ORDER` と `isLifeStageAtLeast(stage, threshold)` で順序比較する（成人相当判定 = `young_adulthood` 以降）。詳細は §6 / §10 参照
 - `spouseId`: 生存中の配偶者のみを指す。配偶者が死亡した場合は `undefined` に戻る
 - 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §6.24 参照）
 - `prestige` / `traits.loyaltyToPolity` は v0.11 で削除。Attitude から動的計算（§4.5 参照）
