@@ -407,7 +407,7 @@ export function buildAndCreateCompromiseOffer(
   if (play.kind === 'land_claim') {
     adjustedDemands = buildLandClaimCompromiseDemands(ws, config, play, side, baseDemands)
   } else if (play.kind === 'contract_tax_revision') {
-    adjustedDemands = buildTaxRevisionCompromiseDemands(ws, config, play, side, baseDemands)
+    adjustedDemands = buildTaxRevisionCompromiseDemands(ws, config, play, baseDemands)
   }
 
   if (!adjustedDemands || adjustedDemands.length === 0) return
@@ -509,7 +509,6 @@ function buildTaxRevisionCompromiseDemands(
   ws: WorldState,
   config: SimulationConfig,
   play: DiplomaticPlay,
-  side: 'initiator' | 'target',
   baseDemands: DiplomaticDemand[] | undefined,
 ): DiplomaticDemand[] | undefined {
   if (!play.issue || play.issue.kind !== 'contract_tax_revision') return undefined
@@ -523,7 +522,6 @@ function buildTaxRevisionCompromiseDemands(
       ws,
       config,
       play,
-      side,
       baseDemands,
       holdingId,
       landContractId,
@@ -554,7 +552,6 @@ function adjustTaxRevisionDemands(
   _ws: WorldState,
   config: SimulationConfig,
   _play: DiplomaticPlay,
-  _side: 'initiator' | 'target',
   baseDemands: DiplomaticDemand[],
   holdingId: HoldingId,
   landContractId: LandContractId,
