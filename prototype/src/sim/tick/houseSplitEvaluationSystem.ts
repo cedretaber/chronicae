@@ -4,12 +4,11 @@ import type { HouseId, PersonId } from '../types/ids'
 import { createLogger } from '../debug/logger'
 import { getHouseCohesion } from '../selectors/statusSelectors'
 import { splitHouse } from '../mutations/worldStructureMutations'
-import { chooseSplitter } from './houseSplitSystem'
+import { chooseSplitter, computeHouseSplitChance } from './houseSplitSystem'
 import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
 import { getAdultSuccessionCandidates, getTopHeirIds } from '../selectors/successionSelectors'
 import { isLifeStageAtLeast } from '../types/person'
 import { getHouseLeader } from '../selectors/officeSelectors'
-import { getRoleScore } from '../selectors/abilitySelectors'
 
 export function runHouseSplitEvaluationSystem(ctx: TickContext): TickContext {
   if (!ctx.config.houseSplitEnabled) return ctx
@@ -83,21 +82,12 @@ export function runHouseSplitEvaluationSystem(ctx: TickContext): TickContext {
     if (!splitter) continue
 
     // Probability roll
-    const {
-      baseHouseSplitChance,
-      houseSplitAmbitionFactor,
-      houseSplitPrestigeFactor,
-      houseSplitMartialFactor,
-      houseSplitCohesionFactor,
-    } = currentCtx.config
-
-    const splitChance =
-      baseHouseSplitChance +
-      splitter.person.traits.ambition * houseSplitAmbitionFactor +
-      splitter.person.legacyPrestige * houseSplitPrestigeFactor +
-      (getRoleScore(currentCtx.state, splitter.person.id, 'warCommand') / 10) *
-        houseSplitMartialFactor -
-      currentCohesion * houseSplitCohesionFactor
+    const splitChance = computeHouseSplitChance(
+      currentCtx.state,
+      currentCtx.config,
+      splitter.person,
+      currentCohesion,
+    )
 
     const { value: roll, rng: rngAfter } = randomFloat(currentCtx.rng)
     currentCtx = { ...currentCtx, rng: rngAfter }

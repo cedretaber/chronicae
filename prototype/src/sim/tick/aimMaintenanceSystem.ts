@@ -2,10 +2,11 @@ import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import type { AimId, DecisionReasonId } from '../types/ids'
 import { createAimId, createDecisionReasonId } from '../types/ids'
-import type { Aim, DecisionReason, DecisionSubjectRef, Goal, EntityRef } from '../types/goal'
+import type { Aim, DecisionReason, Goal, EntityRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import { getActiveAimsForGoal, pickAimForGoal } from '../selectors/goalSelectors'
 import { nameParam, entityRef } from '../types/event'
+import { getOwnerNameKey } from '../utils/ownerNames'
 
 export function runAimMaintenanceSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -39,7 +40,7 @@ export function runAimMaintenanceSystem(ctx: TickContext): TickContext {
             aims: { ...currentCtx.state.aims, [aim.id]: updatedAim },
           },
         }
-        const ownerNameKey = getOwnerNameKey(currentCtx, aim.owner)
+        const ownerNameKey = getOwnerNameKey(currentCtx.state, aim.owner)
         const { event, ctx: evCtx } = createSimEvent(currentCtx, {
           type: 'AIM_ABANDONED',
           importance: 'minor',
@@ -135,7 +136,7 @@ function createAimForGoal(ctx: TickContext, goal: Goal, absoluteWeek: number): T
     },
   }
 
-  const ownerNameKey = getOwnerNameKey(currentCtx, goal.owner)
+  const ownerNameKey = getOwnerNameKey(currentCtx.state, goal.owner)
   const targetName = target ? getTargetName(currentCtx, target) : 'none'
   const { event, ctx: evCtx } = createSimEvent(currentCtx, {
     type: 'AIM_CREATED',
@@ -164,7 +165,7 @@ function failAim(ctx: TickContext, aim: Aim, _reason: string): TickContext {
     },
   }
 
-  const ownerNameKey = getOwnerNameKey(currentCtx, aim.owner)
+  const ownerNameKey = getOwnerNameKey(currentCtx.state, aim.owner)
   const { event, ctx: evCtx } = createSimEvent(currentCtx, {
     type: 'AIM_FAILED',
     importance: 'minor',
@@ -201,16 +202,6 @@ function isTargetValid(ctx: TickContext, aim: Aim): boolean {
     default:
       return true
   }
-}
-
-function getOwnerNameKey(ctx: TickContext, owner: DecisionSubjectRef): string {
-  if (owner.kind === 'polity') {
-    return ctx.state.polities[owner.id]?.nameKey ?? owner.id
-  }
-  if (owner.kind === 'house') {
-    return ctx.state.houses[owner.id]?.nameKey ?? owner.id
-  }
-  return ctx.state.persons[owner.id]?.nameKey ?? owner.id
 }
 
 function getTargetName(ctx: TickContext, target: EntityRef): string {

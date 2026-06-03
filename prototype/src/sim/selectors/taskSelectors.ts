@@ -1,18 +1,14 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { Task, TaskKind, TaskOutcomeKind } from '../types/task'
-import type { Aim, PersonAimKind } from '../types/goal'
-import type { DecisionSubjectRef, EntityRef } from '../types/goal'
-import { decisionSubjectKey } from '../types/goal'
-import { targetRefKey } from '../types/task'
-import type { TaskTargetRef } from '../types/task'
+import type { PersonAimKind, EntityRef } from '../types/goal'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { PoliticalActorRef } from '../types/actor'
 import type { PersonId } from '../types/ids'
 import type { AbilityKey } from '../types/person'
+import { isLivingPerson } from '../types/person'
 import type { ProjectKind } from '../types/project'
 import type { PressureResponseStance } from '../types/pressure'
-import { createTaskId } from '../types/ids'
 import { getPrimaryOfficeHolder, getPolityLeader, getHouseLeader } from './officeSelectors'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
@@ -213,107 +209,6 @@ export function computeWeeklyEffort(
   return 1.0 + (abilityValue / 100) * 1.0
 }
 
-// --- createTask helper ---
-
-export function createTask(
-  state: WorldState,
-  config: SimulationConfig,
-  input: {
-    owner: DecisionSubjectRef
-    assigneePersonId: PersonId
-    kind: TaskKind
-    targetRef: TaskTargetRef
-    absoluteWeek: number
-    deadlineWeek?: number
-    difficulty?: number
-    relevantAbility?: AbilityKey
-  },
-): { task: Task; state: WorldState } {
-  const taskId = createTaskId(state.nextTaskId)
-  const task: Task = {
-    id: taskId,
-    owner: input.owner,
-    assigneePersonId: input.assigneePersonId,
-    kind: input.kind,
-    targetRef: input.targetRef,
-    priority: 1,
-    actionCost: getTaskActionCost(config, input.kind),
-    effortRequired: getTaskEffortRequired(config, input.kind),
-    effortDone: 0,
-    createdWeek: input.absoluteWeek,
-    ...(input.deadlineWeek !== undefined ? { deadlineWeek: input.deadlineWeek } : {}),
-    status: 'active',
-    reasonIds: [],
-    difficulty: input.difficulty ?? getTaskDefaultDifficulty(input.kind),
-    relevantAbility: input.relevantAbility ?? getTaskDefaultRelevantAbility(input.kind),
-  }
-
-  const ownerKey = decisionSubjectKey(input.owner)
-  const targetKey = targetRefKey(input.targetRef)
-  const assigneeKey = input.assigneePersonId as string
-
-  const newState: WorldState = {
-    ...state,
-    tasks: { ...state.tasks, [taskId]: task },
-    taskIndex: {
-      byAssignee: {
-        ...state.taskIndex.byAssignee,
-        [assigneeKey]: [...(state.taskIndex.byAssignee[assigneeKey] ?? []), taskId],
-      },
-      byOwner: {
-        ...state.taskIndex.byOwner,
-        [ownerKey]: [...(state.taskIndex.byOwner[ownerKey] ?? []), taskId],
-      },
-      byTarget: {
-        ...state.taskIndex.byTarget,
-        [targetKey]: [...(state.taskIndex.byTarget[targetKey] ?? []), taskId],
-      },
-    },
-    nextTaskId: state.nextTaskId + 1,
-  }
-
-  return { task, state: newState }
-}
-
-// --- removeTask ---
-
-export function removeTask(state: WorldState, taskId: import('../types/ids').TaskId): WorldState {
-  const task = state.tasks[taskId]
-  if (!task) return state
-
-  const ownerKey = decisionSubjectKey(task.owner)
-  const targetKey = targetRefKey(task.targetRef)
-  const assigneeKey = task.assigneePersonId as string
-
-  const newTasks = { ...state.tasks }
-  delete newTasks[taskId]
-
-  return {
-    ...state,
-    tasks: newTasks,
-    taskIndex: {
-      byAssignee: {
-        ...state.taskIndex.byAssignee,
-        [assigneeKey]: (state.taskIndex.byAssignee[assigneeKey] ?? []).filter(
-          (id) => (id as string) !== (taskId as string),
-        ),
-      },
-      byOwner: {
-        ...state.taskIndex.byOwner,
-        [ownerKey]: (state.taskIndex.byOwner[ownerKey] ?? []).filter(
-          (id) => (id as string) !== (taskId as string),
-        ),
-      },
-      byTarget: {
-        ...state.taskIndex.byTarget,
-        [targetKey]: (state.taskIndex.byTarget[targetKey] ?? []).filter(
-          (id) => (id as string) !== (taskId as string),
-        ),
-      },
-    },
-  }
-}
-
 // --- getInitialTaskKind ---
 
 export function getInitialTaskKind(kind: PersonAimKind): TaskKind | undefined {
@@ -363,35 +258,6 @@ export function getInitialTaskKindForAbilityTarget(
   return getInitialTaskKindForImproveAbility(target.ability)
 }
 
-// --- createInitialTaskForAim ---
-
-export function createInitialTaskForAim(
-  state: WorldState,
-  config: SimulationConfig,
-  aim: Aim,
-  absoluteWeek: number,
-): { task: Task; state: WorldState } | undefined {
-  const personId = aim.owner.kind === 'person' ? aim.owner.id : undefined
-  if (!personId) return undefined
-
-  let taskKind = getInitialTaskKind(aim.kind as PersonAimKind)
-
-  // For improve_ability, resolve from aim.target
-  if (aim.kind === 'improve_ability' && !taskKind) {
-    taskKind = getInitialTaskKindForAbilityTarget(aim.target)
-  }
-
-  if (!taskKind) return undefined
-
-  return createTask(state, config, {
-    owner: aim.owner,
-    assigneePersonId: personId,
-    kind: taskKind,
-    targetRef: { kind: 'aim', id: aim.id },
-    absoluteWeek,
-  })
-}
-
 // --- getNextTaskKind ---
 
 export function getNextTaskKind(
@@ -428,30 +294,6 @@ export function getNextTaskKind(
   }
 }
 
-// --- createNextTaskForAim ---
-
-export function createNextTaskForAim(
-  state: WorldState,
-  config: SimulationConfig,
-  aim: Aim,
-  previousTaskKind: TaskKind | undefined,
-  absoluteWeek: number,
-): { task: Task; state: WorldState } | undefined {
-  const personId = aim.owner.kind === 'person' ? aim.owner.id : undefined
-  if (!personId) return undefined
-
-  const taskKind = getNextTaskKind(aim.kind as PersonAimKind, previousTaskKind)
-  if (!taskKind) return undefined
-
-  return createTask(state, config, {
-    owner: aim.owner,
-    assigneePersonId: personId,
-    kind: taskKind,
-    targetRef: { kind: 'aim', id: aim.id },
-    absoluteWeek,
-  })
-}
-
 // --- checkEntityExists for EntityRef ---
 
 export function checkEntityExists(state: WorldState, ref: EntityRef): boolean {
@@ -485,8 +327,7 @@ export function checkEntityExists(state: WorldState, ref: EntityRef): boolean {
 // --- DiplomaticPlay Task helpers (v0.23 Phase D) ---
 
 function isValidDelegate(state: WorldState, personId: PersonId): boolean {
-  const person = state.persons[personId]
-  return person !== undefined && person.alive && person.kind !== 'placeholder'
+  return isLivingPerson(state.persons[personId])
 }
 
 export function getDiplomaticPlayDelegate(
@@ -600,32 +441,6 @@ export function selectDiplomaticTaskKind(
   }
 
   return 'negotiate_terms'
-}
-
-export function createTaskForDiplomaticPlay(
-  state: WorldState,
-  config: SimulationConfig,
-  play: DiplomaticPlay,
-  side: 'initiator' | 'target',
-  taskKind: TaskKind,
-  absoluteWeek: number,
-): { task: Task; state: WorldState } | undefined {
-  const delegateId =
-    side === 'initiator' ? play.initiatorDelegatePersonId : play.targetDelegatePersonId
-  if (!delegateId) return undefined
-
-  const actor = side === 'initiator' ? play.initiator : play.target
-  const owner: DecisionSubjectRef =
-    actor.kind === 'polity' ? { kind: 'polity', id: actor.id } : { kind: 'house', id: actor.id }
-
-  return createTask(state, config, {
-    owner,
-    assigneePersonId: delegateId,
-    kind: taskKind,
-    targetRef: { kind: 'diplomatic_play', id: play.id },
-    absoluteWeek,
-    deadlineWeek: play.deadlineWeek,
-  })
 }
 
 // --- computeEffectivePriority ---

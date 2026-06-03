@@ -8,7 +8,6 @@ import { decisionSubjectKey } from '../types/goal'
 import type { AimId, DecisionReasonId, PersonId, EventId, TaskId } from '../types/ids'
 import { createAimId, createDecisionReasonId, createTaskId } from '../types/ids'
 import type { Task, TaskKind } from '../types/task'
-import { targetRefKey } from '../types/task'
 import type { WorldState } from '../types/world'
 import type { RngState } from '../rng/rng'
 import { getActivePersonGoal } from '../selectors/personGoalSelectors'
@@ -21,6 +20,7 @@ import {
   getTaskDefaultDifficulty,
   getTaskDefaultRelevantAbility,
 } from '../selectors/taskSelectors'
+import { addTaskToIndicesMut } from '../mutations/taskMutations'
 import type { SimulationConfig } from '../config/defaultConfig'
 
 export function runPersonAimMaintenanceSystem(ctx: TickContext): TickContext {
@@ -162,14 +162,7 @@ function createInitialTaskForAimMut(
     relevantAbility: getTaskDefaultRelevantAbility(taskKind),
   }
 
-  const ownerKey = decisionSubjectKey(aim.owner)
-  const tKey = targetRefKey({ kind: 'aim', id: aim.id })
-  const assigneeKey = personId as string
-
-  ws.tasks[taskId] = task
-  ws.taskIndex.byAssignee[assigneeKey] = [...(ws.taskIndex.byAssignee[assigneeKey] ?? []), taskId]
-  ws.taskIndex.byOwner[ownerKey] = [...(ws.taskIndex.byOwner[ownerKey] ?? []), taskId]
-  ws.taskIndex.byTarget[tKey] = [...(ws.taskIndex.byTarget[tKey] ?? []), taskId]
+  addTaskToIndicesMut(ws, task)
   ws.nextTaskId++
 
   return task

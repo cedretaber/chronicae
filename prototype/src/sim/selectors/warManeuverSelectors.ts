@@ -7,6 +7,7 @@ import type { RngState, RngResult } from '@sim/rng/rng'
 import { randomFloat } from '@sim/rng/rng'
 import { getActiveOfficeHolders, getPolityLeader } from '@sim/selectors/officeSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
+import { isLivingPerson } from '@sim/types/person'
 import type { BattleSimCommanderInput } from '@sim/helpers/simulateBattle'
 
 // v0.35 Phase A: 「誰が指揮するか / どの province で戦うか」の構造 selector。
@@ -20,8 +21,7 @@ import type { BattleSimCommanderInput } from '@sim/helpers/simulateBattle'
 //   getActiveOfficeHolders は office.active のみで filter し死亡者を除外しないため、ここで明示する。
 //   WarManeuverSystem の captainGeneral lazy refresh が「現 CG が据置可能か」判定に再利用する。
 export function isEligibleWarPerson(state: WorldState, personId: PersonId): boolean {
-  const p = state.persons[personId]
-  return Boolean(p && p.alive && p.kind !== 'placeholder')
+  return isLivingPerson(state.persons[personId])
 }
 
 // v0.40 §9.3: commander / captain general 選定スコア。warCommand role score を base にし、

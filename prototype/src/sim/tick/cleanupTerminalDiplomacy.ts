@@ -19,7 +19,9 @@ import type { LandContract } from '../types/landContract'
 import type { Project } from '../types/project'
 import type { Pressure, PressureIndex } from '../types/pressure'
 import type { WorldState } from '../types/world'
-import { removeTask, getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
+import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
+import { removeTask } from '../mutations/taskMutations'
+import { isLivingPerson } from '../types/person'
 import { removePressureFromIndexMut } from '../mutations/pressureMutations'
 import { createLogger } from '../debug/logger'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
@@ -328,8 +330,7 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
 }
 
 function isPersonAlive(state: WorldState, personId: PersonId): boolean {
-  const person = state.persons[personId]
-  return person !== undefined && person.alive && person.kind !== 'placeholder'
+  return isLivingPerson(state.persons[personId])
 }
 
 function getDecisionSubjectNameKey(state: WorldState, ref: DecisionSubjectRef): string {
@@ -352,8 +353,7 @@ function isDecisionSubjectActive(state: WorldState, owner: DecisionSubjectRef): 
     return house !== undefined && house.active && house.kind !== 'system'
   }
   if (owner.kind === 'person') {
-    const person = state.persons[owner.id]
-    return person !== undefined && person.alive && person.kind !== 'placeholder'
+    return isLivingPerson(state.persons[owner.id])
   }
   return false
 }

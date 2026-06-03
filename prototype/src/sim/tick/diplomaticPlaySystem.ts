@@ -1,6 +1,7 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import { clamp } from '../utils/math'
+import { isLivingPerson } from '../types/person'
 import type { DiplomaticPlayId, PolityId, ProvinceId, HoldingId } from '../types/ids'
 import type {
   DiplomaticPlay,
@@ -1232,8 +1233,7 @@ function ensureDelegates(ctx: TickContext, play: DiplomaticPlay): TickContext {
 
     let hasValidDelegate = false
     if (currentDelegate) {
-      const person = currentCtx.state.persons[currentDelegate]
-      hasValidDelegate = !!person && person.alive && person.kind !== 'placeholder'
+      hasValidDelegate = isLivingPerson(currentCtx.state.persons[currentDelegate])
     }
 
     if (!hasValidDelegate) {

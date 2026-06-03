@@ -11,6 +11,7 @@ import type {
   RespondToPressureProject,
 } from '../types/project'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
+import { getOwnerNameKey } from '../utils/ownerNames'
 import {
   removeProjectFromIndexMut,
   addProjectToIndexMut,
@@ -254,10 +255,4 @@ function emitProjectEvent(
     },
     entityRefs: [entityRef(owner.kind, owner.id, 'owner', ownerNameKey)],
   })
-}
-
-function getOwnerNameKey(ws: WorldState, owner: DecisionSubjectRef): string {
-  if (owner.kind === 'polity') return ws.polities[owner.id]?.nameKey ?? owner.id
-  if (owner.kind === 'house') return ws.houses[owner.id]?.nameKey ?? owner.id
-  return ws.persons[owner.id]?.nameKey ?? owner.id
 }

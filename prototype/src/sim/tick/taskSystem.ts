@@ -13,8 +13,9 @@ import type {
   PersonActivityKind,
   AbilityTrainingExperience,
 } from '../types/task'
-import { targetRefKey } from '../types/task'
 import type { WorldState } from '../types/world'
+import { addTaskToIndicesMut, removeTaskFromIndicesMut } from '../mutations/taskMutations'
+import { getOwnerNameKey } from '../utils/ownerNames'
 import type {
   DiplomaticPlay,
   DiplomaticDemand,
@@ -35,6 +36,7 @@ import type {
 import { createTaskId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { AbilityKey } from '../types/person'
+import { isLivingPerson } from '../types/person'
 import type { ProjectId } from '../types/ids'
 import type {
   Project,
@@ -102,8 +104,7 @@ function isDecisionSubjectActive(state: WorldState, owner: DecisionSubjectRef): 
     return house !== undefined && house.active && house.kind !== 'system'
   }
   if (owner.kind === 'person') {
-    const person = state.persons[owner.id]
-    return person !== undefined && person.alive && person.kind !== 'placeholder'
+    return isLivingPerson(state.persons[owner.id])
   }
   return false
 }
@@ -131,35 +132,7 @@ function getDiplomaticEffectMultiplier(state: WorldState, task: Task): number {
 
 // --- Mutable helpers ---
 
-function removeTaskMut(ws: WorldState, taskId: TaskId): void {
-  const task = ws.tasks[taskId]
-  if (!task) return
-
-  const ownerKey = decisionSubjectKey(task.owner)
-  const targetKey = targetRefKey(task.targetRef)
-  const assigneeKey = task.assigneePersonId as string
-
-  delete ws.tasks[taskId]
-
-  const byAssignee = ws.taskIndex.byAssignee[assigneeKey]
-  if (byAssignee) {
-    const filtered = byAssignee.filter((id) => (id as string) !== (taskId as string))
-    if (filtered.length > 0) ws.taskIndex.byAssignee[assigneeKey] = filtered
-    else delete ws.taskIndex.byAssignee[assigneeKey]
-  }
-  const byOwner = ws.taskIndex.byOwner[ownerKey]
-  if (byOwner) {
-    const filtered = byOwner.filter((id) => (id as string) !== (taskId as string))
-    if (filtered.length > 0) ws.taskIndex.byOwner[ownerKey] = filtered
-    else delete ws.taskIndex.byOwner[ownerKey]
-  }
-  const byTarget = ws.taskIndex.byTarget[targetKey]
-  if (byTarget) {
-    const filtered = byTarget.filter((id) => (id as string) !== (taskId as string))
-    if (filtered.length > 0) ws.taskIndex.byTarget[targetKey] = filtered
-    else delete ws.taskIndex.byTarget[targetKey]
-  }
-}
+const removeTaskMut = removeTaskFromIndicesMut
 
 function createTaskMut(
   ws: WorldState,
@@ -194,14 +167,7 @@ function createTaskMut(
     relevantAbility: input.relevantAbility ?? getTaskDefaultRelevantAbility(input.kind),
   }
 
-  const ownerKey = decisionSubjectKey(input.owner)
-  const targetKey = targetRefKey(input.targetRef)
-  const assigneeKey = input.assigneePersonId as string
-
-  ws.tasks[taskId] = task
-  ws.taskIndex.byAssignee[assigneeKey] = [...(ws.taskIndex.byAssignee[assigneeKey] ?? []), taskId]
-  ws.taskIndex.byOwner[ownerKey] = [...(ws.taskIndex.byOwner[ownerKey] ?? []), taskId]
-  ws.taskIndex.byTarget[targetKey] = [...(ws.taskIndex.byTarget[targetKey] ?? []), taskId]
+  addTaskToIndicesMut(ws, task)
   ws.nextTaskId++
 
   return task
@@ -1332,7 +1298,7 @@ function handlePrepareProjectCompletionMut(
 
   ws.aims[aim.id] = { ...aim, activeTaskId: undefined } as unknown as Aim
 
-  const ownerNameKey = getOwnerNameKeyForProject(ws, aim.owner)
+  const ownerNameKey = getOwnerNameKey(ws, aim.owner)
   emitEvent({
     type: 'PROJECT_STARTED',
     importance: 'minor',
@@ -1601,12 +1567,6 @@ function findDemandTaxIncreaseTargetForProject(
     }
   }
   return undefined
-}
-
-function getOwnerNameKeyForProject(ws: WorldState, owner: DecisionSubjectRef): string {
-  if (owner.kind === 'polity') return ws.polities[owner.id]?.nameKey ?? owner.id
-  if (owner.kind === 'house') return ws.houses[owner.id]?.nameKey ?? owner.id
-  return ws.persons[owner.id]?.nameKey ?? owner.id
 }
 
 // --- advance_project completion ---

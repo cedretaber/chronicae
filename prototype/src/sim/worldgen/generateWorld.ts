@@ -85,7 +85,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import { selectGoalKind, pickAimForGoal } from '../selectors/goalSelectors'
 import { selectPersonGoalKind } from '../selectors/personGoalSelectors'
 import { pickPersonAim } from '../selectors/personAimSelectors'
-import { createInitialTaskForAim } from '../selectors/taskSelectors'
+import { createInitialTaskForAim } from '../mutations/taskMutations'
 
 function seedGoalAndAim(
   state: WorldState,

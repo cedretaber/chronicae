@@ -2,6 +2,7 @@ import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { PersonId } from '../types/ids'
 import type { AbilityScores, AbilityKey, Person } from '../types/person'
+import { isLivingPerson } from '../types/person'
 import { ABILITY_KEYS, ABILITY_AGE_CURVES, ABILITY_HARD_CAP } from '../constants/abilityConstants'
 import { naturalFraction, hadRelevantExperience } from '../selectors/abilitySelectors'
 import { randomFloat } from '../rng/rng'
@@ -17,7 +18,7 @@ function averageLivingParentAbility(
   for (const parentId of [person.fatherId, person.motherId]) {
     if (!parentId) continue
     const parent = state.persons[parentId]
-    if (parent && parent.alive && parent.kind !== 'placeholder') {
+    if (isLivingPerson(parent)) {
       values.push(parent.abilities[key])
     }
   }

@@ -4,40 +4,13 @@ import type { Task, PersonActivityLog } from '../types/task'
 import type { HoldingOfficeAssignmentId, PersonId } from '../types/ids'
 import { createTaskId, createPersonActivityLogId } from '../types/ids'
 import { targetRefKey } from '../types/task'
-import { decisionSubjectKey } from '../types/goal'
 import { isPlaceholderPerson } from '../selectors/landContractSelectors'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { getTaskDefaultDifficulty, getTaskDefaultRelevantAbility } from '../selectors/taskSelectors'
+import { addTaskToIndicesMut, removeTaskFromIndicesMut } from '../mutations/taskMutations'
 import { createLogger } from '../debug/logger'
 
 const BAILIFF_REVENUE_EFFORT_MULTIPLIER = 1.5
-
-function removeTaskFromIndicesMut(ws: WorldState, task: Task): void {
-  const ownerKey = decisionSubjectKey(task.owner)
-  const tKey = targetRefKey(task.targetRef)
-  const assigneeKey = task.assigneePersonId as string
-
-  delete ws.tasks[task.id]
-
-  const byAssignee = ws.taskIndex.byAssignee[assigneeKey]
-  if (byAssignee) {
-    const filtered = byAssignee.filter((id) => (id as string) !== (task.id as string))
-    if (filtered.length > 0) ws.taskIndex.byAssignee[assigneeKey] = filtered
-    else delete ws.taskIndex.byAssignee[assigneeKey]
-  }
-  const byOwner = ws.taskIndex.byOwner[ownerKey]
-  if (byOwner) {
-    const filtered = byOwner.filter((id) => (id as string) !== (task.id as string))
-    if (filtered.length > 0) ws.taskIndex.byOwner[ownerKey] = filtered
-    else delete ws.taskIndex.byOwner[ownerKey]
-  }
-  const byTarget = ws.taskIndex.byTarget[tKey]
-  if (byTarget) {
-    const filtered = byTarget.filter((id) => (id as string) !== (task.id as string))
-    if (filtered.length > 0) ws.taskIndex.byTarget[tKey] = filtered
-    else delete ws.taskIndex.byTarget[tKey]
-  }
-}
 
 function createExpiredActivityLogMut(ws: WorldState, personId: PersonId, task: Task): void {
   const logId = createPersonActivityLogId(ws.nextPersonActivityLogId)
@@ -92,15 +65,7 @@ function createRevenueTaskMut(
     relevantAbility: getTaskDefaultRelevantAbility(taskKind),
   }
 
-  ws.tasks[taskId] = task
-
-  const assigneeKey = personId as string
-  const ownerKey = decisionSubjectKey(task.owner)
-  const tKey = targetRefKey(task.targetRef)
-
-  ws.taskIndex.byAssignee[assigneeKey] = [...(ws.taskIndex.byAssignee[assigneeKey] ?? []), taskId]
-  ws.taskIndex.byOwner[ownerKey] = [...(ws.taskIndex.byOwner[ownerKey] ?? []), taskId]
-  ws.taskIndex.byTarget[tKey] = [...(ws.taskIndex.byTarget[tKey] ?? []), taskId]
+  addTaskToIndicesMut(ws, task)
 }
 
 export function runBailiffRevenueTaskSystem(ctx: TickContext): TickContext {
@@ -143,7 +108,7 @@ export function runBailiffRevenueTaskSystem(ctx: TickContext): TickContext {
         if (!task || task.status !== 'active') continue
         if (task.kind !== 'collect_holding_revenue') continue
         createExpiredActivityLogMut(ws, personId, task)
-        removeTaskFromIndicesMut(ws, task)
+        removeTaskFromIndicesMut(ws, task.id)
         expired++
       }
     }

@@ -8,6 +8,7 @@ import {
   getFactionByLeader,
 } from '../selectors/factionSelectors'
 import { getOrganizationShares } from '../selectors/shareSelectors'
+import { hasActiveOffice, hasActiveHoldingOffice } from '../selectors/officeSelectors'
 
 export function findBailiffCandidateForProject(
   ws: WorldState,
@@ -93,22 +94,4 @@ function collectHouseMemberIds(ws: WorldState, houseId: HouseId): PersonId[] {
   const house = ws.houses[houseId]
   if (!house || !house.active) return []
   return house.memberIds
-}
-
-function hasActiveOffice(state: WorldState, personId: PersonId): boolean {
-  const ids = state.officeIndex.byHolderPerson[personId as string] ?? []
-  for (const id of ids) {
-    const o = state.officeAssignments[id]
-    if (o && o.active) return true
-  }
-  return false
-}
-
-function hasActiveHoldingOffice(state: WorldState, personId: PersonId): boolean {
-  const ids = state.holdingOfficeIndex.byHolderPerson[personId] ?? []
-  for (const id of ids) {
-    const a = state.holdingOfficeAssignments[id]
-    if (a && a.active) return true
-  }
-  return false
 }

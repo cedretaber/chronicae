@@ -22,6 +22,7 @@ import {
   installHoldingPlaceholderBailiff,
 } from '../mutations/provinceOfficeMutations'
 import { defaultLandContractConfig } from '../config/landContractConfig'
+import { hasActiveOffice, hasActiveHoldingOffice } from '../selectors/officeSelectors'
 
 // v0.17.1 §15.3: bailiff 任命用の OfficeRole alias。
 // getFactionNominationPower / getFactionalCandidateScore は role 引数を `void role` で
@@ -237,24 +238,6 @@ function collectBailiffFactionalCandidates(
     return a.id.localeCompare(b.id)
   })
   return list
-}
-
-function hasActiveOffice(state: WorldState, personId: PersonId): boolean {
-  const ids = state.officeIndex.byHolderPerson[personId] ?? []
-  for (const id of ids) {
-    const o = state.officeAssignments[id]
-    if (o && o.active) return true
-  }
-  return false
-}
-
-function hasActiveHoldingOffice(state: WorldState, personId: PersonId): boolean {
-  const ids = state.holdingOfficeIndex.byHolderPerson[personId] ?? []
-  for (const id of ids) {
-    const a = state.holdingOfficeAssignments[id]
-    if (a && a.active) return true
-  }
-  return false
 }
 
 function emitBailiffAppointed(

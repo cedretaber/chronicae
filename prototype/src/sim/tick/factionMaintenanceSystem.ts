@@ -3,6 +3,7 @@ import type { FactionId } from '../types/ids'
 import type { FactionMembershipId } from '../types/ids'
 import { removeFactionMembership } from '../mutations/factionMutations'
 import { handleFactionLeaderVacancy } from './factionLifecycleSystem'
+import { isLivingPerson } from '../types/person'
 
 export function runFactionMaintenanceSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -14,7 +15,7 @@ export function runFactionMaintenanceSystem(ctx: TickContext): TickContext {
     if (!faction || !faction.active) continue
 
     const leader = currentCtx.state.persons[faction.leaderPersonId]
-    const leaderAlive = leader && leader.alive && leader.kind !== 'placeholder'
+    const leaderAlive = isLivingPerson(leader)
 
     if (!leaderAlive) {
       currentCtx = handleFactionLeaderVacancy(currentCtx, factionId)

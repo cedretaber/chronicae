@@ -6,6 +6,7 @@ import { getPolityHouseIds } from '../selectors/polityRelations'
 import { removeOrganizationShare } from '../mutations/shareMutations'
 import { revokeOfficeAssignment } from '../mutations/officeMutations'
 import { getActiveFactionMembership } from '../selectors/factionSelectors'
+import { isLivingPerson } from '../types/person'
 import { getActiveOfficeHolders, getEffectiveOfficeMaxHolders } from '../selectors/officeSelectors'
 import type { OfficeRole, OrganizationRef } from '../types/office'
 
@@ -40,7 +41,7 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
         shouldRemove = !eligibleHouseIds.has(share.holder.id)
       } else {
         const person = currentCtx.state.persons[share.holder.id]
-        if (!person || !person.alive || person.kind === 'placeholder') {
+        if (!isLivingPerson(person)) {
           shouldRemove = true
         } else if (polity.kind === 'commonwealth') {
           // commonwealth の person-direct holder は houseId に関わらず eligible

@@ -83,6 +83,26 @@ export function getHouseLeader(state: WorldState, houseId: HouseId): PersonId | 
   return getPrimaryOfficeHolder(state, { kind: 'house', id: houseId }, 'leader')
 }
 
+/** person が active な (polity/house) OfficeAssignment を 1 つ以上保持するか (調査 §3.6)。 */
+export function hasActiveOffice(state: WorldState, personId: PersonId): boolean {
+  const ids = state.officeIndex.byHolderPerson[personId as string] ?? []
+  for (const id of ids) {
+    const o = state.officeAssignments[id]
+    if (o && o.active) return true
+  }
+  return false
+}
+
+/** person が active な HoldingOfficeAssignment (代官など) を 1 つ以上保持するか (調査 §3.6)。 */
+export function hasActiveHoldingOffice(state: WorldState, personId: PersonId): boolean {
+  const ids = state.holdingOfficeIndex.byHolderPerson[personId] ?? []
+  for (const id of ids) {
+    const a = state.holdingOfficeAssignments[id]
+    if (a && a.active) return true
+  }
+  return false
+}
+
 export function getOfficeHolderPower(state: WorldState, office: OfficeAssignment): number {
   const person = state.persons[office.holderPersonId]
   if (!person) return 0.01

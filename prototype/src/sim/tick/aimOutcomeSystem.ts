@@ -1,8 +1,9 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
-import type { Aim, DecisionSubjectRef } from '../types/goal'
+import type { Aim } from '../types/goal'
 import { TERMINAL_DIPLOMATIC_PLAY_STATUSES } from '../types/diplomaticPlay'
 import { nameParam, entityRef } from '../types/event'
+import { getOwnerNameKey } from '../utils/ownerNames'
 import { clamp } from '../utils/math'
 
 const TERMINAL_PLAY_SET = new Set<string>(TERMINAL_DIPLOMATIC_PLAY_STATUSES as readonly string[])
@@ -61,7 +62,7 @@ export function runAimOutcomeSystem(ctx: TickContext): TickContext {
     }
 
     if (aimSucceeded) {
-      const ownerNameKey = getOwnerNameKey(currentCtx, aim.owner)
+      const ownerNameKey = getOwnerNameKey(currentCtx.state, aim.owner)
       const { event, ctx: evCtx } = createSimEvent(currentCtx, {
         type: 'AIM_SUCCEEDED',
         importance: 'minor',
@@ -77,14 +78,4 @@ export function runAimOutcomeSystem(ctx: TickContext): TickContext {
   }
 
   return currentCtx
-}
-
-function getOwnerNameKey(ctx: TickContext, owner: DecisionSubjectRef): string {
-  if (owner.kind === 'polity') {
-    return ctx.state.polities[owner.id]?.nameKey ?? owner.id
-  }
-  if (owner.kind === 'house') {
-    return ctx.state.houses[owner.id]?.nameKey ?? owner.id
-  }
-  return ctx.state.persons[owner.id]?.nameKey ?? owner.id
 }

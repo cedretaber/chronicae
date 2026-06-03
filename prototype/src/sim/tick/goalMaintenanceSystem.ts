@@ -4,6 +4,7 @@ import type { GoalId, DecisionReasonId } from '../types/ids'
 import { createGoalId, createDecisionReasonId } from '../types/ids'
 import type { Goal, DecisionReason, DecisionSubjectRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
+import { isLivingPerson } from '../types/person'
 import {
   getActiveGoalForOwner,
   getActiveAimsForGoal,
@@ -11,6 +12,7 @@ import {
 } from '../selectors/goalSelectors'
 import { nameParam, entityRef } from '../types/event'
 import { clamp } from '../utils/math'
+import { getOwnerNameKey } from '../utils/ownerNames'
 
 export function runGoalMaintenanceSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -107,7 +109,7 @@ function createGoalForOwner(
     },
   }
 
-  const ownerNameKey = getOwnerNameKey(currentCtx, owner)
+  const ownerNameKey = getOwnerNameKey(currentCtx.state, owner)
   const { event, ctx: evCtx } = createSimEvent(currentCtx, {
     type: 'GOAL_CREATED',
     importance: 'minor',
@@ -159,7 +161,7 @@ function reviewGoal(ctx: TickContext, goal: Goal, absoluteWeek: number): TickCon
       },
     }
 
-    const ownerNameKey = getOwnerNameKey(currentCtx, goal.owner)
+    const ownerNameKey = getOwnerNameKey(currentCtx.state, goal.owner)
     const { event, ctx: evCtx } = createSimEvent(currentCtx, {
       type: 'GOAL_REVIEWED',
       importance: 'minor',
@@ -206,7 +208,7 @@ function abandonGoal(ctx: TickContext, goal: Goal): TickContext {
     }
   }
 
-  const ownerNameKey = getOwnerNameKey(currentCtx, goal.owner)
+  const ownerNameKey = getOwnerNameKey(currentCtx.state, goal.owner)
   const { event, ctx: evCtx } = createSimEvent(currentCtx, {
     type: 'GOAL_ABANDONED',
     importance: 'minor',
@@ -246,18 +248,7 @@ function isOwnerActive(ctx: TickContext, owner: DecisionSubjectRef): boolean {
     return house !== undefined && house.active && house.kind !== 'system'
   }
   if (owner.kind === 'person') {
-    const person = ctx.state.persons[owner.id]
-    return person !== undefined && person.alive && person.kind !== 'placeholder'
+    return isLivingPerson(ctx.state.persons[owner.id])
   }
   return false
-}
-
-function getOwnerNameKey(ctx: TickContext, owner: DecisionSubjectRef): string {
-  if (owner.kind === 'polity') {
-    return ctx.state.polities[owner.id]?.nameKey ?? owner.id
-  }
-  if (owner.kind === 'house') {
-    return ctx.state.houses[owner.id]?.nameKey ?? owner.id
-  }
-  return ctx.state.persons[owner.id]?.nameKey ?? owner.id
 }

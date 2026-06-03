@@ -50,9 +50,9 @@ export function scorePersonGoalKind(
   // Check if person holds offices
   let hasPolityOffice = false
   let hasHouseOffice = false
-  for (const [, oa] of Object.entries(state.officeAssignments)) {
+  for (const oaId of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+    const oa = state.officeAssignments[oaId]
     if (!oa || !oa.active) continue
-    if ((oa.holderPersonId as string) !== (personId as string)) continue
     if (oa.organization.kind === 'polity') hasPolityOffice = true
     if (oa.organization.kind === 'house') hasHouseOffice = true
   }
@@ -187,9 +187,9 @@ export function getPersonGoalFulfillment(state: WorldState, personId: PersonId):
   // Check offices held
   let hasPolityOffice = false
   let hasHouseOffice = false
-  for (const [, oa] of Object.entries(state.officeAssignments)) {
+  for (const oaId of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+    const oa = state.officeAssignments[oaId]
     if (!oa || !oa.active) continue
-    if ((oa.holderPersonId as string) !== (personId as string)) continue
     if (oa.organization.kind === 'polity') hasPolityOffice = true
     if (oa.organization.kind === 'house') hasHouseOffice = true
   }

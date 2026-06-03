@@ -2,6 +2,8 @@ import type { TickContext, CreateSimEventInput } from './context'
 import type { SimEvent } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
+import { isLivingPerson } from '../types/person'
+import { getOwnerNameKey } from '../utils/ownerNames'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type {
   DevelopHoldingProject,
@@ -187,7 +189,7 @@ function resolveFindSupervisor(
     const assignment = ws.holdingOfficeAssignments[officeId]
     if (assignment?.active) {
       const holder = ws.persons[assignment.holderPersonId]
-      if (holder?.alive && holder.kind !== 'placeholder') {
+      if (isLivingPerson(holder)) {
         supervisorId = assignment.holderPersonId
       }
     }
@@ -603,10 +605,4 @@ function resolveProposalInitialOffer(
   ws.projects[projectId] = updated
   addProjectToIndexMut(ws, updated)
   return true
-}
-
-function getOwnerNameKey(ws: WorldState, owner: DecisionSubjectRef): string {
-  if (owner.kind === 'polity') return ws.polities[owner.id]?.nameKey ?? owner.id
-  if (owner.kind === 'house') return ws.houses[owner.id]?.nameKey ?? owner.id
-  return ws.persons[owner.id]?.nameKey ?? owner.id
 }

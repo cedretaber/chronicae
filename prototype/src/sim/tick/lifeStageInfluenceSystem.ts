@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import type { PersonId, HouseId } from '../types/ids'
 import type { Person, LifeStage } from '../types/person'
-import { isLifeStageAtLeast } from '../types/person'
+import { isLifeStageAtLeast, isLivingPerson } from '../types/person'
 import type { AttitudeMap, AttitudeKey } from '../types/attitude'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { getHouseLeader } from '../selectors/officeSelectors'
@@ -55,8 +55,7 @@ function isLiveTargetKey(state: TickContext['state'], key: AttitudeKey): boolean
 // 有効な influencer（実在・生存・非 placeholder・child 自身でない）か。
 function isValidInfluencer(state: TickContext['state'], id: PersonId, childId: PersonId): boolean {
   if (id === childId) return false
-  const p = state.persons[id]
-  return Boolean(p && p.alive && p.kind !== 'placeholder')
+  return isLivingPerson(state.persons[id])
 }
 
 // §7.4 / §7.7: 影響元を deterministic 順（父→母→house leader→同家成人→親 faction）で収集し、

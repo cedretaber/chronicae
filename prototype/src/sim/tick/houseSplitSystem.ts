@@ -8,6 +8,8 @@ import { splitHouse } from '../mutations/worldStructureMutations'
 import { getRoleScore } from '../selectors/abilitySelectors'
 import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
 import type { WorldState } from '../types/world'
+import type { Person } from '../types/person'
+import type { SimulationConfig } from '../config/defaultConfig'
 
 export type SplitInput = {
   houseId: HouseId
@@ -20,16 +22,7 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   if (!house) return ctx
   if (house.kind === 'system') return ctx
 
-  const {
-    houseSplitEnabled,
-    minProvincesForHouseSplit,
-    houseSplitCohesionThreshold,
-    baseHouseSplitChance,
-    houseSplitAmbitionFactor,
-    houseSplitPrestigeFactor,
-    houseSplitMartialFactor,
-    houseSplitCohesionFactor,
-  } = ctx.config
+  const { houseSplitEnabled, minProvincesForHouseSplit, houseSplitCohesionThreshold } = ctx.config
 
   const log = createLogger(ctx.config.debug)
 
@@ -71,12 +64,12 @@ export function maybeSplitHouseAfterSuccession(ctx: TickContext, input: SplitInp
   const splitter = chooseSplitter(ctx.state, input.splitCandidates, ctx.config)
   if (!splitter) return ctx
 
-  const splitChance =
-    baseHouseSplitChance +
-    splitter.person.traits.ambition * houseSplitAmbitionFactor +
-    splitter.person.legacyPrestige * houseSplitPrestigeFactor +
-    (getRoleScore(ctx.state, splitter.person.id, 'warCommand') / 10) * houseSplitMartialFactor -
-    currentCohesion * houseSplitCohesionFactor
+  const splitChance = computeHouseSplitChance(
+    ctx.state,
+    ctx.config,
+    splitter.person,
+    currentCohesion,
+  )
 
   const { value: roll, rng: rngAfter } = randomFloat(ctx.rng)
   if (roll >= splitChance) {
@@ -124,4 +117,24 @@ export function chooseSplitter(
   }
 
   return bestCandidate
+}
+
+/**
+ * 分家確率 (splitChance) を算出する (調査 §3.5)。
+ * houseSplitSystem と houseSplitEvaluationSystem で同一式が重複していたのを集約し、
+ * 係数変更時の二重修正・仕様乖離を防ぐ。
+ */
+export function computeHouseSplitChance(
+  state: WorldState,
+  config: SimulationConfig,
+  person: Person,
+  currentCohesion: number,
+): number {
+  return (
+    config.baseHouseSplitChance +
+    person.traits.ambition * config.houseSplitAmbitionFactor +
+    person.legacyPrestige * config.houseSplitPrestigeFactor +
+    (getRoleScore(state, person.id, 'warCommand') / 10) * config.houseSplitMartialFactor -
+    currentCohesion * config.houseSplitCohesionFactor
+  )
 }

@@ -80,3 +80,11 @@ export type Person = {
   deathCircumstance?: DeathCircumstance
   lastHouseTransferYear?: number
 }
+
+/**
+ * person が「生存中の非 placeholder」人物かを判定する型ガード（調査 §3.2）。
+ * `person !== undefined && person.alive && person.kind !== 'placeholder'` の重複を集約。
+ */
+export function isLivingPerson(person: Person | undefined): person is Person {
+  return person !== undefined && person.alive && person.kind !== 'placeholder'
+}

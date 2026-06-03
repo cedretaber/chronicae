@@ -1,9 +1,7 @@
 import type { TickContext } from './context'
 import type { Aim } from '../types/goal'
-import { decisionSubjectKey } from '../types/goal'
 import type { WorldState } from '../types/world'
 import type { Task, TaskKind } from '../types/task'
-import { targetRefKey } from '../types/task'
 import type { TaskId, PersonId } from '../types/ids'
 import { createTaskId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -15,6 +13,7 @@ import {
   PROJECT_KIND_ABILITY_MAP,
 } from '../selectors/taskSelectors'
 import { aimKindToProjectKind } from '../mutations/projectMutations'
+import { addTaskToIndicesMut } from '../mutations/taskMutations'
 
 export function runProjectPreparationSystem(ctx: TickContext): TickContext {
   const absoluteWeek = ctx.state.absoluteWeek
@@ -116,14 +115,7 @@ function createPrepareProjectTaskMut(
     relevantAbility: projectKind ? PROJECT_KIND_ABILITY_MAP[projectKind] : 'insight',
   }
 
-  const ownerKey = decisionSubjectKey(aim.owner)
-  const tKey = targetRefKey({ kind: 'aim', id: aim.id })
-  const assigneeKey = creatorId as string
-
-  ws.tasks[taskId] = task
-  ws.taskIndex.byAssignee[assigneeKey] = [...(ws.taskIndex.byAssignee[assigneeKey] ?? []), taskId]
-  ws.taskIndex.byOwner[ownerKey] = [...(ws.taskIndex.byOwner[ownerKey] ?? []), taskId]
-  ws.taskIndex.byTarget[tKey] = [...(ws.taskIndex.byTarget[tKey] ?? []), taskId]
+  addTaskToIndicesMut(ws, task)
   ws.nextTaskId++
 
   return task

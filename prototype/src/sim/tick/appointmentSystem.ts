@@ -32,6 +32,7 @@ import {
 import {
   getOfficeCompatibilityPenalty,
   getEffectiveOfficeMaxHolders,
+  hasActiveHoldingOffice,
 } from '../selectors/officeSelectors'
 import {
   getHouseProjectedAnnualIncome,
@@ -131,15 +132,6 @@ function collectHouseCandidatesTraditional(
 }
 
 // v0.17.1 §15.3: 別 Holding の bailiff として active な HoldingOffice を持つ Person を判定。
-function hasActiveHoldingOffice(state: WorldState, personId: PersonId): boolean {
-  const ids = state.holdingOfficeIndex.byHolderPerson[personId] ?? []
-  for (const id of ids) {
-    const a = state.holdingOfficeAssignments[id]
-    if (a && a.active) return true
-  }
-  return false
-}
-
 // ---------------------------------------------------------------------------
 // v0.17 §14.1: Factional candidate collection
 // ---------------------------------------------------------------------------

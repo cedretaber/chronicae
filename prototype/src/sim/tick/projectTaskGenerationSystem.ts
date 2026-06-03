@@ -3,7 +3,6 @@ import type { WorldState } from '../types/world'
 import type { Task, TaskKind } from '../types/task'
 import { targetRefKey } from '../types/task'
 import type { DecisionSubjectRef } from '../types/goal'
-import { decisionSubjectKey } from '../types/goal'
 import type {
   ProjectKind,
   ProjectStageKey,
@@ -28,6 +27,8 @@ import {
 } from '../selectors/taskSelectors'
 import { getProjectStageType } from '../config/projectStageSequences'
 import { isDiplomaticProjectKind } from '../mutations/projectMutations'
+import { addTaskToIndicesMut } from '../mutations/taskMutations'
+import { isLivingPerson } from '../types/person'
 
 const TERMINAL_PLAY_SET = new Set(TERMINAL_DIPLOMATIC_PLAY_STATUSES)
 
@@ -130,13 +131,7 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
       relevantAbility: PROJECT_KIND_ABILITY_MAP[project.kind],
     }
 
-    const ownerKey = decisionSubjectKey(project.owner)
-    const assigneeKey = project.supervisorPersonId as string
-
-    ws.tasks[taskId] = task
-    ws.taskIndex.byAssignee[assigneeKey] = [...(ws.taskIndex.byAssignee[assigneeKey] ?? []), taskId]
-    ws.taskIndex.byOwner[ownerKey] = [...(ws.taskIndex.byOwner[ownerKey] ?? []), taskId]
-    ws.taskIndex.byTarget[tKey] = [...(ws.taskIndex.byTarget[tKey] ?? []), taskId]
+    addTaskToIndicesMut(ws, task)
     ws.nextTaskId++
   }
 
@@ -215,14 +210,7 @@ function generateNegotiateTaskMut(
     relevantAbility: getTaskDefaultRelevantAbility(taskKind),
   }
 
-  const ownerKey = decisionSubjectKey(owner)
-  const assigneeKey = delegateId as string
-  const tKey = targetRefKey({ kind: 'diplomatic_play', id: play.id })
-
-  ws.tasks[taskId] = task
-  ws.taskIndex.byAssignee[assigneeKey] = [...(ws.taskIndex.byAssignee[assigneeKey] ?? []), taskId]
-  ws.taskIndex.byOwner[ownerKey] = [...(ws.taskIndex.byOwner[ownerKey] ?? []), taskId]
-  ws.taskIndex.byTarget[tKey] = [...(ws.taskIndex.byTarget[tKey] ?? []), taskId]
+  addTaskToIndicesMut(ws, task)
   ws.nextTaskId++
 
   const updatedPlay: DiplomaticPlay = {
@@ -235,8 +223,7 @@ function generateNegotiateTaskMut(
 }
 
 function isValidDelegate(ws: WorldState, personId: PersonId): boolean {
-  const person = ws.persons[personId]
-  return person !== undefined && person.alive && person.kind !== 'placeholder'
+  return isLivingPerson(ws.persons[personId])
 }
 
 function generateRevoltNegotiateTasksMut(
@@ -298,17 +285,7 @@ function generateRevoltNegotiateTasksMut(
         relevantAbility: getTaskDefaultRelevantAbility(taskKind),
       }
 
-      const ownerKey = decisionSubjectKey(owner)
-      const assigneeKey = delegateId as string
-      const tKey = targetRefKey({ kind: 'diplomatic_play', id: playId })
-
-      ws.tasks[taskId] = task
-      ws.taskIndex.byAssignee[assigneeKey] = [
-        ...(ws.taskIndex.byAssignee[assigneeKey] ?? []),
-        taskId,
-      ]
-      ws.taskIndex.byOwner[ownerKey] = [...(ws.taskIndex.byOwner[ownerKey] ?? []), taskId]
-      ws.taskIndex.byTarget[tKey] = [...(ws.taskIndex.byTarget[tKey] ?? []), taskId]
+      addTaskToIndicesMut(ws, task)
       ws.nextTaskId++
 
       const refreshedPlay = ws.diplomaticPlays[playId]!

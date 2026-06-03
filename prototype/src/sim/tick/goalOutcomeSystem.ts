@@ -4,7 +4,7 @@ import type { Goal } from '../types/goal'
 import { TERMINAL_AIM_STATUSES } from '../types/goal'
 import { clamp } from '../utils/math'
 import { nameParam, entityRef } from '../types/event'
-import type { DecisionSubjectRef } from '../types/goal'
+import { getOwnerNameKey } from '../utils/ownerNames'
 
 const TERMINAL_AIM_SET = new Set<string>(TERMINAL_AIM_STATUSES as readonly string[])
 
@@ -42,7 +42,7 @@ export function runGoalOutcomeSystem(ctx: TickContext): TickContext {
     if (!isPersonGoal && updatedGoal.progress >= updatedGoal.targetProgress) {
       updatedGoal = { ...updatedGoal, status: 'succeeded' }
 
-      const ownerNameKey = getOwnerNameKey(currentCtx, goal.owner)
+      const ownerNameKey = getOwnerNameKey(currentCtx.state, goal.owner)
       const { event, ctx: evCtx } = createSimEvent(currentCtx, {
         type: 'GOAL_SUCCEEDED',
         importance: 'normal',
@@ -66,14 +66,4 @@ export function runGoalOutcomeSystem(ctx: TickContext): TickContext {
   }
 
   return currentCtx
-}
-
-function getOwnerNameKey(ctx: TickContext, owner: DecisionSubjectRef): string {
-  if (owner.kind === 'polity') {
-    return ctx.state.polities[owner.id]?.nameKey ?? owner.id
-  }
-  if (owner.kind === 'house') {
-    return ctx.state.houses[owner.id]?.nameKey ?? owner.id
-  }
-  return ctx.state.persons[owner.id]?.nameKey ?? owner.id
 }
