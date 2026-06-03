@@ -183,7 +183,7 @@ function makeCtx({
     landContracts: {},
     holdingOfficeAssignments: {},
     holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+    landContractIndex: { byHolding: {}, byGranteePolity: {}, byParent: {} },
     holdingTerminalPolityCache: {},
     polityIndex: { byOwnerHouse: {} },
     factions: {},

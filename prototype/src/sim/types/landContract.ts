@@ -43,12 +43,10 @@ export type LandContractGrantor =
   | { kind: 'root'; id: RootAuthorityId }
   | { kind: 'polity'; id: PolityId }
 
-// byProvince: worldgen 時に最初の Holding の chain を登録する legacy index。
-//   新規 contract 追加時は holdingId 指定で byHolding のみ更新される。
-//   Province 単位の chain 検索が必要な既存コード (UI/selector) 向けに維持。
 // byHolding: 各 Holding 固有の独立した contract chain。v0.20-b2 以降の正規 index。
+//   調査 §4.1: 旧 byProvince (worldgen 凍結の province 単位 1 チェーン) は撤去。province 粒度の
+//   表現が要る箇所は dominant holding を province 代表とする (landContractSelectors 参照)。
 export type LandContractIndex = {
-  byProvince: Record<ProvinceId, LandContractId[]>
   byHolding: Record<HoldingId, LandContractId[]>
   byGranteePolity: Record<PolityId, LandContractId[]>
   byParent: Record<LandContractId, LandContractId | undefined>

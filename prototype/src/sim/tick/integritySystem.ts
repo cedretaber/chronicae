@@ -85,7 +85,7 @@ import type {
 //   #9  parentContractId 存在                            → 「§25 #9: parentContractId は存在する LandContract」で error throw
 //   #10 House/Person grantee 不可                        → 型レベル保証 (LandContract.granteePolityId: PolityId のみ)。runtime チェック不要
 //   #11 root taxRate = 0                                 → 「§25 #11: root contract の terms.taxRateToGrantor は 0」で error throw
-//   #12 byProvince 同期 + chain 順                       → 「§25 #12: landContractIndex.byProvince は state.landContracts と一致し chain 順」で error throw
+//   #12 (削除) byProvince 同期 + chain 順                → 調査 §4.1 で byProvince index を撤去。parent linkage は #14, terminal は #15 が検証
 //   #13 byGranteePolity 同期                             → 「§25 #13: landContractIndex.byGranteePolity は state.landContracts と一致」で error throw
 //   #14 byParent 同期 (parent → child 方向)              → 「§25 #14: landContractIndex.byParent は state.landContracts と一致」で error throw
 //   #15 holdingTerminalPolityCache 同期                  → 「§25 #15: holdingTerminalPolityCache は chain の terminal grantee と一致」で error throw
@@ -815,55 +815,9 @@ export function collectIntegrityErrors(
     }
   }
 
-  // §25 #12: landContractIndex.byProvince は state.landContracts と一致し chain 順
-  // §25 #15: provinceTerminalPolityCache は chain の terminal grantee と一致
-  for (const provIdStr of Object.keys(state.provinces)) {
-    const provId = provIdStr as ProvinceId
-    const chain = state.landContractIndex.byProvince[provId] ?? []
-    if (chain.length === 0) {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `landContractIndex.byProvince[${provId}] is empty (§25 #12)`,
-      })
-      continue
-    }
-    let prev: LandContractId | undefined = undefined
-    for (const id of chain) {
-      const c = state.landContracts[id]
-      if (!c) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `landContractIndex.byProvince[${provId}] references missing contract ${id} (§25 #12)`,
-        })
-        break
-      }
-      if (c.provinceId !== provId) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `landContractIndex.byProvince[${provId}] contains contract ${id} with mismatched provinceId ${c.provinceId} (§25 #12)`,
-        })
-        break
-      }
-      if (prev === undefined) {
-        if (c.parentContractId !== undefined) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `landContractIndex.byProvince[${provId}] first element ${id} has parent (expected root) (§25 #12)`,
-          })
-          break
-        }
-      } else {
-        if (c.parentContractId !== prev) {
-          errors.push({
-            code: 'INTEGRITY_VIOLATION',
-            message: `landContractIndex.byProvince[${provId}] entry ${id} parent=${c.parentContractId} expected ${prev} (§25 #12 chain order)`,
-          })
-          break
-        }
-      }
-      prev = id
-    }
-  }
+  // 調査 §4.1: 旧 §25 #12 (landContractIndex.byProvince の chain 整合検証) は byProvince 撤去に伴い削除。
+  // contract の parent linkage は §25 #14 (byParent) が、grantee は §25 #13 (byGranteePolity) が、
+  // 各 Holding の terminal は下記 §25 #15 が引き続き検証する。
 
   // §25 #15: holdingTerminalPolityCache は各 Holding の byHolding chain terminal grantee と一致
   for (const holdingIdStr of Object.keys(state.holdings)) {

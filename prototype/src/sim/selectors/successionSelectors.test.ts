@@ -87,7 +87,7 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     landContracts: {},
     holdingOfficeAssignments: {},
     holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
-    landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+    landContractIndex: { byHolding: {}, byGranteePolity: {}, byParent: {} },
     holdingTerminalPolityCache: {},
     polityIndex: { byOwnerHouse: {} },
     factions: {},

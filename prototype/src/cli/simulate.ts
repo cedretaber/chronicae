@@ -249,10 +249,12 @@ function countLandContracts(state: WorldState): number {
   return Object.keys(state.landContracts).length
 }
 
+// 調査 §4.1: byProvince 撤去に伴い byHolding ベースへ再定義 (holding あたり契約チェーン長の平均)。
+// 1 province=複数 holding のため値域は旧 byProvince 版と異なる (digest 比較時は本コミット以降を基準に)。
 function avgChainDepth(state: WorldState): number {
   let totalDepth = 0
   let count = 0
-  for (const chain of Object.values(state.landContractIndex.byProvince)) {
+  for (const chain of Object.values(state.landContractIndex.byHolding)) {
     if (!chain) continue
     totalDepth += chain.length
     count++

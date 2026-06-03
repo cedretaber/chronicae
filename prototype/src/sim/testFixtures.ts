@@ -115,7 +115,7 @@ export function makeEmptyV016State(): WorldState {
     holdingOfficeIndex: { byHolding: {}, byHolderPerson: {}, byAppointingPolity: {} },
     shareIndex: { byOrganization: {}, byHolder: {} },
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    landContractIndex: { byProvince: {}, byHolding: {}, byGranteePolity: {}, byParent: {} },
+    landContractIndex: { byHolding: {}, byGranteePolity: {}, byParent: {} },
     holdingTerminalPolityCache: {},
     polityIndex: { byOwnerHouse: {} },
     factions: {},
@@ -416,11 +416,14 @@ export function bindProvinceToPolity(
   if (!state.polities[polityId]) {
     throw new Error(`bindProvinceToPolity: Polity ${polityId} not found`)
   }
-  const existing = state.landContractIndex.byProvince[provinceId] ?? []
-  if (existing.length > 0) {
+  const province = state.provinces[provinceId]
+  // 調査 §4.1: byProvince 撤去。既存チェーンの有無は holding の byHolding チェーンで判定。
+  const alreadyBound = province
+    ? province.holdingIds.some((hid) => (state.landContractIndex.byHolding[hid] ?? []).length > 0)
+    : false
+  if (alreadyBound) {
     throw new Error(`bindProvinceToPolity: Province ${provinceId} already has a LandContract chain`)
   }
-  const province = state.provinces[provinceId]
   let nextLcId = state.nextLandContractId
   const newContracts = { ...state.landContracts }
   const byHolding = { ...state.landContractIndex.byHolding }
@@ -462,10 +465,6 @@ export function bindProvinceToPolity(
     ...state,
     landContracts: newContracts,
     landContractIndex: {
-      byProvince: {
-        ...state.landContractIndex.byProvince,
-        [provinceId]: firstContractId ? [firstContractId] : [],
-      },
       byHolding,
       byGranteePolity: { ...state.landContractIndex.byGranteePolity, [polityId]: granteeSlot },
       byParent: { ...state.landContractIndex.byParent },

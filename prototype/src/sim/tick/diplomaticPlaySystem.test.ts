@@ -577,7 +577,11 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
     const setup = setupLandTransferDemand()
     let ctx = makeCtx(setup.state)
     // defender の契約を chain から除去する (grantee を別 polity に差し替え)
-    const chain = ctx.state.landContractIndex.byProvince[setup.provinceDefenderId] ?? []
+    // 調査 §4.1: byProvince 撤去。defender province の holding chain (byHolding) を使う。
+    const defenderHoldingId = ctx.state.provinces[setup.provinceDefenderId]?.holdingIds[0]
+    const chain = defenderHoldingId
+      ? (ctx.state.landContractIndex.byHolding[defenderHoldingId] ?? [])
+      : []
     const terminalId = chain[chain.length - 1]
     if (terminalId) {
       const thirdPartyId = 'c-third' as PolityId

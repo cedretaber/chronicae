@@ -12,58 +12,16 @@ import type {
 } from '../types/ids'
 import type { LandContract, LandContractGrantor, Holding } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
-import type { PolityRank } from '../types/polity'
 
-export function getProvinceLandContractChain(
+// 調査 §4.1: byProvince (worldgen 凍結の province 単位 1 チェーン) を撤去。province 粒度の
+// 表現が必要な箇所 (UI 表示・隣接推論) は dominant holding を province 代表とする。
+// canonical な getProvinceDominantTerminalPolityId と同じ「weight 最大の terminal polity」を
+// 支配者とし、その polity が terminal を握る holding のうち weight 最大 (tiebreak holdingId 昇順)
+// を dominant holding とする。
+export function getProvinceDominantHoldingId(
   state: WorldState,
   provinceId: ProvinceId,
-): LandContract[] {
-  const ids = state.landContractIndex.byProvince[provinceId] ?? []
-  const chain: LandContract[] = []
-  for (const id of ids) {
-    const contract = state.landContracts[id]
-    if (!contract) continue
-    chain.push(contract)
-  }
-  return chain
-}
-
-export function getProvinceRootContract(
-  state: WorldState,
-  provinceId: ProvinceId,
-): LandContract | undefined {
-  const ids = state.landContractIndex.byProvince[provinceId] ?? []
-  const rootId = ids[0]
-  if (!rootId) return undefined
-  return state.landContracts[rootId]
-}
-
-export function getProvinceTerminalContract(
-  state: WorldState,
-  provinceId: ProvinceId,
-): LandContract | undefined {
-  const ids = state.landContractIndex.byProvince[provinceId] ?? []
-  const terminalId = ids[ids.length - 1]
-  if (!terminalId) return undefined
-  return state.landContracts[terminalId]
-}
-
-export function getProvinceTerminalPolityId(
-  state: WorldState,
-  provinceId: ProvinceId,
-): PolityId | undefined {
-  return getProvinceDominantTerminalPolityId(state, provinceId)
-}
-
-// 調査 §4.1: legacy な byProvince チェーンを撤去するため、province 粒度の隣接推論
-// (land purchase 等) が必要とする「province の代表 terminal contract」を holding 集約で導出する。
-// canonical な getProvinceDominantTerminalPolityId と同じ「weight 最大の terminal polity」を支配者と
-// し、その polity が terminal を握る holding のうち weight 最大 (tiebreak holdingId 昇順) の
-// holding chain の terminal contract を返す。返却契約の granteePolityId は dominant polity と一致する。
-export function getProvinceDominantTerminalContract(
-  state: WorldState,
-  provinceId: ProvinceId,
-): LandContract | undefined {
+): HoldingId | undefined {
   const province = state.provinces[provinceId]
   if (!province) return undefined
   const dominantPolityId = getProvinceDominantTerminalPolityId(state, provinceId)
@@ -82,11 +40,43 @@ export function getProvinceDominantTerminalContract(
       bestHoldingId = hid
     }
   }
-  if (!bestHoldingId) return undefined
-  const ids = state.landContractIndex.byHolding[bestHoldingId] ?? []
-  const terminalId = ids[ids.length - 1]
-  if (!terminalId) return undefined
-  return state.landContracts[terminalId]
+  return bestHoldingId
+}
+
+// dominant holding の chain を province 代表チェーンとして返す (旧 byProvince 相当, 主に UI 表示)。
+export function getProvinceLandContractChain(
+  state: WorldState,
+  provinceId: ProvinceId,
+): LandContract[] {
+  const holdingId = getProvinceDominantHoldingId(state, provinceId)
+  if (!holdingId) return []
+  return getHoldingLandContractChain(state, holdingId)
+}
+
+export function getProvinceRootContract(
+  state: WorldState,
+  provinceId: ProvinceId,
+): LandContract | undefined {
+  return getProvinceLandContractChain(state, provinceId)[0]
+}
+
+export function getProvinceTerminalPolityId(
+  state: WorldState,
+  provinceId: ProvinceId,
+): PolityId | undefined {
+  return getProvinceDominantTerminalPolityId(state, provinceId)
+}
+
+// land purchase 等の province 隣接推論で「province の代表 terminal contract」を返す。
+// dominant holding の terminal contract。返却契約の granteePolityId は dominant polity と一致する。
+export function getProvinceDominantTerminalContract(
+  state: WorldState,
+  provinceId: ProvinceId,
+): LandContract | undefined {
+  const holdingId = getProvinceDominantHoldingId(state, provinceId)
+  if (!holdingId) return undefined
+  const chain = getHoldingLandContractChain(state, holdingId)
+  return chain[chain.length - 1]
 }
 
 export function getProvinceDominantTerminalPolityId(
@@ -274,45 +264,6 @@ export function getGrantorRank(state: WorldState, grantor: LandContractGrantor):
   const polity = state.polities[grantor.id]
   if (!polity) return 0
   return polity.rank
-}
-
-export type ClaimTargetMatch = {
-  contract: LandContract
-  polityId: PolityId
-  matchType: 'same' | 'lower' | 'upper'
-}
-
-export function findClaimTargetInChain(
-  state: WorldState,
-  provinceId: ProvinceId,
-  claimerRank: PolityRank,
-): ClaimTargetMatch | undefined {
-  const chain = getProvinceLandContractChain(state, provinceId)
-  let sameRank: ClaimTargetMatch | undefined
-  let closestLower: ClaimTargetMatch | undefined
-  let closestUpper: ClaimTargetMatch | undefined
-
-  for (const contract of chain) {
-    const polity = state.polities[contract.granteePolityId]
-    if (!polity || !polity.active) continue
-
-    if (polity.rank === claimerRank) {
-      sameRank = { contract, polityId: contract.granteePolityId, matchType: 'same' }
-      break
-    }
-    if (polity.rank > claimerRank) {
-      if (!closestLower || polity.rank < state.polities[closestLower.polityId]!.rank) {
-        closestLower = { contract, polityId: contract.granteePolityId, matchType: 'lower' }
-      }
-    }
-    if (polity.rank < claimerRank) {
-      if (!closestUpper || polity.rank > state.polities[closestUpper.polityId]!.rank) {
-        closestUpper = { contract, polityId: contract.granteePolityId, matchType: 'upper' }
-      }
-    }
-  }
-
-  return sameRank ?? closestLower ?? closestUpper
 }
 
 export function isPlaceholderPerson(state: WorldState, personId: PersonId): boolean {

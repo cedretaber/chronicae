@@ -1193,7 +1193,6 @@ export function generateWorld(
   // v0.16: LandContract chain, AnonymousHouse, placeholder persons, ProvinceOfficeAssignments を生成
   const landContractsRecord: Record<LandContractId, LandContract> = {}
   const landContractIndex: LandContractIndex = {
-    byProvince: {},
     byHolding: {},
     byGranteePolity: {},
     byParent: {},
@@ -1217,6 +1216,9 @@ export function generateWorld(
   // 3. terminal Polity の祖先を辿り、root → terminal の順で contract を作る
   // 4. 中間契約の taxRateToGrantor は 0.3 で固定 (簡略化、後で config 化可能)
   const INTERMEDIATE_TAX_RATE = 0.3
+  // 調査 §4.1: byProvince index は撤去済。worldgen 内で province→chain を一時的に保持する
+  // local map (後段の holding 紐付けで使用)。
+  const provinceChainMap = new Map<ProvinceId, LandContractId[]>()
   for (const province of provinces) {
     const houseId = provinceToHouse.get(province.id)
     if (!houseId) continue
@@ -1262,7 +1264,7 @@ export function generateWorld(
       }
       prevContractId = contractId
     }
-    landContractIndex.byProvince[province.id] = contractIds
+    provinceChainMap.set(province.id, contractIds)
     provinceTerminalPolityCache[province.id] = terminalPolityId
   }
 
@@ -1340,7 +1342,7 @@ export function generateWorld(
       holdingsRecord[holdingId] = holding
       holdingIds.push(holdingId)
 
-      const provinceChainIds = landContractIndex.byProvince[province.id] ?? []
+      const provinceChainIds = provinceChainMap.get(province.id) ?? []
       if (i === 0) {
         for (const cid of provinceChainIds) {
           const contract = landContractsRecord[cid]
