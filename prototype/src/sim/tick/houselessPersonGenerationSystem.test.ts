@@ -18,6 +18,7 @@ function makeBaseState(): WorldState {
     dummyHoldings[hid] = {
       id: hid,
       provinceId: 'pr-anon' as ProvinceId,
+      nameKey: 'h',
       kind: 'manor',
       polityControl: 0,
       landQuality: 1,

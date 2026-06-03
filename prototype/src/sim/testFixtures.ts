@@ -199,6 +199,7 @@ export function withProvince(
   const holding: Holding = {
     id: holdingId,
     provinceId: id,
+    nameKey: (anyOverrides.holdingNameKey as string) ?? 'h',
     kind: 'manor',
     polityControl: (anyOverrides.polityControl as number) ?? 100,
     landQuality: (anyOverrides.landQuality as number) ?? 50,
@@ -255,6 +256,7 @@ export function withHolding(
   const holding: Holding = {
     id: holdingId,
     provinceId,
+    nameKey: 'h',
     kind: 'manor',
     polityControl: 100,
     landQuality: 50,

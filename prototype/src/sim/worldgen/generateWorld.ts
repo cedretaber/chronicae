@@ -58,6 +58,8 @@ import {
   pickUniqueName,
   houseNamePool,
   polityNamePool,
+  provinceNamePool,
+  provinceName,
   stateNamePool,
   stateName,
 } from './nameGenerators'
@@ -1181,6 +1183,9 @@ export function generateWorld(
 
     const holdingControl = controlMap.get(province.id) ?? 0
     const holdingIds: HoldingId[] = []
+    // §2.3/§4.1: Holding 名は同一 Province 内でのみ一意。Province 自身の nameKey は
+    // seed しない (Province 名と Holding 名の衝突は許容)。
+    const usedHoldingNameKeysInProvince = new Set<string>()
 
     for (let i = 0; i < holdingCount; i++) {
       const holdingId = createHoldingId(nextHoldingId++)
@@ -1205,9 +1210,39 @@ export function generateWorld(
       rng = rlq
       const landQuality = 0.6 + lqRoll * 0.8
 
+      // §4.1: Holding 命名。manor=province pool / city=city pool。required のため
+      // literal 構築時に確定させる。
+      let holdingNameKey: string
+      if (namePoolService) {
+        const { value: key, rng: rN } = namePoolService.pickUniqueNameKey(
+          rng,
+          usedHoldingNameKeysInProvince,
+          {
+            nameCultureId: 'western',
+            category: kind === 'city' ? 'city' : 'province',
+            path: ['common'],
+          },
+          'holding',
+          i,
+        )
+        rng = rN
+        holdingNameKey = key
+      } else {
+        const { name, rng: rN } = pickUniqueName(
+          provinceNamePool(),
+          usedHoldingNameKeysInProvince,
+          provinceName,
+          i,
+          rng,
+        )
+        rng = rN
+        holdingNameKey = name
+      }
+
       const holding: Holding = {
         id: holdingId,
         provinceId: province.id,
+        nameKey: holdingNameKey,
         kind,
         polityControl: holdingControl,
         landQuality,

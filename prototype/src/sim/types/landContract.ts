@@ -59,6 +59,7 @@ export type HoldingKind = 'manor' | 'city'
 export type Holding = {
   id: HoldingId
   provinceId: ProvinceId
+  nameKey: string
   kind: HoldingKind
   polityControl: number
   landQuality: number

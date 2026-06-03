@@ -338,6 +338,7 @@ describe('runControlSystem — capital province maxControl', () => {
         [holdingId]: {
           id: holdingId,
           provinceId,
+          nameKey: 'h',
           kind: 'manor' as const,
           polityControl: 100,
           landQuality: 50,
