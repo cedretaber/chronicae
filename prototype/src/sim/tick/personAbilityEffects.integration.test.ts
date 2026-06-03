@@ -142,7 +142,6 @@ function makeWorldState(
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury,
     legacyPrestige: 50,
@@ -349,7 +348,6 @@ describe('runControlSystem — capital province maxControl', () => {
       polities: {
         [polityId]: {
           id: polityId,
-          nameKey: 'C0',
           nameSource: { kind: 'pool', nameKey: 'C0' },
           rank: 2,
           ownerHouseId: houseId,

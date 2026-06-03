@@ -153,7 +153,6 @@ function makeBaseCtx(
 function makePolity(id: PolityId, houseId: HouseId): NonNullable<WorldState['polities'][PolityId]> {
   return {
     id,
-    nameKey: 'C',
     nameSource: { kind: 'pool', nameKey: 'C' },
     rank: 2,
     ownerHouseId: houseId,

@@ -43,7 +43,6 @@ function makeFixture(): {
   state = withHouse(state, house1Id, { nameKey: 'House 1', seatProvinceId: provinceId })
   state = withHouse(state, house2Id, { nameKey: 'House 2', seatProvinceId: auxProvinceId })
   state = withPolity(state, polity1Id, {
-    nameKey: 'Polity 1',
     treasury: 100,
     legacyPrestige: 50,
     adminPower: 10,
@@ -51,7 +50,6 @@ function makeFixture(): {
     ownerHouseId: house1Id,
   })
   state = withPolity(state, polity2Id, {
-    nameKey: 'Polity 2',
     treasury: 100,
     legacyPrestige: 50,
     adminPower: 10,

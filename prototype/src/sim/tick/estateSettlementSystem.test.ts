@@ -45,7 +45,6 @@ function makeBaseState(): {
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    nameKey: 'Kingdom',
     ownerHouseId: houseId,
     treasury: 500,
     legacyPrestige: 50,

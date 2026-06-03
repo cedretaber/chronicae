@@ -98,7 +98,6 @@ function makeSplitableHouseCtx(configOverride?: Partial<SimulationConfig>): Tick
   })
 
   state = withPolity(state, polityId, {
-    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,

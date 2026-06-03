@@ -13,7 +13,6 @@ import { markPersonDead } from './personMutations'
 import { addHouselessPerson } from './houseMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { pickNameBySex } from '../worldgen/nameGenerators'
-import { generatePolityNameKey } from '../selectors/polityNamingService'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { createOrganizationShare } from './shareMutations'
 import { samplePerson } from '../helpers/personFactory'
@@ -172,27 +171,10 @@ export function createNegotiatingCommonwealth(
     ctx = { ...ctx, state: leaderState }
   }
 
-  const { nameKey: newPolityNameKey, rng: rng0 } = generatePolityNameKey(
-    ctx.state,
-    ctx.config,
-    ctx.rng,
-    {
-      origin: 'province_revolt_independence',
-      provinceIds: [provinceId],
-      capitalProvinceId: provinceId,
-      founderPersonId: leaderPersonId,
-      sourcePolityId: targetPolityId,
-      rebelClass: popClass,
-    },
-    ctx.namePoolService,
-  )
-  ctx = { ...ctx, rng: rng0 }
-
   const newPolityObj: Polity = {
     id: newPolityId,
-    nameKey: newPolityNameKey,
     // §5.1: 民衆叛乱で新設される rank 5 Polity は対象 Holding 由来名にする。
-    // holdingId は input の required field なので常に存在する。
+    // holdingId は input の required field なので常に存在する。pool 名は引かない。
     nameSource: { kind: 'holding', holdingId },
     treasury: 0,
     legacyPrestige: 0,

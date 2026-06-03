@@ -108,7 +108,6 @@ function makeSplitTestCtx(config: typeof defaultConfig): TickContext {
     seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
   })
   state = withPolity(state, polityId, {
-    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
@@ -176,7 +175,6 @@ function makeSplitCtx(
     seatProvinceId: provinceIds[0] ?? ('' as ProvinceId),
   })
   state = withPolity(state, polityId, {
-    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,

@@ -23,7 +23,6 @@ describe('actorSelectors', () => {
       let s = makeEmptyV016State()
       s = withProvince(s, 'pr-0' as ProvinceId)
       s = withPolity(s, 'c-1' as PolityId, {
-        nameKey: 'Aquilonia',
         nameSource: { kind: 'pool', nameKey: 'Aquilonia' },
       })
       expect(getActorName(s, polityActor('c-1' as PolityId))).toBe('Aquilonia')

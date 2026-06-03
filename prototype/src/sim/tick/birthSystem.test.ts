@@ -50,7 +50,6 @@ function makePolity(
   const provId = provinceId ?? ('p-0' as ProvinceId)
   return {
     id,
-    nameKey: 'C',
     nameSource: { kind: 'pool', nameKey: 'C' },
     rank: 2,
     ownerHouseId: houseId,

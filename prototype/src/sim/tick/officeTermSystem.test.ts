@@ -191,7 +191,6 @@ describe('runOfficeTermSystem', () => {
     state.polities = {
       [polityId]: {
         id: polityId,
-        nameKey: 'C',
         nameSource: { kind: 'pool', nameKey: 'C' },
         rank: 2,
         treasury: 0,
@@ -270,7 +269,6 @@ describe('runOfficeTermSystem', () => {
     state.polities = {
       [polityId]: {
         id: polityId,
-        nameKey: 'C',
         nameSource: { kind: 'pool', nameKey: 'C' },
         rank: 2,
         treasury: 0,
@@ -359,7 +357,6 @@ describe('runOfficeTermSystem', () => {
     state.polities = {
       [polityId]: {
         id: polityId,
-        nameKey: 'C',
         nameSource: { kind: 'pool', nameKey: 'C' },
         rank: 2,
         treasury: 0,
@@ -458,7 +455,6 @@ describe('runOfficeTermSystem', () => {
     state.polities = {
       [polityId]: {
         id: polityId,
-        nameKey: 'C',
         nameSource: { kind: 'pool', nameKey: 'C' },
         rank: 2,
         treasury: 0,
@@ -577,7 +573,6 @@ describe('expireOfficeTermAssignment', () => {
       polities: {
         [polityId]: {
           id: polityId,
-          nameKey: 'C',
           nameSource: { kind: 'pool', nameKey: 'C' },
           rank: 2,
           treasury: 0,

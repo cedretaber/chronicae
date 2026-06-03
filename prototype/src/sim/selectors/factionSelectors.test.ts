@@ -322,7 +322,6 @@ describe('getFactionNominationPower', () => {
     state = withPerson(state, leaderId, { nameKey: 'Leader', houseId })
     state = withPerson(state, member1Id, { nameKey: 'Member', houseId })
     state = withPolity(state, polityId, {
-      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -368,7 +367,6 @@ describe('getFactionNominationPower', () => {
     state = withPerson(state, leaderId, { nameKey: 'Leader', houseId })
     state = withPerson(state, member1Id, { nameKey: 'Member', houseId })
     state = withPolity(state, polityId, {
-      nameKey: 'Commonwealth',
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 10,
@@ -431,7 +429,6 @@ describe('hasRelevantFactionForAppointment', () => {
     state = withPerson(state, leaderId, { nameKey: 'Leader', houseId })
     state = withPerson(state, member1Id, { nameKey: 'Member', houseId })
     state = withPolity(state, polityId, {
-      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -488,7 +485,6 @@ describe('getFactionRecommendationScore', () => {
     state = withPerson(state, lovedId, { nameKey: 'Loved', houseId })
     state = withPerson(state, hatedId, { nameKey: 'Hated', houseId })
     state = withPolity(state, polityId, {
-      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -591,7 +587,6 @@ describe('getFactionalCandidateScore', () => {
       },
     })
     state = withPolity(state, polityId, {
-      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,

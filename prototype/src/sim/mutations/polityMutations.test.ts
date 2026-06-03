@@ -43,7 +43,6 @@ function makeFixture(): {
   })
   state = withHouse(state, house2Id, { nameKey: 'House 2', seatProvinceId: province2Id })
   state = withPolity(state, polity1Id, {
-    nameKey: 'Polity 1',
     ownerHouseId: house1Id,
     treasury: 100,
     legacyPrestige: 50,
@@ -51,7 +50,6 @@ function makeFixture(): {
     capitalProvinceId: provinceId,
   })
   state = withPolity(state, polity2Id, {
-    nameKey: 'Polity 2',
     ownerHouseId: house2Id,
     treasury: 100,
     legacyPrestige: 50,
@@ -101,7 +99,7 @@ describe('createPolity', () => {
     const { polityId } = result.value.value
     const newPolity = result.value.ctx.state.polities[polityId]
     expect(newPolity).toBeDefined()
-    expect(newPolity!.nameKey).toBe('New Polity')
+    expect(newPolity!.nameSource).toEqual({ kind: 'pool', nameKey: 'New Polity' })
     expect(newPolity!.treasury).toBe(200)
     expect(newPolity!.legacyPrestige).toBe(30)
     expect(newPolity!.active).toBe(true)

@@ -7,7 +7,8 @@ import type { WorldState } from '@sim/types/world'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import type { SimEvent } from '@sim/types/event'
 import type { EventMessageParams } from '@sim/types/event'
-import type { ProvinceId, HoldingId } from '@sim/types/ids'
+import type { ProvinceId, HoldingId, PolityId } from '@sim/types/ids'
+import { getPolityEmitNameKey } from '@sim/selectors/nameRefSelectors'
 import {
   getProvinceTerminalPolityId,
   getProvincePolityControlFromHoldings,
@@ -559,7 +560,7 @@ async function main(): Promise<void> {
   for (const id of Object.keys(world.polities)) {
     const polity = world.polities[id as keyof typeof world.polities]
     if (!polity) continue
-    polityAnnexedInfo[id] = { nameKey: polity.nameKey, year: 0 }
+    polityAnnexedInfo[id] = { nameKey: getPolityEmitNameKey(world, id as PolityId), year: 0 }
   }
 
   let state: WorldState = world

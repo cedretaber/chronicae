@@ -104,7 +104,6 @@ function makeNormalExtinctionCtx(): TickContext {
     seatProvinceId: province1Id,
   })
   state = withPolity(state, polityId, {
-    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
@@ -236,7 +235,6 @@ describe('extinctHouseAfterFailedSuccession', () => {
         seatProvinceId: province1Id,
       })
       state = withPolity(state, polityId, {
-        nameKey: 'C0',
         ownerHouseId: houseId,
         treasury: 100,
         legacyPrestige: 50,

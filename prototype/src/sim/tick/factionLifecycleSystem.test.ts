@@ -61,7 +61,6 @@ function buildBaseState(): {
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    nameKey: 'Polity0',
     ownerHouseId: houseId,
     capitalProvinceId: provinceId,
   })
@@ -158,7 +157,6 @@ describe('runFactionLifecycleSystem', () => {
       seatProvinceId: provinceId,
     })
     s = withPolity(s, polityId, {
-      nameKey: 'Polity0',
       ownerHouseId: houseId,
       capitalProvinceId: provinceId,
     })

@@ -45,7 +45,6 @@ function makeFixture(): {
     seatProvinceId: auxProvinceId,
   })
   state = withPolity(state, polity1Id, {
-    nameKey: 'Polity 1',
     ownerHouseId: house1Id,
     treasury: 100,
     legacyPrestige: 50,
@@ -53,7 +52,6 @@ function makeFixture(): {
     capitalProvinceId: provinceId,
   })
   state = withPolity(state, polity2Id, {
-    nameKey: 'Polity 2',
     ownerHouseId: house2Id,
     treasury: 100,
     legacyPrestige: 50,
@@ -90,7 +88,7 @@ describe('createPolityFromHouse', () => {
     expect(newPolity).toBeDefined()
     expect(newPolity!.legacyPrestige).toBe(20)
     expect(newPolity!.adminPower).toBe(0)
-    expect(newPolity!.nameKey).toBeDefined()
+    expect(newPolity!.nameSource).toBeDefined()
     expect(newPolity!.treasury).toBe(Math.floor(1000 * 0.5))
   })
 

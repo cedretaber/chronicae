@@ -76,7 +76,6 @@ describe('buildActivityReport', () => {
       memberIds: [factionLeaderId, factionMemberId],
     })
     state = withPolity(state, polityId, {
-      nameKey: 'TestPolity',
       ownerHouseId,
       capitalProvinceId: provinceId,
     })

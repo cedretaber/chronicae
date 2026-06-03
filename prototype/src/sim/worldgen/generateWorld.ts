@@ -464,7 +464,6 @@ export function generateWorld(
 
     const newPolityObj: Polity = {
       id: info.polityId,
-      nameKey: cNameKey,
       nameSource: { kind: 'pool', nameKey: cNameKey },
       treasury,
       legacyPrestige,

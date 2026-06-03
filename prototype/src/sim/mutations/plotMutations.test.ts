@@ -45,7 +45,6 @@ function makeFixture(): {
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polity1Id, {
-    nameKey: 'Polity 1',
     ownerHouseId: house1Id,
     treasury: 100,
     legacyPrestige: 50,

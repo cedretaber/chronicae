@@ -77,7 +77,6 @@ function makeBaseState(): {
     seatProvinceId: provinceVassalId,
   })
   state = withPolity(state, polityId, {
-    nameKey: 'Polity 1',
     ownerHouseId: houseRulerId,
     treasury: 100,
     legacyPrestige: 50,
@@ -528,7 +527,6 @@ describe('runAppointmentSystem', () => {
       seatProvinceId: createProvinceId('p', 0),
     })
     state = withPolity(state, polityId, {
-      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -635,7 +633,6 @@ describe('runAppointmentSystem', () => {
       seatProvinceId: createProvinceId('p', 0),
     })
     state = withPolity(state, polityId, {
-      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,
@@ -748,7 +745,6 @@ describe('runAppointmentSystem', () => {
     })
     // Commonwealth: no ownerHouseId
     state = withPolity(state, polityId, {
-      nameKey: 'Commonwealth',
       treasury: 100,
       legacyPrestige: 50,
       adminPower: 10,
@@ -829,7 +825,6 @@ describe('runAppointmentSystem', () => {
       seatProvinceId: provinceId,
     })
     state = withPolity(state, polityId, {
-      nameKey: 'Test Polity',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,

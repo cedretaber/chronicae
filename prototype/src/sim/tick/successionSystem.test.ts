@@ -97,7 +97,6 @@ function makeCtx(members: Person[], houseActive: boolean = true, month: number =
     seatProvinceId: provinceId,
   })
   state = withPolity(state, polityId, {
-    nameKey: 'C0',
     ownerHouseId: houseId,
     treasury: 100,
     legacyPrestige: 50,
@@ -299,7 +298,6 @@ describe('runSuccessionSystem', () => {
         polities: {
           [polityId]: {
             id: polityId,
-            nameKey: 'C0',
             nameSource: { kind: 'pool', nameKey: 'C0' },
             rank: 2,
             ownerHouseId: houseId,
@@ -467,7 +465,6 @@ describe('runSuccessionSystem', () => {
         polities: {
           [polityId]: {
             id: polityId,
-            nameKey: 'C0',
             nameSource: { kind: 'pool', nameKey: 'C0' },
             rank: 2,
             ownerHouseId: houseId,
@@ -622,7 +619,6 @@ describe('applyMinorHeadPenalties', () => {
       seatProvinceId: provinceId,
     })
     state = withPolity(state, polityId, {
-      nameKey: 'C0',
       ownerHouseId: houseId,
       treasury: 100,
       legacyPrestige: 50,

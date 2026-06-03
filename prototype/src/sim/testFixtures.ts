@@ -283,7 +283,6 @@ export function withPolity(
 ): WorldState {
   const polity: Polity = {
     id,
-    nameKey: 'c',
     nameSource: { kind: 'pool', nameKey: 'c' },
     rank: 2,
     treasury: 0,

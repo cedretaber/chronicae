@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { unrestToColor } from '@/app/utils/polityColors'
 import { getPolityTerminalProvinceIds } from '@sim/selectors/landContractSelectors'
+import { getPolityEmitNameKey } from '@sim/selectors/nameRefSelectors'
 import { useMapColorMaps } from '@/app/hooks/useMapColorMaps'
 
 export function MapLegend() {
@@ -16,7 +17,7 @@ export function MapLegend() {
       .filter((p) => p.active)
       .map((p) => ({
         id: p.id,
-        nameKey: p.nameKey,
+        nameKey: getPolityEmitNameKey(state, p.id),
         size: getPolityTerminalProvinceIds(state, p.id).length,
       }))
       .filter((p) => p.size > 0)

@@ -147,7 +147,6 @@ describe('runHouseFoundingSystem', () => {
       seatProvinceId: createProvinceId('p', 0),
     })
     s = withPolity(s, polityId, {
-      nameKey: 'P0',
       ownerHouseId: houseId,
       capitalProvinceId: createProvinceId('p', 0),
     })
@@ -311,7 +310,6 @@ describe('runHouseFoundingSystem', () => {
       seatProvinceId: capitalProvinceId,
     })
     state = withPolity(state, polityId, {
-      nameKey: 'P0',
       ownerHouseId: houseId,
       capitalProvinceId,
     })

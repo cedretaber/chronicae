@@ -51,8 +51,6 @@ export type PolityNameSource =
 
 export type Polity = {
   id: PolityId
-  // v0.41: nameKey は Phase 8 で削除予定。移行期間中は nameSource と dual-write。
-  nameKey: string
   nameSource: PolityNameSource
   treasury: number // >= 0
   adminPower: number // 0..100, cache: recalculated each January
