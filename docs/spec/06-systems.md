@@ -563,6 +563,8 @@ splitChance = baseHouseSplitChance
 
 当主が未成年（age < `adultAge`）の間、4 週ごとに適用。v0.11 以降は格納フィールドの直接変更ではなく、Attitude の調整を通じて cohesion・loyaltyToPolity に間接影響を与える（実装上は `minorHeadCohesionPenaltyPerMonth` / `minorHeadLoyaltyPenaltyPerMonth` の config 値が引き続き参照される）。
 
+**配線**: ロジックは `successionSystem.ts` の `applyMinorHeadPenalties` に存在するが、v0.7 で追加されて以来 tick に未配線だった（spec が operative と記述する一方で実際には一度も走っていなかった = wiring 欠落のバグ）。これを是正し、`successionSystem`（位置 177）の直後に専用 system `minorHeadPenaltySystem`（`intervalWeeks: 4`）として配線した。年末 succession re-pass（§6.10）は `runSuccessionSystem` のみを再実行するため、ペナルティを `runSuccessionSystem` 内に置かず独立 system にすることで week 48 での二重適用を回避している。RNG は消費しないが、attitude 変化が下流の分岐（plot tendency / loyalty）を変えうるため挙動は changing。
+
 ### 6.13 HouseExtinctionSystem（SuccessionSystem から呼び出し）
 
 後継者が存在しない家（生存メンバーが 0 または全員未成年かつ成人後継者なし）に対して断絶処理を行う。実体の状態書き換えは `extinctHouse` mutation（`worldStructureMutations.ts`）に集約されている（v0.13 / v0.15）。
@@ -996,6 +998,8 @@ summary: "The people of ${province.name} improved their lands."
 ### 6.19 PlotSystem（4週ごと）
 
 野心スコアが `plotThreshold` を超えた人物が陰謀を実行。成功率 `basePlotSuccess`。
+
+**解決済み plot の扱い**: 期限到達で解決した plot は、PLOT_SUCCEEDED / PLOT_FAILED イベントを emit した上で `activePlots` から削除する。plot の全 reader（PlotSystem の active 判定、`hadRelevantExperience` の insight 経験）は `status === 'active'` で filter するため、解決済み record を残しても読まれず dead weight として累積するだけだった。これを防ぐため解決時に削除する（挙動は変わらない）。
 
 ### 6.20 WarSystem（v0.18 で廃止）
 
@@ -1850,7 +1854,7 @@ Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で�
 **v0.30 offer_compromise 拡張**: Task 成功時に新 DiplomaticOffer を作成する。
 1. progress += offerCompromiseProgressDelta (15)（既存 progressGainMedium は使わない）
 2. tension -= tensionReductionSmall (5)（既存通り）
-3. lastRejectedOfferId を基に ±30% 妥協方向へ調整した demands で新 offer を生成
+3. lastRejectedOfferId を基に ±30% 妥協方向へ調整した demands で新 offer を生成（妥協幅は initiator / target で対称。`contract_tax_revision` の妥協 demand 生成は side 非依存のため、未使用だった `_side` パラメータは除去済み）
 4. play.currentOfferId を新 offer に更新、play.offerHistoryIds に追加
 5. offer_compromise による progress は offerCompromiseProgressDelta に一本化（counterOfferProgressDelta との二重加算なし）
 
