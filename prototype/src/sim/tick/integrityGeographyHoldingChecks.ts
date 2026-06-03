@@ -210,6 +210,55 @@ export function checkGeographyAndHoldings(
         message: `Holding ${holding.id} kind=${String(holding.kind)} must be 'manor' or 'city' (§18.3)`,
       })
     }
+    // H7 (v0.41 §9.1): every Holding has a non-empty nameKey
+    if (typeof holding.nameKey !== 'string' || holding.nameKey.length === 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Holding ${holding.id} has empty nameKey (§9.1 H7)`,
+      })
+    }
+  }
+
+  // H8 (v0.41 §9.2): Holding.nameKey unique within each Province
+  // (Province 名との衝突・異 Province 間重複は許容)
+  for (const province of Object.values(state.provinces)) {
+    if (!province) continue
+    const seen = new Set<string>()
+    for (const hid of province.holdingIds) {
+      const holding = state.holdings[hid]
+      if (!holding) continue
+      if (seen.has(holding.nameKey)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Province ${province.id} has duplicate Holding nameKey '${holding.nameKey}' (§9.2 H8)`,
+        })
+      }
+      seen.add(holding.nameKey)
+    }
+  }
+
+  // P-name (v0.41 §9.3): Polity.nameSource validity
+  for (const polity of Object.values(state.polities)) {
+    if (!polity) continue
+    const ns = polity.nameSource
+    switch (ns.kind) {
+      case 'pool':
+        if (typeof ns.nameKey !== 'string' || ns.nameKey.length === 0) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Polity ${polity.id} nameSource(pool) has empty nameKey (§9.3 P-name)`,
+          })
+        }
+        break
+      case 'holding':
+        if (!state.holdings[ns.holdingId]) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Polity ${polity.id} nameSource(holding) references missing Holding ${ns.holdingId} (§9.3 P-name)`,
+          })
+        }
+        break
+    }
   }
 
   // H5: HoldingOffice integrity (§18.5)
