@@ -347,7 +347,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 
 詳細仕様は `docs/drafts/spec-v018-update.md` を参照（Stage A〜G すべて完了、2026-05-20 時点）。
 
-- **外交劇基盤**: PoliticalActorRef / ActorIntent / DiplomaticPlay / DiplomaticDemand 型、GC (CleanupTerminalDiplomacy)、IntegrityCheck 拡張
+- **外交劇基盤**: OrganizationRef (旧 PoliticalActorRef) / ActorIntent / DiplomaticPlay / DiplomaticDemand 型、GC (CleanupTerminalDiplomacy)、IntegrityCheck 拡張
 - **叛乱の外交劇化**: ProvinceRevoltSystem → revolt_negotiation DiplomaticPlay。妥協 / 鎮圧 / 独立の 3 分岐。disbandRebelPolity mutation による Rebel Polity 解散処理（v0.20-b2 で per-Holding 化: 各 Holding の terminal のうち rebel grantee のもののみを `restoreToPolityId` に復元）
 - **土地請求 (land_claim)**: 旧 land_purchase / land_transfer_demand を統合。rank ベース契約選択 (3-a/3-b/3-c)、解決時操作 (5-a/5-b/5-c)。outcome event 3 色分け: LAND_CONTRACT_PURCHASED / LAND_CONTRACT_CEDED / LAND_CONTRACT_CONQUERED
 - **税率改定 (contract_tax_revision)**: 上位/下位契約者間の税率 ±5% 交渉。下限 5% / 上限 80% 超で契約破棄 (eliminateContractFromChain mutation による chain 再接続)

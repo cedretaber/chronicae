@@ -401,6 +401,8 @@ type OrganizationRef =
   | { kind: 'house'; id: HouseId }
 ```
 
+組織 (polity / house) への共通参照。office / share の所属先であると同時に、外交・戦争・叛乱の主体としても用いる（v0.41 で旧 `PoliticalActorRef` を本型へ統合。§3.9 参照）。
+
 **OfficeAssignment**: 役職の任命記録。
 
 ```ts
@@ -574,12 +576,13 @@ type BailiffRevenueTaskStatus = 'completed' | 'none'
 
 ### 3.9 外交劇システム (v0.18 / v0.26 / v0.30 更新)
 
-#### PoliticalActorRef
+#### 外交・戦争 actor 参照 (OrganizationRef)
 
-外交・戦争・叛乱の主体を表す共通参照。
+外交・戦争・叛乱の主体を表す共通参照。**v0.41 で `OrganizationRef`（§3.7）へ統合**。それ以前は構造的に同一の独立型 `PoliticalActorRef` だったが、office / share の組織参照と同じ `{ kind: 'polity' | 'house'; id }` であるため一本化した。
 
 ```ts
-type PoliticalActorRef =
+// = OrganizationRef
+type OrganizationRef =
   | { kind: 'polity'; id: PolityId }
   | { kind: 'house'; id: HouseId }
 ```
@@ -633,7 +636,7 @@ type DiplomaticOfferStatus =
 type DiplomaticOffer = {
   id: DiplomaticOfferId
   playId: DiplomaticPlayId
-  proposedBy: PoliticalActorRef
+  proposedBy: OrganizationRef
   demands: DiplomaticDemand[]
   status: DiplomaticOfferStatus
   createdWeek: number
@@ -725,7 +728,7 @@ type WarStatus = 'active' | 'attacker_won' | 'defender_won' | 'white_peace' | 'c
 type WarSideKey = 'attacker' | 'defender'
 
 type WarParticipant = {
-  actor: PoliticalActorRef
+  actor: OrganizationRef
   joinedWeek: number
   primary: boolean
 }
@@ -763,7 +766,7 @@ type WarGoal = TransferLandContractWarGoal | ChangeContractTaxRateWarGoal
 type TransferLandContractWarGoal = {
   kind: 'transfer_land_contract'
   holdingId: HoldingId
-  fromPolityId: PolityId          // PoliticalActorRef ではなく明示的 PolityId
+  fromPolityId: PolityId          // OrganizationRef ではなく明示的 PolityId
   toPolityId: PolityId
   requiredWarScore: number
 }
@@ -832,7 +835,7 @@ type RegimentTroopKind = 'infantry' | 'cavalry'
 
 type Regiment = {
   id: RegimentId
-  owner: PoliticalActorRef            // 編制権を持つ主体。worldgen では homeHolding の terminal Polity
+  owner: OrganizationRef            // 編制権を持つ主体。worldgen では homeHolding の terminal Polity
   mobilizedByPolityId?: PolityId      // 現在この Regiment を戦争動員している Polity
   status: RegimentStatus
   sourceKind: RegimentSourceKind

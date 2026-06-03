@@ -385,7 +385,7 @@ function getPersonWeeklyActionCapacity(state: WorldState, config: SimulationConf
 // Aim / ActivityLog ベースの任官補正値
 function getAppointmentTaskModifier(
   state: WorldState, config: SimulationConfig,
-  personId: PersonId, organization: PoliticalActorRef, role: OfficeRole
+  personId: PersonId, organization: OrganizationRef, role: OfficeRole
 ): number
 
 // Task の effectivePriority（ownerDutyBonus + goalAlignmentBonus + urgencyBonus + taskKindPriorityBonus - overloadPenalty）
