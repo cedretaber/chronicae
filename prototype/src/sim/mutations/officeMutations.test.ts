@@ -46,6 +46,7 @@ function makeOfficeState(): {
       [polityId]: {
         id: polityId,
         nameKey: 'C',
+        nameSource: { kind: 'pool', nameKey: 'C' },
         rank: 2,
         treasury: 0,
         adminPower: 0,

@@ -81,6 +81,7 @@ function makeMinimalWorld(): WorldState {
   const polity = {
     id: polityId,
     nameKey: 'C0',
+    nameSource: { kind: 'pool' as const, nameKey: 'C0' },
     rank: 2 as const,
     ownerHouseId: houseId,
     treasury: 100,

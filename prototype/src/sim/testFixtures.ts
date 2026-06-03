@@ -284,6 +284,7 @@ export function withPolity(
   const polity: Polity = {
     id,
     nameKey: 'c',
+    nameSource: { kind: 'pool', nameKey: 'c' },
     rank: 2,
     treasury: 0,
     adminPower: 0,

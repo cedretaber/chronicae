@@ -43,9 +43,17 @@ export type PopularRevoltState =
   | { kind: 'revolting'; warId?: WarId; revoltSeizureContractIds: LandContractId[] }
   | { kind: 'established' }
 
+// v0.41 (§3.2/§3.3): Polity の名前情報。pool 由来は自前の nameKey を持ち、
+// holding 由来は対象 Holding の名前を借りる (解決カテゴリは Holding.kind で決まる)。
+export type PolityNameSource =
+  | { kind: 'pool'; nameKey: string }
+  | { kind: 'holding'; holdingId: HoldingId }
+
 export type Polity = {
   id: PolityId
+  // v0.41: nameKey は Phase 8 で削除予定。移行期間中は nameSource と dual-write。
   nameKey: string
+  nameSource: PolityNameSource
   treasury: number // >= 0
   adminPower: number // 0..100, cache: recalculated each January
   legacyPrestige: number // 0..100

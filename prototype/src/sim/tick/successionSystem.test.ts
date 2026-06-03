@@ -300,6 +300,7 @@ describe('runSuccessionSystem', () => {
           [polityId]: {
             id: polityId,
             nameKey: 'C0',
+            nameSource: { kind: 'pool', nameKey: 'C0' },
             rank: 2,
             ownerHouseId: houseId,
             treasury: 100,
@@ -467,6 +468,7 @@ describe('runSuccessionSystem', () => {
           [polityId]: {
             id: polityId,
             nameKey: 'C0',
+            nameSource: { kind: 'pool', nameKey: 'C0' },
             rank: 2,
             ownerHouseId: houseId,
             treasury: 100,

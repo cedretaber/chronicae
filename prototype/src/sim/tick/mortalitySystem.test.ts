@@ -52,6 +52,7 @@ function makeCtx(person: Person, rngSeed: number): TickContext {
         [polityId]: {
           id: polityId,
           nameKey: 'C0',
+          nameSource: { kind: 'pool', nameKey: 'C0' },
           rank: 2,
           ownerHouseId: houseId,
           treasury: 100,
@@ -227,6 +228,7 @@ describe('runMortalitySystem', () => {
             [polityId]: {
               id: polityId,
               nameKey: 'C0',
+              nameSource: { kind: 'pool', nameKey: 'C0' },
               rank: 2,
               ownerHouseId: houseId,
               treasury: 100,
@@ -388,6 +390,7 @@ describe('runMortalitySystem', () => {
             [polityId]: {
               id: polityId,
               nameKey: 'C0',
+              nameSource: { kind: 'pool', nameKey: 'C0' },
               rank: 2,
               ownerHouseId: houseId,
               treasury: 100,

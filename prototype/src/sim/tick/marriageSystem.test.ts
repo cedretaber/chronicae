@@ -154,6 +154,7 @@ function makePolity(id: PolityId, houseId: HouseId): NonNullable<WorldState['pol
   return {
     id,
     nameKey: 'C',
+    nameSource: { kind: 'pool', nameKey: 'C' },
     rank: 2,
     ownerHouseId: houseId,
     treasury: 100,

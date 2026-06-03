@@ -119,6 +119,7 @@ function makeWorldState(
       [polity1Id]: {
         id: polity1Id,
         nameKey: 'Polity 1',
+        nameSource: { kind: 'pool', nameKey: 'Polity 1' },
         rank: 2,
         ownerHouseId: house1Id,
         treasury: 100,

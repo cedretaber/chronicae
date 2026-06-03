@@ -34,6 +34,7 @@ export function createPolity(
   const newPolity: Polity = {
     id: polityId,
     nameKey: input.nameKey,
+    nameSource: { kind: 'pool', nameKey: input.nameKey },
     treasury: input.treasury ?? 0,
     adminPower: input.adminPower ?? 0,
     legacyPrestige: input.legacyPrestige ?? 0,
@@ -156,6 +157,7 @@ export function createPolityFromHouse(
   const newPolity: Polity = {
     id: newPolityId,
     nameKey: polityNameKey,
+    nameSource: { kind: 'pool', nameKey: polityNameKey },
     treasury: Math.floor(rebelHouse.wealth * 0.5),
     legacyPrestige: 20,
     adminPower: 0,
@@ -236,6 +238,7 @@ export function createPolityFromProvinces(
   const polity: Polity = {
     id,
     nameKey,
+    nameSource: { kind: 'pool', nameKey },
     treasury: finalCtx.config.revoltPolityInitialTreasury,
     legacyPrestige: finalCtx.config.revoltPolityInitialLegacyPrestige,
     adminPower: 0,
