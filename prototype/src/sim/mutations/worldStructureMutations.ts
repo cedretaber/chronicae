@@ -77,8 +77,10 @@ export function splitHouse(
   // Province fraction selection
   const controlMin = ctx.config.houseSplitControlMin / 100
   const controlMax = ctx.config.houseSplitControlMax / 100
-  const { value: controlFraction } = randomFloat(ctx.rng)
-  let rngAfterControl = ctx.rng
+  // 調査 §1 (low): randomFloat が返す advance 後 rng を伝播する (旧コードは ctx.rng を
+  // 再利用しており controlFraction の draw が後続の name picking と相関していた)。
+  const { value: controlFraction, rng: rngAfterControlDraw } = randomFloat(ctx.rng)
+  let rngAfterControl = rngAfterControlDraw
   const F = controlMin + controlFraction * (controlMax - controlMin)
   const sortedProvinceIds = [...getHouseControlledProvinceIds(ctx.state, input.houseId)].sort()
   const splitCount = Math.max(1, Math.floor(sortedProvinceIds.length * F))
@@ -128,7 +130,7 @@ export function splitHouse(
         .map((h) => h.nameKey),
     )
     const { value: key, rng: rngH } = ctx.namePoolService.pickUniqueNameKey(
-      ctxWithId.rng,
+      rngAfterControl,
       usedKeys,
       { nameCultureId: 'western', category: 'house', path: ['noble'] },
       'house',

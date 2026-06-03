@@ -4,6 +4,7 @@ import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types
 import type { DiplomaticOfferId, DiplomaticPlayId, PolityId } from '../types/ids'
 import type { PoliticalActorRef } from '../types/actor'
 import { createDiplomaticOfferId } from '../types/ids'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import {
   applyLandContractTransferGoal,
   adjustLandContractTaxRate,
@@ -236,7 +237,7 @@ function applyChangeContractTaxRate(
           terms: {
             ...updatedContract.terms,
             termsProtectedUntilWeek:
-              ctx.state.absoluteWeek + config.taxRevisionGracePeriodYears * 52,
+              ctx.state.absoluteWeek + config.taxRevisionGracePeriodYears * WEEKS_PER_YEAR,
           },
         },
       },

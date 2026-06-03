@@ -18,7 +18,9 @@ function collectMemberHouseIds(state: WorldState, rootHouseId: HouseId): HouseId
     if (!house) continue
     if (house.kind === 'system') continue
     if (house.clanId !== undefined && houseId !== rootHouseId) continue
-    result.push(houseId)
+    // 調査 §1 (low): inactive (断絶) house を clan メンバーに含めない (clanId 付与・
+    // カウント汚染を防ぐ)。ただし配下の active 子家へ到達するため traversal は継続する。
+    if (house.active) result.push(houseId)
     for (const cadetId of house.cadetHouseIds) {
       if (!visited.has(cadetId)) {
         const cadet = state.houses[cadetId]
