@@ -12,7 +12,7 @@ import { runBailiffAppointmentSystem } from './bailiffAppointmentSystem'
 import { runDisasterSystem } from './disasterSystem'
 import { runMortalitySystem } from './mortalitySystem'
 import { runDeadPersonLogPurgeSystem } from './deadPersonLogPurgeSystem'
-import { runSuccessionSystem } from './successionSystem'
+import { runSuccessionSystem, applyMinorHeadPenalties } from './successionSystem'
 import { runMarriageSystem } from './marriageSystem'
 import { runBirthSystem } from './birthSystem'
 import { runAppointmentSystem } from './appointmentSystem'
@@ -175,6 +175,19 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runEstateSettlementSystem,
   },
   { name: 'successionSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runSuccessionSystem },
+  {
+    // spec §6.12 未成年当主ペナルティ: 当主が未成年 (age < adultAge) の間、4 週ごとに家
+    // メンバーの respect (cohesion) / 当主の primary polity への affection (loyalty) を
+    // Attitude 経由で削る。ロジックは successionSystem.ts (applyMinorHeadPenalties) に
+    // 存在したが v0.7 以来 tick へ未配線だった (調査 §5 #5)。
+    // 配線位置: successionSystem (位置 177) の直後。年末 succession re-pass は
+    // runSuccessionSystem のみを再実行するため、このペナルティを runSuccessionSystem 内に
+    // 入れず独立 system にすることで week 48 での二重適用を回避する。
+    name: 'minorHeadPenaltySystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: applyMinorHeadPenalties,
+  },
   { name: 'marriageSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runMarriageSystem },
   { name: 'birthSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runBirthSystem },
   {
