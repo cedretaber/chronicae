@@ -548,6 +548,14 @@ export function tick(input: TickInput): TickResult {
   // 誤検知する。よって flush + integrity は debug/非 debug いずれも WEEKS_PER_YEAR でのみ実行する。
   // debug 時は観察継続のため catch-and-log (非 fatal)、非 debug は throw でゲートにする。
   if (ctx.state.currentWeekOfYear === WEEKS_PER_YEAR) {
+    // 年末 succession re-pass: successionSystem は週次スケジュール (位置 177) で走るが、
+    // その後に実行される death-causing system (plotSystem 等、位置 272 以降) が year-end tick で
+    // House leader を殺すと、その tick では succession が走り終えており House が leaderless のまま
+    // 年末 integrity check に到達する (翌年 week 1 の succession で自己修復するため通常は無害だが、
+    // §1.8 leaderless detector が year-end の一過性 leaderless を fatal 化させる)。
+    // ここで再度 succession を走らせ、年末 invariant「active House は leader を持つ」を確実に成立させる。
+    // 通常 (leaderless House/polity 無し) は no-op (RNG draw 無し) のため bit-identical。
+    run('successionSystemYearEnd', runSuccessionSystem)
     if (debug) {
       run('preIntegrityFlush', flushTerminalEntities)
       try {
