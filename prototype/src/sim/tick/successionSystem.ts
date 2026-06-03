@@ -294,16 +294,24 @@ export function applyMinorHeadPenalties(ctx: TickContext): TickContext {
     )
     if (r1.ok) state = r1.value
 
+    // landless / 没落 house は primary polity を持たず getHousePrimaryPolityId が undefined を
+    // 返す。その場合は loyalty ペナルティ (polity への affection) の適用対象が無いため skip する
+    // (cohesion ペナルティ = house への respect は houseId が常に有効なので上で適用済み)。
+    // ※ 本関数は v0.7 以来未配線で、配線 (94b9ba1) により初めてこの undefined 経路が到達可能に
+    //   なった。ガードが無いと `polity:undefined` という junk attitude key を全メンバーに書き込む
+    //   (integrity は attitude key を検査しないため検知できない)。
     const housePrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, house.id)
-    const r2 = adjustHouseMembersAttitude(
-      state,
-      houseId as HouseId,
-      { kind: 'polity', id: housePrimaryPolityId as PolityId },
-      {
-        affection: -currentCtx.config.minorHeadLoyaltyPenaltyPerMonth,
-      },
-    )
-    if (r2.ok) state = r2.value
+    if (housePrimaryPolityId) {
+      const r2 = adjustHouseMembersAttitude(
+        state,
+        houseId as HouseId,
+        { kind: 'polity', id: housePrimaryPolityId },
+        {
+          affection: -currentCtx.config.minorHeadLoyaltyPenaltyPerMonth,
+        },
+      )
+      if (r2.ok) state = r2.value
+    }
 
     currentCtx = { ...currentCtx, state }
   }
