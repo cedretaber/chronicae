@@ -107,15 +107,6 @@ export function getProvinceRootPolityId(
   return root?.granteePolityId
 }
 
-export function getProvinceOverlordPolityIds(
-  state: WorldState,
-  provinceId: ProvinceId,
-): PolityId[] {
-  const chain = getProvinceLandContractChain(state, provinceId)
-  if (chain.length <= 1) return []
-  return chain.slice(0, -1).map((c) => c.granteePolityId)
-}
-
 export function getProvinceEffectiveOwnerHouseId(
   state: WorldState,
   provinceId: ProvinceId,

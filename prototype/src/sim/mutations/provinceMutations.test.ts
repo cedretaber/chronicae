@@ -1,17 +1,8 @@
-import {
-  getHouseControlledProvinceIds,
-  getProvinceEffectiveOwnerHouseId,
-  getProvinceTerminalPolityId,
-} from '../selectors/landContractSelectors'
 import { describe, expect, it } from 'vitest'
 import { createPolityId, createHouseId, createProvinceId } from '../types/ids'
 import type { PolityId, HouseId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import {
-  transferProvinceToHouse,
-  transferProvinceToPolity,
-  adjustProvinceDevelopment,
-} from './provinceMutations'
+import { adjustProvinceDevelopment } from './provinceMutations'
 import {
   bindProvinceToHouseViaPolity,
   makeEmptyV016State,
@@ -71,113 +62,6 @@ function makeFixture(): {
   state = bindProvinceToHouseViaPolity(state, auxProvinceId, polity2Id, house2Id)
   return { state, provinceId, house1Id, house2Id, polity1Id, polity2Id }
 }
-
-describe('transferProvinceToHouse', () => {
-  it('Province ownerHouseId and polityId are updated correctly', () => {
-    const { state, provinceId, house2Id, polity2Id } = makeFixture()
-    const result = transferProvinceToHouse(state, provinceId, house2Id)
-
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(getProvinceEffectiveOwnerHouseId(result.value, provinceId)).toBe(house2Id)
-      expect(getProvinceTerminalPolityId(result.value, provinceId)).toBe(polity2Id)
-    }
-  })
-
-  it('old house provinceIds no longer contains the provinceId', () => {
-    const { state, provinceId, house1Id, house2Id } = makeFixture()
-    const result = transferProvinceToHouse(state, provinceId, house2Id)
-
-    expect(result.ok).toBe(true)
-    if (result.ok)
-      expect(getHouseControlledProvinceIds(result.value, house1Id)).not.toContain(provinceId)
-  })
-
-  it('new house provinceIds contains the provinceId', () => {
-    const { state, provinceId, house2Id } = makeFixture()
-    const result = transferProvinceToHouse(state, provinceId, house2Id)
-
-    expect(result.ok).toBe(true)
-    if (result.ok)
-      expect(getHouseControlledProvinceIds(result.value, house2Id)).toContain(provinceId)
-  })
-
-  it('original state is not mutated', () => {
-    const { state, provinceId, house2Id } = makeFixture()
-    const result = transferProvinceToHouse(state, provinceId, house2Id)
-
-    expect(result.ok).toBe(true)
-    if (result.ok) expect(result.value).not.toBe(state)
-  })
-
-  it('returns err when provinceId does not exist', () => {
-    const { state } = makeFixture()
-    const result = transferProvinceToHouse(state, createProvinceId('p', 99), createHouseId('h', 2))
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('PROVINCE_NOT_FOUND')
-  })
-
-  it('returns err when newOwnerHouseId does not exist', () => {
-    const { state, provinceId } = makeFixture()
-    const result = transferProvinceToHouse(state, provinceId, createHouseId('h', 99))
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
-  })
-})
-
-describe('transferProvinceToPolity', () => {
-  it('transfers province to a house within the target polity', () => {
-    const { state, provinceId, house2Id, polity2Id } = makeFixture()
-    const result = transferProvinceToPolity(state, provinceId, polity2Id, house2Id)
-
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-
-    expect(getProvinceEffectiveOwnerHouseId(result.value, provinceId)).toBe(house2Id)
-    expect(getProvinceTerminalPolityId(result.value, provinceId)).toBe(polity2Id)
-  })
-
-  it('returns err when province not found', () => {
-    const { state, house2Id, polity2Id } = makeFixture()
-    const result = transferProvinceToPolity(state, createProvinceId('p', 99), polity2Id, house2Id)
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('PROVINCE_NOT_FOUND')
-  })
-
-  it('returns err when target polity not found', () => {
-    const { state, provinceId, house2Id } = makeFixture()
-    const result = transferProvinceToPolity(state, provinceId, createPolityId('c', 99), house2Id)
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('POLITY_NOT_FOUND')
-  })
-
-  it('returns err when house does not belong to target polity', () => {
-    const { state, provinceId, house1Id, polity2Id } = makeFixture()
-    const result = transferProvinceToPolity(state, provinceId, polity2Id, house1Id)
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('OWNER_MISMATCH')
-  })
-})
-
-// v0.16: transferProvinceToHouse の newHouseControl オプションは廃止 (houseControl 廃止のため)。
-// 代替: terminal Polity 経由で polityControl が変動するため、別 system で扱う。
-describe('transferProvinceToHouse (v0.16)', () => {
-  it('preserves polityControl when transferring', () => {
-    const { state, provinceId, house2Id } = makeFixture()
-    const holdingId = state.provinces[provinceId]!.holdingIds[0]!
-    const original = state.holdings[holdingId]!.polityControl
-    const result = transferProvinceToHouse(state, provinceId, house2Id)
-
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.value.holdings[holdingId]!.polityControl).toBe(original)
-  })
-})
 
 describe('adjustProvinceDevelopment', () => {
   it('is a no-op (v0.27: development is derived from HoldingImprovement)', () => {
