@@ -13,6 +13,7 @@ import {
 } from '../constants/abilityConstants'
 import type { RngResult } from '../rng/rng'
 import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
 export type AppliedRoleKey = 'governance' | 'stewardship' | 'diplomacy' | 'intrigue' | 'warCommand'
 
@@ -188,7 +189,7 @@ export function hadRelevantExperience(
     const polity = state.polities[polityId]
     if (polity && polity.lastWarWeek !== undefined) {
       const weeksSinceWar = state.absoluteWeek - polity.lastWarWeek
-      if (weeksSinceWar <= 52) return true
+      if (weeksSinceWar <= WEEKS_PER_YEAR) return true
     }
   }
 
