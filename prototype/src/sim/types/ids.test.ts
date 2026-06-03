@@ -46,8 +46,8 @@ describe('createPersonId', () => {
 
 describe('createPlotId', () => {
   it('returns the expected string format', () => {
-    const id = createPlotId('plot', 0)
-    expect(id).toBe('plot-0')
+    const id = createPlotId(0)
+    expect(id).toBe('pl-0')
   })
 })
 

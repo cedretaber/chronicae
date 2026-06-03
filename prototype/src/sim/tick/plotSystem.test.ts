@@ -107,7 +107,7 @@ describe('runPlotSystem', () => {
     const { state, polityId, personId } = makeBaseState()
 
     const plot: Plot = {
-      id: createPlotId('p', 0),
+      id: createPlotId(0),
       type: 'seize_office',
       status: 'active',
       startedWeek: 69312,
@@ -141,7 +141,7 @@ describe('runPlotSystem', () => {
     const { state, polityId, personId } = makeBaseState()
 
     const plot: Plot = {
-      id: createPlotId('p', 0),
+      id: createPlotId(0),
       type: 'seize_office',
       status: 'active',
       startedWeek: 69312,
@@ -254,7 +254,7 @@ describe('runPlotSystem', () => {
     const { state, polityId, houseId, personId } = makeBaseState()
 
     const existingPlot: Plot = {
-      id: createPlotId('p', 0),
+      id: createPlotId(0),
       type: 'seize_office',
       status: 'active',
       startedWeek: 69312,

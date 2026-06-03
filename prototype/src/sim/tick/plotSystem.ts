@@ -385,8 +385,11 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
   const durationWeeks = plotType === 'prepare_rebellion' ? 24 : 12
 
   // Generate PlotId
+  // event id (e-<week>-<index>) を流用してユニーク性を確保するが、prefix は plot 専用の `pl-` に
+  // する。`p-` は ProvinceId (p-<index>) が使用しており、prefix を共有すると ID が世界全体で一意で
+  // なくなる (実際の文字列は segment 数が違うため現状は衝突しないが、紛らわしく潜在的衝突源)。
   const { id: rawId, ctx: eventCtx } = makeEventId(ctx4)
-  const plotId = rawId.replace(/^e-/, 'p-') as PlotId
+  const plotId = rawId.replace(/^e-/, 'pl-') as PlotId
 
   // Determine target fields based on plotType
   let targetHouseId: HouseId | undefined

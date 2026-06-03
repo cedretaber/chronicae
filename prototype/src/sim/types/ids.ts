@@ -24,8 +24,10 @@ export function createPersonId(prefix: string, n: number): PersonId {
   return (prefix + '-' + n) as PersonId
 }
 
-export function createPlotId(prefix: string, n: number): PlotId {
-  return (prefix + '-' + n) as PlotId
+// Plot は専用 prefix `pl-` を使う (ProvinceId の `p-` と衝突させない)。production の plot id 生成は
+// plotSystem 側で event id を流用するため、この関数は主にテスト用の固定 prefix ヘルパー。
+export function createPlotId(n: number): PlotId {
+  return ('pl-' + n) as PlotId
 }
 
 export function createEventId(prefix: string, n: number): EventId {

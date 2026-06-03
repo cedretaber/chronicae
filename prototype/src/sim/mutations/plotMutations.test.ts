@@ -32,7 +32,7 @@ function makeFixture(): {
   const polity1Id = createPolityId('c', 0)
   const house1Id = createHouseId('h', 0)
   const leaderId = createPersonId('pe', 0)
-  const plotId = createPlotId('pl', 0)
+  const plotId = createPlotId(0)
   const provinceId = createProvinceId('p', 0)
 
   let state = makeEmptyV016State()
