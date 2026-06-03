@@ -12,8 +12,8 @@ import type { CreateSimEventInput } from '../tick/context'
 import { createDiplomaticPlayId } from '../types/ids'
 import { nameParam, entityRef } from '../types/event'
 import {
-  getProvinceTerminalContract,
-  getProvinceLandContractChain,
+  getProvinceDominantTerminalContract,
+  getHoldingLandContractChain,
   getLandContractGrantor,
   getProvinceDevelopmentFromHoldings,
   selectTargetHoldingInProvince,
@@ -241,7 +241,9 @@ function createContractRevisionPlayFromProjectMut(
   if (!provinceId) return { kind: 'invalid_inputs' }
 
   const isReduction = project.kind === 'improve_contract_terms'
-  const chain = getProvinceLandContractChain(ws, provinceId)
+  // 調査 §4.1: project が holdingId を保有しているので、legacy な province チェーンでなく
+  // 対象 holding 自身の chain (byHolding) を検索対象にする (province 単位 1 チェーンの代用を撤廃)。
+  const chain = getHoldingLandContractChain(ws, holdingId)
   const subjectContract = isReduction
     ? chain.find(
         (c) => c && c.granteePolityId === project.owner.id && c.parentContractId !== undefined,
@@ -376,7 +378,7 @@ export function checkLandPurchaseEligibility(
   if (!acquirer || !target) return false
   if (acquirer.rank !== target.rank) return false
 
-  const targetContract = getProvinceTerminalContract(state, provinceId)
+  const targetContract = getProvinceDominantTerminalContract(state, provinceId)
   if (!targetContract) return false
   const targetGrantor = getLandContractGrantor(state, targetContract.id)
   if (!targetGrantor) return false
@@ -385,7 +387,7 @@ export function checkLandPurchaseEligibility(
   const targetProvince = state.provinces[provinceId]
   if (!targetProvince) return false
   for (const neighborId of targetProvince.neighbors) {
-    const neighborContract = getProvinceTerminalContract(state, neighborId)
+    const neighborContract = getProvinceDominantTerminalContract(state, neighborId)
     if (!neighborContract) continue
     if (neighborContract.granteePolityId !== acquirerPolityId) continue
     const neighborGrantor = getLandContractGrantor(state, neighborContract.id)

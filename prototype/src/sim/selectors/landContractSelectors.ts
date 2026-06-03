@@ -55,6 +55,40 @@ export function getProvinceTerminalPolityId(
   return getProvinceDominantTerminalPolityId(state, provinceId)
 }
 
+// 調査 §4.1: legacy な byProvince チェーンを撤去するため、province 粒度の隣接推論
+// (land purchase 等) が必要とする「province の代表 terminal contract」を holding 集約で導出する。
+// canonical な getProvinceDominantTerminalPolityId と同じ「weight 最大の terminal polity」を支配者と
+// し、その polity が terminal を握る holding のうち weight 最大 (tiebreak holdingId 昇順) の
+// holding chain の terminal contract を返す。返却契約の granteePolityId は dominant polity と一致する。
+export function getProvinceDominantTerminalContract(
+  state: WorldState,
+  provinceId: ProvinceId,
+): LandContract | undefined {
+  const province = state.provinces[provinceId]
+  if (!province) return undefined
+  const dominantPolityId = getProvinceDominantTerminalPolityId(state, provinceId)
+  if (!dominantPolityId) return undefined
+  let bestHoldingId: HoldingId | undefined
+  let bestWeight = -Infinity
+  for (const hid of province.holdingIds) {
+    if (state.holdingTerminalPolityCache[hid] !== dominantPolityId) continue
+    const w = state.holdings[hid]?.weight ?? 1
+    if (
+      bestHoldingId === undefined ||
+      w > bestWeight ||
+      (w === bestWeight && (hid as string) < (bestHoldingId as string))
+    ) {
+      bestWeight = w
+      bestHoldingId = hid
+    }
+  }
+  if (!bestHoldingId) return undefined
+  const ids = state.landContractIndex.byHolding[bestHoldingId] ?? []
+  const terminalId = ids[ids.length - 1]
+  if (!terminalId) return undefined
+  return state.landContracts[terminalId]
+}
+
 export function getProvinceDominantTerminalPolityId(
   state: WorldState,
   provinceId: ProvinceId,

@@ -5,7 +5,7 @@ import { defaultConfig } from '../config/defaultConfig'
 import {
   getPolityTerminalProvinceIds,
   getProvinceTerminalPolityId,
-  getProvinceTerminalContract,
+  getProvinceDominantTerminalContract,
   getLandContractGrantor,
   getProvinceDevelopmentFromHoldings,
 } from './landContractSelectors'
@@ -55,7 +55,7 @@ export function findSellLandCandidates(
       if (!sellerProvince) continue
 
       // この Province の terminal contract の grantor を取得 (= 同じ grantor 制約用)
-      const sellerContract = getProvinceTerminalContract(state, sellerProvinceId)
+      const sellerContract = getProvinceDominantTerminalContract(state, sellerProvinceId)
       if (!sellerContract) continue
       const sellerGrantor = getLandContractGrantor(state, sellerContract.id)
       if (!sellerGrantor) continue
@@ -73,7 +73,7 @@ export function findSellLandCandidates(
 
         // 同じ直接 grantor 制約: neighbor Province の terminal contract の grantor が
         // seller Province と同じ grantor を持つこと
-        const neighborContract = getProvinceTerminalContract(state, neighborId)
+        const neighborContract = getProvinceDominantTerminalContract(state, neighborId)
         if (!neighborContract) continue
         const neighborGrantor = getLandContractGrantor(state, neighborContract.id)
         if (!neighborGrantor) continue
