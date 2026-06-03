@@ -673,7 +673,7 @@ active / normal / clanId undefined の各 House を root candidate として以�
 2. **影響力条件**: formation group に ruling house が含まれる、または `isInfluentialHouse` が `clanFormationMinInfluentialHouses` 以上
 3. **量的条件**: formation group の total living members / wealth / legacyPrestige のいずれかが閾値以上
 
-3 条件すべてを満たすと Clan を成立させる。所属範囲は formation group（direct cadet のみ）ではなく、rootHouseId から下方向の全 descendant House。すでに別の clanId を持つ descendant とその下位はスキップする。
+3 条件すべてを満たすと Clan を成立させる。所属範囲は formation group（direct cadet のみ）ではなく、rootHouseId から下方向の全 descendant House。すでに別の clanId を持つ descendant とその下位はスキップする。**inactive（断絶）House は Clan メンバーに含めない（調査 §1 / v0.41）**：`collectMemberHouseIds` は active な House のみを memberHouseIds に積む（clanId 付与・カウント汚染を防ぐ）。ただし inactive な中間 House の配下に active な子孫がある場合に到達できるよう、traversal 自体は inactive House も貫通する。
 
 イベント: `CLAN_FOUNDED`（importance: `major`）
 
@@ -1547,6 +1547,7 @@ active Project の状態更新。owner inactive → cancelled、origin Aim が n
 terminal Project の効果解決・ログ出力・cleanup を担当。
 
 - 非外交系 Project: treasury/wealth/prestige 等の直接効果を適用し、Aim progress を加算
+  - **文化系 Project の afford 前提（調査 §1.6 / v0.41）**: `patronize_artist` / `commission_chronicle` / `expand_polity_share` は完了時に `house.wealth >= cost` を要求する。以前は完了時に資金不足だと効果（prestige 付与・wealth 消費）を**何も適用せず**に early-return し、PROJECT_COMPLETED 発火と Aim 前進だけが残る silent no-op が多発していた（実測 434-529件/100年）。v0.41 でこれらの Project は**作成時**に afford 判定するよう変更（§6.29d `buildProjectFieldsForAim`）。作成時に払えなければ Project を生成せず Aim を待機させ、wealth 回復後に再試行する。これにより doomed Project が生成されず、完了時の silent no-op が消滅する。
 - 外交系 Project (v0.29): DiplomaticPlay 生成は ProjectStageSystem の open_diplomatic_play handler に移管。ProjectOutcomeSystem は外交系 completed 時に追加効果を適用しない（交渉への影響は各 Task outcome で DiplomaticPlay に反映済み）
 - respond_to_pressure completed: Pressure.status を 'responded' に遷移
 - Project を state.projects / projectIndex から削除
@@ -1915,6 +1916,8 @@ terminal DiplomaticPlay の aimId を確認し、Play の結果に応じて Aim 
 terminal Aim の goalId を確認し、Aim 結果に応じて Goal progress を更新する。succeeded → +25、failed → -10、abandoned → -5（config 経由）。progress を 0..targetProgress にクランプ。progress >= targetProgress で Goal succeeded。
 
 **v0.23**: `owner.kind === 'person'` の Goal は progress を 0..100 にクランプし、succeeded にはしない（Person Goal は人生目標であり達成判定を行わない）。
+
+**冪等ガード（調査 §1.5 / v0.41）**: 本 system は毎 tick（4週）に terminal Aim を全走査するが、外交系 Project が Aim を保持して CleanupTerminalDecisions が削除できない間（§6.30f retention）、同じ terminal Aim の progressDelta が Goal に**再加算**され続けていた（実測 最大 11x → GOAL_SUCCEEDED 早期発火）。Aim に `goalProgressApplied` フラグを設け、一度加算した Aim はスキップする（加算時に true をセット）。
 
 イベント: `GOAL_SUCCEEDED`
 
