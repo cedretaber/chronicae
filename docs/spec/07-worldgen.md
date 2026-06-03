@@ -181,7 +181,7 @@ holding.polityControl = maxControl(capitalProvinceId からの BFS 距離)
 
 ### 7.7 HoldingOffice (Bailiff) の初期化（v0.16 / v0.20）
 
-全 **Holding** に `bailiff` HoldingOfficeAssignment を生成し、holder は **placeholder Person** (`houseId === undefined`) とする。BailiffAppointmentSystem (§6.14e) が実行されると順次通常人物に置き換わる。
+全 **Holding** に `bailiff` HoldingOfficeAssignment を生成し、holder は **placeholder Person** (`houseId === undefined`) とする。BailiffAppointmentSystem (§6.22) が実行されると順次通常人物に置き換わる。
 
 ### 7.8a Person Goal / Aim 初期生成（v0.23）
 

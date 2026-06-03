@@ -1,10 +1,6 @@
 # 6. 各システムの仕様
 
-### 6.1 DevelopmentSystem（v0.27 で削除）
-
-**v0.27 で削除。** `Holding.development` 保存値が廃止され、development は HoldingImprovement から selector で算出する（§4.1 参照）。関連 config（`developmentPositiveMonthlyDecay` / `developmentNegativeMonthlyRecovery`）も削除。
-
-### 6.2 ControlSystem（4週ごと）
+### 6.1 ControlSystem（4週ごと）
 
 Polity ごとに首都から BFS、House ごとに本拠地から BFS を行い、各 Province の支配力を更新する。
 
@@ -40,44 +36,11 @@ BFS 通行条件:
 
 **v0.20**: polityControl は Province ではなく **Holding 単位**で更新する。BFS は Province graph 上を走査し、到達した Province 内の各 Holding の `polityControl` を距離に応じて更新する。Province レベルの polityControl は selector (`getProvincePolityControlFromHoldings`) で Holding の weight 加重平均から算出する。
 
-### 6.3 LordshipTransitionSystem（v0.16 で廃止）
-
-旧 v0.15 までの「隣接 Province 間で houseControl が下回ると ownerHouseId を奪う」ロジックは v0.16 で廃止された。土地支配は LandContract chain に統一され、Province 単位の所有変動は WarSystem（§6.20）/ ProvinceRevoltSystem（§6.22）/ LandContractPurchaseSystem（§6.22d）に集約される。
-
-参考までに、廃止前の動作は以下のとおりだった。
-
-#### 旧 v0.15 仕様（参考、現在の tick からは外れている）
-
-隣接する強力な領主による Province 吸収を処理する。スナップショットパターンで実装（連鎖防止）。
-
-**target の条件**:
-- `target.houseControl < lordshipAbsorptionTargetThreshold`
-- `target.id !== ownerHouse.seatProvinceId`
-
-**neighbor 候補の条件**:
-- `neighbor.polityId === target.polityId`
-- `neighbor.ownerHouseId !== target.ownerHouseId`
-- `neighbor.houseControl >= lordshipAbsorptionSourceMinimum`
-- `neighbor.houseControl >= target.houseControl * lordshipAbsorptionRatio`
-
-最高 houseControl の neighbor を採用（同値はランダム）。確率 `lordshipAbsorptionMonthlyChance` で発動。
-
-**効果**:
-```
-target.ownerHouseId = neighbor.ownerHouseId
-target.houseControl = clamp(neighbor.houseControl - penalty, newControlMin, newControlMax)
-```
-
-イベント: `LORDSHIP_TRANSFERRED`（importance: `minor`）
-```
-summary: "${新House.name} absorbed ${province.name} from ${旧House.name}."
-```
-
-### 6.4 PopSystem（4週ごと、v0.24 更新）
+### 6.2 PopSystem（4週ごと、v0.24 更新）
 
 POP の自然変化を処理する。Province の carrying capacity に基づいた人口圧制御、occupation overflow、wealth/unrest の自然変化を担当する。
 
-**6.4.1 人口成長（v0.24 更新）**
+**6.2.1 人口成長（v0.24 更新）**
 
 成長抑制式は `1 - pressure²`（二次関数）を使用する。`occupation:none` POP は成長が鈍化する。
 
@@ -92,7 +55,7 @@ const occupationGrowthModifier =
 const delta = pop.size * baseGrowth * growthFactor * wealthFactor * unrestFactor * occupationGrowthModifier
 ```
 
-**6.4.1b 人口増加時の overflow（v0.24 追加）**
+**6.2.1b 人口増加時の overflow（v0.24 追加）**
 
 人口増加分はまず元 POP に追加する。ただし `occupation !== 'none'` の POP で occupation capacity を超える場合、超過分は同 Holding / 同 class の `occupation:none` POP に移す。`none` POP の増加はそのまま none POP に留まる。
 
@@ -112,7 +75,7 @@ if (pop.occupation !== 'none') {
 
 実装注意: PopSystem は mutable draft パターンを使用し、ループ開始前に POP リストの snapshot を取る。overflow で生成された新 POP が同 tick 内で二重処理されないようにする。
 
-**6.4.2 population pressure の影響**
+**6.2.2 population pressure の影響**
 
 pressure が閾値を超えると土地不足・過密に相当する影響が発生する：
 
@@ -124,7 +87,7 @@ if (pressure > config.populationPressureThreshold) {
 }
 ```
 
-**6.4.3 poverty / prosperity 効果**
+**6.2.3 poverty / prosperity 効果**
 
 ```ts
 if (pop.wealth < config.povertyWealthThreshold) {
@@ -135,13 +98,13 @@ if (pop.wealth > config.prosperityWealthThreshold) {
 }
 ```
 
-**6.4.4 unrest 自然減衰**（v0.20.3 追加）
+**6.2.4 unrest 自然減衰**（v0.20.3 追加）
 
 ```ts
 pop.unrest *= 1 - config.unrestNaturalDecayRate
 ```
 
-**6.4.4b none POP ペナルティ（v0.24 追加）**
+**6.2.4b none POP ペナルティ（v0.24 追加）**
 
 ```ts
 if (pop.occupation === 'none') {
@@ -150,7 +113,7 @@ if (pop.occupation === 'none') {
 }
 ```
 
-**6.4.5 clamp（v0.24 更新）**
+**6.2.5 clamp（v0.24 更新）**
 
 `occupation !== 'none'` の POP は `minPopSizeByClass` で下限保証。`none` POP は 0 まで減少可能。
 
@@ -163,7 +126,7 @@ pop.unrest = clamp(pop.unrest, 0, 100)
 
 **normalizePopSizes**（IntegrityCheck 直前、v0.24 更新）: `occupation !== 'none'` の POP は `minPopSizeByClass` で下限保証。`occupation === 'none'` の POP は size が `popSizeEpsilon` 以下で削除する。
 
-### 6.4b EmploymentRebalanceSystem（4週ごと、v0.24 追加）
+### 6.3 EmploymentRebalanceSystem（4週ごと、v0.24 追加）
 
 PopSystem 直後、LandRevenueSystem 直前に実行。Holding × PopClass ごとに capacity 超過の強制失業化と、none POP の再就業を処理する。
 
@@ -197,20 +160,11 @@ for (const holding of Object.values(state.holdings)) {
 
 再就業時の wealth / unrest / attitudes は移動元と移動先の人口加重平均で統合される。
 
-### 6.5 EconomySystem（v0.16 で廃止 → LandRevenue + PolitySurplusDistribution に分割）
-
-旧 v0.15 までの EconomySystem は v0.16 で 2 つの system に分割された:
-
-- **LandRevenueSystem** (§6.5a): Province 生産から各 Polity treasury への上納
-- **PolitySurplusDistributionSystem** (§6.5b): Polity treasury から Share holder への分配
-
-過徴税ペナルティは LandRevenueSystem 側で継続。`houseControl` 経由の二重収入経路 (`houseIncome`) は廃止された。House への富の流れは Polity Share 経由でのみ発生する（§6.5b）。
-
-### 6.5a LandRevenueSystem（4週ごと、v0.16 / v0.20 / v0.24 / v0.25 更新）
+### 6.4 LandRevenueSystem（4週ごと、v0.16 / v0.20 / v0.24 / v0.25 更新）
 
 Province の生産を **Holding 単位で分配**し、代官による現地徴収を挟んだ上で、各 Holding の LandContract chain に沿って上納する。
 
-**6.5a.1 生産量算出（v0.24 更新）**
+**6.4.1 生産量算出（v0.24 更新）**
 
 v0.24 で occupation productivity multiplier を追加。各 POP の生産量は `pop.size * productivityByClass * occupationProductivityMultiplier * (wealth/100) * holdingDevMod * holdingControlMod` で算出する。`none` POP の生産性は 0.1（最低限の日雇い・自給を表す）。
 
@@ -218,7 +172,7 @@ v0.24 で occupation productivity multiplier を追加。各 POP の生産量は
 const production = getProvinceProduction(state, config, province.id)
 ```
 
-**6.5a.2 per-Holding 分配と代官徴収（v0.20 / v0.25 extraction model）**
+**6.4.2 per-Holding 分配と代官徴収（v0.20 / v0.25 extraction model）**
 
 Province 生産を各 Holding の share weight に応じて分配する。
 
@@ -248,7 +202,7 @@ const remittanceToTerminal = collected - bailiffFee
 
 通常人物代官には `bailiffFee` を `person.wealth` に加算する。placeholder 代官には加算しない。
 
-**6.5a.2b chain 上納（v0.25 更新）**
+**6.4.2b chain 上納（v0.25 更新）**
 
 各 Holding について、`remittanceToTerminal`（v0.25 以前は `holdingRevenue`）を chain に流す。
 
@@ -263,11 +217,11 @@ for (const contract of chain.slice().reverse()) {
 
 `root contract` の `taxRateToGrantor` は 0 固定なので、world に流出する分は無い。
 
-**6.5a.3 Polity treasurer の taxEfficiency**
+**6.4.3 Polity treasurer の taxEfficiency**
 
 terminal Polity の treasurer に能力補正がかかる（§10 参照）。`collectionEfficiency`（代官の現地徴収能力）とは別概念。
 
-**6.5a.4 ~~過徴税ペナルティ~~ → Holding 単位の徴税負担処理（v0.25 で置換）**
+**6.4.4 ~~過徴税ペナルティ~~ → Holding 単位の徴税負担処理（v0.25 で置換）**
 
 **v0.25 で旧 Province 単位の `overExtractionPenalty` を廃止**し、Holding 単位の `totalBurdenRate` ベース処理に置換した。
 
@@ -289,7 +243,7 @@ if (recentTaskStatus === 'completed') respectDelta += config.bailiffTaskComplete
 // clamp: affection [-1.0, 0.5], respect [-0.5, 0.5]
 ```
 
-**6.5a.5 retained wealth の POP 反映（v0.25 更新）**
+**6.4.5 retained wealth の POP 反映（v0.25 更新）**
 
 v0.25 では `retainedToPop` を `provinceCollected`（各 Holding で実際に徴収された額の合計）ベースで計算する。
 
@@ -300,13 +254,13 @@ const retainedToPop = Math.max(0, provinceProduction - provinceCollected)
 
 POP は生産の過半（標準で約 65%）を保持する。`retainedWealthGainByClass` による class 別 POP wealth 回復は維持。
 
-**6.5a.6 debug log（v0.25）**
+**6.4.6 debug log（v0.25）**
 
 `config.debug === true` 時に `[BAILIFF]` ログを stderr に出力する。holdingId / collected / bailiffFee / remittance / rates / burden 等。
 
-### 6.5b PolitySurplusDistributionSystem（4週ごと、v0.16）
+### 6.5 PolitySurplusDistributionSystem（4週ごと、v0.16）
 
-各 Polity treasury から OrganizationShare に応じて Share holder に分配する。給与・維持費 (OfficeCompensationSystem §6.14b) は別 system で支払う。
+各 Polity treasury から OrganizationShare に応じて Share holder に分配する。給与・維持費 (OfficeCompensationSystem §6.20) は別 system で支払う。
 
 ```ts
 // v0.28: reserveTarget を所領規模に応じて動的に計算
@@ -335,7 +289,7 @@ polity.treasury -= distributedTotal
 
 `reserveTarget` は `polityTreasuryReserveBase`（暫定 50）+ `polityTreasuryReservePerHolding`（暫定 50）× holding 数で動的に算出される。大国ほど多くの運営資金を確保し、プロジェクト費用や給与の支払いに備える。後続の OfficeCompensationSystem の給与原資となる（spec-v016-update.md §21）。
 
-**v0.37**: 1 サイクルの `distributable = max(0, treasury - reserveTarget) × distributionRate` の計算を `getPolityDistributablePerCycle`（landContractSelectors）に集約し、本 system と House の投影年間収入 `getHouseProjectedAnnualIncome`（§6.14 支払能力ゲート）の両方から呼ぶ単一の正本とした（式の二重定義による drift 防止。挙動は bit-identical）。
+**v0.37**: 1 サイクルの `distributable = max(0, treasury - reserveTarget) × distributionRate` の計算を `getPolityDistributablePerCycle`（landContractSelectors）に集約し、本 system と House の投影年間収入 `getHouseProjectedAnnualIncome`（§6.19 支払能力ゲート）の両方から呼ぶ単一の正本とした（式の二重定義による drift 防止。挙動は bit-identical）。
 
 **Person Share holder の死亡 skip**: holder Person が `!alive` の場合は分配しない（暫定挙動。家・相続人への流入は将来の課題）。
 
@@ -388,11 +342,11 @@ pressure 1.0 で飢饉確率 100%（`faminePressureChanceBonus: 9.2`）。人口
 3. `revokeOfficesByHolder` で当人が保有する全 OfficeAssignment を inactive 化
 4. 所属 House の `memberIds` から除外し `deceasedMemberIds` に移動（v0.20.3）
 
-家長（house:leader）が死亡した場合の後継選出は SuccessionSystem（§6.10）が担当する。
+家長（house:leader）が死亡した場合の後継選出は SuccessionSystem（§6.11）が担当する。
 
-**v0.14**: 死亡者の `wealth` 分配は直後の EstateSettlementSystem（§6.7b）が処理する。MortalitySystem は死者を `TickContext.deathsThisTick` に追記し、`wasHouseLeader` / `wasPolityLeader` の役職情報を `TickContext.deathRolesThisTick` に保存して estate 処理に引き継ぐ（mortalitySystem 内で role を取得しないと markPersonDead が office を revoke するため後段では復元できない）。
+**v0.14**: 死亡者の `wealth` 分配は直後の EstateSettlementSystem（§6.8）が処理する。MortalitySystem は死者を `TickContext.deathsThisTick` に追記し、`wasHouseLeader` / `wasPolityLeader` の役職情報を `TickContext.deathRolesThisTick` に保存して estate 処理に引き継ぐ（mortalitySystem 内で role を取得しないと markPersonDead が office を revoke するため後段では復元できない）。
 
-### 6.7b EstateSettlementSystem（4週ごと、v0.14）
+### 6.8 EstateSettlementSystem（4週ごと、v0.14）
 
 `MortalitySystem` 直後・`SuccessionSystem` 前に実行。`deathsThisTick` に含まれる死亡者で `wealth > 0` の者について、家中 Share に応じた家回収率で家・相続人に wealth を分配する。
 
@@ -429,7 +383,7 @@ toHeirsPool = wealth - toHouse
 
 `deathsThisTick` と `deathRolesThisTick` は次 tick の `advanceTime` で空にリセットされる。
 
-### 6.8 MarriageSystem（4週ごと、v0.31 で 48→4 に変更）
+### 6.9 MarriageSystem（4週ごと、v0.31 で 48→4 に変更）
 
 `marriageEnabled` が true のとき動作。未婚の男性候補を一覧し、それぞれに対して婚姻判定を行う。
 
@@ -446,7 +400,7 @@ toHeirsPool = wealth - toHouse
 
 イベント: `MARRIAGE_FORMED`（importance: `normal`）
 
-### 6.9 BirthSystem（4週ごと、v0.31 で 48→4 に変更）
+### 6.10 BirthSystem（4週ごと、v0.31 で 48→4 に変更）
 
 `birthEnabled` が true のとき動作。対象年齢（`fatherMinChildAge`〜`fatherMaxChildAge`）の生存男性を走査し、出生判定を行う。**`houseId` がない人物は出生対象外**（v0.31）。家を持たない在野人物が子を残すには、まず家系を創設する必要がある。
 
@@ -474,7 +428,7 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 
 イベント: `CHILD_BORN`（importance: `minor`）
 
-### 6.10 SuccessionSystem（4週ごと）
+### 6.11 SuccessionSystem（4週ごと）
 
 家長（house:leader の OfficeAssignment ホルダー）が死亡または存在しない場合、生存メンバーから新家長を選出。
 
@@ -482,21 +436,21 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 - `getAdultSuccessionCandidates` で成人（age >= `adultAge`）かつ生存の家メンバーを列挙
 - スコアが最高の候補を後継者に選ぶ
 - スコア 2 位との差が `successionCrisisScoreGap` を超える場合、`SUCCESSION_CRISIS` イベントを発火
-- 継承後に `maybeSplitHouseAfterSuccession` を呼び出す（§6.11 参照）
+- 継承後に `maybeSplitHouseAfterSuccession` を呼び出す（§6.12 参照）
 
 **後継者選出（未成年のみ）**:
 - 最年長の未成年を仮の家長に任命
-- 未成年当主ペナルティ（§6.12 参照）が以後 4 週ごとに適用される
+- 未成年当主ペナルティ（§6.14 参照）が以後 4 週ごとに適用される
 
-**後継者なし**: `extinctHouseAfterFailedSuccession`（§6.13 参照）を呼び出す。
+**後継者なし**: `extinctHouseAfterFailedSuccession`（§6.15 参照）を呼び出す。
 
 家長交代は `house:leader` の OfficeAssignment を新設し、旧ホルダーの assignment を inactive にすることで記録する。`HOUSE_LEADER_CHANGED` イベントを発火（v0.12）。新家長が active な代官（HoldingOfficeAssignment）を保持していた場合、自動的に vacate して placeholder に置換する（v0.24）。
 
 **Polity ruler succession (v0.15+)**: 同 system 内で active Polity に polity:leader Office が無い場合、`getPolityHouseIds` 内から ownerHouse leader を立てる。**v0.18-pre**: `polity.kind === 'commonwealth'` の場合は skip し、rebel founder 死亡後も leader 空席のまま polity を存続させる (commonwealth は rebel founder 個人を象徴とする一代政体として扱う。後継機構は v0.18+ で別途設計)。
 
-**年末 re-pass**: 本 system は週次スケジュール上では他の多くの system より前 (mortalitySystem の直後) に走るが、後続の death-causing system（plotSystem 等）が year-end tick で house:leader を殺すと、その tick では succession が走り終えており House が leaderless のまま年末 integrity check（§6.24 ルール 17）に到達してしまう。通常は翌年 week 1 の succession で自己修復する一過性状態だが、leaderless detector がこれを違反として throw する。これを防ぐため、**`tick.ts` は year-end (week = WEEKS_PER_YEAR) の integrity check 直前に `runSuccessionSystem` を再実行する**。leaderless な House/Polity が無い通常時は no-op（RNG 消費なし）であり、これにより「active 通常 House は年末時点で必ず house:leader を持つ」invariant が構造的に保証される。再実行は通常の succession と同じく、後継者がいれば新家長を任命し、**後継者不在なら `extinctHouseAfterFailedSuccession` で House を断絶させる**（leaderless のまま年末に残さない）。
+**年末 re-pass**: 本 system は週次スケジュール上では他の多くの system より前 (mortalitySystem の直後) に走るが、後続の death-causing system（plotSystem 等）が year-end tick で house:leader を殺すと、その tick では succession が走り終えており House が leaderless のまま年末 integrity check（§6.35 ルール 17）に到達してしまう。通常は翌年 week 1 の succession で自己修復する一過性状態だが、leaderless detector がこれを違反として throw する。これを防ぐため、**`tick.ts` は year-end (week = WEEKS_PER_YEAR) の integrity check 直前に `runSuccessionSystem` を再実行する**。leaderless な House/Polity が無い通常時は no-op（RNG 消費なし）であり、これにより「active 通常 House は年末時点で必ず house:leader を持つ」invariant が構造的に保証される。再実行は通常の succession と同じく、後継者がいれば新家長を任命し、**後継者不在なら `extinctHouseAfterFailedSuccession` で House を断絶させる**（leaderless のまま年末に残さない）。
 
-### 6.11 HouseSplitSystem（SuccessionSystem から呼び出し）
+### 6.12 HouseSplitSystem（SuccessionSystem から呼び出し）
 
 継承が発生した際に、分裂条件を満たせば家の分裂を実行する。実体の状態書き換えは `splitHouse` mutation（`worldStructureMutations.ts`）に集約されている（v0.13）。
 
@@ -508,8 +462,8 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 
 **splitter（分家 founder）候補の制約**:
 - 当主（succession path では新当主 successor）を候補から除外する。
-- さらに **継承順位上位 `houseSplitExcludeTopSuccessionRanks` 人（default 1）を除外**する。跡継ぎ（次期当主の最有力候補）が自ら分家を興すのは不自然なため。`getAdultSuccessionCandidates` の血統スコアは「house 内の死亡メンバー」基準で算出されるため、当主が生存している evaluation path（§6.11b）では継承順位順にならない。そこで現当主（succession path では新当主）を基準に `getTopHeirIds(candidates, head, count, …)` で継承順位を再計算し、上位 `count` 人を除外する（候補プールは `getAdultSuccessionCandidates` と同一に保ち、sex gate の不一致で「除外したい跡継ぎが splitter プールに居ない」ズレを防ぐ）。
-- evaluation path（§6.11b）では加えて splitter を `young_adulthood` 以降に限る（v0.40 §8.2）。
+- さらに **継承順位上位 `houseSplitExcludeTopSuccessionRanks` 人（default 1）を除外**する。跡継ぎ（次期当主の最有力候補）が自ら分家を興すのは不自然なため。`getAdultSuccessionCandidates` の血統スコアは「house 内の死亡メンバー」基準で算出されるため、当主が生存している evaluation path（§6.13）では継承順位順にならない。そこで現当主（succession path では新当主）を基準に `getTopHeirIds(candidates, head, count, …)` で継承順位を再計算し、上位 `count` 人を除外する（候補プールは `getAdultSuccessionCandidates` と同一に保ち、sex gate の不一致で「除外したい跡継ぎが splitter プールに居ない」ズレを防ぐ）。
+- evaluation path（§6.13）では加えて splitter を `young_adulthood` 以降に限る（v0.40 §8.2）。
 
 **分裂確率**:
 ```
@@ -537,7 +491,7 @@ splitChance = baseHouseSplitChance
 - 両 House に `lastSplitWeek = absoluteWeek` を設定（cooldown 用）
 - `houseSplitCooldownWeeks`（default 48）以内の再分裂を防止
 
-### 6.11b HouseSplitEvaluationSystem（config 依存の周期、v0.31 追加）
+### 6.13 HouseSplitEvaluationSystem（config 依存の周期、v0.31 追加）
 
 巨大 House を定期評価して分家を生む scheduled system。`houseSplitEvaluationIntervalWeeks`（default 12）ごとに実行。
 
@@ -551,7 +505,7 @@ splitChance = baseHouseSplitChance
 7. `getHouseControlledProvinceIds >= minProvincesForHouseSplit`
 8. `getHouseCohesion < houseSplitCohesionThreshold`
 
-候補選出は `getAdultSuccessionCandidates` → leader 除外 → 継承順位上位除外 + `young_adulthood` ゲート（§6.11「splitter 候補の制約」参照）→ `chooseSplitter`。
+候補選出は `getAdultSuccessionCandidates` → leader 除外 → 継承順位上位除外 + `young_adulthood` ゲート（§6.12「splitter 候補の制約」参照）→ `chooseSplitter`。
 
 **succession path との違い**: evaluation path では `SUCCESSION_CRISIS` event を発火しない。`creationReason` は `'house_split'`
 
@@ -559,13 +513,13 @@ splitChance = baseHouseSplitChance
 - v0.11 より `house.cohesion` フィールドは廃止。`getHouseCohesion` セレクターで動的計算（§4.5 参照）
 - 結束度は家メンバーの家長への attitude から計算されるため、態度変化イベントにより自然に変動する
 
-### 6.12 未成年当主ペナルティ（SuccessionSystem 内）
+### 6.14 未成年当主ペナルティ（SuccessionSystem 内）
 
 当主が未成年（age < `adultAge`）の間、4 週ごとに適用。v0.11 以降は格納フィールドの直接変更ではなく、Attitude の調整を通じて cohesion・loyaltyToPolity に間接影響を与える（実装上は `minorHeadCohesionPenaltyPerMonth` / `minorHeadLoyaltyPenaltyPerMonth` の config 値が引き続き参照される）。
 
-**配線**: ロジックは `successionSystem.ts` の `applyMinorHeadPenalties` に存在するが、v0.7 で追加されて以来 tick に未配線だった（spec が operative と記述する一方で実際には一度も走っていなかった = wiring 欠落のバグ）。これを是正し、`successionSystem`（位置 177）の直後に専用 system `minorHeadPenaltySystem`（`intervalWeeks: 4`）として配線した。年末 succession re-pass（§6.10）は `runSuccessionSystem` のみを再実行するため、ペナルティを `runSuccessionSystem` 内に置かず独立 system にすることで week 48 での二重適用を回避している。RNG は消費しないが、attitude 変化が下流の分岐（plot tendency / loyalty）を変えうるため挙動は changing。
+**配線**: ロジックは `successionSystem.ts` の `applyMinorHeadPenalties` に存在するが、v0.7 で追加されて以来 tick に未配線だった（spec が operative と記述する一方で実際には一度も走っていなかった = wiring 欠落のバグ）。これを是正し、`successionSystem`（位置 177）の直後に専用 system `minorHeadPenaltySystem`（`intervalWeeks: 4`）として配線した。年末 succession re-pass（§6.11）は `runSuccessionSystem` のみを再実行するため、ペナルティを `runSuccessionSystem` 内に置かず独立 system にすることで week 48 での二重適用を回避している。RNG は消費しないが、attitude 変化が下流の分岐（plot tendency / loyalty）を変えうるため挙動は changing。
 
-### 6.13 HouseExtinctionSystem（SuccessionSystem から呼び出し）
+### 6.15 HouseExtinctionSystem（SuccessionSystem から呼び出し）
 
 後継者が存在しない家（生存メンバーが 0 または全員未成年かつ成人後継者なし）に対して断絶処理を行う。実体の状態書き換えは `extinctHouse` mutation（`worldStructureMutations.ts`）に集約されている（v0.13 / v0.15）。
 
@@ -634,12 +588,12 @@ v0.16〜v0.36 では「断絶家が ownerHouse である **すべての Polity**
 旧 v0.15 までの「断絶家の Province を transferProvinceToHouse で受け取り House の既存 Polity に移す」処理は v0.16 で廃止された（異 Polity 間の Province 跨ぎが不自然なため）。
 
 **Polity の inactive 化は HouseExtinctionSystem で行わない**（v0.15）:
-v0.14 では `handleRulerHouseExtinction` が ruler house extinct で Country を消滅させていたが、v0.15 ではこれを削除。Polity の active 制御は §6.22b PolityOwnerConsistencySystem に一本化する。
+v0.14 では `handleRulerHouseExtinction` が ruler house extinct で Country を消滅させていたが、v0.15 ではこれを削除。Polity の active 制御は §6.31 PolityOwnerConsistencySystem に一本化する。
 これにより HouseExtinction → 所領消失 → 当月内に PolityOwnerConsistency が owner 補充または `POLITY_EXTINCT` 発火、という分離した責務になる。
 
 イベント: `HOUSE_EXTINCT`（importance: `major`）
 
-### 6.13b HouseFoundingSystem（config 依存の周期、v0.31 追加）
+### 6.16 HouseFoundingSystem（config 依存の周期、v0.31 追加）
 
 無家人物が条件を満たすと新 House を創設する system。`houseFoundingIntervalWeeks`（default 4）ごとに実行。
 
@@ -665,7 +619,7 @@ v0.14 では `handleRulerHouseExtinction` が ruler house extinct で Country �
 
 イベント: `HOUSE_FOUNDED`（importance: `major`）
 
-### 6.13d ClanFormationSystem（config 依存の周期、v0.32 追加）
+### 6.17 ClanFormationSystem（config 依存の周期、v0.32 追加）
 
 年 1 回（`clanFormationIntervalWeeks`, default 48）。2 つの処理を行う。
 
@@ -688,13 +642,13 @@ active / normal / clanId undefined の各 House を root candidate として以�
 
 House 絶滅時の即時 `syncClanActive` は `handleNormalHouseExtinction`（`worldStructureMutations.ts`）の末尾で実行される。
 
-### 6.13c HouselessPersonGenerationSystem（4週ごと、v0.31 で改名）
+### 6.18 HouselessPersonGenerationSystem（4週ごと、v0.31 で改名）
 
 旧 `UnaffiliatedPersonSystem`。無家人物を生成・維持する。config key は `unaffiliated*` から `houseless*` に改名（`houselessPersonsPerHolding` / `houselessMaleRatio` / `targetHouselessPersons` / `softMaxHouselessPersons` / `hardMaxHouselessPersons` / `houselessProtectionYears`）。
 
 無家人物は `houseId === undefined` の normal Person として `state.persons` に直接追加される。House の `memberIds` には含まれない。
 
-### 6.14 AppointmentSystem（12週ごと = 3ヶ月ごと、v0.23 で頻度変更）
+### 6.19 AppointmentSystem（12週ごと = 3ヶ月ごと、v0.23 で頻度変更）
 
 Polity と House それぞれの役職（leader 以外の 4 種）に対して、空席を最適候補で補充する。
 
@@ -739,18 +693,18 @@ score = relevantStat(role) * 1.0
 - 死亡者の役職は自動的に revoke される
 
 **v0.37 House 役職の支払能力ゲート**: House 役職（有給 = administrator/treasurer/military/advisor）は、家が定常的に得る年間収入で既存役職＋新規役職の年間給与を賄えない場合は任命しない（leader は `baseSalary=0` なので常に対象外。Polity 役職は財庫から支払われ実測上ほぼ未払いにならないため不問）。
-- 投影年間収入 `getHouseProjectedAnnualIncome` = 家が定常的に得る収入の投影。定常収入は **PolitySurplusDistribution（§6.5b、share 比例）のみ**で、estate settlement や外交移転など不定期な収入は含めない。`Σ_polity（家の polity share% × getPolityDistributablePerCycle）× 12`（分配は 4 週ごと = 年 12 回）。
+- 投影年間収入 `getHouseProjectedAnnualIncome` = 家が定常的に得る収入の投影。定常収入は **PolitySurplusDistribution（§6.5、share 比例）のみ**で、estate settlement や外交移転など不定期な収入は含めない。`Σ_polity（家の polity share% × getPolityDistributablePerCycle）× 12`（分配は 4 週ごと = 年 12 回）。
 - 任命可否: `getHouseAnnualOfficeSalary（既存 active house 役職の baseSalary 合計）+ 新役職 baseSalary ≤ 投影年間収入` のときのみ任命。
 - 動機: 収入の無い landless 小家系が役職を抱え、`OFFICE_SALARY_UNPAID` を量産する不自然さを解消（実測で家由来の未払いイベントが 100 年あたり 22〜27 万件 → 0 に）。有力 landed 大家系は投影収入が十分で全役職を維持する（landless→有給役職 0、landed→従来どおり、という二分が観測される）。
 - UI: House DetailPanel に「想定年収 / 役職給与 / 役職収支」を表示（`getHouseProjectedAnnualBalance`）。
-- 既存役職は本ゲートの対象外。`OfficeTermSystem`（§6.5）の任期満了 revoke を経て自然に再任命ゲートを通るため、収入を失った家の役職は数年のラグで減衰する。
+- 既存役職は本ゲートの対象外。`OfficeTermSystem`の任期満了 revoke を経て自然に再任命ゲートを通るため、収入を失った家の役職は数年のラグで減衰する。
 - 将来: 形骸化した帝国/王国の Polity 役職を「名誉職」として残す仕組みは今後の課題。現状は単純に収入ベースの役職数とする。
 
 **v0.23 追加**: `getAppointmentTaskModifier(state, personId, organization, role)` による Person Aim / Task 効果の補正を候補スコアに加算。obtain_office / retain_office Aim が active、または seek_office_support / display_competence の直近 ActivityLog がある候補は +appointmentTaskModifierValue（デフォルト 4）の補正を受ける。
 
 **イベント**: `OFFICE_ASSIGNED`（importance: `normal`）
 
-### 6.14b OfficeCompensationSystem（4週ごと、v0.23 で頻度変更 / v0.25 bailiff 給与廃止）
+### 6.20 OfficeCompensationSystem（4週ごと、v0.23 で頻度変更 / v0.25 bailiff 給与廃止）
 
 アクティブな OfficeAssignment に対して、`baseSalary`（§3.7 参照）に基づく給与を支払う。
 
@@ -761,13 +715,13 @@ score = relevantStat(role) * 1.0
   - ペナルティは `officeDignityUnpaidPenaltyReduction` × dignity 値で軽減
 - `unpaidCount` が 0 の完全支払い時にはリセット
 
-**v0.25**: bailiff（HoldingOfficeAssignment）の給与支払い処理を廃止。代官の収入は LandRevenueSystem 内の `bailiffFee`（§6.5a.2）に一本化。旧 `giveSingleHoldingBailiffSalary()` および `config.bailiffRevenueShare` も廃止。
+**v0.25**: bailiff（HoldingOfficeAssignment）の給与支払い処理を廃止。代官の収入は LandRevenueSystem 内の `bailiffFee`（§6.4.2）に一本化。旧 `giveSingleHoldingBailiffSalary()` および `config.bailiffRevenueShare` も廃止。
 
-**v0.37**: House 役職の `OFFICE_SALARY_UNPAID` は AppointmentSystem の支払能力ゲート（§6.14）で発生源を抑止する（収入で賄えない家にはそもそも有給役職を任命しない）。本 system 自体の支払いロジックは不変。
+**v0.37**: House 役職の `OFFICE_SALARY_UNPAID` は AppointmentSystem の支払能力ゲート（§6.19）で発生源を抑止する（収入で賄えない家にはそもそも有給役職を任命しない）。本 system 自体の支払いロジックは不変。
 
 **イベント**: `OFFICE_SALARY_UNPAID`（importance: `minor`）/ `OFFICE_SALARY_PARTIALLY_PAID`（importance: `minor`）
 
-### 6.14a2 BailiffRevenueTaskSystem（4週ごと、v0.25）
+### 6.21 BailiffRevenueTaskSystem（4週ごと、v0.25）
 
 代官の月次徴税業務 Task を管理する。
 
@@ -794,7 +748,7 @@ deadlineWeek: absoluteWeek + 4
 
 Task の実際の処理（effort 消費 → 完了）は既存 TaskSystem に任せる。`collect_holding_revenue` は既存 Task と `weeklyActionCapacity` を共有する。
 
-### 6.14e BailiffAppointmentSystem（12週ごと = 季節ごと、v0.16 / v0.20）
+### 6.22 BailiffAppointmentSystem（12週ごと = 季節ごと、v0.16 / v0.20）
 
 terminal Polity ごとに HoldingOfficeAssignment (Bailiff) を走査し、placeholder Person で空席化している **Holding** を通常人物で埋める。逆に、通常人物の Bailiff が死亡・離反などで不在化した場合は placeholder Person に戻す。
 
@@ -813,7 +767,7 @@ terminal Polity ごとに HoldingOfficeAssignment (Bailiff) を走査し、place
 
 commonwealth (`ownerHouseId === undefined`) Polity の Bailiff 候補者選定は Faction 段階まで持ち越し。
 
-### 6.14c ShareUpdateSystem（48週ごと = 毎年）
+### 6.23 ShareUpdateSystem（48週ごと = 毎年）
 
 Polity・House それぞれの Share 分布を毎年更新する。
 
@@ -832,7 +786,7 @@ newRawPower = polityShareBase
 
 既存 Share との統合: `rawPower = oldPower * shareYearlyRetentionRate + newRawPower * (1 - shareYearlyRetentionRate)`
 
-**v0.15 §12.2 削除責務**: ShareUpdateSystem は不適格 Share の削除を **行わない**。削除責任は §6.22c OrganizationConsistencySystem に一本化されている。
+**v0.15 §12.2 削除責務**: ShareUpdateSystem は不適格 Share の削除を **行わない**。削除責任は §6.32 OrganizationConsistencySystem に一本化されている。
 
 **Person holder の Polity Share (§17 commonwealth / 独裁者・僭主)**: Rebel Polity 生成時に `createRebelPolity` が rebel leader (Person) に rawPower 100 を初期値で設定する。本 system は House holder のみを年次再計算対象とし、Person holder の Polity Share には touch しない（rawPower は初期固定）。整合性管理は OrganizationConsistencySystem に委ねる。Person holder の rawPower を年次変動させる仕様は将来検討。
 
@@ -849,7 +803,7 @@ newRawPower = houseShareBase
 
 **イベント**: `SHARE_SHIFTED`（importance: `minor`）— Share 分布に有意な変化があった場合
 
-### 6.14d PersonGrowthSystem（48週ごと = 毎年、v0.14）
+### 6.24 PersonGrowthSystem（48週ごと = 毎年、v0.14）
 
 `OfficeCompensationSystem` の直後・`AmbitionSystem` の前に実行。48 週ごと（ScheduledSystem で制御）。
 
@@ -886,7 +840,7 @@ if (ability[k] < effectiveCeil) {
 | PlotSystem の active リーダー | insight |
 | improve_ability Task の personTrainingExperience (v0.23) | 対象 ability |
 
-### 6.14f LifeStage システム群（v0.40、48週ごと = 毎年）
+### 6.25 LifeStage システム群（v0.40、48週ごと = 毎年）
 
 人物に人生段階（`LifeStage`）を導入し、年次で一方向に進める。社会活動資格・登用優先度・幼少期の社会的影響（Attitude / 能力成長補助）を LifeStage で表現する。
 
@@ -908,13 +862,13 @@ if (ability[k] < effectiveCeil) {
 
 - 対象: alive / normal / `lifeStage !== 'old_age'`（placeholder 除外）。`livingPersonIds` を iterate。
 - 遷移先ごとに `config.lifeStageTransitionAges[next]` の `{minAge, standardAge, maxAge}` を参照。`age < minAge` は遷移しない / `minAge <= age < standardAge` は early 確率 / `standardAge <= age < maxAge` は standard 確率 / `age >= maxAge` は必ず遷移。
-- RNG は既存の関数型パターン（`randomFloat` で thread）。逆行は writer 側で構造的に防ぐ（IntegrityCheck は逆行検査をせず、緩い age-lifeStage envelope のみ。§6.24 / §13）。
+- RNG は既存の関数型パターン（`randomFloat` で thread）。逆行は writer 側で構造的に防ぐ（IntegrityCheck は逆行検査をせず、緩い age-lifeStage envelope のみ。§6.35 / §13）。
 - **life event emit**: `adolescence→young_adulthood` で `PERSON_CAME_OF_AGE`、`mature_adulthood→old_age` で `PERSON_ENTERED_OLD_AGE`（他の遷移は emit しない）。
   - **notable 判定（安価な index ベースに限定）**: house leader / polity leader / active office holder のいずれかなら notable。`calcPersonImportanceScore` は全人物の年次遷移ごとに呼ぶには高コストのため**使わない**。war 時の field commander / captain general は O(1) index がなく（war side の soft reference のみ）、コスト優先で notable 判定からは**省略**する。
-  - importance: notable=`normal` / 一般=`minor`。entityRefs を出し分け（一般=`[person]` → byPerson のみ / 主要=`[person, house, polity]` → byPerson+byHouse+byPolity）。Chronicle allowlist は `{ category: 'life' }`（`retainRefKinds` 無指定。§6.31）。
+  - importance: notable=`normal` / 一般=`minor`。entityRefs を出し分け（一般=`[person]` → byPerson のみ / 主要=`[person, house, polity]` → byPerson+byHouse+byPolity）。Chronicle allowlist は `{ category: 'life' }`（`retainRefKinds` 無指定。§6.62）。
   - 全人物の成人・老年入りが個人 Chronicle（byPerson）に残り、主要人物のみ House/Polity Chronicle とメイン EventLog に載る（§11）。
 
-#### 親能力ボーナス（PersonGrowthSystem §6.14d 内）
+#### 親能力ボーナス（PersonGrowthSystem §6.24 内）
 
 childhood / adolescence の人物について、`personGrowthSystem` の**成長ブロック内**（`ability < effectiveCeil && effectiveCeil > 0`）でのみ、living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。死亡済み親は含めない。`aptitudes` / `effectiveCeil` / `naturalFraction` は不変（age-curve には触れない）。新生児は `effectiveCeil = 0` で成長ブロックに入らずボーナスも効かない。
 
@@ -931,103 +885,17 @@ old_age の人物は新規登用・指揮官選定で優先度が下がる（引
 - **Appointment / delegate（固定減算）**: `computePolityScoreV017` / `computeHouseScoreV017` の候補スコアに `- oldAgeAppointmentScorePenalty`（5）。これらのスコアは `compatibilityPenalty` 等で負値になりうるため、乗算でなく**固定減算**で単調に不利化する。delegate は office 優先順（advisor→administrator→leader）で選ばれスコアを持たないため、old_age 反映は上流の appointment スコアで実現する（delegate 専用の減算 path は無い）。
 - **commander / captain general（乗算）**: `warManeuverSelectors` の選定スコア（`warCommand` role score ベース＝常に非負）に `* oldAgeCommandScoreMultiplier`（0.8）。候補からの**除外はしない**（指揮官不在を避ける）。選定（候補ソート順）にのみ適用し、battle 内部の `fieldCommandScore`（戦闘効果）には適用しない。
 
-### 6.15 AmbitionSystem（4週ごと）
+### 6.26 AmbitionSystem（4週ごと）
 
 人物・家ごとに野心スコアを計算し、将来の陰謀・反乱の素地を作る。
 
-### 6.16 PublicSpendingSystem（48週ごと = 毎年、v0.27 で development 直接加算を削除）
-
-**v0.27**: development 直接加算ロジックを削除。土地開発は develop_holding Project に一本化。system 自体は残すが、v0.27 時点では no-op。
-
-旧仕様（参考）: `publicSpendingYearlyChance`（35%）で発動。Polity treasury から terminal Province 1 つを選んで development += gain を行っていた。関連 config（`polityLandDevelopmentBaseCost` / `polityLandDevelopmentGain`）も削除。
-
-**記念碑建設の廃止**:
-v0.16 後の整理で `MONUMENT_BUILT` イベントは削除された。
-
-### 6.17 HouseDevelopmentSystem（v0.22 で廃止）
-
-House が直接 Holding / Province を開発する仕組みは、土地契約・代官任命・徴税・実効支配を Polity が担う v0.20 以降の土地統治モデルと整合しない。v0.22 で廃止し、土地開発は Polity の Aim / Intent (develop_holding) に一本化した。House は Polity Share・政策誘導（steer_polity_internal_development）を通じて関与する。
-
-廃止に伴い、`houseDevelopmentEnabled` / `houseDevelopmentYearlyChance` / `houseLandDevelopmentBaseCost` / `houseLandDevelopmentGain` / `houseWealthReserve` config と `HOUSE_LAND_DEVELOPED` EventType を削除した。
-
-### 6.18 PopDevelopmentSystem（v0.27 で無効化）
-
-**v0.27 で無効化**。`popDevelopmentEnabled: false` に設定し、tick.ts の scheduled system 配列からも外した。将来 POP 主導 Project として再導入予定。ファイルは削除せず残す。
-
-旧仕様（参考）: `popDevelopmentEnabled` が true のとき動作。地元共同体・都市民・在地有力者による小規模な土地改善を表す。
-
-POP 自主開発は Polity / House 開発より明確に弱く、局所的・低効率に留める：
-
-| 開発主体 | development gain | 財源 |
-|----------|-----------------|------|
-| POP | +0.25（微少） | Province に残った POP wealth |
-| House | +6 | House wealth |
-| Polity | +8 以上 | Polity treasury |
-
-**発動条件**:
-```ts
-if (averageWealth < config.popDevelopmentWealthThreshold) continue
-if (unrest > config.popDevelopmentUnrestMax) continue
-if (province.development >= config.popDevelopmentMaxDevelopment) continue
-```
-
-**発動確率**:
-```ts
-chance = clamp(
-  popDevelopmentMonthlyChance
-    + (averageWealth - popDevelopmentWealthThreshold) * popDevelopmentWealthChanceFactor
-    - unrest * popDevelopmentUnrestPenaltyFactor,
-  0,
-  popDevelopmentMaxMonthlyChance,
-)
-```
-
-**効果**:
-```ts
-province.development += popDevelopmentGain  // clamp(-100, 100)
-adjustProvincePopWealth(state, province.id, -popDevelopmentCost)
-```
-
-polityControl / houseControl には影響しない。
-
-イベント: `POP_LAND_DEVELOPED`（importance: `minor`）
-```
-summary: "The people of ${province.name} improved their lands."
-```
-
-### 6.19 PlotSystem（4週ごと）
+### 6.27 PlotSystem（4週ごと）
 
 野心スコアが `plotThreshold` を超えた人物が陰謀を実行。成功率 `basePlotSuccess`。
 
 **解決済み plot の扱い**: 期限到達で解決した plot は、PLOT_SUCCEEDED / PLOT_FAILED イベントを emit した上で `activePlots` から削除する。plot の全 reader（PlotSystem の active 判定、`hadRelevantExperience` の insight 経験）は `status === 'active'` で filter するため、解決済み record を残しても読まれず dead weight として累積するだけだった。これを防ぐため解決時に削除する（挙動は変わらない）。
 
-### 6.20 WarSystem（v0.18 で廃止）
-
-**v0.18 で外交劇に統合**: WarSystem の宣戦 AI は IntentGenerationSystem + IntentToDiplomaticPlaySystem に移行し、戦争は DiplomaticPlay の escalation → ConflictResolutionSystem で発生する。`config.warEnabled = false` で旧 WarSystem は無効化されている。WAR_DECLARED = 0 が確認済み。旧 `warSystem.ts` / `landContractPurchaseSystem.ts` は物理削除済み。
-
-`warEnabled` が true のとき動作。Polity が他 Polity に宣戦布告し、勝敗後に LandContract を操作する。
-
-- 宣戦条件: `effectiveMinWinChanceToDeclare`（Polity military の ambition/caution で変動、§10 参照）以上の勝率見込み、warCooldown 明け
-- 軍事力: `calcPolityMilitaryPower` (§4.4) で算出。v0.16 では `institutionalPower` 下限 (`institutionalPowerFloorByRank`) を被せて Rebel Polity 即死を防止
-- **本拠地保護**: 旧 `seatProvinceId` の保護ロジックは v0.16 では capital province として保持（landless 化後も capital は残る）
-
-**v0.16 §13 / §16.1 戦争結果の LandContract 化**: 勝敗後の Province 移転は `transferProvinceByWarGoal` mutation 経由で rank 比較による case 分岐で処理する。
-
-| case | 条件 | 動作 |
-|---|---|---|
-| A | 勝者 rank == 敗者 rank | 敗者が grantee の contract の granteePolityId を勝者に差し替える (`transferLandContractGrantee`) |
-| B | 勝者 rank < 敗者 rank (勝者が下位) | 対象契約からチェーンを下方向に走査し、適切な位置を探す。(1) terminal に到達 → 子契約を作成、(2) 自身より下位 rank の子を発見 → 中間挿入、(3) 同 rank の子を発見 → 子の grantee を差し替え（v0.20-b2 で rank 不変条件違反を防ぐチェーン走査に改修） |
-| C | 勝者 rank > 敗者 rank | terminal の差し替え不可。税率調整 (`adjustLandContractTaxRate`) で勝者の上納率を下げる…が v0.16 では no-op (将来配線、§16.1) |
-
-annexPolity (Polity 全体消滅) は v0.16 では LandContract chain が全部 receiver に移った結果として §6.22b PolityOwnerConsistencySystem が active=false 化することで達成される。
-
-**荒廃・POP 効果**: 旧 v0.15 と同じ係数で適用 (development 減少、unrest 上昇等)。
-
-### 6.21 RebellionSystem（v0.16 で廃止）
-
-旧 v0.15 までの HouseRebellionSystem は v0.16 で廃止。Faction システム導入時に再設計される。
-
-### 6.21b TaxRevisionSystem（48週ごと、v0.39 追加）
+### 6.28 TaxRevisionSystem（48週ごと、v0.39 追加）
 
 土地保有者 Polity が LandContract の税率を引き上げる。provinceRevoltSystem より前に実行し、税率↑ → unrest↑ → 叛乱の循環を形成する。
 
@@ -1035,7 +903,7 @@ annexPolity (Polity 全体消滅) は v0.16 では LandContract chain が全部 
 
 判断: increaseScore（treasury 不足・低 unrest・leader ambition・戦争中）vs avoidScore（高 unrest・recent revolt・高税率・leader caution/insight）で判定。上昇幅 +0.02〜0.05、`taxRevisionSystemMaxRate` でキャップ。`taxIncreaseCooldownUntilWeek` で連続増税を防止。
 
-### 6.22 ProvinceRevoltSystem（12週ごと、v0.39 で Holding 単位に全面改修）
+### 6.29 ProvinceRevoltSystem（12週ごと、v0.39 で Holding 単位に全面改修）
 
 **v0.39 で Holding 単位判定に全面改修**。旧 Province 単位・createRebelPolity は廃止。交渉用 commonwealth（landless）を生成し `revolt_negotiation` DiplomaticPlay を開始する。
 
@@ -1063,11 +931,11 @@ taxBurden = `max(0, currentTaxRate - defaultTaxRateByRank(rank))`。
 **交渉結果**（diplomaticPlaySystem 内）:
 - settlement: 税率引き下げ、`termsProtectedUntilWeek` 設定、commonwealth 解散（leader は在野へ）、`REVOLT_SETTLED`
 - escalation (rank 2-4): `revolt_seizure` 子契約追加 → Local Levy 生成 → `escalated` → warCreationSystem が War 化
-- escalation (rank 5): internal revolt 即時解決（§6.22c）
+- escalation (rank 5): internal revolt 即時解決（§6.30）
 
 旧 `createRebelPolity` / `disbandRebelPolity` / `revolt_concession` demand は v0.39 で削除された。
 
-### 6.22c Rank 5 Internal Popular Revolt（v0.39 追加）
+### 6.30 Rank 5 Internal Popular Revolt（v0.39 追加）
 
 rank 5 Polity 内の叛乱は War 化せず、diplomaticPlaySystem 内で即時解決する。
 
@@ -1077,38 +945,7 @@ rank 5 Polity 内の叛乱は War 化せず、diplomaticPlaySystem 内で即時�
 
 失敗時: commonwealth 解散（leader executed/pardoned）、unrest 低下、`lastRevoltSuppressedWeek` 記録。`REVOLT_SUPPRESSED` event。
 
-### 6.22d LandContractPurchaseSystem（v0.18 で廃止）
-
-**v0.18 で外交劇に統合**: land_claim DiplomaticPlay に統合された。売却 Intent (sell_land) と取得 Intent (acquire_land) が land_claim Play を生成する。旧 `landContractPurchaseSystem.ts` は物理削除済み。
-
-戦争以外の平和的な LandContract 変動として、隣接する **同 rank かつ同じ直接 grantor 下** の Polity 間で Province を金銭購入する system。
-
-**動作 (毎年 1 月)**:
-1. 各 active な dynastic Polity (`ownerHouseId !== undefined`) を「買い手候補」として走査
-2. `treasury > purchaseBuyerTreasuryThreshold` なら確率 `purchaseAttemptChance` で試行
-3. 隣接 Province を持つ「同 rank・同 grantor・commonwealth でない・treasury 不足」の Polity を「売り手候補」とする
-4. 候補から 1 つランダムに選び、terminal LandContract の granteePolityId を差し替え、treasury を移動
-5. `LAND_CONTRACT_PURCHASED` event を発火
-
-価格は `purchasePriceBase + development * purchasePriceDevelopmentFactor` (下限 `purchasePriceBase`)。支払いは Polity treasury 経由 (spec-v016-update.md §18 注記)。
-
-commonwealth (Rebel Polity 等) は購入主体・売却主体のいずれにもならない (§11.2)。
-
-**反乱失敗**: 反乱 POP の unrest 低下・Province 荒廃・反乱 POP wealth 低下、鎮圧側 polity.legacyPrestige +1。他 class の unrest が collateral として小幅上昇。
-
-**イベント**:
-
-| 状況 | イベント |
-|------|---------|
-| 発生 | `PROVINCE_REVOLT_STARTED` |
-| concession 成功 | `PROVINCE_REVOLT_SUCCEEDED` |
-| lordship_change 成功 | `LORDSHIP_USURPED` |
-| independence 成功 | `REVOLT_POLITY_FOUNDED` |
-| 失敗 | `PROVINCE_REVOLT_FAILED` |
-
-**旧 ownerHouse の処置（lordship_change / independence）**: 領地がゼロになった House は即 inactive 化し、生存メンバーを rulerHouse に移動。`HOUSE_EXTINCT` イベントを発火。
-
-### 6.22b PolityOwnerConsistencySystem（4週ごと、v0.15）
+### 6.31 PolityOwnerConsistencySystem（4週ごと、v0.15）
 
 War / Rebellion / ProvinceRevolt 等の所領変動 system の直後に走り、`Polity.ownerHouseId` の整合性を補正する。
 
@@ -1161,7 +998,7 @@ for each polity in active polities:
 
 イベント: `POLITY_OWNER_CHANGED`（importance: `major`）/ `POLITY_EXTINCT`（importance: `major`）
 
-### 6.22c OrganizationConsistencySystem（4週ごと、v0.15）
+### 6.32 OrganizationConsistencySystem（4週ごと、v0.15）
 
 PolityOwnerConsistencySystem の直後に走り、Polity Share / Office の保持資格を監査する。
 
@@ -1237,11 +1074,11 @@ for each polity in active polities:
 - Step 3 により、Polity の rank 降格時に定員超過の役職者が自動的に整理される
 - rebel founder が死亡したら `markPersonDead → revokeOfficesByHolder` 経路で Office が revoke され、Step 1 の `!person.alive` 分岐で Share も削除される
 
-### 6.23 AttitudeDecaySystem（4週ごと）
+### 6.33 AttitudeDecaySystem（4週ごと）
 
 全 Person および全 PopGroup の `attitudes` を 4 週ごとに `attitudeMonthlyRetentionRate`（0.995）倍に減衰させる。`affection` / `respect` どちらも同率で 0 に近づく。エントリを持たない（未設定の）態度への影響なし。
 
-### 6.23b GovernanceSystem（48週ごと = 毎年）
+### 6.34 GovernanceSystem（48週ごと = 毎年）
 
 `getPolityAdminPower`（§4.5）で `adminPower` を再計算し、`polity.adminPower` にキャッシュとして書き込む。
 
@@ -1255,7 +1092,7 @@ adminPower = 0.30*getEffectiveOfficeStat('administrator','admin')*10
 
 `getEffectiveOfficeStat` は役職担当者の能力・複数担当者の協調ペナルティを考慮した実効能力値を返す（v0.12）。旧 StabilitySystem は v0.11 で廃止。Stability は `getPolityStability` セレクターで毎回計算する。
 
-### 6.24 IntegrityCheck（3モード制、v0.19 で週次化）
+### 6.35 IntegrityCheck（3モード制、v0.19 で週次化）
 
 以下を検証し、違反があれば例外を投げる（`debug` モード時は警告のみ）。v0.16 では Stage C で全 33 項目を error throw / 型レベル保証 / コードレビューのいずれかで担保した（spec-v016-update.md §25）。
 
@@ -1459,12 +1296,12 @@ active / terminal 整合:
 
 participant:
 - `attacker.key === 'attacker'` / `defender.key === 'defender'`、各 side `participants.length === 1`（v0.34）、primary participant は各 side 1 人
-- **active War のみ** participant actor が active であること（`isActiveActor`）を要求。terminal War（cancelled / attacker_won / defender_won / white_peace）は retention 中の inactive 化を許容。この検査が成立するのは `cancelOrphanedWarsSystem`（§6.27d）が participant 消滅 active War を integrity より前に cancelled 化するため
+- **active War のみ** participant actor が active であること（`isActiveActor`）を要求。terminal War（cancelled / attacker_won / defender_won / white_peace）は retention 中の inactive 化を許容。この検査が成立するのは `cancelOrphanedWarsSystem`（§6.47）が participant 消滅 active War を integrity より前に cancelled 化するため
 
 WarGoal（**参照存在は active War のみ要求。participant 検査と対称**）:
 - transfer_land_contract: holding / fromPolityId / toPolityId が存在、`fromPolityId !== toPolityId`、`requiredWarScore > 0`
 - change_contract_tax_rate: holding / landContract が存在、`landContract.holdingId === goal.holdingId`、`newTaxRateToGrantor` が `0..1`、`requiredWarScore > 0`
-- **存在検査（holding / polity / landContract）は `status === 'active'` の War のみに適用する。** terminal War（attacker_won / defender_won / white_peace / cancelled）の WarGoal は和平適用済みの**凍結履歴データ**であり、`terminalWarRetentionWeeks` の retention 中に別システム（税率改定外交の contract 排除・併合など）が参照先を消しても違反としない（cleanup までの dangling を許容）。active War で参照先が stale になったケースは PeaceSettlementSystem（§6.27c）が `white_peace` で安全終結させるため、active で残る dangling は無い。
+- **存在検査（holding / polity / landContract）は `status === 'active'` の War のみに適用する。** terminal War（attacker_won / defender_won / white_peace / cancelled）の WarGoal は和平適用済みの**凍結履歴データ**であり、`terminalWarRetentionWeeks` の retention 中に別システム（税率改定外交の contract 排除・併合など）が参照先を消しても違反としない（cleanup までの dangling を許容）。active War で参照先が stale になったケースは PeaceSettlementSystem（§6.46）が `white_peace` で安全終結させるため、active で残る dangling は無い。
 - range / value 検査（`requiredWarScore > 0`、`fromPolityId !== toPolityId`、税率 `0..1`）は凍結値の不変条件なので status に関わらず常に検査する。
 
 originDiplomaticPlayId は weak ref のため存在検査しない（cleanup 済みを許容。§3.9a）。
@@ -1481,11 +1318,7 @@ chronicleIndex ↔ chronicleEntries（§3.14）:
 - reverse: 各 entry の 5 index 対象 kind（person / house / polity / province / holding）の ref が、対応 index に entry id として登録済み（faction / clan 等 index 非対象 kind の ref は検査しない）
 - **entityRefs の参照先が現在 state に存在するか（active か / 死亡人物か / 断絶家か / 終了 War か）は検査しない。** ChronicleEntry は過去の記録であり、消えた entity への soft reference を保持するのが正しい（warIndex の `originDiplomaticPlayId` 同様、存在検査を意図的に省く）。これは「Chronicle を simulation logic に使わない」原則（§3.14）の integrity 表現であり、存在検査へ「修正」してはならない（長期実行で誤検知を生む）。
 
-### 6.25 IntentGenerationSystem（v0.26 で廃止）
-
-**v0.26 で廃止。** sell_land の生成ロジックは SellLandProjectGenerationSystem (§6.25b) に移植。
-
-### 6.25a ProjectPreparationSystem（4週ごと、v0.26 / v0.27 stage 対応）
+### 6.36 ProjectPreparationSystem（4週ごと、v0.26 / v0.27 stage 対応）
 
 active Aim を走査し、必要に応じて `prepare_project` Task を生成する。走査対象は `aim.origin === 'goal_driven'` かつ `aim.owner.kind !== 'person'`（Polity / House Aim のみ）。
 
@@ -1503,11 +1336,11 @@ AimKind → ProjectKind マッピング:
 
 **secure_budget 即時解決**: Project owner の treasury/wealth から `budget.required` を確保。`budget.required = baseCost × levelCostMultiplier × projectBudgetMarginMultiplier`。資金不足時は secure_budget stage に留まる。
 
-### 6.25b SellLandProjectGenerationSystem（48週ごと、v0.26）
+### 6.37 SellLandProjectGenerationSystem（48週ごと、v0.26）
 
 旧 IntentGenerationSystem の sell_land ロジックを移植。Polity の財政難から直接 sell_land Project を生成する（prepare_project Task を経由しない）。`origin: { kind: 'system', reasonKey: 'fiscal_pressure' }`。
 
-### 6.25b2 ProjectStageSystem（毎週、v0.29 / v0.30 更新）
+### 6.38 ProjectStageSystem（毎週、v0.29 / v0.30 更新）
 
 active Project の immediate stage を即時解決する。毎 tick 実行（intervalWeeks: 1）。
 
@@ -1520,7 +1353,7 @@ active Project の immediate stage を即時解決する。毎 tick 実行（int
 
 **runtime fallback**: invalid な currentStageKey を持つ active Project に initial stage を補正する（防御的補正）。
 
-### 6.25c ProjectTaskGenerationSystem（毎週、v0.26 / v0.29 stage 対応）
+### 6.39 ProjectTaskGenerationSystem（毎週、v0.26 / v0.29 stage 対応）
 
 active Project の currentStageKey に応じて Task を生成する。immediate stage はスキップ。
 
@@ -1539,7 +1372,7 @@ active Project の currentStageKey に応じて Task を生成する。immediate
 
 **v0.39.1 revolt_negotiation タスク生成**: Project ループの後に、active revolt_negotiation play に対して直接タスクを生成。Project を経由しないが、共通フローの手順 3-6 と同様のロジックで両陣営（initiator = commonwealth leader、target = polity delegate）にタスクを割り当てる。initiatorDelegatePersonId は play 生成時に commonwealth leader に設定される。
 
-### 6.25d ProjectMaintenanceSystem（4週ごと、v0.26 / v0.27 stage 対応）
+### 6.40 ProjectMaintenanceSystem（4週ごと、v0.26 / v0.27 stage 対応）
 
 active Project の状態更新。owner inactive → cancelled、origin Aim が non-active → cancelled、supervisor 死亡 → 再選定（失敗なら failed）、deadline 超過 → failed、progress >= targetProgress → completed。
 
@@ -1548,12 +1381,12 @@ active Project の状態更新。owner inactive → cancelled、origin Aim が n
 - deadline は execute_project stage のみに適用（準備段階では treasury 回復・人材確保を待機可能）。**v0.28**: deadline を `projectDeadlineWeeksDevelopment × (targetProgress / projectDefaultTargetProgress)` で算出。Level 2 (×2) / Level 3 (×3) の大規模工事に比例した期間を確保
 - budget.remaining が消費額未満の場合は Project を failed にする（追加予算は future）
 
-### 6.25e ProjectOutcomeSystem（4週ごと、v0.26 / v0.29 更新）
+### 6.41 ProjectOutcomeSystem（4週ごと、v0.26 / v0.29 更新）
 
 terminal Project の効果解決・ログ出力・cleanup を担当。
 
 - 非外交系 Project: treasury/wealth/prestige 等の直接効果を適用し、Aim progress を加算
-  - **文化系 Project の afford 前提（調査 §1.6 / v0.41）**: `patronize_artist` / `commission_chronicle` / `expand_polity_share` は完了時に `house.wealth >= cost` を要求する。以前は完了時に資金不足だと効果（prestige 付与・wealth 消費）を**何も適用せず**に early-return し、PROJECT_COMPLETED 発火と Aim 前進だけが残る silent no-op が多発していた（実測 434-529件/100年）。v0.41 でこれらの Project は**作成時**に afford 判定するよう変更（§6.29d `buildProjectFieldsForAim`）。作成時に払えなければ Project を生成せず Aim を待機させ、wealth 回復後に再試行する。これにより doomed Project が生成されず、完了時の silent no-op が消滅する。
+  - **文化系 Project の afford 前提（調査 §1.6 / v0.41）**: `patronize_artist` / `commission_chronicle` / `expand_polity_share` は完了時に `house.wealth >= cost` を要求する。以前は完了時に資金不足だと効果（prestige 付与・wealth 消費）を**何も適用せず**に early-return し、PROJECT_COMPLETED 発火と Aim 前進だけが残る silent no-op が多発していた（実測 434-529件/100年）。v0.41 でこれらの Project は**作成時**に afford 判定するよう変更（§6.55 `buildProjectFieldsForAim`）。作成時に払えなければ Project を生成せず Aim を待機させ、wealth 回復後に再試行する。これにより doomed Project が生成されず、完了時の silent no-op が消滅する。
 - 外交系 Project (v0.29): DiplomaticPlay 生成は ProjectStageSystem の open_diplomatic_play handler に移管。ProjectOutcomeSystem は外交系 completed 時に追加効果を適用しない（交渉への影響は各 Task outcome で DiplomaticPlay に反映済み）
 - respond_to_pressure completed: Pressure.status を 'responded' に遷移
 - Project を state.projects / projectIndex から削除
@@ -1568,11 +1401,7 @@ terminal Project の効果解決・ログ出力・cleanup を担当。
 1. `budget.remaining` → owner に返金
 2. `project_failed` PersonActivityLog を supervisor に追加
 
-### 6.26 IntentToDiplomaticPlaySystem（v0.26 で廃止）
-
-**v0.26 で廃止。** v0.29 では DiplomaticPlay の生成は ProjectStageSystem の open_diplomatic_play handler (§6.25b2) が担当。
-
-### 6.27 DiplomaticPlaySystem（4週ごと、v0.18 / v0.23 / v0.29 / v0.30 更新）
+### 6.42 DiplomaticPlaySystem（4週ごと、v0.18 / v0.23 / v0.29 / v0.30 更新）
 
 active な DiplomaticPlay を進行させる。
 
@@ -1611,15 +1440,15 @@ for each active play:
 Play kind 別の処理:
 - `land_claim`: demands から `transfer_land_contract` / `pay_wealth` / `status_quo` を抽出し evaluateLandClaimOffer で score 計算。settlement 時は `applySettledOffer` で demands を適用。rank ベースの契約選択 (3-a/3-b/3-c) と操作 (5-a/5-b/5-c) は維持。
 - `contract_tax_revision`: demands から `change_contract_tax_rate` / `pay_wealth` / `status_quo` を抽出し evaluateContractTaxRevisionOffer で score 計算。`taxRevisionInitialDemandDelta` (0.10) で旧 `taxRevisionTaxChangeAmount` (0.05) を置換。下限 5% / 上限 80% 超で契約破棄は維持。Play 決着時（成否問わず）に `termsProtectedUntilWeek` を設定。**v0.30**: `applyChangeContractTaxRate` で `newRate <= taxRevisionMinRate` または `newRate >= taxRevisionMaxRate` の場合、率変更の代わりに `eliminateContractFromChain` で契約取消しを実行する（settlement / conflict 両経路共通）。status_quo 和平時は CONTRACT_TAX_REVISED を emit しない。
-- `revolt_negotiation`: v0.39 で `popular_tax_relief` demand ベースに全面改修。**v0.39.1 でタスク駆動ハイブリッドモデルに移行**: タスク効果（negotiate_terms/pressure_counterparty 等）が preparation/leverage/commitment を更新し、決着閾値を調整（initiator preparation/leverage が高いほど妥結しやすく、target commitment が高いほど激化しやすい）。環境因子（acceptanceScore: POP unrest/鎮圧力/税率負担）は小幅構造的増分として副次的に作用。settlement → 税率引下+commonwealth 解散。escalation → rank 2-4 は revolt_seizure+Local Levy+War、rank 5 は internal revolt 即時解決（§6.22c）。旧 `revolt_concession` demand は削除。
+- `revolt_negotiation`: v0.39 で `popular_tax_relief` demand ベースに全面改修。**v0.39.1 でタスク駆動ハイブリッドモデルに移行**: タスク効果（negotiate_terms/pressure_counterparty 等）が preparation/leverage/commitment を更新し、決着閾値を調整（initiator preparation/leverage が高いほど妥結しやすく、target commitment が高いほど激化しやすい）。環境因子（acceptanceScore: POP unrest/鎮圧力/税率負担）は小幅構造的増分として副次的に作用。settlement → 税率引下+commonwealth 解散。escalation → rank 2-4 は revolt_seizure+Local Levy+War、rank 5 は internal revolt 即時解決（§6.30）。旧 `revolt_concession` demand は削除。
 
 **v0.30 契約取消し aim**: `eliminate_overlord_contract`（`taxRateToGrantor <= taxRevisionMinRateForReduction` で発火）/ `eliminate_vassal_contract`（`taxRateToGrantor >= taxRevisionMaxRateForIncrease` で発火）。既存の `improve_contract_terms` / `demand_tax_increase` project に mapping し、desiredRate が min/max 境界にクランプされる。escalation → conflict で勝利した場合に CONTRACT_ELIMINATED が発生する。両 Goal（external_expansion / internal_development）から候補に入る。
 
-### 6.28 ConflictResolutionSystem（v0.39 で no-op 化）
+### 6.43 ConflictResolutionSystem（v0.39 で no-op 化）
 
 **v0.39**: revolt_negotiation の escalation は warCreationSystem 経由で War 化されるため、本 system は完全 no-op。関数名 `runConflictResolutionSystem` は後方互換のため維持するが、本体は `return ctx` のみ。旧 `resolveRevoltConflict` / `disbandRebelPolity` は削除済み。
 
-### 6.27a WarCreationSystem（4週ごと、v0.34）
+### 6.44 WarCreationSystem（4週ごと、v0.34）
 
 旧 ConflictResolutionSystem の位置で、`status === 'escalated'` の DiplomaticPlay を即時解決せず War entity に変換する。詳細は `docs/drafts/spec-v034-update.md` §6 参照。
 
@@ -1636,7 +1465,7 @@ Play kind 別の処理:
 
 **War 作成後**: 元 play を `resolved_by_conflict`（terminal）にする。**`DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT` event は発行しない**（即時解決を含意するため）。戦争開始 event は `WAR_DECLARED`（major）のみ。
 
-### 6.27b WarManeuverSystem（毎週、v0.35。旧 WarProgressSystem を置換）
+### 6.45 WarManeuverSystem（毎週、v0.35。旧 WarProgressSystem を置換）
 
 active War ごとに「誰が指揮し・どの戦場で・戦うか回避するか」を毎週解決し、battle 結果で warScore を更新する。終結判定はしない（PeaceSettlementSystem の責務）。v0.34 の決定的 drift と異なり**乱数を使う**。selector は `warManeuverSelectors.ts`、battle/回避の数式は `warManeuverSystem.ts` のローカル関数。
 
@@ -1679,13 +1508,13 @@ v0.37 で旧 `resolveBattle`（power 比 1 回判定）を撤去し、純粋 hel
 
 **Regiment 接続（損耗ループ、v0.36 → v0.37）**: battle の入力は永続 Regiment（§3.9b）。WarManeuverSystem は warScore 凍結判定（step 3）の後・総大将 refresh の前に **per-war mobilize prologue** を挟む（`mobilizeRegimentsForWar`。各 side の polity participant が所有する active かつ未動員 Regiment を当該 War/side へ動員する。決定的・乱数非消費・冪等）。battle が成立したら（mutual_engagement / 回避失敗）`simulateBattle` を実行し損耗を適用する:
 
-- **v0.37: 損耗は per-regiment**（v0.36 の「side 全連隊に同量」を撤去）。`simulateBattle` が連隊ごとに organization / morale / strength の after 値を返し、`updateRegimentMut` で反映する。organization は内部 tick で主に削れ（§6.27b battle 解決）、morale も削れる。strength は v0.37 損耗方針で大きくは削れない。
+- **v0.37: 損耗は per-regiment**（v0.36 の「side 全連隊に同量」を撤去）。`simulateBattle` が連隊ごとに organization / morale / strength の after 値を返し、`updateRegimentMut` で反映する。organization は内部 tick で主に削れ（§6.45 battle 解決）、morale も削れる。strength は v0.37 損耗方針で大きくは削れない。
 - clamp 後 `strength <= regimentDestroyedStrengthThreshold`（既定 0）になった Regiment は `destroyed` 化（byWar から除去・status 遷移。byOwner には残す。§3.9b case(c)）。v0.37 core では deployment 閾値（strength>10）により全滅前に配置外となり **destroyed は実質発生しない**。
 - 1 戦闘につき `Battle` entity（§3.9c）を 1 件記録する（`createBattle`）。v0.37 summary（outcomeQuality / ticksElapsed / frontage / *InitialFrontlineIds / *RoutedRegimentIds / breakthroughSide / *CommanderAssignments / regimentResults の morale 込み）を保存する。`BATTLE_OCCURRED` event には battleId・連隊数に加え v0.37 summary（outcomeQuality / ticksElapsed / frontline・routed counts 等）を additive に載せる（§8 event 一覧、C2）。
-- strength の回復は RegimentReinforcementSystem（§6.27g 月次）、organization / morale の回復は RegimentRecoverySystem（§6.27e、v0.37 で baseline-aware 化）、destroyed の reform も §6.27g。
+- strength の回復は RegimentReinforcementSystem（§6.50 月次）、organization / morale の回復は RegimentRecoverySystem（§6.48、v0.37 で baseline-aware 化）、destroyed の reform も §6.50。
 - 総大将 / 指揮官は **warScore 経路**（勝者側 `captainGeneralEfficiency`）と **battle 内経路**（C1: 指揮官 org/rout 補正 + 総大将 side-level 補正）の両方に効く。`commanderModifier`（power 乗算）は v0.37 で撤去し、battle 内 org/rout 補正に置換した。
 
-### 6.27c PeaceSettlementSystem（4週ごと、v0.34）
+### 6.46 PeaceSettlementSystem（4週ごと、v0.34）
 
 active War の warScore が閾値に達したら終結させ、WarGoal を state に反映する。冒頭に WarManeuver と同じ **dead-participant guard**。
 
@@ -1705,28 +1534,28 @@ active War の warScore が閾値に達したら終結させ、WarGoal を state
 
 v0.34 では旧 ConflictResolutionSystem の `applyConflictDamage`（treasury / unrest / 荒廃 / 厭戦）は呼ばない（配管安定を優先。戦争被害は将来再設計）。
 
-### 6.27d cancelOrphanedWarsSystem（毎週、v0.34）
+### 6.47 cancelOrphanedWarsSystem（毎週、v0.34）
 
-active War の primary participant（attacker / defender いずれか）が missing / inactive になった場合、`cancelled` 終結（`endedWeek` 設定 + `WAR_ENDED` 発行、WarGoal 不実行）にする。戦争は数年続くため、その間に participant polity / house が別要因（属州独立・併合・revolt など）で消滅しうる。IntegrityCheck（§6.24 v0.34）が active War の participant を active 必須とするため、放置すると long-run で必ず throw する（`cancelOrphanedPlays` が DiplomaticPlay に対して存在するのと同じ理由）。v0.34 は安全側で `cancelled` に統一する（勝敗意味論は将来）。
+active War の primary participant（attacker / defender いずれか）が missing / inactive になった場合、`cancelled` 終結（`endedWeek` 設定 + `WAR_ENDED` 発行、WarGoal 不実行）にする。戦争は数年続くため、その間に participant polity / house が別要因（属州独立・併合・revolt など）で消滅しうる。IntegrityCheck（§6.35 v0.34）が active War の participant を active 必須とするため、放置すると long-run で必ず throw する（`cancelOrphanedPlays` が DiplomaticPlay に対して存在するのと同じ理由）。v0.34 は安全側で `cancelled` に統一する（勝敗意味論は将来）。
 
-**配置（ドラフト §10 から変更し v0.34 実装で確定）**: PolityOwnerConsistencySystem / OrganizationConsistencySystem の**後ろ**・cleanupWarSystem の前に独立 system として置き、**intervalWeeks=1**。理由は §5.6 / §6.24 v0.34 項目を参照（PeaceSettlement 起因で同 tick に extinct 化した polity を参照する active War を、年末 IntegrityCheck より前に回収するため）。warScore 計算の安全は WarProgress / PeaceSettlement 冒頭の dead-participant guard が担保するので、本 system を Progress / Settlement より後ろに置いても問題ない。
+**配置（ドラフト §10 から変更し v0.34 実装で確定）**: PolityOwnerConsistencySystem / OrganizationConsistencySystem の**後ろ**・cleanupWarSystem の前に独立 system として置き、**intervalWeeks=1**。理由は §5.6 / §6.35 v0.34 項目を参照（PeaceSettlement 起因で同 tick に extinct 化した polity を参照する active War を、年末 IntegrityCheck より前に回収するため）。warScore 計算の安全は WarProgress / PeaceSettlement 冒頭の dead-participant guard が担保するので、本 system を Progress / Settlement より後ろに置いても問題ない。
 
-### 6.27e RegimentRecoverySystem（毎週、v0.36 → v0.37 baseline-aware）
+### 6.48 RegimentRecoverySystem（毎週、v0.36 → v0.37 baseline-aware）
 
 active Regiment の organization と morale を週次で **baseline へ向けて回復 / 減衰**させる（`runRegimentRecoverySystem`）。WarManeuverSystem の直後（PeaceSettlement の前）に interval 1 で走り、battle で削れた統制・士気を平時に立て直す。
 
 - 対象は `status === 'active'`。各連隊で **org recovery は tick 開始時の morale を参照**するため `moraleAtTickStart = morale` を先に退避する。
 - **organization**: `< baselineOrganization` なら `+ regimentOrganizationRecoveryPerWeek × (0.5 + moraleAtTickStart/100)`、`> baselineOrganization` なら `− regimentOrganizationDecayAboveBaselinePerWeek`。最後に `clamp(0, maxOrganization)`。baseline で静止中は変化なし。
 - **morale**（org と独立）: `< baselineMorale` なら `+ regimentMoraleRecoveryPerWeek`、`> baselineMorale` なら `− regimentMoraleDecayAboveBaselinePerWeek`。`clamp(0, maxMorale)`。
-- **strength は触らない**（回復は §6.27g RegimentReinforcementSystem）。
+- **strength は触らない**（回復は §6.50 RegimentReinforcementSystem）。
 - `nextOrg === organization && nextMorale === morale`（baseline 静止）なら連隊単位で skip。全連隊変化なしなら draft を clone せず素通し（perf。lazy clone-once）。
 - worldgen は initial = baseline（org 50 / morale 30）で生成するので、平時連隊は静止し recovery rate に依存しない（reform 連隊や battle 後の連隊のみ rate で baseline へ戻る）。
 
 v0.36 の「organization のみ・上限 100・morale は placeholder」を撤去し、§3.9b の baseline/max を使う双方向収束に置換した。
 
-### 6.27f RegimentMaintenanceSystem（毎週、v0.36）
+### 6.49 RegimentMaintenanceSystem（毎週、v0.36）
 
-active Regiment の owner / home / war 参照を lazy に整理する（`runRegimentMaintenanceSystem`）。soft reference（currentWarId / owner active / homeHolding 存在）は IntegrityCheck の hard invariant にしない方針（§3.9b / §6.24）なので、本 system が遅延処理で整合を回復する。consistency 系の後・cleanupWarSystem の前に interval 1 で走る（cancelOrphanedWarsSystem の直後）。
+active Regiment の owner / home / war 参照を lazy に整理する（`runRegimentMaintenanceSystem`）。soft reference（currentWarId / owner active / homeHolding 存在）は IntegrityCheck の hard invariant にしない方針（§3.9b / §6.35）なので、本 system が遅延処理で整合を回復する。consistency 系の後・cleanupWarSystem の前に interval 1 で走る（cancelOrphanedWarsSystem の直後）。
 
 active Regiment ごとに**順序を厳守**して処理する:
 
@@ -1737,9 +1566,9 @@ active Regiment ごとに**順序を厳守**して処理する:
 
 disband は war 参照解除を兼ねるため demobilize と二重処理しない。多くの週は土地移転 / 滅亡 / 終戦が無く no-op で素通りする（lazy clone-once）。
 
-### 6.27g RegimentReinforcementSystem（月次、v0.36 補充・再編成）
+### 6.50 RegimentReinforcementSystem（月次、v0.36 補充・再編成）
 
-`organization` は §6.27e が週次回復する一方、`strength` は戦闘以外で回復せず、destroy も永続だった。そのため active regiment プールは構造的に非増加で、戦争を重ねると軍事力が床なしで減衰した（旧 §14.7）。本 system はこれを補完し、**プールを自己修復**させる（`runRegimentReinforcementSystem`）。RegimentMaintenanceSystem の**直後**に interval 4（月次）で走る。maintenance が active regiment の owner を terminal に揃え・home 消失/owner 失効を disband 済なので、整合した owner/home を前提にできる。
+`organization` は §6.48 が週次回復する一方、`strength` は戦闘以外で回復せず、destroy も永続だった。そのため active regiment プールは構造的に非増加で、戦争を重ねると軍事力が床なしで減衰した（旧 §14.7）。本 system はこれを補完し、**プールを自己修復**させる（`runRegimentReinforcementSystem`）。RegimentMaintenanceSystem の**直後**に interval 4（月次）で走る。maintenance が active regiment の owner を terminal に揃え・home 消失/owner 失効を disband 済なので、整合した owner/home を前提にできる。
 
 owner が Polity でない / `homeHoldingId` 無しは skip（v0.36 では worldgen が Polity owner のみ生成）。`treasury` は Polity 共有なので **RegimentId 昇順**（worldgen と同じ文字列比較）で決定的に処理する。rng は消費しない（deterministic だが strength が battle power にフィードバックするため **bit-identical ではない**）。
 
@@ -1760,11 +1589,11 @@ owner が Polity でない / `homeHoldingId` 無しは skip（v0.36 では world
 
 **この補完で旧 §14.7 の「プールは構造的に非増加・床なし減衰」は成立しなくなる**（プールは戦間期に自己修復する）。ただし reform には ≥`reformDelayWeeks` の平時が要り、開戦 AI は連隊在庫を見ないため、「全滅直後の Polity が攻撃側で開戦」transient は完全には解消しない（開戦 AI gate は future）。
 
-### 6.28b cleanupWarSystem（毎週、v0.34 / v0.36）
+### 6.51 cleanupWarSystem（毎週、v0.34 / v0.36）
 
 terminal War（active 以外）が `endedWeek` から `terminalWarRetentionWeeks` 経過したら `state.wars` および `warIndex`（byParticipant / byOriginDiplomaticPlay）から削除する。履歴は Event ログに残るため長期保持は不要。**v0.36: 同じ削除ループで当該 War の `Battle` entity（§3.9c）も piggyback cleanup する**（`battleIndex.byWar[warId]` の各 battle を `battles` から削除し、index entry も除去）。Battle は短期 entity なので、対応する War の retention 削除と同時に消える。
 
-### 6.29 CleanupTerminalDiplomacy（毎週、v0.18 / v0.29 / v0.30 更新）
+### 6.52 CleanupTerminalDiplomacy（毎週、v0.18 / v0.29 / v0.30 更新）
 
 terminal status の DiplomaticPlay と関連 Pressure / DiplomaticOffer を state から削除する GC。IntegrityCheck の直前に置く。v0.29 で intervalWeeks を 1 に変更。
 
@@ -1780,7 +1609,7 @@ terminal status の DiplomaticPlay と関連 Pressure / DiplomaticOffer を stat
 - PRESSURE_RESOLVED / PRESSURE_CANCELLED Event を発火した後、Pressure を削除
 - Project cancel 対象の判定は Pressure.status によらない（responded 状態でも関連 active Project は cancel する）
 
-### 6.29b PersonGoalMaintenanceSystem（48週ごと、v0.23）
+### 6.53 PersonGoalMaintenanceSystem（48週ごと、v0.23）
 
 Person Goal（人生目標）の生成と管理。成人時または初期生成時に 1 つの PersonGoalKind を選択。Person Goal は原則として固定であり、GoalMaintenanceSystem のレビュー・差し替え対象にはならない。
 
@@ -1792,7 +1621,7 @@ Person Goal（人生目標）の生成と管理。成人時または初期生成
 
 イベント: `PERSON_GOAL_CREATED`
 
-### 6.29c PersonAimMaintenanceSystem（4週ごと、v0.23）
+### 6.54 PersonAimMaintenanceSystem（4週ごと、v0.23）
 
 Person Aim の生成・deadline 判定・waiting 再評価を管理。
 
@@ -1804,7 +1633,7 @@ Person Aim の生成・deadline 判定・waiting 再評価を管理。
 
 イベント: `PERSON_AIM_CREATED` / `PERSON_AIM_SUCCEEDED` / `PERSON_AIM_FAILED`
 
-### 6.29d TaskSystem（毎週、v0.23 / v0.26 更新 / v0.26.1 outcome 判定）
+### 6.55 TaskSystem（毎週、v0.23 / v0.26 更新 / v0.26.1 outcome 判定）
 
 Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で完結する一体型 system。
 
@@ -1862,7 +1691,7 @@ Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で�
 
 イベント: `TASK_COMPLETED` / `TASK_FAILED` / `TASK_CANCELLED`
 
-### 6.30 GoalMaintenanceSystem（4週ごと、v0.22）
+### 6.56 GoalMaintenanceSystem（4週ごと、v0.22）
 
 Goal の生成・レビュー・abandon を管理する。tick 登録は 4w だが、生成・レビューは内部 48w ゲートで制御。
 
@@ -1875,7 +1704,7 @@ GoalKind のスコアリング（§11.4 相当）は `goalSelectors.ts` の `sco
 
 イベント: `GOAL_CREATED` / `GOAL_REVIEWED` / `GOAL_ABANDONED`
 
-### 6.30a AimMaintenanceSystem（4週ごと、v0.22）
+### 6.57 AimMaintenanceSystem（4週ごと、v0.22）
 
 Aim の生成・deadline 判定・target 無効化を管理する。tick 登録は 4w だが、Aim 新規生成は内部 48w ゲートで制御。
 
@@ -1889,15 +1718,7 @@ Aim target 選定は `goalSelectors.ts` の `pickAimForGoal` で実装。
 
 イベント: `AIM_CREATED` / `AIM_FAILED` / `AIM_ABANDONED`
 
-### 6.30b AimToIntentGenerationSystem（v0.26 で廃止）
-
-**v0.26 で廃止。** Aim から Project への具体化は ProjectPreparationSystem (§6.25a) が担当。
-
-### 6.30c IntentActionSystem（v0.26 で廃止）
-
-**v0.26 で廃止。** Action 系の効果は ProjectOutcomeSystem (§6.25e) が Project 完了時に適用。
-
-### 6.30c2 PressureSystem（毎週、v0.29）
+### 6.58 PressureSystem（毎週、v0.29）
 
 active Pressure に対して respond_to_pressure Project を自動生成する。
 
@@ -1909,7 +1730,7 @@ active Pressure に対して respond_to_pressure Project を自動生成する�
 
 イベント: `PROJECT_STARTED`
 
-### 6.30d AimOutcomeSystem（4週ごと、v0.22 / v0.26 更新）
+### 6.59 AimOutcomeSystem（4週ごと、v0.22 / v0.26 更新）
 
 terminal DiplomaticPlay の aimId を確認し、Play の結果に応じて Aim progress を更新する。settled / resolved_by_conflict（勝利）→ progress += `aimProgressGainLandOrContractProject` (50), successfulProjectCount +1。failed / resolved_by_conflict（敗北）→ failedProjectCount +1。activeDiplomaticPlayId をクリア。`progress >= targetProgress - aimProgressCompletionTolerance` で progress を targetProgress に丸め、Aim succeeded。
 
@@ -1917,17 +1738,17 @@ terminal DiplomaticPlay の aimId を確認し、Play の結果に応じて Aim 
 
 イベント: `AIM_SUCCEEDED`
 
-### 6.30e GoalOutcomeSystem（4週ごと、v0.22 / v0.23 拡張）
+### 6.60 GoalOutcomeSystem（4週ごと、v0.22 / v0.23 拡張）
 
 terminal Aim の goalId を確認し、Aim 結果に応じて Goal progress を更新する。succeeded → +25、failed → -10、abandoned → -5（config 経由）。progress を 0..targetProgress にクランプ。progress >= targetProgress で Goal succeeded。
 
 **v0.23**: `owner.kind === 'person'` の Goal は progress を 0..100 にクランプし、succeeded にはしない（Person Goal は人生目標であり達成判定を行わない）。
 
-**冪等ガード（調査 §1.5 / v0.41）**: 本 system は毎 tick（4週）に terminal Aim を全走査するが、外交系 Project が Aim を保持して CleanupTerminalDecisions が削除できない間（§6.30f retention）、同じ terminal Aim の progressDelta が Goal に**再加算**され続けていた（実測 最大 11x → GOAL_SUCCEEDED 早期発火）。Aim に `goalProgressApplied` フラグを設け、一度加算した Aim はスキップする（加算時に true をセット）。
+**冪等ガード（調査 §1.5 / v0.41）**: 本 system は毎 tick（4週）に terminal Aim を全走査するが、外交系 Project が Aim を保持して CleanupTerminalDecisions が削除できない間（§6.61 retention）、同じ terminal Aim の progressDelta が Goal に**再加算**され続けていた（実測 最大 11x → GOAL_SUCCEEDED 早期発火）。Aim に `goalProgressApplied` フラグを設け、一度加算した Aim はスキップする（加算時に true をセット）。
 
 イベント: `GOAL_SUCCEEDED`
 
-### 6.30f CleanupTerminalDecisions（4週ごと、v0.22 / v0.36 retention 修正）
+### 6.61 CleanupTerminalDecisions（4週ごと、v0.22 / v0.36 retention 修正）
 
 terminal Goal / Aim を WorldState から削除。orphan DecisionReason を削除。goalIndex / aimIndex を更新。CleanupTerminalDiplomacy の後に配置。
 
@@ -1939,9 +1760,9 @@ terminal Goal / Aim を WorldState から削除。orphan DecisionReason を削�
 
 ---
 
-### 6.31 ChronicleProjectionSystem（毎週、v0.38）
+### 6.62 ChronicleProjectionSystem（毎週、v0.38）
 
-歴史閲覧 read-model（`ChronicleEntry`、§3.14）を生成する system。`scheduledSystems` の**末尾**（全 system / cleanup 系の後、`flushTerminalEntities` / IntegrityCheck の前）に配置する。この tick の `ctx.events` のうち curated allowlist `CHRONICLE_EVENT_TYPE_DEFINITIONS` に載る EventType だけを `ChronicleEntry` に projection し、新たな `SimEvent` は emit しない。各 system からの dual-write にせず projection 一本にすることで Event と履歴の divergence を防ぐ。cleanup 後に走るため同 tick の event が全量揃い、IntegrityCheck の前なので生成分も同 tick で index↔entry 整合検査される（§6.24）。
+歴史閲覧 read-model（`ChronicleEntry`、§3.14）を生成する system。`scheduledSystems` の**末尾**（全 system / cleanup 系の後、`flushTerminalEntities` / IntegrityCheck の前）に配置する。この tick の `ctx.events` のうち curated allowlist `CHRONICLE_EVENT_TYPE_DEFINITIONS` に載る EventType だけを `ChronicleEntry` に projection し、新たな `SimEvent` は emit しない。各 system からの dual-write にせず projection 一本にすることで Event と履歴の divergence を防ぐ。cleanup 後に走るため同 tick の event が全量揃い、IntegrityCheck の前なので生成分も同 tick で index↔entry 整合検査される（§6.35）。
 
 **allowlist の方針**: importance 閾値ではなく curated allowlist で対象を決める（`BATTLE_OCCURRED` は normal だが含めたい／`PERSON_AIM_SUCCEEDED` は major だが noise になりやすい）。各 EventType に `{ category, retainRefKinds?, templateKey? }` を割り当てる。
 

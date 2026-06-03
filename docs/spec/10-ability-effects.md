@@ -94,11 +94,7 @@ effectiveThreshold = clamp(
 
 v0.16 後の整理で記念碑建設機能が削除されたため、`monumentScore` / `landDevelopmentScore` の二択構造そのものが廃止された。現在は `publicSpendingYearlyChance` の確率試行成功時に Polity 土地開発を実行するのみ。Polity treasurer の admin による開発コスト割引 (`calcTreasurerDevelopmentCostModifier`) のみが残っており、Polity administrator の ambition / caution 補正は `calcChancellorLandDevelopmentScoreBonus` selector として残置されているが現状未参照（将来の活用余地として保持）。
 
-### 10.7 HouseDevelopmentSystem への効果（v0.22 で廃止）
-
-HouseDevelopmentSystem は v0.22 で廃止。config は残置。
-
-### 10.8 Task outcome 判定への能力効果（v0.26.1）
+### 10.7 Task outcome 判定への能力効果（v0.26.1）
 
 Task 完了時の outcome 判定は `determineTaskOutcome` で行う。各 Task は `relevantAbility: AbilityKey` を持ち、assignee の該当能力スコアが判定に使われる。
 
@@ -143,11 +139,11 @@ effectiveScore < threshold                  → failure
 | acquire_land | command |
 | sell_land / improve_contract_terms / demand_tax_increase | numeracy |
 
-### 10.9 LifeStage と能力（v0.40）
+### 10.8 LifeStage と能力（v0.40）
 
 LifeStage は能力成長カーブには**直接関与しない**。v0.14 の `ABILITY_AGE_CURVES` + `naturalFraction(k, age, config)`（lifelongGrowth / youthPeak / midLifePeak）が年齢による伸び・衰退を既に表現しており、LifeStage 別の成長率 modifier を重ねると二重適用になる（禁止）。
 
-v0.40 が能力に加える唯一の効果は **親能力ボーナス**（§6.14d / §6.14f）: childhood / adolescence の人物について、成長判定ブロック内でのみ living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。`aptitudes` / `effectiveCeil` / `naturalFraction` は不変。これは「この時期は親・周囲から教育・模倣の影響を受けやすい」という社会的効果であり、能力カーブそのものの補正ではない。
+v0.40 が能力に加える唯一の効果は **親能力ボーナス**（§6.24 / §6.25）: childhood / adolescence の人物について、成長判定ブロック内でのみ living な父母の該当 ability 平均が子より高ければ `gainChance` に `parentalAbilityGrowthChanceBonus`（2.0pp）を加算する。`aptitudes` / `effectiveCeil` / `naturalFraction` は不変。これは「この時期は親・周囲から教育・模倣の影響を受けやすい」という社会的効果であり、能力カーブそのものの補正ではない。
 
 ---
 

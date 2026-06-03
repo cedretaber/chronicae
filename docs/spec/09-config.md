@@ -71,7 +71,7 @@
 | houseSplitMinLivingMembers | 5 | v0.31: 評価パスの最小生存メンバー数 |
 | houseSplitMinWealth | 80 | v0.31: 評価パスの最小 wealth |
 | houseSplitMinLegacyPrestige | 30 | v0.31: 評価パスの最小 legacyPrestige |
-| houseSplitExcludeTopSuccessionRanks | 1 | splitter から除外する継承順位上位人数（跡継ぎの分家を防ぐ。0 で無効）。§6.11 |
+| houseSplitExcludeTopSuccessionRanks | 1 | splitter から除外する継承順位上位人数（跡継ぎの分家を防ぐ。0 で無効）。§6.12 |
 | extinctionUnrestGain | 8 | 家断絶後の継承 Province への POP unrest 増加量 |
 | **War** | | |
 | warEnabled | true | 戦争有効 |
@@ -85,11 +85,11 @@
 | warPeasantSizeDamage | 0.5 | 戦争時の peasants size 減少量 |
 | warTownsmanSizeDamage | 0.3 | 戦争時の townsmen size 減少量 |
 | **War（v0.34 War entity / WarScore / PeaceSettlement）** | | |
-| maxWarDurationWeeks | 520 | timeout 終結（white_peace）の週数。約 10 年（§6.27c） |
-| defaultTransferLandWarScore | 12 | transfer goal の requiredWarScore（§6.27a。v0.35 balance: 60→12） |
-| defaultChangeContractTaxWarScore | 10 | tax goal の requiredWarScore（§6.27a。v0.35 balance: 50→10） |
-| terminalWarRetentionWeeks | 48 | terminal War 削除までの週数（§6.28b） |
-| **War Maneuver（v0.35。§6.27b。旧 per-tick drift 5 件と warScoreEventThreshold は撤廃）** | | |
+| maxWarDurationWeeks | 520 | timeout 終結（white_peace）の週数。約 10 年（§6.46） |
+| defaultTransferLandWarScore | 12 | transfer goal の requiredWarScore（§6.44。v0.35 balance: 60→12） |
+| defaultChangeContractTaxWarScore | 10 | tax goal の requiredWarScore（§6.44。v0.35 balance: 50→10） |
+| terminalWarRetentionWeeks | 48 | terminal War 削除までの週数（§6.51） |
+| **War Maneuver（v0.35。§6.45。旧 per-tick drift 5 件と warScoreEventThreshold は撤廃）** | | |
 | warAvoidanceBaseChance | 0.65 | 回避成功の基礎確率 |
 | warAvoidanceWarCommandEffect | 0.2 | 総大将 warCommand が回避成否に与える係数 |
 | warAvoidanceTerrainModifierByBattlefield | Record<BattlefieldKind, number> | 戦場別の回避しやすさ補正（open_field −0.1 … mountain_pass/wetland_battle +0.15 … siege −0.2） |
@@ -101,13 +101,13 @@
 | warEngagementAmbitionEffect | 0.15 | 総大将 ambition が交戦欲求に与える係数 |
 | warEngagementWarScoreUrgencyEffect | 0.3 | 負けている側ほど交戦を急ぐ urgency 係数 |
 | warBattleRandomness | 0.1 | **v0.37: 未使用（resolveBattle 撤去）**。旧 battle 実効戦力の乱数幅 |
-| warBattleScoreScale | 24 | **v0.37: 未使用**。旧 warScore 振れ幅係数（v0.37 は §6.27b magnitude 式に置換） |
+| warBattleScoreScale | 24 | **v0.37: 未使用**。旧 warScore 振れ幅係数（v0.37 は §6.45 magnitude 式に置換） |
 | maxWarScoreDeltaPerBattle | 12 | 1 戦闘の warScoreDelta clamp 上限（v0.37 も clamp 上限として流用） |
 | battleVictoryThreshold | 1.0 | **v0.37: 未使用**。旧 result ラベル閾値（v0.37 は internal sim の result が決める） |
-| warCommanderWarCommandEffect | 0.25 | **v0.37: 未使用**。旧 commanderModifier 係数（v0.37 は §6.27b battle 内補正に置換） |
+| warCommanderWarCommandEffect | 0.25 | **v0.37: 未使用**。旧 commanderModifier 係数（v0.37 は §6.45 battle 内補正に置換） |
 | minWarCommanderModifier | 0.75 | **v0.37: 未使用**。旧 commanderModifier 下限 |
 | maxWarCommanderModifier | 1.25 | **v0.37: 未使用**。旧 commanderModifier 上限 |
-| captainGeneralWarScoreEffect | 0.1 | 勝者総大将 warCommand が warScoreDelta に与える効率係数（v0.37 も §6.27b で維持） |
+| captainGeneralWarScoreEffect | 0.1 | 勝者総大将 warCommand が warScoreDelta に与える効率係数（v0.37 も §6.45 で維持） |
 | warBattlefieldRiverCrossingChance | 0.35 | major_river feature → river_crossing になる確率 |
 | warBattlefieldCoastalBattleChance | 0.25 | coastal feature → coastal_battle になる確率 |
 | **Regiment / Battle 損耗（v0.36 — v0.37 で simulateBattle に置換、未使用化）** | | |
@@ -125,7 +125,7 @@
 | regimentMaxOrganizationHardCap / regimentMaxMoraleHardCap | 120 / 100 | integrity 用 hard cap |
 | regimentOrganizationDecayAboveBaselinePerWeek | 1 | org が baseline 超のとき週次減衰 |
 | regimentMoraleRecoveryPerWeek / regimentMoraleDecayAboveBaselinePerWeek | 1 / 0.5 | morale の baseline 未満回復 / 超過減衰 |
-| **Battle internal tick（v0.37 §6.27b。仮値、balance 保留）** | | |
+| **Battle internal tick（v0.37 §6.45。仮値、balance 保留）** | | |
 | battleTickUnit / battleMaxTicks | 'day' / 5 | 内部 tick 単位 / 最大 tick 数 |
 | retreatOrganizationThreshold / routeOrganizationThreshold | 20 / 8 | frontline 離脱 / rout の org 閾値 |
 | minFightingStrengthThreshold | 10 | deployment 候補の最小 strength |
@@ -142,16 +142,16 @@
 | battleStrengthOutcomeQualityMultiplier{Orderly/Rout} | 1.0 / 1.2 | strength damage の outcomeQuality 係数 |
 | battleStrengthPowerDisadvantageModifierMin / Max | 1.0 / 1.3 | 敗者 side の戦力劣勢 strength damage 係数 |
 | battleTerrainOrganizationDamageMultiplierByKind / battleFlankTerrainMultiplierByKind | (地形別 table) | org damage / flank の地形補正 |
-| **指揮官 / 総大将 battle 効果（v0.37 §6.27b、C1）** | | |
+| **指揮官 / 総大将 battle 効果（v0.37 §6.45、C1）** | | |
 | commanderAssignedRegimentEffectMax / commanderAdjacentRegimentEffectRatio | 0.15 / 0.4 | 割当連隊 q 上限 / 隣接連隊への伝播率 |
 | captainGeneralBattleOrganizationDamageEffectMax / captainGeneralRoutResistanceEffectMax | 0.1 / 0.1 | 総大将 side-level の被 damage 軽減 / rout 耐性（benefit 方向のみ） |
-| **warScoreDelta magnitude（v0.37 §6.27b、C1）** | | |
+| **warScoreDelta magnitude（v0.37 §6.45、C1）** | | |
 | battleOrderlyVictoryScoreBase / battleRoutVictoryScoreBase | 6 / 10 | outcomeQuality 別の base magnitude |
 | battleDecisivenessRoutedShareWeight / SpeedWeight | 0.4 / 0.2 | decisiveness の routed share / 早期決着重み |
 | battleDecisivenessMin / Max | 0.7 / 1.4 | decisiveness clamp |
 | battlePreBattleEdgeWeight | 0.2 | 勝者 preBattle edge の反映係数 |
 | battlePreBattleModifierMin / Max | 0.8 / 1.2 | preBattleModifier clamp |
-| **Regiment 補充・再編成（v0.36 — 仮値。CLI harness で balance 調整予定。§6.27g）** | | |
+| **Regiment 補充・再編成（v0.36 — 仮値。CLI harness で balance 調整予定。§6.50）** | | |
 | regimentReinforcementBasePerMonth | 4.0 | active strength の月次補充基礎値（cadence は tick 登録 interval=4 で固定） |
 | regimentReinforcementPeaceMultiplier | 1.0 | 平時の補充速度係数 |
 | regimentReinforcementWarMultiplier | 0.4 | owner が active War 参加中の補充速度係数 |

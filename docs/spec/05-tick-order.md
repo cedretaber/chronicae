@@ -81,7 +81,7 @@ const WEEKS_PER_SEASON = 12
 | 14g | PersonGrowthSystem | 48 | 旧毎年 |
 | 15 | AmbitionSystem | 4 | 旧毎月 |
 | 16 | PublicSpendingSystem | 48 | 旧毎年 |
-| 17 | ~~HouseDevelopmentSystem~~ | — | **v0.22 で廃止**（§6.17）。土地開発は Polity develop_holding に一本化 |
+| 17 | ~~HouseDevelopmentSystem~~ | — | **v0.22 で廃止**。土地開発は Polity develop_holding に一本化 |
 | ~~18~~ | ~~PopDevelopmentSystem~~ | — | **v0.27 で無効化**。将来 POP 主導 Project として再導入予定 |
 | 19 | PlotSystem | 4 | 旧毎月 |
 | 19b | PersonGoalMaintenanceSystem | 48 | v0.23 追加。Person Goal 生成・fulfillment 管理 |
@@ -109,8 +109,8 @@ const WEEKS_PER_SEASON = 12
 | 22b | PolityOwnerConsistencySystem | 4 | 旧毎月 |
 | 22c | OrganizationConsistencySystem | 4 | 旧毎月 |
 | 22d | cancelOrphanedWarsSystem | 1 | v0.34 追加。**consistency 系の後ろ**。participant 消滅 active War を cancelled 化（理由は下記） |
-| 22d2 | RegimentMaintenanceSystem | 1 | v0.36 追加。orphan 回収の後。Regiment の home 消失→disband / terminal 変化→owner 付け替え / owner 消滅→disband / stale war→demobilize（順序厳守。§6.27f） |
-| 22d3 | RegimentReinforcementSystem | 4 | v0.36 補充・再編成。maintenance 直後。active strength の silent 月次補充（平時/戦時/動員中係数・home POP・treasury cap）+ destroyed reform（§6.27g） |
+| 22d2 | RegimentMaintenanceSystem | 1 | v0.36 追加。orphan 回収の後。Regiment の home 消失→disband / terminal 変化→owner 付け替え / owner 消滅→disband / stale war→demobilize（順序厳守。§6.49） |
+| 22d3 | RegimentReinforcementSystem | 4 | v0.36 補充・再編成。maintenance 直後。active strength の silent 月次補充（平時/戦時/動員中係数・home POP・treasury cap）+ destroyed reform（§6.50） |
 | 23 | AttitudeDecaySystem | 4 | 旧毎月 |
 | 24 | GovernanceSystem | 48 | 旧毎年 |
 | 25 | normalizePopSizes | 4 | 旧毎月 |
@@ -118,7 +118,7 @@ const WEEKS_PER_SEASON = 12
 | 25b2 | cleanupWarSystem | 1 | v0.34 追加。terminal War を `terminalWarRetentionWeeks` 経過後に records / warIndex から削除 |
 | 25c | CleanupTerminalDecisions | 4 | v0.22。terminal Goal/Aim/orphan DecisionReason 削除 |
 | 25d | mergeCompatiblePops | 48 | v0.24 追加。年末安全弁として同一 merge key の POP を統合 |
-| 25e | ChronicleProjectionSystem | 1 | v0.38 追加。**scheduledSystems 末尾**（全 cleanup の後・flush/IntegrityCheck の前）。この tick の event を curated allowlist で `ChronicleEntry` に projection（§6.31）。生成分も同 tick の年末 IntegrityCheck で index↔entry 検査される |
+| 25e | ChronicleProjectionSystem | 1 | v0.38 追加。**scheduledSystems 末尾**（全 cleanup の後・flush/IntegrityCheck の前）。この tick の event を curated allowlist で `ChronicleEntry` に projection（§6.62）。生成分も同 tick の年末 IntegrityCheck で index↔entry 検査される |
 | 26 | IntegrityCheck | ※2モード | debug=week48(try-catch), 通常=week48(throw)。flush も同タイミング |
 
 全 system の `phaseOffsetWeeks = 0`（v0.19 時点）。
@@ -139,9 +139,9 @@ IntegrityCheck は ScheduledSystem 配列に含めず、tick 末尾で直接制�
 
 **v0.16**: 旧 LordshipTransitionSystem / EconomySystem / RebellionSystem を廃止。**v0.18**: 旧 WarSystem / LandContractPurchaseSystem を廃止。
 
-Consistency 系 2 つは所領変動 system の直後に走り、所領異動の結果生じた Polity の owner / capital / Share / Office の整合性を即座に補正する（§6.22b / §6.22c 参照）。
+Consistency 系 2 つは所領変動 system の直後に走り、所領異動の結果生じた Polity の owner / capital / Share / Office の整合性を即座に補正する（§6.31 / §6.32 参照）。
 
-**v0.34 War 系の配置**: `WarCreationSystem` は旧 `ConflictResolutionSystem` の位置に入り、`ConflictResolutionSystem` 自身は revolt_negotiation 専用に縮退して直後に残る。二重処理防止は順序依存ではなく kind-gate で保証する（§6.27a / §6.28）。`cancelOrphanedWarsSystem` は当初案（Progress/Settlement の前）から変更し、**consistency 系 2 つの後ろ・intervalWeeks=1** に配置した。理由: PeaceSettlement の holding 移転で landless 化した polity を同 tick 後段の PolityOwnerConsistencySystem が extinct 化する。その polity が別の active War の participant だと、active War は active participant を要求する年末 IntegrityCheck（§6.24 v0.34 項目）で throw するため、consistency の後ろで orphaned War を cancelled 化して回収する。warScore 計算の安全は WarProgress / PeaceSettlement 冒頭の dead-participant guard が担保する。年末検査が必ず本 system 通過後になるよう 1w で走らせる。
+**v0.34 War 系の配置**: `WarCreationSystem` は旧 `ConflictResolutionSystem` の位置に入り、`ConflictResolutionSystem` 自身は revolt_negotiation 専用に縮退して直後に残る。二重処理防止は順序依存ではなく kind-gate で保証する（§6.44 / §6.43）。`cancelOrphanedWarsSystem` は当初案（Progress/Settlement の前）から変更し、**consistency 系 2 つの後ろ・intervalWeeks=1** に配置した。理由: PeaceSettlement の holding 移転で landless 化した polity を同 tick 後段の PolityOwnerConsistencySystem が extinct 化する。その polity が別の active War の participant だと、active War は active participant を要求する年末 IntegrityCheck（§6.35 v0.34 項目）で throw するため、consistency の後ろで orphaned War を cancelled 化して回収する。warScore 計算の安全は WarProgress / PeaceSettlement 冒頭の dead-participant guard が担保する。年末検査が必ず本 system 通過後になるよう 1w で走らせる。
 
 ### 5.7 順序の理由
 

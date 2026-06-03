@@ -145,7 +145,7 @@ function calcHouseMilitaryPower(state: WorldState, config: SimulationConfig, hou
 function calcPolityMilitaryPower(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 ```
 
-**v0.35 War Maneuver セレクター（`warManeuverSelectors.ts`。§6.27b で使用）**:
+**v0.35 War Maneuver セレクター（`warManeuverSelectors.ts`。§6.45 で使用）**:
 
 ```ts
 isEligibleWarPerson(state, personId): boolean              // 総大将になりうる person（生存・条件）

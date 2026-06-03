@@ -210,7 +210,7 @@ type Polity = {
 - `kind`: 'commonwealth' は v0.18-pre で導入。`ownerHouseId === undefined` を恒常状態として維持する Polity の標識。`createRebelPolity` で 'commonwealth' を set し、`polityOwnerConsistencySystem` / `successionSystem` / `organizationConsistencySystem` 等は commonwealth を skip / 特別扱いする。詳細は `docs/drafts/spec-v018-pre-update.md` 参照
 - `rank`: 1 (帝国) / 2 (王国) / 3 (公爵領) / 4 (伯爵領) / 5 (反乱領)。LandContract chain の rank 不変条件 (§7) と戦争 case 分岐 (§13 / §16.1) で機能する
 - `legitimacy`・`stability` は v0.11 で削除。セレクターで動的計算（§4.5 参照）
-- `adminPower` はキャッシュ値として維持。毎年 GovernanceSystem が `getPolityAdminPower` で再計算（§4.5 / §6.23b 参照）
+- `adminPower` はキャッシュ値として維持。毎年 GovernanceSystem が `getPolityAdminPower` で再計算（§4.5 / §6.34 参照）
 - **v0.12**: `rulerHouseId` と `roleAssignments` を削除。支配者・役職担当者は `OfficeAssignment` システムで管理（§3.7 参照）。`getPolityLeader` / `getPolityLeaderHouse` セレクターで取得（§4.6 参照）
 - **v0.15**: 旧 `Country` を `Polity` に rename し、`houseIds` フィールドを削除（`getPolityHouseIds` selector で動的取得）。`ownerHouseId` / `rank` を新規追加
 - **v0.16**: Polity と Province の関係は LandContract chain で表現する。`getPolityGrantedProvinceIds` / `getPolityTerminalProvinceIds` / `getPolityOverlordProvinceIds` を使う
@@ -335,15 +335,15 @@ type Person = {
 
 - **v0.40**: `lifeStage` 追加（required）。`'childhood' | 'adolescence' | 'young_adulthood' | 'mature_adulthood' | 'old_age'` の union。生成時は `deriveLifeStageFromAge(age, config)` で `config.lifeStageTransitionAges[*].standardAge` から初期値を導出（純関数）。出生児は `'childhood'`、placeholder は `'mature_adulthood'` 固定。ゲーム中の遷移は LifeStageProgressionSystem が年次・一方向で行う（逆行しない）。`LIFE_STAGE_ORDER` と `isLifeStageAtLeast(stage, threshold)` で順序比較する（成人相当判定 = `young_adulthood` 以降）。詳細は §6 / §10 参照
 - `spouseId`: 生存中の配偶者のみを指す。配偶者が死亡した場合は `undefined` に戻る
-- 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §6.24 参照）
+- 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §6.35 参照）
 - `prestige` / `traits.loyaltyToPolity` は v0.11 で削除。Attitude から動的計算（§4.5 参照）
 - **v0.15**: `polityId` フィールドを削除。Person は単一 Polity に直接所属しない。関係 Polity は `getPersonPrimaryPolityId` / `getPersonRelevantPolityIds` で取得（§4.x 参照）
-- **v0.12**: `wealth` 追加。OfficeCompensationSystem による給与受け取りで増加（§6.14b 参照）
+- **v0.12**: `wealth` 追加。OfficeCompensationSystem による給与受け取りで増加（§6.20 参照）
 - **v0.14**: `stats: { admin, martial }` を廃止し、6 軸の `abilities` / `aptitudes` に置換。
   - `abilities`: 現在発揮できる能力（経験で aptitude まで成長し、年齢曲線で衰退）
   - `aptitudes`: 才能上限（原則不変、遺伝で親から子へ平均回帰込みで伝わる）
   - 応用ロール（governance / stewardship / diplomacy / intrigue / warCommand）は派生 selector `getRoleScore(state, personId, role)` で計算する（§4.7 参照）
-  - 死亡時、`wealth > 0` なら EstateSettlementSystem（§6.7b）が家・相続人へ分配する
+  - 死亡時、`wealth > 0` なら EstateSettlementSystem（§6.8）が家・相続人へ分配する
 - **v0.16**: `kind` を追加。`'placeholder'` は ProvinceOffice (Bailiff) 用の仮想人物で、marriage / birth / death / succession などの Person-loop からはガード経由で除外される。`kind` 未設定または `'normal'` は通常人物
 - **v0.31**: `houseId` を optional 化。`houseId` が undefined の normal Person は「無家人物 (houseless person)」として扱う。placeholder は常に `houseId === undefined`。旧 `UnaffiliatedOccupation` → `PersonBackgroundOccupation` に改名。旧 AnonymousHouse (`h-anon`) は廃止され、無家人物は `state.persons` に直接追加される
 
@@ -648,7 +648,7 @@ type DiplomaticOffer = {
 
 #### DiplomaticPlay
 
-外交劇本体。**v0.26**: Project 完了時に生成される（旧 Intent → Play 変換は廃止）。**v0.30**: offer-driven negotiation に移行（§6.27 参照）。
+外交劇本体。**v0.26**: Project 完了時に生成される（旧 Intent → Play 変換は廃止）。**v0.30**: offer-driven negotiation に移行（§6.42 参照）。
 
 ```ts
 type DiplomaticPlayKind =
@@ -715,7 +715,7 @@ type WorldState = {
 
 terminal status の DiplomaticPlay は tick 末の `cleanupTerminalDiplomacy` phase で state から完全削除される。関連 DiplomaticOffer も cascade delete される（v0.30）。履歴は Event ログに残す。
 
-`resolved_by_conflict`（v0.34）: escalated な land_claim / contract_tax_revision play が WarCreationSystem で War 化されると、元 play はこの terminal status になり cleanup される（§6.27a）。
+`resolved_by_conflict`（v0.34）: escalated な land_claim / contract_tax_revision play が WarCreationSystem で War 化されると、元 play はこの terminal status になり cleanup される（§6.44）。
 
 ### 3.9a War（戦争）（v0.34）
 
@@ -738,7 +738,7 @@ type WarSide = {
   participants: WarParticipant[]   // v0.34 では各 side 1 件・primary=true 固定
 
   // v0.35 War Maneuver: いずれも soft reference（不在/死亡を許容し IntegrityCheck では検査しない）。
-  //   WarManeuverSystem が毎週 lazy に選出/再構築する。詳細は §6.27b。
+  //   WarManeuverSystem が毎週 lazy に選出/再構築する。詳細は §6.45。
   captainGeneralPersonId?: PersonId  // この side の総大将。不在時 undefined（house actor war では管理しない）
   commanderPersonIds: PersonId[]     // 現場指揮官候補。先頭が当該週の戦闘指揮官
   avoidanceCount: number             // この side が戦闘回避を選んだ累積回数（単調増加・reset しない）
@@ -797,12 +797,12 @@ type WorldState = {
 }
 ```
 
-terminal War は即削除せず一定期間（`terminalWarRetentionWeeks`）保持し、`cleanupWarSystem` が retention 超過後に削除する（履歴は Event ログに残る。§6.28b）。`politicalActorKey(ref): string` helper（`` `${ref.kind}:${ref.id}` `` を返す）を warIndex / IntegrityCheck で共用する。
+terminal War は即削除せず一定期間（`terminalWarRetentionWeeks`）保持し、`cleanupWarSystem` が retention 超過後に削除する（履歴は Event ログに残る。§6.51）。`politicalActorKey(ref): string` helper（`` `${ref.kind}:${ref.id}` `` を返す）を warIndex / IntegrityCheck で共用する。
 
 **v0.35 War Maneuver の型（`src/sim/types/war.ts`）**:
 
 ```ts
-// 想定戦場の地形種別。Province.terrain を基本に features で特殊化する（§6.27b / generateCandidateBattlefield）。
+// 想定戦場の地形種別。Province.terrain を基本に features で特殊化する（§6.45 / generateCandidateBattlefield）。
 type BattlefieldKind =
   | 'open_field' | 'forest_battle' | 'hill_battle' | 'mountain_pass'
   | 'wetland_battle' | 'river_crossing' | 'coastal_battle'
@@ -818,7 +818,7 @@ type BattleInitiationKind = 'mutual_engagement' | 'attacker_avoidance_failed' | 
 
 ### 3.9b Regiment（連隊）（v0.36）
 
-これまで `getActorMilitaryPower` で抽象的に算出していた軍事力を、平時から state 上に存在する**永続 Regiment entity**（軍事動員単位）として表現する。worldgen で **1 Holding = 1 Regiment** を生成し（§7）、WarManeuverSystem の battle power 入力に用いる（§6.27b）。型は `src/sim/types/regiment.ts`、power 計算は `src/sim/selectors/regimentSelectors.ts`。
+これまで `getActorMilitaryPower` で抽象的に算出していた軍事力を、平時から state 上に存在する**永続 Regiment entity**（軍事動員単位）として表現する。worldgen で **1 Holding = 1 Regiment** を生成し（§7）、WarManeuverSystem の battle power 入力に用いる（§6.45）。型は `src/sim/types/regiment.ts`、power 計算は `src/sim/selectors/regimentSelectors.ts`。
 
 ```ts
 type RegimentId = Branded<string, 'RegimentId'>  // prefix: "rg-"
@@ -826,7 +826,7 @@ type RegimentId = Branded<string, 'RegimentId'>  // prefix: "rg-"
 type RegimentStatus = 'active' | 'disbanded' | 'destroyed'
 //   disbanded: owner/home 失効で制度的に解散。再編成対象外（恒久）。
 //   destroyed: 戦闘損耗で壊滅。本拠地・owner 健在なら RegimentReinforcementSystem が
-//     reform 遅延を経て active に再編成する（v0.36 補充・再編成。§6.27g）。
+//     reform 遅延を経て active に再編成する（v0.36 補充・再編成。§6.50）。
 //   どちらの非 active record も records / regimentIndex.byOwner には残す
 //   （case(c) の「record 在り → 0 power, fallback しない」判定に必要）。byWar からは外す。
 
@@ -844,7 +844,7 @@ type Regiment = {
   homeProvinceId?: ProvinceId
   currentWarId?: WarId                // 動員先の soft reference（IntegrityCheck で hard invariant にしない）
   currentSide?: WarSideKey
-  strength: number                    // 兵員・装備・馬匹・従者の充足率 0..100。v0.37 でも battle で大きくは削れない（§6.27b）
+  strength: number                    // 兵員・装備・馬匹・従者の充足率 0..100。v0.37 でも battle で大きくは削れない（§6.45）
   organization: number                // 部隊統制 0..maxOrganization。battle 内で主に削れる値（v0.37 主損耗）
   morale: number                      // 士気 0..maxMorale。v0.37 で battle 内に削れ・recovery で baseline へ戻る・rout 判定に効く
   maxStrength: number                 // 原則 100
@@ -860,9 +860,9 @@ type Regiment = {
 }
 ```
 
-**有効戦力**（`getRegimentEffectivePower`）= `basePower × (strength/100) × (0.5 + 0.5 × organization/100)`。非 active は 0。v0.37 でも式は不変（org factor は org/100 のまま）。baseline 50 では全連隊一律 0.75× になるが、engagement / battle は比ベースなので相対関係は保たれる。**battle 中の effectivePower は戦闘前に 1 回 frozen** し、内部 tick で org が削れても再計算しない（pairPowerFactor 暴走回避。§6.27b）。
+**有効戦力**（`getRegimentEffectivePower`）= `basePower × (strength/100) × (0.5 + 0.5 × organization/100)`。非 active は 0。v0.37 でも式は不変（org factor は org/100 のまま）。baseline 50 では全連隊一律 0.75× になるが、engagement / battle は比ベースなので相対関係は保たれる。**battle 中の effectivePower は戦闘前に 1 回 frozen** し、内部 tick で org が削れても再計算しない（pairPowerFactor 暴走回避。§6.45）。
 
-**v0.37 baseline / max の意味**: `organization` / `morale` は battle で baseline 以下へ削れ、平時に RegimentRecoverySystem（§6.27e）が baseline へ戻す。worldgen は initial = baseline（org 50 / morale 30）で生成し、100/80 起点の長期過渡を避ける。baseline/max は config 定数由来で worldgen 時に rng draw を増やさない（Phase A bit-identical 担保）。
+**v0.37 baseline / max の意味**: `organization` / `morale` は battle で baseline 以下へ削れ、平時に RegimentRecoverySystem（§6.48）が baseline へ戻す。worldgen は initial = baseline（org 50 / morale 30）で生成し、100/80 起点の長期過渡を避ける。baseline/max は config 定数由来で worldgen 時に rng draw を増やさない（Phase A bit-identical 担保）。
 
 **WorldState 追加（v0.36）**:
 
@@ -880,14 +880,14 @@ type WorldState = {
 }
 ```
 
-戦争 side の power は `getRegimentPowerForWarSide(state, config, war, side)` が算出する（§6.27b の battle 入力）:
+戦争 side の power は `getRegimentPowerForWarSide(state, config, war, side)` が算出する（§6.45 の battle 入力）:
 (a) 動員中 active Regiment があればその有効戦力の合計、
 (b) 無く且つ primary participant が Regiment を 1 つも所有しない（byOwner 空。house actor 等）なら旧 `getActorMilitaryPower` に fallback、
 (c) byOwner 非空だが動員可能な active が無いなら 0（fallback しない）。
 
 ### 3.9c Battle（戦闘）（v0.36 / v0.37）
 
-WarManeuverSystem が 1 戦闘を解決するたびに記録する**短期 entity**。**v0.37: 内部 tick / frontline simulation を `simulateBattle`（§6.27b）で実行**し、その summary を Battle に保存する。War detail / recent history 表示用。`cleanupWarSystem` の terminal War 削除に piggyback して cleanup する（履歴は Event ログに残る。永続 record ではない。§6.28b）。型は `src/sim/types/battle.ts`。
+WarManeuverSystem が 1 戦闘を解決するたびに記録する**短期 entity**。**v0.37: 内部 tick / frontline simulation を `simulateBattle`（§6.45）で実行**し、その summary を Battle に保存する。War detail / recent history 表示用。`cleanupWarSystem` の terminal War 削除に piggyback して cleanup する（履歴は Event ログに残る。永続 record ではない。§6.51）。型は `src/sim/types/battle.ts`。
 
 ```ts
 type BattleId = Branded<string, 'BattleId'>  // prefix: "bt-"
@@ -921,7 +921,7 @@ type Battle = {
   defenderEffectivePower: number
   warScoreDelta: number                      // v0.37: rawDelta（after−before でなく。warScore saturation で符号が崩れないように）
   warScoreAfter: number                      // clamp 後の warScore
-  // v0.37 battle summary（§6.27b の simulateBattle 出力。ID 配列が正、counts は ID 配列から導出。C2 enrich）:
+  // v0.37 battle summary（§6.45 の simulateBattle 出力。ID 配列が正、counts は ID 配列から導出。C2 enrich）:
   outcomeQuality?: BattleOutcomeQuality
   frontage?: number
   tickUnit?: BattleTickUnit
@@ -931,7 +931,7 @@ type Battle = {
   defenderInitialFrontlineIds?: RegimentId[]
   attackerRoutedRegimentIds?: RegimentId[]
   defenderRoutedRegimentIds?: RegimentId[]
-  breakthroughSide?: WarSideKey              // cosmetic flag（§6.27b）
+  breakthroughSide?: WarSideKey              // cosmetic flag（§6.45）
   pursuitOccurred?: boolean                  // v0.37 core では false 固定（Phase D 予約）
   attackerCommanderAssignments?: BattleCommanderAssignment[]
   defenderCommanderAssignments?: BattleCommanderAssignment[]
@@ -1325,7 +1325,7 @@ type DevelopHoldingProject = BaseProject & {
 - `budget`: 事前確保方式。secure_budget stage で owner から確保し、advance_project Task で消費
 - find_supervisor / secure_budget は即時解決（Task を発行しない）。execute_project でのみ advance_project Task を生成
 - 同一 Holding に active develop_holding Project は 1 つまで
-- deadline は execute_project stage のみに適用（§6.25d 参照）
+- deadline は execute_project stage のみに適用（§6.40 参照）
 
 #### RespondToPressureProject（v0.29）
 
@@ -1432,9 +1432,9 @@ type WorldState = {
 
 ### 3.14 Chronicle System（v0.38）
 
-生成された歴史を対象 entity 別に永続的に遡るための read-model。各 tick で発生した `SimEvent` を tick 終端で curated projection し、append-only の `ChronicleEntry` として materialize する（ChronicleProjectionSystem、§6.31）。
+生成された歴史を対象 entity 別に永続的に遡るための read-model。各 tick で発生した `SimEvent` を tick 終端で curated projection し、append-only の `ChronicleEntry` として materialize する（ChronicleProjectionSystem、§6.62）。
 
-**設計原則（厳守）**: `ChronicleEntry` は「歴史を読むための記録」であり「歴史を動かす状態」ではない。simulation logic の入力・判断には一切使わない（参照は selector / UI 表示専用、§4.11）。死亡人物・断絶家・終了 War 等への soft reference を持ってよく、参照先が現在の `WorldState` に存在しなくても integrity 違反にしない（§6.24）。v0.38 では削除・cap・圧縮・外部化を行わない（append-only）。`PersonActivityLog`（死亡時 purge、simulation で使用可）とは責務が異なる。
+**設計原則（厳守）**: `ChronicleEntry` は「歴史を読むための記録」であり「歴史を動かす状態」ではない。simulation logic の入力・判断には一切使わない（参照は selector / UI 表示専用、§4.11）。死亡人物・断絶家・終了 War 等への soft reference を持ってよく、参照先が現在の `WorldState` に存在しなくても integrity 違反にしない（§6.35）。v0.38 では削除・cap・圧縮・外部化を行わない（append-only）。`PersonActivityLog`（死亡時 purge、simulation で使用可）とは責務が異なる。
 
 ```ts
 type ChronicleEntryId = Branded<string, 'ChronicleEntryId'>  // prefix 'ch-'
@@ -1488,5 +1488,5 @@ type WorldState = {
 ```
 
 - index 対象は person / house / polity / province / holding の 5 kind のみ。`faction` / `clan` / `goal` 等の ref は entry には保持されるが index には振らない。`war` / `battle` 用 index は v0.38 では非導入（関連 Polity / Province の chronicle 経由で戦争・戦闘も対象別履歴に乗る。War 史は `params.warId` 全走査の表示専用 selector で補う、§4.11）。
-- `ChronicleContext` 型は定義のみで、v0.38 ではどの entry にも populate しない。battle narrative の出し分けは `BATTLE_OCCURRED` の messageParams への additive enrich（`outnumberedVictory` / `decisiveVictory`）で行う（§6.31 / §8）。指揮官系 scalar は見送り。
+- `ChronicleContext` 型は定義のみで、v0.38 ではどの entry にも populate しない。battle narrative の出し分けは `BATTLE_OCCURRED` の messageParams への additive enrich（`outnumberedVictory` / `decisiveVictory`）で行う（§6.62 / §8）。指揮官系 scalar は見送り。
 

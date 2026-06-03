@@ -51,7 +51,7 @@ mutation 関数はおおむね `StateResult = SimResult<WorldState>` または `
 
 ### 12.4 IntegrityCheck と mutation API の組み合わせによる契約検知
 
-`IntegrityCheck`（§6.24）は WorldState を走査し、双方向整合性・範囲・参照整合性・時間 3 値整合性を検証する（通常・debug モードとも年末 week 48 のみ実行。整合性は year-end 契約であり per-tick では成立しないため。§5.5 参照）。mutation API が状態書き換えを独占することで、契約違反が混入する可能性のある箇所が mutation 関数の内部に限定され、違反の発生源を絞り込みやすい構造になっている。
+`IntegrityCheck`（§6.35）は WorldState を走査し、双方向整合性・範囲・参照整合性・時間 3 値整合性を検証する（通常・debug モードとも年末 week 48 のみ実行。整合性は year-end 契約であり per-tick では成立しないため。§5.5 参照）。mutation API が状態書き換えを独占することで、契約違反が混入する可能性のある箇所が mutation 関数の内部に限定され、違反の発生源を絞り込みやすい構造になっている。
 
 `debug` モード時は IntegrityCheck の違反が非致死的になり、`[DEBUG:INTEGRITY] error=...` として stderr に出力される（§2.2）。長期シミュレーションでの再現性確認に利用する。
 

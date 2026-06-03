@@ -16,7 +16,7 @@
 - **Polity.ownerHouseId / rank**: Polity 自身が家産的に所有家を持つ。`rank: PolityRank` は v0.15 では effect 持たない placeholder（将来の称号システム土台）
 - **Polity 関係 selector 群** (`polityRelations.ts`): `getPolityProvinceIds` / `getPolityHouseIds` / `getPolityPersonIds` / `getHousePolityIds` / `getHousePrimaryPolityId` / `getPersonPrimaryPolityId` / `getHouseSeatProvinceInPolity` 等
 - **House の多 Polity 所領**: 1 House が複数 Polity に Province を持てる（戦争・反乱で発生）。各 system は selector 経由で関係を動的に取得
-- **PolityOwnerConsistencySystem / OrganizationConsistencySystem** (v0.15 §6.22b/§6.22c): 所領変動後の owner / capital / Share / Office の整合性を毎月補正
+- **PolityOwnerConsistencySystem / OrganizationConsistencySystem** (v0.15 §6.31/§6.32): 所領変動後の owner / capital / Share / Office の整合性を毎月補正
 - **§13.4 Polity 役職スコア式**: `polityShareAppointmentFactor` / `ownerHouseAppointmentBonus` / `sameHousePolityOfficePenalty` を導入。同 House による Polity Office 独占を抑制
 - **§17.3 War 征服時の新 ownerHouse 選定**: attacker `polity.ownerHouseId` 優先
 - **§22.3 affectedPolityIds スナップショット**: `extinctHouse(ctx, { houseId, affectedPolityIds })` で所領喪失前の関係 Polity 集合を保存し、メンバー移住先選定に使う
@@ -677,7 +677,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 - **capacity と production の分離**: occupation capacity を `(base + improvementDerivedCapacity) * weight * landQuality` に変更し、capacity 側から `developmentModifier` を除去（二重計上回避）。production 側は devMod 維持（§4.1 / §4.2）。terrain / feature capacity multiplier を導入
 - **canBuild ゲート**: `canBuildHoldingImprovementPure`（state 非依存）/ `canBuildHoldingImprovement`（state ラッパ）を新設。worldgen 初期生成・develop_holding の kind 選択（`selectImprovementKind`）が canBuild を通す。worldgen は canBuild 先判定→通過分のみ RNG draw で決定性維持
 - **maxLevel table の破壊的変更**: `holdingImprovementMaxLevelByHoldingKind` → `holdingImprovementMaxLevelByKind`（ネスト反転 + Partial 化、undefined/0 = 建設不可）
-- **IntegrityCheck**: Province terrain/features、improvement maxLevel access 反転、IMPROVEMENT_DEFINITIONS × config 整合、capacity 健全性（§6.24 v0.33 項目）
+- **IntegrityCheck**: Province terrain/features、improvement maxLevel access 反転、IMPROVEMENT_DEFINITIONS × config 整合、capacity 健全性（§6.35 v0.33 項目）
 - **UI**: ProvinceDetail に terrain/features 表示、Holding 詳細に occupation capacity 表示、improvement フレーバー名のフォールバック（flavor→category→kind）。ヘッダー画像を terrain/設備連動に（§11）
 - **HoldingImprovement.condition**: v0.33 でも常に 100（将来の荒廃・修復システム用に温存）
 - **スコープ外（v0.33 では入れない）**: 資源・商品・交易・価格・港湾・鉱山・採石・林業・果樹園・葡萄園・水車・城砦・戦争本体・軍事 occupation・荒廃/復興・都市創設・土地開墾・terrain のゲーム中変化・occupation 種類追加。後回し Improvement（forestry/mining/quarrying/harbor/fortification/orchard/vineyard/mill）は資源・戦争システム導入時に再検討
@@ -686,14 +686,14 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 
 詳細仕様は `docs/drafts/spec-v034-update.md` を参照。
 
-> **※ v0.35 で更新**: 下記は v0.34 時点の記録。warScore 進行は v0.35 で **WarManeuverSystem（毎週・乱数・総大将/指揮官/回避/戦場/battle）に置換**された（§6.27b）。よって「WarProgressSystem」「warScore は決定的・`calcGeneralWarPowerModifier` 不使用」「WAR_SCORE_CHANGED」、および直下の「スコープ外（未実装）」欄の **戦場 / 総大将 / 指揮官** は v0.35 で更新・実装済み（下記 v0.35 項目を参照）。
+> **※ v0.35 で更新**: 下記は v0.34 時点の記録。warScore 進行は v0.35 で **WarManeuverSystem（毎週・乱数・総大将/指揮官/回避/戦場/battle）に置換**された（§6.45）。よって「WarProgressSystem」「warScore は決定的・`calcGeneralWarPowerModifier` 不使用」「WAR_SCORE_CHANGED」、および直下の「スコープ外（未実装）」欄の **戦場 / 総大将 / 指揮官** は v0.35 で更新・実装済み（下記 v0.35 項目を参照）。
 
-- **War entity 化**: escalated land_claim / contract_tax_revision の即時勝敗解決を、複数 tick かけて `warScore`（-100..100）で進行する War entity に置換（§3.9a / §6.27a–§6.27d / §6.28b）。WarCreationSystem → WarProgressSystem → PeaceSettlementSystem → cleanupWarSystem
-- **ConflictResolutionSystem の縮退**: revolt_negotiation 専用に kind-gate。land_claim / contract_tax_revision は War flow へ完全移行。二重処理防止は順序依存ではなく kind-gate（§6.28）
+- **War entity 化**: escalated land_claim / contract_tax_revision の即時勝敗解決を、複数 tick かけて `warScore`（-100..100）で進行する War entity に置換（§3.9a / §6.44–§6.47 / §6.51）。WarCreationSystem → WarProgressSystem → PeaceSettlementSystem → cleanupWarSystem
+- **ConflictResolutionSystem の縮退**: revolt_negotiation 専用に kind-gate。land_claim / contract_tax_revision は War flow へ完全移行。二重処理防止は順序依存ではなく kind-gate（§6.43）
 - **warScore は決定的**: 乱数なし。`getActorMilitaryPower` の戦力比で更新し、`calcGeneralWarPowerModifier`（指揮官補正）は不使用
 - **white_peace timeout**: `maxWarDurationWeeks` 超過の拮抗 War を白紙和平で終結（active War 累積防止）。WarGoal stale も white_peace で安全終結
-- **cancelOrphanedWarsSystem**: participant 消滅 active War を cancelled 化。consistency 系の後ろ・1w（年末 IntegrityCheck 落ち防止のため必須。配置はドラフト案から変更。§5.6 / §6.27d）
-- **Event / UI / IntegrityCheck**: WAR_SCORE_CHANGED / WAR_ENDED / PEACE_SETTLEMENT_APPLIED 追加（既存 WAR_DECLARED / WAR_WON / WAR_LOST を流用）。Sidebar Wars 一覧 + WarDetail（warScore 綱引きバー）。War 整合性検査（§6.24 v0.34）
+- **cancelOrphanedWarsSystem**: participant 消滅 active War を cancelled 化。consistency 系の後ろ・1w（年末 IntegrityCheck 落ち防止のため必須。配置はドラフト案から変更。§5.6 / §6.47）
+- **Event / UI / IntegrityCheck**: WAR_SCORE_CHANGED / WAR_ENDED / PEACE_SETTLEMENT_APPLIED 追加（既存 WAR_DECLARED / WAR_WON / WAR_LOST を流用）。Sidebar Wars 一覧 + WarDetail（warScore 綱引きバー）。War 整合性検査（§6.35 v0.34）
 - **v0.34 スコープ外（未実装）**: 戦場 / 総大将 / 指揮官 / 連隊 / 士気 / 充足率 / 補充 / 厭戦感情 / 兵站 / 荒廃 / 複数参加者の実動 / 個別講和 / 賠償金 / prestige 変更。`WarSide.participants` は配列で持つが各 side 1 件固定（将来の複数参戦に備えた構造のみ）。詳細は下記 v0.35+ 拡張を参照
 
 ### v0.20 以降に送られる主要項目
@@ -702,9 +702,9 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
 
 v0.34 で War / WarScore / PeaceSettlement の配管が入った。以下は後続バージョンで段階導入する。
 
-- **v0.35 Captain General / Commander / Battlefield（実装済み）**: `WarSide` に `captainGeneralPersonId?` / `commanderPersonIds` / `avoidanceCount` を追加。WarProgressSystem を WarManeuverSystem（毎週）に置換し、`commanderModifier` / `captainGeneralEfficiency`（warCommand ability）で戦力・warScore 効率を補正。Province terrain / features から BattlefieldKind を生成し、回避判断 → battle 解決で warScore を更新。詳細は §6.27b / §3.9a。（旧 future-plan の `calcGeneralWarPowerModifier` ではなく上記 2 関数で実装した。`siege` は型のみで未生成・将来用予約。なお「ほぼ互角の戦争が長引く裾」を圧縮する機構（戦争期間上限の短縮 / 膠着時 urgency drift 等）は未実装で将来課題）
+- **v0.35 Captain General / Commander / Battlefield（実装済み）**: `WarSide` に `captainGeneralPersonId?` / `commanderPersonIds` / `avoidanceCount` を追加。WarProgressSystem を WarManeuverSystem（毎週）に置換し、`commanderModifier` / `captainGeneralEfficiency`（warCommand ability）で戦力・warScore 効率を補正。Province terrain / features から BattlefieldKind を生成し、回避判断 → battle 解決で warScore を更新。詳細は §6.45 / §3.9a。（旧 future-plan の `calcGeneralWarPowerModifier` ではなく上記 2 関数で実装した。`siege` は型のみで未生成・将来用予約。なお「ほぼ互角の戦争が長引く裾」を圧縮する機構（戦争期間上限の短縮 / 膠着時 urgency drift 等）は未実装で将来課題）
 - **多重臣従での参戦**: 1 House / Polity が複数の War に attacker / defender として参加。`WarSide.participants` の複数化（contributionScore / casualties / willingnessToContinue を持つ `WarParticipantState`）。第三勢力は作らず必ず attacker / defender に属させる
-- **v0.36 Regiment（実装済み）**: 抽象 `getActorMilitaryPower` を永続 Regiment entity（1 Holding = 1 Regiment、worldgen で basePower 凍結）に置換。WarManeuver の battle power を `getRegimentPowerForWarSide`（動員 Regiment の有効戦力合計）に差し替え、mobilize → battle 損耗（organization / strength）→ recovery（organization）→ demobilize の損耗ループと Battle entity 記録を導入。**補充・再編成（実装済み）**: RegimentReinforcementSystem（§6.27g 月次）が active strength を silent 補充し、destroyed を reform で再編成してプールを自己修復させる（旧「プール非増加・床なし減衰」を解消）。詳細は §3.9b / §3.9c / §6.27b / §6.27e / §6.27f / §6.27g。**将来課題**: strength / morale を training / equipment 等へ細分化、morale を動的化（v0.36 は reform 時のみ書き込み）、Battle の内部 tick / frontline simulation（v0.37+）、REGIMENT_MOBILIZED / DESTROYED 等の専用 event（v0.36 は BATTLE_OCCURRED の counts-only enrich + REGIMENT_REFORMED のみ）、開戦 AI に連隊在庫 gate（0連隊での開戦抑止）
+- **v0.36 Regiment（実装済み）**: 抽象 `getActorMilitaryPower` を永続 Regiment entity（1 Holding = 1 Regiment、worldgen で basePower 凍結）に置換。WarManeuver の battle power を `getRegimentPowerForWarSide`（動員 Regiment の有効戦力合計）に差し替え、mobilize → battle 損耗（organization / strength）→ recovery（organization）→ demobilize の損耗ループと Battle entity 記録を導入。**補充・再編成（実装済み）**: RegimentReinforcementSystem（§6.50 月次）が active strength を silent 補充し、destroyed を reform で再編成してプールを自己修復させる（旧「プール非増加・床なし減衰」を解消）。詳細は §3.9b / §3.9c / §6.45 / §6.48 / §6.49 / §6.50。**将来課題**: strength / morale を training / equipment 等へ細分化、morale を動的化（v0.36 は reform 時のみ書き込み）、Battle の内部 tick / frontline simulation（v0.37+）、REGIMENT_MOBILIZED / DESTROYED 等の専用 event（v0.36 は BATTLE_OCCURRED の counts-only enrich + REGIMENT_REFORMED のみ）、開戦 AI に連隊在庫 gate（0連隊での開戦抑止）
 - **v0.37 厭戦感情ほか**: `HouseWarState` / warWeariness / casualties（POP casualties）/ 強制徴募 / 補給線（reinforcement / 再編成は v0.36 で実装済み）
 - **兵站・補給**（当初 v0.38 想定 → 実際の v0.38 は Chronicle System に充当のため後続へ送り）: supply demand / local requisition / treasury supply / terrain・feature 補給補正
 - **v0.39 荒廃・復興**: ProvinceWarImpact / HoldingWarImpact / HoldingImprovement.condition 低下 / recovery project
@@ -713,7 +713,7 @@ v0.34 で War / WarScore / PeaceSettlement の配管が入った。以下は後�
 
 #### Chronicle 拡張系（v0.38 で基盤実装済み）
 
-v0.38 で永続 read-model `ChronicleEntry` + 対象別履歴 UI を実装した（§3.14 / §6.31 / §4.11 / §11）。append-only でプロトタイプ段階のため、以下は将来課題:
+v0.38 で永続 read-model `ChronicleEntry` + 対象別履歴 UI を実装した（§3.14 / §6.62 / §4.11 / §11）。append-only でプロトタイプ段階のため、以下は将来課題:
 
 - **外部化 / cap / purge / 圧縮**: v0.38 は無制限保持（300年×4seed で ~12-13k entries、memory / perf 問題なし）。alpha 以降で disk / DB / append-only log への外部化を検討する。
 - **視点相対（viewer-relative）レンダリング**: 戦争の勝敗等を「記録を表示している側」から見た記述にする（同じ戦争でも House A panel では「勝利」、House B panel では「敗北」）。entry は中立のまま、render 層で viewer entity を渡して描き分ける（sim/ に視点を持ち込まない）。
