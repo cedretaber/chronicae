@@ -1,5 +1,5 @@
 import type { WarId, DiplomaticPlayId, HoldingId, PolityId, LandContractId, PersonId } from './ids'
-import type { PoliticalActorRef } from './actor'
+import type { OrganizationRef } from './office'
 
 // v0.34: DiplomaticPlay の escalation を、複数 tick かけて warScore で進行する War entity に置換する。
 //   WarCreationSystem → WarProgressSystem → PeaceSettlementSystem → cleanupWarSystem。
@@ -17,7 +17,7 @@ export type WarSideKey = 'attacker' | 'defender'
 // §4.5 WarParticipant
 //   v0.34 では各 side の participants は 1 件・primary=true 固定。
 export type WarParticipant = {
-  actor: PoliticalActorRef
+  actor: OrganizationRef
   joinedWeek: number
   primary: boolean
 }
@@ -74,7 +74,7 @@ export type WarGoal =
 export type TransferLandContractWarGoal = {
   kind: 'transfer_land_contract'
   holdingId: HoldingId
-  // applyLandContractTransferGoal に渡すための明示的な PolityId (PoliticalActorRef ではない)。
+  // applyLandContractTransferGoal に渡すための明示的な PolityId (OrganizationRef ではない)。
   fromPolityId: PolityId
   toPolityId: PolityId
   requiredWarScore: number

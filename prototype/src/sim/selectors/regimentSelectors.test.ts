@@ -15,13 +15,13 @@ import {
 import { getActorMilitaryPower } from './actorSelectors'
 import type { Regiment } from '../types/regiment'
 import type { War } from '../types/war'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import type { PolityId, WarId, HoldingId, ProvinceId } from '../types/ids'
 
-const pA: PoliticalActorRef = { kind: 'polity', id: 'po-1' as PolityId }
-const pB: PoliticalActorRef = { kind: 'polity', id: 'po-2' as PolityId }
+const pA: OrganizationRef = { kind: 'polity', id: 'po-1' as PolityId }
+const pB: OrganizationRef = { kind: 'polity', id: 'po-2' as PolityId }
 
-function makeWar(id: WarId, attacker: PoliticalActorRef, defender: PoliticalActorRef): War {
+function makeWar(id: WarId, attacker: OrganizationRef, defender: OrganizationRef): War {
   return {
     id,
     status: 'active',

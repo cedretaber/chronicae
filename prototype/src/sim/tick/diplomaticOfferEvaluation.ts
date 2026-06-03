@@ -12,7 +12,7 @@ import type {
   OfferEvaluation,
   ContractTaxRevisionIssue,
 } from '../types/diplomaticPlay'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import { isSameActor } from '../selectors/actorSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { calcGeneralWarPowerModifier } from '../selectors/personAbilityEffects'
@@ -163,7 +163,7 @@ export function canApplyDemand(
 
 // ─── Evaluator resolution ───
 
-export function getOfferEvaluator(play: DiplomaticPlay, offer: DiplomaticOffer): PoliticalActorRef {
+export function getOfferEvaluator(play: DiplomaticPlay, offer: DiplomaticOffer): OrganizationRef {
   if (isSameActor(offer.proposedBy, play.initiator)) {
     return play.target
   }
@@ -244,7 +244,7 @@ export function evaluateOffer(
   config: SimulationConfig,
   play: DiplomaticPlay,
   offer: DiplomaticOffer,
-  evaluator: PoliticalActorRef,
+  evaluator: OrganizationRef,
 ): OfferEvaluation {
   switch (play.kind) {
     case 'land_claim':
@@ -262,7 +262,7 @@ export function evaluateOffer(
   }
 }
 
-function getEvaluatorNegotiationBonus(play: DiplomaticPlay, evaluator: PoliticalActorRef): number {
+function getEvaluatorNegotiationBonus(play: DiplomaticPlay, evaluator: OrganizationRef): number {
   const isInitiator = isSameActor(evaluator, play.initiator)
   const prep = isInitiator ? play.initiatorPreparation : play.targetPreparation
   const lev = isInitiator ? play.initiatorLeverage : play.targetLeverage
@@ -277,7 +277,7 @@ function evaluateLandClaimOffer(
   config: SimulationConfig,
   play: DiplomaticPlay,
   offer: DiplomaticOffer,
-  evaluator: PoliticalActorRef,
+  evaluator: OrganizationRef,
 ): OfferEvaluation {
   if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
     return {
@@ -382,7 +382,7 @@ function evaluateContractTaxRevisionOffer(
   config: SimulationConfig,
   play: DiplomaticPlay,
   offer: DiplomaticOffer,
-  evaluator: PoliticalActorRef,
+  evaluator: OrganizationRef,
 ): OfferEvaluation {
   if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
     return {

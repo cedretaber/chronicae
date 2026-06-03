@@ -3,7 +3,7 @@
 import type { WorldState } from '../types/world'
 import type { Regiment, RegimentSourceKind, RegimentTroopKind } from '../types/regiment'
 import type { RegimentId, PolityId, HoldingId, ProvinceId, WarId } from '../types/ids'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import type { WarSideKey } from '../types/war'
 import { createRegimentId } from '../types/ids'
 import { politicalActorKey } from '../selectors/actorSelectors'
@@ -32,7 +32,7 @@ export function addRegimentToIndexMut(ws: WorldState, regiment: Regiment): void 
 // --- creation ---
 
 export type CreateRegimentInput = {
-  owner: PoliticalActorRef
+  owner: OrganizationRef
   sourceKind: RegimentSourceKind
   troopKind: RegimentTroopKind
   homeHoldingId?: HoldingId
@@ -169,7 +169,7 @@ export function demobilizeRegimentMut(ws: WorldState, regimentId: RegimentId): v
 export function reassignRegimentOwnerMut(
   ws: WorldState,
   regimentId: RegimentId,
-  newOwner: PoliticalActorRef,
+  newOwner: OrganizationRef,
 ): void {
   const r = ws.regiments[regimentId]
   if (!r) return

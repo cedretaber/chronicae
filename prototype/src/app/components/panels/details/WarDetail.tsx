@@ -9,7 +9,7 @@ import {
 } from '@sim/selectors/regimentSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { getWarPrimaryAttacker, getWarPrimaryDefender } from '@sim/mutations/warMutations'
-import type { PoliticalActorRef } from '@/sim/types/actor'
+import type { OrganizationRef } from '@/sim/types/office'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { EntityChronicleSection } from './shared/widgets'
 import { getChronicleEntriesForWar } from '@sim/selectors/chronicleSelectors'
@@ -114,7 +114,7 @@ export function WarDetail({
   }
   const badge = statusBadge[war.status] ?? { label: war.status, bg: 'bg-gray-600' }
 
-  const renderActor = (actor: PoliticalActorRef | undefined) => {
+  const renderActor = (actor: OrganizationRef | undefined) => {
     if (!actor) return <span className="text-gray-500">&mdash;</span>
     if (actor.kind === 'polity') {
       return <PolityLink polityId={actor.id} polities={polities} onClick={onPolityClick} />

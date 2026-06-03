@@ -12,7 +12,7 @@ import type {
 } from '../types/ids'
 import type { EventId } from '../types/ids'
 import type { DiplomaticPlay, DiplomaticOffer } from '../types/diplomaticPlay'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { LandContractId } from '../types/ids'
 import type { LandContract } from '../types/landContract'
@@ -32,7 +32,7 @@ import {
 
 const TERMINAL_PLAY_SET = new Set<TerminalDiplomaticPlayStatus>(TERMINAL_DIPLOMATIC_PLAY_STATUSES)
 
-function isActorActive(state: WorldState, actor: PoliticalActorRef): boolean {
+function isActorActive(state: WorldState, actor: OrganizationRef): boolean {
   if (actor.kind === 'polity') {
     return state.polities[actor.id]?.active === true
   }

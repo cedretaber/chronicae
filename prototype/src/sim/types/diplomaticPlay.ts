@@ -12,7 +12,7 @@ import type {
   GoalId,
   AimId,
 } from './ids'
-import type { PoliticalActorRef } from './actor'
+import type { OrganizationRef } from './office'
 import type { PopClass } from './popGroup'
 
 // v0.18 Stage A §6.4 / §6.5
@@ -51,7 +51,7 @@ export type DiplomaticDemand =
       kind: 'transfer_land_contract'
       holdingId: HoldingId
       toPolityId: PolityId
-      beneficiaryActor?: PoliticalActorRef
+      beneficiaryActor?: OrganizationRef
     }
   | {
       kind: 'change_contract_tax_rate'
@@ -61,8 +61,8 @@ export type DiplomaticDemand =
     }
   | {
       kind: 'pay_wealth'
-      from: PoliticalActorRef
-      to: PoliticalActorRef
+      from: OrganizationRef
+      to: OrganizationRef
       amount: number
     }
   | {
@@ -101,7 +101,7 @@ export type DiplomaticOfferStatus = 'pending' | 'accepted' | 'rejected' | 'withd
 export type DiplomaticOffer = {
   id: DiplomaticOfferId
   playId: DiplomaticPlayId
-  proposedBy: PoliticalActorRef
+  proposedBy: OrganizationRef
   demands: DiplomaticDemand[]
   status: DiplomaticOfferStatus
   createdWeek: number
@@ -137,8 +137,8 @@ export type DiplomaticPlay = {
   id: DiplomaticPlayId
   kind: DiplomaticPlayKind
 
-  initiator: PoliticalActorRef
-  target: PoliticalActorRef
+  initiator: OrganizationRef
+  target: OrganizationRef
 
   originProjectId?: ProjectId
 

@@ -16,7 +16,7 @@ import type { EventId, PersonId, ProjectId } from '../types/ids'
 import type { PressureKind } from '../types/pressure'
 import type { PressureResponseStance } from '../types/pressure'
 import type { DiplomaticDemand } from '../types/diplomaticPlay'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import {
   removeProjectFromIndexMut,
   addProjectToIndexMut,
@@ -428,7 +428,7 @@ function resolveChooseStance(
 
   if (pressure.target.kind === 'person') return false
 
-  const targetActor: PoliticalActorRef =
+  const targetActor: OrganizationRef =
     pressure.target.kind === 'polity'
       ? { kind: 'polity', id: pressure.target.id }
       : { kind: 'house', id: pressure.target.id }
@@ -436,7 +436,7 @@ function resolveChooseStance(
   let stance: PressureResponseStance = 'negotiate'
 
   if (pressure.source.kind !== 'person') {
-    const sourceActor: PoliticalActorRef =
+    const sourceActor: OrganizationRef =
       pressure.source.kind === 'polity'
         ? { kind: 'polity', id: pressure.source.id }
         : { kind: 'house', id: pressure.source.id }

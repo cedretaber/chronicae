@@ -2,7 +2,7 @@ import type { TickContext } from '../tick/context'
 import type { WorldState } from '../types/world'
 import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types/diplomaticPlay'
 import type { DiplomaticOfferId, DiplomaticPlayId, PolityId } from '../types/ids'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import { createDiplomaticOfferId } from '../types/ids'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import {
@@ -16,7 +16,7 @@ import {
 export function createDiplomaticOfferMut(
   ws: WorldState,
   playId: DiplomaticPlayId,
-  proposedBy: PoliticalActorRef,
+  proposedBy: OrganizationRef,
   demands: DiplomaticDemand[],
   reasonIds: import('../types/ids').DecisionReasonId[],
 ): DiplomaticOfferId {

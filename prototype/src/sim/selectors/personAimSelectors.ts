@@ -3,8 +3,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { PersonId } from '../types/ids'
 import type { PersonAimKind, Goal, EntityRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
-import type { PoliticalActorRef } from '../types/actor'
-import type { OfficeRole } from '../types/office'
+import type { OfficeRole, OrganizationRef } from '../types/office'
 import type { AbilityKey } from '../types/person'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
@@ -35,8 +34,8 @@ export function scorePersonAimKind(
   const results: { kind: PersonAimKind; score: number; target?: EntityRef }[] = []
 
   // Check current offices
-  let heldPolityOffice: { organization: PoliticalActorRef; role: OfficeRole } | undefined
-  let heldHouseOffice: { organization: PoliticalActorRef; role: OfficeRole } | undefined
+  let heldPolityOffice: { organization: OrganizationRef; role: OfficeRole } | undefined
+  let heldHouseOffice: { organization: OrganizationRef; role: OfficeRole } | undefined
   let hasAnyOffice = false
 
   const holderOfficeIds = state.officeIndex.byHolderPerson[personId as string] ?? []

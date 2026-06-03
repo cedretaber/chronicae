@@ -19,7 +19,7 @@ import type {
   BattleId,
   ChronicleEntryId,
 } from '../types/ids'
-import type { OrganizationKind, OfficeRole } from '../types/office'
+import type { OrganizationKind, OfficeRole, OrganizationRef } from '../types/office'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { OFFICE_DEFINITIONS } from '../config/officeDefinitions'
 import { ABILITY_KEYS, ABILITY_HARD_CAP } from '../constants/abilityConstants'
@@ -29,7 +29,6 @@ import { getGrantorRank, getLandContractGrantor } from '../selectors/landContrac
 import { politicalActorKey } from '../selectors/actorSelectors'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
-import type { PoliticalActorRef } from '../types/actor'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { isPlaceholderPerson } from '../selectors/landContractSelectors'
@@ -1365,7 +1364,7 @@ export function collectIntegrityErrors(
   // ─── §20: DiplomaticPlay 整合性 ───
 
   // actor が存在する active actor を指すかチェック (Polity の active / House の active を確認)
-  const isActiveActor = (actor: PoliticalActorRef): boolean => {
+  const isActiveActor = (actor: OrganizationRef): boolean => {
     if (actor.kind === 'polity') {
       const p = state.polities[actor.id]
       return Boolean(p && p.active)

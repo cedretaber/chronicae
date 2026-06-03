@@ -1,14 +1,13 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { PersonId } from '../types/ids'
-import type { OfficeRole } from '../types/office'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OfficeRole, OrganizationRef } from '../types/office'
 
 export function getAppointmentTaskModifier(
   state: WorldState,
   config: SimulationConfig,
   personId: PersonId,
-  organization: PoliticalActorRef,
+  organization: OrganizationRef,
   role: OfficeRole,
 ): number {
   let modifier = 0

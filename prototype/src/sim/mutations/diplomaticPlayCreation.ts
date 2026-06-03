@@ -6,7 +6,7 @@ import type {
   DiplomaticDemand,
   ContractTaxRevisionIssue,
 } from '../types/diplomaticPlay'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import type { DiplomaticPlayId, PolityId, ProvinceId } from '../types/ids'
 import type { CreateSimEventInput } from '../tick/context'
 import { createDiplomaticPlayId } from '../types/ids'
@@ -92,8 +92,8 @@ function createLandClaimPlayFromProjectMut(
   const holdingId = project.holdingId ?? selectTargetHoldingInProvince(ws, provinceId)
   if (!holdingId) return { kind: 'invalid_inputs' }
 
-  let initiator: PoliticalActorRef
-  let target: PoliticalActorRef
+  let initiator: OrganizationRef
+  let target: OrganizationRef
   let counterDemandAmount: number
   let initialProgress: number
   let initialTension: number
@@ -260,8 +260,8 @@ function createContractRevisionPlayFromProjectMut(
     config.taxRevisionMaxRate,
   )
 
-  const initiator: PoliticalActorRef = { kind: 'polity', id: project.owner.id }
-  const target: PoliticalActorRef = { kind: 'polity', id: project.counterpartyPolityId }
+  const initiator: OrganizationRef = { kind: 'polity', id: project.owner.id }
+  const target: OrganizationRef = { kind: 'polity', id: project.counterpartyPolityId }
 
   const dedupeKey = `contract_tax_revision|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
   if (existingPlayKeys.has(dedupeKey)) return { kind: 'duplicate' }

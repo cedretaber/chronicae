@@ -21,7 +21,7 @@ import type {
   DiplomaticDemand,
   ContractTaxRevisionIssue,
 } from '../types/diplomaticPlay'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import type {
   PersonId,
   DiplomaticPlayId,
@@ -400,7 +400,7 @@ export function buildAndCreateCompromiseOffer(
   const baseOffer = baseOfferId ? ws.diplomaticOffers[baseOfferId] : undefined
   const baseDemands: DiplomaticDemand[] | undefined = baseOffer?.demands
 
-  const proposedBy: PoliticalActorRef = side === 'initiator' ? play.initiator : play.target
+  const proposedBy: OrganizationRef = side === 'initiator' ? play.initiator : play.target
 
   let adjustedDemands: DiplomaticDemand[] | undefined
 

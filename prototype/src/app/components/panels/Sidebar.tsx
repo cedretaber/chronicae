@@ -12,7 +12,7 @@ import type { WorldState } from '@/sim/types/world'
 import type { Faction } from '@/sim/types/faction'
 import type { DiplomaticPlay } from '@/sim/types/diplomaticPlay'
 import type { War } from '@/sim/types/war'
-import type { PoliticalActorRef } from '@/sim/types/actor'
+import type { OrganizationRef } from '@/sim/types/office'
 import { getWarPrimaryAttacker, getWarPrimaryDefender } from '@sim/mutations/warMutations'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
 import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
@@ -263,7 +263,7 @@ function WarRow({
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
-  const resolveActorName = (actor: PoliticalActorRef | undefined): string => {
+  const resolveActorName = (actor: OrganizationRef | undefined): string => {
     if (!actor) return '—'
     if (actor.kind === 'polity') {
       const nameKey = polities[actor.id]?.nameKey ?? actor.id

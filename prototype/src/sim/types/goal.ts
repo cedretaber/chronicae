@@ -13,8 +13,7 @@ import type {
   StateRegionId,
   TaskId,
 } from './ids'
-import type { PoliticalActorRef } from './actor'
-import type { OfficeRole } from './office'
+import type { OfficeRole, OrganizationRef } from './office'
 import type { AbilityKey } from './person'
 import type { TaskTargetRef } from './task'
 
@@ -38,7 +37,7 @@ export type EntityRef =
   | { kind: 'holding'; id: HoldingId }
   | { kind: 'land_contract'; id: LandContractId }
   | { kind: 'aim'; id: AimId }
-  | { kind: 'office'; organization: PoliticalActorRef; role: OfficeRole }
+  | { kind: 'office'; organization: OrganizationRef; role: OfficeRole }
   | { kind: 'ability'; ability: AbilityKey }
 
 // --- Goal ---

@@ -4,7 +4,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { Regiment, RegimentSourceKind } from '../types/regiment'
 import type { PopClass } from '../types/popGroup'
 import type { War, WarSideKey } from '../types/war'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import { clamp } from '../utils/math'
 import { politicalActorKey } from './actorSelectors'
 import { getActorMilitaryPower } from './actorSelectors'
@@ -17,7 +17,7 @@ export function getRegimentEffectivePower(regiment: Regiment): number {
   return regiment.basePower * strengthFactor * organizationFactor
 }
 
-export function getRegimentsForActor(state: WorldState, actor: PoliticalActorRef): Regiment[] {
+export function getRegimentsForActor(state: WorldState, actor: OrganizationRef): Regiment[] {
   const key = politicalActorKey(actor)
   const ids = state.regimentIndex.byOwner[key] ?? []
   const out: Regiment[] = []
@@ -68,7 +68,7 @@ export function getRegimentPowerForWarSide(
 export function getActorRegimentPower(
   state: WorldState,
   _config: SimulationConfig,
-  actor: PoliticalActorRef,
+  actor: OrganizationRef,
 ): number {
   const regiments = getRegimentsForActor(state, actor).filter((r) => r.status === 'active')
   return regiments.reduce((sum, r) => sum + getRegimentEffectivePower(r), 0)

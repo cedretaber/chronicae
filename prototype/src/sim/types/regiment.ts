@@ -1,5 +1,5 @@
 import type { RegimentId, PolityId, HoldingId, ProvinceId, WarId } from './ids'
-import type { PoliticalActorRef } from './actor'
+import type { OrganizationRef } from './office'
 import type { WarSideKey } from './war'
 
 // v0.36: persistent Regiment。これまで getActorMilitaryPower で抽象的に扱っていた軍事力を、
@@ -30,9 +30,9 @@ export type RegimentTroopKind = 'infantry' | 'cavalry'
 export type Regiment = {
   id: RegimentId
 
-  // §5.1 編制権を持つ主体。型は将来拡張用に PoliticalActorRef。
+  // §5.1 編制権を持つ主体。型は将来拡張用に OrganizationRef。
   //   v0.36 worldgen では owner.kind === 'polity' (homeHolding の terminal Polity) のみ生成。
-  owner: PoliticalActorRef
+  owner: OrganizationRef
 
   // §5.2 現在この Regiment を戦争動員している Polity。owner が Polity なら多くは owner.id と一致。
   mobilizedByPolityId?: PolityId

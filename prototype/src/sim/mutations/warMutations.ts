@@ -8,7 +8,7 @@ import type {
   PopularRevoltIndependenceWarGoal,
 } from '../types/war'
 import type { WarId, DiplomaticPlayId, HoldingId, PolityId, ProvinceId } from '../types/ids'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import { createWarId } from '../types/ids'
 import { politicalActorKey } from '../selectors/actorSelectors'
@@ -56,8 +56,8 @@ export function removeWarFromIndexMut(ws: WorldState, war: War): void {
 // --- creation ---
 
 export type CreateWarInput = {
-  attacker: PoliticalActorRef
-  defender: PoliticalActorRef
+  attacker: OrganizationRef
+  defender: OrganizationRef
   warGoals: WarGoal[]
   targetWarScore: number
   startedWeek: number

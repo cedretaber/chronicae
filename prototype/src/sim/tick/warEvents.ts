@@ -10,7 +10,7 @@ import type {
 } from '../types/war'
 import type { BattleOutcomeQuality } from '../types/battle'
 import type { PersonId, ProvinceId } from '../types/ids'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import type { WorldState } from '../types/world'
 import type {
   EventType,
@@ -30,11 +30,11 @@ import {
 //   共有する event 発行 helper。createSimEvent は event を返すだけで ctx.events に積まないため、
 //   ここで append まで行う (conflictResolutionSystem.ts の local emitEvent と同パターン)。
 
-function actorEntityKind(actor: PoliticalActorRef): EventEntityKind {
+function actorEntityKind(actor: OrganizationRef): EventEntityKind {
   return actor.kind === 'polity' ? 'polity' : 'house'
 }
 
-function actorNameKey(state: WorldState, actor: PoliticalActorRef): string {
+function actorNameKey(state: WorldState, actor: OrganizationRef): string {
   if (actor.kind === 'polity') return state.polities[actor.id]?.nameKey ?? actor.id
   return state.houses[actor.id]?.nameKey ?? actor.id
 }
@@ -58,8 +58,8 @@ function emit(
 }
 
 type WarParties = {
-  attacker: PoliticalActorRef
-  defender: PoliticalActorRef
+  attacker: OrganizationRef
+  defender: OrganizationRef
   attackerName: string
   defenderName: string
 }

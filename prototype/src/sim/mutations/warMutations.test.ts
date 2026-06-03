@@ -22,11 +22,11 @@ import type {
   WarId,
   DiplomaticPlayId,
 } from '../types/ids'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 
-const pA: PoliticalActorRef = { kind: 'polity', id: 'po-1' as PolityId }
-const pB: PoliticalActorRef = { kind: 'polity', id: 'po-2' as PolityId }
+const pA: OrganizationRef = { kind: 'polity', id: 'po-1' as PolityId }
+const pB: OrganizationRef = { kind: 'polity', id: 'po-2' as PolityId }
 
 describe('createWarId', () => {
   it('formats as w-<n>', () => {
@@ -227,7 +227,7 @@ describe('updateWarSideMut', () => {
 })
 
 describe('createWarGoalFromDiplomaticPlay', () => {
-  const landClaimPlay = (initiator: PoliticalActorRef, target: PoliticalActorRef): DiplomaticPlay =>
+  const landClaimPlay = (initiator: OrganizationRef, target: OrganizationRef): DiplomaticPlay =>
     ({
       issue: {
         kind: 'land_claim',
@@ -321,7 +321,7 @@ describe('createWarGoalFromDiplomaticPlay', () => {
 
   it('returns undefined for land_claim when initiator is not a polity', () => {
     const ws = makeEmptyV016State()
-    const houseInit: PoliticalActorRef = { kind: 'house', id: 'h-1' as HouseId }
+    const houseInit: OrganizationRef = { kind: 'house', id: 'h-1' as HouseId }
     expect(createWarGoalFromDiplomaticPlay(ws, landClaimPlay(houseInit, pB), 60)).toBeUndefined()
   })
 })

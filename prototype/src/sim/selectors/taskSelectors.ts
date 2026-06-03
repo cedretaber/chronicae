@@ -3,7 +3,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { Task, TaskKind, TaskOutcomeKind } from '../types/task'
 import type { PersonAimKind, EntityRef } from '../types/goal'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import type { PersonId } from '../types/ids'
 import type { AbilityKey } from '../types/person'
 import { isLivingPerson } from '../types/person'
@@ -332,7 +332,7 @@ function isValidDelegate(state: WorldState, personId: PersonId): boolean {
 
 export function getDiplomaticPlayDelegate(
   state: WorldState,
-  actor: PoliticalActorRef,
+  actor: OrganizationRef,
   excludePersonId?: PersonId,
 ): PersonId | undefined {
   const isCandidate = (id: PersonId): boolean =>

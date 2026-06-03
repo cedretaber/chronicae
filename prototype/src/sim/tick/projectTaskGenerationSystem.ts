@@ -12,7 +12,7 @@ import type {
 } from '../types/project'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import { TERMINAL_DIPLOMATIC_PLAY_STATUSES } from '../types/diplomaticPlay'
-import type { PoliticalActorRef } from '../types/actor'
+import type { OrganizationRef } from '../types/office'
 import type { DiplomaticPlayId, PersonId, TaskId } from '../types/ids'
 import { createTaskId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -143,7 +143,7 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
   }
 }
 
-function actorRefsEqual(a: DecisionSubjectRef, b: PoliticalActorRef): boolean {
+function actorRefsEqual(a: DecisionSubjectRef, b: OrganizationRef): boolean {
   return a.kind === b.kind && (a.id as string) === (b.id as string)
 }
 
