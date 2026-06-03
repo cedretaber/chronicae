@@ -188,6 +188,45 @@ export function adjustProvincePopSizeByClass(
   return { ...state, popGroups: newPopGroups }
 }
 
+// Apply per-pop PROPORTIONAL size damage to pops in a province (optionally
+// filtered by class). Each matching pop loses `pop.size * rate` from its OWN
+// size — distinct from the flat-fan-out `adjustProvincePopSize*` family above,
+// which apply the same absolute delta to every pop. Calling those once per pop
+// (as disasterSystem historically did) multiplies total damage by the pop count
+// (調査 §1.1: standard preset の holdingsPerProvince=4 で常時 4x 過剰適用).
+// `rate` is a fraction in [0, 1]. The subtraction form keeps this bit-identical
+// to the old single-pop path (`a + (-(a*r))` === `a - a*r`).
+export function reduceProvincePopSizeProportional(
+  state: WorldState,
+  provinceId: ProvinceId,
+  rate: number,
+  popClass?: PopClass,
+): WorldState {
+  const province = state.provinces[provinceId]
+  if (!province) return state
+
+  let newPopGroups: typeof state.popGroups | undefined
+  for (const holdingId of province.holdingIds) {
+    const popIds = state.popIndex.byHolding[holdingId]
+    if (!popIds) continue
+    for (const popGroupId of popIds) {
+      const pop = state.popGroups[popGroupId]
+      if (!pop) continue
+      if (popClass !== undefined && pop.class !== popClass) continue
+      const newSize = Math.max(0, pop.size - pop.size * rate)
+      if (newSize === pop.size) continue
+      if (!newPopGroups) {
+        newPopGroups = { ...state.popGroups }
+      }
+      newPopGroups[popGroupId] = { ...pop, size: newSize }
+    }
+  }
+
+  if (!newPopGroups) return state
+
+  return { ...state, popGroups: newPopGroups }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

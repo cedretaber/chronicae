@@ -5,13 +5,13 @@ import type { ProvinceId } from '../types/ids'
 import { nameParam, entityRef } from '../types/event'
 import {
   adjustProvincePopWealthByClass,
-  adjustProvincePopSizeByClass,
   adjustProvincePopWealth,
   adjustProvincePopUnrestByClass,
+  reduceProvincePopSizeProportional,
 } from '../mutations/popMutations'
 import { adjustProvinceDevelopment } from '../mutations/provinceMutations'
 import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
-import { getProvincePopulationPressure, getProvincePops } from '../selectors/popSelectors'
+import { getProvincePopulationPressure } from '../selectors/popSelectors'
 
 function applyFamine(ctx: TickContext, provinceId: ProvinceId): TickContext {
   const province = ctx.state.provinces[provinceId]
@@ -27,16 +27,12 @@ function applyFamine(ctx: TickContext, provinceId: ProvinceId): TickContext {
     'peasants',
     -ctx.config.famineWealthPenalty,
   )
-  const pops = getProvincePops(nextState, provinceId)
-  for (const pop of pops) {
-    if (pop.class !== 'peasants') continue
-    nextState = adjustProvincePopSizeByClass(
-      nextState,
-      provinceId,
-      'peasants',
-      -pop.size * ctx.config.famineSizeDamageRate,
-    )
-  }
+  nextState = reduceProvincePopSizeProportional(
+    nextState,
+    provinceId,
+    ctx.config.famineSizeDamageRate,
+    'peasants',
+  )
 
   const nextCtx = { ...ctx, state: nextState }
   const { event, ctx: eventCtx } = createSimEvent(nextCtx, {
@@ -60,15 +56,11 @@ function applyPlague(ctx: TickContext, provinceId: ProvinceId): TickContext {
   if (r.ok) nextState = r.value
 
   nextState = adjustProvincePopWealth(nextState, provinceId, -ctx.config.plagueWealthPenalty)
-  const pops = getProvincePops(nextState, provinceId)
-  for (const pop of pops) {
-    nextState = adjustProvincePopSizeByClass(
-      nextState,
-      provinceId,
-      pop.class,
-      -pop.size * ctx.config.plagueSizeDamageRate,
-    )
-  }
+  nextState = reduceProvincePopSizeProportional(
+    nextState,
+    provinceId,
+    ctx.config.plagueSizeDamageRate,
+  )
 
   const nextCtx = { ...ctx, state: nextState }
   const { event, ctx: eventCtx } = createSimEvent(nextCtx, {
