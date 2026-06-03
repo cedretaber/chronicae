@@ -245,6 +245,15 @@ export function collectIntegrityErrors(
           message: `House ${houseId} leader ${leader} is not in memberIds`,
         })
       }
+    } else {
+      // 調査 §1.8: active な非 system House は house:leader office を 1 つ持たねばならない。
+      // 旧コードは leader が undefined の場合に何も検査せず、headless house が year-end を
+      // 迎えても見逃していた (memory: organizationConsistency が housed leader を headless 化
+      // した実例が 300年 clean をすり抜けた前例あり)。else 節で違反として検出する。
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `House ${houseId} is active but has no house:leader office`,
+      })
     }
   }
 

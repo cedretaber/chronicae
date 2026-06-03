@@ -25,6 +25,7 @@ import type {
   PersonId,
   LandContractId,
   HoldingOfficeAssignmentId,
+  OfficeAssignmentId,
   HoldingId,
   StateRegionId,
   GoalId,
@@ -362,6 +363,44 @@ export function withPerson(
       ? [...state.livingPersonIds, id].sort()
       : state.livingPersonIds
   return { ...state, persons: { ...state.persons, [id]: person }, houses, livingPersonIds }
+}
+
+// active な House には house:leader OfficeAssignment が 1 つ必要 (integritySystem check 3,
+// 調査 §1.8)。fixture で house の当主役職を作り officeIndex を同期する。
+export function withHouseLeader(
+  state: WorldState,
+  houseId: HouseId,
+  leaderPersonId: PersonId,
+): WorldState {
+  const officeId = ('oa-' + state.nextOfficeAssignmentId) as OfficeAssignmentId
+  const orgKey = 'house:' + houseId
+  const holderKey = leaderPersonId as string
+  return {
+    ...state,
+    officeAssignments: {
+      ...state.officeAssignments,
+      [officeId]: {
+        id: officeId,
+        organization: { kind: 'house', id: houseId },
+        role: 'leader',
+        holderPersonId: leaderPersonId,
+        active: true,
+        startYear: 1,
+        unpaidCount: 0,
+      },
+    },
+    officeIndex: {
+      byOrganization: {
+        ...state.officeIndex.byOrganization,
+        [orgKey]: [...(state.officeIndex.byOrganization[orgKey] ?? []), officeId],
+      },
+      byHolderPerson: {
+        ...state.officeIndex.byHolderPerson,
+        [holderKey]: [...(state.officeIndex.byHolderPerson[holderKey] ?? []), officeId],
+      },
+    },
+    nextOfficeAssignmentId: state.nextOfficeAssignmentId + 1,
+  }
 }
 
 // Create a root LandContract (world → polity) for a Province, plus a placeholder bailiff.

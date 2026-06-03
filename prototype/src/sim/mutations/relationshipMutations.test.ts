@@ -9,6 +9,7 @@ import {
   bindProvinceToPolity,
   makeEmptyV016State,
   withHouse,
+  withHouseLeader,
   withPerson,
   withPolity,
   withProvince,
@@ -66,6 +67,7 @@ function makeFixture(): {
     houseId: house1Id,
     legacyPrestige: 10,
   })
+  state = withHouseLeader(state, house1Id, person1Id)
   return { state, person1Id, person2Id, house1Id }
 }
 

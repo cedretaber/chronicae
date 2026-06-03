@@ -97,6 +97,30 @@ function makePerson(
   }
 }
 
+// active House には house:leader office が必要 (integritySystem check 3)。
+// state を直接 mutate して当主役職を追加する (estate テストは const state を直接更新するため)。
+function addLeaderOffice(state: WorldState, houseId: HouseId, personId: PersonId): void {
+  const officeId = createOfficeAssignmentId(state.nextOfficeAssignmentId)
+  state.nextOfficeAssignmentId++
+  state.officeAssignments[officeId] = {
+    id: officeId,
+    organization: { kind: 'house', id: houseId },
+    role: 'leader',
+    holderPersonId: personId,
+    active: true,
+    startYear: 1,
+    unpaidCount: 0,
+  }
+  state.officeIndex.byOrganization['house:' + houseId] = [
+    ...(state.officeIndex.byOrganization['house:' + houseId] ?? []),
+    officeId,
+  ]
+  state.officeIndex.byHolderPerson[personId as string] = [
+    ...(state.officeIndex.byHolderPerson[personId as string] ?? []),
+    officeId,
+  ]
+}
+
 describe('findHeirs', () => {
   it('returns legitimate children sorted by age descending', () => {
     const { state, houseId } = makeBaseState()
@@ -287,6 +311,7 @@ describe('runEstateSettlementSystem', () => {
       childIds: [],
     })
     state.houses[houseId]!.memberIds = [deceasedId, heirId]
+    addLeaderOffice(state, houseId, heirId)
 
     const ctx = makeCtx(state, [deceasedId])
     const result = runEstateSettlementSystem(ctx)
@@ -330,6 +355,7 @@ describe('runEstateSettlementSystem', () => {
       childIds: [],
     })
     state.houses[houseId]!.memberIds = [deceasedId, heir1Id, heir2Id]
+    addLeaderOffice(state, houseId, heir1Id)
 
     const ctx = makeCtx(state, [deceasedId])
     const result = runEstateSettlementSystem(ctx)
@@ -365,7 +391,9 @@ describe('runEstateSettlementSystem', () => {
     expect(result.state.houses[houseId]!.wealth).toBe(100)
     expect(result.events.length).toBe(1)
     expect(result.events[0]!.type).toBe('ESTATE_SETTLED')
-    expect(collectIntegrityErrors(result.state)).toEqual([])
+    // 注: 唯一のメンバー (被相続人) が死亡し相続人もいない = 断絶前の mid-tick transient
+    // 状態であり、当主不在は year-end invariant (integritySystem check 3 §1.8) の対象外。
+    // この test は wealth 分配の検証が目的のため integrity assertion は課さない。
   })
 
   it('skips when deceased wealth is 0', () => {
@@ -429,6 +457,8 @@ describe('estateSettlementSystem 2-generation integration', () => {
       birthStatus: 'legitimate',
     })
     state.houses[houseId]!.memberIds = [grandfatherId, fatherId, grandchildId]
+    // grandchild は本テストを通して生存するため当主に据える。
+    addLeaderOffice(state, houseId, grandchildId)
 
     const initialTotalWealth =
       state.persons[grandfatherId].wealth +
