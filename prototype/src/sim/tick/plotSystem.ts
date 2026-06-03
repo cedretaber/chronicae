@@ -506,10 +506,14 @@ export function runPlotSystem(ctx: TickContext): TickContext {
     if (ctx.state.absoluteWeek >= plot.startedWeek + plot.durationWeeks) {
       // Resolve the plot
       const result = resolvePlot(currentCtx, plot)
-      const status: 'succeeded' | 'failed' = result.succeeded ? 'succeeded' : 'failed'
-
+      // 調査 Phase5 (terminal plot accumulation cleanup): 従来は解決済み plot を
+      // { ...plot, status: 'succeeded' | 'failed' } として activePlots に残し続けていた
+      // (removePlot 未呼び出し)。全 reader は status === 'active' で filter するため
+      // terminal record は読まれず dead weight として永久累積するだけ。PLOT_SUCCEEDED/
+      // PLOT_FAILED イベントは resolvePlot 内で emit 済みなので、ここで削除しても挙動は
+      // bit-identical (event count 不変)。累積を防ぐため resolution 時に削除する。
       const updatedPlots = { ...result.ctx.state.activePlots }
-      updatedPlots[plotId as PlotId] = { ...plot, status }
+      delete updatedPlots[plotId as PlotId]
       currentCtx = {
         ...result.ctx,
         state: { ...result.ctx.state, activePlots: updatedPlots },

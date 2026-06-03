@@ -166,9 +166,10 @@ describe('runPlotSystem', () => {
 
     const result = toResult(runPlotSystem(ctx))
 
-    const resolvedPlot = result.state.activePlots[plot.id]!
-    expect(resolvedPlot.status).not.toBe('active')
-    expect(resolvedPlot.status).toMatch(/^(succeeded|failed)$/)
+    // 調査 Phase5 (terminal plot accumulation cleanup): 解決済み plot は terminal record
+    // を残さず activePlots から削除される。解決自体は PLOT_SUCCEEDED/PLOT_FAILED イベント
+    // の emit で確認する。
+    expect(result.state.activePlots[plot.id]).toBeUndefined()
     const plotEvents = result.events.filter(
       (e) => e.type === 'PLOT_SUCCEEDED' || e.type === 'PLOT_FAILED',
     )
