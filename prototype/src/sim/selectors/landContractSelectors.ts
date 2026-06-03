@@ -1,5 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
+import { defaultConfig } from '../config/defaultConfig'
 import { getHoldingDevelopment } from './holdingImprovementSelectors'
 import type {
   ProvinceId,
@@ -12,7 +13,6 @@ import type {
 import type { LandContract, LandContractGrantor, Holding } from '../types/landContract'
 import { ROOT_WORLD } from '../types/landContract'
 import type { PolityRank } from '../types/polity'
-import { defaultLandContractConfig } from '../config/landContractConfig'
 
 export function getProvinceLandContractChain(
   state: WorldState,
@@ -166,14 +166,18 @@ export function getPolityHoldingCount(state: WorldState, polityId: PolityId): nu
 // 単一の正本 (式が二重定義で drift するのを防ぐ)。
 // distributable = max(0, treasury - reserveTarget) * distributionRate
 // reserveTarget = base + perHolding × holdingCount
-export function getPolityDistributablePerCycle(state: WorldState, polityId: PolityId): number {
+export function getPolityDistributablePerCycle(
+  state: WorldState,
+  polityId: PolityId,
+  config: SimulationConfig = defaultConfig,
+): number {
   const polity = state.polities[polityId]
   if (!polity || !polity.active) return 0
   const {
     polityTreasuryReserveBase,
     polityTreasuryReservePerHolding,
     politySurplusDistributionRate,
-  } = defaultLandContractConfig
+  } = config
   const reserveTarget =
     polityTreasuryReserveBase +
     polityTreasuryReservePerHolding * getPolityHoldingCount(state, polityId)

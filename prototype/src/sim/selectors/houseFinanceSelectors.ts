@@ -1,5 +1,7 @@
 import type { WorldState } from '@sim/types/world'
 import type { HouseId } from '@sim/types/ids'
+import type { SimulationConfig } from '@sim/config/defaultConfig'
+import { defaultConfig } from '@sim/config/defaultConfig'
 import { getOfficeDefinition } from '@sim/config/officeDefinitions'
 import { getHousePolitySharePercent } from './shareSelectors'
 import { getPolityDistributablePerCycle } from './landContractSelectors'
@@ -13,7 +15,11 @@ const SURPLUS_DISTRIBUTIONS_PER_YEAR = 12
 // (estate settlement や外交移転は不定期なので投影に含めない)。
 // politySurplusDistributionSystem と同じ式を辿り、1 サイクル分の分配額を年額に換算する:
 //   annual = Σ_polity (house の share% × distributablePerCycle) × 12
-export function getHouseProjectedAnnualIncome(state: WorldState, houseId: HouseId): number {
+export function getHouseProjectedAnnualIncome(
+  state: WorldState,
+  houseId: HouseId,
+  config: SimulationConfig = defaultConfig,
+): number {
   const shareIds = state.shareIndex.byHolder[`house:${houseId}`] ?? []
   const seenPolities = new Set<string>()
   let annual = 0
@@ -24,7 +30,7 @@ export function getHouseProjectedAnnualIncome(state: WorldState, houseId: HouseI
     if (seenPolities.has(polityId)) continue
     seenPolities.add(polityId)
 
-    const distributable = getPolityDistributablePerCycle(state, polityId)
+    const distributable = getPolityDistributablePerCycle(state, polityId, config)
     if (distributable <= 0) continue
     // getHousePolitySharePercent は polity 内の全 house share を合算した割合を返すため
     // (politySurplusDistributionSystem の per-share 合計と一致する)、polity ごとに 1 回処理する。
@@ -49,6 +55,13 @@ export function getHouseAnnualOfficeSalary(state: WorldState, houseId: HouseId):
 }
 
 // v0.37: 投影年間収支 (収入 − 役職給与)。UI 表示・任命可否判定の基礎。
-export function getHouseProjectedAnnualBalance(state: WorldState, houseId: HouseId): number {
-  return getHouseProjectedAnnualIncome(state, houseId) - getHouseAnnualOfficeSalary(state, houseId)
+export function getHouseProjectedAnnualBalance(
+  state: WorldState,
+  houseId: HouseId,
+  config: SimulationConfig = defaultConfig,
+): number {
+  return (
+    getHouseProjectedAnnualIncome(state, houseId, config) -
+    getHouseAnnualOfficeSalary(state, houseId)
+  )
 }

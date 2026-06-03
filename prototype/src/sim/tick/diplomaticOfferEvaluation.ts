@@ -23,7 +23,6 @@ import {
   computeStrategicValue,
   computePrestigeLoss,
 } from './diplomaticPlaySystem'
-import { defaultLandContractConfig } from '../config/landContractConfig'
 
 // ─── Extracted offer parameter types ───
 
@@ -220,9 +219,8 @@ export function computeLandClaimCompensation(
   const provinceId = holding.provinceId
   const development = getProvinceDevelopmentFromHoldings(state, provinceId, config)
   return Math.max(
-    defaultLandContractConfig.purchasePriceBase,
-    defaultLandContractConfig.purchasePriceBase +
-      development * defaultLandContractConfig.purchasePriceDevelopmentFactor,
+    config.purchasePriceBase,
+    config.purchasePriceBase + development * config.purchasePriceDevelopmentFactor,
   )
 }
 

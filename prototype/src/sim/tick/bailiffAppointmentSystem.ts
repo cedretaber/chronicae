@@ -21,7 +21,6 @@ import {
   appointHoldingBailiff,
   installHoldingPlaceholderBailiff,
 } from '../mutations/provinceOfficeMutations'
-import { defaultLandContractConfig } from '../config/landContractConfig'
 import { hasActiveOffice, hasActiveHoldingOffice } from '../selectors/officeSelectors'
 
 // v0.17.1 §15.3: bailiff 任命用の OfficeRole alias。
@@ -128,7 +127,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       .filter(
         (p) =>
           p.alive &&
-          p.age >= defaultLandContractConfig.bailiffMinAge &&
+          p.age >= currentCtx.config.bailiffMinAge &&
           p.kind !== 'placeholder' &&
           !hasActiveOffice(currentCtx.state, p.id) &&
           !hasActiveHoldingOffice(currentCtx.state, p.id),
@@ -215,7 +214,7 @@ function collectBailiffFactionalCandidates(
       const m = state.persons[mid]
       if (!m || !m.alive) continue
       if (m.kind === 'placeholder') continue
-      if (m.age < defaultLandContractConfig.bailiffMinAge) continue
+      if (m.age < config.bailiffMinAge) continue
       if (hasActiveOffice(state, mid)) continue
       if (hasActiveHoldingOffice(state, mid)) continue
       const raw = getFactionalCandidateScore(

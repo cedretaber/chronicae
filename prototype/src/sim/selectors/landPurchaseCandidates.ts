@@ -1,6 +1,7 @@
 import type { WorldState } from '../types/world'
 import type { PolityId, ProvinceId } from '../types/ids'
-import { defaultLandContractConfig } from '../config/landContractConfig'
+import type { SimulationConfig } from '../config/defaultConfig'
+import { defaultConfig } from '../config/defaultConfig'
 import {
   getPolityTerminalProvinceIds,
   getProvinceTerminalPolityId,
@@ -32,8 +33,10 @@ export type LandPurchaseCandidate = {
   price: number
 }
 
-export function findSellLandCandidates(state: WorldState): LandPurchaseCandidate[] {
-  const config = defaultLandContractConfig
+export function findSellLandCandidates(
+  state: WorldState,
+  config: SimulationConfig = defaultConfig,
+): LandPurchaseCandidate[] {
   const results: LandPurchaseCandidate[] = []
 
   const polityIds = Object.keys(state.polities).sort() as PolityId[]

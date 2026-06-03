@@ -11,7 +11,6 @@ import {
 import { adjustProvincePopWealthByClass } from '../mutations/popMutations'
 import { addPersonWealth } from '../mutations/personMutations'
 import { adjustPopAttitude } from '../mutations/attitudeMutations'
-import { defaultLandContractConfig } from '../config/landContractConfig'
 import {
   getBailiffLocalExtractionRate,
   getBailiffCollectionEfficiency,
@@ -210,7 +209,7 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     if (!polity || !polity.active) continue
     const taxEfficiency = calcTreasurerTaxEfficiency(ctx.state, polityId, ctx.config)
     const delta = treasuryDeltas.get(polityId) ?? 0
-    const flowEfficiency = defaultLandContractConfig.taxFlowEfficiency
+    const flowEfficiency = ctx.config.taxFlowEfficiency
     newPolities[polityId] = {
       ...polity,
       treasury: polity.treasury + delta * taxEfficiency * flowEfficiency,

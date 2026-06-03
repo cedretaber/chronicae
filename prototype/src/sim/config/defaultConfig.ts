@@ -7,6 +7,8 @@ import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
 import type { BattlefieldKind } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'
+import type { LandContractConfig } from './landContractConfig'
+import { defaultLandContractConfig } from './landContractConfig'
 
 // v0.40 LifeStage 遷移年齢
 export type LifeStageTransitionAge = {
@@ -899,9 +901,10 @@ export type SimulationConfig = {
   // v0.40 old age candidate penalty（appointment=減算 / 軍事=乗算）
   oldAgeAppointmentScorePenalty: number
   oldAgeCommandScoreMultiplier: number
-}
+} & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
+  ...defaultLandContractConfig,
   uiLocale: 'en',
   nameCultureId: 'western',
   debug: false,

@@ -21,7 +21,7 @@ export function runPolitySurplusDistributionSystem(ctx: TickContext): TickContex
     if (!polity || !polity.active) continue
 
     // v0.37: reserveTarget+distributable は getPolityDistributablePerCycle に集約 (収入投影と共用)
-    const distributable = getPolityDistributablePerCycle(state, polityId)
+    const distributable = getPolityDistributablePerCycle(state, polityId, ctx.config)
     if (distributable <= 0) continue
 
     const shares = getOrganizationShares(state, { kind: 'polity', id: polityId })

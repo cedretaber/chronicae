@@ -101,7 +101,7 @@ function createLandClaimPlayFromProjectMut(
   if (project.kind === 'sell_land') {
     initiator = { kind: 'polity', id: project.counterpartyPolityId }
     target = { kind: 'polity', id: project.owner.id }
-    counterDemandAmount = computeLandPurchasePrice(ws, provinceId)
+    counterDemandAmount = computeLandPurchasePrice(ws, provinceId, config)
     initialProgress = config.landClaimInitialProgressOnConsent
     initialTension = 0
   } else {
@@ -117,7 +117,7 @@ function createLandClaimPlayFromProjectMut(
 
     const eligible = checkLandPurchaseEligibility(ws, initiator.id, target.id, provinceId)
     if (eligible) {
-      const price = computeLandPurchasePrice(ws, provinceId)
+      const price = computeLandPurchasePrice(ws, provinceId, config)
       if (buyerPolity.treasury >= price) {
         counterDemandAmount = price
         initialProgress = config.landClaimInitialProgressOnConsent
@@ -400,10 +400,11 @@ export function computeLandPurchasePrice(
   provinceId: ProvinceId,
   config?: SimulationConfig,
 ): number {
+  // config 未指定時は default 値で算出 (調査 §5.3: --config で上書き可能に)
+  const lc = config ?? defaultLandContractConfig
   const development = getProvinceDevelopmentFromHoldings(state, provinceId, config)
   return Math.max(
-    defaultLandContractConfig.purchasePriceBase,
-    defaultLandContractConfig.purchasePriceBase +
-      development * defaultLandContractConfig.purchasePriceDevelopmentFactor,
+    lc.purchasePriceBase,
+    lc.purchasePriceBase + development * lc.purchasePriceDevelopmentFactor,
   )
 }

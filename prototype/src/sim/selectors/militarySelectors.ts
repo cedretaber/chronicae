@@ -9,7 +9,6 @@ import { getHouseLoyaltyToPolity } from './statusSelectors'
 import { getPolityLeaderHouse } from './officeSelectors'
 import { getPolityHouseIds } from './polityRelations'
 import { getHouseControlledProvinceIds } from './landContractSelectors'
-import { defaultLandContractConfig } from '../config/landContractConfig'
 
 export function calcHouseMilitaryPower(
   state: WorldState,
@@ -57,7 +56,7 @@ export function calcPolityMilitaryPower(
   // rank 別下限値を被せて、rank ≥ 4 (county-tier 以下) の小 Polity / Rebel Polity が
   // 即死しないようにする。
   const adminContribution = polity.adminPower * config.polityAdminMilitaryFactor
-  const floor = defaultLandContractConfig.institutionalPowerFloorByRank[polity.rank] ?? 0
+  const floor = config.institutionalPowerFloorByRank[polity.rank] ?? 0
   let total = Math.max(adminContribution, floor)
 
   const rulerHouseId = getPolityLeaderHouse(state, countryId)

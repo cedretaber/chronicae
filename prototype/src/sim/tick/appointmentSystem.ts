@@ -515,6 +515,7 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
     const projectedAnnualIncome = getHouseProjectedAnnualIncome(
       currentCtx.state,
       houseId as HouseId,
+      currentCtx.config,
     )
 
     // Lazily compute factional candidates (once per house, shared across roles)

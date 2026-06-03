@@ -51,7 +51,7 @@ export function runSellLandProjectGenerationSystem(ctx: TickContext): TickContex
     })
   }
 
-  const candidates = findSellLandCandidates(ws)
+  const candidates = findSellLandCandidates(ws, config)
 
   const existingKeys = new Set<string>()
   for (const [, project] of Object.entries(ws.projects)) {
