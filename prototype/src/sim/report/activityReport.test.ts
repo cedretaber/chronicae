@@ -9,6 +9,7 @@ import type {
   FactionMembershipId,
 } from '../types/ids'
 import type { Faction, FactionMembership } from '../types/faction'
+import { nameParam } from '../types/event'
 import { defaultConfig } from '../config/defaultConfig'
 import {
   bindProvinceToHouseViaPolity,
@@ -91,7 +92,7 @@ describe('buildActivityReport', () => {
       id: factionId,
       leaderPersonId: factionLeaderId,
       active: true,
-      foundingWeek: 54600,
+      foundingWeek: 50400, // 1050 * WEEKS_PER_YEAR(48) → foundedYear 1050
     }
     const leaderMembershipId = 'fm-0' as FactionMembershipId
     const memberMembershipId = 'fm-1' as FactionMembershipId
@@ -142,7 +143,7 @@ describe('buildActivityReport', () => {
         [adminPid],
         [ownerHouseId],
         [polityId],
-        { messageParams: { role: 'Chancellor' } },
+        { messageParams: { role: nameParam('role', 'polity_administrator') } },
       ),
       makeEvent(2, 1054, 'OFFICE_TERM_ENDED', "Admin's term ended.", [adminPid], [], []),
       // Polity Office: advisor assigned via factional (outsider house member)
@@ -154,7 +155,7 @@ describe('buildActivityReport', () => {
         [factionMemberId],
         [outsiderHouseId],
         [polityId],
-        { messageParams: { role: 'Advisor' } },
+        { messageParams: { role: nameParam('role', 'polity_advisor') } },
       ),
       // House Office (no polityIds): owner-house treasurer
       makeEvent(
@@ -165,7 +166,7 @@ describe('buildActivityReport', () => {
         [adminPid],
         [ownerHouseId],
         [],
-        { messageParams: { role: 'Treasurer' } },
+        { messageParams: { role: nameParam('role', 'house_treasurer') } },
       ),
       // Faction lifecycle
       makeEvent(

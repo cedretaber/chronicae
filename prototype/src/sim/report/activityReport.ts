@@ -2,6 +2,7 @@ import type { WorldState } from '../types/world'
 import type { SimEvent } from '../types/event'
 import { getFirstEntityId, getEntityIdsByKind } from '../types/event'
 import type { SimulationConfig } from '../config/defaultConfig'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import type { PersonId, PolityId, HouseId } from '../types/ids'
 import type {
   ActivityReport,
@@ -96,24 +97,15 @@ export function buildActivityReport(
 }
 
 function inferRoleFromEvent(e: SimEvent): string {
+  // emit 側 (appointmentSystem / officeTermSystem / organizationConsistencySystem) は
+  // role を nameParam('role', `${orgKind}_${officeRole}`) で渡す (例 'polity_administrator')。
+  // prefix を剥がした残りが OfficeRole = カテゴリ ('administrator' | 'treasurer' | ...) に一致する。
   const role = e.messageParams?.role
-  if (typeof role === 'string') return normalizeRoleToCategory(role)
+  if (role && typeof role === 'object' && 'kind' in role && role.kind === 'name') {
+    const underscore = role.key.indexOf('_')
+    return underscore >= 0 ? role.key.slice(underscore + 1) : role.key
+  }
   return 'unknown'
-}
-
-const DISPLAY_NAME_TO_ROLE: Record<string, string> = {
-  Chancellor: 'administrator',
-  Steward: 'administrator',
-  Treasurer: 'treasurer',
-  General: 'military',
-  'Guard Captain': 'military',
-  Advisor: 'advisor',
-  Ruler: 'leader',
-  'House Head': 'leader',
-}
-
-function normalizeRoleToCategory(role: string): string {
-  return DISPLAY_NAME_TO_ROLE[role] ?? role
 }
 
 function bumpChurn(
@@ -253,7 +245,7 @@ function buildFactionReport(
       abandonments: 0,
       fundsShortages: 0,
       bankruptcies: 0,
-      foundedYear: Math.floor(f.foundingWeek / 52),
+      foundedYear: Math.floor(f.foundingWeek / WEEKS_PER_YEAR),
       dissolvedYear: undefined,
       recruitHouses: new Set<string>(),
     })
