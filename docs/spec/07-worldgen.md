@@ -130,7 +130,7 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
   → County  (taxRateToGrantor = 0.3)   ← terminal grantee
 ```
 
-`INTERMEDIATE_TAX_RATE = 0.3` で固定。root contract の `taxRateToGrantor` は 0 固定。`byHolding` が正規 index。`byProvince` は最初の Holding の chain を legacy 互換として保持。
+`INTERMEDIATE_TAX_RATE = 0.3` で固定。root contract の `taxRateToGrantor` は 0 固定。`byHolding` が正規 index (v0.41 / 調査 §4.1 で旧 `byProvince` legacy index は撤去)。worldgen は province ごとの chain を一時 local map で保持し、各 Holding の `byHolding` chain に紐付ける。
 
 ### 7.3b Holding の生成（v0.20 / v0.27 更新）
 

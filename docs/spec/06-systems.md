@@ -1278,7 +1278,7 @@ LandContract / chain 整合性:
 4. chain は循環しない
 5. terminal contract のみ Bailiff が紐付く
 6. chain 内の各段で granteePolityId は重複しない
-7. landContractIndex.byProvince は chain 順 (root → terminal)
+7. (削除) 旧 landContractIndex.byProvince の chain 順検証は v0.41 (調査 §4.1) で byProvince 撤去に伴い廃止。chain 整合は #9 (byGranteePolity) / #10 (byParent) と holdingTerminalPolityCache 検証が担保
 8. grantor rank < grantee rank
 9. landContractIndex.byGranteePolity の整合
 10. landContractIndex.byParent (parent → child) の整合

@@ -521,7 +521,6 @@ holdings: Record<HoldingId, Holding>
 // LandContract
 landContracts: Record<LandContractId, LandContract>
 landContractIndex: {
-  byProvince: Record<ProvinceId, LandContractId[]>    // legacy: 最初の Holding の chain
   byHolding: Record<HoldingId, LandContractId[]>      // v0.20: 各 Holding 固有の chain (正規 index)
   byGranteePolity: Record<PolityId, LandContractId[]>
   byParent: Record<LandContractId, LandContractId | undefined>  // parent → child
@@ -546,8 +545,7 @@ nextLandContractId: number
 nextHoldingOfficeAssignmentId: number
 ```
 
-- `byProvince`: worldgen 時に最初の Holding の chain を登録する legacy index。Province 単位の参照が必要な既存コード向けに維持
-- `byHolding`: 各 Holding 固有の独立した contract chain。v0.20-b2 以降の正規 index
+- `byHolding`: 各 Holding 固有の独立した contract chain。v0.20-b2 以降の正規 index。**v0.41 (調査 §4.1) で旧 `byProvince` (worldgen 凍結の province 単位 1 チェーン) を撤去**。Province 粒度の参照が必要な箇所 (UI 表示・land purchase 隣接推論) は dominant holding (weight 最大の terminal polity が支配する holding) を province 代表として byHolding から導出する (`getProvinceDominantHoldingId` / `getProvinceLandContractChain` / `getProvinceDominantTerminalContract`)
 
 ID prefix:
 

@@ -388,7 +388,7 @@ v0.18 外交システム改修の前段として、叛乱政体 (Rebel Polity) �
   - `Holding`: Province 内の個別土地区画。`kind: 'manor' | 'city'`。development / polityControl / landQuality / weight を保持。Province の development / polityControl は selector で Holding の weight 加重平均から算出
   - Province から `development` / `polityControl` を削除し、`stateId: StateRegionId` / `holdingIds: HoldingId[]` を追加
 - **WorldPreset によるマップ規模制御**: tiny / small / standard / perfLarge の 4 preset。grid サイズ / State 数 / Province 数 / Polity 数 (Kingdom/Duchy/County) / Holdings per Province を preset で指定
-- **per-Holding LandContract chain**: worldgen で各 Holding に独立した contract chain を生成。`byHolding` が正規 index、`byProvince` は legacy。`holdingTerminalPolityCache` で terminal polity を Holding 単位でキャッシュ
+- **per-Holding LandContract chain**: worldgen で各 Holding に独立した contract chain を生成。`byHolding` が正規 index (v0.41 / 調査 §4.1 で旧 `byProvince` legacy index は撤去)。`holdingTerminalPolityCache` で terminal polity を Holding 単位でキャッシュ
 - **DiplomaticDemand の holdingId 化**: `transfer_land_contract` / `change_contract_tax_rate` の対象を `provinceId` から `holdingId` に変更。`revolt_concession` は Province 単位のまま。Play 生成時に `selectTargetHoldingInProvince` で対象 Holding を選定
 - **applyLandContractTransferGoal の rank 走査**: chain を走査して rank に基づく正しい位置を選ぶロジックに変更。同 rank grantee 差し替え / 上位 rank 挿入 / 下位 rank child 追加を rank 順で判定
 - **HoldingOfficeAssignment**: ProvinceOfficeAssignment を HoldingOfficeAssignment に置換。`startYear` を廃止し `startWeek` (absoluteWeek) に統一
