@@ -5,6 +5,7 @@ const NAME_CATEGORIES: NameCategory[] = [
   'person',
   'house',
   'province',
+  'city',
   'polity',
   'holding',
   'state_region',

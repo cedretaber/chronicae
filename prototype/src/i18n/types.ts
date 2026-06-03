@@ -18,6 +18,7 @@ export type NameCategory =
   | 'person'
   | 'house'
   | 'province'
+  | 'city'
   | 'polity'
   | 'holding'
   | 'state_region'
