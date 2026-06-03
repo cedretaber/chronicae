@@ -73,8 +73,11 @@ export function createFactionMembershipId(n: number): FactionMembershipId {
 
 export type DiplomaticPlayId = Branded<string, 'DiplomaticPlayId'>
 
+// prefix は `dpl-`。runtime polity (makePolityId, context.ts) が `dp-` を使うため、`dp-` を共有すると
+// ID が世界全体で一意でなくなる (現状は別 map なので実衝突しないが、`dp-` は紛らわしく潜在的衝突源)。
+// `dp-` は polity 専用に残し、diplomatic play は `dpl-` で区別する。
 export function createDiplomaticPlayId(n: number): DiplomaticPlayId {
-  return ('dp-' + n) as DiplomaticPlayId
+  return ('dpl-' + n) as DiplomaticPlayId
 }
 
 export type DiplomaticOfferId = Branded<string, 'DiplomaticOfferId'>

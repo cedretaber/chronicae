@@ -102,6 +102,7 @@ export function makeHouseId(ctx: TickContext): { id: HouseId; ctx: TickContext }
 }
 
 export function makePolityId(ctx: TickContext): { id: PolityId; ctx: TickContext } {
+  // prefix `dp-` は runtime polity 専用。diplomatic play は `dpl-` (createDiplomaticPlayId) に分離済。
   const id = `dp-${ctx.nextPolityIndex}` as PolityId
   return { id, ctx: { ...ctx, nextPolityIndex: ctx.nextPolityIndex + 1 } }
 }
