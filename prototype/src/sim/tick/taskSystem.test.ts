@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { makeEmptyV016State, withProvince } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
-import { buildAndCreateCompromiseOffer } from './taskSystem'
+import { buildAndCreateCompromiseOffer } from './taskCompromise'
 import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types/diplomaticPlay'
 import type {
   DiplomaticPlayId,
