@@ -4,6 +4,7 @@ import { buildEntitySnapshot } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getHoldingShortName } from '@/app/hooks/entityNameHelpers'
 import { CopyJsonButton, AttitudeList } from './shared/widgets'
 import { getHoldingOccupationCapacity } from '@sim/selectors/popSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
@@ -27,7 +28,6 @@ export function PopGroupDetail({
   const resolveName = useEntityName()
   const currentState = session?.currentState
   const holding = currentState?.holdings[popGroup.holdingId]
-  const province = holding ? currentState?.provinces[holding.provinceId] : undefined
 
   const worldState: WorldState | null = currentState ?? null
 
@@ -59,9 +59,7 @@ export function PopGroupDetail({
             if (holding) onProvinceClick(holding.provinceId)
           }}
         >
-          {province
-            ? `${resolveName('province', province.nameKey, province.nameKey)} ${holding?.kind ?? ''}`
-            : '—'}
+          {holding ? getHoldingShortName(worldState, resolveName, popGroup.holdingId) : '—'}
         </button>
       </div>
 

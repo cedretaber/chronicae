@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
 import type { FactionId, DiplomaticPlayId, HoldingId, ClanId, WarId } from '@/sim/types/ids'
 import {
   CountryDetail,
@@ -70,11 +70,8 @@ export function WindowManager() {
               if (pv) name = resolveName('province', pv.nameKey, pv.nameKey)
             } else if (entityType === 'holding') {
               const hd = state.holdings[entityId as HoldingId]
-              const hdProvince = hd ? state.provinces[hd.provinceId] : undefined
               if (hd) {
-                name = hdProvince
-                  ? `${resolveName('province', hdProvince.nameKey, hdProvince.nameKey)} ${hd.kind}`
-                  : entityId
+                name = getHoldingQualifiedName(state, resolveName, entityId as HoldingId)
               }
             }
             title = `${prefix}: ${name}`
@@ -239,10 +236,7 @@ export function WindowManager() {
         if (entityType === 'holding') {
           const holding = state.holdings[entityId as HoldingId]
           if (!holding) return null
-          const holdingProvince = state.provinces[holding.provinceId]
-          const holdingTitle = holdingProvince
-            ? `${resolveName('province', holdingProvince.nameKey, holdingProvince.nameKey)} ${holding.kind}`
-            : holding.id
+          const holdingTitle = getHoldingQualifiedName(state, resolveName, entityId as HoldingId)
           return (
             <DraggableWindow key={win.id} win={win} title={`Holding: ${holdingTitle}`}>
               <HoldingDetail

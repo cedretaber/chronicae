@@ -8,7 +8,7 @@ import {
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getHoldingShortName } from '@/app/hooks/entityNameHelpers'
 import {
   getProvinceDevelopmentFromHoldings,
   getProvincePolityControlFromHoldings,
@@ -271,10 +271,7 @@ export function ProvinceDetail({
       {currentState &&
         getProvinceHoldings(currentState, province.id).map((holding) => {
           const bailiff = getHoldingBailiffPerson(currentState, holding.id)
-          const holdingProv = currentState.provinces[holding.provinceId]
-          const holdingDisplay = holdingProv
-            ? `${resolveName('province', holdingProv.nameKey, holdingProv.nameKey)} ${holding.kind}`
-            : holding.id
+          const holdingDisplay = getHoldingShortName(currentState, resolveName, holding.id)
           return (
             <div
               key={holding.id}

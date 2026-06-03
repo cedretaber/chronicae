@@ -15,7 +15,7 @@ import { SHARE_COLORS } from './constants'
 import type { AttitudeMap } from '@/sim/types/attitude'
 import type { WorldState } from '@/sim/types/world'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
 import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
 import type {
   PolityId,
@@ -466,12 +466,11 @@ export function PolityLandContracts({
       }
       groupMap.set(key, group)
     }
-    const holdingProvince = holding ? worldState.provinces[holding.provinceId] : undefined
     group.holdings.push({
       id: c.id,
       holdingId,
-      holdingName: holdingProvince
-        ? `${resolveName('province', holdingProvince.nameKey, holdingProvince.nameKey)} ${holding!.kind}`
+      holdingName: holding
+        ? getHoldingQualifiedName(worldState, resolveName, holding.id)
         : '(unknown)',
       taxRate: c.terms.taxRateToGrantor,
       isRoot,

@@ -59,7 +59,12 @@ export function createEventRenderer(
 function resolveOwnerCategory(params: EventMessageParams): string | undefined {
   const owner = params['owner']
   if (owner && typeof owner === 'object' && 'kind' in owner && owner.kind === 'name') {
-    return owner.category
+    // v0.41: owner の nameParam category は holding 由来 Polity だと 'province'/'city' に
+    //   なる (名前解決用)。だが goal/aim kind ラベルの名前空間は owner の「種別」
+    //   ('polity'/'house'/'person') を要求するため、地名カテゴリは polity に丸める。
+    const c = owner.category
+    if (c === 'province' || c === 'city' || c === 'polity') return 'polity'
+    return c
   }
   return undefined
 }

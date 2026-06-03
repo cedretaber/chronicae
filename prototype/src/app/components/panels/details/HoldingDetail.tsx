@@ -4,7 +4,7 @@ import { buildEntitySnapshot, resolveHoldingImprovements } from './shared/helper
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
 import { PanelHeader, CopyJsonButton, EntityChronicleSection } from './shared/widgets'
 import { getHoldingImage } from '@/app/utils/assetHash'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
@@ -50,9 +50,8 @@ export function HoldingDetail({
   const currentState = session?.currentState
   const province = currentState?.provinces[holding.provinceId]
 
-  const holdingDisplay = province
-    ? `${resolveName('province', province.nameKey, province.nameKey)} ${holding.kind}`
-    : holding.id
+  // v0.41 (§8): Holding 自身の名前 (kind→category) を Province 名で qualify した完全名。
+  const holdingDisplay = getHoldingQualifiedName(currentState, resolveName, holding.id)
 
   return (
     <div className="flex flex-col gap-1 p-3">
