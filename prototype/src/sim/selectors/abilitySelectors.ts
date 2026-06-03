@@ -165,9 +165,13 @@ export function hadRelevantExperience(
   }
 
   // Check if person leads an active plot (insight experience)
+  // 調査 §1.7: status フィルタを追加。plotSystem は解決済 plot を succeeded/failed の
+  // まま activePlots に残す (removePlot は呼ばれない) ため、status を見ないと「一度
+  // plot を率いた人物」が永久に insight 経験ありと判定されうる。コメントの意図通り
+  // active な plot のみを経験として扱う。
   if (k === 'insight') {
     for (const plot of Object.values(state.activePlots)) {
-      if (plot && plot.leaderId === personId) return true
+      if (plot && plot.status === 'active' && plot.leaderId === personId) return true
     }
   }
 
