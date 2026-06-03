@@ -190,8 +190,9 @@ export function createNegotiatingCommonwealth(
   const newPolityObj: Polity = {
     id: newPolityId,
     nameKey: newPolityNameKey,
-    // Phase 2: 暫定 pool。Phase 3 で holding 由来へ差し替える。
-    nameSource: { kind: 'pool', nameKey: newPolityNameKey },
+    // §5.1: 民衆叛乱で新設される rank 5 Polity は対象 Holding 由来名にする。
+    // holdingId は input の required field なので常に存在する。
+    nameSource: { kind: 'holding', holdingId },
     treasury: 0,
     legacyPrestige: 0,
     adminPower: 0,
