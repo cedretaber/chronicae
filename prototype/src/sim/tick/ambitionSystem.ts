@@ -1,4 +1,3 @@
-import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { HouseId } from '../types/ids'
 import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
@@ -54,8 +53,4 @@ export function calcAmbitionScores(state: WorldState, houseId: HouseId): Ambitio
     polity.adminPower * 0.1
 
   return { rebellionTendency, plotTendency }
-}
-
-export function runAmbitionSystem(ctx: TickContext): TickContext {
-  return ctx
 }

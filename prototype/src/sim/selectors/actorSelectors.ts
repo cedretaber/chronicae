@@ -52,67 +52,6 @@ export function getActorResourceAmount(state: WorldState, actor: PoliticalActorR
   return state.houses[actor.id]?.wealth ?? 0
 }
 
-// v0.18 Stage A §7
-// 資源支出。actor が存在しない場合 / 残高不足の場合は支出せず state をそのまま返す。
-// 残高不足を許容する場合は事前に getActorResourceAmount で確認すること。
-export function spendActorResource(
-  state: WorldState,
-  actor: PoliticalActorRef,
-  amount: number,
-): WorldState {
-  if (amount <= 0) return state
-  if (actor.kind === 'polity') {
-    const polity = state.polities[actor.id]
-    if (!polity) return state
-    if (polity.treasury < amount) return state
-    return {
-      ...state,
-      polities: {
-        ...state.polities,
-        [actor.id]: { ...polity, treasury: polity.treasury - amount },
-      },
-    }
-  }
-  const house = state.houses[actor.id]
-  if (!house) return state
-  if (house.wealth < amount) return state
-  return {
-    ...state,
-    houses: {
-      ...state.houses,
-      [actor.id]: { ...house, wealth: house.wealth - amount },
-    },
-  }
-}
-
-export function addActorResource(
-  state: WorldState,
-  actor: PoliticalActorRef,
-  amount: number,
-): WorldState {
-  if (amount <= 0) return state
-  if (actor.kind === 'polity') {
-    const polity = state.polities[actor.id]
-    if (!polity) return state
-    return {
-      ...state,
-      polities: {
-        ...state.polities,
-        [actor.id]: { ...polity, treasury: polity.treasury + amount },
-      },
-    }
-  }
-  const house = state.houses[actor.id]
-  if (!house) return state
-  return {
-    ...state,
-    houses: {
-      ...state.houses,
-      [actor.id]: { ...house, wealth: house.wealth + amount },
-    },
-  }
-}
-
 // Polity: terminal grantee Province を返す
 // House: 当 House が控除権 (controlled) を持つ Province を返す
 export function getActorRelevantProvinceIds(

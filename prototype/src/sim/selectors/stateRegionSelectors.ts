@@ -7,26 +7,6 @@ import {
   getProvinceEffectiveOwnerHouseId,
 } from './landContractSelectors'
 
-export function getStateNeighborIds(state: WorldState, stateId: StateRegionId): StateRegionId[] {
-  const stateRegion = state.states[stateId]
-  if (!stateRegion) return []
-  const provinceSet = new Set(stateRegion.provinceIds.map((id) => id as string))
-  const neighborStates = new Set<StateRegionId>()
-  for (const pid of stateRegion.provinceIds) {
-    const province = state.provinces[pid]
-    if (!province) continue
-    for (const nid of province.neighbors) {
-      if (!provinceSet.has(nid)) {
-        const neighbor = state.provinces[nid]
-        if (neighbor && (neighbor.stateId as string) !== (stateId as string)) {
-          neighborStates.add(neighbor.stateId)
-        }
-      }
-    }
-  }
-  return Array.from(neighborStates)
-}
-
 export function getStateDominantPolityId(
   world: WorldState,
   stateId: StateRegionId,

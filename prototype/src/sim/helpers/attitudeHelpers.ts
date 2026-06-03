@@ -110,26 +110,6 @@ export function lerpAttitude(
 
 // --- legacyPrestige adjusters (return new WorldState, immutable) ---
 
-// Adjusts polity.legacyPrestige by delta, clamping to 0..100
-export function adjustPolityLegacyPrestige(
-  state: WorldState,
-  id: PolityId,
-  delta: number,
-): WorldState {
-  const polity = state.polities[id]
-  if (!polity) return state
-  return {
-    ...state,
-    polities: {
-      ...state.polities,
-      [id]: {
-        ...polity,
-        legacyPrestige: clamp(polity.legacyPrestige + delta, 0, 100),
-      },
-    },
-  }
-}
-
 // Adjusts house.legacyPrestige by delta, clamping to 0..100
 export function adjustHouseLegacyPrestige(
   state: WorldState,
@@ -168,29 +148,6 @@ export function adjustPersonLegacyPrestige(
       },
     },
   }
-}
-
-// --- Init helpers (minimal implementation — worldgen will populate attitudes directly) ---
-
-// Returns empty AttitudeMap for a new Person
-// Worldgen will populate the actual attitudes directly
-export function initPersonAttitudes(): AttitudeMap {
-  return {}
-}
-
-// Returns empty AttitudeMap for a new PopGroup
-export function initPopGroupAttitudes(): AttitudeMap {
-  return {}
-}
-
-// Returns empty AttitudeMap for a new House
-export function initNewHouseAttitudes(): AttitudeMap {
-  return {}
-}
-
-// No-op — worldgen will populate Polity-related attitudes directly
-export function initNewPolityAttitudes(): void {
-  // Attitudes for new polities are initialized by revolt system directly
 }
 
 // v0.17 §11.x: like adjustAttitude, but ONLY updates if the key already exists.

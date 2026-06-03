@@ -11,8 +11,6 @@ import {
   getActorName,
   getActorLeaderPersonId,
   getActorResourceAmount,
-  spendActorResource,
-  addActorResource,
   getActorRelevantProvinceIds,
   isSameActor,
   polityActor,
@@ -73,72 +71,6 @@ describe('actorSelectors', () => {
       const s = makeEmptyV016State()
       expect(getActorResourceAmount(s, polityActor('c-missing' as PolityId))).toBe(0)
       expect(getActorResourceAmount(s, houseActor('h-missing' as HouseId))).toBe(0)
-    })
-  })
-
-  describe('spendActorResource', () => {
-    it('decreases polity treasury when sufficient', () => {
-      let s = makeEmptyV016State()
-      s = withProvince(s, 'pr-0' as ProvinceId)
-      s = withPolity(s, 'c-1' as PolityId, { treasury: 500 })
-      const next = spendActorResource(s, polityActor('c-1' as PolityId), 200)
-      expect(next.polities['c-1' as PolityId]?.treasury).toBe(300)
-    })
-
-    it('decreases house wealth when sufficient', () => {
-      let s = makeEmptyV016State()
-      s = withProvince(s, 'pr-0' as ProvinceId)
-      s = withHouse(s, 'h-1' as HouseId, { wealth: 100 })
-      const next = spendActorResource(s, houseActor('h-1' as HouseId), 40)
-      expect(next.houses['h-1' as HouseId]?.wealth).toBe(60)
-    })
-
-    it('returns state unchanged when balance insufficient', () => {
-      let s = makeEmptyV016State()
-      s = withProvince(s, 'pr-0' as ProvinceId)
-      s = withPolity(s, 'c-1' as PolityId, { treasury: 50 })
-      const next = spendActorResource(s, polityActor('c-1' as PolityId), 100)
-      expect(next.polities['c-1' as PolityId]?.treasury).toBe(50)
-      expect(next).toBe(s)
-    })
-
-    it('no-op when amount <= 0', () => {
-      let s = makeEmptyV016State()
-      s = withProvince(s, 'pr-0' as ProvinceId)
-      s = withPolity(s, 'c-1' as PolityId, { treasury: 50 })
-      expect(spendActorResource(s, polityActor('c-1' as PolityId), 0)).toBe(s)
-      expect(spendActorResource(s, polityActor('c-1' as PolityId), -10)).toBe(s)
-    })
-
-    it('no-op when actor missing', () => {
-      const s = makeEmptyV016State()
-      expect(spendActorResource(s, polityActor('c-missing' as PolityId), 10)).toBe(s)
-      expect(spendActorResource(s, houseActor('h-missing' as HouseId), 10)).toBe(s)
-    })
-  })
-
-  describe('addActorResource', () => {
-    it('increases polity treasury', () => {
-      let s = makeEmptyV016State()
-      s = withProvince(s, 'pr-0' as ProvinceId)
-      s = withPolity(s, 'c-1' as PolityId, { treasury: 100 })
-      const next = addActorResource(s, polityActor('c-1' as PolityId), 50)
-      expect(next.polities['c-1' as PolityId]?.treasury).toBe(150)
-    })
-
-    it('increases house wealth', () => {
-      let s = makeEmptyV016State()
-      s = withProvince(s, 'pr-0' as ProvinceId)
-      s = withHouse(s, 'h-1' as HouseId, { wealth: 100 })
-      const next = addActorResource(s, houseActor('h-1' as HouseId), 75)
-      expect(next.houses['h-1' as HouseId]?.wealth).toBe(175)
-    })
-
-    it('no-op when amount <= 0', () => {
-      let s = makeEmptyV016State()
-      s = withProvince(s, 'pr-0' as ProvinceId)
-      s = withPolity(s, 'c-1' as PolityId, { treasury: 100 })
-      expect(addActorResource(s, polityActor('c-1' as PolityId), 0)).toBe(s)
     })
   })
 

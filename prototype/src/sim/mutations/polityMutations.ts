@@ -258,39 +258,3 @@ export function createPolityFromProvinces(
 
   return { polity, ctx: { ...finalCtx, state: stateWithLeader } }
 }
-
-export function moveHouseToPolity(
-  state: WorldState,
-  houseId: HouseId,
-  newPolityId: PolityId,
-): StateResult {
-  const house = state.houses[houseId]
-  if (!house)
-    return err({
-      code: 'HOUSE_NOT_FOUND',
-      message: 'moveHouseToPolity: house not found: ' + houseId,
-    })
-
-  const oldPolityId = getHousePrimaryPolityId(state, houseId)
-  if (!oldPolityId) return err({ code: 'POLITY_NOT_FOUND', message: 'House has no primary polity' })
-
-  const oldPolity = state.polities[oldPolityId]
-  const newPolity = state.polities[newPolityId]
-  if (!oldPolity || !newPolity)
-    return err({ code: 'POLITY_NOT_FOUND', message: 'Polity not found' })
-
-  const newHouses = {
-    ...state.houses,
-    [houseId]: house,
-  }
-
-  const newPolities = {
-    ...state.polities,
-  }
-
-  return ok({
-    ...state,
-    houses: newHouses,
-    polities: newPolities,
-  })
-}

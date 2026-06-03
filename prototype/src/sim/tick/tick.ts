@@ -18,7 +18,6 @@ import { runBirthSystem } from './birthSystem'
 import { runAppointmentSystem } from './appointmentSystem'
 import { runShareUpdateSystem } from './shareUpdateSystem'
 import { runOfficeCompensationSystem } from './officeCompensationSystem'
-import { runPublicSpendingSystem } from './publicSpendingSystem'
 import { runControlSystem } from './controlSystem'
 import { runPlotSystem } from './plotSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
@@ -269,12 +268,6 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runPersonGrowthSystem,
-  },
-  {
-    name: 'publicSpendingSystem',
-    intervalWeeks: WEEKS_PER_YEAR,
-    phaseOffsetWeeks: 0,
-    run: runPublicSpendingSystem,
   },
   { name: 'plotSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPlotSystem },
   {

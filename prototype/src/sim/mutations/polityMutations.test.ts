@@ -5,7 +5,7 @@ import type { WorldState } from '../types/world'
 import type { TickContext } from '../tick/context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
-import { moveHouseToPolity, createPolity, deactivatePolity } from './polityMutations'
+import { createPolity, deactivatePolity } from './polityMutations'
 import {
   bindProvinceToHouseViaPolity,
   makeEmptyV016State,
@@ -68,23 +68,6 @@ function makeFixture(): {
   })
   return { state, house1Id, house2Id, polity1Id, polity2Id, provinceId, person1Id }
 }
-
-describe('moveHouseToPolity', () => {
-  it('returns state unchanged (no-op)', () => {
-    const { state, house1Id, polity2Id } = makeFixture()
-    const result = moveHouseToPolity(state, house1Id, polity2Id)
-
-    expect(result.ok).toBe(true)
-  })
-
-  it('returns err when houseId does not exist', () => {
-    const { state } = makeFixture()
-    const result = moveHouseToPolity(state, createHouseId('h', 99), createPolityId('c', 2))
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('HOUSE_NOT_FOUND')
-  })
-})
 
 function makeCtx(state: WorldState): TickContext {
   return {

@@ -11,7 +11,7 @@ import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
-import { calcAmbitionScores, runAmbitionSystem } from './ambitionSystem'
+import { calcAmbitionScores } from './ambitionSystem'
 import {
   bindProvinceToHouseViaPolity,
   makeEmptyV016State,
@@ -158,15 +158,5 @@ describe('calcAmbitionScores', () => {
 
     expect(scores.rebellionTendency).toBe(0)
     expect(scores.plotTendency).toBe(0)
-  })
-})
-
-describe('runAmbitionSystem', () => {
-  it('returns ctx unchanged', () => {
-    const { ctx } = makeFixture()
-
-    const result = runAmbitionSystem(ctx)
-
-    expect(result).toBe(ctx)
   })
 })

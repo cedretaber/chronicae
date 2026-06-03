@@ -218,16 +218,6 @@ export type SimulationConfig = {
   bountifulHarvestPeasantUnrestReduction: number
   bountifulHarvestTownsmanWealthGain: number
   bountifulHarvestTownsmanUnrestReduction: number
-  popDevelopmentEnabled: boolean
-  popDevelopmentMonthlyChance: number
-  popDevelopmentMaxMonthlyChance: number
-  popDevelopmentWealthThreshold: number
-  popDevelopmentUnrestMax: number
-  popDevelopmentWealthChanceFactor: number
-  popDevelopmentUnrestPenaltyFactor: number
-  popDevelopmentCost: number
-  popDevelopmentGain: number
-  popDevelopmentMaxDevelopment: number
   warWealthDamage: number
   warUnrestDamage: number
   warPeasantSizeDamage: number
@@ -1130,16 +1120,6 @@ export const defaultConfig: SimulationConfig = {
   bountifulHarvestPeasantUnrestReduction: 5,
   bountifulHarvestTownsmanWealthGain: 2,
   bountifulHarvestTownsmanUnrestReduction: 1,
-  popDevelopmentEnabled: false,
-  popDevelopmentMonthlyChance: 0.02,
-  popDevelopmentMaxMonthlyChance: 0.08,
-  popDevelopmentWealthThreshold: 65,
-  popDevelopmentUnrestMax: 35,
-  popDevelopmentWealthChanceFactor: 0.001,
-  popDevelopmentUnrestPenaltyFactor: 0.0005,
-  popDevelopmentCost: 3,
-  popDevelopmentGain: 0.25,
-  popDevelopmentMaxDevelopment: 40,
   warWealthDamage: 8,
   warUnrestDamage: 10,
   warPeasantSizeDamage: 0.5,
