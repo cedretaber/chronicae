@@ -1,4 +1,4 @@
-# 12. アーキテクチャ原則（v0.13 / v0.14 派生 selector 追記）
+# 12. アーキテクチャ原則
 
 シミュレーション層は以下の原則に従う。コード上の集約点を仕様レベルでも明示しておくことで、将来の機能追加でも同じ規律を維持する。
 
@@ -16,12 +16,13 @@
 
 | ファイル | 主な責務 |
 |---|---|
-| `worldStructureMutations.ts` | `splitHouse` / `extinctHouse` / `foundRevoltPolity` — 家分裂・断絶・反乱独立の高レベル一括処理 |
-| `personMutations.ts` | `markPersonDead`（§6.7）/ `movePersonToHouse` / `birthChild` / `addPersonWealth` / `clearPersonWealth` (v0.14) |
+| `worldStructureMutations.ts` | `splitHouse` / `extinctHouse` — 家分裂・断絶の高レベル一括処理 |
+| `worldStructureCommonwealth.ts` | `createNegotiatingCommonwealth` / `establishCommonwealth` / `dissolveNegotiatingCommonwealth` / `suppressRevolt` / `selectOrCreateCommonwealthLeader` — 反乱独立（民衆叛乱 commonwealth）の高レベル一括処理 |
+| `personMutations.ts` | `markPersonDead`（§6.7）/ `movePersonToHouse` / `birthChild` / `addPersonWealth` / `clearPersonWealth` |
 | `relationshipMutations.ts` | `setSpouse` / `clearSpouse` / `addChildToParents` |
-| `houseMutations.ts` | `createHouse` / `deactivateHouse` / `addHouseWealth` (v0.14) |
-| `polityMutations.ts` (v0.15) | `createPolity` / `deactivatePolity` / `annexPolity` / `createPolityFromHouse` / `createPolityFromProvinces` / `moveHouseToPolity` |
-| `provinceMutations.ts` | `transferProvinceToHouse` / `transferProvinceToPolity` / `adjustProvinceDevelopment` |
+| `houseMutations.ts` | `createHouse` / `deactivateHouse` / `addHouseWealth` |
+| `polityMutations.ts` | `createPolity` / `deactivatePolity` / `annexPolity` / `createPolityFromHouse` / `createPolityFromProvinces` |
+| `provinceMutations.ts` | `adjustProvinceDevelopment` / `adjustHoldingDevelopment` |
 | `popMutations.ts` | `adjustProvincePopWealth` / `adjustProvincePopUnrest` / `adjustProvincePopSize`（class 別バリアント含む）|
 | `officeMutations.ts` | `createOfficeAssignment` / `revokeOfficeAssignment` / `revokeOfficesByHolder` / `revokeOfficesByOrganization` / `assignOffice` |
 | `shareMutations.ts` | `createOrganizationShare` / `updateShareRawPower` / `removeOrganizationShare` / `transferShareRawPower` / `upsertOrganizationShare` / `deleteAllSharesForHolder` |
@@ -55,7 +56,7 @@ mutation 関数はおおむね `StateResult = SimResult<WorldState>` または `
 
 `debug` モード時は IntegrityCheck の違反が非致死的になり、`[DEBUG:INTEGRITY] error=...` として stderr に出力される（§2.2）。長期シミュレーションでの再現性確認に利用する。
 
-### 12.5 派生 selector による応用ロールの計算（v0.14）
+### 12.5 派生 selector による応用ロールの計算
 
 人物の応用ロールスコア（governance / stewardship / diplomacy / intrigue / warCommand）は `prototype/src/sim/selectors/abilitySelectors.ts` の `getRoleScore(state, personId, role)` に集約する。tick / mutations / UI 各層は基礎能力（`person.abilities.{valor|command|...}`）を直接合成せず、必ず派生 selector を経由する。
 
@@ -63,7 +64,7 @@ mutation 関数はおおむね `StateResult = SimResult<WorldState>` または `
 
 - 新ロール追加時に変更箇所が 1 ファイル（abilitySelectors.ts + ROLE_WEIGHTS 定数）に閉じる
 - ロール定義変更（重み調整）が全システムに自動反映される
-- 基礎能力モデル変更（v0.15 以降の限界突破イベント等）でも応用ロール側のシステムは影響を受けない
+- 基礎能力モデル変更（限界突破イベント等）でも応用ロール側のシステムは影響を受けない
 
 UI 層では基礎能力直接参照（`person.abilities.valor` を直接表示）も許容するが、バックエンドロジック（appointmentSystem / publicSpendingSystem / militarySelectors 等）は必ず `getRoleScore` 経由とする（§4.7 / §4.8 参照）。
 

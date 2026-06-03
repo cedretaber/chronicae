@@ -2,131 +2,127 @@
 
 | EventType | importance | 説明 |
 |-----------|------------|------|
-| OFFICE_ASSIGNED | normal | 役職任命（v0.12。旧 ROLE_ASSIGNED） |
-| OFFICE_REVOKED | normal | 役職解任（v0.12。旧 ROLE_REVOKED） |
-| OFFICE_SALARY_UNPAID | minor | 給与未払い（v0.12） |
-| OFFICE_SALARY_PARTIALLY_PAID | minor | 給与部分払い（v0.12） |
-| POLITY_LEADER_CHANGED | critical | Polity leader の交代（v0.12。旧 RULER_CHANGED、v0.15 で rename） |
-| POLITY_OWNER_CHANGED | major | Polity の ownerHouseId 交代（v0.15 新規） |
-| POLITY_EXTINCT | major | Polity が自己消滅（ownerHouse 不在 / Province 数 0）（v0.15 新規） |
-| HOUSE_LEADER_CHANGED | normal | 家長交代（v0.12。旧 HOUSE_HEAD_CHANGED） |
-| SHARE_SHIFTED | minor | Share 分布の有意な変化（v0.12） |
+| OFFICE_ASSIGNED | normal | 役職任命 |
+| OFFICE_REVOKED | normal | 役職解任 |
+| OFFICE_SALARY_UNPAID | minor | 給与未払い |
+| OFFICE_SALARY_PARTIALLY_PAID | minor | 給与部分払い |
+| OFFICE_TERM_ENDED | normal | 役職任期満了（officeTermSystem が任期到来で発火） |
+| POLITY_LEADER_CHANGED | critical | Polity leader の交代 |
+| POLITY_OWNER_CHANGED | major | Polity の ownerHouseId 交代 |
+| POLITY_EXTINCT | major | Polity が自己消滅（ownerHouse 不在 / Province 数 0） |
+| HOUSE_LEADER_CHANGED | normal | 家長交代 |
+| SHARE_SHIFTED | minor | Share 分布の有意な変化 |
 | PERSON_DIED | normal | 人物死亡 |
-| IMPORTANT_PERSON_DIED | major | 重要人物死亡（v0.38: `mortalitySystem` が notable death＝house / polity leader 相当を `PERSON_DIED` から type 昇格して emit。単一イベント・重複なし。Chronicle の life カテゴリを成立させる。§6.62） |
-| PERSON_CAME_OF_AGE | minor / normal | **v0.40**: adolescence→young_adulthood 遷移時に `lifeStageProgressionSystem` が emit（messageKey `person.came_of_age`）。一般人物=minor / 主要人物=normal。importance で entityRefs を出し分け（一般=`[person]` / 主要=`[person, house, polity]`）。主要人物のみメイン EventLog に表示（§11）。全人物が個人 Chronicle に残る（§6） |
-| PERSON_ENTERED_OLD_AGE | minor / normal | **v0.40**: mature_adulthood→old_age 遷移時に emit（messageKey `person.entered_old_age`）。importance / entityRefs 方針は PERSON_CAME_OF_AGE と同じ |
-| HOUSE_EXTINCT | major | 家の断絶（後継者不在）（v0.15: 旧 RULER_HOUSE_EXTINCT も統合） |
+| IMPORTANT_PERSON_DIED | major | 重要人物死亡（`mortalitySystem` が notable death＝house / polity leader 相当を `PERSON_DIED` から type 昇格して emit。単一イベント・重複なし。Chronicle の life カテゴリを成立させる。§6.62） |
+| PERSON_CAME_OF_AGE | minor / normal | adolescence→young_adulthood 遷移時に `lifeStageProgressionSystem` が emit（messageKey `person.came_of_age`）。一般人物=minor / 主要人物=normal。importance で entityRefs を出し分け（一般=`[person]` / 主要=`[person, house, polity]`）。主要人物のみメイン EventLog に表示（§11）。全人物が個人 Chronicle に残る（§6） |
+| PERSON_ENTERED_OLD_AGE | minor / normal | mature_adulthood→old_age 遷移時に emit（messageKey `person.entered_old_age`）。importance / entityRefs 方針は PERSON_CAME_OF_AGE と同じ |
+| PERSON_BORN_IN_OBSCURITY | minor | 無家人物が在野に出現（houselessPersonGenerationSystem） |
+| PERSON_FADED_FROM_HISTORY | minor | 無家人物が歴史から消滅（houselessPersonGenerationSystem） |
+| HOUSE_EXTINCT | major | 家の断絶（後継者不在。旧 RULER_HOUSE_EXTINCT も統合） |
+| HOUSE_MEMBERS_DISPERSED | normal | 家断絶時のメンバー離散（worldStructureExtinction） |
 | MARRIAGE_FORMED | normal | 婚姻成立 |
 | CHILD_BORN | minor | 子誕生 |
 | HOUSE_SPLIT | major | 家の分裂（傍系家の独立） |
-| CADET_HOUSE_FOUNDED | major | 分家の創設（v0.31） |
-| HOUSE_FOUNDED | major | 無家人物による新 House の創設（v0.31） |
-| CLAN_FOUNDED | major | 氏族の成立（v0.32）。entityRefs: clan, rootHouse, founder（任意） |
+| CADET_HOUSE_FOUNDED | major | 分家の創設 |
+| HOUSE_FOUNDED | major | 無家人物による新 House の創設 |
+| CLAN_FOUNDED | major | 氏族の成立。entityRefs: clan, rootHouse, founder（任意） |
 | SUCCESSION_CRISIS | major | 継承危機 |
 | PLOT_STARTED | normal | 陰謀開始 |
 | PLOT_SUCCEEDED | major | 陰謀成功 |
 | PLOT_FAILED | normal | 陰謀失敗 |
-| PLOT_CANCELLED | minor | 陰謀中断 |
-| POLITY_SPLIT | critical | Polity 分裂（v0.15: 旧 COUNTRY_SPLIT を rename） |
-| POLITY_LANDLESS | major | Polity が landless 化（terminal Province 0、v0.16 新規 / 現状未発火 §11） |
+| PLOT_CANCELLED | minor | 陰謀中断（現状未発火。中断した陰謀は PLOT_FAILED で解決される） |
+| POLITY_SPLIT | critical | Polity 分裂（旧 COUNTRY_SPLIT を rename） |
+| POLITY_LANDLESS | major | Polity が landless 化（terminal Province 0。polityOwnerConsistencySystem が Province 数 0 到達時に発火し、続けて inactive 化 + POLITY_EXTINCT を出す。§11） |
 | OMEN | normal | 兆し |
 | FAMINE | major | 飢饉 |
 | PLAGUE | major | 疫病 |
 | BOUNTIFUL_HARVEST | normal | 豊作 |
 | DISASTER_RELIEF_FUNDED | normal | 災害救済成功 |
 | DISASTER_RELIEF_FAILED | normal | 災害救済失敗 |
-| WAR_DECLARED | major | 宣戦布告（v0.34: WarCreationSystem が War 作成時に発火。casus belli として「対象 Province + 戦争前状態 + 目標」を記録。WarGoal kind で messageKey 分岐: `war.declared.change_tax`（`subject`/`fromRate`/`toRate`）/ `war.declared.transfer_land`（`subject`/元保持者 `from`）/ goal 不在時 `war.declared.generic`） |
-| WAR_WON | major | 戦争勝利（v0.34: PeaceSettlementSystem が attacker_won / defender_won の勝者に発火） |
-| WAR_LOST | major | 戦争敗北（v0.34: 同・敗者に発火） |
-| BATTLE_OCCURRED | normal | 戦闘発生（v0.35 WarManeuverSystem。messageKey `war.battle_occurred`。params: `warId` / `province` / `battlefieldKind` / `result` / `warScoreDelta` / `warScoreAfter` ほか。**v0.36 追加: `battleId`（§3.9c Battle 参照）/ `attackerRegimentCount` / `defenderRegimentCount`（counts-only）**。**v0.37 追加（additive。C2 enrich）: `outcomeQuality` / `ticksElapsed` / `frontage` / `attackerInitialFrontlineCount` / `defenderInitialFrontlineCount` / `attackerRoutedCount` / `defenderRoutedCount` / `breakthroughSide` / `pursuitOccurred`。counts は Battle entity の ID 配列から導出**。`battlefieldKind`・`result`・`outcomeQuality`・`breakthroughSide` は raw enum 値で持ち、表示時に i18n（`enum.<key>.<value>`）が label 化する。warScore 変化は本 event で表現し旧 WAR_SCORE_CHANGED を置換。**v0.38 追加（additive。Chronicle narrative 用に既存 Battle field から純粋導出・RNG 不変）: `outnumberedVictory` / `decisiveVictory`**（`selectBattleTemplate` がこの 2 boolean と既存 routed count から数的不利勝利 / 大勝 / 辛勝 / 通常の chronicle template を選ぶ。§6.62）） |
-| BATTLE_AVOIDED | minor | 戦闘回避（v0.35 WarManeuverSystem。messageKey `war.battle_avoided`。params: `warId` / `province` / `battlefieldKind` / `avoidingSide`（attacker / defender / both）。両者回避は warScoreDelta=0） |
-| WAR_CAPTAIN_GENERAL_CHANGED | major/normal | 総大将の交代/喪失（v0.35 WarManeuverSystem。messageKey `war.captain_general_changed`。新総大将が undefined（喪失）のとき major、交代は normal。初回任命は発火しない） |
-| REGIMENT_REFORMED | minor | destroyed Regiment が active に再編成された（v0.36 補充・再編成 RegimentReinforcementSystem。messageKey `regiment.reformed`。params: `owner` / `province`）。**strength の通常補充は organization recovery と同じく silent（イベント無し）**——大量発生する補充をイベント化しない方針 |
-| WAR_ENDED | major | 勝敗が明確でない終結（v0.34。white_peace timeout / stale 安全終結 / cancelled orphan。messageKey `war.ended`） |
-| PEACE_SETTLEMENT_APPLIED | major | tax WarGoal を state に反映（v0.34。PeaceSettlementSystem。tax は before→after の税率を `fromRate`/`toRate`（整数%）で記録。transfer は底層 mutation の LAND_CONTRACT_* に委譲し本 event は出さない） |
-| PROVINCE_CONQUERED | major | Province 征服 (v0.16 では WarSystem が依然発火、LAND_CONTRACT_* への置換は Faction 段階) |
-| POLITY_ANNEXED | critical | 国家消滅（併合） |
-| COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発（v0.22: develop_holding Intent による Holding 開発も含む。v0.38: Chronicle の Holding 開発史（byHolding）に載せるため holding ref を 1 件 additive 追加。§6.62） |
-| POP_LAND_DEVELOPED | minor | POP 自主開発 |
-| PROVINCE_REVOLT_STARTED | normal | Province / POP 反乱が発生 |
-| PROVINCE_REVOLT_SUCCEEDED | major | Province 反乱が concession で成功 |
-| PROVINCE_REVOLT_FAILED | normal | Province 反乱が失敗・鎮圧 |
+| WAR_DECLARED | major | 宣戦布告（WarCreationSystem が War 作成時に発火。casus belli として「対象 Province + 戦争前状態 + 目標」を記録。WarGoal kind で messageKey 分岐: `war.declared.change_tax`（`subject`/`fromRate`/`toRate`）/ `war.declared.transfer_land`（`subject`/元保持者 `from`）/ goal 不在時 `war.declared.generic`） |
+| WAR_WON | major | 戦争勝利（PeaceSettlementSystem が attacker_won / defender_won の勝者に発火） |
+| WAR_LOST | major | 戦争敗北（同・敗者に発火） |
+| BATTLE_OCCURRED | normal | 戦闘発生（WarManeuverSystem。messageKey `war.battle_occurred`。params: `warId` / `province` / `battlefieldKind` / `result` / `warScoreDelta` / `warScoreAfter` / `battleId`（§3.9c Battle 参照）/ `attackerRegimentCount` / `defenderRegimentCount`（counts-only）/ `outcomeQuality` / `ticksElapsed` / `frontage` / `attackerInitialFrontlineCount` / `defenderInitialFrontlineCount` / `attackerRoutedCount` / `defenderRoutedCount` / `breakthroughSide` / `pursuitOccurred`（counts は Battle entity の ID 配列から導出）/ `outnumberedVictory` / `decisiveVictory`（既存 Battle field からの純粋導出。`selectBattleTemplate` がこの 2 boolean と既存 routed count から数的不利勝利 / 大勝 / 辛勝 / 通常の chronicle template を選ぶ。§6.62）。`battlefieldKind`・`result`・`outcomeQuality`・`breakthroughSide` は raw enum 値で持ち、表示時に i18n（`enum.<key>.<value>`）が label 化する。warScore 変化は本 event で表現する） |
+| BATTLE_AVOIDED | minor | 戦闘回避（WarManeuverSystem。messageKey `war.battle_avoided`。params: `warId` / `province` / `battlefieldKind` / `avoidingSide`（attacker / defender / both）。両者回避は warScoreDelta=0） |
+| WAR_CAPTAIN_GENERAL_CHANGED | major/normal | 総大将の交代/喪失（WarManeuverSystem。messageKey `war.captain_general_changed`。新総大将が undefined（喪失）のとき major、交代は normal。初回任命は発火しない） |
+| REGIMENT_REFORMED | minor | destroyed Regiment が active に再編成された（補充・再編成 RegimentReinforcementSystem。messageKey `regiment.reformed`。params: `owner` / `province`）。**strength の通常補充は organization recovery と同じく silent（イベント無し）**——大量発生する補充をイベント化しない方針 |
+| WAR_ENDED | major | 勝敗が明確でない終結（white_peace timeout / stale 安全終結 / cancelled orphan。messageKey `war.ended`） |
+| PEACE_SETTLEMENT_APPLIED | major | tax WarGoal を state に反映（PeaceSettlementSystem。tax は before→after の税率を `fromRate`/`toRate`（整数%）で記録。transfer は底層 mutation の LAND_CONTRACT_* に委譲し本 event は出さない） |
+| PROVINCE_CONQUERED | major | Province 征服（現状未発火。武力による土地奪取は LAND_CONTRACT_CONQUERED に置換済み。union 宣言と UI アイコンのみ残置） |
+| COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発（develop_holding Intent による Holding 開発も含む。Chronicle の Holding 開発史（byHolding）に載せるため holding ref を 1 件追加。§6.62） |
+| POP_LAND_DEVELOPED | minor | POP 自主開発（現状未発火。PopDevelopment 無効化のため発火源なし、将来 POP Project で再導入予定） |
+| PROVINCE_REVOLT_STARTED | normal | Province / POP 反乱が発生（現状未発火。反乱ライフサイクルは REVOLT_* 系に移行済み。union 宣言と UI アイコンのみ残置） |
+| PROVINCE_REVOLT_SUCCEEDED | major | Province 反乱が concession で成功（現状未発火。REVOLT_SETTLED 等に置換） |
+| PROVINCE_REVOLT_FAILED | normal | Province 反乱が失敗・鎮圧（現状未発火。REVOLT_SUPPRESSED 等に置換） |
 | REVOLT_POLITY_FOUNDED | critical | Province 反乱の独立により新 Polity が成立 |
-| LAND_CONTRACT_GRANTED | major | LandContract 新規付与（v0.16、現状未発火、Faction 段階で配線） |
-| LAND_CONTRACT_TRANSFERRED | major | terminal grantee の差し替え（v0.16、§13 case A、現状未発火） |
-| LAND_CONTRACT_INSERTED | major | 中間契約の挿入（v0.16、§13 case B-1、現状未発火） |
-| LAND_CONTRACT_REPLACED | major | 下位契約の差し替え（v0.16、§13 case B-2、現状未発火） |
-| LAND_CONTRACT_TAX_CHANGED | normal | 上納率の変更（v0.16、§16.1 case C、現状未発火） |
-| LAND_CONTRACT_REVOKED | major | 契約解消（v0.16、現状未発火） |
-| LAND_CONTRACT_PURCHASED | major | 金銭による契約譲渡が成立（v0.16 / v0.18 で補償あり土地購入に拡張） |
-| LAND_CONTRACT_CEDED | major | 補償なし土地譲渡（v0.18） |
-| LAND_CONTRACT_CONQUERED | major | 武力による土地奪取（v0.18） |
-| PROJECT_STARTED | minor | Project 開始（v0.26） |
-| PROJECT_COMPLETED | normal | Project 完了（v0.26） |
-| PROJECT_FAILED | minor | Project 失敗（v0.26） |
-| PROJECT_CANCELLED | minor | Project 中止（v0.26） |
-| DIPLOMATIC_PLAY_STARTED | normal | 外交劇開始（v0.18） |
-| DIPLOMATIC_PLAY_SETTLED | major | 外交劇妥協成立（v0.18） |
-| DIPLOMATIC_PLAY_FAILED | normal | 外交劇失敗（v0.18） |
-| DIPLOMATIC_PLAY_ESCALATED | major | 外交劇決裂・戦争化（v0.18） |
-| DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT | major | 外交劇が武力衝突で解決（v0.18） |
-| CONTRACT_TAX_REVISED | normal | 税率改定成功（v0.18。v0.34: 歴史記述用に before→after を `fromRate`/`toRate`（整数%）で記録。`rate`(after) は後方互換のため残置） |
-| CONTRACT_ELIMINATED | major | 契約破棄（v0.18） |
-| REVOLT_NEGOTIATION_STARTED | normal | 叛乱交渉開始（v0.18 / v0.39: popular_tax_relief demand） |
-| REVOLT_SETTLED | major | 叛乱交渉成功・税率引下（v0.18 / v0.39） |
-| REVOLT_SUPPRESSED | major | 叛乱鎮圧。messageKey: suppressed_executed / suppressed_pardoned（v0.39） |
-| REVOLT_POLITY_ESTABLISHED | critical | 叛乱勝利・commonwealth 成立（v0.18 / v0.39） |
-| REVOLT_ESCALATED | major | 叛乱激化・武力化（v0.39） |
-| REVOLT_REGIME_CHANGED | critical | rank 5 内部政変・体制転覆（v0.39） |
-| BAILIFF_APPOINTED | normal | placeholder → 通常人物への Bailiff 交代（v0.16） |
-| BAILIFF_VACATED | normal | Bailiff が不在化（v0.16） |
-| BAILIFF_PLACEHOLDER_INSTALLED | minor | terminal Polity 変更時の Bailiff placeholder 設置（v0.16） |
-| GOAL_CREATED | minor | Goal 生成（v0.22） |
-| GOAL_SUCCEEDED | normal | Goal 達成（v0.22） |
-| GOAL_FAILED | normal | Goal 失敗（v0.22、予約。現状未発火） |
-| GOAL_ABANDONED | minor | Goal 放棄（v0.22） |
-| GOAL_REVIEWED | minor | Goal レビュー（v0.22） |
-| AIM_CREATED | minor | Aim 生成（v0.22） |
-| AIM_SUCCEEDED | normal | Aim 達成（v0.22） |
-| AIM_FAILED | minor | Aim 失敗（v0.22） |
-| AIM_ABANDONED | minor | Aim 放棄（v0.22） |
-| HOUSE_POLITY_SHARE_EXPANDED | normal | House の Polity Share 拡大（v0.22） |
-| HOUSE_POLICY_INFLUENCE | minor | House の政策誘導（v0.22） |
-| HOUSE_PATRONIZED_ARTIST | normal | 芸術家後援（v0.22） |
-| HOUSE_COMMISSIONED_CHRONICLE | normal | 年代記編纂（v0.22） |
-| PERSON_GOAL_CREATED | minor | Person Goal 生成（v0.23） |
-| PERSON_AIM_CREATED | minor | Person Aim 生成（v0.23） |
-| PERSON_AIM_SUCCEEDED | normal | Person Aim 達成（v0.23） |
-| PERSON_AIM_FAILED | minor | Person Aim 失敗（v0.23） |
-| TASK_COMPLETED | minor | Task 完了（v0.23） |
-| TASK_FAILED | minor | Task 失敗（v0.23） |
-| TASK_CANCELLED | minor | Task キャンセル（v0.23） |
-| PRESSURE_CREATED | minor | 外交的圧力の発生（v0.29） |
-| PRESSURE_RESOLVED | minor | 外交的圧力の解決（v0.29） |
-| PRESSURE_CANCELLED | minor | 外交的圧力の撤回（v0.29） |
-
-**v0.26 で削除された EventType**:
-
-- `ACTOR_INTENT_CREATED` — ActorIntent 全廃に伴い削除
-- `ACTOR_INTENT_CONVERTED` — ActorIntent 全廃に伴い削除
-
-**v0.22 で削除された EventType**:
-
-- `HOUSE_LAND_DEVELOPED` — houseDevelopmentSystem 廃止により発火源消失。土地開発は Polity develop_holding に一本化
-
-**v0.16 で削除された EventType**:
-
-- `REBELLION_STARTED` / `REBELLION_SUCCEEDED` / `REBELLION_FAILED` — RebellionSystem 廃止により発火源消失
-- `LORDSHIP_TRANSFERRED` / `LORDSHIP_USURPED` — LordshipTransitionSystem 廃止 / 反乱で ownerHouse が直接交代する経路の消失により発火源消失
-- `MONUMENT_BUILT` — v0.16 後の整理で記念碑建設機能を廃止（観賞価値の薄さと polityControl 補強として独立した存在意義の乏しさを理由に publicSpendingSystem を土地開発専用に簡素化）
+| LAND_CONTRACT_GRANTED | major | LandContract 新規付与（現状未発火、Faction 段階で配線） |
+| LAND_CONTRACT_TRANSFERRED | major | terminal grantee の差し替え（§13 case A。landContract transfer mutation（landContractMutations.ts）が発火） |
+| LAND_CONTRACT_INSERTED | major | 中間契約の挿入（§13 case B-1、現状未発火） |
+| LAND_CONTRACT_REPLACED | major | 下位契約の差し替え（§13 case B-2、現状未発火） |
+| LAND_CONTRACT_TAX_CHANGED | normal | 上納率の変更（case C、現状未発火） |
+| LAND_CONTRACT_REVOKED | major | 契約解消（現状未発火） |
+| LAND_CONTRACT_PURCHASED | major | 金銭による契約譲渡が成立（補償あり土地購入） |
+| LAND_CONTRACT_CEDED | major | 補償なし土地譲渡 |
+| LAND_CONTRACT_CONQUERED | major | 武力による土地奪取 |
+| PROJECT_STARTED | minor | Project 開始 |
+| PROJECT_COMPLETED | normal | Project 完了 |
+| PROJECT_FAILED | minor | Project 失敗 |
+| PROJECT_CANCELLED | minor | Project 中止 |
+| DIPLOMATIC_PLAY_STARTED | normal | 外交劇開始 |
+| DIPLOMATIC_PLAY_SETTLED | major | 外交劇妥協成立 |
+| DIPLOMATIC_PLAY_FAILED | normal | 外交劇失敗（現状未発火） |
+| DIPLOMATIC_PLAY_ESCALATED | major | 外交劇決裂・戦争化（決裂時は本 event 発火後に warCreationSystem が WAR_DECLARED を出す） |
+| DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT | major | 外交劇が武力衝突で解決（現状未発火。武力解決の経路は DIPLOMATIC_PLAY_ESCALATED → WAR_DECLARED） |
+| DIPLOMATIC_PLAY_PROGRESS | normal | 外交劇進捗（現状未発火（予約）。union 宣言と template のみ存在） |
+| CONTRACT_TAX_REVISED | normal | 税率改定成功（歴史記述用に before→after を `fromRate`/`toRate`（整数%）で記録。`rate`(after) は後方互換のため残置） |
+| CONTRACT_ELIMINATED | major | 契約破棄 |
+| REVOLT_NEGOTIATION_STARTED | normal | 叛乱交渉開始（popular_tax_relief demand を含む） |
+| REVOLT_SETTLED | major | 叛乱交渉成功・税率引下 |
+| REVOLT_SUPPRESSED | major | 叛乱鎮圧。messageKey: suppressed_executed / suppressed_pardoned |
+| REVOLT_POLITY_ESTABLISHED | critical | 叛乱勝利・commonwealth 成立 |
+| REVOLT_ESCALATED | major | 叛乱激化・武力化 |
+| REVOLT_REGIME_CHANGED | critical | rank 5 内部政変・体制転覆 |
+| BAILIFF_APPOINTED | normal | placeholder → 通常人物への Bailiff 交代 |
+| BAILIFF_VACATED | normal | Bailiff が不在化 |
+| BAILIFF_PLACEHOLDER_INSTALLED | minor | terminal Polity 変更時の Bailiff placeholder 設置 |
+| GOAL_CREATED | minor | Goal 生成 |
+| GOAL_SUCCEEDED | normal | Goal 達成 |
+| GOAL_FAILED | normal | Goal 失敗（予約。現状未発火） |
+| GOAL_ABANDONED | minor | Goal 放棄 |
+| GOAL_REVIEWED | minor | Goal レビュー |
+| AIM_CREATED | minor | Aim 生成 |
+| AIM_SUCCEEDED | normal | Aim 達成 |
+| AIM_FAILED | minor | Aim 失敗 |
+| AIM_ABANDONED | minor | Aim 放棄 |
+| HOUSE_POLITY_SHARE_EXPANDED | normal | House の Polity Share 拡大 |
+| HOUSE_POLICY_INFLUENCE | minor | House の政策誘導 |
+| HOUSE_PATRONIZED_ARTIST | normal | 芸術家後援 |
+| HOUSE_COMMISSIONED_CHRONICLE | normal | 年代記編纂 |
+| PERSON_GOAL_CREATED | minor | Person Goal 生成 |
+| PERSON_AIM_CREATED | minor | Person Aim 生成 |
+| PERSON_AIM_SUCCEEDED | normal | Person Aim 達成 |
+| PERSON_AIM_FAILED | minor | Person Aim 失敗 |
+| TASK_COMPLETED | minor | Task 完了 |
+| TASK_FAILED | minor | Task 失敗（現状未発火。Task 失敗は TASK_CANCELLED で表現される） |
+| TASK_CANCELLED | minor | Task キャンセル |
+| PRESSURE_CREATED | minor | 外交的圧力の発生 |
+| PRESSURE_RESOLVED | minor | 外交的圧力の解決 |
+| PRESSURE_CANCELLED | minor | 外交的圧力の撤回 |
+| FACTION_FOUNDED | normal | 派閥の結成（factionLifecycleSystem） |
+| FACTION_DISSOLVED | normal | 派閥の解散（factionLifecycleSystem） |
+| FACTION_LEADER_CHANGED | normal | 派閥指導者の交代（factionLifecycleSystem） |
+| FACTION_LEADER_BANKRUPT | normal | 派閥指導者の破産（factionLifecycleSystem） |
+| PERSON_RECRUITED_TO_FACTION | normal | 派閥への勧誘成立（factionRecruitmentSystem） |
+| FACTION_FUNDS_SHORTAGE | normal | 派閥資金の不足（factionPatronageSystem） |
+| FACTION_MEMBER_ABANDONED | minor | 派閥メンバーの離反（factionDefectionSystem） |
 | POP_HARDSHIP | minor | POP の困窮（将来実装） |
 | POP_PROSPERITY | minor | POP の繁栄（将来実装） |
 | POP_UNREST_RISING | normal | Province unrest 上昇警告（将来実装） |
 | POP_DECLINED | normal | Province 人口大幅低下（将来実装） |
-| ESTATE_SETTLED | minor / normal / major | 死亡時の wealth 分配（v0.14。家長 or wealth≥house*20% で normal、polity leader で major） |
-| ESTATE_DISPUTED | minor | 複数相続人候補による争い（v0.14、記録のみ、ESTATE_SETTLED と並んで発火） |
+| ESTATE_SETTLED | minor / normal / major | 死亡時の wealth 分配（家長 or wealth≥house*20% で normal、polity leader で major） |
+| ESTATE_DISPUTED | minor | 複数相続人候補による争い（記録のみ、ESTATE_SETTLED と並んで発火） |
 
-POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType 宣言のみ。実際の発火ロジックは v1.0 以降に実装する。
+POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType 宣言のみ。実際の発火ロジックは将来実装する。
 
 ---
 

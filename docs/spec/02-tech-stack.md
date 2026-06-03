@@ -1,7 +1,7 @@
 # 2. 技術構成
 
 - **フロントエンド**: React + TypeScript + Vite + Tailwind CSS
-- **地図描画**: SVG Voronoi ベース（d3-delaunay）。v0.20.2 で ReactFlow (`@xyflow/react`) を撤去
+- **地図描画**: SVG Voronoi ベース（d3-delaunay）
 - **状態管理**: Zustand
 - **シミュレーションコア**: 純粋な TypeScript モジュール（React 非依存）
 - **ディレクトリ構造**:
@@ -31,6 +31,8 @@ function tick(input: TickInput): TickResult
 cd prototype
 npm run cli -- --seed <seed> --years <n> [--weeks <n>] [--integrity-per-system] [--json]
 ```
+
+その他に以下のフラグも利用できる（完全な一覧は `--help` を参照）：`--config <json>`（`defaultConfig` のキーを上書き）、`--dump-world`、`--digest`、`--report`、`--report-snapshot`、`--preset`、`--locale`、`--perf`、`--debug`、`--help`。
 
 コーディングエージェントがバグ検出・動作確認に利用することを想定している。
 

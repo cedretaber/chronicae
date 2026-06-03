@@ -1,21 +1,21 @@
 # 14. ゲームバランス観察記録
 
-プロトタイプ段階でのバランス観察結果を記録する。機能追加でバランスが変動するため、各項目にはバージョンと計測条件を付記する。
+プロトタイプ段階でのバランス観察結果を記録する。機能追加でバランスが変動するため、各項目には計測条件を付記する。
 
 なお、CLAUDE.md §4 の方針に従い、機能追加が続く現段階ではバランス調整に時間を割かない。ここに記載するのは「観察された傾向」と「将来の調整方針」であり、即座に config を変更するものではない。
 
 ---
 
-## 14.1 富の流れ（v0.28 時点）
+## 14.1 富の流れ
 
 計測条件: 300年 × 4 seed (1, 42, 123, 999)、standard preset
 
 ### 14.1.1 POP wealth
 
-v0.28 で collection friction を wealth 比例化（`× pop.wealth/100`）し、`localExtractionWealthPenalty` を 4→2 に調整。
+collection friction は wealth 比例（`× pop.wealth/100`）、`localExtractionWealthPenalty` は 2。
 
-- **改善前**: POP wealth が0に収束するデススパイラル。生産が停止し Polity treasury も崩壊
-- **改善後**: POP wealth は 60-70 付近で均衡。生産が安定し Polity treasury は 2000-5000 で推移
+- **比例化前**: POP wealth が0に収束するデススパイラル。生産が停止し Polity treasury も崩壊
+- **現状**: POP wealth は 60-70 付近で均衡。生産が安定し Polity treasury は 2000-5000 で推移
 
 均衡点の理論値: `gain × 100 / (frictionRate × penalty)`。平均的 bailiff (ability 50, profit_seeking) で約52、優秀な bailiff で約80。
 
@@ -44,21 +44,21 @@ House / Person の wealth は際限なく蓄積する傾向がある。根本原
 
 ### 14.1.3 Polity treasury の保留
 
-v0.28 で保留額を固定値(100)から動的(`base 50 + perHolding 50 × holdingCount`)に変更。大国ほど多くの運営資金を確保し、Project 費用・給与原資として機能する。
+保留額は動的（`base 50 + perHolding 50 × holdingCount`）。大国ほど多くの運営資金を確保し、Project 費用・給与原資として機能する。
 
 ### 14.1.4 世界全体の生産力低下
 
-ゲーム進行に伴い世界全体の生産力が低下していく傾向が観測されている。v0.28 の POP wealth 安定化で部分的に緩和されたが、Holding 改善の完了率が低いことと合わせ、経済が縮小再生産に陥る可能性が残る。
+ゲーム進行に伴い世界全体の生産力が低下していく傾向が観測されている。POP wealth 安定化で部分的に緩和されたが、Holding 改善の完了率が低いことと合わせ、経済が縮小再生産に陥る可能性が残る。
 
 ---
 
-## 14.2 Project バランス（v0.28 時点）
+## 14.2 Project バランス
 
 計測条件: 300年 × 4 seed、standard preset
 
 ### 14.2.1 develop_holding の結果分布
 
-| 指標 | v0.28 |
+| 指標 | 値 |
 |------|-------|
 | 完了率 | 17-33% |
 | 予算不足 | 7-16% |
@@ -66,7 +66,7 @@ v0.28 で保留額を固定値(100)から動的(`base 50 + perHolding 50 × hold
 | 監督者不在 | 1-2% |
 | 中止 | 12% |
 
-v0.28 で deadline を targetProgress に比例化（Level 1=48週, Level 2=96週, Level 3=144週）。旧来の一律48週と比べ Level 2/3 の期限切れが改善。
+deadline は targetProgress に比例（Level 1=48週, Level 2=96週, Level 3=144週）。一律48週だった頃と比べ Level 2/3 の期限切れが改善している。
 
 ### 14.2.2 期限切れの構造的原因
 
@@ -82,9 +82,9 @@ Level 1 (target=100) でも期限切れ率が高い主因は **supervisor の ac
 
 - **予算不足**: 予算補充ステージの導入（資金ショート時に「追加予算要求」交渉ステージへ遷移）
 - **期限切れ**: supervisor の workload 管理・priority 調整、または advance_project の actionCost 軽減
-- **成功率全般**: v0.26 時点で89-97%と報告されていたが、v0.28 の deadline 比例化で自然に下がった
+- **成功率全般**: かつて89-97%と報告されていたが、deadline 比例化で自然に下がった
 
-### 14.2.4 sell_land プロジェクトが機能していない（v0.29 時点で確認）
+### 14.2.4 sell_land プロジェクトが機能していない
 
 `sell_land` プロジェクトの買い手候補選定で `purchaseBuyerTreasuryThreshold: 1500` が高すぎるため、treasury がこの閾値を超える Polity がほぼ存在せず、候補が常に 0 になる。結果として sell_land が実質的に発動しない。
 
@@ -92,7 +92,7 @@ Level 1 (target=100) でも期限切れ率が高い主因は **supervisor の ac
 
 ---
 
-## 14.3 外交劇バランス（v0.26 時点）
+## 14.3 外交劇バランス（offer-driven 化前の観察）
 
 計測条件: 100年 × 4 seed
 
@@ -104,16 +104,16 @@ Level 1 (target=100) でも期限切れ率が高い主因は **supervisor の ac
 | 攻撃側勝率 | 49-57%（ほぼ公平） |
 | Polity 数変動 | 100年でほぼ不変（9→9） |
 
-### 課題
+### 課題（当時）
 
 - 領地奪取 aim の発生条件が厳しく、税改定が支配的
 - 交渉決着メカニズムが弱く escalation しやすい
-- 税率変動が5%固定で CONTRACT_ELIMINATED に到達しにくい
+- 当時は税率変動が5%固定で CONTRACT_ELIMINATED に到達しにくかった（現在は delta 10%、§14.5 参照）
 - 結果として Polity 数が膠着し、地図の変化に乏しい
 
-### 14.3.1 和平解決が構造的に困難な問題（v0.29 時点で確認）
+### 14.3.1 和平解決が構造的に困難な問題（offer-driven 化前の診断）
 
-外交劇の和平解決率が極めて低い（v0.26 計測で 8-13%）。これはバランスの問題ではなく、交渉システム自体の設計ギャップに起因する。
+offer-driven 化前は外交劇の和平解決率が極めて低かった（当時の計測で 8-13%）。これはバランスの問題ではなく、交渉システム自体の設計ギャップに起因していた（offer-driven 化後の改善は §14.5 参照）。
 
 **原因: acceptanceScore が構造的に負になる**
 
@@ -129,18 +129,18 @@ Level 1 (target=100) でも期限切れ率が高い主因は **supervisor の ac
 
 これらは戦争・叛乱システムとの兼ね合いもあり、外交劇全体の設計改修として別途検討する。
 
-### 14.3.2 ステークホルダー共通の国同士の衝突（v0.29 時点で確認）
+### 14.3.2 ステークホルダー共通の国同士の衝突
 
-複数の Polity に Share を持つ House が存在するため、ステークホルダーが共通する国同士が外交劇で衝突することがある。v0.29 で delegate の同一人物重複は防止したが、「そもそも利害が一致する国同士が衝突を起こすべきか」という根本的な問題は未解決。外交劇の設計改修で同時に取り扱う。
+複数の Polity に Share を持つ House が存在するため、ステークホルダーが共通する国同士が外交劇で衝突することがある。delegate の同一人物重複は防止済みだが、「そもそも利害が一致する国同士が衝突を起こすべきか」という根本的な問題は未解決。外交劇の設計改修で同時に取り扱う。
 
-### 14.3.3 land_claim が発生しない（v0.29 時点で確認）
+### 14.3.3 land_claim が発生しない
 
 `land_claim` を生む aim が事実上発動しない。原因は2つの aim 条件がいずれも初期状態で満たされないこと:
 
 1. **`consolidate_province_holdings`** — 「同一 province 内に自分と他者の holding が混在」が条件。初期状態では各 province の holding は全て同一 polity が保持しており、混在しない。tax revision の結果は税率変更であって holding 移転ではないため、混在状態は自然には生じない
 2. **`seize_weak_remote_holdings`** — 隣接 province の holding を狙えるが、`ownPower > targetPower × 1.25` の軍事力差が必要。初期の均衡状態では条件を満たす組み合わせが少ない
 
-v0.29 で `consolidate_province_holdings` の走査バグ（隣接 province 経由ではなく自 province の直接走査に修正）は解決したが、条件自体は変えておらず根本問題は残存。
+`consolidate_province_holdings` の走査バグ（隣接 province 経由ではなく自 province の直接走査に修正）は解決済みだが、条件自体は変えておらず根本問題は残存している。
 
 land_claim を自然に発生させるには、「他者の province の holding を直接狙う」aim 条件（例: 隣接 province の holding を claim する）の追加、または holding 所有権が移動するイベント（戦争結果・相続等）による混在状態の自然発生が必要。外交劇の設計改修と合わせて検討する。
 
@@ -156,21 +156,21 @@ land_claim を自然に発生させるには、「他者の province の holding
 
 ---
 
-## 14.5 v0.30 の既知問題
+## 14.5 offer-driven 化後の既知問題
 
 ### 14.5.1 offer-driven 化後のバランスは未検証
 
-v0.30 で外交劇を offer-driven に構造改修したが、バランスの良し悪しは未検証。CLAUDE.md §4 の方針に従い、機能完成後にまとめて調整する。
+外交劇は offer-driven に構造改修済みだが、バランスの良し悪しは未検証。CLAUDE.md §4 の方針に従い、機能完成後にまとめて調整する。
 
-以下の項目は v0.30 で構造的に対応したが、バランスが適切かは別途観察が必要:
-- §14.3.1 の和平解決問題: offer 評価 + counterOffer + compromise で妥協点の探索が可能になった。100yr × 4 seed 計測で和平率 51-80%（v0.26 の 8-13% から大幅改善）
+以下の項目は offer-driven 化で構造的に対応したが、バランスが適切かは別途観察が必要:
+- §14.3.1 の和平解決問題: offer 評価 + counterOffer + compromise で妥協点の探索が可能になった。100yr × 4 seed 計測で和平率 51-80%（offer-driven 化前の 8-13% から大幅改善）
 - §14.3.3 の land_claim 不発: `debugMixedProvinceHoldingsRatio` で検証経路を確保したが、自然発生率の改善は未確認
-- 税率改定 delta が 5% → 10% に拡大
+- 税率改定 delta は 10%（以前は 5%）
 - CONTRACT_ELIMINATED: 300yr × 4 seed で seed あたり 6-8 件発生。`eliminate_overlord_contract` aim から escalation → conflict 勝利の経路で到達。和平経路での elimination は offer 生成が境界値に達しにくいため稀
 
 ---
 
-## 14.6 家制度バランス: 有力家系の不在（v0.33+ で初期調整）
+## 14.6 家制度バランス: 有力家系の不在
 
 ### 14.6.1 問題と診断
 
@@ -180,7 +180,7 @@ v0.30 で外交劇を offer-driven に構造改修したが、バランスの良
 - その固定的な人口を、増え続ける家が分割。**家の生成は 99% が自力設立（`houseFoundingSystem`）**で分家（`houseSplitEvaluationSystem`）はほぼ寄与なし（100年で cadet 0-3 件）。在野人物（`houselessPersonGenerationSystem`、houseless 目標 = holdings × `houselessPersonsPerHolding`）が設立の燃料。
 - 子は父の家に加入・妻は夫の家へ移籍するので家が育つ仕組みはあるが、**繁殖の差別化が無い**ため全家が平均（~2人）に収束。**size-7+ の家は year15 以降ほぼ 0、氏族(clan)は 300年通して 0**（氏族成立は root家＋複数 cadet＋有力家が前提で永遠に未達）。100年で ~300設立/~200絶滅 の高チャーン、定常 ~100家×平均2.1人。
 
-### 14.6.2 v0.33+ の初期調整（栄枯盛衰型・config のみ）
+### 14.6.2 初期調整（栄枯盛衰型・config のみ）
 
 `--config` 実験（100/300yr × 4 seed, snapshot 計測）で確認した事実:
 
@@ -208,26 +208,13 @@ v0.30 で外交劇を offer-driven に構造改修したが、バランスの良
 
 ---
 
-## 14.7 v0.36 Persistent Regiment（forced-harness 観察）
+## 14.7 Persistent Regiment（forced-harness 観察）
 
-計測条件: tick() 直接ハーネス（`measureWarB` パターン）、**強制戦争 config**（escalation 閾値↓ + settlement 閾値↑）で 60年 × 4 seed。素の CLI は戦争希少（v0.35 由来）で損耗ループをほぼ踏まないため、強制戦争で観察した。
+計測条件: tick() 直接ハーネス（`measureWarB` パターン）、**強制戦争 config**（escalation 閾値↓ + settlement 閾値↑）で 60年 × 4 seed。素の CLI は戦争希少で損耗ループをほぼ踏まないため、強制戦争で観察した。
 
-- **損耗ループは健全**: mobilize → organization/strength 損耗 → organization 回復 → demobilize → destroy → Battle cleanup の全行程が稼働。danglingMobilized=0、regiment 総数安定（maxEver==initial）、disbanded=0（§14.6 reassign が土地移転を吸収）。300年 × 4 seed standard は integrity 違反 0。
+- **損耗ループは健全**: mobilize → organization/strength 損耗 → organization 回復 → demobilize → destroy → Battle cleanup の全行程が稼働。danglingMobilized=0、regiment 総数安定（maxEver==initial）、disbanded=0（§6.49 RegimentMaintenanceSystem の reassign が土地移転を吸収）。300年 × 4 seed standard は integrity 違反 0。
 - **destroy 率は戦争密度に比例する（調整保留）**: 強制 config で 60年に 58-123 戦争を詰め込むと active regiment の最大 ~半数が destroyed になった。素の 300年 standard では戦争希少のため decay は小さい。
-- **~~active regiment プールは構造的に非増加~~（v0.36 補充・再編成で解消済）**: かつて destroy 永続・生成は worldgen のみ・§14.6 reassign は数を保つだけ、で「戦争が頻繁になるほど軍事力が床なしで減衰する」構造があった。**v0.36 補充・再編成（§6.50 RegimentReinforcementSystem）でプールは自己修復するようになった**: active は strength を月次 silent 補充し、destroyed は reform 遅延後に再編成される。よって「床なし減衰」はもはや成立しない。
+- **active regiment プールは自己修復する**: destroy 永続・生成は worldgen のみ・§6.49 RegimentMaintenanceSystem の reassign は数を保つだけ、という構造だった頃は「戦争が頻繁になるほど軍事力が床なしで減衰する」問題があった。**補充・再編成（§6.50 RegimentReinforcementSystem）でプールは自己修復する**: active は strength を月次 silent 補充し、destroyed は reform 遅延後に再編成される。よって「床なし減衰」は成立しない。
   - ただし **transient は残る**: reform には ≥`destroyedRegimentReformDelayWeeks`（既定 24週）の平時が要り、開戦 AI は連隊在庫を見ないため、「全滅直後の Polity が攻撃側で開戦」は steady-state では解消するが瞬間的には起こりうる（開戦 AI gate は future。§13）。
 - **補充・再編成の実証（forced harness 60年 × 4seed, A/B 比較）**: 補充 OFF（対照）は旧 decay を再現（maxDestroyed 8-14・active 30→16 等）。**フル ON は maxDestroyed 0-1・active ほぼ初期維持・avgActiveStrength ~98-100**（strength 補充が destroy 到達前に回復させる＝一次機構）。フル ON で reform イベントが 0 件なのは destroy 自体が稀になるためで、バグでも設計限界でもない: 別途 strength 補充だけ OFF にして destroy を蓄積させると reform は 29-148 件発火し（active が再建で回復）、destroyed Regiment は home holding を保持（terminal==owner）したままのことが多く reform は到達可能と確認した（territory 喪失で恒久ブロックされる設計限界ではない）。reform は二次の安全網。
 - 損耗 / 回復 / 補充 / reform の config（damage レンジ・recovery 率・destroy 閾値・補充速度・reform 遅延等）は仮値。avgActiveStrength ~100（戦争がほぼ非攻城的になった）等の balance は CLAUDE.md §4 に従い戦争系機能がひと通り入った段階でまとめて調整する。
-
----
-
-## 改訂履歴
-
-| バージョン | 変更内容 |
-|-----------|---------|
-| v0.28 | 初版作成。POP wealth 安定化、Polity 保留額動的化、Project deadline 比例化の観察結果を記録 |
-| v0.29 | §14.2.4 sell_land 機能不全、§14.3.1 和平解決構造的問題、§14.3.2 ステークホルダー共通衝突、§14.3.3 land_claim 不発を追記 |
-| v0.30 | §14.5 offer-driven 化後のバランス未検証の既知問題を追記 |
-| v0.33+ | §14.6 家制度バランス（有力家系の不在）の診断と初期調整（出生↑＋設立絞り）を追記。observation 基盤に houses/clans snapshot を追加 |
-| v0.36 | §14.7 Persistent Regiment forced-harness 観察を追記（損耗ループ健全・destroy 率は戦争密度比例・active プール非増加で v0.37 reinforcement まで decay は仕様）|
-| v0.36 補充・再編成 | §14.7 を更新。RegimentReinforcementSystem（§6.50）でプールが自己修復するため「床なし減衰」は解消。残る transient（全滅直後の開戦）と開戦 AI gate は future |

@@ -1,8 +1,8 @@
 # 7. Worldgen 初期化
 
-### 7.1 Province terrain / features の生成（v0.33）
+### 7.1 Province terrain / features の生成
 
-worldgen 時に各 Province に `terrain`（5 種・単一）と `features`（3 種・複数可）を生成する（旧 `habitability` 乱数生成は v0.33 で削除）。すべて RNG (`randomFloat`) 経由で決定し `Math.random()` は使わない。terrain / features は Province オブジェクト生成時（`generateProvinces`）に確定し、House seat 選定（§7.4）より前に決定済みであることを保証する。
+worldgen 時に各 Province に `terrain`（5 種・単一）と `features`（3 種・複数可）を生成する。すべて RNG (`randomFloat`) 経由で決定し `Math.random()` は使わない。terrain / features は Province オブジェクト生成時（`generateProvinces`）に確定し、House seat 選定（§7.4）より前に決定済みであることを保証する。
 
 **terrain**（StateRegion 単位の傾向）:
 
@@ -27,18 +27,18 @@ lake:
   terrainDelta: wetlands +0.05 / plains +0.05。
 ```
 
-config キーは §9（`provinceTerrainWeights` / `stateRegionDominantTerrainInheritanceChance` / `provinceFeature*`）。v0.33 で worldgen の draw 順が変わるため、同一 seed でも v0.32 以前とは異なる世界が生成される（プロトタイプとして許容）。同一バージョン・同一 seed の決定性は維持する。
+config キーは §9（`provinceTerrainWeights` / `stateRegionDominantTerrainInheritanceChance` / `provinceFeature*`）。同一 seed に対する worldgen は決定的である。
 
-### 7.2 PopGroup 初期生成（v0.24 更新）
+### 7.2 PopGroup 初期生成
 
 各 **Holding** に peasants / townsmen / nobles の 3 PopGroup を生成する。POP サイズは occupation capacity に基づく。
 
-**size の初期値**（occupation capacity ベース、v0.33 更新）:
+**size の初期値**（occupation capacity ベース）:
 ```ts
 // 各 Holding について、class ごとに occupation capacity を算出。
-// v0.33: state 非依存の pure helper computeHoldingOccupationCapacity を selector と共有し、
-// capacity = (base + improvementDerivedCapacity) * weight * landQuality で算出する
-// （旧 devMod = 1.0 固定計算は廃止）。改善配置（§7.3c）は POP seeding より前段で確定済み。
+// state 非依存の pure helper computeHoldingOccupationCapacity を selector と共有し、
+// capacity = (base + improvementDerivedCapacity) * weight * landQuality で算出する。
+// 改善配置（§7.3c）は POP seeding より前段で確定済み。
 const agriCap  = computeHoldingOccupationCapacity(holding.kind, weight, landQuality, terrain, features, improvements, config, 'agriculture')
 const urbanCap = computeHoldingOccupationCapacity(holding.kind, weight, landQuality, terrain, features, improvements, config, 'urban_labor')
 const eliteCap = computeHoldingOccupationCapacity(holding.kind, weight, landQuality, terrain, features, improvements, config, 'elite_service')
@@ -68,7 +68,7 @@ nobles.unrest    = randomInt(5, 25)
 
 **popIndex の初期化**: 各 POP 生成時に `popIndex.byHolding` を更新する。
 
-### 7.3 WorldPreset と階層構造の生成（v0.16 / v0.20 / v0.20.1 更新）
+### 7.3 WorldPreset と階層構造の生成
 
 **WorldPreset** によりマップサイズと Polity 数を制御する:
 
@@ -79,11 +79,11 @@ nobles.unrest    = randomInt(5, 25)
 | standard | 16 | 14-18 | 224-288 | 4/10/30 | 4 |
 | perfLarge | 25 | 14-18 | 350-450 | 6/16/50 | 3-5 |
 
-各 Polity に 1 つの ownerHouse を割り当てる。**v0.31**: AnonymousHouse は廃止。placeholder Person は `houseId === undefined` として生成される。
+各 Polity に 1 つの ownerHouse を割り当てる。placeholder Person は `houseId === undefined` として生成される。
 
-**StateRegion の生成（v0.20.1）**: 矩形グリッドを廃止し、Poisson disk sampling で State center を配置。各 State に Province を楕円クラスタで配置。Province 間の neighbors は Delaunay 三角形分割 → MST + 確率的 edge 選別で生成。
+**StateRegion の生成**: Poisson disk sampling で State center を配置。各 State に Province を楕円クラスタで配置。Province 間の neighbors は Delaunay 三角形分割 → MST + 確率的 edge 選別で生成。
 
-### 7.3a Province グラフ生成（v0.20.1 新規）
+### 7.3a Province グラフ生成
 
 **MapGenerationConfig** で空間パラメータを制御:
 
@@ -119,7 +119,7 @@ nobles.unrest    = randomInt(5, 25)
 - 全 Province graph は連結
 - 各 Province の degree ≥ 1
 - Province.neighbors は双方向
-- IntegrityCheck (§25 S4) で検証
+- IntegrityCheck (§6.35) で検証
 
 **LandContract chain の生成**: Province ごとに Polity 階層に基づく contract chain を構築した後、各 Holding に独立した chain をコピーする（最初の Holding は元の chain を流用、2 番目以降は新しい contract ID でコピー）。
 
@@ -130,21 +130,22 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
   → County  (taxRateToGrantor = 0.3)   ← terminal grantee
 ```
 
-`INTERMEDIATE_TAX_RATE = 0.3` で固定。root contract の `taxRateToGrantor` は 0 固定。`byHolding` が正規 index (v0.41 / 調査 §4.1 で旧 `byProvince` legacy index は撤去)。worldgen は province ごとの chain を一時 local map で保持し、各 Holding の `byHolding` chain に紐付ける。
+`INTERMEDIATE_TAX_RATE = 0.3` で固定。root contract の `taxRateToGrantor` は 0 固定。`byHolding` が正規 index である。worldgen は province ごとの chain を一時 local map で保持し、各 Holding の `byHolding` chain に紐付ける。
 
-### 7.3b Holding の生成（v0.20 / v0.27 更新）
+### 7.3b Holding の生成
 
 各 Province に `holdingsPerProvinceMin..Max` の Holding を生成する。
 
-- `kind`: 基本は `manor`。`cityProvinceChance` (20%) で最初の city を配置。`secondCityChance` (5%) で 2 つ目の city を許容
+- `kind`: 基本は `manor`。`minHoldingsForCity` (3) 以上の Holding を持つ Province のみ city 配置の抽選対象となり、確率 `cityProvinceChance` (20%) で最後の Holding が `city` になる。1 Province あたり city は最大 1 つ
 - `name`: Province 名 + 連番サフィックス (e.g. "Aldoria-1", "Aldoria-2")
-- `weight`: 1.0 (基本) + manor 0.0〜0.3 / city 0.5〜1.0 の乱数加算
-- `landQuality`: 0.6〜1.4 の乱数（v0.33: terrain とは独立。terrain 傾向は Improvement の terrain multiplier 側で表現し landQuality には混ぜない、§3.1d / §4.2）
-- ~~`development`~~: **v0.27 で削除**。代わりに初期 HoldingImprovement を配置（§7.3c 参照）
+- `weight`: manor = 1.0 (固定、乱数加算なし)、city = 2.0 + randomFloat * 1.0 (= 2.0〜3.0)
+- `landQuality`: 0.6〜1.4 の乱数（terrain とは独立。terrain 傾向は Improvement の terrain multiplier 側で表現し landQuality には混ぜない、§3.1d / §4.2）
 
-### 7.3c 初期 HoldingImprovement の配置（v0.27 / v0.33 更新）
+初期の土地整備度は `development` フィールドではなく初期 HoldingImprovement の配置で表現する（§7.3c 参照）。
 
-完全未整備世界を避けるため、Holding kind に応じて Lv.1 Improvement を一定確率で配置する。v0.33 で候補 kind を新 ImprovementKind に置き換えた。
+### 7.3c 初期 HoldingImprovement の配置
+
+完全未整備世界を避けるため、Holding kind に応じて Lv.1 Improvement を一定確率で配置する。
 
 ```text
 manor:
@@ -161,17 +162,15 @@ city:
   transport_infrastructure    0.25
 ```
 
-**RNG 消費順（決定性）**: 各 holding × 候補 kind について、draw 前に `canBuildHoldingImprovementPure(holding.kind, terrain, features, 0, kind, config)` を判定する。**建設不可なら `randomFloat` を消費せず continue**、通過した kind のみ 1 回 draw して確率判定する。これにより同一バージョン・同一 seed の決定性を保証する。確率値は `generateWorld.ts` 内インライン（バランス調整で変更可）。
+**RNG 消費順（決定性）**: 各 holding × 候補 kind について、draw 前に `canBuildHoldingImprovementPure(holding.kind, terrain, features, 0, kind, config)` を判定する。**建設不可なら `randomFloat` を消費せず continue**、通過した kind のみ 1 回 draw して確率判定する。これにより同一 seed の決定性を保証する。確率値は `generateWorld.ts` 内インライン（バランス調整で変更可）。
 
-v0.33 では worldgen の土地初期化ロジックが変更されるため、同一 seed に対する v0.32 以前との世界互換性は保証しない。v0.33 内では同一 seed に対して決定的な worldgen を維持する。
+### 7.4 seatProvinceId / capitalProvinceId の決定
 
-### 7.4 seatProvinceId / capitalProvinceId の決定（v0.33 更新）
+各 House の本拠地 `seatProvinceId` は、その House が初期保有する Province のうち `provinceTerrainSettlementSuitability`（terrain 由来の居住適性重み、§9）が最も高い Province を選ぶ。同点は ProvinceId 昇順で決定する。seat 選定時点では Holding 未生成のため Holding ベースの指標（landQuality 平均 / weight 合計）は使わない。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
 
-各 House の本拠地 `seatProvinceId` は、その House が初期保有する Province のうち `provinceTerrainSettlementSuitability`（terrain 由来の居住適性重み、§9）が最も高い Province を選ぶ。同点は ProvinceId 昇順で決定する（v0.33: 旧 `habitability` 最大 Province ベースを置換）。seat 選定時点では Holding 未生成のため Holding ベースの指標（landQuality 平均 / weight 合計）は使わない。各 Polity の首都 (`capitalProvinceId`) は ownerHouse の `seatProvinceId`。
+### 7.5 polityControl の初期値
 
-### 7.5 polityControl の初期値（v0.16 / v0.20）
-
-`polityControl` を ControlSystem と同じ距離上限計算で初期化する。**v0.20** では各 Holding の `polityControl` を設定する。
+`polityControl` を ControlSystem と同じ距離上限計算で初期化する。各 Holding の `polityControl` を設定する。
 
 ```
 holding.polityControl = maxControl(capitalProvinceId からの BFS 距離)
@@ -179,19 +178,19 @@ holding.polityControl = maxControl(capitalProvinceId からの BFS 距離)
 
 接続不能な Province の Holding: `polityControl = 30`。
 
-### 7.7 HoldingOffice (Bailiff) の初期化（v0.16 / v0.20）
+### 7.7 HoldingOffice (Bailiff) の初期化
 
 全 **Holding** に `bailiff` HoldingOfficeAssignment を生成し、holder は **placeholder Person** (`houseId === undefined`) とする。BailiffAppointmentSystem (§6.22) が実行されると順次通常人物に置き換わる。
 
-### 7.8a Person Goal / Aim 初期生成（v0.23）
+### 7.8a Person Goal / Aim 初期生成
 
 全 adult normal Person に初期 Person Goal を生成する。Goal 生成後、各 Person に初期 Person Aim と initial Task も生成する。
 
 ```ts
 for each alive adult normal person:
   1. PersonGoalKind をスコアリングで選択
-  2. Goal を生成（progress = baseFulfillment 初期値）
-  3. PersonAimKind をスコアリングで選択（support_organization_aim は除外）
+  2. Goal を生成（progress = 0、targetProgress = 100）
+  3. PersonAimKind をスコアリングで選択（support_organization_aim も通常候補。Person の House に支援可能な active organization aim がある場合のみ選択され得る。無い場合は候補から自動的に外れる）
   4. Aim を生成（activeTaskId 付き）
   5. initial Task を生成
 ```

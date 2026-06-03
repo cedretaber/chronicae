@@ -7,24 +7,24 @@
 | rebellionThreshold | 90 | 反乱発動閾値 |
 | plotThreshold | 65 | 陰謀発動閾値 |
 | rebellionSuccessMode | 'independence' | 反乱成功時の処理 |
-| **AppointmentSystem（v0.12）** | | |
+| **AppointmentSystem** | | |
 | concurrentOfficePenalty | 8 | 兼任 1 役職ごとのスコアペナルティ |
 | minAppointmentScore | 2 | この閾値未満なら任命しない（空席維持） |
-| **Polity Appointment（v0.15 §13.4）** | | |
+| **Polity Appointment** | | |
 | polityShareAppointmentFactor | 0.25 | Polity Share 割合のスコア寄与係数 |
 | houseShareAppointmentFactor | 0.08 | House Share 割合のスコア寄与係数 |
 | ownerHouseAppointmentBonus | 4 | 候補者の家が polity.ownerHouseId と一致する場合の加算 |
 | sameHousePolityOfficePenalty | 2 | 同 House の Polity Office 保有数 1 つにつき減算（Polity Office 独占抑制） |
-| **Rank ベース役職上限（v0.21）** | | |
+| **Rank ベース役職上限** | | |
 | polityOfficeMaxByRank[1] | admin:3 treas:3 mil:5 adv:5 | 帝国: 全役職フル枠 |
 | polityOfficeMaxByRank[2] | admin:2 treas:2 mil:3 adv:3 | 王国: 全役職（枠数制限） |
 | polityOfficeMaxByRank[3] | admin:1 treas:1 mil:1 adv:0 | 公領: advisor 不可 |
 | polityOfficeMaxByRank[4] | admin:1 treas:0 mil:0 adv:0 | 伯領: administrator のみ |
-| polityOfficeMaxByRank[5] | admin:0 treas:0 mil:0 adv:0 | 反乱領: leader のみ |
+| polityOfficeMaxByRank[5] | admin:1 treas:0 mil:0 adv:0 | 反乱領: leader + administrator のみ |
 | polityOfficeMaxProvinceFactor.small | 0.4 | 1 Province 以下の係数 |
 | polityOfficeMaxProvinceFactor.medium | 0.7 | 2-3 Province の係数 |
 | polityOfficeMaxProvinceFactor.large | 1.0 | 4 Province 以上の係数 |
-| samePrimaryPolityMarriageBonus | 0.08 | 同 primary Polity 間婚姻ボーナス（v0.15、旧 0.1 から微減） |
+| samePrimaryPolityMarriageBonus | 0.08 | 同 primary Polity 間婚姻ボーナス |
 | maxRawEvents | 10000 | 全イベント保持上限 |
 | maxChronicleEvents | 1000 | Chronicle イベント保持上限 |
 | **Marriage & Birth** | | |
@@ -34,14 +34,12 @@
 | marriageFemaleMinAge | 15 | 婚姻可能最低年齢（女性） |
 | marriageFemaleMaxAge | 45 | 婚姻可能最高年齢（女性） |
 | marriageYearlyChance | 0.08 | 年間婚姻確率（基本） |
-| samePrimaryPolityMarriageBonus | 0.10 | 同国婚姻の確率ボーナス |
-| differentPolityMarriagePenalty | -0.05 | 異国婚姻の確率ペナルティ |
 | birthEnabled | true | 出生システム有効 |
 | fatherMinChildAge | 15 | 父親になれる最低年齢 |
 | fatherMaxChildAge | 60 | 父親になれる最高年齢 |
 | motherMinChildAge | 15 | 母親になれる最低年齢 |
 | motherMaxChildAge | 45 | 母親になれる最高年齢 |
-| baseBirthChancePerMalePerYear | 0.09 | 男性 1 人あたりの年間出生確率（基本）。v0.33+ で 0.06→0.09（家制度バランス: 家内出生を増やし有力な大家系を出現させる。houseFounding 絞りとセット） |
+| baseBirthChancePerMalePerYear | 0.09 | 男性 1 人あたりの年間出生確率（基本）。家内出生を増やし有力な大家系を出現させるため高め（houseFounding 絞りとセット） |
 | spouseMotherChance | 0.90 | 配偶者が母親になる確率 |
 | maleBirthChance | 0.52 | 男子出生確率（通常） |
 | maleBirthChanceWhenAdultMaleShortage | 0.65 | 男子出生確率（成人男性不足時） |
@@ -66,11 +64,11 @@
 | houseSplitControlMax | 80 | 分裂 Province 割合の上限（%） |
 | houseSplitWealthShare | 0.25 | 分裂時に新 House が受け取る wealth 割合 |
 | houseSplitUnrestGain | 5 | 分裂 Province への POP unrest 増加量（PopMutation 経由） |
-| houseSplitEvaluationIntervalWeeks | 12 | v0.31: HouseSplitEvaluationSystem の実行間隔（週） |
-| houseSplitCooldownWeeks | 48 | v0.31: 分家後の再分裂防止期間（週、1年相当） |
-| houseSplitMinLivingMembers | 5 | v0.31: 評価パスの最小生存メンバー数 |
-| houseSplitMinWealth | 80 | v0.31: 評価パスの最小 wealth |
-| houseSplitMinLegacyPrestige | 30 | v0.31: 評価パスの最小 legacyPrestige |
+| houseSplitEvaluationIntervalWeeks | 12 | HouseSplitEvaluationSystem の実行間隔（週） |
+| houseSplitCooldownWeeks | 48 | 分家後の再分裂防止期間（週、1年相当） |
+| houseSplitMinLivingMembers | 5 | 評価パスの最小生存メンバー数 |
+| houseSplitMinWealth | 80 | 評価パスの最小 wealth |
+| houseSplitMinLegacyPrestige | 30 | 評価パスの最小 legacyPrestige |
 | houseSplitExcludeTopSuccessionRanks | 1 | splitter から除外する継承順位上位人数（跡継ぎの分家を防ぐ。0 で無効）。§6.12 |
 | extinctionUnrestGain | 8 | 家断絶後の継承 Province への POP unrest 増加量 |
 | **War** | | |
@@ -84,12 +82,12 @@
 | warUnrestDamage | 10 | 戦争時の全 POP unrest 上昇量 |
 | warPeasantSizeDamage | 0.5 | 戦争時の peasants size 減少量 |
 | warTownsmanSizeDamage | 0.3 | 戦争時の townsmen size 減少量 |
-| **War（v0.34 War entity / WarScore / PeaceSettlement）** | | |
+| **War（War entity / WarScore / PeaceSettlement）** | | |
 | maxWarDurationWeeks | 520 | timeout 終結（white_peace）の週数。約 10 年（§6.46） |
-| defaultTransferLandWarScore | 12 | transfer goal の requiredWarScore（§6.44。v0.35 balance: 60→12） |
-| defaultChangeContractTaxWarScore | 10 | tax goal の requiredWarScore（§6.44。v0.35 balance: 50→10） |
+| defaultTransferLandWarScore | 12 | transfer goal の requiredWarScore（§6.44） |
+| defaultChangeContractTaxWarScore | 10 | tax goal の requiredWarScore（§6.44） |
 | terminalWarRetentionWeeks | 48 | terminal War 削除までの週数（§6.51） |
-| **War Maneuver（v0.35。§6.45。旧 per-tick drift 5 件と warScoreEventThreshold は撤廃）** | | |
+| **War Maneuver（§6.45）** | | |
 | warAvoidanceBaseChance | 0.65 | 回避成功の基礎確率 |
 | warAvoidanceWarCommandEffect | 0.2 | 総大将 warCommand が回避成否に与える係数 |
 | warAvoidanceTerrainModifierByBattlefield | Record<BattlefieldKind, number> | 戦場別の回避しやすさ補正（open_field −0.1 … mountain_pass/wetland_battle +0.15 … siege −0.2） |
@@ -100,32 +98,32 @@
 | warEngagementCautionEffect | 0.2 | 総大将 caution が回避欲求に与える係数 |
 | warEngagementAmbitionEffect | 0.15 | 総大将 ambition が交戦欲求に与える係数 |
 | warEngagementWarScoreUrgencyEffect | 0.3 | 負けている側ほど交戦を急ぐ urgency 係数 |
-| warBattleRandomness | 0.1 | **v0.37: 未使用（resolveBattle 撤去）**。旧 battle 実効戦力の乱数幅 |
-| warBattleScoreScale | 24 | **v0.37: 未使用**。旧 warScore 振れ幅係数（v0.37 は §6.45 magnitude 式に置換） |
-| maxWarScoreDeltaPerBattle | 12 | 1 戦闘の warScoreDelta clamp 上限（v0.37 も clamp 上限として流用） |
-| battleVictoryThreshold | 1.0 | **v0.37: 未使用**。旧 result ラベル閾値（v0.37 は internal sim の result が決める） |
-| warCommanderWarCommandEffect | 0.25 | **v0.37: 未使用**。旧 commanderModifier 係数（v0.37 は §6.45 battle 内補正に置換） |
-| minWarCommanderModifier | 0.75 | **v0.37: 未使用**。旧 commanderModifier 下限 |
-| maxWarCommanderModifier | 1.25 | **v0.37: 未使用**。旧 commanderModifier 上限 |
-| captainGeneralWarScoreEffect | 0.1 | 勝者総大将 warCommand が warScoreDelta に与える効率係数（v0.37 も §6.45 で維持） |
+| warBattleRandomness | 0.1 | 未使用（resolveBattle 撤去済み）。旧 battle 実効戦力の乱数幅 |
+| warBattleScoreScale | 24 | 未使用。旧 warScore 振れ幅係数（現在は §6.45 magnitude 式で算出） |
+| maxWarScoreDeltaPerBattle | 12 | 1 戦闘の warScoreDelta clamp 上限 |
+| battleVictoryThreshold | 1.0 | 未使用。旧 result ラベル閾値（現在は internal sim の result が決める） |
+| warCommanderWarCommandEffect | 0.25 | 未使用。旧 commanderModifier 係数（現在は §6.45 battle 内補正で算出） |
+| minWarCommanderModifier | 0.75 | 未使用。旧 commanderModifier 下限 |
+| maxWarCommanderModifier | 1.25 | 未使用。旧 commanderModifier 上限 |
+| captainGeneralWarScoreEffect | 0.1 | 勝者総大将 warCommand が warScoreDelta に与える効率係数（§6.45） |
 | warBattlefieldRiverCrossingChance | 0.35 | major_river feature → river_crossing になる確率 |
 | warBattlefieldCoastalBattleChance | 0.25 | coastal feature → coastal_battle になる確率 |
-| **Regiment / Battle 損耗（v0.36 — v0.37 で simulateBattle に置換、未使用化）** | | |
-| regimentOrganizationDamage{Winner/Loser/Inconclusive}Min/Max | — | **v0.37: 未使用**。旧 side 一律 org 損耗レンジ（v0.37 は per-regiment internal tick） |
-| regimentStrengthDamage{Winner/Loser/Inconclusive}Min/Max | — | **v0.37: 未使用**。旧 side 一律 strength 損耗レンジ |
-| regimentOrganizationRecoveryPerWeek | 8 | organization 週次回復の基礎値（v0.37 baseline-aware: baseline 未満時 × (0.5 + morale/100)。provisional） |
-| regimentInitialMorale | 30 | worldgen 初期 morale（v0.37 B1: 80→30、= baselineMorale） |
+| **Regiment / Battle 損耗（simulateBattle に置換され未使用）** | | |
+| regimentOrganizationDamage{Winner/Loser/Inconclusive}Min/Max | — | 未使用。旧 side 一律 org 損耗レンジ（現在は per-regiment internal tick で算出） |
+| regimentStrengthDamage{Winner/Loser/Inconclusive}Min/Max | — | 未使用。旧 side 一律 strength 損耗レンジ |
+| regimentOrganizationRecoveryPerWeek | 8 | organization 週次回復の基礎値（baseline-aware: baseline 未満時 × (0.5 + morale/100)。provisional） |
+| regimentInitialMorale | 30 | worldgen 初期 morale（= baselineMorale） |
 | regimentInitialStrength | 100 | worldgen 初期 strength |
-| regimentInitialOrganization | 50 | worldgen 初期 organization（v0.37 B1: 100→50、= baselineOrganization） |
+| regimentInitialOrganization | 50 | worldgen 初期 organization（= baselineOrganization） |
 | regimentMaxStrength | 100 | strength 上限 |
 | regimentDestroyedStrengthThreshold | 0 | clamp 後 strength がこの値以下で Regiment destroyed |
-| **Regiment baseline / max（v0.37 §3.9b）** | | |
+| **Regiment baseline / max（§3.9b）** | | |
 | regimentBaselineOrganizationDefault / regimentBaselineMoraleDefault | 50 / 30 | 平時に向かう statistics（recovery 収束先） |
 | regimentMaxOrganizationDefault / regimentMaxMoraleDefault | 100 / 100 | org / morale 上限 |
 | regimentMaxOrganizationHardCap / regimentMaxMoraleHardCap | 120 / 100 | integrity 用 hard cap |
 | regimentOrganizationDecayAboveBaselinePerWeek | 1 | org が baseline 超のとき週次減衰 |
 | regimentMoraleRecoveryPerWeek / regimentMoraleDecayAboveBaselinePerWeek | 1 / 0.5 | morale の baseline 未満回復 / 超過減衰 |
-| **Battle internal tick（v0.37 §6.45。仮値、balance 保留）** | | |
+| **Battle internal tick（§6.45。仮値、balance 保留）** | | |
 | battleTickUnit / battleMaxTicks | 'day' / 5 | 内部 tick 単位 / 最大 tick 数 |
 | retreatOrganizationThreshold / routeOrganizationThreshold | 20 / 8 | frontline 離脱 / rout の org 閾値 |
 | minFightingStrengthThreshold | 10 | deployment 候補の最小 strength |
@@ -142,16 +140,16 @@
 | battleStrengthOutcomeQualityMultiplier{Orderly/Rout} | 1.0 / 1.2 | strength damage の outcomeQuality 係数 |
 | battleStrengthPowerDisadvantageModifierMin / Max | 1.0 / 1.3 | 敗者 side の戦力劣勢 strength damage 係数 |
 | battleTerrainOrganizationDamageMultiplierByKind / battleFlankTerrainMultiplierByKind | (地形別 table) | org damage / flank の地形補正 |
-| **指揮官 / 総大将 battle 効果（v0.37 §6.45、C1）** | | |
+| **指揮官 / 総大将 battle 効果（§6.45）** | | |
 | commanderAssignedRegimentEffectMax / commanderAdjacentRegimentEffectRatio | 0.15 / 0.4 | 割当連隊 q 上限 / 隣接連隊への伝播率 |
 | captainGeneralBattleOrganizationDamageEffectMax / captainGeneralRoutResistanceEffectMax | 0.1 / 0.1 | 総大将 side-level の被 damage 軽減 / rout 耐性（benefit 方向のみ） |
-| **warScoreDelta magnitude（v0.37 §6.45、C1）** | | |
+| **warScoreDelta magnitude（§6.45）** | | |
 | battleOrderlyVictoryScoreBase / battleRoutVictoryScoreBase | 6 / 10 | outcomeQuality 別の base magnitude |
 | battleDecisivenessRoutedShareWeight / SpeedWeight | 0.4 / 0.2 | decisiveness の routed share / 早期決着重み |
 | battleDecisivenessMin / Max | 0.7 / 1.4 | decisiveness clamp |
 | battlePreBattleEdgeWeight | 0.2 | 勝者 preBattle edge の反映係数 |
 | battlePreBattleModifierMin / Max | 0.8 / 1.2 | preBattleModifier clamp |
-| **Regiment 補充・再編成（v0.36 — 仮値。CLI harness で balance 調整予定。§6.50）** | | |
+| **Regiment 補充・再編成（仮値。CLI harness で balance 調整予定。§6.50）** | | |
 | regimentReinforcementBasePerMonth | 4.0 | active strength の月次補充基礎値（cadence は tick 登録 interval=4 で固定） |
 | regimentReinforcementPeaceMultiplier | 1.0 | 平時の補充速度係数 |
 | regimentReinforcementWarMultiplier | 0.4 | owner が active War 参加中の補充速度係数 |
@@ -165,7 +163,7 @@
 | destroyedRegimentReformInitialStrength / Organization / Morale | 20 / 20 / 40 | reform 直後の初期値 |
 | destroyedRegimentReformCost | 8 | reform 1 件あたり owner treasury から支払う費用 |
 | destroyedRegimentReformMinPopFactor | 0.25 | reform に必要な popFactor 下限 |
-| **Disaster（v0.20.3 改修: Province 単位・割合ベース・圧力連動）** | | |
+| **Disaster（Province 単位・割合ベース・圧力連動）** | | |
 | disasterEnabled | true | 災害有効 |
 | famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province |
 | plagueBaseChancePerYear | 0.03 | 疫病基礎発生率/年/Province |
@@ -176,8 +174,8 @@
 | famineSizeDamageRate | 0.10 | 飢饉による peasants 人口減少率（10%） |
 | plagueWealthPenalty | 10 | 疫病による全 POP wealth 低下量 |
 | plagueSizeDamageRate | 0.05 | 疫病による全 POP 人口減少率（5%） |
-| disasterReliefCostPerProvince | 20 | 救済費用/Province（v0.20.3 で一旦オミット、将来再導入） |
-| famineReliefDamageMultiplier | 0.3 | 救済成功時の POP 効果軽減係数（v0.20.3 で一旦オミット） |
+| disasterReliefCostPerProvince | 20 | 救済費用/Province（現在は一旦オミット、将来再導入） |
+| famineReliefDamageMultiplier | 0.3 | 救済成功時の POP 効果軽減係数（現在は一旦オミット） |
 | bountifulHarvestPeasantWealthGain | 10 | 豊作による peasants wealth 上昇量 |
 | bountifulHarvestPeasantUnrestReduction | 5 | 豊作による peasants unrest 低下量 |
 | bountifulHarvestTownsmanWealthGain | 2 | 豊作による townsmen wealth 上昇量 |
@@ -185,9 +183,7 @@
 | **Public Spending** | | |
 | publicSpendingEnabled | true | 公共支出有効 |
 | publicSpendingYearlyChance | 0.35 | 公共支出年間発動確率 |
-| **Development（v0.27 更新）** | | |
-| ~~developmentPositiveMonthlyDecay~~ | — | **v0.27 で削除**。DevelopmentSystem 廃止 |
-| ~~developmentNegativeMonthlyRecovery~~ | — | **v0.27 で削除**。DevelopmentSystem 廃止 |
+| **Development** | | |
 | warConqueredProvinceDevastation | 8 | 征服 Province への荒廃 |
 | warBorderProvinceDevastation | 3 | 境界 Province への荒廃（戦争勝利時） |
 | failedWarBorderDevastation | 3 | 境界 Province への荒廃（戦争敗北時） |
@@ -198,13 +194,6 @@
 | famineReliefDevelopmentRecovery | 2 | 飢饉救済による荒廃軽減 |
 | plagueDevastation | 8 | 疫病による荒廃 |
 | bountifulHarvestDevelopmentGain | 3 | 豊作による development 上昇 |
-| ~~polityLandDevelopmentBaseCost~~ | — | **v0.27 で削除**。publicSpendingSystem の development 直接加算廃止 |
-| ~~polityLandDevelopmentGain~~ | — | **v0.27 で削除**。同上 |
-| ~~houseDevelopmentEnabled~~ | — | **v0.22 で削除**。houseDevelopmentSystem 廃止 |
-| ~~houseDevelopmentYearlyChance~~ | — | **v0.22 で削除** |
-| ~~houseLandDevelopmentBaseCost~~ | — | **v0.22 で削除** |
-| ~~houseLandDevelopmentGain~~ | — | **v0.22 で削除** |
-| ~~houseWealthReserve~~ | — | **v0.22 で削除** |
 | **Control System** | | |
 | controlMaxDistancePenalty | 10 | 距離 1 あたりの支配力上限ペナルティ |
 | controlMaxMinimum | 40 | 支配力上限の最低値 |
@@ -214,7 +203,7 @@
 | **Land Development** | | |
 | landDevelopmentHouseControlGain | 5 | 土地開発による houseControl 上昇量 |
 | landDevelopmentUnrestReduction | 1 | 土地開発によるスコア評価に用いる unrest 低下量 |
-| **Person Ability Effects（v0.6）** | | |
+| **Person Ability Effects** | | |
 | personAbilityEffectsEnabled | true | 人物能力効果の有効/無効 |
 | chancellorAdminControlGrowthEffect | 0.25 | 宰相 admin による支配力成長補正係数 |
 | chancellorAdminControlMaxBonusPerAdmin | 1 | 宰相 admin 1 点あたりの支配力上限ボーナス |
@@ -233,8 +222,6 @@
 | maxWarDeclareThreshold | 0.75 | 宣戦閾値の上限 |
 | chancellorAmbitionLandDevelopmentScoreEffect | 10 | 宰相 ambition による landDevelopmentScore 補正係数（低 ambition が正に働く） |
 | chancellorCautionLandDevelopmentScoreEffect | 20 | 宰相 caution による landDevelopmentScore 補正係数 |
-| houseHeadAdminDevelopmentChanceEffect | 0.10 | 家長 admin による開発確率補正係数 |
-| houseHeadCautionDevelopmentChanceEffect | 0.10 | 家長 caution による開発確率補正係数 |
 | **Lordship Transition** | | |
 | lordshipAbsorptionTargetThreshold | 50 | 吸収対象となる houseControl の上限 |
 | lordshipAbsorptionSourceMinimum | 60 | 吸収源となるための最低 houseControl |
@@ -246,7 +233,7 @@
 | **Annexation** | | |
 | annexedPolityControl | 35 | 併合後の Province polityControl |
 | newRulerHouseControl | 35 | 征服国 rulerHouse に割当られた Province の houseControl |
-| **Military（v0.9）** | | |
+| **Military** | | |
 | houseManpowerPowerFactor | 1.0 | House manpower を軍事力へ変換する係数 |
 | houseMilitaryWealthReserve | 100 | 軍事力換算から除外する House wealth 予備 |
 | houseWealthMilitaryFactor | 8.0 | log1p(availableWealth) の軍事力換算係数 |
@@ -256,18 +243,18 @@
 | maxCommanderModifier | 1.25 | 指揮官補正の上限 |
 | polityAdminMilitaryFactor | 0.3 | Polity adminPower の軍事力寄与係数 |
 | minHouseMilitaryContribution | 0.25 | 非支配家門の最低軍事寄与率 |
-| **HouseRebellion（v0.9）** | | |
+| **HouseRebellion** | | |
 | houseRebellionNobleUnrestFactor | 0.15 | nobles unrest の反乱傾向加算係数 |
 | houseRebellionProvinceUnrestFactor | 0.05 | Province 全体 unrest の反乱傾向加算係数 |
 | houseRebellionLowControlFactor | 0.10 | 低 polityControl による反乱傾向加算係数 |
 | rebellionTreasuryPowerDivisor | 50 | 国庫を鎮圧戦力へ換算する除数 |
-| **ProvinceRevolt（v0.9）** | | |
+| **ProvinceRevolt** | | |
 | provinceRevoltThreshold | 90 | Province 反乱発動の傾向閾値 |
 | provinceRevoltChanceDivisor | 300 | 傾向値を月次確率へ変換する除数 |
 | provinceRevoltMaxChance | 0.35 | 月次発生確率の上限 |
-| provinceRevoltUnrestFactor | 1.2 | unrest の傾向加算係数（v0.20.3 で 0.8→1.2 に変更） |
+| provinceRevoltUnrestFactor | 1.2 | unrest の傾向加算係数 |
 | provinceRevoltLowHouseControlFactor | 0.2 | 低 houseControl の傾向加算係数 |
-| provinceRevoltLowPolityControlFactor | 0.2 | 低 polityControl の傾向加算係数 |
+| provinceRevoltLowCountryControlFactor | 0.2 | 低 polityControl の傾向加算係数 |
 | provinceRevoltStabilitySuppressionFactor | 0.2 | stability による傾向抑制係数 |
 | peasantRevoltPovertyFactor | 0.5 | peasants 貧困補正係数 |
 | peasantRevoltPressureFactor | 10 | peasants 人口圧補正係数 |
@@ -277,45 +264,44 @@
 | nobleRevoltLowLegitimacyFactor | 0.2 | nobles 低正統性補正係数 |
 | popRevoltPowerFactorByClass | {peasants:0.02, townsmen:0.015, nobles:0.08} | class 別反乱戦力係数 |
 | provinceRevoltHouseSuppressionFactor | 1.0 | House manpower の鎮圧力換算係数 |
-| provinceRevoltPolitySuppressionFactor | 0.8 | Polity manpower の鎮圧力換算係数 |
+| provinceRevoltCountrySuppressionFactor | 0.8 | Polity manpower の鎮圧力換算係数 |
 | provinceRevoltTreasurySuppressionFactor | 2.0 | log1p(treasury) の鎮圧力換算係数 |
 | provinceRevoltHouseWealthSuppressionFactor | 2.0 | log1p(houseWealth) の鎮圧力換算係数 |
-| provinceRevoltConcessionPolityControlLoss | 10 | 譲歩時の polityControl 低下量 |
+| provinceRevoltConcessionCountryControlLoss | 10 | 譲歩時の polityControl 低下量 |
 | provinceRevoltConcessionHouseControlLoss | 15 | 譲歩時の houseControl 低下量 |
 | provinceRevoltConcessionUnrestReduction | 20 | 譲歩時の反乱 POP unrest 低下量 |
-| provinceRevoltConcessionLegitimacyLoss | 3 | 譲歩時の legitimacy 低下量 |
 | provinceRevoltConcessionHouseWealthLoss | 20 | 譲歩時の House wealth 低下量 |
 | provinceRevoltLordshipChangeSuccessMargin | 0.15 | lordship_change に必要な最低 successMargin |
-| provinceRevoltLordshipChangePolityControlLoss | 10 | 領主交代後の polityControl 低下量 |
+| provinceRevoltLordshipChangeCountryControlLoss | 10 | 領主交代後の polityControl 低下量 |
 | provinceRevoltNewHouseControl | 50 | 新領主の初期 houseControl |
-| provinceRevoltIndependencePolityControlMax | 10 | 独立条件: polityControl の上限 |
+| provinceRevoltIndependenceCountryControlMax | 10 | 独立条件: polityControl の上限 |
 | provinceRevoltIndependenceHouseControlMax | 10 | 独立条件: houseControl の上限 |
 | provinceRevoltIndependenceSuccessMargin | 0.20 | 独立に必要な最低 successMargin |
-| provinceRevoltNewPolityControl | 40 | 独立後の新国家 polityControl |
+| provinceRevoltNewCountryControl | 40 | 独立後の新国家 polityControl |
 | provinceRevoltFailedUnrestReduction | 10 | 反乱失敗時の反乱 POP unrest 低下量 |
 | provinceRevoltFailedDevastation | 4 | 反乱失敗時の Province 荒廃量 |
 | provinceRevoltFailedWealthPenalty | 8 | 反乱失敗時の反乱 POP wealth 低下量 |
 | provinceRevoltSuppressionCollateralUnrestGain | 2 | 鎮圧時の他 class への collateral unrest |
-| revoltHouseInitialLegacyPrestige | 10 | 反乱新設 House の初期 legacyPrestige（v0.11） |
+| revoltHouseInitialLegacyPrestige | 10 | 反乱新設 House の初期 legacyPrestige |
 | revoltHouseInitialWealth | 30 | 反乱新設 House の初期 wealth |
 | revoltPolityInitialTreasury | 50 | 独立新設 Polity の初期 treasury |
-| revoltPolityInitialLegacyPrestige | 20 | 独立新設 Polity の初期 legacyPrestige（v0.11） |
-| **行政キャパシティ（v0.12）** | | |
-| basePolityInstitutionalCapacity | 20 | 国家の基礎的行政キャパシティ |
+| revoltPolityInitialLegacyPrestige | 20 | 独立新設 Polity の初期 legacyPrestige |
+| **行政キャパシティ** | | |
+| baseCountryInstitutionalCapacity | 20 | 国家の基礎的行政キャパシティ |
 | rulerAdminCapacityFactor | 4 | Ruler の admin stat によるキャパシティ寄与係数 |
 | administratorCapacityFactor | 3 | Administrator の admin stat によるキャパシティ寄与係数 |
 | treasurerCapacityFactor | 2 | Treasurer の admin stat によるキャパシティ寄与係数 |
 | adminLoadPerProvince | 2 | Province 1 つあたりの行政負荷 |
-| adminLoadPerPolityOffice | 1 | 役職 1 つあたりの行政負荷 |
+| adminLoadPerCountryOffice | 1 | 役職 1 つあたりの行政負荷 |
 | minAdministrativeEfficiency | 0.3 | 行政効率の下限 |
 | maxAdministrativeEfficiency | 1.5 | 行政効率の上限 |
 | duplicateOfficeCoordinationPenalty | 0.5 | 同役職複数担当者の協調ペナルティ係数 |
 | officeHouseDiversityPenalty | 0.3 | 役職担当者が同一家に集中した場合のペナルティ係数 |
-| **OfficeCompensation（v0.12）** | | |
+| **OfficeCompensation** | | |
 | officeUnpaidAffectionPenalty | -3 | 未払い時の affection ペナルティ |
 | officeUnpaidRespectPenalty | -2 | 未払い時の respect ペナルティ |
 | officeDignityUnpaidPenaltyReduction | 0.5 | 役職の尊厳によるペナルティ軽減係数 |
-| **ShareUpdate（v0.12）** | | |
+| **ShareUpdate** | | |
 | shareYearlyRetentionRate | 0.85 | 既存 Share の年次保持率（EMA 計算用） |
 | polityShareBase | 10 | Polity Share 基礎値 |
 | polityShareProvinceFactor | 5 | Province 数の Share 寄与係数 |
@@ -331,14 +317,13 @@
 | houseShareWealthFactor | 0.05 | Person wealth の Share 寄与係数 |
 | houseShareStatFactor | 1 | Person (admin + martial) の Share 寄与係数 |
 | rulerHouseRebellionSuppression | 30 | 支配家への反乱抑圧ボーナス（Share 計算外） |
-| **POP システム（v0.8 / v0.24 更新）** | | |
+| **POP システム** | | |
 | popSystemEnabled | true | POP システム有効 |
 | minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別、occupation:none 以外） |
-| ~~populationCapacityPerHabitability~~ | — | **v0.24 で削除**。carrying capacity を occupation capacity 合計に変更 |
 | minProvinceCarryingCapacity | 50 | Province の最小 carrying capacity |
 | productivityByClass | {peasants:1.0, townsmen:1.5, nobles:0.6} | POP 生産性係数（class 別） |
 | manpowerFactorByClass | {peasants:0.03, townsmen:0.01, nobles:0.06} | 兵力換算係数（class 別） |
-| baseMonthlyGrowthByClass | {peasants:0.008, townsmen:0.002, nobles:0.001} | 4週基本成長率（class 別、v0.24 で増量） |
+| baseMonthlyGrowthByClass | {peasants:0.008, townsmen:0.002, nobles:0.001} | 4週基本成長率（class 別） |
 | populationPressureThreshold | 0.90 | pressure がこれを超えると wealth/unrest に影響 |
 | populationPressureWealthPenalty | 0.2 | pressure 超過時の wealth 低下係数 |
 | populationPressureUnrestGain | 0.3 | pressure 超過時の unrest 上昇係数 |
@@ -346,14 +331,14 @@
 | povertyUnrestGain | 0.02 | 貧困による unrest 上昇係数 |
 | prosperityWealthThreshold | 70 | 繁栄閾値（これ超過で unrest 低下） |
 | prosperityUnrestReduction | 0.01 | 繁栄による unrest 低下係数 |
-| unrestNaturalDecayRate | 0.005 | unrest 月次自然減衰率（v0.20.3 追加） |
+| unrestNaturalDecayRate | 0.005 | unrest 月次自然減衰率 |
 | retainedWealthGainByClass | {peasants:0.30, townsmen:0.45, nobles:0.25} | 残留富 1 に対する wealth 増加量（class 別） |
 | overExtractionThreshold | 0.95 | 過剰徴収判定の回収率閾値 |
 | overExtractionWealthSafeThreshold | 55 | この wealth 以上ならペナルティ回避 |
 | overExtractionUnrestSafeThreshold | 45 | この unrest 以下ならペナルティ回避 |
 | overExtractionWealthPenalty | 1.0 | 過剰徴収による wealth 低下係数 |
 | overExtractionUnrestGain | 1.5 | 過剰徴収による unrest 上昇係数 |
-| **v0.24 Occupation capacity** | | |
+| **Occupation capacity** | | |
 | occupationCapacityBaseByHoldingKind | manor:{agri:80,urban:8,elite:3}, city:{agri:15,urban:70,elite:5} | Holding 種別ごとの occupation 基礎容量 |
 | occupationProductivityMultiplier | {agri:1.0,urban:1.0,elite:1.0,none:0.1} | occupation 別の生産性倍率 |
 | occupationManpowerMultiplier | {agri:1.0,urban:0.8,elite:1.2,none:0.5} | occupation 別の兵力倍率 |
@@ -363,18 +348,7 @@
 | initialPopFillRatioMin | 70 | 初期 POP 充填率の下限（%） |
 | initialPopFillRatioMax | 95 | 初期 POP 充填率の上限（%） |
 | popSizeEpsilon | 0.01 | none POP がこのサイズ以下で削除 |
-| **POP 自主開発（v0.8 / v0.27 で無効化）** | | |
-| popDevelopmentEnabled | false | POP 自主開発有効（**v0.27 で false に設定**。system も tick から外した） |
-| popDevelopmentMonthlyChance | 0.02 | 月次発動基本確率 |
-| popDevelopmentMaxMonthlyChance | 0.08 | 月次発動確率の上限 |
-| popDevelopmentWealthThreshold | 65 | 発動に必要な最低 avgWealth |
-| popDevelopmentUnrestMax | 35 | 発動を阻害する unrest 上限 |
-| popDevelopmentWealthChanceFactor | 0.001 | wealth による確率上昇係数 |
-| popDevelopmentUnrestPenaltyFactor | 0.0005 | unrest による確率低下係数 |
-| popDevelopmentCost | 3 | 発動時の全 POP wealth 低下量 |
-| popDevelopmentGain | 0.25 | 発動時の development 上昇量 |
-| popDevelopmentMaxDevelopment | 40 | POP 自主開発の development 上限 |
-| **Houseless Person（v0.17、v0.20.3 改修、v0.31 改名）** | | |
+| **Houseless Person** | | |
 | houselessPersonsPerHolding | 0.5 | holdings 数あたりの無家人物 target 比率 |
 | houselessMaleRatio | 0.75 | 無家人物生成時の男性比率 |
 | targetHouselessPersons | 30 | 無家人物の最低 target（holdings ベース計算の下限として使用） |
@@ -383,7 +357,7 @@
 | houselessProtectionYears | 5 | 新参者の削除保護期間 |
 | pruningPrestigeThreshold | 20 | この prestige 以上は削除対象外 |
 | pruningWealthThreshold | 30 | この wealth 以上は削除対象外 |
-| **Attitude システム（v0.11）** | | |
+| **Attitude システム** | | |
 | attitudeMonthlyRetentionRate | 0.995 | 態度の月次保持率（1-rate が減衰率） |
 | initialPolityLegacyPrestigeMin | 20 | Polity 初期 legacyPrestige の下限 |
 | initialPolityLegacyPrestigeMax | 60 | Polity 初期 legacyPrestige の上限 |
@@ -391,30 +365,30 @@
 | initialHouseLegacyPrestigeMax | 80 | House 初期 legacyPrestige の上限 |
 | initialPersonLegacyPrestigeMin | 0 | Person 初期 legacyPrestige の下限 |
 | initialPersonLegacyPrestigeMax | 20 | Person 初期 legacyPrestige の上限 |
-| ownerHouseExtinctionPrestigeLoss | 10 | owner house 断絶時の旧 Polity legacyPrestige 低下量 |
+| rulerHouseExtinctionPrestigeLoss | 10 | owner house 断絶時の旧 Polity legacyPrestige 低下量 |
 | rulerExtinctionAnnexPrestigeWeight | 0.3 | 支配家断絶・併合時の legacyPrestige 継承重み |
-| abilityAptitudeMean | 50 | v0.14: aptitude ガウス生成の平均 |
-| abilityAptitudeStddev | 15 | v0.14: aptitude ガウス生成の標準偏差 |
-| abilityHeritability | 0.5 | v0.14: 両親平均 vs populationMean のブレンド比率 |
-| abilityAptitudeNoiseStddev | 8 | v0.14: 遺伝時のガウスノイズ標準偏差 |
-| abilityInitialNoiseStddev | 3 | v0.14: ability 初期値サンプル時のガウスノイズ標準偏差 |
-| ageCurveLifelongMaxFraction | 0.70 | v0.14: 終生成長曲線の最大到達比率 |
-| ageCurveLifelongAgeConstant | 30 | v0.14: 終生成長曲線の時定数 |
-| ageCurveYouthMaxFraction | 0.75 | v0.14: 若年期ピーク曲線の最大到達比率 |
-| ageCurveYouthPeakAge | 30 | v0.14: 若年期ピーク曲線のピーク年齢 |
-| ageCurveYouthDeclineConstant | 40 | v0.14: 若年期ピーク曲線のピーク後減衰時定数 |
-| ageCurveMidLifeMaxFraction | 0.70 | v0.14: 壮年期ピーク曲線の最大到達比率 |
-| ageCurveMidLifePeakAge | 45 | v0.14: 壮年期ピーク曲線のピーク年齢 |
-| ageCurveMidLifeDeclineConstant | 60 | v0.14: 壮年期ピーク曲線のピーク後減衰時定数 |
-| abilityGrowthChanceBase | 1.0 | v0.14: 成長判定の基礎確率（%、effectiveCeil との比率で減衰） |
-| abilityDeclineChanceBase | 0.10 | v0.14: 衰退判定の基礎確率（%） |
-| abilityActiveDeclineMultiplier | 0.30 | v0.14: 経験あり人物の衰退速度倍率（鈍化） |
-| estateBaseRecoveryRate | 0.5 | v0.14: 家回収率の基礎値（Share=0 のとき） |
-| estateShareEffectStrength | 0.6 | v0.14: 家中 Share による家回収率引き下げ強度 |
-| estateRecoveryRateMin | 0.2 | v0.14: 家回収率の下限 |
-| estateRecoveryRateMax | 0.9 | v0.14: 家回収率の上限 |
-| estateSettledNormalWealthRatio | 0.2 | v0.14: ESTATE_SETTLED の importance を normal に昇格させる wealth/house.wealth 閾値 |
-| **Goal / Aim システム（v0.22）** | | |
+| abilityAptitudeMean | 50 | aptitude ガウス生成の平均 |
+| abilityAptitudeStddev | 15 | aptitude ガウス生成の標準偏差 |
+| abilityHeritability | 0.5 | 両親平均 vs populationMean のブレンド比率 |
+| abilityAptitudeNoiseStddev | 8 | 遺伝時のガウスノイズ標準偏差 |
+| abilityInitialNoiseStddev | 3 | ability 初期値サンプル時のガウスノイズ標準偏差 |
+| ageCurveLifelongMaxFraction | 0.70 | 終生成長曲線の最大到達比率 |
+| ageCurveLifelongAgeConstant | 30 | 終生成長曲線の時定数 |
+| ageCurveYouthMaxFraction | 0.75 | 若年期ピーク曲線の最大到達比率 |
+| ageCurveYouthPeakAge | 30 | 若年期ピーク曲線のピーク年齢 |
+| ageCurveYouthDeclineConstant | 40 | 若年期ピーク曲線のピーク後減衰時定数 |
+| ageCurveMidLifeMaxFraction | 0.70 | 壮年期ピーク曲線の最大到達比率 |
+| ageCurveMidLifePeakAge | 45 | 壮年期ピーク曲線のピーク年齢 |
+| ageCurveMidLifeDeclineConstant | 60 | 壮年期ピーク曲線のピーク後減衰時定数 |
+| abilityGrowthChanceBase | 100 | 成長判定の基礎確率（%、effectiveCeil との比率で減衰） |
+| abilityDeclineChanceBase | 5 | 衰退判定の基礎確率（%） |
+| abilityActiveDeclineMultiplier | 0.30 | 経験あり人物の衰退速度倍率（鈍化） |
+| estateBaseRecoveryRate | 0.5 | 家回収率の基礎値（Share=0 のとき） |
+| estateShareEffectStrength | 0.6 | 家中 Share による家回収率引き下げ強度 |
+| estateRecoveryRateMin | 0.2 | 家回収率の下限 |
+| estateRecoveryRateMax | 0.9 | 家回収率の上限 |
+| estateSettledNormalWealthRatio | 0.2 | ESTATE_SETTLED の importance を normal に昇格させる wealth/house.wealth 閾値 |
+| **Goal / Aim システム** | | |
 | goalReviewIntervalWeeks | 48 | Goal レビュー間隔（週） |
 | goalMinimumDurationWeeks | 144 | Goal 最低維持期間（週、3年相当） |
 | goalSwitchThreshold | 20 | Goal 差し替えに必要な候補スコア差 |
@@ -422,9 +396,6 @@
 | goalProgressOnAimFailed | -10 | Aim 失敗時の Goal progress 変化 |
 | goalProgressOnAimAbandoned | -5 | Aim 放棄時の Goal progress 変化 |
 | aimDefaultDeadlineWeeks | 240 | Aim のデフォルト期限（週、5年相当） |
-| ~~aimIntentCooldownWeeks~~ | — | **v0.26 で廃止**。projectPreparationCooldownWeeks に置換 |
-| ~~developHoldingCost~~ | — | **v0.27 で削除**。ProjectBudget.required に移行 |
-| ~~developHoldingGain~~ | — | **v0.27 で削除**。development は HoldingImprovement level から算出 |
 | expandPolityShareCost | 40 | expand_polity_share の House wealth コスト |
 | expandPolityShareRawPowerGain | 10 | expand_polity_share の OrganizationShare rawPower 増分 |
 | promotePolicyShiftCost | 0 | promote_policy_shift のコスト（cooldown で乱発防止） |
@@ -434,7 +405,7 @@
 | commissionChroniclePrestigeGain | 5 | commission_chronicle の legacyPrestige 上昇量 |
 | policyInfluenceBonusBase | 10 | steer_polity_* Aim の基礎補正量 |
 | policyInfluenceBonusShareFactor | 0.5 | Share 割合ごとの追加補正係数 |
-| **Task / effectivePriority システム（v0.23）** | | |
+| **Task / effectivePriority システム** | | |
 | effectivePriorityOwnerDutyBonus | 20 | 役職義務一致時の ownerDutyBonus |
 | effectivePriorityGoalAlignmentBonus | 10 | Person Goal 一致時の goalAlignmentBonus |
 | effectivePriorityUrgencyMaxBonus | 15 | deadline 超過時の urgencyBonus |
@@ -444,18 +415,18 @@
 | effectivePriorityOfficeDutyBonus | 5 | perform_office_duties の taskKindPriorityBonus |
 | effectivePriorityOverloadThreshold | 3 | overloadPenalty 発動の active Task 数閾値 |
 | effectivePriorityOverloadPenaltyPerTask | 3 | 超過 1 件あたりの overloadPenalty |
-| **DiplomaticPlay Task（v0.23）** | | |
+| **DiplomaticPlay Task** | | |
 | diplomaticPlayStructuralProgressFactor | 0.33 | 構造的進行の弱化係数 |
-| diplomaticPlayMaxActiveTasksPerSide | 1 | 各 side の同時 active Task 数上限 |
-| **Appointment modifier（v0.23）** | | |
+| diplomaticPlayMaxActiveTasksPerSide | 2 | 各 side の同時 active Task 数上限 |
+| **Appointment modifier** | | |
 | appointmentTaskModifierValue | 4 | Aim/ActivityLog ベースの任官補正値 |
 | appointmentTaskModifierDurationWeeks | 16 | ActivityLog 参照期間（週） |
-| **PersonActivityLog（v0.23）** | | |
+| **PersonActivityLog** | | |
 | maxActivityLogsPerPerson | 30 | person ごとの ActivityLog 保持上限 |
-| **Training（v0.23）** | | |
+| **Training** | | |
 | taskTrainingExperienceGain | 2.0 | improve_ability Task 完了時の experience 加算量 |
 | trainingExperienceDecayRate | 0.5 | 年次成長判定後の experience 減衰率 |
-| **代官システム（v0.25）** | | |
+| **代官システム** | | |
 | defaultContractedRemittanceRate | 0.40 | HoldingOfficeAssignment 作成時の送金率デフォルト |
 | defaultExpectedBailiffFeeRate | 0.10 | HoldingOfficeAssignment 作成時の代官取り分率デフォルト |
 | minLocalExtractionRate | 0.10 | 現地徴収率の下限 |
@@ -467,15 +438,13 @@
 | collectionFrictionFactor | 0.50 | 徴税摩擦係数（未徴収分の社会的損耗率） |
 | maxBailiffFeeRate | 0.25 | 代官取り分率の上限 |
 | bailiffTaskCompletedCollectionModifier | 0.05 | Task completed 時の徴税効率ボーナス |
-| bailiffTaskNoneCollectionModifier | 0.00 | Task none 時の徴税効率ペナルティ（v0.25 では 0） |
-| localExtractionWealthPenalty | 2 | collectionFrictionBurdenRate × この値 × (pop.wealth/100) で POP wealth 損耗（v0.28 で wealth 比例化、値 4→2） |
+| bailiffTaskNoneCollectionModifier | 0.00 | Task none 時の徴税効率ペナルティ |
+| localExtractionWealthPenalty | 2 | collectionFrictionBurdenRate × この値 × (pop.wealth/100) で POP wealth 損耗（wealth 比例） |
 | localExtractionUnrestGain | 3 | burdenOverComfort × この値で POP unrest 上昇 |
 | bailiffBurdenAffectionPenaltyFactor | 2 | burdenOverComfort × この値で POP→代官 affection 低下 |
 | bailiffProtectResidentsAffectionBonus | 0.2 | protect_residents 時の POP→代官 affection ボーナス |
 | bailiffTaskCompletedRespectGain | 0.2 | Task completed 時の POP→代官 respect ボーナス |
-| **v0.25 廃止** | | |
-| ~~bailiffRevenueShare~~ | — | **v0.25 で廃止**。代官報酬は bailiffFeeRate に一本化 |
-| **Project システム（v0.26）** | | |
+| **Project システム** | | |
 | projectDefaultTargetProgress | 100 | Project の標準 targetProgress |
 | projectAdvanceProgressSuccess | 25 | advance_project 成功時の progress 加算量 |
 | projectAdvanceProgressPartial | 10 | advance_project 部分成功時の progress 加算量 |
@@ -494,30 +463,26 @@
 | aimProgressGainPowerProject | 33 | Share/Policy 系 Project 完了時の Aim progress 加算量 |
 | aimProgressGainCultureProject | 25 | 文化系 Project 完了時の Aim progress 加算量 |
 | aimProgressCompletionTolerance | 1 | Aim progress が targetProgress に到達する際の許容誤差 |
-| projectBudgetDevelopHolding | 30 | develop_holding 完了時の treasury コスト |
-| projectBudgetExpandPolityShare | 40 | expand_polity_share 完了時の wealth コスト |
-| projectBudgetPatronizeArtist | 25 | patronize_artist 完了時の wealth コスト |
-| projectBudgetCommissionChronicle | 40 | commission_chronicle 完了時の wealth コスト |
 | projectDeadlineWeeksDevelopment | 48 | develop_holding の base deadline（週）。実際の deadline = base × (targetProgress / 100)。Level 1=48, Level 2=96, Level 3=144 |
 | projectDeadlineWeeksDiplomatic | 24 | 外交系 Project のデフォルト deadline（週） |
 | prepareProjectPartialTargetProgressPenalty | 10 | prepare_project 部分成功時の targetProgress ペナルティ |
-| projectPreparationCooldownWeeks | 4 | ProjectPreparationSystem のクールダウン（週） |
-| **Task 成否判定（v0.26.1）** | | |
+| projectCooldownWeeks | 4 | Project 着手のクールダウン（週） |
+| **Task 成否判定** | | |
 | taskOutcomeSuccessMargin | 20 | outcome 判定の success/partial 境界マージン |
-| **HoldingImprovement / ProjectBudget（v0.27 / v0.33 再編）** | | |
-| holdingImprovementDevelopmentScorePerLevel | {field_system:4, pastoral:4, irrigation:6, market:6, workshop:6, storage:7, transport:7} | ImprovementKind ごとの level あたり development 寄与（v0.33: 7 種に置換） |
-| holdingImprovementMaxLevelByKind | field/pastoral/irrigation:{manor:3,city:0}, market/workshop:{manor:0,city:3}, storage/transport:{manor:3,city:3} | `Record<ImprovementKind, Partial<Record<HoldingKind, number>>>`（v0.33: 旧 `...ByHoldingKind` からリネーム＋ネスト反転＋Partial 化）。0/undefined = 建設不可 |
-| developHoldingProjectBaseCostByImprovementKind | {field:30, pastoral:28, irrigation:35, market:35, workshop:32, storage:25, transport:30} | ImprovementKind ごとの基礎コスト（v0.33: 7 種、storage/transport は既存値維持） |
-| developHoldingProjectBaseProgressByImprovementKind | {field:100, pastoral:100, irrigation:110, market:100, workshop:100, storage:80, transport:100} | ImprovementKind ごとの基礎 targetProgress（v0.33: 7 種） |
-| holdingImprovementOccupationCapacityPerLevel | field:{agri:60}, pastoral:{agri:45}, irrigation:{agri:25}, market:{urban:55,elite:5}, workshop:{urban:65}, storage:{}, transport:{} | v0.33: capacity 設備が level あたり生む occupation 枠。`Partial<Record<PopOccupation, number>>` |
-| holdingImprovementTerrainCapacityMultiplier | kind × terrain の乗数（未定義 → 1.0、clamp なし）。例: field={plains:1.3,wetlands:0.7,hills:0.75,forest:0.5,mountains:0.25} | v0.33: terrain 傾向。storage/transport は空 |
-| holdingImprovementFeatureCapacityMultiplier | kind × feature の乗数（積を clamp 0.75–1.50）。例: irrigation={major_river:1.3,lake:1.2}, market={coastal:1.15,major_river:1.15,lake:1.1} | v0.33: feature ボーナス。storage/transport/pastoral は空 |
-| improvementLevelCostMultiplier | {1:1, 2:2, 3:4} | level ごとのコスト倍率（v0.33 でも維持） |
-| improvementLevelProgressMultiplier | {1:1, 2:2, 3:3} | level ごとの targetProgress 倍率（v0.33 でも維持） |
+| **HoldingImprovement / ProjectBudget** | | |
+| holdingImprovementDevelopmentScorePerLevel | {field_system:4, pastoral:4, irrigation:6, market:6, workshop:6, storage:7, transport:7} | ImprovementKind ごとの level あたり development 寄与（7 種） |
+| holdingImprovementMaxLevelByKind | field/pastoral/irrigation:{manor:3,city:0}, market/workshop:{manor:0,city:3}, storage/transport:{manor:3,city:3} | `Record<ImprovementKind, Partial<Record<HoldingKind, number>>>`。0/undefined = 建設不可 |
+| developHoldingProjectBaseCostByImprovementKind | {field:30, pastoral:28, irrigation:35, market:35, workshop:32, storage:25, transport:30} | ImprovementKind ごとの基礎コスト（7 種） |
+| developHoldingProjectBaseProgressByImprovementKind | {field:100, pastoral:100, irrigation:110, market:100, workshop:100, storage:80, transport:100} | ImprovementKind ごとの基礎 targetProgress（7 種） |
+| holdingImprovementOccupationCapacityPerLevel | field:{agri:60}, pastoral:{agri:45}, irrigation:{agri:25}, market:{urban:55,elite:5}, workshop:{urban:65}, storage:{}, transport:{} | capacity 設備が level あたり生む occupation 枠。`Partial<Record<PopOccupation, number>>` |
+| holdingImprovementTerrainCapacityMultiplier | kind × terrain の乗数（未定義 → 1.0、clamp なし）。例: field={plains:1.3,wetlands:0.7,hills:0.75,forest:0.5,mountains:0.25} | terrain 傾向。storage/transport は空 |
+| holdingImprovementFeatureCapacityMultiplier | kind × feature の乗数（積を clamp 0.75–1.50）。例: irrigation={major_river:1.3,lake:1.2}, market={coastal:1.15,major_river:1.15,lake:1.1} | feature ボーナス。storage/transport/pastoral は空 |
+| improvementLevelCostMultiplier | {1:1, 2:2, 3:4} | level ごとのコスト倍率 |
+| improvementLevelProgressMultiplier | {1:1, 2:2, 3:3} | level ごとの targetProgress 倍率 |
 | projectBudgetMarginMultiplier | 2 | 予算見積もり時のマージン倍率 |
 | projectCompletedRespectGain | 5 | Project 完了時の supervisor への respect 上昇量 |
 | developHoldingTargetDevelopmentThreshold | 40 | goalSelectors の develop_holding 候補判定閾値 |
-| **Province terrain / features（v0.33）** | | |
+| **Province terrain / features** | | |
 | provinceTerrainSettlementSuitability | {plains:100, hills:80, forest:65, wetlands:45, mountains:35} | House seat 選定の terrain 居住適性重み（旧 habitability 最大を置換、§7.4） |
 | provinceTerrainWeights | {plains:35, forest:25, hills:20, mountains:10, wetlands:10} | terrain 抽選の重み（worldgen、§7.1） |
 | stateRegionDominantTerrainInheritanceChance | 0.70 | Province が StateRegion の dominantTerrain を継承する確率 |
@@ -527,10 +492,10 @@
 | provinceFeatureMajorRiverTerrainDelta | {plains:0.10, wetlands:0.10, mountains:-0.10} | major_river の terrain 補正（`Partial<Record<ProvinceTerrain, number>>`） |
 | provinceFeatureLakeBaseChance | 0.06 | lake の基礎確率 |
 | provinceFeatureLakeTerrainDelta | {wetlands:0.05, plains:0.05} | lake の terrain 補正 |
-| **ProjectStage / Pressure（v0.29）** | | |
+| **ProjectStage / Pressure** | | |
 | projectStageMaxAttempts | 3 | preparatory stage の failure 連続上限。超過で Project failed |
 | pressureResponseDefaultDeadlineWeeks | 48 | respond_to_pressure Project の DiplomaticPlay 不在時 fallback deadline（1年 = 48週） |
-| **Offer-driven Negotiation（v0.30）** | | |
+| **Offer-driven Negotiation** | | |
 | taxRevisionInitialDemandDelta | 0.10 | 税率改定の初期要求 delta（旧 `taxRevisionTaxChangeAmount` を置換） |
 | taxRevisionReservationDelta | 0.05 | 税率改定の reservation delta |
 | taxRevisionMaxDemandDelta | 0.15 | 税率改定の最大要求 delta |
@@ -542,34 +507,34 @@
 | offerCompromiseProgressDelta | 15 | offer_compromise Task 成功時の progress 増分（旧 progressGainMedium を置換） |
 | negotiateTermsProgressDelta | 8 | negotiate_terms Task 成功時の progress 増分（旧 progressGainMedium を置換） |
 | debugMixedProvinceHoldingsRatio | 0 | worldgen 後に mixed holdings を生成する Province の割合（0 = disabled） |
-| **House Founding（v0.31）** | | |
+| **House Founding** | | |
 | houseFoundingEnabled | true | House 創設システム有効 |
 | houseFoundingIntervalWeeks | 4 | HouseFoundingSystem の実行間隔（週） |
 | houseFoundingMinWealth | 120 | 創設候補の最小 wealth |
 | houseFoundingMinPrestige | 45 | 創設候補の最小 legacyPrestige |
 | houseFoundingMinActivityLogs | 3 | 創設候補の最小 ActivityLog 数 |
-| houseFoundingMonthlyChance | 0.02 | 創設確率（月あたり）。v0.33+ で 0.04→0.02（家制度バランス: 自力設立を絞り極小家の量産を抑制。baseBirthChance 増とセット） |
-| houseFoundingMaxPerMonth | 1 | 月あたりの最大創設数。v0.33+ で 2→1（同上） |
+| houseFoundingMonthlyChance | 0.02 | 創設確率（月あたり）。自力設立を絞り極小家の量産を抑制（baseBirthChance 増とセット） |
+| houseFoundingMaxPerMonth | 1 | 月あたりの最大創設数（同上） |
 | houseFoundingWealthTransferRate | 0.5 | founder → House への wealth 移転率 |
-| **Founder Family Generation（v0.31）** | | |
+| **Founder Family Generation** | | |
 | founderFamilyGenerationEnabled | true | 創設時の家族後付け生成有効 |
 | founderSpouseChanceYoung | 0.2 | 若年 founder の配偶者生成確率 |
 | founderSpouseChanceMid | 0.7 | 中年 founder の配偶者生成確率 |
 | founderSpouseChanceOld | 0.85 | 高齢 founder の配偶者生成確率 |
 | founderChildBaseChance | 0.6 | 子供生成の基礎確率 |
 | founderMaxGeneratedChildren | 4 | 最大生成子供数 |
-| **Influential House（v0.31 / v0.32 拡張）** | | |
+| **Influential House** | | |
 | influentialHousePolityShareThreshold | 0.10 | 有力家門判定の Share 比率閾値 |
-| influentialHouseWealthThreshold | 200 | v0.32: 汎用有力家門判定の wealth 閾値 |
-| influentialHouseLegacyPrestigeThreshold | 60 | v0.32: 汎用有力家門判定の legacyPrestige 閾値 |
-| **Clan Formation（v0.32）** | | |
+| influentialHouseWealthThreshold | 200 | 汎用有力家門判定の wealth 閾値 |
+| influentialHouseLegacyPrestigeThreshold | 60 | 汎用有力家門判定の legacyPrestige 閾値 |
+| **Clan Formation** | | |
 | clanFormationIntervalWeeks | 48 | ClanFormationSystem の実行間隔（週、年 1 回） |
 | clanFormationMinDirectCadetHouses | 3 | Clan 成立に必要な active direct cadet 数 |
 | clanFormationMinInfluentialHouses | 2 | Clan 成立に必要な有力家門数（影響力条件） |
 | clanFormationMinTotalLivingMembers | 30 | 量的条件: formation group の最小生存メンバー数 |
 | clanFormationMinTotalWealth | 500 | 量的条件: formation group の最小 wealth 合計 |
 | clanFormationMinTotalLegacyPrestige | 150 | 量的条件: formation group の最小 legacyPrestige 合計 |
-| **v0.40 LifeStage** | | |
+| **LifeStage** | | |
 | lifeStageTransitionAges | （下記） | 遷移先ごとの `{ minAge, standardAge, maxAge }`。adolescence `{8,11,12}` / young_adulthood `{16,19,20}` / mature_adulthood `{32,36,40}` / old_age `{55,60,65}` |
 | lifeStageTransitionChanceEarly | 0.20 | `minAge <= age < standardAge` 区間の遷移確率 |
 | lifeStageTransitionChanceStandard | 0.50 | `standardAge <= age < maxAge` 区間の遷移確率（`age >= maxAge` は必ず遷移） |
@@ -582,8 +547,231 @@
 | parentalAbilityGrowthChanceBonus | 2.0 | childhood/adolescence で living 親能力が子より高い時、成長 `gainChance` への加算（percentage point） |
 | oldAgeAppointmentScorePenalty | 5 | old_age の appointment / delegate 候補スコアへの固定減算（負スコア対策で乗算でなく減算） |
 | oldAgeCommandScoreMultiplier | 0.8 | old_age の commander / captain general 選定スコアへの乗算（候補除外はしない。0 不可） |
-| **v0.30 廃止** | | |
-| ~~taxRevisionTaxChangeAmount~~ | — | **v0.30 で廃止**。`taxRevisionInitialDemandDelta` に統合 |
+
+| **bootstrap / 共通** | | |
+| uiLocale | en | UI 表示ロケール |
+| nameCultureId | western | 人物名生成の文化 ID |
+| integrityPerSystem | false | system ごとに IntegrityCheck を走らせるデバッグフラグ |
+| minLivingMembersPerHouse | 4 | House が維持すべき最小生存メンバー数 |
+| maxNewPersonsPerHousePerYear | 2 | House あたりの年間新規人物生成上限 |
+| replacementThreshold | 15 | 欠員補充の判定閾値 |
+| allowFemaleHouseHeadWhenNoMaleHeir | true | 男性後継者不在時に女性当主を許可 |
+| allowFemaleRolesWhenNoMaleCandidate | true | 男性候補不在時に女性の役職就任を許可 |
+| occupationWeights | {adventurer:1.5,merchant:1.5,scholar:1,mercenary:1.5,scribe:1,priest:1,physician:0.8,jurist:0.7,wanderer:1} | 在野人物 background occupation の抽選重み |
+| **Succession weights** | | |
+| prestigeSuccessionWeight | 1 | 継承スコア: legacyPrestige の重み |
+| adminSuccessionWeight | 2 | 継承スコア: admin の重み |
+| martialSuccessionWeight | 1 | 継承スコア: martial の重み |
+| ambitionSuccessionWeight | 10 | 継承スコア: ambition の重み |
+| randomSuccessionNoiseMax | 10 | 継承スコアに加えるランダムノイズの最大値 |
+| illegitimateSuccessionPenalty | 20 | 庶出への継承スコアペナルティ |
+| unknownBirthStatusSuccessionPenalty | 10 | 出自不明への継承スコアペナルティ |
+| **House Split / Extinction（補遺）** | | |
+| houseSplitControlMultiplier | 0.7 | 分裂時の houseControl 乗数 |
+| houseExtinctionEnabled | true | 家断絶システム有効 |
+| inheritedProvinceHouseControl | 35 | 断絶継承された Province の初期 houseControl |
+| rulerHouseExtinctionEnabled | true | 支配家断絶処理の有効/無効 |
+| annexByRulerExtinctionCountryControl | 30 | 支配家断絶併合後の Province polityControl |
+| rulerExtinctionAnnexSharedBorderWeight | 20 | 支配家断絶併合先選定: 共有国境の重み |
+| rulerExtinctionAnnexPowerWeight | 0.5 | 支配家断絶併合先選定: 軍事力の重み |
+| **DiplomaticPlay 基盤 / Task** | | |
+| diplomaticPlaySettlementThreshold | 60 | DiplomaticPlay 解決閾値（tension） |
+| diplomaticPlayEscalationThreshold | 40 | DiplomaticPlay エスカレーション閾値（tension） |
+| diplomaticPlayBaseTensionGain | 5 | DiplomaticPlay 基礎 tension 増加量 |
+| diplomaticPlayStructuralPowerWeight | 0.7 | 構造的パワーの重み |
+| diplomaticPlayAdvantageWeight | 0.3 | 優勢度の重み |
+| diplomaticPlayDelegateSkillImpactMax | 10 | delegate スキルが進行に与える最大影響 |
+| diplomaticPlayRandomnessMax | 5 | DiplomaticPlay Task の noise 上限 |
+| diplomaticPlayTaskLeverageGainSmall | 8 | Task: leverage 小幅増分 |
+| diplomaticPlayTaskLeverageGainMedium | 15 | Task: leverage 中幅増分 |
+| diplomaticPlayTaskCommitmentGainMedium | 15 | Task: commitment 中幅増分 |
+| diplomaticPlayTaskProgressGainMedium | 10 | Task: progress 中幅増分 |
+| diplomaticPlayTaskTensionGainMedium | 10 | Task: tension 中幅増加 |
+| diplomaticPlayTaskTensionReductionSmall | 5 | Task: tension 小幅低減 |
+| diplomaticPlayTaskOpponentPressureGainMedium | 12 | Task: 相手 pressure 中幅増加 |
+| diplomaticPlayTaskOpponentLeverageReductionSmall | 8 | Task: 相手 leverage 小幅低減 |
+| diplomaticPlayTaskUndermineFailTensionGain | 12 | undermine 失敗時の tension 増加 |
+| **Revolt negotiation / settlement** | | |
+| revoltNegotiationDurationWeeks | 48 | revolt_negotiation の交渉期間（週） |
+| revoltAcceptRebelPowerFactor | 0.1 | 反乱側 power の受諾判定係数 |
+| revoltAcceptSuppressionFactor | 0.05 | 鎮圧力の受諾判定係数 |
+| revoltConcessionSeverityMinor | 10 | 小規模譲歩の severity |
+| revoltConcessionSeverityMajor | 25 | 大規模譲歩の severity |
+| revoltNegotiationEnvFactor | 0.08 | revolt_negotiation 環境補正係数 |
+| revoltNegotiationSettlementPrepWeight | 0.15 | settlement: preparation の重み |
+| revoltNegotiationSettlementLeverageWeight | 0.1 | settlement: leverage の重み |
+| revoltNegotiationEscalationCommitmentWeight | 0.15 | escalation: commitment の重み |
+| revoltSettlementMainUnrestReduction | 30 | 和解: 主導 Province の unrest 低下量 |
+| revoltSettlementOtherUnrestReduction | 8 | 和解: その他 Province の unrest 低下量 |
+| revoltSettlementTreasuryCostMinor | 50 | 小規模和解の treasury コスト |
+| revoltSettlementTreasuryCostMajor | 150 | 大規模和解の treasury コスト |
+| revoltSuppressedMainUnrestReduction | 35 | 鎮圧: 主導 Province の unrest 低下量 |
+| revoltSuppressedOtherUnrestReduction | 10 | 鎮圧: その他 Province の unrest 低下量 |
+| revoltSuppressedDevelopmentDamage | 4 | 鎮圧: Province 荒廃量 |
+| revoltSuppressedWealthPenalty | 8 | 鎮圧: 反乱 POP wealth 低下量 |
+| **popular_tax_relief / Holding 反乱傾向** | | |
+| minPopularDemandTaxRate | 0.05 | popular_tax_relief 要求発生の最小税率 |
+| popularTaxReliefDemandDelta | 0.1 | popular_tax_relief の要求 delta |
+| taxReliefSeverityFactor | 200 | popular_tax_relief の severity 係数 |
+| popularTaxReliefTermsProtectionWeeks | 192 | 減税合意後の再要求保護期間（週） |
+| taxBurdenWeight | 80 | 徴税負担の反乱傾向加算重み |
+| recentTaxIncreaseWeight | 30 | 直近増税の反乱傾向加算重み |
+| recentTaxIncreaseDecayWeeks | 96 | 直近増税傾向の減衰期間（週） |
+| recentSuppressionCooldownWeeks | 96 | 直近鎮圧の傾向抑制期間（週） |
+| recentSuppressionTendencyReduction | 40 | 直近鎮圧による反乱傾向低減量 |
+| **TaxRevisionSystem** | | |
+| taxRevisionSystemEnabled | true | TaxRevisionSystem 有効 |
+| taxRevisionTreasuryThreshold | 300 | 改定判断: treasury 不足閾値 |
+| taxRevisionTreasuryNeedFactor | 0.05 | 改定判断: treasury 需要係数 |
+| taxRevisionLowUnrestFactor | 0.5 | 改定判断: 低 unrest 係数 |
+| taxRevisionUnrestSafeThreshold | 30 | 改定判断: 安全 unrest 閾値 |
+| taxRevisionHighUnrestPenalty | 0.8 | 改定判断: 高 unrest ペナルティ |
+| taxRevisionUnrestDangerThreshold | 50 | 改定判断: 危険 unrest 閾値 |
+| taxRevisionHighTaxThreshold | 0.35 | 改定判断: 高税率閾値 |
+| taxRevisionHighTaxPenalty | 1 | 改定判断: 高税率ペナルティ |
+| taxRevisionAmbitionFactor | 15 | 改定判断: ambition 係数 |
+| taxRevisionCautionPenalty | -20 | 改定判断: caution ペナルティ |
+| taxRevisionInsightPenalty | -10 | 改定判断: insight ペナルティ |
+| taxRevisionWarBonus | 10 | 改定判断: 戦時ボーナス |
+| taxRevisionDecisionThreshold | 15 | 改定発動の決定閾値 |
+| taxRevisionMinDelta | 0.02 | 改定の最小 delta |
+| taxRevisionMaxDelta | 0.05 | 改定の最大 delta（system 自律改定） |
+| taxRevisionSystemMaxRate | 0.6 | system 自律改定の上限税率 |
+| taxRevisionCooldownWeeks | 96 | 改定クールダウン（週） |
+| taxRevisionRecentRevoltPenalty | 30 | 直近反乱による改定抑制ペナルティ |
+| taxRevisionRecentRevoltDecayWeeks | 96 | 直近反乱抑制の減衰期間（週） |
+| **contract_tax_revision Intent** | | |
+| taxRevisionIntentEnabled | true | contract_tax_revision Intent 有効 |
+| taxRevisionMinRateForReduction | 0.15 | 減税要求の最小現行税率 |
+| taxRevisionMaxRateForIncrease | 0.6 | 増税要求の最大現行税率 |
+| taxRevisionMinTreasury | 200 | contract_tax_revision の最小 treasury |
+| taxRevisionMaxIntentsPerActor | 2 | actor あたりの最大同時 Intent 数 |
+| taxRevisionNegotiationDurationWeeks | 48 | contract_tax_revision の交渉期間（週） |
+| taxRevisionMinRate | 0.05 | 改定後税率の下限 |
+| taxRevisionMaxRate | 0.8 | 改定後税率の上限 |
+| taxRevisionPressureFactor | 0.08 | 受諾判定: pressure 係数 |
+| taxRevisionResistFactor | 0.1 | 受諾判定: resist 係数 |
+| taxRevisionProvinceValueFactor | 0.15 | 受諾判定: Province 価値係数 |
+| taxRevisionRateImbalanceFactor | 50 | 受諾判定: 税率不均衡係数 |
+| taxRevisionInitialProgressOnAdvantage | 10 | 優勢時の初期 progress |
+| taxRevisionInitialTensionOnPressure | 10 | 圧力時の初期 tension |
+| taxRevisionGracePeriodYears | 5 | 改定後の再改定猶予年数 |
+| **land_claim / acquire_land Intent** | | |
+| claimOfferedPriceFactor | 0.05 | land_claim 受諾: 提示価格係数 |
+| claimInitiatorPressureFactor | 0.1 | land_claim 受諾: initiator power 係数 |
+| claimDefenderResistFactor | 0.12 | land_claim 受諾: defender power 抵抗係数 |
+| claimProvinceValueFactor | 0.3 | land_claim 受諾: Province 価値係数 |
+| claimStrategicLossFactor | 0.2 | land_claim 受諾: 戦略的損失係数 |
+| claimPrestigeLossFactor | 0.2 | land_claim 受諾: prestige 損失係数 |
+| landClaimNegotiationDurationWeeks | 72 | land_claim の交渉期間（週） |
+| landClaimInitialProgressOnConsent | 20 | 購入条件成立時の初期 progress |
+| landClaimInitialTensionOnPressure | 15 | 圧力 Intent 時の初期 tension |
+| acquireLandIntentEnabled | true | acquire_land Intent 有効 |
+| acquireLandMinTreasury | 200 | acquire_land の最小 treasury |
+| acquireLandMaxIntentsPerActor | 1 | actor あたりの最大同時 acquire_land Intent 数 |
+| **汎用 conflict** | | |
+| conflictResolutionEnabled | true | 汎用 conflict 解決有効 |
+| maxConflictsResolvedPerTick | 5 | 1 tick あたりの conflict 解決上限 |
+| conflictLoserTreasuryDamageFactor | 0.4 | 敗者 treasury 損失係数 |
+| conflictProvinceDevastation | 4 | conflict による Province 荒廃量 |
+| conflictPopWealthDamage | 4 | conflict による POP wealth 低下量 |
+| conflictPopUnrestGain | 12 | conflict による POP unrest 上昇量 |
+| defaultPopularRevoltWarScore | 10 | popular_revolt goal の requiredWarScore |
+| **Local Levy / Battlefield frontage** | | |
+| localLevyPeasantFactor | 0.3 | 現地徴兵: peasants 係数 |
+| localLevyTownsmenFactor | 0.5 | 現地徴兵: townsmen 係数 |
+| localLevyNobleFactor | 1 | 現地徴兵: nobles 係数 |
+| localLevyMinStrength | 10 | 現地徴兵 Regiment の最小 strength |
+| localLevyMaxStrength | 60 | 現地徴兵 Regiment の最大 strength |
+| localLevyBasePowerFactor | 0.3 | 現地徴兵の basePower 係数 |
+| localLevyOrganization | 30 | 現地徴兵 Regiment の初期 organization |
+| localLevyMorale | 30 | 現地徴兵 Regiment の初期 morale |
+| battlefieldFrontageByKind | {open_field:5,coastal_battle:4,hill_battle:3,forest_battle:2,wetland_battle:2,river_crossing:2,mountain_pass:1,siege:1} | BattlefieldKind ごとの frontage（同時交戦できる連隊数） |
+| **weeklyActionCapacity** | | |
+| weeklyActionCapacityBase | 2 | 週次行動キャパシティの基礎値 |
+| weeklyActionCapacityAmbitionBonus | 0.5 | 高 ambition のキャパシティ加算 |
+| weeklyActionCapacityAgeReduction | 0.5 | 高齢のキャパシティ減算 |
+| weeklyActionCapacityAmbitionThreshold | 0.7 | ambition ボーナス発動閾値 |
+| weeklyActionCapacityAgeThreshold | 60 | 年齢ペナルティ発動閾値 |
+| **Task action economy** | | |
+| taskActionCostLight | 0.5 | light Task の action コスト |
+| taskActionCostNormal | 1 | normal Task の action コスト |
+| taskActionCostHeavy | 1 | heavy Task の action コスト |
+| taskEffortRequiredLight | 2 | light Task の所要 effort |
+| taskEffortRequiredNormal | 3 | normal Task の所要 effort |
+| taskEffortRequiredHeavy | 4 | heavy Task の所要 effort |
+| **Person Goal / Aim cadence** | | |
+| personGoalReviewIntervalWeeks | 48 | Person Goal レビュー間隔（週） |
+| personAimReviewIntervalWeeks | 4 | Person Aim レビュー間隔（週） |
+| personAimDeadlineObtainOffice | 96 | obtain_office Aim の期限（週） |
+| personAimDeadlineRetainOffice | 48 | retain_office Aim の期限（週） |
+| personAimDeadlineDefault | 96 | Aim のデフォルト期限（週） |
+| wealthAccumulationThreshold | 50 | wealth 蓄積 Aim の判定閾値 |
+| goalProgressOnPersonAimSucceeded | 15 | Person Aim 成功時の Goal progress 増分 |
+| goalProgressOnPersonAimFailed | -5 | Person Aim 失敗時の Goal progress 変化 |
+| **Faction lifecycle / patronage** | | |
+| factionFormationThreshold | 5 | Faction 結成の viability 閾値 |
+| factionFounderShareRank | 3 | founder に必要な Share ランク |
+| factionDisbandThreshold | 1.5 | Faction 解散の viability 閾値 |
+| factionDisbandWealthFloor | 10 | 解散判定の wealth 下限 |
+| minimumFactionFounderWealth | 50 | founder の最小 wealth |
+| initialFactionMemberMax | 3 | 結成時の初期メンバー上限 |
+| minimumInitialFactionMembers | 1 | 結成に必要な初期メンバー数 |
+| minimumFactionMembers | 2 | Faction 維持に必要な最小メンバー数 |
+| factionViabilityMemberCountWeight | 0.5 | viability: メンバー数の重み |
+| factionViabilityOfficeHolderWeight | 1 | viability: 役職保有者の重み |
+| factionViabilityWealthWeight | 0.5 | viability: wealth の重み |
+| officeOpportunityRoleWeights | {administrator:1,treasurer:1,military:1,advisor:0.75} | OfficeRole ごとの opportunity score 重み |
+| baseFactionRecruitmentCost | 30 | 勧誘の基礎コスト |
+| factionRecruitmentPrestigeCostFactor | 0.5 | 勧誘コスト: prestige 係数 |
+| factionRecruitmentAbilityCostFactor | 1 | 勧誘コスト: 能力係数 |
+| factionRecruitmentSigningBonusRate | 0.3 | 勧誘時の signing bonus 率 |
+| recruitmentInitialAffection | 20 | 勧誘成立時の初期 affection |
+| recruitmentInitialRespect | 10 | 勧誘成立時の初期 respect |
+| factionNominationPowerThreshold | 0.3 | 推挙に必要な power 閾値 |
+| factionOwnerHouseNominationBonus | 0.3 | 支配家メンバー推挙ボーナス |
+| factionBailiffNominationWeight | 0.4 | bailiff 推挙の重み |
+| factionalAppointmentScoreScale | 100 | 派閥的任命スコアのスケール |
+| factionDonationRate | 0.1 | メンバー → Faction の寄付率 |
+| factionDonationPersonalReserve | 20 | 寄付時に手元へ残す reserve |
+| factionDonationAffectionGain | 2 | 寄付による affection 上昇 |
+| factionDonationRespectGain | 1 | 寄付による respect 上昇 |
+| factionDonationAffectionGainSmall | 1 | 小額寄付による affection 上昇 |
+| factionStipendBase | 5 | メンバーへの stipend 基礎額 |
+| factionLeaderReserveWealth | 30 | leader が stipend 支給時に残す reserve |
+| factionStipendAffectionGain | 1 | stipend 支給による affection 上昇 |
+| factionStipendRespectGain | 1 | stipend 支給による respect 上昇 |
+| factionStipendShortageAffectionPenalty | 2 | stipend 不足時の affection ペナルティ |
+| factionStipendShortageRespectPenalty | 1 | stipend 不足時の respect ペナルティ |
+| factionDefectionGraceYears | 8 | idle メンバー離脱の猶予年数 |
+| factionDefectionProbPerYear | 0.07 | idle メンバーの年次離脱確率 |
+| factionDefectionAttitudeAffectionPenalty | 2 | 離脱時の affection ペナルティ |
+| factionDefectionAttitudeRespectPenalty | 1 | 離脱時の respect ペナルティ |
+| **House surplus / Office terms / 兼任互換** | | |
+| houseWealthReserveTarget | 100 | House 余剰分配の reserve 目標 |
+| houseSurplusDistributionMonthlyRate | 0.015 | House 余剰の月次分配率 |
+| officeTermYears | {polity:{administrator:4,treasurer:4,military:3,advisor:3},house:{administrator:4,treasurer:4,military:3,advisor:3}} | Polity / House 役職の任期（OfficeRole 別、年） |
+| provinceOfficeTermYears | {bailiff:3} | Province 役職（bailiff）の任期（年） |
+| compatibleOfficePenalty | 2 | 互換役職兼任のペナルティ |
+| incompatibleOfficePenalty | 10 | 非互換役職兼任のペナルティ |
+| compatibleShareReductionMax | 0.5 | 互換役職兼任時の Share ペナルティ軽減上限 |
+| polityShareOfficeOverlapBonusMax | 0.5 | Polity 役職重複時の Share ボーナス上限 |
+| pruningMinDwellYears | 3 | pruning 対象外となる最小在籍年数 |
+| protectionPrestigeThreshold | 60 | pruning 保護となる prestige 閾値 |
+| **LandContract / Bailiff economy** | | |
+| politySurplusDistributionRate | 0.15 | 余剰分配率（OfficeCompensation 控除後） |
+| polityTreasuryReserveBase | 50 | Polity treasury リザーブ基礎値 |
+| polityTreasuryReservePerHolding | 50 | Holding あたりのリザーブ加算 |
+| bailiffAppointmentInterval | 6 | BailiffAppointment 起動間隔（ScheduledSystem 月数） |
+| bailiffMinAge | 16 | bailiff 候補の最小年齢 |
+| rebelLeaderAgeRange | [20,50] | 反乱 leader の年齢範囲 [min, max] |
+| institutionalPowerFloorByRank | {1:0,2:0,3:10,4:20,5:15} | rank 別 institutionalPower 下限（rank ≥ 4 が消滅しない） |
+| taxFlowEfficiency | 1 | chain 上納（LandRevenue）の徴税効率倍率 |
+| purchaseBuyerTreasuryThreshold | 1500 | 買い手 Polity の購入提案 treasury 閾値 |
+| purchaseSellerTreasuryThreshold | 800 | 売り手 Polity の売却受諾 treasury 閾値 |
+| purchasePriceBase | 500 | 1 Province の購入価格基礎値 |
+| purchasePriceDevelopmentFactor | 30 | 購入価格の development 係数 |
+| purchaseAttemptChance | 0.1 | 買い手 Polity の年次購入試行確率 |
 
 ---
 

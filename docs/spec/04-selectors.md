@@ -1,41 +1,42 @@
 # 4. セレクター
 
-### 4.1 Development セレクター（v0.27 更新）
+### 4.1 Development セレクター
 
 ```ts
-// v0.27: HoldingImprovement から development を算出
+// HoldingImprovement から development を算出
 // development = sum(improvement.level * scorePerLevel[improvement.kind])
 function getHoldingDevelopment(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
 
-// v0.27: development modifier（v0.33: production 側でのみ使用。occupation capacity からは除外）
+// development modifier（production 側でのみ使用。occupation capacity からは除外）
 // modifier = clamp(1.0 + development / 150, 0.75, 1.75)
 // development 0 → 1.0（ペナルティなし）、development 62 → 1.41（最大）
 function getHoldingDevelopmentModifier(state: WorldState, config: SimulationConfig, holdingId: HoldingId): number
 
-// v0.27: Holding の Improvement level を取得（存在しなければ 0）
+// Holding の Improvement level を取得（存在しなければ 0）
 function getHoldingImprovementLevel(state: WorldState, holdingId: HoldingId, kind: HoldingImprovementKind): number
 
-// v0.20: Province の development は Holding の weight 加重平均（v0.27: getHoldingDevelopment 経由で算出）
-function getProvinceDevelopmentFromHoldings(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
+// Province の development は Holding の weight 加重平均（getHoldingDevelopment 経由で算出）
+// config を省略すると 0 を返す。selector は landContractSelectors.ts に存在する
+function getProvinceDevelopmentFromHoldings(state: WorldState, provinceId: ProvinceId, config?: SimulationConfig): number
 
-// v0.33: state 非依存の純粋 capacity helper（selector / worldgen seeding が共有し計算ズレを防ぐ）
+// state 非依存の純粋 capacity helper（selector / worldgen seeding が共有し計算ズレを防ぐ）
 // capacity = (base + improvementDerivedCapacity) * weight * landQuality（devMod 不使用）
 function computeHoldingOccupationCapacity(holdingKind, weight, landQuality, terrain, features, improvements, config, occupation): number
 
-// v0.33: state 非依存の建設可否判定（selector / worldgen 初期生成が共有）
+// state 非依存の建設可否判定（selector / worldgen 初期生成が共有）
 function canBuildHoldingImprovementPure(holdingKind, terrain, features, currentLevel, kind, config): boolean
 
-// v0.33: state を取る薄いラッパ。currentLevel は既存 improvement から導出
+// state を取る薄いラッパ。currentLevel は既存 improvement から導出
 function canBuildHoldingImprovement(state: WorldState, config: SimulationConfig, holdingId: HoldingId, kind: HoldingImprovementKind): boolean
 ```
 
-**v0.27 変更**: `Holding.development` 保存値を廃止。development は HoldingImprovement の level から selector で算出する。旧 `getProvinceDevelopmentMultiplier` は `getHoldingDevelopmentModifier` に置換。
+`Holding.development` 保存値は持たない。development は HoldingImprovement の level から selector で算出する。production path は `getProvinceDevelopmentMultiplier` ではなく `getHoldingDevelopmentModifier` を使う。
 
-**v0.33 変更**: development と occupation capacity を分離した（§4.2）。`getHoldingDevelopmentModifier` は production 側でのみ使い、capacity からは外した（二重計上の回避）。pure helper（`computeHoldingOccupationCapacity` / `canBuildHoldingImprovementPure`）は `selectors/holdingImprovementSelectors.ts` に置き、selector・worldgen・taskSystem・integrity から共有する。
+development と occupation capacity は分離されている（§4.2）。`getHoldingDevelopmentModifier` は production 側でのみ使い、capacity からは外した（二重計上の回避）。pure helper（`computeHoldingOccupationCapacity` / `canBuildHoldingImprovementPure`）は `selectors/holdingImprovementSelectors.ts` に置き、selector・worldgen・taskSystem・integrity から共有する。
 
-`getEffectiveProvinceTax` / `getEffectiveProvinceManpower` は v0.8 で廃止。代わりに POP Economy セレクターを使用する。
+`getEffectiveProvinceTax` / `getEffectiveProvinceManpower` は存在しない。代わりに POP Economy セレクターを使用する。
 
-### 4.2 POP セレクター（v0.24 更新）
+### 4.2 POP セレクター
 
 #### Holding POP セレクター
 
@@ -55,7 +56,7 @@ function getHoldingPopSizeByClassAndOccupation(state: WorldState, holdingId: Hol
 #### Occupation capacity セレクター
 
 ```ts
-// Holding の職業キャパシティ（v0.33: computeHoldingOccupationCapacity へ委譲）
+// Holding の職業キャパシティ（computeHoldingOccupationCapacity へ委譲）
 //   = (base + improvementDerivedCapacity) * weight * landQuality
 //   improvementDerivedCapacity = Σ level * capacityPerLevel[kind][occupation] * terrainMult * featureMult
 //   terrainMult = terrainCapacityMultiplier[kind]?.[terrain] ?? 1.0（clamp なし）
@@ -92,8 +93,7 @@ function getProvinceAveragePopWealth(state: WorldState, provinceId: ProvinceId):
 // POP unrest の人口加重平均
 function getProvinceUnrest(state: WorldState, provinceId: ProvinceId): number
 
-// v0.24: carrying capacity = Province 内全 Holding の全職業キャパシティ合計
-// 旧来の habitability × populationCapacityPerHabitability ベースの算出は廃止
+// carrying capacity = Province 内全 Holding の全職業キャパシティ合計
 function getProvinceCarryingCapacity(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
 // population pressure: clamp(population / carryingCapacity, 0, 2)
@@ -106,10 +106,10 @@ function getPopUnrestByClass(state: WorldState, provinceId: ProvinceId, popClass
 function getPopWealthByClass(state: WorldState, provinceId: ProvinceId, popClass: PopClass): number
 ```
 
-### 4.3 POP Economy セレクター（v0.24 更新）
+### 4.3 POP Economy セレクター
 
 ```ts
-// POP 1件の生産量（v0.24: occupation multiplier 追加、Holding 単位 dev/control）
+// POP 1件の生産量（occupation multiplier、Holding 単位 dev/control）
 // pop.size * productivityByClass[pop.class] * occupationProductivityMultiplier[pop.occupation]
 //   * (pop.wealth / 100) * holdingDevelopmentModifier * holdingControlModifier
 function getPopProduction(state: WorldState, config: SimulationConfig, popId: PopGroupId): number
@@ -120,11 +120,11 @@ function getProvinceProduction(state: WorldState, config: SimulationConfig, prov
 // Province の税基盤: getProvinceProduction * (polityControl / 100)
 function getProvinceTaxBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// Polity 用の Province 兵力基盤（v0.24: occupation manpower multiplier 追加）
+// Polity 用の Province 兵力基盤（occupation manpower multiplier 含む）
 // sum(pop.size * manpowerFactorByClass[pop.class] * occupationManpowerMultiplier[pop.occupation] * (polityControl / 100))
 function getProvinceCountryManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
-// House 用の Province 兵力基盤 (v0.16): polityManpowerBase と同等 (houseControl は廃止)
+// House 用の Province 兵力基盤: polityManpowerBase と同等 (houseControl は持たない)
 function getProvinceHouseManpowerBase(state: WorldState, config: SimulationConfig, provinceId: ProvinceId): number
 
 // 後方互換 wrapper: getProvinceCountryManpowerBase を呼ぶ
@@ -145,22 +145,24 @@ function calcHouseMilitaryPower(state: WorldState, config: SimulationConfig, hou
 function calcPolityMilitaryPower(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 ```
 
-**v0.35 War Maneuver セレクター（`warManeuverSelectors.ts`。§6.45 で使用）**:
+**War Maneuver セレクター（`warManeuverSelectors.ts`。§6.45 で使用）**:
 
 ```ts
 isEligibleWarPerson(state, personId): boolean              // 総大将になりうる person（生存・条件）
-selectCaptainGeneralForWarSide(state, polityId): PersonId?  // warCommand スコア順に総大将を選出
-isEligibleBattleCommander(state, personId): boolean         // 戦闘指揮官候補の条件
-buildWarSideCommanderCandidates(state, polityId, captainGeneralId?): PersonId[]
+selectCaptainGeneralForWarSide(state, polityId, config?): PersonId?  // warCommand スコア順に総大将を選出
+isEligibleBattleCommander(state, polityId, personId, captainGeneralId): boolean  // 適格人物 + active military office holder。leader は captainGeneral 兼任時のみ候補
+buildWarSideCommanderCandidates(state, polityId, captainGeneralId, config?): PersonId[]
 getWarGoalProvince(state, war): ProvinceId?                 // battle 対象 Province の解決
-generateCandidateBattlefield(province, rng, config): BattlefieldKind  // terrain/features → 戦場
+generateCandidateBattlefield(province, rng, config): RngResult<BattlefieldKind>  // terrain/features → 戦場。rng を 0-2 回 draw して進める
+getWarSidePrimaryPolityActor(war, sideKey): OrganizationRef?  // war side の主 Polity actor
+buildBattleSimCommanderInputs(state, commanderPersonIds): BattleSimCommanderInput[]  // commander PersonId[] を fieldCommandScore/breakthroughScore へ変換する battle sim seam
 ```
 
-戦力は v0.34 と同じ `getActorMilitaryPower`（actorSelectors）を用い、指揮官補正は WarManeuverSystem 内の `commanderModifier` / `captainGeneralEfficiency`（`getRoleScore(person, 'warCommand')`）で乗算する。
+戦力は `getActorMilitaryPower`（actorSelectors）を用い、指揮官補正は WarManeuverSystem 内の `commanderModifier` / `captainGeneralEfficiency`（`getRoleScore(person, 'warCommand')`）で乗算する。
 
-### 4.5 Status セレクター（v0.11 / v0.15）
+### 4.5 Status セレクター
 
-v0.11 で legitimacy / stability / prestige / cohesion / loyaltyToPolity が格納フィールドから動的計算セレクターに移行した。v0.15 で Country → Polity rename。
+legitimacy / stability / prestige / cohesion / loyaltyToPolity は格納フィールドではなく動的計算セレクターで算出する。
 
 ```ts
 // Polity 正統性: 0.35*personScore + 0.45*popScore + 0.2*legacyPrestige
@@ -189,7 +191,12 @@ function getHousePrestige(state: WorldState, houseId: HouseId): number
 function getPersonPrestige(state: WorldState, personId: PersonId): number
 
 // Polity 行政力: 毎年 GovernanceSystem がキャッシュ
-//   0.30*adminEffectiveStat*10 + 0.20*treasurerEffectiveStat*10 + 0.20*stability + 0.20*rulerPrestige + 0.10*treasuryScore
+//   clamp100((rulerContrib + adminContrib + treasurerContrib) * adminEfficiency * 0.5
+//            + stability * 0.2 + legacyPrestige * 0.15 + treasuryScore * 0.15)
+//   rulerContrib     = getEffectiveOfficeStat(leader)      * rulerAdminCapacityFactor
+//   adminContrib     = getEffectiveOfficeStat(administrator)* administratorCapacityFactor
+//   treasurerContrib = getEffectiveOfficeStat(treasurer)   * treasurerCapacityFactor
+//   adminEfficiency  = getAdministrativeEfficiency(...)
 //   各 stat は getEffectiveOfficeStat（役職担当者の能力・人数・協調ペナルティを考慮）
 function getPolityAdminPower(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 ```
@@ -198,7 +205,7 @@ function getPolityAdminPower(state: WorldState, config: SimulationConfig, polity
 - affection / respect の値 (-100..100) → score (0..100)
 - 0 → 50、正 → 50+、負 → 50- の線形変換
 
-### 4.6 Office / Share セレクター（v0.12 / v0.15）
+### 4.6 Office / Share セレクター
 
 ```ts
 // 指定組織・役職のアクティブ担当者 ID 一覧
@@ -235,7 +242,7 @@ function getAdministrativeLoad(state: WorldState, config: SimulationConfig, poli
 function getAdministrativeEfficiency(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 ```
 
-### 4.6b Polity 関係 selector（v0.15）
+### 4.6b Polity 関係 selector
 
 House / Person が Polity に所属しない設計（§3.3 参照）のため、関係取得は `prototype/src/sim/selectors/polityRelations.ts` の selector に集約する。
 
@@ -280,7 +287,7 @@ function getHouseSeatProvinceInPolity(
 //   2) そうでなければ Polity 内の所有 Province から development 最大を選ぶ
 ```
 
-### 4.6c LandContract / HoldingOffice selector（v0.16 / v0.20）
+### 4.6c LandContract / HoldingOffice selector
 
 `prototype/src/sim/selectors/landContractSelectors.ts` および `provinceOfficeSelectors.ts` に集約。
 
@@ -288,18 +295,17 @@ function getHouseSeatProvinceInPolity(
 // LandContract chain — Province ベース (legacy)
 function getProvinceLandContractChain(state, provinceId): LandContract[]  // root → terminal
 function getProvinceRootContract(state, provinceId): LandContract | undefined
-function getProvinceTerminalContract(state, provinceId): LandContract | undefined
+function getProvinceDominantTerminalContract(state, provinceId): LandContract | undefined
 function getProvinceTerminalPolityId(state, provinceId): PolityId | undefined
-function getProvinceOverlordPolityIds(state, provinceId): PolityId[]
 function getProvinceEffectiveOwnerHouseId(state, provinceId): HouseId | undefined
 
-// LandContract chain — Holding ベース (v0.20 正規)
+// LandContract chain — Holding ベース (正規)
 function getHoldingLandContractChain(state, holdingId): LandContract[]  // root → terminal
 function getHoldingTerminalPolityId(state, holdingId): PolityId | undefined
 
-// Holding selector (v0.20)
+// Holding selector
 function getProvinceHoldings(state, provinceId): Holding[]
-function getProvinceDevelopmentFromHoldings(state, provinceId): number     // weight 加重平均
+function getProvinceDevelopmentFromHoldings(state, provinceId, config?): number  // weight 加重平均（config 省略時 0）
 function getProvincePolityControlFromHoldings(state, provinceId): number   // weight 加重平均
 function getProvinceTerminalPolityBreakdown(state, provinceId): Array<{ polityId; holdingCount; weight }>
 function getProvinceDominantTerminalPolityId(state, provinceId): PolityId | undefined
@@ -321,13 +327,12 @@ function getGrantorRank(state, grantor): number   // root は 0
 
 // placeholder Person 判定
 function isPlaceholderPerson(state, personId): boolean
-// v0.31 で削除: getAnonymousHouseId(), isSystemHouse()
 
-// HoldingOffice / Bailiff (v0.20: Province → Holding に移行)
+// HoldingOffice / Bailiff (Holding 単位)
 function getHoldingBailiffPerson(state, holdingId): Person | undefined
 ```
 
-### 4.7 Ability / 派生 selector（v0.14）
+### 4.7 Ability / 派生 selector
 
 `prototype/src/sim/selectors/abilitySelectors.ts` に集約。
 
@@ -371,9 +376,9 @@ warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
 ```
 
 * 既存システム（successionSelectors / personAbilityEffects / militarySelectors / officeSelectors / publicSpendingSystem / plotSystem 等）は `getRoleScore(state, p.id, role) / 10` で正規化して旧 admin/martial（0..10）相当のスケールに揃える
-* 通常範囲は 0..10、限界突破帯（v0.15 以降の機構）では最大 12
+* 通常範囲は 0..10、限界突破帯では最大 12
 
-### 4.8 Task / Goal セレクター（v0.23）
+### 4.8 Task / Goal セレクター
 
 ```ts
 // Person Goal の currentFulfillment（baseFulfillment + 現在状況 modifier、0..100）
@@ -392,7 +397,7 @@ function getAppointmentTaskModifier(
 function computeEffectivePriority(state: WorldState, config: SimulationConfig, task: Task): number
 ```
 
-### 4.9 Project / Task outcome selector（v0.26 / v0.26.1）
+### 4.9 Project / Task outcome selector
 
 `prototype/src/sim/selectors/taskSelectors.ts` および `prototype/src/sim/selectors/projectSelectors.ts` に集約。
 
@@ -404,7 +409,7 @@ function getTaskDefaultRelevantAbility(kind: TaskKind): AbilityKey
 // ProjectKind → relevantAbility マッピング（prepare_project / advance_project 用）
 const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey>
 
-// Task 完了時の outcome 判定（v0.26.1）
+// Task 完了時の outcome 判定
 // effectiveScore = abilityScore + roll*100 vs threshold = difficulty*2
 function determineTaskOutcome(
   state: WorldState, config: SimulationConfig, task: Task, rng: RngState,
@@ -421,7 +426,7 @@ function selectProjectCreator(state: WorldState, config: SimulationConfig, aim: 
 function selectProjectSupervisor(state: WorldState, config: SimulationConfig, projectDraft: ProjectDraft, creatorPersonId: PersonId): PersonId | undefined
 ```
 
-### 4.9b 代官 selector（v0.25）
+### 4.9b 代官 selector
 
 `prototype/src/sim/selectors/bailiffSelectors.ts` に集約。
 
@@ -461,7 +466,7 @@ function computeBailiffBurdenComponents(
 function getRecentBailiffRevenueTaskStatus(state: WorldState, assignmentId: HoldingOfficeAssignmentId): BailiffRevenueTaskStatus
 ```
 
-### 4.10 House / Person 可用性セレクター（v0.31）
+### 4.10 House / Person 可用性セレクター
 
 ```ts
 // 支配者家門: 1 つ以上の active Polity の ownerHouseId になっている active normal House
@@ -483,7 +488,7 @@ function isInfluentialHouseInAnyPolity(
   houseId: HouseId,
 ): boolean
 
-// 有力家門 (汎用判定、v0.32): 以下のいずれかを満たす
+// 有力家門 (汎用判定): 以下のいずれかを満たす
 //   isRulingHouse || isInfluentialHouseInAnyPolity || wealth >= threshold || legacyPrestige >= threshold
 function isInfluentialHouse(
   state: WorldState,
@@ -524,7 +529,7 @@ function isRecruitableOutsiderPerson(
 function isLandlessHouseMember(state: WorldState, personId: PersonId): boolean
 ```
 
-### 4.10b Clan セレクター（v0.32）
+### 4.10b Clan セレクター
 
 `prototype/src/sim/selectors/clanSelectors.ts` に集約。
 
@@ -567,7 +572,7 @@ function getDescendantHouseIdsIncludingSelf(state: WorldState, rootHouseId: Hous
 
 ---
 
-### 4.11 Chronicle セレクター（v0.38）
+### 4.11 Chronicle セレクター
 
 `prototype/src/sim/selectors/chronicleSelectors.ts` に集約。**表示専用**であり simulation system からは使用しない（§3.14）。いずれも entry を時系列降順（新しい順）に並べて返す。`noUncheckedIndexedAccess` 下なので id 配列を `?? []` で受け、解決できない id を filter で除外する。
 
