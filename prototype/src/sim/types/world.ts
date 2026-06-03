@@ -161,6 +161,15 @@ export type WorldState = {
   nextPopGroupId: number
   // v0.32
   nextClanId: number
+  // 調査 §4.5: person/house/polity の next index を永続化 (毎 tick の O(n) スキャン廃止)。
+  // person は worldgen と runtime で `pe-` を共有、house/polity は worldgen `h-`/`c-` と
+  // runtime `dh-`/`dp-` で別名前空間 (worldgen 直後はそれぞれ 0)。
+  // optional: production (worldgen) は必ずセットし createTickContext は永続値を読む (perf)。
+  // 未設定の WorldState (テスト fixture 等) は createTickContext が従来の scan に fallback する
+  // ため挙動は完全に保たれる。
+  nextPersonIndex?: number
+  nextHouseIndex?: number
+  nextPolityIndex?: number
 }
 
 export type SimulationSession = {

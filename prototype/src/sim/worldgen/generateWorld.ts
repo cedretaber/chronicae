@@ -66,6 +66,7 @@ import {
 } from './nameGenerators'
 import { defaultConfig } from '../config/defaultConfig'
 import { generateInitialRegiments } from './generateInitialRegiments'
+import { computeInitialIdIndices } from '../tick/context'
 import { defaultMapConfig } from './mapConfig'
 import { clamp } from '../utils/math'
 import { polityAttitudeKey, houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
@@ -1766,6 +1767,15 @@ export function generateWorld(
     popGroupsRecord[popGroupId] = { ...pop, attitudes: attitudes }
   }
 
+  // 調査 §4.5: next index を永続化。worldgen 完了時点の persons/houses/polities を
+  // computeInitialIdIndices で走査し初期値を確定 (= 旧 createTickContext が初回 tick で
+  // 算出していた値と完全一致させる)。
+  const initialIdIndices = computeInitialIdIndices({
+    persons: personsRecord,
+    houses: housesRecord,
+    polities: politiesRecord,
+  })
+
   const world: WorldState = {
     currentYear: 1,
     currentWeekOfYear: 1,
@@ -1859,6 +1869,10 @@ export function generateWorld(
     // v0.32 Clan
     clans: {},
     nextClanId: 1,
+    // 調査 §4.5: 永続化した next index (上で算出)
+    nextPersonIndex: initialIdIndices.nextPersonIndex,
+    nextHouseIndex: initialIdIndices.nextHouseIndex,
+    nextPolityIndex: initialIdIndices.nextPolityIndex,
   }
 
   // v0.22: Seed initial Goal + Aim for all active Polities and Houses

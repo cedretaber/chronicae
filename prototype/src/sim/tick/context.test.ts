@@ -215,7 +215,14 @@ describe('toResult', () => {
 
     const result = toResult(ctx)
 
-    expect(result.state).toBe(state)
+    // 調査 §4.5: toResult は永続化した next index を書き戻すため state は新オブジェクトになる。
+    // 内容は元 state と等価 + counter フィールドが付与されていることを確認する。
+    expect(result.state).toEqual({
+      ...state,
+      nextPersonIndex: ctx.nextPersonIndex,
+      nextHouseIndex: ctx.nextHouseIndex,
+      nextPolityIndex: ctx.nextPolityIndex,
+    })
     expect(result.rng).toBe(rng)
     expect(Array.isArray(result.events)).toBe(true)
     expect(result.events).toHaveLength(0)

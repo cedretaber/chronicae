@@ -45,24 +45,50 @@ export type TickContext = {
   readonly deathRolesThisTick: Readonly<Record<string, DeathRoleInfo>>
 }
 
-export function createTickContext(input: TickInput): TickContext {
+// 調査 §4.5: person/house/polity の next index は WorldState に永続化する (毎 tick の O(n) スキャン
+// 廃止)。worldgen 初期化専用にスキャン版を残す。person は runtime/worldgen とも `pe-` prefix を共有
+// するため最大 index+1、house/polity は worldgen が `h-`/`c-` を使い runtime が `dh-`/`dp-` を生成する
+// (別名前空間) ため、`dh-`/`dp-` のみを対象にすると worldgen 直後は -1+1=0 になる。
+// .sort() は max 計算に不要なので省く (結果は同一)。
+export function computeInitialIdIndices(state: {
+  persons: WorldState['persons']
+  houses: WorldState['houses']
+  polities: WorldState['polities']
+}): { nextPersonIndex: number; nextHouseIndex: number; nextPolityIndex: number } {
   let maxPersonIndex = -1
-  for (const personId of Object.keys(input.state.persons)) {
+  for (const personId of Object.keys(state.persons)) {
     const n = parseInt(personId.slice(3), 10)
     if (!isNaN(n) && n > maxPersonIndex) maxPersonIndex = n
   }
   let maxHouseIndex = -1
-  for (const houseId of Object.keys(input.state.houses).sort()) {
+  for (const houseId of Object.keys(state.houses)) {
     if (!houseId.startsWith('dh-')) continue
     const n = parseInt(houseId.slice(3), 10)
     if (!isNaN(n) && n > maxHouseIndex) maxHouseIndex = n
   }
   let maxPolityIndex = -1
-  for (const polityId of Object.keys(input.state.polities).sort()) {
+  for (const polityId of Object.keys(state.polities)) {
     if (!polityId.startsWith('dp-')) continue
     const n = parseInt(polityId.slice(3), 10)
     if (!isNaN(n) && n > maxPolityIndex) maxPolityIndex = n
   }
+  return {
+    nextPersonIndex: maxPersonIndex + 1,
+    nextHouseIndex: maxHouseIndex + 1,
+    nextPolityIndex: maxPolityIndex + 1,
+  }
+}
+
+export function createTickContext(input: TickInput): TickContext {
+  // 永続値が無い WorldState (テスト fixture 等) は従来の scan に fallback (挙動保存)。
+  // production (worldgen) は 3 値とも常にセットするため scan は走らない (perf)。
+  const s = input.state
+  const fallback =
+    s.nextPersonIndex === undefined ||
+    s.nextHouseIndex === undefined ||
+    s.nextPolityIndex === undefined
+      ? computeInitialIdIndices(s)
+      : undefined
   return {
     state: input.state,
     rng: input.rng,
@@ -70,17 +96,24 @@ export function createTickContext(input: TickInput): TickContext {
     namePoolService: input.namePoolService,
     events: [],
     nextEventIndex: 0,
-    nextPersonIndex: maxPersonIndex + 1,
-    nextHouseIndex: maxHouseIndex + 1,
-    nextPolityIndex: maxPolityIndex + 1,
+    nextPersonIndex: s.nextPersonIndex ?? fallback!.nextPersonIndex,
+    nextHouseIndex: s.nextHouseIndex ?? fallback!.nextHouseIndex,
+    nextPolityIndex: s.nextPolityIndex ?? fallback!.nextPolityIndex,
     deathsThisTick: [],
     deathRolesThisTick: {},
   } as TickContext
 }
 
 export function toResult(ctx: TickContext): TickResult {
+  // 調査 §4.5: tick 中に makePersonId/makeHouseId/makePolityId が進めた ctx 側カウンタを
+  // WorldState へ書き戻す (次 tick の createTickContext が読む正本)。
   return {
-    state: ctx.state,
+    state: {
+      ...ctx.state,
+      nextPersonIndex: ctx.nextPersonIndex,
+      nextHouseIndex: ctx.nextHouseIndex,
+      nextPolityIndex: ctx.nextPolityIndex,
+    },
     rng: ctx.rng,
     events: [...ctx.events],
   }
