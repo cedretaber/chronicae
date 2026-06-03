@@ -3,6 +3,7 @@ import type { SimEvent } from '../types/event'
 import { getFirstEntityId, getEntityIdsByKind } from '../types/event'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
+import { getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import type { PersonId, PolityId, HouseId } from '../types/ids'
 import type {
   ActivityReport,
@@ -158,7 +159,7 @@ function buildPolityReports(
     }
     result.push({
       polityId: polityIdStr,
-      name: polity.nameKey,
+      name: getPolityEmitNameKey(finalState, polityId),
       rank: polity.rank,
       active: polity.active,
       ownerHouseId: polity.ownerHouseId,

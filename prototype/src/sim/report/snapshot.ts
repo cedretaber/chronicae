@@ -8,6 +8,7 @@ import type {
   ActivitySnapshotPolity,
 } from './types'
 import { getPolityTerminalProvinceIds } from '../selectors/landContractSelectors'
+import { getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 
 // v0.17.1 §observation: 軽量スナップショット。
 // state 全体ではなく、観察に必要な要素 (Polity ごとの Office 一覧、Faction ごとの member 分布、
@@ -34,7 +35,7 @@ export function takeSnapshot(state: WorldState, year: number): ActivitySnapshot 
     const provinceCount = getPolityTerminalProvinceIds(state, polityId).length
     polities.push({
       polityId: polityId,
-      name: polity.nameKey,
+      name: getPolityEmitNameKey(state, polityId),
       rank: polity.rank,
       active: polity.active,
       ownerHouseId: polity.ownerHouseId,
