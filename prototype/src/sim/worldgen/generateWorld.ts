@@ -71,6 +71,7 @@ import { clamp } from '../utils/math'
 import { polityAttitudeKey, houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 import { getHouseLeader } from '../selectors/officeSelectors'
+import { getRoleScoreFromAbilities } from '../selectors/abilitySelectors'
 import {
   computeHoldingOccupationCapacity,
   canBuildHoldingImprovementPure,
@@ -1169,20 +1170,19 @@ export function generateWorld(
         return o && o.active
       })
 
+      // 調査 §1.2: stat 項は canonical な computeHouseShareRawPower (shareUpdateSystem)
+      //   と同じく governance/warCommand role スコアを /10 して合算する。旧 inline は手書きの
+      //   ability 加重和 (= ROLE_WEIGHTS.governance + .warCommand を複製) で /10 が欠落しており、
+      //   stat 項が 10x = 全体で 3.8-4.9x 水増しになっていた。年1末の shareUpdateSystem が
+      //   上書きするまで houseSurplusDistributionSystem が歪んだ share 比で分配していた。
       const rawPower =
         config.houseShareBase +
         (isLeader ? config.houseShareLeaderBonus : 0) +
         (hasOffice ? config.houseShareOfficeBonus : 0) +
         person.legacyPrestige * config.houseSharePrestigeFactor +
         person.wealth * config.houseShareWealthFactor +
-        (person.abilities.numeracy * 0.3 +
-          person.abilities.learning * 0.3 +
-          person.abilities.charisma * 0.2 +
-          person.abilities.insight * 0.2 +
-          person.abilities.command * 0.6 +
-          person.abilities.insight * 0.2 +
-          person.abilities.learning * 0.1 +
-          person.abilities.valor * 0.1) *
+        (getRoleScoreFromAbilities(person.abilities, 'governance') / 10 +
+          getRoleScoreFromAbilities(person.abilities, 'warCommand') / 10) *
           config.houseShareStatFactor
 
       addShare({ kind: 'house', id: house.id }, { kind: 'person', id: personId }, rawPower)

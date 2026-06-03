@@ -16,15 +16,21 @@ import { getPersonPrimaryPolityId } from '../selectors/polityRelations'
 
 export type AppliedRoleKey = 'governance' | 'stewardship' | 'diplomacy' | 'intrigue' | 'warCommand'
 
-export function getRoleScore(state: WorldState, personId: PersonId, role: AppliedRoleKey): number {
-  const person = state.persons[personId]
-  if (!person) return 0
+// 能力スコアから role 適性スコアを計算する純粋関数。WorldState を必要としない
+// (worldgen など state 未組立の文脈から再利用するため切り出し)。
+export function getRoleScoreFromAbilities(abilities: AbilityScores, role: AppliedRoleKey): number {
   const weights = ROLE_WEIGHTS[role]
   let score = 0
   for (const [key, weight] of Object.entries(weights) as [AbilityKey, number][]) {
-    score += person.abilities[key] * weight
+    score += abilities[key] * weight
   }
   return Math.min(score, ABILITY_HARD_CAP)
+}
+
+export function getRoleScore(state: WorldState, personId: PersonId, role: AppliedRoleKey): number {
+  const person = state.persons[personId]
+  if (!person) return 0
+  return getRoleScoreFromAbilities(person.abilities, role)
 }
 
 export function naturalFraction(k: AbilityKey, age: number, config: SimulationConfig): number {
