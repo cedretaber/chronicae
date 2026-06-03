@@ -37,7 +37,7 @@ import { createTaskId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { AbilityKey } from '../types/person'
 import { isLivingPerson } from '../types/person'
-import type { ProjectId } from '../types/ids'
+import type { ProjectId, HouseId } from '../types/ids'
 import type {
   Project,
   LandClaimProject,
@@ -1361,6 +1361,19 @@ function selectImprovementKind(
   return bestKind
 }
 
+// 調査 §1.6: 文化系 project (wealth コストを持つ) を作成して良いか。
+// 作成時に house が払えなければ false → project を作らず aim を待機させ、完了時の
+// silent no-op (PROJECT_COMPLETED は出るが効果ゼロ) を未然に防ぐ。
+function canAffordCulturalProject(
+  ws: WorldState,
+  houseId: HouseId | undefined,
+  cost: number,
+): boolean {
+  if (!houseId) return false
+  const house = ws.houses[houseId]
+  return house !== undefined && house.active && house.wealth >= cost
+}
+
 function buildProjectFieldsForAim(
   ws: WorldState,
   config: SimulationConfig,
@@ -1406,6 +1419,8 @@ function buildProjectFieldsForAim(
     case 'expand_polity_share': {
       const polityId = aim.target?.kind === 'polity' ? aim.target.id : undefined
       const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      // 調査 §1.6: 同上の afford 判定。
+      if (!canAffordCulturalProject(ws, houseId, config.expandPolityShareCost)) return undefined
       return {
         polityId,
         houseId,
@@ -1425,6 +1440,9 @@ function buildProjectFieldsForAim(
     }
     case 'patronize_artist': {
       const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      // 調査 §1.6: 完了時の wealth 不足による silent no-op を防ぐため作成時に afford 判定。
+      // 払えなければ project を作らず (!fields パスで aim は待機し wealth 回復後に再試行)。
+      if (!canAffordCulturalProject(ws, houseId, config.patronizeArtistCost)) return undefined
       return {
         houseId,
         budget: config.patronizeArtistCost,
@@ -1434,6 +1452,7 @@ function buildProjectFieldsForAim(
     }
     case 'commission_chronicle': {
       const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      if (!canAffordCulturalProject(ws, houseId, config.commissionChronicleCost)) return undefined
       return {
         houseId,
         budget: config.commissionChronicleCost,
