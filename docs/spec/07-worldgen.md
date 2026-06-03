@@ -197,10 +197,12 @@ for each alive adult normal person:
 
 ### 7.8 エンティティ名称の生成
 
-Polity / House / Province / Person の `name` は、`sim/worldgen/namePool.ts` に定義された名前プールから seed 付き RNG で選択する。
+Polity / House / Province / Holding / Person の `nameKey` は、name pool（`NamePoolService` / fallback は `sim/worldgen/nameGenerators.ts` の legacy pool）から seed 付き RNG で選択する。
 
-- Polity・House・Province: `pickUniqueName` による重複回避。プール不足時は `Country-N` / `House-N` / `Province-N` にフォールバック
-- Person（worldgen 初期生成・BirthSystem による出生ともに）: `pickNameBySex` による重複あり選択（中世欧州風に同名人物が複数存在し得る）
+- Polity・House・Province: `pickUniqueNameKey`（NamePoolService）による重複回避。pool 不足時はハードコード fallback。Polity は `nameSource: { kind: 'pool', nameKey }` で保持する
+- **Holding（v0.41）**: 各 Holding に required `nameKey` を付与する。manor は `province.western.common`、city は `city.western.common` pool から `pickUniqueNameKey` で選び、**同一 Province 内で一意**にする（per-province used set で消費。Province 自身の nameKey は seed しない＝Province 名と Holding 名の衝突は許容、他 Province の Holding 名との重複も許容）。Holding 専用 category は使わない。required のため Holding literal 構築時に確定させる（post-hoc mutation でなく）。NamePoolService 無しの fallback 経路（一部 test）は `provinceNamePool` を用いる
+- **民衆叛乱で新設される rank 5 commonwealth（v0.41）**: pool 名を引かず、成立元 Holding 由来名 `nameSource: { kind: 'holding', holdingId }` を持つ（地名由来の国名）。`regime_changed_by_popular_revolt` は既存 nameSource を維持する
+- Person（worldgen 初期生成・BirthSystem による出生ともに）: `pickNameBySex` / NamePoolService による重複あり選択（中世欧州風に同名人物が複数存在し得る）
 - `debug` モード時もエンティティ名は通常と同じ名前プールから生成される（連番 ID 方式は廃止）。デバッグ追跡はエンティティ固有 ID（`pe-42`, `h-3` 等）で行う
 
 ---

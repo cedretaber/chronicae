@@ -67,6 +67,7 @@ type HoldingKind = 'manor' | 'city'
 type Holding = {
   id: HoldingId
   provinceId: ProvinceId
+  nameKey: string         // required。ロケール中立の名前識別子（manor=province / city=city category で解決）
   kind: HoldingKind
   polityControl: number   // 0..100
   landQuality: number     // > 0
@@ -77,6 +78,7 @@ type Holding = {
 ```
 
 - Province 内の個別土地区画。土地契約・実効支配・開発度・収入分配・代官任命の単位
+- `nameKey`: ロケール中立の名前識別子（required）。manor は `province` category、city は `city` category で解決する（Holding 専用 category は使わない）。worldgen で命名し、同一 Province 内で一意（Province 名・他 Province の Holding 名との衝突は許容）。表示文字列への解決は `app/` / `i18n/` の責務（`sim/` 層規約）
 - `kind`: manor (農村荘園) / city (都市)。収入分配で city は kindMultiplier = 1.3
 - `polityControl`: terminal Polity の実効支配力。ControlSystem が Holding 単位で更新
 - `landQuality`: 土地の基礎品質。収入分配の share weight に影響
@@ -220,9 +222,15 @@ type PopularRevoltState =
   | { kind: 'revolting'; warId?: WarId; revoltSeizureContractIds: LandContractId[] }
   | { kind: 'established' }
 
+// Polity の名前情報。pool 由来は自前の nameKey、holding 由来は対象 Holding の名前を借りる
+// （解決 category は Holding.kind で決まる: manor=province / city=city）
+type PolityNameSource =
+  | { kind: 'pool'; nameKey: string }
+  | { kind: 'holding'; holdingId: HoldingId }
+
 type Polity = {
   id: PolityId
-  nameKey: string
+  nameSource: PolityNameSource  // nameKey は廃止し nameSource に集約
   rank: PolityRank
   ownerHouseId?: HouseId      // 家産的保有関係: その Polity を所有する家。Rebel Polity / commonwealth では undefined（恒常状態）
   kind?: PolityKind            // 'commonwealth' は ownerHouseId === undefined を恒常的に許容する状態。undefined は 'normal' と等価
@@ -237,6 +245,7 @@ type Polity = {
 }
 ```
 
+- `nameSource`: Polity 名の意味論を集約する discriminated union。`pool`（自前の `polity.western.default` 由来名）/ `holding`（対象 Holding の名前を借りる。地名由来の国名）。worldgen 由来は `pool`、民衆叛乱で新設される rank 5 commonwealth は `holding`（成立元 Holding）。`regime_changed_by_popular_revolt` は既存 nameSource を維持。表示・emit は nameSource-aware helper を介す（§4 / §6）。House は v0.41 では `nameKey` を維持し nameSource を導入しない（非対称は意図的）
 - `capitalProvinceId`: 政治支配力の中心。controlSystem の BFS 起点として使う。landless 化後も保持する
 - `ownerHouseId`: その Polity を家産的に保有する House の id。Rebel Polity / commonwealth では `undefined`
 - `kind`: 'commonwealth' は `ownerHouseId === undefined` を恒常状態として維持する Polity の標識。`createNegotiatingCommonwealth` で 'commonwealth' を set し、`polityOwnerConsistencySystem` / `successionSystem` / `organizationConsistencySystem` 等は commonwealth を skip / 特別扱いする

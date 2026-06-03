@@ -591,3 +591,25 @@ function getChronicleEntriesForWar(state: WorldState, warId: WarId): ChronicleEn
 
 ---
 
+
+### 4.12 名前解決セレクター（nameRefSelectors, v0.41）
+
+`prototype/src/sim/selectors/nameRefSelectors.ts` に集約。イベント emit 経路で `(category, nameKey)` を nameSource-aware に導出する純粋 helper。i18n に依存せず category 文字列と nameKey のペアを返すだけ（実際の表示文字列解決は `app/` / `i18n/` の責務）。
+
+```ts
+type SimNameRef = { category: string; nameKey: string }
+
+// manor → {province, holding.nameKey} / city → {city, holding.nameKey} / 不在 → {province, id}
+function getHoldingNameRefForEmit(state, holdingId): SimNameRef
+// pool → {polity, nameKey} / holding → getHoldingNameRefForEmit / 不在 → {polity, id}
+function getPolityNameRefForEmit(state, polityId): SimNameRef
+function getPolityNameRefForEmitFromPolity(state, polity): SimNameRef
+// category 非依存な代表 nameKey（entityRef スナップショット / debug summary / pool used-set 用）
+function getPolityEmitNameKey(state, polityId): string
+```
+
+- `PolityNameSource.kind` の switch は exhaustive（将来 variant 追加時の漏れを `never` で検出）。
+- `nameParam('polity', polity.nameKey)` の直接 emit はこの helper 経由にする（holding 由来 Polity は category が `province`/`city` になるため、`'polity'` 固定だと翻訳済みでも raw key 表示になる）。汎用 resolver（`getOwnerNameRefForEmit` for DecisionSubjectRef / warEvents の `actorEmitCategory` for OrganizationRef）も同様に category-aware。
+- House は v0.41 では `nameKey` 維持・category 固定 `house` のため、`getHouseNameRefForEmit` は導入しない（未使用 union member を先に増やさない方針）。
+- **app 層表示 helper**（`src/app/hooks/entityNameHelpers.ts`）: `getPolityShortName/QualifiedName`・`getHoldingShortName/QualifiedName`。`state` と `resolveName`（`useEntityName`）に依存し nameSource/kind 分岐を行う。`sim/ → i18n/` 禁止のため sim には置けない。
+- **eventRenderer の注意点**: `resolveOwnerCategory`（`i18n/eventRenderer.ts`）は owner の name category を goal/aim の `kind` ラベル名前空間に流用する。holding 由来 Polity owner は category が `province`/`city` になるため、地名 category は `polity` に丸めて kind ラベルを解決する（owner の「種別」名前空間と name 表示 category の乖離を吸収）。

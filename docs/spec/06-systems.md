@@ -1137,6 +1137,11 @@ Polity / House:
 16. active Polity は active `polity:leader` Office を持つ (placeholder leader を許容)
 17. active 通常 House は active `house:leader` Office を持つ
 
+Holding / Polity 命名（v0.41）:
+- H7: 全 Holding が非空 `nameKey` を持つ
+- H8: 各 Province の `holdingIds` 内で `Holding.nameKey` が一意（Province.nameKey との衝突・異 Province 間の重複は検査しない＝許容）
+- P-name: `Polity.nameSource` の妥当性。`kind==='pool'` → `nameKey` 非空 / `kind==='holding'` → `holdingId` が実在 Holding を指す。switch は exhaustive
+
 ProvinceOffice / Bailiff:
 18. 全 Province が ProvinceOfficeAssignment (Bailiff) を持つ
 19. provinceOfficeIndex の 3 方向整合 (byProvince / byHolderPerson / byAppointingPolity)
