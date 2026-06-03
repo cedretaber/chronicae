@@ -19,10 +19,11 @@ export function runGoalOutcomeSystem(ctx: TickContext): TickContext {
     const goal = currentCtx.state.goals[aim.goalId]
     if (!goal || goal.status !== 'active') continue
 
-    // Check if we already processed this aim (avoid double-counting)
-    // We use a simple heuristic: only process aims that became terminal this tick
-    // Since this runs every 4w, and aim status transitions happen in the same tick cycle,
-    // we can safely process all terminal aims each time (cleanup will delete them)
+    // 調査 §1.5: 冪等ガード。goalOutcomeSystem は毎 tick (4w) に terminal aim を
+    // 全走査するが、外交系 Project が aim を保持して cleanup されない間、同じ aim の
+    // progressDelta が再加算され goal progress が膨張していた (実測 最大 11x →
+    // GOAL_SUCCEEDED 早期発火)。一度加算済みの aim はスキップする。
+    if (aim.goalProgressApplied) continue
 
     let progressDelta = 0
     if (aim.status === 'succeeded') {
@@ -56,11 +57,15 @@ export function runGoalOutcomeSystem(ctx: TickContext): TickContext {
       currentCtx = { ...evCtx, events: [...evCtx.events, event] }
     }
 
+    // 冪等フラグを立てて二重加算を防ぐ (§1.5)。
+    const appliedAim = { ...aim, goalProgressApplied: true }
+
     currentCtx = {
       ...currentCtx,
       state: {
         ...currentCtx.state,
         goals: { ...currentCtx.state.goals, [goal.id]: updatedGoal },
+        aims: { ...currentCtx.state.aims, [aim.id]: appliedAim },
       },
     }
   }

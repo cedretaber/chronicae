@@ -152,6 +152,12 @@ export type Aim = {
 
   status: AimStatus
   reasonIds: DecisionReasonId[]
+
+  // 調査 §1.5: terminal aim の goal progress 加算を冪等化するフラグ。
+  // goalOutcomeSystem は terminal aim を毎 tick 走査するため、外交系 Project が
+  // aim を保持して cleanup されない間、同じ aim の progressDelta が再加算されていた
+  // (実測 最大 11x)。一度加算したら true にして二重加算を防ぐ。
+  goalProgressApplied?: boolean
 }
 
 // --- DecisionReason ---
