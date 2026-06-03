@@ -196,6 +196,46 @@ export function reassignRegimentOwnerMut(
   ]
 }
 
+// --- owner ⇄ home holding terminal Polity 同期 (§14.6) ---
+//
+// Regiment の owner を home holding の terminal Polity に一致させる「付け替え／disband 判定」の
+// 単一の真実 (single source of truth)。呼び出し元は 2 つ:
+//   - regimentMaintenanceSystem: lazy・全 active 連隊を毎週走査 (land transfer / 滅亡 に追従)。
+//   - diplomaticPlayRevolt (奪取): eager・当該 holding のみを開戦前に即同期
+//     (maintenance は warManeuver の後に走り即開戦の叛乱に間に合わないため)。
+// 付け替えルール (条件・disbandAfterWar 分岐) を変えるときは本ヘルパーだけを直せば両経路に効く。
+// reassignRegimentOwnerMut を呼ぶのは本ファイル内のここ 1 箇所だけに保つこと (二重化防止)。
+
+// owner が home terminal と乖離していれば同期先 PolityId を返す。同期不要なら undefined。
+// state を変更しない純粋判定 (lazy-clone gate / eager 適用前の事前判定に使う)。
+export function regimentOwnerSyncTarget(ws: WorldState, regiment: Regiment): PolityId | undefined {
+  if (regiment.status !== 'active') return undefined
+  if (regiment.homeHoldingId === undefined) return undefined
+  const terminal = ws.holdingTerminalPolityCache[regiment.homeHoldingId]
+  if (terminal === undefined) return undefined
+  if (regiment.owner.kind !== 'polity' || regiment.owner.id === terminal) return undefined
+  return terminal
+}
+
+// owner を home terminal Polity へ同期する。disbandAfterWar の臨時連隊 (local_levy) は
+// 再割当でなく disband (奪取済 holding の旧叛乱 levy が居座らないように)。
+// 戻り値は実際に行った処理 (呼び出し元が後続処理の要否を判断できるように返す)。
+export function syncRegimentOwnerToHomeTerminalMut(
+  ws: WorldState,
+  regimentId: RegimentId,
+): 'reassigned' | 'disbanded' | 'noop' {
+  const r = ws.regiments[regimentId]
+  if (!r) return 'noop'
+  const terminal = regimentOwnerSyncTarget(ws, r)
+  if (terminal === undefined) return 'noop'
+  if (r.disbandAfterWar === true) {
+    disbandRegimentMut(ws, regimentId)
+    return 'disbanded'
+  }
+  reassignRegimentOwnerMut(ws, regimentId, { kind: 'polity', id: terminal })
+  return 'reassigned'
+}
+
 // --- disband / destroy ---
 
 export function disbandRegimentMut(ws: WorldState, regimentId: RegimentId): void {

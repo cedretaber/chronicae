@@ -922,7 +922,8 @@ taxBurden = `max(0, currentTaxRate - defaultTaxRateByRank(rank))`。
 
 **交渉結果**（diplomaticPlaySystem 内）:
 - settlement: 税率引き下げ、`termsProtectedUntilWeek` 設定、commonwealth 解散（leader は在野へ）、`REVOLT_SETTLED`
-- escalation (rank 2-4): `revolt_seizure` 子契約追加 → Local Levy 生成 → `escalated` → warCreationSystem が War 化
+- escalation (rank 2-4): `revolt_seizure` 子契約追加 → Local Levy 生成 → **奪取 holding の既存常設連隊（worldgen 由来 levy/noble_retinue 等）の owner を commonwealth へ即同期** → `escalated` → warCreationSystem が War 化
+  - 奪取で holding の terminal Polity は commonwealth に変わるが、owner 付け替えを担う RegimentMaintenanceSystem（§6.49）は warManeuverSystem の**後**に走るため、奪取→即開戦の叛乱には間に合わない（放置すると当該常設連隊が領主=defender 側として動員され、叛乱側は Local Levy 1 個のみで戦う）。そこで escalation 時点で当該 holding の Regiment 群（`regimentIndex.byHomeHolding[holdingId]`）に `syncRegimentOwnerToHomeTerminalMut`（§6.49 と同一ヘルパー＝同一ルール）を eager 適用し、開戦前に叛乱側へ移管する。直前に生成した Local Levy（owner=commonwealth）は no-op、動員済の連隊は owner だけ移り当該 War では `currentWarId` 判定でスキップされる。叛乱敗北で holding が領主へ revert すれば §6.49 が owner を領主へ戻す（active 連隊プールは枯渇しない）。
 - escalation (rank 5): internal revolt 即時解決（§6.30）
 
 ### 6.30 Rank 5 Internal Popular Revolt
@@ -1547,7 +1548,7 @@ active Regiment の owner / home / war 参照を lazy に整理する（`runRegi
 active Regiment ごとに**順序を厳守**して処理する:
 
 1. `homeHoldingId` が set で `holdings` に存在しない → **disband**（home 消失）。
-2. `homeHoldingId` が set で holding 在り、`holdingTerminalPolityCache[homeHoldingId]` が現 owner（polity）と異なる → **owner 付け替え**（terminal Polity へ。basePower / strength / organization / 動員状態は維持。土地移転で Regiment 数が単調減少しないための要）。ただし `disbandAfterWar === true` の Regiment は付け替えず **disband** する。
+2. `homeHoldingId` が set で holding 在り、`holdingTerminalPolityCache[homeHoldingId]` が現 owner（polity）と異なる → **owner 付け替え**（terminal Polity へ。basePower / strength / organization / 動員状態は維持。土地移転で Regiment 数が単調減少しないための要）。ただし `disbandAfterWar === true` の Regiment は付け替えず **disband** する。この「owner を home terminal に同期する」判定・付け替え／disband 分岐は `regimentMutations.ts` の `syncRegimentOwnerToHomeTerminalMut`（純粋判定は `regimentOwnerSyncTarget`）に集約され、**この付け替えルールの唯一の真実**である。本 system は lazy-clone gate の事前判定にのみ `regimentOwnerSyncTarget` を使い、実体は同ヘルパーを呼ぶ。`reassignRegimentOwnerMut` を直接呼ぶのは同ヘルパー内の 1 箇所のみ（叛乱奪取の eager 同期（§6.29）と共有し、二重実装による drift を防ぐ）。
 3. 付け替え後の owner を再 read し `!isActorActive(owner)` → **disband**（owner 消滅）。
 4. `currentWarId` が live(active) war を指していない（war 無し or terminal）→ **demobilize**（PeaceSettlement / cancel で終結した War に動員が残るのを遅延解除）。さらに `disbandAfterWar === true` の Regiment は demobilize 後に **disband** する。
 

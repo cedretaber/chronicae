@@ -13,7 +13,7 @@ import {
   adjustLandContractTaxRate,
   createChildLandContract,
 } from '../mutations/landContractMutations'
-import { createRegiment } from '../mutations/regimentMutations'
+import { createRegiment, syncRegimentOwnerToHomeTerminalMut } from '../mutations/regimentMutations'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { createOrganizationShare, removeSharesByOrganization } from '../mutations/shareMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
@@ -320,6 +320,17 @@ function applyRevoltEscalation(
       createdWeek: state.absoluteWeek,
     })
     levy.disbandAfterWar = true
+
+    // 奪取 (revolt_seizure 子契約) で holding の terminal Polity が commonwealth に変わったため、
+    // 当該 holding の既存常設連隊 (worldgen 由来 levy/noble_retinue 等) の owner を開戦前に即同期する。
+    // regimentMaintenanceSystem の lazy 付け替え (§14.6) は warManeuver の後に走り、奪取→即開戦の
+    // 叛乱には間に合わない (放置すると当該連隊が領主=defender 側として動員され叛乱側に来ない)。
+    // 付け替えルールは syncRegimentOwnerToHomeTerminalMut に集約済 (maintenance と同一の真実)。
+    // 直前に作った levy (owner=commonwealth=terminal) は no-op。動員済の連隊は owner だけ移り
+    // 当該戦争は次 tick 以降の動員判定 (currentWarId) でスキップされる。
+    for (const rid of [...(state.regimentIndex.byHomeHolding[demand.holdingId] ?? [])]) {
+      syncRegimentOwnerToHomeTerminalMut(state, rid)
+    }
   }
 
   // 3. Update revoltState to revolting

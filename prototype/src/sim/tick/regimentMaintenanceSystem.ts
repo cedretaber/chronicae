@@ -4,7 +4,8 @@ import type { RegimentId } from '../types/ids'
 import {
   disbandRegimentMut,
   demobilizeRegimentMut,
-  reassignRegimentOwnerMut,
+  regimentOwnerSyncTarget,
+  syncRegimentOwnerToHomeTerminalMut,
 } from '../mutations/regimentMutations'
 import { isActorActive } from '../selectors/actorSelectors'
 
@@ -58,18 +59,13 @@ export function runRegimentMaintenanceSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    // 2. home terminal Polity 変化 → owner 付け替え (§14.6。basePower/strength/org/動員状態は維持)
-    //    disbandAfterWar なら再割当ではなく disband
-    if (r0.homeHoldingId !== undefined) {
-      const terminal = ws.holdingTerminalPolityCache[r0.homeHoldingId]
-      if (terminal !== undefined && r0.owner.kind === 'polity' && r0.owner.id !== terminal) {
-        ensureDraft()
-        if (r0.disbandAfterWar === true) {
-          disbandRegimentMut(ws, rid)
-          continue
-        }
-        reassignRegimentOwnerMut(ws, rid, { kind: 'polity', id: terminal })
-      }
+    // 2. home terminal Polity 変化 → owner 付け替え (§14.6。basePower/strength/org/動員状態は維持)。
+    //    判定・付け替え／disband 分岐は syncRegimentOwnerToHomeTerminalMut に集約 (叛乱奪取の
+    //    eager 同期と共有・単一の真実)。ここでは lazy-clone gate にのみ純粋判定を使う。
+    if (regimentOwnerSyncTarget(ws, r0) !== undefined) {
+      ensureDraft()
+      syncRegimentOwnerToHomeTerminalMut(ws, rid)
+      // disbandAfterWar で disband された場合は下の再 read で status を見て continue する。
     }
 
     // 付け替えで owner が変わった可能性があるため再 read。
