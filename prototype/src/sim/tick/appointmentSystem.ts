@@ -43,6 +43,36 @@ import { getOfficeDefinition } from '../config/officeDefinitions'
 const POLITY_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
 const HOUSE_APPOINTABLE_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
 
+// polity / house 任命の共通前処理: 当該 organization/role の現職のうち
+// 死亡 (or 不在) している者の役職を罷免し、更新後の ctx を返す。
+function revokeDeadOfficeHolders(
+  ctx: TickContext,
+  organization: OrganizationRef,
+  role: OfficeRole,
+): TickContext {
+  let currentCtx = ctx
+  const currentHolders = getActiveOfficeHolders(currentCtx.state, organization, role)
+  for (const holderId of currentHolders) {
+    const holder = currentCtx.state.persons[holderId]
+    if (!holder || !holder.alive) {
+      currentCtx = { ...currentCtx, state: revokeOfficesByHolder(currentCtx.state, holderId) }
+    }
+  }
+  return currentCtx
+}
+
+// スコア付き候補から最良を選ぶ共通処理: 降順ソートして先頭が minScore 以上なら採用。
+// scored の構築 (どの候補をどの式でスコアリングするか) は呼び出し側に残す。
+// NOTE: 同点時は scored の元順序 (= 安定ソートで先に来た候補) が勝つ挙動を保持する。
+function pickBestScored(
+  scored: { id: PersonId; score: number }[],
+  minScore: number,
+): { id: PersonId; score: number } | undefined {
+  scored.sort((a, b) => b.score - a.score)
+  const top = scored[0]
+  return top && top.score >= minScore ? top : undefined
+}
+
 function getRelevantStat(state: WorldState, personId: PersonId, role: OfficeRole): number {
   switch (role) {
     case 'military':
@@ -289,14 +319,7 @@ function tryAppointPolityOffice(
   const polityRef: OrganizationRef = { kind: 'polity', id: polity.id }
 
   // 1. revoke dead holders
-  let currentCtx = ctx
-  const currentHolders = getActiveOfficeHolders(currentCtx.state, polityRef, role)
-  for (const holderId of currentHolders) {
-    const holder = currentCtx.state.persons[holderId]
-    if (!holder || !holder.alive) {
-      currentCtx = { ...currentCtx, state: revokeOfficesByHolder(currentCtx.state, holderId) }
-    }
-  }
+  let currentCtx = revokeDeadOfficeHolders(ctx, polityRef, role)
 
   const activeHolders = getActiveOfficeHolders(currentCtx.state, polityRef, role)
   const effectiveMax = getEffectiveOfficeMaxHolders(currentCtx.state, config, polityRef, role)
@@ -321,10 +344,7 @@ function tryAppointPolityOffice(
         role,
       ),
     }))
-    scored.sort((a, b) => b.score - a.score)
-    if (scored[0] && scored[0].score >= config.minAppointmentScore) {
-      best = scored[0]
-    }
+    best = pickBestScored(scored, config.minAppointmentScore)
   }
 
   // 3. traditional fallback (uses pre-computed candidate cache)
@@ -334,10 +354,7 @@ function tryAppointPolityOffice(
       id,
       score: computePolityScoreV017(currentCtx.state, config, polity, rulerId, id, role),
     }))
-    scored.sort((a, b) => b.score - a.score)
-    if (scored[0] && scored[0].score >= config.minAppointmentScore) {
-      best = scored[0]
-    }
+    best = pickBestScored(scored, config.minAppointmentScore)
   }
 
   if (!best) return currentCtx
@@ -386,14 +403,7 @@ function tryAppointHouseOffice(
   const houseRef: OrganizationRef = { kind: 'house', id: house.id }
 
   // 1. revoke dead holders
-  let currentCtx = ctx
-  const currentHolders = getActiveOfficeHolders(currentCtx.state, houseRef, role)
-  for (const holderId of currentHolders) {
-    const holder = currentCtx.state.persons[holderId]
-    if (!holder || !holder.alive) {
-      currentCtx = { ...currentCtx, state: revokeOfficesByHolder(currentCtx.state, holderId) }
-    }
-  }
+  let currentCtx = revokeDeadOfficeHolders(ctx, houseRef, role)
 
   const activeHolders = getActiveOfficeHolders(currentCtx.state, houseRef, role)
   const effectiveMax = getEffectiveOfficeMaxHolders(currentCtx.state, config, houseRef, role)
@@ -430,10 +440,7 @@ function tryAppointHouseOffice(
         role,
       ),
     }))
-    scored.sort((a, b) => b.score - a.score)
-    if (scored[0] && scored[0].score >= config.minAppointmentScore) {
-      best = scored[0]
-    }
+    best = pickBestScored(scored, config.minAppointmentScore)
   }
 
   // 3. traditional fallback
@@ -448,10 +455,7 @@ function tryAppointHouseOffice(
       id,
       score: computeHouseScoreV017(currentCtx.state, config, house, leaderId, id, role),
     }))
-    scored.sort((a, b) => b.score - a.score)
-    if (scored[0] && scored[0].score >= config.minAppointmentScore) {
-      best = scored[0]
-    }
+    best = pickBestScored(scored, config.minAppointmentScore)
   }
 
   if (!best) return currentCtx
