@@ -8,7 +8,8 @@ import type {
   HoldingOfficeAssignmentId,
 } from './ids'
 
-export type RootAuthorityId = string & { readonly __brand: 'RootAuthorityId' }
+// 調査 §3.9: brand キーを ids.ts の Branded ヘルパー慣例 (_brand) に統一。
+export type RootAuthorityId = string & { readonly _brand: 'RootAuthorityId' }
 
 export const ROOT_WORLD: RootAuthorityId = 'root:world' as RootAuthorityId
 

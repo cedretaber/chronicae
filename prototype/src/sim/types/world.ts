@@ -49,10 +49,10 @@ import type {
 } from './landContract'
 import type { Faction, FactionMembership, FactionIndex } from './faction'
 import type { Clan } from './clan'
-import type { HoldingImprovement } from './holdingImprovement'
+import type { HoldingImprovement, HoldingImprovementIndex } from './holdingImprovement'
 import type { Project, ProjectIndex } from './project'
 import type { DiplomaticPlay, DiplomaticOffer } from './diplomaticPlay'
-import type { War } from './war'
+import type { War, WarIndex } from './war'
 import type { Regiment, RegimentIndex } from './regiment'
 import type { Battle, BattleIndex } from './battle'
 import type { Pressure, PressureIndex } from './pressure'
@@ -99,7 +99,7 @@ export type WorldState = {
   clans: Record<ClanId, Clan>
   // v0.27 HoldingImprovement
   holdingImprovements: Record<HoldingImprovementId, HoldingImprovement>
-  holdingImprovementIndex: { byHolding: Record<string, HoldingImprovementId[]> }
+  holdingImprovementIndex: HoldingImprovementIndex
   nextHoldingImprovementId: number
   // v0.26 Project system
   projects: Record<ProjectId, Project>
@@ -114,10 +114,7 @@ export type WorldState = {
   diplomaticOffers: Record<DiplomaticOfferId, DiplomaticOffer>
   // v0.34 War
   wars: Record<WarId, War>
-  warIndex: {
-    byParticipant: Record<string, WarId[]>
-    byOriginDiplomaticPlay: Record<DiplomaticPlayId, WarId | undefined>
-  }
+  warIndex: WarIndex
   // v0.36 Regiment / Battle
   regiments: Record<RegimentId, Regiment>
   regimentIndex: RegimentIndex

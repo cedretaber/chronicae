@@ -140,3 +140,10 @@ export type War = {
   startedWeek: number
   endedWeek?: number
 }
+
+// WorldState.warIndex の named 型 (調査 §3.9: inline 型を昇格)。
+export type WarIndex = {
+  byParticipant: Record<string, WarId[]>
+  // 値は WarId 代入か delete のみ (undefined 代入なし) のため | undefined 不要 (調査 §3.9)。
+  byOriginDiplomaticPlay: Record<DiplomaticPlayId, WarId>
+}

@@ -17,3 +17,8 @@ export type HoldingImprovement = {
   condition: number
   createdWeek: number
 }
+
+// WorldState.holdingImprovementIndex の named 型 (調査 §3.9)。
+export type HoldingImprovementIndex = {
+  byHolding: Record<string, HoldingImprovementId[]>
+}
