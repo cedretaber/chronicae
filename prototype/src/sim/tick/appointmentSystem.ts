@@ -21,6 +21,7 @@ import type { FactionId } from '../types/ids'
 import type { Polity } from '../types/polity'
 import type { House } from '../types/house'
 import { getRoleScore } from '../selectors/abilitySelectors'
+import { getPolityNameRefForEmitFromPolity } from '../selectors/nameRefSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import {
   hasRelevantFactionForAppointment,
@@ -366,6 +367,7 @@ function tryAppointPolityOffice(
   if (person && person.houseId) {
     const house = currentCtx.state.houses[person.houseId]
     if (house) {
+      const polityNameRef = getPolityNameRefForEmitFromPolity(currentCtx.state, polity)
       const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
         type: 'OFFICE_ASSIGNED',
         importance: 'normal',
@@ -373,11 +375,11 @@ function tryAppointPolityOffice(
         messageParams: {
           person: nameParam('person', person.nameKey),
           role: nameParam('role', `polity_${role}`),
-          polity: nameParam('polity', polity.nameKey),
+          polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
         },
         entityRefs: [
           entityRef('person', best.id, 'appointee', person.nameKey),
-          entityRef('polity', polity.id, 'organization', polity.nameKey),
+          entityRef('polity', polity.id, 'organization', polityNameRef.nameKey),
         ],
       })
       currentCtx = {

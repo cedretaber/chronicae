@@ -15,6 +15,7 @@ import { computeStateColor, computeProvinceColor, FALLBACK_COLOR } from './mapCo
 import { computeBounds, computeFocusTransform } from './mapGeometry'
 import { useMapColorMaps } from '@/app/hooks/useMapColorMaps'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import type { ProvinceId, StateRegionId } from '@sim/types/ids'
 import { getStatePopulation, getStateAverageUnrest } from '@sim/selectors/stateRegionSelectors'
 import { getProvinceTerminalPolityId } from '@sim/selectors/landContractSelectors'
@@ -569,7 +570,9 @@ export function UnifiedMap() {
             const totalPop = pop.reduce((s, p) => s + p.size, 0)
             const unrest = getProvinceUnrest(world, hoveredProvinceId)
             const terminalPolity = getProvinceTerminalPolityId(world, hoveredProvinceId)
-            const polityName = terminalPolity ? world.polities[terminalPolity]?.nameKey : undefined
+            const polityName = terminalPolity
+              ? getPolityShortName(world, resolveName, terminalPolity)
+              : undefined
             const stateName = world.states[prov.stateId]?.nameKey
             return (
               <div

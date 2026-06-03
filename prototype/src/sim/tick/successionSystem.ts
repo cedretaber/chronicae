@@ -11,6 +11,7 @@ import {
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { installHoldingPlaceholderBailiff } from '../mutations/provinceOfficeMutations'
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
+import { getPolityNameRefForEmitFromPolity } from '../selectors/nameRefSelectors'
 import { maybeSplitHouseAfterSuccession } from './houseSplitSystem'
 import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
 import type { HouseId, PersonId, PolityId } from '../types/ids'
@@ -78,6 +79,7 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
     )
 
     const newRuler = newState.persons[newRulerPersonId]
+    const polityNameRef = getPolityNameRefForEmitFromPolity(newState, polity)
     const { event, ctx: eventCtx } = createSimEvent(
       { ...currentCtx, state: newState },
       {
@@ -86,11 +88,11 @@ export function runSuccessionSystem(ctx: TickContext): TickContext {
         messageKey: 'polity.leader_changed',
         messageParams: {
           person: newRuler ? nameParam('person', newRuler.nameKey) : 'Unknown',
-          polity: nameParam('polity', polity.nameKey),
+          polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
         },
         entityRefs: [
           entityRef('person', newRulerPersonId, 'ruler', newRuler?.nameKey),
-          entityRef('polity', polityId, 'polity', polity.nameKey),
+          entityRef('polity', polityId, 'polity', polityNameRef.nameKey),
           entityRef('house', bestHouseId, 'house'),
         ],
       },

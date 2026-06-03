@@ -11,6 +11,7 @@ import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMut
 import { dispersePersonsToHouseless } from './houseMutations'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getHouseProvinceIdsByPolity, getPolityHouseIds } from '../selectors/polityRelations'
+import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import {
   getHouseControlledProvinceIds,
   getProvinceEffectiveOwnerHouseId,
@@ -325,6 +326,7 @@ function handleNormalHouseExtinction(
 
     // POLITY_OWNER_CHANGED イベントを後でまとめて発火するため記録
     const receiverHouse = chainState.houses[polityReceiverHouseId]
+    const polityNameRef = getPolityNameRefForEmit(chainState, polityId)
     const partialEvent = {
       id: '' as ReturnType<typeof makeEventId>['id'], // 後で発番
       year: chainState.currentYear,
@@ -336,20 +338,20 @@ function handleNormalHouseExtinction(
       polityIds: [polityId],
       provinceIds: [] as ProvinceId[],
       holdingIds: [] as HoldingId[],
-      summary: `${polity.nameKey}'s ruling house changed from ${house.nameKey} to ${receiverHouse?.nameKey ?? polityReceiverHouseId} after the extinction.`,
+      summary: `${polityNameRef.nameKey}'s ruling house changed from ${house.nameKey} to ${receiverHouse?.nameKey ?? polityReceiverHouseId} after the extinction.`,
       reasons: [] as EventReason[],
       effects: [] as EventEffect[],
       // i18n fields from createSimEvent pattern
       messageKey: 'polity.owner_changed_extinction',
       messageParams: {
-        polity: nameParam('polity', polity.nameKey),
+        polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
         oldHouse: nameParam('house', house.nameKey),
         newHouse: nameParam('house', receiverHouse?.nameKey ?? ''),
       },
       entityRefs: [
         entityRef('house', houseId, 'from_house', house.nameKey),
         entityRef('house', polityReceiverHouseId, 'to_house', receiverHouse?.nameKey),
-        entityRef('polity', polityId, 'polity', polity.nameKey),
+        entityRef('polity', polityId, 'polity', polityNameRef.nameKey),
       ],
     }
     ownerChangedEvents.push(partialEvent)

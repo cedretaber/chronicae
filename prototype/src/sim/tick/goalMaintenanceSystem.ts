@@ -12,7 +12,7 @@ import {
 } from '../selectors/goalSelectors'
 import { nameParam, entityRef } from '../types/event'
 import { clamp } from '../utils/math'
-import { getOwnerNameKey } from '../utils/ownerNames'
+import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 
 export function runGoalMaintenanceSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -115,7 +115,7 @@ function createGoalForOwner(
     importance: 'minor',
     messageKey: 'goal.created',
     messageParams: {
-      owner: nameParam(owner.kind, ownerNameKey),
+      owner: nameParam(getOwnerNameRefForEmit(currentCtx.state, owner).category, ownerNameKey),
       kind,
     },
     entityRefs: [entityRef(owner.kind, owner.id, 'owner', ownerNameKey)],
@@ -167,7 +167,10 @@ function reviewGoal(ctx: TickContext, goal: Goal, absoluteWeek: number): TickCon
       importance: 'minor',
       messageKey: 'goal.reviewed',
       messageParams: {
-        owner: nameParam(goal.owner.kind, ownerNameKey),
+        owner: nameParam(
+          getOwnerNameRefForEmit(currentCtx.state, goal.owner).category,
+          ownerNameKey,
+        ),
         kind: goal.kind,
       },
       entityRefs: [entityRef(goal.owner.kind, goal.owner.id, 'owner', ownerNameKey)],
@@ -214,7 +217,7 @@ function abandonGoal(ctx: TickContext, goal: Goal): TickContext {
     importance: 'minor',
     messageKey: 'goal.abandoned',
     messageParams: {
-      owner: nameParam(goal.owner.kind, ownerNameKey),
+      owner: nameParam(getOwnerNameRefForEmit(currentCtx.state, goal.owner).category, ownerNameKey),
       kind: goal.kind,
     },
     entityRefs: [entityRef(goal.owner.kind, goal.owner.id, 'owner', ownerNameKey)],

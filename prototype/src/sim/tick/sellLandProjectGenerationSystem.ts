@@ -8,6 +8,7 @@ import type { Project } from '../types/project'
 import type { EventId, ProjectId } from '../types/ids'
 import { createProjectId } from '../types/ids'
 import { getPolityLeader } from '../selectors/officeSelectors'
+import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { findSellLandCandidates } from '../selectors/landPurchaseCandidates'
 import { addProjectToIndexMut, getProjectDeadlineWeeks } from '../mutations/projectMutations'
@@ -117,15 +118,17 @@ export function runSellLandProjectGenerationSystem(ctx: TickContext): TickContex
     addProjectToIndexMut(ws, project)
     existingKeys.add(dedupeKey)
 
-    const sellerNameKey = ws.polities[sellerPolityId]?.nameKey ?? sellerPolityId
-    const buyerNameKey = ws.polities[buyerPolityId]?.nameKey ?? buyerPolityId
+    const sellerRef = getPolityNameRefForEmit(ws, sellerPolityId)
+    const buyerRef = getPolityNameRefForEmit(ws, buyerPolityId)
+    const sellerNameKey = sellerRef.nameKey
+    const buyerNameKey = buyerRef.nameKey
     emitEvent({
       type: 'PROJECT_STARTED',
       importance: 'minor',
       messageKey: 'project.sell_land.started',
       messageParams: {
-        seller: nameParam('polity', sellerNameKey),
-        buyer: nameParam('polity', buyerNameKey),
+        seller: nameParam(sellerRef.category, sellerNameKey),
+        buyer: nameParam(buyerRef.category, buyerNameKey),
         kind: 'sell_land',
       },
       entityRefs: [

@@ -19,6 +19,7 @@ import {
   getLandContractGrantor,
   getGrantorRank,
 } from '../selectors/landContractSelectors'
+import { getPolityNameRefForEmit, getHoldingNameRefForEmit } from '../selectors/nameRefSelectors'
 
 type CreateChildContractParams = {
   provinceId: ProvinceId
@@ -416,9 +417,12 @@ export function applyLandContractTransferGoal(
   }
   let nextCtx: TickContext = { ...ctx, state: newState }
 
-  const fromNameKey = fromPolity?.nameKey ?? fromPolityId
-  const toNameKey = toPolity.nameKey
-  const holdingProvince = state.provinces[holding.provinceId]
+  const fromRef = getPolityNameRefForEmit(state, fromPolityId)
+  const toRef = getPolityNameRefForEmit(state, input.toPolityId)
+  const fromNameKey = fromRef.nameKey
+  const toNameKey = toRef.nameKey
+  // v0.41 (§7.2/§8): Holding 名は Province 名代用でなく Holding 自身の name (kind→category)。
+  const holdingRef = getHoldingNameRefForEmit(state, input.holdingId)
 
   // LAND_CONTRACT_TRANSFERRED event
   const { event: transferEvent, ctx: ctxAfterTransfer } = createSimEvent(nextCtx, {
@@ -426,9 +430,9 @@ export function applyLandContractTransferGoal(
     importance: 'normal',
     messageKey: 'land_contract.transferred',
     messageParams: {
-      holding: nameParam('province', holdingProvince?.nameKey ?? holding.provinceId),
-      from: nameParam('polity', fromNameKey),
-      to: nameParam('polity', toNameKey),
+      holding: nameParam(holdingRef.category, holdingRef.nameKey),
+      from: nameParam(fromRef.category, fromNameKey),
+      to: nameParam(toRef.category, toNameKey),
       reason: input.reason,
     },
     entityRefs: [
@@ -449,13 +453,13 @@ export function applyLandContractTransferGoal(
   let outcomeSummary: string | undefined
   if (input.reason === 'purchase') {
     outcomeEventType = 'LAND_CONTRACT_PURCHASED'
-    outcomeSummary = `${toNameKey} purchased ${holdingProvince?.nameKey ?? holding.provinceId} from ${fromNameKey}.`
+    outcomeSummary = `${toNameKey} purchased ${holdingRef.nameKey} from ${fromNameKey}.`
   } else if (input.reason === 'cession') {
     outcomeEventType = 'LAND_CONTRACT_CEDED'
-    outcomeSummary = `${fromNameKey} ceded ${holdingProvince?.nameKey ?? holding.provinceId} to ${toNameKey}.`
+    outcomeSummary = `${fromNameKey} ceded ${holdingRef.nameKey} to ${toNameKey}.`
   } else if (input.reason === 'war') {
     outcomeEventType = 'LAND_CONTRACT_CONQUERED'
-    outcomeSummary = `${toNameKey} conquered ${holdingProvince?.nameKey ?? holding.provinceId} from ${fromNameKey}.`
+    outcomeSummary = `${toNameKey} conquered ${holdingRef.nameKey} from ${fromNameKey}.`
   }
 
   if (outcomeEventType && outcomeSummary) {
@@ -469,9 +473,9 @@ export function applyLandContractTransferGoal(
       importance: 'major',
       messageKey: messageKeyMap[outcomeEventType]!,
       messageParams: {
-        to: nameParam('polity', toNameKey),
-        holding: nameParam('province', holdingProvince?.nameKey ?? holding.provinceId),
-        from: nameParam('polity', fromNameKey),
+        to: nameParam(toRef.category, toNameKey),
+        holding: nameParam(holdingRef.category, holdingRef.nameKey),
+        from: nameParam(fromRef.category, fromNameKey),
       },
       entityRefs: [
         entityRef('holding', input.holdingId, 'holding'),

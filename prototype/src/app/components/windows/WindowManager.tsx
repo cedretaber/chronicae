@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import type { FactionId, DiplomaticPlayId, HoldingId, ClanId, WarId } from '@/sim/types/ids'
 import {
   CountryDetail,
@@ -57,7 +58,7 @@ export function WindowManager() {
             let name = entityId
             if (entityType === 'polity') {
               const p = state.polities[entityId as PolityId]
-              if (p) name = resolveName('polity', p.nameKey, p.nameKey)
+              if (p) name = getPolityShortName(state, resolveName, entityId as PolityId)
             } else if (entityType === 'house') {
               const h = state.houses[entityId as HouseId]
               if (h) name = resolveName('house', h.nameKey, h.nameKey)
@@ -91,7 +92,7 @@ export function WindowManager() {
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`Polity: ${resolveName('polity', polity.nameKey, polity.nameKey)}`}
+              title={`Polity: ${getPolityShortName(state, resolveName, polity.id)}`}
             >
               <CountryDetail
                 polity={polity}

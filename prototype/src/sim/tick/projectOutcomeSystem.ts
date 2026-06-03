@@ -9,6 +9,10 @@ import type { HoldingImprovementId } from '../types/ids'
 import { createHoldingImprovementId, createPersonActivityLogId } from '../types/ids'
 import { adjustPersonAttitude } from '../mutations/attitudeMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
+import {
+  getPolityNameRefForEmit,
+  getPolityNameRefForEmitFromPolity,
+} from '../selectors/nameRefSelectors'
 import type { EventId, OrganizationShareId } from '../types/ids'
 import { createOrganizationShareId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -317,17 +321,16 @@ function applyDevelopHoldingMut(
   ]
 
   // Event
-  const polityNameKey =
-    project.owner.kind === 'polity'
-      ? (ws.polities[project.owner.id]?.nameKey ?? project.owner.id)
-      : ''
+  const polityRef =
+    project.owner.kind === 'polity' ? getPolityNameRefForEmit(ws, project.owner.id) : undefined
+  const polityNameKey = polityRef?.nameKey ?? ''
   const provinceNameKey = ws.provinces[holding.provinceId]?.nameKey ?? holding.provinceId
   emitEvent({
     type: 'COUNTRY_LAND_DEVELOPED',
     importance: 'minor',
     messageKey: 'polity.land_developed',
     messageParams: {
-      polity: nameParam('polity', polityNameKey),
+      polity: nameParam(polityRef?.category ?? 'polity', polityNameKey),
       province: nameParam('province', provinceNameKey),
     },
     entityRefs: [
@@ -396,17 +399,18 @@ function applyExpandPolityShareMut(
 
   ws.houses[houseId] = { ...house, wealth: house.wealth - config.expandPolityShareCost }
 
+  const polityNameRef = getPolityNameRefForEmitFromPolity(ws, polity)
   emitEvent({
     type: 'HOUSE_POLITY_SHARE_EXPANDED',
     importance: 'minor',
     messageKey: 'house.polity_share_expanded',
     messageParams: {
       house: nameParam('house', house.nameKey),
-      polity: nameParam('polity', polity.nameKey),
+      polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
     },
     entityRefs: [
       entityRef('house', houseId, 'house', house.nameKey),
-      entityRef('polity', polityId, 'polity', polity.nameKey),
+      entityRef('polity', polityId, 'polity', polityNameRef.nameKey),
     ],
   })
 }
@@ -426,17 +430,18 @@ function applyPromotePolicyShiftMut(
   const polity = ws.polities[polityId]
   if (!polity || !polity.active) return
 
+  const polityNameRef = getPolityNameRefForEmitFromPolity(ws, polity)
   emitEvent({
     type: 'HOUSE_POLICY_INFLUENCE',
     importance: 'minor',
     messageKey: 'house.policy_influence',
     messageParams: {
       house: nameParam('house', house.nameKey),
-      polity: nameParam('polity', polity.nameKey),
+      polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
     },
     entityRefs: [
       entityRef('house', houseId, 'house', house.nameKey),
-      entityRef('polity', polityId, 'polity', polity.nameKey),
+      entityRef('polity', polityId, 'polity', polityNameRef.nameKey),
     ],
   })
 }

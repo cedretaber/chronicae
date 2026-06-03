@@ -11,7 +11,7 @@ import type {
   RespondToPressureProject,
 } from '../types/project'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
-import { getOwnerNameKey } from '../utils/ownerNames'
+import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 import {
   removeProjectFromIndexMut,
   addProjectToIndexMut,
@@ -250,7 +250,7 @@ function emitProjectEvent(
     importance: 'minor',
     messageKey,
     messageParams: {
-      owner: nameParam(owner.kind, ownerNameKey),
+      owner: nameParam(getOwnerNameRefForEmit(ws, owner).category, ownerNameKey),
       kind: projectKind,
     },
     entityRefs: [entityRef(owner.kind, owner.id, 'owner', ownerNameKey)],

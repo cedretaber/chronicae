@@ -6,7 +6,8 @@ import type { Aim, DecisionReason, Goal, EntityRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import { getActiveAimsForGoal, pickAimForGoal } from '../selectors/goalSelectors'
 import { nameParam, entityRef } from '../types/event'
-import { getOwnerNameKey } from '../utils/ownerNames'
+import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
+import { getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 
 export function runAimMaintenanceSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -46,7 +47,10 @@ export function runAimMaintenanceSystem(ctx: TickContext): TickContext {
           importance: 'minor',
           messageKey: 'aim.abandoned',
           messageParams: {
-            owner: nameParam(aim.owner.kind, ownerNameKey),
+            owner: nameParam(
+              getOwnerNameRefForEmit(currentCtx.state, aim.owner).category,
+              ownerNameKey,
+            ),
             kind: aim.kind,
           },
           entityRefs: [entityRef(aim.owner.kind, aim.owner.id, 'owner', ownerNameKey)],
@@ -143,7 +147,7 @@ function createAimForGoal(ctx: TickContext, goal: Goal, absoluteWeek: number): T
     importance: 'minor',
     messageKey: 'aim.created',
     messageParams: {
-      owner: nameParam(goal.owner.kind, ownerNameKey),
+      owner: nameParam(getOwnerNameRefForEmit(currentCtx.state, goal.owner).category, ownerNameKey),
       kind,
       target: targetName,
     },
@@ -171,7 +175,7 @@ function failAim(ctx: TickContext, aim: Aim, _reason: string): TickContext {
     importance: 'minor',
     messageKey: 'aim.failed',
     messageParams: {
-      owner: nameParam(aim.owner.kind, ownerNameKey),
+      owner: nameParam(getOwnerNameRefForEmit(currentCtx.state, aim.owner).category, ownerNameKey),
       kind: aim.kind,
     },
     entityRefs: [entityRef(aim.owner.kind, aim.owner.id, 'owner', ownerNameKey)],
@@ -206,7 +210,7 @@ function isTargetValid(ctx: TickContext, aim: Aim): boolean {
 
 function getTargetName(ctx: TickContext, target: EntityRef): string {
   if (target.kind === 'polity') {
-    return ctx.state.polities[target.id]?.nameKey ?? target.id
+    return getPolityEmitNameKey(ctx.state, target.id)
   }
   if (target.kind === 'house') {
     return ctx.state.houses[target.id]?.nameKey ?? target.id
@@ -229,7 +233,7 @@ function getTargetName(ctx: TickContext, target: EntityRef): string {
   if (target.kind === 'office') {
     const org =
       target.organization.kind === 'polity'
-        ? ctx.state.polities[target.organization.id]?.nameKey
+        ? getPolityEmitNameKey(ctx.state, target.organization.id)
         : ctx.state.houses[target.organization.id]?.nameKey
     return org ? `${org}:${target.role}` : target.role
   }

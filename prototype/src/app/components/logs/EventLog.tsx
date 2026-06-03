@@ -7,6 +7,7 @@ import { getFirstEntityId, hasEntityId } from '@sim/types/event'
 import type { ClanId } from '@sim/types/ids'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 
 type LinkItem = { id: string; type: EntityType; name: string }
 
@@ -26,7 +27,7 @@ function EventLinks({ event }: { event: SimEvent }) {
       items.push({
         id: polity.id,
         type: 'polity',
-        name: resolveName('polity', polity.nameKey, polity.nameKey),
+        name: getPolityShortName(state, resolveName, polity.id),
       })
   }
   const houseId = getFirstEntityId(event, 'house')

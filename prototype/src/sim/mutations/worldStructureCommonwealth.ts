@@ -14,6 +14,7 @@ import { addHouselessPerson } from './houseMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { generatePolityNameKey } from '../selectors/polityNamingService'
+import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { createOrganizationShare } from './shareMutations'
 import { samplePerson } from '../helpers/personFactory'
 import { getHouselessPersons } from '../selectors/availabilitySelectors'
@@ -236,19 +237,25 @@ export function createNegotiatingCommonwealth(
   ctx = { ...ctx, state: newState }
 
   const leaderPerson = newState.persons[leaderPersonId]
+  const newPolityRef = getPolityNameRefForEmit(newState, newPolityId)
   const { event: revoltEvent, ctx: ctx3 } = createSimEvent(ctx, {
     type: 'REVOLT_POLITY_FOUNDED',
     importance: 'critical',
     messageKey: 'revolt.polity_founded',
     messageParams: {
-      polity: nameParam('polity', newPolityObj.nameKey),
+      polity: nameParam(newPolityRef.category, newPolityRef.nameKey),
       person: nameParam('person', leaderPerson?.nameKey ?? ''),
       province: nameParam('province', province.nameKey),
     },
     entityRefs: [
       entityRef('person', leaderPersonId, 'leader', leaderPerson?.nameKey),
-      entityRef('polity', newPolityId, 'new_polity', newPolityObj.nameKey),
-      entityRef('polity', targetPolityId, 'old_polity', targetPolity.nameKey),
+      entityRef('polity', newPolityId, 'new_polity', newPolityRef.nameKey),
+      entityRef(
+        'polity',
+        targetPolityId,
+        'old_polity',
+        getPolityEmitNameKey(newState, targetPolityId),
+      ),
       entityRef('province', provinceId, 'province', province.nameKey),
     ],
   })
@@ -436,7 +443,12 @@ export function establishCommonwealth(
       province: nameParam('province', capitalProvince?.nameKey ?? cw.capitalProvinceId),
     },
     entityRefs: [
-      entityRef('polity', input.commonwealthPolityId, 'commonwealth', cw.nameKey),
+      entityRef(
+        'polity',
+        input.commonwealthPolityId,
+        'commonwealth',
+        getPolityEmitNameKey(state, input.commonwealthPolityId),
+      ),
       entityRef('person', input.leaderPersonId, 'leader'),
       entityRef('province', cw.capitalProvinceId, 'province', capitalProvince?.nameKey),
     ],
@@ -503,7 +515,9 @@ export function suppressRevolt(
   const capitalProv = capitalProvinceId ? nextCtx.state.provinces[capitalProvinceId] : undefined
   const originalPolityId =
     cw?.origin?.kind === 'popular_revolt' ? cw.origin.originalPolityId : undefined
-  const originalPolity = originalPolityId ? nextCtx.state.polities[originalPolityId] : undefined
+  const originalPolityRef = originalPolityId
+    ? getPolityNameRefForEmit(nextCtx.state, originalPolityId)
+    : undefined
   const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
     type: 'REVOLT_SUPPRESSED',
     importance: 'major',
@@ -511,12 +525,14 @@ export function suppressRevolt(
       leaderOutcome === 'executed' ? 'revolt.suppressed_executed' : 'revolt.suppressed_pardoned',
     messageParams: {
       province: nameParam('province', capitalProv?.nameKey ?? capitalProvinceId ?? ''),
-      restorePolity: nameParam('polity', originalPolity?.nameKey ?? ''),
+      restorePolity: originalPolityRef
+        ? nameParam(originalPolityRef.category, originalPolityRef.nameKey)
+        : nameParam('polity', ''),
     },
     entityRefs: [
       entityRef('polity', input.commonwealthPolityId, 'commonwealth'),
       ...(originalPolityId
-        ? [entityRef('polity', originalPolityId, 'restore_polity', originalPolity?.nameKey)]
+        ? [entityRef('polity', originalPolityId, 'restore_polity', originalPolityRef?.nameKey)]
         : []),
       ...(capitalProvinceId
         ? [entityRef('province', capitalProvinceId, 'province', capitalProv?.nameKey)]

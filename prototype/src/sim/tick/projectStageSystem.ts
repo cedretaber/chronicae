@@ -3,7 +3,7 @@ import type { SimEvent } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
 import { isLivingPerson } from '../types/person'
-import { getOwnerNameKey } from '../utils/ownerNames'
+import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type {
   DevelopHoldingProject,
@@ -385,8 +385,8 @@ function resolveOpenDiplomaticPlay(
       importance: 'minor',
       messageKey: 'pressure.created',
       messageParams: {
-        source: nameParam(sourceRef.kind, sourceNameKey),
-        target: nameParam(targetRef.kind, targetNameKey),
+        source: nameParam(getOwnerNameRefForEmit(ws, sourceRef).category, sourceNameKey),
+        target: nameParam(getOwnerNameRefForEmit(ws, targetRef).category, targetNameKey),
       },
       entityRefs: [
         entityRef(sourceRef.kind, sourceRef.id, 'source', sourceNameKey),
@@ -405,7 +405,7 @@ function resolveOpenDiplomaticPlay(
       importance: 'minor',
       messageKey: 'project.failed.duplicate_play',
       messageParams: {
-        owner: nameParam(project.owner.kind, ownerNameKey),
+        owner: nameParam(getOwnerNameRefForEmit(ws, project.owner).category, ownerNameKey),
         kind: project.kind,
       },
       entityRefs: [],

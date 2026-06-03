@@ -4,6 +4,7 @@ import { clamp } from '../utils/math'
 import type { DiplomaticPlay, DiplomaticOffer } from '../types/diplomaticPlay'
 import { entityRef, nameParam } from '../types/event'
 import { getHoldingLandContractChain } from '../selectors/landContractSelectors'
+import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { validateOffer, evaluateOffer, getOfferEvaluator } from './diplomaticOfferEvaluation'
 import { applySettledOffer } from '../mutations/diplomaticOfferMutations'
 import { isDeadlineReached, markPlayEscalated, setPlayStatus } from './diplomaticPlayHelpers'
@@ -112,17 +113,19 @@ export function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickC
 
     const hasPay = acceptedOffer.demands.some((d) => d.kind === 'pay_wealth')
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
+    const initiatorRef = getPolityNameRefForEmit(nextCtx.state, initiatorPolityId)
+    const defenderRef = getPolityNameRefForEmit(nextCtx.state, defenderPolityId)
+    const initiatorName = initiatorRef.nameKey
+    const defenderName = defenderRef.nameKey
     const payAmount = acceptedOffer.demands.find((d) => d.kind === 'pay_wealth')
     const { event: ev, ctx: ctxEv } = createSimEvent(nextCtx, {
       type: 'DIPLOMATIC_PLAY_SETTLED',
       importance: 'major',
       messageKey: hasPay ? 'diplomatic_play.settled_purchase' : 'diplomatic_play.settled_cession',
       messageParams: {
-        initiator: nameParam('polity', initiatorName),
+        initiator: nameParam(initiatorRef.category, initiatorName),
         province: nameParam('province', provinceNameKey),
-        defender: nameParam('polity', defenderName),
+        defender: nameParam(defenderRef.category, defenderName),
         ...(payAmount && payAmount.kind === 'pay_wealth'
           ? { price: Math.round(payAmount.amount) }
           : {}),
@@ -139,17 +142,19 @@ export function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickC
 
   // Escalation check
   if (nextTension >= config.diplomaticPlayEscalationThreshold) {
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+    const initiatorRef = getPolityNameRefForEmit(nextCtx.state, initiatorPolityId)
+    const defenderRef = getPolityNameRefForEmit(nextCtx.state, defenderPolityId)
+    const initiatorName = initiatorRef.nameKey
+    const defenderName = defenderRef.nameKey
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
     return markPlayEscalated(nextCtx, play.id, {
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
       holdingIds: [holdingId],
-      summary: `${initiatorName ?? initiatorPolityId} mobilises against ${defenderName ?? defenderPolityId} over ${provinceNameKey}.`,
+      summary: `${initiatorName} mobilises against ${defenderName} over ${provinceNameKey}.`,
       messageKey: 'diplomatic_play.escalated_claim',
       messageParams: {
-        initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
+        initiator: nameParam(initiatorRef.category, initiatorName),
         province: nameParam('province', provinceNameKey),
       },
       eventEntityRefs: [
@@ -163,17 +168,19 @@ export function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickC
 
   // Deadline check -- no 'failed', always escalate
   if (isDeadlineReached(nextCtx.state, play)) {
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+    const initiatorRef = getPolityNameRefForEmit(nextCtx.state, initiatorPolityId)
+    const defenderRef = getPolityNameRefForEmit(nextCtx.state, defenderPolityId)
+    const initiatorName = initiatorRef.nameKey
+    const defenderName = defenderRef.nameKey
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
     return markPlayEscalated(nextCtx, play.id, {
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
       holdingIds: [holdingId],
-      summary: `Deadlocked claim erupts: ${initiatorName ?? initiatorPolityId} attacks for ${provinceNameKey}.`,
+      summary: `Deadlocked claim erupts: ${initiatorName} attacks for ${provinceNameKey}.`,
       messageKey: 'diplomatic_play.escalated_claim',
       messageParams: {
-        initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
+        initiator: nameParam(initiatorRef.category, initiatorName),
         province: nameParam('province', provinceNameKey),
       },
       eventEntityRefs: [
@@ -310,8 +317,10 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
       const isElimination =
         taxDemand.newTaxRateToGrantor <= nextCtx.config.taxRevisionMinRate ||
         taxDemand.newTaxRateToGrantor >= nextCtx.config.taxRevisionMaxRate
-      const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey ?? initiatorPolityId
-      const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey ?? defenderPolityId
+      const initiatorRef = getPolityNameRefForEmit(nextCtx.state, initiatorPolityId)
+      const defenderRef = getPolityNameRefForEmit(nextCtx.state, defenderPolityId)
+      const initiatorName = initiatorRef.nameKey
+      const defenderName = defenderRef.nameKey
       const eventType = isElimination ? 'CONTRACT_ELIMINATED' : 'CONTRACT_TAX_REVISED'
       const messageKey = isElimination ? 'land_contract.eliminated' : 'land_contract.tax_revised'
       const { event: taxEvent, ctx: ctxEvTax } = createSimEvent(nextCtx, {
@@ -324,8 +333,8 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
           fromRate: Math.round((beforeTaxRate ?? taxDemand.newTaxRateToGrantor) * 100),
           toRate: Math.round(taxDemand.newTaxRateToGrantor * 100),
           rate: Math.round(taxDemand.newTaxRateToGrantor * 100),
-          initiator: nameParam('polity', initiatorName),
-          defender: nameParam('polity', defenderName),
+          initiator: nameParam(initiatorRef.category, initiatorName),
+          defender: nameParam(defenderRef.category, defenderName),
         },
         entityRefs: [
           entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
@@ -353,13 +362,13 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
           'polity',
           initiatorPolityId,
           'initiator',
-          nextCtx.state.polities[initiatorPolityId]?.nameKey,
+          getPolityEmitNameKey(nextCtx.state, initiatorPolityId),
         ),
         entityRef(
           'polity',
           defenderPolityId,
           'defender',
-          nextCtx.state.polities[defenderPolityId]?.nameKey,
+          getPolityEmitNameKey(nextCtx.state, defenderPolityId),
         ),
       ],
     })
@@ -368,17 +377,19 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
 
   // Escalation check
   if (nextTension >= config.diplomaticPlayEscalationThreshold) {
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+    const initiatorRef = getPolityNameRefForEmit(nextCtx.state, initiatorPolityId)
+    const defenderRef = getPolityNameRefForEmit(nextCtx.state, defenderPolityId)
+    const initiatorName = initiatorRef.nameKey
+    const defenderName = defenderRef.nameKey
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
     return markPlayEscalated(nextCtx, play.id, {
       polityIds: [initiatorPolityId, defenderPolityId],
       provinceIds: [provinceId],
       holdingIds: [holdingId],
-      summary: `${initiatorName ?? initiatorPolityId} demands tax changes from ${defenderName ?? defenderPolityId} over ${provinceNameKey}.`,
+      summary: `${initiatorName} demands tax changes from ${defenderName} over ${provinceNameKey}.`,
       messageKey: 'diplomatic_play.escalated_claim',
       messageParams: {
-        initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
+        initiator: nameParam(initiatorRef.category, initiatorName),
         province: nameParam('province', provinceNameKey),
       },
       eventEntityRefs: [
@@ -392,8 +403,10 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
 
   // Deadline check -- always escalate (no 'failed')
   if (isDeadlineReached(nextCtx.state, play)) {
-    const initiatorName = nextCtx.state.polities[initiatorPolityId]?.nameKey
-    const defenderName = nextCtx.state.polities[defenderPolityId]?.nameKey
+    const initiatorRef = getPolityNameRefForEmit(nextCtx.state, initiatorPolityId)
+    const defenderRef = getPolityNameRefForEmit(nextCtx.state, defenderPolityId)
+    const initiatorName = initiatorRef.nameKey
+    const defenderName = defenderRef.nameKey
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
     return markPlayEscalated(nextCtx, play.id, {
       polityIds: [initiatorPolityId, defenderPolityId],
@@ -402,7 +415,7 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
       summary: `Tax revision dispute over ${provinceNameKey} escalates to conflict.`,
       messageKey: 'diplomatic_play.escalated_claim',
       messageParams: {
-        initiator: nameParam('polity', initiatorName ?? initiatorPolityId),
+        initiator: nameParam(initiatorRef.category, initiatorName),
         province: nameParam('province', provinceNameKey),
       },
       eventEntityRefs: [

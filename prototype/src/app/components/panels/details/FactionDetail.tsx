@@ -4,6 +4,7 @@ import { buildEntitySnapshot } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import {
   getFactionActiveMemberIds,
   getFactionViabilityScore,
@@ -83,8 +84,7 @@ export function FactionDetail({
     if (polityOfficesLocal.length > 0) {
       const o = polityOfficesLocal[0]!
       const roleName = resolveName('role', `${o.organization.kind}_${o.role}`, o.role)
-      const orgNameKey = ws.polities[o.organization.id as PolityId]?.nameKey ?? o.organization.id
-      const orgName = resolveName('polity', orgNameKey, orgNameKey)
+      const orgName = getPolityShortName(ws, resolveName, o.organization.id as PolityId)
       return {
         label: `${roleName} (${orgName})`,
         extraCount: total - 1,

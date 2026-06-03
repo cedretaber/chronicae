@@ -19,6 +19,7 @@ import {
   selectTargetHoldingInProvince,
 } from '../selectors/landContractSelectors'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
+import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { clamp } from '../utils/math'
 import { defaultLandContractConfig } from '../config/landContractConfig'
@@ -200,8 +201,10 @@ function createLandClaimPlayFromProjectMut(
     }
   }
 
-  const initiatorNameKey = ws.polities[initiator.id]?.nameKey ?? String(initiator.id)
-  const targetNameKey = ws.polities[target.id]?.nameKey ?? String(target.id)
+  const initiatorRef = getPolityNameRefForEmit(ws, initiator.id)
+  const targetRef = getPolityNameRefForEmit(ws, target.id)
+  const initiatorNameKey = initiatorRef.nameKey
+  const targetNameKey = targetRef.nameKey
   const hasOffer = counterDemandAmount > 0
   emitEvent({
     type: 'DIPLOMATIC_PLAY_STARTED',
@@ -210,8 +213,8 @@ function createLandClaimPlayFromProjectMut(
       ? 'diplomatic_play.started_with_offer'
       : 'diplomatic_play.started_no_offer',
     messageParams: {
-      initiator: nameParam('polity', initiatorNameKey),
-      target: nameParam('polity', targetNameKey),
+      initiator: nameParam(initiatorRef.category, initiatorNameKey),
+      target: nameParam(targetRef.category, targetNameKey),
       province: nameParam('province', ws.provinces[provinceId]?.nameKey ?? String(provinceId)),
     },
     entityRefs: [
@@ -343,8 +346,10 @@ function createContractRevisionPlayFromProjectMut(
     }
   }
 
-  const initiatorNameKey = ws.polities[initiator.id]?.nameKey ?? String(initiator.id)
-  const targetNameKey = ws.polities[target.id]?.nameKey ?? String(target.id)
+  const initiatorRef = getPolityNameRefForEmit(ws, initiator.id)
+  const targetRef = getPolityNameRefForEmit(ws, target.id)
+  const initiatorNameKey = initiatorRef.nameKey
+  const targetNameKey = targetRef.nameKey
   const hasInitialOffer = compensation > 0
   emitEvent({
     type: 'DIPLOMATIC_PLAY_STARTED',
@@ -353,8 +358,8 @@ function createContractRevisionPlayFromProjectMut(
       ? 'diplomatic_play.started_with_offer'
       : 'diplomatic_play.started_no_offer',
     messageParams: {
-      initiator: nameParam('polity', initiatorNameKey),
-      target: nameParam('polity', targetNameKey),
+      initiator: nameParam(initiatorRef.category, initiatorNameKey),
+      target: nameParam(targetRef.category, targetNameKey),
       province: nameParam('province', ws.provinces[provinceId]?.nameKey ?? String(provinceId)),
     },
     entityRefs: [

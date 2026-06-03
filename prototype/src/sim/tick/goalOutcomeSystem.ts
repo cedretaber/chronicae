@@ -4,7 +4,7 @@ import type { Goal } from '../types/goal'
 import { TERMINAL_AIM_STATUSES } from '../types/goal'
 import { clamp } from '../utils/math'
 import { nameParam, entityRef } from '../types/event'
-import { getOwnerNameKey } from '../utils/ownerNames'
+import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 
 const TERMINAL_AIM_SET = new Set<string>(TERMINAL_AIM_STATUSES as readonly string[])
 
@@ -49,7 +49,10 @@ export function runGoalOutcomeSystem(ctx: TickContext): TickContext {
         importance: 'normal',
         messageKey: 'goal.succeeded',
         messageParams: {
-          owner: nameParam(goal.owner.kind, ownerNameKey),
+          owner: nameParam(
+            getOwnerNameRefForEmit(currentCtx.state, goal.owner).category,
+            ownerNameKey,
+          ),
           kind: goal.kind,
         },
         entityRefs: [entityRef(goal.owner.kind, goal.owner.id, 'owner', ownerNameKey)],

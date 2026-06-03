@@ -3,7 +3,7 @@ import { nameParam, entityRef } from '../types/event'
 import type { Aim } from '../types/goal'
 import type { TaskOutcomeKind } from '../types/task'
 import type { WorldState } from '../types/world'
-import { getOwnerNameKey } from '../utils/ownerNames'
+import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 import type { PersonId, HoldingId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProjectId, HouseId } from '../types/ids'
@@ -105,7 +105,7 @@ export function handlePrepareProjectCompletionMut(
     importance: 'minor',
     messageKey: 'project.started',
     messageParams: {
-      owner: nameParam(aim.owner.kind, ownerNameKey),
+      owner: nameParam(getOwnerNameRefForEmit(ws, aim.owner).category, ownerNameKey),
       kind: projectKind,
     },
     entityRefs: [entityRef(aim.owner.kind, aim.owner.id, 'owner', ownerNameKey)],

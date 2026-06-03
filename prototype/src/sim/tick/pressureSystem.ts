@@ -8,6 +8,7 @@ import { createProjectId } from '../types/ids'
 import { addProjectToIndexMut } from '../mutations/projectMutations'
 import { setPressureResponseProjectMut } from '../mutations/pressureMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
+import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
 import { createLogger } from '../debug/logger'
@@ -117,13 +118,14 @@ export function runPressureSystem(ctx: TickContext): TickContext {
       target: `${pressure.target.kind}:${pressure.target.id}`,
     })
 
-    const ownerNameKey = ws.polities[polityId]?.nameKey ?? polityId
+    const ownerRef = getPolityNameRefForEmit(ws, polityId)
+    const ownerNameKey = ownerRef.nameKey
     emitEvent({
       type: 'PROJECT_STARTED',
       importance: 'minor',
       messageKey: 'project.started',
       messageParams: {
-        owner: nameParam('polity', ownerNameKey),
+        owner: nameParam(ownerRef.category, ownerNameKey),
         kind: 'respond_to_pressure',
       },
       entityRefs: [entityRef('polity', polityId, 'owner', ownerNameKey)],

@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import { getPolityLegitimacy, getPolityStability } from '@sim/selectors/statusSelectors'
 import type { SimEvent } from '@sim/types/event'
 import { hasEntityId } from '@sim/types/event'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import type { Polity } from '@/sim/types/polity'
+import type { PolityId } from '@/sim/types/ids'
 import type { House } from '@/sim/types/house'
 import type { Person } from '@/sim/types/person'
 import type { WorldState } from '@/sim/types/world'
@@ -67,7 +69,7 @@ function PolityRow({
     >
       <div className="flex items-center gap-2">
         <span className="inline-block h-3 w-3 shrink-0 rounded-sm" style={{ background: color }} />
-        <span className="font-bold">{resolveName('polity', polity.nameKey, polity.nameKey)}</span>
+        <span className="font-bold">{getPolityShortName(worldState, resolveName, polity.id)}</span>
       </div>
       <div className="text-gray-300">
         Leg: {formatScore(legitimacy)} | Stab: {formatScore(stability)} | Mil:{' '}
@@ -200,11 +202,11 @@ function FactionRow({
 // v0.18 Stage E/F §21: Active DiplomaticPlay 一覧の row
 function PlayRow({
   play,
-  polities,
+  world,
   onClick,
 }: {
   play: DiplomaticPlay
-  polities: Record<string, Polity>
+  world: WorldState | null | undefined
   onClick: () => void
 }) {
   const { t } = useTranslation()
@@ -219,10 +221,8 @@ function PlayRow({
     escalated: { label: t('sidebar.play_status.escalated'), bg: 'bg-red-700' },
   }
 
-  const initiatorNameKey = polities[play.initiator.id]?.nameKey ?? play.initiator.id
-  const targetNameKey = polities[play.target.id]?.nameKey ?? play.target.id
-  const initiatorName = resolveName('polity', initiatorNameKey, initiatorNameKey)
-  const targetName = resolveName('polity', targetNameKey, targetNameKey)
+  const initiatorName = getPolityShortName(world, resolveName, play.initiator.id as PolityId)
+  const targetName = getPolityShortName(world, resolveName, play.target.id as PolityId)
   const badge = statusBadge[play.status] ?? { label: play.status, bg: 'bg-gray-600' }
   const kindLabelText = kindLabel[play.kind] ?? play.kind
   const hasOffer = play.offerHistoryIds.length > 0
@@ -252,12 +252,12 @@ function PlayRow({
 // v0.34 §16: Active War 一覧の row (PlayRow の縮小版)
 function WarRow({
   war,
-  polities,
+  world,
   houses,
   onClick,
 }: {
   war: War
-  polities: Record<string, Polity>
+  world: WorldState | null | undefined
   houses: Record<string, House>
   onClick: () => void
 }) {
@@ -266,8 +266,7 @@ function WarRow({
   const resolveActorName = (actor: OrganizationRef | undefined): string => {
     if (!actor) return '—'
     if (actor.kind === 'polity') {
-      const nameKey = polities[actor.id]?.nameKey ?? actor.id
-      return resolveName('polity', nameKey, nameKey)
+      return getPolityShortName(world, resolveName, actor.id)
     }
     const nameKey = houses[actor.id]?.nameKey ?? actor.id
     return resolveName('house', nameKey, nameKey)
@@ -432,7 +431,9 @@ export function Sidebar() {
                   primaryPolityId
                     ? (() => {
                         const p = polities?.[primaryPolityId]
-                        return p ? resolveName('polity', p.nameKey, p.nameKey) : ''
+                        return p
+                          ? getPolityShortName(session?.currentState, resolveName, primaryPolityId)
+                          : ''
                       })()
                     : ''
                 }
@@ -478,12 +479,11 @@ export function Sidebar() {
       if (activePlays.length === 0) {
         return <div className="px-3 py-2 text-xs text-gray-500">No active plays</div>
       }
-      const politiesMap = polities ?? {}
       return activePlays.map((play) => (
         <PlayRow
           key={play.id}
           play={play}
-          polities={politiesMap as Record<string, Polity>}
+          world={session?.currentState}
           onClick={() => openDetailWindow('diplomaticPlay', play.id)}
         />
       ))
@@ -492,13 +492,12 @@ export function Sidebar() {
       if (activeWars.length === 0) {
         return <div className="px-3 py-2 text-xs text-gray-500">No active wars</div>
       }
-      const politiesMap = (polities ?? {}) as Record<string, Polity>
       const housesMap = (session?.currentState.houses ?? {}) as Record<string, House>
       return activeWars.map((war) => (
         <WarRow
           key={war.id}
           war={war}
-          polities={politiesMap}
+          world={session?.currentState}
           houses={housesMap}
           onClick={() => openDetailWindow('war', war.id)}
         />
@@ -515,7 +514,7 @@ export function Sidebar() {
       let name = watchId
       if (type === 'polity' && polities) {
         const found = Object.values(polities).find((p) => p.id === watchId)
-        if (found) name = resolveName('polity', found.nameKey, found.nameKey)
+        if (found) name = getPolityShortName(session?.currentState, resolveName, found.id)
       } else if (type === 'house' && houses) {
         const found = Object.values(houses).find((h) => h.id === watchId)
         if (found) name = resolveName('house', found.nameKey, found.nameKey)

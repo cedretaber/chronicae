@@ -3,7 +3,7 @@ import { createSimEvent } from './context'
 import type { Aim } from '../types/goal'
 import { TERMINAL_DIPLOMATIC_PLAY_STATUSES } from '../types/diplomaticPlay'
 import { nameParam, entityRef } from '../types/event'
-import { getOwnerNameKey } from '../utils/ownerNames'
+import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 import { clamp } from '../utils/math'
 
 const TERMINAL_PLAY_SET = new Set<string>(TERMINAL_DIPLOMATIC_PLAY_STATUSES as readonly string[])
@@ -68,7 +68,10 @@ export function runAimOutcomeSystem(ctx: TickContext): TickContext {
         importance: 'minor',
         messageKey: 'aim.succeeded',
         messageParams: {
-          owner: nameParam(aim.owner.kind, ownerNameKey),
+          owner: nameParam(
+            getOwnerNameRefForEmit(currentCtx.state, aim.owner).category,
+            ownerNameKey,
+          ),
           kind: aim.kind,
         },
         entityRefs: [entityRef(aim.owner.kind, aim.owner.id, 'owner', ownerNameKey)],

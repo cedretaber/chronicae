@@ -5,6 +5,7 @@ import type { ClickHandler } from './shared/helpers'
 import type { SimEvent } from '@/sim/types/event'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { getHouseLeader, getActiveOfficeHolders } from '@sim/selectors/officeSelectors'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
@@ -145,7 +146,7 @@ export function HouseDetail({
                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                 onClick={() => onPolityClick(primaryPolityId, 'polity')}
               >
-                {resolveName('polity', p.nameKey, p.nameKey)}
+                {getPolityShortName(currentState, resolveName, p.id)}
               </button>
             )
           })()}
@@ -168,7 +169,7 @@ export function HouseDetail({
                         className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                         onClick={() => onPolityClick(pid, 'polity')}
                       >
-                        {resolveName('polity', p.nameKey, p.nameKey)}
+                        {getPolityShortName(currentState, resolveName, p.id)}
                       </button>
                     )
                   })()
@@ -191,7 +192,7 @@ export function HouseDetail({
                         className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                         onClick={() => onPolityClick(pid, 'polity')}
                       >
-                        {resolveName('polity', p.nameKey, p.nameKey)}
+                        {getPolityShortName(currentState, resolveName, p.id)}
                       </button>
                       <span className="ml-1 text-xs text-gray-500">
                         ({formatPolityRank(p.rank)})

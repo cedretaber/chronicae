@@ -6,6 +6,7 @@ import type { FactionId } from '@/sim/types/ids'
 import type { SimEvent } from '@/sim/types/event'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
@@ -79,7 +80,7 @@ export function PersonDetail({
     const org = office.organization
     if (org.kind === 'polity') {
       const p = worldState.polities[org.id]
-      return p ? resolveName('polity', p.nameKey, p.nameKey) : org.id
+      return p ? getPolityShortName(worldState, resolveName, org.id) : org.id
     }
     const h = worldState.houses[org.id]
     return h ? resolveName('house', h.nameKey, h.nameKey) : org.id
@@ -199,7 +200,7 @@ export function PersonDetail({
                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                 onClick={() => onPolityClick(primaryPolityId, 'polity')}
               >
-                {resolveName('polity', p.nameKey, p.nameKey)}
+                {getPolityShortName(currentState, resolveName, primaryPolityId)}
               </button>
             )
           })()}
@@ -527,7 +528,7 @@ export function PersonDetail({
                                 if (aim.owner.kind === 'polity') {
                                   const p = worldState.polities[aim.owner.id]
                                   const name = p
-                                    ? resolveName('polity', p.nameKey, p.nameKey)
+                                    ? getPolityShortName(worldState, resolveName, p.id)
                                     : aim.owner.id
                                   return t('detail.person.task_target_polity_aim', { name })
                                 }
@@ -545,7 +546,7 @@ export function PersonDetail({
                                 if (task.owner.kind === 'polity') {
                                   const p = worldState.polities[task.owner.id]
                                   const name = p
-                                    ? resolveName('polity', p.nameKey, p.nameKey)
+                                    ? getPolityShortName(worldState, resolveName, p.id)
                                     : task.owner.id
                                   return t('detail.person.task_target_polity_project', { name })
                                 }
@@ -563,7 +564,7 @@ export function PersonDetail({
                                 if (task.owner.kind === 'polity') {
                                   const p = worldState.polities[task.owner.id]
                                   const name = p
-                                    ? resolveName('polity', p.nameKey, p.nameKey)
+                                    ? getPolityShortName(worldState, resolveName, p.id)
                                     : task.owner.id
                                   return t('detail.person.task_target_polity_play', { name })
                                 }

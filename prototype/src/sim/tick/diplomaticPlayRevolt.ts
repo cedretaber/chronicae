@@ -17,6 +17,7 @@ import { createRegiment } from '../mutations/regimentMutations'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { createOrganizationShare, removeSharesByOrganization } from '../mutations/shareMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
+import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { getHoldingPopSizeByClass } from '../selectors/popSelectors'
 import {
   getProvinceManpowerBase,
@@ -228,26 +229,19 @@ function applyPopularTaxReliefSettlement(
     'province',
     nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
   )
+  const targetPolityRef = getPolityNameRefForEmit(nextCtx.state, targetPolityId)
   const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
     type: 'REVOLT_SETTLED',
     importance: 'major',
     messageKey: 'revolt.settled_pardoned',
     messageParams: {
       province: provinceName,
-      restorePolity: nameParam(
-        'polity',
-        nextCtx.state.polities[targetPolityId]?.nameKey ?? targetPolityId,
-      ),
+      restorePolity: nameParam(targetPolityRef.category, targetPolityRef.nameKey),
     },
     entityRefs: [
       entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
       entityRef('polity', commonwealthId, 'rebel_polity'),
-      entityRef(
-        'polity',
-        targetPolityId,
-        'target_polity',
-        nextCtx.state.polities[targetPolityId]?.nameKey,
-      ),
+      entityRef('polity', targetPolityId, 'target_polity', targetPolityRef.nameKey),
     ],
   })
   return { ...ctxEv, events: [...ctxEv.events, event] }
@@ -363,7 +357,7 @@ function applyRevoltEscalation(
         'polity',
         targetPolityId,
         'target_polity',
-        nextCtx.state.polities[targetPolityId]?.nameKey,
+        getPolityEmitNameKey(nextCtx.state, targetPolityId),
       ),
     ],
   })
@@ -382,7 +376,7 @@ function applyRevoltEscalation(
         'polity',
         targetPolityId,
         'target_polity',
-        nextCtx.state.polities[targetPolityId]?.nameKey,
+        getPolityEmitNameKey(nextCtx.state, targetPolityId),
       ),
     ],
   })
@@ -568,6 +562,7 @@ function resolveInternalRevolt(
     'province',
     nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
   )
+  const targetPolityRef = getPolityNameRefForEmit(nextCtx.state, targetPolityId)
   const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
     type: 'REVOLT_SUPPRESSED',
     importance: 'major',
@@ -575,7 +570,7 @@ function resolveInternalRevolt(
       leaderOutcome === 'executed' ? 'revolt.suppressed_executed' : 'revolt.suppressed_pardoned',
     messageParams: {
       province: provinceName,
-      restorePolity: nameParam('polity', targetPolity?.nameKey ?? ''),
+      restorePolity: nameParam(targetPolityRef.category, targetPolityRef.nameKey),
     },
     entityRefs: [
       entityRef('province', provinceId, 'province'),

@@ -8,6 +8,7 @@ import {
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import {
   getProvinceDevelopmentFromHoldings,
   getProvincePolityControlFromHoldings,
@@ -222,7 +223,7 @@ export function ProvinceDetail({
             polityId={
               currentState ? getProvinceTerminalPolityId(currentState, province.id) : undefined
             }
-            polities={currentState?.polities ?? {}}
+            world={currentState ?? undefined}
             onClick={onPolityClick}
           />
         </div>
@@ -337,7 +338,7 @@ export function ProvinceDetail({
                                   className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
                                   onClick={() => onPolityClick(grantee.id, 'polity')}
                                 >
-                                  {resolveName('polity', grantee.nameKey, grantee.nameKey)}
+                                  {getPolityShortName(currentState, resolveName, grantee.id)}
                                 </button>
                               ) : (
                                 <span className="text-gray-500">—</span>

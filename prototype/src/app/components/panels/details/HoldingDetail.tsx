@@ -4,6 +4,7 @@ import { buildEntitySnapshot, resolveHoldingImprovements } from './shared/helper
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import { PanelHeader, CopyJsonButton, EntityChronicleSection } from './shared/widgets'
 import { getHoldingImage } from '@/app/utils/assetHash'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
@@ -405,7 +406,7 @@ export function HoldingDetail({
                           className="text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline"
                           onClick={() => onPolityClick(grantee.id, 'polity')}
                         >
-                          {resolveName('polity', grantee.nameKey, grantee.nameKey)}
+                          {getPolityShortName(currentState, resolveName, grantee.id)}
                         </button>
                       ) : (
                         <span className="text-gray-500">—</span>

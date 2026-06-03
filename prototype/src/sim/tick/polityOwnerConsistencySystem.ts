@@ -10,6 +10,7 @@ import {
   getHouseSeatProvinceInPolity,
 } from '../selectors/polityRelations'
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
+import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { revokeOfficesByOrganization, createOfficeAssignment } from '../mutations/officeMutations'
 import { createOrganizationShare, removeSharesByOrganization } from '../mutations/shareMutations'
 import { selectOrCreateCommonwealthLeader } from '../mutations/worldStructureMutations'
@@ -61,27 +62,27 @@ function emitPolityExtinct(
   _summary: string,
   messageKey: string,
 ): TickContext {
-  const polity = ctx.state.polities[polityId]
-  const polityName = nameParam('polity', polity?.nameKey ?? polityId)
+  const polityRef = getPolityNameRefForEmit(ctx.state, polityId)
+  const polityName = nameParam(polityRef.category, polityRef.nameKey)
   const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'POLITY_EXTINCT',
     importance: 'major',
     messageKey,
     messageParams: { polity: polityName },
-    entityRefs: [entityRef('polity', polityId, 'polity', polity?.nameKey)],
+    entityRefs: [entityRef('polity', polityId, 'polity', polityRef.nameKey)],
   })
   return { ...c1, events: [...c1.events, event] }
 }
 
 function emitPolityLandless(ctx: TickContext, polityId: PolityId): TickContext {
-  const polity = ctx.state.polities[polityId]
-  const polityName = nameParam('polity', polity?.nameKey ?? polityId)
+  const polityRef = getPolityNameRefForEmit(ctx.state, polityId)
+  const polityName = nameParam(polityRef.category, polityRef.nameKey)
   const { event, ctx: c1 } = createSimEvent(ctx, {
     type: 'POLITY_LANDLESS',
     importance: 'major',
     messageKey: 'polity.landless',
     messageParams: { polity: polityName },
-    entityRefs: [entityRef('polity', polityId, 'polity', polity?.nameKey)],
+    entityRefs: [entityRef('polity', polityId, 'polity', polityRef.nameKey)],
   })
   return { ...c1, events: [...c1.events, event] }
 }
@@ -93,10 +94,10 @@ function emitPolityOwnerChanged(
   newOwnerId: HouseId,
   newCapitalProvinceId: ProvinceId,
 ): TickContext {
-  const polity = ctx.state.polities[polityId]
+  const polityRef = getPolityNameRefForEmit(ctx.state, polityId)
   const newHouse = ctx.state.houses[newOwnerId]
   const capProv = ctx.state.provinces[newCapitalProvinceId]
-  const polityName = nameParam('polity', polity?.nameKey ?? polityId)
+  const polityName = nameParam(polityRef.category, polityRef.nameKey)
   const newHouseName = nameParam('house', newHouse?.nameKey ?? newOwnerId)
   const capName = nameParam('province', capProv?.nameKey ?? newCapitalProvinceId)
   const messageKey = oldOwnerId ? 'polity.owner_changed' : 'polity.owner_changed_initial'
@@ -110,7 +111,7 @@ function emitPolityOwnerChanged(
       capital: capName,
     },
     entityRefs: [
-      entityRef('polity', polityId, 'polity', polity?.nameKey),
+      entityRef('polity', polityId, 'polity', polityRef.nameKey),
       entityRef('house', newOwnerId, 'new_owner', newHouse?.nameKey),
       entityRef('province', newCapitalProvinceId, 'capital', capProv?.nameKey),
     ],
@@ -203,7 +204,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
       currentCtx = emitPolityExtinct(
         currentCtx,
         polityId,
-        `${polity.nameKey} has dissolved without remaining provinces.`,
+        `${getPolityEmitNameKey(currentCtx.state, polityId)} has dissolved without remaining provinces.`,
         'polity.extinct_no_provinces',
       )
       continue
@@ -252,7 +253,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
         currentCtx = emitPolityExtinct(
           currentCtx,
           polityId,
-          `${polity.nameKey} has dissolved without an owning house.`,
+          `${getPolityEmitNameKey(currentCtx.state, polityId)} has dissolved without an owning house.`,
           'polity.extinct_no_owner',
         )
         continue
@@ -307,7 +308,7 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
       currentCtx = emitPolityExtinct(
         currentCtx,
         polityId,
-        `${polity.nameKey} has dissolved after losing its owning house.`,
+        `${getPolityEmitNameKey(currentCtx.state, polityId)} has dissolved after losing its owning house.`,
         'polity.extinct_lost_owner',
       )
       continue

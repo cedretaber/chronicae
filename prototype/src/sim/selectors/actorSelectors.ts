@@ -8,6 +8,7 @@ import {
   getPolityTerminalProvinceIds,
   getHouseControlledProvinceIds,
 } from './landContractSelectors'
+import { getPolityNameRefForEmit } from './nameRefSelectors'
 
 // v0.18 Stage A §7
 // OrganizationRef.kind に対する分岐を 1 箇所に集約するための utility selector。
@@ -19,7 +20,8 @@ import {
 
 export function getActorName(state: WorldState, actor: OrganizationRef): string {
   if (actor.kind === 'polity') {
-    return state.polities[actor.id]?.nameKey ?? 'Unknown Polity'
+    if (!state.polities[actor.id]) return 'Unknown Polity'
+    return getPolityNameRefForEmit(state, actor.id).nameKey
   }
   return state.houses[actor.id]?.nameKey ?? 'Unknown House'
 }

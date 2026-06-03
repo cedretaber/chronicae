@@ -93,7 +93,7 @@ export function DiplomaticPlayDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.play.initiator')}:</span>
           {initiatorPolity ? (
-            <PolityLink polityId={initiatorPolity.id} polities={polities} onClick={onPolityClick} />
+            <PolityLink polityId={initiatorPolity.id} world={worldState} onClick={onPolityClick} />
           ) : (
             <span>{play.initiator.id}</span>
           )}
@@ -101,7 +101,7 @@ export function DiplomaticPlayDetail({
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.play.target')}:</span>
           {targetPolity ? (
-            <PolityLink polityId={targetPolity.id} polities={polities} onClick={onPolityClick} />
+            <PolityLink polityId={targetPolity.id} world={worldState} onClick={onPolityClick} />
           ) : (
             <span>{play.target.id}</span>
           )}

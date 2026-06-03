@@ -20,6 +20,7 @@ import type {
   EventEntityKind,
 } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
+import { getPolityNameRefForEmit, getHoldingNameRefForEmit } from '../selectors/nameRefSelectors'
 import {
   getWarPrimaryAttacker,
   getWarPrimaryDefender,
@@ -35,8 +36,15 @@ function actorEntityKind(actor: OrganizationRef): EventEntityKind {
 }
 
 function actorNameKey(state: WorldState, actor: OrganizationRef): string {
-  if (actor.kind === 'polity') return state.polities[actor.id]?.nameKey ?? actor.id
+  if (actor.kind === 'polity') return getPolityNameRefForEmit(state, actor.id).nameKey
   return state.houses[actor.id]?.nameKey ?? actor.id
+}
+
+// v0.41 (§7.2): nameParam の emit category。holding 由来 Polity は 'polity' でなく
+// 'province'/'city' になるため、actor.kind ではなくこの helper で category を決める。
+function actorEmitCategory(state: WorldState, actor: OrganizationRef): string {
+  if (actor.kind === 'polity') return getPolityNameRefForEmit(state, actor.id).category
+  return 'house'
 }
 
 function emit(
@@ -62,6 +70,8 @@ type WarParties = {
   defender: OrganizationRef
   attackerName: string
   defenderName: string
+  attackerCategory: string
+  defenderCategory: string
 }
 
 function warParties(state: WorldState, war: War): WarParties | undefined {
@@ -73,6 +83,8 @@ function warParties(state: WorldState, war: War): WarParties | undefined {
     defender: d,
     attackerName: actorNameKey(state, a),
     defenderName: actorNameKey(state, d),
+    attackerCategory: actorEmitCategory(state, a),
+    defenderCategory: actorEmitCategory(state, d),
   }
 }
 
@@ -100,8 +112,8 @@ export function emitWarDeclared(ctx: TickContext, war: War, issueKind: string): 
       'war.declared.generic',
       {
         warId: war.id,
-        attacker: nameParam(p.attacker.kind, p.attackerName),
-        defender: nameParam(p.defender.kind, p.defenderName),
+        attacker: nameParam(p.attackerCategory, p.attackerName),
+        defender: nameParam(p.defenderCategory, p.defenderName),
         issue: issueKind,
       },
       attackerDefenderRefs(p),
@@ -124,8 +136,8 @@ export function emitWarDeclared(ctx: TickContext, war: War, issueKind: string): 
       'war.declared.revolt',
       {
         warId: war.id,
-        attacker: nameParam(p.attacker.kind, p.attackerName),
-        defender: nameParam(p.defender.kind, p.defenderName),
+        attacker: nameParam(p.attackerCategory, p.attackerName),
+        defender: nameParam(p.defenderCategory, p.defenderName),
         province: nameParam('province', prov?.nameKey ?? ''),
       },
       revoltRefs,
@@ -146,8 +158,8 @@ export function emitWarDeclared(ctx: TickContext, war: War, issueKind: string): 
       'war.declared.change_tax',
       {
         warId: war.id,
-        attacker: nameParam(p.attacker.kind, p.attackerName),
-        defender: nameParam(p.defender.kind, p.defenderName),
+        attacker: nameParam(p.attackerCategory, p.attackerName),
+        defender: nameParam(p.defenderCategory, p.defenderName),
         subject: nameParam('province', subjectName),
         fromRate: Math.round(desc.beforeRate * 100),
         toRate: Math.round(desc.afterRate * 100),
@@ -157,7 +169,7 @@ export function emitWarDeclared(ctx: TickContext, war: War, issueKind: string): 
   }
 
   // transfer_land_contract: 元保持者 (fromPolityId) を明示する。
-  const fromName = ctx.state.polities[desc.fromPolityId]?.nameKey ?? desc.fromPolityId
+  const fromRef = getPolityNameRefForEmit(ctx.state, desc.fromPolityId)
   return emit(
     ctx,
     'WAR_DECLARED',
@@ -165,10 +177,10 @@ export function emitWarDeclared(ctx: TickContext, war: War, issueKind: string): 
     'war.declared.transfer_land',
     {
       warId: war.id,
-      attacker: nameParam(p.attacker.kind, p.attackerName),
-      defender: nameParam(p.defender.kind, p.defenderName),
+      attacker: nameParam(p.attackerCategory, p.attackerName),
+      defender: nameParam(p.defenderCategory, p.defenderName),
       subject: nameParam('province', subjectName),
-      from: nameParam('polity', fromName),
+      from: nameParam(fromRef.category, fromRef.nameKey),
     },
     refs,
   )
@@ -182,6 +194,8 @@ export function emitWarOutcome(ctx: TickContext, war: War, attackerWon: boolean)
   const loser = attackerWon ? p.defender : p.attacker
   const winnerName = attackerWon ? p.attackerName : p.defenderName
   const loserName = attackerWon ? p.defenderName : p.attackerName
+  const winnerCategory = attackerWon ? p.attackerCategory : p.defenderCategory
+  const loserCategory = attackerWon ? p.defenderCategory : p.attackerCategory
   let next = emit(
     ctx,
     'WAR_WON',
@@ -189,8 +203,8 @@ export function emitWarOutcome(ctx: TickContext, war: War, attackerWon: boolean)
     'war.won',
     {
       warId: war.id,
-      winner: nameParam(winner.kind, winnerName),
-      loser: nameParam(loser.kind, loserName),
+      winner: nameParam(winnerCategory, winnerName),
+      loser: nameParam(loserCategory, loserName),
     },
     [
       entityRef(actorEntityKind(winner), winner.id, 'winner', winnerName),
@@ -204,8 +218,8 @@ export function emitWarOutcome(ctx: TickContext, war: War, attackerWon: boolean)
     'war.lost',
     {
       warId: war.id,
-      loser: nameParam(loser.kind, loserName),
-      winner: nameParam(winner.kind, winnerName),
+      loser: nameParam(loserCategory, loserName),
+      winner: nameParam(winnerCategory, winnerName),
     },
     [
       entityRef(actorEntityKind(loser), loser.id, 'loser', loserName),
@@ -226,8 +240,8 @@ export function emitWarEnded(ctx: TickContext, war: War): TickContext {
     'war.ended',
     {
       warId: war.id,
-      attacker: nameParam(p.attacker.kind, p.attackerName),
-      defender: nameParam(p.defender.kind, p.defenderName),
+      attacker: nameParam(p.attackerCategory, p.attackerName),
+      defender: nameParam(p.defenderCategory, p.defenderName),
     },
     attackerDefenderRefs(p),
   )
@@ -243,9 +257,8 @@ export function emitPeaceSettlementApplied(ctx: TickContext, war: War, goal: War
   if (goal.kind === 'popular_revolt_independence') return ctx
   const holding = ctx.state.holdings[goal.holdingId]
   const provinceId = holding?.provinceId
-  const holdingDisplay = provinceId
-    ? (ctx.state.provinces[provinceId]?.nameKey ?? provinceId)
-    : (goal.holdingId as string)
+  // v0.41 (§7.2/§8): Holding 名は Province 名代用でなく Holding 自身の name を kind→category 出し分けで使う。
+  const holdingRef = getHoldingNameRefForEmit(ctx.state, goal.holdingId)
   const messageKey =
     goal.kind === 'transfer_land_contract'
       ? 'war.peace_settlement.transfer_land'
@@ -266,9 +279,9 @@ export function emitPeaceSettlementApplied(ctx: TickContext, war: War, goal: War
     messageKey,
     {
       warId: war.id,
-      attacker: nameParam(p.attacker.kind, p.attackerName),
-      defender: nameParam(p.defender.kind, p.defenderName),
-      holding: nameParam('province', holdingDisplay),
+      attacker: nameParam(p.attackerCategory, p.attackerName),
+      defender: nameParam(p.defenderCategory, p.defenderName),
+      holding: nameParam(holdingRef.category, holdingRef.nameKey),
       // tax 経路は before→after の税率を記録する (歴史記述)。transfer は from/to を底層 LAND_CONTRACT_* が持つ。
       ...(goal.kind === 'change_contract_tax_rate'
         ? {
@@ -378,6 +391,18 @@ export function emitBattleOccurred(
       : input.result === 'defender_victory'
         ? p.attackerName
         : undefined
+  const winnerCategory =
+    input.result === 'attacker_victory'
+      ? p.attackerCategory
+      : input.result === 'defender_victory'
+        ? p.defenderCategory
+        : p.attackerCategory
+  const loserCategory =
+    input.result === 'attacker_victory'
+      ? p.defenderCategory
+      : input.result === 'defender_victory'
+        ? p.attackerCategory
+        : p.defenderCategory
   const battleMessageKey =
     input.result === 'inconclusive' ? 'war.battle_occurred_inconclusive' : 'war.battle_occurred'
   return emit(
@@ -391,12 +416,12 @@ export function emitBattleOccurred(
       battlefieldKind: input.battlefieldKind,
       initiationKind: input.initiationKind,
       result: input.result,
-      attacker: nameParam(p.attacker.kind, p.attackerName),
-      defender: nameParam(p.defender.kind, p.defenderName),
-      attackerName: nameParam(p.attacker.kind, p.attackerName),
-      defenderName: nameParam(p.defender.kind, p.defenderName),
-      ...(winnerName ? { winnerName: nameParam(p.attacker.kind, winnerName) } : {}),
-      ...(loserName ? { loserName: nameParam(p.defender.kind, loserName) } : {}),
+      attacker: nameParam(p.attackerCategory, p.attackerName),
+      defender: nameParam(p.defenderCategory, p.defenderName),
+      attackerName: nameParam(p.attackerCategory, p.attackerName),
+      defenderName: nameParam(p.defenderCategory, p.defenderName),
+      ...(winnerName ? { winnerName: nameParam(winnerCategory, winnerName) } : {}),
+      ...(loserName ? { loserName: nameParam(loserCategory, loserName) } : {}),
       attackerPower: input.attackerPower,
       defenderPower: input.defenderPower,
       attackerEffectivePower: input.attackerEffectivePower,
@@ -493,15 +518,15 @@ export function emitBattleAvoided(
       warId: war.id,
       battlefieldKind: input.battlefieldKind,
       avoidingSide: input.avoidingSide,
-      attacker: nameParam(p.attacker.kind, p.attackerName),
-      defender: nameParam(p.defender.kind, p.defenderName),
-      attackerName: nameParam(p.attacker.kind, p.attackerName),
-      defenderName: nameParam(p.defender.kind, p.defenderName),
+      attacker: nameParam(p.attackerCategory, p.attackerName),
+      defender: nameParam(p.defenderCategory, p.defenderName),
+      attackerName: nameParam(p.attackerCategory, p.attackerName),
+      defenderName: nameParam(p.defenderCategory, p.defenderName),
       avoidingName:
         input.avoidingSide === 'attacker'
-          ? nameParam(p.attacker.kind, p.attackerName)
+          ? nameParam(p.attackerCategory, p.attackerName)
           : input.avoidingSide === 'defender'
-            ? nameParam(p.defender.kind, p.defenderName)
+            ? nameParam(p.defenderCategory, p.defenderName)
             : '',
       avoidanceSucceeded: input.avoidanceSucceeded,
       attackerAvoidanceCountAfter: input.attackerAvoidanceCountAfter,
@@ -528,6 +553,7 @@ export function emitCaptainGeneralChanged(
   const actor = side.participants.find((pp) => pp.primary)?.actor
   if (!actor) return ctx
   const actorName = actorNameKey(state, actor)
+  const actorCategory = actorEmitCategory(state, actor)
   const importance: EventImportance = newCaptainGeneralId === undefined ? 'major' : 'normal'
   const refs: EventEntityRef[] = [entityRef(actorEntityKind(actor), actor.id, 'actor', actorName)]
   const oldRef = personRef(state, oldCaptainGeneralId, 'old_captain_general')
@@ -542,7 +568,7 @@ export function emitCaptainGeneralChanged(
     {
       warId: war.id,
       side: sideKey,
-      actor: nameParam(actor.kind, actorName),
+      actor: nameParam(actorCategory, actorName),
       ...(oldCaptainGeneralId
         ? { oldCaptainGeneral: nameParam('person', personNameKeyOrId(state, oldCaptainGeneralId)) }
         : {}),

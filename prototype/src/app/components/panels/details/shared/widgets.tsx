@@ -15,6 +15,7 @@ import { SHARE_COLORS } from './constants'
 import type { AttitudeMap } from '@/sim/types/attitude'
 import type { WorldState } from '@/sim/types/world'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
 import type {
   PolityId,
@@ -321,7 +322,7 @@ export function AttitudeList({
         let linkNode: React.ReactNode
         if (prefix === 'polity') {
           const p = worldState.polities[id as PolityId]
-          const displayName = p ? resolveName('polity', p.nameKey, p.nameKey) : id
+          const displayName = p ? getPolityShortName(worldState, resolveName, id as PolityId) : id
           linkNode = (
             <button
               className="cursor-pointer text-blue-400 hover:text-blue-300"

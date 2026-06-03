@@ -4,6 +4,7 @@ import { buildEntitySnapshot } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import { calcPolityMilitaryPower } from '@/sim/selectors/militarySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { getPolityLegitimacy, getPolityStability } from '@sim/selectors/statusSelectors'
@@ -113,7 +114,7 @@ export function CountryDetail({
   return (
     <div className="flex flex-col gap-1 p-3">
       <PanelHeader
-        title={resolveName('polity', polity.nameKey, polity.nameKey)}
+        title={getPolityShortName(currentState, resolveName, polity.id)}
         badge={
           !polity.active && (
             <span className="rounded bg-gray-600 px-1.5 py-0.5 text-xs text-gray-400">

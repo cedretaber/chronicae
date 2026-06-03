@@ -14,6 +14,7 @@ import type { EventId } from '../types/ids'
 import type { DiplomaticPlay, DiplomaticOffer } from '../types/diplomaticPlay'
 import type { OrganizationRef } from '../types/office'
 import type { DecisionSubjectRef } from '../types/goal'
+import { getOwnerNameRefForEmit } from '../utils/ownerNames'
 import type { LandContractId } from '../types/ids'
 import type { LandContract } from '../types/landContract'
 import type { Project } from '../types/project'
@@ -220,8 +221,10 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
 
         const play = plays[playId]
         const eventType = play?.status === 'cancelled' ? 'PRESSURE_CANCELLED' : 'PRESSURE_RESOLVED'
-        const sourceNameKey = getDecisionSubjectNameKey(ctx.state, pressure.source)
-        const targetNameKey = getDecisionSubjectNameKey(ctx.state, pressure.target)
+        const sourceRef = getOwnerNameRefForEmit(ctx.state, pressure.source)
+        const targetRef = getOwnerNameRefForEmit(ctx.state, pressure.target)
+        const sourceNameKey = sourceRef.nameKey
+        const targetNameKey = targetRef.nameKey
         const eventId = `e-${ctx.state.absoluteWeek}-${nextEventIndex}` as EventId
         nextEventIndex++
         newEvents.push({
@@ -233,8 +236,8 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
           messageKey:
             eventType === 'PRESSURE_CANCELLED' ? 'pressure.cancelled' : 'pressure.resolved',
           messageParams: {
-            source: nameParam(pressure.source.kind, sourceNameKey),
-            target: nameParam(pressure.target.kind, targetNameKey),
+            source: nameParam(sourceRef.category, sourceNameKey),
+            target: nameParam(targetRef.category, targetNameKey),
           },
           entityRefs: [
             entityRef(pressure.source.kind, pressure.source.id, 'source', sourceNameKey),
@@ -331,12 +334,6 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
 
 function isPersonAlive(state: WorldState, personId: PersonId): boolean {
   return isLivingPerson(state.persons[personId])
-}
-
-function getDecisionSubjectNameKey(state: WorldState, ref: DecisionSubjectRef): string {
-  if (ref.kind === 'polity') return state.polities[ref.id]?.nameKey ?? ref.id
-  if (ref.kind === 'house') return state.houses[ref.id]?.nameKey ?? ref.id
-  return state.persons[ref.id]?.nameKey ?? ref.id
 }
 
 function collectPlayOfferIds(play: DiplomaticPlay, out: Set<DiplomaticOfferId>): void {

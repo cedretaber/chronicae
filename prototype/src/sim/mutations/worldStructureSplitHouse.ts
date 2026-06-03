@@ -12,6 +12,7 @@ import { movePersonToHouse } from './personMutations'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
+import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import { initializeHouseShares } from '../tick/shareUpdateSystem'
 import { removePersonSharesInHouse } from './shareMutations'
 import { addHouseToClan } from './clanMutations'
@@ -294,7 +295,10 @@ export function splitHouse(
       messageParams: {
         house: nameParam('house', house.nameKey),
         polity: housePolityId
-          ? nameParam('polity', resultCtx.state.polities[housePolityId]?.nameKey ?? '')
+          ? (() => {
+              const ref = getPolityNameRefForEmit(resultCtx.state, housePolityId)
+              return nameParam(ref.category, ref.nameKey)
+            })()
           : '',
       },
       entityRefs: [

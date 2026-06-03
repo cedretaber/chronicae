@@ -8,6 +8,7 @@ import { revokeOfficeAssignment } from '../mutations/officeMutations'
 import { getActiveFactionMembership } from '../selectors/factionSelectors'
 import { isLivingPerson } from '../types/person'
 import { getActiveOfficeHolders, getEffectiveOfficeMaxHolders } from '../selectors/officeSelectors'
+import { getPolityNameRefForEmitFromPolity } from '../selectors/nameRefSelectors'
 import type { OfficeRole, OrganizationRef } from '../types/office'
 
 // v0.15 §11.4: PolityOwnerConsistencySystem の後段で実行。
@@ -19,6 +20,7 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
   for (const polityId of polityIds) {
     const polity = currentCtx.state.polities[polityId]
     if (!polity || !polity.active) continue
+    const polityNameRef = getPolityNameRefForEmitFromPolity(currentCtx.state, polity)
 
     const eligibleHouseIds = new Set<string>(getPolityHouseIds(currentCtx.state, polityId))
 
@@ -90,11 +92,11 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
             messageKey: 'office.revoked',
             messageParams: {
               role: nameParam('role', `polity_${office.role}`),
-              organization: nameParam('polity', polity.nameKey),
+              organization: nameParam(polityNameRef.category, polityNameRef.nameKey),
             },
             entityRefs: [
               entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
-              entityRef('polity', polityId, 'organization', polity?.nameKey),
+              entityRef('polity', polityId, 'organization', polityNameRef.nameKey),
             ],
           },
         )
@@ -117,12 +119,12 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
           messageKey: 'office.revoked',
           messageParams: {
             role: nameParam('role', `polity_${office.role}`),
-            organization: nameParam('polity', polity.nameKey),
+            organization: nameParam(polityNameRef.category, polityNameRef.nameKey),
           },
           entityRefs: [
             entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
             ...(house ? [entityRef('house', house.id, 'house', house.nameKey)] : []),
-            entityRef('polity', polityId, 'organization', polity?.nameKey),
+            entityRef('polity', polityId, 'organization', polityNameRef.nameKey),
           ],
         },
       )
@@ -171,12 +173,12 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
             messageKey: 'office.revoked',
             messageParams: {
               role: nameParam('role', `polity_${office.role}`),
-              organization: nameParam('polity', polity.nameKey),
+              organization: nameParam(polityNameRef.category, polityNameRef.nameKey),
             },
             entityRefs: [
               entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
               ...(house ? [entityRef('house', house.id, 'house', house.nameKey)] : []),
-              entityRef('polity', polityId, 'organization', polity?.nameKey),
+              entityRef('polity', polityId, 'organization', polityNameRef.nameKey),
             ],
           },
         )

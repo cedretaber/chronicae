@@ -13,6 +13,7 @@ import {
 import { getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getProvincePolityControlFromHoldings } from '@/sim/selectors/landContractSelectors'
 import { getProvinceProduction } from '@sim/selectors/popEconomySelectors'
+import { getPolityEmitNameKey } from '@sim/selectors/nameRefSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { getPolityLeader, getHouseLeader } from '@sim/selectors/officeSelectors'
 import type { House } from '@/sim/types/house'
@@ -81,7 +82,7 @@ export function buildEntitySnapshot(
   const houseNameKey = (id: HouseId | undefined): string | null =>
     id ? (ws?.houses[id]?.nameKey ?? null) : null
   const polityNameKey = (id: PolityId | undefined): string | null =>
-    id ? (ws?.polities[id]?.nameKey ?? null) : null
+    id && ws?.polities[id] ? getPolityEmitNameKey(ws, id) : null
   const personNameKey = (id: PersonId | undefined): string | null =>
     id ? (ws?.persons[id]?.nameKey ?? null) : null
   const provinceNameKey = (id: string | undefined): string | null =>
@@ -334,7 +335,9 @@ export function buildEntitySnapshot(
         const o = polityOfficesLocal[0]!
         const displayName =
           OFFICE_DEFINITIONS[`${o.organization.kind}:${o.role}`]?.displayName ?? o.role
-        const orgName = ws.polities[o.organization.id as PolityId]?.nameKey ?? o.organization.id
+        const orgName = ws.polities[o.organization.id as PolityId]
+          ? getPolityEmitNameKey(ws, o.organization.id as PolityId)
+          : o.organization.id
         return {
           label: `${displayName} (${orgName})`,
           extraCount: total - 1,

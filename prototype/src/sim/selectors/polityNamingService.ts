@@ -25,11 +25,13 @@ export type PolityNameContext = {
 }
 
 function buildUsedNameKeys(state: WorldState): Set<string> {
-  return new Set(
-    Object.values(state.polities)
-      .filter((c): c is NonNullable<typeof c> => c !== undefined)
-      .map((c) => c.nameKey),
-  )
+  // v0.41: pool 由来名のみ used-set に入れる。holding 由来名は polity pool を消費しない。
+  const used = new Set<string>()
+  for (const c of Object.values(state.polities)) {
+    if (!c) continue
+    if (c.nameSource.kind === 'pool') used.add(c.nameSource.nameKey)
+  }
+  return used
 }
 
 export function generatePolityNameKey(

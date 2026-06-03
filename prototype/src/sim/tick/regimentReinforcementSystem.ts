@@ -28,6 +28,7 @@ import { clamp } from '../utils/math'
 import { updateRegimentMut, reformRegimentMut } from '../mutations/regimentMutations'
 import { getRegimentHomeRecruitmentFactor } from '../selectors/regimentSelectors'
 import { politicalActorKey, isActorActive } from '../selectors/actorSelectors'
+import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 
 // homeHolding の terminal Polity が現 owner Polity と一致するか (二値)。holding 消失・terminal 不明・
 //   owner 不一致はすべて 0 (= 補充/reform 不可)。
@@ -82,12 +83,13 @@ export function runRegimentReinforcementSystem(ctx: TickContext): TickContext {
   const emitReformed = (regiment: Regiment): void => {
     const ownerId = regiment.owner.kind === 'polity' ? regiment.owner.id : undefined
     if (ownerId === undefined) return
-    const ownerNameKey = ws.polities[ownerId]?.nameKey ?? ownerId
+    const ownerRef = getPolityNameRefForEmit(ws, ownerId)
+    const ownerNameKey = ownerRef.nameKey
     const provinceId = regiment.homeProvinceId
     const provinceNameKey =
       provinceId !== undefined ? (ws.provinces[provinceId]?.nameKey ?? provinceId) : ''
     const messageParams: EventMessageParams = {
-      owner: nameParam('polity', ownerNameKey),
+      owner: nameParam(ownerRef.category, ownerNameKey),
       province: nameParam('province', provinceNameKey),
     }
     const entityRefs: EventEntityRef[] = [entityRef('polity', ownerId, 'owner', ownerNameKey)]

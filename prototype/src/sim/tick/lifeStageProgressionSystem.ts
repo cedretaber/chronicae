@@ -7,6 +7,7 @@ import { randomFloat } from '../rng/rng'
 import { nameParam, entityRef } from '../types/event'
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 
 // 遷移先 stage（config.lifeStageTransitionAges のキーと一致）。childhood は遷移先になり得ない。
 type TransitionStage = 'adolescence' | 'young_adulthood' | 'mature_adulthood' | 'old_age'
@@ -93,8 +94,9 @@ export function runLifeStageProgressionSystem(ctx: TickContext): TickContext {
       const house = ctx.state.houses[houseId]
       entityRefs.push(entityRef('house', houseId, 'house', house?.nameKey))
       if (polityId) {
-        const polity = ctx.state.polities[polityId]
-        entityRefs.push(entityRef('polity', polityId, 'polity', polity?.nameKey))
+        entityRefs.push(
+          entityRef('polity', polityId, 'polity', getPolityEmitNameKey(ctx.state, polityId)),
+        )
       }
     }
 

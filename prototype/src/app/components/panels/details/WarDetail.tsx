@@ -2,6 +2,7 @@ import type { SimulationSession } from '@/sim/types/world'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import { PersonLink, PolityLink, HouseLink } from './shared/links'
 import {
   getRegimentsForWarSide,
@@ -98,12 +99,12 @@ export function WarDetail({
   const attacker = getWarPrimaryAttacker(war)?.actor
   const defender = getWarPrimaryDefender(war)?.actor
   const attackerLabel =
-    attacker?.kind === 'polity' && polities[attacker.id]?.nameKey
-      ? resolveName('polity', polities[attacker.id]!.nameKey, polities[attacker.id]!.nameKey)
+    attacker?.kind === 'polity' && polities[attacker.id]
+      ? getPolityShortName(worldState, resolveName, attacker.id)
       : t('detail.war.attacker')
   const defenderLabel =
-    defender?.kind === 'polity' && polities[defender.id]?.nameKey
-      ? resolveName('polity', polities[defender.id]!.nameKey, polities[defender.id]!.nameKey)
+    defender?.kind === 'polity' && polities[defender.id]
+      ? getPolityShortName(worldState, resolveName, defender.id)
       : t('detail.war.defender')
   const statusBadge: Record<string, { label: string; bg: string }> = {
     active: { label: t('detail.war.status_active'), bg: 'bg-red-700' },
@@ -117,7 +118,7 @@ export function WarDetail({
   const renderActor = (actor: OrganizationRef | undefined) => {
     if (!actor) return <span className="text-gray-500">&mdash;</span>
     if (actor.kind === 'polity') {
-      return <PolityLink polityId={actor.id} polities={polities} onClick={onPolityClick} />
+      return <PolityLink polityId={actor.id} world={worldState} onClick={onPolityClick} />
     }
     return <HouseLink houseId={actor.id} houses={houses} onClick={onHouseClick} />
   }
@@ -240,13 +241,13 @@ export function WarDetail({
                     <div className="flex items-center gap-1 text-gray-400">
                       <PolityLink
                         polityId={goal.originalHolderPolityId}
-                        polities={polities}
+                        world={worldState}
                         onClick={onPolityClick}
                       />
                       <span>&rarr;</span>
                       <PolityLink
                         polityId={goal.commonwealthPolityId}
-                        polities={polities}
+                        world={worldState}
                         onClick={onPolityClick}
                       />
                     </div>
@@ -279,13 +280,13 @@ export function WarDetail({
                     <div className="flex items-center gap-1 text-gray-400">
                       <PolityLink
                         polityId={goal.fromPolityId}
-                        polities={polities}
+                        world={worldState}
                         onClick={onPolityClick}
                       />
                       <span>&rarr;</span>
                       <PolityLink
                         polityId={goal.toPolityId}
-                        polities={polities}
+                        world={worldState}
                         onClick={onPolityClick}
                       />
                     </div>

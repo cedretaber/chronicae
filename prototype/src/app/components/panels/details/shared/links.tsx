@@ -2,8 +2,9 @@ import type { PersonId, HouseId, PolityId } from '@/sim/types/ids'
 import type { Person } from '@/sim/types/person'
 import type { ClickHandler } from './helpers'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import type { House } from '@/sim/types/house'
-import type { Polity } from '@/sim/types/polity'
+import type { WorldState } from '@/sim/types/world'
 
 export function PersonLink({
   personId,
@@ -52,23 +53,23 @@ export function HouseLink({
 
 export function PolityLink({
   polityId,
-  polities,
+  world,
   onClick,
 }: {
   polityId: PolityId | undefined
-  polities: Record<string, Polity>
+  world: WorldState | undefined
   onClick: ClickHandler
 }) {
   const resolveName = useEntityName()
-  if (!polityId) return <span className="text-gray-500">\u2014</span>
-  const polity = polities[polityId]
+  if (!polityId || !world) return <span className="text-gray-500">\u2014</span>
+  const polity = world.polities[polityId]
   if (!polity) return <span className="text-gray-500">\u2014</span>
   return (
     <button
       className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
       onClick={() => onClick(polityId, 'polity')}
     >
-      {resolveName('polity', polity.nameKey, polity.nameKey)}
+      {getPolityShortName(world, resolveName, polityId)}
     </button>
   )
 }
