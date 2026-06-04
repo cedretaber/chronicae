@@ -684,6 +684,9 @@ export function generateWorld(
     activePlots: {},
     popGroups: popGroupsRecord,
     organizationShares: {},
+    politicalRights: {},
+    politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },
+    nextPoliticalRightId: 0,
     officeAssignments: {},
     shareIndex: {},
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
@@ -1758,6 +1761,10 @@ export function generateWorld(
     chronicleEntries: {},
     chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },
     nextChronicleEntryId: 0,
+    // v0.42 PoliticalRight (初期 worldgen では right を生成しない — all residual。spec §15.3)
+    politicalRights: {},
+    politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },
+    nextPoliticalRightId: 0,
     // v0.22 Goal/Aim system
     goals: {},
     aims: {},

@@ -25,6 +25,10 @@ export type SimErrorCode =
   | 'CONTRACT_NOT_FOUND'
   | 'HOLDING_NOT_FOUND'
   | 'CLAN_NOT_FOUND'
+  // v0.42 PoliticalRight
+  | 'RIGHT_NOT_FOUND'
+  | 'RIGHT_ALREADY_EXISTS'
+  | 'INVALID_RIGHT_TARGET'
 
 export type SimError = {
   code: SimErrorCode

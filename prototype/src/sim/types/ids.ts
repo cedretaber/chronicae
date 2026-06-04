@@ -176,3 +176,10 @@ export type ChronicleEntryId = Branded<string, 'ChronicleEntryId'>
 export function createChronicleEntryId(n: number): ChronicleEntryId {
   return ('ch-' + n) as ChronicleEntryId
 }
+
+// v0.42 PoliticalRight
+export type PoliticalRightId = Branded<string, 'PoliticalRightId'>
+
+export function createPoliticalRightId(n: number): PoliticalRightId {
+  return ('prg-' + n) as PoliticalRightId
+}

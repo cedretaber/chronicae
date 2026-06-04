@@ -109,6 +109,9 @@ function makeOfficeState(): {
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,
     organizationShares: {},
+    politicalRights: {},
+    politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },
+    nextPoliticalRightId: 0,
     officeAssignments: {
       [officeId]: {
         id: officeId,

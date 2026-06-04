@@ -42,6 +42,9 @@ function makeBaseState(): WorldState {
     activePlots: {},
     popGroups: {},
     organizationShares: {},
+    politicalRights: {},
+    politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },
+    nextPoliticalRightId: 0,
     officeAssignments: {},
     shareIndex: { byOrganization: {}, byHolder: {} },
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
@@ -635,6 +638,9 @@ describe('expireOfficeTermAssignment', () => {
       activePlots: {},
       popGroups: {},
       organizationShares: {},
+      politicalRights: {},
+      politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },
+      nextPoliticalRightId: 0,
       officeAssignments: {
         [officeId]: {
           id: officeId,
