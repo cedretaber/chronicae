@@ -400,6 +400,12 @@
 | goalProgressOnAimFailed | -10 | Aim 失敗時の Goal progress 変化 |
 | goalProgressOnAimAbandoned | -5 | Aim 放棄時の Goal progress 変化 |
 | aimDefaultDeadlineWeeks | 240 | Aim のデフォルト期限（週、5年相当） |
+| aimParallelismCeiling | 4 | 1 Goal が持てる active Aim 数の静的上限（integrity invariant）。1 で並列無効=旧挙動（§6.57） |
+| aimCapacityBase | 1 | 規模に依らず全 actor が得る並列 Aim 枠の基礎値 |
+| aimCapacityProvincesPerSlot | 4 | terminal province がこの数ごとに Polity の並列枠 +1 |
+| aimCapacityTreasuryPerSlot | 300 | treasury がこの量ごとに Polity の並列枠 +1（消費はしない・capacity 入力シグナル） |
+| aimCapacityMembersPerSlot | 6 | member がこの数ごとに House の並列枠 +1 |
+| aimCapacityWealthPerSlot | 150 | wealth がこの量ごとに House の並列枠 +1（消費はしない・capacity 入力シグナル） |
 | expandPolityShareCost | 40 | expand_polity_share の House wealth コスト |
 | expandPolityShareRawPowerGain | 10 | expand_polity_share の OrganizationShare rawPower 増分 |
 | promotePolicyShiftCost | 0 | promote_policy_shift のコスト（cooldown で乱発防止） |

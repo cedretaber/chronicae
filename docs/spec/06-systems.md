@@ -1700,6 +1700,8 @@ Goal の生成・レビュー・abandon を管理する。tick 登録は 4w だ�
 
 GoalKind のスコアリングは `goalSelectors.ts` の `scorePolityGoalKind` / `scoreHouseGoalKind` で実装。system House は除外。
 
+差し替え判断の keepScore は `progress*0.5 + (active Aim が 1 つでもあれば 10) + clamp(goalAge年, 0, 10)*5`。「進行中の Aim があるか」のボーナスは並列 Aim 数（§6.57）で増やさない（`Math.min(activeAims.length, 1)` でクランプ）。多数の並列 Aim が keepScore を吊り上げて Goal が永久固定されるのを防ぐため。
+
 イベント: `GOAL_CREATED` / `GOAL_REVIEWED` / `GOAL_ABANDONED`
 
 ### 6.57 AimMaintenanceSystem（4週ごと）
@@ -1707,7 +1709,14 @@ GoalKind のスコアリングは `goalSelectors.ts` の `scorePolityGoalKind` /
 Aim の生成・deadline 判定・target 無効化を管理する。tick 登録は 4w だが、Aim 新規生成は内部 48w ゲートで制御。
 
 **4w で実行する処理**: deadline 到達 Aim を failed に。target 無効 Aim を failed/abandoned に。parent Goal が terminal の Aim を abandoned に。
-**48w ゲートで実行する処理**: active Goal に対応する active Aim がなければ生成。
+**48w ゲートで実行する処理**: active Goal ごとに、並列上限 (cap) に達するまで active Aim を生成する。
+
+**Aim 並列化（1 Goal = 複数 active Aim）**: 1 つの Goal の下に複数の active Aim を同時に持てる。これにより大国は複数の外交劇を、富裕な家は複数の開発を同時並行できる。
+
+- **動的 cap（生成スロットル）**: `computeAimCapacityForGoal(state, config, owner)` が owner の規模/予算に応じて算出する。Polity = `aimCapacityBase + floor(terminalProvince数 / aimCapacityProvincesPerSlot) + floor(treasury / aimCapacityTreasuryPerSlot)`、House = `aimCapacityBase + floor(member数 / aimCapacityMembersPerSlot) + floor(wealth / aimCapacityWealthPerSlot)`。結果は `[1, aimParallelismCeiling]` にクランプ。treasury / wealth は **capacity の入力シグナル**であり消費はしない（経済メカニズムは別途）。
+- **静的 ceiling（invariant）**: integrity（§6.24）が検査するのは動的 cap ではなく固定上限 `aimParallelismCeiling` のみ。動的 cap で検査すると国の縮小で capacity が下がった瞬間、合法に作った既存 Aim が偽の違反になるため。`aimParallelismCeiling = 1` にすると並列は無効化され旧挙動（1 Goal = 1 Aim）に戻る。
+- **同一スロット重複禁止**: `aimSlotKey(kind, target?)`（target ありは `kind|targetRefKey`、なしは `kind`）が同一の Aim を二重に持つことを防ぐ。生成側（`pickAimForGoal` の候補除外 `excludedSlots`）と integrity の重複検査が **同一のキー**を共有する。target を持たない kind（`patronize_artist` 等）は同種を 2 つ並列に持てない。
+- 候補が枯渇（除外後に候補なし）した時点で生成を打ち切る。
 
 Aim target 選定は `goalSelectors.ts` の `pickAimForGoal` で実装。
 
