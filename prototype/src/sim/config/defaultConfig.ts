@@ -714,6 +714,13 @@ export type SimulationConfig = {
   ownerHouseAppointmentBonus: number
   // v0.42 §18: appointment スコアの influence% 項 (旧 polityShareAppointmentFactor の置換先)
   polityInfluenceAppointmentFactor: number
+  // v0.42 §9.2/§18: polity_office_appointment right の候補スコア補正
+  polityOfficeAppointmentRightHouseBonus: number // holder House の member 候補へ
+  polityOfficeAppointmentRightPersonBonus: number // holder Person 本人へ
+  polityOfficeAppointmentRightHouseAssociatedBonus: number // holder Person の家の member へ
+  // §9.3: right-backed faction (最大 1 つ) の active member へ。
+  // 制約: rightBackedFactionBonus < polityOfficeAppointmentRightHouseBonus
+  rightBackedFactionBonus: number
   sameHousePolityOfficePenalty: number
   // v0.14 Ability generation / inheritance
   abilityAptitudeMean: number
@@ -1658,6 +1665,12 @@ export const defaultConfig: SimulationConfig = {
   houseShareAppointmentFactor: 0.08,
   ownerHouseAppointmentBonus: 4,
   polityInfluenceAppointmentFactor: 0.25,
+  // influence% 項 (×0.25 で最大 ~25 点) を上回り「制度的権利として強く推す」水準。
+  // それでも能力・prestige 差で覆りうる (保証はしない — §9.2)。
+  polityOfficeAppointmentRightHouseBonus: 30,
+  polityOfficeAppointmentRightPersonBonus: 35,
+  polityOfficeAppointmentRightHouseAssociatedBonus: 18,
+  rightBackedFactionBonus: 10,
   sameHousePolityOfficePenalty: 2,
   minAppointmentScore: 2,
   // v0.14 Ability generation / inheritance

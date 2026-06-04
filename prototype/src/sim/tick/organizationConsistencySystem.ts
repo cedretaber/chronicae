@@ -6,6 +6,7 @@ import { getPolityHouseIds } from '../selectors/polityRelations'
 import { removeOrganizationShare } from '../mutations/shareMutations'
 import { revokeOfficeAssignment } from '../mutations/officeMutations'
 import { getActiveFactionMembership } from '../selectors/factionSelectors'
+import { getPolityOfficeAppointmentRight } from '../selectors/politicalRightSelectors'
 import { isLivingPerson } from '../types/person'
 import { getActiveOfficeHolders, getEffectiveOfficeMaxHolders } from '../selectors/officeSelectors'
 import { getPolityNameRefForEmitFromPolity } from '../selectors/nameRefSelectors'
@@ -80,6 +81,31 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
       const person = currentCtx.state.persons[office.holderPersonId]
       if (!person || !person.alive) continue // 別系統の不整合
       if (polity.kind === 'commonwealth') continue // commonwealth holder は houseId 不問で eligible
+
+      // v0.42 §9.4: Right 由来任命の例外 (狭い判定)。対象 role に active な
+      // polity_office_appointment right があり、holder が House なら同 House の holder を、
+      // Person なら本人のみを eligible 扱いする。これを入れないと right 任命が最大 4 週で
+      // 黙って revoke され right system が機能しない (§21.1)。
+      const appointmentRight = getPolityOfficeAppointmentRight(
+        currentCtx.state,
+        polityId,
+        office.role,
+      )
+      if (appointmentRight) {
+        if (
+          appointmentRight.holder.kind === 'house' &&
+          person.houseId === appointmentRight.holder.id
+        ) {
+          continue
+        }
+        if (
+          appointmentRight.holder.kind === 'person' &&
+          office.holderPersonId === appointmentRight.holder.id
+        ) {
+          continue
+        }
+      }
+
       if (!person.houseId) {
         // 非 commonwealth の houseless holder は revoke
         const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)

@@ -14,6 +14,8 @@ import {
   getActorInfluenceFromBreakdown,
 } from '../selectors/influenceSelectors'
 import type { PolityInfluenceBreakdown } from '../types/influence'
+import { getPolityOfficeAppointmentRight } from '../selectors/politicalRightSelectors'
+import type { PoliticalRight } from '../types/politicalRight'
 import { getPersonPrestige } from '../selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 import { getAppointmentTaskModifier } from '../selectors/appointmentTaskSelectors'
@@ -34,6 +36,7 @@ import {
   getActiveFactions,
   getFactionNominationPower,
   getFactionActiveMemberIds,
+  getActiveFactionMembership,
 } from '../selectors/factionSelectors'
 import {
   getOfficeCompatibilityPenalty,
@@ -318,6 +321,128 @@ function computeHouseScoreV017(
 }
 
 // ---------------------------------------------------------------------------
+// v0.42 §9: polity_office_appointment right の接続
+// ---------------------------------------------------------------------------
+
+// right holder の候補 pool 追加 (§9.2)。traditional pool は「家の primary polity がこの
+// polity」または「家がこの polity の owner」の member に限られ、それ以外の right holder
+// House の member は bonus だけでは空振りするため明示的に追加する。
+function collectRightHolderCandidates(
+  state: WorldState,
+  right: PoliticalRight,
+  alreadyHolding: Set<string>,
+): PersonId[] {
+  const result: PersonId[] = []
+  const pushIfEligible = (pid: PersonId) => {
+    const p = state.persons[pid]
+    if (!p || !p.alive) return
+    if (p.kind === 'placeholder') return
+    if (!isLifeStageAtLeast(p.lifeStage, 'young_adulthood')) return
+    if (hasActiveHoldingOffice(state, pid)) return
+    if (alreadyHolding.has(pid)) return
+    result.push(pid)
+  }
+  if (right.holder.kind === 'house') {
+    const house = state.houses[right.holder.id]
+    if (!house || !house.active) return result
+    for (const memberId of house.memberIds) pushIfEligible(memberId)
+  } else {
+    pushIfEligible(right.holder.id)
+  }
+  return result
+}
+
+// right-backed faction の選定 (§9.3 — 最大 1 つ、5 段階の優先順位)。
+// 対象 Polity に anchor された active Faction のうち、right holder と最も関係が強いもの。
+export function selectRightBackedFaction(
+  state: WorldState,
+  polityId: PolityId,
+  right: PoliticalRight,
+): FactionId | undefined {
+  const anchorIds = [...(state.factionIndex.byPolity[polityId] ?? [])]
+    .filter((fid) => state.factions[fid]?.active)
+    .sort()
+  if (anchorIds.length === 0) return undefined
+
+  const membershipFactionOf = (personId: PersonId): FactionId | undefined => {
+    const m = getActiveFactionMembership(state, personId)
+    if (!m) return undefined
+    return anchorIds.includes(m.factionId) ? m.factionId : undefined
+  }
+
+  // 1. holder Person が所属する anchor Faction
+  if (right.holder.kind === 'person') {
+    return membershipFactionOf(right.holder.id)
+  }
+
+  // 2. holder House の leader が所属する anchor Faction
+  const holderHouseId = right.holder.id
+  const leaderId = getHouseLeader(state, holderHouseId)
+  if (leaderId !== undefined) {
+    const viaLeader = membershipFactionOf(leaderId)
+    if (viaLeader !== undefined) return viaLeader
+  }
+
+  // 3. holder House の member が最も多く所属する anchor Faction
+  //    4. 同数なら faction leader が holder House に属する Faction
+  //    5. それでも同点なら factionId 昇順 (anchorIds はソート済)
+  let best: { factionId: FactionId; count: number; leaderInHouse: boolean } | undefined
+  for (const factionId of anchorIds) {
+    const faction = state.factions[factionId]
+    if (!faction) continue
+    let count = 0
+    for (const mid of getFactionActiveMemberIds(state, factionId)) {
+      const m = state.persons[mid]
+      if (m && m.houseId === holderHouseId) count++
+    }
+    if (count === 0) continue
+    const leaderInHouse = state.persons[faction.leaderPersonId]?.houseId === holderHouseId
+    if (
+      !best ||
+      count > best.count ||
+      (count === best.count && leaderInHouse && !best.leaderInHouse)
+    ) {
+      best = { factionId, count, leaderInHouse }
+    }
+  }
+  return best?.factionId
+}
+
+// right による候補スコア補正 (§9.2)。
+function getRightAppointmentBonus(
+  state: WorldState,
+  config: SimulationConfig,
+  right: PoliticalRight,
+  candidateId: PersonId,
+  rightBackedFactionId: FactionId | undefined,
+): number {
+  const candidate = state.persons[candidateId]
+  if (!candidate) return 0
+  let bonus = 0
+  if (right.holder.kind === 'house') {
+    if (candidate.houseId === right.holder.id)
+      bonus += config.polityOfficeAppointmentRightHouseBonus
+  } else {
+    if (candidateId === right.holder.id) bonus += config.polityOfficeAppointmentRightPersonBonus
+    const holderPerson = state.persons[right.holder.id]
+    if (
+      holderPerson &&
+      holderPerson.houseId !== undefined &&
+      candidate.houseId === holderPerson.houseId
+    ) {
+      bonus += config.polityOfficeAppointmentRightHouseAssociatedBonus
+    }
+  }
+  if (rightBackedFactionId !== undefined) {
+    const membership = getActiveFactionMembership(state, candidateId)
+    if (membership && membership.factionId === rightBackedFactionId) {
+      bonus += config.rightBackedFactionBonus
+    }
+  }
+  return bonus
+}
+
+// ---------------------------------------------------------------------------
 // v0.17 §14.1: tryAppoint helpers (dispatch between factional and traditional)
 // ---------------------------------------------------------------------------
 
@@ -342,8 +467,54 @@ function tryAppointPolityOffice(
 
   let best: { id: PersonId; score: number } | undefined
 
-  // 2. factional path
-  if (hasRelevantFactionForAppointment(currentCtx.state, config, polityRef, role)) {
+  // v0.42 §9: 対象 (polity, role) に appointment right がある場合、unrelated factional path
+  // は使わない (任命権は制度的権利として派閥推薦より優先 — §9.3)。right holder の候補を
+  // pool に追加し、right bonus + right-backed faction bonus でスコア補正する。
+  const appointmentRight = getPolityOfficeAppointmentRight(currentCtx.state, polity.id, role)
+  if (appointmentRight) {
+    const rightBackedFactionId = selectRightBackedFaction(
+      currentCtx.state,
+      polity.id,
+      appointmentRight,
+    )
+    const pool = new Set<PersonId>(
+      cachedCandidates.filter((id) => !alreadyHolding.has(id as string)),
+    )
+    for (const id of collectRightHolderCandidates(
+      currentCtx.state,
+      appointmentRight,
+      alreadyHolding,
+    )) {
+      pool.add(id)
+    }
+    const scored = [...pool].map((id) => ({
+      id,
+      score:
+        computePolityScoreV017(
+          currentCtx.state,
+          config,
+          polity,
+          rulerId,
+          id,
+          role,
+          influenceBreakdown,
+        ) +
+        getRightAppointmentBonus(
+          currentCtx.state,
+          config,
+          appointmentRight,
+          id,
+          rightBackedFactionId,
+        ),
+    }))
+    best = pickBestScored(scored, config.minAppointmentScore)
+  }
+
+  // 2. factional path (right が無い role のみ — §9.3/§9.5)
+  if (
+    !appointmentRight &&
+    hasRelevantFactionForAppointment(currentCtx.state, config, polityRef, role)
+  ) {
     const factional = collectFactionalCandidates(currentCtx.state, config, polityRef, role).filter(
       (c) => !alreadyHolding.has(c.candidateId as string),
     )
@@ -362,7 +533,7 @@ function tryAppointPolityOffice(
   }
 
   // 3. traditional fallback (uses pre-computed candidate cache)
-  if (!best) {
+  if (!appointmentRight && !best) {
     const candidates = cachedCandidates.filter((id) => !alreadyHolding.has(id as string))
     const scored = candidates.map((id) => ({
       id,
