@@ -1,18 +1,18 @@
 import type { TickContext } from './context'
-import type { PolityId, HouseId, PersonId } from '../types/ids'
-import { getOrganizationShares, getTotalRawPower } from '../selectors/shareSelectors'
+import type { PolityId, HouseId } from '../types/ids'
+import { getPolityInfluenceBreakdown } from '../selectors/influenceSelectors'
 import { getPolityDistributablePerCycle } from '../selectors/landContractSelectors'
 
-// v0.16 §18.2: PolitySurplusDistributionSystem
-// 給与控除後 (OfficeCompensation は別 system が treasury から引く) の余剰を Share holder に分配する。
+// v0.16 §18.2 / v0.42 §14: PolitySurplusDistributionSystem
+// 給与控除後 (OfficeCompensation は別 system が treasury から引く) の余剰を分配する。
 // distributable = max(0, treasury - reserveTarget) * distributionRate
-// reserveTarget = base + perHolding × holdingCount (所領規模に応じた動的保留)
-// Person Share holder → Person.wealth, House Share holder → House.wealth
+// v0.42: share 比例 → Influence 比例。House entry にのみ分配し (entry.percent / 100)、
+// Person entry (commonwealth leader 等) には分配しない。House entry が無い commonwealth
+// では surplus を treasury に残す (§14.2)。
 export function runPolitySurplusDistributionSystem(ctx: TickContext): TickContext {
   let state = ctx.state
 
   const houseWealthDeltas = new Map<HouseId, number>()
-  const personWealthDeltas = new Map<PersonId, number>()
   const polityTreasuryDeltas = new Map<PolityId, number>()
 
   for (const polityIdStr of Object.keys(state.polities).sort()) {
@@ -24,37 +24,28 @@ export function runPolitySurplusDistributionSystem(ctx: TickContext): TickContex
     const distributable = getPolityDistributablePerCycle(state, polityId, ctx.config)
     if (distributable <= 0) continue
 
-    const shares = getOrganizationShares(state, { kind: 'polity', id: polityId })
-    const total = getTotalRawPower(state, { kind: 'polity', id: polityId })
-    if (total <= 0 || shares.length === 0) continue
+    const breakdown = getPolityInfluenceBreakdown(state, ctx.config, polityId)
+    if (breakdown.totalScore <= 0) continue
 
     let actuallyDistributed = 0
-    for (const share of shares) {
-      const portion = (share.rawPower / total) * distributable
+    for (const entry of breakdown.entries) {
+      if (entry.holder.kind !== 'house') continue
+      const portion = (entry.percent / 100) * distributable
       if (portion <= 0) continue
-      if (share.holder.kind === 'house') {
-        const houseId = share.holder.id
-        houseWealthDeltas.set(houseId, (houseWealthDeltas.get(houseId) ?? 0) + portion)
-        actuallyDistributed += portion
-      } else if (share.holder.kind === 'person') {
-        const personId = share.holder.id
-        // v0.16: 死亡した Person Share holder には分配しない。
-        // shareUpdateSystem の次回更新で Share holder 自体が再計算される想定。
-        // それまでの間は分配だけ skip して dead person.wealth が増えないようにする。
-        const person = state.persons[personId]
-        if (!person || !person.alive) continue
-        personWealthDeltas.set(personId, (personWealthDeltas.get(personId) ?? 0) + portion)
-        actuallyDistributed += portion
-      }
+      const house = state.houses[entry.holder.id]
+      if (!house || !house.active) continue
+      houseWealthDeltas.set(
+        entry.holder.id,
+        (houseWealthDeltas.get(entry.holder.id) ?? 0) + portion,
+      )
+      actuallyDistributed += portion
     }
-    polityTreasuryDeltas.set(polityId, -actuallyDistributed)
+    if (actuallyDistributed > 0) {
+      polityTreasuryDeltas.set(polityId, -actuallyDistributed)
+    }
   }
 
-  if (
-    houseWealthDeltas.size === 0 &&
-    personWealthDeltas.size === 0 &&
-    polityTreasuryDeltas.size === 0
-  ) {
+  if (houseWealthDeltas.size === 0 && polityTreasuryDeltas.size === 0) {
     return ctx
   }
 
@@ -73,13 +64,6 @@ export function runPolitySurplusDistributionSystem(ctx: TickContext): TickContex
     newHouses[houseId] = { ...h, wealth: Math.max(0, h.wealth + delta) }
   }
 
-  const newPersons = { ...state.persons }
-  for (const [personId, delta] of personWealthDeltas) {
-    const person = newPersons[personId]
-    if (!person) continue
-    newPersons[personId] = { ...person, wealth: Math.max(0, person.wealth + delta) }
-  }
-
-  state = { ...state, polities: newPolities, houses: newHouses, persons: newPersons }
+  state = { ...state, polities: newPolities, houses: newHouses }
   return { ...ctx, state }
 }
