@@ -644,7 +644,6 @@ export type SimulationConfig = {
   weeklyActionCapacityAgeReduction: number
   weeklyActionCapacityAmbitionThreshold: number
   weeklyActionCapacityAgeThreshold: number
-  expandPolityShareRawPowerGain: number
   promotePolicyShiftCost: number
   patronizeArtistCost: number
   patronizeArtistPrestigeGain: number
@@ -1544,7 +1543,6 @@ export const defaultConfig: SimulationConfig = {
   aimCapacityTreasuryPerSlot: 300,
   aimCapacityMembersPerSlot: 6,
   aimCapacityWealthPerSlot: 150,
-  expandPolityShareRawPowerGain: 10,
   promotePolicyShiftCost: 0,
   patronizeArtistCost: 25,
   patronizeArtistPrestigeGain: 3,
