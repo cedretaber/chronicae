@@ -389,15 +389,15 @@ export function emitBattleOccurred(
   // v0.38 Phase 4: chronicle narrative 用の派生フラグ (additive・純粋導出で RNG 不変)。
   //   chronicleEventDefinitions.selectBattleTemplate が rich template 出し分けに使う。
   const isVictory = input.result === 'attacker_victory' || input.result === 'defender_victory'
-  const winnerEffectivePower =
-    input.result === 'attacker_victory'
-      ? input.attackerEffectivePower
-      : input.defenderEffectivePower
-  const loserEffectivePower =
-    input.result === 'attacker_victory'
-      ? input.defenderEffectivePower
-      : input.attackerEffectivePower
-  const outnumberedVictory = isVictory && winnerEffectivePower < loserEffectivePower
+  // 「数的劣勢を覆した勝利」(outnumbered_victory template) は連隊数で判定する。
+  //   chronicle template が両 side の連隊数を表示して「数的劣勢」と描写するため、判定根拠も
+  //   連隊数に一致させる (effectivePower 基準だと「連隊数は多いが戦力で劣った勝者」を数的劣勢と
+  //   誤表示してしまう)。
+  const winnerRegimentCount =
+    input.result === 'attacker_victory' ? input.attackerRegimentCount : input.defenderRegimentCount
+  const loserRegimentCount =
+    input.result === 'attacker_victory' ? input.defenderRegimentCount : input.attackerRegimentCount
+  const outnumberedVictory = isVictory && winnerRegimentCount < loserRegimentCount
   const decisiveVictory = input.outcomeQuality === 'rout'
   const refs: EventEntityRef[] = [...attackerDefenderRefs(p)]
   if (input.provinceId) {
