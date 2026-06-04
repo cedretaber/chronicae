@@ -4,6 +4,7 @@ import type { DiplomaticPlay, DiplomaticPlayStatus } from '../types/diplomaticPl
 import type { DiplomaticPlayId, WarId } from '../types/ids'
 import type { War, WarGoal } from '../types/war'
 import { createWar, createWarGoalFromDiplomaticPlay } from '../mutations/warMutations'
+import { canTransferLandContract } from '../mutations/landContractMutations'
 import { emitWarDeclared } from './warEvents'
 
 // v0.34 §6 WarCreationSystem
@@ -63,7 +64,12 @@ function isWarGoalApplicable(ws: WorldState, goal: WarGoal): boolean {
     if (goal.fromPolityId === goal.toPolityId) return false
     const from = ws.polities[goal.fromPolityId]
     const to = ws.polities[goal.toPolityId]
-    return !!from && from.active && !!to && to.active
+    if (!from || !from.active || !to || !to.active) return false
+    // §6.5: warScore で勝っても feudal chain の rank invariant を満たせない transfer は
+    //   settleAttackerWon が適用できず白紙和平に倒れ、同じ戦争を永久に再宣戦する (winning→white_peace
+    //   ループ)。適用可否を applyLandContractTransferGoal と同一ロジック (planLandContractTransfer) で
+    //   開戦前に検証し、構造上勝ち取れない戦争を宣戦させない。
+    return canTransferLandContract(ws, goal.holdingId, goal.fromPolityId, goal.toPolityId)
   }
   if (goal.kind === 'popular_revolt_independence') {
     if (goal.holdingIds.length === 0) return false

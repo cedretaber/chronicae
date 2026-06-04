@@ -12,7 +12,7 @@ import { clampTaxRate } from '../helpers/landContractHelpers'
 import type { TickContext } from '../tick/context'
 import { createSimEvent } from '../tick/context'
 import { entityRef, nameParam } from '../types/event'
-import type { CtxResult } from './result'
+import type { CtxResult, SimResult } from './result'
 import { ok, err } from './result'
 import {
   getHoldingLandContractChain,
@@ -258,36 +258,49 @@ export function insertIntermediateLandContract(
 
 export type LandContractTransferReason = 'purchase' | 'cession' | 'war' | 'revolt'
 
-export function applyLandContractTransferGoal(
-  ctx: TickContext,
+// transfer 実行プラン。planLandContractTransfer が「どの contract をどう操作すれば feudal chain の
+// rank invariant を保ったまま toPolity に holding を移管できるか」を純粋に決定し、ここに正規化する。
+//   noop          : 既に toPolity 所有 (state 変更不要)
+//   swap_grantee  : contractId の grantee を toPolity に差し替え (5-a/5-b、5-c の同 rank)
+//   create_child  : parentContractId の下に子契約を新設 (5-c の末尾)
+//   insert_below  : belowContractId の上に中間契約を挿入 (5-c の途中)
+export type LandContractTransferPlan =
+  | { kind: 'noop' }
+  | { kind: 'swap_grantee'; contractId: LandContractId }
+  | { kind: 'create_child'; parentContractId: LandContractId }
+  | { kind: 'insert_below'; belowContractId: LandContractId }
+
+// §6.5 transfer 適用可否 + 適用プランの「単一の真実」。validation (rank invariant 等) と分岐判断を
+// ここに集約し、applyLandContractTransferGoal は本プランを実行するだけにする。canTransferLandContract
+// は本関数の .ok ラッパーで、war creation / play 生成の事前ゲートが同一ロジックを共有する
+// (勝てるが構造上適用不可能な seize 戦争 = 永久白紙和平ループを開戦前に弾く)。
+export function planLandContractTransfer(
+  state: WorldState,
   input: {
     holdingId: HoldingId
     fromPolityId: PolityId
     toPolityId: PolityId
-    reason: LandContractTransferReason
   },
-): CtxResult<void> {
-  const state = ctx.state
+): SimResult<LandContractTransferPlan> {
   const holding = state.holdings[input.holdingId]
   if (!holding) {
     return err({
       code: 'HOLDING_NOT_FOUND',
-      message: `applyLandContractTransferGoal: holding ${input.holdingId} not found`,
+      message: `planLandContractTransfer: holding ${input.holdingId} not found`,
     })
   }
-  const provinceId = holding.provinceId
-  const province = state.provinces[provinceId]
+  const province = state.provinces[holding.provinceId]
   if (!province) {
     return err({
       code: 'PROVINCE_NOT_FOUND',
-      message: `applyLandContractTransferGoal: province ${provinceId} not found`,
+      message: `planLandContractTransfer: province ${holding.provinceId} not found`,
     })
   }
   const toPolity = state.polities[input.toPolityId]
   if (!toPolity || !toPolity.active) {
     return err({
       code: 'POLITY_NOT_FOUND',
-      message: `applyLandContractTransferGoal: target polity ${input.toPolityId} is missing or inactive`,
+      message: `planLandContractTransfer: target polity ${input.toPolityId} is missing or inactive`,
     })
   }
   const chain = getHoldingLandContractChain(state, input.holdingId)
@@ -295,18 +308,15 @@ export function applyLandContractTransferGoal(
   if (!targetContract) {
     return err({
       code: 'CONTRACT_NOT_FOUND',
-      message: `applyLandContractTransferGoal: no contract with grantee ${input.fromPolityId} in chain of holding ${input.holdingId}`,
+      message: `planLandContractTransfer: no contract with grantee ${input.fromPolityId} in chain of holding ${input.holdingId}`,
     })
   }
   if (targetContract.granteePolityId === input.toPolityId) {
-    return ok({ ctx, value: undefined })
+    return ok({ kind: 'noop' })
   }
 
-  const fromPolityId = input.fromPolityId
-  const fromPolity = state.polities[fromPolityId]
+  const fromPolity = state.polities[input.fromPolityId]
   const fromRank = fromPolity?.rank ?? 0
-
-  let newState: WorldState
 
   if (toPolity.rank <= fromRank) {
     // 5-a (同 rank) or 5-b (claimer が上位 rank): grantee を差し替える
@@ -316,7 +326,7 @@ export function applyLandContractTransferGoal(
       if (grantorRank >= toPolity.rank) {
         return err({
           code: 'INTEGRITY_VIOLATION',
-          message: `applyLandContractTransferGoal: rank invariant violation (grantor rank ${grantorRank} >= grantee rank ${toPolity.rank})`,
+          message: `planLandContractTransfer: rank invariant violation (grantor rank ${grantorRank} >= grantee rank ${toPolity.rank})`,
         })
       }
     }
@@ -328,92 +338,142 @@ export function applyLandContractTransferGoal(
         if (childPolity && toPolity.rank >= childPolity.rank) {
           return err({
             code: 'INTEGRITY_VIOLATION',
-            message: `applyLandContractTransferGoal: rank invariant violation (new grantee rank ${toPolity.rank} >= child rank ${childPolity.rank})`,
+            message: `planLandContractTransfer: rank invariant violation (new grantee rank ${toPolity.rank} >= child rank ${childPolity.rank})`,
           })
         }
       }
     }
-    newState = transferLandContractGrantee(state, targetContract.id, input.toPolityId)
-  } else {
-    // 5-c (claimer が下位 rank): チェーンを走査して適切な位置に挿入/差し替え
-    if (fromRank >= toPolity.rank) {
+    return ok({ kind: 'swap_grantee', contractId: targetContract.id })
+  }
+
+  // 5-c (claimer が下位 rank): チェーンを走査して適切な位置に挿入/差し替え
+  if (fromRank >= toPolity.rank) {
+    return err({
+      code: 'INTEGRITY_VIOLATION',
+      message: `planLandContractTransfer: cannot insert below same or lower rank (from=${fromRank} to=${toPolity.rank})`,
+    })
+  }
+  let anchor = targetContract
+  for (let depth = 0; depth < 20; depth++) {
+    const childId = state.landContractIndex.byParent[anchor.id]
+    if (!childId) {
+      return ok({ kind: 'create_child', parentContractId: anchor.id })
+    }
+    const child = state.landContracts[childId]
+    if (!child) {
       return err({
         code: 'INTEGRITY_VIOLATION',
-        message: `applyLandContractTransferGoal: cannot insert below same or lower rank (from=${fromRank} to=${toPolity.rank})`,
+        message: `planLandContractTransfer: child contract ${childId as string} not found`,
       })
     }
-    let anchor = targetContract
-    let placed: { state: WorldState } | undefined
-    for (let depth = 0; depth < 20; depth++) {
-      const childId = state.landContractIndex.byParent[anchor.id]
-      if (!childId) {
-        placed = createChildLandContract(state, {
-          provinceId,
-          parentContractId: anchor.id,
-          granteePolityId: input.toPolityId,
-          taxRateToGrantor: 0.3,
-          holdingId: input.holdingId,
-        })
-        break
-      }
-      const child = state.landContracts[childId]
-      if (!child) {
-        return err({
-          code: 'INTEGRITY_VIOLATION',
-          message: `applyLandContractTransferGoal: child contract ${childId as string} not found`,
-        })
-      }
-      const childPolity = state.polities[child.granteePolityId]
-      const childRank = childPolity?.rank ?? 0
+    const childPolity = state.polities[child.granteePolityId]
+    const childRank = childPolity?.rank ?? 0
 
-      if (toPolity.rank < childRank) {
-        placed = insertIntermediateLandContract(state, {
-          provinceId,
-          belowContractId: childId,
-          newGranteePolityId: input.toPolityId,
-          taxRateToGrantor: 0.3,
-          holdingId: input.holdingId,
-        })
-        break
-      }
+    if (toPolity.rank < childRank) {
+      return ok({ kind: 'insert_below', belowContractId: childId })
+    }
 
-      if (toPolity.rank === childRank) {
-        const cGrantor = getLandContractGrantor(state, childId)
-        if (cGrantor) {
-          const cGrantorRank = getGrantorRank(state, cGrantor)
-          if (cGrantorRank >= toPolity.rank) {
+    if (toPolity.rank === childRank) {
+      const cGrantor = getLandContractGrantor(state, childId)
+      if (cGrantor) {
+        const cGrantorRank = getGrantorRank(state, cGrantor)
+        if (cGrantorRank >= toPolity.rank) {
+          return err({
+            code: 'INTEGRITY_VIOLATION',
+            message: `planLandContractTransfer: rank invariant violation (grantor rank ${cGrantorRank} >= grantee rank ${toPolity.rank})`,
+          })
+        }
+      }
+      const gcId = state.landContractIndex.byParent[childId]
+      if (gcId) {
+        const gc = state.landContracts[gcId]
+        if (gc) {
+          const gcPolity = state.polities[gc.granteePolityId]
+          if (gcPolity && toPolity.rank >= gcPolity.rank) {
             return err({
               code: 'INTEGRITY_VIOLATION',
-              message: `applyLandContractTransferGoal: rank invariant violation (grantor rank ${cGrantorRank} >= grantee rank ${toPolity.rank})`,
+              message: `planLandContractTransfer: rank invariant violation (new grantee rank ${toPolity.rank} >= grandchild rank ${gcPolity.rank})`,
             })
           }
         }
-        const gcId = state.landContractIndex.byParent[childId]
-        if (gcId) {
-          const gc = state.landContracts[gcId]
-          if (gc) {
-            const gcPolity = state.polities[gc.granteePolityId]
-            if (gcPolity && toPolity.rank >= gcPolity.rank) {
-              return err({
-                code: 'INTEGRITY_VIOLATION',
-                message: `applyLandContractTransferGoal: rank invariant violation (new grantee rank ${toPolity.rank} >= grandchild rank ${gcPolity.rank})`,
-              })
-            }
-          }
-        }
-        placed = { state: transferLandContractGrantee(state, childId, input.toPolityId) }
-        break
       }
-
-      anchor = child
+      return ok({ kind: 'swap_grantee', contractId: childId })
     }
-    if (!placed) {
+
+    anchor = child
+  }
+  return err({
+    code: 'INTEGRITY_VIOLATION',
+    message: `planLandContractTransfer: could not find valid position in chain for rank ${toPolity.rank}`,
+  })
+}
+
+// §6.5 transfer 事前ゲート用 predicate。planLandContractTransfer の .ok ラッパー (単一の真実)。
+export function canTransferLandContract(
+  state: WorldState,
+  holdingId: HoldingId,
+  fromPolityId: PolityId,
+  toPolityId: PolityId,
+): boolean {
+  return planLandContractTransfer(state, { holdingId, fromPolityId, toPolityId }).ok
+}
+
+export function applyLandContractTransferGoal(
+  ctx: TickContext,
+  input: {
+    holdingId: HoldingId
+    fromPolityId: PolityId
+    toPolityId: PolityId
+    reason: LandContractTransferReason
+  },
+): CtxResult<void> {
+  const state = ctx.state
+  // validation + 分岐判断は planLandContractTransfer に集約 (単一の真実)。
+  const plan = planLandContractTransfer(state, {
+    holdingId: input.holdingId,
+    fromPolityId: input.fromPolityId,
+    toPolityId: input.toPolityId,
+  })
+  if (!plan.ok) return err(plan.error)
+  // noop: 既に toPolity 所有。state 変更なし。
+  if (plan.value.kind === 'noop') return ok({ ctx, value: undefined })
+
+  // plan が ok の時点で holding は存在保証済み (planner と同条件)。
+  const holding = state.holdings[input.holdingId]
+  if (!holding) return ok({ ctx, value: undefined })
+  const provinceId = holding.provinceId
+  const fromPolityId = input.fromPolityId
+
+  let newState: WorldState
+  switch (plan.value.kind) {
+    case 'swap_grantee':
+      newState = transferLandContractGrantee(state, plan.value.contractId, input.toPolityId)
+      break
+    case 'create_child':
+      newState = createChildLandContract(state, {
+        provinceId,
+        parentContractId: plan.value.parentContractId,
+        granteePolityId: input.toPolityId,
+        taxRateToGrantor: 0.3,
+        holdingId: input.holdingId,
+      }).state
+      break
+    case 'insert_below':
+      newState = insertIntermediateLandContract(state, {
+        provinceId,
+        belowContractId: plan.value.belowContractId,
+        newGranteePolityId: input.toPolityId,
+        taxRateToGrantor: 0.3,
+        holdingId: input.holdingId,
+      }).state
+      break
+    default: {
+      const _exhaustive: never = plan.value
       return err({
         code: 'INTEGRITY_VIOLATION',
-        message: `applyLandContractTransferGoal: could not find valid position in chain for rank ${toPolity.rank}`,
+        message: `applyLandContractTransferGoal: unexpected plan ${String(_exhaustive)}`,
       })
     }
-    newState = placed.state
   }
   let nextCtx: TickContext = { ...ctx, state: newState }
 

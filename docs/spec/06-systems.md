@@ -1450,6 +1450,8 @@ revolt_negotiation の escalation は warCreationSystem 経由で War 化され�
 
 **War 化しない（cancelled に倒す）条件**: initiator / target が missing / inactive、対象 holding / contract が無い、WarGoal へ変換不能、同一 `originDiplomaticPlayId` から作成済み、**同一 issue（holdingId / landContractId）を対象とする active War が既存**（重複抑止）。escalated のまま残すと cleanupTerminalDiplomacy が terminal しか消さず無限蓄積するため、War 化できなかった escalated play は cancelled に倒す。
 
+**transfer_land_contract goal の rank 適用可否ゲート（`isWarGoalApplicable`）**: holding / fromPolity / toPolity の存在・active・`from !== to` に加え、**`canTransferLandContract(state, holdingId, fromPolityId, toPolityId)` が true であること**を要求する。これは `applyLandContractTransferGoal` が実行時に使う `planLandContractTransfer`（feudal chain の rank invariant を検証し適用プランを決定する純粋関数。両者は `landContractMutations.ts` 内の単一の真実）と**同一ロジック**で、開戦前に適用可否を判定する。これを欠くと「warScore で勝っても rank invariant 上 land contract を移管できず PeaceSettlement が `white_peace` に倒れ、同じ seize 戦争を永久に再宣戦する（winning→white_peace ループ）」事故が起きる（例: rank 2 polity が rank 3 grantor 配下の holding を seize しようとするケース）。`seize_weak_remote_holdings` aim は軍事力比較のみで対象を選ぶため rank 非互換 holding を頻繁に狙うので、本ゲートが load-bearing。同一 predicate を play 生成（DiplomaticPlaySystem §6.42 経由の `createLandClaimPlayFromProjectMut`）でも事前適用し、適用不能な seize の play / `DIPLOMATIC_PLAY_STARTED` spam も抑止する。
+
 **War 作成後**: 元 play を `resolved_by_conflict`（terminal）にする。**`DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT` event は発行しない**（即時解決を含意するため）。戦争開始 event は `WAR_DECLARED`（major）のみ。
 
 ### 6.45 WarManeuverSystem（毎週）

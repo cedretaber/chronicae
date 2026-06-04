@@ -116,9 +116,10 @@ function setupTransferableHolding(): {
 
 describe('WarCreationSystem (§6)', () => {
   it('escalated land_claim → War 1 件生成 + play=resolved_by_conflict + WAR_DECLARED', () => {
-    const world = freshWorld()
-    const { holdingId, owner, other } = pickHoldingAndPolities(world)
-    injectEscalatedLandClaim(world, 'dp-a', other, owner, holdingId)
+    // §6.5: WarCreation は rank invariant 上 transfer 可能な goal のみ War 化する。generateWorld の
+    //   任意 rank holding では canTransferLandContract に阻まれるため、移転可能な統制 fixture を使う。
+    const { world, holdingId, attacker, defender } = setupTransferableHolding()
+    injectEscalatedLandClaim(world, 'dp-a', attacker, defender, holdingId)
     const before = Object.keys(world.wars).length
 
     const next = runWarCreationSystem(makeCtx(world))
@@ -134,10 +135,9 @@ describe('WarCreationSystem (§6)', () => {
   })
 
   it('同一 holding の 2 件目 escalated land_claim は dedup で cancelled・War は増えない', () => {
-    const world = freshWorld()
-    const { holdingId, owner, other } = pickHoldingAndPolities(world)
-    injectEscalatedLandClaim(world, 'dp-a', other, owner, holdingId)
-    injectEscalatedLandClaim(world, 'dp-b', other, owner, holdingId)
+    const { world, holdingId, attacker, defender } = setupTransferableHolding()
+    injectEscalatedLandClaim(world, 'dp-a', attacker, defender, holdingId)
+    injectEscalatedLandClaim(world, 'dp-b', attacker, defender, holdingId)
     const before = Object.keys(world.wars).length
 
     const next = runWarCreationSystem(makeCtx(world))

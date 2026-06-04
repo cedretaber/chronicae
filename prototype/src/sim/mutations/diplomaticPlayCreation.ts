@@ -14,10 +14,12 @@ import { nameParam, entityRef } from '../types/event'
 import {
   getProvinceDominantTerminalContract,
   getHoldingLandContractChain,
+  getHoldingTerminalPolityId,
   getLandContractGrantor,
   getProvinceDevelopmentFromHoldings,
   selectTargetHoldingInProvince,
 } from '../selectors/landContractSelectors'
+import { canTransferLandContract } from './landContractMutations'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
@@ -133,6 +135,15 @@ function createLandClaimPlayFromProjectMut(
       initialProgress = 0
       initialTension = config.landClaimInitialTensionOnPressure
     }
+  }
+
+  // §6.5: transfer の宛先は常に initiator (demand.toPolityId = initiator.id)。fromPolityId は
+  //   war goal (createWarGoalFromDiplomaticPlay) と同じく holding の現 terminal grantee。rank invariant 上
+  //   transfer 不能な holding は seize しても warScore で勝てず白紙和平ループになるため、play / war 化
+  //   する前に warCreationSystem.isWarGoalApplicable と同一 predicate で弾く (play spam も防ぐ)。
+  const transferFromPolityId = getHoldingTerminalPolityId(ws, holdingId) ?? target.id
+  if (!canTransferLandContract(ws, holdingId, transferFromPolityId, initiator.id)) {
+    return { kind: 'invalid_inputs' }
   }
 
   const dedupeKey = `land_claim|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
