@@ -99,7 +99,6 @@ export type EventType =
   | 'AIM_SUCCEEDED'
   | 'AIM_FAILED'
   | 'AIM_ABANDONED'
-  | 'HOUSE_POLITY_SHARE_EXPANDED'
   | 'HOUSE_POLICY_INFLUENCE'
   | 'HOUSE_PATRONIZED_ARTIST'
   | 'HOUSE_COMMISSIONED_CHRONICLE'
@@ -394,7 +393,6 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'aim.succeeded': '{{owner}} successfully completed {{kind}}.',
   'aim.failed': '{{owner}} failed at {{kind}}.',
   'aim.abandoned': '{{owner}} abandoned {{kind}}.',
-  'house.polity_share_expanded': '{{house}} expanded its influence in {{polity}}.',
   'house.policy_influence': '{{house}} influenced the policies of {{polity}}.',
   'house.patronized_artist': '{{house}} patronized an artist, gaining prestige.',
   'house.commissioned_chronicle': '{{house}} commissioned a chronicle of their deeds.',

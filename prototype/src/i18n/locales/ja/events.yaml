@@ -29,7 +29,6 @@ house:
   members_dispersed: '{{house}}の残党は散り散りになった。'
   leader_changed: '{{person}}が{{house}}の新たな当主となった。'
   land_developed: '{{house}}が{{province}}の開発に投資した。'
-  polity_share_expanded: '{{house}}は{{polity}}における影響力を拡大した。'
   policy_influence: '{{house}}は{{polity}}の政策に影響を及ぼした。'
   patronized_artist: '{{house}}は芸術家を後援し、威信を高めた。'
   commissioned_chronicle: '{{house}}は年代記の編纂を命じた。'

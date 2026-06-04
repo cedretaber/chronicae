@@ -164,7 +164,6 @@ export function getTaskDefaultRelevantAbility(kind: TaskKind): AbilityKey {
 
 export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   develop_holding: 'numeracy',
-  expand_polity_share: 'charisma',
   promote_policy_shift: 'charisma',
   patronize_artist: 'charisma',
   commission_chronicle: 'learning',

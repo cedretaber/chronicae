@@ -91,7 +91,6 @@ export type PolityAimKind =
   | 'eliminate_vassal_contract'
 
 export type HouseAimKind =
-  | 'increase_polity_share'
   | 'steer_polity_external_expansion'
   | 'steer_polity_internal_development'
   | 'patronize_artist'

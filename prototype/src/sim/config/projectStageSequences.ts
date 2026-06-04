@@ -13,8 +13,6 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'execute_project', type: 'final' },
   ],
 
-  expand_polity_share: [{ key: 'execute_project', type: 'final' }],
-
   promote_policy_shift: [{ key: 'execute_project', type: 'final' }],
 
   patronize_artist: [{ key: 'arrange_patronage', type: 'final' }],

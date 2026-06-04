@@ -217,19 +217,6 @@ function buildProjectFieldsForAim(
         targetProgress: baseProgress * progMult,
       }
     }
-    case 'expand_polity_share': {
-      const polityId = aim.target?.kind === 'polity' ? aim.target.id : undefined
-      const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
-      // 調査 §1.6: 同上の afford 判定。
-      if (!canAffordCulturalProject(ws, houseId, config.expandPolityShareCost)) return undefined
-      return {
-        polityId,
-        houseId,
-        budget: config.expandPolityShareCost,
-        spentBudget: 0,
-        currentStageKey: getInitialProjectStageKey('expand_polity_share'),
-      }
-    }
     case 'promote_policy_shift': {
       const polityId = aim.target?.kind === 'polity' ? aim.target.id : undefined
       const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined

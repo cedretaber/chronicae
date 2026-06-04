@@ -30,7 +30,6 @@ house:
   members_dispersed: 'The remnants of {{house}} dispersed into obscurity.'
   leader_changed: '{{person}} has become the new head of {{house}}.'
   land_developed: '{{house}} invested in developing {{province}}.'
-  polity_share_expanded: '{{house}} expanded its influence in {{polity}}.'
   policy_influence: '{{house}} influenced the policies of {{polity}}.'
   patronized_artist: '{{house}} patronized an artist, gaining prestige.'
   commissioned_chronicle: '{{house}} commissioned a chronicle of their deeds.'

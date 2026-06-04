@@ -34,7 +34,7 @@ describe('aimSlotKey', () => {
 
   it('同 target でも kind が違えば別スロット', () => {
     const polity: EntityRef = { kind: 'polity', id: createPolityId('c', 3) }
-    expect(aimSlotKey('increase_polity_share', polity)).not.toBe(
+    expect(aimSlotKey('steer_polity_internal_development', polity)).not.toBe(
       aimSlotKey('steer_polity_external_expansion', polity),
     )
   })
@@ -48,8 +48,8 @@ describe('aimSlotKey', () => {
 
   it('target あり vs なしは衝突しない', () => {
     const polity: EntityRef = { kind: 'polity', id: createPolityId('c', 5) }
-    expect(aimSlotKey('increase_polity_share', polity)).not.toBe(
-      aimSlotKey('increase_polity_share'),
+    expect(aimSlotKey('steer_polity_external_expansion', polity)).not.toBe(
+      aimSlotKey('steer_polity_external_expansion'),
     )
   })
 })

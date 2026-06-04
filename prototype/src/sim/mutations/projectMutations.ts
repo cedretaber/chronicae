@@ -134,8 +134,6 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
     case 'demand_tax_increase_from_vassal':
     case 'eliminate_vassal_contract':
       return 'demand_tax_increase'
-    case 'increase_polity_share':
-      return 'expand_polity_share'
     case 'steer_polity_external_expansion':
     case 'steer_polity_internal_development':
       return 'promote_policy_shift'

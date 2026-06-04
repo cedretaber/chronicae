@@ -185,7 +185,6 @@ detail:
     empty: '記録がありません'
   project_kind:
     develop_holding: '領地開発'
-    expand_polity_share: '国内影響力拡大'
     promote_policy_shift: '政策転換'
     patronize_artist: '芸術家後援'
     commission_chronicle: '年代記編纂'

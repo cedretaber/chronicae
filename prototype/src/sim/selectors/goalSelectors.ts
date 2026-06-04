@@ -493,17 +493,8 @@ function pickHouseAim(
     )
   }
   if (goalKind === 'expand_power_base') {
-    // increase_polity_share
-    for (const pid of ownedPolityIds) {
-      const influencePercent = influencePctOf.get(pid) ?? 0
-      if (influencePercent < 70) {
-        candidates.push({
-          kind: 'increase_polity_share',
-          target: { kind: 'polity', id: pid },
-          score: 25 + (70 - influencePercent) * 0.5,
-        })
-      }
-    }
+    // v0.42 §13.1: increase_polity_share は廃止 (influence は read-model — 直接増やす対象でない)。
+    // 置換の acquire_political_right aim は b9 で追加する。
     // steer_polity_external_expansion
     for (const pid of ownedPolityIds) {
       const influencePercent = influencePctOf.get(pid) ?? 0
@@ -524,17 +515,6 @@ function pickHouseAim(
           kind: 'steer_polity_internal_development',
           target: { kind: 'polity', id: pid },
           score: 20 + influencePercent * 0.3,
-        })
-      }
-    }
-    // increase_polity_share (also valid for preserve)
-    for (const pid of ownedPolityIds) {
-      const influencePercent = influencePctOf.get(pid) ?? 0
-      if (influencePercent < 50) {
-        candidates.push({
-          kind: 'increase_polity_share',
-          target: { kind: 'polity', id: pid },
-          score: 15 + (50 - influencePercent) * 0.3,
         })
       }
     }

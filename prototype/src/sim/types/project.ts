@@ -21,7 +21,6 @@ export type ProjectOrigin = { kind: 'aim'; aimId: AimId } | { kind: 'system'; re
 
 export type ProjectKind =
   | 'develop_holding'
-  | 'expand_polity_share'
   | 'promote_policy_shift'
   | 'patronize_artist'
   | 'commission_chronicle'
@@ -74,14 +73,6 @@ export type DevelopHoldingProject = BaseProject & {
   improvementKind: HoldingImprovementKind
   targetImprovementLevel: number
   budget: ProjectBudget
-}
-
-export type ExpandPolityShareProject = BaseProject & {
-  kind: 'expand_polity_share'
-  polityId: PolityId
-  houseId: HouseId
-  budget: number
-  spentBudget: number
 }
 
 export type PromotePolicyShiftProject = BaseProject & {
@@ -139,7 +130,6 @@ export type RespondToPressureProject = BaseProject & {
 
 export type Project =
   | DevelopHoldingProject
-  | ExpandPolityShareProject
   | PromotePolicyShiftProject
   | PatronizeArtistProject
   | CommissionChronicleProject

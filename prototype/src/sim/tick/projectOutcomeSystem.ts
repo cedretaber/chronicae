@@ -13,8 +13,7 @@ import {
   getPolityNameRefForEmit,
   getPolityNameRefForEmitFromPolity,
 } from '../selectors/nameRefSelectors'
-import type { EventId, OrganizationShareId } from '../types/ids'
-import { createOrganizationShareId } from '../types/ids'
+import type { EventId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 import { removeProjectFromIndexMut, isDiplomaticProjectKind } from '../mutations/projectMutations'
@@ -191,9 +190,6 @@ function applyNonDiplomaticEffectMut(
     case 'develop_holding':
       applyDevelopHoldingMut(ws, config, project, emitEvent)
       break
-    case 'expand_polity_share':
-      applyExpandPolityShareMut(ws, config, project, emitEvent)
-      break
     case 'promote_policy_shift':
       applyPromotePolicyShiftMut(ws, project, emitEvent)
       break
@@ -342,79 +338,6 @@ function applyDevelopHoldingMut(
   })
 }
 
-function applyExpandPolityShareMut(
-  ws: WorldState,
-  config: SimulationConfig,
-  project: Project,
-  emitEvent: (input: CreateSimEventInput) => void,
-): void {
-  if (project.owner.kind !== 'house') return
-  const houseId = project.owner.id
-  const house = ws.houses[houseId]
-  if (!house || !house.active) return
-  if (house.wealth < config.expandPolityShareCost) return
-
-  const polityId = 'polityId' in project ? project.polityId : undefined
-  if (!polityId) return
-  const polity = ws.polities[polityId]
-  if (!polity || !polity.active) return
-
-  const shareIds = ws.shareIndex.byOrganization[polityId] ?? []
-  let existingShareId: OrganizationShareId | undefined
-  for (const sid of shareIds) {
-    const share = ws.organizationShares[sid]
-    if (
-      share &&
-      share.holder.kind === 'house' &&
-      (share.holder.id as string) === (houseId as string)
-    ) {
-      existingShareId = sid
-      break
-    }
-  }
-
-  if (existingShareId) {
-    const existingShare = ws.organizationShares[existingShareId]
-    if (existingShare) {
-      ws.organizationShares[existingShareId] = {
-        ...existingShare,
-        rawPower: existingShare.rawPower + config.expandPolityShareRawPowerGain,
-      }
-    }
-  } else {
-    const newShareId = createOrganizationShareId(ws.nextOrganizationShareId)
-    ws.organizationShares[newShareId] = {
-      id: newShareId,
-      organization: { kind: 'polity', id: polityId },
-      holder: { kind: 'house', id: houseId },
-      rawPower: config.expandPolityShareRawPowerGain,
-    }
-    ws.shareIndex.byOrganization[polityId] = [
-      ...(ws.shareIndex.byOrganization[polityId] ?? []),
-      newShareId,
-    ]
-    ws.shareIndex.byHolder[houseId] = [...(ws.shareIndex.byHolder[houseId] ?? []), newShareId]
-    ws.nextOrganizationShareId++
-  }
-
-  ws.houses[houseId] = { ...house, wealth: house.wealth - config.expandPolityShareCost }
-
-  const polityNameRef = getPolityNameRefForEmitFromPolity(ws, polity)
-  emitEvent({
-    type: 'HOUSE_POLITY_SHARE_EXPANDED',
-    importance: 'minor',
-    messageKey: 'house.polity_share_expanded',
-    messageParams: {
-      house: nameParam('house', house.nameKey),
-      polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
-    },
-    entityRefs: [
-      entityRef('house', houseId, 'house', house.nameKey),
-      entityRef('polity', polityId, 'polity', polityNameRef.nameKey),
-    ],
-  })
-}
-
 function applyPromotePolicyShiftMut(
   ws: WorldState,
   project: Project,
@@ -516,7 +439,6 @@ function addAimProgressForCompletedProjectMut(
     case 'develop_owned_holding':
       progressGain = config.aimProgressGainDevelopmentProject
       break
-    case 'increase_polity_share':
     case 'steer_polity_external_expansion':
     case 'steer_polity_internal_development':
       progressGain = config.aimProgressGainPowerProject
