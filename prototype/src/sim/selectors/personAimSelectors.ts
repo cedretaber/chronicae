@@ -1,4 +1,5 @@
 import type { WorldState } from '../types/world'
+import { getHousePolityIds, getPersonPrimaryPolityId } from './polityRelations'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { PersonId } from '../types/ids'
 import type { PersonAimKind, Goal, EntityRef } from '../types/goal'
@@ -8,7 +9,6 @@ import type { AbilityKey } from '../types/person'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 import { getPersonGoalFulfillment } from './personGoalSelectors'
-import { getPersonPrimaryPolityId } from './polityRelations'
 
 const PERSON_AIM_KINDS: readonly PersonAimKind[] = [
   'increase_house_influence',
@@ -144,38 +144,33 @@ export function scorePersonAimKind(
           }
           if (!target) {
             // Try polity offices
-            for (const [, share] of Object.entries(state.organizationShares)) {
-              if (!share) continue
-              if (
-                share.holder.kind === 'house' &&
-                share.holder.id === person.houseId &&
-                share.organization.kind === 'polity'
-              ) {
-                for (const role of roles) {
-                  let alreadyHolds = false
-                  for (const oaId of holderOfficeIds) {
-                    const oa = state.officeAssignments[oaId]
-                    if (!oa || !oa.active) continue
-                    if (
-                      oa.organization.kind === 'polity' &&
-                      (oa.organization.id as string) === (share.organization.id as string) &&
-                      oa.role === role
-                    ) {
-                      alreadyHolds = true
-                      break
-                    }
-                  }
-                  if (!alreadyHolds) {
-                    target = {
-                      kind: 'office',
-                      organization: { kind: 'polity', id: share.organization.id },
-                      role,
-                    }
+            // v0.42c: 旧実装は polity share 走査で家の関連 polity を探していた (share 全廃で dead)。
+            // 家が土地で関与する polity (getHousePolityIds) を走査する。
+            for (const polityId of getHousePolityIds(state, person.houseId)) {
+              for (const role of roles) {
+                let alreadyHolds = false
+                for (const oaId of holderOfficeIds) {
+                  const oa = state.officeAssignments[oaId]
+                  if (!oa || !oa.active) continue
+                  if (
+                    oa.organization.kind === 'polity' &&
+                    (oa.organization.id as string) === (polityId as string) &&
+                    oa.role === role
+                  ) {
+                    alreadyHolds = true
                     break
                   }
                 }
-                if (target) break
+                if (!alreadyHolds) {
+                  target = {
+                    kind: 'office',
+                    organization: { kind: 'polity', id: polityId },
+                    role,
+                  }
+                  break
+                }
               }
+              if (target) break
             }
           }
           if (!target) continue // Skip if no available office

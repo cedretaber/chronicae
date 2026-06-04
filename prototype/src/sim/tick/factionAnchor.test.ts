@@ -4,11 +4,11 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  createHouseShareId,
   createPersonId,
   createHouseId,
   createPolityId,
   createProvinceId,
-  createOrganizationShareId,
 } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { TickContext } from './context'
@@ -83,22 +83,17 @@ function makeFoundingState(opts: { bindToHouse: boolean; withPolityAtSeat: boole
   s = withPerson(s, member2Id, { nameKey: 'Member2', houseId, wealth: 100, alive: true, age: 22 })
 
   // leader を家の top shareholder にする (founder 資格)
-  const shareId = createOrganizationShareId(0)
+  const shareId = createHouseShareId(0)
   s = {
     ...s,
-    organizationShares: {
-      ...s.organizationShares,
-      [shareId]: {
-        id: shareId,
-        organization: { kind: 'house' as const, id: houseId },
-        holder: { kind: 'person' as const, id: leaderId },
-        rawPower: 100,
-      },
+    houseShares: {
+      ...s.houseShares,
+      [shareId]: { id: shareId, houseId, holderPersonId: leaderId, rawPower: 100 },
     },
-    shareIndex: {
-      ...s.shareIndex,
-      byOrganization: { ...s.shareIndex.byOrganization, [`house:${houseId}`]: [shareId] },
-      byHolder: { ...s.shareIndex.byHolder, [`person:${leaderId}`]: [shareId] },
+    houseShareIndex: {
+      ...s.houseShareIndex,
+      byHouse: { ...s.houseShareIndex.byHouse, [houseId]: [shareId] },
+      byHolderPerson: { ...s.houseShareIndex.byHolderPerson, [leaderId]: [shareId] },
     },
   }
   return s

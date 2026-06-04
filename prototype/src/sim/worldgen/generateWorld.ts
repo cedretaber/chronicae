@@ -25,13 +25,8 @@ import type { Polity } from '../types/polity'
 import type { Person } from '../types/person'
 import type { PopGroup } from '../types/popGroup'
 import type { StateRegion } from '../types/stateRegion'
-import type {
-  OrganizationRef,
-  ShareHolderRef,
-  OrganizationShare,
-  ShareIndex,
-} from '../types/office'
-import type { OrganizationShareId, LandContractId } from '../types/ids'
+import type { HouseShare, HouseShareIndex } from '../types/office'
+import type { HouseShareId, LandContractId } from '../types/ids'
 import type {
   LandContract,
   LandContractIndex,
@@ -683,14 +678,13 @@ export function generateWorld(
       .sort(),
     activePlots: {},
     popGroups: popGroupsRecord,
-    organizationShares: {},
+    houseShares: {},
     politicalRights: {},
     politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },
     nextPoliticalRightId: 0,
     officeAssignments: {},
-    shareIndex: {},
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
-    nextOrganizationShareId: 0,
+    nextHouseShareId: 0,
     nextOfficeAssignmentId: 0,
     factions: {},
     factionMemberships: {},
@@ -951,23 +945,21 @@ export function generateWorld(
 
   // v0.42c §15.1: Polity share は生成しない (Polity Influence は read-model — spec v0.42)。
   // Initialize shares
-  const organizationShares: Record<OrganizationShareId, OrganizationShare> = {}
-  const shareIndex: ShareIndex = { byOrganization: {}, byHolder: {} }
-  let nextOrganizationShareId = 0
+  const houseShares: Record<HouseShareId, HouseShare> = {}
+  const houseShareIndex: HouseShareIndex = { byHouse: {}, byHolderPerson: {} }
+  let nextHouseShareId = 0
 
-  function addShare(organization: OrganizationRef, holder: ShareHolderRef, rawPower: number): void {
+  function addShare(houseId: HouseId, holderPersonId: PersonId, rawPower: number): void {
     if (rawPower <= 0) return
-    const id = `os-${nextOrganizationShareId}` as OrganizationShareId
-    nextOrganizationShareId++
-    const share: OrganizationShare = { id, organization, holder, rawPower }
-    organizationShares[id] = share
+    const id = `os-${nextHouseShareId}` as HouseShareId
+    nextHouseShareId++
+    const share: HouseShare = { id, houseId, holderPersonId, rawPower }
+    houseShares[id] = share
 
-    const orgKey = `${organization.kind}:${organization.id}`
-    const holderKey = `${holder.kind}:${holder.id}`
-    const existingByOrg = shareIndex.byOrganization[orgKey] ?? []
-    const existingByHolder = shareIndex.byHolder[holderKey] ?? []
-    shareIndex.byOrganization[orgKey] = [...existingByOrg, id]
-    shareIndex.byHolder[holderKey] = [...existingByHolder, id]
+    const existingByHouse = houseShareIndex.byHouse[houseId] ?? []
+    const existingByHolder = houseShareIndex.byHolderPerson[holderPersonId] ?? []
+    houseShareIndex.byHouse[houseId] = [...existingByHouse, id]
+    houseShareIndex.byHolderPerson[holderPersonId] = [...existingByHolder, id]
   }
 
   // House shares
@@ -1010,7 +1002,7 @@ export function generateWorld(
           getRoleScoreFromAbilities(person.abilities, 'warCommand') / 10) *
           config.houseShareStatFactor
 
-      addShare({ kind: 'house', id: house.id }, { kind: 'person', id: personId }, rawPower)
+      addShare(house.id, personId, rawPower)
     }
   }
 
@@ -1651,12 +1643,12 @@ export function generateWorld(
     activePlots: {},
     popGroups: popGroupsRecord,
     popIndex: { byHolding: popIndexByHolding },
-    organizationShares,
+    houseShares,
     officeAssignments: officeState.officeAssignments,
     landContracts: landContractsRecord,
     holdingOfficeAssignments,
     holdingOfficeIndex,
-    shareIndex,
+    houseShareIndex,
     officeIndex: officeState.officeIndex,
     landContractIndex,
     holdingTerminalPolityCache,
@@ -1680,7 +1672,7 @@ export function generateWorld(
     },
     diplomaticPlays: {},
     diplomaticOffers: {},
-    nextOrganizationShareId,
+    nextHouseShareId,
     nextOfficeAssignmentId: officeState.nextOfficeAssignmentId,
     nextLandContractId,
     nextHoldingOfficeAssignmentId,

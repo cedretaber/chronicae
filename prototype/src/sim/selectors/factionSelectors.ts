@@ -157,13 +157,9 @@ export function getFactionViabilityScore(
   let leaderShareViability = 0
   if (leader && leader.houseId) {
     const viabilityRankLimit = config.factionFounderShareRank + 2
-    const topHolders = getTopShareholders(
-      state,
-      { kind: 'house', id: leader.houseId },
-      viabilityRankLimit,
-    )
+    const topHolders = getTopShareholders(state, leader.houseId, viabilityRankLimit)
     const isTopHolder = topHolders.some(
-      (s) => s.holder.kind === 'person' && (s.holder.id as string) === (leader.id as string),
+      (s) => (s.holderPersonId as string) === (leader.id as string),
     )
     if (isTopHolder) {
       const sharePercent = getPersonHouseSharePercent(state, leader.houseId, leader.id)

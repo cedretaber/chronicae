@@ -43,10 +43,10 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     polities: { ...ctx.state.polities },
     houses: { ...ctx.state.houses },
     holdings: { ...ctx.state.holdings },
-    organizationShares: { ...ctx.state.organizationShares },
-    shareIndex: {
-      byOrganization: { ...ctx.state.shareIndex.byOrganization },
-      byHolder: { ...ctx.state.shareIndex.byHolder },
+    houseShares: { ...ctx.state.houseShares },
+    houseShareIndex: {
+      byHouse: { ...ctx.state.houseShareIndex.byHouse },
+      byHolderPerson: { ...ctx.state.houseShareIndex.byHolderPerson },
     },
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
     pressures: { ...ctx.state.pressures },

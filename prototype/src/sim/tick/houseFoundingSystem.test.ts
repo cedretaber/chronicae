@@ -251,8 +251,7 @@ describe('runHouseFoundingSystem', () => {
 
     const person = result.state.persons[pid]
     if (person?.houseId) {
-      const houseRef = `house:${person.houseId}`
-      const shareIds = result.state.shareIndex.byOrganization[houseRef] ?? []
+      const shareIds = result.state.houseShareIndex.byHouse[person.houseId] ?? []
       expect(shareIds.length).toBeGreaterThan(0)
     }
   })

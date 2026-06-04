@@ -224,8 +224,7 @@ describe('runHouseSplitEvaluationSystem', () => {
     })
     if (newHouseIds.length > 0) {
       const newHouseId = newHouseIds[0] as HouseId
-      const houseRef = `house:${newHouseId}`
-      const shareIds = result.state.shareIndex.byOrganization[houseRef] ?? []
+      const shareIds = result.state.houseShareIndex.byHouse[newHouseId] ?? []
       expect(shareIds.length).toBeGreaterThan(0)
     }
   })

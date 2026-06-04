@@ -38,12 +38,15 @@ export function newPopGroupId(value: string): PopGroupId {
   return value as PopGroupId
 }
 
-export type OrganizationShareId = Branded<string, 'OrganizationShareId'>
+// v0.42c: OrganizationShareId → HouseShareId (polity share 全廃に伴い house 専用に縮小。
+// prefix は旧 'os-' を維持する — 既存 fixture/ID 連番との互換のため。spec §4.1 の 'hs-' は
+// 新規 prefix だが、ID はセーブ互換要件が無く表示にも使われないため旧 prefix 据え置きを選択)
+export type HouseShareId = Branded<string, 'HouseShareId'>
 export type OfficeAssignmentId = Branded<string, 'OfficeAssignmentId'>
 export type LandContractId = Branded<string, 'LandContractId'>
 
-export function createOrganizationShareId(n: number): OrganizationShareId {
-  return ('os-' + n) as OrganizationShareId
+export function createHouseShareId(n: number): HouseShareId {
+  return ('os-' + n) as HouseShareId
 }
 
 export function createOfficeAssignmentId(n: number): OfficeAssignmentId {

@@ -4,13 +4,13 @@ import { defaultConfig } from '../config/defaultConfig'
 import { runFactionLifecycleSystem } from './factionLifecycleSystem'
 import { runFactionMaintenanceSystem } from './factionMaintenanceSystem'
 import {
+  createHouseShareId,
   createHouseId,
   createPersonId,
   createFactionId,
   createFactionMembershipId,
   createProvinceId,
   createPolityId,
-  createOrganizationShareId,
 } from '../types/ids'
 import type { PersonId, ProvinceId, PolityId, HouseId } from '../types/ids'
 import type { TickContext } from './context'
@@ -167,24 +167,17 @@ describe('runFactionLifecycleSystem', () => {
     s = withPerson(s, member1Id, { nameKey: 'Member1', houseId, wealth: 100, alive: true, age: 20 })
     s = withPerson(s, member2Id, { nameKey: 'Member2', houseId, wealth: 100, alive: true, age: 22 })
 
-    const shareId = createOrganizationShareId(0)
-    const orgKey = `house:${houseId}`
-    const holderKey = `person:${leaderId}`
+    const shareId = createHouseShareId(0)
     s = {
       ...s,
-      organizationShares: {
-        ...s.organizationShares,
-        [shareId]: {
-          id: shareId,
-          organization: { kind: 'house' as const, id: houseId },
-          holder: { kind: 'person' as const, id: leaderId },
-          rawPower: 100,
-        },
+      houseShares: {
+        ...s.houseShares,
+        [shareId]: { id: shareId, houseId, holderPersonId: leaderId, rawPower: 100 },
       },
-      shareIndex: {
-        ...s.shareIndex,
-        byOrganization: { ...s.shareIndex.byOrganization, [orgKey]: [shareId] },
-        byHolder: { ...s.shareIndex.byHolder, [holderKey]: [shareId] },
+      houseShareIndex: {
+        ...s.houseShareIndex,
+        byHouse: { ...s.houseShareIndex.byHouse, [houseId]: [shareId] },
+        byHolderPerson: { ...s.houseShareIndex.byHolderPerson, [leaderId]: [shareId] },
       },
     }
 

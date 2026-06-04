@@ -6,7 +6,7 @@ import type {
   PersonId,
   PlotId,
   PopGroupId,
-  OrganizationShareId,
+  HouseShareId,
   OfficeAssignmentId,
   LandContractId,
   FactionId,
@@ -38,7 +38,7 @@ import type { Person } from './person'
 import type { Plot } from './plot'
 import type { SimEvent } from './event'
 import type { PopGroup, PopIndex } from './popGroup'
-import type { OrganizationShare, OfficeAssignment, ShareIndex, OfficeIndex } from './office'
+import type { HouseShare, OfficeAssignment, HouseShareIndex, OfficeIndex } from './office'
 import type {
   LandContract,
   LandContractIndex,
@@ -84,12 +84,12 @@ export type WorldState = {
   activePlots: Record<PlotId, Plot>
   popGroups: Record<PopGroupId, PopGroup>
   popIndex: PopIndex
-  organizationShares: Record<OrganizationShareId, OrganizationShare>
+  houseShares: Record<HouseShareId, HouseShare>
   officeAssignments: Record<OfficeAssignmentId, OfficeAssignment>
   landContracts: Record<LandContractId, LandContract>
   holdingOfficeAssignments: Record<HoldingOfficeAssignmentId, HoldingOfficeAssignment>
   holdingOfficeIndex: HoldingOfficeIndex
-  shareIndex: ShareIndex
+  houseShareIndex: HouseShareIndex
   officeIndex: OfficeIndex
   landContractIndex: LandContractIndex
   holdingTerminalPolityCache: HoldingTerminalPolityCache
@@ -146,7 +146,7 @@ export type WorldState = {
   nextGoalId: number
   nextAimId: number
   nextDecisionReasonId: number
-  nextOrganizationShareId: number
+  nextHouseShareId: number
   nextOfficeAssignmentId: number
   nextLandContractId: number
   nextHoldingOfficeAssignmentId: number

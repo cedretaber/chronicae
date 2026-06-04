@@ -31,54 +31,35 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
     })
   }
 
-  // 1. OrganizationShare integrity
-  for (const shareId of Object.keys(state.organizationShares)) {
-    const share = state.organizationShares[shareId as import('../types/ids').OrganizationShareId]
+  // 1. HouseShare integrity (v0.42c: 旧 OrganizationShare — polity share は型レベルで全廃)
+  for (const shareId of Object.keys(state.houseShares)) {
+    const share = state.houseShares[shareId as import('../types/ids').HouseShareId]
     if (!share) continue
     if (share.rawPower < 0) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `OrganizationShare ${shareId} has negative rawPower: ${share.rawPower}`,
+        message: `HouseShare ${shareId} has negative rawPower: ${share.rawPower}`,
       })
     }
-    if (share.organization.kind === 'polity') {
-      // v0.42c §15.1: polity share は全廃。存在自体が違反。
+    if (!state.houses[share.houseId]) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `OrganizationShare ${shareId} is a polity share (abolished in v0.42c): ${share.organization.id}`,
+        message: `HouseShare ${shareId} references non-existent house ${share.houseId}`,
       })
-    } else {
-      if (!state.houses[share.organization.id]) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `OrganizationShare ${shareId} references non-existent house ${share.organization.id}`,
-        })
-      }
     }
-    if (share.holder.kind === 'person') {
-      if (!state.persons[share.holder.id]) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `OrganizationShare ${shareId} references non-existent person ${share.holder.id}`,
-        })
-      }
-    } else {
-      if (!state.houses[share.holder.id]) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `OrganizationShare ${shareId} references non-existent house ${share.holder.id}`,
-        })
-      }
+    if (!state.persons[share.holderPersonId]) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `HouseShare ${shareId} references non-existent person ${share.holderPersonId}`,
+      })
     }
     // Phase D §13.4: house share holder person must belong to that house
-    if (share.organization.kind === 'house' && share.holder.kind === 'person') {
-      const holderPerson = state.persons[share.holder.id]
-      if (holderPerson && holderPerson.alive && holderPerson.houseId !== share.organization.id) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `OrganizationShare ${shareId} holder Person ${share.holder.id} has houseId=${holderPerson.houseId ?? 'undefined'} but share org is house:${share.organization.id}`,
-        })
-      }
+    const holderPerson = state.persons[share.holderPersonId]
+    if (holderPerson && holderPerson.alive && holderPerson.houseId !== share.houseId) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `HouseShare ${shareId} holder Person ${share.holderPersonId} has houseId=${holderPerson.houseId ?? 'undefined'} but share house is ${share.houseId}`,
+      })
     }
   }
 
@@ -181,25 +162,25 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
     }
   }
 
-  // 7. ShareIndex consistency
-  for (const [key, ids] of Object.entries(state.shareIndex.byOrganization)) {
+  // 7. HouseShareIndex consistency
+  for (const [key, ids] of Object.entries(state.houseShareIndex.byHouse)) {
     for (const shareId of ids ?? []) {
-      const share = state.organizationShares[shareId]
+      const share = state.houseShares[shareId]
       if (!share) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `shareIndex.byOrganization[${key}] references non-existent share ${shareId}`,
+          message: `houseShareIndex.byHouse[${key}] references non-existent share ${shareId}`,
         })
       }
     }
   }
-  for (const [key, ids] of Object.entries(state.shareIndex.byHolder)) {
+  for (const [key, ids] of Object.entries(state.houseShareIndex.byHolderPerson)) {
     for (const shareId of ids ?? []) {
-      const share = state.organizationShares[shareId]
+      const share = state.houseShares[shareId]
       if (!share) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `shareIndex.byHolder[${key}] references non-existent share ${shareId}`,
+          message: `houseShareIndex.byHolderPerson[${key}] references non-existent share ${shareId}`,
         })
       }
     }
@@ -307,18 +288,7 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
     }
   }
 
-  // 16. OrganizationRef.kind is 'polity' | 'house' only (no 'country')
-  for (const shareId of Object.keys(state.organizationShares)) {
-    const share = state.organizationShares[shareId as import('../types/ids').OrganizationShareId]
-    if (!share) continue
-    const kind = share.organization.kind
-    if (kind !== 'polity' && kind !== 'house') {
-      errors.push({
-        code: 'INTEGRITY_VIOLATION',
-        message: `OrganizationShare ${shareId} has invalid organization.kind '${String(kind)}' (must be 'polity' or 'house')`,
-      })
-    }
-  }
+  // 16. (v0.42c 削除) organization.kind 検査 — HouseShare 化により型レベル保証
 
   // 17. v0.15 §25.2: No attitude key starts with the legacy 'country:' prefix.
   // 新しい attitude key prefix は 'polity:' なので、'country:' が残っていたら v0.14 残骸の違反。
@@ -537,23 +507,7 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
     }
   }
 
-  // 25. spec §25.2 #14 — OrganizationShare holder House must own Province in Polity
-  // Stage B warn: tightened in Phase 6
-  for (const shareId of Object.keys(state.organizationShares)) {
-    const share = state.organizationShares[shareId as import('../types/ids').OrganizationShareId]
-    if (!share) continue
-    if (share.organization.kind !== 'polity') continue
-    const polity = state.polities[share.organization.id]
-    if (!polity || !polity.active) continue
-    if (share.holder.kind !== 'house') continue
-    if (getHouseProvinceIdsByPolity(state, share.holder.id, share.organization.id).length === 0) {
-      if (debug) {
-        console.warn(
-          `INTEGRITY (Stage B warn): OrganizationShare ${shareId} holder House ${share.holder.id} owns no Province in Polity ${share.organization.id}`,
-        )
-      }
-    }
-  }
+  // 25. (v0.42c 削除) polity share holder の Province 警告 — polity share 全廃
 
   // 26. spec §25.2 #15 — OfficeAssignment holder House must be in Polity
   // Stage B warn: tightened in Phase 6

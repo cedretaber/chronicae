@@ -4,12 +4,12 @@ import type { WorldState } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { OrganizationRef } from '@sim/types/office'
 import {
-  removeOrganizationShare,
+  removeHouseShare,
   transferShareRawPower,
-  upsertOrganizationShare,
-  createOrganizationShare,
+  upsertHouseShare,
+  createHouseShare,
 } from '@sim/mutations/shareMutations'
-import { getOrganizationShares } from '@sim/selectors/shareSelectors'
+import { getHouseShares } from '@sim/selectors/shareSelectors'
 import { getHouseLeader } from '@sim/selectors/officeSelectors'
 import { getOfficeAssignments } from '@sim/selectors/officeSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
@@ -26,31 +26,23 @@ export function runHouseShareUpdateSystem(ctx: TickContext): TickContext {
     if (!house || !house.active) continue
     if (house.kind === 'system') continue
 
-    const houseRef: OrganizationRef = { kind: 'house', id: houseId }
-    const existingShares = getOrganizationShares(state, houseRef)
+    const existingShares = getHouseShares(state, houseId)
 
     const leaderId = getHouseLeader(state, houseId)
 
     // Handle dead persons: transfer 50% of their share to the leader, delete the rest
     for (const share of existingShares) {
-      if (share.holder.kind !== 'person') continue
-      const person = state.persons[share.holder.id]
+      const person = state.persons[share.holderPersonId]
       if (!person || person.alive) continue
 
       // Person is dead
-      if (leaderId && leaderId !== share.holder.id) {
-        state = transferShareRawPower(
-          state,
-          { kind: 'person', id: share.holder.id },
-          { kind: 'person', id: leaderId },
-          houseRef,
-          0.5,
-        )
+      if (leaderId && leaderId !== share.holderPersonId) {
+        state = transferShareRawPower(state, share.holderPersonId, leaderId, houseId, 0.5)
       }
       // Delete remaining share for dead person
-      const updatedShare = state.organizationShares[share.id]
+      const updatedShare = state.houseShares[share.id]
       if (updatedShare) {
-        state = removeOrganizationShare(state, share.id)
+        state = removeHouseShare(state, share.id)
       }
     }
 
@@ -62,9 +54,9 @@ export function runHouseShareUpdateSystem(ctx: TickContext): TickContext {
       const isLeader = personId === leaderId
       const newRawPower = computeHouseShareRawPower(state, config, houseId, personId, isLeader)
 
-      const upsertResult = upsertOrganizationShare(state, {
-        organization: houseRef,
-        holder: { kind: 'person', id: personId },
+      const upsertResult = upsertHouseShare(state, {
+        houseId,
+        holderPersonId: personId,
         rawPower: newRawPower,
       })
       if (upsertResult.ok) state = upsertResult.value
@@ -123,12 +115,7 @@ export function initializeHouseShares(
     if (!person || !person.alive) continue
     const isLeader = personId === leaderId
     const rawPower = computeHouseShareRawPower(current, config, houseId, personId, isLeader)
-    current = createOrganizationShare(
-      current,
-      { kind: 'house', id: houseId },
-      { kind: 'person', id: personId },
-      rawPower,
-    )
+    current = createHouseShare(current, houseId, personId, rawPower)
   }
   return current
 }

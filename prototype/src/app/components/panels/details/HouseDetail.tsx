@@ -68,12 +68,12 @@ export function HouseDetail({
   onClanClick?: (id: string) => void
   eventHistory: SimEvent[]
 }) {
+  void onHouseClick // v0.42c: ShareholderSection の person-only 化で未使用に (props API は維持)
   const { t } = useTranslation()
   const resolveName = useEntityName()
   const renderEvent = useRenderEvent()
   const isWatching = watchlist.includes(house.id)
   const currentState = session?.currentState
-  const houses = currentState?.houses ?? {}
   if (!currentState) return null
   const leaderId = currentState ? getHouseLeader(currentState, house.id) : undefined
   const head = leaderId ? currentState.persons?.[leaderId] : undefined
@@ -340,11 +340,9 @@ export function HouseDetail({
         </div>
         {worldState ? (
           <ShareholderSection
-            shareholders={getTopShareholders(worldState, { kind: 'house', id: house.id }, 5)}
+            shareholders={getTopShareholders(worldState, house.id, 5)}
             persons={currentState.persons ?? {}}
-            houses={houses ?? {}}
             onPersonClick={onPersonClick}
-            onHouseClick={onHouseClick}
           />
         ) : (
           <span className="text-sm text-gray-500">—</span>

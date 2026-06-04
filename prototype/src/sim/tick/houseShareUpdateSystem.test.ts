@@ -10,7 +10,7 @@ import type { WorldState } from '../types/world'
 import type { PersonId, HouseId } from '../types/ids'
 import { generateWorld } from '../worldgen/generateWorld'
 import { runHouseShareUpdateSystem } from './houseShareUpdateSystem'
-import { getOrganizationShares } from '../selectors/shareSelectors'
+import { getHouseShares } from '../selectors/shareSelectors'
 
 function makeCtx(world: WorldState): TickContext {
   return {
@@ -42,7 +42,7 @@ describe('runHouseShareUpdateSystem (v0.42c — house 専用)', () => {
     const result = runHouseShareUpdateSystem(makeCtx(world))
 
     // house の living member 全員に share が upsert される
-    const houseShares = getOrganizationShares(result.state, { kind: 'house', id: houseId! })
+    const houseShares = getHouseShares(result.state, houseId!)
     const livingMembers = result.state.houses[houseId!]!.memberIds.filter((id: PersonId) => {
       const p = result.state.persons[id]
       return p && p.alive
@@ -50,14 +50,9 @@ describe('runHouseShareUpdateSystem (v0.42c — house 専用)', () => {
     expect(houseShares.length).toBe(livingMembers.length)
     for (const share of houseShares) {
       expect(share.rawPower).toBeGreaterThan(0)
-      expect(share.holder.kind).toBe('person')
     }
 
-    // polity share は worldgen でも本 system でも生成されない (v0.42c §15.1)
-    const polityShareCount = Object.values(result.state.organizationShares).filter(
-      (s) => s && s.organization.kind === 'polity',
-    ).length
-    expect(polityShareCount).toBe(0)
+    // v0.42c: polity share は型レベルで存在しない (houseShares は houseId 必須)
   })
 
   it('removes dead member shares (50% transferred to leader, remainder deleted)', () => {
@@ -74,7 +69,7 @@ describe('runHouseShareUpdateSystem (v0.42c — house 専用)', () => {
     world.persons[victimId] = { ...world.persons[victimId]!, alive: false }
 
     const result = runHouseShareUpdateSystem(makeCtx(world))
-    const shares = getOrganizationShares(result.state, { kind: 'house', id: houseId })
-    expect(shares.some((s) => s.holder.kind === 'person' && s.holder.id === victimId)).toBe(false)
+    const shares = getHouseShares(result.state, houseId)
+    expect(shares.some((s) => s.holderPersonId === victimId)).toBe(false)
   })
 })

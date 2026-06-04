@@ -8,7 +8,6 @@ import type { ReactNode } from 'react'
 import type { Project } from '@/sim/types/project'
 import type { Person } from '@/sim/types/person'
 import { PersonLink, HouseLink } from './links'
-import type { ShareHolderRef } from '@/sim/types/office'
 import type { House } from '@/sim/types/house'
 import { ShareDonutChart } from './charts'
 import { SHARE_COLORS } from './constants'
@@ -311,15 +310,12 @@ export function InfluenceSection({
 export function ShareholderSection({
   shareholders,
   persons,
-  houses,
   onPersonClick,
-  onHouseClick,
 }: {
-  shareholders: Array<{ holder: ShareHolderRef; percent: number }>
+  // v0.42c: house share holder は Person のみ
+  shareholders: Array<{ holderPersonId: import('@/sim/types/ids').PersonId; percent: number }>
   persons: Record<string, Person>
-  houses: Record<string, House>
   onPersonClick: ClickHandler
-  onHouseClick: ClickHandler
 }) {
   const { t } = useTranslation()
   if (shareholders.length === 0) return <span className="text-gray-500">—</span>
@@ -336,17 +332,13 @@ export function ShareholderSection({
       <ShareDonutChart slices={slices} />
       <div className="min-w-0 flex-1 text-sm">
         {shareholders.map((h, i) => (
-          <div key={`${h.holder.kind}:${h.holder.id}`} className="flex items-center gap-1.5">
+          <div key={h.holderPersonId} className="flex items-center gap-1.5">
             <span
               className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ backgroundColor: SHARE_COLORS[i % SHARE_COLORS.length] }}
             />
             <span className="min-w-0 truncate">
-              {h.holder.kind === 'house' ? (
-                <HouseLink houseId={h.holder.id} houses={houses} onClick={onHouseClick} />
-              ) : (
-                <PersonLink personId={h.holder.id} persons={persons} onClick={onPersonClick} />
-              )}
+              <PersonLink personId={h.holderPersonId} persons={persons} onClick={onPersonClick} />
             </span>
             <span className="ml-auto shrink-0 text-gray-200">{h.percent.toFixed(1)}%</span>
           </div>

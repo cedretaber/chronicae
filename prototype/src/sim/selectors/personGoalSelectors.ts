@@ -6,6 +6,7 @@ import { decisionSubjectKey } from '../types/goal'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
+import { getHousePrimaryPolityId } from './polityRelations'
 import { clamp } from '../utils/math'
 
 export function scorePersonGoalKind(
@@ -25,25 +26,16 @@ export function scorePersonGoalKind(
   if (!person.houseId) return scores
   const houseAtt = getAttitudeOrDefault(state, person, { kind: 'house', id: person.houseId })
 
-  // Find polity attitude - need to find a polity the person's house belongs to
-  // Look through landContracts or shares for associated polity
+  // v0.42c: 旧実装は polity share 走査で家の関連 polity を探していた (share 全廃で dead)。
+  // 家の primary polity への態度を使う。
   let polityAffection = 0
   let polityRespect = 0
-  for (const [, share] of Object.entries(state.organizationShares)) {
-    if (!share) continue
-    if (
-      share.holder.kind === 'house' &&
-      (share.holder.id as string) === (person.houseId as string)
-    ) {
-      if (share.organization.kind === 'polity') {
-        const att = getAttitudeOrDefault(state, person, {
-          kind: 'polity',
-          id: share.organization.id,
-        })
-        polityAffection = att.affection
-        polityRespect = att.respect
-        break
-      }
+  if (person.houseId) {
+    const primaryPolityId = getHousePrimaryPolityId(state, person.houseId)
+    if (primaryPolityId) {
+      const att = getAttitudeOrDefault(state, person, { kind: 'polity', id: primaryPolityId })
+      polityAffection = att.affection
+      polityRespect = att.respect
     }
   }
 

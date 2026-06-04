@@ -12,7 +12,6 @@ import {
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { revokeOfficesByOrganization, createOfficeAssignment } from '../mutations/officeMutations'
-import { removeSharesByOrganization } from '../mutations/shareMutations'
 import { removeRightsByPolity } from '../mutations/politicalRightMutations'
 import { deactivateFaction } from '../mutations/factionMutations'
 import { selectOrCreateCommonwealthLeader } from '../mutations/worldStructureMutations'
@@ -181,8 +180,8 @@ function deactivatePolityInline(ctx: TickContext, polityId: PolityId): TickConte
   if (!polity) return ctx
   let state = ctx.state
   state = revokeOfficesByOrganization(state, { kind: 'polity', id: polityId })
-  state = removeSharesByOrganization(state, { kind: 'polity', id: polityId })
-  // v0.42 §6.4: polity inactive で当該 polity の right を全削除 (share 削除と co-locate — §3.4 (b))
+  // v0.42c: polity share は全廃済 (旧 removeSharesByOrganization 呼出は不要)
+  // v0.42 §6.4: polity inactive で当該 polity の right を全削除 (office revoke と co-locate — §3.4 (b))
   state = removeRightsByPolity(state, polityId)
   state = {
     ...state,

@@ -180,10 +180,10 @@ export function buildEntitySnapshot(
     const ownedPolityIds = ws ? getHouseOwnedPolityIds(ws, h.id) : []
     const controlledProvinceIds = ws ? getHouseControlledProvinceIds(ws, h.id) : []
     const houseTopShareholders = ws
-      ? getTopShareholders(ws, { kind: 'house', id: h.id }, 5).map(({ holder, percent }) => ({
-          holderKind: holder.kind,
-          holderId: holder.id,
-          holderName: holder.kind === 'person' ? personNameKey(holder.id) : String(holder.id),
+      ? getTopShareholders(ws, h.id, 5).map(({ holderPersonId, percent }) => ({
+          holderKind: 'person' as const,
+          holderId: holderPersonId,
+          holderName: personNameKey(holderPersonId),
           percent: Math.round(percent * 10) / 10,
         }))
       : []

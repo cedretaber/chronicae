@@ -6,7 +6,7 @@ import { defaultConfig } from '../config/defaultConfig'
 import { runHouseSurplusDistributionSystem } from './houseSurplusDistributionSystem'
 import { createPersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import { createOrganizationShare } from '../mutations/shareMutations'
+import { createHouseShare } from '../mutations/shareMutations'
 import { makeEmptyV016State, withHouse, withPerson } from '../testFixtures'
 
 function makeConfig(
@@ -84,18 +84,8 @@ describe('runHouseSurplusDistributionSystem', () => {
     })
     state = withPerson(state, personAId, { houseId })
     state = withPerson(state, personBId, { houseId })
-    state = createOrganizationShare(
-      state,
-      { kind: 'house', id: houseId },
-      { kind: 'person', id: personAId },
-      60,
-    )
-    state = createOrganizationShare(
-      state,
-      { kind: 'house', id: houseId },
-      { kind: 'person', id: personBId },
-      40,
-    )
+    state = createHouseShare(state, houseId, personAId, 60)
+    state = createHouseShare(state, houseId, personBId, 40)
 
     const ctx = makeCtx(
       state,
@@ -175,24 +165,9 @@ describe('runHouseSurplusDistributionSystem', () => {
     state = withPerson(state, alivePersonId, { houseId, alive: true, kind: 'normal' })
     state = withPerson(state, deadPersonId, { houseId, alive: false, kind: 'normal' })
     state = withPerson(state, placeholderPersonId, { houseId, alive: true, kind: 'placeholder' })
-    state = createOrganizationShare(
-      state,
-      { kind: 'house', id: houseId },
-      { kind: 'person', id: alivePersonId },
-      50,
-    )
-    state = createOrganizationShare(
-      state,
-      { kind: 'house', id: houseId },
-      { kind: 'person', id: deadPersonId },
-      30,
-    )
-    state = createOrganizationShare(
-      state,
-      { kind: 'house', id: houseId },
-      { kind: 'person', id: placeholderPersonId },
-      20,
-    )
+    state = createHouseShare(state, houseId, alivePersonId, 50)
+    state = createHouseShare(state, houseId, deadPersonId, 30)
+    state = createHouseShare(state, houseId, placeholderPersonId, 20)
 
     const ctx = makeCtx(
       state,

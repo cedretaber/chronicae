@@ -1,6 +1,5 @@
 import type { TickContext } from './context'
 import type { PersonId, FactionId, HouseId } from '../types/ids'
-import type { ShareHolderRef } from '../types/office'
 import { createSimEvent } from './context'
 import { isLifeStageAtLeast } from '../types/person'
 import { nameParam, entityRef } from '../types/event'
@@ -187,16 +186,12 @@ function formNewFactions(ctx: TickContext): TickContext {
 
   const topShareholderCache = new Map<
     string,
-    Array<{ holder: ShareHolderRef; rawPower: number; percent: number }>
+    Array<{ holderPersonId: PersonId; rawPower: number; percent: number }>
   >()
   function getTopShareholdersForHouse(houseId: HouseId) {
     const cached = topShareholderCache.get(houseId)
     if (cached) return cached
-    const result = getTopShareholders(
-      currentCtx.state,
-      { kind: 'house', id: houseId },
-      config.factionFounderShareRank,
-    )
+    const result = getTopShareholders(currentCtx.state, houseId, config.factionFounderShareRank)
     topShareholderCache.set(houseId, result)
     return result
   }
@@ -217,9 +212,7 @@ function formNewFactions(ctx: TickContext): TickContext {
     if (person.wealth < config.minimumFactionFounderWealth) continue
 
     const topHolders = getTopShareholdersForHouse(house.id)
-    const isTopShareHolder = topHolders.some(
-      (s) => s.holder.kind === 'person' && s.holder.id === pid,
-    )
+    const isTopShareHolder = topHolders.some((s) => s.holderPersonId === pid)
     if (!isTopShareHolder) continue
 
     const sharePercent = getPersonHouseSharePercent(currentCtx.state, house.id, pid)

@@ -1,4 +1,4 @@
-import type { PolityId, HouseId, PersonId, OrganizationShareId, OfficeAssignmentId } from './ids'
+import type { PolityId, HouseId, PersonId, HouseShareId, OfficeAssignmentId } from './ids'
 
 export type OrganizationKind = 'polity' | 'house'
 
@@ -9,12 +9,13 @@ export type OrganizationKind = 'polity' | 'house'
 // 対応だけ用意し、IntentGenerationSystem から生成は行わない (spec §8.7)。
 export type OrganizationRef = { kind: 'polity'; id: PolityId } | { kind: 'house'; id: HouseId }
 
-export type ShareHolderRef = { kind: 'person'; id: PersonId } | { kind: 'house'; id: HouseId }
-
-export type OrganizationShare = {
-  id: OrganizationShareId
-  organization: OrganizationRef
-  holder: ShareHolderRef
+// v0.42c §4.1: 旧 OrganizationShare を HouseShare に縮小・改名。
+// polity share は全廃 (Polity Influence は read-model)。holder は Person のみ。
+// 型を絞ることで、将来誤って polity share を作る事故が型エラーになる。
+export type HouseShare = {
+  id: HouseShareId
+  houseId: HouseId
+  holderPersonId: PersonId
   rawPower: number // >= 0
 }
 
@@ -42,9 +43,9 @@ export type OfficeDefinition = {
   coordinationLoad: number
 }
 
-export type ShareIndex = {
-  byOrganization: Record<string, OrganizationShareId[]>
-  byHolder: Record<string, OrganizationShareId[]>
+export type HouseShareIndex = {
+  byHouse: Record<HouseId, HouseShareId[]>
+  byHolderPerson: Record<PersonId, HouseShareId[]>
 }
 
 export type OfficeIndex = {

@@ -667,15 +667,8 @@ export type SimulationConfig = {
   officeUnpaidAffectionPenalty: number
   officeUnpaidRespectPenalty: number
   officeDignityUnpaidPenaltyReduction: number
-  // v0.12 Share yearly update
-  shareYearlyRetentionRate: number
-  polityShareBase: number
-  polityShareProvinceFactor: number
-  polityShareMilitaryFactor: number
-  polityShareWealthFactor: number
-  politySharePrestigeFactor: number
-  polityShareOfficeFactor: number
-  polityShareOwnerHouseBonus: number
+  // v0.12 Share yearly update (v0.42c: 旧 polityShare* / shareYearlyRetentionRate は
+  // polity share 全廃に伴い削除。係数は polityInfluence* に引き継ぎ)
   houseShareBase: number
   houseShareLeaderBonus: number
   houseShareOfficeBonus: number
@@ -708,7 +701,6 @@ export type SimulationConfig = {
   concurrentOfficePenalty: number
   minAppointmentScore: number
   // v0.15 §13.4 Polity appointment scoring
-  polityShareAppointmentFactor: number
   houseShareAppointmentFactor: number
   ownerHouseAppointmentBonus: number
   // v0.42 §18: appointment スコアの influence% 項 (旧 polityShareAppointmentFactor の置換先)
@@ -833,7 +825,6 @@ export type SimulationConfig = {
   incompatibleOfficePenalty: number
   compatibleShareReductionMax: number
   // v0.17 Office overlap / Share
-  polityShareOfficeOverlapBonusMax: number
   // v0.17 Houseless persons
   houselessPersonsPerHolding: number
   houselessMaleRatio: number
@@ -1628,14 +1619,6 @@ export const defaultConfig: SimulationConfig = {
   officeUnpaidRespectPenalty: -2,
   officeDignityUnpaidPenaltyReduction: 0.5,
   // v0.12 Share yearly update
-  shareYearlyRetentionRate: 0.85,
-  polityShareBase: 10,
-  polityShareProvinceFactor: 5,
-  polityShareMilitaryFactor: 0.1,
-  polityShareWealthFactor: 0.05,
-  politySharePrestigeFactor: 0.2,
-  polityShareOfficeFactor: 3,
-  polityShareOwnerHouseBonus: 30,
   // v0.42 Polity Influence (polityShare* 流用 + 新規 domain は小さく)
   polityInfluenceBase: 10,
   polityInfluenceProvinceFactor: 5,
@@ -1663,7 +1646,6 @@ export const defaultConfig: SimulationConfig = {
   rulerHouseRebellionSuppression: 30,
   // v0.12 Appointment — concurrent office limits
   concurrentOfficePenalty: 8,
-  polityShareAppointmentFactor: 0.25,
   houseShareAppointmentFactor: 0.08,
   ownerHouseAppointmentBonus: 4,
   polityInfluenceAppointmentFactor: 0.25,
@@ -1799,7 +1781,6 @@ export const defaultConfig: SimulationConfig = {
   incompatibleOfficePenalty: 10,
   compatibleShareReductionMax: 0.5,
   // v0.17 Office overlap / Share
-  polityShareOfficeOverlapBonusMax: 0.5,
   // v0.17 Houseless persons
   houselessPersonsPerHolding: 0.5,
   houselessMaleRatio: 0.75,

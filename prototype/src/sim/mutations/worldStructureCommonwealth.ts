@@ -17,7 +17,6 @@ import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/name
 import { samplePerson } from '../helpers/personFactory'
 import { getHouselessPersons } from '../selectors/availabilitySelectors'
 import { removeFactionMembership } from './factionMutations'
-import { removeSharesByOrganization } from './shareMutations'
 import { adjustPopAttitude, adjustHouseMembersAttitude } from './attitudeMutations'
 import { eliminateContractFromChain as eliminateContract } from './landContractMutations'
 
@@ -273,7 +272,6 @@ export function dissolveNegotiatingCommonwealth(
     { kind: 'polity', id: input.commonwealthPolityId },
     'leader',
   )
-  state = removeSharesByOrganization(state, { kind: 'polity', id: input.commonwealthPolityId })
 
   if (input.leaderOutcome === 'executed' && leaderId !== undefined) {
     const deadResult = markPersonDead(state, leaderId, { deathCircumstance: 'natural' })

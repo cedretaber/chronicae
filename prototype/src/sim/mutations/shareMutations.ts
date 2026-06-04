@@ -1,48 +1,41 @@
+// v0.42c §4.1: 旧 shareMutations を HouseShare 専用に縮小。
+// polity share は全廃 (Polity Influence は influenceSelectors の read-model)。
+// holder は Person のみ。index 2 系統 (byHouse / byHolderPerson) の同期はこの層で閉じる。
+
 import type { WorldState } from '@sim/types/world'
-import type { OrganizationShareId, PersonId, HouseId } from '@sim/types/ids'
-import type { OrganizationRef, ShareHolderRef } from '@sim/types/office'
-import { createOrganizationShareId } from '@sim/types/ids'
+import type { HouseShareId, PersonId, HouseId } from '@sim/types/ids'
+import { createHouseShareId } from '@sim/types/ids'
+import type { HouseShare } from '@sim/types/office'
 import type { StateResult } from './result'
 import { ok } from './result'
 
-function orgKey(org: OrganizationRef): string {
-  return `${org.kind}:${org.id}`
-}
-
-function holderKey(holder: ShareHolderRef): string {
-  return `${holder.kind}:${holder.id}`
-}
-
-export function createOrganizationShare(
+export function createHouseShare(
   state: WorldState,
-  organization: OrganizationRef,
-  holder: ShareHolderRef,
+  houseId: HouseId,
+  holderPersonId: PersonId,
   rawPower: number,
 ): WorldState {
-  const id = createOrganizationShareId(state.nextOrganizationShareId)
-  const newShare = { id, organization, holder, rawPower }
+  const id = createHouseShareId(state.nextHouseShareId)
+  const newShare: HouseShare = { id, houseId, holderPersonId, rawPower }
 
-  const orgKeyStr = orgKey(organization)
-  const hKeyStr = holderKey(holder)
-
-  const existingByOrg = state.shareIndex.byOrganization[orgKeyStr] ?? []
-  const existingByHolder = state.shareIndex.byHolder[hKeyStr] ?? []
+  const existingByHouse = state.houseShareIndex.byHouse[houseId] ?? []
+  const existingByHolder = state.houseShareIndex.byHolderPerson[holderPersonId] ?? []
 
   return {
     ...state,
-    nextOrganizationShareId: state.nextOrganizationShareId + 1,
-    organizationShares: {
-      ...state.organizationShares,
+    nextHouseShareId: state.nextHouseShareId + 1,
+    houseShares: {
+      ...state.houseShares,
       [id]: newShare,
     },
-    shareIndex: {
-      byOrganization: {
-        ...state.shareIndex.byOrganization,
-        [orgKeyStr]: [...existingByOrg, id],
+    houseShareIndex: {
+      byHouse: {
+        ...state.houseShareIndex.byHouse,
+        [houseId]: [...existingByHouse, id],
       },
-      byHolder: {
-        ...state.shareIndex.byHolder,
-        [hKeyStr]: [...existingByHolder, id],
+      byHolderPerson: {
+        ...state.houseShareIndex.byHolderPerson,
+        [holderPersonId]: [...existingByHolder, id],
       },
     },
   }
@@ -50,119 +43,110 @@ export function createOrganizationShare(
 
 export function updateShareRawPower(
   state: WorldState,
-  shareId: OrganizationShareId,
+  shareId: HouseShareId,
   newRawPower: number,
 ): WorldState {
-  const share = state.organizationShares[shareId]
+  const share = state.houseShares[shareId]
   if (!share) return state
   return {
     ...state,
-    organizationShares: {
-      ...state.organizationShares,
+    houseShares: {
+      ...state.houseShares,
       [shareId]: { ...share, rawPower: newRawPower },
     },
   }
 }
 
-export function removeOrganizationShare(
-  state: WorldState,
-  shareId: OrganizationShareId,
-): WorldState {
-  const share = state.organizationShares[shareId]
+export function removeHouseShare(state: WorldState, shareId: HouseShareId): WorldState {
+  const share = state.houseShares[shareId]
   if (!share) return state
 
-  const orgKeyStr = orgKey(share.organization)
-  const hKeyStr = holderKey(share.holder)
-
-  const newShares = { ...state.organizationShares }
+  const newShares = { ...state.houseShares }
   delete newShares[shareId]
 
   return {
     ...state,
-    organizationShares: newShares,
-    shareIndex: {
-      byOrganization: {
-        ...state.shareIndex.byOrganization,
-        [orgKeyStr]: (state.shareIndex.byOrganization[orgKeyStr] ?? []).filter(
+    houseShares: newShares,
+    houseShareIndex: {
+      byHouse: {
+        ...state.houseShareIndex.byHouse,
+        [share.houseId]: (state.houseShareIndex.byHouse[share.houseId] ?? []).filter(
           (id) => id !== shareId,
         ),
       },
-      byHolder: {
-        ...state.shareIndex.byHolder,
-        [hKeyStr]: (state.shareIndex.byHolder[hKeyStr] ?? []).filter((id) => id !== shareId),
+      byHolderPerson: {
+        ...state.houseShareIndex.byHolderPerson,
+        [share.holderPersonId]: (
+          state.houseShareIndex.byHolderPerson[share.holderPersonId] ?? []
+        ).filter((id) => id !== shareId),
       },
     },
   }
 }
 
-export function deleteAllSharesForHolder(state: WorldState, holder: ShareHolderRef): WorldState {
-  const hKeyStr = holderKey(holder)
-  const ids = state.shareIndex.byHolder[hKeyStr] ?? []
+export function deleteAllSharesForHolderPerson(
+  state: WorldState,
+  holderPersonId: PersonId,
+): WorldState {
+  const ids = [...(state.houseShareIndex.byHolderPerson[holderPersonId] ?? [])]
   let current = state
   for (const id of ids) {
-    current = removeOrganizationShare(current, id)
+    current = removeHouseShare(current, id)
   }
   return current
 }
 
-// v0.15 §11.3 / §11.4: Polity 消滅時に当該 organization の全 Share を削除する。
-export function removeSharesByOrganization(
-  state: WorldState,
-  organization: { kind: 'polity' | 'house'; id: string },
-): WorldState {
-  const orgKeyStr = `${organization.kind}:${organization.id}`
-  const ids = state.shareIndex.byOrganization[orgKeyStr] ?? []
+// v0.15 §11.3 / §11.4: House 消滅時に当該 House の全 Share を削除する。
+export function removeSharesByHouse(state: WorldState, houseId: HouseId): WorldState {
+  const ids = [...(state.houseShareIndex.byHouse[houseId] ?? [])]
   let current = state
   for (const id of ids) {
-    current = removeOrganizationShare(current, id)
+    current = removeHouseShare(current, id)
   }
   return current
 }
 
 export function transferShareRawPower(
   state: WorldState,
-  fromHolder: ShareHolderRef,
-  toHolder: ShareHolderRef,
-  organization: OrganizationRef,
+  fromPersonId: PersonId,
+  toPersonId: PersonId,
+  houseId: HouseId,
   ratio: number,
 ): WorldState {
-  const orgKeyStr = orgKey(organization)
-  const fromHKeyStr = holderKey(fromHolder)
-  const ids = [...(state.shareIndex.byOrganization[orgKeyStr] ?? [])]
+  const ids = [...(state.houseShareIndex.byHouse[houseId] ?? [])]
 
   let current = state
   for (const id of ids) {
-    const share = current.organizationShares[id]
+    const share = current.houseShares[id]
     if (!share) continue
-    if (holderKey(share.holder) !== fromHKeyStr) continue
+    if (share.holderPersonId !== fromPersonId) continue
 
     const transferAmount = share.rawPower * ratio
     const remaining = share.rawPower - transferAmount
 
     if (remaining <= 0) {
-      current = removeOrganizationShare(current, id)
+      current = removeHouseShare(current, id)
     } else {
       current = updateShareRawPower(current, id, remaining)
     }
 
-    const toHKeyStr = holderKey(toHolder)
-    const toIds = current.shareIndex.byOrganization[orgKeyStr] ?? []
-    let toShareId: OrganizationShareId | undefined
+    const toIds = current.houseShareIndex.byHouse[houseId] ?? []
+    let toShareId: HouseShareId | undefined
     for (const tid of toIds) {
-      const ts = current.organizationShares[tid]
-      if (ts && holderKey(ts.holder) === toHKeyStr) {
+      const ts = current.houseShares[tid]
+      if (ts && ts.holderPersonId === toPersonId) {
         toShareId = tid
         break
       }
     }
 
     if (toShareId) {
-      const toShare = current.organizationShares[toShareId]
+      const toShare = current.houseShares[toShareId]
       if (toShare) {
         current = updateShareRawPower(current, toShareId, toShare.rawPower + transferAmount)
       }
     } else {
-      current = createOrganizationShare(current, organization, toHolder, transferAmount)
+      current = createHouseShare(current, houseId, toPersonId, transferAmount)
     }
   }
 
@@ -170,20 +154,17 @@ export function transferShareRawPower(
 }
 
 export type UpsertShareInput = {
-  organization: OrganizationRef
-  holder: ShareHolderRef
+  houseId: HouseId
+  holderPersonId: PersonId
   rawPower: number
 }
 
-export function upsertOrganizationShare(state: WorldState, input: UpsertShareInput): StateResult {
-  const orgKeyStr = orgKey(input.organization)
-  const hKeyStr = holderKey(input.holder)
-
-  const ids = state.shareIndex.byOrganization[orgKeyStr] ?? []
-  let existingId: OrganizationShareId | undefined
+export function upsertHouseShare(state: WorldState, input: UpsertShareInput): StateResult {
+  const ids = state.houseShareIndex.byHouse[input.houseId] ?? []
+  let existingId: HouseShareId | undefined
   for (const id of ids) {
-    const share = state.organizationShares[id]
-    if (share && holderKey(share.holder) === hKeyStr) {
+    const share = state.houseShares[id]
+    if (share && share.holderPersonId === input.holderPersonId) {
       existingId = id
       break
     }
@@ -191,13 +172,13 @@ export function upsertOrganizationShare(state: WorldState, input: UpsertShareInp
 
   if (existingId !== undefined) {
     if (input.rawPower <= 0) {
-      return ok(removeOrganizationShare(state, existingId))
+      return ok(removeHouseShare(state, existingId))
     }
     return ok(updateShareRawPower(state, existingId, input.rawPower))
   }
 
   if (input.rawPower <= 0) return ok(state)
-  return ok(createOrganizationShare(state, input.organization, input.holder, input.rawPower))
+  return ok(createHouseShare(state, input.houseId, input.holderPersonId, input.rawPower))
 }
 
 export function removePersonSharesInHouse(
@@ -205,14 +186,13 @@ export function removePersonSharesInHouse(
   personId: PersonId,
   houseId: HouseId,
 ): WorldState {
-  const holderKeyStr = `person:${personId}`
-  const ids = [...(state.shareIndex.byHolder[holderKeyStr] ?? [])]
+  const ids = [...(state.houseShareIndex.byHolderPerson[personId] ?? [])]
   let current = state
   for (const id of ids) {
-    const share = current.organizationShares[id]
+    const share = current.houseShares[id]
     if (!share) continue
-    if (share.organization.kind === 'house' && share.organization.id === houseId) {
-      current = removeOrganizationShare(current, id)
+    if (share.houseId === houseId) {
+      current = removeHouseShare(current, id)
     }
   }
   return current

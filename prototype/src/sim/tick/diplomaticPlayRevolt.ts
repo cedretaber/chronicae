@@ -15,7 +15,6 @@ import {
 } from '../mutations/landContractMutations'
 import { createRegiment, syncRegimentOwnerToHomeTerminalMut } from '../mutations/regimentMutations'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
-import { removeSharesByOrganization } from '../mutations/shareMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { getHoldingPopSizeByClass } from '../selectors/popSelectors'
@@ -470,7 +469,6 @@ function resolveInternalRevolt(
 
     // 2. Revoke old leader, appoint rebel leader
     state = revokeOfficesByOrganization(state, { kind: 'polity', id: targetPolityId }, 'leader')
-    state = removeSharesByOrganization(state, { kind: 'polity', id: targetPolityId })
     state = createOfficeAssignment(
       state,
       { kind: 'polity', id: targetPolityId },

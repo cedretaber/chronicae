@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
-import type { HouseId, PersonId } from '../types/ids'
-import { getOrganizationShares } from '../selectors/shareSelectors'
+import type { HouseId } from '../types/ids'
+import { getHouseShares } from '../selectors/shareSelectors'
 import { addHouseWealth } from '../mutations/houseMutations'
 import { addPersonWealth } from '../mutations/personMutations'
 
@@ -22,9 +22,8 @@ export function runHouseSurplusDistributionSystem(ctx: TickContext): TickContext
     if (distributable <= 0) continue
 
     // House の Person holder Share (alive + normal のみ)
-    const shares = getOrganizationShares(state, { kind: 'house', id: houseId }).filter((s) => {
-      if (s.holder.kind !== 'person') return false
-      const p = state.persons[s.holder.id]
+    const shares = getHouseShares(state, houseId).filter((s) => {
+      const p = state.persons[s.holderPersonId]
       if (!p || !p.alive) return false
       if (p.kind === 'placeholder') return false
       return true
@@ -43,14 +42,14 @@ export function runHouseSurplusDistributionSystem(ctx: TickContext): TickContext
       if (share === maxShare) continue
       const portion = Math.floor((share.rawPower / totalRawPower) * distributable)
       if (portion <= 0) continue
-      const result = addPersonWealth(state, share.holder.id as PersonId, portion)
+      const result = addPersonWealth(state, share.holderPersonId, portion)
       if (result.ok) state = result.value
       distributed += portion
     }
     // 端数を最大 holder に集約
     const remainder = distributable - distributed
     if (maxShare && remainder > 0) {
-      const result = addPersonWealth(state, maxShare.holder.id as PersonId, remainder)
+      const result = addPersonWealth(state, maxShare.holderPersonId, remainder)
       if (result.ok) state = result.value
       distributed += remainder
     }
