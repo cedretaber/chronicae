@@ -583,6 +583,11 @@ export type SimulationConfig = {
   goalProgressOnAimAbandoned: number
   aimDefaultDeadlineWeeks: number
   projectCooldownWeeks: number
+  // v0.43 Aim 並列化: 1 Goal の下に複数 active Aim を許す
+  // aimParallelismCeiling = 静的不変上限 (integrity が検査する hard cap)
+  // maxActiveAimsPerGoal  = 規模非依存の flat 生成 cap (Stage1)。Stage2 で capacity 関数の base になる
+  aimParallelismCeiling: number
+  maxActiveAimsPerGoal: number
   // v0.23 Person Goal/Aim/Task
   personGoalReviewIntervalWeeks: number
   personAimReviewIntervalWeeks: number
@@ -1508,6 +1513,8 @@ export const defaultConfig: SimulationConfig = {
   goalProgressOnAimAbandoned: -5,
   aimDefaultDeadlineWeeks: 240,
   projectCooldownWeeks: 4,
+  aimParallelismCeiling: 4,
+  maxActiveAimsPerGoal: 2,
   expandPolityShareCost: 40,
   expandPolityShareRawPowerGain: 10,
   promotePolicyShiftCost: 0,

@@ -4,6 +4,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { isPlaceholderPerson } from '../selectors/landContractSelectors'
 import { decisionSubjectKey } from '../types/goal'
+import { aimSlotKey } from '../selectors/goalSelectors'
 import {
   getBailiffLocalExtractionRate,
   getBailiffCollectionEfficiency,
@@ -98,7 +99,12 @@ export function checkGoalsAimsProjects(
   }
 
   // --- v0.22 Aim integrity ---
+  // v0.43 Aim 並列化: 1 owner が複数 active goal_driven Aim を持てる。invariant は
+  //   (1) 数が静的 ceiling 以下 (規模連動の動的 cap ではない。動的 cap で検査すると国の縮小で
+  //       合法に作った Aim が偽違反になる) (2) 同一スロット (kind|target) の二重 Aim が無いこと。
   const activeAimCountByOwner: Record<string, number> = {}
+  const activeAimSlotsByOwner: Record<string, Set<string>> = {}
+  const aimCeiling = config?.aimParallelismCeiling ?? 4
 
   for (const [aimIdStr, aim] of Object.entries(state.aims)) {
     if (!aim) continue
@@ -193,10 +199,21 @@ export function checkGoalsAimsProjects(
       }
     }
 
-    // Active aim count per owner (max 1 for goal_driven)
+    // Active aim count + slot uniqueness per owner (v0.43)
     if (aim.status === 'active' && aim.origin === 'goal_driven') {
       const ownerKey = `${aim.owner.kind}:${aim.owner.id}`
       activeAimCountByOwner[ownerKey] = (activeAimCountByOwner[ownerKey] ?? 0) + 1
+      const slots = activeAimSlotsByOwner[ownerKey] ?? new Set<string>()
+      activeAimSlotsByOwner[ownerKey] = slots
+      const slot = aimSlotKey(aim.kind, aim.target)
+      if (slots.has(slot)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Owner ${ownerKey} has duplicate active goal_driven Aim slot "${slot}"`,
+        })
+      } else {
+        slots.add(slot)
+      }
     }
 
     // ReasonIds reference existing DecisionReasons
@@ -210,12 +227,12 @@ export function checkGoalsAimsProjects(
     }
   }
 
-  // Check active aim count per owner
+  // Check active aim count per owner against static ceiling (v0.43)
   for (const [ownerKey, count] of Object.entries(activeAimCountByOwner)) {
-    if (count > 1) {
+    if (count > aimCeiling) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
-        message: `Owner ${ownerKey} has ${count} active goal_driven Aims (max 1)`,
+        message: `Owner ${ownerKey} has ${count} active goal_driven Aims (ceiling ${aimCeiling})`,
       })
     }
   }

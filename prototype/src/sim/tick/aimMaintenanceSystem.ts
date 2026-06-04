@@ -4,7 +4,7 @@ import type { AimId, DecisionReasonId } from '../types/ids'
 import { createAimId, createDecisionReasonId } from '../types/ids'
 import type { Aim, DecisionReason, Goal, EntityRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
-import { getActiveAimsForGoal, pickAimForGoal } from '../selectors/goalSelectors'
+import { getActiveAimsForGoal, pickAimForGoal, aimSlotKey } from '../selectors/goalSelectors'
 import { nameParam, entityRef } from '../types/event'
 import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 import { getPolityEmitNameKey } from '../selectors/nameRefSelectors'
@@ -60,13 +60,22 @@ export function runAimMaintenanceSystem(ctx: TickContext): TickContext {
     }
   }
 
-  // Aim creation runs only at annual boundaries
+  // Aim creation runs only at annual boundaries.
+  // v0.43: 1 Goal の下に複数 active Aim を許す。cap (= maxActiveAimsPerGoal, Stage2 で規模連動)
+  // に達するまで、既存スロットと重複しない Aim を繰り返し生成する。候補が枯渇したら打ち切る。
   if (absoluteWeek % ctx.config.goalReviewIntervalWeeks === 0) {
+    const cap = currentCtx.config.maxActiveAimsPerGoal
     for (const [, goal] of Object.entries(currentCtx.state.goals)) {
       if (!goal || goal.status !== 'active') continue
       const activeAims = getActiveAimsForGoal(currentCtx.state, goal.id)
-      if (activeAims.length === 0) {
-        currentCtx = createAimForGoal(currentCtx, goal, absoluteWeek)
+      const excluded = new Set(activeAims.map((a) => aimSlotKey(a.kind, a.target)))
+      let count = activeAims.length
+      while (count < cap) {
+        const { ctx: nextCtx, slotKey } = createAimForGoal(currentCtx, goal, absoluteWeek, excluded)
+        currentCtx = nextCtx
+        if (slotKey === undefined) break // 候補枯渇
+        excluded.add(slotKey)
+        count++
       }
     }
   }
@@ -74,9 +83,14 @@ export function runAimMaintenanceSystem(ctx: TickContext): TickContext {
   return currentCtx
 }
 
-function createAimForGoal(ctx: TickContext, goal: Goal, absoluteWeek: number): TickContext {
-  const result = pickAimForGoal(ctx.state, ctx.config, goal, ctx.rng)
-  if (!result) return ctx
+function createAimForGoal(
+  ctx: TickContext,
+  goal: Goal,
+  absoluteWeek: number,
+  excludedSlots: Set<string>,
+): { ctx: TickContext; slotKey?: string } {
+  const result = pickAimForGoal(ctx.state, ctx.config, goal, ctx.rng, excludedSlots)
+  if (!result) return { ctx }
 
   const { kind, target, rng: nextRng } = result
   let currentCtx = { ...ctx, rng: nextRng }
@@ -155,7 +169,7 @@ function createAimForGoal(ctx: TickContext, goal: Goal, absoluteWeek: number): T
   })
   currentCtx = { ...evCtx, events: [...evCtx.events, event] }
 
-  return currentCtx
+  return { ctx: currentCtx, slotKey: aimSlotKey(kind, target) }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

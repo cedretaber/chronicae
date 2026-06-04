@@ -145,7 +145,10 @@ function reviewGoal(ctx: TickContext, goal: Goal, absoluteWeek: number): TickCon
 
   const activeAims = getActiveAimsForGoal(currentCtx.state, goal.id)
   const goalAgeYears = (absoluteWeek - goal.createdWeek) / currentCtx.config.goalReviewIntervalWeeks
-  const keepScore = goal.progress * 0.5 + activeAims.length * 10 + clamp(goalAgeYears, 0, 10) * 5
+  // v0.43: 「進行中の Aim があるか」のボーナスは並列 Aim 数で増やさない (clamp to 1)。
+  // 多数の Aim が keepScore を吊り上げて Goal が永久固定されるのを防ぐ。
+  const hasActiveAimBonus = Math.min(activeAims.length, 1) * 10
+  const keepScore = goal.progress * 0.5 + hasActiveAimBonus + clamp(goalAgeYears, 0, 10) * 5
 
   if (keepScore > currentCtx.config.goalSwitchThreshold) {
     const updatedGoal: Goal = {

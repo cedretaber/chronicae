@@ -43,6 +43,24 @@ export function getActiveGoalForOwner(
   return undefined
 }
 
+// --- Aim slot key (v0.43) ---
+// 1 Goal が複数 active Aim を持つとき、「同じ対象に同じ種類の Aim を二重に持たない」ための
+// スロット識別キー。生成側 (pickAimForGoal の候補除外) と integrity の重複検査が *同一* の
+// キーを共有しなければならない (ズレると「生成した直後に integrity が弾く」状態になる)。
+function entityRefKey(ref: EntityRef): string {
+  if (ref.kind === 'office') {
+    return `office:${ref.organization.kind}:${ref.organization.id}:${ref.role}`
+  }
+  if (ref.kind === 'ability') {
+    return `ability:${ref.ability}`
+  }
+  return `${ref.kind}:${ref.id}`
+}
+
+export function aimSlotKey(kind: AimKind, target?: EntityRef): string {
+  return target ? `${kind}|${entityRefKey(target)}` : kind
+}
+
 export function getActiveAimsForGoal(state: WorldState, goalId: GoalId): Aim[] {
   const aimIds = state.aimIndex.byGoal[goalId as string]
   if (!aimIds) return []
@@ -174,11 +192,14 @@ export function scoreHouseGoalKind(
 // --- Aim selection ---
 
 // For a given Goal, pick an AimKind and target.
+// excludedSlots: 既に同 owner で active な Aim の aimSlotKey 集合。候補から除外して
+// 「同じ対象の二重 Aim」を防ぐ (v0.43 Aim 並列化)。空集合なら従来挙動と同一。
 export function pickAimForGoal(
   state: WorldState,
   config: SimulationConfig,
   goal: Goal,
   rng: RngState,
+  excludedSlots: Set<string> = new Set(),
 ): { kind: AimKind; target?: EntityRef; rng: RngState } | undefined {
   if (goal.owner.kind === 'polity') {
     return pickPolityAim(
@@ -188,10 +209,18 @@ export function pickAimForGoal(
       goal.kind as PolityGoalKind,
       rng,
       state.absoluteWeek,
+      excludedSlots,
     )
   }
   if (goal.owner.kind === 'house') {
-    return pickHouseAim(state, config, goal.owner.id, goal.kind as HouseGoalKind, rng)
+    return pickHouseAim(
+      state,
+      config,
+      goal.owner.id,
+      goal.kind as HouseGoalKind,
+      rng,
+      excludedSlots,
+    )
   }
   return undefined
 }
@@ -203,6 +232,7 @@ function pickPolityAim(
   goalKind: PolityGoalKind,
   rng: RngState,
   absoluteWeek: number,
+  excludedSlots: Set<string>,
 ): { kind: PolityAimKind; target?: EntityRef; rng: RngState } | undefined {
   const polity = state.polities[polityId]
   if (!polity || !polity.active) return undefined
@@ -366,12 +396,17 @@ function pickPolityAim(
     }
   }
 
-  if (candidates.length === 0) return undefined
+  // 既に同 owner で active な Aim が占めるスロットを除外 (v0.43)
+  const available =
+    excludedSlots.size === 0
+      ? candidates
+      : candidates.filter((c) => !excludedSlots.has(aimSlotKey(c.kind, c.target)))
+  if (available.length === 0) return undefined
 
   // Sort by score descending, pick top with some randomness
-  candidates.sort((a, b) => b.score - a.score)
+  available.sort((a, b) => b.score - a.score)
   // Pick from top 3 with weighted random
-  const topN = candidates.slice(0, 3)
+  const topN = available.slice(0, 3)
   const totalScore = topN.reduce((sum, c) => sum + Math.max(1, c.score), 0)
   const { value: roll, rng: nextRng } = randomFloat(rng)
   let cumulative = 0
@@ -396,6 +431,7 @@ function pickHouseAim(
   houseId: HouseId,
   goalKind: HouseGoalKind,
   rng: RngState,
+  excludedSlots: Set<string>,
 ): { kind: HouseAimKind; target?: EntityRef; rng: RngState } | undefined {
   const house = state.houses[houseId]
   if (!house || !house.active) return undefined
@@ -460,10 +496,15 @@ function pickHouseAim(
     }
   }
 
-  if (candidates.length === 0) return undefined
+  // 既に同 owner で active な Aim が占めるスロットを除外 (v0.43)
+  const available =
+    excludedSlots.size === 0
+      ? candidates
+      : candidates.filter((c) => !excludedSlots.has(aimSlotKey(c.kind, c.target)))
+  if (available.length === 0) return undefined
 
-  candidates.sort((a, b) => b.score - a.score)
-  const topN = candidates.slice(0, 3)
+  available.sort((a, b) => b.score - a.score)
+  const topN = available.slice(0, 3)
   const totalScore = topN.reduce((sum, c) => sum + Math.max(1, c.score), 0)
   const { value: roll, rng: nextRng } = randomFloat(rng)
   let cumulative = 0
