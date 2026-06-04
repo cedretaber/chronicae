@@ -139,7 +139,7 @@ effectiveScore < threshold                  → failure
 | ProjectKind | relevantAbility |
 |---|---|
 | develop_holding | numeracy |
-| expand_polity_share / promote_policy_shift / patronize_artist | charisma |
+| acquire_political_right / promote_policy_shift / patronize_artist | charisma |
 | commission_chronicle | learning |
 | acquire_land | command |
 | sell_land / improve_contract_terms / demand_tax_increase | numeracy |

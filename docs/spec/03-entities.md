@@ -469,13 +469,15 @@ type OfficeAssignment = {
 }
 ```
 
-**OrganizationShare**: 組織内の権力持分（Share）。
+**HouseShare**: House 内の権力持分（v0.42c: 旧 OrganizationShare を縮小・改名。Polity share は全廃 —
+Polity の権力分布は Polity Influence read-model（§6.64）で導出され、entity としては保存しない。
+holder は Person のみ。型を絞ったことで polity share を作る事故が型エラーになる）。
 
 ```ts
-type OrganizationShare = {
-  id: OrganizationShareId
-  organization: OrganizationRef
-  holder: ShareHolderRef          // { kind: 'person' | 'house', id: ... }
+type HouseShare = {
+  id: HouseShareId
+  houseId: HouseId
+  holderPersonId: PersonId
   rawPower: number                // >= 0
 }
 ```
@@ -483,19 +485,53 @@ type OrganizationShare = {
 **WorldState の追加フィールド**:
 
 ```ts
-organizationShares: Record<OrganizationShareId, OrganizationShare>
+houseShares: Record<HouseShareId, HouseShare>
 officeAssignments: Record<OfficeAssignmentId, OfficeAssignment>
-shareIndex: {
-  byOrganization: Record<string, OrganizationShareId[]>  // 'polity:{id}' / 'house:{id}'
-  byHolder: Record<string, OrganizationShareId[]>
+houseShareIndex: {
+  byHouse: Record<HouseId, HouseShareId[]>
+  byHolderPerson: Record<PersonId, HouseShareId[]>
 }
 officeIndex: {
   byOrganization: Record<string, OfficeAssignmentId[]>
   byHolderPerson: Record<string, OfficeAssignmentId[]>
 }
-nextOrganizationShareId: number
+nextHouseShareId: number
 nextOfficeAssignmentId: number
 ```
+
+**PoliticalRight**（v0.42）: Polity 内の具体的な政治権利（任命権・連隊管理権）。詳細な lifecycle は §6.64。
+
+```ts
+type PoliticalRightHolderRef =
+  | { kind: 'person'; id: PersonId }   // personal right: holder 死亡で失効
+  | { kind: 'house'; id: HouseId }     // household right: holder 絶家で失効
+
+type PoliticalRightTargetRef =
+  | { kind: 'polity_office_role'; polityId: PolityId; role: OfficeRole }  // leader は対象外
+  | { kind: 'holding_office_role'; holdingId: HoldingId; role: 'bailiff' }
+  | { kind: 'regiment'; regimentId: RegimentId }
+
+type PoliticalRight = {
+  id: PoliticalRightId             // prefix 'prg-'
+  polityId: PolityId
+  target: PoliticalRightTargetRef
+  holder: PoliticalRightHolderRef
+  grantedWeek: number
+}
+// kind ('polity_office_appointment' | 'holding_office_appointment' | 'regiment_control') と
+// 失効ルールはフィールドで持たず target.kind / holder.kind から導出する (drift 防止)。
+
+politicalRights: Record<PoliticalRightId, PoliticalRight>
+politicalRightIndex: {
+  byPolity: Record<PolityId, PoliticalRightId[]>
+  byHolder: Record<string, PoliticalRightId[]>   // 'person:{id}' / 'house:{id}'
+  byTarget: Record<string, PoliticalRightId[]>   // length <= 1 (1 target 1 active right)
+}
+nextPoliticalRightId: number
+```
+
+target key は `polity_office_role:{polityId}:{role}` / `holding_office_role:{holdingId}:bailiff` /
+`regiment:{regimentId}`。hard-delete（active=false 残置なし。履歴は SimEvent / Chronicle）。
 
 `Polity.ownerHouseId` の役職的側面 / `Polity.roleAssignments` / `House.headId` は持たず、支配者・役職担当者は `OfficeAssignment` に統一されている。`OFFICE_DEFINITIONS` のキー prefix は `polity:` / `house:`。
 
@@ -652,7 +688,7 @@ type OrganizationRef =
   | { kind: 'house'; id: HouseId }
 ```
 
-Polity actor と House actor の双方が実動する（House actor は expand_polity_share / promote_policy_shift / patronize_artist / commission_chronicle）。
+Polity actor と House actor の双方が実動する（House actor は acquire_political_right / promote_policy_shift / patronize_artist / commission_chronicle）。
 
 #### DiplomaticIssue
 
@@ -1064,7 +1100,9 @@ type Goal = {
 type AimStatus = 'active' | 'succeeded' | 'failed' | 'abandoned'
 type AimOrigin = 'goal_driven' | 'pressure_response'
 type PolityAimKind = 'consolidate_province_holdings' | 'seize_weak_remote_holdings' | 'develop_owned_holding' | 'improve_owned_contract_terms' | 'eliminate_overlord_contract' | 'eliminate_vassal_contract' | 'demand_tax_increase_from_vassal'
-type HouseAimKind = 'increase_polity_share' | 'steer_polity_external_expansion' | 'steer_polity_internal_development' | 'patronize_artist' | 'commission_chronicle'
+type HouseAimKind = 'acquire_political_right' | 'steer_polity_external_expansion' | 'steer_polity_internal_development' | 'patronize_artist' | 'commission_chronicle'
+// v0.42: increase_polity_share は廃止 (influence は read-model)。acquire_political_right の
+// aim.target は EntityRef の political_right_target variant ({ kind, target: PoliticalRightTargetRef })
 type PersonAimKind = 'support_organization_aim' | 'increase_house_influence' | 'obtain_office' | 'retain_office' | 'accumulate_wealth' | 'improve_ability'
 type AimKind = PolityAimKind | HouseAimKind | PersonAimKind
 
@@ -1301,7 +1339,7 @@ type ProjectOrigin =
 
 type ProjectKind =
   | 'develop_holding'
-  | 'expand_polity_share'
+  | 'acquire_political_right'
   | 'promote_policy_shift'
   | 'patronize_artist'
   | 'commission_chronicle'
@@ -1332,7 +1370,7 @@ type BaseProject = {
 
 8 つの派生型 union で構成:
 - `DevelopHoldingProject`: holdingId / improvementKind / targetImprovementLevel / budget (ProjectBudget)
-- `ExpandPolityShareProject`: polityId / houseId / budget / spentBudget
+- `AcquirePoliticalRightProject`: polityId / target (PoliticalRightTargetRef) / budget / spentBudget（v0.42 — 旧 ExpandPolityShareProject は廃止）
 - `PromotePolicyShiftProject`: polityId / houseId / policyKey
 - `PatronizeArtistProject`: houseId / budget / spentBudget / artistPersonId
 - `CommissionChronicleProject`: houseId / budget / spentBudget / subjectRef
@@ -1360,7 +1398,7 @@ type ProjectStageEntry = {
 | ProjectKind | stages |
 |---|---|
 | develop_holding | find_supervisor (imm) → secure_budget (imm) → execute_project (final) |
-| expand_polity_share | execute_project (final) |
+| acquire_political_right | execute_project (final) |
 | promote_policy_shift | execute_project (final) |
 | patronize_artist | arrange_patronage (final) |
 | commission_chronicle | write_chronicle (final) |

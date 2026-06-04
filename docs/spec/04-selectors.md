@@ -222,16 +222,12 @@ function getPolityLeaderHouse(state: WorldState, polityId: PolityId): HouseId | 
 // 家の家長（house:leader のホルダー）
 function getHouseLeader(state: WorldState, houseId: HouseId): PersonId | undefined
 
-// 指定組織で rawPower が最も多い House（Dominant House）
-function getDominantPolityHouse(state: WorldState, polityId: PolityId): HouseId | undefined
+// House 内の上位 share holder 一覧（v0.42c: house 専用に縮小。旧 polity 系
+// getDominantPolityHouse / getHousePolitySharePercent は polity share 全廃で削除 —
+// 置換先は influenceSelectors の getDominantInfluenceHolder / getActorInfluenceInPolity）
+function getTopShareholders(state: WorldState, houseId: HouseId, limit?: number): Array<{ holderPersonId: PersonId; rawPower: number; percent: number }>
 
-// 指定組織の上位株主一覧（holder・rawPower・percent）
-function getTopShareholders(state: WorldState, org: OrganizationRef, limit?: number): Array<{ holder: ShareHolderRef; rawPower: number; percent: number }>
-
-// House が Polity に持つ Share 割合（%）
-function getHousePolitySharePercent(state: WorldState, polityId: PolityId, houseId: HouseId): number
-
-// Person が House に持つ Share 割合（%）
+// Person が House に持つ Share 割合（0〜100）
 function getPersonHouseSharePercent(state: WorldState, houseId: HouseId, personId: PersonId): number
 
 // 行政キャパシティ: basePolityInstitutionalCapacity + ruler*factor + administrator*factor + treasurer*factor
@@ -242,6 +238,42 @@ function getAdministrativeLoad(state: WorldState, config: SimulationConfig, poli
 
 // 行政効率: clamp(capacity / load, minAdministrativeEfficiency, maxAdministrativeEfficiency)
 function getAdministrativeEfficiency(state: WorldState, config: SimulationConfig, polityId: PolityId): number
+```
+
+### 4.6a2 Polity Influence / PoliticalRight selector（v0.42）
+
+`influenceSelectors.ts` — Polity の権力分布 read-model（§6.64）。percent は 0〜100。
+
+```ts
+// 対象 Polity の influence breakdown（entry 母集合・9 domain・percent。total 降順）
+function getPolityInfluenceBreakdown(state, config, polityId): PolityInfluenceBreakdown
+
+// actor (house | person) の influence score / percent
+function getActorInfluenceInPolity(state, config, actor, polityId): { score: number; percent: number }
+
+// 前計算済み breakdown から引く版（候補者ループでの再計算回避 — perf 規約）
+function getActorInfluenceFromBreakdown(breakdown, actor): { score: number; percent: number }
+
+// 最大 influence holder（domain 指定可）/ 上位 N 件
+function getDominantInfluenceHolder(state, config, polityId, domain?): PolityInfluenceEntry | undefined
+function getTopInfluenceHoldersInPolity(state, config, polityId, limit?, domain?): PolityInfluenceEntry[]
+```
+
+**perf 規約**: getPolityInfluenceBreakdown は province / office / right / faction を歩くため、
+候補者ループ内で呼ばない。polity ごとに 1 回前計算して getActorInfluenceFromBreakdown で引く
+（appointmentSystem / goalSelectors / factionSelectors が採用）。
+
+`politicalRightSelectors.ts` — PoliticalRight の index 経由 derivation。
+
+```ts
+function getRightForTarget(state, target): PoliticalRight | undefined        // 1 target 1 right
+function getPolityOfficeAppointmentRight(state, polityId, role): PoliticalRight | undefined
+function getHoldingOfficeAppointmentRight(state, holdingId): PoliticalRight | undefined
+function getRegimentControllerRight(state, regimentId): PoliticalRight | undefined  // Regiment 型にフィールドは無い
+function getRightsByHolder(state, holder): PoliticalRight[]
+function getRightsByPolity(state, polityId): PoliticalRight[]
+// acquire_political_right の target 選定（kind 優先度 + 近接優先の決定的簡略化 — §6.64）
+function findAcquirableRightTarget(state, houseId, polityId): PoliticalRightTargetRef | undefined
 ```
 
 ### 4.6b Polity 関係 selector

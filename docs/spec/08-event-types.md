@@ -46,6 +46,9 @@
 | BATTLE_AVOIDED | minor | 戦闘回避（WarManeuverSystem。messageKey `war.battle_avoided`。params: `warId` / `province` / `battlefieldKind` / `avoidingSide`（attacker / defender / both）。両者回避は warScoreDelta=0） |
 | WAR_CAPTAIN_GENERAL_CHANGED | major/normal | 総大将の交代/喪失（WarManeuverSystem。messageKey `war.captain_general_changed`。新総大将が undefined（喪失）のとき major、交代は normal。初回任命は発火しない） |
 | REGIMENT_REFORMED | minor | destroyed Regiment が active に再編成された（補充・再編成 RegimentReinforcementSystem。messageKey `regiment.reformed`。params: `owner` / `province`）。**strength の通常補充は organization recovery と同じく silent（イベント無し）**——大量発生する補充をイベント化しない方針 |
+| POLITICAL_RIGHT_GRANTED | normal | v0.42: acquire_political_right project 完了で PoliticalRight が授与された |
+| POLITICAL_RIGHT_REVOKED | normal | v0.42: RightConsistencySystem の drift 回収（regime change 等）で right が失効した |
+| POLITICAL_RIGHT_TRANSFERRED | normal | v0.42: right の holder 付替（通常発火経路なし — 将来の PeaceSettlement / regime change 用） |
 | WAR_ENDED | major | 勝敗が明確でない終結（white_peace timeout / stale 安全終結 / cancelled orphan。messageKey `war.ended`） |
 | WAR_AVERTED | minor | 勝率 × 指導者性格ゲートで開戦を見送った（WarCreationSystem §6.44。escalated play を cancel。messageKey `war.averted`。params: `attacker` / `defender` / `winChance` / `threshold`（整数%）） |
 | PEACE_SETTLEMENT_APPLIED | major | tax WarGoal を state に反映（PeaceSettlementSystem。tax は before→after の税率を `fromRate`/`toRate`（整数%）で記録。transfer は底層 mutation の LAND_CONTRACT_* に委譲し本 event は出さない） |
@@ -95,7 +98,6 @@
 | AIM_SUCCEEDED | normal | Aim 達成 |
 | AIM_FAILED | minor | Aim 失敗 |
 | AIM_ABANDONED | minor | Aim 放棄 |
-| HOUSE_POLITY_SHARE_EXPANDED | normal | House の Polity Share 拡大 |
 | HOUSE_POLICY_INFLUENCE | minor | House の政策誘導 |
 | HOUSE_PATRONIZED_ARTIST | normal | 芸術家後援 |
 | HOUSE_COMMISSIONED_CHRONICLE | normal | 年代記編纂 |

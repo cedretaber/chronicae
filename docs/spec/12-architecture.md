@@ -25,7 +25,8 @@
 | `provinceMutations.ts` | `adjustProvinceDevelopment` / `adjustHoldingDevelopment` |
 | `popMutations.ts` | `adjustProvincePopWealth` / `adjustProvincePopUnrest` / `adjustProvincePopSize`（class 別バリアント含む）|
 | `officeMutations.ts` | `createOfficeAssignment` / `revokeOfficeAssignment` / `revokeOfficesByHolder` / `revokeOfficesByOrganization` / `assignOffice` |
-| `shareMutations.ts` | `createOrganizationShare` / `updateShareRawPower` / `removeOrganizationShare` / `transferShareRawPower` / `upsertOrganizationShare` / `deleteAllSharesForHolder` |
+| `shareMutations.ts` | v0.42c: HouseShare 専用。`createHouseShare` / `updateShareRawPower` / `removeHouseShare` / `transferShareRawPower` / `upsertHouseShare` / `removeSharesByHouse` / `removePersonSharesInHouse` |
+| `politicalRightMutations.ts` | v0.42: `createPoliticalRight`（1-target-1-right 検査）/ `removePoliticalRight` / `removeRightsByHolder` / `removeRightsByPolity` / `removeRightsByTarget`(+Mut) / `transferPoliticalRight` |
 | `attitudeMutations.ts` | `adjustPersonAttitude` / `adjustPopAttitude` / `adjustHouseMembersAttitude`（§12.3 参照）|
 | `plotMutations.ts` | `addPlot` / `removePlot` / `resolvePlot` |
 

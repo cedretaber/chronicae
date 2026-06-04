@@ -68,7 +68,7 @@ const WEEKS_PER_SEASON = 12
 | 11a3 | ClanFormationSystem | config | config `clanFormationIntervalWeeks` (default 48)。Clan 成立判定 + 年次保守 |
 | 11b | HouselessPersonGenerationSystem | 4 | |
 | 11c | OfficeTermSystem | 48 | |
-| 12 | ShareUpdateSystem | 48 | |
+| 12 | HouseShareUpdateSystem | 48 | v0.42c: 旧 ShareUpdateSystem。polity 枝は削除され house 専用 |
 | 13 | AppointmentSystem | 12 | 3ヶ月ごと |
 | 13a | BailiffRevenueTaskSystem | 4 | 代官月次 collect_holding_revenue Task 生成・期限切れ処理 |
 | 13b | TaskSystem | 1 | 毎週。Task 生成・処理・outcome・cleanup 一体 |
@@ -109,6 +109,7 @@ const WEEKS_PER_SEASON = 12
 | 22c | OrganizationConsistencySystem | 4 | |
 | 22d | cancelOrphanedWarsSystem | 1 | **consistency 系の後ろ**。participant 消滅 active War を cancelled 化（理由は下記） |
 | 22d2 | RegimentMaintenanceSystem | 1 | orphan 回収の後。Regiment の home 消失→disband / terminal 変化→owner 付け替え / owner 消滅→disband / stale war→demobilize（順序厳守。§6.49） |
+| 22d2b | RightConsistencySystem | 1 | v0.42。regimentMaintenance の owner 同期の**直後**。PoliticalRight の drift（owner 付替 / terminal 変化）を回収し POLITICAL_RIGHT_REVOKED を発行。年末 invariant のため weekly 必須（§6.65） |
 | 22d3 | RegimentReinforcementSystem | 4 | 補充・再編成。maintenance 直後。active strength の silent 月次補充（平時/戦時/動員中係数・home POP・treasury cap）+ destroyed reform（§6.50） |
 | 23 | AttitudeDecaySystem | 4 | |
 | 24 | GovernanceSystem | 48 | |
@@ -137,7 +138,7 @@ IntegrityCheck は ScheduledSystem 配列に含めず、tick 末尾で直接制�
 
 ### 5.6 Consistency 系と War 系の配置
 
-Consistency 系 2 つは所領変動 system の直後に走り、所領異動の結果生じた Polity の owner / capital / Share / Office の整合性を即座に補正する（§6.31 / §6.32 参照）。
+Consistency 系 2 つは所領変動 system の直後に走り、所領異動の結果生じた Polity の owner / capital / Office / PoliticalRight / anchor Faction の整合性を即座に補正する（§6.31 / §6.32 参照）。
 
 **War 系の配置**: `WarCreationSystem` は `ConflictResolutionSystem` の前に入り、`ConflictResolutionSystem` 自身は revolt_negotiation 専用に縮退して直後に残る。二重処理防止は順序依存ではなく kind-gate で保証する（§6.44 / §6.43）。`cancelOrphanedWarsSystem` は **consistency 系 2 つの後ろ・intervalWeeks=1** に配置する。理由: PeaceSettlement の holding 移転で landless 化した polity を同 tick 後段の PolityOwnerConsistencySystem が extinct 化する。その polity が別の active War の participant だと、active War は active participant を要求する年末 IntegrityCheck（§6.35）で throw するため、consistency の後ろで orphaned War を cancelled 化して回収する。warScore 計算の安全は WarManeuver / PeaceSettlement 冒頭の dead-participant guard が担保する。年末検査が必ず本 system 通過後になるよう 1w で走らせる。
 

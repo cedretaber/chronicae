@@ -11,8 +11,14 @@
 | concurrentOfficePenalty | 8 | 兼任 1 役職ごとのスコアペナルティ |
 | minAppointmentScore | 2 | この閾値未満なら任命しない（空席維持） |
 | **Polity Appointment** | | |
-| polityShareAppointmentFactor | 0.25 | Polity Share 割合のスコア寄与係数 |
+| polityInfluenceAppointmentFactor | 0.25 | Polity Influence% のスコア寄与係数（v0.42: 旧 polityShareAppointmentFactor） |
 | houseShareAppointmentFactor | 0.08 | House Share 割合のスコア寄与係数 |
+| polityOfficeAppointmentRightHouseBonus | 30 | v0.42: right holder House の member 候補への補正（influence% 項の最大値を上回る制度的権利の強さ） |
+| polityOfficeAppointmentRightPersonBonus | 35 | v0.42: right holder Person 本人への補正 |
+| polityOfficeAppointmentRightHouseAssociatedBonus | 18 | v0.42: holder Person の家の member への補正 |
+| rightBackedFactionBonus | 10 | v0.42: right-backed faction（最大 1 つ）の active member への補正（< HouseBonus） |
+| acquirePoliticalRightBaseCost | 40 | v0.42: acquire_political_right の費用（House wealth → 対象 Polity treasury への transfer） |
+| acquirePoliticalRightRequiredInfluencePercent | 20 | v0.42: Aim 生成の influence ゲート（0〜100 スケール） |
 | ownerHouseAppointmentBonus | 4 | 候補者の家が polity.ownerHouseId と一致する場合の加算 |
 | sameHousePolityOfficePenalty | 2 | 同 House の Polity Office 保有数 1 つにつき減算（Polity Office 独占抑制） |
 | **Rank ベース役職上限** | | |
@@ -305,15 +311,21 @@
 | officeUnpaidAffectionPenalty | -3 | 未払い時の affection ペナルティ |
 | officeUnpaidRespectPenalty | -2 | 未払い時の respect ペナルティ |
 | officeDignityUnpaidPenaltyReduction | 0.5 | 役職の尊厳によるペナルティ軽減係数 |
-| **ShareUpdate** | | |
-| shareYearlyRetentionRate | 0.85 | 既存 Share の年次保持率（EMA 計算用） |
-| polityShareBase | 10 | Polity Share 基礎値 |
-| polityShareProvinceFactor | 5 | Province 数の Share 寄与係数 |
-| polityShareMilitaryFactor | 0.1 | 軍事力代理値の Share 寄与係数 |
-| polityShareWealthFactor | 0.05 | House wealth の Share 寄与係数 |
-| politySharePrestigeFactor | 0.2 | House legacyPrestige の Share 寄与係数 |
-| polityShareOfficeFactor | 3 | Polity 役職保有数の Share 寄与係数 |
-| polityShareOwnerHouseBonus | 30 | 支配家への Share ボーナス |
+| **HouseShareUpdate / Polity Influence (v0.42)** | | |
+| polityInfluenceBase | 10 | influence base domain（House entry 一律。旧 polityShareBase 流用） |
+| polityInfluenceProvinceFactor | 5 | landed_power: Province 数係数（旧 polityShareProvinceFactor） |
+| polityInfluenceMilitaryFactor | 0.1 | landed_power: 軍事 proxy 係数（旧 polityShareMilitaryFactor） |
+| polityInfluenceWealthFactor | 0.05 | wealth domain 係数（旧 polityShareWealthFactor） |
+| polityInfluencePrestigeFactor | 0.2 | prestige domain 係数（旧 politySharePrestigeFactor） |
+| polityInfluenceOwnerHouseBonus | 30 | ruler domain: ownerHouse ボーナス（旧 polityShareOwnerHouseBonus） |
+| polityInfluenceLeaderHouseBonus | 10 | ruler domain: 非 ownerHouse 出身 leader の家への補正（ownerHouseBonus の 1/3。leader∈ownerHouse なら加算しない） |
+| polityInfluenceOfficeFactor | 3 | office domain: non-leader 役職 1 つの係数（旧 polityShareOfficeFactor） |
+| polityInfluenceOfficeOverlapBonusMax | 0.5 | office domain: House/Polity 役職重複の加算上限（旧 share 全体乗算から office 寄与への加算に変更） |
+| polityInfluenceMilitaryOfficeBonus | 2 | military domain: polity:military 役職保有の家（新規・小） |
+| polityInfluenceRegimentControlFactor | 2 | military domain: regiment_control right 1 件（active regiment のみ。新規・小） |
+| polityInfluenceHoldingOfficeAppointmentFactor | 2 | land_administration domain: holding right / 現職 bailiff（新規・小） |
+| polityInfluenceFactionFactor | 2 | faction domain: anchor Faction leader の家（新規・小） |
+| ※ 旧 polityShare* 7 種 + shareYearlyRetentionRate は v0.42c で削除（polity share 全廃） | | |
 | houseShareBase | 5 | House Share 基礎値 |
 | houseShareLeaderBonus | 20 | 家長への Share ボーナス |
 | houseShareOfficeBonus | 10 | House 役職保有数の Share 寄与係数 |
@@ -406,8 +418,6 @@
 | aimCapacityTreasuryPerSlot | 300 | treasury がこの量ごとに Polity の並列枠 +1（消費はしない・capacity 入力シグナル） |
 | aimCapacityMembersPerSlot | 6 | member がこの数ごとに House の並列枠 +1 |
 | aimCapacityWealthPerSlot | 150 | wealth がこの量ごとに House の並列枠 +1（消費はしない・capacity 入力シグナル） |
-| expandPolityShareCost | 40 | expand_polity_share の House wealth コスト |
-| expandPolityShareRawPowerGain | 10 | expand_polity_share の OrganizationShare rawPower 増分 |
 | promotePolicyShiftCost | 0 | promote_policy_shift のコスト（cooldown で乱発防止） |
 | patronizeArtistCost | 25 | patronize_artist の House wealth コスト |
 | patronizeArtistPrestigeGain | 3 | patronize_artist の legacyPrestige 上昇量 |
@@ -534,7 +544,7 @@
 | founderChildBaseChance | 0.6 | 子供生成の基礎確率 |
 | founderMaxGeneratedChildren | 4 | 最大生成子供数 |
 | **Influential House** | | |
-| influentialHousePolityShareThreshold | 0.10 | 有力家門判定の Share 比率閾値 |
+| influentialHousePolityInfluenceThreshold | 0.10 | 有力家門判定の Influence 比率閾値（v0.42: 旧 influentialHousePolityShareThreshold — 入力を share% から influence% に差替） |
 | influentialHouseWealthThreshold | 200 | 汎用有力家門判定の wealth 閾値 |
 | influentialHouseLegacyPrestigeThreshold | 60 | 汎用有力家門判定の legacyPrestige 閾値 |
 | **Clan Formation** | | |
@@ -765,7 +775,6 @@
 | compatibleOfficePenalty | 2 | 互換役職兼任のペナルティ |
 | incompatibleOfficePenalty | 10 | 非互換役職兼任のペナルティ |
 | compatibleShareReductionMax | 0.5 | 互換役職兼任時の Share ペナルティ軽減上限 |
-| polityShareOfficeOverlapBonusMax | 0.5 | Polity 役職重複時の Share ボーナス上限 |
 | pruningMinDwellYears | 3 | pruning 対象外となる最小在籍年数 |
 | protectionPrestigeThreshold | 60 | pruning 保護となる prestige 閾値 |
 | **LandContract / Bailiff economy** | | |

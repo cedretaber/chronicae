@@ -254,7 +254,7 @@ POP は生産の過半（標準で約 65%）を保持する。`retainedWealthGai
 
 ### 6.5 PolitySurplusDistributionSystem（4週ごと）
 
-各 Polity treasury から OrganizationShare に応じて Share holder に分配する。給与・維持費 (OfficeCompensationSystem §6.20) は別 system で支払う。
+各 Polity treasury から **Polity Influence（§6.64）に比例して House に分配**する（v0.42: 旧 Polity share 比例から変更）。給与・維持費 (OfficeCompensationSystem §6.20) は別 system で支払う。
 
 ```ts
 // reserveTarget を所領規模に応じて動的に計算
@@ -267,16 +267,11 @@ const distributable = Math.max(
   polity.treasury - reserveTarget
 ) * config.politySurplusDistributionRate
 
-// Polity の OrganizationShare 全 holder に rawPower 比で分配
-for (const share of getOrganizationShares(state, { kind: 'polity', id: polityId })) {
-  const portion = distributable * (share.rawPower / totalRawPower)
-  if (share.holder.kind === 'house') {
-    house.wealth += portion
-  } else {
-    // Person holder。alive チェック必須
-    if (!person.alive) continue
-    person.wealth += portion
-  }
+// influence breakdown の House entry に entry.percent / 100 で分配
+const breakdown = getPolityInfluenceBreakdown(state, config, polityId)
+for (const entry of breakdown.entries) {
+  if (entry.holder.kind !== 'house') continue  // Person entry (commonwealth leader 等) には分配しない
+  house.wealth += distributable * (entry.percent / 100)
 }
 polity.treasury -= distributedTotal
 ```
@@ -285,7 +280,7 @@ polity.treasury -= distributedTotal
 
 1 サイクルの `distributable = max(0, treasury - reserveTarget) × distributionRate` の計算は `getPolityDistributablePerCycle`（landContractSelectors）に集約され、本 system と House の投影年間収入 `getHouseProjectedAnnualIncome`（§6.19 支払能力ゲート）の両方から呼ぶ単一の正本となっている（式の二重定義による drift 防止）。
 
-**Person Share holder の死亡 skip**: holder Person が `!alive` の場合は分配しない（暫定挙動。家・相続人への流入は将来の課題）。
+**commonwealth の扱い (v0.42)**: House entry が存在しない（leader Person entry のみの）commonwealth では surplus は treasury に残る。旧 person-holder share への分配は廃止。
 
 ### 6.6 DisasterSystem（48週ごと = 毎年）
 
@@ -478,7 +473,7 @@ splitChance = baseHouseSplitChance
 
 **Share / cooldown 処理**:
 - 分家に `creationKind: 'cadet_branch'` と `creationReason` (`'succession'` or `'house_split'`) を設定
-- `initializeHouseShares` で新 House の OrganizationShare を即時初期化
+- `initializeHouseShares` で新 House の HouseShare を即時初期化
 - 移動元 House の古い Share を `removePersonSharesInHouse` で整理
 - 両 House に `lastSplitWeek = absoluteWeek` を設定（cooldown 用）
 - `houseSplitCooldownWeeks`（default 48）以内の再分裂を防止
@@ -600,7 +595,7 @@ Polity の active 制御は §6.31 PolityOwnerConsistencySystem に一本化す�
 6. `legacyPrestige` を `floor(founder.legacyPrestige * 0.5)` で設定
 7. founder を `house:leader` Office に任命
 8. `founderFamilyGenerationEnabled` が true なら家族を後付け生成（配偶者・子供、年齢に応じた確率）
-9. `initializeHouseShares` で OrganizationShare を即時初期化
+9. `initializeHouseShares` で HouseShare を即時初期化
 10. `HOUSE_FOUNDED` event を発火
 
 **1 月あたり最大** `houseFoundingMaxPerMonth` 家まで創設。
@@ -651,11 +646,12 @@ score = relevantStat(role) * 1.0          // military → warCommand、他 → g
       + (prestige / 100) * 8              // getPersonPrestige
       + leaderRespect * 4                 // polity leader の attitude.respect（0..1 正規化）
       + polityAffection * 3               // 候補者の対 Polity attitude.affection
-      + houseSharePct * polityShareAppointmentFactor  // 候補者の家の Polity Share 割合（既定 0.25）
+      + houseInfluencePct * polityInfluenceAppointmentFactor  // 候補者の家の Polity Influence%（§6.64、既定 0.25。v0.42: 旧 share%）
       + personSharePct * houseShareAppointmentFactor  // 候補者個人の House Share 割合（既定 0.08）
       + ownerHouseBonus                   // 候補者の家が polity.ownerHouseId なら ownerHouseAppointmentBonus（既定 4）
-      - getOfficeCompatibilityPenalty(...)  // 兼任互換ペナルティ（§14.5）。個人の兼任を非互換度に応じて減点
-      - sameHousePolityOfficePenalty * (1 - houseSharePct / 100) * sameHousePolityOfficeCount  // 同 House の Polity Office 数を share 重みで減点
+      + appointmentRightBonus             // v0.42: 対象 role に polity_office_appointment right がある場合の補正（下記）
+      - getOfficeCompatibilityPenalty(...)  // 兼任互換ペナルティ。compatible-pair の軽減入力も influence%（v0.42）
+      - sameHousePolityOfficePenalty * (1 - houseInfluencePct / 100) * sameHousePolityOfficeCount  // 同 House の Polity Office 数を influence 重みで減点
       - oldAgeAppointmentScorePenalty      // old_age なら固定減算（§6.25）
 ```
 
@@ -664,6 +660,14 @@ score = relevantStat(role) * 1.0          // military → warCommand、他 → g
 2. その House が対象 Polity の `ownerHouseId` である（owner が一時的に Province を失っていても候補に残す）
 
 また、active な HoldingOffice (Bailiff) を保有する人物は Polity / House / factional の各候補プールから除外する。候補収集は 'traditional' 候補に加え faction が推す 'factional' 候補も含む。
+
+**polity_office_appointment right の接続 (v0.42)**: 対象 (polity, role) に active な `polity_office_appointment` right（§6.64）がある場合:
+- **unrelated factional path は使わない**（任命権は制度的権利として派閥推薦より優先）
+- right holder の候補を pool に追加する（traditional pool 外の House member / Person 本人も対象）
+- スコア補正: holder House の member に `polityOfficeAppointmentRightHouseBonus`（既定 30 — influence% 項の最大値を上回る水準。それでも能力差で覆りうる）、holder Person 本人に `polityOfficeAppointmentRightPersonBonus`（35）、その家の member に同 AssociatedBonus（18）
+- **right-backed faction（最大 1 つ）**: right holder と最も関係の強い anchor Faction を 5 段階（holder Person の所属 → holder House leader の所属 → member 最多 → faction leader が holder House 所属 → factionId 昇順）で 1 つ選定し、その active member に `rightBackedFactionBonus`（10 < HouseBonus）を加算
+
+**House factional path の廃止 (v0.42)**: House office 任命への factional path は廃止（Faction は Polity 内政治装置 — §6.31 anchor 参照）。House office は traditional スコアリングのみ。また faction opportunity（member cap 原資）から House office slot を除外し、polity slot の share% 参照は influence% に置換。
 
 **候補スコア（House 役職）**:
 ```ts
@@ -684,7 +688,7 @@ score = relevantStat(role) * 1.0
 - 死亡者の役職は自動的に revoke される
 
 **House 役職の支払能力ゲート**: House 役職（有給 = administrator/treasurer/military/advisor）は、家が定常的に得る年間収入で既存役職＋新規役職の年間給与を賄えない場合は任命しない（leader は `baseSalary=0` なので常に対象外。Polity 役職は財庫から支払われ実測上ほぼ未払いにならないため不問）。
-- 投影年間収入 `getHouseProjectedAnnualIncome` = 家が定常的に得る収入の投影。定常収入は **PolitySurplusDistribution（§6.5、share 比例）のみ**で、estate settlement や外交移転など不定期な収入は含めない。`Σ_polity（家の polity share% × getPolityDistributablePerCycle）× 12`（分配は 4 週ごと = 年 12 回）。
+- 投影年間収入 `getHouseProjectedAnnualIncome` = 家が定常的に得る収入の投影。定常収入は **PolitySurplusDistribution（§6.5、v0.42: influence 比例）のみ**で、estate settlement や外交移転など不定期な収入は含めない。`Σ_polity（家の influence% × getPolityDistributablePerCycle）× 12`（走査対象は家が土地で関与する polity。office/right のみの取り分は投影に含めず過小評価側に倒す）。
 - 任命可否: `getHouseAnnualOfficeSalary（既存 active house 役職の baseSalary 合計）+ 新役職 baseSalary ≤ 投影年間収入` のときのみ任命。
 - 動機: 収入の無い landless 小家系が役職を抱え、`OFFICE_SALARY_UNPAID` を量産する不自然さを解消（実測で家由来の未払いイベントが 100 年あたり 22〜27 万件 → 0 に）。有力 landed 大家系は投影収入が十分で全役職を維持する（landless→有給役職 0、landed→従来どおり、という二分が観測される）。
 - UI: House DetailPanel に「想定年収 / 役職給与 / 役職収支」を表示（`getHouseProjectedAnnualBalance`）。
@@ -745,11 +749,20 @@ terminal Polity ごとに HoldingOfficeAssignment (Bailiff) を走査し、place
 
 **任期判定**: `absoluteWeek - office.startWeek >= termYears * WEEKS_PER_YEAR`。
 
-**候補者選定**:
-- ownerHouse の member を優先（成人 / 他 Office を持たない者）
-- なければ Polity Share holder 系の House member
-- stewardship / numeracy / learning などのスコアでソート
+**候補者選定（v0.42: Tier 制）**:
+- **Tier 0**: 当該 Holding に `holding_office_appointment` right（§6.64）があれば、right holder（House なら free adult member / Person なら本人）を最優先
+- **Tier 1**: factional 候補（NP ≥ threshold の faction の active member。v0.42: faction の任命介入は **anchor Polity が terminal の Holding に限定** — NP が非 anchor polity に対して 0 を返すことで実現）
+- **Tier 2**: ownerHouse の free adult member（numeracy + insight 降順）
 - 適任者が居なければ placeholder のまま
+
+**fall-through の設計意図 (v0.42)**: right があっても Tier 0 が候補を出せない場合は Tier 1 / 2 へ落ちる。
+これは polity office（right がある role では unrelated factional path を skip）と**意図的に異なる**扱いで、
+形式上の不統一ではなく役職の性質の違いによる — bailiff は Holding の徴税・管理を実務的に担う現場職であり、
+空席・placeholder が長く続くと土地収益や develop_holding 周辺に悪影響が出るため、行政実務を止めない。
+（polity office は空席のままでも国は回る。）
+
+**commonwealth の扱い**: `ownerHouseId` を持たない commonwealth / rebel polity は本 system の対象外（現行スキップ）。
+そのため holding right があってもこれらの Polity では v0.42 時点で行使されない（統治機構整理は future）。
 
 **イベント**:
 - `BAILIFF_APPOINTED`（importance: `minor`）: placeholder → 通常人物に交代
@@ -758,28 +771,11 @@ terminal Polity ごとに HoldingOfficeAssignment (Bailiff) を走査し、place
 
 commonwealth (`ownerHouseId === undefined`) Polity の Bailiff 候補者選定は Faction 段階まで持ち越し。
 
-### 6.23 ShareUpdateSystem（48週ごと = 毎年）
+### 6.23 HouseShareUpdateSystem（48週ごと = 毎年）
 
-Polity・House それぞれの Share 分布を毎年更新する。
-
-**Polity Share 更新（House ホルダーの Share を計算）**:
-```ts
-// 計算は対象 Polity 内の local power に限定する。
-// 別 Polity の所領で当該 Polity の Share が膨らむことを防ぐ。
-newRawPower = polityShareBase
-            + ownedProvinceCountInPolity * polityShareProvinceFactor     // 対象 Polity 内に限定
-            + localMilitaryProxy * polityShareMilitaryFactor             // 対象 Polity 内 Province から算出
-            + house.wealth * polityShareWealthFactor
-            + house.legacyPrestige * politySharePrestigeFactor
-            + polityOfficeCount * polityShareOfficeFactor
-            + (isOwnerHouse ? polityShareOwnerHouseBonus : 0)             // polity.ownerHouseId と一致なら
-```
-
-既存 Share との統合: `rawPower = oldPower * shareYearlyRetentionRate + newRawPower * (1 - shareYearlyRetentionRate)`
-
-**削除責務**: ShareUpdateSystem は不適格 Share の削除を **行わない**。削除責任は §6.32 OrganizationConsistencySystem に一本化されている。
-
-**Person holder の Polity Share (§17 commonwealth / 独裁者・僭主)**: 反乱 Polity 生成時に rebel leader (Person) に rawPower 100 が初期値で設定される。本 system は House holder のみを年次再計算対象とし、Person holder の Polity Share には touch しない（rawPower は初期固定）。整合性管理は OrganizationConsistencySystem に委ねる。Person holder の rawPower を年次変動させる仕様は将来検討。
+House の Share 分布を毎年更新する（v0.42: 旧 ShareUpdateSystem。Polity share は全廃され、
+Polity の権力分布は Polity Influence read-model（§6.64）で導出される。Polity share 更新枝・
+shareYearlyRetentionRate・person-holder polity share はすべて削除）。
 
 **House Share 更新（Person ホルダーの Share を計算）**:
 ```ts
@@ -952,18 +948,22 @@ for each polity in active polities:
     emit POLITY_LANDLESS   // importance: major。deactivate 前に発火
     deactivate polity
     revokeOfficesByOrganization({ kind: 'polity', id: polity.id })
-    removeSharesByOrganization({ kind: 'polity', id: polity.id })
-    emit POLITY_EXTINCT
+    removeRightsByPolity(polity.id)        // v0.42: PoliticalRight の即時 cascade (§6.64)
+    dissolveAnchoredFactions(polity.id)    // v0.42: anchor Faction の即時解散 (F8 を年末 integrity 前に守る。
+                                           //   FactionLifecycle は年次 weekOfYear 1 実行のため安全網にしかならない)
+    emit POLITY_EXTINCT (+ FACTION_DISSOLVED)
     continue
 
   eligibleHouseIds = getPolityHouseIds(state, polity.id)
 
   // established commonwealth の緊急 leader 補充:
   // kind === 'commonwealth' && revoltState?.kind === 'established' で polity:leader が居ない場合、
-  // selectOrCreateCommonwealthLeader で leader を選定/生成し、leader Office と
-  // 100% の person-direct OrganizationShare を作成して continue（commonwealth を headless にしない）。
+  // selectOrCreateCommonwealthLeader で leader を選定/生成し、leader Office を作成して continue
+  // （commonwealth を headless にしない）。
+  // v0.42c: 旧「100% person-direct share」は polity share 全廃に伴い作成しない。
+  // commonwealth leader の影響力は Polity Influence の ruler domain（§6.64）で表現される。
   if polity.kind === 'commonwealth' and polity.revoltState?.kind === 'established' and no polity:leader:
-    selectOrCreateCommonwealthLeader(...)  // leader Office + 100% person-direct share
+    selectOrCreateCommonwealthLeader(...)  // leader Office のみ
     continue
 
   // Step 2: ownerHouseId 未設定なら新規補充
@@ -1003,44 +1003,30 @@ for each polity in active polities:
 
 ### 6.32 OrganizationConsistencySystem（4週ごと）
 
-PolityOwnerConsistencySystem の直後に走り、Polity Share / Office の保持資格を監査する。
+PolityOwnerConsistencySystem の直後に走り、Polity Office の保持資格を監査する。
+（v0.42c: 旧 Step 1「不適格 Polity share 削除」は polity share 全廃に伴い削除。）
 
 ```
 for each polity in active polities:
   eligibleHouseIds = getPolityHouseIds(state, polity.id)
-
-  // Step 1: 不適格 Share 削除
-  for each share where organization is { kind: 'polity', id: polity.id }:
-    if share.holder.kind === 'house':
-      if share.holder.id not in eligibleHouseIds:
-        removeOrganizationShare(share.id)
-    else if share.holder.kind === 'person':
-      // §17 commonwealth / 独裁者・僭主の Person holder Polity Share
-      person = state.persons[share.holder.id]
-      if person is missing or not alive or person.kind === 'placeholder':
-        removeOrganizationShare(share.id)
-      else if polity.kind === 'commonwealth':
-        // commonwealth は owner house を持たない person-direct share モデル (§17)。
-        // leader は houseless でも housed (独立元の国の支配家出身を含む) でも eligible。
-        // getPolityHouseIds が 0 House を返す commonwealth で house eligibility に
-        // 紐付けると leader 自身の share まで道連れ削除され headless 化するため。
-        keep (eligible)
-      else if not person.houseId:
-        // 非 commonwealth の houseless direct holder は不適格
-        removeOrganizationShare(share.id)
-      else:
-        house = state.houses[person.houseId]
-        isFactionMember = getActiveFactionMembership(state, share.holder.id) !== undefined
-        if not isFactionMember:
-          if house is missing or not active or house.id not in eligibleHouseIds:
-            removeOrganizationShare(share.id)
 
   // Step 2: 不適格 Polity Office revoke
   for each active office where organization is { kind: 'polity', id: polity.id }:
     person = state.persons[office.holderPersonId]
     if not person.alive: continue  // 別系統の不整合（IntegrityCheck で検知）
     if polity.kind === 'commonwealth': continue
-      // commonwealth holder は Step 1 と同じく houseId 不問で eligible (person-direct モデル)
+      // commonwealth holder は houseId 不問で eligible (person-direct モデル)
+
+    // v0.42: Right 由来任命の例外（狭い判定）。対象 role に active な
+    // polity_office_appointment right (§6.64) があり、holder が House なら同 House の
+    // holder を、Person なら本人のみを eligible 扱いする。
+    // この例外が無いと right による任命が最大 4 週で黙って revoke され right system が機能しない。
+    // right が失効・移転した後の holder は保護を失い通常 revoke の対象に戻る（許容挙動）。
+    right = getPolityOfficeAppointmentRight(state, polity.id, office.role)
+    if right and ((right.holder is House and person.houseId === right.holder.id)
+               or (right.holder is Person and office.holderPersonId === right.holder.id)):
+      continue
+
     if not person.houseId:
       // 非 commonwealth の houseless holder は revoke
       revokeOfficeAssignment(office.id)
@@ -1069,13 +1055,13 @@ for each polity in active polities:
 ```
 
 これにより:
-- Share 削除責任は OrganizationConsistencySystem に**一本化**される（ShareUpdateSystem は削除を行わない）
 - Polity Office holder は常に以下のいずれかに限定される:
   - 対象 Polity 内に Province を持つ active House の人物
   - commonwealth Polity の houseless rebel founder（`polity.kind === 'commonwealth' && !person.houseId`）
   - active な派閥に所属する人物（派閥が解散すれば次回チェックで revoke される）
+  - polity_office_appointment right による任命者（v0.42 — right が active な間のみ）
 - Step 3 により、Polity の rank 降格時に定員超過の役職者が自動的に整理される
-- rebel founder が死亡したら `markPersonDead → revokeOfficesByHolder` 経路で Office が revoke され、Step 1 の `!person.alive` 分岐で Share も削除される
+- rebel founder が死亡したら `markPersonDead → revokeOfficesByHolder` 経路で Office が revoke される
 
 ### 6.33 AttitudeDecaySystem（4週ごと）
 
@@ -1319,7 +1305,7 @@ active Aim を走査し、必要に応じて `prepare_project` Task を生成す
 
 AimKind → ProjectKind マッピング（`aimKindToProjectKind`）:
 - Polity: `consolidate_province_holdings` / `seize_weak_remote_holdings` → `acquire_land`、`develop_owned_holding` → `develop_holding`、`improve_owned_contract_terms` / `eliminate_overlord_contract` → `improve_contract_terms`、`demand_tax_increase_from_vassal` / `eliminate_vassal_contract` → `demand_tax_increase`
-- House: `increase_polity_share` → `expand_polity_share`、`steer_polity_*` → `promote_policy_shift`、`patronize_artist` / `commission_chronicle` → 同名
+- House: `acquire_political_right` → 同名（v0.42 — 旧 `increase_polity_share` → `expand_polity_share` は廃止）、`steer_polity_*` → `promote_policy_shift`、`patronize_artist` / `commission_chronicle` → 同名
 
 `selectProjectCreator` で起案者を選定（候補なしなら待機）。prepare_project Task の assignee は creator。生成後に `aim.activeTaskId` / `nextProjectAllowedWeek` を設定する。
 
@@ -1345,7 +1331,7 @@ active Project の immediate stage を即時解決する。毎 tick 実行（int
 active Project の currentStageKey に応じて Task を生成する。immediate stage はスキップ。
 
 **(kind, stageKey) → TaskKind マッピング**:
-- final stage → `advance_project` (develop_holding, expand_polity_share, etc.)
+- final stage → `advance_project` (develop_holding, acquire_political_right, etc.)
 - preparatory stage → 専用 TaskKind (prepare_claim → gather_claim_evidence, prepare_offer / prepare_argument / prepare_response → prepare_argument)
 - negotiate stage → `selectDiplomaticTaskKind()` で DiplomaticPlay の状態に基づき決定。respond_to_pressure の場合は stance に応じた優先度調整
 
@@ -1373,7 +1359,7 @@ active Project の状態更新。owner inactive → cancelled、origin Aim が n
 terminal Project の効果解決・ログ出力・cleanup を担当。
 
 - 非外交系 Project: treasury/wealth/prestige 等の直接効果を適用し、Aim progress を加算
-  - **文化系 Project の afford 前提**: `patronize_artist` / `commission_chronicle` / `expand_polity_share` は完了時に `house.wealth >= cost` を要求する。これらの Project は**作成時**に afford 判定する（§6.55 `buildProjectFieldsForAim`）。作成時に払えなければ Project を生成せず Aim を待機させ、wealth 回復後に再試行する。これにより doomed Project が生成されず、完了時に資金不足で効果を何も適用しない silent no-op を防ぐ。
+  - **文化系 Project の afford 前提**: `patronize_artist` / `commission_chronicle` / `acquire_political_right` は完了時に `house.wealth >= cost` を要求する。これらの Project は**作成時**に afford 判定する（§6.55 `buildProjectFieldsForAim`）。作成時に払えなければ Project を生成せず Aim を待機させ、wealth 回復後に再試行する。これにより doomed Project が生成されず、完了時に資金不足で効果を何も適用しない silent no-op を防ぐ。
 - 外交系 Project: DiplomaticPlay 生成は ProjectStageSystem の open_diplomatic_play handler に移管。ProjectOutcomeSystem は外交系 completed 時に追加効果を適用しない（交渉への影響は各 Task outcome で DiplomaticPlay に反映済み）
 - respond_to_pressure completed: Pressure.status を 'responded' に遷移
 - Project を state.projects / projectIndex から削除
@@ -1774,7 +1760,7 @@ terminal Goal / Aim を WorldState から削除。orphan DecisionReason を削�
 
 **allowlist の方針**: importance 閾値ではなく curated allowlist で対象を決める（`BATTLE_OCCURRED` は normal だが含めたい／`PERSON_AIM_SUCCEEDED` は major だが noise になりやすい）。各 EventType に `{ category, retainRefKinds?, templateKey? }` を割り当てる。
 
-- **category**（§3.14 の 11 種）— war: `WAR_DECLARED` / `WAR_WON` / `WAR_LOST` / `WAR_ENDED` / `PEACE_SETTLEMENT_APPLIED`。battle: `BATTLE_OCCURRED`。land: `LAND_CONTRACT_TRANSFERRED` / `CONTRACT_TAX_REVISED`。house: `HOUSE_FOUNDED` / `CADET_HOUSE_FOUNDED` / `HOUSE_SPLIT` / `HOUSE_EXTINCT` / `HOUSE_LEADER_CHANGED`。governance: `POLITY_OWNER_CHANGED`。revolt: `REVOLT_POLITY_FOUNDED` / `REVOLT_NEGOTIATION_STARTED` / `REVOLT_ESCALATED` / `REVOLT_SUPPRESSED` / `REVOLT_SETTLED` / `REVOLT_POLITY_ESTABLISHED` / `REVOLT_REGIME_CHANGED`。disaster: `FAMINE` / `PLAGUE`。development: `COUNTRY_LAND_DEVELOPED`。office: `OFFICE_ASSIGNED` / `OFFICE_TERM_ENDED` / `BAILIFF_APPOINTED` / `BAILIFF_VACATED`。faction: `FACTION_FOUNDED` / `PERSON_RECRUITED_TO_FACTION` / `FACTION_MEMBER_ABANDONED` / `FACTION_LEADER_CHANGED` / `FACTION_DISSOLVED`。life: `IMPORTANT_PERSON_DIED` / `PERSON_CAME_OF_AGE` / `PERSON_ENTERED_OLD_AGE`。
+- **category**（§3.14 の 11 種）— war: `WAR_DECLARED` / `WAR_WON` / `WAR_LOST` / `WAR_ENDED` / `PEACE_SETTLEMENT_APPLIED`。battle: `BATTLE_OCCURRED`。land: `LAND_CONTRACT_TRANSFERRED` / `CONTRACT_TAX_REVISED`。house: `HOUSE_FOUNDED` / `CADET_HOUSE_FOUNDED` / `HOUSE_SPLIT` / `HOUSE_EXTINCT` / `HOUSE_LEADER_CHANGED`。governance: `POLITY_OWNER_CHANGED` / `POLITICAL_RIGHT_GRANTED` / `POLITICAL_RIGHT_REVOKED` / `POLITICAL_RIGHT_TRANSFERRED`（v0.42）。revolt: `REVOLT_POLITY_FOUNDED` / `REVOLT_NEGOTIATION_STARTED` / `REVOLT_ESCALATED` / `REVOLT_SUPPRESSED` / `REVOLT_SETTLED` / `REVOLT_POLITY_ESTABLISHED` / `REVOLT_REGIME_CHANGED`。disaster: `FAMINE` / `PLAGUE`。development: `COUNTRY_LAND_DEVELOPED`。office: `OFFICE_ASSIGNED` / `OFFICE_TERM_ENDED` / `BAILIFF_APPOINTED` / `BAILIFF_VACATED`。faction: `FACTION_FOUNDED` / `PERSON_RECRUITED_TO_FACTION` / `FACTION_MEMBER_ABANDONED` / `FACTION_LEADER_CHANGED` / `FACTION_DISSOLVED`。life: `IMPORTANT_PERSON_DIED` / `PERSON_CAME_OF_AGE` / `PERSON_ENTERED_OLD_AGE`。
 - **retainRefKinds**（projection 時に entityRefs をこの kind に絞る）— `OFFICE_ASSIGNED` / `OFFICE_TERM_ENDED` は `['person']`。役職任命は高頻度なので Person の「経歴」として byPerson だけに載せ、house / polity ref を落として国史・家史が行政ログで埋もれるのを防ぐ（役職名・Polity 名は params にあり、UI は entityRefs から link を描かないので表示は不変）。`BAILIFF_*` は person+province 無制限（人物経歴 + 地方統治史の両方に載せる）。faction 系は entityRefs が person（＋ index 非対象の faction kind）のみのため retainRefKinds 不要で自然に byPerson だけに載る（「誰と組んだか」を人物経歴に残す）。`PERSON_CAME_OF_AGE` / `PERSON_ENTERED_OLD_AGE` は retainRefKinds を指定せず、ref-kind の出し分け（一般人物 = byPerson のみ / 主要人物 = byPerson+byHouse+byPolity）は emit 時に entityRefs を変えて行う（§6.25）。
 - **templateKey**: 通常は `event.messageKey` を流用。`BATTLE_OCCURRED` のみ関数 `selectBattleTemplate(event)` が messageParams の派生フラグから rich template を選ぶ（数的不利勝利 / 大勝 / 辛勝 / 通常、§8 / §11）。
 
@@ -1798,3 +1784,93 @@ Bailiff（HoldingOffice）にも任期があり、`provinceOfficeTermYears.baili
 
 イベント: `OFFICE_TERM_ENDED`（importance: `normal`）— `entityRefs` に holder Person・所属 House・（polity 役職なら）Polity を載せる。
 
+
+---
+
+### 6.64 PoliticalRight / Polity Influence（v0.42）
+
+v0.42 で Polity の内部権力構造を「抽象的な Polity share」から「具体的な政治権利 **PoliticalRight** と、
+それらから導出される **Polity Influence**（read-model）」に置き換えた。Polity share は全廃され、
+House 内部の Share（HouseShare、§3.7）のみが一次データとして残る。
+
+**PoliticalRight**（entity — §3 参照）:
+- target は 3 種: `polity_office_role`（polity の non-leader role への任命権）/ `holding_office_role`（Holding の bailiff 任命権）/ `regiment`（連隊の管理権）
+- kind・tenure フィールドは持たない（target.kind / holder.kind から導出。保存すると drift の余地だけが生まれる）
+- holder は person | house。**person 死亡 / house 絶家で失効**（即時 cascade: markPersonDead / worldStructureExtinction）
+- **1 target 1 active right**（byTarget index の各 entry length ≤ 1）。hard-delete（active=false 残置なし）
+- leader role は right の対象にしない（leader の地位は Succession / PolityOwnerConsistency が管理）
+- **residual authority**: right が無い target の権限は entity として保存せず、「現行ロジックそのもの」が残余権限の実装
+  （polity office = 通常スコアリング / bailiff = ownerHouse プール / regiment = owner Polity 管理）
+- **regiment right の失効規則**: destroyed では失効しない（制度的単位・編制枠への権利と解釈。同一 RegimentId で
+  reform されれば継続。destroyed 中は influence 寄与のみ 0）。disbanded（制度的解散）で即時失効
+  （disbandRegimentMut 内 cascade）。owner Polity が right.polityId と一致しなくなったら RightConsistencySystem
+  （§6.65）が失効させる
+- 失効 cascade は mutation 層では silent（office の死亡時 revoke と同じ扱い）。POLITICAL_RIGHT_REVOKED は
+  RightConsistencySystem の drift 回収時のみ発行
+- **生成経路**: worldgen では生成しない（all residual で開始）。通常の生成経路は `acquire_political_right`
+  Project（§6.41 / 下記）のみで、holder は owner House の household right。personal right（holder=person）は
+  型・mutation・integrity 基盤のみ存在し v0.42 では通常生成されない（unit test が唯一の検証。将来拡張の余地）
+
+**Polity Influence**（read-model — selector `getPolityInfluenceBreakdown`）:
+- entity ではなく随時計算。entry 母集合 = 土地ベース House（getPolityHouseIds）∪ office holder の House ∪
+  right holder ∪ anchor Faction leader の House ∪（ownerHouseId 未定義の polity の）leader Person
+- 9 domain: base（House entry 一律）/ ruler（ownerHouse bonus。**非 ownerHouse 出身 leader の家には
+  polityInfluenceLeaderHouseBonus** — ownerHouseBonus の 1/3 程度。leader∈ownerHouse なら二重計上しない。
+  commonwealth は leader Person entry に ownerHouseBonus 相当）/ office（non-leader holder。overlap bonus は
+  office 寄与への乗算相当を加算）/ military（military office holder + active regiment への regiment_control right）/
+  land_administration（holding right + 現職 bailiff の House）/ landed_power（**対象 Polity 内限定**の province 数 +
+  military proxy）/ wealth / prestige / faction（anchor Faction leader の House のみ — member 加算は future）
+- percent は **0〜100**（既存 share 系と同スケール。比率が必要な箇所は /100）
+- perf: 候補者ループ内で呼ばない。polity ごとに 1 回前計算して `getActorInfluenceFromBreakdown` で引く
+
+**acquire_political_right Aim / Project**（旧 increase_polity_share / expand_polity_share の置換）:
+- Influence は read-model なので「直接増やす」対象ではない。上げたければ具体的な権利・役職・土地を取る
+- Aim 生成条件（ゲート）: owner House の対象 Polity への influence% ≥ `acquirePoliticalRightRequiredInfluencePercent`
+  （対象 = 家が土地で関与する polity）
+- target 選定: kind 優先度 polity_office（military > administrator > treasurer > advisor）> holding（House 関与
+  province の Holding 優先・id 昇順 = 近接優先の決定的簡略化）> regiment（active のみ・House 関与 home 優先）。
+  いずれも right 未設定のもの。`aimSlotKey` に politicalRightTargetKey が含まれ同一 target への重複 aim を防ぐ
+- 成功条件は createPoliticalRight の検査（target 実在 / polityId 整合 / 既存 right なし / holder House active）に
+  集約。**コストは House wealth から対象 Polity treasury への transfer**（wealth sink ではない —
+  旧 expand_polity_share の sink 消滅による経済変化を緩和し、「国庫に納めて権利を授かる」物語になる）
+- 既存 right holder から奪う処理は v0.42 では行わない（争奪・剥奪・派閥闘争は future）
+
+**イベント**: `POLITICAL_RIGHT_GRANTED` / `POLITICAL_RIGHT_REVOKED` / `POLITICAL_RIGHT_TRANSFERRED`
+（importance: normal、chronicle category: governance）。messageParams は nameKey / enum のみ
+（rightKind / revokeReason は events ns の enum.* ラベルに解決）。TRANSFERRED は v0.42 に通常発火経路が無く
+（transferPoliticalRight は将来の PeaceSettlement / regime change 用）、unit test が唯一の検証。
+
+実測（300 年 × 4 seed）: GRANTED 118〜141 件 / REVOKED は regime change の drift 回収として有機的に発火。
+
+### 6.65 RightConsistencySystem（毎週）
+
+PoliticalRight の drift を定期回収する安全網。**regimentMaintenanceSystem の直後・cleanup 系の前**に配置する
+（regimentMaintenance が Regiment owner を terminal Polity に同期した後でないと、owner 変化による
+regiment_control right の失効を回収できない）。
+
+**interval は 1（weekly）必須**: 年末 integrity は absoluteWeek ≡ 47 (mod 48) の tick 末尾で走るが、
+interval 4 / offset 0 の system は weekOfYear 1, 5, …, 45 にしか走らず**年末 tick に走らない**。
+weekly の regimentMaintenance が weekOfYear 46〜48 に owner を付け替えると、4 週間隔では drift が
+未回収のまま年末 integrity に到達して throw する。cancelOrphanedWarsSystem（§6.47）と同じ weekly パターン。
+年末 invariant を守る cleanup は (a) weekly か (b) drift 源と co-locate（atomic）のどちらかでなければならない
+（Faction 解散 / right 削除 cascade を PolityOwnerConsistency の deactivate 経路に co-locate しているのは (b)）。
+
+**検査内容**（不整合なら hard-delete + POLITICAL_RIGHT_REVOKED 発行。revokeReason enum:
+holder_lost / polity_dissolved / target_lost / regime_change）:
+- holder が存在し有効（person: alive・normal / house: active）
+- right.polityId が active Polity
+- target が存在する（regiment は status !== 'disbanded'。destroyed は許容）
+- target と polityId が整合する（office target.polityId / regiment owner / holding terminal polity）
+
+即時 cascade（一次手段）との分担: person 死亡・house 絶家・regiment disband・polity inactive は mutation 層で
+即時削除（silent）。本 system は「mutation では追わない」regiment owner 付替・holding terminal 変化などを回収する。
+
+**IntegrityCheck 追加項目（v0.42）**:
+- R1: holder は存在し有効（person: alive かつ normal / house: active）
+- R2: polityId は active Polity
+- R3: target は存在する（regiment は disbanded のみ違反、destroyed 許容。leader role target も違反）
+- R4: target と polityId が整合する
+- R5: byPolity / byHolder / byTarget index と politicalRights の双方向一致
+- R6: 1 target 1 active right（byTarget の各 entry length ≤ 1）
+- F8: active Faction の polityId は active Polity（+ factionIndex.byPolity の双方向一致）
+- HouseShare: polity share は**存在自体が違反**（型レベルでも HouseShare に縮小済み — §3.7）
