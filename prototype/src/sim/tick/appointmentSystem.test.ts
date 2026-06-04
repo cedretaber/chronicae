@@ -213,10 +213,10 @@ describe('runAppointmentSystem', () => {
 
     // Current holder keeps office (slot is full)
     expect(holdsOfficeRole(result.state, personRulerId, 'administrator')).toBe(true)
-    // v0.15 §13.4: sameHousePolityOfficePenalty を加算するため、
-    // 同 House のみで複数 Polity Office を埋める score が早く minAppointmentScore を下回る。
-    // vassal は treasurer 1 つだけ埋め、それ以降は閾値未満で停止する。
-    expect(countEvents(result.events, 'OFFICE_ASSIGNED')).toBe(1)
+    // v0.42 §19.2-1: sameHousePolityOfficePenalty は (1 - influence%/100) で減衰する。
+    // 本 fixture では ruler の家が influence をほぼ独占する (share 時代は share 未設定 = 0% で
+    // ペナルティ全額だった) ため、penalty がほぼ消えて残りの空き役職も同家で埋まる。
+    expect(countEvents(result.events, 'OFFICE_ASSIGNED')).toBe(4)
     expect(countEvents(result.events, 'OFFICE_REVOKED')).toBe(0)
   })
 

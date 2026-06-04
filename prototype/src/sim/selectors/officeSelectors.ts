@@ -9,10 +9,7 @@ import type {
   OrganizationKind,
 } from '@sim/types/office'
 import { OFFICE_DEFINITIONS } from '@sim/config/officeDefinitions'
-import {
-  getHousePolitySharePercent,
-  getPersonHouseSharePercent,
-} from '@sim/selectors/shareSelectors'
+import { getPersonHouseSharePercent } from '@sim/selectors/shareSelectors'
 import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
 import { weightedAverage } from '@sim/selectors/statusSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
@@ -115,7 +112,11 @@ export function getOfficeHolderPower(state: WorldState, office: OfficeAssignment
     if (!houseId) return 0
     const country = state.polities[countryId]
 
-    const houseSharePct = getHousePolitySharePercent(state, countryId, houseId)
+    // v0.42 §19.2-1: 旧 houseSharePct 項 (×0.6) は polity share 廃止に伴い除去した。
+    // 本関数は同一 role 複数 holder の tie-break にのみ使われ (getPrimaryOfficeHolder)、
+    // config 非供給経路 (getPolityLeader など) から呼ばれるため influence 換算はできない
+    // (influenceSelectors への runtime import は循環依存になる)。tie-break は
+    // personShare / prestige / respect / tenure で引き続き決定的に機能する。
     const personSharePct = getPersonHouseSharePercent(state, houseId, person.id)
     const prestige = person.legacyPrestige
 
@@ -144,7 +145,6 @@ export function getOfficeHolderPower(state: WorldState, office: OfficeAssignment
 
     const power =
       1 +
-      (houseSharePct / 100) * 0.6 +
       (personSharePct / 100) * 0.25 +
       (prestige / 100) * 0.1 +
       rulerRespectScore * 0.1 +
@@ -382,11 +382,16 @@ function isCompatiblePair(
   return existing.role === targetRole
 }
 
+// v0.42 §19.2-1: 入力を polity share% から influence% に差替。influence の計算は
+// influenceSelectors への runtime import が循環依存になるため、呼出側が候補の家の
+// influence% (0〜100) を渡す。未供給 (undefined) なら 0 として扱う (ownerHouse の
+// fast path は維持されるため、reduction が完全に消えるわけではない)。
 function getCompatibleShareReduction(
   state: WorldState,
   config: SimulationConfig,
   candidateHouseId: HouseId,
   targetOrganization: OrganizationRef,
+  candidateInfluencePct: number | undefined,
 ): number {
   if (targetOrganization.kind !== 'polity') return 0
   const polity = state.polities[targetOrganization.id]
@@ -394,18 +399,21 @@ function getCompatibleShareReduction(
   if (polity.ownerHouseId === candidateHouseId) {
     return config.compatibleShareReductionMax
   }
-  const sharePct = getHousePolitySharePercent(state, targetOrganization.id, candidateHouseId) / 100
-  const clamped = Math.max(0, Math.min(1, sharePct))
+  const ratio = (candidateInfluencePct ?? 0) / 100
+  const clamped = Math.max(0, Math.min(1, ratio))
   return clamped * config.compatibleShareReductionMax
 }
 
 // v0.17 §8.3: total compatibility penalty across all existing offices the candidate holds.
+// v0.42: targetOrganization が polity の場合、candidateInfluencePct (候補の家の
+// 当該 polity への influence%、0〜100) を渡すと compatible-pair の penalty 軽減に使う。
 export function getOfficeCompatibilityPenalty(
   state: WorldState,
   config: SimulationConfig,
   candidateId: PersonId,
   targetOrganization: OrganizationRef,
   targetRole: OfficeRole,
+  candidateInfluencePct?: number,
 ): number {
   const candidate = state.persons[candidateId]
   if (!candidate) return 0
@@ -425,6 +433,7 @@ export function getOfficeCompatibilityPenalty(
         config,
         candidate.houseId,
         targetOrganization,
+        candidateInfluencePct,
       )
       total += config.compatibleOfficePenalty * (1 - reduction)
     } else {

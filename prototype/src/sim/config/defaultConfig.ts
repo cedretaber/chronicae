@@ -712,6 +712,8 @@ export type SimulationConfig = {
   polityShareAppointmentFactor: number
   houseShareAppointmentFactor: number
   ownerHouseAppointmentBonus: number
+  // v0.42 §18: appointment スコアの influence% 項 (旧 polityShareAppointmentFactor の置換先)
+  polityInfluenceAppointmentFactor: number
   sameHousePolityOfficePenalty: number
   // v0.14 Ability generation / inheritance
   abilityAptitudeMean: number
@@ -1655,6 +1657,7 @@ export const defaultConfig: SimulationConfig = {
   polityShareAppointmentFactor: 0.25,
   houseShareAppointmentFactor: 0.08,
   ownerHouseAppointmentBonus: 4,
+  polityInfluenceAppointmentFactor: 0.25,
   sameHousePolityOfficePenalty: 2,
   minAppointmentScore: 2,
   // v0.14 Ability generation / inheritance

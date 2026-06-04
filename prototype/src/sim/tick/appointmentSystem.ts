@@ -8,7 +8,12 @@ import {
   getHouseLeader,
   getActiveOfficeHolders,
 } from '../selectors/officeSelectors'
-import { getHousePolitySharePercent, getPersonHouseSharePercent } from '../selectors/shareSelectors'
+import { getPersonHouseSharePercent } from '../selectors/shareSelectors'
+import {
+  getPolityInfluenceBreakdown,
+  getActorInfluenceFromBreakdown,
+} from '../selectors/influenceSelectors'
+import type { PolityInfluenceBreakdown } from '../types/influence'
 import { getPersonPrestige } from '../selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 import { getAppointmentTaskModifier } from '../selectors/appointmentTaskSelectors'
@@ -201,6 +206,8 @@ function computePolityScoreV017(
   rulerId: PersonId,
   personId: PersonId,
   role: OfficeRole,
+  // v0.42 §19.2-1: share% → influence%。perf のため polity ごとに前計算した breakdown を受け取る (§21.2)
+  influenceBreakdown: PolityInfluenceBreakdown,
 ): number {
   const person = state.persons[personId]
   if (!person) return -Infinity
@@ -215,7 +222,10 @@ function computePolityScoreV017(
     : 0
   const polityAtt = getAttitudeOrDefault(state, person, { kind: 'polity', id: polity.id })
   const polityAffection = attitudeValueToScore(polityAtt.affection) / 100
-  const houseSharePct = getHousePolitySharePercent(state, polity.id, person.houseId)
+  const houseInfluencePct = getActorInfluenceFromBreakdown(influenceBreakdown, {
+    kind: 'house',
+    id: person.houseId,
+  }).percent
   const personSharePct = getPersonHouseSharePercent(state, person.houseId, personId)
 
   // same-house polity office count (effective per v0.17 §14.5)
@@ -228,7 +238,7 @@ function computePolityScoreV017(
     if (p && p.houseId === person.houseId) sameHousePolityOfficeCount++
   }
   const sameHouseEffective =
-    config.sameHousePolityOfficePenalty * (1 - houseSharePct / 100) * sameHousePolityOfficeCount
+    config.sameHousePolityOfficePenalty * (1 - houseInfluencePct / 100) * sameHousePolityOfficeCount
 
   // ownerHouseBonus: 0 when ownerHouseId is undefined (commonwealth)
   const ownerHouseBonus =
@@ -237,12 +247,14 @@ function computePolityScoreV017(
       : 0
 
   // v0.17 §14.5: replace concurrentOfficePenalty * count with getOfficeCompatibilityPenalty
+  // v0.42: compatible-pair の reduction 入力も share% → influence% (前計算 breakdown から)
   const compatibilityPenalty = getOfficeCompatibilityPenalty(
     state,
     config,
     personId,
     { kind: 'polity', id: polity.id },
     role,
+    houseInfluencePct,
   )
 
   return (
@@ -250,7 +262,7 @@ function computePolityScoreV017(
     (prestige / 100) * 8 +
     leaderRespect * 4 +
     polityAffection * 3 +
-    houseSharePct * config.polityShareAppointmentFactor +
+    houseInfluencePct * config.polityInfluenceAppointmentFactor +
     personSharePct * config.houseShareAppointmentFactor +
     ownerHouseBonus -
     compatibilityPenalty -
@@ -315,6 +327,7 @@ function tryAppointPolityOffice(
   rulerId: PersonId,
   role: OfficeRole,
   cachedCandidates: PersonId[],
+  influenceBreakdown: PolityInfluenceBreakdown,
 ): TickContext {
   const config = ctx.config
   const polityRef: OrganizationRef = { kind: 'polity', id: polity.id }
@@ -353,7 +366,15 @@ function tryAppointPolityOffice(
     const candidates = cachedCandidates.filter((id) => !alreadyHolding.has(id as string))
     const scored = candidates.map((id) => ({
       id,
-      score: computePolityScoreV017(currentCtx.state, config, polity, rulerId, id, role),
+      score: computePolityScoreV017(
+        currentCtx.state,
+        config,
+        polity,
+        rulerId,
+        id,
+        role,
+        influenceBreakdown,
+      ),
     }))
     best = pickBestScored(scored, config.minAppointmentScore)
   }
@@ -501,8 +522,22 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
     if (!rulerId) continue
 
     const cachedCandidates = polityCandidateCache.get(polityId) ?? []
+    // v0.42 §21.2: influence breakdown は polity ごとに 1 回前計算して候補ループへ渡す。
+    // 任命が入っても同 tick 内の他 role 評価には反映されない (1 tick 限りの staleness を許容)。
+    const influenceBreakdown = getPolityInfluenceBreakdown(
+      currentCtx.state,
+      currentCtx.config,
+      polityId as PolityId,
+    )
     for (const role of POLITY_APPOINTABLE_ROLES) {
-      currentCtx = tryAppointPolityOffice(currentCtx, polity, rulerId, role, cachedCandidates)
+      currentCtx = tryAppointPolityOffice(
+        currentCtx,
+        polity,
+        rulerId,
+        role,
+        cachedCandidates,
+        influenceBreakdown,
+      )
     }
   }
 
