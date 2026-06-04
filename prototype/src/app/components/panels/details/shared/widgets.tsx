@@ -237,6 +237,77 @@ export function ProjectListItem({
   )
 }
 
+// v0.42 §16.1: Polity Influence breakdown の表示。上位 holder の percent + domain 内訳。
+// entry.holder は ShareHolderRef と同形 ({ kind: 'house' | 'person', id })。
+export function InfluenceSection({
+  entries,
+  persons,
+  houses,
+  onPersonClick,
+  onHouseClick,
+}: {
+  entries: import('@sim/types/influence').PolityInfluenceEntry[]
+  persons: Record<string, Person>
+  houses: Record<string, House>
+  onPersonClick: ClickHandler
+  onHouseClick: ClickHandler
+}) {
+  const { t } = useTranslation()
+  if (entries.length === 0) return <span className="text-gray-500">—</span>
+  const othersPercent = Math.max(0, 100 - entries.reduce((s, e) => s + e.percent, 0))
+  const slices = entries.map((e, i) => ({
+    percent: e.percent,
+    color: SHARE_COLORS[i % SHARE_COLORS.length]!,
+  }))
+  if (othersPercent > 0.5) {
+    slices.push({ percent: othersPercent, color: SHARE_COLORS[SHARE_COLORS.length - 1]! })
+  }
+  const domainLine = (e: import('@sim/types/influence').PolityInfluenceEntry): string => {
+    const items = Object.entries(e.byDomain)
+      .filter((kv): kv is [string, number] => typeof kv[1] === 'number' && kv[1] > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([domain, v]) => `${t(`detail.polity.influence_domain.${domain}`)} ${v.toFixed(0)}`)
+    return items.join(' · ')
+  }
+  return (
+    <div className="flex items-start gap-3">
+      <ShareDonutChart slices={slices} />
+      <div className="min-w-0 flex-1 text-sm">
+        {entries.map((e, i) => (
+          <div key={`${e.holder.kind}:${e.holder.id}`} className="flex flex-col">
+            <div className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: SHARE_COLORS[i % SHARE_COLORS.length] }}
+              />
+              <span className="min-w-0 truncate">
+                {e.holder.kind === 'house' ? (
+                  <HouseLink houseId={e.holder.id} houses={houses} onClick={onHouseClick} />
+                ) : (
+                  <PersonLink personId={e.holder.id} persons={persons} onClick={onPersonClick} />
+                )}
+              </span>
+              <span className="ml-auto shrink-0 text-gray-200">{e.percent.toFixed(1)}%</span>
+            </div>
+            <div className="ml-4 truncate text-xs text-gray-500">{domainLine(e)}</div>
+          </div>
+        ))}
+        {othersPercent > 0.5 && (
+          <div className="flex items-center gap-1.5 text-gray-500">
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: SHARE_COLORS[SHARE_COLORS.length - 1] }}
+            />
+            <span>{t('detail.polity.influence_others')}</span>
+            <span className="ml-auto shrink-0">{othersPercent.toFixed(1)}%</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function ShareholderSection({
   shareholders,
   persons,

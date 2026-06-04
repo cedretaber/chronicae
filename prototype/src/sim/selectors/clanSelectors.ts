@@ -2,6 +2,7 @@ import type { WorldState } from '@sim/types/world'
 import type { HouseId, ClanId } from '@sim/types/ids'
 import type { Clan } from '@sim/types/clan'
 import { isRulingHouse, isInfluentialHouse } from './availabilitySelectors'
+import type { SimulationConfig } from '../config/defaultConfig'
 
 export function getClan(state: WorldState, clanId: ClanId): Clan | undefined {
   return state.clans[clanId]
@@ -81,11 +82,7 @@ export function getClanRulingHouseIds(state: WorldState, clanId: ClanId): HouseI
 
 export function getClanInfluentialHouseIds(
   state: WorldState,
-  config: {
-    influentialHousePolityShareThreshold: number
-    influentialHouseWealthThreshold: number
-    influentialHouseLegacyPrestigeThreshold: number
-  },
+  config: SimulationConfig,
   clanId: ClanId,
 ): HouseId[] {
   const clan = state.clans[clanId]

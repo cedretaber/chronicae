@@ -4,7 +4,8 @@ import {
   getHouseControlledProvinceIds,
   getHouseOwnedPolityIds,
 } from '@sim/selectors/landContractSelectors'
-import { getHousePolitySharePercent } from '@sim/selectors/shareSelectors'
+import { getActorInfluenceInPolity } from '@sim/selectors/influenceSelectors'
+import type { SimulationConfig } from '@sim/config/defaultConfig'
 import { getActiveFactionMembership } from '@sim/selectors/factionSelectors'
 
 export function isHouselessPerson(state: WorldState, personId: PersonId): boolean {
@@ -73,30 +74,32 @@ export function getNonRulingHouseIds(state: WorldState): HouseId[] {
   return result
 }
 
+// v0.42 §19.2: share% → influence%。config 名も influentialHousePolityInfluenceThreshold に改名。
 export function isInfluentialHouseInAnyPolity(
   state: WorldState,
-  config: { influentialHousePolityShareThreshold: number },
+  config: SimulationConfig,
   houseId: HouseId,
 ): boolean {
   const house = state.houses[houseId]
   if (!house || !house.active) return false
-  const threshold = config.influentialHousePolityShareThreshold * 100
+  const threshold = config.influentialHousePolityInfluenceThreshold * 100
   for (const polity of Object.values(state.polities)) {
     if (!polity || !polity.active) continue
     if (polity.ownerHouseId === houseId) continue
-    const sharePercent = getHousePolitySharePercent(state, polity.id, houseId)
-    if (sharePercent >= threshold) return true
+    const influencePercent = getActorInfluenceInPolity(
+      state,
+      config,
+      { kind: 'house', id: houseId },
+      polity.id,
+    ).percent
+    if (influencePercent >= threshold) return true
   }
   return false
 }
 
 export function isInfluentialHouse(
   state: WorldState,
-  config: {
-    influentialHousePolityShareThreshold: number
-    influentialHouseWealthThreshold: number
-    influentialHouseLegacyPrestigeThreshold: number
-  },
+  config: SimulationConfig,
   houseId: HouseId,
 ): boolean {
   if (isRulingHouse(state, houseId)) return true
@@ -110,7 +113,7 @@ export function isInfluentialHouse(
 
 export function isPoliticallyEngagedPerson(
   state: WorldState,
-  config: { influentialHousePolityShareThreshold: number },
+  config: SimulationConfig,
   personId: PersonId,
 ): boolean {
   const person = state.persons[personId]
@@ -148,7 +151,7 @@ export function isPoliticallyEngagedPerson(
 
 export function isRecruitableOutsiderPerson(
   state: WorldState,
-  config: { influentialHousePolityShareThreshold: number },
+  config: SimulationConfig,
   personId: PersonId,
 ): boolean {
   const person = state.persons[personId]

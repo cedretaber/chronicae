@@ -22,7 +22,7 @@ export type EntityType =
   | 'war'
 // Backwards-friendly alias retained as named export (some modules import SelectedType)
 export type SelectedType = EntityType
-export type MapView = 'terminal' | 'root' | 'house' | 'share' | 'unrest'
+export type MapView = 'terminal' | 'root' | 'house' | 'influence' | 'unrest'
 
 // view='detail' は通常の詳細パネル、view='chronicle' は対象の全履歴 (年代記) パネル。
 // 同一 entity でも別 window として共存させるため windowId に prefix を付けて区別する。

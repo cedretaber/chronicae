@@ -81,11 +81,11 @@ export function MapLegend() {
           )}
         </div>
       )}
-      {mapView === 'share' && (
+      {mapView === 'influence' && (
         <div>
-          <div className="mb-1 font-bold text-gray-400">Owner-house share</div>
+          <div className="mb-1 font-bold text-gray-400">Owner-house influence</div>
           <div className="text-gray-300">色 = terminal polity</div>
-          <div className="text-gray-300">不透明度 = owner house の share</div>
+          <div className="text-gray-300">不透明度 = owner house の influence</div>
           <div className="mt-1 flex items-center gap-1">
             <span className="h-2 w-3" style={{ background: '#3b6ea8', opacity: 0.4 }} />
             <span className="h-2 w-3" style={{ background: '#3b6ea8', opacity: 0.7 }} />

@@ -18,7 +18,8 @@ import {
 } from '../selectors/landContractSelectors'
 import { syncClanActive } from './clanMutations'
 import { removeRightsByHolder } from './politicalRightMutations'
-import { getHousePolitySharePercent } from '../selectors/shareSelectors'
+import { getActorInfluenceInPolity } from '../selectors/influenceSelectors'
+import type { SimulationConfig } from '../config/defaultConfig'
 import { createLogger } from '../debug/logger'
 
 function moveLivingMembersToHouse(
@@ -63,6 +64,7 @@ function moveLivingMembersToHouse(
 // 同一家への再集中を防ぐ。除外で候補が尽きた場合は呼び出し側が excludeHouseIds なしで再試行する。
 function chooseReceiverHouse(
   state: WorldState,
+  config: SimulationConfig,
   extinctHouseId: HouseId,
   affectedPolityIds: PolityId[],
   excludeHouseIds?: ReadonlySet<string>,
@@ -86,7 +88,7 @@ function chooseReceiverHouse(
   }
   if (bestByProvinceCount) return bestByProvinceCount.houseId
 
-  // 2) affectedPolityIds 内で最大 Polity Share を持つ active House
+  // 2) affectedPolityIds 内で最大 Influence を持つ active House (v0.42: 旧 Polity Share)
   let bestByShare: { houseId: HouseId; share: number } | undefined
   for (const polityId of affectedPolityIds) {
     for (const candidateId of getPolityHouseIds(state, polityId)) {
@@ -94,7 +96,12 @@ function chooseReceiverHouse(
       if (isExcluded(candidateId)) continue
       const candidate = state.houses[candidateId]
       if (!candidate || !candidate.active) continue
-      const share = getHousePolitySharePercent(state, polityId, candidateId)
+      const share = getActorInfluenceInPolity(
+        state,
+        config,
+        { kind: 'house', id: candidateId },
+        polityId,
+      ).percent
       if (!bestByShare || share > bestByShare.share) {
         bestByShare = { houseId: candidateId, share }
       }
@@ -200,9 +207,9 @@ function handleNormalHouseExtinction(
     if (kin.length > 0) {
       r = kin[i % kin.length]
     } else {
-      r = chooseReceiverHouse(ctx.state, houseId, [polityId], usedReceivers)
+      r = chooseReceiverHouse(ctx.state, ctx.config, houseId, [polityId], usedReceivers)
       // 除外で候補が尽きた場合のみ緩和して重複継承を許容する (85 家規模では実質発生しない)
-      if (r === undefined) r = chooseReceiverHouse(ctx.state, houseId, [polityId])
+      if (r === undefined) r = chooseReceiverHouse(ctx.state, ctx.config, houseId, [polityId])
     }
     if (r !== undefined) {
       polityReceivers.set(polityId, r)
@@ -214,7 +221,7 @@ function handleNormalHouseExtinction(
   // 継承先を主継承先とする。Polity を持たない滅亡 (在野没落) は従来スコープで 1 家を選ぶ。
   const receiverHouseId: HouseId | undefined =
     (inheritedPolityIds.length > 0 ? polityReceivers.get(inheritedPolityIds[0]!) : undefined) ??
-    chooseReceiverHouse(ctx.state, houseId, affectedPolityIds)
+    chooseReceiverHouse(ctx.state, ctx.config, houseId, affectedPolityIds)
 
   if (!receiverHouseId) {
     // v0.17 §5.6: 受け継ぎ家が見つからない場合、living non-placeholder member を AnonymousHouse に散らす。

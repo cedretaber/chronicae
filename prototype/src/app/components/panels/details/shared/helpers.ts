@@ -11,6 +11,7 @@ import {
   getHoldingTerminalPolityId,
 } from '@sim/selectors/landContractSelectors'
 import { getTopShareholders } from '@sim/selectors/shareSelectors'
+import { getTopInfluenceHoldersInPolity } from '@sim/selectors/influenceSelectors'
 import { getProvincePolityControlFromHoldings } from '@/sim/selectors/landContractSelectors'
 import { getProvinceProduction } from '@sim/selectors/popEconomySelectors'
 import { getPolityEmitNameKey } from '@sim/selectors/nameRefSelectors'
@@ -105,13 +106,18 @@ export function buildEntitySnapshot(
             getProvinceTerminalPolityId(ws, pid as import('@sim/types/ids').ProvinceId) === p.id,
         )
       : []
+    // v0.42 §16.1: polity snapshot は influence breakdown を使う
     const topShareholders = ws
-      ? getTopShareholders(ws, { kind: 'polity', id: p.id }, 5).map(({ holder, percent }) => ({
-          holderKind: holder.kind,
-          holderId: holder.id,
-          holderName: holder.kind === 'house' ? houseNameKey(holder.id) : personNameKey(holder.id),
-          percent: Math.round(percent * 10) / 10,
-        }))
+      ? getTopInfluenceHoldersInPolity(ws, defaultConfig, p.id, 5).map(
+          ({ holder, percent, byDomain }) => ({
+            holderKind: holder.kind,
+            holderId: holder.id,
+            holderName:
+              holder.kind === 'house' ? houseNameKey(holder.id) : personNameKey(holder.id),
+            percent: Math.round(percent * 10) / 10,
+            byDomain,
+          }),
+        )
       : []
     const landContracts = ws
       ? (ws.landContractIndex.byGranteePolity[p.id] ?? [])

@@ -26,7 +26,6 @@ import {
   withProvince,
 } from '../testFixtures'
 import { appointHoldingBailiff, vacateHoldingBailiff } from '../mutations/provinceOfficeMutations'
-import { createOrganizationShare } from '../mutations/shareMutations'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 
 const DEFAULT_ABILITIES = {
@@ -972,13 +971,11 @@ describe('runAppointmentSystem', () => {
       // leader office (baseSalary 0) so getHouseLeader resolves
       state = createOfficeAssignment(state, { kind: 'house', id: houseId }, 'leader', leaderId)
       if (opts.withIncome) {
-        // sole share holder: distributable=(400-50)*0.15=52.5 → annual=630 ≥ 35
-        state = createOrganizationShare(
-          state,
-          { kind: 'polity', id: polityId },
-          { kind: 'house', id: houseId },
-          10,
-        )
+        // v0.42: 投影収入は influence 比例 (土地経由)。唯一の landed house なので
+        // holdingCount=1 → reserve=100; annual = (400-100)×0.15×12 = 540 ≥ 35
+        const provinceId = createProvinceId('p', 9)
+        state = withProvince(state, provinceId)
+        state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
       }
       return state
     }

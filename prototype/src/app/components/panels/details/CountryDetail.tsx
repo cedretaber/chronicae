@@ -19,7 +19,6 @@ import {
   PanelHeader,
   CopyJsonButton,
   WatchButton,
-  ShareholderSection,
   PolityLandContracts,
   PolityRegiments,
   ProjectDetailCard,
@@ -35,7 +34,11 @@ import {
   getAdministrativeEfficiency,
   getActiveOfficeHolders,
 } from '@sim/selectors/officeSelectors'
-import { getDominantPolityHouse, getTopShareholders } from '@sim/selectors/shareSelectors'
+import {
+  getDominantInfluenceHolder,
+  getTopInfluenceHoldersInPolity,
+} from '@sim/selectors/influenceSelectors'
+import { InfluenceSection } from './shared/widgets'
 import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goalSelectors'
 import { getChronicleEntriesForPolity } from '@sim/selectors/chronicleSelectors'
 
@@ -172,10 +175,15 @@ export function CountryDetail({
           <span className="text-gray-400">{t('detail.polity.dominant_house')}:</span>
           {(() => {
             if (!currentState) return <span className="text-gray-500">\u2014</span>
-            const dominantHouseId = getDominantPolityHouse(currentState, polity.id)
-            if (!dominantHouseId) return <span className="text-gray-500">\u2014</span>
+            const dominant = getDominantInfluenceHolder(currentState, defaultConfig, polity.id)
+            if (!dominant || dominant.holder.kind !== 'house')
+              return <span className="text-gray-500">\u2014</span>
             return (
-              <HouseLink houseId={dominantHouseId} houses={houses ?? {}} onClick={onHouseClick} />
+              <HouseLink
+                houseId={dominant.holder.id}
+                houses={houses ?? {}}
+                onClick={onHouseClick}
+              />
             )
           })()}
         </div>
@@ -258,12 +266,10 @@ export function CountryDetail({
         })}
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">
-        {t('detail.polity.top_shareholders')}:
-      </div>
+      <div className="text-sm font-semibold text-gray-300">{t('detail.polity.influence')}:</div>
       {worldState ? (
-        <ShareholderSection
-          shareholders={getTopShareholders(worldState, { kind: 'polity', id: polity.id }, 5)}
+        <InfluenceSection
+          entries={getTopInfluenceHoldersInPolity(worldState, defaultConfig, polity.id, 5)}
           persons={currentState.persons ?? {}}
           houses={houses ?? {}}
           onPersonClick={onPersonClick}

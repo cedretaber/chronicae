@@ -913,7 +913,8 @@ export type SimulationConfig = {
   founderChildBaseChance: number
   founderMaxGeneratedChildren: number
   // v0.31 Influential House / Political Engagement
-  influentialHousePolityShareThreshold: number
+  // v0.42: 旧 influentialHousePolityShareThreshold (share → influence 入力差替に伴い改名)
+  influentialHousePolityInfluenceThreshold: number
   // v0.31 House Founding interval (used by tick.ts scheduled system)
   houseFoundingIntervalWeeks: number
   // v0.32 Clan Formation
@@ -1949,7 +1950,7 @@ export const defaultConfig: SimulationConfig = {
   founderChildBaseChance: 0.6,
   founderMaxGeneratedChildren: 4,
   // v0.31 Influential House / Political Engagement
-  influentialHousePolityShareThreshold: 0.1,
+  influentialHousePolityInfluenceThreshold: 0.1,
   // v0.31 House Founding interval
   houseFoundingIntervalWeeks: 4,
   // v0.32 Clan Formation

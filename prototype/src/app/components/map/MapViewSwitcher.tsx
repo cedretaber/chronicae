@@ -4,7 +4,7 @@ const VIEWS: { key: MapView; label: string; tooltip: string }[] = [
   { key: 'terminal', label: 'T', tooltip: 'Terminal polity (実効領主)' },
   { key: 'root', label: 'R', tooltip: 'Root polity (宗主)' },
   { key: 'house', label: 'H', tooltip: 'Owner house' },
-  { key: 'share', label: '%', tooltip: 'House share' },
+  { key: 'influence', label: '%', tooltip: 'House influence' },
   { key: 'unrest', label: '!', tooltip: 'Unrest heatmap' },
 ]
 

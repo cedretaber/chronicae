@@ -3,7 +3,8 @@ import type { HouseId } from '@sim/types/ids'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { getOfficeDefinition } from '@sim/config/officeDefinitions'
-import { getHousePolitySharePercent } from './shareSelectors'
+import { getActorInfluenceInPolity } from './influenceSelectors'
+import { getHousePolityIds } from './polityRelations'
 import { getPolityDistributablePerCycle } from './landContractSelectors'
 
 // politySurplusDistributionSystem は 4 週ごと (= 年 12 回) に分配する。
@@ -20,23 +21,20 @@ export function getHouseProjectedAnnualIncome(
   houseId: HouseId,
   config: SimulationConfig = defaultConfig,
 ): number {
-  const shareIds = state.shareIndex.byHolder[`house:${houseId}`] ?? []
-  const seenPolities = new Set<string>()
+  // v0.42 §19.2: share 比例 → influence 比例の投影 (politySurplusDistribution の新分配と整合)。
+  // 走査対象は家が土地で関与する polity (getHousePolityIds)。office / right のみで influence
+  // entry を持つ polity の取り分は小さく、投影としては無視する (過小評価側に倒す)。
   let annual = 0
-  for (const shareId of shareIds) {
-    const share = state.organizationShares[shareId]
-    if (!share || share.organization.kind !== 'polity') continue
-    const polityId = share.organization.id
-    if (seenPolities.has(polityId)) continue
-    seenPolities.add(polityId)
-
+  for (const polityId of getHousePolityIds(state, houseId)) {
+    const polity = state.polities[polityId]
+    if (!polity || !polity.active) continue
     const distributable = getPolityDistributablePerCycle(state, polityId, config)
     if (distributable <= 0) continue
-    // getHousePolitySharePercent は polity 内の全 house share を合算した割合を返すため
-    // (politySurplusDistributionSystem の per-share 合計と一致する)、polity ごとに 1 回処理する。
-    const sharePct = getHousePolitySharePercent(state, polityId, houseId) / 100
-    if (sharePct <= 0) continue
-    annual += sharePct * distributable * SURPLUS_DISTRIBUTIONS_PER_YEAR
+    const influenceRatio =
+      getActorInfluenceInPolity(state, config, { kind: 'house', id: houseId }, polityId).percent /
+      100
+    if (influenceRatio <= 0) continue
+    annual += influenceRatio * distributable * SURPLUS_DISTRIBUTIONS_PER_YEAR
   }
   return annual
 }
