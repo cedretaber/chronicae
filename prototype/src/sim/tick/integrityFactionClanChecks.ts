@@ -88,6 +88,47 @@ export function checkFactionsAndClans(state: WorldState, errors: SimError[]): vo
     }
   }
 
+  // v0.42 §8 F8: active Faction の anchor polityId は active Polity を指す。
+  //   主処理 = polityOwnerConsistency deactivate の即時解散 cascade (§12.3)。
+  for (const factionIdStr of Object.keys(state.factions)) {
+    const factionId = factionIdStr as FactionId
+    const faction = state.factions[factionId]
+    if (!faction || !faction.active) continue
+    const anchorPolity = state.polities[faction.polityId]
+    if (!anchorPolity || !anchorPolity.active) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `active Faction ${factionId} anchor polity ${faction.polityId} is not active (v0.42 F8)`,
+      })
+    }
+    // byPolity index 同期 (byLeader I3 と同様)
+    const indexed = state.factionIndex.byPolity[faction.polityId] ?? []
+    if (!indexed.includes(factionId)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Faction ${factionId} is not in factionIndex.byPolity[${faction.polityId}] (v0.42 F8 index)`,
+      })
+    }
+  }
+  for (const [polityKey, factionIds] of Object.entries(state.factionIndex.byPolity)) {
+    for (const fid of factionIds ?? []) {
+      const f = state.factions[fid]
+      if (!f) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `factionIndex.byPolity[${polityKey}] references missing Faction ${fid} (v0.42 F8 index)`,
+        })
+        continue
+      }
+      if ((f.polityId as string) !== polityKey) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `factionIndex.byPolity[${polityKey}] entry ${fid} has polityId=${f.polityId} (v0.42 F8 index)`,
+        })
+      }
+    }
+  }
+
   // v0.17 §21.5 Index: factionIndex は state.factions / state.factionMemberships と整合
   // I1: byLeader[personId] の全 FactionId は存在し leaderPersonId === personId
   // I2: byMember[personId] の全 FactionMembershipId は存在し personId === personId

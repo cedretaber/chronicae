@@ -450,6 +450,7 @@ detail:
   faction:
     leader: 'Leader'
     leader_house: 'Leader House'
+    anchor_polity: 'Anchor Polity'
     founded: 'Founded'
     funds: 'Funds'
     viability: 'Viability'

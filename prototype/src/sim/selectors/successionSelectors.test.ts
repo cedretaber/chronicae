@@ -95,7 +95,7 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     polityIndex: { byOwnerHouse: {} },
     factions: {},
     factionMemberships: {},
-    factionIndex: { byLeader: {}, byMember: {} },
+    factionIndex: { byLeader: {}, byMember: {}, byPolity: {} },
     holdingImprovements: {},
     holdingImprovementIndex: { byHolding: {} },
     nextHoldingImprovementId: 0,

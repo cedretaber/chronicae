@@ -568,6 +568,7 @@ describe('runAppointmentSystem', () => {
     state.factions[factionId] = {
       id: factionId,
       leaderPersonId: leaderId,
+      polityId: createPolityId('c', 0),
       active: true,
       foundingWeek: 1440 * 48 + 1 - 1,
     }
@@ -674,6 +675,7 @@ describe('runAppointmentSystem', () => {
     state.factions[factionId] = {
       id: factionId,
       leaderPersonId: leaderId,
+      polityId: createPolityId('c', 0),
       active: true,
       foundingWeek: 1440 * 48 + 1 - 1,
     }

@@ -1,6 +1,6 @@
 import type { WorldState } from '@sim/types/world'
 import type { TickContext } from '@sim/tick/context'
-import type { PersonId, FactionId, FactionMembershipId } from '@sim/types/ids'
+import type { PersonId, FactionId, FactionMembershipId, PolityId } from '@sim/types/ids'
 import type { Faction, FactionMembership } from '@sim/types/faction'
 import { createFactionId, createFactionMembershipId } from '@sim/types/ids'
 import type { StateResult, CtxResult } from './result'
@@ -8,6 +8,8 @@ import { ok, err } from './result'
 
 export type CreateFactionInput = {
   leaderPersonId: PersonId
+  // v0.42 §12.2: anchor Polity。呼出側 (factionLifecycleSystem) が founding 前に決定する。
+  polityId: PolityId
   week: number
 }
 
@@ -39,9 +41,17 @@ export function createFaction(
   const factionId = createFactionId(ctx.state.nextFactionId)
   const membershipId = createFactionMembershipId(ctx.state.nextFactionMembershipId)
 
+  const polity = ctx.state.polities[input.polityId]
+  if (!polity || !polity.active)
+    return err({
+      code: 'POLITY_NOT_FOUND',
+      message: 'createFaction: anchor polity not found or inactive: ' + input.polityId,
+    })
+
   const faction: Faction = {
     id: factionId,
     leaderPersonId: input.leaderPersonId,
+    polityId: input.polityId,
     active: true,
     foundingWeek: input.week,
   }
@@ -55,6 +65,7 @@ export function createFaction(
 
   const existingByLeader = ctx.state.factionIndex.byLeader[input.leaderPersonId] ?? []
   const existingByMember = ctx.state.factionIndex.byMember[input.leaderPersonId] ?? []
+  const existingByPolity = ctx.state.factionIndex.byPolity[input.polityId] ?? []
 
   const newState: WorldState = {
     ...ctx.state,
@@ -71,6 +82,10 @@ export function createFaction(
       byMember: {
         ...ctx.state.factionIndex.byMember,
         [input.leaderPersonId]: [...existingByMember, membershipId],
+      },
+      byPolity: {
+        ...ctx.state.factionIndex.byPolity,
+        [input.polityId]: [...existingByPolity, factionId],
       },
     },
     nextFactionId: ctx.state.nextFactionId + 1,
@@ -143,6 +158,7 @@ export function addFactionMembership(
         ...state.factionIndex.byMember,
         [input.personId]: [...existingMemberships, membershipId],
       },
+      byPolity: state.factionIndex.byPolity,
     },
     nextFactionMembershipId: state.nextFactionMembershipId + 1,
   }
@@ -176,6 +192,7 @@ export function deactivateFaction(state: WorldState, factionId: FactionId): Stat
     factionIndex: {
       byLeader: state.factionIndex.byLeader,
       byMember: newByMember,
+      byPolity: state.factionIndex.byPolity,
     },
   })
 }
@@ -268,6 +285,7 @@ export function transitionFactionLeader(
     factionIndex: {
       byLeader: newByLeader,
       byMember: newByMember,
+      byPolity: state.factionIndex.byPolity,
     },
   })
 }
@@ -310,6 +328,7 @@ export function removeFactionMembership(
         ...state.factionIndex.byMember,
         [membership.personId]: byMemberSlot,
       },
+      byPolity: state.factionIndex.byPolity,
     },
   })
 }

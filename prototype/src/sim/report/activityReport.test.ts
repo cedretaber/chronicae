@@ -8,6 +8,7 @@ import type {
   FactionId,
   FactionMembershipId,
 } from '../types/ids'
+import { createPolityId } from '../types/ids'
 import type { Faction, FactionMembership } from '../types/faction'
 import { nameParam } from '../types/event'
 import { defaultConfig } from '../config/defaultConfig'
@@ -90,6 +91,7 @@ describe('buildActivityReport', () => {
     const faction: Faction = {
       id: factionId,
       leaderPersonId: factionLeaderId,
+      polityId: createPolityId('c', 0),
       active: true,
       foundingWeek: 50400, // 1050 * WEEKS_PER_YEAR(48) → foundedYear 1050
     }
@@ -119,6 +121,7 @@ describe('buildActivityReport', () => {
       },
       factionIndex: {
         byLeader: { ...state.factionIndex.byLeader, [factionLeaderId]: [factionId] },
+        byPolity: { ...state.factionIndex.byPolity, [createPolityId('c', 0)]: [factionId] },
         byMember: {
           ...state.factionIndex.byMember,
           [factionLeaderId]: [leaderMembershipId],

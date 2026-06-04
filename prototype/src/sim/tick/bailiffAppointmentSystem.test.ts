@@ -237,6 +237,7 @@ describe('runBailiffAppointmentSystem', () => {
     const faction: Faction = {
       id: factionId,
       leaderPersonId: leaderId,
+      polityId: createPolityId('c', 0),
       active: true,
       foundingWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
     }
@@ -264,6 +265,7 @@ describe('runBailiffAppointmentSystem', () => {
       },
       factionIndex: {
         byLeader: { ...s.factionIndex.byLeader, [leaderId]: [factionId] },
+        byPolity: { ...s.factionIndex.byPolity, [createPolityId('c', 0)]: [factionId] },
         byMember: {
           ...s.factionIndex.byMember,
           [leaderId]: [leaderMembershipId],
@@ -357,6 +359,7 @@ describe('runBailiffAppointmentSystem', () => {
           id: factionId,
           nameKey: 'F',
           leaderPersonId: leaderId,
+          polityId: createPolityId('c', 0),
           active: true,
           foundingWeek: s.currentYear * 48 + s.currentWeekOfYear - 1,
         },
@@ -380,6 +383,7 @@ describe('runBailiffAppointmentSystem', () => {
       },
       factionIndex: {
         byLeader: { ...s.factionIndex.byLeader, [leaderId]: [factionId] },
+        byPolity: { ...s.factionIndex.byPolity, [createPolityId('c', 0)]: [factionId] },
         byMember: {
           ...s.factionIndex.byMember,
           [leaderId]: [leaderMembershipId],

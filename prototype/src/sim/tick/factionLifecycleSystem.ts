@@ -20,6 +20,8 @@ import {
 } from '../mutations/factionMutations'
 import { setPersonAttitude } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
+import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
 
 // v0.19: FactionLifecycleYearlySystem (intervalWeeks=52)
 // Dissolution checks + new faction formation. Runs once per year.
@@ -55,6 +57,9 @@ function checkDissolutions(ctx: TickContext): TickContext {
     const reasonsToDissolve: string[] = []
     if (!leaderHouse || !leaderHouse.active || leaderHouse.kind === 'system')
       reasonsToDissolve.push('leader unaffiliated')
+    // v0.42 §12.3: anchor polity inactive の安全網 (主処理は polityOwnerConsistency の即時 cascade)
+    const anchorPolity = currentCtx.state.polities[faction.polityId]
+    if (!anchorPolity || !anchorPolity.active) reasonsToDissolve.push('anchor polity dissolved')
     if (memberIds.length < config.minimumFactionMembers)
       reasonsToDissolve.push('insufficient members')
     if (viability < config.factionDisbandThreshold) reasonsToDissolve.push('low viability')
@@ -241,6 +246,21 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
   if (!leader) return ctx
   if (!leader.houseId) return ctx
 
+  // v0.42 §12.2: anchor Polity を founding 前に決定する。
+  //   1. leader の家の primary polity
+  //   2. 家の seatProvince の terminal polity
+  //   3. どちらも無ければ Faction を作らない
+  // 注: この判定は本フローの RNG 消費より前 (founding フロー全体が RNG 非消費) なので、
+  //   不成立でも下流 RNG ストリームは drift しない。
+  const leaderHouse = ctx.state.houses[leader.houseId]
+  if (!leaderHouse) return ctx
+  const anchorCandidate =
+    getHousePrimaryPolityId(ctx.state, leader.houseId) ??
+    getProvinceTerminalPolityId(ctx.state, leaderHouse.seatProvinceId)
+  const anchorPolity =
+    anchorCandidate !== undefined ? ctx.state.polities[anchorCandidate] : undefined
+  if (anchorCandidate === undefined || !anchorPolity || !anchorPolity.active) return ctx
+
   const candidates = pickInitialMemberCandidates(ctx, leaderId)
   const slots = config.initialFactionMemberMax
   const selected = candidates.slice(0, slots)
@@ -251,6 +271,7 @@ function tryFoundFaction(ctx: TickContext, leaderId: PersonId): TickContext {
 
   const createResult = createFaction(ctx, {
     leaderPersonId: leaderId,
+    polityId: anchorCandidate,
     week: ctx.state.absoluteWeek,
   })
   if (!createResult.ok) return ctx

@@ -123,7 +123,7 @@ export function makeEmptyV016State(): WorldState {
     polityIndex: { byOwnerHouse: {} },
     factions: {},
     factionMemberships: {},
-    factionIndex: { byLeader: {}, byMember: {} },
+    factionIndex: { byLeader: {}, byMember: {}, byPolity: {} },
     // v0.32 Clan
     clans: {},
     nextOrganizationShareId: 0,

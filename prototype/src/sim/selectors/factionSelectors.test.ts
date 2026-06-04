@@ -56,6 +56,7 @@ function makeFixture(): {
   state.factions[faction1Id] = {
     id: faction1Id,
     leaderPersonId: leaderId,
+    polityId: createPolityId('c', 0),
     active: true,
     foundingWeek: 69312,
   }
@@ -81,6 +82,7 @@ function makeFixture(): {
   state.factions[inactiveFactionId] = {
     id: inactiveFactionId,
     leaderPersonId: member2Id,
+    polityId: createPolityId('c', 0),
     active: false,
     foundingWeek: 74891,
   }
@@ -192,6 +194,7 @@ describe('getFactionActiveMemberIds', () => {
     state.factions[emptyFactionId] = {
       id: emptyFactionId,
       leaderPersonId: createPersonId('pe', 99),
+      polityId: createPolityId('c', 0),
       active: true,
       foundingWeek: 69312,
     }
@@ -230,6 +233,7 @@ describe('getFactionViabilityScore', () => {
     state.factions[inactiveFactionId] = {
       id: inactiveFactionId,
       leaderPersonId: createPersonId('pe', 99),
+      polityId: createPolityId('c', 0),
       active: false,
       foundingWeek: 69312,
     }
@@ -331,6 +335,7 @@ describe('getFactionNominationPower', () => {
     state.factions[faction1Id] = {
       id: faction1Id,
       leaderPersonId: leaderId,
+      polityId: createPolityId('c', 0),
       active: true,
       foundingWeek: 69312,
     }
@@ -375,6 +380,7 @@ describe('getFactionNominationPower', () => {
     state.factions[faction1Id] = {
       id: faction1Id,
       leaderPersonId: leaderId,
+      polityId: createPolityId('c', 0),
       active: true,
       foundingWeek: 69312,
     }
@@ -438,6 +444,7 @@ describe('hasRelevantFactionForAppointment', () => {
     state.factions[faction1Id] = {
       id: faction1Id,
       leaderPersonId: leaderId,
+      polityId: createPolityId('c', 0),
       active: true,
       foundingWeek: 69312,
     }
@@ -494,6 +501,7 @@ describe('getFactionRecommendationScore', () => {
     state.factions[faction1Id] = {
       id: faction1Id,
       leaderPersonId: leaderId,
+      polityId: createPolityId('c', 0),
       active: true,
       foundingWeek: 69312,
     }
@@ -596,6 +604,7 @@ describe('getFactionalCandidateScore', () => {
     state.factions[faction1Id] = {
       id: faction1Id,
       leaderPersonId: leaderId,
+      polityId: createPolityId('c', 0),
       active: true,
       foundingWeek: 69312,
     }

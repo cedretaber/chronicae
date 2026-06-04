@@ -87,12 +87,14 @@ function addFaction(
   const faction: Faction = {
     id: factionId,
     leaderPersonId,
+    polityId: createPolityId('dp', 0),
     active: true,
     foundingWeek: 69312,
   }
   const newIndex: import('../types/faction').FactionIndex = {
     byLeader: { ...state.factionIndex.byLeader, [leaderPersonId]: [factionId] },
     byMember: { ...state.factionIndex.byMember },
+    byPolity: { ...state.factionIndex.byPolity, [createPolityId('dp', 0)]: [factionId] },
   }
   return {
     state: {
@@ -121,6 +123,7 @@ function addFactionMembership(
   const newIndex: import('../types/faction').FactionIndex = {
     byLeader: { ...state.factionIndex.byLeader },
     byMember: { ...state.factionIndex.byMember, [personId]: [...memberIds, membershipId] },
+    byPolity: { ...state.factionIndex.byPolity },
   }
   return {
     ...state,

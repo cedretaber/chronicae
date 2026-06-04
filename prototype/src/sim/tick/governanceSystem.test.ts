@@ -191,7 +191,7 @@ function makeCtx({
     polityIndex: { byOwnerHouse: {} },
     factions: {},
     factionMemberships: {},
-    factionIndex: { byLeader: {}, byMember: {} },
+    factionIndex: { byLeader: {}, byMember: {}, byPolity: {} },
     nextLandContractId: 0,
     nextHoldingOfficeAssignmentId: 0,
     nextFactionId: 0,

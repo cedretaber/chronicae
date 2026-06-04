@@ -161,6 +161,11 @@ export function FactionDetail({
             <HouseLink houseId={leader.houseId} houses={houses} onClick={onHouseClick} />
           </div>
         )}
+        {/* v0.42 §16.3: anchor Polity 表示 */}
+        <div className="flex justify-between">
+          <span className="text-gray-400">{t('detail.faction.anchor_polity')}:</span>
+          <span>{getPolityShortName(worldState, resolveName, faction.polityId)}</span>
+        </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.faction.members')}:</span>
           <span>{memberIds.length}</span>

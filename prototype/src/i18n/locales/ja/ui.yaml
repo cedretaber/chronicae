@@ -547,6 +547,7 @@ detail:
   faction:
     leader: '指導者'
     leader_house: '指導者の家門'
+    anchor_polity: '所属国家'
     founded: '結成'
     funds: '資金'
     viability: '存続力'

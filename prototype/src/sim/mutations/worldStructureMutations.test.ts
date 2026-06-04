@@ -147,7 +147,7 @@ function makeMinimalWorld(): WorldState {
     polityIndex: { byOwnerHouse: {} },
     factions: {},
     factionMemberships: {},
-    factionIndex: { byLeader: {}, byMember: {} },
+    factionIndex: { byLeader: {}, byMember: {}, byPolity: {} },
     holdingImprovements: {},
     holdingImprovementIndex: { byHolding: {} },
     nextHoldingImprovementId: 0,

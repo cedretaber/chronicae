@@ -87,7 +87,7 @@ function makeBaseState(): {
     nextOfficeAssignmentId: state.nextOfficeAssignmentId + 1,
     factions: {},
     factionMemberships: {},
-    factionIndex: { byLeader: {}, byMember: {} },
+    factionIndex: { byLeader: {}, byMember: {}, byPolity: {} },
     nextFactionId: 0,
     nextFactionMembershipId: 0,
     diplomaticPlays: {},
