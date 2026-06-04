@@ -14,6 +14,8 @@ import type {
   EntityRef,
 } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
+import { politicalRightTargetKey } from '../types/politicalRight'
+import { findAcquirableRightTarget } from './politicalRightSelectors'
 import {
   getPolityTerminalProvinceIds,
   getProvinceHoldings,
@@ -54,6 +56,9 @@ export function getActiveGoalForOwner(
 function entityRefKey(ref: EntityRef): string {
   if (ref.kind === 'office') {
     return `office:${ref.organization.kind}:${ref.organization.id}:${ref.role}`
+  }
+  if (ref.kind === 'political_right_target') {
+    return politicalRightTargetKey(ref.target)
   }
   if (ref.kind === 'ability') {
     return `ability:${ref.ability}`
@@ -492,9 +497,28 @@ function pickHouseAim(
       getActorInfluenceInPolity(state, config, { kind: 'house', id: houseId }, pid).percent,
     )
   }
+  // v0.42 §13.3: acquire_political_right の候補生成 (influence ゲートは Aim 生成条件)。
+  // 対象 = owned polity のうち influence% >= acquirePoliticalRightRequiredInfluencePercent。
+  // target は kind 優先度 (office > holding > regiment) で 1 件選定。aimSlotKey に
+  // politicalRightTargetKey が含まれるため同一 target への重複 aim は生成されない。
+  function pushAcquireRightCandidates(): void {
+    for (const pid of ownedPolityIds) {
+      const influencePercent = influencePctOf.get(pid) ?? 0
+      if (influencePercent < config.acquirePoliticalRightRequiredInfluencePercent) continue
+      const rightTarget = findAcquirableRightTarget(state, houseId, pid)
+      if (!rightTarget) continue
+      candidates.push({
+        kind: 'acquire_political_right',
+        target: { kind: 'political_right_target', target: rightTarget },
+        score: 20 + influencePercent * 0.2,
+      })
+    }
+  }
+
   if (goalKind === 'expand_power_base') {
     // v0.42 §13.1: increase_polity_share は廃止 (influence は read-model — 直接増やす対象でない)。
-    // 置換の acquire_political_right aim は b9 で追加する。
+    // 代わりに具体的な権利を取得する。
+    pushAcquireRightCandidates()
     // steer_polity_external_expansion
     for (const pid of ownedPolityIds) {
       const influencePercent = influencePctOf.get(pid) ?? 0
@@ -507,6 +531,7 @@ function pickHouseAim(
       }
     }
   } else if (goalKind === 'preserve_power_base') {
+    pushAcquireRightCandidates()
     // steer_polity_internal_development
     for (const pid of ownedPolityIds) {
       const influencePercent = influencePctOf.get(pid) ?? 0

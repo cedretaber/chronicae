@@ -12,6 +12,7 @@ decision:
       seize_weak_remote_holdings: 弱小の近隣を攻略
       develop_owned_holding: 未開発の所領を発展させる
       improve_owned_contract_terms: 不利な税率を改善
+      acquire_political_right: 政治的権利を獲得し影響力を固める
       steer_polity_external_expansion: 国を対外拡張へ誘導
       steer_polity_internal_development: 国を内政充実へ誘導
       patronize_artist: 芸術を振興

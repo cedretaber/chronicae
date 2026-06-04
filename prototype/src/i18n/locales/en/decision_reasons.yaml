@@ -12,6 +12,7 @@ decision:
       seize_weak_remote_holdings: Exploit weak neighbors
       develop_owned_holding: Develop an underdeveloped holding
       improve_owned_contract_terms: Reduce unfavorable tax burden
+      acquire_political_right: Acquire a political right to entrench influence
       steer_polity_external_expansion: Guide polity toward expansion
       steer_polity_internal_development: Guide polity toward development
       patronize_artist: Support the arts

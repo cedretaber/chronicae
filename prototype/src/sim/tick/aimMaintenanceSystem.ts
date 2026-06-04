@@ -4,6 +4,7 @@ import type { AimId, DecisionReasonId } from '../types/ids'
 import { createAimId, createDecisionReasonId } from '../types/ids'
 import type { Aim, DecisionReason, Goal, EntityRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
+import { politicalRightTargetKey } from '../types/politicalRight'
 import {
   getActiveAimsForGoal,
   pickAimForGoal,
@@ -259,6 +260,9 @@ function getTargetName(ctx: TickContext, target: EntityRef): string {
   }
   if (target.kind === 'ability') {
     return target.ability
+  }
+  if (target.kind === 'political_right_target') {
+    return politicalRightTargetKey(target.target)
   }
   return target.id
 }

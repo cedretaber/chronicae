@@ -720,6 +720,9 @@ export type SimulationConfig = {
   // §9.3: right-backed faction (最大 1 つ) の active member へ。
   // 制約: rightBackedFactionBonus < polityOfficeAppointmentRightHouseBonus
   rightBackedFactionBonus: number
+  // v0.42 §13/§18: acquire_political_right project
+  acquirePoliticalRightBaseCost: number // House wealth → 対象 Polity treasury への transfer (§13.4)
+  acquirePoliticalRightRequiredInfluencePercent: number // Aim 生成の influence ゲート (0〜100 — §13.3)
   sameHousePolityOfficePenalty: number
   // v0.14 Ability generation / inheritance
   abilityAptitudeMean: number
@@ -1670,6 +1673,8 @@ export const defaultConfig: SimulationConfig = {
   polityOfficeAppointmentRightPersonBonus: 35,
   polityOfficeAppointmentRightHouseAssociatedBonus: 18,
   rightBackedFactionBonus: 10,
+  acquirePoliticalRightBaseCost: 40,
+  acquirePoliticalRightRequiredInfluencePercent: 20,
   sameHousePolityOfficePenalty: 2,
   minAppointmentScore: 2,
   // v0.14 Ability generation / inheritance

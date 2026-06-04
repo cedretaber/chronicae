@@ -29,6 +29,7 @@ import {
   isDiplomaticProjectKind,
   getProjectDeadlineWeeks,
 } from '../mutations/projectMutations'
+import { getRightForTarget } from '../selectors/politicalRightSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getProvinceHoldings, getLandContractGrantor } from '../selectors/landContractSelectors'
 import { getInitialProjectStageKey, getNextProjectStageKey } from '../config/projectStageSequences'
@@ -116,6 +117,23 @@ const OCCUPATION_TO_CLASS: Partial<Record<PopOccupation, PopClass>> = {
   agriculture: 'peasants',
   urban_labor: 'townsmen',
   elite_service: 'nobles',
+}
+
+// v0.42 §13.3: right target から対象 polity を導出する。
+function getPolityIdForRightTarget(
+  ws: WorldState,
+  target: import('../types/politicalRight').PoliticalRightTargetRef,
+): import('../types/ids').PolityId | undefined {
+  switch (target.kind) {
+    case 'polity_office_role':
+      return target.polityId
+    case 'holding_office_role':
+      return ws.holdingTerminalPolityCache[target.holdingId]
+    case 'regiment': {
+      const regiment = ws.regiments[target.regimentId]
+      return regiment && regiment.owner.kind === 'polity' ? regiment.owner.id : undefined
+    }
+  }
 }
 
 // v0.33 §11.2: IMPROVEMENT_DEFINITIONS 駆動。canBuildHoldingImprovement で候補を絞り
@@ -236,6 +254,26 @@ function buildProjectFieldsForAim(
         polityId,
         houseId,
         currentStageKey: getInitialProjectStageKey('promote_policy_shift'),
+      }
+    }
+    case 'acquire_political_right': {
+      const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      const rightTarget =
+        aim.target?.kind === 'political_right_target' ? aim.target.target : undefined
+      if (!houseId || !rightTarget) return undefined
+      // target から対象 polity を導出 (§13.3)
+      const polityId = getPolityIdForRightTarget(ws, rightTarget)
+      if (!polityId) return undefined
+      // 既に right が付いたなら作らない (aim は待機後に失効する)
+      if (getRightForTarget(ws, rightTarget)) return undefined
+      if (!canAffordCulturalProject(ws, houseId, config.acquirePoliticalRightBaseCost))
+        return undefined
+      return {
+        polityId,
+        target: rightTarget,
+        budget: config.acquirePoliticalRightBaseCost,
+        spentBudget: 0,
+        currentStageKey: getInitialProjectStageKey('acquire_political_right'),
       }
     }
     case 'patronize_artist': {

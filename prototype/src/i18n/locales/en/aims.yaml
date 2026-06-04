@@ -8,6 +8,7 @@ polity:
   eliminate_overlord_contract: Eliminate Overlord Contract
   eliminate_vassal_contract: Eliminate Vassal Contract
 house:
+  acquire_political_right: Acquire Political Right
   steer_polity_external_expansion: Steer Polity Toward Expansion
   steer_polity_internal_development: Steer Polity Toward Development
   patronize_artist: Patronize an Artist

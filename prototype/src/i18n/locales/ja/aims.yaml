@@ -8,6 +8,7 @@ polity:
   eliminate_overlord_contract: 上位契約の取消し
   eliminate_vassal_contract: 下位契約の取消し
 house:
+  acquire_political_right: 政治的権利の獲得
   steer_polity_external_expansion: 国の対外拡張を主導
   steer_polity_internal_development: 国の内政充実を主導
   patronize_artist: 芸術家の後援

@@ -13,6 +13,7 @@ import type {
   StateRegionId,
   TaskId,
 } from './ids'
+import type { PoliticalRightTargetRef } from './politicalRight'
 import type { OfficeRole, OrganizationRef } from './office'
 import type { AbilityKey } from './person'
 import type { TaskTargetRef } from './task'
@@ -38,6 +39,9 @@ export type EntityRef =
   | { kind: 'land_contract'; id: LandContractId }
   | { kind: 'aim'; id: AimId }
   | { kind: 'office'; organization: OrganizationRef; role: OfficeRole }
+  // v0.42 §13.3: acquire_political_right aim の target。politicalRightTargetKey が
+  // entityRefKey に入るため、同一 target への重複 aim は aimSlotKey で防がれる。
+  | { kind: 'political_right_target'; target: PoliticalRightTargetRef }
   | { kind: 'ability'; ability: AbilityKey }
 
 // --- Goal ---
@@ -91,6 +95,8 @@ export type PolityAimKind =
   | 'eliminate_vassal_contract'
 
 export type HouseAimKind =
+  // v0.42 §13.2: 具体的な政治権利の取得 (influence は read-model — 旧 increase_polity_share の置換)
+  | 'acquire_political_right'
   | 'steer_polity_external_expansion'
   | 'steer_polity_internal_development'
   | 'patronize_artist'

@@ -15,6 +15,9 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
 
   promote_policy_shift: [{ key: 'execute_project', type: 'final' }],
 
+  // v0.42 §13: 単一 final stage (cultural project と同型)
+  acquire_political_right: [{ key: 'execute_project', type: 'final' }],
+
   patronize_artist: [{ key: 'arrange_patronage', type: 'final' }],
 
   commission_chronicle: [{ key: 'write_chronicle', type: 'final' }],

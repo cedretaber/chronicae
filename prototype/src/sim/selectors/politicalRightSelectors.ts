@@ -1,8 +1,9 @@
 // v0.42 PoliticalRight の read selector。index 経由の derivation のみ (entity 走査しない)。
 
 import type { WorldState } from '../types/world'
-import type { PolityId, RegimentId, HoldingId, PoliticalRightId } from '../types/ids'
+import type { PolityId, RegimentId, HoldingId, HouseId, PoliticalRightId } from '../types/ids'
 import type { OfficeRole } from '../types/office'
+import { getHouseProvinceIdsByPolity, getPolityProvinceIds } from './polityRelations'
 import type {
   PoliticalRight,
   PoliticalRightHolderRef,
@@ -54,6 +55,72 @@ export function getRightsByHolder(
     const right = state.politicalRights[id]
     return right ? [right] : []
   })
+}
+
+// v0.42 §13.3: acquire_political_right の target 選定。
+// kind 優先度: polity_office > holding_office > regiment。
+//   - office: non-leader role を military > administrator > treasurer > advisor の順で、right 未設定のもの
+//   - holding: 対象 Polity が terminal の Holding (right 未設定)。owner House の関与 province の
+//     Holding を優先し、それ以外は id 昇順 (spec「近い Holding を優先」の決定的な簡略化)
+//   - regiment: 対象 Polity owner の active Regiment (right 未設定)。House 関与 province を
+//     home とするものを優先し、それ以外は id 昇順
+export function findAcquirableRightTarget(
+  state: WorldState,
+  houseId: HouseId,
+  polityId: PolityId,
+): PoliticalRightTargetRef | undefined {
+  // 1. polity office role
+  const ROLE_PRIORITY: OfficeRole[] = ['military', 'administrator', 'treasurer', 'advisor']
+  for (const role of ROLE_PRIORITY) {
+    const target: PoliticalRightTargetRef = { kind: 'polity_office_role', polityId, role }
+    if (!getRightForTarget(state, target)) return target
+  }
+
+  // 2. holding bailiff
+  const houseProvinceIds = new Set<string>(getHouseProvinceIdsByPolity(state, houseId, polityId))
+  const candidateHoldings: { holdingId: HoldingId; nearHouse: boolean }[] = []
+  for (const provinceId of getPolityProvinceIds(state, polityId)) {
+    const province = state.provinces[provinceId]
+    if (!province) continue
+    for (const holdingId of province.holdingIds) {
+      if (state.holdingTerminalPolityCache[holdingId] !== polityId) continue
+      const target: PoliticalRightTargetRef = {
+        kind: 'holding_office_role',
+        holdingId,
+        role: 'bailiff',
+      }
+      if (getRightForTarget(state, target)) continue
+      candidateHoldings.push({ holdingId, nearHouse: houseProvinceIds.has(provinceId) })
+    }
+  }
+  candidateHoldings.sort((a, b) => {
+    if (a.nearHouse !== b.nearHouse) return a.nearHouse ? -1 : 1
+    return (a.holdingId as string).localeCompare(b.holdingId)
+  })
+  const holding = candidateHoldings[0]
+  if (holding) {
+    return { kind: 'holding_office_role', holdingId: holding.holdingId, role: 'bailiff' }
+  }
+
+  // 3. regiment
+  const regimentIds = [...(state.regimentIndex.byOwner[`polity:${polityId}`] ?? [])]
+  const candidateRegiments: { regimentId: RegimentId; nearHouse: boolean }[] = []
+  for (const regimentId of regimentIds) {
+    const regiment = state.regiments[regimentId]
+    if (!regiment || regiment.status !== 'active') continue
+    if (getRightForTarget(state, { kind: 'regiment', regimentId })) continue
+    const nearHouse =
+      regiment.homeProvinceId !== undefined && houseProvinceIds.has(regiment.homeProvinceId)
+    candidateRegiments.push({ regimentId, nearHouse })
+  }
+  candidateRegiments.sort((a, b) => {
+    if (a.nearHouse !== b.nearHouse) return a.nearHouse ? -1 : 1
+    return (a.regimentId as string).localeCompare(b.regimentId)
+  })
+  const regiment = candidateRegiments[0]
+  if (regiment) return { kind: 'regiment', regimentId: regiment.regimentId }
+
+  return undefined
 }
 
 export function getRightsByPolity(state: WorldState, polityId: PolityId): PoliticalRight[] {

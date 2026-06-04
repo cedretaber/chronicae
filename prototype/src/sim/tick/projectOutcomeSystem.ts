@@ -17,6 +17,12 @@ import type { EventId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 import { removeProjectFromIndexMut, isDiplomaticProjectKind } from '../mutations/projectMutations'
+import { createPoliticalRight } from '../mutations/politicalRightMutations'
+import { getPoliticalRightKindFromTarget } from '../types/politicalRight'
+import {
+  politicalRightTargetNameParam,
+  buildPoliticalRightEntityRefs,
+} from './politicalRightEvents'
 import { createLogger } from '../debug/logger'
 
 export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
@@ -190,6 +196,9 @@ function applyNonDiplomaticEffectMut(
     case 'develop_holding':
       applyDevelopHoldingMut(ws, config, project, emitEvent)
       break
+    case 'acquire_political_right':
+      applyAcquirePoliticalRightMut(ws, config, project, emitEvent)
+      break
     case 'promote_policy_shift':
       applyPromotePolicyShiftMut(ws, project, emitEvent)
       break
@@ -338,6 +347,59 @@ function applyDevelopHoldingMut(
   })
 }
 
+// v0.42 §13.4: acquire_political_right の outcome。
+// 成功条件 (target 実在 / polityId 整合 / 既存 right なし / owner House active) は
+// createPoliticalRight の検査に集約されている。コストは House wealth から対象 Polity の
+// treasury への transfer (wealth sink ではない — §13.4)。
+function applyAcquirePoliticalRightMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'acquire_political_right') return
+  if (project.owner.kind !== 'house') return
+  const houseId = project.owner.id
+  const house = ws.houses[houseId]
+  if (!house || !house.active) return
+  const cost = config.acquirePoliticalRightBaseCost
+  if (house.wealth < cost) return
+  const polity = ws.polities[project.polityId]
+  if (!polity || !polity.active) return
+
+  const created = createPoliticalRight(ws, {
+    polityId: project.polityId,
+    target: project.target,
+    holder: { kind: 'house', id: houseId },
+    grantedWeek: ws.absoluteWeek,
+  })
+  if (!created.ok) return
+
+  // createPoliticalRight は immutable に新 state を返すため draft に書き戻す
+  ws.politicalRights = created.value.state.politicalRights
+  ws.politicalRightIndex = created.value.state.politicalRightIndex
+  ws.nextPoliticalRightId = created.value.state.nextPoliticalRightId
+
+  // cost transfer (§13.4)
+  ws.houses[houseId] = { ...house, wealth: house.wealth - cost }
+  ws.polities[project.polityId] = { ...polity, treasury: polity.treasury + cost }
+
+  const right = created.value.right
+  const polityNameRef = getPolityNameRefForEmitFromPolity(ws, polity)
+  emitEvent({
+    type: 'POLITICAL_RIGHT_GRANTED',
+    importance: 'normal',
+    messageKey: 'political_right.granted',
+    messageParams: {
+      rightKind: getPoliticalRightKindFromTarget(right.target),
+      target: politicalRightTargetNameParam(ws, right.target),
+      holder: nameParam('house', house.nameKey),
+      polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
+    },
+    entityRefs: buildPoliticalRightEntityRefs(ws, right),
+  })
+}
+
 function applyPromotePolicyShiftMut(
   ws: WorldState,
   project: Project,
@@ -439,6 +501,7 @@ function addAimProgressForCompletedProjectMut(
     case 'develop_owned_holding':
       progressGain = config.aimProgressGainDevelopmentProject
       break
+    case 'acquire_political_right':
     case 'steer_polity_external_expansion':
     case 'steer_polity_internal_development':
       progressGain = config.aimProgressGainPowerProject

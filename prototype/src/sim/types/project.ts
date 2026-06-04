@@ -12,6 +12,7 @@ import type {
   DiplomaticPlayId,
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
+import type { PoliticalRightTargetRef } from './politicalRight'
 import type { HoldingImprovementKind } from './holdingImprovement'
 import type { PressureResponseStance } from './pressure'
 
@@ -21,6 +22,7 @@ export type ProjectOrigin = { kind: 'aim'; aimId: AimId } | { kind: 'system'; re
 
 export type ProjectKind =
   | 'develop_holding'
+  | 'acquire_political_right'
   | 'promote_policy_shift'
   | 'patronize_artist'
   | 'commission_chronicle'
@@ -82,6 +84,15 @@ export type PromotePolicyShiftProject = BaseProject & {
   policyKey?: string
 }
 
+// v0.42 §13.2: PoliticalRight の取得。owner は House。rightKind は target から導出 (§4.2)。
+export type AcquirePoliticalRightProject = BaseProject & {
+  kind: 'acquire_political_right'
+  polityId: PolityId
+  target: PoliticalRightTargetRef
+  budget: number
+  spentBudget: number
+}
+
 export type PatronizeArtistProject = BaseProject & {
   kind: 'patronize_artist'
   houseId: HouseId
@@ -131,6 +142,7 @@ export type RespondToPressureProject = BaseProject & {
 export type Project =
   | DevelopHoldingProject
   | PromotePolicyShiftProject
+  | AcquirePoliticalRightProject
   | PatronizeArtistProject
   | CommissionChronicleProject
   | LandClaimProject

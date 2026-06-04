@@ -128,6 +128,8 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
       return 'acquire_land'
     case 'develop_owned_holding':
       return 'develop_holding'
+    case 'acquire_political_right':
+      return 'acquire_political_right'
     case 'improve_owned_contract_terms':
     case 'eliminate_overlord_contract':
       return 'improve_contract_terms'

@@ -185,6 +185,7 @@ detail:
     empty: '記録がありません'
   project_kind:
     develop_holding: '領地開発'
+    acquire_political_right: '政治的権利の獲得'
     promote_policy_shift: '政策転換'
     patronize_artist: '芸術家後援'
     commission_chronicle: '年代記編纂'

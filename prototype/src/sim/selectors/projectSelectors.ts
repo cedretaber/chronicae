@@ -16,6 +16,14 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
     case 'develop_holding':
       return [{ kind: 'holding', id: project.holdingId }]
 
+    case 'acquire_political_right':
+      return [
+        { kind: 'polity', id: project.polityId },
+        ...(project.target.kind === 'holding_office_role'
+          ? [{ kind: 'holding' as const, id: project.target.holdingId }]
+          : []),
+      ]
+
     case 'promote_policy_shift':
       return [
         { kind: 'polity', id: project.polityId },
@@ -62,6 +70,7 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
 
 const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   develop_holding: 'stewardship',
+  acquire_political_right: 'diplomacy',
   promote_policy_shift: 'diplomacy',
   patronize_artist: 'diplomacy',
   commission_chronicle: 'governance',
@@ -191,6 +200,7 @@ function getProjectRoleForAim(aim: Aim): AppliedRoleKey {
     case 'eliminate_overlord_contract':
     case 'eliminate_vassal_contract':
       return 'stewardship'
+    case 'acquire_political_right':
     case 'steer_polity_external_expansion':
     case 'steer_polity_internal_development':
       return 'diplomacy'

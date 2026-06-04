@@ -31,7 +31,10 @@ function holderNameParam(state: WorldState, holder: PoliticalRightHolderRef): Lo
 
 // target の表示名: office → role 名 / holding → holding 名 / regiment → 本拠 province 名
 // (regiment は固有名を持たないため、本拠地名で「どこの連隊か」を表す)
-function targetNameParam(state: WorldState, target: PoliticalRightTargetRef): LocalizedNameParam {
+export function politicalRightTargetNameParam(
+  state: WorldState,
+  target: PoliticalRightTargetRef,
+): LocalizedNameParam {
   switch (target.kind) {
     case 'polity_office_role':
       return nameParam('role', `polity_${target.role}`)
@@ -49,7 +52,10 @@ function targetNameParam(state: WorldState, target: PoliticalRightTargetRef): Lo
   }
 }
 
-function buildEntityRefs(state: WorldState, right: PoliticalRight): EventEntityRef[] {
+export function buildPoliticalRightEntityRefs(
+  state: WorldState,
+  right: PoliticalRight,
+): EventEntityRef[] {
   const refs: EventEntityRef[] = []
   if (right.holder.kind === 'person') {
     refs.push(
@@ -85,11 +91,11 @@ export function emitPoliticalRightGranted(ctx: TickContext, right: PoliticalRigh
     messageKey: 'political_right.granted',
     messageParams: {
       rightKind: getPoliticalRightKindFromTarget(right.target),
-      target: targetNameParam(state, right.target),
+      target: politicalRightTargetNameParam(state, right.target),
       holder: holderNameParam(state, right.holder),
       polity: nameParam(polityRef.category, polityRef.nameKey),
     },
-    entityRefs: buildEntityRefs(state, right),
+    entityRefs: buildPoliticalRightEntityRefs(state, right),
   })
   return { ...nextCtx, events: [...nextCtx.events, event] }
 }
@@ -107,12 +113,12 @@ export function emitPoliticalRightRevoked(
     messageKey: 'political_right.revoked',
     messageParams: {
       rightKind: getPoliticalRightKindFromTarget(right.target),
-      target: targetNameParam(state, right.target),
+      target: politicalRightTargetNameParam(state, right.target),
       holder: holderNameParam(state, right.holder),
       polity: nameParam(polityRef.category, polityRef.nameKey),
       revokeReason: reason,
     },
-    entityRefs: buildEntityRefs(state, right),
+    entityRefs: buildPoliticalRightEntityRefs(state, right),
   })
   return { ...nextCtx, events: [...nextCtx.events, event] }
 }
@@ -130,11 +136,11 @@ export function emitPoliticalRightTransferred(
     messageKey: 'political_right.transferred',
     messageParams: {
       rightKind: getPoliticalRightKindFromTarget(right.target),
-      target: targetNameParam(state, right.target),
+      target: politicalRightTargetNameParam(state, right.target),
       holder: holderNameParam(state, right.holder),
       polity: nameParam(polityRef.category, polityRef.nameKey),
     },
-    entityRefs: buildEntityRefs(state, right),
+    entityRefs: buildPoliticalRightEntityRefs(state, right),
   })
   return { ...nextCtx, events: [...nextCtx.events, event] }
 }

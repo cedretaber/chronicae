@@ -87,6 +87,7 @@ detail:
     show_more: 'Show more (+{{count}})'
     empty: 'No records'
   project_kind:
+    acquire_political_right: 'Acquire Political Right'
     develop_holding: 'Develop Holding'
     promote_policy_shift: 'Promote Policy Shift'
     patronize_artist: 'Patronize Artist'
