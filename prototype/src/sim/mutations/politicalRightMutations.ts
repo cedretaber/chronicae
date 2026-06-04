@@ -207,6 +207,20 @@ export function removeRightsByTarget(
   return current
 }
 
+// removeRightsByTarget の mutable draft 版。disbandRegimentMut など mut 系 mutation から呼ぶ。
+// immutable helper で新しい maps を作り draft に書き戻すため、元 state の maps は変異しない。
+export function removeRightsByTargetMut(ws: WorldState, target: PoliticalRightTargetRef): void {
+  const key = politicalRightTargetKey(target)
+  const ids = ws.politicalRightIndex.byTarget[key] ?? []
+  if (ids.length === 0) return
+  let s: WorldState = ws
+  for (const id of [...ids]) {
+    s = removePoliticalRight(s, id)
+  }
+  ws.politicalRights = s.politicalRights
+  ws.politicalRightIndex = s.politicalRightIndex
+}
+
 // holder の付替 (§6.3)。将来の PeaceSettlement / regime change 用。ID は維持する。
 export function transferPoliticalRight(
   state: WorldState,

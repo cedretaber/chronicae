@@ -7,6 +7,7 @@ import type { OrganizationRef } from '../types/office'
 import type { WarSideKey } from '../types/war'
 import { createRegimentId } from '../types/ids'
 import { politicalActorKey } from '../selectors/actorSelectors'
+import { removeRightsByTargetMut } from './politicalRightMutations'
 
 // --- index ---
 
@@ -261,6 +262,10 @@ export function disbandRegimentMut(ws: WorldState, regimentId: RegimentId): void
   delete next.currentSide
   delete next.mobilizedByPolityId
   ws.regiments[regimentId] = next
+
+  // v0.42 §11.4: disbanded は制度的解散 = regiment_control right の即時失効。
+  // destroy では cascade しない (destroyed は制度として存続し right も残る)。
+  removeRightsByTargetMut(ws, { kind: 'regiment', regimentId })
 }
 
 export function destroyRegimentMut(ws: WorldState, regimentId: RegimentId, week: number): void {

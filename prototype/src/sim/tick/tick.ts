@@ -34,6 +34,7 @@ import { runWarCreationSystem } from './warCreationSystem'
 import { runWarManeuverSystem } from './warManeuverSystem'
 import { runRegimentRecoverySystem } from './regimentRecoverySystem'
 import { runRegimentMaintenanceSystem } from './regimentMaintenanceSystem'
+import { runRightConsistencySystem } from './rightConsistencySystem'
 import { runRegimentReinforcementSystem } from './regimentReinforcementSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
@@ -445,6 +446,15 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runRegimentMaintenanceSystem,
+  },
+  {
+    // v0.42 §7: PoliticalRight drift の安全網。regimentMaintenance の owner 同期の後・
+    //   cleanup 系の前。年末 integrity (absoluteWeek ≡ 47 mod 48) は interval 4 系の実行週に
+    //   当たらないため、cancelOrphanedWars と同じく weekly 必須 (§3.4)。
+    name: 'rightConsistencySystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runRightConsistencySystem,
   },
   {
     // v0.36 補充・再編成: maintenance 直後。active strength の月次補充 + destroyed reform。

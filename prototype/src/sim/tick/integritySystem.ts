@@ -8,6 +8,7 @@ import { checkFactionsAndClans } from './integrityFactionClanChecks'
 import { checkDiplomacyWarRegiment } from './integrityDiplomacyWarChecks'
 import { checkGeographyAndHoldings } from './integrityGeographyHoldingChecks'
 import { checkGoalsAimsProjects } from './integrityGoalProjectChecks'
+import { checkPoliticalRights } from './integrityRightChecks'
 
 // v0.16 §25 IntegrityCheck 33 項目の実装状況サマリ:
 //
@@ -67,6 +68,7 @@ export function collectIntegrityErrors(
   checkDiplomacyWarRegiment(state, errors, config)
   checkGeographyAndHoldings(state, errors, debug, config)
   checkGoalsAimsProjects(state, errors, debug, config)
+  checkPoliticalRights(state, errors)
 
   return errors
 }

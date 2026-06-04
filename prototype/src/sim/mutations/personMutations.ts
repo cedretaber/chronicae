@@ -8,6 +8,7 @@ import { ok, err } from './result'
 import { clearSpouse } from './relationshipMutations'
 import { revokeOfficesByHolder } from './officeMutations'
 import { removePersonSharesInHouse } from './shareMutations'
+import { removeRightsByHolder } from './politicalRightMutations'
 import { buildPerson } from '../helpers/personFactory'
 import { sampleAbilitiesFromAptitudes } from '../selectors/abilitySelectors'
 
@@ -52,6 +53,8 @@ export function markPersonDead(
   const spouseResult = clearSpouse(newState, personId)
   if (spouseResult.ok) newState = spouseResult.value
   newState = revokeOfficesByHolder(newState, personId)
+  // v0.42 §6.4: personal right は holder 死亡で即時失効 (silent cascade — office と同じ扱い)
+  newState = removeRightsByHolder(newState, { kind: 'person', id: personId })
 
   if (person.houseId) {
     const house = newState.houses[person.houseId]

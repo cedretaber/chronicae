@@ -17,6 +17,7 @@ import {
   getProvinceEffectiveOwnerHouseId,
 } from '../selectors/landContractSelectors'
 import { syncClanActive } from './clanMutations'
+import { removeRightsByHolder } from './politicalRightMutations'
 import { getHousePolitySharePercent } from '../selectors/shareSelectors'
 import { createLogger } from '../debug/logger'
 
@@ -241,6 +242,8 @@ function handleNormalHouseExtinction(
       memberIds: extinctHouseObj.memberIds,
     }
     let stateForClanSync: WorldState = { ...workingState, houses: newHouses }
+    // v0.42 §6.4: household right は holder House の絶家で即時失効 (silent cascade)
+    stateForClanSync = removeRightsByHolder(stateForClanSync, { kind: 'house', id: houseId })
     if (extinctHouseObj.clanId !== undefined) {
       stateForClanSync = syncClanActive(stateForClanSync, extinctHouseObj.clanId)
     }
@@ -409,6 +412,8 @@ function handleNormalHouseExtinction(
   }
 
   let stateForClanSync: WorldState = { ...resultCtx.state, houses: newHouses }
+  // v0.42 §6.4: household right は holder House の絶家で即時失効 (silent cascade)
+  stateForClanSync = removeRightsByHolder(stateForClanSync, { kind: 'house', id: houseId })
   if (extinctHouseObj.clanId !== undefined) {
     stateForClanSync = syncClanActive(stateForClanSync, extinctHouseObj.clanId)
   }
