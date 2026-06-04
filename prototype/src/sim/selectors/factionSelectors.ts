@@ -4,12 +4,12 @@ import type { Faction, FactionMembership } from '@sim/types/faction'
 import type { Person, PersonBackgroundOccupation } from '@sim/types/person'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { OfficeRole, OrganizationRef } from '@sim/types/office'
-import { getEffectiveOfficeMaxHolders, getHouseLeader } from '@sim/selectors/officeSelectors'
+import { getEffectiveOfficeMaxHolders } from '@sim/selectors/officeSelectors'
+import { getPersonHouseSharePercent, getTopShareholders } from '@sim/selectors/shareSelectors'
 import {
-  getPersonHouseSharePercent,
-  getHousePolitySharePercent,
-  getTopShareholders,
-} from '@sim/selectors/shareSelectors'
+  getPolityInfluenceBreakdown,
+  getActorInfluenceFromBreakdown,
+} from '@sim/selectors/influenceSelectors'
 import { getHousePolityIds } from '@sim/selectors/polityRelations'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '@sim/helpers/attitudeHelpers'
@@ -87,15 +87,14 @@ export function computeAvailableOfficeSlots(
   config: SimulationConfig,
   houseId: HouseId,
 ): number {
-  let houseOfficeSlots = 0
-  for (const role of NON_LEADER_OFFICE_ROLES) {
-    const slots = getEffectiveOfficeMaxHolders(state, config, { kind: 'house', id: houseId }, role)
-    houseOfficeSlots += slots * config.officeOpportunityRoleWeights[role]
-  }
-
+  // v0.42 §12.5: House office slot は opportunity から除外する。Faction は House office に
+  // 介入できなくなった (house factional path 廃止) ため、使えない機会で Faction が
+  // 肥大化するのを防ぐ。polity slot の share% 参照は influence% (ratio) に置換。
   let polityOfficeSlots = 0
   for (const polityId of getHousePolityIds(state, houseId)) {
-    const housePolityShare = getHousePolitySharePercent(state, polityId, houseId) / 100
+    const breakdown = getPolityInfluenceBreakdown(state, config, polityId)
+    const influenceRatio =
+      getActorInfluenceFromBreakdown(breakdown, { kind: 'house', id: houseId }).percent / 100
     for (const role of NON_LEADER_OFFICE_ROLES) {
       const slots = getEffectiveOfficeMaxHolders(
         state,
@@ -103,11 +102,11 @@ export function computeAvailableOfficeSlots(
         { kind: 'polity', id: polityId },
         role,
       )
-      polityOfficeSlots += slots * housePolityShare * config.officeOpportunityRoleWeights[role]
+      polityOfficeSlots += slots * influenceRatio * config.officeOpportunityRoleWeights[role]
     }
   }
 
-  return houseOfficeSlots + polityOfficeSlots
+  return polityOfficeSlots
 }
 
 export function getFactionOpportunityScore(
@@ -252,9 +251,13 @@ export function getFactionNominationPower(
   const faction = state.factions[factionId]
   if (!faction || !faction.active) return 0
   if (org.kind === 'polity') {
+    // v0.42 §12.4: Faction が任命に介入できるのは anchor Polity のみ (越境介入の廃止)。
+    // bailiff factional tier (terminal polity 経由) もここで anchor 限定される (§10.2)。
+    if (org.id !== faction.polityId) return 0
     return getFactionNominationPowerForPolity(state, config, faction, org.id)
   }
-  return getFactionNominationPowerForHouse(state, faction, org.id)
+  // v0.42 §12.5: House office への factional path は廃止 (house 向け NP は常に 0)。
+  return 0
 }
 
 function getFactionNominationPowerForPolity(
@@ -267,7 +270,9 @@ function getFactionNominationPowerForPolity(
   const leader = state.persons[faction.leaderPersonId]
   const leaderHouseId = leader?.houseId
 
-  // House-level Share: dedupe by house, leader-house weights x1.0, others x0.5
+  // v0.42 §19.2-5: House-level influence (旧 share)。dedupe by house,
+  // leader-house weights x1.0, others x0.5。breakdown は 1 回だけ計算する (§21.2)。
+  const breakdown = getPolityInfluenceBreakdown(state, config, polityId)
   const seenHouses = new Set<string>()
   let power = 0
   for (const mid of memberIds) {
@@ -276,9 +281,10 @@ function getFactionNominationPowerForPolity(
     const hid = m.houseId
     if (seenHouses.has(hid)) continue
     seenHouses.add(hid)
-    const sharePct = getHousePolitySharePercent(state, polityId, m.houseId) / 100
+    const influenceRatio =
+      getActorInfluenceFromBreakdown(breakdown, { kind: 'house', id: m.houseId }).percent / 100
     const weight = m.houseId === leaderHouseId ? 1.0 : 0.5
-    power += sharePct * weight
+    power += influenceRatio * weight
   }
 
   // Existing Polity office holdings (members in this polity)
@@ -296,48 +302,6 @@ function getFactionNominationPowerForPolity(
   const polity = state.polities[polityId]
   if (polity && polity.ownerHouseId !== undefined && leaderHouseId === polity.ownerHouseId) {
     power += config.factionOwnerHouseNominationBonus
-  }
-
-  return clamp01(power)
-}
-
-function getFactionNominationPowerForHouse(
-  state: WorldState,
-  faction: Faction,
-  houseId: HouseId,
-): number {
-  const memberIds = getFactionActiveMemberIds(state, faction.id)
-  let power = 0
-
-  // Member personal Shares within this house (no leader-house dedupe at house-level)
-  for (const mid of memberIds) {
-    const m = state.persons[mid]
-    if (!m) continue
-    if (m.houseId !== houseId) continue
-    const psPct = getPersonHouseSharePercent(state, houseId, mid) / 100
-    power += psPct * 0.5
-  }
-
-  // Members holding active offices in this house
-  for (const mid of memberIds) {
-    const ids = state.officeIndex.byHolderPerson[mid] ?? []
-    for (const oid of ids) {
-      const o = state.officeAssignments[oid]
-      if (o && o.active && o.organization.kind === 'house' && o.organization.id === houseId) {
-        power += 0.2
-      }
-    }
-  }
-
-  // Leader influence on their own House
-  const leader = state.persons[faction.leaderPersonId]
-  if (leader && leader.houseId === houseId) {
-    const houseLeader = getHouseLeader(state, houseId)
-    if (houseLeader && houseLeader === leader.id) {
-      power += 0.5
-    } else {
-      power += 0.2
-    }
   }
 
   return clamp01(power)

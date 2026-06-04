@@ -590,7 +590,6 @@ function tryAppointHouseOffice(
   house: House,
   leaderId: PersonId,
   role: OfficeRole,
-  getFactionalCandidates: () => { factionId: FactionId; candidateId: PersonId }[] | null,
   projectedAnnualIncome: number,
 ): TickContext {
   const config = ctx.config
@@ -615,30 +614,10 @@ function tryAppointHouseOffice(
 
   const alreadyHolding = new Set(activeHolders.map((id) => id as string))
 
+  // v0.42 §12.5: House office への factional path は廃止 (Faction は Polity 内政治装置)。
+  // traditional スコアリングのみで任命する。
   let best: { id: PersonId; score: number } | undefined
-
-  // 2. factional path (lazy-computed once per house, shared across roles)
-  const cachedFactionalCandidates = getFactionalCandidates()
-  if (cachedFactionalCandidates) {
-    const factional = cachedFactionalCandidates.filter(
-      (c) => !alreadyHolding.has(c.candidateId as string),
-    )
-    const scored = factional.map((c) => ({
-      id: c.candidateId,
-      score: getFactionalCandidateScore(
-        currentCtx.state,
-        config,
-        c.factionId,
-        c.candidateId,
-        houseRef,
-        role,
-      ),
-    }))
-    best = pickBestScored(scored, config.minAppointmentScore)
-  }
-
-  // 3. traditional fallback
-  if (!best) {
+  {
     const candidates = collectHouseCandidatesTraditional(
       currentCtx.state,
       config,
@@ -730,39 +709,8 @@ export function runAppointmentSystem(ctx: TickContext): TickContext {
       currentCtx.config,
     )
 
-    // Lazily compute factional candidates (once per house, shared across roles)
-    let factionalCandidatesComputed = false
-    let factionalCandidates: { factionId: FactionId; candidateId: PersonId }[] | null = null
-    const getHouseFactionalCandidates = () => {
-      if (!factionalCandidatesComputed) {
-        factionalCandidatesComputed = true
-        const houseRef: OrganizationRef = { kind: 'house', id: house.id }
-        factionalCandidates = hasRelevantFactionForAppointment(
-          currentCtx.state,
-          currentCtx.config,
-          houseRef,
-          'administrator',
-        )
-          ? collectFactionalCandidates(
-              currentCtx.state,
-              currentCtx.config,
-              houseRef,
-              'administrator',
-            )
-          : null
-      }
-      return factionalCandidates
-    }
-
     for (const role of HOUSE_APPOINTABLE_ROLES) {
-      currentCtx = tryAppointHouseOffice(
-        currentCtx,
-        house,
-        leaderId,
-        role,
-        getHouseFactionalCandidates,
-        projectedAnnualIncome,
-      )
+      currentCtx = tryAppointHouseOffice(currentCtx, house, leaderId, role, projectedAnnualIncome)
     }
   }
 
