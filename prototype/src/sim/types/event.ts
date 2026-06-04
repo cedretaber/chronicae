@@ -138,6 +138,12 @@ export type EventType =
   // v0.36 補充・再編成: destroyed Regiment が active に再編成された (minor)。
   //   strength の通常補充は organization recovery と同じく silent (イベント無し)。
   | 'REGIMENT_REFORMED'
+  // v0.42 PoliticalRight (spec §17)。GRANTED = acquire project 完了 / REVOKED = rightConsistency
+  //   の drift 回収 (mutation cascade は office と同じく silent) / TRANSFERRED = holder 付替
+  //   (v0.42 では通常発火経路なし — unit test と将来の PeaceSettlement / regime change 用)。
+  | 'POLITICAL_RIGHT_GRANTED'
+  | 'POLITICAL_RIGHT_REVOKED'
+  | 'POLITICAL_RIGHT_TRANSFERRED'
 
 export type EventReason = {
   label: string
@@ -316,6 +322,12 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'war.lost': '{{loser}} was defeated by {{winner}}.',
   'war.declared': '{{attacker}} declared war on {{defender}} over {{issue}}.',
   'war.ended': 'The war between {{attacker}} and {{defender}} ended without a decisive victor.',
+  'political_right.granted':
+    '{{holder}} was granted the {{rightKind}} over {{target}} in {{polity}}.',
+  'political_right.revoked':
+    '{{holder}} lost the {{rightKind}} over {{target}} in {{polity}} ({{revokeReason}}).',
+  'political_right.transferred':
+    'The {{rightKind}} over {{target}} in {{polity}} passed to {{holder}}.',
   'war.peace_settlement.transfer_land':
     '{{attacker}} took {{holding}} from {{defender}} in the peace settlement.',
   'war.peace_settlement.change_tax':

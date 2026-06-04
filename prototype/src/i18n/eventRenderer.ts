@@ -35,12 +35,15 @@ export function createEventRenderer(
         // v0.35/v0.37: battle event の enum 文字列 (battlefieldKind / result / avoidingSide /
         //   outcomeQuality / breakthroughSide) を events ns の enum.<key>.<value> ラベルへ解決する。
         //   未定義なら raw fallback。
+        //   v0.42: political_right event の rightKind / revokeReason も同方式。
         if (
           (key === 'battlefieldKind' ||
             key === 'result' ||
             key === 'avoidingSide' ||
             key === 'outcomeQuality' ||
-            key === 'breakthroughSide') &&
+            key === 'breakthroughSide' ||
+            key === 'rightKind' ||
+            key === 'revokeReason') &&
           typeof value === 'string'
         ) {
           const translated = i18nInstance.t(`enum.${key}.${value}`, {

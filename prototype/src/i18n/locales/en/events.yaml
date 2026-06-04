@@ -105,6 +105,11 @@ chronicle:
 regiment:
   reformed: '{{owner}} reformed a destroyed regiment in {{province}}.'
 
+political_right:
+  granted: '{{holder}} was granted the {{rightKind}} over {{target}} in {{polity}}.'
+  revoked: '{{holder}} lost the {{rightKind}} over {{target}} in {{polity}} ({{revokeReason}}).'
+  transferred: 'The {{rightKind}} over {{target}} in {{polity}} passed to {{holder}}.'
+
 revolt:
   negotiation_started: 'A {{rebelClass}} revolt has broken out in {{province}} — negotiations begin.'
   polity_founded: '{{polity}} has been founded by {{person}} through revolt in {{province}}!'
@@ -232,3 +237,12 @@ enum:
   breakthroughSide:
     attacker: 'attacker'
     defender: 'defender'
+  rightKind:
+    polity_office_appointment: 'appointment right'
+    holding_office_appointment: 'bailiff appointment right'
+    regiment_control: 'regiment command right'
+  revokeReason:
+    holder_lost: 'holder lost'
+    polity_dissolved: 'polity dissolved'
+    target_lost: 'target lost'
+    regime_change: 'regime change'

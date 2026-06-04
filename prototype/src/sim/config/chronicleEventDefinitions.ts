@@ -53,6 +53,10 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   HOUSE_LEADER_CHANGED: { category: 'house' },
   // Governance
   POLITY_OWNER_CHANGED: { category: 'governance' },
+  // v0.42 PoliticalRight (§17.3): 任命権・連隊管理権の授与/失効/移転。低頻度・高 signal。
+  POLITICAL_RIGHT_GRANTED: { category: 'governance' },
+  POLITICAL_RIGHT_REVOKED: { category: 'governance' },
+  POLITICAL_RIGHT_TRANSFERRED: { category: 'governance' },
   // Land governance (v0.38 Phase 3): 税率改定。polity+province ref (holding ref は無い)。
   CONTRACT_TAX_REVISED: { category: 'land' },
   // Revolt

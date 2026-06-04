@@ -19,6 +19,7 @@ import type { PoliticalRightId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { PoliticalRight } from '../types/politicalRight'
 import { removePoliticalRight } from '../mutations/politicalRightMutations'
+import { emitPoliticalRightRevoked } from './politicalRightEvents'
 
 // REVOKED イベントの reason enum (i18n: political_right.revoke_reason.* に解決)
 export type PoliticalRightRevokeReason =
@@ -83,5 +84,9 @@ export function runRightConsistencySystem(ctx: TickContext): TickContext {
   }
   if (revoked.length === 0) return ctx
 
-  return { ...ctx, state }
+  let next: TickContext = { ...ctx, state }
+  for (const { right, reason } of revoked) {
+    next = emitPoliticalRightRevoked(next, right, reason)
+  }
+  return next
 }

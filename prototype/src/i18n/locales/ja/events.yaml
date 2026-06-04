@@ -104,6 +104,11 @@ chronicle:
 regiment:
   reformed: '{{owner}}が{{province}}で壊滅した連隊を再編成した。'
 
+political_right:
+  granted: '{{holder}}が{{polity}}における{{target}}への{{rightKind}}を授けられた。'
+  revoked: '{{holder}}が持っていた{{polity}}における{{target}}への{{rightKind}}が失われた（{{revokeReason}}）。'
+  transferred: '{{polity}}における{{target}}への{{rightKind}}が{{holder}}の手に渡った。'
+
 revolt:
   negotiation_started: '{{province}}で{{rebelClass}}の反乱が勃発し、交渉が始まった。'
   polity_founded: '{{person}}の反乱により{{province}}で{{polity}}が建国された！'
@@ -231,3 +236,12 @@ enum:
   breakthroughSide:
     attacker: '攻撃側'
     defender: '防衛側'
+  rightKind:
+    polity_office_appointment: '任命権'
+    holding_office_appointment: '代官任命権'
+    regiment_control: '連隊管理権'
+  revokeReason:
+    holder_lost: '保持者の消滅'
+    polity_dissolved: '国家の消滅'
+    target_lost: '対象の消滅'
+    regime_change: '支配体制の交代'
