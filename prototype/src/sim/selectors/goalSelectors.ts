@@ -23,7 +23,11 @@ import { getHoldingDevelopment } from './holdingImprovementSelectors'
 import { calcPolityMilitaryPower } from './militarySelectors'
 import { getHouseOwnedPolityIds } from './landContractSelectors'
 import { predictPressureResponseStance } from './pressureStanceSelectors'
-import { getHousePolitySharePercent } from './shareSelectors'
+import {
+  getActorInfluenceInPolity,
+  getPolityInfluenceBreakdown,
+  getActorInfluenceFromBreakdown,
+} from './influenceSelectors'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 
@@ -180,7 +184,7 @@ export function scorePolityGoalKind(
 
 export function scoreHouseGoalKind(
   state: WorldState,
-  _config: SimulationConfig,
+  config: SimulationConfig,
   houseId: HouseId,
 ): { kind: HouseGoalKind; score: number }[] {
   const house = state.houses[houseId]
@@ -189,19 +193,30 @@ export function scoreHouseGoalKind(
   const ownedPolityIds = getHouseOwnedPolityIds(state, houseId)
 
   // expand_power_base
+  // v0.42 §19.2-4: share% → influence% (0〜100 スケール維持)
   let expandScore = 0
   if (ownedPolityIds.length > 0) expandScore += 15
   for (const pid of ownedPolityIds) {
-    const sharePercent = getHousePolitySharePercent(state, pid, houseId)
-    if (sharePercent < 50) expandScore += 10
+    const influencePercent = getActorInfluenceInPolity(
+      state,
+      config,
+      { kind: 'house', id: houseId },
+      pid,
+    ).percent
+    if (influencePercent < 50) expandScore += 10
   }
   if (house.wealth >= 100) expandScore += 10
 
   // preserve_power_base
   let preserveScore = 0
   for (const pid of ownedPolityIds) {
-    const sharePercent = getHousePolitySharePercent(state, pid, houseId)
-    if (sharePercent >= 50) preserveScore += 15
+    const influencePercent = getActorInfluenceInPolity(
+      state,
+      config,
+      { kind: 'house', id: houseId },
+      pid,
+    ).percent
+    if (influencePercent >= 50) preserveScore += 15
   }
   if (ownedPolityIds.length === 0) preserveScore += 5
 
@@ -456,7 +471,7 @@ function pickPolityAim(
 
 function pickHouseAim(
   state: WorldState,
-  _config: SimulationConfig,
+  config: SimulationConfig,
   houseId: HouseId,
   goalKind: HouseGoalKind,
   rng: RngState,
@@ -469,49 +484,57 @@ function pickHouseAim(
 
   const candidates: { kind: HouseAimKind; target?: EntityRef; score: number }[] = []
 
+  // v0.42 §19.2-4: share% → influence% (0〜100 スケール維持)。polity ごとに 1 回だけ計算。
+  const influencePctOf = new Map<string, number>()
+  for (const pid of ownedPolityIds) {
+    influencePctOf.set(
+      pid,
+      getActorInfluenceInPolity(state, config, { kind: 'house', id: houseId }, pid).percent,
+    )
+  }
   if (goalKind === 'expand_power_base') {
     // increase_polity_share
     for (const pid of ownedPolityIds) {
-      const sharePercent = getHousePolitySharePercent(state, pid, houseId)
-      if (sharePercent < 70) {
+      const influencePercent = influencePctOf.get(pid) ?? 0
+      if (influencePercent < 70) {
         candidates.push({
           kind: 'increase_polity_share',
           target: { kind: 'polity', id: pid },
-          score: 25 + (70 - sharePercent) * 0.5,
+          score: 25 + (70 - influencePercent) * 0.5,
         })
       }
     }
     // steer_polity_external_expansion
     for (const pid of ownedPolityIds) {
-      const sharePercent = getHousePolitySharePercent(state, pid, houseId)
-      if (sharePercent >= 20) {
+      const influencePercent = influencePctOf.get(pid) ?? 0
+      if (influencePercent >= 20) {
         candidates.push({
           kind: 'steer_polity_external_expansion',
           target: { kind: 'polity', id: pid },
-          score: 15 + sharePercent * 0.3,
+          score: 15 + influencePercent * 0.3,
         })
       }
     }
   } else if (goalKind === 'preserve_power_base') {
     // steer_polity_internal_development
     for (const pid of ownedPolityIds) {
-      const sharePercent = getHousePolitySharePercent(state, pid, houseId)
-      if (sharePercent >= 20) {
+      const influencePercent = influencePctOf.get(pid) ?? 0
+      if (influencePercent >= 20) {
         candidates.push({
           kind: 'steer_polity_internal_development',
           target: { kind: 'polity', id: pid },
-          score: 20 + sharePercent * 0.3,
+          score: 20 + influencePercent * 0.3,
         })
       }
     }
     // increase_polity_share (also valid for preserve)
     for (const pid of ownedPolityIds) {
-      const sharePercent = getHousePolitySharePercent(state, pid, houseId)
-      if (sharePercent < 50) {
+      const influencePercent = influencePctOf.get(pid) ?? 0
+      if (influencePercent < 50) {
         candidates.push({
           kind: 'increase_polity_share',
           target: { kind: 'polity', id: pid },
-          score: 15 + (50 - sharePercent) * 0.3,
+          score: 15 + (50 - influencePercent) * 0.3,
         })
       }
     }
@@ -600,6 +623,9 @@ function applyPolicyInfluenceBonus(
 ): { kind: GoalKind; score: number }[] {
   const result = scores.map((s) => ({ ...s }))
 
+  // v0.42 §19.2-4: share% → influence%。polity 固定なので breakdown は 1 回だけ計算 (§21.2)
+  const breakdown = getPolityInfluenceBreakdown(state, config, polityId)
+
   // Scan all active Aims owned by houses
   for (const [, aim] of Object.entries(state.aims)) {
     if (!aim || aim.status !== 'active') continue
@@ -609,10 +635,13 @@ function applyPolicyInfluenceBonus(
     if ((aim.target.id as string) !== (polityId as string)) continue
 
     const houseId = aim.owner.id
-    const sharePercent = getHousePolitySharePercent(state, polityId, houseId)
+    const influencePercent = getActorInfluenceFromBreakdown(breakdown, {
+      kind: 'house',
+      id: houseId,
+    }).percent
 
     const bonus =
-      config.policyInfluenceBonusBase + sharePercent * config.policyInfluenceBonusShareFactor
+      config.policyInfluenceBonusBase + influencePercent * config.policyInfluenceBonusShareFactor
 
     if (aim.kind === 'steer_polity_external_expansion') {
       const entry = result.find((s) => s.kind === 'external_expansion')
