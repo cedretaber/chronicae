@@ -583,11 +583,16 @@ export type SimulationConfig = {
   goalProgressOnAimAbandoned: number
   aimDefaultDeadlineWeeks: number
   projectCooldownWeeks: number
-  // v0.43 Aim 並列化: 1 Goal の下に複数 active Aim を許す
-  // aimParallelismCeiling = 静的不変上限 (integrity が検査する hard cap)
-  // maxActiveAimsPerGoal  = 規模非依存の flat 生成 cap (Stage1)。Stage2 で capacity 関数の base になる
+  // v0.43 Aim 並列化: 1 Goal の下に複数 active Aim を許す。並列数は国・家の規模/予算に連動。
+  // aimParallelismCeiling     = 静的不変上限 (integrity が検査する hard cap)。1 にすると並列無効=旧挙動。
+  // aimCapacityBase           = 規模に依らず全 actor が得る基礎枠 (小国の下限)
+  // aimCapacity*PerSlot       = この量ごとに並列枠 +1 (規模/予算シグナル)。最終値は ceiling でクランプ。
   aimParallelismCeiling: number
-  maxActiveAimsPerGoal: number
+  aimCapacityBase: number
+  aimCapacityProvincesPerSlot: number
+  aimCapacityTreasuryPerSlot: number
+  aimCapacityMembersPerSlot: number
+  aimCapacityWealthPerSlot: number
   // v0.23 Person Goal/Aim/Task
   personGoalReviewIntervalWeeks: number
   personAimReviewIntervalWeeks: number
@@ -1514,7 +1519,11 @@ export const defaultConfig: SimulationConfig = {
   aimDefaultDeadlineWeeks: 240,
   projectCooldownWeeks: 4,
   aimParallelismCeiling: 4,
-  maxActiveAimsPerGoal: 2,
+  aimCapacityBase: 1,
+  aimCapacityProvincesPerSlot: 4,
+  aimCapacityTreasuryPerSlot: 300,
+  aimCapacityMembersPerSlot: 6,
+  aimCapacityWealthPerSlot: 150,
   expandPolityShareCost: 40,
   expandPolityShareRawPowerGain: 10,
   promotePolicyShiftCost: 0,

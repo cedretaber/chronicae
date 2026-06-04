@@ -61,6 +61,35 @@ export function aimSlotKey(kind: AimKind, target?: EntityRef): string {
   return target ? `${kind}|${entityRefKey(target)}` : kind
 }
 
+// --- Aim capacity (v0.43) ---
+// 1 Goal が同時に持てる active Aim 数を、owner (国・家) の規模/予算に連動させて算出する。
+// 小国は base のみ、大国・富裕な家ほど枠が増え、静的 ceiling でクランプされる。
+// これは「生成側スロットル (動的 cap)」であり integrity の invariant ではない
+// (国が縮小して capacity が下がっても、既に作った Aim は ceiling 以下なら合法のまま)。
+export function computeAimCapacityForGoal(
+  state: WorldState,
+  config: SimulationConfig,
+  owner: DecisionSubjectRef,
+): number {
+  let extra = 0
+  if (owner.kind === 'polity') {
+    const polity = state.polities[owner.id]
+    if (polity) {
+      const provinceCount = getPolityTerminalProvinceIds(state, owner.id).length
+      extra += Math.floor(provinceCount / config.aimCapacityProvincesPerSlot)
+      extra += Math.floor(Math.max(0, polity.treasury) / config.aimCapacityTreasuryPerSlot)
+    }
+  } else if (owner.kind === 'house') {
+    const house = state.houses[owner.id]
+    if (house) {
+      extra += Math.floor(house.memberIds.length / config.aimCapacityMembersPerSlot)
+      extra += Math.floor(Math.max(0, house.wealth) / config.aimCapacityWealthPerSlot)
+    }
+  }
+  const capacity = config.aimCapacityBase + extra
+  return Math.max(1, Math.min(config.aimParallelismCeiling, capacity))
+}
+
 export function getActiveAimsForGoal(state: WorldState, goalId: GoalId): Aim[] {
   const aimIds = state.aimIndex.byGoal[goalId as string]
   if (!aimIds) return []

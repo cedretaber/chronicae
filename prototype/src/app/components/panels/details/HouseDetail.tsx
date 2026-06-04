@@ -463,7 +463,6 @@ export function HouseDetail({
           const goal = getActiveGoalForOwner(currentState, owner)
           if (!goal) return null
           const activeAims = getActiveAimsForGoal(currentState, goal.id)
-          const activeAim = activeAims[0]
           return (
             <div style={{ marginTop: 8 }}>
               <strong>{t('detail.house.current_goal')}</strong>
@@ -486,69 +485,70 @@ export function HouseDetail({
                   {t('detail.house.goal_progress')}: {goal.progress} / {goal.targetProgress}
                 </div>
               </div>
-              {activeAim && (
-                <div style={{ marginLeft: 8, marginTop: 4 }}>
-                  <strong>{t('detail.house.active_aim')}</strong>
-                  <div style={{ marginLeft: 8 }}>
-                    <div>{t(`aims:house.${activeAim.kind}`)}</div>
-                    <div>
-                      {t('detail.house.aim_progress')}: {activeAim.progress} /{' '}
-                      {activeAim.targetProgress}
-                    </div>
-                    <div>
-                      {t('detail.house.aim_deadline')}: {t('detail.common.year')}{' '}
-                      {Math.ceil(activeAim.deadlineWeek / 48)}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {activeAim &&
-                (() => {
-                  const aimKey = `aim:${activeAim.id}`
-                  const projectIds = currentState.projectIndex.byAim[aimKey] ?? []
-                  const activeProjects = projectIds
-                    .map((pid) => currentState.projects[pid])
-                    .filter(
-                      (p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active',
-                    )
-                  if (activeProjects.length === 0) return null
-                  return activeProjects.map((project) => (
-                    <ProjectDetailCard
-                      key={project.id}
-                      project={project}
-                      persons={currentState.persons}
-                      onPersonClick={onPersonClick}
-                      label={t('detail.house.active_project')}
-                    />
-                  ))
-                })()}
-              {activeAim?.activeDiplomaticPlayId &&
-                (() => {
-                  const play = currentState.diplomaticPlays[activeAim.activeDiplomaticPlayId]
-                  if (!play || (play.status !== 'active' && play.status !== 'escalated'))
-                    return null
-                  return (
-                    <div style={{ marginLeft: 8, marginTop: 4 }}>
-                      <strong>{t('detail.house.active_play')}</strong>
-                      <div style={{ marginLeft: 8 }}>
-                        {onDiplomaticPlayClick ? (
-                          <button
-                            className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
-                            onClick={() => onDiplomaticPlayClick(play.id)}
-                          >
-                            {t(`play_kind.${play.kind}`, { ns: 'diplomacy' })}
-                          </button>
-                        ) : (
-                          <div>{t(`play_kind.${play.kind}`, { ns: 'diplomacy' })}</div>
-                        )}
-                        <div>
-                          {t('sidebar.play_progress')}: {Math.round(play.progress)} |{' '}
-                          {t('sidebar.play_tension')}: {Math.round(play.tension)}
-                        </div>
+              {activeAims.map((activeAim) => (
+                <div key={activeAim.id}>
+                  <div style={{ marginLeft: 8, marginTop: 4 }}>
+                    <strong>{t('detail.house.active_aim')}</strong>
+                    <div style={{ marginLeft: 8 }}>
+                      <div>{t(`aims:house.${activeAim.kind}`)}</div>
+                      <div>
+                        {t('detail.house.aim_progress')}: {activeAim.progress} /{' '}
+                        {activeAim.targetProgress}
+                      </div>
+                      <div>
+                        {t('detail.house.aim_deadline')}: {t('detail.common.year')}{' '}
+                        {Math.ceil(activeAim.deadlineWeek / 48)}
                       </div>
                     </div>
-                  )
-                })()}
+                  </div>
+                  {(() => {
+                    const aimKey = `aim:${activeAim.id}`
+                    const projectIds = currentState.projectIndex.byAim[aimKey] ?? []
+                    const activeProjects = projectIds
+                      .map((pid) => currentState.projects[pid])
+                      .filter(
+                        (p): p is NonNullable<typeof p> => p !== undefined && p.status === 'active',
+                      )
+                    if (activeProjects.length === 0) return null
+                    return activeProjects.map((project) => (
+                      <ProjectDetailCard
+                        key={project.id}
+                        project={project}
+                        persons={currentState.persons}
+                        onPersonClick={onPersonClick}
+                        label={t('detail.house.active_project')}
+                      />
+                    ))
+                  })()}
+                  {activeAim.activeDiplomaticPlayId &&
+                    (() => {
+                      const play = currentState.diplomaticPlays[activeAim.activeDiplomaticPlayId]
+                      if (!play || (play.status !== 'active' && play.status !== 'escalated'))
+                        return null
+                      return (
+                        <div style={{ marginLeft: 8, marginTop: 4 }}>
+                          <strong>{t('detail.house.active_play')}</strong>
+                          <div style={{ marginLeft: 8 }}>
+                            {onDiplomaticPlayClick ? (
+                              <button
+                                className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                                onClick={() => onDiplomaticPlayClick(play.id)}
+                              >
+                                {t(`play_kind.${play.kind}`, { ns: 'diplomacy' })}
+                              </button>
+                            ) : (
+                              <div>{t(`play_kind.${play.kind}`, { ns: 'diplomacy' })}</div>
+                            )}
+                            <div>
+                              {t('sidebar.play_progress')}: {Math.round(play.progress)} |{' '}
+                              {t('sidebar.play_tension')}: {Math.round(play.tension)}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                </div>
+              ))}
             </div>
           )
         })()}

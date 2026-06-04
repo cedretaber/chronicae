@@ -4,7 +4,12 @@ import type { AimId, DecisionReasonId } from '../types/ids'
 import { createAimId, createDecisionReasonId } from '../types/ids'
 import type { Aim, DecisionReason, Goal, EntityRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
-import { getActiveAimsForGoal, pickAimForGoal, aimSlotKey } from '../selectors/goalSelectors'
+import {
+  getActiveAimsForGoal,
+  pickAimForGoal,
+  aimSlotKey,
+  computeAimCapacityForGoal,
+} from '../selectors/goalSelectors'
 import { nameParam, entityRef } from '../types/event'
 import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 import { getPolityEmitNameKey } from '../selectors/nameRefSelectors'
@@ -64,9 +69,10 @@ export function runAimMaintenanceSystem(ctx: TickContext): TickContext {
   // v0.43: 1 Goal の下に複数 active Aim を許す。cap (= maxActiveAimsPerGoal, Stage2 で規模連動)
   // に達するまで、既存スロットと重複しない Aim を繰り返し生成する。候補が枯渇したら打ち切る。
   if (absoluteWeek % ctx.config.goalReviewIntervalWeeks === 0) {
-    const cap = currentCtx.config.maxActiveAimsPerGoal
     for (const [, goal] of Object.entries(currentCtx.state.goals)) {
       if (!goal || goal.status !== 'active') continue
+      // 並列上限は owner の規模/予算に連動 (v0.43 Stage2)
+      const cap = computeAimCapacityForGoal(currentCtx.state, currentCtx.config, goal.owner)
       const activeAims = getActiveAimsForGoal(currentCtx.state, goal.id)
       const excluded = new Set(activeAims.map((a) => aimSlotKey(a.kind, a.target)))
       let count = activeAims.length
