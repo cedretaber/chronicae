@@ -683,6 +683,23 @@ export type SimulationConfig = {
   houseSharePrestigeFactor: number
   houseShareWealthFactor: number
   houseShareStatFactor: number
+  // v0.42 §5/§18 Polity Influence (read-model)。初期値は polityShare* 系を流用。
+  //   v0.42a/b では旧 polityShare* (shareUpdateSystem 用) と並存し、v0.42c で旧系を削除する。
+  polityInfluenceBase: number
+  polityInfluenceProvinceFactor: number
+  polityInfluenceMilitaryFactor: number // landed_power の military proxy 係数 (province 数ベース)
+  polityInfluenceWealthFactor: number
+  polityInfluencePrestigeFactor: number
+  polityInfluenceOwnerHouseBonus: number
+  // 非 ownerHouse 出身 leader の家への ruler domain 補正 (ownerHouseBonus の 25〜50% 程度 — §5.4)
+  polityInfluenceLeaderHouseBonus: number
+  polityInfluenceOfficeFactor: number
+  polityInfluenceOfficeOverlapBonusMax: number
+  // 新規 domain (小さな値から開始 — §18)
+  polityInfluenceMilitaryOfficeBonus: number // military domain: polity:military office holder の家
+  polityInfluenceRegimentControlFactor: number // military domain: regiment_control right (active regiment のみ)
+  polityInfluenceHoldingOfficeAppointmentFactor: number // land_administration domain
+  polityInfluenceFactionFactor: number // faction domain: anchor faction leader の家
   // v0.12 Administrative efficiency
   minAdministrativeEfficiency: number
   maxAdministrativeEfficiency: number
@@ -1608,6 +1625,20 @@ export const defaultConfig: SimulationConfig = {
   politySharePrestigeFactor: 0.2,
   polityShareOfficeFactor: 3,
   polityShareOwnerHouseBonus: 30,
+  // v0.42 Polity Influence (polityShare* 流用 + 新規 domain は小さく)
+  polityInfluenceBase: 10,
+  polityInfluenceProvinceFactor: 5,
+  polityInfluenceMilitaryFactor: 0.1,
+  polityInfluenceWealthFactor: 0.05,
+  polityInfluencePrestigeFactor: 0.2,
+  polityInfluenceOwnerHouseBonus: 30,
+  polityInfluenceLeaderHouseBonus: 10,
+  polityInfluenceOfficeFactor: 3,
+  polityInfluenceOfficeOverlapBonusMax: 0.5,
+  polityInfluenceMilitaryOfficeBonus: 2,
+  polityInfluenceRegimentControlFactor: 2,
+  polityInfluenceHoldingOfficeAppointmentFactor: 2,
+  polityInfluenceFactionFactor: 2,
   houseShareBase: 5,
   houseShareLeaderBonus: 20,
   houseShareOfficeBonus: 10,
