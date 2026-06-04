@@ -47,6 +47,7 @@
 | WAR_CAPTAIN_GENERAL_CHANGED | major/normal | 総大将の交代/喪失（WarManeuverSystem。messageKey `war.captain_general_changed`。新総大将が undefined（喪失）のとき major、交代は normal。初回任命は発火しない） |
 | REGIMENT_REFORMED | minor | destroyed Regiment が active に再編成された（補充・再編成 RegimentReinforcementSystem。messageKey `regiment.reformed`。params: `owner` / `province`）。**strength の通常補充は organization recovery と同じく silent（イベント無し）**——大量発生する補充をイベント化しない方針 |
 | WAR_ENDED | major | 勝敗が明確でない終結（white_peace timeout / stale 安全終結 / cancelled orphan。messageKey `war.ended`） |
+| WAR_AVERTED | minor | 勝率 × 指導者性格ゲートで開戦を見送った（WarCreationSystem §6.44。escalated play を cancel。messageKey `war.averted`。params: `attacker` / `defender` / `winChance` / `threshold`（整数%）） |
 | PEACE_SETTLEMENT_APPLIED | major | tax WarGoal を state に反映（PeaceSettlementSystem。tax は before→after の税率を `fromRate`/`toRate`（整数%）で記録。transfer は底層 mutation の LAND_CONTRACT_* に委譲し本 event は出さない） |
 | PROVINCE_CONQUERED | major | Province 征服（現状未発火。武力による土地奪取は LAND_CONTRACT_CONQUERED に置換済み。union 宣言と UI アイコンのみ残置） |
 | COUNTRY_LAND_DEVELOPED | normal | 国家による土地開発（develop_holding Intent による Holding 開発も含む。Chronicle の Holding 開発史（byHolding）に載せるため holding ref を 1 件追加。§6.62） |

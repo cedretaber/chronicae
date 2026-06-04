@@ -21,6 +21,7 @@ import {
 } from '../selectors/landContractSelectors'
 import { canTransferLandContract } from './landContractMutations'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
+import { predictPressureResponseStance } from '../selectors/pressureStanceSelectors'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { clamp } from '../utils/math'
@@ -32,6 +33,9 @@ export type CreatePlayResult =
   | { kind: 'created'; playId: DiplomaticPlayId }
   | { kind: 'duplicate' }
   | { kind: 'invalid_inputs' }
+  // 相手が応じる見込みがなく (resist 確実)、起こしても status_quo に終わるだけの外交劇。
+  // invalid_inputs (毎 tick retry) と区別し、呼出側でプロジェクトを失敗扱いにして actor を解放する。
+  | { kind: 'infeasible' }
 
 export function buildExistingPlayKeys(ws: WorldState): Set<string> {
   const keys = new Set<string>()
@@ -276,6 +280,14 @@ function createContractRevisionPlayFromProjectMut(
 
   const initiator: OrganizationRef = { kind: 'polity', id: project.owner.id }
   const target: OrganizationRef = { kind: 'polity', id: project.counterpartyPolityId }
+
+  // 開始ゲート: 相手 (target) が resist 確実 = 起こしても status_quo に終わるだけの
+  // 外交劇は開始しない。受諾見込みの予測を projectStageSystem の stance 決定と同一式で共有する
+  // (initiator が圧力源、target が被圧力側)。弱い臣下が強い宗主に減税要求を出し続け
+  // 「外交劇は起こすが何も変わらない」が連発する問題を、行動を起こす前に弾く。
+  if (predictPressureResponseStance(ws, config, initiator, target) === 'resist') {
+    return { kind: 'infeasible' }
+  }
 
   const dedupeKey = `contract_tax_revision|${initiator.kind}:${initiator.id}|${target.kind}:${target.id}|${provinceId}`
   if (existingPlayKeys.has(dedupeKey)) return { kind: 'duplicate' }

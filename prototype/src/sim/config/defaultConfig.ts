@@ -38,6 +38,9 @@ export type SimulationConfig = {
   maxWarsPerTick: number
   warCooldownWeeks: number
   minAttackerWinChanceToDeclare: number
+  // v0.42: 開戦前の勝率 × 性格ゲート (warCreationSystem)。personality OFF でも flat ゲートは
+  //   挙動変化なので、A/B 比較できるよう personAbilityEffectsEnabled とは別のキルスイッチにする。
+  winChanceWarGateEnabled: boolean
   // Disaster
   disasterEnabled: boolean
   famineBaseChancePerYear: number
@@ -96,6 +99,12 @@ export type SimulationConfig = {
   generalCautionDeclareThresholdEffect: number
   minWarDeclareThreshold: number
   maxWarDeclareThreshold: number
+  // v0.42: 被圧力側 (defender) の stance 境界を意思決定者の性格でシフトする量
+  //   (pressureStanceSelectors。personAbilityEffectsEnabled で gate)。
+  pressureStanceAmbitionShift: number
+  pressureStanceCautionShift: number
+  // v0.42: 交渉担当者の能力が要求条件の質をスケールする量 (taskCompromise。personAbilityEffectsEnabled で gate)。
+  negotiatorTermQualityEffect: number
   chancellorAmbitionLandDevelopmentScoreEffect: number
   chancellorCautionLandDevelopmentScoreEffect: number
   controlAbilityMinimumFloor: number
@@ -924,6 +933,7 @@ export const defaultConfig: SimulationConfig = {
   maxWarsPerTick: 1,
   warCooldownWeeks: 96,
   minAttackerWinChanceToDeclare: 0.45,
+  winChanceWarGateEnabled: true,
   disasterEnabled: true,
   famineBaseChancePerYear: 0.08,
   plagueBaseChancePerYear: 0.03,
@@ -977,6 +987,9 @@ export const defaultConfig: SimulationConfig = {
   generalCautionDeclareThresholdEffect: 0.1,
   minWarDeclareThreshold: 0.3,
   maxWarDeclareThreshold: 0.75,
+  pressureStanceAmbitionShift: 0.1,
+  pressureStanceCautionShift: 0.1,
+  negotiatorTermQualityEffect: 0.1,
   chancellorAmbitionLandDevelopmentScoreEffect: 10,
   chancellorCautionLandDevelopmentScoreEffect: 20,
   controlAbilityMinimumFloor: 35,

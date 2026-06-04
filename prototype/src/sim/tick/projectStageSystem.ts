@@ -35,7 +35,7 @@ import {
   isProjectStageValid,
 } from '../config/projectStageSequences'
 import { findBailiffCandidateForProject } from './projectStageHelpers'
-import { getActorMilitaryPower } from '../selectors/actorSelectors'
+import { predictPressureResponseStance } from '../selectors/pressureStanceSelectors'
 import { createDiplomaticOfferMut } from '../mutations/diplomaticOfferMutations'
 import { clamp } from '../utils/math'
 import { createLogger } from '../debug/logger'
@@ -413,6 +413,24 @@ function resolveOpenDiplomaticPlay(
     return true
   }
 
+  if (result.kind === 'infeasible') {
+    // 相手が応じる見込みがない外交劇。プロジェクトを失敗させ、actor を別の行動へ解放する
+    // (invalid_inputs と違い毎 tick retry しない)。
+    ws.projects[projectId] = { ...project, status: 'failed' as const }
+    const ownerNameKey = getOwnerNameKey(ws, project.owner)
+    emitEvent({
+      type: 'PROJECT_FAILED',
+      importance: 'minor',
+      messageKey: 'project.failed.opponent_too_strong',
+      messageParams: {
+        owner: nameParam(getOwnerNameRefForEmit(ws, project.owner).category, ownerNameKey),
+        kind: project.kind,
+      },
+      entityRefs: [],
+    })
+    return true
+  }
+
   // invalid_inputs: retry next tick
   return false
 }
@@ -440,14 +458,8 @@ function resolveChooseStance(
       pressure.source.kind === 'polity'
         ? { kind: 'polity', id: pressure.source.id }
         : { kind: 'house', id: pressure.source.id }
-    const targetPower = getActorMilitaryPower(ws, config, targetActor)
-    const sourcePower = getActorMilitaryPower(ws, config, sourceActor)
-
-    if (targetPower < sourcePower * 0.5) {
-      stance = 'concede'
-    } else if (targetPower >= sourcePower * 1.2) {
-      stance = 'resist'
-    }
+    // 開始ゲート (diplomaticPlayCreation) と同一式を共有する単一の真実。
+    stance = predictPressureResponseStance(ws, config, sourceActor, targetActor)
   }
 
   const nextKey = getNextProjectStageKey(project)

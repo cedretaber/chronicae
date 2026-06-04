@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PolityId, HouseId, GoalId, ProvinceId } from '../types/ids'
+import type { PolityId, HouseId, GoalId, ProvinceId, LandContractId } from '../types/ids'
 import type {
   DecisionSubjectRef,
   GoalKind,
@@ -14,10 +14,15 @@ import type {
   EntityRef,
 } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
-import { getPolityTerminalProvinceIds, getProvinceHoldings } from './landContractSelectors'
+import {
+  getPolityTerminalProvinceIds,
+  getProvinceHoldings,
+  getLandContractGrantor,
+} from './landContractSelectors'
 import { getHoldingDevelopment } from './holdingImprovementSelectors'
 import { calcPolityMilitaryPower } from './militarySelectors'
 import { getHouseOwnedPolityIds } from './landContractSelectors'
+import { predictPressureResponseStance } from './pressureStanceSelectors'
 import { getHousePolitySharePercent } from './shareSelectors'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
@@ -254,11 +259,31 @@ function pickPolityAim(
 
   // tax revision aims: available under both external_expansion and internal_development
   const contractIds = state.landContractIndex.byGranteePolity[polityId] ?? []
+
+  // 開始ゲート: 減税系 aim (vassal → grantor) は、grantor (宗主) が resist 確実なら
+  // 起こしても status_quo に終わるだけ。行動を起こす前に弾き、actor が無謀な減税要求を
+  // 量産して「外交劇は起こすが何も変わらない」を連発するのを防ぐ。
+  // 受諾見込みの予測は play 開始ゲート (diplomaticPlayCreation) / defender の実 stance 決定と
+  // 同一式 (predictPressureResponseStance) を共有する。
+  const grantorWouldResist = (cid: LandContractId): boolean => {
+    const grantor = getLandContractGrantor(state, cid)
+    if (!grantor || grantor.kind !== 'polity') return false
+    return (
+      predictPressureResponseStance(
+        state,
+        config,
+        { kind: 'polity', id: polityId },
+        { kind: 'polity', id: grantor.id },
+      ) === 'resist'
+    )
+  }
+
   for (const cid of contractIds) {
     const contract = state.landContracts[cid]
     if (!contract) continue
     if (contract.termsProtectedUntilWeek && absoluteWeek < contract.termsProtectedUntilWeek)
       continue
+    if (grantorWouldResist(contract.id)) continue
     if (contract.terms.taxRateToGrantor > 0.2) {
       candidates.push({
         kind: 'improve_owned_contract_terms',
@@ -275,6 +300,7 @@ function pickPolityAim(
     if (!contract || contract.rootAuthorityId) continue
     if (contract.termsProtectedUntilWeek && absoluteWeek < contract.termsProtectedUntilWeek)
       continue
+    if (grantorWouldResist(contract.id)) continue
     if (contract.terms.taxRateToGrantor <= config.taxRevisionMinRateForReduction) {
       candidates.push({
         kind: 'eliminate_overlord_contract',

@@ -24,7 +24,11 @@ import { runCleanupWarSystem } from './cleanupWarSystem'
 //   は warScore が乱数なし＝CLI で全 War が white_peace に倒れる可能性があるため unit test で必ず踏ませる。
 
 function makeCtx(world: WorldState, seed = 'war-lifecycle'): TickContext {
-  return createTickContext({ state: world, rng: createRng(seed), config: defaultConfig })
+  // v0.42: これらは War lifecycle (creation→決着→cleanup) を検証するテストで、開戦判断そのものは
+  //   対象外。勝率/性格ゲート (warEstimateSelectors / warCreationSystem.test.ts で別途検証) は OFF にし、
+  //   従来どおり escalated play → War 化を確実に踏ませる。
+  const config = { ...defaultConfig, winChanceWarGateEnabled: false }
+  return createTickContext({ state: world, rng: createRng(seed), config })
 }
 
 function freshWorld(seed = 'war-lifecycle'): WorldState {

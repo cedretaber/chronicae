@@ -1335,7 +1335,7 @@ active Project の immediate stage を即時解決する。毎 tick 実行（int
 - `find_supervisor` (develop_holding): Bailiff を supervisor に採用。4段階カスケードで候補探索
 - `secure_budget` (develop_holding): owner treasury から budget 確保
 - `open_diplomatic_play` (acquire_land / sell_land / improve_contract_terms / demand_tax_increase): DiplomaticPlay を作成し、Pressure を生成。preparation / leverage / commitment を DiplomaticPlay に転写。重複チェックあり（duplicate → Project failed）。play 作成と同時に initiator の初期 DiplomaticOffer を生成
-- `choose_stance` (respond_to_pressure): 軍事力比較で stance 決定（target < source×0.5 → concede、target ≥ source×1.2 → resist、else → negotiate）
+- `choose_stance` (respond_to_pressure): 軍事力比較で stance 決定（target < source×0.5 → concede、target ≥ source×1.2 → resist、else → negotiate）。この式は `selectors/pressureStanceSelectors.ts` の `predictPressureResponseStance`（閾値 `PRESSURE_CONCEDE_POWER_RATIO`=0.5 / `PRESSURE_RESIST_POWER_RATIO`=1.2）として外出しされ、外交劇の開始可否ゲート（減税系 aim 選定 §6.57、税改定 play 生成 §6.42）と**同一の式を共有**する。「開始時に予測する相手の応答」と「実際の応答」が必ず一致する単一の真実。**性格シフト（`personAbilityEffectsEnabled`、default ON）**: nominal power はそのままに、concede/resist の両境界を被圧力側（target）の意思決定者（polity=指導者 / house=当主）の性格で同量シフトする。「大胆さ」軸 `shift = ambition×pressureStanceAmbitionShift − caution×pressureStanceCautionShift`（各 0.1、`normalizedTrait` で中点 0.5 基準）を両境界から引く＝大胆な宗主は不利でも拒否しやすく譲歩しにくい / 慎重な宗主は早く譲歩する。両境界を同量動かすので concede < resist の順序は保たれる。OFF 時は厳密に従来挙動。開戦ゲート（§6.44）は regiment 勝率で別軸に判定するため、ここに regiment 戦力は持ち込まない（aim/play ゲートへ 0 動員エッジを波及させないため、勝率精度は開戦判断に閉じ込める意図的な非対称）。
 - `propose_initial_offer` (respond_to_pressure): target 側が stance に基づく counter-offer を生成。concede → initiator の offer demands をコピー、negotiate → 中間案（land_claim: pay_wealth ×1.3、contract_tax_revision: halfway rate）、resist → status_quo。counter-offer 作成時に progress += counterOfferProgressDelta
 
 **runtime fallback**: invalid な currentStageKey を持つ active Project に initial stage を補正する（防御的補正）。
@@ -1430,6 +1430,8 @@ Play kind 別の処理:
 
 **契約取消し aim**: `eliminate_overlord_contract`（`taxRateToGrantor <= taxRevisionMinRateForReduction` で発火）/ `eliminate_vassal_contract`（`taxRateToGrantor >= taxRevisionMaxRateForIncrease` で発火）。既存の `improve_contract_terms` / `demand_tax_increase` project に mapping し、desiredRate が min/max 境界にクランプされる。escalation → conflict で勝利した場合に CONTRACT_ELIMINATED が発生する。両 Goal（external_expansion / internal_development）から候補に入る。
 
+**税改定 play の受諾見込みゲート（`createContractRevisionPlayFromProjectMut`）**: play 生成時に `predictPressureResponseStance(initiator, target) === 'resist'`（target が initiator の 1.2 倍以上強い）なら `{ kind: 'infeasible' }` を返し play を生成しない。呼出側（ProjectStageSystem）は project を `failed` にして actor を別行動へ解放する（`invalid_inputs` の毎 tick retry と異なり再試行ループにならない）。これは減税系 aim 選定の受諾見込みゲート（§6.57）と同一 predicate を共有する**二重の安全網**で、主因の抑止は aim 選定側が担い、本ゲートは aim 生成後に戦力比が変化した稀ケースを最終的に弾く（通常運用では発火 0）。これを欠くと「resist 確実な相手への外交劇が generate→status_quo 妥結を繰り返し、何も変わらない play が連発される」。`canTransferLandContract` の rank ゲート（§6.44）と同じ「1 式・複数ゲート」構成。
+
 ### 6.43 ConflictResolutionSystem（no-op）
 
 revolt_negotiation の escalation は warCreationSystem 経由で War 化されるため、本 system は完全 no-op。関数名 `runConflictResolutionSystem` は後方互換のため維持するが、本体は `return ctx` のみ。
@@ -1451,6 +1453,12 @@ revolt_negotiation の escalation は warCreationSystem 経由で War 化され�
 **War 化しない（cancelled に倒す）条件**: initiator / target が missing / inactive、対象 holding / contract が無い、WarGoal へ変換不能、同一 `originDiplomaticPlayId` から作成済み、**同一 issue（holdingId / landContractId）を対象とする active War が既存**（重複抑止）。escalated のまま残すと cleanupTerminalDiplomacy が terminal しか消さず無限蓄積するため、War 化できなかった escalated play は cancelled に倒す。
 
 **transfer_land_contract goal の rank 適用可否ゲート（`isWarGoalApplicable`）**: holding / fromPolity / toPolity の存在・active・`from !== to` に加え、**`canTransferLandContract(state, holdingId, fromPolityId, toPolityId)` が true であること**を要求する。これは `applyLandContractTransferGoal` が実行時に使う `planLandContractTransfer`（feudal chain の rank invariant を検証し適用プランを決定する純粋関数。両者は `landContractMutations.ts` 内の単一の真実）と**同一ロジック**で、開戦前に適用可否を判定する。これを欠くと「warScore で勝っても rank invariant 上 land contract を移管できず PeaceSettlement が `white_peace` に倒れ、同じ seize 戦争を永久に再宣戦する（winning→white_peace ループ）」事故が起きる（例: rank 2 polity が rank 3 grantor 配下の holding を seize しようとするケース）。`seize_weak_remote_holdings` aim は軍事力比較のみで対象を選ぶため rank 非互換 holding を頻繁に狙うので、本ゲートが load-bearing。同一 predicate を play 生成（DiplomaticPlaySystem §6.42 経由の `createLandClaimPlayFromProjectMut`）でも事前適用し、適用不能な seize の play / `DIPLOMATIC_PLAY_STARTED` spam も抑止する。
+
+**勝率 × 指導者性格による開戦ゲート（`winChanceWarGateEnabled`、default ON）**: WarGoal が適用可能（上記 rank ゲート通過）でも、War 化の直前に「攻撃側が勝てるか」を判定し、勝てないなら開戦を見送る。対象は `land_claim` / `contract_tax_revision` のみ（`revolt_negotiation` は除外＝叛乱は計算的開戦ではなく、cancel すると `revoltState.warId` 配線が宙に浮く）。
+- 勝率推定 `estimateAttackerWinChance`（`selectors/warEstimateSelectors.ts`）= `atk / (atk + def)`。`estimateWarSidePower` は**実戦闘と同じ戦力源**で算出する: actor の `regimentIndex.byOwner` から**動員可能な常設連隊**（`status==='active'` かつ `currentWarId===undefined`＝`mobilizeRegimentsForWar` と同一条件）の `getRegimentEffectivePower` 合計。連隊記録ゼロのときのみ nominal power（`getActorMilitaryPower`）にフォールバックし、記録はあるが動員可能ゼロ（全員別戦争 / 全滅）は **0**。これにより「推定では勝てるが実戦では動員ゼロで全滅」（過去の attacker=0 全滅バグ）を構造的に塞ぐ。
+- しきい値 `calcGeneralDeclareThreshold(attackerPolityId)`（`selectors/personAbilityEffects.ts`）= `minAttackerWinChanceToDeclare`（=0.45）を攻撃側の軍事官（`military` office holder）の性格で調整: ambition 高で下げ（不利でも挑む）、caution 高で上げ（慎重）、`[minWarDeclareThreshold, maxWarDeclareThreshold]`=`[0.3, 0.75]` に clamp。`personAbilityEffectsEnabled` OFF 時は flat 0.45。
+- `winChance < threshold` なら War を作らず play を `cancelled`（既存 terminal 経路を再利用）にし、`WAR_AVERTED`（minor、winChance/threshold を百分率で記録）を発行する。決定論（RNG 不使用）。「一か八か」は per-decision の乱数でなく指導者ごとの性格分散で表現する。
+- `winChanceWarGateEnabled` は `personAbilityEffectsEnabled` とは別のキルスイッチ（personality OFF でも flat-0.45 ゲートは挙動変化なので A/B 比較できるよう分離）。
 
 **War 作成後**: 元 play を `resolved_by_conflict`（terminal）にする。**`DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT` event は発行しない**（即時解決を含意するため）。戦争開始 event は `WAR_DECLARED`（major）のみ。
 
@@ -1673,7 +1681,7 @@ Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で�
 **offer_compromise**: Task 成功時に新 DiplomaticOffer を作成する。
 1. progress += offerCompromiseProgressDelta (15)（既存 progressGainMedium は使わない）
 2. tension -= tensionReductionSmall (5)（既存通り）
-3. lastRejectedOfferId を基に ±30% 妥協方向へ調整した demands で新 offer を生成（妥協幅は initiator / target で対称。`contract_tax_revision` の妥協 demand 生成は side 非依存のため、未使用だった `_side` パラメータは除去済み）
+3. lastRejectedOfferId を基に妥協方向へ調整した demands で新 offer を生成（基準幅 ±30%＝`COMPROMISE_ADJUSTMENT`、initiator / target で対称）。**交渉担当者の能力スケール（`personAbilityEffectsEnabled`、default ON）**: 提案側（proposer）の delegate（`initiator/targetDelegatePersonId`）の charisma/insight 平均を 0..120 中点 60 基準で `[-1,1]` に正規化し、`adjustment = 0.3 × (1 − skillNorm × negotiatorTermQualityEffect)`（=0.1 で ±10%）で妥協幅を縮める＝巧い交渉者ほど譲歩幅が小さく理想に近い額を要求する（呑まれれば好条件）。これは受諾スコア（`evaluateOffer`）には触れない**条件生成側**の効果なので、能力が task 成功→prep/leverage/commitment→`getEvaluatorNegotiationBonus` 経由で受諾側に効く間接経路との**二重計上にならない**。OFF / delegate 不在時は基準 0.3。`contract_tax_revision` の妥協 demand 生成は side 非依存のため、未使用だった `_side` パラメータは除去済み
 4. play.currentOfferId を新 offer に更新、play.offerHistoryIds に追加
 5. offer_compromise による progress は offerCompromiseProgressDelta に一本化（counterOfferProgressDelta との二重加算なし）
 
@@ -1705,6 +1713,7 @@ Aim target 選定は `goalSelectors.ts` の `pickAimForGoal` で実装。
 
 - `improve_owned_contract_terms` / `demand_tax_increase_from_vassal` は `external_expansion` / `internal_development` 両方の goal で候補に入る（税率交渉は対外・内政どちらの文脈でも合理的なため）
 - 対象契約の `termsProtectedUntilWeek` が現在週を超えている場合はスキップ
+- **減税系 aim の受諾見込みゲート**: `improve_owned_contract_terms` / `eliminate_overlord_contract`（いずれも vassal → grantor への減税要求）は、対象契約の grantor（宗主）が polity でありかつ `predictPressureResponseStance(self, grantor) === 'resist'`（grantor が自分の `PRESSURE_RESIST_POWER_RATIO`=1.2 倍以上強い）の場合、候補に入れない。feudal chain 上、宗主はほぼ常に臣下より強く resist 確実なので、これを欠くと弱い臣下が「勝ち目のない減税要求」を量産し、外交劇は起こすが全て status_quo に終わる（「外交劇は起こすが何も変わらない」連発）。`predictPressureResponseStance`（`selectors/pressureStanceSelectors.ts`）は `choose_stance` の実 stance 決定（§6.57 / 後述）と play 開始ゲート（§6.42）で共有する単一の式で、将来 `getActorMilitaryPower` の算出が変われば予測と実応答の両方へ自動反映される。
 
 イベント: `AIM_CREATED` / `AIM_FAILED` / `AIM_ABANDONED`
 

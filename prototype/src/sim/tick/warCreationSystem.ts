@@ -5,7 +5,10 @@ import type { DiplomaticPlayId, WarId } from '../types/ids'
 import type { War, WarGoal } from '../types/war'
 import { createWar, createWarGoalFromDiplomaticPlay } from '../mutations/warMutations'
 import { canTransferLandContract } from '../mutations/landContractMutations'
-import { emitWarDeclared } from './warEvents'
+import { emitWarDeclared, emitWarAverted } from './warEvents'
+import { estimateAttackerWinChance } from '../selectors/warEstimateSelectors'
+import { calcGeneralDeclareThreshold } from '../selectors/personAbilityEffects'
+import type { OrganizationRef } from '../types/office'
 
 // v0.34 §6 WarCreationSystem
 //
@@ -116,6 +119,12 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
   }
 
   const declared: { war: War; issueKind: DiplomaticPlay['kind'] }[] = []
+  const averted: {
+    attacker: OrganizationRef
+    defender: OrganizationRef
+    winChance: number
+    threshold: number
+  }[] = []
   let created = 0
 
   for (const play of candidates) {
@@ -139,6 +148,24 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
     if (!goal || !isWarGoalApplicable(ws, goal)) {
       setPlayStatusMut(ws, play.id, 'cancelled')
       continue
+    }
+    // v0.42 §6 開戦ゲート: 勝率 × 指導者性格で「勝てない戦争」を見送る。
+    //   revolt_negotiation は除外 (叛乱は計算的開戦ではなく、cancel すると revoltState.warId が宙に浮く)。
+    //   推定戦力は動員可能連隊で算出 (warEstimateSelectors)。winChance < threshold なら撤退し、
+    //   既存の cancelled 経路で escalated を終結させる (createWar はスキップ)。
+    if (config.winChanceWarGateEnabled && play.kind !== 'revolt_negotiation') {
+      const winChance = estimateAttackerWinChance(ws, config, play.initiator, play.target)
+      const threshold = calcGeneralDeclareThreshold(ws, play.initiator.id, config)
+      if (winChance < threshold) {
+        setPlayStatusMut(ws, play.id, 'cancelled')
+        averted.push({
+          attacker: play.initiator,
+          defender: play.target,
+          winChance,
+          threshold,
+        })
+        continue
+      }
     }
     // §6.2: 上限超過分は escalated のまま次 tick に回す (cancel しない)。
     if (created >= config.maxConflictsResolvedPerTick) break
@@ -170,6 +197,9 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
   let next: TickContext = { ...ctx, state: ws }
   for (const d of declared) {
     next = emitWarDeclared(next, d.war, d.issueKind)
+  }
+  for (const a of averted) {
+    next = emitWarAverted(next, a.attacker, a.defender, a.winChance, a.threshold)
   }
   return next
 }

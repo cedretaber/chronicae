@@ -15,6 +15,29 @@ import { computeLandClaimCompensation } from './diplomaticOfferEvaluation'
 
 const COMPROMISE_ADJUSTMENT = 0.3
 
+// v0.42: 提案側 (proposer) の交渉担当者の能力で譲歩幅をスケールする。
+//   巧い交渉者 (charisma/insight 高) ほど譲歩幅が小さく、理想に近い額を要求する
+//   = 呑まれれば好条件。受諾スコア (evaluateOffer) には触れないので二重計上にならない
+//   (能力は別経路で task 成功 → prep/leverage/commitment にも効いている)。
+//   personAbilityEffectsEnabled OFF 時は基準値 (0.3) に戻る。
+function negotiatorCompromiseAdjustment(
+  state: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  side: 'initiator' | 'target',
+): number {
+  if (!config.personAbilityEffectsEnabled) return COMPROMISE_ADJUSTMENT
+  const delegateId =
+    side === 'initiator' ? play.initiatorDelegatePersonId : play.targetDelegatePersonId
+  const person = delegateId ? state.persons[delegateId] : undefined
+  if (!person || !person.alive) return COMPROMISE_ADJUSTMENT
+  // abilities は 0..120 (中点 60)。charisma/insight 平均を [-1,1] に正規化。
+  const skill = (person.abilities.charisma + person.abilities.insight) / 2
+  const skillNorm = (skill - 60) / 60
+  // 巧い交渉者ほど譲歩幅を縮める。effect=0.1 で ±10% に収まる穏やかな効果。
+  return COMPROMISE_ADJUSTMENT * (1 - skillNorm * config.negotiatorTermQualityEffect)
+}
+
 export function buildAndCreateCompromiseOffer(
   ws: WorldState,
   config: SimulationConfig,
@@ -33,12 +56,22 @@ export function buildAndCreateCompromiseOffer(
 
   const proposedBy: OrganizationRef = side === 'initiator' ? play.initiator : play.target
 
+  // v0.42: 提案側の交渉能力で譲歩幅を決定 (OFF 時は基準 0.3)。
+  const adjustment = negotiatorCompromiseAdjustment(ws, config, play, side)
+
   let adjustedDemands: DiplomaticDemand[] | undefined
 
   if (play.kind === 'land_claim') {
-    adjustedDemands = buildLandClaimCompromiseDemands(ws, config, play, side, baseDemands)
+    adjustedDemands = buildLandClaimCompromiseDemands(
+      ws,
+      config,
+      play,
+      side,
+      baseDemands,
+      adjustment,
+    )
   } else if (play.kind === 'contract_tax_revision') {
-    adjustedDemands = buildTaxRevisionCompromiseDemands(ws, config, play, baseDemands)
+    adjustedDemands = buildTaxRevisionCompromiseDemands(ws, config, play, baseDemands, adjustment)
   }
 
   if (!adjustedDemands || adjustedDemands.length === 0) return
@@ -52,12 +85,13 @@ function buildLandClaimCompromiseDemands(
   play: DiplomaticPlay,
   side: 'initiator' | 'target',
   baseDemands: DiplomaticDemand[] | undefined,
+  adjustment: number,
 ): DiplomaticDemand[] | undefined {
   if (!play.issue || play.issue.kind !== 'land_claim') return undefined
   const holdingId = play.issue.holdingId
 
   if (baseDemands) {
-    return adjustLandClaimDemands(ws, config, play, side, baseDemands, holdingId)
+    return adjustLandClaimDemands(ws, config, play, side, baseDemands, holdingId, adjustment)
   }
 
   // No base offer — create a default: transfer + pay using computeLandClaimCompensation
@@ -85,6 +119,7 @@ function adjustLandClaimDemands(
   side: 'initiator' | 'target',
   baseDemands: DiplomaticDemand[],
   holdingId: HoldingId,
+  adjustment: number,
 ): DiplomaticDemand[] {
   // Detect whether the base offer is a status_quo offer or a transfer offer.
   // This determines how pay_wealth adjustment works for the target side:
@@ -99,22 +134,22 @@ function adjustLandClaimDemands(
     if (demand.kind === 'pay_wealth') {
       hasPayWealth = true
       if (side === 'initiator') {
-        // Initiator compromising toward target: increase pay_wealth by 30%
+        // Initiator compromising toward target: increase pay_wealth (巧い交渉者ほど幅は小さい)
         result.push({
           ...demand,
-          amount: Math.round(demand.amount * (1 + COMPROMISE_ADJUSTMENT)),
+          amount: Math.round(demand.amount * (1 + adjustment)),
         })
       } else if (isStatusQuoOffer) {
-        // Target compromising on status_quo: increase compensation by 30%
+        // Target compromising on status_quo: increase compensation
         result.push({
           ...demand,
-          amount: Math.round(demand.amount * (1 + COMPROMISE_ADJUSTMENT)),
+          amount: Math.round(demand.amount * (1 + adjustment)),
         })
       } else {
-        // Target compromising on transfer: decrease pay_wealth by 30% (cheaper for initiator)
+        // Target compromising on transfer: decrease pay_wealth (cheaper for initiator)
         result.push({
           ...demand,
-          amount: Math.round(demand.amount * (1 - COMPROMISE_ADJUSTMENT)),
+          amount: Math.round(demand.amount * (1 - adjustment)),
         })
       }
     } else {
@@ -129,7 +164,7 @@ function adjustLandClaimDemands(
       kind: 'pay_wealth',
       from: play.initiator,
       to: play.target,
-      amount: Math.round(compensation * (1 + COMPROMISE_ADJUSTMENT)),
+      amount: Math.round(compensation * (1 + adjustment)),
     })
   }
 
@@ -141,6 +176,7 @@ function buildTaxRevisionCompromiseDemands(
   config: SimulationConfig,
   play: DiplomaticPlay,
   baseDemands: DiplomaticDemand[] | undefined,
+  adjustment: number,
 ): DiplomaticDemand[] | undefined {
   if (!play.issue || play.issue.kind !== 'contract_tax_revision') return undefined
   const issue = play.issue
@@ -158,6 +194,7 @@ function buildTaxRevisionCompromiseDemands(
       landContractId,
       baseTaxRate,
       issue,
+      adjustment,
     )
   }
 
@@ -188,6 +225,7 @@ function adjustTaxRevisionDemands(
   landContractId: LandContractId,
   baseTaxRate: number,
   issue: ContractTaxRevisionIssue | undefined,
+  adjustment: number,
 ): DiplomaticDemand[] {
   const result: DiplomaticDemand[] = []
   let hasTaxChange = false
@@ -195,10 +233,11 @@ function adjustTaxRevisionDemands(
   for (const demand of baseDemands) {
     if (demand.kind === 'change_contract_tax_rate') {
       hasTaxChange = true
-      // Move newTaxRateToGrantor 30% toward baseTaxRate (compromise toward status quo)
+      // Move newTaxRateToGrantor toward baseTaxRate (compromise toward status quo)。
+      //   巧い交渉者ほど adjustment が小さく、理想 (currentRate) に近い額で押す。
       const currentRate = demand.newTaxRateToGrantor
       const compromiseRate = clamp(
-        currentRate + (baseTaxRate - currentRate) * COMPROMISE_ADJUSTMENT,
+        currentRate + (baseTaxRate - currentRate) * adjustment,
         config.taxRevisionMinRate,
         config.taxRevisionMaxRate,
       )

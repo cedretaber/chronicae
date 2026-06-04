@@ -84,6 +84,7 @@ war:
     change_tax: '{{attacker}} declared war on {{defender}} over the tax of {{subject}} (seeking {{fromRate}}% → {{toRate}}%).'
     revolt: 'The rebels in {{province}} have declared war for independence against {{defender}}.'
   ended: 'The war between {{attacker}} and {{defender}} ended without a decisive victor.'
+  averted: '{{attacker}} weighed war against {{defender}} but stood down, judging victory unlikely ({{winChance}}% vs required {{threshold}}%).'
   battle_occurred: 'A {{battlefieldKind}} broke out in {{province}} ({{attackerName}} {{attackerRegimentCount}} vs {{defenderName}} {{defenderRegimentCount}} regiments). After {{ticksElapsed}} days: {{winnerName}} prevailed. Outcome: {{outcomeQuality}} (routed — {{attackerName}} {{attackerRoutedCount}}, {{defenderName}} {{defenderRoutedCount}}). War score change: {{warScoreDelta}}.'
   battle_occurred_inconclusive: 'A {{battlefieldKind}} broke out in {{province}} ({{attackerName}} {{attackerRegimentCount}} vs {{defenderName}} {{defenderRegimentCount}} regiments). After {{ticksElapsed}} days: inconclusive. War score change: {{warScoreDelta}}.'
   battle_avoided: '{{avoidingName}} avoided a {{battlefieldKind}} in {{province}}. War score change: {{warScoreDelta}}.'
@@ -183,6 +184,7 @@ project:
     budget: "{{owner}}'s project {{kind}} failed — budget exhausted."
     stage_max_attempts: "{{owner}}'s project {{kind}} failed — too many failed attempts."
     duplicate_play: "{{owner}}'s project {{kind}} failed — a similar diplomatic play already exists."
+    opponent_too_strong: "{{owner}}'s project {{kind}} failed — the other party was too strong to pressure."
   cancelled:
     owner_inactive: "{{owner}}'s project {{kind}} was cancelled — owner dissolved."
     aim_terminal: "{{owner}}'s project {{kind}} was cancelled — aim no longer active."

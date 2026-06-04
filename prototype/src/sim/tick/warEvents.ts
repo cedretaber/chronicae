@@ -247,6 +247,39 @@ export function emitWarEnded(ctx: TickContext, war: War): TickContext {
   )
 }
 
+// v0.42 WAR_AVERTED — WarCreationSystem が勝率/性格ゲートで開戦を見送った時に発行 (minor)。
+//   War entity は生成されていないため、attacker/defender の OrganizationRef を直接受け取る。
+//   winChance / threshold は 0..1 を百分率に丸めて params に記録する (歴史記述・デバッグ)。
+export function emitWarAverted(
+  ctx: TickContext,
+  attacker: OrganizationRef,
+  defender: OrganizationRef,
+  winChance: number,
+  threshold: number,
+): TickContext {
+  const state = ctx.state
+  const attackerName = actorNameKey(state, attacker)
+  const defenderName = actorNameKey(state, defender)
+  const attackerCategory = actorEmitCategory(state, attacker)
+  const defenderCategory = actorEmitCategory(state, defender)
+  return emit(
+    ctx,
+    'WAR_AVERTED',
+    'minor',
+    'war.averted',
+    {
+      attacker: nameParam(attackerCategory, attackerName),
+      defender: nameParam(defenderCategory, defenderName),
+      winChance: Math.round(winChance * 100),
+      threshold: Math.round(threshold * 100),
+    },
+    [
+      entityRef(actorEntityKind(attacker), attacker.id, 'attacker', attackerName),
+      entityRef(actorEntityKind(defender), defender.id, 'defender', defenderName),
+    ],
+  )
+}
+
 // §12.5 PEACE_SETTLEMENT_APPLIED — tax 経路は底層 mutation が event を出さないため必ずここで発行。
 //   transfer 経路は applyLandContractTransferGoal が LAND_CONTRACT_* を内部発行するので、
 //   PeaceSettlement 側はこの「適用された」ことを示す 1 件だけを補足的に発行する。
