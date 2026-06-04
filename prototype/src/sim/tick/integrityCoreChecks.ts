@@ -42,12 +42,11 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
       })
     }
     if (share.organization.kind === 'polity') {
-      if (!state.polities[share.organization.id]) {
-        errors.push({
-          code: 'INTEGRITY_VIOLATION',
-          message: `OrganizationShare ${shareId} references non-existent polity ${share.organization.id}`,
-        })
-      }
+      // v0.42c §15.1: polity share は全廃。存在自体が違反。
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `OrganizationShare ${shareId} is a polity share (abolished in v0.42c): ${share.organization.id}`,
+      })
     } else {
       if (!state.houses[share.organization.id]) {
         errors.push({

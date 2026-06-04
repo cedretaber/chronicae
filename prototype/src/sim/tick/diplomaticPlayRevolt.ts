@@ -15,7 +15,7 @@ import {
 } from '../mutations/landContractMutations'
 import { createRegiment, syncRegimentOwnerToHomeTerminalMut } from '../mutations/regimentMutations'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
-import { createOrganizationShare, removeSharesByOrganization } from '../mutations/shareMutations'
+import { removeSharesByOrganization } from '../mutations/shareMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { getHoldingPopSizeByClass } from '../selectors/popSelectors'
@@ -477,12 +477,7 @@ function resolveInternalRevolt(
       'leader',
       leaderPersonId,
     )
-    state = createOrganizationShare(
-      state,
-      { kind: 'polity', id: targetPolityId },
-      { kind: 'person', id: leaderPersonId },
-      100,
-    )
+    // v0.42c §15.1: person-holder polity share は廃止 (ruler domain で表現)
 
     // 3. Tax reduction
     state = adjustLandContractTaxRate(state, demand.targetContractId, demand.demandedTaxRate)

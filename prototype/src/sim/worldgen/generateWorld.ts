@@ -949,22 +949,7 @@ export function generateWorld(
     }
   }
 
-  // Build ruler house lookup for shares
-  const rulerHouseIdForPolity = new Map<PolityId, HouseId>()
-  for (const polity of polities) {
-    const polityOrgKey = `polity:${polity.id}`
-    const polityOfficeIds = officeState.officeIndex.byOrganization[polityOrgKey] ?? []
-    const polityLeaderOffice = polityOfficeIds
-      .map((oid) => officeState.officeAssignments[oid])
-      .find((o) => o && o.active && o.role === 'leader')
-    if (polityLeaderOffice) {
-      const leaderPerson = personsRecord[polityLeaderOffice.holderPersonId]
-      if (leaderPerson && leaderPerson.houseId) {
-        rulerHouseIdForPolity.set(polity.id, leaderPerson.houseId)
-      }
-    }
-  }
-
+  // v0.42c §15.1: Polity share は生成しない (Polity Influence は read-model — spec v0.42)。
   // Initialize shares
   const organizationShares: Record<OrganizationShareId, OrganizationShare> = {}
   const shareIndex: ShareIndex = { byOrganization: {}, byHolder: {} }
@@ -983,46 +968,6 @@ export function generateWorld(
     const existingByHolder = shareIndex.byHolder[holderKey] ?? []
     shareIndex.byOrganization[orgKey] = [...existingByOrg, id]
     shareIndex.byHolder[holderKey] = [...existingByHolder, id]
-  }
-
-  // Polity shares (chain がまだ未構築なので housePolity / provinceToHouse Map を直接使う)
-  for (const polity of polities) {
-    const config = defaultConfig
-    const polityHouseCandidates = new Set<HouseId>()
-    for (const [pid, hid] of provinceToHouse) {
-      if (assignments.get(pid) === polity.id) polityHouseCandidates.add(hid)
-    }
-    for (const houseId of polityHouseCandidates) {
-      const house = houses.find((h) => h.id === houseId)
-      if (!house || !house.active) continue
-
-      const polityOrgKey = `polity:${polity.id}`
-      const polityOfficeIds = officeState.officeIndex.byOrganization[polityOrgKey] ?? []
-      const polityOfficeCount = polityOfficeIds.filter((oid) => {
-        const o = officeState.officeAssignments[oid]
-        if (!o || o.role === 'leader') return false
-        const holder = persons.find((p) => p.id === o.holderPersonId)
-        return holder && holder.houseId === houseId
-      }).length
-
-      const housePrestige = house.legacyPrestige
-      let houseProvinceCount = 0
-      for (const [pid, hid] of provinceToHouse) {
-        if (hid === houseId && assignments.get(pid) === polity.id) houseProvinceCount += 1
-      }
-      const militaryProxy = houseProvinceCount * 10
-
-      const rawPower =
-        config.polityShareBase +
-        houseProvinceCount * config.polityShareProvinceFactor +
-        militaryProxy * config.polityShareMilitaryFactor +
-        house.wealth * config.polityShareWealthFactor +
-        housePrestige * config.politySharePrestigeFactor +
-        (houseId === rulerHouseIdForPolity.get(polity.id) ? config.polityShareOwnerHouseBonus : 0) +
-        polityOfficeCount * config.polityShareOfficeFactor
-
-      addShare({ kind: 'polity', id: polity.id }, { kind: 'house', id: houseId }, rawPower)
-    }
   }
 
   // House shares

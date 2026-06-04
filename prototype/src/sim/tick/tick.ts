@@ -16,7 +16,7 @@ import { runSuccessionSystem, applyMinorHeadPenalties } from './successionSystem
 import { runMarriageSystem } from './marriageSystem'
 import { runBirthSystem } from './birthSystem'
 import { runAppointmentSystem } from './appointmentSystem'
-import { runShareUpdateSystem } from './shareUpdateSystem'
+import { runHouseShareUpdateSystem } from './houseShareUpdateSystem'
 import { runOfficeCompensationSystem } from './officeCompensationSystem'
 import { runControlSystem } from './controlSystem'
 import { runPlotSystem } from './plotSystem'
@@ -222,10 +222,11 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runOfficeTermSystem,
   },
   {
-    name: 'shareUpdateSystem',
+    // v0.42c: polity 枝削除に伴い house 専用に改名 (PERF ログ名も変わる)
+    name: 'houseShareUpdateSystem',
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
-    run: runShareUpdateSystem,
+    run: runHouseShareUpdateSystem,
   },
   { name: 'appointmentSystem', intervalWeeks: 12, phaseOffsetWeeks: 0, run: runAppointmentSystem },
   {

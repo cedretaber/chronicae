@@ -14,7 +14,6 @@ import { addHouselessPerson } from './houseMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
-import { createOrganizationShare } from './shareMutations'
 import { samplePerson } from '../helpers/personFactory'
 import { getHouselessPersons } from '../selectors/availabilitySelectors'
 import { removeFactionMembership } from './factionMutations'
@@ -202,12 +201,7 @@ export function createNegotiatingCommonwealth(
     },
   }
 
-  newState = createOrganizationShare(
-    newState,
-    { kind: 'polity', id: newPolityId },
-    { kind: 'person', id: leaderPersonId },
-    100,
-  )
+  // v0.42c §15.1: person-holder polity share は廃止 (ruler domain で表現)
 
   newState = createOfficeAssignment(
     newState,

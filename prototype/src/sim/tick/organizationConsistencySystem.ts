@@ -3,11 +3,9 @@ import { createSimEvent } from './context'
 import type { PolityId } from '../types/ids'
 import { nameParam, entityRef } from '../types/event'
 import { getPolityHouseIds } from '../selectors/polityRelations'
-import { removeOrganizationShare } from '../mutations/shareMutations'
 import { revokeOfficeAssignment } from '../mutations/officeMutations'
 import { getActiveFactionMembership } from '../selectors/factionSelectors'
 import { getPolityOfficeAppointmentRight } from '../selectors/politicalRightSelectors'
-import { isLivingPerson } from '../types/person'
 import { getActiveOfficeHolders, getEffectiveOfficeMaxHolders } from '../selectors/officeSelectors'
 import { getPolityNameRefForEmitFromPolity } from '../selectors/nameRefSelectors'
 import type { OfficeRole, OrganizationRef } from '../types/office'
@@ -25,51 +23,8 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
 
     const eligibleHouseIds = new Set<string>(getPolityHouseIds(currentCtx.state, polityId))
 
-    // Step 1: 不適格 Share 削除
-    // House holder: 当該 House が Polity の eligibleHouseIds に含まれなければ削除
-    // Person holder (§17 commonwealth / 独裁者・僭主): 当該 Person が dead / placeholder /
-    //   不在、もしくは houseId が inactive または eligibleHouseIds に含まれなければ削除
-    // commonwealth Polity の Person-direct holder (rebel leader) は houseId が
-    //   eligibleHouseIds に含まれなくても eligible 扱いする。commonwealth は owner house を
-    //   持たない person-direct share モデル (§17) であり、getPolityHouseIds は空を返すため、
-    //   house eligibility に紐付けると leader (houseless でも、独立元の国の支配家出身の
-    //   housed でも) の share が道連れで削除され commonwealth が headless 化する。
+    // v0.42c: Step 1 (polity share cleanup) は polity share 廃止に伴い削除。
     const orgKey = `polity:${polityId}`
-    const shareIds = [...(currentCtx.state.shareIndex.byOrganization[orgKey] ?? [])]
-    for (const shareId of shareIds) {
-      const share = currentCtx.state.organizationShares[shareId]
-      if (!share) continue
-      let shouldRemove = false
-      if (share.holder.kind === 'house') {
-        shouldRemove = !eligibleHouseIds.has(share.holder.id)
-      } else {
-        const person = currentCtx.state.persons[share.holder.id]
-        if (!isLivingPerson(person)) {
-          shouldRemove = true
-        } else if (polity.kind === 'commonwealth') {
-          // commonwealth の person-direct holder は houseId に関わらず eligible
-          shouldRemove = false
-        } else if (!person.houseId) {
-          // 非 commonwealth の houseless direct holder は不適格
-          shouldRemove = true
-        } else {
-          const house = currentCtx.state.houses[person.houseId]
-          const isFactionMember =
-            getActiveFactionMembership(currentCtx.state, share.holder.id) !== undefined
-          if (!isFactionMember) {
-            if (!house || !house.active || !eligibleHouseIds.has(house.id)) {
-              shouldRemove = true
-            }
-          }
-        }
-      }
-      if (shouldRemove) {
-        currentCtx = {
-          ...currentCtx,
-          state: removeOrganizationShare(currentCtx.state, share.id),
-        }
-      }
-    }
 
     // Step 2: 不適格 Polity Office revoke + OFFICE_REVOKED 発火
     // commonwealth Polity の Person-direct holder (rebel leader) は Step 1 と同じく eligible 扱い

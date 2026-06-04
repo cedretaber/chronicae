@@ -12,7 +12,7 @@ import {
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { revokeOfficesByOrganization, createOfficeAssignment } from '../mutations/officeMutations'
-import { createOrganizationShare, removeSharesByOrganization } from '../mutations/shareMutations'
+import { removeSharesByOrganization } from '../mutations/shareMutations'
 import { removeRightsByPolity } from '../mutations/politicalRightMutations'
 import { deactivateFaction } from '../mutations/factionMutations'
 import { selectOrCreateCommonwealthLeader } from '../mutations/worldStructureMutations'
@@ -259,12 +259,8 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
           'leader',
           newLeaderId,
         )
-        state = createOrganizationShare(
-          state,
-          { kind: 'polity', id: polityId },
-          { kind: 'person', id: newLeaderId },
-          100,
-        )
+        // v0.42c §15.1: person-holder polity share (100 固定) は廃止。
+        // commonwealth leader の影響力は influence breakdown の ruler domain で表現される。
         currentCtx = { ...currentCtx, state }
       }
       continue
