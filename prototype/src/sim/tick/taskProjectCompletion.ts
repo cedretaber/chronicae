@@ -188,6 +188,18 @@ function buildProjectFieldsForAim(
       const holding = ws.holdings[holdingId]
       if (!holding) return undefined
 
+      // v0.27 §15 / v0.42: 同一 holding の active develop_holding は 1 件まで (§19.4 integrity)。
+      // projectPreparationSystem の同ガードは prepare task 発行時のみで、複数の prepare task が
+      // 並走すると completion 時に 2 件目が生成されるレースがあった (latent — RNG パスに依存)。
+      // creation 側でも同じ判定を行いレースを閉じる。
+      const refKey = `holding:${holdingId}`
+      const existingPids = ws.projectIndex.byRelatedEntity[refKey] ?? []
+      const hasActiveDev = existingPids.some((pid) => {
+        const p = ws.projects[pid]
+        return p && p.kind === 'develop_holding' && p.status === 'active'
+      })
+      if (hasActiveDev) return undefined
+
       const improvementKind = selectImprovementKind(ws, config, holdingId)
       if (!improvementKind) return undefined
 
