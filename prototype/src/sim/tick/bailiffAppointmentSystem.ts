@@ -22,6 +22,7 @@ import {
   installHoldingPlaceholderBailiff,
 } from '../mutations/provinceOfficeMutations'
 import { hasActiveOffice, hasActiveHoldingOffice } from '../selectors/officeSelectors'
+import { getHoldingOfficeAppointmentRight } from '../selectors/politicalRightSelectors'
 
 // v0.17.1 §15.3: bailiff 任命用の OfficeRole alias。
 // getFactionNominationPower / getFactionalCandidateScore は role 引数を `void role` で
@@ -158,8 +159,40 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
 
       let chosenId: PersonId | undefined
 
+      // Tier 0) holding_office_appointment right holder (v0.42 §10.2)。
+      // holder が候補を出せない場合は factional / ownerHouse へ fall-through する
+      // (polity office と意図的に非対称 — bailiff は行政実務を止めない現場職のため)。
+      const appointmentRight = getHoldingOfficeAppointmentRight(currentCtx.state, holdingId)
+      if (appointmentRight) {
+        const rightCandidateIds =
+          appointmentRight.holder.kind === 'house'
+            ? (currentCtx.state.houses[appointmentRight.holder.id]?.memberIds ?? [])
+            : [appointmentRight.holder.id]
+        const rightCandidates = rightCandidateIds
+          .map((mid) => currentCtx.state.persons[mid])
+          .filter((p): p is NonNullable<typeof p> => p !== undefined)
+          .filter(
+            (p) =>
+              p.alive &&
+              p.age >= currentCtx.config.bailiffMinAge &&
+              p.kind !== 'placeholder' &&
+              !hasActiveOffice(currentCtx.state, p.id) &&
+              !hasActiveHoldingOffice(currentCtx.state, p.id) &&
+              !bookedThisTick.has(p.id),
+          )
+          .sort((a, b) => {
+            const aScore = a.abilities.numeracy + a.abilities.insight
+            const bScore = b.abilities.numeracy + b.abilities.insight
+            if (bScore !== aScore) return bScore - aScore
+            return a.id.localeCompare(b.id)
+          })
+        chosenId = rightCandidates[0]?.id
+      }
+
       // 2a) factional: 最高スコア候補が minAppointmentScore 以上なら採用
+      //     (anchor polity 限定 — getFactionNominationPower が非 anchor で 0 を返す §12.4)
       for (const cand of factionalRanked) {
+        if (chosenId) break
         if (bookedThisTick.has(cand.id)) continue
         if (cand.score < currentCtx.config.minAppointmentScore) break
         chosenId = cand.id

@@ -27,7 +27,6 @@ import {
   createDiplomaticPlayFromProjectMut,
 } from '../mutations/diplomaticPlayCreation'
 import { createPressureMut } from '../mutations/pressureMutations'
-import { vacateHoldingBailiff, appointHoldingBailiff } from '../mutations/provinceOfficeMutations'
 import {
   getProjectStageType,
   getNextProjectStageKey,
@@ -195,41 +194,21 @@ function resolveFindSupervisor(
     }
   }
 
+  // v0.42 §10.3: bailiff 不在時の直接任命 (vacate→appoint) を廃止。候補探索は
+  // supervisor 選定のためだけに使い、HoldingOfficeAssignment は変更しない。
+  // bailiff の補充は bailiffAppointmentSystem に一本化する (placeholder 期間が
+  // interval 分延びるのは許容 — §21.4)。
   if (!supervisorId) {
-    supervisorId = findBailiffCandidateForProject(ws, project)
+    supervisorId = findBailiffCandidateForProject(ws, config, project)
     if (!supervisorId) return false
-
-    const tp = ws.holdingTerminalPolityCache[holdingId]
-    if (!tp) return false
-
-    const vacated = vacateHoldingBailiff(
-      {
-        ...ws,
-        holdingOfficeAssignments: { ...ws.holdingOfficeAssignments },
-        holdingOfficeIndex: {
-          ...ws.holdingOfficeIndex,
-          byHolding: { ...ws.holdingOfficeIndex.byHolding },
-          byHolderPerson: { ...ws.holdingOfficeIndex.byHolderPerson },
-          byAppointingPolity: { ...ws.holdingOfficeIndex.byAppointingPolity },
-        },
-      },
-      holdingId,
-    )
-    const { state: appointed } = appointHoldingBailiff(vacated, {
-      holdingId,
-      holderPersonId: supervisorId,
-      appointingPolityId: tp,
-      week: absoluteWeek,
-    })
-    ws.holdingOfficeAssignments = appointed.holdingOfficeAssignments
-    ws.holdingOfficeIndex = appointed.holdingOfficeIndex
-    ws.nextHoldingOfficeAssignmentId = appointed.nextHoldingOfficeAssignmentId
   }
 
+  // 既存 bailiff を supervisor に使う場合のみ、project 期間中の任期交代から保護する
+  // (直接任命経路の廃止後も、現職 bailiff 経路の termProtect は従来どおり残す — §10.3)。
   const currentOfficeId = ws.holdingOfficeIndex.byHolding[holdingId]
   if (currentOfficeId) {
     const a = ws.holdingOfficeAssignments[currentOfficeId]
-    if (a) {
+    if (a && a.holderPersonId === supervisorId) {
       const protectedUntil = Math.max(
         a.termProtectedUntilWeek ?? 0,
         project.deadlineWeek ?? absoluteWeek,
