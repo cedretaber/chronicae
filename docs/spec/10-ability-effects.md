@@ -77,7 +77,7 @@ warPowerModifier = 1 + normalizedStat(martial) * generalMartialWarPowerEffect
 // 攻撃側・防衛側それぞれ独立して適用
 ```
 
-**Polity military → 宣戦閾値**（`calcGeneralDeclareThreshold`、現状未参照（将来の活用余地として保持））:
+**Polity military → 宣戦閾値**（`calcGeneralDeclareThreshold`。v0.42 で WarCreationSystem §6.44 の開戦ゲートに配線。攻撃側 polity の military 官の性格で勝率しきい値を調整する）:
 ```ts
 // ambition 高（野心的）→ 閾値を下げる（積極的に開戦）
 // caution 高（慎重）→ 閾値を上げる（消極的）
@@ -88,6 +88,8 @@ effectiveThreshold = clamp(
   minWarDeclareThreshold,
   maxWarDeclareThreshold,
 )
+// WarCreationSystem は estimateAttackerWinChance < effectiveThreshold なら開戦を見送る（WAR_AVERTED）。
+// personAbilityEffectsEnabled OFF 時は flat minAttackerWinChanceToDeclare。
 ```
 
 ### 10.6 Polity 土地開発への効果

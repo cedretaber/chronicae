@@ -77,7 +77,8 @@
 | maxProvincesPerWar | 3 | 1 戦争あたり最大征服数 |
 | maxWarsPerTick | 1 | 1 tick あたり最大宣戦数 |
 | warCooldownWeeks | 96 | 戦争クールダウン（週、2年相当） |
-| minAttackerWinChanceToDeclare | 0.45 | 宣戦布告に必要な最低勝率 |
+| minAttackerWinChanceToDeclare | 0.45 | 宣戦布告に必要な最低勝率（WarCreationSystem §6.44 開戦ゲートの基準しきい値） |
+| winChanceWarGateEnabled | true | 勝率×性格による開戦ゲート（§6.44）の有効化。personAbilityEffectsEnabled とは別のキルスイッチ（flat-0.45 ゲートだけの A/B 用） |
 | warWealthDamage | 8 | 戦争時の全 POP wealth 低下量 |
 | warUnrestDamage | 10 | 戦争時の全 POP unrest 上昇量 |
 | warPeasantSizeDamage | 0.5 | 戦争時の peasants size 減少量 |
@@ -220,6 +221,9 @@
 | generalCautionDeclareThresholdEffect | 0.10 | 将軍 caution による宣戦閾値変動係数 |
 | minWarDeclareThreshold | 0.30 | 宣戦閾値の下限 |
 | maxWarDeclareThreshold | 0.75 | 宣戦閾値の上限 |
+| pressureStanceAmbitionShift | 0.10 | 被圧力側 stance 境界の ambition シフト量（§6.38 choose_stance。大胆ほど拒否寄り） |
+| pressureStanceCautionShift | 0.10 | 被圧力側 stance 境界の caution シフト量（§6.38 choose_stance。慎重ほど譲歩寄り） |
+| negotiatorTermQualityEffect | 0.10 | 交渉担当者の charisma/insight による妥協幅スケール量（§6.55 offer_compromise） |
 | chancellorAmbitionLandDevelopmentScoreEffect | 10 | 宰相 ambition による landDevelopmentScore 補正係数（低 ambition が正に働く） |
 | chancellorCautionLandDevelopmentScoreEffect | 20 | 宰相 caution による landDevelopmentScore 補正係数 |
 | **Lordship Transition** | | |

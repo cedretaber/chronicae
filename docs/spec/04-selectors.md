@@ -160,6 +160,8 @@ buildBattleSimCommanderInputs(state, commanderPersonIds): BattleSimCommanderInpu
 
 戦力は `getActorMilitaryPower`（actorSelectors）を用い、指揮官補正は WarManeuverSystem 内の `commanderModifier` / `captainGeneralEfficiency`（`getRoleScore(person, 'warCommand')`）で乗算する。
 
+**開戦前勝率推定セレクター（`warEstimateSelectors.ts`。§6.44 開戦ゲートで使用）**: `estimateWarSidePower(state, config, actor)` は**実戦闘と同じ戦力源**（動員可能な常設連隊＝`status==='active'` かつ `currentWarId===undefined` の `getRegimentEffectivePower` 合計、連隊記録ゼロ時のみ `getActorMilitaryPower` フォールバック、記録ありで動員可能ゼロは 0）で推定する。`estimateAttackerWinChance` = `atk/(atk+def)`。WarManeuver は動員後の `getRegimentPowerForWarSide`（byWar 索引）を使うのに対し、開戦前は byOwner から動員可能分を見る点が異なる（同じ effectivePower 規則を共有）。
+
 ### 4.5 Status セレクター
 
 legitimacy / stability / prestige / cohesion / loyaltyToPolity は格納フィールドではなく動的計算セレクターで算出する。
