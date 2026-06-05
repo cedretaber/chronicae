@@ -463,11 +463,17 @@ type OfficeAssignment = {
   organization: OrganizationRef
   role: OfficeRole
   holderPersonId: PersonId
+  slotIndex: number               // v0.42 slot 化: 同 (org, role) 内の着座スロット (0-based)
   active: boolean
   startYear: number
   unpaidCount: number             // 給与未払い回数（Attitude ペナルティ計算に使用）
 }
 ```
+
+`slotIndex` は active な同 (organization, role) 間で一意（integrity invariant。整数 ≥ 0。
+effectiveMax 上限は**課さない** — 縮小直後の over-max 着座は organizationConsistencySystem
+Step 3 が回収するまでの合法 transient）。`createOfficeAssignment` は明示指定がなければ
+最小未使用番号を自動採番する。
 
 **HouseShare**: House 内の権力持分（v0.42c: 旧 OrganizationShare を縮小・改名。Polity share は全廃 —
 Polity の権力分布は Polity Influence read-model（§6.64）で導出され、entity としては保存しない。
@@ -507,7 +513,9 @@ type PoliticalRightHolderRef =
   | { kind: 'house'; id: HouseId }     // household right: holder 絶家で失効
 
 type PoliticalRightTargetRef =
-  | { kind: 'polity_office_role'; polityId: PolityId; role: OfficeRole }  // leader は対象外
+  | { kind: 'polity_office_role'; polityId: PolityId; role: OfficeRole; slotIndex: number }
+    // leader は対象外。v0.42 slot 化: right は役職全体でなく特定スロット 1 席を支配する。
+    // slotIndex は 0 <= slot < 静的 maxHolders (生成時検査 + integrity R3)
   | { kind: 'holding_office_role'; holdingId: HoldingId; role: 'bailiff' }
   | { kind: 'regiment'; regimentId: RegimentId }
 
@@ -530,7 +538,7 @@ politicalRightIndex: {
 nextPoliticalRightId: number
 ```
 
-target key は `polity_office_role:{polityId}:{role}` / `holding_office_role:{holdingId}:bailiff` /
+target key は `polity_office_role:{polityId}:{role}:{slotIndex}` / `holding_office_role:{holdingId}:bailiff` /
 `regiment:{regimentId}`。hard-delete（active=false 残置なし。履歴は SimEvent / Chronicle）。
 
 `Polity.ownerHouseId` の役職的側面 / `Polity.roleAssignments` / `House.headId` は持たず、支配者・役職担当者は `OfficeAssignment` に統一されている。`OFFICE_DEFINITIONS` のキー prefix は `polity:` / `house:`。

@@ -661,7 +661,7 @@ score = relevantStat(role) * 1.0          // military → warCommand、他 → g
 
 また、active な HoldingOffice (Bailiff) を保有する人物は Polity / House / factional の各候補プールから除外する。候補収集は 'traditional' 候補に加え faction が推す 'factional' 候補も含む。
 
-**polity_office_appointment right の接続 (v0.42)**: 対象 (polity, role) に active な `polity_office_appointment` right（§6.64）がある場合:
+**polity_office_appointment right の接続 (v0.42)**: 充足対象 slot（下記「任命判定」）に active な `polity_office_appointment` right（§6.64 — v0.42 slot 化で right は (polity, role, slot) 単位）がある場合:
 - **unrelated factional path は使わない**（任命権は制度的権利として派閥推薦より優先）
 - right holder の候補を pool に追加する（traditional pool 外の House member / Person 本人も対象）
 - スコア補正: holder House の member に `polityOfficeAppointmentRightHouseBonus`（既定 30 — influence% 項の最大値を上回る水準。それでも能力差で覆りうる）、holder Person 本人に `polityOfficeAppointmentRightPersonBonus`（35）、その家の member に同 AssociatedBonus（18）
@@ -682,9 +682,13 @@ score = relevantStat(role) * 1.0
 
 **任命判定**:
 - 最高スコア候補が `minAppointmentScore` 未満の場合は任命しない（空席を維持）
-- `getEffectiveOfficeMaxHolders(state, config, org, role)` で算出される動的上限に達していない空席を補充する（既存担当者は交代させない）
+- **Polity 役職は slot ベースの空席判定（v0.42 slot 化）**: `getEffectiveOfficeMaxHolders` で動的
+  slot 数を算出し、slot 0..effectiveMax-1 のうち**未着座の最若 slot 1 つ**を 1 回の実行で充足する
+  （人数 count ベースではない — 縮小直後に「後ろの slot に着座者が残り count == max だが前の slot
+  が空き」というケースがあり、count 判定だと前の空き slot が永久に埋まらない）。right の参照・
+  `createOfficeAssignment` への slot 明示渡しもこの充足対象 slot に対して行う
   - Polity 役職: `polityOfficeMaxByRank[rank][role]` × province 数係数で決定。`rankCap = 0` の場合はその役職を設置不可（例: rank 4 伯領は administrator のみ）
-  - House 役職: leader 以外は一律 maxHolders = 1
+  - House 役職: leader 以外は一律 maxHolders = 1（slot は常に 0）
 - 死亡者の役職は自動的に revoke される
 
 **House 役職の支払能力ゲート**: House 役職（有給 = administrator/treasurer/military/advisor）は、家が定常的に得る年間収入で既存役職＋新規役職の年間給与を賄えない場合は任命しない（leader は `baseSalary=0` なので常に対象外。Polity 役職は財庫から支払われ実測上ほぼ未払いにならないため不問）。
@@ -1017,12 +1021,14 @@ for each polity in active polities:
     if polity.kind === 'commonwealth': continue
       // commonwealth holder は houseId 不問で eligible (person-direct モデル)
 
-    // v0.42: Right 由来任命の例外（狭い判定）。対象 role に active な
+    // v0.42: Right 由来任命の例外（狭い判定）。着座 slot に active な
     // polity_office_appointment right (§6.64) があり、holder が House なら同 House の
     // holder を、Person なら本人のみを eligible 扱いする。
     // この例外が無いと right による任命が最大 4 週で黙って revoke され right system が機能しない。
     // right が失効・移転した後の holder は保護を失い通常 revoke の対象に戻る（許容挙動）。
-    right = getPolityOfficeAppointmentRight(state, polity.id, office.role)
+    // v0.42 slot 化: 保護は着座 slot (office.slotIndex) の right に限る。
+    // 同 role の別 slot の right では保護されない（slot 照合）。
+    right = getPolityOfficeAppointmentRight(state, polity.id, office.role, office.slotIndex)
     if right and ((right.holder is House and person.houseId === right.holder.id)
                or (right.holder is Person and office.holderPersonId === right.holder.id)):
       continue
@@ -1042,13 +1048,14 @@ for each polity in active polities:
 
   // Step 3: rank ベースの定員超過 revoke
   // polity の rank / province 数に対して getEffectiveOfficeMaxHolders を超える役職者を解任する。
-  // 最も新しい任命（startYear が大きい）から順に解任。
+  // v0.42 slot 化: slotIndex の大きい（列の後ろの）着座者から順に解任（旧: startYear 降順）。
+  // 先頭スロットほど縮小時に生き残る = 先頭 slot の right の価値が高い、の over-max 側の実装。
   for each role in [administrator, treasurer, military, advisor]:
     effectiveMax = getEffectiveOfficeMaxHolders(state, config, polityRef, role)
     holderIds = getActiveOfficeHolders(state, polityRef, role)
     if holderIds.length <= effectiveMax: continue
-    // startYear desc でソートし、超過分（最新任命から）を revoke
-    excess = assignments sorted by startYear desc, take (count - effectiveMax)
+    // slotIndex desc でソートし、超過分（列の後ろから）を revoke
+    excess = assignments sorted by slotIndex desc, take (count - effectiveMax)
     for each excess assignment:
       revokeOfficeAssignment(assignment.id)
       emit OFFICE_REVOKED
@@ -1794,7 +1801,15 @@ v0.42 で Polity の内部権力構造を「抽象的な Polity share」から�
 House 内部の Share（HouseShare、§3.7）のみが一次データとして残る。
 
 **PoliticalRight**（entity — §3 参照）:
-- target は 3 種: `polity_office_role`（polity の non-leader role への任命権）/ `holding_office_role`（Holding の bailiff 任命権）/ `regiment`（連隊の管理権）
+- target は 3 種: `polity_office_role`（polity の non-leader role の**特定スロット**への任命権 —
+  v0.42 slot 化）/ `holding_office_role`（Holding の bailiff 任命権）/ `regiment`（連隊の管理権）
+- **slot 単位（v0.42 slot 化）**: polity office right は役職全体ではなくスロット 1 席
+  （`slotIndex`、0-based）を支配する。maxHolders 3〜5 の役職で 1 right が全席を支配して
+  権力が偏る問題と、同一役職内の家同士の対立を表現できない問題への対処。
+  effectiveMax 縮小時は**列の後ろ（slotIndex 大）から失効**する（§6.65）ため、
+  先頭スロットほど確保する価値が高い。失効した right は領土回復で slot が戻っても
+  復活しない（hard-delete 原則。再取得が必要）。slotIndex は生成時に
+  0 ≤ slot < 静的 maxHolders を検査（動的 effectiveMax の縮小は §6.65 が毎週回収）
 - kind・tenure フィールドは持たない（target.kind / holder.kind から導出。保存すると drift の余地だけが生まれる）
 - holder は person | house。**person 死亡 / house 絶家で失効**（即時 cascade: markPersonDead / worldStructureExtinction）
 - **1 target 1 active right**（byTarget index の各 entry length ≤ 1）。hard-delete（active=false 残置なし）
@@ -1827,9 +1842,12 @@ House 内部の Share（HouseShare、§3.7）のみが一次データとして�
 - Influence は read-model なので「直接増やす」対象ではない。上げたければ具体的な権利・役職・土地を取る
 - Aim 生成条件（ゲート）: owner House の対象 Polity への influence% ≥ `acquirePoliticalRightRequiredInfluencePercent`
   （対象 = 家が土地で関与する polity）
-- target 選定: kind 優先度 polity_office（military > administrator > treasurer > advisor）> holding（House 関与
-  province の Holding 優先・id 昇順 = 近接優先の決定的簡略化）> regiment（active のみ・House 関与 home 優先）。
-  いずれも right 未設定のもの。`aimSlotKey` に politicalRightTargetKey が含まれ同一 target への重複 aim を防ぐ
+- target 選定: kind 優先度 polity_office（military > administrator > treasurer > advisor、
+  各 role 内は slot 0..effectiveMax-1 の若い順 — v0.42 slot 化。先頭 slot ほど縮小に強い安全資産）
+  > holding（House 関与 province の Holding 優先・id 昇順 = 近接優先の決定的簡略化）
+  > regiment（active のみ・House 関与 home 優先）。
+  いずれも right 未設定のもの。`aimSlotKey` に politicalRightTargetKey（slot を含む）が含まれ
+  同一 (target, slot) への重複 aim を防ぐ
 - 成功条件は createPoliticalRight の検査（target 実在 / polityId 整合 / 既存 right なし / holder House active）に
   集約。**コストは House wealth から対象 Polity treasury への transfer**（wealth sink ではない —
   旧 expand_polity_share の sink 消滅による経済変化を緩和し、「国庫に納めて権利を授かる」物語になる）
@@ -1861,6 +1879,10 @@ holder_lost / polity_dissolved / target_lost / regime_change）:
 - right.polityId が active Polity
 - target が存在する（regiment は status !== 'disbanded'。destroyed は許容）
 - target と polityId が整合する（office target.polityId / regiment owner / holding terminal polity）
+- **office right の slot 失効（v0.42 slot 化）**: `slotIndex >= getEffectiveOfficeMaxHolders(...)`
+  なら target_lost。effectiveMax は rank / 領土数で動的に変わり **0 にもなり得る**
+  （rank cap 0 の role では slot 0 の right も失効）。「列の後ろから失効」の実装はここ
+  （findRightInconsistency は config を引数に取る）
 
 即時 cascade（一次手段）との分担: person 死亡・house 絶家・regiment disband・polity inactive は mutation 層で
 即時削除（silent）。本 system は「mutation では追わない」regiment owner 付替・holding terminal 変化などを回収する。

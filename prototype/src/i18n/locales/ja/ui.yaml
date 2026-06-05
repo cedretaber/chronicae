@@ -228,6 +228,7 @@ detail:
       faction: '派閥'
     appointment_right: '任命権'
     control_right: '管理権'
+    slot_label: '第{{n}}席'
     houses_with_land: '領地保有家門'
     land_contracts: '土地契約'
     regiments: '保有連隊'

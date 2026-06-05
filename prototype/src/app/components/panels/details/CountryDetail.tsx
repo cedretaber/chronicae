@@ -34,6 +34,8 @@ import {
   getAdministrativeLoad,
   getAdministrativeEfficiency,
   getActiveOfficeHolders,
+  getOfficeAssignments,
+  getEffectiveOfficeMaxHolders,
 } from '@sim/selectors/officeSelectors'
 import {
   getDominantInfluenceHolder,
@@ -241,41 +243,86 @@ export function CountryDetail({
         </div>
       </div>
 
-      {/* v0.42: 役職カード (保持者 + 任命権保持者を併記)。leader は right 対象外 (§4)。 */}
+      {/* v0.42 slot 化: 役職カード — slot ごとに着座者 + その slot の任命権保持者を表示。
+          leader は slot 概念なし (right 対象外 §4)。effectiveMax を超えた slot に残る
+          着座者 (縮小直後の過渡) も行として出す。 */}
       <div className="text-sm font-semibold text-gray-300">{t('detail.polity.roles')}:</div>
       <div className="grid grid-cols-2 gap-1">
         {(['leader', 'administrator', 'military', 'treasurer', 'advisor'] as const).map((role) => {
           const polityRef = { kind: 'polity' as const, id: polity.id }
-          const holderIds = worldState ? getActiveOfficeHolders(worldState, polityRef, role) : []
-          const right =
-            worldState && role !== 'leader'
-              ? getPolityOfficeAppointmentRight(worldState, polity.id, role, 0)
-              : undefined
+          if (role === 'leader') {
+            const holderIds = worldState ? getActiveOfficeHolders(worldState, polityRef, role) : []
+            return (
+              <div key={role} className="rounded bg-gray-700/60 p-1.5 text-xs">
+                <div className="truncate font-medium text-gray-300">{roleLabels[role]}</div>
+                <div className="flex flex-col gap-0.5">
+                  {holderIds.length === 0 ? (
+                    <span className="text-gray-500">—</span>
+                  ) : (
+                    holderIds.map((pid) => (
+                      <PersonLink
+                        key={pid as string}
+                        personId={pid}
+                        persons={persons}
+                        onClick={onPersonClick}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            )
+          }
+          const assignments = worldState
+            ? getOfficeAssignments(worldState, polityRef).filter((o) => o.active && o.role === role)
+            : []
+          const effectiveMax = worldState
+            ? getEffectiveOfficeMaxHolders(worldState, defaultConfig, polityRef, role)
+            : 0
+          const bySlot = new Map(assignments.map((o) => [o.slotIndex, o]))
+          const slotCount = Math.max(effectiveMax, ...assignments.map((o) => o.slotIndex + 1), 0)
           return (
             <div key={role} className="rounded bg-gray-700/60 p-1.5 text-xs">
               <div className="truncate font-medium text-gray-300">{roleLabels[role]}</div>
               <div className="flex flex-col gap-0.5">
-                {holderIds.length === 0 ? (
+                {slotCount === 0 ? (
                   <span className="text-gray-500">—</span>
                 ) : (
-                  holderIds.map((pid) => (
-                    <PersonLink
-                      key={pid as string}
-                      personId={pid}
-                      persons={persons}
-                      onClick={onPersonClick}
-                    />
-                  ))
+                  Array.from({ length: slotCount }, (_, slot) => {
+                    const assignment = bySlot.get(slot)
+                    const right = worldState
+                      ? getPolityOfficeAppointmentRight(worldState, polity.id, role, slot)
+                      : undefined
+                    return (
+                      <div key={slot}>
+                        <div className="flex items-baseline gap-1">
+                          <span className="shrink-0 text-[11px] text-gray-500">
+                            {t('detail.polity.slot_label', { n: slot + 1 })}
+                          </span>
+                          {assignment ? (
+                            <PersonLink
+                              personId={assignment.holderPersonId}
+                              persons={persons}
+                              onClick={onPersonClick}
+                            />
+                          ) : (
+                            <span className="text-gray-600">—</span>
+                          )}
+                        </div>
+                        <div className="pl-3">
+                          <RightHolderLine
+                            right={right}
+                            label={t('detail.polity.appointment_right')}
+                            persons={persons ?? {}}
+                            houses={houses ?? {}}
+                            onPersonClick={onPersonClick}
+                            onHouseClick={onHouseClick}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })
                 )}
               </div>
-              <RightHolderLine
-                right={right}
-                label={t('detail.polity.appointment_right')}
-                persons={persons ?? {}}
-                houses={houses ?? {}}
-                onPersonClick={onPersonClick}
-                onHouseClick={onHouseClick}
-              />
             </div>
           )
         })}

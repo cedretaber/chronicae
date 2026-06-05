@@ -267,13 +267,15 @@ function getTopInfluenceHoldersInPolity(state, config, polityId, limit?, domain?
 
 ```ts
 function getRightForTarget(state, target): PoliticalRight | undefined        // 1 target 1 right
-function getPolityOfficeAppointmentRight(state, polityId, role): PoliticalRight | undefined
+// v0.42 slot 化: office right は (polity, role, slotIndex) 単位
+function getPolityOfficeAppointmentRight(state, polityId, role, slotIndex): PoliticalRight | undefined
 function getHoldingOfficeAppointmentRight(state, holdingId): PoliticalRight | undefined
 function getRegimentControllerRight(state, regimentId): PoliticalRight | undefined  // Regiment 型にフィールドは無い
 function getRightsByHolder(state, holder): PoliticalRight[]
 function getRightsByPolity(state, polityId): PoliticalRight[]
-// acquire_political_right の target 選定（kind 優先度 + 近接優先の決定的簡略化 — §6.64）
-function findAcquirableRightTarget(state, houseId, polityId): PoliticalRightTargetRef | undefined
+// acquire_political_right の target 選定（kind 優先度 + role 内は slot 若い順 + 近接優先の
+// 決定的簡略化 — §6.64。slot 列挙に effectiveMax が要るため config を取る）
+function findAcquirableRightTarget(state, config, houseId, polityId): PoliticalRightTargetRef | undefined
 ```
 
 ### 4.6b Polity 関係 selector

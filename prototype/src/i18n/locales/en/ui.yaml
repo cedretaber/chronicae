@@ -131,6 +131,7 @@ detail:
       faction: 'Faction'
     appointment_right: 'Appointment right'
     control_right: 'Control right'
+    slot_label: 'Seat {{n}}'
     houses_with_land: 'Houses with land here'
     land_contracts: 'Land Contracts'
     regiments: 'Regiments'

@@ -372,8 +372,8 @@ export function ShareholderSection({
 }
 
 // v0.42: PoliticalRight の target 表示名。
-//   polity_office_role -> 役職名 (roles ns) / holding_office_role -> Holding 完全名 + 代官 /
-//   regiment -> home Province 名 + 連隊 (PolityRegiments と同じ命名)。
+//   polity_office_role -> 役職名 + 席番号 (slot 単位 right) / holding_office_role ->
+//   Holding 完全名 + 代官 / regiment -> home Province 名 + 連隊 (PolityRegiments と同じ命名)。
 function politicalRightTargetLabel(
   worldState: WorldState,
   t: TFunction,
@@ -382,7 +382,7 @@ function politicalRightTargetLabel(
 ): string {
   switch (target.kind) {
     case 'polity_office_role':
-      return t(`polity.${target.role}`, { ns: 'roles' })
+      return `${t(`polity.${target.role}`, { ns: 'roles' })} ${t('detail.polity.slot_label', { n: target.slotIndex + 1 })}`
     case 'holding_office_role':
       return `${getHoldingQualifiedName(worldState, resolveName, target.holdingId)} ${t('holding.bailiff', { ns: 'roles' })}`
     case 'regiment': {
