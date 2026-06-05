@@ -158,7 +158,7 @@ bailiff:
 
 faction:
   founded: '{{person}}が派閥を結成した。'
-  dissolved: '{{leader}}の派閥が解散した（{{reasons}}）。'
+  dissolved: '{{leader}}の派閥が解散した（{{reason}}）。'
   leader_changed: '{{newLeader}}が{{oldLeader}}に代わり派閥を率いることになった。'
   leader_bankrupt: '{{person}}の財力が尽き、その派閥が危機に瀕している。'
   member_recruited: '{{person}}が{{leader}}の派閥に加わった。'
@@ -261,6 +261,28 @@ enum:
     cession: '割譲'
     war: '戦争'
     revolt: '叛乱'
+  factionDissolveReason:
+    leader_unaffiliated: '指導者の所属喪失'
+    anchor_polity_dissolved: '母体国家の消滅'
+    insufficient_members: '構成員不足'
+    low_viability: '求心力の低下'
+    leader_bankrupt: '指導者の破産'
+    leader_died: '指導者の死去'
+    leader_transition_failed: '後継者不在'
+  occupation:
+    adventurer: '冒険者'
+    merchant: '商人'
+    scholar: '学者'
+    mercenary: '傭兵'
+    scribe: '書記'
+    priest: '聖職者'
+    physician: '医師'
+    jurist: '法学者'
+    wanderer: '流れ者'
+  rebelClass:
+    peasants: '農民'
+    townsmen: '市民'
+    nobles: '貴族'
   # project event の {{kind}} 表示ラベル (ProjectKind enum)。
   #   goal/aim kind と違い owner 種別で語彙が分かれないため flat に持つ。
   projectKind:

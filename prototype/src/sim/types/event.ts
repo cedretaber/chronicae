@@ -377,7 +377,7 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'bailiff.vacated': '{{person}} stepped down as bailiff of {{province}}.',
   'bailiff.placeholder_installed': 'An anonymous placeholder oversees {{province}}.',
   'faction.founded': '{{person}} founded the faction {{faction}}.',
-  'faction.dissolved': '{{faction}} dissolved ({{reasons}}).',
+  'faction.dissolved': "{{leader}}'s faction dissolved ({{reason}}).",
   'faction.leader_changed': '{{newLeader}} succeeded {{oldLeader}} as the head of {{faction}}.',
   'faction.leader_bankrupt':
     "{{person}}'s fortunes are exhausted, putting {{faction}} in jeopardy.",

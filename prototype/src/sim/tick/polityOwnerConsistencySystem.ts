@@ -206,7 +206,8 @@ function deactivatePolityInline(ctx: TickContext, polityId: PolityId): TickConte
         messageKey: 'faction.dissolved',
         messageParams: {
           leader: nameParam('person', leader?.nameKey ?? 'unknown'),
-          reasons: `${factionId} dissolved (anchor polity dissolved).`,
+          // enum コード — 表示は enum.factionDissolveReason.* (eventRenderer)
+          reason: 'anchor_polity_dissolved',
         },
         entityRefs: [
           entityRef('person', faction.leaderPersonId, 'leader', leader?.nameKey),

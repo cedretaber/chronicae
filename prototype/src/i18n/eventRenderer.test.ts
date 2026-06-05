@@ -224,7 +224,8 @@ describe('v0.38 chronicle i18n keys resolve (battle narrative + category badge)'
   it('renders all faction.* event templates cleanly with their emitted params (no unresolved placeholder)', () => {
     const cases: { key: string; params: EventMessageParams }[] = [
       { key: 'faction.founded', params: { person: 'Albert' } },
-      { key: 'faction.dissolved', params: { leader: 'Albert', reasons: 'leader died' } },
+      // reason は enum コード (enum.factionDissolveReason.* で解決)
+      { key: 'faction.dissolved', params: { leader: 'Albert', reason: 'leader_died' } },
       { key: 'faction.leader_changed', params: { newLeader: 'Berna', oldLeader: 'Albert' } },
       { key: 'faction.leader_bankrupt', params: { person: 'Albert' } },
       { key: 'faction.member_recruited', params: { person: 'Kai', leader: 'Albert' } },

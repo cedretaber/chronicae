@@ -53,19 +53,21 @@ function checkDissolutions(ctx: TickContext): TickContext {
     if (!leader.houseId) continue
     const leaderHouse = currentCtx.state.houses[leader.houseId]
 
+    // 解散理由は enum コードで保持し、表示ラベルは events ns の
+    // enum.factionDissolveReason.* (eventRenderer) に解決させる
     const reasonsToDissolve: string[] = []
     if (!leaderHouse || !leaderHouse.active || leaderHouse.kind === 'system')
-      reasonsToDissolve.push('leader unaffiliated')
+      reasonsToDissolve.push('leader_unaffiliated')
     // v0.42 §12.3: anchor polity inactive の安全網 (主処理は polityOwnerConsistency の即時 cascade)
     const anchorPolity = currentCtx.state.polities[faction.polityId]
-    if (!anchorPolity || !anchorPolity.active) reasonsToDissolve.push('anchor polity dissolved')
+    if (!anchorPolity || !anchorPolity.active) reasonsToDissolve.push('anchor_polity_dissolved')
     if (memberIds.length < config.minimumFactionMembers)
-      reasonsToDissolve.push('insufficient members')
-    if (viability < config.factionDisbandThreshold) reasonsToDissolve.push('low viability')
-    if (leader.wealth < config.factionDisbandWealthFloor) reasonsToDissolve.push('leader bankrupt')
+      reasonsToDissolve.push('insufficient_members')
+    if (viability < config.factionDisbandThreshold) reasonsToDissolve.push('low_viability')
+    if (leader.wealth < config.factionDisbandWealthFloor) reasonsToDissolve.push('leader_bankrupt')
 
     if (reasonsToDissolve.length > 0) {
-      if (reasonsToDissolve.includes('leader bankrupt')) {
+      if (reasonsToDissolve.includes('leader_bankrupt')) {
         const { event, ctx: ec } = createSimEvent(currentCtx, {
           type: 'FACTION_LEADER_BANKRUPT',
           importance: 'normal',
@@ -80,11 +82,8 @@ function checkDissolutions(ctx: TickContext): TickContext {
         })
         currentCtx = { ...ec, events: [...ec.events, event] }
       }
-      currentCtx = dissolveFaction(
-        currentCtx,
-        factionId,
-        `${faction.id} dissolved (${reasonsToDissolve.join(', ')}).`,
-      )
+      // 複数該当時は優先順 (判定順) の先頭 1 つを代表理由として表示する
+      currentCtx = dissolveFaction(currentCtx, factionId, reasonsToDissolve[0] ?? 'low_viability')
     }
   }
   return currentCtx
@@ -126,17 +125,13 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
   candidates.sort((a, b) => b.score - a.score)
 
   if (candidates.length === 0 || !candidates[0]) {
-    return dissolveFaction(
-      ctx,
-      factionId,
-      `${faction.id} dissolved after the death of ${oldLeader?.nameKey ?? faction.leaderPersonId}.`,
-    )
+    return dissolveFaction(ctx, factionId, 'leader_died')
   }
 
   const newLeaderId = candidates[0].personId
   const result = transitionFactionLeader(ctx.state, { factionId, newLeaderPersonId: newLeaderId })
   if (!result.ok) {
-    return dissolveFaction(ctx, factionId, `${faction.id} dissolved (leader transition failed).`)
+    return dissolveFaction(ctx, factionId, 'leader_transition_failed')
   }
   const ctx1: TickContext = { ...ctx, state: result.value }
   const newLeader = ctx1.state.persons[newLeaderId]
@@ -157,7 +152,9 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
   return { ...ec, events: [...ec.events, event] }
 }
 
-function dissolveFaction(ctx: TickContext, factionId: FactionId, summary: string): TickContext {
+// reason は enum コード ('leader_died' 等) — 表示ラベル解決は eventRenderer
+// (enum.factionDissolveReason.*)。英文をここで組み立てない (sim 層はロケール中立)
+function dissolveFaction(ctx: TickContext, factionId: FactionId, reason: string): TickContext {
   const faction = ctx.state.factions[factionId]
   if (!faction) return ctx
   const result = deactivateFaction(ctx.state, factionId)
@@ -170,7 +167,7 @@ function dissolveFaction(ctx: TickContext, factionId: FactionId, summary: string
     messageKey: 'faction.dissolved',
     messageParams: {
       leader: nameParam('person', ctx1.state.persons[faction.leaderPersonId]?.nameKey ?? 'unknown'),
-      reasons: summary,
+      reason,
     },
     entityRefs: [
       entityRef('person', faction.leaderPersonId, 'leader', oldLeader?.nameKey),

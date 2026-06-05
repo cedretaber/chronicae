@@ -45,14 +45,16 @@ export function createEventRenderer(
           }
         }
 
-        // task cancel 理由 / land contract 移転理由は messageKey 限定の enum ラベル
-        // (param 名 'reason' はイベント間で語彙が異なるため、key だけでは解決先を決めない)
+        // task cancel 理由 / land contract 移転理由 / faction 解散理由は messageKey 限定の
+        // enum ラベル (param 名 'reason' はイベント間で語彙が異なるため、key だけでは解決先を決めない)
         if (key === 'reason' && typeof value === 'string') {
           const enumKey = messageKey.startsWith('task.')
             ? 'taskCancelReason'
             : messageKey === 'land_contract.transferred'
               ? 'landTransferReason'
-              : undefined
+              : messageKey === 'faction.dissolved'
+                ? 'factionDissolveReason'
+                : undefined
           if (enumKey) {
             const translated = i18nInstance.t(`enum.${enumKey}.${value}`, {
               ns: 'events',
@@ -74,7 +76,9 @@ export function createEventRenderer(
             key === 'breakthroughSide' ||
             key === 'rightKind' ||
             key === 'revokeReason' ||
-            key === 'plotType') &&
+            key === 'plotType' ||
+            key === 'occupation' ||
+            key === 'rebelClass') &&
           typeof value === 'string'
         ) {
           const translated = i18nInstance.t(`enum.${key}.${value}`, {
