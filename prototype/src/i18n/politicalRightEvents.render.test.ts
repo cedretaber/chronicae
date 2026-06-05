@@ -110,7 +110,10 @@ function makeCtx(state: WorldState): TickContext {
 }
 
 const TARGETS: { label: string; target: PoliticalRightTargetRef }[] = [
-  { label: 'office', target: { kind: 'polity_office_role', polityId, role: 'administrator' } },
+  {
+    label: 'office',
+    target: { kind: 'polity_office_role', polityId, role: 'administrator', slotIndex: 0 },
+  },
   { label: 'holding', target: { kind: 'holding_office_role', holdingId, role: 'bailiff' } },
   { label: 'regiment', target: { kind: 'regiment', regimentId } },
 ]

@@ -328,6 +328,7 @@ describe('runBailiffAppointmentSystem', () => {
       holderPersonId: memberId,
       active: true,
       startYear: s.currentYear,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     s = {

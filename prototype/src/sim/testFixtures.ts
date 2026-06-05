@@ -391,6 +391,7 @@ export function withHouseLeader(
         holderPersonId: leaderPersonId,
         active: true,
         startYear: 1,
+        slotIndex: 0,
         unpaidCount: 0,
       },
     },

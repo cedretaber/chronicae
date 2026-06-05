@@ -159,6 +159,7 @@ describe('runHouseFoundingSystem', () => {
       holderPersonId: pid,
       active: true,
       startYear: 1444,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     s = {
@@ -321,6 +322,7 @@ describe('runHouseFoundingSystem', () => {
       holderPersonId: pid,
       active: true,
       startYear: 1444,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     state = {

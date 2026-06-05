@@ -26,6 +26,11 @@ export type OfficeAssignment = {
   organization: OrganizationRef
   role: OfficeRole
   holderPersonId: PersonId
+  // v0.42 slot 単位任命権: 同一 (organization, role) 内の着座スロット (0-based)。
+  // active な同 (org, role) 間で一意。先頭スロットほど縮小時に残りやすく価値が高い。
+  // effectiveMax 縮小直後は slotIndex >= effectiveMax の着座者が残り得る
+  // (organizationConsistencySystem Step 3 が後ろから回収するまでの合法 transient)。
+  slotIndex: number
   active: boolean
   startYear: number
   unpaidCount: number

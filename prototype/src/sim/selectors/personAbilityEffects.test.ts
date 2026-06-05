@@ -60,6 +60,7 @@ function makeOfficeAssignment(
     holderPersonId,
     active: true,
     startYear: state.currentYear,
+    slotIndex: 0,
     unpaidCount: 0,
   }
   const key = `${organization.kind}:${organization.id}`

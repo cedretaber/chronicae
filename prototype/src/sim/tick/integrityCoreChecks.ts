@@ -90,6 +90,34 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
         message: `OfficeAssignment ${officeId} has negative unpaidCount`,
       })
     }
+
+    // v0.42 slot 単位任命権: slotIndex は整数 >= 0。
+    // effectiveMax 上限は課さない (縮小〜organizationConsistency 回収間の合法 transient)。
+    if (!Number.isInteger(office.slotIndex) || office.slotIndex < 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `OfficeAssignment ${officeId} has invalid slotIndex ${office.slotIndex}`,
+      })
+    }
+  }
+
+  // 2b. v0.42 slot 単位任命権: active な同 (organization, role) 内で slotIndex は一意
+  {
+    const seenSlots = new Map<string, string>()
+    for (const officeId of Object.keys(state.officeAssignments).sort()) {
+      const office = state.officeAssignments[officeId as import('../types/ids').OfficeAssignmentId]
+      if (!office || !office.active) continue
+      const slotKey = `${office.organization.kind}:${office.organization.id}:${office.role}:${office.slotIndex}`
+      const prev = seenSlots.get(slotKey)
+      if (prev !== undefined) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `OfficeAssignment ${officeId} duplicates slotIndex ${office.slotIndex} of ${prev} (${office.organization.kind}:${office.organization.id} ${office.role})`,
+        })
+      } else {
+        seenSlots.set(slotKey, officeId)
+      }
+    }
   }
 
   // 3. Active House must have exactly 1 house:leader office

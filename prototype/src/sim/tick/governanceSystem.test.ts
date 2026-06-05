@@ -75,6 +75,7 @@ function makeCtx({
       holderPersonId: administratorId,
       active: true,
       startYear: 1,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     const orgKey = `polity:${polityId}`
@@ -89,6 +90,7 @@ function makeCtx({
       holderPersonId: administratorPersonId,
       active: true,
       startYear: 1,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     const orgKey = `polity:${polityId}`
@@ -105,6 +107,7 @@ function makeCtx({
       holderPersonId: treasurerId,
       active: true,
       startYear: 1,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     const orgKey = `polity:${polityId}`
@@ -120,6 +123,7 @@ function makeCtx({
       holderPersonId: treasurerPersonId,
       active: true,
       startYear: 1,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     const orgKey = `polity:${polityId}`

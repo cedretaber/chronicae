@@ -21,19 +21,34 @@ export function createOfficeAssignment(
   organization: OrganizationRef,
   role: OfficeRole,
   holderPersonId: PersonId,
+  slotIndex?: number,
 ): WorldState {
+  const orgKeyStr = orgKey(organization)
+
+  // v0.42 slot 単位任命権: 明示指定がなければ active な同 (org, role) の最小未使用番号を採番
+  let resolvedSlotIndex = slotIndex
+  if (resolvedSlotIndex === undefined) {
+    const used = new Set<number>()
+    for (const oid of state.officeIndex.byOrganization[orgKeyStr] ?? []) {
+      const o = state.officeAssignments[oid]
+      if (o && o.active && o.role === role) used.add(o.slotIndex)
+    }
+    resolvedSlotIndex = 0
+    while (used.has(resolvedSlotIndex)) resolvedSlotIndex++
+  }
+
   const id = createOfficeAssignmentId(state.nextOfficeAssignmentId)
   const newOffice = {
     id,
     organization,
     role,
     holderPersonId,
+    slotIndex: resolvedSlotIndex,
     active: true,
     startYear: state.currentYear,
     unpaidCount: 0,
   }
 
-  const orgKeyStr = orgKey(organization)
   const personKeyStr = holderPersonId as string
 
   const existingByOrg = state.officeIndex.byOrganization[orgKeyStr] ?? []

@@ -15,8 +15,11 @@ export type PoliticalRightHolderRef =
   | { kind: 'person'; id: PersonId }
   | { kind: 'house'; id: HouseId }
 
+// polity_office_role は slot 単位 (v0.42 slot 化): 1 right が支配するのは役職全体ではなく
+// 特定スロット 1 席。slotIndex は 0-based で、effectiveMax 縮小時は後ろの slot から失効する
+// (rightConsistencySystem)。失効した right は領土回復で slot が戻っても復活しない (hard-delete)。
 export type PoliticalRightTargetRef =
-  | { kind: 'polity_office_role'; polityId: PolityId; role: OfficeRole }
+  | { kind: 'polity_office_role'; polityId: PolityId; role: OfficeRole; slotIndex: number }
   | { kind: 'holding_office_role'; holdingId: HoldingId; role: 'bailiff' }
   | { kind: 'regiment'; regimentId: RegimentId }
 
@@ -53,7 +56,7 @@ export function getPoliticalRightKindFromTarget(
 export function politicalRightTargetKey(target: PoliticalRightTargetRef): string {
   switch (target.kind) {
     case 'polity_office_role':
-      return `polity_office_role:${target.polityId}:${target.role}`
+      return `polity_office_role:${target.polityId}:${target.role}:${target.slotIndex}`
     case 'holding_office_role':
       return `holding_office_role:${target.holdingId}:${target.role}`
     case 'regiment':

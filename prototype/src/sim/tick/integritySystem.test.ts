@@ -107,6 +107,7 @@ describe('runIntegritySystem', () => {
         holderPersonId: personId,
         active: true,
         startYear: 1,
+        slotIndex: 0,
         unpaidCount: 0,
       },
     }
@@ -281,6 +282,7 @@ describe('runIntegritySystem', () => {
         holderPersonId: deadLeaderId,
         active: true,
         startYear: 1,
+        slotIndex: 0,
         unpaidCount: 0,
       },
     }
@@ -437,6 +439,7 @@ describe('runIntegritySystem', () => {
         holderPersonId: deadHolderId,
         active: true,
         startYear: 1,
+        slotIndex: 0,
         unpaidCount: 0,
       },
     }
@@ -593,6 +596,7 @@ describe('runIntegritySystem', () => {
         holderPersonId: aliveHolderId,
         active: true,
         startYear: 1,
+        slotIndex: 0,
         unpaidCount: -1,
       },
     }
@@ -749,6 +753,7 @@ describe('runIntegritySystem', () => {
         holderPersonId: aliveHolderId,
         active: true,
         startYear: 100,
+        slotIndex: 0,
         unpaidCount: 0,
       },
     }

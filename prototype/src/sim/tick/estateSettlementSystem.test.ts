@@ -108,6 +108,7 @@ function addLeaderOffice(state: WorldState, houseId: HouseId, personId: PersonId
     holderPersonId: personId,
     active: true,
     startYear: 1,
+    slotIndex: 0,
     unpaidCount: 0,
   }
   state.officeIndex.byOrganization['house:' + houseId] = [
@@ -261,6 +262,7 @@ describe('findHeirs', () => {
       holderPersonId: leaderId,
       active: true,
       startYear: 1440,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     state.officeIndex.byOrganization['house:' + houseId] = [officeId]

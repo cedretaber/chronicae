@@ -16,6 +16,7 @@ import type {
   PoliticalRightTargetRef,
 } from '@sim/types/politicalRight'
 import { politicalRightTargetKey, politicalRightHolderKey } from '@sim/types/politicalRight'
+import { getOfficeDefinition } from '@sim/config/officeDefinitions'
 import { createPoliticalRightId } from '@sim/types/ids'
 import { isLivingPerson } from '@sim/types/person'
 import type { SimResult } from './result'
@@ -113,6 +114,14 @@ function validateTargetConsistency(
         return `target polity mismatch: ${target.polityId} !== ${polityId}`
       // leader の地位は succession / polityOwnerConsistency が管理する (§9.1)
       if (target.role === 'leader') return 'leader role cannot be a right target'
+      // slot 単位 (v0.42 slot 化): 静的 maxHolders を上限とする (動的 effectiveMax の縮小は
+      // rightConsistencySystem が毎週回収する。生成時点では静的上限のみ課す)。
+      const def = getOfficeDefinition('polity', target.role)
+      const staticMax = def ? def.maxHolders : 1
+      if (!Number.isInteger(target.slotIndex) || target.slotIndex < 0)
+        return `invalid slotIndex: ${target.slotIndex}`
+      if (target.slotIndex >= staticMax)
+        return `slotIndex ${target.slotIndex} >= static maxHolders ${staticMax} for role ${target.role}`
       return undefined
     }
     case 'holding_office_role': {

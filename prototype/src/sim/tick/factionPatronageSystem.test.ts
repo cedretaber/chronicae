@@ -146,6 +146,7 @@ function addOffice(
     holderPersonId,
     active: true,
     startYear: 1444,
+    slotIndex: 0,
     unpaidCount: 0,
   }
   const orgKey = `${organization.kind}:${organization.id}`

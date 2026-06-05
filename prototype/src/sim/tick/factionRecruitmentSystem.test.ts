@@ -297,6 +297,7 @@ describe('runFactionRecruitmentSystem', () => {
       holderPersonId: candidateId,
       active: true,
       startYear: 1444,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     const s3: WorldState = {

@@ -120,6 +120,7 @@ function makeOfficeState(): {
         holderPersonId: holderId,
         active: true,
         startYear: 1440,
+        slotIndex: 0,
         unpaidCount: 0,
       },
     },

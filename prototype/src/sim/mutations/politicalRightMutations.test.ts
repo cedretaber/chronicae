@@ -77,6 +77,7 @@ const officeTarget: PoliticalRightTargetRef = {
   kind: 'polity_office_role',
   polityId,
   role: 'administrator',
+  slotIndex: 0,
 }
 const holdingTarget: PoliticalRightTargetRef = {
   kind: 'holding_office_role',
@@ -146,7 +147,7 @@ describe('createPoliticalRight', () => {
     const state = makeFixture()
     const result = createPoliticalRight(state, {
       polityId,
-      target: { kind: 'polity_office_role', polityId, role: 'leader' },
+      target: { kind: 'polity_office_role', polityId, role: 'leader', slotIndex: 0 },
       holder: { kind: 'house', id: houseId },
       grantedWeek: 100,
     })

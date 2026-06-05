@@ -71,6 +71,7 @@ function makeBaseState(): {
         holderPersonId: personId,
         active: true,
         startYear: 1444,
+        slotIndex: 0,
         unpaidCount: 0,
       },
     },

@@ -39,6 +39,7 @@ function withPolityLeader(
         holderPersonId: personId,
         active: true,
         startYear: 1,
+        slotIndex: 0,
         unpaidCount: 0,
       },
     },

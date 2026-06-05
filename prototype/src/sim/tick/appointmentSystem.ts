@@ -470,7 +470,8 @@ function tryAppointPolityOffice(
   // v0.42 §9: 対象 (polity, role) に appointment right がある場合、unrelated factional path
   // は使わない (任命権は制度的権利として派閥推薦より優先 — §9.3)。right holder の候補を
   // pool に追加し、right bonus + right-backed faction bonus でスコア補正する。
-  const appointmentRight = getPolityOfficeAppointmentRight(currentCtx.state, polity.id, role)
+  // Phase 1 stub: slot 0 固定 (Phase 2 で空き slot 単位の充足に置換)
+  const appointmentRight = getPolityOfficeAppointmentRight(currentCtx.state, polity.id, role, 0)
   if (appointmentRight) {
     const rightBackedFactionId = selectRightBackedFaction(
       currentCtx.state,

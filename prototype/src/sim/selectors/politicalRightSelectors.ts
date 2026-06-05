@@ -21,13 +21,14 @@ export function getRightForTarget(
   return id !== undefined ? state.politicalRights[id] : undefined
 }
 
-// polity office role への appointment right (§9)。
+// polity office role の特定 slot への appointment right (§9 / v0.42 slot 化)。
 export function getPolityOfficeAppointmentRight(
   state: WorldState,
   polityId: PolityId,
   role: OfficeRole,
+  slotIndex: number,
 ): PoliticalRight | undefined {
-  return getRightForTarget(state, { kind: 'polity_office_role', polityId, role })
+  return getRightForTarget(state, { kind: 'polity_office_role', polityId, role, slotIndex })
 }
 
 // holding bailiff への appointment right (§10)。
@@ -72,7 +73,12 @@ export function findAcquirableRightTarget(
   // 1. polity office role
   const ROLE_PRIORITY: OfficeRole[] = ['military', 'administrator', 'treasurer', 'advisor']
   for (const role of ROLE_PRIORITY) {
-    const target: PoliticalRightTargetRef = { kind: 'polity_office_role', polityId, role }
+    const target: PoliticalRightTargetRef = {
+      kind: 'polity_office_role',
+      polityId,
+      role,
+      slotIndex: 0,
+    }
     if (!getRightForTarget(state, target)) return target
   }
 

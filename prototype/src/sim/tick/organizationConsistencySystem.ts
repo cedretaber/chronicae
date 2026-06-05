@@ -41,10 +41,12 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
       // polity_office_appointment right があり、holder が House なら同 House の holder を、
       // Person なら本人のみを eligible 扱いする。これを入れないと right 任命が最大 4 週で
       // 黙って revoke され right system が機能しない (§21.1)。
+      // Phase 1 stub: slot 0 固定 (Phase 2 で office.slotIndex に差替)
       const appointmentRight = getPolityOfficeAppointmentRight(
         currentCtx.state,
         polityId,
         office.role,
+        0,
       )
       if (appointmentRight) {
         if (

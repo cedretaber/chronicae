@@ -180,6 +180,7 @@ describe('needsSuccession', () => {
           holderPersonId: head.id,
           active: true,
           startYear: 1444,
+          slotIndex: 0,
           unpaidCount: 0,
         },
       },

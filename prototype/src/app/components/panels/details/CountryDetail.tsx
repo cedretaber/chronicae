@@ -249,7 +249,7 @@ export function CountryDetail({
           const holderIds = worldState ? getActiveOfficeHolders(worldState, polityRef, role) : []
           const right =
             worldState && role !== 'leader'
-              ? getPolityOfficeAppointmentRight(worldState, polity.id, role)
+              ? getPolityOfficeAppointmentRight(worldState, polity.id, role, 0)
               : undefined
           return (
             <div key={role} className="rounded bg-gray-700/60 p-1.5 text-xs">

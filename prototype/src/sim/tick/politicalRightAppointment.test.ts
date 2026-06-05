@@ -86,7 +86,7 @@ function makeState(): WorldState {
 function grantOfficeRight(state: WorldState, role: OfficeRole = 'administrator'): WorldState {
   const result = createPoliticalRight(state, {
     polityId,
-    target: { kind: 'polity_office_role', polityId, role },
+    target: { kind: 'polity_office_role', polityId, role, slotIndex: 0 },
     holder: { kind: 'house', id: rightHouseId },
     grantedWeek: state.absoluteWeek,
   })
@@ -185,7 +185,7 @@ describe('appointment right integration (§9)', () => {
     let state = makeState()
     const created = createPoliticalRight(state, {
       polityId,
-      target: { kind: 'polity_office_role', polityId, role: 'administrator' },
+      target: { kind: 'polity_office_role', polityId, role: 'administrator', slotIndex: 0 },
       holder: { kind: 'person', id: rightCandidateId },
       grantedWeek: state.absoluteWeek,
     })
@@ -206,7 +206,7 @@ describe('appointment right integration (§9)', () => {
     state2 = withPerson(state2, housemateId, { nameKey: 'Housemate', houseId: rightHouseId })
     const created2 = createPoliticalRight(state2, {
       polityId,
-      target: { kind: 'polity_office_role', polityId, role: 'administrator' },
+      target: { kind: 'polity_office_role', polityId, role: 'administrator', slotIndex: 0 },
       holder: { kind: 'person', id: rightCandidateId },
       grantedWeek: state2.absoluteWeek,
     })

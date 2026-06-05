@@ -136,6 +136,7 @@ describe('isOfficeTermExpired', () => {
       holderPersonId: createPersonId('pe', 0),
       active: true,
       startYear: 1400,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     expect(isOfficeTermExpired(state, config, assignment)).toBe(false)
@@ -151,6 +152,7 @@ describe('isOfficeTermExpired', () => {
       holderPersonId: createPersonId('pe', 0),
       active: true,
       startYear: 1445,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     const termYears = config.officeTermYears.polity.administrator
@@ -167,6 +169,7 @@ describe('isOfficeTermExpired', () => {
       holderPersonId: createPersonId('pe', 0),
       active: true,
       startYear: 1444,
+      slotIndex: 0,
       unpaidCount: 0,
     }
     expect(isOfficeTermExpired(state, config, assignment)).toBe(true)

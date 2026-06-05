@@ -256,6 +256,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
             holderPersonId: 'pe-0' as PersonId,
             active: true,
             startYear: 10,
+            slotIndex: 0,
             unpaidCount: 0,
           },
         },

@@ -63,6 +63,7 @@ function makeOfficeAssignment(
     holderPersonId,
     active: true,
     startYear: 1444,
+    slotIndex: 0,
     unpaidCount: 0,
   }
 }
@@ -313,6 +314,7 @@ describe('runControlSystem — capital province maxControl', () => {
       holderPersonId: admin0Person.id,
       active: true,
       startYear: 1444,
+      slotIndex: 0,
       unpaidCount: 0,
     }
 

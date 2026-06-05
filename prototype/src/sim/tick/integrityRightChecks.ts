@@ -7,6 +7,7 @@ import type { PoliticalRightId } from '../types/ids'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import { politicalRightTargetKey, politicalRightHolderKey } from '../types/politicalRight'
+import { getOfficeDefinition } from '../config/officeDefinitions'
 
 export function checkPoliticalRights(state: WorldState, errors: SimError[]): void {
   for (const rightIdStr of Object.keys(state.politicalRights)) {
@@ -49,6 +50,21 @@ export function checkPoliticalRights(state: WorldState, errors: SimError[]): voi
           errors.push({
             code: 'INTEGRITY_VIOLATION',
             message: `PoliticalRight ${rightId} targets leader role (v0.42 R3 / §9.1)`,
+          })
+        }
+        // slot 単位 (v0.42 slot 化): slotIndex は 0 <= slot < 静的 maxHolders。
+        // 動的 effectiveMax の縮小は rightConsistencySystem が回収するため、ここでは
+        // 静的上限のみ課す (縮小〜回収間の transient を violation にしない)。
+        const def = getOfficeDefinition('polity', right.target.role)
+        const staticMax = def ? def.maxHolders : 1
+        if (
+          !Number.isInteger(right.target.slotIndex) ||
+          right.target.slotIndex < 0 ||
+          right.target.slotIndex >= staticMax
+        ) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `PoliticalRight ${rightId} office target slotIndex ${right.target.slotIndex} out of range [0, ${staticMax}) (v0.42 R3)`,
           })
         }
         if (right.target.polityId !== right.polityId) {
