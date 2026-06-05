@@ -89,6 +89,7 @@ war:
   battle_avoided: '{{avoidingName}} avoided a {{battlefieldKind}} in {{province}}. War score change: {{warScoreDelta}}.'
   battle_avoided_both: 'Both sides avoided a {{battlefieldKind}} in {{province}}. War score change: {{warScoreDelta}}.'
   captain_general_changed: '{{actor}} changed its captain general from {{oldCaptainGeneral}} to {{newCaptainGeneral}}.'
+  captain_general_lost: '{{actor}} lost its captain general {{oldCaptainGeneral}}, with no successor at hand.'
   peace_settlement:
     transfer_land: '{{attacker}} took {{holding}} from {{defender}} in the peace settlement.'
     change_tax: 'The peace settlement set the tax of {{holding}} from {{fromRate}}% to {{toRate}}% in favor of {{attacker}}.'

@@ -88,6 +88,7 @@ war:
   battle_avoided: '{{avoidingName}}は{{province}}での{{battlefieldKind}}を回避した。戦勝点変化: {{warScoreDelta}}。'
   battle_avoided_both: '両軍が{{province}}での{{battlefieldKind}}を回避した。戦勝点変化: {{warScoreDelta}}。'
   captain_general_changed: '{{actor}}の総大将が{{oldCaptainGeneral}}から{{newCaptainGeneral}}に交代した。'
+  captain_general_lost: '{{actor}}の総大将{{oldCaptainGeneral}}が失われ、後任が立てられていない。'
   peace_settlement:
     transfer_land: '{{attacker}}が和平で{{defender}}から{{holding}}を獲得した。'
     change_tax: '和平により{{holding}}の税率が{{fromRate}}%から{{toRate}}%に改定された（{{attacker}}有利）。'

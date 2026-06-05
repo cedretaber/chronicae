@@ -597,7 +597,9 @@ export function emitCaptainGeneralChanged(
     ctx,
     'WAR_CAPTAIN_GENERAL_CHANGED',
     importance,
-    'war.captain_general_changed',
+    // 後任なし (喪失) は別テンプレート。同一キーだと {{newCaptainGeneral}} が未解決のまま
+    // 表示される (messageParam drift — conditional spread は静的 coverage 検査をすり抜ける)
+    newCaptainGeneralId !== undefined ? 'war.captain_general_changed' : 'war.captain_general_lost',
     {
       warId: war.id,
       side: sideKey,
