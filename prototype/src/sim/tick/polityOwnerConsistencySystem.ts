@@ -13,7 +13,7 @@ import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { revokeOfficesByOrganization, createOfficeAssignment } from '../mutations/officeMutations'
 import { removeRightsByPolity } from '../mutations/politicalRightMutations'
-import { deactivateFaction } from '../mutations/factionMutations'
+import { dissolveFactionsAnchoredToPolity } from '../mutations/factionMutations'
 import { selectOrCreateCommonwealthLeader } from '../mutations/worldStructureMutations'
 import { getProvinceDevelopmentFromHoldings } from '../selectors/landContractSelectors'
 
@@ -187,37 +187,9 @@ function deactivatePolityInline(ctx: TickContext, polityId: PolityId): TickConte
     ...state,
     polities: { ...state.polities, [polityId]: { ...polity, active: false } },
   }
-  let next: TickContext = { ...ctx, state }
-
   // v0.42 §12.3: anchor された active Faction を即時解散する (F8 を年末 integrity 前に守る)。
   //   factionLifecycleSystem は年次 (weekOfYear 1) 実行のため安全網にしかならない (§3.4)。
-  const anchoredIds = [...(next.state.factionIndex.byPolity[polityId] ?? [])].sort()
-  for (const factionId of anchoredIds) {
-    const faction = next.state.factions[factionId]
-    if (!faction || !faction.active) continue
-    const result = deactivateFaction(next.state, factionId)
-    if (!result.ok) continue
-    const leader = next.state.persons[faction.leaderPersonId]
-    const { event, ctx: ec } = createSimEvent(
-      { ...next, state: result.value },
-      {
-        type: 'FACTION_DISSOLVED',
-        importance: 'normal',
-        messageKey: 'faction.dissolved',
-        messageParams: {
-          leader: nameParam('person', leader?.nameKey ?? 'unknown'),
-          // enum コード — 表示は enum.factionDissolveReason.* (eventRenderer)
-          reason: 'anchor_polity_dissolved',
-        },
-        entityRefs: [
-          entityRef('person', faction.leaderPersonId, 'leader', leader?.nameKey),
-          entityRef('faction', factionId, 'faction'),
-        ],
-      },
-    )
-    next = { ...ec, events: [...ec.events, event] }
-  }
-  return next
+  return dissolveFactionsAnchoredToPolity({ ...ctx, state }, polityId)
 }
 
 export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {

@@ -1,8 +1,10 @@
 import type { WorldState } from '@sim/types/world'
 import type { TickContext } from '@sim/tick/context'
+import { createSimEvent } from '@sim/tick/context'
 import type { PersonId, FactionId, FactionMembershipId, PolityId } from '@sim/types/ids'
 import type { Faction, FactionMembership } from '@sim/types/faction'
 import { createFactionId, createFactionMembershipId } from '@sim/types/ids'
+import { entityRef, nameParam } from '@sim/types/event'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
 
@@ -195,6 +197,45 @@ export function deactivateFaction(state: WorldState, factionId: FactionId): Stat
       byPolity: state.factionIndex.byPolity,
     },
   })
+}
+
+// v0.42 §12.3: polity inactive 化に伴う anchor Faction の即時解散 cascade。
+// F8 (active Faction の anchor polity は active を指す) を年末 integrity 前に守る。
+// polity を inactive 化する全経路 (polityOwnerConsistencySystem の landless 経路 /
+// dissolveNegotiatingCommonwealth の revolt 解散経路) はこのヘルパーを経由すること。
+// factionLifecycleSystem の anchor_polity_dissolved 判定は年次 (weekOfYear 1) のため安全網にしかならない。
+export function dissolveFactionsAnchoredToPolity(
+  ctx: TickContext,
+  polityId: PolityId,
+): TickContext {
+  let next = ctx
+  const anchoredIds = [...(next.state.factionIndex.byPolity[polityId] ?? [])].sort()
+  for (const factionId of anchoredIds) {
+    const faction = next.state.factions[factionId]
+    if (!faction || !faction.active) continue
+    const result = deactivateFaction(next.state, factionId)
+    if (!result.ok) continue
+    const leader = next.state.persons[faction.leaderPersonId]
+    const { event, ctx: ec } = createSimEvent(
+      { ...next, state: result.value },
+      {
+        type: 'FACTION_DISSOLVED',
+        importance: 'normal',
+        messageKey: 'faction.dissolved',
+        messageParams: {
+          leader: nameParam('person', leader?.nameKey ?? 'unknown'),
+          // enum コード — 表示は enum.factionDissolveReason.* (eventRenderer)
+          reason: 'anchor_polity_dissolved',
+        },
+        entityRefs: [
+          entityRef('person', faction.leaderPersonId, 'leader', leader?.nameKey),
+          entityRef('faction', factionId, 'faction'),
+        ],
+      },
+    )
+    next = { ...ec, events: [...ec.events, event] }
+  }
+  return next
 }
 
 export type TransitionFactionLeaderInput = {

@@ -16,7 +16,8 @@ import { pickNameBySex } from '../worldgen/nameGenerators'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { samplePerson } from '../helpers/personFactory'
 import { getHouselessPersons } from '../selectors/availabilitySelectors'
-import { removeFactionMembership } from './factionMutations'
+import { removeFactionMembership, dissolveFactionsAnchoredToPolity } from './factionMutations'
+import { removeRightsByPolity } from './politicalRightMutations'
 import { adjustPopAttitude, adjustHouseMembersAttitude } from './attitudeMutations'
 import { eliminateContractFromChain as eliminateContract } from './landContractMutations'
 
@@ -267,11 +268,8 @@ export function dissolveNegotiatingCommonwealth(
 
   const leaderId = getPolityLeader(state, input.commonwealthPolityId)
 
-  state = revokeOfficesByOrganization(
-    state,
-    { kind: 'polity', id: input.commonwealthPolityId },
-    'leader',
-  )
+  // polity 解散なので leader に限らず全 office を失効させる (deactivatePolityInline と同等の cascade)
+  state = revokeOfficesByOrganization(state, { kind: 'polity', id: input.commonwealthPolityId })
 
   if (input.leaderOutcome === 'executed' && leaderId !== undefined) {
     const deadResult = markPersonDead(state, leaderId, { deathCircumstance: 'natural' })
@@ -307,6 +305,11 @@ export function dissolveNegotiatingCommonwealth(
     }
   }
 
+  // v0.42 §6.4: polity inactive 化で当該 polity の right を全削除 (R2 を守る。
+  //   v0.42 で acquire 対象が「influence を持ちうる polity」に開放されたため
+  //   commonwealth を target とする right が成立しうる)
+  state = removeRightsByPolity(state, input.commonwealthPolityId)
+
   const updatedPolity = state.polities[input.commonwealthPolityId]
   if (updatedPolity) {
     state = {
@@ -322,7 +325,12 @@ export function dissolveNegotiatingCommonwealth(
     }
   }
 
-  return ok({ ctx: { ...ctx, state }, value: undefined })
+  // v0.42 §12.3: anchor された active Faction を即時解散する (F8 を年末 integrity 前に守る)。
+  //   commonwealth は active polity なので Faction の anchor 先になりうる。
+  //   この cascade 欠落で「active Faction の anchor polity が inactive」違反が CI で実発生した。
+  const nextCtx = dissolveFactionsAnchoredToPolity({ ...ctx, state }, input.commonwealthPolityId)
+
+  return ok({ ctx: nextCtx, value: undefined })
 }
 
 // ============================================================================

@@ -18,6 +18,7 @@ import {
   transitionFactionLeader,
   removeFactionMembership,
 } from './factionMutations'
+import { dissolveNegotiatingCommonwealth } from './worldStructureCommonwealth'
 import { makeEmptyV016State, withPerson, withHouse, withPolity } from '../testFixtures'
 
 function makeFixture(): {
@@ -457,5 +458,71 @@ describe('removeFactionMembership', () => {
     const result = removeFactionMembership(state, createFactionMembershipId(99))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('FACTION_MEMBERSHIP_NOT_FOUND')
+  })
+})
+
+// v0.42 §12.3 F8 回帰テスト: commonwealth 解散 (dissolveNegotiatingCommonwealth) が
+// anchor された active Faction を即時解散すること。
+// この cascade の欠落で「active Faction f-65 anchor polity dp-10 is not active (v0.42 F8)」
+// が CI (300年 ランダム seed) で実発生した。cascade は polityOwnerConsistencySystem の
+// landless 経路と共有の dissolveFactionsAnchoredToPolity に集約されている。
+describe('dissolveFactionsAnchoredToPolity (polity 解散 cascade)', () => {
+  it('dissolveNegotiatingCommonwealth dissolves factions anchored to the commonwealth (F8)', () => {
+    const { ctx, leaderId } = makeFixture()
+    const polityId = createPolityId('c', 0)
+
+    const factionResult = createFaction(ctx, {
+      leaderPersonId: leaderId,
+      polityId,
+      week: 1444 * 48 + 1 - 1,
+    })
+    expect(factionResult.ok).toBe(true)
+    if (!factionResult.ok) return
+    const { factionId } = factionResult.value.value
+
+    const result = dissolveNegotiatingCommonwealth(factionResult.value.ctx, {
+      commonwealthPolityId: polityId,
+      leaderOutcome: 'alive',
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const nextCtx = result.value.ctx
+
+    // polity は inactive、anchor していた faction も inactive (F8 不変条件)
+    expect(nextCtx.state.polities[polityId]!.active).toBe(false)
+    expect(nextCtx.state.factions[factionId]!.active).toBe(false)
+
+    // FACTION_DISSOLVED が anchor_polity_dissolved 理由で emit される
+    const dissolvedEvents = nextCtx.events.filter((e) => e.type === 'FACTION_DISSOLVED')
+    expect(dissolvedEvents).toHaveLength(1)
+    expect(dissolvedEvents[0]!.messageParams['reason']).toBe('anchor_polity_dissolved')
+  })
+
+  it('leaves factions anchored to other polities untouched', () => {
+    const { ctx, leaderId } = makeFixture()
+    const anchorPolityId = createPolityId('c', 0)
+    const otherPolityId = createPolityId('c', 1)
+    const ctxWithOther: TickContext = {
+      ...ctx,
+      state: withPolity(ctx.state, otherPolityId, {}),
+    }
+
+    const factionResult = createFaction(ctxWithOther, {
+      leaderPersonId: leaderId,
+      polityId: anchorPolityId,
+      week: 1444 * 48 + 1 - 1,
+    })
+    expect(factionResult.ok).toBe(true)
+    if (!factionResult.ok) return
+    const { factionId } = factionResult.value.value
+
+    const result = dissolveNegotiatingCommonwealth(factionResult.value.ctx, {
+      commonwealthPolityId: otherPolityId,
+      leaderOutcome: 'alive',
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.value.ctx.state.factions[factionId]!.active).toBe(true)
   })
 })

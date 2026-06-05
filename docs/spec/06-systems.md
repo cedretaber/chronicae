@@ -936,6 +936,8 @@ rank 5 Polity 内の叛乱は War 化せず、diplomaticPlaySystem 内で即時�
 
 失敗時: commonwealth 解散（leader executed/pardoned）、unrest 低下、`lastRevoltSuppressedWeek` 記録。`REVOLT_SUPPRESSED` event。
 
+**commonwealth 解散の cascade**（`dissolveNegotiatingCommonwealth` — settlement / 鎮圧 / revolt War 敗北の `suppressRevolt` で共通）: polity を inactive 化する際、§6.31 Step 1 の Polity 消滅と同等の cascade を実行する — 全 office revoke + `removeRightsByPolity`（R2）+ anchor Faction の即時解散（F8、`FACTION_DISSOLVED` reason=anchor_polity_dissolved）。Faction cascade は §6.31 と共有の `dissolveFactionsAnchoredToPolity` ヘルパーに集約されており、polity を inactive 化する経路は必ずこれを経由する（FactionLifecycle の anchor_polity_dissolved 判定は年次実行のため安全網にしかならず、cascade 欠落は年末 integrity F8 違反として顕在化する）。
+
 ### 6.31 PolityOwnerConsistencySystem（4週ごと）
 
 War / Rebellion / ProvinceRevolt 等の所領変動 system の直後に走り、`Polity.ownerHouseId` の整合性を補正する。
