@@ -21,6 +21,7 @@ import {
   WatchButton,
   PolityLandContracts,
   PolityRegiments,
+  PolityRightsSection,
   ProjectDetailCard,
   ProjectListItem,
   EntityChronicleSection,
@@ -265,6 +266,18 @@ export function CountryDetail({
           )
         })}
       </div>
+
+      {/* v0.42: PoliticalRight 一覧 (役職/代官/連隊の任命権保持者) */}
+      {worldState && (
+        <PolityRightsSection
+          polity={polity}
+          worldState={worldState}
+          persons={persons ?? {}}
+          houses={houses ?? {}}
+          onPersonClick={onPersonClick}
+          onHouseClick={onHouseClick}
+        />
+      )}
 
       <div className="text-sm font-semibold text-gray-300">{t('detail.polity.influence')}:</div>
       {worldState ? (

@@ -25,6 +25,7 @@ import {
   CopyJsonButton,
   WatchButton,
   ShareholderSection,
+  HouseRightsSection,
   EntityChronicleSection,
   ProjectDetailCard,
   ProjectListItem,
@@ -346,6 +347,16 @@ export function HouseDetail({
           />
         ) : (
           <span className="text-sm text-gray-500">—</span>
+        )}
+        {/* v0.42: この家 (+ 生存 member 個人) が保持する PoliticalRight 一覧 */}
+        {worldState && (
+          <HouseRightsSection
+            house={house}
+            worldState={worldState}
+            persons={currentState.persons ?? {}}
+            onPersonClick={onPersonClick}
+            onPolityClick={onPolityClick}
+          />
         )}
         <div>
           <div className="text-sm font-semibold text-gray-300">
