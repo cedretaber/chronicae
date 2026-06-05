@@ -5,7 +5,13 @@ import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getPolityShortName, getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
-import { PanelHeader, CopyJsonButton, EntityChronicleSection } from './shared/widgets'
+import {
+  PanelHeader,
+  CopyJsonButton,
+  EntityChronicleSection,
+  RightHolderLine,
+} from './shared/widgets'
+import { getHoldingOfficeAppointmentRight } from '@sim/selectors/politicalRightSelectors'
 import { getHoldingImage } from '@/app/utils/assetHash'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
@@ -35,6 +41,7 @@ export function HoldingDetail({
   session,
   onPolityClick,
   onPersonClick,
+  onHouseClick,
   onProvinceClick,
   onPopGroupClick,
 }: {
@@ -42,6 +49,7 @@ export function HoldingDetail({
   session: SimulationSession | null
   onPolityClick: ClickHandler
   onPersonClick: (id: string) => void
+  onHouseClick: ClickHandler
   onProvinceClick: (id: string) => void
   onPopGroupClick: (id: string) => void
 }) {
@@ -257,6 +265,15 @@ export function HoldingDetail({
               ) : (
                 <span className="text-gray-500">{t('detail.province.vacant')}</span>
               )}
+              {/* v0.42: この Holding の代官任命権の保持者 (right 無し = 統治者の本来権限) */}
+              <RightHolderLine
+                right={getHoldingOfficeAppointmentRight(currentState, holding.id)}
+                label={t('detail.province.bailiff_right')}
+                persons={currentState.persons ?? {}}
+                houses={currentState.houses ?? {}}
+                onPersonClick={onPersonClick}
+                onHouseClick={onHouseClick}
+              />
               {bailiff &&
                 assignmentId &&
                 (() => {

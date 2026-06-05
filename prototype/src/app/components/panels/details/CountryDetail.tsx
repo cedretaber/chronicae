@@ -21,7 +21,7 @@ import {
   WatchButton,
   PolityLandContracts,
   PolityRegiments,
-  PolityRightsSection,
+  RightHolderLine,
   ProjectDetailCard,
   ProjectListItem,
   EntityChronicleSection,
@@ -39,6 +39,7 @@ import {
   getDominantInfluenceHolder,
   getTopInfluenceHoldersInPolity,
 } from '@sim/selectors/influenceSelectors'
+import { getPolityOfficeAppointmentRight } from '@sim/selectors/politicalRightSelectors'
 import { InfluenceSection } from './shared/widgets'
 import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goalSelectors'
 import { getChronicleEntriesForPolity } from '@sim/selectors/chronicleSelectors'
@@ -240,15 +241,20 @@ export function CountryDetail({
         </div>
       </div>
 
+      {/* v0.42: 役職カード (保持者 + 任命権保持者を併記)。leader は right 対象外 (§4)。 */}
       <div className="text-sm font-semibold text-gray-300">{t('detail.polity.roles')}:</div>
-      <div className="text-sm">
+      <div className="grid grid-cols-2 gap-1">
         {(['leader', 'administrator', 'military', 'treasurer', 'advisor'] as const).map((role) => {
           const polityRef = { kind: 'polity' as const, id: polity.id }
           const holderIds = worldState ? getActiveOfficeHolders(worldState, polityRef, role) : []
+          const right =
+            worldState && role !== 'leader'
+              ? getPolityOfficeAppointmentRight(worldState, polity.id, role)
+              : undefined
           return (
-            <div key={role} className="flex justify-between">
-              <span className="text-gray-400">{roleLabels[role]}:</span>
-              <div className="flex flex-col items-end gap-0.5">
+            <div key={role} className="rounded bg-gray-700/60 p-1.5 text-xs">
+              <div className="truncate font-medium text-gray-300">{roleLabels[role]}</div>
+              <div className="flex flex-col gap-0.5">
                 {holderIds.length === 0 ? (
                   <span className="text-gray-500">—</span>
                 ) : (
@@ -262,22 +268,18 @@ export function CountryDetail({
                   ))
                 )}
               </div>
+              <RightHolderLine
+                right={right}
+                label={t('detail.polity.appointment_right')}
+                persons={persons ?? {}}
+                houses={houses ?? {}}
+                onPersonClick={onPersonClick}
+                onHouseClick={onHouseClick}
+              />
             </div>
           )
         })}
       </div>
-
-      {/* v0.42: PoliticalRight 一覧 (役職/代官/連隊の任命権保持者) */}
-      {worldState && (
-        <PolityRightsSection
-          polity={polity}
-          worldState={worldState}
-          persons={persons ?? {}}
-          houses={houses ?? {}}
-          onPersonClick={onPersonClick}
-          onHouseClick={onHouseClick}
-        />
-      )}
 
       <div className="text-sm font-semibold text-gray-300">{t('detail.polity.influence')}:</div>
       {worldState ? (
@@ -302,10 +304,21 @@ export function CountryDetail({
       <PolityLandContracts
         polity={polity}
         worldState={worldState}
+        persons={persons ?? {}}
+        houses={houses ?? {}}
         onProvinceClick={onProvinceClick}
+        onPersonClick={onPersonClick}
+        onHouseClick={onHouseClick}
       />
 
-      <PolityRegiments polity={polity} worldState={worldState} />
+      <PolityRegiments
+        polity={polity}
+        worldState={worldState}
+        persons={persons ?? {}}
+        houses={houses ?? {}}
+        onPersonClick={onPersonClick}
+        onHouseClick={onHouseClick}
+      />
 
       {/* v0.22 Goal/Aim */}
       {worldState &&

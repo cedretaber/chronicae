@@ -244,6 +244,7 @@ export function WindowManager() {
                 session={session}
                 onPolityClick={onPolityClick}
                 onPersonClick={onPersonClick}
+                onHouseClick={onHouseClick}
                 onProvinceClick={onProvinceClick}
                 onPopGroupClick={onPopGroupClick}
               />

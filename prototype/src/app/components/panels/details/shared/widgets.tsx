@@ -14,7 +14,11 @@ import { SHARE_COLORS } from './constants'
 import type { AttitudeMap } from '@/sim/types/attitude'
 import type { WorldState } from '@/sim/types/world'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName, getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
+import {
+  getPolityShortName,
+  getHoldingQualifiedName,
+  getHoldingShortName,
+} from '@/app/hooks/entityNameHelpers'
 import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
 import type {
   PolityId,
@@ -30,7 +34,12 @@ import { getProvincePolityControlFromHoldings } from '@/sim/selectors/landContra
 import { getProvinceProduction } from '@sim/selectors/popEconomySelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { getRegimentsForActor } from '@sim/selectors/regimentSelectors'
-import { getRightsByPolity, getRightsByHolder } from '@sim/selectors/politicalRightSelectors'
+import {
+  getRightsByHolder,
+  getHoldingOfficeAppointmentRight,
+  getRegimentControllerRight,
+} from '@sim/selectors/politicalRightSelectors'
+import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import type { PoliticalRight, PoliticalRightTargetRef } from '@sim/types/politicalRight'
 import type { ResolveName } from '@/app/hooks/entityNameHelpers'
 import type { TFunction } from 'i18next'
@@ -406,61 +415,31 @@ function sortRightRows<T extends { right: PoliticalRight; label: string }>(rows:
   })
 }
 
-// v0.42: Polity 内の PoliticalRight 一覧 (対象 -> 保持者)。right が無い対象は
-// 統治者の本来権限 (residual authority) なので行を出さず、hint で示す。
-export function PolityRightsSection({
-  polity,
-  worldState,
+// v0.42: カード内に right 保持者を 1 行で表示する小パーツ (役職/所領/連隊カードで共有)。
+// right が無い対象は統治者の本来権限 (residual authority) なので何も出さない。
+export function RightHolderLine({
+  right,
+  label,
   persons,
   houses,
   onPersonClick,
   onHouseClick,
 }: {
-  polity: Polity
-  worldState: WorldState
+  right: PoliticalRight | undefined
+  label: string
   persons: Record<string, Person>
   houses: Record<string, House>
   onPersonClick: ClickHandler
   onHouseClick: ClickHandler
 }) {
-  const { t } = useTranslation()
-  const resolveName = useEntityName()
-  const rows = sortRightRows(
-    getRightsByPolity(worldState, polity.id).map((right) => ({
-      right,
-      label: politicalRightTargetLabel(worldState, t, resolveName, right.target),
-    })),
-  )
+  if (!right) return null
   return (
-    <div className="mt-1">
-      <div className="text-sm font-semibold text-gray-300">
-        {t('detail.polity.political_rights')}
-        {rows.length > 0 ? ` (${rows.length})` : ''}:
-        <span className="ml-2 text-xs font-normal text-gray-500">
-          {t('detail.polity.political_rights_hint')}
-        </span>
-      </div>
-      {rows.length === 0 ? (
-        <span className="text-sm text-gray-500">—</span>
+    <div className="mt-0.5 truncate text-[11px] text-gray-500">
+      {label}:{' '}
+      {right.holder.kind === 'house' ? (
+        <HouseLink houseId={right.holder.id} houses={houses} onClick={onHouseClick} />
       ) : (
-        <div className="text-sm">
-          {rows.map(({ right, label }) => (
-            <div key={right.id} className="flex justify-between gap-2">
-              <span className="min-w-0 truncate text-gray-400">{label}:</span>
-              <span className="shrink-0">
-                {right.holder.kind === 'house' ? (
-                  <HouseLink houseId={right.holder.id} houses={houses} onClick={onHouseClick} />
-                ) : (
-                  <PersonLink
-                    personId={right.holder.id}
-                    persons={persons}
-                    onClick={onPersonClick}
-                  />
-                )}
-              </span>
-            </div>
-          ))}
-        </div>
+        <PersonLink personId={right.holder.id} persons={persons} onClick={onPersonClick} />
       )}
     </div>
   )
@@ -630,11 +609,19 @@ export function AttitudeList({
 export function PolityLandContracts({
   polity,
   worldState,
+  persons,
+  houses,
   onProvinceClick,
+  onPersonClick,
+  onHouseClick,
 }: {
   polity: Polity
   worldState: WorldState | null
+  persons: Record<string, Person>
+  houses: Record<string, House>
   onProvinceClick: (id: string) => void
+  onPersonClick: ClickHandler
+  onHouseClick: ClickHandler
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -650,6 +637,8 @@ export function PolityLandContracts({
     isRoot: boolean
     isTerminal: boolean
     estimatedRevenue: number
+    bailiffPersonId: PersonId | undefined
+    appointmentRight: PoliticalRight | undefined
   }
   type ProvinceGroup = {
     provinceId: ProvinceId
@@ -705,16 +694,24 @@ export function PolityLandContracts({
       }
       groupMap.set(key, group)
     }
+    // 代官・任命権はこの Polity が terminal (実効支配) の Holding でのみ意味を持つ
+    // (非 terminal 行の代官は下位 Polity に仕えるため表示しない)。
+    const bailiff =
+      isTerminal && holdingId ? getHoldingBailiffPerson(worldState, holdingId) : undefined
     group.holdings.push({
       id: c.id,
       holdingId,
-      holdingName: holding
-        ? getHoldingQualifiedName(worldState, resolveName, holding.id)
-        : '(unknown)',
+      // Province 見出しの下に並ぶため短名で十分 (qualified 名は冗長)
+      holdingName: holding ? getHoldingShortName(worldState, resolveName, holding.id) : '(unknown)',
       taxRate: c.terms.taxRateToGrantor,
       isRoot,
       isTerminal,
       estimatedRevenue,
+      bailiffPersonId: bailiff && bailiff.kind !== 'placeholder' ? bailiff.id : undefined,
+      appointmentRight:
+        isTerminal && holdingId
+          ? getHoldingOfficeAppointmentRight(worldState, holdingId)
+          : undefined,
     })
     group.totalRevenue += estimatedRevenue
   }
@@ -727,7 +724,7 @@ export function PolityLandContracts({
       <div className="text-sm font-semibold text-gray-300">
         {t('detail.polity.land_contracts')} ({totalContracts}):
       </div>
-      <div className="max-h-48 overflow-y-auto text-sm">
+      <div className="max-h-64 overflow-y-auto text-sm">
         {groups.map((g) => (
           <div key={g.provinceId} className="mb-1">
             <div className="flex items-baseline gap-1">
@@ -739,28 +736,50 @@ export function PolityLandContracts({
               </button>
               <span className="text-xs text-gray-500">({g.holdings.length})</span>
             </div>
-            <table className="w-full text-xs">
-              <tbody>
-                {g.holdings.map((c) => (
-                  <tr key={c.id} className="border-t border-gray-700/20">
-                    <td className="pl-2 text-gray-400">{c.holdingName}</td>
-                    <td className="text-right text-gray-300">{Math.round(c.taxRate * 100)}%</td>
-                    <td className="text-right text-amber-300">
-                      {c.estimatedRevenue > 0 ? c.estimatedRevenue.toFixed(1) : '—'}
-                    </td>
-                    <td className="text-right text-gray-400">
+            <div className="grid grid-cols-2 gap-1">
+              {g.holdings.map((c) => (
+                <div key={c.id} className="rounded bg-gray-700/60 p-1.5 text-xs">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="min-w-0 truncate font-medium text-gray-300">
+                      {c.holdingName}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-gray-500">
                       {c.isRoot && c.isTerminal
                         ? `${t('detail.province.root')}+${t('detail.province.term')}`
                         : c.isRoot
                           ? t('detail.province.root')
                           : c.isTerminal
                             ? t('detail.province.term')
-                            : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            : ''}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-gray-400">
+                    <span>{Math.round(c.taxRate * 100)}%</span>
+                    <span className="text-amber-300">
+                      {c.estimatedRevenue > 0 ? c.estimatedRevenue.toFixed(1) : '—'}
+                    </span>
+                  </div>
+                  {c.bailiffPersonId !== undefined && (
+                    <div className="mt-0.5 truncate text-[11px] text-gray-500">
+                      {t('holding.bailiff', { ns: 'roles' })}:{' '}
+                      <PersonLink
+                        personId={c.bailiffPersonId}
+                        persons={persons}
+                        onClick={onPersonClick}
+                      />
+                    </div>
+                  )}
+                  <RightHolderLine
+                    right={c.appointmentRight}
+                    label={t('detail.polity.appointment_right')}
+                    persons={persons}
+                    houses={houses}
+                    onPersonClick={onPersonClick}
+                    onHouseClick={onHouseClick}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
@@ -770,12 +789,21 @@ export function PolityLandContracts({
 
 // v0.36 Regiment: Polity が保有する連隊一覧。観賞用スナップショットなので active のみ表示
 //   (destroyed は再編成待ちの過渡状態・strength≈0、disbanded は恒久解散)。連隊詳細パネルは未実装。
+// v0.42: カード化し、regiment_control right の保持者 (管理権) をカード内に表示。
 export function PolityRegiments({
   polity,
   worldState,
+  persons,
+  houses,
+  onPersonClick,
+  onHouseClick,
 }: {
   polity: Polity
   worldState: WorldState | null
+  persons: Record<string, Person>
+  houses: Record<string, House>
+  onPersonClick: ClickHandler
+  onHouseClick: ClickHandler
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -799,6 +827,7 @@ export function PolityRegiments({
         morale: Math.round(r.morale),
         baselineMorale: Math.round(r.baselineMorale),
         strength: Math.round(r.strength),
+        controlRight: getRegimentControllerRight(worldState, r.id),
       }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -811,33 +840,38 @@ export function PolityRegiments({
           {t('detail.polity.reg_baseline_hint')}
         </span>
       </div>
-      <div className="max-h-48 overflow-y-auto text-xs">
-        <table className="w-full">
-          <thead>
-            <tr className="text-gray-500">
-              <th className="text-left font-normal"></th>
-              <th className="text-right font-normal">{t('detail.polity.reg_organization')}</th>
-              <th className="text-right font-normal">{t('detail.polity.reg_morale')}</th>
-              <th className="text-right font-normal">{t('detail.polity.reg_strength')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-gray-700/20">
-                <td className="text-gray-400">{r.name}</td>
-                <td className="text-right text-gray-300">
-                  {r.organization}
-                  <span className="text-gray-500">/{r.baselineOrganization}</span>%
-                </td>
-                <td className="text-right text-gray-300">
-                  {r.morale}
-                  <span className="text-gray-500">/{r.baselineMorale}</span>
-                </td>
-                <td className="text-right text-gray-300">{r.strength}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="grid max-h-64 grid-cols-2 gap-1 overflow-y-auto text-xs">
+        {rows.map((r) => (
+          <div key={r.id} className="rounded bg-gray-700/60 p-1.5">
+            <div className="truncate font-medium text-gray-300">{r.name}</div>
+            <div className="flex justify-between text-gray-400">
+              <span>{t('detail.polity.reg_organization')}:</span>
+              <span className="text-gray-300">
+                {r.organization}
+                <span className="text-gray-500">/{r.baselineOrganization}</span>%
+              </span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>{t('detail.polity.reg_morale')}:</span>
+              <span className="text-gray-300">
+                {r.morale}
+                <span className="text-gray-500">/{r.baselineMorale}</span>
+              </span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>{t('detail.polity.reg_strength')}:</span>
+              <span className="text-gray-300">{r.strength}%</span>
+            </div>
+            <RightHolderLine
+              right={r.controlRight}
+              label={t('detail.polity.control_right')}
+              persons={persons}
+              houses={houses}
+              onPersonClick={onPersonClick}
+              onHouseClick={onHouseClick}
+            />
+          </div>
+        ))}
       </div>
     </div>
   )
