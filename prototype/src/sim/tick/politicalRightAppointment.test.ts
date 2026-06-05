@@ -222,6 +222,143 @@ describe('appointment right integration (§9)', () => {
   })
 })
 
+// v0.42 slot 化: 同一 role 内で slot ごとに別の right が並立する
+describe('slot-level rights (v0.42 slot 化)', () => {
+  // makeState の polity は province 1 件 (small factor 0.4) で administrator effectiveMax = 1。
+  // multi-slot テストでは factor を 1.0 に上げて effectiveMax = 3 にする。
+  const multiSlotConfig: SimulationConfig = {
+    ...defaultConfig,
+    polityOfficeMaxProvinceFactor: { ...defaultConfig.polityOfficeMaxProvinceFactor, small: 1.0 },
+  }
+  const rightHouse2Id = createHouseId('h', 2)
+  const rightCandidate2Id = createPersonId('pe', 3)
+
+  function makeTwoRightHousesState(): WorldState {
+    let state = makeState()
+    state = withHouse(state, rightHouse2Id, {
+      nameKey: 'RightHouse2',
+      memberIds: [rightCandidate2Id],
+      legacyPrestige: 50,
+      seatProvinceId: provinceId,
+    })
+    state = withPerson(state, rightCandidate2Id, {
+      nameKey: 'RightCandidate2',
+      houseId: rightHouse2Id,
+      legacyPrestige: 10,
+    })
+    return state
+  }
+
+  function grantSlotRight(
+    state: WorldState,
+    slotIndex: number,
+    holderHouseId: typeof rightHouseId,
+  ): WorldState {
+    const result = createPoliticalRight(state, {
+      polityId,
+      target: { kind: 'polity_office_role', polityId, role: 'administrator', slotIndex },
+      holder: { kind: 'house', id: holderHouseId },
+      grantedWeek: state.absoluteWeek,
+    })
+    if (!result.ok) throw new Error('setup failed: ' + result.error.message)
+    return result.value.state
+  }
+
+  function slotHolder(state: WorldState, role: OfficeRole, slotIndex: number) {
+    const ids = state.officeIndex.byOrganization[`polity:${polityId}`] ?? []
+    for (const id of ids) {
+      const o = state.officeAssignments[id]
+      if (o && o.active && o.role === role && o.slotIndex === slotIndex) return o.holderPersonId
+    }
+    return undefined
+  }
+
+  it('different houses hold rights on different slots of the same role and both get appointed', () => {
+    let state = makeTwoRightHousesState()
+    state = grantSlotRight(state, 0, rightHouseId)
+    state = grantSlotRight(state, 1, rightHouse2Id)
+
+    // tryAppointPolityOffice は 1 回の実行で最若の空き slot 1 つを充足する → 2 回実行
+    const first = toResult(runAppointmentSystem(buildCtx(state, multiSlotConfig)))
+    const second = toResult(runAppointmentSystem(buildCtx(first.state, multiSlotConfig)))
+
+    expect(slotHolder(second.state, 'administrator', 0)).toBe(rightCandidateId)
+    expect(slotHolder(second.state, 'administrator', 1)).toBe(rightCandidate2Id)
+  })
+
+  it('§9.4 protection is slot-matched: right on another slot does not protect (v0.42 slot 化)', () => {
+    // slot 0 の right は RightHouse 保持。だが slot 0 に着座しているのは RightHouse2 の member
+    // (slot 1 の right 保持家)。slot 不一致なので保護されず revoke される。
+    let state = makeTwoRightHousesState()
+    state = grantSlotRight(state, 0, rightHouseId)
+    state = grantSlotRight(state, 1, rightHouse2Id)
+    state = createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'administrator',
+      rightCandidate2Id,
+      0,
+    )
+    const after = runOrganizationConsistencySystem(buildCtx(state, multiSlotConfig))
+    expect(slotHolder(after.state, 'administrator', 0)).toBeUndefined()
+
+    // 対照: 同じ member が自家の right slot (1) に着座していれば保護される
+    let state2 = makeTwoRightHousesState()
+    state2 = grantSlotRight(state2, 0, rightHouseId)
+    state2 = grantSlotRight(state2, 1, rightHouse2Id)
+    state2 = createOfficeAssignment(
+      state2,
+      { kind: 'polity', id: polityId },
+      'administrator',
+      rightCandidate2Id,
+      1,
+    )
+    const kept = runOrganizationConsistencySystem(buildCtx(state2, multiSlotConfig))
+    expect(slotHolder(kept.state, 'administrator', 1)).toBe(rightCandidate2Id)
+  })
+
+  it('over-max eviction removes seats from the tail (slotIndex desc), keeping slot 0 (Step 3)', () => {
+    // ownerHouse の member 3 人を slot 0/1/2 に着座させ (multiSlotConfig で合法に作る)、
+    // default config (effectiveMax = 1) で orgConsistency を回す → slot 2, 1 の順に evict され
+    // slot 0 だけが残る。「列の後ろから削除」の over-max 側の検証。
+    const member2Id = createPersonId('pe', 4)
+    const member3Id = createPersonId('pe', 5)
+    let state = makeState()
+    state = withPerson(state, member2Id, { nameKey: 'Member2', houseId: ownerHouseId })
+    state = withPerson(state, member3Id, { nameKey: 'Member3', houseId: ownerHouseId })
+    // startYear は eviction 順に影響しない (slotIndex 降順who決める) ことを確かめるため
+    // slot 0 を最も新しい任命にする
+    state = { ...state, currentYear: 1450 }
+    state = createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'administrator',
+      member3Id,
+      2,
+    )
+    state = createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'administrator',
+      member2Id,
+      1,
+    )
+    state = { ...state, currentYear: 1460 }
+    state = createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'administrator',
+      ownerCandidateId,
+      0,
+    )
+
+    const after = runOrganizationConsistencySystem(buildCtx(state))
+    expect(slotHolder(after.state, 'administrator', 0)).toBe(ownerCandidateId)
+    expect(slotHolder(after.state, 'administrator', 1)).toBeUndefined()
+    expect(slotHolder(after.state, 'administrator', 2)).toBeUndefined()
+  })
+})
+
 // faction + leader membership + members を直接構築する test helper
 function addFactionWithMembers(
   state: WorldState,

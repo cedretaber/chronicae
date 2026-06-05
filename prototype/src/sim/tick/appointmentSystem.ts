@@ -7,6 +7,7 @@ import {
   getPolityLeader,
   getHouseLeader,
   getActiveOfficeHolders,
+  getOfficeAssignments,
 } from '../selectors/officeSelectors'
 import { getPersonHouseSharePercent } from '../selectors/shareSelectors'
 import {
@@ -460,18 +461,36 @@ function tryAppointPolityOffice(
   // 1. revoke dead holders
   let currentCtx = revokeDeadOfficeHolders(ctx, polityRef, role)
 
-  const activeHolders = getActiveOfficeHolders(currentCtx.state, polityRef, role)
+  // v0.42 slot 化: 充足判定は人数 count でなく空き slot の有無で行う。
+  // effectiveMax 縮小後に「後ろの slot に着座者が残り count == max だが前の slot が空き」
+  // という状態があり得るため (over-max 回収は organizationConsistency Step 3 の責務)、
+  // count 基準だと前の空き slot が永久に埋まらない。充足対象は最若の空き slot 1 つ。
+  const roleAssignments = getOfficeAssignments(currentCtx.state, polityRef).filter(
+    (o) => o.active && o.role === role,
+  )
   const effectiveMax = getEffectiveOfficeMaxHolders(currentCtx.state, config, polityRef, role)
-  if (activeHolders.length >= effectiveMax) return currentCtx
-  const alreadyHolding = new Set(activeHolders.map((id) => id as string))
+  const occupiedSlots = new Set(roleAssignments.map((o) => o.slotIndex))
+  let vacantSlot: number | undefined
+  for (let s = 0; s < effectiveMax; s++) {
+    if (!occupiedSlots.has(s)) {
+      vacantSlot = s
+      break
+    }
+  }
+  if (vacantSlot === undefined) return currentCtx
+  const alreadyHolding = new Set(roleAssignments.map((o) => o.holderPersonId as string))
 
   let best: { id: PersonId; score: number } | undefined
 
-  // v0.42 §9: 対象 (polity, role) に appointment right がある場合、unrelated factional path
+  // v0.42 §9: 充足対象 slot に appointment right がある場合、unrelated factional path
   // は使わない (任命権は制度的権利として派閥推薦より優先 — §9.3)。right holder の候補を
   // pool に追加し、right bonus + right-backed faction bonus でスコア補正する。
-  // Phase 1 stub: slot 0 固定 (Phase 2 で空き slot 単位の充足に置換)
-  const appointmentRight = getPolityOfficeAppointmentRight(currentCtx.state, polity.id, role, 0)
+  const appointmentRight = getPolityOfficeAppointmentRight(
+    currentCtx.state,
+    polity.id,
+    role,
+    vacantSlot,
+  )
   if (appointmentRight) {
     const rightBackedFactionId = selectRightBackedFaction(
       currentCtx.state,
@@ -553,7 +572,7 @@ function tryAppointPolityOffice(
 
   if (!best) return currentCtx
 
-  const newState = createOfficeAssignment(currentCtx.state, polityRef, role, best.id)
+  const newState = createOfficeAssignment(currentCtx.state, polityRef, role, best.id, vacantSlot)
   currentCtx = { ...currentCtx, state: newState }
 
   const person = currentCtx.state.persons[best.id]

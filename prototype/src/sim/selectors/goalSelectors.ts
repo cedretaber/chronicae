@@ -505,7 +505,7 @@ function pickHouseAim(
     for (const pid of ownedPolityIds) {
       const influencePercent = influencePctOf.get(pid) ?? 0
       if (influencePercent < config.acquirePoliticalRightRequiredInfluencePercent) continue
-      const rightTarget = findAcquirableRightTarget(state, houseId, pid)
+      const rightTarget = findAcquirableRightTarget(state, config, houseId, pid)
       if (!rightTarget) continue
       candidates.push({
         kind: 'acquire_political_right',

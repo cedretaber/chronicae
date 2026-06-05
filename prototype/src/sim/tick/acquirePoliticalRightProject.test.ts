@@ -73,7 +73,7 @@ function makeCompletedProject(state: WorldState): {
   state: WorldState
   project: AcquirePoliticalRightProject
 } {
-  const target = findAcquirableRightTarget(state, houseId, polityId)
+  const target = findAcquirableRightTarget(state, defaultConfig, houseId, polityId)
   if (!target) throw new Error('no acquirable target in fixture')
   const projectId = createProjectId(0)
   const project: AcquirePoliticalRightProject = {
@@ -131,7 +131,7 @@ describe('acquire_political_right outcome (§13.4)', () => {
 
   it('does not create a right when the target already has one', () => {
     const base = makeState()
-    const target = findAcquirableRightTarget(base, houseId, polityId)!
+    const target = findAcquirableRightTarget(base, defaultConfig, houseId, polityId)!
     const otherHouseId = createHouseId('dh', 9)
     let state = withHouse(base, otherHouseId, { seatProvinceId: provinceId })
     const pre = createPoliticalRight(state, {

@@ -17,8 +17,10 @@
 import type { TickContext } from './context'
 import type { PoliticalRightId } from '../types/ids'
 import type { WorldState } from '../types/world'
+import type { SimulationConfig } from '../config/defaultConfig'
 import type { PoliticalRight } from '../types/politicalRight'
 import { removePoliticalRight } from '../mutations/politicalRightMutations'
+import { getEffectiveOfficeMaxHolders } from '../selectors/officeSelectors'
 import { emitPoliticalRightRevoked } from './politicalRightEvents'
 
 // REVOKED イベントの reason enum (i18n: political_right.revoke_reason.* に解決)
@@ -32,6 +34,7 @@ export type PoliticalRightRevokeReason =
 // §7.4: holder 有効 / polity active / target 実在 / target と polityId の整合。
 export function findRightInconsistency(
   state: WorldState,
+  config: SimulationConfig,
   right: PoliticalRight,
 ): PoliticalRightRevokeReason | undefined {
   if (right.holder.kind === 'person') {
@@ -48,6 +51,16 @@ export function findRightInconsistency(
   switch (right.target.kind) {
     case 'polity_office_role': {
       if (right.target.polityId !== right.polityId) return 'regime_change'
+      // v0.42 slot 化: effectiveMax 縮小で slot が消えた right は「列の後ろから」失効する。
+      // effectiveMax は rank / 領土数で動的に変わり 0 にもなり得る (その場合 slot 0 も失効)。
+      // 失効した right は領土回復で slot が戻っても復活しない (hard-delete 原則)。
+      const effectiveMax = getEffectiveOfficeMaxHolders(
+        state,
+        config,
+        { kind: 'polity', id: right.polityId },
+        right.target.role,
+      )
+      if (right.target.slotIndex >= effectiveMax) return 'target_lost'
       return undefined
     }
     case 'holding_office_role': {
@@ -77,7 +90,7 @@ export function runRightConsistencySystem(ctx: TickContext): TickContext {
   for (const rightId of rightIds) {
     const right = state.politicalRights[rightId]
     if (!right) continue
-    const reason = findRightInconsistency(state, right)
+    const reason = findRightInconsistency(state, ctx.config, right)
     if (reason === undefined) continue
     state = removePoliticalRight(state, rightId)
     revoked.push({ right, reason })

@@ -1,8 +1,10 @@
 // v0.42 PoliticalRight の read selector。index 経由の derivation のみ (entity 走査しない)。
 
 import type { WorldState } from '../types/world'
+import type { SimulationConfig } from '../config/defaultConfig'
 import type { PolityId, RegimentId, HoldingId, HouseId, PoliticalRightId } from '../types/ids'
 import type { OfficeRole } from '../types/office'
+import { getEffectiveOfficeMaxHolders } from './officeSelectors'
 import { getHouseProvinceIdsByPolity, getPolityProvinceIds } from './polityRelations'
 import type {
   PoliticalRight,
@@ -60,26 +62,37 @@ export function getRightsByHolder(
 
 // v0.42 §13.3: acquire_political_right の target 選定。
 // kind 優先度: polity_office > holding_office > regiment。
-//   - office: non-leader role を military > administrator > treasurer > advisor の順で、right 未設定のもの
+//   - office: non-leader role を military > administrator > treasurer > advisor の順、
+//     各 role 内は slot 0..effectiveMax-1 の若い順で、right 未設定の (role, slot)。
+//     先頭 slot から確保するのは縮小時に「後ろから」失効するため (先頭ほど安全資産)
 //   - holding: 対象 Polity が terminal の Holding (right 未設定)。owner House の関与 province の
 //     Holding を優先し、それ以外は id 昇順 (spec「近い Holding を優先」の決定的な簡略化)
 //   - regiment: 対象 Polity owner の active Regiment (right 未設定)。House 関与 province を
 //     home とするものを優先し、それ以外は id 昇順
 export function findAcquirableRightTarget(
   state: WorldState,
+  config: SimulationConfig,
   houseId: HouseId,
   polityId: PolityId,
 ): PoliticalRightTargetRef | undefined {
-  // 1. polity office role
+  // 1. polity office role × slot
   const ROLE_PRIORITY: OfficeRole[] = ['military', 'administrator', 'treasurer', 'advisor']
   for (const role of ROLE_PRIORITY) {
-    const target: PoliticalRightTargetRef = {
-      kind: 'polity_office_role',
-      polityId,
+    const effectiveMax = getEffectiveOfficeMaxHolders(
+      state,
+      config,
+      { kind: 'polity', id: polityId },
       role,
-      slotIndex: 0,
+    )
+    for (let slotIndex = 0; slotIndex < effectiveMax; slotIndex++) {
+      const target: PoliticalRightTargetRef = {
+        kind: 'polity_office_role',
+        polityId,
+        role,
+        slotIndex,
+      }
+      if (!getRightForTarget(state, target)) return target
     }
-    if (!getRightForTarget(state, target)) return target
   }
 
   // 2. holding bailiff

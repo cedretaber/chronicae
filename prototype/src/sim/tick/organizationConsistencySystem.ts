@@ -37,16 +37,16 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
       if (!person || !person.alive) continue // 別系統の不整合
       if (polity.kind === 'commonwealth') continue // commonwealth holder は houseId 不問で eligible
 
-      // v0.42 §9.4: Right 由来任命の例外 (狭い判定)。対象 role に active な
+      // v0.42 §9.4: Right 由来任命の例外 (狭い判定)。着座 slot に active な
       // polity_office_appointment right があり、holder が House なら同 House の holder を、
       // Person なら本人のみを eligible 扱いする。これを入れないと right 任命が最大 4 週で
       // 黙って revoke され right system が機能しない (§21.1)。
-      // Phase 1 stub: slot 0 固定 (Phase 2 で office.slotIndex に差替)
+      // v0.42 slot 化: 保護は着座 slot の right 保持者に限る (role 全体ではない)。
       const appointmentRight = getPolityOfficeAppointmentRight(
         currentCtx.state,
         polityId,
         office.role,
-        0,
+        office.slotIndex,
       )
       if (appointmentRight) {
         if (
@@ -116,7 +116,8 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
 
     // Step 3: rank ベースの定員超過 revoke
     // polity の rank / province 数に対して effective maxHolders を超える役職者を解任する。
-    // 最も新しい任命（startYear が大きい）から順に解任。
+    // v0.42 slot 化: slotIndex の大きい (列の後ろの) 着座者から順に解任。
+    // 先頭スロットほど縮小時に生き残る = 先頭 slot の right の価値が高い。
     const POLITY_ROLES: OfficeRole[] = ['administrator', 'treasurer', 'military', 'advisor']
     const polityRef: OrganizationRef = { kind: 'polity', id: polityId }
     for (const role of POLITY_ROLES) {
@@ -140,7 +141,7 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
           }
           return []
         })
-        .sort((a, b) => b.startYear - a.startYear)
+        .sort((a, b) => b.slotIndex - a.slotIndex)
 
       const excess = assignments.slice(0, assignments.length - effectiveMax)
       for (const office of excess) {

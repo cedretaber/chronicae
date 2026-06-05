@@ -16,6 +16,7 @@ import { createPoliticalRight } from '../mutations/politicalRightMutations'
 import { markPersonDead } from '../mutations/personMutations'
 import { disbandRegimentMut } from '../mutations/regimentMutations'
 import { runRightConsistencySystem, findRightInconsistency } from './rightConsistencySystem'
+import { getEffectiveOfficeMaxHolders } from '../selectors/officeSelectors'
 import { checkPoliticalRights } from './integrityRightChecks'
 import type { SimError } from '../mutations/errors'
 import {
@@ -142,7 +143,7 @@ describe('runRightConsistencySystem', () => {
       },
     }
     const right = Object.values(state.politicalRights)[0]!
-    expect(findRightInconsistency(state, right)).toBe('regime_change')
+    expect(findRightInconsistency(state, defaultConfig, right)).toBe('regime_change')
     const after = runRightConsistencySystem(makeCtx(state))
     expect(Object.keys(after.state.politicalRights)).toHaveLength(0)
     expectNoIntegrityViolations(after.state)
@@ -175,7 +176,7 @@ describe('runRightConsistencySystem', () => {
       },
     }
     const right = Object.values(state.politicalRights)[0]!
-    expect(findRightInconsistency(state, right)).toBeUndefined()
+    expect(findRightInconsistency(state, defaultConfig, right)).toBeUndefined()
     const after = runRightConsistencySystem(makeCtx(state))
     expect(Object.keys(after.state.politicalRights)).toHaveLength(1)
     expectNoIntegrityViolations(after.state)
@@ -197,6 +198,44 @@ describe('runRightConsistencySystem', () => {
     const ctx = makeCtx(state)
     const after = runRightConsistencySystem(ctx)
     expect(after).toBe(ctx) // 変更なしなら同一 ctx を返す
+  })
+
+  it('lapses office rights from the tail when effectiveMax shrinks, keeping slot 0 (v0.42 slot 化)', () => {
+    // 静的 maxHolders (administrator=3) いっぱいまで slot right を作る。
+    // fixture の polity は province 0 件 → effectiveMax = 1 (rank cap 3 × small factor 0.4)。
+    let state = makeFixture()
+    expect(
+      getEffectiveOfficeMaxHolders(
+        state,
+        defaultConfig,
+        { kind: 'polity', id: polityId },
+        'administrator',
+      ),
+    ).toBe(1)
+    for (const slotIndex of [0, 1, 2]) {
+      const r = createPoliticalRight(state, {
+        polityId,
+        target: { kind: 'polity_office_role', polityId, role: 'administrator', slotIndex },
+        holder: { kind: 'house', id: houseId },
+        grantedWeek: 100,
+      })
+      if (!r.ok) throw new Error('setup failed: ' + r.error.message)
+      state = r.value.state
+    }
+
+    const after = runRightConsistencySystem(makeCtx(state))
+    const remaining = Object.values(after.state.politicalRights)
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0]!.target).toEqual({
+      kind: 'polity_office_role',
+      polityId,
+      role: 'administrator',
+      slotIndex: 0,
+    })
+    // 後ろの slot 2 件が target_lost で REVOKED される
+    const revokedEvents = after.events.filter((e) => e.type === 'POLITICAL_RIGHT_REVOKED')
+    expect(revokedEvents).toHaveLength(2)
+    expectNoIntegrityViolations(after.state)
   })
 })
 
