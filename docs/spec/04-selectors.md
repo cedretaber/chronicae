@@ -278,6 +278,15 @@ function getRightsByPolity(state, polityId): PoliticalRight[]
 function findAcquirableRightTarget(state, config, houseId, polityId): PoliticalRightTargetRef | undefined
 ```
 
+acquire の候補 polity 列挙（非 owner 開放 — §6.64）は `goalSelectors.ts` 側:
+
+```ts
+// 家が influence を持ちうる polity の集合 (昇順ソートで決定的)。
+// influence breakdown の entry 導入 source と 1:1 被覆: owned + 宗主チェーン全段 +
+// 生存 member の polity office / bailiff / active faction leader + 既保有 right
+function collectAcquireRightCandidatePolityIds(state, houseId, ownedPolityIds): PolityId[]
+```
+
 ### 4.6b Polity 関係 selector
 
 House / Person が Polity に所属しない設計（§3.3 参照）のため、関係取得は `prototype/src/sim/selectors/polityRelations.ts` の selector に集約する。

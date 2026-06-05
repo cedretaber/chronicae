@@ -1716,6 +1716,13 @@ Aim target 選定は `goalSelectors.ts` の `pickAimForGoal` で実装。
 - `improve_owned_contract_terms` / `demand_tax_increase_from_vassal` は `external_expansion` / `internal_development` 両方の goal で候補に入る（税率交渉は対外・内政どちらの文脈でも合理的なため）
 - 対象契約の `termsProtectedUntilWeek` が現在週を超えている場合はスキップ
 - **減税系 aim の受諾見込みゲート**: `improve_owned_contract_terms` / `eliminate_overlord_contract`（いずれも vassal → grantor への減税要求）は、対象契約の grantor（宗主）が polity でありかつ `predictPressureResponseStance(self, grantor) === 'resist'`（grantor が自分の `PRESSURE_RESIST_POWER_RATIO`=1.2 倍以上強い）の場合、候補に入れない。feudal chain 上、宗主はほぼ常に臣下より強く resist 確実なので、これを欠くと弱い臣下が「勝ち目のない減税要求」を量産し、外交劇は起こすが全て status_quo に終わる（「外交劇は起こすが何も変わらない」連発）。`predictPressureResponseStance`（`selectors/pressureStanceSelectors.ts`）は `choose_stance` の実 stance 決定（§6.57 / 後述）と play 開始ゲート（§6.42）で共有する単一の式で、将来 `getActorMilitaryPower` の算出が変われば予測と実応答の両方へ自動反映される。
+- **political_right_target の無効化（v0.42 acquire 開放に伴う枝刈り）**: target validity 判定に
+  political_right_target ケースを持つ。非 owner 開放で複数家が同一 target を狙うレースが
+  起きるため、(a) 既に right が存在し holder が aim owner 自身でない（レース負け）、
+  (b) target の polity が inactive、(c) office target の slot ≥ effectiveMax（縮小で取得不能化）、
+  (d) holding 消滅 / regiment disbanded（destroyed は valid — right は destroyed を生き残る）の
+  いずれかで aim を failed にする。holder が自家の right は valid のまま（project 成功後も
+  progress 100 まで aim を回す既存 lifecycle に触れない）。失効条件は §6.65 の right 失効条件と平行。
 
 イベント: `AIM_CREATED` / `AIM_FAILED` / `AIM_ABANDONED`
 
@@ -1840,8 +1847,21 @@ House 内部の Share（HouseShare、§3.7）のみが一次データとして�
 
 **acquire_political_right Aim / Project**（旧 increase_polity_share / expand_polity_share の置換）:
 - Influence は read-model なので「直接増やす」対象ではない。上げたければ具体的な権利・役職・土地を取る
-- Aim 生成条件（ゲート）: owner House の対象 Polity への influence% ≥ `acquirePoliticalRightRequiredInfluencePercent`
-  （対象 = 家が土地で関与する polity）
+- **対象 polity（非 owner 開放 — v0.42 拡張）**: 当初は自家所有 polity（`polityIndex.byOwnerHouse`）
+  限定だったが、「家が influence を持ちうる polity」全体に拡大した。狙いは「王権が弱った国で
+  臣下・廷臣の家が任命権を取り合う」状況の発生。候補集合は selector
+  `collectAcquireRightCandidatePolityIds` が influence breakdown（上記）の entry 導入 source と
+  1:1 対応で列挙する: 自家所有 polity / その**宗主チェーン全段**（land contract の
+  parentContractId を上に辿る — 直接宗主のみだと多段封建で取りこぼす）/ 生存 member が
+  polity office・bailiff を務める polity / 生存 member が leader の active Faction の anchor
+  polity / 既保有 right の polity。過剰包含は influence ゲートが落とすので無害、過少包含は
+  「influence があるのに aim が出ない家」の silent miss になる（この被覆が正しさの条件）
+- Aim 生成条件（ゲート — 全家一律、owner / 非 owner で差を付けない）:
+  `acquirePoliticalRightRequiredInfluencePercent` ≤ 対象 Polity への influence% <
+  `acquirePoliticalRightMaxInfluencePercent`。**上限ゲート（v0.42 拡張）**は「既に掌握済みの
+  polity の権利を買い続ける」不自然の排除 — right の無い役職の任命は influence ベース
+  （§6.19 のスコアリング）なので、掌握済みの家にとって right は実質不要。上限判定は
+  **Aim 生成時のみ**（保持中に influence が上限を超えても aim は invalidate しない）
 - target 選定: kind 優先度 polity_office（military > administrator > treasurer > advisor、
   各 role 内は slot 0..effectiveMax-1 の若い順 — v0.42 slot 化。先頭 slot ほど縮小に強い安全資産）
   > holding（House 関与 province の Holding 優先・id 昇順 = 近接優先の決定的簡略化）

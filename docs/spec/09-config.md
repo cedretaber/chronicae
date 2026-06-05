@@ -18,7 +18,8 @@
 | polityOfficeAppointmentRightHouseAssociatedBonus | 18 | v0.42: holder Person の家の member への補正 |
 | rightBackedFactionBonus | 10 | v0.42: right-backed faction（最大 1 つ）の active member への補正（< HouseBonus） |
 | acquirePoliticalRightBaseCost | 40 | v0.42: acquire_political_right の費用（House wealth → 対象 Polity treasury への transfer） |
-| acquirePoliticalRightRequiredInfluencePercent | 20 | v0.42: Aim 生成の influence ゲート（0〜100 スケール） |
+| acquirePoliticalRightRequiredInfluencePercent | 20 | v0.42: Aim 生成の influence 下限ゲート（0〜100 スケール。全家一律 — 非 owner 家にも同水準） |
+| acquirePoliticalRightMaxInfluencePercent | 70 | v0.42 拡張: Aim 生成の influence 上限ゲート（生成時のみ）。掌握済み polity の権利買い続け防止 |
 | ownerHouseAppointmentBonus | 4 | 候補者の家が polity.ownerHouseId と一致する場合の加算 |
 | sameHousePolityOfficePenalty | 2 | 同 House の Polity Office 保有数 1 つにつき減算（Polity Office 独占抑制） |
 | **Rank ベース役職上限** | | |
