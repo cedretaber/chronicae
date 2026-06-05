@@ -4,7 +4,10 @@ import type { AimId, DecisionReasonId } from '../types/ids'
 import { createAimId, createDecisionReasonId } from '../types/ids'
 import type { Aim, DecisionReason, Goal, EntityRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
+import type { PoliticalRightTargetRef } from '../types/politicalRight'
 import { politicalRightTargetKey } from '../types/politicalRight'
+import { getRightForTarget } from '../selectors/politicalRightSelectors'
+import { getEffectiveOfficeMaxHolders } from '../selectors/officeSelectors'
 import {
   getActiveAimsForGoal,
   pickAimForGoal,
@@ -224,8 +227,64 @@ function isTargetValid(ctx: TickContext, aim: Aim): boolean {
       return ctx.state.holdings[t.id] !== undefined
     case 'land_contract':
       return ctx.state.landContracts[t.id] !== undefined
+    case 'political_right_target':
+      return isPoliticalRightTargetValid(ctx, aim, t.target)
     default:
       return true
+  }
+}
+
+// v0.42 acquire 開放: political_right_target aim の枝刈り (RightConsistencySystem §6.65 の
+// 失効条件と平行)。非 owner 開放で複数家が同一 target を狙うレースが起きるため、
+// レース負け (他家が先に right を取得) と target の取得不能化を 4 週 boundary で検出して
+// aim を fail させる。自家保有 right の target は valid のまま (project 成功後も progress 100
+// まで aim を回す既存 lifecycle に触れない)。
+function isPoliticalRightTargetValid(
+  ctx: TickContext,
+  aim: Aim,
+  target: PoliticalRightTargetRef,
+): boolean {
+  const state = ctx.state
+  // レース負け: 既に right が存在し、holder が aim owner 自身でない (1 target 1 right — R6)
+  const existing = getRightForTarget(state, target)
+  if (existing) {
+    const ownedBySelf =
+      existing.holder.kind === aim.owner.kind &&
+      (existing.holder.id as string) === (aim.owner.id as string)
+    if (!ownedBySelf) return false
+  }
+  switch (target.kind) {
+    case 'polity_office_role': {
+      const polity = state.polities[target.polityId]
+      if (!polity || !polity.active) return false
+      // effectiveMax 縮小で取得不能になった slot の aim は枝刈りする
+      // (取得しても §6.65 が同週に target_lost で失効させるだけ)
+      return (
+        target.slotIndex <
+        getEffectiveOfficeMaxHolders(
+          state,
+          ctx.config,
+          { kind: 'polity', id: target.polityId },
+          target.role,
+        )
+      )
+    }
+    case 'holding_office_role': {
+      if (!state.holdings[target.holdingId]) return false
+      const terminalPolityId = state.holdingTerminalPolityCache[target.holdingId]
+      if (terminalPolityId === undefined) return false
+      const polity = state.polities[terminalPolityId]
+      return polity !== undefined && polity.active
+    }
+    case 'regiment': {
+      // destroyed は valid (right は制度的単位として destroyed を生き残る — §6.64)。
+      // disbanded / 消滅のみ invalid
+      const regiment = state.regiments[target.regimentId]
+      if (!regiment || regiment.status === 'disbanded') return false
+      if (regiment.owner.kind !== 'polity') return false
+      const ownerPolity = state.polities[regiment.owner.id]
+      return ownerPolity !== undefined && ownerPolity.active
+    }
   }
 }
 

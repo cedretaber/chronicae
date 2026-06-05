@@ -14,7 +14,8 @@ import type {
   EntityRef,
 } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
-import { politicalRightTargetKey } from '../types/politicalRight'
+import { politicalRightTargetKey, politicalRightHolderKey } from '../types/politicalRight'
+import { isLivingPerson } from '../types/person'
 import { findAcquirableRightTarget } from './politicalRightSelectors'
 import {
   getPolityTerminalProvinceIds,
@@ -474,6 +475,82 @@ function pickPolityAim(
   }
 }
 
+// v0.42 acquire 開放: 家が influence を持ちうる polity の候補集合 (acquire_political_right 用)。
+// 正しさの条件は「influence% ≥ 下限ゲートになりうる全 polity を包含する」こと
+// (過剰包含は influence ゲートが落とすので無害、過少包含は silent miss)。
+// influence breakdown (getPolityInfluenceBreakdown) が家を entry に導入する source と対応させる:
+//   ① owner + 土地 chain (getPolityHouseIds) → owned polity + その宗主チェーン全段
+//   ②③ ruler/leader・office holder → 生存 member が polity office を持つ polity
+//   ④ right holder → 既保有 right の polity (house key のみ — person-held right は本番生成経路が
+//      存在しない。将来 person-held を導入したら member の person key も引くこと)
+//   ⑤ 現職 bailiff の家 → 生存 member が holding office を持つ holding の terminal polity
+//   ⑥ anchor faction leader の家 → 生存 member が leader である active Faction の anchor polity
+// 弱体 polity 1 つを多数の家が見る場合 breakdown が家数ぶん再計算されるが年次 cadence で許容
+// (pass 単位 breakdown キャッシュは future work)。
+export function collectAcquireRightCandidatePolityIds(
+  state: WorldState,
+  houseId: HouseId,
+  ownedPolityIds: PolityId[],
+): PolityId[] {
+  const candidateIds = new Set<PolityId>()
+  const addIfActive = (pid: PolityId | undefined): void => {
+    if (pid === undefined) return
+    const polity = state.polities[pid]
+    if (polity && polity.active) candidateIds.add(pid)
+  }
+
+  // ① owned + 宗主チェーン全段 (contract の parentContractId を上に辿る。
+  //    直接宗主のみだと多段封建で取りこぼす)
+  const visitedContracts = new Set<string>()
+  for (const pid of ownedPolityIds) {
+    addIfActive(pid)
+    for (const cid of state.landContractIndex.byGranteePolity[pid] ?? []) {
+      let current = state.landContracts[cid]
+      while (current && current.parentContractId !== undefined) {
+        if (visitedContracts.has(current.parentContractId)) break
+        visitedContracts.add(current.parentContractId)
+        const parent = state.landContracts[current.parentContractId]
+        if (!parent) break
+        addIfActive(parent.granteePolityId)
+        current = parent
+      }
+    }
+  }
+
+  // ②③⑤⑥ 生存 member の役職・派閥 leader を 1 ループで
+  const house = state.houses[houseId]
+  for (const personId of house?.memberIds ?? []) {
+    if (!isLivingPerson(state.persons[personId])) continue
+    for (const oid of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+      const office = state.officeAssignments[oid]
+      if (office && office.active && office.organization.kind === 'polity') {
+        addIfActive(office.organization.id)
+      }
+    }
+    for (const hid of state.holdingOfficeIndex.byHolderPerson[personId] ?? []) {
+      const holdingOffice = state.holdingOfficeAssignments[hid]
+      if (holdingOffice && holdingOffice.active) {
+        addIfActive(state.holdingTerminalPolityCache[holdingOffice.holdingId])
+      }
+    }
+    for (const fid of state.factionIndex.byLeader[personId] ?? []) {
+      const faction = state.factions[fid]
+      // byLeader は inactive faction も保持する — active filter 必須
+      if (faction && faction.active) addIfActive(faction.polityId)
+    }
+  }
+
+  // ④ 既保有 right の polity (ownerHouse 交代後の遺産 right ケース)
+  const holderKey = politicalRightHolderKey({ kind: 'house', id: houseId })
+  for (const rid of state.politicalRightIndex.byHolder[holderKey] ?? []) {
+    const right = state.politicalRights[rid]
+    if (right) addIfActive(right.polityId)
+  }
+
+  // 決定的順序で返す
+  return [...candidateIds].sort((a, b) => a.localeCompare(b))
+}
+
 function pickHouseAim(
   state: WorldState,
   config: SimulationConfig,
@@ -498,13 +575,28 @@ function pickHouseAim(
     )
   }
   // v0.42 §13.3: acquire_political_right の候補生成 (influence ゲートは Aim 生成条件)。
-  // 対象 = owned polity のうち influence% >= acquirePoliticalRightRequiredInfluencePercent。
+  // 対象 = 家が influence を持ちうる polity (owned に限らない — 非 owner 開放) のうち
+  // 下限 ≤ influence% < 上限 の帯に入るもの。上限ゲートは「既に掌握済みの polity の権利を
+  // 買い続ける」不自然の排除 (right なし任命は influence ベースなので掌握済みなら不要)。
   // target は kind 優先度 (office > holding > regiment) で 1 件選定。aimSlotKey に
   // politicalRightTargetKey が含まれるため同一 target への重複 aim は生成されない。
   function pushAcquireRightCandidates(): void {
-    for (const pid of ownedPolityIds) {
-      const influencePercent = influencePctOf.get(pid) ?? 0
-      if (influencePercent < config.acquirePoliticalRightRequiredInfluencePercent) continue
+    const lower = config.acquirePoliticalRightRequiredInfluencePercent
+    const upper = config.acquirePoliticalRightMaxInfluencePercent
+    for (const pid of collectAcquireRightCandidatePolityIds(state, houseId, ownedPolityIds)) {
+      // 追加 polity の influence は lazily 計算して共有 Map に足す (steer_* は
+      // ownedPolityIds しか読まないため挙動に影響しない)
+      let influencePercent = influencePctOf.get(pid)
+      if (influencePercent === undefined) {
+        influencePercent = getActorInfluenceInPolity(
+          state,
+          config,
+          { kind: 'house', id: houseId },
+          pid,
+        ).percent
+        influencePctOf.set(pid, influencePercent)
+      }
+      if (influencePercent < lower || influencePercent >= upper) continue
       const rightTarget = findAcquirableRightTarget(state, config, houseId, pid)
       if (!rightTarget) continue
       candidates.push({

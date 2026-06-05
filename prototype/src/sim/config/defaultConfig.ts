@@ -713,7 +713,10 @@ export type SimulationConfig = {
   rightBackedFactionBonus: number
   // v0.42 §13/§18: acquire_political_right project
   acquirePoliticalRightBaseCost: number // House wealth → 対象 Polity treasury への transfer (§13.4)
-  acquirePoliticalRightRequiredInfluencePercent: number // Aim 生成の influence ゲート (0〜100 — §13.3)
+  acquirePoliticalRightRequiredInfluencePercent: number // Aim 生成の influence 下限ゲート (0〜100 — §13.3)
+  // Aim 生成の influence 上限ゲート (生成時のみ)。これ以上掌握済みの polity では acquire aim を
+  // 生成しない — right なし任命は influence ベースなので掌握済み家に権利は不要 (§13.3)
+  acquirePoliticalRightMaxInfluencePercent: number
   sameHousePolityOfficePenalty: number
   // v0.14 Ability generation / inheritance
   abilityAptitudeMean: number
@@ -1655,6 +1658,7 @@ export const defaultConfig: SimulationConfig = {
   rightBackedFactionBonus: 10,
   acquirePoliticalRightBaseCost: 40,
   acquirePoliticalRightRequiredInfluencePercent: 20,
+  acquirePoliticalRightMaxInfluencePercent: 70,
   sameHousePolityOfficePenalty: 2,
   minAppointmentScore: 2,
   // v0.14 Ability generation / inheritance
