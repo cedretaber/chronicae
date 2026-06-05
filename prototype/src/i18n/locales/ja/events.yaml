@@ -50,8 +50,8 @@ succession:
 
 plot:
   started: '{{person}}が{{plotType}}の陰謀を開始した。'
-  succeeded: '{{person}}の{{plotType}}陰謀が成功した。'
-  failed: '{{person}}の{{plotType}}陰謀が失敗した。'
+  succeeded: '{{person}}の{{plotType}}の陰謀が成功した。'
+  failed: '{{person}}の{{plotType}}の陰謀が失敗した。'
 
 office:
   assigned_polity: '{{person}}が{{polity}}の{{role}}に任命された。'
@@ -173,6 +173,7 @@ goal:
   reviewed: '{{owner}}は{{kind}}の目標を見直した。'
 aim:
   created: '{{owner}}は{{target}}を目標に{{kind}}に着手した。'
+  created_untargeted: '{{owner}}は{{kind}}に着手した。'
   succeeded: '{{owner}}は{{kind}}を完遂した。'
   failed: '{{owner}}は{{kind}}に失敗した。'
   abandoned: '{{owner}}は{{kind}}を断念した。'
@@ -245,3 +246,31 @@ enum:
     polity_dissolved: '国家の消滅'
     target_lost: '対象の消滅'
     regime_change: '支配体制の交代'
+  plotType:
+    replace_house_leader: '当主のすげ替え'
+    seize_office: '官職の奪取'
+    prepare_rebellion: '叛乱の準備'
+  taskCancelReason:
+    assignee_no_longer_available: '担当者の喪失'
+    owner_inactive: '主体の消滅'
+    target_removed: '対象の消滅'
+    target_terminal: '対象の終了'
+    unknown: '不明'
+  landTransferReason:
+    purchase: '売買'
+    cession: '割譲'
+    war: '戦争'
+    revolt: '叛乱'
+  # project event の {{kind}} 表示ラベル (ProjectKind enum)。
+  #   goal/aim kind と違い owner 種別で語彙が分かれないため flat に持つ。
+  projectKind:
+    develop_holding: '所領開発'
+    acquire_political_right: '政治的権利の獲得'
+    promote_policy_shift: '政策転換の働きかけ'
+    patronize_artist: '芸術家の後援'
+    commission_chronicle: '年代記の編纂'
+    acquire_land: '領地の獲得'
+    sell_land: '領地の売却'
+    improve_contract_terms: '契約条件の改善'
+    demand_tax_increase: '増税要求'
+    respond_to_pressure: '圧力への対応'

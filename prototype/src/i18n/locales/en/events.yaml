@@ -174,6 +174,7 @@ goal:
   reviewed: '{{owner}} reviewed their goal of {{kind}}.'
 aim:
   created: '{{owner}} began working on {{kind}} targeting {{target}}.'
+  created_untargeted: '{{owner}} began working on {{kind}}.'
   succeeded: '{{owner}} successfully completed {{kind}}.'
   failed: '{{owner}} failed at {{kind}}.'
   abandoned: '{{owner}} abandoned {{kind}}.'
@@ -246,3 +247,31 @@ enum:
     polity_dissolved: 'polity dissolved'
     target_lost: 'target lost'
     regime_change: 'regime change'
+  plotType:
+    replace_house_leader: 'house takeover'
+    seize_office: 'office seizure'
+    prepare_rebellion: 'rebellion'
+  taskCancelReason:
+    assignee_no_longer_available: 'assignee no longer available'
+    owner_inactive: 'owner inactive'
+    target_removed: 'target removed'
+    target_terminal: 'target concluded'
+    unknown: 'unknown'
+  landTransferReason:
+    purchase: 'purchase'
+    cession: 'cession'
+    war: 'war'
+    revolt: 'revolt'
+  # Display labels for {{kind}} in project events (ProjectKind enum).
+  #   Flat table — unlike goal/aim kinds the vocabulary does not split by owner kind.
+  projectKind:
+    develop_holding: 'holding development'
+    acquire_political_right: 'acquiring a political right'
+    promote_policy_shift: 'promoting a policy shift'
+    patronize_artist: 'patronizing an artist'
+    commission_chronicle: 'commissioning a chronicle'
+    acquire_land: 'acquiring land'
+    sell_land: 'selling land'
+    improve_contract_terms: 'improving contract terms'
+    demand_tax_increase: 'demanding a tax increase'
+    respond_to_pressure: 'responding to pressure'

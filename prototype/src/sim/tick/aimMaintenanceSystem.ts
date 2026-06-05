@@ -5,7 +5,6 @@ import { createAimId, createDecisionReasonId } from '../types/ids'
 import type { Aim, DecisionReason, Goal, EntityRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import type { PoliticalRightTargetRef } from '../types/politicalRight'
-import { politicalRightTargetKey } from '../types/politicalRight'
 import { getRightForTarget } from '../selectors/politicalRightSelectors'
 import { getEffectiveOfficeMaxHolders } from '../selectors/officeSelectors'
 import {
@@ -14,9 +13,11 @@ import {
   aimSlotKey,
   computeAimCapacityForGoal,
 } from '../selectors/goalSelectors'
+import type { EventMessageParamValue } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
-import { getPolityEmitNameKey } from '../selectors/nameRefSelectors'
+import { getPolityNameRefForEmit, getHoldingNameRefForEmit } from '../selectors/nameRefSelectors'
+import { politicalRightTargetNameParam } from './politicalRightEvents'
 
 export function runAimMaintenanceSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -165,11 +166,12 @@ function createAimForGoal(
   }
 
   const ownerNameKey = getOwnerNameKey(currentCtx.state, goal.owner)
+  // target なし aim ('none' が出る) は専用テンプレートに分ける
   const targetName = target ? getTargetName(currentCtx, target) : 'none'
   const { event, ctx: evCtx } = createSimEvent(currentCtx, {
     type: 'AIM_CREATED',
     importance: 'minor',
-    messageKey: 'aim.created',
+    messageKey: target ? 'aim.created' : 'aim.created_untargeted',
     messageParams: {
       owner: nameParam(getOwnerNameRefForEmit(currentCtx.state, goal.owner).category, ownerNameKey),
       kind,
@@ -288,40 +290,50 @@ function isPoliticalRightTargetValid(
   }
 }
 
-function getTargetName(ctx: TickContext, target: EntityRef): string {
+// AIM_CREATED の {{target}} に渡す表示値。raw な nameKey / entity id を文字列のまま返すと
+// イベントログに生キーが出る (例: 'southhart' / 'hl-9' / 'regiment:rg-12') ため、
+// 名前解決可能なものは nameParam (eventRenderer が nameTranslator で解決) にして返す。
+function getTargetName(ctx: TickContext, target: EntityRef): EventMessageParamValue {
   if (target.kind === 'polity') {
-    return getPolityEmitNameKey(ctx.state, target.id)
+    const ref = getPolityNameRefForEmit(ctx.state, target.id)
+    return nameParam(ref.category, ref.nameKey)
   }
   if (target.kind === 'house') {
-    return ctx.state.houses[target.id]?.nameKey ?? target.id
+    return nameParam('house', ctx.state.houses[target.id]?.nameKey ?? target.id)
   }
   if (target.kind === 'province') {
-    return ctx.state.provinces[target.id]?.nameKey ?? target.id
+    return nameParam('province', ctx.state.provinces[target.id]?.nameKey ?? target.id)
   }
   if (target.kind === 'state') {
-    return ctx.state.states[target.id]?.nameKey ?? target.id
+    return nameParam('state_region', ctx.state.states[target.id]?.nameKey ?? target.id)
   }
   if (target.kind === 'holding') {
-    return target.id
+    const ref = getHoldingNameRefForEmit(ctx.state, target.id)
+    return nameParam(ref.category, ref.nameKey)
   }
   if (target.kind === 'land_contract') {
+    // contract 自体に名前は無い — 対象 holding (無ければ province) の名前で表示する
+    const contract = ctx.state.landContracts[target.id]
+    if (contract?.holdingId !== undefined) {
+      const ref = getHoldingNameRefForEmit(ctx.state, contract.holdingId)
+      return nameParam(ref.category, ref.nameKey)
+    }
+    if (contract) {
+      return nameParam('province', ctx.state.provinces[contract.provinceId]?.nameKey ?? target.id)
+    }
     return target.id
   }
   if (target.kind === 'aim') {
     return target.id
   }
   if (target.kind === 'office') {
-    const org =
-      target.organization.kind === 'polity'
-        ? getPolityEmitNameKey(ctx.state, target.organization.id)
-        : ctx.state.houses[target.organization.id]?.nameKey
-    return org ? `${org}:${target.role}` : target.role
+    return nameParam('role', `${target.organization.kind}_${target.role}`)
   }
   if (target.kind === 'ability') {
     return target.ability
   }
   if (target.kind === 'political_right_target') {
-    return politicalRightTargetKey(target.target)
+    return politicalRightTargetNameParam(ctx.state, target.target)
   }
   return target.id
 }

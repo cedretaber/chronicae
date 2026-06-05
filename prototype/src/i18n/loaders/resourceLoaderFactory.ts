@@ -6,7 +6,10 @@ import type {
   NameCategory,
 } from '../types'
 
-/** 名前翻訳 (names/<category>.yaml) を読み込むカテゴリ。 */
+/** 名前翻訳 (names/<category>.yaml) を読み込むカテゴリ。
+ *  NOTE: app/hooks/nameCache.ts にも同趣旨のリストがある (web は import.meta.glob 経由)。
+ *  カテゴリを増やしたら両方を更新すること — ここから漏れると CLI レンダリングだけ
+ *  raw nameKey (例: 'polity_military') が出る。 */
 export const NAME_CATEGORIES: NameCategory[] = [
   'person',
   'house',
@@ -15,6 +18,7 @@ export const NAME_CATEGORIES: NameCategory[] = [
   'polity',
   'holding',
   'state_region',
+  'role',
 ]
 
 /** ロード対象の全ネームスペース。loader / createI18n で共有する。 */
