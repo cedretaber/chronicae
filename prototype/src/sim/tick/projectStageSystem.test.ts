@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { makeEmptyV016State } from '../testFixtures'
+import { makeEmptyV016State, withHouse, withPerson, withPolity } from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
 import { resolveImmediateStages } from './projectStageSystem'
 import { addProjectToIndexMut } from '../mutations/projectMutations'
 import { createDiplomaticOfferId } from '../types/ids'
 import type { WorldState } from '../types/world'
-import type { RespondToPressureProject } from '../types/project'
+import type { RespondToPressureProject, DevelopHoldingProject } from '../types/project'
 import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types/diplomaticPlay'
 import type {
   ProjectId,
@@ -13,7 +13,10 @@ import type {
   DiplomaticOfferId,
   PolityId,
   HoldingId,
+  HoldingOfficeAssignmentId,
+  HouseId,
   LandContractId,
+  PersonId,
   PressureId,
 } from '../types/ids'
 import { PLACEHOLDER_PERSON_ID } from '../types/person'
@@ -552,5 +555,119 @@ describe('resolveProposalInitialOffer via resolveImmediateStages', () => {
       // New offer should be proposed by target
       expect(newOffer!.proposedBy).toEqual({ kind: 'polity', id: 'c-target' as PolityId })
     })
+  })
+})
+
+// ─── find_supervisor (develop_holding) ──────────────────────────────────────
+
+describe('resolveFindSupervisor via resolveImmediateStages (develop_holding)', () => {
+  const POLITY = 'c-dev' as PolityId
+  const HOUSE = 'hh-dev' as HouseId
+  const HOLDING = 'hl-dev' as HoldingId
+  const CREATOR = 'pe-creator' as PersonId
+
+  function makeDevState(): WorldState {
+    let ws = makeEmptyV016State()
+    ws = withHouse(ws, HOUSE)
+    ws = withPolity(ws, POLITY, { ownerHouseId: HOUSE })
+    ws = withPerson(ws, CREATOR, { houseId: HOUSE })
+    return ws
+  }
+
+  function makeDevProject(overrides?: Partial<DevelopHoldingProject>): DevelopHoldingProject {
+    return {
+      id: 'proj-dev' as ProjectId,
+      owner: { kind: 'polity', id: POLITY },
+      origin: { kind: 'system', reasonKey: 'test' },
+      kind: 'develop_holding',
+      creatorPersonId: CREATOR,
+      supervisorPersonId: CREATOR,
+      status: 'active',
+      progress: 0,
+      targetProgress: 100,
+      currentStageKey: 'find_supervisor',
+      createdWeek: 48000,
+      reasonIds: [],
+      holdingId: HOLDING,
+      improvementKind: 'field_system',
+      targetImprovementLevel: 1,
+      budget: { required: 0, allocated: 0, remaining: 0, spent: 0, source: { kind: 'owner' } },
+      ...overrides,
+    }
+  }
+
+  function inject(ws: WorldState, project: DevelopHoldingProject): void {
+    ws.projects[project.id] = project
+    addProjectToIndexMut(ws, project)
+  }
+
+  function runDev(ws: WorldState): DevelopHoldingProject {
+    resolveImmediateStages(ws, defaultConfig, 'proj-dev' as ProjectId, ws.absoluteWeek)
+    return ws.projects['proj-dev' as ProjectId] as DevelopHoldingProject
+  }
+
+  it('対象 holding に active bailiff がいれば supervisor になり termProtect が付く', () => {
+    const ws = makeDevState()
+    const bailiffId = 'pe-bailiff' as PersonId
+    const next = withPerson(ws, bailiffId, { houseId: HOUSE })
+    Object.assign(ws, next)
+    const hoId = 'ho-1' as HoldingOfficeAssignmentId
+    ws.holdingOfficeAssignments[hoId] = {
+      id: hoId,
+      holdingId: HOLDING,
+      role: 'bailiff',
+      holderPersonId: bailiffId,
+      appointingPolityId: POLITY,
+      active: true,
+      startWeek: 0,
+      unpaidCount: 0,
+      contractedRemittanceRate: 0.5,
+      expectedFeeRate: 0.1,
+    }
+    ws.holdingOfficeIndex.byHolding[HOLDING] = hoId
+    inject(ws, makeDevProject({ deadlineWeek: ws.absoluteWeek + 100 }))
+
+    const project = runDev(ws)
+
+    expect(project.supervisorPersonId).toBe(bailiffId)
+    expect(project.currentStageKey).not.toBe('find_supervisor')
+    expect(ws.holdingOfficeAssignments[hoId]?.termProtectedUntilWeek).toBe(ws.absoluteWeek + 100)
+  })
+
+  it('bailiff 不在時は workload の軽い候補を owner pool から選ぶ (旧・無関係候補探索の廃止)', () => {
+    let ws = makeDevState()
+    const busyId = 'pe-busy' as PersonId
+    const idleId = 'pe-idle' as PersonId
+    // memberIds 順で busy が先 (同点なら busy が勝つ並び) — workload ペナルティで idle が逆転する
+    ws = withPerson(ws, busyId, { houseId: HOUSE })
+    ws = withPerson(ws, idleId, { houseId: HOUSE })
+    // busy に active project を 4 件監督させる
+    for (let i = 0; i < 4; i++) {
+      const p = makeDevProject({
+        id: `proj-busy-${i}` as ProjectId,
+        supervisorPersonId: busyId,
+        currentStageKey: 'execute_project',
+      })
+      ws.projects[p.id] = p
+      addProjectToIndexMut(ws, p)
+    }
+    inject(ws, makeDevProject())
+
+    const project = runDev(ws)
+
+    expect(project.supervisorPersonId).toBe(idleId)
+    expect(project.currentStageKey).not.toBe('find_supervisor')
+  })
+
+  it('候補ゼロでも creator に倒して stage が進む (find_supervisor で stall しない)', () => {
+    // owner 家のメンバーが creator のみ → selectProjectSupervisor は creator を除外して
+    // undefined → creator fallback で必ず前進する
+    const ws = makeDevState()
+    inject(ws, makeDevProject())
+
+    const project = runDev(ws)
+
+    expect(project.supervisorPersonId).toBe(CREATOR)
+    expect(project.currentStageKey).not.toBe('find_supervisor')
   })
 })

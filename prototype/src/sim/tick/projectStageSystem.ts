@@ -33,7 +33,7 @@ import {
   getInitialProjectStageKey,
   isProjectStageValid,
 } from '../config/projectStageSequences'
-import { findBailiffCandidateForProject } from './projectStageHelpers'
+import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { predictPressureResponseStance } from '../selectors/pressureStanceSelectors'
 import { createDiplomaticOfferMut } from '../mutations/diplomaticOfferMutations'
 import { clamp } from '../utils/math'
@@ -194,13 +194,17 @@ function resolveFindSupervisor(
     }
   }
 
-  // v0.42 §10.3: bailiff 不在時の直接任命 (vacate→appoint) を廃止。候補探索は
-  // supervisor 選定のためだけに使い、HoldingOfficeAssignment は変更しない。
-  // bailiff の補充は bailiffAppointmentSystem に一本化する (placeholder 期間が
-  // interval 分延びるのは許容 — §21.4)。
+  // bailiff 不在時は通常の supervisor 選定 (workload 考慮) にフォールバックする。
+  // 旧仕様 (担当者をそのまま代官に直接任命) の名残だった bailiff 候補探索
+  // (findBailiffCandidateForProject) は廃止 — influence 家の派閥メンバーまで届く
+  // 無関係な人物を負荷を見ずに引き込んでいた。候補母集合は owner (polity なら
+  // owner 家 + 土地チェーン上の家、house なら member) に限り、負荷ペナルティ込みで選ぶ。
+  // 候補ゼロでも creator に倒して必ず stage を進める (旧実装は候補ゼロで
+  // find_supervisor に永久 stall し deadline 失敗していた)。
   if (!supervisorId) {
-    supervisorId = findBailiffCandidateForProject(ws, config, project)
-    if (!supervisorId) return false
+    supervisorId =
+      selectProjectSupervisor(ws, config, project.owner, project.kind, project.creatorPersonId) ??
+      project.creatorPersonId
   }
 
   // 既存 bailiff を supervisor に使う場合のみ、project 期間中の任期交代から保護する
