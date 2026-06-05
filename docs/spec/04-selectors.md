@@ -468,8 +468,16 @@ function getPersonProjectWorkload(state: WorldState, personId: PersonId): number
 
 // Project creator / supervisor 選定
 function selectProjectCreator(state: WorldState, config: SimulationConfig, aim: Aim): PersonId | undefined
-function selectProjectSupervisor(state: WorldState, config: SimulationConfig, projectDraft: ProjectDraft, creatorPersonId: PersonId): PersonId | undefined
+function selectProjectSupervisor(state: WorldState, config: SimulationConfig, owner: DecisionSubjectRef, projectKind: ProjectKind, creatorPersonId: PersonId): PersonId | undefined
 ```
+
+スコアリングは両者とも `能力/10 + officeBonus + leaderBonus(+creatorBias) − workload×0.5`。
+
+**候補母集合**: creator は owner 組織の内部の人間のみ（polity → owner 家＋土地チェーン上の家のメンバー
+= `getPolityPersonIds` / house → memberIds）。supervisor はそれに加えて**派閥のメンバー（客分・食客）**
+を含む — polity の Project では owner polity に anchor された active 派閥のメンバー（派閥の介入は
+anchor Polity のみ、という Faction の原則に整合）、house の Project ではその家の生存メンバーが率いる
+active 派閥のメンバー（家の食客）。Project の発案は組織内部に限り、派閥は実務の担い手としてのみ参加する。
 
 ### 4.9b 代官 selector
 

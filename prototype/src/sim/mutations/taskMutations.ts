@@ -197,3 +197,61 @@ export function createInitialTaskForAim(
     absoluteWeek,
   })
 }
+
+// 死亡した person に assign された active Task の即時 cascade。
+// Task の通常回収は taskSystem (毎週) だが、tick 順で taskSystem より後に走る
+// system からの死亡 (例: revolt 鎮圧での指導者処刑) が年末 tick で起きると、
+// 同 tick の integrity (「Task assignee is dead」) に先に捕まる。
+// taskSystem の cancel と同じ整合面を守る: task 削除 (removeTaskFromIndicesMut) +
+// DiplomaticPlay の activeTaskIds 参照解除 + owner Aim の activeTaskId 解除。
+// TASK_CANCELLED イベントは省略 (taskSystem 経路のみ。死亡サイトでは PERSON_DIED が主)。
+export function cancelTasksOfDeadAssignee(state: WorldState, personId: PersonId): WorldState {
+  const taskIds = [...(state.taskIndex.byAssignee[personId as string] ?? [])]
+  if (taskIds.length === 0) return state
+
+  const ws: WorldState = {
+    ...state,
+    tasks: { ...state.tasks },
+    taskIndex: {
+      byAssignee: { ...state.taskIndex.byAssignee },
+      byOwner: { ...state.taskIndex.byOwner },
+      byTarget: { ...state.taskIndex.byTarget },
+    },
+    aims: { ...state.aims },
+    diplomaticPlays: { ...state.diplomaticPlays },
+  }
+
+  for (const tid of taskIds.sort()) {
+    const task = ws.tasks[tid]
+    if (!task || task.status !== 'active') continue
+
+    // owner Aim の activeTaskId を解除 (taskSystem の cancel と同じ)
+    const ownerKey = decisionSubjectKey(task.owner)
+    for (const aid of ws.aimIndex.byOwner[ownerKey] ?? []) {
+      const aim = ws.aims[aid]
+      if (aim && aim.activeTaskId === tid) {
+        ws.aims[aid] = { ...aim, activeTaskId: undefined } as unknown as Aim
+        break
+      }
+    }
+
+    removeTaskFromIndicesMut(ws, tid)
+
+    // DiplomaticPlay の activeTaskIds 参照を解除 (§10 integrity)
+    if (task.targetRef.kind === 'diplomatic_play') {
+      const play = ws.diplomaticPlays[task.targetRef.id]
+      if (play) {
+        ws.diplomaticPlays[task.targetRef.id] = {
+          ...play,
+          initiatorActiveTaskIds: play.initiatorActiveTaskIds.filter(
+            (id) => (id as string) !== (tid as string),
+          ),
+          targetActiveTaskIds: play.targetActiveTaskIds.filter(
+            (id) => (id as string) !== (tid as string),
+          ),
+        }
+      }
+    }
+  }
+  return ws
+}

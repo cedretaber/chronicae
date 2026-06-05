@@ -18,6 +18,8 @@ import { samplePerson } from '../helpers/personFactory'
 import { getHouselessPersons } from '../selectors/availabilitySelectors'
 import { removeFactionMembership, dissolveFactionsAnchoredToPolity } from './factionMutations'
 import { removeRightsByPolity } from './politicalRightMutations'
+import { reassignProjectsOfDeadSupervisor } from './projectMutations'
+import { cancelTasksOfDeadAssignee } from './taskMutations'
 import { adjustPopAttitude, adjustHouseMembersAttitude } from './attitudeMutations'
 import { eliminateContractFromChain as eliminateContract } from './landContractMutations'
 
@@ -328,7 +330,16 @@ export function dissolveNegotiatingCommonwealth(
   // v0.42 §12.3: anchor された active Faction を即時解散する (F8 を年末 integrity 前に守る)。
   //   commonwealth は active polity なので Faction の anchor 先になりうる。
   //   この cascade 欠落で「active Faction の anchor polity が inactive」違反が CI で実発生した。
-  const nextCtx = dissolveFactionsAnchoredToPolity({ ...ctx, state }, input.commonwealthPolityId)
+  let nextCtx = dissolveFactionsAnchoredToPolity({ ...ctx, state }, input.commonwealthPolityId)
+
+  // 処刑された leader の assign 済み Task と supervised Project を即時 cascade。
+  // 本関数は war 系 system (tick 順で taskSystem / ProjectMaintenanceSystem より後)
+  // から呼ばれるため、毎週/4週ごとの通常回収では年末 integrity (「Task assignee is
+  // dead」/「active project but supervisor is dead」) より先に回収できないことがある。
+  if (input.leaderOutcome === 'executed' && leaderId !== undefined) {
+    nextCtx = { ...nextCtx, state: cancelTasksOfDeadAssignee(nextCtx.state, leaderId) }
+    nextCtx = reassignProjectsOfDeadSupervisor(nextCtx, leaderId)
+  }
 
   return ok({ ctx: nextCtx, value: undefined })
 }

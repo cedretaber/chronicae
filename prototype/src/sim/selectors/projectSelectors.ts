@@ -1,7 +1,8 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PersonId } from '../types/ids'
-import { isLifeStageAtLeast } from '../types/person'
+import type { FactionId, PersonId } from '../types/ids'
+import { isLifeStageAtLeast, isLivingPerson } from '../types/person'
+import { getFactionActiveMemberIds } from './factionSelectors'
 import type { EntityRef, Aim, DecisionSubjectRef } from '../types/goal'
 import type { Project, ProjectKind } from '../types/project'
 import type { AppliedRoleKey } from './abilitySelectors'
@@ -127,6 +128,46 @@ function getCandidatePersonIds(state: WorldState, owner: DecisionSubjectRef): Pe
   return [owner.id]
 }
 
+// supervisor 候補の母集合。creator 用 (getCandidatePersonIds) との違いは、owner の
+// 宮廷に出入りする派閥のメンバー (客分・食客) まで含めること。派閥が介入できるのは
+// anchor Polity のみ (§12.4) なので、無関係な国の派閥メンバーは届かない:
+// - polity: owner polity に anchor された active 派閥のメンバー
+// - house: 家の生存メンバーが率いる active 派閥のメンバー (家の食客)
+// Project の発案 (creator) は組織内部の人間に限り、派閥は実務の担い手としてのみ参加する。
+function getSupervisorCandidatePersonIds(state: WorldState, owner: DecisionSubjectRef): PersonId[] {
+  const base = getCandidatePersonIds(state, owner)
+  const seen = new Set<string>(base as string[])
+  const extra: PersonId[] = []
+
+  function addFactionMembers(factionId: FactionId): void {
+    const faction = state.factions[factionId]
+    if (!faction || !faction.active) return
+    for (const pid of getFactionActiveMemberIds(state, factionId)) {
+      if (!seen.has(pid)) {
+        seen.add(pid)
+        extra.push(pid)
+      }
+    }
+  }
+
+  if (owner.kind === 'polity') {
+    const factionIds = [...(state.factionIndex.byPolity[owner.id] ?? [])].sort()
+    for (const fid of factionIds) addFactionMembers(fid)
+  } else if (owner.kind === 'house') {
+    const house = state.houses[owner.id]
+    if (house && house.active) {
+      const factionIds: FactionId[] = []
+      for (const mid of house.memberIds) {
+        if (!isLivingPerson(state.persons[mid])) continue
+        factionIds.push(...(state.factionIndex.byLeader[mid] ?? []))
+      }
+      for (const fid of factionIds.sort()) addFactionMembers(fid)
+    }
+  }
+
+  return [...base, ...extra]
+}
+
 function isEligibleCandidate(state: WorldState, personId: PersonId): boolean {
   const person = state.persons[personId]
   if (!person) return false
@@ -219,7 +260,7 @@ export function selectProjectSupervisor(
   projectKind: ProjectKind,
   creatorPersonId: PersonId,
 ): PersonId | undefined {
-  const candidates = getCandidatePersonIds(state, owner)
+  const candidates = getSupervisorCandidatePersonIds(state, owner)
   const roleKey = PROJECT_KIND_ROLE_MAP[projectKind]
 
   let bestId: PersonId | undefined

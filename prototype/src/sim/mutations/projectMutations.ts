@@ -1,9 +1,14 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
+import type { PersonId } from '../types/ids'
 import type { Project, ProjectKind } from '../types/project'
 import type { AimKind } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
-import { getProjectRelatedRefs } from '../selectors/projectSelectors'
+import { getProjectRelatedRefs, selectProjectSupervisor } from '../selectors/projectSelectors'
+import type { TickContext } from '../tick/context'
+import { createSimEvent } from '../tick/context'
+import { nameParam, entityRef } from '../types/event'
+import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 
 export function addProjectToIndexMut(ws: WorldState, project: Project): void {
   const ownerKey = decisionSubjectKey(project.owner)
@@ -171,4 +176,74 @@ export function getProjectDeadlineWeeks(
     )
   }
   return config.projectDeadlineWeeksDevelopment
+}
+
+// 死亡した person が supervisor を務める active Project の即時 cascade。
+// supervisor 死亡の通常回収は ProjectMaintenanceSystem (4週ごと) だが、tick 順で
+// maintenance より後に走る system からの死亡 (例: revolt 鎮圧での指導者処刑 —
+// dissolveNegotiatingCommonwealth) は年末 integrity (「active project but supervisor
+// is dead」) に先に捕まる。maintenance と同じ規則 (再選定 → 不能なら failed) を
+// 死亡サイトで即時に適用する。dissolveFactionsAnchoredToPolity (F8) と同じ
+// TickContext パターン。
+export function reassignProjectsOfDeadSupervisor(
+  ctx: TickContext,
+  personId: PersonId,
+): TickContext {
+  const projectIds = [...(ctx.state.projectIndex.bySupervisorPerson[personId as string] ?? [])]
+  if (projectIds.length === 0) return ctx
+
+  let next = ctx
+  for (const pid of projectIds.sort()) {
+    const project = next.state.projects[pid]
+    if (!project || project.status !== 'active') continue
+    if ((project.supervisorPersonId as string) !== (personId as string)) continue
+
+    // mut helper を使うため index/projects を clone した state を作る
+    const ws: WorldState = {
+      ...next.state,
+      projects: { ...next.state.projects },
+      projectIndex: {
+        byOwner: { ...next.state.projectIndex.byOwner },
+        byAim: { ...next.state.projectIndex.byAim },
+        byParentProject: { ...next.state.projectIndex.byParentProject },
+        byCreatorPerson: { ...next.state.projectIndex.byCreatorPerson },
+        bySupervisorPerson: { ...next.state.projectIndex.bySupervisorPerson },
+        byRelatedEntity: { ...next.state.projectIndex.byRelatedEntity },
+      },
+    }
+
+    const newSupervisor = selectProjectSupervisor(
+      ws,
+      next.config,
+      project.owner,
+      project.kind,
+      project.creatorPersonId,
+    )
+    if (newSupervisor !== undefined) {
+      removeProjectFromIndexMut(ws, project)
+      const updated = { ...project, supervisorPersonId: newSupervisor }
+      ws.projects[pid] = updated
+      addProjectToIndexMut(ws, updated)
+      next = { ...next, state: ws }
+      continue
+    }
+
+    ws.projects[pid] = { ...project, status: 'failed' }
+    const ownerNameKey = getOwnerNameKey(ws, project.owner)
+    const { event, ctx: ec } = createSimEvent(
+      { ...next, state: ws },
+      {
+        type: 'PROJECT_FAILED',
+        importance: 'minor',
+        messageKey: 'project.failed.no_supervisor',
+        messageParams: {
+          owner: nameParam(getOwnerNameRefForEmit(ws, project.owner).category, ownerNameKey),
+          kind: project.kind,
+        },
+        entityRefs: [entityRef(project.owner.kind, project.owner.id, 'owner', ownerNameKey)],
+      },
+    )
+    next = { ...ec, events: [...ec.events, event] }
+  }
+  return next
 }
