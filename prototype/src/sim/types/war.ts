@@ -15,11 +15,15 @@ export type WarStatus = 'active' | 'attacker_won' | 'defender_won' | 'white_peac
 export type WarSideKey = 'attacker' | 'defender'
 
 // §4.5 WarParticipant
-//   v0.34 では各 side の participants は 1 件・primary=true 固定。
+//   v0.43: 各 side は primary 1 件 + supporters 0..N 件 (multi-participant)。
 export type WarParticipant = {
   actor: OrganizationRef
   joinedWeek: number
   primary: boolean
+
+  // v0.43 §5.1a: 戦争貢献度の前方宣言。v0.43 では書き込みサイトが存在せず常に undefined。
+  //   将来 (講和配分・supporter 報酬) のための型シグネチャ予約のみ。integrity 検査もしない。
+  contributionScore?: number
 }
 
 // §4.4 WarSide

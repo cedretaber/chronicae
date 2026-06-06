@@ -55,6 +55,13 @@ export function removeWarFromIndexMut(ws: WorldState, war: War): void {
 
 // --- creation ---
 
+// v0.43: War 生成時に各 side へ追加する supporter (primary 以外の participant) の入力。
+//   contributionScore は §5.1a の前方宣言 — v0.43 では呼び出し側が渡さず常に undefined。
+export type WarSupporterInput = {
+  actor: OrganizationRef
+  contributionScore?: number
+}
+
 export type CreateWarInput = {
   attacker: OrganizationRef
   defender: OrganizationRef
@@ -62,6 +69,22 @@ export type CreateWarInput = {
   targetWarScore: number
   startedWeek: number
   originDiplomaticPlayId?: DiplomaticPlayId
+  // v0.43: 各 side の supporters (省略 = 空)。重複・active 検査は呼び出し側 (copy filter §10.3a) の責務。
+  attackerSupporters?: WarSupporterInput[]
+  defenderSupporters?: WarSupporterInput[]
+}
+
+// supporter 入力 → WarParticipant (primary: false)。
+//   exactOptionalPropertyTypes: contributionScore は条件 spread (undefined を明示代入しない)。
+function toSupporterParticipant(input: WarSupporterInput, startedWeek: number): WarParticipant {
+  return {
+    actor: input.actor,
+    joinedWeek: startedWeek,
+    primary: false,
+    ...(input.contributionScore !== undefined
+      ? { contributionScore: input.contributionScore }
+      : {}),
+  }
 }
 
 // War を生成し、records / counter / index をすべて更新する単一エントリ。
@@ -73,14 +96,25 @@ export function createWar(ws: WorldState, input: CreateWarInput): War {
     status: 'active',
     attacker: {
       key: 'attacker',
-      participants: [{ actor: input.attacker, joinedWeek: input.startedWeek, primary: true }],
+      // v0.43: primary + supporters。primary が先頭 (object 形は v0.34 から不変)。
+      participants: [
+        { actor: input.attacker, joinedWeek: input.startedWeek, primary: true },
+        ...(input.attackerSupporters ?? []).map((s) =>
+          toSupporterParticipant(s, input.startedWeek),
+        ),
+      ],
       // v0.35: 総大将/指揮官は WarManeuver が lazy 選出するため生成時は空。
       commanderPersonIds: [],
       avoidanceCount: 0,
     },
     defender: {
       key: 'defender',
-      participants: [{ actor: input.defender, joinedWeek: input.startedWeek, primary: true }],
+      participants: [
+        { actor: input.defender, joinedWeek: input.startedWeek, primary: true },
+        ...(input.defenderSupporters ?? []).map((s) =>
+          toSupporterParticipant(s, input.startedWeek),
+        ),
+      ],
       commanderPersonIds: [],
       avoidanceCount: 0,
     },

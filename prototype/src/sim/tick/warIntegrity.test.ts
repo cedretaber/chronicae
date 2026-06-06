@@ -6,6 +6,7 @@ import type { WorldState } from '../types/world'
 import type { War, WarGoal } from '../types/war'
 import type {
   PolityId,
+  HouseId,
   HoldingId,
   LandContractId,
   PersonId,
@@ -138,10 +139,70 @@ describe('War integrity (§14)', () => {
   })
 
   // §14.4 participant 検査
-  it('detects participants.length !== 1', () => {
+  it('detects participants.length < 1 (v0.43: 1 件固定から >= 1 に緩和)', () => {
     const { world, war } = freshValidWar()
     war.attacker.participants = []
     expect(warErrors(world).some((m) => m.includes('participants.length'))).toBe(true)
+  })
+
+  // v0.43: supporter (primary=false の 2 件目以降) は violation ではない
+  it('does NOT flag a side with a supporter participant (v0.43 multi-participant)', () => {
+    const { world } = generateWorld('war-integrity')
+    const activePolities = Object.values(world.polities).filter((p) => p && p.active)
+    expect(activePolities.length).toBeGreaterThanOrEqual(3)
+    const [polA, polB, polC] = activePolities.map((p) => p.id)
+    const holdingId = (Object.keys(world.holdings) as HoldingId[])[0]!
+    createWar(world, {
+      attacker: { kind: 'polity', id: polA! },
+      defender: { kind: 'polity', id: polB! },
+      warGoals: [
+        {
+          kind: 'transfer_land_contract',
+          holdingId,
+          fromPolityId: polB!,
+          toPolityId: polA!,
+          requiredWarScore: 60,
+        },
+      ],
+      targetWarScore: 60,
+      startedWeek: world.absoluteWeek,
+      attackerSupporters: [{ actor: { kind: 'polity', id: polC! } }],
+    })
+    expect(warErrors(world)).toEqual([])
+  })
+
+  // v0.43 W3: participant は polity のみ
+  it('detects a non-polity participant (W3)', () => {
+    const { world, war } = freshValidWar()
+    war.attacker.participants = [
+      ...war.attacker.participants,
+      {
+        actor: { kind: 'house', id: 'h-1' as HouseId },
+        joinedWeek: world.absoluteWeek,
+        primary: false,
+      },
+    ]
+    expect(warErrors(world).some((m) => m.includes('is not a polity'))).toBe(true)
+  })
+
+  // v0.43 W4: 同一 side 内の actor 重複
+  it('detects duplicate participant actors within a side (W4)', () => {
+    const { world, war, polA } = freshValidWar()
+    war.attacker.participants = [
+      ...war.attacker.participants,
+      { actor: { kind: 'polity', id: polA }, joinedWeek: world.absoluteWeek, primary: false },
+    ]
+    expect(warErrors(world).some((m) => m.includes('duplicate participant actors'))).toBe(true)
+  })
+
+  // v0.43 W5: 両 side をまたいだ actor 重複
+  it('detects the same actor on both sides (W5)', () => {
+    const { world, war, polA } = freshValidWar()
+    war.defender.participants = [
+      ...war.defender.participants,
+      { actor: { kind: 'polity', id: polA }, joinedWeek: world.absoluteWeek, primary: false },
+    ]
+    expect(warErrors(world).some((m) => m.includes('appears on both sides'))).toBe(true)
   })
 
   it('detects inactive participant actor on an active war', () => {

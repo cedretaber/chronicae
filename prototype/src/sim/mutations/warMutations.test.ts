@@ -111,6 +111,81 @@ describe('createWar', () => {
   })
 })
 
+// v0.43: supporters 付き createWar (multi-participant)
+describe('createWar with supporters (v0.43)', () => {
+  const pC: OrganizationRef = { kind: 'polity', id: 'po-3' as PolityId }
+  const pD: OrganizationRef = { kind: 'polity', id: 'po-4' as PolityId }
+
+  it('appends supporters after primary with primary=false and joinedWeek=startedWeek', () => {
+    const ws = makeEmptyV016State()
+    const war = createWar(ws, {
+      attacker: pA,
+      defender: pB,
+      warGoals: [],
+      targetWarScore: 60,
+      startedWeek: 48,
+      attackerSupporters: [{ actor: pC }],
+      defenderSupporters: [{ actor: pD }],
+    })
+    expect(war.attacker.participants).toHaveLength(2)
+    expect(war.attacker.participants[0]?.primary).toBe(true)
+    expect(war.attacker.participants[1]).toEqual({ actor: pC, joinedWeek: 48, primary: false })
+    expect(war.defender.participants).toHaveLength(2)
+    expect(war.defender.participants[1]).toEqual({ actor: pD, joinedWeek: 48, primary: false })
+  })
+
+  it('does not write contributionScore key when not provided (§5.1a forward declaration)', () => {
+    const ws = makeEmptyV016State()
+    const war = createWar(ws, {
+      attacker: pA,
+      defender: pB,
+      warGoals: [],
+      targetWarScore: 60,
+      startedWeek: 48,
+      attackerSupporters: [{ actor: pC }],
+    })
+    // dump 等価性のため、undefined キーは object に存在してはならない。
+    expect('contributionScore' in war.attacker.participants[0]!).toBe(false)
+    expect('contributionScore' in war.attacker.participants[1]!).toBe(false)
+  })
+
+  it('registers all participants (including supporters) in byParticipant', () => {
+    const ws = makeEmptyV016State()
+    const war = createWar(ws, {
+      attacker: pA,
+      defender: pB,
+      warGoals: [],
+      targetWarScore: 60,
+      startedWeek: 48,
+      attackerSupporters: [{ actor: pC }],
+      defenderSupporters: [{ actor: pD }],
+    })
+    expect(ws.warIndex.byParticipant['polity:po-1']).toContain(war.id)
+    expect(ws.warIndex.byParticipant['polity:po-2']).toContain(war.id)
+    expect(ws.warIndex.byParticipant['polity:po-3']).toContain(war.id)
+    expect(ws.warIndex.byParticipant['polity:po-4']).toContain(war.id)
+  })
+
+  it('removeWarFromIndexMut purges supporter entries too (round-trip)', () => {
+    const ws = makeEmptyV016State()
+    const war = createWar(ws, {
+      attacker: pA,
+      defender: pB,
+      warGoals: [],
+      targetWarScore: 60,
+      startedWeek: 48,
+      attackerSupporters: [{ actor: pC }],
+      defenderSupporters: [{ actor: pD }],
+    })
+    removeWarFromIndexMut(ws, war)
+    expect(ws.warIndex.byParticipant['polity:po-3']).toBeUndefined()
+    expect(ws.warIndex.byParticipant['polity:po-4']).toBeUndefined()
+    addWarToIndexMut(ws, war)
+    expect(ws.warIndex.byParticipant['polity:po-3']).toContain(war.id)
+    expect(ws.warIndex.byParticipant['polity:po-4']).toContain(war.id)
+  })
+})
+
 describe('add/removeWarFromIndexMut', () => {
   it('round-trips and purges empty byParticipant entries on removal', () => {
     const ws = makeEmptyV016State()

@@ -453,10 +453,11 @@ export function checkDiplomacyWarRegiment(
       ['defender', war.defender],
     ]
     for (const [sideName, side] of sides) {
-      if (side.participants.length !== 1) {
+      // v0.43: multi-participant 化。1 件固定 → 最低 1 件 (primary) に緩和。
+      if (side.participants.length < 1) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
-          message: `War ${idStr} ${sideName} participants.length=${side.participants.length} must be 1 in v0.34 (§14.4)`,
+          message: `War ${idStr} ${sideName} participants.length=${side.participants.length} must be >= 1 (§14.4)`,
         })
       }
       const primaryCount = side.participants.filter((p) => p.primary).length
@@ -464,6 +465,23 @@ export function checkDiplomacyWarRegiment(
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `War ${idStr} ${sideName} has ${primaryCount} primary participants, must be 1 (§14.4)`,
+        })
+      }
+      // v0.43 W3: participant は polity のみ (DiplomaticPlay→War の経路が polity 限定のため)。
+      for (const p of side.participants) {
+        if (p.actor.kind !== 'polity') {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} ${sideName} participant ${politicalActorKey(p.actor)} is not a polity (v0.43 §14.4)`,
+          })
+        }
+      }
+      // v0.43 W4: 同一 side 内の actor 重複なし。
+      const sideKeys = side.participants.map((p) => politicalActorKey(p.actor))
+      if (new Set(sideKeys).size !== sideKeys.length) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `War ${idStr} ${sideName} has duplicate participant actors (v0.43 §14.4)`,
         })
       }
       // active War のみ actor active を要求 (terminal War は retention 中の inactive 化を許容)。
@@ -490,6 +508,19 @@ export function checkDiplomacyWarRegiment(
           errors.push({
             code: 'INTEGRITY_VIOLATION',
             message: `active War ${idStr} ${sideName} commanderPersonIds has duplicates (§14.7)`,
+          })
+        }
+      }
+    }
+
+    // v0.43 W5: 両 side をまたいだ actor 重複なし (同一 polity が攻守両陣営にいることはない)。
+    {
+      const attackerKeys = new Set(war.attacker.participants.map((p) => politicalActorKey(p.actor)))
+      for (const p of war.defender.participants) {
+        if (attackerKeys.has(politicalActorKey(p.actor))) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `War ${idStr} participant ${politicalActorKey(p.actor)} appears on both sides (v0.43 §14.4)`,
           })
         }
       }
