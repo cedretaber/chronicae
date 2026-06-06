@@ -106,6 +106,36 @@ export function DiplomaticPlayDetail({
             <span>{play.target.id}</span>
           )}
         </div>
+        {/* v0.43 §18.1: 各 side の supporter Polity (delegate / preparation 等は持たない)。 */}
+        {(
+          [
+            ['initiator', play.initiatorSupporters],
+            ['target', play.targetSupporters],
+          ] as const
+        ).map(([sideKey, supporters]) => {
+          if (supporters.length === 0) return null
+          return (
+            <div key={sideKey} className="flex justify-between gap-2 text-xs">
+              <span className="shrink-0 text-gray-400">
+                {t('detail.play.supporters')} ({t(`detail.play.${sideKey}`)}):
+              </span>
+              <span className="flex flex-wrap justify-end gap-x-2">
+                {supporters.map((s) =>
+                  s.actor.kind === 'polity' ? (
+                    <PolityLink
+                      key={s.actor.id}
+                      polityId={s.actor.id}
+                      world={worldState}
+                      onClick={onPolityClick}
+                    />
+                  ) : (
+                    <span key={s.actor.id}>{s.actor.id}</span>
+                  ),
+                )}
+              </span>
+            </div>
+          )
+        })}
         {provinceId && (
           <div className="flex justify-between">
             <span className="text-gray-400">{t('detail.play.province')}:</span>

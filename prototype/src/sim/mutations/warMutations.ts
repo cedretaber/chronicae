@@ -197,6 +197,12 @@ export function getWarPrimaryDefender(war: War): WarParticipant | undefined {
   return war.defender.participants.find((p) => p.primary)
 }
 
+// v0.43 §18.1: 指定 side の supporter participant (primary 以外)。UI からの参照用。
+export function getWarSideSupporters(war: War, sideKey: WarSideKey): WarParticipant[] {
+  const side = sideKey === 'attacker' ? war.attacker : war.defender
+  return side.participants.filter((p) => !p.primary)
+}
+
 // --- WarGoal 変換 (純関数) ---
 
 // DiplomaticPlay.issue から WarGoal を 1 件構築する (spec §6.4-6.6)。

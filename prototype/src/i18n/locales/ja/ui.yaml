@@ -134,6 +134,7 @@ chronicle:
   category:
     war: '戦争'
     battle: '戦闘'
+    diplomacy: '外交'
     land: '領地'
     house: '家'
     office: '任官'
@@ -385,6 +386,7 @@ detail:
     started: '開始'
     delegate: '代表'
     initiator_side: '発起方'
+    supporters: '支援国'
     target_side: '対象方'
     active_tasks: '実行中のタスク'
     demand: '主要要求'
@@ -554,6 +556,7 @@ detail:
     captain_general: '総大将'
     commanders: '指揮官候補'
     avoidance_count: '回避回数'
+    supporters: '支援国'
     mobilized: '動員連隊'
     regiment_power: '連隊戦力'
     recent_events: '最近の出来事'

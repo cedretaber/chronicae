@@ -41,7 +41,11 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   WAR_WON: { category: 'war' },
   WAR_LOST: { category: 'war' },
   WAR_ENDED: { category: 'war' },
+  // v0.43 §17: supporter の参戦 (copy filter 通過)。
+  WAR_PARTICIPANT_JOINED: { category: 'war' },
   PEACE_SETTLEMENT_APPLIED: { category: 'war' },
+  // Diplomacy (v0.43 §17): 支援宣言。宣言と参戦のペア有無で「宣言したが参戦しなかった」を読める。
+  DIPLOMATIC_SUPPORT_DECLARED: { category: 'diplomacy' },
   BATTLE_OCCURRED: { category: 'battle', templateKey: selectBattleTemplate },
   // Land (LAND_CONTRACT_TRANSFERRED 一本。PURCHASED/CEDED/CONQUERED は二重計上回避で除外)
   LAND_CONTRACT_TRANSFERRED: { category: 'land' },

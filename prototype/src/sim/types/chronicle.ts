@@ -5,6 +5,8 @@ import type { EventType, EventImportance, EventMessageParams, EventEntityRef } f
 export type ChronicleCategory =
   | 'war'
   | 'battle'
+  // v0.43: 外交 (支援宣言など War 化前の外交劇イベント)
+  | 'diplomacy'
   | 'land'
   | 'house'
   | 'office'

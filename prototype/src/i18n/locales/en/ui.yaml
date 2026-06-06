@@ -38,6 +38,7 @@ chronicle:
   category:
     war: 'War'
     battle: 'Battle'
+    diplomacy: 'Diplomacy'
     land: 'Land'
     house: 'House'
     office: 'Office'
@@ -288,6 +289,7 @@ detail:
     started: 'Started'
     delegate: 'Delegate'
     initiator_side: 'Initiator Side'
+    supporters: 'Supporters'
     target_side: 'Target Side'
     active_tasks: 'Active Tasks'
     demand: 'Primary Demand'
@@ -457,6 +459,7 @@ detail:
     captain_general: 'Captain General'
     commanders: 'Commanders'
     avoidance_count: 'Avoidances'
+    supporters: 'Supporters'
     mobilized: 'Mobilized'
     regiment_power: 'Regiment Power'
     recent_events: 'Recent Events'

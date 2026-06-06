@@ -9,7 +9,11 @@ import {
   getRegimentPowerForWarSide,
 } from '@sim/selectors/regimentSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
-import { getWarPrimaryAttacker, getWarPrimaryDefender } from '@sim/mutations/warMutations'
+import {
+  getWarPrimaryAttacker,
+  getWarPrimaryDefender,
+  getWarSideSupporters,
+} from '@sim/mutations/warMutations'
 import type { OrganizationRef } from '@/sim/types/office'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { EntityChronicleSection } from './shared/widgets'
@@ -150,6 +154,25 @@ export function WarDetail({
           <span className="text-gray-500">vs</span>
           {renderActor(defender)}
         </div>
+
+        {/* v0.43 §18.1: 各 side の supporter (primary 以外の participant)。delegate 等は持たない。 */}
+        {(['attacker', 'defender'] as const).map((sideKey) => {
+          const supporters = getWarSideSupporters(war, sideKey)
+          if (supporters.length === 0) return null
+          const label = sideKey === 'attacker' ? attackerLabel : defenderLabel
+          return (
+            <div key={sideKey} className="flex justify-between gap-2 text-xs">
+              <span className="shrink-0 text-gray-400">
+                {t('detail.war.supporters')} ({label}):
+              </span>
+              <span className="flex flex-wrap justify-end gap-x-2">
+                {supporters.map((p) => (
+                  <span key={`${p.actor.kind}:${p.actor.id}`}>{renderActor(p.actor)}</span>
+                ))}
+              </span>
+            </div>
+          )
+        })}
 
         <div className="my-1 border-t border-gray-700" />
 
