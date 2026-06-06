@@ -155,6 +155,105 @@ describe('WarCreationSystem (§6)', () => {
     expect(next.state.diplomaticPlays['dp-b' as DiplomaticPlayId]?.status).toBe('cancelled')
   })
 
+  // v0.43 §10.3a/§10.4: supporter copy filter
+  it('play の supporter が copy filter を通過して War participants に入り WAR_PARTICIPANT_JOINED が出る', () => {
+    const { world, holdingId, attacker, defender } = setupTransferableHolding()
+    const s = withPolity(world, 'c-sup' as PolityId, { rank: 2, treasury: 100 })
+    injectEscalatedLandClaim(s, 'dp-a', attacker, defender, holdingId)
+    s.diplomaticPlays['dp-a' as DiplomaticPlayId] = {
+      ...s.diplomaticPlays['dp-a' as DiplomaticPlayId]!,
+      initiatorSupporters: [
+        { actor: { kind: 'polity', id: 'c-sup' as PolityId }, joinedWeek: 0, commitment: 50 },
+      ],
+    }
+
+    const next = runWarCreationSystem(makeCtx(s))
+
+    const war = Object.values(next.state.wars).find((w) => w?.originDiplomaticPlayId === 'dp-a')
+    expect(war?.attacker.participants).toHaveLength(2)
+    expect(war?.attacker.participants[1]).toMatchObject({
+      actor: { kind: 'polity', id: 'c-sup' },
+      primary: false,
+    })
+    expect(next.state.warIndex.byParticipant['polity:c-sup']).toContain(war!.id)
+    expect(next.events.some((e) => e.type === 'WAR_PARTICIPANT_JOINED')).toBe(true)
+  })
+
+  it('他 active War 参加中の supporter は copy filter で落ち、event も出ない (War は続行)', () => {
+    const { world, holdingId, attacker, defender } = setupTransferableHolding()
+    let s = withPolity(world, 'c-sup' as PolityId, { rank: 2, treasury: 100 })
+    s = withPolity(s, 'c-other' as PolityId, { rank: 2, treasury: 100 })
+    // supporter を既存の active War に参加させておく
+    createWar(s, {
+      attacker: { kind: 'polity', id: 'c-sup' as PolityId },
+      defender: { kind: 'polity', id: 'c-other' as PolityId },
+      warGoals: [],
+      targetWarScore: 50,
+      startedWeek: s.absoluteWeek,
+    })
+    injectEscalatedLandClaim(s, 'dp-a', attacker, defender, holdingId)
+    s.diplomaticPlays['dp-a' as DiplomaticPlayId] = {
+      ...s.diplomaticPlays['dp-a' as DiplomaticPlayId]!,
+      initiatorSupporters: [
+        { actor: { kind: 'polity', id: 'c-sup' as PolityId }, joinedWeek: 0, commitment: 50 },
+      ],
+    }
+
+    const next = runWarCreationSystem(makeCtx(s))
+
+    const war = Object.values(next.state.wars).find((w) => w?.originDiplomaticPlayId === 'dp-a')
+    expect(war).toBeDefined()
+    expect(war?.attacker.participants).toHaveLength(1)
+    expect(next.events.some((e) => e.type === 'WAR_PARTICIPANT_JOINED')).toBe(false)
+  })
+
+  it('同 tick に 2 play が escalate しても同一 supporter は先に処理された War のみに入る (§10.3a 逐次要件)', () => {
+    // 2 組目の attacker/defender + 移転可能 holding を追加 (rank 2 → rank 3)
+    const { world, holdingId, attacker, defender } = setupTransferableHolding()
+    let s = world
+    const pAtt2 = 'pr-att2' as ProvinceId
+    const pDef2 = 'pr-def2' as ProvinceId
+    const attacker2 = 'c-att2' as PolityId
+    const defender2 = 'c-def2' as PolityId
+    s = withProvince(s, pAtt2, { neighbors: [pDef2] })
+    s = withProvince(s, pDef2, { neighbors: [pAtt2] })
+    s = withHouse(s, 'h-att2' as HouseId, { seatProvinceId: pAtt2, wealth: 200 })
+    s = withHouse(s, 'h-def2' as HouseId, { seatProvinceId: pDef2, wealth: 50 })
+    s = withPolity(s, attacker2, { rank: 2, treasury: 2000, capitalProvinceId: pAtt2 })
+    s = withPolity(s, defender2, { rank: 3, treasury: 500, capitalProvinceId: pDef2 })
+    s = bindProvinceToHouseViaPolity(s, pAtt2, attacker2, 'h-att2' as HouseId)
+    s = bindProvinceToHouseViaPolity(s, pDef2, defender2, 'h-def2' as HouseId)
+    const holdingId2 = s.provinces[pDef2]!.holdingIds[0]!
+    s = withPolity(s, 'c-sup' as PolityId, { rank: 2, treasury: 100 })
+
+    injectEscalatedLandClaim(s, 'dp-a', attacker, defender, holdingId)
+    injectEscalatedLandClaim(s, 'dp-b', attacker2, defender2, holdingId2)
+    const supporter = {
+      actor: { kind: 'polity' as const, id: 'c-sup' as PolityId },
+      joinedWeek: 0,
+      commitment: 50,
+    }
+    s.diplomaticPlays['dp-a' as DiplomaticPlayId] = {
+      ...s.diplomaticPlays['dp-a' as DiplomaticPlayId]!,
+      initiatorSupporters: [supporter],
+    }
+    s.diplomaticPlays['dp-b' as DiplomaticPlayId] = {
+      ...s.diplomaticPlays['dp-b' as DiplomaticPlayId]!,
+      initiatorSupporters: [supporter],
+    }
+
+    const next = runWarCreationSystem(makeCtx(s))
+
+    const warA = Object.values(next.state.wars).find((w) => w?.originDiplomaticPlayId === 'dp-a')
+    const warB = Object.values(next.state.wars).find((w) => w?.originDiplomaticPlayId === 'dp-b')
+    expect(warA).toBeDefined()
+    expect(warB).toBeDefined()
+    // 列挙は play id 昇順 → dp-a が先に処理され supporter を獲得、dp-b では他 War 参加中で落ちる
+    expect(warA?.attacker.participants).toHaveLength(2)
+    expect(warB?.attacker.participants).toHaveLength(1)
+    expect(next.state.warIndex.byParticipant['polity:c-sup']).toEqual([warA!.id])
+  })
+
   it('変換不能 (holding 消失) な escalated land_claim は cancelled・War 生成なし', () => {
     const world = freshWorld()
     const { owner, other } = pickHoldingAndPolities(world)

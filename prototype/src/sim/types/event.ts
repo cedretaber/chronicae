@@ -129,6 +129,8 @@ export type EventType =
   // v0.34 War (WAR_DECLARED / WAR_WON / WAR_LOST は既存を流用)
   //   v0.35: WAR_SCORE_CHANGED は廃止 (warScore 変化は BATTLE_* の warScoreDelta/After で表現)
   | 'WAR_ENDED'
+  // v0.43 §10.4: copy filter を通過した supporter が War に参戦した
+  | 'WAR_PARTICIPANT_JOINED'
   // v0.42: 勝率/性格ゲートで開戦を見送った (escalated play を cancel)。
   | 'WAR_AVERTED'
   | 'PEACE_SETTLEMENT_APPLIED'

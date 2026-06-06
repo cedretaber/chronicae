@@ -9,7 +9,7 @@ import type {
   BattleInitiationKind,
 } from '../types/war'
 import type { BattleOutcomeQuality } from '../types/battle'
-import type { PersonId, ProvinceId } from '../types/ids'
+import type { PersonId, PolityId, ProvinceId } from '../types/ids'
 import type { OrganizationRef } from '../types/office'
 import type { WorldState } from '../types/world'
 import type {
@@ -93,6 +93,38 @@ function attackerDefenderRefs(p: WarParties): EventEntityRef[] {
     entityRef(actorEntityKind(p.attacker), p.attacker.id, 'attacker', p.attackerName),
     entityRef(actorEntityKind(p.defender), p.defender.id, 'defender', p.defenderName),
   ]
+}
+
+// v0.43 §10.4 WAR_PARTICIPANT_JOINED — copy filter を通過した supporter ごとに発行 (normal)。
+//   宣言だけで参戦しなかった supporter (filter 落ち) はこの event が出ない —
+//   DIPLOMATIC_SUPPORT_DECLARED とのペア有無で「宣言したが参戦しなかった」を読める (§10.3a)。
+export function emitWarParticipantJoined(
+  ctx: TickContext,
+  war: War,
+  sideKey: WarSideKey,
+  supporterPolityId: PolityId,
+): TickContext {
+  const p = warParties(ctx.state, war)
+  if (!p) return ctx
+  const supporterRef = getPolityNameRefForEmit(ctx.state, supporterPolityId)
+  const primary = sideKey === 'attacker' ? p.attacker : p.defender
+  const primaryName = sideKey === 'attacker' ? p.attackerName : p.defenderName
+  const primaryCategory = sideKey === 'attacker' ? p.attackerCategory : p.defenderCategory
+  return emit(
+    ctx,
+    'WAR_PARTICIPANT_JOINED',
+    'normal',
+    'war.participant_joined',
+    {
+      warId: war.id,
+      supporter: nameParam(supporterRef.category, supporterRef.nameKey),
+      primary: nameParam(primaryCategory, primaryName),
+    },
+    [
+      entityRef('polity', supporterPolityId, 'supporter', supporterRef.nameKey),
+      entityRef(actorEntityKind(primary), primary.id, sideKey, primaryName),
+    ],
+  )
 }
 
 // §12.2 WAR_DECLARED — WarCreationSystem が War 作成時に発行 (major)。

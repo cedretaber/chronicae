@@ -83,6 +83,7 @@ war:
     change_tax: '{{attacker}} declared war on {{defender}} over the tax of {{subject}} (seeking {{fromRate}}% → {{toRate}}%).'
     revolt: 'The rebels in {{province}} have declared war for independence against {{defender}}.'
   ended: 'The war between {{attacker}} and {{defender}} ended without a decisive victor.'
+  participant_joined: '{{supporter}} joins the war on the side of {{primary}}.'
   averted: '{{attacker}} weighed war against {{defender}} but stood down, judging victory unlikely ({{winChance}}% vs required {{threshold}}%).'
   battle_occurred: 'A {{battlefieldKind}} broke out in {{province}} ({{attackerName}} {{attackerRegimentCount}} vs {{defenderName}} {{defenderRegimentCount}} regiments). After {{ticksElapsed}} days: {{winnerName}} prevailed. Outcome: {{outcomeQuality}} (routed — {{attackerName}} {{attackerRoutedCount}}, {{defenderName}} {{defenderRoutedCount}}). War score change: {{warScoreDelta}}.'
   battle_occurred_inconclusive: 'A {{battlefieldKind}} broke out in {{province}} ({{attackerName}} {{attackerRegimentCount}} vs {{defenderName}} {{defenderRegimentCount}} regiments). After {{ticksElapsed}} days: inconclusive. War score change: {{warScoreDelta}}.'

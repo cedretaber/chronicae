@@ -1,13 +1,24 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { DiplomaticPlay, DiplomaticPlayStatus } from '../types/diplomaticPlay'
-import type { DiplomaticPlayId, WarId } from '../types/ids'
-import type { War, WarGoal } from '../types/war'
-import { createWar, createWarGoalFromDiplomaticPlay } from '../mutations/warMutations'
+import type {
+  DiplomaticPlay,
+  DiplomaticPlayStatus,
+  DiplomaticPlaySupporter,
+} from '../types/diplomaticPlay'
+import type { DiplomaticPlayId, PolityId, WarId } from '../types/ids'
+import type { War, WarGoal, WarSideKey } from '../types/war'
+import {
+  createWar,
+  createWarGoalFromDiplomaticPlay,
+  type WarSupporterInput,
+} from '../mutations/warMutations'
 import { canTransferLandContract } from '../mutations/landContractMutations'
-import { emitWarDeclared, emitWarAverted } from './warEvents'
+import { emitWarDeclared, emitWarAverted, emitWarParticipantJoined } from './warEvents'
 import { estimateAttackerWinChance } from '../selectors/warEstimateSelectors'
 import { calcGeneralDeclareThreshold } from '../selectors/personAbilityEffects'
+import { isPolityInActiveWar } from '../selectors/diplomaticSupportSelectors'
+import { politicalActorKey } from '../selectors/actorSelectors'
+import { createLogger } from '../debug/logger'
 import type { OrganizationRef } from '../types/office'
 
 // v0.34 §6 WarCreationSystem
@@ -59,6 +70,28 @@ function hasActiveWarForIssue(ws: WorldState, play: DiplomaticPlay): boolean {
   return false
 }
 
+// v0.43 §10.3a: War 化時の supporter 再検証 (copy filter)。
+//   supporter 追加時の §8.1 exclude は追加時点の検査にすぎないため、コピー直前に再検証する。
+//   acceptedKeys は primary 2 件で初期化し、採用順に追記する (両 side 跨ぎ・primary 重複を防ぐ)。
+//   落ちた supporter は無音 (宣言イベントは取り消さない — §10.3a)。
+function collectWarSupporters(
+  ws: WorldState,
+  supporters: DiplomaticPlaySupporter[],
+  acceptedKeys: Set<string>,
+): WarSupporterInput[] {
+  const result: WarSupporterInput[] = []
+  for (const s of supporters) {
+    if (s.actor.kind !== 'polity') continue
+    const key = politicalActorKey(s.actor)
+    if (acceptedKeys.has(key)) continue
+    if (ws.polities[s.actor.id]?.active !== true) continue
+    if (isPolityInActiveWar(ws, s.actor.id)) continue
+    acceptedKeys.add(key)
+    result.push({ actor: s.actor })
+  }
+  return result
+}
+
 // §14.5 integrity 前提を満たすか (満たさない WarGoal で War を作ると integrity throw するため事前に弾く)。
 function isWarGoalApplicable(ws: WorldState, goal: WarGoal): boolean {
   if (goal.requiredWarScore <= 0) return false
@@ -92,6 +125,7 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
   if (!ctx.config.conflictResolutionEnabled) return ctx
   const config = ctx.config
   const absoluteWeek = ctx.state.absoluteWeek
+  const log = createLogger(config.debug)
 
   const candidates: DiplomaticPlay[] = []
   for (const id of Object.keys(ctx.state.diplomaticPlays).sort()) {
@@ -118,7 +152,11 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
   }
 
-  const declared: { war: War; issueKind: DiplomaticPlay['kind'] }[] = []
+  const declared: {
+    war: War
+    issueKind: DiplomaticPlay['kind']
+    joinedSupporters: { sideKey: WarSideKey; polityId: PolityId }[]
+  }[] = []
   const averted: {
     attacker: OrganizationRef
     defender: OrganizationRef
@@ -170,6 +208,15 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
     // §6.2: 上限超過分は escalated のまま次 tick に回す (cancel しない)。
     if (created >= config.maxConflictsResolvedPerTick) break
 
+    // v0.43 §10.3a: supporter copy filter。play は 1 件ずつ処理し、createWar (= byParticipant
+    //   登録) 完了後に次の play を評価するため、同一 supporter の 2 war 同時参戦レースは起きない。
+    const acceptedKeys = new Set<string>([
+      politicalActorKey(play.initiator),
+      politicalActorKey(play.target),
+    ])
+    const attackerSupporters = collectWarSupporters(ws, play.initiatorSupporters, acceptedKeys)
+    const defenderSupporters = collectWarSupporters(ws, play.targetSupporters, acceptedKeys)
+
     const war = createWar(ws, {
       attacker: play.initiator,
       defender: play.target,
@@ -177,6 +224,18 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
       targetWarScore: goal.requiredWarScore,
       startedWeek: absoluteWeek,
       originDiplomaticPlayId: play.id,
+      ...(attackerSupporters.length > 0 ? { attackerSupporters } : {}),
+      ...(defenderSupporters.length > 0 ? { defenderSupporters } : {}),
+    })
+    log.log('WAR_PARTICIPANTS', {
+      warId: war.id,
+      attackers: war.attacker.participants.map((p) => politicalActorKey(p.actor)).join(','),
+      defenders: war.defender.participants.map((p) => politicalActorKey(p.actor)).join(','),
+      droppedSupporters:
+        play.initiatorSupporters.length +
+        play.targetSupporters.length -
+        attackerSupporters.length -
+        defenderSupporters.length,
     })
     // v0.39: revolt_negotiation の場合、revoltState.warId を補完
     if (play.kind === 'revolt_negotiation' && play.initiator.kind === 'polity') {
@@ -190,13 +249,31 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
     }
     // §6.8: War 化成功 → 元 play は resolved_by_conflict (WAR_DECLARED のみ emit)。
     setPlayStatusMut(ws, play.id, 'resolved_by_conflict')
-    declared.push({ war, issueKind: play.kind })
+    declared.push({
+      war,
+      issueKind: play.kind,
+      joinedSupporters: [
+        // collectWarSupporters は polity actor のみ通すため id は PolityId。
+        ...attackerSupporters.map((s) => ({
+          sideKey: 'attacker' as const,
+          polityId: s.actor.id as PolityId,
+        })),
+        ...defenderSupporters.map((s) => ({
+          sideKey: 'defender' as const,
+          polityId: s.actor.id as PolityId,
+        })),
+      ],
+    })
     created++
   }
 
   let next: TickContext = { ...ctx, state: ws }
   for (const d of declared) {
     next = emitWarDeclared(next, d.war, d.issueKind)
+    // v0.43 §10.4: copy filter 通過 supporter ごとに WAR_PARTICIPANT_JOINED。
+    for (const j of d.joinedSupporters) {
+      next = emitWarParticipantJoined(next, d.war, j.sideKey, j.polityId)
+    }
   }
   for (const a of averted) {
     next = emitWarAverted(next, a.attacker, a.defender, a.winChance, a.threshold)

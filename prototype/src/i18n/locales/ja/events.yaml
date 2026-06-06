@@ -82,6 +82,7 @@ war:
     change_tax: '{{attacker}}が{{subject}}の税率（{{fromRate}}%→{{toRate}}%）を巡り{{defender}}に宣戦布告した。'
     revolt: '{{province}}の反乱軍が{{defender}}に対して独立戦争を開始した。'
   ended: '{{attacker}}と{{defender}}の戦争は決着がつかずに終わった。'
+  participant_joined: '{{supporter}}が{{primary}}側として参戦した。'
   averted: '{{attacker}}は{{defender}}への開戦を検討したが、勝算が低いと見て見送った（勝率{{winChance}}% 対 必要{{threshold}}%）。'
   battle_occurred: '{{province}}で{{battlefieldKind}}が発生（{{attackerName}} {{attackerRegimentCount}}連隊 対 {{defenderName}} {{defenderRegimentCount}}連隊）。{{ticksElapsed}}日の戦闘の末、{{winnerName}}が勝利。決着の質: {{outcomeQuality}}（壊走 {{attackerName}}{{attackerRoutedCount}}・{{defenderName}}{{defenderRoutedCount}}）。戦勝点変化: {{warScoreDelta}}。'
   battle_occurred_inconclusive: '{{province}}で{{battlefieldKind}}が発生（{{attackerName}} {{attackerRegimentCount}}連隊 対 {{defenderName}} {{defenderRegimentCount}}連隊）。{{ticksElapsed}}日の戦闘の末、決着つかず。戦勝点変化: {{warScoreDelta}}。'
