@@ -439,6 +439,15 @@
 | **DiplomaticPlay Task** | | |
 | diplomaticPlayStructuralProgressFactor | 0.33 | 構造的進行の弱化係数 |
 | diplomaticPlayMaxActiveTasksPerSide | 2 | 各 side の同時 active Task 数上限 |
+| **DiplomaticPlay supporter（v0.43）** | | |
+| maxDiplomaticSupportersPerSide | 2 | DiplomaticPlay の side あたり supporter 上限 |
+| diplomaticSupportJoinScoreThreshold | 25 | supporter 採用に必要な joinScore（初期観察用。balance 最終値ではない） |
+| supportJoinScoreWeightPoliticalOpinion | 0.0 | joinScore: influence 加重 attitude（休眠項 — foreign polity attitude writer 不在のため） |
+| supportJoinScoreWeightProximity | 0.35 | joinScore: 争点 Province への近接（隣接 terminal=100 / 同 State=50） |
+| supportJoinScoreWeightMilitarySparePower | 0.25 | joinScore: 動員可能戦力の敵 primary 比（同等=50） |
+| supportJoinScoreWeightTreasury | 0.1 | joinScore: treasury 正規化（1000 で満点） |
+| supportJoinScoreWeightThreatContainment | 0.3 | joinScore: 敵 primary の強大さ × 近接 |
+| supportJoinScoreWeightLastWarPenalty | -0.2 | joinScore: 終戦からの経過（96 週線形減衰）。penalty は負 weight |
 | **Appointment modifier** | | |
 | appointmentTaskModifierValue | 4 | Aim/ActivityLog ベースの任官補正値 |
 | appointmentTaskModifierDurationWeeks | 16 | ActivityLog 参照期間（週） |

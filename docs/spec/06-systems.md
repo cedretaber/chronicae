@@ -1202,6 +1202,11 @@ DiplomaticPlay status / 参加者:
 - progress / tension は 0..100
 - primaryDemand が有効な対象を指す（revolt_negotiation のみ）
 
+DiplomaticPlay supporter（v0.43）:
+- supporter actor は polity のみ・active（inactive supporter は cleanupTerminalDiplomacy §6.52 の sweep が無音除去する前提）
+- initiator / target（primary）が supporters に混入しない
+- 同一 side 内・両 side をまたいだ supporter 重複なし
+
 Revolt:
 - revolt_negotiation の initiator は commonwealth Polity
 - revolt_negotiation の target は normal Polity
@@ -1284,9 +1289,12 @@ active / terminal 整合:
 - `status === 'active'` → `endedWeek` は undefined
 - `status !== 'active'` → `endedWeek` は defined
 
-participant:
-- `attacker.key === 'attacker'` / `defender.key === 'defender'`、各 side `participants.length === 1`、primary participant は各 side 1 人
-- **active War のみ** participant actor が active であること（`isActiveActor`）を要求。terminal War（cancelled / attacker_won / defender_won / white_peace）は retention 中の inactive 化を許容。この検査が成立するのは `cancelOrphanedWarsSystem`（§6.47）が participant 消滅 active War を integrity より前に cancelled 化するため
+participant（v0.43 で multi-participant 化）:
+- `attacker.key === 'attacker'` / `defender.key === 'defender'`
+- 各 side `participants.length >= 1`（v0.43 で 1 件固定から緩和）、primary participant は各 side ちょうど 1 人
+- 全 participant.actor.kind === 'polity'（v0.43。DiplomaticPlay→War の経路が polity 限定のため）
+- 同一 side 内で actor 重複なし / attacker・defender side 間で actor 重複なし（v0.43）
+- **active War のみ** participant actor（primary / supporter とも）が active であること（`isActiveActor`）を要求。terminal War（cancelled / attacker_won / defender_won / white_peace）は retention 中の inactive 化を許容。この検査が成立するのは `cancelOrphanedWarsSystem`（§6.47）が primary 消滅 active War を cancelled 化し、inactive supporter を participant から無音除去するため（いずれも integrity より前）
 
 WarGoal（**参照存在は active War のみ要求。participant 検査と対称**）:
 - transfer_land_contract: holding / fromPolityId / toPolityId が存在、`fromPolityId !== toPolityId`、`requiredWarScore > 0`
@@ -1344,7 +1352,7 @@ active Project の currentStageKey に応じて Task を生成する。immediate
 **(kind, stageKey) → TaskKind マッピング**:
 - final stage → `advance_project` (develop_holding, acquire_political_right, etc.)
 - preparatory stage → 専用 TaskKind (prepare_claim → gather_claim_evidence, prepare_offer / prepare_argument / prepare_response → prepare_argument)
-- negotiate stage → `selectDiplomaticTaskKind()` で DiplomaticPlay の状態に基づき決定。respond_to_pressure の場合は stance に応じた優先度調整
+- negotiate stage → `selectDiplomaticTaskKind(state, config, play, side, stance?)` で DiplomaticPlay の状態に基づき決定。respond_to_pressure の場合は stance に応じた優先度調整。**v0.43**: `seek_diplomatic_support`（supporter 勧誘）が選択肢に加わる — 基本条件（play active / 自 side supporter 数 < `maxDiplomaticSupportersPerSide` / 候補 polity が 1 つ以上 / revolt の suppressor=target side は対象外）を満たし、かつ tension >= `diplomaticPlayEscalationThreshold × 0.6` または revolt rebel side なら **critical-deficit 分岐（prep/lev/commit < 30）より先に**返す（新規 play は必ず deficit 状態で始まるため、プール参加だけでは実質発火しない）。優先条件を満たさない場合も通常の候補スコアプールに base 7 + charisma 補正で参加する
 
 **negotiate stage の共通フロー** (§12.5):
 1. project.diplomaticPlayId から DiplomaticPlay を取得（terminal なら Project cancelled）
@@ -1441,7 +1449,9 @@ revolt_negotiation の escalation は warCreationSystem 経由で War 化され�
 - `play.kind === 'land_claim'` / `'contract_tax_revision'` / `'revolt_negotiation'`（kind-gate）
 - `initiator.kind === 'polity'` かつ `target.kind === 'polity'`（polity 同士のみ。House を含むものは War 化しない）
 
-**変換**: initiator → attacker primary participant、target → defender primary participant（各 side 1 件・primary=true）。WarGoal は `play.issue` のみから 1 件構築する（offer / currentOfferId は見ない）。
+**変換**: initiator → attacker primary participant、target → defender primary participant。WarGoal は `play.issue` のみから 1 件構築する（offer / currentOfferId は見ない）。
+
+**supporter copy filter（v0.43）**: play の `initiatorSupporters` / `targetSupporters` を**コピー直前に再検証**した上で War の supporter participant（primary=false）としてコピーする。候補選定時（seek_diplomatic_support）の exclude は追加時点の検査にすぎず、War 化までに状態が変わりうるため必須。通過条件: supporter polity が active / 他 active War に不参加 / attacker・defender primary と非重複 / 両 side 非重複（acceptedKeys を primary 2 件で初期化し採用順に追記）。play は 1 件ずつ順に処理し、各 War の作成（= `warIndex.byParticipant` 登録）完了後に次の play の filter を評価するため、「同一 polity が 2 つの play の supporter で両方 escalate」のレースは起きない。通過した supporter ごとに `WAR_PARTICIPANT_JOINED`（normal）を emit する。落ちた supporter は無音（`DIPLOMATIC_SUPPORT_DECLARED` は取り消さない — 宣言と参戦のペア有無で「宣言したが参戦しなかった」と読める。撤回イベントは将来課題）。
 - transfer_land_contract: `holdingId = issue.holdingId`、`toPolityId = initiator.id`、`fromPolityId` = 対象 holding の land contract chain 上の現 terminal grantee（原則 target.id）
 - change_contract_tax_rate: `newTaxRateToGrantor = issue.desiredTaxRateToGrantor`、`landContractId` / `holdingId` は issue 由来
 - popular_revolt_independence: revolt_negotiation の escalation を War 化する。`requiredWarScore = defaultPopularRevoltWarScore`。War 作成後、commonwealth polity の `revoltState.warId` を back-fill する
@@ -1531,7 +1541,13 @@ active War の warScore が閾値に達したら終結させ、WarGoal を state
 
 ### 6.47 cancelOrphanedWarsSystem（毎週）
 
-active War の primary participant（attacker / defender いずれか）が missing / inactive になった場合、`cancelled` 終結（`endedWeek` 設定 + `WAR_ENDED` 発行、WarGoal 不実行）にする。戦争は数年続くため、その間に participant polity / house が別要因（属州独立・併合・revolt など）で消滅しうる。IntegrityCheck（§6.35）が active War の participant を active 必須とするため、放置すると long-run で必ず throw する（`cancelOrphanedPlays` が DiplomaticPlay に対して存在するのと同じ理由）。安全側で `cancelled` に統一する（勝敗意味論は将来）。
+2 経路を持つ（v0.43 で経路 B 追加）。
+
+**経路 A（primary）**: active War の primary participant（attacker / defender いずれか）が missing / inactive になった場合、`cancelled` 終結（`endedWeek` 設定 + `WAR_ENDED` 発行、WarGoal 不実行）にする。
+
+**経路 B（supporter。v0.43）**: active War の supporter participant が inactive になった場合、`removeWarParticipantMut` で participants と `warIndex.byParticipant` から除去し **War は継続する**。イベントは発行しない（無音除去 — 外交的離脱ではなく polity 消滅に伴う cleanup のため。`WAR_PARTICIPANT_LEFT` は将来予約）。primary 除去は helper が reject するため 2 経路は混ざらない。
+
+戦争は数年続くため、その間に participant polity / house が別要因（属州独立・併合・revolt など）で消滅しうる。IntegrityCheck（§6.35）が active War の participant を active 必須とするため、放置すると long-run で必ず throw する（`cancelOrphanedPlays` が DiplomaticPlay に対して存在するのと同じ理由）。安全側で `cancelled` に統一する（勝敗意味論は将来）。
 
 **配置**: PolityOwnerConsistencySystem / OrganizationConsistencySystem の**後ろ**・cleanupWarSystem の前に独立 system として置き、**intervalWeeks=1**。理由は §5.6 / §6.35 を参照（PeaceSettlement 起因で同 tick に extinct 化した polity を参照する active War を、年末 IntegrityCheck より前に回収するため）。warScore 計算の安全は WarManeuver / PeaceSettlement 冒頭の dead-participant guard が担保するので、本 system を Maneuver / Settlement より後ろに置いても問題ない。
 
@@ -1596,6 +1612,8 @@ terminal status の DiplomaticPlay と関連 Pressure / DiplomaticOffer を stat
 - terminal Play の `offerHistoryIds` をたどり、関連 DiplomaticOffer をすべて `state.diplomaticOffers` から削除
 - `currentOfferId` が `offerHistoryIds` に含まれていない場合、それも削除
 - **削除順序: offer 先、play 後**。play を先に削除すると `offerHistoryIds` が失われるため
+
+**active play の supporter sweep（v0.43）**: active play の supporter polity が inactive になった場合、supporter 配列から無音除去する（play は継続。primary inactive は従来どおり play ごと削除）。
 
 **Pressure 同期**:
 - terminal DiplomaticPlay に紐付く Pressure を `pressureIndex.byDiplomaticPlay` で取得
@@ -1674,6 +1692,8 @@ Task の生成・処理・outcome・ActivityLog・cleanup を同一 tick 内で�
 - partial / failure: progress を加算せず、aim は active のまま維持（次の personAimMaintenanceSystem サイクルで新 Task が生成される）
 
 **DiplomaticPlay Task**: delegate に割り当て。side (initiator/target) で Task 種類の base score が異なる。delegate 能力が効果量に倍率（0.5 + ability/100）で影響。
+
+**seek_diplomatic_support（v0.43）**: LIGHT task（HEAVY だと play 完了前に escalation しやすいため）・relevantAbility=charisma・difficulty 40。他の外交 task と違い **outcome 依存**の専用効果（`applySeekDiplomaticSupportMut`）: success のとき `selectBestSupportCandidate`（`diplomaticSupportSelectors.ts`。候補列挙 PolityId 昇順 → joinScore 計算 → score 降順・同点 PolityId 昇順、RNG 不使用）で最良候補を選び、`joinScore >= diplomaticSupportJoinScoreThreshold` なら `addDiplomaticPlaySupporterMut` で supporter 追加 + `DIPLOMATIC_SUPPORT_DECLARED` emit。threshold 未満 / 候補なし / partial / failure は無効果（`[DEBUG:SUPPORT_RECRUIT]` のみ）。候補の hard exclude: inactive / primary / 既 supporter（両 side）/ 他 active play の supporter / 他 active War 参加中 / commonwealth（ただし revolt の rebel commonwealth は primary として支援を受けられる）/ 宗主-臣下 LandContract chain（双方向・間接含む）。joinScore = Σ(weight × score)、各項 0..100 正規化: proximity（争点 Province 隣接 terminal=100 / 同 State=50）0.35 / militarySparePower（敵 primary 比 ratio、同等=50）0.25 / treasury（1000 で満点）0.10 / threatContainment（敵 primary が強大 × candidate と近接）0.30 / lastWarPenalty（終戦から 96 週線形減衰）-0.20 / politicalOpinion（influence 加重 attitude。`getWeightedOpinionFromInfluenceBreakdown`）は **weight 0 の休眠項**（foreign polity への attitude 書き込みサイトが存在しないため。writer は将来課題）。
 
 **offer_compromise**: Task 成功時に新 DiplomaticOffer を作成する。
 1. progress += offerCompromiseProgressDelta (15)（既存 progressGainMedium は使わない）

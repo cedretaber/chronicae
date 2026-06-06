@@ -259,9 +259,37 @@ function getDominantInfluenceHolder(state, config, polityId, domain?): PolityInf
 function getTopInfluenceHoldersInPolity(state, config, polityId, limit?, domain?): PolityInfluenceEntry[]
 ```
 
+```ts
+// v0.43: Polity の「targetPolity への influence 加重意見」(-100..100)。
+//   holder が Person なら本人 / House なら leader の attitude を percent で加重平均
+//   (leader 不在 entry は weight ごと除外、有効 holder 0 なら 0)。
+//   v0.43 では joinScore の politicalOpinion 休眠項 (weight 0) としてのみ配線。
+function getWeightedOpinionFromInfluenceBreakdown(state, breakdown, targetPolityId): number
+```
+
 **perf 規約**: getPolityInfluenceBreakdown は province / office / right / faction を歩くため、
 候補者ループ内で呼ばない。polity ごとに 1 回前計算して getActorInfluenceFromBreakdown で引く
 （appointmentSystem / goalSelectors / factionSelectors が採用）。
+
+`diplomaticSupportSelectors.ts` — v0.43 supporter 候補選定と joinScore（§6.55 TaskSystem の seek_diplomatic_support）。
+
+```ts
+// §8.1 hard exclude 全適用の候補列挙 (PolityId 昇順・決定的)。side 非依存 (exclude は両 side 対称)
+function enumerateSupportCandidates(state, play): PolityId[]
+
+// polity の LandContract chain を上向きに辿った直接・間接の宗主 polity 集合 (循環は visited で防御)
+function getPolityOverlordPolityIds(state, polityId): Set<string>
+
+// joinScore = Σ(weight × score)。各項は 0..100 / -100..100 正規化済み (§9 — config weight 表参照)
+function computeJoinScore(state, config, play, side, candidateId): JoinScoreBreakdown
+
+// score 降順・同点 PolityId 昇順 (列挙順の先勝ち)。RNG 不使用
+function selectBestSupportCandidate(state, config, play, side): { polityId; score } | undefined
+
+// 個別 score (proximity / militarySparePower / treasury / threatContainment / lastWarPenalty) も export
+// candidate が active War に参加中か (terminal War の retention 残留は不問)
+function isPolityInActiveWar(state, polityId): boolean
+```
 
 `politicalRightSelectors.ts` — PoliticalRight の index 経由 derivation。
 

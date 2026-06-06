@@ -10,7 +10,10 @@ War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battl
 
 - **膠着戦の裾の圧縮**: 「ほぼ互角の戦争が長引く裾」を圧縮する機構（戦争期間上限の短縮 / 膠着時 urgency drift 等）。
 - **包囲戦 (siege)**: BattlefieldKind `siege` は型のみで存在し未生成。攻城戦の解決ロジックを実装する。
-- **多重臣従での参戦**: 1 House / Polity が複数の War に attacker / defender として参加。`WarSide.participants` の複数化（contributionScore / casualties / willingnessToContinue を持つ `WarParticipantState`）。第三勢力は作らず必ず attacker / defender に属させる。
+- **多重臣従での参戦**: v0.43 で `WarSide.participants` の複数化（primary 1 + supporter 0..N、polity のみ）と supporter 勧誘（seek_diplomatic_support / joinScore / copy filter）は実装済み（§6.44 / §6.47 / §6.55）。後続: contributionScore の実書き込み（現状は前方宣言のみ・常に undefined）/ casualties / willingnessToContinue / 報酬・名声配分。
+- **foreign polity への Attitude 形成（v0.43 から切り出し）**: WAR_DECLARED / PEACE_SETTLEMENT / WHITE_PEACE での当事国有力者の対敵国 attitude 書き込み。現状 cross-polity attitude の書き込みサイトは存在せず、joinScore の politicalOpinion 項は weight 0 の休眠項（helper `getWeightedOpinionFromInfluenceBreakdown` は実装済み）。writer 導入と同時に weight を有効化する。
+- **支援の撤回・不参戦の記録**: `DIPLOMATIC_SUPPORT_WITHDRAWN` / `DIPLOMATIC_SUPPORT_FAILED_TO_JOIN` / `WAR_PARTICIPANT_LEFT`（将来予約）。v0.43 では「宣言したが参戦しなかった」は宣言/参戦イベントのペア有無で読める仕様とし、撤回イベントは出さない。supporter inactive の War 除去も無音。
+- **revolt suppressor side の支援**: v0.43 では rebel/commonwealth side のみ supporter 勧誘可能（鎮圧側まで支援者を増やすと叛乱がさらに勝ちにくくなるため）。後続で対称化を検討。
 - **Regiment の細分化**: strength / morale を training / equipment 等へ細分化、morale を動的化（現状は reform 時のみ書き込み）。
 - **Battle の内部 tick / frontline simulation**: 戦闘内部の段階的シミュレーション。
 - **連隊の専用 event**: REGIMENT_MOBILIZED / DESTROYED 等（現状は BATTLE_OCCURRED の counts-only enrich + REGIMENT_REFORMED のみ）。

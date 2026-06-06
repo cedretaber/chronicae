@@ -40,6 +40,7 @@
 | DISASTER_RELIEF_FUNDED | normal | 災害救済成功 |
 | DISASTER_RELIEF_FAILED | normal | 災害救済失敗 |
 | WAR_DECLARED | major | 宣戦布告（WarCreationSystem が War 作成時に発火。casus belli として「対象 Province + 戦争前状態 + 目標」を記録。WarGoal kind で messageKey 分岐: `war.declared.change_tax`（`subject`/`fromRate`/`toRate`）/ `war.declared.transfer_land`（`subject`/元保持者 `from`）/ goal 不在時 `war.declared.generic`） |
+| WAR_PARTICIPANT_JOINED | normal | supporter の参戦（v0.43。WarCreationSystem の copy filter 通過 supporter ごとに発火。messageKey `war.participant_joined`。params: `warId` / `supporter` / `primary`（参戦先 side の primary）。`DIPLOMATIC_SUPPORT_DECLARED` とのペア有無で「宣言したが参戦しなかった」を読める） |
 | WAR_WON | major | 戦争勝利（PeaceSettlementSystem が attacker_won / defender_won の勝者に発火） |
 | WAR_LOST | major | 戦争敗北（同・敗者に発火） |
 | BATTLE_OCCURRED | normal | 戦闘発生（WarManeuverSystem。messageKey `war.battle_occurred`。params: `warId` / `province` / `battlefieldKind` / `result` / `warScoreDelta` / `warScoreAfter` / `battleId`（§3.9c Battle 参照）/ `attackerRegimentCount` / `defenderRegimentCount`（counts-only）/ `outcomeQuality` / `ticksElapsed` / `frontage` / `attackerInitialFrontlineCount` / `defenderInitialFrontlineCount` / `attackerRoutedCount` / `defenderRoutedCount` / `breakthroughSide` / `pursuitOccurred`（counts は Battle entity の ID 配列から導出）/ `outnumberedVictory`（勝者側の連隊数 < 敗者側の連隊数。chronicle template が連隊数を表示して「数的劣勢を覆した」と描写するため、判定根拠も連隊数に一致させる。effectivePower 基準ではない）/ `decisiveVictory`（`outcomeQuality === 'rout'`）。`selectBattleTemplate` がこの 2 boolean と既存 routed count から数的不利勝利 / 大勝 / 辛勝 / 通常の chronicle template を選ぶ（§6.62）。`battlefieldKind`・`result`・`outcomeQuality`・`breakthroughSide` は raw enum 値で持ち、表示時に i18n（`enum.<key>.<value>`）が label 化する。warScore 変化は本 event で表現する） |
@@ -73,6 +74,7 @@
 | PROJECT_FAILED | minor | Project 失敗 |
 | PROJECT_CANCELLED | minor | Project 中止 |
 | DIPLOMATIC_PLAY_STARTED | normal | 外交劇開始 |
+| DIPLOMATIC_SUPPORT_DECLARED | normal | 支援宣言（v0.43。seek_diplomatic_support 成功 + joinScore 閾値到達で supporter が play の一方 side への支援を宣言。messageKey `diplomatic_play.support_declared`。params: `supporter` / `supported` / `opponent`。Chronicle category=diplomacy） |
 | DIPLOMATIC_PLAY_SETTLED | major | 外交劇妥協成立 |
 | DIPLOMATIC_PLAY_FAILED | normal | 外交劇失敗（現状未発火） |
 | DIPLOMATIC_PLAY_ESCALATED | major | 外交劇決裂・戦争化（決裂時は本 event 発火後に warCreationSystem が WAR_DECLARED を出す） |

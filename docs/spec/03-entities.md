@@ -838,11 +838,12 @@ type WarParticipant = {
   actor: OrganizationRef
   joinedWeek: number
   primary: boolean
+  contributionScore?: number  // v0.43: 前方宣言のみ。書き込みサイトなし・常に undefined（将来の貢献・報酬用）
 }
 
 type WarSide = {
   key: WarSideKey
-  participants: WarParticipant[]   // 各 side 1 件・primary=true 固定
+  participants: WarParticipant[]   // v0.43: primary 1 件 + supporter 0..N 件（全 actor polity のみ）
 
   // War Maneuver: いずれも soft reference（不在/死亡を許容し IntegrityCheck では検査しない）。
   //   WarManeuverSystem が毎週 lazy に選出/再構築する。詳細は §6.45。
@@ -1003,9 +1004,8 @@ type WorldState = {
 ```
 
 戦争 side の power は `getRegimentPowerForWarSide(state, config, war, side)` が算出する（§6.45 の battle 入力）:
-(a) 動員中 active Regiment があればその有効戦力の合計、
-(b) 無く且つ primary participant が Regiment を 1 つも所有しない（byOwner 空。house actor 等）なら旧 `getActorMilitaryPower` に fallback、
-(c) byOwner 非空だが動員可能な active が無いなら 0（fallback しない）。
+(a) 動員中 active Regiment があればその有効戦力の合計（participant 不問 — byWar 索引ベースなので supporter の連隊も自然に含まれる）、
+(b) 動員ゼロのときのみ **participant ごとに** fallback して合算する（v0.43）: Regiment record を 1 つも所有しない participant（byOwner 空）は `getActorMilitaryPower`、byOwner 非空だが動員可能な active が無い participant は 0（fallback しない）。participant が primary 1 件のみの War では v0.36 の挙動と同値。
 
 ### 3.9c Battle（戦闘）
 
@@ -1289,8 +1289,22 @@ type DiplomaticPlay = {
   targetCommitment: number
   initiatorActiveTaskIds: TaskId[]
   targetActiveTaskIds: TaskId[]
+  // v0.43: 各 side を支持する Polity supporter（required 配列・新規作成時は空）
+  initiatorSupporters: DiplomaticPlaySupporter[]
+  targetSupporters: DiplomaticPlaySupporter[]
 }
+
+// v0.43
+type DiplomaticPlaySupporter = {
+  actor: OrganizationRef      // actor.kind === 'polity' のみ
+  joinedWeek: number
+  commitment: number          // 0..100（joinScore 由来）
+  contributionScore?: number  // 前方宣言のみ・常に undefined
+}
+type DiplomaticPlaySideKey = 'initiator' | 'target'
 ```
+
+supporter 配列の更新は必ず `addDiplomaticPlaySupporterMut(ws, config, playId, side, supporter)` を通す（検査: play 存在 / status==='active' / polity actor / active polity / primary 非重複 / 両 side 非重複 / `maxDiplomaticSupportersPerSide` 上限。戻り値は enum string）。War participant の supporter 除去は `removeWarParticipantMut(ws, warId, actor)`（byParticipant index も更新。primary は reject）。
 
 #### WorldState 追加
 
