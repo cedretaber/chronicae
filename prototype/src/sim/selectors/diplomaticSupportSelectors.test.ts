@@ -179,6 +179,18 @@ describe('enumerateSupportCandidates (§8.1 hard exclude)', () => {
     expect(enumerateSupportCandidates(s, makePlay())).toEqual([])
   })
 
+  // §8.1 例外: commonwealth は candidate にはなれないが、rebel primary としては支援を受けられる (§16)
+  it('allows a commonwealth as the play initiator (rebel primary)', () => {
+    let s = makeBaseState()
+    s = withPolity(s, 'c-cw' as PolityId, { kind: 'commonwealth' })
+    s = withPolity(s, 'c-a' as PolityId, {})
+    const play = makePlay({
+      kind: 'revolt_negotiation',
+      initiator: { kind: 'polity', id: 'c-cw' as PolityId },
+    })
+    expect(enumerateSupportCandidates(s, play)).toEqual(['c-a', 'c-init'])
+  })
+
   it('excludes existing supporters on either side of the play', () => {
     let s = makeBaseState()
     s = withPolity(s, 'c-a' as PolityId, {})

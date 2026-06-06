@@ -254,6 +254,72 @@ describe('WarCreationSystem (§6)', () => {
     expect(next.state.warIndex.byParticipant['polity:c-sup']).toEqual([warA!.id])
   })
 
+  // v0.43 Phase 8 (§16): 独立叛乱 rebel side の supporter が War にコピーされる
+  it('revolt_negotiation の rebel commonwealth の supporter が popular_revolt_independence War に入る', () => {
+    let s = makeEmptyV016State()
+    const pRev = 'pr-rev' as ProvinceId
+    const holder = 'c-holder' as PolityId
+    const cw = 'c-cw' as PolityId
+    s = withProvince(s, pRev, {})
+    s = withHouse(s, 'h-holder' as HouseId, { seatProvinceId: pRev, wealth: 100 })
+    s = withPolity(s, holder, { rank: 2, treasury: 500, capitalProvinceId: pRev })
+    s = bindProvinceToHouseViaPolity(s, pRev, holder, 'h-holder' as HouseId)
+    const holdingId = s.provinces[pRev]!.holdingIds[0]!
+    s = withPolity(s, cw, {
+      kind: 'commonwealth',
+      revoltState: { kind: 'revolting', revoltSeizureContractIds: [] },
+      origin: {
+        kind: 'popular_revolt',
+        originalPolityId: holder,
+        provinceId: pRev,
+        holdingIds: [holdingId],
+        popClass: 'peasants',
+        leaderPersonId: 'pe-rebel' as never,
+        startedWeek: 0,
+      },
+    })
+    s = withPolity(s, 'c-sup' as PolityId, { rank: 2, treasury: 100 })
+
+    const play: DiplomaticPlay = {
+      id: 'dp-rev' as DiplomaticPlayId,
+      kind: 'revolt_negotiation',
+      initiator: { kind: 'polity', id: cw },
+      target: { kind: 'polity', id: holder },
+      primaryDemand: { kind: 'status_quo' },
+      status: 'escalated',
+      startedWeek: s.absoluteWeek,
+      deadlineWeek: s.absoluteWeek + 48,
+      progress: 0,
+      tension: 80,
+      initiatorPreparation: 0,
+      initiatorLeverage: 0,
+      initiatorCommitment: 0,
+      targetPreparation: 0,
+      targetLeverage: 0,
+      targetCommitment: 0,
+      initiatorSupporters: [
+        { actor: { kind: 'polity', id: 'c-sup' as PolityId }, joinedWeek: 0, commitment: 50 },
+      ],
+      targetSupporters: [],
+      initiatorActiveTaskIds: [],
+      targetActiveTaskIds: [],
+      offerHistoryIds: [],
+    }
+    s.diplomaticPlays[play.id] = play
+
+    const next = runWarCreationSystem(makeCtx(s))
+
+    const war = Object.values(next.state.wars).find((w) => w?.originDiplomaticPlayId === 'dp-rev')
+    expect(war).toBeDefined()
+    expect(war?.warGoals[0]?.kind).toBe('popular_revolt_independence')
+    expect(war?.attacker.participants).toHaveLength(2)
+    expect(war?.attacker.participants[1]).toMatchObject({
+      actor: { kind: 'polity', id: 'c-sup' },
+      primary: false,
+    })
+    expect(next.events.some((e) => e.type === 'WAR_PARTICIPANT_JOINED')).toBe(true)
+  })
+
   it('変換不能 (holding 消失) な escalated land_claim は cancelled・War 生成なし', () => {
     const world = freshWorld()
     const { owner, other } = pickHoldingAndPolities(world)
