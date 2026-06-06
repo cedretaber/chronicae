@@ -7,7 +7,9 @@ import type { RngState, RngResult } from '@sim/rng/rng'
 import { randomFloat } from '@sim/rng/rng'
 import { getActiveOfficeHolders, getPolityLeader } from '@sim/selectors/officeSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
-import { isLivingPerson } from '@sim/types/person'
+import { getPolityPersonIds } from '@sim/selectors/polityRelations'
+import { getFactionActiveMemberIds } from '@sim/selectors/factionSelectors'
+import { isLifeStageAtLeast, isLivingPerson } from '@sim/types/person'
 import type { BattleSimCommanderInput } from '@sim/helpers/simulateBattle'
 
 // v0.35 Phase A: 「誰が指揮するか / どの province で戦うか」の構造 selector。
@@ -40,15 +42,18 @@ function warCommandSelectionScore(
 
 // warCommand 降順 → personId 昇順で安定ソートする (replay 決定性のための tie-break)。
 //   config 指定時は old_age 乗算ペナルティを反映した選定スコアでソートする（§9.3）。
+//   スコアは事前計算する (候補プールが在野人材まで広がり数百人になりうるため、
+//   comparator 内での再計算を避ける Schwartzian transform)。
 function sortByWarCommandThenId(
   state: WorldState,
   ids: PersonId[],
   config?: SimulationConfig,
 ): PersonId[] {
+  const scores = new Map<string, number>()
+  for (const id of ids) scores.set(id, warCommandSelectionScore(state, id, config))
   return [...ids].sort((a, b) => {
-    const scoreB = warCommandSelectionScore(state, b, config)
-    const scoreA = warCommandSelectionScore(state, a, config)
-    if (scoreB !== scoreA) return scoreB - scoreA // warCommand desc
+    const diff = (scores.get(b) ?? 0) - (scores.get(a) ?? 0)
+    if (diff !== 0) return diff // warCommand desc
     return a.localeCompare(b) // personId asc
   })
 }
@@ -96,46 +101,94 @@ export function selectCaptainGeneralForWarSide(
   return undefined
 }
 
-// 指定人物が現場指揮官として適格か。
-//   条件: 適格人物 (生存・非placeholder) かつ active military office holder。
-//   leader 除外: polity leader は「総大将を兼ねる」場合を除き commander 候補にならない (§5.4)。
-export function isEligibleBattleCommander(
-  state: WorldState,
-  polityId: PolityId,
-  personId: PersonId,
-  captainGeneralId: PersonId | undefined,
-): boolean {
+// 指定人物が現場指揮官として適格か (人物そのものの条件のみ)。
+//   条件: 生存・非 placeholder・成人 (young_adulthood 以上 — project 候補 §12.4 と同基準)。
+//   v0.43 追補: military office 保有は要件から外れた (在野の House メンバー・派閥食客も候補)。
+//   leader 除外は buildWarSideCommanderCandidates 側で participant 全 polity の leader 集合に
+//   対して行う (広いプールでは「支援国 leader が primary の House 経由で混入」がありうるため)。
+export function isEligibleBattleCommander(state: WorldState, personId: PersonId): boolean {
   if (!isEligibleWarPerson(state, personId)) return false
-  const military = getActiveOfficeHolders(state, { kind: 'polity', id: polityId }, 'military')
-  if (!military.includes(personId)) return false
-  const leader = getPolityLeader(state, polityId)
-  if (leader !== undefined && personId === leader) {
-    // leader は captainGeneral を兼ねる時のみ commander 候補に残る。
-    if (captainGeneralId === undefined || personId !== captainGeneralId) return false
-  }
+  const person = state.persons[personId]
+  if (!person || !isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) return false
   return true
 }
 
-// side の全 polity participant から現場指揮官候補リストを構築する
-//   (leader 除外は per-polity + 重複排除 + warCommand desc / personId asc)。
-//   v0.43 追補: supporter polity の military office holder も候補に含める (越境指揮を許容 —
-//   battle 側の割当 pool は polity 非依存)。supporter polity の leader は CG を兼ねない限り
-//   isEligibleBattleCommander の leader 除外で自然に落ちる (CG は primary 人物のため)。
+// polity の「宮廷人材プール」: military office holder + polity 関係 House の生存メンバー
+//   (getPolityPersonIds) + anchor 派閥のメンバー (客分・食客 — supervisor 候補 §12.4 と同じ
+//   考え方で、派閥が介入できるのは anchor Polity のみ)。
+//   列挙は決定的: office 順 → getPolityPersonIds (sorted) → FactionId 昇順 × member 順。
+function getPolityWarCandidatePersonIds(state: WorldState, polityId: PolityId): PersonId[] {
+  const out: PersonId[] = []
+  const seen = new Set<string>()
+  const push = (id: PersonId): void => {
+    if (seen.has(id)) return
+    seen.add(id)
+    out.push(id)
+  }
+  for (const id of getActiveOfficeHolders(state, { kind: 'polity', id: polityId }, 'military')) {
+    push(id)
+  }
+  for (const id of getPolityPersonIds(state, polityId)) push(id)
+  for (const fid of [...(state.factionIndex.byPolity[polityId] ?? [])].sort()) {
+    const faction = state.factions[fid]
+    if (!faction || !faction.active) continue
+    for (const id of getFactionActiveMemberIds(state, fid)) push(id)
+  }
+  return out
+}
+
+// side の全 polity participant から現場指揮官候補リスト (uncapped・ソート済) を構築する。
+//   v0.43 追補: 候補は military office holder に限らず宮廷人材プール全体から warCommand 順に
+//   選ぶ (役職優遇なし。総大将経路は従来どおり military 限定なので役職の意味はそちらに残る)。
+//   leader 除外: participant いずれかの polity の leader は CG を兼ねる場合を除き候補外 (§5.4)。
+//   cap と両陣営重複 (両属) の除外は finalizeWarCommanderCandidates の責務 — 両 side の
+//   フル候補が揃ってからでないと正しく適用できないため。
 export function buildWarSideCommanderCandidates(
   state: WorldState,
   polityIds: readonly PolityId[],
   captainGeneralId: PersonId | undefined,
   config?: SimulationConfig,
 ): PersonId[] {
-  const eligible: PersonId[] = []
+  const leaderIds = new Set<string>()
   for (const polityId of polityIds) {
-    const military = getActiveOfficeHolders(state, { kind: 'polity', id: polityId }, 'military')
-    for (const id of military) {
-      if (isEligibleBattleCommander(state, polityId, id, captainGeneralId)) eligible.push(id)
+    const leader = getPolityLeader(state, polityId)
+    if (leader !== undefined) leaderIds.add(leader)
+  }
+  const eligible: PersonId[] = []
+  const seen = new Set<string>()
+  for (const polityId of polityIds) {
+    for (const id of getPolityWarCandidatePersonIds(state, polityId)) {
+      if (seen.has(id)) continue
+      seen.add(id)
+      if (!isEligibleBattleCommander(state, id)) continue
+      // leader は captainGeneral を兼ねる時のみ候補に残る。
+      if (leaderIds.has(id) && (captainGeneralId === undefined || id !== captainGeneralId)) {
+        continue
+      }
+      eligible.push(id)
     }
   }
-  const deduped = [...new Set(eligible)]
-  return sortByWarCommandThenId(state, deduped, config)
+  return sortByWarCommandThenId(state, eligible, config)
+}
+
+// 両陣営のフル候補から両属人物 (両 side の候補に同時に現れる人物) を双方から除外し、
+//   各 side を warCommand 上位 cap 名に切り詰める。両属は派閥食客が他国出身者を含むため
+//   理論上起こりうる (忠誠の板挟みでどちらの陣営でも指揮を執らない、という表現)。
+//   除外 → cap の順 (cap 後に除外すると「片側では cap 外」の両属を取りこぼす)。
+export function finalizeWarCommanderCandidates(
+  attackerCandidates: readonly PersonId[],
+  defenderCandidates: readonly PersonId[],
+  cap: number,
+): { attacker: PersonId[]; defender: PersonId[] } {
+  const atkSet = new Set<string>(attackerCandidates)
+  const dup = new Set<string>()
+  for (const id of defenderCandidates) {
+    if (atkSet.has(id)) dup.add(id)
+  }
+  return {
+    attacker: attackerCandidates.filter((id) => !dup.has(id)).slice(0, cap),
+    defender: defenderCandidates.filter((id) => !dup.has(id)).slice(0, cap),
+  }
 }
 
 // §13.2/§13.3: commander pool (PersonId[]) を BattleSimCommanderInput[] に変換する。

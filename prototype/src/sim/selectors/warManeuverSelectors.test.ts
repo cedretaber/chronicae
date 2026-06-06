@@ -8,12 +8,20 @@ import {
   selectCaptainGeneralForWarSide,
   isEligibleBattleCommander,
   buildWarSideCommanderCandidates,
+  finalizeWarCommanderCandidates,
   getWarGoalProvince,
 } from './warManeuverSelectors'
 import type { WorldState } from '../types/world'
 import type { Person, PersonKind } from '../types/person'
 import type { Holding } from '../types/landContract'
-import type { PersonId, PolityId, ProvinceId, HoldingId } from '../types/ids'
+import type {
+  PersonId,
+  PolityId,
+  ProvinceId,
+  HoldingId,
+  FactionId,
+  FactionMembershipId,
+} from '../types/ids'
 import type { WarGoal } from '../types/war'
 
 const POL = 'po-1' as PolityId
@@ -23,7 +31,7 @@ const POL = 'po-1' as PolityId
 function makePerson(
   id: string,
   score: number,
-  opts?: { alive?: boolean; kind?: PersonKind },
+  opts?: { alive?: boolean; kind?: PersonKind; lifeStage?: Person['lifeStage'] },
 ): Person {
   const abilities = {
     valor: score,
@@ -38,7 +46,7 @@ function makePerson(
     nameKey: id,
     sex: 'male',
     age: 40,
-    lifeStage: 'mature_adulthood',
+    lifeStage: opts?.lifeStage ?? 'mature_adulthood',
     alive: opts?.alive ?? true,
     ...(opts?.kind ? { kind: opts.kind } : {}),
     childIds: [],
@@ -135,9 +143,6 @@ describe('isEligibleBattleCommander / buildWarSideCommanderCandidates', () => {
 
   it('excludes the leader when leader !== captainGeneral', () => {
     const s = setupKingdom()
-    expect(isEligibleBattleCommander(s, POL, 'pe-king' as PersonId, 'pe-cmd1' as PersonId)).toBe(
-      false,
-    )
     expect(buildWarSideCommanderCandidates(s, [POL], 'pe-cmd1' as PersonId)).toEqual([
       'pe-cmd1',
       'pe-cmd2',
@@ -146,9 +151,6 @@ describe('isEligibleBattleCommander / buildWarSideCommanderCandidates', () => {
 
   it('includes the leader when leader === captainGeneral (the "unless" branch)', () => {
     const s = setupKingdom()
-    expect(isEligibleBattleCommander(s, POL, 'pe-king' as PersonId, 'pe-king' as PersonId)).toBe(
-      true,
-    )
     expect(buildWarSideCommanderCandidates(s, [POL], 'pe-king' as PersonId)).toEqual([
       'pe-king',
       'pe-cmd1',
@@ -156,25 +158,64 @@ describe('isEligibleBattleCommander / buildWarSideCommanderCandidates', () => {
     ])
   })
 
-  it('non-leader military holders are eligible regardless of captainGeneral', () => {
-    const s = setupKingdom()
-    expect(isEligibleBattleCommander(s, POL, 'pe-cmd1' as PersonId, undefined)).toBe(true)
-    expect(isEligibleBattleCommander(s, POL, 'pe-cmd2' as PersonId, 'pe-cmd1' as PersonId)).toBe(
-      true,
-    )
-  })
-
-  it('a non-military person is not an eligible commander', () => {
+  // v0.43 追補: eligibility は人物条件のみ (military office 保有は要件でなくなった)。
+  it('eligibility is person-only: living adult non-placeholder (office not required)', () => {
     const s = setupKingdom()
     s.persons['pe-outsider' as PersonId] = makePerson('pe-outsider', 99)
-    expect(isEligibleBattleCommander(s, POL, 'pe-outsider' as PersonId, undefined)).toBe(false)
+    s.persons['pe-dead' as PersonId] = makePerson('pe-dead', 80, { alive: false })
+    s.persons['pe-ph' as PersonId] = makePerson('pe-ph', 80, { kind: 'placeholder' })
+    s.persons['pe-child' as PersonId] = makePerson('pe-child', 99, { lifeStage: 'childhood' })
+    expect(isEligibleBattleCommander(s, 'pe-cmd1' as PersonId)).toBe(true)
+    expect(isEligibleBattleCommander(s, 'pe-outsider' as PersonId)).toBe(true) // 在野でも人物としては適格
+    expect(isEligibleBattleCommander(s, 'pe-dead' as PersonId)).toBe(false)
+    expect(isEligibleBattleCommander(s, 'pe-ph' as PersonId)).toBe(false)
+    expect(isEligibleBattleCommander(s, 'pe-child' as PersonId)).toBe(false)
   })
 
-  it('a dead military holder is not an eligible commander', () => {
+  it('a person outside the court pool (no office / house / faction tie) is not a candidate', () => {
+    const s = setupKingdom()
+    s.persons['pe-outsider' as PersonId] = makePerson('pe-outsider', 99)
+    expect(buildWarSideCommanderCandidates(s, [POL], undefined)).toEqual(['pe-cmd1', 'pe-cmd2'])
+  })
+
+  it('a dead military holder is not a candidate', () => {
     const s = setupKingdom()
     s.persons['pe-cmd1' as PersonId] = makePerson('pe-cmd1', 80, { alive: false })
-    expect(isEligibleBattleCommander(s, POL, 'pe-cmd1' as PersonId, undefined)).toBe(false)
     expect(buildWarSideCommanderCandidates(s, [POL], undefined)).toEqual(['pe-cmd2'])
+  })
+
+  // v0.43 追補: 非成人は military office を持っていても候補にならない。
+  it('a non-adult military holder is not a candidate', () => {
+    let s = setupKingdom()
+    s.persons['pe-child' as PersonId] = makePerson('pe-child', 99, { lifeStage: 'childhood' })
+    s = addMilitary(s, 'pe-child')
+    expect(buildWarSideCommanderCandidates(s, [POL], undefined)).toEqual(['pe-cmd1', 'pe-cmd2'])
+  })
+
+  // v0.43 追補: anchor 派閥のメンバー (食客) は候補に入る (能力順で役職持ちより上にも来る)。
+  it('includes faction members (食客) of factions anchored to the polity', () => {
+    const s = setupKingdom()
+    s.persons['pe-client' as PersonId] = makePerson('pe-client', 99)
+    s.factions['fa-1' as FactionId] = {
+      id: 'fa-1' as FactionId,
+      leaderPersonId: 'pe-cmd1' as PersonId,
+      polityId: POL,
+      active: true,
+      foundingWeek: 0,
+    }
+    s.factionMemberships['fm-1' as FactionMembershipId] = {
+      id: 'fm-1' as FactionMembershipId,
+      factionId: 'fa-1' as FactionId,
+      personId: 'pe-client' as PersonId,
+      active: true,
+      joinedWeek: 0,
+    }
+    s.factionIndex.byPolity[POL] = ['fa-1' as FactionId]
+    expect(buildWarSideCommanderCandidates(s, [POL], undefined)).toEqual([
+      'pe-client',
+      'pe-cmd1',
+      'pe-cmd2',
+    ])
   })
 
   it('dedups a person holding multiple military offices', () => {
@@ -182,6 +223,37 @@ describe('isEligibleBattleCommander / buildWarSideCommanderCandidates', () => {
     s = addMilitary(s, 'pe-cmd1') // pe-cmd1 holds 2 military offices
     const candidates = buildWarSideCommanderCandidates(s, [POL], undefined)
     expect(candidates.filter((id) => (id as string) === 'pe-cmd1')).toHaveLength(1)
+  })
+})
+
+// v0.43 追補: 両属除外 + cap (両 side のフル候補が揃ってから適用する最終段)。
+describe('finalizeWarCommanderCandidates', () => {
+  const ids = (xs: string[]): PersonId[] => xs.map((x) => x as PersonId)
+
+  it('removes dual-listed persons from both sides', () => {
+    const r = finalizeWarCommanderCandidates(
+      ids(['pe-a', 'pe-x', 'pe-b']),
+      ids(['pe-x', 'pe-c']),
+      8,
+    )
+    expect(r.attacker).toEqual(['pe-a', 'pe-b'])
+    expect(r.defender).toEqual(['pe-c'])
+  })
+
+  it('caps each side after dual exclusion (a dual person beyond the cap is still excluded)', () => {
+    const r = finalizeWarCommanderCandidates(
+      ids(['pe-a', 'pe-b', 'pe-c', 'pe-x']), // pe-x は cap 外でも両属として defender からも消える
+      ids(['pe-x', 'pe-d', 'pe-e', 'pe-f']),
+      2,
+    )
+    expect(r.attacker).toEqual(['pe-a', 'pe-b'])
+    expect(r.defender).toEqual(['pe-d', 'pe-e'])
+  })
+
+  it('keeps order and passes through when there is no overlap', () => {
+    const r = finalizeWarCommanderCandidates(ids(['pe-a']), ids(['pe-b']), 8)
+    expect(r.attacker).toEqual(['pe-a'])
+    expect(r.defender).toEqual(['pe-b'])
   })
 })
 

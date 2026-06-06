@@ -150,8 +150,9 @@ function calcPolityMilitaryPower(state: WorldState, config: SimulationConfig, po
 ```ts
 isEligibleWarPerson(state, personId): boolean              // 総大将になりうる person（生存・条件）
 selectCaptainGeneralForWarSide(state, polityId, config?): PersonId?  // warCommand スコア順に総大将を選出
-isEligibleBattleCommander(state, polityId, personId, captainGeneralId): boolean  // 適格人物 + active military office holder。leader は captainGeneral 兼任時のみ候補
-buildWarSideCommanderCandidates(state, polityIds, captainGeneralId, config?): PersonId[]  // v0.43: side の全 polity participant から選出（per-polity leader 除外 + dedup + warCommand desc / personId asc）
+isEligibleBattleCommander(state, personId): boolean        // v0.43: 人物条件のみ（生存・非 placeholder・成人）。military office 保有は要件でない
+buildWarSideCommanderCandidates(state, polityIds, captainGeneralId, config?): PersonId[]  // v0.43: 全 polity participant の宮廷人材プール（military holder + House メンバー + 派閥食客）から選出。participant polity の leader は CG 兼任時のみ候補。uncapped・warCommand desc / personId asc
+finalizeWarCommanderCandidates(attackerCandidates, defenderCandidates, cap): { attacker, defender }  // v0.43: 両属人物を双方から除外 → 各 side を cap (maxWarCommanderCandidatesPerSide) に切り詰め
 getWarGoalProvince(state, war): ProvinceId?                 // battle 対象 Province の解決
 generateCandidateBattlefield(province, rng, config): RngResult<BattlefieldKind>  // terrain/features → 戦場。rng を 0-2 回 draw して進める
 getWarSidePrimaryPolityActor(war, sideKey): OrganizationRef?  // war side の主 Polity actor

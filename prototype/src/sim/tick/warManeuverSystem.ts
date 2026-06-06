@@ -39,6 +39,7 @@ import {
   getWarSidePolityActors,
   selectCaptainGeneralForWarSide,
   buildWarSideCommanderCandidates,
+  finalizeWarCommanderCandidates,
   buildBattleSimCommanderInputs,
   getWarGoalProvince,
   generateCandidateBattlefield,
@@ -252,26 +253,37 @@ function refreshCaptainGeneral(
 }
 
 // step 4: commander candidates lazy refresh (§5.2)。変化時のみ WarSide 更新。event なし。
-//   v0.43 追補: 候補は side の全 polity participant (supporter 含む) から選出する。
-function refreshCommanders(
-  ws: WorldState,
-  wid: WarId,
-  sideKey: WarSideKey,
-  config: SimulationConfig,
-): void {
+//   v0.43 追補: 候補は side の全 polity participant (supporter 含む) の宮廷人材プール
+//   (military office holder + House メンバー + 派閥食客) から選出する。両陣営の候補が
+//   揃ってから両属除外 + cap を適用するため、両 side を一括で refresh する。
+function refreshCommanders(ws: WorldState, wid: WarId, config: SimulationConfig): void {
   const war = ws.wars[wid]
   if (!war) return
-  const side = sideKey === 'attacker' ? war.attacker : war.defender
-  const candidates = buildWarSideCommanderCandidates(
+  const attackerFull = buildWarSideCommanderCandidates(
     ws,
-    getWarSidePolityActors(war, sideKey),
-    side.captainGeneralPersonId,
+    getWarSidePolityActors(war, 'attacker'),
+    war.attacker.captainGeneralPersonId,
     config,
   )
-  const same =
-    candidates.length === side.commanderPersonIds.length &&
-    candidates.every((id, i) => id === side.commanderPersonIds[i])
-  if (!same) updateWarSideMut(ws, wid, sideKey, { commanderPersonIds: candidates })
+  const defenderFull = buildWarSideCommanderCandidates(
+    ws,
+    getWarSidePolityActors(war, 'defender'),
+    war.defender.captainGeneralPersonId,
+    config,
+  )
+  const finalized = finalizeWarCommanderCandidates(
+    attackerFull,
+    defenderFull,
+    config.maxWarCommanderCandidatesPerSide,
+  )
+  for (const sideKey of ['attacker', 'defender'] as const) {
+    const side = sideKey === 'attacker' ? war.attacker : war.defender
+    const candidates = finalized[sideKey]
+    const same =
+      candidates.length === side.commanderPersonIds.length &&
+      candidates.every((id, i) => id === side.commanderPersonIds[i])
+    if (!same) updateWarSideMut(ws, wid, sideKey, { commanderPersonIds: candidates })
+  }
 }
 
 export function runWarManeuverSystem(ctx: TickContext): TickContext {
@@ -336,9 +348,8 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
     const defPolity = getWarSidePrimaryPolityActor(war2, 'defender')
     if (atkPolity === undefined || defPolity === undefined) continue // house actor war: maneuver no-op
 
-    // step 4: commander candidates lazy refresh
-    refreshCommanders(ws, wid, 'attacker', config)
-    refreshCommanders(ws, wid, 'defender', config)
+    // step 4: commander candidates lazy refresh (両 side 一括 — 両属除外のため)
+    refreshCommanders(ws, wid, config)
     const war3 = ws.wars[wid]
     if (!war3) continue
 

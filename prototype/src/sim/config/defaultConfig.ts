@@ -445,6 +445,8 @@ export type SimulationConfig = {
   warAvoidanceCountPenalty: number
   maxWarAvoidanceCount: number
   warAvoidanceWarScorePenalty: number
+  // v0.43 追補: side ごとの現場指揮官候補リスト保持数の上限 (warCommand 上位から)
+  maxWarCommanderCandidatesPerSide: number
   //   engagement decision
   warEngagementRandomness: number
   warEngagementCautionEffect: number
@@ -1392,6 +1394,7 @@ export const defaultConfig: SimulationConfig = {
   warAvoidanceCountPenalty: 0.2,
   maxWarAvoidanceCount: 4,
   warAvoidanceWarScorePenalty: 1.0,
+  maxWarCommanderCandidatesPerSide: 8,
   warEngagementRandomness: 0.1,
   warEngagementCautionEffect: 0.2,
   warEngagementAmbitionEffect: 0.15,

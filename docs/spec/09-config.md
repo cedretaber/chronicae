@@ -102,6 +102,7 @@
 | warAvoidanceCountPenalty | 0.2 | avoidanceCount 1 回ごとの回避欲求/確率ペナルティ |
 | maxWarAvoidanceCount | 4 | この回数以上は強制交戦（accept） |
 | warAvoidanceWarScorePenalty | 1.0 | 片側のみ回避成功時に非回避側へ動く warScore |
+| maxWarCommanderCandidatesPerSide | 8 | v0.43: side ごとの現場指揮官候補リスト保持数（warCommand 上位から） |
 | warEngagementRandomness | 0.1 | 交戦判断 noise 幅 |
 | warEngagementCautionEffect | 0.2 | 総大将 caution が回避欲求に与える係数 |
 | warEngagementAmbitionEffect | 0.15 | 総大将 ambition が交戦欲求に与える係数 |
