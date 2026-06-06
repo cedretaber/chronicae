@@ -629,6 +629,15 @@ export type SimulationConfig = {
   diplomaticPlayMaxActiveTasksPerSide: number
   // v0.43 §6.3: DiplomaticPlay の side あたり supporter 上限
   maxDiplomaticSupportersPerSide: number
+  // v0.43 §9.13: supporter 採用に必要な joinScore 閾値 (初期観察用・balance 最終値ではない)
+  diplomaticSupportJoinScoreThreshold: number
+  // v0.43 §9.1: joinScore の項別 weight (各項は 0..100 / -100..100 正規化済み)
+  supportJoinScoreWeightPoliticalOpinion: number // 休眠項 (§9.2: attitude writer 不在のため 0)
+  supportJoinScoreWeightProximity: number
+  supportJoinScoreWeightMilitarySparePower: number
+  supportJoinScoreWeightTreasury: number
+  supportJoinScoreWeightThreatContainment: number
+  supportJoinScoreWeightLastWarPenalty: number // penalty は負 weight で表現 (§9.1)
   goalProgressOnPersonAimSucceeded: number
   goalProgressOnPersonAimFailed: number
   // v0.23 effectivePriority
@@ -1591,6 +1600,14 @@ export const defaultConfig: SimulationConfig = {
   diplomaticPlayMaxActiveTasksPerSide: 2,
   // v0.43 §6.3
   maxDiplomaticSupportersPerSide: 2,
+  // v0.43 §9.13 / §9.1
+  diplomaticSupportJoinScoreThreshold: 25,
+  supportJoinScoreWeightPoliticalOpinion: 0.0,
+  supportJoinScoreWeightProximity: 0.35,
+  supportJoinScoreWeightMilitarySparePower: 0.25,
+  supportJoinScoreWeightTreasury: 0.1,
+  supportJoinScoreWeightThreatContainment: 0.3,
+  supportJoinScoreWeightLastWarPenalty: -0.2,
   goalProgressOnPersonAimSucceeded: 15,
   goalProgressOnPersonAimFailed: -5,
   // v0.23 effectivePriority
