@@ -29,8 +29,10 @@ import { isLivingPerson } from '../types/person'
 import {
   getOfficeAssignments,
   getPolityLeader,
+  getHouseLeader,
   getHousePolityOfficeOverlapScore,
 } from './officeSelectors'
+import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import {
   getPolityHouseIds,
   getHouseProvinceIdsByPolity,
@@ -275,6 +277,40 @@ export function getActorInfluenceFromBreakdown(
   const entry = breakdown.entries.find((e) => polityInfluenceHolderKey(e.holder) === key)
   if (!entry) return { score: 0, percent: 0 }
   return { score: entry.total, percent: entry.percent }
+}
+
+// v0.43 §9.3: Polity の「targetPolityId への influence 加重意見」(-100..100)。
+//   breakdown の各 holder の attitude を influence percent で加重平均する。
+//   - Person holder → 本人の attitude / House holder → house leader の attitude
+//   - leader 不在の House entry は weight ごと除外 (中立 0 と混同しない)
+//   - 有効 holder が 0 なら 0 (中立)
+//   - breakdown.entries の組込ソート順 (total 降順 + holder key 昇順) のまま畳み込む (決定論)
+//   v0.43 では joinScore の休眠項 (weight 0) として配線される。呼出側は polity ごとに
+//   breakdown を 1 回計算して渡すこと (§21.2 と同じ規律)。
+export function getWeightedOpinionFromInfluenceBreakdown(
+  state: WorldState,
+  breakdown: PolityInfluenceBreakdown,
+  targetPolityId: PolityId,
+): number {
+  let weightedSum = 0
+  let weightTotal = 0
+  for (const entry of breakdown.entries) {
+    const personId =
+      entry.holder.kind === 'person' ? entry.holder.id : getHouseLeader(state, entry.holder.id)
+    if (personId === undefined) continue
+    const person = state.persons[personId]
+    if (!isLivingPerson(person)) continue
+    const attitude = getAttitudeOrDefault(state, person, {
+      kind: 'polity',
+      id: targetPolityId,
+    })
+    // opinion 数値化 (§9.3): 0.7*affection + 0.3*respect、clamp -100..100
+    const opinion = Math.max(-100, Math.min(100, 0.7 * attitude.affection + 0.3 * attitude.respect))
+    weightedSum += opinion * entry.percent
+    weightTotal += entry.percent
+  }
+  if (weightTotal <= 0) return 0
+  return weightedSum / weightTotal
 }
 
 export function getDominantInfluenceHolder(
