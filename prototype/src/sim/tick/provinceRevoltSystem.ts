@@ -298,6 +298,8 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
     targetPreparation: 0,
     targetLeverage: 0,
     targetCommitment: 0,
+    initiatorSupporters: [],
+    targetSupporters: [],
     initiatorActiveTaskIds: [],
     targetActiveTaskIds: [],
     offerHistoryIds: [],

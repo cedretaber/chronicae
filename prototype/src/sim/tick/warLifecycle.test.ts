@@ -82,6 +82,8 @@ function injectEscalatedLandClaim(
     targetPreparation: 0,
     targetLeverage: 0,
     targetCommitment: 0,
+    initiatorSupporters: [],
+    targetSupporters: [],
     initiatorActiveTaskIds: [],
     targetActiveTaskIds: [],
     offerHistoryIds: [],

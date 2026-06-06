@@ -627,6 +627,8 @@ export type SimulationConfig = {
   diplomaticPlayTaskOpponentLeverageReductionSmall: number
   diplomaticPlayTaskUndermineFailTensionGain: number
   diplomaticPlayMaxActiveTasksPerSide: number
+  // v0.43 §6.3: DiplomaticPlay の side あたり supporter 上限
+  maxDiplomaticSupportersPerSide: number
   goalProgressOnPersonAimSucceeded: number
   goalProgressOnPersonAimFailed: number
   // v0.23 effectivePriority
@@ -1587,6 +1589,8 @@ export const defaultConfig: SimulationConfig = {
   diplomaticPlayTaskOpponentLeverageReductionSmall: 8,
   diplomaticPlayTaskUndermineFailTensionGain: 12,
   diplomaticPlayMaxActiveTasksPerSide: 2,
+  // v0.43 §6.3
+  maxDiplomaticSupportersPerSide: 2,
   goalProgressOnPersonAimSucceeded: 15,
   goalProgressOnPersonAimFailed: -5,
   // v0.23 effectivePriority

@@ -58,6 +58,50 @@ export function checkDiplomacyWarRegiment(
         message: `DiplomaticPlay ${idStr} target ${play.target.kind}:${play.target.id} is not active (§20)`,
       })
     }
+    // v0.43 §5.2: supporter invariant。
+    //   - actor は polity のみ・active (cleanupTerminalDiplomacy §15.1 sweep が回収する前提)
+    //   - initiator / target が supporters に混入しない
+    //   - 同 side 内・両 side 跨ぎの重複なし
+    {
+      const primaryKeys = new Set([
+        politicalActorKey(play.initiator),
+        politicalActorKey(play.target),
+      ])
+      const seenKeys = new Set<string>()
+      const sides: Array<[string, typeof play.initiatorSupporters]> = [
+        ['initiatorSupporters', play.initiatorSupporters],
+        ['targetSupporters', play.targetSupporters],
+      ]
+      for (const [sideName, supporters] of sides) {
+        for (const s of supporters) {
+          const key = politicalActorKey(s.actor)
+          if (s.actor.kind !== 'polity') {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `DiplomaticPlay ${idStr} ${sideName} supporter ${key} is not a polity (v0.43 §5.2)`,
+            })
+          } else if (!isActiveActor(s.actor)) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `DiplomaticPlay ${idStr} ${sideName} supporter ${key} is not active (v0.43 §5.2)`,
+            })
+          }
+          if (primaryKeys.has(key)) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `DiplomaticPlay ${idStr} ${sideName} supporter ${key} is also a primary actor (v0.43 §5.2)`,
+            })
+          }
+          if (seenKeys.has(key)) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `DiplomaticPlay ${idStr} supporter ${key} appears more than once across sides (v0.43 §5.2)`,
+            })
+          }
+          seenKeys.add(key)
+        }
+      }
+    }
     // progress / tension は 0..100
     if (play.progress < 0 || play.progress > 100) {
       errors.push({

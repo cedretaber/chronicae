@@ -133,12 +133,28 @@ export type OfferEvaluation = {
   params?: Record<string, string | number>
 }
 
+// v0.43 §5.1: DiplomaticPlay の supporter (primary 以外の支持 Polity)。
+export type DiplomaticPlaySupporter = {
+  actor: OrganizationRef // v0.43 では actor.kind === 'polity' のみ
+  joinedWeek: number
+  commitment: number // 0..100。v0.43 では joinScore 由来の固定値でよい
+  // §5.1a: 前方互換フィールド。v0.43 では書き込みサイトなし・常に undefined。
+  contributionScore?: number
+}
+
+// v0.43 §6.1: supporter を追加する side の指定。
+export type DiplomaticPlaySideKey = 'initiator' | 'target'
+
 export type DiplomaticPlay = {
   id: DiplomaticPlayId
   kind: DiplomaticPlayKind
 
   initiator: OrganizationRef
   target: OrganizationRef
+
+  // v0.43 §5.2: 各 side を支持する Polity supporter (required・新規作成時は空配列)。
+  initiatorSupporters: DiplomaticPlaySupporter[]
+  targetSupporters: DiplomaticPlaySupporter[]
 
   originProjectId?: ProjectId
 

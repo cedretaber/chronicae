@@ -114,6 +114,30 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     }
   }
 
+  // v0.43 §15.1: active play の inactive supporter を無音除去する (play は継続)。
+  //   primary (initiator/target) inactive は上の既存経路で play ごと削除済み。
+  {
+    const base = nextPlays ?? plays
+    for (const idStr of Object.keys(base)) {
+      const play = base[idStr as DiplomaticPlayId]
+      if (!play) continue
+      if (TERMINAL_PLAY_SET.has(play.status as TerminalDiplomaticPlayStatus)) continue
+      const initKeep = play.initiatorSupporters.filter((s) => isActorActive(ctx.state, s.actor))
+      const targKeep = play.targetSupporters.filter((s) => isActorActive(ctx.state, s.actor))
+      if (
+        initKeep.length !== play.initiatorSupporters.length ||
+        targKeep.length !== play.targetSupporters.length
+      ) {
+        if (!nextPlays) nextPlays = { ...plays }
+        nextPlays[idStr as DiplomaticPlayId] = {
+          ...play,
+          initiatorSupporters: initKeep,
+          targetSupporters: targKeep,
+        }
+      }
+    }
+  }
+
   // Clean up aims that reference removed plays
   let nextAims: Record<AimId, (typeof ctx.state.aims)[AimId]> | undefined
   for (const idStr of Object.keys(ctx.state.aims)) {

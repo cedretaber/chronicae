@@ -39,6 +39,8 @@ function makePlay(id: string, status: DiplomaticPlay['status']): DiplomaticPlay 
     targetPreparation: 0,
     targetLeverage: 0,
     targetCommitment: 0,
+    initiatorSupporters: [],
+    targetSupporters: [],
     initiatorActiveTaskIds: [],
     targetActiveTaskIds: [],
     offerHistoryIds: [],
@@ -63,6 +65,29 @@ describe('cleanupTerminalDiplomacy', () => {
     const ctx = makeCtx(s)
     const next = runCleanupTerminalDiplomacy(ctx)
     expect(next).toBe(ctx)
+  })
+
+  // v0.43 §15.1: inactive supporter は無音除去・play は継続
+  it('removes inactive supporters from an active play but keeps the play (v0.43 §15.1)', () => {
+    let s = makeStateWithActors()
+    s = withPolity(s, 'c-3' as PolityId, { rank: 2, treasury: 100 })
+    s = withPolity(s, 'c-4' as PolityId, { rank: 2, treasury: 100 })
+    const play = makePlay('dp-1', 'active')
+    play.initiatorSupporters = [
+      { actor: { kind: 'polity', id: 'c-3' as PolityId }, joinedWeek: 0, commitment: 50 },
+    ]
+    play.targetSupporters = [
+      { actor: { kind: 'polity', id: 'c-4' as PolityId }, joinedWeek: 0, commitment: 50 },
+    ]
+    s = { ...s, diplomaticPlays: { [play.id]: play } }
+    s.polities['c-3' as PolityId] = { ...s.polities['c-3' as PolityId]!, active: false }
+    const next = runCleanupTerminalDiplomacy(makeCtx(s))
+    const updated = next.state.diplomaticPlays[play.id]
+    expect(updated).toBeDefined()
+    expect(updated!.status).toBe('active')
+    expect(updated!.initiatorSupporters).toHaveLength(0)
+    // active な supporter は残る
+    expect(updated!.targetSupporters).toHaveLength(1)
   })
 
   it('removes terminal Play (settled / failed / resolved_by_conflict / cancelled)', () => {
