@@ -1,7 +1,12 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { WarId } from '../types/ids'
-import { updateWar, getWarPrimaryAttacker, getWarPrimaryDefender } from '../mutations/warMutations'
+import {
+  updateWar,
+  getWarPrimaryAttacker,
+  getWarPrimaryDefender,
+  removeWarParticipantMut,
+} from '../mutations/warMutations'
 import { isActorActive } from '../selectors/actorSelectors'
 import { emitWarEnded } from './warEvents'
 
@@ -28,21 +33,41 @@ export function runCancelOrphanedWarsSystem(ctx: TickContext): TickContext {
     .filter((id) => ctx.state.wars[id as WarId]?.status === 'active')
   if (activeWarIds.length === 0) return ctx
 
-  const ws: WorldState = { ...ctx.state, wars: { ...ctx.state.wars } }
+  const ws: WorldState = {
+    ...ctx.state,
+    wars: { ...ctx.state.wars },
+    warIndex: {
+      ...ctx.state.warIndex,
+      byParticipant: { ...ctx.state.warIndex.byParticipant },
+    },
+  }
   const cancelled: WarId[] = []
+  let removedSupporters = 0
 
   for (const idStr of activeWarIds) {
     const wid = idStr as WarId
     const war = ws.wars[wid]
     if (!war) continue
+    // 経路 A (§15.2): primary inactive → War cancel (既存)。
     const atk = getWarPrimaryAttacker(war)?.actor
     const def = getWarPrimaryDefender(war)?.actor
     const orphaned = !atk || !def || !isActorActive(ws, atk) || !isActorActive(ws, def)
-    if (!orphaned) continue
-    updateWar(ws, wid, { status: 'cancelled', endedWeek: absoluteWeek })
-    cancelled.push(wid)
+    if (orphaned) {
+      updateWar(ws, wid, { status: 'cancelled', endedWeek: absoluteWeek })
+      cancelled.push(wid)
+      continue
+    }
+    // 経路 B (v0.43 §15.2): supporter inactive → participant 除去・War 継続・イベント無し (無音除去)。
+    for (const side of [war.attacker, war.defender]) {
+      for (const p of side.participants) {
+        if (p.primary) continue
+        if (isActorActive(ws, p.actor)) continue
+        if (removeWarParticipantMut(ws, wid, p.actor)) removedSupporters++
+      }
+    }
   }
-  if (cancelled.length === 0) return ctx
+  if (cancelled.length === 0 && removedSupporters === 0) return ctx
+  if (cancelled.length === 0) return { ...ctx, state: ws }
 
   let next: TickContext = { ...ctx, state: ws }
   for (const wid of cancelled) {

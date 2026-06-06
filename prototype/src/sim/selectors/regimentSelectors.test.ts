@@ -275,6 +275,78 @@ describe('getRegimentPowerForWarSide', () => {
     expect(getRegimentPowerForWarSide(state, defaultConfig, war, 'attacker')).toBe(0)
   })
 
+  // v0.43 §12.4: multi-participant fallback
+  it('(e) v0.43 fallback: mobilized 0 のとき participant ごとに合算 (record 無は nominal / 有は 0)', () => {
+    let state = makeEmptyV016State()
+    const pSup: OrganizationRef = { kind: 'polity', id: 'po-3' as PolityId }
+    const war = makeWar('w-1' as WarId, pA, pB)
+    war.attacker.participants = [
+      ...war.attacker.participants,
+      { actor: pSup, joinedWeek: 0, primary: false },
+    ]
+    state = withPolity(state, 'po-1' as PolityId, { adminPower: 1000 })
+    state = withPolity(state, 'po-3' as PolityId, { adminPower: 1000 })
+
+    // 両方 record 無 → nominal の合算
+    const nominalPrimary = getActorMilitaryPower(state, defaultConfig, pA)
+    const nominalSup = getActorMilitaryPower(state, defaultConfig, pSup)
+    expect(getRegimentPowerForWarSide(state, defaultConfig, war, 'attacker')).toBeCloseTo(
+      nominalPrimary + nominalSup,
+    )
+
+    // primary に record (未動員ではなく destroyed) → primary は 0、supporter の nominal のみ
+    const r1 = createRegiment(state, {
+      owner: pA,
+      sourceKind: 'levy',
+      troopKind: 'infantry',
+      homeHoldingId: 'hl-1' as HoldingId,
+      homeProvinceId: 'pr-1' as ProvinceId,
+      strength: 100,
+      organization: 100,
+      morale: 80,
+      maxStrength: 100,
+      basePower: 100,
+      baselineOrganization: 50,
+      maxOrganization: 100,
+      baselineMorale: 30,
+      maxMorale: 100,
+      createdWeek: 0,
+    })
+    destroyRegimentMut(state, r1.id, 0)
+    expect(getRegimentPowerForWarSide(state, defaultConfig, war, 'attacker')).toBeCloseTo(
+      nominalSup,
+    )
+  })
+
+  it('(f) v0.43: mobilized 経路は participant 数に依存しない (supporter 追加で不変)', () => {
+    const state = makeEmptyV016State()
+    const pSup: OrganizationRef = { kind: 'polity', id: 'po-3' as PolityId }
+    const war = makeWar('w-1' as WarId, pA, pB)
+    war.attacker.participants = [
+      ...war.attacker.participants,
+      { actor: pSup, joinedWeek: 0, primary: false },
+    ]
+    const r1 = createRegiment(state, {
+      owner: pA,
+      sourceKind: 'levy',
+      troopKind: 'infantry',
+      homeHoldingId: 'hl-1' as HoldingId,
+      homeProvinceId: 'pr-1' as ProvinceId,
+      strength: 100,
+      organization: 100,
+      morale: 80,
+      maxStrength: 100,
+      basePower: 100,
+      baselineOrganization: 50,
+      maxOrganization: 100,
+      baselineMorale: 30,
+      maxMorale: 100,
+      createdWeek: 0,
+    })
+    mobilizeRegimentMut(state, r1.id, 'w-1' as WarId, 'attacker', 'po-1' as PolityId, 0)
+    expect(getRegimentPowerForWarSide(state, defaultConfig, war, 'attacker')).toBeCloseTo(100)
+  })
+
   it('(d) all destroyed => 0, NOT fallback (CRITICAL)', () => {
     let state = makeEmptyV016State()
     const war = makeWar('w-1' as WarId, pA, pB)

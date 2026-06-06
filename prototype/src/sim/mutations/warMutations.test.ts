@@ -4,6 +4,7 @@ import {
   createWar,
   addWarToIndexMut,
   removeWarFromIndexMut,
+  removeWarParticipantMut,
   updateWar,
   updateWarSideMut,
   getWarPrimaryAttacker,
@@ -229,6 +230,67 @@ describe('add/removeWarFromIndexMut', () => {
     expect(ws.warIndex.byParticipant['polity:po-1']).toEqual([w1.id, w2.id])
     removeWarFromIndexMut(ws, w1)
     expect(ws.warIndex.byParticipant['polity:po-1']).toEqual([w2.id])
+  })
+})
+
+// v0.43 §11.2: removeWarParticipantMut
+describe('removeWarParticipantMut', () => {
+  const pC: OrganizationRef = { kind: 'polity', id: 'po-3' as PolityId }
+
+  function makeWarWithSupporter(ws: ReturnType<typeof makeEmptyV016State>) {
+    return createWar(ws, {
+      attacker: pA,
+      defender: pB,
+      warGoals: [],
+      targetWarScore: 60,
+      startedWeek: 48,
+      attackerSupporters: [{ actor: pC }],
+    })
+  }
+
+  it('removes a supporter and purges its byParticipant entry; war stays', () => {
+    const ws = makeEmptyV016State()
+    const war = makeWarWithSupporter(ws)
+    expect(removeWarParticipantMut(ws, war.id, pC)).toBe(true)
+    const updated = ws.wars[war.id]!
+    expect(updated.attacker.participants).toHaveLength(1)
+    expect(updated.attacker.participants[0]?.primary).toBe(true)
+    expect(ws.warIndex.byParticipant['polity:po-3']).toBeUndefined()
+    expect(ws.warIndex.byParticipant['polity:po-1']).toContain(war.id)
+    expect(updated.status).toBe('active')
+  })
+
+  it('rejects removing a primary participant (§11.2)', () => {
+    const ws = makeEmptyV016State()
+    const war = makeWarWithSupporter(ws)
+    expect(removeWarParticipantMut(ws, war.id, pA)).toBe(false)
+    expect(ws.wars[war.id]!.attacker.participants).toHaveLength(2)
+    expect(ws.warIndex.byParticipant['polity:po-1']).toContain(war.id)
+  })
+
+  it('returns false for unknown war or non-participant actor', () => {
+    const ws = makeEmptyV016State()
+    const war = makeWarWithSupporter(ws)
+    expect(removeWarParticipantMut(ws, 'w-999' as WarId, pC)).toBe(false)
+    expect(
+      removeWarParticipantMut(ws, war.id, { kind: 'polity', id: 'po-ghost' as PolityId }),
+    ).toBe(false)
+  })
+
+  it('keeps other war ids under the supporter key when removed from one war', () => {
+    const ws = makeEmptyV016State()
+    const w1 = makeWarWithSupporter(ws)
+    const w2 = createWar(ws, {
+      attacker: pA,
+      defender: pB,
+      warGoals: [],
+      targetWarScore: 60,
+      startedWeek: 48,
+      defenderSupporters: [{ actor: pC }],
+    })
+    expect(ws.warIndex.byParticipant['polity:po-3']).toEqual([w1.id, w2.id])
+    expect(removeWarParticipantMut(ws, w1.id, pC)).toBe(true)
+    expect(ws.warIndex.byParticipant['polity:po-3']).toEqual([w2.id])
   })
 })
 

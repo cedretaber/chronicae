@@ -49,20 +49,24 @@ export function getRegimentPowerForWarSide(
   side: WarSideKey,
 ): number {
   const sideObj = side === 'attacker' ? war.attacker : war.defender
-  const primary = sideObj.participants.find((p) => p.primary)
-  if (!primary) return 0
 
+  // 1. 動員済み active Regiment があればその合算 (participant 不問 — byWar index ベース)。
   const mobilized = getRegimentsForWarSide(state, war.id, side).filter((r) => r.status === 'active')
   if (mobilized.length > 0) {
     return mobilized.reduce((sum, r) => sum + getRegimentEffectivePower(r), 0)
   }
 
-  const owned = state.regimentIndex.byOwner[politicalActorKey(primary.actor)] ?? []
-  if (owned.length === 0) {
-    return getActorMilitaryPower(state, config, primary.actor)
+  // 2. v0.43 §12.4: 動員 0 のときのみ participant ごとに fallback して合算。
+  //    Regiment record が無い participant → nominal power / record はあるが未動員 → 0。
+  //    participant 1 件 (primary のみ) の War では旧実装と同値。
+  let total = 0
+  for (const p of sideObj.participants) {
+    const owned = state.regimentIndex.byOwner[politicalActorKey(p.actor)] ?? []
+    if (owned.length === 0) {
+      total += getActorMilitaryPower(state, config, p.actor)
+    }
   }
-
-  return 0
+  return total
 }
 
 export function getActorRegimentPower(

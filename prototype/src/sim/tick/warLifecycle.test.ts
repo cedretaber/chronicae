@@ -298,6 +298,38 @@ describe('cancelOrphanedWarsSystem (§7.9)', () => {
     expect(w?.endedWeek).toBe(world.absoluteWeek)
     expect(next.events.some((e) => e.type === 'WAR_ENDED')).toBe(true)
   })
+
+  // v0.43 §15.2 経路 B: supporter inactive → 無音除去・War 継続
+  it('supporter が inactive 化したら participant から無音除去し War は継続する (v0.43 §15.2)', () => {
+    const world = freshWorld()
+    const { owner, other } = pickHoldingAndPolities(world)
+    const s = withPolity(world, 'c-sup' as PolityId, { rank: 2, treasury: 100 })
+    const war = createWar(s, {
+      attacker: { kind: 'polity', id: other },
+      defender: { kind: 'polity', id: owner },
+      warGoals: [
+        {
+          kind: 'transfer_land_contract',
+          holdingId: Object.keys(s.holdings)[0] as HoldingId,
+          fromPolityId: owner,
+          toPolityId: other,
+          requiredWarScore: 60,
+        },
+      ],
+      targetWarScore: 60,
+      startedWeek: s.absoluteWeek,
+      attackerSupporters: [{ actor: { kind: 'polity', id: 'c-sup' as PolityId } }],
+    })
+    s.polities['c-sup' as PolityId] = { ...s.polities['c-sup' as PolityId]!, active: false }
+
+    const next = runCancelOrphanedWarsSystem(makeCtx(s))
+    const w = next.state.wars[war.id]
+    expect(w?.status).toBe('active')
+    expect(w?.attacker.participants).toHaveLength(1)
+    expect(next.state.warIndex.byParticipant['polity:c-sup']).toBeUndefined()
+    // 無音除去 — WAR_ENDED もその他 event も出ない
+    expect(next.events.filter((e) => e.type === 'WAR_ENDED')).toHaveLength(0)
+  })
 })
 
 describe('PeaceSettlementSystem (§8) — decisive paths', () => {

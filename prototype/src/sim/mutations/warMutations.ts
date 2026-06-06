@@ -133,6 +133,38 @@ export function createWar(ws: WorldState, input: CreateWarInput): War {
   return war
 }
 
+// v0.43 §11.2 / §15.3: supporter participant を War から除去し byParticipant index も更新する。
+//   primary は除去しない (reject = false 返却)。primary inactive は War cancel 経路 (§15.2) の責務。
+//   呼び出し側は ws.wars / ws.warIndex.byParticipant を clone 済みの mutable draft であること。
+export function removeWarParticipantMut(
+  ws: WorldState,
+  warId: WarId,
+  actor: OrganizationRef,
+): boolean {
+  const war = ws.wars[warId]
+  if (!war) return false
+  const key = politicalActorKey(actor)
+  for (const sideKey of ['attacker', 'defender'] as const) {
+    const side = war[sideKey]
+    const idx = side.participants.findIndex((p) => politicalActorKey(p.actor) === key)
+    if (idx === -1) continue
+    if (side.participants[idx]!.primary) return false
+    const participants = side.participants.filter((_, i) => i !== idx)
+    ws.wars[warId] = { ...war, [sideKey]: { ...side, participants } }
+    const ids = ws.warIndex.byParticipant[key]
+    if (ids) {
+      const filtered = ids.filter((id) => (id as string) !== (warId as string))
+      if (filtered.length > 0) {
+        ws.warIndex.byParticipant[key] = filtered
+      } else {
+        delete ws.warIndex.byParticipant[key]
+      }
+    }
+    return true
+  }
+  return false
+}
+
 // status / warScore / endedWeek 等の更新用。participant は v0.34 では不変なので index 再構築は不要。
 export function updateWar(ws: WorldState, warId: WarId, patch: Partial<War>): void {
   const war = ws.wars[warId]
