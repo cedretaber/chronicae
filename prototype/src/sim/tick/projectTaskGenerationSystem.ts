@@ -185,7 +185,7 @@ function generateNegotiateTaskMut(
   }
 
   const stance = project.kind === 'respond_to_pressure' ? project.stance : undefined
-  const taskKind = selectDiplomaticTaskKind(ws, play, side, stance)
+  const taskKind = selectDiplomaticTaskKind(ws, config, play, side, stance)
 
   const taskId: TaskId = createTaskId(ws.nextTaskId)
   const actor = side === 'initiator' ? play.initiator : play.target
@@ -260,7 +260,7 @@ function generateRevoltNegotiateTasksMut(
         ws.diplomaticPlays[playId] = updatedPlay
       }
 
-      const taskKind = selectDiplomaticTaskKind(ws, currentPlay, side)
+      const taskKind = selectDiplomaticTaskKind(ws, config, currentPlay, side)
 
       const taskId: TaskId = createTaskId(ws.nextTaskId)
       const actor = side === 'initiator' ? currentPlay.initiator : currentPlay.target

@@ -125,6 +125,7 @@ revolt:
 diplomatic_play:
   started_with_offer: '{{initiator}} negotiates with {{target}} for {{province}}.'
   started_no_offer: '{{initiator}} pressures {{target}} to cede {{province}}.'
+  support_declared: '{{supporter}} declares support for {{supported}} in the dispute against {{opponent}}.'
   progress: 'Diplomatic negotiations continue over {{province}}.'
   settled_revolt: 'Revolt negotiation in {{province}} settled — concessions granted.'
   settled_tax: 'Tax revision for {{province}} settled.'

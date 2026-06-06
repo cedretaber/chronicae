@@ -10,6 +10,7 @@ import { isLivingPerson } from '../types/person'
 import type { ProjectKind } from '../types/project'
 import type { PressureResponseStance } from '../types/pressure'
 import { getPrimaryOfficeHolder, getPolityLeader, getHouseLeader } from './officeSelectors'
+import { enumerateSupportCandidates } from './diplomaticSupportSelectors'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 
@@ -22,6 +23,8 @@ const LIGHT_TASKS: ReadonlySet<TaskKind> = new Set([
   'courtly_training',
   'manage_accounts',
   'collect_holding_revenue',
+  // v0.43 §7.4: HEAVY だと play 完了前に escalation しやすいため LIGHT (開戦前の外交工作)
+  'seek_diplomatic_support',
 ])
 
 const HEAVY_TASKS: ReadonlySet<TaskKind> = new Set([
@@ -117,6 +120,8 @@ export function getTaskRelevantAbility(kind: TaskKind): AbilityKey {
       return 'insight'
     case 'advance_project':
       return 'insight'
+    case 'seek_diplomatic_support':
+      return 'charisma'
     default:
       return 'insight'
   }
@@ -152,6 +157,8 @@ const TASK_KIND_OUTCOME_DEFAULTS: Record<
   collect_holding_revenue: { difficulty: 20, relevantAbility: 'numeracy' },
   prepare_project: { difficulty: 30, relevantAbility: 'insight' },
   advance_project: { difficulty: 35, relevantAbility: 'insight' },
+  // v0.43 §7: difficulty は既存外交 task (40) に合わせる
+  seek_diplomatic_support: { difficulty: 40, relevantAbility: 'charisma' },
 }
 
 export function getTaskDefaultDifficulty(kind: TaskKind): number {
@@ -355,8 +362,27 @@ export function getDiplomaticPlayDelegate(
   return undefined
 }
 
+// v0.43 §7.5: seek_diplomatic_support の基本条件 (常に必要)。
+//   - play.status === 'active'
+//   - 自 side の supporter 数 < maxDiplomaticSupportersPerSide
+//   - 候補 Polity が 1 つ以上
+//   - revolt_negotiation の suppressor (target) side は対象外 (§8.3)
+function canSeekDiplomaticSupport(
+  state: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  side: 'initiator' | 'target',
+): boolean {
+  if (play.status !== 'active') return false
+  if (play.kind === 'revolt_negotiation' && side === 'target') return false
+  const supporters = side === 'initiator' ? play.initiatorSupporters : play.targetSupporters
+  if (supporters.length >= config.maxDiplomaticSupportersPerSide) return false
+  return enumerateSupportCandidates(state, play).length > 0
+}
+
 export function selectDiplomaticTaskKind(
   state: WorldState,
+  config: SimulationConfig,
   play: DiplomaticPlay,
   side: 'initiator' | 'target',
   stance?: PressureResponseStance,
@@ -364,6 +390,15 @@ export function selectDiplomaticTaskKind(
   const prep = side === 'initiator' ? play.initiatorPreparation : play.targetPreparation
   const lev = side === 'initiator' ? play.initiatorLeverage : play.targetLeverage
   const commit = side === 'initiator' ? play.initiatorCommitment : play.targetCommitment
+
+  // v0.43 §7.5: 新規 play は必ず deficit 状態で始まるため、escalation が見えている
+  // (戦争が近い) か revolt rebel side の場合は deficit 分岐より先に支援勧誘を返す。
+  const seekable = canSeekDiplomaticSupport(state, config, play, side)
+  if (seekable) {
+    const tensionNearEscalation = play.tension >= config.diplomaticPlayEscalationThreshold * 0.6
+    const isRevoltRebelSide = play.kind === 'revolt_negotiation' && side === 'initiator'
+    if (tensionNearEscalation || isRevoltRebelSide) return 'seek_diplomatic_support'
+  }
 
   // Critical deficits always take priority
   if (prep < 30) return 'prepare_argument'
@@ -423,6 +458,14 @@ export function selectDiplomaticTaskKind(
     candidates.push({ kind: 'prepare_argument', score: base + abilityBonus })
   }
 
+  // v0.43 §7.5: 優先 return に届かなくても通常プールに参加させる (控えめな score —
+  //   negotiate_terms 等を恒常的に押し退けないこと。§21.5 settled/escalated 比率で検証)。
+  if (seekable) {
+    const base = 7
+    const abilityBonus = abilities ? abilities.charisma * 0.1 : 0
+    candidates.push({ kind: 'seek_diplomatic_support', score: base + abilityBonus })
+  }
+
   if (stance === 'resist') {
     for (const c of candidates) {
       if (c.kind === 'pressure_counterparty' || c.kind === 'undermine_counterparty_position') {
@@ -453,6 +496,7 @@ const DIPLOMATIC_TASK_KINDS: ReadonlySet<TaskKind> = new Set([
   'offer_compromise',
   'undermine_counterparty_position',
   'secure_internal_support',
+  'seek_diplomatic_support',
 ])
 
 const GOAL_ALIGNMENT_MAP: Record<string, (task: Task) => boolean> = {

@@ -63,6 +63,8 @@ export type TaskKind =
   | 'collect_holding_revenue'
   | 'prepare_project'
   | 'advance_project'
+  // v0.43 §7: DiplomaticPlay の supporter 勧誘 (LIGHT・charisma)
+  | 'seek_diplomatic_support'
 
 // --- Task ---
 export type Task = {

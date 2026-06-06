@@ -15,6 +15,7 @@ import type {
 } from '../types/task'
 import type { WorldState } from '../types/world'
 import { addTaskToIndicesMut, removeTaskFromIndicesMut } from '../mutations/taskMutations'
+import { applySeekDiplomaticSupportMut } from './diplomaticSupportEvents'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type {
   PersonId,
@@ -686,7 +687,13 @@ function handleTaskCompletionMut(
       )
       const side: 'initiator' | 'target' = isInitiator ? 'initiator' : 'target'
 
-      applyDiplomaticTaskEffectMut(ws, config, playId, task, side)
+      // v0.43 §7.6: seek_diplomatic_support は outcome 依存の専用効果
+      // (applyDiplomaticTaskEffectMut は outcome を見ず emit も持たないため別経路)。
+      if (task.kind === 'seek_diplomatic_support') {
+        applySeekDiplomaticSupportMut(ws, config, playId, side, outcome, emitEvent)
+      } else {
+        applyDiplomaticTaskEffectMut(ws, config, playId, task, side)
+      }
 
       // Phase B: bridge negotiate task outcome to project progress
       if (play.originProjectId) {

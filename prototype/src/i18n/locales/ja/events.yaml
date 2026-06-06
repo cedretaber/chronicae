@@ -124,6 +124,7 @@ revolt:
 diplomatic_play:
   started_with_offer: '{{initiator}}が{{target}}と{{province}}について交渉を開始した。'
   started_no_offer: '{{initiator}}が{{target}}に{{province}}の割譲を迫った。'
+  support_declared: '{{supporter}}が{{opponent}}との争いにおいて{{supported}}への支援を宣言した。'
   progress: '{{province}}を巡る外交交渉が続いている。'
   settled_revolt: '{{province}}での反乱交渉が妥結した。'
   settled_tax: '{{province}}の税率改定が妥結した。'

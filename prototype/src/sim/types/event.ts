@@ -77,6 +77,8 @@ export type EventType =
   | 'REVOLT_ESCALATED'
   | 'REVOLT_REGIME_CHANGED'
   | 'DIPLOMATIC_PLAY_STARTED'
+  // v0.43 §17: supporter が DiplomaticPlay の一方 side への支援を宣言した
+  | 'DIPLOMATIC_SUPPORT_DECLARED'
   | 'DIPLOMATIC_PLAY_PROGRESS'
   | 'DIPLOMATIC_PLAY_SETTLED'
   | 'DIPLOMATIC_PLAY_FAILED'
