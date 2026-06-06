@@ -151,10 +151,11 @@ function calcPolityMilitaryPower(state: WorldState, config: SimulationConfig, po
 isEligibleWarPerson(state, personId): boolean              // 総大将になりうる person（生存・条件）
 selectCaptainGeneralForWarSide(state, polityId, config?): PersonId?  // warCommand スコア順に総大将を選出
 isEligibleBattleCommander(state, polityId, personId, captainGeneralId): boolean  // 適格人物 + active military office holder。leader は captainGeneral 兼任時のみ候補
-buildWarSideCommanderCandidates(state, polityId, captainGeneralId, config?): PersonId[]
+buildWarSideCommanderCandidates(state, polityIds, captainGeneralId, config?): PersonId[]  // v0.43: side の全 polity participant から選出（per-polity leader 除外 + dedup + warCommand desc / personId asc）
 getWarGoalProvince(state, war): ProvinceId?                 // battle 対象 Province の解決
 generateCandidateBattlefield(province, rng, config): RngResult<BattlefieldKind>  // terrain/features → 戦場。rng を 0-2 回 draw して進める
 getWarSidePrimaryPolityActor(war, sideKey): OrganizationRef?  // war side の主 Polity actor
+getWarSidePolityActors(war, sideKey): PolityId[]            // v0.43: side の全 polity participant（primary 先頭 + supporter 追加順）
 buildBattleSimCommanderInputs(state, commanderPersonIds): BattleSimCommanderInput[]  // commander PersonId[] を fieldCommandScore/breakthroughScore へ変換する battle sim seam
 ```
 

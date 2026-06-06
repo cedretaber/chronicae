@@ -4,6 +4,7 @@ import { createOfficeAssignment } from '../mutations/officeMutations'
 import { createWar } from '../mutations/warMutations'
 import {
   getWarSidePrimaryPolityActor,
+  getWarSidePolityActors,
   selectCaptainGeneralForWarSide,
   isEligibleBattleCommander,
   buildWarSideCommanderCandidates,
@@ -137,7 +138,7 @@ describe('isEligibleBattleCommander / buildWarSideCommanderCandidates', () => {
     expect(isEligibleBattleCommander(s, POL, 'pe-king' as PersonId, 'pe-cmd1' as PersonId)).toBe(
       false,
     )
-    expect(buildWarSideCommanderCandidates(s, POL, 'pe-cmd1' as PersonId)).toEqual([
+    expect(buildWarSideCommanderCandidates(s, [POL], 'pe-cmd1' as PersonId)).toEqual([
       'pe-cmd1',
       'pe-cmd2',
     ])
@@ -148,7 +149,7 @@ describe('isEligibleBattleCommander / buildWarSideCommanderCandidates', () => {
     expect(isEligibleBattleCommander(s, POL, 'pe-king' as PersonId, 'pe-king' as PersonId)).toBe(
       true,
     )
-    expect(buildWarSideCommanderCandidates(s, POL, 'pe-king' as PersonId)).toEqual([
+    expect(buildWarSideCommanderCandidates(s, [POL], 'pe-king' as PersonId)).toEqual([
       'pe-king',
       'pe-cmd1',
       'pe-cmd2',
@@ -173,14 +174,90 @@ describe('isEligibleBattleCommander / buildWarSideCommanderCandidates', () => {
     const s = setupKingdom()
     s.persons['pe-cmd1' as PersonId] = makePerson('pe-cmd1', 80, { alive: false })
     expect(isEligibleBattleCommander(s, POL, 'pe-cmd1' as PersonId, undefined)).toBe(false)
-    expect(buildWarSideCommanderCandidates(s, POL, undefined)).toEqual(['pe-cmd2'])
+    expect(buildWarSideCommanderCandidates(s, [POL], undefined)).toEqual(['pe-cmd2'])
   })
 
   it('dedups a person holding multiple military offices', () => {
     let s = setupKingdom()
     s = addMilitary(s, 'pe-cmd1') // pe-cmd1 holds 2 military offices
-    const candidates = buildWarSideCommanderCandidates(s, POL, undefined)
+    const candidates = buildWarSideCommanderCandidates(s, [POL], undefined)
     expect(candidates.filter((id) => (id as string) === 'pe-cmd1')).toHaveLength(1)
+  })
+})
+
+// v0.43 追補: 指揮官候補は side の全 polity participant (supporter 含む) から選出される。
+describe('buildWarSideCommanderCandidates (multi-polity / supporter 開放)', () => {
+  const POL2 = 'po-2' as PolityId
+
+  function addMilitaryTo(state: WorldState, polityId: PolityId, personId: string): WorldState {
+    return createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'military',
+      personId as PersonId,
+    )
+  }
+  function addLeaderTo(state: WorldState, polityId: PolityId, personId: string): WorldState {
+    return createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'leader',
+      personId as PersonId,
+    )
+  }
+
+  // primary (POL): pe-cmd1(80)。supporter (POL2): pe-sup1(90), pe-sup2(70) + leader pe-sking(95)。
+  function setupCoalition(): WorldState {
+    let s = makeEmptyV016State()
+    s.persons['pe-cmd1' as PersonId] = makePerson('pe-cmd1', 80)
+    s.persons['pe-sup1' as PersonId] = makePerson('pe-sup1', 90)
+    s.persons['pe-sup2' as PersonId] = makePerson('pe-sup2', 70)
+    s.persons['pe-sking' as PersonId] = makePerson('pe-sking', 95)
+    s = addMilitaryTo(s, POL, 'pe-cmd1')
+    s = addMilitaryTo(s, POL2, 'pe-sup1')
+    s = addMilitaryTo(s, POL2, 'pe-sup2')
+    s = addMilitaryTo(s, POL2, 'pe-sking')
+    s = addLeaderTo(s, POL2, 'pe-sking')
+    return s
+  }
+
+  it('includes supporter-polity military holders, sorted by warCommand across polities', () => {
+    const s = setupCoalition()
+    // pe-sup1(90) > pe-cmd1(80) > pe-sup2(70)。supporter 人材が primary より上位にも入れる。
+    expect(buildWarSideCommanderCandidates(s, [POL, POL2], undefined)).toEqual([
+      'pe-sup1',
+      'pe-cmd1',
+      'pe-sup2',
+    ])
+  })
+
+  it('excludes the supporter-polity leader (CG is a primary person, never the supporter leader)', () => {
+    const s = setupCoalition()
+    // CG = pe-cmd1 (primary 側) のとき、supporter leader pe-sking(95) は最高スコアでも除外。
+    const candidates = buildWarSideCommanderCandidates(s, [POL, POL2], 'pe-cmd1' as PersonId)
+    expect(candidates).toEqual(['pe-sup1', 'pe-cmd1', 'pe-sup2'])
+  })
+
+  it('breaks cross-polity warCommand ties by personId ascending', () => {
+    let s = makeEmptyV016State()
+    s.persons['pe-b' as PersonId] = makePerson('pe-b', 70)
+    s.persons['pe-a' as PersonId] = makePerson('pe-a', 70)
+    s = addMilitaryTo(s, POL, 'pe-b')
+    s = addMilitaryTo(s, POL2, 'pe-a')
+    expect(buildWarSideCommanderCandidates(s, [POL, POL2], undefined)).toEqual(['pe-a', 'pe-b'])
+  })
+
+  it('dedups a person holding military offices in both polities', () => {
+    let s = makeEmptyV016State()
+    s.persons['pe-dual' as PersonId] = makePerson('pe-dual', 80)
+    s = addMilitaryTo(s, POL, 'pe-dual')
+    s = addMilitaryTo(s, POL2, 'pe-dual')
+    expect(buildWarSideCommanderCandidates(s, [POL, POL2], undefined)).toEqual(['pe-dual'])
+  })
+
+  it('single-polity input preserves the pre-v0.43 behavior', () => {
+    const s = setupCoalition()
+    expect(buildWarSideCommanderCandidates(s, [POL], undefined)).toEqual(['pe-cmd1'])
   })
 })
 
@@ -257,5 +334,24 @@ describe('getWarSidePrimaryPolityActor', () => {
     })
     expect(getWarSidePrimaryPolityActor(war, 'attacker')).toBe('po-1')
     expect(getWarSidePrimaryPolityActor(war, 'defender')).toBe('po-2')
+  })
+})
+
+describe('getWarSidePolityActors', () => {
+  it('returns primary first then supporters in participants order, per side', () => {
+    const s = makeEmptyV016State()
+    const war = createWar(s, {
+      attacker: { kind: 'polity', id: POL },
+      defender: { kind: 'polity', id: 'po-2' as PolityId },
+      attackerSupporters: [
+        { actor: { kind: 'polity', id: 'po-9' as PolityId } },
+        { actor: { kind: 'polity', id: 'po-3' as PolityId } },
+      ],
+      warGoals: [],
+      targetWarScore: 60,
+      startedWeek: s.absoluteWeek,
+    })
+    expect(getWarSidePolityActors(war, 'attacker')).toEqual(['po-1', 'po-9', 'po-3'])
+    expect(getWarSidePolityActors(war, 'defender')).toEqual(['po-2'])
   })
 })

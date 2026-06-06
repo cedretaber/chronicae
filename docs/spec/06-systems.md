@@ -1479,7 +1479,7 @@ active War ごとに「誰が指揮し・どの戦場で・戦うか回避する
 2. **dead-participant guard**: primary participant が missing/inactive な War は skip（消滅 actor は cancelOrphanedWarsSystem が cancelled 化）。
 3. **warScore 凍結**: `|warScore| >= targetWarScore` の War は warScore を動かさず skip（PeaceSettlement 待ち。下記 cadence）。
 4. **総大将 lazy refresh**（polity actor のみ。house actor war は no-op）: 現 `captainGeneralPersonId` が eligible（`isEligibleWarPerson`）なら据置、不適格/不在なら `selectCaptainGeneralForWarSide`（warCommand スコア順）で再選出。変化時 `WAR_CAPTAIN_GENERAL_CHANGED`（喪失=major / 交代=normal）。初回任命（旧 undefined）は event なし。
-5. **指揮官候補 lazy refresh**: `buildWarSideCommanderCandidates` で再構築（変化時のみ state 更新・event なし）。先頭が当該週の戦闘指揮官。
+5. **指揮官候補 lazy refresh**: `buildWarSideCommanderCandidates` で再構築（変化時のみ state 更新・event なし）。先頭が当該週の戦闘指揮官。v0.43 追補: 候補は side の**全 polity participant（supporter 含む）**の military office holder から選出する（`getWarSidePolityActors` で列挙し per-polity に leader 除外 → 合算 dedup → warCommand 降順 / personId 昇順）。越境指揮を許容する（battle 内の指揮官割当 pool は polity 非依存で、supporter の指揮官が primary の連隊を率いてよい）。総大将は従来どおり primary polity のみから選出し、supporter polity の leader は CG を兼ねないため leader 除外規則で自然に候補外となる。
 6. **戦場生成**: WarGoal 対象 Province から `generateCandidateBattlefield`。major_river feature は確率 `warBattlefieldRiverCrossingChance` で `river_crossing`、coastal feature は `warBattlefieldCoastalBattleChance` で `coastal_battle`、それ以外は `TERRAIN_TO_BATTLEFIELD[terrain]`（terrain 5 種 → open_field/forest_battle/hill_battle/mountain_pass/wetland_battle の 1:1）。対象 Province 未解決なら以降 skip。
 7. **回避判断**（両陣営 `decideEngagement`）: `avoidDesire = 戦力劣勢 + caution・地形回避性 − urgency(負けている側ほど高) − ambition − avoidanceCount ペナルティ + noise`。`avoidanceCount >= maxWarAvoidanceCount` は強制 accept。総大将不在は中立 traits(0.5) で計算。
 8. **戦闘 or 回避の解決**:

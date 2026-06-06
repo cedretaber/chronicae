@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { WarSide, WarSideKey, BattleInitiationKind } from '../types/war'
-import type { WarId, PersonId, PolityId } from '../types/ids'
+import type { WarId, PersonId } from '../types/ids'
 import { createBattleId } from '../types/ids'
 import type { Regiment } from '../types/regiment'
 import type { BattleRegimentResult } from '../types/battle'
@@ -36,6 +36,7 @@ import type {
 } from '../helpers/simulateBattle'
 import {
   getWarSidePrimaryPolityActor,
+  getWarSidePolityActors,
   selectCaptainGeneralForWarSide,
   buildWarSideCommanderCandidates,
   buildBattleSimCommanderInputs,
@@ -251,11 +252,11 @@ function refreshCaptainGeneral(
 }
 
 // step 4: commander candidates lazy refresh (§5.2)。変化時のみ WarSide 更新。event なし。
+//   v0.43 追補: 候補は side の全 polity participant (supporter 含む) から選出する。
 function refreshCommanders(
   ws: WorldState,
   wid: WarId,
   sideKey: WarSideKey,
-  polityId: PolityId,
   config: SimulationConfig,
 ): void {
   const war = ws.wars[wid]
@@ -263,7 +264,7 @@ function refreshCommanders(
   const side = sideKey === 'attacker' ? war.attacker : war.defender
   const candidates = buildWarSideCommanderCandidates(
     ws,
-    polityId,
+    getWarSidePolityActors(war, sideKey),
     side.captainGeneralPersonId,
     config,
   )
@@ -336,8 +337,8 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
     if (atkPolity === undefined || defPolity === undefined) continue // house actor war: maneuver no-op
 
     // step 4: commander candidates lazy refresh
-    refreshCommanders(ws, wid, 'attacker', atkPolity, config)
-    refreshCommanders(ws, wid, 'defender', defPolity, config)
+    refreshCommanders(ws, wid, 'attacker', config)
+    refreshCommanders(ws, wid, 'defender', config)
     const war3 = ws.wars[wid]
     if (!war3) continue
 

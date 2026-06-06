@@ -848,7 +848,7 @@ type WarSide = {
   // War Maneuver: いずれも soft reference（不在/死亡を許容し IntegrityCheck では検査しない）。
   //   WarManeuverSystem が毎週 lazy に選出/再構築する。詳細は §6.45。
   captainGeneralPersonId?: PersonId  // この side の総大将。不在時 undefined（house actor war では管理しない）
-  commanderPersonIds: PersonId[]     // 現場指揮官候補。先頭が当該週の戦闘指揮官
+  commanderPersonIds: PersonId[]     // 現場指揮官候補。先頭が当該週の戦闘指揮官。v0.43: side の全 polity participant（supporter 含む）から選出
   avoidanceCount: number             // この side が戦闘回避を選んだ累積回数（単調増加・reset しない）
 }
 

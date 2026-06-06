@@ -63,6 +63,18 @@ export function getWarSidePrimaryPolityActor(war: War, sideKey: WarSideKey): Pol
   return actor?.kind === 'polity' ? actor.id : undefined
 }
 
+// WarSide の全 polity participant (primary + supporters) の PolityId を participants 配列順で返す。
+//   v0.43 追補: 指揮官候補を supporter 含む全 polity から選出するための列挙。
+//   participants は primary 先頭 + supporter 追加順 (createWar の構築順) で決定的。
+export function getWarSidePolityActors(war: War, sideKey: WarSideKey): PolityId[] {
+  const side = sideKey === 'attacker' ? war.attacker : war.defender
+  const out: PolityId[] = []
+  for (const p of side.participants) {
+    if (p.actor.kind === 'polity') out.push(p.actor.id)
+  }
+  return out
+}
+
 // その polity の総大将を選出する。
 //   優先順: active military office holder (warCommand 最高) → polity leader → undefined。
 //   leader は総大将としては除外しない (commander 候補とは異なり、総大将は leader 親征を許容する)。
@@ -104,17 +116,24 @@ export function isEligibleBattleCommander(
   return true
 }
 
-// その polity の現場指揮官候補リストを構築する (leader 除外 + 重複排除 + warCommand desc / personId asc)。
+// side の全 polity participant から現場指揮官候補リストを構築する
+//   (leader 除外は per-polity + 重複排除 + warCommand desc / personId asc)。
+//   v0.43 追補: supporter polity の military office holder も候補に含める (越境指揮を許容 —
+//   battle 側の割当 pool は polity 非依存)。supporter polity の leader は CG を兼ねない限り
+//   isEligibleBattleCommander の leader 除外で自然に落ちる (CG は primary 人物のため)。
 export function buildWarSideCommanderCandidates(
   state: WorldState,
-  polityId: PolityId,
+  polityIds: readonly PolityId[],
   captainGeneralId: PersonId | undefined,
   config?: SimulationConfig,
 ): PersonId[] {
-  const military = getActiveOfficeHolders(state, { kind: 'polity', id: polityId }, 'military')
-  const eligible = military.filter((id) =>
-    isEligibleBattleCommander(state, polityId, id, captainGeneralId),
-  )
+  const eligible: PersonId[] = []
+  for (const polityId of polityIds) {
+    const military = getActiveOfficeHolders(state, { kind: 'polity', id: polityId }, 'military')
+    for (const id of military) {
+      if (isEligibleBattleCommander(state, polityId, id, captainGeneralId)) eligible.push(id)
+    }
+  }
   const deduped = [...new Set(eligible)]
   return sortByWarCommandThenId(state, deduped, config)
 }
