@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { WarSide, WarSideKey, BattleInitiationKind } from '../types/war'
-import type { WarId, PersonId } from '../types/ids'
+import type { WarId, PersonId, PolityId } from '../types/ids'
 import { createBattleId } from '../types/ids'
 import type { Regiment } from '../types/regiment'
 import type { BattleRegimentResult } from '../types/battle'
@@ -22,6 +22,7 @@ import {
 } from '../mutations/regimentMutations'
 import { createBattle } from '../mutations/battleMutations'
 import { isActorActive } from '../selectors/actorSelectors'
+import { getPolityLeader } from '../selectors/officeSelectors'
 import { getRoleScore } from '../selectors/abilitySelectors'
 import {
   getRegimentPowerForWarSide,
@@ -252,6 +253,59 @@ function refreshCaptainGeneral(
   return ctx
 }
 
+// step 3.5 (v0.45.2): 総大将の両陣営重複解消。
+//   同一人物が両陣営の CG に立つことがある (例: 臣下国 leader が宗主国の military office を保持し、
+//   片側は military 経路・もう片側は leader fallback で同じ人物を選ぶ)。lazy refresh は現 CG が
+//   eligible なら据置のため、refresh の変化有無と独立に毎 tick 検査する。
+//   タイブレークは polity leadership: 片側 primary の leader はその side が保持し、反対 side
+//   だけ除外して再選出する (人は自分が率いる polity に背かない)。どちらの leader でもない /
+//   両方の leader (理論上のみ) は両 side から除外 (現場指揮官の両属除外と同じ「忠誠の板挟み」扱い)。
+//   exclude は累積するため、再選出で別の人物が再衝突しても有限回で停止する。
+function dedupeCaptainGenerals(
+  ctx: TickContext,
+  ws: WorldState,
+  wid: WarId,
+  atkPolity: PolityId,
+  defPolity: PolityId,
+): TickContext {
+  let currentCtx = ctx
+  const exclude = new Set<string>()
+  for (;;) {
+    const war = ws.wars[wid]
+    if (!war) return currentCtx
+    const atkCG = war.attacker.captainGeneralPersonId
+    const defCG = war.defender.captainGeneralPersonId
+    if (atkCG === undefined || defCG === undefined || atkCG !== defCG) return currentCtx
+    const dup = atkCG
+    exclude.add(dup)
+    const leadsAtk = getPolityLeader(ws, atkPolity) === dup
+    const leadsDef = getPolityLeader(ws, defPolity) === dup
+    const sidesToReselect: WarSideKey[] =
+      leadsAtk && !leadsDef
+        ? ['defender']
+        : leadsDef && !leadsAtk
+          ? ['attacker']
+          : ['attacker', 'defender']
+    for (const sideKey of sidesToReselect) {
+      const w = ws.wars[wid]
+      if (!w) return currentCtx
+      const side = sideKey === 'attacker' ? w.attacker : w.defender
+      const current = side.captainGeneralPersonId
+      const polityId = sideKey === 'attacker' ? atkPolity : defPolity
+      const newCG = selectCaptainGeneralForWarSide(ws, polityId, currentCtx.config, exclude)
+      if (newCG === undefined) {
+        const cleared: WarSide = { ...side }
+        delete cleared.captainGeneralPersonId
+        updateWar(ws, wid, { [sideKey]: cleared })
+      } else {
+        updateWarSideMut(ws, wid, sideKey, { captainGeneralPersonId: newCG })
+      }
+      // current は必ず defined (= dup) なので refresh の規約どおり event を出す。
+      currentCtx = emitCaptainGeneralChanged(currentCtx, w, sideKey, current, newCG)
+    }
+  }
+}
+
 // step 4: commander candidates lazy refresh (§5.2)。変化時のみ WarSide 更新。event なし。
 //   v0.43 追補: 候補は side の全 polity participant (supporter 含む) の宮廷人材プール
 //   (military office holder + House メンバー + 派閥食客) から選出する。両陣営の候補が
@@ -347,6 +401,11 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
     const atkPolity = getWarSidePrimaryPolityActor(war2, 'attacker')
     const defPolity = getWarSidePrimaryPolityActor(war2, 'defender')
     if (atkPolity === undefined || defPolity === undefined) continue // house actor war: maneuver no-op
+
+    // step 3.5 (v0.45.2): 総大将の両陣営重複解消 (lazy refresh と独立に毎 tick)。
+    //   step 4 より前に置く: refreshCommanders の候補構築 (leader 例外) が確定後の CG を参照する。
+    next = dedupeCaptainGenerals(next, ws, wid, atkPolity, defPolity)
+    if (!ws.wars[wid]) continue
 
     // step 4: commander candidates lazy refresh (両 side 一括 — 両属除外のため)
     refreshCommanders(ws, wid, config)

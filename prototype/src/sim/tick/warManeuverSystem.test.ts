@@ -10,6 +10,7 @@ import { getRegimentEffectivePower } from '../selectors/regimentSelectors'
 import { runWarManeuverSystem } from './warManeuverSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
 import { politicalActorKey } from '../selectors/actorSelectors'
+import { getPolityLeader } from '../selectors/officeSelectors'
 import type { WorldState } from '../types/world'
 import type { War, BattlefieldKind } from '../types/war'
 import type { Province } from '../types/province'
@@ -254,6 +255,50 @@ describe('WarManeuverSystem soft captain general (§19.2)', () => {
     const w = next.state.wars[war.id]!
     expect(w.status).toBe('active') // soft ref: cancel しない
     expect(w.attacker.captainGeneralPersonId).not.toBe(deadId) // 再選出 or undefined
+  })
+})
+
+describe('WarManeuverSystem captain general 両陣営重複解消 (v0.45.2 step 3.5)', () => {
+  it('defender primary の leader が両陣営 CG のとき、defender が保持し attacker だけ再選出する', () => {
+    const world = freshWorld()
+    const { war, owner } = injectWar(world) // attacker=other, defender=owner
+    const defLeader = getPolityLeader(world, owner)
+    expect(defLeader).toBeDefined()
+    // 両陣営の CG に同一人物 (defender の leader) を差し込む。現 CG は eligible なので
+    // lazy refresh は両方据置 → step 3.5 のみが解消経路 (load-bearing の検証)。
+    war.attacker.captainGeneralPersonId = defLeader!
+    war.defender.captainGeneralPersonId = defLeader!
+
+    const next = runWarManeuverSystem(makeCtx(world))
+    const w = next.state.wars[war.id]!
+    expect(w.status).toBe('active')
+    expect(w.defender.captainGeneralPersonId).toBe(defLeader)
+    expect(w.attacker.captainGeneralPersonId).not.toBe(defLeader)
+    expect(next.events.some((e) => e.type === 'WAR_CAPTAIN_GENERAL_CHANGED')).toBe(true)
+  })
+
+  it('どちらの primary の leader でもない人物が両陣営 CG のとき、両 side から除外される', () => {
+    const world = freshWorld()
+    const { war, owner, other } = injectWar(world)
+    // どちらの leader でもない生存成人を選ぶ
+    const atkLeader = getPolityLeader(world, other)
+    const defLeader = getPolityLeader(world, owner)
+    const neutral = Object.values(world.persons).find(
+      (p) =>
+        p &&
+        p.alive &&
+        p.kind !== 'placeholder' &&
+        p.id !== atkLeader &&
+        p.id !== defLeader &&
+        p.lifeStage !== 'childhood',
+    )!
+    war.attacker.captainGeneralPersonId = neutral.id
+    war.defender.captainGeneralPersonId = neutral.id
+
+    const next = runWarManeuverSystem(makeCtx(world))
+    const w = next.state.wars[war.id]!
+    expect(w.attacker.captainGeneralPersonId).not.toBe(neutral.id)
+    expect(w.defender.captainGeneralPersonId).not.toBe(neutral.id)
   })
 })
 

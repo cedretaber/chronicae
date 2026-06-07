@@ -125,6 +125,25 @@ describe('selectCaptainGeneralForWarSide', () => {
     expect(selectCaptainGeneralForWarSide(s, POL)).toBeUndefined()
     expect(selectCaptainGeneralForWarSide(makeEmptyV016State(), POL)).toBeUndefined()
   })
+
+  // v0.45.2: 両陣営 CG 重複解消用の exclude
+  it('exclude は military 候補から除外し、次点を選ぶ', () => {
+    let s = makeEmptyV016State()
+    s.persons['pe-mil1' as PersonId] = makePerson('pe-mil1', 80)
+    s.persons['pe-mil2' as PersonId] = makePerson('pe-mil2', 60)
+    s = addMilitary(s, 'pe-mil1')
+    s = addMilitary(s, 'pe-mil2')
+    expect(selectCaptainGeneralForWarSide(s, POL, undefined, new Set(['pe-mil1']))).toBe('pe-mil2')
+  })
+
+  it('exclude は leader fallback にも適用され、全滅なら undefined', () => {
+    let s = makeEmptyV016State()
+    s.persons['pe-leader' as PersonId] = makePerson('pe-leader', 50)
+    s = addLeader(s, 'pe-leader')
+    expect(
+      selectCaptainGeneralForWarSide(s, POL, undefined, new Set(['pe-leader'])),
+    ).toBeUndefined()
+  })
 })
 
 describe('isEligibleBattleCommander / buildWarSideCommanderCandidates', () => {

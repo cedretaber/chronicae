@@ -90,21 +90,24 @@ export function getWarSidePolityActors(war: War, sideKey: WarSideKey): PolityId[
 // その polity の総大将を選出する。
 //   優先順: active military office holder (warCommand 最高) → polity leader → undefined。
 //   leader は総大将としては除外しない (commander 候補とは異なり、総大将は leader 親征を許容する)。
+//   v0.45.2: exclude (両陣営 CG 重複の解消で反対 side が確保した人物) は military 候補・
+//   leader fallback の両方から除外する。
 export function selectCaptainGeneralForWarSide(
   state: WorldState,
   polityId: PolityId,
   config?: SimulationConfig,
+  exclude?: ReadonlySet<string>,
 ): PersonId | undefined {
-  const military = getActiveOfficeHolders(
-    state,
-    { kind: 'polity', id: polityId },
-    'military',
-  ).filter((id) => isEligibleWarPerson(state, id))
+  const military = getActiveOfficeHolders(state, { kind: 'polity', id: polityId }, 'military')
+    .filter((id) => !exclude?.has(id))
+    .filter((id) => isEligibleWarPerson(state, id))
   if (military.length > 0) {
     return sortByWarCommandThenId(state, military, config)[0]
   }
   const leader = getPolityLeader(state, polityId)
-  if (leader !== undefined && isEligibleWarPerson(state, leader)) return leader
+  if (leader !== undefined && !exclude?.has(leader) && isEligibleWarPerson(state, leader)) {
+    return leader
+  }
   return undefined
 }
 
