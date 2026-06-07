@@ -238,6 +238,7 @@ land_claim を自然に発生させるには、「他者の province の holding
 
 - entity 数 597（生存 211 人中 85 人が保持）。expiryWeek 事前計算 + 年次 cleanup で無限蓄積はしない（減衰率 0.985/月 × threshold 0.25 → baseScore 12 で約 21 年滞留）
 - 同一人物への最大集中 29 件（top5: 29/29/28/24/22）。「成功した人物がさらに任用される」循環は観察される — snowball が過剰かは将来の総合バランス調整で判断
-- **category 偏り（既知・保留）**: culture 368 / military 195 / diplomacy 33 / administration 1。文化系 Project（patronize_artist / commission_chronicle）の完了頻度が支配的で、develop_holding 由来の administration 評判がほぼ発生していない。Project 成功率・生成頻度の問題（§14 既知問題群）と連動するため、v0.44 では config を触らず保留
+- **category 偏り（既知・保留）**: 300 年 seed 1 の発生量（GAINED+DAMAGED）は culture 7,794 / military 4,685 / diplomacy 1,677 / administration 185。文化系 Project（patronize_artist / commission_chronicle）の完了頻度が支配的で、develop_holding 由来の administration 評判は機能しているが 1 桁少ない。Project 成功率・生成頻度の問題（§14 既知問題群）と連動するため、v0.44 では config を触らず保留。なお dump-world のスナップショット集計（上記滞留 597 の内訳）は約 21 年の retention 窓の断面であり発生率ではない点に注意
+- **未使用 category**: stewardship / intrigue / general は v0.44 時点で発生 source が存在しない（Project map は administration/diplomacy/culture のみ、Play=diplomacy、War=military）。OfficeRole→category 表（§6.66）が参照するための予約枠
 
 **personal_training**: 100 年 × seed 1 で completed 3,142 / failed 13 / cancelled 61。鍛錬は高頻度・高成功率で、能力成長の主要経路の一つになっている（成功率の高さは Project 全般の既知問題 — §6.41 / 過去観察と同根）。
