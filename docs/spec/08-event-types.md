@@ -126,7 +126,7 @@
 | POP_DECLINED | normal | Province 人口大幅低下（将来実装） |
 | ESTATE_SETTLED | minor / normal / major | 死亡時の wealth 分配（家長 or wealth≥house*20% で normal、polity leader で major） |
 | ESTATE_DISPUTED | minor | 複数相続人候補による争い（記録のみ、ESTATE_SETTLED と並んで発火） |
-| PERSON_ABILITY_GREW | minor / normal | v0.44 成果成長（§6.66）。ability ごとに emit。notable=normal |
+| PERSON_ABILITY_GREW | minor / normal | v0.44 成果成長（§6.66、sourceKind=project/diplomatic_play/war）+ 自然成長（§6.24 追補、sourceKind=duty/natural）。ability ごとに emit。notable=normal |
 | PERSON_REPUTATION_GAINED | minor / normal | v0.44 正評判の獲得。reputation source 1 件につき 1 event |
 | PERSON_REPUTATION_DAMAGED | minor / normal | v0.44 負評判 |
 

@@ -814,6 +814,13 @@ if (ability[k] < effectiveCeil) {
 
 **訓練経験 (v0.44 で廃止)**: 旧 `personTrainingExperience`（improve_ability Task 由来の gainChance bonus + 年次 decay）は v0.44 で全廃した。Task 完了は能力成長を直接発生させず、成果単位の即時成長（§6.66）に置き換えられている。
 
+**自然成長イベント (v0.44 追補)**: 成長判定で +1 が発生するたびに `PERSON_ABILITY_GREW` を emit する。`sourceKind` は成長の帯で出し分ける:
+
+- `'duty'`: 成長時の `ability >= naturalCeil`（= `hadRelevantExperience` による上限解放がなければ起こり得なかった、職務経験由来の成長）
+- `'natural'`: それ以外（年齢曲線内の自然成長）
+
+importance は §6.66 の award 経路と同じ notable=`normal` / 一般=`minor`（`isNotablePerson`）。メイン EventLog は major/critical のみ表示するため（§6.62 / EventLog `isMainLogEvent`）、これらは Person Chronicle（byPerson）にのみ蓄積される。RNG は消費しない（emit のみ・シミュレーション軌跡は不変）。実測 (100年 seed 1): natural ≈ 351 件/年・duty ≈ 16 件/年で、Chronicle エントリの約 8 割を占める（観賞対象は人物詳細パネルの履歴）。
+
 **衰退判定**: `youthPeak` / `midLifePeak` 曲線の能力で、`ability > naturalCeil` の場合に発火。経験あり人物は `abilityActiveDeclineMultiplier`（0.3）で衰退速度が鈍化する。`lifelongGrowth`（numeracy / learning）は衰退しない。
 
 **経験イベント対応表（hadRelevantExperience）**:

@@ -240,6 +240,8 @@ enum:
     project: 'project work'
     diplomatic_play: 'diplomatic negotiation'
     war: 'war'
+    duty: 'their duties'
+    natural: 'daily practice'
   battlefieldKind:
     open_field: 'Field Battle'
     forest_battle: 'Forest Battle'

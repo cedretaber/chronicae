@@ -1,11 +1,14 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { PersonId } from '../types/ids'
+import type { PersonId, EventId } from '../types/ids'
 import type { AbilityScores, AbilityKey, Person } from '../types/person'
+import type { SimEvent } from '../types/event'
 import { isLivingPerson } from '../types/person'
 import { ABILITY_KEYS, ABILITY_AGE_CURVES, ABILITY_HARD_CAP } from '../constants/abilityConstants'
 import { naturalFraction, hadRelevantExperience } from '../selectors/abilitySelectors'
 import { randomFloat } from '../rng/rng'
+import { nameParam, entityRef } from '../types/event'
+import { isNotablePerson } from '../selectors/notablePersonSelectors'
 
 // v0.40 §6.3: living な父母の該当 ability の平均（両親いれば平均・片親のみなら片親）。
 //   死亡済み親は含めない。親がいなければ undefined。
@@ -26,9 +29,20 @@ function averageLivingParentAbility(
   return values.reduce((a, b) => a + b, 0) / values.length
 }
 
+// 自然成長の emit 用レコード。duty = hadRelevantExperience による上限解放が
+// なければ起こり得なかった成長 (oldValue >= naturalCeil の帯)。
+type NaturalGrowthRecord = {
+  personId: PersonId
+  key: AbilityKey
+  oldValue: number
+  newValue: number
+  duty: boolean
+}
+
 export function runPersonGrowthSystem(ctx: TickContext): TickContext {
   let rng = ctx.rng
   const updatedPersons: Record<PersonId, AbilityScores> = {}
+  const grownRecords: NaturalGrowthRecord[] = []
 
   for (const personId of ctx.state.livingPersonIds) {
     const person = ctx.state.persons[personId]
@@ -43,7 +57,8 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
       const aptitude = person.aptitudes[k]
 
       const naturalCeil = aptitude * naturalFraction(k, person.age, ctx.config)
-      const effectiveCeil = hadRelevantExperience(ctx.state, person.id, k) ? aptitude : naturalCeil
+      const experienced = hadRelevantExperience(ctx.state, person.id, k)
+      const effectiveCeil = experienced ? aptitude : naturalCeil
 
       let grew = false
 
@@ -64,6 +79,15 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
           newAbilities[k] = Math.min(ability + 1, ABILITY_HARD_CAP)
           changed = true
           grew = true
+          grownRecords.push({
+            personId: person.id,
+            key: k,
+            oldValue: ability,
+            newValue: newAbilities[k],
+            // naturalCeil 以上の帯での成長は experienced による上限解放がなければ
+            // 起こり得なかった = 職務 (経験) 由来の成長として区別する
+            duty: experienced && ability >= naturalCeil,
+          })
         }
       }
 
@@ -103,9 +127,43 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
     }
   }
 
+  const newState = { ...ctx.state, persons: newPersons }
+
+  // 自然成長を PERSON_ABILITY_GREW として emit する。importance は award 経路
+  // (awardHelpers) と同じ notable→normal / それ以外→minor。メイン EventLog は
+  // major/critical のみ表示するため、これらは Person Chronicle (byPerson) にのみ残る。
+  const newEvents: SimEvent[] = []
+  let nextEventIndex = ctx.nextEventIndex
+  for (const record of grownRecords) {
+    const person = newPersons[record.personId]
+    if (!person) continue
+    const id = `e-${newState.absoluteWeek}-${nextEventIndex}` as EventId
+    nextEventIndex++
+    newEvents.push({
+      id,
+      year: newState.currentYear,
+      weekOfYear: newState.currentWeekOfYear,
+      type: 'PERSON_ABILITY_GREW',
+      importance: isNotablePerson(newState, record.personId) ? 'normal' : 'minor',
+      messageKey: 'person.ability_grew',
+      messageParams: {
+        person: nameParam('person', person.nameKey),
+        ability: record.key,
+        oldValue: record.oldValue,
+        newValue: record.newValue,
+        sourceKind: record.duty ? 'duty' : 'natural',
+      },
+      entityRefs: [entityRef('person', record.personId, 'subject', person.nameKey)],
+      reasons: [],
+      effects: [],
+    })
+  }
+
   return {
     ...ctx,
     rng,
-    state: { ...ctx.state, persons: newPersons },
+    state: newState,
+    events: newEvents.length > 0 ? [...ctx.events, ...newEvents] : ctx.events,
+    nextEventIndex,
   }
 }

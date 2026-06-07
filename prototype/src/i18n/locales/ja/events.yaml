@@ -239,6 +239,8 @@ enum:
     project: '事業'
     diplomatic_play: '外交交渉'
     war: '戦争'
+    duty: '職務経験'
+    natural: '日々の研鑽'
   battlefieldKind:
     open_field: '野戦'
     forest_battle: '森林戦'
