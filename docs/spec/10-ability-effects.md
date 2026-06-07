@@ -111,7 +111,7 @@ effectiveScore >= threshold                 → partial
 effectiveScore < threshold                  → failure
 ```
 
-**TaskKind → relevantAbility マッピング**（outcome 判定用。effort 計算用の `getTaskRelevantAbility` とは 7 TaskKind で値が異なる: perform_office_duties / defend_office_position / study_accounts / practice_arms / courtly_training / gather_claim_evidence / negotiate_terms）:
+**TaskKind → relevantAbility マッピング**（outcome 判定用。effort 計算用の `getTaskRelevantAbility` とは perform_office_duties / defend_office_position / gather_claim_evidence / negotiate_terms で値が異なる。v0.44: 旧鍛錬 4 TaskKind は削除）:
 
 | TaskKind | difficulty | relevantAbility |
 |---|---|---|
@@ -126,10 +126,6 @@ effectiveScore < threshold                  → failure
 | secure_internal_support | 30 | charisma |
 | arrange_patronage | 25 | charisma |
 | commission_chronicle_work | 25 | learning |
-| study_law | 35 | learning |
-| study_accounts | 35 | learning |
-| practice_arms | 35 | command |
-| courtly_training | 35 | learning |
 | prepare_project / advance_project | 30 / 35 | ProjectKind に応じて変動（§4.9 参照） |
 | collect_holding_revenue | 20 | numeracy |
 | 外交劇系 (6 種) | 35〜50 | learning / insight / charisma / command |

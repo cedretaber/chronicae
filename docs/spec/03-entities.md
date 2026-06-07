@@ -538,6 +538,16 @@ politicalRightIndex: {
 nextPoliticalRightId: number
 ```
 
+**PersonReputation**（v0.44）: 成果（Project / DiplomaticPlay / War）由来の人物評判。型詳細と lifecycle は §6.66。
+
+```ts
+personReputations: Record<PersonReputationId, PersonReputation>   // 'rep-' prefix
+personReputationIndex: { byPerson: Record<PersonId, PersonReputationId[]> }
+nextPersonReputationId: number
+```
+
+baseScore を保存し現在値は selector で月次減衰計算。expiryWeek を作成時に事前計算し、cleanup は週比較 + 死亡 purge のみ。hard-delete。
+
 target key は `polity_office_role:{polityId}:{role}:{slotIndex}` / `holding_office_role:{holdingId}:bailiff` /
 `regiment:{regimentId}`。hard-delete（active=false 残置なし。履歴は SimEvent / Chronicle）。
 
@@ -767,6 +777,12 @@ type DiplomaticPlayKind =
 
 type ActiveDiplomaticPlayStatus = 'active' | 'escalated'
 type TerminalDiplomaticPlayStatus = 'settled' | 'failed' | 'resolved_by_conflict' | 'cancelled'
+
+// v0.44: terminal 化サイトで status と同時にセット必須（§6.66）。
+// resolved_by_conflict の多義（対外戦争化 / 内部叛乱の蜂起成功・鎮圧）を分離する
+type DiplomaticPlayTerminalOutcome =
+  | 'demands_met' | 'status_quo' | 'escalated_to_war'
+  | 'revolt_succeeded' | 'revolt_suppressed' | 'failed' | 'voided'
 ```
 
 offer-driven ハイブリッドモデル — 毎 tick structural tension 微増 + offer 提出時の離散評価。settlement は accepted offer によってのみ成立する。progress は settlement 判定に使わず UI 表示値として維持。
@@ -784,6 +800,7 @@ DiplomaticPlay の生成は ProjectStageSystem の `open_diplomatic_play` immedi
 ```ts
 type DiplomaticPlay = {
   ...existing fields...
+  terminalOutcome?: DiplomaticPlayTerminalOutcome  // v0.44: terminal status と同時にセット
   issue?: DiplomaticIssue          // land_claim / contract_tax_revision では必須。revolt_negotiation では省略
   primaryDemand?: DiplomaticDemand // revolt_negotiation 専用（非 revolt では integrity violation）
   currentOfferId?: DiplomaticOfferId
@@ -1194,7 +1211,6 @@ type TaskKind =
   | 'support_organization_plan' | 'promote_house_influence' | 'perform_office_duties'
   | 'seek_office_support' | 'display_competence' | 'defend_office_position'
   | 'manage_accounts' | 'seek_profitable_assignment'
-  | 'study_law' | 'study_accounts' | 'practice_arms' | 'courtly_training'
   | 'prepare_project' | 'advance_project'
   | 'secure_internal_support'
   | 'arrange_patronage' | 'commission_chronicle_work'
@@ -1327,9 +1343,6 @@ type WorldState = {
     byPerson: Record<string, PersonActivityLogId[]>
   }
   nextPersonActivityLogId: number
-
-  // 能力訓練経験
-  personTrainingExperience: Record<PersonId, Partial<Record<AbilityKey, number>>>
 }
 ```
 
@@ -1370,6 +1383,13 @@ type ProjectKind =
   | 'improve_contract_terms'
   | 'demand_tax_increase'
   | 'respond_to_pressure'
+  | 'personal_training'   // v0.44: improve_ability Aim の project 化（§6.66）
+
+// v0.44: terminal 化サイトで status と同時にセット必須（§6.66）
+type ProjectTerminalReason =
+  | 'completed' | 'deadline_expired' | 'stage_attempts_exceeded' | 'budget_exhausted'
+  | 'duplicate_play' | 'opponent_too_strong' | 'no_supervisor'
+  | 'owner_inactive' | 'aim_terminal' | 'play_terminal'
 
 type BaseProject = {
   id: ProjectId
@@ -1380,6 +1400,7 @@ type BaseProject = {
   supervisorPersonId: PersonId
   parentProjectId?: ProjectId
   status: ProjectStatus
+  terminalReason?: ProjectTerminalReason  // v0.44: terminal status と同時にセット
   progress: number
   targetProgress: number      // default 100
   currentStageKey: ProjectStageKey   // 全 Project に必須
@@ -1390,7 +1411,7 @@ type BaseProject = {
 }
 ```
 
-8 つの派生型 union で構成:
+9 つの派生型 union で構成:
 - `DevelopHoldingProject`: holdingId / improvementKind / targetImprovementLevel / budget (ProjectBudget)
 - `AcquirePoliticalRightProject`: polityId / target (PoliticalRightTargetRef) / budget / spentBudget（v0.42 — 旧 ExpandPolityShareProject は廃止）
 - `PromotePolicyShiftProject`: polityId / houseId / policyKey
@@ -1399,6 +1420,7 @@ type BaseProject = {
 - `LandClaimProject` (acquire_land / sell_land): holdingId / provinceId / counterpartyPolityId / diplomaticPlayId / preparation / leverage / commitment
 - `ContractRevisionProject` (improve_contract_terms / demand_tax_increase): holdingId / landContractId / counterpartyPolityId / desiredTaxRateToGrantor / diplomaticPlayId / preparation / leverage / commitment
 - `RespondToPressureProject`: pressureId / diplomaticPlayId / stance
+- `PersonalTrainingProject`（v0.44）: owner は `{ kind: 'person' }` 固定 / traineePersonId / trainingAbilityKey。owner / creator / supervisor / trainee は全一致（IntegrityCheck 検査）。budget なし
 
 #### ProjectStage 一般化
 
@@ -1428,6 +1450,7 @@ type ProjectStageEntry = {
 | sell_land | prepare_offer (prep) → open_diplomatic_play (imm) → negotiate (final) |
 | improve_contract_terms | prepare_argument (prep) → open_diplomatic_play (imm) → negotiate (final) |
 | demand_tax_increase | prepare_argument (prep) → open_diplomatic_play (imm) → negotiate (final) |
+| personal_training | execute_project (final) |
 | respond_to_pressure | choose_stance (imm) → propose_initial_offer (imm) → prepare_response (prep) → negotiate (final) |
 
 - `immediate`: ProjectStageSystem が即時解決。Task を生成しない

@@ -812,7 +812,7 @@ if (ability[k] < effectiveCeil) {
 * **経験あり** → `effectiveCeil = aptitude[k]`（能力は aptitude を目指して伸びる）
 * **経験なし** → `effectiveCeil = naturalCeil`（年齢曲線の自然到達水準で頭打ち）
 
-**訓練経験**: `personTrainingExperience` がある場合、成長判定の `gainChance` に bonus を加算する。年次処理後、使用した ability の experience を `trainingExperienceDecayRate`（0.5）倍に減衰させる（50% 残留）。値が 0.1 未満になった場合は削除。
+**訓練経験 (v0.44 で廃止)**: 旧 `personTrainingExperience`（improve_ability Task 由来の gainChance bonus + 年次 decay）は v0.44 で全廃した。Task 完了は能力成長を直接発生させず、成果単位の即時成長（§6.66）に置き換えられている。
 
 **衰退判定**: `youthPeak` / `midLifePeak` 曲線の能力で、`ability > naturalCeil` の場合に発火。経験あり人物は `abilityActiveDeclineMultiplier`（0.3）で衰退速度が鈍化する。`lifelongGrowth`（numeracy / learning）は衰退しない。
 
@@ -828,7 +828,6 @@ if (ability[k] < effectiveCeil) {
 | House military (marshal) 在任 | command, valor |
 | 戦争 active 期間中（48 週以内に lastWarWeek）の在国 | valor, command |
 | PlotSystem の active リーダー | insight |
-| improve_ability Task の personTrainingExperience | 対象 ability |
 
 ### 6.25 LifeStage システム群（48週ごと = 毎年）
 
@@ -1318,13 +1317,14 @@ chronicleIndex ↔ chronicleEntries（§3.14）:
 
 ### 6.36 ProjectPreparationSystem（4週ごと）
 
-active Aim を走査し、必要に応じて `prepare_project` Task を生成する。走査対象は `aim.origin === 'goal_driven'` かつ `aim.owner.kind !== 'person'`（Polity / House Aim のみ）。本 system は **prepare_project Task の生成のみ**を行い、Project 本体は生成しない（Project は prepare_project Task 完了時に `buildProjectFieldsForAim` 経由で作成される。§6.55 / taskProjectCompletion）。stage の即時解決（find_supervisor / secure_budget）は ProjectStageSystem（§6.38）が担当する。
+active Aim を走査し、必要に応じて `prepare_project` Task を生成する。走査対象は `aim.origin === 'goal_driven'`。person-owned Aim は原則除外するが、v0.44 で `improve_ability` Aim のみ allowlist で許可する（→ `personal_training` Project。§6.66）。本 system は **prepare_project Task の生成のみ**を行い、Project 本体は生成しない（Project は prepare_project Task 完了時に `buildProjectFieldsForAim` 経由で作成される。§6.55 / taskProjectCompletion）。stage の即時解決（find_supervisor / secure_budget）は ProjectStageSystem（§6.38）が担当する。
 
 **抑制条件**: `projectIndex.byAim[aim.id]` に active Project が存在する / `aim.activeTaskId` が設定中 / `aim.activeDiplomaticPlayId` が設定中 / `nextProjectAllowedWeek` 未到達。
 
 AimKind → ProjectKind マッピング（`aimKindToProjectKind`）:
 - Polity: `consolidate_province_holdings` / `seize_weak_remote_holdings` → `acquire_land`、`develop_owned_holding` → `develop_holding`、`improve_owned_contract_terms` / `eliminate_overlord_contract` → `improve_contract_terms`、`demand_tax_increase_from_vassal` / `eliminate_vassal_contract` → `demand_tax_increase`
 - House: `acquire_political_right` → 同名（v0.42 — 旧 `increase_polity_share` → `expand_polity_share` は廃止）、`steer_polity_*` → `promote_policy_shift`、`patronize_artist` / `commission_chronicle` → 同名
+- Person: `improve_ability` → `personal_training`（v0.44。supervisor は本人固定で `selectProjectSupervisor` を通らない）
 
 `selectProjectCreator` で起案者を選定（候補なしなら待機）。prepare_project Task の assignee は creator。生成後に `aim.activeTaskId` / `nextProjectAllowedWeek` を設定する。
 
@@ -1381,6 +1381,7 @@ terminal Project の効果解決・ログ出力・cleanup を担当。
   - **文化系 Project の afford 前提**: `patronize_artist` / `commission_chronicle` / `acquire_political_right` は完了時に `house.wealth >= cost` を要求する。これらの Project は**作成時**に afford 判定する（§6.55 `buildProjectFieldsForAim`）。作成時に払えなければ Project を生成せず Aim を待機させ、wealth 回復後に再試行する。これにより doomed Project が生成されず、完了時に資金不足で効果を何も適用しない silent no-op を防ぐ。
 - 外交系 Project: DiplomaticPlay 生成は ProjectStageSystem の open_diplomatic_play handler に移管。ProjectOutcomeSystem は外交系 completed 時に追加効果を適用しない（交渉への影響は各 Task outcome で DiplomaticPlay に反映済み）
 - respond_to_pressure completed: Pressure.status を 'responded' に遷移
+- **成果経験・評判付与（v0.44）**: 非外交 Project は削除直前に supervisor へ即時成長 + PersonReputation を付与する（§6.66）。terminal Project の `terminalReason` が未設定なら throw（terminal サイトのセット漏れを fail-fast で顕在化。年末 integrity は flush 後で検出できないため）
 - Project を state.projects / projectIndex から削除
 
 **develop_holding completed 時の追加処理**:
@@ -1539,6 +1540,8 @@ active War の warScore が閾値に達したら終結させ、WarGoal を state
 
 戦争被害（treasury / unrest / 荒廃 / 厭戦）は適用しない（将来再設計）。
 
+**成果経験・評判付与（v0.44）**: attacker_won / defender_won / white_peace の各終結サイトで `awardWarOutcomeCtx` を呼び、両 side の captain general + 現場指揮官に即時成長 + military 評判を付与する（§6.66。white_peace は経験のみ）。
+
 ### 6.47 cancelOrphanedWarsSystem（毎週）
 
 2 経路を持つ（v0.43 で経路 B 追加）。
@@ -1550,6 +1553,8 @@ active War の warScore が閾値に達したら終結させ、WarGoal を state
 戦争は数年続くため、その間に participant polity / house が別要因（属州独立・併合・revolt など）で消滅しうる。IntegrityCheck（§6.35）が active War の participant を active 必須とするため、放置すると long-run で必ず throw する（`cancelOrphanedPlays` が DiplomaticPlay に対して存在するのと同じ理由）。安全側で `cancelled` に統一する（勝敗意味論は将来）。
 
 **配置**: PolityOwnerConsistencySystem / OrganizationConsistencySystem の**後ろ**・cleanupWarSystem の前に独立 system として置き、**intervalWeeks=1**。理由は §5.6 / §6.35 を参照（PeaceSettlement 起因で同 tick に extinct 化した polity を参照する active War を、年末 IntegrityCheck より前に回収するため）。warScore 計算の安全は WarManeuver / PeaceSettlement 冒頭の dead-participant guard が担保するので、本 system を Maneuver / Settlement より後ろに置いても問題ない。
+
+**成果経験・評判付与（v0.44）**: cancelled 化した War にも `awardWarOutcomeCtx` で双方に固定小経験を付与する（評判なし。§6.66）。
 
 ### 6.48 RegimentRecoverySystem（毎週、baseline-aware）
 
@@ -1614,6 +1619,8 @@ terminal status の DiplomaticPlay と関連 Pressure / DiplomaticOffer を stat
 - **削除順序: offer 先、play 後**。play を先に削除すると `offerHistoryIds` が失われるため
 
 **active play の supporter sweep（v0.43）**: active play の supporter polity が inactive になった場合、supporter 配列から無音除去する（play は継続。primary inactive は従来どおり play ごと削除）。
+
+**成果経験・評判付与（v0.44）**: terminal status での削除直前に、`terminalOutcome` が設定された play について両 side delegate へ即時成長 + diplomacy 評判を付与する（§6.66）。actor-inactive による active play 削除は対象外。play は terminal 化と同 tick で削除されるため、この cleanup 内が唯一の安全な処理地点。
 
 **Pressure 同期**:
 - terminal DiplomaticPlay に紐付く Pressure を `pressureIndex.byDiplomaticPlay` で取得
@@ -1940,3 +1947,115 @@ holder_lost / polity_dissolved / target_lost / regime_change）:
 - R6: 1 target 1 active right（byTarget の各 entry length ≤ 1）
 - F8: active Faction の polityId は active Polity（+ factionIndex.byPolity の双方向一致）
 - HouseShare: polity share は**存在自体が違反**（型レベルでも HouseShare に縮小済み — §3.7）
+
+### 6.66 成果成長・PersonReputation（v0.44）
+
+人物の能力成長と評判を、Task 単位ではなく「歴史的に意味のある成果単位」（Project / DiplomaticPlay / War / personal_training）へ接続する。旧 Task 訓練経験（`personTrainingExperience` / `taskTrainingExperienceGain` / decay）は全廃した。
+
+#### 即時成長エンジン（`applyImmediateAbilityGrowthMut`）
+
+terminal 時に経験を ability weight で分配し、**floor + fractional roll** 方式で即時に +1 を適用する。
+
+```ts
+expectedGain_ability = totalExperience * abilityWeight * experienceImmediateGrowthChancePerPoint / 100
+guaranteedGain  = floor(expectedGain)      // 確定 +1 × N（RNG 不消費）
+fractionalChance = expectedGain - guaranteedGain  // 1 回だけ追加 roll
+```
+
+- 各 +1 は `ability < min(aptitude, ABILITY_HARD_CAP=120)` の場合のみ適用。**naturalCeil は無視してよい**（成果成長は年齢曲線を超えて早熟化・高水準維持しうる）が、生得的な aptitude は超えない。cap 到達分の経験は他 ability へ再分配しない。
+- roll 順序は `ABILITY_KEYS` 定数順・対象人物順は呼び出し元の配列順に固定（決定性）。
+- 成長した ability ごとに `PERSON_ABILITY_GREW` を emit（notable=normal / 一般=minor。notable 判定は `isNotablePerson` selector — §6.25 の index ベース判定を共通化）。
+
+**経験 weight**: source → role → `ROLE_WEIGHTS`。Project は `PROJECT_KIND_ROLE_MAP`（例: develop_holding → stewardship）、DiplomaticPlay は diplomacy（charisma .5 / insight .3 / learning .2）、War は warCommand（command .6 / insight .2 / learning .1 / valor .1）。`personal_training` のみ例外で `trainingAbilityKey` 単独 weight 1.0。
+
+#### PersonReputation entity
+
+```ts
+type PersonReputation = {
+  id: PersonReputationId          // 'rep-' prefix
+  personId: PersonId
+  source: { kind: 'project'; projectKind; projectId? }
+        | { kind: 'diplomatic_play'; playKind; playId? }
+        | { kind: 'war'; warId? }
+  outcome: 'success' | 'failure'  // UI/将来 subtype 用。現在値計算は baseScore の符号に基づく
+  category: 'administration' | 'military' | 'diplomacy' | 'culture' | 'stewardship' | 'intrigue' | 'general'
+  baseScore: number
+  createdWeek: number
+  expiryWeek: number              // 作成時に事前計算
+  relatedOrganization?: OrganizationRef
+  relatedRefs: EntityRef[]
+}
+```
+
+- 現在値は selector（`getCurrentPersonReputationScore`）で月次減衰計算: `baseScore * personReputationMonthlyRetentionRate^(経過月)`。
+- `expiryWeek` は「現在値の絶対値が `personReputationCleanupThreshold` を下回る週」を作成時に対数計算して保存。`abs(baseScore) <= threshold` なら reputation を**作成しない**。
+- cleanup: **PersonReputationCleanupSystem（年次）** が expiry 超過 + 死亡者残骸を削除。死亡 tick の即時 purge は DeadPersonLogPurgeSystem に piggyback。index 不整合は cleanup で黙修せず IntegrityCheck の検出対象。
+- 付与時に `PERSON_REPUTATION_GAINED`（正）/ `PERSON_REPUTATION_DAMAGED`（負）を emit。
+
+#### terminal 評価（hook 別）
+
+**Project（ProjectOutcomeSystem、削除直前。非外交 kind のみ — 外交系 5 kind は Play 側で評価）**:
+
+| status | 経験 | 評判 |
+|---|---|---|
+| completed | `projectExperienceGainCompleted` | 正（`personReputationProjectSuccessBase`） |
+| failed + deadline_expired / stage_attempts_exceeded | `projectExperienceGainFailed` | 負（`personReputationProjectFailureBase`） |
+| failed + その他 reason（budget_exhausted 等） | 同上 | なし（本人帰責でない失敗） |
+| cancelled | completed × progressRatio × `projectExperienceGainCancelledMultiplier` | なし |
+
+対象 = supervisor（alive guard）。category は `PROJECT_REPUTATION_CATEGORY_MAP`（develop_holding=administration / acquire_political_right・promote_policy_shift=diplomacy / patronize_artist・commission_chronicle=culture / 外交 5 kind・personal_training=undefined）。
+
+このゲートのために Project に `terminalReason`、DiplomaticPlay に `terminalOutcome` を追加した（§3）。**status を terminal にする全サイトで同時セット必須**（IntegrityCheck 検査。terminal entity は同 tick〜4 週内に削除されるため年末 integrity では実質検出できず、`--integrity-per-system` での mid-tick 検証 + ProjectOutcomeSystem の fail-fast throw で担保する）。
+
+**DiplomaticPlay（CleanupTerminalDiplomacy、削除直前。対象 = 両 side delegate）**:
+
+| terminalOutcome | initiator delegate | target delegate |
+|---|---|---|
+| demands_met | 成功 | 失敗 |
+| status_quo | 小失敗 | 小成功 |
+| escalated_to_war | 失敗 | 小成功（戦争回避には失敗のため成功より小さく） |
+| revolt_succeeded | 成功 | 失敗 |
+| revolt_suppressed | 失敗 | 成功 |
+| failed | 失敗 | なし |
+| voided | 経験のみ（failure × cancelled 係数） | 同左 |
+
+成功/失敗 = `diplomaticPlayExperienceGainSuccess/Failure` + `personReputationDiplomacySuccessBase/FailureBase`、小成功/小失敗 = `...GainStatusQuo` + `StatusQuoBase` / `-abs(StatusQuoFailureBase)`。category は revolt 系含めすべて diplomacy（military/general subtype 化は将来課題）。settled の demands_met / status_quo 分類は accepted offer に実質要求 demand（transfer_land_contract / change_contract_tax_rate / popular_tax_relief）が含まれるかで判定（`classifySettledOutcome`。pay_wealth 単独は status_quo）。
+
+**War（PeaceSettlementSystem 全終結サイト + cancelOrphanedWarsSystem。対象 = 両 side の captain general + commanderPersonIds、alive guard・重複は captain general 満額のみ）**:
+
+| status | 勝者側 | 敗者側 |
+|---|---|---|
+| attacker_won / defender_won | victory 経験 + `personReputationWarVictoryBase` | defeat 経験 + `personReputationWarDefeatBase` |
+| white_peace | 両者 `warExperienceGainWhitePeace` のみ | 同左 |
+| cancelled | 両者 defeat × cancelled 係数のみ | 同左 |
+
+現場指揮官は経験・評判とも `warCommanderAwardFactor`（0.6）を乗じる。category は military。
+
+#### personal_training Project（improve_ability の project 化）
+
+旧 `improve_ability` Aim → 直接 Task 生成（practice_arms / study_accounts / study_law / courtly_training）は廃止し、`personal_training` Project を生成する（4 TaskKind は削除済み）。
+
+- owner / creator / supervisor / trainee は全て本人で一致（IntegrityCheck 検査）。budget なし。
+- stage は `execute_project` (final) 単一。汎用 `advance_project` Task で進行し、Task の `relevantAbility` は `trainingAbilityKey`。
+- targetProgress = `personalTrainingTargetProgress`、deadline = `personalTrainingDeadlineWeeks`。
+- terminal: completed=経験大 / failed=中 / cancelled=進捗比例。**評判は一切発生させない**。
+- 本人死亡（alive === false）で cancelled。処刑 cascade（`reassignProjectsOfDeadSupervisor`）にも personal_training → cancelled 分岐を持つ。
+
+#### 評判の任用・指揮官選定反映
+
+中核 selector `getPersonReputationModifierForCategories(state, config, personId, categories)`: byPerson の現在値を category filter で**等価合算**し `±appointmentReputationModifierCap`（20）に clamp。注入先で係数を 1 回だけ掛ける（二重適用禁止）。
+
+| 選定経路 | 反映 | 係数 |
+|---|---|---|
+| Polity / House office appointment score（§6.19） | する | × `officeReputationScoreFactor`（0.25、実効 ±5）。role → category は administrator=administration+diplomacy / treasurer=stewardship+administration / military=military / advisor=culture+diplomacy+intrigue / leader=general+diplomacy+military+administration |
+| War commander candidate ranking（warCommandSelectionScore） | する | × `warCommandReputationScoreFactor`（0.75、実効 ±15）。category=['military'] |
+| captain general 選定 | 原則効かない | 役職優先順選定で score ソートを通らないため |
+| Bailiff / Project supervisor / Play delegate 選定 | しない | — |
+
+#### IntegrityCheck（v0.44 追加分）
+
+- PersonReputation: id 整合 / personId 実在 / baseScore finite / createdWeek <= expiryWeek / category・source.kind 有効 / byPerson 双方向一致 + 空 entry purge
+- Project: terminal status は terminalReason 必須（active は持たない）/ personal_training の本人 4 役一致 + trainingAbilityKey 有効
+- DiplomaticPlay: terminal status は terminalOutcome 必須（active/escalated は持たない）
+
+**年末 flush の取りこぼし（許容）**: ProjectOutcomeSystem（4 週）より後に terminal 化し同一年末 tick の flushTerminalEntities で削除される Project（主に CleanupTerminalDiplomacy の pressure cascade による cancel）は cancelled 経験付与が省略されうる。軽微な cancelled 経験の取りこぼしであり v0.44 では許容する。

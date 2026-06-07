@@ -696,3 +696,17 @@ function getPolityEmitNameKey(state, polityId): string
 - House は v0.41 では `nameKey` 維持・category 固定 `house` のため、`getHouseNameRefForEmit` は導入しない（未使用 union member を先に増やさない方針）。
 - **app 層表示 helper**（`src/app/hooks/entityNameHelpers.ts`）: `getPolityShortName/QualifiedName`・`getHoldingShortName/QualifiedName`。`state` と `resolveName`（`useEntityName`）に依存し nameSource/kind 分岐を行う。`sim/ → i18n/` 禁止のため sim には置けない。
 - **eventRenderer の注意点**: `resolveOwnerCategory`（`i18n/eventRenderer.ts`）は owner の name category を goal/aim の `kind` ラベル名前空間に流用する。holding 由来 Polity owner は category が `province`/`city` になるため、地名 category は `polity` に丸めて kind ラベルを解決する（owner の「種別」名前空間と name 表示 category の乖離を吸収）。
+
+### 4.13 PersonReputation セレクター（v0.44）
+
+`prototype/src/sim/selectors/personReputationSelectors.ts` に集約（§6.66）。
+
+- `getCurrentPersonReputationScore(reputation, absoluteWeek, config)` — 現在値。`baseScore × personReputationMonthlyRetentionRate^(経過月)`
+- `computeReputationExpiryWeek(baseScore, createdWeek, config)` — 作成時の expiryWeek 事前計算。`abs(baseScore) <= personReputationCleanupThreshold` なら `undefined`（reputation を作成しない）
+- `getPersonReputationModifierForCategories(state, config, personId, categories)` — 任用補正の中核。byPerson の現在値を category filter で等価合算し ±`appointmentReputationModifierCap` に clamp。注入先係数は呼び出し側 wrapper で 1 回だけ掛ける
+- `getReputationCategoriesForOfficeRole(role)` — OfficeRole → 参照 category 表（§6.66）
+- `getAppointmentReputationModifier(state, config, personId, role)` — office 用薄 wrapper（× `officeReputationScoreFactor`）
+
+`notablePersonSelectors.ts`（v0.44）— `isNotablePerson(state, personId)`: 安価な index ベースの主要人物判定（house leader / primary polity leader / active office holder）。lifeStageProgressionSystem §6.25 のインライン判定を共通化し、award 系イベントの importance 出し分けと共有する。
+
+成果 award の本体 helper は `prototype/src/sim/helpers/awardHelpers.ts`（`applyImmediateAbilityGrowthMut` / `awardPersonReputationMut` / `awardDiplomaticPlayOutcomeMut` / `awardWarOutcomeCtx` / `getProjectExperienceWeights` / `PROJECT_REPUTATION_CATEGORY_MAP`）。

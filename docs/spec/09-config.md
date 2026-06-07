@@ -454,9 +454,35 @@
 | appointmentTaskModifierDurationWeeks | 16 | ActivityLog 参照期間（週） |
 | **PersonActivityLog** | | |
 | maxActivityLogsPerPerson | 30 | person ごとの ActivityLog 保持上限 |
-| **Training** | | |
-| taskTrainingExperienceGain | 2.0 | improve_ability Task 完了時の experience 加算量 |
-| trainingExperienceDecayRate | 0.5 | 年次成長判定後の experience 減衰率 |
+| **成果成長・評判（v0.44 §6.66）** | | |
+| projectExperienceGainCompleted | 4.0 | Project completed の経験 |
+| projectExperienceGainFailed | 2.0 | Project failed の経験 |
+| projectExperienceGainCancelledMultiplier | 0.5 | cancelled = completed × progressRatio × 本係数 |
+| diplomaticPlayExperienceGainSuccess | 4.0 | Play 成功側の経験 |
+| diplomaticPlayExperienceGainFailure | 2.0 | Play 失敗側の経験 |
+| diplomaticPlayExperienceGainStatusQuo | 2.0 | 小成功 / 小失敗の経験 |
+| diplomaticPlayExperienceGainCancelledMultiplier | 0.5 | voided = failure × 本係数 |
+| warExperienceGainVictory | 5.0 | War 勝者側の経験 |
+| warExperienceGainDefeat | 3.0 | War 敗者側の経験 |
+| warExperienceGainWhitePeace | 2.0 | 白紙和平の経験（両者） |
+| warExperienceGainCancelledMultiplier | 0.5 | cancelled = defeat × 本係数（両者固定小経験） |
+| experienceImmediateGrowthChancePerPoint | 12 | 経験 1 点あたりの +1 期待値（%）。floor+fractional roll |
+| personReputationProjectSuccessBase | 8 | Project 正評判 baseScore |
+| personReputationProjectFailureBase | -6 | Project 負評判 baseScore（本人帰責 failed のみ） |
+| personReputationDiplomacySuccessBase | 10 | Play 成功評判 |
+| personReputationDiplomacyStatusQuoBase | 4 | Play 小成功評判 |
+| personReputationDiplomacyStatusQuoFailureBase | -3 | Play 小失敗評判（abs を負号化して使用） |
+| personReputationDiplomacyFailureBase | -8 | Play 失敗評判 |
+| personReputationWarVictoryBase | 12 | War 勝利評判 |
+| personReputationWarDefeatBase | -8 | War 敗北評判 |
+| warCommanderAwardFactor | 0.6 | captain general 比の現場指揮官係数（経験・評判共通） |
+| personReputationMonthlyRetentionRate | 0.985 | 月次減衰率（0 < rate < 1 invariant） |
+| personReputationCleanupThreshold | 0.25 | 現在値がこれ未満で expiry。abs(baseScore) <= threshold は作成しない |
+| appointmentReputationModifierCap | 20 | raw 合算の clamp（±） |
+| officeReputationScoreFactor | 0.25 | office 任用スコアへの係数（実効 ±5） |
+| warCommandReputationScoreFactor | 0.75 | 指揮官選定スコアへの係数（実効 ±15） |
+| personalTrainingTargetProgress | 3 | personal_training の targetProgress |
+| personalTrainingDeadlineWeeks | 48 | personal_training の deadline |
 | **代官システム** | | |
 | defaultContractedRemittanceRate | 0.40 | HoldingOfficeAssignment 作成時の送金率デフォルト |
 | defaultExpectedBailiffFeeRate | 0.10 | HoldingOfficeAssignment 作成時の代官取り分率デフォルト |

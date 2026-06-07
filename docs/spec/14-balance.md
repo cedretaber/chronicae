@@ -218,3 +218,26 @@ land_claim を自然に発生させるには、「他者の province の holding
   - ただし **transient は残る**: reform には ≥`destroyedRegimentReformDelayWeeks`（既定 24週）の平時が要り、開戦 AI は連隊在庫を見ないため、「全滅直後の Polity が攻撃側で開戦」は steady-state では解消するが瞬間的には起こりうる（開戦 AI gate は future。§13）。
 - **補充・再編成の実証（forced harness 60年 × 4seed, A/B 比較）**: 補充 OFF（対照）は旧 decay を再現（maxDestroyed 8-14・active 30→16 等）。**フル ON は maxDestroyed 0-1・active ほぼ初期維持・avgActiveStrength ~98-100**（strength 補充が destroy 到達前に回復させる＝一次機構）。フル ON で reform イベントが 0 件なのは destroy 自体が稀になるためで、バグでも設計限界でもない: 別途 strength 補充だけ OFF にして destroy を蓄積させると reform は 29-148 件発火し（active が再建で回復）、destroyed Regiment は home holding を保持（terminal==owner）したままのことが多く reform は到達可能と確認した（territory 喪失で恒久ブロックされる設計限界ではない）。reform は二次の安全網。
 - 損耗 / 回復 / 補充 / reform の config（damage レンジ・recovery 率・destroy 閾値・補充速度・reform 遅延等）は仮値。avgActiveStrength ~100（戦争がほぼ非攻城的になった）等の balance は CLAUDE.md §4 に従い戦争系機能がひと通り入った段階でまとめて調整する。
+
+## 14.8 成果成長・PersonReputation（v0.44 投入時の観察）
+
+計測条件: 300年 × 4 seed (1, 42, 123, 999)、standard preset。調整はせず観察値の記録のみ。
+
+**イベント量（300 年あたり）**:
+
+| seed | PERSON_ABILITY_GREW | REPUTATION_GAINED | REPUTATION_DAMAGED |
+|---|---|---|---|
+| 1 | 12,948 | 10,241 | 4,100 |
+| 42 | 12,446 | 8,986 | 3,855 |
+| 123 | 12,974 | 9,128 | 2,828 |
+| 999 | 12,372 | 9,009 | 3,046 |
+
+年あたり成長 ≈ 43 件 / 正評判 ≈ 31 件 / 負評判 ≈ 11 件。seed 間のばらつきは小さい。
+
+**reputation 滞留（100 年 seed 1 の dump-world）**:
+
+- entity 数 597（生存 211 人中 85 人が保持）。expiryWeek 事前計算 + 年次 cleanup で無限蓄積はしない（減衰率 0.985/月 × threshold 0.25 → baseScore 12 で約 21 年滞留）
+- 同一人物への最大集中 29 件（top5: 29/29/28/24/22）。「成功した人物がさらに任用される」循環は観察される — snowball が過剰かは将来の総合バランス調整で判断
+- **category 偏り（既知・保留）**: culture 368 / military 195 / diplomacy 33 / administration 1。文化系 Project（patronize_artist / commission_chronicle）の完了頻度が支配的で、develop_holding 由来の administration 評判がほぼ発生していない。Project 成功率・生成頻度の問題（§14 既知問題群）と連動するため、v0.44 では config を触らず保留
+
+**personal_training**: 100 年 × seed 1 で completed 3,142 / failed 13 / cancelled 61。鍛錬は高頻度・高成功率で、能力成長の主要経路の一つになっている（成功率の高さは Project 全般の既知問題 — §6.41 / 過去観察と同根）。

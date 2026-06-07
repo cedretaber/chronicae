@@ -57,7 +57,8 @@ const WEEKS_PER_SEASON = 12
 | 7b | LifeStageInfluenceSystem | 48 | 幼年期/思春期が親・家・親 faction の Attitude を年次継承（§6）。RNG 不使用 |
 | 7c | LifeStageProgressionSystem | 48 | LifeStage を年次で一方向に進める（§6）。Influence の直後（influence→progression）。lifeStage を参照する appointment/faction/plot/project/personGoal より前 |
 | 8 | MortalitySystem | 4 | |
-| 8a | DeadPersonLogPurgeSystem | 4 | Mortality 直後・死亡者 personActivityLog を収集後に purge |
+| 8a | DeadPersonLogPurgeSystem | 4 | Mortality 直後・死亡者 personActivityLog を収集後に purge。v0.44: 死亡者 PersonReputation purge を piggyback |
+| 8a2 | PersonReputationCleanupSystem | 48 | v0.44: expiryWeek 超過 + 死亡者残骸の PersonReputation を削除（§6.66） |
 | 8b | EstateSettlementSystem | 4 | Mortality 直後 |
 | 9 | SuccessionSystem | 4 | |
 | 9a | MinorHeadPenaltySystem | 4 | Succession 直後。未成年当主の家メンバー respect / 当主 affection を減衰（§6.12）。独立 system 化で年末 re-pass 二重適用回避 |
