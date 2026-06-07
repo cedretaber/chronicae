@@ -5,6 +5,7 @@
 
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { PersonReputation, ReputationCategory } from '@sim/types/personReputation'
+import { VALID_REPUTATION_CATEGORIES } from '@sim/types/personReputation'
 import type { WorldState } from '@sim/types/world'
 import type { PersonId } from '@sim/types/ids'
 import type { OfficeRole } from '@sim/types/office'
@@ -35,6 +36,43 @@ export function computeReputationExpiryWeek(
   if (absBase <= threshold) return undefined
   const months = Math.ceil(Math.log(threshold / absBase) / Math.log(rate))
   return createdWeek + 4 * months
+}
+
+// UI 表示用 (v0.44 追補): 人物の現在評判を category 別に合算したサマリ。
+// VALID_REPUTATION_CATEGORIES の定義順・現在値 0 の category は含めない。
+// 任用補正と違い clamp しない生の合算値を返す (表示は実態をそのまま見せる)。
+export type PersonReputationSummaryEntry = {
+  category: ReputationCategory
+  score: number
+  count: number
+}
+
+export function getPersonReputationSummary(
+  state: WorldState,
+  config: SimulationConfig,
+  personId: PersonId,
+): PersonReputationSummaryEntry[] {
+  const ids = state.personReputationIndex.byPerson[personId]
+  if (!ids || ids.length === 0) return []
+
+  const totals = new Map<ReputationCategory, { score: number; count: number }>()
+  for (const id of ids) {
+    const reputation = state.personReputations[id]
+    if (!reputation) continue
+    const score = getCurrentPersonReputationScore(reputation, state.absoluteWeek, config)
+    const entry = totals.get(reputation.category) ?? { score: 0, count: 0 }
+    entry.score += score
+    entry.count += 1
+    totals.set(reputation.category, entry)
+  }
+
+  const result: PersonReputationSummaryEntry[] = []
+  for (const category of VALID_REPUTATION_CATEGORIES) {
+    const entry = totals.get(category)
+    if (!entry || entry.score === 0) continue
+    result.push({ category, score: entry.score, count: entry.count })
+  }
+  return result
 }
 
 // ─── 任用・指揮官選定への反映 (§9) ───

@@ -243,6 +243,8 @@ detail:
     war_command: 'War Command'
     intrigue: 'Intrigue'
     importance: 'Importance'
+    reputation: 'Reputation'
+    reputation_sources: '{{n}} src'
     traits: 'Traits'
     ambition: 'Ambition'
     cunning: 'Cunning'

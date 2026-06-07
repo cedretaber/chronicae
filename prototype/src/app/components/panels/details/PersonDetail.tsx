@@ -29,6 +29,7 @@ import { getActiveGoalForOwner, getActiveAimForOwner } from '@sim/selectors/goal
 import { getPersonGoalFulfillment } from '@sim/selectors/personGoalSelectors'
 import { computeEffectivePriority } from '@sim/selectors/taskSelectors'
 import { getChronicleEntriesForPerson } from '@sim/selectors/chronicleSelectors'
+import { getPersonReputationSummary } from '@sim/selectors/personReputationSelectors'
 
 export function PersonDetail({
   person,
@@ -338,6 +339,38 @@ export function PersonDetail({
           <span className="text-yellow-400">{Math.round(importanceScore)}</span>
         </div>
       </div>
+
+      {/* v0.44 追補: 現在評判 (category 別・月次減衰込みの現在値) */}
+      {person.alive &&
+        (() => {
+          const reputationSummary = getPersonReputationSummary(worldState, defaultConfig, person.id)
+          if (reputationSummary.length === 0) return null
+          return (
+            <>
+              <div className="text-sm font-semibold text-gray-300">
+                {t('detail.person.reputation')}:
+              </div>
+              <div className="text-sm">
+                {reputationSummary.map((entry) => (
+                  <div key={entry.category} className="flex justify-between">
+                    <span className="text-gray-400">
+                      {t(`enum.category.${entry.category}`, { ns: 'events' })}:
+                    </span>
+                    <span>
+                      <span className={entry.score >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        {entry.score >= 0 ? '+' : ''}
+                        {entry.score.toFixed(1)}
+                      </span>
+                      <span className="ml-1 text-xs text-gray-500">
+                        ({t('detail.person.reputation_sources', { n: entry.count })})
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )
+        })()}
 
       <div className="text-sm font-semibold text-gray-300">{t('detail.person.traits')}:</div>
       <div className="text-sm">
