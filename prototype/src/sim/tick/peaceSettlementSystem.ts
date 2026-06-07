@@ -11,6 +11,7 @@ import {
 } from '../mutations/landContractMutations'
 import { getHoldingLandContractChain } from '../selectors/landContractSelectors'
 import { emitWarOutcome, emitWarEnded, emitPeaceSettlementApplied } from './warEvents'
+import { awardWarOutcomeCtx } from '../helpers/awardHelpers'
 import { establishCommonwealth, suppressRevolt } from '../mutations/worldStructureMutations'
 
 // v0.34 §8 PeaceSettlementSystem
@@ -43,7 +44,8 @@ function patchWar(ctx: TickContext, warId: WarId, patch: Partial<War>): TickCont
 function settleWhitePeace(ctx: TickContext, warId: WarId): TickContext {
   const next = patchWar(ctx, warId, { status: 'white_peace', endedWeek: ctx.state.absoluteWeek })
   const w = next.state.wars[warId]
-  return w ? emitWarEnded(next, w) : next
+  // v0.44 §8: 終結時に指揮官へ経験を付与 (white_peace は評判なし)
+  return w ? awardWarOutcomeCtx(emitWarEnded(next, w), w) : next
 }
 
 // §8.4 defender 勝利 → status quo (WarGoal 不実行)。revolt の場合は suppressRevolt を実行。
@@ -62,12 +64,13 @@ function settleDefenderWon(ctx: TickContext, warId: WarId): TickContext {
     let next = result.ok ? result.value.ctx : ctx
     next = patchWar(next, warId, { status: 'defender_won', endedWeek: next.state.absoluteWeek })
     const w = next.state.wars[warId]
-    return w ? emitWarOutcome(next, w, false) : next
+    // v0.44 §8: 勝者 = defender 側に成功評価
+    return w ? awardWarOutcomeCtx(emitWarOutcome(next, w, false), w) : next
   }
 
   const next = patchWar(ctx, warId, { status: 'defender_won', endedWeek: ctx.state.absoluteWeek })
   const w = next.state.wars[warId]
-  return w ? emitWarOutcome(next, w, false) : next
+  return w ? awardWarOutcomeCtx(emitWarOutcome(next, w, false), w) : next
 }
 
 // §8.6: tax goal を適用する。底層 mutation は event を発行しない。
@@ -125,7 +128,7 @@ function settleAttackerWon(ctx: TickContext, warId: WarId): TickContext {
   if (!goal) {
     const next = patchWar(ctx, warId, { status: 'attacker_won', endedWeek: absoluteWeek })
     const w = next.state.wars[warId]
-    return w ? emitWarOutcome(next, w, true) : next
+    return w ? awardWarOutcomeCtx(emitWarOutcome(next, w, true), w) : next
   }
 
   if (goal.kind === 'transfer_land_contract') {
@@ -145,7 +148,7 @@ function settleAttackerWon(ctx: TickContext, warId: WarId): TickContext {
       endedWeek: r.value.ctx.state.absoluteWeek,
     })
     const w = next.state.wars[warId]
-    if (w) next = emitWarOutcome(next, w, true)
+    if (w) next = awardWarOutcomeCtx(emitWarOutcome(next, w, true), w)
     return next
   }
 
@@ -161,7 +164,7 @@ function settleAttackerWon(ctx: TickContext, warId: WarId): TickContext {
       endedWeek: result.value.ctx.state.absoluteWeek,
     })
     const w = next.state.wars[warId]
-    if (w) next = emitWarOutcome(next, w, true)
+    if (w) next = awardWarOutcomeCtx(emitWarOutcome(next, w, true), w)
     return next
   }
 
@@ -182,6 +185,7 @@ function settleAttackerWon(ctx: TickContext, warId: WarId): TickContext {
     next = emitWarOutcome(next, w, true)
     // §8.6a / §12.5: tax 経路は底層 mutation が event を出さないため必ずここで発行。
     next = emitPeaceSettlementApplied(next, w, goal)
+    next = awardWarOutcomeCtx(next, w)
   }
   return next
 }

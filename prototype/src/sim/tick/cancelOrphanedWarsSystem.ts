@@ -9,6 +9,7 @@ import {
 } from '../mutations/warMutations'
 import { isActorActive } from '../selectors/actorSelectors'
 import { emitWarEnded } from './warEvents'
+import { awardWarOutcomeCtx } from '../helpers/awardHelpers'
 
 // v0.34 §7.9 cancelOrphanedWarsSystem【必須】
 //
@@ -72,7 +73,8 @@ export function runCancelOrphanedWarsSystem(ctx: TickContext): TickContext {
   let next: TickContext = { ...ctx, state: ws }
   for (const wid of cancelled) {
     const w = next.state.wars[wid]
-    if (w) next = emitWarEnded(next, w)
+    // v0.44 §8.4: cancelled War は双方に固定小経験のみ (評判なし)
+    if (w) next = awardWarOutcomeCtx(emitWarEnded(next, w), w)
   }
   return next
 }

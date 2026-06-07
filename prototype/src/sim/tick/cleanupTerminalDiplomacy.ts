@@ -1,5 +1,6 @@
-import type { TickContext } from './context'
+import type { TickContext, CreateSimEventInput } from './context'
 import type { SimEvent } from '../types/event'
+import { awardDiplomaticPlayOutcomeMut } from '../helpers/awardHelpers'
 import { nameParam, entityRef } from '../types/event'
 import type {
   AimId,
@@ -46,6 +47,8 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
   let nextPlays: Record<DiplomaticPlayId, DiplomaticPlay> | undefined
   const removedPlayIds = new Set<string>()
   const offerIdsToDelete = new Set<DiplomaticOfferId>()
+  // v0.44 §7: terminal play の削除直前 award 対象 (この cleanup 以外に安全な処理地点はない §13.2)
+  const awardPlays: DiplomaticPlay[] = []
   for (const idStr of Object.keys(plays)) {
     const play = plays[idStr as DiplomaticPlayId]
     if (!play) continue
@@ -61,6 +64,12 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
       delete nextPlays[idStr as DiplomaticPlayId]
       removedPlayIds.add(idStr)
       collectPlayOfferIds(play, offerIdsToDelete)
+      // v0.44 §7.1: terminal status での削除のみ award 対象 (actor-inactive 削除は対象外。
+      //   そちらは play が active のまま削除される — 上の分岐で continue 済み)。
+      //   terminalOutcome 未設定 (= セット漏れ) も skip — integrity §12.3 が検出する。
+      if (play.terminalOutcome !== undefined) {
+        awardPlays.push(play)
+      }
     }
   }
 
@@ -346,7 +355,7 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     return ctx
 
   const baseState = taskCleanedState ?? ctx.state
-  return {
+  let resultCtx: TickContext = {
     ...ctx,
     state: {
       ...baseState,
@@ -362,6 +371,45 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     events: newEvents.length > 0 ? [...ctx.events, ...newEvents] : ctx.events,
     nextEventIndex,
   }
+
+  // v0.44 §7: 削除した terminal play の delegate へ経験・評判を付与する (§13.2: terminal 化と
+  //   同 tick 削除のため、この cleanup 内が唯一の安全な処理地点)。play エンティティは state から
+  //   削除済みだが、award はローカルに保持した play オブジェクトで行う。
+  if (awardPlays.length > 0) {
+    const ws: WorldState = { ...resultCtx.state, persons: { ...resultCtx.state.persons } }
+    let rng = resultCtx.rng
+    const awardEvents: SimEvent[] = []
+    let awardEventIndex = resultCtx.nextEventIndex
+    const emitAwardEvent = (input: CreateSimEventInput): void => {
+      const id = `e-${ws.absoluteWeek}-${awardEventIndex}` as EventId
+      awardEventIndex++
+      awardEvents.push({
+        id,
+        year: ws.currentYear,
+        weekOfYear: ws.currentWeekOfYear,
+        type: input.type,
+        importance: input.importance,
+        messageKey: input.messageKey,
+        messageParams: input.messageParams,
+        entityRefs: input.entityRefs ?? [],
+        reasons: input.reasons ?? [],
+        effects: input.effects ?? [],
+      })
+    }
+    // 反復順は play id 昇順に固定 (決定性 §13.5)
+    const sortedPlays = [...awardPlays].sort((a, b) => (a.id as string).localeCompare(b.id))
+    for (const play of sortedPlays) {
+      rng = awardDiplomaticPlayOutcomeMut(ws, ctx.config, play, rng, emitAwardEvent)
+    }
+    resultCtx = {
+      ...resultCtx,
+      state: ws,
+      rng,
+      events: awardEvents.length > 0 ? [...resultCtx.events, ...awardEvents] : resultCtx.events,
+      nextEventIndex: awardEventIndex,
+    }
+  }
+  return resultCtx
 }
 
 function isPersonAlive(state: WorldState, personId: PersonId): boolean {

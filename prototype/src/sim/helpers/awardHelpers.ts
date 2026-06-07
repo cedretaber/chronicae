@@ -8,9 +8,12 @@
 // - 評判は abs(baseScore) <= cleanupThreshold なら作成しない (§4.4)。
 
 import type { WorldState } from '../types/world'
-import type { PersonId } from '../types/ids'
+import type { PersonId, EventId } from '../types/ids'
 import type { AbilityKey } from '../types/person'
 import type { Project, ProjectKind } from '../types/project'
+import type { DiplomaticPlay, DiplomaticPlayTerminalOutcome } from '../types/diplomaticPlay'
+import type { War } from '../types/war'
+import type { SimEvent } from '../types/event'
 import type {
   ReputationCategory,
   PersonReputationSource,
@@ -20,7 +23,7 @@ import type { EntityRef } from '../types/goal'
 import type { OrganizationRef } from '../types/office'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { RngState } from '../rng/rng'
-import type { CreateSimEventInput } from '../tick/context'
+import type { TickContext, CreateSimEventInput } from '../tick/context'
 import { randomFloat } from '../rng/rng'
 import { ABILITY_KEYS, ABILITY_HARD_CAP, ROLE_WEIGHTS } from '../constants/abilityConstants'
 import { PROJECT_KIND_ROLE_MAP } from '../selectors/projectSelectors'
@@ -138,6 +141,220 @@ export function applyImmediateAbilityGrowthMut(
     })
   }
   return currentRng
+}
+
+// ─── DiplomaticPlay terminal award (§7) ───
+//
+// initiator / target で評価が反転する (§7.6)。対象は各 side の delegate (§7.4)。
+// delegate 不在・死亡は skip (fallback なし — v0.44 初期)。
+
+type PlaySideEvaluation = { experience: number; reputationBase: number | undefined }
+
+// §7.6 の表。undefined = その side には何も付与しない (failed の target)。
+function evaluatePlaySide(
+  config: SimulationConfig,
+  outcome: DiplomaticPlayTerminalOutcome,
+  side: 'initiator' | 'target',
+): PlaySideEvaluation | undefined {
+  const success: PlaySideEvaluation = {
+    experience: config.diplomaticPlayExperienceGainSuccess,
+    reputationBase: config.personReputationDiplomacySuccessBase,
+  }
+  const failure: PlaySideEvaluation = {
+    experience: config.diplomaticPlayExperienceGainFailure,
+    reputationBase: config.personReputationDiplomacyFailureBase,
+  }
+  const smallSuccess: PlaySideEvaluation = {
+    experience: config.diplomaticPlayExperienceGainStatusQuo,
+    reputationBase: config.personReputationDiplomacyStatusQuoBase,
+  }
+  const smallFailure: PlaySideEvaluation = {
+    experience: config.diplomaticPlayExperienceGainStatusQuo,
+    reputationBase: -Math.abs(config.personReputationDiplomacyStatusQuoFailureBase),
+  }
+  const voided: PlaySideEvaluation = {
+    experience:
+      config.diplomaticPlayExperienceGainFailure *
+      config.diplomaticPlayExperienceGainCancelledMultiplier,
+    reputationBase: undefined,
+  }
+
+  switch (outcome) {
+    case 'demands_met':
+      return side === 'initiator' ? success : failure
+    case 'status_quo':
+      return side === 'initiator' ? smallFailure : smallSuccess
+    // §7.9: initiator から見れば外交失敗。target は「即時受諾せず退けた」小成功だが
+    // 戦争回避には失敗しているため demands_met 成功より小さい評価に留める。
+    case 'escalated_to_war':
+      return side === 'initiator' ? failure : smallSuccess
+    case 'revolt_succeeded':
+      return side === 'initiator' ? success : failure
+    case 'revolt_suppressed':
+      return side === 'initiator' ? failure : success
+    case 'failed':
+      return side === 'initiator' ? failure : undefined
+    case 'voided':
+      return voided
+  }
+}
+
+// terminal play の削除直前に呼ぶ (§7.1 / §13.2)。呼び出し側は ws.persons を clone 済みであること。
+export function awardDiplomaticPlayOutcomeMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  rng: RngState,
+  emitEvent: (input: CreateSimEventInput) => void,
+): RngState {
+  const outcome = play.terminalOutcome
+  if (outcome === undefined) return rng
+
+  const weights = ROLE_WEIGHTS.diplomacy
+  let currentRng = rng
+
+  for (const side of ['initiator', 'target'] as const) {
+    const delegateId =
+      side === 'initiator' ? play.initiatorDelegatePersonId : play.targetDelegatePersonId
+    if (!delegateId) continue
+    const evaluation = evaluatePlaySide(config, outcome, side)
+    if (!evaluation) continue
+
+    currentRng = applyImmediateAbilityGrowthMut(
+      ws,
+      config,
+      delegateId,
+      evaluation.experience,
+      weights,
+      'diplomatic_play',
+      currentRng,
+      emitEvent,
+    )
+    if (evaluation.reputationBase !== undefined) {
+      awardPersonReputationMut(
+        ws,
+        config,
+        {
+          personId: delegateId,
+          source: { kind: 'diplomatic_play', playKind: play.kind, playId: play.id },
+          category: 'diplomacy',
+          baseScore: evaluation.reputationBase,
+          relatedOrganization: side === 'initiator' ? play.initiator : play.target,
+        },
+        emitEvent,
+      )
+    }
+  }
+  return currentRng
+}
+
+// ─── War terminal award (§8) ───
+//
+// 対象 = 両 side の captainGeneral + commanderPersonIds (§8.2)。
+// 同一人物が両方に含まれる場合は大きい方 (captain general 満額) のみ。
+// white_peace / cancelled は経験のみ・評判なし (§8.4)。
+export function awardWarOutcomeCtx(ctx: TickContext, war: War): TickContext {
+  const status = war.status
+  if (
+    status !== 'attacker_won' &&
+    status !== 'defender_won' &&
+    status !== 'white_peace' &&
+    status !== 'cancelled'
+  ) {
+    return ctx
+  }
+  const config = ctx.config
+  const ws: WorldState = { ...ctx.state, persons: { ...ctx.state.persons } }
+  let rng = ctx.rng
+  const newEvents: SimEvent[] = []
+  let nextEventIndex = ctx.nextEventIndex
+
+  function emitEvent(input: CreateSimEventInput): void {
+    const id = `e-${ws.absoluteWeek}-${nextEventIndex}` as EventId
+    nextEventIndex++
+    newEvents.push({
+      id,
+      year: ws.currentYear,
+      weekOfYear: ws.currentWeekOfYear,
+      type: input.type,
+      importance: input.importance,
+      messageKey: input.messageKey,
+      messageParams: input.messageParams,
+      entityRefs: input.entityRefs ?? [],
+      reasons: input.reasons ?? [],
+      effects: input.effects ?? [],
+    })
+  }
+
+  const weights = ROLE_WEIGHTS.warCommand
+
+  for (const side of [war.attacker, war.defender]) {
+    let experienceBase: number
+    let reputationBase: number | undefined
+    if (status === 'attacker_won' || status === 'defender_won') {
+      const isWinner = (status === 'attacker_won') === (side.key === 'attacker')
+      experienceBase = isWinner ? config.warExperienceGainVictory : config.warExperienceGainDefeat
+      reputationBase = isWinner
+        ? config.personReputationWarVictoryBase
+        : config.personReputationWarDefeatBase
+    } else if (status === 'white_peace') {
+      experienceBase = config.warExperienceGainWhitePeace
+      reputationBase = undefined
+    } else {
+      // cancelled: 双方に固定小経験のみ (§8.4 — progressRatio 相当が無いため進行度比例にしない)
+      experienceBase = config.warExperienceGainDefeat * config.warExperienceGainCancelledMultiplier
+      reputationBase = undefined
+    }
+
+    // captain general 満額 → commander × factor。重複は先着 (= captain general) のみ (§8.2)。
+    const recipients: { personId: PersonId; factor: number }[] = []
+    const seen = new Set<string>()
+    if (side.captainGeneralPersonId) {
+      recipients.push({ personId: side.captainGeneralPersonId, factor: 1 })
+      seen.add(side.captainGeneralPersonId)
+    }
+    for (const pid of side.commanderPersonIds) {
+      if (seen.has(pid)) continue
+      seen.add(pid)
+      recipients.push({ personId: pid, factor: config.warCommanderAwardFactor })
+    }
+
+    const primaryActor = side.participants.find((p) => p.primary)?.actor
+    for (const recipient of recipients) {
+      rng = applyImmediateAbilityGrowthMut(
+        ws,
+        config,
+        recipient.personId,
+        experienceBase * recipient.factor,
+        weights,
+        'war',
+        rng,
+        emitEvent,
+      )
+      if (reputationBase !== undefined) {
+        awardPersonReputationMut(
+          ws,
+          config,
+          {
+            personId: recipient.personId,
+            source: { kind: 'war', warId: war.id },
+            category: 'military',
+            baseScore: reputationBase * recipient.factor,
+            ...(primaryActor !== undefined ? { relatedOrganization: primaryActor } : {}),
+          },
+          emitEvent,
+        )
+      }
+    }
+  }
+
+  return {
+    ...ctx,
+    state: ws,
+    rng,
+    events: newEvents.length > 0 ? [...ctx.events, ...newEvents] : ctx.events,
+    nextEventIndex,
+  }
 }
 
 export type AwardReputationInput = {

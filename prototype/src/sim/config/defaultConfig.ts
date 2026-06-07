@@ -969,6 +969,25 @@ export type SimulationConfig = {
   // v0.44 personal_training (§6)
   personalTrainingTargetProgress: number
   personalTrainingDeadlineWeeks: number
+  // v0.44 成果経験: DiplomaticPlay terminal (§7.7)
+  diplomaticPlayExperienceGainSuccess: number
+  diplomaticPlayExperienceGainFailure: number
+  diplomaticPlayExperienceGainStatusQuo: number
+  diplomaticPlayExperienceGainCancelledMultiplier: number
+  // v0.44 評判 baseScore: Diplomacy (§7.8)
+  personReputationDiplomacySuccessBase: number
+  personReputationDiplomacyStatusQuoBase: number
+  personReputationDiplomacyStatusQuoFailureBase: number
+  personReputationDiplomacyFailureBase: number
+  // v0.44 成果経験: War terminal (§8.5)
+  warExperienceGainVictory: number
+  warExperienceGainDefeat: number
+  warExperienceGainWhitePeace: number
+  warExperienceGainCancelledMultiplier: number
+  // v0.44 評判 baseScore: War (§8.6) + captain general 比の現場指揮官係数 (経験・評判共通)
+  personReputationWarVictoryBase: number
+  personReputationWarDefeatBase: number
+  warCommanderAwardFactor: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2025,4 +2044,19 @@ export const defaultConfig: SimulationConfig = {
   personReputationProjectFailureBase: -6,
   personalTrainingTargetProgress: 3,
   personalTrainingDeadlineWeeks: 48,
+  diplomaticPlayExperienceGainSuccess: 4.0,
+  diplomaticPlayExperienceGainFailure: 2.0,
+  diplomaticPlayExperienceGainStatusQuo: 2.0,
+  diplomaticPlayExperienceGainCancelledMultiplier: 0.5,
+  personReputationDiplomacySuccessBase: 10,
+  personReputationDiplomacyStatusQuoBase: 4,
+  personReputationDiplomacyStatusQuoFailureBase: -3,
+  personReputationDiplomacyFailureBase: -8,
+  warExperienceGainVictory: 5.0,
+  warExperienceGainDefeat: 3.0,
+  warExperienceGainWhitePeace: 2.0,
+  warExperienceGainCancelledMultiplier: 0.5,
+  personReputationWarVictoryBase: 12,
+  personReputationWarDefeatBase: -8,
+  warCommanderAwardFactor: 0.6,
 }
