@@ -76,7 +76,10 @@ export function buildActivityReport(
         factionBailiffNominationWeight: config.factionBailiffNominationWeight,
         factionNominationPowerThreshold: config.factionNominationPowerThreshold,
         polityOfficeMaxByRank: config.polityOfficeMaxByRank,
-        targetLivingPersons: config.targetLivingPersons,
+        // v0.45.1: 絶対値 config 廃止に伴い baseline × 係数の実効値を出す
+        targetLivingPersons: Math.round(
+          (finalState.worldgenLivingPersonsBaseline ?? 0) * config.targetLivingPersonsFactor,
+        ),
         targetHouselessPersons: config.targetHouselessPersons,
         adultAge: config.adultAge,
       },

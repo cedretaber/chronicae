@@ -322,7 +322,26 @@ pressure 1.0 で飢饉確率 100%（`faminePressureChanceBonus: 9.2`）。人口
 
 ### 6.7 MortalitySystem（4週ごと）
 
-人物の自然死亡を処理。死亡が確定した Person について `markPersonDead` mutation を呼び、以下を一括で処理する：
+人物の自然死亡を処理。
+
+**死亡率（v0.45.1 で U 字年齢曲線 + config 化）**: 4 週ごと判定 1 回あたりの率（年 12 回判定）。年齢境界（3/15/40/60/70）はコード内固定、率のみ config。
+
+| 年齢帯 | config key | default | 年率換算 |
+|---|---|---|---|
+| 0–2 歳 | `mortalityRateInfant` | 0.004 | 4.7% |
+| 3–14 歳 | `mortalityRateChild` | 0.0012 | 1.4% |
+| 15–39 歳 | `mortalityRatePrime` | 0.0008 | 1.0% |
+| 40–59 歳 | `mortalityRateMiddle` | 0.003 | 3.5% |
+| 60–69 歳 | `mortalityRateSenior` | 0.01 | 11.4% |
+| 70 歳以上 | `mortalityRateElder` | 0.03 | 30.5% |
+
+期待生存率は 出生→15 歳 ≈ 73% / →40 歳 ≈ 57% / →60 歳 ≈ 28% / →70 歳 ≈ 8%。旧実装（v0.45 以前）は 0–39 歳一律 0.4%/回のハードコードで、出生→40 歳の生存率が 14.6% しかなく夭折がデフォルトだった。幼児死亡率は高いまま残し、小児〜壮年を下げて「生き延びた者は壮年に届く」分布にしている。
+
+**天才の死亡率補正（v0.45.1）**: `geniusType` を持つ人物は判定率に `geniusMortalityMultiplier`（default 0.5、1 で無効）を乗じる。天才の夭折（15 歳未満死）は U 字化との複合で約 15%（通常人物は約 26%）となり、「稀に起こる物語」として残る。
+
+**在野人物も自然死する（v0.45.1）**: 旧実装は `houseId` を持たない人物を死亡判定から除外しており、在野人物は刈り込み（§6.18）以外で死なない実質不死だった。v0.45.1 から在野人物も同じ率で自然死する（死亡ロール自体は旧実装でも消費されていたため、RNG 消費数は不変）。在野の死では house/polity leader 判定は常に false、死亡イベントの entityRefs に house は含まれない。
+
+死亡が確定した Person について `markPersonDead` mutation を呼び、以下を一括で処理する：
 
 1. `person.alive = false`
 2. `clearSpouse` で配偶者側の `spouseId` も解除
@@ -391,13 +410,20 @@ toHeirsPool = wealth - toHouse
 
 `birthEnabled` が true のとき動作。対象年齢（`fatherMinChildAge`〜`fatherMaxChildAge`）の生存男性を走査し、出生判定を行う。**`houseId` がない人物は出生対象外**。家を持たない在野人物が子を残すには、まず家系を創設する必要がある。
 
-**出生確率補正**:
+**出生確率補正（v0.45.1 で baseline 比例化 + 上限ダンパー追加）**:
+
+人口閾値は `WorldState.worldgenLivingPersonsBaseline`（worldgen 完了時の生存人口。placeholder 除く）に係数を掛けて算出する。旧実装の絶対値閾値（target 180 / critical 90）は tiny preset の初期人口 ~92 の ×2 / ×1 を偶然ハードコードしたものでマップ規模（preset）に追従しない欠陥があった。
+
 ```
-livingCount <= criticalLivingPersons → birthMultiplier = criticalPopulationBirthMultiplier (3.0)
-livingCount < targetLivingPersons   → birthMultiplier = lowPopulationBirthMultiplier (1.5)
-それ以外                              → birthMultiplier = 1.0
+baseline = state.worldgenLivingPersonsBaseline（未設定なら倍率制御無効 = 常に 1.0）
+livingCount <= baseline × criticalLivingPersonsFactor (1.0) → criticalPopulationBirthMultiplier (3.0)
+livingCount <  baseline × targetLivingPersonsFactor (2.0)   → lowPopulationBirthMultiplier (1.5)
+livingCount >= baseline × highLivingPersonsFactor (3.0)     → highPopulationBirthMultiplier (0.5)
+それ以外                                                      → 1.0
 birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 ```
+
+high 帯（上限ダンパー）は v0.45.1 の死亡率 U 字化（§6.7）で純再生産率が 1 を超え人口が無限増殖したため新設した。出生以外にも houseFounding の配偶者・子サンプリングや在野補充（§6.18）という人口流入があるため、実測の平衡点は baseline ×3.5〜4.5 程度（tiny 150 年実測で ~330-380 に安定）。
 
 **母親の決定**:
 - 配偶者が対象年齢（`motherMinChildAge`〜`motherMaxChildAge`）の場合、`spouseMotherChance`（0.9）で嫡出子
@@ -632,6 +658,8 @@ House 絶滅時の即時 `syncClanActive` は `handleNormalHouseExtinction`（`w
 無家人物を生成・維持する。config key は `houseless*`（`houselessPersonsPerHolding` / `houselessMaleRatio` / `targetHouselessPersons` / `softMaxHouselessPersons` / `hardMaxHouselessPersons` / `houselessProtectionYears`）。
 
 無家人物は `houseId === undefined` の normal Person として `state.persons` に直接追加される。House の `memberIds` には含まれない。
+
+**刈り込み（fading）の除外条件**: プールが softMax を超えた場合、dwell の長い低 prestige 人物から `faded_from_history` で除去する。ただし以下は除外: 保護期間内（`houselessProtectionYears`）/ prestige・wealth が閾値以上 / active office 保有 / active faction 所属 / **`geniusType` 持ち（v0.45.1 — notable 人物の無言消滅を防ぐ。自然死は §6.7 で在野にも適用されるため不死にはならない）**。
 
 ### 6.19 AppointmentSystem（12週ごと = 3ヶ月ごと）
 
@@ -2107,6 +2135,8 @@ type PersonReputation = {
 - 自然成長上限は age-curve fraction（最大 0.7-0.75）× 天賦のため、天才も自然成長だけでは天賦の 7 割止まり。**天賦 80-120 を使い切るには職務経験（§6.24 の ceiling 解放）や成果成長（§6.66）が必要** — 「登用された天才だけが大成する」が創発する
 - 幼少期の天才は naturalCeil（= 高い天賦 × 年齢曲線）を毎年ギャップ比例で追走し、通常の子の約 2 倍の水準で育つ
 - `isNotablePerson` に `geniusType` 判定を追加（§6.25）。天才の成長ログは normal になり、死去は `IMPORTANT_PERSON_DIED` 対象になる
+- **死亡率補正（v0.45.1）**: 自然死判定率に `geniusMortalityMultiplier`（0.5）を乗じる（§6.7）。夭折率は約 26% → 約 15% に下がり、「才能を開花させる前に死ぬ」がデフォルトでなくなる（夭折の物語は稀に残る）
+- **在野刈り込みから除外（v0.45.1）**: `faded_from_history` の対象にしない（§6.18）。在野でも自然死はするため不死にはならない
 
 #### イベント・UI
 

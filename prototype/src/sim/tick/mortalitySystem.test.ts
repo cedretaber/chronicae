@@ -499,4 +499,53 @@ describe('runMortalitySystem', () => {
 
     expect(true).toBe(true)
   })
+
+  // v0.45.1: U字年齢曲線 (config化) + 天才乗数 + 在野自然死
+  it('mortalityRatePrime を 1 にすると壮年の人物は必ず死ぬ', () => {
+    const person = makePerson('pe-0' as PersonId, 30, true)
+    const base = makeCtx(person, 42)
+    const ctx = { ...base, config: { ...defaultConfig, mortalityRatePrime: 1 } }
+
+    const result = runMortalitySystem(ctx)
+
+    expect(result.state.persons['pe-0' as PersonId]?.alive).toBe(false)
+    expect(result.events.some((e) => e.type === 'PERSON_DIED')).toBe(true)
+  })
+
+  it('geniusMortalityMultiplier 0 のとき天才は forced-death tick を生き残る', () => {
+    const person: Person = { ...makePerson('pe-0' as PersonId, 30, true), geniusType: 'commander' }
+    const base = makeCtx(person, 42)
+    const ctx = {
+      ...base,
+      config: { ...defaultConfig, mortalityRatePrime: 1, geniusMortalityMultiplier: 0 },
+    }
+
+    const result = runMortalitySystem(ctx)
+
+    expect(result.state.persons['pe-0' as PersonId]?.alive).toBe(true)
+    expect(result.events.length).toBe(0)
+  })
+
+  it('在野 (houseId なし) の人物も自然死し、イベントは house ref なしで emit される', () => {
+    const full = makePerson('pe-0' as PersonId, 30, true)
+    const houseless: Person = { ...full }
+    delete houseless.houseId
+    const base = makeCtx(houseless, 42)
+    const ctx = {
+      ...base,
+      state: { ...base.state, houses: {} },
+      config: { ...defaultConfig, mortalityRatePrime: 1 },
+    }
+
+    const result = runMortalitySystem(ctx)
+
+    expect(result.state.persons['pe-0' as PersonId]?.alive).toBe(false)
+    const event = result.events.find((e) => e.type === 'PERSON_DIED')
+    expect(event).toBeDefined()
+    expect(event!.entityRefs.some((r) => r.kind === 'house')).toBe(false)
+    expect(result.deathRolesThisTick['pe-0' as PersonId]).toEqual({
+      wasHouseLeader: false,
+      wasPolityLeader: false,
+    })
+  })
 })

@@ -126,10 +126,22 @@ export type SimulationConfig = {
   spouseMotherChance: number
   maleBirthChance: number
   maleBirthChanceWhenAdultMaleShortage: number
-  targetLivingPersons: number
-  criticalLivingPersons: number
+  // v0.45.1: 人口閾値は絶対値から worldgenLivingPersonsBaseline 比例の係数に変更
+  //   (マップ規模 preset に閾値が追従しない欠陥の修正)
+  targetLivingPersonsFactor: number // baseline × この値 未満で lowPopulationBirthMultiplier
+  criticalLivingPersonsFactor: number // baseline × この値 以下で criticalPopulationBirthMultiplier
+  highLivingPersonsFactor: number // baseline × この値 以上で highPopulationBirthMultiplier
   lowPopulationBirthMultiplier: number
   criticalPopulationBirthMultiplier: number
+  highPopulationBirthMultiplier: number
+  // v0.45.1 Mortality (4週ごと判定1回あたりの死亡率。年12回判定)
+  mortalityRateInfant: number // 0-2歳
+  mortalityRateChild: number // 3-14歳
+  mortalityRatePrime: number // 15-39歳
+  mortalityRateMiddle: number // 40-59歳
+  mortalityRateSenior: number // 60-69歳
+  mortalityRateElder: number // 70歳以上
+  geniusMortalityMultiplier: number // geniusType 持ちの死亡率乗数 (1 で無効)
   // v0.7 Succession
   adultAge: number
   allowFemaleHouseHeadWhenNoMaleHeir: boolean
@@ -1106,10 +1118,27 @@ export const defaultConfig: SimulationConfig = {
   spouseMotherChance: 0.9,
   maleBirthChance: 0.52,
   maleBirthChanceWhenAdultMaleShortage: 0.65,
-  targetLivingPersons: 180,
-  criticalLivingPersons: 90,
+  // v0.45.1: 旧絶対値 (target 180 / critical 90) は tiny の初期人口 ~92 の ×2 / ×1 相当
+  //   だったため、係数化で tiny の挙動をほぼ維持しつつ全 preset に比例させる。
+  //   high 帯 (×3 以上で出生 0.5 倍) は死亡率 U 字化 (§6.7) で純再生産率が 1 を超えたため
+  //   新設した上限ダンパー。人口は baseline ×2〜×3 の帯で安定する。
+  targetLivingPersonsFactor: 2.0,
+  criticalLivingPersonsFactor: 1.0,
+  highLivingPersonsFactor: 3.0,
   lowPopulationBirthMultiplier: 1.5,
   criticalPopulationBirthMultiplier: 3.0,
+  highPopulationBirthMultiplier: 0.5,
+  // v0.45.1 Mortality: U字カーブ (旧実装は 0-39歳一律 0.004 = 年率4.7%で、出生→40歳の
+  //   生存率が 14.6% しかなく夭折がデフォルトだった)。幼児死亡は高いまま残し、
+  //   小児〜壮年を下げて「生き延びた者は壮年まで届く」分布にする。
+  //   期待生存率: 出生→15歳 ≈ 73% / →40歳 ≈ 57% / →60歳 ≈ 28% / →70歳 ≈ 8%
+  mortalityRateInfant: 0.004, // 0-2歳 (年率 4.7%)
+  mortalityRateChild: 0.0012, // 3-14歳 (年率 1.4%)
+  mortalityRatePrime: 0.0008, // 15-39歳 (年率 1.0%)
+  mortalityRateMiddle: 0.003, // 40-59歳 (年率 3.5%)
+  mortalityRateSenior: 0.01, // 60-69歳 (年率 11.4%)
+  mortalityRateElder: 0.03, // 70歳以上 (年率 30.5%)
+  geniusMortalityMultiplier: 0.5, // 天才の夭折を「稀に起こる物語」に抑える (×0.5 で出生→40歳 ≈ 76%)
   // v0.7 Succession
   adultAge: 15,
   allowFemaleHouseHeadWhenNoMaleHeir: true,

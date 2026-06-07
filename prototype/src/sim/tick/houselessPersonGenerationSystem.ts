@@ -177,6 +177,9 @@ function pruneHouseless(ctx: TickContext, targetReduction: number): TickContext 
     const dwell = currentYear - (p.lastHouseTransferYear ?? currentYear)
 
     // Exclusion checks
+    // v0.45.1: 天才は「歴史から消える」対象にしない (notable 人物の無言消滅を防ぐ。
+    //   自然死は mortalitySystem 側で在野にも適用されるため不死にはならない)
+    if (p.geniusType !== undefined) continue
     if (dwell < config.houselessProtectionYears) continue
     if (p.legacyPrestige >= config.protectionPrestigeThreshold) continue
     const officeIds = ctx.state.officeIndex.byHolderPerson[pid] ?? []

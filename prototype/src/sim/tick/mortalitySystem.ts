@@ -14,19 +14,38 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
     if (!person) continue
     if (person.kind === 'placeholder') continue
 
+    // v0.45.1: U字年齢曲線 (config 化)。年齢境界 3/15/40/60/70 は固定、率のみ config。
+    const config = currentCtx.config
+    const baseRate =
+      person.age <= 2
+        ? config.mortalityRateInfant
+        : person.age <= 14
+          ? config.mortalityRateChild
+          : person.age <= 39
+            ? config.mortalityRatePrime
+            : person.age <= 59
+              ? config.mortalityRateMiddle
+              : person.age <= 69
+                ? config.mortalityRateSenior
+                : config.mortalityRateElder
+    // v0.45.1: 天才は死亡率を乗数で抑える (夭折は残るが稀になる)
     const deathRate =
-      person.age <= 39 ? 0.004 : person.age <= 59 ? 0.01 : person.age <= 69 ? 0.025 : 0.05
+      person.geniusType !== undefined ? baseRate * config.geniusMortalityMultiplier : baseRate
 
     const { value: deathCheck, rng: nextRng } = randomFloat(currentCtx.rng)
     currentCtx = { ...currentCtx, rng: nextRng }
 
     if (deathCheck < deathRate) {
-      if (!person.houseId) continue
-
-      // Check if person was a house/polity leader BEFORE revoking
-      const houseLeaderBefore = getHouseLeader(currentCtx.state, person.houseId)
+      // v0.45.1: 在野 (houseId なし) も自然死する (旧実装はここで continue しており
+      //   在野人物は刈り込み以外で死なない=実質不死だった)。
+      //   house/polity leader 判定は house 経由のため在野では常に false。
+      const houseLeaderBefore = person.houseId
+        ? getHouseLeader(currentCtx.state, person.houseId)
+        : undefined
       const wasHouseLeader = houseLeaderBefore === personId
-      const personPrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, person.houseId)
+      const personPrimaryPolityId = person.houseId
+        ? getHousePrimaryPolityId(currentCtx.state, person.houseId)
+        : undefined
       const polityRulerBefore = personPrimaryPolityId
         ? getPolityLeader(currentCtx.state, personPrimaryPolityId)
         : undefined
@@ -42,7 +61,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
       //   v0.45: 天才の死も major で記録する (夭折も含めて年代記の対象)。
       const isNotableDeath = wasHouseLeader || wasPolityLeader || person.geniusType !== undefined
 
-      const house = currentState.houses[person.houseId]
+      const house = person.houseId ? currentState.houses[person.houseId] : undefined
       const { event, ctx: eventCtx } = createSimEvent(
         { ...currentCtx, state: currentState },
         {

@@ -17,7 +17,11 @@ export function runBirthSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
   const livingCount = countLivingPersons(currentCtx.state)
-  const birthMultiplier = computeBirthMultiplier(currentCtx.config, livingCount)
+  const birthMultiplier = computeBirthMultiplier(
+    currentCtx.config,
+    livingCount,
+    currentCtx.state.worldgenLivingPersonsBaseline,
+  )
 
   const adultMales = countAdultMales(currentCtx.state)
 
@@ -205,9 +209,22 @@ function countLivingPersons(state: WorldState): number {
   return count
 }
 
-function computeBirthMultiplier(config: SimulationConfig, livingCount: number): number {
-  if (livingCount <= config.criticalLivingPersons) return config.criticalPopulationBirthMultiplier
-  if (livingCount < config.targetLivingPersons) return config.lowPopulationBirthMultiplier
+// v0.45.1: 閾値は絶対値から worldgen 初期人口 (baseline) 比例に変更。
+//   critical (×1 以下) → 3 倍ブースト / target (×2 未満) → 1.5 倍 / high (×3 以上) → 0.5 倍ダンパー。
+//   high 帯は死亡率 U 字化で純再生産率が 1 を超えたために新設 (人口は ×2〜×3 帯で安定する)。
+//   baseline 未設定 (古い fixture 等) では制御無効 (常に 1.0)。
+function computeBirthMultiplier(
+  config: SimulationConfig,
+  livingCount: number,
+  baseline: number | undefined,
+): number {
+  if (baseline === undefined || baseline <= 0) return 1.0
+  if (livingCount <= baseline * config.criticalLivingPersonsFactor)
+    return config.criticalPopulationBirthMultiplier
+  if (livingCount < baseline * config.targetLivingPersonsFactor)
+    return config.lowPopulationBirthMultiplier
+  if (livingCount >= baseline * config.highLivingPersonsFactor)
+    return config.highPopulationBirthMultiplier
   return 1.0
 }
 

@@ -50,10 +50,19 @@
 | spouseMotherChance | 0.90 | 配偶者が母親になる確率 |
 | maleBirthChance | 0.52 | 男子出生確率（通常） |
 | maleBirthChanceWhenAdultMaleShortage | 0.65 | 男子出生確率（成人男性不足時） |
-| targetLivingPersons | 180 | 出生倍率 1.0 となる生存人数の目標 |
-| criticalLivingPersons | 90 | 危機的人口（出生倍率 3.0 が発動する閾値） |
+| targetLivingPersonsFactor | 2.0 | 出生倍率 1.5 の上限閾値（worldgen 初期人口 × この値。v0.45.1 で絶対値 180 から係数化） |
+| criticalLivingPersonsFactor | 1.0 | 危機的人口の閾値係数（初期人口 × この値 以下で出生倍率 3.0） |
+| highLivingPersonsFactor | 3.0 | 上限ダンパーの閾値係数（初期人口 × この値 以上で出生倍率 0.5。v0.45.1 新設） |
 | lowPopulationBirthMultiplier | 1.5 | 人口不足時の出生倍率 |
 | criticalPopulationBirthMultiplier | 3.0 | 危機的人口時の出生倍率 |
+| highPopulationBirthMultiplier | 0.5 | 人口過剰時の出生倍率（上限ダンパー） |
+| mortalityRateInfant | 0.004 | 0-2 歳の死亡率（4 週ごと判定 1 回あたり。年率 4.7%。§6.7） |
+| mortalityRateChild | 0.0012 | 3-14 歳の死亡率（年率 1.4%） |
+| mortalityRatePrime | 0.0008 | 15-39 歳の死亡率（年率 1.0%） |
+| mortalityRateMiddle | 0.003 | 40-59 歳の死亡率（年率 3.5%） |
+| mortalityRateSenior | 0.01 | 60-69 歳の死亡率（年率 11.4%） |
+| mortalityRateElder | 0.03 | 70 歳以上の死亡率（年率 30.5%） |
+| geniusMortalityMultiplier | 0.5 | 天才（geniusType 持ち）の死亡率乗数。1 で無効 |
 | adultAge | 15 | 成人年齢（継承・婚姻・出生の判定基準） |
 | **Succession & House Split** | | |
 | successionCrisisScoreGap | 10 | 後継者スコア差がこの値を超えると継承危機が発生 |

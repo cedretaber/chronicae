@@ -1643,6 +1643,10 @@ export function generateWorld(
     livingPersonIds: (Object.keys(personsRecord) as PersonId[])
       .filter((id) => personsRecord[id]?.alive)
       .sort(),
+    // v0.45.1: 人口閾値の基準 (placeholder 除く初期生存人口)。preset 規模に閾値を比例させる
+    worldgenLivingPersonsBaseline: (Object.keys(personsRecord) as PersonId[]).filter(
+      (id) => personsRecord[id]?.alive && personsRecord[id]?.kind !== 'placeholder',
+    ).length,
     activePlots: {},
     popGroups: popGroupsRecord,
     popIndex: { byHolding: popIndexByHolding },

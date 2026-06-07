@@ -483,7 +483,7 @@ describe('runBirthSystem', () => {
     }
   })
 
-  it('population multiplier applies when living persons <= criticalLivingPersons', () => {
+  it('population multiplier applies when living persons <= baseline × criticalLivingPersonsFactor', () => {
     const houseId = 'h-0' as HouseId
     const polityId = 'dp-0' as PolityId
     const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId)
@@ -491,9 +491,10 @@ describe('runBirthSystem', () => {
     house.memberIds = [father.id]
     const polity = makePolity(polityId, houseId)
 
+    // v0.45.1: baseline 10 × criticalLivingPersonsFactor 1.0 = 10 ≧ living 1 → critical 帯
     const customConfig = makeConfig({
       baseBirthChancePerMalePerYear: 0.3,
-      criticalLivingPersons: 10,
+      criticalLivingPersonsFactor: 1.0,
       criticalPopulationBirthMultiplier: 3.0,
     })
 
@@ -513,6 +514,7 @@ describe('runBirthSystem', () => {
           houses: { [houseId]: house },
           persons: { [father.id]: { ...father } },
           livingPersonIds: ['pe-0' as PersonId],
+          worldgenLivingPersonsBaseline: 10,
           activePlots: {},
           popGroups: {},
           popIndex: { byHolding: {} },
@@ -615,10 +617,9 @@ describe('runBirthSystem', () => {
       if (childKeys.length > 0) birthsWithLowPop++
     }
 
+    // v0.45.1: baseline 未設定 (state に worldgenLivingPersonsBaseline なし) = 倍率制御無効 (常に 1.0)
     const normalConfig = makeConfig({
       baseBirthChancePerMalePerYear: 0.3,
-      criticalLivingPersons: 0,
-      targetLivingPersons: 0,
       criticalPopulationBirthMultiplier: 1.0,
       lowPopulationBirthMultiplier: 1.0,
     })

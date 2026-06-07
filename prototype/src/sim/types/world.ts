@@ -82,6 +82,10 @@ export type WorldState = {
   houses: Record<HouseId, House>
   persons: Record<PersonId, Person>
   livingPersonIds: PersonId[]
+  // v0.45.1: worldgen 完了時の生存人口 (placeholder 除く)。人口閾値 (出生倍率の
+  //   critical/target/high 帯) の基準値。マップ規模 (preset) に閾値を比例させるために持つ。
+  //   optional: 未設定 (古い fixture 等) では出生倍率制御が無効 (常に 1.0)
+  worldgenLivingPersonsBaseline?: number
   activePlots: Record<PlotId, Plot>
   popGroups: Record<PopGroupId, PopGroup>
   popIndex: PopIndex

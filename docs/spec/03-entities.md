@@ -1588,6 +1588,18 @@ type WorldState = {
 - `integritySystem` は dead person も検査対象のため `Object.keys(state.persons)` を引き続き使用する
 - `integritySystem` に `livingPersonIds` ↔ `state.persons` の整合性チェックを追加済み
 
+#### WorldState 追加（worldgenLivingPersonsBaseline、v0.45.1）
+
+```ts
+type WorldState = {
+  ...
+  worldgenLivingPersonsBaseline?: number  // worldgen 完了時の生存人口 (placeholder 除く)
+}
+```
+
+- 出生倍率の人口閾値（critical / target / high 帯、§6.10）の基準値。閾値をマップ規模（preset）に比例させるために worldgen で一度だけ記録する不変値
+- optional: 未設定（古い fixture 等）では出生倍率制御が無効（常に 1.0）
+
 ---
 
 ### 3.14 Chronicle System
