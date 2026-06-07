@@ -142,7 +142,15 @@ done
 wait
 echo "All 4 seeds finished"
 
-# commit 前・リリース前の確認（4 seed × 300年、~6分）
+# commit 前の確認（4 seed × 100年、~85秒）
+cd prototype
+for s in 1 42 123 999; do
+  node src/cli/run.mjs --years 100 --seed $s > /tmp/seed$s.log 2>&1 &
+done
+wait
+echo "All 4 seeds finished"
+
+# リリース前の確認（4 seed × 300年、~18分。v0.45.4 の人口増で大幅に遅くなった）
 cd prototype
 for s in 1 42 123 999; do
   node src/cli/run.mjs --years 300 --seed $s > /tmp/seed$s.log 2>&1 &
@@ -155,22 +163,31 @@ echo "All 4 seeds finished"
 
 ### 所要時間の目安
 
-v0.31.1 (livingPersonIds 最適化後) の実測値:
+v0.45.5 時点の実測値 (16 コア・4 seed 並列 wall-clock):
 
-| 年数 | 4 seed 並列 |
-|---|---|
-| 50年 | ~10 sec |
-| 100年 | ~60 sec |
-| 300年 | ~6 min |
+| 年数 | 4 seed 並列 | 旧 (v0.31.1) | 倍率 |
+|---|---|---|---|
+| 50年 | ~18 sec | ~10 sec | 1.8x |
+| 100年 | ~85 sec | ~60 sec | 1.4x |
+| 300年 | ~18.5 min | ~6 min | 3.1x |
+
+**v0.31.1 から大幅に遅くなった主因は v0.45.4 の人口増** (highLivingPersonsFactor 3.0→4.0 で
+平衡人口 ~370→510-630)。エンティティ数が増えたうえ、300年は後年ほど人口が蓄積するため
+**非線形に悪化** (300年は 3.1x、100年は 1.4x)。perf 最適化は機能完成後のバランス調整フェーズで検討する
+（観賞対象としての面白さを優先する現方針では、人口増は意図的なトレードオフ）。
 
 ### 用途別の推奨設定
 
 | 用途 | 推奨 | 所要時間 |
 |---|---|---|
-| 開発中の繰り返し確認 | 100年 × 4 seed 並列 | ~60 sec |
-| commit 前の確認 | 300年 × 4 seed 並列 | ~6 min |
-| リリース前 | 300年 × 4 seed 並列 | ~6 min |
+| 開発中の繰り返し確認 | 100年 × 4 seed 並列 | ~85 sec |
+| commit 前の確認 | **100年 × 4 seed 並列** | ~85 sec |
+| リリース前 | 300年 × 4 seed 並列 | ~18.5 min |
 | 時間計測・perf 比較 | 直列 (CPU 競合でブレるため) | — |
+
+**commit 前確認は 300年 → 100年に短縮した (v0.45.5)**。300年が ~18.5 分と重くなったため、
+commit ごとには 100年で回し、300年はリリース前 (および人口・経済まわりの長期挙動を変える変更時) のみ走らせる。
+100年で integrity が green なら commit してよい。
 
 20年では検出できない長期蓄積バグが100年で顕在化した実績がある（DiplomaticPlay delegate 死亡バグ等）。開発中でも最低 100 年は確認すること。
 
