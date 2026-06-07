@@ -228,7 +228,7 @@ export function reassignProjectsOfDeadSupervisor(
       continue
     }
 
-    ws.projects[pid] = { ...project, status: 'failed' }
+    ws.projects[pid] = { ...project, status: 'failed', terminalReason: 'no_supervisor' }
     const ownerNameKey = getOwnerNameKey(ws, project.owner)
     const { event, ctx: ec } = createSimEvent(
       { ...next, state: ws },

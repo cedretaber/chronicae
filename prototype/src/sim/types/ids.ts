@@ -186,3 +186,10 @@ export type PoliticalRightId = Branded<string, 'PoliticalRightId'>
 export function createPoliticalRightId(n: number): PoliticalRightId {
   return ('prg-' + n) as PoliticalRightId
 }
+
+// v0.44 PersonReputation
+export type PersonReputationId = Branded<string, 'PersonReputationId'>
+
+export function createPersonReputationId(n: number): PersonReputationId {
+  return ('rep-' + n) as PersonReputationId
+}

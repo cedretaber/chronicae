@@ -44,6 +44,20 @@ export function checkDiplomacyWarRegiment(
         code: 'INTEGRITY_VIOLATION',
         message: `DiplomaticPlay ${idStr} has terminal status ${play.status} (must be cleaned up) (§20)`,
       })
+      // v0.44 §12.3: terminal status は terminalOutcome 必須。terminal play は
+      // cleanupTerminalDiplomacy が同 tick で削除するため年末 integrity では実質発火せず、
+      // --integrity-per-system の mid-tick 検証で捕捉する。
+      if (play.terminalOutcome === undefined) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `DiplomaticPlay ${idStr}: terminal status=${play.status} without terminalOutcome (§12.3)`,
+        })
+      }
+    } else if (play.terminalOutcome !== undefined) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `DiplomaticPlay ${idStr}: non-terminal play with terminalOutcome=${play.terminalOutcome} (§12.3)`,
+      })
     }
     // initiator / target が active actor
     if (!isActiveActor(play.initiator)) {

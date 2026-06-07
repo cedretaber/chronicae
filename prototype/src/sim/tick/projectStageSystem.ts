@@ -381,7 +381,11 @@ function resolveOpenDiplomaticPlay(
   }
 
   if (result.kind === 'duplicate') {
-    ws.projects[projectId] = { ...project, status: 'failed' as const }
+    ws.projects[projectId] = {
+      ...project,
+      status: 'failed' as const,
+      terminalReason: 'duplicate_play' as const,
+    }
     const ownerNameKey = getOwnerNameKey(ws, project.owner)
     emitEvent({
       type: 'PROJECT_FAILED',
@@ -399,7 +403,11 @@ function resolveOpenDiplomaticPlay(
   if (result.kind === 'infeasible') {
     // 相手が応じる見込みがない外交劇。プロジェクトを失敗させ、actor を別の行動へ解放する
     // (invalid_inputs と違い毎 tick retry しない)。
-    ws.projects[projectId] = { ...project, status: 'failed' as const }
+    ws.projects[projectId] = {
+      ...project,
+      status: 'failed' as const,
+      terminalReason: 'opponent_too_strong' as const,
+    }
     const ownerNameKey = getOwnerNameKey(ws, project.owner)
     emitEvent({
       type: 'PROJECT_FAILED',

@@ -568,6 +568,20 @@ export function checkGoalsAimsProjects(
         code: 'INTEGRITY_VIOLATION',
         message: `Project ${idStr}: terminal project in state (status=${project.status})`,
       })
+      // v0.44 §12.2: terminal status は terminalReason 必須。terminal project は
+      // 同 tick 〜 4 週内に削除されるため年末 integrity では実質発火せず、
+      // --integrity-per-system の mid-tick 検証で捕捉する。
+      if (project.terminalReason === undefined) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: terminal status=${project.status} without terminalReason (§12.2)`,
+        })
+      }
+    } else if (project.terminalReason !== undefined) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Project ${idStr}: active project with terminalReason=${project.terminalReason} (§12.2)`,
+      })
     }
 
     const creator = state.persons[project.creatorPersonId]

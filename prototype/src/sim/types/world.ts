@@ -30,6 +30,7 @@ import type {
   BattleId,
   ChronicleEntryId,
   PoliticalRightId,
+  PersonReputationId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -59,6 +60,7 @@ import type { Battle, BattleIndex } from './battle'
 import type { Pressure, PressureIndex } from './pressure'
 import type { ChronicleEntry, ChronicleIndex } from './chronicle'
 import type { PoliticalRight, PoliticalRightIndex } from './politicalRight'
+import type { PersonReputation, PersonReputationIndex } from './personReputation'
 import type { StateRegion } from './stateRegion'
 import type { Goal, Aim, DecisionReason, GoalIndex, AimIndex } from './goal'
 import type {
@@ -135,6 +137,10 @@ export type WorldState = {
   politicalRights: Record<PoliticalRightId, PoliticalRight>
   politicalRightIndex: PoliticalRightIndex
   nextPoliticalRightId: number
+  // v0.44 PersonReputation
+  personReputations: Record<PersonReputationId, PersonReputation>
+  personReputationIndex: PersonReputationIndex
+  nextPersonReputationId: number
   // v0.23 Task/ActivityLog
   tasks: Record<TaskId, Task>
   taskIndex: TaskIndex

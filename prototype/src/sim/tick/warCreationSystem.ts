@@ -3,6 +3,7 @@ import type { WorldState } from '../types/world'
 import type {
   DiplomaticPlay,
   DiplomaticPlayStatus,
+  DiplomaticPlayTerminalOutcome,
   DiplomaticPlaySupporter,
 } from '../types/diplomaticPlay'
 import type { DiplomaticPlayId, PolityId, WarId } from '../types/ids'
@@ -37,9 +38,10 @@ function setPlayStatusMut(
   ws: WorldState,
   playId: DiplomaticPlayId,
   status: DiplomaticPlayStatus,
+  terminalOutcome: DiplomaticPlayTerminalOutcome,
 ): void {
   const play = ws.diplomaticPlays[playId]
-  if (play) ws.diplomaticPlays[playId] = { ...play, status }
+  if (play) ws.diplomaticPlays[playId] = { ...play, status, terminalOutcome }
 }
 
 // §6.2.4: 同一 issue を対象とする active War が既に存在するか。
@@ -168,12 +170,12 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
   for (const play of candidates) {
     // §6.2.2 polity 限定 (land/tax は生成時点で polity 同士だが防御的に確認)。
     if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') {
-      setPlayStatusMut(ws, play.id, 'cancelled')
+      setPlayStatusMut(ws, play.id, 'cancelled', 'voided')
       continue
     }
     // §6.2.4 dedup。
     if (hasActiveWarForIssue(ws, play)) {
-      setPlayStatusMut(ws, play.id, 'cancelled')
+      setPlayStatusMut(ws, play.id, 'cancelled', 'voided')
       continue
     }
     const requiredWarScore =
@@ -184,7 +186,7 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
           : config.defaultChangeContractTaxWarScore
     const goal = createWarGoalFromDiplomaticPlay(ws, play, requiredWarScore)
     if (!goal || !isWarGoalApplicable(ws, goal)) {
-      setPlayStatusMut(ws, play.id, 'cancelled')
+      setPlayStatusMut(ws, play.id, 'cancelled', 'voided')
       continue
     }
     // v0.42 §6 開戦ゲート: 勝率 × 指導者性格で「勝てない戦争」を見送る。
@@ -195,7 +197,7 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
       const winChance = estimateAttackerWinChance(ws, config, play.initiator, play.target)
       const threshold = calcGeneralDeclareThreshold(ws, play.initiator.id, config)
       if (winChance < threshold) {
-        setPlayStatusMut(ws, play.id, 'cancelled')
+        setPlayStatusMut(ws, play.id, 'cancelled', 'voided')
         averted.push({
           attacker: play.initiator,
           defender: play.target,
@@ -248,7 +250,7 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
       }
     }
     // §6.8: War 化成功 → 元 play は resolved_by_conflict (WAR_DECLARED のみ emit)。
-    setPlayStatusMut(ws, play.id, 'resolved_by_conflict')
+    setPlayStatusMut(ws, play.id, 'resolved_by_conflict', 'escalated_to_war')
     declared.push({
       war,
       issueKind: play.kind,

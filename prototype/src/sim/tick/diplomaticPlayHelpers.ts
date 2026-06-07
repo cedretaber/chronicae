@@ -6,7 +6,9 @@ import type { DiplomaticPlayId, PolityId, ProvinceId, HoldingId } from '../types
 import type {
   DiplomaticPlay,
   DiplomaticPlayStatus,
+  DiplomaticPlayTerminalOutcome,
   TerminalDiplomaticPlayStatus,
+  DiplomaticOffer,
 } from '../types/diplomaticPlay'
 import type { EventEntityRef, EventMessageParams } from '../types/event'
 import type { WorldState } from '../types/world'
@@ -44,12 +46,16 @@ export function markPlayEscalated(
   return { ...ctxEv, events: [...ctxEv.events, event] }
 }
 
+// v0.44 §7.2: terminal 化は必ず terminalOutcome とセットで行う (required 引数にして
+// tsc に全サイト被覆を強制させる)。terminal play は cleanupTerminalDiplomacy が同 tick で
+// 削除するため、後続 system での補完は不可能。
 export function setPlayStatus(
   ctx: TickContext,
   playId: DiplomaticPlayId,
   status: TerminalDiplomaticPlayStatus,
+  terminalOutcome: DiplomaticPlayTerminalOutcome,
 ): TickContext {
-  return setPlayAnyStatus(ctx, playId, status)
+  return setPlayAnyStatus(ctx, playId, status, terminalOutcome)
 }
 
 function setPlayActiveStatus(
@@ -57,13 +63,14 @@ function setPlayActiveStatus(
   playId: DiplomaticPlayId,
   status: 'active' | 'escalated',
 ): TickContext {
-  return setPlayAnyStatus(ctx, playId, status)
+  return setPlayAnyStatus(ctx, playId, status, undefined)
 }
 
 function setPlayAnyStatus(
   ctx: TickContext,
   playId: DiplomaticPlayId,
   status: DiplomaticPlayStatus,
+  terminalOutcome: DiplomaticPlayTerminalOutcome | undefined,
 ): TickContext {
   const play = ctx.state.diplomaticPlays[playId]
   if (!play) return ctx
@@ -73,6 +80,7 @@ function setPlayAnyStatus(
     kind: play.kind,
     from: play.status,
     to: status,
+    ...(terminalOutcome !== undefined ? { outcome: terminalOutcome } : {}),
   })
   return {
     ...ctx,
@@ -80,10 +88,30 @@ function setPlayAnyStatus(
       ...ctx.state,
       diplomaticPlays: {
         ...ctx.state.diplomaticPlays,
-        [playId]: { ...play, status },
+        [playId]: {
+          ...play,
+          status,
+          ...(terminalOutcome !== undefined ? { terminalOutcome } : {}),
+        },
       },
     },
   }
+}
+
+// v0.44 §7.3: settled 時の demands_met / status_quo 分類。
+// accepted offer に initiator の実質要求 demand (transfer_land_contract /
+// change_contract_tax_rate / popular_tax_relief) が含まれれば demands_met。
+// pay_wealth 単独・status_quo のみの offer は status_quo。読み取りのみ・RNG 不使用。
+export function classifySettledOutcome(
+  acceptedOffer: DiplomaticOffer,
+): 'demands_met' | 'status_quo' {
+  const substantive = acceptedOffer.demands.some(
+    (d) =>
+      d.kind === 'transfer_land_contract' ||
+      d.kind === 'change_contract_tax_rate' ||
+      d.kind === 'popular_tax_relief',
+  )
+  return substantive ? 'demands_met' : 'status_quo'
 }
 
 // 旧 computeSellerTreasuryNeed を rename (defender = seller/holder の財政困窮度)

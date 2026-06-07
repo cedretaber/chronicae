@@ -491,7 +491,11 @@ export function handlePreparatoryStageCompletionMut(
   } else {
     const newCount = (project.stageAttemptCount ?? 0) + 1
     if (newCount >= config.projectStageMaxAttempts) {
-      ws.projects[projectId] = { ...project, status: 'failed' }
+      ws.projects[projectId] = {
+        ...project,
+        status: 'failed',
+        terminalReason: 'stage_attempts_exceeded',
+      }
     } else {
       ws.projects[projectId] = { ...project, stageAttemptCount: newCount }
     }

@@ -38,7 +38,7 @@ export function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay
   const targetPolity = state.polities[targetPolityId]
   const commonwealth = state.polities[commonwealthId]
   if (!targetPolity || !targetPolity.active || !commonwealth || !commonwealth.active) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
+    return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
   }
 
   // v0.39: popular_tax_relief demand path
@@ -62,7 +62,7 @@ function progressPopularTaxRelief(
   const popClass = demand.claimantPopClass
 
   const holding = state.holdings[holdingId]
-  if (!holding) return setPlayStatus(ctx, play.id, 'cancelled')
+  if (!holding) return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
   const provinceId = holding.provinceId
 
   const popIds = state.popIndex.byHolding[holdingId]
@@ -78,7 +78,7 @@ function progressPopularTaxRelief(
   }
   const averageUnrest = totalSize > 0 ? weightedUnrest / totalSize : 0
 
-  if (totalSize === 0) return setPlayStatus(ctx, play.id, 'cancelled')
+  if (totalSize === 0) return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
 
   const rebelPower =
     totalSize * config.popRevoltPowerFactorByClass[popClass] * (0.5 + averageUnrest / 100)
@@ -221,7 +221,7 @@ function applyPopularTaxReliefSettlement(
   }
 
   // 6. Set play status
-  nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
+  nextCtx = setPlayStatus(nextCtx, play.id, 'settled', 'demands_met')
 
   // 7. Event
   const provinceName = nameParam(
@@ -268,7 +268,7 @@ function applyRevoltEscalation(
   // 1. Add revolt_seizure child contract
   const holdingChain = state.landContractIndex.byHolding[demand.holdingId] ?? []
   const terminalContractId = holdingChain[holdingChain.length - 1]
-  if (!terminalContractId) return setPlayStatus(ctx, play.id, 'failed')
+  if (!terminalContractId) return setPlayStatus(ctx, play.id, 'failed', 'failed')
 
   const createResult = createChildLandContract(state, {
     provinceId,
@@ -515,7 +515,7 @@ function resolveInternalRevolt(
     })
     if (dissolveResult.ok) nextCtx = dissolveResult.value.ctx
 
-    nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
+    nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict', 'revolt_succeeded')
 
     const provinceName = nameParam(
       'province',
@@ -560,7 +560,7 @@ function resolveInternalRevolt(
   })
   if (dissolveResult.ok) nextCtx = dissolveResult.value.ctx
 
-  nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict')
+  nextCtx = setPlayStatus(nextCtx, play.id, 'resolved_by_conflict', 'revolt_suppressed')
 
   const provinceName = nameParam(
     'province',

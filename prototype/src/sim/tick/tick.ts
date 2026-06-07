@@ -12,6 +12,7 @@ import { runBailiffAppointmentSystem } from './bailiffAppointmentSystem'
 import { runDisasterSystem } from './disasterSystem'
 import { runMortalitySystem } from './mortalitySystem'
 import { runDeadPersonLogPurgeSystem } from './deadPersonLogPurgeSystem'
+import { runPersonReputationCleanupSystem } from './personReputationCleanupSystem'
 import { runSuccessionSystem, applyMinorHeadPenalties } from './successionSystem'
 import { runMarriageSystem } from './marriageSystem'
 import { runBirthSystem } from './birthSystem'
@@ -168,6 +169,13 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runDeadPersonLogPurgeSystem,
+  },
+  {
+    // v0.44 §4.5: expiryWeek 超過 + 死亡者残骸の PersonReputation cleanup (年次)
+    name: 'personReputationCleanupSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runPersonReputationCleanupSystem,
   },
   {
     name: 'estateSettlementSystem',

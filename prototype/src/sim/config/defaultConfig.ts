@@ -955,6 +955,10 @@ export type SimulationConfig = {
   // v0.40 old age candidate penalty（appointment=減算 / 軍事=乗算）
   oldAgeAppointmentScorePenalty: number
   oldAgeCommandScoreMultiplier: number
+  // v0.44 PersonReputation decay / cleanup (§4.3-4.5)
+  // personReputationMonthlyRetentionRate は 0 < rate < 1 を invariant とする (expiryWeek 計算が前提)
+  personReputationMonthlyRetentionRate: number
+  personReputationCleanupThreshold: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2002,4 +2006,7 @@ export const defaultConfig: SimulationConfig = {
   parentalAbilityGrowthChanceBonus: 2.0,
   oldAgeAppointmentScorePenalty: 5,
   oldAgeCommandScoreMultiplier: 0.8,
+  // v0.44 PersonReputation
+  personReputationMonthlyRetentionRate: 0.985,
+  personReputationCleanupThreshold: 0.25,
 }

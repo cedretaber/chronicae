@@ -7,7 +7,12 @@ import { getHoldingLandContractChain } from '../selectors/landContractSelectors'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { validateOffer, evaluateOffer, getOfferEvaluator } from './diplomaticOfferEvaluation'
 import { applySettledOffer } from '../mutations/diplomaticOfferMutations'
-import { isDeadlineReached, markPlayEscalated, setPlayStatus } from './diplomaticPlayHelpers'
+import {
+  isDeadlineReached,
+  markPlayEscalated,
+  setPlayStatus,
+  classifySettledOutcome,
+} from './diplomaticPlayHelpers'
 
 // ─── land_claim 進行 (v0.30 Phase B: offer-driven evaluation) ───
 
@@ -21,12 +26,12 @@ export function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickC
 
   // Get holdingId from issue
   if (!play.issue || play.issue.kind !== 'land_claim') {
-    return setPlayStatus(ctx, play.id, 'cancelled')
+    return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
   }
   const holdingId = play.issue.holdingId
 
   const provinceId = state.holdings[holdingId]?.provinceId
-  if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
+  if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
 
   const initiator = state.polities[initiatorPolityId]
   const defender = state.polities[defenderPolityId]
@@ -40,11 +45,11 @@ export function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickC
     initiator.ownerHouseId === undefined ||
     defender.ownerHouseId === undefined
   ) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
+    return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
   }
   const claimChain = getHoldingLandContractChain(state, holdingId)
   if (!claimChain.some((c) => c.granteePolityId === defenderPolityId)) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
+    return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
   }
 
   // Structural tension update (every tick)
@@ -109,7 +114,7 @@ export function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickC
   // Handle accepted offer -> settlement
   if (offerAccepted && acceptedOffer) {
     nextCtx = applySettledOffer(nextCtx, play, acceptedOffer)
-    nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
+    nextCtx = setPlayStatus(nextCtx, play.id, 'settled', classifySettledOutcome(acceptedOffer))
 
     const hasPay = acceptedOffer.demands.some((d) => d.kind === 'pay_wealth')
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
@@ -207,12 +212,12 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
 
   // Get holdingId from issue
   if (!play.issue || play.issue.kind !== 'contract_tax_revision') {
-    return setPlayStatus(ctx, play.id, 'cancelled')
+    return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
   }
   const holdingId = play.issue.holdingId
 
   const provinceId = state.holdings[holdingId]?.provinceId
-  if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled')
+  if (!provinceId) return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
 
   const initiator = state.polities[initiatorPolityId]
   const defender = state.polities[defenderPolityId]
@@ -226,7 +231,7 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
     initiator.ownerHouseId === undefined ||
     defender.ownerHouseId === undefined
   ) {
-    return setPlayStatus(ctx, play.id, 'cancelled')
+    return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
   }
 
   // Verify contract still in chain
@@ -234,7 +239,7 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
   {
     const chain = getHoldingLandContractChain(state, holdingId)
     if (!chain.some((c) => c.id === landContractId)) {
-      return setPlayStatus(ctx, play.id, 'cancelled')
+      return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
     }
   }
 
@@ -307,7 +312,7 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
         : undefined
 
     nextCtx = applySettledOffer(nextCtx, play, acceptedOffer)
-    nextCtx = setPlayStatus(nextCtx, play.id, 'settled')
+    nextCtx = setPlayStatus(nextCtx, play.id, 'settled', classifySettledOutcome(acceptedOffer))
 
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
 

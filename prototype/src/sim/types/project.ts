@@ -18,6 +18,22 @@ import type { PressureResponseStance } from './pressure'
 
 export type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
 
+// v0.44 §5.3: Project が terminal になった理由。status を terminal に変更する全サイトで
+// 必ずセットする (セット漏れは IntegrityCheck §12.2 違反。terminal Project は
+// projectOutcomeSystem / flushTerminalEntities が同 tick 〜 4 週内に削除するため、
+// 年末 integrity では検出できない — --integrity-per-system で検証する)。
+export type ProjectTerminalReason =
+  | 'completed'
+  | 'deadline_expired'
+  | 'stage_attempts_exceeded'
+  | 'budget_exhausted'
+  | 'duplicate_play'
+  | 'opponent_too_strong'
+  | 'no_supervisor'
+  | 'owner_inactive'
+  | 'aim_terminal'
+  | 'play_terminal'
+
 export type ProjectOrigin = { kind: 'aim'; aimId: AimId } | { kind: 'system'; reasonKey: string }
 
 export type ProjectKind =
@@ -41,6 +57,8 @@ export type BaseProject = {
   supervisorPersonId: PersonId
   parentProjectId?: ProjectId
   status: ProjectStatus
+  // v0.44 §5.3: terminal status と同時にセットする (active 中は持たない)
+  terminalReason?: ProjectTerminalReason
   progress: number
   targetProgress: number
   currentStageKey: ProjectStageKey

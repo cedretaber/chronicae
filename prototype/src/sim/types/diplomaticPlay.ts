@@ -46,6 +46,20 @@ export const TERMINAL_DIPLOMATIC_PLAY_STATUSES: ReadonlyArray<TerminalDiplomatic
   'cancelled',
 ]
 
+// v0.44 §7.2: terminal 化サイトで status と同時にセットする外交劇の結末分類。
+// resolved_by_conflict には複数の意味 (対外戦争化・内部叛乱の蜂起成功/鎮圧) が混ざるため
+// terminalOutcome で明確に分ける。セット漏れは IntegrityCheck §12.3 違反
+// (terminal play は cleanupTerminalDiplomacy が同 tick で削除するため、
+// 年末 integrity では検出できない — --integrity-per-system で検証する)。
+export type DiplomaticPlayTerminalOutcome =
+  | 'demands_met'
+  | 'status_quo'
+  | 'escalated_to_war'
+  | 'revolt_succeeded'
+  | 'revolt_suppressed'
+  | 'failed'
+  | 'voided'
+
 export type DiplomaticDemand =
   | {
       kind: 'transfer_land_contract'
@@ -172,6 +186,8 @@ export type DiplomaticPlay = {
   offerHistoryIds: DiplomaticOfferId[]
 
   status: DiplomaticPlayStatus
+  // v0.44 §7.2: terminal status と同時にセットする (active/escalated 中は持たない)
+  terminalOutcome?: DiplomaticPlayTerminalOutcome
 
   startedWeek: number
   deadlineWeek: number

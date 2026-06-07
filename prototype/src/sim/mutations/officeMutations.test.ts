@@ -112,6 +112,9 @@ function makeOfficeState(): {
     politicalRights: {},
     politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },
     nextPoliticalRightId: 0,
+    personReputations: {},
+    personReputationIndex: { byPerson: {} },
+    nextPersonReputationId: 0,
     officeAssignments: {
       [officeId]: {
         id: officeId,

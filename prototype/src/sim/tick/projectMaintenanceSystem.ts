@@ -73,7 +73,11 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
 
     // 1. Owner disappeared → cancelled
     if (!isOwnerActive(ws, project.owner)) {
-      ws.projects[project.id] = { ...project, status: 'cancelled' }
+      ws.projects[project.id] = {
+        ...project,
+        status: 'cancelled',
+        terminalReason: 'owner_inactive',
+      }
       emitProjectEvent(
         ws,
         project.owner,
@@ -89,7 +93,11 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
     if (project.origin.kind === 'aim') {
       const aim = ws.aims[project.origin.aimId]
       if (!aim || aim.status !== 'active') {
-        ws.projects[project.id] = { ...project, status: 'cancelled' }
+        ws.projects[project.id] = {
+          ...project,
+          status: 'cancelled',
+          terminalReason: 'aim_terminal',
+        }
         emitProjectEvent(
           ws,
           project.owner,
@@ -119,7 +127,7 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
         addProjectToIndexMut(ws, updated)
         continue
       }
-      ws.projects[project.id] = { ...project, status: 'failed' }
+      ws.projects[project.id] = { ...project, status: 'failed', terminalReason: 'no_supervisor' }
       emitProjectEvent(
         ws,
         project.owner,
@@ -138,7 +146,7 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       project.budget.remaining <= 0 &&
       project.progress < project.targetProgress
     ) {
-      ws.projects[project.id] = { ...project, status: 'failed' }
+      ws.projects[project.id] = { ...project, status: 'failed', terminalReason: 'budget_exhausted' }
       emitProjectEvent(
         ws,
         project.owner,
@@ -163,7 +171,11 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
           !play ||
           TERMINAL_PLAY_SET.has(play.status as (typeof TERMINAL_DIPLOMATIC_PLAY_STATUSES)[number])
         ) {
-          ws.projects[project.id] = { ...project, status: 'cancelled' }
+          ws.projects[project.id] = {
+            ...project,
+            status: 'cancelled',
+            terminalReason: 'play_terminal',
+          }
           emitProjectEvent(
             ws,
             project.owner,
@@ -186,7 +198,7 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       absoluteWeek > project.deadlineWeek &&
       project.progress < project.targetProgress
     ) {
-      ws.projects[project.id] = { ...project, status: 'failed' }
+      ws.projects[project.id] = { ...project, status: 'failed', terminalReason: 'deadline_expired' }
       emitProjectEvent(
         ws,
         project.owner,
@@ -200,7 +212,7 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
 
     // 5. Progress reached
     if (project.progress >= project.targetProgress) {
-      ws.projects[project.id] = { ...project, status: 'completed' }
+      ws.projects[project.id] = { ...project, status: 'completed', terminalReason: 'completed' }
       emitProjectEvent(
         ws,
         project.owner,

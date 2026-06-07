@@ -230,7 +230,11 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
           const respProject = base[pressure.responseProjectId]
           if (respProject && respProject.status === 'active') {
             if (!nextProjects) nextProjects = { ...ctx.state.projects }
-            nextProjects[pressure.responseProjectId] = { ...respProject, status: 'cancelled' }
+            nextProjects[pressure.responseProjectId] = {
+              ...respProject,
+              status: 'cancelled',
+              terminalReason: 'play_terminal',
+            }
           }
         }
 
@@ -239,7 +243,11 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
           const initProject = base[pressure.relatedProjectId]
           if (initProject && initProject.status === 'active') {
             if (!nextProjects) nextProjects = { ...ctx.state.projects }
-            nextProjects[pressure.relatedProjectId] = { ...initProject, status: 'cancelled' }
+            nextProjects[pressure.relatedProjectId] = {
+              ...initProject,
+              status: 'cancelled',
+              terminalReason: 'play_terminal',
+            }
           }
         }
 

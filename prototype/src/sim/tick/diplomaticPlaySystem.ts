@@ -82,7 +82,11 @@ export function cancelOrphanedPlays(ctx: TickContext): TickContext {
 
     if (shouldCancel) {
       if (!nextPlays) nextPlays = { ...ctx.state.diplomaticPlays }
-      nextPlays[idStr as DiplomaticPlayId] = { ...play, status: 'cancelled' }
+      nextPlays[idStr as DiplomaticPlayId] = {
+        ...play,
+        status: 'cancelled',
+        terminalOutcome: 'voided',
+      }
     }
   }
   if (!nextPlays) return ctx
