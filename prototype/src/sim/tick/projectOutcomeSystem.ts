@@ -238,7 +238,7 @@ function awardProjectOutcomeMut(
       config.projectExperienceGainCancelledMultiplier
   }
 
-  const weights = getProjectExperienceWeights(project.kind)
+  const weights = getProjectExperienceWeights(project)
   const nextRng = applyImmediateAbilityGrowthMut(
     ws,
     config,

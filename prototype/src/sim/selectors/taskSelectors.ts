@@ -17,10 +17,6 @@ import { randomFloat } from '../rng/rng'
 // --- Task cost/effort classification ---
 
 const LIGHT_TASKS: ReadonlySet<TaskKind> = new Set([
-  'study_law',
-  'study_accounts',
-  'practice_arms',
-  'courtly_training',
   'manage_accounts',
   'collect_holding_revenue',
   // v0.43 §7.4: HEAVY だと play 完了前に escalation しやすいため LIGHT (開戦前の外交工作)
@@ -78,14 +74,6 @@ export function getTaskEffortRequired(config: SimulationConfig, kind: TaskKind):
 
 export function getTaskRelevantAbility(kind: TaskKind): AbilityKey {
   switch (kind) {
-    case 'study_law':
-      return 'learning'
-    case 'study_accounts':
-      return 'numeracy'
-    case 'practice_arms':
-      return 'valor'
-    case 'courtly_training':
-      return 'charisma'
     case 'seek_office_support':
       return 'charisma'
     case 'display_competence':
@@ -141,10 +129,6 @@ const TASK_KIND_OUTCOME_DEFAULTS: Record<
   defend_office_position: { difficulty: 35, relevantAbility: 'charisma' },
   manage_accounts: { difficulty: 20, relevantAbility: 'numeracy' },
   seek_profitable_assignment: { difficulty: 30, relevantAbility: 'insight' },
-  study_law: { difficulty: 35, relevantAbility: 'learning' },
-  study_accounts: { difficulty: 35, relevantAbility: 'learning' },
-  practice_arms: { difficulty: 35, relevantAbility: 'command' },
-  courtly_training: { difficulty: 35, relevantAbility: 'learning' },
   secure_internal_support: { difficulty: 30, relevantAbility: 'charisma' },
   arrange_patronage: { difficulty: 25, relevantAbility: 'charisma' },
   commission_chronicle_work: { difficulty: 25, relevantAbility: 'learning' },
@@ -180,6 +164,9 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   improve_contract_terms: 'numeracy',
   demand_tax_increase: 'numeracy',
   respond_to_pressure: 'insight',
+  // v0.44: prepare_project task 用の nominal。advance_project の relevantAbility は
+  // projectTaskGenerationSystem が trainingAbilityKey に分岐する (§6.6)
+  personal_training: 'insight',
 }
 
 export function determineTaskOutcome(
@@ -237,34 +224,6 @@ export function getInitialTaskKind(kind: PersonAimKind): TaskKind | undefined {
   }
 }
 
-// --- getInitialTaskKindForImproveAbility ---
-
-export function getInitialTaskKindForImproveAbility(ability: AbilityKey): TaskKind | undefined {
-  switch (ability) {
-    case 'valor':
-    case 'command':
-      return 'practice_arms'
-    case 'numeracy':
-      return 'study_accounts'
-    case 'learning':
-      return 'study_law'
-    case 'charisma':
-    case 'insight':
-      return 'courtly_training'
-    default:
-      return undefined
-  }
-}
-
-// --- getInitialTaskKindForAbilityTarget ---
-
-export function getInitialTaskKindForAbilityTarget(
-  target: EntityRef | undefined,
-): TaskKind | undefined {
-  if (!target || target.kind !== 'ability') return undefined
-  return getInitialTaskKindForImproveAbility(target.ability)
-}
-
 // --- getNextTaskKind ---
 
 export function getNextTaskKind(
@@ -289,9 +248,6 @@ export function getNextTaskKind(
       if (!previousTaskKind) return 'seek_profitable_assignment'
       if (previousTaskKind === 'seek_profitable_assignment') return 'manage_accounts'
       return 'seek_profitable_assignment' // alternate
-
-    case 'improve_ability':
-      return previousTaskKind // repeat same task
 
     case 'support_organization_aim':
       return 'support_organization_plan'
@@ -510,11 +466,11 @@ const GOAL_ALIGNMENT_MAP: Record<string, (task: Task) => boolean> = {
     task.kind === 'manage_accounts' ||
     task.kind === 'seek_profitable_assignment' ||
     task.kind === 'arrange_patronage',
+  // v0.44 §6: 旧鍛錬 TaskKind は廃止。person-owned の project task (= personal_training
+  // の prepare/advance) を自己研鑽として扱う
   self_cultivation: (task) =>
-    task.kind === 'study_law' ||
-    task.kind === 'study_accounts' ||
-    task.kind === 'practice_arms' ||
-    task.kind === 'courtly_training',
+    (task.kind === 'prepare_project' || task.kind === 'advance_project') &&
+    task.owner.kind === 'person',
 }
 
 export function computeEffectivePriority(

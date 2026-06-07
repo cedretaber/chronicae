@@ -14,7 +14,6 @@ import { getActivePersonGoal } from '../selectors/personGoalSelectors'
 import { pickPersonAim } from '../selectors/personAimSelectors'
 import {
   getInitialTaskKind,
-  getInitialTaskKindForAbilityTarget,
   getTaskActionCost,
   getTaskEffortRequired,
   getTaskDefaultDifficulty,
@@ -138,10 +137,9 @@ function createInitialTaskForAimMut(
   const personId = aim.owner.kind === 'person' ? aim.owner.id : undefined
   if (!personId) return undefined
 
-  let taskKind: TaskKind | undefined = getInitialTaskKind(aim.kind as PersonAimKind)
-  if (aim.kind === 'improve_ability' && !taskKind) {
-    taskKind = getInitialTaskKindForAbilityTarget(aim.target)
-  }
+  // v0.44 §6.5: improve_ability の直接 Task 生成分岐は撤去 (personal_training Project 経由)。
+  // taskKind undefined → activeTaskId を持たず、projectPreparationSystem が拾う。
+  const taskKind: TaskKind | undefined = getInitialTaskKind(aim.kind as PersonAimKind)
   if (!taskKind) return undefined
 
   const taskId: TaskId = createTaskId(ws.nextTaskId)

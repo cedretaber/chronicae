@@ -43,6 +43,9 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'negotiate', type: 'final' },
   ],
 
+  // v0.44 §6.5: 単一 final stage。汎用 advance_project task で進行する (§6.6)
+  personal_training: [{ key: 'execute_project', type: 'final' }],
+
   respond_to_pressure: [
     { key: 'choose_stance', type: 'immediate' },
     { key: 'propose_initial_offer', type: 'immediate' },

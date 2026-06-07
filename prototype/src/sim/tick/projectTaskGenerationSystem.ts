@@ -128,7 +128,11 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
       status: 'active',
       reasonIds: [],
       difficulty: getTaskDefaultDifficulty(taskKind),
-      relevantAbility: PROJECT_KIND_ABILITY_MAP[project.kind],
+      // v0.44 §6.6: personal_training は鍛錬対象能力で task を解決する
+      relevantAbility:
+        project.kind === 'personal_training'
+          ? project.trainingAbilityKey
+          : PROJECT_KIND_ABILITY_MAP[project.kind],
     }
 
     addTaskToIndicesMut(ws, task)

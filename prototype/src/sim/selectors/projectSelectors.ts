@@ -66,6 +66,11 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
 
     case 'respond_to_pressure':
       return []
+
+    // v0.44: 本人完結のため related entity index には載せない (person は byOwner/byCreator/
+    // bySupervisor で引ける)
+    case 'personal_training':
+      return []
   }
 }
 
@@ -80,6 +85,9 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   improve_contract_terms: 'stewardship',
   demand_tax_increase: 'stewardship',
   respond_to_pressure: 'diplomacy',
+  // v0.44: nominal — personal_training は supervisor 選定を通らず (本人固定 §6.4)、
+  // 経験 weight も getProjectExperienceWeights が trainingAbilityKey 単独に分岐する (§3.1)
+  personal_training: 'governance',
 }
 
 export function getPersonProjectWorkload(

@@ -33,7 +33,8 @@ export function runProjectPreparationSystem(ctx: TickContext): TickContext {
   for (const [, aim] of Object.entries(ws.aims)) {
     if (!aim || aim.status !== 'active') continue
     if (aim.origin !== 'goal_driven') continue
-    if (aim.owner.kind === 'person') continue
+    // v0.44 §6.5: person-owned aim は improve_ability (→ personal_training) のみ許可 (allowlist)
+    if (aim.owner.kind === 'person' && aim.kind !== 'improve_ability') continue
 
     const projectKind = aimKindToProjectKind(aim.kind)
     if (!projectKind) continue

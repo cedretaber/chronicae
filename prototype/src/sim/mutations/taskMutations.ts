@@ -13,7 +13,6 @@ import {
   getTaskDefaultDifficulty,
   getTaskDefaultRelevantAbility,
   getInitialTaskKind,
-  getInitialTaskKindForAbilityTarget,
 } from '../selectors/taskSelectors'
 
 // =============================================================================
@@ -180,12 +179,9 @@ export function createInitialTaskForAim(
   const personId = aim.owner.kind === 'person' ? aim.owner.id : undefined
   if (!personId) return undefined
 
-  let taskKind = getInitialTaskKind(aim.kind as PersonAimKind)
-
-  // For improve_ability, resolve from aim.target
-  if (aim.kind === 'improve_ability' && !taskKind) {
-    taskKind = getInitialTaskKindForAbilityTarget(aim.target)
-  }
+  // v0.44 §6.5: improve_ability の直接 Task 生成は廃止 (personal_training Project 経由)。
+  // getInitialTaskKind は improve_ability に undefined を返すため、ここで自然に弾かれる。
+  const taskKind = getInitialTaskKind(aim.kind as PersonAimKind)
 
   if (!taskKind) return undefined
 

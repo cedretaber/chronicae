@@ -63,8 +63,12 @@ export function handlePrepareProjectCompletionMut(
     return
   }
 
+  // v0.44 §6.4: personal_training は本人が owner/creator/supervisor を兼ねる (選定しない)
   const supervisorId =
-    selectProjectSupervisor(ws, config, aim.owner, projectKind, creatorPersonId) ?? creatorPersonId
+    projectKind === 'personal_training'
+      ? creatorPersonId
+      : (selectProjectSupervisor(ws, config, aim.owner, projectKind, creatorPersonId) ??
+        creatorPersonId)
 
   const projectId: ProjectId = createProjectId(ws.nextProjectId)
   const targetProgress =
@@ -245,6 +249,18 @@ function buildProjectFieldsForAim(
           source: { kind: 'owner' },
         } satisfies ProjectBudget,
         targetProgress: baseProgress * progMult,
+      }
+    }
+    case 'personal_training': {
+      // v0.44 §6.5-4: aim.target.ability を trainingAbilityKey にコピーする
+      if (aim.owner.kind !== 'person') return undefined
+      const abilityKey = aim.target?.kind === 'ability' ? aim.target.ability : undefined
+      if (!abilityKey) return undefined
+      return {
+        traineePersonId: aim.owner.id,
+        trainingAbilityKey: abilityKey,
+        currentStageKey: getInitialProjectStageKey('personal_training'),
+        targetProgress: config.personalTrainingTargetProgress,
       }
     }
     case 'promote_policy_shift': {

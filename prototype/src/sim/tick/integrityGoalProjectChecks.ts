@@ -584,6 +584,47 @@ export function checkGoalsAimsProjects(
       })
     }
 
+    // v0.44 §12.2: personal_training invariants (owner/creator/supervisor/trainee 全一致 §6.4)
+    if (project.kind === 'personal_training') {
+      // owner.kind は型上 'person' 固定だが、project 構築は \`as Project\` を通るため runtime 検査する
+      const ownerKind: string = project.owner.kind
+      if (ownerKind !== 'person') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: personal_training owner is not a person (${ownerKind}) (§12.2)`,
+        })
+      } else if ((project.owner.id as string) !== (project.traineePersonId as string)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: personal_training owner ${project.owner.id as string} !== trainee ${project.traineePersonId as string} (§12.2)`,
+        })
+      }
+      if (!state.persons[project.traineePersonId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: personal_training trainee ${project.traineePersonId as string} does not exist (§12.2)`,
+        })
+      }
+      if ((project.creatorPersonId as string) !== (project.traineePersonId as string)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: personal_training creator ${project.creatorPersonId as string} !== trainee (§12.2)`,
+        })
+      }
+      if ((project.supervisorPersonId as string) !== (project.traineePersonId as string)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: personal_training supervisor ${project.supervisorPersonId as string} !== trainee (§12.2)`,
+        })
+      }
+      if (!VALID_ABILITY_KEYS.has(project.trainingAbilityKey)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr}: personal_training invalid trainingAbilityKey ${String(project.trainingAbilityKey)} (§12.2)`,
+        })
+      }
+    }
+
     const creator = state.persons[project.creatorPersonId]
     if (!creator) {
       errors.push({

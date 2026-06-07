@@ -98,6 +98,7 @@ detail:
     improve_contract_terms: 'Improve Contract Terms'
     demand_tax_increase: 'Demand Tax Increase'
     respond_to_pressure: 'Respond to Pressure'
+    personal_training: 'Personal Training'
   activity:
     project_completed: '{{kind}} Completed (Lv.{{level}})'
     project_failed: '{{kind}} Failed (Lv.{{level}})'

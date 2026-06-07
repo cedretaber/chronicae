@@ -12,6 +12,7 @@ import type {
   DiplomaticPlayId,
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
+import type { AbilityKey } from './person'
 import type { PoliticalRightTargetRef } from './politicalRight'
 import type { HoldingImprovementKind } from './holdingImprovement'
 import type { PressureResponseStance } from './pressure'
@@ -47,6 +48,8 @@ export type ProjectKind =
   | 'improve_contract_terms'
   | 'demand_tax_increase'
   | 'respond_to_pressure'
+  // v0.44 §6: 個人鍛錬 (improve_ability aim の project 化)
+  | 'personal_training'
 
 export type BaseProject = {
   id: ProjectId
@@ -150,6 +153,15 @@ export type ContractRevisionProject = BaseProject & {
   commitment: number
 }
 
+// v0.44 §6.3-6.4: owner/creator/supervisor/trainee は全て本人で一致させる (integrity §12.2)。
+// budget は持たない (§6.7)。
+export type PersonalTrainingProject = BaseProject & {
+  kind: 'personal_training'
+  owner: { kind: 'person'; id: PersonId }
+  traineePersonId: PersonId
+  trainingAbilityKey: AbilityKey
+}
+
 export type RespondToPressureProject = BaseProject & {
   kind: 'respond_to_pressure'
   pressureId: PressureId
@@ -166,6 +178,7 @@ export type Project =
   | LandClaimProject
   | ContractRevisionProject
   | RespondToPressureProject
+  | PersonalTrainingProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

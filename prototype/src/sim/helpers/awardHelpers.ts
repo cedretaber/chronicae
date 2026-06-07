@@ -10,7 +10,7 @@
 import type { WorldState } from '../types/world'
 import type { PersonId } from '../types/ids'
 import type { AbilityKey } from '../types/person'
-import type { ProjectKind } from '../types/project'
+import type { Project, ProjectKind } from '../types/project'
 import type {
   ReputationCategory,
   PersonReputationSource,
@@ -32,9 +32,12 @@ import { isNotablePerson } from '../selectors/notablePersonSelectors'
 export type AbilityWeights = Partial<Record<AbilityKey, number>>
 
 // Project 経験の ability weight (§3.1): kind -> role -> ROLE_WEIGHTS。
-// NOTE: personal_training は呼び出し側で { [trainingAbilityKey]: 1.0 } に分岐する (§3.1 例外)。
-export function getProjectExperienceWeights(projectKind: ProjectKind): AbilityWeights {
-  return ROLE_WEIGHTS[PROJECT_KIND_ROLE_MAP[projectKind]]
+// personal_training のみ例外で trainingAbilityKey の単一能力に全経験を与える (§3.1)。
+export function getProjectExperienceWeights(project: Project): AbilityWeights {
+  if (project.kind === 'personal_training') {
+    return { [project.trainingAbilityKey]: 1.0 }
+  }
+  return ROLE_WEIGHTS[PROJECT_KIND_ROLE_MAP[project.kind]]
 }
 
 // §5.6: ProjectKind → ReputationCategory。undefined = Project hook では評判を付与しない。
@@ -56,6 +59,9 @@ export const PROJECT_REPUTATION_CATEGORY_MAP: Record<ProjectKind, ReputationCate
     improve_contract_terms: undefined,
     demand_tax_increase: undefined,
     respond_to_pressure: undefined,
+
+    // personal_training は評判を一切発生させない (§6.8)
+    personal_training: undefined,
   }
 
 export type AwardSourceKind = PersonReputationSource['kind']

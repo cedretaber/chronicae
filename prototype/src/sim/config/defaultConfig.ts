@@ -966,6 +966,9 @@ export type SimulationConfig = {
   // v0.44 評判 baseScore: Project (§5.5)
   personReputationProjectSuccessBase: number
   personReputationProjectFailureBase: number
+  // v0.44 personal_training (§6)
+  personalTrainingTargetProgress: number
+  personalTrainingDeadlineWeeks: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2020,4 +2023,6 @@ export const defaultConfig: SimulationConfig = {
   experienceImmediateGrowthChancePerPoint: 12,
   personReputationProjectSuccessBase: 8,
   personReputationProjectFailureBase: -6,
+  personalTrainingTargetProgress: 3,
+  personalTrainingDeadlineWeeks: 48,
 }

@@ -148,6 +148,9 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
       return 'patronize_artist'
     case 'commission_chronicle':
       return 'commission_chronicle'
+    // v0.44 §6.5: improve_ability は直接 Task 生成を廃止し personal_training Project 化
+    case 'improve_ability':
+      return 'personal_training'
     default:
       return undefined
   }
@@ -169,6 +172,7 @@ export function getProjectDeadlineWeeks(
   targetProgress?: number,
 ): number {
   if (isDiplomaticProjectKind(kind)) return config.projectDeadlineWeeksDiplomatic
+  if (kind === 'personal_training') return config.personalTrainingDeadlineWeeks
   if (kind === 'develop_holding' && targetProgress !== undefined) {
     return Math.ceil(
       config.projectDeadlineWeeksDevelopment *
@@ -210,6 +214,15 @@ export function reassignProjectsOfDeadSupervisor(
         bySupervisorPerson: { ...next.state.projectIndex.bySupervisorPerson },
         byRelatedEntity: { ...next.state.projectIndex.byRelatedEntity },
       },
+    }
+
+    // v0.44 §6.9: personal_training は本人死亡 = project 終了。再選定せず cancelled に倒す
+    // (通常死亡は projectMaintenanceSystem の isOwnerActive 経由で cancelled になるが、
+    // 処刑 cascade はこの即時経路を通るため、failed 化せず cancelled の分岐を入れる)。
+    if (project.kind === 'personal_training') {
+      ws.projects[pid] = { ...project, status: 'cancelled', terminalReason: 'owner_inactive' }
+      next = { ...next, state: ws }
+      continue
     }
 
     const newSupervisor = selectProjectSupervisor(
