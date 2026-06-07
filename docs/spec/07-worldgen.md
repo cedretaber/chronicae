@@ -182,6 +182,13 @@ holding.polityControl = maxControl(capitalProvinceId からの BFS 距離)
 
 全 **Holding** に `bailiff` HoldingOfficeAssignment を生成し、holder は **placeholder Person** (`houseId === undefined`) とする。BailiffAppointmentSystem (§6.22) が実行されると順次通常人物に置き換わる。
 
+### 7.7a 初期 Office の生成
+
+- **house:leader**: 各 House の成人男性からスコア（legacyPrestige + governance/warCommand 加重）最高の者。成人男性が居なければ成人女性、それも居なければ最年長メンバー
+- **polity:leader**: polity 内で最多 Province を支配する House の house:leader をそのまま任命
+- **polity の administrator / treasurer / military**: polity 関係 House の成人から能力順（admin 系 = governance 加重、military = warCommand 加重）に各 1 名。polity:leader は除外
+  - v0.45.3: 性別役職適格ゲート（§6.19）を適用 — sorted 先頭の適格者を採用し、適格者ゼロなら `allowFemaleRolesWhenNoMaleCandidate`（既定 false）が true の場合のみ先頭に fallback（runtime 任命と同形）。worldgen は defaultConfig 直参照のため `--config` では変更不可（既知の制約）
+
 ### 7.8a Person Goal / Aim 初期生成
 
 全 adult normal Person に初期 Person Goal を生成する。Goal 生成後、各 Person に初期 Person Aim と initial Task も生成する。

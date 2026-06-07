@@ -630,7 +630,8 @@
 | maxNewPersonsPerHousePerYear | 2 | House あたりの年間新規人物生成上限 |
 | replacementThreshold | 15 | 欠員補充の判定閾値 |
 | allowFemaleHouseHeadWhenNoMaleHeir | true | 男性後継者不在時に女性当主を許可 |
-| allowFemaleRolesWhenNoMaleCandidate | true | 男性候補不在時に女性の役職就任を許可 |
+| allowFemaleRolesWhenNoMaleCandidate | false | 適格候補不在時の ungated 再試行（女性許可）。v0.7 宣言・v0.45.3 初配線、default true→false（true だと fallback が支配経路になり「非常に稀」が成立しない） |
+| femaleRoleEligibilityChance | 0.03 | v0.45.3 性別役職適格ゲート: 女性のうち役職（office/代官/指揮官/派閥首領/supervisor）適格となる割合。personId 決定論 hash（§6.19） |
 | occupationWeights | {adventurer:1.5,merchant:1.5,scholar:1,mercenary:1.5,scribe:1,priest:1,physician:0.8,jurist:0.7,wanderer:1} | 在野人物 background occupation の抽選重み |
 | **Succession weights** | | |
 | prestigeSuccessionWeight | 1 | 継承スコア: legacyPrestige の重み |
