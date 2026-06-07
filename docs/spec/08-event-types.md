@@ -129,6 +129,7 @@
 | PERSON_ABILITY_GREW | minor / normal | v0.44 成果成長（§6.66、sourceKind=project/diplomatic_play/war）+ 自然成長（§6.24 追補、sourceKind=duty/natural）。ability ごとに emit。notable=normal |
 | PERSON_REPUTATION_GAINED | minor / normal | v0.44 正評判の獲得。reputation source 1 件につき 1 event |
 | PERSON_REPUTATION_DAMAGED | minor / normal | v0.44 負評判 |
+| PERSON_GENIUS_BORN | major | v0.45 天才の誕生（§6.67、geniusType=commander/chancellor/universal）。CHILD_BORN に続けて emit。メインログ表示 |
 
 POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType 宣言のみ。実際の発火ロジックは将来実装する。
 

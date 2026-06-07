@@ -407,13 +407,15 @@ birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 - 成人男性が全人口の 40% 未満の場合: `maleBirthChanceWhenAdultMaleShortage`（0.65）
 - それ以外: `maleBirthChance`（0.52）
 
+**天才ロール（v0.45）**: aptitude 確定（`inheritAptitudes` / `sampleAptitudes`）直後に `rollGeniusType` を実行。出現した場合は `applyGeniusAptitudes` で対応能力の天賦を引き上げてから `birthChild` に渡す（詳細 §6.67）。
+
 誕生した子：
 - `houseId` は父親と同じ
 - `fatherId` / `motherId` を設定（嫡出の場合）
 - 父・母の `childIds` に追加
 - `house.memberIds` に追加
 
-イベント: `CHILD_BORN`（importance: `minor`）
+イベント: `CHILD_BORN`（importance: `minor`）。天才の場合は続けて `PERSON_GENIUS_BORN`（importance: `major` — メインログに流す）を emit
 
 ### 6.11 SuccessionSystem（4週ごと）
 
@@ -860,7 +862,7 @@ importance は §6.66 の award 経路と同じ notable=`normal` / 一般=`minor
 - 遷移先ごとに `config.lifeStageTransitionAges[next]` の `{minAge, standardAge, maxAge}` を参照。`age < minAge` は遷移しない / `minAge <= age < standardAge` は early 確率 / `standardAge <= age < maxAge` は standard 確率 / `age >= maxAge` は必ず遷移。
 - RNG は既存の関数型パターン（`randomFloat` で thread）。逆行は writer 側で構造的に防ぐ（IntegrityCheck は逆行検査をせず、緩い age-lifeStage envelope のみ。§6.35 / §13）。
 - **life event emit**: `adolescence→young_adulthood` で `PERSON_CAME_OF_AGE`、`mature_adulthood→old_age` で `PERSON_ENTERED_OLD_AGE`（他の遷移は emit しない）。
-  - **notable 判定（安価な index ベースに限定）**: house leader / polity leader / active office holder のいずれかなら notable。`calcPersonImportanceScore` は全人物の年次遷移ごとに呼ぶには高コストのため**使わない**。war 時の field commander / captain general は O(1) index がなく（war side の soft reference のみ）、コスト優先で notable 判定からは**省略**する。
+  - **notable 判定（安価な index ベースに限定）**: house leader / polity leader / active office holder / 天才（`geniusType` あり。v0.45）のいずれかなら notable。`calcPersonImportanceScore` は全人物の年次遷移ごとに呼ぶには高コストのため**使わない**。war 時の field commander / captain general は O(1) index がなく（war side の soft reference のみ）、コスト優先で notable 判定からは**省略**する。
   - importance: notable=`normal` / 一般=`minor`。entityRefs を出し分け（一般=`[person]` → byPerson のみ / 主要=`[person, house, polity]` → byPerson+byHouse+byPolity）。Chronicle allowlist は `{ category: 'life' }`（`retainRefKinds` 無指定。§6.62）。
   - 全人物の成人・老年入りが個人 Chronicle（byPerson）に残り、主要人物のみ House/Polity Chronicle とメイン EventLog に載る（§11）。
 
@@ -2066,3 +2068,41 @@ type PersonReputation = {
 - DiplomaticPlay: terminal status は terminalOutcome 必須（active/escalated は持たない）
 
 **年末 flush の取りこぼし（許容）**: ProjectOutcomeSystem（4 週）より後に terminal 化し同一年末 tick の flushTerminalEntities で削除される Project（主に CleanupTerminalDiplomacy の pressure cascade による cancel）は cancelled 経験付与が省略されうる。軽微な cancelled 経験の取りこぼしであり v0.44 では許容する。
+
+### 6.67 天才（v0.45）
+
+観賞用として「天才の活躍」を増やすため、人物生成時に低確率で意図的に能力上限の高い人物を登場させる。
+
+#### 型と対応能力
+
+| GeniusType | 表示 | 対応能力 |
+|---|---|---|
+| `commander` | 名将 | valor / command / charisma |
+| `chancellor` | 名宰相 | numeracy / learning / insight |
+| `universal` | 万能 | 全 6 能力 |
+
+#### ロールと効果（`sim/helpers/geniusHelpers.ts`）
+
+- **出現判定** `rollGeniusType`: 生成 1 人につき `geniusAppearanceChance`（0.01）で出現。ヒット時に型を weight（commander 0.4 / chancellor 0.4 / universal 0.2、合計正規化）で選択。chance 0 で機能ごと無効化できる
+- **天賦** `applyGeniusAptitudes`: 対応能力ごとに uniform int `[geniusAptitudeMin(80), geniusAptitudeMax(120)]` をロールし `max(既存値, ロール値)` を適用。通常生成上限（`ABILITY_GENERATION_MAX`=100）を超えうるが `ABILITY_HARD_CAP`=120 は超えない。遺伝（`inheritAptitudes`）で既に高い値は潰さない（床として働く）
+- **初期能力** `applyGeniusInitialAbilities`: 対応能力を `max(既存値, min(geniusInitialAbilityValue(50), aptitude))` に引き上げ（幼少から優れている表現。RNG 不使用）
+
+#### 生成フック（2 経路で全生成サイトをカバー）
+
+| 経路 | カバー範囲 | 処理 |
+|---|---|---|
+| `samplePerson`（personFactory） | worldgen 初期人口 / 在野人物 / 婚姻配偶者 / commonwealth 指導者 | aptitude サンプル → roll → 天賦・初期能力の両適用 |
+| `birthSystem` → `birthChild` | 出生 | birthSystem で roll + 天賦適用 → birthChild 内で初期能力適用 |
+
+**制約**: `generateWorld` は config 引数を持たず `defaultConfig` 直参照のため、CLI `--config` での genius 設定変更は tick 中の生成にのみ効き、**worldgen 初期人口には効かない**（全 config 共通の既存制約）。
+
+#### 既存システムとの相互作用（設計時に検証済み・追加実装なし）
+
+- 自然成長上限は age-curve fraction（最大 0.7-0.75）× 天賦のため、天才も自然成長だけでは天賦の 7 割止まり。**天賦 80-120 を使い切るには職務経験（§6.24 の ceiling 解放）や成果成長（§6.66）が必要** — 「登用された天才だけが大成する」が創発する
+- 幼少期は naturalCeil < 初期値 50 のため自然成長が一時停止する（既に大人の水準にいる表現として正しい）。decline の発火は期待値 1 点未満/幼少期で無視できる
+- `isNotablePerson` に `geniusType` 判定を追加（§6.25）。天才の成長ログは normal になり、死去は `IMPORTANT_PERSON_DIED` 対象になる
+
+#### イベント・UI
+
+- `PERSON_GENIUS_BORN`（importance `major`・メインログ表示。1% なので tiny で約 0.1 件/年）。Chronicle category `'life'`
+- 人物詳細パネルに「天才: ✦ 名将」行（purple）、人物一覧の名前に ✦ マーク

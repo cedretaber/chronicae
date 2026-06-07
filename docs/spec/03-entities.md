@@ -381,12 +381,14 @@ type Person = {
   occupation?: PersonBackgroundOccupation  // 無家人物の背景職業（9 種）
   deathCircumstance?: DeathCircumstance     // 死因種別（natural / faded_from_history）
   lastHouseTransferYear?: number            // 最後に家を移籍した年
+  geniusType?: GeniusType                   // v0.45 天才の型（undefined = 通常人物）
 }
 ```
 
 - `lifeStage`（required）: `'childhood' | 'adolescence' | 'young_adulthood' | 'mature_adulthood' | 'old_age'` の union。生成時は `deriveLifeStageFromAge(age, config)` で `config.lifeStageTransitionAges[*].standardAge` から初期値を導出（純関数）。出生児は `'childhood'`、placeholder は `'mature_adulthood'` 固定。ゲーム中の遷移は LifeStageProgressionSystem が年次・一方向で行う（逆行しない）。`LIFE_STAGE_ORDER` と `isLifeStageAtLeast(stage, threshold)` で順序比較する（成人相当判定 = `young_adulthood` 以降）。詳細は §6 / §10 参照
 - `occupation`: 無家人物の背景職業。`PersonBackgroundOccupation`（adventurer / merchant / scholar / mercenary / scribe / priest / physician / jurist / wanderer の 9 種）
 - `deathCircumstance`: 死亡種別。`'natural'`（通常死）/ `'faded_from_history'`（歴史から消える形での退場）
+- `geniusType`（v0.45）: `'commander'`（名将）/ `'chancellor'`（名宰相）/ `'universal'`（万能）。人物生成時の低確率ロールで決まり、対応能力の天賦と初期値が引き上がる（§6.67 参照）。原則不変
 - `spouseId`: 生存中の配偶者のみを指す。配偶者が死亡した場合は `undefined` に戻る
 - 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §6.35 参照）
 - `prestige` / `traits.loyaltyToPolity` フィールドは持たず、Attitude から動的計算（§4.5 参照）

@@ -483,6 +483,14 @@
 | warCommandReputationScoreFactor | 0.75 | 指揮官選定スコアへの係数（実効 ±15） |
 | personalTrainingTargetProgress | 3 | personal_training の targetProgress |
 | personalTrainingDeadlineWeeks | 48 | personal_training の deadline |
+| **天才 (v0.45 §6.67)** | | |
+| geniusAppearanceChance | 0.01 | 人物生成 1 人あたりの天才出現率。0 で無効 |
+| geniusAptitudeMin | 80 | 対応能力の天賦ロール下限 |
+| geniusAptitudeMax | 120 | 対応能力の天賦ロール上限（= ABILITY_HARD_CAP） |
+| geniusInitialAbilityValue | 50 | 対応能力の初期値（天賦で clamp） |
+| geniusTypeWeightCommander | 0.4 | 名将の出現比重（3 値合計で正規化） |
+| geniusTypeWeightChancellor | 0.4 | 名宰相の出現比重 |
+| geniusTypeWeightUniversal | 0.2 | 万能の出現比重 |
 | **代官システム** | | |
 | defaultContractedRemittanceRate | 0.40 | HoldingOfficeAssignment 作成時の送金率デフォルト |
 | defaultExpectedBailiffFeeRate | 0.10 | HoldingOfficeAssignment 作成時の代官取り分率デフォルト |
