@@ -91,7 +91,6 @@ function makeCtx(year: number, weekOfYear: number): TickContext {
       taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
       personActivityLogs: {},
       personActivityLogIndex: { byPerson: {} },
-      personTrainingExperience: {},
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,

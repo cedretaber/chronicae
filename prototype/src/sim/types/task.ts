@@ -138,6 +138,3 @@ export type PersonActivityLog = TaskActivityLog | ProjectActivityLog
 export type PersonActivityLogIndex = {
   byPerson: Record<string, PersonActivityLogId[]>
 }
-
-// --- AbilityTrainingExperience ---
-export type AbilityTrainingExperience = Partial<Record<AbilityKey, number>>

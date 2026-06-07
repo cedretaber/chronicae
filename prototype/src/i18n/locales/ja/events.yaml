@@ -8,6 +8,10 @@ person:
   entered_old_age: '{{person}}が{{age}}歳で老年期に入った。'
   born_in_obscurity: '無名の{{occupation}}、{{person}}が現れた。'
   faded_from_history: '{{person}}は歴史の彼方へ消えた。'
+  # v0.44 成果成長・評判
+  ability_grew: '{{person}}の{{ability}}が{{sourceKind}}を通じて{{oldValue}}から{{newValue}}に成長した。'
+  reputation_gained: '{{person}}は{{sourceKind}}により{{category}}の評判を高めた。'
+  reputation_damaged: '{{person}}は{{sourceKind}}により{{category}}の評判を落とした。'
   goal:
     created: '{{owner}}は個人的な目標を掲げた：{{kind}}'
   aim:
@@ -215,6 +219,26 @@ clan:
 #   別概念（features 由来の渡河戦/海岸戦・将来の攻城戦を含む）なので地形ラベルと重複させない。
 #   テンプレは「{地名}で{類型}が発生」(例: 湿地戦が発生 / 攻城戦が発生)。
 enum:
+  # v0.44 成果成長・評判
+  ability:
+    valor: '武勇'
+    command: '統率'
+    numeracy: '数理'
+    learning: '学識'
+    charisma: '魅力'
+    insight: '洞察'
+  category:
+    administration: '行政'
+    military: '軍事'
+    diplomacy: '外交'
+    culture: '文化'
+    stewardship: '内政'
+    intrigue: '謀略'
+    general: '統治'
+  sourceKind:
+    project: '事業'
+    diplomatic_play: '外交交渉'
+    war: '戦争'
   battlefieldKind:
     open_field: '野戦'
     forest_battle: '森林戦'

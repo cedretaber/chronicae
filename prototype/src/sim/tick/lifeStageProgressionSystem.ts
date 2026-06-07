@@ -5,9 +5,9 @@ import type { LifeStage } from '../types/person'
 import type { SimEvent, EventType } from '../types/event'
 import { randomFloat } from '../rng/rng'
 import { nameParam, entityRef } from '../types/event'
-import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import { getPolityEmitNameKey } from '../selectors/nameRefSelectors'
+import { isNotablePerson } from '../selectors/notablePersonSelectors'
 
 // 遷移先 stage（config.lifeStageTransitionAges のキーと一致）。childhood は遷移先になり得ない。
 type TransitionStage = 'adolescence' | 'young_adulthood' | 'mature_adulthood' | 'old_age'
@@ -69,24 +69,12 @@ export function runLifeStageProgressionSystem(ctx: TickContext): TickContext {
     if (!eventType) continue
 
     // §10.4: 安価な index ベース条件のみで notable 判定する（calcPersonImportanceScore は使わない）。
+    //   v0.44: 判定本体は isNotablePerson に共通化 (award 系イベントと共有)。
     const houseId = person.houseId
-    let notable = false
-    let polityId: PolityId | undefined
-    if (houseId) {
-      if (getHouseLeader(ctx.state, houseId) === personId) notable = true
-      polityId = getHousePrimaryPolityId(ctx.state, houseId)
-      if (!notable && polityId && getPolityLeader(ctx.state, polityId) === personId) notable = true
-    }
-    if (!notable) {
-      const officeIds = ctx.state.officeIndex.byHolderPerson[personId as string] ?? []
-      for (const officeId of officeIds) {
-        const office = ctx.state.officeAssignments[officeId]
-        if (office && office.active) {
-          notable = true
-          break
-        }
-      }
-    }
+    const notable = isNotablePerson(ctx.state, personId)
+    const polityId: PolityId | undefined = houseId
+      ? getHousePrimaryPolityId(ctx.state, houseId)
+      : undefined
 
     // §10.5: entityRefs を importance で出し分ける（一般=person のみ / 主要=person+house+polity）。
     const entityRefs = [entityRef('person', personId, 'subject', person.nameKey)]

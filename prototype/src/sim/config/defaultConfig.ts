@@ -609,8 +609,6 @@ export type SimulationConfig = {
   taskEffortRequiredLight: number
   taskEffortRequiredNormal: number
   taskEffortRequiredHeavy: number
-  taskTrainingExperienceGain: number
-  trainingExperienceDecayRate: number
   appointmentTaskModifierValue: number
   appointmentTaskModifierDurationWeeks: number
   // v0.23 Phase D: DiplomaticPlay Task-driven
@@ -959,6 +957,15 @@ export type SimulationConfig = {
   // personReputationMonthlyRetentionRate は 0 < rate < 1 を invariant とする (expiryWeek 計算が前提)
   personReputationMonthlyRetentionRate: number
   personReputationCleanupThreshold: number
+  // v0.44 成果経験: Project terminal (§5.4)
+  projectExperienceGainCompleted: number
+  projectExperienceGainFailed: number
+  projectExperienceGainCancelledMultiplier: number
+  // v0.44 経験 → 即時成長変換 (§3.2): 経験 1 点あたりの +1 期待値 (%)
+  experienceImmediateGrowthChancePerPoint: number
+  // v0.44 評判 baseScore: Project (§5.5)
+  personReputationProjectSuccessBase: number
+  personReputationProjectFailureBase: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -1585,8 +1592,6 @@ export const defaultConfig: SimulationConfig = {
   taskEffortRequiredLight: 2,
   taskEffortRequiredNormal: 3,
   taskEffortRequiredHeavy: 4,
-  taskTrainingExperienceGain: 2.0,
-  trainingExperienceDecayRate: 0.5,
   appointmentTaskModifierValue: 4,
   appointmentTaskModifierDurationWeeks: 16,
   // v0.23 Phase D: DiplomaticPlay Task-driven
@@ -2009,4 +2014,10 @@ export const defaultConfig: SimulationConfig = {
   // v0.44 PersonReputation
   personReputationMonthlyRetentionRate: 0.985,
   personReputationCleanupThreshold: 0.25,
+  projectExperienceGainCompleted: 4.0,
+  projectExperienceGainFailed: 2.0,
+  projectExperienceGainCancelledMultiplier: 0.5,
+  experienceImmediateGrowthChancePerPoint: 12,
+  personReputationProjectSuccessBase: 8,
+  personReputationProjectFailureBase: -6,
 }

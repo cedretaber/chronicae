@@ -105,6 +105,7 @@ function makeCompletedProject(state: WorldState): {
     creatorPersonId: leaderId,
     supervisorPersonId: leaderId,
     status: 'completed', // outcome は terminal status の project に適用される
+    terminalReason: 'completed', // v0.44 §5.3: terminal は reason 必須 (award hook の fail-fast)
     progress: 100,
     targetProgress: 100,
     currentStageKey: 'execute_project',
@@ -175,6 +176,7 @@ describe('acquire_political_right outcome (§13.4)', () => {
         creatorPersonId: leaderId,
         supervisorPersonId: leaderId,
         status: 'completed',
+        terminalReason: 'completed',
         progress: 100,
         targetProgress: 100,
         currentStageKey: 'execute_project',

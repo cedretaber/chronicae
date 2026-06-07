@@ -9,6 +9,10 @@ person:
   entered_old_age: '{{person}} entered old age at {{age}}.'
   born_in_obscurity: 'An unknown {{occupation}} named {{person}} appeared.'
   faded_from_history: '{{person}} faded from the chronicles.'
+  # v0.44 achievement growth / reputation
+  ability_grew: "{{person}}'s {{ability}} improved from {{oldValue}} to {{newValue}} through {{sourceKind}}."
+  reputation_gained: '{{person}} earned renown for {{category}} through {{sourceKind}}.'
+  reputation_damaged: "{{person}}'s reputation for {{category}} suffered through {{sourceKind}}."
   goal:
     created: '{{owner}} set a personal goal: {{kind}}.'
   aim:
@@ -216,6 +220,26 @@ clan:
 #   naturally (e.g. "A Siege broke out"). Kept distinct from terrain (detail.terrain_value):
 #   battlefieldKind is a separate concept (feature-derived River/Coastal, future Siege).
 enum:
+  # v0.44 achievement growth / reputation
+  ability:
+    valor: 'Valor'
+    command: 'Command'
+    numeracy: 'Numeracy'
+    learning: 'Learning'
+    charisma: 'Charisma'
+    insight: 'Insight'
+  category:
+    administration: 'administration'
+    military: 'military affairs'
+    diplomacy: 'diplomacy'
+    culture: 'culture'
+    stewardship: 'stewardship'
+    intrigue: 'intrigue'
+    general: 'leadership'
+  sourceKind:
+    project: 'project work'
+    diplomatic_play: 'diplomatic negotiation'
+    war: 'war'
   battlefieldKind:
     open_field: 'Field Battle'
     forest_battle: 'Forest Battle'

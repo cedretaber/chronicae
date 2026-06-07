@@ -11,7 +11,6 @@ import type {
   TaskTargetRef,
   PersonActivityLog,
   PersonActivityKind,
-  AbilityTrainingExperience,
 } from '../types/task'
 import type { WorldState } from '../types/world'
 import { addTaskToIndicesMut, removeTaskFromIndicesMut } from '../mutations/taskMutations'
@@ -76,11 +75,6 @@ function isDecisionSubjectActive(state: WorldState, owner: DecisionSubjectRef): 
 }
 
 // --- Pure helpers ---
-
-function getAbilityFromAimTarget(target: EntityRef | undefined): AbilityKey | undefined {
-  if (!target || target.kind !== 'ability') return undefined
-  return target.ability
-}
 
 function getAimDeadlineWeeks(config: SimulationConfig, kind: PersonAimKind): number {
   if (kind === 'obtain_office') return config.personAimDeadlineObtainOffice
@@ -606,16 +600,6 @@ function handleTaskCompletionMut(
     const aimProgress = ownerAim.progress + 1
     const aimSucceeded = aimProgress >= ownerAim.targetProgress
 
-    if (ownerAim.kind === 'improve_ability') {
-      const existingExp = ws.personTrainingExperience[personId]
-      const trainingExp: AbilityTrainingExperience = existingExp ? { ...existingExp } : {}
-      const abilityKey = getAbilityFromAimTarget(ownerAim.target)
-      if (abilityKey) {
-        trainingExp[abilityKey] = (trainingExp[abilityKey] ?? 0) + config.taskTrainingExperienceGain
-        ws.personTrainingExperience[personId] = trainingExp
-      }
-    }
-
     if (ownerAim.kind === 'support_organization_aim' && ownerAim.target?.kind === 'aim') {
       const targetOrgAim = ws.aims[ownerAim.target.id]
       if (targetOrgAim && targetOrgAim.status === 'active') {
@@ -905,7 +889,6 @@ export function runTaskSystem(ctx: TickContext): TickContext {
       ...ctx.state.personActivityLogIndex,
       byPerson: { ...ctx.state.personActivityLogIndex.byPerson },
     },
-    personTrainingExperience: { ...ctx.state.personTrainingExperience },
     waitingAimIds: [...ctx.state.waitingAimIds],
   }
 

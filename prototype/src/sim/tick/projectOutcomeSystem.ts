@@ -18,6 +18,13 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 import { removeProjectFromIndexMut, isDiplomaticProjectKind } from '../mutations/projectMutations'
 import { createPoliticalRight } from '../mutations/politicalRightMutations'
+import type { RngState } from '../rng/rng'
+import {
+  applyImmediateAbilityGrowthMut,
+  awardPersonReputationMut,
+  getProjectExperienceWeights,
+  PROJECT_REPUTATION_CATEGORY_MAP,
+} from '../helpers/awardHelpers'
 import { getPoliticalRightKindFromTarget } from '../types/politicalRight'
 import {
   politicalRightTargetNameParam,
@@ -27,6 +34,7 @@ import { createLogger } from '../debug/logger'
 
 export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
   const config = ctx.config
+  let rng = ctx.rng
 
   const ws: WorldState = {
     ...ctx.state,
@@ -172,16 +180,107 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
       }
     }
 
+    // v0.44 §5: 削除直前に成果経験・評判を付与する (非外交 Project のみ — 外交系は
+    //   DiplomaticPlay 側 (cleanupTerminalDiplomacy) で delegate に付与する §5.2)。
+    if (!isDiplomaticProjectKind(project.kind)) {
+      rng = awardProjectOutcomeMut(ws, config, project, rng, emitEvent)
+    }
+
     removeProjectFromIndexMut(ws, project)
     delete ws.projects[project.id]
   }
 
   return {
     ...ctx,
+    rng,
     state: ws,
     events: [...ctx.events, ...newEvents],
     nextEventIndex,
   }
+}
+
+// v0.44 §5.4-5.5: 非外交 Project の terminal 時に supervisor へ経験・評判を付与する。
+function awardProjectOutcomeMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: Project,
+  rng: RngState,
+  emitEvent: (input: CreateSimEventInput) => void,
+): RngState {
+  // fail-fast (§5.3): terminalReason のセット漏れは年末 integrity では検出できない
+  //   (flushTerminalEntities が直前に削除するため)。ここで顕在化させる。
+  if (project.terminalReason === undefined) {
+    throw new Error(
+      `projectOutcomeSystem: terminal project ${project.id as string} ` +
+        `(kind=${project.kind}, status=${project.status}) without terminalReason — ` +
+        `terminal サイトのセット漏れ (v0.44 §5.3)`,
+    )
+  }
+
+  const supervisor = ws.persons[project.supervisorPersonId]
+  if (!supervisor || !supervisor.alive || supervisor.kind === 'placeholder') return rng
+
+  // 経験 (§5.4)
+  let experience: number
+  if (project.status === 'completed') {
+    experience = config.projectExperienceGainCompleted
+  } else if (project.status === 'failed') {
+    experience = config.projectExperienceGainFailed
+  } else {
+    const progressRatio = clamp(
+      project.targetProgress > 0 ? project.progress / project.targetProgress : 0,
+      0,
+      1,
+    )
+    experience =
+      config.projectExperienceGainCompleted *
+      progressRatio *
+      config.projectExperienceGainCancelledMultiplier
+  }
+
+  const weights = getProjectExperienceWeights(project.kind)
+  const nextRng = applyImmediateAbilityGrowthMut(
+    ws,
+    config,
+    project.supervisorPersonId,
+    experience,
+    weights,
+    'project',
+    rng,
+    emitEvent,
+  )
+
+  // 評判 (§5.5): completed=正 / failed は本人帰責 reason のみ負 / cancelled=なし
+  const category = PROJECT_REPUTATION_CATEGORY_MAP[project.kind]
+  if (category !== undefined) {
+    let baseScore: number | undefined
+    if (project.status === 'completed') {
+      baseScore = config.personReputationProjectSuccessBase
+    } else if (
+      project.status === 'failed' &&
+      (project.terminalReason === 'deadline_expired' ||
+        project.terminalReason === 'stage_attempts_exceeded')
+    ) {
+      baseScore = config.personReputationProjectFailureBase
+    }
+    if (baseScore !== undefined) {
+      awardPersonReputationMut(
+        ws,
+        config,
+        {
+          personId: project.supervisorPersonId,
+          source: { kind: 'project', projectKind: project.kind, projectId: project.id },
+          category,
+          baseScore,
+          ...(project.owner.kind === 'polity' || project.owner.kind === 'house'
+            ? { relatedOrganization: project.owner }
+            : {}),
+        },
+        emitEvent,
+      )
+    }
+  }
+  return nextRng
 }
 
 // --- Non-diplomatic effect application ---

@@ -68,7 +68,6 @@ import type {
   TaskIndex,
   PersonActivityLog,
   PersonActivityLogIndex,
-  AbilityTrainingExperience,
   WaitingAimIndex,
 } from './task'
 
@@ -146,7 +145,6 @@ export type WorldState = {
   taskIndex: TaskIndex
   personActivityLogs: Record<PersonActivityLogId, PersonActivityLog>
   personActivityLogIndex: PersonActivityLogIndex
-  personTrainingExperience: Record<PersonId, AbilityTrainingExperience>
   waitingAimIds: WaitingAimIndex
   // v0.22
   nextGoalId: number

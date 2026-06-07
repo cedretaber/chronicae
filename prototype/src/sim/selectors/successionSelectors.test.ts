@@ -148,7 +148,6 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
     personActivityLogs: {},
     personActivityLogIndex: { byPerson: {} },
-    personTrainingExperience: {},
     waitingAimIds: [],
     nextTaskId: 0,
     nextPersonActivityLogId: 0,

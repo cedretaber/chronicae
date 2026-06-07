@@ -69,7 +69,7 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
   }
 }
 
-const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
+export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   develop_holding: 'stewardship',
   acquire_political_right: 'diplomacy',
   promote_policy_shift: 'diplomacy',

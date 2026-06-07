@@ -78,7 +78,11 @@ export function createEventRenderer(
             key === 'revokeReason' ||
             key === 'plotType' ||
             key === 'occupation' ||
-            key === 'rebelClass') &&
+            key === 'rebelClass' ||
+            // v0.44: 成果成長・評判イベントの enum param
+            key === 'ability' ||
+            key === 'category' ||
+            key === 'sourceKind') &&
           typeof value === 'string'
         ) {
           const translated = i18nInstance.t(`enum.${key}.${value}`, {

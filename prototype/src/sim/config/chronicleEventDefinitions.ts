@@ -100,4 +100,9 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   //   emit 時の entityRefs 出し分け（一般=person のみ / 主要=person+house+polity）で実現する。
   PERSON_CAME_OF_AGE: { category: 'life' },
   PERSON_ENTERED_OLD_AGE: { category: 'life' },
+  // v0.44 §10.5: 成果成長・評判。person ref のみ retain して byPerson index に限定する
+  //   (高頻度イベントを byHouse/byPolity に載せない — office=byPerson 限定と同方針)。
+  PERSON_ABILITY_GREW: { category: 'life', retainRefKinds: ['person'] },
+  PERSON_REPUTATION_GAINED: { category: 'life', retainRefKinds: ['person'] },
+  PERSON_REPUTATION_DAMAGED: { category: 'life', retainRefKinds: ['person'] },
 }

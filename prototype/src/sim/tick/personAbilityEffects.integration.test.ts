@@ -450,7 +450,6 @@ describe('runControlSystem — capital province maxControl', () => {
       taskIndex: { byAssignee: {}, byOwner: {}, byTarget: {} },
       personActivityLogs: {},
       personActivityLogIndex: { byPerson: {} },
-      personTrainingExperience: {},
       waitingAimIds: [],
       nextTaskId: 0,
       nextPersonActivityLogId: 0,
