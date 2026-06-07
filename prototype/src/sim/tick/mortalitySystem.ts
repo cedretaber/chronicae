@@ -39,7 +39,8 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
       //   importance を major にする。同一死亡で PERSON_DIED と両方は emit しない (単一イベント)。
       //   notability は office 剥奪前 (上の wasHouseLeader/wasPolityLeader) でしか正確に取れないため
       //   projection 側 filter ではなく emit 側で分岐する (案A)。
-      const isNotableDeath = wasHouseLeader || wasPolityLeader
+      //   v0.45: 天才の死も major で記録する (夭折も含めて年代記の対象)。
+      const isNotableDeath = wasHouseLeader || wasPolityLeader || person.geniusType !== undefined
 
       const house = currentState.houses[person.houseId]
       const { event, ctx: eventCtx } = createSimEvent(
