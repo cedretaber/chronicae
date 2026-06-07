@@ -19,6 +19,7 @@ import { estimateAttackerWinChance } from '../selectors/warEstimateSelectors'
 import { calcGeneralDeclareThreshold } from '../selectors/personAbilityEffects'
 import { isPolityInActiveWar } from '../selectors/diplomaticSupportSelectors'
 import { politicalActorKey } from '../selectors/actorSelectors'
+import { politiesShareOwnerHouse } from '../selectors/polityRelations'
 import { createLogger } from '../debug/logger'
 import type { OrganizationRef } from '../types/office'
 
@@ -80,6 +81,7 @@ function collectWarSupporters(
   ws: WorldState,
   supporters: DiplomaticPlaySupporter[],
   acceptedKeys: Set<string>,
+  oppositePrimaryPolityId: PolityId,
 ): WarSupporterInput[] {
   const result: WarSupporterInput[] = []
   for (const s of supporters) {
@@ -88,6 +90,9 @@ function collectWarSupporters(
     if (acceptedKeys.has(key)) continue
     if (ws.polities[s.actor.id]?.active !== true) continue
     if (isPolityInActiveWar(ws, s.actor.id)) continue
+    // v0.45.2 同家戦争防止ゲート: 反対側 primary と同じ支配家の polity は参戦させない
+    //   (家が自分の polity への攻撃に加担する不自然の防止)。
+    if (politiesShareOwnerHouse(ws, s.actor.id, oppositePrimaryPolityId)) continue
     acceptedKeys.add(key)
     result.push({ actor: s.actor })
   }
@@ -173,6 +178,13 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
       setPlayStatusMut(ws, play.id, 'cancelled', 'voided')
       continue
     }
+    // v0.45.2 同家戦争防止ゲート (安全網): play 開始後に ownership が変わって同家になった
+    //   ペアは war 化しない。revolt_negotiation は commonwealth 側 ownerHouseId undefined
+    //   なので自然に素通りする。
+    if (politiesShareOwnerHouse(ws, play.initiator.id, play.target.id)) {
+      setPlayStatusMut(ws, play.id, 'cancelled', 'voided')
+      continue
+    }
     // §6.2.4 dedup。
     if (hasActiveWarForIssue(ws, play)) {
       setPlayStatusMut(ws, play.id, 'cancelled', 'voided')
@@ -216,8 +228,18 @@ export function runWarCreationSystem(ctx: TickContext): TickContext {
       politicalActorKey(play.initiator),
       politicalActorKey(play.target),
     ])
-    const attackerSupporters = collectWarSupporters(ws, play.initiatorSupporters, acceptedKeys)
-    const defenderSupporters = collectWarSupporters(ws, play.targetSupporters, acceptedKeys)
+    const attackerSupporters = collectWarSupporters(
+      ws,
+      play.initiatorSupporters,
+      acceptedKeys,
+      play.target.id,
+    )
+    const defenderSupporters = collectWarSupporters(
+      ws,
+      play.targetSupporters,
+      acceptedKeys,
+      play.initiator.id,
+    )
 
     const war = createWar(ws, {
       attacker: play.initiator,

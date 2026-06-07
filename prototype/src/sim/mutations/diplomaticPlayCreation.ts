@@ -22,6 +22,7 @@ import {
 import { canTransferLandContract } from './landContractMutations'
 import { getActorMilitaryPower } from '../selectors/actorSelectors'
 import { predictPressureResponseStance } from '../selectors/pressureStanceSelectors'
+import { politiesShareOwnerHouse } from '../selectors/polityRelations'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { clamp } from '../utils/math'
@@ -95,6 +96,14 @@ function createLandClaimPlayFromProjectMut(
 
   const provinceId = project.provinceId
   if (!provinceId) return { kind: 'invalid_inputs' }
+
+  // v0.45.2 同家戦争防止ゲート (安全網): 同じ支配家の polity 同士の play は生成しない。
+  //   主ゲートは aim 選定 (goalSelectors) / target 解決 (taskProjectCompletion) — ここは
+  //   生成までの間に ownership が変わった場合の防御。sell_land も含め全 kind で
+  //   「同家ペアの play は存在しない」不変条件を保つ。
+  if (politiesShareOwnerHouse(ws, project.owner.id, project.counterpartyPolityId)) {
+    return { kind: 'invalid_inputs' }
+  }
 
   const holdingId = project.holdingId ?? selectTargetHoldingInProvince(ws, provinceId)
   if (!holdingId) return { kind: 'invalid_inputs' }
@@ -282,6 +291,12 @@ function createContractRevisionPlayFromProjectMut(
 
   const initiator: OrganizationRef = { kind: 'polity', id: project.owner.id }
   const target: OrganizationRef = { kind: 'polity', id: project.counterpartyPolityId }
+
+  // v0.45.2 同家戦争防止ゲート (安全網): 同じ支配家の polity 同士の play は生成しない。
+  //   主ゲートは aim 選定 (goalSelectors) / target 解決 (taskProjectCompletion)。
+  if (politiesShareOwnerHouse(ws, initiator.id, target.id)) {
+    return { kind: 'infeasible' }
+  }
 
   // 開始ゲート: 相手 (target) が resist 確実 = 起こしても status_quo に終わるだけの
   // 外交劇は開始しない。受諾見込みの予測を projectStageSystem の stance 決定と同一式で共有する

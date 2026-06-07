@@ -155,6 +155,48 @@ describe('WarCreationSystem (§6)', () => {
     expect(next.state.diplomaticPlays['dp-b' as DiplomaticPlayId]?.status).toBe('cancelled')
   })
 
+  // v0.45.2 同家戦争防止ゲート
+  it('同じ支配家の polity 同士の escalated play は war 化されず cancelled に倒れる', () => {
+    const { world, holdingId, attacker, defender } = setupTransferableHolding()
+    // 両 polity の支配家を同一に収束させる (play 開始後の相続・征服を模擬)
+    world.polities[defender] = {
+      ...world.polities[defender]!,
+      ownerHouseId: world.polities[attacker]!.ownerHouseId!,
+    }
+    injectEscalatedLandClaim(world, 'dp-a', attacker, defender, holdingId)
+    const before = Object.keys(world.wars).length
+
+    const next = runWarCreationSystem(makeCtx(world))
+
+    expect(Object.keys(next.state.wars).length).toBe(before)
+    expect(next.state.diplomaticPlays['dp-a' as DiplomaticPlayId]?.status).toBe('cancelled')
+    expect(next.events.some((e) => e.type === 'WAR_DECLARED')).toBe(false)
+  })
+
+  it('反対側 primary と同じ支配家の supporter は copy filter で落ちる (v0.45.2)', () => {
+    const { world, holdingId, attacker, defender } = setupTransferableHolding()
+    // defender の支配家に属する polity を attacker 側 supporter として注入
+    const s = withPolity(world, 'c-sup' as PolityId, {
+      rank: 2,
+      treasury: 100,
+      ownerHouseId: world.polities[defender]!.ownerHouseId!,
+    })
+    injectEscalatedLandClaim(s, 'dp-a', attacker, defender, holdingId)
+    s.diplomaticPlays['dp-a' as DiplomaticPlayId] = {
+      ...s.diplomaticPlays['dp-a' as DiplomaticPlayId]!,
+      initiatorSupporters: [
+        { actor: { kind: 'polity', id: 'c-sup' as PolityId }, joinedWeek: 0, commitment: 50 },
+      ],
+    }
+
+    const next = runWarCreationSystem(makeCtx(s))
+
+    const war = Object.values(next.state.wars).find((w) => w?.originDiplomaticPlayId === 'dp-a')
+    expect(war).toBeDefined()
+    expect(war?.attacker.participants).toHaveLength(1)
+    expect(next.events.some((e) => e.type === 'WAR_PARTICIPANT_JOINED')).toBe(false)
+  })
+
   // v0.43 §10.3a/§10.4: supporter copy filter
   it('play の supporter が copy filter を通過して War participants に入り WAR_PARTICIPANT_JOINED が出る', () => {
     const { world, holdingId, attacker, defender } = setupTransferableHolding()
@@ -496,6 +538,35 @@ describe('PeaceSettlementSystem (§8) — decisive paths', () => {
     expect(next.state.wars[war.id]?.status).toBe('white_peace')
     // 移転していない。
     expect(getHoldingTerminalPolityId(next.state, holdingId)).toBe(owner)
+    expect(next.events.some((e) => e.type === 'WAR_ENDED')).toBe(true)
+  })
+
+  it('開戦後に両 primary の支配家が同一に収束した War は white_peace で能動終結する (v0.45.2)', () => {
+    const { world, holdingId, attacker, defender } = setupTransferableHolding()
+    const war = createWar(world, {
+      attacker: { kind: 'polity', id: attacker },
+      defender: { kind: 'polity', id: defender },
+      warGoals: [
+        {
+          kind: 'transfer_land_contract',
+          holdingId,
+          fromPolityId: defender,
+          toPolityId: attacker,
+          requiredWarScore: 60,
+        },
+      ],
+      targetWarScore: 60,
+      startedWeek: world.absoluteWeek,
+    })
+    // 開戦後に defender の支配家が attacker と同一に収束 (相続・征服を模擬)
+    world.polities[defender] = {
+      ...world.polities[defender]!,
+      ownerHouseId: world.polities[attacker]!.ownerHouseId!,
+    }
+
+    const next = runPeaceSettlementSystem(makeCtx(world))
+    expect(next.state.wars[war.id]?.status).toBe('white_peace')
+    expect(getHoldingTerminalPolityId(next.state, holdingId)).toBe(defender)
     expect(next.events.some((e) => e.type === 'WAR_ENDED')).toBe(true)
   })
 

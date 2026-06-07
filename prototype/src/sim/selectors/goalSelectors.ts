@@ -26,6 +26,7 @@ import { getHoldingDevelopment } from './holdingImprovementSelectors'
 import { calcPolityMilitaryPower } from './militarySelectors'
 import { getHouseOwnedPolityIds } from './landContractSelectors'
 import { predictPressureResponseStance } from './pressureStanceSelectors'
+import { politiesShareOwnerHouse } from './polityRelations'
 import {
   getActorInfluenceInPolity,
   getPolityInfluenceBreakdown,
@@ -303,6 +304,8 @@ function pickPolityAim(
       for (const h of holdings) {
         const tp = state.holdingTerminalPolityCache[h.id]
         if (tp && (tp as string) === (polityId as string)) ownCount++
+        // v0.45.2: 同家 polity の holding は奪取対象 (other) に数えない (同家戦争防止ゲート)
+        else if (tp && politiesShareOwnerHouse(state, polityId, tp)) continue
         else otherCount++
       }
       if (ownCount > 0 && otherCount > 0) {
@@ -324,6 +327,8 @@ function pickPolityAim(
         for (const h of holdings) {
           const tp = state.holdingTerminalPolityCache[h.id]
           if (!tp || (tp as string) === (polityId as string)) continue
+          // v0.45.2: 同家 polity は奪取対象にしない (同家戦争防止ゲート)
+          if (politiesShareOwnerHouse(state, polityId, tp)) continue
           const targetPower = calcPolityMilitaryPower(state, config, tp)
           if (ownPower > targetPower * 1.25) {
             candidates.push({
@@ -358,11 +363,20 @@ function pickPolityAim(
     )
   }
 
+  // v0.45.2 同家戦争防止ゲート: grantor (宗主) が自分と同じ支配家の polity なら、
+  // 税改定系 aim を起こさない (家が自分自身に要求する不自然 + 同家 play/war の源泉)。
+  const grantorIsSameHouse = (cid: LandContractId): boolean => {
+    const grantor = getLandContractGrantor(state, cid)
+    if (!grantor || grantor.kind !== 'polity') return false
+    return politiesShareOwnerHouse(state, polityId, grantor.id)
+  }
+
   for (const cid of contractIds) {
     const contract = state.landContracts[cid]
     if (!contract) continue
     if (contract.termsProtectedUntilWeek && absoluteWeek < contract.termsProtectedUntilWeek)
       continue
+    if (grantorIsSameHouse(contract.id)) continue
     if (grantorWouldResist(contract.id)) continue
     if (contract.terms.taxRateToGrantor > 0.2) {
       candidates.push({
@@ -380,6 +394,7 @@ function pickPolityAim(
     if (!contract || contract.rootAuthorityId) continue
     if (contract.termsProtectedUntilWeek && absoluteWeek < contract.termsProtectedUntilWeek)
       continue
+    if (grantorIsSameHouse(contract.id)) continue
     if (grantorWouldResist(contract.id)) continue
     if (contract.terms.taxRateToGrantor <= config.taxRevisionMinRateForReduction) {
       candidates.push({
@@ -402,6 +417,8 @@ function pickPolityAim(
     if (child.termsProtectedUntilWeek && absoluteWeek < child.termsProtectedUntilWeek) continue
     const vassalPolity = state.polities[child.granteePolityId]
     if (!vassalPolity || !vassalPolity.active) continue
+    // v0.45.2 同家戦争防止ゲート: 同じ支配家の臣下 polity には増税系 aim を起こさない
+    if (politiesShareOwnerHouse(state, polityId, child.granteePolityId)) continue
     if (child.terms.taxRateToGrantor >= config.taxRevisionMaxRateForIncrease) {
       // eliminate_vassal_contract: tax rate already at/near maximum → push for contract removal
       candidates.push({

@@ -14,6 +14,7 @@ import type { PolityId, ProvinceId } from '../types/ids'
 import type { DiplomaticPlay, DiplomaticPlaySideKey } from '../types/diplomaticPlay'
 import type { OrganizationRef } from '../types/office'
 import { politicalActorKey } from './actorSelectors'
+import { politiesShareOwnerHouse } from './polityRelations'
 import { estimateWarSidePower } from './warEstimateSelectors'
 import { getPolityTerminalProvinceIds } from './landContractSelectors'
 import {
@@ -339,8 +340,19 @@ export function selectBestSupportCandidate(
   side: DiplomaticPlaySideKey,
 ): { polityId: PolityId; score: JoinScoreBreakdown } | undefined {
   const candidates = enumerateSupportCandidates(state, play)
+  // v0.45.2 同家戦争防止ゲート: 反対側 primary と同じ支配家の polity は、その side の
+  //   候補にしない (家が自分の polity への攻撃に加担する不自然の防止)。side 依存のため
+  //   enumerateSupportCandidates (side 非依存・対称 exclude) ではなくここで弾く。
+  //   自 side の primary と同家は除外しない (家が自分の polity を支援するのは自然)。
+  const enemyPrimary = side === 'initiator' ? play.target : play.initiator
   let best: { polityId: PolityId; score: JoinScoreBreakdown } | undefined
   for (const candidateId of candidates) {
+    if (
+      enemyPrimary.kind === 'polity' &&
+      politiesShareOwnerHouse(state, candidateId, enemyPrimary.id)
+    ) {
+      continue
+    }
     const score = computeJoinScore(state, config, play, side, candidateId)
     // 列挙が PolityId 昇順なので、同点では先勝ち = PolityId 昇順 tie-break。
     if (!best || score.total > best.score.total) {

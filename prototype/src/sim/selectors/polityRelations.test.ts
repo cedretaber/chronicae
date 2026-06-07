@@ -14,6 +14,7 @@ import {
   getPolityProvinceIds,
   getProvinceOwnerHouse,
   getProvincePolity,
+  politiesShareOwnerHouse,
 } from './polityRelations'
 import {
   bindProvinceToHouseViaPolity,
@@ -372,5 +373,60 @@ describe('polityRelations - getHouseSeatProvinceInPolity', () => {
     state = bindProvinceToHouseViaPolity(state, p1, c1, hid)
 
     expect(getHouseSeatProvinceInPolity(state, hid, c2)).toBeUndefined()
+  })
+})
+
+describe('politiesShareOwnerHouse (v0.45.2 同家戦争防止ゲート)', () => {
+  it('同じ ownerHouseId を持つ 2 polity は true', () => {
+    const c1 = createPolityId('c', 1)
+    const c2 = createPolityId('c', 2)
+    const hid = createHouseId('h', 1)
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid)
+    state = withPolity(state, c1, { ownerHouseId: hid })
+    state = withPolity(state, c2, { ownerHouseId: hid })
+
+    expect(politiesShareOwnerHouse(state, c1, c2)).toBe(true)
+    expect(politiesShareOwnerHouse(state, c2, c1)).toBe(true)
+  })
+
+  it('別の ownerHouseId なら false', () => {
+    const c1 = createPolityId('c', 1)
+    const c2 = createPolityId('c', 2)
+    const h1 = createHouseId('h', 1)
+    const h2 = createHouseId('h', 2)
+    let state = makeEmptyV016State()
+    state = withHouse(state, h1)
+    state = withHouse(state, h2)
+    state = withPolity(state, c1, { ownerHouseId: h1 })
+    state = withPolity(state, c2, { ownerHouseId: h2 })
+
+    expect(politiesShareOwnerHouse(state, c1, c2)).toBe(false)
+  })
+
+  it('片側または両側の ownerHouseId が undefined (commonwealth 等) なら false', () => {
+    const c1 = createPolityId('c', 1)
+    const c2 = createPolityId('c', 2)
+    const hid = createHouseId('h', 1)
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid)
+    state = withPolity(state, c1, { ownerHouseId: hid })
+    // withPolity は ownerHouseId 未指定なら undefined のまま (commonwealth 相当)
+    state = withPolity(state, c2, {})
+
+    expect(politiesShareOwnerHouse(state, c1, c2)).toBe(false)
+    expect(politiesShareOwnerHouse(state, c2, c1)).toBe(false)
+    expect(politiesShareOwnerHouse(state, c2, c2)).toBe(false)
+  })
+
+  it('存在しない polity は false', () => {
+    const c1 = createPolityId('c', 1)
+    const missing = createPolityId('c', 99)
+    const hid = createHouseId('h', 1)
+    let state = makeEmptyV016State()
+    state = withHouse(state, hid)
+    state = withPolity(state, c1, { ownerHouseId: hid })
+
+    expect(politiesShareOwnerHouse(state, c1, missing)).toBe(false)
   })
 })

@@ -4,6 +4,7 @@ import type { War, WarGoal, ChangeContractTaxRateWarGoal } from '../types/war'
 import type { WorldState } from '../types/world'
 import { getWarPrimaryAttacker, getWarPrimaryDefender } from '../mutations/warMutations'
 import { isActorActive } from '../selectors/actorSelectors'
+import { politiesShareOwnerHouse } from '../selectors/polityRelations'
 import {
   applyLandContractTransferGoal,
   adjustLandContractTaxRate,
@@ -237,6 +238,18 @@ export function runPeaceSettlementSystem(ctx: TickContext): TickContext {
 
     // §8.8: WarGoal が stale (参照先消失) なら warScore/timeout を待たず白紙和平で安全終結する。
     if (war.warGoals.some((g) => isWarGoalRefStale(next.state, g))) {
+      next = settleWhitePeace(next, wid)
+      continue
+    }
+
+    // v0.45.2 同家戦争防止ゲート: 開戦後に相続・征服等で両 primary の支配家が同一に
+    //   収束した war は白紙和平で能動終結する (stale → white_peace の相似形)。
+    //   開戦時の同家ペアは aim/play/war 化の各ゲートで弾かれるため、ここは mid-war 収束専用。
+    if (
+      atk.kind === 'polity' &&
+      def.kind === 'polity' &&
+      politiesShareOwnerHouse(next.state, atk.id, def.id)
+    ) {
       next = settleWhitePeace(next, wid)
       continue
     }

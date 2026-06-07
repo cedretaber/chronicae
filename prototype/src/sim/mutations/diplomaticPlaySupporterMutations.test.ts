@@ -174,4 +174,19 @@ describe('addDiplomaticPlaySupporterMut', () => {
       'added',
     )
   })
+  it('rejects a supporter sharing the opposite primary\u2019s owner house (v0.45.2)', () => {
+    const ws = makeState()
+    const hid = 'h-99' as HouseId
+    // c-2 (target primary) と c-3 (候補) を同じ支配家にする
+    ws.polities['c-2' as PolityId] = { ...ws.polities['c-2' as PolityId]!, ownerHouseId: hid }
+    ws.polities['c-3' as PolityId] = { ...ws.polities['c-3' as PolityId]!, ownerHouseId: hid }
+    // initiator 側 (反対 primary = c-2) への参加は拒否
+    expect(
+      addDiplomaticPlaySupporterMut(ws, defaultConfig, PLAY_ID, 'initiator', makeSupporter('c-3')),
+    ).toBe('same_house_as_opponent')
+    // target 側 (自分の家の polity を支援) は許容
+    expect(
+      addDiplomaticPlaySupporterMut(ws, defaultConfig, PLAY_ID, 'target', makeSupporter('c-3')),
+    ).toBe('added')
+  })
 })

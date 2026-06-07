@@ -32,6 +32,7 @@ import {
 import { getRightForTarget } from '../selectors/politicalRightSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getProvinceHoldings, getLandContractGrantor } from '../selectors/landContractSelectors'
+import { politiesShareOwnerHouse } from '../selectors/polityRelations'
 import { getInitialProjectStageKey, getNextProjectStageKey } from '../config/projectStageSequences'
 import { resolveImmediateStages } from './projectStageSystem'
 
@@ -372,6 +373,8 @@ function findAcquireTargetForProject(
     for (const h of holdings) {
       const tp = ws.holdingTerminalPolityCache[h.id]
       if (tp && (tp as string) !== (polityId as string)) {
+        // v0.45.2: 同家 polity は対象にしない (同家戦争防止ゲート) — 次の holding 候補へ
+        if (politiesShareOwnerHouse(ws, polityId, tp)) continue
         const targetPolity = ws.polities[tp]
         if (targetPolity && targetPolity.active) {
           return { targetPolityId: tp, provinceId: aim.target.id, holdingId: h.id }
@@ -398,6 +401,8 @@ function findImproveTargetForProject(
     if (contract.terms.taxRateToGrantor <= 0.15) continue
     const grantor = getLandContractGrantor(ws, cid)
     if (!grantor || grantor.kind !== 'polity') continue
+    // v0.45.2: 同家の宗主には減税要求を起こさない (同家戦争防止ゲート)
+    if (politiesShareOwnerHouse(ws, polityId, grantor.id)) continue
     const grantorPolity = ws.polities[grantor.id]
     if (grantorPolity && grantorPolity.active) {
       const holdings = getProvinceHoldings(ws, contract.provinceId)
@@ -427,6 +432,8 @@ function findDemandTaxIncreaseTargetForProject(
     if (!child) continue
     if (child.termsProtectedUntilWeek && ws.absoluteWeek < child.termsProtectedUntilWeek) continue
     if (child.terms.taxRateToGrantor >= config.taxRevisionMaxRateForIncrease) continue
+    // v0.45.2: 同家の臣下には増税要求を起こさない (同家戦争防止ゲート)
+    if (politiesShareOwnerHouse(ws, polityId, child.granteePolityId)) continue
     const vassalPolity = ws.polities[child.granteePolityId]
     if (vassalPolity && vassalPolity.active) {
       const holdings = getProvinceHoldings(ws, child.provinceId)

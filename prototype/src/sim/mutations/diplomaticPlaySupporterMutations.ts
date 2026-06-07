@@ -3,6 +3,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { DiplomaticPlayId } from '../types/ids'
 import type { DiplomaticPlaySupporter, DiplomaticPlaySideKey } from '../types/diplomaticPlay'
 import { politicalActorKey } from '../selectors/actorSelectors'
+import { politiesShareOwnerHouse } from '../selectors/polityRelations'
 
 // v0.43 §6: DiplomaticPlay supporter の追加 mutation。
 //   supporter 配列の更新は直接 spread を散らさず必ずこの helper を通す (§6.1)。
@@ -17,6 +18,7 @@ export type AddDiplomaticPlaySupporterResult =
   | 'primary_actor'
   | 'duplicate'
   | 'opposite_side'
+  | 'same_house_as_opponent'
   | 'max_supporters_reached'
 
 // §6.2 の全検査を集約した上で supporter を side の配列に append する。
@@ -38,6 +40,16 @@ export function addDiplomaticPlaySupporterMut(
   const actorKey = politicalActorKey(actor)
   if (politicalActorKey(play.initiator) === actorKey || politicalActorKey(play.target) === actorKey)
     return 'primary_actor'
+
+  // v0.45.2 同家戦争防止ゲート (安全網): 反対側 primary と同じ支配家の polity は参加不可。
+  //   主ゲートは selectBestSupportCandidate — ここは別経路で呼ばれた場合の防御。
+  const oppositePrimary = side === 'initiator' ? play.target : play.initiator
+  if (
+    oppositePrimary.kind === 'polity' &&
+    politiesShareOwnerHouse(ws, actor.id, oppositePrimary.id)
+  ) {
+    return 'same_house_as_opponent'
+  }
 
   const sameSide = side === 'initiator' ? play.initiatorSupporters : play.targetSupporters
   const otherSide = side === 'initiator' ? play.targetSupporters : play.initiatorSupporters

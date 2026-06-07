@@ -16,6 +16,18 @@ import {
 } from './landContractSelectors'
 import { getProvincePopulation } from './popSelectors'
 
+// v0.45.2 — 2 つの polity の支配家 (ownerHouseId) が同一か。
+// 同じ家が支配する polity 同士は hostile な play / war を起こさない (家が自分自身と争う
+// 不自然の防止) ためのゲート共有 predicate。aim 選定 (goalSelectors)・project target 解決
+// (taskProjectCompletion)・play 生成 (diplomaticPlayCreation)・war 化 (warCreationSystem)・
+// mid-war 収束 (peaceSettlementSystem)・supporter 追加で同一式を共有する。
+// commonwealth 等 ownerHouseId undefined の側があれば false (別家とみなす)。
+export function politiesShareOwnerHouse(state: WorldState, a: PolityId, b: PolityId): boolean {
+  const houseA = state.polities[a]?.ownerHouseId
+  if (houseA === undefined) return false
+  return houseA === state.polities[b]?.ownerHouseId
+}
+
 // §8.1 — Province の terminal Polity
 export function getProvincePolity(state: WorldState, provinceId: ProvinceId): Polity | undefined {
   const polityId = getProvinceTerminalPolityId(state, provinceId)
