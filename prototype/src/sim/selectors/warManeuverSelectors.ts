@@ -7,6 +7,7 @@ import type { RngState, RngResult } from '@sim/rng/rng'
 import { randomFloat } from '@sim/rng/rng'
 import { getActiveOfficeHolders, getPolityLeader } from '@sim/selectors/officeSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
+import { getPersonReputationModifierForCategories } from './personReputationSelectors'
 import { getPolityPersonIds } from '@sim/selectors/polityRelations'
 import { getFactionActiveMemberIds } from '@sim/selectors/factionSelectors'
 import { isLifeStageAtLeast, isLivingPerson } from '@sim/types/person'
@@ -33,8 +34,14 @@ function warCommandSelectionScore(
   personId: PersonId,
   config?: SimulationConfig,
 ): number {
-  const base = getRoleScore(state, personId, 'warCommand')
+  let base = getRoleScore(state, personId, 'warCommand')
   if (!config) return base
+  // v0.44 §9.4: military 評判の指揮官選定補正 (raw ±cap × warCommandReputationScoreFactor =
+  //   実効 ±15)。効くのは commanderPersonIds ランキング。captain general は役職優先順選定の
+  //   ため原則対象外 (仕様どおり)。
+  base +=
+    getPersonReputationModifierForCategories(state, config, personId, ['military']) *
+    config.warCommandReputationScoreFactor
   const p = state.persons[personId]
   if (p && p.lifeStage === 'old_age') return base * config.oldAgeCommandScoreMultiplier
   return base

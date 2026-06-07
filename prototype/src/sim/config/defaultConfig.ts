@@ -988,6 +988,10 @@ export type SimulationConfig = {
   personReputationWarVictoryBase: number
   personReputationWarDefeatBase: number
   warCommanderAwardFactor: number
+  // v0.44 評判の任用反映 (§9): raw 合算の clamp + 注入先係数 (office ±5 / war ±15)
+  appointmentReputationModifierCap: number
+  officeReputationScoreFactor: number
+  warCommandReputationScoreFactor: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2059,4 +2063,7 @@ export const defaultConfig: SimulationConfig = {
   personReputationWarVictoryBase: 12,
   personReputationWarDefeatBase: -8,
   warCommanderAwardFactor: 0.6,
+  appointmentReputationModifierCap: 20,
+  officeReputationScoreFactor: 0.25,
+  warCommandReputationScoreFactor: 0.75,
 }

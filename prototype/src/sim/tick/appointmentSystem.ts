@@ -20,6 +20,7 @@ import type { PoliticalRight } from '../types/politicalRight'
 import { getPersonPrestige } from '../selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 import { getAppointmentTaskModifier } from '../selectors/appointmentTaskSelectors'
+import { getAppointmentReputationModifier } from '../selectors/personReputationSelectors'
 
 import type { PersonId, PolityId, HouseId } from '../types/ids'
 import type { OfficeRole, OrganizationRef } from '../types/office'
@@ -271,7 +272,9 @@ function computePolityScoreV017(
     ownerHouseBonus -
     compatibilityPenalty -
     sameHouseEffective +
-    getAppointmentTaskModifier(state, config, personId, { kind: 'polity', id: polity.id }, role) -
+    getAppointmentTaskModifier(state, config, personId, { kind: 'polity', id: polity.id }, role) +
+    // v0.44 §9.3: 成果評判の任用補正 (raw ±cap × officeReputationScoreFactor = 実効 ±5)。
+    getAppointmentReputationModifier(state, config, personId, role) -
     // v0.40 §9.3: old_age は固定減算（負スコアでも単調に不利化するため乗算でなく減算）。
     (person.lifeStage === 'old_age' ? config.oldAgeAppointmentScorePenalty : 0)
   )
@@ -315,7 +318,9 @@ function computeHouseScoreV017(
     houseAffection * 3 +
     personSharePct * 0.1 -
     compatibilityPenalty +
-    getAppointmentTaskModifier(state, config, personId, { kind: 'house', id: house.id }, role) -
+    getAppointmentTaskModifier(state, config, personId, { kind: 'house', id: house.id }, role) +
+    // v0.44 §9.3: 成果評判の任用補正。
+    getAppointmentReputationModifier(state, config, personId, role) -
     // v0.40 §9.3: old_age は固定減算。
     (person.lifeStage === 'old_age' ? config.oldAgeAppointmentScorePenalty : 0)
   )
