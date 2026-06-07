@@ -399,6 +399,7 @@
 | ageCurveMidLifePeakAge | 45 | 壮年期ピーク曲線のピーク年齢 |
 | ageCurveMidLifeDeclineConstant | 60 | 壮年期ピーク曲線のピーク後減衰時定数 |
 | abilityGrowthChanceBase | 100 | 成長判定の基礎確率（%、effectiveCeil との比率で減衰） |
+| abilityGrowthGapFactor | 0.1 | v0.45 成長成功時の伸び幅係数 (ギャップ比例・最低 +1) |
 | abilityDeclineChanceBase | 5 | 衰退判定の基礎確率（%） |
 | abilityActiveDeclineMultiplier | 0.30 | 経験あり人物の衰退速度倍率（鈍化） |
 | estateBaseRecoveryRate | 0.5 | 家回収率の基礎値（Share=0 のとき） |
@@ -487,7 +488,6 @@
 | geniusAppearanceChance | 0.01 | 人物生成 1 人あたりの天才出現率。0 で無効 |
 | geniusAptitudeMin | 80 | 対応能力の天賦ロール下限 |
 | geniusAptitudeMax | 120 | 対応能力の天賦ロール上限（= ABILITY_HARD_CAP） |
-| geniusInitialAbilityValue | 50 | 対応能力の初期値（天賦で clamp） |
 | geniusTypeWeightCommander | 0.4 | 名将の出現比重（3 値合計で正規化） |
 | geniusTypeWeightChancellor | 0.4 | 名宰相の出現比重 |
 | geniusTypeWeightUniversal | 0.2 | 万能の出現比重 |

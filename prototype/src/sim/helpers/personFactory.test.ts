@@ -29,17 +29,15 @@ describe('samplePerson genius 経路', () => {
     expect(person.geniusType).toBeUndefined()
   })
 
-  it('chance 1 では geniusType が立ち、対象能力の天賦と初期値が引き上がる', () => {
+  it('chance 1 では geniusType が立ち、対象能力の天賦が引き上がる (初期能力は通常サンプル)', () => {
     const config = makeConfig({ geniusAppearanceChance: 1 })
     const person = sample(config, 'factory-test')
     expect(person.geniusType).toBeDefined()
     const keys = GENIUS_ABILITY_SETS[person.geniusType!]
     for (const k of keys) {
       expect(person.aptitudes[k]).toBeGreaterThanOrEqual(config.geniusAptitudeMin)
-      // age 0 のサンプル能力はほぼ 0 → 初期値まで引き上がっている
-      expect(person.abilities[k]).toBeGreaterThanOrEqual(
-        Math.min(config.geniusInitialAbilityValue, person.aptitudes[k]),
-      )
+      // v0.45: 初期値の人工的な引き上げは撤廃。能力は天賦を超えない通常サンプル
+      expect(person.abilities[k]).toBeLessThanOrEqual(person.aptitudes[k])
     }
   })
 })

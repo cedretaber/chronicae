@@ -11,7 +11,7 @@ import type { AttitudeMap } from '../types/attitude'
 import type { RngState, RngResult } from '../rng/rng'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { sampleAptitudes, sampleAbilitiesFromAptitudes } from '../selectors/abilitySelectors'
-import { rollGeniusType, applyGeniusAptitudes, applyGeniusInitialAbilities } from './geniusHelpers'
+import { rollGeniusType, applyGeniusAptitudes } from './geniusHelpers'
 
 /**
  * 初期 LifeStage を age から導出する（純関数・RNG 不使用）。
@@ -96,16 +96,14 @@ export function samplePerson(
     aptitudes = applied.value
     rngAfterGenius = applied.rng
   }
-  const { value: sampledAbilities, rng: rng3 } = sampleAbilitiesFromAptitudes(
+  // 初期能力は通常サンプル (年齢曲線 × 天賦)。天才は天賦が高い分だけ自然に高く出る。
+  // 初期値の人工的な引き上げは行わない (成長量がギャップ比例のため幼少期に高速成長する)。
+  const { value: abilities, rng: rng3 } = sampleAbilitiesFromAptitudes(
     aptitudes,
     input.age,
     rngAfterGenius,
     config,
   )
-  const abilities =
-    geniusType !== undefined
-      ? applyGeniusInitialAbilities(sampledAbilities, aptitudes, geniusType, config)
-      : sampledAbilities
   const lifeStage = input.lifeStage ?? deriveLifeStageFromAge(input.age, config)
   const person = buildPerson({
     ...input,

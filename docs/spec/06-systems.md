@@ -807,9 +807,15 @@ const naturalCeil    = aptitude[k] * naturalFraction(k, age, config)
 const effectiveCeil  = hadRelevantExperience(state, personId, k) ? aptitude[k] : naturalCeil
 if (ability[k] < effectiveCeil) {
   const gainChance = abilityGrowthChanceBase * (1 - ability[k] / effectiveCeil)
-  if (rng < gainChance / 100) ability[k] = min(ability[k] + 1, ABILITY_HARD_CAP)
+  if (rng < gainChance / 100) {
+    // v0.45: 成長量はギャップ比例 (成功時最低 +1)。round(effectiveCeil) と HARD_CAP で clamp
+    const amount = max(1, round((effectiveCeil - ability[k]) * abilityGrowthGapFactor))
+    ability[k] = min(ability[k] + amount, max(round(effectiveCeil), ability[k] + 1), ABILITY_HARD_CAP)
+  }
 }
 ```
+
+**ギャップ比例成長 (v0.45)**: 旧来の固定 +1 では「天井到達の時定数 ≒ 天井値 (年)」となり、高天賦 (80+) は寿命内に原理的に到達不能だった。成功時の伸び幅を天井との差に比例させる (`abilityGrowthGapFactor` 0.1) ことで、天井から遠いほど速く伸びる: 天才の幼少期 (天賦 110 × 年齢曲線の天井を毎年追走) や、登用直後の上限解放 (naturalCeil → aptitude) が高速成長として表現される。天井への漸近は依然遅く、天賦を使い切るのは稀なまま。
 
 * **経験あり** → `effectiveCeil = aptitude[k]`（能力は aptitude を目指して伸びる）
 * **経験なし** → `effectiveCeil = naturalCeil`（年齢曲線の自然到達水準で頭打ち）
@@ -2085,7 +2091,7 @@ type PersonReputation = {
 
 - **出現判定** `rollGeniusType`: 生成 1 人につき `geniusAppearanceChance`（0.01）で出現。ヒット時に型を weight（commander 0.4 / chancellor 0.4 / universal 0.2、合計正規化）で選択。chance 0 で機能ごと無効化できる
 - **天賦** `applyGeniusAptitudes`: 対応能力ごとに uniform int `[geniusAptitudeMin(80), geniusAptitudeMax(120)]` をロールし `max(既存値, ロール値)` を適用。通常生成上限（`ABILITY_GENERATION_MAX`=100）を超えうるが `ABILITY_HARD_CAP`=120 は超えない。遺伝（`inheritAptitudes`）で既に高い値は潰さない（床として働く）
-- **初期能力** `applyGeniusInitialAbilities`: 対応能力を `max(既存値, min(geniusInitialAbilityValue(50), aptitude))` に引き上げ（幼少から優れている表現。RNG 不使用）
+- **初期能力**: 通常サンプルのまま（人工的な引き上げはしない）。当初の `applyGeniusInitialAbilities`（初期値 50）は v0.45 内で撤廃した — 成長量がギャップ比例（§6.24）になったため、天賦と現在能力の大差自体が幼少期の高速成長として表現される
 
 #### 生成フック（2 経路で全生成サイトをカバー）
 
@@ -2099,7 +2105,7 @@ type PersonReputation = {
 #### 既存システムとの相互作用（設計時に検証済み・追加実装なし）
 
 - 自然成長上限は age-curve fraction（最大 0.7-0.75）× 天賦のため、天才も自然成長だけでは天賦の 7 割止まり。**天賦 80-120 を使い切るには職務経験（§6.24 の ceiling 解放）や成果成長（§6.66）が必要** — 「登用された天才だけが大成する」が創発する
-- 幼少期は naturalCeil < 初期値 50 のため自然成長が一時停止する（既に大人の水準にいる表現として正しい）。decline の発火は期待値 1 点未満/幼少期で無視できる
+- 幼少期の天才は naturalCeil（= 高い天賦 × 年齢曲線）を毎年ギャップ比例で追走し、通常の子の約 2 倍の水準で育つ
 - `isNotablePerson` に `geniusType` 判定を追加（§6.25）。天才の成長ログは normal になり、死去は `IMPORTANT_PERSON_DIED` 対象になる
 
 #### イベント・UI

@@ -76,7 +76,18 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
         const { value: roll, rng: nextRng } = randomFloat(rng)
         rng = nextRng
         if (roll < gainChance / 100) {
-          newAbilities[k] = Math.min(ability + 1, ABILITY_HARD_CAP)
+          // v0.45: 成長量はギャップ比例 (成功時最低 +1)。天井近くでは従来どおり +1、
+          //   天井と大きく離れている (天才の幼少期・登用直後の上限解放) ほど大きく伸びる。
+          //   新値は round(effectiveCeil) を超えない (従来の +1 overshoot 幅は維持)。
+          const gapAmount = Math.max(
+            1,
+            Math.round((effectiveCeil - ability) * ctx.config.abilityGrowthGapFactor),
+          )
+          newAbilities[k] = Math.min(
+            ability + gapAmount,
+            Math.max(Math.round(effectiveCeil), ability + 1),
+            ABILITY_HARD_CAP,
+          )
           changed = true
           grew = true
           grownRecords.push({

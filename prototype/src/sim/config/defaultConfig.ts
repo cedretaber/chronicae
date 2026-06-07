@@ -746,6 +746,9 @@ export type SimulationConfig = {
   ageCurveMidLifeDeclineConstant: number
   // v0.14 Growth / Decline
   abilityGrowthChanceBase: number
+  // v0.45: 成長成功時の伸び幅係数。amount = max(1, round((effectiveCeil - ability) * factor))。
+  // 天井と離れているほど大きく伸びる (天才の幼少期・登用直後の上限解放が高速化する)
+  abilityGrowthGapFactor: number
   abilityDeclineChanceBase: number
   abilityActiveDeclineMultiplier: number
   // v0.14 Estate Settlement
@@ -997,7 +1000,6 @@ export type SimulationConfig = {
   geniusAppearanceChance: number
   geniusAptitudeMin: number
   geniusAptitudeMax: number
-  geniusInitialAbilityValue: number
   geniusTypeWeightCommander: number
   geniusTypeWeightChancellor: number
   geniusTypeWeightUniversal: number
@@ -1746,6 +1748,7 @@ export const defaultConfig: SimulationConfig = {
   ageCurveMidLifeDeclineConstant: 60,
   // v0.14 Growth / Decline
   abilityGrowthChanceBase: 100,
+  abilityGrowthGapFactor: 0.1,
   abilityDeclineChanceBase: 5,
   abilityActiveDeclineMultiplier: 0.3,
   // v0.14 Estate Settlement
@@ -2078,7 +2081,6 @@ export const defaultConfig: SimulationConfig = {
   geniusAppearanceChance: 0.01,
   geniusAptitudeMin: 80,
   geniusAptitudeMax: 120,
-  geniusInitialAbilityValue: 50,
   geniusTypeWeightCommander: 0.4,
   geniusTypeWeightChancellor: 0.4,
   geniusTypeWeightUniversal: 0.2,

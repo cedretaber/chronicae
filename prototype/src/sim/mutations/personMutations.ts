@@ -18,7 +18,6 @@ import { removePersonSharesInHouse } from './shareMutations'
 import { removeRightsByHolder } from './politicalRightMutations'
 import { buildPerson } from '../helpers/personFactory'
 import { sampleAbilitiesFromAptitudes } from '../selectors/abilitySelectors'
-import { applyGeniusInitialAbilities } from '../helpers/geniusHelpers'
 
 export type BirthChildInput = {
   fatherId: PersonId
@@ -196,22 +195,14 @@ export function birthChild(
 
   const { id: childId, ctx: ctxWithId } = makePersonId(ctx)
 
-  const { value: sampledAbilities, rng: rngAfterAbilities } = sampleAbilitiesFromAptitudes(
+  // v0.45: 天才も初期能力は通常サンプル (age 0 でほぼ 0)。天賦との大差が
+  // ギャップ比例成長 (abilityGrowthGapFactor) により幼少期の高速成長として現れる。
+  const { value: abilities, rng: rngAfterAbilities } = sampleAbilitiesFromAptitudes(
     input.aptitudes,
     0,
     ctxWithId.rng,
     ctxWithId.config,
   )
-  // v0.45 天才: 対応能力の初期値を引き上げる (幼少から優れている表現)
-  const abilities =
-    input.geniusType !== undefined
-      ? applyGeniusInitialAbilities(
-          sampledAbilities,
-          input.aptitudes,
-          input.geniusType,
-          ctxWithId.config,
-        )
-      : sampledAbilities
 
   const childPerson = buildPerson({
     id: childId,

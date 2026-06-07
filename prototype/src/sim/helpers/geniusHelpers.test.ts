@@ -6,12 +6,7 @@ import { defaultConfig } from '../config/defaultConfig'
 import type { AbilityScores } from '../types/person'
 import { createRng } from '../rng/rng'
 import { ABILITY_KEYS } from '../constants/abilityConstants'
-import {
-  GENIUS_ABILITY_SETS,
-  rollGeniusType,
-  applyGeniusAptitudes,
-  applyGeniusInitialAbilities,
-} from './geniusHelpers'
+import { GENIUS_ABILITY_SETS, rollGeniusType, applyGeniusAptitudes } from './geniusHelpers'
 
 function makeConfig(overrides: Partial<SimulationConfig>): SimulationConfig {
   return { ...defaultConfig, ...overrides }
@@ -105,25 +100,5 @@ describe('applyGeniusAptitudes', () => {
     for (const k of ABILITY_KEYS) {
       expect(result.value[k]).toBeGreaterThanOrEqual(defaultConfig.geniusAptitudeMin)
     }
-  })
-})
-
-describe('applyGeniusInitialAbilities', () => {
-  it('対象能力を初期値まで引き上げ、対象外と高い既存値はそのまま', () => {
-    const abilities = { ...makeScores(5), valor: 70 }
-    const aptitudes = makeScores(100)
-    const result = applyGeniusInitialAbilities(abilities, aptitudes, 'commander', defaultConfig)
-    expect(result.valor).toBe(70) // 既に初期値超え → 据え置き
-    expect(result.command).toBe(defaultConfig.geniusInitialAbilityValue)
-    expect(result.charisma).toBe(defaultConfig.geniusInitialAbilityValue)
-    expect(result.numeracy).toBe(5) // 対象外
-  })
-
-  it('天賦が初期値より低い場合は天賦で clamp する', () => {
-    const config = makeConfig({ geniusInitialAbilityValue: 50, geniusAptitudeMin: 40 })
-    const aptitudes = { ...makeScores(100), command: 42 }
-    const result = applyGeniusInitialAbilities(makeScores(0), aptitudes, 'commander', config)
-    expect(result.command).toBe(42)
-    expect(result.valor).toBe(50)
   })
 })

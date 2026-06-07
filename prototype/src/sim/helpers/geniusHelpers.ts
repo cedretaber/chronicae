@@ -78,19 +78,6 @@ export function applyGeniusAptitudes(
   return { value: result, rng: currentRng }
 }
 
-/**
- * 対応能力の初期値を geniusInitialAbilityValue まで引き上げる (天賦を超えない)。
- * 既に初期サンプルが高い場合 (高齢で生成された人物など) はそのまま。RNG 不使用。
- */
-export function applyGeniusInitialAbilities(
-  abilities: AbilityScores,
-  aptitudes: AbilityScores,
-  geniusType: GeniusType,
-  config: SimulationConfig,
-): AbilityScores {
-  const result: AbilityScores = { ...abilities }
-  for (const k of GENIUS_ABILITY_SETS[geniusType]) {
-    result[k] = Math.max(result[k], Math.min(config.geniusInitialAbilityValue, aptitudes[k]))
-  }
-  return result
-}
+// NOTE: 初期値引き上げ (旧 applyGeniusInitialAbilities / geniusInitialAbilityValue 50) は
+// v0.45 内で撤廃した。成長量がギャップ比例 (abilityGrowthGapFactor) になったため、
+// 天才は「天賦と現在能力の大差」自体が幼少期の高速成長として表現される。
