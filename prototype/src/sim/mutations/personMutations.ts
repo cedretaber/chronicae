@@ -1,7 +1,14 @@
 import type { TickContext } from '../tick/context'
 import { makePersonId } from '../tick/context'
 import type { PersonId, HouseId } from '../types/ids'
-import type { Person, Sex, BirthStatus, AbilityScores, DeathCircumstance } from '../types/person'
+import type {
+  Person,
+  Sex,
+  BirthStatus,
+  AbilityScores,
+  DeathCircumstance,
+  GeniusType,
+} from '../types/person'
 import type { WorldState } from '../types/world'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
@@ -11,6 +18,7 @@ import { removePersonSharesInHouse } from './shareMutations'
 import { removeRightsByHolder } from './politicalRightMutations'
 import { buildPerson } from '../helpers/personFactory'
 import { sampleAbilitiesFromAptitudes } from '../selectors/abilitySelectors'
+import { applyGeniusInitialAbilities } from '../helpers/geniusHelpers'
 
 export type BirthChildInput = {
   fatherId: PersonId
@@ -20,6 +28,7 @@ export type BirthChildInput = {
   sex: Sex
   aptitudes: AbilityScores
   traits: { ambition: number; caution: number }
+  geniusType?: GeniusType // v0.45 天才 (ロールと天賦引き上げは birthSystem 側で済んでいる)
 }
 
 export type MarkPersonDeadOptions = {
@@ -187,12 +196,22 @@ export function birthChild(
 
   const { id: childId, ctx: ctxWithId } = makePersonId(ctx)
 
-  const { value: abilities, rng: rngAfterAbilities } = sampleAbilitiesFromAptitudes(
+  const { value: sampledAbilities, rng: rngAfterAbilities } = sampleAbilitiesFromAptitudes(
     input.aptitudes,
     0,
     ctxWithId.rng,
     ctxWithId.config,
   )
+  // v0.45 天才: 対応能力の初期値を引き上げる (幼少から優れている表現)
+  const abilities =
+    input.geniusType !== undefined
+      ? applyGeniusInitialAbilities(
+          sampledAbilities,
+          input.aptitudes,
+          input.geniusType,
+          ctxWithId.config,
+        )
+      : sampledAbilities
 
   const childPerson = buildPerson({
     id: childId,
@@ -207,6 +226,7 @@ export function birthChild(
     traits: input.traits,
     fatherId: input.fatherId,
     ...(input.motherId !== undefined ? { motherId: input.motherId } : {}),
+    ...(input.geniusType !== undefined ? { geniusType: input.geniusType } : {}),
   })
 
   let newPersons: Record<PersonId, Person> = { ...ctxWithId.state.persons, [childId]: childPerson }

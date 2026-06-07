@@ -1,9 +1,17 @@
-import type { Person, AbilityScores, BirthStatus, Sex, LifeStage } from '../types/person'
+import type {
+  Person,
+  AbilityScores,
+  BirthStatus,
+  Sex,
+  LifeStage,
+  GeniusType,
+} from '../types/person'
 import type { PersonId, HouseId } from '../types/ids'
 import type { AttitudeMap } from '../types/attitude'
 import type { RngState, RngResult } from '../rng/rng'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { sampleAptitudes, sampleAbilitiesFromAptitudes } from '../selectors/abilitySelectors'
+import { rollGeniusType, applyGeniusAptitudes, applyGeniusInitialAbilities } from './geniusHelpers'
 
 /**
  * 初期 LifeStage を age から導出する（純関数・RNG 不使用）。
@@ -39,6 +47,7 @@ export type BuildPersonInput = {
   legacyPrestige?: number
   wealth?: number
   attitudes?: AttitudeMap
+  geniusType?: GeniusType
 }
 
 export function buildPerson(input: BuildPersonInput): Person {
@@ -64,6 +73,7 @@ export function buildPerson(input: BuildPersonInput): Person {
     ...(input.fatherId !== undefined ? { fatherId: input.fatherId } : {}),
     ...(input.motherId !== undefined ? { motherId: input.motherId } : {}),
     ...(input.spouseId !== undefined ? { spouseId: input.spouseId } : {}),
+    ...(input.geniusType !== undefined ? { geniusType: input.geniusType } : {}),
   }
 }
 
@@ -76,14 +86,33 @@ export function samplePerson(
   config: SimulationConfig,
   input: SamplePersonInput,
 ): RngResult<Person> {
-  const { value: aptitudes, rng: rng1 } = sampleAptitudes(rng, config)
-  const { value: abilities, rng: rng2 } = sampleAbilitiesFromAptitudes(
+  const { value: sampledAptitudes, rng: rng1 } = sampleAptitudes(rng, config)
+  // v0.45 天才ロール: 出現したら対応能力の天賦を 80-120 帯へ引き上げる
+  const { value: geniusType, rng: rng2 } = rollGeniusType(rng1, config)
+  let aptitudes = sampledAptitudes
+  let rngAfterGenius = rng2
+  if (geniusType !== undefined) {
+    const applied = applyGeniusAptitudes(sampledAptitudes, geniusType, rng2, config)
+    aptitudes = applied.value
+    rngAfterGenius = applied.rng
+  }
+  const { value: sampledAbilities, rng: rng3 } = sampleAbilitiesFromAptitudes(
     aptitudes,
     input.age,
-    rng1,
+    rngAfterGenius,
     config,
   )
+  const abilities =
+    geniusType !== undefined
+      ? applyGeniusInitialAbilities(sampledAbilities, aptitudes, geniusType, config)
+      : sampledAbilities
   const lifeStage = input.lifeStage ?? deriveLifeStageFromAge(input.age, config)
-  const person = buildPerson({ ...input, abilities, aptitudes, lifeStage })
-  return { value: person, rng: rng2 }
+  const person = buildPerson({
+    ...input,
+    abilities,
+    aptitudes,
+    lifeStage,
+    ...(geniusType !== undefined ? { geniusType } : {}),
+  })
+  return { value: person, rng: rng3 }
 }

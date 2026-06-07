@@ -5,6 +5,7 @@
 //   - 家の当主である
 //   - 家の primary polity の指導者である
 //   - active な役職を 1 つ以上持つ
+//   - 天才である (v0.45。成長ログが normal になり、死去が IMPORTANT_PERSON_DIED 対象になる)
 
 import type { WorldState } from '../types/world'
 import type { PersonId } from '../types/ids'
@@ -14,6 +15,8 @@ import { getHousePrimaryPolityId } from './polityRelations'
 export function isNotablePerson(state: WorldState, personId: PersonId): boolean {
   const person = state.persons[personId]
   if (!person) return false
+
+  if (person.geniusType !== undefined) return true
 
   const houseId = person.houseId
   if (houseId) {

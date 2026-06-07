@@ -82,7 +82,9 @@ export function createEventRenderer(
             // v0.44: 成果成長・評判イベントの enum param
             key === 'ability' ||
             key === 'category' ||
-            key === 'sourceKind') &&
+            key === 'sourceKind' ||
+            // v0.45: 天才の型
+            key === 'geniusType') &&
           typeof value === 'string'
         ) {
           const translated = i18nInstance.t(`enum.${key}.${value}`, {

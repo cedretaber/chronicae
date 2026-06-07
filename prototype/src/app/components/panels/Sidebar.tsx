@@ -129,6 +129,7 @@ function PersonRow({
   onClick: () => void
 }) {
   const resolveName = useEntityName()
+  const { t } = useTranslation()
   return (
     <div
       className={`cursor-pointer px-3 py-1.5 text-sm hover:bg-gray-700 ${
@@ -137,7 +138,18 @@ function PersonRow({
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
-        <span className="font-bold">{resolveName('person', person.nameKey, person.nameKey)}</span>
+        <span className="font-bold">
+          {resolveName('person', person.nameKey, person.nameKey)}
+          {/* v0.45 天才マーク */}
+          {person.geniusType !== undefined && (
+            <span
+              className="ml-1 text-purple-400"
+              title={t(`enum.geniusType.${person.geniusType}`, { ns: 'events' })}
+            >
+              ✦
+            </span>
+          )}
+        </span>
         <span className="text-xs text-yellow-400">{Math.round(score)}</span>
       </div>
       <div className="text-gray-300">

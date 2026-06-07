@@ -13,6 +13,8 @@ person:
   ability_grew: "{{person}}'s {{ability}} improved from {{oldValue}} to {{newValue}} through {{sourceKind}}."
   reputation_gained: '{{person}} earned renown for {{category}} through {{sourceKind}}.'
   reputation_damaged: "{{person}}'s reputation for {{category}} suffered through {{sourceKind}}."
+  # v0.45 genius
+  genius_born: '{{child}} was born — a prodigy showing the gift of {{geniusType}} from the earliest age.'
   goal:
     created: '{{owner}} set a personal goal: {{kind}}.'
   aim:
@@ -242,6 +244,10 @@ enum:
     war: 'war'
     duty: 'their duties'
     natural: 'daily practice'
+  geniusType:
+    commander: 'a great commander'
+    chancellor: 'a great statesman'
+    universal: 'universal genius'
   battlefieldKind:
     open_field: 'Field Battle'
     forest_battle: 'Forest Battle'

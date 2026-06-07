@@ -120,6 +120,15 @@ export function PersonDetail({
           <span className="text-gray-400">{t('detail.person.life_stage')}:</span>
           <span>{t(`life_stage.${person.lifeStage}`, { ns: 'statuses' })}</span>
         </div>
+        {/* v0.45 天才バッジ */}
+        {person.geniusType !== undefined && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.person.genius')}:</span>
+            <span className="font-semibold text-purple-400">
+              ✦ {t(`enum.geniusType.${person.geniusType}`, { ns: 'events' })}
+            </span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.person.alive')}:</span>
           <span>

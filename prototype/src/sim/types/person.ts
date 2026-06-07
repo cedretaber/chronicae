@@ -20,6 +20,10 @@ export type PersonBackgroundOccupation =
 
 export type DeathCircumstance = 'natural' | 'faded_from_history'
 
+// v0.45 天才: 生成時の低確率ロールで決まる「型」。対応能力の天賦が 80-120 で確定し
+// 初期値も高く始まる。undefined = 通常人物。
+export type GeniusType = 'commander' | 'chancellor' | 'universal'
+
 // v0.40 LifeStage（人生段階）
 export type LifeStage =
   | 'childhood'
@@ -79,6 +83,7 @@ export type Person = {
   occupation?: PersonBackgroundOccupation
   deathCircumstance?: DeathCircumstance
   lastHouseTransferYear?: number
+  geniusType?: GeniusType // v0.45 天才の型 (undefined = 通常人物)
 }
 
 /**

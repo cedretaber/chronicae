@@ -308,6 +308,7 @@ detail:
   person:
     age: '年齢'
     life_stage: '人生段階'
+    genius: '天才'
     alive: '生存'
     alive_yes: 'はい'
     alive_no: 'いいえ'

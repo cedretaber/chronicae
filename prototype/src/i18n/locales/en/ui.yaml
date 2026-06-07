@@ -211,6 +211,7 @@ detail:
   person:
     age: 'Age'
     life_stage: 'Life stage'
+    genius: 'Genius'
     alive: 'Alive'
     alive_yes: 'Yes'
     alive_no: 'No'

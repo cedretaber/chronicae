@@ -8,6 +8,7 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { birthChild } from '../mutations/personMutations'
 import { inheritAptitudes, sampleAptitudes } from '../selectors/abilitySelectors'
+import { rollGeniusType, applyGeniusAptitudes } from '../helpers/geniusHelpers'
 import { nameParam, entityRef } from '../types/event'
 
 const BIRTH_CALLS_PER_YEAR = 12
@@ -112,6 +113,20 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       currentCtx = { ...currentCtx, rng: aptRng }
     }
 
+    // v0.45 天才ロール: 出現したら対応能力の天賦を 80-120 帯へ引き上げる
+    const { value: geniusType, rng: geniusRng } = rollGeniusType(currentCtx.rng, currentCtx.config)
+    currentCtx = { ...currentCtx, rng: geniusRng }
+    if (geniusType !== undefined) {
+      const applied = applyGeniusAptitudes(
+        childAptitudes,
+        geniusType,
+        currentCtx.rng,
+        currentCtx.config,
+      )
+      childAptitudes = applied.value
+      currentCtx = { ...currentCtx, rng: applied.rng }
+    }
+
     const birthResult = birthChild(currentCtx, {
       fatherId: person.id,
       ...(motherId !== undefined ? { motherId } : {}),
@@ -120,6 +135,7 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       sex: childSex,
       aptitudes: childAptitudes,
       traits: { ambition: amb1, caution: amb3 },
+      ...(geniusType !== undefined ? { geniusType } : {}),
     })
     if (!birthResult.ok) continue
 
@@ -145,6 +161,24 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     })
 
     currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }
+
+    // v0.45 天才の誕生は major でメインログに流す (1% なので頻度は低い)
+    if (geniusType !== undefined) {
+      const { event: geniusEvent, ctx: geniusEventCtx } = createSimEvent(currentCtx, {
+        type: 'PERSON_GENIUS_BORN',
+        importance: 'major',
+        messageKey: 'person.genius_born',
+        messageParams: {
+          child: nameParam('person', childNameKey),
+          geniusType,
+        },
+        entityRefs: [
+          entityRef('person', childId, 'child', childNameKey),
+          ...(person.houseId ? [entityRef('house', person.houseId, 'house')] : []),
+        ],
+      })
+      currentCtx = { ...geniusEventCtx, events: [...geniusEventCtx.events, geniusEvent] }
+    }
 
     const log = createLogger(currentCtx.config.debug)
     const birthFields: Record<string, string | number | boolean> = {

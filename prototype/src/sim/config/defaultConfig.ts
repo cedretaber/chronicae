@@ -992,6 +992,15 @@ export type SimulationConfig = {
   appointmentReputationModifierCap: number
   officeReputationScoreFactor: number
   warCommandReputationScoreFactor: number
+  // v0.45 天才: 人物生成時の低確率ロールで対応能力の天賦 (min-max) と初期値を引き上げる。
+  // chance 0 で無効。型比率は 3 weight の合計正規化 (任意の比率を書ける)。
+  geniusAppearanceChance: number
+  geniusAptitudeMin: number
+  geniusAptitudeMax: number
+  geniusInitialAbilityValue: number
+  geniusTypeWeightCommander: number
+  geniusTypeWeightChancellor: number
+  geniusTypeWeightUniversal: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2066,4 +2075,11 @@ export const defaultConfig: SimulationConfig = {
   appointmentReputationModifierCap: 20,
   officeReputationScoreFactor: 0.25,
   warCommandReputationScoreFactor: 0.75,
+  geniusAppearanceChance: 0.01,
+  geniusAptitudeMin: 80,
+  geniusAptitudeMax: 120,
+  geniusInitialAbilityValue: 50,
+  geniusTypeWeightCommander: 0.4,
+  geniusTypeWeightChancellor: 0.4,
+  geniusTypeWeightUniversal: 0.2,
 }

@@ -12,6 +12,8 @@ person:
   ability_grew: '{{person}}の{{ability}}が{{sourceKind}}を通じて{{oldValue}}から{{newValue}}に成長した。'
   reputation_gained: '{{person}}は{{sourceKind}}により{{category}}の評判を高めた。'
   reputation_damaged: '{{person}}は{{sourceKind}}により{{category}}の評判を落とした。'
+  # v0.45 天才
+  genius_born: '{{child}}が誕生した。幼くして{{geniusType}}の才を示す、稀代の天才である。'
   goal:
     created: '{{owner}}は個人的な目標を掲げた：{{kind}}'
   aim:
@@ -241,6 +243,10 @@ enum:
     war: '戦争'
     duty: '職務経験'
     natural: '日々の研鑽'
+  geniusType:
+    commander: '名将'
+    chancellor: '名宰相'
+    universal: '万能'
   battlefieldKind:
     open_field: '野戦'
     forest_battle: '森林戦'

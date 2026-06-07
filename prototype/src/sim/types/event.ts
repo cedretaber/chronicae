@@ -151,6 +151,8 @@ export type EventType =
   | 'PERSON_ABILITY_GREW'
   | 'PERSON_REPUTATION_GAINED'
   | 'PERSON_REPUTATION_DAMAGED'
+  // v0.45 天才の誕生 (major でメインログに流す)
+  | 'PERSON_GENIUS_BORN'
 
 export type EventReason = {
   label: string

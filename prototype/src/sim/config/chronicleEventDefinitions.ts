@@ -105,4 +105,6 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   PERSON_ABILITY_GREW: { category: 'life', retainRefKinds: ['person'] },
   PERSON_REPUTATION_GAINED: { category: 'life', retainRefKinds: ['person'] },
   PERSON_REPUTATION_DAMAGED: { category: 'life', retainRefKinds: ['person'] },
+  // v0.45 天才の誕生。低頻度 (1%) かつ家にとっても画期なので house ref も retain する
+  PERSON_GENIUS_BORN: { category: 'life' },
 }
