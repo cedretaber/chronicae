@@ -182,6 +182,15 @@ holding.polityControl = maxControl(capitalProvinceId からの BFS 距離)
 
 全 **Holding** に `bailiff` HoldingOfficeAssignment を生成し、holder は **placeholder Person** (`houseId === undefined`) とする。BailiffAppointmentSystem (§6.22) が実行されると順次通常人物に置き換わる。
 
+### 7.6a 初期人物の性比（v0.45.4）
+
+worldgen で生成する初期人物（House メンバーの sibling / child / relative、初期在野人物）の性別は config を参照する:
+- House メンバー: `maleBirthChance`（既定 0.75 = 男:女 3:1。旧 0.52 ハードコード）
+- 初期在野人物: `houselessMaleRatio`（既定 0.75。runtime の在野補充と整合。旧 0.5 ハードコード）
+- 父・母・配偶者の固定性別、house:leader 選定の男子優先は不変
+
+**注**: worldgen は `defaultConfig` を直参照するため `--config` では変更されない（既知の制約）。女性多めプレイ（§9 レシピ）では worldgen 初期は男性多めのまま、runtime 出生で性比が drift する。
+
 ### 7.7a 初期 Office の生成
 
 - **house:leader**: 各 House の成人男性からスコア（legacyPrestige + governance/warCommand 加重）最高の者。成人男性が居なければ成人女性、それも居なければ最年長メンバー

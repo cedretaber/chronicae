@@ -48,11 +48,12 @@
 | motherMaxChildAge | 45 | 母親になれる最高年齢 |
 | baseBirthChancePerMalePerYear | 0.09 | 男性 1 人あたりの年間出生確率（基本）。家内出生を増やし有力な大家系を出現させるため高め（houseFounding 絞りとセット） |
 | spouseMotherChance | 0.90 | 配偶者が母親になる確率 |
-| maleBirthChance | 0.52 | 男子出生確率（通常） |
-| maleBirthChanceWhenAdultMaleShortage | 0.65 | 男子出生確率（成人男性不足時） |
+| maleBirthChance | 0.75 | 男子出生確率（通常）。v0.45.4: 0.52→0.75 = 男:女 ≈ 3:1。worldgen 初期性比も参照（§7、ただし --config 不感） |
+| maleBirthChanceWhenAdultMaleShortage | 0.85 | 男子出生確率（成人男性不足時）。v0.45.4: 0.65→0.85（base より上に — 不足時に男性比を下げる逆転を解消） |
+| adultMaleShortageThreshold | 0.4 | v0.45.4 新規: 男性不足コントローラの発動閾値（成人男性 < 総人口 × この値で shortage 値）。**0 でコントローラ無効**（女性多めプレイに必須 — 低 maleBirthChance を引き戻し続けるため） |
 | targetLivingPersonsFactor | 2.0 | 出生倍率 1.5 の上限閾値（worldgen 初期人口 × この値。v0.45.1 で絶対値 180 から係数化） |
 | criticalLivingPersonsFactor | 1.0 | 危機的人口の閾値係数（初期人口 × この値 以下で出生倍率 3.0） |
-| highLivingPersonsFactor | 3.0 | 上限ダンパーの閾値係数（初期人口 × この値 以上で出生倍率 0.5。v0.45.1 新設） |
+| highLivingPersonsFactor | 4.0 | 上限ダンパーの閾値係数（初期人口 × この値 以上で出生倍率 0.5。v0.45.1 新設・v0.45.4 で 3.0→4.0 人口増）。**人口を増減する主レバー（出生性比から独立）** |
 | lowPopulationBirthMultiplier | 1.5 | 人口不足時の出生倍率 |
 | criticalPopulationBirthMultiplier | 3.0 | 危機的人口時の出生倍率 |
 | highPopulationBirthMultiplier | 0.5 | 人口過剰時の出生倍率（上限ダンパー） |
@@ -848,4 +849,25 @@
 | purchaseAttemptChance | 0.1 | 買い手 Polity の年次購入試行確率 |
 
 ---
+
+## プレイスタイル別 config レシピ
+
+### 女性多め + 女性の役職制限なし（v0.45.4）
+
+デフォルトとは逆に、女性が多数派で女性も自由に役職に就く世界。runtime override（`--config`）で指定する:
+
+```json
+{
+  "maleBirthChance": 0.3,
+  "adultMaleShortageThreshold": 0,
+  "houselessMaleRatio": 0.5,
+  "femaleRoleEligibilityChance": 1,
+  "allowFemaleRolesWhenNoMaleCandidate": true
+}
+```
+
+- `adultMaleShortageThreshold: 0` が必須 — 残すと男性不足コントローラが `maleBirthChance` を引き戻す（§6.10）
+- `femaleRoleEligibilityChance: 1` で全女性が役職適格、性別役職適格ゲート（§6.19）が実質無効化
+- worldgen 初期世界は defaultConfig（男性多め）のままなので、女性多数派へは runtime 出生で徐々に drift する（150 年程度で成人女性 > 男性に到達）
+- 当主・君主の男子優先は別レバー `allowFemaleHouseHeadWhenNoMaleHeir`（既存）。継承法（サリカ法 等）の本格対応は将来構想（§13）
 

@@ -423,15 +423,18 @@ livingCount >= baseline × highLivingPersonsFactor (3.0)     → highPopulationB
 birthChance = baseBirthChancePerMalePerYear * birthMultiplier
 ```
 
-high 帯（上限ダンパー）は v0.45.1 の死亡率 U 字化（§6.7）で純再生産率が 1 を超え人口が無限増殖したため新設した。出生以外にも houseFounding の配偶者・子サンプリングや在野補充（§6.18）という人口流入があるため、実測の平衡点は baseline ×3.5〜4.5 程度（tiny 150 年実測で ~330-380 に安定）。
+high 帯（上限ダンパー）は v0.45.1 の死亡率 U 字化（§6.7）で純再生産率が 1 を超え人口が無限増殖したため新設した。出生以外にも houseFounding の配偶者・子サンプリングや在野補充（§6.18）という人口流入があるため平衡が押し上がる。v0.45.4 で `highLivingPersonsFactor` を 3.0 → **4.0** に引き上げ（人口を増やす要望。×1.0 帯を広げる正方向のレバー）、出生性比の男性多め化（後述）と合わせて平衡は baseline ×5.5〜7 程度（tiny 300 年実測で ~510-630 に安定）。**人口をさらに増減したい場合の主レバーはこの `highLivingPersonsFactor` の単独調整**（出生性比から独立）。
 
 **母親の決定**:
 - 配偶者が対象年齢（`motherMinChildAge`〜`motherMaxChildAge`）の場合、`spouseMotherChance`（0.9）で嫡出子
 - それ以外は非嫡出子（`illegitimate`）として処理
 
-**性別の決定**:
-- 成人男性が全人口の 40% 未満の場合: `maleBirthChanceWhenAdultMaleShortage`（0.65）
-- それ以外: `maleBirthChance`（0.52）
+**性別の決定（v0.45.4 で config 化・男性多め化）**:
+- 成人男性が全人口の `adultMaleShortageThreshold`（**0.4**）未満の場合: `maleBirthChanceWhenAdultMaleShortage`（**0.85**）
+- それ以外: `maleBirthChance`（**0.75** = 男:女 ≈ 3:1）
+- 出生は **per-male**（生存男性ごとに判定）なので、男性多め化で出生数は減らない（人口は上記ダンパーが自己調整）。性別役職適格ゲート（§6.19）で可視化された男性人材不足への人口側の対応
+- `adultMaleShortageThreshold` を **0** にするとコントローラ無効。これと `maleBirthChance` を下げる＋`femaleRoleEligibilityChance: 1`＋`allowFemaleRolesWhenNoMaleCandidate: true` を組み合わせると「女性多め＋女性の役職制限なし」のプレイが可能（§9 のレシピ参照）。コントローラを残したまま `maleBirthChance` だけ下げても、不足判定が発動して男性比を引き戻し続けるため 0 化が必要
+- worldgen の初期人物性比も `maleBirthChance` を参照（§7）。ただし worldgen は defaultConfig 直参照のため `--config` では変わらず、runtime 出生で徐々に drift する
 
 **天才ロール（v0.45）**: aptitude 確定（`inheritAptitudes` / `sampleAptitudes`）直後に `rollGeniusType` を実行。出現した場合は `applyGeniusAptitudes` で対応能力の天賦を引き上げてから `birthChild` に渡す（詳細 §6.67）。
 
