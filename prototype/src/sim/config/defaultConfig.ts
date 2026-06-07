@@ -189,6 +189,10 @@ export type SimulationConfig = {
   rulerExtinctionAnnexPrestigeWeight: number
   // v0.7 Role
   allowFemaleRolesWhenNoMaleCandidate: boolean
+  // v0.45.3 性別役職適格ゲート: 女性のうち役職 (office/代官/指揮官/派閥首領/supervisor) に
+  //   適格となる割合。personId の決定論 hash で個人ごとに一度だけ決まる。
+  //   現職の house/polity leader (女当主・女王) は常に免除。
+  femaleRoleEligibilityChance: number
   // v0.8 POP system
   popSystemEnabled: boolean
   minPopSizeByClass: Record<'peasants' | 'townsmen' | 'nobles', number>
@@ -1182,8 +1186,10 @@ export const defaultConfig: SimulationConfig = {
   rulerExtinctionAnnexSharedBorderWeight: 20,
   rulerExtinctionAnnexPowerWeight: 0.5,
   rulerExtinctionAnnexPrestigeWeight: 0.3,
-  // v0.7 Role
-  allowFemaleRolesWhenNoMaleCandidate: true,
+  // v0.7 Role / v0.45.3: default false — 男性プールの局所払底が常態のため、true だと
+  // ungated 再試行が支配経路になり「女性役職は非常に稀」が成立しない (実測)。
+  allowFemaleRolesWhenNoMaleCandidate: false,
+  femaleRoleEligibilityChance: 0.03,
   // v0.8 POP system
   popSystemEnabled: true,
   minPopSizeByClass: { peasants: 5, townsmen: 1, nobles: 1 },

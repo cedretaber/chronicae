@@ -32,6 +32,7 @@ import type { House } from '../types/house'
 import { getRoleScore } from '../selectors/abilitySelectors'
 import { getPolityNameRefForEmitFromPolity } from '../selectors/nameRefSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 import {
   hasRelevantFactionForAppointment,
   getFactionalCandidateScore,
@@ -485,8 +486,6 @@ function tryAppointPolityOffice(
   if (vacantSlot === undefined) return currentCtx
   const alreadyHolding = new Set(roleAssignments.map((o) => o.holderPersonId as string))
 
-  let best: { id: PersonId; score: number } | undefined
-
   // v0.42 §9: 充足対象 slot に appointment right がある場合、unrelated factional path
   // は使わない (任命権は制度的権利として派閥推薦より優先 — §9.3)。right holder の候補を
   // pool に追加し、right bonus + right-backed faction bonus でスコア補正する。
@@ -496,26 +495,85 @@ function tryAppointPolityOffice(
     role,
     vacantSlot,
   )
-  if (appointmentRight) {
-    const rightBackedFactionId = selectRightBackedFaction(
-      currentCtx.state,
-      polity.id,
-      appointmentRight,
-    )
-    const pool = new Set<PersonId>(
-      cachedCandidates.filter((id) => !alreadyHolding.has(id as string)),
-    )
-    for (const id of collectRightHolderCandidates(
-      currentCtx.state,
-      appointmentRight,
-      alreadyHolding,
-    )) {
-      pool.add(id)
+  const rightBackedFactionId = appointmentRight
+    ? selectRightBackedFaction(currentCtx.state, polity.id, appointmentRight)
+    : undefined
+
+  // v0.45.3 性別役職適格ゲート: gated (適格者のみ) で right → factional → traditional の
+  // cascade 全体を評価し、空振りした場合のみ ungated 再試行する (per-path fallback だと
+  // 「traditional に適格男性が残っているのに factional の不適格女性を着座」が起きる)。
+  const selectBest = (gate: boolean): { id: PersonId; score: number } | undefined => {
+    const passes = (id: PersonId): boolean =>
+      !gate || isRoleEligibleBySex(currentCtx.state, config, id)
+    let best: { id: PersonId; score: number } | undefined
+
+    if (appointmentRight) {
+      const pool = new Set<PersonId>(
+        cachedCandidates.filter((id) => !alreadyHolding.has(id as string) && passes(id)),
+      )
+      for (const id of collectRightHolderCandidates(
+        currentCtx.state,
+        appointmentRight,
+        alreadyHolding,
+      )) {
+        if (passes(id)) pool.add(id)
+      }
+      const scored = [...pool].map((id) => ({
+        id,
+        score:
+          computePolityScoreV017(
+            currentCtx.state,
+            config,
+            polity,
+            rulerId,
+            id,
+            role,
+            influenceBreakdown,
+          ) +
+          getRightAppointmentBonus(
+            currentCtx.state,
+            config,
+            appointmentRight,
+            id,
+            rightBackedFactionId,
+          ),
+      }))
+      best = pickBestScored(scored, config.minAppointmentScore)
     }
-    const scored = [...pool].map((id) => ({
-      id,
-      score:
-        computePolityScoreV017(
+
+    // 2. factional path (right が無い role のみ — §9.3/§9.5)
+    if (
+      !appointmentRight &&
+      hasRelevantFactionForAppointment(currentCtx.state, config, polityRef, role)
+    ) {
+      const factional = collectFactionalCandidates(
+        currentCtx.state,
+        config,
+        polityRef,
+        role,
+      ).filter((c) => !alreadyHolding.has(c.candidateId as string) && passes(c.candidateId))
+      const scored = factional.map((c) => ({
+        id: c.candidateId,
+        score: getFactionalCandidateScore(
+          currentCtx.state,
+          config,
+          c.factionId,
+          c.candidateId,
+          polityRef,
+          role,
+        ),
+      }))
+      best = pickBestScored(scored, config.minAppointmentScore)
+    }
+
+    // 3. traditional fallback (uses pre-computed candidate cache)
+    if (!appointmentRight && !best) {
+      const candidates = cachedCandidates.filter(
+        (id) => !alreadyHolding.has(id as string) && passes(id),
+      )
+      const scored = candidates.map((id) => ({
+        id,
+        score: computePolityScoreV017(
           currentCtx.state,
           config,
           polity,
@@ -523,57 +581,16 @@ function tryAppointPolityOffice(
           id,
           role,
           influenceBreakdown,
-        ) +
-        getRightAppointmentBonus(
-          currentCtx.state,
-          config,
-          appointmentRight,
-          id,
-          rightBackedFactionId,
         ),
-    }))
-    best = pickBestScored(scored, config.minAppointmentScore)
+      }))
+      best = pickBestScored(scored, config.minAppointmentScore)
+    }
+
+    return best
   }
 
-  // 2. factional path (right が無い role のみ — §9.3/§9.5)
-  if (
-    !appointmentRight &&
-    hasRelevantFactionForAppointment(currentCtx.state, config, polityRef, role)
-  ) {
-    const factional = collectFactionalCandidates(currentCtx.state, config, polityRef, role).filter(
-      (c) => !alreadyHolding.has(c.candidateId as string),
-    )
-    const scored = factional.map((c) => ({
-      id: c.candidateId,
-      score: getFactionalCandidateScore(
-        currentCtx.state,
-        config,
-        c.factionId,
-        c.candidateId,
-        polityRef,
-        role,
-      ),
-    }))
-    best = pickBestScored(scored, config.minAppointmentScore)
-  }
-
-  // 3. traditional fallback (uses pre-computed candidate cache)
-  if (!appointmentRight && !best) {
-    const candidates = cachedCandidates.filter((id) => !alreadyHolding.has(id as string))
-    const scored = candidates.map((id) => ({
-      id,
-      score: computePolityScoreV017(
-        currentCtx.state,
-        config,
-        polity,
-        rulerId,
-        id,
-        role,
-        influenceBreakdown,
-      ),
-    }))
-    best = pickBestScored(scored, config.minAppointmentScore)
-  }
+  let best = selectBest(true)
+  if (!best && config.allowFemaleRolesWhenNoMaleCandidate) best = selectBest(false)
 
   if (!best) return currentCtx
 
@@ -641,20 +658,23 @@ function tryAppointHouseOffice(
 
   // v0.42 §12.5: House office への factional path は廃止 (Faction は Polity 内政治装置)。
   // traditional スコアリングのみで任命する。
-  let best: { id: PersonId; score: number } | undefined
-  {
+  // v0.45.3 性別役職適格ゲート: gated で空振りした場合のみ ungated 再試行 (polity 側と同形)。
+  const selectBest = (gate: boolean): { id: PersonId; score: number } | undefined => {
     const candidates = collectHouseCandidatesTraditional(
       currentCtx.state,
       config,
       house,
       alreadyHolding,
-    )
+    ).filter((id) => !gate || isRoleEligibleBySex(currentCtx.state, config, id))
     const scored = candidates.map((id) => ({
       id,
       score: computeHouseScoreV017(currentCtx.state, config, house, leaderId, id, role),
     }))
-    best = pickBestScored(scored, config.minAppointmentScore)
+    return pickBestScored(scored, config.minAppointmentScore)
   }
+
+  let best = selectBest(true)
+  if (!best && config.allowFemaleRolesWhenNoMaleCandidate) best = selectBest(false)
 
   if (!best) return currentCtx
 

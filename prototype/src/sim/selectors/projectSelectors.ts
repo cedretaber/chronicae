@@ -11,6 +11,7 @@ import { getPolityLeader } from './officeSelectors'
 import { getHouseLeader } from './officeSelectors'
 import { getPolityPersonIds } from './polityRelations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
+import { isRoleEligibleBySex } from './roleEligibilitySelectors'
 
 export function getProjectRelatedRefs(project: Project): EntityRef[] {
   switch (project.kind) {
@@ -271,55 +272,64 @@ export function selectProjectSupervisor(
   const candidates = getSupervisorCandidatePersonIds(state, owner)
   const roleKey = PROJECT_KIND_ROLE_MAP[projectKind]
 
-  let bestId: PersonId | undefined
-  let bestScore = -Infinity
-
   const creator = state.persons[creatorPersonId]
 
-  for (const pid of candidates) {
-    if (!isEligibleCandidate(state, pid)) continue
-    if ((pid as string) === (creatorPersonId as string)) continue
+  // v0.45.3 性別役職適格ゲート: gated で候補ゼロの場合のみ ungated 再試行。
+  // 現職 house/polity leader は isRoleEligibleBySex 側で常に免除 (女当主・女王は監督可)。
+  const pick = (gate: boolean): PersonId | undefined => {
+    let bestId: PersonId | undefined
+    let bestScore = -Infinity
 
-    const abilityScore = getRoleScore(state, pid, roleKey) / 10
-    const workload = getPersonProjectWorkload(state, config, pid)
-    const workloadPenalty = workload * 0.5
+    for (const pid of candidates) {
+      if (!isEligibleCandidate(state, pid)) continue
+      if ((pid as string) === (creatorPersonId as string)) continue
+      if (gate && !isRoleEligibleBySex(state, config, pid)) continue
 
-    let officeBonus = 0
-    const officeIds = state.officeIndex.byHolderPerson[pid as string] ?? []
-    for (const oaId of officeIds) {
-      const oa = state.officeAssignments[oaId]
-      if (!oa || !oa.active) continue
-      if (
-        oa.organization.kind === owner.kind &&
-        (oa.organization.id as string) === (owner.id as string)
-      ) {
-        officeBonus = 2
-        break
+      const abilityScore = getRoleScore(state, pid, roleKey) / 10
+      const workload = getPersonProjectWorkload(state, config, pid)
+      const workloadPenalty = workload * 0.5
+
+      let officeBonus = 0
+      const officeIds = state.officeIndex.byHolderPerson[pid as string] ?? []
+      for (const oaId of officeIds) {
+        const oa = state.officeAssignments[oaId]
+        if (!oa || !oa.active) continue
+        if (
+          oa.organization.kind === owner.kind &&
+          (oa.organization.id as string) === (owner.id as string)
+        ) {
+          officeBonus = 2
+          break
+        }
+      }
+
+      let creatorBias = 0
+      if (creator) {
+        const att = getAttitudeOrDefault(state, creator, { kind: 'person', id: pid })
+        creatorBias = (att.affection * 0.6 + att.respect * 0.4) / 100
+      }
+
+      let leaderBonus = 0
+      if (owner.kind === 'polity') {
+        const leaderId = getPolityLeader(state, owner.id)
+        if (leaderId && (leaderId as string) === (pid as string)) leaderBonus = 1
+      } else if (owner.kind === 'house') {
+        const leaderId = getHouseLeader(state, owner.id)
+        if (leaderId && (leaderId as string) === (pid as string)) leaderBonus = 1
+      }
+
+      const score = abilityScore + officeBonus + creatorBias + leaderBonus - workloadPenalty
+
+      if (score > bestScore) {
+        bestScore = score
+        bestId = pid
       }
     }
 
-    let creatorBias = 0
-    if (creator) {
-      const att = getAttitudeOrDefault(state, creator, { kind: 'person', id: pid })
-      creatorBias = (att.affection * 0.6 + att.respect * 0.4) / 100
-    }
-
-    let leaderBonus = 0
-    if (owner.kind === 'polity') {
-      const leaderId = getPolityLeader(state, owner.id)
-      if (leaderId && (leaderId as string) === (pid as string)) leaderBonus = 1
-    } else if (owner.kind === 'house') {
-      const leaderId = getHouseLeader(state, owner.id)
-      if (leaderId && (leaderId as string) === (pid as string)) leaderBonus = 1
-    }
-
-    const score = abilityScore + officeBonus + creatorBias + leaderBonus - workloadPenalty
-
-    if (score > bestScore) {
-      bestScore = score
-      bestId = pid
-    }
+    return bestId
   }
 
-  return bestId
+  const gated = pick(true)
+  if (gated) return gated
+  return config.allowFemaleRolesWhenNoMaleCandidate ? pick(false) : undefined
 }

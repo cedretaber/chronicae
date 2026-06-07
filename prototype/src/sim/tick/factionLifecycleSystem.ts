@@ -20,6 +20,7 @@ import {
 import { setPersonAttitude } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
 
 // v0.19: FactionLifecycleYearlySystem (intervalWeeks=52)
@@ -94,35 +95,46 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
   const faction = ctx.state.factions[factionId]
   if (!faction) return ctx
 
-  const candidates: { personId: PersonId; score: number }[] = []
   const memberIds = getFactionActiveMemberIds(ctx.state, factionId).filter(
     (id) => id !== faction.leaderPersonId,
   )
   const oldLeader = ctx.state.persons[faction.leaderPersonId]
 
-  for (const candidateId of memberIds) {
-    const candidate = ctx.state.persons[candidateId]
-    if (!candidate || !candidate.alive) continue
-    if (candidate.kind === 'placeholder') continue
-    if (!candidate.houseId) continue
-    const candidateHouse = ctx.state.houses[candidate.houseId]
-    if (!candidateHouse || !candidateHouse.active || candidateHouse.kind === 'system') continue
+  // v0.45.3 性別役職適格ゲート: gated で候補ゼロの場合のみ ungated 再試行
+  // (fallback off だと男性候補の居ない派閥は従来より解散しやすくなる — 仕様変更)。
+  const collect = (gate: boolean): { personId: PersonId; score: number }[] => {
+    const candidates: { personId: PersonId; score: number }[] = []
+    for (const candidateId of memberIds) {
+      const candidate = ctx.state.persons[candidateId]
+      if (!candidate || !candidate.alive) continue
+      if (candidate.kind === 'placeholder') continue
+      if (!candidate.houseId) continue
+      const candidateHouse = ctx.state.houses[candidate.houseId]
+      if (!candidateHouse || !candidateHouse.active || candidateHouse.kind === 'system') continue
+      if (gate && !isRoleEligibleBySex(ctx.state, ctx.config, candidateId)) continue
 
-    let attitudeProduct = 0
-    if (oldLeader) {
-      const att = getAttitudeOrDefault(ctx.state, candidate, {
-        kind: 'person',
-        id: faction.leaderPersonId,
-      })
-      attitudeProduct = ((att.affection + 100) * (att.respect + 100)) / 1000
+      let attitudeProduct = 0
+      if (oldLeader) {
+        const att = getAttitudeOrDefault(ctx.state, candidate, {
+          kind: 'person',
+          id: faction.leaderPersonId,
+        })
+        attitudeProduct = ((att.affection + 100) * (att.respect + 100)) / 1000
+      }
+      const oppScore = getFactionOpportunityScore(ctx.state, ctx.config, candidateId)
+      const wealthScore = candidate.wealth / 100
+      const prestigeScore = (candidate.legacyPrestige / 100) * 5
+      const score = attitudeProduct + oppScore * 2 + wealthScore + prestigeScore
+      candidates.push({ personId: candidateId, score })
     }
-    const oppScore = getFactionOpportunityScore(ctx.state, ctx.config, candidateId)
-    const wealthScore = candidate.wealth / 100
-    const prestigeScore = (candidate.legacyPrestige / 100) * 5
-    const score = attitudeProduct + oppScore * 2 + wealthScore + prestigeScore
-    candidates.push({ personId: candidateId, score })
+    candidates.sort((a, b) => b.score - a.score)
+    return candidates
   }
-  candidates.sort((a, b) => b.score - a.score)
+
+  let candidates = collect(true)
+  if (candidates.length === 0 && ctx.config.allowFemaleRolesWhenNoMaleCandidate) {
+    candidates = collect(false)
+  }
 
   if (candidates.length === 0 || !candidates[0]) {
     return dissolveFaction(ctx, factionId, 'leader_died')
@@ -207,6 +219,9 @@ function formNewFactions(ctx: TickContext): TickContext {
     if (getFactionByLeader(currentCtx.state, pid)) continue
     if (getActiveFactionMembership(currentCtx.state, pid)) continue
     if (person.wealth < config.minimumFactionFounderWealth) continue
+    // v0.45.3 性別役職適格ゲート: founder は即派閥首領となるため適格者のみ。
+    // 設立は欠員補充でなく裁量行為なので ungated 再試行はしない (結成数が減るだけ)。
+    if (!isRoleEligibleBySex(currentCtx.state, config, pid)) continue
 
     const topHolders = getTopShareholdersForHouse(house.id)
     const isTopShareHolder = topHolders.some((s) => s.holderPersonId === pid)

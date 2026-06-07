@@ -11,6 +11,7 @@ import { getPersonReputationModifierForCategories } from './personReputationSele
 import { getPolityPersonIds } from '@sim/selectors/polityRelations'
 import { getFactionActiveMemberIds } from '@sim/selectors/factionSelectors'
 import { isLifeStageAtLeast, isLivingPerson } from '@sim/types/person'
+import { isRoleEligibleBySex } from '@sim/selectors/roleEligibilitySelectors'
 import type { BattleSimCommanderInput } from '@sim/helpers/simulateBattle'
 
 // v0.35 Phase A: 「誰が指揮するか / どの province で戦うか」の構造 selector。
@@ -92,6 +93,9 @@ export function getWarSidePolityActors(war: War, sideKey: WarSideKey): PolityId[
 //   leader は総大将としては除外しない (commander 候補とは異なり、総大将は leader 親征を許容する)。
 //   v0.45.2: exclude (両陣営 CG 重複の解消で反対 side が確保した人物) は military 候補・
 //   leader fallback の両方から除外する。
+//   v0.45.3: 性別役職適格ゲートは military 経路のみに適用する。leader fallback はゲート
+//   しない (女王の親征を許容)。military が gate で空になっても leader fallback が逃げ道に
+//   なるため ungated 再試行は不要。
 export function selectCaptainGeneralForWarSide(
   state: WorldState,
   polityId: PolityId,
@@ -101,6 +105,7 @@ export function selectCaptainGeneralForWarSide(
   const military = getActiveOfficeHolders(state, { kind: 'polity', id: polityId }, 'military')
     .filter((id) => !exclude?.has(id))
     .filter((id) => isEligibleWarPerson(state, id))
+    .filter((id) => !config || isRoleEligibleBySex(state, config, id))
   if (military.length > 0) {
     return sortByWarCommandThenId(state, military, config)[0]
   }
@@ -171,6 +176,8 @@ export function buildWarSideCommanderCandidates(
       if (seen.has(id)) continue
       seen.add(id)
       if (!isEligibleBattleCommander(state, id)) continue
+      // v0.45.3 性別役職適格ゲート。指揮官は任意役割 (CG が常在) のため ungated 再試行なし。
+      if (config && !isRoleEligibleBySex(state, config, id)) continue
       // leader は captainGeneral を兼ねる時のみ候補に残る。
       if (leaderIds.has(id) && (captainGeneralId === undefined || id !== captainGeneralId)) {
         continue

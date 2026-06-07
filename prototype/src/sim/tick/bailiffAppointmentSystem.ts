@@ -23,6 +23,7 @@ import {
 } from '../mutations/provinceOfficeMutations'
 import { hasActiveOffice, hasActiveHoldingOffice } from '../selectors/officeSelectors'
 import { getHoldingOfficeAppointmentRight } from '../selectors/politicalRightSelectors'
+import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 
 // v0.17.1 §15.3: bailiff 任命用の OfficeRole alias。
 // getFactionNominationPower / getFactionalCandidateScore は role 引数を `void role` で
@@ -157,57 +158,68 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
       if (!office) continue
       if (!isPlaceholderPerson(currentCtx.state, office.holderPersonId)) continue
 
-      let chosenId: PersonId | undefined
-
-      // Tier 0) holding_office_appointment right holder (v0.42 §10.2)。
-      // holder が候補を出せない場合は factional / ownerHouse へ fall-through する
-      // (polity office と意図的に非対称 — bailiff は行政実務を止めない現場職のため)。
+      // v0.45.3 性別役職適格ゲート: 3 tier すべて gated で評価し、空振りした場合のみ
+      // ungated 再試行する (cascade 全体の後に 1 箇所 — appointmentSystem と同形)。
       const appointmentRight = getHoldingOfficeAppointmentRight(currentCtx.state, holdingId)
-      if (appointmentRight) {
-        const rightCandidateIds =
-          appointmentRight.holder.kind === 'house'
-            ? (currentCtx.state.houses[appointmentRight.holder.id]?.memberIds ?? [])
-            : [appointmentRight.holder.id]
-        const rightCandidates = rightCandidateIds
-          .map((mid) => currentCtx.state.persons[mid])
-          .filter((p): p is NonNullable<typeof p> => p !== undefined)
-          .filter(
-            (p) =>
-              p.alive &&
-              p.age >= currentCtx.config.bailiffMinAge &&
-              p.kind !== 'placeholder' &&
-              !hasActiveOffice(currentCtx.state, p.id) &&
-              !hasActiveHoldingOffice(currentCtx.state, p.id) &&
-              !bookedThisTick.has(p.id),
-          )
-          .sort((a, b) => {
-            const aScore = a.abilities.numeracy + a.abilities.insight
-            const bScore = b.abilities.numeracy + b.abilities.insight
-            if (bScore !== aScore) return bScore - aScore
-            return a.id.localeCompare(b.id)
-          })
-        chosenId = rightCandidates[0]?.id
-      }
+      const pickBailiff = (gate: boolean): PersonId | undefined => {
+        const passes = (id: PersonId): boolean =>
+          !gate || isRoleEligibleBySex(currentCtx.state, currentCtx.config, id)
 
-      // 2a) factional: 最高スコア候補が minAppointmentScore 以上なら採用
-      //     (anchor polity 限定 — getFactionNominationPower が非 anchor で 0 を返す §12.4)
-      for (const cand of factionalRanked) {
-        if (chosenId) break
-        if (bookedThisTick.has(cand.id)) continue
-        if (cand.score < currentCtx.config.minAppointmentScore) break
-        chosenId = cand.id
-        break
-      }
-
-      // 2b) fallback: ownerHouse 内の free adult を score 順に消費
-      if (!chosenId) {
-        while (ownerFreeAdults.length > 0) {
-          const candidate = ownerFreeAdults.shift()
-          if (!candidate) break
-          if (bookedThisTick.has(candidate.id)) continue
-          chosenId = candidate.id
-          break
+        // Tier 0) holding_office_appointment right holder (v0.42 §10.2)。
+        // holder が候補を出せない場合は factional / ownerHouse へ fall-through する
+        // (polity office と意図的に非対称 — bailiff は行政実務を止めない現場職のため)。
+        if (appointmentRight) {
+          const rightCandidateIds =
+            appointmentRight.holder.kind === 'house'
+              ? (currentCtx.state.houses[appointmentRight.holder.id]?.memberIds ?? [])
+              : [appointmentRight.holder.id]
+          const rightCandidates = rightCandidateIds
+            .map((mid) => currentCtx.state.persons[mid])
+            .filter((p): p is NonNullable<typeof p> => p !== undefined)
+            .filter(
+              (p) =>
+                p.alive &&
+                p.age >= currentCtx.config.bailiffMinAge &&
+                p.kind !== 'placeholder' &&
+                !hasActiveOffice(currentCtx.state, p.id) &&
+                !hasActiveHoldingOffice(currentCtx.state, p.id) &&
+                !bookedThisTick.has(p.id) &&
+                passes(p.id),
+            )
+            .sort((a, b) => {
+              const aScore = a.abilities.numeracy + a.abilities.insight
+              const bScore = b.abilities.numeracy + b.abilities.insight
+              if (bScore !== aScore) return bScore - aScore
+              return a.id.localeCompare(b.id)
+            })
+          const rightChoice = rightCandidates[0]?.id
+          if (rightChoice) return rightChoice
         }
+
+        // 2a) factional: 最高スコア候補が minAppointmentScore 以上なら採用
+        //     (anchor polity 限定 — getFactionNominationPower が非 anchor で 0 を返す §12.4)
+        for (const cand of factionalRanked) {
+          if (bookedThisTick.has(cand.id)) continue
+          if (cand.score < currentCtx.config.minAppointmentScore) break
+          if (!passes(cand.id)) continue
+          return cand.id
+        }
+
+        // 2b) fallback: ownerHouse 内の free adult を score 順に走査
+        //     (v0.45.3: gated/ungated の 2 回呼びで壊れないよう shift 消費を走査に変更。
+        //      着座者は bookedThisTick で除外されるため挙動は同等)
+        for (const candidate of ownerFreeAdults) {
+          if (bookedThisTick.has(candidate.id)) continue
+          if (!passes(candidate.id)) continue
+          return candidate.id
+        }
+
+        return undefined
+      }
+
+      let chosenId = pickBailiff(true)
+      if (!chosenId && currentCtx.config.allowFemaleRolesWhenNoMaleCandidate) {
+        chosenId = pickBailiff(false)
       }
 
       if (!chosenId) continue

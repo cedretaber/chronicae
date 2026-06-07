@@ -23,6 +23,7 @@ import type {
   FactionMembershipId,
 } from '../types/ids'
 import type { WarGoal } from '../types/war'
+import { defaultConfig } from '../config/defaultConfig'
 
 const POL = 'po-1' as PolityId
 
@@ -31,7 +32,12 @@ const POL = 'po-1' as PolityId
 function makePerson(
   id: string,
   score: number,
-  opts?: { alive?: boolean; kind?: PersonKind; lifeStage?: Person['lifeStage'] },
+  opts?: {
+    alive?: boolean
+    kind?: PersonKind
+    lifeStage?: Person['lifeStage']
+    sex?: Person['sex']
+  },
 ): Person {
   const abilities = {
     valor: score,
@@ -44,7 +50,7 @@ function makePerson(
   return {
     id: id as PersonId,
     nameKey: id,
-    sex: 'male',
+    sex: opts?.sex ?? 'male',
     age: 40,
     lifeStage: opts?.lifeStage ?? 'mature_adulthood',
     alive: opts?.alive ?? true,
@@ -143,6 +149,39 @@ describe('selectCaptainGeneralForWarSide', () => {
     expect(
       selectCaptainGeneralForWarSide(s, POL, undefined, new Set(['pe-leader'])),
     ).toBeUndefined()
+  })
+
+  // v0.45.3: 性別役職適格ゲート (military 経路のみ)
+  it('v0.45.3: 不適格な female military holder は CG 候補から外れ、次点の male を選ぶ', () => {
+    const config = { ...defaultConfig, femaleRoleEligibilityChance: 0 }
+    let s = makeEmptyV016State()
+    s.persons['pe-fem' as PersonId] = makePerson('pe-fem', 90, { sex: 'female' })
+    s.persons['pe-mil' as PersonId] = makePerson('pe-mil', 60)
+    s = addMilitary(s, 'pe-fem')
+    s = addMilitary(s, 'pe-mil')
+    expect(selectCaptainGeneralForWarSide(s, POL, config)).toBe('pe-mil')
+  })
+
+  it('v0.45.3: female polity leader は leader fallback で CG になれる (女王親征)', () => {
+    const config = { ...defaultConfig, femaleRoleEligibilityChance: 0 }
+    let s = makeEmptyV016State()
+    s.persons['pe-fem' as PersonId] = makePerson('pe-fem', 90, { sex: 'female' })
+    s.persons['pe-queen' as PersonId] = makePerson('pe-queen', 50, { sex: 'female' })
+    s = addMilitary(s, 'pe-fem') // gated → military 経路は空振り
+    s = addLeader(s, 'pe-queen')
+    expect(selectCaptainGeneralForWarSide(s, POL, config)).toBe('pe-queen')
+  })
+
+  it('v0.45.3: commander pool からも不適格な female は除外される', () => {
+    const config = { ...defaultConfig, femaleRoleEligibilityChance: 0 }
+    let s = makeEmptyV016State()
+    s.persons['pe-fem' as PersonId] = makePerson('pe-fem', 90, { sex: 'female' })
+    s.persons['pe-cmd' as PersonId] = makePerson('pe-cmd', 60)
+    s = addMilitary(s, 'pe-fem')
+    s = addMilitary(s, 'pe-cmd')
+    expect(buildWarSideCommanderCandidates(s, [POL], undefined, config)).toEqual(['pe-cmd'])
+    // config 未指定 (gate 無し) なら両方候補
+    expect(buildWarSideCommanderCandidates(s, [POL], undefined)).toEqual(['pe-fem', 'pe-cmd'])
   })
 })
 

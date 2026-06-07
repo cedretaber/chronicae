@@ -542,3 +542,49 @@ describe('runBailiffAppointmentSystem', () => {
     expect(countEvents(result.events, 'BAILIFF_PLACEHOLDER_INSTALLED')).toBe(0)
   })
 })
+
+// ─── v0.45.3 性別役職適格ゲート ───
+
+describe('runBailiffAppointmentSystem の性別役職適格ゲート (v0.45.3)', () => {
+  // makeBaseState の ruler (唯一の ownerHouse free adult) を female 化し、
+  // placeholder bailiff の充足が gate / fallback でどう変わるかを検証する
+  function makeFemaleCandidateState(): { s: WorldState; holdingId: HoldingId; rulerId: PersonId } {
+    const { state: baseState, holdingId, rulerId } = makeBaseState()
+    const s: WorldState = {
+      ...baseState,
+      currentWeekOfYear: 6,
+      absoluteWeek: baseState.currentYear * 48 + 6 - 1,
+      persons: {
+        ...baseState.persons,
+        [rulerId]: { ...baseState.persons[rulerId]!, sex: 'female' },
+      },
+    }
+    return { s, holdingId, rulerId }
+  }
+
+  it('不適格な female 候補のみ + fallback off → placeholder のまま (任命なし)', () => {
+    const { s } = makeFemaleCandidateState()
+    const config = {
+      ...defaultConfig,
+      femaleRoleEligibilityChance: 0,
+      allowFemaleRolesWhenNoMaleCandidate: false,
+    }
+    const ctx = createTickContext({ state: s, rng: createRng('test'), config })
+    const result = toResult(runBailiffAppointmentSystem(ctx))
+    expect(countEvents(result.events, 'BAILIFF_APPOINTED')).toBe(0)
+  })
+
+  it('不適格な female 候補のみ + fallback on → ungated 再試行で任命される', () => {
+    const { s, holdingId, rulerId } = makeFemaleCandidateState()
+    const config = {
+      ...defaultConfig,
+      femaleRoleEligibilityChance: 0,
+      allowFemaleRolesWhenNoMaleCandidate: true,
+    }
+    const ctx = createTickContext({ state: s, rng: createRng('test'), config })
+    const result = toResult(runBailiffAppointmentSystem(ctx))
+    expect(countEvents(result.events, 'BAILIFF_APPOINTED')).toBeGreaterThan(0)
+    const officeId = result.state.holdingOfficeIndex.byHolding[holdingId]!
+    expect(result.state.holdingOfficeAssignments[officeId]?.holderPersonId).toBe(rulerId)
+  })
+})

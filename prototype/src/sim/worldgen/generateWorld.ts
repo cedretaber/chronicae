@@ -64,6 +64,7 @@ import { defaultMapConfig } from './mapConfig'
 import { clamp } from '../utils/math'
 import { polityAttitudeKey, houseAttitudeKey, personAttitudeKey } from '../helpers/attitudeHelpers'
 import { createOfficeAssignment } from '../mutations/officeMutations'
+import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getRoleScoreFromAbilities } from '../selectors/abilitySelectors'
 import {
@@ -848,29 +849,42 @@ export function generateWorld(
         p.age >= defaultConfig.adultAge,
     )
 
+    // v0.45.3 性別役職適格ゲート: sorted 先頭の適格者を採用し、適格者ゼロなら
+    // allowFemaleRolesWhenNoMaleCandidate で先頭に fallback (runtime 任命と同形)。
+    // NOTE: worldgen は defaultConfig 直参照 (--config 不感) — 既知の制約。
+    const pickEligible = (
+      sorted: typeof polityPersons,
+    ): (typeof polityPersons)[number] | undefined => {
+      const eligible = sorted.find((p) => isRoleEligibleBySex(officeState, defaultConfig, p.id))
+      if (eligible) return eligible
+      return defaultConfig.allowFemaleRolesWhenNoMaleCandidate ? sorted[0] : undefined
+    }
+
     // Administrator: best admin stat
-    const adminCandidate = polityPersons
-      .filter((p) => {
-        const personKey = p.id as string
-        const pOffices = officeState.officeIndex.byHolderPerson[personKey] ?? []
-        return !pOffices.some((oid) => {
-          const o = officeState.officeAssignments[oid]
-          return o && o.organization.kind === 'polity' && o.role === 'leader'
+    const adminCandidate = pickEligible(
+      polityPersons
+        .filter((p) => {
+          const personKey = p.id as string
+          const pOffices = officeState.officeIndex.byHolderPerson[personKey] ?? []
+          return !pOffices.some((oid) => {
+            const o = officeState.officeAssignments[oid]
+            return o && o.organization.kind === 'polity' && o.role === 'leader'
+          })
         })
-      })
-      .sort((a, b) => {
-        const aGov =
-          a.abilities.numeracy * 0.3 +
-          a.abilities.learning * 0.3 +
-          a.abilities.charisma * 0.2 +
-          a.abilities.insight * 0.2
-        const bGov =
-          b.abilities.numeracy * 0.3 +
-          b.abilities.learning * 0.3 +
-          b.abilities.charisma * 0.2 +
-          b.abilities.insight * 0.2
-        return bGov - aGov || a.id.localeCompare(b.id)
-      })[0]
+        .sort((a, b) => {
+          const aGov =
+            a.abilities.numeracy * 0.3 +
+            a.abilities.learning * 0.3 +
+            a.abilities.charisma * 0.2 +
+            a.abilities.insight * 0.2
+          const bGov =
+            b.abilities.numeracy * 0.3 +
+            b.abilities.learning * 0.3 +
+            b.abilities.charisma * 0.2 +
+            b.abilities.insight * 0.2
+          return bGov - aGov || a.id.localeCompare(b.id)
+        }),
+    )
     if (adminCandidate) {
       officeState = createOfficeAssignment(
         officeState,
@@ -881,29 +895,31 @@ export function generateWorld(
     }
 
     // Treasurer: best admin stat, different person
-    const treasurerCandidate = polityPersons
-      .filter((p) => p.id !== adminCandidate?.id)
-      .filter((p) => {
-        const personKey = p.id as string
-        const pOffices = officeState.officeIndex.byHolderPerson[personKey] ?? []
-        return !pOffices.some((oid) => {
-          const o = officeState.officeAssignments[oid]
-          return o && o.organization.kind === 'polity' && o.role === 'leader'
+    const treasurerCandidate = pickEligible(
+      polityPersons
+        .filter((p) => p.id !== adminCandidate?.id)
+        .filter((p) => {
+          const personKey = p.id as string
+          const pOffices = officeState.officeIndex.byHolderPerson[personKey] ?? []
+          return !pOffices.some((oid) => {
+            const o = officeState.officeAssignments[oid]
+            return o && o.organization.kind === 'polity' && o.role === 'leader'
+          })
         })
-      })
-      .sort((a, b) => {
-        const aGov =
-          a.abilities.numeracy * 0.3 +
-          a.abilities.learning * 0.3 +
-          a.abilities.charisma * 0.2 +
-          a.abilities.insight * 0.2
-        const bGov =
-          b.abilities.numeracy * 0.3 +
-          b.abilities.learning * 0.3 +
-          b.abilities.charisma * 0.2 +
-          b.abilities.insight * 0.2
-        return bGov - aGov || a.id.localeCompare(b.id)
-      })[0]
+        .sort((a, b) => {
+          const aGov =
+            a.abilities.numeracy * 0.3 +
+            a.abilities.learning * 0.3 +
+            a.abilities.charisma * 0.2 +
+            a.abilities.insight * 0.2
+          const bGov =
+            b.abilities.numeracy * 0.3 +
+            b.abilities.learning * 0.3 +
+            b.abilities.charisma * 0.2 +
+            b.abilities.insight * 0.2
+          return bGov - aGov || a.id.localeCompare(b.id)
+        }),
+    )
     if (treasurerCandidate) {
       officeState = createOfficeAssignment(
         officeState,
@@ -914,28 +930,30 @@ export function generateWorld(
     }
 
     // Military: best martial stat
-    const militaryCandidate = polityPersons
-      .filter((p) => {
-        const personKey = p.id as string
-        const pOffices = officeState.officeIndex.byHolderPerson[personKey] ?? []
-        return !pOffices.some((oid) => {
-          const o = officeState.officeAssignments[oid]
-          return o && o.organization.kind === 'polity' && o.role === 'leader'
+    const militaryCandidate = pickEligible(
+      polityPersons
+        .filter((p) => {
+          const personKey = p.id as string
+          const pOffices = officeState.officeIndex.byHolderPerson[personKey] ?? []
+          return !pOffices.some((oid) => {
+            const o = officeState.officeAssignments[oid]
+            return o && o.organization.kind === 'polity' && o.role === 'leader'
+          })
         })
-      })
-      .sort((a, b) => {
-        const aWar =
-          a.abilities.command * 0.6 +
-          a.abilities.insight * 0.2 +
-          a.abilities.learning * 0.1 +
-          a.abilities.valor * 0.1
-        const bWar =
-          b.abilities.command * 0.6 +
-          b.abilities.insight * 0.2 +
-          b.abilities.learning * 0.1 +
-          b.abilities.valor * 0.1
-        return bWar - aWar || a.id.localeCompare(b.id)
-      })[0]
+        .sort((a, b) => {
+          const aWar =
+            a.abilities.command * 0.6 +
+            a.abilities.insight * 0.2 +
+            a.abilities.learning * 0.1 +
+            a.abilities.valor * 0.1
+          const bWar =
+            b.abilities.command * 0.6 +
+            b.abilities.insight * 0.2 +
+            b.abilities.learning * 0.1 +
+            b.abilities.valor * 0.1
+          return bWar - aWar || a.id.localeCompare(b.id)
+        }),
+    )
     if (militaryCandidate) {
       officeState = createOfficeAssignment(
         officeState,

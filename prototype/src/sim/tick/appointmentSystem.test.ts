@@ -422,6 +422,9 @@ describe('runAppointmentSystem', () => {
         [base.personRulerId]: {
           ...base.state.persons[base.personRulerId]!,
           sex: 'female',
+          // v0.45.3: leader は適格ゲート免除のため、ruler を candidate cache 外
+          // (childhood は lifeStage gate で除外) にして vassal を唯一の候補にする
+          lifeStage: 'childhood' as const,
         },
         [base.personVassalId]: {
           ...base.state.persons[base.personVassalId]!,
@@ -442,7 +445,12 @@ describe('runAppointmentSystem', () => {
       nextDiplomaticPlayId: 0,
     }
 
-    const config = { ...defaultConfig, allowFemaleRolesWhenNoMaleCandidate: true }
+    // v0.45.3: chance 0 で全女性をゲートし、fallback (ungated 再試行) 経由の任命を検証する
+    const config = {
+      ...defaultConfig,
+      allowFemaleRolesWhenNoMaleCandidate: true,
+      femaleRoleEligibilityChance: 0,
+    }
     const ctx = buildCtx(state, config)
 
     const result = toResult(runAppointmentSystem(ctx))
@@ -451,7 +459,7 @@ describe('runAppointmentSystem', () => {
     expect(holdsOfficeRole(result.state, base.personVassalId, 'administrator')).toBe(true)
   })
 
-  it('appoints best candidate when allowFemaleRolesWhenNoMaleCandidate=false and only females exist', () => {
+  it('v0.45.3: does not appoint gated females when allowFemaleRolesWhenNoMaleCandidate=false', () => {
     const base = makeBaseState()
     const { polityId, personRulerId } = base
 
@@ -483,6 +491,9 @@ describe('runAppointmentSystem', () => {
         [base.personRulerId]: {
           ...base.state.persons[base.personRulerId]!,
           sex: 'female',
+          // v0.45.3: leader は適格ゲート免除のため、ruler を candidate cache 外
+          // (childhood は lifeStage gate で除外) にして vassal を唯一の候補にする
+          lifeStage: 'childhood' as const,
         },
         [base.personVassalId]: {
           ...base.state.persons[base.personVassalId]!,
@@ -503,13 +514,66 @@ describe('runAppointmentSystem', () => {
       nextDiplomaticPlayId: 0,
     }
 
-    const config = { ...defaultConfig, allowFemaleRolesWhenNoMaleCandidate: false }
+    // v0.45.3: chance 0 で全女性が不適格 + fallback off → 着座しない (空席のまま)
+    const config = {
+      ...defaultConfig,
+      allowFemaleRolesWhenNoMaleCandidate: false,
+      femaleRoleEligibilityChance: 0,
+    }
     const ctx = buildCtx(state, config)
 
     const result = toResult(runAppointmentSystem(ctx))
 
-    // p-1 has higher admin score (9 > 7), so p-1 gets administrator
-    // (implementation does not filter females from candidate pool)
+    expect(holdsOfficeRole(result.state, base.personVassalId, 'administrator')).toBe(false)
+    expect(holdsOfficeRole(result.state, base.personRulerId, 'administrator')).toBe(false)
+  })
+
+  it('v0.45.3: appoints eligible female normally even when fallback is off (chance 1)', () => {
+    const base = makeBaseState()
+    const { polityId, personRulerId } = base
+
+    const leaderOfficeId = createOfficeAssignmentId(99)
+    const state: WorldState = {
+      ...base.state,
+      officeAssignments: {
+        [leaderOfficeId]: {
+          id: leaderOfficeId,
+          organization: { kind: 'polity' as const, id: polityId },
+          role: 'leader',
+          holderPersonId: personRulerId,
+          active: true,
+          startYear: 1444,
+          slotIndex: 0,
+          unpaidCount: 0,
+        },
+      },
+      officeIndex: {
+        byOrganization: {
+          [`polity:${polityId}`]: [leaderOfficeId],
+        },
+        byHolderPerson: {
+          [personRulerId]: [leaderOfficeId],
+        },
+      },
+      persons: {
+        ...base.state.persons,
+        [base.personVassalId]: {
+          ...base.state.persons[base.personVassalId]!,
+          sex: 'female',
+        },
+      },
+    }
+
+    const config = {
+      ...defaultConfig,
+      allowFemaleRolesWhenNoMaleCandidate: false,
+      femaleRoleEligibilityChance: 1,
+    }
+    const ctx = buildCtx(state, config)
+
+    const result = toResult(runAppointmentSystem(ctx))
+
+    // 適格な女性 (chance 1) は男性と同じ実力競争で任命される
     expect(holdsOfficeRole(result.state, base.personVassalId, 'administrator')).toBe(true)
   })
 

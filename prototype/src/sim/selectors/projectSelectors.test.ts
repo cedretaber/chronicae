@@ -138,3 +138,50 @@ describe('selectProjectSupervisor の派閥 (食客) 候補', () => {
     expect(result).toBeUndefined()
   })
 })
+
+// ─── v0.45.3 性別役職適格ゲート ───
+
+describe('selectProjectSupervisor の性別役職適格ゲート (v0.45.3)', () => {
+  function makeFemaleClientState(): WorldState {
+    let ws = makeEmptyV016State()
+    ws = withHouse(ws, OWNER_HOUSE)
+    ws = withHouse(ws, CLIENT_HOUSE)
+    ws = withPolity(ws, POLITY, { ownerHouseId: OWNER_HOUSE })
+    ws = withPerson(ws, CREATOR, { houseId: OWNER_HOUSE })
+    ws = withPerson(ws, PATRON, { houseId: CLIENT_HOUSE })
+    ws = withPerson(ws, CLIENT, { houseId: CLIENT_HOUSE, sex: 'female' })
+    return withFaction(ws, 'f-1' as FactionId, PATRON, POLITY, [CLIENT])
+  }
+
+  it('不適格な female 候補のみ + fallback off → supervisor なし', () => {
+    const config = {
+      ...defaultConfig,
+      femaleRoleEligibilityChance: 0,
+      allowFemaleRolesWhenNoMaleCandidate: false,
+    }
+    const result = selectProjectSupervisor(
+      makeFemaleClientState(),
+      config,
+      { kind: 'polity', id: POLITY },
+      'develop_holding',
+      CREATOR,
+    )
+    expect(result).toBeUndefined()
+  })
+
+  it('不適格な female 候補のみ + fallback on → ungated 再試行で選ばれる', () => {
+    const config = {
+      ...defaultConfig,
+      femaleRoleEligibilityChance: 0,
+      allowFemaleRolesWhenNoMaleCandidate: true,
+    }
+    const result = selectProjectSupervisor(
+      makeFemaleClientState(),
+      config,
+      { kind: 'polity', id: POLITY },
+      'develop_holding',
+      CREATOR,
+    )
+    expect(result).toBe(CLIENT)
+  })
+})

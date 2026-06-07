@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
-import { runFactionLifecycleSystem } from './factionLifecycleSystem'
+import { runFactionLifecycleSystem, handleFactionLeaderVacancy } from './factionLifecycleSystem'
 import { runFactionMaintenanceSystem } from './factionMaintenanceSystem'
 import {
   createHouseShareId,
@@ -400,5 +400,67 @@ describe('runFactionLifecycleSystem', () => {
 
     expect(result.events.filter((e) => e.type === 'FACTION_LEADER_BANKRUPT')).toHaveLength(0)
     expect(result.events.filter((e) => e.type === 'FACTION_DISSOLVED').length).toBeGreaterThan(0)
+  })
+})
+
+// ─── v0.45.3 性別役職適格ゲート ───
+
+describe('handleFactionLeaderVacancy の性別役職適格ゲート (v0.45.3)', () => {
+  function buildVacancyState() {
+    const { state, leaderId, houseId } = buildBaseState()
+    const memberId = createPersonId('pe', 9)
+    const factionId = createFactionId(0)
+
+    let s = withPerson(state, memberId, {
+      nameKey: 'FemaleMember',
+      houseId,
+      sex: 'female',
+      wealth: 100,
+      alive: true,
+      age: 25,
+    })
+    const { state: s2 } = addFaction(s, factionId, leaderId)
+    // female member の membership を追加し、leader を死亡させて欠員を作る
+    const fmId = createFactionMembershipId(1)
+    s = {
+      ...s2,
+      factionMemberships: {
+        ...s2.factionMemberships,
+        [fmId]: { id: fmId, factionId, personId: memberId, active: true, joinedWeek: 69312 },
+      },
+      factionIndex: {
+        ...s2.factionIndex,
+        byMember: { ...s2.factionIndex.byMember, [memberId]: [fmId] },
+      },
+    }
+    s = {
+      ...s,
+      persons: { ...s.persons, [leaderId]: { ...s.persons[leaderId]!, alive: false } },
+    }
+    return { s, factionId, memberId }
+  }
+
+  it('女性のみの派閥 + fallback on → ungated 再試行で女性が首領を継承する', () => {
+    const { s, factionId, memberId } = buildVacancyState()
+    const config = {
+      ...defaultConfig,
+      femaleRoleEligibilityChance: 0,
+      allowFemaleRolesWhenNoMaleCandidate: true,
+    }
+    const result = handleFactionLeaderVacancy(makeCtx(s, { config }), factionId)
+    const faction = result.state.factions[factionId]
+    expect(faction?.active).toBe(true)
+    expect(faction?.leaderPersonId).toBe(memberId)
+  })
+
+  it('女性のみの派閥 + fallback off → 候補ゼロで解散する', () => {
+    const { s, factionId } = buildVacancyState()
+    const config = {
+      ...defaultConfig,
+      femaleRoleEligibilityChance: 0,
+      allowFemaleRolesWhenNoMaleCandidate: false,
+    }
+    const result = handleFactionLeaderVacancy(makeCtx(s, { config }), factionId)
+    expect(result.state.factions[factionId]?.active).toBe(false)
   })
 })
