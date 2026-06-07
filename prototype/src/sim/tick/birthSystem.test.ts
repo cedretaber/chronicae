@@ -5,6 +5,7 @@ import type { TickContext } from './context'
 import type { Person } from '../types/person'
 import { defaultConfig } from '../config/defaultConfig'
 import { runBirthSystem } from './birthSystem'
+import { makeEmptyV016State } from '../testFixtures'
 
 const DEFAULT_ABILITIES = {
   valor: 50,
@@ -740,5 +741,72 @@ describe('runBirthSystem', () => {
     }
 
     expect(birthsWithLowPop).toBeGreaterThan(birthsNormalPop)
+  })
+})
+
+// ─── v0.45.4 adultMaleShortageThreshold ───
+
+describe('adultMaleShortageThreshold (v0.45.4)', () => {
+  // 成人男性 1 / 総人口 4 (= 25% < 0.4) の「男性不足」状態を作り、
+  // maleBirthChance=0 / boost=1 の両極設定で「どちらの確率が使われたか」を子の性別で判定する
+  function runShortageScenario(threshold: number): 'male' | 'female' {
+    const houseId = 'h-0' as HouseId
+    const polityId = 'dp-0' as PolityId
+    const father = makePerson('pe-0' as PersonId, 'John', 'male', 30, true, houseId)
+    const f1 = makePerson('pe-1' as PersonId, 'A', 'female', 30, true, houseId)
+    const f2 = makePerson('pe-2' as PersonId, 'B', 'female', 30, true, houseId)
+    const f3 = makePerson('pe-3' as PersonId, 'C', 'female', 30, true, houseId)
+    const house = makeHouse(houseId)
+    house.memberIds = [father.id, f1.id, f2.id, f3.id]
+    const polity = makePolity(polityId, houseId)
+
+    const customConfig = makeConfig({
+      baseBirthChancePerMalePerYear: 12.0, // 1 call あたり確率 1.0 = 必ず出生
+      spouseMotherChance: 0,
+      maleBirthChance: 0, // base が使われれば必ず female
+      maleBirthChanceWhenAdultMaleShortage: 1, // boost が使われれば必ず male
+      adultMaleShortageThreshold: threshold,
+    })
+
+    const base = makeEmptyV016State()
+    const ctx: TickContext = {
+      state: {
+        ...base,
+        currentYear: 1,
+        currentWeekOfYear: 1,
+        absoluteWeek: 48,
+        polities: { [polityId]: polity },
+        houses: { [houseId]: house },
+        persons: {
+          [father.id]: father,
+          [f1.id]: f1,
+          [f2.id]: f2,
+          [f3.id]: f3,
+        },
+        livingPersonIds: [father.id, f1.id, f2.id, f3.id],
+      },
+      rng: { seedText: 'shortage-test', state: 7 },
+      config: customConfig,
+      events: [],
+      nextEventIndex: 0,
+      deathsThisTick: [],
+      deathRolesThisTick: {},
+      nextPersonIndex: 4,
+      nextHouseIndex: 0,
+      nextPolityIndex: 0,
+    }
+
+    const result = runBirthSystem(ctx)
+    const childKey = Object.keys(result.state.persons).find((k) => !k.match(/^pe-[0-3]$/))
+    expect(childKey).toBeDefined()
+    return result.state.persons[childKey as PersonId]!.sex
+  }
+
+  it('threshold 0.4: 男性不足コントローラが発動し boost 値が使われる', () => {
+    expect(runShortageScenario(0.4)).toBe('male')
+  })
+
+  it('threshold 0: コントローラ無効で base maleBirthChance が使われる (女性多めプレイ)', () => {
+    expect(runShortageScenario(0)).toBe('female')
   })
 })

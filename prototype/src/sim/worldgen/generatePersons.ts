@@ -50,22 +50,23 @@ export function generatePersons(
 
     const { value: headAge, rng: rngH1 } = randomInt(rngM2, 30, 50)
 
+    // v0.45.4: 初期人物の性比も出生性比 config に整合 (旧 0.52 ハードコード)
     const { value: siblingSexRoll, rng: rngS1 } = randomFloat(rngH1)
-    const siblingSexVal: Sex = siblingSexRoll < 0.52 ? 'male' : 'female'
+    const siblingSexVal: Sex = siblingSexRoll < config.maleBirthChance ? 'male' : 'female'
     const { value: siblingAge, rng: rngS2 } = randomInt(rngS1, 25, 45)
 
     const { value: spouseAge, rng: rngSp1 } = randomInt(rngS2, 25, 45)
 
     const { value: child1SexRoll, rng: rngC1 } = randomFloat(rngSp1)
-    const child1SexVal: Sex = child1SexRoll < 0.52 ? 'male' : 'female'
+    const child1SexVal: Sex = child1SexRoll < config.maleBirthChance ? 'male' : 'female'
     const { value: child1Age, rng: rngC2 } = randomInt(rngC1, 5, 20)
 
     const { value: child2SexRoll, rng: rngC3 } = randomFloat(rngC2)
-    const child2SexVal: Sex = child2SexRoll < 0.52 ? 'male' : 'female'
+    const child2SexVal: Sex = child2SexRoll < config.maleBirthChance ? 'male' : 'female'
     const { value: child2Age, rng: rngC4 } = randomInt(rngC3, 0, 18)
 
     const { value: relativeSexRoll, rng: rngR1 } = randomFloat(rngC4)
-    const relativeSexVal: Sex = relativeSexRoll < 0.52 ? 'male' : 'female'
+    const relativeSexVal: Sex = relativeSexRoll < config.maleBirthChance ? 'male' : 'female'
     const { value: relativeAge, rng: rngR2 } = randomInt(rngR1, 15, 35)
 
     const { value: oldFatherLegacyPrestige, rng: rngP1 } = randomInt(

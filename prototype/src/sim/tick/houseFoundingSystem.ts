@@ -333,7 +333,8 @@ function generateFounderFamily(
 
     const { value: sexRoll, rng: rngSR } = randomFloat(currentCtx.rng)
     currentCtx = { ...currentCtx, rng: rngSR }
-    const childSex = sexRoll < 0.5 ? 'male' : 'female'
+    // v0.45.4: 出生性比 config に整合 (旧 0.5 ハードコード)
+    const childSex = sexRoll < config.maleBirthChance ? 'male' : 'female'
 
     let childNameKey: string
     if (currentCtx.namePoolService) {

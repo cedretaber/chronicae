@@ -1405,7 +1405,8 @@ export function generateWorld(
 
       const { value: sexRoll, rng: rng_s } = randomFloat(rng)
       rng = rng_s
-      const sex: 'male' | 'female' = sexRoll < 0.5 ? 'male' : 'female'
+      // v0.45.4: runtime の在野補充 (houselessMaleRatio) と整合 (旧 0.5 ハードコード)
+      const sex: 'male' | 'female' = sexRoll < defaultConfig.houselessMaleRatio ? 'male' : 'female'
 
       let unNameKey: string
       if (namePoolService) {

@@ -71,8 +71,9 @@ export function runBirthSystem(ctx: TickContext): TickContext {
       sexRoll = sr
       currentCtx = { ...currentCtx, rng: srRng }
     }
+    // v0.45.4: 閾値を config 化 (0 でコントローラ無効 — 女性多めプレイ用)
     const sex =
-      adultMales < totalLiving * 0.4
+      adultMales < totalLiving * currentCtx.config.adultMaleShortageThreshold
         ? currentCtx.config.maleBirthChanceWhenAdultMaleShortage
         : currentCtx.config.maleBirthChance
 

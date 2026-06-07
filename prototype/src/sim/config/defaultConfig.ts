@@ -126,6 +126,10 @@ export type SimulationConfig = {
   spouseMotherChance: number
   maleBirthChance: number
   maleBirthChanceWhenAdultMaleShortage: number
+  // v0.45.4: 男性不足コントローラの発動閾値 (成人男性 < 総人口 × この値で
+  //   maleBirthChanceWhenAdultMaleShortage を使用)。0 でコントローラ無効
+  //   (女性多めプレイ用 — 0.4 のままだと低 maleBirthChance を引き戻し続ける)。
+  adultMaleShortageThreshold: number
   // v0.45.1: 人口閾値は絶対値から worldgenLivingPersonsBaseline 比例の係数に変更
   //   (マップ規模 preset に閾値が追従しない欠陥の修正)
   targetLivingPersonsFactor: number // baseline × この値 未満で lowPopulationBirthMultiplier
@@ -1120,15 +1124,18 @@ export const defaultConfig: SimulationConfig = {
   // (0.06 では全家が平均~2人に希釈し size-7+ 家が出現しなかった。houseFounding 絞りとセット)
   baseBirthChancePerMalePerYear: 0.09,
   spouseMotherChance: 0.9,
-  maleBirthChance: 0.52,
-  maleBirthChanceWhenAdultMaleShortage: 0.65,
+  // v0.45.4: 男:女 ≈ 3:1 (性別役職適格ゲートで可視化された男性人材不足への人口側対応。
+  //   出生は per-male なので男性多め化で出生数は減らない — 人口はダンパーが自己調整)
+  maleBirthChance: 0.75,
+  maleBirthChanceWhenAdultMaleShortage: 0.85,
+  adultMaleShortageThreshold: 0.4,
   // v0.45.1: 旧絶対値 (target 180 / critical 90) は tiny の初期人口 ~92 の ×2 / ×1 相当
   //   だったため、係数化で tiny の挙動をほぼ維持しつつ全 preset に比例させる。
   //   high 帯 (×3 以上で出生 0.5 倍) は死亡率 U 字化 (§6.7) で純再生産率が 1 を超えたため
   //   新設した上限ダンパー。人口は baseline ×2〜×3 の帯で安定する。
   targetLivingPersonsFactor: 2.0,
   criticalLivingPersonsFactor: 1.0,
-  highLivingPersonsFactor: 3.0,
+  highLivingPersonsFactor: 4.0, // v0.45.4: 3.0→4.0 人口増 (×1.0 帯拡大。平衡 ~baseline×4.5-5.5)
   lowPopulationBirthMultiplier: 1.5,
   criticalPopulationBirthMultiplier: 3.0,
   highPopulationBirthMultiplier: 0.5,
