@@ -541,6 +541,83 @@ describe('runBailiffAppointmentSystem', () => {
     expect(countEvents(result.events, 'BAILIFF_VACATED')).toBe(0)
     expect(countEvents(result.events, 'BAILIFF_PLACEHOLDER_INSTALLED')).toBe(0)
   })
+
+  it('does NOT manage a holding in a terminal province that it does not terminal-control (split province re-claim 防止)', () => {
+    // 分割 Province: c-0 は hl-0 を terminal 支配するが、同 Province の hl-99 は別 Polity c-9 が
+    // terminal 支配する。c-0 の BailiffAppointmentSystem は hl-99 の bailiff に触れてはならない
+    // (触れると、土地を奪われた旧 grantor が奪われた holding の代官を毎サイクル再任命してしまう)。
+    const { state: baseState, provinceId } = makeBaseState()
+    const s0: WorldState = {
+      ...baseState,
+      currentWeekOfYear: 6,
+      absoluteWeek: baseState.currentYear * 48 + 6 - 1,
+    }
+    const otherPolityId = createPolityId('c', 9)
+    const otherHoldingId = 'hl-99' as HoldingId
+    const otherOfficeId = 'ho-99' as HoldingOfficeAssignmentId
+    const placeholderId = 'pe-anon-placeholder' as PersonId
+    const otherAssignment: HoldingOfficeAssignment = {
+      id: otherOfficeId,
+      holdingId: otherHoldingId,
+      role: 'bailiff',
+      holderPersonId: placeholderId,
+      appointingPolityId: otherPolityId,
+      active: true,
+      startWeek: s0.absoluteWeek,
+      unpaidCount: 0,
+      contractedRemittanceRate: 0,
+      expectedFeeRate: 0,
+    }
+    const province = s0.provinces[provinceId]!
+    const s: WorldState = {
+      ...s0,
+      provinces: {
+        ...s0.provinces,
+        [provinceId]: { ...province, holdingIds: [...province.holdingIds, otherHoldingId] },
+      },
+      holdings: {
+        ...s0.holdings,
+        [otherHoldingId]: {
+          id: otherHoldingId,
+          provinceId,
+          nameKey: 'h',
+          kind: 'manor',
+          polityControl: 100,
+          landQuality: 50,
+          weight: 1,
+        },
+      },
+      holdingTerminalPolityCache: {
+        ...s0.holdingTerminalPolityCache,
+        [otherHoldingId]: otherPolityId,
+      },
+      holdingOfficeAssignments: {
+        ...s0.holdingOfficeAssignments,
+        [otherOfficeId]: otherAssignment,
+      },
+      holdingOfficeIndex: {
+        byHolding: { ...s0.holdingOfficeIndex.byHolding, [otherHoldingId]: otherOfficeId },
+        byHolderPerson: {
+          ...s0.holdingOfficeIndex.byHolderPerson,
+          [placeholderId]: [
+            ...(s0.holdingOfficeIndex.byHolderPerson[placeholderId] ?? []),
+            otherOfficeId,
+          ],
+        },
+        byAppointingPolity: {
+          ...s0.holdingOfficeIndex.byAppointingPolity,
+          [otherPolityId]: [otherOfficeId],
+        },
+      },
+    }
+    const ctx = createTickContext({ state: s, rng: createRng('test'), config: defaultConfig })
+    const result = toResult(runBailiffAppointmentSystem(ctx))
+    // hl-99 の assignment は c-9 任命のまま (c-0 が再任命していない)
+    const after = result.state.holdingOfficeAssignments[otherOfficeId]
+    expect(after).toBeDefined()
+    expect(after!.appointingPolityId).toBe(otherPolityId)
+    expect(after!.holderPersonId).toBe(placeholderId)
+  })
 })
 
 // ─── v0.45.3 性別役職適格ゲート ───

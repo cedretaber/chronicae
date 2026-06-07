@@ -192,6 +192,55 @@ describe('getPolityInfluenceBreakdown', () => {
     expect(entry!.byDomain.base).toBeUndefined()
   })
 
+  it('grants house soft-power in a commonwealth so an embedded wealthy house can dominate (僭主 creation, v0.45.5)', () => {
+    // commonwealth 化 (ownerHouseId を外す)。getPolityHouseIds は land ベースで空になる。
+    let state = makeBaseState()
+    state = {
+      ...state,
+      polities: {
+        ...state.polities,
+        [polityId]: (() => {
+          const p = { ...state.polities[polityId]! }
+          delete p.ownerHouseId
+          return p
+        })(),
+      },
+      polityIndex: { byOwnerHouse: {} },
+    }
+    // 富豪家 (wealth 高め) を embed: その家のメンバーを leader + administrator に据える
+    const richHouseId = createHouseId('dh', 7)
+    const richMemberA = createPersonId('pe', 7)
+    const richMemberB = createPersonId('pe', 8)
+    state = withHouse(state, richHouseId, {
+      nameKey: 'RichHouse',
+      wealth: 2000,
+      legacyPrestige: 80,
+      memberIds: [richMemberA, richMemberB],
+    })
+    state = withPerson(state, richMemberA, { nameKey: 'RichA', houseId: richHouseId })
+    state = withPerson(state, richMemberB, { nameKey: 'RichB', houseId: richHouseId })
+    // leader は別人 (houseless 相当の outsider) — ruler bonus は Person entry に付く
+    state = createOfficeAssignment(state, { kind: 'polity', id: polityId }, 'leader', outsiderId)
+    state = createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'administrator',
+      richMemberB,
+    )
+
+    // commonwealth でも富豪家は house-global soft-power を受け取る (#3 抑止を入れない設計)
+    const rich = entryOf(state, `house:${richHouseId}`)
+    expect(rich).toBeDefined()
+    expect(rich!.byDomain.base).toBe(defaultConfig.polityInfluenceBase)
+    expect(rich!.byDomain.wealth).toBeCloseTo(2000 * defaultConfig.polityInfluenceWealthFactor)
+    expect(rich!.byDomain.prestige).toBeCloseTo(80 * defaultConfig.polityInfluencePrestigeFactor)
+
+    // 富豪家が wealth で leader (ruler bonus) を上回り、支配 holder = 僭主 になりうる
+    const dominant = getDominantInfluenceHolder(state, defaultConfig, polityId)
+    expect(dominant).toBeDefined()
+    expect(polityInfluenceHolderKey(dominant!.holder)).toBe(`house:${richHouseId}`)
+  })
+
   it('adds leaderHouse bonus only when the leader is from a non-owner house (§5.4)', () => {
     // leader ∈ ownerHouse → 加算なし
     let sameHouse = makeBaseState()

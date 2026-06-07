@@ -20,6 +20,7 @@ import {
   getGrantorRank,
 } from '../selectors/landContractSelectors'
 import { getPolityNameRefForEmit, getHoldingNameRefForEmit } from '../selectors/nameRefSelectors'
+import { installHoldingPlaceholderBailiff, vacateHoldingBailiff } from './provinceOfficeMutations'
 
 type CreateChildContractParams = {
   provinceId: ProvinceId
@@ -63,6 +64,50 @@ function recomputeHoldingTerminalCache(
   return nextCache
 }
 
+// 末端契約が移動して holding の terminal Polity が変わったら、その holding の bailiff
+// (HoldingOfficeAssignment) を「新しい terminal Polity 任命の placeholder」に差し替える。
+//
+// 旧 terminal の支配家の代官が残留すると、その家が奪った側 Polity の influence 母集合に
+// 居座り、house-global な wealth/prestige が乗って「土地を奪われた側の支配家が、奪った側
+// Polity の支配家門になる」リークを生む (叛乱 commonwealth で顕著: 旧宗主の富豪家が独立国の
+// 支配家門表示 + 余剰金を吸い上げる)。任命権 (PoliticalRight holding_office_role) 側は
+// rightConsistencySystem が terminal 不一致を regime_change で revoke するが、assignment 側には
+// この同期が無かった (さらに commonwealth は bailiffAppointmentSystem に owner 不在でスキップ
+// されるため、既存の "holder house が terminal owner と無関係なら vacate" cleanup も届かない)。
+//
+// 叛乱 (createChildLandContract) / 戦争土地移転 (transferLandContractGrantee /
+// insertIntermediateLandContract / transferAllProvincesToPolity) / 契約削除 (removeContract) の
+// 全経路が、この terminal cache 再計算を通る。regiment owner 同期 (syncRegimentOwnerToHomeTerminal)
+// が lazy では即開戦に間に合わなかった先例に倣い、ここで eager に同期する。
+function recomputeTerminalCacheAndResyncBailiffs(
+  state: WorldState,
+  provinceId: ProvinceId,
+): WorldState {
+  const before = state.holdingTerminalPolityCache
+  const nextCache = recomputeHoldingTerminalCache(state, provinceId)
+  let next: WorldState = { ...state, holdingTerminalPolityCache: nextCache }
+  const province = state.provinces[provinceId]
+  if (!province) return next
+  for (const holdingId of province.holdingIds) {
+    const newTerminal = nextCache[holdingId]
+    if (before[holdingId] === newTerminal) continue
+    if (newTerminal !== undefined) {
+      // 新 terminal Polity 任命の placeholder に差し替え (旧代官は内部で vacate される)。
+      // placeholder は houseless で influence 寄与ゼロ。bailiff を持つ owner Polity なら
+      // 次の BailiffAppointmentSystem で実在人物に昇格する。
+      next = installHoldingPlaceholderBailiff(next, {
+        holdingId,
+        appointingPolityId: newTerminal,
+        week: state.absoluteWeek,
+      })
+    } else {
+      // terminal が消滅 (chain 空) — 任命主が無いので vacate のみ。
+      next = vacateHoldingBailiff(next, holdingId)
+    }
+  }
+  return next
+}
+
 export function createChildLandContract(
   state: WorldState,
   params: CreateChildContractParams,
@@ -103,10 +148,7 @@ export function createChildLandContract(
     nextLandContractId: state.nextLandContractId + 1,
   }
   return {
-    state: {
-      ...nextState,
-      holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, params.provinceId),
-    },
+    state: recomputeTerminalCacheAndResyncBailiffs(nextState, params.provinceId),
     contractId: id,
   }
 }
@@ -156,10 +198,7 @@ export function transferLandContractGrantee(
       byParent: state.landContractIndex.byParent,
     },
   }
-  return {
-    ...nextState,
-    holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, contract.provinceId),
-  }
+  return recomputeTerminalCacheAndResyncBailiffs(nextState, contract.provinceId)
 }
 
 export function transferAllProvincesToPolity(
@@ -248,10 +287,7 @@ export function insertIntermediateLandContract(
     nextLandContractId: state.nextLandContractId + 1,
   }
   return {
-    state: {
-      ...nextState,
-      holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, params.provinceId),
-    },
+    state: recomputeTerminalCacheAndResyncBailiffs(nextState, params.provinceId),
     contractId: id,
   }
 }
@@ -630,8 +666,5 @@ export function eliminateContractFromChain(
     },
   }
 
-  return {
-    ...nextState,
-    holdingTerminalPolityCache: recomputeHoldingTerminalCache(nextState, contract.provinceId),
-  }
+  return recomputeTerminalCacheAndResyncBailiffs(nextState, contract.provinceId)
 }

@@ -52,11 +52,18 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
     const terminalProvinceIds = getPolityTerminalProvinceIds(currentCtx.state, polityId)
 
     // Collect holdings from terminal provinces
+    // getPolityTerminalProvinceIds は「この Polity が 1 つ以上の holding を terminal 支配する
+    // Province」を返す (Province 粒度)。分割 Province (例: 反乱 commonwealth が 1 holding だけ
+    // seizure) では、この Polity が支配しない holding も含まれる。holding 粒度で
+    // holdingTerminalPolityCache を見て、自分が terminal 支配する holding のみに絞る。
+    // これを怠ると、旧 grantor (同 Province の他 holding を保持) が奪われた holding の bailiff を
+    // 毎サイクル再任命し、land 移転時の bailiff リセットを打ち消す (influence リークの再発)。
     const terminalHoldings: { provinceId: ProvinceId; holdingId: HoldingId }[] = []
     for (const provinceId of terminalProvinceIds) {
       const province = currentCtx.state.provinces[provinceId]
       if (!province) continue
       for (const holdingId of province.holdingIds) {
+        if (currentCtx.state.holdingTerminalPolityCache[holdingId] !== polityId) continue
         terminalHoldings.push({ provinceId, holdingId })
       }
     }

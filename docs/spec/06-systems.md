@@ -792,6 +792,25 @@ Task の実際の処理（effort 消費 → 完了）は既存 TaskSystem に任
 
 terminal Polity ごとに HoldingOfficeAssignment (Bailiff) を走査し、placeholder Person で空席化している **Holding** を通常人物で埋める。逆に、通常人物の Bailiff が死亡・離反などで不在化した場合は placeholder Person に戻す。
 
+**holding 粒度の絞り込み (v0.45.5)**: 走査対象は `getPolityTerminalProvinceIds`（Province 粒度 = この Polity が
+1 つ以上の holding を terminal 支配する Province）が返す各 Province の holding のうち、
+`holdingTerminalPolityCache[holdingId] === polityId` を満たすもの**のみ**に絞る。分割 Province（例: 反乱
+commonwealth が Province 内の 1 holding だけを seizure し、残りは旧 grantor が保持）では、この絞り込みを
+怠ると旧 grantor が**自分が terminal 支配しない holding の bailiff を毎サイクル再任命**し、下記の land 移転時
+bailiff リセットを打ち消してしまう（→ §6.64 influence リークの再発源）。
+
+**land 移転時の bailiff リセット (v0.45.5)**: holding の terminal Polity が変わったら、その holding の bailiff
+（HoldingOfficeAssignment）を「新 terminal Polity 任命の placeholder」に差し替える。これは tick system ではなく
+**land contract mutation の choke point**（`recomputeTerminalCacheAndResyncBailiffs` — 末端 cache 再計算を通る
+全経路: createChildLandContract〔叛乱 seizure〕/ transferLandContractGrantee・insertIntermediateLandContract・
+transferAllProvincesToPolity〔戦争土地移転・家滅亡継承〕/ removeContract）で eager に行う。旧 terminal の支配家の
+代官が残留すると、その家が奪った側 Polity の influence 母集合に居座る（§6.64）。任命権（PoliticalRight
+holding_office_role）側は §6.65 RightConsistencySystem が terminal 不一致を `regime_change` で revoke するが、
+assignment 側にはこの同期が無かった（さらに commonwealth は本 system にスキップされ既存 cleanup も届かない）。
+Regiment owner 同期（§6.49 `syncRegimentOwnerToHomeTerminalMut`）が lazy では即開戦に間に合わなかった先例に倣い、
+mutation 側で eager に処理する（terminal が消滅した holding は任命主が無いので vacate のみ）。placeholder は
+houseless で influence 寄与ゼロ。bailiff を持つ通常 Polity なら次サイクルの本 system が実在人物へ昇格する。
+
 **任期判定**: `absoluteWeek - office.startWeek >= termYears * WEEKS_PER_YEAR`。
 
 **候補者選定（v0.42: Tier 制）**:
@@ -1933,6 +1952,16 @@ House 内部の Share（HouseShare、§3.7）のみが一次データとして�
   office 寄与への乗算相当を加算）/ military（military office holder + active regiment への regiment_control right）/
   land_administration（holding right + 現職 bailiff の House）/ landed_power（**対象 Polity 内限定**の province 数 +
   military proxy）/ wealth / prestige / faction（anchor Faction leader の House のみ — member 加算は future）
+- **commonwealth でも House soft-power を付与する（僭主の創発・v0.45.5 検討）**: `ownerHouseId` 未定義の polity
+  （反乱独立政体・commonwealth）でも House entry に soft-power（base / wealth / prestige / landed_power）を
+  一律加算する。これにより、共和国に office / faction で embed した富豪家が influence を蓄積し dominant holder
+  （= 僭主）になりうる。この筋道は**意図的に塞がない**（共和国に僭主が出現するのは自然な歴史的成り行きであり、
+  §6.5 PolitySurplusDistributionSystem で余剰金が僭主家へ流れるのも「僭主が共和国から搾取する」物語として許容）。
+  「叛乱直後に、倒したばかりの旧支配家が**残留代官**経由で即座に支配を取り戻す」アーティファクトは soft-power
+  抑止ではなく、末端契約移転時の bailiff リセット（§6.22）＋ BailiffAppointmentSystem の holding 粒度走査で
+  **構造的に**解消する（旧主の代官 → placeholder 化 → 母集合から消える）。注: wealth は現状 house-global
+  （資産はどこで貯めても全額が influence 化）なので、足がかり 1 つの富豪家でも支配しうる。「地元で実力を築いた
+  僭主」に寄せる stake 比例化は influence balance 改修（通常国にも波及）で将来検討
 - percent は **0〜100**（既存 share 系と同スケール。比率が必要な箇所は /100）
 - perf: 候補者ループ内で呼ばない。polity ごとに 1 回前計算して `getActorInfluenceFromBreakdown` で引く
 
