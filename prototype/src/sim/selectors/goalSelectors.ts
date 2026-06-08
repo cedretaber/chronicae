@@ -19,7 +19,7 @@ import { isLivingPerson, isLifeStageAtLeast } from '../types/person'
 import type { PersonId } from '../types/ids'
 import { getRoleScore } from './abilitySelectors'
 import { getPersonReputationModifierForCategories } from './personReputationSelectors'
-import { hasActiveHoldingOffice } from './officeSelectors'
+import { hasActiveHoldingOffice, getHouseDecisionMaker } from './officeSelectors'
 import { isRoleEligibleBySex } from './roleEligibilitySelectors'
 import { findAcquirableRightTarget } from './politicalRightSelectors'
 import {
@@ -237,6 +237,19 @@ export function scoreHouseGoalKind(
   if (house.wealth >= 80) prestigeScore += 15
   if (house.legacyPrestige < 30) prestigeScore += 10
   if (ownedPolityIds.length === 0) prestigeScore += 5
+
+  // 影響力個人中心化 Phase 3b: 家の戦略方向に意志決定者 (= 支配 share 保有者) の性格を反映する。
+  // 当主でなく実権者の野心/慎重さが家を動かす (個人中心化)。野心→拡大・慎重→保全に傾く。
+  // (trait - 0.5) × scale で ±scale/2 の bounded 加算 (構造項 15-35 に対し控えめ)。
+  if (config.personAbilityEffectsEnabled) {
+    const decisionMakerId = getHouseDecisionMaker(state, houseId)
+    const decisionMaker = decisionMakerId ? state.persons[decisionMakerId] : undefined
+    if (isLivingPerson(decisionMaker)) {
+      const scale = config.houseGoalPersonalityScale
+      expandScore += (decisionMaker.traits.ambition - 0.5) * scale
+      preserveScore += (decisionMaker.traits.caution - 0.5) * scale
+    }
+  }
 
   return [
     { kind: 'expand_power_base', score: expandScore },

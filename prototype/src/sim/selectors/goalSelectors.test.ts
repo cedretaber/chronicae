@@ -22,7 +22,9 @@ import {
   computeAimCapacityForGoal,
   isPolityRoleEligibleCandidate,
   selectMovementBeneficiary,
+  scoreHouseGoalKind,
 } from './goalSelectors'
+import { createHouseShare } from '../mutations/shareMutations'
 
 // v0.43 Aim 並列化: aimSlotKey は「生成側の候補除外」と「integrity の重複検査」が共有する
 // 唯一のキー。両者が同じ (kind, target) に対して同じ文字列を返すこと、および異なる対象が
@@ -157,5 +159,47 @@ describe('isPolityRoleEligibleCandidate + selectMovementBeneficiary (Phase 2)', 
     s = withPerson(s, adultM, { nameKey: 'A', houseId, age: 8, lifeStage: 'childhood' })
     s = withPerson(s, adultM2, { nameKey: 'B', houseId, age: 6, lifeStage: 'childhood' })
     expect(selectMovementBeneficiary(s, defaultConfig, houseId, polityId)).toBeUndefined()
+  })
+})
+
+// 影響力個人中心化 Phase 3b: 家 goal scoring に意志決定者の性格を反映
+describe('scoreHouseGoalKind: decisionMaker personality (Phase 3b)', () => {
+  const houseId = createHouseId('h', 0)
+  const dm = createPersonId('pe', 0)
+
+  function withDecisionMaker(ambition: number, caution: number) {
+    let s = makeEmptyV016State()
+    s = withHouse(s, houseId, { nameKey: 'H', memberIds: [dm], wealth: 50 })
+    s = withPerson(s, dm, { nameKey: 'DM', houseId, traits: { ambition, caution } })
+    s = createHouseShare(s, houseId, dm, 50) // 支配 share holder = 意志決定者
+    return s
+  }
+
+  function scoreOf(state: ReturnType<typeof withDecisionMaker>, kind: string): number {
+    return scoreHouseGoalKind(state, defaultConfig, houseId).find((g) => g.kind === kind)!.score
+  }
+
+  it('高 ambition の意志決定者は expand_power_base を押し上げる', () => {
+    const high = scoreOf(withDecisionMaker(1.0, 0.5), 'expand_power_base')
+    const low = scoreOf(withDecisionMaker(0.0, 0.5), 'expand_power_base')
+    expect(high).toBeGreaterThan(low)
+  })
+
+  it('高 caution の意志決定者は preserve_power_base を押し上げる', () => {
+    const high = scoreOf(withDecisionMaker(0.5, 1.0), 'preserve_power_base')
+    const low = scoreOf(withDecisionMaker(0.5, 0.0), 'preserve_power_base')
+    expect(high).toBeGreaterThan(low)
+  })
+
+  it('personAbilityEffectsEnabled=false で性格効果は無効', () => {
+    const state = withDecisionMaker(1.0, 0.0)
+    const cfg = { ...defaultConfig, personAbilityEffectsEnabled: false }
+    const enabled = scoreHouseGoalKind(state, defaultConfig, houseId).find(
+      (g) => g.kind === 'expand_power_base',
+    )!.score
+    const disabled = scoreHouseGoalKind(state, cfg, houseId).find(
+      (g) => g.kind === 'expand_power_base',
+    )!.score
+    expect(enabled).not.toBe(disabled)
   })
 })

@@ -85,6 +85,9 @@ export type SimulationConfig = {
   newRulerHouseControl: number
   // v0.7 Person Ability Effects
   personAbilityEffectsEnabled: boolean
+  // 影響力個人中心化 Phase 3b: 家 goal-kind scoring に意志決定者 (decisionMaker) の性格を反映する量。
+  // ambition→expand / caution→preserve。(trait-0.5)×scale (±scale/2)。personAbilityEffectsEnabled で gate。
+  houseGoalPersonalityScale: number
   chancellorAdminControlGrowthEffect: number
   chancellorAdminControlMaxBonusPerAdmin: number
   houseHeadAdminControlGrowthEffect: number
@@ -1100,6 +1103,7 @@ export const defaultConfig: SimulationConfig = {
   newRulerHouseControl: 35,
   // v0.6 Person Ability Effects
   personAbilityEffectsEnabled: true,
+  houseGoalPersonalityScale: 10,
   chancellorAdminControlGrowthEffect: 0.25,
   chancellorAdminControlMaxBonusPerAdmin: 1,
   houseHeadAdminControlGrowthEffect: 0.25,
