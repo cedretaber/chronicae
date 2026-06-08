@@ -1739,11 +1739,14 @@ export const defaultConfig: SimulationConfig = {
   officeDignityUnpaidPenaltyReduction: 0.5,
   // v0.12 Share yearly update
   // v0.42 Polity Influence (polityShare* 流用 + 新規 domain は小さく)
-  polityInfluenceBase: 10,
+  // 影響力個人中心化 Phase 1b: 受動 soft-power (資産/一律 base/威信) を直接 influence から全廃。
+  // 構造項は「役職・任命権・土地」+ owner/leader ruler bonus に純化。成果項 (評判) が
+  // デフレ分を埋める。prestige の間接効果 (功績あたり評判増 等) は将来課題 (§9)。
+  polityInfluenceBase: 0,
   polityInfluenceProvinceFactor: 5,
   polityInfluenceMilitaryFactor: 0.1,
-  polityInfluenceWealthFactor: 0.05,
-  polityInfluencePrestigeFactor: 0.2,
+  polityInfluenceWealthFactor: 0,
+  polityInfluencePrestigeFactor: 0,
   polityInfluenceOwnerHouseBonus: 30,
   polityInfluenceLeaderHouseBonus: 10,
   polityInfluenceOfficeFactor: 3,

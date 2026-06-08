@@ -193,8 +193,11 @@ describe('getPolityInfluenceBreakdown', () => {
     expect(entry!.byDomain.base).toBeUndefined()
   })
 
-  it('grants house soft-power in a commonwealth so an embedded wealthy house can dominate (僭主 creation, v0.45.5)', () => {
-    // commonwealth 化 (ownerHouseId を外す)。getPolityHouseIds は land ベースで空になる。
+  it('commonwealth の僭主は wealth でなく構造項+成果項で個人創発する (Phase 1b 個人中心化)', () => {
+    // 影響力個人中心化 Phase 1b: 受動 soft-power (wealth/base/prestige) を全廃したため、
+    // v0.45.5 の「富豪家が wealth で commonwealth を支配」ルートは消滅。代わりに僭主は
+    // 役職 (構造項) を握り評判 (成果項) を積んだ「個人」として創発する。家でなく個人に帰属する
+    // のが redesign の核 (家は権力基盤)。
     let state = makeBaseState()
     state = {
       ...state,
@@ -208,38 +211,50 @@ describe('getPolityInfluenceBreakdown', () => {
       },
       polityIndex: { byOwnerHouse: {} },
     }
-    // 富豪家 (wealth 高め) を embed: その家のメンバーを leader + administrator に据える
     const richHouseId = createHouseId('dh', 7)
-    const richMemberA = createPersonId('pe', 7)
-    const richMemberB = createPersonId('pe', 8)
+    const usurper = createPersonId('pe', 8)
     state = withHouse(state, richHouseId, {
       nameKey: 'RichHouse',
-      wealth: 2000,
+      wealth: 2000, // wealth は influence に効かない (soft-power 全廃)
       legacyPrestige: 80,
-      memberIds: [richMemberA, richMemberB],
+      memberIds: [usurper],
     })
-    state = withPerson(state, richMemberA, { nameKey: 'RichA', houseId: richHouseId })
-    state = withPerson(state, richMemberB, { nameKey: 'RichB', houseId: richHouseId })
-    // leader は別人 (houseless 相当の outsider) — ruler bonus は Person entry に付く
+    state = withPerson(state, usurper, { nameKey: 'Usurper', houseId: richHouseId })
+    // leader は別人 (houseless outsider) — ruler bonus 30 が person entry に付く
     state = createOfficeAssignment(state, { kind: 'polity', id: polityId }, 'leader', outsiderId)
+
+    // wealth/base/prestige は influence に寄与しない (soft-power 全廃の確認)
+    const richHouseEntry = entryOf(state, `house:${richHouseId}`)
+    expect(richHouseEntry?.byDomain.wealth).toBeUndefined()
+    expect(richHouseEntry?.byDomain.base).toBeUndefined()
+    expect(richHouseEntry?.byDomain.prestige).toBeUndefined()
+
+    // usurper が役職 (administrator) を握り polity-tag 評判を積むと、個人 entry が
+    // leader (ruler 30) を上回り支配 holder = 僭主 になる
     state = createOfficeAssignment(
       state,
       { kind: 'polity', id: polityId },
       'administrator',
-      richMemberB,
+      usurper,
     )
+    const ws = { ...state }
+    addPersonReputationMut(ws, {
+      personId: usurper,
+      source: { kind: 'war' },
+      outcome: 'success',
+      category: 'military',
+      baseScore: 80,
+      createdWeek: ws.absoluteWeek,
+      expiryWeek: ws.absoluteWeek + 10000,
+      relatedOrganization: { kind: 'polity', id: polityId },
+      relatedRefs: [],
+    })
 
-    // commonwealth でも富豪家は house-global soft-power を受け取る (#3 抑止を入れない設計)
-    const rich = entryOf(state, `house:${richHouseId}`)
-    expect(rich).toBeDefined()
-    expect(rich!.byDomain.base).toBe(defaultConfig.polityInfluenceBase)
-    expect(rich!.byDomain.wealth).toBeCloseTo(2000 * defaultConfig.polityInfluenceWealthFactor)
-    expect(rich!.byDomain.prestige).toBeCloseTo(80 * defaultConfig.polityInfluencePrestigeFactor)
-
-    // 富豪家が wealth で leader (ruler bonus) を上回り、支配 holder = 僭主 になりうる
-    const dominant = getDominantInfluenceHolder(state, defaultConfig, polityId)
+    const dominant = getDominantInfluenceHolder(ws, defaultConfig, polityId)
     expect(dominant).toBeDefined()
-    expect(polityInfluenceHolderKey(dominant!.holder)).toBe(`house:${richHouseId}`)
+    // 僭主は家でなく「個人」(person entry) として支配する
+    expect(polityInfluenceHolderKey(dominant!.holder)).toBe(`person:${usurper}`)
+    expect(dominant!.byDomain.reputation ?? 0).toBeGreaterThan(0)
   })
 
   it('adds leaderHouse bonus only when the leader is from a non-owner house (§5.4)', () => {

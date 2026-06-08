@@ -66,18 +66,21 @@ function makeState(): WorldState {
   })
   state = bindProvinceToHouseViaPolity(state, provinceId, polityId, ownerHouseId)
   state = withPerson(state, rulerId, { nameKey: 'Ruler', houseId: ownerHouseId })
-  // ownerCandidate は能力が高い (right がなければこちらが勝つ)
+  // 影響力個人中心化 Phase 1b で受動 soft-power (wealth/base/prestige) を全廃したため、
+  // landless RightHouse の構造項 influence は 0。owner house は土地+owner bonus で構造項
+  // influence% が支配的になる。両候補に同等の高能力 (governance 80) を与えて能力差を相殺し、
+  // 「owner house の構造項 influence vs right bonus」の対比で right の決定力を検証する。
+  const highGovernance = { numeracy: 80, learning: 80, charisma: 80, insight: 80 }
   state = withPerson(state, ownerCandidateId, {
     nameKey: 'OwnerCandidate',
     houseId: ownerHouseId,
-    abilities: { valor: 50, command: 50, numeracy: 80, learning: 80, charisma: 60, insight: 60 },
-    legacyPrestige: 40,
+    abilities: { valor: 50, command: 50, ...highGovernance },
   })
-  // rightCandidate は能力が並 (bonus がないと負ける)
+  // rightCandidate は能力同等。right bonus がないと owner house 構造項 influence で負ける
   state = withPerson(state, rightCandidateId, {
     nameKey: 'RightCandidate',
     houseId: rightHouseId,
-    legacyPrestige: 10,
+    abilities: { valor: 50, command: 50, ...highGovernance },
   })
   state = createOfficeAssignment(state, { kind: 'polity', id: polityId }, 'leader', rulerId)
   return state
@@ -119,15 +122,17 @@ describe('appointment right integration (§9)', () => {
   })
 
   it('skips the unrelated factional path when a right exists (§9.3)', () => {
-    // 強い nomination power を持つ無関係 faction を立てる
+    // 強い nomination power を持つ無関係 faction を立てる。faction の強さは nomination power
+    // (anchor house の influence%) であって factionLeader 個人の能力/威信ではない。
+    // 影響力個人中心化 Phase 1b で受動 soft-power を全廃したため、factionLeader に個人 prestige を
+    // 与えると appointment スコアの person-prestige 項 (influence とは別系統) で traditional 候補
+    // として勝ってしまい test の意図 (faction path が無視されること) がぼやける。個人能力は並に保つ。
     let state = grantOfficeRight(makeState())
     const factionId = createFactionId(0)
     const factionLeaderId = createPersonId('pe', 10)
     state = withPerson(state, factionLeaderId, {
       nameKey: 'FactionLeader',
       houseId: ownerHouseId,
-      wealth: 1000,
-      legacyPrestige: 80,
     })
     state = addFactionWithMembers(state, factionId, factionLeaderId, [])
 
