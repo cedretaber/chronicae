@@ -679,7 +679,7 @@ score = relevantStat(role) * 1.0          // military → warCommand、他 → g
       + (prestige / 100) * 8              // getPersonPrestige
       + leaderRespect * 4                 // polity leader の attitude.respect（0..1 正規化）
       + polityAffection * 3               // 候補者の対 Polity attitude.affection
-      + houseInfluencePct * polityInfluenceAppointmentFactor  // 候補者の家の Polity Influence%（§6.64、既定 0.25。v0.42: 旧 share%）
+      + (houseInfluencePct + personInfluencePct) * polityInfluenceAppointmentFactor  // 候補者の家＋本人の Polity Influence%（§6.64、既定 0.25。v0.42: 旧 share%。personInfluencePct は影響力個人中心化 §6.64a-(9) で追加）
       + personSharePct * houseShareAppointmentFactor  // 候補者個人の House Share 割合（既定 0.08）
       + ownerHouseBonus                   // 候補者の家が polity.ownerHouseId なら ownerHouseAppointmentBonus（既定 4）
       + appointmentRightBonus             // v0.42: 対象 role に polity_office_appointment right がある場合の補正（下記）
@@ -1959,10 +1959,14 @@ House 内部の Share（HouseShare、§3.7）のみが一次データとして�
   office 寄与への乗算相当を加算）/ military（military office holder + active regiment への regiment_control right）/
   land_administration（holding right + 現職 bailiff の House）/ landed_power（**対象 Polity 内限定**の province 数 +
   military proxy）/ wealth / prestige / faction（anchor Faction leader の House のみ — member 加算は future）
-- **commonwealth でも House soft-power を付与する（僭主の創発・v0.45.5 検討）**: `ownerHouseId` 未定義の polity
-  （反乱独立政体・commonwealth）でも House entry に soft-power（base / wealth / prestige / landed_power）を
-  一律加算する。これにより、共和国に office / faction で embed した富豪家が influence を蓄積し dominant holder
-  （= 僭主）になりうる。この筋道は**意図的に塞がない**（共和国に僭主が出現するのは自然な歴史的成り行きであり、
+- **【§6.64a-(1) で廃止 — 以下は旧 (v0.45.5) 挙動の記録】commonwealth でも House soft-power を付与する（僭主の創発）**:
+  `ownerHouseId` 未定義の polity（反乱独立政体・commonwealth）でも House entry に soft-power（base / wealth /
+  prestige / landed_power）を一律加算していた。これにより、共和国に office / faction で embed した富豪家が
+  influence を蓄積し dominant holder（= 僭主）になりうる、というのが旧挙動。**影響力個人中心化で wealth / base /
+  prestige の factor を 0 にしたため、commonwealth でこの経路から付くのは landed_power（構造項）のみ**となり、
+  「wealth で支配する富豪家」は成立しない。僭主は構造項（役職・任命権）＋成果項（評判）を握った「個人」
+  （person entry）として創発する（§6.64a-(1)）。以下は旧挙動の設計意図の記録: この筋道は**意図的に塞がなかった**
+  （共和国に僭主が出現するのは自然な歴史的成り行きであり、
   §6.5 PolitySurplusDistributionSystem で余剰金が僭主家へ流れるのも「僭主が共和国から搾取する」物語として許容）。
   「叛乱直後に、倒したばかりの旧支配家が**残留代官**経由で即座に支配を取り戻す」アーティファクトは soft-power
   抑止ではなく、末端契約移転時の bailiff リセット（§6.22）＋ BailiffAppointmentSystem の holding 粒度走査で
@@ -2034,9 +2038,11 @@ War / DiplomaticPlay / 運動の完遂で生成される `PersonReputation`（§
 **(3) dual-tag award**: 1 つの Project / War / DiplomaticPlay の完遂で、**owner organization と
 target organization の両方**に評判レコードを生成する（owner==target は 1 個に dedupe）。
 家活動（owner=house）でも target=対象 polity の評判が生まれ、**家には Share・対象 polity には
-influence** の両方を生む。target 導出: project は kind 別（acquire/promote/respond→polityId・
-develop→holdingTerminalPolity・movement→targetPolityId）/ war は primary actor が house なら
-陣営 polity を target に追加 / play は v1 は現行（自陣 actor）のみ。
+influence** の両方を生む。target 導出: project は kind 別（acquire/promote→polityId・
+develop→holdingTerminalPolity・movement→targetPolityId・patronize/commission/personal_training→
+target なし）/ war は primary actor が house なら陣営 polity を target に追加 / play は v1 は現行
+（自陣 actor）のみ。外交 project kind（respond_to_pressure）は project-outcome 経路で評判を生成せず
+Play 側（§6.66）で評価するため、ここには含めない。
 
 **(4) 役職 influence の個人帰属**: 役職（office domain）・person 保有任命権（regiment/holding_office/
 polity_office）・現職代官（land_administration）の influence は、保有者「個人」の person entry に

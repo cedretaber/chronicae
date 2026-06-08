@@ -240,11 +240,12 @@ export function getPolityInfluenceBreakdown(
   }
 
   // --- base / landed_power / wealth / prestige: House entry に一律 (§5.4) ---
-  // commonwealth (反乱独立政体) でも House に soft-power を与える点に注意。これにより、
-  // 共和国に office/faction で embed した富豪家が influence を蓄積して支配 holder になりうる
-  // (= 僭主の創発)。これは意図的に塞がない (v0.45.5 検討)。叛乱直後に「倒したばかりの旧主が
-  // 残留代官経由で即座に支配を取り戻す」アーティファクトは soft-power 抑止ではなく、末端移転時の
-  // bailiff リセット (§6.22) + bailiff 走査の holding 粒度化で構造的に解消する。
+  // 影響力個人中心化 (§6.64a-(1)): wealth / base / prestige の soft-power factor は 0 にしたため、
+  // この経路で House に付くのは landed_power (構造項・対象 Polity 内の province 数ベース) のみ。
+  // commonwealth (反乱独立政体) でも分岐せず一律処理するが、soft-power が 0 なので「embed した
+  // 富豪家が wealth で支配 holder になる」旧 (v0.45.5) 挙動は発生しない。僭主は構造項 (役職・任命権)
+  // ＋成果項 (評判) を握った「個人」(person entry) として創発する。base / wealth / prestige の行は
+  // config-gated で残置 (将来 prestige を間接効果に再接続する余地・§6.64a-(1))。
   for (const entry of entries.values()) {
     if (entry.holder.kind !== 'house') continue
     const house = state.houses[entry.holder.id]

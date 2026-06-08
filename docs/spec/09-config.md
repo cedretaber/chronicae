@@ -333,7 +333,6 @@
 | polityInfluenceOwnerHouseBonus | 30 | ruler domain: ownerHouse ボーナス（旧 polityShareOwnerHouseBonus） |
 | polityInfluenceLeaderHouseBonus | 10 | ruler domain: 非 ownerHouse 出身 leader の家への補正（ownerHouseBonus の 1/3。leader∈ownerHouse なら加算しない） |
 | polityInfluenceOfficeFactor | 3 | office domain: non-leader 役職 1 つの係数。**影響力個人中心化で保有者個人の entry に計上** §6.64a-(4) |
-| polityInfluenceOfficeOverlapBonusMax | 0.5 | （旧）office overlap 加算上限。**影響力個人中心化で撤去（house-level ゆえ個人帰属で適用不能）** §6.64a-(4) |
 | polityInfluencePolityOfficeAppointmentFactor | 2 | **影響力個人中心化: office domain。polity_office_role 任命権 保有者の直接 influence（3 種任命権を揃える）** §6.64a-(4) |
 | polityInfluenceMilitaryOfficeBonus | 2 | military domain: polity:military 役職保有（影響力個人中心化で個人帰属） |
 | polityInfluenceRegimentControlFactor | 2 | military domain: regiment_control right 1 件（active regiment のみ。新規・小） |

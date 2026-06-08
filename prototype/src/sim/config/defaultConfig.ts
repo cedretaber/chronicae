@@ -722,7 +722,6 @@ export type SimulationConfig = {
   // 非 ownerHouse 出身 leader の家への ruler domain 補正 (ownerHouseBonus の 25〜50% 程度 — §5.4)
   polityInfluenceLeaderHouseBonus: number
   polityInfluenceOfficeFactor: number
-  polityInfluenceOfficeOverlapBonusMax: number
   // 新規 domain (小さな値から開始 — §18)
   polityInfluenceMilitaryOfficeBonus: number // military domain: polity:military office holder の家
   polityInfluenceRegimentControlFactor: number // military domain: regiment_control right (active regiment のみ)
@@ -1769,7 +1768,6 @@ export const defaultConfig: SimulationConfig = {
   polityInfluenceOwnerHouseBonus: 30,
   polityInfluenceLeaderHouseBonus: 10,
   polityInfluenceOfficeFactor: 3,
-  polityInfluenceOfficeOverlapBonusMax: 0.5,
   polityInfluenceMilitaryOfficeBonus: 2,
   polityInfluenceRegimentControlFactor: 2,
   polityInfluenceHoldingOfficeAppointmentFactor: 2,
