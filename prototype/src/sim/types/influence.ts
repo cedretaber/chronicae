@@ -41,3 +41,33 @@ export type PolityInfluenceBreakdown = {
 export function polityInfluenceHolderKey(holder: PolityInfluenceHolderRef): string {
   return `${holder.kind}:${holder.id}`
 }
+
+// 家単位にまとめた influence breakdown (UI 表示用 read-model)。
+// 「家の支配率 = 家本体 + 家中メンバー個人」(getHouseAggregateInfluenceFromBreakdown と同義) を、
+// 家ごとのグループ + その内訳セグメントとして構造化する。
+// - groups: 家の支配率 (aggregatePercent) 降順。家を持たない有力 person は houseId=undefined の単独グループ。
+// - 各グループの segments: 家本体 (kind:'house') を先頭に、メンバー person を influence 降順。
+// - othersPercent: 表示閾値 (minGroupPercent) 未満のグループを集約した残余。
+export type PolityInfluenceGroupSegment = {
+  // kind:'house' = 家本体のセグメント / kind:'person' = 家中メンバー (houseless グループでは本人)
+  holder: PolityInfluenceHolderRef
+  byDomain: Partial<Record<PolityInfluenceDomain, number>>
+  percent: number
+}
+
+export type PolityInfluenceGroup = {
+  // undefined = 家を持たない person の単独グループ
+  houseId: HouseId | undefined
+  aggregatePercent: number
+  aggregateByDomain: Partial<Record<PolityInfluenceDomain, number>>
+  // 家本体を先頭に、メンバーを percent 降順 (houseless グループは本人 1 件のみ)
+  segments: PolityInfluenceGroupSegment[]
+}
+
+export type GroupedPolityInfluence = {
+  polityId: PolityId
+  // aggregatePercent 降順 (同値はグループキー昇順で安定)
+  groups: PolityInfluenceGroup[]
+  othersPercent: number
+  othersByDomain: Partial<Record<PolityInfluenceDomain, number>>
+}

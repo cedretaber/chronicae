@@ -39,10 +39,11 @@ import {
 } from '@sim/selectors/officeSelectors'
 import {
   getDominantInfluenceHolder,
-  getTopInfluenceHoldersInPolity,
+  getGroupedPolityInfluence,
 } from '@sim/selectors/influenceSelectors'
 import { getPolityOfficeAppointmentRight } from '@sim/selectors/politicalRightSelectors'
 import { InfluenceSection } from './shared/widgets'
+import { INFLUENCE_LIST_MIN_GROUP_PERCENT } from './shared/constants'
 import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goalSelectors'
 import { getChronicleEntriesForPolity } from '@sim/selectors/chronicleSelectors'
 
@@ -331,7 +332,12 @@ export function CountryDetail({
       <div className="text-sm font-semibold text-gray-300">{t('detail.polity.influence')}:</div>
       {worldState ? (
         <InfluenceSection
-          entries={getTopInfluenceHoldersInPolity(worldState, defaultConfig, polity.id, 5)}
+          grouped={getGroupedPolityInfluence(
+            worldState,
+            defaultConfig,
+            polity.id,
+            INFLUENCE_LIST_MIN_GROUP_PERCENT,
+          )}
           persons={currentState.persons ?? {}}
           houses={houses ?? {}}
           onPersonClick={onPersonClick}

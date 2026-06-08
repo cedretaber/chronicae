@@ -219,6 +219,7 @@ detail:
     roles: '役職'
     influence: '影響力'
     influence_others: 'その他'
+    influence_house_self: '家本体'
     influence_domain:
       base: '基礎'
       ruler: '支配'

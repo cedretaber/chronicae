@@ -23,6 +23,9 @@ import type {
   PolityInfluenceDomain,
   PolityInfluenceEntry,
   PolityInfluenceHolderRef,
+  PolityInfluenceGroup,
+  PolityInfluenceGroupSegment,
+  GroupedPolityInfluence,
 } from '../types/influence'
 import { polityInfluenceHolderKey } from '../types/influence'
 import { personReputationOrganizationKey } from '../types/personReputation'
@@ -342,6 +345,105 @@ export function getHouseAggregateInfluenceInPolity(
 ): { score: number; percent: number } {
   const breakdown = getPolityInfluenceBreakdown(state, config, polityId)
   return getHouseAggregateInfluenceFromBreakdown(state, breakdown, houseId)
+}
+
+// breakdown を「家の支配率」単位にグループ化する (UI 二重円 + グループ表示用 read-model)。
+//   - 家本体 entry + 家中メンバー person entry を 1 グループに束ね、aggregatePercent = segments の和。
+//   - person.houseId が active な家を指す場合のみその家に束ねる。houseless / 指す家が
+//     inactive・不在の person は houseId=undefined の単独グループ (家アークを持たない)。
+//   - segments は家本体 (kind:'house') を先頭に、メンバーを percent 降順。
+//   - minGroupPercent 未満のグループは othersPercent に集約 (家無し小物・小家門を「その他」へ)。
+// 表示閾値は config 化せず呼出側 (UI) が定数で渡す。read-only (tick / integrity 非経路)。
+export function getGroupedPolityInfluence(
+  state: WorldState,
+  config: SimulationConfig,
+  polityId: PolityId,
+  minGroupPercent = 0,
+): GroupedPolityInfluence {
+  const breakdown = getPolityInfluenceBreakdown(state, config, polityId)
+
+  // groupKey -> { houseId, segments }
+  // houseId が定まるグループは `house:${houseId}`、houseless person は `person:${personId}`。
+  type Building = { houseId: HouseId | undefined; segments: PolityInfluenceGroupSegment[] }
+  const groups = new Map<string, Building>()
+
+  const segmentOf = (e: PolityInfluenceEntry): PolityInfluenceGroupSegment => ({
+    holder: e.holder,
+    byDomain: e.byDomain,
+    percent: e.percent,
+  })
+
+  for (const entry of breakdown.entries) {
+    if (entry.holder.kind === 'house') {
+      const key = `house:${entry.holder.id}`
+      const g = groups.get(key) ?? { houseId: entry.holder.id, segments: [] }
+      g.segments.push(segmentOf(entry))
+      groups.set(key, g)
+      continue
+    }
+    // person entry: active な所属家があればその家グループへ、なければ単独グループ。
+    const person = state.persons[entry.holder.id]
+    const houseId = person?.houseId
+    const house = houseId ? state.houses[houseId] : undefined
+    if (houseId && house && house.active) {
+      const key = `house:${houseId}`
+      const g = groups.get(key) ?? { houseId, segments: [] }
+      g.segments.push(segmentOf(entry))
+      groups.set(key, g)
+    } else {
+      const key = `person:${entry.holder.id}`
+      groups.set(key, { houseId: undefined, segments: [segmentOf(entry)] })
+    }
+  }
+
+  const finalize = (b: Building): PolityInfluenceGroup => {
+    // 家本体を先頭に、メンバーを percent 降順 (同値は holder key 昇順)。
+    const segments = [...b.segments].sort((x, y) => {
+      const xHouse = x.holder.kind === 'house'
+      const yHouse = y.holder.kind === 'house'
+      if (xHouse !== yHouse) return xHouse ? -1 : 1
+      if (y.percent !== x.percent) return y.percent - x.percent
+      return polityInfluenceHolderKey(x.holder).localeCompare(polityInfluenceHolderKey(y.holder))
+    })
+    const aggregateByDomain: Partial<Record<PolityInfluenceDomain, number>> = {}
+    let aggregatePercent = 0
+    for (const s of segments) {
+      aggregatePercent += s.percent
+      for (const [domain, v] of Object.entries(s.byDomain)) {
+        if (typeof v !== 'number') continue
+        const d = domain as PolityInfluenceDomain
+        aggregateByDomain[d] = (aggregateByDomain[d] ?? 0) + v
+      }
+    }
+    return { houseId: b.houseId, aggregatePercent, aggregateByDomain, segments }
+  }
+
+  const all = [...groups.entries()]
+    .map(([key, b]) => ({ key, group: finalize(b) }))
+    .sort((a, z) => {
+      if (z.group.aggregatePercent !== a.group.aggregatePercent) {
+        return z.group.aggregatePercent - a.group.aggregatePercent
+      }
+      return a.key.localeCompare(z.key)
+    })
+
+  const shown: PolityInfluenceGroup[] = []
+  const othersByDomain: Partial<Record<PolityInfluenceDomain, number>> = {}
+  let othersPercent = 0
+  for (const { group } of all) {
+    if (group.aggregatePercent >= minGroupPercent) {
+      shown.push(group)
+    } else {
+      othersPercent += group.aggregatePercent
+      for (const [domain, v] of Object.entries(group.aggregateByDomain)) {
+        if (typeof v !== 'number') continue
+        const d = domain as PolityInfluenceDomain
+        othersByDomain[d] = (othersByDomain[d] ?? 0) + v
+      }
+    }
+  }
+
+  return { polityId, groups: shown, othersPercent, othersByDomain }
 }
 
 // v0.43 §9.3: Polity の「targetPolityId への influence 加重意見」(-100..100)。

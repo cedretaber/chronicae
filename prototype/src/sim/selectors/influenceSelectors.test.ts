@@ -23,6 +23,7 @@ import {
   getPolityInfluenceBreakdown,
   getActorInfluenceInPolity,
   getHouseAggregateInfluenceFromBreakdown,
+  getGroupedPolityInfluence,
   getDominantInfluenceHolder,
   getTopInfluenceHoldersInPolity,
 } from './influenceSelectors'
@@ -472,5 +473,107 @@ describe('getHouseAggregateInfluenceFromBreakdown (家の支配率 §6.64a-(10))
       polityId,
     ).percent
     expect(landlessAgg.percent).toBeCloseTo(landlessHousePct, 6)
+  })
+})
+
+describe('getGroupedPolityInfluence (家グループ化 UI read-model)', () => {
+  function addPolityRep(
+    state: WorldState,
+    personId: ReturnType<typeof createPersonId>,
+    baseScore: number,
+  ): WorldState {
+    const ws = { ...state }
+    addPersonReputationMut(ws, {
+      personId,
+      source: { kind: 'war' },
+      outcome: 'success',
+      category: 'military',
+      baseScore,
+      createdWeek: ws.absoluteWeek,
+      expiryWeek: ws.absoluteWeek + 10000,
+      relatedOrganization: { kind: 'polity', id: polityId },
+      relatedRefs: [],
+    })
+    return ws
+  }
+
+  it('家本体 + 家中メンバーを 1 グループに束ね、家本体を先頭に置く', () => {
+    let state = makeBaseState()
+    // ownerHouse メンバー (ownerLeader) に役職 → person entry が立つ
+    state = createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'administrator',
+      ownerLeaderId,
+    )
+    const grouped = getGroupedPolityInfluence(state, defaultConfig, polityId, 0)
+    const ownerGroup = grouped.groups.find((g) => g.houseId === ownerHouseId)
+    expect(ownerGroup).toBeDefined()
+    // 家本体が先頭セグメント
+    expect(ownerGroup!.segments[0]!.holder.kind).toBe('house')
+    // メンバー person が同グループに含まれる
+    expect(
+      ownerGroup!.segments.some((s) => s.holder.kind === 'person' && s.holder.id === ownerLeaderId),
+    ).toBe(true)
+    // aggregatePercent = segments の和
+    const segSum = ownerGroup!.segments.reduce((a, s) => a + s.percent, 0)
+    expect(ownerGroup!.aggregatePercent).toBeCloseTo(segSum, 6)
+    // 家の支配率 helper と一致する
+    const breakdown = getPolityInfluenceBreakdown(state, defaultConfig, polityId)
+    const agg = getHouseAggregateInfluenceFromBreakdown(state, breakdown, ownerHouseId)
+    expect(ownerGroup!.aggregatePercent).toBeCloseTo(agg.percent, 6)
+  })
+
+  it('groups は aggregatePercent 降順、全グループ + その他で 100% を成す', () => {
+    let state = makeBaseState()
+    state = createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'administrator',
+      outsiderId,
+    )
+    const grouped = getGroupedPolityInfluence(state, defaultConfig, polityId, 0)
+    for (let i = 1; i < grouped.groups.length; i++) {
+      expect(grouped.groups[i - 1]!.aggregatePercent).toBeGreaterThanOrEqual(
+        grouped.groups[i]!.aggregatePercent,
+      )
+    }
+    const total = grouped.groups.reduce((a, g) => a + g.aggregatePercent, 0) + grouped.othersPercent
+    expect(total).toBeCloseTo(100, 4)
+  })
+
+  it('minGroupPercent 未満のグループは othersPercent に集約される', () => {
+    let state = makeBaseState()
+    state = createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'administrator',
+      outsiderId,
+    )
+    // 全グループを超える閾値 → すべて その他 に落ち、合計は保存される
+    const high = getGroupedPolityInfluence(state, defaultConfig, polityId, 1000)
+    expect(high.groups.length).toBe(0)
+    expect(high.othersPercent).toBeCloseTo(100, 4)
+  })
+
+  it('家を持たない有力 person は houseId=undefined の単独グループになる', () => {
+    let state = makeBaseState()
+    const loner = createPersonId('pe', 50)
+    const lonerPerson = { ...state.persons[ownerLeaderId]!, id: loner, houseId: undefined }
+    state = {
+      ...state,
+      persons: { ...state.persons, [loner]: lonerPerson },
+      livingPersonIds: [...state.livingPersonIds, loner].sort(),
+    }
+    state = addPolityRep(state, loner, 30)
+    const grouped = getGroupedPolityInfluence(state, defaultConfig, polityId, 0)
+    const lonerGroup = grouped.groups.find(
+      (g) =>
+        g.houseId === undefined &&
+        g.segments.some((s) => s.holder.kind === 'person' && s.holder.id === loner),
+    )
+    expect(lonerGroup).toBeDefined()
+    expect(lonerGroup!.segments.length).toBe(1)
+    expect(lonerGroup!.segments[0]!.holder).toEqual({ kind: 'person', id: loner })
   })
 })

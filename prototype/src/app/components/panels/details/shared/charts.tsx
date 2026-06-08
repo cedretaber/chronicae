@@ -107,3 +107,88 @@ export function ShareDonutChart({
     </svg>
   )
 }
+
+// ある 1 リング分の弧 (percent → dasharray) を組み立てる。12 時位置から時計回り。
+function buildRingArcs(
+  segments: Array<{ percent: number; color: string }>,
+  r: number,
+): Array<{ dash: number; gap: number; offset: number; color: string }> {
+  const circumference = 2 * Math.PI * r
+  let cursor = 0
+  return segments.map((s) => {
+    const dash = (s.percent / 100) * circumference
+    const arc = { dash, gap: circumference - dash, offset: cursor, color: s.color }
+    cursor += dash
+    return arc
+  })
+}
+
+// 影響力の二重ドーナツ。外周 = 家の支配率 (グループ単位)、内周 = 家本体 + メンバーの内訳。
+// 外周のグループ角度と内周セグメント角度は同じ並びで連続するので、視覚的に「家のかたまり」が揃う。
+export function NestedDonutChart({
+  groups,
+  centerLabel,
+  size = 120,
+}: {
+  groups: Array<{
+    color: string
+    aggregatePercent: number
+    segments: Array<{ percent: number; color: string }>
+  }>
+  centerLabel?: { title: string; value: string } | undefined
+  size?: number
+}) {
+  const c = size / 2
+  const outerR = c - 6
+  const innerR = c - 20
+  const outerArcs = buildRingArcs(
+    groups.map((g) => ({ percent: g.aggregatePercent, color: g.color })),
+    outerR,
+  )
+  // 内周は全グループの全セグメントを並びどおりに連結する。
+  const innerSegments = groups.flatMap((g) => g.segments)
+  const innerArcs = buildRingArcs(innerSegments, innerR)
+  const renderRing = (arcs: ReturnType<typeof buildRingArcs>, r: number, strokeWidth: number) =>
+    arcs.map((a, i) => (
+      <circle
+        key={i}
+        cx={c}
+        cy={c}
+        r={r}
+        fill="none"
+        stroke={a.color}
+        strokeWidth={strokeWidth}
+        strokeDasharray={`${a.dash} ${a.gap}`}
+        strokeDashoffset={-a.offset}
+        transform={`rotate(-90 ${c} ${c})`}
+      />
+    ))
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+      {renderRing(outerArcs, outerR, 9)}
+      {renderRing(innerArcs, innerR, 9)}
+      {centerLabel && (
+        <>
+          <text
+            x={c}
+            y={c - 4}
+            textAnchor="middle"
+            dominantBaseline="central"
+            className="fill-gray-300 text-[9px]"
+          >
+            {centerLabel.title}
+          </text>
+          <text
+            x={c}
+            y={c + 9}
+            textAnchor="middle"
+            dominantBaseline="central"
+            className="fill-gray-100 text-[13px] font-semibold"
+          >
+            {centerLabel.value}
+          </text>
+        </>
+      )}
+    </svg>
+  )
+}

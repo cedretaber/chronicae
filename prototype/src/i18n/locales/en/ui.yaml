@@ -122,6 +122,7 @@ detail:
     roles: 'Roles'
     influence: 'Influence'
     influence_others: 'Others'
+    influence_house_self: 'House itself'
     influence_domain:
       base: 'Base'
       ruler: 'Ruler'
