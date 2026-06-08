@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next'
+import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
 import type { WorldState } from '@/sim/types/world'
 import type { HoldingId, PolityId, HouseId, PersonId } from '@/sim/types/ids'
 import type { SimEvent } from '@/sim/types/event'
@@ -461,4 +463,66 @@ export function getDevelopmentLabel(d: number): string {
   if (d < 10) return '通常'
   if (d < 50) return '発展'
   return '繁栄'
+}
+
+/** PersonCard / 構成員一覧で表示する「代表役職」(最上位 1 件 + 残数) を解決する。 */
+export type RepresentativeOffice = {
+  label: string
+  extraCount: number
+  isUnemployed: boolean
+}
+
+const ROSTER_ROLE_ORDER = ['leader', 'administrator', 'treasurer', 'military', 'advisor']
+
+type ResolveNameFn = (category: string, nameKey: string | undefined, fallbackName: string) => string
+
+export function getPersonRepresentativeOffice(
+  state: WorldState,
+  personId: PersonId,
+  resolveName: ResolveNameFn,
+  t: TFunction,
+): RepresentativeOffice {
+  const officeIds = state.officeIndex.byHolderPerson[personId as string] ?? []
+  const offices = officeIds.flatMap((oid) => {
+    const o = state.officeAssignments[oid]
+    return o && o.active ? [o] : []
+  })
+  const bailiffIds = state.holdingOfficeIndex.byHolderPerson[personId] ?? []
+  const bailiffs = bailiffIds.flatMap((aid) => {
+    const a = state.holdingOfficeAssignments[aid]
+    return a && a.active ? [a] : []
+  })
+  const byRole = (a: { role: string }, b: { role: string }) =>
+    ROSTER_ROLE_ORDER.indexOf(a.role) - ROSTER_ROLE_ORDER.indexOf(b.role)
+  const polityOffices = offices.filter((o) => o.organization.kind === 'polity').sort(byRole)
+  const houseOffices = offices.filter((o) => o.organization.kind === 'house').sort(byRole)
+  const total = offices.length + bailiffs.length
+
+  if (polityOffices.length > 0) {
+    const o = polityOffices[0]!
+    const roleName = resolveName('role', `${o.organization.kind}_${o.role}`, o.role)
+    const orgName = getPolityShortName(state, resolveName, o.organization.id as PolityId)
+    return { label: `${roleName} (${orgName})`, extraCount: total - 1, isUnemployed: false }
+  }
+  if (houseOffices.length > 0) {
+    const o = houseOffices[0]!
+    const roleName = resolveName('role', `${o.organization.kind}_${o.role}`, o.role)
+    const orgNameKey = state.houses[o.organization.id as HouseId]?.nameKey ?? o.organization.id
+    const orgName = resolveName('house', orgNameKey, orgNameKey)
+    return { label: `${roleName} (${orgName})`, extraCount: total - 1, isUnemployed: false }
+  }
+  if (bailiffs.length > 0) {
+    const a = bailiffs[0]!
+    const hld = state.holdings[a.holdingId]
+    const provNameKey = hld
+      ? (state.provinces[hld.provinceId]?.nameKey ?? a.holdingId)
+      : a.holdingId
+    const provName = resolveName('province', provNameKey, provNameKey)
+    return {
+      label: `${t('detail.person_card.bailiff')} (${provName})`,
+      extraCount: total - 1,
+      isUnemployed: false,
+    }
+  }
+  return { label: t('detail.person_card.unemployed'), extraCount: 0, isUnemployed: true }
 }

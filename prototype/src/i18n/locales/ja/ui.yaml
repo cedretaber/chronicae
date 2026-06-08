@@ -572,6 +572,18 @@ detail:
     recent_events: '最近の出来事'
     chronicle: '戦争の記録'
 
+  # 人物カード (構成員一覧・家族で共有)
+  person_card:
+    age: '{{age}}歳'
+    deceased: '故'
+    years_of_life: '享年{{age}}'
+    head: '当主'
+    houseless: '無家'
+    landless: 'landless'
+    unemployed: '無役'
+    bailiff: '代官'
+    child: '子'
+
   # 派閥詳細
   faction:
     leader: '指導者'

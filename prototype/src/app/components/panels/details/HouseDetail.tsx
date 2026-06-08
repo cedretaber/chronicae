@@ -38,6 +38,7 @@ import {
   getHouseProjectedAnnualBalance,
 } from '@sim/selectors/houseFinanceSelectors'
 import { PersonLink } from './shared/links'
+import { PersonCard } from './shared/PersonCard'
 import type { PersonId } from '@/sim/types/ids'
 import { getTopShareholders } from '@sim/selectors/shareSelectors'
 import { getHouseClanRole } from '@sim/selectors/clanSelectors'
@@ -367,11 +368,11 @@ export function HouseDetail({
               .filter((pid) => currentState?.persons?.[pid]?.alive === true)
               .slice(0, 8)
               .map((pid) => (
-                <PersonLink
+                <PersonCard
                   key={pid}
                   personId={pid}
-                  persons={currentState?.persons ?? {}}
-                  onClick={onPersonClick}
+                  worldState={currentState}
+                  onPersonClick={onPersonClick}
                 />
               ))}
             {aliveMembers > 8 && (

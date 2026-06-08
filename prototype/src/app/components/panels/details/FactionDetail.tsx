@@ -1,6 +1,6 @@
 import type { Faction } from '@/sim/types/faction'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
-import { buildEntitySnapshot } from './shared/helpers'
+import { buildEntitySnapshot, getPersonRepresentativeOffice } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
@@ -11,10 +11,10 @@ import {
   getFactionOpportunityScore,
 } from '@sim/selectors/factionSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
-import type { PersonId, PolityId, HouseId } from '@/sim/types/ids'
 import { PanelHeader, CopyJsonButton } from './shared/widgets'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { PersonLink, HouseLink } from './shared/links'
+import { PersonCard } from './shared/PersonCard'
 import { formatScore } from '@/app/utils/format'
 
 export function FactionDetail({
@@ -54,67 +54,6 @@ export function FactionDetail({
     })
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
     .sort((a, b) => b.legacyPrestige - a.legacyPrestige)
-
-  const ROSTER_ROLE_ORDER = ['leader', 'administrator', 'treasurer', 'military', 'advisor']
-  const ws: WorldState = worldState
-  function getMemberRepresentativeOffice(personId: PersonId): {
-    label: string
-    extraCount: number
-    isUnemployed: boolean
-  } {
-    const officeIds = ws.officeIndex.byHolderPerson[personId] ?? []
-    const offices = officeIds.flatMap((oid) => {
-      const o = ws.officeAssignments[oid]
-      return o && o.active ? [o] : []
-    })
-    const bailiffIds = ws.holdingOfficeIndex.byHolderPerson[personId] ?? []
-    const bailiffs = bailiffIds.flatMap(
-      (aid: import('@sim/types/ids').HoldingOfficeAssignmentId) => {
-        const a = ws.holdingOfficeAssignments[aid]
-        return a && a.active ? [a] : []
-      },
-    )
-    const polityOfficesLocal = offices
-      .filter((o) => o.organization.kind === 'polity')
-      .sort((a, b) => ROSTER_ROLE_ORDER.indexOf(a.role) - ROSTER_ROLE_ORDER.indexOf(b.role))
-    const houseOfficesLocal = offices
-      .filter((o) => o.organization.kind === 'house')
-      .sort((a, b) => ROSTER_ROLE_ORDER.indexOf(a.role) - ROSTER_ROLE_ORDER.indexOf(b.role))
-    const total = offices.length + bailiffs.length
-    if (polityOfficesLocal.length > 0) {
-      const o = polityOfficesLocal[0]!
-      const roleName = resolveName('role', `${o.organization.kind}_${o.role}`, o.role)
-      const orgName = getPolityShortName(ws, resolveName, o.organization.id as PolityId)
-      return {
-        label: `${roleName} (${orgName})`,
-        extraCount: total - 1,
-        isUnemployed: false,
-      }
-    }
-    if (houseOfficesLocal.length > 0) {
-      const o = houseOfficesLocal[0]!
-      const roleName = resolveName('role', `${o.organization.kind}_${o.role}`, o.role)
-      const orgNameKey = ws.houses[o.organization.id as HouseId]?.nameKey ?? o.organization.id
-      const orgName = resolveName('house', orgNameKey, orgNameKey)
-      return {
-        label: `${roleName} (${orgName})`,
-        extraCount: total - 1,
-        isUnemployed: false,
-      }
-    }
-    if (bailiffs.length > 0) {
-      const a = bailiffs[0]!
-      const hld = ws.holdings[a.holdingId]
-      const provNameKey = hld ? (ws.provinces[hld.provinceId]?.nameKey ?? a.holdingId) : a.holdingId
-      const provName = resolveName('province', provNameKey, provNameKey)
-      return {
-        label: `${t('detail.faction.bailiff_label')} (${provName})`,
-        extraCount: total - 1,
-        isUnemployed: false,
-      }
-    }
-    return { label: t('detail.faction.unemployed_label'), extraCount: 0, isUnemployed: true }
-  }
 
   return (
     <div className="flex flex-col gap-1 p-3">
@@ -182,7 +121,9 @@ export function FactionDetail({
 
       {/* v0.17.4 UI: 派閥の "ジョブ被害状況" を一目で見られるよう集計を表示 */}
       {(() => {
-        const memberOfficeInfo = memberRows.map((p) => getMemberRepresentativeOffice(p.id))
+        const memberOfficeInfo = memberRows.map((p) =>
+          getPersonRepresentativeOffice(worldState, p.id, resolveName, t),
+        )
         const employedCount = memberOfficeInfo.filter((info) => !info.isUnemployed).length
         const totalRoster = memberRows.length
         return (
@@ -205,37 +146,16 @@ export function FactionDetail({
         <div className="text-xs text-gray-500">{t('detail.faction.leader_only')}</div>
       ) : (
         <div className="flex flex-col gap-0.5 text-sm">
-          {memberRows.map((p) => {
-            const officeInfo = getMemberRepresentativeOffice(p.id)
-            return (
-              <div key={p.id} className="flex items-center justify-between rounded bg-gray-700 p-1">
-                <div className="flex flex-col">
-                  <PersonLink personId={p.id} persons={persons} onClick={onPersonClick} />
-                  <span className="text-xs text-gray-400">
-                    {!p.houseId ? (
-                      <span className="text-gray-500">{t('detail.faction.houseless_member')}</span>
-                    ) : (
-                      <HouseLink houseId={p.houseId} houses={houses} onClick={onHouseClick} />
-                    )}{' '}
-                    · {t('detail.faction.age_label', { age: p.age })}
-                  </span>
-                  <span
-                    className={`text-xs ${
-                      officeInfo.isUnemployed ? 'text-gray-500' : 'text-amber-300'
-                    }`}
-                  >
-                    {officeInfo.label}
-                    {officeInfo.extraCount > 0 && (
-                      <span className="text-gray-500"> +{officeInfo.extraCount}</span>
-                    )}
-                  </span>
-                </div>
-                <span className="text-xs text-gray-400">
-                  {t('detail.faction.prestige_label')} {formatScore(p.legacyPrestige)}
-                </span>
-              </div>
-            )
-          })}
+          {memberRows.map((p) => (
+            <PersonCard
+              key={p.id}
+              personId={p.id}
+              worldState={worldState}
+              onPersonClick={onPersonClick}
+              onHouseClick={onHouseClick}
+              showHouse
+            />
+          ))}
         </div>
       )}
     </div>

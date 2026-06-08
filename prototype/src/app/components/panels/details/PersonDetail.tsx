@@ -17,7 +17,8 @@ import {
   ProjectListItem,
   EntityChronicleSection,
 } from './shared/widgets'
-import { HouseLink, PersonLink } from './shared/links'
+import { HouseLink } from './shared/links'
+import { PersonCard } from './shared/PersonCard'
 import { isLandlessHouseMember, isHouselessPerson } from '@sim/selectors/availabilitySelectors'
 import { getFactionByLeader, getActiveFactionMembership } from '@sim/selectors/factionSelectors'
 import { getBailiffPolicy } from '@sim/selectors/bailiffSelectors'
@@ -365,54 +366,50 @@ export function PersonDetail({
       </div>
 
       <div className="text-sm font-semibold text-gray-300">{t('detail.person.family')}:</div>
-      <div className="text-sm">
+      <div className="flex flex-col gap-0.5 text-sm">
         {person.fatherId !== undefined && (
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('detail.person.father')}:</span>
-            <PersonLink
-              personId={person.fatherId}
-              persons={currentState?.persons ?? {}}
-              onClick={onPersonClick}
-            />
-          </div>
+          <PersonCard
+            personId={person.fatherId}
+            worldState={worldState}
+            onPersonClick={onPersonClick}
+            onHouseClick={onHouseClick}
+            relationLabel={t('detail.person.father')}
+            showHouse
+          />
         )}
         {person.motherId !== undefined && (
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('detail.person.mother')}:</span>
-            <PersonLink
-              personId={person.motherId}
-              persons={currentState?.persons ?? {}}
-              onClick={onPersonClick}
-            />
-          </div>
+          <PersonCard
+            personId={person.motherId}
+            worldState={worldState}
+            onPersonClick={onPersonClick}
+            onHouseClick={onHouseClick}
+            relationLabel={t('detail.person.mother')}
+            showHouse
+          />
         )}
         {person.spouseId !== undefined && (
-          <div className="flex justify-between">
-            <span className="text-gray-400">{t('detail.person.spouse')}:</span>
-            <PersonLink
-              personId={person.spouseId}
-              persons={currentState?.persons ?? {}}
-              onClick={onPersonClick}
-            />
-          </div>
+          <PersonCard
+            personId={person.spouseId}
+            worldState={worldState}
+            onPersonClick={onPersonClick}
+            onHouseClick={onHouseClick}
+            relationLabel={t('detail.person.spouse')}
+            showHouse
+          />
         )}
-        {person.childIds.length > 0 && (
-          <div>
-            <div className="text-gray-400">{t('detail.person.children')}:</div>
-            <div className="flex flex-col gap-0.5">
-              {person.childIds.slice(0, 8).map((cid) => (
-                <PersonLink
-                  key={cid}
-                  personId={cid}
-                  persons={currentState?.persons ?? {}}
-                  onClick={onPersonClick}
-                />
-              ))}
-              {person.childIds.length > 8 && (
-                <span className="text-xs text-gray-500">+{person.childIds.length - 8} more</span>
-              )}
-            </div>
-          </div>
+        {person.childIds.slice(0, 8).map((cid) => (
+          <PersonCard
+            key={cid}
+            personId={cid}
+            worldState={worldState}
+            onPersonClick={onPersonClick}
+            onHouseClick={onHouseClick}
+            relationLabel={t('detail.person_card.child')}
+            showHouse
+          />
+        ))}
+        {person.childIds.length > 8 && (
+          <span className="text-xs text-gray-500">+{person.childIds.length - 8} more</span>
         )}
       </div>
 

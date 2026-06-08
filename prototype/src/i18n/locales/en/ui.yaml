@@ -475,6 +475,18 @@ detail:
     recent_events: 'Recent Events'
     chronicle: 'War Records'
 
+  # Person card (shared by member roster / family)
+  person_card:
+    age: '{{age}} yrs'
+    deceased: '†'
+    years_of_life: 'd. age {{age}}'
+    head: 'Head'
+    houseless: 'Houseless'
+    landless: 'landless'
+    unemployed: 'No office'
+    bailiff: 'Bailiff'
+    child: 'Child'
+
   # Faction detail
   faction:
     leader: 'Leader'
