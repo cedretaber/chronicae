@@ -183,9 +183,10 @@ export function getPolityInfluenceBreakdown(
         add(holder, 'land_administration', config.polityInfluenceHoldingOfficeAppointmentFactor)
         break
       case 'polity_office_role':
-        // appointment right 自体の influence 寄与は office domain に含めない (任命権の
-        // 行使結果 = office holder として現れる)。母集合への参加のみ。
-        ensureEntry(holder)
+        // 影響力個人中心化 Phase 2: 役職任命権 保有者も直接 influence を得る (3 種任命権を
+        // 揃える §6-7)。任命された役職者の office 寄与とは別計上で両立する。person holder は
+        // person entry に計上される (Phase 4 で acquire 個人化されると production で活性化)。
+        add(holder, 'office', config.polityInfluencePolityOfficeAppointmentFactor)
         break
     }
   }

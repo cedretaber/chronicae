@@ -170,6 +170,21 @@ describe('getPolityInfluenceBreakdown', () => {
     expect(entryAfter!.byDomain.military).toBeUndefined()
   })
 
+  it('polity_office_role 任命権 保有者は office domain に直接 influence を得る (Phase 2 2a)', () => {
+    const state = makeBaseState()
+    const created = createPoliticalRight(state, {
+      polityId,
+      target: { kind: 'polity_office_role', polityId, role: 'administrator', slotIndex: 0 },
+      holder: { kind: 'house', id: landlessHouseId },
+      grantedWeek: 100,
+    })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    const entry = entryOf(created.value.state, `house:${landlessHouseId}`)
+    expect(entry).toBeDefined()
+    expect(entry!.byDomain.office).toBe(defaultConfig.polityInfluencePolityOfficeAppointmentFactor)
+  })
+
   it('puts the commonwealth leader person entry in the ruler domain', () => {
     let state = makeBaseState()
     // ownerHouseId を外して commonwealth 相当にし、leader office を付ける

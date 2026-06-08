@@ -305,7 +305,7 @@ function buildProjectFieldsForAim(
       const polityId = aim.target?.kind === 'polity' ? aim.target.id : undefined
       if (!houseId || !polityId) return undefined
       if (!canAffordCulturalProject(ws, houseId, config.movementProjectBaseCost)) return undefined
-      const sponsoredPersonId = selectMovementBeneficiary(ws, config, houseId)
+      const sponsoredPersonId = selectMovementBeneficiary(ws, config, houseId, polityId)
       if (!sponsoredPersonId) return undefined
       return {
         targetPolityId: polityId,

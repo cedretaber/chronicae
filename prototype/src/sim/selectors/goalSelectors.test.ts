@@ -8,9 +8,21 @@ import {
 } from '../types/ids'
 import type { PersonId } from '../types/ids'
 import type { EntityRef, DecisionSubjectRef } from '../types/goal'
-import { makeEmptyV016State, withPolity, withHouse } from '../testFixtures'
+import {
+  makeEmptyV016State,
+  withPolity,
+  withHouse,
+  withPerson,
+  withProvince,
+  bindProvinceToHouseViaPolity,
+} from '../testFixtures'
 import { defaultConfig } from '../config/defaultConfig'
-import { aimSlotKey, computeAimCapacityForGoal } from './goalSelectors'
+import {
+  aimSlotKey,
+  computeAimCapacityForGoal,
+  isPolityRoleEligibleCandidate,
+  selectMovementBeneficiary,
+} from './goalSelectors'
 
 // v0.43 Aim 並列化: aimSlotKey は「生成側の候補除外」と「integrity の重複検査」が共有する
 // 唯一のキー。両者が同じ (kind, target) に対して同じ文字列を返すこと、および異なる対象が
@@ -93,5 +105,57 @@ describe('computeAimCapacityForGoal', () => {
     const state = withPolity(makeEmptyV016State(), id, { treasury: 9999 })
     const cfg = { ...defaultConfig, aimParallelismCeiling: 1 }
     expect(computeAimCapacityForGoal(state, cfg, owner)).toBe(1)
+  })
+})
+
+// 影響力個人中心化 Phase 2: 役職適格ゲート + 運動 beneficiary 選定
+describe('isPolityRoleEligibleCandidate + selectMovementBeneficiary (Phase 2)', () => {
+  const polityId = createPolityId('c', 0)
+  const houseId = createHouseId('h', 0)
+  const provinceId = createProvinceId('p', 0)
+  const adultM = createPersonId('pe', 1)
+  const adultM2 = createPersonId('pe', 2)
+
+  function base() {
+    let s = makeEmptyV016State()
+    s = withProvince(s, provinceId, { nameKey: 'P0' })
+    s = withHouse(s, houseId, { nameKey: 'H0', wealth: 100, memberIds: [adultM, adultM2] })
+    s = withPerson(s, adultM, { nameKey: 'A', houseId, age: 40 })
+    s = withPerson(s, adultM2, { nameKey: 'B', houseId, age: 35 })
+    s = withPolity(s, polityId, { ownerHouseId: houseId, capitalProvinceId: provinceId })
+    s = bindProvinceToHouseViaPolity(s, provinceId, polityId, houseId)
+    return s
+  }
+
+  it('owner house の生存成人男性は役職適格', () => {
+    const s = base()
+    expect(isPolityRoleEligibleCandidate(s, defaultConfig, adultM, polityId)).toBe(true)
+  })
+
+  it('foothold の無い polity では不適格', () => {
+    const s = base()
+    const other = createPolityId('c', 9)
+    expect(isPolityRoleEligibleCandidate(s, defaultConfig, adultM, other)).toBe(false)
+  })
+
+  it('子供 (young_adulthood 未満) は不適格', () => {
+    let s = base()
+    s = withPerson(s, adultM, { nameKey: 'A', houseId, age: 8, lifeStage: 'childhood' })
+    expect(isPolityRoleEligibleCandidate(s, defaultConfig, adultM, polityId)).toBe(false)
+  })
+
+  it('selectMovementBeneficiary は適格メンバーから決定的に 1 人選ぶ', () => {
+    const s = base()
+    const chosen = selectMovementBeneficiary(s, defaultConfig, houseId, polityId)
+    expect(chosen).toBeDefined()
+    expect([adultM, adultM2]).toContain(chosen)
+  })
+
+  it('適格メンバーが居なければ undefined', () => {
+    let s = base()
+    // 全員 childhood にする
+    s = withPerson(s, adultM, { nameKey: 'A', houseId, age: 8, lifeStage: 'childhood' })
+    s = withPerson(s, adultM2, { nameKey: 'B', houseId, age: 6, lifeStage: 'childhood' })
+    expect(selectMovementBeneficiary(s, defaultConfig, houseId, polityId)).toBeUndefined()
   })
 })

@@ -724,6 +724,10 @@ export type SimulationConfig = {
   polityInfluenceMilitaryOfficeBonus: number // military domain: polity:military office holder の家
   polityInfluenceRegimentControlFactor: number // military domain: regiment_control right (active regiment のみ)
   polityInfluenceHoldingOfficeAppointmentFactor: number // land_administration domain
+  // 影響力個人中心化 Phase 2: polity_office_role 任命権 (役職任命権) 保有者の直接 influence。
+  // 3 種任命権 (代官/連隊/役職) を揃える (§6-7)。office domain に加算。任命された役職者の
+  // office 寄与とは別計上で両立 (任命権を握る者と着座する者が別なら両方が influence を持つ)。
+  polityInfluencePolityOfficeAppointmentFactor: number
   polityInfluenceFactionFactor: number // faction domain: anchor faction leader の家
   // 影響力個人中心化 Phase 1a: reputation domain。polity-tag PersonReputation の現在値合計に掛ける係数。
   // 成果項 (功績由来の影響力)。構造項と並ぶ第二の供給源 (§9・初期値 0.5)。
@@ -1758,6 +1762,7 @@ export const defaultConfig: SimulationConfig = {
   polityInfluenceMilitaryOfficeBonus: 2,
   polityInfluenceRegimentControlFactor: 2,
   polityInfluenceHoldingOfficeAppointmentFactor: 2,
+  polityInfluencePolityOfficeAppointmentFactor: 2,
   polityInfluenceFactionFactor: 2,
   polityInfluenceReputationFactor: 0.5,
   movementProjectBaseCost: 40,
