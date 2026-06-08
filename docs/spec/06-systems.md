@@ -1917,7 +1917,8 @@ Bailiff（HoldingOffice）にも任期があり、`provinceOfficeTermYears.baili
 > 大きく更新された。**現行の as-built は §6.64a を正本とする**。本節 (6.64) の以下の記述は
 > 改修で変わっている: ① 9 domain のうち wealth/base/prestige は係数 0 で無効 (受動 soft-power 全廃) /
 > ② commonwealth の House soft-power は廃止 (僭主は構造項+成果項で個人創発) / ③ acquire の holder は
-> person (遂行者個人) に / ④ 役職・person 保有任命権・代官の influence は保有者個人に帰属。
+> person (遂行者個人) に / ④ 役職・person 保有任命権・代官の influence は保有者個人に帰属 /
+> ⑤ 成果項 reputation domain を追加 (§6.64a-(2)。9→10 domain)。
 > 変わっていない部分 (PoliticalRight entity 構造・slot 化・residual authority・RightConsistency) は本節が正本。
 
 v0.42 で Polity の内部権力構造を「抽象的な Polity share」から「具体的な政治権利 **PoliticalRight** と、
@@ -1953,7 +1954,7 @@ House 内部の Share（HouseShare、§3.7）のみが一次データとして�
 **Polity Influence**（read-model — selector `getPolityInfluenceBreakdown`）:
 - entity ではなく随時計算。entry 母集合 = 土地ベース House（getPolityHouseIds）∪ office holder の House ∪
   right holder ∪ anchor Faction leader の House ∪（ownerHouseId 未定義の polity の）leader Person
-- 9 domain: base（House entry 一律）/ ruler（ownerHouse bonus。**非 ownerHouse 出身 leader の家には
+- 9 domain（§6.64a-(2) で reputation を追加し現行は 10 domain）: base（House entry 一律）/ ruler（ownerHouse bonus。**非 ownerHouse 出身 leader の家には
   polityInfluenceLeaderHouseBonus** — ownerHouseBonus の 1/3 程度。leader∈ownerHouse なら二重計上しない。
   commonwealth は leader Person entry に ownerHouseBonus 相当）/ office（non-leader holder。overlap bonus は
   office 寄与への乗算相当を加算）/ military（military office holder + active regiment への regiment_control right）/

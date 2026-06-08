@@ -247,7 +247,7 @@ function getAdministrativeEfficiency(state: WorldState, config: SimulationConfig
 `influenceSelectors.ts` — Polity の権力分布 read-model（§6.64）。percent は 0〜100。
 
 ```ts
-// 対象 Polity の influence breakdown（entry 母集合・9 domain・percent。total 降順）
+// 対象 Polity の influence breakdown（entry 母集合・10 domain〈reputation 含む〉・percent。total 降順）
 function getPolityInfluenceBreakdown(state, config, polityId): PolityInfluenceBreakdown
 
 // actor (house | person) の influence score / percent
@@ -259,6 +259,15 @@ function getActorInfluenceFromBreakdown(breakdown, actor): { score: number; perc
 // 最大 influence holder（domain 指定可）/ 上位 N 件
 function getDominantInfluenceHolder(state, config, polityId, domain?): PolityInfluenceEntry | undefined
 function getTopInfluenceHoldersInPolity(state, config, polityId, limit?, domain?): PolityInfluenceEntry[]
+
+// 家の支配率（house aggregate influence・§6.64a-(10)）= 家 entry + 家中の生存メンバー person entry の合算。
+//   個人帰属化した influence を家単位の支配力評価で再集約する統一指標（goalSelectors / 継承 / 有力家門判定が共有）。
+function getHouseAggregateInfluenceInPolity(state, config, houseId, polityId): { score: number; percent: number }
+function getHouseAggregateInfluenceFromBreakdown(state, breakdown, houseId): { score: number; percent: number }
+
+// UI 二重円用：breakdown を「家の支配率」単位にグループ化した read-model（read-only・tick 非経路）。
+//   groups（家本体 + メンバー内訳・aggregatePercent 降順）/ othersPercent。minGroupPercent 未満は「その他」へ集約。
+function getGroupedPolityInfluence(state, config, polityId, minGroupPercent?): GroupedPolityInfluence
 ```
 
 ```ts
