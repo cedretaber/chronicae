@@ -351,6 +351,9 @@ function pickInitialMemberCandidates(ctx: TickContext, leaderId: PersonId): Pers
     if (!isLifeStageAtLeast(p.lifeStage, 'young_adulthood')) continue
     if (getActiveFactionMembership(ctx.state, pid)) continue
     if (getFactionByLeader(ctx.state, pid)) continue
+    // v0.45.3 性別役職適格ゲートを派閥加入にも適用 (派閥=任官のためのネットワークなので、
+    // 任官適格な者のみ入れる)。設立者同様 ungated 再試行はしない (女性ネットワークは将来サロンで)。
+    if (!isRoleEligibleBySex(ctx.state, ctx.config, pid)) continue
 
     let bias = 0
     if (p.houseId === leader.houseId) bias += 10

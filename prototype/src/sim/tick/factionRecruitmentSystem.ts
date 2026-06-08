@@ -14,6 +14,7 @@ import {
   getOccupationRoleFitBonus,
 } from '../selectors/factionSelectors'
 import { isHouselessPerson, isLandlessHouseMember } from '../selectors/availabilitySelectors'
+import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 import { addFactionMembership } from '../mutations/factionMutations'
 import { addPersonWealth } from '../mutations/personMutations'
 import { setPersonAttitude } from '../mutations/attitudeMutations'
@@ -29,6 +30,9 @@ function buildRecruitmentBasePool(ctx: TickContext): PersonId[] {
     if (!(isHouselessPerson(ctx.state, pid) || isLandlessHouseMember(ctx.state, pid))) continue
     if (getActiveFactionMembership(ctx.state, pid)) continue
     if (getFactionByLeader(ctx.state, pid)) continue
+    // v0.45.3 性別役職適格ゲートを派閥募集にも適用 (派閥=任官のためのネットワーク)。
+    // ungated 再試行はしない (女性ネットワークは将来サロンで受ける)。
+    if (!isRoleEligibleBySex(ctx.state, ctx.config, pid)) continue
 
     const officeIds = ctx.state.officeIndex.byHolderPerson[pid] ?? []
     let hasActiveOffice = false
