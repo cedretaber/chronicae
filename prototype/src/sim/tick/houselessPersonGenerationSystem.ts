@@ -8,7 +8,7 @@ import type { RngState } from '../rng/rng'
 import { samplePerson } from '../helpers/personFactory'
 import { pickNameBySex } from '../worldgen/nameGenerators'
 import { addHouselessPerson } from '../mutations/houseMutations'
-import { markPersonDead } from '../mutations/personMutations'
+import { markPersonDeadWithInheritance } from '../mutations/politicalRightInheritance'
 import { getHouselessPersons } from '../selectors/availabilitySelectors'
 import { getActiveFactionMembership } from '../selectors/factionSelectors'
 
@@ -210,7 +210,7 @@ function pruneHouseless(ctx: TickContext, targetReduction: number): TickContext 
   for (const { personId } of toPrune) {
     const person = currentCtx.state.persons[personId]
     if (!person || !person.alive) continue
-    const deadResult = markPersonDead(currentCtx.state, personId, {
+    const deadResult = markPersonDeadWithInheritance(currentCtx.state, ctx.config, personId, {
       deathCircumstance: 'faded_from_history',
     })
     if (!deadResult.ok) continue

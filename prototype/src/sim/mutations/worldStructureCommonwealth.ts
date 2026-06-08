@@ -9,7 +9,7 @@ import type { PopClass } from '../types/popGroup'
 import type { CtxResult } from './result'
 import { ok, err } from './result'
 import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMutations'
-import { markPersonDead } from './personMutations'
+import { markPersonDeadWithInheritance } from './politicalRightInheritance'
 import { addHouselessPerson } from './houseMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { pickNameBySex } from '../worldgen/nameGenerators'
@@ -274,7 +274,9 @@ export function dissolveNegotiatingCommonwealth(
   state = revokeOfficesByOrganization(state, { kind: 'polity', id: input.commonwealthPolityId })
 
   if (input.leaderOutcome === 'executed' && leaderId !== undefined) {
-    const deadResult = markPersonDead(state, leaderId, { deathCircumstance: 'natural' })
+    const deadResult = markPersonDeadWithInheritance(state, ctx.config, leaderId, {
+      deathCircumstance: 'natural',
+    })
     if (deadResult.ok) {
       state = deadResult.value
       const deadPerson = state.persons[leaderId]

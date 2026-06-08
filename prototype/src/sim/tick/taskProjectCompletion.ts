@@ -29,7 +29,7 @@ import {
   isDiplomaticProjectKind,
   getProjectDeadlineWeeks,
 } from '../mutations/projectMutations'
-import { getRightForTarget } from '../selectors/politicalRightSelectors'
+import { getRightForTarget, getPolityIdForRightTarget } from '../selectors/politicalRightSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { selectMovementBeneficiary } from '../selectors/goalSelectors'
 import { getProvinceHoldings, getLandContractGrantor } from '../selectors/landContractSelectors'
@@ -127,23 +127,6 @@ const OCCUPATION_TO_CLASS: Partial<Record<PopOccupation, PopClass>> = {
   agriculture: 'peasants',
   urban_labor: 'townsmen',
   elite_service: 'nobles',
-}
-
-// v0.42 §13.3: right target から対象 polity を導出する。
-function getPolityIdForRightTarget(
-  ws: WorldState,
-  target: import('../types/politicalRight').PoliticalRightTargetRef,
-): import('../types/ids').PolityId | undefined {
-  switch (target.kind) {
-    case 'polity_office_role':
-      return target.polityId
-    case 'holding_office_role':
-      return ws.holdingTerminalPolityCache[target.holdingId]
-    case 'regiment': {
-      const regiment = ws.regiments[target.regimentId]
-      return regiment && regiment.owner.kind === 'polity' ? regiment.owner.id : undefined
-    }
-  }
 }
 
 // v0.33 §11.2: IMPROVEMENT_DEFINITIONS 駆動。canBuildHoldingImprovement で候補を絞り

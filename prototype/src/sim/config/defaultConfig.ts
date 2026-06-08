@@ -765,6 +765,13 @@ export type SimulationConfig = {
   // Aim 生成の influence 上限ゲート (生成時のみ)。これ以上掌握済みの polity では acquire aim を
   // 生成しない — right なし任命は influence ベースなので掌握済み家に権利は不要 (§13.3)
   acquirePoliticalRightMaxInfluencePercent: number
+  // 影響力個人中心化 Phase 4: person 保有任命権の死亡時継承閾値 (§10)。
+  //   owner 家 influence% >= seize → 国回収 (強い中央権力が取り戻す) /
+  //   死亡者家 influence% < retain → 国回収 (家が弱すぎて世襲維持できず) /
+  //   それ以外 → 家産化 (世襲化) / 判定を flipChance で反転 (主君の気まぐれ)。
+  rightInheritanceOwnerSeizeThreshold: number
+  rightInheritanceHouseRetainThreshold: number
+  rightInheritanceFlipChance: number
   sameHousePolityOfficePenalty: number
   // v0.14 Ability generation / inheritance
   abilityAptitudeMean: number
@@ -1797,6 +1804,9 @@ export const defaultConfig: SimulationConfig = {
   acquirePoliticalRightBaseCost: 40,
   acquirePoliticalRightRequiredInfluencePercent: 20,
   acquirePoliticalRightMaxInfluencePercent: 70,
+  rightInheritanceOwnerSeizeThreshold: 70,
+  rightInheritanceHouseRetainThreshold: 20,
+  rightInheritanceFlipChance: 0.15,
   sameHousePolityOfficePenalty: 2,
   minAppointmentScore: 2,
   // v0.14 Ability generation / inheritance

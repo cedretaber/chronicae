@@ -13,6 +13,24 @@ import type {
 } from '../types/politicalRight'
 import { politicalRightTargetKey, politicalRightHolderKey } from '../types/politicalRight'
 
+// v0.42 §13.3: right target から対象 polity を導出する。
+// 影響力個人中心化 Phase 4: taskProjectCompletion から移設し export (継承判定と共有)。
+export function getPolityIdForRightTarget(
+  state: WorldState,
+  target: PoliticalRightTargetRef,
+): PolityId | undefined {
+  switch (target.kind) {
+    case 'polity_office_role':
+      return target.polityId
+    case 'holding_office_role':
+      return state.holdingTerminalPolityCache[target.holdingId]
+    case 'regiment': {
+      const regiment = state.regiments[target.regimentId]
+      return regiment && regiment.owner.kind === 'polity' ? regiment.owner.id : undefined
+    }
+  }
+}
+
 // target に対する active right (1 target 1 right — §4.2.2)。
 export function getRightForTarget(
   state: WorldState,

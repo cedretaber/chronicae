@@ -532,10 +532,10 @@ function applyDevelopHoldingMut(
   })
 }
 
-// v0.42 §13.4: acquire_political_right の outcome。
-// 成功条件 (target 実在 / polityId 整合 / 既存 right なし / owner House active) は
-// createPoliticalRight の検査に集約されている。コストは House wealth から対象 Polity の
-// treasury への transfer (wealth sink ではない — §13.4)。
+// v0.42 §13.4 / 影響力個人中心化 Phase 4: acquire_political_right の outcome。
+// holder = 遂行者個人 (supervisor) に変更 (任命権を個人保有に・死亡時に §10 で条件付き継承)。
+// コストは引き続き owner House wealth から対象 Polity treasury への transfer (簡素版・§13.4)。
+// supervisor が死亡/placeholder なら作らない (no-op で aim は待機)。
 function applyAcquirePoliticalRightMut(
   ws: WorldState,
   config: SimulationConfig,
@@ -551,11 +551,13 @@ function applyAcquirePoliticalRightMut(
   if (house.wealth < cost) return
   const polity = ws.polities[project.polityId]
   if (!polity || !polity.active) return
+  const supervisor = ws.persons[project.supervisorPersonId]
+  if (!supervisor || !supervisor.alive || supervisor.kind === 'placeholder') return
 
   const created = createPoliticalRight(ws, {
     polityId: project.polityId,
     target: project.target,
-    holder: { kind: 'house', id: houseId },
+    holder: { kind: 'person', id: project.supervisorPersonId },
     grantedWeek: ws.absoluteWeek,
   })
   if (!created.ok) return
@@ -565,7 +567,7 @@ function applyAcquirePoliticalRightMut(
   ws.politicalRightIndex = created.value.state.politicalRightIndex
   ws.nextPoliticalRightId = created.value.state.nextPoliticalRightId
 
-  // cost transfer (§13.4)
+  // cost transfer (§13.4 — 簡素版: 取得者個人でなく owner House が資金を出す)
   ws.houses[houseId] = { ...house, wealth: house.wealth - cost }
   ws.polities[project.polityId] = { ...polity, treasury: polity.treasury + cost }
 
@@ -578,7 +580,7 @@ function applyAcquirePoliticalRightMut(
     messageParams: {
       rightKind: getPoliticalRightKindFromTarget(right.target),
       target: politicalRightTargetNameParam(ws, right.target),
-      holder: nameParam('house', house.nameKey),
+      holder: nameParam('person', supervisor.nameKey),
       polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
     },
     entityRefs: buildPoliticalRightEntityRefs(ws, right),

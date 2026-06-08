@@ -140,7 +140,8 @@ describe('acquire_political_right outcome (§13.4)', () => {
 
     const rights = Object.values(result.state.politicalRights)
     expect(rights).toHaveLength(1)
-    expect(rights[0]!.holder).toEqual({ kind: 'house', id: houseId })
+    // 影響力個人中心化 Phase 4: 任命権 holder は遂行者個人 (supervisor=leaderId) になった
+    expect(rights[0]!.holder).toEqual({ kind: 'person', id: leaderId })
     expect(rights[0]!.polityId).toBe(polityId)
     expect(rights[0]!.target).toEqual(project.target)
 

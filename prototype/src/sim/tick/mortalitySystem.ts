@@ -1,7 +1,7 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import { randomFloat } from '../rng/rng'
-import { markPersonDead } from '../mutations/personMutations'
+import { markPersonDeadWithInheritance } from '../mutations/politicalRightInheritance'
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import { nameParam, entityRef } from '../types/event'
@@ -51,7 +51,7 @@ export function runMortalitySystem(ctx: TickContext): TickContext {
         : undefined
       const wasPolityLeader = polityRulerBefore === personId
 
-      const deadResult = markPersonDead(currentCtx.state, personId)
+      const deadResult = markPersonDeadWithInheritance(currentCtx.state, ctx.config, personId)
       const currentState = deadResult.ok ? deadResult.value : currentCtx.state
 
       // v0.38 §6.3: notable death (house/polity leader) は IMPORTANT_PERSON_DIED に type 昇格し
