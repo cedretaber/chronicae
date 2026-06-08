@@ -221,6 +221,7 @@ detail:
     influence_domain:
       base: '基礎'
       ruler: '支配'
+      reputation: '声望'
       office: '役職'
       military: '軍事'
       land_administration: '代官'

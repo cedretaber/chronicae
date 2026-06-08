@@ -124,6 +124,7 @@ detail:
     influence_domain:
       base: 'Base'
       ruler: 'Ruler'
+      reputation: 'Reputation'
       office: 'Office'
       military: 'Military'
       land_administration: 'Bailiwick'
