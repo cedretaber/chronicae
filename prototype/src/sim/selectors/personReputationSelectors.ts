@@ -5,10 +5,13 @@
 
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { PersonReputation, ReputationCategory } from '@sim/types/personReputation'
-import { VALID_REPUTATION_CATEGORIES } from '@sim/types/personReputation'
+import {
+  VALID_REPUTATION_CATEGORIES,
+  personReputationOrganizationKey,
+} from '@sim/types/personReputation'
 import type { WorldState } from '@sim/types/world'
 import type { PersonId } from '@sim/types/ids'
-import type { OfficeRole } from '@sim/types/office'
+import type { OfficeRole, OrganizationRef } from '@sim/types/office'
 import { clamp } from '@sim/utils/math'
 
 // 現在値 (§4.3): baseScore * retentionRate^(経過月数)。
@@ -102,6 +105,28 @@ export function getPersonReputationModifierForCategories(
     -config.appointmentReputationModifierCap,
     config.appointmentReputationModifierCap,
   )
+}
+
+// 影響力個人中心化 Phase 1a: ある person の、特定 organization (polity/house) に tag された
+// 評判の現在値合計を返す (負レコード打ち消し後に 0 床)。House Share 再計算の house-tag 評判項に使う。
+// byPerson を走査して relatedOrganization で絞る (person あたり評判は少数なので軽い)。
+export function getPersonOrganizationReputationSum(
+  state: WorldState,
+  config: SimulationConfig,
+  personId: PersonId,
+  org: OrganizationRef,
+): number {
+  const ids = state.personReputationIndex.byPerson[personId]
+  if (!ids || ids.length === 0) return 0
+  const orgKey = personReputationOrganizationKey(org)
+  let total = 0
+  for (const id of ids) {
+    const reputation = state.personReputations[id]
+    if (!reputation || reputation.relatedOrganization === undefined) continue
+    if (personReputationOrganizationKey(reputation.relatedOrganization) !== orgKey) continue
+    total += getCurrentPersonReputationScore(reputation, state.absoluteWeek, config)
+  }
+  return Math.max(0, total)
 }
 
 // §9.2: OfficeRole → 参照 category。

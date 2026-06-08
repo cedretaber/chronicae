@@ -7,7 +7,10 @@
 
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
-import { VALID_REPUTATION_CATEGORIES } from '../types/personReputation'
+import {
+  VALID_REPUTATION_CATEGORIES,
+  personReputationOrganizationKey,
+} from '../types/personReputation'
 
 const VALID_CATEGORY_SET = new Set<string>(VALID_REPUTATION_CATEGORIES)
 const VALID_SOURCE_KINDS = new Set<string>(['project', 'diplomatic_play', 'war'])
@@ -58,13 +61,25 @@ export function checkPersonReputations(state: WorldState, errors: SimError[]): v
       })
     }
 
-    // entity → index 方向
+    // entity → index 方向 (byPerson)
     const indexEntry = state.personReputationIndex.byPerson[reputation.personId] ?? []
     if (!indexEntry.includes(reputation.id)) {
       errors.push({
         code: 'INTEGRITY_VIOLATION',
         message: `PersonReputation ${idStr}: missing from personReputationIndex.byPerson[${reputation.personId as string}] (§12.1)`,
       })
+    }
+
+    // entity → index 方向 (byOrganization・tag された評判のみ)
+    if (reputation.relatedOrganization !== undefined) {
+      const orgKey = personReputationOrganizationKey(reputation.relatedOrganization)
+      const orgIndexEntry = state.personReputationIndex.byOrganization[orgKey] ?? []
+      if (!orgIndexEntry.includes(reputation.id)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `PersonReputation ${idStr}: missing from personReputationIndex.byOrganization[${orgKey}] (§12.1)`,
+        })
+      }
     }
   }
 
@@ -88,6 +103,38 @@ export function checkPersonReputations(state: WorldState, errors: SimError[]): v
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `personReputationIndex.byPerson[${personIdStr}]: PersonReputation ${id as string} belongs to ${reputation.personId as string} (§12.1)`,
+        })
+      }
+    }
+  }
+
+  // byOrganization index → entity 方向 + key 整合 (Phase 1a)
+  for (const [orgKey, ids] of Object.entries(state.personReputationIndex.byOrganization)) {
+    if (!ids) continue
+    if (ids.length === 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `personReputationIndex.byOrganization[${orgKey}]: empty entry not purged (§12.1)`,
+      })
+    }
+    for (const id of ids) {
+      const reputation = state.personReputations[id]
+      if (!reputation) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `personReputationIndex.byOrganization[${orgKey}]: references missing PersonReputation ${id as string} (§12.1)`,
+        })
+        continue
+      }
+      if (reputation.relatedOrganization === undefined) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `personReputationIndex.byOrganization[${orgKey}]: PersonReputation ${id as string} has no relatedOrganization (§12.1)`,
+        })
+      } else if (personReputationOrganizationKey(reputation.relatedOrganization) !== orgKey) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `personReputationIndex.byOrganization[${orgKey}]: PersonReputation ${id as string} belongs to ${personReputationOrganizationKey(reputation.relatedOrganization)} (§12.1)`,
         })
       }
     }

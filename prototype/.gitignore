@@ -18,3 +18,5 @@ build/
 
 # Test coverage
 coverage/
+/measure_phase0.mjs
+/measure_phase1a.mjs

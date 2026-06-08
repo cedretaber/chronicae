@@ -54,4 +54,16 @@ export type PersonReputation = {
 
 export type PersonReputationIndex = {
   byPerson: Record<PersonId, PersonReputationId[]>
+  // 影響力個人中心化 Phase 1a: relatedOrganization 別の引き当て。
+  // key = personReputationOrganizationKey(relatedOrganization) = `${kind}:${id}` (polity / house)。
+  // relatedOrganization は optional なので、tag された評判のみ index 入りする。
+  // influence read-model (polity-tag) / House Share 再計算 (house-tag) が polity/house 単位で
+  // 評判を引くために使う (byPerson 全走査の perf 退行を回避 — §12.1 / R1)。
+  byOrganization: Record<string, PersonReputationId[]>
+}
+
+// byOrganization index の key。OrganizationRef (polity / house) を `${kind}:${id}` に正規化する。
+// influenceSelectors の polityInfluenceHolderKey({kind:'polity', id}) と同一文字列になるよう揃える。
+export function personReputationOrganizationKey(org: OrganizationRef): string {
+  return `${org.kind}:${org.id}`
 }

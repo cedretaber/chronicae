@@ -4,6 +4,8 @@ import type { SimEvent } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { Project } from '../types/project'
+import type { OrganizationRef } from '../types/office'
+import { personReputationOrganizationKey } from '../types/personReputation'
 import type { PersonActivityLog } from '../types/task'
 import type { HoldingImprovementId } from '../types/ids'
 import { createHoldingImprovementId, createPersonActivityLogId } from '../types/ids'
@@ -264,23 +266,80 @@ function awardProjectOutcomeMut(
       baseScore = config.personReputationProjectFailureBase
     }
     if (baseScore !== undefined) {
-      awardPersonReputationMut(
-        ws,
-        config,
-        {
-          personId: project.supervisorPersonId,
-          source: { kind: 'project', projectKind: project.kind, projectId: project.id },
-          category,
-          baseScore,
-          ...(project.owner.kind === 'polity' || project.owner.kind === 'house'
-            ? { relatedOrganization: project.owner }
-            : {}),
-        },
-        emitEvent,
-      )
+      // 影響力個人中心化 Phase 1a: dual-tag。owner organization (家/政体) と
+      // target organization (対象 polity) の両方に評判レコードを生成する (owner==target なら 1 個)。
+      // これにより家活動でも対象 polity の influence を生み、同時に owner 側 (家=Share / 政体=influence)
+      // にも効く。tag 先が 1 つも無い (person owner かつ target 無し) 場合は tag 無し評判 1 個。
+      const orgs = collectProjectReputationOrganizations(ws, project)
+      const source = {
+        kind: 'project' as const,
+        projectKind: project.kind,
+        projectId: project.id,
+      }
+      if (orgs.length === 0) {
+        awardPersonReputationMut(
+          ws,
+          config,
+          { personId: project.supervisorPersonId, source, category, baseScore },
+          emitEvent,
+        )
+      } else {
+        for (const org of orgs) {
+          awardPersonReputationMut(
+            ws,
+            config,
+            {
+              personId: project.supervisorPersonId,
+              source,
+              category,
+              baseScore,
+              relatedOrganization: org,
+            },
+            emitEvent,
+          )
+        }
+      }
     }
   }
   return nextRng
+}
+
+// 影響力個人中心化 Phase 1a (dual-tag): Project 完遂評判の tag 先 organization を集める。
+// owner organization (polity/house — person owner は tag しない) + target polity を dedupe して返す。
+export function collectProjectReputationOrganizations(
+  ws: WorldState,
+  project: Project,
+): OrganizationRef[] {
+  const orgs: OrganizationRef[] = []
+  const seen = new Set<string>()
+  const push = (org: OrganizationRef | undefined): void => {
+    if (!org) return
+    const key = personReputationOrganizationKey(org)
+    if (seen.has(key)) return
+    seen.add(key)
+    orgs.push(org)
+  }
+  if (project.owner.kind === 'polity' || project.owner.kind === 'house') {
+    push(project.owner)
+  }
+  push(deriveProjectTargetPolity(ws, project))
+  return orgs
+}
+
+// 対象 polity の導出 (kind 別)。reputation を付与する非外交 project のうち、
+// 政体に紐づくものだけ target を返す (patronize/commission は owner のみで完結 → undefined)。
+function deriveProjectTargetPolity(ws: WorldState, project: Project): OrganizationRef | undefined {
+  switch (project.kind) {
+    case 'acquire_political_right':
+    case 'promote_policy_shift':
+      return { kind: 'polity', id: project.polityId }
+    case 'develop_holding': {
+      const polityId = ws.holdingTerminalPolityCache[project.holdingId]
+      return polityId !== undefined ? { kind: 'polity', id: polityId } : undefined
+    }
+    default:
+      return undefined
+  }
 }
 
 // --- Non-diplomatic effect application ---

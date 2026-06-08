@@ -12,7 +12,8 @@ import type { PersonId, EventId } from '../types/ids'
 import type { AbilityKey } from '../types/person'
 import type { Project, ProjectKind } from '../types/project'
 import type { DiplomaticPlay, DiplomaticPlayTerminalOutcome } from '../types/diplomaticPlay'
-import type { War } from '../types/war'
+import type { War, WarSide } from '../types/war'
+import { personReputationOrganizationKey } from '../types/personReputation'
 import type { SimEvent } from '../types/event'
 import type {
   ReputationCategory,
@@ -319,7 +320,11 @@ export function awardWarOutcomeCtx(ctx: TickContext, war: War): TickContext {
       recipients.push({ personId: pid, factor: config.warCommanderAwardFactor })
     }
 
-    const primaryActor = side.participants.find((p) => p.primary)?.actor
+    // 影響力個人中心化 Phase 1a (dual-tag・R28): owner organization (primary actor) +
+    // target polity を集める。primary actor が polity なら target=self で 1 個 (dedupe)。
+    // primary actor が house のときだけ、その陣営の participants から最初の polity を target に
+    // 追加し owner=house + target=polity の dual にする (家の戦功が陣営 polity の influence を生む)。
+    const reputationOrgs = collectWarSideReputationOrganizations(side)
     for (const recipient of recipients) {
       rng = applyImmediateAbilityGrowthMut(
         ws,
@@ -332,18 +337,31 @@ export function awardWarOutcomeCtx(ctx: TickContext, war: War): TickContext {
         emitEvent,
       )
       if (reputationBase !== undefined) {
-        awardPersonReputationMut(
-          ws,
-          config,
-          {
-            personId: recipient.personId,
-            source: { kind: 'war', warId: war.id },
-            category: 'military',
-            baseScore: reputationBase * recipient.factor,
-            ...(primaryActor !== undefined ? { relatedOrganization: primaryActor } : {}),
-          },
-          emitEvent,
-        )
+        const baseScore = reputationBase * recipient.factor
+        const source = { kind: 'war' as const, warId: war.id }
+        if (reputationOrgs.length === 0) {
+          awardPersonReputationMut(
+            ws,
+            config,
+            { personId: recipient.personId, source, category: 'military', baseScore },
+            emitEvent,
+          )
+        } else {
+          for (const org of reputationOrgs) {
+            awardPersonReputationMut(
+              ws,
+              config,
+              {
+                personId: recipient.personId,
+                source,
+                category: 'military',
+                baseScore,
+                relatedOrganization: org,
+              },
+              emitEvent,
+            )
+          }
+        }
       }
     }
   }
@@ -355,6 +373,31 @@ export function awardWarOutcomeCtx(ctx: TickContext, war: War): TickContext {
     events: newEvents.length > 0 ? [...ctx.events, ...newEvents] : ctx.events,
     nextEventIndex,
   }
+}
+
+// 影響力個人中心化 Phase 1a (dual-tag・R28): War side の戦功評判を tag する organization を集める。
+// owner = primary participant の actor。actor が house のとき target = その陣営 participants の
+// 最初の polity (organizationKey 昇順で安定) を追加して dual 化する。actor が polity なら
+// target=self なので owner だけ (dedupe で 1 個)。primary 不在なら空 (tag 無し評判)。
+export function collectWarSideReputationOrganizations(side: WarSide): OrganizationRef[] {
+  const primaryActor = side.participants.find((p) => p.primary)?.actor
+  if (!primaryActor) return []
+  const orgs: OrganizationRef[] = [primaryActor]
+  const seen = new Set<string>([personReputationOrganizationKey(primaryActor)])
+  if (primaryActor.kind === 'house') {
+    const polityActors = side.participants
+      .map((p) => p.actor)
+      .filter((a): a is Extract<OrganizationRef, { kind: 'polity' }> => a.kind === 'polity')
+      .sort((a, b) =>
+        personReputationOrganizationKey(a).localeCompare(personReputationOrganizationKey(b)),
+      )
+    const targetPolity = polityActors[0]
+    if (targetPolity) {
+      const key = personReputationOrganizationKey(targetPolity)
+      if (!seen.has(key)) orgs.push(targetPolity)
+    }
+  }
+  return orgs
 }
 
 export type AwardReputationInput = {

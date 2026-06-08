@@ -14,6 +14,7 @@ import { getHouseLeader } from '@sim/selectors/officeSelectors'
 import { getOfficeAssignments } from '@sim/selectors/officeSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
+import { getPersonOrganizationReputationSum } from '@sim/selectors/personReputationSelectors'
 
 export function runHouseShareUpdateSystem(ctx: TickContext): TickContext {
   let state = ctx.state
@@ -88,6 +89,13 @@ export function computeHouseShareRawPower(
       )
     })()
 
+  // 影響力個人中心化 Phase 1a: house-tag 評判の成果項。功績 (house owned project 完遂 / 戦功で
+  // 自家が陣営の戦争) で家内 Share を上げる。getPersonOrganizationReputationSum が 0 床済み
+  // (rawPower >= 0 invariant を破らない — integrityCoreChecks:38 / R17)。
+  const reputationTerm =
+    getPersonOrganizationReputationSum(state, config, person.id, { kind: 'house', id: houseId }) *
+    config.houseShareReputationFactor
+
   return (
     config.houseShareBase +
     (isLeader ? config.houseShareLeaderBonus : 0) +
@@ -96,7 +104,8 @@ export function computeHouseShareRawPower(
     person.wealth * config.houseShareWealthFactor +
     (getRoleScore(state, person.id, 'governance') / 10 +
       getRoleScore(state, person.id, 'warCommand') / 10) *
-      config.houseShareStatFactor
+      config.houseShareStatFactor +
+    reputationTerm
   )
 }
 

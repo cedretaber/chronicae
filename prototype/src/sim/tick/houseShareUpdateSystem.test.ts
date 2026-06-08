@@ -8,9 +8,12 @@ import { defaultConfig } from '../config/defaultConfig'
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { PersonId, HouseId } from '../types/ids'
+import { createPersonId, createHouseId } from '../types/ids'
 import { generateWorld } from '../worldgen/generateWorld'
-import { runHouseShareUpdateSystem } from './houseShareUpdateSystem'
+import { runHouseShareUpdateSystem, computeHouseShareRawPower } from './houseShareUpdateSystem'
 import { getHouseShares } from '../selectors/shareSelectors'
+import { makeEmptyV016State, withHouse, withPerson } from '../testFixtures'
+import { addPersonReputationMut } from '../mutations/personReputationMutations'
 
 function makeCtx(world: WorldState): TickContext {
   return {
@@ -71,5 +74,74 @@ describe('runHouseShareUpdateSystem (v0.42c — house 専用)', () => {
     const result = runHouseShareUpdateSystem(makeCtx(world))
     const shares = getHouseShares(result.state, houseId)
     expect(shares.some((s) => s.holderPersonId === victimId)).toBe(false)
+  })
+})
+
+describe('computeHouseShareRawPower: house-tag 評判項 (影響力個人中心化 Phase 1a)', () => {
+  const houseId = createHouseId('h', 0)
+  const personId = createPersonId('pe', 0)
+
+  function makeState(): WorldState {
+    let s = makeEmptyV016State()
+    s = withHouse(s, houseId, { nameKey: 'House0' })
+    s = withPerson(s, personId, { nameKey: 'Member', houseId })
+    return s
+  }
+
+  it('house-tag 評判が rawPower に加算される', () => {
+    const state = makeState()
+    const before = computeHouseShareRawPower(state, defaultConfig, houseId, personId, false)
+    const ws = { ...state }
+    addPersonReputationMut(ws, {
+      personId,
+      source: { kind: 'war' },
+      outcome: 'success',
+      category: 'military',
+      baseScore: 20,
+      createdWeek: ws.absoluteWeek,
+      expiryWeek: ws.absoluteWeek + 10000,
+      relatedOrganization: { kind: 'house', id: houseId },
+      relatedRefs: [],
+    })
+    const after = computeHouseShareRawPower(ws, defaultConfig, houseId, personId, false)
+    expect(after - before).toBeCloseTo(20 * defaultConfig.houseShareReputationFactor)
+  })
+
+  it('polity-tag 評判は house Share に効かない (organization が違う)', () => {
+    const state = makeState()
+    const before = computeHouseShareRawPower(state, defaultConfig, houseId, personId, false)
+    const ws = { ...state }
+    addPersonReputationMut(ws, {
+      personId,
+      source: { kind: 'war' },
+      outcome: 'success',
+      category: 'military',
+      baseScore: 20,
+      createdWeek: ws.absoluteWeek,
+      expiryWeek: ws.absoluteWeek + 10000,
+      relatedOrganization: { kind: 'polity', id: 'c-0' as never },
+      relatedRefs: [],
+    })
+    const after = computeHouseShareRawPower(ws, defaultConfig, houseId, personId, false)
+    expect(after).toBeCloseTo(before)
+  })
+
+  it('負の house-tag 評判は 0 床 (rawPower >= 0 invariant)', () => {
+    const state = makeState()
+    const before = computeHouseShareRawPower(state, defaultConfig, houseId, personId, false)
+    const ws = { ...state }
+    addPersonReputationMut(ws, {
+      personId,
+      source: { kind: 'war' },
+      outcome: 'failure',
+      category: 'military',
+      baseScore: -30,
+      createdWeek: ws.absoluteWeek,
+      expiryWeek: ws.absoluteWeek + 10000,
+      relatedOrganization: { kind: 'house', id: houseId },
+      relatedRefs: [],
+    })
+    const after = computeHouseShareRawPower(ws, defaultConfig, houseId, personId, false)
+    expect(after).toBeCloseTo(before) // 負評判は 0 床なので変化なし
   })
 })

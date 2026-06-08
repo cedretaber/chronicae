@@ -183,7 +183,7 @@ function makeCtx({
     politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },
     nextPoliticalRightId: 0,
     personReputations: {},
-    personReputationIndex: { byPerson: {} },
+    personReputationIndex: { byPerson: {}, byOrganization: {} },
     nextPersonReputationId: 0,
     officeAssignments,
     houseShareIndex: { byHouse: {}, byHolderPerson: {} },

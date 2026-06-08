@@ -705,6 +705,9 @@ export type SimulationConfig = {
   houseSharePrestigeFactor: number
   houseShareWealthFactor: number
   houseShareStatFactor: number
+  // 影響力個人中心化 Phase 1a: house-tag PersonReputation の現在値合計に掛ける係数。
+  // computeHouseShareRawPower に加算する成果項 (功績で家内 Share を上げる・§9・初期値 0.5)。
+  houseShareReputationFactor: number
   // v0.42 §5/§18 Polity Influence (read-model)。初期値は polityShare* 系を流用。
   //   v0.42a/b では旧 polityShare* (shareUpdateSystem 用) と並存し、v0.42c で旧系を削除する。
   polityInfluenceBase: number
@@ -722,6 +725,9 @@ export type SimulationConfig = {
   polityInfluenceRegimentControlFactor: number // military domain: regiment_control right (active regiment のみ)
   polityInfluenceHoldingOfficeAppointmentFactor: number // land_administration domain
   polityInfluenceFactionFactor: number // faction domain: anchor faction leader の家
+  // 影響力個人中心化 Phase 1a: reputation domain。polity-tag PersonReputation の現在値合計に掛ける係数。
+  // 成果項 (功績由来の影響力)。構造項と並ぶ第二の供給源 (§9・初期値 0.5)。
+  polityInfluenceReputationFactor: number
   // v0.12 Administrative efficiency
   minAdministrativeEfficiency: number
   maxAdministrativeEfficiency: number
@@ -1746,12 +1752,14 @@ export const defaultConfig: SimulationConfig = {
   polityInfluenceRegimentControlFactor: 2,
   polityInfluenceHoldingOfficeAppointmentFactor: 2,
   polityInfluenceFactionFactor: 2,
+  polityInfluenceReputationFactor: 0.5,
   houseShareBase: 5,
   houseShareLeaderBonus: 20,
   houseShareOfficeBonus: 10,
   houseSharePrestigeFactor: 0.3,
   houseShareWealthFactor: 0.05,
   houseShareStatFactor: 1,
+  houseShareReputationFactor: 0.5,
   // v0.12 Administrative efficiency
   minAdministrativeEfficiency: 0.3,
   maxAdministrativeEfficiency: 1.5,

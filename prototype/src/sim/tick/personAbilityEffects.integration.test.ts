@@ -385,7 +385,7 @@ describe('runControlSystem — capital province maxControl', () => {
       politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },
       nextPoliticalRightId: 0,
       personReputations: {},
-      personReputationIndex: { byPerson: {} },
+      personReputationIndex: { byPerson: {}, byOrganization: {} },
       nextPersonReputationId: 0,
       officeAssignments: { [officeId]: office },
       houseShareIndex: { byHouse: {}, byHolderPerson: {} },

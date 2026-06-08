@@ -18,6 +18,7 @@ import type { Regiment } from '../types/regiment'
 import { defaultConfig } from '../config/defaultConfig'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 import { createPoliticalRight } from '../mutations/politicalRightMutations'
+import { addPersonReputationMut } from '../mutations/personReputationMutations'
 import {
   getPolityInfluenceBreakdown,
   getActorInfluenceInPolity,
@@ -303,5 +304,78 @@ describe('getPolityInfluenceBreakdown', () => {
     const breakdown = getPolityInfluenceBreakdown(state, defaultConfig, polityId)
     expect(breakdown.entries).toEqual([])
     expect(breakdown.totalScore).toBe(0)
+  })
+})
+
+describe('reputation domain (影響力個人中心化 Phase 1a)', () => {
+  function addPolityRep(
+    state: WorldState,
+    personId: ReturnType<typeof createPersonId>,
+    baseScore: number,
+  ): WorldState {
+    const ws = { ...state }
+    addPersonReputationMut(ws, {
+      personId,
+      source: { kind: 'war' },
+      outcome: baseScore >= 0 ? 'success' : 'failure',
+      category: 'military',
+      baseScore,
+      createdWeek: ws.absoluteWeek,
+      expiryWeek: ws.absoluteWeek + 10000,
+      relatedOrganization: { kind: 'polity', id: polityId },
+      relatedRefs: [],
+    })
+    return ws
+  }
+
+  it('polity-tag 評判は housed person でも person entry に加算される (家 fold しない)', () => {
+    let state = makeBaseState()
+    // ownerLeaderId は ownerHouse 所属。評判は本人 (person entry) に付き、家には fold しない。
+    state = addPolityRep(state, ownerLeaderId, 10)
+    const personEntry = entryOf(state, `person:${ownerLeaderId}`)
+    expect(personEntry).toBeDefined()
+    expect(personEntry!.byDomain.reputation).toBeCloseTo(
+      10 * defaultConfig.polityInfluenceReputationFactor,
+    )
+    // house entry には reputation domain が乗らない
+    const houseEntry = entryOf(state, `house:${ownerHouseId}`)
+    expect(houseEntry?.byDomain.reputation).toBeUndefined()
+  })
+
+  it('評判だけ持つ役職なし houseless person が母集合に追加される', () => {
+    let state = makeBaseState()
+    const loner = createPersonId('pe', 50)
+    // houseless person を直接登録 (withPerson は houseId 必須なので直で置く)
+    const lonerPerson = { ...state.persons[ownerLeaderId]!, id: loner, houseId: undefined }
+    state = {
+      ...state,
+      persons: { ...state.persons, [loner]: lonerPerson },
+      livingPersonIds: [...state.livingPersonIds, loner].sort(),
+    }
+    state = addPolityRep(state, loner, 8)
+    const entry = entryOf(state, `person:${loner}`)
+    expect(entry).toBeDefined()
+    expect(entry!.byDomain.reputation).toBeCloseTo(
+      8 * defaultConfig.polityInfluenceReputationFactor,
+    )
+  })
+
+  it('負評判は per-entry sum で 0 床になる (反影響力を作らない)', () => {
+    let state = makeBaseState()
+    state = addPolityRep(state, ownerLeaderId, 10)
+    state = addPolityRep(state, ownerLeaderId, -30) // 合計 -20 → 0 床
+    const entry = entryOf(state, `person:${ownerLeaderId}`)
+    expect(entry!.byDomain.reputation).toBe(0)
+  })
+
+  it('inactive polity の評判は影響しない (breakdown が空)', () => {
+    let state = makeBaseState()
+    state = addPolityRep(state, ownerLeaderId, 10)
+    state = {
+      ...state,
+      polities: { ...state.polities, [polityId]: { ...state.polities[polityId]!, active: false } },
+    }
+    const breakdown = getPolityInfluenceBreakdown(state, defaultConfig, polityId)
+    expect(breakdown.entries).toEqual([])
   })
 })

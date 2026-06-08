@@ -8,6 +8,7 @@
 import type { WorldState } from '@sim/types/world'
 import type { PersonReputationId, PersonId } from '@sim/types/ids'
 import type { PersonReputation } from '@sim/types/personReputation'
+import { personReputationOrganizationKey } from '@sim/types/personReputation'
 import { createPersonReputationId } from '@sim/types/ids'
 
 export type CreatePersonReputationInput = Omit<PersonReputation, 'id'>
@@ -21,12 +22,21 @@ export function addPersonReputationMut(
 
   ws.nextPersonReputationId = ws.nextPersonReputationId + 1
   ws.personReputations = { ...ws.personReputations, [id]: reputation }
-  ws.personReputationIndex = {
-    byPerson: {
-      ...ws.personReputationIndex.byPerson,
-      [input.personId]: [...(ws.personReputationIndex.byPerson[input.personId] ?? []), id],
-    },
+
+  const byPerson = {
+    ...ws.personReputationIndex.byPerson,
+    [input.personId]: [...(ws.personReputationIndex.byPerson[input.personId] ?? []), id],
   }
+  // byOrganization は tag された評判のみ index 入り (relatedOrganization は optional)。
+  let byOrganization = ws.personReputationIndex.byOrganization
+  if (input.relatedOrganization !== undefined) {
+    const orgKey = personReputationOrganizationKey(input.relatedOrganization)
+    byOrganization = {
+      ...byOrganization,
+      [orgKey]: [...(byOrganization[orgKey] ?? []), id],
+    }
+  }
+  ws.personReputationIndex = { byPerson, byOrganization }
   return reputation
 }
 
@@ -42,8 +52,17 @@ export function removePersonReputationMut(ws: WorldState, reputationId: PersonRe
   if (entry.length > 0) byPerson[reputation.personId] = entry
   else delete byPerson[reputation.personId]
 
+  // byOrganization: tag されている評判のみ index にあるので、tag がある場合だけ purge する。
+  const byOrganization = { ...ws.personReputationIndex.byOrganization }
+  if (reputation.relatedOrganization !== undefined) {
+    const orgKey = personReputationOrganizationKey(reputation.relatedOrganization)
+    const orgEntry = (byOrganization[orgKey] ?? []).filter((id) => id !== reputationId)
+    if (orgEntry.length > 0) byOrganization[orgKey] = orgEntry
+    else delete byOrganization[orgKey]
+  }
+
   ws.personReputations = nextReputations
-  ws.personReputationIndex = { byPerson }
+  ws.personReputationIndex = { byPerson, byOrganization }
 }
 
 // 死亡 purge 用 (§4.5)。deadPersonLogPurgeSystem に piggyback して呼ぶ。

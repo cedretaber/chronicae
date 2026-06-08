@@ -684,7 +684,7 @@ export function generateWorld(
     politicalRightIndex: { byPolity: {}, byHolder: {}, byTarget: {} },
     nextPoliticalRightId: 0,
     personReputations: {},
-    personReputationIndex: { byPerson: {} },
+    personReputationIndex: { byPerson: {}, byOrganization: {} },
     nextPersonReputationId: 0,
     officeAssignments: {},
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
@@ -1730,7 +1730,7 @@ export function generateWorld(
     nextPoliticalRightId: 0,
     // v0.44 PersonReputation (初期 worldgen では生成しない — 成果由来のみ)
     personReputations: {},
-    personReputationIndex: { byPerson: {} },
+    personReputationIndex: { byPerson: {}, byOrganization: {} },
     nextPersonReputationId: 0,
     // v0.22 Goal/Aim system
     goals: {},

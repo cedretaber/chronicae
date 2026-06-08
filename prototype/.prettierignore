@@ -3,3 +3,5 @@ dist
 coverage
 .vite
 package-lock.json
+measure_phase0.mjs
+measure_phase1a.mjs

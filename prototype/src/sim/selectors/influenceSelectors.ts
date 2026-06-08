@@ -25,6 +25,8 @@ import type {
   PolityInfluenceHolderRef,
 } from '../types/influence'
 import { polityInfluenceHolderKey } from '../types/influence'
+import { personReputationOrganizationKey } from '../types/personReputation'
+import { getCurrentPersonReputationScore } from './personReputationSelectors'
 import { isLivingPerson } from '../types/person'
 import {
   getOfficeAssignments,
@@ -212,6 +214,32 @@ export function getPolityInfluenceBreakdown(
     const holder = holderForPerson(faction.leaderPersonId)
     if (!holder || holder.kind !== 'house') continue
     add(holder, 'faction', config.polityInfluenceFactionFactor)
+  }
+
+  // --- reputation domain (影響力個人中心化 Phase 1a): polity-tag 評判の現在値合計 ---
+  // 成果項。評判は person キー (個人帰属) なので holderForPerson で家に fold せず、
+  // {kind:'person'} entry に直接加算する → housed person でも成果は本人のものになる
+  // ("家は個人の権力基盤")。母集合にも評判保有 person を列挙する (役職なし評判保有者の漏れ防止)。
+  // byOrganization index で polity-tag 評判を引く (byPerson 全走査の perf 退行を回避 — R1)。
+  // 集計後に entry ごとに reputation 項を 0 床にする (負評判で「反影響力」を作らない — §6/3b)。
+  const reputationOrgKey = personReputationOrganizationKey({ kind: 'polity', id: polityId })
+  const reputationIds = state.personReputationIndex.byOrganization[reputationOrgKey] ?? []
+  for (const repId of [...reputationIds].sort()) {
+    const reputation = state.personReputations[repId]
+    if (!reputation) continue
+    const person = state.persons[reputation.personId]
+    if (!isLivingPerson(person)) continue
+    const score = getCurrentPersonReputationScore(reputation, state.absoluteWeek, config)
+    add(
+      { kind: 'person', id: reputation.personId },
+      'reputation',
+      score * config.polityInfluenceReputationFactor,
+    )
+  }
+  // reputation domain の 0 床 (per-entry sum・per-record でない — 正負レコードの打ち消し後に clamp)
+  for (const entry of entries.values()) {
+    const rep = entry.byDomain.reputation
+    if (rep !== undefined && rep < 0) entry.byDomain.reputation = 0
   }
 
   // --- base / landed_power / wealth / prestige: House entry に一律 (§5.4) ---
