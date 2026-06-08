@@ -1988,11 +1988,16 @@ House 内部の Share（HouseShare、§3.7）のみが一次データとして�
   polity / 既保有 right の polity。過剰包含は influence ゲートが落とすので無害、過少包含は
   「influence があるのに aim が出ない家」の silent miss になる（この被覆が正しさの条件）
 - Aim 生成条件（ゲート — 全家一律、owner / 非 owner で差を付けない）:
-  `acquirePoliticalRightRequiredInfluencePercent` ≤ 対象 Polity への influence% <
+  `acquirePoliticalRightRequiredInfluencePercent` ≤ 対象 Polity への**家の支配率** <
   `acquirePoliticalRightMaxInfluencePercent`。**上限ゲート（v0.42 拡張）**は「既に掌握済みの
   polity の権利を買い続ける」不自然の排除 — right の無い役職の任命は influence ベース
   （§6.19 のスコアリング）なので、掌握済みの家にとって right は実質不要。上限判定は
-  **Aim 生成時のみ**（保持中に influence が上限を超えても aim は invalidate しない）
+  **Aim 生成時のみ**（保持中に influence が上限を超えても aim は invalidate しない）。
+  **家の支配率（影響力個人中心化 §6.64a-(10)）**: 「掌握済みか」の判定は家 entry の
+  influence% 単独ではなく、**家 entry ＋ 家中メンバーの person entry の influence% 合算**
+  （`getHouseAggregateInfluenceInPolity`）で測る。個人帰属化（§6.64a-(4)）で役職・評判が
+  person entry に移ったため、家単位の支配力評価では「家の中で対立はあっても国の支配は家全体で
+  見る」原則に従い再集約する（expand/preserve goal scoring・運動・steer も同一定義を共有）
 - target 選定: kind 優先度 polity_office（military > administrator > treasurer > advisor、
   各 role 内は slot 0..effectiveMax-1 の若い順 — v0.42 slot 化。先頭 slot ほど縮小に強い安全資産）
   > holding（House 関与 province の Holding 優先・id 昇順 = 近接優先の決定的簡略化）
@@ -2078,14 +2083,27 @@ RNG なし）が選び、**supervisor に固定**（auto 選定 bypass — 漏�
 houseless→国回収 / 死亡者家==owner家→家産化 / commonwealth→死亡者家%<`rightInheritanceHouseRetainThreshold`
 (20) で国回収・else 家産化 / 通常→owner家%≥`rightInheritanceOwnerSeizeThreshold`(70) で国回収・
 死亡者家%<20 で国回収・else 家産化、+ `rightInheritanceFlipChance`(0.15) で反転（houseless/owner家同一は
-flip skip）。flip は rightId+personId の決定論 hash（RNG state 不要）。influence% は pre-death snapshot。
-transfer err（家 inactive）は国回収 fallback。
+flip skip）。flip は rightId+personId の決定論 hash（RNG state 不要）。**ここでの owner家%・死亡者家% は
+家の支配率（§6.64a-(10) の集計値）** で測る。influence% は pre-death snapshot（死亡者本人の office /
+reputation 寄与込み）。transfer err（家 inactive）は国回収 fallback。
 
 **(9) faction / appointment への person influence 貫通**: faction nomination power
 （`getFactionNominationPowerForPolity`）にメンバー**個人**の person influence% を算入（leader家×1.0/
 他×0.5）。これにより役職個人化分＋評判を faction 経由で回収し、「評判を積んだ landless 個人が自分の
 派閥の推薦力を高めて任用される」コールドスタート経路が成立する。appointment scoring も候補本人の
 person influence% を加味（家 backing + 個人立場の両建て）。
+
+**(10) 家の支配率（house aggregate influence）**: 「家がその Polity をどれだけ支配しているか」を
+測る統一指標。`getHouseAggregateInfluenceInPolity` = **家 entry の influence ＋ 家中の生存メンバーの
+person entry の influence の合算**（同一 polity・分母は polity 総 influence で共通なので percent を
+そのまま足せる）。個人帰属化（§6.64a-(4)(2)）で役職・評判・person 保有任命権・代官の influence が
+person entry へ移ったため、家 entry 単独では「メンバーが役職を総取りして実質支配している家」が低く
+出てしまう。これを是正し「家の中で対立はあっても、国の支配は家全体で見る」原則を全支配力評価で共有する。
+**適用箇所**: 役職取得などの動機ゲート（§13.3 acquire / 運動 / expand-preserve goal scoring / steer）・
+死亡時継承の owner家%・死亡者家%（(8)）・家断絶時の領地継承先（最有力家選定）・有力家門判定
+（`isInfluentialHouse`＝クラン形成条件）。**非適用**: 余剰金分配の収入投影（`getHouseProjectedAnnualIncome`）
+は実配分が entry 単位（person entry 分は treasury 残置）なので集約すると過大投影になり、house entry%
+単独のまま。
 
 **balance（機能完成後のエポックで調整・現段階 config 据え置き）**: ruler bonus が単一最大 domain
 （~33-38%）・reputationFactor 0.5 の再較正余地・運動発火頻度・人事スコア cap 張り付き・継承閾値

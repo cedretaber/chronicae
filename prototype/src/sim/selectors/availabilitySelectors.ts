@@ -4,7 +4,7 @@ import {
   getHouseControlledProvinceIds,
   getHouseOwnedPolityIds,
 } from '@sim/selectors/landContractSelectors'
-import { getActorInfluenceInPolity } from '@sim/selectors/influenceSelectors'
+import { getHouseAggregateInfluenceInPolity } from '@sim/selectors/influenceSelectors'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import { getActiveFactionMembership } from '@sim/selectors/factionSelectors'
 
@@ -86,10 +86,10 @@ export function isInfluentialHouseInAnyPolity(
   for (const polity of Object.values(state.polities)) {
     if (!polity || !polity.active) continue
     if (polity.ownerHouseId === houseId) continue
-    const influencePercent = getActorInfluenceInPolity(
+    const influencePercent = getHouseAggregateInfluenceInPolity(
       state,
       config,
-      { kind: 'house', id: houseId },
+      houseId,
       polity.id,
     ).percent
     if (influencePercent >= threshold) return true

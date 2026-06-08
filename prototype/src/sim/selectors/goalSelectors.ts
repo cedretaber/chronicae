@@ -33,7 +33,7 @@ import { getHouseOwnedPolityIds } from './landContractSelectors'
 import { predictPressureResponseStance } from './pressureStanceSelectors'
 import { politiesShareOwnerHouse } from './polityRelations'
 import {
-  getActorInfluenceInPolity,
+  getHouseAggregateInfluenceInPolity,
   getPolityInfluenceBreakdown,
   getActorInfluenceFromBreakdown,
 } from './influenceSelectors'
@@ -209,12 +209,7 @@ export function scoreHouseGoalKind(
   let expandScore = 0
   if (ownedPolityIds.length > 0) expandScore += 15
   for (const pid of ownedPolityIds) {
-    const influencePercent = getActorInfluenceInPolity(
-      state,
-      config,
-      { kind: 'house', id: houseId },
-      pid,
-    ).percent
+    const influencePercent = getHouseAggregateInfluenceInPolity(state, config, houseId, pid).percent
     if (influencePercent < 50) expandScore += 10
   }
   if (house.wealth >= 100) expandScore += 10
@@ -222,12 +217,7 @@ export function scoreHouseGoalKind(
   // preserve_power_base
   let preserveScore = 0
   for (const pid of ownedPolityIds) {
-    const influencePercent = getActorInfluenceInPolity(
-      state,
-      config,
-      { kind: 'house', id: houseId },
-      pid,
-    ).percent
+    const influencePercent = getHouseAggregateInfluenceInPolity(state, config, houseId, pid).percent
     if (influencePercent >= 50) preserveScore += 15
   }
   if (ownedPolityIds.length === 0) preserveScore += 5
@@ -654,10 +644,7 @@ function pickHouseAim(
   // v0.42 §19.2-4: share% → influence% (0〜100 スケール維持)。polity ごとに 1 回だけ計算。
   const influencePctOf = new Map<string, number>()
   for (const pid of ownedPolityIds) {
-    influencePctOf.set(
-      pid,
-      getActorInfluenceInPolity(state, config, { kind: 'house', id: houseId }, pid).percent,
-    )
+    influencePctOf.set(pid, getHouseAggregateInfluenceInPolity(state, config, houseId, pid).percent)
   }
   // v0.42 §13.3: acquire_political_right の候補生成 (influence ゲートは Aim 生成条件)。
   // 対象 = 家が influence を持ちうる polity (owned に限らない — 非 owner 開放) のうち
@@ -673,12 +660,7 @@ function pickHouseAim(
       // ownedPolityIds しか読まないため挙動に影響しない)
       let influencePercent = influencePctOf.get(pid)
       if (influencePercent === undefined) {
-        influencePercent = getActorInfluenceInPolity(
-          state,
-          config,
-          { kind: 'house', id: houseId },
-          pid,
-        ).percent
+        influencePercent = getHouseAggregateInfluenceInPolity(state, config, houseId, pid).percent
         influencePctOf.set(pid, influencePercent)
       }
       if (influencePercent < lower || influencePercent >= upper) continue
@@ -715,12 +697,7 @@ function pickHouseAim(
       for (const pid of collectAcquireRightCandidatePolityIds(state, houseId, ownedPolityIds)) {
         let influencePercent = influencePctOf.get(pid)
         if (influencePercent === undefined) {
-          influencePercent = getActorInfluenceInPolity(
-            state,
-            config,
-            { kind: 'house', id: houseId },
-            pid,
-          ).percent
+          influencePercent = getHouseAggregateInfluenceInPolity(state, config, houseId, pid).percent
           influencePctOf.set(pid, influencePercent)
         }
         if (influencePercent >= upper) continue

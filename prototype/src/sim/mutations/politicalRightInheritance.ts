@@ -19,7 +19,7 @@ import type { MarkPersonDeadOptions } from './personMutations'
 import type { StateResult } from './result'
 import { markPersonDead } from './personMutations'
 import { getRightsByHolder, getPolityIdForRightTarget } from '../selectors/politicalRightSelectors'
-import { getActorInfluenceInPolity } from '../selectors/influenceSelectors'
+import { getHouseAggregateInfluenceInPolity } from '../selectors/influenceSelectors'
 import { transferPoliticalRight } from './politicalRightMutations'
 import { hashSeedToUint32 } from '../rng/rng'
 
@@ -49,19 +49,19 @@ function decideRightInheritance(
   // 死亡者家 == owner 家 → 常に家産化 (flip skip)
   if (polity.ownerHouseId !== undefined && polity.ownerHouseId === deadHouseId) return 'inherit'
 
-  const deadHousePct = getActorInfluenceInPolity(
+  const deadHousePct = getHouseAggregateInfluenceInPolity(
     state,
     config,
-    { kind: 'house', id: deadHouseId },
+    deadHouseId,
     polityId,
   ).percent
 
   let base: InheritanceDecision
   if (polity.ownerHouseId !== undefined) {
-    const ownerPct = getActorInfluenceInPolity(
+    const ownerPct = getHouseAggregateInfluenceInPolity(
       state,
       config,
-      { kind: 'house', id: polity.ownerHouseId },
+      polity.ownerHouseId,
       polityId,
     ).percent
     if (ownerPct >= config.rightInheritanceOwnerSeizeThreshold) base = 'seize'

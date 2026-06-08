@@ -16,7 +16,7 @@
 // 何度も呼ばない。呼出側は polity ごとに 1 回計算して cache を渡すこと。
 
 import type { WorldState } from '../types/world'
-import type { PolityId, PersonId } from '../types/ids'
+import type { PolityId, PersonId, HouseId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type {
   PolityInfluenceBreakdown,
@@ -308,6 +308,40 @@ export function getActorInfluenceFromBreakdown(
   const entry = breakdown.entries.find((e) => polityInfluenceHolderKey(e.holder) === key)
   if (!entry) return { score: 0, percent: 0 }
   return { score: entry.total, percent: entry.percent }
+}
+
+// 家の支配率 (影響力個人中心化): 家 entry + 家中の (生存) メンバー person entry の influence を合算する。
+// 「家の中で対立はあっても、国の支配は家全体で見る」— 個人帰属化した influence (役職 / 評判 /
+// person 保有任命権 / 代官) を、家単位の支配力評価では再集約する。役職取得などの動機ゲート (§13.3) /
+// 死亡時継承判定 (§6.64a-(8)) / 家断絶時の領地継承先 / 有力家門判定がこの定義を共有する。
+// 余剰金分配の収入投影 (houseFinanceSelectors) は実配分が entry 単位なので集約しない (過大投影回避)。
+export function getHouseAggregateInfluenceFromBreakdown(
+  state: WorldState,
+  breakdown: PolityInfluenceBreakdown,
+  houseId: HouseId,
+): { score: number; percent: number } {
+  const house = state.houses[houseId]
+  const memberSet = new Set<string>(house ? house.memberIds.map((id) => id as string) : [])
+  let score = 0
+  for (const entry of breakdown.entries) {
+    if (entry.holder.kind === 'house') {
+      if (entry.holder.id === houseId) score += entry.total
+    } else if (memberSet.has(entry.holder.id)) {
+      score += entry.total
+    }
+  }
+  const percent = breakdown.totalScore > 0 ? (score / breakdown.totalScore) * 100 : 0
+  return { score, percent }
+}
+
+export function getHouseAggregateInfluenceInPolity(
+  state: WorldState,
+  config: SimulationConfig,
+  houseId: HouseId,
+  polityId: PolityId,
+): { score: number; percent: number } {
+  const breakdown = getPolityInfluenceBreakdown(state, config, polityId)
+  return getHouseAggregateInfluenceFromBreakdown(state, breakdown, houseId)
 }
 
 // v0.43 §9.3: Polity の「targetPolityId への influence 加重意見」(-100..100)。

@@ -18,7 +18,7 @@ import {
 } from '../selectors/landContractSelectors'
 import { syncClanActive } from './clanMutations'
 import { removeRightsByHolder } from './politicalRightMutations'
-import { getActorInfluenceInPolity } from '../selectors/influenceSelectors'
+import { getHouseAggregateInfluenceInPolity } from '../selectors/influenceSelectors'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { createLogger } from '../debug/logger'
 
@@ -96,12 +96,7 @@ function chooseReceiverHouse(
       if (isExcluded(candidateId)) continue
       const candidate = state.houses[candidateId]
       if (!candidate || !candidate.active) continue
-      const share = getActorInfluenceInPolity(
-        state,
-        config,
-        { kind: 'house', id: candidateId },
-        polityId,
-      ).percent
+      const share = getHouseAggregateInfluenceInPolity(state, config, candidateId, polityId).percent
       if (!bestByShare || share > bestByShare.share) {
         bestByShare = { houseId: candidateId, share }
       }

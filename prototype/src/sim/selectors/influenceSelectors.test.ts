@@ -22,6 +22,7 @@ import { addPersonReputationMut } from '../mutations/personReputationMutations'
 import {
   getPolityInfluenceBreakdown,
   getActorInfluenceInPolity,
+  getHouseAggregateInfluenceFromBreakdown,
   getDominantInfluenceHolder,
   getTopInfluenceHoldersInPolity,
 } from './influenceSelectors'
@@ -409,5 +410,67 @@ describe('reputation domain (影響力個人中心化 Phase 1a)', () => {
     }
     const breakdown = getPolityInfluenceBreakdown(state, defaultConfig, polityId)
     expect(breakdown.entries).toEqual([])
+  })
+})
+
+describe('getHouseAggregateInfluenceFromBreakdown (家の支配率 §6.64a-(10))', () => {
+  it('家 entry + 家中メンバー person entry の influence% を合算する', () => {
+    let state = makeBaseState()
+    // landlessHouse の member (outsiderId) に役職を与える → office は person entry に付く (Phase 2b)。
+    // 家 entry は 0、aggregate は member 個人分を拾うので > 0 になる。
+    state = createOfficeAssignment(
+      state,
+      { kind: 'polity', id: polityId },
+      'administrator',
+      outsiderId,
+    )
+    const breakdown = getPolityInfluenceBreakdown(state, defaultConfig, polityId)
+    const houseEntryPct = getActorInfluenceInPolity(
+      state,
+      defaultConfig,
+      { kind: 'house', id: landlessHouseId },
+      polityId,
+    ).percent
+    const personEntryPct = getActorInfluenceInPolity(
+      state,
+      defaultConfig,
+      { kind: 'person', id: outsiderId },
+      polityId,
+    ).percent
+    const aggregate = getHouseAggregateInfluenceFromBreakdown(state, breakdown, landlessHouseId)
+
+    // member が役職を持つので person 分が乗り、house entry 単独より高い
+    expect(personEntryPct).toBeGreaterThan(0)
+    expect(aggregate.percent).toBeGreaterThan(houseEntryPct)
+    // aggregate = 家 entry% + メンバー person entry%
+    expect(aggregate.percent).toBeCloseTo(houseEntryPct + personEntryPct, 6)
+  })
+
+  it('メンバー以外の person entry は合算しない', () => {
+    let state = makeBaseState()
+    // ownerLeaderId (ownerHouse 所属) に評判を付ける → person entry が立つ
+    const ws = { ...state }
+    addPersonReputationMut(ws, {
+      personId: ownerLeaderId,
+      source: { kind: 'war' },
+      outcome: 'success',
+      category: 'military',
+      baseScore: 40,
+      createdWeek: ws.absoluteWeek,
+      expiryWeek: ws.absoluteWeek + 10000,
+      relatedOrganization: { kind: 'polity', id: polityId },
+      relatedRefs: [],
+    })
+    state = ws
+    const breakdown = getPolityInfluenceBreakdown(state, defaultConfig, polityId)
+    // landlessHouse の aggregate は ownerLeader (別家メンバー) を拾わない
+    const landlessAgg = getHouseAggregateInfluenceFromBreakdown(state, breakdown, landlessHouseId)
+    const landlessHousePct = getActorInfluenceInPolity(
+      state,
+      defaultConfig,
+      { kind: 'house', id: landlessHouseId },
+      polityId,
+    ).percent
+    expect(landlessAgg.percent).toBeCloseTo(landlessHousePct, 6)
   })
 })
