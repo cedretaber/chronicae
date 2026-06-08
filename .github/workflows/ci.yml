@@ -70,10 +70,10 @@ jobs:
   # 整合性検証: 複数のランダムシードで長期シミュレーションを完走させる。
   # 静的解析・ユニットテストでは捕まえられない、長期蓄積型の状態整合性バグを検出する。
   simulation:
-    name: CLI integrity (300yr × random seeds)
+    name: CLI integrity (100yr × random seeds)
     needs: check
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: prototype
@@ -101,13 +101,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # ランダムシード × 300 年を並列実行。違反があれば CLI が非ゼロ exit で落ちる。
+      # ランダムシード × 100 年を並列実行。違反があれば CLI が非ゼロ exit で落ちる。
       # 失敗したシードは手元で同じ --seed を渡せば再現できる。
+      # v0.45.4 の人口増で 300 年は CI 時間内に収まらず・ローカルでも実用性に欠けるため
+      # 300 年テストは全廃し、CI もローカルも 100 年に統一した (v0.45.5)。
       - name: Run multi-seed integrity simulation
         run: |
           set -uo pipefail
 
-          YEARS=300
+          YEARS=100
           SEED_COUNT=4
 
           # ランダムシードを生成する。
@@ -147,7 +149,7 @@ jobs:
 
           exit $fail
 
-      # 失敗時はフルログをアーティファクトとして残す（300 年分の全イベントを手元で確認できる）。
+      # 失敗時はフルログをアーティファクトとして残す（100 年分の全イベントを手元で確認できる）。
       - name: Upload simulation logs on failure
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4

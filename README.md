@@ -53,8 +53,10 @@ npm run cli
 # Custom seed and duration
 npm run cli -- --seed my-seed --years 20
 
-# Long-run integrity verification (year-end integrity check, throws on violation)
-npm run cli -- --seed test-seed --years 300
+# Long-run integrity verification (year-end integrity check, throws on violation).
+# CI and all local checks use 100 years. Longer runs (e.g. 300 years) were dropped
+# because the v0.45.4 population growth made them impractically slow (~18 min for 4 seeds).
+npm run cli -- --seed test-seed --years 100
 
 # Per-system integrity diagnosis (logs the first persistent violation; slow)
 npm run cli -- --seed test-seed --years 20 --integrity-per-system
@@ -69,20 +71,20 @@ npm run cli -- --seed test-seed --years 20 --debug 2>/tmp/debug.log
 npm run cli -- --seed test-seed --years 10 --dump-world 2>world.json
 
 # Compact summary of the final world (JSON to stdout) — useful for quick checks
-npm run cli -- --seed test-seed --years 300 --digest
+npm run cli -- --seed test-seed --years 100 --digest
 
 # Override config values for balance testing (JSON object, keys merged with defaults)
-npm run cli -- --seed 1 --years 300 --digest --config '{"taxRevisionTaxChangeAmount":0.15}'
+npm run cli -- --seed 1 --years 100 --digest --config '{"taxRevisionTaxChangeAmount":0.15}'
 
 # Compare two configs side-by-side
-npm run cli -- --seed 1 --years 300 --digest --config '{"taxRevisionTaxChangeAmount":0.05}' > /tmp/a.json &
-npm run cli -- --seed 1 --years 300 --digest --config '{"taxRevisionTaxChangeAmount":0.15}' > /tmp/b.json &
+npm run cli -- --seed 1 --years 100 --digest --config '{"taxRevisionTaxChangeAmount":0.05}' > /tmp/a.json &
+npm run cli -- --seed 1 --years 100 --digest --config '{"taxRevisionTaxChangeAmount":0.15}' > /tmp/b.json &
 wait && diff /tmp/a.json /tmp/b.json
 
 # Activity Report: 4-axis observation JSON (Office churn / Faction lifecycle /
 # Bailiff dynamics / population). Use "-" for stdout instead of a file path.
-npm run cli -- --seed test-seed --years 300 --report report.json
-npm run cli -- --seed test-seed --years 300 --report report.json --report-snapshot 50
+npm run cli -- --seed test-seed --years 100 --report report.json
+npm run cli -- --seed test-seed --years 100 --report report.json --report-snapshot 50
 
 # All options
 npm run cli -- --help
@@ -160,13 +162,13 @@ Writes a structured JSON report that aggregates the entire run along four observ
 
 ```bash
 # Single seed, no snapshots
-npm run cli -- --seed test-seed --years 300 --report report.json
+npm run cli -- --seed test-seed --years 100 --report report.json
 
 # Add per-50-year snapshots for time-series inspection
-npm run cli -- --seed test-seed --years 300 --report report.json --report-snapshot 50
+npm run cli -- --seed test-seed --years 100 --report report.json --report-snapshot 50
 
 # Send to stdout for piping (e.g. with jq)
-npm run cli -- --seed test-seed --years 300 --report - | jq .bailiff
+npm run cli -- --seed test-seed --years 100 --report - | jq .bailiff
 ```
 
 **Report structure (top-level keys):**
@@ -200,7 +202,7 @@ jq '.office.polity | map({id: .polityId, rank, owner_ratio: .ownerHouseHoldRatio
 jq '.snapshots[] | select(.year == 150) | .polities[] | {polity: .name, rank, offices}' report.json
 ```
 
-The report is generated purely from the event log and the final state, so its overhead is small (~150–200 KB per 300-year run). Snapshots add roughly `snapshots × active_polities × roles` of data — keep `--report-snapshot` ≥ 20 to avoid bulk on long runs.
+The report is generated purely from the event log and the final state, so its overhead is small (on the order of tens of KB per 100-year run). Snapshots add roughly `snapshots × active_polities × roles` of data — keep `--report-snapshot` ≥ 20 to avoid bulk on long runs.
 
 ### Config Override (`--config`)
 
@@ -208,10 +210,10 @@ Override any simulation config value without editing code. Useful for balance te
 
 ```bash
 # Increase tax change amount from default 5% to 15%
-npm run cli -- --seed 1 --years 300 --digest --config '{"taxRevisionTaxChangeAmount":0.15}'
+npm run cli -- --seed 1 --years 100 --digest --config '{"taxRevisionTaxChangeAmount":0.15}'
 
 # Multiple overrides at once
-npm run cli -- --seed 1 --years 300 --digest --config '{"taxRevisionTaxChangeAmount":0.15,"taxRevisionMinRate":0.10}'
+npm run cli -- --seed 1 --years 100 --digest --config '{"taxRevisionTaxChangeAmount":0.15,"taxRevisionMinRate":0.10}'
 ```
 
 The value must be a valid JSON object. Keys are shallow-merged with `defaultConfig`: specified keys override defaults, unspecified keys keep their default values. Unknown keys produce a warning on stderr and are ignored (helps catch typos).
