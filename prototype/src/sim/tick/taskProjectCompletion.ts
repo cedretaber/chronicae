@@ -31,6 +31,7 @@ import {
 } from '../mutations/projectMutations'
 import { getRightForTarget } from '../selectors/politicalRightSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
+import { selectMovementBeneficiary } from '../selectors/goalSelectors'
 import { getProvinceHoldings, getLandContractGrantor } from '../selectors/landContractSelectors'
 import { politiesShareOwnerHouse } from '../selectors/polityRelations'
 import { getInitialProjectStageKey, getNextProjectStageKey } from '../config/projectStageSequences'
@@ -65,11 +66,15 @@ export function handlePrepareProjectCompletionMut(
   }
 
   // v0.44 §6.4: personal_training は本人が owner/creator/supervisor を兼ねる (選定しない)
+  // 影響力個人中心化 Phase 1b: 運動は sponsoredPersonId (推薦 member) を supervisor に固定する。
+  //   auto 選定を bypass しないと評判が別人に付き dual-tag が誤ったキャリアに流入する (load-bearing)。
   const supervisorId =
     projectKind === 'personal_training'
       ? creatorPersonId
-      : (selectProjectSupervisor(ws, config, aim.owner, projectKind, creatorPersonId) ??
-        creatorPersonId)
+      : projectKind === 'movement_campaign'
+        ? ((fields as { sponsoredPersonId?: PersonId }).sponsoredPersonId ?? creatorPersonId)
+        : (selectProjectSupervisor(ws, config, aim.owner, projectKind, creatorPersonId) ??
+          creatorPersonId)
 
   const projectId: ProjectId = createProjectId(ws.nextProjectId)
   const targetProgress =
@@ -291,6 +296,23 @@ function buildProjectFieldsForAim(
         budget: config.acquirePoliticalRightBaseCost,
         spentBudget: 0,
         currentStageKey: getInitialProjectStageKey('acquire_political_right'),
+      }
+    }
+    case 'movement_campaign': {
+      // 影響力個人中心化 Phase 1b: 運動。owner=家・target=aim.target polity・
+      // sponsoredPersonId=推薦 member (= supervisor = 受益者)。
+      const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      const polityId = aim.target?.kind === 'polity' ? aim.target.id : undefined
+      if (!houseId || !polityId) return undefined
+      if (!canAffordCulturalProject(ws, houseId, config.movementProjectBaseCost)) return undefined
+      const sponsoredPersonId = selectMovementBeneficiary(ws, config, houseId)
+      if (!sponsoredPersonId) return undefined
+      return {
+        targetPolityId: polityId,
+        sponsoredPersonId,
+        budget: config.movementProjectBaseCost,
+        spentBudget: 0,
+        currentStageKey: getInitialProjectStageKey('movement_campaign'),
       }
     }
     case 'patronize_artist': {

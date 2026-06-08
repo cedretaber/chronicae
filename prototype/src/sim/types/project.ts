@@ -50,6 +50,8 @@ export type ProjectKind =
   | 'respond_to_pressure'
   // v0.44 §6: 個人鍛錬 (improve_ability aim の project 化)
   | 'personal_training'
+  // 影響力個人中心化 Phase 1b: 運動 (家が資金で家メンバーを国に推薦し influence を積む)
+  | 'movement_campaign'
 
 export type BaseProject = {
   id: ProjectId
@@ -169,6 +171,19 @@ export type RespondToPressureProject = BaseProject & {
   stance?: PressureResponseStance
 }
 
+// 影響力個人中心化 Phase 1b: 運動 Project。
+// owner = 資金を出す家 ({kind:'house'})。sponsoredPersonId = 推薦された家メンバー (= supervisor
+// = 受益者)。完遂で sponsoredPersonId に dual-tag 評判 (owner=house→Share / target=polity→influence)
+// が付き、個人の influence が上がる。fundingHouseId は owner.id と同一なので持たない (§redesign)。
+export type MovementCampaignProject = BaseProject & {
+  kind: 'movement_campaign'
+  owner: { kind: 'house'; id: HouseId }
+  targetPolityId: PolityId
+  sponsoredPersonId: PersonId
+  budget: number
+  spentBudget: number
+}
+
 export type Project =
   | DevelopHoldingProject
   | PromotePolicyShiftProject
@@ -179,6 +194,7 @@ export type Project =
   | ContractRevisionProject
   | RespondToPressureProject
   | PersonalTrainingProject
+  | MovementCampaignProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

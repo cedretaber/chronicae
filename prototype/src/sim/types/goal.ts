@@ -101,6 +101,8 @@ export type HouseAimKind =
   | 'steer_polity_internal_development'
   | 'patronize_artist'
   | 'commission_chronicle'
+  // 影響力個人中心化 Phase 1b: 運動 (家がメンバーを国に推薦して influence を積む)
+  | 'start_movement_campaign'
 
 export type PersonAimKind =
   | 'support_organization_aim'

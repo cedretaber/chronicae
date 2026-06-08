@@ -257,7 +257,12 @@ function awardProjectOutcomeMut(
   if (category !== undefined) {
     let baseScore: number | undefined
     if (project.status === 'completed') {
-      baseScore = config.personReputationProjectSuccessBase
+      // 影響力個人中心化 Phase 1b: 運動は投入額に比例した評判 (baseScore = budget × perCost)。
+      // 他 project は固定 success base。
+      baseScore =
+        project.kind === 'movement_campaign'
+          ? project.budget * config.movementReputationPerCost
+          : config.personReputationProjectSuccessBase
     } else if (
       project.status === 'failed' &&
       (project.terminalReason === 'deadline_expired' ||
@@ -333,6 +338,9 @@ function deriveProjectTargetPolity(ws: WorldState, project: Project): Organizati
     case 'acquire_political_right':
     case 'promote_policy_shift':
       return { kind: 'polity', id: project.polityId }
+    case 'movement_campaign':
+      // 影響力個人中心化 Phase 1b: owner=家 (Share へ) + target=対象 polity (influence へ) の dual-tag
+      return { kind: 'polity', id: project.targetPolityId }
     case 'develop_holding': {
       const polityId = ws.holdingTerminalPolityCache[project.holdingId]
       return polityId !== undefined ? { kind: 'polity', id: polityId } : undefined
@@ -366,7 +374,26 @@ function applyNonDiplomaticEffectMut(
     case 'commission_chronicle':
       applyCommissionChronicleMut(ws, config, project, emitEvent)
       break
+    case 'movement_campaign':
+      applyMovementCampaignMut(ws, config, project)
+      break
   }
+}
+
+// 影響力個人中心化 Phase 1b: 運動完遂の効果。投入額を家 wealth から消費する (wealth sink・
+// campaign 支出として消える)。influence/Share 上昇は award (dual-tag 評判) が担うのでここでは
+// 状態変更は wealth 控除のみ。失敗/中断時は呼ばれない (= budget 没収・追加処理なし)。
+function applyMovementCampaignMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: Project,
+): void {
+  if (project.kind !== 'movement_campaign') return
+  const house = ws.houses[project.owner.id]
+  if (!house || !house.active) return
+  const cost = config.movementProjectBaseCost
+  if (house.wealth < cost) return
+  ws.houses[project.owner.id] = { ...house, wealth: house.wealth - cost }
 }
 
 function applyDevelopHoldingMut(

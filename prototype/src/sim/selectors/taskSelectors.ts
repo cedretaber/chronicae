@@ -167,6 +167,8 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   // v0.44: prepare_project task 用の nominal。advance_project の relevantAbility は
   // projectTaskGenerationSystem が trainingAbilityKey に分岐する (§6.6)
   personal_training: 'insight',
+  // 影響力個人中心化 Phase 1b: 運動 = キャンペーン (charisma)
+  movement_campaign: 'charisma',
 }
 
 export function determineTaskOutcome(

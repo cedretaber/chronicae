@@ -66,6 +66,9 @@ export const PROJECT_REPUTATION_CATEGORY_MAP: Record<ProjectKind, ReputationCate
 
     // personal_training は評判を一切発生させない (§6.8)
     personal_training: undefined,
+
+    // 影響力個人中心化 Phase 1b: 運動は general 評判を発生させる (推薦された個人に付与)
+    movement_campaign: 'general',
   }
 
 export type AwardSourceKind = PersonReputationSource['kind']

@@ -331,3 +331,4 @@ enum:
     demand_tax_increase: '増税要求'
     respond_to_pressure: '圧力への対応'
     personal_training: '個人鍛錬'
+    movement_campaign: '政治運動'

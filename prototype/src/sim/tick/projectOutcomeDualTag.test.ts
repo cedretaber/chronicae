@@ -113,6 +113,21 @@ describe('collectProjectReputationOrganizations (dual-tag Phase 1a)', () => {
     expect(keys(collectProjectReputationOrganizations(ws, project))).toEqual([`house:${houseId}`])
   })
 
+  it('movement_campaign は owner(house) + target(targetPolityId) の 2 個', () => {
+    const ws = makeEmptyV016State()
+    const project = baseProject({
+      kind: 'movement_campaign',
+      owner: { kind: 'house', id: houseId },
+      targetPolityId: polityId,
+      sponsoredPersonId: createPersonId('pe', 5),
+      budget: 40,
+      spentBudget: 0,
+    } as never)
+    expect(keys(collectProjectReputationOrganizations(ws, project))).toEqual(
+      [`house:${houseId}`, `polity:${polityId}`].sort(),
+    )
+  })
+
   it('person-owned personal_training は owner も target も無し → 空', () => {
     const ws = makeEmptyV016State()
     const project = baseProject({

@@ -16,6 +16,9 @@ import type {
 import { decisionSubjectKey } from '../types/goal'
 import { politicalRightTargetKey, politicalRightHolderKey } from '../types/politicalRight'
 import { isLivingPerson } from '../types/person'
+import type { PersonId } from '../types/ids'
+import { getRoleScore } from './abilitySelectors'
+import { getPersonReputationModifierForCategories } from './personReputationSelectors'
 import { findAcquirableRightTarget } from './politicalRightSelectors'
 import {
   getPolityTerminalProvinceIds,
@@ -504,6 +507,32 @@ function pickPolityAim(
 //   ⑥ anchor faction leader の家 → 生存 member が leader である active Faction の anchor polity
 // 弱体 polity 1 つを多数の家が見る場合 breakdown が家数ぶん再計算されるが年次 cadence で許容
 // (pass 単位 breakdown キャッシュは future work)。
+// 影響力個人中心化 Phase 1b: 運動の受益者 (推薦する家メンバー) を決定的に選ぶ。
+// houseId の生存成人メンバーから governance + general 評判 を線形スコアにした argmax
+// (ID 昇順 tiebreak)。RNG を使わない (supervisor auto 選定を bypass する以上、選定にも
+// 非決定を持ち込まない — 決定性確保)。適格メンバーが居なければ undefined。
+// v1 は polity 個別の役職適格を見ない (家が foothold を持つ前提)。Phase 2 で polityId を
+// 取り役職適格ゲートを足す。
+export function selectMovementBeneficiary(
+  state: WorldState,
+  config: SimulationConfig,
+  houseId: HouseId,
+): PersonId | undefined {
+  const house = state.houses[houseId]
+  if (!house || !house.active) return undefined
+  let best: { id: PersonId; score: number } | undefined
+  for (const personId of [...house.memberIds].sort()) {
+    const person = state.persons[personId]
+    if (!person || !person.alive || person.kind === 'placeholder') continue
+    if (person.age < config.adultAge) continue
+    const score =
+      getRoleScore(state, personId, 'governance') +
+      getPersonReputationModifierForCategories(state, config, personId, ['general']) * 0.5
+    if (!best || score > best.score) best = { id: personId, score }
+  }
+  return best?.id
+}
+
 export function collectAcquireRightCandidatePolityIds(
   state: WorldState,
   houseId: HouseId,
@@ -636,6 +665,33 @@ function pickHouseAim(
           kind: 'steer_polity_external_expansion',
           target: { kind: 'polity', id: pid },
           score: 15 + influencePercent * 0.3,
+        })
+      }
+    }
+    // 影響力個人中心化 Phase 1b: 運動 (家が資金で member を国に推薦して influence を積む)。
+    // 家が foothold を持つ polity (collectAcquireRightCandidatePolityIds) のうち、まだ掌握して
+    // いない (influence% < 上限) ものを対象に、推薦できる member が居れば候補を立てる。
+    if (
+      house.wealth >= config.movementProjectBaseCost &&
+      selectMovementBeneficiary(state, config, houseId) !== undefined
+    ) {
+      const upper = config.acquirePoliticalRightMaxInfluencePercent
+      for (const pid of collectAcquireRightCandidatePolityIds(state, houseId, ownedPolityIds)) {
+        let influencePercent = influencePctOf.get(pid)
+        if (influencePercent === undefined) {
+          influencePercent = getActorInfluenceInPolity(
+            state,
+            config,
+            { kind: 'house', id: houseId },
+            pid,
+          ).percent
+          influencePctOf.set(pid, influencePercent)
+        }
+        if (influencePercent >= upper) continue
+        candidates.push({
+          kind: 'start_movement_campaign',
+          target: { kind: 'polity', id: pid },
+          score: 18,
         })
       }
     }

@@ -332,3 +332,4 @@ enum:
     demand_tax_increase: 'demanding a tax increase'
     respond_to_pressure: 'responding to pressure'
     personal_training: 'personal training'
+    movement_campaign: 'a political campaign'

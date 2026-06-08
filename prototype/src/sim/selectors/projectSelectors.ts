@@ -72,6 +72,13 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
     // bySupervisor で引ける)
     case 'personal_training':
       return []
+
+    // 影響力個人中心化 Phase 1b: 運動。対象 polity と推薦個人を related に載せる
+    case 'movement_campaign':
+      return [
+        { kind: 'polity', id: project.targetPolityId },
+        { kind: 'person', id: project.sponsoredPersonId },
+      ]
   }
 }
 
@@ -89,6 +96,8 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   // v0.44: nominal — personal_training は supervisor 選定を通らず (本人固定 §6.4)、
   // 経験 weight も getProjectExperienceWeights が trainingAbilityKey 単独に分岐する (§3.1)
   personal_training: 'governance',
+  // 影響力個人中心化 Phase 1b: 運動 = 政治的キャンペーン (charisma/diplomacy)
+  movement_campaign: 'diplomacy',
 }
 
 export function getPersonProjectWorkload(

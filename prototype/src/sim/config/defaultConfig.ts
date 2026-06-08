@@ -728,6 +728,10 @@ export type SimulationConfig = {
   // 影響力個人中心化 Phase 1a: reputation domain。polity-tag PersonReputation の現在値合計に掛ける係数。
   // 成果項 (功績由来の影響力)。構造項と並ぶ第二の供給源 (§9・初期値 0.5)。
   polityInfluenceReputationFactor: number
+  // 影響力個人中心化 Phase 1b: 運動 Project のコスト (家 wealth から拠出) と評判換算。
+  // baseScore = budget × movementReputationPerCost (40 × 0.2 = 8 = project 成功 1 回相当)。
+  movementProjectBaseCost: number
+  movementReputationPerCost: number
   // v0.12 Administrative efficiency
   minAdministrativeEfficiency: number
   maxAdministrativeEfficiency: number
@@ -1756,6 +1760,8 @@ export const defaultConfig: SimulationConfig = {
   polityInfluenceHoldingOfficeAppointmentFactor: 2,
   polityInfluenceFactionFactor: 2,
   polityInfluenceReputationFactor: 0.5,
+  movementProjectBaseCost: 40,
+  movementReputationPerCost: 0.2,
   houseShareBase: 5,
   houseShareLeaderBonus: 20,
   houseShareOfficeBonus: 10,

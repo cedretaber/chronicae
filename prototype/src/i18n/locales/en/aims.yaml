@@ -13,6 +13,7 @@ house:
   steer_polity_internal_development: Steer Polity Toward Development
   patronize_artist: Patronize an Artist
   commission_chronicle: Commission a Chronicle
+  start_movement_campaign: Launch a Political Campaign
 person:
   support_organization_aim: Support Organization's Aim
   increase_house_influence: Increase House Influence

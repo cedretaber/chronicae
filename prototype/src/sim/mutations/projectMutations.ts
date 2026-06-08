@@ -148,6 +148,9 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
       return 'patronize_artist'
     case 'commission_chronicle':
       return 'commission_chronicle'
+    // 影響力個人中心化 Phase 1b: 運動
+    case 'start_movement_campaign':
+      return 'movement_campaign'
     // v0.44 §6.5: improve_ability は直接 Task 生成を廃止し personal_training Project 化
     case 'improve_ability':
       return 'personal_training'

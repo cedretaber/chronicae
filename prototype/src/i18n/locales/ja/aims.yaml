@@ -13,6 +13,7 @@ house:
   steer_polity_internal_development: 国の内政充実を主導
   patronize_artist: 芸術家の後援
   commission_chronicle: 年代記の編纂
+  start_movement_campaign: 政治運動の開始
 person:
   support_organization_aim: 組織目標への協力
   increase_house_influence: 家門における影響力拡大
