@@ -27,7 +27,13 @@ const noFlip = { ...defaultConfig, rightInheritanceFlipChance: 0 }
 const alwaysFlip = { ...defaultConfig, rightInheritanceFlipChance: 1 }
 
 // 死亡者が polity_office_role right を person 保有している状態を作る。
-function makeRightState(opts: { hasOwner: boolean; deadHouseId: HouseId | undefined }): {
+function makeRightState(opts: {
+  hasOwner: boolean
+  deadHouseId: HouseId | undefined
+  // Phase 2b 以降、person 保有 right の influence は person に付くので、死亡者家の influence% は
+  // 家自身の土地等から来る。家産化バンド (>=20%) に乗せるには死亡者家に土地を与える。
+  landDeadHouse?: boolean
+}): {
   state: WorldState
   rightId: PoliticalRightId
 } {
@@ -43,6 +49,8 @@ function makeRightState(opts: { hasOwner: boolean; deadHouseId: HouseId | undefi
       : { capitalProvinceId: provinceId },
   )
   if (opts.hasOwner) s = bindProvinceToHouseViaPolity(s, provinceId, polityId, ownerHouseId)
+  else if (opts.landDeadHouse && opts.deadHouseId !== undefined)
+    s = bindProvinceToHouseViaPolity(s, provinceId, polityId, opts.deadHouseId)
   // まず家つきで生成し、houseless ケースでは houseId を外す (withPerson は houseId 必須のため)
   s = withPerson(s, deadPerson, {
     nameKey: 'Dead',
@@ -84,9 +92,14 @@ describe('resolveRightInheritanceOnDeath (Phase 4)', () => {
     expect(right!.holder).toEqual({ kind: 'house', id: ownerHouseId })
   })
 
-  it('commonwealth + 死亡者家が右保有で influence 100% → 家産化', () => {
-    // commonwealth (owner なし)。死亡者家 = otherHouse が right 保有 (唯一の entry → 100% >= 20)
-    const { state, rightId } = makeRightState({ hasOwner: false, deadHouseId: otherHouseId })
+  it('commonwealth + 死亡者家が土地持ちで influence >= 20% → 家産化', () => {
+    // commonwealth (owner なし)。死亡者家 = otherHouse が土地持ち (landed_power で >= 20% → 家産化)。
+    // Phase 2b: person 保有 right の influence は person に付くので、家の influence は土地由来。
+    const { state, rightId } = makeRightState({
+      hasOwner: false,
+      deadHouseId: otherHouseId,
+      landDeadHouse: true,
+    })
     const result = markPersonDeadWithInheritance(state, noFlip, deadPerson)
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -105,14 +118,15 @@ describe('resolveRightInheritanceOnDeath (Phase 4)', () => {
     expect(result.value.politicalRights[rightId]).toBeUndefined()
   })
 
-  it('flip (alwaysFlip) は家産化を国回収に反転する', () => {
-    // owner家同一は flip skip なので、commonwealth 家産化ケースで flip を効かせる
-    const { state, rightId } = makeRightState({ hasOwner: false, deadHouseId: otherHouseId })
+  it('flip (alwaysFlip) は判定を反転する (強い owner の seize → 家産化)', () => {
+    // 強い owner (base = seize/国回収) に alwaysFlip → inherit/家産化 に反転
+    const { state, rightId } = makeRightState({ hasOwner: true, deadHouseId: otherHouseId })
     const result = markPersonDeadWithInheritance(state, alwaysFlip, deadPerson)
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    // alwaysFlip で inherit→seize 反転 → right 削除
-    expect(result.value.politicalRights[rightId]).toBeUndefined()
+    const right = result.value.politicalRights[rightId]
+    expect(right).toBeDefined()
+    expect(right!.holder).toEqual({ kind: 'house', id: otherHouseId })
   })
 
   it('flip は決定論的 (同 config で再実行すると同結果)', () => {

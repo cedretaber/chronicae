@@ -283,6 +283,21 @@ function getFactionNominationPowerForPolity(
     power += influenceRatio * weight
   }
 
+  // 影響力個人中心化 Phase 2b: メンバー「個人」の influence% も推進力に算入する。
+  // 役職 influence が個人帰属になった分 (Phase 2b) と評判 (Phase 1a) をここで回収し、
+  // 「有能で評判の高い個人が集まった派閥が強い」=個人 agency が faction nomination に貫通する。
+  // landless でも評判→個人influence→推進力→任用、の coldstart 経路が成立する (R15 解消)。
+  // person entry は houseless でも個別に立つため dedupe 不要 (家とは別母集合)。
+  for (const mid of memberIds) {
+    const m = state.persons[mid]
+    if (!m) continue
+    const personRatio =
+      getActorInfluenceFromBreakdown(breakdown, { kind: 'person', id: mid }).percent / 100
+    if (personRatio <= 0) continue
+    const weight = m.houseId === leaderHouseId ? 1.0 : 0.5
+    power += personRatio * weight
+  }
+
   // Existing Polity office holdings (members in this polity)
   for (const mid of memberIds) {
     const ids = state.officeIndex.byHolderPerson[mid] ?? []

@@ -28,12 +28,7 @@ import { polityInfluenceHolderKey } from '../types/influence'
 import { personReputationOrganizationKey } from '../types/personReputation'
 import { getCurrentPersonReputationScore } from './personReputationSelectors'
 import { isLivingPerson } from '../types/person'
-import {
-  getOfficeAssignments,
-  getPolityLeader,
-  getHouseLeader,
-  getHousePolityOfficeOverlapScore,
-} from './officeSelectors'
+import { getOfficeAssignments, getPolityLeader, getHouseLeader } from './officeSelectors'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import {
   getPolityHouseIds,
@@ -88,6 +83,13 @@ export function getPolityInfluenceBreakdown(
     return { kind: 'person', id: personId }
   }
 
+  // 影響力個人中心化 Phase 2b: 個人が保持する position (役職・代官・person 保有任命権) の
+  // influence は家に fold せず person entry に直接計上する (個人帰属の核)。houseless でも同じ。
+  // 家保有の土地・owner bonus・house 保有任命権は引き続き house entry (holderForPerson)。
+  function livingPersonEntry(personId: PersonId): PolityInfluenceHolderRef | undefined {
+    return isLivingPerson(state.persons[personId]) ? { kind: 'person', id: personId } : undefined
+  }
+
   // --- 母集合: 土地ベースの House ---
   const landHouseIds = getPolityHouseIds(state, polityId)
   for (const houseId of landHouseIds) {
@@ -133,12 +135,14 @@ export function getPolityInfluenceBreakdown(
     }
   }
 
-  // --- office domain (§5.4 — leader 除外、overlap は office domain への加算) ---
+  // --- office domain (§5.4 — leader 除外) ---
+  // 影響力個人中心化 Phase 2b: 役職 influence は保有者「個人」に計上する (家に fold しない)。
+  // office-overlap house bonus は house-level の概念ゆえ撤去 (個人帰属では適用不能)。
   const officeAssignments = getOfficeAssignments(state, { kind: 'polity', id: polityId }).filter(
     (o) => o.active && o.role !== 'leader',
   )
   for (const office of officeAssignments) {
-    const holder = holderForPerson(office.holderPersonId)
+    const holder = livingPersonEntry(office.holderPersonId)
     if (!holder) continue
     add(holder, 'office', config.polityInfluenceOfficeFactor)
     // military domain: polity:military office holder (office domain と重複計上 — §5.4 で許容)
@@ -146,27 +150,18 @@ export function getPolityInfluenceBreakdown(
       add(holder, 'military', config.polityInfluenceMilitaryOfficeBonus)
     }
   }
-  // overlap bonus: 旧実装は share 全体への乗算だったが、v0.42 では office 寄与への
-  // 乗算相当を office domain に加算する (officeCount × factor × overlap × bonusMax)。
-  for (const [key, entry] of entries) {
-    if (entry.holder.kind !== 'house') continue
-    const officeScore = entry.byDomain.office ?? 0
-    if (officeScore === 0) continue
-    const overlap = getHousePolityOfficeOverlapScore(state, entry.holder.id, polityId)
-    if (overlap <= 0) continue
-    const bonus = officeScore * overlap * config.polityInfluenceOfficeOverlapBonusMax
-    entry.byDomain.office = officeScore + bonus
-    entries.set(key, entry)
-  }
 
-  // --- PoliticalRight: military / land_administration domain (§5.4) ---
+  // --- PoliticalRight: military / land_administration / office domain (§5.4) ---
+  // 影響力個人中心化 Phase 2b: person 保有任命権の influence は person entry に計上する
+  // (家に fold しない)。house 保有任命権は house entry。Phase 4 で acquire 個人化された
+  // person-held right がここで person influence を生む。
   for (const right of getRightsByPolity(state, polityId)) {
     const holder: PolityInfluenceHolderRef | undefined =
       right.holder.kind === 'house'
         ? state.houses[right.holder.id]?.active
           ? { kind: 'house', id: right.holder.id }
           : undefined
-        : holderForPerson(right.holder.id)
+        : livingPersonEntry(right.holder.id)
     if (!holder) continue
     switch (right.target.kind) {
       case 'regiment': {
@@ -202,7 +197,8 @@ export function getPolityInfluenceBreakdown(
       const assignment = state.holdingOfficeAssignments[assignmentId]
       if (!assignment || !assignment.active) continue
       if (assignment.holderPersonId === PLACEHOLDER_PERSON_ID) continue
-      const holder = holderForPerson(assignment.holderPersonId)
+      // 影響力個人中心化 Phase 2b: 代官 (現職 bailiff) も個人に計上する
+      const holder = livingPersonEntry(assignment.holderPersonId)
       if (!holder) continue
       add(holder, 'land_administration', config.polityInfluenceHoldingOfficeAppointmentFactor)
     }

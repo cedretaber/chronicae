@@ -107,7 +107,7 @@ describe('getPolityInfluenceBreakdown', () => {
     expect(sum).toBeCloseTo(100, 6)
   })
 
-  it('includes a landless office holder house in the entry universe (§5.3)', () => {
+  it('役職保有者の office influence は person entry に計上される (Phase 2b 個人帰属)', () => {
     let state = makeBaseState()
     state = createOfficeAssignment(
       state,
@@ -115,11 +115,13 @@ describe('getPolityInfluenceBreakdown', () => {
       'administrator',
       outsiderId,
     )
-    const entry = entryOf(state, `house:${landlessHouseId}`)
-    expect(entry).toBeDefined()
-    expect(entry!.byDomain.office).toBe(defaultConfig.polityInfluenceOfficeFactor)
-    // House entry なので base も付く
-    expect(entry!.byDomain.base).toBe(defaultConfig.polityInfluenceBase)
+    // Phase 2b: 役職 influence は保有者「個人」(outsiderId) に付き、家には fold しない
+    const personEntry = entryOf(state, `person:${outsiderId}`)
+    expect(personEntry).toBeDefined()
+    expect(personEntry!.byDomain.office).toBe(defaultConfig.polityInfluenceOfficeFactor)
+    // 家 (landlessHouse) には office が乗らない
+    const houseEntry = entryOf(state, `house:${landlessHouseId}`)
+    expect(houseEntry?.byDomain.office).toBeUndefined()
   })
 
   it('includes a landless right holder house + military domain for active regiment right', () => {

@@ -232,6 +232,13 @@ function computePolityScoreV017(
     kind: 'house',
     id: person.houseId,
   }).percent
+  // 影響力個人中心化 Phase 2b: 候補本人の person influence% も加味する。役職 influence が
+  // 個人帰属になった (Phase 2b) ため、候補自身の役職/任命権/評判由来 influence を反映する。
+  // 家 backing (houseInfluencePct) + 個人の立場 (personInfluencePct) の両建てで評価する。
+  const personInfluencePct = getActorInfluenceFromBreakdown(influenceBreakdown, {
+    kind: 'person',
+    id: personId,
+  }).percent
   const personSharePct = getPersonHouseSharePercent(state, person.houseId, personId)
 
   // same-house polity office count (effective per v0.17 §14.5)
@@ -268,7 +275,7 @@ function computePolityScoreV017(
     (prestige / 100) * 8 +
     leaderRespect * 4 +
     polityAffection * 3 +
-    houseInfluencePct * config.polityInfluenceAppointmentFactor +
+    (houseInfluencePct + personInfluencePct) * config.polityInfluenceAppointmentFactor +
     personSharePct * config.houseShareAppointmentFactor +
     ownerHouseBonus -
     compatibilityPenalty -
