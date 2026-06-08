@@ -9,7 +9,7 @@ import type { AbilityKey } from '../types/person'
 import { isLivingPerson } from '../types/person'
 import type { ProjectKind } from '../types/project'
 import type { PressureResponseStance } from '../types/pressure'
-import { getPrimaryOfficeHolder, getPolityLeader, getHouseLeader } from './officeSelectors'
+import { getPrimaryOfficeHolder, getPolityLeader, getHouseDecisionMaker } from './officeSelectors'
 import { enumerateSupportCandidates } from './diplomaticSupportSelectors'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
@@ -313,8 +313,9 @@ export function getDiplomaticPlayDelegate(
     return undefined
   }
   if (actor.kind === 'house') {
-    const leader = getHouseLeader(state, actor.id)
-    if (leader && isCandidate(leader)) return leader
+    // 影響力個人中心化 Phase 3a: 家の外交代表は意志決定者 (支配 share 保有者) に
+    const decisionMaker = getHouseDecisionMaker(state, actor.id)
+    if (decisionMaker && isCandidate(decisionMaker)) return decisionMaker
     return undefined
   }
   return undefined

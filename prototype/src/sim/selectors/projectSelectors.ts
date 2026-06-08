@@ -8,7 +8,7 @@ import type { Project, ProjectKind } from '../types/project'
 import type { AppliedRoleKey } from './abilitySelectors'
 import { getRoleScore } from './abilitySelectors'
 import { getPolityLeader } from './officeSelectors'
-import { getHouseLeader } from './officeSelectors'
+import { getHouseDecisionMaker } from './officeSelectors'
 import { getPolityPersonIds } from './polityRelations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import { isRoleEligibleBySex } from './roleEligibilitySelectors'
@@ -218,7 +218,8 @@ export function selectProjectCreator(
       const leaderId = getPolityLeader(state, aim.owner.id)
       if (leaderId && (leaderId as string) === (pid as string)) leaderBonus = 3
     } else if (aim.owner.kind === 'house') {
-      const leaderId = getHouseLeader(state, aim.owner.id)
+      // 影響力個人中心化 Phase 3a: 家の執行主体は意志決定者 (支配 share 保有者) に
+      const leaderId = getHouseDecisionMaker(state, aim.owner.id)
       if (leaderId && (leaderId as string) === (pid as string)) leaderBonus = 3
     }
 
@@ -323,7 +324,8 @@ export function selectProjectSupervisor(
         const leaderId = getPolityLeader(state, owner.id)
         if (leaderId && (leaderId as string) === (pid as string)) leaderBonus = 1
       } else if (owner.kind === 'house') {
-        const leaderId = getHouseLeader(state, owner.id)
+        // 影響力個人中心化 Phase 3a: 家の執行主体は意志決定者 (支配 share 保有者) に
+        const leaderId = getHouseDecisionMaker(state, owner.id)
         if (leaderId && (leaderId as string) === (pid as string)) leaderBonus = 1
       }
 

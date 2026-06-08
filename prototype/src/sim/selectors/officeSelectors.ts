@@ -9,7 +9,8 @@ import type {
   OrganizationKind,
 } from '@sim/types/office'
 import { OFFICE_DEFINITIONS } from '@sim/config/officeDefinitions'
-import { getPersonHouseSharePercent } from '@sim/selectors/shareSelectors'
+import { getPersonHouseSharePercent, getHouseShares } from '@sim/selectors/shareSelectors'
+import { isLivingPerson } from '@sim/types/person'
 import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
 import { weightedAverage } from '@sim/selectors/statusSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
@@ -78,6 +79,26 @@ export function getPolityLeaderHouse(state: WorldState, countryId: PolityId): Ho
 
 export function getHouseLeader(state: WorldState, houseId: HouseId): PersonId | undefined {
   return getPrimaryOfficeHolder(state, { kind: 'house', id: houseId }, 'leader')
+}
+
+// 影響力個人中心化 Phase 3a: 家アクターの「意志決定者」。
+// 支配 share 保有者 = max HouseShare.rawPower の生存 holder (同点は holderPersonId 昇順で安定)。
+// share が無ければ getHouseLeader (当主) fallback。当主も不在なら undefined。
+// 「当主 ≠ 決定者」を分離する設計 (当主は制度上の代表・決定者は実権者)。
+// **執行/意志決定文脈の置換専用** — 構造的用途 (succession/integrity/estate/mortality/
+// officeSelectors ruler/worldgen) は getHouseLeader を据え置く (実際の当主が必要)。
+export function getHouseDecisionMaker(state: WorldState, houseId: HouseId): PersonId | undefined {
+  const shares = getHouseShares(state, houseId)
+    .filter((s) => isLivingPerson(state.persons[s.holderPersonId]))
+    .sort((a, b) => a.holderPersonId.localeCompare(b.holderPersonId))
+  let best: { id: PersonId; power: number } | undefined
+  for (const share of shares) {
+    if (!best || share.rawPower > best.power) {
+      best = { id: share.holderPersonId, power: share.rawPower }
+    }
+  }
+  if (best) return best.id
+  return getHouseLeader(state, houseId)
 }
 
 /** person が active な (polity/house) OfficeAssignment を 1 つ以上保持するか (調査 §3.6)。 */

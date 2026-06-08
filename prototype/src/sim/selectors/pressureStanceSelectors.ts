@@ -3,7 +3,7 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import type { OrganizationRef } from '../types/office'
 import type { PressureResponseStance } from '../types/pressure'
 import { getActorMilitaryPower } from './actorSelectors'
-import { getPolityLeader, getHouseLeader } from './officeSelectors'
+import { getPolityLeader, getHouseDecisionMaker } from './officeSelectors'
 import { normalizedTrait } from './personAbilityEffects'
 
 // 圧力 (外交劇) に対する被圧力側 (target) の応答 stance を、彼我の軍事力比から予測する。
@@ -23,13 +23,16 @@ import { normalizedTrait } from './personAbilityEffects'
 export const PRESSURE_CONCEDE_POWER_RATIO = 0.5
 export const PRESSURE_RESIST_POWER_RATIO = 1.2
 
-// target の意思決定者 (polity=指導者 / house=当主) の性格傾向を返す。不在なら中立 (0.5/0.5)。
+// target の意思決定者 (polity=指導者 / house=意志決定者=支配 share 保有者) の性格傾向を返す。
+// 不在なら中立 (0.5/0.5)。影響力個人中心化 Phase 3a: house は当主でなく決定者の性格で交渉する。
 function getDecisionMakerTraits(
   state: WorldState,
   actor: OrganizationRef,
 ): { ambition: number; caution: number } {
   const leaderId =
-    actor.kind === 'polity' ? getPolityLeader(state, actor.id) : getHouseLeader(state, actor.id)
+    actor.kind === 'polity'
+      ? getPolityLeader(state, actor.id)
+      : getHouseDecisionMaker(state, actor.id)
   const person = leaderId ? state.persons[leaderId] : undefined
   if (!person || !person.alive) return { ambition: 0.5, caution: 0.5 }
   return { ambition: person.traits.ambition, caution: person.traits.caution }
