@@ -1913,6 +1913,13 @@ Bailiff（HoldingOffice）にも任期があり、`provinceOfficeTermYears.baili
 
 ### 6.64 PoliticalRight / Polity Influence（v0.42）
 
+> **重要 (影響力個人中心化 redesign)**: 本節の影響力モデルは「影響力個人中心化」改修で
+> 大きく更新された。**現行の as-built は §6.64a を正本とする**。本節 (6.64) の以下の記述は
+> 改修で変わっている: ① 9 domain のうち wealth/base/prestige は係数 0 で無効 (受動 soft-power 全廃) /
+> ② commonwealth の House soft-power は廃止 (僭主は構造項+成果項で個人創発) / ③ acquire の holder は
+> person (遂行者個人) に / ④ 役職・person 保有任命権・代官の influence は保有者個人に帰属。
+> 変わっていない部分 (PoliticalRight entity 構造・slot 化・residual authority・RightConsistency) は本節が正本。
+
 v0.42 で Polity の内部権力構造を「抽象的な Polity share」から「具体的な政治権利 **PoliticalRight** と、
 それらから導出される **Polity Influence**（read-model）」に置き換えた。Polity share は全廃され、
 House 内部の Share（HouseShare、§3.7）のみが一次データとして残る。
@@ -2000,6 +2007,84 @@ House 内部の Share（HouseShare、§3.7）のみが一次データとして�
 
 実測（300 年 × 4 seed）: GRANTED 118〜141 件 / REVOKED は regime change の drift 回収として有機的に発火。
 
+### 6.64a 影響力の個人中心化（Individual-Agency Redesign）
+
+「家」でなく「個人」が国の意志決定を行い、家は個人の権力基盤である、という構造への作り替え。
+§6.64 の影響力モデルを次のように更新する（**現行 as-built の正本**）。設計の背骨は
+「影響力 = **構造項**（read-model: 役職・任命権・土地・ruler bonus）＋ **成果項**（既存
+`PersonReputation` を influence に合算）」の二層化で、**資産（wealth）は受動的には影響力を生まず、
+運動 Project に注ぎ込んで初めて influence に転化する**。
+
+**(1) 受動 soft-power の全廃**: `polityInfluenceWealthFactor` / `polityInfluenceBase` /
+`polityInfluencePrestigeFactor` を 0 にし、wealth / base（一律加算）/ prestige の 3 domain を
+直接 influence から削除。構造項は「役職・任命権・土地」＋ owner/leader ruler bonus に純化する。
+これに伴い §6.64 の「commonwealth でも House soft-power を付与（僭主の創発）」は廃止 — 僭主は
+**構造項（役職・任命権）＋成果項（評判）を握った「個人」**として創発する（家でなく person entry が
+支配 holder になる）。prestige を間接的に効かせる機構（功績あたり評判増等）は将来課題。
+
+**(2) reputation domain（成果項）**: `PolityInfluenceDomain` に `reputation` を追加。各 Project /
+War / DiplomaticPlay / 運動の完遂で生成される `PersonReputation`（§6.66）のうち、
+`relatedOrganization.kind === 'polity'` かつ対象 polity が **active** なものの現在値合計
+× `polityInfluenceReputationFactor`（0.5）を、その評判の **person 本人の entry** に加算する
+（家に fold しない＝個人帰属の核）。母集合に「評判だけ持つ役職なし person」も列挙する。
+負評判は per-entry sum を 0 床（反影響力にしない）。inactive polity の評判は read-model で 0 寄与
+（cleanup はしない＝人事/採用の polity 横断名声には効き続ける。§6.66）。引き当ては
+`PersonReputationIndex.byOrganization`（key=`${kind}:${id}`・tag された評判のみ）。
+
+**(3) dual-tag award**: 1 つの Project / War / DiplomaticPlay の完遂で、**owner organization と
+target organization の両方**に評判レコードを生成する（owner==target は 1 個に dedupe）。
+家活動（owner=house）でも target=対象 polity の評判が生まれ、**家には Share・対象 polity には
+influence** の両方を生む。target 導出: project は kind 別（acquire/promote/respond→polityId・
+develop→holdingTerminalPolity・movement→targetPolityId）/ war は primary actor が house なら
+陣営 polity を target に追加 / play は v1 は現行（自陣 actor）のみ。
+
+**(4) 役職 influence の個人帰属**: 役職（office domain）・person 保有任命権（regiment/holding_office/
+polity_office）・現職代官（land_administration）の influence は、保有者「個人」の person entry に
+計上する（家に fold しない）。家保有の土地（landed_power）・owner/leader bonus（ruler）・house 保有
+任命権は引き続き house entry。office-overlap house bonus は撤去（house-level 概念）。
+役職任命権（polity_office_role）保有者も office domain に直接加算する（3 種任命権を揃える）。
+
+**(5) HouseShare に成果項**: `computeHouseShareRawPower`（§6.23）に house-tag 評判の現在値合計
+× `houseShareReputationFactor`（0.5）を加算（0 床＝rawPower≥0 invariant）。influence と対称に、
+同じ PersonReputation を relatedOrganization で振り分ける（polity tag→influence / house tag→Share）。
+
+**(6) 家の意志決定者**: `getHouseDecisionMaker(state, houseId)` = 支配 share 保有者
+（max `HouseShare.rawPower` の生存 holder・holderPersonId 昇順 tiebreak・share 無しは
+`getHouseLeader` fallback）。「当主≠決定者」を分離し、家の**執行主体**（project supervisor
+leaderBonus・交渉スタンス personality・外交代表）と **aim/goal 生成**（`scoreHouseGoalKind` の
+ambition→expand / caution→preserve、`personAbilityEffectsEnabled` gate・`houseGoalPersonalityScale`）を
+決定者個人で駆動する。構造的用途（succession/integrity/estate/mortality/ruler/worldgen）の
+`getHouseLeader` は実際の当主が必要なため据え置き。
+
+**(7) 運動 Project（movement_campaign）**: 家が資金（`movementProjectBaseCost` 40・家 wealth から
+消費＝wealth sink）でメンバーを国に推薦し、完遂で**推薦個人**に dual-tag 評判（baseScore =
+budget × `movementReputationPerCost` 0.2）が付き個人 influence が上がる。owner=家・target=対象 polity。
+受益者（sponsoredPersonId）は `selectMovementBeneficiary`（家の役職適格メンバーから決定的 argmax・
+RNG なし）が選び、**supervisor に固定**（auto 選定 bypass — 漏れると評判が別人に付く load-bearing）。
+家 aim（`start_movement_campaign`）は expand_power_base 下で、foothold polity（未掌握）に役職適格
+メンバーが居れば生成。役職適格は `isPolityRoleEligibleCandidate`（生存成人・非 bailiff・性別適格・
+所属家が polity foothold）。
+
+**(8) acquire 個人化 + 死亡時継承**: `acquire_political_right` の完遂で作る right の holder を
+**遂行者個人（supervisor）**にする（コストは引き続き owner House wealth から・簡素版）。person 保有
+任命権は holder 死亡時に `resolveRightInheritanceOnDeath`（`markPersonDeadWithInheritance` wrapper に
+集約・死亡 3 サイトで共有）で**国回収（削除）か家産化（holder=house に変換）**に分類する:
+houseless→国回収 / 死亡者家==owner家→家産化 / commonwealth→死亡者家%<`rightInheritanceHouseRetainThreshold`
+(20) で国回収・else 家産化 / 通常→owner家%≥`rightInheritanceOwnerSeizeThreshold`(70) で国回収・
+死亡者家%<20 で国回収・else 家産化、+ `rightInheritanceFlipChance`(0.15) で反転（houseless/owner家同一は
+flip skip）。flip は rightId+personId の決定論 hash（RNG state 不要）。influence% は pre-death snapshot。
+transfer err（家 inactive）は国回収 fallback。
+
+**(9) faction / appointment への person influence 貫通**: faction nomination power
+（`getFactionNominationPowerForPolity`）にメンバー**個人**の person influence% を算入（leader家×1.0/
+他×0.5）。これにより役職個人化分＋評判を faction 経由で回収し、「評判を積んだ landless 個人が自分の
+派閥の推薦力を高めて任用される」コールドスタート経路が成立する。appointment scoring も候補本人の
+person influence% を加味（家 backing + 個人立場の両建て）。
+
+**balance（機能完成後のエポックで調整・現段階 config 据え置き）**: ruler bonus が単一最大 domain
+（~33-38%）・reputationFactor 0.5 の再較正余地・運動発火頻度・人事スコア cap 張り付き・継承閾値
+20/70 の縮退・landless coldstart の活発さ（faction person-influence weight）。
+
 ### 6.65 RightConsistencySystem（毎週）
 
 PoliticalRight の drift を定期回収する安全網。**regimentMaintenanceSystem の直後・cleanup 系の前**に配置する
@@ -2080,6 +2165,19 @@ type PersonReputation = {
 - `expiryWeek` は「現在値の絶対値が `personReputationCleanupThreshold` を下回る週」を作成時に対数計算して保存。`abs(baseScore) <= threshold` なら reputation を**作成しない**。
 - cleanup: **PersonReputationCleanupSystem（年次）** が expiry 超過 + 死亡者残骸を削除。死亡 tick の即時 purge は DeadPersonLogPurgeSystem に piggyback。index 不整合は cleanup で黙修せず IntegrityCheck の検出対象。
 - 付与時に `PERSON_REPUTATION_GAINED`（正）/ `PERSON_REPUTATION_DAMAGED`（負）を emit。
+- **index（影響力個人中心化）**: `PersonReputationIndex` は `byPerson` に加え `byOrganization`
+  （key = `${kind}:${id}`・`relatedOrganization` が tag された評判のみ）を持つ。influence read-model
+  （polity-tag）と HouseShare 再計算（house-tag）が polity / house 単位で評判を引くのに使う
+  （byPerson 全走査の perf 退行を回避）。add/remove で双方向保守・IntegrityCheck で検証。
+- **二重用途（影響力個人中心化）**: 同一 PersonReputation が ① **人事/採用 scoring**
+  （`getPersonReputationModifierForCategories`・`byPerson`+category のみで `relatedOrganization` を
+  見ない＝**polity 横断**の名声。「他国で活躍した者を抜擢」が成立）と ② **influence/Share の足場**
+  （`relatedOrganization` で polity / house に限定集計）の両義を持つ。inactive polity 由来の評判は
+  ① には効き続け（cleanup しない）② の influence には 0 寄与（read-model で active filter）。
+- **dual-tag / influence・Share 合算（影響力個人中心化）**: 完遂時に owner + target organization の
+  両方に評判を生成し（§6.64a-(3)）、polity-tag は対象 polity の influence（§6.64a-(2)）・house-tag は
+  対象家の Share（§6.64a-(5)）に合算される。運動 Project（movement_campaign）も同 hook で評価する
+  （baseScore = budget × `movementReputationPerCost`・category=general・§6.64a-(7)）。
 
 #### terminal 評価（hook 別）
 
@@ -2092,7 +2190,7 @@ type PersonReputation = {
 | failed + その他 reason（budget_exhausted 等） | 同上 | なし（本人帰責でない失敗） |
 | cancelled | completed × progressRatio × `projectExperienceGainCancelledMultiplier` | なし |
 
-対象 = supervisor（alive guard）。category は `PROJECT_REPUTATION_CATEGORY_MAP`（develop_holding=administration / acquire_political_right・promote_policy_shift=diplomacy / patronize_artist・commission_chronicle=culture / 外交 5 kind・personal_training=undefined）。
+対象 = supervisor（alive guard）。category は `PROJECT_REPUTATION_CATEGORY_MAP`（develop_holding=administration / acquire_political_right・promote_policy_shift=diplomacy / patronize_artist・commission_chronicle=culture / **movement_campaign=general** / 外交 5 kind・personal_training=undefined）。**影響力個人中心化**: 完遂時の評判は dual-tag（owner + target polity）で生成し（§6.64a-(3)）、relatedOrganization 別に influence / Share へ合算される。
 
 このゲートのために Project に `terminalReason`、DiplomaticPlay に `terminalOutcome` を追加した（§3）。**status を terminal にする全サイトで同時セット必須**（IntegrityCheck 検査。terminal entity は同 tick〜4 週内に削除されるため年末 integrity では実質検出できず、`--integrity-per-system` での mid-tick 検証 + ProjectOutcomeSystem の fail-fast throw で担保する）。
 

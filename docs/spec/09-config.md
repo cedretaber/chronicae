@@ -324,18 +324,20 @@
 | officeUnpaidRespectPenalty | -2 | 未払い時の respect ペナルティ |
 | officeDignityUnpaidPenaltyReduction | 0.5 | 役職の尊厳によるペナルティ軽減係数 |
 | **HouseShareUpdate / Polity Influence (v0.42)** | | |
-| polityInfluenceBase | 10 | influence base domain（House entry 一律。旧 polityShareBase 流用） |
+| polityInfluenceBase | 0 | influence base domain。**影響力個人中心化で 0（受動 soft-power 全廃・旧 10）** §6.64a-(1) |
 | polityInfluenceProvinceFactor | 5 | landed_power: Province 数係数（旧 polityShareProvinceFactor） |
 | polityInfluenceMilitaryFactor | 0.1 | landed_power: 軍事 proxy 係数（旧 polityShareMilitaryFactor） |
-| polityInfluenceWealthFactor | 0.05 | wealth domain 係数（旧 polityShareWealthFactor） |
-| polityInfluencePrestigeFactor | 0.2 | prestige domain 係数（旧 politySharePrestigeFactor） |
+| polityInfluenceWealthFactor | 0 | wealth domain 係数。**影響力個人中心化で 0（受動 soft-power 全廃・旧 0.05。wealth は運動 Project の燃料に降格）** §6.64a-(1) |
+| polityInfluencePrestigeFactor | 0 | prestige domain 係数。**影響力個人中心化で 0（受動 soft-power 全廃・旧 0.2）** §6.64a-(1) |
+| polityInfluenceReputationFactor | 0.5 | **影響力個人中心化: reputation domain（成果項）。polity-tag PersonReputation 現在値合計の係数** §6.64a-(2) |
 | polityInfluenceOwnerHouseBonus | 30 | ruler domain: ownerHouse ボーナス（旧 polityShareOwnerHouseBonus） |
 | polityInfluenceLeaderHouseBonus | 10 | ruler domain: 非 ownerHouse 出身 leader の家への補正（ownerHouseBonus の 1/3。leader∈ownerHouse なら加算しない） |
-| polityInfluenceOfficeFactor | 3 | office domain: non-leader 役職 1 つの係数（旧 polityShareOfficeFactor） |
-| polityInfluenceOfficeOverlapBonusMax | 0.5 | office domain: House/Polity 役職重複の加算上限（旧 share 全体乗算から office 寄与への加算に変更） |
-| polityInfluenceMilitaryOfficeBonus | 2 | military domain: polity:military 役職保有の家（新規・小） |
+| polityInfluenceOfficeFactor | 3 | office domain: non-leader 役職 1 つの係数。**影響力個人中心化で保有者個人の entry に計上** §6.64a-(4) |
+| polityInfluenceOfficeOverlapBonusMax | 0.5 | （旧）office overlap 加算上限。**影響力個人中心化で撤去（house-level ゆえ個人帰属で適用不能）** §6.64a-(4) |
+| polityInfluencePolityOfficeAppointmentFactor | 2 | **影響力個人中心化: office domain。polity_office_role 任命権 保有者の直接 influence（3 種任命権を揃える）** §6.64a-(4) |
+| polityInfluenceMilitaryOfficeBonus | 2 | military domain: polity:military 役職保有（影響力個人中心化で個人帰属） |
 | polityInfluenceRegimentControlFactor | 2 | military domain: regiment_control right 1 件（active regiment のみ。新規・小） |
-| polityInfluenceHoldingOfficeAppointmentFactor | 2 | land_administration domain: holding right / 現職 bailiff（新規・小） |
+| polityInfluenceHoldingOfficeAppointmentFactor | 2 | land_administration domain: holding right / 現職 bailiff（影響力個人中心化で個人帰属） |
 | polityInfluenceFactionFactor | 2 | faction domain: anchor Faction leader の家（新規・小） |
 | ※ 旧 polityShare* 7 種 + shareYearlyRetentionRate は v0.42c で削除（polity share 全廃） | | |
 | houseShareBase | 5 | House Share 基礎値 |
@@ -344,7 +346,15 @@
 | houseSharePrestigeFactor | 0.3 | Person legacyPrestige の Share 寄与係数 |
 | houseShareWealthFactor | 0.05 | Person wealth の Share 寄与係数 |
 | houseShareStatFactor | 1 | Person (admin + martial) の Share 寄与係数 |
+| houseShareReputationFactor | 0.5 | **影響力個人中心化: house-tag PersonReputation 現在値合計の Share 寄与係数（0 床）** §6.64a-(5) |
 | rulerHouseRebellionSuppression | 30 | 支配家への反乱抑圧ボーナス（Share 計算外） |
+| **影響力個人中心化（Individual-Agency Redesign）** | | |
+| houseGoalPersonalityScale | 10 | 家 goal-kind scoring に意志決定者の性格を反映する量（ambition→expand / caution→preserve・personAbilityEffectsEnabled gate） §6.64a-(6) |
+| movementProjectBaseCost | 40 | 運動 Project のコスト（家 wealth から消費＝wealth sink） §6.64a-(7) |
+| movementReputationPerCost | 0.2 | 運動完遂の評判 baseScore = budget × 本係数（40×0.2=8） §6.64a-(7) |
+| rightInheritanceOwnerSeizeThreshold | 70 | person 保有任命権の死亡時継承: owner家 influence% ≥ 本値 → 国回収 §6.64a-(8) |
+| rightInheritanceHouseRetainThreshold | 20 | 死亡者家 influence% < 本値 → 国回収（家が弱く世襲維持不能） §6.64a-(8) |
+| rightInheritanceFlipChance | 0.15 | 継承判定の反転確率（主君の気まぐれ・houseless/owner家同一は skip） §6.64a-(8) |
 | **POP システム** | | |
 | popSystemEnabled | true | POP システム有効 |
 | minPopSizeByClass | {peasants:5, townsmen:1, nobles:1} | POP size の下限（class 別、occupation:none 以外） |
