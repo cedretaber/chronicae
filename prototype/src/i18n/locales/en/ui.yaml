@@ -99,6 +99,7 @@ detail:
     demand_tax_increase: 'Demand Tax Increase'
     respond_to_pressure: 'Respond to Pressure'
     personal_training: 'Personal Training'
+    movement_campaign: 'Political Campaign'
   activity:
     project_completed: '{{kind}} Completed (Lv.{{level}})'
     project_failed: '{{kind}} Failed (Lv.{{level}})'

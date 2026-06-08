@@ -196,6 +196,7 @@ detail:
     demand_tax_increase: '増税要求'
     respond_to_pressure: '外圧対応'
     personal_training: '個人鍛錬'
+    movement_campaign: '政治運動'
   activity:
     project_completed: '{{kind}}完了（Lv.{{level}}）'
     project_failed: '{{kind}}失敗（Lv.{{level}}）'
