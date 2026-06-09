@@ -6,6 +6,7 @@
 | basePlotSuccess | 0.35 | 陰謀基本成功率 |
 | rebellionThreshold | 90 | 反乱発動閾値 |
 | plotThreshold | 65 | 陰謀発動閾値 |
+| plotCooldownWeeks | 52 | 策謀解決後、同じ家の当主が次の策謀を開始できるまでの待機週数（連発防止） |
 | rebellionSuccessMode | 'independence' | 反乱成功時の処理 |
 | **AppointmentSystem** | | |
 | concurrentOfficePenalty | 8 | 兼任 1 役職ごとのスコアペナルティ |

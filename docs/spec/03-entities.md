@@ -297,6 +297,7 @@ type House = {
   wealth: number             // >= 0
   seatProvinceId: ProvinceId
   lastSplitWeek?: number     // 直近の分家発生時の absoluteWeek（cooldown 用）
+  lastPlotResolvedWeek?: number // 直近で策謀が解決した absoluteWeek（plotCooldownWeeks の待機判定用）
   clanId?: ClanId              // 所属 Clan。最大 1 つ
   creationKind?: HouseCreationKind    // 創設種別
   creationReason?: HouseCreationReason  // 創設理由

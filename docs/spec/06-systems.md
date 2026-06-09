@@ -957,7 +957,17 @@ old_age の人物は新規登用・指揮官選定で優先度が下がる（引
 
 `plotTendency` が `plotThreshold` 以上の家当主が陰謀を起こす。plot type は prepare_rebellion / seize_office / replace_house_leader。成功率は `basePlotSuccess` を基点に、首謀者の governance / warCommand role score、plot の power / secrecy、対象の防御力・risk から算出し 0.05〜0.95 にクランプする。
 
-**解決済み plot の扱い**: 期限到達で解決した plot は、PLOT_SUCCEEDED / PLOT_FAILED イベントを emit した上で `activePlots` から削除する。plot の全 reader（PlotSystem の active 判定、`hadRelevantExperience` の insight 経験）は `status === 'active'` で filter するため、解決済み record を残しても読まれず dead weight として累積するだけだった。これを防ぐため解決時に削除する（挙動は変わらない）。
+**妥当な対象を持つ種別だけを候補化する（自国・空回り策謀の排除）**: 陰謀を起こせるのは primary polity（= 自家が所有する polity）を持つ家のみ（`calcAmbitionScores` が primary polity 不在で 0 を返すため）。各種別は「現実に作用する対象」が存在する場合だけ候補に入れ、候補が 1 つも無い家は何もしない（RNG も消費しない）。これにより、主権者が自国に叛乱を企てる・既に掌握した自国の役職を奪う・存在しない rival を狙う、といった不自然な空回りを構造的に排除する。
+
+- **prepare_rebellion** … 対象は自家 primary polity の**直接の宗主（immediate overlord）polity**（`getPolityImmediateOverlordPolityIds` の最小 id。chain を 1 段だけ上り、grand-suzerain ではなく直属の主を狙う）。直属の宗主が無い主権国は対象なし＝候補化されない。成功時の loyalty 失墜（affection −8 / respect −5・家メンバー一括）は**宗主 polity へ向ける**（旧実装は自国へ向けており、主権者が自国へ反感を蓄積していた）。
+- **seize_office** … 対象は宗主 polity の宮廷の空き役職（非 leader 優先）。自国（任命権を既に握る）ではなく、仕えている宗主の宮廷で席を奪う。overlord が無ければ候補化されない。
+- **replace_house_leader** … 対象は**自家の分家（cadetHouseIds）で生存当主を持つもの**（王朝統制）。旧実装は「同じ primary polity の別家」を狙ったが、1 polity = 1 owner のため決して一致せず空回りしていた。
+
+種別選択は候補集合の中から 1 float の重み付き抽選（rebellion = 0.25 + rebelBias / seize_office = 0.35 / replace_house_leader = 0.40）で行う。
+
+**cooldown（連発防止）**: 策謀が解決した家は `House.lastPlotResolvedWeek` に解決週を記録し、`plotCooldownWeeks`（既定 52 週）経過するまで新規策謀を開始しない。これが無いと当主が解決のたび即座に次を打ち、一生策謀を打ち続ける（観察された Klaus ループの原因）。cooldown は当主個人でなく家に記録するため、cooldown 中に当主が死亡・交代しても残り期間は引き継がれる（「一族の策謀疲れ」として意図的）。
+
+**解決済み plot の扱い**: 期限到達で解決した plot は、PLOT_SUCCEEDED / PLOT_FAILED イベントを emit した上で `activePlots` から削除する。plot の全 reader（PlotSystem の active 判定、`hadRelevantExperience` の insight 経験）は `status === 'active'` で filter するため、解決済み record を残しても読まれず dead weight として累積するだけだった。これを防ぐため解決時に削除する。
 
 ### 6.28 TaxRevisionSystem（48週ごと）
 

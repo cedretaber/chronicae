@@ -27,6 +27,8 @@ export type SimulationConfig = {
   basePlotSuccess: number
   rebellionThreshold: number
   plotThreshold: number
+  // 策謀解決後、同じ家の当主が次の策謀を開始できるまでの待機週数 (連発・永久ループ防止)。
+  plotCooldownWeeks: number
   replacementThreshold: number
   rebellionSuccessMode: 'independence' | 'ruler_change'
   maxRawEvents: number
@@ -1059,6 +1061,7 @@ export const defaultConfig: SimulationConfig = {
   basePlotSuccess: 0.35,
   rebellionThreshold: 90,
   plotThreshold: 65,
+  plotCooldownWeeks: 52,
   replacementThreshold: 15,
   rebellionSuccessMode: 'independence',
   maxRawEvents: 10000,

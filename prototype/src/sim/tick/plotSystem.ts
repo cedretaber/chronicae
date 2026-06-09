@@ -21,6 +21,9 @@ import type { Person } from '../types/person'
 import { isLifeStageAtLeast } from '../types/person'
 import { getRoleScore } from '../selectors/abilitySelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
+import { getPolityImmediateOverlordPolityIds } from '../selectors/diplomaticSupportSelectors'
+import type { House } from '../types/house'
+import type { WorldState } from '../types/world'
 
 function emitEvent(
   ctx: TickContext,
@@ -221,21 +224,24 @@ function applyPlotSuccess(currentCtx: TickContext, plot: Plot, leader: Person): 
     }
 
     case 'prepare_rebellion': {
-      const leaderPrimaryPolityId = getHousePrimaryPolityId(state, leader.houseId)
-      const rr = adjustHouseMembersAttitude(
-        state,
-        leader.houseId,
-        { kind: 'polity', id: leaderPrimaryPolityId as PolityId },
-        {
-          affection: -8,
-          respect: -5,
-        },
-      )
-      if (rr.ok) state = rr.value
+      // 叛乱準備の loyalty 失墜は「叛乱の相手 = 宗主 (overlord) polity」へ向ける。
+      // 旧実装は自家の primary polity (= 所有する自国) へ向けており、主権者が自国へ
+      // 反感を蓄積する不自然な挙動を生んでいた。target は startNewPlot で overlord に確定済み。
+      const targetPolityId = plot.targetPolityId
+      if (targetPolityId !== undefined) {
+        const rr = adjustHouseMembersAttitude(
+          state,
+          leader.houseId,
+          { kind: 'polity', id: targetPolityId },
+          {
+            affection: -8,
+            respect: -5,
+          },
+        )
+        if (rr.ok) state = rr.value
+      }
 
-      const polityIds: PolityId[] = plot.targetPolityId
-        ? [plot.targetPolityId]
-        : [leaderPrimaryPolityId as PolityId]
+      const polityIds: PolityId[] = targetPolityId ? [targetPolityId] : []
 
       return emitEvent(
         { ...currentCtx, state, events: [...currentCtx.events] },
@@ -335,6 +341,39 @@ function applyPlotFailure(currentCtx: TickContext, plot: Plot, leader: Person): 
   }
 }
 
+// replace_house_leader の対象 = 自分の分家 (cadet house) で生存当主を持つもの。
+// 同じ宗主を戴く別家を「同じ realm」と誤判定して空回りしていた旧フィルタ
+// (1 polity = 1 owner なので決して一致しない) を、王朝統制という実体ある対象へ置換する。
+function pickCadetTarget(state: WorldState, house: House): HouseId | undefined {
+  for (const cid of [...house.cadetHouseIds].sort()) {
+    const cadet = state.houses[cid]
+    if (!cadet || !cadet.active || cadet.kind === 'system') continue
+    const headId = getHouseLeader(state, cid)
+    if (!headId) continue
+    const head = state.persons[headId]
+    if (!head || !head.alive) continue
+    return cid
+  }
+  return undefined
+}
+
+// seize_office の対象 = 自分が仕える宗主 (overlord) polity の空き役職。
+// 自国 (= 自分が所有する polity) の役職を奪う旧挙動 (任命権を既に握る国で無意味) を排除し、
+// 宗主の宮廷で席を奪うという実体ある政治行動にする。overlord 不在の主権家には対象が無い。
+function pickSeizeOfficeTarget(
+  state: WorldState,
+  overlordIds: PolityId[],
+): { polityId: PolityId; role: OfficeRole } | undefined {
+  for (const pid of overlordIds) {
+    const polity = state.polities[pid]
+    if (!polity || !polity.active) continue
+    const availableRoles = getAvailableOfficeRoles(state, { kind: 'polity', id: pid })
+    const role = availableRoles.find((r) => r !== 'leader') ?? availableRoles[0]
+    if (role) return { polityId: pid, role }
+  }
+  return undefined
+}
+
 function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
   const house = currentCtx.state.houses[houseId]
   if (!house || !house.active) return currentCtx
@@ -351,22 +390,52 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
   )
   if (hasActivePlot) return currentCtx
 
-  // Compute rebellionTendency
+  // --- 妥当な対象を持つ plot 種別だけを候補化する ---
+  // plot を打てるのは primary polity を所有する家のみ (calcAmbitionScores が primary polity
+  // 不在で 0 を返す)。各種別は「現実に作用する対象」がある場合だけ候補にし、自国・自分・存在
+  // しない rival への空回り (および主権者の自国叛乱) を構造的に排除する。
+  const primaryPolityId = getHousePrimaryPolityId(currentCtx.state, houseId)
+  // 直接の宗主 (immediate overlord) polity 集合。空 = 主権国 (直属の主なし)
+  //   → prepare_rebellion / seize_office は対象なし。grand-suzerain ではなく直属の主を狙う。
+  const overlordIds = primaryPolityId
+    ? ([
+        ...getPolityImmediateOverlordPolityIds(currentCtx.state, primaryPolityId),
+      ].sort() as PolityId[])
+    : []
+  const rebellionTargetPolityId: PolityId | undefined = overlordIds[0]
+  const seizeTarget = pickSeizeOfficeTarget(currentCtx.state, overlordIds)
+  const cadetTargetHouseId = pickCadetTarget(currentCtx.state, house)
+
   const { rebellionTendency } = calcAmbitionScores(currentCtx.state, houseId)
-
-  // Determine plot type using RNG
-  const { value: typeRoll, rng: rng1 } = randomFloat(currentCtx.rng)
-  const ctx1 = { ...currentCtx, rng: rng1 }
-
   const rebelBias = Math.max(0, (rebellionTendency - currentCtx.config.rebellionThreshold) / 100)
 
-  let plotType: PlotType
-  if (typeRoll < 0.25 + rebelBias) {
-    plotType = 'prepare_rebellion'
-  } else if (typeRoll < 0.6) {
-    plotType = 'seize_office'
-  } else {
-    plotType = 'replace_house_leader'
+  // 候補 (種別, 重み)。重みは旧来の帯域 (rebellion 0.25+bias / seize 0.35 / replace 0.40) を踏襲。
+  const candidates: { type: PlotType; weight: number }[] = []
+  if (rebellionTargetPolityId !== undefined)
+    candidates.push({ type: 'prepare_rebellion', weight: 0.25 + rebelBias })
+  if (seizeTarget !== undefined) candidates.push({ type: 'seize_office', weight: 0.35 })
+  if (cadetTargetHouseId !== undefined)
+    candidates.push({ type: 'replace_house_leader', weight: 0.4 })
+
+  // 妥当な策謀対象が無い家は何もしない (RNG も消費しない)。
+  if (candidates.length === 0) return currentCtx
+
+  // 種別を 1 float で重み付き抽選する
+  const { value: typeRoll, rng: rng1 } = randomFloat(currentCtx.rng)
+  const ctx1 = { ...currentCtx, rng: rng1 }
+  const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0)
+  const lastCandidate = candidates[candidates.length - 1]
+  let plotType: PlotType = lastCandidate ? lastCandidate.type : 'replace_house_leader'
+  {
+    const threshold = typeRoll * totalWeight
+    let acc = 0
+    for (const c of candidates) {
+      acc += c.weight
+      if (threshold < acc) {
+        plotType = c.type
+        break
+      }
+    }
   }
 
   // Roll stats using 3 separate randomFloat calls
@@ -391,64 +460,22 @@ function startNewPlot(currentCtx: TickContext, houseId: HouseId): TickContext {
   const { id: rawId, ctx: eventCtx } = makeEventId(ctx4)
   const plotId = rawId.replace(/^e-/, 'pl-') as PlotId
 
-  // Determine target fields based on plotType
+  // 種別ごとの target を確定 (候補化の段階で妥当性は保証済み)
   let targetHouseId: HouseId | undefined
   let targetPolityId: PolityId | undefined
   let targetRole: OfficeRole | undefined
 
   switch (plotType) {
-    case 'replace_house_leader': {
-      const candidates: HouseId[] = []
-      for (const cid of Object.keys(currentCtx.state.houses).sort()) {
-        const candidateHouse = currentCtx.state.houses[cid as HouseId]
-        if (!candidateHouse) continue
-        if (cid === houseId) continue
-        if (!candidateHouse.active) continue
-        if (candidateHouse.kind === 'system') continue
-        const candidatePrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, cid as HouseId)
-        const housePrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, house.id)
-        if (
-          !candidatePrimaryPolityId ||
-          !housePrimaryPolityId ||
-          candidatePrimaryPolityId !== housePrimaryPolityId
-        )
-          continue
-        const candidateHeadId = getHouseLeader(currentCtx.state, cid as HouseId)
-        if (!candidateHeadId) continue
-        const candidateHead = currentCtx.state.persons[candidateHeadId]
-        if (!candidateHead || !candidateHead.alive) continue
-        candidates.push(cid as HouseId)
-      }
-      candidates.sort()
-      const target = candidates[0]
-      if (target) {
-        targetHouseId = target
-      }
+    case 'replace_house_leader':
+      targetHouseId = cadetTargetHouseId
       break
-    }
-
-    case 'seize_office': {
-      const housePrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, house.id)
-      if (housePrimaryPolityId) {
-        const polityOrgRef: OrganizationRef = { kind: 'polity', id: housePrimaryPolityId }
-        const availableRoles = getAvailableOfficeRoles(currentCtx.state, polityOrgRef)
-        // Pick a non-leader role if available, otherwise pick the first available
-        const nonLeaderRole = availableRoles.find((r) => r !== 'leader')
-        if (nonLeaderRole) {
-          targetRole = nonLeaderRole
-        } else if (availableRoles.length > 0) {
-          targetRole = availableRoles[0]
-        }
-      }
-      targetPolityId = housePrimaryPolityId
+    case 'seize_office':
+      targetPolityId = seizeTarget?.polityId
+      targetRole = seizeTarget?.role
       break
-    }
-
-    case 'prepare_rebellion': {
-      const housePrimaryPolityId = getHousePrimaryPolityId(currentCtx.state, house.id)
-      targetPolityId = housePrimaryPolityId
+    case 'prepare_rebellion':
+      targetPolityId = rebellionTargetPolityId
       break
-    }
   }
 
   // Build Plot object - only include defined optional fields
@@ -517,10 +544,23 @@ export function runPlotSystem(ctx: TickContext): TickContext {
       // bit-identical (event count 不変)。累積を防ぐため resolution 時に削除する。
       const updatedPlots = { ...result.ctx.state.activePlots }
       delete updatedPlots[plotId as PlotId]
-      currentCtx = {
-        ...result.ctx,
-        state: { ...result.ctx.state, activePlots: updatedPlots },
+      let stateAfter = { ...result.ctx.state, activePlots: updatedPlots }
+      // cooldown: 解決した策謀の家に最終解決週を記録し、連発 (一生打ち続ける) を防ぐ。
+      const resolvedHouseId = stateAfter.persons[plot.leaderId]?.houseId
+      const resolvedHouse = resolvedHouseId ? stateAfter.houses[resolvedHouseId] : undefined
+      if (resolvedHouseId && resolvedHouse) {
+        stateAfter = {
+          ...stateAfter,
+          houses: {
+            ...stateAfter.houses,
+            [resolvedHouseId]: {
+              ...resolvedHouse,
+              lastPlotResolvedWeek: ctx.state.absoluteWeek,
+            },
+          },
+        }
       }
+      currentCtx = { ...result.ctx, state: stateAfter }
       continue
     }
 
@@ -537,6 +577,14 @@ export function runPlotSystem(ctx: TickContext): TickContext {
     const house = currentCtx.state.houses[houseId as HouseId]
     if (!house || !house.active) continue
     if (house.kind === 'system') continue
+
+    // cooldown: 直近の策謀解決から plotCooldownWeeks 経過するまで新規策謀を開始しない。
+    if (
+      house.lastPlotResolvedWeek !== undefined &&
+      currentCtx.state.absoluteWeek <
+        house.lastPlotResolvedWeek + currentCtx.config.plotCooldownWeeks
+    )
+      continue
 
     const leaderId = getHouseLeader(currentCtx.state, houseId as HouseId)
     if (!leaderId) continue

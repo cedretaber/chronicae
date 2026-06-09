@@ -28,6 +28,8 @@ export type House = {
   wealth: number // >= 0
   seatProvinceId: ProvinceId
   lastSplitWeek?: number
+  // 直近で策謀 (Plot) が解決した絶対週。plotCooldownWeeks の待機判定に使う (連発防止)。
+  lastPlotResolvedWeek?: number
   creationKind?: HouseCreationKind
   creationReason?: HouseCreationReason
   clanId?: ClanId

@@ -7,7 +7,7 @@ import {
   createPlotId,
   createProvinceId,
 } from '../types/ids'
-import type { PolityId, HouseId, PersonId } from '../types/ids'
+import type { PolityId, HouseId, PersonId, ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import { defaultConfig } from '../config/defaultConfig'
 import type { Plot } from '../types/plot'
@@ -19,10 +19,43 @@ import {
   bindProvinceToHouseViaPolity,
   makeEmptyV016State,
   withHouse,
+  withHouseLeader,
   withPerson,
   withPolity,
   withProvince,
 } from '../testFixtures'
+
+// 親家 parentHouseId に、生存当主を持つ分家 (cadet) を 1 つぶら下げる。
+// replace_house_leader (王朝統制) の有効な対象を用意するためのヘルパー。
+function withCadetHouse(
+  state: WorldState,
+  parentHouseId: HouseId,
+  cadetHouseId: HouseId,
+  cadetHeadId: PersonId,
+  provinceId: ProvinceId,
+): WorldState {
+  let s = withHouse(state, cadetHouseId, {
+    nameKey: 'Cadet House',
+    memberIds: [cadetHeadId],
+    parentHouseId,
+    seatProvinceId: provinceId,
+  })
+  s = withPerson(s, cadetHeadId, {
+    nameKey: 'Cadet Head',
+    houseId: cadetHouseId,
+    birthStatus: 'unknown',
+    legacyPrestige: 30,
+  })
+  s = withHouseLeader(s, cadetHouseId, cadetHeadId)
+  const parent = s.houses[parentHouseId]!
+  return {
+    ...s,
+    houses: {
+      ...s.houses,
+      [parentHouseId]: { ...parent, cadetHouseIds: [...parent.cadetHouseIds, cadetHouseId] },
+    },
+  }
+}
 
 function makeBaseState(): {
   state: WorldState
@@ -215,26 +248,37 @@ describe('runPlotSystem', () => {
     expect(countEvents(result.events, 'PLOT_STARTED')).toBe(0)
   })
 
-  it('starts new plot when plotTendency >= plotThreshold', () => {
-    const { state, polityId, personId } = makeBaseState()
+  it('starts new plot when plotTendency >= plotThreshold (with a valid cadet target)', () => {
+    const { state, polityId, houseId, personId } = makeBaseState()
 
     // High plotTendency: ambition=0.9, caution=0.1, adminPower=20
     // Set strongly negative polity attitude → houseLoyalty=0, headPolityLoyalty=0
     const polityKey = `polity:${polityId as string}`
-    const stateWithHighTendency: WorldState = {
-      ...state,
+    // 主権国 (overlord なし) なので、王朝統制 (replace_house_leader) の対象として分家を 1 つ用意。
+    const cadetHouseId = createHouseId('h', 9)
+    const cadetHeadId = createPersonId('pe', 9)
+    const cadetProvinceId = createProvinceId('p', 9)
+    let stateWithHighTendency: WorldState = withCadetHouse(
+      state,
+      houseId,
+      cadetHouseId,
+      cadetHeadId,
+      cadetProvinceId,
+    )
+    stateWithHighTendency = {
+      ...stateWithHighTendency,
       persons: {
-        ...state.persons,
+        ...stateWithHighTendency.persons,
         [personId]: {
-          ...state.persons[personId]!,
+          ...stateWithHighTendency.persons[personId]!,
           traits: { ambition: 0.9, caution: 0.1 },
           attitudes: { [polityKey]: { affection: -100, respect: -100 } },
         },
       },
       polities: {
-        ...state.polities,
+        ...stateWithHighTendency.polities,
         [polityId]: {
-          ...state.polities[polityId]!,
+          ...stateWithHighTendency.polities[polityId]!,
           adminPower: 20,
         },
       },
@@ -248,6 +292,81 @@ describe('runPlotSystem', () => {
     const activePlots = Object.values(result.state.activePlots).filter((p) => p.status === 'active')
     const plotStartedEvents = countEvents(result.events, 'PLOT_STARTED')
     expect(activePlots.length >= 1 || plotStartedEvents >= 1).toBe(true)
+    // 主権国の唯一の有効種別は replace_house_leader で、対象は分家であること (自国叛乱でない)。
+    const started = activePlots[0]
+    if (started) {
+      expect(started.type).toBe('replace_house_leader')
+      expect(started.targetHouseId).toBe(cadetHouseId)
+    }
+  })
+
+  it('does not start a plot for a sovereign house with no overlord and no cadet (suppression)', () => {
+    // 主権国 (overlord なし) かつ分家なし → 妥当な策謀対象が無い。
+    // 旧実装では自国への prepare_rebellion / 自国 office 奪取 / 空回り takeover を打っていた。
+    const { state, polityId, personId } = makeBaseState()
+    const polityKey = `polity:${polityId as string}`
+    const stateWithHighTendency: WorldState = {
+      ...state,
+      persons: {
+        ...state.persons,
+        [personId]: {
+          ...state.persons[personId]!,
+          traits: { ambition: 0.9, caution: 0.1 },
+          attitudes: { [polityKey]: { affection: -100, respect: -100 } },
+        },
+      },
+      polities: {
+        ...state.polities,
+        [polityId]: { ...state.polities[polityId]!, adminPower: 20 },
+      },
+    }
+
+    const config = { ...defaultConfig, plotThreshold: 65 }
+    const ctx = createTickContext({ state: stateWithHighTendency, rng: createRng('test'), config })
+
+    const result = toResult(runPlotSystem(ctx))
+
+    expect(Object.keys(result.state.activePlots).length).toBe(0)
+    expect(countEvents(result.events, 'PLOT_STARTED')).toBe(0)
+  })
+
+  it('does not start a new plot during the cooldown window', () => {
+    const { state, polityId, houseId, personId } = makeBaseState()
+    const polityKey = `polity:${polityId as string}`
+    const cadetHouseId = createHouseId('h', 9)
+    const cadetHeadId = createPersonId('pe', 9)
+    const cadetProvinceId = createProvinceId('p', 9)
+    let s: WorldState = withCadetHouse(state, houseId, cadetHouseId, cadetHeadId, cadetProvinceId)
+    s = {
+      ...s,
+      // 直近 (1 週前) に策謀が解決済み → cooldown 中。
+      houses: {
+        ...s.houses,
+        [houseId]: { ...s.houses[houseId]!, lastPlotResolvedWeek: s.absoluteWeek - 1 },
+      },
+      persons: {
+        ...s.persons,
+        [personId]: {
+          ...s.persons[personId]!,
+          traits: { ambition: 0.9, caution: 0.1 },
+          attitudes: { [polityKey]: { affection: -100, respect: -100 } },
+        },
+      },
+      polities: {
+        ...s.polities,
+        [polityId]: { ...s.polities[polityId]!, adminPower: 20 },
+      },
+    }
+
+    const config = { ...defaultConfig, plotThreshold: 65, plotCooldownWeeks: 52 }
+    const ctx = createTickContext({ state: s, rng: createRng('test'), config })
+
+    const result = toResult(runPlotSystem(ctx))
+
+    expect(countEvents(result.events, 'PLOT_STARTED')).toBe(0)
+    expect(
+      Object.values(result.state.activePlots).filter((p) => p.leaderId === personId).length,
+    ).toBe(0)
   })
 
   it('does not start second plot for house that already has active plot', () => {
