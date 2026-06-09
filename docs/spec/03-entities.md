@@ -367,6 +367,7 @@ type Person = {
   fatherId?: PersonId        // 父親（既知の場合）
   motherId?: PersonId        // 母親（既知の場合）
   spouseId?: PersonId        // 配偶者（婚姻中のみ）
+  formerSpouseIds?: PersonId[]  // 死別した過去の配偶者（双方向・重複なし）
   childIds: PersonId[]       // 子のリスト
   birthStatus: BirthStatus   // 嫡出・非嫡出・不明
   abilities: AbilityScores   // 現在能力 0..120（通常生成は 0..100）
@@ -389,7 +390,8 @@ type Person = {
 - `occupation`: 無家人物の背景職業。`PersonBackgroundOccupation`（adventurer / merchant / scholar / mercenary / scribe / priest / physician / jurist / wanderer の 9 種）
 - `deathCircumstance`: 死亡種別。`'natural'`（通常死）/ `'faded_from_history'`（歴史から消える形での退場）
 - `geniusType`（v0.45）: `'commander'`（名将）/ `'chancellor'`（名宰相）/ `'universal'`（万能）。人物生成時の低確率ロールで決まり、対応能力の天賦と初期値が引き上がる（§6.67 参照）。原則不変
-- `spouseId`: 生存中の配偶者のみを指す。配偶者が死亡した場合は `undefined` に戻る
+- `spouseId`: 生存中の配偶者のみを指す。配偶者が死亡した場合は `undefined` に戻る（`markPersonDead`→`clearSpouse`）。これにより残された側は再婚できる
+- `formerSpouseIds`: 死別した過去の配偶者を双方向に記録する（`markPersonDead` が `clearSpouse` 後に `recordFormerSpouse` で双方へ追加）。`spouseId` が消えても「元配偶者だった」関係を保持し、家系図（§11）で子のいない夫婦も再構成・隣接表示できる。再婚で複数記録されうる。婚姻の成立/解消そのものは `spouseId` が担い、これは履歴フィールド
 - 親子・配偶者関係は双方向整合性が保証される（IntegrityCheck §6.35 参照）
 - `prestige` / `traits.loyaltyToPolity` フィールドは持たず、Attitude から動的計算（§4.5 参照）
 - `polityId` フィールドは持たない。Person は単一 Polity に直接所属しない。関係 Polity は `getPersonPrimaryPolityId` / `getPersonRelevantPolityIds` で取得（§4.x 参照）

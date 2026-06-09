@@ -56,6 +56,7 @@ export function HouseDetail({
   onProvinceClick,
   onDiplomaticPlayClick,
   onClanClick,
+  onOpenFamilyTree,
   eventHistory,
 }: {
   house: House
@@ -68,6 +69,7 @@ export function HouseDetail({
   onProvinceClick: (id: string) => void
   onDiplomaticPlayClick?: (id: string) => void
   onClanClick?: (id: string) => void
+  onOpenFamilyTree?: (houseId: string) => void
   eventHistory: SimEvent[]
 }) {
   void onHouseClick // v0.42c: ShareholderSection の person-only 化で未使用に (props API は維持)
@@ -360,8 +362,18 @@ export function HouseDetail({
           />
         )}
         <div>
-          <div className="text-sm font-semibold text-gray-300">
-            {t('detail.house.members')} ({aliveMembers} {t('detail.house.alive')}):
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-gray-300">
+              {t('detail.house.members')} ({aliveMembers} {t('detail.house.alive')}):
+            </div>
+            {onOpenFamilyTree && (
+              <button
+                className="rounded border border-gray-600 px-2 py-0.5 text-xs text-blue-400 hover:bg-gray-700 hover:text-blue-300"
+                onClick={() => onOpenFamilyTree(house.id)}
+              >
+                {t('detail.family_tree.open')}
+              </button>
+            )}
           </div>
           <div className="flex flex-col gap-0.5 text-sm">
             {house.memberIds

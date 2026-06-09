@@ -8,6 +8,7 @@ import type { WorldPresetName } from '@sim/worldgen/worldPresets'
 import YAML from 'yaml'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
 import type { NamePoolService } from '@sim/namegen/namePoolTypes'
+import type { HouseId } from '@sim/types/ids'
 
 export type EntityType =
   | 'polity'
@@ -44,6 +45,9 @@ type SimState = {
   mapView: MapView
   openWindows: DetailWindow[]
   nextZIndex: number
+  // 家系図ウィンドウは大窓 overlay として詳細カード (openWindows) とは独立に管理する。
+  // null = 非表示。非 null のとき該当家門の家系図を全画面 overlay で表示する。
+  familyTreeHouseId: HouseId | null
   watchlist: string[]
   config: SimulationConfig
 }
@@ -62,6 +66,8 @@ type SimActions = {
   closeDetailWindow: (windowId: string) => void
   focusDetailWindow: (windowId: string) => void
   moveDetailWindow: (windowId: string, position: { x: number; y: number }) => void
+  openFamilyTree: (houseId: HouseId) => void
+  closeFamilyTree: () => void
   toggleWatchlist: (id: string) => void
   setConfig: (partial: Partial<SimulationConfig>) => void
 }
@@ -160,6 +166,7 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   mapView: 'terminal',
   openWindows: [],
   nextZIndex: 1,
+  familyTreeHouseId: null,
   watchlist: [],
   config: { ...defaultConfig },
 
@@ -287,6 +294,14 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
     set((state) => ({
       openWindows: state.openWindows.map((w) => (w.id === windowId ? { ...w, position } : w)),
     }))
+  },
+
+  openFamilyTree: (houseId) => {
+    set({ familyTreeHouseId: houseId })
+  },
+
+  closeFamilyTree: () => {
+    set({ familyTreeHouseId: null })
   },
 
   toggleWatchlist: (id: string) => {

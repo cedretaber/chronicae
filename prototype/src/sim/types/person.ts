@@ -69,6 +69,9 @@ export type Person = {
   fatherId?: PersonId
   motherId?: PersonId
   spouseId?: PersonId
+  // 死別した過去の配偶者 (双方向・重複なし)。spouseId は死亡時に clear されるため、
+  // 「元配偶者だった」関係を保持して家系図で子の無い夫婦も再構成できるようにする。
+  formerSpouseIds?: PersonId[]
   childIds: PersonId[]
   birthStatus: BirthStatus
   abilities: AbilityScores // 現在の能力値 0..120（通常生成は 0..100）

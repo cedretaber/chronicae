@@ -25,6 +25,7 @@ export function WindowManager() {
   const watchlist = useSimulationStore((s) => s.watchlist)
   const toggleWatchlist = useSimulationStore((s) => s.toggleWatchlist)
   const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
+  const openFamilyTree = useSimulationStore((s) => s.openFamilyTree)
 
   const resolveName = useEntityName()
   const { t } = useTranslation()
@@ -42,6 +43,7 @@ export function WindowManager() {
   const onDiplomaticPlayClick = (id: string) => openDetailWindow('diplomaticPlay', id)
   const onHoldingClick = (id: string) => openDetailWindow('holding', id)
   const onClanClick = (id: string) => openDetailWindow('clan', id)
+  const onOpenFamilyTree = (id: string) => openFamilyTree(id as HouseId)
 
   return (
     <>
@@ -125,6 +127,7 @@ export function WindowManager() {
                 onDiplomaticPlayClick={onDiplomaticPlayClick}
                 eventHistory={eventHistory}
                 onClanClick={onClanClick}
+                onOpenFamilyTree={onOpenFamilyTree}
               />
             </DraggableWindow>
           )

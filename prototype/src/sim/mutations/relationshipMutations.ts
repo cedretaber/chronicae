@@ -55,6 +55,33 @@ export function clearSpouse(state: WorldState, personId: PersonId): StateResult 
   return ok({ ...state, persons: newPersons })
 }
 
+// 死別した配偶者を双方の formerSpouseIds に記録する (重複排除・対称)。
+// 婚姻 (spouseId) の解消自体は clearSpouse が行う。これは履歴の保持のみ。
+export function recordFormerSpouse(
+  state: WorldState,
+  personId: PersonId,
+  formerSpouseId: PersonId,
+): WorldState {
+  const a = state.persons[personId]
+  const b = state.persons[formerSpouseId]
+  if (!a || !b) return state
+
+  const addRef = (p: typeof a, ref: PersonId): typeof a => {
+    const cur = p.formerSpouseIds ?? []
+    if (cur.some((id) => (id as string) === (ref as string))) return p
+    return { ...p, formerSpouseIds: [...cur, ref] }
+  }
+
+  return {
+    ...state,
+    persons: {
+      ...state.persons,
+      [personId]: addRef(a, formerSpouseId),
+      [formerSpouseId]: addRef(b, personId),
+    },
+  }
+}
+
 export function addChildToParents(
   state: WorldState,
   childId: PersonId,

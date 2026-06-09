@@ -4,6 +4,7 @@ import { MapViewSwitcher } from './components/map/MapViewSwitcher'
 import { Sidebar } from './components/panels/Sidebar'
 import { EventLog } from './components/logs/EventLog'
 import { WindowManager } from './components/windows/WindowManager'
+import { FamilyTreeWindow } from './components/windows/FamilyTreeWindow'
 
 export function App() {
   return (
@@ -21,6 +22,7 @@ export function App() {
           <EventLog />
         </div>
       </div>
+      <FamilyTreeWindow />
       <WindowManager />
     </div>
   )

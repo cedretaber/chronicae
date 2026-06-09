@@ -174,6 +174,19 @@ detail:
   annexed: '併合済'
   common:
     year: '年'
+  # 家系図 (Family Tree) ウィンドウ
+  family_tree:
+    open: '家系図を見る'
+    title: '{{house}} の家系図'
+    relation_married_in: '{{house}} より'
+    relation_married_out: '{{house}} へ'
+    close: '閉じる'
+    empty: '表示できる血統がありません'
+    hint: 'ドラッグで移動・ホイールで拡大縮小'
+    unknown_parent: '不詳'
+    legend_blood: '血統'
+    legend_married_in: '婚入'
+    legend_married_out: '婚出'
   # 全履歴 (年代記) パネル: EntityChronicleSection の「完全版を見る」リンクと FullChroniclePanel
   full_chronicle:
     open: '完全版を見る (全{{count}}件)'

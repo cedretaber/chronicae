@@ -19,7 +19,7 @@
 | `worldStructureMutations.ts` | `splitHouse` / `extinctHouse` — 家分裂・断絶の高レベル一括処理 |
 | `worldStructureCommonwealth.ts` | `createNegotiatingCommonwealth` / `establishCommonwealth` / `dissolveNegotiatingCommonwealth` / `suppressRevolt` / `selectOrCreateCommonwealthLeader` — 反乱独立（民衆叛乱 commonwealth）の高レベル一括処理 |
 | `personMutations.ts` | `markPersonDead`（§6.7）/ `movePersonToHouse` / `birthChild` / `addPersonWealth` / `clearPersonWealth` |
-| `relationshipMutations.ts` | `setSpouse` / `clearSpouse` / `addChildToParents` |
+| `relationshipMutations.ts` | `setSpouse` / `clearSpouse` / `recordFormerSpouse` / `addChildToParents` |
 | `houseMutations.ts` | `createHouse` / `deactivateHouse` / `addHouseWealth` |
 | `polityMutations.ts` | `createPolity` / `deactivatePolity` / `annexPolity` / `createPolityFromHouse` / `createPolityFromProvinces` |
 | `provinceMutations.ts` | `adjustProvinceDevelopment` / `adjustHoldingDevelopment` |

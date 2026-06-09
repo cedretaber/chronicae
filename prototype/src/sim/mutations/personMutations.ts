@@ -12,7 +12,7 @@ import type {
 import type { WorldState } from '../types/world'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
-import { clearSpouse } from './relationshipMutations'
+import { clearSpouse, recordFormerSpouse } from './relationshipMutations'
 import { revokeOfficesByHolder } from './officeMutations'
 import { removePersonSharesInHouse } from './shareMutations'
 import { removeRightsByHolder } from './politicalRightMutations'
@@ -53,6 +53,9 @@ export function markPersonDead(
       ? { ...person, alive: false, deathCircumstance }
       : { ...person, alive: false }
 
+  // 死別前に配偶者を控えておき、clearSpouse 後に formerSpouseIds へ記録する。
+  const formerSpouseId = person.spouseId
+
   let newState: WorldState = {
     ...state,
     persons: { ...state.persons, [personId]: updatedPerson },
@@ -60,6 +63,9 @@ export function markPersonDead(
   }
   const spouseResult = clearSpouse(newState, personId)
   if (spouseResult.ok) newState = spouseResult.value
+  if (formerSpouseId !== undefined) {
+    newState = recordFormerSpouse(newState, personId, formerSpouseId)
+  }
   newState = revokeOfficesByHolder(newState, personId)
   // v0.42 §6.4: personal right は holder 死亡で即時失効 (silent cascade — office と同じ扱い)
   newState = removeRightsByHolder(newState, { kind: 'person', id: personId })

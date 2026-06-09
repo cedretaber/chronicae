@@ -77,6 +77,19 @@ detail:
   annexed: 'Annexed'
   common:
     year: 'Year'
+  # Family tree window
+  family_tree:
+    open: 'View family tree'
+    title: 'Family Tree of {{house}}'
+    relation_married_in: 'from {{house}}'
+    relation_married_out: 'to {{house}}'
+    close: 'Close'
+    empty: 'No bloodline to display'
+    hint: 'Drag to pan, wheel to zoom'
+    unknown_parent: 'Unknown'
+    legend_blood: 'Bloodline'
+    legend_married_in: 'Married in'
+    legend_married_out: 'Married out'
   # Full chronicle panel: the "view full" link in EntityChronicleSection and FullChroniclePanel
   full_chronicle:
     open: 'View full chronicle ({{count}} total)'

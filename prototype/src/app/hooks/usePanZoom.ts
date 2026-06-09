@@ -2,11 +2,14 @@ import { useCallback, useRef, useState } from 'react'
 
 export type Transform = { x: number; y: number; scale: number }
 
-const MIN_SCALE = 1.0
+const DEFAULT_MIN_SCALE = 1.0
 const MAX_SCALE = 5
 const ZOOM_SENSITIVITY = 0.001
 
-export function usePanZoom() {
+// minScale を可変にして、家系図など全体俯瞰のためズームアウト (< 1.0) したい用途に対応する。
+// 既定は 1.0 (地図と同じ振る舞い)。
+export function usePanZoom(options?: { minScale?: number }) {
+  const MIN_SCALE = options?.minScale ?? DEFAULT_MIN_SCALE
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: 1 })
   const dragging = useRef(false)
   const lastPos = useRef({ x: 0, y: 0 })
@@ -60,7 +63,7 @@ export function usePanZoom() {
         }
       })
     },
-    [cancelAnimation],
+    [cancelAnimation, MIN_SCALE],
   )
 
   const animateTo = useCallback(
@@ -118,7 +121,7 @@ export function usePanZoom() {
         }
       })
     },
-    [cancelAnimation],
+    [cancelAnimation, MIN_SCALE],
   )
 
   const resetZoom = useCallback(() => {

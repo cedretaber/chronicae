@@ -719,3 +719,21 @@ function getPolityEmitNameKey(state, polityId): string
 `notablePersonSelectors.ts`（v0.44）— `isNotablePerson(state, personId)`: 安価な index ベースの主要人物判定（house leader / primary polity leader / active office holder）。lifeStageProgressionSystem §6.25 のインライン判定を共通化し、award 系イベントの importance 出し分けと共有する。
 
 成果 award の本体 helper は `prototype/src/sim/helpers/awardHelpers.ts`（`applyImmediateAbilityGrowthMut` / `awardPersonReputationMut` / `awardDiplomaticPlayOutcomeMut` / `awardWarOutcomeCtx` / `getProjectExperienceWeights` / `PROJECT_REPUTATION_CATEGORY_MAP`）。
+
+### 4.14 家系図セレクター（Family Tree）
+
+`prototype/src/sim/selectors/familyTreeSelectors.ts`。**表示専用**の read-only 純関数で、家系図 UI（§11）が描画するグラフを構築する。locale 中立（nameKey / ID のみ返す）・決定的（memberIds から sorted 反復）。
+
+```
+buildHouseFamilyTree(state, houseId): { nodes: FamilyTreeNode[]; edges: FamilyTreeEdge[] }
+```
+
+- 対象集合 = 家門 H の `memberIds ∪ deceasedMemberIds`（**全世代**・故人含む）。
+- ノードは家門 H から見た関係を持つ:
+  - `blood` — H の血統（founder / 親が家内 / 起源シード）
+  - `married_in` — 婚姻で H に加入した配偶者。`otherHouseId` = 出生家（親の houseId から best-effort 導出。「出生家」の明示フィールドは無い）
+  - `married_out` — blood メンバーの子で別家へ移った者（**一段のみ**）。`otherHouseId` = 現在の家
+- 分類は複数パスで順序非依存（A: founder/親が家内→blood、B1: blood の配偶者(live spouse)を持つ未分類→married_in、B2: 親が家内に無いが出生家が別家と判明→married_in、B3: 残り→blood）。**B2 が重要**: 配偶者の `spouseId` は死亡時に `clearSpouse` で消える（§6 mortality）ため、live spouse だけに頼ると死別した婚入配偶者が blood に誤分類される。出生家（親の houseId）からも婚入を判定して死別後も married_in を保つ。
+- エッジ: `parent_child`（fatherId/motherId 両方分・ノード集合内）/ `spouse`（aId<bId 正規化 + dedupe）。spouse は live `spouseId` に加え `formerSpouseIds`（死別した元配偶者・§3）からも張るため、子の無い夫婦も死別後に結べる。B1 の married_in 判定も現・元配偶者の双方を見る。
+- 世代（generation）: 親エッジを持たない blood 根を 0 とし parent_child で BFS（子=親より深い世代）。married_in は配偶者と同世代。
+- 家門間リンクは **婚姻のみ**（分家 cadet・本家 parent リンクは将来拡張）。レイアウト座標は UI 側の責務（§11）。
