@@ -22,9 +22,14 @@ export function scorePersonGoalKind(
   const ambition = person.traits.ambition
   const caution = person.traits.caution
 
-  // Find person's house attitude
-  if (!person.houseId) return scores
-  const houseAtt = getAttitudeOrDefault(state, person, { kind: 'house', id: person.houseId })
+  // v0.47 §9.3/§13: houseless 人物も goal を持てる (共和国役職者の House 創設・無家被任命者の
+  //   分封 petition の前提)。house 依存項 (house attitude / house_loyalty) は houseless では
+  //   0 / 非スコアとし、house-independent な goal (public_service / personal_advancement /
+  //   wealth_building / self_cultivation) を評価する。
+  const isHoused = person.houseId !== undefined
+  const houseAtt = isHoused
+    ? getAttitudeOrDefault(state, person, { kind: 'house', id: person.houseId! })
+    : { affection: 0, respect: 0 }
 
   // v0.42c: 旧実装は polity share 走査で家の関連 polity を探していた (share 全廃で dead)。
   // 家の primary polity への態度を使う。
@@ -59,8 +64,8 @@ export function scorePersonGoalKind(
       person.abilities.insight) /
     6
 
-  // house_loyalty
-  {
+  // house_loyalty (houseless 人物は所属家が無いため非スコア)
+  if (isHoused) {
     let score = 20
     score += (houseAtt.affection / 100) * 15
     score += (houseAtt.respect / 100) * 10

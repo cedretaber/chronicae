@@ -19,6 +19,7 @@ import { getPolityLeader, getHouseLeader } from './officeSelectors'
 import { getHousePrimaryPolityId, getHouseDomainConsolidationSinkPolityId } from './polityRelations'
 import { getPersonReputationSummary } from './personReputationSelectors'
 import { getAdultSuccessionCandidates, getTopHeirIds } from './successionSelectors'
+import { isEstablishedCommonwealthRepublic } from './republicSelectors'
 
 // v0.47 §5: 陞爵 (rank promotion) の HARD gate / 同意者選定。
 // petition Project (request_rank_promotion / request_land_grant 等) 共通の read-only selector 群。
@@ -435,4 +436,33 @@ export function resolveCadetBranchTransfer(
   const target = selectCadetBranchTransferCandidatePolity(state, config, person.houseId)
   if (!target) return undefined
   return { parentHouseId: person.houseId, targetPolityId: target }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// v0.47 §13: 共和国 House 創設 (found_republic_house) の selector。
+// ───────────────────────────────────────────────────────────────────────────
+
+// §13.3 HARD gate: established commonwealth の active polity office を持つ無家人物が
+// 財産を基盤に House を興せるか。成功なら所属 commonwealth polity を返す。
+export function resolveRepublicHouseFounding(
+  state: WorldState,
+  config: SimulationConfig,
+  personId: PersonId,
+): { commonwealthPolityId: PolityId } | undefined {
+  const person = state.persons[personId]
+  if (!person) return undefined
+  if (!person.alive) return undefined
+  if (person.kind === 'placeholder') return undefined
+  if (person.houseId !== undefined) return undefined // 無家のみ
+  if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) return undefined
+  if (person.wealth < config.republicHouseFoundingMinWealth) return undefined
+  // established commonwealth の active polity office holder を探す。
+  for (const oaId of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+    const oa = state.officeAssignments[oaId]
+    if (!oa || !oa.active || oa.organization.kind !== 'polity') continue
+    if (isEstablishedCommonwealthRepublic(state, oa.organization.id)) {
+      return { commonwealthPolityId: oa.organization.id }
+    }
+  }
+  return undefined
 }

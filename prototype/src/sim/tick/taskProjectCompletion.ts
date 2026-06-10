@@ -34,7 +34,11 @@ import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { selectMovementBeneficiary } from '../selectors/goalSelectors'
 import { getProvinceHoldings, getLandContractGrantor } from '../selectors/landContractSelectors'
 import { politiesShareOwnerHouse } from '../selectors/polityRelations'
-import { resolveLandGrantDonor, resolveCadetBranchTransfer } from '../selectors/petitionSelectors'
+import {
+  resolveLandGrantDonor,
+  resolveCadetBranchTransfer,
+  resolveRepublicHouseFounding,
+} from '../selectors/petitionSelectors'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { getInitialProjectStageKey, getNextProjectStageKey } from '../config/projectStageSequences'
 import { resolveImmediateStages } from './projectStageSystem'
@@ -395,10 +399,21 @@ function buildProjectFieldsForAim(
         currentStageKey: getInitialProjectStageKey('request_cadet_branch_title_transfer'),
       }
     }
+    // v0.47 §13 共和国 House 創設。
+    case 'republic_house_foundation': {
+      if (aim.owner.kind !== 'person') return undefined
+      const personId = aim.owner.id
+      const resolved = resolveRepublicHouseFounding(ws, config, personId)
+      if (!resolved) return undefined
+      return {
+        petitionerPersonId: personId,
+        commonwealthPolityId: resolved.commonwealthPolityId,
+        currentStageKey: getInitialProjectStageKey('republic_house_foundation'),
+      }
+    }
     // v0.47 称号・分封・領邦再編: 未実装の petition 系 ProjectKind。各 feature Phase で
     //   特化 case を実装するまでは undefined を返し Project を生成しない (aim は待機)。
     case 'request_rank_promotion':
-    case 'republic_house_foundation':
     case 'consolidate_internal_contracts':
       return undefined
     default:

@@ -10,7 +10,11 @@ import type { AbilityKey } from '../types/person'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 import { getPersonGoalFulfillment } from './personGoalSelectors'
-import { resolveLandGrantDonor, resolveCadetBranchTransfer } from './petitionSelectors'
+import {
+  resolveLandGrantDonor,
+  resolveCadetBranchTransfer,
+  resolveRepublicHouseFounding,
+} from './petitionSelectors'
 
 const PERSON_AIM_KINDS: readonly PersonAimKind[] = [
   'increase_house_influence',
@@ -238,7 +242,9 @@ export function scorePersonAimKind(
       }
 
       case 'support_organization_aim': {
-        if (!person.houseId) break
+        // v0.47: houseless 人物は支援対象の org aim を持たない → 候補に push しない (continue)。
+        //   break だと target 未設定のまま push され integrity 違反 (target 欠落) になる。
+        if (!person.houseId) continue
         const orgAim = findOrganizationActiveAim(state, person.houseId, personId)
         if (!orgAim) continue
         score += 10
@@ -290,6 +296,26 @@ export function scorePersonAimKind(
           kind: 'establish_cadet_branch',
           score: cadetScore,
           target: { kind: 'polity', id: transfer.targetPolityId },
+        })
+      }
+    }
+  }
+
+  // v0.47 §13.1: 共和国 House 創設 (found_republic_house)。established commonwealth の役職を持つ
+  //   無家人物が財産を基盤に家を興す。
+  if (
+    goal.kind === 'personal_advancement' ||
+    goal.kind === 'wealth_building' ||
+    goal.kind === 'self_cultivation'
+  ) {
+    const republic = resolveRepublicHouseFounding(state, config, personId)
+    if (republic) {
+      const score = 24 + person.traits.ambition * 0.2 - fulfillmentPenalty
+      if (score > 0) {
+        results.push({
+          kind: 'found_republic_house',
+          score,
+          target: { kind: 'polity', id: republic.commonwealthPolityId },
         })
       }
     }

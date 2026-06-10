@@ -12,13 +12,16 @@ import type {
   RespondToPressureProject,
   RequestLandGrantProject,
   RequestCadetBranchTitleTransferProject,
+  RepublicHouseFoundationProject,
 } from '../types/project'
 import { applyLandGrantMut } from '../mutations/landGrantMutations'
 import { applyCadetBranchTitleTransferMut } from '../mutations/titleTransferMutations'
+import { applyRepublicHouseFoundationMut } from '../mutations/republicHouseMutations'
 import {
   resolveLandGrantDonor,
   computeLandGrantAcceptScore,
   resolveCadetBranchTransfer,
+  resolveRepublicHouseFounding,
 } from '../selectors/petitionSelectors'
 import { getWeightedOpinionFromHouseShareholders } from '../selectors/influenceSelectors'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
@@ -205,7 +208,81 @@ function resolveImmediateStage(
     return resolveFinalizeCadetBranch(ws, config, project, projectId, emitEvent)
   }
 
+  // v0.47 §13.5: 共和国 House 創設の解決。
+  if (
+    project.kind === 'republic_house_foundation' &&
+    project.currentStageKey === 'register_house'
+  ) {
+    return resolveRegisterHouse(ws, config, project, projectId, emitEvent)
+  }
+
   return false
+}
+
+// v0.47 §13.5: 共和国 House 創設の HARD 再検査と成功 mutation。
+function resolveRegisterHouse(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: RepublicHouseFoundationProject,
+  projectId: ProjectId,
+  emitEvent: (input: CreateSimEventInput) => void,
+): boolean {
+  const petitionerId = project.petitionerPersonId
+
+  function failProject(): boolean {
+    ws.projects[projectId] = { ...project, status: 'failed', terminalReason: 'opponent_too_strong' }
+    if (project.origin.kind === 'aim') {
+      const aim = ws.aims[project.origin.aimId]
+      if (aim) {
+        ws.aims[project.origin.aimId] = {
+          ...aim,
+          nextProjectAllowedWeek: ws.absoluteWeek + config.republicHouseFoundingRetryCooldownWeeks,
+        }
+      }
+    }
+    const ownerNameKey = getOwnerNameKey(ws, project.owner)
+    emitEvent({
+      type: 'PROJECT_FAILED',
+      importance: 'minor',
+      messageKey: 'project.failed.no_supervisor',
+      messageParams: {
+        owner: nameParam(getOwnerNameRefForEmit(ws, project.owner).category, ownerNameKey),
+        kind: project.kind,
+      },
+      entityRefs: [],
+    })
+    return true
+  }
+
+  // HARD gate 再検査 (共和国役職・無家・wealth)。
+  const resolved = resolveRepublicHouseFounding(ws, config, petitionerId)
+  if (!resolved) return failProject()
+
+  const result = applyRepublicHouseFoundationMut(ws, {
+    petitionerPersonId: petitionerId,
+    commonwealthPolityId: resolved.commonwealthPolityId,
+  })
+  if (!result) return failProject()
+  Object.assign(ws, result.ws)
+
+  ws.projects[projectId] = { ...project, status: 'completed', terminalReason: 'completed' }
+
+  const newHouse = ws.houses[result.newHouseId]
+  const petitionerNameKey = ws.persons[petitionerId]?.nameKey ?? petitionerId
+  emitEvent({
+    type: 'HOUSE_FOUNDED_IN_REPUBLIC',
+    importance: 'normal',
+    messageKey: 'house.founded_in_republic',
+    messageParams: {
+      person: nameParam('person', petitionerNameKey),
+      house: nameParam('house', newHouse?.nameKey ?? result.newHouseId),
+    },
+    entityRefs: [
+      entityRef('person', petitionerId, 'founder', petitionerNameKey),
+      entityRef('house', result.newHouseId, 'house', newHouse?.nameKey),
+    ],
+  })
+  return true
 }
 
 // v0.47 §11.7/§11.9: Polity 譲渡による分家の HouseShare 支持判定と成功 mutation。

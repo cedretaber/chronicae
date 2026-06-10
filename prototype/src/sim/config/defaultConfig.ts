@@ -2294,7 +2294,9 @@ export const defaultConfig: SimulationConfig = {
   cadetBranchTitleTransferSupportThreshold: 50,
   cadetBranchRetryCooldownWeeks: 312,
   // §16.4 republic house foundation
-  republicHouseFoundingMinWealth: 400,
+  // 実測: established commonwealth の houseless 役職者の wealth は概ね 50〜550。400 では大半が
+  //   gate を通らず発火 0 だったため、実態に合わせ 100 に下げる (共和国の僭主/寡頭創発の bootstrap)。
+  republicHouseFoundingMinWealth: 100,
   republicHouseFoundingRetryCooldownWeeks: 312,
   // §16.5 consolidation
   houseDomainConsolidationMinOwnedPolityCount: 2,

@@ -12,6 +12,15 @@ import type { WorldState } from '../types/world'
 import type { RngState } from '../rng/rng'
 import { getActivePersonGoal } from '../selectors/personGoalSelectors'
 import { pickPersonAim } from '../selectors/personAimSelectors'
+
+// active polity office を持つか (無家人物の aim 形成資格・goal 形成資格と一致)。
+function hasActivePolityOfficeForAim(state: WorldState, personId: PersonId): boolean {
+  for (const oaId of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+    const oa = state.officeAssignments[oaId]
+    if (oa && oa.active && oa.organization.kind === 'polity') return true
+  }
+  return false
+}
 import {
   getInitialTaskKind,
   getTaskActionCost,
@@ -74,10 +83,14 @@ export function runPersonAimMaintenanceSystem(ctx: TickContext): TickContext {
     if (!person) continue
     if (person.kind === 'placeholder') continue
     if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) continue
-    if (!person.houseId) continue
-
-    const house = ws.houses[person.houseId]
-    if (!house || !house.active) continue
+    // v0.47 §9.3/§13: 有家人物に加え active polity office を持つ無家人物も aim を形成できる
+    //   (personGoalMaintenanceSystem の goal 形成資格と一致させる)。
+    if (!person.houseId) {
+      if (!hasActivePolityOfficeForAim(ws, personId)) continue
+    } else {
+      const house = ws.houses[person.houseId]
+      if (!house || !house.active) continue
+    }
 
     const goal = getActivePersonGoal(ws, person.id)
     if (!goal) continue

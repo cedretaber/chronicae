@@ -7,6 +7,16 @@ import type { GoalId, DecisionReasonId, PersonId } from '../types/ids'
 import { createGoalId, createDecisionReasonId } from '../types/ids'
 import { nameParam, entityRef } from '../types/event'
 import { selectPersonGoalKind, getActivePersonGoal } from '../selectors/personGoalSelectors'
+import type { WorldState } from '../types/world'
+
+// active polity office を 1 つでも持つか (無家人物の goal 形成資格)。
+function hasActivePolityOfficeForGoal(state: WorldState, personId: PersonId): boolean {
+  for (const oaId of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+    const oa = state.officeAssignments[oaId]
+    if (oa && oa.active && oa.organization.kind === 'polity') return true
+  }
+  return false
+}
 
 export function runPersonGoalMaintenanceSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
@@ -17,10 +27,14 @@ export function runPersonGoalMaintenanceSystem(ctx: TickContext): TickContext {
     if (!person) continue
     if (person.kind === 'placeholder') continue
     if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) continue
-    if (!person.houseId) continue
-
-    const house = currentCtx.state.houses[person.houseId]
-    if (!house || !house.active) continue
+    // v0.47 §9.3/§13: 有家人物に加え、active polity office を持つ無家人物も goal を形成できる
+    //   (共和国役職者の House 創設・無家被任命者の分封 petition の前提)。全無家人物には開かない。
+    if (!person.houseId) {
+      if (!hasActivePolityOfficeForGoal(currentCtx.state, personId)) continue
+    } else {
+      const house = currentCtx.state.houses[person.houseId]
+      if (!house || !house.active) continue
+    }
 
     const existingGoal = getActivePersonGoal(currentCtx.state, person.id)
     if (existingGoal) continue
