@@ -1,6 +1,7 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import type { Goal } from '../types/goal'
+import type { WorldState } from '../types/world'
 import { TERMINAL_AIM_STATUSES } from '../types/goal'
 import { clamp } from '../utils/math'
 import { nameParam, entityRef } from '../types/event'
@@ -8,10 +9,27 @@ import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 
 const TERMINAL_AIM_SET = new Set<string>(TERMINAL_AIM_STATUSES as readonly string[])
 
+// perf (v0.47): mutable-draft パターン (lazy)。かつては処理対象 aim ごとに goals + aims の
+//   二重 spread が走っていた。draft は最初の更新時に各 1 回だけ浅コピーし、以降は既存キーの
+//   オブジェクト置換。処理対象が 0 件の tick ではコピー自体を回避する。
+//   走査は従来どおりループ開始時点の aims スナップショット (Object.entries は 1 回評価)。
 export function runGoalOutcomeSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
-  for (const [, aim] of Object.entries(currentCtx.state.aims)) {
+  let draft: WorldState | undefined
+  const ensureDraft = (): WorldState => {
+    if (!draft) {
+      draft = {
+        ...currentCtx.state,
+        goals: { ...currentCtx.state.goals },
+        aims: { ...currentCtx.state.aims },
+      }
+      currentCtx = { ...currentCtx, state: draft }
+    }
+    return draft
+  }
+
+  for (const [, aim] of Object.entries(ctx.state.aims)) {
     if (!aim) continue
     if (!TERMINAL_AIM_SET.has(aim.status)) continue
     if (!aim.goalId) continue
@@ -63,14 +81,9 @@ export function runGoalOutcomeSystem(ctx: TickContext): TickContext {
     // 冪等フラグを立てて二重加算を防ぐ (§1.5)。
     const appliedAim = { ...aim, goalProgressApplied: true }
 
-    currentCtx = {
-      ...currentCtx,
-      state: {
-        ...currentCtx.state,
-        goals: { ...currentCtx.state.goals, [goal.id]: updatedGoal },
-        aims: { ...currentCtx.state.aims, [aim.id]: appliedAim },
-      },
-    }
+    const d = ensureDraft()
+    d.goals[goal.id] = updatedGoal
+    d.aims[aim.id] = appliedAim
   }
 
   return currentCtx
