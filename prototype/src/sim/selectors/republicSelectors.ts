@@ -14,6 +14,7 @@ import type { PolityInfluenceEntry, PolityInfluenceHolderRef } from '../types/in
 import type { PoliticalRightHolderRef } from '../types/politicalRight'
 import { polityInfluenceHolderKey } from '../types/influence'
 import { politicalRightHolderKey } from '../types/politicalRight'
+import type { Person } from '../types/person'
 import { isLifeStageAtLeast, isLivingPerson } from '../types/person'
 import type { AppliedRoleKey } from './abilitySelectors'
 import { getRoleScore } from './abilitySelectors'
@@ -22,9 +23,12 @@ import { getRightsByPolity } from './politicalRightSelectors'
 import { getActiveOfficeHolders, getOfficeAssignments } from './officeSelectors'
 import {
   getHouselessPersons,
-  isRecruitableOutsiderPerson,
   isLandlessHouseMember,
+  isHouseLandless,
+  isRulingHouse,
+  isInfluentialHouseInAnyPolity,
 } from './availabilitySelectors'
+import { getActiveFactionMembership } from './factionSelectors'
 import { getPolityTerminalProvinceIds } from './landContractSelectors'
 import { getHoldingBailiffPerson } from './provinceOfficeSelectors'
 import { getPersonProjectWorkload } from './projectSelectors'
@@ -168,8 +172,64 @@ export function getRepublicPoliticalCandidatePersons(
 
   // 7. houseless person / 8. recruitable outsider / 9. landless House member
   for (const id of getHouselessPersons(state)) add(id)
-  for (const id of Object.keys(state.persons) as PersonId[]) {
-    if (isRecruitableOutsiderPerson(state, config, id) || isLandlessHouseMember(state, id)) add(id)
+
+  // perf (v0.47): step 8/9 は per-person 判定の中に家単位の高コスト判定 (isRulingHouse /
+  //   isInfluentialHouseInAnyPolity = 全 active polity × influence breakdown / isHouseLandless)
+  //   を内包し、同家メンバーで結果が同一。呼出スコープのローカル memo で 1 家 1 回に抑える。
+  //   memo はこの関数の 1 呼出内に限定 (module レベル / 呼出跨ぎ禁止 — 呼出側 system が
+  //   officeIndex 等を変異させるため stale 化する)。
+  //   走査は livingPersonIds (死者除外): 死者は最終フィルタ isEligibleRepublicCandidate →
+  //   isLivingPerson で必ず落ちるため出力は Object.keys(state.persons) 走査と同一。
+  //   判定構造は availabilitySelectors の isRecruitableOutsiderPerson /
+  //   isPoliticallyEngagedPerson / isLandlessHouseMember と同一に保つこと (変更時は要同期)。
+  const houseEngagedMemo = new Map<string, boolean>()
+  const isEngagedHouse = (houseId: HouseId): boolean => {
+    const cached = houseEngagedMemo.get(houseId)
+    if (cached !== undefined) return cached
+    const v = isRulingHouse(state, houseId) || isInfluentialHouseInAnyPolity(state, config, houseId)
+    houseEngagedMemo.set(houseId, v)
+    return v
+  }
+  const houseLandlessMemo = new Map<string, boolean>()
+  const isLandlessHouseMemo = (houseId: HouseId): boolean => {
+    const cached = houseLandlessMemo.get(houseId)
+    if (cached !== undefined) return cached
+    const v = isHouseLandless(state, houseId)
+    houseLandlessMemo.set(houseId, v)
+    return v
+  }
+  // 外交劇 delegate は person ごとの plays 全走査を避けるため 1 回だけ集合化 (membership 同値)。
+  const activePlayDelegates = new Set<string>()
+  for (const play of Object.values(state.diplomaticPlays)) {
+    if (!play) continue
+    if (play.status !== 'active' && play.status !== 'escalated') continue
+    if (play.initiatorDelegatePersonId) activePlayDelegates.add(play.initiatorDelegatePersonId)
+    if (play.targetDelegatePersonId) activePlayDelegates.add(play.targetDelegatePersonId)
+  }
+  // isPoliticallyEngagedPerson のローカル展開 (家判定のみ memo、他は同一構造)。
+  const isEngagedPerson = (personId: PersonId, person: Person): boolean => {
+    if (person.houseId && isEngagedHouse(person.houseId)) return true
+    if (getActiveFactionMembership(state, personId) !== undefined) return true
+    for (const oid of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+      const o = state.officeAssignments[oid]
+      if (o && o.active) return true
+    }
+    for (const pid of state.projectIndex.bySupervisorPerson[`person:${personId}`] ?? []) {
+      const project = state.projects[pid]
+      if (project && project.status === 'active') return true
+    }
+    return activePlayDelegates.has(personId)
+  }
+  for (const id of state.livingPersonIds) {
+    const person = state.persons[id]
+    if (!person) continue
+    // isRecruitableOutsiderPerson 同値: alive && !placeholder && !engaged
+    const recruitable =
+      person.alive && person.kind !== 'placeholder' && !isEngagedPerson(id, person)
+    // isLandlessHouseMember 同値: houseId を持ち、その家が landless
+    if (recruitable || (person.houseId !== undefined && isLandlessHouseMemo(person.houseId))) {
+      add(id)
+    }
   }
 
   // 最終的に基本除外を適用し、PersonId 昇順で返す。
