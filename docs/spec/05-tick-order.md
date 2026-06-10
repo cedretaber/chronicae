@@ -70,6 +70,8 @@ const WEEKS_PER_SEASON = 12
 | 11b | HouselessPersonGenerationSystem | 4 | |
 | 11c | OfficeTermSystem | 48 | |
 | 12 | HouseShareUpdateSystem | 48 | v0.42c: 旧 ShareUpdateSystem。polity 枝は削除され house 専用 |
+| 12a | RepublicLeadershipSystem | 48 | v0.46: 共和国（established commonwealth）の任期 leader 交代（§6.68）。AppointmentSystem の前 — 交代後、同年の appointment が新 leader を踏まえて動く |
+| 12b | RepublicPoliticalInitializationSystem | 4 | v0.46: 共和国建国式（§6.68）。AppointmentSystem **直前** — 12週発火週は必ず 4週発火週でもあるため、housed 候補で non-leader slot が埋まる前に功臣 seed を成立させる（race 排除） |
 | 13 | AppointmentSystem | 12 | 3ヶ月ごと |
 | 13a | BailiffRevenueTaskSystem | 4 | 代官月次 collect_holding_revenue Task 生成・期限切れ処理 |
 | 13b | TaskSystem | 1 | 毎週。Task 生成・処理・outcome・cleanup 一体 |

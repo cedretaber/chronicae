@@ -857,6 +857,27 @@
 | purchasePriceBase | 500 | 1 Province の購入価格基礎値 |
 | purchasePriceDevelopmentFactor | 30 | 購入価格の development 係数 |
 | purchaseAttemptChance | 0.1 | 買い手 Polity の年次購入試行確率 |
+| **共和国整備（v0.46 §6.68）** | | |
+| republicInitialAdministratorSlots | 1 | 建国式（RepublicInit）で seed する administrator slot 数 |
+| republicInitialTreasurerSlots | 1 | 同 treasurer slot 数 |
+| republicInitialMilitarySlots | 1 | 同 military slot 数 |
+| republicInitialAdvisorSlots | 1 | 同 advisor slot 数（大規模化は将来） |
+| republicGrantInitialPersonalRights | true | seed した非 leader holder に personal `polity_office_role` right を grant するか |
+| republicLeaderTermYears | 4 | 任期制 leader の任期年数（OfficeAssignment.startYear からの経過年で election） |
+| republicDominantHolderThreshold | 60 | UI で top holder を「支配的」と視覚強調する topPercent 閾値（event 発火には使わない） |
+| republicCandidateMinAffection | -50 | 候補列挙の除外閾値: 対象 Polity への affection がこれ以下なら候補から外す |
+| republicCandidateMaxWorkload | 3 | 候補列挙の workload 上限（getPersonProjectWorkload） |
+| republicCandidatePrestigeFactor | 0.3 | scoring: legacyPrestige 係数（仮値・バランス調整で再較正） |
+| republicCandidateWealthFactor | 0.02 | scoring: wealth 係数（wealthCap で頭打ち後に乗算） |
+| republicCandidateWealthCap | 500 | scoring: wealth の頭打ち値 |
+| republicCandidateAttitudeFactor | 0.1 | scoring: 対象 Polity への affection 係数 |
+| republicOfficeExperienceBonus | 10 | scoring: 当該 polity の office を 1 つでも持つ候補への加点 |
+| republicHouselessFounderBonus | 8 | scoring: 無家人材への加点（寡頭化前夜の功臣プール） |
+| republicLandlessHouseMemberBonus | 5 | scoring: landless House member への加点 |
+| republicWorkloadPenaltyFactor | 4 | scoring: workload 1 あたりの減点 |
+| republicAcquireRightBaseBonus | 15 | obtain_office / acquire_political_right が共和国を target にするときの加点（Phase C 競争 pull） |
+| republicLeaderIncumbencyBonus | 15 | 任期 election の現職加点（incumbency） |
+| republicLeaderFatiguePerYear | 3 | 現職の在任年数 × この値を incumbency から減算（終身 leader 防止） |
 
 ---
 

@@ -56,7 +56,7 @@ War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battl
 - **異 rank 間 land_claim の CEDED 経路の調整**: 補償なし妥協の成立条件チューニング。
 - **請求権 (claim rights) システム**: inactive Polity を材料とした動機付き land_claim。
 - **税率変動量の動的調整**: 軍事力差に応じて変動幅を可変にする。
-- **commonwealth succession / commonwealth faction / commonwealth → dynastic polity 遷移**。
+- **commonwealth succession / commonwealth faction / commonwealth → dynastic polity 遷移**: leader の任期交代（election）は v0.46 §6.68 RepublicLeadershipSystem で導入済み。残るは commonwealth 特有の派閥動態と「僭主→君主」の制度変換（dynastic 遷移・将来 §18+）。
 - **House Rebellion の外交劇化**: Faction / GoalSystem と接続して再設計。
 
 ### Action 経済 + 実体・称号システム

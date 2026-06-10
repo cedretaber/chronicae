@@ -737,3 +737,41 @@ buildHouseFamilyTree(state, houseId): { nodes: FamilyTreeNode[]; edges: FamilyTr
 - エッジ: `parent_child`（fatherId/motherId 両方分・ノード集合内）/ `spouse`（aId<bId 正規化 + dedupe）。spouse は live `spouseId` に加え `formerSpouseIds`（死別した元配偶者・§3）からも張るため、子の無い夫婦も死別後に結べる。B1 の married_in 判定も現・元配偶者の双方を見る。
 - 世代（generation）: 親エッジを持たない blood 根を 0 とし parent_child で BFS（子=親より深い世代）。married_in は配偶者と同世代。
 - 家門間リンクは **婚姻のみ**（分家 cadet・本家 parent リンクは将来拡張）。レイアウト座標は UI 側の責務（§11）。
+
+### 4.15 共和国セレクター（republicSelectors, v0.46）
+
+`prototype/src/sim/selectors/republicSelectors.ts`。established commonwealth（共和国・§6.68）の内部政治を扱う read-only selector 群。すべて RNG 不使用・決定的。
+
+```ts
+// 共和国判定（active && kind === 'commonwealth' && revoltState?.kind === 'established'）。
+// system / selector / UI で共有する単一の判定点
+function isEstablishedCommonwealthRepublic(state: WorldState, polityId: PolityId): boolean
+
+// PolityOrigin の kind 差（popular_revolt / regime_changed_by_popular_revolt）を吸収する origin helper
+function getRepublicOriginHoldingIds(origin: PolityOrigin): HoldingId[]
+function getRepublicFoundingWeek(origin: PolityOrigin): number | undefined
+
+// OfficeRole → AppliedRoleKey（admin→governance / treasurer→stewardship / military→warCommand /
+// advisor→diplomacy / leader→diplomacy）。getRoleScore（house 非依存）に渡す role 適性軸
+function appliedRoleKeyForOfficeRole(role: OfficeRole): AppliedRoleKey
+
+// office seed / leader election / obtain_office target で共有する候補者列挙。
+// 供給源: 現 leader / office holder / right holder とその家 member / origin leader /
+// holding bailiff / houseless / recruitable outsider / landless House member。
+// 基本除外（dead / placeholder / young_adulthood 未満 / 極端な悪意 / workload 過剰）。PersonId 昇順
+function getRepublicPoliticalCandidatePersons(state, config, polityId): Person[]
+
+// person が foothold（本人の office / personal right、家の right / member office）を持つ
+// 共和国のみを返す（obtain_office の polity fallback 拡張用。normal polity は対象外）
+function getRepublicFootholdPolityIds(state: WorldState, personId: PersonId): PolityId[]
+
+// 用途別 scoring。getRoleScore を主軸に prestige / wealth / attitude / office 経験 /
+// houseless・landless ボーナス / workload を加減算。性別ゲートは score に混ぜず選定側で適用
+function scoreRepublicOfficeCandidate(state, config, personId, polityId, role): number
+function scoreRepublicLeaderCandidate(state, config, personId, polityId): number
+
+// 共和国の権力分布 read-model（保存状態を作らない。UI 表示のみ）。
+// topHolder / topPercent / top3Percent / effectiveHolderCount（Herfindahl 逆数・total>0 entry のみ）/
+// leader influence / office・right control by holder（count 降順 → holder key 昇順の決定的ソート）
+function getRepublicPowerProfile(state, config, polityId): RepublicPowerProfile | undefined
+```
