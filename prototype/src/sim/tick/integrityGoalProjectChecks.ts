@@ -1005,9 +1005,15 @@ export function checkGoalsAimsProjects(
     { kind: 'holding', label: 'byHolding', index: state.chronicleIndex.byHolding },
   ]
   // forward: index に載る entry id が実在し、その entityRefs に (kind, key) を含む
+  // perf (v0.47): reverse 検査用に forward で観測した全 (kind, key, eid) トリプルを Set 化する。
+  //   reverse の意味論は「index に登録されているか」(有効かではない) なので、entry 不在や
+  //   entityRef 不一致のエラーパス分も無条件に Set へ入れる (検出結果は Array.includes 版と同一)。
+  //   旧実装の includes は Σ(index 配列長)² で年100時点 ~14.6M ops に達していた。
+  const indexedTriples = new Set<string>()
   for (const axis of chronicleIndexAxes) {
     for (const [key, eids] of Object.entries(axis.index)) {
       for (const eid of eids ?? []) {
+        indexedTriples.add(`${axis.kind}:${key}:${eid as string}`)
         const entry = state.chronicleEntries[eid]
         if (!entry) {
           errors.push({
@@ -1027,19 +1033,11 @@ export function checkGoalsAimsProjects(
   }
   // reverse: 各 entry の 5 index 対象 kind の ref が、対応 index に entry id として登録済み
   {
-    const bucketByKind: Partial<Record<string, Record<string, ChronicleEntryId[]>>> = {
-      person: state.chronicleIndex.byPerson,
-      house: state.chronicleIndex.byHouse,
-      polity: state.chronicleIndex.byPolity,
-      province: state.chronicleIndex.byProvince,
-      holding: state.chronicleIndex.byHolding,
-    }
+    const indexTargetKinds = new Set<string>(['person', 'house', 'polity', 'province', 'holding'])
     for (const [eidStr, entry] of Object.entries(state.chronicleEntries)) {
       for (const r of entry.entityRefs) {
-        const bucket = bucketByKind[r.kind]
-        if (!bucket) continue // faction/clan 等 index 非対象 kind は検査しない (§5.2)
-        const indexed = bucket[r.id] ?? []
-        if (!indexed.includes(entry.id)) {
+        if (!indexTargetKinds.has(r.kind)) continue // faction/clan 等 index 非対象 kind は検査しない (§5.2)
+        if (!indexedTriples.has(`${r.kind}:${r.id}:${entry.id as string}`)) {
           errors.push({
             code: 'INTEGRITY_VIOLATION',
             message: `ChronicleEntry ${eidStr} ${r.kind} ref ${r.id} is not registered in chronicleIndex (v0.38 §7.1)`,
