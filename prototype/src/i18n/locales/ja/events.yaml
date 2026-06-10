@@ -128,6 +128,9 @@ revolt:
   escalated: '{{province}}の反乱が武力衝突に発展した。'
   regime_changed: '{{province}}の体制が民衆蜂起により転覆された。'
 
+republic:
+  founded: '{{leader}}の下、{{polity}}が共和国として政治体制を整え、功臣たちが要職に就いた。'
+
 diplomatic_play:
   started_with_offer: '{{initiator}}が{{target}}と{{province}}について交渉を開始した。'
   started_no_offer: '{{initiator}}が{{target}}に{{province}}の割譲を迫った。'

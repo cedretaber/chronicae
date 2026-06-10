@@ -63,4 +63,8 @@ export type Polity = {
   kind?: PolityKind
   origin: PolityOrigin
   revoltState?: PopularRevoltState
+  // v0.46 §3.4: established commonwealth (共和国) の建国式 (RepublicPoliticalInitializationSystem)
+  // が一度だけ完了した絶対週。未設定 = 未初期化。AppointmentSystem との race / 再 seed /
+  // REPUBLIC_FOUNDED 多重発火を once-guard する marker。
+  republicInitializedWeek?: number
 }

@@ -63,6 +63,7 @@ import { runHouseSplitEvaluationSystem } from './houseSplitEvaluationSystem'
 import { runClanFormationSystem } from './clanFormationSystem'
 import { runHouselessPersonGenerationSystem } from './houselessPersonGenerationSystem'
 import { runOfficeTermSystem } from './officeTermSystem'
+import { runRepublicPoliticalInitializationSystem } from './republicPoliticalInitializationSystem'
 import { runFactionLifecycleSystem } from './factionLifecycleSystem'
 import { runFactionMaintenanceSystem } from './factionMaintenanceSystem'
 import { runFactionRecruitmentSystem } from './factionRecruitmentSystem'
@@ -235,6 +236,16 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runHouseShareUpdateSystem,
+  },
+  {
+    // v0.46 §5.1.2: AppointmentSystem の直前に置く。AppointmentSystem は commonwealth の
+    //   非 leader slot を housed 候補で埋める (POLITY_APPOINTABLE_ROLES) ため、RepublicInit を
+    //   直前に置けば AppointmentSystem が発火する週は必ず RepublicInit (4週) も発火する週となり、
+    //   houseless 功臣 seed・personal right・REPUBLIC_FOUNDED を取りこぼさない。
+    name: 'republicPoliticalInitializationSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runRepublicPoliticalInitializationSystem,
   },
   { name: 'appointmentSystem', intervalWeeks: 12, phaseOffsetWeeks: 0, run: runAppointmentSystem },
   {
