@@ -1,14 +1,10 @@
 import type { TickContext } from './context'
-import type { PersonId, HouseId } from '@sim/types/ids'
+import type { PersonId, HouseId, HouseShareId } from '@sim/types/ids'
+import { createHouseShareId } from '@sim/types/ids'
 import type { WorldState } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
 import type { OrganizationRef } from '@sim/types/office'
-import {
-  removeHouseShare,
-  transferShareRawPower,
-  upsertHouseShare,
-  createHouseShare,
-} from '@sim/mutations/shareMutations'
+import { createHouseShare } from '@sim/mutations/shareMutations'
 import { getHouseShares } from '@sim/selectors/shareSelectors'
 import { getHouseLeader } from '@sim/selectors/officeSelectors'
 import { getOfficeAssignments } from '@sim/selectors/officeSelectors'
@@ -16,55 +12,165 @@ import { getRoleScore } from '@sim/selectors/abilitySelectors'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
 import { getPersonOrganizationReputationSum } from '@sim/selectors/personReputationSelectors'
 
+// perf (v0.47): mutable-draft パターン。かつては shareMutations の per-call 版
+//   (transferShareRawPower / removeHouseShare / upsertHouseShare) が呼び出しごとに
+//   houseShares (432) + index 2 マップを spread していた (生存メンバー数 × 4週ごと、
+//   decade1→10 で 10-12 倍成長)。draft は run 冒頭で 3 マップを各 1 回浅コピーし、以降の
+//   インライン Mut 版は shareMutations の per-call 版と同一系列でキー追加/削除/置換を行う
+//   (ID 採番順・index 配列の filter/append 順・空配列キー残置を含めて挙動同一)。
+//   index 配列は常に新規配列を代入し、元 state 側の配列は破壊しない。
+//   shareMutations.ts 側を変更する場合はこの複製ロジックも要同期。
 export function runHouseShareUpdateSystem(ctx: TickContext): TickContext {
-  let state = ctx.state
   const config = ctx.config
+  const draft: WorldState = {
+    ...ctx.state,
+    houseShares: { ...ctx.state.houseShares },
+    houseShareIndex: {
+      byHouse: { ...ctx.state.houseShareIndex.byHouse },
+      byHolderPerson: { ...ctx.state.houseShareIndex.byHolderPerson },
+    },
+  }
+
+  // shareMutations.createHouseShare と同一挙動。
+  const createHouseShareMut = (
+    houseId: HouseId,
+    holderPersonId: PersonId,
+    rawPower: number,
+  ): void => {
+    const id = createHouseShareId(draft.nextHouseShareId)
+    draft.nextHouseShareId = draft.nextHouseShareId + 1
+    draft.houseShares[id] = { id, houseId, holderPersonId, rawPower }
+    draft.houseShareIndex.byHouse[houseId] = [...(draft.houseShareIndex.byHouse[houseId] ?? []), id]
+    draft.houseShareIndex.byHolderPerson[holderPersonId] = [
+      ...(draft.houseShareIndex.byHolderPerson[holderPersonId] ?? []),
+      id,
+    ]
+  }
+  // shareMutations.updateShareRawPower と同一挙動 (share 不在は no-op)。
+  const updateShareRawPowerMut = (shareId: HouseShareId, newRawPower: number): void => {
+    const share = draft.houseShares[shareId]
+    if (!share) return
+    draft.houseShares[shareId] = { ...share, rawPower: newRawPower }
+  }
+  // shareMutations.removeHouseShare と同一挙動 (share 不在は no-op、空配列キーは残す)。
+  const removeHouseShareMut = (shareId: HouseShareId): void => {
+    const share = draft.houseShares[shareId]
+    if (!share) return
+    delete draft.houseShares[shareId]
+    draft.houseShareIndex.byHouse[share.houseId] = (
+      draft.houseShareIndex.byHouse[share.houseId] ?? []
+    ).filter((id) => id !== shareId)
+    draft.houseShareIndex.byHolderPerson[share.holderPersonId] = (
+      draft.houseShareIndex.byHolderPerson[share.holderPersonId] ?? []
+    ).filter((id) => id !== shareId)
+  }
+  // shareMutations.transferShareRawPower と同一挙動 (byHouse スナップショット走査)。
+  const transferShareRawPowerMut = (
+    fromPersonId: PersonId,
+    toPersonId: PersonId,
+    houseId: HouseId,
+    ratio: number,
+  ): void => {
+    const ids = [...(draft.houseShareIndex.byHouse[houseId] ?? [])]
+    for (const id of ids) {
+      const share = draft.houseShares[id]
+      if (!share) continue
+      if (share.holderPersonId !== fromPersonId) continue
+
+      const transferAmount = share.rawPower * ratio
+      const remaining = share.rawPower - transferAmount
+
+      if (remaining <= 0) {
+        removeHouseShareMut(id)
+      } else {
+        updateShareRawPowerMut(id, remaining)
+      }
+
+      const toIds = draft.houseShareIndex.byHouse[houseId] ?? []
+      let toShareId: HouseShareId | undefined
+      for (const tid of toIds) {
+        const ts = draft.houseShares[tid]
+        if (ts && ts.holderPersonId === toPersonId) {
+          toShareId = tid
+          break
+        }
+      }
+
+      if (toShareId) {
+        const toShare = draft.houseShares[toShareId]
+        if (toShare) updateShareRawPowerMut(toShareId, toShare.rawPower + transferAmount)
+      } else {
+        createHouseShareMut(houseId, toPersonId, transferAmount)
+      }
+    }
+  }
+  // shareMutations.upsertHouseShare と同一挙動。
+  const upsertHouseShareMut = (
+    houseId: HouseId,
+    holderPersonId: PersonId,
+    rawPower: number,
+  ): void => {
+    const ids = draft.houseShareIndex.byHouse[houseId] ?? []
+    let existingId: HouseShareId | undefined
+    for (const id of ids) {
+      const share = draft.houseShares[id]
+      if (share && share.holderPersonId === holderPersonId) {
+        existingId = id
+        break
+      }
+    }
+    if (existingId !== undefined) {
+      if (rawPower <= 0) {
+        removeHouseShareMut(existingId)
+        return
+      }
+      updateShareRawPowerMut(existingId, rawPower)
+      return
+    }
+    if (rawPower <= 0) return
+    createHouseShareMut(houseId, holderPersonId, rawPower)
+  }
 
   // v0.42c: Polity share 枝は削除 (Polity Influence は influenceSelectors の read-model)。
   // 2. Update House Shares for each House
-  for (const houseId of Object.keys(state.houses).sort() as HouseId[]) {
-    const house = state.houses[houseId]
+  for (const houseId of Object.keys(draft.houses).sort() as HouseId[]) {
+    const house = draft.houses[houseId]
     if (!house || !house.active) continue
     if (house.kind === 'system') continue
 
-    const existingShares = getHouseShares(state, houseId)
+    const existingShares = getHouseShares(draft, houseId)
 
-    const leaderId = getHouseLeader(state, houseId)
+    const leaderId = getHouseLeader(draft, houseId)
 
     // Handle dead persons: transfer 50% of their share to the leader, delete the rest
     for (const share of existingShares) {
-      const person = state.persons[share.holderPersonId]
+      const person = draft.persons[share.holderPersonId]
       if (!person || person.alive) continue
 
       // Person is dead
       if (leaderId && leaderId !== share.holderPersonId) {
-        state = transferShareRawPower(state, share.holderPersonId, leaderId, houseId, 0.5)
+        transferShareRawPowerMut(share.holderPersonId, leaderId, houseId, 0.5)
       }
       // Delete remaining share for dead person
-      const updatedShare = state.houseShares[share.id]
+      const updatedShare = draft.houseShares[share.id]
       if (updatedShare) {
-        state = removeHouseShare(state, share.id)
+        removeHouseShareMut(share.id)
       }
     }
 
     // Update living persons
     for (const personId of house.memberIds) {
-      const person = state.persons[personId]
+      const person = draft.persons[personId]
       if (!person || !person.alive) continue
 
       const isLeader = personId === leaderId
-      const newRawPower = computeHouseShareRawPower(state, config, houseId, personId, isLeader)
+      const newRawPower = computeHouseShareRawPower(draft, config, houseId, personId, isLeader)
 
-      const upsertResult = upsertHouseShare(state, {
-        houseId,
-        holderPersonId: personId,
-        rawPower: newRawPower,
-      })
-      if (upsertResult.ok) state = upsertResult.value
+      upsertHouseShareMut(houseId, personId, newRawPower)
     }
   }
 
-  return { ...ctx, state }
+  return { ...ctx, state: draft }
 }
 
 export function computeHouseShareRawPower(
