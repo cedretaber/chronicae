@@ -36,6 +36,9 @@ export type EventType =
   | 'PROVINCE_REVOLT_SUCCEEDED'
   | 'PROVINCE_REVOLT_FAILED'
   | 'REVOLT_POLITY_FOUNDED'
+  // v0.46 共和国整備: established commonwealth の建国式 / 任期 leader 交代。
+  | 'REPUBLIC_FOUNDED'
+  | 'REPUBLIC_LEADER_ELECTED'
   | 'OFFICE_ASSIGNED'
   | 'OFFICE_REVOKED'
   | 'OFFICE_SALARY_UNPAID'

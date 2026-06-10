@@ -1048,6 +1048,32 @@ export type SimulationConfig = {
   geniusTypeWeightCommander: number
   geniusTypeWeightChancellor: number
   geniusTypeWeightUniversal: number
+  // v0.46 共和国整備: established commonwealth を共和国として初期化・運営する。
+  // 初期化 (建国式) で seed する非 leader office の slot 数。すべて 1 (大規模化は将来)。
+  republicInitialAdministratorSlots: number
+  republicInitialTreasurerSlots: number
+  republicInitialMilitarySlots: number
+  republicInitialAdvisorSlots: number
+  // seed した office holder に personal appointment right を grant するか。
+  republicGrantInitialPersonalRights: boolean
+  // 任期制 leader の任期年数 (startYear からの経過年で election を起こす)。
+  republicLeaderTermYears: number
+  // UI で「共和国が単一 holder に支配されている」と視覚強調する topPercent 閾値 (event 発火には使わない)。
+  republicDominantHolderThreshold: number
+  // 候補列挙の除外閾値: 対象 Polity への affection がこれ以下なら候補から外す / workload 上限。
+  republicCandidateMinAffection: number
+  republicCandidateMaxWorkload: number
+  // 候補 scoring の係数 (仮値・機能完成後のバランス調整で再較正)。
+  republicCandidatePrestigeFactor: number
+  republicCandidateWealthFactor: number
+  republicCandidateWealthCap: number
+  republicCandidateAttitudeFactor: number
+  republicOfficeExperienceBonus: number
+  republicHouselessFounderBonus: number
+  republicLandlessHouseMemberBonus: number
+  republicWorkloadPenaltyFactor: number
+  // obtain_office / acquire_political_right が共和国を target にするときの加点 (Phase C)。
+  republicAcquireRightBaseBonus: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2163,4 +2189,23 @@ export const defaultConfig: SimulationConfig = {
   geniusTypeWeightCommander: 0.4,
   geniusTypeWeightChancellor: 0.4,
   geniusTypeWeightUniversal: 0.2,
+  // v0.46 共和国整備
+  republicInitialAdministratorSlots: 1,
+  republicInitialTreasurerSlots: 1,
+  republicInitialMilitarySlots: 1,
+  republicInitialAdvisorSlots: 1,
+  republicGrantInitialPersonalRights: true,
+  republicLeaderTermYears: 4,
+  republicDominantHolderThreshold: 60,
+  republicCandidateMinAffection: -50,
+  republicCandidateMaxWorkload: 3,
+  republicCandidatePrestigeFactor: 0.3,
+  republicCandidateWealthFactor: 0.02,
+  republicCandidateWealthCap: 500,
+  republicCandidateAttitudeFactor: 0.1,
+  republicOfficeExperienceBonus: 10,
+  republicHouselessFounderBonus: 8,
+  republicLandlessHouseMemberBonus: 5,
+  republicWorkloadPenaltyFactor: 4,
+  republicAcquireRightBaseBonus: 15,
 }
