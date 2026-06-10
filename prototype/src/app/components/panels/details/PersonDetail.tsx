@@ -486,8 +486,9 @@ export function PersonDetail({
             )
           const activityLogIds =
             worldState.personActivityLogIndex.byPerson[person.id as string] ?? []
+          const activityLogBucket = worldState.personActivityLogs[person.id as string]
           const recentLogs = activityLogIds
-            .map((lid) => worldState.personActivityLogs[lid])
+            .map((lid) => activityLogBucket?.[lid])
             .filter((l): l is NonNullable<typeof l> => l !== undefined)
             .sort((a, b) => b.week - a.week)
             .slice(0, 5)

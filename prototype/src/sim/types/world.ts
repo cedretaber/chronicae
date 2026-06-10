@@ -147,7 +147,12 @@ export type WorldState = {
   // v0.23 Task/ActivityLog
   tasks: Record<TaskId, Task>
   taskIndex: TaskIndex
-  personActivityLogs: Record<PersonActivityLogId, PersonActivityLog>
+  // perf (v0.47): person key (PersonId as string) → ログ束の 2 層構造。
+  //   sim は PAL を必ず byPerson (index) 経由でしか読まないため、flat map だと
+  //   draft 初期化の全 spread (年100で ~6,800 件) が 4 system に共通の税になっていた。
+  //   2 層化で書き込み時は当人バケット (≤ maxActivityLogsPerPerson 件) のコピーで済む。
+  //   表示順・rotate 順の正本は従来どおり personActivityLogIndex.byPerson の配列。
+  personActivityLogs: Record<string, Record<PersonActivityLogId, PersonActivityLog>>
   personActivityLogIndex: PersonActivityLogIndex
   waitingAimIds: WaitingAimIndex
   // v0.22

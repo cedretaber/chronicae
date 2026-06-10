@@ -236,10 +236,11 @@ export function getRecentBailiffRevenueTaskStatus(
   const logIds = state.personActivityLogIndex.byPerson[personId as string]
   if (!logIds) return 'none'
 
+  const bucket = state.personActivityLogs[personId as string]
   const cutoffWeek = state.absoluteWeek - 4
 
   for (const logId of logIds) {
-    const log = state.personActivityLogs[logId]
+    const log = bucket?.[logId]
     if (!log) continue
     if (log.week < cutoffWeek) continue
     if (log.kind !== 'task_completed') continue

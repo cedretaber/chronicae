@@ -171,8 +171,12 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
               },
               importance: 10,
             }
-            ws.personActivityLogs[logId] = actLog
             const pKey = project.supervisorPersonId as string
+            // perf (v0.47): 当人バケットだけ copy-on-write (PAL 2 層構造)。
+            ws.personActivityLogs[pKey] = {
+              ...(ws.personActivityLogs[pKey] ?? {}),
+              [logId]: actLog,
+            }
             ws.personActivityLogIndex.byPerson[pKey] = [
               ...(ws.personActivityLogIndex.byPerson[pKey] ?? []),
               logId,
@@ -503,8 +507,9 @@ function applyDevelopHoldingMut(
     },
     importance: 20,
   }
-  ws.personActivityLogs[logId] = actLog
   const pKey = project.supervisorPersonId as string
+  // perf (v0.47): 当人バケットだけ copy-on-write (PAL 2 層構造)。
+  ws.personActivityLogs[pKey] = { ...(ws.personActivityLogs[pKey] ?? {}), [logId]: actLog }
   ws.personActivityLogIndex.byPerson[pKey] = [
     ...(ws.personActivityLogIndex.byPerson[pKey] ?? []),
     logId,

@@ -497,7 +497,7 @@ describe('getRecentBailiffRevenueTaskStatus', () => {
     }
     const withLog: WorldState = {
       ...s,
-      personActivityLogs: { ...s.personActivityLogs, [logId]: log },
+      personActivityLogs: { ...s.personActivityLogs, [personId as string]: { [logId]: log } },
       personActivityLogIndex: {
         byPerson: {
           ...s.personActivityLogIndex.byPerson,
@@ -528,7 +528,7 @@ describe('getRecentBailiffRevenueTaskStatus', () => {
     }
     const withLog: WorldState = {
       ...s,
-      personActivityLogs: { ...s.personActivityLogs, [logId]: log },
+      personActivityLogs: { ...s.personActivityLogs, [personId as string]: { [logId]: log } },
       personActivityLogIndex: {
         byPerson: {
           ...s.personActivityLogIndex.byPerson,
@@ -559,7 +559,7 @@ describe('getRecentBailiffRevenueTaskStatus', () => {
     }
     const withLog: WorldState = {
       ...s,
-      personActivityLogs: { ...s.personActivityLogs, [logId]: log },
+      personActivityLogs: { ...s.personActivityLogs, [personId as string]: { [logId]: log } },
       personActivityLogIndex: {
         byPerson: {
           ...s.personActivityLogIndex.byPerson,
@@ -591,7 +591,7 @@ describe('getRecentBailiffRevenueTaskStatus', () => {
     }
     const withLog: WorldState = {
       ...s,
-      personActivityLogs: { ...s.personActivityLogs, [logId]: log },
+      personActivityLogs: { ...s.personActivityLogs, [personId as string]: { [logId]: log } },
       personActivityLogIndex: {
         byPerson: {
           ...s.personActivityLogIndex.byPerson,

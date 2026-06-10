@@ -185,11 +185,14 @@ function createActivityLogMut(
   const personKey = personId as string
   const existingLogs = ws.personActivityLogIndex.byPerson[personKey] ?? []
 
-  ws.personActivityLogs[logId] = log
+  // perf (v0.47): PAL は person key の 2 層構造。当人バケットだけ copy-on-write する
+  //   (旧 state 側のバケットを破壊しない)。
+  const bucket = { ...(ws.personActivityLogs[personKey] ?? {}) }
+  bucket[logId] = log
   let newIndex = [...existingLogs, logId]
 
   if (newIndex.length > config.maxActivityLogsPerPerson) {
-    const logsWithMeta = newIndex.map((id) => ({ id, log: ws.personActivityLogs[id] }))
+    const logsWithMeta = newIndex.map((id) => ({ id, log: bucket[id] }))
     logsWithMeta.sort((a, b) => {
       if (!a.log || !b.log) return 0
       if (a.log.importance !== b.log.importance) return a.log.importance - b.log.importance
@@ -197,11 +200,12 @@ function createActivityLogMut(
     })
     const toRemove = logsWithMeta.slice(0, newIndex.length - config.maxActivityLogsPerPerson)
     for (const r of toRemove) {
-      delete ws.personActivityLogs[r.id]
+      delete bucket[r.id]
     }
-    newIndex = newIndex.filter((id) => ws.personActivityLogs[id] !== undefined)
+    newIndex = newIndex.filter((id) => bucket[id] !== undefined)
   }
 
+  ws.personActivityLogs[personKey] = bucket
   ws.personActivityLogIndex.byPerson[personKey] = newIndex
   ws.nextPersonActivityLogId++
 }

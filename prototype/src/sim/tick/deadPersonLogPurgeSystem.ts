@@ -13,9 +13,10 @@ export function collectDeadPersonLogs(ctx: TickContext): PurgedPersonLogs[] {
   for (const personId of ctx.deathsThisTick) {
     const logIds = ctx.state.personActivityLogIndex.byPerson[personId as string]
     if (!logIds || logIds.length === 0) continue
+    const bucket = ctx.state.personActivityLogs[personId as string]
     const logs: PersonActivityLog[] = []
     for (const logId of logIds) {
-      const log = ctx.state.personActivityLogs[logId]
+      const log = bucket?.[logId]
       if (log) logs.push(log)
     }
     if (logs.length > 0) {
@@ -32,13 +33,13 @@ export function runDeadPersonLogPurgeSystem(ctx: TickContext): TickContext {
 
   const collected = collectDeadPersonLogs(ctx)
   if (collected.length > 0) {
+    // perf (v0.47): PAL 2 層構造。死亡者の purge は当人キーの delete 1 発で済む
+    //   (かつては flat map 全体 ~6,800 件を spread してから数件 delete していた)。
     const nextLogs = { ...state.personActivityLogs }
     const nextByPerson = { ...state.personActivityLogIndex.byPerson }
 
-    for (const { personId, logs } of collected) {
-      for (const log of logs) {
-        delete nextLogs[log.id]
-      }
+    for (const { personId } of collected) {
+      delete nextLogs[personId as string]
       delete nextByPerson[personId as string]
     }
 

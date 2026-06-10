@@ -37,9 +37,10 @@ export function getAppointmentTaskModifier(
   const personKey = personId as string
   const logIds = state.personActivityLogIndex.byPerson[personKey]
   if (logIds) {
+    const bucket = state.personActivityLogs[personKey]
     const currentWeek = state.absoluteWeek
     for (const logId of logIds) {
-      const log = state.personActivityLogs[logId]
+      const log = bucket?.[logId]
       if (!log) continue
       if (currentWeek - log.week > config.appointmentTaskModifierDurationWeeks) continue
       if (log.kind !== 'task_completed') continue

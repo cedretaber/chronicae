@@ -29,8 +29,9 @@ function createExpiredActivityLogMut(ws: WorldState, personId: PersonId, task: T
     importance: 10,
   }
 
-  ws.personActivityLogs[logId] = log
   const personKey = personId as string
+  // perf (v0.47): 当人バケットだけ copy-on-write (PAL 2 層構造)。
+  ws.personActivityLogs[personKey] = { ...(ws.personActivityLogs[personKey] ?? {}), [logId]: log }
   ws.personActivityLogIndex.byPerson[personKey] = [
     ...(ws.personActivityLogIndex.byPerson[personKey] ?? []),
     logId,

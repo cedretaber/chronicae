@@ -203,7 +203,7 @@ describe('runHouseFoundingSystem', () => {
     }
     s = {
       ...s,
-      personActivityLogs: { ...s.personActivityLogs, ...logs },
+      personActivityLogs: { ...s.personActivityLogs, [pid as string]: logs },
       personActivityLogIndex: {
         ...s.personActivityLogIndex,
         byPerson: {

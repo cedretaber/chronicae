@@ -185,13 +185,15 @@ describe('runBailiffRevenueTaskSystem', () => {
     expect(activeTasks.length).toBe(1)
     expect((activeTasks[0]!.id as string) !== (existingTaskId as string)).toBe(true)
 
-    const logs = Object.values(result.state.personActivityLogs).filter(
-      (l) =>
-        l &&
-        l.kind === 'task_expired' &&
-        'taskKind' in l &&
-        l.taskKind === 'collect_holding_revenue',
-    )
+    const logs = Object.values(result.state.personActivityLogs)
+      .flatMap((bucket) => Object.values(bucket))
+      .filter(
+        (l) =>
+          l &&
+          l.kind === 'task_expired' &&
+          'taskKind' in l &&
+          l.taskKind === 'collect_holding_revenue',
+      )
     expect(logs.length).toBe(1)
     const firstLog = logs[0]!
     expect('outcome' in firstLog ? firstLog.outcome : undefined).toBe('failure')
