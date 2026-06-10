@@ -4,20 +4,64 @@ import { createSimEvent } from './context'
 import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
 import { getActiveFactions, getFactionActiveMemberIds } from '../selectors/factionSelectors'
-import { addPersonWealth } from '../mutations/personMutations'
-import { adjustPersonAttitudeIfExists } from '../mutations/attitudeMutations'
+import { personAttitudeKey, updateAttitudeIfExists } from '../helpers/attitudeHelpers'
 
 // v0.17 §11 + v0.17.4 §13.11: FactionPatronageSystem (毎年 1 月)
 // 派閥 leader と member 間の献金 / 小遣いを処理する。
 // attitude 更新は updateAttitudeIfExists で既存 key のみ (新規 key は作らない)。
 // v0.17.4: stipend を払えなかった member が >= 1 かつ leader.wealth が解散閾値を上回る場合
 // FACTION_FUNDS_SHORTAGE event を 1 派閥 1 年 1 回 emit する。
+//
+// perf (v0.47): mutable-draft パターン (taskSystem v0.23.1 と同型)。
+//   かつては per-call の addPersonWealth / adjustPersonAttitudeIfExists が呼び出しごとに
+//   persons 全マップを spread しており (年次だが数百回)、decade1→10 で 28-39 倍成長していた。
+//   draft は最初の変更時に persons を 1 回だけ浅コピーし、以降は既存キーのオブジェクト置換
+//   (クランプ位置・読み書き順序は per-call 版と同一) で bit-identical を保つ。
 export function runFactionPatronageSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
   const config = ctx.config
 
+  // lazy draft: 変更が 1 件も無い run では state をコピーしない。
+  let draft: WorldState | undefined
+  const ensureDraft = (): WorldState => {
+    if (!draft) {
+      draft = { ...currentCtx.state, persons: { ...currentCtx.state.persons } }
+      currentCtx = { ...currentCtx, state: draft }
+    }
+    return draft
+  }
+  const cur = (): WorldState => draft ?? currentCtx.state
+
+  // 旧 addPersonWealth と同一挙動 (person 不在なら no-op、wealth は 0 でクランプ)。
+  const addPersonWealthMut = (personId: PersonId, delta: number): boolean => {
+    const d = ensureDraft()
+    const p = d.persons[personId]
+    if (!p) return false
+    d.persons[personId] = { ...p, wealth: Math.max(0, p.wealth + delta) }
+    return true
+  }
+  // 旧 adjustPersonAttitudeIfExists と同一挙動 (person 不在 / key 不在は no-op)。
+  const applyAttitudeIfPresentMut = (
+    sourcePersonId: PersonId,
+    targetPersonId: PersonId,
+    delta: { affection?: number; respect?: number },
+  ): void => {
+    const p = cur().persons[sourcePersonId]
+    if (!p) return
+    const newAttitudes = updateAttitudeIfExists(
+      p.attitudes,
+      personAttitudeKey(targetPersonId),
+      delta,
+    )
+    if (newAttitudes === p.attitudes) return
+    const d = ensureDraft()
+    const p2 = d.persons[sourcePersonId]
+    if (!p2) return
+    d.persons[sourcePersonId] = { ...p2, attitudes: newAttitudes }
+  }
+
   for (const faction of getActiveFactions(currentCtx.state)) {
-    const leader = currentCtx.state.persons[faction.leaderPersonId]
+    const leader = cur().persons[faction.leaderPersonId]
     if (!leader || !leader.alive) continue
 
     const memberIds = getFactionActiveMemberIds(currentCtx.state, faction.id).filter(
@@ -26,7 +70,7 @@ export function runFactionPatronageSystem(ctx: TickContext): TickContext {
 
     // 1. 献金: office 持ち member → leader
     for (const memberId of memberIds) {
-      const member = currentCtx.state.persons[memberId]
+      const member = cur().persons[memberId]
       if (!member || !member.alive) continue
       if (member.wealth <= config.factionDonationPersonalReserve) continue
 
@@ -38,60 +82,51 @@ export function runFactionPatronageSystem(ctx: TickContext): TickContext {
       const donation = Math.max(1, Math.min(donationCap, donationDesired))
       if (donation <= 0) continue
 
-      const minusResult = addPersonWealth(currentCtx.state, memberId, -donation)
-      if (!minusResult.ok) continue
-      currentCtx = { ...currentCtx, state: minusResult.value }
-      const plusResult = addPersonWealth(currentCtx.state, faction.leaderPersonId, donation)
-      if (plusResult.ok) currentCtx = { ...currentCtx, state: plusResult.value }
+      if (!addPersonWealthMut(memberId, -donation)) continue
+      addPersonWealthMut(faction.leaderPersonId, donation)
 
-      let s = applyAttitudeIfPresent(currentCtx.state, faction.leaderPersonId, memberId, {
+      applyAttitudeIfPresentMut(faction.leaderPersonId, memberId, {
         affection: config.factionDonationAffectionGain,
         respect: config.factionDonationRespectGain,
       })
-      s = applyAttitudeIfPresent(s, memberId, faction.leaderPersonId, {
+      applyAttitudeIfPresentMut(memberId, faction.leaderPersonId, {
         affection: config.factionDonationAffectionGainSmall,
       })
-      currentCtx = { ...currentCtx, state: s }
     }
 
     // 2. 小遣い: leader → office なし member
     let unpaidCount = 0
     for (const memberId of memberIds) {
-      const member = currentCtx.state.persons[memberId]
+      const member = cur().persons[memberId]
       if (!member || !member.alive) continue
       if (hasActiveNonLeaderOffice(currentCtx.state, memberId)) continue
 
-      const leaderNow = currentCtx.state.persons[faction.leaderPersonId]
+      const leaderNow = cur().persons[faction.leaderPersonId]
       if (!leaderNow) break
 
       const stipend = config.factionStipendBase
       if (leaderNow.wealth >= config.factionLeaderReserveWealth + stipend) {
-        const lResult = addPersonWealth(currentCtx.state, faction.leaderPersonId, -stipend)
-        if (!lResult.ok) continue
-        currentCtx = { ...currentCtx, state: lResult.value }
-        const mResult = addPersonWealth(currentCtx.state, memberId, stipend)
-        if (mResult.ok) currentCtx = { ...currentCtx, state: mResult.value }
+        if (!addPersonWealthMut(faction.leaderPersonId, -stipend)) continue
+        addPersonWealthMut(memberId, stipend)
 
-        const s = applyAttitudeIfPresent(currentCtx.state, memberId, faction.leaderPersonId, {
+        applyAttitudeIfPresentMut(memberId, faction.leaderPersonId, {
           affection: config.factionStipendAffectionGain,
           respect: config.factionStipendRespectGain,
         })
-        currentCtx = { ...currentCtx, state: s }
       } else {
         unpaidCount++
         // 資金不足: 既存 attitude key があれば負方向
-        const s = applyAttitudeIfPresent(currentCtx.state, memberId, faction.leaderPersonId, {
+        applyAttitudeIfPresentMut(memberId, faction.leaderPersonId, {
           affection: -config.factionStipendShortageAffectionPenalty,
           respect: -config.factionStipendShortageRespectPenalty,
         })
-        currentCtx = { ...currentCtx, state: s }
       }
     }
 
     // v0.17.4 §13.11: FACTION_FUNDS_SHORTAGE — 1 派閥 1 年 1 回
     // 完全破産 (LEADER_BANKRUPT) は factionLifecycleSystem 側で扱うので除外する。
     if (unpaidCount >= 1) {
-      const leaderAfter = currentCtx.state.persons[faction.leaderPersonId]
+      const leaderAfter = cur().persons[faction.leaderPersonId]
       if (leaderAfter && leaderAfter.wealth >= config.factionDisbandWealthFloor) {
         const { event, ctx: ec } = createSimEvent(currentCtx, {
           type: 'FACTION_FUNDS_SHORTAGE',
@@ -126,19 +161,4 @@ function hasActiveNonLeaderOffice(state: WorldState, personId: PersonId): boolea
     if (a && a.active) return true
   }
   return false
-}
-
-function applyAttitudeIfPresent(
-  state: WorldState,
-  sourcePersonId: PersonId,
-  targetPersonId: PersonId,
-  delta: { affection?: number; respect?: number },
-): WorldState {
-  const result = adjustPersonAttitudeIfExists(
-    state,
-    sourcePersonId,
-    { kind: 'person', id: targetPersonId },
-    delta,
-  )
-  return result.ok ? result.value : state
 }
