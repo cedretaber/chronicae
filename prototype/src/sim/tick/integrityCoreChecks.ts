@@ -6,6 +6,7 @@ import { ABILITY_KEYS, ABILITY_HARD_CAP } from '../constants/abilityConstants'
 import { getHouseProvinceIdsByPolity } from '../selectors/polityRelations'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
+import { getPolityTerritorialStatus } from '../types/polity'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 
 export function checkCoreEntities(state: WorldState, errors: SimError[], debug: boolean): void {
@@ -89,6 +90,17 @@ export function checkCoreEntities(state: WorldState, errors: SimError[], debug: 
         code: 'INTEGRITY_VIOLATION',
         message: `OfficeAssignment ${officeId} has negative unpaidCount`,
       })
+    }
+
+    // v0.47 §19.2: titular Polity は leader 以外の active polity office を持たない
+    if (office.organization.kind === 'polity' && office.role !== 'leader') {
+      const op = state.polities[office.organization.id]
+      if (op && getPolityTerritorialStatus(op) === 'titular') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `OfficeAssignment ${officeId} role=${office.role} on titular Polity ${office.organization.id} (only leader allowed) (v0.47 §19.2)`,
+        })
+      }
     }
 
     // v0.42 slot 単位任命権: slotIndex は整数 >= 0。

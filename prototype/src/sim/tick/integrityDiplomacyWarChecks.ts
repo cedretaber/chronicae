@@ -3,6 +3,7 @@ import type { OrganizationRef } from '../types/office'
 import { politicalActorKey } from '../selectors/actorSelectors'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
+import { getPolityTerritorialStatus } from '../types/polity'
 import type { SimulationConfig } from '../config/defaultConfig'
 
 export function checkDiplomacyWarRegiment(
@@ -921,6 +922,16 @@ export function checkDiplomacyWarRegiment(
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `Regiment ${idStr} local_levy must have homeHoldingId (v0.39 §17.3)`,
+        })
+      }
+    }
+    // v0.47 §19.2: titular Polity は active Regiment を持たない (maintenance reassign を前提)。
+    if (regiment.status === 'active' && regiment.owner.kind === 'polity') {
+      const op = state.polities[regiment.owner.id]
+      if (op && getPolityTerritorialStatus(op) === 'titular') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Regiment ${idStr} is active but owned by titular Polity ${regiment.owner.id} (v0.47 §19.2)`,
         })
       }
     }

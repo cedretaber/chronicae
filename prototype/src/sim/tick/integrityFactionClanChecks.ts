@@ -293,6 +293,44 @@ export function checkFactionsAndClans(state: WorldState, errors: SimError[]): vo
     }
   }
 
+  // v0.47 §19.4: parentHouseId ↔ cadetHouseIds 双方向整合 (House は絶家しても削除されず残るため
+  //   存在検査は active を問わない)。
+  for (const houseIdStr of Object.keys(state.houses)) {
+    const houseId = houseIdStr as HouseId
+    const h = state.houses[houseId]
+    if (!h || h.kind === 'system') continue
+    // forward: parentHouseId があれば parent が存在し、その cadetHouseIds に自分が含まれる
+    if (h.parentHouseId !== undefined) {
+      const parent = state.houses[h.parentHouseId]
+      if (!parent) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `cadet House ${houseId} parentHouseId ${h.parentHouseId} does not exist (v0.47 §19.4)`,
+        })
+      } else if (!parent.cadetHouseIds.includes(houseId)) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `parent House ${h.parentHouseId} cadetHouseIds does not contain cadet ${houseId} (v0.47 §19.4)`,
+        })
+      }
+    }
+    // backward: cadetHouseIds の各 cadet が存在し、その parentHouseId が自分を指す
+    for (const cadetId of h.cadetHouseIds) {
+      const cadet = state.houses[cadetId]
+      if (!cadet) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `House ${houseId} cadetHouseIds references missing House ${cadetId} (v0.47 §19.4)`,
+        })
+      } else if (cadet.parentHouseId !== houseId) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `House ${houseId} lists cadet ${cadetId} but its parentHouseId=${cadet.parentHouseId ?? 'undefined'} (v0.47 §19.4)`,
+        })
+      }
+    }
+  }
+
   // v0.17 §21.2 O4: non-leader OfficeAssignment の startYear は currentYear 以下
   for (const officeId of Object.keys(state.officeAssignments)) {
     const office = state.officeAssignments[officeId as import('../types/ids').OfficeAssignmentId]

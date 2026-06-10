@@ -2,6 +2,7 @@ import type { PolityId, HouseId, LandContractId, PersonId, HoldingId } from '../
 import { getGrantorRank, getLandContractGrantor } from '../selectors/landContractSelectors'
 import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
+import { getPolityTerritorialStatus } from '../types/polity'
 import { VALID_PROVINCE_TERRAINS, VALID_PROVINCE_FEATURES } from './integrityConstants'
 
 export function checkLandContractsAndPersons(state: WorldState, errors: SimError[]): void {
@@ -246,11 +247,68 @@ export function checkLandContractsAndPersons(state: WorldState, errors: SimError
     const p = state.polities[polityId]
     if (!p) continue
     const granteed = state.landContractIndex.byGranteePolity[polityId] ?? []
+    // v0.47 §19.1: titular Polity は active landless が正常 (称号のみ・契約 0)。
+    const isTitular = getPolityTerritorialStatus(p) === 'titular'
     if (granteed.length === 0 && p.active) {
-      if (!(p.kind === 'commonwealth' && p.revoltState != null)) {
+      if (!(p.kind === 'commonwealth' && p.revoltState != null) && !isTitular) {
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `Polity ${polityId} is active but has 0 LandContract grantee (§25 #17)`,
+        })
+      }
+    }
+    // v0.47 §19.1: titular Polity は LandContract を持たない
+    if (isTitular && granteed.length > 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Polity ${polityId} is titular but has ${granteed.length} LandContract grantee (v0.47 §19.1)`,
+      })
+    }
+    // v0.47 §19.1: rank 5 Polity は titular にならない (landless rank 5 は abolish される)
+    if (isTitular && p.rank === 5) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Polity ${polityId} is rank 5 but titular (v0.47 §19.1)`,
+      })
+    }
+    // v0.47 §19.5: land_grant origin の参照存在検査。origin.ownerHouseId は創設時履歴値であり
+    //   現在の polity.ownerHouseId との一致は要求しない (§11 譲渡で current owner が変わるため)。
+    if (p.origin.kind === 'land_grant') {
+      const o = p.origin
+      if (!state.holdings[o.holdingId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `land_grant Polity ${polityId} origin holdingId ${o.holdingId} does not exist (v0.47 §19.5)`,
+        })
+      }
+      if (!state.persons[o.founderPersonId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `land_grant Polity ${polityId} origin founderPersonId ${o.founderPersonId} does not exist (v0.47 §19.5)`,
+        })
+      }
+      if (!state.houses[o.ownerHouseId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `land_grant Polity ${polityId} origin ownerHouseId ${o.ownerHouseId} does not exist (v0.47 §19.5)`,
+        })
+      }
+      if (o.parentHouseId !== undefined && !state.houses[o.parentHouseId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `land_grant Polity ${polityId} origin parentHouseId ${o.parentHouseId} does not exist (v0.47 §19.5)`,
+        })
+      }
+      if (p.rank !== 5) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `land_grant Polity ${polityId} must be rank 5 but is rank ${p.rank} (v0.47 §19.5)`,
+        })
+      }
+      if (p.nameSource.kind !== 'holding') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `land_grant Polity ${polityId} nameSource.kind must be 'holding' but is '${p.nameSource.kind}' (v0.47 §19.5)`,
         })
       }
     }

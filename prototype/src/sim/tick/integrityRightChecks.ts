@@ -8,6 +8,7 @@ import type { SimError } from '../mutations/errors'
 import type { WorldState } from '../types/world'
 import { politicalRightTargetKey, politicalRightHolderKey } from '../types/politicalRight'
 import { getOfficeDefinition } from '../config/officeDefinitions'
+import { getPolityTerritorialStatus } from '../types/polity'
 
 export function checkPoliticalRights(state: WorldState, errors: SimError[]): void {
   for (const rightIdStr of Object.keys(state.politicalRights)) {
@@ -40,6 +41,13 @@ export function checkPoliticalRights(state: WorldState, errors: SimError[]): voi
       errors.push({
         code: 'INTEGRITY_VIOLATION',
         message: `PoliticalRight ${rightId} polity ${right.polityId} is not active (v0.42 R2)`,
+      })
+    }
+    // v0.47 §19.2: titular Polity は active PoliticalRight を持たない
+    if (polity && getPolityTerritorialStatus(polity) === 'titular') {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `PoliticalRight ${rightId} on titular Polity ${right.polityId} (v0.47 §19.2)`,
       })
     }
 
