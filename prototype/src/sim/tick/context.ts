@@ -107,6 +107,11 @@ export function createTickContext(input: TickInput): TickContext {
 export function toResult(ctx: TickContext): TickResult {
   // 調査 §4.5: tick 中に makePersonId/makeHouseId/makePolityId が進めた ctx 側カウンタを
   // WorldState へ書き戻す (次 tick の createTickContext が読む正本)。
+  //
+  // 【注意 (v0.47 perf)】この top-level spread は省略不可。chronicleEntries / chronicleIndex は
+  // in-place append される (chronicleMutations.ts の carve-out 契約) ため identity が変わらず、
+  // UI の chronicle 再描画はここで state 全体の identity が毎 tick 変わることに依存している。
+  // ctx.state を直返しする最適化をしてはならない。
   return {
     state: {
       ...ctx.state,
