@@ -1260,7 +1260,10 @@ export const defaultConfig: SimulationConfig = {
   unknownBirthStatusSuccessionPenalty: 10,
   successionCrisisScoreGap: 10,
   // v0.7 House Split
-  houseSplitEnabled: true,
+  // v0.47 §14.1: 直接 splitHouse による landless cadet 量産を廃止 (default 無効化)。
+  //   分家創設は establish_cadet_branch / request_land_grant Aim 経由 (Phase 6/7) に置換。
+  //   system 自体は残し、unit test や将来の有効化に備える。
+  houseSplitEnabled: false,
   minProvincesForHouseSplit: 3,
   houseSplitCohesionThreshold: 60,
   baseHouseSplitChance: 0.1,
@@ -2138,7 +2141,10 @@ export const defaultConfig: SimulationConfig = {
   projectBudgetMarginMultiplier: 2,
   projectCompletedRespectGain: 5,
   // v0.31 House Founding
-  houseFoundingEnabled: true,
+  // v0.47 §7.1: 通常世界の self-made House founding (wealth/prestige/office/activityLog のみで
+  //   House を興す経路) を廃止 (default 無効化)。House 創設は原則 Polity 獲得を伴う
+  //   (分封 = request_land_grant・Phase 6) か、共和国例外 (republic_house_foundation・Phase 8) に限る。
+  houseFoundingEnabled: false,
   houseFoundingMinWealth: 120,
   houseFoundingMinPrestige: 45,
   houseFoundingMinActivityLogs: 3,
