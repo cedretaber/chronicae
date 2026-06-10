@@ -88,7 +88,11 @@ export function CountryDetail({
   const stability = worldState ? getPolityStability(worldState, defaultConfig, polity.id) : 50
 
   const roleLabels: Record<string, string> = {
-    leader: t('detail.polity.ruler'),
+    // v0.47: titular Polity の leader は統治者ではなく称号保持者。
+    leader:
+      polity.territorialStatus === 'titular'
+        ? t('detail.polity.title_holder')
+        : t('detail.polity.ruler'),
     administrator: t('polity.administrator', { ns: 'roles' }),
     military: t('polity.military', { ns: 'roles' }),
     treasurer: t('polity.treasurer', { ns: 'roles' }),
@@ -148,6 +152,11 @@ export function CountryDetail({
           <span>
             {formatPolityRank(polity.rank)}{' '}
             <span className="text-gray-500">(rank {polity.rank})</span>
+            {polity.territorialStatus === 'titular' && (
+              <span className="ml-2 rounded bg-amber-900 px-1.5 py-0.5 text-xs text-amber-200">
+                {t('detail.polity.titular_badge')}
+              </span>
+            )}
           </span>
         </div>
         <div className="flex justify-between">

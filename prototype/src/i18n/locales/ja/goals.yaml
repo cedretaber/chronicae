@@ -6,6 +6,7 @@ house:
   expand_power_base: 勢力拡大
   preserve_power_base: 勢力維持
   cultivate_prestige: 威信の涵養
+  consolidate_domain: 一円支配の確立
 person:
   house_loyalty: 家門への忠節
   public_service: 公務への献身

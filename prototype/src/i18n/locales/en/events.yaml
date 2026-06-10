@@ -347,3 +347,8 @@ enum:
     respond_to_pressure: 'responding to pressure'
     personal_training: 'personal training'
     movement_campaign: 'a political campaign'
+    request_rank_promotion: 'a petition for rank promotion'
+    request_land_grant: 'a petition for a land grant'
+    request_cadet_branch_title_transfer: 'the founding of a cadet branch'
+    republic_house_foundation: 'the founding of a house in the republic'
+    consolidate_internal_contracts: 'the consolidation of domains'

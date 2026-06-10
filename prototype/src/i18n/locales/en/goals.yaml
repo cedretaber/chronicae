@@ -6,6 +6,7 @@ house:
   expand_power_base: Expand Power Base
   preserve_power_base: Preserve Power Base
   cultivate_prestige: Cultivate Prestige
+  consolidate_domain: Consolidate Domain
 person:
   house_loyalty: Loyalty to House
   public_service: Public Service

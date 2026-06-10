@@ -7,6 +7,7 @@ polity:
   demand_tax_increase_from_vassal: 臣下への増税要求
   eliminate_overlord_contract: 上位契約の取消し
   eliminate_vassal_contract: 下位契約の取消し
+  seek_rank_promotion: 陞爵の請願
 house:
   acquire_political_right: 政治的権利の獲得
   steer_polity_external_expansion: 国の対外拡張を主導
@@ -14,6 +15,7 @@ house:
   patronize_artist: 芸術家の後援
   commission_chronicle: 年代記の編纂
   start_movement_campaign: 政治運動の開始
+  consolidate_owned_polities: 所領の集約
 person:
   support_organization_aim: 組織目標への協力
   increase_house_influence: 家門における影響力拡大
@@ -21,3 +23,6 @@ person:
   retain_office: 官職の維持
   accumulate_wealth: 蓄財
   improve_ability: 能力の向上
+  request_land_grant: 分封の願い
+  establish_cadet_branch: 分家の創設
+  found_republic_house: 共和国での家門創設

@@ -7,6 +7,7 @@ polity:
   demand_tax_increase_from_vassal: Demand Tax Increase
   eliminate_overlord_contract: Eliminate Overlord Contract
   eliminate_vassal_contract: Eliminate Vassal Contract
+  seek_rank_promotion: Petition for Rank Promotion
 house:
   acquire_political_right: Acquire Political Right
   steer_polity_external_expansion: Steer Polity Toward Expansion
@@ -14,6 +15,7 @@ house:
   patronize_artist: Patronize an Artist
   commission_chronicle: Commission a Chronicle
   start_movement_campaign: Launch a Political Campaign
+  consolidate_owned_polities: Consolidate Owned Polities
 person:
   support_organization_aim: Support Organization's Aim
   increase_house_influence: Increase House Influence
@@ -21,3 +23,6 @@ person:
   retain_office: Retain Office
   accumulate_wealth: Accumulate Wealth
   improve_ability: Improve Ability
+  request_land_grant: Petition for a Land Grant
+  establish_cadet_branch: Establish a Cadet Branch
+  found_republic_house: Found a House in the Republic

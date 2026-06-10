@@ -346,3 +346,8 @@ enum:
     respond_to_pressure: '圧力への対応'
     personal_training: '個人鍛錬'
     movement_campaign: '政治運動'
+    request_rank_promotion: '陞爵の請願'
+    request_land_grant: '分封の請願'
+    request_cadet_branch_title_transfer: '分家の創設'
+    republic_house_foundation: '共和国での家門創設'
+    consolidate_internal_contracts: '所領の集約'
