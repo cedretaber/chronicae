@@ -2388,3 +2388,42 @@ established commonwealth を検出し、非 leader office（administrator / trea
 #### バランス保留（機能完成後に調整）
 
 候補 / leader scoring の係数、incumbency / fatigue 値、功臣の家創設到達率は仮値で実装し、long-run 観察後にまとめて較正する（プロトタイプ方針 §4）。
+
+---
+
+### 6.69 領邦ライフサイクル：称号・分封・陞爵・分家・集約（v0.47）
+
+Polity が土地を得失するだけでなく「領邦のライフサイクル」（称号化・新設・昇格・分家・一円集約）を持つ。設計詳細は `docs/drafts/spec-v047-update.md`、本節は as-built の要点。
+
+#### 型・状態
+
+- `Polity.territorialStatus?: 'territorial' | 'titular'`（undefined=territorial）。titular = 称号のみで LandContract 0（rank 2〜4）。`getPolityTerritorialStatus(polity)` で正規化参照。
+- `PolityOrigin` に `land_grant`（分封由来 rank5 Polity。`ownerHouseId` は創設時履歴値で current owner と一致しなくてよい）。
+- 新 PolityAimKind `seek_rank_promotion` / HouseGoalKind `consolidate_domain` / HouseAimKind `consolidate_owned_polities` / PersonAimKind `request_land_grant` `establish_cadet_branch` `found_republic_house`。
+- 新 ProjectKind（budget なし petition）`request_rank_promotion`(Polity) `request_land_grant`(Person) `request_cadet_branch_title_transfer`(Person) `republic_house_foundation`(Person) `consolidate_internal_contracts`(House)。
+
+#### titular 化 / 廃止（`polityOwnerConsistencySystem`）
+
+landless 検出を rank 分岐に置換: normal rank 2〜4 → `titularizePolityInline`（territorialStatus=titular・active/ownerHouse/capital 維持・leader 以外 office revoke・right remove・faction anchor cleanup・polity-owned Project/Aim を terminal 化・`POLITY_TITULARIZED`）、normal rank 5 → `deactivatePolityInline` + `POLITY_ABOLISHED`（house 巻き込みなし）、commonwealth → 従来 extinct。titular の ownerHouse 断絶 → abolish（fallback owner 補充は territorial のみ）。`getEffectiveOfficeMaxHolders` が titular の非 leader role を 0 にし、appointment 側 prevention と organizationConsistency 安全網の両方が成立。Regiment は明示 disband せず `regimentMaintenanceSystem` の reassign に委譲。leader（title holder）補充は successionSystem が ownerHouse leader を選ぶため新分岐不要。
+
+#### petition Project の解決機構
+
+新 ProjectKind は preparatory stage（`prepare_project`/`advance_project` に落とす。`PREPARATORY_TASK_KIND_MAP` に全 stage 登録必須 — 未登録は task 生成されず stall）で progress を貯め、`finalize_*` immediate stage を `projectStageSystem.resolveImmediateStage` のハンドラが解決（accept 判定 + 成功 mutation）。House/Polity を作る finalize は `runProjectStageSystem` が `ctx.nextHouseIndex/nextPolityIndex` を ws に seed し終了時に書き戻す（ID 採番が ctx ベースで resolveImmediateStage が ws のみという構造的摩擦への対処）。
+
+- **分封**（`finalize_land_grant` / `landGrantMutations.applyLandGrantMut`）: 無家=新 House(self_made/land_grant) / 有家=cadet House、`createGrantedRank5PolityMut` で rank5 holding-name Polity、donor terminal に child contract、founder を house:leader+polity:leader。donor は §9.3/§9.4（無家=在職先 polity・有家=自家余剰 polity）。
+- **Polity 譲渡分家**（`finalize_cadet_branch` / `titleTransferMutations`）: cadet House(polity_grant) 作成、`reassignPolityOwnershipMut` で既存 secondary Polity を譲渡、HouseShare 加重支持（`getWeightedOpinionFromHouseShareholders`）で accept。
+- **共和国 House**（`register_house` / `republicHouseMutations`）: established commonwealth の無家役職者が landless House(office) を作り office 維持。
+- **陞爵**（`finalize_promotion` / `promotePolityRankMut`）: rank 変更前に `canPromotePolityRank` 再検査（`allGrantorRanksAreAboveNewRank` で LandContract rank 不変を保護）、approver(宗主 leader) 不在は auto-grant。
+- **一円集約**（`finalize_consolidation` / `consolidationMutations.applyConsolidationMut`）: sink〜terminal 間の同家・非special contract を terminal 側から `eliminateContractFromChain` で反復 collapse（所有者 guard は呼出側）。landless 化した中間 polity は §6.69 titular/abolish 経路へ。
+
+#### House 創設条件・代謝
+
+`houseFoundingEnabled` / `houseSplitEnabled` を default false に（self-made founding と直接 splitHouse による landless cadet 量産を廃止）。House 創設は原則 Polity 獲得を伴う（分封）か共和国例外に限る。**houseless 人物の goal/aim 形成**: `personGoalMaintenanceSystem` / `personAimMaintenanceSystem` は有家に加え active polity office を持つ無家人物にも goal/aim 形成を許可（共和国役職者の House 創設・無家被任命者の分封 petition の前提。全無家には開かない）。`personGoalSelectors` は houseless でも house-independent goal を score。
+
+#### IntegrityCheck（追加 invariant）
+
+titular は契約 0 / 非 leader office なし / active right なし / active regiment なし、rank5 は titular 不可、land_grant origin の参照存在（current owner 一致は非検査）、parentHouseId↔cadetHouseIds 双方向整合、陞爵後の grantor rank < grantee rank。
+
+#### バランス保留（機能完成後に調整）
+
+default config では **共和国 House 創設（8〜17/seed・150年）と一円集約（稀）は自然発火**するが、**分封・Polity 譲渡分家・陞爵は default 0**（consolidated world が houseless 役職者 in normal polity / 多 polity House / rank headroom を産まない構造的稀少。wiring は構築 state unit test で検証済）。§7.1/§14.1 の旧 founding/split 停止と §8-13 の新経路の構造要求のミスマッチで world が静的化する傾向があり、(1) founding/split の減速版 bridge 復活 (2) donor model 緩和（単一polity家の primary からの cadet 分離 / 居住での donor 適格） (3) 専用 balance pass のいずれかを後続で検討する（プロトタイプ方針 §4）。

@@ -132,6 +132,16 @@
 | PERSON_REPUTATION_GAINED | minor / normal | v0.44 正評判の獲得。reputation source 1 件につき 1 event |
 | PERSON_REPUTATION_DAMAGED | minor / normal | v0.44 負評判 |
 | PERSON_GENIUS_BORN | major | v0.45 天才の誕生（§6.67、geniusType=commander/chancellor/universal）。CHILD_BORN に続けて emit。メインログ表示 |
+| POLITY_RANK_PROMOTED | major | v0.47 陞爵（§6.69、rank 昇格） |
+| POLITY_TITULARIZED | normal | v0.47 landless rank2〜4 Polity の称号化（§6.69） |
+| POLITY_ABOLISHED | normal | v0.47 landless rank5 Polity の廃止（§6.69） |
+| POLITY_GRANTED | normal | v0.47 分封による rank5 Polity 新設（§6.69） |
+| POLITY_TITLE_TRANSFERRED | normal | v0.47 Polity 譲渡による分家創設（§6.69） |
+| HOUSE_FOUNDED_BY_LAND_GRANT | normal | v0.47 無家人物の分封による新 House（§6.69） |
+| HOUSE_FOUNDED_IN_REPUBLIC | normal | v0.47 共和国役職者の landless House 創設（§6.69） |
+| CADET_BRANCH_FOUNDED_BY_LAND_GRANT | normal | v0.47 有家人物の分封による分家（§6.69） |
+| CADET_BRANCH_FOUNDED_BY_TITLE_TRANSFER | normal | v0.47 宗家 Polity 譲渡による分家（§6.69） |
+| LAND_CONTRACT_CONSOLIDATED | minor / normal | v0.47 House 一円支配の自家内 contract 集約（§6.69） |
 
 POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType 宣言のみ。実際の発火ロジックは将来実装する。
 
