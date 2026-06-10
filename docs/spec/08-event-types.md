@@ -60,6 +60,8 @@
 | PROVINCE_REVOLT_SUCCEEDED | major | Province 反乱が concession で成功（現状未発火。REVOLT_SETTLED 等に置換） |
 | PROVINCE_REVOLT_FAILED | normal | Province 反乱が失敗・鎮圧（現状未発火。REVOLT_SUPPRESSED 等に置換） |
 | REVOLT_POLITY_FOUNDED | critical | Province 反乱の独立により新 Polity が成立 |
+| REPUBLIC_FOUNDED | major | established commonwealth（共和国）の建国式。非 leader office を功臣で seed（§6.68・v0.46）。Chronicle `governance` |
+| REPUBLIC_LEADER_ELECTED | major | 共和国 leader の任期交代（§6.68・v0.46）。Chronicle `governance` |
 | LAND_CONTRACT_GRANTED | major | LandContract 新規付与（現状未発火、Faction 段階で配線） |
 | LAND_CONTRACT_TRANSFERRED | major | terminal grantee の差し替え（§13 case A。landContract transfer mutation（landContractMutations.ts）が発火） |
 | LAND_CONTRACT_INSERTED | major | 中間契約の挿入（§13 case B-1、現状未発火） |

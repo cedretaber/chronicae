@@ -2322,3 +2322,61 @@ type PersonReputation = {
 
 - `PERSON_GENIUS_BORN`（importance `major`・メインログ表示。1% なので tiny で約 0.1 件/年）。Chronicle category `'life'`
 - 人物詳細パネルに「天才: ✦ 名将」行（purple）、人物一覧の名前に ✦ マーク
+
+### 6.68 共和国整備（established commonwealth の内部政治・v0.46）
+
+民衆叛乱などで成立する owner-house の無い政体（`active && kind === 'commonwealth' && revoltState?.kind === 'established'`、以下「共和国」）を、人物・役職・任命権・Influence で内部政治が動く対象として整備する。判定は `isEstablishedCommonwealthRepublic`（`selectors/republicSelectors.ts`）に集約し、関連 system / selector / UI で共有する。
+
+狙いは「反乱指導者だけでなく、功臣・在野・無家・landless House 人材が共和国の政治に参加し、やがて家を興して寡頭化する歴史」を観賞対象にすること。「僭主→君主」の制度変換は scope 外（将来 §18+）。
+
+#### read-only selector（`republicSelectors.ts`）
+
+- `getRepublicPoliticalCandidatePersons`: 共和国の office seed / leader election / obtain_office target で共有する候補者列挙（現 leader / office holder / right holder とその家 member / origin leader / holding bailiff / houseless / recruitable outsider / landless House member）。基本除外（dead / placeholder / young_adulthood 未満 / 対象 polity への極端な悪意 / workload 過剰）を適用し PersonId 昇順で返す。RNG 不使用・決定的。
+- `scoreRepublicOfficeCandidate` / `scoreRepublicLeaderCandidate`: 用途別 scoring。役職適性は `getRoleScore`（house 非依存・houseless 可）を主軸に、prestige / wealth / attitude / office 経験 / houseless・landless ボーナス / workload を加減算。性別ゲートは score に混ぜず選定側で適用。
+- `getRepublicFootholdPolityIds`: person が foothold（本人の office / personal right、家の right / member office）を持つ共和国を返す（obtain_office 拡張用・共和国のみ）。
+- `getRepublicPowerProfile`: 共和国の権力分布 read-model（topHolder / topPercent / top3Percent / effectiveHolderCount（Herfindahl 逆数・total>0 の entry のみ）/ leader influence / office・right control by holder）。保存状態を作らない。UI 表示のみ。
+- origin helper `getRepublicOriginHoldingIds` / `getRepublicFoundingWeek`（`PolityOrigin` の kind 差を吸収）。
+
+#### RepublicPoliticalInitializationSystem（建国式・4週ごと）
+
+established commonwealth を検出し、非 leader office（administrator / treasurer / military / advisor）を功臣で seed する。established 化経路は複数サイトに分散するため、特定 mutation に hook せず idempotent な scheduled system として処理する。
+
+- **once-guard**: Polity に追加した `republicInitializedWeek?: number` marker で初期化済みを判定する。**non-leader office 数での判定は採用しない**（AppointmentSystem も commonwealth の non-leader office を housed 候補で埋めるため、office 数判定では tick 位相次第で「初期化済み」と誤認し建国式を取りこぼす）。
+- **配置（race 排除）**: tick 上 `appointmentSystem`（12週）の直前に置く。RepublicInit（4週）を直前に置けば AppointmentSystem が発火する週は必ず RepublicInit も発火する週となり、houseless 功臣 seed・personal right・`REPUBLIC_FOUNDED` を AppointmentSystem に先んじて成立させられる。後段の `organizationConsistencySystem` は commonwealth の person-direct office を houseId 不問で eligible 扱いするため、houseless 功臣は revoke されない。
+- **leader**: 読むだけ（建国式では作らない・置換しない）。不在なら marker を立てず skip し次 interval で retry（bootstrap は `polityOwnerConsistencySystem` の emergency 補充 `selectOrCreateCommonwealthLeader` に委ねる）。
+- **seed**: 各 role に空き最若 slot を `scoreRepublicOfficeCandidate` の最良候補で埋める。`isRoleEligibleBySex` を gated-first 適用（直接 `createOfficeAssignment` は AppointmentSystem を bypass するため自前で性別ゲートを通す）。seed 数の上限は `republicInitial{Administrator,Treasurer,Military,Advisor}Slots`（既定すべて 1）。同一人物の二重着任を避ける。
+- **personal right**: `republicGrantInitialPersonalRights` が true なら、seed した各 holder に personal `polity_office_role` PoliticalRight を grant（slotIndex を office と一致させる）。leader は right 対象外。
+- **marker set + emit**: 非 leader office を 1 つ以上 seed できた回にのみ `republicInitializedWeek = absoluteWeek` を set し `REPUBLIC_FOUNDED`（importance `major`）を emit。候補が leader しか居ない週は marker を立てず retry（空振り対策）。
+
+#### 性別ゲートの非対称（意図的）
+
+共和国の初期 leader は emergency 補充（`selectOrCreateCommonwealthLeader`）由来であり、これは `isRoleEligibleBySex` を適用しない（女性 leader が出うる）。同ヘルパーは emergency 補充と共有のため改修しない。性別ゲートは **RepublicInit の非 leader office seed と RepublicLeadership の任期 election にのみ適用**する。
+
+#### RepublicLeadershipSystem（任期 leader 交代・48週ごと = 毎年）
+
+共和国 leader を死亡時 emergency 補充だけでなく任期で交代可能にする。議会 entity は作らず、`OfficeAssignment.startYear` から任期切れを導出する軽量 system。
+
+- **対象**: established commonwealth。leader 不在の polity は skip（bootstrap は emergency 補充の責務）。
+- **任期判定**: `currentYear - leaderOffice.startYear >= republicLeaderTermYears`（既定 4 年）で election。
+- **候補**: `getRepublicPoliticalCandidatePersons`（現職 office holder を含む。`selectOrCreateCommonwealthLeader` は使わない — 同ヘルパーは active office holder を除外するため現職功臣の昇格ができない）＋ `scoreRepublicLeaderCandidate` ＋ **現職補正**（`republicLeaderIncumbencyBonus − 在任年数 × republicLeaderFatiguePerYear`。在任が長いほど fatigue が incumbency を上回り、いずれ挑戦者に抜かれて交代する＝終身 leader 防止）。`isRoleEligibleBySex` を gated-first（leader 含む）。
+- **再任（winner == 現 leader）**: leader office を据え置き `startYear` を保持する（`assignOffice(replaceExisting:true)` で再作成すると startYear がリセットされ fatigue が永久に溜まらない）。event も出さない。
+- **交代（winner != 現 leader）**: ① winner が同 polity の `role !== 'leader'` の polity office を持つならそれだけ明示 revoke（兼任防止。`house:leader` 等の house office は残す。`revokeOfficesByHolder` は使わない）② `assignOffice(role:'leader', replaceExisting:true)` で旧 leader を revoke し winner を着座。`ownerHouseId` は undefined のまま。`REPUBLIC_LEADER_ELECTED`（importance `major`）を emit。
+- **配置**: `appointmentSystem` の前（RepublicInit 隣接）。交代後、同年の AppointmentSystem が新 leader を踏まえて通常 office appointment を行える。
+
+#### 競争 pull（obtain_office / acquire_political_right）
+
+- **obtain_office**（`personAimSelectors.scorePersonAimKind`）: 役職フォールバックの polity 候補を `getHousePolityIds`（土地ベース・ownerHouse 由来）に加え、**`getRepublicFootholdPolityIds` の共和国に限定**して拡張する（normal polity の挙動は不変）。houseless person は `personAimMaintenanceSystem` が skip するため、この pull は housed person 限定（houseless 功臣は HouseFounding で家を興した後に参加）。
+- **acquire_political_right**（`goalSelectors.pushAcquireRightCandidates`）: target が共和国（`isEstablishedCommonwealthRepublic`）のとき score に `republicAcquireRightBaseBonus` を加点し、家による共和国権利競争を促す（normal polity は不変）。Project owner は従来どおり House。
+
+#### dominant holder の扱い（UI のみ）
+
+`REPUBLIC_DOMINANT_HOLDER_EMERGED` は v0.46 では追加しない。dominant holder は `getRepublicPowerProfile` が算出し、CountryDetail に表示するのみ。`republicDominantHolderThreshold`（既定 60）は UI で「支配されている」状態を視覚強調する閾値（event 発火には使わない）。`getRepublicPowerProfile` は毎 tick 再計算される read-model のため、閾値往復で多重発火する event 化には保存 field が要り、v0.46 の最小 state 方針に反する。寡頭化・僭主化の milestone event 群はその状態設計とともに将来導入する。
+
+#### Event / UI
+
+- `REPUBLIC_FOUNDED` / `REPUBLIC_LEADER_ELECTED`（ともに Chronicle category `'governance'`）。messageKey は `republic.founded` / `republic.leader_elected`。
+- CountryDetail に共和国の権力分布 section（`RepublicPowerProfileSection`）を共和国のときのみ表示。top holder / top3 / 実効権力者数 / 指導者影響力 / 役職支配 / 任命権を holder リンク付きで表示し、`republicDominantHolderThreshold` 超の top holder を「支配的」と強調する。
+
+#### バランス保留（機能完成後に調整）
+
+候補 / leader scoring の係数、incumbency / fatigue 値、功臣の家創設到達率は仮値で実装し、long-run 観察後にまとめて較正する（プロトタイプ方針 §4）。

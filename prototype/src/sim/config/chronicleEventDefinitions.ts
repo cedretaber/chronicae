@@ -72,6 +72,9 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   REVOLT_POLITY_ESTABLISHED: { category: 'revolt' },
   REVOLT_ESCALATED: { category: 'revolt' },
   REVOLT_REGIME_CHANGED: { category: 'revolt' },
+  // v0.46 共和国整備: 建国式・任期 leader 交代 (governance 史)
+  REPUBLIC_FOUNDED: { category: 'governance' },
+  REPUBLIC_LEADER_ELECTED: { category: 'governance' },
   // Disaster
   FAMINE: { category: 'disaster' },
   PLAGUE: { category: 'disaster' },

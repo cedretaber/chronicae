@@ -236,6 +236,7 @@ type Polity = {
   kind?: PolityKind            // 'commonwealth' は ownerHouseId === undefined を恒常的に許容する状態。undefined は 'normal' と等価
   origin: PolityOrigin         // 成立由来（required）。worldgen / 民衆叛乱 / 民衆叛乱による政体交代の 3 種
   revoltState?: PopularRevoltState  // 民衆叛乱政体の進行段階（交渉中 / 蜂起中 / 確立）。通常 Polity では undefined
+  republicInitializedWeek?: number  // v0.46 §6.68: established commonwealth（共和国）の建国式が一度だけ完了した絶対週。未設定 = 未初期化（once-guard marker）
   treasury: number             // >= 0
   adminPower: number           // 0..100（キャッシュ値。毎年 GovernanceSystem が再計算）
   legacyPrestige: number       // 0..100（歴史的権威・伝統の蓄積）

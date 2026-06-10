@@ -45,7 +45,13 @@ import {
   getRegimentControllerRight,
 } from '@sim/selectors/politicalRightSelectors'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
-import type { PoliticalRight, PoliticalRightTargetRef } from '@sim/types/politicalRight'
+import type {
+  PoliticalRight,
+  PoliticalRightTargetRef,
+  PoliticalRightHolderRef,
+} from '@sim/types/politicalRight'
+import type { PolityInfluenceHolderRef } from '@sim/types/influence'
+import type { RepublicPowerProfile } from '@sim/selectors/republicSelectors'
 import type { ResolveName } from '@/app/hooks/entityNameHelpers'
 import type { TFunction } from 'i18next'
 
@@ -958,6 +964,141 @@ export function PolityRegiments({
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// v0.46 §8: established commonwealth (共和国) の権力分布表示。getRepublicPowerProfile が
+// 算出する read-model を UI に表示するのみ (event は出さない・§7.1)。topPercent が
+// republicDominantHolderThreshold 以上の holder を「支配的」と視覚強調する。
+function HolderLink({
+  holder,
+  persons,
+  houses,
+  onPersonClick,
+  onHouseClick,
+}: {
+  holder: PolityInfluenceHolderRef | PoliticalRightHolderRef
+  persons: Record<string, Person>
+  houses: Record<string, House>
+  onPersonClick: ClickHandler
+  onHouseClick: ClickHandler
+}) {
+  return holder.kind === 'house' ? (
+    <HouseLink houseId={holder.id} houses={houses} onClick={onHouseClick} />
+  ) : (
+    <PersonLink personId={holder.id} persons={persons} onClick={onPersonClick} />
+  )
+}
+
+export function RepublicPowerProfileSection({
+  profile,
+  dominantThreshold,
+  persons,
+  houses,
+  onPersonClick,
+  onHouseClick,
+}: {
+  profile: RepublicPowerProfile
+  dominantThreshold: number
+  persons: Record<string, Person>
+  houses: Record<string, House>
+  onPersonClick: ClickHandler
+  onHouseClick: ClickHandler
+}) {
+  const { t } = useTranslation('ui')
+  const isDominant = profile.topHolder !== undefined && profile.topPercent >= dominantThreshold
+  return (
+    <div className="mt-1 rounded border border-gray-700 p-2">
+      <div className="mb-1 text-sm font-semibold text-gray-300">
+        {t('detail.polity.republic.title')}
+      </div>
+      <div className="text-[11px] text-gray-400">
+        <div className="flex items-center gap-1">
+          <span>{t('detail.polity.republic.top_holder')}:</span>
+          {profile.topHolder ? (
+            <>
+              <HolderLink
+                holder={profile.topHolder.holder}
+                persons={persons}
+                houses={houses}
+                onPersonClick={onPersonClick}
+                onHouseClick={onHouseClick}
+              />
+              <span className={isDominant ? 'font-semibold text-amber-400' : ''}>
+                {profile.topPercent.toFixed(0)}%
+              </span>
+              {isDominant && (
+                <span className="rounded bg-amber-900 px-1 text-[10px] text-amber-300">
+                  {t('detail.polity.republic.dominant_badge')}
+                </span>
+              )}
+            </>
+          ) : (
+            <span>—</span>
+          )}
+        </div>
+        <div>
+          {t('detail.polity.republic.top3')}: {profile.top3Percent.toFixed(0)}%
+        </div>
+        <div>
+          {t('detail.polity.republic.effective_holders')}: {profile.effectiveHolderCount.toFixed(1)}
+        </div>
+        <div>
+          {t('detail.polity.republic.leader_influence')}:{' '}
+          {profile.leaderInfluencePercent.toFixed(0)}%
+        </div>
+      </div>
+
+      {profile.officeControlByHolder.length > 0 && (
+        <div className="mt-1">
+          <div className="text-[11px] font-semibold text-gray-400">
+            {t('detail.polity.republic.office_control')}:
+          </div>
+          {profile.officeControlByHolder.map((o) => (
+            <div
+              key={`oc-${o.holder.kind}-${o.holder.id}`}
+              className="flex items-center gap-1 text-[11px] text-gray-500"
+            >
+              <HolderLink
+                holder={o.holder}
+                persons={persons}
+                houses={houses}
+                onPersonClick={onPersonClick}
+                onHouseClick={onHouseClick}
+              />
+              <span>
+                {o.officeCount} {t('detail.polity.republic.offices_suffix')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {profile.rightControlByHolder.length > 0 && (
+        <div className="mt-1">
+          <div className="text-[11px] font-semibold text-gray-400">
+            {t('detail.polity.republic.right_control')}:
+          </div>
+          {profile.rightControlByHolder.map((r) => (
+            <div
+              key={`rc-${r.holder.kind}-${r.holder.id}`}
+              className="flex items-center gap-1 text-[11px] text-gray-500"
+            >
+              <HolderLink
+                holder={r.holder}
+                persons={persons}
+                houses={houses}
+                onPersonClick={onPersonClick}
+                onHouseClick={onHouseClick}
+              />
+              <span>
+                {r.rightCount} {t('detail.polity.republic.rights_suffix')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

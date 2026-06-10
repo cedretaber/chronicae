@@ -42,7 +42,11 @@ import {
   getGroupedPolityInfluence,
 } from '@sim/selectors/influenceSelectors'
 import { getPolityOfficeAppointmentRight } from '@sim/selectors/politicalRightSelectors'
-import { InfluenceSection } from './shared/widgets'
+import { InfluenceSection, RepublicPowerProfileSection } from './shared/widgets'
+import {
+  isEstablishedCommonwealthRepublic,
+  getRepublicPowerProfile,
+} from '@sim/selectors/republicSelectors'
 import { INFLUENCE_LIST_MIN_GROUP_PERCENT } from './shared/constants'
 import { getActiveGoalForOwner, getActiveAimsForGoal } from '@sim/selectors/goalSelectors'
 import { getChronicleEntriesForPolity } from '@sim/selectors/chronicleSelectors'
@@ -345,6 +349,18 @@ export function CountryDetail({
         />
       ) : (
         <span className="text-sm text-gray-500">—</span>
+      )}
+
+      {/* v0.46 §8: established commonwealth (共和国) の権力分布 (read-model 表示のみ) */}
+      {worldState && isEstablishedCommonwealthRepublic(worldState, polity.id) && (
+        <RepublicPowerProfileSection
+          profile={getRepublicPowerProfile(worldState, defaultConfig, polity.id)}
+          dominantThreshold={defaultConfig.republicDominantHolderThreshold}
+          persons={currentState.persons ?? {}}
+          houses={houses ?? {}}
+          onPersonClick={onPersonClick}
+          onHouseClick={onHouseClick}
+        />
       )}
 
       <div className="text-sm font-semibold text-gray-300">
