@@ -362,6 +362,15 @@ function buildProjectFieldsForAim(
         currentStageKey: getInitialProjectStageKey('demand_tax_increase'),
       }
     }
+    // v0.47 称号・分封・領邦再編: petition 系 ProjectKind。各 feature Phase で
+    //   owner/target/budget=0 の特化 case を実装するまでは undefined を返し Project を生成しない
+    //   (aim は待機)。default case の currentStageKey のみの malformed project 生成を防ぐ。
+    case 'request_rank_promotion':
+    case 'request_land_grant':
+    case 'request_cadet_branch_title_transfer':
+    case 'republic_house_foundation':
+    case 'consolidate_internal_contracts':
+      return undefined
     default:
       return { currentStageKey: getInitialProjectStageKey(projectKind as ProjectKind) }
   }

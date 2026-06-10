@@ -14,6 +14,15 @@ import {
 } from '../selectors/taskSelectors'
 import { aimKindToProjectKind } from '../mutations/projectMutations'
 import { addTaskToIndicesMut } from '../mutations/taskMutations'
+import type { AimKind } from '../types/goal'
+
+// v0.47 §4.1: person-owned aim から Project を生成できる aim kind の allowlist。
+const PERSON_OWNED_PROJECT_ALLOWED_AIM_KINDS = new Set<AimKind>([
+  'improve_ability',
+  'request_land_grant',
+  'establish_cadet_branch',
+  'found_republic_house',
+])
 
 export function runProjectPreparationSystem(ctx: TickContext): TickContext {
   const absoluteWeek = ctx.state.absoluteWeek
@@ -33,8 +42,11 @@ export function runProjectPreparationSystem(ctx: TickContext): TickContext {
   for (const [, aim] of Object.entries(ws.aims)) {
     if (!aim || aim.status !== 'active') continue
     if (aim.origin !== 'goal_driven') continue
-    // v0.44 §6.5: person-owned aim は improve_ability (→ personal_training) のみ許可 (allowlist)
-    if (aim.owner.kind === 'person' && aim.kind !== 'improve_ability') continue
+    // v0.44 §6.5 / v0.47 §4.1: person-owned aim の allowlist。improve_ability (→ personal_training) に
+    //   加え、v0.47 の petition 系 (request_land_grant / establish_cadet_branch / found_republic_house)
+    //   を許可する。全 person aim には開かない (それ以外は従来どおり Project 化しない)。
+    if (aim.owner.kind === 'person' && !PERSON_OWNED_PROJECT_ALLOWED_AIM_KINDS.has(aim.kind))
+      continue
 
     const projectKind = aimKindToProjectKind(aim.kind)
     if (!projectKind) continue

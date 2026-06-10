@@ -154,6 +154,17 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
     // v0.44 §6.5: improve_ability は直接 Task 生成を廃止し personal_training Project 化
     case 'improve_ability':
       return 'personal_training'
+    // v0.47 称号・分封・領邦再編 (§3.5)
+    case 'seek_rank_promotion':
+      return 'request_rank_promotion'
+    case 'request_land_grant':
+      return 'request_land_grant'
+    case 'establish_cadet_branch':
+      return 'request_cadet_branch_title_transfer'
+    case 'found_republic_house':
+      return 'republic_house_foundation'
+    case 'consolidate_owned_polities':
+      return 'consolidate_internal_contracts'
     default:
       return undefined
   }
