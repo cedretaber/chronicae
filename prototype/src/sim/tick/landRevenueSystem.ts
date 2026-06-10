@@ -1,5 +1,5 @@
 import type { TickContext } from './context'
-import type { ProvinceId, PolityId } from '../types/ids'
+import type { ProvinceId, PolityId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { PopClass } from '../types/popGroup'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
@@ -8,9 +8,7 @@ import {
   getHoldingLandContractChain,
   isPlaceholderPerson,
 } from '../selectors/landContractSelectors'
-import { adjustProvincePopWealthByClass } from '../mutations/popMutations'
-import { addPersonWealth } from '../mutations/personMutations'
-import { adjustPopAttitude } from '../mutations/attitudeMutations'
+import { adjustAttitude, personAttitudeKey } from '../helpers/attitudeHelpers'
 import {
   getBailiffLocalExtractionRate,
   getBailiffCollectionEfficiency,
@@ -22,10 +20,27 @@ import {
 import { clamp } from '../utils/math'
 import { createLogger } from '../debug/logger'
 
+// perf (v0.47): mutable-draft パターン。かつては addPersonWealth (bailiff fee) /
+//   adjustPopAttitude (pop ごと) / adjustProvincePopWealthByClass (province × 3 class) が
+//   呼び出しごとに persons / popGroups マップ全体を spread していた。draft は run 冒頭で
+//   persons / popGroups を各 1 回浅コピーし、以降は既存キーのオブジェクト置換で
+//   per-call 版と bit-identical を保つ (clamp 位置・更新順序・wealth→unrest→attitude の
+//   系列を同一に保存)。
 export function runLandRevenueSystem(ctx: TickContext): TickContext {
   const log = createLogger(ctx.config.debug)
   const treasuryDeltas = new Map<PolityId, number>()
-  let currentState = ctx.state
+  const draft: WorldState = {
+    ...ctx.state,
+    persons: { ...ctx.state.persons },
+    popGroups: { ...ctx.state.popGroups },
+  }
+
+  // 旧 addPersonWealth と同一挙動 (person 不在なら no-op、wealth は 0 でクランプ)。
+  const addPersonWealthMut = (personId: PersonId, delta: number): void => {
+    const p = draft.persons[personId]
+    if (!p) return
+    draft.persons[personId] = { ...p, wealth: Math.max(0, p.wealth + delta) }
+  }
 
   for (const provinceId of Object.keys(ctx.state.provinces).sort() as ProvinceId[]) {
     const province = ctx.state.provinces[provinceId]
@@ -34,47 +49,42 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
     let provinceCollected = 0
 
     for (const holdingId of province.holdingIds) {
-      const holding = currentState.holdings[holdingId]
+      const holding = draft.holdings[holdingId]
       if (!holding) continue
 
-      const grossHoldingRevenue = getHoldingProduction(currentState, ctx.config, holdingId)
+      const grossHoldingRevenue = getHoldingProduction(draft, ctx.config, holdingId)
       if (grossHoldingRevenue <= 0) continue
 
-      const assignmentId = currentState.holdingOfficeIndex.byHolding[holdingId]
+      const assignmentId = draft.holdingOfficeIndex.byHolding[holdingId]
       let remittanceToTerminal: number
 
       if (!assignmentId) {
         remittanceToTerminal = grossHoldingRevenue
         provinceCollected += grossHoldingRevenue
       } else {
-        const assignment = currentState.holdingOfficeAssignments[assignmentId]
+        const assignment = draft.holdingOfficeAssignments[assignmentId]
         if (!assignment || !assignment.active) {
           remittanceToTerminal = grossHoldingRevenue
           provinceCollected += grossHoldingRevenue
         } else {
-          const recentTaskStatus = getRecentBailiffRevenueTaskStatus(currentState, assignmentId)
-          const localExtractionRate = getBailiffLocalExtractionRate(
-            currentState,
-            ctx.config,
-            assignmentId,
-          )
+          const recentTaskStatus = getRecentBailiffRevenueTaskStatus(draft, assignmentId)
+          const localExtractionRate = getBailiffLocalExtractionRate(draft, ctx.config, assignmentId)
           const collectionEfficiency = getBailiffCollectionEfficiency(
-            currentState,
+            draft,
             ctx.config,
             assignmentId,
             recentTaskStatus,
           )
           const collected = grossHoldingRevenue * localExtractionRate * collectionEfficiency
-          const bailiffFeeRate = getBailiffFeeRate(currentState, ctx.config, assignmentId)
+          const bailiffFeeRate = getBailiffFeeRate(draft, ctx.config, assignmentId)
           const bailiffFee = collected * bailiffFeeRate
           remittanceToTerminal = collected - bailiffFee
           provinceCollected += collected
 
-          if (!isPlaceholderPerson(currentState, assignment.holderPersonId) && bailiffFee > 0) {
-            const holder = currentState.persons[assignment.holderPersonId]
+          if (!isPlaceholderPerson(draft, assignment.holderPersonId) && bailiffFee > 0) {
+            const holder = draft.persons[assignment.holderPersonId]
             if (holder && holder.alive) {
-              const result = addPersonWealth(currentState, assignment.holderPersonId, bailiffFee)
-              if (result.ok) currentState = result.value
+              addPersonWealthMut(assignment.holderPersonId, bailiffFee)
             }
           }
 
@@ -84,12 +94,11 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
             ctx.config.collectionFrictionFactor,
           )
 
-          const popIds = currentState.popIndex.byHolding[holdingId]
+          const popIds = draft.popIndex.byHolding[holdingId]
           if (popIds) {
             if (burdenComponents.collectionFrictionBurdenRate > 0) {
-              const newPopGroups = { ...currentState.popGroups }
               for (const popId of popIds) {
-                const pop = newPopGroups[popId]
+                const pop = draft.popGroups[popId]
                 if (!pop) continue
                 const newWealth = clamp(
                   pop.wealth -
@@ -100,10 +109,9 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
                   100,
                 )
                 if (newWealth !== pop.wealth) {
-                  newPopGroups[popId] = { ...pop, wealth: newWealth }
+                  draft.popGroups[popId] = { ...pop, wealth: newWealth }
                 }
               }
-              currentState = { ...currentState, popGroups: newPopGroups }
             }
 
             const burdenOverComfort = Math.max(
@@ -111,9 +119,8 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
               burdenComponents.totalBurdenRate - ctx.config.comfortableLocalExtractionRate,
             )
             if (burdenOverComfort > 0) {
-              const newPopGroups = { ...currentState.popGroups }
               for (const popId of popIds) {
-                const pop = newPopGroups[popId]
+                const pop = draft.popGroups[popId]
                 if (!pop) continue
                 const newUnrest = clamp(
                   pop.unrest + burdenOverComfort * ctx.config.localExtractionUnrestGain,
@@ -121,14 +128,13 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
                   100,
                 )
                 if (newUnrest !== pop.unrest) {
-                  newPopGroups[popId] = { ...pop, unrest: newUnrest }
+                  draft.popGroups[popId] = { ...pop, unrest: newUnrest }
                 }
               }
-              currentState = { ...currentState, popGroups: newPopGroups }
             }
 
-            if (!isPlaceholderPerson(currentState, assignment.holderPersonId)) {
-              const policy = getBailiffPolicy(currentState, ctx.config, assignmentId)
+            if (!isPlaceholderPerson(draft, assignment.holderPersonId)) {
+              const policy = getBailiffPolicy(draft, ctx.config, assignmentId)
 
               const affectionDelta = clamp(
                 -burdenOverComfort * ctx.config.bailiffBurdenAffectionPenaltyFactor +
@@ -145,16 +151,18 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
               )
 
               if (affectionDelta !== 0 || respectDelta !== 0) {
+                // 旧 adjustPopAttitude と同一挙動 (pop 不在は no-op、adjustAttitude で常に新 map)。
+                const attitudeKey = personAttitudeKey(assignment.holderPersonId)
                 for (const popId of popIds) {
-                  const pop = currentState.popGroups[popId]
+                  const pop = draft.popGroups[popId]
                   if (!pop) continue
-                  const attResult = adjustPopAttitude(
-                    currentState,
-                    popId,
-                    { kind: 'person', id: assignment.holderPersonId },
-                    { affection: affectionDelta, respect: respectDelta },
-                  )
-                  if (attResult.ok) currentState = attResult.value
+                  draft.popGroups[popId] = {
+                    ...pop,
+                    attitudes: adjustAttitude(pop.attitudes, attitudeKey, {
+                      affection: affectionDelta,
+                      respect: respectDelta,
+                    }),
+                  }
                 }
               }
             }
@@ -174,7 +182,7 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
         }
       }
 
-      const chain = getHoldingLandContractChain(currentState, holdingId)
+      const chain = getHoldingLandContractChain(draft, holdingId)
       if (chain.length === 0) continue
 
       let remaining = remittanceToTerminal
@@ -190,20 +198,31 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       }
     }
 
-    const provinceProduction = getProvinceProduction(currentState, ctx.config, provinceId)
+    const provinceProduction = getProvinceProduction(draft, ctx.config, provinceId)
     const retainedToPop = Math.max(0, provinceProduction - provinceCollected)
     const retainedRatio = provinceProduction > 0 ? retainedToPop / provinceProduction : 0
     const retainedWealthGainByClass = ctx.config.retainedWealthGainByClass
     const popClasses: PopClass[] = ['peasants', 'townsmen', 'nobles']
 
+    // 旧 adjustProvincePopWealthByClass と同一挙動 (class 一致 pop のみ clamp 0..100、不変なら skip)。
     for (const popClass of popClasses) {
       const delta = retainedRatio * retainedWealthGainByClass[popClass]
-      currentState = adjustProvincePopWealthByClass(currentState, provinceId, popClass, delta)
+      for (const holdingId of province.holdingIds) {
+        const popIds = draft.popIndex.byHolding[holdingId]
+        if (!popIds) continue
+        for (const popGroupId of popIds) {
+          const pop = draft.popGroups[popGroupId]
+          if (!pop || pop.class !== popClass) continue
+          const newWealth = clamp(pop.wealth + delta, 0, 100)
+          if (newWealth === pop.wealth) continue
+          draft.popGroups[popGroupId] = { ...pop, wealth: newWealth }
+        }
+      }
     }
   }
 
-  const newPolities = { ...currentState.polities }
-  for (const polityIdStr of Object.keys(currentState.polities).sort()) {
+  const newPolities = { ...draft.polities }
+  for (const polityIdStr of Object.keys(draft.polities).sort()) {
     const polityId = polityIdStr as PolityId
     const polity = newPolities[polityId]
     if (!polity || !polity.active) continue
@@ -215,12 +234,7 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
       treasury: polity.treasury + delta * taxEfficiency * flowEfficiency,
     }
   }
+  draft.polities = newPolities
 
-  return {
-    ...ctx,
-    state: {
-      ...currentState,
-      polities: newPolities,
-    } satisfies WorldState,
-  }
+  return { ...ctx, state: draft }
 }
