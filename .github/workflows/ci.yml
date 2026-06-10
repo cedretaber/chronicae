@@ -101,15 +101,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # ランダムシード × 100 年を並列実行。違反があれば CLI が非ゼロ exit で落ちる。
+      # ランダムシード × 200 年を並列実行。違反があれば CLI が非ゼロ exit で落ちる。
       # 失敗したシードは手元で同じ --seed を渡せば再現できる。
-      # v0.45.4 の人口増で 300 年は CI 時間内に収まらず・ローカルでも実用性に欠けるため
-      # 300 年テストは全廃し、CI もローカルも 100 年に統一した (v0.45.5)。
+      # v0.47 perf 最適化でローカル標準は 150 年 (~2.5 分)、CI は検出窓を広げて 200 年とした
+      # (ローカル 4 並列実測 ~4 分、CI runner では ~7-14 分見込み)。
+      # timeout-minutes (20) に収まらず CI が落ちるようなら YEARS=150 に戻す。
       - name: Run multi-seed integrity simulation
         run: |
           set -uo pipefail
 
-          YEARS=150
+          YEARS=200
           SEED_COUNT=4
 
           # ランダムシードを生成する。
