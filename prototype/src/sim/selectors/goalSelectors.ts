@@ -35,6 +35,7 @@ import { calcPolityMilitaryPower } from './militarySelectors'
 import { getHouseOwnedPolityIds } from './landContractSelectors'
 import { predictPressureResponseStance } from './pressureStanceSelectors'
 import { politiesShareOwnerHouse } from './polityRelations'
+import { getHouseDomainConsolidationSinkPolityId } from './polityRelations'
 import {
   getHouseAggregateInfluenceInPolity,
   getPolityInfluenceBreakdown,
@@ -244,10 +245,17 @@ export function scoreHouseGoalKind(
     }
   }
 
+  // v0.47 §12.2: consolidate_domain — 複数 owned polity を持つ家が一円支配を目指す。
+  let consolidateScore = 0
+  if (ownedPolityIds.length >= config.houseDomainConsolidationMinOwnedPolityCount) {
+    consolidateScore = 18 + (ownedPolityIds.length - 1) * 5
+  }
+
   return [
     { kind: 'expand_power_base', score: expandScore },
     { kind: 'preserve_power_base', score: preserveScore },
     { kind: 'cultivate_prestige', score: prestigeScore },
+    { kind: 'consolidate_domain', score: consolidateScore },
   ]
 }
 
@@ -741,6 +749,16 @@ function pickHouseAim(
           score: 20 + influencePercent * 0.3,
         })
       }
+    }
+  } else if (goalKind === 'consolidate_domain') {
+    // v0.47 §12.3: consolidate_owned_polities — sink Polity が存在し集約余地があれば候補に。
+    const sink = getHouseDomainConsolidationSinkPolityId(state, config, houseId)
+    if (sink && ownedPolityIds.length >= config.houseDomainConsolidationMinOwnedPolityCount) {
+      candidates.push({
+        kind: 'consolidate_owned_polities',
+        target: { kind: 'polity', id: sink },
+        score: 25,
+      })
     }
   } else {
     // cultivate_prestige

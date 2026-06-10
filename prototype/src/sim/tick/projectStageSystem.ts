@@ -14,10 +14,12 @@ import type {
   RequestCadetBranchTitleTransferProject,
   RepublicHouseFoundationProject,
   RequestRankPromotionProject,
+  ConsolidateInternalContractsProject,
 } from '../types/project'
 import { applyLandGrantMut } from '../mutations/landGrantMutations'
 import { applyCadetBranchTitleTransferMut } from '../mutations/titleTransferMutations'
 import { applyRepublicHouseFoundationMut } from '../mutations/republicHouseMutations'
+import { applyConsolidationMut } from '../mutations/consolidationMutations'
 import {
   resolveLandGrantDonor,
   computeLandGrantAcceptScore,
@@ -26,6 +28,7 @@ import {
   canPromotePolityRank,
 } from '../selectors/petitionSelectors'
 import { getWeightedOpinionFromHouseShareholders } from '../selectors/influenceSelectors'
+import { getHouseDomainConsolidationSinkPolityId } from '../selectors/polityRelations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import type { DecisionSubjectRef } from '../types/goal'
@@ -226,7 +229,72 @@ function resolveImmediateStage(
     return resolveFinalizePromotion(ws, config, project, projectId, emitEvent)
   }
 
+  // v0.47 §12.7: 一円支配集約の解決。
+  if (
+    project.kind === 'consolidate_internal_contracts' &&
+    project.currentStageKey === 'finalize_consolidation'
+  ) {
+    return resolveFinalizeConsolidation(ws, config, project, projectId, emitEvent)
+  }
+
   return false
+}
+
+// v0.47 §12.7: 自家内 LandContract collapse。sink〜terminal 間の同家 contract を畳む。
+function resolveFinalizeConsolidation(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: ConsolidateInternalContractsProject,
+  projectId: ProjectId,
+  emitEvent: (input: CreateSimEventInput) => void,
+): boolean {
+  const houseId = project.houseId
+  // sink を fresh に再解決 (project 作成後に状態が変わり得る)。
+  const sinkPolityId = getHouseDomainConsolidationSinkPolityId(ws, config, houseId)
+
+  function failProject(): boolean {
+    ws.projects[projectId] = { ...project, status: 'failed', terminalReason: 'opponent_too_strong' }
+    if (project.origin.kind === 'aim') {
+      const aim = ws.aims[project.origin.aimId]
+      if (aim) {
+        ws.aims[project.origin.aimId] = {
+          ...aim,
+          nextProjectAllowedWeek:
+            ws.absoluteWeek + config.houseDomainConsolidationRetryCooldownWeeks,
+        }
+      }
+    }
+    return true
+  }
+
+  if (!sinkPolityId) return failProject()
+
+  const result = applyConsolidationMut(ws, houseId, sinkPolityId)
+  Object.assign(ws, result.ws)
+
+  // collapse できなかった (benefit 0) 場合は失敗扱い (cooldown)。
+  if (result.consolidatedCount < config.houseDomainConsolidationMinBenefit) {
+    return failProject()
+  }
+
+  ws.projects[projectId] = { ...project, status: 'completed', terminalReason: 'completed' }
+
+  const house = ws.houses[houseId]
+  const polityRef = getPolityNameRefForEmit(ws, sinkPolityId)
+  emitEvent({
+    type: 'LAND_CONTRACT_CONSOLIDATED',
+    importance: 'minor',
+    messageKey: 'polity.consolidated',
+    messageParams: {
+      house: nameParam('house', house?.nameKey ?? houseId),
+      polity: nameParam(polityRef.category, polityRef.nameKey),
+    },
+    entityRefs: [
+      entityRef('house', houseId, 'house', house?.nameKey),
+      entityRef('polity', sinkPolityId, 'polity', polityRef.nameKey),
+    ],
+  })
+  return true
 }
 
 // v0.47 §5.6/§5.7: 陞爵の SOFT 同意判定と rank 昇格 mutation。

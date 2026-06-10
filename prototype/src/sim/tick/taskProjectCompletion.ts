@@ -33,7 +33,10 @@ import { getRightForTarget, getPolityIdForRightTarget } from '../selectors/polit
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { selectMovementBeneficiary } from '../selectors/goalSelectors'
 import { getProvinceHoldings, getLandContractGrantor } from '../selectors/landContractSelectors'
-import { politiesShareOwnerHouse } from '../selectors/polityRelations'
+import {
+  politiesShareOwnerHouse,
+  getHouseDomainConsolidationSinkPolityId,
+} from '../selectors/polityRelations'
 import {
   resolveLandGrantDonor,
   resolveCadetBranchTransfer,
@@ -430,10 +433,18 @@ function buildProjectFieldsForAim(
         currentStageKey: getInitialProjectStageKey('request_rank_promotion'),
       }
     }
-    // v0.47 称号・分封・領邦再編: 未実装の petition 系 ProjectKind。各 feature Phase で
-    //   特化 case を実装するまでは undefined を返し Project を生成しない (aim は待機)。
-    case 'consolidate_internal_contracts':
-      return undefined
+    // v0.47 §12 一円支配集約。集約先 sink Polity を選定する。
+    case 'consolidate_internal_contracts': {
+      if (aim.owner.kind !== 'house') return undefined
+      const houseId = aim.owner.id
+      const sink = getHouseDomainConsolidationSinkPolityId(ws, config, houseId)
+      if (!sink) return undefined
+      return {
+        houseId,
+        sinkPolityId: sink,
+        currentStageKey: getInitialProjectStageKey('consolidate_internal_contracts'),
+      }
+    }
     default:
       return { currentStageKey: getInitialProjectStageKey(projectKind as ProjectKind) }
   }
