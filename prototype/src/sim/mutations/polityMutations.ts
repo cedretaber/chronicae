@@ -2,7 +2,7 @@ import type { TickContext } from '../tick/context'
 import { makePolityId } from '../tick/context'
 import type { HouseId, PolityId, PersonId, ProvinceId } from '../types/ids'
 import type { PopClass } from '../types/popGroup'
-import type { Polity } from '../types/polity'
+import type { Polity, PolityRank } from '../types/polity'
 import type { WorldState } from '../types/world'
 import type { StateResult, CtxResult } from './result'
 import { ok, err } from './result'
@@ -48,6 +48,20 @@ export function reassignPolityOwnershipMut(
     ...state,
     polities: { ...state.polities, [polityId]: { ...polity, ownerHouseId: newOwnerHouseId } },
     polityIndex: { byOwnerHouse },
+  }
+}
+
+// v0.47 §5.7: Polity の rank を昇格する mut。呼出側で canPromotePolityRank を再検査済の前提。
+export function promotePolityRankMut(
+  state: WorldState,
+  polityId: PolityId,
+  newRank: PolityRank,
+): WorldState {
+  const polity = state.polities[polityId]
+  if (!polity) return state
+  return {
+    ...state,
+    polities: { ...state.polities, [polityId]: { ...polity, rank: newRank } },
   }
 }
 

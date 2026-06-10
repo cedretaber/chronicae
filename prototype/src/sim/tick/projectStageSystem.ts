@@ -13,6 +13,7 @@ import type {
   RequestLandGrantProject,
   RequestCadetBranchTitleTransferProject,
   RepublicHouseFoundationProject,
+  RequestRankPromotionProject,
 } from '../types/project'
 import { applyLandGrantMut } from '../mutations/landGrantMutations'
 import { applyCadetBranchTitleTransferMut } from '../mutations/titleTransferMutations'
@@ -22,6 +23,7 @@ import {
   computeLandGrantAcceptScore,
   resolveCadetBranchTransfer,
   resolveRepublicHouseFounding,
+  canPromotePolityRank,
 } from '../selectors/petitionSelectors'
 import { getWeightedOpinionFromHouseShareholders } from '../selectors/influenceSelectors'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
@@ -216,7 +218,93 @@ function resolveImmediateStage(
     return resolveRegisterHouse(ws, config, project, projectId, emitEvent)
   }
 
+  // v0.47 §5.7: 陞爵の解決。
+  if (
+    project.kind === 'request_rank_promotion' &&
+    project.currentStageKey === 'finalize_promotion'
+  ) {
+    return resolveFinalizePromotion(ws, config, project, projectId, emitEvent)
+  }
+
   return false
+}
+
+// v0.47 §5.6/§5.7: 陞爵の SOFT 同意判定と rank 昇格 mutation。
+function resolveFinalizePromotion(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: RequestRankPromotionProject,
+  projectId: ProjectId,
+  emitEvent: (input: CreateSimEventInput) => void,
+): boolean {
+  const polityId = project.polityId
+  const newRank = project.newRank
+
+  function failProject(): boolean {
+    ws.projects[projectId] = { ...project, status: 'failed', terminalReason: 'opponent_too_strong' }
+    if (project.origin.kind === 'aim') {
+      const aim = ws.aims[project.origin.aimId]
+      if (aim) {
+        ws.aims[project.origin.aimId] = {
+          ...aim,
+          nextProjectAllowedWeek: ws.absoluteWeek + config.rankPromotionRetryCooldownWeeks,
+        }
+      }
+    }
+    const ownerNameKey = getOwnerNameKey(ws, project.owner)
+    emitEvent({
+      type: 'PROJECT_FAILED',
+      importance: 'minor',
+      messageKey: 'project.failed.no_supervisor',
+      messageParams: {
+        owner: nameParam(getOwnerNameRefForEmit(ws, project.owner).category, ownerNameKey),
+        kind: project.kind,
+      },
+      entityRefs: [],
+    })
+    return true
+  }
+
+  // rank 変更前に canPromotePolityRank を再検査する (§5.7・LandContract rank 不変を保つ)。
+  if (!canPromotePolityRank(ws, config, polityId, newRank)) return failProject()
+
+  // SOFT accept: approver (宗主 leader) の petitioner polity への attitude を主項に判定。
+  // approver 不在 (全 grantor が root) は auto-grant (§5.6)。
+  const approverId = project.approverPersonId
+  if (approverId !== undefined) {
+    const approver = ws.persons[approverId]
+    const polity = ws.polities[polityId]
+    let attitudeScore = 0
+    if (approver && polity) {
+      const att = getAttitudeOrDefault(ws, approver, { kind: 'polity', id: polityId })
+      attitudeScore = 0.7 * att.affection + 0.3 * att.respect
+    }
+    const prestigeScore = polity?.legacyPrestige ?? 0
+    const powerScore = polity?.adminPower ?? 0
+    const acceptScore =
+      attitudeScore * config.rankPromotionApproverAttitudeWeight +
+      prestigeScore * config.rankPromotionPrestigeWeight +
+      powerScore * config.rankPromotionPowerWeight +
+      project.progress * config.rankPromotionProjectProgressWeight
+    if (acceptScore < config.rankPromotionAcceptThreshold) return failProject()
+  }
+
+  // 成功: rank 昇格。
+  ws.polities = { ...ws.polities, [polityId]: { ...ws.polities[polityId]!, rank: newRank } }
+  ws.projects[projectId] = { ...project, status: 'completed', terminalReason: 'completed' }
+
+  const polityRef = getPolityNameRefForEmit(ws, polityId)
+  emitEvent({
+    type: 'POLITY_RANK_PROMOTED',
+    importance: 'major',
+    messageKey: 'polity.rank_promoted',
+    messageParams: {
+      polity: nameParam(polityRef.category, polityRef.nameKey),
+      rank: String(newRank),
+    },
+    entityRefs: [entityRef('polity', polityId, 'polity', polityRef.nameKey)],
+  })
+  return true
 }
 
 // v0.47 §13.5: 共和国 House 創設の HARD 再検査と成功 mutation。

@@ -1,6 +1,8 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { PolityId, HouseId, GoalId, ProvinceId, LandContractId } from '../types/ids'
+import type { PolityRank } from '../types/polity'
+import { canPromotePolityRank } from './petitionSelectors'
 import type {
   DecisionSubjectRef,
   GoalKind,
@@ -469,6 +471,18 @@ function pickPolityAim(
           })
         }
       }
+    }
+  }
+
+  // v0.47 §5: seek_rank_promotion — 1 段上の rank へ陞爵可能なら候補に (goal 種別に依らない)。
+  if (polity.rank >= 3) {
+    const newRank = (polity.rank - 1) as PolityRank
+    if (canPromotePolityRank(state, config, polityId, newRank)) {
+      candidates.push({
+        kind: 'seek_rank_promotion',
+        target: { kind: 'polity', id: polityId },
+        score: 35,
+      })
     }
   }
 

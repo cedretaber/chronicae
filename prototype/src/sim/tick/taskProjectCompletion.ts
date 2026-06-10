@@ -38,7 +38,10 @@ import {
   resolveLandGrantDonor,
   resolveCadetBranchTransfer,
   resolveRepublicHouseFounding,
+  canPromotePolityRank,
+  selectRankPromotionApprover,
 } from '../selectors/petitionSelectors'
+import type { PolityRank } from '../types/polity'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { getInitialProjectStageKey, getNextProjectStageKey } from '../config/projectStageSequences'
 import { resolveImmediateStages } from './projectStageSystem'
@@ -411,9 +414,24 @@ function buildProjectFieldsForAim(
         currentStageKey: getInitialProjectStageKey('republic_house_foundation'),
       }
     }
+    // v0.47 §5 陞爵。owner Polity を 1 段上の rank へ昇格する petition。
+    case 'request_rank_promotion': {
+      if (aim.owner.kind !== 'polity') return undefined
+      const polityId = aim.owner.id
+      const polity = ws.polities[polityId]
+      if (!polity) return undefined
+      const newRank = (polity.rank - 1) as PolityRank
+      if (!canPromotePolityRank(ws, config, polityId, newRank)) return undefined
+      const approver = selectRankPromotionApprover(ws, polityId)
+      return {
+        polityId,
+        newRank,
+        ...(approver !== undefined && { approverPersonId: approver }),
+        currentStageKey: getInitialProjectStageKey('request_rank_promotion'),
+      }
+    }
     // v0.47 称号・分封・領邦再編: 未実装の petition 系 ProjectKind。各 feature Phase で
     //   特化 case を実装するまでは undefined を返し Project を生成しない (aim は待機)。
-    case 'request_rank_promotion':
     case 'consolidate_internal_contracts':
       return undefined
     default:
