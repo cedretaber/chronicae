@@ -41,6 +41,7 @@ house:
   commissioned_chronicle: '{{house}} commissioned a chronicle of their deeds.'
   founded_by_land_grant: '{{person}} received a land grant and founded the house {{house}}.'
   cadet_founded_by_land_grant: '{{person}} received a land grant and founded the cadet branch {{house}}.'
+  cadet_founded_by_title_transfer: '{{person}} was granted a domain from the main house and founded the cadet branch {{house}}.'
   founded_in_republic: '{{person}} made a fortune in the republic and founded the house {{house}}.'
 
 polity:

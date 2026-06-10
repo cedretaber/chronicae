@@ -11,9 +11,16 @@ import type {
   ContractRevisionProject,
   RespondToPressureProject,
   RequestLandGrantProject,
+  RequestCadetBranchTitleTransferProject,
 } from '../types/project'
 import { applyLandGrantMut } from '../mutations/landGrantMutations'
-import { resolveLandGrantDonor, computeLandGrantAcceptScore } from '../selectors/petitionSelectors'
+import { applyCadetBranchTitleTransferMut } from '../mutations/titleTransferMutations'
+import {
+  resolveLandGrantDonor,
+  computeLandGrantAcceptScore,
+  resolveCadetBranchTransfer,
+} from '../selectors/petitionSelectors'
+import { getWeightedOpinionFromHouseShareholders } from '../selectors/influenceSelectors'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import type { DecisionSubjectRef } from '../types/goal'
@@ -190,7 +197,101 @@ function resolveImmediateStage(
     return resolveFinalizeLandGrant(ws, config, project, projectId, emitEvent)
   }
 
+  // v0.47 §11.9: Polity 譲渡による分家の解決。
+  if (
+    project.kind === 'request_cadet_branch_title_transfer' &&
+    project.currentStageKey === 'finalize_cadet_branch'
+  ) {
+    return resolveFinalizeCadetBranch(ws, config, project, projectId, emitEvent)
+  }
+
   return false
+}
+
+// v0.47 §11.7/§11.9: Polity 譲渡による分家の HouseShare 支持判定と成功 mutation。
+function resolveFinalizeCadetBranch(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: RequestCadetBranchTitleTransferProject,
+  projectId: ProjectId,
+  emitEvent: (input: CreateSimEventInput) => void,
+): boolean {
+  const petitionerId = project.petitionerPersonId
+
+  function failProject(): boolean {
+    ws.projects[projectId] = { ...project, status: 'failed', terminalReason: 'opponent_too_strong' }
+    if (project.origin.kind === 'aim') {
+      const aim = ws.aims[project.origin.aimId]
+      if (aim) {
+        ws.aims[project.origin.aimId] = {
+          ...aim,
+          nextProjectAllowedWeek: ws.absoluteWeek + config.cadetBranchRetryCooldownWeeks,
+        }
+      }
+    }
+    const ownerNameKey = getOwnerNameKey(ws, project.owner)
+    emitEvent({
+      type: 'PROJECT_FAILED',
+      importance: 'minor',
+      messageKey: 'project.failed.no_supervisor',
+      messageParams: {
+        owner: nameParam(getOwnerNameRefForEmit(ws, project.owner).category, ownerNameKey),
+        kind: project.kind,
+      },
+      entityRefs: [],
+    })
+    return true
+  }
+
+  // HARD gate 再検査 (譲渡対象を fresh に解決)。
+  const resolved = resolveCadetBranchTransfer(ws, config, petitionerId)
+  if (!resolved) return failProject()
+
+  // SOFT: HouseShare holder の加重支持 + Project progress 補正 (§11.7)。
+  const supportScore =
+    getWeightedOpinionFromHouseShareholders(ws, resolved.parentHouseId, petitionerId) +
+    project.progress
+  if (supportScore < config.cadetBranchTitleTransferSupportThreshold) return failProject()
+
+  const result = applyCadetBranchTitleTransferMut(ws, {
+    petitionerPersonId: petitionerId,
+    parentHouseId: resolved.parentHouseId,
+    targetPolityId: resolved.targetPolityId,
+  })
+  if (!result) return failProject()
+  Object.assign(ws, result.ws)
+
+  ws.projects[projectId] = { ...project, status: 'completed', terminalReason: 'completed' }
+
+  const cadetHouse = ws.houses[result.cadetHouseId]
+  const polityRef = getPolityNameRefForEmit(ws, resolved.targetPolityId)
+  const petitionerNameKey = ws.persons[petitionerId]?.nameKey ?? petitionerId
+  emitEvent({
+    type: 'CADET_BRANCH_FOUNDED_BY_TITLE_TRANSFER',
+    importance: 'normal',
+    messageKey: 'house.cadet_founded_by_title_transfer',
+    messageParams: {
+      person: nameParam('person', petitionerNameKey),
+      house: nameParam('house', cadetHouse?.nameKey ?? result.cadetHouseId),
+    },
+    entityRefs: [
+      entityRef('person', petitionerId, 'founder', petitionerNameKey),
+      entityRef('house', result.cadetHouseId, 'house', cadetHouse?.nameKey),
+    ],
+  })
+  emitEvent({
+    type: 'POLITY_TITLE_TRANSFERRED',
+    importance: 'normal',
+    messageKey: 'polity.title_transferred',
+    messageParams: {
+      polity: nameParam(polityRef.category, polityRef.nameKey),
+    },
+    entityRefs: [
+      entityRef('polity', resolved.targetPolityId, 'polity', polityRef.nameKey),
+      entityRef('house', result.cadetHouseId, 'house', cadetHouse?.nameKey),
+    ],
+  })
+  return true
 }
 
 // v0.47 §9.7: 分封 petition の accept/reject 判定と成功 mutation。

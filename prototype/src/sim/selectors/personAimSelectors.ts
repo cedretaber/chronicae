@@ -10,7 +10,7 @@ import type { AbilityKey } from '../types/person'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 import { getPersonGoalFulfillment } from './personGoalSelectors'
-import { resolveLandGrantDonor } from './petitionSelectors'
+import { resolveLandGrantDonor, resolveCadetBranchTransfer } from './petitionSelectors'
 
 const PERSON_AIM_KINDS: readonly PersonAimKind[] = [
   'increase_house_influence',
@@ -275,6 +275,21 @@ export function scorePersonAimKind(
           kind: 'request_land_grant',
           score: landGrantScore,
           target: { kind: 'polity', id: donor.donorPolityId },
+        })
+      }
+    }
+  }
+
+  // v0.47 §11.2: 分家願い (establish_cadet_branch)。低継承権の有家人物が宗家の Polity 譲渡を求める。
+  if (goal.kind === 'personal_advancement' || goal.kind === 'wealth_building') {
+    const transfer = resolveCadetBranchTransfer(state, config, personId)
+    if (transfer) {
+      const cadetScore = 20 + person.traits.ambition * 0.2 - fulfillmentPenalty
+      if (cadetScore > 0) {
+        results.push({
+          kind: 'establish_cadet_branch',
+          score: cadetScore,
+          target: { kind: 'polity', id: transfer.targetPolityId },
         })
       }
     }

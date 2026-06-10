@@ -40,6 +40,7 @@ house:
   commissioned_chronicle: '{{house}}は年代記の編纂を命じた。'
   founded_by_land_grant: '{{person}}は分封を受け、新たな家門{{house}}を興した。'
   cadet_founded_by_land_grant: '{{person}}は分封を受け、分家{{house}}を立てた。'
+  cadet_founded_by_title_transfer: '{{person}}は宗家から領邦を譲られ、分家{{house}}を立てた。'
   founded_in_republic: '{{person}}は共和国で財を成し、家門{{house}}を興した。'
 
 polity:

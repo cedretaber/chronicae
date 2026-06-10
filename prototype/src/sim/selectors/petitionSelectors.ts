@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PolityId, PersonId, HoldingId } from '../types/ids'
+import type { PolityId, PersonId, HoldingId, HouseId } from '../types/ids'
 import type { PolityRank } from '../types/polity'
 import { getPolityTerritorialStatus } from '../types/polity'
 import type { Person } from '../types/person'
@@ -15,9 +15,10 @@ import {
   getHoldingTerminalPolityId,
   getProvinceDevelopmentFromHoldings,
 } from './landContractSelectors'
-import { getPolityLeader } from './officeSelectors'
+import { getPolityLeader, getHouseLeader } from './officeSelectors'
 import { getHousePrimaryPolityId, getHouseDomainConsolidationSinkPolityId } from './polityRelations'
 import { getPersonReputationSummary } from './personReputationSelectors'
+import { getAdultSuccessionCandidates, getTopHeirIds } from './successionSelectors'
 
 // v0.47 §5: 陞爵 (rank promotion) の HARD gate / 同意者選定。
 // petition Project (request_rank_promotion / request_land_grant 等) 共通の read-only selector 群。
@@ -334,4 +335,104 @@ export function computeLandGrantAcceptScore(
     reputation * config.landGrantPetitionerReputationWeight +
     projectProgress * config.landGrantProjectProgressWeight
   )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// v0.47 §11: Polity 譲渡による分家 (request_cadet_branch_title_transfer) の selector 群。
+// ───────────────────────────────────────────────────────────────────────────
+
+// §11.4 HARD gate (petitioner 本人)。house leader でなく、継承順位上位 N でなく、
+// ambition / office / reputation のいずれかが十分な有家人物。
+export function meetsCadetBranchPetitionerGate(
+  state: WorldState,
+  config: SimulationConfig,
+  person: Person,
+): boolean {
+  if (!person.alive) return false
+  if (person.kind === 'placeholder') return false
+  if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) return false
+  if (person.houseId === undefined) return false
+  const house = state.houses[person.houseId]
+  if (!house || !house.active) return false
+  // house leader は分家を興さない。
+  const leaderId = getHouseLeader(state, person.houseId)
+  if (leaderId === person.id) return false
+  // 継承順位上位 N は候補から除外 (§11.5)。
+  const leader = leaderId !== undefined ? state.persons[leaderId] : undefined
+  if (leader) {
+    const candidates = getAdultSuccessionCandidates(state, house, config)
+    const topHeirs = getTopHeirIds(
+      candidates,
+      leader,
+      config.cadetBranchExcludeTopSuccessionRanks,
+      state,
+      config,
+    )
+    if (topHeirs.has(person.id)) return false
+  }
+  // ambition / office / reputation のいずれか十分。
+  const ambitionOk = person.traits.ambition * 100 >= config.cadetBranchMinAmbition
+  const reputationOk =
+    getPersonTotalReputationScore(state, config, person.id) >= config.landGrantMinReputationScore
+  if (!ambitionOk && !hasActivePolityOffice(state, person.id) && !reputationOk) return false
+  return true
+}
+
+// §11.6 譲渡対象 Polity。parentHouse が owner の active Polity (primary/sink 除外)。
+// 優先: territorial かつ holding 少ない secondary → territorial 低 rank → titular rank2〜4 → PolityId 昇順。
+export function selectCadetBranchTransferCandidatePolity(
+  state: WorldState,
+  config: SimulationConfig,
+  houseId: HouseId,
+): PolityId | undefined {
+  const primary = getHousePrimaryPolityId(state, houseId)
+  const sink = getHouseDomainConsolidationSinkPolityId(state, config, houseId)
+  const cands: { polityId: PolityId; isTitular: boolean; rank: number; holdingCount: number }[] = []
+  for (const pid of getHouseOwnedPolityIds(state, houseId)) {
+    if (pid === primary || pid === sink) continue
+    const p = state.polities[pid]
+    if (!p || !p.active) continue
+    if (p.kind === 'commonwealth') continue
+    if (p.ownerHouseId !== houseId) continue
+    const titular = getPolityTerritorialStatus(p) === 'titular'
+    if (titular) {
+      if (p.rank < 2 || p.rank > 4) continue
+    } else {
+      if (p.rank < 2 || p.rank > 5) continue
+    }
+    cands.push({
+      polityId: pid,
+      isTitular: titular,
+      rank: p.rank,
+      holdingCount: getPolityHoldingCount(state, pid),
+    })
+  }
+  if (cands.length === 0) return undefined
+  cands.sort((a, b) => {
+    // territorial を titular より優先。
+    if (a.isTitular !== b.isTitular) return a.isTitular ? 1 : -1
+    if (!a.isTitular) {
+      // territorial: holding 少ない secondary 優先 → rank 低い (数値大)。
+      if (a.holdingCount !== b.holdingCount) return a.holdingCount - b.holdingCount
+      if (a.rank !== b.rank) return b.rank - a.rank
+    } else if (a.rank !== b.rank) {
+      return b.rank - a.rank
+    }
+    return a.polityId.localeCompare(b.polityId)
+  })
+  return cands[0]?.polityId
+}
+
+// HARD gate 全体 (petitioner 資格 + 譲渡対象 Polity) を満たすか。aim 生成と finalize 再検査で共有。
+export function resolveCadetBranchTransfer(
+  state: WorldState,
+  config: SimulationConfig,
+  personId: PersonId,
+): { parentHouseId: HouseId; targetPolityId: PolityId } | undefined {
+  const person = state.persons[personId]
+  if (!person || person.houseId === undefined) return undefined
+  if (!meetsCadetBranchPetitionerGate(state, config, person)) return undefined
+  const target = selectCadetBranchTransferCandidatePolity(state, config, person.houseId)
+  if (!target) return undefined
+  return { parentHouseId: person.houseId, targetPolityId: target }
 }

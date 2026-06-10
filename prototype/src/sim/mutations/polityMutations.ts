@@ -25,6 +25,32 @@ export type CreatePolityInput = {
   ownerHouseId?: HouseId
 }
 
+// v0.47 §11.9: Polity の ownerHouseId を付け替える単一 helper。polity.ownerHouseId と
+// polityIndex.byOwnerHouse を同時更新する (byOwnerHouse を直接触らないための正本)。
+export function reassignPolityOwnershipMut(
+  state: WorldState,
+  polityId: PolityId,
+  newOwnerHouseId: HouseId,
+): WorldState {
+  const polity = state.polities[polityId]
+  if (!polity) return state
+  const oldOwnerHouseId = polity.ownerHouseId
+
+  const byOwnerHouse = { ...state.polityIndex.byOwnerHouse }
+  if (oldOwnerHouseId !== undefined) {
+    const oldSlot = byOwnerHouse[oldOwnerHouseId] ?? []
+    byOwnerHouse[oldOwnerHouseId] = oldSlot.filter((p) => p !== polityId)
+  }
+  const newSlot = byOwnerHouse[newOwnerHouseId] ?? []
+  if (!newSlot.includes(polityId)) byOwnerHouse[newOwnerHouseId] = [...newSlot, polityId]
+
+  return {
+    ...state,
+    polities: { ...state.polities, [polityId]: { ...polity, ownerHouseId: newOwnerHouseId } },
+    polityIndex: { byOwnerHouse },
+  }
+}
+
 export function createPolity(
   ctx: TickContext,
   input: CreatePolityInput & { ownerHouseId: HouseId },

@@ -34,7 +34,7 @@ import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { selectMovementBeneficiary } from '../selectors/goalSelectors'
 import { getProvinceHoldings, getLandContractGrantor } from '../selectors/landContractSelectors'
 import { politiesShareOwnerHouse } from '../selectors/polityRelations'
-import { resolveLandGrantDonor } from '../selectors/petitionSelectors'
+import { resolveLandGrantDonor, resolveCadetBranchTransfer } from '../selectors/petitionSelectors'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { getInitialProjectStageKey, getNextProjectStageKey } from '../config/projectStageSequences'
 import { resolveImmediateStages } from './projectStageSystem'
@@ -382,10 +382,22 @@ function buildProjectFieldsForAim(
         currentStageKey: getInitialProjectStageKey('request_land_grant'),
       }
     }
+    // v0.47 §11 Polity 譲渡による分家。宗家の譲渡対象 Polity を選定する。
+    case 'request_cadet_branch_title_transfer': {
+      if (aim.owner.kind !== 'person') return undefined
+      const personId = aim.owner.id
+      const resolved = resolveCadetBranchTransfer(ws, config, personId)
+      if (!resolved) return undefined
+      return {
+        petitionerPersonId: personId,
+        parentHouseId: resolved.parentHouseId,
+        targetPolityId: resolved.targetPolityId,
+        currentStageKey: getInitialProjectStageKey('request_cadet_branch_title_transfer'),
+      }
+    }
     // v0.47 称号・分封・領邦再編: 未実装の petition 系 ProjectKind。各 feature Phase で
     //   特化 case を実装するまでは undefined を返し Project を生成しない (aim は待機)。
     case 'request_rank_promotion':
-    case 'request_cadet_branch_title_transfer':
     case 'republic_house_foundation':
     case 'consolidate_internal_contracts':
       return undefined
