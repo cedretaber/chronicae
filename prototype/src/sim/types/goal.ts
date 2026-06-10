@@ -46,7 +46,12 @@ export type EntityRef =
 
 // --- Goal ---
 export type PolityGoalKind = 'external_expansion' | 'internal_development'
-export type HouseGoalKind = 'expand_power_base' | 'preserve_power_base' | 'cultivate_prestige'
+export type HouseGoalKind =
+  | 'expand_power_base'
+  | 'preserve_power_base'
+  | 'cultivate_prestige'
+  // v0.47 §3.2: 自家の複数 Polity / LandContract を主要 Polity に集約し一円支配を目指す
+  | 'consolidate_domain'
 export type PersonGoalKind =
   | 'house_loyalty'
   | 'public_service'
@@ -93,6 +98,8 @@ export type PolityAimKind =
   | 'demand_tax_increase_from_vassal'
   | 'eliminate_overlord_contract'
   | 'eliminate_vassal_contract'
+  // v0.47 §3.1: rank 5→4 / 4→3 / 3→2 の陞爵を目指す (rank 2→1 は対象外)
+  | 'seek_rank_promotion'
 
 export type HouseAimKind =
   // v0.42 §13.2: 具体的な政治権利の取得 (influence は read-model — 旧 increase_polity_share の置換)
@@ -103,6 +110,8 @@ export type HouseAimKind =
   | 'commission_chronicle'
   // 影響力個人中心化 Phase 1b: 運動 (家がメンバーを国に推薦して influence を積む)
   | 'start_movement_campaign'
+  // v0.47 §3.3: 自家内で完結する LandContract chain の整理 (一円支配集約)
+  | 'consolidate_owned_polities'
 
 export type PersonAimKind =
   | 'support_organization_aim'
@@ -111,6 +120,12 @@ export type PersonAimKind =
   | 'retain_office'
   | 'accumulate_wealth'
   | 'improve_ability'
+  // v0.47 §3.4: 分封願い (無家=新House+rank5 / 有家=分家+rank5)
+  | 'request_land_grant'
+  // v0.47 §3.4: 宗家 Polity 譲渡を求め分家創設を目指す
+  | 'establish_cadet_branch'
+  // v0.47 §3.4: established commonwealth 役職を持つ無家人物が財産基盤で House 創設
+  | 'found_republic_house'
 export type AimKind = PolityAimKind | HouseAimKind | PersonAimKind
 
 export type AimOrigin = 'goal_driven' | 'pressure_response'

@@ -1078,6 +1078,45 @@ export type SimulationConfig = {
   //   比例した fatigue penalty で相殺され、いずれ挑戦者に抜かれて交代する (終身 leader 防止)。
   republicLeaderIncumbencyBonus: number
   republicLeaderFatiguePerYear: number
+
+  // === v0.47 称号・分封・領邦再編 (spec §16) ===
+  // §16.1 rank promotion (陞爵)。per-rank は対象 newRank 2〜4 のみ埋める sparse Record
+  //   (noUncheckedIndexedAccess で number | undefined。undefined = 要件未定義 → gate は保守的に fail 扱い)。
+  rankPromotionMinHoldingCountByRank: Partial<Record<PolityRank, number>>
+  rankPromotionMinTreasuryByRank: Partial<Record<PolityRank, number>>
+  rankPromotionMinPrestigeByRank: Partial<Record<PolityRank, number>>
+  rankPromotionMinAdminPowerByRank: Partial<Record<PolityRank, number>>
+  rankPromotionRetryCooldownWeeks: number
+  rankPromotionAcceptThreshold: number
+  rankPromotionApproverAttitudeWeight: number
+  rankPromotionPrestigeWeight: number
+  rankPromotionPowerWeight: number
+  rankPromotionProjectProgressWeight: number
+  // §16.2 land grant (分封)
+  landGrantMinWealthForPetitioner: number
+  landGrantMinReputationScore: number
+  landGrantMinGrantorHoldingCount: number
+  landGrantGrantorMinRemainingHoldingCount: number
+  landGrantInitialTreasury: number
+  landGrantInitialLegacyPrestige: number
+  landGrantAcceptThreshold: number
+  landGrantApproverAttitudeWeight: number
+  landGrantPetitionerReputationWeight: number
+  landGrantProjectProgressWeight: number
+  landGrantRetryCooldownWeeks: number
+  // §16.3 cadet branch (Polity 譲渡による分家)
+  cadetBranchExcludeTopSuccessionRanks: number
+  cadetBranchMinAmbition: number
+  cadetBranchMinSupportPercent: number
+  cadetBranchTitleTransferSupportThreshold: number
+  cadetBranchRetryCooldownWeeks: number
+  // §16.4 republic house foundation (共和国 House 創設)
+  republicHouseFoundingMinWealth: number
+  republicHouseFoundingRetryCooldownWeeks: number
+  // §16.5 consolidation (一円支配集約)
+  houseDomainConsolidationMinOwnedPolityCount: number
+  houseDomainConsolidationMinBenefit: number
+  houseDomainConsolidationRetryCooldownWeeks: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2214,4 +2253,43 @@ export const defaultConfig: SimulationConfig = {
   republicAcquireRightBaseBonus: 15,
   republicLeaderIncumbencyBonus: 15,
   republicLeaderFatiguePerYear: 3,
+
+  // === v0.47 称号・分封・領邦再編 (spec §16) ===
+  // 初期値は緩め (各 Phase の forced 検証で発火させる)。最終 balance は全 Phase 完了後に保留 (CLAUDE.md §4)。
+  // §16.1 rank promotion: 対象 newRank 2〜4 のみ埋める。後年・有力 Polity でないと届かない水準。
+  rankPromotionMinHoldingCountByRank: { 2: 12, 3: 8, 4: 4 },
+  rankPromotionMinTreasuryByRank: { 2: 4000, 3: 2000, 4: 800 },
+  rankPromotionMinPrestigeByRank: { 2: 60, 3: 45, 4: 30 },
+  rankPromotionMinAdminPowerByRank: { 2: 60, 3: 45, 4: 30 },
+  rankPromotionRetryCooldownWeeks: 520,
+  rankPromotionAcceptThreshold: 50,
+  rankPromotionApproverAttitudeWeight: 0.4,
+  rankPromotionPrestigeWeight: 0.3,
+  rankPromotionPowerWeight: 0.2,
+  rankPromotionProjectProgressWeight: 0.2,
+  // §16.2 land grant
+  landGrantMinWealthForPetitioner: 300,
+  landGrantMinReputationScore: 30,
+  landGrantMinGrantorHoldingCount: 3,
+  landGrantGrantorMinRemainingHoldingCount: 2,
+  landGrantInitialTreasury: 100,
+  landGrantInitialLegacyPrestige: 10,
+  landGrantAcceptThreshold: 50,
+  landGrantApproverAttitudeWeight: 0.4,
+  landGrantPetitionerReputationWeight: 0.3,
+  landGrantProjectProgressWeight: 0.2,
+  landGrantRetryCooldownWeeks: 312,
+  // §16.3 cadet branch
+  cadetBranchExcludeTopSuccessionRanks: 2,
+  cadetBranchMinAmbition: 60,
+  cadetBranchMinSupportPercent: 30,
+  cadetBranchTitleTransferSupportThreshold: 50,
+  cadetBranchRetryCooldownWeeks: 312,
+  // §16.4 republic house foundation
+  republicHouseFoundingMinWealth: 400,
+  republicHouseFoundingRetryCooldownWeeks: 312,
+  // §16.5 consolidation
+  houseDomainConsolidationMinOwnedPolityCount: 2,
+  houseDomainConsolidationMinBenefit: 1,
+  houseDomainConsolidationRetryCooldownWeeks: 312,
 }

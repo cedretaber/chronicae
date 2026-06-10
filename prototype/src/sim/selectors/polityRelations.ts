@@ -3,8 +3,10 @@
 // 仕様: docs/drafts/spec-v016-update.md §8, §9, §10
 import type { WorldState } from '@sim/types/world'
 import type { Polity } from '@sim/types/polity'
+import { getPolityTerritorialStatus } from '@sim/types/polity'
 import type { House } from '@sim/types/house'
 import type { PolityId, HouseId, PersonId, ProvinceId } from '@sim/types/ids'
+import type { SimulationConfig } from '@sim/config/defaultConfig'
 import {
   getProvinceTerminalPolityId,
   getProvinceEffectiveOwnerHouseId,
@@ -13,6 +15,7 @@ import {
   getHouseOwnedPolityIds,
   getHouseControlledProvinceIds,
   getProvinceDevelopmentFromHoldings,
+  getPolityHoldingCount,
 } from './landContractSelectors'
 import { getProvincePopulation } from './popSelectors'
 
@@ -196,6 +199,48 @@ export function getHousePrimaryPolityId(state: WorldState, houseId: HouseId): Po
     return a.polityId.localeCompare(b.polityId)
   })
   return entries[0]?.polityId
+}
+
+// v0.47 §12.5 — House 一円支配集約の sink (集約先) Polity。
+// getHousePrimaryPolityId とは別概念 (primary は seat 優先 / sink は最上位 rank 優先)。
+// 判定: House owner Polity のうち active & territorial & non-commonwealth を、
+//   rank 最上位 (数値最小) → terminal holding 数最大 → development 合計最大 → PolityId 昇順 で選ぶ。
+export function getHouseDomainConsolidationSinkPolityId(
+  state: WorldState,
+  config: SimulationConfig,
+  houseId: HouseId,
+): PolityId | undefined {
+  const owned = getHouseOwnedPolityIds(state, houseId)
+  const cands: {
+    polityId: PolityId
+    rank: number
+    holdingCount: number
+    development: number
+  }[] = []
+  for (const polityId of owned) {
+    const polity = state.polities[polityId]
+    if (!polity || !polity.active) continue
+    if (polity.kind === 'commonwealth') continue
+    if (getPolityTerritorialStatus(polity) !== 'territorial') continue
+    let dev = 0
+    for (const provinceId of getPolityTerminalProvinceIds(state, polityId)) {
+      dev += getProvinceDevelopmentFromHoldings(state, provinceId, config)
+    }
+    cands.push({
+      polityId,
+      rank: polity.rank,
+      holdingCount: getPolityHoldingCount(state, polityId),
+      development: dev,
+    })
+  }
+  if (cands.length === 0) return undefined
+  cands.sort((a, b) => {
+    if (a.rank !== b.rank) return a.rank - b.rank
+    if (b.holdingCount !== a.holdingCount) return b.holdingCount - a.holdingCount
+    if (b.development !== a.development) return b.development - a.development
+    return a.polityId.localeCompare(b.polityId)
+  })
+  return cands[0]?.polityId
 }
 
 // §8.4 — Person が関係する Polity 一覧 (所属 House の getHousePolityIds に委譲)

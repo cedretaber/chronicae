@@ -55,6 +55,34 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'prepare_response', type: 'preparatory' },
     { key: 'negotiate', type: 'final' },
   ],
+
+  // v0.47 称号・分封・領邦再編 (spec §5.5 / §9.6 / §11.8 / §12.8 / §13.4)。
+  // preparatory stage で progress 蓄積 → finalize_* immediate で resolveImmediateStage が
+  // accept/reject 判定と成功 mutation を行う (§4.4)。budget stage は持たない (§4.3)。
+  request_rank_promotion: [
+    { key: 'prepare_petition', type: 'preparatory' },
+    { key: 'build_case', type: 'preparatory' },
+    { key: 'finalize_promotion', type: 'immediate' },
+  ],
+  request_land_grant: [
+    { key: 'prepare_petition', type: 'preparatory' },
+    { key: 'build_case', type: 'preparatory' },
+    { key: 'finalize_land_grant', type: 'immediate' },
+  ],
+  request_cadet_branch_title_transfer: [
+    { key: 'secure_family_support', type: 'preparatory' },
+    { key: 'negotiate_title_share', type: 'preparatory' },
+    { key: 'finalize_cadet_branch', type: 'immediate' },
+  ],
+  republic_house_foundation: [
+    { key: 'prepare_foundation', type: 'preparatory' },
+    { key: 'register_house', type: 'immediate' },
+  ],
+  consolidate_internal_contracts: [
+    { key: 'review_internal_contracts', type: 'preparatory' },
+    { key: 'negotiate_internal_terms', type: 'preparatory' },
+    { key: 'finalize_consolidation', type: 'immediate' },
+  ],
 }
 
 export function getProjectStageSequence(kind: ProjectKind): readonly ProjectStageEntry[] {

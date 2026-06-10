@@ -79,6 +79,31 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
         { kind: 'polity', id: project.targetPolityId },
         { kind: 'person', id: project.sponsoredPersonId },
       ]
+
+    // v0.47 称号・分封・領邦再編
+    case 'request_rank_promotion':
+      return [{ kind: 'polity', id: project.polityId }]
+
+    case 'request_land_grant':
+      return [
+        { kind: 'polity', id: project.donorPolityId },
+        { kind: 'holding', id: project.targetHoldingId },
+      ]
+
+    case 'request_cadet_branch_title_transfer':
+      return [
+        { kind: 'polity', id: project.targetPolityId },
+        { kind: 'house', id: project.parentHouseId },
+      ]
+
+    case 'republic_house_foundation':
+      return [{ kind: 'polity', id: project.commonwealthPolityId }]
+
+    case 'consolidate_internal_contracts':
+      return [
+        { kind: 'house', id: project.houseId },
+        { kind: 'polity', id: project.sinkPolityId },
+      ]
   }
 }
 
@@ -98,6 +123,12 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   personal_training: 'governance',
   // 影響力個人中心化 Phase 1b: 運動 = 政治的キャンペーン (charisma/diplomacy)
   movement_campaign: 'diplomacy',
+  // v0.47 称号・分封・領邦再編: petition は外交、集約・共和国 House 創設は統治系
+  request_rank_promotion: 'diplomacy',
+  request_land_grant: 'diplomacy',
+  request_cadet_branch_title_transfer: 'diplomacy',
+  republic_house_foundation: 'governance',
+  consolidate_internal_contracts: 'stewardship',
 }
 
 export function getPersonProjectWorkload(

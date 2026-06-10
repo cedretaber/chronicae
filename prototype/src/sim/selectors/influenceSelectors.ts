@@ -40,6 +40,7 @@ import {
 } from './polityRelations'
 import { getRightsByPolity } from './politicalRightSelectors'
 import { PLACEHOLDER_PERSON_ID } from '../types/person'
+import { getHouseShares, getHouseTotalRawPower } from './shareSelectors'
 
 type EntryAccumulator = {
   holder: PolityInfluenceHolderRef
@@ -475,6 +476,47 @@ export function getWeightedOpinionFromInfluenceBreakdown(
     const opinion = Math.max(-100, Math.min(100, 0.7 * attitude.affection + 0.3 * attitude.respect))
     weightedSum += opinion * entry.percent
     weightTotal += entry.percent
+  }
+  if (weightTotal <= 0) return 0
+  return weightedSum / weightTotal
+}
+
+// v0.47 §11.7: Polity 譲渡 (分家創設) の SOFT 同意。HouseShare holder の加重意見 (-100..100)。
+//   getWeightedOpinionFromInfluenceBreakdown の HouseShare 版。各 holder の percent を weight に、
+//   petitioner (targetPersonId) への attitude を加重平均する。
+//   - holder ごとに rawPower を集約し holderPersonId 昇順で畳む (決定論)
+//   - petitioner 本人の自己票は除外 (subject であり voter ではない)
+//   - house leader は追加 weight を持つが絶対拒否権は持たない (§11.7)
+//   - 生存 holder が 0 なら 0 (中立)
+//   Project progress / Task outcome 補正は呼出側 (resolveImmediateStage) で加える。
+export function getWeightedOpinionFromHouseShareholders(
+  state: WorldState,
+  houseId: HouseId,
+  targetPersonId: PersonId,
+): number {
+  const leaderId = getHouseLeader(state, houseId)
+  const total = getHouseTotalRawPower(state, houseId)
+  if (total <= 0) return 0
+
+  const byHolder = new Map<PersonId, number>()
+  for (const share of getHouseShares(state, houseId)) {
+    byHolder.set(share.holderPersonId, (byHolder.get(share.holderPersonId) ?? 0) + share.rawPower)
+  }
+
+  let weightedSum = 0
+  let weightTotal = 0
+  const entries = [...byHolder.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  for (const [holderId, rawPower] of entries) {
+    if (holderId === targetPersonId) continue
+    const holder = state.persons[holderId]
+    if (!isLivingPerson(holder)) continue
+    const percent = (rawPower / total) * 100
+    // house leader は影響力が大きいが拒否権はない (§11.7) → 1.5x の加重に留める
+    const weight = leaderId !== undefined && holderId === leaderId ? percent * 1.5 : percent
+    const attitude = getAttitudeOrDefault(state, holder, { kind: 'person', id: targetPersonId })
+    const opinion = Math.max(-100, Math.min(100, 0.7 * attitude.affection + 0.3 * attitude.respect))
+    weightedSum += opinion * weight
+    weightTotal += weight
   }
   if (weightTotal <= 0) return 0
   return weightedSum / weightTotal

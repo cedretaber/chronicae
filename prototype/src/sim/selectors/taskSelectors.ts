@@ -169,6 +169,12 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   personal_training: 'insight',
   // 影響力個人中心化 Phase 1b: 運動 = キャンペーン (charisma)
   movement_campaign: 'charisma',
+  // v0.47 称号・分封・領邦再編: petition は説得 (charisma)、集約は実務 (numeracy)
+  request_rank_promotion: 'charisma',
+  request_land_grant: 'charisma',
+  request_cadet_branch_title_transfer: 'charisma',
+  republic_house_foundation: 'charisma',
+  consolidate_internal_contracts: 'numeracy',
 }
 
 export function determineTaskOutcome(

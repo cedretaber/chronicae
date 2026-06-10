@@ -72,6 +72,14 @@ export const PROJECT_REPUTATION_CATEGORY_MAP: Record<ProjectKind, ReputationCate
 
     // 影響力個人中心化 Phase 1b: 運動は general 評判を発生させる (推薦された個人に付与)
     movement_campaign: 'general',
+
+    // v0.47 称号・分封・領邦再編: petition の成功は請願人物の外交的実績 (diplomacy)、
+    // 集約・共和国 House 創設は統治実績 (administration) に集約する。
+    request_rank_promotion: 'diplomacy',
+    request_land_grant: 'diplomacy',
+    request_cadet_branch_title_transfer: 'diplomacy',
+    republic_house_foundation: 'administration',
+    consolidate_internal_contracts: 'administration',
   }
 
 export type AwardSourceKind = PersonReputationSource['kind']

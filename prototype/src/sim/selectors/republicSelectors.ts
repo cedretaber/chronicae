@@ -61,6 +61,8 @@ export function getRepublicOriginHoldingIds(origin: PolityOrigin): HoldingId[] {
       return origin.holdingIds
     case 'regime_changed_by_popular_revolt':
       return [origin.holdingId]
+    case 'land_grant':
+      return [origin.holdingId]
     case 'worldgen':
       return []
   }
@@ -71,6 +73,8 @@ export function getRepublicFoundingWeek(origin: PolityOrigin): number | undefine
     case 'popular_revolt':
       return origin.startedWeek
     case 'regime_changed_by_popular_revolt':
+      return origin.week
+    case 'land_grant':
       return origin.week
     case 'worldgen':
       return undefined
@@ -154,8 +158,15 @@ export function getRepublicPoliticalCandidatePersons(
     }
   }
 
-  // 5. commonwealth origin の leaderPersonId
-  if (polity.origin.kind !== 'worldgen') add(polity.origin.leaderPersonId)
+  // 5. commonwealth origin の leaderPersonId (land_grant origin は founderPersonId)
+  if (
+    polity.origin.kind === 'popular_revolt' ||
+    polity.origin.kind === 'regime_changed_by_popular_revolt'
+  ) {
+    add(polity.origin.leaderPersonId)
+  } else if (polity.origin.kind === 'land_grant') {
+    add(polity.origin.founderPersonId)
+  }
 
   // 6. 対象 Holding / Province に関係する人物 (holding bailiff + origin holdings)
   const holdingIds = new Set<string>(

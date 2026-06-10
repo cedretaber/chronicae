@@ -12,6 +12,7 @@ import type {
   DiplomaticPlayId,
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
+import type { PolityRank } from './polity'
 import type { AbilityKey } from './person'
 import type { PoliticalRightTargetRef } from './politicalRight'
 import type { HoldingImprovementKind } from './holdingImprovement'
@@ -52,6 +53,13 @@ export type ProjectKind =
   | 'personal_training'
   // 影響力個人中心化 Phase 1b: 運動 (家が資金で家メンバーを国に推薦し influence を積む)
   | 'movement_campaign'
+  // v0.47 §3.5 称号・分封・領邦再編。budget を持たない petition Project 群
+  // (解決は projectStageSystem.resolveImmediateStage の finalize_* ハンドラ・§4.4)。
+  | 'request_rank_promotion'
+  | 'request_land_grant'
+  | 'request_cadet_branch_title_transfer'
+  | 'republic_house_foundation'
+  | 'consolidate_internal_contracts'
 
 export type BaseProject = {
   id: ProjectId
@@ -164,6 +172,55 @@ export type PersonalTrainingProject = BaseProject & {
   trainingAbilityKey: AbilityKey
 }
 
+// v0.47 §5 陞爵 Project。owner = 陞爵対象 Polity。budget なし (§4.3)。
+// approverPersonId は SOFT 同意者 (donor polity leader)。全 grantor が root なら undefined = auto-grant。
+export type RequestRankPromotionProject = BaseProject & {
+  kind: 'request_rank_promotion'
+  owner: { kind: 'polity'; id: PolityId }
+  polityId: PolityId
+  newRank: PolityRank
+  approverPersonId?: PersonId
+}
+
+// v0.47 §8-9 分封 Project。owner = 請願人物。budget なし。
+// parentHouseId === undefined = 無家人物 (新 House)、!== undefined = 有家人物 (分家)。
+export type RequestLandGrantProject = BaseProject & {
+  kind: 'request_land_grant'
+  owner: { kind: 'person'; id: PersonId }
+  petitionerPersonId: PersonId
+  donorPolityId: PolityId
+  targetHoldingId: HoldingId
+  parentHouseId?: HouseId
+  approverPersonId?: PersonId
+}
+
+// v0.47 §11 Polity 譲渡による分家創設 Project。owner = 請願人物 (低継承権)。
+// SOFT 同意は HouseShare holder の加重支持で判定 (§11.7)。
+export type RequestCadetBranchTitleTransferProject = BaseProject & {
+  kind: 'request_cadet_branch_title_transfer'
+  owner: { kind: 'person'; id: PersonId }
+  petitionerPersonId: PersonId
+  parentHouseId: HouseId
+  targetPolityId: PolityId
+}
+
+// v0.47 §13 共和国 House 創設 Project。owner = established commonwealth 役職を持つ無家人物。
+export type RepublicHouseFoundationProject = BaseProject & {
+  kind: 'republic_house_foundation'
+  owner: { kind: 'person'; id: PersonId }
+  petitionerPersonId: PersonId
+  commonwealthPolityId: PolityId
+}
+
+// v0.47 §12 一円支配集約 Project。owner = 集約する House。
+// sinkPolityId = 集約先 (最上位 territorial Polity)。
+export type ConsolidateInternalContractsProject = BaseProject & {
+  kind: 'consolidate_internal_contracts'
+  owner: { kind: 'house'; id: HouseId }
+  houseId: HouseId
+  sinkPolityId: PolityId
+}
+
 export type RespondToPressureProject = BaseProject & {
   kind: 'respond_to_pressure'
   pressureId: PressureId
@@ -195,6 +252,11 @@ export type Project =
   | RespondToPressureProject
   | PersonalTrainingProject
   | MovementCampaignProject
+  | RequestRankPromotionProject
+  | RequestLandGrantProject
+  | RequestCadetBranchTitleTransferProject
+  | RepublicHouseFoundationProject
+  | ConsolidateInternalContractsProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>
