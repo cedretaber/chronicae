@@ -60,6 +60,15 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   // v0.47 称号・分封・領邦再編 (§17.2): titular 化 / 称号廃止 (governance 史)
   POLITY_TITULARIZED: { category: 'governance' },
   POLITY_ABOLISHED: { category: 'governance' },
+  // 分封 / 陞爵 / 称号譲渡 / 集約 / House 創設
+  POLITY_GRANTED: { category: 'land' },
+  POLITY_RANK_PROMOTED: { category: 'governance' },
+  POLITY_TITLE_TRANSFERRED: { category: 'house' },
+  LAND_CONTRACT_CONSOLIDATED: { category: 'land' },
+  HOUSE_FOUNDED_BY_LAND_GRANT: { category: 'house' },
+  CADET_BRANCH_FOUNDED_BY_LAND_GRANT: { category: 'house' },
+  CADET_BRANCH_FOUNDED_BY_TITLE_TRANSFER: { category: 'house' },
+  HOUSE_FOUNDED_IN_REPUBLIC: { category: 'house' },
   // v0.42 PoliticalRight (§17.3): 任命権・連隊管理権の授与/失効/移転。低頻度・高 signal。
   POLITICAL_RIGHT_GRANTED: { category: 'governance' },
   POLITICAL_RIGHT_REVOKED: { category: 'governance' },

@@ -39,6 +39,9 @@ house:
   policy_influence: '{{house}} influenced the policies of {{polity}}.'
   patronized_artist: '{{house}} patronized an artist, gaining prestige.'
   commissioned_chronicle: '{{house}} commissioned a chronicle of their deeds.'
+  founded_by_land_grant: '{{person}} received a land grant and founded the house {{house}}.'
+  cadet_founded_by_land_grant: '{{person}} received a land grant and founded the cadet branch {{house}}.'
+  founded_in_republic: '{{person}} made a fortune in the republic and founded the house {{house}}.'
 
 polity:
   leader_changed: '{{person}} has become the new ruler of {{polity}}.'
@@ -52,6 +55,10 @@ polity:
   land_developed: '{{polity}} invested in land development in {{province}}.'
   titularized: '{{polity}} lost its lands and became a titular polity, retaining only its title.'
   abolished: 'The title of {{polity}} was abolished.'
+  granted: '{{polity}} was newly established and granted to {{person}}.'
+  rank_promoted: '{{polity}} was elevated in rank to {{rank}}.'
+  title_transferred: 'The title of {{polity}} was transferred to a cadet branch.'
+  consolidated: '{{house}} consolidated its domains into {{polity}}.'
 
 succession:
   crisis: 'A succession crisis has erupted in {{house}}!'

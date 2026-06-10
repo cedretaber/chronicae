@@ -42,7 +42,7 @@ export function buildLivingPersonIds(persons: Record<PersonId, Person>): PersonI
   return (Object.keys(persons) as PersonId[]).filter((id) => persons[id]?.alive).sort()
 }
 
-const DEFAULT_ABILITIES = {
+export const DEFAULT_ABILITIES = {
   valor: 50,
   command: 50,
   numeracy: 50,

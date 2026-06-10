@@ -147,6 +147,74 @@ export function movePersonToHouse(
   })
 }
 
+// v0.47 §10: 分家創設時に founder の家族 (spouse + child) を新 House へ移す helper。
+// splitHouse の inline family-move を切り出し再利用する (分封 §8 / Polity 譲渡 §11 で共有)。
+// 規約 (§10.1/§10.2):
+//   - founder 本人 + 同 House (founder の旧 houseId と一致) の spouse / child を移す
+//   - 既に別 House に所属する者・active office holder (polity/holding office = leader/title holder
+//     含む) は除外 (独自立場の人物を巻き込まない)
+//   - 故人は移さない (§10.3)
+// best-effort: 個々の move 失敗は無視して可能な限り移す。
+export function moveFounderFamilyToHouse(
+  state: WorldState,
+  founderPersonId: PersonId,
+  newHouseId: HouseId,
+): WorldState {
+  const founder = state.persons[founderPersonId]
+  if (!founder) return state
+  const founderOldHouseId = founder.houseId
+
+  // 移動候補を move 前に snapshot する (move で houseId が変わるため)。
+  const memberIds: PersonId[] = []
+  if (founder.spouseId !== undefined) {
+    const spouse = state.persons[founder.spouseId]
+    if (
+      spouse &&
+      spouse.alive &&
+      spouse.houseId === founderOldHouseId &&
+      !isImmovableForFamilyMove(state, spouse.id)
+    ) {
+      memberIds.push(spouse.id)
+    }
+  }
+  for (const childId of founder.childIds) {
+    const child = state.persons[childId]
+    if (
+      child &&
+      child.alive &&
+      child.houseId === founderOldHouseId &&
+      !isImmovableForFamilyMove(state, child.id)
+    ) {
+      memberIds.push(childId)
+    }
+  }
+
+  let current = state
+  // founder 本人を先に移す。
+  const founderMove = movePersonToHouse(current, founderPersonId, newHouseId)
+  if (founderMove.ok) current = founderMove.value
+  for (const memberId of memberIds) {
+    const move = movePersonToHouse(current, memberId, newHouseId)
+    if (move.ok) current = move.value
+  }
+  return current
+}
+
+// 家族移動から除外すべきか: active polity/holding office holder (leader / title holder / bailiff 含む)。
+function isImmovableForFamilyMove(state: WorldState, personId: PersonId): boolean {
+  const polityOfficeIds = state.officeIndex.byHolderPerson[personId as string] ?? []
+  for (const oaId of polityOfficeIds) {
+    const oa = state.officeAssignments[oaId]
+    if (oa && oa.active) return true
+  }
+  const holdingOfficeIds = state.holdingOfficeIndex.byHolderPerson[personId] ?? []
+  for (const hoId of holdingOfficeIds) {
+    const ho = state.holdingOfficeAssignments[hoId]
+    if (ho && ho.active) return true
+  }
+  return false
+}
+
 export function addPersonWealth(state: WorldState, personId: PersonId, delta: number): StateResult {
   const person = state.persons[personId]
   if (!person)

@@ -1,14 +1,23 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PolityId, PersonId } from '../types/ids'
+import type { PolityId, PersonId, HoldingId } from '../types/ids'
 import type { PolityRank } from '../types/polity'
 import { getPolityTerritorialStatus } from '../types/polity'
+import type { Person } from '../types/person'
+import { isLifeStageAtLeast } from '../types/person'
+import type { OfficeRole } from '../types/office'
 import {
   getPolityHoldingCount,
   getGrantorRank,
   getLandContractGrantor,
+  getPolityTerminalProvinceIds,
+  getHouseOwnedPolityIds,
+  getHoldingTerminalPolityId,
+  getProvinceDevelopmentFromHoldings,
 } from './landContractSelectors'
 import { getPolityLeader } from './officeSelectors'
+import { getHousePrimaryPolityId, getHouseDomainConsolidationSinkPolityId } from './polityRelations'
+import { getPersonReputationSummary } from './personReputationSelectors'
 
 // v0.47 §5: 陞爵 (rank promotion) の HARD gate / 同意者選定。
 // petition Project (request_rank_promotion / request_land_grant 等) 共通の read-only selector 群。
@@ -100,4 +109,229 @@ export function selectRankPromotionApprover(
   }
   if (!bestPolity) return undefined
   return getPolityLeader(state, bestPolity)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// v0.47 §8-9: 分封 (request_land_grant) の selector 群。
+// ───────────────────────────────────────────────────────────────────────────
+
+// 人物の全カテゴリ reputation 合算スコア (§9.2 実績条件)。
+function getPersonTotalReputationScore(
+  state: WorldState,
+  config: SimulationConfig,
+  personId: PersonId,
+): number {
+  return getPersonReputationSummary(state, config, personId).reduce((sum, e) => sum + e.score, 0)
+}
+
+function hasActivePolityOffice(state: WorldState, personId: PersonId): boolean {
+  for (const oaId of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+    const oa = state.officeAssignments[oaId]
+    if (oa && oa.active && oa.organization.kind === 'polity') return true
+  }
+  return false
+}
+
+function hasActiveBailiff(state: WorldState, personId: PersonId): boolean {
+  for (const hoId of state.holdingOfficeIndex.byHolderPerson[personId] ?? []) {
+    const ho = state.holdingOfficeAssignments[hoId]
+    if (ho && ho.active) return true
+  }
+  return false
+}
+
+// §9.2 HARD gate (petitioner 本人の資格・donor 非依存部分)。
+export function meetsLandGrantPetitionerGate(
+  state: WorldState,
+  config: SimulationConfig,
+  person: Person,
+): boolean {
+  if (!person.alive) return false
+  if (person.kind === 'placeholder') return false
+  if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) return false
+  if (person.wealth < config.landGrantMinWealthForPetitioner) return false
+  // 実績条件: reputation 十分 OR active office holder OR active bailiff
+  const reputationOk =
+    getPersonTotalReputationScore(state, config, person.id) >= config.landGrantMinReputationScore
+  if (
+    !reputationOk &&
+    !hasActivePolityOffice(state, person.id) &&
+    !hasActiveBailiff(state, person.id)
+  )
+    return false
+  return true
+}
+
+const DONOR_OFFICE_ROLE_PRIORITY: Record<OfficeRole, number> = {
+  leader: 0,
+  administrator: 1,
+  treasurer: 2,
+  military: 3,
+  advisor: 4,
+}
+
+// donor Polity が分封後も最小残存 holding を維持できるか (§8.5)。
+function donorCanAffordGrant(
+  state: WorldState,
+  config: SimulationConfig,
+  donorPolityId: PolityId,
+): boolean {
+  const count = getPolityHoldingCount(state, donorPolityId)
+  if (count < config.landGrantMinGrantorHoldingCount) return false
+  return count - 1 >= config.landGrantGrantorMinRemainingHoldingCount
+}
+
+// donor Polity が分封可能か (§8.4 条件)。
+function isEligibleDonorPolity(
+  state: WorldState,
+  config: SimulationConfig,
+  polityId: PolityId,
+): boolean {
+  const p = state.polities[polityId]
+  if (!p || !p.active) return false
+  if (p.kind === 'commonwealth') return false
+  if (getPolityTerritorialStatus(p) !== 'territorial') return false
+  if (p.rank === 5) return false
+  return donorCanAffordGrant(state, config, polityId)
+}
+
+// §9.3/§9.4: petitioner の donor Polity を選ぶ。
+// 無家 = 在職先 Polity (active polity office → その organization / なければ bailiff の appointingPolityId、
+//   role priority leader>administrator>treasurer>military>advisor>bailiff、同位は PolityId 昇順)。
+// 有家 = 自家が owner の余剰 territorial Polity (rank!=5・grant 後最小 holding 維持・
+//   primary/consolidation sink を除外・secondary 優先 = holding 数が少ない順)。
+export function selectLandGrantDonorPolity(
+  state: WorldState,
+  config: SimulationConfig,
+  personId: PersonId,
+): PolityId | undefined {
+  const person = state.persons[personId]
+  if (!person) return undefined
+
+  if (person.houseId === undefined) {
+    // 無家: 在職先 polity を role priority で選ぶ。
+    let best: { polityId: PolityId; priority: number } | undefined
+    for (const oaId of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+      const oa = state.officeAssignments[oaId]
+      if (!oa || !oa.active || oa.organization.kind !== 'polity') continue
+      const pid = oa.organization.id
+      if (!isEligibleDonorPolity(state, config, pid)) continue
+      const priority = DONOR_OFFICE_ROLE_PRIORITY[oa.role] ?? 9
+      if (
+        !best ||
+        priority < best.priority ||
+        (priority === best.priority && pid.localeCompare(best.polityId) < 0)
+      ) {
+        best = { polityId: pid, priority }
+      }
+    }
+    if (best) return best.polityId
+    // bailiff の appointingPolityId (role priority 5 相当)。
+    let bailiffBest: PolityId | undefined
+    for (const hoId of state.holdingOfficeIndex.byHolderPerson[personId] ?? []) {
+      const ho = state.holdingOfficeAssignments[hoId]
+      if (!ho || !ho.active) continue
+      const pid = ho.appointingPolityId
+      if (!isEligibleDonorPolity(state, config, pid)) continue
+      if (!bailiffBest || pid.localeCompare(bailiffBest) < 0) bailiffBest = pid
+    }
+    return bailiffBest
+  }
+
+  // 有家: 自家 owned territorial 余剰 polity (secondary 優先)。
+  const houseId = person.houseId
+  const primary = getHousePrimaryPolityId(state, houseId)
+  const sink = getHouseDomainConsolidationSinkPolityId(state, config, houseId)
+  const cands: { polityId: PolityId; holdingCount: number }[] = []
+  for (const pid of getHouseOwnedPolityIds(state, houseId)) {
+    if (pid === primary || pid === sink) continue
+    if (!isEligibleDonorPolity(state, config, pid)) continue
+    cands.push({ polityId: pid, holdingCount: getPolityHoldingCount(state, pid) })
+  }
+  if (cands.length === 0) return undefined
+  // secondary 優先 = holding 数が少ない順 (周縁領を切り出す)、同数は PolityId 昇順。
+  cands.sort((a, b) => {
+    if (a.holdingCount !== b.holdingCount) return a.holdingCount - b.holdingCount
+    return a.polityId.localeCompare(b.polityId)
+  })
+  return cands[0]?.polityId
+}
+
+// §8.6: donor Polity が terminal owner である holding から grant 対象 1 個を選ぶ。
+// 周縁・低価値を優先: capital province 外 → development 低 → HoldingId 昇順。
+// special status を持つ holding と、grant 後に donor が最小残存を割る場合は除外
+// (donor が複数 holding を持つ前提なので、対象を 1 個外しても残存数は保たれる)。
+export function selectLandGrantTargetHolding(
+  state: WorldState,
+  config: SimulationConfig,
+  donorPolityId: PolityId,
+): HoldingId | undefined {
+  const donor = state.polities[donorPolityId]
+  if (!donor) return undefined
+  if (!donorCanAffordGrant(state, config, donorPolityId)) return undefined
+
+  type Cand = { holdingId: HoldingId; offCapital: number; development: number }
+  const cands: Cand[] = []
+  for (const provinceId of getPolityTerminalProvinceIds(state, donorPolityId)) {
+    const province = state.provinces[provinceId]
+    if (!province) continue
+    const dev = getProvinceDevelopmentFromHoldings(state, provinceId, config)
+    const offCapital = provinceId === donor.capitalProvinceId ? 1 : 0
+    for (const holdingId of province.holdingIds) {
+      // donor が当該 holding の terminal owner であることを確認 (chain 上の他家除外)。
+      if (getHoldingTerminalPolityId(state, holdingId) !== donorPolityId) continue
+      const holding = state.holdings[holdingId]
+      if (!holding) continue
+      // terminal chain に specialStatus (revolt_seizure 等) がある holding は除外 (§8.6)。
+      const chain = state.landContractIndex.byHolding[holdingId] ?? []
+      if (chain.some((cid) => state.landContracts[cid]?.specialStatus !== undefined)) continue
+      cands.push({ holdingId, offCapital, development: dev })
+    }
+  }
+  if (cands.length === 0) return undefined
+  cands.sort((a, b) => {
+    // capital province 外を優先 (offCapital=0 が先)
+    if (a.offCapital !== b.offCapital) return a.offCapital - b.offCapital
+    if (a.development !== b.development) return a.development - b.development
+    return a.holdingId.localeCompare(b.holdingId)
+  })
+  return cands[0]?.holdingId
+}
+
+// petitioner が分封を願える状態か (HARD gate 全体: 本人資格 + donor 存在 + grant 可能 holding 存在)。
+// aim 生成 (候補) と finalize 再検査で共有する。donor を返す (見つからなければ undefined)。
+export function resolveLandGrantDonor(
+  state: WorldState,
+  config: SimulationConfig,
+  personId: PersonId,
+): { donorPolityId: PolityId; holdingId: HoldingId } | undefined {
+  const person = state.persons[personId]
+  if (!person) return undefined
+  if (!meetsLandGrantPetitionerGate(state, config, person)) return undefined
+  const donorPolityId = selectLandGrantDonorPolity(state, config, personId)
+  if (!donorPolityId) return undefined
+  const holdingId = selectLandGrantTargetHolding(state, config, donorPolityId)
+  if (!holdingId) return undefined
+  return { donorPolityId, holdingId }
+}
+
+// §9.7 SOFT accept score。approver = donor polity leader の petitioner への attitude を主項に、
+// petitioner reputation・Project progress を加える。閾値超過で成功。
+export function computeLandGrantAcceptScore(
+  state: WorldState,
+  config: SimulationConfig,
+  petitionerPersonId: PersonId,
+  approverPersonId: PersonId | undefined,
+  projectProgress: number,
+  attitudeScore: number,
+): number {
+  const reputation = getPersonTotalReputationScore(state, config, petitionerPersonId)
+  // approver 不在 (理論上 donor leader は常に居るが防御的に) なら attitude 0 とする。
+  const attitude = approverPersonId !== undefined ? attitudeScore : 0
+  return (
+    config.landGrantAcceptThreshold * 0 + // base = 0 (閾値は呼出側で比較)
+    attitude * config.landGrantApproverAttitudeWeight +
+    reputation * config.landGrantPetitionerReputationWeight +
+    projectProgress * config.landGrantProjectProgressWeight
+  )
 }

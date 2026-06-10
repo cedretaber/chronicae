@@ -10,7 +10,12 @@ import type {
   LandClaimProject,
   ContractRevisionProject,
   RespondToPressureProject,
+  RequestLandGrantProject,
 } from '../types/project'
+import { applyLandGrantMut } from '../mutations/landGrantMutations'
+import { resolveLandGrantDonor, computeLandGrantAcceptScore } from '../selectors/petitionSelectors'
+import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
+import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { EventId, PersonId, ProjectId } from '../types/ids'
 import type { PressureKind } from '../types/pressure'
@@ -65,8 +70,15 @@ export function runProjectStageSystem(ctx: TickContext): TickContext {
 
   const ws: WorldState = {
     ...ctx.state,
+    // v0.47: finalize_* ハンドラが House/Polity を作るため ctx の採番カウンタを ws に seed する
+    //   (createTickContext が正本として保持。返却時に ctx へ書き戻す)。
+    nextHouseIndex: ctx.nextHouseIndex,
+    nextPolityIndex: ctx.nextPolityIndex,
     projects: { ...ctx.state.projects },
     polities: { ...ctx.state.polities },
+    houses: { ...ctx.state.houses },
+    persons: { ...ctx.state.persons },
+    officeAssignments: { ...ctx.state.officeAssignments },
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
     aims: { ...ctx.state.aims },
     holdingOfficeAssignments: { ...ctx.state.holdingOfficeAssignments },
@@ -111,6 +123,9 @@ export function runProjectStageSystem(ctx: TickContext): TickContext {
     state: ws,
     events: [...ctx.events, ...newEvents],
     nextEventIndex,
+    // v0.47: finalize_* ハンドラが進めた採番カウンタを ctx へ書き戻す (toResult が state へ永続化)。
+    nextHouseIndex: ws.nextHouseIndex ?? ctx.nextHouseIndex,
+    nextPolityIndex: ws.nextPolityIndex ?? ctx.nextPolityIndex,
   }
 }
 
@@ -170,7 +185,122 @@ function resolveImmediateStage(
     return resolveProposalInitialOffer(ws, config, project, projectId)
   }
 
+  // v0.47 §9.7: 分封 petition の解決。
+  if (project.kind === 'request_land_grant' && project.currentStageKey === 'finalize_land_grant') {
+    return resolveFinalizeLandGrant(ws, config, project, projectId, emitEvent)
+  }
+
   return false
+}
+
+// v0.47 §9.7: 分封 petition の accept/reject 判定と成功 mutation。
+function resolveFinalizeLandGrant(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: RequestLandGrantProject,
+  projectId: ProjectId,
+  emitEvent: (input: CreateSimEventInput) => void,
+): boolean {
+  const petitionerId = project.petitionerPersonId
+
+  function failProject(reason: 'no_supervisor' | 'opponent_too_strong'): boolean {
+    ws.projects[projectId] = { ...project, status: 'failed', terminalReason: reason }
+    // aim cooldown 設定 (再請願までの間隔)。
+    if (project.origin.kind === 'aim') {
+      const aim = ws.aims[project.origin.aimId]
+      if (aim) {
+        ws.aims[project.origin.aimId] = {
+          ...aim,
+          nextProjectAllowedWeek: ws.absoluteWeek + config.landGrantRetryCooldownWeeks,
+        }
+      }
+    }
+    const ownerNameKey = getOwnerNameKey(ws, project.owner)
+    emitEvent({
+      type: 'PROJECT_FAILED',
+      importance: 'minor',
+      messageKey: 'project.failed.no_supervisor',
+      messageParams: {
+        owner: nameParam(getOwnerNameRefForEmit(ws, project.owner).category, ownerNameKey),
+        kind: project.kind,
+      },
+      entityRefs: [],
+    })
+    return true
+  }
+
+  // HARD gate 再検査 (donor / holding を fresh に解決)。
+  const resolved = resolveLandGrantDonor(ws, config, petitionerId)
+  if (!resolved) return failProject('opponent_too_strong')
+
+  // SOFT accept: approver (donor leader) の petitioner への attitude を主項に判定。
+  const approverId = project.approverPersonId
+  let attitudeScore = 0
+  if (approverId !== undefined) {
+    const approver = ws.persons[approverId]
+    if (approver) {
+      const att = getAttitudeOrDefault(ws, approver, { kind: 'person', id: petitionerId })
+      attitudeScore = 0.7 * att.affection + 0.3 * att.respect
+    }
+  }
+  const acceptScore = computeLandGrantAcceptScore(
+    ws,
+    config,
+    petitionerId,
+    approverId,
+    project.progress,
+    attitudeScore,
+  )
+  // approver 不在は auto-grant、それ以外は閾値比較。
+  const accepted = approverId === undefined || acceptScore >= config.landGrantAcceptThreshold
+  if (!accepted) return failProject('opponent_too_strong')
+
+  // 成功 mutation。
+  const petitioner = ws.persons[petitionerId]
+  const result = applyLandGrantMut(ws, config, {
+    petitionerPersonId: petitionerId,
+    donorPolityId: resolved.donorPolityId,
+    holdingId: resolved.holdingId,
+    ...(petitioner?.houseId !== undefined && { parentHouseId: petitioner.houseId }),
+  })
+  if (!result) return failProject('opponent_too_strong')
+
+  // applyLandGrantMut が返した state を ws へ反映 (mutable draft なので各 field を写す)。
+  Object.assign(ws, result.ws)
+
+  ws.projects[projectId] = { ...project, status: 'completed', terminalReason: 'completed' }
+
+  const isCadet = petitioner?.houseId !== undefined
+  const newHouse = ws.houses[result.newHouseId]
+  const newPolityRef = getPolityNameRefForEmit(ws, result.newPolityId)
+  const petitionerNameKey = ws.persons[petitionerId]?.nameKey ?? petitionerId
+  emitEvent({
+    type: isCadet ? 'CADET_BRANCH_FOUNDED_BY_LAND_GRANT' : 'HOUSE_FOUNDED_BY_LAND_GRANT',
+    importance: 'normal',
+    messageKey: isCadet ? 'house.cadet_founded_by_land_grant' : 'house.founded_by_land_grant',
+    messageParams: {
+      person: nameParam('person', petitionerNameKey),
+      house: nameParam('house', newHouse?.nameKey ?? result.newHouseId),
+    },
+    entityRefs: [
+      entityRef('person', petitionerId, 'founder', petitionerNameKey),
+      entityRef('house', result.newHouseId, 'house', newHouse?.nameKey),
+    ],
+  })
+  emitEvent({
+    type: 'POLITY_GRANTED',
+    importance: 'normal',
+    messageKey: 'polity.granted',
+    messageParams: {
+      person: nameParam('person', petitionerNameKey),
+      polity: nameParam(newPolityRef.category, newPolityRef.nameKey),
+    },
+    entityRefs: [
+      entityRef('polity', result.newPolityId, 'polity', newPolityRef.nameKey),
+      entityRef('person', petitionerId, 'founder', petitionerNameKey),
+    ],
+  })
+  return true
 }
 
 function resolveFindSupervisor(

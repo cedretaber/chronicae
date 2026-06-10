@@ -38,6 +38,9 @@ house:
   policy_influence: '{{house}}は{{polity}}の政策に影響を及ぼした。'
   patronized_artist: '{{house}}は芸術家を後援し、威信を高めた。'
   commissioned_chronicle: '{{house}}は年代記の編纂を命じた。'
+  founded_by_land_grant: '{{person}}は分封を受け、新たな家門{{house}}を興した。'
+  cadet_founded_by_land_grant: '{{person}}は分封を受け、分家{{house}}を立てた。'
+  founded_in_republic: '{{person}}は共和国で財を成し、家門{{house}}を興した。'
 
 polity:
   leader_changed: '{{person}}が{{polity}}の新たな統治者となった。'
@@ -51,6 +54,10 @@ polity:
   land_developed: '{{polity}}が{{province}}の開発に投資した。'
   titularized: '{{polity}}は領土を失い、称号のみを残す名目上の存在となった。'
   abolished: '{{polity}}の称号は廃された。'
+  granted: '{{person}}に分封され、{{polity}}が新たに立てられた。'
+  rank_promoted: '{{polity}}は陞爵し、{{rank}}に昇った。'
+  title_transferred: '{{polity}}の称号が分家に譲られた。'
+  consolidated: '{{house}}は所領を{{polity}}に集約した。'
 
 succession:
   crisis: '{{house}}で継承危機が勃発した！'

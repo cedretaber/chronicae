@@ -10,6 +10,7 @@ import type { AbilityKey } from '../types/person'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 import { getPersonGoalFulfillment } from './personGoalSelectors'
+import { resolveLandGrantDonor } from './petitionSelectors'
 
 const PERSON_AIM_KINDS: readonly PersonAimKind[] = [
   'increase_house_influence',
@@ -253,6 +254,28 @@ export function scorePersonAimKind(
         results.push({ kind, score, target })
       } else {
         results.push({ kind, score })
+      }
+    }
+  }
+
+  // v0.47 §9.1: 分封願い (request_land_grant)。HARD gate (本人資格 + donor + 対象 holding) を満たす
+  //   人物が、自立志向の goal (personal_advancement / wealth_building) に応じて願う。
+  if (
+    goal.kind === 'personal_advancement' ||
+    goal.kind === 'wealth_building' ||
+    goal.kind === 'house_loyalty'
+  ) {
+    const donor = resolveLandGrantDonor(state, config, personId)
+    if (donor) {
+      const ambition = person.traits.ambition
+      const base = goal.kind === 'house_loyalty' ? 14 : 22
+      const landGrantScore = base + ambition * 0.2 - fulfillmentPenalty
+      if (landGrantScore > 0) {
+        results.push({
+          kind: 'request_land_grant',
+          score: landGrantScore,
+          target: { kind: 'polity', id: donor.donorPolityId },
+        })
       }
     }
   }

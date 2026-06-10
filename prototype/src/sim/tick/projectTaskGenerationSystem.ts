@@ -38,6 +38,18 @@ const PREPARATORY_TASK_KIND_MAP: Record<string, TaskKind> = {
   'improve_contract_terms:prepare_argument': 'prepare_argument',
   'demand_tax_increase:prepare_argument': 'prepare_argument',
   'respond_to_pressure:prepare_response': 'prepare_argument',
+  // v0.47 §3.6: petition 系 Project の preparatory stage は汎用 prepare_project / advance_project に
+  //   落とす (未登録だと projectTaskGenerationSystem が task を生成せず stall するため明示登録が必須)。
+  //   stage 前進は task kind ではなく stage type で駆動される (taskSystem の project 完了 routing)。
+  'request_rank_promotion:prepare_petition': 'prepare_project',
+  'request_rank_promotion:build_case': 'advance_project',
+  'request_land_grant:prepare_petition': 'prepare_project',
+  'request_land_grant:build_case': 'advance_project',
+  'request_cadet_branch_title_transfer:secure_family_support': 'prepare_project',
+  'request_cadet_branch_title_transfer:negotiate_title_share': 'advance_project',
+  'republic_house_foundation:prepare_foundation': 'prepare_project',
+  'consolidate_internal_contracts:review_internal_contracts': 'prepare_project',
+  'consolidate_internal_contracts:negotiate_internal_terms': 'advance_project',
 }
 
 function getPreparatoryTaskKind(

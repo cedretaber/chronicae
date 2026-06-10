@@ -1099,6 +1099,7 @@ export type SimulationConfig = {
   landGrantGrantorMinRemainingHoldingCount: number
   landGrantInitialTreasury: number
   landGrantInitialLegacyPrestige: number
+  landGrantContractTaxRate: number
   landGrantAcceptThreshold: number
   landGrantApproverAttitudeWeight: number
   landGrantPetitionerReputationWeight: number
@@ -2280,6 +2281,7 @@ export const defaultConfig: SimulationConfig = {
   landGrantGrantorMinRemainingHoldingCount: 2,
   landGrantInitialTreasury: 100,
   landGrantInitialLegacyPrestige: 10,
+  landGrantContractTaxRate: 0.5,
   landGrantAcceptThreshold: 50,
   landGrantApproverAttitudeWeight: 0.4,
   landGrantPetitionerReputationWeight: 0.3,
