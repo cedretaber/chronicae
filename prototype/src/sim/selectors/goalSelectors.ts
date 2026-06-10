@@ -22,6 +22,7 @@ import { getPersonReputationModifierForCategories } from './personReputationSele
 import { hasActiveHoldingOffice, getHouseDecisionMaker } from './officeSelectors'
 import { isRoleEligibleBySex } from './roleEligibilitySelectors'
 import { findAcquirableRightTarget } from './politicalRightSelectors'
+import { isEstablishedCommonwealthRepublic } from './republicSelectors'
 import {
   getPolityTerminalProvinceIds,
   getProvinceHoldings,
@@ -666,10 +667,15 @@ function pickHouseAim(
       if (influencePercent < lower || influencePercent >= upper) continue
       const rightTarget = findAcquirableRightTarget(state, config, houseId, pid)
       if (!rightTarget) continue
+      // v0.46 §5.4: established commonwealth 共和国の権利取得を加点し、共和国内部の
+      //   政治競争 (家による右取得) を促す (normal polity は不変)。
+      const republicBonus = isEstablishedCommonwealthRepublic(state, pid)
+        ? config.republicAcquireRightBaseBonus
+        : 0
       candidates.push({
         kind: 'acquire_political_right',
         target: { kind: 'political_right_target', target: rightTarget },
-        score: 20 + influencePercent * 0.2,
+        score: 20 + influencePercent * 0.2 + republicBonus,
       })
     }
   }

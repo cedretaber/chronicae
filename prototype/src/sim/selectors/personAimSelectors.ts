@@ -1,5 +1,6 @@
 import type { WorldState } from '../types/world'
 import { getHousePolityIds, getPersonPrimaryPolityId } from './polityRelations'
+import { getRepublicFootholdPolityIds } from './republicSelectors'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { PersonId } from '../types/ids'
 import type { PersonAimKind, Goal, EntityRef } from '../types/goal'
@@ -146,7 +147,13 @@ export function scorePersonAimKind(
             // Try polity offices
             // v0.42c: 旧実装は polity share 走査で家の関連 polity を探していた (share 全廃で dead)。
             // 家が土地で関与する polity (getHousePolityIds) を走査する。
-            for (const polityId of getHousePolityIds(state, person.houseId)) {
+            // v0.46 §5.3: established commonwealth 共和国は ownerHouse が無く getHousePolityIds に
+            //   出ないため、本人/家が foothold を持つ共和国を追加する (normal polity は不変)。
+            const polityCandidateIds = [...getHousePolityIds(state, person.houseId)]
+            for (const pid of getRepublicFootholdPolityIds(state, person.id)) {
+              if (!polityCandidateIds.includes(pid)) polityCandidateIds.push(pid)
+            }
+            for (const polityId of polityCandidateIds) {
               for (const role of roles) {
                 let alreadyHolds = false
                 for (const oaId of holderOfficeIds) {

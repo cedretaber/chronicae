@@ -178,6 +178,55 @@ export function getRepublicPoliticalCandidatePersons(
     .sort((a, b) => (a as string).localeCompare(b))
 }
 
+// person が foothold (足がかり) を持つ established commonwealth 共和国の polityId を返す
+// (§5.3.3)。obtain_office の commonwealth 向け target 拡張で使う。foothold =
+//   - 本人が active な polity office を持つ
+//   - 本人が personal PoliticalRight を持つ
+//   - 本人の House が PoliticalRight を持つ / House member が polity office を持つ
+// established commonwealth 共和国のみに絞る (normal polity は従来の土地ベース候補のまま)。
+// 返却は polityId 昇順で決定的。RNG 不使用。
+export function getRepublicFootholdPolityIds(state: WorldState, personId: PersonId): PolityId[] {
+  const person = state.persons[personId]
+  if (!person) return []
+  const result = new Set<string>()
+  const addIfRepublic = (pid: PolityId | undefined): void => {
+    if (pid && isEstablishedCommonwealthRepublic(state, pid)) result.add(pid)
+  }
+
+  // 本人の active polity office
+  for (const oid of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+    const o = state.officeAssignments[oid]
+    if (o && o.active && o.organization.kind === 'polity') addIfRepublic(o.organization.id)
+  }
+  // 本人の personal PoliticalRight
+  for (const rid of state.politicalRightIndex.byHolder[
+    politicalRightHolderKey({ kind: 'person', id: personId })
+  ] ?? []) {
+    const r = state.politicalRights[rid]
+    if (r) addIfRepublic(r.polityId)
+  }
+  // House-level foothold (house right + member office)
+  if (person.houseId) {
+    const house = state.houses[person.houseId]
+    if (house) {
+      for (const rid of state.politicalRightIndex.byHolder[
+        politicalRightHolderKey({ kind: 'house', id: person.houseId })
+      ] ?? []) {
+        const r = state.politicalRights[rid]
+        if (r) addIfRepublic(r.polityId)
+      }
+      for (const memberId of house.memberIds) {
+        for (const oid of state.officeIndex.byHolderPerson[memberId as string] ?? []) {
+          const o = state.officeAssignments[oid]
+          if (o && o.active && o.organization.kind === 'polity') addIfRepublic(o.organization.id)
+        }
+      }
+    }
+  }
+
+  return (Array.from(result) as PolityId[]).sort((a, b) => (a as string).localeCompare(b))
+}
+
 // ---------------------------------------------------------------------------
 // 用途別 scoring (§4.2)。RNG 不使用・house 非依存 (houseless 候補にも使える)。
 // 性別役職適格 (isRoleEligibleBySex) は score に混ぜず、呼出側の最終フィルタで適用する。

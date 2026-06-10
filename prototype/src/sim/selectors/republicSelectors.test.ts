@@ -28,6 +28,7 @@ import {
   getRepublicFoundingWeek,
   getRepublicPoliticalCandidatePersons,
   getRepublicPowerProfile,
+  getRepublicFootholdPolityIds,
 } from './republicSelectors'
 
 const config = defaultConfig
@@ -305,5 +306,51 @@ describe('getRepublicPowerProfile', () => {
     const { state, polityId } = makeRepublicFixture()
     const profile = getRepublicPowerProfile(state, config, polityId)
     expect(profile.effectiveHolderCount).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('getRepublicFootholdPolityIds', () => {
+  it('本人が office を持つ共和国を返す', () => {
+    const { state, polityId, adminId } = makeRepublicFixture()
+    // adminId は administrator office を持つ (fixture)。
+    expect(getRepublicFootholdPolityIds(state, adminId)).toContain(polityId)
+  })
+
+  it('本人が personal right を持つ共和国を返す', () => {
+    const { state, polityId, adminId } = makeRepublicFixture()
+    const result = createPoliticalRight(state, {
+      polityId,
+      holder: { kind: 'person', id: adminId },
+      target: { kind: 'polity_office_role', polityId, role: 'treasurer', slotIndex: 0 },
+      grantedWeek: 0,
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(getRepublicFootholdPolityIds(result.value.state, adminId)).toContain(polityId)
+  })
+
+  it('normal polity の office は foothold に含めない', () => {
+    // normal polity に office を持つ person は republic foothold を持たない。
+    let state = makeEmptyV016State()
+    const cId = createPolityId('c', 5)
+    const houseId = createHouseId('h', 5)
+    const personId = createPersonId('pe', 50)
+    state = withProvince(state, createProvinceId('p', 5), {})
+    state = withPolity(state, cId, { kind: 'normal' })
+    state = withHouse(state, houseId, {})
+    state = withPerson(state, personId, { houseId })
+    state = createOfficeAssignment(state, { kind: 'polity', id: cId }, 'administrator', personId)
+    expect(getRepublicFootholdPolityIds(state, personId)).toEqual([])
+  })
+
+  it('foothold の無い person は空配列', () => {
+    const { state, leaderId } = makeRepublicFixture()
+    // leaderId は leader office を持つ → 実は foothold。代わりに無関係 person を作る。
+    void leaderId
+    const personId = createPersonId('pe', 99)
+    const houseId = createHouseId('h', 9)
+    let s = withHouse(state, houseId, {})
+    s = withPerson(s, personId, { houseId })
+    expect(getRepublicFootholdPolityIds(s, personId)).toEqual([])
   })
 })
