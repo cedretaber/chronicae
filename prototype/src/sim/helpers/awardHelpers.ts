@@ -8,7 +8,7 @@
 // - 評判は abs(baseScore) <= cleanupThreshold なら作成しない (§4.4)。
 
 import type { WorldState } from '../types/world'
-import type { PersonId, EventId } from '../types/ids'
+import type { PersonId, EventId, PolityId } from '../types/ids'
 import type { AbilityKey } from '../types/person'
 import type { Project, ProjectKind } from '../types/project'
 import type { DiplomaticPlay, DiplomaticPlayTerminalOutcome } from '../types/diplomaticPlay'
@@ -32,6 +32,9 @@ import { computeReputationExpiryWeek } from '../selectors/personReputationSelect
 import { addPersonReputationMut } from '../mutations/personReputationMutations'
 import { nameParam, entityRef } from '../types/event'
 import { isNotablePerson } from '../selectors/notablePersonSelectors'
+import { getPolityHouseIds } from '../selectors/polityRelations'
+import { getFactionActiveMemberIds } from '../selectors/factionSelectors'
+import { getPolityLeader } from '../selectors/officeSelectors'
 
 export type AbilityWeights = Partial<Record<AbilityKey, number>>
 
@@ -327,6 +330,11 @@ export function awardWarOutcomeCtx(ctx: TickContext, war: War): TickContext {
     // target polity を集める。primary actor が polity なら target=self で 1 個 (dedupe)。
     // primary actor が house のときだけ、その陣営の participants から最初の polity を target に
     // 追加し owner=house + target=polity の dual にする (家の戦功が陣営 polity の influence を生む)。
+    //
+    // v0.47.1: tag は受賞者本人が所属する organization に限る。指揮官プールは支援国の宮廷
+    // 人材・派閥食客を含む (v0.43) ため、無所属の tag を許すと「友軍として従軍しただけの
+    // 外国家」が当該 polity の influence (声望 domain) を持ってしまう。所属 tag が 1 つも
+    // 残らない受賞者には tag 無し評判 (名声のみ — influence に入らない) を与える。
     const reputationOrgs = collectWarSideReputationOrganizations(side)
     for (const recipient of recipients) {
       rng = applyImmediateAbilityGrowthMut(
@@ -342,7 +350,12 @@ export function awardWarOutcomeCtx(ctx: TickContext, war: War): TickContext {
       if (reputationBase !== undefined) {
         const baseScore = reputationBase * recipient.factor
         const source = { kind: 'war' as const, warId: war.id }
-        if (reputationOrgs.length === 0) {
+        const affiliatedOrgs = reputationOrgs.filter((org) =>
+          org.kind === 'house'
+            ? ws.persons[recipient.personId]?.houseId === org.id
+            : isPersonAffiliatedWithPolityForReputation(ws, recipient.personId, org.id),
+        )
+        if (affiliatedOrgs.length === 0) {
           awardPersonReputationMut(
             ws,
             config,
@@ -350,7 +363,7 @@ export function awardWarOutcomeCtx(ctx: TickContext, war: War): TickContext {
             emitEvent,
           )
         } else {
-          for (const org of reputationOrgs) {
+          for (const org of affiliatedOrgs) {
             awardPersonReputationMut(
               ws,
               config,
@@ -376,6 +389,34 @@ export function awardWarOutcomeCtx(ctx: TickContext, war: War): TickContext {
     events: newEvents.length > 0 ? [...ctx.events, ...newEvents] : ctx.events,
     nextEventIndex,
   }
+}
+
+// v0.47.1: 戦功評判の polity tag を許す「所属」判定。polity tag された評判はその polity の
+// influence (声望 domain) に所属確認なしで合算される (influenceSelectors) ため、tag 付与側で
+// 所属を gate する。所属 = polity leader / 当該 polity の active office holder /
+// 家が getPolityHouseIds に入る (領地・支配チェーン) / 当該 polity anchor の active 派閥メンバー
+// (食客 — 個人 influence の coldstart 経路として意図的に含める)。
+// 支援国から従軍しただけの人物はどれにも該当せず false (= tag 無し評判に落ちる)。
+export function isPersonAffiliatedWithPolityForReputation(
+  state: WorldState,
+  personId: PersonId,
+  polityId: PolityId,
+): boolean {
+  if (getPolityLeader(state, polityId) === personId) return true
+  for (const officeId of state.officeIndex.byHolderPerson[personId as string] ?? []) {
+    const office = state.officeAssignments[officeId]
+    if (office && office.active && office.organization.kind === 'polity') {
+      if (office.organization.id === polityId) return true
+    }
+  }
+  const houseId = state.persons[personId]?.houseId
+  if (houseId !== undefined && getPolityHouseIds(state, polityId).includes(houseId)) return true
+  for (const factionId of state.factionIndex.byPolity[polityId] ?? []) {
+    const faction = state.factions[factionId]
+    if (!faction || !faction.active) continue
+    if (getFactionActiveMemberIds(state, factionId).includes(personId)) return true
+  }
+  return false
 }
 
 // 影響力個人中心化 Phase 1a (dual-tag・R28): War side の戦功評判を tag する organization を集める。

@@ -12,6 +12,8 @@ import {
   createProvinceId,
   createDiplomaticPlayId,
   createWarId,
+  createFactionId,
+  createFactionMembershipId,
 } from '../types/ids'
 import type { PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
@@ -302,5 +304,183 @@ describe('awardWarOutcomeCtx (§8)', () => {
   it('cancelled: 評判なし (固定小経験のみ)', () => {
     const result = awardWarOutcomeCtx(makeCtx(makeState()), makeWar('cancelled'))
     expect(Object.keys(result.state.personReputations)).toHaveLength(0)
+  })
+})
+
+// v0.47.1: 戦功評判 tag の所属 gate。支援国から従軍しただけの人物 (当該 polity に
+// 所属を持たない) には polity/house tag を付けず、tag 無し評判 (名声のみ) に落とす。
+describe('awardWarOutcomeCtx: 評判 tag の所属 gate (v0.47.1)', () => {
+  const polityC = createPolityId('dp', 2)
+  const houseC = createHouseId('dh', 2)
+  const supporterS = createPersonId('pe', 3)
+  const rebelHouse = createHouseId('dh', 3)
+  const rebelLeader = createPersonId('pe', 4)
+
+  function makeStateWithSupporter(): WorldState {
+    let state = makeState()
+    state = withHouse(state, houseC, { seatProvinceId: provinceId })
+    state = withPerson(state, supporterS, { houseId: houseC })
+    state = withPolity(state, polityC, { ownerHouseId: houseC, capitalProvinceId: provinceId })
+    state = withHouse(state, rebelHouse, { seatProvinceId: provinceId })
+    state = withPerson(state, rebelLeader, { houseId: rebelHouse })
+    return state
+  }
+
+  function makeCtx2(state: WorldState): TickContext {
+    return {
+      state,
+      rng: createRng('test'),
+      config: testConfig,
+      events: [],
+      nextEventIndex: 0,
+      deathsThisTick: [],
+      deathRolesThisTick: {},
+      nextPersonIndex: 10,
+      nextHouseIndex: 10,
+      nextPolityIndex: 10,
+    }
+  }
+
+  function repTagsByPerson(ws: WorldState): Record<string, (string | undefined)[]> {
+    const out: Record<string, (string | undefined)[]> = {}
+    for (const rep of Object.values(ws.personReputations)) {
+      if (!rep) continue
+      const key = rep.personId as string
+      const tag = rep.relatedOrganization
+        ? `${rep.relatedOrganization.kind}:${rep.relatedOrganization.id as string}`
+        : undefined
+      out[key] = [...(out[key] ?? []), tag]
+    }
+    return out
+  }
+
+  it('支援国出身の指揮官は tag 無し評判のみ (primary polity tag を受けない)', () => {
+    const war: War = {
+      id: createWarId(1),
+      attacker: {
+        key: 'attacker',
+        participants: [
+          { actor: { kind: 'polity', id: polityA }, joinedWeek: 0, primary: true },
+          { actor: { kind: 'polity', id: polityC }, joinedWeek: 0, primary: false },
+        ],
+        captainGeneralPersonId: delegateA,
+        commanderPersonIds: [commanderC, supporterS],
+        avoidanceCount: 0,
+      },
+      defender: {
+        key: 'defender',
+        participants: [{ actor: { kind: 'polity', id: polityB }, joinedWeek: 0, primary: true }],
+        captainGeneralPersonId: delegateB,
+        commanderPersonIds: [],
+        avoidanceCount: 0,
+      },
+      warGoals: [],
+      warScore: 0,
+      targetWarScore: 100,
+      status: 'attacker_won',
+      startedWeek: 0,
+    } as unknown as War
+    const result = awardWarOutcomeCtx(makeCtx2(makeStateWithSupporter()), war)
+    const tags = repTagsByPerson(result.state)
+    // 自国 (ownerHouse 経由で polityA 所属) の captain / commander は polityA tag
+    expect(tags[delegateA as string]).toEqual([`polity:${polityA as string}`])
+    expect(tags[commanderC as string]).toEqual([`polity:${polityA as string}`])
+    // 支援国 polityC の人物は polityA に所属が無い → tag 無し評判 1 件のみ
+    expect(tags[supporterS as string]).toEqual([undefined])
+  })
+
+  it('house-primary 側: 家 tag は当該家メンバーのみ・polity tag は所属者のみ', () => {
+    const war: War = {
+      id: createWarId(2),
+      attacker: {
+        key: 'attacker',
+        participants: [
+          { actor: { kind: 'house', id: rebelHouse }, joinedWeek: 0, primary: true },
+          { actor: { kind: 'polity', id: polityA }, joinedWeek: 0, primary: false },
+        ],
+        captainGeneralPersonId: rebelLeader,
+        commanderPersonIds: [commanderC, supporterS],
+        avoidanceCount: 0,
+      },
+      defender: {
+        key: 'defender',
+        participants: [{ actor: { kind: 'polity', id: polityB }, joinedWeek: 0, primary: true }],
+        captainGeneralPersonId: delegateB,
+        commanderPersonIds: [],
+        avoidanceCount: 0,
+      },
+      warGoals: [],
+      warScore: 0,
+      targetWarScore: 100,
+      status: 'attacker_won',
+      startedWeek: 0,
+    } as unknown as War
+    const result = awardWarOutcomeCtx(makeCtx2(makeStateWithSupporter()), war)
+    const tags = repTagsByPerson(result.state)
+    // rebelLeader は rebelHouse メンバー → house tag のみ (polityA に所属なし)
+    expect(tags[rebelLeader as string]).toEqual([`house:${rebelHouse as string}`])
+    // commanderC は houseA (polityA owner) → polity tag のみ (rebelHouse 非メンバー)
+    expect(tags[commanderC as string]).toEqual([`polity:${polityA as string}`])
+    // supporterS はどちらにも所属なし → tag 無し
+    expect(tags[supporterS as string]).toEqual([undefined])
+  })
+
+  it('anchor 派閥の active メンバー (食客) は polity tag を受けられる', () => {
+    let state = makeStateWithSupporter()
+    const factionId = createFactionId(0)
+    const membershipId = createFactionMembershipId(0)
+    state = {
+      ...state,
+      factions: {
+        ...state.factions,
+        [factionId]: {
+          id: factionId,
+          leaderPersonId: delegateA,
+          polityId: polityA,
+          active: true,
+          foundingWeek: 0,
+        },
+      },
+      factionMemberships: {
+        ...state.factionMemberships,
+        [membershipId]: {
+          id: membershipId,
+          factionId,
+          personId: supporterS,
+          active: true,
+          joinedWeek: 0,
+        },
+      },
+      factionIndex: {
+        ...state.factionIndex,
+        byPolity: { ...state.factionIndex.byPolity, [polityA]: [factionId] },
+        byMember: { ...state.factionIndex.byMember, [supporterS]: [membershipId] },
+      },
+    }
+    const war: War = {
+      id: createWarId(3),
+      attacker: {
+        key: 'attacker',
+        participants: [{ actor: { kind: 'polity', id: polityA }, joinedWeek: 0, primary: true }],
+        captainGeneralPersonId: delegateA,
+        commanderPersonIds: [supporterS],
+        avoidanceCount: 0,
+      },
+      defender: {
+        key: 'defender',
+        participants: [{ actor: { kind: 'polity', id: polityB }, joinedWeek: 0, primary: true }],
+        captainGeneralPersonId: delegateB,
+        commanderPersonIds: [],
+        avoidanceCount: 0,
+      },
+      warGoals: [],
+      warScore: 0,
+      targetWarScore: 100,
+      status: 'attacker_won',
+      startedWeek: 0,
+    } as unknown as War
+    const result = awardWarOutcomeCtx(makeCtx2(state), war)
+    const tags = repTagsByPerson(result.state)
+    expect(tags[supporterS as string]).toEqual([`polity:${polityA as string}`])
   })
 })

@@ -1629,7 +1629,7 @@ active War の warScore が閾値に達したら終結させ、WarGoal を state
 
 戦争被害（treasury / unrest / 荒廃 / 厭戦）は適用しない（将来再設計）。
 
-**成果経験・評判付与（v0.44）**: attacker_won / defender_won / white_peace の各終結サイトで `awardWarOutcomeCtx` を呼び、両 side の captain general + 現場指揮官に即時成長 + military 評判を付与する（§6.66。white_peace は経験のみ）。
+**成果経験・評判付与（v0.44）**: attacker_won / defender_won / white_peace の各終結サイトで `awardWarOutcomeCtx` を呼び、両 side の captain general + 現場指揮官に即時成長 + military 評判を付与する（§6.66。white_peace は経験のみ）。v0.47.1: 評判の organization tag は受賞者の所属に限定する（支援国出身指揮官は tag 無し評判=名声のみ。§6.64a-(3) 所属 gate）。
 
 ### 6.47 cancelOrphanedWarsSystem（毎週）
 
@@ -2060,7 +2060,13 @@ target organization の両方**に評判レコードを生成する（owner==tar
 influence** の両方を生む。target 導出: project は kind 別（acquire/promote→polityId・
 develop→holdingTerminalPolity・movement→targetPolityId・patronize/commission/personal_training→
 target なし）/ war は primary actor が house なら陣営 polity を target に追加 / play は v1 は現行
-（自陣 actor）のみ。外交 project kind（respond_to_pressure）は project-outcome 経路で評判を生成せず
+（自陣 actor）のみ。**v0.47.1 — war 戦功 tag の所属 gate**: war の評判 tag は受賞者本人が所属する
+organization に限定する（house tag=当該家メンバーのみ / polity tag=`isPersonAffiliatedWithPolityForReputation`
+— polity leader・当該 polity の active office holder・家が `getPolityHouseIds` に入る・anchor 派閥の
+active メンバー（食客＝個人 influence coldstart として意図的に許容）のいずれか）。指揮官プールは
+支援国の宮廷人材・派閥食客を含む（v0.43）ため、gate しないと「友軍として従軍しただけの外国家」が
+当該 polity（特に建国叛乱戦争の commonwealth）の influence を声望 domain で保有してしまう。
+所属 tag が 1 つも残らない受賞者には tag 無し評判（名声のみ — influence / Share に入らない）を与える。外交 project kind（respond_to_pressure）は project-outcome 経路で評判を生成せず
 Play 側（§6.66）で評価するため、ここには含めない。
 
 **(4) 役職 influence の個人帰属**: 役職（office domain）・person 保有任命権（regiment/holding_office/
