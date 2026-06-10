@@ -155,30 +155,34 @@ echo "All 4 seeds finished"
 
 ### 所要時間の目安
 
-v0.45.5 時点の実測値 (16 コア・4 seed 並列 wall-clock):
+v0.47 perf 最適化後の実測値 (16 コア・4 seed 並列 wall-clock):
 
-| 年数 | 4 seed 並列 | 旧 (v0.31.1) | 倍率 |
+| 年数 | 4 seed 並列 | 旧 (v0.46 main) | 倍率 |
 |---|---|---|---|
-| 50年 | ~18 sec | ~10 sec | 1.8x |
-| 100年 | ~85 sec | ~60 sec | 1.4x |
+| 100年 | ~70 sec | ~105 sec | 0.65x |
+| 300年 | ~8 min/seed (1 seed 直列実測。4 並列は ~11 min 見込み) | ~18.5 min | — |
 
-**v0.31.1 から大幅に遅くなった主因は v0.45.4 の人口増** (highLivingPersonsFactor 3.0→4.0 で
-平衡人口 ~370→510-630)。エンティティ数が増えたうえ、後年ほど人口が蓄積するため年数に対して
-**非線形に悪化**する (参考: 300年は ~18.5 min = 3.1x まで悪化したため廃止した)。perf 最適化は機能完成後の
-バランス調整フェーズで検討する（観賞対象としての面白さを優先する現方針では、人口増は意図的なトレードオフ）。
+**v0.47 perf 最適化** (state spread の構造改善・全 bit-identical) で 100年 × 4 seed が
+105s → 68s (-35%) になった。主な内容: chronicle in-place append 化 (歴史総量×毎週 spread の
+二次コスト除去) / houseSurplus・landRevenue・factionPatronage・goalOutcome・houseShareUpdate の
+mutable-draft 化 / republic 候補列挙の家単位 memo 化 / integrity chronicle 検査の Set 化 /
+personActivityLogs の person key 2 層バケット化。後年の非線形悪化の主因 (chronicle 全 spread) が
+消えたため、長い年数ほど改善率が大きい。残る後年成長項は integrity 年末検査の O(chronicle 総量)
+走査と死者・評判の蓄積 (watermark 増分化・死者 compaction は将来候補。
+docs/drafts/perf-optimization-design.md 参照)。
 
 ### 用途別の推奨設定
 
 | 用途 | 推奨 | 所要時間 |
 |---|---|---|
-| 開発中の繰り返し確認 | 100年 × 4 seed 並列 | ~85 sec |
-| commit 前の確認 | **100年 × 4 seed 並列** | ~85 sec |
-| リリース前 | **100年 × 4 seed 並列** | ~85 sec |
+| 開発中の繰り返し確認 | 100年 × 4 seed 並列 | ~70 sec |
+| commit 前の確認 | **100年 × 4 seed 並列** | ~70 sec |
+| リリース前 | 100年 × 4 seed 並列 (+ 任意で 300年 × 1 seed) | ~70 sec (+ ~8 min) |
 | 時間計測・perf 比較 | 直列 (CPU 競合でブレるため) | — |
 
-**300年テストは全廃し 100年に統一した (v0.45.5)**。v0.45.4 の人口増で 300年が ~18.5 分まで重くなり、
-CI 時間内に収まらず・ローカルでも実用性に欠けるため、commit 前もリリース前も CI も 100年で揃える。
-100年で integrity が green なら commit / リリースしてよい。
+**commit 前ゲートは 100年に統一 (v0.45.5)。300年はリリース前の任意確認として復活 (v0.47)**。
+100年で integrity が green なら commit してよい。300年は v0.47 で ~8 min/seed まで戻ったため、
+リリース前や長期蓄積バグの疑いがあるときに 1 seed で回す価値がある (CI は引き続き 100年)。
 
 20年では検出できない長期蓄積バグが100年で顕在化した実績がある（DiplomaticPlay delegate 死亡バグ等）。開発中でも最低 100 年は確認すること。
 
