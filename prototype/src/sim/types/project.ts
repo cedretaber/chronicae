@@ -35,6 +35,8 @@ export type ProjectTerminalReason =
   | 'owner_inactive'
   | 'aim_terminal'
   | 'play_terminal'
+  // v0.47 §6.2: owner Polity が titular 化したため territorial 前提の Project を打ち切る
+  | 'owner_titularized'
 
 export type ProjectOrigin = { kind: 'aim'; aimId: AimId } | { kind: 'system'; reasonKey: string }
 

@@ -11,6 +11,7 @@ import type {
 import { OFFICE_DEFINITIONS } from '@sim/config/officeDefinitions'
 import { getPersonHouseSharePercent, getHouseShares } from '@sim/selectors/shareSelectors'
 import { isLivingPerson } from '@sim/types/person'
+import { getPolityTerritorialStatus } from '@sim/types/polity'
 import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
 import { weightedAverage } from '@sim/selectors/statusSelectors'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
@@ -328,6 +329,10 @@ export function getEffectiveOfficeMaxHolders(
   const polity = state.polities[organization.id]
   if (!polity || !polity.active) return baseMax
   if (role === 'leader') return baseMax
+
+  // v0.47 §6.5: titular Polity は leader 以外の office を持たない (effective max 0)。
+  //   毎 tick の任命→revoke churn を避けるための最後の安全網 (appointment 側でも prevention)。
+  if (getPolityTerritorialStatus(polity) === 'titular') return 0
 
   const rankRow = config.polityOfficeMaxByRank[polity.rank]
   if (!rankRow) return baseMax

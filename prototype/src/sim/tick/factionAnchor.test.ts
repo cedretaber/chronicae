@@ -148,15 +148,17 @@ describe('faction founding anchor decision (§12.2)', () => {
 })
 
 describe('anchor polity deactivation cascade (§12.3)', () => {
-  it('dissolves anchored factions immediately when the polity is deactivated', () => {
-    // founding まで通してから polity を landless 化し、polityOwnerConsistency を回す
+  it('dissolves anchored factions immediately when the polity is titularized', () => {
+    // founding まで通してから polity を landless 化し、polityOwnerConsistency を回す。
+    // v0.47 §6.1: landless rank 2〜4 normal Polity は deactivate ではなく titular 化されるが、
+    //   anchor された faction は titularizePolityInline の cleanup で同様に解散される。
     const state = makeFoundingState({ bindToHouse: true, withPolityAtSeat: true })
     const founded = runFactionLifecycleSystem(makeCtx(state))
     const faction = Object.values(founded.state.factions).find((f) => f?.active)
     expect(faction).toBeDefined()
     if (!faction) return
 
-    // polity を landless にする (LandContract を全削除 → deactivate 経路)
+    // polity を landless にする (LandContract を全削除 → titular 化経路)
     const landless: WorldState = {
       ...founded.state,
       landContracts: {},
@@ -165,7 +167,9 @@ describe('anchor polity deactivation cascade (§12.3)', () => {
     }
     const result = runPolityOwnerConsistencySystem(makeCtx(landless))
 
-    expect(result.state.polities[polityId]!.active).toBe(false)
+    // v0.47: rank 2〜4 は titular 化 (active 維持・territorialStatus='titular')
+    expect(result.state.polities[polityId]!.active).toBe(true)
+    expect(result.state.polities[polityId]!.territorialStatus).toBe('titular')
     const after = result.state.factions[faction.id]!
     expect(after.active).toBe(false)
     // membership は全削除される (deactivateFaction)

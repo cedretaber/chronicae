@@ -49,6 +49,8 @@ polity:
   extinct_lost_owner: '{{polity}}は支配家門を失い解体された。'
   landless: '{{polity}}はもはやいかなる領土も保持していない。'
   land_developed: '{{polity}}が{{province}}の開発に投資した。'
+  titularized: '{{polity}}は領土を失い、称号のみを残す名目上の存在となった。'
+  abolished: '{{polity}}の称号は廃された。'
 
 succession:
   crisis: '{{house}}で継承危機が勃発した！'

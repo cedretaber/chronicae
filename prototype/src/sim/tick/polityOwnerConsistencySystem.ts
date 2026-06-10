@@ -2,6 +2,8 @@ import type { TickContext } from './context'
 import { createSimEvent } from './context'
 import type { PolityId, HouseId, ProvinceId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
+import { getPolityTerritorialStatus } from '../types/polity'
+import { decisionSubjectKey } from '../types/goal'
 import { entityRef, nameParam } from '../types/event'
 import {
   getPolityProvinceIds,
@@ -175,6 +177,91 @@ function reassignPolityOwnership(
   }
 }
 
+function emitPolityTitularized(ctx: TickContext, polityId: PolityId): TickContext {
+  const polityRef = getPolityNameRefForEmit(ctx.state, polityId)
+  const polityName = nameParam(polityRef.category, polityRef.nameKey)
+  const { event, ctx: c1 } = createSimEvent(ctx, {
+    type: 'POLITY_TITULARIZED',
+    importance: 'normal',
+    messageKey: 'polity.titularized',
+    messageParams: { polity: polityName },
+    entityRefs: [entityRef('polity', polityId, 'polity', polityRef.nameKey)],
+  })
+  return { ...c1, events: [...c1.events, event] }
+}
+
+function emitPolityAbolished(ctx: TickContext, polityId: PolityId): TickContext {
+  const polityRef = getPolityNameRefForEmit(ctx.state, polityId)
+  const polityName = nameParam(polityRef.category, polityRef.nameKey)
+  const { event, ctx: c1 } = createSimEvent(ctx, {
+    type: 'POLITY_ABOLISHED',
+    importance: 'normal',
+    messageKey: 'polity.abolished',
+    messageParams: { polity: polityName },
+    entityRefs: [entityRef('polity', polityId, 'polity', polityRef.nameKey)],
+  })
+  return { ...c1, events: [...c1.events, event] }
+}
+
+// v0.47 §6.2: landless rank 2〜4 normal Polity を称号 (titular) 化する単一 choke point。
+// active / ownerHouseId / capitalProvinceId は維持し、leader 以外の office / right / faction anchor /
+// territorial 前提の polity-owned Project・Aim を cleanup する。Regiment は明示 disband せず
+// regimentMaintenanceSystem の owner reassign に委ねる (§6.2)。
+function titularizePolityInline(ctx: TickContext, polityId: PolityId): TickContext {
+  const polity = ctx.state.polities[polityId]
+  if (!polity) return ctx
+  let state = ctx.state
+
+  // 5. leader 以外の polity office を revoke
+  for (const role of ['administrator', 'treasurer', 'military', 'advisor'] as const) {
+    state = revokeOfficesByOrganization(state, { kind: 'polity', id: polityId }, role)
+  }
+  // 6. polity に紐づく PoliticalRight を remove
+  state = removeRightsByPolity(state, polityId)
+
+  // 1-4. territorialStatus=titular。active / ownerHouseId / capitalProvinceId は維持
+  const cur = state.polities[polityId]
+  if (cur) {
+    state = {
+      ...state,
+      polities: { ...state.polities, [polityId]: { ...cur, territorialStatus: 'titular' } },
+    }
+  }
+
+  // 8. territorial 前提の polity-owned Project / Aim を打ち切る (titular は active のため
+  //    projectMaintenance の owner_inactive cascade に乗らない → ここで明示 terminal 化)。
+  const ownerKey = decisionSubjectKey({ kind: 'polity', id: polityId })
+  const projectIds = state.projectIndex.byOwner[ownerKey] ?? []
+  if (projectIds.length > 0) {
+    const projects = { ...state.projects }
+    for (const pid of projectIds) {
+      const p = projects[pid]
+      if (p && p.status === 'active') {
+        projects[pid] = { ...p, status: 'cancelled', terminalReason: 'owner_titularized' }
+      }
+    }
+    state = { ...state, projects }
+  }
+  const aimIds = state.aimIndex.byOwner[ownerKey] ?? []
+  if (aimIds.length > 0) {
+    const aims = { ...state.aims }
+    for (const aid of aimIds) {
+      const a = aims[aid]
+      if (a && a.status === 'active') {
+        aims[aid] = { ...a, status: 'abandoned' }
+      }
+    }
+    state = { ...state, aims }
+  }
+
+  let next: TickContext = { ...ctx, state }
+  // 7. Faction anchor cleanup
+  next = dissolveFactionsAnchoredToPolity(next, polityId)
+  // 9. POLITY_TITULARIZED
+  next = emitPolityTitularized(next, polityId)
+  return next
+}
+
 function deactivatePolityInline(ctx: TickContext, polityId: PolityId): TickContext {
   const polity = ctx.state.polities[polityId]
   if (!polity) return ctx
@@ -200,18 +287,49 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
     const polity = currentCtx.state.polities[polityId]
     if (!polity || !polity.active) continue
 
-    // Step 1: provinceIds=0 なら POLITY_LANDLESS を発火し、inactive 化 + Share/Office 全削除 + POLITY_EXTINCT
+    // Step 1: landless 検出。v0.47 §6.1: normal rank 2〜4 → titular 化、rank 5 → 廃止、
+    //   commonwealth → 従来の extinct 経路 (titular 化の対象外・§2.1)。
     const provinceIds = getPolityProvinceIds(currentCtx.state, polityId)
     if (provinceIds.length === 0) {
       if (polity.kind === 'commonwealth' && polity.revoltState != null) continue
-      currentCtx = emitPolityLandless(currentCtx, polityId)
-      currentCtx = deactivatePolityInline(currentCtx, polityId)
-      currentCtx = emitPolityExtinct(
-        currentCtx,
-        polityId,
-        `${getPolityEmitNameKey(currentCtx.state, polityId)} has dissolved without remaining provinces.`,
-        'polity.extinct_no_provinces',
-      )
+
+      // v0.47 §6.4: 既に titular の Polity は安定状態。ownerHouse が断絶 (inactive/extinct) した場合のみ
+      //   abolish する。fallback owner 補充は行わない (territorial のみ)。leader 補充は successionSystem
+      //   が ownerHouse leader を選ぶため不要。
+      if (getPolityTerritorialStatus(polity) === 'titular') {
+        const oh =
+          polity.ownerHouseId !== undefined
+            ? currentCtx.state.houses[polity.ownerHouseId]
+            : undefined
+        if (!oh || !oh.active) {
+          currentCtx = deactivatePolityInline(currentCtx, polityId)
+          currentCtx = emitPolityAbolished(currentCtx, polityId)
+        }
+        continue
+      }
+
+      // commonwealth (titular 非対象) は従来の extinct 経路
+      if (polity.kind === 'commonwealth') {
+        currentCtx = emitPolityLandless(currentCtx, polityId)
+        currentCtx = deactivatePolityInline(currentCtx, polityId)
+        currentCtx = emitPolityExtinct(
+          currentCtx,
+          polityId,
+          `${getPolityEmitNameKey(currentCtx.state, polityId)} has dissolved without remaining provinces.`,
+          'polity.extinct_no_provinces',
+        )
+        continue
+      }
+
+      // v0.47 §6.1: normal landless。rank 5 → abolish (Polity のみ inactive・house 巻き込みなし)、
+      //   rank 2〜4 → titular 化。
+      if (polity.rank === 5) {
+        currentCtx = emitPolityLandless(currentCtx, polityId)
+        currentCtx = deactivatePolityInline(currentCtx, polityId)
+        currentCtx = emitPolityAbolished(currentCtx, polityId)
+      } else {
+        currentCtx = titularizePolityInline(currentCtx, polityId)
+      }
       continue
     }
 

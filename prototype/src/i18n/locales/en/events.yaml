@@ -50,6 +50,8 @@ polity:
   extinct_lost_owner: '{{polity}} has dissolved after losing its owning house.'
   landless: '{{polity}} no longer holds any land.'
   land_developed: '{{polity}} invested in land development in {{province}}.'
+  titularized: '{{polity}} lost its lands and became a titular polity, retaining only its title.'
+  abolished: 'The title of {{polity}} was abolished.'
 
 succession:
   crisis: 'A succession crisis has erupted in {{house}}!'

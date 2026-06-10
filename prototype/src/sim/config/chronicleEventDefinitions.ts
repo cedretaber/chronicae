@@ -57,6 +57,9 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   HOUSE_LEADER_CHANGED: { category: 'house' },
   // Governance
   POLITY_OWNER_CHANGED: { category: 'governance' },
+  // v0.47 称号・分封・領邦再編 (§17.2): titular 化 / 称号廃止 (governance 史)
+  POLITY_TITULARIZED: { category: 'governance' },
+  POLITY_ABOLISHED: { category: 'governance' },
   // v0.42 PoliticalRight (§17.3): 任命権・連隊管理権の授与/失効/移転。低頻度・高 signal。
   POLITICAL_RIGHT_GRANTED: { category: 'governance' },
   POLITICAL_RIGHT_REVOKED: { category: 'governance' },
