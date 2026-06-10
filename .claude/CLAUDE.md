@@ -40,7 +40,7 @@ v0.15 段階では機能拡張が続いている。各機能追加がバラン�
 
 そのため:
 
-- **必須条件**: エラーが出ずシミュレーションが継続できること (20 年 × 4 seed で integrity 違反なし。リリース前は 100 年)
+- **必須条件**: エラーが出ずシミュレーションが継続できること (150 年 × 4 seed で integrity 違反なし。リリース前は任意で 300 年 × 1 seed を追加)
 - **任意条件 (現段階では不問)**: バランスの良さ・面白さ・収束パターン (どの Polity が勝ちやすいか、houses が分裂する頻度、年あたりイベント数など)
 
 機能追加 PR ではバランスの善し悪しを判断基準にしない。
@@ -134,21 +134,18 @@ cd prototype && npm run check
 `npm run check` が通った後、CLI で複数シード × シミュレーションを実行して整合性エラーがないことを確認する。
 
 ```bash
-# 開発中の繰り返し確認（4 seed × 100年、~60秒）
+# 開発中の繰り返し確認 / commit 前の確認（4 seed × 150年、~2.5分）
 cd prototype
 for s in 1 42 123 999; do
-  node src/cli/run.mjs --years 100 --seed $s > /tmp/seed$s.log 2>&1 &
+  node src/cli/run.mjs --years 150 --seed $s > /tmp/seed$s.log 2>&1 &
 done
 wait
 echo "All 4 seeds finished"
 
-# commit 前 / リリース前の確認（4 seed × 100年、~85秒）
+# リリース前の追加確認（任意。300年 × 1 seed、~8分）
 cd prototype
-for s in 1 42 123 999; do
-  node src/cli/run.mjs --years 100 --seed $s > /tmp/seed$s.log 2>&1 &
-done
-wait
-echo "All 4 seeds finished"
+node src/cli/run.mjs --years 300 --seed 1 > /tmp/seed1_300y.log 2>&1
+echo "300y finished"
 ```
 
 エラーなく完走すれば OK。`integritySystem` が検知した違反は `Error:` で即時終了する (default では year-end のみ走るが、検知即座に throw して exit code 非 0 で停止)。
@@ -157,10 +154,14 @@ echo "All 4 seeds finished"
 
 v0.47 perf 最適化後の実測値 (16 コア・4 seed 並列 wall-clock):
 
-| 年数 | 4 seed 並列 | 旧 (v0.46 main) | 倍率 |
+| 年数 | 1 seed 直列 | 4 seed 並列 | 旧 (v0.46 main) |
 |---|---|---|---|
-| 100年 | ~70 sec | ~105 sec | 0.65x |
-| 300年 | ~8 min/seed (1 seed 直列実測。4 並列は ~11 min 見込み) | ~18.5 min | — |
+| 100年 | ~60 sec | ~70 sec (実測 68s) | ~105 sec |
+| 150年 | 2m04s (実測) | ~2.5 min 見込み | — |
+| 200年 | 3m34s (実測) | ~4 min 見込み | — |
+| 300年 | 8m18s (実測) | ~11 min 見込み | ~18.5 min |
+
+後年ほど 1 年あたりのコストが伸びる超線形性は残存 (150→200年 +90s / 200→300年 +284s)。
 
 **v0.47 perf 最適化** (state spread の構造改善・全 bit-identical) で 100年 × 4 seed が
 105s → 68s (-35%) になった。主な内容: chronicle in-place append 化 (歴史総量×毎週 spread の
@@ -175,16 +176,17 @@ docs/drafts/perf-optimization-design.md 参照)。
 
 | 用途 | 推奨 | 所要時間 |
 |---|---|---|
-| 開発中の繰り返し確認 | 100年 × 4 seed 並列 | ~70 sec |
-| commit 前の確認 | **100年 × 4 seed 並列** | ~70 sec |
-| リリース前 | 100年 × 4 seed 並列 (+ 任意で 300年 × 1 seed) | ~70 sec (+ ~8 min) |
+| 開発中の繰り返し確認 | **150年 × 4 seed 並列** | ~2.5 min |
+| commit 前の確認 | **150年 × 4 seed 並列** | ~2.5 min |
+| リリース前 | 150年 × 4 seed 並列 + 任意で 300年 × 1 seed | ~2.5 min (+ ~8 min) |
 | 時間計測・perf 比較 | 直列 (CPU 競合でブレるため) | — |
 
-**commit 前ゲートは 100年に統一 (v0.45.5)。300年はリリース前の任意確認として復活 (v0.47)**。
-100年で integrity が green なら commit してよい。300年は v0.47 で ~8 min/seed まで戻ったため、
-リリース前や長期蓄積バグの疑いがあるときに 1 seed で回す価値がある (CI は引き続き 100年)。
+**標準ゲートは 150年 × 4 seed (v0.47)**。v0.47 perf 最適化で 150年が ~2.5 分に収まるようになった
+ため、開発中・commit 前・CI の標準を 100年から 150年に引き上げた (長期蓄積バグの検出窓を 1.5 倍に拡大)。
+150年で integrity が green なら commit してよい。300年はリリース前や長期蓄積バグの疑いがあるときの
+任意確認 (~8 min/seed)。
 
-20年では検出できない長期蓄積バグが100年で顕在化した実績がある（DiplomaticPlay delegate 死亡バグ等）。開発中でも最低 100 年は確認すること。
+20年では検出できない長期蓄積バグが100年で顕在化した実績がある（DiplomaticPlay delegate 死亡バグ等）。開発中でも最低 150 年は確認すること。
 
 ### なぜ CLI 確認が必要か
 
