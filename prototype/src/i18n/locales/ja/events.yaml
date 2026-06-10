@@ -130,6 +130,7 @@ revolt:
 
 republic:
   founded: '{{leader}}の下、{{polity}}が共和国として政治体制を整え、功臣たちが要職に就いた。'
+  leader_elected: '{{polity}}で任期満了に伴う選出が行われ、{{newLeader}}が{{oldLeader}}に代わって新たな指導者となった。'
 
 diplomatic_play:
   started_with_offer: '{{initiator}}が{{target}}と{{province}}について交渉を開始した。'

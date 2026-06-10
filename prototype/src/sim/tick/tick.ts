@@ -64,6 +64,7 @@ import { runClanFormationSystem } from './clanFormationSystem'
 import { runHouselessPersonGenerationSystem } from './houselessPersonGenerationSystem'
 import { runOfficeTermSystem } from './officeTermSystem'
 import { runRepublicPoliticalInitializationSystem } from './republicPoliticalInitializationSystem'
+import { runRepublicLeadershipSystem } from './republicLeadershipSystem'
 import { runFactionLifecycleSystem } from './factionLifecycleSystem'
 import { runFactionMaintenanceSystem } from './factionMaintenanceSystem'
 import { runFactionRecruitmentSystem } from './factionRecruitmentSystem'
@@ -236,6 +237,14 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
     run: runHouseShareUpdateSystem,
+  },
+  {
+    // v0.46 §5.2.2: 任期 leader 交代。年次・AppointmentSystem より前 (交代後に同年の
+    //   AppointmentSystem が新 leader を踏まえて通常 office appointment を行える)。
+    name: 'republicLeadershipSystem',
+    intervalWeeks: WEEKS_PER_YEAR,
+    phaseOffsetWeeks: 0,
+    run: runRepublicLeadershipSystem,
   },
   {
     // v0.46 §5.1.2: AppointmentSystem の直前に置く。AppointmentSystem は commonwealth の

@@ -1074,6 +1074,10 @@ export type SimulationConfig = {
   republicWorkloadPenaltyFactor: number
   // obtain_office / acquire_political_right が共和国を target にするときの加点 (Phase C)。
   republicAcquireRightBaseBonus: number
+  // 任期 leader election (§5.2.6) の現職補正: 在任で incumbency bonus を得るが、在任年数に
+  //   比例した fatigue penalty で相殺され、いずれ挑戦者に抜かれて交代する (終身 leader 防止)。
+  republicLeaderIncumbencyBonus: number
+  republicLeaderFatiguePerYear: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2208,4 +2212,6 @@ export const defaultConfig: SimulationConfig = {
   republicLandlessHouseMemberBonus: 5,
   republicWorkloadPenaltyFactor: 4,
   republicAcquireRightBaseBonus: 15,
+  republicLeaderIncumbencyBonus: 15,
+  republicLeaderFatiguePerYear: 3,
 }

@@ -131,6 +131,7 @@ revolt:
 
 republic:
   founded: 'Under {{leader}}, {{polity}} has organized as a republic, with its leading citizens taking high office.'
+  leader_elected: 'With its term expired, {{polity}} has elected {{newLeader}} to replace {{oldLeader}} as its new leader.'
 
 diplomatic_play:
   started_with_offer: '{{initiator}} negotiates with {{target}} for {{province}}.'
