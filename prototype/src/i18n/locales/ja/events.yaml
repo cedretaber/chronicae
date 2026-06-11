@@ -73,6 +73,8 @@ office:
   assigned_polity: '{{person}}が{{polity}}の{{role}}に任命された。'
   assigned_house: '{{person}}が{{house}}の{{role}}に任命された。'
   revoked: '{{organization}}における{{role}}の職が、保持者の家門が領地を持たなくなったため解任された。'
+  revoked_houseless: '{{organization}}における{{role}}の職が、保持者が無家となり派閥の後ろ盾も失ったため解任された。'
+  revoked_capacity: '{{organization}}における{{role}}の職が、定員削減のため解任された。'
   term_ended: '{{person}}の{{role}}としての任期が終了した。'
   salary_unpaid: 役職者の給与が未払いとなった。
   salary_partially_paid: 役職者の給与が一部未払いとなった。

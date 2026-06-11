@@ -1123,18 +1123,20 @@ for each polity in active polities:
                or (right.holder is Person and office.holderPersonId === right.holder.id)):
       continue
 
-    if not person.houseId:
-      // 非 commonwealth の houseless holder は revoke
-      revokeOfficeAssignment(office.id)
-      emit OFFICE_REVOKED
-      continue
-    house = state.houses[person.houseId]
+    // v0.47.x: 無家/有家を分岐させず単一の eligibility 判定に統合する。旧実装は
+    // houseless 分岐 (if not person.houseId → 無条件 revoke) が派閥を見ておらず、下の
+    // 不変条件「active な派閥に所属する人物は eligible」を houseless だけ取りこぼしていた
+    // （factional 任命経路 getFactionalCandidateScore は house ゲートなし で着座した
+    // 無家派閥員を誤って解任していた）。house が undefined でも isFactionMember を見る。
+    house = person.houseId ? state.houses[person.houseId] : undefined
     houseEligible = house and house.active and house.id in eligibleHouseIds
     // active な派閥に所属する人物は eligible 扱い（派閥経由の任命を維持するため）
     isFactionMember = getActiveFactionMembership(state, office.holderPersonId) !== undefined
     if houseEligible or isFactionMember: continue
     revokeOfficeAssignment(office.id)
-    emit OFFICE_REVOKED
+    // 文言は原因で出し分ける: 有家 (この国に領地喪失/断絶) = office.revoked /
+    // 無家 (派閥の後ろ盾喪失) = office.revoked_houseless
+    emit OFFICE_REVOKED (messageKey = house ? 'office.revoked' : 'office.revoked_houseless')
 
   // Step 3: rank ベースの定員超過 revoke
   // polity の rank / province 数に対して getEffectiveOfficeMaxHolders を超える役職者を解任する。
@@ -1148,14 +1150,17 @@ for each polity in active polities:
     excess = assignments sorted by slotIndex desc, take (count - effectiveMax)
     for each excess assignment:
       revokeOfficeAssignment(assignment.id)
-      emit OFFICE_REVOKED
+      // 理由は rank 降格による定員削減 (領地喪失/無家ではない)
+      emit OFFICE_REVOKED (messageKey = 'office.revoked_capacity')
 ```
 
 これにより:
 - Polity Office holder は常に以下のいずれかに限定される:
   - 対象 Polity 内に Province を持つ active House の人物
   - commonwealth Polity の houseless rebel founder（`polity.kind === 'commonwealth' && !person.houseId`）
-  - active な派閥に所属する人物（派閥が解散すれば次回チェックで revoke される）
+  - active な派閥に所属する人物（**有家・無家を問わない**。無家でも factional 任命経路で
+    着座でき、派閥所属が続く限り eligible。派閥が解散すれば次回チェックで revoke される。
+    v0.47.x: 旧実装は無家を派閥に関わらず revoke していた不整合を修正）
   - polity_office_appointment right による任命者（v0.42 — right が active な間のみ）
 - Step 3 により、Polity の rank 降格時に定員超過の役職者が自動的に整理される
 - rebel founder が死亡したら `markPersonDead → revokeOfficesByHolder` 経路で Office が revoke される

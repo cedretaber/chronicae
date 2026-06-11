@@ -331,6 +331,10 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'office.assigned_house': '{{person}} was appointed as {{role}} of {{house}}.',
   'office.revoked':
     "Office of {{role}} in {{organization}} was revoked as the holder's house no longer holds province in this polity.",
+  'office.revoked_houseless':
+    'Office of {{role}} in {{organization}} was revoked as the holder, now without a house or faction backing, lost eligibility.',
+  'office.revoked_capacity':
+    'Office of {{role}} in {{organization}} was revoked due to reduced office capacity.',
   'office.term_ended': "{{person}}'s term as {{role}} ended.",
   'office.salary_unpaid': 'Salary unpaid for office holder.',
   'office.salary_partially_paid': 'Salary partially unpaid for office holder.',

@@ -63,30 +63,12 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
         }
       }
 
-      if (!person.houseId) {
-        // 非 commonwealth の houseless holder は revoke
-        const revokedState = revokeOfficeAssignment(currentCtx.state, office.id)
-        const holder = revokedState.persons[office.holderPersonId]
-        const { event, ctx: eventCtx } = createSimEvent(
-          { ...currentCtx, state: revokedState },
-          {
-            type: 'OFFICE_REVOKED',
-            importance: 'normal',
-            messageKey: 'office.revoked',
-            messageParams: {
-              role: nameParam('role', `polity_${office.role}`),
-              organization: nameParam(polityNameRef.category, polityNameRef.nameKey),
-            },
-            entityRefs: [
-              entityRef('person', office.holderPersonId, 'holder', holder?.nameKey),
-              entityRef('polity', polityId, 'organization', polityNameRef.nameKey),
-            ],
-          },
-        )
-        currentCtx = { ...eventCtx, events: [...eventCtx.events, event] }
-        continue
-      }
-      const house = currentCtx.state.houses[person.houseId]
+      // v0.47.x: 無家/有家を分岐させず単一の eligibility 判定に統合する。
+      // 旧実装は houseless 分岐 (if !person.houseId) で無条件 revoke しており、§6.32 の
+      // 不変条件「active な派閥に所属する人物は eligible」を houseless だけ取りこぼしていた
+      // (factional 経路 = getFactionalCandidateScore は house ゲートなし で着座した無家派閥員を
+      // 誤って解任していた)。house が undefined でも isFactionMember を見て保持する。
+      const house = person.houseId ? currentCtx.state.houses[person.houseId] : undefined
       const houseEligible = house && house.active && eligibleHouseIds.has(house.id)
       const isFactionMember =
         getActiveFactionMembership(currentCtx.state, office.holderPersonId) !== undefined
@@ -99,7 +81,8 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
         {
           type: 'OFFICE_REVOKED',
           importance: 'normal',
-          messageKey: 'office.revoked',
+          // 有家 (この国に領地喪失/断絶) と無家 (派閥の後ろ盾喪失) で文言を出し分ける。
+          messageKey: house ? 'office.revoked' : 'office.revoked_houseless',
           messageParams: {
             role: nameParam('role', `polity_${office.role}`),
             organization: nameParam(polityNameRef.category, polityNameRef.nameKey),
@@ -154,7 +137,8 @@ export function runOrganizationConsistencySystem(ctx: TickContext): TickContext 
           {
             type: 'OFFICE_REVOKED',
             importance: 'normal',
-            messageKey: 'office.revoked',
+            // Step 3 は rank 降格による定員削減が理由 (領地喪失/無家ではない)。
+            messageKey: 'office.revoked_capacity',
             messageParams: {
               role: nameParam('role', `polity_${office.role}`),
               organization: nameParam(polityNameRef.category, polityNameRef.nameKey),
