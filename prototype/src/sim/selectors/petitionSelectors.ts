@@ -152,6 +152,11 @@ export function meetsLandGrantPetitionerGate(
   if (person.kind === 'placeholder') return false
   if (!isLifeStageAtLeast(person.lifeStage, 'young_adulthood')) return false
   if (person.wealth < config.landGrantMinWealthForPetitioner) return false
+  // v0.47.x: house leader は新たな House を興さない (現 House を放棄して house:leader office を
+  //   dangling 化させ「leader が memberIds に居ない」整合違反を生む)。meetsCadetBranchPetitionerGate
+  //   の同等除外と対称。houseless (person.houseId === undefined) は自立路として対象外。
+  if (person.houseId !== undefined && getHouseLeader(state, person.houseId) === person.id)
+    return false
   // 実績条件: reputation 十分 OR active office holder OR active bailiff
   const reputationOk =
     getPersonTotalReputationScore(state, config, person.id) >= config.landGrantMinReputationScore

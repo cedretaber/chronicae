@@ -22,6 +22,7 @@ import { runProjectTaskGenerationSystem } from './projectTaskGenerationSystem'
 import { collectIntegrityErrors } from './integritySystem'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
+import { meetsLandGrantPetitionerGate } from '../selectors/petitionSelectors'
 import {
   makeEmptyV016State,
   withPerson,
@@ -252,5 +253,59 @@ describe('v0.47 分封 (request_land_grant) finalize', () => {
     )
     expect(tasks.length).toBe(1)
     expect(tasks[0]!.kind).toBe('prepare_project')
+  })
+})
+
+// v0.47.x: house leader は分封 petition から除外する (現 House を放棄して house:leader office を
+//   dangling 化させる整合違反 = 「house leader が memberIds に居ない」の再発防止)。
+//   meetsCadetBranchPetitionerGate の leader 除外と対称。houseless は対象外 (自立路)。
+describe('meetsLandGrantPetitionerGate: house leader 除外', () => {
+  const gateHouseId = createHouseId('h', 7)
+  const gatePolityId = createPolityId('c', 7)
+  const gateProvinceId = createProvinceId('p', 7)
+  const houseLeaderId = createPersonId('pe', 70)
+  const cadetMemberId = createPersonId('pe', 71)
+
+  // house leader と非 leader member が、同条件 (wealth 十分 + active polity office) で並ぶ state。
+  function makeGateState(): WorldState {
+    let s = makeEmptyV016State()
+    s = { ...s, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
+    s = withProvince(s, gateProvinceId, { nameKey: 'GateProvince' })
+    s = withHouse(s, gateHouseId, {
+      nameKey: 'GateHouse',
+      memberIds: [houseLeaderId, cadetMemberId],
+      seatProvinceId: gateProvinceId,
+    })
+    s = withPolity(s, gatePolityId, {
+      rank: 3,
+      ownerHouseId: gateHouseId,
+      capitalProvinceId: gateProvinceId,
+    })
+    s = bindProvinceToPolity(s, gateProvinceId, gatePolityId)
+    s = withPerson(s, houseLeaderId, { nameKey: 'GateLeader', houseId: gateHouseId, wealth: 1000 })
+    s = withPerson(s, cadetMemberId, { nameKey: 'GateCadet', houseId: gateHouseId, wealth: 1000 })
+    // house:leader office (getHouseLeader が参照する) を houseLeaderId に。
+    s = createOfficeAssignment(s, { kind: 'house', id: gateHouseId }, 'leader', houseLeaderId)
+    // 実績条件を満たすため両者に active polity office を与える。
+    s = createOfficeAssignment(s, { kind: 'polity', id: gatePolityId }, 'leader', houseLeaderId)
+    s = createOfficeAssignment(
+      s,
+      { kind: 'polity', id: gatePolityId },
+      'administrator',
+      cadetMemberId,
+    )
+    return s
+  }
+
+  it('house leader は gate を通過しない', () => {
+    const s = makeGateState()
+    const leader = s.persons[houseLeaderId]!
+    expect(meetsLandGrantPetitionerGate(s, defaultConfig, leader)).toBe(false)
+  })
+
+  it('同条件の非 leader member は gate を通過する (対照)', () => {
+    const s = makeGateState()
+    const cadet = s.persons[cadetMemberId]!
+    expect(meetsLandGrantPetitionerGate(s, defaultConfig, cadet)).toBe(true)
   })
 })
