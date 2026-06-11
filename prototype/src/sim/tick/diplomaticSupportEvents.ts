@@ -119,5 +119,7 @@ function flattenScore(score: JoinScoreBreakdown): Record<string, number> {
     treasury: Math.round(score.treasury * 100) / 100,
     threat: Math.round(score.threatContainment * 100) / 100,
     lastWar: Math.round(score.lastWarPenalty * 100) / 100,
+    persuasion: Math.round(score.persuasion * 100) / 100,
+    rebelBacking: Math.round(score.rebelBacking * 100) / 100,
   }
 }

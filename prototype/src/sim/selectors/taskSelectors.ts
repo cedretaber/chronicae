@@ -109,7 +109,9 @@ export function getTaskRelevantAbility(kind: TaskKind): AbilityKey {
     case 'advance_project':
       return 'insight'
     case 'seek_diplomatic_support':
-      return 'charisma'
+      // v0.47.2: タスク前進 (謁見の手続き・段取りの手早さ) は学識。実際に勧誘が成功するか
+      //   (相手に乗ってもらえるか) は joinScore の説得ボーナス (charisma 主軸) 側で表現する。
+      return 'learning'
     default:
       return 'insight'
   }
@@ -142,7 +144,8 @@ const TASK_KIND_OUTCOME_DEFAULTS: Record<
   prepare_project: { difficulty: 30, relevantAbility: 'insight' },
   advance_project: { difficulty: 35, relevantAbility: 'insight' },
   // v0.43 §7: difficulty は既存外交 task (40) に合わせる
-  seek_diplomatic_support: { difficulty: 40, relevantAbility: 'charisma' },
+  // v0.47.2: 成否ゲートも learning (手続きを前進させられたか)。勧誘の説得力は joinScore 側。
+  seek_diplomatic_support: { difficulty: 40, relevantAbility: 'learning' },
 }
 
 export function getTaskDefaultDifficulty(kind: TaskKind): number {
@@ -331,7 +334,10 @@ export function getDiplomaticPlayDelegate(
 //   - play.status === 'active'
 //   - 自 side の supporter 数 < maxDiplomaticSupportersPerSide
 //   - 候補 Polity が 1 つ以上
-//   - revolt_negotiation の suppressor (target) side は対象外 (§8.3)
+// v0.47.2 (ルートA): revolt_negotiation の suppressor (target) side も支援募集可能にした。
+//   旧来は target side を封印していたため反乱軍だけが第三国を巻き込み、鎮圧側は援軍ゼロという
+//   非対称が叛乱成功率を押し上げていた。収入を失う上位契約者が鎮圧側に立てるよう解禁する
+//   (候補側の宗主-臣下除外緩和は enumerateSupportCandidates の side 依存分岐で行う)。
 function canSeekDiplomaticSupport(
   state: WorldState,
   config: SimulationConfig,
@@ -339,10 +345,9 @@ function canSeekDiplomaticSupport(
   side: 'initiator' | 'target',
 ): boolean {
   if (play.status !== 'active') return false
-  if (play.kind === 'revolt_negotiation' && side === 'target') return false
   const supporters = side === 'initiator' ? play.initiatorSupporters : play.targetSupporters
   if (supporters.length >= config.maxDiplomaticSupportersPerSide) return false
-  return enumerateSupportCandidates(state, play).length > 0
+  return enumerateSupportCandidates(state, play, side).length > 0
 }
 
 export function selectDiplomaticTaskKind(

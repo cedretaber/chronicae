@@ -33,6 +33,10 @@ const LAST_WAR_PENALTY_DECAY_WEEKS = 96
 const SPARE_POWER_RATIO_SCALE = 50
 // threatContainmentScore: 敵 primary が自分の 2 倍 (ratio 2.0) で base 50 点。
 const THREAT_RATIO_SCALE = 50
+// v0.47.2 説得ボーナスの能力配合: 魅力 (弁舌・好感) 主軸 + 洞察 (相手の利害を読む)。
+//   learning は task 前進ゲート側に分離済 (taskSelectors)。観察調整が要れば config 化する。
+const PERSUASION_WEIGHT_CHARISMA = 0.7
+const PERSUASION_WEIGHT_INSIGHT = 0.3
 
 // --- joinScore の内訳 (DEBUG ログ / テスト用) ---
 
@@ -44,6 +48,10 @@ export type JoinScoreBreakdown = {
   treasury: number
   threatContainment: number
   lastWarPenalty: number
+  // v0.47.2: 募集側 delegate の説得力による candidate 非依存の底上げ (0..supportPersuasionScale)。
+  persuasion: number
+  // v0.47.2: 反乱軍 (rebel side) 募集時のみ。landed candidate は負 (肩入れ忌避) / 同志の叛乱国家は正。
+  rebelBacking: number
 }
 
 // --- 宗主-臣下 chain 判定 (§8.1) ---
@@ -259,11 +267,28 @@ export function isPolityInActiveWar(state: WorldState, polityId: PolityId): bool
 }
 
 // §8.1 の hard exclude を全適用した候補 PolityId リスト (昇順)。
-//   side 非依存 (exclude は両 side 対称)。score / side 文脈は computeJoinScore 側。
-export function enumerateSupportCandidates(state: WorldState, play: DiplomaticPlay): PolityId[] {
+//   通常は side 非依存 (exclude は両 side 対称)。score / side 文脈は computeJoinScore 側。
+//
+// v0.47.2 (ルートA): side を渡すと「叛乱の鎮圧側 (revolt_negotiation の target)」に限り
+//   宗主-臣下除外をスキップする。叛乱では target の宗主チェーン (収入を失う上位契約者) と
+//   又臣下こそが鎮圧の自然な利害当事者であり、それを third-party 除外で弾くと鎮圧側が永久に
+//   援軍ゼロになる。なお revolt_seizure 子契約により initiator (反乱軍 commonwealth) の overlord
+//   集合は target チェーンに汚染されているため、両方向のチェック (vs initiator / vs target) を
+//   まとめてスキップして初めて宗主が候補に乗る。side 省略時は従来どおり除外を全適用する。
+//
+// v0.47.2 (反乱軍の援軍非対称): commonwealth は原則候補外だが、「叛乱の rebel side (initiator)」が
+//   募集する場合に限り、同じ popular_revolt 由来の commonwealth (同志の叛乱国家) は候補に許す。
+//   landed polity は別途 joinScore で penalty を受ける (computeJoinScore の rebelBacking)。
+export function enumerateSupportCandidates(
+  state: WorldState,
+  play: DiplomaticPlay,
+  side?: DiplomaticPlaySideKey,
+): PolityId[] {
   if (play.initiator.kind !== 'polity' || play.target.kind !== 'polity') return []
   const initiatorId = play.initiator.id
   const targetId = play.target.id
+  const relaxSuzerainExclusion = play.kind === 'revolt_negotiation' && side === 'target'
+  const rebelSeeking = play.kind === 'revolt_negotiation' && side === 'initiator'
 
   const existingSupporterKeys = new Set<string>()
   for (const s of [...play.initiatorSupporters, ...play.targetSupporters]) {
@@ -279,16 +304,23 @@ export function enumerateSupportCandidates(state: WorldState, play: DiplomaticPl
     const polity = state.polities[candidateId]
     if (!polity || !polity.active) continue
     if (candidateId === initiatorId || candidateId === targetId) continue
-    if (polity.kind === 'commonwealth') continue
+    if (polity.kind === 'commonwealth') {
+      // rebel side 募集に限り、同志の叛乱国家 (popular_revolt 由来) のみ候補に許す。
+      if (!(rebelSeeking && polity.origin.kind === 'popular_revolt')) continue
+    }
     const key = `polity:${idStr}`
     if (existingSupporterKeys.has(key)) continue
     if (otherPlaySupporterKeys.has(key)) continue
     if (isPolityInActiveWar(state, candidateId)) continue
-    const candidateOverlords = getPolityOverlordPolityIds(state, candidateId)
-    if (hasSuzerainVassalRelation(candidateOverlords, initiatorOverlords, candidateId, initiatorId))
-      continue
-    if (hasSuzerainVassalRelation(candidateOverlords, targetOverlords, candidateId, targetId))
-      continue
+    if (!relaxSuzerainExclusion) {
+      const candidateOverlords = getPolityOverlordPolityIds(state, candidateId)
+      if (
+        hasSuzerainVassalRelation(candidateOverlords, initiatorOverlords, candidateId, initiatorId)
+      )
+        continue
+      if (hasSuzerainVassalRelation(candidateOverlords, targetOverlords, candidateId, targetId))
+        continue
+    }
     result.push(candidateId)
   }
   return result
@@ -330,6 +362,20 @@ export function computeJoinScore(
   const treasury = computeTreasuryScore(state, candidateId)
   const threatContainment = computeThreatContainmentScore(state, config, candidateId, enemyPrimary)
   const lastWarPenalty = computeLastWarPenalty(state, candidateId)
+  // v0.47.2 説得ボーナス: 募集側 (= supported side) の delegate 能力で全 candidate を一律底上げ。
+  //   candidate 非依存なので「最良候補が閾値を越えるか」を有能な交渉担当者ほど後押しする
+  //   (ランキング自体は地理・軍事で決まる)。delegate 不在なら 0。
+  const persuasion = computePersuasionBonus(state, config, play, side)
+  // v0.47.2 反乱軍の援軍非対称: rebel side 募集時のみ、候補の素性で加減点する。
+  //   landed polity = 農民反乱への肩入れ忌避で penalty / 同志の叛乱国家 = sympathy で bonus。
+  let rebelBacking = 0
+  if (play.kind === 'revolt_negotiation' && side === 'initiator') {
+    const candidate = state.polities[candidateId]
+    rebelBacking =
+      candidate?.origin.kind === 'popular_revolt'
+        ? config.supportFellowRevoltBonus
+        : -config.supportRebelBackingPenalty
+  }
 
   const total =
     config.supportJoinScoreWeightPoliticalOpinion * politicalOpinion +
@@ -337,7 +383,9 @@ export function computeJoinScore(
     config.supportJoinScoreWeightMilitarySparePower * militarySparePower +
     config.supportJoinScoreWeightTreasury * treasury +
     config.supportJoinScoreWeightThreatContainment * threatContainment +
-    config.supportJoinScoreWeightLastWarPenalty * lastWarPenalty
+    config.supportJoinScoreWeightLastWarPenalty * lastWarPenalty +
+    persuasion +
+    rebelBacking
 
   return {
     total,
@@ -347,7 +395,28 @@ export function computeJoinScore(
     treasury,
     threatContainment,
     lastWarPenalty,
+    persuasion,
+    rebelBacking,
   }
+}
+
+// §9.x (v0.47.2): 募集側 delegate (反乱軍なら首謀者) の説得力ボーナス (0..supportPersuasionScale)。
+//   charisma 主軸 + insight。candidate 非依存 (delegate の固有値) なので最良候補のみ計算すれば
+//   足りるが、breakdown 一貫性のため computeJoinScore 内で都度算出する (delegate 取得は map 参照1回)。
+export function computePersuasionBonus(
+  state: WorldState,
+  config: SimulationConfig,
+  play: DiplomaticPlay,
+  side: DiplomaticPlaySideKey,
+): number {
+  const delegateId =
+    side === 'initiator' ? play.initiatorDelegatePersonId : play.targetDelegatePersonId
+  if (!delegateId) return 0
+  const delegate = state.persons[delegateId]
+  if (!delegate || !delegate.alive) return 0
+  const ab = delegate.abilities
+  const weighted = ab.charisma * PERSUASION_WEIGHT_CHARISMA + ab.insight * PERSUASION_WEIGHT_INSIGHT
+  return clamp((weighted / 100) * config.supportPersuasionScale, 0, config.supportPersuasionScale)
 }
 
 // --- 最良候補 (§8.2: score 降順・同点 PolityId 昇順。RNG 不使用) ---
@@ -358,7 +427,7 @@ export function selectBestSupportCandidate(
   play: DiplomaticPlay,
   side: DiplomaticPlaySideKey,
 ): { polityId: PolityId; score: JoinScoreBreakdown } | undefined {
-  const candidates = enumerateSupportCandidates(state, play)
+  const candidates = enumerateSupportCandidates(state, play, side)
   // v0.45.2 同家戦争防止ゲート: 反対側 primary と同じ支配家の polity は、その side の
   //   候補にしない (家が自分の polity への攻撃に加担する不自然の防止)。side 依存のため
   //   enumerateSupportCandidates (side 非依存・対称 exclude) ではなくここで弾く。

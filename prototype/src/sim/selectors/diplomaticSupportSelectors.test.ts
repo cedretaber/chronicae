@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { makeEmptyV016State, withPolity, withProvince, bindProvinceToPolity } from '../testFixtures'
+import {
+  makeEmptyV016State,
+  withPolity,
+  withProvince,
+  bindProvinceToPolity,
+  withPerson,
+  DEFAULT_ABILITIES,
+} from '../testFixtures'
 import {
   enumerateSupportCandidates,
   computeJoinScore,
@@ -24,6 +31,7 @@ import type {
   DiplomaticPlayId,
   HoldingId,
   PersonId,
+  HouseId,
 } from '../types/ids'
 import type { DiplomaticPlay } from '../types/diplomaticPlay'
 import type { Regiment } from '../types/regiment'
@@ -312,6 +320,52 @@ describe('enumerateSupportCandidates (§8.1 hard exclude)', () => {
     expect(enumerateSupportCandidates(s, makePlay())).toEqual([])
   })
 
+  // v0.47.2 (ルートA): 叛乱の鎮圧側 (revolt_negotiation の target) では宗主-臣下除外を緩和する。
+  it('includes the target overlord on the revolt suppression side (ルートA)', () => {
+    let s = makeBaseState()
+    s = withPolity(s, 'c-suzerain' as PolityId, {})
+    s = withProvince(s, 'pr-1' as ProvinceId, {})
+    s = bindProvinceToPolity(s, 'pr-1' as ProvinceId, 'c-suzerain' as PolityId)
+    // TARGET (鎮圧側 primary) は c-suzerain の臣下 = c-suzerain は TARGET の宗主
+    s = withVassalContract(s, TARGET, 'c-suzerain' as PolityId, 'pr-1' as ProvinceId)
+    const play = makePlay({ kind: 'revolt_negotiation' })
+    // 通常 (side 省略 / initiator) では宗主は third-party 除外で弾かれる
+    expect(enumerateSupportCandidates(s, play)).toEqual([])
+    expect(enumerateSupportCandidates(s, play, 'initiator')).toEqual([])
+    // 鎮圧側 (target) では収入を失う宗主が候補に乗る
+    expect(enumerateSupportCandidates(s, play, 'target')).toEqual(['c-suzerain'])
+  })
+
+  it('includes the suzerain even when revolt_seizure pollutes the initiator overlord chain', () => {
+    // 実際の叛乱: c-suzerain → TARGET → INITIATOR (反乱軍が revolt_seizure 子契約で TARGET から奪取)。
+    //   このとき initiator の overlord 集合は {TARGET, c-suzerain} に汚染され、c-suzerain は
+    //   vs initiator / vs target の両チェックで弾かれる。両方 skip して初めて候補に乗る。
+    let s = makeBaseState()
+    s = withPolity(s, 'c-suzerain' as PolityId, {})
+    s = withProvince(s, 'pr-1' as ProvinceId, {})
+    s = bindProvinceToPolity(s, 'pr-1' as ProvinceId, 'c-suzerain' as PolityId)
+    s = withVassalContract(s, TARGET, 'c-suzerain' as PolityId, 'pr-1' as ProvinceId)
+    s = withVassalContract(s, INITIATOR, TARGET, 'pr-1' as ProvinceId)
+    // INITIATOR の宗主鎖に TARGET と c-suzerain が含まれることを確認
+    const initOverlords = getPolityOverlordPolityIds(s, INITIATOR)
+    expect(initOverlords.has(TARGET as string)).toBe(true)
+    expect(initOverlords.has('c-suzerain')).toBe(true)
+    const play = makePlay({ kind: 'revolt_negotiation' })
+    expect(enumerateSupportCandidates(s, play, 'initiator')).toEqual([])
+    expect(enumerateSupportCandidates(s, play, 'target')).toEqual(['c-suzerain'])
+  })
+
+  it('does not relax suzerain exclusion for non-revolt plays even on the target side', () => {
+    let s = makeBaseState()
+    s = withPolity(s, 'c-suzerain' as PolityId, {})
+    s = withProvince(s, 'pr-1' as ProvinceId, {})
+    s = bindProvinceToPolity(s, 'pr-1' as ProvinceId, 'c-suzerain' as PolityId)
+    s = withVassalContract(s, TARGET, 'c-suzerain' as PolityId, 'pr-1' as ProvinceId)
+    // contract_tax_revision (default kind) の target side は緩和されない
+    const play = makePlay()
+    expect(enumerateSupportCandidates(s, play, 'target')).toEqual([])
+  })
+
   it('returns [] when a primary is not a polity', () => {
     let s = makeBaseState()
     s = withPolity(s, 'c-a' as PolityId, {})
@@ -442,6 +496,72 @@ describe('computeJoinScore / selectBestSupportCandidate (§9.1 / §8.2)', () => 
   it('selectBest: returns undefined when no candidates', () => {
     const s = makeBaseState()
     expect(selectBestSupportCandidate(s, defaultConfig, makePlay(), 'initiator')).toBeUndefined()
+  })
+
+  // v0.47.2: 募集側 delegate (反乱軍なら首謀者) の説得力 (charisma 0.7 / insight 0.3) を加点。
+  it('adds a persuasion bonus from the seeking side delegate', () => {
+    let s = makeBaseState()
+    s = withPolity(s, 'c-a' as PolityId, { treasury: 1000 })
+    // charisma 80 / insight 40 → (80×0.7 + 40×0.3)/100 × 30 = 0.68 × 30 = 20.4
+    s = withPerson(s, 'p-leader' as PersonId, {
+      houseId: 'h-x' as HouseId,
+      abilities: { ...DEFAULT_ABILITIES, charisma: 80, insight: 40 },
+    })
+    const play = makePlay({ initiatorDelegatePersonId: 'p-leader' as PersonId })
+    const score = computeJoinScore(s, defaultConfig, play, 'initiator', 'c-a' as PolityId)
+    expect(score.persuasion).toBeCloseTo(20.4)
+    // treasury 0.10 × 100 = 10 に persuasion 20.4 が乗る
+    expect(score.total).toBeCloseTo(30.4)
+  })
+
+  it('persuasion bonus is 0 when the play has no delegate', () => {
+    let s = makeBaseState()
+    s = withPolity(s, 'c-a' as PolityId, { treasury: 1000 })
+    const score = computeJoinScore(s, defaultConfig, makePlay(), 'initiator', 'c-a' as PolityId)
+    expect(score.persuasion).toBe(0)
+    expect(score.total).toBeCloseTo(10)
+  })
+
+  // v0.47.2: 反乱軍 (rebel side) 募集時の非対称 — landed は penalty / 同志の叛乱国家は bonus。
+  it('penalizes a landed candidate backing a rebel (revolt initiator side)', () => {
+    let s = makeBaseState()
+    s = withPolity(s, 'c-a' as PolityId, { treasury: 1000 }) // origin=worldgen (landed)
+    const play = makePlay({ kind: 'revolt_negotiation' })
+    const score = computeJoinScore(s, defaultConfig, play, 'initiator', 'c-a' as PolityId)
+    expect(score.rebelBacking).toBe(-defaultConfig.supportRebelBackingPenalty)
+    // treasury 10 - penalty 40
+    expect(score.total).toBeCloseTo(10 - defaultConfig.supportRebelBackingPenalty)
+  })
+
+  it('rewards (and admits) a fellow revolt-state commonwealth on the rebel side', () => {
+    let s = makeBaseState()
+    s = withPolity(s, 'c-rev' as PolityId, {
+      kind: 'commonwealth',
+      origin: {
+        kind: 'popular_revolt',
+        originalPolityId: 'c-old' as PolityId,
+        provinceId: 'pr-0' as ProvinceId,
+        holdingIds: [],
+        popClass: 'peasants',
+        leaderPersonId: 'p-x' as PersonId,
+        startedWeek: 0,
+      },
+    })
+    const play = makePlay({ kind: 'revolt_negotiation' })
+    // 候補化: rebel side では同志の叛乱国家を許す / target side では従来どおり commonwealth 除外
+    expect(enumerateSupportCandidates(s, play, 'initiator')).toContain('c-rev')
+    expect(enumerateSupportCandidates(s, play, 'target')).not.toContain('c-rev')
+    // 加点: bonus
+    const score = computeJoinScore(s, defaultConfig, play, 'initiator', 'c-rev' as PolityId)
+    expect(score.rebelBacking).toBe(defaultConfig.supportFellowRevoltBonus)
+  })
+
+  it('does not apply rebelBacking on the suppression (target) side', () => {
+    let s = makeBaseState()
+    s = withPolity(s, 'c-a' as PolityId, { treasury: 1000 })
+    const play = makePlay({ kind: 'revolt_negotiation' })
+    const score = computeJoinScore(s, defaultConfig, play, 'target', 'c-a' as PolityId)
+    expect(score.rebelBacking).toBe(0)
   })
 })
 

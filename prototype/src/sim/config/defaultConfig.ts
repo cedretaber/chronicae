@@ -663,6 +663,14 @@ export type SimulationConfig = {
   supportJoinScoreWeightTreasury: number
   supportJoinScoreWeightThreatContainment: number
   supportJoinScoreWeightLastWarPenalty: number // penalty は負 weight で表現 (§9.1)
+  // v0.47.2: 募集側 delegate (反乱軍なら首謀者) の説得力を joinScore に加点する最大スケール。
+  //   bonus = (charisma×0.7 + insight×0.3)/100 × supportPersuasionScale。能力で閾値を越えさせる枠。
+  supportPersuasionScale: number
+  // v0.47.2: 反乱軍 (popular revolt の rebel side) が支援を募るときの非対称調整。
+  //   landed な polity が農民反乱に肩入れするのは本来不自然 → joinScore に penalty。
+  //   一方で同じ popular_revolt 由来の「同志の叛乱国家」には bonus を与え候補化も許す。
+  supportRebelBackingPenalty: number
+  supportFellowRevoltBonus: number
   goalProgressOnPersonAimSucceeded: number
   goalProgressOnPersonAimFailed: number
   // v0.23 effectivePriority
@@ -1792,13 +1800,18 @@ export const defaultConfig: SimulationConfig = {
   // v0.43 §6.3
   maxDiplomaticSupportersPerSide: 2,
   // v0.43 §9.13 / §9.1
-  diplomaticSupportJoinScoreThreshold: 25,
+  // v0.47.2: 25→40。proximity 単独 (隣接=35) では届かなくし、安易な肩入れを抑える。
+  //   残り差は近接×他要因 or delegate の説得ボーナスで埋める設計。
+  diplomaticSupportJoinScoreThreshold: 40,
   supportJoinScoreWeightPoliticalOpinion: 0.0,
   supportJoinScoreWeightProximity: 0.35,
   supportJoinScoreWeightMilitarySparePower: 0.25,
   supportJoinScoreWeightTreasury: 0.1,
   supportJoinScoreWeightThreatContainment: 0.3,
   supportJoinScoreWeightLastWarPenalty: -0.2,
+  supportPersuasionScale: 30,
+  supportRebelBackingPenalty: 40,
+  supportFellowRevoltBonus: 30,
   goalProgressOnPersonAimSucceeded: 15,
   goalProgressOnPersonAimFailed: -5,
   // v0.23 effectivePriority

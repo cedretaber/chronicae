@@ -463,13 +463,16 @@
 | diplomaticPlayMaxActiveTasksPerSide | 2 | 各 side の同時 active Task 数上限 |
 | **DiplomaticPlay supporter（v0.43）** | | |
 | maxDiplomaticSupportersPerSide | 2 | DiplomaticPlay の side あたり supporter 上限 |
-| diplomaticSupportJoinScoreThreshold | 25 | supporter 採用に必要な joinScore（初期観察用。balance 最終値ではない） |
+| diplomaticSupportJoinScoreThreshold | 40 | supporter 採用に必要な joinScore（v0.47.2 で 25→40。proximity 単独=35 では届かなくし安易な肩入れを抑制） |
 | supportJoinScoreWeightPoliticalOpinion | 0.0 | joinScore: influence 加重 attitude（休眠項 — foreign polity attitude writer 不在のため） |
 | supportJoinScoreWeightProximity | 0.35 | joinScore: 争点 Province への近接（隣接 terminal=100 / 同 State=50） |
 | supportJoinScoreWeightMilitarySparePower | 0.25 | joinScore: 動員可能戦力の敵 primary 比（同等=50） |
 | supportJoinScoreWeightTreasury | 0.1 | joinScore: treasury 正規化（1000 で満点） |
 | supportJoinScoreWeightThreatContainment | 0.3 | joinScore: 敵 primary の強大さ × 近接 |
 | supportJoinScoreWeightLastWarPenalty | -0.2 | joinScore: 終戦からの経過（96 週線形減衰）。penalty は負 weight |
+| supportPersuasionScale | 30 | joinScore persuasion 項の最大値（v0.47.2。募集側 delegate の (charisma×0.7 + insight×0.3)/100 × scale） |
+| supportRebelBackingPenalty | 40 | joinScore rebelBacking（v0.47.2。叛乱 rebel side 募集時、landed candidate への penalty。農民反乱への肩入れ忌避） |
+| supportFellowRevoltBonus | 30 | joinScore rebelBacking（v0.47.2。叛乱 rebel side 募集時、popular_revolt 由来の同志叛乱国家への bonus） |
 | **Appointment modifier** | | |
 | appointmentTaskModifierValue | 4 | Aim/ActivityLog ベースの任官補正値 |
 | appointmentTaskModifierDurationWeeks | 16 | ActivityLog 参照期間（週） |
