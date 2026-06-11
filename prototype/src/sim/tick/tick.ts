@@ -449,8 +449,12 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runGoalOutcomeSystem,
   },
   {
+    // v0.47.3: interval 1 (weekly)。旧 interval 4 では年末 integrity tick (absoluteWeek ≡ 47
+    //   mod 48) に走らず、週 45〜47 で landless 化した Polity (granted polity が holding を
+    //   失う等) が titular 化/abolish されないまま §25 #17 (landless active = 違反) に捕まった。
+    //   cancelOrphanedWars / rightConsistency と同じく weekly 化して年末 tick をカバーする。
     name: 'polityOwnerConsistencySystem',
-    intervalWeeks: 4,
+    intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runPolityOwnerConsistencySystem,
   },
