@@ -2413,7 +2413,7 @@ landless 検出を rank 分岐に置換: normal rank 2〜4 → `titularizePolity
 - **分封**（`finalize_land_grant` / `landGrantMutations.applyLandGrantMut`）: 無家=新 House(self_made/land_grant) / 有家=cadet House、`createGrantedRank5PolityMut` で rank5 holding-name Polity、donor terminal に child contract、founder を house:leader+polity:leader。donor は §9.3/§9.4（無家=在職先 polity・有家=自家余剰 polity）。
 - **Polity 譲渡分家**（`finalize_cadet_branch` / `titleTransferMutations`）: cadet House(polity_grant) 作成、`reassignPolityOwnershipMut` で既存 secondary Polity を譲渡、HouseShare 加重支持（`getWeightedOpinionFromHouseShareholders`）で accept。
 - **共和国 House**（`register_house` / `republicHouseMutations`）: established commonwealth の無家役職者が landless House(office) を作り office 維持。
-- **陞爵**（`finalize_promotion` / `promotePolityRankMut`）: rank 変更前に `canPromotePolityRank` 再検査（`allGrantorRanksAreAboveNewRank` で LandContract rank 不変を保護）、approver(宗主 leader) 不在は auto-grant。
+- **陞爵**（`finalize_promotion` / `promotePolityRankMut`）: rank 変更前に `canPromotePolityRank` 再検査（`allGrantorRanksAreAboveNewRank` で LandContract rank 不変を保護）、approver(宗主 leader) 不在は auto-grant。holding 閾値は世界の土地階層に較正（`rankPromotionMinHoldingCountByRank` = {2:16, 3:8, 4:2}: rank5=1 holding 級 / rank4=1 province 級(=2 holdings) / rank3=1 state 級(≈8 holdings) / rank2=複数 state 級(≈16)。newRank になるための保有 holdings）。treasury/prestige/admin は足切り水準。**構造的制約**: `allGrantorRanksAreAboveNewRank` は昇格後も grantor rank < grantee rank を要求するため、宗主が直上（1 ランク上）の polity は昇格不能（宗主と同 rank になる）。宗主が 2 ランク以上上の **rank gap** を持つ polity でのみ発火する（密に nested な default world では稀）。
 - **一円集約**（`finalize_consolidation` / `consolidationMutations.applyConsolidationMut`）: sink〜terminal 間の同家・非special contract を terminal 側から `eliminateContractFromChain` で反復 collapse（所有者 guard は呼出側）。landless 化した中間 polity は §6.69 titular/abolish 経路へ。
 
 #### House 創設条件・代謝
@@ -2426,4 +2426,8 @@ titular は契約 0 / 非 leader office なし / active right なし / active re
 
 #### バランス保留（機能完成後に調整）
 
-default config では **共和国 House 創設（8〜17/seed・150年）と一円集約（稀）は自然発火**するが、**分封・Polity 譲渡分家・陞爵は default 0**（consolidated world が houseless 役職者 in normal polity / 多 polity House / rank headroom を産まない構造的稀少。wiring は構築 state unit test で検証済）。§7.1/§14.1 の旧 founding/split 停止と §8-13 の新経路の構造要求のミスマッチで world が静的化する傾向があり、(1) founding/split の減速版 bridge 復活 (2) donor model 緩和（単一polity家の primary からの cadet 分離 / 居住での donor 適格） (3) 専用 balance pass のいずれかを後続で検討する（プロトタイプ方針 §4）。
+default config（150年・seed 1/42/123 実測）では **共和国 House 創設（11〜18/seed）・分封（land grant・seed1 で 3）・Polity 譲渡分家（cadet・seed1 で 4・seed42 で 2）・一円集約（稀・seed42 で 1）・titular 化（1〜3）が自然発火**する。**陞爵のみ default 0**（上記の rank gap 構造的制約による・wiring は配線済で rankPromotion.test と pickPolityAim で検証）。
+
+**実装後に判明した配線バグの修正（v0.47.x）**: 当初は「分封・分家も default 0 = 構造的稀少」と記していたが、これは誤りで、実際は **gate 通過→発火 の後段バグ**だった（150年実測で分封 16〜26 人・分家 43 人が HARD gate を通過していたのに 0 発火）。原因は (a) cadet/land grant の SOFT accept 閾値（`cadetBranchTitleTransferSupportThreshold` 50 / `landGrantAcceptThreshold` 50）が opinion スケール（-100..100・中立 default 0）に対し過大で、実測 accept スコア 0〜11 では**原理的に発火不能**だった → それぞれ 5 に較正、(b) houseless 役職者は `public_service` goal を持ちやすいが、これが `request_land_grant` の hosting goal に欠けており aim が生成されなかった → `scorePersonAimKind` の hosting goal に `public_service` を追加。さらに、land grant が初めて発火したことで **commonwealth 転換（民衆叛乱 regime change・`diplomaticPlayRevolt`）が `ownerHouseId` を undefined にしつつ `polityIndex.byOwnerHouse[旧 owner]` から除去していなかった潜在バグ**（v0.46 由来・元の trajectory では未顕在）が露呈し、§25 #16 違反で停止した → 転換時に byOwnerHouse スロットから除去する修正を追加（新規 commonwealth 作成の `worldStructureCommonwealth` は元から owner 無しのため対象外）。
+
+**balance 保留**: 各機能の発火 **rate** の最終調整は機能完成後に行う（プロトタイプ方針 §4）。陞爵を実質発火させたい場合は rank gap を生む経路（land grant 由来 rank5 polity の宗主が高 rank なケース等）の頻度か、rank 不変条件の扱いを別途設計する。

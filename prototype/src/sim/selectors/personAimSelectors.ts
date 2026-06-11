@@ -265,11 +265,15 @@ export function scorePersonAimKind(
   }
 
   // v0.47 §9.1: 分封願い (request_land_grant)。HARD gate (本人資格 + donor + 対象 holding) を満たす
-  //   人物が、自立志向の goal (personal_advancement / wealth_building) に応じて願う。
+  //   人物が、自立志向の goal に応じて願う。
+  //   v0.47 修正: 無家役職者は public_service goal を持ちやすく (官途志向)、それが request_land_grant
+  //   の hosting goal に無かったため houseless 代謝路の aim がほぼ生成されていなかった。
+  //   官途人物が家を興すための分封は public_service の自然な延長として hosting goal に加える。
   if (
     goal.kind === 'personal_advancement' ||
     goal.kind === 'wealth_building' ||
-    goal.kind === 'house_loyalty'
+    goal.kind === 'house_loyalty' ||
+    goal.kind === 'public_service'
   ) {
     const donor = resolveLandGrantDonor(state, config, personId)
     if (donor) {

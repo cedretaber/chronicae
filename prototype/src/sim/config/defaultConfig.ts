@@ -2263,11 +2263,16 @@ export const defaultConfig: SimulationConfig = {
 
   // === v0.47 称号・分封・領邦再編 (spec §16) ===
   // 初期値は緩め (各 Phase の forced 検証で発火させる)。最終 balance は全 Phase 完了後に保留 (CLAUDE.md §4)。
-  // §16.1 rank promotion: 対象 newRank 2〜4 のみ埋める。後年・有力 Polity でないと届かない水準。
-  rankPromotionMinHoldingCountByRank: { 2: 12, 3: 8, 4: 4 },
-  rankPromotionMinTreasuryByRank: { 2: 4000, 3: 2000, 4: 800 },
-  rankPromotionMinPrestigeByRank: { 2: 60, 3: 45, 4: 30 },
-  rankPromotionMinAdminPowerByRank: { 2: 60, 3: 45, 4: 30 },
+  // §16.1 rank promotion: 対象 newRank 2〜4 のみ埋める (rank1=全世界級は到達不能・rank5=floor)。
+  //   v0.47 修正: holding 閾値を世界の土地階層に合わせる (ユーザー指定: rank5=1 holding 級 /
+  //   rank4=1 province 級 (=2 holdings) / rank3=1 state 級 (≈8 holdings, 3-4 provinces) /
+  //   rank2=複数 state 級 (≈16))。newRank になるための保有 holdings なので {2:16,3:8,4:2}。
+  //   旧値 {2:12,3:8,4:4} は土地実態に対し過大 + 副次ゲート(treasury 等)も高く canPromote が
+  //   全 seed で 0 だった。土地を主因に、treasury/prestige/admin は足切り水準に下げる。
+  rankPromotionMinHoldingCountByRank: { 2: 16, 3: 8, 4: 2 },
+  rankPromotionMinTreasuryByRank: { 2: 600, 3: 300, 4: 100 },
+  rankPromotionMinPrestigeByRank: { 2: 40, 3: 30, 4: 20 },
+  rankPromotionMinAdminPowerByRank: { 2: 40, 3: 30, 4: 20 },
   rankPromotionRetryCooldownWeeks: 520,
   rankPromotionAcceptThreshold: 50,
   rankPromotionApproverAttitudeWeight: 0.4,
@@ -2282,7 +2287,11 @@ export const defaultConfig: SimulationConfig = {
   landGrantInitialTreasury: 100,
   landGrantInitialLegacyPrestige: 10,
   landGrantContractTaxRate: 0.5,
-  landGrantAcceptThreshold: 50,
+  // v0.47 修正: acceptScore = attitude*0.4 + reputation*0.3 + progress*0.2 (attitude/opinion は
+  //   -100..100, donor 領主の petitioner への態度は大半が中立 default)。閾値 50 では実測 acceptScore
+  //   0〜10 に対し原理的に発火不能だった。reputation を持つ忠実な役職者が中立 donor で叙封され、
+  //   donor が反感を持つ相手は弾く水準 5 に下げる (発火 rate の最終 balance は別途)。
+  landGrantAcceptThreshold: 5,
   landGrantApproverAttitudeWeight: 0.4,
   landGrantPetitionerReputationWeight: 0.3,
   landGrantProjectProgressWeight: 0.2,
@@ -2291,7 +2300,11 @@ export const defaultConfig: SimulationConfig = {
   cadetBranchExcludeTopSuccessionRanks: 2,
   cadetBranchMinAmbition: 60,
   cadetBranchMinSupportPercent: 30,
-  cadetBranchTitleTransferSupportThreshold: 50,
+  // v0.47 修正: support は getWeightedOpinionFromHouseShareholders の加重平均 opinion
+  //   (-100..100, 中立=0)。家族 attitude は大半が中立 default のため閾値 50 では原理的に
+  //   発火不能だった (実測 supportScore は 0〜11)。「家族が概ね非反対 (やや好意)」で分家を
+  //   許す水準 5 に下げる (発火 rate の最終 balance は別途)。
+  cadetBranchTitleTransferSupportThreshold: 5,
   cadetBranchRetryCooldownWeeks: 312,
   // §16.4 republic house foundation
   // 実測: established commonwealth の houseless 役職者の wealth は概ね 50〜550。400 では大半が

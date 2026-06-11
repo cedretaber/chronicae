@@ -445,6 +445,18 @@ function resolveInternalRevolt(
   if (success && targetPolity && leaderPersonId && leader) {
     // Internal revolt success: regime change
     // 1. Transform target polity
+    // commonwealth 化で ownerHouseId を undefined にするため、旧 owner の
+    // polityIndex.byOwnerHouse スロットから targetPolityId を除去する (§25 #16 同期維持)。
+    const previousOwnerHouseId = targetPolity.ownerHouseId
+    const byOwnerHouse =
+      previousOwnerHouseId !== undefined
+        ? {
+            ...state.polityIndex.byOwnerHouse,
+            [previousOwnerHouseId]: (
+              state.polityIndex.byOwnerHouse[previousOwnerHouseId] ?? []
+            ).filter((p) => p !== targetPolityId),
+          }
+        : state.polityIndex.byOwnerHouse
     state = {
       ...state,
       polities: {
@@ -465,6 +477,7 @@ function resolveInternalRevolt(
           revoltState: { kind: 'established' },
         },
       },
+      polityIndex: { byOwnerHouse },
     }
 
     // 2. Revoke old leader, appoint rebel leader
