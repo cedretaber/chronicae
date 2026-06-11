@@ -26,8 +26,16 @@ import type {
 import { runDiplomaticPlaySystem } from './diplomaticPlaySystem'
 import type { DiplomaticPlay, DiplomaticOffer, DiplomaticDemand } from '../types/diplomaticPlay'
 
-function makeCtx(state: WorldState, seed = 'play-test'): TickContext {
-  return createTickContext({ state, rng: createRng(seed), config: defaultConfig })
+function makeCtx(
+  state: WorldState,
+  seed = 'play-test',
+  configOverride?: Partial<typeof defaultConfig>,
+): TickContext {
+  return createTickContext({
+    state,
+    rng: createRng(seed),
+    config: configOverride ? { ...defaultConfig, ...configOverride } : defaultConfig,
+  })
 }
 
 function setupRebel(unrest = 60, popSize = 1000) {
@@ -400,7 +408,9 @@ describe('runDiplomaticPlaySystem (land_claim with offer)', () => {
   // offer が先に evaluated & accepted されれば settled で抜けるため、deadline は escalation のみ
   it('deadline timeout → escalated (offer already evaluated, deadline forces escalation)', () => {
     const setup = setupLandPurchase({ sellerTreasury: 50, buyerTreasury: 2000 })
-    let ctx = makeCtx(setup.state)
+    // v0.47.3: escalation の機構を検証するテストなので winChance gate は無効化して隔離する
+    //   (両者とも連隊を持たない fixture では escalateOrStandDown が status_quo 撤退するため)
+    let ctx = makeCtx(setup.state, 'play-test', { winChanceWarGateEnabled: false })
     ctx = injectLandPurchasePlay(
       ctx,
       setup.buyerPolityId,
@@ -564,7 +574,8 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
 
   it('escalated: tension reaches threshold → status=escalated', () => {
     const setup = setupLandTransferDemand()
-    let ctx = makeCtx(setup.state)
+    // v0.47.3: escalation の機構を検証するテストなので winChance gate は無効化して隔離する
+    let ctx = makeCtx(setup.state, 'play-test', { winChanceWarGateEnabled: false })
     ctx = injectLTDPlay(
       ctx,
       setup.attackerPolityId,
@@ -579,6 +590,35 @@ describe('runDiplomaticPlaySystem (land_claim without offer)', () => {
     const play = Object.values(ctx.state.diplomaticPlays)[0]
     expect(play?.status).toBe('escalated')
     expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_ESCALATED')).toBe(true)
+  })
+
+  // v0.47.3 §6.69: tension が escalation 閾値に達しても、戦争に勝てない (winChance < threshold)
+  //   と判断した initiator は escalate せず status_quo で撤退する。fixture には連隊が無く
+  //   winChance=0 < threshold なので必ず撤退経路を通る (winChanceWarGateEnabled は default true)。
+  it('stand down: tension reaches threshold but unwinnable → status_quo 撤退 (no escalation)', () => {
+    const setup = setupLandTransferDemand()
+    let ctx = makeCtx(setup.state)
+    ctx = injectLTDPlay(
+      ctx,
+      setup.attackerPolityId,
+      setup.defenderPolityId,
+      setup.provinceDefenderId,
+      {
+        progress: 0,
+        tension: 45,
+      },
+    )
+    ctx = runDiplomaticPlaySystem(ctx)
+    const play = Object.values(ctx.state.diplomaticPlays)[0]
+    expect(play?.status).toBe('settled')
+    expect(play?.terminalOutcome).toBe('status_quo')
+    expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_ESCALATED')).toBe(false)
+    expect(
+      ctx.events.some(
+        (e) =>
+          e.type === 'DIPLOMATIC_PLAY_SETTLED' && e.messageKey === 'diplomatic_play.stood_down',
+      ),
+    ).toBe(true)
   })
 
   it('cancelled: defender no longer holds province → Play cancelled', () => {

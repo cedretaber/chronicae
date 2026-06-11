@@ -14,6 +14,8 @@ import type { EventEntityRef, EventMessageParams } from '../types/event'
 import type { WorldState } from '../types/world'
 import { getProvinceTerminalPolityId } from '../selectors/landContractSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
+import { estimateAttackerWinChance } from '../selectors/warEstimateSelectors'
+import { calcGeneralDeclareThreshold } from '../selectors/personAbilityEffects'
 import { createLogger } from '../debug/logger'
 
 export function isDeadlineReached(state: { absoluteWeek: number }, play: DiplomaticPlay): boolean {
@@ -44,6 +46,53 @@ export function markPlayEscalated(
     entityRefs: eventMeta.eventEntityRefs,
   })
   return { ...ctxEv, events: [...ctxEv.events, event] }
+}
+
+// v0.47.3 §6.69: 外交劇が戦争化 (escalation) しようとする局面で、戦争に勝てないと
+//   判断した場合は escalate せず status_quo で撤退する (「矛を収める」)。
+//   判定式は warCreationSystem の開戦ゲート (winChance < generalDeclareThreshold) を
+//   そのまま共有し「開始時予測 = 実際の判定」の単一の真実とする。撤退は status_quo
+//   終結 (initiator smallFailure / target smallSuccess) として記録し、戦争に至らなかった
+//   測定可能な外交相互作用を残す。勝てる/ゲート無効/revolt_negotiation/非 polity の場合は
+//   従来通り markPlayEscalated する。
+//   NOTE: warCreationSystem の war gate は backstop として残置 (A は動員消費前、gate は
+//   同 tick 他 play の動員消費後に判定するため、A をすり抜け gate で voided になる play が
+//   残りうる。許容トレードオフ)。
+export function escalateOrStandDown(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  escalateMeta: {
+    polityIds: PolityId[]
+    provinceIds: ProvinceId[]
+    holdingIds: HoldingId[]
+    summary: string
+    messageKey: string
+    messageParams: EventMessageParams
+    eventEntityRefs: EventEntityRef[]
+  },
+  standDownMessageKey: string,
+): TickContext {
+  if (
+    ctx.config.winChanceWarGateEnabled &&
+    play.kind !== 'revolt_negotiation' &&
+    play.initiator.kind === 'polity' &&
+    play.target.kind === 'polity'
+  ) {
+    const winChance = estimateAttackerWinChance(ctx.state, ctx.config, play.initiator, play.target)
+    const threshold = calcGeneralDeclareThreshold(ctx.state, play.initiator.id, ctx.config)
+    if (winChance < threshold) {
+      const nextCtx = setPlayStatus(ctx, play.id, 'settled', 'status_quo')
+      const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+        type: 'DIPLOMATIC_PLAY_SETTLED',
+        importance: 'major',
+        messageKey: standDownMessageKey,
+        messageParams: escalateMeta.messageParams,
+        entityRefs: escalateMeta.eventEntityRefs,
+      })
+      return { ...ctxEv, events: [...ctxEv.events, event] }
+    }
+  }
+  return markPlayEscalated(ctx, play.id, escalateMeta)
 }
 
 // v0.44 §7.2: terminal 化は必ず terminalOutcome とセットで行う (required 引数にして

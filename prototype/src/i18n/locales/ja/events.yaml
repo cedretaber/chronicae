@@ -157,6 +157,7 @@ diplomatic_play:
   failed_claim: '{{initiator}}の{{province}}への請求権は消滅した。'
   escalated_revolt: '{{province}}での膠着した反乱が期限切れで武力衝突に発展した。'
   escalated_claim: '膠着した請求権争いが武力衝突に発展：{{initiator}}が{{province}}へ攻撃。'
+  stood_down: '{{initiator}}は{{province}}を巡る戦争で勝ち目がないと見て、要求を取り下げ矛を収めた。'
   resolved_by_conflict: '{{summary}}'
 
 conflict:

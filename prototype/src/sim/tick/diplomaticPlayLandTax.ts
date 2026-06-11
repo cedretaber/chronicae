@@ -12,7 +12,7 @@ import { validateOffer, evaluateOffer, getOfferEvaluator } from './diplomaticOff
 import { applySettledOffer } from '../mutations/diplomaticOfferMutations'
 import {
   isDeadlineReached,
-  markPlayEscalated,
+  escalateOrStandDown,
   setPlayStatus,
   classifySettledOutcome,
 } from './diplomaticPlayHelpers'
@@ -155,49 +155,69 @@ export function progressLandClaim(ctx: TickContext, play: DiplomaticPlay): TickC
     const initiatorName = initiatorRef.nameKey
     const defenderName = defenderRef.nameKey
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-    return markPlayEscalated(nextCtx, play.id, {
-      polityIds: [initiatorPolityId, defenderPolityId],
-      provinceIds: [provinceId],
-      holdingIds: [holdingId],
-      summary: `${initiatorName} mobilises against ${defenderName} over ${provinceNameKey}.`,
-      messageKey: 'diplomatic_play.escalated_claim',
-      messageParams: {
-        initiator: nameParam(initiatorRef.category, initiatorName),
-        province: nameParam('province', provinceNameKey),
+    return escalateOrStandDown(
+      nextCtx,
+      play,
+      {
+        polityIds: [initiatorPolityId, defenderPolityId],
+        provinceIds: [provinceId],
+        holdingIds: [holdingId],
+        summary: `${initiatorName} mobilises against ${defenderName} over ${provinceNameKey}.`,
+        messageKey: 'diplomatic_play.escalated_claim',
+        messageParams: {
+          initiator: nameParam(initiatorRef.category, initiatorName),
+          province: nameParam('province', provinceNameKey),
+        },
+        eventEntityRefs: [
+          entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
+          entityRef('polity', defenderPolityId, 'defender', defenderName),
+          entityRef(
+            'province',
+            provinceId,
+            'province',
+            nextCtx.state.provinces[provinceId]?.nameKey,
+          ),
+          entityRef('holding', holdingId, 'holding'),
+        ],
       },
-      eventEntityRefs: [
-        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-        entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-        entityRef('holding', holdingId, 'holding'),
-      ],
-    })
+      'diplomatic_play.stood_down',
+    )
   }
 
-  // Deadline check -- no 'failed', always escalate
+  // Deadline check -- 勝率を見て escalate or stand down (no 'failed')
   if (isDeadlineReached(nextCtx.state, play)) {
     const initiatorRef = getPolityNameRefForEmit(nextCtx.state, initiatorPolityId)
     const defenderRef = getPolityNameRefForEmit(nextCtx.state, defenderPolityId)
     const initiatorName = initiatorRef.nameKey
     const defenderName = defenderRef.nameKey
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-    return markPlayEscalated(nextCtx, play.id, {
-      polityIds: [initiatorPolityId, defenderPolityId],
-      provinceIds: [provinceId],
-      holdingIds: [holdingId],
-      summary: `Deadlocked claim erupts: ${initiatorName} attacks for ${provinceNameKey}.`,
-      messageKey: 'diplomatic_play.escalated_claim',
-      messageParams: {
-        initiator: nameParam(initiatorRef.category, initiatorName),
-        province: nameParam('province', provinceNameKey),
+    return escalateOrStandDown(
+      nextCtx,
+      play,
+      {
+        polityIds: [initiatorPolityId, defenderPolityId],
+        provinceIds: [provinceId],
+        holdingIds: [holdingId],
+        summary: `Deadlocked claim erupts: ${initiatorName} attacks for ${provinceNameKey}.`,
+        messageKey: 'diplomatic_play.escalated_claim',
+        messageParams: {
+          initiator: nameParam(initiatorRef.category, initiatorName),
+          province: nameParam('province', provinceNameKey),
+        },
+        eventEntityRefs: [
+          entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
+          entityRef('polity', defenderPolityId, 'defender', defenderName),
+          entityRef(
+            'province',
+            provinceId,
+            'province',
+            nextCtx.state.provinces[provinceId]?.nameKey,
+          ),
+          entityRef('holding', holdingId, 'holding'),
+        ],
       },
-      eventEntityRefs: [
-        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-        entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-        entityRef('holding', holdingId, 'holding'),
-      ],
-    })
+      'diplomatic_play.stood_down',
+    )
   }
 
   return nextCtx
@@ -388,49 +408,69 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
     const initiatorName = initiatorRef.nameKey
     const defenderName = defenderRef.nameKey
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-    return markPlayEscalated(nextCtx, play.id, {
-      polityIds: [initiatorPolityId, defenderPolityId],
-      provinceIds: [provinceId],
-      holdingIds: [holdingId],
-      summary: `${initiatorName} demands tax changes from ${defenderName} over ${provinceNameKey}.`,
-      messageKey: 'diplomatic_play.escalated_claim',
-      messageParams: {
-        initiator: nameParam(initiatorRef.category, initiatorName),
-        province: nameParam('province', provinceNameKey),
+    return escalateOrStandDown(
+      nextCtx,
+      play,
+      {
+        polityIds: [initiatorPolityId, defenderPolityId],
+        provinceIds: [provinceId],
+        holdingIds: [holdingId],
+        summary: `${initiatorName} demands tax changes from ${defenderName} over ${provinceNameKey}.`,
+        messageKey: 'diplomatic_play.escalated_claim',
+        messageParams: {
+          initiator: nameParam(initiatorRef.category, initiatorName),
+          province: nameParam('province', provinceNameKey),
+        },
+        eventEntityRefs: [
+          entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
+          entityRef('polity', defenderPolityId, 'defender', defenderName),
+          entityRef(
+            'province',
+            provinceId,
+            'province',
+            nextCtx.state.provinces[provinceId]?.nameKey,
+          ),
+          entityRef('holding', holdingId, 'holding'),
+        ],
       },
-      eventEntityRefs: [
-        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-        entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-        entityRef('holding', holdingId, 'holding'),
-      ],
-    })
+      'diplomatic_play.stood_down',
+    )
   }
 
-  // Deadline check -- always escalate (no 'failed')
+  // Deadline check -- 勝率を見て escalate or stand down (no 'failed')
   if (isDeadlineReached(nextCtx.state, play)) {
     const initiatorRef = getPolityNameRefForEmit(nextCtx.state, initiatorPolityId)
     const defenderRef = getPolityNameRefForEmit(nextCtx.state, defenderPolityId)
     const initiatorName = initiatorRef.nameKey
     const defenderName = defenderRef.nameKey
     const provinceNameKey = nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId
-    return markPlayEscalated(nextCtx, play.id, {
-      polityIds: [initiatorPolityId, defenderPolityId],
-      provinceIds: [provinceId],
-      holdingIds: [holdingId],
-      summary: `Tax revision dispute over ${provinceNameKey} escalates to conflict.`,
-      messageKey: 'diplomatic_play.escalated_claim',
-      messageParams: {
-        initiator: nameParam(initiatorRef.category, initiatorName),
-        province: nameParam('province', provinceNameKey),
+    return escalateOrStandDown(
+      nextCtx,
+      play,
+      {
+        polityIds: [initiatorPolityId, defenderPolityId],
+        provinceIds: [provinceId],
+        holdingIds: [holdingId],
+        summary: `Tax revision dispute over ${provinceNameKey} escalates to conflict.`,
+        messageKey: 'diplomatic_play.escalated_claim',
+        messageParams: {
+          initiator: nameParam(initiatorRef.category, initiatorName),
+          province: nameParam('province', provinceNameKey),
+        },
+        eventEntityRefs: [
+          entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
+          entityRef('polity', defenderPolityId, 'defender', defenderName),
+          entityRef(
+            'province',
+            provinceId,
+            'province',
+            nextCtx.state.provinces[provinceId]?.nameKey,
+          ),
+          entityRef('holding', holdingId, 'holding'),
+        ],
       },
-      eventEntityRefs: [
-        entityRef('polity', initiatorPolityId, 'initiator', initiatorName),
-        entityRef('polity', defenderPolityId, 'defender', defenderName),
-        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
-        entityRef('holding', holdingId, 'holding'),
-      ],
-    })
+      'diplomatic_play.stood_down',
+    )
   }
 
   return nextCtx

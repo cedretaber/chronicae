@@ -1501,10 +1501,12 @@ for each active play:
        c. if valid → progress += validOfferProgressDelta, evaluateOffer
        d. if accepted → applySettledOffer, play.status = 'settled'
        e. if rejected → tension += evaluation.tensionDelta, set lastEvaluatedOfferId
-  4. escalation check: tension >= escalationThreshold → escalated
-  5. deadline check: deadline 到達 → 常に escalated（failed なし）。
+  4. escalation check: tension >= escalationThreshold → escalateOrStandDown（§6.44b）
+  5. deadline check: deadline 到達 → escalateOrStandDown（§6.44b、failed なし）。
      offer は step 3 で必ず評価済みのため、deadline 時点で未評価 pending offer は存在しない。
 ```
+
+**escalateOrStandDown（v0.47.3 §6.44b）**: land_claim / contract_tax_revision の escalation 判断（tension・deadline の 4 サイト）は、もはや無条件に `escalated` へ倒さず、`escalateOrStandDown`（`tick/diplomaticPlayHelpers.ts`）を経由する。外交劇は「交渉」なので低勝率でも仕掛けてよいが、**戦争化が見える局面（escalation 直前）では勝てない戦争を見送る**。判定式は War 化直前の開戦ゲート（§6.44）と**完全に同一**（`winChanceWarGateEnabled && estimateAttackerWinChance < calcGeneralDeclareThreshold`、revolt_negotiation / 非 polity は対象外）＝「開始時予測 = 実際の判定」の単一の真実を共有する。勝てないと判断した場合は escalate せず `settled` / `status_quo` で撤退し（initiator smallFailure / target smallSuccess。§7.3 の award 意味論で「戦争に至らなかった測定可能な外交相互作用」を残す）、`DIPLOMATIC_PLAY_SETTLED`（messageKey `diplomatic_play.stood_down`）を emit する。勝てる場合は従来通り `markPlayEscalated` で `escalated` に倒す。なお §6.44 の War 化直前ゲートは backstop として残置する（escalateOrStandDown は同 tick の他 play による動員消費**前**、§6.44 は消費**後**に判定するため、A をすり抜け §6.44 で `WAR_AVERTED`（voided）になる play が残りうる＝「勝てなかった」終結が status_quo（撤退）と voided（war gate）の 2 ラベル併存。許容トレードオフ）。**要求幅の動的調整（低勝率なら条件を緩める / 高勝率なら吊り上げる）は未実装（A2 として宿題）**。
 
 `revolt_negotiation` は offer-driven 化の対象外で、タスク駆動ハイブリッドモデルで進行する（下記参照）。
 
@@ -1563,6 +1565,7 @@ revolt_negotiation の escalation は warCreationSystem 経由で War 化され�
 - しきい値 `calcGeneralDeclareThreshold(attackerPolityId)`（`selectors/personAbilityEffects.ts`）= `minAttackerWinChanceToDeclare`（=0.45）を攻撃側の軍事官（`military` office holder）の性格で調整: ambition 高で下げ（不利でも挑む）、caution 高で上げ（慎重）、`[minWarDeclareThreshold, maxWarDeclareThreshold]`=`[0.3, 0.75]` に clamp。`personAbilityEffectsEnabled` OFF 時は flat 0.45。
 - `winChance < threshold` なら War を作らず play を `cancelled`（既存 terminal 経路を再利用）にし、`WAR_AVERTED`（minor、winChance/threshold を百分率で記録）を発行する。決定論（RNG 不使用）。「一か八か」は per-decision の乱数でなく指導者ごとの性格分散で表現する。
 - `winChanceWarGateEnabled` は `personAbilityEffectsEnabled` とは別のキルスイッチ（personality OFF でも flat-0.45 ゲートは挙動変化なので A/B 比較できるよう分離）。
+- **v0.47.3**: 同一の予測式（`estimateAttackerWinChance < calcGeneralDeclareThreshold`）を **escalation 直前**にも共有する（§6.44b `escalateOrStandDown`）。escalation 段階で勝てないと判明した play は War 化を待たず `status_quo` で撤退するため、本ゲート（War 化直前）が `WAR_AVERTED` を出すのは「escalateOrStandDown をすり抜けた（同 tick の他 play が後から動員を消費し勝率が落ちた）」残余ケースに縮小する。両者は同じ閾値ゆえ二重に弾くことはなく、撤退（status_quo）と aborted（voided）の差は判定タイミング（動員消費の前か後か）だけ。
 
 **War 作成後**: 元 play を `resolved_by_conflict`（terminal）にする。**`DIPLOMATIC_PLAY_RESOLVED_BY_CONFLICT` event は発行しない**（即時解決を含意するため）。戦争開始 event は `WAR_DECLARED`（major）のみ。
 

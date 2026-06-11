@@ -158,6 +158,7 @@ diplomatic_play:
   failed_claim: "{{initiator}}'s claim on {{province}} faded out."
   escalated_revolt: 'Deadlocked revolt in {{province}} erupts at deadline.'
   escalated_claim: 'Deadlocked claim erupts: {{initiator}} attacks for {{province}}.'
+  stood_down: '{{initiator}} judged the war over {{province}} unwinnable and withdrew its demands.'
   resolved_by_conflict: '{{summary}}'
 
 conflict:
