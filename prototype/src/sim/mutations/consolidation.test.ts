@@ -127,4 +127,66 @@ describe('v0.47 一円支配集約', () => {
     // 他家 Polity は terminal のまま (collapse されない)。
     expect(ws.holdingTerminalPolityCache[h0]).toBe(otherPolityId)
   })
+
+  // §12.7 step3: sink と terminal が同家でも、間に他家が挟まる sandwich chain は
+  // holding を丸ごと skip しなければならない。途中の同家 contract だけ畳むと
+  // 他家 Polity の grantor を sink に繋ぎ替えてしまう (他家 chain 改変は future)。
+  it('sink〜terminal 間に他家が挟まる sandwich は畳まない (途中の同家 contract も触らない)', () => {
+    const terminalPolityId = createPolityId('dp', 3)
+    let s = baseState()
+    s = withHouse(s, otherHouseId, { nameKey: 'House1', seatProvinceId: provinceId })
+    s = withPolity(s, sinkPolityId, {
+      rank: 2,
+      ownerHouseId: houseId,
+      capitalProvinceId: provinceId,
+    })
+    s = withPolity(s, subPolityId, {
+      rank: 3,
+      ownerHouseId: houseId,
+      capitalProvinceId: provinceId,
+    }) // A 同家
+    s = withPolity(s, otherPolityId, {
+      rank: 4,
+      ownerHouseId: otherHouseId,
+      capitalProvinceId: provinceId,
+    }) // B 他家
+    s = withPolity(s, terminalPolityId, {
+      rank: 5,
+      ownerHouseId: houseId,
+      capitalProvinceId: provinceId,
+    }) // T 同家 terminal
+
+    // chain: root → sink(H,2) → A(H,3) → B(other,4) → T(H,5)
+    s = bindProvinceToPolity(s, provinceId, sinkPolityId)
+    const sinkContractId = (s.landContractIndex.byHolding[h0] ?? [])[0] as LandContractId
+    const linkChild = (parentContractId: LandContractId, granteePolityId: PolityId): WorldState =>
+      createChildLandContract(s, {
+        provinceId,
+        parentContractId,
+        granteePolityId,
+        taxRateToGrantor: 0.5,
+        holdingId: h0,
+      }).state
+    const contractTo = (st: WorldState, pid: PolityId): LandContractId =>
+      (st.landContractIndex.byHolding[h0] ?? []).find(
+        (id) => st.landContracts[id]?.granteePolityId === pid,
+      ) as LandContractId
+    s = linkChild(sinkContractId, subPolityId)
+    const aContractId = contractTo(s, subPolityId)
+    s = linkChild(aContractId, otherPolityId)
+    const bContractId = contractTo(s, otherPolityId)
+    s = linkChild(bContractId, terminalPolityId)
+
+    expect(s.holdingTerminalPolityCache[h0]).toBe(terminalPolityId)
+    const contractCountBefore = (s.landContractIndex.byHolding[h0] ?? []).length
+
+    const { ws, consolidatedCount } = applyConsolidationMut(s, houseId, sinkPolityId)
+
+    // sandwich は丸ごと skip: 集約数 0・terminal 不変・chain 構造不変。
+    expect(consolidatedCount).toBe(0)
+    expect(ws.holdingTerminalPolityCache[h0]).toBe(terminalPolityId)
+    expect((ws.landContractIndex.byHolding[h0] ?? []).length).toBe(contractCountBefore)
+    // 同家 A を畳んでいない = 他家 B の親契約は A のまま (sink に繋ぎ替えられていない)。
+    expect(ws.landContracts[bContractId]?.parentContractId).toBe(aContractId)
+  })
 })

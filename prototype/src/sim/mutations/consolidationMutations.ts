@@ -50,6 +50,29 @@ function consolidateHolding(
   sinkPolityId: PolityId,
   houseId: HouseId,
 ): WorldState {
+  // 所有者 guard (§12.7 step3): collapse を始める前に sink〜terminal 間を全点検する。
+  // 他家所有 / specialStatus が 1 件でも挟まる holding は丸ごと skip する。
+  // (sink 直下から逐次畳むと、他家挟在を見つける前に sink 直下の同家 contract を畳んでしまい、
+  //  他家 Polity の grantor を sink へ繋ぎ替える = 他家 chain の改変になる。他家排除は future。)
+  {
+    const chainIds = state.landContractIndex.byHolding[holdingId] ?? []
+    const sinkContract = chainIds
+      .map((id) => state.landContracts[id])
+      .find((c) => c && c.granteePolityId === sinkPolityId)
+    if (!sinkContract) return state // sink が chain に居ない → 対象外。
+    for (
+      let cursor = state.landContractIndex.byParent[sinkContract.id];
+      cursor !== undefined;
+      cursor = state.landContractIndex.byParent[cursor]
+    ) {
+      const c = state.landContracts[cursor]
+      if (!c) return state
+      const granteePolity = state.polities[c.granteePolityId]
+      if (!granteePolity || granteePolity.ownerHouseId !== houseId) return state // 他家挟在 → skip。
+      if (c.specialStatus !== undefined) return state // special → skip。
+    }
+  }
+
   let guard = 0
   while (guard++ < 50) {
     const chainIds = state.landContractIndex.byHolding[holdingId] ?? []
