@@ -11,7 +11,7 @@ import {
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { installHoldingPlaceholderBailiff } from '../mutations/provinceOfficeMutations'
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
-import { getPolityNameRefForEmitFromPolity } from '../selectors/nameRefSelectors'
+import { getPolityNameRefForEmitFromPolity, houseNameParam } from '../selectors/nameRefSelectors'
 import { maybeSplitHouseAfterSuccession } from './houseSplitSystem'
 import { extinctHouseAfterFailedSuccession } from './houseExtinctionSystem'
 import type { HouseId, PersonId, PolityId } from '../types/ids'
@@ -143,7 +143,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
           messageKey: 'house.leader_changed',
           messageParams: {
             person: nameParam('person', oldestMinor.nameKey),
-            house: nameParam('house', house.nameKey),
+            house: houseNameParam(house, houseId),
           },
           entityRefs: [
             entityRef('person', oldestMinor.id, 'leader', oldestMinor.nameKey),
@@ -194,7 +194,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
       messageKey: 'house.leader_changed',
       messageParams: {
         person: nameParam('person', successor.person.nameKey),
-        house: nameParam('house', house.nameKey),
+        house: houseNameParam(house, houseId),
       },
       entityRefs: [
         entityRef('person', successor.person.id, 'leader', successor.person.nameKey),
@@ -231,7 +231,7 @@ function resolveHouseSuccession(ctx: TickContext, houseId: HouseId): TickContext
         importance: 'major',
         messageKey: 'succession.crisis',
         messageParams: {
-          house: nameParam('house', house.nameKey),
+          house: houseNameParam(house, houseId),
         },
         entityRefs: [
           entityRef('person', successor.person.id, 'claimant', successor.person.nameKey),

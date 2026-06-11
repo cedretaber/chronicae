@@ -14,6 +14,7 @@ import { getPolityLeader } from '../selectors/officeSelectors'
 import {
   getPolityNameRefForEmit,
   getPolityNameRefForEmitFromPolity,
+  houseNameParam,
 } from '../selectors/nameRefSelectors'
 import type { EventId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -613,7 +614,7 @@ function applyPromotePolicyShiftMut(
     importance: 'minor',
     messageKey: 'house.policy_influence',
     messageParams: {
-      house: nameParam('house', house.nameKey),
+      house: houseNameParam(house, houseId),
       polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
     },
     entityRefs: [
@@ -645,7 +646,7 @@ function applyPatronizeArtistMut(
     type: 'HOUSE_PATRONIZED_ARTIST',
     importance: 'minor',
     messageKey: 'house.patronized_artist',
-    messageParams: { house: nameParam('house', house.nameKey) },
+    messageParams: { house: houseNameParam(house, houseId) },
     entityRefs: [entityRef('house', houseId, 'house', house.nameKey)],
   })
 }
@@ -672,7 +673,7 @@ function applyCommissionChronicleMut(
     type: 'HOUSE_COMMISSIONED_CHRONICLE',
     importance: 'minor',
     messageKey: 'house.commissioned_chronicle',
-    messageParams: { house: nameParam('house', house.nameKey) },
+    messageParams: { house: houseNameParam(house, houseId) },
     entityRefs: [entityRef('house', houseId, 'house', house.nameKey)],
   })
 }

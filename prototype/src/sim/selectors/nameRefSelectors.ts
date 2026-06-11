@@ -1,6 +1,8 @@
 import type { WorldState } from '../types/world'
-import type { HoldingId, PolityId } from '../types/ids'
+import type { HoldingId, HouseId, PolityId } from '../types/ids'
 import type { Polity } from '../types/polity'
+import type { House } from '../types/house'
+import { nameParam, type LocalizedNameParam } from '../types/event'
 
 /**
  * v0.41 (§7.2): sim 層の emit helper。イベント emit 経路で `(category, nameKey)` を
@@ -50,6 +52,36 @@ export function getPolityNameRefForEmitFromPolity(state: WorldState, polity: Pol
     case 'holding':
       return getHoldingNameRefForEmit(state, polity.nameSource.holdingId)
   }
+}
+
+/**
+ * House の (category, nameKey) を nameSource に応じて返す (v0.47)。
+ * 'pool'/undefined -> ('house', nameKey) / 'person' -> ('person', nameKey)。
+ * House 不在時は id を nameKey とする安全値。
+ */
+export function getHouseNameRefForEmit(state: WorldState, houseId: HouseId): SimNameRef {
+  const house = state.houses[houseId]
+  if (!house) {
+    return { category: 'house', nameKey: houseId }
+  }
+  return houseNameRef(house)
+}
+
+/** House の (category, nameKey) を nameSource に応じて返す (lookup 済み向け)。 */
+export function houseNameRef(house: House): SimNameRef {
+  const category = house.nameSource === 'person' ? 'person' : 'house'
+  return { category, nameKey: house.nameKey }
+}
+
+/**
+ * House 名を emit する nameParam を nameSource-aware に組み立てる (v0.47)。
+ * person 由来家名は 'person' category で解決させる。house 不在時は fallbackId を nameKey に
+ * 'house' category で返す (従来挙動)。`nameParam('house', house.nameKey)` の置換用。
+ */
+export function houseNameParam(house: House | undefined, fallbackId: string): LocalizedNameParam {
+  if (!house) return nameParam('house', fallbackId)
+  const { category, nameKey } = houseNameRef(house)
+  return nameParam(category, nameKey)
 }
 
 /**

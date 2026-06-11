@@ -23,6 +23,7 @@ import {
   getPolityShortName,
   getHoldingQualifiedName,
   getHoldingShortName,
+  getHouseDisplayName,
 } from '@/app/hooks/entityNameHelpers'
 import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
 import type {
@@ -317,7 +318,7 @@ export function InfluenceSection({
     let title = '—'
     if (dominant.houseId !== undefined) {
       const h = houses[dominant.houseId]
-      if (h) title = resolveName('house', h.nameKey, h.nameKey)
+      if (h) title = getHouseDisplayName(resolveName, h, h.nameKey)
     } else {
       const seg = dominant.segments[0]
       const pid = seg && seg.holder.kind === 'person' ? seg.holder.id : undefined
@@ -642,7 +643,7 @@ export function AttitudeList({
           )
         } else if (prefix === 'house') {
           const h = worldState.houses[id as HouseId]
-          const displayName = h ? resolveName('house', h.nameKey, h.nameKey) : id
+          const displayName = getHouseDisplayName(resolveName, h, id)
           linkNode = (
             <button
               className="cursor-pointer text-blue-400 hover:text-blue-300"

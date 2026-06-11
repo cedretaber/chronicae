@@ -5,7 +5,7 @@ import type { ClickHandler } from './shared/helpers'
 import type { SimEvent } from '@/sim/types/event'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { getHouseLeader, getActiveOfficeHolders } from '@sim/selectors/officeSelectors'
 import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
@@ -128,7 +128,7 @@ export function HouseDetail({
   return (
     <div className="flex flex-col gap-1 p-3">
       <PanelHeader
-        title={resolveName('house', house.nameKey, house.nameKey)}
+        title={getHouseDisplayName(resolveName, house, house.nameKey)}
         actions={
           <>
             <CopyJsonButton payload={buildEntitySnapshot('house', house, currentState ?? null)} />
@@ -411,7 +411,7 @@ export function HouseDetail({
           <span>
             {(() => {
               const h = currentState?.houses?.[house.parentHouseId]
-              return h ? resolveName('house', h.nameKey, h.nameKey) : house.parentHouseId
+              return getHouseDisplayName(resolveName, h, house.parentHouseId)
             })()}
           </span>
         </div>
@@ -427,9 +427,7 @@ export function HouseDetail({
           const clan = currentState.clans[house.clanId]
           if (!clan) return null
           const clanNameHouse = currentState.houses[clan.nameSourceHouseId]
-          const clanName = clanNameHouse
-            ? resolveName('house', clanNameHouse.nameKey, clanNameHouse.nameKey)
-            : clan.id
+          const clanName = getHouseDisplayName(resolveName, clanNameHouse, clan.id)
           const role = getHouseClanRole(currentState, house.id)
           return (
             <>

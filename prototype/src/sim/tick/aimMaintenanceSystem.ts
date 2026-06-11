@@ -16,7 +16,11 @@ import {
 import type { EventMessageParamValue } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
-import { getPolityNameRefForEmit, getHoldingNameRefForEmit } from '../selectors/nameRefSelectors'
+import {
+  getPolityNameRefForEmit,
+  getHoldingNameRefForEmit,
+  houseNameParam,
+} from '../selectors/nameRefSelectors'
 import { politicalRightTargetNameParam } from './politicalRightEvents'
 
 export function runAimMaintenanceSystem(ctx: TickContext): TickContext {
@@ -299,7 +303,7 @@ function getTargetName(ctx: TickContext, target: EntityRef): EventMessageParamVa
     return nameParam(ref.category, ref.nameKey)
   }
   if (target.kind === 'house') {
-    return nameParam('house', ctx.state.houses[target.id]?.nameKey ?? target.id)
+    return houseNameParam(ctx.state.houses[target.id], target.id)
   }
   if (target.kind === 'province') {
     return nameParam('province', ctx.state.provinces[target.id]?.nameKey ?? target.id)

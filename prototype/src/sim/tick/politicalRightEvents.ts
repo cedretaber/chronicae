@@ -20,13 +20,17 @@ import { getPoliticalRightKindFromTarget } from '../types/politicalRight'
 import type { EventEntityRef, LocalizedNameParam } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import type { PoliticalRightRevokeReason } from './rightConsistencySystem'
-import { getPolityNameRefForEmit, getHoldingNameRefForEmit } from '../selectors/nameRefSelectors'
+import {
+  getPolityNameRefForEmit,
+  getHoldingNameRefForEmit,
+  houseNameParam,
+} from '../selectors/nameRefSelectors'
 
 function holderNameParam(state: WorldState, holder: PoliticalRightHolderRef): LocalizedNameParam {
   if (holder.kind === 'person') {
     return nameParam('person', state.persons[holder.id]?.nameKey ?? holder.id)
   }
-  return nameParam('house', state.houses[holder.id]?.nameKey ?? holder.id)
+  return houseNameParam(state.houses[holder.id], holder.id)
 }
 
 // target の表示名: office → role 名 / holding → holding 名 / regiment → 本拠 province 名

@@ -12,7 +12,11 @@ import {
   getHouseSeatProvinceInPolity,
 } from '../selectors/polityRelations'
 import { getHouseLeader, getPolityLeader } from '../selectors/officeSelectors'
-import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
+import {
+  getPolityNameRefForEmit,
+  getPolityEmitNameKey,
+  houseNameParam,
+} from '../selectors/nameRefSelectors'
 import { revokeOfficesByOrganization, createOfficeAssignment } from '../mutations/officeMutations'
 import { removeRightsByPolity } from '../mutations/politicalRightMutations'
 import { dissolveFactionsAnchoredToPolity } from '../mutations/factionMutations'
@@ -101,7 +105,7 @@ function emitPolityOwnerChanged(
   const newHouse = ctx.state.houses[newOwnerId]
   const capProv = ctx.state.provinces[newCapitalProvinceId]
   const polityName = nameParam(polityRef.category, polityRef.nameKey)
-  const newHouseName = nameParam('house', newHouse?.nameKey ?? newOwnerId)
+  const newHouseName = houseNameParam(newHouse, newOwnerId)
   const capName = nameParam('province', capProv?.nameKey ?? newCapitalProvinceId)
   const messageKey = oldOwnerId ? 'polity.owner_changed' : 'polity.owner_changed_initial'
   const { event, ctx: c1 } = createSimEvent(ctx, {

@@ -7,7 +7,7 @@ import { getFirstEntityId, hasEntityId } from '@sim/types/event'
 import type { ClanId } from '@sim/types/ids'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 
 type LinkItem = { id: string; type: EntityType; name: string }
 
@@ -37,7 +37,7 @@ function EventLinks({ event }: { event: SimEvent }) {
       items.push({
         id: house.id,
         type: 'house',
-        name: resolveName('house', house.nameKey, house.nameKey),
+        name: getHouseDisplayName(resolveName, house, house.nameKey),
       })
   }
   const actorId = getFirstEntityId(event, 'person')
@@ -55,9 +55,7 @@ function EventLinks({ event }: { event: SimEvent }) {
     const clan = state.clans[clanEntityId as ClanId]
     if (clan) {
       const nameHouse = state.houses[clan.nameSourceHouseId]
-      const clanName = nameHouse
-        ? resolveName('house', nameHouse.nameKey, nameHouse.nameKey)
-        : clanEntityId
+      const clanName = getHouseDisplayName(resolveName, nameHouse, clanEntityId)
       items.push({ id: clan.id, type: 'clan', name: clanName })
     }
   }

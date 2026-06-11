@@ -1,5 +1,6 @@
 import type { WorldState } from '@sim/types/world'
 import type { HoldingId, PolityId } from '@sim/types/ids'
+import type { House } from '@sim/types/house'
 
 /**
  * v0.41 (§7.3-7.5): app 層の nameSource-aware 表示 helper。
@@ -18,6 +19,25 @@ export type ResolveName = (
 ) => string
 
 type MaybeState = WorldState | null | undefined
+
+/**
+ * House 短名 (v0.47)。家名 nameKey の出所 (nameSource) に応じて category を切り替える:
+ * 'person' (founder 個人名由来 = 分封 / 分家 / 共和国 House) -> 'person' category /
+ * それ以外 (house プール由来) -> 'house' category。
+ *
+ * 禁止: 個人名由来の家名を `resolveName('house', house.nameKey)` で解決すること
+ * (house.yaml に person キーが無く raw key 表示になる)。必ずこの helper を通す。
+ * house が undefined のときは fallback をそのまま返す。
+ */
+export function getHouseDisplayName(
+  resolveName: ResolveName,
+  house: House | undefined,
+  fallback: string,
+): string {
+  if (!house) return fallback
+  const category = house.nameSource === 'person' ? 'person' : 'house'
+  return resolveName(category, house.nameKey, house.nameKey)
+}
 
 /** Holding 短名。manor -> province category / city -> city category。 */
 export function getHoldingShortName(

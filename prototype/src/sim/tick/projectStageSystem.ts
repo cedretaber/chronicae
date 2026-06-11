@@ -30,7 +30,7 @@ import {
 import { getWeightedOpinionFromHouseShareholders } from '../selectors/influenceSelectors'
 import { getHouseDomainConsolidationSinkPolityId } from '../selectors/polityRelations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
-import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
+import { getHouseNameRefForEmit, getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 import type { DecisionSubjectRef } from '../types/goal'
 import type { EventId, PersonId, ProjectId } from '../types/ids'
 import type { PressureKind } from '../types/pressure'
@@ -281,12 +281,13 @@ function resolveFinalizeConsolidation(
 
   const house = ws.houses[houseId]
   const polityRef = getPolityNameRefForEmit(ws, sinkPolityId)
+  const houseRef = getHouseNameRefForEmit(ws, houseId)
   emitEvent({
     type: 'LAND_CONTRACT_CONSOLIDATED',
     importance: 'minor',
     messageKey: 'polity.consolidated',
     messageParams: {
-      house: nameParam('house', house?.nameKey ?? houseId),
+      house: nameParam(houseRef.category, houseRef.nameKey),
       polity: nameParam(polityRef.category, polityRef.nameKey),
     },
     entityRefs: [
@@ -424,6 +425,7 @@ function resolveRegisterHouse(
   ws.projects[projectId] = { ...project, status: 'completed', terminalReason: 'completed' }
 
   const newHouse = ws.houses[result.newHouseId]
+  const houseRef = getHouseNameRefForEmit(ws, result.newHouseId)
   const petitionerNameKey = ws.persons[petitionerId]?.nameKey ?? petitionerId
   emitEvent({
     type: 'HOUSE_FOUNDED_IN_REPUBLIC',
@@ -431,7 +433,7 @@ function resolveRegisterHouse(
     messageKey: 'house.founded_in_republic',
     messageParams: {
       person: nameParam('person', petitionerNameKey),
-      house: nameParam('house', newHouse?.nameKey ?? result.newHouseId),
+      house: nameParam(houseRef.category, houseRef.nameKey),
     },
     entityRefs: [
       entityRef('person', petitionerId, 'founder', petitionerNameKey),
@@ -498,6 +500,7 @@ function resolveFinalizeCadetBranch(
 
   const cadetHouse = ws.houses[result.cadetHouseId]
   const polityRef = getPolityNameRefForEmit(ws, resolved.targetPolityId)
+  const houseRef = getHouseNameRefForEmit(ws, result.cadetHouseId)
   const petitionerNameKey = ws.persons[petitionerId]?.nameKey ?? petitionerId
   emitEvent({
     type: 'CADET_BRANCH_FOUNDED_BY_TITLE_TRANSFER',
@@ -505,7 +508,7 @@ function resolveFinalizeCadetBranch(
     messageKey: 'house.cadet_founded_by_title_transfer',
     messageParams: {
       person: nameParam('person', petitionerNameKey),
-      house: nameParam('house', cadetHouse?.nameKey ?? result.cadetHouseId),
+      house: nameParam(houseRef.category, houseRef.nameKey),
     },
     entityRefs: [
       entityRef('person', petitionerId, 'founder', petitionerNameKey),
@@ -606,6 +609,7 @@ function resolveFinalizeLandGrant(
 
   const isCadet = petitioner?.houseId !== undefined
   const newHouse = ws.houses[result.newHouseId]
+  const houseRef = getHouseNameRefForEmit(ws, result.newHouseId)
   const newPolityRef = getPolityNameRefForEmit(ws, result.newPolityId)
   const petitionerNameKey = ws.persons[petitionerId]?.nameKey ?? petitionerId
   emitEvent({
@@ -614,7 +618,7 @@ function resolveFinalizeLandGrant(
     messageKey: isCadet ? 'house.cadet_founded_by_land_grant' : 'house.founded_by_land_grant',
     messageParams: {
       person: nameParam('person', petitionerNameKey),
-      house: nameParam('house', newHouse?.nameKey ?? result.newHouseId),
+      house: nameParam(houseRef.category, houseRef.nameKey),
     },
     entityRefs: [
       entityRef('person', petitionerId, 'founder', petitionerNameKey),

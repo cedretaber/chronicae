@@ -1,6 +1,10 @@
 import type { WorldState } from '../types/world'
 import type { DecisionSubjectRef } from '../types/goal'
-import { getPolityNameRefForEmit, type SimNameRef } from '../selectors/nameRefSelectors'
+import {
+  getHouseNameRefForEmit,
+  getPolityNameRefForEmit,
+  type SimNameRef,
+} from '../selectors/nameRefSelectors'
 
 /**
  * DecisionSubjectRef (polity / house / person) を nameKey に解決する (調査 §3.4)。
@@ -23,8 +27,6 @@ export function getOwnerNameKey(state: WorldState, owner: DecisionSubjectRef): s
  */
 export function getOwnerNameRefForEmit(state: WorldState, owner: DecisionSubjectRef): SimNameRef {
   if (owner.kind === 'polity') return getPolityNameRefForEmit(state, owner.id)
-  if (owner.kind === 'house') {
-    return { category: 'house', nameKey: state.houses[owner.id]?.nameKey ?? owner.id }
-  }
+  if (owner.kind === 'house') return getHouseNameRefForEmit(state, owner.id)
   return { category: 'person', nameKey: state.persons[owner.id]?.nameKey ?? owner.id }
 }

@@ -1,7 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName, getHoldingQualifiedName } from '@/app/hooks/entityNameHelpers'
+import {
+  getPolityShortName,
+  getHoldingQualifiedName,
+  getHouseDisplayName,
+} from '@/app/hooks/entityNameHelpers'
 import type { FactionId, DiplomaticPlayId, HoldingId, ClanId, WarId } from '@/sim/types/ids'
 import {
   CountryDetail,
@@ -63,7 +67,7 @@ export function WindowManager() {
               if (p) name = getPolityShortName(state, resolveName, entityId as PolityId)
             } else if (entityType === 'house') {
               const h = state.houses[entityId as HouseId]
-              if (h) name = resolveName('house', h.nameKey, h.nameKey)
+              if (h) name = getHouseDisplayName(resolveName, h, h.nameKey)
             } else if (entityType === 'person') {
               const p = state.persons[entityId as PersonId]
               if (p) name = resolveName('person', p.nameKey, p.nameKey)
@@ -113,7 +117,7 @@ export function WindowManager() {
             <DraggableWindow
               key={win.id}
               win={win}
-              title={`House: ${resolveName('house', house.nameKey, house.nameKey)}`}
+              title={`House: ${getHouseDisplayName(resolveName, house, house.nameKey)}`}
             >
               <HouseDetail
                 house={house}
@@ -258,9 +262,7 @@ export function WindowManager() {
           const clan = state.clans[entityId as ClanId]
           if (!clan) return null
           const nameHouse = state.houses[clan.nameSourceHouseId]
-          const clanDisplayName = nameHouse
-            ? resolveName('house', nameHouse.nameKey, nameHouse.nameKey)
-            : entityId
+          const clanDisplayName = getHouseDisplayName(resolveName, nameHouse, entityId)
           return (
             <DraggableWindow key={win.id} win={win} title={`Clan: ${clanDisplayName}`}>
               <ClanDetail

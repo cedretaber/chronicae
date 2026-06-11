@@ -30,7 +30,7 @@ import type { FactionId } from '../types/ids'
 import type { Polity } from '../types/polity'
 import type { House } from '../types/house'
 import { getRoleScore } from '../selectors/abilitySelectors'
-import { getPolityNameRefForEmitFromPolity } from '../selectors/nameRefSelectors'
+import { getPolityNameRefForEmitFromPolity, houseNameParam } from '../selectors/nameRefSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 import {
@@ -697,7 +697,7 @@ function tryAppointHouseOffice(
       messageParams: {
         person: nameParam('person', person.nameKey),
         role: nameParam('role', `house_${role}`),
-        house: nameParam('house', house.nameKey),
+        house: houseNameParam(house, house.id),
       },
       entityRefs: [
         entityRef('person', best.id, 'appointee', person.nameKey),

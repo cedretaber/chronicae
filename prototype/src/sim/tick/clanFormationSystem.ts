@@ -4,7 +4,8 @@ import type { HouseId, ClanId, PersonId } from '@sim/types/ids'
 import { isRulingHouse, isInfluentialHouse } from '@sim/selectors/availabilitySelectors'
 import { createClan, addHouseToClan, syncClanActive } from '@sim/mutations/clanMutations'
 import { createSimEvent } from './context'
-import { nameParam, entityRef } from '@sim/types/event'
+import { entityRef } from '@sim/types/event'
+import { houseNameParam } from '@sim/selectors/nameRefSelectors'
 
 function collectMemberHouseIds(state: WorldState, rootHouseId: HouseId): HouseId[] {
   const result: HouseId[] = []
@@ -119,7 +120,7 @@ export function runClanFormationSystem(ctx: TickContext): TickContext {
       importance: 'major',
       messageKey: 'clan.founded',
       messageParams: {
-        rootHouseName: nameParam('house', rootHouseNameKey),
+        rootHouseName: houseNameParam(rootHouseForEvent, houseId),
         memberHouseCount: memberHouseIds.length,
         activeHouseCount: activeCount,
       },

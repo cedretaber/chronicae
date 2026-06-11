@@ -33,6 +33,7 @@ export function applyCadetBranchTitleTransferMut(
   const cadetHouse: House = {
     id: cadetHouseId,
     nameKey: petitioner.nameKey,
+    nameSource: 'person', // founder 個人名由来の家名 (person category で解決)。
     active: true,
     memberIds: [],
     deceasedMemberIds: [],

@@ -2,7 +2,7 @@ import type { PersonId, HouseId, PolityId } from '@/sim/types/ids'
 import type { Person } from '@/sim/types/person'
 import type { ClickHandler } from './helpers'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 import type { House } from '@/sim/types/house'
 import type { WorldState } from '@/sim/types/world'
 
@@ -46,7 +46,7 @@ export function HouseLink({
       className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
       onClick={() => onClick(houseId, 'house')}
     >
-      {resolveName('house', house.nameKey, house.nameKey)}
+      {getHouseDisplayName(resolveName, house, house.nameKey)}
     </button>
   )
 }

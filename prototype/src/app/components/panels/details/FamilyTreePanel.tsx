@@ -5,6 +5,7 @@ import type { WorldState } from '@/sim/types/world'
 import { buildHouseFamilyTree } from '@sim/selectors/familyTreeSelectors'
 import { usePanZoom } from '@/app/hooks/usePanZoom'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 import { PersonCard } from './shared/PersonCard'
 import type { ClickHandler } from './shared/helpers'
 import { layoutFamilyTree, NODE_W, NODE_H, COL_W } from './familyTreeLayout'
@@ -51,12 +52,12 @@ export function FamilyTreePanel({
   }, [onClose])
 
   const house = state.houses[houseId]
-  const houseName = house ? resolveName('house', house.nameKey, house.nameKey) : houseId
+  const houseName = getHouseDisplayName(resolveName, house, houseId)
   const title = t('detail.family_tree.title', { house: houseName })
 
   const houseNameOf = (id: HouseId): string => {
     const h = state.houses[id]
-    return h ? resolveName('house', h.nameKey, h.nameKey) : id
+    return getHouseDisplayName(resolveName, h, id)
   }
 
   return (

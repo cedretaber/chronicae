@@ -6,7 +6,7 @@ import type { FactionId } from '@/sim/types/ids'
 import type { SimEvent } from '@/sim/types/event'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 import { calcPersonImportanceScore } from '@/sim/selectors/importanceSelectors'
 import { getPersonPrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
@@ -85,7 +85,7 @@ export function PersonDetail({
       return p ? getPolityShortName(worldState, resolveName, org.id) : org.id
     }
     const h = worldState.houses[org.id]
-    return h ? resolveName('house', h.nameKey, h.nameKey) : org.id
+    return getHouseDisplayName(resolveName, h, org.id)
   }
 
   const sortByRole = (a: (typeof allOffices)[number], b: (typeof allOffices)[number]) =>
@@ -530,10 +530,11 @@ export function PersonDetail({
                                   return t('detail.person.task_target_own_aim')
                                 }
                                 if (aim.owner.kind === 'house') {
-                                  const h = worldState.houses[aim.owner.id]
-                                  const name = h
-                                    ? resolveName('house', h.nameKey, h.nameKey)
-                                    : aim.owner.id
+                                  const name = getHouseDisplayName(
+                                    resolveName,
+                                    worldState.houses[aim.owner.id],
+                                    aim.owner.id,
+                                  )
                                   return t('detail.person.task_target_house_aim', { name })
                                 }
                                 if (aim.owner.kind === 'polity') {
@@ -548,10 +549,11 @@ export function PersonDetail({
                             {task.targetRef.kind === 'project' &&
                               (() => {
                                 if (task.owner.kind === 'house') {
-                                  const h = worldState.houses[task.owner.id]
-                                  const name = h
-                                    ? resolveName('house', h.nameKey, h.nameKey)
-                                    : task.owner.id
+                                  const name = getHouseDisplayName(
+                                    resolveName,
+                                    worldState.houses[task.owner.id],
+                                    task.owner.id,
+                                  )
                                   return t('detail.person.task_target_house_project', { name })
                                 }
                                 if (task.owner.kind === 'polity') {
@@ -566,10 +568,11 @@ export function PersonDetail({
                             {task.targetRef.kind === 'diplomatic_play' &&
                               (() => {
                                 if (task.owner.kind === 'house') {
-                                  const h = worldState.houses[task.owner.id]
-                                  const name = h
-                                    ? resolveName('house', h.nameKey, h.nameKey)
-                                    : task.owner.id
+                                  const name = getHouseDisplayName(
+                                    resolveName,
+                                    worldState.houses[task.owner.id],
+                                    task.owner.id,
+                                  )
                                   return t('detail.person.task_target_house_play', { name })
                                 }
                                 if (task.owner.kind === 'polity') {

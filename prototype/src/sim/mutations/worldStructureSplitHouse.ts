@@ -12,7 +12,7 @@ import { movePersonToHouse } from './personMutations'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import { getHouseControlledProvinceIds } from '../selectors/landContractSelectors'
-import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
+import { getPolityNameRefForEmit, houseNameParam } from '../selectors/nameRefSelectors'
 import { initializeHouseShares } from '../tick/houseShareUpdateSystem'
 import { removePersonSharesInHouse } from './shareMutations'
 import { addHouseToClan } from './clanMutations'
@@ -249,7 +249,7 @@ export function splitHouse(
     messageParams: {
       person: nameParam('person', splitterPerson.nameKey),
       house: nameParam('house', newHouseNameKey),
-      parentHouse: nameParam('house', house.nameKey),
+      parentHouse: houseNameParam(house, input.houseId),
     },
     entityRefs: [
       entityRef('person', splitterPerson.id, 'founder', splitterPerson.nameKey),
@@ -266,7 +266,7 @@ export function splitHouse(
     messageKey: 'house.split',
     messageParams: {
       person: nameParam('person', splitterPerson.nameKey),
-      house: nameParam('house', house.nameKey),
+      house: houseNameParam(house, input.houseId),
     },
     entityRefs: [
       entityRef('person', splitterPerson.id, 'splitter', splitterPerson.nameKey),
@@ -293,7 +293,7 @@ export function splitHouse(
       importance: 'major',
       messageKey: 'succession.crisis_split',
       messageParams: {
-        house: nameParam('house', house.nameKey),
+        house: houseNameParam(house, input.houseId),
         polity: housePolityId
           ? (() => {
               const ref = getPolityNameRefForEmit(resultCtx.state, housePolityId)

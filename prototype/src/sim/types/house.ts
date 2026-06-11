@@ -14,9 +14,20 @@ export type HouseCreationReason =
   | 'succession'
   | 'peace_settlement'
 
+/**
+ * 家名 nameKey がどの name プールに属するか (v0.47)。
+ * - 'pool' (既定 / undefined): house プール由来 (house.yaml で解決)。
+ * - 'person': founder の個人名由来 (person.yaml で解決)。分封 / 分家(Polity 譲渡) /
+ *   共和国 House 創設は petitioner.nameKey をそのまま家名にするため、house category では
+ *   解決できず raw key 表示になる。表示・emit 側は nameSource を見て category を切り替える。
+ */
+export type HouseNameSource = 'pool' | 'person'
+
 export type House = {
   id: HouseId
   nameKey: string
+  /** 家名の出所。undefined は 'pool' と同義 (既存 House は触らない additive フィールド)。 */
+  nameSource?: HouseNameSource
   active: boolean
   kind?: HouseKind
   memberIds: PersonId[]

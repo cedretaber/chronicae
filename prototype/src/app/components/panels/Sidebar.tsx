@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 import { getPolityLegitimacy, getPolityStability } from '@sim/selectors/statusSelectors'
 import type { SimEvent } from '@sim/types/event'
 import { hasEntityId } from '@sim/types/event'
@@ -102,7 +102,7 @@ function HouseRow({
       }`}
       onClick={onClick}
     >
-      <div className="font-bold">{resolveName('house', house.nameKey, house.nameKey)}</div>
+      <div className="font-bold">{getHouseDisplayName(resolveName, house, house.nameKey)}</div>
       <div className="flex items-center gap-1.5 text-xs text-gray-400">
         <span
           className="inline-block h-2 w-2 shrink-0 rounded-sm"
@@ -280,8 +280,7 @@ function WarRow({
     if (actor.kind === 'polity') {
       return getPolityShortName(world, resolveName, actor.id)
     }
-    const nameKey = houses[actor.id]?.nameKey ?? actor.id
-    return resolveName('house', nameKey, nameKey)
+    return getHouseDisplayName(resolveName, houses[actor.id], actor.id)
   }
   const attackerName = resolveActorName(getWarPrimaryAttacker(war)?.actor)
   const defenderName = resolveActorName(getWarPrimaryDefender(war)?.actor)
@@ -529,7 +528,7 @@ export function Sidebar() {
         if (found) name = getPolityShortName(session?.currentState, resolveName, found.id)
       } else if (type === 'house' && houses) {
         const found = Object.values(houses).find((h) => h.id === watchId)
-        if (found) name = resolveName('house', found.nameKey, found.nameKey)
+        if (found) name = getHouseDisplayName(resolveName, found, found.nameKey)
       } else if (type === 'person' && persons) {
         const found = Object.values(persons).find((p) => p.id === watchId)
         if (found) name = resolveName('person', found.nameKey, found.nameKey)

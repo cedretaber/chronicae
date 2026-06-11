@@ -11,7 +11,7 @@ import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMut
 import { dispersePersonsToHouseless } from './houseMutations'
 import { getHouseLeader } from '../selectors/officeSelectors'
 import { getHouseProvinceIdsByPolity, getPolityHouseIds } from '../selectors/polityRelations'
-import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
+import { getPolityNameRefForEmit, houseNameParam } from '../selectors/nameRefSelectors'
 import {
   getHouseControlledProvinceIds,
   getProvinceEffectiveOwnerHouseId,
@@ -258,7 +258,7 @@ function handleNormalHouseExtinction(
         importance: 'normal',
         messageKey: 'house.members_dispersed',
         messageParams: {
-          house: nameParam('house', house.nameKey),
+          house: houseNameParam(house, houseId),
         },
         entityRefs: [entityRef('house', houseId, 'house', house.nameKey)],
       })
@@ -270,7 +270,7 @@ function handleNormalHouseExtinction(
       importance: 'major',
       messageKey: 'house.extinct',
       messageParams: {
-        house: nameParam('house', house.nameKey),
+        house: houseNameParam(house, houseId),
       },
       entityRefs: [entityRef('house', houseId, 'house', house.nameKey)],
     })
@@ -350,8 +350,8 @@ function handleNormalHouseExtinction(
       messageKey: 'polity.owner_changed_extinction',
       messageParams: {
         polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
-        oldHouse: nameParam('house', house.nameKey),
-        newHouse: nameParam('house', receiverHouse?.nameKey ?? ''),
+        oldHouse: houseNameParam(house, houseId),
+        newHouse: houseNameParam(receiverHouse, polityReceiverHouseId),
       },
       entityRefs: [
         entityRef('house', houseId, 'from_house', house.nameKey),
@@ -429,7 +429,7 @@ function handleNormalHouseExtinction(
       messageKey:
         inheritedPolityIds.length > 0 ? 'house.extinct_inherited' : 'house.extinct_legacy',
       messageParams: {
-        house: nameParam('house', house.nameKey),
+        house: houseNameParam(house, houseId),
       },
       entityRefs: [
         entityRef('house', houseId, 'extinct_house', house.nameKey),

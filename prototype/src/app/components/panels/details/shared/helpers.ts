@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 import type { WorldState } from '@/sim/types/world'
 import type { HoldingId, PolityId, HouseId, PersonId } from '@/sim/types/ids'
 import type { SimEvent } from '@/sim/types/event'
@@ -507,8 +507,11 @@ export function getPersonRepresentativeOffice(
   if (houseOffices.length > 0) {
     const o = houseOffices[0]!
     const roleName = resolveName('role', `${o.organization.kind}_${o.role}`, o.role)
-    const orgNameKey = state.houses[o.organization.id as HouseId]?.nameKey ?? o.organization.id
-    const orgName = resolveName('house', orgNameKey, orgNameKey)
+    const orgName = getHouseDisplayName(
+      resolveName,
+      state.houses[o.organization.id as HouseId],
+      o.organization.id,
+    )
     return { label: `${roleName} (${orgName})`, extraCount: total - 1, isUnemployed: false }
   }
   if (bailiffs.length > 0) {

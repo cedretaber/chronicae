@@ -2,6 +2,7 @@ import type { PersonId } from '@/sim/types/ids'
 import type { WorldState } from '@/sim/types/world'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 import { getHouseLeader } from '@sim/selectors/officeSelectors'
 import { isLandlessHouseMember } from '@sim/selectors/availabilitySelectors'
 import type { ClickHandler } from './helpers'
@@ -103,7 +104,7 @@ export function PersonCard({
                   onClick={onHouseClick}
                 />
               ) : (
-                resolveName('house', worldState.houses[person.houseId]?.nameKey, person.houseId)
+                getHouseDisplayName(resolveName, worldState.houses[person.houseId], person.houseId)
               )}
             </span>
           ) : (

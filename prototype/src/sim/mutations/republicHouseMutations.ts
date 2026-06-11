@@ -27,6 +27,7 @@ export function applyRepublicHouseFoundationMut(
   const newHouse: House = {
     id: newHouseId,
     nameKey: person.nameKey,
+    nameSource: 'person', // founder 個人名由来の家名 (person category で解決)。
     active: true,
     memberIds: [],
     deceasedMemberIds: [],

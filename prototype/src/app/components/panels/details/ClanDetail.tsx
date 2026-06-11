@@ -4,6 +4,7 @@ import { buildEntitySnapshot } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 import {
   getClanActiveHouseIds,
   getClanExtinctHouseIds,
@@ -37,9 +38,7 @@ export function ClanDetail({
   const houses = worldState.houses
   const persons = worldState.persons
   const nameHouse = houses[clan.nameSourceHouseId]
-  const clanDisplayName = nameHouse
-    ? resolveName('house', nameHouse.nameKey, nameHouse.nameKey)
-    : clan.id
+  const clanDisplayName = getHouseDisplayName(resolveName, nameHouse, clan.id)
   const rootHouse = houses[clan.rootHouseId]
   const founder = clan.founderPersonId ? persons[clan.founderPersonId] : undefined
   const ageYears = Math.floor((worldState.absoluteWeek - clan.createdWeek) / 48)
@@ -161,7 +160,7 @@ export function ClanDetail({
           if (!h) return null
           return (
             <div key={hid} className="flex items-center justify-between text-gray-500">
-              <span>{resolveName('house', h.nameKey, h.nameKey)}</span>
+              <span>{getHouseDisplayName(resolveName, h, h.nameKey)}</span>
             </div>
           )
         })}
