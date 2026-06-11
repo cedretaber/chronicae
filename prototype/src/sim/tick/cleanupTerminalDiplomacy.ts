@@ -16,8 +16,8 @@ import type { DiplomaticPlay, DiplomaticOffer } from '../types/diplomaticPlay'
 import type { OrganizationRef } from '../types/office'
 import type { DecisionSubjectRef } from '../types/goal'
 import { getOwnerNameRefForEmit } from '../utils/ownerNames'
-import type { LandContractId } from '../types/ids'
-import type { LandContract } from '../types/landContract'
+import type { LandContractId, HoldingId } from '../types/ids'
+import type { LandContract, Holding } from '../types/landContract'
 import type { Project } from '../types/project'
 import type { Pressure, PressureIndex } from '../types/pressure'
 import type { WorldState } from '../types/world'
@@ -317,6 +317,29 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     }
   }
 
+  // v0.47.3 §6.69: Set holding grace period for terminal land_claim plays (税制改定と対称)。
+  //   outcome で絞らない (税制改定も絞らない): 勝った holding は自所有になり findAcquire が
+  //   自所有を skip するため demands_met/escalated_to_war を含めても安全。失敗した請求を毎年
+  //   再生成する churn (同一 holding を ~1.5 年ごとに再請求) を 5 年止める。
+  let nextHoldings: Record<HoldingId, Holding> | undefined
+  if (removedPlayIds.size > 0) {
+    const landClaimGraceWeeks = ctx.config.landClaimGracePeriodYears * WEEKS_PER_YEAR
+    for (const playIdStr of removedPlayIds) {
+      const play = plays[playIdStr as DiplomaticPlayId]
+      if (!play || play.kind !== 'land_claim') continue
+      if (!play.issue || play.issue.kind !== 'land_claim') continue
+      const holdingId = play.issue.holdingId
+      const base = nextHoldings ?? ctx.state.holdings
+      const holding = base[holdingId]
+      if (!holding) continue
+      if (!nextHoldings) nextHoldings = { ...ctx.state.holdings }
+      nextHoldings[holdingId] = {
+        ...holding,
+        landClaimProtectedUntilWeek: ctx.state.absoluteWeek + landClaimGraceWeeks,
+      }
+    }
+  }
+
   const log = createLogger(ctx.config.debug)
   if (removedPlayIds.size > 0 || nextPressures || nextProjects) {
     let cancelledProjectCount = 0
@@ -346,6 +369,7 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
     !nextGoals &&
     !taskCleanedState &&
     !nextLandContracts &&
+    !nextHoldings &&
     !nextOffers &&
     !nextPressures &&
     !nextPressureIndex &&
@@ -364,6 +388,7 @@ export function runCleanupTerminalDiplomacy(ctx: TickContext): TickContext {
       aims: nextAims ?? baseState.aims,
       goals: nextGoals ?? baseState.goals,
       landContracts: nextLandContracts ?? baseState.landContracts,
+      holdings: nextHoldings ?? baseState.holdings,
       pressures: nextPressures ?? baseState.pressures,
       pressureIndex: nextPressureIndex ?? baseState.pressureIndex,
       projects: nextProjects ?? baseState.projects,

@@ -459,6 +459,8 @@ function findAcquireTargetForProject(
   if (aim.target && aim.target.kind === 'province') {
     const holdings = getProvinceHoldings(ws, aim.target.id)
     for (const h of holdings) {
+      // v0.47.3 §6.69: land_claim grace 中の holding は acquire 対象から除外 (churn 抑制)
+      if (h.landClaimProtectedUntilWeek && ws.absoluteWeek < h.landClaimProtectedUntilWeek) continue
       const tp = ws.holdingTerminalPolityCache[h.id]
       if (tp && (tp as string) !== (polityId as string)) {
         // v0.45.2: 同家 polity は対象にしない (同家戦争防止ゲート) — 次の holding 候補へ

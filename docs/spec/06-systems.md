@@ -1024,9 +1024,11 @@ rank 5 Polity 内の叛乱は War 化せず、diplomaticPlaySystem 内で即時�
 
 さらに leader executed の場合、処刑された leader の assign 済み active Task と supervisor を務める active Project を即時 cascade する — Task は `cancelTasksOfDeadAssignee`（task 削除 + DiplomaticPlay activeTaskIds 参照解除 + owner Aim の activeTaskId 解除。taskSystem の週次 cancel と同じ整合面）、Project は `reassignProjectsOfDeadSupervisor`（§6.40 と同じ規則で再選定し、不能なら failed + `PROJECT_FAILED`）。本関数は war 系 system（tick 順で taskSystem / ProjectMaintenanceSystem より後）から呼ばれるため、通常の週次/4週ごとの回収では年末 integrity（「Task assignee is dead」/「active project but supervisor is dead」）より先に回収できないことがある（supervisor 候補に派閥メンバー＝食客が入ったことで「revolt 指導者が他組織の supervisor を兼ねる」重なりが現実化し、Project 側は 300年 seed 123 で実発生した）。
 
-### 6.31 PolityOwnerConsistencySystem（4週ごと）
+### 6.31 PolityOwnerConsistencySystem（毎週）
 
 War / Rebellion / ProvinceRevolt 等の所領変動 system の直後に走り、`Polity.ownerHouseId` の整合性を補正する。
+
+**intervalWeeks=1（v0.47.3）**: 旧 interval 4 では年末 IntegrityCheck tick（`absoluteWeek ≡ 47 mod 48`）に実行週が当たらず、週 45〜47 で landless 化した Polity（granted polity が holding を失う等。`getPolityProvinceIds` は estate/peace settlement で `byGranteePolity` が空になると 0 を返す）が titular 化 / abolish されないまま §25 #17（landless active Polity = 違反）に捕まる窓があった。`cancelOrphanedWarsSystem`（§6.35）/ `rightConsistencySystem` を weekly 化したのと同一の理由（interval 4 系は年末 tick をカバーしない §3.4）で本 system も weekly 化し、landless 検出 → titular 化 / abolish を年末 tick でも実行する。発覚契機: land_claim grace（§6.69）導入で granted polity が holding 喪失後に再取得できず landless が年末まで持続したため顕在化した（grace 自体は正しく、これは露出した既存の timing gap）。
 
 active Polity を id 昇順に走査し、以下のステップを順に行う（疑似コード）:
 
@@ -1722,6 +1724,10 @@ terminal status の DiplomaticPlay と関連 Pressure / DiplomaticOffer を stat
 **active play の supporter sweep（v0.43）**: active play の supporter polity が inactive になった場合、supporter 配列から無音除去する（play は継続。primary inactive は従来どおり play ごと削除）。
 
 **成果経験・評判付与（v0.44）**: terminal status での削除直前に、`terminalOutcome` が設定された play について両 side delegate へ即時成長 + diplomacy 評判を付与する（§6.66）。actor-inactive による active play 削除は対象外。play は terminal 化と同 tick で削除されるため、この cleanup 内が唯一の安全な処理地点。
+
+**grace period 設定（毎週）**:
+- **contract_tax_revision**: terminal play の対象 `landContractId` に `termsProtectedUntilWeek = absoluteWeek + taxRevisionGracePeriodYears × 48` を設定（契約単位 grace。findImprove が skip）。
+- **land_claim（v0.47.3 §6.69）**: terminal play の `issue.holdingId`（対象 holding）に `landClaimProtectedUntilWeek = absoluteWeek + landClaimGracePeriodYears × 48`（default 5）を設定する（税制改定と対称な holding 単位 grace）。失敗した請求を毎年再生成する churn（同一 holding を ~1.5 年ごとに再請求）を grace 期間止める。outcome で絞らない（税制改定も絞らない。勝った holding は自所有になり findAcquire が自所有を skip するため demands_met / escalated_to_war を含めても安全）。grace は **2 レベルで参照**する: (1) project レベル — `findAcquireTargetForProject`（`taskProjectCompletion.ts`）が保護中 holding を skip、(2) aim 候補レベル — `goalSelectors` の `consolidate_province_holdings`（保護中を otherCount に数えない）/ `seize_weak_remote_holdings`（候補から除外）。project レベルだけだと province の全 claimable holding が保護中でも aim が立ち年次 `AIM_ABANDONED` の二次 churn が残るため、両レベル必須。`nextHoldings` アキュムレータを新設し最終 state 合成に `holdings` を加える。**効果（実測 seed42 100年・A1 比）**: 同一 holding への急速再請求（gap < 5 年）が 25/28 → 4/27、単一 holding 最大請求数 19 → 10。残る breach は別 attacker による同時請求（grace が構造的に防げない競合）。
 
 **Pressure 同期**:
 - terminal DiplomaticPlay に紐付く Pressure を `pressureIndex.byDiplomaticPlay` で取得

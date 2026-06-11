@@ -66,6 +66,10 @@ export type Holding = {
   weight: number
   lastRevoltSuppressedWeek?: number
   lastRevoltSettledWeek?: number
+  // v0.47.3 §6.69: land_claim 外交劇が terminal 化した後、この holding を一定期間 acquire 対象から
+  //   除外する grace period の失効週。税制改定の termsProtectedUntilWeek (契約単位) と対称な
+  //   holding 単位の保護。失敗した請求を毎年再生成する churn を抑える。
+  landClaimProtectedUntilWeek?: number
 }
 
 export type HoldingTerminalPolityCache = Record<HoldingId, PolityId>

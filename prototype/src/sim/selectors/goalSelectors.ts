@@ -325,6 +325,11 @@ function pickPolityAim(
         if (tp && (tp as string) === (polityId as string)) ownCount++
         // v0.45.2: 同家 polity の holding は奪取対象 (other) に数えない (同家戦争防止ゲート)
         else if (tp && politiesShareOwnerHouse(state, polityId, tp)) continue
+        // v0.47.3 §6.69: land_claim grace 中の holding は奪取対象に数えない。province の全
+        //   claimable holding が保護中なら otherCount=0 で candidate 非 push → aim 自体が立たず
+        //   年次 AIM_ABANDONED churn を防ぐ (project レベル skip だけでは二次 churn が残る)。
+        else if (h.landClaimProtectedUntilWeek && absoluteWeek < h.landClaimProtectedUntilWeek)
+          continue
         else otherCount++
       }
       if (ownCount > 0 && otherCount > 0) {
@@ -348,6 +353,9 @@ function pickPolityAim(
           if (!tp || (tp as string) === (polityId as string)) continue
           // v0.45.2: 同家 polity は奪取対象にしない (同家戦争防止ゲート)
           if (politiesShareOwnerHouse(state, polityId, tp)) continue
+          // v0.47.3 §6.69: land_claim grace 中の holding は奪取対象にしない (churn 抑制)
+          if (h.landClaimProtectedUntilWeek && absoluteWeek < h.landClaimProtectedUntilWeek)
+            continue
           const targetPower = calcPolityMilitaryPower(state, config, tp)
           if (ownPower > targetPower * 1.25) {
             candidates.push({

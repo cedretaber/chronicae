@@ -424,6 +424,9 @@ export type SimulationConfig = {
   taxRevisionInitialProgressOnAdvantage: number
   taxRevisionInitialTensionOnPressure: number
   taxRevisionGracePeriodYears: number
+  // v0.47.3 §6.69: land_claim 外交劇 terminal 後、対象 holding を acquire 対象から除外する年数
+  //   (税制改定 taxRevisionGracePeriodYears と対称)。
+  landClaimGracePeriodYears: number
   // v0.30: contract_tax_revision offer-driven
   taxRevisionInitialDemandDelta: number
   taxRevisionReservationDelta: number
@@ -1541,6 +1544,7 @@ export const defaultConfig: SimulationConfig = {
   taxRevisionInitialProgressOnAdvantage: 10,
   taxRevisionInitialTensionOnPressure: 10,
   taxRevisionGracePeriodYears: 5,
+  landClaimGracePeriodYears: 5,
   // v0.30
   taxRevisionInitialDemandDelta: 0.1,
   taxRevisionReservationDelta: 0.05,

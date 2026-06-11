@@ -1,11 +1,18 @@
 import { describe, it, expect } from 'vitest'
-import { makeEmptyV016State, withPolity } from '../testFixtures'
+import { makeEmptyV016State, withPolity, withProvince, withHolding } from '../testFixtures'
 import { createTickContext } from './context'
 import { runCleanupTerminalDiplomacy } from './cleanupTerminalDiplomacy'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
+import { WEEKS_PER_YEAR } from '../utils/timeUtils'
 import type { WorldState } from '../types/world'
-import type { DiplomaticPlayId, DiplomaticOfferId, PolityId } from '../types/ids'
+import type {
+  DiplomaticPlayId,
+  DiplomaticOfferId,
+  PolityId,
+  ProvinceId,
+  HoldingId,
+} from '../types/ids'
 import type { DiplomaticPlay, DiplomaticOffer } from '../types/diplomaticPlay'
 
 function makeStateWithActors(): WorldState {
@@ -172,6 +179,69 @@ describe('cleanupTerminalDiplomacy', () => {
     const next = runCleanupTerminalDiplomacy(ctx)
     expect(next).toBe(ctx)
     expect(Object.keys(next.state.diplomaticOffers)).toEqual(['do-1'])
+  })
+
+  // v0.47.3 §6.69: terminal land_claim play は対象 holding に grace period を設定する。
+  function makeLandClaimPlay(
+    id: string,
+    status: DiplomaticPlay['status'],
+    holdingId: HoldingId,
+    provinceId: ProvinceId,
+    terminalOutcome?: DiplomaticPlay['terminalOutcome'],
+  ): DiplomaticPlay {
+    return {
+      id: id as DiplomaticPlayId,
+      kind: 'land_claim',
+      initiator: { kind: 'polity', id: 'c-1' as PolityId },
+      target: { kind: 'polity', id: 'c-2' as PolityId },
+      issue: { kind: 'land_claim', holdingId, provinceId },
+      status,
+      ...(terminalOutcome ? { terminalOutcome } : {}),
+      startedWeek: 1000 * 48,
+      deadlineWeek: 1000 * 48 + 72,
+      progress: 0,
+      tension: 0,
+      initiatorPreparation: 0,
+      initiatorLeverage: 0,
+      initiatorCommitment: 0,
+      targetPreparation: 0,
+      targetLeverage: 0,
+      targetCommitment: 0,
+      initiatorSupporters: [],
+      targetSupporters: [],
+      initiatorActiveTaskIds: [],
+      targetActiveTaskIds: [],
+      offerHistoryIds: [],
+    }
+  }
+
+  it('sets land_claim grace on the target holding for a status_quo (撤退) terminal play', () => {
+    let s = makeStateWithActors()
+    const provinceId = 'pr-1' as ProvinceId
+    const holdingId = 'hl-1' as HoldingId
+    s = withProvince(s, provinceId, {})
+    s = withHolding(s, holdingId, provinceId, {})
+    const play = makeLandClaimPlay('dp-lc', 'settled', holdingId, provinceId, 'status_quo')
+    s = { ...s, diplomaticPlays: { [play.id]: play }, absoluteWeek: 500 }
+    const next = runCleanupTerminalDiplomacy(makeCtx(s))
+    // play は削除され、holding に grace が乗る
+    expect(Object.keys(next.state.diplomaticPlays)).toEqual([])
+    const holding = next.state.holdings[holdingId]
+    expect(holding?.landClaimProtectedUntilWeek).toBe(
+      500 + defaultConfig.landClaimGracePeriodYears * WEEKS_PER_YEAR,
+    )
+  })
+
+  it('does not set land_claim grace for an active play (only terminal)', () => {
+    let s = makeStateWithActors()
+    const provinceId = 'pr-1' as ProvinceId
+    const holdingId = 'hl-1' as HoldingId
+    s = withProvince(s, provinceId, {})
+    s = withHolding(s, holdingId, provinceId, {})
+    const play = makeLandClaimPlay('dp-lc', 'active', holdingId, provinceId)
+    s = { ...s, diplomaticPlays: { [play.id]: play }, absoluteWeek: 500 }
+    const next = runCleanupTerminalDiplomacy(makeCtx(s))
+    expect(next.state.holdings[holdingId]?.landClaimProtectedUntilWeek).toBeUndefined()
   })
 
   it('does not roll back nextDiplomaticPlayId on deletion', () => {
