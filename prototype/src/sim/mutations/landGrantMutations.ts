@@ -6,6 +6,7 @@ import type { House } from '../types/house'
 import { createChildLandContract } from './landContractMutations'
 import { createOfficeAssignment } from './officeMutations'
 import { moveFounderFamilyToHouse } from './personMutations'
+import { addHouseToClan } from './clanMutations'
 
 // v0.47 §8.2: 分封による rank 5 normal Polity を新設する mut。
 // ID は ws.nextPolityIndex から採番する (呼出側 = runProjectStageSystem が ctx.nextPolityIndex を
@@ -120,6 +121,12 @@ export function applyLandGrantMut(
     }
   }
   state = { ...state, houses: nextHouses, nextHouseIndex: nextHouseIndex + 1 }
+
+  // §17 C1: clanId を継承した cadet House は Clan.memberHouseIds にも登録する
+  //   (worldStructureSplitHouse と同じ規約。欠落すると clanId 有 ↔ memberHouseIds 不在の C1 違反)。
+  if (newHouse.clanId !== undefined) {
+    state = addHouseToClan(state, newHouse.clanId, newHouseId)
+  }
 
   // 2. rank5 Polity 新設。
   const polityResult = createGrantedRank5PolityMut(state, config, {

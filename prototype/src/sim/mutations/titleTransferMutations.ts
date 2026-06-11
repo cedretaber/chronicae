@@ -4,6 +4,7 @@ import type { House } from '../types/house'
 import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMutations'
 import { moveFounderFamilyToHouse } from './personMutations'
 import { reassignPolityOwnershipMut } from './polityMutations'
+import { addHouseToClan } from './clanMutations'
 
 // v0.47 §11.9: Polity 譲渡による分家創設の成功時 orchestration。
 // 宗家の secondary Polity を新設 cadet House に譲り、petitioner を其の leader (title holder) にする。
@@ -56,6 +57,12 @@ export function applyCadetBranchTitleTransferMut(
     },
   }
   state = { ...state, houses: nextHouses, nextHouseIndex: nextHouseIndex + 1 }
+
+  // §17 C1: clanId を継承した cadet House は Clan.memberHouseIds にも登録する
+  //   (worldStructureSplitHouse と同じ規約。欠落すると clanId 有 ↔ memberHouseIds 不在の C1 違反)。
+  if (cadetHouse.clanId !== undefined) {
+    state = addHouseToClan(state, cadetHouse.clanId, cadetHouseId)
+  }
 
   // 2. founder + 家族を cadet House へ移す (§10)。
   state = moveFounderFamilyToHouse(state, params.petitionerPersonId, cadetHouseId)

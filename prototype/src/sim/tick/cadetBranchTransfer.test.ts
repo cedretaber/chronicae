@@ -20,6 +20,7 @@ import { defaultConfig } from '../config/defaultConfig'
 import { runProjectStageSystem } from './projectStageSystem'
 import { collectIntegrityErrors } from './integritySystem'
 import { createOfficeAssignment } from '../mutations/officeMutations'
+import { createClan } from '../mutations/clanMutations'
 import { getPolityLeader, getHouseLeader } from '../selectors/officeSelectors'
 import {
   makeEmptyV016State,
@@ -191,6 +192,48 @@ describe('v0.47 Polity 譲渡による分家 finalize', () => {
       true,
     )
     expect(result.events.some((e) => e.type === 'POLITY_TITLE_TRANSFERRED')).toBe(true)
+
+    const newErrors = collectIntegrityErrors(st, { debug: false, config: defaultConfig })
+      .map((e) => e.message)
+      .filter((m) => !baselineErrors.has(m) && !m.includes('terminal project in state'))
+    expect(newErrors).toEqual([])
+  })
+
+  it('clan 所属の宗家から分家した cadet House は Clan.memberHouseIds に登録される (§17 C1)', () => {
+    // 親家が clan 所属の場合、cadet House は clanId を継承する。これを memberHouseIds に
+    // 登録し損ねると「clanId 有 ↔ memberHouseIds 不在」の C1 違反になる (CLI seed 42/150年で顕在化)。
+    let s = makeTransferState()
+    const clanResult = createClan(s, {
+      rootHouseId: houseId,
+      memberHouseIds: [houseId],
+      createdWeek: s.absoluteWeek,
+    })
+    s = clanResult.state
+    const clanId = clanResult.clan.id
+    expect(s.houses[houseId]!.clanId).toBe(clanId)
+
+    s = withFinalizeCadetProject(s)
+    const baselineErrors = new Set(
+      collectIntegrityErrors(s, { debug: false, config: defaultConfig }).map((e) => e.message),
+    )
+    const ctx = {
+      ...makeCtx(s),
+      config: {
+        ...defaultConfig,
+        cadetBranchExcludeTopSuccessionRanks: 0,
+        cadetBranchMinAmbition: 0,
+        cadetBranchTitleTransferSupportThreshold: -9999,
+      },
+    }
+    const st = runProjectStageSystem(ctx).state
+
+    const cadetHouse = Object.values(st.houses).find(
+      (h) => h.creationReason === 'polity_grant' && h.founderId === petitionerId,
+    )
+    expect(cadetHouse).toBeDefined()
+    // cadet House は clanId を継承し、Clan.memberHouseIds にも登録される。
+    expect(cadetHouse!.clanId).toBe(clanId)
+    expect(st.clans[clanId]!.memberHouseIds).toContain(cadetHouse!.id)
 
     const newErrors = collectIntegrityErrors(st, { debug: false, config: defaultConfig })
       .map((e) => e.message)
