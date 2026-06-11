@@ -490,6 +490,7 @@ detail:
     goals: 'War Goals'
     goal_transfer_land: 'Transfer Land'
     goal_change_tax: 'Change Tax Rate'
+    goal_dissolve_contract: 'Dissolve Land Contract'
     goal_revolt_independence: 'Revolt Independence'
     status_active: 'Active'
     status_attacker_won: 'Attacker Won'

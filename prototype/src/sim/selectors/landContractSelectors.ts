@@ -355,6 +355,18 @@ export function getProvinceDevelopmentFromHoldings(
   return totalWeight > 0 ? weightedDev / totalWeight : 0
 }
 
+// §6.69 (税率改定 / 契約取消し): 税率改定 WarGoal・DiplomaticDemand の目標税率 (newRate) が
+//   税率境界 (min/max) にクランプされている場合、それは「税率改定」でなく「土地契約の解除」を表す
+//   (境界クランプ = 取消しシグナル)。勝利/受諾時に CONTRACT_ELIMINATED が発火する。
+//   peaceSettlementSystem の適用分岐・diplomaticPlayLandTax の event 出し分け・
+//   warEvents/WarDetail の歴史記述が全てこの 1 判定を共有し、閾値の drift を防ぐ。
+export function isContractEliminationRate(
+  rate: number,
+  config: Pick<SimulationConfig, 'taxRevisionMinRate' | 'taxRevisionMaxRate'>,
+): boolean {
+  return rate <= config.taxRevisionMinRate || rate >= config.taxRevisionMaxRate
+}
+
 export function selectTargetHoldingInProvince(
   state: WorldState,
   provinceId: ProvinceId,

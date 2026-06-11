@@ -413,6 +413,13 @@ function pickPolityAim(
     if (!contract || contract.rootAuthorityId) continue
     if (contract.termsProtectedUntilWeek && absoluteWeek < contract.termsProtectedUntilWeek)
       continue
+    // §6.69: この aim は「直上 overlord 契約 (= 自契約の親) を除去して grandparent に再接続する」。
+    //   親契約が無い / 親が root (overlord が主権者) の場合、除去対象が存在せず、勝利しても
+    //   applyTaxGoal が no-op (white_peace) になり、同一 holding への解除戦争が無限再発する。
+    //   除去可能な中間 overlord がある場合 (親が非 root) のみ候補化する。
+    const parentId = contract.parentContractId
+    const parentContract = parentId !== undefined ? state.landContracts[parentId] : undefined
+    if (!parentContract || parentContract.rootAuthorityId) continue
     if (grantorIsSameHouse(contract.id)) continue
     if (grantorWouldResist(contract.id)) continue
     if (contract.terms.taxRateToGrantor <= config.taxRevisionMinRateForReduction) {

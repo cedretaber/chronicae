@@ -97,6 +97,7 @@ war:
     generic: '{{attacker}} declared war on {{defender}} over {{issue}}.'
     transfer_land: '{{attacker}} declared war on {{defender}} to seize {{subject}} from {{from}}.'
     change_tax: '{{attacker}} declared war on {{defender}} over the tax of {{subject}} (seeking {{fromRate}}% → {{toRate}}%).'
+    dissolve_contract: '{{attacker}} declared war on {{defender}} to dissolve the land contract of {{subject}}.'
     revolt: 'The rebels in {{province}} have declared war for independence against {{defender}}.'
   ended: 'The war between {{attacker}} and {{defender}} ended without a decisive victor.'
   participant_joined: '{{supporter}} joins the war on the side of {{primary}}.'
@@ -110,6 +111,7 @@ war:
   peace_settlement:
     transfer_land: '{{attacker}} took {{holding}} from {{defender}} in the peace settlement.'
     change_tax: 'The peace settlement set the tax of {{holding}} from {{fromRate}}% to {{toRate}}% in favor of {{attacker}}.'
+    dissolve_contract: 'The peace settlement dissolved the land contract of {{holding}} in favor of {{attacker}}.'
 
 # v0.38 Phase 4: chronicle-specific battle narrative. selectBattleTemplate swaps in
 #   these only for distinctive victories (ordinary / non-victory reuse war.battle_occurred).

@@ -109,8 +109,12 @@ function applyTaxGoal(
         applied: true,
       }
     }
-    // 排除対象が無ければ構造変更なし (demand 自体は成立)。
-    return { ctx, applied: true }
+    // §8.8: 除去対象 (defender の非 root 契約) が chain に無い → 構造変化を起こせない。
+    //   旧実装は applied:true を返して「勝利＝契約解除」と記録していたが、実際には何も変わらず、
+    //   同一 holding への解除戦争が無限再発する原因だった (overlord 契約が既に除去済み /
+    //   overlord が主権者で除去不能なケース)。applied:false で white_peace に倒し、偽の
+    //   「土地契約が解除された」イベントを出さない (主因の抑止は §6.69 の aim 発火ゲート)。
+    return { ctx, applied: false }
   }
   // 増加境界 → 対象契約を排除 (lower elimination)。
   return {

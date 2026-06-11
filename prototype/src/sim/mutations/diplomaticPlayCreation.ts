@@ -283,11 +283,34 @@ function createContractRevisionPlayFromProjectMut(
 
   const currentRate = subjectContract.terms.taxRateToGrantor
   const desiredDelta = config.taxRevisionInitialDemandDelta
-  const newRate = clamp(
-    isReduction ? currentRate - desiredDelta : currentRate + desiredDelta,
-    config.taxRevisionMinRate,
-    config.taxRevisionMaxRate,
-  )
+  // 契約取消し意図の復元: goalSelectors の eliminate_*_contract aim は税率が既に境界付近のとき
+  //   「+/-delta の小刻み改定」でなく「契約そのものの排除」を狙う。だが aim→project の縮退で
+  //   その意図が落ちるため、aim 発火と同じ閾値条件 (taxRevisionMin/MaxRateForReduction/Increase)
+  //   をここで再判定し、取消し時は税率境界 (min/max) を直接要求する。これにより勝利/受諾時に
+  //   CONTRACT_ELIMINATED が確実に発火する。
+  //   旧実装は increase 側で aim 閾値 0.6 と「+delta が max 0.8 に届く」境界 0.7 が食い違い、
+  //   税率 [0.6, 0.7) の取消し意図が黙って増税に縮退していた (reduction 側は閾値 0.15 =
+  //   min 0.05 + delta 0.1 で偶然整合しており、ここでの明示化は bit-identical)。
+  const newRate = isReduction
+    ? currentRate <= config.taxRevisionMinRateForReduction
+      ? config.taxRevisionMinRate
+      : clamp(currentRate - desiredDelta, config.taxRevisionMinRate, config.taxRevisionMaxRate)
+    : currentRate >= config.taxRevisionMaxRateForIncrease
+      ? config.taxRevisionMaxRate
+      : clamp(currentRate + desiredDelta, config.taxRevisionMinRate, config.taxRevisionMaxRate)
+
+  // §6.69: reduction 境界要求 (= overlord 契約の取消し) は、除去対象である overlord (= 自契約の親)
+  //   が除去可能 (非 root) な場合のみ成立する。overlord が主権者 (root 保持) なら勝っても applyTaxGoal
+  //   が no-op (white_peace) になり、同一 holding への futile な解除戦争が連発する。除去不能なら
+  //   play を生成しない。improve aim が時間差で税率を境界まで下げてしまうケース (project 作成時は
+  //   tax>0.15 でも play 生成時には ≤0.15) もここで弾く (goalSelectors の aim 発火ゲートと二重の網)。
+  if (isReduction && newRate <= config.taxRevisionMinRate) {
+    const parentId = subjectContract.parentContractId
+    const parentContract = parentId !== undefined ? ws.landContracts[parentId] : undefined
+    if (!parentContract || parentContract.rootAuthorityId) {
+      return { kind: 'infeasible' }
+    }
+  }
 
   const initiator: OrganizationRef = { kind: 'polity', id: project.owner.id }
   const target: OrganizationRef = { kind: 'polity', id: project.counterpartyPolityId }

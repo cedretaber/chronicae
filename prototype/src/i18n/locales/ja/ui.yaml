@@ -589,6 +589,7 @@ detail:
     goals: '戦争目標'
     goal_transfer_land: '土地割譲'
     goal_change_tax: '税率改定'
+    goal_dissolve_contract: '土地契約の解除'
     goal_revolt_independence: '反乱独立'
     status_active: '進行中'
     status_attacker_won: '攻撃側勝利'

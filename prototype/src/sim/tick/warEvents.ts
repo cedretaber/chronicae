@@ -21,6 +21,7 @@ import type {
 } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import { getPolityNameRefForEmit, getHoldingNameRefForEmit } from '../selectors/nameRefSelectors'
+import { isContractEliminationRate } from '../selectors/landContractSelectors'
 import {
   getWarPrimaryAttacker,
   getWarPrimaryDefender,
@@ -183,6 +184,22 @@ export function emitWarDeclared(ctx: TickContext, war: War, issueKind: string): 
   }
 
   if (desc.kind === 'change_contract_tax_rate') {
+    // §6.69: 目標税率が境界クランプ = 契約取消し意図。税率改定ではなく「土地契約の解除」を語る。
+    if (isContractEliminationRate(desc.afterRate, ctx.config)) {
+      return emit(
+        ctx,
+        'WAR_DECLARED',
+        'major',
+        'war.declared.dissolve_contract',
+        {
+          warId: war.id,
+          attacker: nameParam(p.attackerCategory, p.attackerName),
+          defender: nameParam(p.defenderCategory, p.defenderName),
+          subject: nameParam('province', subjectName),
+        },
+        refs,
+      )
+    }
     return emit(
       ctx,
       'WAR_DECLARED',
@@ -324,10 +341,16 @@ export function emitPeaceSettlementApplied(ctx: TickContext, war: War, goal: War
   const provinceId = holding?.provinceId
   // v0.41 (§7.2/§8): Holding 名は Province 名代用でなく Holding 自身の name を kind→category 出し分けで使う。
   const holdingRef = getHoldingNameRefForEmit(ctx.state, goal.holdingId)
+  // §6.69: 税率改定 goal でも newRate が境界クランプなら「土地契約の解除」を語る。
+  const isElimination =
+    goal.kind === 'change_contract_tax_rate' &&
+    isContractEliminationRate(goal.newTaxRateToGrantor, ctx.config)
   const messageKey =
     goal.kind === 'transfer_land_contract'
       ? 'war.peace_settlement.transfer_land'
-      : 'war.peace_settlement.change_tax'
+      : isElimination
+        ? 'war.peace_settlement.dissolve_contract'
+        : 'war.peace_settlement.change_tax'
   const refs: EventEntityRef[] = [
     entityRef('holding', goal.holdingId, 'holding'),
     ...attackerDefenderRefs(p),

@@ -3,7 +3,10 @@ import { createSimEvent } from './context'
 import { clamp } from '../utils/math'
 import type { DiplomaticPlay, DiplomaticOffer } from '../types/diplomaticPlay'
 import { entityRef, nameParam } from '../types/event'
-import { getHoldingLandContractChain } from '../selectors/landContractSelectors'
+import {
+  getHoldingLandContractChain,
+  isContractEliminationRate,
+} from '../selectors/landContractSelectors'
 import { getPolityNameRefForEmit, getPolityEmitNameKey } from '../selectors/nameRefSelectors'
 import { validateOffer, evaluateOffer, getOfferEvaluator } from './diplomaticOfferEvaluation'
 import { applySettledOffer } from '../mutations/diplomaticOfferMutations'
@@ -319,9 +322,7 @@ export function progressContractTaxRevision(ctx: TickContext, play: DiplomaticPl
     // Emit CONTRACT_TAX_REVISED or CONTRACT_ELIMINATED based on the accepted offer
     const taxDemand = acceptedOffer.demands.find((d) => d.kind === 'change_contract_tax_rate')
     if (taxDemand && taxDemand.kind === 'change_contract_tax_rate') {
-      const isElimination =
-        taxDemand.newTaxRateToGrantor <= nextCtx.config.taxRevisionMinRate ||
-        taxDemand.newTaxRateToGrantor >= nextCtx.config.taxRevisionMaxRate
+      const isElimination = isContractEliminationRate(taxDemand.newTaxRateToGrantor, nextCtx.config)
       const initiatorRef = getPolityNameRefForEmit(nextCtx.state, initiatorPolityId)
       const defenderRef = getPolityNameRefForEmit(nextCtx.state, defenderPolityId)
       const initiatorName = initiatorRef.nameKey

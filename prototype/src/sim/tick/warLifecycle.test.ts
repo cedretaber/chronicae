@@ -19,6 +19,8 @@ import { runWarCreationSystem } from './warCreationSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
 import { runCleanupWarSystem } from './cleanupWarSystem'
+import { emitWarDeclared, emitPeaceSettlementApplied } from './warEvents'
+import type { ChangeContractTaxRateWarGoal } from '../types/war'
 
 // v0.34 §B-10: War lifecycle system のテスト。decisive-path (land 移転 / tax 実変更 / stale→white_peace)
 //   は warScore が乱数なし＝CLI で全 War が white_peace に倒れる可能性があるため unit test で必ず踏ませる。
@@ -505,6 +507,50 @@ describe('PeaceSettlementSystem (§8) — decisive paths', () => {
     expect(next.events.some((e) => e.type === 'PEACE_SETTLEMENT_APPLIED')).toBe(true)
   })
 
+  it('reduction 契約取消し goal で defender に除去対象 (非 root 契約) が無い → white_peace・偽の解除を出さない (§6.69)', () => {
+    // overlord が主権者 (root のみ保持) の場合、reduction-elimination は除去対象が無く no-op になる。
+    // 旧実装は applied:true で「解除された」を emit し同一 holding への解除戦争が無限再発した。
+    const world = freshWorld()
+    // root contract を持つ holding を選び、その root grantee (主権者) を defender にする。
+    const root = Object.values(world.landContracts).find(
+      (c) => c && c.holdingId !== undefined && c.parentContractId === undefined,
+    )!
+    const holdingId = root.holdingId!
+    const sovereign = root.granteePolityId
+    const childId = world.landContractIndex.byParent[root.id]
+    const child = childId ? world.landContracts[childId] : undefined
+    expect(child).toBeDefined() // 子契約 (actor) が存在する chain を前提にする
+    const attacker = child!.granteePolityId
+    const war = createWar(world, {
+      attacker: { kind: 'polity', id: attacker },
+      defender: { kind: 'polity', id: sovereign },
+      warGoals: [
+        {
+          kind: 'change_contract_tax_rate',
+          holdingId,
+          landContractId: child!.id,
+          baseTaxRateToGrantor: 0.1,
+          newTaxRateToGrantor: defaultConfig.taxRevisionMinRate, // 境界 = 取消し意図
+          requiredWarScore: 50,
+        },
+      ],
+      targetWarScore: 50,
+      startedWeek: world.absoluteWeek,
+    })
+    world.wars[war.id] = { ...world.wars[war.id]!, warScore: 50 }
+
+    const next = runPeaceSettlementSystem(makeCtx(world))
+    // 除去対象が無い → 安全終結 (white_peace)。偽の「解除」イベントを出さない。
+    expect(next.state.wars[war.id]?.status).toBe('white_peace')
+    expect(
+      next.events.some(
+        (e) =>
+          e.type === 'PEACE_SETTLEMENT_APPLIED' &&
+          e.messageKey === 'war.peace_settlement.dissolve_contract',
+      ),
+    ).toBe(false)
+  })
+
   it('stale な transfer goal (fromPolity が現 grantee でない) は white_peace に落ち land は不変', () => {
     const world = freshWorld()
     const { holdingId, owner, other } = pickHoldingAndPolities(world)
@@ -593,6 +639,78 @@ describe('PeaceSettlementSystem (§8) — decisive paths', () => {
     const next = runPeaceSettlementSystem(makeCtx(world))
     expect(next.state.wars[war.id]?.status).toBe('white_peace')
     expect(next.state.wars[war.id]?.endedWeek).toBe(world.absoluteWeek)
+  })
+})
+
+describe('税率改定 WarGoal の event 描画 — 契約取消し出し分け (§6.69)', () => {
+  // 非 root の change_contract_tax_rate goal を持つ War を組み立てて event helper を直接呼ぶ。
+  //   契約取消し War (newRate が税率境界にクランプ) は CLI で稀かつ resist gate で更に弾かれ得るため、
+  //   描画分岐は unit test で必ず踏ませる (eyeball では再現できない)。
+  function setupTaxWar(newTaxRateToGrantor: number): {
+    ctx: TickContext
+    war: ReturnType<typeof createWar>
+    goal: ChangeContractTaxRateWarGoal
+  } {
+    const world = freshWorld()
+    const contract = Object.values(world.landContracts).find(
+      (c) => c && c.holdingId !== undefined && c.parentContractId !== undefined,
+    )!
+    const holdingId = contract.holdingId!
+    const grantee = contract.granteePolityId
+    const attacker = Object.values(world.polities).find(
+      (p) => p && p.active && (p.id as string) !== (grantee as string),
+    )!.id
+    const goal: ChangeContractTaxRateWarGoal = {
+      kind: 'change_contract_tax_rate',
+      holdingId,
+      landContractId: contract.id,
+      baseTaxRateToGrantor: contract.terms.taxRateToGrantor,
+      newTaxRateToGrantor,
+      requiredWarScore: 50,
+    }
+    const war = createWar(world, {
+      attacker: { kind: 'polity', id: attacker },
+      defender: { kind: 'polity', id: grantee },
+      warGoals: [goal],
+      targetWarScore: 50,
+      startedWeek: world.absoluteWeek,
+    })
+    return { ctx: makeCtx(world), war, goal }
+  }
+
+  function declaredMessageKey(newRate: number): string | undefined {
+    const { ctx, war } = setupTaxWar(newRate)
+    const next = emitWarDeclared(ctx, war, 'contract_tax_revision')
+    return next.events.find((e) => e.type === 'WAR_DECLARED')?.messageKey
+  }
+
+  function peaceMessageKey(newRate: number): string | undefined {
+    const { ctx, war, goal } = setupTaxWar(newRate)
+    const next = emitPeaceSettlementApplied(ctx, war, goal)
+    return next.events.find((e) => e.type === 'PEACE_SETTLEMENT_APPLIED')?.messageKey
+  }
+
+  it('境界クランプ (max) の goal は宣戦布告を dissolve_contract で語る', () => {
+    expect(declaredMessageKey(defaultConfig.taxRevisionMaxRate)).toBe(
+      'war.declared.dissolve_contract',
+    )
+  })
+
+  it('境界クランプ (min) の goal も dissolve_contract で語る', () => {
+    expect(declaredMessageKey(defaultConfig.taxRevisionMinRate)).toBe(
+      'war.declared.dissolve_contract',
+    )
+  })
+
+  it('境界でない通常 goal は宣戦布告を change_tax で語る', () => {
+    expect(declaredMessageKey(0.4)).toBe('war.declared.change_tax')
+  })
+
+  it('和平決着も境界クランプは dissolve_contract / 通常は change_tax', () => {
+    expect(peaceMessageKey(defaultConfig.taxRevisionMaxRate)).toBe(
+      'war.peace_settlement.dissolve_contract',
+    )
+    expect(peaceMessageKey(0.4)).toBe('war.peace_settlement.change_tax')
   })
 })
 

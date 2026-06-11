@@ -96,6 +96,7 @@ war:
     generic: '{{attacker}}が{{issue}}を巡り{{defender}}に宣戦布告した。'
     transfer_land: '{{attacker}}が{{from}}から{{subject}}を奪うべく{{defender}}に宣戦布告した。'
     change_tax: '{{attacker}}が{{subject}}の税率（{{fromRate}}%→{{toRate}}%）を巡り{{defender}}に宣戦布告した。'
+    dissolve_contract: '{{attacker}}が{{subject}}の土地契約の解除を巡り{{defender}}に宣戦布告した。'
     revolt: '{{province}}の反乱軍が{{defender}}に対して独立戦争を開始した。'
   ended: '{{attacker}}と{{defender}}の戦争は決着がつかずに終わった。'
   participant_joined: '{{supporter}}が{{primary}}側として参戦した。'
@@ -109,6 +110,7 @@ war:
   peace_settlement:
     transfer_land: '{{attacker}}が和平で{{defender}}から{{holding}}を獲得した。'
     change_tax: '和平により{{holding}}の税率が{{fromRate}}%から{{toRate}}%に改定された（{{attacker}}有利）。'
+    dissolve_contract: '和平により{{holding}}の土地契約が解除された（{{attacker}}有利）。'
 
 # v0.38 Phase 4: chronicle 専用の戦闘 narrative。BATTLE_OCCURRED の特徴的な勝利だけ
 #   selectBattleTemplate が差し替える (通常勝利・非勝利は war.battle_occurred を流用)。

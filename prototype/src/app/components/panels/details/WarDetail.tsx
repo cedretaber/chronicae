@@ -9,6 +9,7 @@ import {
   getRegimentPowerForWarSide,
 } from '@sim/selectors/regimentSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
+import { isContractEliminationRate } from '@sim/selectors/landContractSelectors'
 import {
   getWarPrimaryAttacker,
   getWarPrimaryDefender,
@@ -319,10 +320,22 @@ export function WarDetail({
               // v0.34: 開戦時に凍結した baseTaxRateToGrantor を before として表示する (live 契約 rate ではない)。
               //   これにより終戦後 (税適用済み) も「元→新」が正しく残り、X%→X% の混乱を防ぐ。
               const baseRate = goal.baseTaxRateToGrantor
+              // §6.69: 目標税率が境界クランプ = 契約取消し意図。税率改定 (X%→Y%) でなく「解除」を表示する。
+              const isElimination = isContractEliminationRate(
+                goal.newTaxRateToGrantor,
+                defaultConfig,
+              )
               return (
                 <div key={idx} className="rounded bg-gray-800 px-2 py-1 text-xs">
                   <div>
-                    <span className="text-gray-400">{t('detail.war.goal_change_tax')}:</span>{' '}
+                    <span className="text-gray-400">
+                      {t(
+                        isElimination
+                          ? 'detail.war.goal_dissolve_contract'
+                          : 'detail.war.goal_change_tax',
+                      )}
+                      :
+                    </span>{' '}
                     <button
                       className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                       onClick={() => onHoldingClick(goal.holdingId)}
@@ -332,10 +345,12 @@ export function WarDetail({
                     </button>{' '}
                     <span className="text-gray-500">(&plusmn;{goal.requiredWarScore})</span>
                   </div>
-                  <div className="text-gray-400">
-                    {Math.round(baseRate * 100)}% &rarr;{' '}
-                    {Math.round(goal.newTaxRateToGrantor * 100)}%
-                  </div>
+                  {!isElimination && (
+                    <div className="text-gray-400">
+                      {Math.round(baseRate * 100)}% &rarr;{' '}
+                      {Math.round(goal.newTaxRateToGrantor * 100)}%
+                    </div>
+                  )}
                 </div>
               )
             })}
