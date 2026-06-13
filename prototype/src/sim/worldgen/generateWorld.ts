@@ -1117,6 +1117,26 @@ export function generateWorld(
   let nextHoldingId = 0
   let nextHoldingOfficeAssignmentId = 0
 
+  // §7.3b city 保証: ワールド全体で最低 minGuaranteedCities 個の city を保証する。
+  // tiny preset は holdingsPerProvince=2 で minHoldingsForCity(3) に届かず通常抽選では city が
+  // 0 になりうるため、抽選とは別にランダムな Province を強制的に city 化する。
+  // この強制は minHoldingsForCity の閾値を上書きする (2-holding Province でも city になりうる)。
+  const minGuaranteedCities = 2
+  const forcedCityProvinceIds = new Set<string>()
+  {
+    const indices = provinces.map((_, idx) => idx)
+    const pick = Math.min(minGuaranteedCities, indices.length)
+    // 部分 Fisher-Yates で重複なくランダム選択 (末尾固定でなくバラけさせ配置の偏りを避ける)
+    for (let k = 0; k < pick; k++) {
+      const { value: j, rng: rPick } = randomInt(rng, k, indices.length - 1)
+      rng = rPick
+      const tmp = indices[k]!
+      indices[k] = indices[j]!
+      indices[j] = tmp
+      forcedCityProvinceIds.add(provinces[indices[k]!]!.id)
+    }
+  }
+
   for (const province of provinces) {
     // Determine holding count from preset
     let holdingCount: number
@@ -1132,11 +1152,17 @@ export function generateWorld(
       holdingCount = hc
     }
 
-    // Determine if this province gets a city (§14.4)
+    // Determine if this province gets a city (§14.4 / §7.3b)
     const cityProvinceChance = 0.2
     const minHoldingsForCity = 3
     let hasCity = false
-    if (holdingCount >= minHoldingsForCity) {
+    if (forcedCityProvinceIds.has(province.id)) {
+      // city 保証で選ばれた Province は閾値・抽選を無視して必ず city を 1 つ持つ。
+      // holdingCount >= 2 のとき最後の holding のみ city になり manor が 1 つ以上残る
+      // (全 preset で holdingsPerProvinceMin >= 2)。holdingCount === 1 の preset が将来
+      // 来た場合はその唯一の holding が city になる点に注意。
+      hasCity = true
+    } else if (holdingCount >= minHoldingsForCity) {
       const { value: cityRoll, rng: r2 } = randomFloat(rng)
       rng = r2
       hasCity = cityRoll < cityProvinceChance

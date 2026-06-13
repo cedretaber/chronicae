@@ -137,6 +137,7 @@ root (rootAuthorityId = ROOT_WORLD, taxRateToGrantor = 0)
 各 Province に `holdingsPerProvinceMin..Max` の Holding を生成する。
 
 - `kind`: 基本は `manor`。`minHoldingsForCity` (3) 以上の Holding を持つ Province のみ city 配置の抽選対象となり、確率 `cityProvinceChance` (20%) で最後の Holding が `city` になる。1 Province あたり city は最大 1 つ
+  - **city 保証 (v0.48)**: 上記の抽選とは別に、ワールド全体で最低 `minGuaranteedCities` (2) 個の city を保証する。worldgen は holding 生成前にランダムな Province を 2 つ選び (部分 Fisher-Yates、配置が末尾に偏らないようにする)、それらは強制的に city を 1 つ持つ。**この保証は `minHoldingsForCity` 閾値を上書きする** ため、tiny preset (holdingsPerProvince=2、通常は city が 0 個) でも常に city が 2 つ生成される。強制対象の Province は `holdingCount >= 2` なら最後の Holding のみ city 化し manor が 1 つ以上残る (全 preset で `holdingsPerProvinceMin >= 2`)
 - `name`: Province 名 + 連番サフィックス (e.g. "Aldoria-1", "Aldoria-2")
 - `weight`: manor = 1.0 (固定、乱数加算なし)、city = 2.0 + randomFloat * 1.0 (= 2.0〜3.0)
 - `landQuality`: 0.6〜1.4 の乱数（terrain とは独立。terrain 傾向は Improvement の terrain multiplier 側で表現し landQuality には混ぜない、§3.1d / §4.2）
