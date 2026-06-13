@@ -18,6 +18,36 @@ import type { OrganizationRef } from '@/sim/types/office'
 import { getWarPrimaryAttacker, getWarPrimaryDefender } from '@sim/mutations/warMutations'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
 import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
+import {
+  IconCircleNumber1,
+  IconCircleNumber2,
+  IconCircleNumber3,
+  IconCircleNumber4,
+  IconCircleNumber5,
+  IconCircleNumber6,
+  IconCircleNumber7,
+  IconCircleNumber8,
+  IconCircleNumber9,
+} from '@tabler/icons-react'
+
+// 派閥の入れ子階層 (N 次派閥) を表す数字円アイコン。tier=1..9 を index で引く。
+const TIER_ICONS = [
+  IconCircleNumber1,
+  IconCircleNumber2,
+  IconCircleNumber3,
+  IconCircleNumber4,
+  IconCircleNumber5,
+  IconCircleNumber6,
+  IconCircleNumber7,
+  IconCircleNumber8,
+  IconCircleNumber9,
+]
+// 深いほど目立つ配色 (1 次=控えめ / 2 次=青 / 3 次以上=琥珀)。
+function tierColorClass(tier: number): string {
+  if (tier <= 1) return 'text-gray-400'
+  if (tier === 2) return 'text-sky-400'
+  return 'text-amber-400'
+}
 import { defaultConfig } from '@/sim/config/defaultConfig'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { useSidebarData, SECTION_KEYS, type SectionKey } from '@/app/hooks/useSidebarData'
@@ -203,9 +233,17 @@ function FactionRow({
     >
       <div className="flex items-center gap-1.5">
         <span className="font-bold">{leaderName}</span>
-        <span className="rounded bg-gray-600 px-1 py-0.5 text-xs text-gray-300">
-          {t('sidebar.faction_tier', { tier })}
-        </span>
+        {(() => {
+          const TierIcon = TIER_ICONS[tier - 1] ?? IconCircleNumber9
+          return (
+            <TierIcon
+              size={18}
+              stroke={2}
+              className={`shrink-0 ${tierColorClass(tier)}`}
+              aria-label={t('sidebar.faction_tier', { tier })}
+            />
+          )
+        })()}
       </div>
       <div className="text-xs text-gray-400">
         {t('detail.faction.leader')}: {leaderName}
