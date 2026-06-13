@@ -93,6 +93,18 @@ detail:
     legend_married_in: 'Married in'
     legend_married_out: 'Married out'
     legend_branched_from: 'Branch origin'
+  # Faction tree (faction version of the family tree): FactionTreePanel.
+  faction_tree:
+    open: 'View faction tree'
+    title: 'Faction Tree of {{faction}}'
+    faction_of: "{{leader}}'s faction"
+    role_leader: 'Leader'
+    role_subleader: 'Subordinate faction leader'
+    close: 'Close'
+    empty: 'No faction to display'
+    hint: 'Drag to pan, wheel to zoom'
+    legend_leader: 'Leader'
+    legend_member: 'Member'
   # Full chronicle panel: the "view full" link in EntityChronicleSection and FullChroniclePanel
   full_chronicle:
     open: 'View full chronicle ({{count}} total)'

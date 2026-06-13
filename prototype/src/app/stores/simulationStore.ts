@@ -8,7 +8,7 @@ import type { WorldPresetName } from '@sim/worldgen/worldPresets'
 import YAML from 'yaml'
 import { createNamePoolService } from '@sim/namegen/namePoolService'
 import type { NamePoolService } from '@sim/namegen/namePoolTypes'
-import type { HouseId } from '@sim/types/ids'
+import type { HouseId, FactionId } from '@sim/types/ids'
 
 export type EntityType =
   | 'polity'
@@ -48,6 +48,8 @@ type SimState = {
   // 家系図ウィンドウは大窓 overlay として詳細カード (openWindows) とは独立に管理する。
   // null = 非表示。非 null のとき該当家門の家系図を全画面 overlay で表示する。
   familyTreeHouseId: HouseId | null
+  // 派閥図ウィンドウも家系図と同様、大窓 overlay として独立管理する。null = 非表示。
+  factionTreeFactionId: FactionId | null
   watchlist: string[]
   config: SimulationConfig
 }
@@ -68,6 +70,8 @@ type SimActions = {
   moveDetailWindow: (windowId: string, position: { x: number; y: number }) => void
   openFamilyTree: (houseId: HouseId) => void
   closeFamilyTree: () => void
+  openFactionTree: (factionId: FactionId) => void
+  closeFactionTree: () => void
   toggleWatchlist: (id: string) => void
   setConfig: (partial: Partial<SimulationConfig>) => void
 }
@@ -167,6 +171,7 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   openWindows: [],
   nextZIndex: 1,
   familyTreeHouseId: null,
+  factionTreeFactionId: null,
   watchlist: [],
   config: { ...defaultConfig },
 
@@ -302,6 +307,14 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
 
   closeFamilyTree: () => {
     set({ familyTreeHouseId: null })
+  },
+
+  openFactionTree: (factionId) => {
+    set({ factionTreeFactionId: factionId })
+  },
+
+  closeFactionTree: () => {
+    set({ factionTreeFactionId: null })
   },
 
   toggleWatchlist: (id: string) => {

@@ -192,6 +192,18 @@ detail:
     legend_married_in: '婚入'
     legend_married_out: '婚出'
     legend_branched_from: '分家元'
+  # 派閥図 (家系図の派閥版): FactionTreePanel。指導者の下にメンバー・傘下派閥がぶら下がる木。
+  faction_tree:
+    open: '派閥図を見る'
+    title: '{{faction}} の派閥図'
+    faction_of: '{{leader}} の派閥'
+    role_leader: '指導者'
+    role_subleader: '傘下派閥の指導者'
+    close: '閉じる'
+    empty: '表示できる派閥がありません'
+    hint: 'ドラッグで移動・ホイールで拡大縮小'
+    legend_leader: '指導者'
+    legend_member: 'メンバー'
   # 全履歴 (年代記) パネル: EntityChronicleSection の「完全版を見る」リンクと FullChroniclePanel
   full_chronicle:
     open: '完全版を見る (全{{count}}件)'

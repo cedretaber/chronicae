@@ -30,6 +30,7 @@ export function WindowManager() {
   const toggleWatchlist = useSimulationStore((s) => s.toggleWatchlist)
   const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
   const openFamilyTree = useSimulationStore((s) => s.openFamilyTree)
+  const openFactionTree = useSimulationStore((s) => s.openFactionTree)
 
   const resolveName = useEntityName()
   const { t } = useTranslation()
@@ -48,6 +49,7 @@ export function WindowManager() {
   const onHoldingClick = (id: string) => openDetailWindow('holding', id)
   const onClanClick = (id: string) => openDetailWindow('clan', id)
   const onOpenFamilyTree = (id: string) => openFamilyTree(id as HouseId)
+  const onOpenFactionTree = (id: FactionId) => openFactionTree(id)
 
   return (
     <>
@@ -217,6 +219,7 @@ export function WindowManager() {
                 onPersonClick={onPersonClick}
                 onHouseClick={onHouseClick}
                 onFactionClick={onFactionClick}
+                onOpenFactionTree={onOpenFactionTree}
               />
             </DraggableWindow>
           )

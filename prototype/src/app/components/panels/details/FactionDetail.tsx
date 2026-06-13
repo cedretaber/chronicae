@@ -24,12 +24,14 @@ export function FactionDetail({
   onPersonClick,
   onHouseClick,
   onFactionClick,
+  onOpenFactionTree,
 }: {
   faction: Faction
   session: SimulationSession | null
   onPersonClick: ClickHandler
   onHouseClick: ClickHandler
   onFactionClick: (id: FactionId) => void
+  onOpenFactionTree?: (id: FactionId) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -69,7 +71,19 @@ export function FactionDetail({
             </span>
           )
         }
-        actions={<CopyJsonButton payload={buildEntitySnapshot('faction', faction, worldState)} />}
+        actions={
+          <div className="flex items-center gap-1.5">
+            {onOpenFactionTree && (
+              <button
+                className="rounded border border-gray-600 px-2 py-0.5 text-xs text-blue-400 hover:bg-gray-700 hover:text-blue-300"
+                onClick={() => onOpenFactionTree(faction.id)}
+              >
+                {t('detail.faction_tree.open')}
+              </button>
+            )}
+            <CopyJsonButton payload={buildEntitySnapshot('faction', faction, worldState)} />
+          </div>
+        }
       />
 
       <div className="text-sm">

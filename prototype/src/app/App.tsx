@@ -5,6 +5,7 @@ import { Sidebar } from './components/panels/Sidebar'
 import { EventLog } from './components/logs/EventLog'
 import { WindowManager } from './components/windows/WindowManager'
 import { FamilyTreeWindow } from './components/windows/FamilyTreeWindow'
+import { FactionTreeWindow } from './components/windows/FactionTreeWindow'
 
 export function App() {
   return (
@@ -23,6 +24,7 @@ export function App() {
         </div>
       </div>
       <FamilyTreeWindow />
+      <FactionTreeWindow />
       <WindowManager />
     </div>
   )
