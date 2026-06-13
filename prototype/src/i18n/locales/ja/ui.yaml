@@ -155,6 +155,7 @@ sidebar:
   houses: '家系'
   persons: '人物'
   factions: '派閥'
+  faction_tier: '{{tier}}次'
   no_active_factions: '活動中の派閥はありません'
   war_status:
     active: '戦争'

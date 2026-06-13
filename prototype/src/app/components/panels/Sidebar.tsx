@@ -181,12 +181,14 @@ function FactionRow({
   faction,
   leaderName,
   memberCount,
+  tier,
   isSelected,
   onClick,
 }: {
   faction: Faction
   leaderName: string
   memberCount: number
+  tier: number
   isSelected: boolean
   onClick: () => void
 }) {
@@ -199,7 +201,12 @@ function FactionRow({
       }`}
       onClick={onClick}
     >
-      <div className="font-bold">{leaderName}</div>
+      <div className="flex items-center gap-1.5">
+        <span className="font-bold">{leaderName}</span>
+        <span className="rounded bg-gray-600 px-1 py-0.5 text-xs text-gray-300">
+          {t('sidebar.faction_tier', { tier })}
+        </span>
+      </div>
       <div className="text-xs text-gray-400">
         {t('detail.faction.leader')}: {leaderName}
       </div>
@@ -475,12 +482,13 @@ export function Sidebar() {
           <div className="px-3 py-2 text-xs text-gray-500">{t('sidebar.no_active_factions')}</div>
         )
       }
-      return factionEntries.map(({ faction, leaderName, memberCount }) => (
+      return factionEntries.map(({ faction, leaderName, memberCount, tier }) => (
         <FactionRow
           key={faction.id}
           faction={faction}
           leaderName={leaderName}
           memberCount={memberCount}
+          tier={tier}
           isSelected={focusedId === faction.id && focusedType === 'faction'}
           onClick={() => openDetailWindow('faction', faction.id)}
         />

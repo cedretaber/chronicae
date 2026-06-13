@@ -30,6 +30,22 @@ export function getFaction(state: WorldState, factionId: FactionId): Faction | u
   return state.factions[factionId]
 }
 
+// 入れ子派閥の深さを返す (root=0, 子=1, 孫=2)。parentFactionId を辿る。
+// 「N 次派閥」表示には depth+1 を使う。循環参照は guard で防ぐ。
+export function getFactionDepth(state: WorldState, factionId: FactionId): number {
+  let depth = 0
+  let current = state.factions[factionId]
+  const guard = new Set<FactionId>()
+  while (current?.parentFactionId !== undefined && !guard.has(current.id)) {
+    guard.add(current.id)
+    const parent = state.factions[current.parentFactionId]
+    if (!parent) break
+    depth++
+    current = parent
+  }
+  return depth
+}
+
 export function getFactionMembership(
   state: WorldState,
   membershipId: FactionMembershipId,

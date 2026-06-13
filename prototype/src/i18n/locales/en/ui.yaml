@@ -57,6 +57,7 @@ sidebar:
   houses: 'Houses'
   persons: 'Persons'
   factions: 'Factions'
+  faction_tier: 'Tier {{tier}}'
   war_status:
     active: 'War'
   play_kind:

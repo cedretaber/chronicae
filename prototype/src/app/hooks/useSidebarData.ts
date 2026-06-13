@@ -3,7 +3,11 @@ import { useEntityName } from '@/app/hooks/useEntityName'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { calcPersonImportanceScore } from '@sim/selectors/importanceSelectors'
 import { calcPolityMilitaryPower } from '@sim/selectors/militarySelectors'
-import { getActiveFactions, getFactionActiveMemberIds } from '@sim/selectors/factionSelectors'
+import {
+  getActiveFactions,
+  getFactionActiveMemberIds,
+  getFactionDepth,
+} from '@sim/selectors/factionSelectors'
 import {
   getHouseControlledProvinceIds,
   getHouseOwnedPolityIds,
@@ -46,7 +50,7 @@ export type SidebarData = {
   rulingHouses: { house: House; provinceCount: number }[]
   landlessHouses: { house: House; provinceCount: number }[]
   sortedPersons: { person: Person; score: number }[]
-  factionEntries: { faction: Faction; leaderName: string; memberCount: number }[]
+  factionEntries: { faction: Faction; leaderName: string; memberCount: number; tier: number }[]
   activePlays: DiplomaticPlay[]
   activeWars: War[]
   sectionCount: Record<SectionKey, number>
@@ -141,24 +145,31 @@ export function useSidebarData(): SidebarData {
         .slice(0, 50)
     : []
 
-  const factionEntries: { faction: Faction; leaderName: string; memberCount: number }[] =
-    session?.currentState
-      ? getActiveFactions(session.currentState)
-          .map((f) => {
-            const leader = persons?.[f.leaderPersonId]
-            return {
-              faction: f,
-              leaderName: leader
-                ? resolveName('person', leader.nameKey, leader.nameKey)
-                : '(unknown)',
-              memberCount: getFactionActiveMemberIds(session.currentState, f.id).length,
-            }
-          })
-          .sort((a, b) => {
-            if (b.memberCount !== a.memberCount) return b.memberCount - a.memberCount
-            return a.faction.foundingWeek - b.faction.foundingWeek
-          })
-      : []
+  const factionEntries: {
+    faction: Faction
+    leaderName: string
+    memberCount: number
+    tier: number
+  }[] = session?.currentState
+    ? getActiveFactions(session.currentState)
+        .map((f) => {
+          const state = session.currentState
+          const leader = persons?.[f.leaderPersonId]
+          return {
+            faction: f,
+            leaderName: leader
+              ? resolveName('person', leader.nameKey, leader.nameKey)
+              : '(unknown)',
+            memberCount: getFactionActiveMemberIds(state, f.id).length,
+            // 「N 次派閥」: root(深さ0)=1 次、子=2 次、孫=3 次。
+            tier: getFactionDepth(state, f.id) + 1,
+          }
+        })
+        .sort((a, b) => {
+          if (b.memberCount !== a.memberCount) return b.memberCount - a.memberCount
+          return a.faction.foundingWeek - b.faction.foundingWeek
+        })
+    : []
 
   const activePlays: DiplomaticPlay[] = session?.currentState
     ? Object.values(session.currentState.diplomaticPlays)
