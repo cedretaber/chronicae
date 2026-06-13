@@ -2063,7 +2063,7 @@ export const defaultConfig: SimulationConfig = {
   bailiffTaskCompletedRespectGain: 0.2,
   // v0.17 Office max
   // v0.17.1: rank の方向を spec §7.2 に合わせて修正。
-  // rank は数値が小さいほど上位 (1=帝国, 5=反乱領)。大国ほど官職枠が多い。
+  // rank は数値が小さいほど上位 (1=帝国, 5=所領)。大国ほど官職枠が多い。
   polityOfficeMaxByRank: {
     1: { administrator: 3, treasurer: 3, military: 5, advisor: 5 },
     2: { administrator: 2, treasurer: 2, military: 3, advisor: 3 },

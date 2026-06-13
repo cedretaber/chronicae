@@ -36,7 +36,7 @@ const POLITY_RANK_FALLBACK: Record<number, string> = {
   2: 'Kingdom',
   3: 'Duchy',
   4: 'County',
-  5: 'Rebel Domain',
+  5: 'Domain',
 }
 
 export function formatPolityRank(rank: number | undefined | null): string {
