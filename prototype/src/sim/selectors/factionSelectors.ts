@@ -287,6 +287,42 @@ function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n))
 }
 
+// 入れ子 Phase 2-b: faction 自身 ∪ 子孫の active member を深さ重み付きで集める。
+//   own (depth 0) = weight 1.0、子孫は discount^depth。BFS で深さ昇順・faction-id 昇順。
+//   各 person は §4.4 で 1 membership のみ = subtree 内で 1 度しか現れない (dedup 不要)。
+// 親が子孫から人材を吸い上げ、傘の規模が NP / 候補プールに反映される (§4.2-4.3)。
+export function collectSubtreeMemberWeights(
+  state: WorldState,
+  config: SimulationConfig,
+  factionId: FactionId,
+): { memberId: PersonId; weight: number }[] {
+  const discount = config.factionNestingNpDiscount
+  const result: { memberId: PersonId; weight: number }[] = []
+  // depth ごとに faction を BFS。depth は factionNestingMaxDepth で打ち切り。
+  let frontier: FactionId[] = [factionId]
+  let depth = 0
+  const visited = new Set<string>([factionId])
+  while (frontier.length > 0 && depth <= config.factionNestingMaxDepth) {
+    const weight = depth === 0 ? 1 : Math.pow(discount, depth)
+    const next: FactionId[] = []
+    for (const fid of [...frontier].sort()) {
+      for (const mid of getFactionActiveMemberIds(state, fid)) {
+        result.push({ memberId: mid, weight })
+      }
+      for (const cid of state.factionIndex.byParent[fid] ?? []) {
+        const child = state.factions[cid]
+        if (!child || !child.active) continue
+        if (visited.has(cid)) continue
+        visited.add(cid)
+        next.push(cid)
+      }
+    }
+    frontier = next
+    depth++
+  }
+  return result
+}
+
 // v0.17 §14.1: getFactionNominationPower returns 0..1.
 // Sum various contributions then clamp to [0, 1].
 export function getFactionNominationPower(
@@ -315,16 +351,19 @@ function getFactionNominationPowerForPolity(
   faction: Faction,
   polityId: PolityId,
 ): number {
-  const memberIds = getFactionActiveMemberIds(state, faction.id)
+  // 入れ子 Phase 2-b: 自前 ∪ 子孫メンバーを深さ重み付き (own=1.0, 子孫=discount^depth) で集約。
+  // own のみの非入れ子派閥では従来の getFactionActiveMemberIds(faction.id)×weight1.0 と一致する。
+  const weighted = collectSubtreeMemberWeights(state, config, faction.id)
   const leader = state.persons[faction.leaderPersonId]
   const leaderHouseId = leader?.houseId
 
   // v0.42 §19.2-5: House-level influence (旧 share)。dedupe by house,
   // leader-house weights x1.0, others x0.5。breakdown は 1 回だけ計算する (§21.2)。
+  // own member 優先で iterate するため、house の重みは own (depth 0) があれば 1.0 を維持する。
   const breakdown = getPolityInfluenceBreakdown(state, config, polityId)
   const seenHouses = new Set<string>()
   let power = 0
-  for (const mid of memberIds) {
+  for (const { memberId: mid, weight: depthWeight } of weighted) {
     const m = state.persons[mid]
     if (!m || !m.houseId) continue
     const hid = m.houseId
@@ -333,7 +372,7 @@ function getFactionNominationPowerForPolity(
     const influenceRatio =
       getActorInfluenceFromBreakdown(breakdown, { kind: 'house', id: m.houseId }).percent / 100
     const weight = m.houseId === leaderHouseId ? 1.0 : 0.5
-    power += influenceRatio * weight
+    power += influenceRatio * weight * depthWeight
   }
 
   // 影響力個人中心化 Phase 2b: メンバー「個人」の influence% も推進力に算入する。
@@ -341,23 +380,23 @@ function getFactionNominationPowerForPolity(
   // 「有能で評判の高い個人が集まった派閥が強い」=個人 agency が faction nomination に貫通する。
   // landless でも評判→個人influence→推進力→任用、の coldstart 経路が成立する (R15 解消)。
   // person entry は houseless でも個別に立つため dedupe 不要 (家とは別母集合)。
-  for (const mid of memberIds) {
+  for (const { memberId: mid, weight: depthWeight } of weighted) {
     const m = state.persons[mid]
     if (!m) continue
     const personRatio =
       getActorInfluenceFromBreakdown(breakdown, { kind: 'person', id: mid }).percent / 100
     if (personRatio <= 0) continue
     const weight = m.houseId === leaderHouseId ? 1.0 : 0.5
-    power += personRatio * weight
+    power += personRatio * weight * depthWeight
   }
 
   // Existing Polity office holdings (members in this polity)
-  for (const mid of memberIds) {
+  for (const { memberId: mid, weight: depthWeight } of weighted) {
     const ids = state.officeIndex.byHolderPerson[mid] ?? []
     for (const oid of ids) {
       const o = state.officeAssignments[oid]
       if (o && o.active && o.organization.kind === 'polity' && o.organization.id === polityId) {
-        power += 0.2
+        power += 0.2 * depthWeight
       }
     }
   }

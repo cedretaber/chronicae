@@ -12,7 +12,7 @@ import {
 } from '../selectors/landContractSelectors'
 import {
   getActiveFactions,
-  getFactionActiveMemberIds,
+  collectSubtreeMemberWeights,
   getFactionNominationPower,
   getFactionalCandidateScore,
 } from '../selectors/factionSelectors'
@@ -262,7 +262,13 @@ function collectBailiffFactionalCandidates(
   for (const faction of getActiveFactions(state)) {
     const np = getFactionNominationPower(state, config, faction.id, polityRef, BAILIFF_ROLE_ALIAS)
     if (np < config.factionNominationPowerThreshold) continue
-    for (const mid of getFactionActiveMemberIds(state, faction.id)) {
+    // 入れ子 Phase 2-b: 親の実効プール = 自前 ∪ 子孫メンバー (深さで score 割引)。
+    // protégé は sub-leader の推薦を通して親の席に届く (§4.2)。own のみの派閥では従来と一致。
+    for (const { memberId: mid, weight: depthWeight } of collectSubtreeMemberWeights(
+      state,
+      config,
+      faction.id,
+    )) {
       const m = state.persons[mid]
       if (!m || !m.alive) continue
       if (m.kind === 'placeholder') continue
@@ -277,7 +283,7 @@ function collectBailiffFactionalCandidates(
         polityRef,
         BAILIFF_ROLE_ALIAS,
       )
-      const score = raw * config.factionBailiffNominationWeight
+      const score = raw * config.factionBailiffNominationWeight * depthWeight
       const prev = byId.get(mid)
       if (!prev || score > prev.score) byId.set(mid, { id: mid, score })
     }

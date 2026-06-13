@@ -23,6 +23,7 @@ import {
   hasRelevantFactionForAppointment,
   getFactionRecommendationScore,
   getFactionalCandidateScore,
+  collectSubtreeMemberWeights,
 } from './factionSelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import { deactivateFaction } from '../mutations/factionMutations'
@@ -627,5 +628,72 @@ describe('getFactionalCandidateScore', () => {
       'administrator',
     )
     expect(result).toBeGreaterThan(0)
+  })
+})
+
+describe('collectSubtreeMemberWeights (入れ子 Phase 2-b)', () => {
+  // faction1 (leader+member1) の傘下に faction2 (member2) を attach し、深さ重みを確認する。
+  function makeNestedFixture() {
+    const f = makeFixture()
+    const { state, member2Id, faction1Id, faction2Id } = f
+    // faction2 = member2 が率いる child、faction1 の傘下。
+    state.factions[faction2Id] = {
+      id: faction2Id,
+      leaderPersonId: member2Id,
+      polityId: createPolityId('c', 0),
+      active: true,
+      foundingWeek: 69312,
+      parentFactionId: faction1Id,
+    }
+    state.factionMemberships[createFactionMembershipId(5)] = {
+      id: createFactionMembershipId(5),
+      factionId: faction2Id,
+      personId: member2Id,
+      active: true,
+      joinedWeek: 69312,
+    }
+    state.factionIndex.byMember[member2Id] = [createFactionMembershipId(5)]
+    state.factionIndex.byLeader[member2Id] = [faction2Id]
+    state.factionIndex.byParent[faction1Id] = [faction2Id]
+    return f
+  }
+
+  it('own member は weight 1.0、子 member は discount 倍', () => {
+    const { state, leaderId, member1Id, member2Id, faction1Id } = makeNestedFixture()
+    const weights = collectSubtreeMemberWeights(state, defaultConfig, faction1Id)
+    const map = new Map(weights.map((w) => [w.memberId as string, w.weight]))
+    expect(map.get(leaderId as string)).toBe(1)
+    expect(map.get(member1Id as string)).toBe(1)
+    expect(map.get(member2Id as string)).toBe(defaultConfig.factionNestingNpDiscount)
+  })
+
+  it('root のみの派閥では own member だけが weight 1.0 で返る', () => {
+    const { state, leaderId, member1Id, member2Id, faction1Id } = makeFixture()
+    void member2Id
+    const weights = collectSubtreeMemberWeights(state, defaultConfig, faction1Id)
+    expect(weights.every((w) => w.weight === 1)).toBe(true)
+    const ids = new Set(weights.map((w) => w.memberId as string))
+    expect(ids.has(leaderId as string)).toBe(true)
+    expect(ids.has(member1Id as string)).toBe(true)
+  })
+
+  it('親 NP は子を傘下に取ると単調増（子孫の寄与が加わる）', () => {
+    const { state, faction1Id } = makeNestedFixture()
+    const org = { kind: 'polity' as const, id: createPolityId('c', 0) }
+    const npWith = getFactionNominationPower(state, defaultConfig, faction1Id, org, 'advisor')
+    // 子を外した状態 (root のみ) と比較
+    const stateNoChild: WorldState = {
+      ...state,
+      factions: { ...state.factions, [faction1Id]: { ...state.factions[faction1Id]! } },
+      factionIndex: { ...state.factionIndex, byParent: {} },
+    }
+    const npWithout = getFactionNominationPower(
+      stateNoChild,
+      defaultConfig,
+      faction1Id,
+      org,
+      'advisor',
+    )
+    expect(npWith).toBeGreaterThanOrEqual(npWithout)
   })
 })

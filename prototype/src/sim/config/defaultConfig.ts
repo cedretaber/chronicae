@@ -880,6 +880,7 @@ export type SimulationConfig = {
   factionNestingMinAgeYears: number // 傘下入りを検討する前の最小存続年数 (低迷期間)
   factionNestingMaxBranches: number // 1 親が直接持てる子派閥の最大数
   factionNestingMaxDepth: number // 木の最大深さ (root=0)
+  factionNestingNpDiscount: number // Phase 2-b: 子孫メンバーの NP/候補寄与の深さあたり減衰率 (0..1)
   // v0.17 House surplus
   houseWealthReserveTarget: number
   houseSurplusDistributionMonthlyRate: number
@@ -2030,6 +2031,7 @@ export const defaultConfig: SimulationConfig = {
   factionNestingMinAgeYears: 6,
   factionNestingMaxBranches: 3,
   factionNestingMaxDepth: 2,
+  factionNestingNpDiscount: 0.5,
   // v0.17 House surplus
   houseWealthReserveTarget: 100,
   houseSurplusDistributionMonthlyRate: 0.015,

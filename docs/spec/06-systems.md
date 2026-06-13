@@ -754,6 +754,10 @@ WI-0 を残す理由（測定上は小さくとも構造的に必要）: attract
 - **形成（`formNestedFactions`・FactionLifecycle 年次）**: 低迷した弱小 root 派閥 W（NP < 閾値・存続 `factionNestingMinAgeYears` 超）が、同一 polity（case X・越境 case Y は defer）の強い root 派閥 P（NP ≥ 閾値・分岐余裕 `factionNestingMaxBranches` 未満）の傘下に入る。スコア = W リーダー → P リーダーの attitude + P の NP（強く親しい庇護者を選ぶ・RNG 非消費）。深さは `1 + subtreeDepth(W) ≤ factionNestingMaxDepth` で制限（W が既に木を持つ場合は深くなりすぎないよう attach しない）。成立で `FACTION_NESTED` を emit。
 - **解散 cascade（§4.5）**: `deactivateFaction` を choke point とし、解散する派閥の子は orphan 化（`parentFactionId` 除去で root 昇格）、自身が子なら親の `byParent` から外し、`byParent[self]` を削除する。`dissolveFactionsAnchoredToPolity`（polity 消滅 cascade）は親子双方を deactivate するため、処理順に関わらず byParent が clean に保たれる。
 - **integrity F9**: active faction の `parentFactionId` は active faction を指し（inactive 親は違反）、case X ゆえ親子の anchor polity は一致し、`byParent` index と双方向同期する。F9 は liveness test（inactive 親 / index desync / index 欠落で実際に error が出ることを確認）で非 vacuous を担保済み。
+- **消費（Phase 2-b・親が子孫から人材と推進力を吸い上げる）**: `collectSubtreeMemberWeights(faction)` が自前 ∪ 子孫の active member を深さ重み付き（own=1.0、子孫=`factionNestingNpDiscount`^depth・BFS で `factionNestingMaxDepth` 打ち切り）で集める（§4.2-4.3）。各 person は §4.4 で 1 membership のみゆえ subtree 内に 1 度しか現れない。
+  - `getFactionNominationPower`: 子孫メンバーの house influence / person influence / polity office bonus を深さ割引して親 NP に加算（house dedup は own を先に見るため own-house は weight 1.0 を保つ）。root のみの非入れ子派閥では従来式と一致する。
+  - `collectBailiffFactionalCandidates`: NP ≥ 閾値の親の実効候補プール = 自前 ∪ 子孫メンバー（depth で score 割引）。NP < 閾値で自立できない弱小子派閥のメンバーも、強い親の傘下に入ることで親の席に届く（protégé が sub-leader の推薦を通して着座）。
+  - 抑制レバー = `factionNestingNpDiscount`（深さ減衰）/ `factionNestingMaxDepth` / `factionNestingMaxBranches`。最終バランスは forced harness でなく通常 config で判断（[[project_faction_unemployed_retention_structural]] の教訓）。appointmentSystem（polity 役職）の factional 経路への再帰波及は §8 未決のためまず代官のみ。
 
 **候補スコア（House 役職）**:
 ```ts
