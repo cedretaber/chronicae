@@ -255,21 +255,35 @@ function applyRevoltEscalation(
   provinceId: ProvinceId,
 ): TickContext {
   const config = ctx.config
-  const targetPolity = ctx.state.polities[targetPolityId]
 
-  // rank 5 → Phase D internal revolt (transitional: dissolve + fail)
-  if (targetPolity && targetPolity.rank === 5) {
-    return resolveInternalRevolt(ctx, play, demand, commonwealthId, targetPolityId, provinceId)
+  // 叛乱対象は holding の「現」terminal holder。play.target は play 作成時の terminal holder で
+  // 固定されるため、交渉中に land_grant / 契約移管で当該 holding が再分封されると stale になる。
+  // rank 判定・internal revolt 対象は常に現 terminal holder を基準にする (§13.6 / §25 #7)。
+  const holdingChain = ctx.state.landContractIndex.byHolding[demand.holdingId] ?? []
+  const terminalContractId = holdingChain[holdingChain.length - 1]
+  if (!terminalContractId) return setPlayStatus(ctx, play.id, 'failed', 'failed')
+  const terminalContract = ctx.state.landContracts[terminalContractId]
+  const terminalHolderId = terminalContract?.granteePolityId
+  const terminalHolder = terminalHolderId ? ctx.state.polities[terminalHolderId] : undefined
+  if (!terminalContract || !terminalHolderId || !terminalHolder) {
+    // terminal holder が消失 (stale) → 叛乱前提が崩れたので play を fail。
+    return setPlayStatus(ctx, play.id, 'failed', 'failed')
+  }
+
+  // 現 terminal holder の rank が commonwealth (rank 5) 以上だと、revolt_seizure 子契約は
+  // grantor rank >= grantee rank (§25 #7) を破る (子契約の grantor = terminal holder)。
+  // この場合は子契約を作らず Phase D internal revolt (現 terminal holder の regime change) へ。
+  // 通常は play.target == terminal holder なので挙動不変。再分封で terminal holder が rank5 に
+  // 変わった stale ケースのみここで分岐する。
+  const commonwealthPolity = ctx.state.polities[commonwealthId]
+  if (commonwealthPolity && terminalHolder.rank >= commonwealthPolity.rank) {
+    return resolveInternalRevolt(ctx, play, demand, commonwealthId, terminalHolderId, provinceId)
   }
 
   // rank 2-4: revolt_seizure contract + Local Levy + escalated
   let state = ctx.state
 
-  // 1. Add revolt_seizure child contract
-  const holdingChain = state.landContractIndex.byHolding[demand.holdingId] ?? []
-  const terminalContractId = holdingChain[holdingChain.length - 1]
-  if (!terminalContractId) return setPlayStatus(ctx, play.id, 'failed', 'failed')
-
+  // 1. Add revolt_seizure child contract (現 terminalContractId 上に作る)
   const createResult = createChildLandContract(state, {
     provinceId,
     parentContractId: terminalContractId,

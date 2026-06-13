@@ -1056,9 +1056,10 @@ taxBurden = `max(0, currentTaxRate - defaultTaxRateByRank(rank))`。
 
 **交渉結果**（diplomaticPlaySystem 内）:
 - settlement: 税率引き下げ、`termsProtectedUntilWeek` 設定、commonwealth 解散（leader は在野へ）、`REVOLT_SETTLED`
-- escalation (rank 2-4): `revolt_seizure` 子契約追加 → Local Levy 生成 → **奪取 holding の既存常設連隊（worldgen 由来 levy/noble_retinue 等）の owner を commonwealth へ即同期** → `escalated` → warCreationSystem が War 化
+- escalation 時の rank 判定基準（v0.47.x 修正）: 分岐は **escalation 時点の「現」terminal holder の rank** で決める。play.target は play 生成時の terminal holder で固定されるため、交渉期間中に当該 holding が land_grant / 契約移管で再分封されると stale になる（例: 交渉中に rank 3 領主が新設の rank 5 land_grant Polity へ holding を分封すると、play.target=rank 3 のままだが現 terminal holder は rank 5）。そこで `applyRevoltEscalation` は `landContractIndex.byHolding` 末尾の terminal contract から現 grantee を取得し、その rank と commonwealth rank（5）を比較する。terminal holder が消失していれば play を fail（stale 縮退）。
+- escalation (現 terminal holder rank 2-4): `revolt_seizure` 子契約追加 → Local Levy 生成 → **奪取 holding の既存常設連隊（worldgen 由来 levy/noble_retinue 等）の owner を commonwealth へ即同期** → `escalated` → warCreationSystem が War 化
   - 奪取で holding の terminal Polity は commonwealth に変わるが、owner 付け替えを担う RegimentMaintenanceSystem（§6.49）は warManeuverSystem の**後**に走るため、奪取→即開戦の叛乱には間に合わない（放置すると当該常設連隊が領主=defender 側として動員され、叛乱側は Local Levy 1 個のみで戦う）。そこで escalation 時点で当該 holding の Regiment 群（`regimentIndex.byHomeHolding[holdingId]`）に `syncRegimentOwnerToHomeTerminalMut`（§6.49 と同一ヘルパー＝同一ルール）を eager 適用し、開戦前に叛乱側へ移管する。直前に生成した Local Levy（owner=commonwealth）は no-op、動員済の連隊は owner だけ移り当該 War では `currentWarId` 判定でスキップされる。叛乱敗北で holding が領主へ revert すれば §6.49 が owner を領主へ戻す（active 連隊プールは枯渇しない）。
-- escalation (rank 5): internal revolt 即時解決（§6.30）
+- escalation (現 terminal holder rank 5 = commonwealth と同 rank): internal revolt 即時解決（§6.30）。rank 5 terminal holder の下に `revolt_seizure` 子契約（grantee=rank 5 commonwealth）を作ると grantor rank ≥ grantee rank となり LandContract 不変条件 §25 #7 を破るため、子契約を作らず現 terminal holder の regime change に分岐する。
 
 ### 6.30 Rank 5 Internal Popular Revolt
 
@@ -1576,7 +1577,7 @@ for each active play:
 Play kind 別の処理:
 - `land_claim`: demands から `transfer_land_contract` / `pay_wealth` / `status_quo` を抽出し evaluateLandClaimOffer で score 計算。settlement 時は `applySettledOffer` で demands を適用。rank ベースの契約選択 (3-a/3-b/3-c) と操作 (5-a/5-b/5-c) は維持。
 - `contract_tax_revision`: demands から `change_contract_tax_rate` / `pay_wealth` / `status_quo` を抽出し evaluateContractTaxRevisionOffer で score 計算。`taxRevisionInitialDemandDelta` (0.10) を初期要求幅とする。下限 5% / 上限 80% 超で契約破棄。Play 決着時（成否問わず）に `termsProtectedUntilWeek` を設定。`applyChangeContractTaxRate` で `newRate <= taxRevisionMinRate` または `newRate >= taxRevisionMaxRate` の場合、率変更の代わりに `eliminateContractFromChain` で契約取消しを実行する（settlement / conflict 両経路共通）。status_quo 和平時は CONTRACT_TAX_REVISED を emit しない。
-- `revolt_negotiation`: `popular_tax_relief` demand ベースのタスク駆動ハイブリッドモデル。タスク効果（negotiate_terms/pressure_counterparty 等）が preparation/leverage/commitment を更新し、決着閾値を調整（initiator preparation/leverage が高いほど妥結しやすく、target commitment が高いほど激化しやすい）。環境因子（acceptanceScore: POP unrest/鎮圧力/税率負担）は小幅構造的増分として副次的に作用。settlement → 税率引下+commonwealth 解散。escalation → rank 2-4 は revolt_seizure+Local Levy+War、rank 5 は internal revolt 即時解決（§6.30）。
+- `revolt_negotiation`: `popular_tax_relief` demand ベースのタスク駆動ハイブリッドモデル。タスク効果（negotiate_terms/pressure_counterparty 等）が preparation/leverage/commitment を更新し、決着閾値を調整（initiator preparation/leverage が高いほど妥結しやすく、target commitment が高いほど激化しやすい）。環境因子（acceptanceScore: POP unrest/鎮圧力/税率負担）は小幅構造的増分として副次的に作用。settlement → 税率引下+commonwealth 解散。escalation → **現 terminal holder の rank** で分岐（rank 2-4 は revolt_seizure+Local Levy+War、rank 5 は internal revolt 即時解決（§6.30））。play.target ではなく現 terminal holder を見るのは、交渉中の再分封で play.target が stale 化しても §25 #7 を破らないため。
 
 **契約取消し aim**: `eliminate_overlord_contract`（`taxRateToGrantor <= taxRevisionMinRateForReduction` で発火）/ `eliminate_vassal_contract`（`taxRateToGrantor >= taxRevisionMaxRateForIncrease` で発火）。既存の `improve_contract_terms` / `demand_tax_increase` project に mapping し、desiredRate が min/max 境界にクランプされる。escalation → conflict で勝利した場合に CONTRACT_ELIMINATED が発生する。両 Goal（external_expansion / internal_development）から候補に入る。
 
