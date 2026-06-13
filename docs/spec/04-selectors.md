@@ -775,3 +775,16 @@ function scoreRepublicLeaderCandidate(state, config, personId, polityId): number
 // leader influence / office・right control by holder（count 降順 → holder key 昇順の決定的ソート）
 function getRepublicPowerProfile(state, config, polityId): RepublicPowerProfile | undefined
 ```
+
+### 4.16 派閥図セレクター（Faction Tree）
+
+`prototype/src/sim/selectors/factionTreeSelectors.ts`。**表示専用**の read-only 純関数で、派閥図 UI（§11）が描画する人物ノード木を構築する。locale 中立（PersonId / FactionId のみ返す）・決定的（byParent を id 昇順反復・RNG 不使用）。家系図（§4.14）の派閥版だが、入れ子は単一親の厳密木ゆえ家系図より単純（couple / placeholder / generation 機構は無い）。
+
+```
+buildFactionTree(state, factionId): { rootFactionId, rootPersonId, nodes: FactionTreeNode[] } | null
+```
+
+- **木は `parentFactionId` 入れ子（§6.19）を辿る**。子派閥の leader は親の member には**ならない**（§6.753・モデル A）ため、membership 再帰では入れ子を辿れない。各人物ノードの親（上にぶら下がる人物）は: メンバー → 自派閥の leader、傘下 leader → 親派閥の leader（庇護者）、root leader → null。
+- 入口 factionId が属する木の **root を `parentFactionId` で上方向に辿って特定**し（inactive 親で停止）、root から `byParent` を DFS して人物ノードを preorder で返す。faction / person の cycle guard 付き。
+- `addFactionMembership` が単一 active membership を強制する（§6.19・§4.4）ため、各人物は木内に**一意に出現**する（重複ノード無し）。active faction / active membership のみ対象。
+- ノードは `role`（leader / member）と `depth`（root leader=0）を持つ。レイアウト座標は UI 側の責務（§11・`factionTreeLayout.ts`）。
