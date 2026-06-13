@@ -4,7 +4,7 @@ import { createSimEvent } from './context'
 import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
-import { getActiveFactions } from '../selectors/factionSelectors'
+import { getActiveFactions, getFactionActiveMemberIds } from '../selectors/factionSelectors'
 import { removeFactionMembership } from '../mutations/factionMutations'
 import { adjustPersonAttitudeIfExists } from '../mutations/attitudeMutations'
 import { randomFloat } from '../rng/rng'
@@ -24,6 +24,12 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
   for (const faction of getActiveFactions(currentCtx.state)) {
     const leader = currentCtx.state.persons[faction.leaderPersonId]
     if (!leader || !leader.alive) continue
+
+    // 崩壊2: 派閥の placement ratio (役職を配れた member 比) を 1 回算出。
+    // 低いほど「役職を配れない大派閥 = 過伸長」で離脱が加速する。
+    const overreach = currentCtx.config.factionCollapseOverreachEnabled
+      ? 1 - computePlacementRatio(currentCtx.state, faction.id)
+      : 0
 
     // この faction に属する全 active membership を deterministic 順で iterate。
     // removeFactionMembership が byMember を破壊的に書き換えるため、id を先に snapshot する。
@@ -51,12 +57,17 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
       )
       if (idle < currentCtx.config.factionDefectionGraceYears) continue
 
-      // 確率判定
-      const prob = Math.min(
-        1,
+      // 確率判定。崩壊2: 過伸長 (overreach) と member の野望で離脱確率を加速する。
+      //   prob = base × (1 + overreachWeight×overreach) × (1 + ambitionWeight×ambition)
+      // overreach=0 (全員着座) かつ ambition=0 で従来式と一致。flag OFF 時も overreach=0。
+      const base =
         (idle - currentCtx.config.factionDefectionGraceYears) *
-          currentCtx.config.factionDefectionProbPerYear,
-      )
+        currentCtx.config.factionDefectionProbPerYear
+      const ambitionMult = currentCtx.config.factionCollapseOverreachEnabled
+        ? 1 + currentCtx.config.factionAmbitionDefectionWeight * member.traits.ambition
+        : 1
+      const overreachMult = 1 + currentCtx.config.factionOverreachDefectionWeight * overreach
+      const prob = Math.min(1, base * overreachMult * ambitionMult)
       const { value: roll, rng: nextRng } = randomFloat(currentCtx.rng)
       currentCtx = { ...currentCtx, rng: nextRng }
       if (roll >= prob) continue
@@ -100,6 +111,21 @@ export function runFactionDefectionSystem(ctx: TickContext): TickContext {
     }
   }
   return currentCtx
+}
+
+// 崩壊2: 派閥 member のうち active office/bailiff を持つ比 (= 配れた席の充足率)。
+// member 0 のときは 1 (過伸長なし扱い)。
+function computePlacementRatio(
+  state: WorldState,
+  factionId: import('../types/ids').FactionId,
+): number {
+  const memberIds = getFactionActiveMemberIds(state, factionId)
+  if (memberIds.length === 0) return 1
+  let placed = 0
+  for (const mid of memberIds) {
+    if (hasActiveOfficeOrBailiff(state, mid)) placed++
+  }
+  return placed / memberIds.length
 }
 
 function hasActiveOfficeOrBailiff(state: WorldState, personId: PersonId): boolean {

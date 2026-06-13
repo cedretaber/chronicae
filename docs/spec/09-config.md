@@ -826,6 +826,12 @@
 | recruitAttractivenessPrestigeWeight | 0.5 | WI-0(b): 同 leader prestige の重み |
 | factionCrossHouseBaseIdleYears | 8 | WI-2: housed 無役が他家派閥募集に解禁されるまでの基礎待機年数 |
 | factionCrossHouseAmbitionReduction | 0.5 | WI-2: 待機閾値の野望短縮係数（threshold = base × (1 − reduction × ambition)） |
+| factionCollapseSuccessionEnabled | true | WI-3 崩壊1: 不完全な継承（跡継ぎへの低忠誠 member 離散）の toggle |
+| factionCollapseOverreachEnabled | false | WI-3 崩壊2: 過伸長離脱加速の toggle（succession と組むと entrenchment するため既定 OFF・nesting 後再評価） |
+| factionCollapseRivalEnabled | false | WI-3 崩壊3: rival 闘争の toggle（measure-first・未構築のフラグ予約） |
+| factionSuccessionScatterThreshold | 0.35 | WI-3 崩壊1: scatterScore = ambition×(1−loyalty)×(0.5+talent) がこれ超で離散 |
+| factionOverreachDefectionWeight | 1.0 | WI-3 崩壊2: 離脱確率乗数 (1 + weight×(1−placementRatio)) |
+| factionAmbitionDefectionWeight | 1.0 | WI-3 崩壊2: 離脱確率乗数 (1 + weight×ambition) |
 | factionNominationPowerThreshold | 0.3 | 推挙に必要な power 閾値 |
 | factionOwnerHouseNominationBonus | 0.3 | 支配家メンバー推挙ボーナス |
 | factionBailiffNominationWeight | 0.4 | bailiff 推挙の重み |

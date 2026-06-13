@@ -9,6 +9,7 @@ import {
   getFactionActiveMemberIds,
   getFactionOpportunityScore,
   getFactionViabilityScore,
+  getBestRoleScore,
 } from '../selectors/factionSelectors'
 import { getTopShareholders, getPersonHouseSharePercent } from '../selectors/shareSelectors'
 import {
@@ -16,6 +17,7 @@ import {
   addFactionMembership,
   deactivateFaction,
   transitionFactionLeader,
+  removeFactionMembership,
 } from '../mutations/factionMutations'
 import { setPersonAttitude } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
@@ -161,7 +163,64 @@ export function handleFactionLeaderVacancy(ctx: TickContext, factionId: FactionI
       entityRef('faction', factionId, 'faction'),
     ],
   })
-  return { ...ec, events: [...ec.events, event] }
+  const ctx2: TickContext = { ...ec, events: [...ec.events, event] }
+
+  // 派閥拡大 WI-3 崩壊1: 不完全な継承。求心力の弱い跡継ぎ (newLeader) に対し、
+  // 高野望・高才能・低忠誠の member は離散する (pool へ戻り再結集・rival 募集の素材になる)。
+  // 「先代のスター子飼いが跡継ぎを認めず独立する」= 集積を有限化する最強のブレーキ (SR-5)。
+  if (ctx2.config.factionCollapseSuccessionEnabled) {
+    return applySuccessionScatter(ctx2, factionId, newLeaderId)
+  }
+  return ctx2
+}
+
+// 崩壊1: 新 leader 着座後、忠誠の薄い高野望・高才能 member を離散させる (deterministic・RNG 非消費)。
+//   scatterScore = ambition × (1 − loyaltyToNewLeader) × (0.5 + talent)
+//   loyalty は newLeader への attitude (affection/respect) を 0-1 化。talent は bestRoleScore/100。
+function applySuccessionScatter(
+  ctx: TickContext,
+  factionId: FactionId,
+  newLeaderId: PersonId,
+): TickContext {
+  let currentCtx = ctx
+  const threshold = ctx.config.factionSuccessionScatterThreshold
+  // member 集合を id 昇順で snapshot (removeFactionMembership が byMember を書き換えるため)。
+  const memberIds = getFactionActiveMemberIds(ctx.state, factionId).filter(
+    (id) => id !== newLeaderId,
+  )
+  for (const memberId of memberIds) {
+    const member = currentCtx.state.persons[memberId]
+    if (!member || !member.alive || member.kind === 'placeholder') continue
+    const att = getAttitudeOrDefault(currentCtx.state, member, { kind: 'person', id: newLeaderId })
+    const loyalty = Math.max(0, Math.min(1, (att.affection + att.respect + 200) / 400))
+    const talent = getBestRoleScore(currentCtx.state, memberId) / 100
+    const scatterScore = member.traits.ambition * (1 - loyalty) * (0.5 + talent)
+    if (scatterScore <= threshold) continue
+
+    const membership = getActiveFactionMembership(currentCtx.state, memberId)
+    if (!membership || membership.factionId !== factionId) continue
+    const removed = removeFactionMembership(currentCtx.state, membership.id)
+    if (!removed.ok) continue
+    currentCtx = { ...currentCtx, state: removed.value }
+
+    const newLeaderName = currentCtx.state.persons[newLeaderId]?.nameKey ?? 'unknown'
+    const { event, ctx: ec } = createSimEvent(currentCtx, {
+      type: 'FACTION_MEMBER_ABANDONED',
+      importance: 'minor',
+      messageKey: 'faction.member_abandoned',
+      messageParams: {
+        person: nameParam('person', member.nameKey),
+        leader: nameParam('person', newLeaderName),
+      },
+      entityRefs: [
+        entityRef('person', memberId, 'defector', member.nameKey),
+        entityRef('person', newLeaderId, 'leader', newLeaderName),
+        entityRef('faction', factionId, 'faction'),
+      ],
+    })
+    currentCtx = { ...ec, events: [...ec.events, event] }
+  }
+  return currentCtx
 }
 
 // reason は enum コード ('leader_died' 等) — 表示ラベル解決は eventRenderer

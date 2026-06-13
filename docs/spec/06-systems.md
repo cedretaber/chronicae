@@ -744,6 +744,12 @@ WI-0 を残す理由（測定上は小さくとも構造的に必要）: attract
 - **解禁条件**: houseless/landless は従来どおり無条件。housed+landed 無役は `idleWeeks >= thresholdYears × 48` のときのみ解禁。`thresholdYears = factionCrossHouseBaseIdleYears × (1 − factionCrossHouseAmbitionReduction × ambition)`（野望 1.0 で半減）。応募先選択は WI-0 の attractiveness 順を流用（才能人材が魅力的な patron を選ぶ）。
 - 実測（tiny 100年）: 供給律速だった派閥が housed 無役の流入で cap を埋める（seed1 供給律速 15→0、seed42 17→11）。eligible pool は最終 snapshot で吸い切られ 0（集積が供給を吸収）。
 
+**派閥の崩壊機構 (派閥拡大 WI-3)**: 集積を有限化しスノーボールを防ぐ振動の片翼。各機構を config フラグで個別 toggle 可能にし（SR-6: 崩壊 OFF の中間計測で A/B 帰属）、単独 A/B で default を確定する。
+- **崩壊1 不完全な継承 (succession scatter・`factionCollapseSuccessionEnabled` default true)**: `handleFactionLeaderVacancy` で新 leader 着座後、求心力の弱い跡継ぎに対し高野望・高才能・低忠誠の member を離散させる（pool へ戻り再結集・rival 募集の素材になる）。「先代のスター子飼いが跡継ぎを認めず独立する」。deterministic（RNG 非消費）: `scatterScore = ambition × (1 − loyaltyToNewLeader) × (0.5 + talent)`（loyalty は新 leader への attitude を 0–1 化、talent は bestRoleScore/100）が `factionSuccessionScatterThreshold`（0.35）超で離散。離散は `FACTION_MEMBER_ABANDONED` を再利用。
+- **崩壊2 過伸長離脱加速 (overreach defection・`factionCollapseOverreachEnabled` default false)**: `FactionDefectionSystem` の離脱確率を `base × (1 + overreachWeight×(1−placementRatio)) × (1 + ambitionWeight×ambition)` に拡張（placementRatio = 役職を配れた member 比。低い＝過伸長）。**default OFF の理由**: 単独 A/B（固定分母＝支配 house 派閥員/成人人口、tiny 150年 seed1）で overreach 単独は 17.9%（=崩壊 OFF と同じ＝無害）だが、succession と組むと 34.4% の超加法的 entrenchment（強い patron が役職を配れて defection を免れ、弱小派閥だけが member を失う rich-get-richer）を生み北極星に逆行する。accumulation が無限化する nesting（Phase 2）後に再評価する前提で実装は残しフラグで OFF。
+- **崩壊3 rival 闘争 (`factionCollapseRivalEnabled` default false)**: measure-first（SR-5）。既存の OfficeTermSystem（任期交代）・acquire_political_right が現職 patron 基盤を実際に削るか観測してから構築する方針で、現状は未構築（フラグ予約のみ）。
+- **default 決定の根拠（単独 A/B・tiny 150年）**: 固定分母（支配 house 派閥員/成人人口）max = OFF 17.9% / succession のみ 23%（軽度）/ overreach のみ 17.9% / 両方 34.4%。succession は崩壊機構の主力（SR-5「先に作る」）かつ単独 entrenchment が軽微なので ON。abandonment 件数（60年 seed1）は OFF 62 → succession ON 80（+29% の dispersal 仕事）。**tiny は hardCap（WI-1）+ 自然死による継承で既に dominance が bounded（崩壊 OFF でも支配 house シェアは ~30% 上限・turnover 6 で振動）であり、WI-3 の anti-snowball としての本領は accumulation が無限化する nesting（Phase 2）後に検証する**（崩壊は分離可能な insurance・SR-6）。
+
 **候補スコア（House 役職）**:
 ```ts
 score = relevantStat(role) * 1.0

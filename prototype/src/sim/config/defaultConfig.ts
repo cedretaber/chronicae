@@ -868,6 +868,14 @@ export type SimulationConfig = {
   factionDefectionProbPerYear: number
   factionDefectionAttitudeAffectionPenalty: number
   factionDefectionAttitudeRespectPenalty: number
+  // 派閥拡大 WI-3: 崩壊 3 機構 (集積を有限化しスノーボールを防ぐ・振動の片翼)。
+  // 各機構は config フラグで個別 toggle 可能 (SR-6: 崩壊 OFF 中間計測で A/B 帰属)。
+  factionCollapseSuccessionEnabled: boolean // 崩壊1: 不完全な継承 (求心力の弱い跡継ぎから高野望・高才能 member が離散)
+  factionCollapseOverreachEnabled: boolean // 崩壊2: 過伸長離脱加速 (役職を配れない大派閥ほど離脱が速い)
+  factionCollapseRivalEnabled: boolean // 崩壊3: rival 闘争 (measure-first・既存 OfficeTerm/acquire_right の churn で足りるか観測)
+  factionSuccessionScatterThreshold: number // 崩壊1: scatterScore = ambition×(1−loyalty)×(0.5+talent) がこれを超えると離散
+  factionOverreachDefectionWeight: number // 崩壊2: prob 乗数 (1 + weight×(1−placementRatio))
+  factionAmbitionDefectionWeight: number // 崩壊2: prob 乗数 (1 + weight×ambition)
   // v0.17 House surplus
   houseWealthReserveTarget: number
   houseSurplusDistributionMonthlyRate: number
@@ -2004,6 +2012,17 @@ export const defaultConfig: SimulationConfig = {
   factionDefectionProbPerYear: 0.07,
   factionDefectionAttitudeAffectionPenalty: 2,
   factionDefectionAttitudeRespectPenalty: 1,
+  // 派閥拡大 WI-3: 崩壊機構。default の決定は単独 A/B (固定分母・成人人口比) で確定:
+  //   succession のみ=23% / overreach のみ=17.9%(=OFF) / 両方=34.4%(超加法的 entrenchment)。
+  // succession (崩壊1・主力・SR-5「先に作る」) は default ON。overreach (崩壊2) は単独無害だが
+  // succession と組むと北極星に逆行する強 entrenchment を生むため default OFF とし、accumulation が
+  // 無限化する nesting (Phase 2) 後に再評価する (flag は残す)。rival (崩壊3) は measure-first で未構築。
+  factionCollapseSuccessionEnabled: true,
+  factionCollapseOverreachEnabled: false,
+  factionCollapseRivalEnabled: false,
+  factionSuccessionScatterThreshold: 0.35,
+  factionOverreachDefectionWeight: 1.0,
+  factionAmbitionDefectionWeight: 1.0,
   // v0.17 House surplus
   houseWealthReserveTarget: 100,
   houseSurplusDistributionMonthlyRate: 0.015,

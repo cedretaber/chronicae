@@ -360,16 +360,62 @@ function measureMerit(state: WorldState) {
   }
 }
 
+// 単一 house が patron として握る faction membership のシェア (%) と、その house の id。
+// = その house が leader を出す全派閥の member 総数 / 全派閥 member 総数。
+// 1 家が talent 庇護を独占すると上昇 (snowball)、崩壊で分散すると低下 (振動)。
+function dominantHouseShare(state: WorldState): {
+  share: number
+  houseId: string
+  count: number
+} {
+  const byHouse = new Map<string, number>()
+  let total = 0
+  for (const f of getActiveFactions(state)) {
+    const leader = state.persons[f.leaderPersonId]
+    const hid = leader?.houseId
+    const n = getFactionActiveMemberIds(state, f.id).length
+    total += n
+    if (!hid) continue
+    byHouse.set(hid, (byHouse.get(hid) ?? 0) + n)
+  }
+  let bestHouse = ''
+  let bestN = 0
+  for (const [hid, n] of byHouse) {
+    if (n > bestN) {
+      bestN = n
+      bestHouse = hid
+    }
+  }
+  return { share: total > 0 ? (bestN / total) * 100 : 0, houseId: bestHouse, count: bestN }
+}
+
+// 成人人口 (固定分母)。dominant house faction members / adult pop は崩壊で総 faction 数が
+// 縮んでも分母が動かないので、share% の denominator アーティファクトと真の entrenchment を切り分ける。
+function adultPopulation(state: WorldState): number {
+  let n = 0
+  for (const pid of state.livingPersonIds) {
+    const p = state.persons[pid]
+    if (!p || p.kind === 'placeholder') continue
+    if (!isLifeStageAtLeast(p.lifeStage, 'young_adulthood')) continue
+    n++
+  }
+  return n
+}
+
 function main() {
   const args = process.argv.slice(2)
   let seed = '1'
   let years = 100
   let preset = 'small'
+  let configOverride: Partial<typeof defaultConfig> = {}
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--seed' && args[i + 1]) seed = args[++i]!
     else if (args[i] === '--years' && args[i + 1]) years = parseInt(args[++i]!, 10)
     else if (args[i] === '--preset' && args[i + 1]) preset = args[++i]!
+    else if (args[i] === '--config' && args[i + 1])
+      configOverride = JSON.parse(args[++i]!) as Partial<typeof defaultConfig>
   }
+  const config = { ...defaultConfig, ...configOverride }
 
   const namePoolPath = path.resolve(process.cwd(), 'src/sim/namegen/namePools.yaml')
   const poolData = YAML.parse(fs.readFileSync(namePoolPath, 'utf8')) as NamePoolData
@@ -384,10 +430,21 @@ function main() {
   let rng = worldResult.rng
 
   const totalWeeks = years * 48
+  const domShareSeries: number[] = []
+  const domHouseSeries: string[] = []
+  const domFixedSeries: number[] = [] // dominant house faction members / 成人人口 % (固定分母)
   for (let w = 0; w < totalWeeks; w++) {
-    const result = tick({ state, rng, config: defaultConfig })
+    const result = tick({ state, rng, config })
     state = result.state
     rng = result.rng
+    // 5 年ごとに支配 house シェアをサンプル (dominance 時系列・振動の指標)。
+    if (w % 240 === 239) {
+      const d = dominantHouseShare(state)
+      domShareSeries.push(Math.round(d.share))
+      domHouseSeries.push(d.houseId)
+      const adults = adultPopulation(state)
+      domFixedSeries.push(adults > 0 ? Math.round((d.count / adults) * 1000) / 10 : 0)
+    }
   }
 
   const m = measure(state)
@@ -434,6 +491,28 @@ function main() {
   console.log(`[8] merit M2: 派閥所属(leader+member) vs 非所属eligible pool の才能`)
   console.log(
     `    所属 n=${mm.affiliatedN} median=${mm.affiliatedMedianScore.toFixed(1)} mean=${mm.affiliatedMeanScore.toFixed(1)}  |  pool n=${mm.poolN} median=${mm.poolMedianScore.toFixed(1)} mean=${mm.poolMeanScore.toFixed(1)} (所属>pool でなければ talent を集めていない)`,
+  )
+
+  // [9] dominance 時系列 (WI-3 振動の指標)。5 年ごとの「支配 house の faction membership シェア%」。
+  //   turnover = 支配 house が入れ替わった distinct house 数 (高い=patron 庇護が家を巡る=分権/振動、
+  //              1=1 家が独占=snowball/集権)。reversals = シェア時系列の方向反転数。
+  let reversals = 0
+  let prevDir = 0
+  for (let i = 1; i < domShareSeries.length; i++) {
+    const d = Math.sign(domShareSeries[i]! - domShareSeries[i - 1]!)
+    if (d !== 0 && prevDir !== 0 && d !== prevDir) reversals++
+    if (d !== 0) prevDir = d
+  }
+  const distinctHouses = new Set(domHouseSeries.filter((h) => h !== '')).size
+  const shareMax = domShareSeries.length ? Math.max(...domShareSeries) : 0
+  const shareMin = domShareSeries.length ? Math.min(...domShareSeries) : 0
+  const fixedMax = domFixedSeries.length ? Math.max(...domFixedSeries) : 0
+  console.log(`[9] dominance 時系列 (支配 house の派閥 membership シェア%・5年毎): WI-3 振動の指標`)
+  console.log(
+    `    share=[${domShareSeries.join(',')}]  max=${shareMax}% min=${shareMin}% reversals=${reversals} 支配house turnover=${distinctHouses} (turnover/reversals 高=振動 / 低=snowball)`,
+  )
+  console.log(
+    `    固定分母(支配house派閥員/成人人口) fixed=[${domFixedSeries.join(',')}] max=${fixedMax}% (崩壊で総派閥員が縮んでも不変→entrenchment と分母artifactを切り分け)`,
   )
 }
 
