@@ -242,3 +242,15 @@ land_claim を自然に発生させるには、「他者の province の holding
 - **未使用 category**: stewardship / intrigue / general は v0.44 時点で発生 source が存在しない（Project map は administration/diplomacy/culture のみ、Play=diplomacy、War=military）。OfficeRole→category 表（§6.66）が参照するための予約枠
 
 **personal_training**: 100 年 × seed 1 で completed 3,142 / failed 13 / cancelled 61。鍛錬は高頻度・高成功率で、能力成長の主要経路の一つになっている（成功率の高さは Project 全般の既知問題 — §6.41 / 過去観察と同根）。
+
+## 派閥拡大・入れ子・commonwealth アリーナ（北極星=集権⇄分権の振動・WI-0/1/2/3 + Phase 2-a/b + Phase 7）
+
+「人材の流れを、優秀な個人に集中→崩壊→分散の振動にする」北極星を達成するための集積 engine・流動・崩壊・入れ子・アリーナを実装した。詳細は §6.19/§6.22/§6.68 と `docs/drafts/faction-expansion-nesting-design.md`。**機能完成優先のため、以下の偏りは config を触らず保留**（プロジェクト方針 §4）。
+
+**end-to-end 観察（tiny 150年 seed1）**: 集積 engine corr(size,才能)=+0.355（才能ある patron ほど大派閥）/ cap 蘇生（43 派閥・hardCap まで）/ 入れ子 nested 21/43・深さ d0:22 d1:19 d2:2 / 支配 house シェア 13–32% で turnover 5・reversals 13（振動・runaway snowball 無し）/ commonwealth 代官 13/13 着座・anchor 派閥 14/43。150年×4seed + 300年×1seed integrity 0。
+
+**保留中のバランス項目**:
+- **WI-3 崩壊2（overreach defection）は default OFF**: succession と組むと超加法的 entrenchment（固定分母で 17.9%→34.4%）を生み北極星に逆行する（rich-get-richer: 強 patron が役職を配れて defection を免れる）。flag は残し、accumulation が無限化する nesting の効きを観察した上で再設計・再評価する。
+- **WI-3 anti-snowball の本領は未検証**: tiny は hardCap + 自然死による継承で既に dominance が bounded のため、崩壊機構の効果が薄い。nesting で大規模化した世界での効きは未測定。
+- **WI-0 引力勾配の weight sweep**: 測定上 WI-1（cap meritSeats）が集積の主役で WI-0 の限界寄与は小さい（M2 gap +4.5→+4.9）。供給逼迫・churn 後に効きが増す前提で weight は未較正。
+- **入れ子の割引率・深さ・分岐**（factionNestingNpDiscount/MaxDepth/MaxBranches）と commonwealth アリーナの活性度は通常 config で観察しつつ最終調整する。
