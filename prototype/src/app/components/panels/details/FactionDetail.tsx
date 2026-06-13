@@ -1,4 +1,5 @@
 import type { Faction } from '@/sim/types/faction'
+import type { FactionId } from '@/sim/types/ids'
 import type { SimulationSession, WorldState } from '@/sim/types/world'
 import { buildEntitySnapshot, getPersonRepresentativeOffice } from './shared/helpers'
 import type { ClickHandler } from './shared/helpers'
@@ -22,11 +23,13 @@ export function FactionDetail({
   session,
   onPersonClick,
   onHouseClick,
+  onFactionClick,
 }: {
   faction: Faction
   session: SimulationSession | null
   onPersonClick: ClickHandler
   onHouseClick: ClickHandler
+  onFactionClick: (id: FactionId) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
@@ -105,6 +108,26 @@ export function FactionDetail({
           <span className="text-gray-400">{t('detail.faction.anchor_polity')}:</span>
           <span>{getPolityShortName(worldState, resolveName, faction.polityId)}</span>
         </div>
+        {/* 入れ子派閥: 親派閥へのリンク */}
+        {faction.parentFactionId &&
+          (() => {
+            const parent = worldState.factions[faction.parentFactionId]
+            if (!parent) return null
+            const parentLeader = persons[parent.leaderPersonId]
+            const parentName = parentLeader ? `${parentLeader.nameKey}'s faction` : parent.id
+            const parentId = parent.id
+            return (
+              <div className="flex justify-between">
+                <span className="text-gray-400">{t('detail.faction.parent_faction')}:</span>
+                <button
+                  className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                  onClick={() => onFactionClick(parentId)}
+                >
+                  ◈ {parentName}
+                </button>
+              </div>
+            )
+          })()}
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.faction.members')}:</span>
           <span>{memberIds.length}</span>
@@ -118,6 +141,65 @@ export function FactionDetail({
           <span>{formatScore(leaderOpportunity)}</span>
         </div>
       </div>
+
+      {/* 指導者カード (Roster の構成員数には含めず、別ブロックで簡易情報を表示) */}
+      {leader && (
+        <>
+          <span className="text-sm font-semibold text-gray-300">{t('detail.faction.leader')}</span>
+          <div className="flex flex-col gap-0.5 text-sm">
+            <PersonCard
+              personId={leader.id}
+              worldState={worldState}
+              onPersonClick={onPersonClick}
+              onHouseClick={onHouseClick}
+              showHouse
+            />
+          </div>
+        </>
+      )}
+
+      {/* 入れ子派閥: 傘下(子派閥)の一覧。子派閥のリーダーは「親の構成員」ではなく
+          子派閥側の所属なので Roster には出ない。傘下として別ブロックで明示する。 */}
+      {(() => {
+        const childIds = worldState.factionIndex.byParent[faction.id] ?? []
+        const children = childIds
+          .map((cid) => worldState.factions[cid])
+          .filter((c): c is NonNullable<typeof c> => Boolean(c) && c!.active)
+        if (children.length === 0) return null
+        return (
+          <>
+            <span className="text-sm font-semibold text-gray-300">
+              {t('detail.faction.child_factions', { count: children.length })}
+            </span>
+            <div className="flex flex-col gap-1 text-sm">
+              {children.map((c) => {
+                const childLeader = persons[c.leaderPersonId]
+                const childName = childLeader ? `${childLeader.nameKey}'s faction` : c.id
+                return (
+                  <div key={c.id} className="flex flex-col gap-0.5">
+                    <button
+                      className="self-start text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                      onClick={() => onFactionClick(c.id)}
+                    >
+                      ◈ {childName}
+                    </button>
+                    {childLeader && (
+                      <PersonCard
+                        personId={childLeader.id}
+                        worldState={worldState}
+                        onPersonClick={onPersonClick}
+                        onHouseClick={onHouseClick}
+                        relationLabel={t('detail.faction.leader')}
+                        showHouse
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )
+      })()}
 
       {/* v0.17.4 UI: 派閥の "ジョブ被害状況" を一目で見られるよう集計を表示 */}
       {(() => {

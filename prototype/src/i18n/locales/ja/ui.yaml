@@ -625,6 +625,8 @@ detail:
   faction:
     leader: '指導者'
     leader_house: '指導者の家門'
+    parent_faction: '親派閥'
+    child_factions: '傘下派閥（{{count}}）'
     anchor_polity: '所属国家'
     founded: '結成'
     funds: '資金'

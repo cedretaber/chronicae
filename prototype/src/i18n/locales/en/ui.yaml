@@ -526,6 +526,8 @@ detail:
   faction:
     leader: 'Leader'
     leader_house: 'Leader House'
+    parent_faction: 'Parent Faction'
+    child_factions: 'Subordinate factions ({{count}})'
     anchor_polity: 'Anchor Polity'
     founded: 'Founded'
     funds: 'Funds'

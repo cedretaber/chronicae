@@ -216,6 +216,7 @@ export function WindowManager() {
                 session={session}
                 onPersonClick={onPersonClick}
                 onHouseClick={onHouseClick}
+                onFactionClick={onFactionClick}
               />
             </DraggableWindow>
           )
