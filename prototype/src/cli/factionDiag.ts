@@ -548,6 +548,16 @@ function main() {
     `[10] 入れ子 (形成): nested 派閥=${nestedCount}/${depths.length} 親=${parentsWithChildren}`,
   )
   console.log(`    深さ分布 ${distStr || '(なし)'} (d0=root・形成が発火していれば d1+ が出る)`)
+  // nested 派閥の具体リスト (UI でどの派閥を開けば親リンクが見えるか案内するため)。
+  for (const f of getActiveFactions(state)) {
+    if (f.parentFactionId === undefined) continue
+    const leader = state.persons[f.leaderPersonId]
+    const parent = state.factions[f.parentFactionId]
+    const parentLeader = parent ? state.persons[parent.leaderPersonId] : undefined
+    console.log(
+      `    - child=${f.id} (leader=${leader?.nameKey ?? '?'}) → parent=${f.parentFactionId} (leader=${parentLeader?.nameKey ?? '?'})`,
+    )
+  }
 }
 
 try {
