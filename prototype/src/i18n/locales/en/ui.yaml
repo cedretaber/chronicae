@@ -83,6 +83,7 @@ detail:
     title: 'Family Tree of {{house}}'
     relation_married_in: 'from {{house}}'
     relation_married_out: 'to {{house}}'
+    relation_branched_from: 'branched from {{house}}'
     close: 'Close'
     empty: 'No bloodline to display'
     hint: 'Drag to pan, wheel to zoom'
@@ -90,6 +91,7 @@ detail:
     legend_blood: 'Bloodline'
     legend_married_in: 'Married in'
     legend_married_out: 'Married out'
+    legend_branched_from: 'Branch origin'
   # Full chronicle panel: the "view full" link in EntityChronicleSection and FullChroniclePanel
   full_chronicle:
     open: 'View full chronicle ({{count}} total)'

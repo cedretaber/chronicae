@@ -254,4 +254,30 @@ describe('buildHouseFamilyTree', () => {
     expect(graph.nodes).toHaveLength(0)
     expect(graph.edges).toHaveLength(0)
   })
+
+  it('分家 (parentHouseId 有) の創設者ノードに分家元を付与する', () => {
+    const parentHouse = createHouseId('h', 50)
+    const cadetHouse = createHouseId('h', 51)
+    const founder = createPersonId('pe', 50)
+    const child = createPersonId('pe', 51)
+    const persons: Record<PersonId, Person> = {
+      [founder]: makePerson(founder, cadetHouse),
+      [child]: makePerson(child, cadetHouse, { fatherId: founder }),
+    }
+    const houses: Record<HouseId, House> = {
+      [parentHouse]: makeHouse(parentHouse),
+      [cadetHouse]: makeHouse(cadetHouse, {
+        founderId: founder,
+        parentHouseId: parentHouse,
+        memberIds: [founder, child],
+      }),
+    }
+    const { nodes } = buildHouseFamilyTree(buildState(persons, houses), cadetHouse)
+    const f = nodeOf(nodes, founder)
+    // 創設者は分家の blood (起源) だが、分家元の家を辿れる。
+    expect(f?.relation).toBe('blood')
+    expect(f?.branchedFromHouseId).toBe(parentHouse)
+    // 創設者の子 (分家内で生まれた blood) には分家元を付けない。
+    expect(nodeOf(nodes, child)?.branchedFromHouseId).toBeUndefined()
+  })
 })

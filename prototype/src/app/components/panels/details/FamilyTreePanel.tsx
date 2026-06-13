@@ -90,6 +90,10 @@ export function FamilyTreePanel({
                 <span className="inline-block h-3 w-3 rounded-sm border border-amber-500/70 bg-gray-800" />
                 {t('detail.family_tree.legend_married_out')}
               </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded-sm border border-emerald-500/70 bg-gray-800" />
+                {t('detail.family_tree.legend_branched_from')}
+              </span>
             </div>
             <button
               className="rounded px-2 py-0.5 text-gray-400 hover:bg-gray-700 hover:text-red-400"
@@ -209,20 +213,27 @@ export function FamilyTreePanel({
                     ? 'border-pink-500/50'
                     : node.relation === 'married_out'
                       ? 'border-amber-500/50'
-                      : 'border-gray-700'
-                const otherHouseId = node.otherHouseId
+                      : node.branchedFromHouseId !== undefined
+                        ? 'border-emerald-500/50'
+                        : 'border-gray-700'
+                // 婚入/婚出は相手家、分家創設者は分家元の家へリンクするラベルを 1 つ出す。
+                const linkHouseId = node.otherHouseId ?? node.branchedFromHouseId
                 const relationLabel =
-                  otherHouseId !== undefined
+                  node.otherHouseId !== undefined
                     ? node.relation === 'married_in'
                       ? t('detail.family_tree.relation_married_in', {
-                          house: houseNameOf(otherHouseId),
+                          house: houseNameOf(node.otherHouseId),
                         })
                       : node.relation === 'married_out'
                         ? t('detail.family_tree.relation_married_out', {
-                            house: houseNameOf(otherHouseId),
+                            house: houseNameOf(node.otherHouseId),
                           })
                         : undefined
-                    : undefined
+                    : node.branchedFromHouseId !== undefined
+                      ? t('detail.family_tree.relation_branched_from', {
+                          house: houseNameOf(node.branchedFromHouseId),
+                        })
+                      : undefined
                 return (
                   <div
                     key={node.personId}
@@ -234,10 +245,10 @@ export function FamilyTreePanel({
                       worldState={state}
                       onPersonClick={onPersonClick}
                     />
-                    {relationLabel !== undefined && otherHouseId !== undefined && (
+                    {relationLabel !== undefined && linkHouseId !== undefined && (
                       <button
                         className="w-full truncate px-1 pb-0.5 text-left text-xs text-blue-400 underline underline-offset-2 hover:text-blue-300"
-                        onClick={() => onHouseClick(otherHouseId, 'house')}
+                        onClick={() => onHouseClick(linkHouseId, 'house')}
                       >
                         {relationLabel}
                       </button>

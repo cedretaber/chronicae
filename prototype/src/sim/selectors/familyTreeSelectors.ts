@@ -12,6 +12,10 @@ import type { WorldState } from '../types/world'
 //
 // 「出生家」を保持する明示フィールドは無いため、出生家は親 (father/mother) の houseId から
 // best-effort で導出する。
+//
+// 分家元 (branchedFromHouseId): H が分家・分立で生まれた家 (house.parentHouseId 有) のとき、
+//   その創設者 (house.founderId) ノードに「どの家から分かれたか」を付与する。創設者は H の
+//   blood (起源) だが、由来の家を辿れるようにする (婚入/婚出が相手家を示すのと対称)。
 
 export type FamilyTreeRelation = 'blood' | 'married_in' | 'married_out'
 
@@ -20,6 +24,8 @@ export type FamilyTreeNode = {
   relation: FamilyTreeRelation
   // married_in = 出生家 (natal) / married_out = 現在の家。導出不能・自家の場合は undefined。
   otherHouseId?: HouseId
+  // 分家創設者ノードのみ: この家が分かれた元の家 (house.parentHouseId)。それ以外は undefined。
+  branchedFromHouseId?: HouseId
   // 0 = 家系図上で最古の世代。下方向 (子) に向かって増加。
   generation: number
 }
@@ -193,6 +199,12 @@ export function buildHouseFamilyTree(state: WorldState, houseId: HouseId): Famil
     }
   }
 
+  // 分家元: この家が分家・分立で生まれた (parentHouseId 有) なら、創設者ノードに付与する。
+  const branchedFromHouseId =
+    house.parentHouseId !== undefined && house.parentHouseId !== houseId
+      ? house.parentHouseId
+      : undefined
+
   // --- 8. ノード組み立て (generation, personId 昇順で安定化) ---
   const nodes: FamilyTreeNode[] = sortedNodeIds.map((pid) => {
     const rel = relation.get(pid) ?? 'married_out'
@@ -209,6 +221,9 @@ export function buildHouseFamilyTree(state: WorldState, houseId: HouseId): Famil
       generation: generation.get(pid) ?? 0,
     }
     if (otherHouseId !== undefined) node.otherHouseId = otherHouseId
+    if (branchedFromHouseId !== undefined && pid === house.founderId) {
+      node.branchedFromHouseId = branchedFromHouseId
+    }
     return node
   })
   nodes.sort((a, b) =>

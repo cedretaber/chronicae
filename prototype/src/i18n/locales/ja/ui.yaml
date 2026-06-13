@@ -182,6 +182,7 @@ detail:
     title: '{{house}} の家系図'
     relation_married_in: '{{house}} より'
     relation_married_out: '{{house}} へ'
+    relation_branched_from: '{{house}} より分家'
     close: '閉じる'
     empty: '表示できる血統がありません'
     hint: 'ドラッグで移動・ホイールで拡大縮小'
@@ -189,6 +190,7 @@ detail:
     legend_blood: '血統'
     legend_married_in: '婚入'
     legend_married_out: '婚出'
+    legend_branched_from: '分家元'
   # 全履歴 (年代記) パネル: EntityChronicleSection の「完全版を見る」リンクと FullChroniclePanel
   full_chronicle:
     open: '完全版を見る (全{{count}}件)'
