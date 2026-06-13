@@ -824,6 +824,8 @@
 | recruitAttractivenessPowerWeight | 1.0 | WI-0(b): 募集順序 attractiveness の patronPower 重み |
 | recruitAttractivenessMeritWeight | 2.0 | WI-0(b): 同 leader 才能の重み（merit を load-bearing にする主役） |
 | recruitAttractivenessPrestigeWeight | 0.5 | WI-0(b): 同 leader prestige の重み |
+| factionCrossHouseBaseIdleYears | 8 | WI-2: housed 無役が他家派閥募集に解禁されるまでの基礎待機年数 |
+| factionCrossHouseAmbitionReduction | 0.5 | WI-2: 待機閾値の野望短縮係数（threshold = base × (1 − reduction × ambition)） |
 | factionNominationPowerThreshold | 0.3 | 推挙に必要な power 閾値 |
 | factionOwnerHouseNominationBonus | 0.3 | 支配家メンバー推挙ボーナス |
 | factionBailiffNominationWeight | 0.4 | bailiff 推挙の重み |

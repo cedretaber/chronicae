@@ -117,21 +117,25 @@ function addFaction(
 }
 
 describe('runFactionRecruitmentSystem', () => {
-  it('returns identity when currentWeekOfYear != 1', () => {
+  // WI-2: idle トラッカー sweep が常に走るため厳密な state identity は成立しなくなった
+  // (housed 成人の leader に idleSinceWeek が付く)。「募集が発生しない」= membership 不変で検証する。
+  it('no factions → no recruitment (membership unchanged)', () => {
     const { state } = buildBaseState()
     const week12State: WorldState = { ...state, currentWeekOfYear: 12 }
     const ctx = makeCtx(week12State)
     const result = runFactionRecruitmentSystem(ctx)
 
-    expect(result.state).toBe(week12State)
+    expect(Object.keys(result.state.factionMemberships).length).toBe(0)
+    expect(result.state.factions).toBe(week12State.factions)
   })
 
-  it('no active factions → identity', () => {
+  it('no active factions → no recruitment (membership unchanged)', () => {
     const { state } = buildBaseState()
     const ctx = makeCtx(state)
     const result = runFactionRecruitmentSystem(ctx)
 
-    expect(result.state).toBe(state)
+    expect(Object.keys(result.state.factionMemberships).length).toBe(0)
+    expect(result.state.factions).toBe(state.factions)
   })
 
   it('active faction + leader with sufficient wealth + 1 candidate → candidate added to faction', () => {

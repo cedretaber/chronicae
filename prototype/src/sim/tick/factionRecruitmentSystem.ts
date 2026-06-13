@@ -21,33 +21,94 @@ import { addPersonWealth } from '../mutations/personMutations'
 import { setPersonAttitude } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 
-function buildRecruitmentBasePool(ctx: TickContext): PersonId[] {
+function personHasActiveOffice(ctx: TickContext, pid: PersonId): boolean {
+  const officeIds = ctx.state.officeIndex.byHolderPerson[pid] ?? []
+  for (const oid of officeIds) {
+    const o = ctx.state.officeAssignments[oid]
+    if (o && o.active) return true
+  }
+  return false
+}
+
+// 派閥拡大 WI-2: 無役待機トラッカーを更新しながら募集 base pool を構築する (single scan)。
+//
+// 設計の「office assign/revoke mutation サイトで set/clear」案ではなく lazy sweep を採る:
+//   - 募集は既に livingPersonIds を 12 週ごとに全走査するため、その 1 パスに idle 追跡を畳み込む。
+//   - never-employed (一度も着任しない housed 成人) も自然に clock 開始でき、office mutation 側の
+//     「最後の 1 職を失ったか」判定 (revoke は 1 職ずつ) を持ち込まずに済む。
+//   - 12 週粒度の誤差は多年閾値に対して無視できる。employed を見たら clear するので
+//     就職→失職を跨ぐ stale clock も次の sweep で補正される。
+// idleSinceWeek は変化した person のみ immutable に書き換える (mutable-draft パターン)。
+function maintainIdleAndBuildPool(ctx: TickContext): { ctx: TickContext; basePool: PersonId[] } {
+  const { state, config } = ctx
+  const week = state.absoluteWeek
   const result: PersonId[] = []
-  for (const pid of ctx.state.livingPersonIds) {
-    const p = ctx.state.persons[pid]
+  let idleUpdates: Record<string, number | undefined> | null = null
+
+  for (const pid of state.livingPersonIds) {
+    const p = state.persons[pid]
     if (!p) continue
     if (p.kind === 'placeholder') continue
     if (!isLifeStageAtLeast(p.lifeStage, 'young_adulthood')) continue
-    if (!(isHouselessPerson(ctx.state, pid) || isLandlessHouseMember(ctx.state, pid))) continue
-    if (getActiveFactionMembership(ctx.state, pid)) continue
-    if (getFactionByLeader(ctx.state, pid)) continue
+
+    const employed = personHasActiveOffice(ctx, pid)
+
+    // idle 追跡: 無役で clock 未設定なら開始、有役で clock 残存なら解除。
+    if (employed) {
+      if (p.idleSinceWeek !== undefined) {
+        idleUpdates ??= {}
+        idleUpdates[pid as string] = undefined
+      }
+    } else if (p.idleSinceWeek === undefined) {
+      idleUpdates ??= {}
+      idleUpdates[pid as string] = week
+    }
+
+    // base pool 判定 (有役・既所属・leader・性別不適格は除外)。
+    if (employed) continue
+    if (getActiveFactionMembership(state, pid)) continue
+    if (getFactionByLeader(state, pid)) continue
     // v0.45.3 性別役職適格ゲートを派閥募集にも適用 (派閥=任官のためのネットワーク)。
     // ungated 再試行はしない (女性ネットワークは将来サロンで受ける)。
-    if (!isRoleEligibleBySex(ctx.state, ctx.config, pid)) continue
+    if (!isRoleEligibleBySex(state, config, pid)) continue
 
-    const officeIds = ctx.state.officeIndex.byHolderPerson[pid] ?? []
-    let hasActiveOffice = false
-    for (const oid of officeIds) {
-      const o = ctx.state.officeAssignments[oid]
-      if (o && o.active) {
-        hasActiveOffice = true
-        break
-      }
+    // 従来 pool: houseless or landless は無条件で対象。
+    if (isHouselessPerson(state, pid) || isLandlessHouseMember(state, pid)) {
+      result.push(pid)
+      continue
     }
-    if (hasActiveOffice) continue
-    result.push(pid)
+
+    // WI-2: housed+landed 無役は待機期間が閾値を超えた時のみ解禁。
+    //   閾値 = baseIdleYears × (1 − ambitionReduction × ambition)。野望高→短い。
+    //   この tick で clock を set した者は idleSince=week → duration 0 で未解禁 (正しい)。
+    const idleSince = p.idleSinceWeek ?? week
+    const idleWeeks = week - idleSince
+    const ambition = p.traits.ambition
+    const thresholdYears =
+      config.factionCrossHouseBaseIdleYears *
+      (1 - config.factionCrossHouseAmbitionReduction * ambition)
+    if (idleWeeks >= thresholdYears * 48) {
+      result.push(pid)
+    }
   }
-  return result
+
+  if (!idleUpdates) return { ctx, basePool: result }
+
+  const nextPersons = { ...state.persons }
+  for (const key of Object.keys(idleUpdates)) {
+    const pid = key as PersonId
+    const p = nextPersons[pid]
+    if (!p) continue
+    const newVal = idleUpdates[key]
+    if (newVal === undefined) {
+      const { idleSinceWeek: _omit, ...rest } = p
+      void _omit
+      nextPersons[pid] = rest
+    } else {
+      nextPersons[pid] = { ...p, idleSinceWeek: newVal }
+    }
+  }
+  return { ctx: { ...ctx, state: { ...state, persons: nextPersons } }, basePool: result }
 }
 
 // v0.17 §12: FactionRecruitmentSystem (yearly, Jan, after FactionLifecycle)
@@ -56,9 +117,10 @@ function buildRecruitmentBasePool(ctx: TickContext): PersonId[] {
 // prestige の高い patron が才能 pool から先に選ぶ = 引力勾配。RNG 非消費なので順序変更は
 // 他 system の RNG ストリームを壊さない (recruitForFaction は wealth/attitude/membership/event のみ)。
 export function runFactionRecruitmentSystem(ctx: TickContext): TickContext {
-  let currentCtx = ctx
-  const basePool = buildRecruitmentBasePool(ctx)
-  const ordered = orderFactionsByAttractiveness(ctx)
+  // WI-2: idle トラッカー更新 + base pool 構築 (single scan・housed 無役を待機連動で解禁)。
+  const { ctx: maintained, basePool } = maintainIdleAndBuildPool(ctx)
+  let currentCtx = maintained
+  const ordered = orderFactionsByAttractiveness(currentCtx)
   for (const factionId of ordered) {
     currentCtx = recruitForFaction(currentCtx, factionId, basePool)
   }

@@ -384,6 +384,7 @@ type Person = {
   occupation?: PersonBackgroundOccupation  // 無家人物の背景職業（9 種）
   deathCircumstance?: DeathCircumstance     // 死因種別（natural / faded_from_history）
   lastHouseTransferYear?: number            // 最後に家を移籍した年
+  idleSinceWeek?: number                     // 派閥拡大 WI-2: 無役待機開始週（着任で undefined）
   geniusType?: GeniusType                   // v0.45 天才の型（undefined = 通常人物）
 }
 ```

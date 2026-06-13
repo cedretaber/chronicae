@@ -86,6 +86,9 @@ export type Person = {
   occupation?: PersonBackgroundOccupation
   deathCircumstance?: DeathCircumstance
   lastHouseTransferYear?: number
+  // 派閥拡大 WI-2: 無役待機トラッカー。成人で active office を持たなくなった週を記録し、
+  // 待機が一定期間を超えた housed 無役を他家派閥の募集対象に解禁する。office 着任で undefined に戻す。
+  idleSinceWeek?: number
   geniusType?: GeniusType // v0.45 天才の型 (undefined = 通常人物)
 }
 

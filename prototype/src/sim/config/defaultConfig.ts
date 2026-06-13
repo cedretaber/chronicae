@@ -843,6 +843,9 @@ export type SimulationConfig = {
   recruitAttractivenessPowerWeight: number
   recruitAttractivenessMeritWeight: number
   recruitAttractivenessPrestigeWeight: number
+  // 派閥拡大 WI-2: 流動 (housed 無役を待機期間連動で他家派閥募集に解禁)。
+  factionCrossHouseBaseIdleYears: number
+  factionCrossHouseAmbitionReduction: number
   // v0.17 Faction nomination / appointment
   factionNominationPowerThreshold: number
   factionOwnerHouseNominationBonus: number
@@ -1975,6 +1978,10 @@ export const defaultConfig: SimulationConfig = {
   recruitAttractivenessPowerWeight: 1.0,
   recruitAttractivenessMeritWeight: 2.0,
   recruitAttractivenessPrestigeWeight: 0.5,
+  // WI-2: 家持ち無役が他家派閥に流れるまでの基礎待機年数。野望でこれを短縮:
+  // 閾値 = baseIdleYears × (1 − ambitionReduction × ambition)。ambition 1.0 で半減 (4年)。
+  factionCrossHouseBaseIdleYears: 8,
+  factionCrossHouseAmbitionReduction: 0.5,
   // v0.17 Faction nomination / appointment
   factionNominationPowerThreshold: 0.3,
   factionOwnerHouseNominationBonus: 0.3,

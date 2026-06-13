@@ -739,6 +739,11 @@ cap = clamp(
 
 WI-0 を残す理由（測定上は小さくとも構造的に必要）: attractiveness 順序は **供給が逼迫した時** に「強い patron が先に選ぶ」を保証する装置で、pool に余裕のある定常 snapshot では効果が小さく見える。WI-2（募集拡大）/ WI-3（崩壊で pool が churn）後に効きが増す前提。**バランス方針（§機能完成後にまとめて調整）に従い、WI-0 の weight sweep は今は行わない**（測定従属の定数より式の形を優先）。
 
+**無役待機トラッカーと housed 募集 (派閥拡大 WI-2)**: 従来の募集 base pool は houseless または landless（無領家のメンバー）のみ。これに **家持ち・有領だが無役で長く待機している成人** を野望連動で解禁し、「家の中で役に就けず燻る人材が他家の派閥に流れる」流動を作る。`Person.idleSinceWeek?`（optional）に「成人で active office を失った／持たない週」を記録する。
+- **lazy sweep**: 設計の「office assign/revoke の mutation サイトで set/clear」案ではなく、`runFactionRecruitmentSystem` が既に 12 週ごとに行う `livingPersonIds` 全走査の 1 パスに idle 追跡を畳み込む（`maintainIdleAndBuildPool`）。無役で clock 未設定なら `idleSinceWeek = absoluteWeek` を set、有役なら clear。never-employed（一度も着任しない housed 成人）も自然に clock 開始でき、revoke が 1 職ずつである「最後の 1 職を失ったか」判定を持ち込まずに済む。12 週粒度の誤差は多年閾値に対し無視できる。idleSinceWeek は変化した person のみ immutable に書き換える（mutable-draft）。
+- **解禁条件**: houseless/landless は従来どおり無条件。housed+landed 無役は `idleWeeks >= thresholdYears × 48` のときのみ解禁。`thresholdYears = factionCrossHouseBaseIdleYears × (1 − factionCrossHouseAmbitionReduction × ambition)`（野望 1.0 で半減）。応募先選択は WI-0 の attractiveness 順を流用（才能人材が魅力的な patron を選ぶ）。
+- 実測（tiny 100年）: 供給律速だった派閥が housed 無役の流入で cap を埋める（seed1 供給律速 15→0、seed42 17→11）。eligible pool は最終 snapshot で吸い切られ 0（集積が供給を吸収）。
+
 **候補スコア（House 役職）**:
 ```ts
 score = relevantStat(role) * 1.0

@@ -81,7 +81,7 @@ const WEEKS_PER_SEASON = 12
 | 14c | FactionDefectionSystem | 48 | |
 | 14d | FactionMaintenanceSystem | 4 | leader 死亡時継承・死亡 member 整理 |
 | 14e | FactionLifecycleSystem | 48 | 解散判定・新規結成 (年次のみ) |
-| 14f | FactionRecruitmentSystem | 12 | |
+| 14f | FactionRecruitmentSystem | 12 | WI-2: 無役待機トラッカー (idleSinceWeek) を全走査で更新しつつ募集 |
 | 14g | PersonGrowthSystem | 48 | |
 | ~~15~~ | ~~AmbitionSystem~~ | — | tick system は廃止。野心スコア算出ヘルパー `calcAmbitionScores` (selector) のみ残存 |
 | ~~16~~ | ~~PublicSpendingSystem~~ | — | 廃止（実装に存在しない） |
