@@ -328,5 +328,15 @@ export const useSimulationStore = create<SimStore>((set, get) => ({
   setConfig: (partial) => set((state) => ({ config: { ...state.config, ...partial } })),
 }))
 
-// Initialize by generating a default world
-useSimulationStore.getState().generateNewWorld('chronicae-default')
+/**
+ * デモ用のランダムシードを生成する。起動ごとに異なる歴史が見られるようにするためのもの。
+ * 生成したシードは入力欄に表示され、再現したいときは控えて再入力できる
+ * （sim 層の determinism は「シード文字列 → RNG」で保たれ、ここで 1 回だけ非決定的に選ぶだけ）。
+ */
+function generateRandomSeed(): string {
+  const token = Math.random().toString(36).slice(2, 10)
+  return `chronicae-${token}`
+}
+
+// Initialize by generating a randomized world so each visit shows a different history.
+useSimulationStore.getState().generateNewWorld(generateRandomSeed())
