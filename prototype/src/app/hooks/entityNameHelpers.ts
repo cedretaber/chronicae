@@ -22,11 +22,12 @@ type MaybeState = WorldState | null | undefined
 
 /**
  * House 短名 (v0.47)。家名 nameKey の出所 (nameSource) に応じて category を切り替える:
- * 'person' (founder 個人名由来 = 分封 / 分家 / 共和国 House) -> 'person' category /
+ * 'person' (founder 個人名由来 = 共和国 House) -> 'person' category /
+ * { kind: 'polity', category } (分封・分家 = 領国名 snapshot) -> その領国名 category /
  * それ以外 (house プール由来) -> 'house' category。
  *
- * 禁止: 個人名由来の家名を `resolveName('house', house.nameKey)` で解決すること
- * (house.yaml に person キーが無く raw key 表示になる)。必ずこの helper を通す。
+ * 禁止: 個人名・領国名由来の家名を `resolveName('house', house.nameKey)` で解決すること
+ * (house.yaml に該当キーが無く raw key 表示になる)。必ずこの helper を通す。
  * house が undefined のときは fallback をそのまま返す。
  */
 export function getHouseDisplayName(
@@ -35,7 +36,13 @@ export function getHouseDisplayName(
   fallback: string,
 ): string {
   if (!house) return fallback
-  const category = house.nameSource === 'person' ? 'person' : 'house'
+  const ns = house.nameSource
+  const category =
+    ns === 'person'
+      ? 'person'
+      : typeof ns === 'object' && ns.kind === 'polity'
+        ? ns.category
+        : 'house'
   return resolveName(category, house.nameKey, house.nameKey)
 }
 

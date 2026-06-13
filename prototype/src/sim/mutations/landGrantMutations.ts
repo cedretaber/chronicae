@@ -96,10 +96,14 @@ export function applyLandGrantMut(
   // 1. House 作成 (無家 = self_made_foundation / 有家 = cadet_branch)。
   const parentHouse =
     params.parentHouseId !== undefined ? state.houses[params.parentHouseId] : undefined
+  // 分封の家名は受領した領国 (= 新設 rank5 Polity・holding 名由来) の名前を snapshot する
+  // (王朝名として固定)。新 Polity は holding 名なので category は holding.kind で決まる
+  // (manor→'province' / city→'city'・getHoldingNameRefForEmit と同一規則)。
+  const placeCategory: 'province' | 'city' = holding.kind === 'city' ? 'city' : 'province'
   const newHouse: House = {
     id: newHouseId,
-    nameKey: petitioner.nameKey,
-    nameSource: 'person', // founder 個人名由来の家名 (person category で解決)。
+    nameKey: holding.nameKey,
+    nameSource: { kind: 'polity', category: placeCategory },
     active: true,
     memberIds: [],
     deceasedMemberIds: [],

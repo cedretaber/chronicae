@@ -56,7 +56,8 @@ export function getPolityNameRefForEmitFromPolity(state: WorldState, polity: Pol
 
 /**
  * House の (category, nameKey) を nameSource に応じて返す (v0.47)。
- * 'pool'/undefined -> ('house', nameKey) / 'person' -> ('person', nameKey)。
+ * 'pool'/undefined -> ('house', nameKey) / 'person' -> ('person', nameKey) /
+ * { kind: 'polity', category } -> (snapshot した領国名 category, nameKey)。
  * House 不在時は id を nameKey とする安全値。
  */
 export function getHouseNameRefForEmit(state: WorldState, houseId: HouseId): SimNameRef {
@@ -69,8 +70,12 @@ export function getHouseNameRefForEmit(state: WorldState, houseId: HouseId): Sim
 
 /** House の (category, nameKey) を nameSource に応じて返す (lookup 済み向け)。 */
 export function houseNameRef(house: House): SimNameRef {
-  const category = house.nameSource === 'person' ? 'person' : 'house'
-  return { category, nameKey: house.nameKey }
+  const ns = house.nameSource
+  if (ns === 'person') return { category: 'person', nameKey: house.nameKey }
+  if (typeof ns === 'object' && ns.kind === 'polity') {
+    return { category: ns.category, nameKey: house.nameKey }
+  }
+  return { category: 'house', nameKey: house.nameKey }
 }
 
 /**

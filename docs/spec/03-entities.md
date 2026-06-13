@@ -246,7 +246,7 @@ type Polity = {
 }
 ```
 
-- `nameSource`: Polity 名の意味論を集約する discriminated union。`pool`（自前の `polity.western.default` 由来名）/ `holding`（対象 Holding の名前を借りる。地名由来の国名）。worldgen 由来は `pool`、民衆叛乱で新設される rank 5 commonwealth は `holding`（成立元 Holding）。`regime_changed_by_popular_revolt` は既存 nameSource を維持。表示・emit は nameSource-aware helper を介す（§4 / §6）。House は v0.41 では `nameKey` を維持し nameSource を導入しない（非対称は意図的）
+- `nameSource`: Polity 名の意味論を集約する discriminated union。`pool`（自前の `polity.western.default` 由来名）/ `holding`（対象 Holding の名前を借りる。地名由来の国名）。worldgen 由来は `pool`、民衆叛乱で新設される rank 5 commonwealth は `holding`（成立元 Holding）。`regime_changed_by_popular_revolt` は既存 nameSource を維持。表示・emit は nameSource-aware helper を介す（§4 / §6）。House は v0.41 では `nameKey` のみだったが v0.47 で `House.nameSource`（`'pool' | 'person' | { kind: 'polity', category }`）を導入済み（§3.4 参照。Polity の discriminated union とは別系統）
 - `capitalProvinceId`: 政治支配力の中心。controlSystem の BFS 起点として使う。landless 化後も保持する
 - `ownerHouseId`: その Polity を家産的に保有する House の id。Rebel Polity / commonwealth では `undefined`
 - `kind`: 'commonwealth' は `ownerHouseId === undefined` を恒常状態として維持する Polity の標識。`createNegotiatingCommonwealth` で 'commonwealth' を set し、`polityOwnerConsistencySystem` / `successionSystem` / `organizationConsistencySystem` 等は commonwealth を skip / 特別扱いする
@@ -293,7 +293,7 @@ type House = {
   founderId?: PersonId       // 家の創設者
   parentHouseId?: HouseId    // 分裂元の家
   cadetHouseIds: HouseId[]   // 分裂で生まれた傍系家のリスト
-  nameSource?: 'pool' | 'province' | 'founder' | 'fallback'
+  nameSource?: 'pool' | 'person' | { kind: 'polity'; category: 'province' | 'city' | 'polity' }  // 家名 nameKey の出所（undefined = 'pool'）
   legacyPrestige: number     // 0..100（家の権威・伝統の蓄積）
   wealth: number             // >= 0
   seatProvinceId: ProvinceId
@@ -313,6 +313,7 @@ type House = {
 - `memberIds` は生存中メンバーのみ。`deceasedMemberIds` は死亡したメンバー。`markPersonDead` で memberIds → deceasedMemberIds に移動する
 - `kind` フィールドは型上残存するが `'system'` の House は生成しない（AnonymousHouse は廃止済み）。実動の creationReason は `house_split` / `wealth` / `office` / `prestige` / `succession`
 - `clanId`: House は最大 1 つの Clan に所属。多重 Clan 所属は禁止。`splitHouse` で親 House の clanId を即時継承、`houseFoundingSystem`（無家人物による創設）では付与しない
+- `nameSource`（v0.47）: 家名 `nameKey` の出所。`'pool'`（undefined と同義・house プール由来）/ `'person'`（founder 個人名由来＝共和国 House）/ `{ kind: 'polity', category }`（下賜された領国名由来＝分封 land_grant・分家 titleTransfer。受領 Polity の名前を snapshot。`category` は領国名の解決名前空間 = holding 由来なら `'province'`/`'city'`・pool 由来なら `'polity'`）。表示・emit は nameSource-aware helper（`getHouseDisplayName` / `houseNameRef`）で category を切り替える。詳細は §6 分封の as-built 注記 (3) を参照
 
 ### 3.4b Clan（氏族）
 

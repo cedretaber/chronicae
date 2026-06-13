@@ -17,11 +17,21 @@ export type HouseCreationReason =
 /**
  * 家名 nameKey がどの name プールに属するか (v0.47)。
  * - 'pool' (既定 / undefined): house プール由来 (house.yaml で解決)。
- * - 'person': founder の個人名由来 (person.yaml で解決)。分封 / 分家(Polity 譲渡) /
- *   共和国 House 創設は petitioner.nameKey をそのまま家名にするため、house category では
- *   解決できず raw key 表示になる。表示・emit 側は nameSource を見て category を切り替える。
+ * - 'person': founder の個人名由来 (person.yaml で解決)。共和国 House 創設は
+ *   petitioner.nameKey をそのまま家名にするため、house category では解決できず raw key 表示に
+ *   なる。表示・emit 側は nameSource を見て category を切り替える。
+ * - { kind: 'polity', category }: 下賜された Polity (領国) の名前を家名にする (v0.47.x)。
+ *   分封 (land_grant) と分家 (titleTransfer) で「家 = その領国の名前」を実現する。創設時に
+ *   領国名の (category, nameKey) を house へ snapshot する (家名は王朝名として固定 = 後で領国を
+ *   失っても変わらない)。category はその nameKey の解決名前空間:
+ *     - 'province' / 'city': 領国名が holding 由来 (manor→province / city→city)。
+ *       分封の新設 Polity は常に holding 名、分家で譲渡される Polity が holding 名の場合も該当。
+ *     - 'polity': 領国名が pool 由来 (polity.yaml)。分家で譲渡される worldgen 由来 Polity 等。
  */
-export type HouseNameSource = 'pool' | 'person'
+export type HouseNameSource =
+  | 'pool'
+  | 'person'
+  | { kind: 'polity'; category: 'province' | 'city' | 'polity' }
 
 export type House = {
   id: HouseId

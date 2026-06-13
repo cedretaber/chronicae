@@ -188,6 +188,15 @@ describe('v0.47 Polity 譲渡による分家 finalize', () => {
     expect(st.persons[petitionerId]!.houseId).toBe(cadetHouse!.id)
     expect(getHouseLeader(st, cadetHouse!.id)).toBe(petitionerId)
 
+    // 家名は譲渡された領国 (secondary Polity) の名前を snapshot する (person 名でない)。
+    // fixture の secondary Polity は pool 名 (nameKey='c') なので category='polity'。
+    const secondaryNameSource = st.polities[secondaryPolityId]!.nameSource
+    expect(secondaryNameSource.kind).toBe('pool')
+    if (secondaryNameSource.kind === 'pool') {
+      expect(cadetHouse!.nameKey).toBe(secondaryNameSource.nameKey)
+    }
+    expect(cadetHouse!.nameSource).toEqual({ kind: 'polity', category: 'polity' })
+
     expect(result.events.some((e) => e.type === 'CADET_BRANCH_FOUNDED_BY_TITLE_TRANSFER')).toBe(
       true,
     )

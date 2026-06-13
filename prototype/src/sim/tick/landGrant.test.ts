@@ -206,6 +206,14 @@ describe('v0.47 分封 (request_land_grant) finalize', () => {
     expect(newHouse!.creationKind).toBe('self_made_foundation')
     expect(newPolity!.ownerHouseId).toBe(newHouse!.id)
 
+    // 分封の家名は受領した領国 (holding 名由来) の名前を snapshot する (王朝名として固定・person 名でない)。
+    const polityNameSource = newPolity!.nameSource
+    expect(polityNameSource.kind).toBe('holding')
+    if (polityNameSource.kind === 'holding') {
+      expect(newHouse!.nameKey).toBe(st.holdings[polityNameSource.holdingId]!.nameKey)
+    }
+    expect(newHouse!.nameSource).toEqual({ kind: 'polity', category: 'province' })
+
     // petitioner は新 House 所属 + 新 Polity leader。
     expect(st.persons[petitionerId]!.houseId).toBe(newHouse!.id)
     expect(getPolityLeader(st, newPolity!.id)).toBe(petitionerId)

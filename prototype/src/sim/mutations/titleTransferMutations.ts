@@ -5,6 +5,7 @@ import { createOfficeAssignment, revokeOfficesByOrganization } from './officeMut
 import { moveFounderFamilyToHouse } from './personMutations'
 import { reassignPolityOwnershipMut } from './polityMutations'
 import { addHouseToClan } from './clanMutations'
+import { getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
 
 // v0.47 §11.9: Polity 譲渡による分家創設の成功時 orchestration。
 // 宗家の secondary Polity を新設 cadet House に譲り、petitioner を其の leader (title holder) にする。
@@ -31,10 +32,17 @@ export function applyCadetBranchTitleTransferMut(
   const cadetHouseId = `dh-${nextHouseIndex}` as HouseId
 
   // 1. cadet House 作成 (creationReason='polity_grant')。seat は対象 Polity の capital province。
+  // 家名は譲渡された領国 (targetPolity) の名前を snapshot する (家 = その領国の名前)。
+  // 領国名が pool 由来なら category='polity'、holding 由来なら 'province'/'city'。
+  const polityRef = getPolityNameRefForEmit(state, params.targetPolityId)
+  const polityCategory: 'province' | 'city' | 'polity' =
+    polityRef.category === 'city' || polityRef.category === 'polity'
+      ? polityRef.category
+      : 'province'
   const cadetHouse: House = {
     id: cadetHouseId,
-    nameKey: petitioner.nameKey,
-    nameSource: 'person', // founder 個人名由来の家名 (person category で解決)。
+    nameKey: polityRef.nameKey,
+    nameSource: { kind: 'polity', category: polityCategory },
     active: true,
     memberIds: [],
     deceasedMemberIds: [],
