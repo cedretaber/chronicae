@@ -13,6 +13,7 @@ import {
   getHouseProjectedAnnualIncome,
   getHouseAnnualOfficeSalary,
   getHouseProjectedAnnualBalance,
+  hasGainfulOffice,
 } from './houseFinanceSelectors'
 
 // PolitySurplus 定数 (landContractConfig): reserveBase=50, perHolding=50, rate=0.15
@@ -131,5 +132,76 @@ describe('getHouseProjectedAnnualBalance', () => {
     state = createOfficeAssignment(state, { kind: 'house', id: houseId }, 'administrator', p1)
     // income 360 - salary 10 = 350
     expect(getHouseProjectedAnnualBalance(state, houseId)).toBeCloseTo(350, 6)
+  })
+})
+
+// v0.48: 給与 0 の leader 肩書きは家の収入が無ければ無役扱い。
+describe('hasGainfulOffice', () => {
+  it('active office を持たない人物は無役 (false)', () => {
+    const houseId = createHouseId('h', 0)
+    const personId = createPersonId('pe', 1)
+    let state = makeEmptyV016State()
+    state = withHouse(state, houseId)
+    state = withPerson(state, personId, { houseId })
+    expect(hasGainfulOffice(state, personId)).toBe(false)
+  })
+
+  it('無領地の家の家長 (house:leader のみ・収入 0) は無役扱い (false)', () => {
+    const houseId = createHouseId('h', 0)
+    const headId = createPersonId('pe', 1)
+    let state = makeEmptyV016State()
+    state = withHouse(state, houseId)
+    state = withPerson(state, headId, { houseId })
+    state = createOfficeAssignment(state, { kind: 'house', id: houseId }, 'leader', headId)
+    expect(getHouseProjectedAnnualIncome(state, houseId)).toBe(0)
+    expect(hasGainfulOffice(state, headId)).toBe(false)
+  })
+
+  it('国庫が枯れた名目 Polity の polity:leader (収入 0) は無役扱い (false)', () => {
+    const houseId = createHouseId('h', 0)
+    const leaderId = createPersonId('pe', 1)
+    const polityId = createPolityId('c', 0)
+    let state = makeEmptyV016State()
+    state = withHouse(state, houseId)
+    state = withPerson(state, leaderId, { houseId })
+    // treasury が reserveTarget(50) 以下 → 分配可能額 0 → 家の収入 0。
+    // (国庫があり分配できる名目 Polity なら income > 0 で実職扱いになるのが正しい)
+    state = withPolity(state, polityId, { treasury: 40, ownerHouseId: houseId })
+    state = createOfficeAssignment(state, { kind: 'polity', id: polityId }, 'leader', leaderId)
+    expect(getHouseProjectedAnnualIncome(state, houseId)).toBe(0)
+    expect(hasGainfulOffice(state, leaderId)).toBe(false)
+  })
+
+  it('実 Polity を持つ家の家長 (収入 > 0) は実職 (true)', () => {
+    const houseId = createHouseId('h', 0)
+    const headId = createPersonId('pe', 1)
+    const polityId = createPolityId('c', 0)
+    const provinceId = createProvinceId('p', 0)
+    let state = makeEmptyV016State()
+    state = withProvince(state, provinceId)
+    state = withHouse(state, houseId, { seatProvinceId: provinceId })
+    state = withPerson(state, headId, { houseId })
+    state = withPolity(state, polityId, { treasury: 300, ownerHouseId: houseId })
+    state = bindProvinceToHouseViaPolity(state, provinceId, polityId, houseId)
+    state = createOfficeAssignment(state, { kind: 'house', id: houseId }, 'leader', headId)
+    expect(getHouseProjectedAnnualIncome(state, houseId)).toBeGreaterThan(0)
+    expect(hasGainfulOffice(state, headId)).toBe(true)
+  })
+
+  it('非 leader 役職 (administrator) 保持者は収入に関わらず実職 (true)', () => {
+    const houseId = createHouseId('h', 0)
+    const officerId = createPersonId('pe', 1)
+    let state = makeEmptyV016State()
+    state = withHouse(state, houseId)
+    state = withPerson(state, officerId, { houseId })
+    // 収入 0 の家でも、給与つきの非 leader 役職は実職
+    state = createOfficeAssignment(
+      state,
+      { kind: 'house', id: houseId },
+      'administrator',
+      officerId,
+    )
+    expect(getHouseProjectedAnnualIncome(state, houseId)).toBe(0)
+    expect(hasGainfulOffice(state, officerId)).toBe(true)
   })
 })

@@ -21,7 +21,8 @@ import {
   appointHoldingBailiff,
   installHoldingPlaceholderBailiff,
 } from '../mutations/provinceOfficeMutations'
-import { hasActiveOffice, hasActiveHoldingOffice } from '../selectors/officeSelectors'
+import { hasActiveHoldingOffice } from '../selectors/officeSelectors'
+import { hasGainfulOffice } from '../selectors/houseFinanceSelectors'
 import {
   isEstablishedCommonwealthRepublic,
   getRepublicPoliticalCandidatePersons,
@@ -156,7 +157,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
           p.alive &&
           p.age >= currentCtx.config.bailiffMinAge &&
           p.kind !== 'placeholder' &&
-          !hasActiveOffice(currentCtx.state, p.id) &&
+          !hasGainfulOffice(currentCtx.state, p.id, currentCtx.config) &&
           !hasActiveHoldingOffice(currentCtx.state, p.id),
       )
       .sort((a, b) => {
@@ -206,7 +207,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
                 p.alive &&
                 p.age >= currentCtx.config.bailiffMinAge &&
                 p.kind !== 'placeholder' &&
-                !hasActiveOffice(currentCtx.state, p.id) &&
+                !hasGainfulOffice(currentCtx.state, p.id, currentCtx.config) &&
                 !hasActiveHoldingOffice(currentCtx.state, p.id) &&
                 !bookedThisTick.has(p.id) &&
                 passes(p.id),
@@ -291,7 +292,7 @@ function collectBailiffFactionalCandidates(
       if (!m || !m.alive) continue
       if (m.kind === 'placeholder') continue
       if (m.age < config.bailiffMinAge) continue
-      if (hasActiveOffice(state, mid)) continue
+      if (hasGainfulOffice(state, mid, config)) continue
       if (hasActiveHoldingOffice(state, mid)) continue
       const raw = getFactionalCandidateScore(
         state,

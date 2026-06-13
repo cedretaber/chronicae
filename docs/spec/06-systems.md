@@ -870,6 +870,7 @@ houseless で influence 寄与ゼロ。bailiff を持つ通常 Polity なら次�
 - 適任者が居なければ placeholder のまま
 - **commonwealth アリーナ化（派閥拡大 Phase 7）**: 旧来 `ownerHouseId` を持たない polity（commonwealth）は本 system に丸ごとスキップされ、その holding の代官席は永久に placeholder のままだった。これを撤廃し、**established commonwealth（`isEstablishedCommonwealthRepublic`）も代官を任命する**。Tier 2 の候補母集合は `ownerHouse.memberIds` の代わりに `getRepublicPoliticalCandidatePersons`（§6.68 — commonwealth 関係の人物プール）を用いる。Tier 0/1 は変更なし（commonwealth-anchor 派閥は anchor 限定 NP で Tier 1 に乗る）。実測（tiny 100年）: commonwealth 代官席の placeholder 4/5 → 0/9（全席着座）、commonwealth-anchor 派閥 2 → 6。これにより「分権の極（共和制）でも人材政治が動く」寡頭アリーナが成立する。
 - **性別役職適格ゲート (v0.45.3)**: 3 tier すべてに `isRoleEligibleBySex` を適用する（§6.19）。gated で 3 tier が空振りした場合のみ、`allowFemaleRolesWhenNoMaleCandidate`（既定 false）が true なら ungated 再試行を 1 回行う。実装上 tier cascade は `pickBailiff(gate)` クロージャに集約され、ownerHouse 候補の消費は破壊的 shift から走査（着座者は bookedThisTick で除外）に変更された（gated/ungated の 2 回呼びで候補列が壊れないため。挙動は同等）
+- **無収入 leader 肩書きの候補解禁 (v0.48)**: 候補フィルタは従来「active office を 1 つでも持つ人物」（`hasActiveOffice`）を除外していたが、これを `hasGainfulOffice`（§4 houseFinanceSelectors）に置換する。`house:leader` / `polity:leader` は給与 0 の地位であり（officeDefinitions baseSalary 0）、無領地の家の家長・国庫が枯れた名目 Polity の家長は「家長という肩書きを持つだけで実収入ゼロ」なのに代官候補から弾かれていた。`hasGainfulOffice` は leader 役職を「家の定常年間収入（`getHouseProjectedAnnualIncome`）> 0」のときだけ実職とみなすため、収入を生む Polity を持つ家の家長（必ず polity:leader を兼任し income > 0）は従来どおり除外され、無収入の家長のみ代官候補に復帰する。非 leader 役職（administrator 等）保持者は従来どおり実職扱い。**実測（tiny 100年 seed1）**: `BAILIFF_APPOINTED` 904→896 とほぼ不変で、tiny preset では候補プールが派閥/所有家経由で既に充足しているため代官席への影響は小さい（実効は §後述 obtain_office aim 側）。本変更は「給与 0 の地位が稼ぎ口探しを塞ぐ」論理矛盾の除去が主目的であり、人口/役職不均衡の解消そのものは別途のバランス調整（action 経済）に委ねる。
 
 **fall-through の設計意図 (v0.42)**: right があっても Tier 0 が候補を出せない場合は Tier 1 / 2 へ落ちる。
 これは polity office（right がある role では unrelated factional path を skip）と**意図的に異なる**扱いで、
@@ -2450,6 +2451,7 @@ established commonwealth を検出し、非 leader office（administrator / trea
 #### 競争 pull（obtain_office / acquire_political_right）
 
 - **obtain_office**（`personAimSelectors.scorePersonAimKind`）: 役職フォールバックの polity 候補を `getHousePolityIds`（土地ベース・ownerHouse 由来）に加え、**`getRepublicFootholdPolityIds` の共和国に限定**して拡張する（normal polity の挙動は不変）。houseless person は `personAimMaintenanceSystem` が skip するため、この pull は housed person 限定（houseless 功臣は HouseFounding で家を興した後に参加）。
+- **無収入 leader 肩書きの抑制解除 (v0.48)**: obtain_office の「既に役職持ちなら score −10」ゲートは、従来 active office を 1 つでも持てば（`hasAnyOffice`）抑制していた。これを `hasGainfulOffice`（§6.22 と同じ実職判定 — 給与 0 の `house:leader` / 無収入 Polity の `polity:leader` は無役扱い）に置換し、**無領地の家の家長・無収入 Polity の家長が職探し aim を持てる**ようにした。`retain_office` の判定は `hasAnyOffice` のまま据え置き（肩書きの保持と稼ぎ口探しは別軸で両立して構わない）。**実測（tiny 100年 seed1）**: 「began pursuing Obtain Office」発生数 2098→1987（−5%）。減少方向なのは、無役の家長が役職を得て探索を止める二次効果と RNG 分岐の両方を含むため絶対値は直接解釈しない（挙動が変化することの確認に留める）。
 - **acquire_political_right**（`goalSelectors.pushAcquireRightCandidates`）: target が共和国（`isEstablishedCommonwealthRepublic`）のとき score に `republicAcquireRightBaseBonus` を加点し、家による共和国権利競争を促す（normal polity は不変）。Project owner は従来どおり House。
 
 #### dominant holder の扱い（UI のみ）

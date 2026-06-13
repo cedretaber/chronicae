@@ -10,6 +10,7 @@ import type { AbilityKey } from '../types/person'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 import { getPersonGoalFulfillment } from './personGoalSelectors'
+import { hasGainfulOffice } from './houseFinanceSelectors'
 import {
   resolveLandGrantDonor,
   resolveCadetBranchTransfer,
@@ -62,6 +63,11 @@ export function scorePersonAimKind(
     }
   }
 
+  // v0.48: obtain_office の抑制判定は「実職 (収入を生む役職)」の有無で行う。
+  // 給与 0 の leader 肩書き (無領地家長 / 名目 Polity の家長) は無役扱いとし、
+  // 職探し aim を持てるようにする。retain_office は hasAnyOffice のまま (肩書き保持は別軸)。
+  const personHasGainfulOffice = hasGainfulOffice(state, personId, config)
+
   for (const kind of PERSON_AIM_KINDS) {
     let score = 0
     let goalAlignment = 0
@@ -110,7 +116,7 @@ export function scorePersonAimKind(
         break
 
       case 'obtain_office':
-        if (hasAnyOffice) {
+        if (personHasGainfulOffice) {
           score -= 10
         } else {
           score += person.traits.ambition * 10
