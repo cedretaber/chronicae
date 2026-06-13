@@ -32,6 +32,12 @@
 | polityOfficeMaxProvinceFactor.small | 0.4 | 1 Province 以下の係数 |
 | polityOfficeMaxProvinceFactor.medium | 0.7 | 2-3 Province の係数 |
 | polityOfficeMaxProvinceFactor.large | 1.0 | 4 Province 以上の係数 |
+| **commonwealth 専用役職上限** | | commonwealth は全 role 解放・province 係数なし（rank が席数を決める） |
+| polityOfficeMaxByRankCommonwealth[1] | admin:3 treas:3 mil:5 adv:5 | 帝国級共和国: フル枠 |
+| polityOfficeMaxByRankCommonwealth[2] | admin:2 treas:2 mil:3 adv:3 | |
+| polityOfficeMaxByRankCommonwealth[3] | admin:2 treas:2 mil:2 adv:2 | |
+| polityOfficeMaxByRankCommonwealth[4] | admin:1 treas:1 mil:2 adv:2 | |
+| polityOfficeMaxByRankCommonwealth[5] | admin:1 treas:1 mil:1 adv:1 | 反乱領級共和国: 全 role 1 席（旧 admin 1 のみ → 全 role 解放で計 4 席）|
 | samePrimaryPolityMarriageBonus | 0.08 | 同 primary Polity 間婚姻ボーナス |
 | maxRawEvents | 10000 | 全イベント保持上限 |
 | maxChronicleEvents | 1000 | Chronicle イベント保持上限 |

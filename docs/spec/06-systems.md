@@ -778,6 +778,7 @@ score = relevantStat(role) * 1.0
   が空き」というケースがあり、count 判定だと前の空き slot が永久に埋まらない）。right の参照・
   `createOfficeAssignment` への slot 明示渡しもこの充足対象 slot に対して行う
   - Polity 役職: `polityOfficeMaxByRank[rank][role]` × province 数係数で決定。`rankCap = 0` の場合はその役職を設置不可（例: rank 4 伯領は administrator のみ）
+    - **commonwealth 例外**: `polity.kind === 'commonwealth'` の場合は専用テーブル `polityOfficeMaxByRankCommonwealth[rank][role]` を用い、**全 role を rank に依らず解放（>=1）**、**province 数係数は適用しない**（政体の格 = rank が席数を決める）。理由: commonwealth の権力闘争は役職争奪で駆動されるが、通常テーブル + province 係数では rank 5（≈1 province）の commonwealth で administrator/treasurer が hard cap 3 × 0.4 で必ず 1 に潰れ、争奪対象が宰相 1 席のみになって権力闘争が成立しない。titular の場合は commonwealth でも leader 以外 0（titular ガードが優先）
   - House 役職: leader 以外は一律 maxHolders = 1（slot は常に 0）
 - 死亡者の役職は自動的に revoke される
 

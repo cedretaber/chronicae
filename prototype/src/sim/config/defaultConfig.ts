@@ -912,6 +912,14 @@ export type SimulationConfig = {
   bailiffTaskCompletedRespectGain: number
   // v0.17 Office max (Polity rank x province count)
   polityOfficeMaxByRank: Record<PolityRank, Record<Exclude<OfficeRole, 'leader'>, number>>
+  // commonwealth 専用 office max。rank に依らず全 role を解放し (>=1)、席数は rank に応じる。
+  // province factor は掛けない (commonwealth の役職席は領土規模ではなく政体の格 = rank で決まる)。
+  // 理由: commonwealth の権力闘争は役職争奪で駆動されるが、通常テーブル + province factor では
+  //   rank 5 (≈1 province) の commonwealth が宰相1席のみに潰れ、争いの余地が無くなるため。
+  polityOfficeMaxByRankCommonwealth: Record<
+    PolityRank,
+    Record<Exclude<OfficeRole, 'leader'>, number>
+  >
   polityOfficeMaxProvinceFactor: {
     small: number
     medium: number
@@ -2070,6 +2078,15 @@ export const defaultConfig: SimulationConfig = {
     3: { administrator: 1, treasurer: 1, military: 1, advisor: 0 },
     4: { administrator: 1, treasurer: 0, military: 0, advisor: 0 },
     5: { administrator: 1, treasurer: 0, military: 0, advisor: 0 },
+  },
+  // commonwealth: rank に依らず全 role を解放 (>=1)、席数は rank に応じてスケール。
+  // hard cap (administrator/treasurer: 3, military/advisor: 5) 内。province factor は適用しない。
+  polityOfficeMaxByRankCommonwealth: {
+    1: { administrator: 3, treasurer: 3, military: 5, advisor: 5 },
+    2: { administrator: 2, treasurer: 2, military: 3, advisor: 3 },
+    3: { administrator: 2, treasurer: 2, military: 2, advisor: 2 },
+    4: { administrator: 1, treasurer: 1, military: 2, advisor: 2 },
+    5: { administrator: 1, treasurer: 1, military: 1, advisor: 1 },
   },
   polityOfficeMaxProvinceFactor: {
     small: 0.4,

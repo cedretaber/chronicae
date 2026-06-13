@@ -334,6 +334,15 @@ export function getEffectiveOfficeMaxHolders(
   //   毎 tick の任命→revoke churn を避けるための最後の安全網 (appointment 側でも prevention)。
   if (getPolityTerritorialStatus(polity) === 'titular') return 0
 
+  // commonwealth: rank に依らず全 role を解放し、席数は専用テーブルで rank に応じる。
+  //   province factor は掛けない (政体の格 = rank が席数を決める)。通常テーブル + factor では
+  //   rank 5 (≈1 province) で administrator/treasurer が必ず 1 に潰れ、権力闘争の余地が消えるため。
+  if (polity.kind === 'commonwealth') {
+    const cwRow = config.polityOfficeMaxByRankCommonwealth[polity.rank]
+    const cwCap = cwRow ? cwRow[role] : 1
+    return Math.max(1, Math.min(baseMax, cwCap))
+  }
+
   const rankRow = config.polityOfficeMaxByRank[polity.rank]
   if (!rankRow) return baseMax
   const rankCap = rankRow[role]
