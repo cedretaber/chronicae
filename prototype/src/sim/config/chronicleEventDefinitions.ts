@@ -123,4 +123,11 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   PERSON_REPUTATION_DAMAGED: { category: 'life', retainRefKinds: ['person'] },
   // v0.45 天才の誕生。低頻度 (1%) かつ家にとっても画期なので house ref も retain する
   PERSON_GENIUS_BORN: { category: 'life' },
+  // v0.47.4: 婚姻・出生を永続化する。家の構成変化 (婿入り・縁組・世継ぎ) を後から辿れるよう
+  //   履歴書・家の記録の双方に残す。いずれも retainRefKinds 指定なし＝全 ref 保持で、
+  //   婚姻は groom/bride/家、出生は子/父/母/家に紐づく。頻度は marriage≈低・child_born≈年十数件で
+  //   既存 chronicle 対象 (OFFICE_ASSIGNED/BATTLE_OCCURRED) と同オーダー。importance は gate に
+  //   無関係 (allowlist 方式) なので minor の CHILD_BORN も投入される。
+  MARRIAGE_FORMED: { category: 'life' },
+  CHILD_BORN: { category: 'life' },
 }
