@@ -22,6 +22,10 @@ import {
   installHoldingPlaceholderBailiff,
 } from '../mutations/provinceOfficeMutations'
 import { hasActiveOffice, hasActiveHoldingOffice } from '../selectors/officeSelectors'
+import {
+  isEstablishedCommonwealthRepublic,
+  getRepublicPoliticalCandidatePersons,
+} from '../selectors/republicSelectors'
 import { getHoldingOfficeAppointmentRight } from '../selectors/politicalRightSelectors'
 import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 
@@ -44,10 +48,24 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
     const polityId = polityIdStr as PolityId
     const polity = currentCtx.state.polities[polityId]
     if (!polity || !polity.active) continue
+    // commonwealth アリーナ化: ownerHouseId を持たない polity も、established commonwealth なら
+    // 代官を任命する (旧 `if (!ownerHouseId) continue` で丸ごとスキップしていた)。Tier 2b の
+    // 候補母集合は ownerHouse.memberIds の代わりに getRepublicPoliticalCandidatePersons とする。
     const ownerHouseId = polity.ownerHouseId
-    if (!ownerHouseId) continue
-    const ownerHouse = currentCtx.state.houses[ownerHouseId]
-    if (!ownerHouse) continue
+    let candidatePoolIds: PersonId[]
+    if (ownerHouseId !== undefined) {
+      const ownerHouse = currentCtx.state.houses[ownerHouseId]
+      if (!ownerHouse) continue
+      candidatePoolIds = ownerHouse.memberIds
+    } else if (isEstablishedCommonwealthRepublic(currentCtx.state, polityId)) {
+      candidatePoolIds = getRepublicPoliticalCandidatePersons(
+        currentCtx.state,
+        currentCtx.config,
+        polityId,
+      )
+    } else {
+      continue
+    }
 
     const terminalProvinceIds = getPolityTerminalProvinceIds(currentCtx.state, polityId)
 
@@ -130,7 +148,7 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
     //    どちらの経路でも他 active Office / 他 active HoldingOffice は持っていないこと
     const polityRef: OrganizationRef = { kind: 'polity', id: polityId }
 
-    const ownerFreeAdults = ownerHouse.memberIds
+    const ownerFreeAdults = candidatePoolIds
       .map((mid) => currentCtx.state.persons[mid])
       .filter((p): p is NonNullable<typeof p> => p !== undefined)
       .filter(

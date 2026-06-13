@@ -867,6 +867,7 @@ houseless で influence 寄与ゼロ。bailiff を持つ通常 Polity なら次�
 - **Tier 1**: factional 候補（NP ≥ threshold の faction の active member。v0.42: faction の任命介入は **anchor Polity が terminal の Holding に限定** — NP が非 anchor polity に対して 0 を返すことで実現）
 - **Tier 2**: ownerHouse の free adult member（numeracy + insight 降順）
 - 適任者が居なければ placeholder のまま
+- **commonwealth アリーナ化（派閥拡大 Phase 7）**: 旧来 `ownerHouseId` を持たない polity（commonwealth）は本 system に丸ごとスキップされ、その holding の代官席は永久に placeholder のままだった。これを撤廃し、**established commonwealth（`isEstablishedCommonwealthRepublic`）も代官を任命する**。Tier 2 の候補母集合は `ownerHouse.memberIds` の代わりに `getRepublicPoliticalCandidatePersons`（§6.68 — commonwealth 関係の人物プール）を用いる。Tier 0/1 は変更なし（commonwealth-anchor 派閥は anchor 限定 NP で Tier 1 に乗る）。実測（tiny 100年）: commonwealth 代官席の placeholder 4/5 → 0/9（全席着座）、commonwealth-anchor 派閥 2 → 6。これにより「分権の極（共和制）でも人材政治が動く」寡頭アリーナが成立する。
 - **性別役職適格ゲート (v0.45.3)**: 3 tier すべてに `isRoleEligibleBySex` を適用する（§6.19）。gated で 3 tier が空振りした場合のみ、`allowFemaleRolesWhenNoMaleCandidate`（既定 false）が true なら ungated 再試行を 1 回行う。実装上 tier cascade は `pickBailiff(gate)` クロージャに集約され、ownerHouse 候補の消費は破壊的 shift から走査（着座者は bookedThisTick で除外）に変更された（gated/ungated の 2 回呼びで候補列が壊れないため。挙動は同等）
 
 **fall-through の設計意図 (v0.42)**: right があっても Tier 0 が候補を出せない場合は Tier 1 / 2 へ落ちる。
@@ -2407,6 +2408,8 @@ type PersonReputation = {
 民衆叛乱などで成立する owner-house の無い政体（`active && kind === 'commonwealth' && revoltState?.kind === 'established'`、以下「共和国」）を、人物・役職・任命権・Influence で内部政治が動く対象として整備する。判定は `isEstablishedCommonwealthRepublic`（`selectors/republicSelectors.ts`）に集約し、関連 system / selector / UI で共有する。
 
 狙いは「反乱指導者だけでなく、功臣・在野・無家・landless House 人材が共和国の政治に参加し、やがて家を興して寡頭化する歴史」を観賞対象にすること。「僭主→君主」の制度変換は scope 外（将来 §18+）。
+
+**派閥アリーナ化（派閥拡大 Phase 7）**: 派閥が公然と競う寡頭アリーナにするため、commonwealth を派閥任命経路に開く。(1) **代官**: BailiffAppointmentSystem（§6.22）の `ownerHouseId` スキップを撤廃し、Tier 2 候補を `getRepublicPoliticalCandidatePersons` から取る。(2) **polity 役職**: AppointmentSystem（§6.19）の `buildPolityCandidateCache` は owner-house 経路でしか候補を入れないため commonwealth が空になる → established commonwealth に `getRepublicPoliticalCandidatePersons` を投入（young_adulthood / 非 placeholder / holding office 非保持で絞り、重複は Set 排除）。`ownerHouseBonus` は commonwealth で既に 0（§6.64）なので変更不要。leader 選挙（`republicLeadershipSystem`）には不介入。**anchor route は無改修** — 既存の「家の seatProvince の terminal polity」経路が commonwealth 領内 seat の家を commonwealth に anchor させるため（実測で 2→6 件成立）。house が commonwealth で奉職するが seat は別、という残ケースの明示的 residence-route は defer。
 
 #### read-only selector（`republicSelectors.ts`）
 

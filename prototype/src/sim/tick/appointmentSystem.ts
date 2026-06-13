@@ -34,6 +34,10 @@ import { getPolityNameRefForEmitFromPolity, houseNameParam } from '../selectors/
 import { getHousePrimaryPolityId } from '../selectors/polityRelations'
 import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
 import {
+  isEstablishedCommonwealthRepublic,
+  getRepublicPoliticalCandidatePersons,
+} from '../selectors/republicSelectors'
+import {
   hasRelevantFactionForAppointment,
   getFactionalCandidateScore,
   getActiveFactions,
@@ -100,7 +104,10 @@ function getRelevantStat(state: WorldState, personId: PersonId, role: OfficeRole
 
 type PolityCandidateCache = Map<string, PersonId[]>
 
-function buildPolityCandidateCache(state: WorldState): PolityCandidateCache {
+function buildPolityCandidateCache(
+  state: WorldState,
+  config: SimulationConfig,
+): PolityCandidateCache {
   const housePrimaryPolity = new Map<string, PolityId>()
   for (const houseId of Object.keys(state.houses)) {
     const h = state.houses[houseId as HouseId]
@@ -148,6 +155,27 @@ function buildPolityCandidateCache(state: WorldState): PolityCandidateCache {
         cache.set(polityId, list)
       }
     }
+  }
+
+  // commonwealth アリーナ化: ownerHouseId を持たない established commonwealth は上記 2 経路では
+  // 候補が入らず polity 役職を埋められない。republic 候補プールを投入する (重複は Set で排除)。
+  for (const polityId of Object.keys(state.polities)) {
+    const polity = state.polities[polityId as PolityId]
+    if (!polity || !polity.active) continue
+    if (polity.ownerHouseId !== undefined) continue
+    if (!isEstablishedCommonwealthRepublic(state, polityId as PolityId)) continue
+    const existing = new Set((cache.get(polityId as PolityId) ?? []).map((id) => id as string))
+    const list = cache.get(polityId) ?? []
+    for (const cand of getRepublicPoliticalCandidatePersons(state, config, polityId as PolityId)) {
+      if (existing.has(cand)) continue
+      const p = state.persons[cand]
+      if (!p || p.kind === 'placeholder') continue
+      if (!isLifeStageAtLeast(p.lifeStage, 'young_adulthood')) continue
+      if (hasActiveHoldingOffice(state, cand)) continue
+      existing.add(cand)
+      list.push(cand)
+    }
+    if (list.length > 0) cache.set(polityId, list)
   }
   return cache
 }
@@ -713,7 +741,7 @@ function tryAppointHouseOffice(
 export function runAppointmentSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
 
-  const polityCandidateCache = buildPolityCandidateCache(currentCtx.state)
+  const polityCandidateCache = buildPolityCandidateCache(currentCtx.state, currentCtx.config)
 
   // Polity offices
   for (const polityId of Object.keys(currentCtx.state.polities).sort()) {
