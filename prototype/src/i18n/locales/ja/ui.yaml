@@ -361,6 +361,7 @@ detail:
     country_offices: '国家'
     house_offices: '家門'
     bailiff_offices: '代官'
+    political_rights: '保有する任命権'
     abilities: '能力値'
     ability: '能力'
     aptitude: '素質'

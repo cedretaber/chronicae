@@ -605,6 +605,56 @@ export function HouseRightsSection({
   )
 }
 
+// 人物個人が保持する PoliticalRight（役職任命権）一覧。家詳細の HouseRightsSection の
+// person 版（保有者は常に当該人物なので holder 列は出さない）。v0.47.4。
+export function PersonRightsSection({
+  person,
+  worldState,
+  onPolityClick,
+}: {
+  person: Person
+  worldState: WorldState
+  onPolityClick: ClickHandler
+}) {
+  const { t } = useTranslation()
+  const resolveName = useEntityName()
+  const rows = sortRightRows(
+    getRightsByHolder(worldState, { kind: 'person', id: person.id }).map((right) => ({
+      right,
+      holderPersonId: undefined as PersonId | undefined,
+      label: politicalRightTargetLabel(worldState, t, resolveName, right.target),
+    })),
+  )
+  return (
+    <div className="mt-1">
+      <div className="text-sm font-semibold text-gray-300">
+        {t('detail.person.political_rights')}
+        {rows.length > 0 ? ` (${rows.length})` : ''}:
+      </div>
+      {rows.length === 0 ? (
+        <span className="text-sm text-gray-500">—</span>
+      ) : (
+        <div className="text-sm">
+          {rows.map(({ right, label }) => (
+            <div key={right.id} className="flex justify-between gap-2">
+              <span className="min-w-0 truncate text-gray-400">
+                <button
+                  className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                  onClick={() => onPolityClick(right.polityId, 'polity')}
+                >
+                  {getPolityShortName(worldState, resolveName, right.polityId)}
+                </button>
+                {' — '}
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function AttitudeList({
   attitudes,
   worldState,

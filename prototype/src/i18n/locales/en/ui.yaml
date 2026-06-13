@@ -262,6 +262,7 @@ detail:
     country_offices: 'Country'
     house_offices: 'House'
     bailiff_offices: 'Bailiff'
+    political_rights: 'Held Appointment Rights'
     abilities: 'Abilities'
     ability: 'Ability'
     aptitude: 'Aptitude'

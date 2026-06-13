@@ -16,6 +16,7 @@ import {
   AttitudeList,
   ProjectListItem,
   EntityChronicleSection,
+  PersonRightsSection,
 } from './shared/widgets'
 import { HouseLink } from './shared/links'
 import { PersonCard } from './shared/PersonCard'
@@ -309,6 +310,9 @@ export function PersonDetail({
           )}
         </div>
       </div>
+
+      {/* v0.47.4: この人物個人が保持する PoliticalRight (役職任命権) 一覧 */}
+      <PersonRightsSection person={person} worldState={worldState} onPolityClick={onPolityClick} />
 
       <PersonAbilitiesSection person={person} />
 
