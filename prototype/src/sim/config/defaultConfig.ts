@@ -822,6 +822,10 @@ export type SimulationConfig = {
   initialFactionMemberMax: number
   minimumInitialFactionMembers: number
   minimumFactionMembers: number
+  // 派閥拡大 WI-1: cap を patron 力 (席数) + leader 才能連動に再設計する。
+  factionHardCap: number
+  factionCapMeritFloor: number
+  factionCapMeritDivisor: number
   factionViabilityMemberCountWeight: number
   factionViabilityOfficeHolderWeight: number
   factionViabilityWealthWeight: number
@@ -1935,6 +1939,12 @@ export const defaultConfig: SimulationConfig = {
   initialFactionMemberMax: 3,
   minimumInitialFactionMembers: 1,
   minimumFactionMembers: 2,
+  // 派閥拡大 WI-1: cap = clamp(minCap + floor(officeSlots) + appointmentSeats + meritSeats, minCap, hardCap)。
+  // hardCap 7 はスノーボール上限 (§3 anti-snowball)。meritSeats は role-score (0-120, 典型 30-60) が
+  // floor を超えた分を divisor で席化する: floor((bestRole - 30) / 15)。才能 60 で +2 席。
+  factionHardCap: 7,
+  factionCapMeritFloor: 30,
+  factionCapMeritDivisor: 15,
   factionViabilityMemberCountWeight: 0.5,
   factionViabilityOfficeHolderWeight: 1.0,
   factionViabilityWealthWeight: 0.5,

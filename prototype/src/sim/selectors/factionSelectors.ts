@@ -11,6 +11,8 @@ import {
   getActorInfluenceFromBreakdown,
 } from '@sim/selectors/influenceSelectors'
 import { getHousePolityIds } from '@sim/selectors/polityRelations'
+import { getRightsByHolder } from '@sim/selectors/politicalRightSelectors'
+import type { PoliticalRightHolderRef } from '@sim/types/politicalRight'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '@sim/helpers/attitudeHelpers'
 import { getOfficeCompatibilityPenalty } from '@sim/selectors/officeSelectors'
@@ -128,6 +130,12 @@ export function getFactionOpportunityScore(
   return personHouseShare * officeSlots
 }
 
+// 派閥拡大 WI-1: cap を「patron が配れる席数 + leader 才能」連動に再設計する (設計 §10.2)。
+// 旧: max(minCap, floor(officeSlots)) は floor マスクで事実上の定数 2 になり集積力が死んでいた。
+// 新: cap = clamp(minCap + floor(officeSlots) + appointmentSeats + meritSeats, minCap, hardCap)。
+//   - appointmentSeats = leader 個人 ∪ leader 家が保有する office 任命権 (holding/polity) の席数 (§8.1)。
+//     regiment_control は人材庇護と無関係なので除外する。
+//   - meritSeats = leader の best role-score が floor を超えた分を divisor で席化 (才能ある patron は多く抱える)。
 export function getFactionMemberCap(
   state: WorldState,
   config: SimulationConfig,
@@ -140,7 +148,34 @@ export function getFactionMemberCap(
   if (!leader || !leader.houseId) return config.minimumFactionMembers
 
   const officeSlots = computeAvailableOfficeSlots(state, config, leader.houseId)
-  return Math.max(config.minimumFactionMembers, Math.floor(officeSlots))
+  const appointmentSeats = countLeaderAppointmentSeats(state, leader.id, leader.houseId)
+  const bestRole = getBestRoleScore(state, leader.id)
+  const meritSeats = Math.floor(
+    Math.max(0, bestRole - config.factionCapMeritFloor) / config.factionCapMeritDivisor,
+  )
+
+  const raw = config.minimumFactionMembers + Math.floor(officeSlots) + appointmentSeats + meritSeats
+  return Math.min(config.factionHardCap, Math.max(config.minimumFactionMembers, raw))
+}
+
+// leader が patron として配れる「席」= 個人 right + 家 right のうち office 任命権 (holding/polity) の数。
+function countLeaderAppointmentSeats(
+  state: WorldState,
+  leaderId: PersonId,
+  leaderHouseId: HouseId,
+): number {
+  let seats = 0
+  const holders: PoliticalRightHolderRef[] = [
+    { kind: 'person', id: leaderId },
+    { kind: 'house', id: leaderHouseId },
+  ]
+  for (const holder of holders) {
+    for (const right of getRightsByHolder(state, holder)) {
+      const k = right.target.kind
+      if (k === 'polity_office_role' || k === 'holding_office_role') seats++
+    }
+  }
+  return seats
 }
 
 // Faction viability score — whether the faction has a reason to survive.

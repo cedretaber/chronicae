@@ -711,6 +711,19 @@ score = relevantStat(role) * 1.0          // military → warCommand、他 → g
 
 **House factional path の廃止 (v0.42)**: House office 任命への factional path は廃止（Faction は Polity 内政治装置 — §6.31 anchor 参照）。House office は traditional スコアリングのみ。また faction opportunity（member cap 原資）から House office slot を除外し、polity slot の share% 参照は influence% に置換。
 
+**member cap の再設計 (派閥拡大 WI-1)**: `getFactionMemberCap` は旧来 `max(minimumFactionMembers, floor(officeSlots))` だったが、これは floor マスクで事実上の定数 2 に潰れ、`initialFactionMemberMax`（3）> cap（2）のため募集が初手 no-op になり集積力（派閥が大きくなる力）が死んでいた。新式は patron（leader）が配れる「席」と才能を加算する:
+```
+cap = clamp(
+  minimumFactionMembers + floor(officeSlots) + appointmentSeats + meritSeats,
+  minimumFactionMembers, factionHardCap)
+```
+- `officeSlots` = `computeAvailableOfficeSlots(leader.houseId)`（house-wide。従来どおり influence% 加重 polity slot）
+- `appointmentSeats` = leader 個人 ∪ leader 家が保有する `polity_office_role` / `holding_office_role` の任命権の数（patron が任命で配れる席。`regiment_control` は人材庇護と無関係なので除外）
+- `meritSeats` = `floor(max(0, getBestRoleScore(leader) − factionCapMeritFloor) / factionCapMeritDivisor)`（才能ある patron ほど多く抱える。role-score は 0–120、典型 30–60）
+- `factionHardCap`（7）で上限クランプ（§3 anti-snowball: 一人の patron が無限に人材を独占しない）
+
+実測（tiny 100年, seed 1/42）: cap 平均が 2 固定 → 4.25/5.00、member 平均 2 → 3.4、最大 7。旧来「全派閥が cap 律速で member=2」だった状態から、cap に余裕が生まれ「供給律速（member<cap）」の派閥が出現する＝集積の天井が機能し始めた。空いた容量は WI-0（引力勾配）/ WI-2（募集拡大）が埋める。
+
 **候補スコア（House 役職）**:
 ```ts
 score = relevantStat(role) * 1.0

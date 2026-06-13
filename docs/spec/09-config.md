@@ -806,7 +806,10 @@
 | minimumFactionFounderWealth | 50 | founder の最小 wealth |
 | initialFactionMemberMax | 3 | 結成時の初期メンバー上限 |
 | minimumInitialFactionMembers | 1 | 結成に必要な初期メンバー数 |
-| minimumFactionMembers | 2 | Faction 維持に必要な最小メンバー数 |
+| minimumFactionMembers | 2 | Faction 維持に必要な最小メンバー数（cap 下限も兼ねる） |
+| factionHardCap | 7 | member cap の上限（WI-1・スノーボール上限） |
+| factionCapMeritFloor | 30 | cap meritSeats 算入の role-score 下限（これ未満は 0 席） |
+| factionCapMeritDivisor | 15 | cap meritSeats: (bestRole − floor) を割る席化係数 |
 | factionViabilityMemberCountWeight | 0.5 | viability: メンバー数の重み |
 | factionViabilityOfficeHolderWeight | 1 | viability: 役職保有者の重み |
 | factionViabilityWealthWeight | 0.5 | viability: wealth の重み |
