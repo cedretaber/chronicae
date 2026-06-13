@@ -1,5 +1,13 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  IconChevronRight,
+  IconPlayerPauseFilled,
+  IconPlayerPlayFilled,
+  IconPlayerSkipBack,
+  IconPlayerTrackPrev,
+} from '@tabler/icons-react'
 import { ConfigPanel } from './ConfigPanel'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { getPseudoMonthFromWeek, getWeekOfPseudoMonth } from '@sim/utils/timeUtils'
@@ -11,6 +19,69 @@ const PRESET_OPTIONS: { value: WorldPresetName; label: string }[] = [
   { value: 'standard', label: 'Standard (16×16)' },
   { value: 'perfLarge', label: 'Large (20×20)' },
 ]
+
+/** アイコンのみのツールバーボタン。時間操作ボタンの見た目を統一する。 */
+function IconButton({
+  children,
+  title,
+  onClick,
+  disabled = false,
+  active = false,
+}: {
+  children: ReactNode
+  title: string
+  onClick?: () => void
+  disabled?: boolean
+  active?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      className={`flex h-8 w-8 items-center justify-center rounded transition-colors ${
+        disabled
+          ? 'cursor-not-allowed text-gray-600'
+          : active
+            ? 'bg-sky-600 text-white hover:bg-sky-500'
+            : 'text-gray-200 hover:bg-gray-700'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** 「1 単位進める」ステップボタン。共通の前進アイコン + 時間単位ラベルで区別する。 */
+function StepButton({
+  label,
+  title,
+  onClick,
+}: {
+  label: string
+  title: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className="flex h-8 items-center gap-0.5 rounded px-1.5 text-sm text-gray-200 transition-colors hover:bg-gray-700"
+    >
+      <span className="font-medium">{label}</span>
+      <IconChevronRight size={16} stroke={2} />
+    </button>
+  )
+}
+
+/** 機能グループ間の縦棒セパレータ。 */
+function Separator() {
+  return <div className="h-6 w-px shrink-0 bg-gray-700" aria-hidden />
+}
 
 export function ControlBar() {
   const session = useSimulationStore((s) => s.session)
@@ -41,27 +112,47 @@ export function ControlBar() {
 
       <span className="min-w-52">{dateDisplay}</span>
 
-      <button onClick={resetWorld} title={t('buttons.reset')}>
-        ⏮
-      </button>
-      <button disabled className="cursor-not-allowed text-gray-500" title="Cannot go back">
-        ◀
-      </button>
-      <button
-        onClick={() => setRunning(!isRunning)}
-        title={isRunning ? t('buttons.pause') : t('buttons.start')}
-      >
-        {isRunning ? '⏸' : '▶'}
-      </button>
-      <button onClick={tickOnce} title={t('controls.advance_week')}>
-        ▶|
-      </button>
-      <button onClick={tickMonth} title={t('controls.advance_month')}>
-        ▶▶
-      </button>
-      <button onClick={tickYear} title={t('controls.advance_year')}>
-        ▶▶|
-      </button>
+      <Separator />
+
+      {/* 再生トランスポート */}
+      <div className="flex items-center gap-0.5">
+        <IconButton onClick={resetWorld} title={t('buttons.reset')}>
+          <IconPlayerSkipBack size={18} stroke={2} />
+        </IconButton>
+        <IconButton disabled title={t('controls.cannot_rewind')}>
+          <IconPlayerTrackPrev size={18} stroke={2} />
+        </IconButton>
+        <IconButton
+          onClick={() => setRunning(!isRunning)}
+          title={isRunning ? t('buttons.pause') : t('buttons.start')}
+          active={isRunning}
+        >
+          {isRunning ? <IconPlayerPauseFilled size={18} /> : <IconPlayerPlayFilled size={18} />}
+        </IconButton>
+      </div>
+
+      <Separator />
+
+      {/* ステップ送り */}
+      <div className="flex items-center gap-0.5">
+        <StepButton
+          label={t('controls.unit_week')}
+          title={t('controls.advance_week')}
+          onClick={tickOnce}
+        />
+        <StepButton
+          label={t('controls.unit_month')}
+          title={t('controls.advance_month')}
+          onClick={tickMonth}
+        />
+        <StepButton
+          label={t('controls.unit_year')}
+          title={t('controls.advance_year')}
+          onClick={tickYear}
+        />
+      </div>
+
+      <Separator />
 
       <select
         value={speed}

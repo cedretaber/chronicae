@@ -25,6 +25,10 @@ controls:
   advance_week: '1週進める'
   advance_month: '1ヶ月進める (4週)'
   advance_year: '1年進める (48週)'
+  unit_week: '週'
+  unit_month: '月'
+  unit_year: '年'
+  cannot_rewind: '巻き戻しはできません'
   seed: 'シード'
   preset: 'プリセット'
 

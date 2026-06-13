@@ -25,6 +25,10 @@ controls:
   advance_week: 'Advance 1 week'
   advance_month: 'Advance 1 month (4 weeks)'
   advance_year: 'Advance 1 year (48 weeks)'
+  unit_week: 'W'
+  unit_month: 'M'
+  unit_year: 'Y'
+  cannot_rewind: 'Cannot rewind'
   seed: 'Seed'
   preset: 'Preset'
 
