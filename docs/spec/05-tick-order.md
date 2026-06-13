@@ -80,7 +80,7 @@ const WEEKS_PER_SEASON = 12
 | 14b | FactionPatronageSystem | 48 | |
 | 14c | FactionDefectionSystem | 48 | WI-3 崩壊2: 過伸長離脱加速 (flag-gated・既定 OFF) |
 | 14d | FactionMaintenanceSystem | 4 | leader 死亡時継承・死亡 member 整理。WI-3 崩壊1: 継承後の scatter |
-| 14e | FactionLifecycleSystem | 48 | 解散判定・新規結成 (年次のみ) |
+| 14e | FactionLifecycleSystem | 48 | 解散判定・新規結成・入れ子形成 (年次のみ) |
 | 14f | FactionRecruitmentSystem | 12 | WI-2: 無役待機トラッカー (idleSinceWeek) を全走査で更新しつつ募集 |
 | 14g | PersonGrowthSystem | 48 | |
 | ~~15~~ | ~~AmbitionSystem~~ | — | tick system は廃止。野心スコア算出ヘルパー `calcAmbitionScores` (selector) のみ残存 |

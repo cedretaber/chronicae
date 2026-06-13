@@ -101,6 +101,7 @@ function addFaction(
     byLeader: { ...state.factionIndex.byLeader, [leaderPersonId]: [factionId] },
     byMember: { ...state.factionIndex.byMember, [leaderPersonId]: [createFactionMembershipId(0)] },
     byPolity: { ...state.factionIndex.byPolity, [createPolityId('dp', 0)]: [factionId] },
+    byParent: { ...state.factionIndex.byParent },
   }
   return {
     state: {

@@ -13,6 +13,8 @@ export type CreateFactionInput = {
   // v0.42 §12.2: anchor Polity。呼出側 (factionLifecycleSystem) が founding 前に決定する。
   polityId: PolityId
   week: number
+  // 入れ子 (Phase 2-a): 庇護者の傘下として founding する場合の親派閥 (active 必須)。
+  parentFactionId?: FactionId
 }
 
 // Creates a Faction + leader FactionMembership atomically.
@@ -50,12 +52,23 @@ export function createFaction(
       message: 'createFaction: anchor polity not found or inactive: ' + input.polityId,
     })
 
+  // 入れ子: parentFactionId が指定された場合、active な親派閥でなければ拒否する。
+  if (input.parentFactionId !== undefined) {
+    const parent = ctx.state.factions[input.parentFactionId]
+    if (!parent || !parent.active)
+      return err({
+        code: 'FACTION_INACTIVE',
+        message: 'createFaction: parent faction not found or inactive: ' + input.parentFactionId,
+      })
+  }
+
   const faction: Faction = {
     id: factionId,
     leaderPersonId: input.leaderPersonId,
     polityId: input.polityId,
     active: true,
     foundingWeek: input.week,
+    ...(input.parentFactionId !== undefined ? { parentFactionId: input.parentFactionId } : {}),
   }
   const membership: FactionMembership = {
     id: membershipId,
@@ -68,6 +81,16 @@ export function createFaction(
   const existingByLeader = ctx.state.factionIndex.byLeader[input.leaderPersonId] ?? []
   const existingByMember = ctx.state.factionIndex.byMember[input.leaderPersonId] ?? []
   const existingByPolity = ctx.state.factionIndex.byPolity[input.polityId] ?? []
+  const byParent =
+    input.parentFactionId !== undefined
+      ? {
+          ...ctx.state.factionIndex.byParent,
+          [input.parentFactionId]: [
+            ...(ctx.state.factionIndex.byParent[input.parentFactionId] ?? []),
+            factionId,
+          ],
+        }
+      : ctx.state.factionIndex.byParent
 
   const newState: WorldState = {
     ...ctx.state,
@@ -89,6 +112,7 @@ export function createFaction(
         ...ctx.state.factionIndex.byPolity,
         [input.polityId]: [...existingByPolity, factionId],
       },
+      byParent,
     },
     nextFactionId: ctx.state.nextFactionId + 1,
     nextFactionMembershipId: ctx.state.nextFactionMembershipId + 1,
@@ -161,6 +185,7 @@ export function addFactionMembership(
         [input.personId]: [...existingMemberships, membershipId],
       },
       byPolity: state.factionIndex.byPolity,
+      byParent: state.factionIndex.byParent,
     },
     nextFactionMembershipId: state.nextFactionMembershipId + 1,
   }
@@ -187,14 +212,74 @@ export function deactivateFaction(state: WorldState, factionId: FactionId): Stat
     newByMember[m.personId] = slot.filter((id) => id !== (mid as FactionMembershipId))
   }
 
+  // 入れ子 (§4.5): 解散する派閥の子は orphan 化 (root へ昇格 = parentFactionId 除去)。
+  // 自身が子であった場合は親の byParent から外す。byParent[factionId] は削除する。
+  const newFactions: Record<FactionId, Faction> = {
+    ...state.factions,
+    [factionId]: { ...faction, active: false },
+  }
+  const newByParent: Record<FactionId, FactionId[]> = { ...state.factionIndex.byParent }
+  for (const childId of newByParent[factionId] ?? []) {
+    const child = newFactions[childId]
+    if (!child) continue
+    const { parentFactionId: _omit, ...rest } = child
+    void _omit
+    newFactions[childId] = rest
+  }
+  delete newByParent[factionId]
+  if (faction.parentFactionId !== undefined) {
+    const siblings = newByParent[faction.parentFactionId]
+    if (siblings) {
+      newByParent[faction.parentFactionId] = siblings.filter((id) => id !== factionId)
+    }
+  }
+
   return ok({
     ...state,
-    factions: { ...state.factions, [factionId]: { ...faction, active: false } },
+    factions: newFactions,
     factionMemberships: newMemberships,
     factionIndex: {
       byLeader: state.factionIndex.byLeader,
       byMember: newByMember,
       byPolity: state.factionIndex.byPolity,
+      byParent: newByParent,
+    },
+  })
+}
+
+// 入れ子 (Phase 2-a 形成): root 派閥 child を parent の傘下に attach する。
+// 検証: 両 active / child != parent / child は現在 root (parent 未設定)。
+// 同一 polity・深さ・分岐数の上限は呼出側 (形成 system) が担保する。
+export function setFactionParent(
+  state: WorldState,
+  childId: FactionId,
+  parentId: FactionId,
+): StateResult {
+  if (childId === parentId)
+    return err({ code: 'FACTION_INACTIVE', message: 'setFactionParent: child === parent' })
+  const child = state.factions[childId]
+  if (!child || !child.active)
+    return err({ code: 'FACTION_NOT_FOUND', message: 'setFactionParent: child not found/inactive' })
+  if (child.parentFactionId !== undefined)
+    return err({ code: 'FACTION_INACTIVE', message: 'setFactionParent: child is not root' })
+  const parent = state.factions[parentId]
+  if (!parent || !parent.active)
+    return err({
+      code: 'FACTION_NOT_FOUND',
+      message: 'setFactionParent: parent not found/inactive',
+    })
+
+  return ok({
+    ...state,
+    factions: { ...state.factions, [childId]: { ...child, parentFactionId: parentId } },
+    factionIndex: {
+      byLeader: state.factionIndex.byLeader,
+      byMember: state.factionIndex.byMember,
+      byPolity: state.factionIndex.byPolity,
+      byParent: {
+        ...state.factionIndex.byParent,
+        [parentId]: [...(state.factionIndex.byParent[parentId] ?? []), childId],
+      },
     },
   })
 }
@@ -327,6 +412,7 @@ export function transitionFactionLeader(
       byLeader: newByLeader,
       byMember: newByMember,
       byPolity: state.factionIndex.byPolity,
+      byParent: state.factionIndex.byParent,
     },
   })
 }
@@ -370,6 +456,7 @@ export function removeFactionMembership(
         [membership.personId]: byMemberSlot,
       },
       byPolity: state.factionIndex.byPolity,
+      byParent: state.factionIndex.byParent,
     },
   })
 }

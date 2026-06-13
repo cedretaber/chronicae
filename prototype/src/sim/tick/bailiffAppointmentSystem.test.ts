@@ -264,6 +264,7 @@ describe('runBailiffAppointmentSystem', () => {
         [memberMembershipId]: memberMembership,
       },
       factionIndex: {
+        byParent: {},
         byLeader: { ...s.factionIndex.byLeader, [leaderId]: [factionId] },
         byPolity: { ...s.factionIndex.byPolity, [createPolityId('c', 0)]: [factionId] },
         byMember: {
@@ -383,6 +384,7 @@ describe('runBailiffAppointmentSystem', () => {
         },
       },
       factionIndex: {
+        byParent: {},
         byLeader: { ...s.factionIndex.byLeader, [leaderId]: [factionId] },
         byPolity: { ...s.factionIndex.byPolity, [createPolityId('c', 0)]: [factionId] },
         byMember: {

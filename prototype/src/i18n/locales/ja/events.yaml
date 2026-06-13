@@ -187,6 +187,7 @@ faction:
   founded: '{{person}}が派閥を結成した。'
   dissolved: '{{leader}}の派閥が解散した（{{reason}}）。'
   leader_changed: '{{newLeader}}が{{oldLeader}}に代わり派閥を率いることになった。'
+  nested: '{{leader}}の派閥が{{patron}}の傘下に入った。'
   leader_bankrupt: '{{person}}の財力が尽き、その派閥が危機に瀕している。'
   member_recruited: '{{person}}が{{leader}}の派閥に加わった。'
   member_abandoned: '{{person}}が{{leader}}の派閥を去った。'

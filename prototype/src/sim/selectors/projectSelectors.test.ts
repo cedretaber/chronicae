@@ -35,6 +35,7 @@ function withFaction(
     },
     factionMemberships: { ...ws.factionMemberships },
     factionIndex: {
+      byParent: {},
       byLeader: {
         ...ws.factionIndex.byLeader,
         [leaderPersonId]: [...(ws.factionIndex.byLeader[leaderPersonId] ?? []), factionId],

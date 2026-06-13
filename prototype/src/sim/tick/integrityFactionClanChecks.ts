@@ -129,6 +129,54 @@ export function checkFactionsAndClans(state: WorldState, errors: SimError[]): vo
     }
   }
 
+  // 入れ子 F9: parentFactionId は active Faction を指し、byParent index と双方向整合する。
+  //   case X (同一 polity 限定) ゆえ child と parent の anchor polity は一致する。
+  for (const factionIdStr of Object.keys(state.factions)) {
+    const factionId = factionIdStr as FactionId
+    const faction = state.factions[factionId]
+    if (!faction || !faction.active) continue
+    if (faction.parentFactionId === undefined) continue
+    const parent = state.factions[faction.parentFactionId]
+    if (!parent || !parent.active) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `active Faction ${factionId} parent ${faction.parentFactionId} is not active (F9)`,
+      })
+      continue
+    }
+    if ((parent.polityId as string) !== (faction.polityId as string)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Faction ${factionId} parent ${faction.parentFactionId} has different anchor polity (F9 case X)`,
+      })
+    }
+    const siblings = state.factionIndex.byParent[faction.parentFactionId] ?? []
+    if (!siblings.includes(factionId)) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `Faction ${factionId} not in factionIndex.byParent[${faction.parentFactionId}] (F9 index)`,
+      })
+    }
+  }
+  for (const [parentKey, childIds] of Object.entries(state.factionIndex.byParent)) {
+    for (const cid of childIds ?? []) {
+      const child = state.factions[cid]
+      if (!child) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `factionIndex.byParent[${parentKey}] references missing Faction ${cid} (F9 index)`,
+        })
+        continue
+      }
+      if ((child.parentFactionId as string | undefined) !== parentKey) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `factionIndex.byParent[${parentKey}] entry ${cid} has parentFactionId=${child.parentFactionId} (F9 index)`,
+        })
+      }
+    }
+  }
+
   // v0.17 §21.5 Index: factionIndex は state.factions / state.factionMemberships と整合
   // I1: byLeader[personId] の全 FactionId は存在し leaderPersonId === personId
   // I2: byMember[personId] の全 FactionMembershipId は存在し personId === personId

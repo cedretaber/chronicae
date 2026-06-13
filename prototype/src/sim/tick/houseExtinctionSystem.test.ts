@@ -270,7 +270,7 @@ describe('extinctHouseAfterFailedSuccession', () => {
         nextOfficeAssignmentId: state.nextOfficeAssignmentId + 1,
         factions: {},
         factionMemberships: {},
-        factionIndex: { byLeader: {}, byMember: {}, byPolity: {} },
+        factionIndex: { byLeader: {}, byMember: {}, byPolity: {}, byParent: {} },
         nextFactionId: 0,
         nextFactionMembershipId: 0,
         diplomaticPlays: {},

@@ -876,6 +876,10 @@ export type SimulationConfig = {
   factionSuccessionScatterThreshold: number // 崩壊1: scatterScore = ambition×(1−loyalty)×(0.5+talent) がこれを超えると離散
   factionOverreachDefectionWeight: number // 崩壊2: prob 乗数 (1 + weight×(1−placementRatio))
   factionAmbitionDefectionWeight: number // 崩壊2: prob 乗数 (1 + weight×ambition)
+  // 派閥拡大 入れ子 (Phase 2-a 形成): 弱小 root 派閥が強い root 派閥の傘下に入る。
+  factionNestingMinAgeYears: number // 傘下入りを検討する前の最小存続年数 (低迷期間)
+  factionNestingMaxBranches: number // 1 親が直接持てる子派閥の最大数
+  factionNestingMaxDepth: number // 木の最大深さ (root=0)
   // v0.17 House surplus
   houseWealthReserveTarget: number
   houseSurplusDistributionMonthlyRate: number
@@ -2023,6 +2027,9 @@ export const defaultConfig: SimulationConfig = {
   factionSuccessionScatterThreshold: 0.35,
   factionOverreachDefectionWeight: 1.0,
   factionAmbitionDefectionWeight: 1.0,
+  factionNestingMinAgeYears: 6,
+  factionNestingMaxBranches: 3,
+  factionNestingMaxDepth: 2,
   // v0.17 House surplus
   houseWealthReserveTarget: 100,
   houseSurplusDistributionMonthlyRate: 0.015,

@@ -832,6 +832,9 @@
 | factionSuccessionScatterThreshold | 0.35 | WI-3 崩壊1: scatterScore = ambition×(1−loyalty)×(0.5+talent) がこれ超で離散 |
 | factionOverreachDefectionWeight | 1.0 | WI-3 崩壊2: 離脱確率乗数 (1 + weight×(1−placementRatio)) |
 | factionAmbitionDefectionWeight | 1.0 | WI-3 崩壊2: 離脱確率乗数 (1 + weight×ambition) |
+| factionNestingMinAgeYears | 6 | 入れ子形成: 傘下入りを検討する前の最小存続年数 |
+| factionNestingMaxBranches | 3 | 入れ子形成: 1 親が直接持てる子派閥の最大数 |
+| factionNestingMaxDepth | 2 | 入れ子形成: 木の最大深さ (root=0) |
 | factionNominationPowerThreshold | 0.3 | 推挙に必要な power 閾値 |
 | factionOwnerHouseNominationBonus | 0.3 | 支配家メンバー推挙ボーナス |
 | factionBailiffNominationWeight | 0.4 | bailiff 推挙の重み |

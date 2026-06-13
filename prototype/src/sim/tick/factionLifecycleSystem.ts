@@ -1,5 +1,6 @@
 import type { TickContext } from './context'
 import type { PersonId, FactionId, HouseId } from '../types/ids'
+import type { Faction } from '../types/faction'
 import { createSimEvent } from './context'
 import { isLifeStageAtLeast } from '../types/person'
 import { nameParam, entityRef } from '../types/event'
@@ -10,6 +11,8 @@ import {
   getFactionOpportunityScore,
   getFactionViabilityScore,
   getBestRoleScore,
+  getActiveFactions,
+  getFactionNominationPower,
 } from '../selectors/factionSelectors'
 import { getTopShareholders, getPersonHouseSharePercent } from '../selectors/shareSelectors'
 import {
@@ -18,6 +21,7 @@ import {
   deactivateFaction,
   transitionFactionLeader,
   removeFactionMembership,
+  setFactionParent,
 } from '../mutations/factionMutations'
 import { setPersonAttitude } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
@@ -33,8 +37,121 @@ export function runFactionLifecycleSystem(ctx: TickContext): TickContext {
 
   currentCtx = checkDissolutions(currentCtx)
   currentCtx = formNewFactions(currentCtx)
+  currentCtx = formNestedFactions(currentCtx)
 
   return currentCtx
+}
+
+// 入れ子 (Phase 2-a 形成): 低迷した弱小 root 派閥 W が、同一 polity の強い root 派閥 P の
+// 傘下に入る (§4.0)。「席を獲得できず低迷した庇護者が、強い庇護者に従属する」。
+// case X = 同一 polity 限定 (越境 case Y は defer)。RNG 非消費・deterministic。
+function formNestedFactions(ctx: TickContext): TickContext {
+  let currentCtx = ctx
+  const config = currentCtx.config
+  const week = currentCtx.state.absoluteWeek
+  const minAgeWeeks = config.factionNestingMinAgeYears * 48
+
+  // 強い root 候補 P を polity ごとに 1 回列挙する (NP>=閾値・root・分岐余裕)。
+  const rootFactions = getActiveFactions(currentCtx.state).filter(
+    (f) => f.parentFactionId === undefined,
+  )
+  const npOf = (f: Faction) =>
+    getFactionNominationPower(
+      currentCtx.state,
+      config,
+      f.id,
+      { kind: 'polity', id: f.polityId },
+      'advisor',
+    )
+
+  // 弱小 W: root・NP<閾値・存続 minAge 超。id 昇順で処理 (deterministic)。
+  const weakIds = rootFactions
+    .filter(
+      (f) =>
+        week - f.foundingWeek >= minAgeWeeks && npOf(f) < config.factionNominationPowerThreshold,
+    )
+    .map((f) => f.id)
+    .sort()
+
+  for (const wid of weakIds) {
+    const w = currentCtx.state.factions[wid]
+    if (!w || !w.active || w.parentFactionId !== undefined) continue
+    const wLeader = currentCtx.state.persons[w.leaderPersonId]
+    if (!wLeader) continue
+
+    // P は root (深さ 0) に attach するので、結果ツリーの最大深さ = 1 + W の subtree 深さ。
+    // これが maxDepth を超える W は傘下入りさせない (W が既に深い木を持つ場合)。
+    if (1 + subtreeDepth(currentCtx.state, wid) > config.factionNestingMaxDepth) continue
+
+    // 候補 P: 同一 polity・root・P!=W・NP>=閾値・分岐余裕。
+    let best: { id: FactionId; score: number } | undefined
+    for (const p of getActiveFactions(currentCtx.state)) {
+      if (p.id === wid) continue
+      if (p.parentFactionId !== undefined) continue
+      if (p.polityId !== w.polityId) continue
+      const branches = currentCtx.state.factionIndex.byParent[p.id]?.length ?? 0
+      if (branches >= config.factionNestingMaxBranches) continue
+      const pNp = npOf(p)
+      if (pNp < config.factionNominationPowerThreshold) continue
+      const pLeader = currentCtx.state.persons[p.leaderPersonId]
+      if (!pLeader) continue
+      // スコア: W リーダー → P リーダーの attitude + P の NP (強く・親しい庇護者を選ぶ)。
+      const att = getAttitudeOrDefault(currentCtx.state, wLeader, {
+        kind: 'person',
+        id: p.leaderPersonId,
+      })
+      const score = (att.affection + att.respect) / 100 + pNp
+      if (
+        !best ||
+        score > best.score ||
+        (score === best.score && (p.id as string) < (best.id as string))
+      ) {
+        best = { id: p.id, score }
+      }
+    }
+    if (!best) continue
+
+    const result = setFactionParent(currentCtx.state, wid, best.id)
+    if (!result.ok) continue
+    currentCtx = { ...currentCtx, state: result.value }
+    const patronLeader =
+      currentCtx.state.persons[currentCtx.state.factions[best.id]?.leaderPersonId ?? wLeader.id]
+    const { event, ctx: ec } = createSimEvent(currentCtx, {
+      type: 'FACTION_NESTED',
+      importance: 'normal',
+      messageKey: 'faction.nested',
+      messageParams: {
+        leader: nameParam('person', wLeader.nameKey),
+        patron: nameParam('person', patronLeader?.nameKey ?? 'unknown'),
+      },
+      entityRefs: [
+        entityRef('faction', wid, 'faction'),
+        entityRef('faction', best.id, 'parent'),
+        entityRef('person', w.leaderPersonId, 'leader', wLeader.nameKey),
+      ],
+    })
+    currentCtx = { ...ec, events: [...ec.events, event] }
+  }
+
+  return currentCtx
+}
+
+// 入れ子: faction の subtree 深さ (子なし=0、子があれば 1 + max(子の subtree 深さ))。
+// byParent を辿る。循環は guard で防ぐ (整合状態では発生しない)。
+function subtreeDepth(
+  state: TickContext['state'],
+  factionId: FactionId,
+  guard: Set<string> = new Set(),
+): number {
+  if (guard.has(factionId)) return 0
+  guard.add(factionId)
+  const children = state.factionIndex.byParent[factionId] ?? []
+  let best = 0
+  for (const cid of children) {
+    const d = 1 + subtreeDepth(state, cid, guard)
+    if (d > best) best = d
+  }
+  return best
 }
 
 function checkDissolutions(ctx: TickContext): TickContext {

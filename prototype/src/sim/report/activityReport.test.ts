@@ -120,6 +120,7 @@ describe('buildActivityReport', () => {
         [memberMembershipId]: memberMembership,
       },
       factionIndex: {
+        byParent: {},
         byLeader: { ...state.factionIndex.byLeader, [factionLeaderId]: [factionId] },
         byPolity: { ...state.factionIndex.byPolity, [createPolityId('c', 0)]: [factionId] },
         byMember: {

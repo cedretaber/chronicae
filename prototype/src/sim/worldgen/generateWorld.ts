@@ -692,7 +692,7 @@ export function generateWorld(
     nextOfficeAssignmentId: 0,
     factions: {},
     factionMemberships: {},
-    factionIndex: { byLeader: {}, byMember: {}, byPolity: {} },
+    factionIndex: { byLeader: {}, byMember: {}, byPolity: {}, byParent: {} },
     nextFactionId: 0,
     nextFactionMembershipId: 0,
     // v0.27 HoldingImprovement
@@ -1681,7 +1681,7 @@ export function generateWorld(
     polityIndex,
     factions: {},
     factionMemberships: {},
-    factionIndex: { byLeader: {}, byMember: {}, byPolity: {} },
+    factionIndex: { byLeader: {}, byMember: {}, byPolity: {}, byParent: {} },
     // v0.27 HoldingImprovement
     holdingImprovements,
     holdingImprovementIndex: { byHolding: holdingImprovementIndexByHolding },

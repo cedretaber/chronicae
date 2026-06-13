@@ -188,6 +188,7 @@ faction:
   founded: '{{person}} founded a faction.'
   dissolved: "{{leader}}'s faction dissolved ({{reason}})."
   leader_changed: '{{newLeader}} took over the faction from {{oldLeader}}.'
+  nested: "{{leader}}'s faction joined {{patron}}'s patronage."
   leader_bankrupt: "{{person}}'s fortunes are exhausted, putting their faction in jeopardy."
   member_recruited: "{{person}} joined {{leader}}'s faction."
   member_abandoned: "{{person}} left {{leader}}'s faction."

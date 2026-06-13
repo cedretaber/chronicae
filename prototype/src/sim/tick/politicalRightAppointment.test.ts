@@ -397,6 +397,7 @@ function addFactionWithMembers(
       },
     },
     factionIndex: {
+      byParent: {},
       byLeader: {
         ...state.factionIndex.byLeader,
         [leaderPersonId]: [...(state.factionIndex.byLeader[leaderPersonId] ?? []), factionId],

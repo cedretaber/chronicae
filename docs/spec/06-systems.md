@@ -750,6 +750,11 @@ WI-0 を残す理由（測定上は小さくとも構造的に必要）: attract
 - **崩壊3 rival 闘争 (`factionCollapseRivalEnabled` default false)**: measure-first（SR-5）。既存の OfficeTermSystem（任期交代）・acquire_political_right が現職 patron 基盤を実際に削るか観測してから構築する方針で、現状は未構築（フラグ予約のみ）。
 - **default 決定の根拠（単独 A/B・tiny 150年）**: 固定分母（支配 house 派閥員/成人人口）max = OFF 17.9% / succession のみ 23%（軽度）/ overreach のみ 17.9% / 両方 34.4%。succession は崩壊機構の主力（SR-5「先に作る」）かつ単独 entrenchment が軽微なので ON。abandonment 件数（60年 seed1）は OFF 62 → succession ON 80（+29% の dispersal 仕事）。**tiny は hardCap（WI-1）+ 自然死による継承で既に dominance が bounded（崩壊 OFF でも支配 house シェアは ~30% 上限・turnover 6 で振動）であり、WI-3 の anti-snowball としての本領は accumulation が無限化する nesting（Phase 2）後に検証する**（崩壊は分離可能な insurance・SR-6）。
 
+**入れ子派閥（nested faction・Phase 2-a）**: 大物の庇護者が傘下の弱小派閥を束ねる木構造を導入する（集積の規模拡大・崩壊の劇化）。モデル A（`Faction.parentFactionId?`）を採用 — 子派閥のリーダーは親の member には**ならず**、派閥同士のポインタで表現するため §4.4・FactionMembership・募集ロジックを無改修で保つ。`FactionIndex.byParent`（親→子 FactionId[]）を追加。
+- **形成（`formNestedFactions`・FactionLifecycle 年次）**: 低迷した弱小 root 派閥 W（NP < 閾値・存続 `factionNestingMinAgeYears` 超）が、同一 polity（case X・越境 case Y は defer）の強い root 派閥 P（NP ≥ 閾値・分岐余裕 `factionNestingMaxBranches` 未満）の傘下に入る。スコア = W リーダー → P リーダーの attitude + P の NP（強く親しい庇護者を選ぶ・RNG 非消費）。深さは `1 + subtreeDepth(W) ≤ factionNestingMaxDepth` で制限（W が既に木を持つ場合は深くなりすぎないよう attach しない）。成立で `FACTION_NESTED` を emit。
+- **解散 cascade（§4.5）**: `deactivateFaction` を choke point とし、解散する派閥の子は orphan 化（`parentFactionId` 除去で root 昇格）、自身が子なら親の `byParent` から外し、`byParent[self]` を削除する。`dissolveFactionsAnchoredToPolity`（polity 消滅 cascade）は親子双方を deactivate するため、処理順に関わらず byParent が clean に保たれる。
+- **integrity F9**: active faction の `parentFactionId` は active faction を指し（inactive 親は違反）、case X ゆえ親子の anchor polity は一致し、`byParent` index と双方向同期する。F9 は liveness test（inactive 親 / index desync / index 欠落で実際に error が出ることを確認）で非 vacuous を担保済み。
+
 **候補スコア（House 役職）**:
 ```ts
 score = relevantStat(role) * 1.0

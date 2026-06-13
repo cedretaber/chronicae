@@ -109,6 +109,7 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   FACTION_MEMBER_ABANDONED: { category: 'faction' },
   FACTION_LEADER_CHANGED: { category: 'faction' },
   FACTION_DISSOLVED: { category: 'faction' },
+  FACTION_NESTED: { category: 'faction' },
   // Life
   IMPORTANT_PERSON_DIED: { category: 'life' },
   // v0.40 §11: retainRefKinds は指定しない。byPerson/byHouse/byPolity の振り分けは

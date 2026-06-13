@@ -118,6 +118,7 @@
 | FACTION_FOUNDED | normal | 派閥の結成（factionLifecycleSystem） |
 | FACTION_DISSOLVED | normal | 派閥の解散（factionLifecycleSystem） |
 | FACTION_LEADER_CHANGED | normal | 派閥指導者の交代（factionLifecycleSystem） |
+| FACTION_NESTED | normal | 弱小派閥が庇護者の傘下に入った（入れ子形成・factionLifecycleSystem） |
 | FACTION_LEADER_BANKRUPT | normal | 派閥指導者の破産（factionLifecycleSystem） |
 | PERSON_RECRUITED_TO_FACTION | normal | 派閥への勧誘成立（factionRecruitmentSystem） |
 | FACTION_FUNDS_SHORTAGE | normal | 派閥資金の不足（factionPatronageSystem） |

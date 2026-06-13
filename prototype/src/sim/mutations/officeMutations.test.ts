@@ -142,7 +142,7 @@ function makeOfficeState(): {
     polityIndex: { byOwnerHouse: { [houseId]: [polityId] } },
     factions: {},
     factionMemberships: {},
-    factionIndex: { byLeader: {}, byMember: {}, byPolity: {} },
+    factionIndex: { byLeader: {}, byMember: {}, byPolity: {}, byParent: {} },
     holdingImprovements: {},
     holdingImprovementIndex: { byHolding: {} },
     nextHoldingImprovementId: 0,

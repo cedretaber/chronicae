@@ -514,6 +514,40 @@ function main() {
   console.log(
     `    固定分母(支配house派閥員/成人人口) fixed=[${domFixedSeries.join(',')}] max=${fixedMax}% (崩壊で総派閥員が縮んでも不変→entrenchment と分母artifactを切り分け)`,
   )
+
+  // [10] 入れ子 (Phase 2-a 形成): root / nested 数と深さ分布。
+  const depthOf = (f: { id: string; parentFactionId?: string }): number => {
+    let d = 0
+    let cur = f
+    const guard = new Set<string>()
+    while (cur.parentFactionId !== undefined && !guard.has(cur.id)) {
+      guard.add(cur.id)
+      const parent = state.factions[cur.parentFactionId as keyof typeof state.factions]
+      if (!parent) break
+      d++
+      cur = parent
+    }
+    return d
+  }
+  const depths: number[] = []
+  let nestedCount = 0
+  let parentsWithChildren = 0
+  for (const f of getActiveFactions(state)) {
+    const d = depthOf(f)
+    depths.push(d)
+    if (d > 0) nestedCount++
+    if ((state.factionIndex.byParent[f.id]?.length ?? 0) > 0) parentsWithChildren++
+  }
+  const depthDist = new Map<number, number>()
+  for (const d of depths) depthDist.set(d, (depthDist.get(d) ?? 0) + 1)
+  const distStr = [...depthDist.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([d, c]) => `d${d}:${c}`)
+    .join(' ')
+  console.log(
+    `[10] 入れ子 (形成): nested 派閥=${nestedCount}/${depths.length} 親=${parentsWithChildren}`,
+  )
+  console.log(`    深さ分布 ${distStr || '(なし)'} (d0=root・形成が発火していれば d1+ が出る)`)
 }
 
 try {

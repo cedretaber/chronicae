@@ -20,6 +20,8 @@ import {
   deactivateFaction,
   transitionFactionLeader,
   removeFactionMembership,
+  setFactionParent,
+  dissolveFactionsAnchoredToPolity,
 } from './factionMutations'
 import { addProjectToIndexMut } from './projectMutations'
 import { addTaskToIndicesMut } from './taskMutations'
@@ -748,5 +750,64 @@ describe('cancelTasksOfDeadAssignee (executed leader cascade)', () => {
     expect(nextState.taskIndex.byAssignee[leaderId as string] ?? []).not.toContain(taskId)
     // Aim の activeTaskId は解除される (dangling 参照を残さない)
     expect(nextState.aims[aimId]!.activeTaskId).toBeUndefined()
+  })
+})
+
+describe('入れ子 (nesting) choke-point cascade', () => {
+  // parent + child の 2 派閥を作り setFactionParent で attach した state を返す。
+  function makeNested() {
+    const { ctx, leaderId, member1Id } = makeFixture()
+    const polityId = createPolityId('c', 0)
+    const week = 1000
+    const pRes = createFaction(ctx, { leaderPersonId: leaderId, polityId, week })
+    if (!pRes.ok) throw new Error('parent create failed')
+    const parentId = pRes.value.value.factionId
+    const cRes = createFaction(pRes.value.ctx, {
+      leaderPersonId: member1Id,
+      polityId,
+      week,
+    })
+    if (!cRes.ok) throw new Error('child create failed')
+    const childId = cRes.value.value.factionId
+    const attached = setFactionParent(cRes.value.ctx.state, childId, parentId)
+    if (!attached.ok) throw new Error('attach failed')
+    return { state: attached.value, ctx: cRes.value.ctx, parentId, childId, polityId }
+  }
+
+  it('setFactionParent は child.parentFactionId と byParent を双方向にセットする', () => {
+    const { state, parentId, childId } = makeNested()
+    expect(state.factions[childId]!.parentFactionId).toBe(parentId)
+    expect(state.factionIndex.byParent[parentId]).toContain(childId)
+  })
+
+  it('deactivateFaction(parent) は子を orphan 化し byParent[parent] を削除する', () => {
+    const { state, parentId, childId } = makeNested()
+    const result = deactivateFaction(state, parentId)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const next = result.value
+    expect(next.factions[parentId]!.active).toBe(false)
+    // child は active のまま root へ昇格 (parentFactionId 除去)
+    expect(next.factions[childId]!.active).toBe(true)
+    expect(next.factions[childId]!.parentFactionId).toBeUndefined()
+    expect(next.factionIndex.byParent[parentId]).toBeUndefined()
+  })
+
+  it('deactivateFaction(child) は byParent[parent] から child を外す', () => {
+    const { state, parentId, childId } = makeNested()
+    const result = deactivateFaction(state, childId)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const next = result.value
+    expect(next.factions[childId]!.active).toBe(false)
+    expect(next.factionIndex.byParent[parentId] ?? []).not.toContain(childId)
+  })
+
+  it('dissolveFactionsAnchoredToPolity は parent+child 双方を inactive にし byParent を残さない', () => {
+    const { state, ctx, parentId, childId, polityId } = makeNested()
+    const result = dissolveFactionsAnchoredToPolity({ ...ctx, state }, polityId)
+    expect(result.state.factions[parentId]!.active).toBe(false)
+    expect(result.state.factions[childId]!.active).toBe(false)
+    expect(result.state.factionIndex.byParent[parentId] ?? []).toEqual([])
   })
 })

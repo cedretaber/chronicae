@@ -10,6 +10,11 @@ export type Faction = {
   polityId: PolityId
   active: boolean
   foundingWeek: number
+  // 派閥拡大 入れ子 (Phase 2-a, モデル A): 庇護者の傘下に入った場合の親派閥。
+  // root 派閥は undefined。子派閥の leader は親の member には「ならない」(派閥同士の
+  // ポインタで表現し §4.4・FactionMembership・募集ロジックを無改修で保つ)。
+  // 親が解散したら子は orphan 化 (root へ昇格) する (§4.5)。
+  parentFactionId?: FactionId
 }
 
 export type FactionMembership = {
@@ -26,4 +31,7 @@ export type FactionIndex = {
   // v0.42: anchor Polity → FactionId[]。byLeader と同様 active/inactive 両方を保持し、
   // 読み手が active filter する。
   byPolity: Record<PolityId, FactionId[]>
+  // 入れ子 (Phase 2-a): 親 FactionId → 子 FactionId[]。親派閥の傘下 (直接の子) を引く。
+  // active な親子関係のみ保持し、解散時に維持する (deactivate/orphan で同期)。
+  byParent: Record<FactionId, FactionId[]>
 }
