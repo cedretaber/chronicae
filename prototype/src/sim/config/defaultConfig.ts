@@ -838,6 +838,11 @@ export type SimulationConfig = {
   factionRecruitmentSigningBonusRate: number
   recruitmentInitialAffection: number
   recruitmentInitialRespect: number
+  // 派閥拡大 WI-0: 引力勾配 (明示 merit 注入)。
+  recruitmentTalentWeight: number
+  recruitAttractivenessPowerWeight: number
+  recruitAttractivenessMeritWeight: number
+  recruitAttractivenessPrestigeWeight: number
   // v0.17 Faction nomination / appointment
   factionNominationPowerThreshold: number
   factionOwnerHouseNominationBonus: number
@@ -1962,6 +1967,14 @@ export const defaultConfig: SimulationConfig = {
   factionRecruitmentSigningBonusRate: 0.3,
   recruitmentInitialAffection: 20,
   recruitmentInitialRespect: 10,
+  // 派閥拡大 WI-0: 引力勾配。recruitmentTalentWeight は computeRecruitmentScore の
+  // bestRoleScore 比重 (旧 0.3 固定 → 1.0。attitude 1.5/1.0 を才能が swamp されないよう引上げ)。
+  // attractiveness は募集順序キー: 0-1 正規化 (patronPower/10, score/100, prestige/100) 後に重み付け。
+  // merit を load-bearing にするため meritWeight を最大 (M1≈0 ゆえ power 単独では才能順にならない)。
+  recruitmentTalentWeight: 1.0,
+  recruitAttractivenessPowerWeight: 1.0,
+  recruitAttractivenessMeritWeight: 2.0,
+  recruitAttractivenessPrestigeWeight: 0.5,
   // v0.17 Faction nomination / appointment
   factionNominationPowerThreshold: 0.3,
   factionOwnerHouseNominationBonus: 0.3,

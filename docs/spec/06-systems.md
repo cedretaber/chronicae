@@ -724,6 +724,21 @@ cap = clamp(
 
 実測（tiny 100年, seed 1/42）: cap 平均が 2 固定 → 4.25/5.00、member 平均 2 → 3.4、最大 7。旧来「全派閥が cap 律速で member=2」だった状態から、cap に余裕が生まれ「供給律速（member<cap）」の派閥が出現する＝集積の天井が機能し始めた。空いた容量は WI-0（引力勾配）/ WI-2（募集拡大）が埋める。
 
+**募集の引力勾配 (派閥拡大 WI-0)**: FactionRecruitmentSystem に「優秀な patron がより強く人材を引く / 各 picker が才能を評価する」を明示 merit 項で注入する。cap（WI-1）を上げても、募集スコアが attitude 支配で faction-id 先着消費だと「権力者が友人を集める」一様膨張になり、北極星（優秀な個人に集中）が創発しないため。
+- **(a) talent 比重**: `computeRecruitmentScore` の `getBestRoleScore(candidate)` 係数を 0.3 固定 → `recruitmentTalentWeight`（既定 1.0）。見知らぬ相手では attitude≈0 で才能が効くが、既知相手では attitude（affection×1.5 等）が才能を swamp していた。引上げで各 picker が才能を評価する。
+- **(b) 引力順序**: `runFactionRecruitmentSystem` の faction 処理順を faction-id（≒設立順）先着 → **patron attractiveness 降順**に。shared base pool は先着消費（二重所属は §4.4 invariant が弾く）なので、強く優秀で prestige の高い patron が才能 pool から先に選ぶ。`attractiveness = w_power·(patronPower/10) + w_merit·(leaderBestRoleScore/100) + w_prestige·(leaderPrestige/100)`（0–1 正規化後に重み付け、tiebreak は faction-id 昇順）。`patronPower` = `getFactionLeaderPatronPower` = officeSlots + appointmentSeats（meritSeats は含まない）。M1≈0（power は才能の代理でない）ゆえ **meritWeight を最大（2.0）** にして merit を load-bearing にする。順序はループ前に 1 回 snapshot（patronPower/merit は recruit 中に動かない）。**RNG 非消費**なので並べ替えは他 system の RNG ストリームを壊さない（非 bit-identical だが決定的）。
+- **wealth は順序に混ぜない**: `recruitForFaction` は `leader.wealth < cost` で break。wealth を attractiveness に入れず**意図的 friction として残す**（貧しい patron は強くても sponsor しきれない自然な天井。集積が wealth 追従になるのを避ける）。
+- **(c) candidate-centric assignment**（才能人材が魅力的な patron を選ぶ）は ripple 大のため後段保留。
+
+検証（diag [7][8]・A/B vs baseline）: 集積 engine の成否は **corr(faction size, leader 才能)** の符号と **M2（所属 vs 非所属 eligible pool の才能差）**で測る（corr(patronPower,才能) ではない — power は富/血筋の代理で才能と無相関のままが正常）。才能ある leader ほど cap が大きく（meritSeats）募集も先頭（attractiveness）なので大派閥になり、各 picker が才能順に skim する。
+
+**帰属（単独 A/B で WI-1 と WI-0 を分離した結果）**: 集積 engine の主役は **WI-1（cap 式の meritSeats）** であり、WI-0 の限界寄与は小さい。
+- corr(size,score)（tiny 100年 seed1/42/123）: main −0.28/+0.12/−0.58 → **WI-1 のみ +0.26/+0.08/−0.10** → HEAD（+WI-0）+0.27/+0.20/+0.54。WI-1 で既にほぼ正転し、WI-0 は seed42/123（特に 123 の −0.10→+0.54）を sharpen する。
+- M2 gap（standard 40年 seed1、pool 生存）: main 所属−pool ≈ **−0.1**（才能選別ゼロ）→ **WI-1 のみ +4.5** → HEAD（+WI-0）**+4.9**。M2 の大半も WI-1 由来（大 cap × 既存の talent 比重 0.3 で skim）で、WI-0（比重 1.0 + attractiveness 順）の上乗せは +0.4。
+- tiny/small では WI-1 で cap が増え募集が eligible pool を吸い切るため pool 枯渇（n=0）で M2 測定不能 = 集積が供給を吸収している裏返し（SR-3）。M2 は pool が残る standard で測る。
+
+WI-0 を残す理由（測定上は小さくとも構造的に必要）: attractiveness 順序は **供給が逼迫した時** に「強い patron が先に選ぶ」を保証する装置で、pool に余裕のある定常 snapshot では効果が小さく見える。WI-2（募集拡大）/ WI-3（崩壊で pool が churn）後に効きが増す前提。**バランス方針（§機能完成後にまとめて調整）に従い、WI-0 の weight sweep は今は行わない**（測定従属の定数より式の形を優先）。
+
 **候補スコア（House 役職）**:
 ```ts
 score = relevantStat(role) * 1.0

@@ -277,8 +277,13 @@ function measureMerit(state: WorldState) {
   }
 
   // M1: leader patronPower vs role-score
+  // patronPower は「席=配れる職」(officeSlots + appointmentSeats)。meritSeats は含まない (才能は別軸)。
+  // WI-0/1 後の engine 成否は corr(patronPower, leaderScore) ではなく corr(faction size, leaderScore) で測る:
+  //   meritSeats を cap に入れ talent 比重を募集に入れたので、才能ある leader ほど cap が大きく大派閥になる。
+  //   (patronPower 自体は富/血筋の代理のままで才能と無相関なのが正常 — power が才能を運ぶわけではない。)
   const patronPowers: number[] = []
   const leaderScores: number[] = []
+  const factionSizes: number[] = []
   const memberIdSet = new Set<string>()
   const leaderIdSet = new Set<string>()
   for (const f of factions) {
@@ -290,8 +295,10 @@ function measureMerit(state: WorldState) {
       (rightsByHolder.get(`house:${leader.houseId}`) ?? 0)
     patronPowers.push(officeSlots + seats)
     leaderScores.push(getBestRoleScore(state, f.leaderPersonId))
+    const memberIds = getFactionActiveMemberIds(state, f.id)
+    factionSizes.push(memberIds.length)
     leaderIdSet.add(f.leaderPersonId)
-    for (const mid of getFactionActiveMemberIds(state, f.id)) memberIdSet.add(mid)
+    for (const mid of memberIds) memberIdSet.add(mid)
   }
 
   // M2: faction-affiliated (leader+member) role-score vs unaffiliated eligible pool
@@ -342,6 +349,7 @@ function measureMerit(state: WorldState) {
   return {
     leaderN: patronPowers.length,
     corrPowerScore: pearson(patronPowers, leaderScores),
+    corrSizeScore: pearson(factionSizes, leaderScores),
     affiliatedN: affiliatedScores.length,
     poolN: poolScores.length,
     affiliatedMedianScore: median(affiliatedScores),
@@ -419,9 +427,9 @@ function main() {
   )
 
   const mm = measureMerit(state)
-  console.log(`[7] merit M1: leader patronPower(officeSlots+任命権) ↔ best role-score 相関`)
+  console.log(`[7] merit M1: engine 成否 = faction size ↔ leader 才能 相関`)
   console.log(
-    `    n=${mm.leaderN}  Pearson r=${mm.corrPowerScore.toFixed(3)}  leader平均score=${mm.leaderMeanScore.toFixed(1)} (r が低/負なら power=才能でない→明示merit項が必須)`,
+    `    n=${mm.leaderN}  corr(size,score) r=${mm.corrSizeScore.toFixed(3)} (★engine: 正なら才能ある patron ほど大派閥=集積成立)  |  corr(patronPower,score) r=${mm.corrPowerScore.toFixed(3)} (≈0 が正常: power は富/血筋の代理)  leader平均score=${mm.leaderMeanScore.toFixed(1)}`,
   )
   console.log(`[8] merit M2: 派閥所属(leader+member) vs 非所属eligible pool の才能`)
   console.log(

@@ -820,6 +820,10 @@
 | factionRecruitmentSigningBonusRate | 0.3 | 勧誘時の signing bonus 率 |
 | recruitmentInitialAffection | 20 | 勧誘成立時の初期 affection |
 | recruitmentInitialRespect | 10 | 勧誘成立時の初期 respect |
+| recruitmentTalentWeight | 1.0 | WI-0(a): 募集スコアの bestRoleScore 比重（旧 0.3 固定） |
+| recruitAttractivenessPowerWeight | 1.0 | WI-0(b): 募集順序 attractiveness の patronPower 重み |
+| recruitAttractivenessMeritWeight | 2.0 | WI-0(b): 同 leader 才能の重み（merit を load-bearing にする主役） |
+| recruitAttractivenessPrestigeWeight | 0.5 | WI-0(b): 同 leader prestige の重み |
 | factionNominationPowerThreshold | 0.3 | 推挙に必要な power 閾値 |
 | factionOwnerHouseNominationBonus | 0.3 | 支配家メンバー推挙ボーナス |
 | factionBailiffNominationWeight | 0.4 | bailiff 推挙の重み |

@@ -12,6 +12,7 @@ import {
   getFactionMemberCap,
   getBestRoleScore,
   getOccupationRoleFitBonus,
+  getFactionLeaderPatronPower,
 } from '../selectors/factionSelectors'
 import { isHouselessPerson, isLandlessHouseMember } from '../selectors/availabilitySelectors'
 import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
@@ -50,13 +51,44 @@ function buildRecruitmentBasePool(ctx: TickContext): PersonId[] {
 }
 
 // v0.17 §12: FactionRecruitmentSystem (yearly, Jan, after FactionLifecycle)
+// 派閥拡大 WI-0(b): faction の処理順を patron attractiveness 降順に並べ替える。
+// shared base pool は先着消費 (二重所属は §4.4 invariant が弾く) なので、強く・優秀で
+// prestige の高い patron が才能 pool から先に選ぶ = 引力勾配。RNG 非消費なので順序変更は
+// 他 system の RNG ストリームを壊さない (recruitForFaction は wealth/attitude/membership/event のみ)。
 export function runFactionRecruitmentSystem(ctx: TickContext): TickContext {
   let currentCtx = ctx
   const basePool = buildRecruitmentBasePool(ctx)
-  for (const faction of getActiveFactions(currentCtx.state)) {
-    currentCtx = recruitForFaction(currentCtx, faction.id, basePool)
+  const ordered = orderFactionsByAttractiveness(ctx)
+  for (const factionId of ordered) {
+    currentCtx = recruitForFaction(currentCtx, factionId, basePool)
   }
   return currentCtx
+}
+
+// attractiveness = w_power·(patronPower/10) + w_merit·(leaderScore/100) + w_prestige·(prestige/100)。
+// 各項を 0-1 付近に正規化し config 重みを共通footingに。merit が load-bearing (M1≈0 是正)。
+// tiebreak は faction-id 昇順。ループ前に 1 回 snapshot する (patronPower/merit は recruit 中不変)。
+function orderFactionsByAttractiveness(ctx: TickContext): FactionId[] {
+  const config = ctx.config
+  const scored = getActiveFactions(ctx.state).map((f) => {
+    const leader = ctx.state.persons[f.leaderPersonId]
+    const patronPower = getFactionLeaderPatronPower(ctx.state, config, f.id)
+    const merit = getBestRoleScore(ctx.state, f.leaderPersonId)
+    const prestige = leader ? leader.legacyPrestige : 0
+    const attractiveness =
+      config.recruitAttractivenessPowerWeight * (patronPower / 10) +
+      config.recruitAttractivenessMeritWeight * (merit / 100) +
+      config.recruitAttractivenessPrestigeWeight * (prestige / 100)
+    return { id: f.id, attractiveness }
+  })
+  scored.sort((a, b) =>
+    b.attractiveness !== a.attractiveness
+      ? b.attractiveness - a.attractiveness
+      : (a.id as string) < (b.id as string)
+        ? -1
+        : 1,
+  )
+  return scored.map((s) => s.id)
 }
 
 function recruitForFaction(
@@ -173,7 +205,8 @@ function computeRecruitmentScore(ctx: TickContext, leader: Person, candidate: Pe
     leaderToCand.respect * 1.0 +
     candToLeader.affection * 0.8 +
     candToLeader.respect * 0.5 +
-    getBestRoleScore(ctx.state, candidate.id) * 0.3 +
+    // WI-0(a): talent 比重を 0.3 固定 → config 連動 (既定 1.0)。各 picker が才能を評価する。
+    getBestRoleScore(ctx.state, candidate.id) * ctx.config.recruitmentTalentWeight +
     occupationFit * 0.3 +
     (candidate.legacyPrestige / 100) * 5 -
     (candidate.wealth / 100) * 1

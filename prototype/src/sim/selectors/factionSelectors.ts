@@ -178,6 +178,24 @@ function countLeaderAppointmentSeats(
   return seats
 }
 
+// 派閥拡大 WI-0: patron が配れる席の総量 (raw)。officeSlots(house-wide) + appointmentSeats。
+// cap の meritSeats は含まない (これは「席=配れる職」の指標で、才能は別項)。
+// 募集 attractiveness 順序と diag の patronPower 計測で共有する。
+export function getFactionLeaderPatronPower(
+  state: WorldState,
+  config: SimulationConfig,
+  factionId: FactionId,
+): number {
+  const faction = state.factions[factionId]
+  if (!faction || !faction.active) return 0
+  const leader = state.persons[faction.leaderPersonId]
+  if (!leader || !leader.houseId) return 0
+  return (
+    computeAvailableOfficeSlots(state, config, leader.houseId) +
+    countLeaderAppointmentSeats(state, leader.id, leader.houseId)
+  )
+}
+
 // Faction viability score — whether the faction has a reason to survive.
 // Leader must remain in top (factionFounderShareRank + 2) shareholders to contribute share viability.
 export function getFactionViabilityScore(
