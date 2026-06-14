@@ -933,6 +933,14 @@ export type SimulationConfig = {
   bailiffBurdenAffectionPenaltyFactor: number
   bailiffProtectResidentsAffectionBonus: number
   bailiffTaskCompletedRespectGain: number
+  // v0.49: 住民→代官の respect(尊敬/軽蔑) を「有能さ＋実績」で動かす(苛烈さ=affection とは独立軸)。
+  //   respectDelta = clamp((competence - bailiffRespectNeutralScore) * bailiffAbilityRespectFactor
+  //                        + (task完了 ? +Completed : -None), ±bailiffRespectMaxDelta)。
+  //   competence = command*0.5 + learning*0.5。有能なら尊敬↑、低能力かつ徴税未達なら軽蔑↓。
+  bailiffAbilityRespectFactor: number
+  bailiffRespectNeutralScore: number
+  bailiffTaskNoneRespectPenalty: number
+  bailiffRespectMaxDelta: number
   // v0.17 Office max (Polity rank x province count)
   polityOfficeMaxByRank: Record<PolityRank, Record<Exclude<OfficeRole, 'leader'>, number>>
   // commonwealth 専用 office max。rank に依らず全 role を解放し (>=1)、席数は rank に応じる。
@@ -2103,6 +2111,10 @@ export const defaultConfig: SimulationConfig = {
   bailiffBurdenAffectionPenaltyFactor: 2,
   bailiffProtectResidentsAffectionBonus: 0.2,
   bailiffTaskCompletedRespectGain: 0.2,
+  bailiffAbilityRespectFactor: 0.006,
+  bailiffRespectNeutralScore: 50,
+  bailiffTaskNoneRespectPenalty: 0.05,
+  bailiffRespectMaxDelta: 1.0,
   // v0.17 Office max
   // v0.17.1: rank の方向を spec §7.2 に合わせて修正。
   // rank は数値が小さいほど上位 (1=帝国, 5=所領)。大国ほど官職枠が多い。

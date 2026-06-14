@@ -144,10 +144,24 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
                 -1.0,
                 0.5,
               )
+              // v0.49: respect(尊敬/軽蔑) は代官の「有能さ＋実績」で動かす。苛烈さ(affection)
+              //   とは独立軸 — 苛斂誅求でも有能なら恐れつつ尊敬され、優しくても低能力で徴税に
+              //   失敗し続ければ好かれても軽蔑される。
+              const bailiffPerson = draft.persons[assignment.holderPersonId]
+              const competence = bailiffPerson
+                ? bailiffPerson.abilities.command * 0.5 + bailiffPerson.abilities.learning * 0.5
+                : ctx.config.bailiffRespectNeutralScore
+              const abilityRespectDelta =
+                (competence - ctx.config.bailiffRespectNeutralScore) *
+                ctx.config.bailiffAbilityRespectFactor
+              const taskRespectDelta =
+                recentTaskStatus === 'completed'
+                  ? ctx.config.bailiffTaskCompletedRespectGain
+                  : -ctx.config.bailiffTaskNoneRespectPenalty
               const respectDelta = clamp(
-                recentTaskStatus === 'completed' ? ctx.config.bailiffTaskCompletedRespectGain : 0,
-                -0.5,
-                0.5,
+                abilityRespectDelta + taskRespectDelta,
+                -ctx.config.bailiffRespectMaxDelta,
+                ctx.config.bailiffRespectMaxDelta,
               )
 
               if (affectionDelta !== 0 || respectDelta !== 0) {

@@ -230,12 +230,24 @@ pop.wealth -= collectionFrictionBurdenRate * config.localExtractionWealthPenalty
 const burdenOverComfort = Math.max(0, totalBurdenRate - config.comfortableLocalExtractionRate)
 pop.unrest += burdenOverComfort * config.localExtractionUnrestGain
 
-// POP → Bailiff Attitude（通常人物代官のみ）
+// POP → Bailiff Attitude（通常人物代官のみ）。affection(好悪) と respect(尊敬/軽蔑) は独立軸。
+// affection: 徴税の苛烈さ(負担)と方針の優しさで決まる
 affectionDelta -= burdenOverComfort * config.bailiffBurdenAffectionPenaltyFactor
 if (policy === 'protect_residents') affectionDelta += config.bailiffProtectResidentsAffectionBonus
-if (recentTaskStatus === 'completed') respectDelta += config.bailiffTaskCompletedRespectGain
-// clamp: affection [-1.0, 0.5], respect [-0.5, 0.5]
+affectionDelta = clamp(affectionDelta, -1.0, 0.5)
+
+// v0.49 respect: 代官の「有能さ＋実績」で決まる（苛烈さ=affection とは独立）。
+//   苛斂誅求でも有能なら恐れつつ尊敬され、優しくても低能力で徴税に失敗し続ければ好かれても軽蔑される。
+const competence = bailiff.command * 0.5 + bailiff.learning * 0.5  // 0..120
+respectDelta = (competence - config.bailiffRespectNeutralScore) * config.bailiffAbilityRespectFactor  // 有能↑/低能力↓
+              + (recentTaskStatus === 'completed'
+                   ? config.bailiffTaskCompletedRespectGain
+                   : -config.bailiffTaskNoneRespectPenalty)  // 実績で増減
+respectDelta = clamp(respectDelta, -config.bailiffRespectMaxDelta, config.bailiffRespectMaxDelta)
 ```
+
+respect は **尊敬・軽蔑が蓄積される土台**として用意した段階で、これを読み取って何かを変える下流はまだ無い
+（反乱の代官罷免分岐 `decideRevoltDemand` は affection のみ参照）。将来 respect を参照する系を追加する。
 
 **6.4.5 retained wealth の POP 反映**
 

@@ -542,6 +542,10 @@
 | bailiffBurdenAffectionPenaltyFactor | 2 | burdenOverComfort × この値で POP→代官 affection 低下 |
 | bailiffProtectResidentsAffectionBonus | 0.2 | protect_residents 時の POP→代官 affection ボーナス |
 | bailiffTaskCompletedRespectGain | 0.2 | Task completed 時の POP→代官 respect ボーナス |
+| bailiffAbilityRespectFactor | 0.006 | v0.49: 代官 competence(command*0.5+learning*0.5) と中立点の差 × この値で POP→代官 respect が増減（有能↑/低能力↓ = 軽蔑） |
+| bailiffRespectNeutralScore | 50 | v0.49: respect 能力ドリフトの中立点（competence がこれ未満で軽蔑方向） |
+| bailiffTaskNoneRespectPenalty | 0.05 | v0.49: 直近4週で徴税タスク未完了('none')時の POP→代官 respect ペナルティ |
+| bailiffRespectMaxDelta | 1.0 | v0.49: 1回の徴税サイクルでの respectDelta clamp 幅（±） |
 | **Project システム** | | |
 | projectDefaultTargetProgress | 100 | Project の標準 targetProgress |
 | projectAdvanceProgressSuccess | 25 | advance_project 成功時の progress 加算量 |
