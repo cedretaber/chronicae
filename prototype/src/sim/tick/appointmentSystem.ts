@@ -44,6 +44,7 @@ import {
   getFactionNominationPower,
   getFactionActiveMemberIds,
   getActiveFactionMembership,
+  collectSubtreeLeaderWeights,
 } from '../selectors/factionSelectors'
 import {
   getOfficeCompatibilityPenalty,
@@ -211,11 +212,12 @@ function collectFactionalCandidates(
   config: SimulationConfig,
   org: OrganizationRef,
   role: OfficeRole,
-): { factionId: FactionId; candidateId: PersonId }[] {
-  const result: { factionId: FactionId; candidateId: PersonId }[] = []
+): { factionId: FactionId; candidateId: PersonId; weight: number }[] {
+  const result: { factionId: FactionId; candidateId: PersonId; weight: number }[] = []
   for (const faction of getActiveFactions(state)) {
     const np = getFactionNominationPower(state, config, faction.id, org, role)
     if (np < config.factionNominationPowerThreshold) continue
+    // 自前メンバー (weight 1.0 = 非入れ子では従来と bit-identical)。
     for (const mid of getFactionActiveMemberIds(state, faction.id)) {
       const m = state.persons[mid]
       if (!m || !m.alive) continue
@@ -223,7 +225,17 @@ function collectFactionalCandidates(
       if (!isLifeStageAtLeast(m.lifeStage, 'young_adulthood')) continue
       // v0.17.1 §15.3: active Bailiff 保有者は Polity/House Office 候補から除外
       if (hasActiveHoldingOffice(state, mid)) continue
-      result.push({ factionId: faction.id, candidateId: mid })
+      result.push({ factionId: faction.id, candidateId: mid, weight: 1 })
+    }
+    // v0.50「副官のみ引き上げ」: 子孫派閥の leader (=直属の副官) を親 umbrella の候補に加える。
+    // 子孫の一般メンバーは polity には流入させない (§8 広域再帰は保留)。スコアは depth で割引。
+    for (const { leaderId, weight } of collectSubtreeLeaderWeights(state, config, faction.id)) {
+      const m = state.persons[leaderId]
+      if (!m || !m.alive) continue
+      if (m.kind === 'placeholder') continue
+      if (!isLifeStageAtLeast(m.lifeStage, 'young_adulthood')) continue
+      if (hasActiveHoldingOffice(state, leaderId)) continue
+      result.push({ factionId: faction.id, candidateId: leaderId, weight })
     }
   }
   return result
@@ -604,14 +616,19 @@ function tryAppointPolityOffice(
       ).filter((c) => !alreadyHolding.has(c.candidateId as string) && passes(c.candidateId))
       const scored = factional.map((c) => ({
         id: c.candidateId,
-        score: getFactionalCandidateScore(
-          currentCtx.state,
-          config,
-          c.factionId,
-          c.candidateId,
-          polityRef,
-          role,
-        ),
+        // v0.50: 引き上げた子孫副官は depth weight (<1) で割引、自前メンバーは weight 1.0 で従来同値。
+        // 前提: minAppointmentScore > 0。getFactionalCandidateScore は compatibilityPenalty で負値に
+        // なり得るため、minAppointmentScore <= 0 だと weight<1 が負スコアを 0 方向へ持ち上げ深さ割引が
+        // 反転する (深い副官が有利化)。現 config は minAppointmentScore=2 で負スコアは着座しないため無害。
+        score:
+          getFactionalCandidateScore(
+            currentCtx.state,
+            config,
+            c.factionId,
+            c.candidateId,
+            polityRef,
+            role,
+          ) * c.weight,
       }))
       best = pickBestScored(scored, config.minAppointmentScore)
     }

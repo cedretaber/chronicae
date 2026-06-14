@@ -24,6 +24,7 @@ import {
   getFactionRecommendationScore,
   getFactionalCandidateScore,
   collectSubtreeMemberWeights,
+  collectSubtreeLeaderWeights,
 } from './factionSelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import { deactivateFaction } from '../mutations/factionMutations'
@@ -695,5 +696,82 @@ describe('collectSubtreeMemberWeights (入れ子 Phase 2-b)', () => {
       'advisor',
     )
     expect(npWith).toBeGreaterThanOrEqual(npWithout)
+  })
+})
+
+describe('subtree leader 引き上げ (v0.50)', () => {
+  // 現実的な入れ子: 子派閥 faction2 を別人物 subLeader が率いる。実 sim ではリーダーも自派閥に
+  // self-membership を持つ (設立時に作られ removeDeadMemberships が保持) ため、ここでも subLeader を
+  // faction2 の member として登録する。member は member2 + subLeader (=リーダー自身)。
+  function makeRealisticNestedFixture(): {
+    state: WorldState
+    leaderId: PersonId
+    member1Id: PersonId
+    member2Id: PersonId
+    subLeaderId: PersonId
+    faction1Id: FactionId
+    faction2Id: FactionId
+  } {
+    const { state, leaderId, member1Id, member2Id, houseId, faction1Id, faction2Id } = makeFixture()
+    const subLeaderId = createPersonId('pe', 3)
+    const s = withPerson(state, subLeaderId, { nameKey: 'SubLeader', houseId })
+    // faction2 = subLeader が率いる child、faction1 の傘下。
+    s.factions[faction2Id] = {
+      id: faction2Id,
+      leaderPersonId: subLeaderId,
+      polityId: createPolityId('c', 0),
+      active: true,
+      foundingWeek: 69312,
+      parentFactionId: faction1Id,
+    }
+    s.factionMemberships[createFactionMembershipId(5)] = {
+      id: createFactionMembershipId(5),
+      factionId: faction2Id,
+      personId: member2Id,
+      active: true,
+      joinedWeek: 69312,
+    }
+    // subLeader の self-membership (実 sim のリーダー不変条件を反映)。
+    s.factionMemberships[createFactionMembershipId(6)] = {
+      id: createFactionMembershipId(6),
+      factionId: faction2Id,
+      personId: subLeaderId,
+      active: true,
+      joinedWeek: 69312,
+    }
+    s.factionIndex.byMember[member2Id] = [createFactionMembershipId(5)]
+    s.factionIndex.byMember[subLeaderId] = [createFactionMembershipId(6)]
+    s.factionIndex.byLeader[subLeaderId] = [faction2Id]
+    s.factionIndex.byParent[faction1Id] = [faction2Id]
+    return { state: s, leaderId, member1Id, member2Id, subLeaderId, faction1Id, faction2Id }
+  }
+
+  it('collectSubtreeMemberWeights は子派閥 leader(=副官) を self-membership 経由で discount 倍で含める', () => {
+    // v0.50 の知見: リーダーは self-membership を持つので、専用の leader 追加なしに
+    // member ループだけで子孫の副官が NP / bailiff の傘プールに乗る。
+    const { state, subLeaderId, member2Id, faction1Id } = makeRealisticNestedFixture()
+    const weights = collectSubtreeMemberWeights(state, defaultConfig, faction1Id)
+    const map = new Map(weights.map((w) => [w.memberId as string, w.weight]))
+    // child member も child leader も depth1 = discount。
+    expect(map.get(member2Id as string)).toBe(defaultConfig.factionNestingNpDiscount)
+    expect(map.get(subLeaderId as string)).toBe(defaultConfig.factionNestingNpDiscount)
+  })
+
+  it('collectSubtreeLeaderWeights は子孫 leader のみ返す (patron と子孫 member は除外)', () => {
+    const { state, leaderId, member1Id, member2Id, subLeaderId, faction1Id } =
+      makeRealisticNestedFixture()
+    const leaders = collectSubtreeLeaderWeights(state, defaultConfig, faction1Id)
+    const ids = new Set(leaders.map((l) => l.leaderId as string))
+    expect(ids.has(subLeaderId as string)).toBe(true) // 子派閥 leader = 副官
+    expect(ids.has(leaderId as string)).toBe(false) // depth0 patron は含めない
+    expect(ids.has(member1Id as string)).toBe(false) // own member は leader でない
+    expect(ids.has(member2Id as string)).toBe(false) // 子孫の一般 member も含めない
+    const w = leaders.find((l) => (l.leaderId as string) === (subLeaderId as string))
+    expect(w?.weight).toBe(defaultConfig.factionNestingNpDiscount)
+  })
+
+  it('collectSubtreeLeaderWeights は root のみの派閥では空 (子孫が無い)', () => {
+    const { state, faction1Id } = makeFixture()
+    expect(collectSubtreeLeaderWeights(state, defaultConfig, faction1Id)).toEqual([])
   })
 })
