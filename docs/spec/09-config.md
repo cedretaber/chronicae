@@ -231,7 +231,7 @@
 | landDevelopmentUnrestReduction | 1 | 土地開発によるスコア評価に用いる unrest 低下量 |
 | **Person Ability Effects** | | |
 | personAbilityEffectsEnabled | true | 人物能力効果の有効/無効 |
-| abilityOutputExponent | 1.6 | v0.49: 統一非線形ファクター指数（§10.0）。`(roleScore/50)^exp`。内政成長/税効率/開発コスト/軍 power を一括スケール。80↔40 の成果比を約2x（現実プロファイル）〜3x（万能型）に。上げるほど能力差が誇張 |
+| abilityOutputExponent | 1.6 | v0.49: 統一非線形ファクター指数（§10.0）。`(roleScore/50)^exp`。内政成長/税効率/開発コスト/軍戦力推定(外交評価のみ)/adminPower を一括スケール。80↔40 の成果比を約2x（現実プロファイル）〜3x（万能型）に。上げるほど能力差が誇張 |
 | chancellorAdminControlMaxBonusPerAdmin | 1 | 宰相 admin 1 点あたりの支配力上限ボーナス |
 | houseHeadAdminControlMaxBonusPerAdmin | 1 | 家長 admin 1 点あたりの家支配力上限ボーナス |
 | controlAbilityMinimumFloor | 35 | 能力補正後の支配力上限最低値 |

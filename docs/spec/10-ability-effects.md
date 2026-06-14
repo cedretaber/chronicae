@@ -12,7 +12,7 @@
 
 ### 10.0 統一非線形ファクター（v0.49 — 人物中心史観）
 
-> **v0.49 でこう拡張**: 内政成長・国庫税効率・開発コスト・軍戦闘力・代官徴税効率・`getPolityAdminPower`
+> **v0.49 でこう拡張**: 内政成長・国庫税効率・開発コスト・軍戦力推定(外交評価のみ。実戦闘は§10.5 NB 参照で未強化)・代官徴税効率・`getPolityAdminPower`
 > （= 征服/開発/収益ドライバ。`getEffectiveOfficeStat` 経由）・民衆反乱傾向の主要倍率を、50 中立の非線形
 > ファクター `abilityOutputFactor` に統一した。狙いは「優秀な人物がいたから上手くいった」を観賞対象として
 > 明確に見せること（KOEI 風）。旧 `1 + normalizedStat × 係数`（80↔40 で約 1.1〜1.2x）では能力差が体感できなかった。
@@ -92,13 +92,21 @@ effectiveCost = max(1, round(polityLandDevelopmentBaseCost * costModifier))
 
 ### 10.5 War / Battle への効果
 
-**Polity military（General）→ 戦闘力**（v0.49 で非線形ファクター化）:
+**Polity military（General）→ 戦力推定（外交評価のみ。v0.49 で非線形ファクター化）**:
 ```ts
 warPowerModifier = abilityOutputFactor(getRoleScore(military, 'warCommand'), config)  // §10.0
-// 攻撃側・防衛側それぞれ独立して適用
-// NB: 戦場指揮ボーナス commanderQ (simulateBattle、±commanderAssignedRegimentEffectMax) は
-//     0 中心ボーナスで構造が別のため v0.49 では据え置き（warPower との複利殲滅を避ける）。
-//     外交・陰謀の成功判定への能力導入も別 PR（v0.49 スコープ外）。
+// ⚠️ この modifier の消費先は diplomaticOfferEvaluation のみ（AI が開戦/交渉で相手・自軍の戦力を
+//    推定する値）。実際の戦闘決着 (simulateBattle) や AI 戦争判断 (calcPolityMilitaryPower 比較) には
+//    効かない。したがって v0.49 では「有能な将軍 → 外交で強く見える」までで、「戦闘に勝つ」は未達。
+//
+// 実戦闘の能力影響（未強化・将来課題）:
+//   - simulateBattle の commanderQ = ±commanderAssignedRegimentEffectMax(0.15)（80 vs 40 ≈ 1.12x）
+//   - calcHouseMilitaryPower の commanderModifier = 旧線形 (1 + normalizedStat × houseCommanderMartialEffect)
+//   これらは「連隊戦闘バランス保留」領域（battlefield/commander/attrition/logistics が揃ってから調整）の
+//   ため v0.49 では意図的に据え置き。戦争の能力2倍化は当該フェーズで commanderQ / commanderModifier を
+//   非線形化して実現する（ユーザー判断 2026-06-14: 今は外交評価のみで保留）。
+//
+// 外交・陰謀の成功判定への能力導入も別 PR（v0.49 スコープ外）。
 ```
 
 **Polity military → 宣戦閾値**（`calcGeneralDeclareThreshold`。v0.42 で WarCreationSystem §6.44 の開戦ゲートに配線。攻撃側 polity の military 官の性格で勝率しきい値を調整する）:
