@@ -269,7 +269,7 @@ describe('runControlSystem — polityControl growth', () => {
     )
   })
 
-  it('expected values: governance=100 → 52.5, governance=50 → 52.0, governance=0 → 51.5', () => {
+  it('expected values (v0.49 nonlinear): governance=100 → ~56.06, governance=50 → 52.0, governance=0 → floor', () => {
     const govMax = makeAbilities({ numeracy: 100, learning: 100, charisma: 100, insight: 100 })
     const admin10State = makeWorldState(
       { abilities: govMax, aptitudes: govMax },
@@ -278,7 +278,7 @@ describe('runControlSystem — polityControl growth', () => {
     const admin10Result = runControlSystem(makeCtx(admin10State))
     const admin10Prov = admin10Result.state.provinces['p-0' as ProvinceId]!
     const admin10Holding = admin10Prov.holdingIds[0]!
-    expect(admin10Result.state.holdings[admin10Holding]!.polityControl).toBeCloseTo(52.5, 5)
+    expect(admin10Result.state.holdings[admin10Holding]!.polityControl).toBeCloseTo(56.062866, 4)
 
     const admin5State = makeWorldState({}, { administrator: 'pe-0' as PersonId })
     const admin5Result = runControlSystem(makeCtx(admin5State))
@@ -294,7 +294,7 @@ describe('runControlSystem — polityControl growth', () => {
     const admin0Result = runControlSystem(makeCtx(admin0State))
     const admin0Prov = admin0Result.state.provinces['p-0' as ProvinceId]!
     const admin0Holding = admin0Prov.holdingIds[0]!
-    expect(admin0Result.state.holdings[admin0Holding]!.polityControl).toBeCloseTo(51.5, 5)
+    expect(admin0Result.state.holdings[admin0Holding]!.polityControl).toBeCloseTo(50.0, 5)
   })
 })
 

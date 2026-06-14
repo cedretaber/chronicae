@@ -34,6 +34,15 @@ export function getRoleScore(state: WorldState, personId: PersonId, role: Applie
   return getRoleScoreFromAbilities(person.abilities, role)
 }
 
+// v0.49: 能力中心史観の統一非線形ファクター (spec §10.0)。roleScore(0-120) → 50 中立の乗数。
+//   factor = (clamp(score,0,120)/50)^exponent。score50→1.0 (平均不変), 80→2.12, 40→0.70 (exp=1.6)。
+//   personAbilityEffectsEnabled OFF 時は 1.0。内政成長/徴税効率/開発コスト/軍 power/adminPower を一括スケール。
+export function abilityOutputFactor(roleScore: number, config: SimulationConfig): number {
+  if (!config.personAbilityEffectsEnabled) return 1
+  const clamped = roleScore < 0 ? 0 : roleScore > 120 ? 120 : roleScore
+  return Math.pow(clamped / 50, config.abilityOutputExponent)
+}
+
 export function naturalFraction(k: AbilityKey, age: number, config: SimulationConfig): number {
   const curve = ABILITY_AGE_CURVES[k]
   if (curve === 'lifelongGrowth') {

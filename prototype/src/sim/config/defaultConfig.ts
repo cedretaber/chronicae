@@ -87,6 +87,11 @@ export type SimulationConfig = {
   newRulerHouseControl: number
   // v0.7 Person Ability Effects
   personAbilityEffectsEnabled: boolean
+  // v0.49: 能力中心史観の統一非線形ファクター。roleScore(0-120) を 50 中立の乗数に変換する指数。
+  //   factor = (clamp(score,0,120)/50)^abilityOutputExponent。exponent=1.6 で score80 ≈ 1.95x,
+  //   score40 ≈ 0.66x → 80/40 ≈ 2.9x (合成 roleScore の現実分布では ~2x)。内政成長/徴税効率/
+  //   開発コスト/軍 power を一括スケール。値を上げるほど能力差が誇張される (KOEI 風)。
+  abilityOutputExponent: number
   // 影響力個人中心化 Phase 3b: 家 goal-kind scoring に意志決定者 (decisionMaker) の性格を反映する量。
   // ambition→expand / caution→preserve。(trait-0.5)×scale (±scale/2)。personAbilityEffectsEnabled で gate。
   houseGoalPersonalityScale: number
@@ -288,6 +293,11 @@ export type SimulationConfig = {
   provinceRevoltLowHouseControlFactor: number
   provinceRevoltLowCountryControlFactor: number
   provinceRevoltStabilitySuppressionFactor: number
+  // v0.49: 領主家長・代官の統率/学識による反感低減。governorScore = command*0.5 + learning*0.5。
+  //   tendency -= (governorScore - revoltAbilityNeutralScore) * revoltAbilitySuppressionFactor。
+  //   有能 (80/80) な統治者は反乱傾向を大きく下げ、無能 (20) はむしろ煽る (対称項)。
+  revoltAbilitySuppressionFactor: number
+  revoltAbilityNeutralScore: number
   // ProvinceRevolt class-specific tendency
   peasantRevoltPovertyFactor: number
   peasantRevoltPressureFactor: number
@@ -910,6 +920,9 @@ export type SimulationConfig = {
   comfortableLocalExtractionRate: number
   minBailiffCollectionEfficiency: number
   baseBailiffCollectionEfficiency: number
+  // v0.49: 代官の stewardship が徴税効率に与える振れ幅。((stew-60)/60 clamp[-0.5,1]) * range を
+  //   base に加算。range を上げるほど有能代官と無能代官の徴収額差が開く (~2x 目標)。
+  bailiffStewardshipCollectionRange: number
   placeholderBailiffCollectionEfficiency: number
   collectionFrictionFactor: number
   maxBailiffFeeRate: number
@@ -1236,6 +1249,7 @@ export const defaultConfig: SimulationConfig = {
   newRulerHouseControl: 35,
   // v0.6 Person Ability Effects
   personAbilityEffectsEnabled: true,
+  abilityOutputExponent: 1.6,
   houseGoalPersonalityScale: 10,
   chancellorAdminControlGrowthEffect: 0.25,
   chancellorAdminControlMaxBonusPerAdmin: 1,
@@ -1243,8 +1257,8 @@ export const defaultConfig: SimulationConfig = {
   houseHeadAdminControlMaxBonusPerAdmin: 1,
   treasurerAdminTaxEfficiencyEffect: 0.15,
   treasurerCautionTaxEfficiencyEffect: 0.1,
-  treasurerTaxEfficiencyMin: 0.8,
-  treasurerTaxEfficiencyMax: 1.2,
+  treasurerTaxEfficiencyMin: 0.5,
+  treasurerTaxEfficiencyMax: 2.0,
   treasurerAdminDevelopmentCostEffect: 0.1,
   generalMartialWarPowerEffect: 0.15,
   generalAmbitionDeclareThresholdEffect: 0.1,
@@ -1459,6 +1473,8 @@ export const defaultConfig: SimulationConfig = {
   provinceRevoltLowHouseControlFactor: 0.2,
   provinceRevoltLowCountryControlFactor: 0.2,
   provinceRevoltStabilitySuppressionFactor: 0.2,
+  revoltAbilitySuppressionFactor: 0.4,
+  revoltAbilityNeutralScore: 50,
   // ProvinceRevolt class-specific tendency
   peasantRevoltPovertyFactor: 0.5,
   peasantRevoltPressureFactor: 10,
@@ -2075,6 +2091,7 @@ export const defaultConfig: SimulationConfig = {
   maxLocalExtractionRate: 0.8,
   comfortableLocalExtractionRate: 0.35,
   minBailiffCollectionEfficiency: 0.3,
+  bailiffStewardshipCollectionRange: 0.8,
   baseBailiffCollectionEfficiency: 0.55,
   placeholderBailiffCollectionEfficiency: 0.4,
   collectionFrictionFactor: 0.5,

@@ -24,6 +24,7 @@ import { worsenPopAttitudeTowardOwnerHouse } from '../mutations/attitudeMutation
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 import { getPolityLegitimacy, getPolityStability } from '../selectors/statusSelectors'
 import { getHoldingTerminalPolityId, isPlaceholderPerson } from '../selectors/landContractSelectors'
+import { getHouseLeader } from '../selectors/officeSelectors'
 import { createNegotiatingCommonwealth } from '../mutations/worldStructureMutations'
 import { defaultTaxRateByRank } from '../helpers/landContractHelpers'
 
@@ -46,6 +47,31 @@ function findHoldingPop(
   for (const popId of popIds) {
     const p = state.popGroups[popId]
     if (p && p.class === cls) return p
+  }
+  return undefined
+}
+
+// v0.49: 領地の実質統治者 (代官 > 領主家長) の統率/学識スコア。
+//   反乱傾向の低減に使う。command*0.5 + learning*0.5 (0-120)。不在なら undefined。
+function getHoldingGovernorAbilityScore(
+  state: WorldState,
+  holdingId: HoldingId,
+  ownerHouseId: HouseId,
+): number | undefined {
+  const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]
+  if (assignmentId) {
+    const assignment = state.holdingOfficeAssignments[assignmentId]
+    if (assignment && assignment.active && !isPlaceholderPerson(state, assignment.holderPersonId)) {
+      const bailiff = state.persons[assignment.holderPersonId]
+      if (bailiff && bailiff.alive) {
+        return bailiff.abilities.command * 0.5 + bailiff.abilities.learning * 0.5
+      }
+    }
+  }
+  const headId = getHouseLeader(state, ownerHouseId)
+  const head = headId ? state.persons[headId] : undefined
+  if (head && head.alive) {
+    return head.abilities.command * 0.5 + head.abilities.learning * 0.5
   }
   return undefined
 }
@@ -83,6 +109,13 @@ function calcHoldingRevoltTendency(
     (100 - polityControl) * config.provinceRevoltLowCountryControlFactor -
     getPolityStability(state, config, terminalPolityId) *
       config.provinceRevoltStabilitySuppressionFactor
+
+  // v0.49: 領主・代官の統率/学識による反感低減 (対称項: 有能ほど鎮静、無能ほど煽る)。
+  const governorScore = getHoldingGovernorAbilityScore(state, holdingId, ownerHouseId)
+  if (governorScore !== undefined) {
+    tendency -=
+      (governorScore - config.revoltAbilityNeutralScore) * config.revoltAbilitySuppressionFactor
+  }
 
   if (rebelClass === 'peasants') {
     if (pop.wealth < config.povertyWealthThreshold) {

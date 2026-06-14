@@ -1041,6 +1041,7 @@ revoltTendency =
   pop.unrest * unrestFactor
   + (100 - polityControl) * (provinceRevoltLowHouseControlFactor + provinceRevoltLowCountryControlFactor)  // 既定 0.2 + 0.2 = 0.4
   - stability * stabilityFactor
+  - (governorScore - revoltAbilityNeutralScore) * revoltAbilitySuppressionFactor   // v0.49: 統治者の統率/学識
   + [class 別補正]
   + taxBurden * taxBurdenWeight
   + recentTaxIncrease * weight * decay
@@ -1048,6 +1049,8 @@ revoltTendency =
 ```
 
 低 polityControl 項は `provinceRevoltLowHouseControlFactor`（0.2）と `provinceRevoltLowCountryControlFactor`（0.2）の 2 つの factor を同じ `(100 - polityControl)` に乗じて加算する（合計係数 0.4）。
+
+**v0.49 統治者の能力による反感低減**（`getHoldingGovernorAbilityScore`）: 領地の実質統治者の `command*0.5 + learning*0.5`（0..120）を `governorScore` とし、中立 `revoltAbilityNeutralScore`（既定 50）からの差に `revoltAbilitySuppressionFactor`（既定 0.4）を乗じて tendency から減算する（対称項: 有能 80/80 → -12 で鎮静、無能 20 → +12 で煽る）。統治者は **代官（holding の active な非placeholder bailiff）を優先**し、不在なら領主家長（`getHouseLeader(ownerHouse)`）に fallback。両者不在なら本項なし。「統率と学識の高い領主・代官は住民から反感を買いにくい」という人物中心史観（§10.0）の反乱版。
 
 taxBurden = `max(0, currentTaxRate - defaultTaxRateByRank(rank))`。
 
