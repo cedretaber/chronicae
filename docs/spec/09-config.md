@@ -232,18 +232,14 @@
 | **Person Ability Effects** | | |
 | personAbilityEffectsEnabled | true | 人物能力効果の有効/無効 |
 | abilityOutputExponent | 1.6 | v0.49: 統一非線形ファクター指数（§10.0）。`(roleScore/50)^exp`。内政成長/税効率/開発コスト/軍 power を一括スケール。80↔40 の成果比を約2x（現実プロファイル）〜3x（万能型）に。上げるほど能力差が誇張 |
-| chancellorAdminControlGrowthEffect | 0.25 | （v0.49 で未使用。abilityOutputFactor に置換） 宰相 admin による支配力成長補正係数 |
 | chancellorAdminControlMaxBonusPerAdmin | 1 | 宰相 admin 1 点あたりの支配力上限ボーナス |
-| houseHeadAdminControlGrowthEffect | 0.25 | 家長 admin による家支配力成長補正係数 |
 | houseHeadAdminControlMaxBonusPerAdmin | 1 | 家長 admin 1 点あたりの家支配力上限ボーナス |
 | controlAbilityMinimumFloor | 35 | 能力補正後の支配力上限最低値 |
-| treasurerAdminTaxEfficiencyEffect | 0.15 | 財務官 admin による税収効率補正係数 |
 | treasurerCautionTaxEfficiencyEffect | 0.10 | 財務官 caution による税収効率補正係数 |
 | treasurerTaxEfficiencyMin | 0.5 | 税収効率の最小値（v0.49 で 0.8→0.5、非線形化に伴い帯域拡張） |
 | treasurerTaxEfficiencyMax | 2.0 | 税収効率の最大値（v0.49 で 1.2→2.0） |
-| treasurerAdminDevelopmentCostEffect | 0.10 | 財務官 admin による開発コスト削減係数 |
-| generalMartialWarPowerEffect | 0.15 | 将軍 martial による戦闘力補正係数 |
 | generalAmbitionDeclareThresholdEffect | 0.10 | 将軍 ambition による宣戦閾値変動係数 |
+| (廃止 v0.49) chancellor/houseHead AdminControlGrowthEffect, treasurerAdminTaxEfficiencyEffect, treasurerAdminDevelopmentCostEffect, generalMartialWarPowerEffect | — | 旧線形係数。abilityOutputFactor (abilityOutputExponent 単一ノブ) に統合し削除 |
 | generalCautionDeclareThresholdEffect | 0.10 | 将軍 caution による宣戦閾値変動係数 |
 | minWarDeclareThreshold | 0.30 | 宣戦閾値の下限 |
 | maxWarDeclareThreshold | 0.75 | 宣戦閾値の上限 |
@@ -544,7 +540,6 @@
 | bailiffTaskCompletedRespectGain | 0.2 | Task completed 時の POP→代官 respect ボーナス |
 | bailiffAbilityRespectFactor | 0.006 | v0.49: 代官 competence(command*0.5+learning*0.5) と中立点の差 × この値で POP→代官 respect が増減（有能↑/低能力↓ = 軽蔑） |
 | bailiffRespectNeutralScore | 50 | v0.49: respect 能力ドリフトの中立点（competence がこれ未満で軽蔑方向） |
-| bailiffTaskNoneRespectPenalty | 0.05 | v0.49: 直近4週で徴税タスク未完了('none')時の POP→代官 respect ペナルティ |
 | bailiffRespectMaxDelta | 1.0 | v0.49: 1回の徴税サイクルでの respectDelta clamp 幅（±） |
 | **Project システム** | | |
 | projectDefaultTargetProgress | 100 | Project の標準 targetProgress |

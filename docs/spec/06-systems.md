@@ -237,13 +237,13 @@ if (policy === 'protect_residents') affectionDelta += config.bailiffProtectResid
 affectionDelta = clamp(affectionDelta, -1.0, 0.5)
 
 // v0.49 respect: 代官の「有能さ＋実績」で決まる（苛烈さ=affection とは独立）。
-//   苛斂誅求でも有能なら恐れつつ尊敬され、優しくても低能力で徴税に失敗し続ければ好かれても軽蔑される。
-const competence = bailiff.command * 0.5 + bailiff.learning * 0.5  // 0..120
+//   苛斂誅求でも有能なら恐れつつ尊敬され、低能力なら好かれても軽蔑される。軽蔑(負方向)は能力ドリフトが駆動。
+const competence = governanceCompetence(bailiff) // command*0.5 + learning*0.5、0..120
 respectDelta = (competence - config.bailiffRespectNeutralScore) * config.bailiffAbilityRespectFactor  // 有能↑/低能力↓
-              + (recentTaskStatus === 'completed'
-                   ? config.bailiffTaskCompletedRespectGain
-                   : -config.bailiffTaskNoneRespectPenalty)  // 実績で増減
+              + (recentTaskStatus === 'completed' ? config.bailiffTaskCompletedRespectGain : 0)  // 実績で加点
 respectDelta = clamp(respectDelta, -config.bailiffRespectMaxDelta, config.bailiffRespectMaxDelta)
+// NB: recentTaskStatus は 'completed'|'none' の2値。'none' は「直近4週に徴税タスク完了が無い(未割当含む)」で
+//     失敗ではないため減点しない（自動徴収できている有能代官を不当に軽蔑させない）。
 ```
 
 respect は **尊敬・軽蔑が蓄積される土台**として用意した段階で、これを読み取って何かを変える下流はまだ無い

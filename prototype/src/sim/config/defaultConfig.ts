@@ -95,16 +95,13 @@ export type SimulationConfig = {
   // 影響力個人中心化 Phase 3b: 家 goal-kind scoring に意志決定者 (decisionMaker) の性格を反映する量。
   // ambition→expand / caution→preserve。(trait-0.5)×scale (±scale/2)。personAbilityEffectsEnabled で gate。
   houseGoalPersonalityScale: number
-  chancellorAdminControlGrowthEffect: number
+  // v0.49: control growth / tax efficiency / dev cost / war power の旧線形係数は abilityOutputFactor
+  //   (abilityOutputExponent 単一ノブ) に置換され廃止。MaxBonus / Caution / DeclareThreshold 系は存続。
   chancellorAdminControlMaxBonusPerAdmin: number
-  houseHeadAdminControlGrowthEffect: number
   houseHeadAdminControlMaxBonusPerAdmin: number
-  treasurerAdminTaxEfficiencyEffect: number
   treasurerCautionTaxEfficiencyEffect: number
   treasurerTaxEfficiencyMin: number
   treasurerTaxEfficiencyMax: number
-  treasurerAdminDevelopmentCostEffect: number
-  generalMartialWarPowerEffect: number
   generalAmbitionDeclareThresholdEffect: number
   generalCautionDeclareThresholdEffect: number
   minWarDeclareThreshold: number
@@ -934,12 +931,11 @@ export type SimulationConfig = {
   bailiffProtectResidentsAffectionBonus: number
   bailiffTaskCompletedRespectGain: number
   // v0.49: 住民→代官の respect(尊敬/軽蔑) を「有能さ＋実績」で動かす(苛烈さ=affection とは独立軸)。
-  //   respectDelta = clamp((competence - bailiffRespectNeutralScore) * bailiffAbilityRespectFactor
-  //                        + (task完了 ? +Completed : -None), ±bailiffRespectMaxDelta)。
-  //   competence = command*0.5 + learning*0.5。有能なら尊敬↑、低能力かつ徴税未達なら軽蔑↓。
+  //   respectDelta = clamp((governanceCompetence - bailiffRespectNeutralScore) * bailiffAbilityRespectFactor
+  //                        + (task完了 ? +Completed : 0), ±bailiffRespectMaxDelta)。
+  //   competence = command*0.5 + learning*0.5。有能なら尊敬↑、低能力なら軽蔑↓(負ドリフトが駆動)。
   bailiffAbilityRespectFactor: number
   bailiffRespectNeutralScore: number
-  bailiffTaskNoneRespectPenalty: number
   bailiffRespectMaxDelta: number
   // v0.17 Office max (Polity rank x province count)
   polityOfficeMaxByRank: Record<PolityRank, Record<Exclude<OfficeRole, 'leader'>, number>>
@@ -1259,16 +1255,11 @@ export const defaultConfig: SimulationConfig = {
   personAbilityEffectsEnabled: true,
   abilityOutputExponent: 1.6,
   houseGoalPersonalityScale: 10,
-  chancellorAdminControlGrowthEffect: 0.25,
   chancellorAdminControlMaxBonusPerAdmin: 1,
-  houseHeadAdminControlGrowthEffect: 0.25,
   houseHeadAdminControlMaxBonusPerAdmin: 1,
-  treasurerAdminTaxEfficiencyEffect: 0.15,
   treasurerCautionTaxEfficiencyEffect: 0.1,
   treasurerTaxEfficiencyMin: 0.5,
   treasurerTaxEfficiencyMax: 2.0,
-  treasurerAdminDevelopmentCostEffect: 0.1,
-  generalMartialWarPowerEffect: 0.15,
   generalAmbitionDeclareThresholdEffect: 0.1,
   generalCautionDeclareThresholdEffect: 0.1,
   minWarDeclareThreshold: 0.3,
@@ -2113,7 +2104,6 @@ export const defaultConfig: SimulationConfig = {
   bailiffTaskCompletedRespectGain: 0.2,
   bailiffAbilityRespectFactor: 0.006,
   bailiffRespectNeutralScore: 50,
-  bailiffTaskNoneRespectPenalty: 0.05,
   bailiffRespectMaxDelta: 1.0,
   // v0.17 Office max
   // v0.17.1: rank の方向を spec §7.2 に合わせて修正。

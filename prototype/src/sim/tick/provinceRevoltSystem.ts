@@ -25,6 +25,11 @@ import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeH
 import { getPolityLegitimacy, getPolityStability } from '../selectors/statusSelectors'
 import { getHoldingTerminalPolityId, isPlaceholderPerson } from '../selectors/landContractSelectors'
 import { getHouseLeader } from '../selectors/officeSelectors'
+import {
+  getHoldingBailiff,
+  isHoldingOfficeVacantOrPlaceholder,
+} from '../selectors/provinceOfficeSelectors'
+import { governanceCompetence } from '../selectors/abilitySelectors'
 import { createNegotiatingCommonwealth } from '../mutations/worldStructureMutations'
 import { defaultTaxRateByRank } from '../helpers/landContractHelpers'
 
@@ -51,27 +56,24 @@ function findHoldingPop(
   return undefined
 }
 
-// v0.49: 領地の実質統治者 (代官 > 領主家長) の統率/学識スコア。
-//   反乱傾向の低減に使う。command*0.5 + learning*0.5 (0-120)。不在なら undefined。
+// v0.49: 領地の実質統治者 (代官 > 領主家長) の統率/学識スコア (governanceCompetence, 0-120)。
+//   反乱傾向の低減に使う。代官が非placeholder & active なら代官を、不在なら領主家長を見る。両者不在は undefined。
 function getHoldingGovernorAbilityScore(
   state: WorldState,
   holdingId: HoldingId,
   ownerHouseId: HouseId,
 ): number | undefined {
-  const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]
-  if (assignmentId) {
-    const assignment = state.holdingOfficeAssignments[assignmentId]
-    if (assignment && assignment.active && !isPlaceholderPerson(state, assignment.holderPersonId)) {
-      const bailiff = state.persons[assignment.holderPersonId]
-      if (bailiff && bailiff.alive) {
-        return bailiff.abilities.command * 0.5 + bailiff.abilities.learning * 0.5
-      }
+  const assignment = getHoldingBailiff(state, holdingId)
+  if (assignment && !isHoldingOfficeVacantOrPlaceholder(state, assignment)) {
+    const bailiff = state.persons[assignment.holderPersonId]
+    if (bailiff && bailiff.alive) {
+      return governanceCompetence(bailiff.abilities)
     }
   }
   const headId = getHouseLeader(state, ownerHouseId)
   const head = headId ? state.persons[headId] : undefined
   if (head && head.alive) {
-    return head.abilities.command * 0.5 + head.abilities.learning * 0.5
+    return governanceCompetence(head.abilities)
   }
   return undefined
 }

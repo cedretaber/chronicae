@@ -3,6 +3,7 @@ import type { ProvinceId, PolityId, PersonId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { PopClass } from '../types/popGroup'
 import { calcTreasurerTaxEfficiency } from '../selectors/personAbilityEffects'
+import { governanceCompetence } from '../selectors/abilitySelectors'
 import { getHoldingProduction, getProvinceProduction } from '../selectors/popEconomySelectors'
 import {
   getHoldingLandContractChain,
@@ -145,19 +146,19 @@ export function runLandRevenueSystem(ctx: TickContext): TickContext {
                 0.5,
               )
               // v0.49: respect(尊敬/軽蔑) は代官の「有能さ＋実績」で動かす。苛烈さ(affection)
-              //   とは独立軸 — 苛斂誅求でも有能なら恐れつつ尊敬され、優しくても低能力で徴税に
-              //   失敗し続ければ好かれても軽蔑される。
+              //   とは独立軸 — 苛斂誅求でも有能なら恐れつつ尊敬され、低能力なら好かれても軽蔑される。
+              //   軽蔑(負方向)は能力ドリフトが駆動する。task は completed の加点のみ — status は
+              //   'completed'|'none' の2値で 'none' は「直近4週にタスク完了が無い(未割当含む)」=失敗
+              //   ではないため、未完了を減点扱いにすると自動徴収できている有能代官まで不当に軽蔑される。
               const bailiffPerson = draft.persons[assignment.holderPersonId]
               const competence = bailiffPerson
-                ? bailiffPerson.abilities.command * 0.5 + bailiffPerson.abilities.learning * 0.5
+                ? governanceCompetence(bailiffPerson.abilities)
                 : ctx.config.bailiffRespectNeutralScore
               const abilityRespectDelta =
                 (competence - ctx.config.bailiffRespectNeutralScore) *
                 ctx.config.bailiffAbilityRespectFactor
               const taskRespectDelta =
-                recentTaskStatus === 'completed'
-                  ? ctx.config.bailiffTaskCompletedRespectGain
-                  : -ctx.config.bailiffTaskNoneRespectPenalty
+                recentTaskStatus === 'completed' ? ctx.config.bailiffTaskCompletedRespectGain : 0
               const respectDelta = clamp(
                 abilityRespectDelta + taskRespectDelta,
                 -ctx.config.bailiffRespectMaxDelta,
