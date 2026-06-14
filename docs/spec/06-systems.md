@@ -230,12 +230,24 @@ pop.wealth -= collectionFrictionBurdenRate * config.localExtractionWealthPenalty
 const burdenOverComfort = Math.max(0, totalBurdenRate - config.comfortableLocalExtractionRate)
 pop.unrest += burdenOverComfort * config.localExtractionUnrestGain
 
-// POP → Bailiff Attitude（通常人物代官のみ）
+// POP → Bailiff Attitude（通常人物代官のみ）。affection(好悪) と respect(尊敬/軽蔑) は独立軸。
+// affection: 徴税の苛烈さ(負担)と方針の優しさで決まる
 affectionDelta -= burdenOverComfort * config.bailiffBurdenAffectionPenaltyFactor
 if (policy === 'protect_residents') affectionDelta += config.bailiffProtectResidentsAffectionBonus
-if (recentTaskStatus === 'completed') respectDelta += config.bailiffTaskCompletedRespectGain
-// clamp: affection [-1.0, 0.5], respect [-0.5, 0.5]
+affectionDelta = clamp(affectionDelta, -1.0, 0.5)
+
+// v0.49 respect: 代官の「有能さ＋実績」で決まる（苛烈さ=affection とは独立）。
+//   苛斂誅求でも有能なら恐れつつ尊敬され、低能力なら好かれても軽蔑される。軽蔑(負方向)は能力ドリフトが駆動。
+const competence = governanceCompetence(bailiff) // command*0.5 + learning*0.5、0..120
+respectDelta = (competence - config.bailiffRespectNeutralScore) * config.bailiffAbilityRespectFactor  // 有能↑/低能力↓
+              + (recentTaskStatus === 'completed' ? config.bailiffTaskCompletedRespectGain : 0)  // 実績で加点
+respectDelta = clamp(respectDelta, -config.bailiffRespectMaxDelta, config.bailiffRespectMaxDelta)
+// NB: recentTaskStatus は 'completed'|'none' の2値。'none' は「直近4週に徴税タスク完了が無い(未割当含む)」で
+//     失敗ではないため減点しない（自動徴収できている有能代官を不当に軽蔑させない）。
 ```
+
+respect は **尊敬・軽蔑が蓄積される土台**として用意した段階で、これを読み取って何かを変える下流はまだ無い
+（反乱の代官罷免分岐 `decideRevoltDemand` は affection のみ参照）。将来 respect を参照する系を追加する。
 
 **6.4.5 retained wealth の POP 反映**
 
@@ -1041,6 +1053,7 @@ revoltTendency =
   pop.unrest * unrestFactor
   + (100 - polityControl) * (provinceRevoltLowHouseControlFactor + provinceRevoltLowCountryControlFactor)  // 既定 0.2 + 0.2 = 0.4
   - stability * stabilityFactor
+  - (governorScore - revoltAbilityNeutralScore) * revoltAbilitySuppressionFactor   // v0.49: 統治者の統率/学識
   + [class 別補正]
   + taxBurden * taxBurdenWeight
   + recentTaxIncrease * weight * decay
@@ -1048,6 +1061,8 @@ revoltTendency =
 ```
 
 低 polityControl 項は `provinceRevoltLowHouseControlFactor`（0.2）と `provinceRevoltLowCountryControlFactor`（0.2）の 2 つの factor を同じ `(100 - polityControl)` に乗じて加算する（合計係数 0.4）。
+
+**v0.49 統治者の能力による反感低減**（`getHoldingGovernorAbilityScore`）: 領地の実質統治者の `command*0.5 + learning*0.5`（0..120）を `governorScore` とし、中立 `revoltAbilityNeutralScore`（既定 50）からの差に `revoltAbilitySuppressionFactor`（既定 0.4）を乗じて tendency から減算する（対称項: 有能 80/80 → -12 で鎮静、無能 20 → +12 で煽る）。統治者は **代官（holding の active な非placeholder bailiff）を優先**し、不在なら領主家長（`getHouseLeader(ownerHouse)`）に fallback。両者不在なら本項なし。「統率と学識の高い領主・代官は住民から反感を買いにくい」という人物中心史観（§10.0）の反乱版。
 
 taxBurden = `max(0, currentTaxRate - defaultTaxRateByRank(rank))`。
 

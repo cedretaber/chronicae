@@ -231,18 +231,15 @@
 | landDevelopmentUnrestReduction | 1 | 土地開発によるスコア評価に用いる unrest 低下量 |
 | **Person Ability Effects** | | |
 | personAbilityEffectsEnabled | true | 人物能力効果の有効/無効 |
-| chancellorAdminControlGrowthEffect | 0.25 | 宰相 admin による支配力成長補正係数 |
+| abilityOutputExponent | 1.6 | v0.49: 統一非線形ファクター指数（§10.0）。`(roleScore/50)^exp`。内政成長/税効率/開発コスト/軍戦力推定(外交評価のみ)/adminPower を一括スケール。80↔40 の成果比を約2x（現実プロファイル）〜3x（万能型）に。上げるほど能力差が誇張 |
 | chancellorAdminControlMaxBonusPerAdmin | 1 | 宰相 admin 1 点あたりの支配力上限ボーナス |
-| houseHeadAdminControlGrowthEffect | 0.25 | 家長 admin による家支配力成長補正係数 |
 | houseHeadAdminControlMaxBonusPerAdmin | 1 | 家長 admin 1 点あたりの家支配力上限ボーナス |
 | controlAbilityMinimumFloor | 35 | 能力補正後の支配力上限最低値 |
-| treasurerAdminTaxEfficiencyEffect | 0.15 | 財務官 admin による税収効率補正係数 |
 | treasurerCautionTaxEfficiencyEffect | 0.10 | 財務官 caution による税収効率補正係数 |
-| treasurerTaxEfficiencyMin | 0.8 | 税収効率の最小値 |
-| treasurerTaxEfficiencyMax | 1.2 | 税収効率の最大値 |
-| treasurerAdminDevelopmentCostEffect | 0.10 | 財務官 admin による開発コスト削減係数 |
-| generalMartialWarPowerEffect | 0.15 | 将軍 martial による戦闘力補正係数 |
+| treasurerTaxEfficiencyMin | 0.5 | 税収効率の最小値（v0.49 で 0.8→0.5、非線形化に伴い帯域拡張） |
+| treasurerTaxEfficiencyMax | 2.0 | 税収効率の最大値（v0.49 で 1.2→2.0） |
 | generalAmbitionDeclareThresholdEffect | 0.10 | 将軍 ambition による宣戦閾値変動係数 |
+| (廃止 v0.49) chancellor/houseHead AdminControlGrowthEffect, treasurerAdminTaxEfficiencyEffect, treasurerAdminDevelopmentCostEffect, generalMartialWarPowerEffect | — | 旧線形係数。abilityOutputFactor (abilityOutputExponent 単一ノブ) に統合し削除 |
 | generalCautionDeclareThresholdEffect | 0.10 | 将軍 caution による宣戦閾値変動係数 |
 | minWarDeclareThreshold | 0.30 | 宣戦閾値の下限 |
 | maxWarDeclareThreshold | 0.75 | 宣戦閾値の上限 |
@@ -285,6 +282,8 @@
 | provinceRevoltLowHouseControlFactor | 0.2 | 低 houseControl の傾向加算係数 |
 | provinceRevoltLowCountryControlFactor | 0.2 | 低 polityControl の傾向加算係数 |
 | provinceRevoltStabilitySuppressionFactor | 0.2 | stability による傾向抑制係数 |
+| revoltAbilitySuppressionFactor | 0.4 | v0.49: 統治者(代官>領主家長)の統率/学識による反乱傾向の対称補正係数（§6 反乱・§10.0） |
+| revoltAbilityNeutralScore | 50 | v0.49: governorScore(command*0.5+learning*0.5) の中立点。これを超えると鎮静・下回ると煽る |
 | peasantRevoltPovertyFactor | 0.5 | peasants 貧困補正係数 |
 | peasantRevoltPressureFactor | 10 | peasants 人口圧補正係数 |
 | townsmenRevoltProductionFactor | 0.02 | townsmen 生産量補正係数 |
@@ -528,6 +527,7 @@
 | comfortableLocalExtractionRate | 0.35 | この totalBurdenRate 以下なら POP ペナルティなし |
 | minBailiffCollectionEfficiency | 0.30 | 徴税効率の下限 |
 | baseBailiffCollectionEfficiency | 0.55 | 徴税効率の基礎値 |
+| bailiffStewardshipCollectionRange | 0.8 | v0.49: 代官 stewardship が徴税効率に与える振れ幅。`clamp((stew-60)/60,-0.5,1) * range` を base に加算。能力80↔40 の徴収額差を ~1.8x に |
 | placeholderBailiffCollectionEfficiency | 0.40 | placeholder 代官の徴税効率 |
 | collectionFrictionFactor | 0.50 | 徴税摩擦係数（未徴収分の社会的損耗率） |
 | maxBailiffFeeRate | 0.25 | 代官取り分率の上限 |
@@ -538,6 +538,9 @@
 | bailiffBurdenAffectionPenaltyFactor | 2 | burdenOverComfort × この値で POP→代官 affection 低下 |
 | bailiffProtectResidentsAffectionBonus | 0.2 | protect_residents 時の POP→代官 affection ボーナス |
 | bailiffTaskCompletedRespectGain | 0.2 | Task completed 時の POP→代官 respect ボーナス |
+| bailiffAbilityRespectFactor | 0.006 | v0.49: 代官 competence(command*0.5+learning*0.5) と中立点の差 × この値で POP→代官 respect が増減（有能↑/低能力↓ = 軽蔑） |
+| bailiffRespectNeutralScore | 50 | v0.49: respect 能力ドリフトの中立点（competence がこれ未満で軽蔑方向） |
+| bailiffRespectMaxDelta | 1.0 | v0.49: 1回の徴税サイクルでの respectDelta clamp 幅（±） |
 | **Project システム** | | |
 | projectDefaultTargetProgress | 100 | Project の標準 targetProgress |
 | projectAdvanceProgressSuccess | 25 | advance_project 成功時の progress 加算量 |

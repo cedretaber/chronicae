@@ -14,7 +14,7 @@ import { isLivingPerson } from '@sim/types/person'
 import { getPolityTerritorialStatus } from '@sim/types/polity'
 import { attitudeValueToScore, getAttitudeOrDefault } from '@sim/helpers/attitudeHelpers'
 import { weightedAverage } from '@sim/selectors/statusSelectors'
-import { getRoleScore } from '@sim/selectors/abilitySelectors'
+import { getRoleScore, abilityOutputFactor } from '@sim/selectors/abilitySelectors'
 import { getPolityTerminalProvinceIds } from '@sim/selectors/landContractSelectors'
 
 function orgKey(org: OrganizationRef): string {
@@ -235,8 +235,12 @@ export function getEffectiveOfficeStat(
     holders.map((holderId) => {
       const office = findActiveOfficeFor(state, organization, role, holderId)
       const person = state.persons[holderId]
+      // v0.49: 内政成果も非線形ファクターで一貫スケール (spec §10.0)。中立 roleScore 50 → 5
+      //   (= 旧 50/10) を保つため factor*5。これで平均的役職保持者は不変、能力差のみ増幅。
       return {
-        value: person ? getRoleScore(state, person.id, 'governance') / 10 : 0,
+        value: person
+          ? abilityOutputFactor(getRoleScore(state, person.id, 'governance'), config) * 5
+          : 0,
         weight: office ? getOfficeHolderPower(state, office) : 0.01,
       }
     }),

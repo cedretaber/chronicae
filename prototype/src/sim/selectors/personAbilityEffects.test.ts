@@ -273,7 +273,7 @@ describe('normalizedTrait', () => {
 })
 
 describe('calcChancellorControlGrowthModifier', () => {
-  it('returns 1.25 with chancellor admin=10', () => {
+  it('returns (2)^exp with chancellor governance=100', () => {
     const { state, polity } = makeWorldState(
       {
         abilities: {
@@ -297,7 +297,7 @@ describe('calcChancellorControlGrowthModifier', () => {
     )
     const config = { ...defaultConfig }
     const result = calcChancellorControlGrowthModifier(state, polity.id, config)
-    expect(result).toBe(1.25)
+    expect(result).toBeCloseTo(2 ** defaultConfig.abilityOutputExponent, 6)
   })
 
   it('returns 1 with chancellor admin=5', () => {
@@ -327,7 +327,7 @@ describe('calcChancellorControlGrowthModifier', () => {
     expect(result).toBe(1)
   })
 
-  it('returns 0.75 with chancellor admin=0', () => {
+  it('returns 0 with chancellor governance=0', () => {
     const { state, polity } = makeWorldState(
       {
         abilities: { valor: 50, command: 50, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
@@ -337,7 +337,7 @@ describe('calcChancellorControlGrowthModifier', () => {
     )
     const config = { ...defaultConfig }
     const result = calcChancellorControlGrowthModifier(state, polity.id, config)
-    expect(result).toBe(0.75)
+    expect(result).toBe(0)
   })
 
   it('returns 1 with no chancellor (vacant)', () => {
@@ -472,7 +472,7 @@ describe('calcChancellorControlMaxBonus', () => {
 })
 
 describe('calcTreasurerTaxEfficiency', () => {
-  it('returns 1.2 with treasurer admin=10, caution=1.0 (clamped)', () => {
+  it('returns clamped max with treasurer stewardship=100, caution=1.0', () => {
     const { state, polity } = makeWorldState(
       {
         abilities: {
@@ -497,7 +497,7 @@ describe('calcTreasurerTaxEfficiency', () => {
     )
     const config = { ...defaultConfig }
     const result = calcTreasurerTaxEfficiency(state, polity.id, config)
-    expect(result).toBe(1.2)
+    expect(result).toBe(defaultConfig.treasurerTaxEfficiencyMax)
   })
 
   it('returns 1.0 with treasurer admin=5, caution=0.5', () => {
@@ -528,7 +528,7 @@ describe('calcTreasurerTaxEfficiency', () => {
     expect(result).toBe(1.0)
   })
 
-  it('returns 0.8 with treasurer admin=0, caution=0.0 (clamped)', () => {
+  it('returns clamped min with treasurer stewardship=0, caution=0.0', () => {
     const { state, polity } = makeWorldState(
       {
         abilities: { valor: 50, command: 50, numeracy: 0, learning: 0, charisma: 0, insight: 0 },
@@ -539,7 +539,7 @@ describe('calcTreasurerTaxEfficiency', () => {
     )
     const config = { ...defaultConfig }
     const result = calcTreasurerTaxEfficiency(state, polity.id, config)
-    expect(result).toBe(0.8)
+    expect(result).toBe(defaultConfig.treasurerTaxEfficiencyMin)
   })
 
   it('returns 1.0 with no treasurer', () => {
@@ -579,7 +579,7 @@ describe('calcTreasurerTaxEfficiency', () => {
 })
 
 describe('calcGeneralWarPowerModifier', () => {
-  it('returns 1.15 with general martial=10', () => {
+  it('returns (2)^exp with general warCommand=100', () => {
     const { state, polity } = makeWorldState(
       {
         abilities: {
@@ -603,7 +603,7 @@ describe('calcGeneralWarPowerModifier', () => {
     )
     const config = { ...defaultConfig }
     const result = calcGeneralWarPowerModifier(state, polity.id, config)
-    expect(result).toBe(1.15)
+    expect(result).toBeCloseTo(2 ** defaultConfig.abilityOutputExponent, 6)
   })
 
   it('returns 1 with general martial=5', () => {
@@ -633,7 +633,7 @@ describe('calcGeneralWarPowerModifier', () => {
     expect(result).toBe(1)
   })
 
-  it('returns 0.85 with general martial=0', () => {
+  it('returns 0 with general warCommand=0', () => {
     const { state, polity } = makeWorldState(
       {
         abilities: { valor: 0, command: 0, numeracy: 50, learning: 0, charisma: 50, insight: 0 },
@@ -643,7 +643,7 @@ describe('calcGeneralWarPowerModifier', () => {
     )
     const config = { ...defaultConfig }
     const result = calcGeneralWarPowerModifier(state, polity.id, config)
-    expect(result).toBe(0.85)
+    expect(result).toBe(0)
   })
 
   it('returns 1 with no general', () => {

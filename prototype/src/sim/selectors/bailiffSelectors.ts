@@ -165,8 +165,11 @@ export function getBailiffCollectionEfficiency(
   const a = person.abilities
   const t = person.traits
 
+  // v0.49: stewardship を 60 中立の対称項にし、有能代官と無能代官の徴収額差を ~2x まで開く。
+  //   stew78(能力80) → +0.3*range, stew42(能力40) → -0.3*range。
+  const stewardshipBand = clamp((stewardship - 60) / 60, -0.5, 1)
   const skillModifier =
-    (stewardship / 120) * 0.25 +
+    stewardshipBand * config.bailiffStewardshipCollectionRange +
     (a.command / 120) * 0.05 +
     (a.charisma / 120) * 0.05 +
     t.caution * 0.05

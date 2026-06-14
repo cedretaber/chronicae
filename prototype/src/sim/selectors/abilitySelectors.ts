@@ -34,6 +34,22 @@ export function getRoleScore(state: WorldState, personId: PersonId, role: Applie
   return getRoleScoreFromAbilities(person.abilities, role)
 }
 
+// v0.49: 統治者(領主・代官)の「統率＋学識」競争力スコア (0..120)。住民の反乱抑制 (provinceRevolt) と
+//   尊敬/軽蔑 (landRevenue の respect) で共通に使う。ROLE_WEIGHTS の定義 role ではない ad-hoc 合成だが、
+//   「統率と学識の高い統治者は反感を買いにくく尊敬される」という人物中心史観の単一定義として切り出す。
+export function governanceCompetence(abilities: AbilityScores): number {
+  return abilities.command * 0.5 + abilities.learning * 0.5
+}
+
+// v0.49: 能力中心史観の統一非線形ファクター (spec §10.0)。roleScore(0-120) → 50 中立の乗数。
+//   factor = (clamp(score,0,120)/50)^exponent。score50→1.0 (平均不変), 80→2.12, 40→0.70 (exp=1.6)。
+//   personAbilityEffectsEnabled OFF 時は 1.0。内政成長/徴税効率/開発コスト/軍 power/adminPower を一括スケール。
+export function abilityOutputFactor(roleScore: number, config: SimulationConfig): number {
+  if (!config.personAbilityEffectsEnabled) return 1
+  const clamped = roleScore < 0 ? 0 : roleScore > 120 ? 120 : roleScore
+  return Math.pow(clamped / 50, config.abilityOutputExponent)
+}
+
 export function naturalFraction(k: AbilityKey, age: number, config: SimulationConfig): number {
   const curve = ABILITY_AGE_CURVES[k]
   if (curve === 'lifelongGrowth') {

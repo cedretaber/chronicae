@@ -2,13 +2,33 @@
 
 `personAbilityEffectsEnabled` が false の場合、全関数は中立値（倍率 1.0、ボーナス 0）を返す。
 
-各効果計算は `getRoleScore(state, p.id, role) / 10` を `0..10` スケールに正規化して入力する。効果ごとに参照する role は次のとおり。
+各効果計算は `getRoleScore(state, p.id, role)`（0..120）を入力する。効果ごとに参照する role は次のとおり。
 
 | 効果 | 入力 |
 |---|---|
-| chancellor effect | `getRoleScore(state, p.id, 'governance') / 10` |
-| treasurer effect | `getRoleScore(state, p.id, 'stewardship') / 10` |
-| general effect | `getRoleScore(state, p.id, 'warCommand') / 10` |
+| chancellor effect | `getRoleScore(state, p.id, 'governance')` |
+| treasurer effect | `getRoleScore(state, p.id, 'stewardship')` |
+| general effect | `getRoleScore(state, p.id, 'warCommand')` |
+
+### 10.0 統一非線形ファクター（v0.49 — 人物中心史観）
+
+> **v0.49 でこう拡張**: 内政成長・国庫税効率・開発コスト・軍戦力推定(外交評価のみ。実戦闘は§10.5 NB 参照で未強化)・代官徴税効率・`getPolityAdminPower`
+> （= 征服/開発/収益ドライバ。`getEffectiveOfficeStat` 経由）・民衆反乱傾向の主要倍率を、50 中立の非線形
+> ファクター `abilityOutputFactor` に統一した。狙いは「優秀な人物がいたから上手くいった」を観賞対象として
+> 明確に見せること（KOEI 風）。旧 `1 + normalizedStat × 係数`（80↔40 で約 1.1〜1.2x）では能力差が体感できなかった。
+
+```ts
+abilityOutputFactor(roleScore, config):
+  if (!personAbilityEffectsEnabled) return 1
+  return (clamp(roleScore, 0, 120) / 50) ** abilityOutputExponent
+// roleScore 50 → 1.0（平均は不変＝経済全体のインフレを避ける）
+// roleScore 0 → 0,  80 → 2.12,  100 → 3.03,  120 → 4.06 （exponent=1.6）
+```
+
+**較正の根拠**（CLI 実測）: `abilityOutputExponent = 1.6` のとき、関連2能力のみ 80 / 40 で他能力が平均(50)の
+現実的プロファイルでは合成 roleScore が 68 / 44 となり、ファクター比は **2.01x**（ユーザー目標「80 は 40 の
+約2倍」に一致）。全能力が揃って高い人物では 80 vs 40 = **3.03x** とより誇張される（「やや過剰に」を満たす）。
+exponent を上げるほど能力差が誇張される単一ノブ。
 
 ### 10.1 正規化関数
 
@@ -29,18 +49,18 @@ normalizedTrait(value: number): number  // value - 0.5      → -0.5 (trait=0.0)
 
 ### 10.3 ControlSystem への効果
 
-**Polity administrator（Chancellor）→ polityControl**:
+**Polity administrator（Chancellor）→ polityControl**（v0.49 で growthModifier を非線形ファクター化）:
 ```ts
-growthModifier = 1 + normalizedStat(admin) * chancellorAdminControlGrowthEffect
-maxControlBonus = (admin - 5) * chancellorAdminControlMaxBonusPerAdmin
+growthModifier = abilityOutputFactor(getRoleScore(admin, 'governance'), config)  // §10.0
+maxControlBonus = (admin/10 - 5) * chancellorAdminControlMaxBonusPerAdmin        // 旧式据え置き（二次的）
 ```
 
-control 効果は `getFirstActiveLivingOfficeHolder` で得た最初の生存役職保持者の governance 由来スコアを使う（単一保持者。複数担当者の集約は行わない）。
+control 効果は `getFirstActiveLivingOfficeHolder` で得た最初の生存役職保持者の governance 由来スコアを使う（単一保持者。複数担当者の集約は行わない）。役職空席時は roleScore=50（factor 1.0、中立）。
 
 **家長（house:leader）→ houseControl**:
 ```ts
-growthModifier = 1 + normalizedStat(admin) * houseHeadAdminControlGrowthEffect
-maxControlBonus = (admin - 5) * houseHeadAdminControlMaxBonusPerAdmin
+growthModifier = abilityOutputFactor(getRoleScore(head, 'governance'), config)   // §10.0
+maxControlBonus = (admin/10 - 5) * houseHeadAdminControlMaxBonusPerAdmin          // 旧式据え置き
 ```
 
 支配力上限は二段階 clamp:
@@ -52,29 +72,41 @@ maxControl     = clamp(baseMaxControl + maxControlBonus, controlAbilityMinimumFl
 
 ### 10.4 LandRevenue / PolitySurplus への効果
 
-**Polity treasurer → 国庫税収効率**:
+**Polity treasurer → 国庫税収効率**（v0.49 で非線形ファクター化。clamp 帯域を [0.5, 2.0] に拡張）:
 ```ts
 taxEfficiency = clamp(
-  1 + normalizedStat(admin) * treasurerAdminTaxEfficiencyEffect
-    + normalizedTrait(caution) * treasurerCautionTaxEfficiencyEffect,
-  treasurerTaxEfficiencyMin,
-  treasurerTaxEfficiencyMax,
+  abilityOutputFactor(getRoleScore(treasurer, 'stewardship'), config)             // §10.0
+    * (1 + normalizedTrait(caution) * treasurerCautionTaxEfficiencyEffect),
+  treasurerTaxEfficiencyMin,   // 0.5 (旧 0.8)
+  treasurerTaxEfficiencyMax,   // 2.0 (旧 1.2)
 )
 // 国庫収入 *= taxEfficiency。家収入・POP wealth への影響なし
 ```
 
-**Polity treasurer → Polity土地開発コスト**（`calcTreasurerDevelopmentCostModifier`、現状未参照（将来の活用余地として保持））:
+**Polity treasurer → Polity土地開発コスト**（`calcTreasurerDevelopmentCostModifier`、現状未参照（将来の活用余地として保持）。v0.49 で非線形化）:
 ```ts
-costModifier = 1 - normalizedStat(admin) * treasurerAdminDevelopmentCostEffect
+costModifier = clamp(2 - abilityOutputFactor(getRoleScore(treasurer, 'stewardship'), config), 0.2, 2)
 effectiveCost = max(1, round(polityLandDevelopmentBaseCost * costModifier))
+// 有能(factor>1)ほどコスト<1。下限 0.2 で過剰割引を防ぐ
 ```
 
 ### 10.5 War / Battle への効果
 
-**Polity military（General）→ 戦闘力**:
+**Polity military（General）→ 戦力推定（外交評価のみ。v0.49 で非線形ファクター化）**:
 ```ts
-warPowerModifier = 1 + normalizedStat(martial) * generalMartialWarPowerEffect
-// 攻撃側・防衛側それぞれ独立して適用
+warPowerModifier = abilityOutputFactor(getRoleScore(military, 'warCommand'), config)  // §10.0
+// ⚠️ この modifier の消費先は diplomaticOfferEvaluation のみ（AI が開戦/交渉で相手・自軍の戦力を
+//    推定する値）。実際の戦闘決着 (simulateBattle) や AI 戦争判断 (calcPolityMilitaryPower 比較) には
+//    効かない。したがって v0.49 では「有能な将軍 → 外交で強く見える」までで、「戦闘に勝つ」は未達。
+//
+// 実戦闘の能力影響（未強化・将来課題）:
+//   - simulateBattle の commanderQ = ±commanderAssignedRegimentEffectMax(0.15)（80 vs 40 ≈ 1.12x）
+//   - calcHouseMilitaryPower の commanderModifier = 旧線形 (1 + normalizedStat × houseCommanderMartialEffect)
+//   これらは「連隊戦闘バランス保留」領域（battlefield/commander/attrition/logistics が揃ってから調整）の
+//   ため v0.49 では意図的に据え置き。戦争の能力2倍化は当該フェーズで commanderQ / commanderModifier を
+//   非線形化して実現する（ユーザー判断 2026-06-14: 今は外交評価のみで保留）。
+//
+// 外交・陰謀の成功判定への能力導入も別 PR（v0.49 スコープ外）。
 ```
 
 **Polity military → 宣戦閾値**（`calcGeneralDeclareThreshold`。v0.42 で WarCreationSystem §6.44 の開戦ゲートに配線。攻撃側 polity の military 官の性格で勝率しきい値を調整する）:

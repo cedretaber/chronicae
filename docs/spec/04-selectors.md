@@ -202,6 +202,12 @@ function getPersonPrestige(state: WorldState, personId: PersonId): number
 //   treasurerContrib = getEffectiveOfficeStat(treasurer)   * treasurerCapacityFactor
 //   adminEfficiency  = getAdministrativeEfficiency(...)
 //   各 stat は getEffectiveOfficeStat（役職担当者の能力・人数・協調ペナルティを考慮）
+//   v0.49: getEffectiveOfficeStat の能力換算を非線形化（spec §10.0）。
+//     value = abilityOutputFactor(getRoleScore(governance), config) * 5
+//     （中立 roleScore 50 → 5 = 旧 50/10。平均的役職保持者は不変、能力差のみ ~2x に増幅）。
+//     これで adminPower 経由の征服・開発・収益も人物能力に一貫して連動する。
+//     なお adminPower は stability/prestige/treasury の institutional 項と混合するため、
+//     polity 全体の実効 adminPower 比は stat 比（2x）より緩やかになる（制度の寄与は意図的）。
 function getPolityAdminPower(state: WorldState, config: SimulationConfig, polityId: PolityId): number
 ```
 
