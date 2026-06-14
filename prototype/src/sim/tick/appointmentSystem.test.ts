@@ -689,6 +689,125 @@ describe('runAppointmentSystem', () => {
     expect(countEvents(result.events, 'OFFICE_ASSIGNED')).toBeGreaterThan(0)
   })
 
+  it('v0.50: a nested child-faction leader (sub-leader) is lifted into the parent umbrella and appointed via the factional path', () => {
+    // 親 faction は owner house の influence で高 NP。子 faction の leader subLeader は polity と
+    // 無関係な別 house に属するため traditional cache (owner house メンバーのみ) には入らず、
+    // traditional 経路では決して着座できない。着座すれば「親 umbrella の副官引き上げ
+    // (collectSubtreeLeaderWeights)」経路の証明になる。
+    const polityId = createPolityId('c', 0)
+    const houseId = createHouseId('h', 0)
+    const outsiderHouseId = createHouseId('h', 1) // polity と無関係な house
+    const rulerId = createPersonId('pe', 0)
+    const parentLeaderId = createPersonId('pe', 2)
+    const subLeaderId = createPersonId('pe', 3) // outsider house の子派閥 leader
+    const parentFactionId = createFactionId(0)
+    const childFactionId = createFactionId(1)
+
+    let state = makeEmptyV016State()
+    state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
+    state = withProvince(state, createProvinceId('p', 0), { nameKey: 'P0' })
+    state = withHouse(state, houseId, {
+      nameKey: 'Owner House',
+      memberIds: [rulerId, parentLeaderId],
+      legacyPrestige: 50,
+      seatProvinceId: createProvinceId('p', 0),
+    })
+    state = withHouse(state, outsiderHouseId, {
+      nameKey: 'Outsider House',
+      memberIds: [subLeaderId],
+      legacyPrestige: 20,
+    })
+    state = withPolity(state, polityId, {
+      ownerHouseId: houseId,
+      treasury: 100,
+      legacyPrestige: 50,
+      adminPower: 10,
+      capitalProvinceId: createProvinceId('p', 0),
+    })
+    state = bindProvinceToHouseViaPolity(state, createProvinceId('p', 0), polityId, houseId)
+    state = withPerson(state, rulerId, {
+      nameKey: 'Ruler',
+      houseId,
+      birthStatus: 'unknown',
+      legacyPrestige: 30,
+    })
+    state = withPerson(state, parentLeaderId, {
+      nameKey: 'ParentLeader',
+      age: 40,
+      houseId,
+      birthStatus: 'unknown',
+      legacyPrestige: 50,
+    })
+    // subLeader: outsider house 所属だが高能力 (administrator 適性 = numeracy/learning)。
+    state = withPerson(state, subLeaderId, {
+      nameKey: 'SubLeader',
+      age: 35,
+      houseId: outsiderHouseId,
+      birthStatus: 'unknown',
+      legacyPrestige: 60,
+      abilities: { valor: 50, command: 50, numeracy: 95, learning: 95, charisma: 90, insight: 90 },
+    })
+    // 親 faction: owner house の parentLeader が率いる (house influence → 高 NP)。
+    state.factions[parentFactionId] = {
+      id: parentFactionId,
+      leaderPersonId: parentLeaderId,
+      polityId,
+      active: true,
+      foundingWeek: 69311,
+    }
+    state.factionIndex.byLeader[parentLeaderId] = [parentFactionId]
+    // 子 faction: outsider house の subLeader が率い、親の傘下に attach。
+    // 子 faction 自体の NP は低い (subLeader の outsider house は polity influence を持たない)
+    // ため閾値未満 → 子 faction 単独では候補化されない。subLeader は親 umbrella 経由でのみ届く。
+    state.factions[childFactionId] = {
+      id: childFactionId,
+      leaderPersonId: subLeaderId,
+      polityId,
+      active: true,
+      foundingWeek: 69311,
+      parentFactionId,
+    }
+    // subLeader の self-membership (実 sim のリーダー不変条件を反映)。
+    const childMembershipId = createFactionMembershipId(7)
+    state.factionMemberships[childMembershipId] = {
+      id: childMembershipId,
+      factionId: childFactionId,
+      personId: subLeaderId,
+      active: true,
+      joinedWeek: 69311,
+    }
+    state.factionIndex.byMember[subLeaderId] = [childMembershipId]
+    state.factionIndex.byLeader[subLeaderId] = [childFactionId]
+    state.factionIndex.byParent[parentFactionId] = [childFactionId]
+
+    const leaderOfficeId = createOfficeAssignmentId(99)
+    const stateWithLeader: WorldState = {
+      ...state,
+      officeAssignments: {
+        [leaderOfficeId]: {
+          id: leaderOfficeId,
+          organization: { kind: 'polity', id: polityId },
+          role: 'leader',
+          holderPersonId: rulerId,
+          active: true,
+          startYear: 1444,
+          slotIndex: 0,
+          unpaidCount: 0,
+        },
+      },
+      officeIndex: {
+        byOrganization: { [`polity:${polityId}`]: [leaderOfficeId] },
+        byHolderPerson: { [rulerId]: [leaderOfficeId] },
+      },
+    }
+
+    const ctx = buildCtx(stateWithLeader, { ...defaultConfig })
+    const result = toResult(runAppointmentSystem(ctx))
+
+    // houseless な subLeader が着座 = 親 umbrella の副官引き上げ経路が機能した証明。
+    expect(holdsOfficeRole(result.state, subLeaderId, 'administrator')).toBe(true)
+  })
+
   it('falls back to traditional path when factional candidates are below minAppointmentScore', () => {
     const polityId = createPolityId('c', 0)
     const houseId = createHouseId('h', 0)

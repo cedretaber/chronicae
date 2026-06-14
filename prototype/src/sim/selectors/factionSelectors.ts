@@ -307,6 +307,10 @@ function clamp01(n: number): number {
 //   own (depth 0) = weight 1.0、子孫は discount^depth。BFS で深さ昇順・faction-id 昇順。
 //   各 person は §4.4 で 1 membership のみ = subtree 内で 1 度しか現れない (dedup 不要)。
 // 親が子孫から人材を吸い上げ、傘の規模が NP / 候補プールに反映される (§4.2-4.3)。
+// NOTE: faction leader は own faction の memberIds に self-membership を持つ (設立時に作られ、
+//   removeDeadMemberships が生存リーダー分を保持、昇格新リーダーも membership を保つ)。よって
+//   getFactionActiveMemberIds が各派閥の leader を返すため、子孫派閥の leader (=副官) は
+//   この member ループで既に集まり、NP / bailiff 候補プールに自然に乗る (専用の leader 追加は不要)。
 export function collectSubtreeMemberWeights(
   state: WorldState,
   config: SimulationConfig,
@@ -324,6 +328,49 @@ export function collectSubtreeMemberWeights(
     for (const fid of [...frontier].sort()) {
       for (const mid of getFactionActiveMemberIds(state, fid)) {
         result.push({ memberId: mid, weight })
+      }
+      for (const cid of state.factionIndex.byParent[fid] ?? []) {
+        const child = state.factions[cid]
+        if (!child || !child.active) continue
+        if (visited.has(cid)) continue
+        visited.add(cid)
+        next.push(cid)
+      }
+    }
+    frontier = next
+    depth++
+  }
+  return result
+}
+
+// v0.50「副官のみ引き上げ」: factionId の子孫 (depth>=1) の active leader だけを深さ重み付きで集める。
+//   own (depth 0) の leader = patron は含めない。collectSubtreeMemberWeights と同じ BFS 順序で決定的。
+//   用途は polity 役職の factional 経路だけ: collectFactionalCandidates は「親の自前メンバー」しか
+//   見ず subtree を辿らないため、子孫派閥の leader は (self-membership があっても親の memberIds には
+//   居らず) polity 候補に入らない。この関数が親 umbrella の候補に副官を追加する。子孫の一般メンバーは
+//   polity には流入させない (§8 の広域再帰は保留)。NP / bailiff 側は collectSubtreeMemberWeights が
+//   subtree 全 member (= 各派閥の leader 含む) を辿るので、この関数は使わない。
+export function collectSubtreeLeaderWeights(
+  state: WorldState,
+  config: SimulationConfig,
+  factionId: FactionId,
+): { leaderId: PersonId; weight: number }[] {
+  const discount = config.factionNestingNpDiscount
+  const result: { leaderId: PersonId; weight: number }[] = []
+  let frontier: FactionId[] = [factionId]
+  let depth = 0
+  const visited = new Set<string>([factionId])
+  const addedLeaders = new Set<string>()
+  while (frontier.length > 0 && depth <= config.factionNestingMaxDepth) {
+    const weight = Math.pow(discount, depth)
+    const next: FactionId[] = []
+    for (const fid of [...frontier].sort()) {
+      if (depth >= 1) {
+        const f = state.factions[fid]
+        if (f && f.active && !addedLeaders.has(f.leaderPersonId)) {
+          addedLeaders.add(f.leaderPersonId)
+          result.push({ leaderId: f.leaderPersonId, weight })
+        }
       }
       for (const cid of state.factionIndex.byParent[fid] ?? []) {
         const child = state.factions[cid]
