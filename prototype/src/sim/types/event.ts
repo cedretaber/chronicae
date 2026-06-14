@@ -60,6 +60,8 @@ export type EventType =
   | 'BAILIFF_APPOINTED'
   | 'BAILIFF_VACATED'
   | 'BAILIFF_PLACEHOLDER_INSTALLED'
+  // v0.48: 民衆反乱の代官罷免要求が成功し、代官が罷免された
+  | 'BAILIFF_DISMISSED_BY_REVOLT'
   | 'POLITY_LANDLESS'
   | 'FACTION_FOUNDED'
   | 'FACTION_DISSOLVED'
@@ -371,6 +373,8 @@ const EVENT_TEMPLATES: Record<string, string> = {
     'The revolt in {{province}} has been suppressed — its leader {{aftermathText}}, and the province returns to {{restorePolity}}.',
   'revolt.escalated': 'The revolt in {{province}} has escalated to armed conflict.',
   'revolt.regime_changed': 'The regime in {{province}} has been overthrown by popular revolt.',
+  'revolt.tax_relief_fizzled':
+    'The tax revolt in {{province}} fizzled out — {{restorePolity}} made no concession, leaving lasting resentment.',
   'diplomatic_play.started_with_offer':
     '{{initiator}} negotiates with {{target}} for {{province}}.',
   'diplomatic_play.started_no_offer': '{{initiator}} pressures {{target}} to cede {{province}}.',
@@ -405,6 +409,8 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'bailiff.appointed': '{{person}} was appointed bailiff of {{province}}.',
   'bailiff.vacated': '{{person}} stepped down as bailiff of {{province}}.',
   'bailiff.placeholder_installed': 'An anonymous placeholder oversees {{province}}.',
+  'bailiff.dismissed_by_revolt':
+    '{{person}} was dismissed as bailiff of {{province}} under popular pressure.',
   'faction.founded': '{{person}} founded the faction {{faction}}.',
   'faction.dissolved': "{{leader}}'s faction dissolved ({{reason}}).",
   'faction.leader_changed': '{{newLeader}} succeeded {{oldLeader}} as the head of {{faction}}.',

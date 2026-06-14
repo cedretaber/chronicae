@@ -93,6 +93,14 @@ export function applyDemand(
 
     case 'popular_tax_relief':
       return ctx
+
+    // v0.48: 代官罷免・独立は revolt_negotiation の env-factor 経路 (diplomaticPlayRevolt) で
+    //   決着するため、offer 適用経路では no-op。
+    case 'bailiff_dismissal':
+      return ctx
+
+    case 'secession':
+      return ctx
   }
 }
 

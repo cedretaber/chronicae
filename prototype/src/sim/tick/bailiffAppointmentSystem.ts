@@ -29,6 +29,23 @@ import {
 } from '../selectors/republicSelectors'
 import { getHoldingOfficeAppointmentRight } from '../selectors/politicalRightSelectors'
 import { isRoleEligibleBySex } from '../selectors/roleEligibilitySelectors'
+import { getPersonReputationModifierForCategories } from '../selectors/personReputationSelectors'
+import type { Person } from '../types/person'
+
+// v0.48 S2-4: bailiff 候補のソートスコア。能力 (numeracy + insight) に stewardship 評判 modifier を
+//   加味する。民衆反乱で罷免された代官は負の stewardship 評判を負い、回復するまで後順位化される
+//   (事実上の再任用クールダウン。別フィールド不要・評判の月次減衰で自然回復)。officeReputationScoreFactor
+//   (0.25) で実効 ±5 にスケールし、能力差を覆さない控えめな nudge に留める。
+function bailiffAbilityScore(state: WorldState, config: SimulationConfig, person: Person): number {
+  const stewardshipMod = getPersonReputationModifierForCategories(state, config, person.id, [
+    'stewardship',
+  ])
+  return (
+    person.abilities.numeracy +
+    person.abilities.insight +
+    stewardshipMod * config.officeReputationScoreFactor
+  )
+}
 
 // v0.17.1 §15.3: bailiff 任命用の OfficeRole alias。
 // getFactionNominationPower / getFactionalCandidateScore は role 引数を `void role` で
@@ -161,8 +178,8 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
           !hasActiveHoldingOffice(currentCtx.state, p.id),
       )
       .sort((a, b) => {
-        const aScore = a.abilities.numeracy + a.abilities.insight
-        const bScore = b.abilities.numeracy + b.abilities.insight
+        const aScore = bailiffAbilityScore(currentCtx.state, currentCtx.config, a)
+        const bScore = bailiffAbilityScore(currentCtx.state, currentCtx.config, b)
         if (bScore !== aScore) return bScore - aScore
         return a.id.localeCompare(b.id)
       })
@@ -213,8 +230,8 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
                 passes(p.id),
             )
             .sort((a, b) => {
-              const aScore = a.abilities.numeracy + a.abilities.insight
-              const bScore = b.abilities.numeracy + b.abilities.insight
+              const aScore = bailiffAbilityScore(currentCtx.state, currentCtx.config, a)
+              const bScore = bailiffAbilityScore(currentCtx.state, currentCtx.config, b)
               if (bScore !== aScore) return bScore - aScore
               return a.id.localeCompare(b.id)
             })
@@ -302,7 +319,11 @@ function collectBailiffFactionalCandidates(
         polityRef,
         BAILIFF_ROLE_ALIAS,
       )
-      const score = raw * config.factionBailiffNominationWeight * depthWeight
+      // v0.48 S2-4: 罷免代官の負 stewardship 評判を加味 (factional 経路も後順位化)。
+      const stewardshipMod =
+        getPersonReputationModifierForCategories(state, config, mid, ['stewardship']) *
+        config.officeReputationScoreFactor
+      const score = raw * config.factionBailiffNominationWeight * depthWeight + stewardshipMod
       const prev = byId.get(mid)
       if (!prev || score > prev.score) byId.set(mid, { id: mid, score })
     }

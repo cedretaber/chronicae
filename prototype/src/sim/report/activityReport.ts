@@ -417,6 +417,7 @@ function buildBailiffReport(
 
   let totalAppointments = 0
   let totalVacated = 0
+  let totalDismissedByRevolt = 0
   let totalPlaceholderInstalled = 0
   let ownerHouseSource = 0
   let otherHouseSource = 0
@@ -435,6 +436,8 @@ function buildBailiffReport(
       }
     } else if (e.type === 'BAILIFF_VACATED') {
       totalVacated++
+    } else if (e.type === 'BAILIFF_DISMISSED_BY_REVOLT') {
+      totalDismissedByRevolt++
     } else if (e.type === 'BAILIFF_PLACEHOLDER_INSTALLED') {
       totalPlaceholderInstalled++
     }
@@ -446,6 +449,7 @@ function buildBailiffReport(
     finalVacantCount,
     totalAppointments,
     totalVacated,
+    totalDismissedByRevolt,
     totalPlaceholderInstalled,
     appointmentBySource: {
       ownerHouse: ownerHouseSource,

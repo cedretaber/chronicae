@@ -458,6 +458,8 @@ detail:
     demand_tax_change: '税率変更'
     demand_revolt_concession: '反乱譲歩'
     demand_tax_relief: '税率軽減要求'
+    demand_bailiff_dismissal: '代官の罷免要求'
+    demand_secession: '独立要求'
     demand_status_quo: '現状維持'
     demand_pay_wealth: '金銭支払'
     status_settled: '妥結'

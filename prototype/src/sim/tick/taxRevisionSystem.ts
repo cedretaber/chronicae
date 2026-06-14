@@ -16,7 +16,11 @@ export function runTaxRevisionSystem(ctx: TickContext): TickContext {
   for (const playId of Object.keys(state.diplomaticPlays) as DiplomaticPlayId[]) {
     const play = state.diplomaticPlays[playId]
     if (!play || play.status !== 'active' || play.kind !== 'revolt_negotiation') continue
-    if (play.primaryDemand?.kind === 'popular_tax_relief') {
+    if (
+      play.primaryDemand?.kind === 'popular_tax_relief' ||
+      play.primaryDemand?.kind === 'bailiff_dismissal' ||
+      play.primaryDemand?.kind === 'secession'
+    ) {
       activeRevoltHoldings.add(play.primaryDemand.holdingId)
     }
   }

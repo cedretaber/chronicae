@@ -158,6 +158,12 @@ export function canApplyDemand(
 
     case 'popular_tax_relief':
       return { valid: true }
+
+    case 'bailiff_dismissal':
+      return { valid: true }
+
+    case 'secession':
+      return { valid: true }
   }
 }
 

@@ -142,6 +142,7 @@ revolt:
   suppressed_pardoned: 'The revolt in {{province}} has been suppressed — its leader was pardoned, and the province returns to {{restorePolity}}.'
   escalated: 'The revolt in {{province}} has escalated to armed conflict.'
   regime_changed: 'The regime in {{province}} has been overthrown by popular revolt.'
+  tax_relief_fizzled: 'The tax revolt in {{province}} fizzled out — {{restorePolity}} made no concession, leaving lasting resentment.'
 
 republic:
   founded: 'Under {{leader}}, {{polity}} has organized as a republic, with its leading citizens taking high office.'
@@ -183,6 +184,7 @@ bailiff:
   appointed: '{{person}} was appointed bailiff of {{province}}.'
   vacated: '{{person}} stepped down as bailiff of {{province}}.'
   placeholder_installed: 'An anonymous placeholder oversees {{province}}.'
+  dismissed_by_revolt: '{{person}} was dismissed as bailiff of {{province}} under popular pressure.'
 
 faction:
   founded: '{{person}} founded a faction.'
@@ -262,6 +264,7 @@ enum:
     project: 'project work'
     diplomatic_play: 'diplomatic negotiation'
     war: 'war'
+    revolt: 'a popular revolt'
     duty: 'their duties'
     natural: 'daily practice'
   geniusType:

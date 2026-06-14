@@ -134,19 +134,19 @@ function buildPlay(holdingId: HoldingId, targetContractId: LandContractId): Dipl
     initiator: { kind: 'polity', id: COMMONWEALTH_ID },
     // play.target は stale な「元」terminal holder (rank 2 の c-1)。
     target: { kind: 'polity', id: ROOT_POLITY_ID },
+    // v0.48: escalation を駆動するのは secession demand (即時武装蜂起)。rank 判定ロジックは
+    //   demand kind に依らず applyRevoltEscalation 内で共通。
     primaryDemand: {
-      kind: 'popular_tax_relief',
+      kind: 'secession',
       holdingId,
       targetContractId,
-      currentTaxRate: 0.5,
-      demandedTaxRate: 0.2,
       claimantPopClass: 'peasants',
     },
     status: 'active',
     startedWeek: 0,
-    deadlineWeek: 0, // 即 deadline 到達させて escalation を強制
+    deadlineWeek: 0,
     progress: 5,
-    tension: 95, // tension >> progress で escalation 分岐に倒す
+    tension: 95,
     initiatorDelegatePersonId: LEADER_ID,
     initiatorPreparation: 0,
     initiatorLeverage: 0,

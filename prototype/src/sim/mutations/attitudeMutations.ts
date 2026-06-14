@@ -1,4 +1,5 @@
-import type { PersonId, PolityId, HouseId, PopGroupId } from '../types/ids'
+import type { PersonId, PolityId, HouseId, PopGroupId, HoldingId } from '../types/ids'
+import type { PopClass } from '../types/popGroup'
 import type { Attitude } from '../types/attitude'
 import type { WorldState } from '../types/world'
 import type { StateResult } from './result'
@@ -90,6 +91,35 @@ export function adjustPopAttitude(
     ...state,
     popGroups: { ...state.popGroups, [popGroupId]: { ...pop, attitudes: newAttitudes } },
   })
+}
+
+// v0.48: 民衆反乱の負フィードバック配線。holding 内の指定 class POP の領主家 (ownerHouse) への
+//   affection を delta だけ動かす (悪政の蓄積を実変数化)。ownerHouse が無い (commonwealth 等)
+//   場合や POP が居ない場合は no-op。反乱 tendency の noble disloyalty 項と branch 選択の両方が
+//   この値を読むため、delta は控えめに設定する (balance coupling — defaultConfig 参照)。
+export function worsenPopAttitudeTowardOwnerHouse(
+  state: WorldState,
+  holdingId: HoldingId,
+  claimantPopClass: PopClass,
+  ownerHouseId: HouseId | undefined,
+  affectionDelta: number,
+): WorldState {
+  if (ownerHouseId === undefined) return state
+  const popIds = state.popIndex.byHolding[holdingId]
+  if (!popIds) return state
+  let next = state
+  for (const popId of popIds) {
+    const p = next.popGroups[popId]
+    if (!p || p.class !== claimantPopClass) continue
+    const r = adjustPopAttitude(
+      next,
+      popId,
+      { kind: 'house', id: ownerHouseId },
+      { affection: affectionDelta },
+    )
+    if (r.ok) next = r.value
+  }
+  return next
 }
 
 export function adjustHouseMembersAttitude(

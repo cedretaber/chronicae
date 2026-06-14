@@ -342,6 +342,16 @@ export type SimulationConfig = {
   revoltAcceptSuppressionFactor: number
   revoltConcessionSeverityMinor: number
   revoltConcessionSeverityMajor: number
+  // v0.48: 民衆反乱の目的分岐 (代官排除 / 税率改定 / 独立)。閾値は反乱 class pop の生の
+  //   affection (-100..100) で判定する。balance-defer (CLAUDE.md §4。後で CLI 観測して調整)。
+  revoltIndependenceHouseAffectionThreshold: number
+  revoltBailiffDismissalAffectionThreshold: number
+  revoltBailiffReputationPenalty: number
+  // POP→ownerHouse 悪感情の付与量 (affection delta、負値)。蓄積して branch 1 (独立) を駆動する。
+  //   site①代官排除反乱の発生時 / site②代官罷免失敗時 / site③税率改定 fizzle 時。
+  revoltBailiffRevoltHouseAffectionPenalty: number
+  revoltBailiffDismissalFailHouseAffectionPenalty: number
+  revoltTaxReliefFizzleHouseAffectionPenalty: number
   // v0.39: popular_tax_relief demand
   minPopularDemandTaxRate: number
   popularTaxReliefDemandDelta: number
@@ -1503,6 +1513,13 @@ export const defaultConfig: SimulationConfig = {
   revoltAcceptSuppressionFactor: 0.05,
   revoltConcessionSeverityMinor: 10,
   revoltConcessionSeverityMajor: 25,
+  // v0.48: 民衆反乱の目的分岐 (仮値、balance-defer)
+  revoltIndependenceHouseAffectionThreshold: -30,
+  revoltBailiffDismissalAffectionThreshold: -20,
+  revoltBailiffReputationPenalty: -12,
+  revoltBailiffRevoltHouseAffectionPenalty: -3,
+  revoltBailiffDismissalFailHouseAffectionPenalty: -8,
+  revoltTaxReliefFizzleHouseAffectionPenalty: -5,
   minPopularDemandTaxRate: 0.05,
   popularTaxReliefDemandDelta: 0.1,
   taxReliefSeverityFactor: 200,

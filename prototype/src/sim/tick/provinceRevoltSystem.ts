@@ -9,18 +9,21 @@ import type {
   HoldingId,
   LandContractId,
   DiplomaticPlayId,
+  PersonId,
+  HouseId,
 } from '../types/ids'
 import { createDiplomaticPlayId } from '../types/ids'
 import type { PopClass, PopGroup } from '../types/popGroup'
 import type { WorldState } from '../types/world'
-import type { DiplomaticPlay } from '../types/diplomaticPlay'
+import type { DiplomaticPlay, DiplomaticDemand } from '../types/diplomaticPlay'
 import { getProvincePopulationPressure, getPopWealthByClass } from '../selectors/popSelectors'
 import { getDiplomaticPlayDelegate } from '../selectors/taskSelectors'
 import { getProvinceProduction } from '../selectors/popEconomySelectors'
 import { adjustProvincePopUnrestByClass } from '../mutations/popMutations'
+import { worsenPopAttitudeTowardOwnerHouse } from '../mutations/attitudeMutations'
 import { getAttitudeOrDefault, attitudeValueToScore } from '../helpers/attitudeHelpers'
 import { getPolityLegitimacy, getPolityStability } from '../selectors/statusSelectors'
-import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
+import { getHoldingTerminalPolityId, isPlaceholderPerson } from '../selectors/landContractSelectors'
 import { createNegotiatingCommonwealth } from '../mutations/worldStructureMutations'
 import { defaultTaxRateByRank } from '../helpers/landContractHelpers'
 
@@ -156,7 +159,11 @@ function collectHoldingCandidates(ctx: TickContext): HoldingRevoltCandidate[] {
   for (const playId of Object.keys(state.diplomaticPlays) as DiplomaticPlayId[]) {
     const play = state.diplomaticPlays[playId]
     if (!play || play.status !== 'active' || play.kind !== 'revolt_negotiation') continue
-    if (play.primaryDemand?.kind === 'popular_tax_relief') {
+    if (
+      play.primaryDemand?.kind === 'popular_tax_relief' ||
+      play.primaryDemand?.kind === 'bailiff_dismissal' ||
+      play.primaryDemand?.kind === 'secession'
+    ) {
       activeRevoltTargetHoldings.add(play.primaryDemand.holdingId)
     }
   }
@@ -205,6 +212,53 @@ function collectHoldingCandidates(ctx: TickContext): HoldingRevoltCandidate[] {
   return candidates
 }
 
+// v0.48: 民衆反乱の目的分岐。閾値超過後、反乱 class pop の生の attitude (affection) を
+//   上から順に判定する (§ 民衆反乱の目的分岐):
+//     1. 領主家への悪感情が十分強い → 独立 (secession)
+//     2. 現代官への悪感情が十分強い かつ 代官が非placeholder → 代官罷免 (bailiff_dismissal)
+//     3. それ以外 → 税率改定 (popular_tax_relief)
+//   POP→house を負に書く配線は applyBailiffDismissalFailure / applyTaxReliefFizzle / 代官排除反乱
+//   の発生時の3箇所 (S2-2)。これが蓄積すると branch 1 (独立) に到達する。
+type RevoltDemandDecision =
+  | { kind: 'secession' }
+  | { kind: 'bailiff_dismissal'; bailiffPersonId: PersonId }
+  | { kind: 'tax_relief' }
+
+function decideRevoltDemand(
+  ctx: TickContext,
+  candidate: HoldingRevoltCandidate,
+  pop: PopGroup,
+  ownerHouseId: HouseId | undefined,
+): RevoltDemandDecision {
+  const { state, config } = ctx
+
+  // branch 1 (独立): POP→ownerHouse affection ≤ threshold。
+  if (ownerHouseId !== undefined) {
+    const houseAtt = getAttitudeOrDefault(state, pop, { kind: 'house', id: ownerHouseId })
+    if (houseAtt.affection <= config.revoltIndependenceHouseAffectionThreshold) {
+      return { kind: 'secession' }
+    }
+  }
+
+  // branch 2 (代官罷免): POP→現 bailiff person affection ≤ threshold かつ非placeholder。
+  const assignmentId = state.holdingOfficeIndex.byHolding[candidate.holdingId]
+  if (assignmentId) {
+    const assignment = state.holdingOfficeAssignments[assignmentId]
+    if (assignment && assignment.active && !isPlaceholderPerson(state, assignment.holderPersonId)) {
+      const bailiffAtt = getAttitudeOrDefault(state, pop, {
+        kind: 'person',
+        id: assignment.holderPersonId,
+      })
+      if (bailiffAtt.affection <= config.revoltBailiffDismissalAffectionThreshold) {
+        return { kind: 'bailiff_dismissal', bailiffPersonId: assignment.holderPersonId }
+      }
+    }
+  }
+
+  // branch 3 (税率改定): フォールバック
+  return { kind: 'tax_relief' }
+}
+
 function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidate): TickContext {
   const {
     holdingId,
@@ -239,6 +293,9 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
   const pop = findHoldingPop(ctx.state, holdingId, rebelClass)
   if (!pop) return ctx
 
+  // v0.48: demand 分岐を commonwealth 生成前 (= 元の state) で決定する。
+  const decision = decideRevoltDemand(ctx, candidate, pop, polity.ownerHouseId)
+
   const createResult = createNegotiatingCommonwealth(ctx, {
     holdingId,
     provinceId,
@@ -258,12 +315,49 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
   )
   nextCtx = { ...nextCtx, state: unrestReducedState }
 
-  // Build popular_tax_relief demand
-  const currentTaxRate = contract.terms.taxRateToGrantor
-  const demandedTaxRate = Math.max(
-    config.minPopularDemandTaxRate,
-    currentTaxRate - config.popularTaxReliefDemandDelta,
-  )
+  // v0.48: 決定済み分岐に応じて primaryDemand を構築する。
+  let primaryDemand: DiplomaticDemand
+  if (decision.kind === 'secession') {
+    primaryDemand = {
+      kind: 'secession',
+      holdingId,
+      targetContractId: terminalContractId,
+      claimantPopClass: rebelClass,
+    }
+  } else if (decision.kind === 'bailiff_dismissal') {
+    primaryDemand = {
+      kind: 'bailiff_dismissal',
+      holdingId,
+      targetContractId: terminalContractId,
+      claimantPopClass: rebelClass,
+      bailiffPersonId: decision.bailiffPersonId,
+    }
+    // S2-2 site①: 代官排除反乱の発生時、領主家への悪感情が芽生える (代理人の悪政＝領主不信)。
+    nextCtx = {
+      ...nextCtx,
+      state: worsenPopAttitudeTowardOwnerHouse(
+        nextCtx.state,
+        holdingId,
+        rebelClass,
+        polity.ownerHouseId,
+        config.revoltBailiffRevoltHouseAffectionPenalty,
+      ),
+    }
+  } else {
+    const currentTaxRate = contract.terms.taxRateToGrantor
+    const demandedTaxRate = Math.max(
+      config.minPopularDemandTaxRate,
+      currentTaxRate - config.popularTaxReliefDemandDelta,
+    )
+    primaryDemand = {
+      kind: 'popular_tax_relief',
+      holdingId,
+      targetContractId: terminalContractId,
+      currentTaxRate,
+      demandedTaxRate,
+      claimantPopClass: rebelClass,
+    }
+  }
 
   // Create revolt_negotiation DiplomaticPlay
   const playId = createDiplomaticPlayId(nextCtx.state.nextDiplomaticPlayId)
@@ -277,14 +371,7 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
     kind: 'revolt_negotiation',
     initiator: { kind: 'polity', id: commonwealthId },
     target: { kind: 'polity', id: terminalPolityId },
-    primaryDemand: {
-      kind: 'popular_tax_relief',
-      holdingId,
-      targetContractId: terminalContractId,
-      currentTaxRate,
-      demandedTaxRate,
-      claimantPopClass: rebelClass,
-    },
+    primaryDemand,
     status: 'active',
     startedWeek: nextCtx.state.absoluteWeek,
     deadlineWeek,

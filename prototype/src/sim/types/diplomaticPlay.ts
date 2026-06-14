@@ -87,6 +87,22 @@ export type DiplomaticDemand =
       demandedTaxRate: number
       claimantPopClass: PopClass
     }
+  // v0.48: 民衆反乱の「代官排除」要求。住民が holding の代官 (bailiff person) の罷免を求める。
+  | {
+      kind: 'bailiff_dismissal'
+      holdingId: HoldingId
+      targetContractId: LandContractId
+      claimantPopClass: PopClass
+      bailiffPersonId: PersonId
+    }
+  // v0.48: 民衆反乱の「独立」要求。領主家への悪感情が蓄積した住民が武装蜂起で独立を目指す。
+  //   交渉による妥結経路を持たず escalation (seizure→war) に直行する。
+  | {
+      kind: 'secession'
+      holdingId: HoldingId
+      targetContractId: LandContractId
+      claimantPopClass: PopClass
+    }
   | { kind: 'status_quo' }
 
 // v0.30: DiplomaticIssue — immutable anchor for diplomatic play

@@ -216,9 +216,9 @@ describe('runDiplomaticPlaySystem', () => {
     expect(ctx.events.some((e) => e.type === 'REVOLT_SETTLED')).toBe(true)
   })
 
-  // v0.18 Stage D: escalation 検知は diplomaticPlaySystem (status='escalated') のみ。
-  // 実際の conflict resolve は別 phase の conflictResolutionSystem。
-  it('escalated: tension reaches threshold → status=escalated + DIPLOMATIC_PLAY_ESCALATED event', () => {
+  // v0.48: popular_tax_relief は失敗時に即独立 (escalation) せず fizzle (settled/status_quo) する。
+  //   旧テスト「tension reaches threshold → escalated」は新設計では settled+status_quo になる。
+  it('tax relief fizzles: tension reaches threshold → status=settled (status_quo), no escalation', () => {
     const setup = setupRebel(10)
     let ctx = injectPlay(
       setup.ctx,
@@ -233,12 +233,14 @@ describe('runDiplomaticPlaySystem', () => {
     )
     ctx = runDiplomaticPlaySystem(ctx)
     const play = Object.values(ctx.state.diplomaticPlays)[0]
-    expect(play?.status).toBe('escalated')
-    expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_ESCALATED')).toBe(true)
+    expect(play?.status).toBe('settled')
+    expect(play?.terminalOutcome).toBe('status_quo')
+    expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_ESCALATED')).toBe(false)
+    expect(ctx.events.some((e) => e.type === 'REVOLT_SETTLED')).toBe(true)
   })
 
-  // v0.18 Stage D §10.2 step 6: deadline 到達時、tension > progress なら escalated に倒される
-  it('deadline timeout with low progress + rising tension → status=escalated', () => {
+  // v0.48: deadline 到達 + tension > progress でも popular_tax_relief は fizzle する。
+  it('tax relief fizzles: deadline timeout with rising tension → status=settled (status_quo)', () => {
     const setup = setupRebel(20)
     let ctx = injectPlay(
       setup.ctx,
@@ -250,6 +252,34 @@ describe('runDiplomaticPlaySystem', () => {
         progress: 5,
         tension: 5,
         deadlineWeek: 48000,
+      },
+    )
+    ctx = runDiplomaticPlaySystem(ctx)
+    const play = Object.values(ctx.state.diplomaticPlays)[0]
+    expect(play?.status).toBe('settled')
+    expect(play?.terminalOutcome).toBe('status_quo')
+    expect(ctx.events.some((e) => e.type === 'DIPLOMATIC_PLAY_ESCALATED')).toBe(false)
+  })
+
+  // v0.48: 独立 (secession) demand は即座に武装蜂起する → status=escalated (機構は従来通り)。
+  it('secession: status=escalated + DIPLOMATIC_PLAY_ESCALATED event', () => {
+    const setup = setupRebel(10)
+    const holdingId = setup.ctx.state.provinces[setup.provinceId]?.holdingIds[0] as HoldingId
+    let ctx = injectPlay(
+      setup.ctx,
+      setup.rebelPolityId,
+      setup.oldPolityId,
+      setup.provinceId,
+      setup.popId,
+      {
+        progress: 0,
+        tension: 0,
+        primaryDemand: {
+          kind: 'secession',
+          holdingId,
+          targetContractId: '' as import('../types/ids').LandContractId,
+          claimantPopClass: 'peasants',
+        },
       },
     )
     ctx = runDiplomaticPlaySystem(ctx)

@@ -296,6 +296,9 @@ export function DiplomaticPlayDetail({
             })()}
           {play.primaryDemand?.kind === 'popular_tax_relief' &&
             `${t('detail.play.demand_tax_relief')} ${Math.round(play.primaryDemand.currentTaxRate * 100)}% → ${Math.round(play.primaryDemand.demandedTaxRate * 100)}%`}
+          {play.primaryDemand?.kind === 'bailiff_dismissal' &&
+            `${t('detail.play.demand_bailiff_dismissal')}`}
+          {play.primaryDemand?.kind === 'secession' && `${t('detail.play.demand_secession')}`}
         </div>
 
         {(initiatorProject || targetProject) && (

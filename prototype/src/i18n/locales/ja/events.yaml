@@ -141,6 +141,7 @@ revolt:
   suppressed_pardoned: '{{province}}の反乱は鎮圧された。指導者は赦免され、州は{{restorePolity}}に帰属する。'
   escalated: '{{province}}の反乱が武力衝突に発展した。'
   regime_changed: '{{province}}の体制が民衆蜂起により転覆された。'
+  tax_relief_fizzled: '{{province}}の税率改定要求の反乱は不調に終わった。{{restorePolity}}は譲歩せず、住民には不満が残った。'
 
 republic:
   founded: '{{leader}}の下、{{polity}}が共和国として政治体制を整え、功臣たちが要職に就いた。'
@@ -182,6 +183,7 @@ bailiff:
   appointed: '{{person}}が{{province}}の代官に任命された。'
   vacated: '{{person}}が{{province}}の代官を辞した。'
   placeholder_installed: '{{province}}に匿名の代官が配置された。'
+  dismissed_by_revolt: '{{person}}が民衆の圧力により{{province}}の代官を罷免された。'
 
 faction:
   founded: '{{person}}が派閥を結成した。'
@@ -261,6 +263,7 @@ enum:
     project: '事業'
     diplomatic_play: '外交交渉'
     war: '戦争'
+    revolt: '民衆反乱'
     duty: '職務経験'
     natural: '日々の研鑽'
   geniusType:

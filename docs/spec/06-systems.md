@@ -872,6 +872,8 @@ houseless で influence 寄与ゼロ。bailiff を持つ通常 Polity なら次�
 - **性別役職適格ゲート (v0.45.3)**: 3 tier すべてに `isRoleEligibleBySex` を適用する（§6.19）。gated で 3 tier が空振りした場合のみ、`allowFemaleRolesWhenNoMaleCandidate`（既定 false）が true なら ungated 再試行を 1 回行う。実装上 tier cascade は `pickBailiff(gate)` クロージャに集約され、ownerHouse 候補の消費は破壊的 shift から走査（着座者は bookedThisTick で除外）に変更された（gated/ungated の 2 回呼びで候補列が壊れないため。挙動は同等）
 - **無収入 leader 肩書きの候補解禁 (v0.48)**: 候補フィルタは従来「active office を 1 つでも持つ人物」（`hasActiveOffice`）を除外していたが、これを `hasGainfulOffice`（§4 houseFinanceSelectors）に置換する。`house:leader` / `polity:leader` は給与 0 の地位であり（officeDefinitions baseSalary 0）、無領地の家の家長・国庫が枯れた名目 Polity の家長は「家長という肩書きを持つだけで実収入ゼロ」なのに代官候補から弾かれていた。`hasGainfulOffice` は leader 役職を「家の定常年間収入（`getHouseProjectedAnnualIncome`）> 0」のときだけ実職とみなすため、収入を生む Polity を持つ家の家長（必ず polity:leader を兼任し income > 0）は従来どおり除外され、無収入の家長のみ代官候補に復帰する。非 leader 役職（administrator 等）保持者は従来どおり実職扱い。**実測（tiny 100年 seed1）**: `BAILIFF_APPOINTED` 904→896 とほぼ不変で、tiny preset では候補プールが派閥/所有家経由で既に充足しているため代官席への影響は小さい（実効は §後述 obtain_office aim 側）。本変更は「給与 0 の地位が稼ぎ口探しを塞ぐ」論理矛盾の除去が主目的であり、人口/役職不均衡の解消そのものは別途のバランス調整（action 経済）に委ねる。
 
+- **stewardship 評判による後順位化 (v0.48)**: 候補ソートスコアを `numeracy + insight` から `numeracy + insight + getPersonReputationModifierForCategories(state, config, id, ['stewardship']) * officeReputationScoreFactor`（実効 ±5）に拡張する（`bailiffAbilityScore`、Tier 0 right holder ソート・Tier 2 ownerHouse ソートに適用。Tier 1 factional 候補は `getFactionalCandidateScore` 由来スコアに同 modifier を加算）。民衆反乱で罷免された代官は負の stewardship 評判（§6.29、`revoltBailiffReputationPenalty` 既定 -12）を負うため、評判が減衰回復するまで後順位化される（= 事実上の再任用クールダウン。専用フィールド不要・能力差を覆さない控えめな nudge）。
+
 **fall-through の設計意図 (v0.42)**: right があっても Tier 0 が候補を出せない場合は Tier 1 / 2 へ落ちる。
 これは polity office（right がある role では unrelated factional path を skip）と**意図的に異なる**扱いで、
 形式上の不統一ではなく役職の性質の違いによる — bailiff は Holding の徴税・管理を実務的に担う現場職であり、
@@ -1052,12 +1054,35 @@ taxBurden = `max(0, currentTaxRate - defaultTaxRateByRank(rank))`。
 **発生時の処理** (`resolveHoldingRevolt`):
 1. `createNegotiatingCommonwealth` で交渉用 commonwealth 生成（landless、rank 5、treasury 0）
 2. Leader 選出: 在野人物優先（charisma+command+insight+ambition スコア）→ 不在時新規生成
-3. `popular_tax_relief` demand 付き `revolt_negotiation` DiplomaticPlay 生成
+3. **demand 分岐（v0.48 `decideRevoltDemand`）** で primaryDemand を決定（下記）
 4. `REVOLT_POLITY_FOUNDED` + `REVOLT_NEGOTIATION_STARTED` event
 
-**交渉結果**（diplomaticPlaySystem 内）:
-- settlement: 税率引き下げ、`termsProtectedUntilWeek` 設定、commonwealth 解散（leader は在野へ）、`REVOLT_SETTLED`
-- escalation 時の rank 判定基準（v0.47.x 修正）: 分岐は **escalation 時点の「現」terminal holder の rank** で決める。play.target は play 生成時の terminal holder で固定されるため、交渉期間中に当該 holding が land_grant / 契約移管で再分封されると stale になる（例: 交渉中に rank 3 領主が新設の rank 5 land_grant Polity へ holding を分封すると、play.target=rank 3 のままだが現 terminal holder は rank 5）。そこで `applyRevoltEscalation` は `landContractIndex.byHolding` 末尾の terminal contract から現 grantee を取得し、その rank と commonwealth rank（5）を比較する。terminal holder が消失していれば play を fail（stale 縮退）。
+**v0.48 民衆反乱の目的分岐（`decideRevoltDemand`）**:
+
+反乱 class の pop の**生の attitude（`attitudeValueToScore` を通さない `.affection`）**を上から順に判定し、demand を 3 種から選ぶ:
+
+1. POP→ownerHouse affection ≤ `revoltIndependenceHouseAffectionThreshold`（既定 -30）→ **独立**（`secession` demand）
+2. POP→現 bailiff person affection ≤ `revoltBailiffDismissalAffectionThreshold`（既定 -20）かつ bailiff が非placeholder → **代官罷免**（`bailiff_dismissal` demand）
+3. それ以外 → **税率改定**（`popular_tax_relief` demand、従来挙動）
+
+狙う創発フロー: 代官の悪政が問題なら ①まず代官罷免を求め、②代官交代直後（閾値超だが代官への恨みは浅い）は税率改定にフォールバックし、③悪政が繰り返され領主家への悪感情が蓄積すると独立反乱に進む。
+
+**POP→ownerHouse 悪感情の生成（v0.48、欠落していた配線を補完）**: 従来 POP→house attitude を負に書くコードは存在せず、noble disloyalty 項は実質定数だった。v0.48 は `worsenPopAttitudeTowardOwnerHouse`（反乱 class の pop のみ対象、ownerHouse 不在なら no-op）で 3 箇所に負の affection を付与する:
+- site①代官排除反乱の発生時: `revoltBailiffRevoltHouseAffectionPenalty`（既定 -3）
+- site②代官罷免要求が拒否され武力化した時: `revoltBailiffDismissalFailHouseAffectionPenalty`（既定 -8）
+- site③税率改定交渉が fizzle した時: `revoltTaxReliefFizzleHouseAffectionPenalty`（既定 -5）
+
+attitude は自然減衰しないため累積し、閾値 -30 到達で次回反乱が独立分岐に進む。**balance coupling 注意**: この値は branch 選択と noble disloyalty tendency 項（§6.29 tendency 式）の両方が読むため、閾値・delta は noble 反乱頻度に影響する（balance-defer。CLAUDE.md §4）。
+
+**交渉結果**（diplomaticPlaySystem 内、demand 別）:
+- **popular_tax_relief**:
+  - settlement: 税率引き下げ、`termsProtectedUntilWeek` 設定、commonwealth 解散（leader は在野へ）、`REVOLT_SETTLED`
+  - **fizzle（v0.48 `applyTaxReliefFizzle`）**: tension 超過 / deadline 不調でも**即独立せず**矛を収める。commonwealth 解散 + POP→house -5（site③）+ holding cooldown 記録 + `settled`/`status_quo` + `REVOLT_SETTLED`（messageKey `revolt.tax_relief_fizzled`）。これにより「税改定失敗→即独立」を廃し、house 悪感情蓄積→次回 secession への創発フローを成立させる。
+- **bailiff_dismissal（v0.48）**:
+  - settlement（`applyBailiffDismissalSettlement`）: 現 bailiff を再読し demand.bailiffPersonId と一致する場合のみ `vacateHoldingBailiff` で罷免 + 当人に負 stewardship 評判（`revoltBailiffReputationPenalty` 既定 -12、source `revolt`、月次減衰で自然回復）+ unrest 削減 + commonwealth 解散 + `BAILIFF_DISMISSED_BY_REVOLT` + `settled`/`demands_met`。交渉中に代官が交代していれば要求は実質達成済みとして後任を罷免・減点せず平和裏に終結。代官は軽い譲歩のため税率改定より沈静化しやすい（acceptanceScore に severity 項なし）。
+  - failure（`applyBailiffDismissalFailure`）: POP→house -8（site②）の後、通常の escalation 経路へ。
+- **secession（v0.48）**: 交渉妥結経路を持たず、`progressRevoltNegotiation` で即座に `applyRevoltEscalation`（武装蜂起 = seizure→war、または現 terminal holder rank 5 なら internal revolt）に直行する。
+- escalation 時の rank 判定基準（v0.47.x 修正、demand 種別に依らず共通）: 分岐は **escalation 時点の「現」terminal holder の rank** で決める。play.target は play 生成時の terminal holder で固定されるため、交渉期間中に当該 holding が land_grant / 契約移管で再分封されると stale になる（例: 交渉中に rank 3 領主が新設の rank 5 land_grant Polity へ holding を分封すると、play.target=rank 3 のままだが現 terminal holder は rank 5）。そこで `applyRevoltEscalation` は `landContractIndex.byHolding` 末尾の terminal contract から現 grantee を取得し、その rank と commonwealth rank（5）を比較する。terminal holder が消失していれば play を fail（stale 縮退）。
 - escalation (現 terminal holder rank 2-4): `revolt_seizure` 子契約追加 → Local Levy 生成 → **奪取 holding の既存常設連隊（worldgen 由来 levy/noble_retinue 等）の owner を commonwealth へ即同期** → `escalated` → warCreationSystem が War 化
   - 奪取で holding の terminal Polity は commonwealth に変わるが、owner 付け替えを担う RegimentMaintenanceSystem（§6.49）は warManeuverSystem の**後**に走るため、奪取→即開戦の叛乱には間に合わない（放置すると当該常設連隊が領主=defender 側として動員され、叛乱側は Local Levy 1 個のみで戦う）。そこで escalation 時点で当該 holding の Regiment 群（`regimentIndex.byHomeHolding[holdingId]`）に `syncRegimentOwnerToHomeTerminalMut`（§6.49 と同一ヘルパー＝同一ルール）を eager 適用し、開戦前に叛乱側へ移管する。直前に生成した Local Levy（owner=commonwealth）は no-op、動員済の連隊は owner だけ移り当該 War では `currentWarId` 判定でスキップされる。叛乱敗北で holding が領主へ revert すれば §6.49 が owner を領主へ戻す（active 連隊プールは枯渇しない）。
 - escalation (現 terminal holder rank 5 = commonwealth と同 rank): internal revolt 即時解決（§6.30）。rank 5 terminal holder の下に `revolt_seizure` 子契約（grantee=rank 5 commonwealth）を作ると grantor rank ≥ grantee rank となり LandContract 不変条件 §25 #7 を破るため、子契約を作らず現 terminal holder の regime change に分岐する。

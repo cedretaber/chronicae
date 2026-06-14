@@ -359,6 +359,8 @@ detail:
     demand_tax_change: 'Change Tax Rate'
     demand_revolt_concession: 'Revolt Concession'
     demand_tax_relief: 'Tax Relief Demand'
+    demand_bailiff_dismissal: 'Dismiss the Bailiff'
+    demand_secession: 'Independence'
     demand_status_quo: 'Status Quo'
     demand_pay_wealth: 'Pay Wealth'
     status_settled: 'Settled'

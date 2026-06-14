@@ -158,7 +158,9 @@ export function classifySettledOutcome(
     (d) =>
       d.kind === 'transfer_land_contract' ||
       d.kind === 'change_contract_tax_rate' ||
-      d.kind === 'popular_tax_relief',
+      d.kind === 'popular_tax_relief' ||
+      d.kind === 'bailiff_dismissal' ||
+      d.kind === 'secession',
   )
   return substantive ? 'demands_met' : 'status_quo'
 }

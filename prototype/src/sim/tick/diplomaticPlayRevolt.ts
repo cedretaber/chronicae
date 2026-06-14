@@ -1,13 +1,20 @@
-import type { TickContext } from './context'
+import type { TickContext, CreateSimEventInput } from './context'
 import { createSimEvent } from './context'
 import { clamp } from '../utils/math'
-import type { PolityId, ProvinceId } from '../types/ids'
+import type { PolityId, ProvinceId, EventId } from '../types/ids'
 import type { DiplomaticPlay, DiplomaticDemand } from '../types/diplomaticPlay'
 import { entityRef, nameParam } from '../types/event'
+import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
+import { awardPersonReputationMut, type AwardReputationInput } from '../helpers/awardHelpers'
+import { vacateHoldingBailiff } from '../mutations/provinceOfficeMutations'
 import { adjustProvincePopUnrestByClass } from '../mutations/popMutations'
-import { adjustPopAttitude, adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
+import {
+  adjustPopAttitude,
+  adjustHouseMembersAttitude,
+  worsenPopAttitudeTowardOwnerHouse,
+} from '../mutations/attitudeMutations'
 import { dissolveNegotiatingCommonwealth } from '../mutations/worldStructureMutations'
 import {
   adjustLandContractTaxRate,
@@ -46,7 +53,289 @@ export function progressRevoltNegotiation(ctx: TickContext, play: DiplomaticPlay
     return progressPopularTaxRelief(ctx, play, play.primaryDemand, commonwealthId, targetPolityId)
   }
 
+  // v0.48: bailiff_dismissal demand path (代官罷免)
+  if (play.primaryDemand?.kind === 'bailiff_dismissal') {
+    return progressBailiffDismissal(ctx, play, play.primaryDemand, commonwealthId, targetPolityId)
+  }
+
+  // v0.48: secession demand path (独立)。交渉妥結経路を持たず即座に武装蜂起する。
+  if (play.primaryDemand?.kind === 'secession') {
+    const holding = state.holdings[play.primaryDemand.holdingId]
+    if (!holding) return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
+    return applyRevoltEscalation(
+      ctx,
+      play,
+      play.primaryDemand,
+      commonwealthId,
+      targetPolityId,
+      holding.provinceId,
+    )
+  }
+
   return ctx
+}
+
+// v0.48: 代官罷免交渉の進行。進行式は progressPopularTaxRelief を流用するが、
+//   税率改定の severity 項を持たない (不人気な代理人を切るだけの軽い譲歩 → 沈静化しやすい)。
+function progressBailiffDismissal(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  demand: Extract<DiplomaticDemand, { kind: 'bailiff_dismissal' }>,
+  commonwealthId: PolityId,
+  targetPolityId: PolityId,
+): TickContext {
+  const config = ctx.config
+  const state = ctx.state
+  const holdingId = demand.holdingId
+  const popClass = demand.claimantPopClass
+
+  const holding = state.holdings[holdingId]
+  if (!holding) return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
+  const provinceId = holding.provinceId
+
+  const popIds = state.popIndex.byHolding[holdingId]
+  let totalSize = 0
+  let weightedUnrest = 0
+  if (popIds) {
+    for (const popId of popIds) {
+      const p = state.popGroups[popId]
+      if (!p || p.class !== popClass) continue
+      totalSize += p.size
+      weightedUnrest += p.unrest * p.size
+    }
+  }
+  const averageUnrest = totalSize > 0 ? weightedUnrest / totalSize : 0
+  if (totalSize === 0) return setPlayStatus(ctx, play.id, 'cancelled', 'voided')
+
+  const rebelPower =
+    totalSize * config.popRevoltPowerFactorByClass[popClass] * (0.5 + averageUnrest / 100)
+  const suppressionPower = estimateSuppressionPower(state, config, provinceId, targetPolityId)
+
+  const acceptanceScore =
+    averageUnrest +
+    rebelPower * config.revoltAcceptRebelPowerFactor -
+    suppressionPower * config.revoltAcceptSuppressionFactor
+
+  const envFactor = config.revoltNegotiationEnvFactor
+  const envProgressDelta = acceptanceScore > 0 ? clamp(acceptanceScore * envFactor, 0.1, 1.5) : 0
+  let envTensionDelta = acceptanceScore < 0 ? clamp(-acceptanceScore * envFactor, 0.1, 1.5) : 0
+  envTensionDelta += config.diplomaticPlayBaseTensionGain * envFactor
+
+  const nextProgress = clamp(play.progress + envProgressDelta, 0, 100)
+  const nextTension = clamp(play.tension + envTensionDelta, 0, 100)
+
+  const adjustedSettlementThreshold =
+    config.diplomaticPlaySettlementThreshold -
+    play.initiatorPreparation * config.revoltNegotiationSettlementPrepWeight -
+    play.initiatorLeverage * config.revoltNegotiationSettlementLeverageWeight +
+    play.targetLeverage * config.revoltNegotiationSettlementLeverageWeight
+
+  const adjustedEscalationThreshold =
+    config.diplomaticPlayEscalationThreshold -
+    play.targetCommitment * config.revoltNegotiationEscalationCommitmentWeight +
+    play.initiatorCommitment * config.revoltNegotiationEscalationCommitmentWeight
+
+  const nextCtx: TickContext = {
+    ...ctx,
+    state: {
+      ...state,
+      diplomaticPlays: {
+        ...state.diplomaticPlays,
+        [play.id]: { ...play, progress: nextProgress, tension: nextTension },
+      },
+    },
+  }
+
+  if (nextProgress >= adjustedSettlementThreshold) {
+    return applyBailiffDismissalSettlement(
+      nextCtx,
+      play,
+      demand,
+      commonwealthId,
+      targetPolityId,
+      provinceId,
+    )
+  }
+
+  if (
+    nextTension >= adjustedEscalationThreshold ||
+    (isDeadlineReached(nextCtx.state, play) && nextTension >= nextProgress)
+  ) {
+    return applyBailiffDismissalFailure(
+      nextCtx,
+      play,
+      demand,
+      commonwealthId,
+      targetPolityId,
+      provinceId,
+    )
+  }
+
+  if (isDeadlineReached(nextCtx.state, play)) {
+    if (nextProgress > nextTension) {
+      return applyBailiffDismissalSettlement(
+        nextCtx,
+        play,
+        demand,
+        commonwealthId,
+        targetPolityId,
+        provinceId,
+      )
+    }
+    return applyBailiffDismissalFailure(
+      nextCtx,
+      play,
+      demand,
+      commonwealthId,
+      targetPolityId,
+      provinceId,
+    )
+  }
+  return nextCtx
+}
+
+// v0.48: reputation award の ctx 橋渡し (cleanupTerminalDiplomacy.ts:404-433 と同パターン)。
+//   awardPersonReputationMut は mutable ws + emitEvent を要求するため、immutable TickContext から
+//   呼ぶには ws を浅コピーし emitEvent closure を張る。event id 採番は createSimEvent と同形式。
+function awardReputationViaContext(ctx: TickContext, input: AwardReputationInput): TickContext {
+  const ws: WorldState = { ...ctx.state }
+  let eventIndex = ctx.nextEventIndex
+  const newEvents: SimEvent[] = []
+  const emitEvent = (e: CreateSimEventInput): void => {
+    const id = `e-${ws.absoluteWeek}-${eventIndex}` as EventId
+    eventIndex++
+    newEvents.push({
+      id,
+      year: ws.currentYear,
+      weekOfYear: ws.currentWeekOfYear,
+      type: e.type,
+      importance: e.importance,
+      messageKey: e.messageKey,
+      messageParams: e.messageParams,
+      entityRefs: e.entityRefs ?? [],
+      reasons: e.reasons ?? [],
+      effects: e.effects ?? [],
+    })
+  }
+  awardPersonReputationMut(ws, ctx.config, input, emitEvent)
+  return {
+    ...ctx,
+    state: ws,
+    events: newEvents.length > 0 ? [...ctx.events, ...newEvents] : ctx.events,
+    nextEventIndex: eventIndex,
+  }
+}
+
+function applyBailiffDismissalSettlement(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  demand: Extract<DiplomaticDemand, { kind: 'bailiff_dismissal' }>,
+  commonwealthId: PolityId,
+  targetPolityId: PolityId,
+  provinceId: ProvinceId,
+): TickContext {
+  const config = ctx.config
+  let state = ctx.state
+  const holdingId = demand.holdingId
+
+  // 1. 現 bailiff を再読して staleness ガード。交渉中に代官が交代している場合、住民が恨んだ
+  //    代官 (demand.bailiffPersonId) は既に去っており要求は実質達成済み。後任は恨みを買って
+  //    いないので罷免・減点しない (= 平和裏に終結)。現 bailiff が要求対象と一致するときのみ処理する。
+  const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]
+  const assignment = assignmentId ? state.holdingOfficeAssignments[assignmentId] : undefined
+  const currentBailiffId = assignment && assignment.active ? assignment.holderPersonId : undefined
+  const dismissTargetId =
+    currentBailiffId === demand.bailiffPersonId ? demand.bailiffPersonId : undefined
+
+  // 2. 代官を罷免 (vacate のみ。後任/placeholder は次 tick の bailiffAppointmentSystem が入れる)。
+  if (dismissTargetId) {
+    state = vacateHoldingBailiff(state, holdingId)
+  }
+
+  // 3. unrest 削減
+  state = adjustProvincePopUnrestByClass(
+    state,
+    provinceId,
+    demand.claimantPopClass,
+    -config.revoltSettlementMainUnrestReduction,
+  )
+
+  // 4. holding に settlement 記録
+  const holding = state.holdings[holdingId]
+  if (holding) {
+    state = {
+      ...state,
+      holdings: {
+        ...state.holdings,
+        [holdingId]: { ...holding, lastRevoltSettledWeek: state.absoluteWeek },
+      },
+    }
+  }
+
+  // 5. commonwealth 解散 (leader 生存)
+  let nextCtx: TickContext = { ...ctx, state }
+  const dissolveResult = dissolveNegotiatingCommonwealth(nextCtx, {
+    commonwealthPolityId: commonwealthId,
+    leaderOutcome: 'alive',
+  })
+  if (dissolveResult.ok) nextCtx = dissolveResult.value.ctx
+
+  // 6. 罷免イベント + 罷免代官への負 stewardship 評判 (統治失敗の悪評)。
+  if (dismissTargetId) {
+    const bailiff = nextCtx.state.persons[dismissTargetId]
+    const provinceName = nameParam(
+      'province',
+      nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+    )
+    const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+      type: 'BAILIFF_DISMISSED_BY_REVOLT',
+      importance: 'major',
+      messageKey: 'bailiff.dismissed_by_revolt',
+      messageParams: {
+        person: nameParam('person', bailiff?.nameKey ?? dismissTargetId),
+        province: provinceName,
+      },
+      entityRefs: [
+        entityRef('person', dismissTargetId, 'subject', bailiff?.nameKey),
+        entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+        entityRef('polity', targetPolityId, 'target_polity'),
+      ],
+    })
+    nextCtx = { ...ctxEv, events: [...ctxEv.events, event] }
+
+    nextCtx = awardReputationViaContext(nextCtx, {
+      personId: dismissTargetId,
+      source: { kind: 'revolt', playId: play.id },
+      category: 'stewardship',
+      baseScore: config.revoltBailiffReputationPenalty,
+    })
+  }
+
+  // 7. play 終結
+  nextCtx = setPlayStatus(nextCtx, play.id, 'settled', 'demands_met')
+  return nextCtx
+}
+
+// v0.48 S2-2 site②: 代官罷免要求が拒否され武力化した。領主が悪い代官を守った/応じなかった
+//   ことで住民の領主家への悪感情が強まる (-8)。その後は通常の escalation (seizure→war)。
+function applyBailiffDismissalFailure(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  demand: Extract<DiplomaticDemand, { kind: 'bailiff_dismissal' }>,
+  commonwealthId: PolityId,
+  targetPolityId: PolityId,
+  provinceId: ProvinceId,
+): TickContext {
+  const ownerHouseId = ctx.state.polities[targetPolityId]?.ownerHouseId
+  const state = worsenPopAttitudeTowardOwnerHouse(
+    ctx.state,
+    demand.holdingId,
+    demand.claimantPopClass,
+    ownerHouseId,
+    ctx.config.revoltBailiffDismissalFailHouseAffectionPenalty,
+  )
+  const nextCtx: TickContext = { ...ctx, state }
+  return applyRevoltEscalation(nextCtx, play, demand, commonwealthId, targetPolityId, provinceId)
 }
 
 function progressPopularTaxRelief(
@@ -140,7 +429,7 @@ function progressPopularTaxRelief(
     nextTension >= adjustedEscalationThreshold ||
     (isDeadlineReached(nextCtx.state, play) && nextTension >= nextProgress)
   ) {
-    return applyRevoltEscalation(nextCtx, play, demand, commonwealthId, targetPolityId, provinceId)
+    return applyTaxReliefFizzle(nextCtx, play, demand, commonwealthId, targetPolityId, provinceId)
   }
 
   if (isDeadlineReached(nextCtx.state, play)) {
@@ -154,9 +443,79 @@ function progressPopularTaxRelief(
         provinceId,
       )
     }
-    return applyRevoltEscalation(nextCtx, play, demand, commonwealthId, targetPolityId, provinceId)
+    return applyTaxReliefFizzle(nextCtx, play, demand, commonwealthId, targetPolityId, provinceId)
   }
   return nextCtx
+}
+
+// v0.48 S2-3: 税率改定交渉の不調 (旧: 即 escalation→独立)。即独立を求めず、commonwealth を
+//   解散して矛を収める。ただし領主が譲歩しなかったことで POP→house 悪感情が蓄積し (-5)、
+//   繰り返されると次回反乱が独立 (secession) 分岐に進む創発フローを成立させる。
+function applyTaxReliefFizzle(
+  ctx: TickContext,
+  play: DiplomaticPlay,
+  demand: Extract<DiplomaticDemand, { kind: 'popular_tax_relief' }>,
+  commonwealthId: PolityId,
+  targetPolityId: PolityId,
+  provinceId: ProvinceId,
+): TickContext {
+  const config = ctx.config
+  let state = ctx.state
+
+  // 1. POP→house 悪感情 (-5)
+  const ownerHouseId = state.polities[targetPolityId]?.ownerHouseId
+  state = worsenPopAttitudeTowardOwnerHouse(
+    state,
+    demand.holdingId,
+    demand.claimantPopClass,
+    ownerHouseId,
+    config.revoltTaxReliefFizzleHouseAffectionPenalty,
+  )
+
+  // 2. holding に settlement 記録 (cooldown)
+  const holding = state.holdings[demand.holdingId]
+  if (holding) {
+    state = {
+      ...state,
+      holdings: {
+        ...state.holdings,
+        [demand.holdingId]: { ...holding, lastRevoltSettledWeek: state.absoluteWeek },
+      },
+    }
+  }
+
+  // 3. commonwealth 解散 (leader 生存)
+  let nextCtx: TickContext = { ...ctx, state }
+  const dissolveResult = dissolveNegotiatingCommonwealth(nextCtx, {
+    commonwealthPolityId: commonwealthId,
+    leaderOutcome: 'alive',
+  })
+  if (dissolveResult.ok) nextCtx = dissolveResult.value.ctx
+
+  // 4. play 終結 (status_quo — 要求は通らなかった)
+  nextCtx = setPlayStatus(nextCtx, play.id, 'settled', 'status_quo')
+
+  // 5. event (REVOLT_SETTLED 型 + 専用 messageKey)
+  const provinceName = nameParam(
+    'province',
+    nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+  )
+  const targetPolityRef = getPolityNameRefForEmit(nextCtx.state, targetPolityId)
+  const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+    type: 'REVOLT_SETTLED',
+    importance: 'major',
+    messageKey: 'revolt.tax_relief_fizzled',
+    messageParams: {
+      province: provinceName,
+      restorePolity: nameParam(targetPolityRef.category, targetPolityRef.nameKey),
+    },
+    entityRefs: [
+      entityRef('province', provinceId, 'province', nextCtx.state.provinces[provinceId]?.nameKey),
+      entityRef('polity', commonwealthId, 'rebel_polity'),
+      entityRef('polity', targetPolityId, 'target_polity', targetPolityRef.nameKey),
+    ],
+  })
+  return { ...ctxEv, events: [...ctxEv.events, event] }
 }
 
 function applyPopularTaxReliefSettlement(
@@ -246,10 +605,18 @@ function applyPopularTaxReliefSettlement(
   return { ...ctxEv, events: [...ctxEv.events, event] }
 }
 
+// v0.48: escalation 経路は popular_tax_relief と bailiff_dismissal の両方から到達する。
+//   両者の共通部分 (holdingId / targetContractId / claimantPopClass) のみ使い、
+//   demandedTaxRate に依存する箇所は kind で guard する。
+type RevoltEscalationDemand = Extract<
+  DiplomaticDemand,
+  { kind: 'popular_tax_relief' | 'bailiff_dismissal' | 'secession' }
+>
+
 function applyRevoltEscalation(
   ctx: TickContext,
   play: DiplomaticPlay,
-  demand: Extract<DiplomaticDemand, { kind: 'popular_tax_relief' }>,
+  demand: RevoltEscalationDemand,
   commonwealthId: PolityId,
   targetPolityId: PolityId,
   provinceId: ProvinceId,
@@ -410,7 +777,7 @@ function applyRevoltEscalation(
 function resolveInternalRevolt(
   ctx: TickContext,
   play: DiplomaticPlay,
-  demand: Extract<DiplomaticDemand, { kind: 'popular_tax_relief' }>,
+  demand: RevoltEscalationDemand,
   commonwealthId: PolityId,
   targetPolityId: PolityId,
   provinceId: ProvinceId,
@@ -504,8 +871,10 @@ function resolveInternalRevolt(
     )
     // v0.42c §15.1: person-holder polity share は廃止 (ruler domain で表現)
 
-    // 3. Tax reduction
-    state = adjustLandContractTaxRate(state, demand.targetContractId, demand.demandedTaxRate)
+    // 3. Tax reduction (税率改定要求のみ。代官罷免要求が武力化した場合は税率は据え置く)
+    if (demand.kind === 'popular_tax_relief') {
+      state = adjustLandContractTaxRate(state, demand.targetContractId, demand.demandedTaxRate)
+    }
 
     // 4. Unrest reduction
     state = adjustProvincePopUnrestByClass(state, provinceId, demand.claimantPopClass, -30)

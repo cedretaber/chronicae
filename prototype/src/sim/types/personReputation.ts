@@ -38,6 +38,8 @@ export type PersonReputationSource =
   | { kind: 'project'; projectKind: ProjectKind; projectId?: ProjectId }
   | { kind: 'diplomatic_play'; playKind: DiplomaticPlayKind; playId?: DiplomaticPlayId }
   | { kind: 'war'; warId?: WarId }
+  // v0.48: 民衆反乱の代官罷免による統治失敗の悪評 (stewardship)。
+  | { kind: 'revolt'; playId?: DiplomaticPlayId }
 
 export type PersonReputation = {
   id: PersonReputationId

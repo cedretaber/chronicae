@@ -13,7 +13,7 @@ import {
 } from '../types/personReputation'
 
 const VALID_CATEGORY_SET = new Set<string>(VALID_REPUTATION_CATEGORIES)
-const VALID_SOURCE_KINDS = new Set<string>(['project', 'diplomatic_play', 'war'])
+const VALID_SOURCE_KINDS = new Set<string>(['project', 'diplomatic_play', 'war', 'revolt'])
 
 export function checkPersonReputations(state: WorldState, errors: SimError[]): void {
   for (const [idStr, reputation] of Object.entries(state.personReputations)) {

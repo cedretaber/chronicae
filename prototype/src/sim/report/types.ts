@@ -80,6 +80,9 @@ export type BailiffActivityReport = {
   finalVacantCount: number
   totalAppointments: number
   totalVacated: number
+  // v0.48: 民衆反乱による代官罷免 (BAILIFF_DISMISSED_BY_REVOLT)。vacateHoldingBailiff を呼ぶが
+  //   BAILIFF_VACATED とは別イベントなので totalVacated とは別カウント。
+  totalDismissedByRevolt: number
   totalPlaceholderInstalled: number
   // assignment source 推定 (event.houseIds[0] vs 任命当時の polity.ownerHouseId — 簡易に
   // 現在 state の polity.ownerHouseId と比較する)

@@ -58,6 +58,8 @@ export function PersonReputationSection({
         return t(`play_kind.${source.playKind}`, { ns: 'diplomacy' })
       case 'war':
         return t('enum.sourceKind.war', { ns: 'events' })
+      case 'revolt':
+        return t('enum.sourceKind.revolt', { ns: 'events' })
     }
   }
 
