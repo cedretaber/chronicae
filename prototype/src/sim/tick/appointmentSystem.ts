@@ -553,6 +553,21 @@ function tryAppointPolityOffice(
       )) {
         if (passes(id)) pool.add(id)
       }
+      // v0.49: right-backed faction の member も候補プールに加える。任命権は無関係な派閥は
+      // 排除するが、保持者自身が属する派閥の人材（landless でも）には道を開く。
+      // getRightAppointmentBonus が既に rightBackedFactionBonus を付与する前提を実体化する
+      // (= 従来はプールに居ない人物へボーナス計算するだけで死んでいた抜け穴を塞ぐ)。
+      if (rightBackedFactionId !== undefined) {
+        for (const mid of getFactionActiveMemberIds(currentCtx.state, rightBackedFactionId)) {
+          if (alreadyHolding.has(mid)) continue
+          const m = currentCtx.state.persons[mid]
+          if (!m || !m.alive || m.kind === 'placeholder') continue
+          if (!isLifeStageAtLeast(m.lifeStage, 'young_adulthood')) continue
+          if (hasActiveHoldingOffice(currentCtx.state, mid)) continue
+          if (!passes(mid)) continue
+          pool.add(mid)
+        }
+      }
       const scored = [...pool].map((id) => ({
         id,
         score:

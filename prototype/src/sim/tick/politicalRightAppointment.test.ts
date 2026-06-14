@@ -167,6 +167,81 @@ describe('appointment right integration (§9)', () => {
     expect(selectRightBackedFaction(stateOther, polityId, right2)).toBeUndefined()
   })
 
+  it('adds right-backed faction members to the pool so a landless faction ally can win (v0.49)', () => {
+    // 任命権は無関係な派閥は排除するが、保持者自身の派閥 (right-backed faction) の人材には
+    // 道を開く。ここでは: owner house は土地を持つが候補 member 不在 / leader は別 house /
+    // right を持つ landless rightHouse の唯一の member は子供 (right 候補なし) / だが rightHouse は
+    // 派閥を anchor し、その leader が強力な landless ally。ally が right-gated プールに入って着座する
+    // (変更前は factional path skip で着座不能だった)。
+    const cPolity = createPolityId('c', 5)
+    const cProvince = createProvinceId('p', 5)
+    const cOwnerHouse = createHouseId('h', 5) // 土地あり・候補 member なし
+    const cCrownHouse = createHouseId('h', 6) // leader 在籍・owner/primary でない
+    const cRightHouse = createHouseId('h', 7) // landless・任命権保持
+    const cAllyHouse = createHouseId('h', 8) // landless・派閥 ally
+    const cRulerId = createPersonId('pe', 50)
+    const cRightChildId = createPersonId('pe', 51) // 子供 → right 候補にならない
+    const cAllyId = createPersonId('pe', 52) // 強力な landless 派閥 member
+    const cFactionId = createFactionId(5)
+
+    let state = makeEmptyV016State()
+    state = { ...state, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
+    state = withProvince(state, cProvince, { nameKey: 'P5' })
+    state = withHouse(state, cOwnerHouse, { nameKey: 'Owner', seatProvinceId: cProvince })
+    state = withHouse(state, cCrownHouse, { nameKey: 'Crown', seatProvinceId: cProvince })
+    state = withHouse(state, cRightHouse, { nameKey: 'Right', seatProvinceId: cProvince })
+    state = withHouse(state, cAllyHouse, { nameKey: 'Ally', seatProvinceId: cProvince })
+    state = withPolity(state, cPolity, {
+      ownerHouseId: cOwnerHouse,
+      treasury: 100,
+      capitalProvinceId: cProvince,
+      rank: 1,
+    })
+    state = bindProvinceToHouseViaPolity(state, cProvince, cPolity, cOwnerHouse)
+    state = withPerson(state, cRulerId, { nameKey: 'Ruler', houseId: cCrownHouse })
+    state = withPerson(state, cRightChildId, {
+      nameKey: 'RightChild',
+      houseId: cRightHouse,
+      lifeStage: 'childhood',
+      age: 8,
+    })
+    state = withPerson(state, cAllyId, {
+      nameKey: 'Ally',
+      houseId: cAllyHouse,
+      abilities: { valor: 50, command: 50, numeracy: 80, learning: 80, charisma: 80, insight: 80 },
+      legacyPrestige: 80,
+    })
+    state = createOfficeAssignment(state, { kind: 'polity', id: cPolity }, 'leader', cRulerId)
+    // rightHouse の子供を member に含む派閥 (leader = landless ally) を cPolity に anchor。
+    // → rightHouse が member を 1 人持つので right-backed faction に選定される。
+    state = addFactionWithMembers(state, cFactionId, cAllyId, [cRightChildId], cPolity)
+    const granted = createPoliticalRight(state, {
+      polityId: cPolity,
+      target: {
+        kind: 'polity_office_role',
+        polityId: cPolity,
+        role: 'administrator',
+        slotIndex: 0,
+      },
+      holder: { kind: 'house', id: cRightHouse },
+      grantedWeek: state.absoluteWeek,
+    })
+    if (!granted.ok) throw new Error('setup failed: ' + granted.error.message)
+    state = granted.value.state
+
+    const right = Object.values(state.politicalRights)[0]!
+    expect(selectRightBackedFaction(state, cPolity, right)).toBe(cFactionId)
+
+    const result = toResult(runAppointmentSystem(buildCtx(state)))
+    const ids = result.state.officeIndex.byOrganization[`polity:${cPolity}`] ?? []
+    let adminId: PersonId | undefined
+    for (const id of ids) {
+      const o = result.state.officeAssignments[id]
+      if (o && o.active && o.role === 'administrator') adminId = o.holderPersonId
+    }
+    expect(adminId).toBe(cAllyId)
+  })
+
   it('right-based appointee is NOT revoked by organizationConsistency (§9.4)', () => {
     const appointed = toResult(runAppointmentSystem(buildCtx(grantOfficeRight(makeState()))))
     expect(officeHolder(appointed.state, 'administrator')).toBe(rightCandidateId)

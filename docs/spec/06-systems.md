@@ -716,10 +716,10 @@ score = relevantStat(role) * 1.0          // military → warCommand、他 → g
 - 実測効果（150 年 × seed 1/42、累積 distinct）: 非 leader office 女性 143/99 → 5/3、代官 138/138 → 4/7、現場指揮官 125/162 → 6/7、派閥首領 163/193 → 5/6。女性総大将は「女王の親征 13 + hash 適格 2」のみ（ゲート漏れ 0）。女当主・女王（leader office）は不変
 
 **polity_office_appointment right の接続 (v0.42)**: 充足対象 slot（下記「任命判定」）に active な `polity_office_appointment` right（§6.64 — v0.42 slot 化で right は (polity, role, slot) 単位）がある場合:
-- **unrelated factional path は使わない**（任命権は制度的権利として派閥推薦より優先）
+- **unrelated factional path は使わない**（任命権は制度的権利として派閥推薦より優先）。ただし **right-backed faction（下記）の active member は候補 pool に加える**（v0.49）— 任命権は「無関係な派閥」を排除するが「保持者自身の派閥」は排除せず優先する、という設計。これにより保持者の派閥に属する人材は landless でも right-gated 役職に届く（従来は factional path 丸ごと skip で、`rightBackedFactionBonus` が「pool に居ない人物」へ計算されるだけの死に挙動だった抜け穴を塞ぐ）
 - right holder の候補を pool に追加する（traditional pool 外の House member / Person 本人も対象）
 - スコア補正: holder House の member に `polityOfficeAppointmentRightHouseBonus`（既定 30 — influence% 項の最大値を上回る水準。それでも能力差で覆りうる）、holder Person 本人に `polityOfficeAppointmentRightPersonBonus`（35）、その家の member に同 AssociatedBonus（18）
-- **right-backed faction（最大 1 つ）**: right holder と最も関係の強い anchor Faction を 5 段階（holder Person の所属 → holder House leader の所属 → member 最多 → faction leader が holder House 所属 → factionId 昇順）で 1 つ選定し、その active member に `rightBackedFactionBonus`（10 < HouseBonus）を加算
+- **right-backed faction（最大 1 つ）**: right holder と最も関係の強い anchor Faction を 5 段階（holder Person の所属 → holder House leader の所属 → member 最多 → faction leader が holder House 所属 → factionId 昇順）で 1 つ選定し、**その active member（adult・非 placeholder・active HoldingOffice 非保有）を候補 pool に追加**（v0.49）したうえで `rightBackedFactionBonus`（10 < HouseBonus）を加算。NP 閾値は不問（access は任命権由来であって NP ではない）。pool 追加は `getFactionActiveMemberIds` のソート順で決定的に行い run-to-run 決定性（同 seed → 同結果）を保つ（本変更自体は任命結果を変えるので変更前と bit-identical ではない）
 
 **House factional path の廃止 (v0.42)**: House office 任命への factional path は廃止（Faction は Polity 内政治装置 — §6.31 anchor 参照）。House office は traditional スコアリングのみ。また faction opportunity（member cap 原資）から House office slot を除外し、polity slot の share% 参照は influence% に置換。
 
@@ -876,7 +876,7 @@ houseless で influence 寄与ゼロ。bailiff を持つ通常 Polity なら次�
 **任期判定**: `absoluteWeek - office.startWeek >= termYears * WEEKS_PER_YEAR`。
 
 **候補者選定（v0.42: Tier 制）**:
-- **Tier 0**: 当該 Holding に `holding_office_appointment` right（§6.64）があれば、right holder（House なら free adult member / Person なら本人）を最優先
+- **Tier 0**: 当該 Holding に `holding_office_appointment` right（§6.64）があれば、right holder（House なら free adult member / Person なら本人）を最優先。**v0.49: right holder 候補に加え、right-backed faction（§6.20 polity office と同じ 5 段階選定）の active member も Tier 0 で「最初から」併合し `bailiffAbilityScore` で競争させる**（NP 閾値不問 — access は任命権由来。`selectRightBackedFaction` を共用。fall-through の Tier 1 を待たずに保持者の派閥人材が landless でも届く）
 - **Tier 1**: factional 候補（NP ≥ threshold の faction の active member。v0.42: faction の任命介入は **anchor Polity が terminal の Holding に限定** — NP が非 anchor polity に対して 0 を返すことで実現）
 - **Tier 2**: ownerHouse の free adult member（numeracy + insight 降順）
 - 適任者が居なければ placeholder のまま
