@@ -15,7 +15,9 @@ import {
   collectSubtreeMemberWeights,
   getFactionNominationPower,
   getFactionalCandidateScore,
+  getFactionActiveMemberIds,
 } from '../selectors/factionSelectors'
+import { selectRightBackedFaction } from './appointmentSystem'
 import {
   vacateHoldingBailiff,
   appointHoldingBailiff,
@@ -211,12 +213,25 @@ export function runBailiffAppointmentSystem(ctx: TickContext): TickContext {
         // Tier 0) holding_office_appointment right holder (v0.42 §10.2)。
         // holder が候補を出せない場合は factional / ownerHouse へ fall-through する
         // (polity office と意図的に非対称 — bailiff は行政実務を止めない現場職のため)。
+        // v0.49: holder 候補に加え right-backed faction の member も Tier 0 で「最初から」競争
+        // させる (polity office と対称)。任命権保持者の派閥の人材なら landless でも届く。
         if (appointmentRight) {
-          const rightCandidateIds =
+          const baseIds =
             appointmentRight.holder.kind === 'house'
               ? (currentCtx.state.houses[appointmentRight.holder.id]?.memberIds ?? [])
               : [appointmentRight.holder.id]
-          const rightCandidates = rightCandidateIds
+          const rightCandidateIds = new Set<PersonId>(baseIds)
+          const rightBackedFactionId = selectRightBackedFaction(
+            currentCtx.state,
+            polityId,
+            appointmentRight,
+          )
+          if (rightBackedFactionId !== undefined) {
+            for (const mid of getFactionActiveMemberIds(currentCtx.state, rightBackedFactionId)) {
+              rightCandidateIds.add(mid)
+            }
+          }
+          const rightCandidates = [...rightCandidateIds]
             .map((mid) => currentCtx.state.persons[mid])
             .filter((p): p is NonNullable<typeof p> => p !== undefined)
             .filter(

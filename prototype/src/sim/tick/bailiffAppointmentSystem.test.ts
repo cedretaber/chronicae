@@ -19,6 +19,8 @@ import { defaultConfig } from '../config/defaultConfig'
 import { createRng } from '../rng/rng'
 import { createTickContext, toResult } from './context'
 import { runBailiffAppointmentSystem } from './bailiffAppointmentSystem'
+import { selectRightBackedFaction } from './appointmentSystem'
+import { createPoliticalRight } from '../mutations/politicalRightMutations'
 import type { SimEvent } from '../types/event'
 import {
   makeEmptyV016State,
@@ -287,6 +289,113 @@ describe('runBailiffAppointmentSystem', () => {
     expect(office.holderPersonId).toBe(memberId)
     expect(office.appointingPolityId).toBe(polityId)
     expect(countEvents(result.events, 'BAILIFF_APPOINTED')).toBeGreaterThan(0)
+  })
+
+  it('Tier 0: right-backed faction member competes from the start (even with NP < threshold) (v0.49)', () => {
+    // 任命権が landless な rightHouse にある holding。rightHouse 自家の member は低能力、
+    // だが rightHouse が anchor する派閥 (NP < threshold で Tier 1 には乗らない) に高能力の
+    // landless ally がいる。ally が Tier 0 で「最初から」競争し、能力で自家 member に勝って着座する。
+    // (変更前は Tier 0 = right holder 自家のみ → 低能力 member が着座していた)
+    const { state: baseState, polityId, holdingId } = makeBaseState()
+    let s: WorldState = {
+      ...baseState,
+      currentWeekOfYear: 6,
+      absoluteWeek: baseState.currentYear * 48 + 6 - 1,
+    }
+
+    // landless rightHouse とその低能力 member (= Tier 0 の right holder 候補)
+    const rightHouseId = createHouseId('h', 2)
+    s = withHouse(s, rightHouseId, { nameKey: 'RightHouse', memberIds: [] })
+    const rightMemberId = createPersonId('pe', 7)
+    s = withPerson(s, rightMemberId, {
+      nameKey: 'RightMember',
+      age: 35,
+      houseId: rightHouseId,
+      birthStatus: 'unknown',
+      abilities: { ...DEFAULT_ABILITIES, numeracy: 20, insight: 20 },
+    })
+
+    // landless allyHouse と高能力 ally (= right-backed faction の leader)
+    const allyHouseId = createHouseId('h', 3)
+    s = withHouse(s, allyHouseId, { nameKey: 'AllyHouse', memberIds: [] })
+    const allyId = createPersonId('pe', 8)
+    s = withPerson(s, allyId, {
+      nameKey: 'Ally',
+      age: 30,
+      houseId: allyHouseId,
+      birthStatus: 'unknown',
+      abilities: { ...DEFAULT_ABILITIES, numeracy: 90, insight: 90 },
+    })
+
+    // ally が leader・rightMember が member の派閥を polityId に anchor。
+    // landless ばかりで NP ~0 (< threshold 0.3) なので Tier 1 には乗らないが、
+    // rightHouse が member を持つので right-backed faction に選定される。
+    const factionId = 'f-0' as unknown as FactionId
+    const week = s.currentYear * 48 + s.currentWeekOfYear - 1
+    s = {
+      ...s,
+      factions: {
+        ...s.factions,
+        [factionId]: {
+          id: factionId,
+          leaderPersonId: allyId,
+          polityId,
+          active: true,
+          foundingWeek: week,
+        },
+      },
+      factionMemberships: {
+        ...s.factionMemberships,
+        ['fm-0' as unknown as FactionMembershipId]: {
+          id: 'fm-0' as unknown as FactionMembershipId,
+          factionId,
+          personId: allyId,
+          active: true,
+          joinedWeek: week,
+        },
+        ['fm-1' as unknown as FactionMembershipId]: {
+          id: 'fm-1' as unknown as FactionMembershipId,
+          factionId,
+          personId: rightMemberId,
+          active: true,
+          joinedWeek: week,
+        },
+      },
+      factionIndex: {
+        byParent: {},
+        byLeader: { ...s.factionIndex.byLeader, [allyId]: [factionId] },
+        byPolity: { ...s.factionIndex.byPolity, [polityId]: [factionId] },
+        byMember: {
+          ...s.factionIndex.byMember,
+          [allyId]: ['fm-0' as unknown as FactionMembershipId],
+          [rightMemberId]: ['fm-1' as unknown as FactionMembershipId],
+        },
+      },
+      nextFactionId: 1,
+      nextFactionMembershipId: 2,
+    }
+
+    // holding の bailiff 任命権を landless rightHouse に付与
+    const granted = createPoliticalRight(s, {
+      polityId,
+      target: { kind: 'holding_office_role', holdingId, role: 'bailiff' },
+      holder: { kind: 'house', id: rightHouseId },
+      grantedWeek: s.absoluteWeek,
+    })
+    if (!granted.ok) throw new Error('setup failed: ' + granted.error.message)
+    s = granted.value.state
+
+    const right = Object.values(s.politicalRights)[0]!
+    expect(selectRightBackedFaction(s, polityId, right)).toBe(factionId)
+
+    const ctx = createTickContext({ state: s, rng: createRng('test'), config: defaultConfig })
+    const result = toResult(runBailiffAppointmentSystem(ctx))
+
+    const officeId = result.state.holdingOfficeIndex.byHolding[holdingId]!
+    const office = result.state.holdingOfficeAssignments[officeId]!
+    // ally (landless・right-backed faction の高能力 member) が Tier 0 で勝つ
+    expect(office.holderPersonId).toBe(allyId)
+    expect(office.appointingPolityId).toBe(polityId)
   })
 
   it('factional candidate with active Polity Office is excluded', () => {
