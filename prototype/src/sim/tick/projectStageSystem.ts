@@ -570,26 +570,38 @@ function resolveFinalizeLandGrant(
   const resolved = resolveLandGrantDonor(ws, config, petitionerId)
   if (!resolved) return failProject('opponent_too_strong')
 
-  // SOFT accept: approver (donor leader) の petitioner への attitude を主項に判定。
-  const approverId = project.approverPersonId
-  let attitudeScore = 0
-  if (approverId !== undefined) {
-    const approver = ws.persons[approverId]
-    if (approver) {
-      const att = getAttitudeOrDefault(ws, approver, { kind: 'person', id: petitionerId })
-      attitudeScore = 0.7 * att.affection + 0.3 * att.respect
+  // SOFT accept。有家分封は「家の土地を手放すには家の同意が要る」とし、cadet branch (§11.7) と同じ
+  //   家 share 加重意見 + progress で判定する (本拠を割れる/割れないは家の権力分散度で Layer1 が決め、
+  //   この petitioner に実際に渡すかを share holder の加重意見で決める)。
+  //   無家分封は donor 領主単独 attitude の従来パスを維持 (所属家が無く family cohesion が無関係)。
+  const petitionerHouseId = ws.persons[petitionerId]?.houseId
+  let accepted: boolean
+  if (petitionerHouseId !== undefined) {
+    const support =
+      getWeightedOpinionFromHouseShareholders(ws, petitionerHouseId, petitionerId) +
+      project.progress
+    accepted = support >= config.landGrantHouseSupportThreshold
+  } else {
+    const approverId = project.approverPersonId
+    let attitudeScore = 0
+    if (approverId !== undefined) {
+      const approver = ws.persons[approverId]
+      if (approver) {
+        const att = getAttitudeOrDefault(ws, approver, { kind: 'person', id: petitionerId })
+        attitudeScore = 0.7 * att.affection + 0.3 * att.respect
+      }
     }
+    const acceptScore = computeLandGrantAcceptScore(
+      ws,
+      config,
+      petitionerId,
+      approverId,
+      project.progress,
+      attitudeScore,
+    )
+    // approver 不在は auto-grant、それ以外は閾値比較。
+    accepted = approverId === undefined || acceptScore >= config.landGrantAcceptThreshold
   }
-  const acceptScore = computeLandGrantAcceptScore(
-    ws,
-    config,
-    petitionerId,
-    approverId,
-    project.progress,
-    attitudeScore,
-  )
-  // approver 不在は auto-grant、それ以外は閾値比較。
-  const accepted = approverId === undefined || acceptScore >= config.landGrantAcceptThreshold
   if (!accepted) return failProject('opponent_too_strong')
 
   // 成功 mutation。

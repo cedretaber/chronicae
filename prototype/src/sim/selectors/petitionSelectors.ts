@@ -18,6 +18,7 @@ import {
 import { getPolityLeader, getHouseLeader } from './officeSelectors'
 import { getHousePrimaryPolityId, getHouseDomainConsolidationSinkPolityId } from './polityRelations'
 import { getPersonReputationSummary } from './personReputationSelectors'
+import { getTopShareholders } from './shareSelectors'
 import { getAdultSuccessionCandidates, getTopHeirIds } from './successionSelectors'
 import { isEstablishedCommonwealthRepublic } from './republicSelectors'
 
@@ -202,11 +203,25 @@ function isEligibleDonorPolity(
   return donorCanAffordGrant(state, config, polityId)
 }
 
+// 家の権力が分散しているか (筆頭 share がしきい値以下) を判定する。
+// true なら本拠 (primary) を donor 解禁してよい (権力が一部に集中していれば本拠は割らせない)。
+// share データが無い (total raw power 0) 家は集中とみなし core を保護する (保守的 default)。
+function isHouseDispersedForCoreDonation(
+  state: WorldState,
+  config: SimulationConfig,
+  houseId: HouseId,
+): boolean {
+  const top = getTopShareholders(state, houseId, 1)[0]
+  if (!top) return false
+  return top.percent <= config.landGrantCoreDonorMaxTopSharePercent
+}
+
 // §9.3/§9.4: petitioner の donor Polity を選ぶ。
 // 無家 = 在職先 Polity (active polity office → その organization / なければ bailiff の appointingPolityId、
 //   role priority leader>administrator>treasurer>military>advisor>bailiff、同位は PolityId 昇順)。
-// 有家 = 自家が owner の余剰 territorial Polity (rank!=5・grant 後最小 holding 維持・
-//   primary/consolidation sink を除外・secondary 優先 = holding 数が少ない順)。
+// 有家 = 自家が owner の余剰 territorial Polity (rank!=5・grant 後最小 holding 維持・secondary 優先)。
+//   consolidation sink (≠primary) は集約綱引き回避のため常に除外。primary (=1-polity 家では sink 兼) は
+//   家の権力が分散しているとき (isHouseDispersedForCoreDonation) だけ donor 候補に解禁し、非 core を優先する。
 export function selectLandGrantDonorPolity(
   state: WorldState,
   config: SimulationConfig,
@@ -249,15 +264,24 @@ export function selectLandGrantDonorPolity(
   const houseId = person.houseId
   const primary = getHousePrimaryPolityId(state, houseId)
   const sink = getHouseDomainConsolidationSinkPolityId(state, config, houseId)
-  const cands: { polityId: PolityId; holdingCount: number }[] = []
+  const allowCore = isHouseDispersedForCoreDonation(state, config, houseId)
+  const cands: { polityId: PolityId; holdingCount: number; isCore: boolean }[] = []
   for (const pid of getHouseOwnedPolityIds(state, houseId)) {
-    if (pid === primary || pid === sink) continue
+    const isPrimary = pid === primary
+    const isSink = pid === sink
+    if (isSink && !isPrimary) continue // 集約 sink (≠primary) は常に除外 (多 polity 家の集約綱引き回避)
+    if (isPrimary && !allowCore) continue // primary (=1-polity 家では sink 兼) は分散時のみ解禁
     if (!isEligibleDonorPolity(state, config, pid)) continue
-    cands.push({ polityId: pid, holdingCount: getPolityHoldingCount(state, pid) })
+    cands.push({
+      polityId: pid,
+      holdingCount: getPolityHoldingCount(state, pid),
+      isCore: isPrimary,
+    })
   }
   if (cands.length === 0) return undefined
-  // secondary 優先 = holding 数が少ない順 (周縁領を切り出す)、同数は PolityId 昇順。
+  // 非 core (周縁 secondary) 優先 → holding 数が少ない順 (周縁領を切り出す) → PolityId 昇順。
   cands.sort((a, b) => {
+    if (a.isCore !== b.isCore) return a.isCore ? 1 : -1
     if (a.holdingCount !== b.holdingCount) return a.holdingCount - b.holdingCount
     return a.polityId.localeCompare(b.polityId)
   })

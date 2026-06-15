@@ -1176,6 +1176,11 @@ export type SimulationConfig = {
   landGrantPetitionerReputationWeight: number
   landGrantProjectProgressWeight: number
   landGrantRetryCooldownWeeks: number
+  // 有家分封: 筆頭 share がこの % 以下なら家の権力が分散しているとみなし、本拠(primary/=1-polity 家では
+  //   sink 兼) を donor 解禁する (集中していれば本拠は割らせない)。
+  landGrantCoreDonorMaxTopSharePercent: number
+  // 有家分封の accept 閾値 (家 share 加重意見 + project.progress)。無家分封は landGrantAcceptThreshold。
+  landGrantHouseSupportThreshold: number
   // §16.3 cadet branch (Polity 譲渡による分家)
   cadetBranchExcludeTopSuccessionRanks: number
   cadetBranchMinAmbition: number
@@ -2424,6 +2429,8 @@ export const defaultConfig: SimulationConfig = {
   landGrantPetitionerReputationWeight: 0.3,
   landGrantProjectProgressWeight: 0.2,
   landGrantRetryCooldownWeeks: 312,
+  landGrantCoreDonorMaxTopSharePercent: 60,
+  landGrantHouseSupportThreshold: 5,
   // §16.3 cadet branch
   cadetBranchExcludeTopSuccessionRanks: 2,
   cadetBranchMinAmbition: 60,
