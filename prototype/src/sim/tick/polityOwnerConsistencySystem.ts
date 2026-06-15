@@ -207,6 +207,25 @@ function emitPolityAbolished(ctx: TickContext, polityId: PolityId): TickContext 
   return { ...c1, events: [...c1.events, event] }
 }
 
+// v0.47.5: owner に紐づく active な decision artifact (Project / Aim / Goal) を terminal 化する
+//   共通ヘルパー。byOwner index から id を引き、active のものだけ terminalize で書き換えた新 map を
+//   返す (変更が無ければ undefined → 呼出側で state spread を省略)。Project/Aim/Goal で同型だった
+//   3 ループを 1 本に集約する (terminalReason 等の terminal 仕様は terminalize callback が供給)。
+function terminalizeActiveByOwner<K extends string, T extends { status: string }>(
+  entities: Record<K, T>,
+  ids: readonly K[],
+  terminalize: (entity: T) => T,
+): Record<K, T> | undefined {
+  let next: Record<K, T> | undefined
+  for (const id of ids) {
+    const e = entities[id]
+    if (!e || e.status !== 'active') continue
+    if (!next) next = { ...entities }
+    next[id] = terminalize(e)
+  }
+  return next
+}
+
 // v0.47 §6.2: landless rank 2〜4 normal Polity を称号 (titular) 化する単一 choke point。
 // active / ownerHouseId / capitalProvinceId は維持し、leader 以外の office / right / faction anchor /
 // territorial 前提の polity-owned Project・Aim を cleanup する。Regiment は明示 disband せず
@@ -232,31 +251,29 @@ function titularizePolityInline(ctx: TickContext, polityId: PolityId): TickConte
     }
   }
 
-  // 8. territorial 前提の polity-owned Project / Aim を打ち切る (titular は active のため
-  //    projectMaintenance の owner_inactive cascade に乗らない → ここで明示 terminal 化)。
+  // 8. territorial 前提の polity-owned Project / Aim / Goal を打ち切る。titular は active のため
+  //    projectMaintenance の owner_inactive cascade / goalMaintenance の inactive-owner abandon に
+  //    乗らず、titular 化後は目標生成対象からも除外されて reviewGoal も走らない (§6.56) →
+  //    ここで明示 terminal 化する。Project=cancelled+terminalReason、Aim/Goal=abandoned。
   const ownerKey = decisionSubjectKey({ kind: 'polity', id: polityId })
-  const projectIds = state.projectIndex.byOwner[ownerKey] ?? []
-  if (projectIds.length > 0) {
-    const projects = { ...state.projects }
-    for (const pid of projectIds) {
-      const p = projects[pid]
-      if (p && p.status === 'active') {
-        projects[pid] = { ...p, status: 'cancelled', terminalReason: 'owner_titularized' }
-      }
-    }
-    state = { ...state, projects }
-  }
-  const aimIds = state.aimIndex.byOwner[ownerKey] ?? []
-  if (aimIds.length > 0) {
-    const aims = { ...state.aims }
-    for (const aid of aimIds) {
-      const a = aims[aid]
-      if (a && a.status === 'active') {
-        aims[aid] = { ...a, status: 'abandoned' }
-      }
-    }
-    state = { ...state, aims }
-  }
+  const nextProjects = terminalizeActiveByOwner(
+    state.projects,
+    state.projectIndex.byOwner[ownerKey] ?? [],
+    (p) => ({ ...p, status: 'cancelled' as const, terminalReason: 'owner_titularized' as const }),
+  )
+  if (nextProjects) state = { ...state, projects: nextProjects }
+  const nextAims = terminalizeActiveByOwner(
+    state.aims,
+    state.aimIndex.byOwner[ownerKey] ?? [],
+    (a) => ({ ...a, status: 'abandoned' as const }),
+  )
+  if (nextAims) state = { ...state, aims: nextAims }
+  const nextGoals = terminalizeActiveByOwner(
+    state.goals,
+    state.goalIndex.byOwner[ownerKey] ?? [],
+    (g) => ({ ...g, status: 'abandoned' as const }),
+  )
+  if (nextGoals) state = { ...state, goals: nextGoals }
 
   let next: TickContext = { ...ctx, state }
   // 7. Faction anchor cleanup

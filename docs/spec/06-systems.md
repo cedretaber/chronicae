@@ -1928,6 +1928,10 @@ Goal の生成・レビュー・abandon を管理する。tick 登録は 4w だ�
 
 `owner.kind === 'person'` の Goal はスキップ（PersonGoalMaintenanceSystem で個別管理）。
 
+**v0.47.5: titular（称号化）Polity を生成・レビュー対象から除外**（`getPolityTerritorialStatus(polity) === 'titular'` をスキップ）。titular は landless かつ非 leader office / active right / LandContract を持たないため、Polity Aim 候補（領地開発・領地集約・契約税改定・陞爵＝いずれも territorial 前提。陞爵は `canPromotePolityRank` が territorial を明示要求）が全て空になり、`pickPolityAim` が常に `undefined` を返す。除外しないと Goal を生成しても 0-aim のまま、`goalMinimumDurationWeeks`（144週≈3年）経過ごとに keepScore≈15 < `goalSwitchThreshold`(20) で「abandon → 再生成」を空回りさせる（terminal Goal / orphan DecisionReason は `cleanupTerminalDecisions` が毎 tick GC するため **state 肥大は起きない**が、無駄な CPU と無意味な GOAL_CREATED/ABANDONED を生む）。意味のある目標を持てない owner に Goal を持たせないのが設計上正しい。称号化の瞬間に残っている active Goal は `titularizePolityInline`（§6.69）が Project / Aim と対称に abandoned へ terminal 化する（titular は active のため 4w の inactive-owner abandon に乗らず、除外後は reviewGoal も走らないため、遷移点での明示 abandon が必要）。
+
+> **既知の gap（v0.47.5 時点・本パッチ範囲外）**: 現状 `territorialStatus` を `'territorial'` に戻す writer がコードに存在せず（書き込みは新規 polity 作成と titular 化の2箇所のみ）、**titular は事実上の終端状態**。仮に titular Polity が LandContract grantee を再取得すると、(a) 本除外により Goal 生成が永久にスキップされ非 leader office も 0 のまま凍結し、(b) §19.1 integrity（titular は grantee 0）に抵触して停止する。現状は titular が aim を持てず war/分封の grantee 側になる経路に実質到達しない（150年×4seed で未発生）ため顕在化しないが、将来 titular へ land を渡す経路を追加する場合は **territorial 復帰処理＋本除外の解除をセットで実装**すること。
+
 GoalKind のスコアリングは `goalSelectors.ts` の `scorePolityGoalKind` / `scoreHouseGoalKind` で実装。system House は除外。
 
 差し替え判断の keepScore は `progress*0.5 + (active Aim が 1 つでもあれば 10) + clamp(goalAge年, 0, 10)*5`。「進行中の Aim があるか」のボーナスは並列 Aim 数（§6.57）で増やさない（`Math.min(activeAims.length, 1)` でクランプ）。多数の並列 Aim が keepScore を吊り上げて Goal が永久固定されるのを防ぐため。
@@ -2524,7 +2528,7 @@ Polity が土地を得失するだけでなく「領邦のライフサイクル�
 
 #### titular 化 / 廃止（`polityOwnerConsistencySystem`）
 
-landless 検出を rank 分岐に置換: normal rank 2〜4 → `titularizePolityInline`（territorialStatus=titular・active/ownerHouse/capital 維持・leader 以外 office revoke・right remove・faction anchor cleanup・polity-owned Project/Aim を terminal 化・`POLITY_TITULARIZED`）、normal rank 5 → `deactivatePolityInline` + `POLITY_ABOLISHED`（house 巻き込みなし）、commonwealth → 従来 extinct。titular の ownerHouse 断絶 → abolish（fallback owner 補充は territorial のみ）。`getEffectiveOfficeMaxHolders` が titular の非 leader role を 0 にし、appointment 側 prevention と organizationConsistency 安全網の両方が成立。Regiment は明示 disband せず `regimentMaintenanceSystem` の reassign に委譲。leader（title holder）補充は successionSystem が ownerHouse leader を選ぶため新分岐不要。
+landless 検出を rank 分岐に置換: normal rank 2〜4 → `titularizePolityInline`（territorialStatus=titular・active/ownerHouse/capital 維持・leader 以外 office revoke・right remove・faction anchor cleanup・polity-owned Project/Aim/Goal を terminal 化（v0.47.5 で Goal を追加。§6.56 で titular は目標生成対象外）・`POLITY_TITULARIZED`）、normal rank 5 → `deactivatePolityInline` + `POLITY_ABOLISHED`（house 巻き込みなし）、commonwealth → 従来 extinct。titular の ownerHouse 断絶 → abolish（fallback owner 補充は territorial のみ）。`getEffectiveOfficeMaxHolders` が titular の非 leader role を 0 にし、appointment 側 prevention と organizationConsistency 安全網の両方が成立。Regiment は明示 disband せず `regimentMaintenanceSystem` の reassign に委譲。leader（title holder）補充は successionSystem が ownerHouse leader を選ぶため新分岐不要。
 
 #### petition Project の解決機構
 
