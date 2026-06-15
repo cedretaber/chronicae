@@ -27,7 +27,7 @@ import {
   resolveRepublicHouseFounding,
   canPromotePolityRank,
 } from '../selectors/petitionSelectors'
-import { getWeightedOpinionFromHouseShareholders } from '../selectors/influenceSelectors'
+import { getHouseConsentSupportScore } from '../selectors/influenceSelectors'
 import { getHouseDomainConsolidationSinkPolityId } from '../selectors/polityRelations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import { getHouseNameRefForEmit, getPolityNameRefForEmit } from '../selectors/nameRefSelectors'
@@ -483,9 +483,12 @@ function resolveFinalizeCadetBranch(
   if (!resolved) return failProject()
 
   // SOFT: HouseShare holder の加重支持 + Project progress 補正 (§11.7)。
-  const supportScore =
-    getWeightedOpinionFromHouseShareholders(ws, resolved.parentHouseId, petitionerId) +
-    project.progress
+  const supportScore = getHouseConsentSupportScore(
+    ws,
+    resolved.parentHouseId,
+    petitionerId,
+    project.progress,
+  )
   if (supportScore < config.cadetBranchTitleTransferSupportThreshold) return failProject()
 
   const result = applyCadetBranchTitleTransferMut(ws, {
@@ -577,9 +580,12 @@ function resolveFinalizeLandGrant(
   const petitionerHouseId = ws.persons[petitionerId]?.houseId
   let accepted: boolean
   if (petitionerHouseId !== undefined) {
-    const support =
-      getWeightedOpinionFromHouseShareholders(ws, petitionerHouseId, petitionerId) +
-      project.progress
+    const support = getHouseConsentSupportScore(
+      ws,
+      petitionerHouseId,
+      petitionerId,
+      project.progress,
+    )
     accepted = support >= config.landGrantHouseSupportThreshold
   } else {
     const approverId = project.approverPersonId

@@ -205,14 +205,16 @@ function isEligibleDonorPolity(
 
 // 家の権力が分散しているか (筆頭 share がしきい値以下) を判定する。
 // true なら本拠 (primary) を donor 解禁してよい (権力が一部に集中していれば本拠は割らせない)。
-// share データが無い (total raw power 0) 家は集中とみなし core を保護する (保守的 default)。
+// share データが無い / total raw power 0 (レコードが残ったまま rawPower が 0 に減衰した場合を含む)
+//   家は集中とみなし core を保護する (保守的 default)。total 0 のとき getTopShareholders は
+//   percent 0 のエントリを返すため、!top だけでなく percent <= 0 も集中扱いにする。
 function isHouseDispersedForCoreDonation(
   state: WorldState,
   config: SimulationConfig,
   houseId: HouseId,
 ): boolean {
   const top = getTopShareholders(state, houseId, 1)[0]
-  if (!top) return false
+  if (!top || top.percent <= 0) return false
   return top.percent <= config.landGrantCoreDonorMaxTopSharePercent
 }
 

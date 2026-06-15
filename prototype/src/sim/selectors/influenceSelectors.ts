@@ -522,6 +522,21 @@ export function getWeightedOpinionFromHouseShareholders(
   return weightedSum / weightTotal
 }
 
+// 「家の土地/称号を手放すには家の同意が要る」の共通 SOFT 支持スコア (§11.7)。
+//   家 share 加重意見 (getWeightedOpinionFromHouseShareholders) + Project progress 補正。
+//   cadet branch 譲渡 (finalize_cadet_branch) と有家分封 (finalize_land_grant) の両 accept で
+//   この単一式を共有し、両者の同意セマンティクスが drift しないようにする (閾値だけ呼出側で比較)。
+export function getHouseConsentSupportScore(
+  state: WorldState,
+  houseId: HouseId,
+  petitionerPersonId: PersonId,
+  projectProgress: number,
+): number {
+  return (
+    getWeightedOpinionFromHouseShareholders(state, houseId, petitionerPersonId) + projectProgress
+  )
+}
+
 export function getDominantInfluenceHolder(
   state: WorldState,
   config: SimulationConfig,
