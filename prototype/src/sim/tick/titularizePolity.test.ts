@@ -4,15 +4,25 @@
 // - titular Polity の ownerHouse 断絶 → 廃止 (fallback 補充なし)
 
 import { describe, expect, it } from 'vitest'
-import { createPersonId, createHouseId, createPolityId, createProvinceId } from '../types/ids'
+import {
+  createPersonId,
+  createHouseId,
+  createPolityId,
+  createProvinceId,
+  createGoalId,
+} from '../types/ids'
+import type { Goal } from '../types/goal'
+import { decisionSubjectKey } from '../types/goal'
 import type { WorldState } from '../types/world'
 import type { TickContext } from './context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
 import { runPolityOwnerConsistencySystem } from './polityOwnerConsistencySystem'
+import { runGoalMaintenanceSystem } from './goalMaintenanceSystem'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { getOfficeAssignments } from '../selectors/officeSelectors'
+import { getActiveGoalForOwner } from '../selectors/goalSelectors'
 import {
   makeEmptyV016State,
   withPerson,
@@ -89,12 +99,64 @@ describe('v0.47 titular 化 / 廃止', () => {
     expect(result.events.some((e) => e.type === 'POLITY_TITULARIZED')).toBe(true)
   })
 
+  it('titular 化時に polity-owned の active Goal を abandoned にする (v0.47.5)', () => {
+    const landed = makeLandedPolity(3)
+    const base = makeLandless(landed)
+    const goalId = createGoalId(0)
+    const ownerKey = decisionSubjectKey({ kind: 'polity', id: polityId })
+    const goal: Goal = {
+      id: goalId,
+      owner: { kind: 'polity', id: polityId },
+      kind: 'internal_development',
+      priority: 1,
+      progress: 0,
+      targetProgress: 100,
+      createdWeek: base.absoluteWeek,
+      minimumUntilWeek: base.absoluteWeek + 52,
+      lastReviewWeek: base.absoluteWeek,
+      nextReviewWeek: base.absoluteWeek + 48,
+      status: 'active',
+      reasonIds: [],
+    }
+    const withGoal: WorldState = {
+      ...base,
+      goals: { ...base.goals, [goalId]: goal },
+      goalIndex: {
+        ...base.goalIndex,
+        byOwner: { ...base.goalIndex.byOwner, [ownerKey]: [goalId] },
+      },
+    }
+    const result = runPolityOwnerConsistencySystem(makeCtx(withGoal))
+    expect(result.state.polities[polityId]!.territorialStatus).toBe('titular')
+    expect(result.state.goals[goalId]!.status).toBe('abandoned')
+  })
+
   it('landless rank 5 normal Polity を廃止する (active=false)', () => {
     const landed = makeLandedPolity(5)
     const result = runPolityOwnerConsistencySystem(makeCtx(makeLandless(landed)))
     const polity = result.state.polities[polityId]!
     expect(polity.active).toBe(false)
     expect(result.events.some((e) => e.type === 'POLITY_ABOLISHED')).toBe(true)
+  })
+
+  it('titular Polity には GoalMaintenance が Goal を生成しない (v0.47.5, 空回り停止の核心)', () => {
+    const landed = makeLandedPolity(3)
+    // 実際に titular 化してから goalMaintenance を回す
+    const titular = runPolityOwnerConsistencySystem(makeCtx(makeLandless(landed))).state
+    expect(titular.polities[polityId]!.territorialStatus).toBe('titular')
+    expect(getActiveGoalForOwner(titular, { kind: 'polity', id: polityId })).toBeUndefined()
+    // review boundary (absoluteWeek % goalReviewIntervalWeeks === 0) で生成判定が走る週
+    expect(titular.absoluteWeek % defaultConfig.goalReviewIntervalWeeks).toBe(0)
+    const result = runGoalMaintenanceSystem(makeCtx(titular))
+    // titular は対象外 → Goal が生成されない (除外しないと毎年空回り再生成する)
+    expect(getActiveGoalForOwner(result.state, { kind: 'polity', id: polityId })).toBeUndefined()
+  })
+
+  it('territorial Polity には GoalMaintenance が Goal を生成する (対比)', () => {
+    const landed = makeLandedPolity(3)
+    expect(landed.absoluteWeek % defaultConfig.goalReviewIntervalWeeks).toBe(0)
+    const result = runGoalMaintenanceSystem(makeCtx(landed))
+    expect(getActiveGoalForOwner(result.state, { kind: 'polity', id: polityId })).toBeDefined()
   })
 
   it('titular Polity の ownerHouse 断絶で廃止する (fallback 補充なし)', () => {

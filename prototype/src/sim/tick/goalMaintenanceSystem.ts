@@ -5,6 +5,7 @@ import { createGoalId, createDecisionReasonId } from '../types/ids'
 import type { Goal, DecisionReason, DecisionSubjectRef } from '../types/goal'
 import { decisionSubjectKey } from '../types/goal'
 import { isLivingPerson } from '../types/person'
+import { getPolityTerritorialStatus } from '../types/polity'
 import {
   getActiveGoalForOwner,
   getActiveAimsForGoal,
@@ -28,6 +29,15 @@ export function runGoalMaintenanceSystem(ctx: TickContext): TickContext {
 
   for (const [, polity] of Object.entries(currentCtx.state.polities)) {
     if (!polity || !polity.active) continue
+    // v0.47.5: titular (称号化) Polity は landless で、達成手段のある目標種類が存在しない
+    //   (全 Aim 候補が領地/契約/territorial 前提 → pickPolityAim が常に undefined)。除外しないと
+    //   Goal を生成しても 0-aim のまま、goalMinimumDurationWeeks (144週≈3年) ごとに keepScore≈15 <
+    //   goalSwitchThreshold(20) で create→abandon を空回りさせる。terminal Goal / orphan reason は
+    //   cleanupTerminalDecisions が毎 tick GC するので state 肥大はしないが、無駄な CPU と無意味な
+    //   GOAL_CREATED/ABANDONED を生む。意味のある目標を持てない owner に Goal を持たせないのが正しい。
+    //   称号化時点の既存 Goal は titularizePolityInline 側で abandon。
+    //   注: 現状 titular→territorial の復帰パスはコードに無く (§6.69)、titular は事実上の終端状態。
+    if (getPolityTerritorialStatus(polity) === 'titular') continue
     owners.push({ kind: 'polity', id: polity.id })
   }
 

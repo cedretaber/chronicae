@@ -14,6 +14,7 @@ import {
   createGoalId,
 } from '../types/ids'
 import type { WorldState } from '../types/world'
+import type { PolityId } from '../types/ids'
 import type { TickContext } from './context'
 import { createRng } from '../rng/rng'
 import { defaultConfig } from '../config/defaultConfig'
@@ -21,8 +22,14 @@ import { runProjectStageSystem } from './projectStageSystem'
 import { runProjectTaskGenerationSystem } from './projectTaskGenerationSystem'
 import { collectIntegrityErrors } from './integritySystem'
 import { createOfficeAssignment } from '../mutations/officeMutations'
+import { createHouseShare } from '../mutations/shareMutations'
+import { setPersonAttitude } from '../mutations/attitudeMutations'
 import { getPolityLeader } from '../selectors/officeSelectors'
-import { meetsLandGrantPetitionerGate } from '../selectors/petitionSelectors'
+import {
+  meetsLandGrantPetitionerGate,
+  selectLandGrantDonorPolity,
+  resolveLandGrantDonor,
+} from '../selectors/petitionSelectors'
 import {
   makeEmptyV016State,
   withPerson,
@@ -315,5 +322,248 @@ describe('meetsLandGrantPetitionerGate: house leader 除外', () => {
     const s = makeGateState()
     const cadet = s.persons[cadetMemberId]!
     expect(meetsLandGrantPetitionerGate(s, defaultConfig, cadet)).toBe(true)
+  })
+})
+
+// 有家分封の primary donor 解禁 (家統制ゲート)。
+//   家の権力が分散 (筆頭 share ≤ landGrantCoreDonorMaxTopSharePercent) していれば本拠 (primary) を
+//   donor 解禁し、集中していれば本拠を割らせない。sink (≠primary) は分散でも常に除外。
+describe('有家分封 primary donor 解禁 (Layer1: 集中度ゲート)', () => {
+  const cohHouseId = createHouseId('dh', 5)
+  const cohLeaderId = createPersonId('pe', 50)
+  const cohPetitionerId = createPersonId('pe', 51)
+  const cohProvinceA = createProvinceId('p', 5)
+  const cohProvinceB = createProvinceId('p', 6)
+  const cohPolityA = createPolityId('dp', 5)
+  const cohPolityB = createPolityId('dp', 6)
+  const ah0 = createHoldingId(50)
+  const ah1 = createHoldingId(51)
+  const ah2 = createHoldingId(52)
+  const bh0 = createHoldingId(60)
+  const bh1 = createHoldingId(61)
+  const bh2 = createHoldingId(62)
+
+  // 共通: leader + petitioner の有家、shares を seed。petitioner は polity office で gate 通過。
+  function seedMembersAndShares(
+    s0: WorldState,
+    officePolityId: PolityId,
+    leaderShare: number,
+    petitionerShare: number,
+  ): WorldState {
+    let s = withPerson(s0, cohLeaderId, {
+      nameKey: 'CohLeader',
+      houseId: cohHouseId,
+      alive: true,
+      age: 50,
+      wealth: 1000,
+    })
+    s = withPerson(s, cohPetitionerId, {
+      nameKey: 'CohPetitioner',
+      houseId: cohHouseId,
+      alive: true,
+      age: 30,
+      wealth: 1000,
+    })
+    // house:leader は leader、petitioner は polity office で実績条件を満たす (gate)。
+    s = createOfficeAssignment(s, { kind: 'house', id: cohHouseId }, 'leader', cohLeaderId)
+    s = createOfficeAssignment(
+      s,
+      { kind: 'polity', id: officePolityId },
+      'administrator',
+      cohPetitionerId,
+    )
+    s = createHouseShare(s, cohHouseId, cohLeaderId, leaderShare)
+    s = createHouseShare(s, cohHouseId, cohPetitionerId, petitionerShare)
+    return s
+  }
+
+  // 1 polity (rank3 seat, 3 holdings) の有家。primary == sink == polityA。
+  function make1PolityState(leaderShare: number, petitionerShare: number): WorldState {
+    let s = makeEmptyV016State()
+    s = { ...s, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
+    s = withProvince(s, cohProvinceA, { nameKey: 'CohProvinceA', holdingIds: [ah0, ah1, ah2] })
+    s = withHolding(s, ah0, cohProvinceA, { nameKey: 'AH0' })
+    s = withHolding(s, ah1, cohProvinceA, { nameKey: 'AH1' })
+    s = withHolding(s, ah2, cohProvinceA, { nameKey: 'AH2' })
+    s = withHouse(s, cohHouseId, {
+      nameKey: 'CohHouse',
+      memberIds: [cohLeaderId, cohPetitionerId],
+      seatProvinceId: cohProvinceA,
+    })
+    s = withPolity(s, cohPolityA, {
+      rank: 3,
+      ownerHouseId: cohHouseId,
+      capitalProvinceId: cohProvinceA,
+    })
+    s = bindProvinceToPolity(s, cohProvinceA, cohPolityA)
+    return seedMembersAndShares(s, cohPolityA, leaderShare, petitionerShare)
+  }
+
+  // 2 polity (primary A rank3 seat / 第二 B) の有家。B の rank で sink を制御。分散 shares 固定。
+  function make2PolityState(secondRank: 2 | 4): WorldState {
+    let s = makeEmptyV016State()
+    s = { ...s, currentYear: 1444, absoluteWeek: 69312, currentWeekOfYear: 1 }
+    s = withProvince(s, cohProvinceA, { nameKey: 'CohProvinceA', holdingIds: [ah0, ah1, ah2] })
+    s = withHolding(s, ah0, cohProvinceA, { nameKey: 'AH0' })
+    s = withHolding(s, ah1, cohProvinceA, { nameKey: 'AH1' })
+    s = withHolding(s, ah2, cohProvinceA, { nameKey: 'AH2' })
+    s = withProvince(s, cohProvinceB, { nameKey: 'CohProvinceB', holdingIds: [bh0, bh1, bh2] })
+    s = withHolding(s, bh0, cohProvinceB, { nameKey: 'BH0' })
+    s = withHolding(s, bh1, cohProvinceB, { nameKey: 'BH1' })
+    s = withHolding(s, bh2, cohProvinceB, { nameKey: 'BH2' })
+    s = withHouse(s, cohHouseId, {
+      nameKey: 'CohHouse',
+      memberIds: [cohLeaderId, cohPetitionerId],
+      seatProvinceId: cohProvinceA,
+    })
+    s = withPolity(s, cohPolityA, {
+      rank: 3,
+      ownerHouseId: cohHouseId,
+      capitalProvinceId: cohProvinceA,
+    })
+    s = withPolity(s, cohPolityB, {
+      rank: secondRank,
+      ownerHouseId: cohHouseId,
+      capitalProvinceId: cohProvinceB,
+    })
+    s = bindProvinceToPolity(s, cohProvinceA, cohPolityA)
+    s = bindProvinceToPolity(s, cohProvinceB, cohPolityB)
+    return seedMembersAndShares(s, cohPolityA, 50, 50)
+  }
+
+  it('1-polity・分散 (筆頭 50% ≤ 60) → primary が donor になり分封成立', () => {
+    const s = make1PolityState(50, 50)
+    expect(selectLandGrantDonorPolity(s, defaultConfig, cohPetitionerId)).toBe(cohPolityA)
+    const resolved = resolveLandGrantDonor(s, defaultConfig, cohPetitionerId)
+    expect(resolved?.donorPolityId).toBe(cohPolityA)
+    expect(resolved?.holdingId).toBeDefined()
+  })
+
+  it('1-polity・集中 (筆頭 90% > 60) → donor 候補ゼロで分封不成立', () => {
+    const s = make1PolityState(90, 10)
+    expect(selectLandGrantDonorPolity(s, defaultConfig, cohPetitionerId)).toBeUndefined()
+    expect(resolveLandGrantDonor(s, defaultConfig, cohPetitionerId)).toBeUndefined()
+  })
+
+  it('多 polity・分散: 純 sink (≠primary) は除外、primary は解禁される', () => {
+    // B rank2 → sink = B (≠ primary A)。分散でも B は除外、唯一の候補 primary A が返る。
+    const s = make2PolityState(2)
+    expect(selectLandGrantDonorPolity(s, defaultConfig, cohPetitionerId)).toBe(cohPolityA)
+  })
+
+  it('多 polity・分散: 非 core (secondary) が core (primary) より優先される', () => {
+    // B rank4 → sink = A (=primary)。B は純 secondary。非 core 優先で B が返る。
+    const s = make2PolityState(4)
+    expect(selectLandGrantDonorPolity(s, defaultConfig, cohPetitionerId)).toBe(cohPolityB)
+  })
+
+  // Layer2: 有家分封の accept は家 share 加重意見 (getWeightedOpinionFromHouseShareholders) + progress。
+  describe('Layer2: 有家 accept = 家 share 加重意見', () => {
+    function withHousedFinalizeProject(s0: WorldState): WorldState {
+      const projectId = createProjectId(0)
+      const aimId = createAimId(0)
+      const goalId = createGoalId(0)
+      const s = withGoal(
+        s0,
+        goalId,
+        { kind: 'person', id: cohPetitionerId },
+        'personal_advancement',
+      )
+      const aim: Aim = {
+        id: aimId,
+        owner: { kind: 'person', id: cohPetitionerId },
+        goalId,
+        origin: 'goal_driven',
+        kind: 'request_land_grant',
+        priority: 50,
+        progress: 0,
+        targetProgress: 3,
+        createdWeek: s.absoluteWeek,
+        deadlineWeek: s.absoluteWeek + 520,
+        successfulProjectCount: 0,
+        failedProjectCount: 0,
+        status: 'active',
+        reasonIds: [],
+      }
+      const project: RequestLandGrantProject = {
+        id: projectId,
+        owner: { kind: 'person', id: cohPetitionerId },
+        origin: { kind: 'aim', aimId },
+        kind: 'request_land_grant',
+        creatorPersonId: cohPetitionerId,
+        supervisorPersonId: cohPetitionerId,
+        status: 'active',
+        progress: 3,
+        targetProgress: 3,
+        currentStageKey: 'finalize_land_grant',
+        createdWeek: s.absoluteWeek,
+        reasonIds: [],
+        petitionerPersonId: cohPetitionerId,
+        donorPolityId: cohPolityA,
+        targetHoldingId: ah2,
+        approverPersonId: cohLeaderId,
+      }
+      return {
+        ...s,
+        aims: { ...s.aims, [aimId]: aim },
+        aimIndex: {
+          ...s.aimIndex,
+          byOwner: { ...s.aimIndex.byOwner, [`person:${cohPetitionerId}`]: [aimId] },
+        },
+        projects: { ...s.projects, [projectId]: project },
+        projectIndex: {
+          ...s.projectIndex,
+          byOwner: { ...s.projectIndex.byOwner, [`person:${cohPetitionerId}`]: [projectId] },
+          byAim: { ...s.projectIndex.byAim, [aimId as string]: [projectId] },
+        },
+      }
+    }
+
+    function setLeaderAttitudeToPetitioner(
+      s: WorldState,
+      affection: number,
+      respect: number,
+    ): WorldState {
+      const r = setPersonAttitude(
+        s,
+        cohLeaderId,
+        { kind: 'person', id: cohPetitionerId },
+        { affection, respect },
+      )
+      if (!r.ok) throw new Error(r.error.message)
+      return r.value
+    }
+
+    function ctxFor(s: WorldState): TickContext {
+      return makeCtx(s)
+    }
+
+    it('筆頭 holder が petitioner を支持 → 分封 completed + cadet house 生成', () => {
+      // 分散 (50/50) で donor 解決可・leader (他 holder) の attitude を正に。
+      let s = withHousedFinalizeProject(make1PolityState(50, 50))
+      s = setLeaderAttitudeToPetitioner(s, 80, 80)
+      const baselineErrors = new Set(
+        collectIntegrityErrors(s, { debug: false, config: defaultConfig }).map((e) => e.message),
+      )
+      const result = runProjectStageSystem(ctxFor(s))
+      const st = result.state
+      expect(st.projects[createProjectId(0)]?.status).toBe('completed')
+      const newHouse = Object.values(st.houses).find(
+        (h) => h.creationReason === 'land_grant' && h.founderId === cohPetitionerId,
+      )
+      expect(newHouse?.creationKind).toBe('cadet_branch')
+      expect(result.events.some((e) => e.type === 'CADET_BRANCH_FOUNDED_BY_LAND_GRANT')).toBe(true)
+      const newErrors = collectIntegrityErrors(st, { debug: false, config: defaultConfig })
+        .map((e) => e.message)
+        .filter((m) => !baselineErrors.has(m) && !m.includes('terminal project in state'))
+      expect(newErrors).toEqual([])
+    })
+
+    it('筆頭 holder が petitioner に反感 → 分封 failed (donor 解決はできても accept されない)', () => {
+      let s = withHousedFinalizeProject(make1PolityState(50, 50))
+      s = setLeaderAttitudeToPetitioner(s, -80, -80)
+      const result = runProjectStageSystem(ctxFor(s))
+      expect(result.state.projects[createProjectId(0)]?.status).toBe('failed')
+    })
   })
 })
