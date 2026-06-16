@@ -93,6 +93,25 @@ War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battl
 - Office 辞退・離反: 大きな負の Affection を持つ組織からの任命を低確率で拒否。
 - 戦争意思決定: 隣接 Polity への Affection で戦争閾値が変動。
 
+### InfluenceModifier (standing) の消費先拡張
+
+現状 `standing`（InfluenceModifier）は influence breakdown（§6.64）のみに効く。だが influence への符号付き・期限付き修正は、本来「政治力そのものへの一時的な加減」であり、任用や Share にも波及してよい性質を持つ（influence 専用に留めるのは過小利用）。
+
+拡張は **reputation 流の「正準量 1 個 + 消費先ごとの係数」パターン**で行うのが整合的。`delta` を canonical な standing 量として保ち、消費先 system が自前の係数を掛けて読む（reputation が `polityInfluenceReputationFactor` / `officeReputationScoreFactor` / `houseShareReputationFactor` を持つのと同型）。`getActorStandingInPolity(state, target, polityId)` 相当の selector を 1 本足せば、エンティティ・mutation・consistency・integrity は無改修で system 側フックだけ増やせる:
+
+- **任用**（appointmentSystem）: `standing × standingAppointmentFactor` を任官スコアに加減。
+- **家内 Share**（houseShareUpdateSystem）: standing を Share 寄与に反映。
+
+拡張時の論点（消費先ごとに別途決める）:
+
+1. **scope のミスマッチ**: standing は per-polity。任用も per-polity なので素直に噛むが、**Share は intra-house で polity 軸が無い** → どの polity の standing を Share に効かせるか要定義（例: 家の primary polity の standing のみ）。
+2. **target=house の fan-out**: 家に付いた modifier を person 単位の任用へ効かせる際、その家の全メンバーの任官スコアを一律に動かすのか等の展開ルールが要る（influence は家 entry に直接乗るため不要だった）。
+3. **床/cap は消費先ごとに別ポリシー**: influence は「domain は負保持・total を 0 床」だが、任用の reputation modifier は実効 ±5 cap。standing を任用に入れるなら influence の床ルールは流用せず別 cap を定める。
+
+**命名**: scope が influence を超えるなら `InfluenceModifier` → `PoliticalModifier`（or `StandingModifier`）へ rename を検討する（現名は "influence 専用" を主張し続けるため誤導の元）。`standing` は influence の domain 名として残す。
+
+**reputation との統合**: 「InfluenceModifier = reputation + standing の supertype」案は概念的に綺麗だが、reputation は category/source/outcome/per-person + 4 消費先を持つ成熟した別形状エンティティで、いま supertype に畳むのは大改修の割に即時の対価が薄い。当面は両者を「influence に寄与する兄弟エンティティ」として維持し、standing の消費先を独立に増やすのが費用対効果が良い。統合は「それが対価を稼ぐようになったら」の将来手として保留。
+
 ### 家の土地回復経路
 
 **現状の実装には「土地を失った家が land を取り戻す経路」が事実上存在しない**。既存の Province 取得経路 (House Split / Extinction 継承 / POLITY_OWNER_CHANGED / War / Marriage) はいずれも「既に土地を持っている家」「最高 prestige 家」「新規生成家」を優先するため、完全 landless な家には届かない。`findFallbackOwnerHouse` だけが理論的可能性だが legacyPrestige 順で他に必ず負ける。
