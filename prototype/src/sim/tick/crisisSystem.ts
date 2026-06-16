@@ -21,7 +21,7 @@ import { createProjectId } from '../types/ids'
 import { randomFloat } from '../rng/rng'
 import type { RngState } from '../rng/rng'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
-import { clamp } from '../utils/math'
+import { clamp100 } from '../utils/math'
 import {
   createCrisisMut,
   setCrisisResponseProjectMut,
@@ -671,7 +671,7 @@ function runWeeklyProcessing(
       const impId = crisis.targetImprovementId
       const imp = impId ? ws.holdingImprovements[impId] : undefined
       if (imp) {
-        const displaySeverity = clamp(config.facilityDisrepairThreshold - imp.condition, 0, 100)
+        const displaySeverity = clamp100(config.facilityDisrepairThreshold - imp.condition)
         if (displaySeverity !== crisis.severity)
           setCrisisSeverityMut(ws, crisis.id, displaySeverity)
         severity = displaySeverity

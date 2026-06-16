@@ -7,6 +7,7 @@ import { useSimulationStore } from '@/app/stores/simulationStore'
 import { formatAbsoluteWeek } from '@/app/utils/format'
 import { CopyJsonButton, WatchButton } from './shared/widgets'
 import { ProjectFieldRow, EntityRefLink } from './shared/ProjectCard'
+import { clamp100 } from '@sim/utils/math'
 
 // Project 詳細パネル。describeProject の純粋データをラベル/リンクに描画する。
 // 他の click-only entity (Holding/Clan) と同じく Sidebar には出さず、カード経由で開く。
@@ -164,9 +165,7 @@ export function ProjectDetail({
                   {imp && (
                     <div className="flex gap-1">
                       <span className="text-gray-400">{t('detail.facility.condition')}:</span>
-                      <span className="text-gray-300">
-                        {Math.max(0, Math.min(100, imp.condition)).toFixed(0)}
-                      </span>
+                      <span className="text-gray-300">{clamp100(imp.condition).toFixed(0)}</span>
                     </div>
                   )}
                   <div className="flex gap-1">

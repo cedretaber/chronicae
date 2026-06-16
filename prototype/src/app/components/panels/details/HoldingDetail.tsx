@@ -15,6 +15,7 @@ import { getHoldingOfficeAppointmentRight } from '@sim/selectors/politicalRightS
 import { getHoldingImage } from '@/app/utils/assetHash'
 import { getHoldingDevelopment } from '@sim/selectors/holdingImprovementSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
+import { clamp100 } from '@sim/utils/math'
 import { PersonLink } from './shared/links'
 import { getHoldingBailiffPerson } from '@sim/selectors/provinceOfficeSelectors'
 import {
@@ -149,7 +150,7 @@ export function HoldingDetail({
                 const flavorName = t(nameKey, { defaultValue: categoryName })
                 // v0.48.1 §8: condition バー + 機能不全バッジ (閾値割れ)
                 const threshold = defaultConfig.facilityDisrepairThreshold
-                const condition = Math.max(0, Math.min(100, imp.condition))
+                const condition = clamp100(imp.condition)
                 const disrepaired = condition < threshold
                 return (
                   <div key={imp.id} className="ml-2">

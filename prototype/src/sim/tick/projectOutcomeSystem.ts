@@ -439,9 +439,9 @@ function applyHandleCrisisMut(
     setCrisisStatusMut(ws, project.crisisId, 'resolved')
     return
   }
-  // v0.48.1 §4.2: disrepair の修理完了 → 対象 improvement の condition を回復してから purge。
+  // v0.48.1 §4.2: disrepair の修理完了 → 対象 improvement の condition を回復してから (下の) 汎用 purge へ。
   //   load-bearing: 回復を省くと condition が閾値以下のまま翌サイクルで再 spawn される無限 churn になる。
-  //   improvement が既に消滅 (全壊) していたら回復 no-op で purge のみ。
+  //   improvement が既に消滅 (全壊) していたら回復 no-op で purge のみ。回復後は generic emit+purge に fall-through。
   if (crisis.kind === 'disrepair') {
     const impId = crisis.targetImprovementId
     const imp = impId ? ws.holdingImprovements[impId] : undefined
@@ -449,18 +449,6 @@ function applyHandleCrisisMut(
       // per-object spread (Record clone だけでは本体が共有参照のまま → cross-tick 汚染)
       ws.holdingImprovements[imp.id] = { ...imp, condition: config.facilityRepairConditionRestore }
     }
-    emitEvent({
-      type: 'CRISIS_RESOLVED',
-      importance: 'normal',
-      messageKey: 'crisis.resolved',
-      messageParams: {
-        crisisKind: crisis.kind,
-        holding: holdingNameParam(ws, crisis.holdingId),
-      },
-      entityRefs: [entityRef('holding', crisis.holdingId, 'holding')],
-    })
-    removeCrisisMut(ws, project.crisisId)
-    return
   }
   emitEvent({
     type: 'CRISIS_RESOLVED',

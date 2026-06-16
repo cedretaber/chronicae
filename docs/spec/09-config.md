@@ -216,18 +216,26 @@
 | crisisEnabled | true | Crisis システム有効（週次処理 + 各経路の spawn） |
 | droughtBaseChancePerYear | 0.04 | 干魃基礎発生率/年/Province |
 | droughtPressureChanceBonus | 5.0 | 人口圧力超過分あたりの干魃発生率加算 |
-| crisisInitialSeverityByKind | famine 30 / plague 35 / drought 25 / war_damage 25 / unrest 40 | kind 別 初期 severity |
+| crisisInitialSeverityByKind | famine 30 / plague 35 / drought 25 / war_damage 25 / unrest 40 / disrepair 30 | kind 別 初期 severity（disrepair は修理工数 = Project targetProgress） |
 | crisisSeverityPressureBonus | 20 | 人口圧力超過分あたりの初期 severity 加算（famine/plague/drought のみ） |
-| crisisInitialShockSizeRateByKind | famine 0.05 / plague 0.04 / drought 0.03 / war_damage 0.02 / unrest 0 | 発生時の一回限り人口減率 |
-| crisisDeadlineWeeksByKind | famine 24 / plague 20 / drought 32 / war_damage 32 / unrest 12 | kind 別 有効期限（週） |
+| crisisInitialShockSizeRateByKind | famine 0.05 / plague 0.04 / drought 0.03 / war_damage 0.02 / unrest 0 / disrepair 0 | 発生時の一回限り人口減率 |
+| crisisDeadlineWeeksByKind | famine 24 / plague 20 / drought 32 / war_damage 32 / unrest 12 / disrepair 999 | kind 別 有効期限（週）。disrepair は型充足用で Crisis/Project とも deadline 不使用 |
 | crisisBudgetTreasuryRatio | 0.1 | 対処予算 = floor(treasury × 本値) と cap の小さい方 |
-| crisisBudgetCapByKind | famine 60 / plague 80 / drought 50 / war_damage 80 / unrest 40 | kind 別 予算上限 |
-| crisisWeeklyWealthPenaltyPerSeverity | 0.05 | severity 1 あたりの週次 POP wealth 低下 |
-| crisisWeeklyUnrestPerSeverity | 0.04 | severity 1 あたりの週次 POP unrest 上昇 |
+| crisisBudgetCapByKind | famine 60 / plague 80 / drought 50 / war_damage 80 / unrest 40 / disrepair 60 | kind 別 予算上限 |
+| crisisWeeklyWealthPenaltyPerSeverity | 0.05 | severity 1 あたりの週次 POP wealth 低下（disrepair は適用しない） |
+| crisisWeeklyUnrestPerSeverity | 0.04 | severity 1 あたりの週次 POP unrest 上昇（disrepair は適用しない） |
 | crisisNeglectAffectionDropPerWeekBailiff | -0.3 | 放置中の週次 代官 affection 低下 |
 | crisisNeglectAffectionDropPerWeekPolity | -0.15 | 放置中の週次 Polity affection 低下 |
 | crisisExpiredAffectionDropBailiff | -5 | 期限切れ時の追加 代官 affection 低下 |
 | crisisExpiredAffectionDropPolity | -3 | 期限切れ時の追加 Polity affection 低下 |
+| **設備維持管理 FacilityMaintenance（v0.48.1・暫定値。balance は機能完成後に調整, CLAUDE.md §4）** | | |
+| facilityMaintenanceEnabled | true | kill-switch（§6.6b） |
+| facilityConditionDecayPerCyclePerLevel | 0.9 | 維持サイクル(4週)ごとの condition 減衰 = 本値 × level。減衰: 100→閾値50 で約 56 サイクル ≈ 4.3 年/閾値到達（L1）。放置 L1 設備は ~9 年弱で全壊 |
+| facilityDisrepairThreshold | 50 | これ未満で機能不全（生産 effectiveness 低下 + disrepair Crisis 発火） |
+| facilityDisrepairMinEffectiveness | 0 | 生産 effectiveness の下限（condition 0 時）。`conditionEffectiveness` の minFloor |
+| facilityRepairConditionRestore | 100 | 修理完了 / 部分崩壊後に回復する condition |
+| warDamageConditionDrop | 40 | 戦災 1 回あたりの全 improvement condition 減少幅（§6.6b 戦争連動） |
+| facilityConditionSeedJitterMin | 70 | worldgen seed の condition 下限（上限 100、第1波 desync。improvement id 由来の決定論 jitter） |
 | **Public Spending** | | |
 | publicSpendingEnabled | true | 公共支出有効 |
 | publicSpendingYearlyChance | 0.35 | 公共支出年間発動確率 |

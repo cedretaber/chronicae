@@ -298,7 +298,7 @@ polity.treasury -= distributedTotal
 
 > **v0.48 で旧 DisasterSystem を「Crisis エンティティ + 対処 Project」モデルに再設計した。** 旧実装は state に残らない単発即時ダメージ（peasants wealth −8 / population −10% 等）で、担当者・予算・有効期間・救済・attitude 影響がすべて欠落していた。v0.48 は不作（famine）/ 疫病（plague）/ 干魃（drought）/ 戦災（war_damage）/ 反乱前段（unrest）を **対処を要する局所的事態（Crisis）** としてエンティティ化し、「有能な代官が災害を凌ぐ / 無能・無予算が放置し被害が拡大する」という holding ごとの差分ドラマを生む。豊作（BountifulHarvest）は副作用が異なるため §6.6a HarvestSystem に分離した。
 
-**Crisis = 局所的ハザード（能動）**。holding 単位で発生し、誰も対処しなくても毎週 severity 比例のデバフを与え続ける（型は §3）。kind は `famine / plague / drought / war_damage / unrest` の 5 種。`severity`（0..100）は被害の大きさで、対処 Project の進捗に応じて派生同期される。
+**Crisis = 局所的ハザード（能動）**。holding 単位で発生し、誰も対処しなくても毎週 severity 比例のデバフを与え続ける（型は §3）。kind は `famine / plague / drought / war_damage / unrest` の 5 種 + **v0.48.1 で追加した `disrepair`（設備の機能不全）**。`severity`（0..100）は被害の大きさで、対処 Project の進捗に応じて派生同期される。**disrepair は他 5 種と異なり condition 駆動**（severity は表示専用で `HoldingImprovement.condition` から導出、deadline・週次 pop デバフを持たない）であり、ライフサイクルの本体は §6.6b FacilityMaintenanceSystem が所有する。disrepair の対処 Project は既存 `handle_crisis` をそのまま再利用する（新 ProjectKind を作らない）。
 
 **対処 = handle_crisis Project（受動）**。既存 Project の task 経済に乗る（develop_holding の鏡像）。`find_supervisor → secure_budget → mitigate` の stage 列で `advance_project` task を発行し progress を積む。担当者の能力・予算は task の難易度・成功率に反映される（人物能力効果は respond_to_pressure と同様）。`severity = max(0, targetProgress − project.progress)`（targetProgress = 初期 severity）で同期し、progress が積まれて severity が 0 になると **resolved**。
 
@@ -341,6 +341,32 @@ CrisisSystem は ProjectOutcomeSystem の **後** に走り（resolved/progress 
 - `adjustProvincePopUnrestByClass(state, pid, 'peasants', -bountifulHarvestPeasantUnrestReduction)`
 - `adjustProvincePopWealthByClass(state, pid, 'townsmen', +bountifulHarvestTownsmanWealthGain)`
 - `adjustProvincePopUnrestByClass(state, pid, 'townsmen', -bountifulHarvestTownsmanUnrestReduction)`
+
+### 6.6b FacilityMaintenanceSystem（4週ごと、CrisisSystem の後）
+
+> **v0.48.1 で導入。** それまで `HoldingImprovement.condition` は 100 固定生成で integrity の `[0,100]` 検査にしか使われない死蔵フィールドだった。設備は一度作れば永遠に残り、最終的に開発対象が枯渇する。本 system は condition を生きたスカラーにし、**減衰 → 機能不全（disrepair Crisis）→ 人手+予算で修理 → 放置で破壊** のライフサイクルを与える。狙いは「無限開発の歯止め」: 恒常的な作業 sink になるのは `develop_holding` ではなく **修理（`handle_crisis`）** であり、開発の自然な上限は (a) 修理が奪い合う予算・人手の有界性 と (b) レベルダウン（維持しきれない設備は持続可能なレベルへ縮む）の 2 つが作る。
+
+**condition 駆動モデル**: condition が真実の源で、Crisis 中も独立に減衰し 0 で破壊。Crisis の `severity` は表示用に condition から導出するだけ（§6.6 disrepair 分岐）。本 system は ProjectOutcomeSystem と **同 interval(4)・同 offset(0)** で走り登録順で CrisisSystem の後に置く。これにより「同サイクルに完了した修理（ProjectOutcome が condition を回復）が先に処理され → その後で本 system が減衰・破壊判定」が毎回保証され、完了直前の improvement の誤破壊を防ぐ。1 tick 1 draft で `holdingImprovements` / `holdingImprovementIndex.byHolding` / Crisis slice / Project slice を clone し in-place mut する（condition 書込は必ず `{ ...imp, condition }` の per-object spread）。走査は `Object.keys().sort()` で順序固定（採番決定性）。本 system は RNG を引かない。
+
+処理（各 improvement を sort 順に）:
+- **減衰**: `condition' = max(0, condition − facilityConditionDecayPerCyclePerLevel × level)`。レベル比例（高レベルほど維持コストが重く、修理が予算・人手をより多く奪う）。修理中も減衰は止めない（間に合わなければ崩壊）。
+- **閾値割れ → disrepair Crisis 発火**: condition < `facilityDisrepairThreshold` で、その improvement を指す active disrepair Crisis が無ければ `spawnDisrepairCrisisMut`（ws ベース。`spawnCrisisForHolding` の鏡像）で生成。dedup は `targetImprovementId` 込み。owner は live 解決（`getHoldingTerminalPolityId`、active owner polity が無ければ生成しない）。担当者は `resolveCrisisHandlers`（代官 or 指導者+`selectProjectSupervisor`）。spawn 時 `severity = crisisInitialSeverityByKind.disrepair`（= 修理工数 = Project の targetProgress）。表示用 severity（threshold−condition）は CrisisSystem が毎サイクル上書きする。
+- **condition 0 → 破壊**（`degradeHoldingImprovementMut`）: `level − 1`。level ≥ 1 が残れば condition を `facilityRepairConditionRestore`(100) に戻して部分崩壊（lower-level として健全化）、level 0 なら improvement を削除し `holdingImprovementIndex.byHolding` から除去（filter 後に空配列なら key ごと delete）。いずれも対応する active disrepair Crisis を purge（`removeCrisisMut`）+ 進行中の修理 Project を cancel（`cancelActiveResponseProjectMut(..., 'target_destroyed')`）してから `FACILITY_BREAKDOWN`（messageParams: holding / improvementKind / breakdownOutcome ∈ degraded|destroyed）を emit。
+- **防御 sweep**: 対象 improvement が消滅した dangling disrepair Crisis を検出したら purge/tolerate（throw でなく。破壊経路で通常 purge 済みのため belt-and-suspenders）。
+
+**修理（`handle_crisis` 再利用）**: 修理 Project は既存 Crisis 機構（find_supervisor → secure_budget → mitigate）に乗る。targetProgress = 修理工数（spawn 時 severity）で creation 時のみ設定（表示 severity 上書きでは壊れない）。完了で ProjectOutcomeSystem の `applyHandleCrisisMut` が disrepair 分岐で対象 improvement の condition を `facilityRepairConditionRestore`(100) に回復してから purge（**load-bearing**: 回復を省くと condition が閾値以下のまま再 spawn される無限 churn）。**disrepair はタイマー無し**: 終端は repaired / destroyed のみで、Crisis 側（deadline 失効スキップ）と Project 側（secure_budget 通過時に `deadlineWeek` を undefined にし残存タイマーを断つ）の両方で deadline 経路を通さない。
+
+**生産への影響（機能不全 = 段階的低下）**: `conditionEffectiveness(condition, threshold, minFloor) = condition ≥ threshold ? 1 : max(minFloor, condition/threshold)`（`holdingImprovementSelectors.ts`）。閾値以上は full(1.0)、未満は線形低下（下限 `facilityDisrepairMinEffectiveness`、通常 0）。bimodal（健全はフラット稼働 / 機能不全で初めて出力が崖状に落ちる）。`getHoldingDevelopment`（development 寄与）と `computeHoldingOccupationCapacity`（雇用 capacity）の improvement level 寄与に乗算。capacity helper の要素型は `condition` を必須にして全 builder に注入を強制する（optional だと渡し忘れが静かに死ぬ）。二重計上ではない（capacity は state 非依存で development を参照しない並列の consumer）。
+
+**戦争連動**: `spawnWarDamageCrisis`（PeaceSettlement の領地移転後）で対象 holding の全 improvement の condition を `warDamageConditionDrop` 減少させる（improvement 2 slice を draft に追加・per-object spread）。閾値割れは翌サイクル以降に本 system が disrepair として拾う（パイプライン再利用）。war_damage Crisis と disrepair Crisis は同 holding に同居しうる（dedup は kind 別）。
+
+**worldgen 第1波の desync**: worldgen の improvement は condition を 100 固定でなく決定論 jitter（`facilityConditionSeedJitterMin`..100、improvement id 由来の剰余）で生成する。全 condition 100 出発だと同レベル設備が同週に一斉閾値割れする同期波を時間方向にばらす。新たな RNG draw は引かない（worldgen の draw 順を不変に保つ）。回復はどのみち 100 に戻るので jitter は初期世代のみに効く。
+
+**balance-watch（balance フェーズで観察、CLAUDE.md §4）**:
+- disrepair は唯一 deadline を持たない Crisis 種なので、**放置時の neglect attitude 低下が他種（12〜32週）と違い破壊までの multi-year（level 1 で ~224週、高 level ほど短い）にわたって有界に蓄積する**。neglect 自体は仕様意図（放置中に代官/Polity affection を下げる）だが、unbounded な蓄積が反乱連鎖を過剰に焚かないか観察対象。
+- `develop_holding` が**既存** improvement をレベルアップする際 condition をリセットしない（新規生成は 100）。disrepair 中の設備を upgrade すると低 condition のまま高 level になり減衰が加速する。「開発完了が condition を refresh すべきか」は未決の設計問題（リセットすると active disrepair Crisis の purge 協調が要るためスコープ外として保留）。
+- 戦災の condition 減少は war_damage Crisis の spawn dedup の後に置かれるため、crisis 有効期間内の再戦災では追加ダメージが入らない（dedup と damage が結合）。
+- 生産・capacity の二経路が閾値未満で同時低下し急峻な崖になる（→ wealth → unrest 連鎖）。同期波（worldgen jitter で緩和）以外では平常時に起動しない設計。
 
 ### 6.7 MortalitySystem（4週ごと）
 
@@ -1471,7 +1497,7 @@ HoldingImprovement:
 - holdingId が存在する
 - kind が有効な HoldingImprovementKind
 - level >= 1、level <= max level for Holding kind
-- condition が 0..100
+- condition が 0..100（**v0.48.1 以降は生きたスカラー**: FacilityMaintenanceSystem §6.6b が減衰・回復・破壊を駆動。減衰 `max(0,…)` / 回復 100 / 部分崩壊 reset-100 / 全壊 delete は全て範囲内）
 - 同一 holdingId + kind が複数存在しない
 - `holdingImprovementIndex.byHolding` と実体が一致
 
@@ -1490,6 +1516,7 @@ Crisis（v0.48）:
 - C3: terminal（resolved / expired）Crisis は purge 済みで state に残らない（active のみ）。crisisIndex（byHolding / byProject）の forward 整合
 - C4: active handle_crisis Project の budget 不変条件（非負・allocated = remaining + spent）+ holdingId 実在。**crisisId が指す Crisis の不在は許容**（C2 と対称。Project は `deadlineWeek = Crisis.deadlineWeek` を持つので dangling は必ず期限で解消）
 - C5: Crisis.severity は 0..100、`deadlineWeek >= createdWeek`
+- C6（v0.48.1）: kind=='disrepair' は `targetImprovementId` 必須（構造不変条件）。ただし指す improvement の**消滅（dangling）は throw せず許容**（FacilityMaintenanceSystem の防御 sweep が purge。transient window の誤検知回避、C2 と同型）
 
 develop_holding Project:
 - holdingId が存在する
