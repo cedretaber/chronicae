@@ -252,6 +252,11 @@ detail:
       drought: '干魃'
       war_damage: '戦災'
       unrest: '騒乱'
+      disrepair: '設備不全'
+  # v0.48.1 設備維持管理 (condition バー・機能不全バッジ・修理 Project)
+  facility:
+    condition: '状態'
+    disrepair_badge: '機能不全'
   activity:
     project_completed: '{{kind}}完了（Lv.{{level}}）'
     project_failed: '{{kind}}失敗（Lv.{{level}}）'
@@ -561,6 +566,10 @@ detail:
     pressure_source: '外圧の出元'
     pressure_type: '外圧の種別'
     pressure_play: '関連外交劇'
+    # v0.48.1 設備修理 (disrepair Crisis 対応)
+    repair_target: '修理対象'
+    repair_target_lost: '（設備は失われた）'
+    repair_progress: '修理進捗'
     pressure_kind:
       diplomatic_land_claim: '領地の請求'
       diplomatic_contract_revision: '契約条件の改定要求'

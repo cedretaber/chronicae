@@ -1364,13 +1364,20 @@ export function generateWorld(
       const { value: roll, rng: rNext } = randomFloat(rng)
       rng = rNext
       if (roll < cfg.probability) {
+        const idNum = nextHoldingImprovementId
         const impId = createHoldingImprovementId(nextHoldingImprovementId++)
+        // v0.48.1 §2.5/§11-M2: condition を 100 固定でなく決定論 jitter (jitterMin..100) にする。
+        //   全 condition 100 出発だと同レベル設備が同週に一斉閾値割れし第1波が同期するため、improvement
+        //   id から派生する剰余で時間方向にばらす。新たに RNG を引かない (worldgen の draw 順を乱さない)。
+        const jitterMin = defaultConfig.facilityConditionSeedJitterMin
+        const span = 100 - jitterMin
+        const condition = span > 0 ? jitterMin + ((idNum * 37) % (span + 1)) : 100
         holdingImprovements[impId] = {
           id: impId,
           holdingId: holding.id,
           kind: cfg.kind,
           level: 1,
-          condition: 100,
+          condition,
           createdWeek: 1,
         }
         const slot = holdingImprovementIndexByHolding[holding.id as string] ?? []

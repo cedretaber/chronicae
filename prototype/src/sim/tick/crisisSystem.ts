@@ -204,6 +204,11 @@ export function spawnWarDamageCrisis(
       byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
     },
     popGroups: { ...ctx.state.popGroups },
+    // v0.48.1 §5: 戦災で対象 holding の improvement condition を一括減少させるため slice を含める。
+    holdingImprovements: { ...ctx.state.holdingImprovements },
+    holdingImprovementIndex: {
+      byHolding: { ...ctx.state.holdingImprovementIndex.byHolding },
+    },
   }
 
   // pressureExcess は無関係 (戦災は人口圧力起点でない) → severity = base のみ
@@ -225,6 +230,22 @@ export function spawnWarDamageCrisis(
   const shockRate = config.crisisInitialShockSizeRateByKind.war_damage
   if (shockRate > 0) {
     reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, undefined)
+  }
+
+  // v0.48.1 §5: 戦災で対象 holding の全 improvement の condition を warDamageConditionDrop 減少させる。
+  //   閾値割れは翌サイクル以降に facilityMaintenanceSystem が disrepair Crisis として拾う (パイプライン
+  //   再利用)。per-object spread + sort 走査 (§2 の規約)。
+  const drop = config.warDamageConditionDrop
+  if (drop > 0) {
+    const impIds = [...(ws.holdingImprovementIndex.byHolding[holdingId as string] ?? [])].sort()
+    for (const impId of impIds) {
+      const imp = ws.holdingImprovements[impId]
+      if (!imp) continue
+      const newCondition = Math.max(0, imp.condition - drop)
+      if (newCondition !== imp.condition) {
+        ws.holdingImprovements[impId] = { ...imp, condition: newCondition }
+      }
+    }
   }
 
   const handlers = resolveCrisisHandlers(ws, config, holdingId, ownerPolityId)

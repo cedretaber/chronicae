@@ -147,13 +147,40 @@ export function HoldingDetail({
                   defaultValue: imp.kind,
                 })
                 const flavorName = t(nameKey, { defaultValue: categoryName })
+                // v0.48.1 §8: condition バー + 機能不全バッジ (閾値割れ)
+                const threshold = defaultConfig.facilityDisrepairThreshold
+                const condition = Math.max(0, Math.min(100, imp.condition))
+                const disrepaired = condition < threshold
                 return (
-                  <div key={imp.id} className="ml-2 flex items-baseline justify-between">
-                    <span className="text-gray-200">{flavorName}</span>
-                    <span className="text-xs text-gray-500">
-                      （{categoryName}{' '}
-                      {t('detail.province.improvement_level', { level: imp.level })}）
-                    </span>
+                  <div key={imp.id} className="ml-2">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-gray-200">
+                        {flavorName}
+                        {disrepaired && (
+                          <span className="ml-1 rounded bg-red-900 px-1 py-0.5 text-xs text-red-300">
+                            {t('detail.facility.disrepair_badge')}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        （{categoryName}{' '}
+                        {t('detail.province.improvement_level', { level: imp.level })}）
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1.5">
+                      <span className="text-xs text-gray-500">
+                        {t('detail.facility.condition')}
+                      </span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded bg-gray-700">
+                        <div
+                          className={`h-full ${disrepaired ? 'bg-red-600' : 'bg-emerald-600'}`}
+                          style={{ width: `${condition}%` }}
+                        />
+                      </div>
+                      <span className="w-8 text-right text-xs text-gray-400">
+                        {condition.toFixed(0)}
+                      </span>
+                    </div>
                   </div>
                 )
               })}
@@ -266,10 +293,13 @@ export function HoldingDetail({
                         {t('detail.crisis.severity')}: {crisis.severity.toFixed(0)}
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">{t('detail.crisis.deadline')}:</span>
-                      <span>{formatAbsoluteWeek(crisis.deadlineWeek)}</span>
-                    </div>
+                    {/* v0.48.1: disrepair は deadline を持たない (終端 repaired/destroyed) ので非表示 */}
+                    {crisis.kind !== 'disrepair' && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{t('detail.crisis.deadline')}:</span>
+                        <span>{formatAbsoluteWeek(crisis.deadlineWeek)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-gray-400">{t('detail.crisis.handler')}:</span>
                       {supervisor ? (

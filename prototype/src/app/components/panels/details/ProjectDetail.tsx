@@ -143,6 +143,42 @@ export function ProjectDetail({
               )
             })()}
 
+          {/* v0.48.1: 設備修理 (disrepair Crisis 対応) の対象設備・修理進捗を展開表示 */}
+          {project.kind === 'handle_crisis' &&
+            (() => {
+              const crisis = worldState.crises[project.crisisId]
+              if (!crisis || crisis.kind !== 'disrepair') return null
+              const imp = crisis.targetImprovementId
+                ? worldState.holdingImprovements[crisis.targetImprovementId]
+                : undefined
+              return (
+                <div className="mt-1 flex flex-col gap-1 rounded border border-gray-700 p-2">
+                  <div className="flex gap-1">
+                    <span className="text-gray-400">{t('detail.project.repair_target')}:</span>
+                    <span className="text-gray-300">
+                      {imp
+                        ? t(`detail.province.improvement_${imp.kind}`, { defaultValue: imp.kind })
+                        : t('detail.project.repair_target_lost')}
+                    </span>
+                  </div>
+                  {imp && (
+                    <div className="flex gap-1">
+                      <span className="text-gray-400">{t('detail.facility.condition')}:</span>
+                      <span className="text-gray-300">
+                        {Math.max(0, Math.min(100, imp.condition)).toFixed(0)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex gap-1">
+                    <span className="text-gray-400">{t('detail.project.repair_progress')}:</span>
+                    <span className="text-gray-300">
+                      {project.progress}/{project.targetProgress}
+                    </span>
+                  </div>
+                </div>
+              )
+            })()}
+
           {/* 種別固有フィールド (primary を含む全件) */}
           {descriptor.fields.map((field, i) => (
             <ProjectFieldRow
