@@ -104,6 +104,15 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
         { kind: 'house', id: project.houseId },
         { kind: 'polity', id: project.sinkPolityId },
       ]
+
+    // v0.51 陰謀リファイン: 対象 polity と rival (家/人物) を related に載せる
+    case 'undermine_influence':
+      return [
+        { kind: 'polity', id: project.polityId },
+        project.target.kind === 'house'
+          ? { kind: 'house', id: project.target.id }
+          : { kind: 'person', id: project.target.id },
+      ]
   }
 }
 
@@ -129,6 +138,8 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   request_cadet_branch_title_transfer: 'diplomacy',
   republic_house_foundation: 'governance',
   consolidate_internal_contracts: 'stewardship',
+  // v0.51 陰謀リファイン: 策謀は intrigue
+  undermine_influence: 'intrigue',
 }
 
 export function getPersonProjectWorkload(

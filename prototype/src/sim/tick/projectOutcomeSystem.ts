@@ -21,6 +21,8 @@ import type { SimulationConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 import { removeProjectFromIndexMut, isDiplomaticProjectKind } from '../mutations/projectMutations'
 import { createPoliticalRight } from '../mutations/politicalRightMutations'
+import { addInfluenceModifier } from '../mutations/influenceModifierMutations'
+import { isLivingPerson } from '../types/person'
 import type { RngState } from '../rng/rng'
 import {
   applyImmediateAbilityGrowthMut,
@@ -192,6 +194,10 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     if (!isDiplomaticProjectKind(project.kind)) {
       rng = awardProjectOutcomeMut(ws, config, project, rng, emitEvent)
     }
+
+    // v0.51 陰謀リファイン: 陰謀 Project が terminal 化したら owner 家に cooldown を記録する
+    //   (completed/failed どちらも)。旧 Klaus ループ (完了直後の即再立案) を防ぐ (§4.3)。
+    recordConspiracyCooldownMut(ws, project)
 
     removeProjectFromIndexMut(ws, project)
     delete ws.projects[project.id]
@@ -382,7 +388,86 @@ function applyNonDiplomaticEffectMut(
     case 'movement_campaign':
       applyMovementCampaignMut(ws, config, project)
       break
+    case 'undermine_influence':
+      applyUndermineInfluenceMut(ws, config, project, emitEvent)
+      break
   }
+}
+
+// v0.51 陰謀リファイン: 陰謀 Project の kind 集合 (cooldown 記録対象)。Phase 3/4 でここに追加する。
+const CONSPIRACY_PROJECT_KINDS: ReadonlySet<Project['kind']> = new Set(['undermine_influence'])
+
+// 陰謀 Project が terminal 化したとき owner 家に lastConspiracyResolvedWeek を記録する (連発防止 §4.3)。
+function recordConspiracyCooldownMut(ws: WorldState, project: Project): void {
+  if (!CONSPIRACY_PROJECT_KINDS.has(project.kind)) return
+  if (project.owner.kind !== 'house') return
+  const house = ws.houses[project.owner.id]
+  if (!house) return
+  ws.houses[project.owner.id] = { ...house, lastConspiracyResolvedWeek: ws.absoluteWeek }
+}
+
+// v0.51 陰謀リファイン: 影響力毀損完遂の効果。対象 (家/人物) に負の InfluenceModifier を生成する。
+// 削除前提でなく加法 (modifier を 1 件足す)。失敗/中断時は呼ばれない (handler は completed 前提)。
+// budget なし (v1 無料)。supervisor の insight 経験は awardProjectOutcomeMut が別途付与する。
+function applyUndermineInfluenceMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'undermine_influence') return
+  const polity = ws.polities[project.polityId]
+  if (!polity || !polity.active) return
+  const supervisor = ws.persons[project.supervisorPersonId]
+  if (!supervisor || !supervisor.alive || supervisor.kind === 'placeholder') return
+
+  // target の生存/有効を outcome 時点で再検証 (aim 生成〜完了の間に消滅しうる)。
+  let targetParam: ReturnType<typeof nameParam>
+  if (project.target.kind === 'house') {
+    const targetHouse = ws.houses[project.target.id]
+    if (!targetHouse || !targetHouse.active) return
+    targetParam = houseNameParam(targetHouse, project.target.id)
+  } else {
+    const targetPerson = ws.persons[project.target.id]
+    if (!isLivingPerson(targetPerson)) return
+    targetParam = nameParam('person', targetPerson.nameKey)
+  }
+
+  const created = addInfluenceModifier(ws, {
+    polityId: project.polityId,
+    target: project.target,
+    delta: -config.conspiracyUndermineInfluenceAmount,
+    causeKind: 'conspiracy_undermine',
+    sourcePersonId: project.supervisorPersonId,
+    grantedWeek: ws.absoluteWeek,
+    expiryWeek: ws.absoluteWeek + config.conspiracyUndermineInfluenceDurationWeeks,
+  })
+  if (!created.ok) return
+  // addInfluenceModifier は immutable に新 state を返すため draft に書き戻す
+  ws.influenceModifiers = created.value.state.influenceModifiers
+  ws.influenceModifierIndex = created.value.state.influenceModifierIndex
+  ws.nextInfluenceModifierId = created.value.state.nextInfluenceModifierId
+
+  const polityNameRef = getPolityNameRefForEmitFromPolity(ws, polity)
+  const targetRef =
+    project.target.kind === 'house'
+      ? entityRef('house', project.target.id, 'target')
+      : entityRef('person', project.target.id, 'target')
+  emitEvent({
+    type: 'INFLUENCE_UNDERMINED',
+    importance: 'normal',
+    messageKey: 'influence.undermined',
+    messageParams: {
+      source: nameParam('person', supervisor.nameKey),
+      target: targetParam,
+      polity: nameParam(polityNameRef.category, polityNameRef.nameKey),
+    },
+    entityRefs: [
+      entityRef('person', project.supervisorPersonId, 'source', supervisor.nameKey),
+      targetRef,
+      entityRef('polity', project.polityId, 'polity', polityNameRef.nameKey),
+    ],
+  })
 }
 
 // 影響力個人中心化 Phase 1b: 運動完遂の効果。投入額を家 wealth から消費する (wealth sink・

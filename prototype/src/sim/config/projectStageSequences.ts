@@ -83,6 +83,10 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
     { key: 'negotiate_internal_terms', type: 'preparatory' },
     { key: 'finalize_consolidation', type: 'immediate' },
   ],
+
+  // v0.51 陰謀リファイン: 単一 final stage (acquire_political_right と同型)。重い advance_project
+  //   Task 1 本で execute する。effort/difficulty は projectTaskGenerationSystem が陰謀専用値に上書き。
+  undermine_influence: [{ key: 'execute_project', type: 'final' }],
 }
 
 export function getProjectStageSequence(kind: ProjectKind): readonly ProjectStageEntry[] {

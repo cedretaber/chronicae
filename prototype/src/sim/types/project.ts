@@ -15,6 +15,7 @@ import type { DecisionSubjectRef, EntityRef } from './goal'
 import type { PolityRank } from './polity'
 import type { AbilityKey } from './person'
 import type { PoliticalRightTargetRef } from './politicalRight'
+import type { InfluenceModifierTargetRef } from './influenceModifier'
 import type { HoldingImprovementKind } from './holdingImprovement'
 import type { PressureResponseStance } from './pressure'
 
@@ -62,6 +63,8 @@ export type ProjectKind =
   | 'request_cadet_branch_title_transfer'
   | 'republic_house_foundation'
   | 'consolidate_internal_contracts'
+  // v0.51 陰謀リファイン: 影響力毀損陰謀。owner=House、target=同 Polity 内ライバル (家/人物)。
+  | 'undermine_influence'
 
 export type BaseProject = {
   id: ProjectId
@@ -223,6 +226,16 @@ export type ConsolidateInternalContractsProject = BaseProject & {
   sinkPolityId: PolityId
 }
 
+// v0.51 陰謀リファイン: 影響力毀損 Project。owner = 陰謀を企てる House。
+// target = 同 Polity 内のライバル (家 / 人物)。budget なし (v1 無料)。完了で InfluenceModifier
+// (負 delta) を生成する (§3.2)。supervisor の insight が Task 進捗・成否を決める。
+export type UndermineInfluenceProject = BaseProject & {
+  kind: 'undermine_influence'
+  owner: { kind: 'house'; id: HouseId }
+  polityId: PolityId
+  target: InfluenceModifierTargetRef
+}
+
 export type RespondToPressureProject = BaseProject & {
   kind: 'respond_to_pressure'
   pressureId: PressureId
@@ -259,6 +272,7 @@ export type Project =
   | RequestCadetBranchTitleTransferProject
   | RepublicHouseFoundationProject
   | ConsolidateInternalContractsProject
+  | UndermineInfluenceProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

@@ -24,6 +24,7 @@ import {
   PROJECT_KIND_ABILITY_MAP,
   selectDiplomaticTaskKind,
   getDiplomaticPlayDelegate,
+  getConspiracyTaskOverride,
 } from '../selectors/taskSelectors'
 import { getProjectStageType } from '../config/projectStageSequences'
 import { isDiplomaticProjectKind } from '../mutations/projectMutations'
@@ -145,6 +146,13 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
         project.kind === 'personal_training'
           ? project.trainingAbilityKey
           : PROJECT_KIND_ABILITY_MAP[project.kind],
+    }
+
+    // v0.51 陰謀リファイン: 陰謀 Project の advance_project は重い effort・高 difficulty に上書き。
+    const conspiracyOverride = getConspiracyTaskOverride(config, project)
+    if (conspiracyOverride) {
+      task.effortRequired = conspiracyOverride.effortRequired
+      task.difficulty = conspiracyOverride.difficulty
     }
 
     addTaskToIndicesMut(ws, task)

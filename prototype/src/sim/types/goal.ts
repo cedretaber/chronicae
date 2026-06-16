@@ -52,6 +52,9 @@ export type HouseGoalKind =
   | 'cultivate_prestige'
   // v0.47 §3.2: 自家の複数 Polity / LandContract を主要 Polity に集約し一円支配を目指す
   | 'consolidate_domain'
+  // v0.51 陰謀リファイン: 不満家が陰謀 (影響力毀損・任命権失効・分家統制) を追求する covert goal。
+  //   スコアは computeConspiracyDrive (旧 plotTendency 移植 + cooldown ゲート) で決まる。
+  | 'pursue_covert_agenda'
 export type PersonGoalKind =
   | 'house_loyalty'
   | 'public_service'
@@ -112,6 +115,8 @@ export type HouseAimKind =
   | 'start_movement_campaign'
   // v0.47 §3.3: 自家内で完結する LandContract chain の整理 (一円支配集約)
   | 'consolidate_owned_polities'
+  // v0.51 陰謀リファイン: 同 Polity 内ライバル (家/人物) の影響力を毀損する陰謀 (InfluenceModifier 生成)
+  | 'undermine_rival_influence'
 
 export type PersonAimKind =
   | 'support_organization_aim'

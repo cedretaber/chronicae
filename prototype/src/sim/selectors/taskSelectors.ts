@@ -7,7 +7,7 @@ import type { OrganizationRef } from '../types/office'
 import type { PersonId } from '../types/ids'
 import type { AbilityKey } from '../types/person'
 import { isLivingPerson } from '../types/person'
-import type { ProjectKind } from '../types/project'
+import type { ProjectKind, Project } from '../types/project'
 import type { PressureResponseStance } from '../types/pressure'
 import { getPrimaryOfficeHolder, getPolityLeader, getHouseDecisionMaker } from './officeSelectors'
 import { enumerateSupportCandidates } from './diplomaticSupportSelectors'
@@ -178,6 +178,26 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   request_cadet_branch_title_transfer: 'charisma',
   republic_house_foundation: 'charisma',
   consolidate_internal_contracts: 'numeracy',
+  // v0.51 陰謀リファイン: 策謀は洞察 (insight)
+  undermine_influence: 'insight',
+}
+
+// v0.51 陰謀リファイン: 陰謀 Project の advance_project Task は重く・高難度にする (スパム防止)。
+// 既定の getTaskEffortRequired/getTaskDefaultDifficulty を上書きする値を返す (非陰謀は undefined)。
+// difficulty は holder 種別に依存する revoke のため project を受け取る (Phase 3 で分岐拡張)。
+export function getConspiracyTaskOverride(
+  config: SimulationConfig,
+  project: Project,
+): { effortRequired: number; difficulty: number } | undefined {
+  switch (project.kind) {
+    case 'undermine_influence':
+      return {
+        effortRequired: config.conspiracyTaskEffortRequired,
+        difficulty: config.conspiracyTaskBaseDifficulty,
+      }
+    default:
+      return undefined
+  }
 }
 
 export function determineTaskOutcome(

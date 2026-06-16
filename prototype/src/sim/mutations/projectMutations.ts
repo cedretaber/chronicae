@@ -165,6 +165,9 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
       return 'republic_house_foundation'
     case 'consolidate_owned_polities':
       return 'consolidate_internal_contracts'
+    // v0.51 陰謀リファイン
+    case 'undermine_rival_influence':
+      return 'undermine_influence'
     default:
       return undefined
   }

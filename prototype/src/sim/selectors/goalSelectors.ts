@@ -41,6 +41,8 @@ import {
   getPolityInfluenceBreakdown,
   getActorInfluenceFromBreakdown,
 } from './influenceSelectors'
+import { computeConspiracyDrive } from './conspiracySelectors'
+import { getHousePrimaryPolityId } from './polityRelations'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 
@@ -251,11 +253,17 @@ export function scoreHouseGoalKind(
     consolidateScore = 18 + (ownedPolityIds.length - 1) * 5
   }
 
+  // v0.51 陰謀リファイン: pursue_covert_agenda — 不満家の陰謀傾向 (旧 plotTendency 移植)。
+  //   閾値未満 or cooldown 中は 0 (computeConspiracyDrive 内蔵ゲート)。drive≥閾値なら強力な
+  //   competitor になり、高 drive の家は陰謀 goal に傾く (旧 plotSystem の goal 非依存トリガー再現)。
+  const covertScore = computeConspiracyDrive(state, config, houseId)
+
   return [
     { kind: 'expand_power_base', score: expandScore },
     { kind: 'preserve_power_base', score: preserveScore },
     { kind: 'cultivate_prestige', score: prestigeScore },
     { kind: 'consolidate_domain', score: consolidateScore },
+    { kind: 'pursue_covert_agenda', score: covertScore },
   ]
 }
 
@@ -774,6 +782,38 @@ function pickHouseAim(
         target: { kind: 'polity', id: sink },
         score: 25,
       })
+    }
+  } else if (goalKind === 'pursue_covert_agenda') {
+    // v0.51 陰謀リファイン: covert goal 配下の陰謀 aim 候補。drive ゲート (閾値・cooldown) を再確認し、
+    //   妥当な target を持つ陰謀のみ候補化する (旧「空回り排除」原則)。
+    //   undermine: 自家の primary polity の breakdown から「自家以外」の rival (家/人物) を対象に。
+    const drive = computeConspiracyDrive(state, config, houseId)
+    if (drive > 0) {
+      const polityId = getHousePrimaryPolityId(state, houseId)
+      if (polityId) {
+        const memberSet = new Set<string>(house.memberIds.map((id) => id as string))
+        const breakdown = getPolityInfluenceBreakdown(state, config, polityId)
+        for (const entry of breakdown.entries) {
+          if (entry.total <= 0) continue
+          // 自家・自家メンバーは対象外
+          if (entry.holder.kind === 'house') {
+            if (entry.holder.id === houseId) continue
+          } else if (memberSet.has(entry.holder.id)) {
+            continue
+          }
+          const target: EntityRef =
+            entry.holder.kind === 'house'
+              ? { kind: 'house', id: entry.holder.id }
+              : { kind: 'person', id: entry.holder.id }
+          candidates.push({
+            kind: 'undermine_rival_influence',
+            target,
+            // priorityFactor で多発抑制 (covert goal 内では相対順位不変だが、将来 conspiracy aim を
+            //   他 goal と共存させたときの実配線。設計書 §4.2)。
+            score: (20 + entry.percent * 0.3) * config.conspiracyAimPriorityFactor,
+          })
+        }
+      }
     }
   } else {
     // cultivate_prestige

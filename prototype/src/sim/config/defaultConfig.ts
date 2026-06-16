@@ -29,6 +29,16 @@ export type SimulationConfig = {
   plotThreshold: number
   // 策謀解決後、同じ家の当主が次の策謀を開始できるまでの待機週数 (連発・永久ループ防止)。
   plotCooldownWeeks: number
+  // v0.51 陰謀リファイン (§6): 陰謀 Project 系の config。
+  conspiracyUndermineInfluenceAmount: number // 毀損 modifier の絶対値 (delta = -この値)
+  conspiracyUndermineInfluenceDurationWeeks: number // 毀損の有効期間 (週)
+  conspiracyAimPriorityFactor: number // 陰謀 aim 候補スコアの重み (多発抑制。低め)
+  conspiracyDriveThreshold: number // covert goal/aim の発動閾値 (旧 plotThreshold から引上げ)
+  conspiracyTaskEffortRequired: number // 陰謀 Task の必要努力値 (HEAVY 上限より重く)
+  conspiracyTaskBaseDifficulty: number // 陰謀全般の基本難度
+  conspiracyRevokeRightBaseDifficulty: number // 任命権失効 (person holder) の基本難度
+  conspiracyRevokeHouseRightDifficultyBonus: number // 家保有任命権の追加難度
+  conspiracyCooldownWeeks: number // 陰謀 Project terminal 後の再立案待機週数 (連発防止)
   replacementThreshold: number
   rebellionSuccessMode: 'independence' | 'ruler_change'
   maxRawEvents: number
@@ -1208,6 +1218,16 @@ export const defaultConfig: SimulationConfig = {
   rebellionThreshold: 90,
   plotThreshold: 65,
   plotCooldownWeeks: 52,
+  // v0.51 陰謀リファイン (§6)。値の妥当性 (バランス) はプロトタイプ段階では defer (CLAUDE.md §4)。
+  conspiracyUndermineInfluenceAmount: 30,
+  conspiracyUndermineInfluenceDurationWeeks: 156,
+  conspiracyAimPriorityFactor: 0.5,
+  conspiracyDriveThreshold: 75,
+  conspiracyTaskEffortRequired: 6,
+  conspiracyTaskBaseDifficulty: 60,
+  conspiracyRevokeRightBaseDifficulty: 60,
+  conspiracyRevokeHouseRightDifficultyBonus: 30,
+  conspiracyCooldownWeeks: 52,
   replacementThreshold: 15,
   rebellionSuccessMode: 'independence',
   maxRawEvents: 10000,

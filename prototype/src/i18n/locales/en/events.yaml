@@ -131,6 +131,9 @@ political_right:
   revoked: '{{holder}} lost the {{rightKind}} over {{target}} in {{polity}} ({{revokeReason}}).'
   transferred: 'The {{rightKind}} over {{target}} in {{polity}} passed to {{holder}}.'
 
+influence:
+  undermined: '{{source}} schemed to undermine the influence of {{target}} in {{polity}}.'
+
 revolt:
   negotiation_started: 'A {{rebelClass}} revolt has broken out in {{province}} — negotiations begin.'
   polity_founded: '{{polity}} has been founded by {{person}} through revolt in {{province}}!'

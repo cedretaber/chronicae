@@ -36,6 +36,7 @@ import { getProvinceHoldings, getLandContractGrantor } from '../selectors/landCo
 import {
   politiesShareOwnerHouse,
   getHouseDomainConsolidationSinkPolityId,
+  getHousePrimaryPolityId,
 } from '../selectors/polityRelations'
 import {
   resolveLandGrantDonor,
@@ -308,6 +309,26 @@ function buildProjectFieldsForAim(
         budget: config.movementProjectBaseCost,
         spentBudget: 0,
         currentStageKey: getInitialProjectStageKey('movement_campaign'),
+      }
+    }
+    case 'undermine_influence': {
+      // v0.51 陰謀リファイン: owner=家・target=ライバル (家/人物)・polityId=自家の primary polity。
+      // budget なし (v1 無料)。aim.target は covert aim 生成側 (pickHouseAim) が house/person で確定。
+      const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      if (!houseId) return undefined
+      const polityId = getHousePrimaryPolityId(ws, houseId)
+      if (!polityId) return undefined
+      const target =
+        aim.target?.kind === 'house'
+          ? ({ kind: 'house', id: aim.target.id } as const)
+          : aim.target?.kind === 'person'
+            ? ({ kind: 'person', id: aim.target.id } as const)
+            : undefined
+      if (!target) return undefined
+      return {
+        polityId,
+        target,
+        currentStageKey: getInitialProjectStageKey('undermine_influence'),
       }
     }
     case 'patronize_artist': {

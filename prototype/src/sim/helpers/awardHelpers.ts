@@ -80,6 +80,9 @@ export const PROJECT_REPUTATION_CATEGORY_MAP: Record<ProjectKind, ReputationCate
     request_cadet_branch_title_transfer: 'diplomacy',
     republic_house_foundation: 'administration',
     consolidate_internal_contracts: 'administration',
+
+    // v0.51 陰謀リファイン: 陰謀は covert ゆえ公的評判を発生させない (supervisor の ability 経験のみ)
+    undermine_influence: undefined,
   }
 
 export type AwardSourceKind = PersonReputationSource['kind']
