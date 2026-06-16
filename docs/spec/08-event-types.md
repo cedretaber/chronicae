@@ -21,7 +21,7 @@
 | HOUSE_EXTINCT | major | 家の断絶（後継者不在。旧 RULER_HOUSE_EXTINCT も統合） |
 | HOUSE_MEMBERS_DISPERSED | normal | 家断絶時のメンバー離散（worldStructureExtinction） |
 | MARRIAGE_FORMED | normal | 婚姻成立 |
-| CHILD_BORN | minor | 子誕生 |
+| CHILD_BORN | normal | 子誕生。messageParams に両親（father / 母不在の稀なケースを除き mother）と出生時の所属家（house）を含める（messageKey `person.born` / 母不在時 `person.born_no_mother`）。家の所属は後に変わりうるため「生まれた時どの家にいたか」を記録する意義がある |
 | HOUSE_SPLIT | major | 家の分裂（傍系家の独立） |
 | CADET_HOUSE_FOUNDED | major | 分家の創設 |
 | HOUSE_FOUNDED | major | 無家人物による新 House の創設 |
@@ -127,7 +127,7 @@
 | POP_DECLINED | normal | Province 人口大幅低下（将来実装） |
 | ESTATE_SETTLED | minor / normal / major | 死亡時の wealth 分配（家長 or wealth≥house*20% で normal、polity leader で major） |
 | ESTATE_DISPUTED | minor | 複数相続人候補による争い（記録のみ、ESTATE_SETTLED と並んで発火） |
-| PERSON_ABILITY_GREW | minor / normal | v0.44 成果成長（§6.66、sourceKind=project/diplomatic_play/war）+ 自然成長（§6.24 追補、sourceKind=duty/natural）。ability ごとに emit。notable=normal |
+| PERSON_ABILITY_GREW | minor | v0.44 成果成長（§6.66、sourceKind=project/diplomatic_play/war）+ 自然成長（§6.24 追補、sourceKind=duty/natural）。ability ごとに emit。能力の漸進的成長は「子誕生（normal）」より軽い日常的変化なため、notable 含め一律 minor（個人 Chronicle には残る） |
 | PERSON_REPUTATION_GAINED | minor / normal | v0.44 正評判の獲得。reputation source 1 件につき 1 event |
 | PERSON_REPUTATION_DAMAGED | minor / normal | v0.44 負評判 |
 | PERSON_GENIUS_BORN | major | v0.45 天才の誕生（§6.67、geniusType=commander/chancellor/universal）。CHILD_BORN に続けて emit。メインログ表示 |

@@ -301,7 +301,8 @@ function resolveMessageTemplate(messageKey: string, params: EventMessageParams):
 
 const EVENT_TEMPLATES: Record<string, string> = {
   'person.died': '{{person}} has died at age {{age}}.',
-  'person.born': '{{child}} was born.',
+  'person.born': '{{child}} was born to {{father}} and {{mother}} of {{house}}.',
+  'person.born_no_mother': '{{child}} was born to {{father}} of {{house}}.',
   'person.born_in_obscurity': 'An unknown {{occupation}} named {{person}} appeared.',
   'person.faded_from_history': '{{person}} faded from the chronicles.',
   'marriage.formed': '{{male}} married {{female}}.',

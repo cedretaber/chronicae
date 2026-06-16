@@ -3,7 +3,8 @@
 
 person:
   died: '{{person}}が{{age}}歳で死去した。'
-  born: '{{child}}が誕生した。'
+  born: '{{house}}の{{father}}と{{mother}}を両親として{{child}}が誕生した。'
+  born_no_mother: '{{house}}の{{father}}の子として{{child}}が誕生した。'
   came_of_age: '{{person}}が{{age}}歳で成人した。'
   entered_old_age: '{{person}}が{{age}}歳で老年期に入った。'
   born_in_obscurity: '無名の{{occupation}}、{{person}}が現れた。'
@@ -343,7 +344,7 @@ enum:
   projectKind:
     develop_holding: '所領開発'
     acquire_political_right: '政治的権利の獲得'
-    promote_policy_shift: '政策転換の働きかけ'
+    promote_policy_shift: '政策への働きかけ'
     patronize_artist: '芸術家の後援'
     commission_chronicle: '年代記の編纂'
     acquire_land: '領地の獲得'
@@ -352,7 +353,7 @@ enum:
     demand_tax_increase: '増税要求'
     respond_to_pressure: '圧力への対応'
     personal_training: '個人鍛錬'
-    movement_campaign: '政治運動'
+    movement_campaign: '推挙運動'
     request_rank_promotion: '陞爵の請願'
     request_land_grant: '分封の請願'
     request_cadet_branch_title_transfer: '分家の創設'

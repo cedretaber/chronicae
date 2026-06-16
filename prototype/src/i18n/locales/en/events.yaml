@@ -4,7 +4,8 @@
 
 person:
   died: '{{person}} has died at age {{age}}.'
-  born: '{{child}} was born.'
+  born: '{{child}} was born to {{father}} and {{mother}} of {{house}}.'
+  born_no_mother: '{{child}} was born to {{father}} of {{house}}.'
   came_of_age: '{{person}} came of age at {{age}}.'
   entered_old_age: '{{person}} entered old age at {{age}}.'
   born_in_obscurity: 'An unknown {{occupation}} named {{person}} appeared.'
@@ -344,7 +345,7 @@ enum:
   projectKind:
     develop_holding: 'holding development'
     acquire_political_right: 'acquiring a political right'
-    promote_policy_shift: 'promoting a policy shift'
+    promote_policy_shift: 'lobbying over polity policy'
     patronize_artist: 'patronizing an artist'
     commission_chronicle: 'commissioning a chronicle'
     acquire_land: 'acquiring land'
@@ -353,7 +354,7 @@ enum:
     demand_tax_increase: 'demanding a tax increase'
     respond_to_pressure: 'responding to pressure'
     personal_training: 'personal training'
-    movement_campaign: 'a political campaign'
+    movement_campaign: 'an advancement campaign'
     request_rank_promotion: 'a petition for rank promotion'
     request_land_grant: 'a petition for a land grant'
     request_cadet_branch_title_transfer: 'the founding of a cadet branch'

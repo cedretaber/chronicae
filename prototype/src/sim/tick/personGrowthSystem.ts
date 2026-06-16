@@ -8,7 +8,6 @@ import { ABILITY_KEYS, ABILITY_AGE_CURVES, ABILITY_HARD_CAP } from '../constants
 import { naturalFraction, hadRelevantExperience } from '../selectors/abilitySelectors'
 import { randomFloat } from '../rng/rng'
 import { nameParam, entityRef } from '../types/event'
-import { isNotablePerson } from '../selectors/notablePersonSelectors'
 
 // v0.40 §6.3: living な父母の該当 ability の平均（両親いれば平均・片親のみなら片親）。
 //   死亡済み親は含めない。親がいなければ undefined。
@@ -155,7 +154,7 @@ export function runPersonGrowthSystem(ctx: TickContext): TickContext {
       year: newState.currentYear,
       weekOfYear: newState.currentWeekOfYear,
       type: 'PERSON_ABILITY_GREW',
-      importance: isNotablePerson(newState, record.personId) ? 'normal' : 'minor',
+      importance: 'minor',
       messageKey: 'person.ability_grew',
       messageParams: {
         person: nameParam('person', person.nameKey),

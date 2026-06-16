@@ -144,7 +144,8 @@ export function applyImmediateAbilityGrowthMut(
 
   ws.persons[personId] = { ...person, abilities: newAbilities }
 
-  const importance = isNotablePerson(ws, personId) ? 'normal' : 'minor'
+  // 能力成長 (事業・外交交渉を通じた award 経由) は要人でも minor 固定。
+  const importance = 'minor'
   for (const g of grown) {
     emitEvent({
       type: 'PERSON_ABILITY_GREW',

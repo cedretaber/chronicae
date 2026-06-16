@@ -10,6 +10,7 @@ import { birthChild } from '../mutations/personMutations'
 import { inheritAptitudes, sampleAptitudes } from '../selectors/abilitySelectors'
 import { rollGeniusType, applyGeniusAptitudes } from '../helpers/geniusHelpers'
 import { nameParam, entityRef } from '../types/event'
+import { houseNameParam } from '../selectors/nameRefSelectors'
 
 const BIRTH_CALLS_PER_YEAR = 12
 
@@ -150,18 +151,31 @@ export function runBirthSystem(ctx: TickContext): TickContext {
     } = birthResult.value
     currentCtx = ctxAfterBirth
 
+    // 出生時の所属家。birthChild は父の家を必須とし子に継承させる (子の出生時の家 = 父の家)
+    // ため、CHILD_BORN 到達時点で houseId は常に定義済み。
+    const childHouse =
+      person.houseId !== undefined ? currentCtx.state.houses[person.houseId] : undefined
+
     const { event, ctx: eventCtx } = createSimEvent(currentCtx, {
       type: 'CHILD_BORN',
-      importance: 'minor',
-      messageKey: 'person.born',
+      importance: 'normal',
+      // 両親と出生時の家を記録する。母が不在の稀なケース (seeding 等) のみ別テンプレート。
+      messageKey: childMother ? 'person.born' : 'person.born_no_mother',
       messageParams: {
         child: nameParam('person', childNameKey),
+        father: nameParam('person', person.nameKey),
+        ...(childMother ? { mother: nameParam('person', childMother.nameKey) } : {}),
+        ...(person.houseId ? { house: houseNameParam(childHouse, person.houseId) } : {}),
       },
       entityRefs: [
         entityRef('person', childId, 'child', childNameKey),
         entityRef('person', person.id, 'father', person.nameKey),
-        ...(motherId ? [entityRef('person', motherId, 'mother')] : []),
-        ...(person.houseId ? [entityRef('house', person.houseId, 'house')] : []),
+        ...(childMother
+          ? [entityRef('person', childMother.id, 'mother', childMother.nameKey)]
+          : []),
+        ...(person.houseId
+          ? [entityRef('house', person.houseId, 'house', childHouse?.nameKey)]
+          : []),
       ],
     })
 
@@ -177,6 +191,8 @@ export function runBirthSystem(ctx: TickContext): TickContext {
           child: nameParam('person', childNameKey),
           geniusType,
         },
+        // 天才誕生は「その子が天才である」ことだけを示す。両親・家など出生情報は同時に出る
+        // CHILD_BORN が持つため重複させない (child + house のみ)。
         entityRefs: [
           entityRef('person', childId, 'child', childNameKey),
           ...(person.houseId ? [entityRef('house', person.houseId, 'house')] : []),
