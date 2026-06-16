@@ -65,11 +65,6 @@ succession:
   crisis: 'A succession crisis has erupted in {{house}}!'
   crisis_split: A succession crisis has erupted due to the house split!
 
-plot:
-  started: '{{person}} began a {{plotType}} plot.'
-  succeeded: "{{person}}'s {{plotType}} plot succeeded."
-  failed: "{{person}}'s {{plotType}} plot failed."
-
 office:
   assigned_polity: '{{person}} was appointed as {{role}} of {{polity}}.'
   assigned_house: '{{person}} was appointed as {{role}} of {{house}}.'
@@ -311,10 +306,6 @@ enum:
     target_lost: 'target lost'
     regime_change: 'regime change'
     revoked_by_conspiracy: 'stripped by conspiracy'
-  plotType:
-    replace_house_leader: 'house takeover'
-    seize_office: 'office seizure'
-    prepare_rebellion: 'rebellion'
   taskCancelReason:
     assignee_no_longer_available: 'assignee no longer available'
     owner_inactive: 'owner inactive'

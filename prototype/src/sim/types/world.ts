@@ -4,7 +4,6 @@ import type {
   PolityId,
   HouseId,
   PersonId,
-  PlotId,
   PopGroupId,
   HouseShareId,
   OfficeAssignmentId,
@@ -37,7 +36,6 @@ import type { Province } from './province'
 import type { Polity } from './polity'
 import type { House } from './house'
 import type { Person } from './person'
-import type { Plot } from './plot'
 import type { SimEvent } from './event'
 import type { PopGroup, PopIndex } from './popGroup'
 import type { HouseShare, OfficeAssignment, HouseShareIndex, OfficeIndex } from './office'
@@ -88,7 +86,6 @@ export type WorldState = {
   //   critical/target/high 帯) の基準値。マップ規模 (preset) に閾値を比例させるために持つ。
   //   optional: 未設定 (古い fixture 等) では出生倍率制御が無効 (常に 1.0)
   worldgenLivingPersonsBaseline?: number
-  activePlots: Record<PlotId, Plot>
   popGroups: Record<PopGroupId, PopGroup>
   popIndex: PopIndex
   houseShares: Record<HouseShareId, HouseShare>

@@ -20,7 +20,6 @@ import { runAppointmentSystem } from './appointmentSystem'
 import { runHouseShareUpdateSystem } from './houseShareUpdateSystem'
 import { runOfficeCompensationSystem } from './officeCompensationSystem'
 import { runControlSystem } from './controlSystem'
-import { runPlotSystem } from './plotSystem'
 import { runProvinceRevoltSystem } from './provinceRevoltSystem'
 import { runTaxRevisionSystem } from './taxRevisionSystem'
 import { runDiplomaticPlaySystem, cancelOrphanedPlays } from './diplomaticPlaySystem'
@@ -313,7 +312,6 @@ const scheduledSystems: ScheduledSystem[] = [
     phaseOffsetWeeks: 0,
     run: runPersonGrowthSystem,
   },
-  { name: 'plotSystem', intervalWeeks: 4, phaseOffsetWeeks: 0, run: runPlotSystem },
   {
     name: 'personGoalMaintenanceSystem',
     intervalWeeks: WEEKS_PER_YEAR,
@@ -616,7 +614,7 @@ export function tick(input: TickInput): TickResult {
   // debug 時は観察継続のため catch-and-log (非 fatal)、非 debug は throw でゲートにする。
   if (ctx.state.currentWeekOfYear === WEEKS_PER_YEAR) {
     // 年末 succession re-pass: successionSystem は週次スケジュール (位置 177) で走るが、
-    // その後に実行される death-causing system (plotSystem 等、位置 272 以降) が year-end tick で
+    // その後に実行される death-causing system (戦争・処刑等) が year-end tick で
     // House leader を殺すと、その tick では succession が走り終えており House が leaderless のまま
     // 年末 integrity check に到達する (翌年 week 1 の succession で自己修復するため通常は無害だが、
     // §1.8 leaderless detector が year-end の一過性 leaderless を fatal 化させる)。

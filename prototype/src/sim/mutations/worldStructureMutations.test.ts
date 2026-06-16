@@ -128,7 +128,6 @@ function makeMinimalWorld(): WorldState {
     houses: { [houseId]: house, [HOUSELESS_HOUSE_ID]: anonHouse },
     persons: { [personId]: person },
     livingPersonIds: [personId],
-    activePlots: {},
     popGroups: {},
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,

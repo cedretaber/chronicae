@@ -8,7 +8,7 @@ import { useEntityName } from '@/app/hooks/useEntityName'
 import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { getHouseLeader, getActiveOfficeHolders } from '@sim/selectors/officeSelectors'
-import { calcAmbitionScores } from '@/sim/tick/ambitionSystem'
+import { computeRawConspiracyDrive } from '@/sim/selectors/conspiracySelectors'
 import { getHouseCohesion, getHouseLoyaltyToPolity } from '@sim/selectors/statusSelectors'
 import {
   getHouseControlledProvinceIds,
@@ -87,9 +87,7 @@ export function HouseDetail({
 
   const worldState: WorldState | null = currentState ?? null
 
-  const { rebellionTendency, plotTendency } = worldState
-    ? calcAmbitionScores(worldState, house.id)
-    : { rebellionTendency: 0, plotTendency: 0 }
+  const conspiracyDrive = worldState ? computeRawConspiracyDrive(worldState, house.id) : 0
 
   const cohesion = worldState ? getHouseCohesion(worldState, house.id) : 50
   const loyaltyToPolity = worldState ? getHouseLoyaltyToPolity(worldState, house.id) : 50
@@ -266,15 +264,9 @@ export function HouseDetail({
           <span>{worldState ? getHouseControlledProvinceIds(worldState, house.id).length : 0}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.house.rebellion_tendency')}:</span>
-          <span className={rebellionTendency >= 70 ? 'text-red-400' : 'text-gray-200'}>
-            {rebellionTendency.toFixed(1)}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.house.plot_tendency')}:</span>
-          <span className={plotTendency >= 65 ? 'text-yellow-400' : 'text-gray-200'}>
-            {plotTendency.toFixed(1)}
+          <span className="text-gray-400">{t('detail.house.conspiracy_drive')}:</span>
+          <span className={conspiracyDrive >= 75 ? 'text-yellow-400' : 'text-gray-200'}>
+            {conspiracyDrive.toFixed(1)}
           </span>
         </div>
       </div>

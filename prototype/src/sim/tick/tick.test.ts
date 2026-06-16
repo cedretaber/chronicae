@@ -43,7 +43,6 @@ describe('tick', () => {
     expect(result.state.polities).toBeDefined()
     expect(result.state.houses).toBeDefined()
     expect(result.state.persons).toBeDefined()
-    expect(result.state.activePlots).toBeDefined()
     expect(result.rng).toBeDefined()
     expect(result.rng.seedText).toBeDefined()
     expect(result.rng.state).toBeDefined()

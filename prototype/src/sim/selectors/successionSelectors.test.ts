@@ -76,7 +76,6 @@ function makeState(persons: Record<string, Person>, houses: Record<string, House
     houses,
     persons,
     livingPersonIds: buildLivingPersonIds(persons),
-    activePlots: {},
     popGroups: {},
     houseShares: {},
     politicalRights: {},

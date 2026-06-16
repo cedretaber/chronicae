@@ -63,7 +63,6 @@ function makeState(persons: Record<PersonId, Person>): WorldState {
     },
     persons,
     livingPersonIds: buildLivingPersonIds(persons),
-    activePlots: {},
     popGroups: {},
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,

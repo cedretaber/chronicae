@@ -176,7 +176,6 @@ function makeCtx({
       },
     },
     persons,
-    activePlots: {},
     popGroups: {},
     houseShares: {},
     politicalRights: {},

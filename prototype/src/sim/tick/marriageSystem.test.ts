@@ -63,7 +63,6 @@ function makeBaseCtx(
       houses,
       persons,
       livingPersonIds: buildLivingPersonIds(persons),
-      activePlots: {},
       popGroups: {},
       popIndex: { byHolding: {} },
       nextPopGroupId: 0,

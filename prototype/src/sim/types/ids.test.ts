@@ -5,7 +5,6 @@ import {
   createPolityId,
   createHouseId,
   createPersonId,
-  createPlotId,
   createEventId,
 } from './ids'
 import { clamp, clamp100, clamp01 } from '../utils/math'
@@ -41,13 +40,6 @@ describe('createPersonId', () => {
   it('returns the expected string format', () => {
     const id = createPersonId('pe', 3)
     expect(id).toBe('pe-3')
-  })
-})
-
-describe('createPlotId', () => {
-  it('returns the expected string format', () => {
-    const id = createPlotId(0)
-    expect(id).toBe('pl-0')
   })
 })
 

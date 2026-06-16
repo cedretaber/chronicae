@@ -64,11 +64,6 @@ succession:
   crisis: '{{house}}で継承危機が勃発した！'
   crisis_split: 家門分裂により継承危機が勃発した！
 
-plot:
-  started: '{{person}}が{{plotType}}の陰謀を開始した。'
-  succeeded: '{{person}}の{{plotType}}の陰謀が成功した。'
-  failed: '{{person}}の{{plotType}}の陰謀が失敗した。'
-
 office:
   assigned_polity: '{{person}}が{{polity}}の{{role}}に任命された。'
   assigned_house: '{{person}}が{{house}}の{{role}}に任命された。'
@@ -310,10 +305,6 @@ enum:
     target_lost: '対象の消滅'
     regime_change: '支配体制の交代'
     revoked_by_conspiracy: '陰謀による剥奪'
-  plotType:
-    replace_house_leader: '当主のすげ替え'
-    seize_office: '官職の奪取'
-    prepare_rebellion: '叛乱の準備'
   taskCancelReason:
     assignee_no_longer_available: '担当者の喪失'
     owner_inactive: '主体の消滅'

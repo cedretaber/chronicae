@@ -148,7 +148,6 @@ function makeWorldState(
       [personId]: person,
     },
     livingPersonIds: [personId],
-    activePlots: {},
     popGroups: {},
     houseShares: {},
     politicalRights: {},

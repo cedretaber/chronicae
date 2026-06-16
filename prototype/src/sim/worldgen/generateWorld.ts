@@ -677,7 +677,6 @@ export function generateWorld(
     livingPersonIds: (Object.keys(personsRecord) as PersonId[])
       .filter((id) => personsRecord[id]?.alive)
       .sort(),
-    activePlots: {},
     popGroups: popGroupsRecord,
     houseShares: {},
     politicalRights: {},
@@ -1696,7 +1695,6 @@ export function generateWorld(
     worldgenLivingPersonsBaseline: (Object.keys(personsRecord) as PersonId[]).filter(
       (id) => personsRecord[id]?.alive && personsRecord[id]?.kind !== 'placeholder',
     ).length,
-    activePlots: {},
     popGroups: popGroupsRecord,
     popIndex: { byHolding: popIndexByHolding },
     houseShares,

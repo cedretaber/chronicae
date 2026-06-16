@@ -24,11 +24,6 @@ export type SimulationConfig = {
   integrityPerSystem: boolean
   minLivingMembersPerHouse: number
   maxNewPersonsPerHousePerYear: number
-  basePlotSuccess: number
-  rebellionThreshold: number
-  plotThreshold: number
-  // 策謀解決後、同じ家の当主が次の策謀を開始できるまでの待機週数 (連発・永久ループ防止)。
-  plotCooldownWeeks: number
   // v0.51 陰謀リファイン (§6): 陰謀 Project 系の config。
   conspiracyUndermineInfluenceAmount: number // 毀損 modifier の絶対値 (delta = -この値)
   conspiracyUndermineInfluenceDurationWeeks: number // 毀損の有効期間 (週)
@@ -1214,10 +1209,6 @@ export const defaultConfig: SimulationConfig = {
   integrityPerSystem: false,
   minLivingMembersPerHouse: 4,
   maxNewPersonsPerHousePerYear: 2,
-  basePlotSuccess: 0.35,
-  rebellionThreshold: 90,
-  plotThreshold: 65,
-  plotCooldownWeeks: 52,
   // v0.51 陰謀リファイン (§6)。値の妥当性 (バランス) はプロトタイプ段階では defer (CLAUDE.md §4)。
   conspiracyUndermineInfluenceAmount: 30,
   conspiracyUndermineInfluenceDurationWeeks: 156,

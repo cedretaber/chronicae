@@ -106,7 +106,6 @@ export function makeEmptyV016State(): WorldState {
     houses: {},
     persons: { [PLACEHOLDER_PERSON_ID]: placeholderSingleton },
     livingPersonIds: [PLACEHOLDER_PERSON_ID],
-    activePlots: {},
     popGroups: {},
     houseShares: {},
     politicalRights: {},

@@ -37,7 +37,6 @@ function makeBaseState(): WorldState {
     houses: {},
     persons: {},
     livingPersonIds: [],
-    activePlots: {},
     popGroups: {},
     houseShares: {},
     politicalRights: {},

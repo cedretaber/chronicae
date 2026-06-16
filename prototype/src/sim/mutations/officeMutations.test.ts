@@ -104,7 +104,6 @@ function makeOfficeState(): {
       },
     },
     livingPersonIds: [holderId],
-    activePlots: {},
     popGroups: {},
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,

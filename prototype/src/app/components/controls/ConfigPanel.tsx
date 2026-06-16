@@ -123,9 +123,6 @@ type CuratedEntry = {
   format?: 'percent' | 'weeks'
 }
 const CURATED: Partial<Record<ConfigKey, CuratedEntry>> = {
-  basePlotSuccess: { label: 'Plot Success Rate', min: 0, max: 1, step: 0.05, format: 'percent' },
-  rebellionThreshold: { label: 'Rebellion Threshold', min: 0, max: 150, step: 5 },
-  plotThreshold: { label: 'Plot Threshold', min: 0, max: 150, step: 5 },
   replacementThreshold: { label: 'Replacement Threshold', min: 0, max: 50, step: 1 },
   warCooldownWeeks: { label: 'War Cooldown', min: 24, max: 260, step: 26, format: 'weeks' },
   maxWarsPerTick: { label: 'Max Wars/Tick', min: 1, max: 5, step: 1 },

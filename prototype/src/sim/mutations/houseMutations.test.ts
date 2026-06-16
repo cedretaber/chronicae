@@ -72,7 +72,6 @@ function makeFixture(): {
     },
     persons: {},
     livingPersonIds: [],
-    activePlots: {},
     popGroups: {},
     popIndex: { byHolding: {} },
     nextPopGroupId: 0,

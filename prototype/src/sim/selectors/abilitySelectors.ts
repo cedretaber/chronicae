@@ -187,14 +187,21 @@ export function hadRelevantExperience(
     }
   }
 
-  // Check if person leads an active plot (insight experience)
-  // 調査 §1.7: status フィルタを追加。plotSystem は解決済 plot を succeeded/failed の
-  // まま activePlots に残す (removePlot は呼ばれない) ため、status を見ないと「一度
-  // plot を率いた人物」が永久に insight 経験ありと判定されうる。コメントの意図通り
-  // active な plot のみを経験として扱う。
+  // v0.51 陰謀リファイン: 旧 activePlots ループを「進行中の陰謀 Project の supervisor か」に置換。
+  // 陰謀 (undermine_influence / revoke_political_right / replace_house_leader) を担当する人物は
+  // insight 経験を得る。terminal Project は projectOutcomeSystem が削除するため active のみ残る。
   if (k === 'insight') {
-    for (const plot of Object.values(state.activePlots)) {
-      if (plot && plot.status === 'active' && plot.leaderId === personId) return true
+    for (const pid of state.projectIndex.bySupervisorPerson[personId as string] ?? []) {
+      const project = state.projects[pid]
+      if (
+        project &&
+        project.status === 'active' &&
+        (project.kind === 'undermine_influence' ||
+          project.kind === 'revoke_political_right' ||
+          project.kind === 'replace_house_leader')
+      ) {
+        return true
+      }
     }
   }
 
