@@ -23,7 +23,7 @@ import { getRoleScore } from './abilitySelectors'
 import { getPersonReputationModifierForCategories } from './personReputationSelectors'
 import { hasActiveHoldingOffice, getHouseDecisionMaker } from './officeSelectors'
 import { isRoleEligibleBySex } from './roleEligibilitySelectors'
-import { findAcquirableRightTarget } from './politicalRightSelectors'
+import { findAcquirableRightTarget, findRevocableRightTarget } from './politicalRightSelectors'
 import { isEstablishedCommonwealthRepublic } from './republicSelectors'
 import {
   getPolityTerminalProvinceIds,
@@ -811,6 +811,17 @@ function pickHouseAim(
             // priorityFactor で多発抑制 (covert goal 内では相対順位不変だが、将来 conspiracy aim を
             //   他 goal と共存させたときの実配線。設計書 §4.2)。
             score: (20 + entry.percent * 0.3) * config.conspiracyAimPriorityFactor,
+          })
+        }
+
+        // revoke: 同 Polity に自家以外の holder が持つ active right があれば候補化 (§3.3)。
+        //   findRevocableRightTarget が person holder 優先で 1 件返す (空回り排除)。
+        const revokeTarget = findRevocableRightTarget(state, houseId, polityId)
+        if (revokeTarget) {
+          candidates.push({
+            kind: 'revoke_rival_right',
+            target: { kind: 'political_right_target', target: revokeTarget },
+            score: 22 * config.conspiracyAimPriorityFactor,
           })
         }
       }

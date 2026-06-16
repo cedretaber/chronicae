@@ -65,6 +65,8 @@ export type ProjectKind =
   | 'consolidate_internal_contracts'
   // v0.51 陰謀リファイン: 影響力毀損陰謀。owner=House、target=同 Polity 内ライバル (家/人物)。
   | 'undermine_influence'
+  // v0.51 陰謀リファイン: 任命権失効陰謀。owner=House、target=ライバル保有の PoliticalRight。
+  | 'revoke_political_right'
 
 export type BaseProject = {
   id: ProjectId
@@ -236,6 +238,17 @@ export type UndermineInfluenceProject = BaseProject & {
   target: InfluenceModifierTargetRef
 }
 
+// v0.51 陰謀リファイン: 任命権失効 Project。owner = 陰謀を企てる House。target は
+// PoliticalRightTargetRef (acquire_political_right と同形)。完了で対象 right を removePoliticalRight
+// し国 (residual authority) に戻す。現職 OfficeAssignment は不変 (任命権の削除のみ)。budget なし。
+// difficulty は target right の holder 種別で動的に決まる (person < house。§3.3)。
+export type RevokePoliticalRightProject = BaseProject & {
+  kind: 'revoke_political_right'
+  owner: { kind: 'house'; id: HouseId }
+  polityId: PolityId
+  target: PoliticalRightTargetRef
+}
+
 export type RespondToPressureProject = BaseProject & {
   kind: 'respond_to_pressure'
   pressureId: PressureId
@@ -273,6 +286,7 @@ export type Project =
   | RepublicHouseFoundationProject
   | ConsolidateInternalContractsProject
   | UndermineInfluenceProject
+  | RevokePoliticalRightProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

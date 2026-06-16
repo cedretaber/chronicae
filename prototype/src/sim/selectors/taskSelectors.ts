@@ -10,6 +10,7 @@ import { isLivingPerson } from '../types/person'
 import type { ProjectKind, Project } from '../types/project'
 import type { PressureResponseStance } from '../types/pressure'
 import { getPrimaryOfficeHolder, getPolityLeader, getHouseDecisionMaker } from './officeSelectors'
+import { getRightForTarget } from './politicalRightSelectors'
 import { enumerateSupportCandidates } from './diplomaticSupportSelectors'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
@@ -180,12 +181,14 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   consolidate_internal_contracts: 'numeracy',
   // v0.51 陰謀リファイン: 策謀は洞察 (insight)
   undermine_influence: 'insight',
+  revoke_political_right: 'insight',
 }
 
 // v0.51 陰謀リファイン: 陰謀 Project の advance_project Task は重く・高難度にする (スパム防止)。
 // 既定の getTaskEffortRequired/getTaskDefaultDifficulty を上書きする値を返す (非陰謀は undefined)。
 // difficulty は holder 種別に依存する revoke のため project を受け取る (Phase 3 で分岐拡張)。
 export function getConspiracyTaskOverride(
+  state: WorldState,
   config: SimulationConfig,
   project: Project,
 ): { effortRequired: number; difficulty: number } | undefined {
@@ -195,6 +198,18 @@ export function getConspiracyTaskOverride(
         effortRequired: config.conspiracyTaskEffortRequired,
         difficulty: config.conspiracyTaskBaseDifficulty,
       }
+    case 'revoke_political_right': {
+      // §3.3: 家保有任命権は個人保有よりずっと取り消しにくい (高 difficulty)。
+      // 現時点の target right の holder 種別を見て difficulty を決める。right 消滅時は base。
+      const right = getRightForTarget(state, project.target)
+      const houseHeld = right?.holder.kind === 'house'
+      return {
+        effortRequired: config.conspiracyTaskEffortRequired,
+        difficulty:
+          config.conspiracyRevokeRightBaseDifficulty +
+          (houseHeld ? config.conspiracyRevokeHouseRightDifficultyBonus : 0),
+      }
+    }
     default:
       return undefined
   }

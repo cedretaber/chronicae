@@ -306,6 +306,7 @@ enum:
     polity_dissolved: '国家の消滅'
     target_lost: '対象の消滅'
     regime_change: '支配体制の交代'
+    revoked_by_conspiracy: '陰謀による剥奪'
   plotType:
     replace_house_leader: '当主のすげ替え'
     seize_office: '官職の奪取'

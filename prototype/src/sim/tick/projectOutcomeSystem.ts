@@ -20,7 +20,8 @@ import type { EventId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { clamp } from '../utils/math'
 import { removeProjectFromIndexMut, isDiplomaticProjectKind } from '../mutations/projectMutations'
-import { createPoliticalRight } from '../mutations/politicalRightMutations'
+import { createPoliticalRight, removePoliticalRight } from '../mutations/politicalRightMutations'
+import { getRightForTarget } from '../selectors/politicalRightSelectors'
 import { addInfluenceModifier } from '../mutations/influenceModifierMutations'
 import { isLivingPerson } from '../types/person'
 import type { RngState } from '../rng/rng'
@@ -391,11 +392,17 @@ function applyNonDiplomaticEffectMut(
     case 'undermine_influence':
       applyUndermineInfluenceMut(ws, config, project, emitEvent)
       break
+    case 'revoke_political_right':
+      applyRevokePoliticalRightMut(ws, project, emitEvent)
+      break
   }
 }
 
-// v0.51 陰謀リファイン: 陰謀 Project の kind 集合 (cooldown 記録対象)。Phase 3/4 でここに追加する。
-const CONSPIRACY_PROJECT_KINDS: ReadonlySet<Project['kind']> = new Set(['undermine_influence'])
+// v0.51 陰謀リファイン: 陰謀 Project の kind 集合 (cooldown 記録対象)。Phase 4 でここに追加する。
+const CONSPIRACY_PROJECT_KINDS: ReadonlySet<Project['kind']> = new Set([
+  'undermine_influence',
+  'revoke_political_right',
+])
 
 // 陰謀 Project が terminal 化したとき owner 家に lastConspiracyResolvedWeek を記録する (連発防止 §4.3)。
 function recordConspiracyCooldownMut(ws: WorldState, project: Project): void {
@@ -467,6 +474,59 @@ function applyUndermineInfluenceMut(
       targetRef,
       entityRef('polity', project.polityId, 'polity', polityNameRef.nameKey),
     ],
+  })
+}
+
+// v0.51 陰謀リファイン: 任命権失効完遂の効果。対象 right を removePoliticalRight で国に戻す。
+// 現職 OfficeAssignment は触らない (任命権の削除のみ)。削除前に「その right が今もライバル
+// (自家以外) 保有か」を再検証する (aim 生成〜完了の間に holder が変わる可能性への保険・§3.3)。
+function applyRevokePoliticalRightMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'revoke_political_right') return
+  if (project.owner.kind !== 'house') return
+  const conspiringHouseId = project.owner.id
+  const right = getRightForTarget(ws, project.target)
+  if (!right) return // 既に失効済 / holder 交代で消滅 → no-op
+
+  // holder がライバル (自家・自家メンバー以外) であることを再検証する。
+  const conspiringHouse = ws.houses[conspiringHouseId]
+  const memberSet = new Set<string>(
+    conspiringHouse ? conspiringHouse.memberIds.map((id) => id as string) : [],
+  )
+  if (right.holder.kind === 'house') {
+    if (right.holder.id === conspiringHouseId) return // 自家の right は剥奪しない
+  } else if (memberSet.has(right.holder.id)) {
+    return // 自家メンバーの right は剥奪しない
+  }
+
+  // emit 用に削除前の right snapshot を使う (削除後は state から引けない)。
+  const eventRefs = buildPoliticalRightEntityRefs(ws, right)
+  const polityRef = getPolityNameRefForEmit(ws, right.polityId)
+  const holderParam =
+    right.holder.kind === 'person'
+      ? nameParam('person', ws.persons[right.holder.id]?.nameKey ?? right.holder.id)
+      : houseNameParam(ws.houses[right.holder.id], right.holder.id)
+
+  // removePoliticalRight は immutable に新 state を返すため draft に書き戻す
+  const next = removePoliticalRight(ws, right.id)
+  ws.politicalRights = next.politicalRights
+  ws.politicalRightIndex = next.politicalRightIndex
+
+  emitEvent({
+    type: 'POLITICAL_RIGHT_REVOKED',
+    importance: 'normal',
+    messageKey: 'political_right.revoked',
+    messageParams: {
+      rightKind: getPoliticalRightKindFromTarget(right.target),
+      target: politicalRightTargetNameParam(ws, right.target),
+      holder: holderParam,
+      polity: nameParam(polityRef.category, polityRef.nameKey),
+      revokeReason: 'revoked_by_conspiracy',
+    },
+    entityRefs: eventRefs,
   })
 }
 

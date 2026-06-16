@@ -117,6 +117,8 @@ export type HouseAimKind =
   | 'consolidate_owned_polities'
   // v0.51 陰謀リファイン: 同 Polity 内ライバル (家/人物) の影響力を毀損する陰謀 (InfluenceModifier 生成)
   | 'undermine_rival_influence'
+  // v0.51 陰謀リファイン: ライバルの PoliticalRight (任命権・連隊保有権) を失効させ国に戻す陰謀
+  | 'revoke_rival_right'
 
 export type PersonAimKind =
   | 'support_organization_aim'

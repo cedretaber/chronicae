@@ -113,6 +113,15 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
           ? { kind: 'house', id: project.target.id }
           : { kind: 'person', id: project.target.id },
       ]
+
+    // v0.51 陰謀リファイン: 対象 polity と (holding_office_role なら) 対象 holding を related に
+    case 'revoke_political_right':
+      return [
+        { kind: 'polity', id: project.polityId },
+        ...(project.target.kind === 'holding_office_role'
+          ? [{ kind: 'holding' as const, id: project.target.holdingId }]
+          : []),
+      ]
   }
 }
 
@@ -140,6 +149,7 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   consolidate_internal_contracts: 'stewardship',
   // v0.51 陰謀リファイン: 策謀は intrigue
   undermine_influence: 'intrigue',
+  revoke_political_right: 'intrigue',
 }
 
 export function getPersonProjectWorkload(

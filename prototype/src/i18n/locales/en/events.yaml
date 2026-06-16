@@ -307,6 +307,7 @@ enum:
     polity_dissolved: 'polity dissolved'
     target_lost: 'target lost'
     regime_change: 'regime change'
+    revoked_by_conspiracy: 'stripped by conspiracy'
   plotType:
     replace_house_leader: 'house takeover'
     seize_office: 'office seizure'

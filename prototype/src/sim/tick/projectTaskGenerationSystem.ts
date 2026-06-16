@@ -149,7 +149,7 @@ export function runProjectTaskGenerationSystem(ctx: TickContext): TickContext {
     }
 
     // v0.51 陰謀リファイン: 陰謀 Project の advance_project は重い effort・高 difficulty に上書き。
-    const conspiracyOverride = getConspiracyTaskOverride(config, project)
+    const conspiracyOverride = getConspiracyTaskOverride(ws, config, project)
     if (conspiracyOverride) {
       task.effortRequired = conspiracyOverride.effortRequired
       task.difficulty = conspiracyOverride.difficulty

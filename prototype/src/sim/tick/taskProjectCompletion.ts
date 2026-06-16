@@ -331,6 +331,23 @@ function buildProjectFieldsForAim(
         currentStageKey: getInitialProjectStageKey('undermine_influence'),
       }
     }
+    case 'revoke_political_right': {
+      // v0.51 陰謀リファイン: owner=家・target=ライバル保有の PoliticalRight (political_right_target)。
+      // polityId は target から導出 (acquire と同形)。対象 right が既に消滅していれば作らない。
+      const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      const rightTarget =
+        aim.target?.kind === 'political_right_target' ? aim.target.target : undefined
+      if (!houseId || !rightTarget) return undefined
+      const polityId = getPolityIdForRightTarget(ws, rightTarget)
+      if (!polityId) return undefined
+      // 対象 right が消えている (= 失効済 or holder 交代) なら陰謀の意味がない
+      if (!getRightForTarget(ws, rightTarget)) return undefined
+      return {
+        polityId,
+        target: rightTarget,
+        currentStageKey: getInitialProjectStageKey('revoke_political_right'),
+      }
+    }
     case 'patronize_artist': {
       const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
       // 調査 §1.6: 完了時の wealth 不足による silent no-op を防ぐため作成時に afford 判定。

@@ -167,3 +167,38 @@ export function getRightsByPolity(state: WorldState, polityId: PolityId): Politi
     return right ? [right] : []
   })
 }
+
+// v0.51 陰謀リファイン §3.3: 任命権失効陰謀の target 選定。
+// 同 Polity 内で「自家 (および自家メンバー person) 以外」の holder が持つ active right を 1 件選ぶ。
+// person holder right を優先候補にする (家任命権は「最後の手段」= 高難度。§3.3 holder 種別 difficulty)。
+// 同 holder 種別内は targetKey 昇順で決定的に選ぶ。失効対象が無ければ undefined (空回り排除)。
+export function findRevocableRightTarget(
+  state: WorldState,
+  conspiringHouseId: HouseId,
+  polityId: PolityId,
+): PoliticalRightTargetRef | undefined {
+  const house = state.houses[conspiringHouseId]
+  const memberSet = new Set<string>(house ? house.memberIds.map((id) => id as string) : [])
+
+  // 自家以外の holder が持つ right を person/house に分けて収集する。
+  const personHeld: PoliticalRight[] = []
+  const houseHeld: PoliticalRight[] = []
+  for (const right of getRightsByPolity(state, polityId)) {
+    if (right.holder.kind === 'house') {
+      if (right.holder.id === conspiringHouseId) continue // 自家
+      houseHeld.push(right)
+    } else {
+      if (memberSet.has(right.holder.id)) continue // 自家メンバー
+      personHeld.push(right)
+    }
+  }
+
+  const byTargetKey = (a: PoliticalRight, b: PoliticalRight): number =>
+    politicalRightTargetKey(a.target).localeCompare(politicalRightTargetKey(b.target))
+
+  // person holder right を優先 (低難度)、無ければ house holder right (高難度)。
+  const pool = personHeld.length > 0 ? personHeld : houseHeld
+  if (pool.length === 0) return undefined
+  pool.sort(byTargetKey)
+  return pool[0]!.target
+}

@@ -251,8 +251,26 @@ function isPoliticalRightTargetValid(
   target: PoliticalRightTargetRef,
 ): boolean {
   const state = ctx.state
-  // レース負け: 既に right が存在し、holder が aim owner 自身でない (1 target 1 right — R6)
   const existing = getRightForTarget(state, target)
+
+  // v0.51 陰謀リファイン: revoke_rival_right aim は acquire と妥当条件が逆。
+  //   対象 right が「存在し rival (自家・自家メンバー以外) 保有」であることが妥当条件。
+  //   right が消滅 or 自家保有になったら enemy が居ないので abandon する (空回り排除)。
+  if (aim.kind === 'revoke_rival_right') {
+    if (!existing) return false
+    if (
+      existing.holder.kind === aim.owner.kind &&
+      (existing.holder.id as string) === (aim.owner.id as string)
+    )
+      return false
+    if (aim.owner.kind === 'house' && existing.holder.kind === 'person') {
+      const house = state.houses[aim.owner.id]
+      if (house && house.memberIds.includes(existing.holder.id)) return false
+    }
+    return true
+  }
+
+  // acquire 等: レース負け検出 — 既に right が存在し、holder が aim owner 自身でない (1 target 1 right)
   if (existing) {
     const ownedBySelf =
       existing.holder.kind === aim.owner.kind &&

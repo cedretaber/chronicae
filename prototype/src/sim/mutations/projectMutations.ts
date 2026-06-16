@@ -168,6 +168,8 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
     // v0.51 陰謀リファイン
     case 'undermine_rival_influence':
       return 'undermine_influence'
+    case 'revoke_rival_right':
+      return 'revoke_political_right'
     default:
       return undefined
   }

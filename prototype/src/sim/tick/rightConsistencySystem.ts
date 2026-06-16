@@ -29,6 +29,8 @@ export type PoliticalRightRevokeReason =
   | 'polity_dissolved' // right.polityId の polity が inactive
   | 'target_lost' // target 消滅 (regiment disbanded / holding 消滅)
   | 'regime_change' // target は存在するが支配 polity が right.polityId と一致しない
+  // v0.51 陰謀リファイン: 任命権失効陰謀の成果で剥奪 (revoke_political_right project 完了)
+  | 'revoked_by_conspiracy'
 
 // right の不整合を検査し、失効理由を返す (整合していれば undefined)。
 // §7.4: holder 有効 / polity active / target 実在 / target と polityId の整合。
