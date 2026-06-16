@@ -12,6 +12,7 @@ import {
 } from '../mutations/landContractMutations'
 import { getHoldingLandContractChain } from '../selectors/landContractSelectors'
 import { emitWarOutcome, emitWarEnded, emitPeaceSettlementApplied } from './warEvents'
+import { spawnWarDamageCrisis } from './crisisSystem'
 import { awardWarOutcomeCtx } from '../helpers/awardHelpers'
 import { establishCommonwealth, suppressRevolt } from '../mutations/worldStructureMutations'
 
@@ -154,6 +155,10 @@ function settleAttackerWon(ctx: TickContext, warId: WarId): TickContext {
     })
     const w = next.state.wars[warId]
     if (w) next = awardWarOutcomeCtx(emitWarOutcome(next, w, true), w)
+    // v0.48 Phase B (§5.2): 領地移転 (transfer goal) 完了後に戦災 Crisis を spawn する。
+    //   owner = 新支配 polity (goal.toPolityId)。transfer 後に呼ぶことで holdingTerminalPolityCache が
+    //   更新済み = 旧 owner を掴まない (B2)。tax/popular_revolt goal では領地移転がないので付与しない。
+    next = spawnWarDamageCrisis(next, goal.holdingId, goal.toPolityId, warId)
     return next
   }
 

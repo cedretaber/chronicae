@@ -1,10 +1,19 @@
 import type { TickContext, CreateSimEventInput } from './context'
+import { createSimEvent } from './context'
 import type { SimEvent } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
 import type { Crisis, CrisisKind } from '../types/crisis'
 import type { HandleCrisisProject } from '../types/project'
-import type { ProvinceId, HoldingId, PolityId, PersonId, ProjectId, EventId } from '../types/ids'
+import type {
+  ProvinceId,
+  HoldingId,
+  PolityId,
+  PersonId,
+  ProjectId,
+  EventId,
+  WarId,
+} from '../types/ids'
 import type { PopClass } from '../types/popGroup'
 import { createProjectId } from '../types/ids'
 import { randomFloat } from '../rng/rng'
@@ -95,6 +104,88 @@ function createHandleCrisisProjectMut(
   ws.projects[projectId] = project
   addProjectToIndexMut(ws, project)
   setCrisisResponseProjectMut(ws, crisis.id, projectId)
+}
+
+// v0.48 Phase B: 戦災 (war_damage) Crisis を ctx ベースで spawn する。PeaceSettlementSystem が
+//   land transfer 成功後に呼ぶ (§5.2)。owner = 終戦後の新支配 polity。dedup・初期ショック (全 class)・
+//   代官いれば対処 Project 生成は災害と共通。two-slice 書き戻し (Crisis + Project slice) を ctx.state に反映。
+export function spawnWarDamageCrisis(
+  ctx: TickContext,
+  holdingId: HoldingId,
+  ownerPolityId: PolityId,
+  sourceWarId: WarId,
+): TickContext {
+  const config = ctx.config
+  const absoluteWeek = ctx.state.absoluteWeek
+
+  // dedup: 同 holding に active war_damage があれば skip
+  const existing = ctx.state.crisisIndex.byHolding[holdingId as string] ?? []
+  for (const cid of existing) {
+    const c = ctx.state.crises[cid]
+    if (c && c.kind === 'war_damage' && c.status === 'active') return ctx
+  }
+  const ownerPolity = ctx.state.polities[ownerPolityId]
+  if (!ownerPolity || !ownerPolity.active) return ctx
+
+  const ws: WorldState = {
+    ...ctx.state,
+    crises: { ...ctx.state.crises },
+    crisisIndex: {
+      byHolding: { ...ctx.state.crisisIndex.byHolding },
+      byProject: { ...ctx.state.crisisIndex.byProject },
+    },
+    projects: { ...ctx.state.projects },
+    projectIndex: {
+      byOwner: { ...ctx.state.projectIndex.byOwner },
+      byAim: { ...ctx.state.projectIndex.byAim },
+      byParentProject: { ...ctx.state.projectIndex.byParentProject },
+      byCreatorPerson: { ...ctx.state.projectIndex.byCreatorPerson },
+      bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
+      byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
+    },
+    popGroups: { ...ctx.state.popGroups },
+  }
+
+  // pressureExcess は無関係 (戦災は人口圧力起点でない) → severity = base のみ
+  const severity = Math.min(100, config.crisisInitialSeverityByKind.war_damage)
+  const deadlineWeek = absoluteWeek + config.crisisDeadlineWeeksByKind.war_damage
+
+  const crisis = createCrisisMut(ws, {
+    kind: 'war_damage',
+    holdingId,
+    severity,
+    createdWeek: absoluteWeek,
+    deadlineWeek,
+    status: 'active',
+    reasonIds: [],
+    sourceWarId,
+  })
+
+  // 戦災の初期ショックは全 class (戦火は身分を選ばない)
+  const shockRate = config.crisisInitialShockSizeRateByKind.war_damage
+  if (shockRate > 0) {
+    reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, undefined)
+  }
+
+  const bailiff = getActiveBailiff(ws, holdingId)
+  if (bailiff) {
+    createHandleCrisisProjectMut(ws, config, crisis, ownerPolityId, bailiff, absoluteWeek)
+  }
+
+  const { event, ctx: ec } = createSimEvent(
+    { ...ctx, state: ws },
+    {
+      type: 'CRISIS_CREATED',
+      importance: 'minor',
+      messageKey: 'crisis.created',
+      messageParams: {
+        crisisKind: 'war_damage',
+        holding: nameParam('holding', ws.holdings[holdingId]?.nameKey ?? holdingId),
+      },
+      entityRefs: [entityRef('holding', holdingId, 'holding')],
+    },
+  )
+  return { ...ec, events: [...ec.events, event] }
 }
 
 // holding 単位で Crisis を生成する。dedup・owner live 解決・初期ショック・代官いれば Project 生成。
