@@ -1,6 +1,7 @@
 import type { TickContext } from './context'
 import { createSimEvent } from './context'
-import { nameParam, entityRef } from '../types/event'
+import { entityRef } from '../types/event'
+import { holdingNameParam } from '../selectors/nameRefSelectors'
 import type { WorldState } from '../types/world'
 import type { Crisis } from '../types/crisis'
 import type { CrisisId } from '../types/ids'
@@ -44,7 +45,7 @@ function applySecessionSuppression(ctx: TickContext, crisis: Crisis): TickContex
     messageKey: 'crisis.resolved',
     messageParams: {
       crisisKind: 'unrest',
-      holding: nameParam('holding', holding.nameKey),
+      holding: holdingNameParam(ctx.state, crisis.holdingId),
     },
     entityRefs: [entityRef('holding', crisis.holdingId, 'holding')],
   })

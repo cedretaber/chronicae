@@ -34,6 +34,7 @@ import {
 } from '../mutations/popMutations'
 import { adjustHoldingPopAttitudeMut } from '../mutations/attitudeMutations'
 import { getHoldingTerminalPolityId, isPlaceholderPerson } from '../selectors/landContractSelectors'
+import { holdingNameParam } from '../selectors/nameRefSelectors'
 import { getProvincePopulationPressure } from '../selectors/popSelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -181,7 +182,7 @@ export function spawnWarDamageCrisis(
       messageKey: 'crisis.created',
       messageParams: {
         crisisKind: 'war_damage',
-        holding: nameParam('holding', ws.holdings[holdingId]?.nameKey ?? holdingId),
+        holding: holdingNameParam(ws, holdingId),
       },
       entityRefs: [entityRef('holding', holdingId, 'holding')],
     },
@@ -255,7 +256,7 @@ export function spawnUnrestCrisis(
       messageKey: 'crisis.created',
       messageParams: {
         crisisKind: 'unrest',
-        holding: nameParam('holding', ws.holdings[holdingId]?.nameKey ?? holdingId),
+        holding: holdingNameParam(ws, holdingId),
       },
       entityRefs: [entityRef('holding', holdingId, 'holding')],
     },
@@ -323,7 +324,7 @@ function spawnCrisisForHolding(
     messageKey: 'crisis.created',
     messageParams: {
       crisisKind: crisis.kind,
-      holding: nameParam('holding', ws.holdings[holdingId]?.nameKey ?? holdingId),
+      holding: holdingNameParam(ws, holdingId),
     },
     entityRefs: [entityRef('holding', holdingId, 'holding')],
   })
@@ -450,7 +451,8 @@ function runWeeklyProcessing(
         ? project
         : undefined
 
-    // EC1: 所有移転で Project.owner がずれていたら cancel して responseProject をクリア (再 spawn 対象に)。
+    // EC1: 所有移転で Project.owner がずれていたら旧 Project を cancel し、新 owner の代官がいれば
+    //   対処 Project を張り直す (自己修復)。新 owner に代官がいなければ放置 (responseProject クリアのみ)。
     let effectiveProject = activeProject
     if (
       activeProject &&
@@ -463,6 +465,12 @@ function runWeeklyProcessing(
       }
       setCrisisResponseProjectMut(ws, crisis.id, undefined)
       effectiveProject = undefined
+      // 新 owner に代官がいれば対処 Project を張り直す (次 tick から severity sync が拾う)。
+      const newBailiff = getActiveBailiff(ws, holdingId)
+      const fresh = ws.crises[crisis.id]
+      if (newBailiff && fresh) {
+        createHandleCrisisProjectMut(ws, config, fresh, ownerPolityId, newBailiff, absoluteWeek)
+      }
     }
 
     let severity = crisis.severity
@@ -473,7 +481,7 @@ function runWeeklyProcessing(
 
     // §4.3 期限処理: deadline 未解決 → expired。
     if (absoluteWeek >= crisis.deadlineWeek) {
-      applyExpiredAttitude(ws, config, crisis, ownerPolityId)
+      applyExpiredAttitude(ws, config, crisis, ownerPolityId, popClass)
       if (crisis.kind === 'unrest') {
         // §5.3 案 A: unrest は purge せず expired を mark するだけ。武装蜂起 (commonwealth+play
         //   生成→escalation) は ctx ベースの unrestCrisisSystem が同 tick で適用する (Decision 1)。
@@ -485,7 +493,7 @@ function runWeeklyProcessing(
           messageKey: 'crisis.expired',
           messageParams: {
             crisisKind: crisis.kind,
-            holding: nameParam('holding', ws.holdings[holdingId]?.nameKey ?? holdingId),
+            holding: holdingNameParam(ws, holdingId),
           },
           entityRefs: [entityRef('holding', holdingId, 'holding')],
         })
@@ -548,14 +556,15 @@ function applyNeglectAttitude(
   )
 }
 
-// expired 確定時の追加 affection 低下 (代官 + Polity)。
+// expired 確定時の追加 affection 低下 (代官 + Polity)。popClass は呼び出し側で算出した対象 class
+//   (unrest なら claimantPopClass) を受け取る — 内部で再計算すると unrest の反乱 class を取り違える。
 function applyExpiredAttitude(
   ws: WorldState,
   config: SimulationConfig,
   crisis: WorldState['crises'][keyof WorldState['crises']],
   ownerPolityId: PolityId,
+  popClass: PopClass | undefined,
 ): void {
-  const popClass: PopClass | undefined = crisis.kind === 'plague' ? undefined : 'peasants'
   const bailiff = getActiveBailiff(ws, crisis.holdingId)
   if (bailiff) {
     adjustHoldingPopAttitudeMut(
@@ -627,9 +636,10 @@ export function runCrisisSystem(ctx: TickContext): TickContext {
   // 週次処理 (デバフ・期限・attitude・severity 同期)
   const touched = runWeeklyProcessing(ws, config, absoluteWeek, emitEvent)
 
-  // 年次の発生ゲート (年初週)
+  // 年次の発生ゲート (年初週)。famine/plague/drought は自然災害なので従来どおり disasterEnabled でも
+  //   suppress できる (旧 disasterSystem の kill-switch 互換)。war_damage/unrest は別経路で spawn される。
   let spawned = false
-  if (absoluteWeek % WEEKS_PER_YEAR === 0) {
+  if (config.disasterEnabled && absoluteWeek % WEEKS_PER_YEAR === 0) {
     const beforeNextCrisisId = ws.nextCrisisId
     rng = runAnnualSpawn(ws, config, rng, emitEvent)
     spawned = ws.nextCrisisId !== beforeNextCrisisId || rng !== ctx.rng

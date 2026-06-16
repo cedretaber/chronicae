@@ -19,6 +19,7 @@ import {
   getPolityNameRefForEmit,
   getPolityNameRefForEmitFromPolity,
   houseNameParam,
+  holdingNameParam,
 } from '../selectors/nameRefSelectors'
 import type { EventId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -443,7 +444,7 @@ function applyHandleCrisisMut(
     messageKey: 'crisis.resolved',
     messageParams: {
       crisisKind: crisis.kind,
-      holding: nameParam('holding', ws.holdings[crisis.holdingId]?.nameKey ?? crisis.holdingId),
+      holding: holdingNameParam(ws, crisis.holdingId),
     },
     entityRefs: [entityRef('holding', crisis.holdingId, 'holding')],
   })

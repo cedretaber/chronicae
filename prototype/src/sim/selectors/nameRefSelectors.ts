@@ -89,6 +89,13 @@ export function houseNameParam(house: House | undefined, fallbackId: string): Lo
   return nameParam(category, nameKey)
 }
 
+// v0.48: holding 名の nameParam。holding 名は kind に応じて 'province'(manor)/'city' namespace で
+//   解決されるため ('holding' namespace は空)、必ずこの helper / getHoldingNameRefForEmit を経由する。
+export function holdingNameParam(state: WorldState, holdingId: HoldingId): LocalizedNameParam {
+  const { category, nameKey } = getHoldingNameRefForEmit(state, holdingId)
+  return nameParam(category, nameKey)
+}
+
 /**
  * category 非依存な文脈 (entityRef の nameKey スナップショット / debug summary 文字列 /
  * pool used-set 構築) 用に、代表 nameKey 文字列だけを返す薄い accessor。
