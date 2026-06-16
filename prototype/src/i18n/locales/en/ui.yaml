@@ -143,6 +143,20 @@ detail:
     undermine_influence: 'Undermine Influence'
     revoke_political_right: 'Revoke Political Right'
     replace_house_leader: 'Replace Cadet Branch Head'
+    handle_crisis: 'Crisis Response'
+  # v0.48 Crisis (holding 詳細パネルの active Crisis セクション)
+  crisis:
+    section_title: 'Active Crises'
+    severity: 'Severity'
+    deadline: 'Deadline'
+    handler: 'Handler'
+    unhandled: 'Neglected'
+    kind:
+      famine: 'Famine'
+      plague: 'Plague'
+      drought: 'Drought'
+      war_damage: 'War Devastation'
+      unrest: 'Unrest'
   activity:
     project_completed: '{{kind}} Completed (Lv.{{level}})'
     project_failed: '{{kind}} Failed (Lv.{{level}})'

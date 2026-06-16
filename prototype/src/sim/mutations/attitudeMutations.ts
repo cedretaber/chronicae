@@ -122,6 +122,27 @@ export function worsenPopAttitudeTowardOwnerHouse(
   return next
 }
 
+// v0.48 Crisis: holding 内の (optionally class 指定) POP の attitude を target に対して delta だけ
+//   動かす in-place 版 (1 tick 1 draft 規約)。放置 Crisis の代官/Polity への affection 低下 (§4.4)
+//   に使う。POP が居なければ no-op。
+export function adjustHoldingPopAttitudeMut(
+  ws: WorldState,
+  holdingId: HoldingId,
+  target: AttitudeTarget,
+  delta: Partial<Attitude>,
+  popClass?: PopClass,
+): void {
+  const popIds = ws.popIndex.byHolding[holdingId]
+  if (!popIds) return
+  const key = targetKey(target)
+  for (const popId of popIds) {
+    const pop = ws.popGroups[popId]
+    if (!pop) continue
+    if (popClass !== undefined && pop.class !== popClass) continue
+    ws.popGroups[popId] = { ...pop, attitudes: adjustAttitude(pop.attitudes, key, delta) }
+  }
+}
+
 export function adjustHouseMembersAttitude(
   state: WorldState,
   houseId: HouseId,

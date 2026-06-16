@@ -85,6 +85,9 @@ export const PROJECT_REPUTATION_CATEGORY_MAP: Record<ProjectKind, ReputationCate
     undermine_influence: undefined,
     revoke_political_right: undefined,
     replace_house_leader: undefined,
+
+    // v0.48 Crisis: 災害対処は統治実績 (develop_holding と同じ administration)
+    handle_crisis: 'administration',
   }
 
 export type AwardSourceKind = PersonReputationSource['kind']

@@ -31,6 +31,7 @@ import type {
   PoliticalRightId,
   PersonReputationId,
   InfluenceModifierId,
+  CrisisId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -57,6 +58,7 @@ import type { War, WarIndex } from './war'
 import type { Regiment, RegimentIndex } from './regiment'
 import type { Battle, BattleIndex } from './battle'
 import type { Pressure, PressureIndex } from './pressure'
+import type { Crisis, CrisisIndex } from './crisis'
 import type { ChronicleEntry, ChronicleIndex } from './chronicle'
 import type { PoliticalRight, PoliticalRightIndex } from './politicalRight'
 import type { PersonReputation, PersonReputationIndex } from './personReputation'
@@ -131,6 +133,10 @@ export type WorldState = {
   // v0.29 Pressure
   pressures: Record<PressureId, Pressure>
   pressureIndex: PressureIndex
+  // v0.48 Crisis (災害・戦災・反乱前段)
+  crises: Record<CrisisId, Crisis>
+  crisisIndex: CrisisIndex
+  nextCrisisId: number
   // v0.38 Chronicle System (read-only historical archive; append-only, not used by simulation logic)
   chronicleEntries: Record<ChronicleEntryId, ChronicleEntry>
   chronicleIndex: ChronicleIndex

@@ -9,7 +9,8 @@ import { advanceTime } from './advanceTime'
 import { runLandRevenueSystem } from './landRevenueSystem'
 import { runPolitySurplusDistributionSystem } from './politySurplusDistributionSystem'
 import { runBailiffAppointmentSystem } from './bailiffAppointmentSystem'
-import { runDisasterSystem } from './disasterSystem'
+import { runHarvestSystem } from './harvestSystem'
+import { runCrisisSystem } from './crisisSystem'
 import { runMortalitySystem } from './mortalitySystem'
 import { runDeadPersonLogPurgeSystem } from './deadPersonLogPurgeSystem'
 import { runPersonReputationCleanupSystem } from './personReputationCleanupSystem'
@@ -143,10 +144,11 @@ const scheduledSystems: ScheduledSystem[] = [
     run: runHouseSurplusDistributionSystem,
   },
   {
-    name: 'disasterSystem',
+    // v0.48 §4: 正イベント (BountifulHarvest) のみ。負イベントは crisisSystem に移設。
+    name: 'harvestSystem',
     intervalWeeks: WEEKS_PER_YEAR,
     phaseOffsetWeeks: 0,
-    run: runDisasterSystem,
+    run: runHarvestSystem,
   },
   {
     // v0.40 §7.3: progression の直前。幼年期/思春期はその年の段階として影響を受けてから遷移する。
@@ -371,6 +373,14 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runProjectOutcomeSystem,
+  },
+  {
+    // v0.48 Crisis: spawn 年次・処理週次。projectOutcomeSystem の後に置き、resolved/purge 済みの
+    //   Crisis を読まずに済むようにする (§2.4 / 順序の落とし穴 4)。
+    name: 'crisisSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runCrisisSystem,
   },
   {
     name: 'pressureSystem',

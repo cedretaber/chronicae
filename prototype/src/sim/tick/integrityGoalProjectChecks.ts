@@ -775,6 +775,113 @@ export function checkGoalsAimsProjects(
     }
   }
 
+  // --- v0.48 Crisis 整合 (§6 C1–C5 + budget 一般化) ---
+  {
+    // C4: active handle_crisis Project の budget 不変条件 + crisisId 逆参照
+    for (const [idStr, project] of Object.entries(state.projects)) {
+      if (!project || project.kind !== 'handle_crisis' || project.status !== 'active') continue
+      const b = project.budget
+      if (b.required < 0 || b.allocated < 0 || b.remaining < 0 || b.spent < 0) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr} (handle_crisis): budget has negative field (§6 C4)`,
+        })
+      }
+      if (Math.abs(b.allocated - (b.remaining + b.spent)) > 0.01) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr} (handle_crisis): budget.allocated (${b.allocated}) !== remaining (${b.remaining}) + spent (${b.spent}) (§6 C4)`,
+        })
+      }
+      if (!state.holdings[project.holdingId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Project ${idStr} (handle_crisis): holdingId ${project.holdingId as string} does not exist (§6 C4)`,
+        })
+      }
+      // crisisId の Crisis 不在は許容する (Pressure P1 パターン, §6 C2)。Crisis は owner inactive で
+      //   crisisSystem が即 purge し得るが、対処 Project (interval 4 の maintenance/outcome) の cleanup は
+      //   1 cadence 遅れる。Project は deadlineWeek=Crisis.deadlineWeek を持つので dangling は必ず期限で
+      //   解消する (永続 orphan にならない)。runtime も applyHandleCrisisMut で crisis 不在を no-op 化する。
+    }
+
+    // C1/C2/C5: Crisis entity の不変条件
+    for (const [cidStr, crisis] of Object.entries(state.crises)) {
+      if (!crisis) continue
+      // terminal Crisis は即 purge されるはず (resolved/expired は state に残らない)
+      if (crisis.status !== 'active') {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Crisis ${cidStr}: terminal status '${crisis.status}' should have been purged (§6 C3)`,
+        })
+      }
+      // C1: holdingId 実在 (holding は削除されない構造)
+      if (!state.holdings[crisis.holdingId]) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Crisis ${cidStr}: holdingId ${crisis.holdingId as string} does not exist (§6 C1)`,
+        })
+      }
+      // C5: range
+      if (crisis.severity < 0 || crisis.severity > 100) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Crisis ${cidStr}: severity=${crisis.severity} out of [0,100] (§6 C5)`,
+        })
+      }
+      if (crisis.deadlineWeek < crisis.createdWeek) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Crisis ${cidStr}: deadlineWeek (${crisis.deadlineWeek}) < createdWeek (${crisis.createdWeek}) (§6 C5)`,
+        })
+      }
+      // C2 (Pressure P1 パターンに緩和): responseProjectId は存在する場合のみ kind 検査。不在は許容。
+      if (crisis.responseProjectId) {
+        const p = state.projects[crisis.responseProjectId]
+        if (p && p.kind !== 'handle_crisis') {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `Crisis ${cidStr}: responseProjectId ${crisis.responseProjectId as string} has kind '${p.kind}', expected 'handle_crisis' (§6 C2)`,
+          })
+        }
+      }
+    }
+
+    // C3: crisisIndex forward 参照の整合
+    for (const [holdingKey, cids] of Object.entries(state.crisisIndex.byHolding)) {
+      for (const cid of cids ?? []) {
+        const crisis = state.crises[cid]
+        if (!crisis) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `crisisIndex.byHolding[${holdingKey}]: crisis ${cid as string} does not exist (§6 C3)`,
+          })
+        } else if ((crisis.holdingId as string) !== holdingKey) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `crisisIndex.byHolding[${holdingKey}]: crisis ${cid as string} has holdingId ${crisis.holdingId as string} (§6 C3)`,
+          })
+        }
+      }
+    }
+    for (const [projKey, cids] of Object.entries(state.crisisIndex.byProject)) {
+      for (const cid of cids ?? []) {
+        const crisis = state.crises[cid]
+        if (!crisis) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `crisisIndex.byProject[${projKey}]: crisis ${cid as string} does not exist (§6 C3)`,
+          })
+        } else if ((crisis.responseProjectId as string | undefined) !== projKey) {
+          errors.push({
+            code: 'INTEGRITY_VIOLATION',
+            message: `crisisIndex.byProject[${projKey}]: crisis ${cid as string} responseProjectId mismatch (§6 C3)`,
+          })
+        }
+      }
+    }
+  }
+
   // Project index forward consistency
   for (const [key, pids] of Object.entries(state.projectIndex.byOwner)) {
     for (const pid of pids ?? []) {

@@ -10,6 +10,7 @@ import type { PersonActivityLog } from '../types/task'
 import type { HoldingImprovementId } from '../types/ids'
 import { createHoldingImprovementId, createPersonActivityLogId } from '../types/ids'
 import { adjustPersonAttitude, adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
+import { removeCrisisMut } from '../mutations/crisisMutations'
 import { getPolityLeader, getHouseLeader } from '../selectors/officeSelectors'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { adjustPersonLegacyPrestige } from '../helpers/attitudeHelpers'
@@ -67,6 +68,14 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     },
     diplomaticPlays: { ...ctx.state.diplomaticPlays },
     pressures: { ...ctx.state.pressures },
+    // v0.48 Crisis: handle_crisis 完了時に Crisis を resolved 化・purge するため slice を draft に含める
+    //   (含めないと removeCrisisMut が共有 state を破壊する)。popGroups は spread しないので
+    //   この system では Crisis のデバフ適用は行わない (= crisisSystem の責務)。
+    crises: { ...ctx.state.crises },
+    crisisIndex: {
+      byHolding: { ...ctx.state.crisisIndex.byHolding },
+      byProject: { ...ctx.state.crisisIndex.byProject },
+    },
     holdingImprovements: { ...ctx.state.holdingImprovements },
     holdingImprovementIndex: {
       byHolding: { ...ctx.state.holdingImprovementIndex.byHolding },
@@ -145,8 +154,11 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
           ws.aims[aim.id] = { ...aim, failedProjectCount: aim.failedProjectCount + 1 }
         }
       }
-      // Budget refund for develop_holding
-      if (project.kind === 'develop_holding' && project.budget.remaining > 0) {
+      // Budget refund for develop_holding / handle_crisis (budget 持ち holding Project, v0.48 一般化)
+      if (
+        (project.kind === 'develop_holding' || project.kind === 'handle_crisis') &&
+        project.budget.remaining > 0
+      ) {
         if (project.owner.kind === 'polity') {
           const polity = ws.polities[project.owner.id]
           if (polity) {
@@ -156,8 +168,8 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
             }
           }
         }
-        // ProjectActivityLog for failed
-        if (project.status === 'failed') {
+        // ProjectActivityLog for failed (develop_holding 固有フィールドを使うため kind ガード)
+        if (project.status === 'failed' && project.kind === 'develop_holding') {
           const supervisor = ws.persons[project.supervisorPersonId]
           if (supervisor?.alive) {
             const logId = createPersonActivityLogId(ws.nextPersonActivityLogId)
@@ -401,7 +413,35 @@ function applyNonDiplomaticEffectMut(
     case 'replace_house_leader':
       applyReplaceHouseLeaderMut(ws, project, emitEvent)
       break
+    // v0.48 Crisis: 対処完了 → Crisis 解消 (§3.1【新規必須 2】)
+    case 'handle_crisis':
+      applyHandleCrisisMut(ws, project, emitEvent)
+      break
   }
+}
+
+// v0.48 Crisis: handle_crisis 完了の効果。対処 Project が targetProgress に到達 = Crisis 解消。
+//   CRISIS_RESOLVED を emit してから即 purge する (terminal Crisis を年末 integrity §6 C3 に残さない。
+//   完了 Project は同 tick で削除されるのと対称, §2.4)。
+function applyHandleCrisisMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'handle_crisis') return
+  const crisis = ws.crises[project.crisisId]
+  if (!crisis) return
+  emitEvent({
+    type: 'CRISIS_RESOLVED',
+    importance: 'normal',
+    messageKey: 'crisis.resolved',
+    messageParams: {
+      crisisKind: crisis.kind,
+      holding: nameParam('holding', ws.holdings[crisis.holdingId]?.nameKey ?? crisis.holdingId),
+    },
+    entityRefs: [entityRef('holding', crisis.holdingId, 'holding')],
+  })
+  removeCrisisMut(ws, project.crisisId)
 }
 
 // v0.51 陰謀リファイン: 陰謀 Project の kind 集合 (cooldown 記録対象)。

@@ -7,6 +7,7 @@ import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type {
   DevelopHoldingProject,
+  HandleCrisisProject,
   LandClaimProject,
   ContractRevisionProject,
   RespondToPressureProject,
@@ -176,7 +177,9 @@ function resolveImmediateStage(
   const project = ws.projects[projectId]
   if (!project || project.status !== 'active') return false
 
-  if (project.kind === 'develop_holding') {
+  // v0.48 Crisis: handle_crisis は develop_holding と同じ find_supervisor → secure_budget を共有する。
+  //   これを書かないとステージが永久 stall する (§3.1【新規必須 1】)。
+  if (project.kind === 'develop_holding' || project.kind === 'handle_crisis') {
     if (project.currentStageKey === 'find_supervisor') {
       return resolveFindSupervisor(ws, config, project, projectId, absoluteWeek)
     }
@@ -662,7 +665,7 @@ function resolveFinalizeLandGrant(
 function resolveFindSupervisor(
   ws: WorldState,
   config: SimulationConfig,
-  project: DevelopHoldingProject,
+  project: DevelopHoldingProject | HandleCrisisProject,
   projectId: ProjectId,
   absoluteWeek: number,
 ): boolean {
@@ -722,7 +725,7 @@ function resolveFindSupervisor(
   })
 
   removeProjectFromIndexMut(ws, project)
-  const updated: DevelopHoldingProject = {
+  const updated: DevelopHoldingProject | HandleCrisisProject = {
     ...project,
     supervisorPersonId: supervisorId,
     currentStageKey: nextKey,
@@ -735,7 +738,7 @@ function resolveFindSupervisor(
 function resolveSecureBudget(
   ws: WorldState,
   config: SimulationConfig,
-  project: DevelopHoldingProject,
+  project: DevelopHoldingProject | HandleCrisisProject,
   projectId: ProjectId,
   absoluteWeek: number,
 ): boolean {
@@ -749,8 +752,14 @@ function resolveSecureBudget(
     [polityId]: { ...polity, treasury: polity.treasury - project.budget.required },
   }
 
+  // v0.48 Crisis: handle_crisis の実行 deadline は Crisis.deadlineWeek を単一の真実とする
+  //   (Crisis 有効期間内に対処を終える必要があるため。crisisDeadlineWeeksByKind は spawn 時に
+  //   Crisis.deadlineWeek へ反映済み)。develop_holding は従来どおり targetProgress 連動。
   const executionDeadline =
-    absoluteWeek + getProjectDeadlineWeeks(config, 'develop_holding', project.targetProgress)
+    project.kind === 'handle_crisis'
+      ? (ws.crises[project.crisisId]?.deadlineWeek ??
+        absoluteWeek + config.crisisDeadlineWeeksByKind.famine)
+      : absoluteWeek + getProjectDeadlineWeeks(config, project.kind, project.targetProgress)
 
   const nextKey = getNextProjectStageKey(project)
   if (!nextKey) return false

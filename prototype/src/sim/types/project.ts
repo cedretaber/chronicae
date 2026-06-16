@@ -10,6 +10,7 @@ import type {
   AimId,
   DecisionReasonId,
   DiplomaticPlayId,
+  CrisisId,
 } from './ids'
 import type { DecisionSubjectRef, EntityRef } from './goal'
 import type { PolityRank } from './polity'
@@ -63,6 +64,9 @@ export type ProjectKind =
   | 'request_cadet_branch_title_transfer'
   | 'republic_house_foundation'
   | 'consolidate_internal_contracts'
+  // v0.48 Crisis: 局所的事態 (災害・戦災・反乱前段) への対処 Project。owner = 被災 holding の
+  // live owner Polity。develop_holding と同じ task 経済で progress を積み Crisis.severity を削る。
+  | 'handle_crisis'
   // v0.51 陰謀リファイン: 影響力毀損陰謀。owner=House、target=同 Polity 内ライバル (家/人物)。
   | 'undermine_influence'
   // v0.51 陰謀リファイン: 任命権失効陰謀。owner=House、target=ライバル保有の PoliticalRight。
@@ -267,6 +271,15 @@ export type RespondToPressureProject = BaseProject & {
   stance?: PressureResponseStance
 }
 
+// v0.48 Crisis 対処 Project。owner = 被災 holding の live owner Polity。budget は develop_holding と
+// 同じ ProjectBudget を使い、find_supervisor → secure_budget → mitigate (task 駆動) で進行する。
+export type HandleCrisisProject = BaseProject & {
+  kind: 'handle_crisis'
+  crisisId: CrisisId
+  holdingId: HoldingId
+  budget: ProjectBudget
+}
+
 // 影響力個人中心化 Phase 1b: 運動 Project。
 // owner = 資金を出す家 ({kind:'house'})。sponsoredPersonId = 推薦された家メンバー (= supervisor
 // = 受益者)。完遂で sponsoredPersonId に dual-tag 評判 (owner=house→Share / target=polity→influence)
@@ -299,6 +312,7 @@ export type Project =
   | UndermineInfluenceProject
   | RevokePoliticalRightProject
   | ReplaceHouseLeaderProject
+  | HandleCrisisProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

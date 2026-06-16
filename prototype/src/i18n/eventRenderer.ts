@@ -83,7 +83,9 @@ export function createEventRenderer(
             key === 'category' ||
             key === 'sourceKind' ||
             // v0.45: 天才の型
-            key === 'geniusType') &&
+            key === 'geniusType' ||
+            // v0.48: Crisis の種別
+            key === 'crisisKind') &&
           typeof value === 'string'
         ) {
           const translated = i18nInstance.t(`enum.${key}.${value}`, {

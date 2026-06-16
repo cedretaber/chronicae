@@ -183,6 +183,8 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   undermine_influence: 'insight',
   revoke_political_right: 'insight',
   replace_house_leader: 'insight',
+  // v0.48 Crisis: 災害対処は実務 (develop_holding と同じ numeracy)
+  handle_crisis: 'numeracy',
 }
 
 // v0.51 陰謀リファイン: 陰謀 Project の advance_project Task は重く・高難度にする (スパム防止)。

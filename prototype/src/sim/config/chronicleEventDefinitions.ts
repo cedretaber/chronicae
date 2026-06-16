@@ -90,6 +90,10 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   // Disaster
   FAMINE: { category: 'disaster' },
   PLAGUE: { category: 'disaster' },
+  // v0.48 Crisis: 解決/失効は低頻度・高 signal なので chronicle 可。holding ref 限定で fan-out 抑制
+  //   (per-holding CRISIS_CREATED は登録せず Polity/House 国史を埋めない, §4.5)。
+  CRISIS_RESOLVED: { category: 'disaster', retainRefKinds: ['holding'] },
+  CRISIS_EXPIRED: { category: 'disaster', retainRefKinds: ['holding'] },
   // Development
   COUNTRY_LAND_DEVELOPED: { category: 'development' },
   // Office / 行政 (v0.38 Phase 3)

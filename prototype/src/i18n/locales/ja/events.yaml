@@ -84,6 +84,12 @@ disaster:
   plague: '{{province}}で疫病が蔓延した！'
   bountiful_harvest: '{{province}}で豊作に恵まれた。'
 
+# v0.48 Crisis (災害・戦災・反乱前段の entity 化)
+crisis:
+  created: '{{holding}}で{{crisisKind}}の危機が発生した。'
+  resolved: '{{holding}}の{{crisisKind}}の危機が乗り越えられた。'
+  expired: '{{holding}}の{{crisisKind}}の危機が放置されたままとなった。'
+
 pop:
   land_developed: '{{province}}の住民が土地を改良した。'
 
@@ -339,10 +345,18 @@ enum:
     peasants: '農民'
     townsmen: '市民'
     nobles: '貴族'
+  # v0.48 Crisis の種別ラベル
+  crisisKind:
+    famine: '飢饉'
+    plague: '疫病'
+    drought: '干魃'
+    war_damage: '戦災'
+    unrest: '騒乱'
   # project event の {{kind}} 表示ラベル (ProjectKind enum)。
   #   goal/aim kind と違い owner 種別で語彙が分かれないため flat に持つ。
   projectKind:
     develop_holding: '所領開発'
+    handle_crisis: '危機対応'
     acquire_political_right: '政治的権利の獲得'
     promote_policy_shift: '政策への働きかけ'
     patronize_artist: '芸術家の後援'

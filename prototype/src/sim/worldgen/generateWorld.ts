@@ -1748,6 +1748,10 @@ export function generateWorld(
     // v0.29 Pressure
     pressures: {},
     pressureIndex: { byTarget: {}, bySource: {}, byDiplomaticPlay: {}, byProject: {} },
+    // v0.48 Crisis
+    crises: {},
+    crisisIndex: { byHolding: {}, byProject: {} },
+    nextCrisisId: 1,
     // v0.38 Chronicle System
     chronicleEntries: {},
     chronicleIndex: { byPerson: {}, byHouse: {}, byPolity: {}, byProvince: {}, byHolding: {} },

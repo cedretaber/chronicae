@@ -32,6 +32,10 @@ export type EventType =
   | 'PROVINCE_REVOLT_SUCCEEDED'
   | 'PROVINCE_REVOLT_FAILED'
   | 'REVOLT_POLITY_FOUNDED'
+  // v0.48 Crisis (災害・戦災・反乱前段の entity 化)
+  | 'CRISIS_CREATED'
+  | 'CRISIS_RESOLVED'
+  | 'CRISIS_EXPIRED'
   // v0.46 共和国整備: established commonwealth の建国式 / 任期 leader 交代。
   | 'REPUBLIC_FOUNDED'
   | 'REPUBLIC_LEADER_ELECTED'
@@ -345,6 +349,9 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'disaster.famine': 'Famine strikes {{province}}!',
   'disaster.plague': 'Plague spreads through {{province}}!',
   'disaster.bountiful_harvest': 'A bountiful harvest blesses {{province}}.',
+  'crisis.created': 'A crisis ({{crisisKind}}) has struck {{holding}}.',
+  'crisis.resolved': 'The {{crisisKind}} crisis in {{holding}} has been overcome.',
+  'crisis.expired': 'The {{crisisKind}} crisis in {{holding}} went unresolved.',
   'pop.land_developed': 'The people of {{province}} improved their lands.',
   'war.won': '{{winner}} prevailed in war against {{loser}}.',
   'war.lost': '{{loser}} was defeated by {{winner}}.',

@@ -430,6 +430,71 @@ export function movePopSizeToOccupationMut(
   return targetPopId
 }
 
+// ---------------------------------------------------------------------------
+// v0.48 Crisis: holding スコープの in-place pop helper。
+// province ラッパー (adjustProvincePop* / reduceProvincePopSizeProportional) を per-holding で
+// 呼ぶと holdingsPerProvince 倍に多重適用する罠 (§1.1) があるため、Crisis は holding 単位で
+// 1 回だけ適用するこの族を使う。1 tick 1 draft の mutable 規約に従い ws を直接書き換える。
+// ---------------------------------------------------------------------------
+
+// holding 内の (optionally class 指定) POP の wealth を delta だけ動かす (clamp 0..100)。
+export function adjustHoldingPopWealthMut(
+  ws: WorldState,
+  holdingId: HoldingId,
+  delta: number,
+  popClass?: PopClass,
+): void {
+  const popIds = ws.popIndex.byHolding[holdingId]
+  if (!popIds) return
+  for (const popId of popIds) {
+    const pop = ws.popGroups[popId]
+    if (!pop) continue
+    if (popClass !== undefined && pop.class !== popClass) continue
+    const newWealth = clamp(pop.wealth + delta, 0, 100)
+    if (newWealth === pop.wealth) continue
+    ws.popGroups[popId] = { ...pop, wealth: newWealth }
+  }
+}
+
+// holding 内の (optionally class 指定) POP の unrest を delta だけ動かす (clamp 0..100)。
+export function adjustHoldingPopUnrestMut(
+  ws: WorldState,
+  holdingId: HoldingId,
+  delta: number,
+  popClass?: PopClass,
+): void {
+  const popIds = ws.popIndex.byHolding[holdingId]
+  if (!popIds) return
+  for (const popId of popIds) {
+    const pop = ws.popGroups[popId]
+    if (!pop) continue
+    if (popClass !== undefined && pop.class !== popClass) continue
+    const newUnrest = clamp(pop.unrest + delta, 0, 100)
+    if (newUnrest === pop.unrest) continue
+    ws.popGroups[popId] = { ...pop, unrest: newUnrest }
+  }
+}
+
+// holding 内の (optionally class 指定) POP の size を比例で減らす (各 pop が自身の size×rate を失う)。
+// rate は [0,1]。reduceProvincePopSizeProportional の holding スコープ in-place 版。
+export function reduceHoldingPopSizeProportionalMut(
+  ws: WorldState,
+  holdingId: HoldingId,
+  rate: number,
+  popClass?: PopClass,
+): void {
+  const popIds = ws.popIndex.byHolding[holdingId]
+  if (!popIds) return
+  for (const popId of popIds) {
+    const pop = ws.popGroups[popId]
+    if (!pop) continue
+    if (popClass !== undefined && pop.class !== popClass) continue
+    const newSize = Math.max(0, pop.size - pop.size * rate)
+    if (newSize === pop.size) continue
+    ws.popGroups[popId] = { ...pop, size: newSize }
+  }
+}
+
 export function mergeCompatiblePopsMut(ws: WorldState): void {
   // Build merge key map: "holdingId|class|occupation" -> PopGroupId[]
   const mergeMap = new Map<string, PopGroupId[]>()

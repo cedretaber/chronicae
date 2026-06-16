@@ -608,7 +608,9 @@ export function handleAdvanceProjectCompletionMut(
         : config.projectAdvanceProgressFailure
   const newProgress = Math.min(project.progress + progressGain, project.targetProgress)
 
-  if (project.kind === 'develop_holding') {
+  // v0.48 一般化: budget 持ち holding Project (develop_holding / handle_crisis) は advance task ごとに
+  //   予算を消費する。それ以外は progress のみ更新。
+  if (project.kind === 'develop_holding' || project.kind === 'handle_crisis') {
     const expectedTasks = Math.max(
       1,
       Math.ceil(project.targetProgress / config.projectAdvanceProgressSuccess),

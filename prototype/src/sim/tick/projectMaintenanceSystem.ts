@@ -139,10 +139,10 @@ export function runProjectMaintenanceSystem(ctx: TickContext): TickContext {
       continue
     }
 
-    // 3b. Budget exhausted (develop_holding)
+    // 3b. Budget exhausted (develop_holding / handle_crisis — budget 持ち holding Project, v0.48 一般化)
     if (
-      project.kind === 'develop_holding' &&
-      project.currentStageKey === 'execute_project' &&
+      ((project.kind === 'develop_holding' && project.currentStageKey === 'execute_project') ||
+        (project.kind === 'handle_crisis' && project.currentStageKey === 'mitigate')) &&
       project.budget.remaining <= 0 &&
       project.progress < project.targetProgress
     ) {

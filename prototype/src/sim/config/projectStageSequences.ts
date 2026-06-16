@@ -89,6 +89,14 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
   undermine_influence: [{ key: 'execute_project', type: 'final' }],
   revoke_political_right: [{ key: 'execute_project', type: 'final' }],
   replace_house_leader: [{ key: 'execute_project', type: 'final' }],
+
+  // v0.48 Crisis: develop_holding に倣う。find_supervisor → secure_budget (treasury 前借り) →
+  //   mitigate (final, advance_project task 駆動で progress を積み severity を削る, §3.4)。
+  handle_crisis: [
+    { key: 'find_supervisor', type: 'immediate' },
+    { key: 'secure_budget', type: 'immediate' },
+    { key: 'mitigate', type: 'final' },
+  ],
 }
 
 export function getProjectStageSequence(kind: ProjectKind): readonly ProjectStageEntry[] {

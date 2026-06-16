@@ -118,6 +118,13 @@ export function createProjectId(n: number): ProjectId {
   return ('pr-' + n) as ProjectId
 }
 
+// v0.48 Crisis: 対処を要する局所的事態 (災害・戦災・反乱前段)。prefix `cr-`。
+export type CrisisId = Branded<string, 'CrisisId'>
+
+export function createCrisisId(n: number): CrisisId {
+  return ('cr-' + n) as CrisisId
+}
+
 export type GoalId = Branded<string, 'GoalId'>
 export type AimId = Branded<string, 'AimId'>
 export type DecisionReasonId = Branded<string, 'DecisionReasonId'>

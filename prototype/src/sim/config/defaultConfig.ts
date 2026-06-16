@@ -4,6 +4,7 @@ import type { PersonBackgroundOccupation, LifeStage } from '../types/person'
 import type { HoldingKind } from '../types/landContract'
 import type { PopOccupation, PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
+import type { CrisisKind } from '../types/crisis'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
 import type { BattlefieldKind } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'
@@ -272,6 +273,31 @@ export type SimulationConfig = {
   plagueWealthPenalty: number
   plagueSizeDamageRate: number
   plaguePressureChanceBonus: number
+  // v0.48 Crisis (災害・戦災・反乱前段の entity 化, §7.2)
+  crisisEnabled: boolean
+  // 発生年次ロール (drought は新規。famine/plague は既存 *BaseChancePerYear を流用)
+  droughtBaseChancePerYear: number
+  droughtPressureChanceBonus: number
+  // 初期 severity (= 対処 Project の targetProgress)。0–100。pressureExcess に比例して加算 (clamp 100)
+  crisisInitialSeverityByKind: Record<CrisisKind, number>
+  crisisSeverityPressureBonus: number
+  // 発生時の一回限り人口ショック (holding スコープ proportional, §4.1)
+  crisisInitialShockSizeRateByKind: Record<CrisisKind, number>
+  // 有効期間 (deadline までの週数)
+  crisisDeadlineWeeksByKind: Record<CrisisKind, number>
+  // 予算: required = min(treasury × ratio, cap[kind])
+  crisisBudgetTreasuryRatio: number
+  crisisBudgetCapByKind: Record<CrisisKind, number>
+  // 週次デバフ (active 中, severity に比例)。校正: 旧単発効果 ÷ 平均有効週数 を目安に控えめ設定。
+  //   旧 famine は peasants wealth −8 を 1 回。severity 30・有効 ~24 週で毎週 0.05×30=1.5、
+  //   resolution 前提なら積算 ~10–18 で旧値と同オーダー。balance は機能完成後にまとめて調整 (CLAUDE.md §4)。
+  crisisWeeklyWealthPenaltyPerSeverity: number
+  crisisWeeklyUnrestPerSeverity: number
+  // 放置時の attitude 低下 (担当代官 / Polity 別。owner house は対象外, §0-6/§4.4)
+  crisisNeglectAffectionDropPerWeekBailiff: number
+  crisisNeglectAffectionDropPerWeekPolity: number
+  crisisExpiredAffectionDropBailiff: number
+  crisisExpiredAffectionDropPolity: number
   // Military v0.9
   houseManpowerPowerFactor: number
   houseMilitaryWealthReserve: number
@@ -1465,6 +1491,46 @@ export const defaultConfig: SimulationConfig = {
   plagueWealthPenalty: 10,
   plagueSizeDamageRate: 0.05,
   plaguePressureChanceBonus: 2.0,
+  // v0.48 Crisis (§7.2)。balance は機能完成後にまとめて調整する前提の暫定値 (CLAUDE.md §4)。
+  crisisEnabled: true,
+  droughtBaseChancePerYear: 0.04,
+  droughtPressureChanceBonus: 5.0,
+  crisisInitialSeverityByKind: {
+    famine: 30,
+    plague: 35,
+    drought: 25,
+    war_damage: 25,
+    unrest: 40,
+  },
+  crisisSeverityPressureBonus: 20,
+  crisisInitialShockSizeRateByKind: {
+    famine: 0.05,
+    plague: 0.04,
+    drought: 0.03,
+    war_damage: 0.02,
+    unrest: 0,
+  },
+  crisisDeadlineWeeksByKind: {
+    famine: 24,
+    plague: 20,
+    drought: 32,
+    war_damage: 32,
+    unrest: 12,
+  },
+  crisisBudgetTreasuryRatio: 0.1,
+  crisisBudgetCapByKind: {
+    famine: 60,
+    plague: 80,
+    drought: 50,
+    war_damage: 80,
+    unrest: 40,
+  },
+  crisisWeeklyWealthPenaltyPerSeverity: 0.05,
+  crisisWeeklyUnrestPerSeverity: 0.04,
+  crisisNeglectAffectionDropPerWeekBailiff: -0.3,
+  crisisNeglectAffectionDropPerWeekPolity: -0.15,
+  crisisExpiredAffectionDropBailiff: -5,
+  crisisExpiredAffectionDropPolity: -3,
   // Military v0.9
   houseManpowerPowerFactor: 1.0,
   houseMilitaryWealthReserve: 100,

@@ -133,6 +133,10 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
     // v0.51 陰謀リファイン: 対象分家を related に
     case 'replace_house_leader':
       return [{ kind: 'house', id: project.targetHouseId }]
+
+    // v0.48 Crisis: 被災 holding を related に載せる (dedup の hasActiveDev 相当 + HoldingDetail 索引)
+    case 'handle_crisis':
+      return [{ kind: 'holding', id: project.holdingId }]
   }
 }
 
@@ -452,6 +456,19 @@ export function describeProject(project: Project): ProjectDescriptor {
       return descriptor(fields)
     }
 
+    // v0.48 Crisis: 被災 holding と予算を表示 (kind/severity は Crisis entity 側で HoldingDetail が表示)
+    case 'handle_crisis': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHolding', { kind: 'holding', id: project.holdingId }),
+      ]
+      return descriptor(fields, {
+        required: project.budget.required,
+        allocated: project.budget.allocated,
+        remaining: project.budget.remaining,
+        spent: project.budget.spent,
+      })
+    }
+
     default: {
       const _exhaustive: never = project
       return _exhaustive
@@ -485,6 +502,8 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   undermine_influence: 'intrigue',
   revoke_political_right: 'intrigue',
   replace_house_leader: 'intrigue',
+  // v0.48 Crisis: 災害対処は統治実務 (develop_holding と同じ stewardship)
+  handle_crisis: 'stewardship',
 }
 
 export function getPersonProjectWorkload(

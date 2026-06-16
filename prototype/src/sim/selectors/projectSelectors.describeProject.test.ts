@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { describeProject } from './projectSelectors'
 import type { Project, ProjectKind, BaseProject } from '../types/project'
-import type { ProjectId, PolityId, HouseId, PersonId, HoldingId, PressureId } from '../types/ids'
+import type {
+  ProjectId,
+  PolityId,
+  HouseId,
+  PersonId,
+  HoldingId,
+  PressureId,
+  CrisisId,
+} from '../types/ids'
 
 // describeProject は純粋関数 (state を引かない) なので、各 kind の最小 fixture で網羅する。
 // 目的: 全 20 kind が throw せず descriptor を返し、primary が fields[0] と一致すること
@@ -181,13 +189,20 @@ const samples: Record<ProjectKind, Project> = {
     owner: { kind: 'house', id: 'h1' as HouseId },
     targetHouseId: 'h2' as HouseId,
   },
+  handle_crisis: {
+    ...base,
+    kind: 'handle_crisis',
+    crisisId: 'cr1' as CrisisId,
+    holdingId: 'hd1' as HoldingId,
+    budget: { required: 100, allocated: 50, remaining: 50, spent: 50, source: { kind: 'owner' } },
+  },
 }
 
 describe('describeProject', () => {
   const kinds = Object.keys(samples) as ProjectKind[]
 
-  it('covers all 20 project kinds', () => {
-    expect(kinds.length).toBe(20)
+  it('covers all 21 project kinds', () => {
+    expect(kinds.length).toBe(21)
   })
 
   it.each(kinds)('returns a descriptor for kind=%s without throwing', (kind) => {

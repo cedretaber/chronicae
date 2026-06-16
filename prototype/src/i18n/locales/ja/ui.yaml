@@ -238,6 +238,20 @@ detail:
     undermine_influence: '影響力毀損の陰謀'
     revoke_political_right: '任命権失効の陰謀'
     replace_house_leader: '分家当主の交代'
+    handle_crisis: '危機対応'
+  # v0.48 Crisis (holding 詳細パネルの active Crisis セクション)
+  crisis:
+    section_title: '進行中の危機'
+    severity: '深刻度'
+    deadline: '期限'
+    handler: '担当者'
+    unhandled: '放置'
+    kind:
+      famine: '飢饉'
+      plague: '疫病'
+      drought: '干魃'
+      war_damage: '戦災'
+      unrest: '騒乱'
   activity:
     project_completed: '{{kind}}完了（Lv.{{level}}）'
     project_failed: '{{kind}}失敗（Lv.{{level}}）'

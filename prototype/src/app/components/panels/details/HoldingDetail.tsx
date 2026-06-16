@@ -35,6 +35,7 @@ import {
   getHoldingPops,
 } from '@sim/selectors/popSelectors'
 import { getChronicleEntriesForHolding } from '@sim/selectors/chronicleSelectors'
+import { formatAbsoluteWeek } from '@/app/utils/format'
 
 export function HoldingDetail({
   holding,
@@ -232,6 +233,58 @@ export function HoldingDetail({
                   </div>
                 )}
               </div>
+            </div>
+          )
+        })()}
+
+      {/* v0.48 Active Crisis (災害・戦災・反乱前段) */}
+      {currentState &&
+        (() => {
+          const crisisIds = currentState.crisisIndex.byHolding[holding.id] ?? []
+          const activeCrises = crisisIds
+            .map((cid) => currentState.crises[cid])
+            .filter((c): c is NonNullable<typeof c> => c !== undefined && c.status === 'active')
+          if (activeCrises.length === 0) return null
+          return (
+            <div className="text-sm">
+              <div className="font-semibold text-red-300">{t('detail.crisis.section_title')}</div>
+              {activeCrises.map((crisis) => {
+                const project = crisis.responseProjectId
+                  ? currentState.projects[crisis.responseProjectId]
+                  : undefined
+                const supervisor =
+                  project && project.kind === 'handle_crisis'
+                    ? currentState.persons[project.supervisorPersonId]
+                    : undefined
+                return (
+                  <div key={crisis.id} className="mb-1 ml-2 border-l border-red-900 pl-2">
+                    <div className="flex justify-between">
+                      <span className="text-red-200">
+                        {t(`detail.crisis.kind.${crisis.kind}`, { defaultValue: crisis.kind })}
+                      </span>
+                      <span className="text-gray-400">
+                        {t('detail.crisis.severity')}: {crisis.severity.toFixed(0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">{t('detail.crisis.deadline')}:</span>
+                      <span>{formatAbsoluteWeek(crisis.deadlineWeek)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">{t('detail.crisis.handler')}:</span>
+                      {supervisor ? (
+                        <PersonLink
+                          personId={supervisor.id}
+                          persons={currentState.persons}
+                          onClick={onPersonClick}
+                        />
+                      ) : (
+                        <span className="text-amber-400">{t('detail.crisis.unhandled')}</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )
         })()}

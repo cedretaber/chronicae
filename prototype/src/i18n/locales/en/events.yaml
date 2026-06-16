@@ -85,6 +85,12 @@ disaster:
   plague: 'Plague spreads through {{province}}!'
   bountiful_harvest: 'A bountiful harvest blesses {{province}}.'
 
+# v0.48 Crisis (災害・戦災・反乱前段の entity 化)
+crisis:
+  created: 'A {{crisisKind}} crisis has struck {{holding}}.'
+  resolved: 'The {{crisisKind}} crisis in {{holding}} has been overcome.'
+  expired: 'The {{crisisKind}} crisis in {{holding}} went unresolved.'
+
 pop:
   land_developed: 'The people of {{province}} improved their lands.'
 
@@ -340,10 +346,18 @@ enum:
     peasants: 'peasants'
     townsmen: 'townsmen'
     nobles: 'nobles'
+  # v0.48 Crisis の種別ラベル
+  crisisKind:
+    famine: 'famine'
+    plague: 'plague'
+    drought: 'drought'
+    war_damage: 'war devastation'
+    unrest: 'unrest'
   # Display labels for {{kind}} in project events (ProjectKind enum).
   #   Flat table — unlike goal/aim kinds the vocabulary does not split by owner kind.
   projectKind:
     develop_holding: 'holding development'
+    handle_crisis: 'crisis response'
     acquire_political_right: 'acquiring a political right'
     promote_policy_shift: 'lobbying over polity policy'
     patronize_artist: 'patronizing an artist'
