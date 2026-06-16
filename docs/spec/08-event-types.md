@@ -32,11 +32,14 @@
 | POLITY_SPLIT | critical | Polity 分裂（旧 COUNTRY_SPLIT を rename） |
 | POLITY_LANDLESS | major | Polity が landless 化（terminal Province 0。polityOwnerConsistencySystem が Province 数 0 到達時に発火し、続けて inactive 化 + POLITY_EXTINCT を出す。§11） |
 | OMEN | normal | 兆し |
-| FAMINE | major | 飢饉 |
-| PLAGUE | major | 疫病 |
+| FAMINE | major | 飢饉（v0.48: Province レベルの物語ビートとして残置。実体は Crisis） |
+| PLAGUE | major | 疫病（同上） |
 | BOUNTIFUL_HARVEST | normal | 豊作 |
-| DISASTER_RELIEF_FUNDED | normal | 災害救済成功 |
-| DISASTER_RELIEF_FAILED | normal | 災害救済失敗 |
+| CRISIS_CREATED | minor | v0.48: Crisis 発生（holding 単位。災害/戦災/反乱前段）。chronicle 非登録（fan-out 抑制） |
+| CRISIS_RESOLVED | normal | v0.48: Crisis 対処成功（handle_crisis 完了 / unrest 鎮圧） |
+| CRISIS_EXPIRED | normal | v0.48: Crisis 期限切れで放置確定（unrest 除く。unrest は武装蜂起へ） |
+| DISASTER_RELIEF_FUNDED | normal | 災害救済成功（旧。現状未発火） |
+| DISASTER_RELIEF_FAILED | normal | 災害救済失敗（旧。現状未発火） |
 | WAR_DECLARED | major | 宣戦布告（WarCreationSystem が War 作成時に発火。casus belli として「対象 Province + 戦争前状態 + 目標」を記録。WarGoal kind で messageKey 分岐: `war.declared.change_tax`（`subject`/`fromRate`/`toRate`）/ `war.declared.transfer_land`（`subject`/元保持者 `from`）/ goal 不在時 `war.declared.generic`） |
 | WAR_PARTICIPANT_JOINED | normal | supporter の参戦（v0.43。WarCreationSystem の copy filter 通過 supporter ごとに発火。messageKey `war.participant_joined`。params: `warId` / `supporter` / `primary`（参戦先 side の primary）。`DIPLOMATIC_SUPPORT_DECLARED` とのペア有無で「宣言したが参戦しなかった」を読める） |
 | WAR_WON | major | 戦争勝利（PeaceSettlementSystem が attacker_won / defender_won の勝者に発火） |

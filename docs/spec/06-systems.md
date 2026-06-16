@@ -294,38 +294,48 @@ polity.treasury -= distributedTotal
 
 **commonwealth の扱い (v0.42)**: House entry が存在しない（leader Person entry のみの）commonwealth では surplus は treasury に残る。旧 person-holder share への分配は廃止。
 
-### 6.6 DisasterSystem（48週ごと = 毎年）
+### 6.6 CrisisSystem（毎週。年次発生ロールを内包）
 
-Province 単位で判定する。救済システムは一旦オミット（将来 Holding 単位 POP で再導入予定）。人口ダメージは割合ベース。人口圧力により発生率が増加する。
+> **v0.48 で旧 DisasterSystem を「Crisis エンティティ + 対処 Project」モデルに再設計した。** 旧実装は state に残らない単発即時ダメージ（peasants wealth −8 / population −10% 等）で、担当者・予算・有効期間・救済・attitude 影響がすべて欠落していた。v0.48 は不作（famine）/ 疫病（plague）/ 干魃（drought）/ 戦災（war_damage）/ 反乱前段（unrest）を **対処を要する局所的事態（Crisis）** としてエンティティ化し、「有能な代官が災害を凌ぐ / 無能・無予算が放置し被害が拡大する」という holding ごとの差分ドラマを生む。豊作（BountifulHarvest）は副作用が異なるため §6.6a HarvestSystem に分離した。
 
-Province ごとに独立して判定。同一 Province に複数の災害が同時発生し得る。
+**Crisis = 局所的ハザード（能動）**。holding 単位で発生し、誰も対処しなくても毎週 severity 比例のデバフを与え続ける（型は §3）。kind は `famine / plague / drought / war_damage / unrest` の 5 種。`severity`（0..100）は被害の大きさで、対処 Project の進捗に応じて派生同期される。
 
-**発生率の計算**:
+**対処 = handle_crisis Project（受動）**。既存 Project の task 経済に乗る（develop_holding の鏡像）。`find_supervisor → secure_budget → mitigate` の stage 列で `advance_project` task を発行し progress を積む。担当者の能力・予算は task の難易度・成功率に反映される（人物能力効果は respond_to_pressure と同様）。`severity = max(0, targetProgress − project.progress)`（targetProgress = 初期 severity）で同期し、progress が積まれて severity が 0 になると **resolved**。
+
+**発生（年次ロール、年初週のみ）**: famine/plague/drought を Province 単位で独立判定し、当たった Province 内の該当 holding に Crisis を 1 つずつ生成する。
 
 ```ts
-const pressure = getProvincePopulationPressure(state, config, provinceId)
 const pressureExcess = Math.max(0, pressure - config.populationPressureThreshold)
-const famineChance = config.famineBaseChancePerYear + config.faminePressureChanceBonus * pressureExcess
-const plagueChance = config.plagueBaseChancePerYear + config.plaguePressureChanceBonus * pressureExcess
+const famineChance  = config.famineBaseChancePerYear  + config.faminePressureChanceBonus  * pressureExcess
+const plagueChance  = config.plagueBaseChancePerYear  + config.plaguePressureChanceBonus  * pressureExcess
+const droughtChance = config.droughtBaseChancePerYear + config.droughtPressureChanceBonus * pressureExcess
 ```
 
-pressure 1.0 で飢饉確率 100%（`faminePressureChanceBonus: 9.2`）。人口が carrying capacity を超過すると確実に飢饉が発生する。
+- **spawn フィルタ**: famine/drought は農業 peasants を持つ holding のみ、plague は POP を持つ holding。
+- **初期 severity** = `crisisInitialSeverityByKind[kind] + pressureExcess * crisisSeverityPressureBonus`（上限 100）。
+- **初期ショック**（一回限りの人口減）= `crisisInitialShockSizeRateByKind[kind]`。famine/drought は peasants、plague/war_damage は全 class。holding スコープで 1 回適用（province ラッパーの多重適用を回避）。
+- **後方互換**: Province レベルの物語ビートとして旧 `FAMINE` / `PLAGUE` イベントを 1 件だけ残す（drought は新規 kind で legacy event を持たず per-holding `CRISIS_CREATED` のみ）。
+- **kill-switch**: 年次発生ロールは `disasterEnabled`（default true）で抑制できる（旧 DisasterSystem 互換）。war_damage / unrest は別経路で spawn されるため影響しない。
+- war_damage は PeaceSettlementSystem の領地移転後（§6.46）、unrest は ProvinceRevoltSystem（§6.29）から spawn される。
 
-| 災害 | 基礎確率 | 圧力ボーナス | 効果 |
-|------|------|------|------|
-| Famine（飢饉） | 8% | +9.2/excess | peasants wealth -8・population -10% |
-| Plague（疫病） | 3% | +2.0/excess | 全 POP wealth -10・population -5% |
-| BountifulHarvest（豊作） | 5% | なし | peasants/townsmen wealth 上昇・unrest 低下 |
+**担当者割当（`resolveCrisisHandlers`）**: holding に代官（bailiff）がいれば代官を creator=supervisor に据える（「有能な代官が凌ぐ」現地ドラマ）。**代官不在時は Pressure と同様**、owner polity の指導者（`getPolityLeader`）を creator に立て `selectProjectSupervisor` で能力ベースに担当者を探す（見つからなければ指導者自身）。指導者すら不在のときだけ対処 Project を生成しない＝放置。代官を `selectProjectSupervisor` に通さないのは、代官が holding office 保有者で polity owner に対する officeBonus が付かず別の polity 役職者に displace されてしまうため（現地ドラマが死ぬ）。supervisor の死亡は `projectMaintenanceSystem` が再選定／failed で処理（既存機構を継承）。
 
-**Famine の詳細**:
-- peasants wealth -= `famineWealthPenalty`（default: 8）
-- peasants size *= `(1 - famineSizeDamageRate)`（default: -10%）
+**予算（ProjectBudget, owner Polity 国庫）**: `required = min(floor(treasury * crisisBudgetTreasuryRatio), crisisBudgetCapByKind[kind])`。secure_budget stage で国庫から確保する。treasury 不足なら secure_budget で停滞＝「予算不足の放置」。実行 deadline は `Crisis.deadlineWeek`（spawn 時に `crisisDeadlineWeeksByKind[kind]` で設定）を単一の真実とする（getProjectDeadlineWeeks に handle_crisis 分岐は無い）。
 
-**Plague の詳細**:
-- 全 POP wealth -= `plagueWealthPenalty`
-- 全 POP size *= `(1 - plagueSizeDamageRate)`（default: -5%）
+**週次処理（毎週）**:
+- **severity 比例デバフ**: 対象 class の POP に wealth −（`crisisWeeklyWealthPenaltyPerSeverity * severity`）/ unrest +（`crisisWeeklyUnrestPerSeverity * severity`）。対象 class は plague=全 class、unrest=反乱 class（`demand.claimantPopClass`）、その他=peasants。放置 Crisis も severity 据え置きでデバフ継続。
+- **放置時の attitude 低下**（対処 Project 無し or secure_budget 停滞中）: その holding の POP の **代官 affection ↓ + Polity affection ↓** を毎週わずかに（`crisisNeglectAffectionDropPerWeek*`）。**owner house は対象外**（災害放置では secession を焚き付けない）。
+- **owner live 解決**: owner polity が inactive / holding terminal 喪失なら expired+purge（EC2/EC5）。所有移転で Project.owner がずれたら旧 Project を cancel し、新 owner で `resolveCrisisHandlers` 経由で対処 Project を張り直す（EC1 自己修復。担当者が立たなければ放置）。
+- **期限処理**: `absoluteWeek >= deadlineWeek` で未解決 → expired。追加 affection 低下（`crisisExpiredAffectionDrop*`）。unrest 以外は `CRISIS_EXPIRED` を emit して即 purge。**unrest は expired を mark するだけで purge せず**、UnrestCrisisSystem（§6.29a）が同 tick で武装蜂起を適用してから purge する。
 
-**BountifulHarvest の詳細**:
+**完了（resolved）**: handle_crisis Project が completed すると ProjectOutcomeSystem（§6.41）が Crisis を resolved にして即 purge（`flushTerminalEntities` は Project 専用・年末のみなので Crisis を残せない）。`CRISIS_RESOLVED` を emit。**unrest だけは purge せず resolved を mark** し、UnrestCrisisSystem が譲歩/鎮圧を適用してから purge する。
+
+CrisisSystem は ProjectOutcomeSystem の **後** に走り（resolved/progress を読んで severity を同期できるよう）、UnrestCrisisSystem はその直後に走る（mark→action を同 tick で完結）。整合性不変条件は §6.35（C1–C5）で検査する。
+
+### 6.6a HarvestSystem（48週ごと = 毎年）
+
+旧 DisasterSystem の豊作（BountifulHarvest）を分離した年次 system。`disasterEnabled` で抑制できる。
+
 - treasury への直接加算なし。翌週以降の LandRevenueSystem で POP production 上昇により国庫が増加する
 - `adjustProvincePopWealthByClass(state, pid, 'peasants', +bountifulHarvestPeasantWealthGain)`
 - `adjustProvincePopUnrestByClass(state, pid, 'peasants', -bountifulHarvestPeasantUnrestReduction)`
@@ -977,7 +987,7 @@ importance は §6.66 の award 経路と同じ notable=`normal` / 一般=`minor
 
 **重要原則（二重適用の禁止）**: 能力成長カーブ（`ABILITY_AGE_CURVES` + `naturalFraction`）は **LifeStage で補正しない**。age-curve が伸び/衰退を既に表現しており、LifeStage 乗算を重ねるとバランスが崩れる。LifeStage が能力に関与するのは「親能力ボーナス」のみ（下記）。
 
-#### LifeStageInfluenceSystem（DisasterSystem 直後・LifeStageProgressionSystem 直前）
+#### LifeStageInfluenceSystem（HarvestSystem 直後・LifeStageProgressionSystem 直前）
 
 幼年期 / 思春期の人物が、親・家 leader・同家成人・親 faction member の Attitude を少しずつ継承する（「思想」形成の最初の実装）。**RNG 不使用の決定的処理**。
 
@@ -1078,7 +1088,7 @@ drive を 0 にして抑止する。primary polity / house leader 不在は driv
 
 ### 6.29 ProvinceRevoltSystem（12週ごと）
 
-Holding 単位で判定する。交渉用 commonwealth（landless）を生成し `revolt_negotiation` DiplomaticPlay を開始する。
+Holding 単位で判定する。**v0.48 以降、反乱ロール成功時はまず unrest Crisis を生成し**（§6.6 / §3.12a）、期限内に鎮静/譲歩できなければ武装蜂起（交渉用 commonwealth + `revolt_negotiation` DiplomaticPlay 生成 → 即 escalation）へ進む。
 
 **Holding 単位 revoltTendency**:
 
@@ -1100,11 +1110,13 @@ revoltTendency =
 
 taxBurden = `max(0, currentTaxRate - defaultTaxRateByRank(rank))`。
 
-**発生時の処理** (`resolveHoldingRevolt`):
-1. `createNegotiatingCommonwealth` で交渉用 commonwealth 生成（landless、rank 5、treasury 0）
-2. Leader 選出: 在野人物優先（charisma+command+insight+ambition スコア）→ 不在時新規生成
-3. **demand 分岐（v0.48 `decideRevoltDemand`）** で primaryDemand を決定（下記）
-4. `REVOLT_POLITY_FOUNDED` + `REVOLT_NEGOTIATION_STARTED` event
+**発生時の処理（v0.48 Crisis 化）** (`resolveHoldingRevolt`): 反乱ロール成功時、**即座に commonwealth / 外交劇を生成せず**、demand を確定して unrest Crisis を生成する（§6.6 CrisisSystem の対処 Project に乗せる）。「反乱前段＝対処を要する局所的事態」として、代官・指導者が期限内に鎮静/譲歩できれば武装蜂起を回避し、放置・失敗すれば蜂起する分岐を作る。
+1. **demand 分岐（`decideRevoltDemand`）** で demand を確定（下記。secession / bailiff_dismissal は対象 class・`bailiffPersonId` も Crisis に保持）
+2. `spawnUnrestCrisis` で unrest Crisis を生成（severity = `crisisInitialSeverityByKind.unrest`、deadline = `crisisDeadlineWeeksByKind.unrest`）。代官がいれば代官、不在なら owner polity の指導者が対処 Project の担当者になる（§6.6 `resolveCrisisHandlers`）
+3. demand が bailiff_dismissal の時のみ site①の house 悪感情（下記）を付与
+4. `CRISIS_CREATED`（minor）event。commonwealth 生成・`REVOLT_POLITY_FOUNDED` / `REVOLT_NEGOTIATION_STARTED` は **期限切れ（武装蜂起）時へ遅延** する（§6.29a）
+
+**二重トリガーガード**: `collectHoldingCandidates` は同 holding に **active な unrest Crisis** がある間は候補から除外する（旧 play / commonwealth key 判定を `crisisIndex.byHolding` の kind=unrest&active 判定へ置換）。蜂起後に生成される commonwealth は既存の `polity.kind === 'commonwealth'` guard が引き続き弾く。
 
 **v0.48 民衆反乱の目的分岐（`decideRevoltDemand`）**:
 
@@ -1116,25 +1128,33 @@ taxBurden = `max(0, currentTaxRate - defaultTaxRateByRank(rank))`。
 
 狙う創発フロー: 代官の悪政が問題なら ①まず代官罷免を求め、②代官交代直後（閾値超だが代官への恨みは浅い）は税率改定にフォールバックし、③悪政が繰り返され領主家への悪感情が蓄積すると独立反乱に進む。
 
-**POP→ownerHouse 悪感情の生成（v0.48、欠落していた配線を補完）**: 従来 POP→house attitude を負に書くコードは存在せず、noble disloyalty 項は実質定数だった。v0.48 は `worsenPopAttitudeTowardOwnerHouse`（反乱 class の pop のみ対象、ownerHouse 不在なら no-op）で 3 箇所に負の affection を付与する:
-- site①代官排除反乱の発生時: `revoltBailiffRevoltHouseAffectionPenalty`（既定 -3）
-- site②代官罷免要求が拒否され武力化した時: `revoltBailiffDismissalFailHouseAffectionPenalty`（既定 -8）
-- site③税率改定交渉が fizzle した時: `revoltTaxReliefFizzleHouseAffectionPenalty`（既定 -5）
+**POP→ownerHouse 悪感情の生成（v0.48）**: 従来 POP→house attitude を負に書くコードは存在せず、noble disloyalty 項は実質定数だった。v0.48 は `worsenPopAttitudeTowardOwnerHouse`（反乱 class の pop のみ対象、ownerHouse 不在なら no-op）で負の affection を付与する。設計上は 3 サイトを用意したが、**unrest Crisis 化（案 A）で実際に発火するのは site①のみ**:
+- site①代官排除反乱の発生時（spawn 時、`resolveHoldingRevolt`）: `revoltBailiffRevoltHouseAffectionPenalty`（既定 -3）— **発火する**
+- site②代官罷免要求が拒否され武力化した時 / site③税率改定交渉が fizzle した時（`applyBailiffDismissalFailure` -8 / `applyTaxReliefFizzle` -5）: いずれも `progressRevoltNegotiation`（48 週交渉窓の*進行*）からのみ呼ばれる。案 A では `escalateUnrestCrisis` が play 生成直後に即 `applyRevoltEscalation` するため交渉窓が進行せず、**両サイトは到達不能（dead code）**。関数・config は残置（balance フェーズで secession 到達性を再設計する際の素材）。
 
-attitude は自然減衰しないため累積し、閾値 -30 到達で次回反乱が独立分岐に進む。**balance coupling 注意**: この値は branch 選択と noble disloyalty tendency 項（§6.29 tendency 式）の両方が読むため、閾値・delta は noble 反乱頻度に影響する（balance-defer。CLAUDE.md §4）。
+attitude は自然減衰しないため累積し、閾値 -30 到達で次回反乱が独立分岐に進む。site② / site③ が死んだため house 悪感情の蓄積経路が site①（代官排除反乱の発生）に限られ、**tax_relief 反乱からの secession 急進は到達しにくくなった**。**balance coupling 注意**: この値は branch 選択と noble disloyalty tendency 項（§6.29 tendency 式）の両方が読むため、閾値・delta は noble 反乱頻度に影響する（balance-defer。CLAUDE.md §4）。
 
-**交渉結果**（diplomaticPlaySystem 内、demand 別）:
-- **popular_tax_relief**:
-  - settlement: 税率引き下げ、`termsProtectedUntilWeek` 設定、commonwealth 解散（leader は在野へ）、`REVOLT_SETTLED`
-  - **fizzle（v0.48 `applyTaxReliefFizzle`）**: tension 超過 / deadline 不調でも**即独立せず**矛を収める。commonwealth 解散 + POP→house -5（site③）+ holding cooldown 記録 + `settled`/`status_quo` + `REVOLT_SETTLED`（messageKey `revolt.tax_relief_fizzled`）。これにより「税改定失敗→即独立」を廃し、house 悪感情蓄積→次回 secession への創発フローを成立させる。
-- **bailiff_dismissal（v0.48）**:
-  - settlement（`applyBailiffDismissalSettlement`）: 現 bailiff を再読し demand.bailiffPersonId と一致する場合のみ `vacateHoldingBailiff` で罷免 + 当人に負 stewardship 評判（`revoltBailiffReputationPenalty` 既定 -12、source `revolt`、月次減衰で自然回復）+ unrest 削減 + commonwealth 解散 + `BAILIFF_DISMISSED_BY_REVOLT` + `settled`/`demands_met`。交渉中に代官が交代していれば要求は実質達成済みとして後任を罷免・減点せず平和裏に終結。代官は軽い譲歩のため税率改定より沈静化しやすい（acceptanceScore に severity 項なし）。
-  - failure（`applyBailiffDismissalFailure`）: POP→house -8（site②）の後、通常の escalation 経路へ。
-- **secession（v0.48）**: 交渉妥結経路を持たず、`progressRevoltNegotiation` で即座に `applyRevoltEscalation`（武装蜂起 = seizure→war、または現 terminal holder rank 5 なら internal revolt）に直行する。
+**対処成功（resolved）/ 期限切れ（蜂起）の結果**: unrest Crisis は CrisisSystem では resolved/expired を **mark するだけ**で、UnrestCrisisSystem（§6.29a）が同 tick で以下を適用してから Crisis を purge する。
+- **resolved（担当者が severity を削りきった）— demand 別の譲歩 / 鎮圧**:
+  - popular_tax_relief（`applyUnrestConcession` → `applyPopularTaxReliefSettlement`）: 税率引き下げ + `termsProtectedUntilWeek` 設定 + unrest 削減 + `REVOLT_SETTLED`
+  - bailiff_dismissal（`applyBailiffDismissalSettlement`）: 現 bailiff を再読し demand.bailiffPersonId と一致する場合のみ `vacateHoldingBailiff` で罷免 + 当人に負 stewardship 評判（`revoltBailiffReputationPenalty` 既定 -12、source `revolt`、月次減衰で自然回復）+ unrest 削減 + `BAILIFF_DISMISSED_BY_REVOLT`。交渉中に代官が交代済みなら後任を罷免・減点せず平和裏に終結（staleness ガード）
+  - secession（`applySecessionSuppression`）: 譲歩を伴わず反乱 class の unrest を下げ holding に `lastRevoltSuppressedWeek` を記録（鎮圧）+ `CRISIS_RESOLVED`。house 悪感情（根本不満）は解消しないため cooldown 明けに再蜂起しうる
+- **expired（期限内に severity を削りきれず武装蜂起）**: `escalateUnrestCrisis` が `createNegotiatingCommonwealth`（landless、rank 5、treasury 0、leader は在野優先→不在時新規生成）+ vestigial `revolt_negotiation` play を生成し、`REVOLT_POLITY_FOUNDED` + `REVOLT_NEGOTIATION_STARTED` の後 **即座に `applyRevoltEscalation`** で既存 War 配管へ直行する（48 週交渉窓の進行部分は廃止、play エンティティは war 化のために残置）。secession は妥結経路を持たないので必ずこの蜂起へ進む。
 - escalation 時の rank 判定基準（v0.47.x 修正、demand 種別に依らず共通）: 分岐は **escalation 時点の「現」terminal holder の rank** で決める。play.target は play 生成時の terminal holder で固定されるため、交渉期間中に当該 holding が land_grant / 契約移管で再分封されると stale になる（例: 交渉中に rank 3 領主が新設の rank 5 land_grant Polity へ holding を分封すると、play.target=rank 3 のままだが現 terminal holder は rank 5）。そこで `applyRevoltEscalation` は `landContractIndex.byHolding` 末尾の terminal contract から現 grantee を取得し、その rank と commonwealth rank（5）を比較する。terminal holder が消失していれば play を fail（stale 縮退）。
 - escalation (現 terminal holder rank 2-4): `revolt_seizure` 子契約追加 → Local Levy 生成 → **奪取 holding の既存常設連隊（worldgen 由来 levy/noble_retinue 等）の owner を commonwealth へ即同期** → `escalated` → warCreationSystem が War 化
   - 奪取で holding の terminal Polity は commonwealth に変わるが、owner 付け替えを担う RegimentMaintenanceSystem（§6.49）は warManeuverSystem の**後**に走るため、奪取→即開戦の叛乱には間に合わない（放置すると当該常設連隊が領主=defender 側として動員され、叛乱側は Local Levy 1 個のみで戦う）。そこで escalation 時点で当該 holding の Regiment 群（`regimentIndex.byHomeHolding[holdingId]`）に `syncRegimentOwnerToHomeTerminalMut`（§6.49 と同一ヘルパー＝同一ルール）を eager 適用し、開戦前に叛乱側へ移管する。直前に生成した Local Levy（owner=commonwealth）は no-op、動員済の連隊は owner だけ移り当該 War では `currentWarId` 判定でスキップされる。叛乱敗北で holding が領主へ revert すれば §6.49 が owner を領主へ戻す（active 連隊プールは枯渇しない）。
 - escalation (現 terminal holder rank 5 = commonwealth と同 rank): internal revolt 即時解決（§6.30）。rank 5 terminal holder の下に `revolt_seizure` 子契約（grantee=rank 5 commonwealth）を作ると grantor rank ≥ grantee rank となり LandContract 不変条件 §25 #7 を破るため、子契約を作らず現 terminal holder の regime change に分岐する。
+
+### 6.29a UnrestCrisisSystem（毎週、CrisisSystem の直後）
+
+v0.48 Phase C で導入。unrest Crisis の **terminal 処理を ctx ベースで行う** weekly system。CrisisSystem（ws-mutable）は unrest を resolved/expired に **mark するだけ**で purge しない。本 system が mark 済み unrest を消費し、ctx-immutable な既存 applier（譲歩 / 鎮圧 / 蜂起 escalation）を呼んでから purge する。
+
+**なぜ分離したか（Decision 1）**: 譲歩・蜂起の applier（`applyUnrestConcession` / `applyRevoltEscalation` 等）は ctx を受け取り events を積む immutable な関数で、CrisisSystem の 1-tick-1-draft な ws-mutable ループ内では呼べない。そこで CrisisSystem では status を mark するに留め、本 system が **CrisisSystem の直後**（同 tick 内で mark→action が完結する順）に走って消費する。
+
+**処理**（id 昇順で決定的に走査。mark 済み unrest Crisis のみ対象）:
+- **resolved** → demand 別に `applySecessionSuppression`（secession）/ `applyUnrestConcession`（tax_relief / bailiff_dismissal、§6.29 参照）を適用。grievance を実際に解消する（無限再発防止）
+- **expired** → `escalateUnrestCrisis`（§6.29。commonwealth + vestigial play 生成 → 即 `applyRevoltEscalation` で武装蜂起）
+- いずれも適用後に当該 Crisis を `removeCrisisMut` で purge
 
 ### 6.30 Rank 5 Internal Popular Revolt
 
@@ -1464,6 +1484,13 @@ ProjectBudget（develop_holding のみ）:
 - active Project: `budget.allocated = budget.remaining + budget.spent`
 - secure_budget 未完了なら allocated / remaining / spent は 0
 
+Crisis（v0.48）:
+- C1: Crisis.holdingId が実在する（holding は削除されない構造）
+- C2: Crisis.responseProjectId は **存在する場合のみ** kind が `handle_crisis`。**不在は許容**（Pressure P1 パターン。担当者不在の放置 Crisis / cleanup 遅延を許す）
+- C3: terminal（resolved / expired）Crisis は purge 済みで state に残らない（active のみ）。crisisIndex（byHolding / byProject）の forward 整合
+- C4: active handle_crisis Project の budget 不変条件（非負・allocated = remaining + spent）+ holdingId 実在。**crisisId が指す Crisis の不在は許容**（C2 と対称。Project は `deadlineWeek = Crisis.deadlineWeek` を持つので dangling は必ず期限で解消）
+- C5: Crisis.severity は 0..100、`deadlineWeek >= createdWeek`
+
 develop_holding Project:
 - holdingId が存在する
 - improvementKind が有効
@@ -1599,6 +1626,7 @@ terminal Project の効果解決・ログ出力・cleanup を担当。
   - **文化系 Project の afford 前提**: `patronize_artist` / `commission_chronicle` / `acquire_political_right` は完了時に `house.wealth >= cost` を要求する。これらの Project は**作成時**に afford 判定する（§6.55 `buildProjectFieldsForAim`）。作成時に払えなければ Project を生成せず Aim を待機させ、wealth 回復後に再試行する。これにより doomed Project が生成されず、完了時に資金不足で効果を何も適用しない silent no-op を防ぐ。
 - 外交系 Project: DiplomaticPlay 生成は ProjectStageSystem の open_diplomatic_play handler に移管。ProjectOutcomeSystem は外交系 completed 時に追加効果を適用しない（交渉への影響は各 Task outcome で DiplomaticPlay に反映済み）
 - respond_to_pressure completed: Pressure.status を 'responded' に遷移
+- **handle_crisis completed（v0.48）**: Crisis を resolved にして即 purge し `CRISIS_RESOLVED` を emit（budget 返金は develop_holding と同一一般化）。ただし **unrest Crisis は purge せず resolved を mark** し、UnrestCrisisSystem（§6.29a）が譲歩/鎮圧を適用してから purge する
 - **成果経験・評判付与（v0.44）**: 非外交 Project は削除直前に supervisor へ即時成長 + PersonReputation を付与する（§6.66）。terminal Project の `terminalReason` が未設定なら throw（terminal サイトのセット漏れを fail-fast で顕在化。年末 integrity は flush 後で検出できないため）
 - Project を state.projects / projectIndex から削除
 
@@ -1772,7 +1800,7 @@ active War の warScore が閾値に達したら終結させ、WarGoal を state
 - tax: 底層 mutation が event を出さないため、PeaceSettlement 側で `PEACE_SETTLEMENT_APPLIED`（major）を発行する。
 - 勝敗時に `WAR_WON` / `WAR_LOST`（major）、white_peace / cancelled 等の終結時に `WAR_ENDED`（major）。
 
-戦争被害（treasury / unrest / 荒廃 / 厭戦）は適用しない（将来再設計）。
+**戦災（war_damage Crisis）の生成（v0.48 Phase B）**: `settleAttackerWon` の `transfer_land_contract` goal 分岐で `applyLandContractTransferGoal` が **領地移転に成功した後**、`spawnWarDamageCrisis(holdingId, owner=goal.toPolityId, sourceWarId)` で war_damage Crisis を生成する（§6.6 CrisisSystem）。**transfer goal 限定**（tax / popular_revolt goal では領地移転が無いので生成しない）。owner は終戦後の新支配 polity。land transfer の **完了後** に spawn することで旧 owner を掴まない。これにより「征服直後の荒廃を新領主が代官・予算で復興する／放置して住民の不満が燻る」ドラマが生まれる。なお treasury 直接ダメージ・厭戦（war exhaustion）は依然未実装（将来再設計）。
 
 **成果経験・評判付与（v0.44）**: attacker_won / defender_won / white_peace の各終結サイトで `awardWarOutcomeCtx` を呼び、両 side の captain general + 現場指揮官に即時成長 + military 評判を付与する（§6.66。white_peace は経験のみ）。v0.47.1: 評判の organization tag は受賞者の所属に限定する（支援国出身指揮官は tag 無し評判=名声のみ。§6.64a-(3) 所属 gate）。
 

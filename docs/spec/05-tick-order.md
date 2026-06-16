@@ -53,7 +53,7 @@ const WEEKS_PER_SEASON = 12
 | 5 | LandRevenueSystem | 4 | |
 | 6 | PolitySurplusDistributionSystem | 4 | |
 | 6b | HouseSurplusDistributionSystem | 4 | |
-| 7 | DisasterSystem | 48 | |
+| 7 | HarvestSystem | 48 | v0.48: 旧 DisasterSystem の正イベント（BountifulHarvest）のみ。負イベント（災害）は CrisisSystem へ移設（§6.6a） |
 | 7b | LifeStageInfluenceSystem | 48 | 幼年期/思春期が親・家・親 faction の Attitude を年次継承（§6）。RNG 不使用 |
 | 7c | LifeStageProgressionSystem | 48 | LifeStage を年次で一方向に進める（§6）。Influence の直後（influence→progression）。lifeStage を参照する appointment/faction/plot/project/personGoal より前 |
 | 8 | MortalitySystem | 4 | |
@@ -95,7 +95,9 @@ const WEEKS_PER_SEASON = 12
 | 20e | ProjectStageSystem | 1 | immediate stage 即時解決（open_diplomatic_play, choose_stance, find_supervisor, secure_budget） |
 | 20f | ProjectTaskGenerationSystem | 1 | active Project の stage に応じて Task を生成（preparatory / final / negotiate） |
 | 20g | ProjectMaintenanceSystem | 4 | Project 完了/失敗判定、supervisor 再選定 |
-| 20h | ProjectOutcomeSystem | 4 | Project 効果解決、cleanup。respond_to_pressure completed → Pressure responded |
+| 20h | ProjectOutcomeSystem | 4 | Project 効果解決、cleanup。respond_to_pressure completed → Pressure responded。handle_crisis completed → Crisis resolved+purge（§6.41） |
+| 20h2 | CrisisSystem | 1 | v0.48: Crisis 週次処理（severity 同期/デバフ/期限/attitude）+ 年初週の災害発生ロール。ProjectOutcomeSystem の**後**（resolved/purge 済みを読まない、§6.6） |
+| 20h3 | UnrestCrisisSystem | 1 | v0.48: CrisisSystem が mark した unrest Crisis の terminal 処理（譲歩/鎮圧/武装蜂起）。CrisisSystem の直後（§6.29a） |
 | 20i | PressureSystem | 1 | active Pressure → respond_to_pressure Project 生成 |
 | 20j | TaxRevisionSystem | 48 | 税率引上 → unrest↑ → 叛乱の上流要因。provinceRevoltSystem より前 |
 | 21 | ProvinceRevoltSystem | 12 | Holding 単位判定 |

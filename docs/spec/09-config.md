@@ -195,23 +195,39 @@
 | destroyedRegimentReformInitialStrength / Organization / Morale | 20 / 20 / 40 | reform 直後の初期値 |
 | destroyedRegimentReformCost | 8 | reform 1 件あたり owner treasury から支払う費用 |
 | destroyedRegimentReformMinPopFactor | 0.25 | reform に必要な popFactor 下限 |
-| **Disaster（Province 単位・割合ベース・圧力連動）** | | |
-| disasterEnabled | true | 災害有効 |
-| famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province |
-| plagueBaseChancePerYear | 0.03 | 疫病基礎発生率/年/Province |
-| bountifulHarvestBaseChancePerYear | 0.05 | 豊作発生率/年/Province |
+| **Disaster / Harvest（発生率・豊作）** | | |
+| disasterEnabled | true | 災害・豊作有効（CrisisSystem の年次発生ロール + HarvestSystem の kill-switch） |
+| famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province（CrisisSystem が使用） |
+| plagueBaseChancePerYear | 0.03 | 疫病基礎発生率/年/Province（同上） |
+| bountifulHarvestBaseChancePerYear | 0.05 | 豊作発生率/年/Province（HarvestSystem） |
 | faminePressureChanceBonus | 9.2 | 人口圧力超過分あたりの飢饉発生率加算（pressure 1.0 で 100%） |
 | plaguePressureChanceBonus | 2.0 | 人口圧力超過分あたりの疫病発生率加算 |
-| famineWealthPenalty | 8 | 飢饉による peasants wealth 低下量 |
-| famineSizeDamageRate | 0.10 | 飢饉による peasants 人口減少率（10%） |
-| plagueWealthPenalty | 10 | 疫病による全 POP wealth 低下量 |
-| plagueSizeDamageRate | 0.05 | 疫病による全 POP 人口減少率（5%） |
+| ~~famineWealthPenalty~~ | 8 | **v0.48 で未使用**（旧 DisasterSystem の単発効果。被害は Crisis severity 駆動に置換） |
+| ~~famineSizeDamageRate~~ | 0.10 | **v0.48 で未使用**（初期ショックは `crisisInitialShockSizeRateByKind`） |
+| ~~plagueWealthPenalty~~ | 10 | **v0.48 で未使用** |
+| ~~plagueSizeDamageRate~~ | 0.05 | **v0.48 で未使用** |
 | disasterReliefCostPerProvince | 20 | 救済費用/Province（現在は一旦オミット、将来再導入） |
 | famineReliefDamageMultiplier | 0.3 | 救済成功時の POP 効果軽減係数（現在は一旦オミット） |
 | bountifulHarvestPeasantWealthGain | 10 | 豊作による peasants wealth 上昇量 |
 | bountifulHarvestPeasantUnrestReduction | 5 | 豊作による peasants unrest 低下量 |
 | bountifulHarvestTownsmanWealthGain | 2 | 豊作による townsmen wealth 上昇量 |
 | bountifulHarvestTownsmanUnrestReduction | 1 | 豊作による townsmen unrest 低下量 |
+| **Crisis（v0.48・暫定値。balance は機能完成後にまとめて調整, CLAUDE.md §4）** | | |
+| crisisEnabled | true | Crisis システム有効（週次処理 + 各経路の spawn） |
+| droughtBaseChancePerYear | 0.04 | 干魃基礎発生率/年/Province |
+| droughtPressureChanceBonus | 5.0 | 人口圧力超過分あたりの干魃発生率加算 |
+| crisisInitialSeverityByKind | famine 30 / plague 35 / drought 25 / war_damage 25 / unrest 40 | kind 別 初期 severity |
+| crisisSeverityPressureBonus | 20 | 人口圧力超過分あたりの初期 severity 加算（famine/plague/drought のみ） |
+| crisisInitialShockSizeRateByKind | famine 0.05 / plague 0.04 / drought 0.03 / war_damage 0.02 / unrest 0 | 発生時の一回限り人口減率 |
+| crisisDeadlineWeeksByKind | famine 24 / plague 20 / drought 32 / war_damage 32 / unrest 12 | kind 別 有効期限（週） |
+| crisisBudgetTreasuryRatio | 0.1 | 対処予算 = floor(treasury × 本値) と cap の小さい方 |
+| crisisBudgetCapByKind | famine 60 / plague 80 / drought 50 / war_damage 80 / unrest 40 | kind 別 予算上限 |
+| crisisWeeklyWealthPenaltyPerSeverity | 0.05 | severity 1 あたりの週次 POP wealth 低下 |
+| crisisWeeklyUnrestPerSeverity | 0.04 | severity 1 あたりの週次 POP unrest 上昇 |
+| crisisNeglectAffectionDropPerWeekBailiff | -0.3 | 放置中の週次 代官 affection 低下 |
+| crisisNeglectAffectionDropPerWeekPolity | -0.15 | 放置中の週次 Polity affection 低下 |
+| crisisExpiredAffectionDropBailiff | -5 | 期限切れ時の追加 代官 affection 低下 |
+| crisisExpiredAffectionDropPolity | -3 | 期限切れ時の追加 Polity affection 低下 |
 | **Public Spending** | | |
 | publicSpendingEnabled | true | 公共支出有効 |
 | publicSpendingYearlyChance | 0.35 | 公共支出年間発動確率 |

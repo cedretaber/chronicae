@@ -1393,6 +1393,7 @@ ID prefix:
 | `PersonActivityLogId` | `al-` |
 | `ProjectId` | `pr-` |
 | `PressureId` | `ps-` |
+| `CrisisId` | `cr-` |
 | `DiplomaticOfferId` | `do-` |
 
 ### 3.12 Project システム
@@ -1419,6 +1420,7 @@ type ProjectKind =
   | 'improve_contract_terms'
   | 'demand_tax_increase'
   | 'respond_to_pressure'
+  | 'handle_crisis'       // v0.48: Crisis（災害/戦災/反乱前段）の対処（§6.6）
   | 'personal_training'   // v0.44: improve_ability Aim の project 化（§6.66）
 
 // v0.44: terminal 化サイトで status と同時にセット必須（§6.66）
@@ -1456,6 +1458,7 @@ type BaseProject = {
 - `LandClaimProject` (acquire_land / sell_land): holdingId / provinceId / counterpartyPolityId / diplomaticPlayId / preparation / leverage / commitment
 - `ContractRevisionProject` (improve_contract_terms / demand_tax_increase): holdingId / landContractId / counterpartyPolityId / desiredTaxRateToGrantor / diplomaticPlayId / preparation / leverage / commitment
 - `RespondToPressureProject`: pressureId / diplomaticPlayId / stance
+- `HandleCrisisProject`（v0.48）: crisisId / holdingId / budget (ProjectBudget)。owner は `{ kind: 'polity' }`。`find_supervisor → secure_budget → mitigate` の stage 列で severity を削る（§3.12a Crisis / §6.6）
 - `PersonalTrainingProject`（v0.44）: owner は `{ kind: 'person' }` 固定 / traineePersonId / trainingAbilityKey。owner / creator / supervisor / trainee は全一致（IntegrityCheck 検査）。budget なし
 - （上記に加え movement_campaign / v0.47 petition 系 5 種が存在する）
 - **陰謀 Project（v0.51 陰謀リファイン §6.26、すべて House owned・budget なし・単一 final stage）**:
@@ -1493,6 +1496,7 @@ type ProjectStageEntry = {
 | demand_tax_increase | prepare_argument (prep) → open_diplomatic_play (imm) → negotiate (final) |
 | personal_training | execute_project (final) |
 | respond_to_pressure | choose_stance (imm) → propose_initial_offer (imm) → prepare_response (prep) → negotiate (final) |
+| handle_crisis | find_supervisor (imm) → secure_budget (imm) → mitigate (final) |
 
 - `immediate`: ProjectStageSystem が即時解決。Task を生成しない
 - `preparatory`: Task を生成。success → 次 stage 遷移、partial → 同 stage 継続、failure → stageAttemptCount increment → 上限超過で Project failed
@@ -1559,6 +1563,42 @@ type WorldState = {
   }
   nextProjectId: number
 }
+```
+
+### 3.12a Crisis システム（v0.48）
+
+holding 単位の「対処を要する局所的事態」エンティティ。能動ハザード（誰も対処せずとも毎週 severity 比例のデバフ）で、対処は `handle_crisis` Project（受動）が担う。lifecycle・spawn・週次処理は §6.6 CrisisSystem / §6.29a UnrestCrisisSystem。
+
+```ts
+type CrisisKind = 'famine' | 'plague' | 'drought' | 'war_damage' | 'unrest'
+type CrisisStatus = 'active' | 'resolved' | 'expired'
+
+// unrest Crisis が保持する反乱要求（生成時に decideRevoltDemand で確定。§6.29）
+type RevoltDemand =
+  | { kind: 'secession'; claimantPopClass: PopClass }
+  | { kind: 'bailiff_dismissal'; claimantPopClass: PopClass; bailiffPersonId: PersonId }
+  | { kind: 'tax_relief'; claimantPopClass: PopClass }
+
+type Crisis = {
+  id: CrisisId
+  kind: CrisisKind
+  holdingId: HoldingId
+  severity: number          // 0..100。severity = max(0, targetProgress − project.progress) で派生同期
+  createdWeek: number
+  deadlineWeek: number       // crisisDeadlineWeeksByKind[kind] で spawn 時設定
+  status: CrisisStatus
+  responseProjectId?: ProjectId   // 対処 handle_crisis Project（担当者不在なら未設定＝放置）
+  sourceWarId?: WarId        // war_damage のみ。発生源 War
+  demand?: RevoltDemand      // unrest のみ
+  reasonIds: DecisionReasonId[]
+}
+
+type CrisisIndex = {
+  byHolding: Record<string, CrisisId[]>
+  byProject: Record<ProjectId, CrisisId[]>
+}
+
+// WorldState 追加: crises / crisisIndex / nextCrisisId
 ```
 
 ### 3.13 Pressure システム
