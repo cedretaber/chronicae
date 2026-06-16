@@ -17,6 +17,7 @@ import {
 } from '@sim/mutations/warMutations'
 import type { OrganizationRef } from '@/sim/types/office'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
+import { formatYearMonthWeek } from '@/app/utils/format'
 import { EntityChronicleSection } from './shared/widgets'
 import { getChronicleEntriesForWar } from '@sim/selectors/chronicleSelectors'
 
@@ -230,16 +231,12 @@ export function WarDetail({
 
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.war.started')}:</span>
-          <span>
-            {started.year}/{started.month}/{started.weekOfMonth}
-          </span>
+          <span>{formatYearMonthWeek(started.year, started.month, started.weekOfMonth)}</span>
         </div>
         {ended && (
           <div className="flex justify-between">
             <span className="text-gray-400">{t('detail.war.ended')}:</span>
-            <span>
-              {ended.year}/{ended.month}/{ended.weekOfMonth}
-            </span>
+            <span>{formatYearMonthWeek(ended.year, ended.month, ended.weekOfMonth)}</span>
           </div>
         )}
 

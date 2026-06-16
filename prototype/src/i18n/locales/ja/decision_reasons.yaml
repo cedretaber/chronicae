@@ -7,6 +7,13 @@ decision:
       expand_power_base: 政治的影響力を拡大する好機
       preserve_power_base: 現在の地位を維持する必要がある
       cultivate_prestige: 文化的遺産を築く意欲
+      consolidate_domain: 分散した所領を一円支配へ集約する好機
+      pursue_covert_agenda: 不満を陰謀によって打開する好機
+      house_loyalty: 家門への忠義を尽くす
+      public_service: 公への奉仕を志す
+      personal_advancement: 立身出世を志す
+      wealth_building: 私財を蓄える意欲
+      self_cultivation: 自己研鑽に励む
     aim:
       consolidate_province_holdings: 分裂したプロヴィンスの支配権統合
       seize_weak_remote_holdings: 弱小の近隣を攻略

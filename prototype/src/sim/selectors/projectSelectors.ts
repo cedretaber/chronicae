@@ -13,6 +13,13 @@ import { getPolityPersonIds } from './polityRelations'
 import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import { isRoleEligibleBySex } from './roleEligibilitySelectors'
 
+// 関連エンティティ「索引」(byTarget) 用の per-kind ref 列挙。表示用の describeProject() と
+// 種別 switch が似るが意味は意図的に別物なので統合しないこと:
+//   - personal_training は person を索引から除外 (byOwner/byCreator/bySupervisor で引けるため)
+//     が、describeProject は trainee を表示フィールドとして含める。
+//   - commission_chronicle は subjectRef をパネル非対応 kind でも索引に載せるが、describeProject は
+//     PANEL_ENTITY_KINDS でフィルタする。
+// どちらかを他方から導出すると索引が壊れる。両方を更新する際は両関数を見ること。
 export function getProjectRelatedRefs(project: Project): EntityRef[] {
   switch (project.kind) {
     case 'develop_holding':
@@ -126,6 +133,329 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
     // v0.51 陰謀リファイン: 対象分家を related に
     case 'replace_house_leader':
       return [{ kind: 'house', id: project.targetHouseId }]
+  }
+}
+
+// ---------------------------------------------------------------------------
+// describeProject: UI 表示用に Project 種別ごとの「主対象 + 付随情報」を純粋データ
+// として返す (app 層がラベル/リンクに描画)。i18n キーや ReactNode は返さない。
+// enum の enumNs は意味ドメイン名 (UI キーパスではない) で、app 側が実キーに解決する。
+// ---------------------------------------------------------------------------
+
+export type ProjectFieldRole =
+  | 'targetHolding'
+  | 'targetProvince'
+  | 'targetPolity'
+  | 'targetHouse'
+  | 'targetPerson'
+  | 'counterpartyPolity'
+  | 'rival'
+  | 'donorPolity'
+  | 'sinkPolity'
+  | 'petitioner'
+  | 'sponsoredPerson'
+  | 'approver'
+  | 'artist'
+  | 'subject'
+  | 'parentHouse'
+  | 'improvementKind'
+  | 'targetLevel'
+  | 'newRank'
+  | 'trainingAbility'
+  | 'desiredTaxRate'
+  | 'stance'
+  | 'rightTarget'
+  | 'preparation'
+  | 'leverage'
+  | 'commitment'
+
+export type ProjectInfoField =
+  | { kind: 'entity'; role: ProjectFieldRole; ref: EntityRef }
+  | { kind: 'enum'; role: ProjectFieldRole; enumNs: string; value: string }
+  | { kind: 'number'; role: ProjectFieldRole; value: number }
+
+export type ProjectBudgetInfo = {
+  required?: number
+  allocated?: number
+  remaining?: number
+  spent: number
+}
+
+export type ProjectDescriptor = {
+  // カードに出す最重要 1 件 (fields に必ず含まれる)
+  primary?: ProjectInfoField
+  // 詳細パネルに出す全件 (primary を含む)
+  fields: ProjectInfoField[]
+  // 予算を持つ種別のみ
+  budget?: ProjectBudgetInfo
+}
+
+// パネルを持つ EntityRef.kind (app 側でリンク化できるもの)。これ以外は enum/number で表現する。
+// app 側 (ProjectCard.panelTypeOf) もこの集合を import して使う — リンク可能 kind の単一情報源。
+export const PANEL_ENTITY_KINDS: ReadonlySet<EntityRef['kind']> = new Set([
+  'polity',
+  'house',
+  'person',
+  'holding',
+  'province',
+])
+
+function ent(role: ProjectFieldRole, ref: EntityRef): ProjectInfoField {
+  return { kind: 'entity', role, ref }
+}
+
+// fields[0] は noUncheckedIndexedAccess で undefined を含むため、exactOptionalPropertyTypes
+// 下では optional primary に直接代入できない。空配列なら primary 省略でラップする。
+function descriptor(fields: ProjectInfoField[], budget?: ProjectBudgetInfo): ProjectDescriptor {
+  const d: ProjectDescriptor = { fields }
+  if (fields[0]) d.primary = fields[0]
+  if (budget) d.budget = budget
+  return d
+}
+
+// UI「表示」用の per-kind 記述子。索引用の getProjectRelatedRefs() とは意図的に意味が異なる
+// (上記コメント参照)。表示フィールドのみを扱い、パネルを持たない EntityRef は enum/number で表す。
+export function describeProject(project: Project): ProjectDescriptor {
+  switch (project.kind) {
+    case 'develop_holding': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHolding', { kind: 'holding', id: project.holdingId }),
+        {
+          kind: 'enum',
+          role: 'improvementKind',
+          enumNs: 'holdingImprovement',
+          value: project.improvementKind,
+        },
+        { kind: 'number', role: 'targetLevel', value: project.targetImprovementLevel },
+      ]
+      return descriptor(fields, {
+        required: project.budget.required,
+        allocated: project.budget.allocated,
+        remaining: project.budget.remaining,
+        spent: project.budget.spent,
+      })
+    }
+
+    case 'promote_policy_shift': {
+      // policyKey は型上 optional だが現状どの生成経路も設定しないため表示フィールド化しない
+      // (設定するロジックを足すときに enum フィールド + i18n value キーを併せて追加すること)。
+      const fields: ProjectInfoField[] = [
+        ent('targetPolity', { kind: 'polity', id: project.polityId }),
+        ent('targetHouse', { kind: 'house', id: project.houseId }),
+      ]
+      return descriptor(fields)
+    }
+
+    case 'acquire_political_right': {
+      const fields: ProjectInfoField[] = [
+        ent('targetPolity', { kind: 'polity', id: project.polityId }),
+        {
+          kind: 'enum',
+          role: 'rightTarget',
+          enumNs: 'politicalRightTarget',
+          value: project.target.kind,
+        },
+        ...(project.target.kind === 'holding_office_role'
+          ? [ent('targetHolding', { kind: 'holding' as const, id: project.target.holdingId })]
+          : []),
+      ]
+      return descriptor(fields, { required: project.budget, spent: project.spentBudget })
+    }
+
+    case 'patronize_artist': {
+      const fields: ProjectInfoField[] = [
+        ...(project.artistPersonId
+          ? [ent('artist', { kind: 'person' as const, id: project.artistPersonId })]
+          : []),
+        ent('targetHouse', { kind: 'house', id: project.houseId }),
+      ]
+      return descriptor(fields, { required: project.budget, spent: project.spentBudget })
+    }
+
+    case 'commission_chronicle': {
+      const subjectField =
+        project.subjectRef && PANEL_ENTITY_KINDS.has(project.subjectRef.kind)
+          ? ent('subject', project.subjectRef)
+          : undefined
+      const fields: ProjectInfoField[] = [
+        ...(subjectField ? [subjectField] : []),
+        ent('targetHouse', { kind: 'house', id: project.houseId }),
+      ]
+      return descriptor(fields, { required: project.budget, spent: project.spentBudget })
+    }
+
+    case 'acquire_land':
+    case 'sell_land': {
+      const fields: ProjectInfoField[] = [
+        ...(project.holdingId
+          ? [ent('targetHolding', { kind: 'holding' as const, id: project.holdingId })]
+          : []),
+        ...(project.provinceId
+          ? [ent('targetProvince', { kind: 'province' as const, id: project.provinceId })]
+          : []),
+        ...(project.counterpartyPolityId
+          ? [
+              ent('counterpartyPolity', {
+                kind: 'polity' as const,
+                id: project.counterpartyPolityId,
+              }),
+            ]
+          : []),
+        { kind: 'number', role: 'preparation', value: project.preparation },
+        { kind: 'number', role: 'leverage', value: project.leverage },
+        { kind: 'number', role: 'commitment', value: project.commitment },
+      ]
+      return descriptor(fields)
+    }
+
+    case 'improve_contract_terms':
+    case 'demand_tax_increase': {
+      const fields: ProjectInfoField[] = [
+        ...(project.holdingId
+          ? [ent('targetHolding', { kind: 'holding' as const, id: project.holdingId })]
+          : []),
+        ...(project.counterpartyPolityId
+          ? [
+              ent('counterpartyPolity', {
+                kind: 'polity' as const,
+                id: project.counterpartyPolityId,
+              }),
+            ]
+          : []),
+        ...(project.desiredTaxRateToGrantor !== undefined
+          ? [
+              {
+                kind: 'number' as const,
+                role: 'desiredTaxRate' as const,
+                value: project.desiredTaxRateToGrantor,
+              },
+            ]
+          : []),
+        { kind: 'number', role: 'preparation', value: project.preparation },
+        { kind: 'number', role: 'leverage', value: project.leverage },
+        { kind: 'number', role: 'commitment', value: project.commitment },
+      ]
+      return descriptor(fields)
+    }
+
+    case 'respond_to_pressure': {
+      const fields: ProjectInfoField[] = project.stance
+        ? [{ kind: 'enum', role: 'stance', enumNs: 'pressureStance', value: project.stance }]
+        : []
+      return descriptor(fields)
+    }
+
+    case 'personal_training': {
+      const fields: ProjectInfoField[] = [
+        ent('targetPerson', { kind: 'person', id: project.traineePersonId }),
+        {
+          kind: 'enum',
+          role: 'trainingAbility',
+          enumNs: 'ability',
+          value: project.trainingAbilityKey,
+        },
+      ]
+      return descriptor(fields)
+    }
+
+    case 'movement_campaign': {
+      const fields: ProjectInfoField[] = [
+        ent('targetPolity', { kind: 'polity', id: project.targetPolityId }),
+        ent('sponsoredPerson', { kind: 'person', id: project.sponsoredPersonId }),
+      ]
+      return descriptor(fields, { required: project.budget, spent: project.spentBudget })
+    }
+
+    case 'request_rank_promotion': {
+      const fields: ProjectInfoField[] = [
+        ent('targetPolity', { kind: 'polity', id: project.polityId }),
+        { kind: 'number', role: 'newRank', value: project.newRank },
+        ...(project.approverPersonId
+          ? [ent('approver', { kind: 'person' as const, id: project.approverPersonId })]
+          : []),
+      ]
+      return descriptor(fields)
+    }
+
+    case 'request_land_grant': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHolding', { kind: 'holding', id: project.targetHoldingId }),
+        ent('donorPolity', { kind: 'polity', id: project.donorPolityId }),
+        ent('petitioner', { kind: 'person', id: project.petitionerPersonId }),
+        ...(project.parentHouseId
+          ? [ent('parentHouse', { kind: 'house' as const, id: project.parentHouseId })]
+          : []),
+        ...(project.approverPersonId
+          ? [ent('approver', { kind: 'person' as const, id: project.approverPersonId })]
+          : []),
+      ]
+      return descriptor(fields)
+    }
+
+    case 'request_cadet_branch_title_transfer': {
+      const fields: ProjectInfoField[] = [
+        ent('targetPolity', { kind: 'polity', id: project.targetPolityId }),
+        ent('parentHouse', { kind: 'house', id: project.parentHouseId }),
+        ent('petitioner', { kind: 'person', id: project.petitionerPersonId }),
+      ]
+      return descriptor(fields)
+    }
+
+    case 'republic_house_foundation': {
+      const fields: ProjectInfoField[] = [
+        ent('targetPolity', { kind: 'polity', id: project.commonwealthPolityId }),
+        ent('petitioner', { kind: 'person', id: project.petitionerPersonId }),
+      ]
+      return descriptor(fields)
+    }
+
+    case 'consolidate_internal_contracts': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHouse', { kind: 'house', id: project.houseId }),
+        ent('sinkPolity', { kind: 'polity', id: project.sinkPolityId }),
+      ]
+      return descriptor(fields)
+    }
+
+    case 'undermine_influence': {
+      const rivalRef: EntityRef =
+        project.target.kind === 'house'
+          ? { kind: 'house', id: project.target.id }
+          : { kind: 'person', id: project.target.id }
+      const fields: ProjectInfoField[] = [
+        ent('rival', rivalRef),
+        ent('targetPolity', { kind: 'polity', id: project.polityId }),
+      ]
+      return descriptor(fields)
+    }
+
+    case 'revoke_political_right': {
+      const fields: ProjectInfoField[] = [
+        ent('targetPolity', { kind: 'polity', id: project.polityId }),
+        {
+          kind: 'enum',
+          role: 'rightTarget',
+          enumNs: 'politicalRightTarget',
+          value: project.target.kind,
+        },
+        ...(project.target.kind === 'holding_office_role'
+          ? [ent('targetHolding', { kind: 'holding' as const, id: project.target.holdingId })]
+          : []),
+      ]
+      return descriptor(fields)
+    }
+
+    case 'replace_house_leader': {
+      const fields: ProjectInfoField[] = [
+        ent('targetHouse', { kind: 'house', id: project.targetHouseId }),
+      ]
+      return descriptor(fields)
+    }
+
+    default: {
+      const _exhaustive: never = project
+      return _exhaustive
+    }
   }
 }
 

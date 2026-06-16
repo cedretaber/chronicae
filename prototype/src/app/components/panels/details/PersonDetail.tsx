@@ -14,11 +14,11 @@ import {
   CopyJsonButton,
   WatchButton,
   AttitudeList,
-  ProjectListItem,
   EntityChronicleSection,
   PersonRightsSection,
 } from './shared/widgets'
 import { HouseLink } from './shared/links'
+import { ProjectCard } from './shared/ProjectCard'
 import { PersonCard } from './shared/PersonCard'
 import { isLandlessHouseMember, isHouselessPerson } from '@sim/selectors/availabilitySelectors'
 import { getFactionByLeader, getActiveFactionMembership } from '@sim/selectors/factionSelectors'
@@ -26,7 +26,7 @@ import { getBailiffPolicy } from '@sim/selectors/bailiffSelectors'
 import { defaultConfig } from '@sim/config/defaultConfig'
 import { PersonAbilitiesSection } from './PersonAbilitiesSection'
 import { getRoleScore } from '@sim/selectors/abilitySelectors'
-import { formatScore, formatAmount } from '@/app/utils/format'
+import { formatScore, formatAmount, formatAbsoluteWeek, formatYear } from '@/app/utils/format'
 import { getActiveGoalForOwner, getActiveAimForOwner } from '@sim/selectors/goalSelectors'
 import { getPersonGoalFulfillment } from '@sim/selectors/personGoalSelectors'
 import { computeEffectivePriority } from '@sim/selectors/taskSelectors'
@@ -137,7 +137,7 @@ export function PersonDetail({
             {person.alive
               ? t('detail.person.alive_yes')
               : person.deathCircumstance === 'faded_from_history'
-                ? `${t('detail.person.faded')} (${worldState.currentYear})`
+                ? `${t('detail.person.faded')} (${formatYear(worldState.currentYear)})`
                 : t('detail.person.alive_no')}
           </span>
         </div>
@@ -460,8 +460,8 @@ export function PersonDetail({
                       {activeAim.targetProgress}
                     </div>
                     <div>
-                      {t('detail.person.aim_deadline')}: {t('detail.common.year')}{' '}
-                      {Math.ceil(activeAim.deadlineWeek / 48)}
+                      {t('detail.person.aim_deadline')}:{' '}
+                      {formatAbsoluteWeek(activeAim.deadlineWeek)}
                     </div>
                     {activeAim.waitingReasonKey && (
                       <div className="text-xs text-yellow-400">
@@ -619,7 +619,7 @@ export function PersonDetail({
                         key={log.id}
                         className={`text-xs ${'outcome' in log ? (log.outcome === 'success' ? 'text-green-400' : log.outcome === 'failure' ? 'text-red-400' : 'text-gray-400') : log.kind === 'project_completed' ? 'text-blue-400' : 'text-red-400'}`}
                       >
-                        [Y{Math.ceil(log.week / 48)}/W{((log.week - 1) % 48) + 1}]{' '}
+                        [{formatAbsoluteWeek(log.week)}]{' '}
                         {'taskKind' in log ? (
                           <>
                             {t(log.taskKind, { ns: 'tasks' })}{' '}
@@ -672,17 +672,11 @@ export function PersonDetail({
                 <div className="text-sm font-semibold text-gray-300">
                   {t('detail.person.supervised_projects')} ({supervisedProjects.length})
                 </div>
-                <ul className="list-inside text-sm">
+                <div className="flex flex-col gap-1">
                   {supervisedProjects.map((project) => (
-                    <ProjectListItem
-                      key={project.id}
-                      project={project}
-                      persons={worldState.persons}
-                      onPersonClick={onPersonClick}
-                      showSupervisor={false}
-                    />
+                    <ProjectCard key={project.id} project={project} worldState={worldState} />
                   ))}
-                </ul>
+                </div>
               </>
             )}
             {createdProjects.length > 0 && (
@@ -690,16 +684,11 @@ export function PersonDetail({
                 <div className="text-sm font-semibold text-gray-300" style={{ marginTop: 4 }}>
                   {t('detail.person.created_projects')} ({createdProjects.length})
                 </div>
-                <ul className="list-inside text-sm">
+                <div className="flex flex-col gap-1">
                   {createdProjects.map((project) => (
-                    <ProjectListItem
-                      key={project.id}
-                      project={project}
-                      persons={worldState.persons}
-                      onPersonClick={onPersonClick}
-                    />
+                    <ProjectCard key={project.id} project={project} worldState={worldState} />
                   ))}
-                </ul>
+                </div>
               </>
             )}
           </div>

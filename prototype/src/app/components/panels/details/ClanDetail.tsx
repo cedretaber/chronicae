@@ -16,7 +16,7 @@ import {
 import { PanelHeader, CopyJsonButton } from './shared/widgets'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { HouseLink, PersonLink } from './shared/links'
-import { formatAmount, formatScore } from '@/app/utils/format'
+import { formatAmount, formatScore, formatYearMonthWeek } from '@/app/utils/format'
 
 export function ClanDetail({
   clan,
@@ -76,7 +76,7 @@ export function ClanDetail({
           <span>
             {(() => {
               const f = weekToYearMonthWeek(clan.createdWeek)
-              return `${f.year}/${f.month}/${f.weekOfMonth}`
+              return formatYearMonthWeek(f.year, f.month, f.weekOfMonth)
             })()}{' '}
             <span className="text-xs text-gray-500">
               {t('detail.clan.years_ago', { years: ageYears })}

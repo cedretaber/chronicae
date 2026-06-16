@@ -6,7 +6,14 @@ import {
   getHoldingQualifiedName,
   getHouseDisplayName,
 } from '@/app/hooks/entityNameHelpers'
-import type { FactionId, DiplomaticPlayId, HoldingId, ClanId, WarId } from '@/sim/types/ids'
+import type {
+  FactionId,
+  DiplomaticPlayId,
+  HoldingId,
+  ClanId,
+  WarId,
+  ProjectId,
+} from '@/sim/types/ids'
 import {
   CountryDetail,
   HouseDetail,
@@ -18,6 +25,7 @@ import {
   HoldingDetail,
   ClanDetail,
   WarDetail,
+  ProjectDetail,
 } from '@/app/components/panels/DetailPanel'
 import { FullChroniclePanel } from '@/app/components/panels/details/FullChroniclePanel'
 import type { PolityId, HouseId, PersonId, ProvinceId } from '@/sim/types/ids'
@@ -290,6 +298,25 @@ export function WindowManager() {
                 onPolityClick={onPolityClick}
                 onHouseClick={onHouseClick}
                 onHoldingClick={onHoldingClick}
+              />
+            </DraggableWindow>
+          )
+        }
+        if (entityType === 'project') {
+          const project = state.projects[entityId as ProjectId]
+          if (!project) return null
+          const projectTitle = t(`detail.project_kind.${project.kind}`)
+          return (
+            <DraggableWindow
+              key={win.id}
+              win={win}
+              title={t('detail.project.window_title', { name: projectTitle })}
+            >
+              <ProjectDetail
+                project={project}
+                session={session}
+                watchlist={watchlist}
+                toggleWatchlist={toggleWatchlist}
               />
             </DraggableWindow>
           )

@@ -82,6 +82,9 @@ detail:
   annexed: 'Annexed'
   common:
     year: 'Year'
+    year_month_week: 'Year {{year}}, Month {{month}}, Week {{week}}'
+    month_week: 'Month {{month}}, Week {{week}}'
+    year_only: 'Year {{year}}'
   # Family tree window
   family_tree:
     open: 'View family tree'
@@ -122,7 +125,7 @@ detail:
   project_kind:
     acquire_political_right: 'Acquire Political Right'
     develop_holding: 'Develop Holding'
-    promote_policy_shift: 'Promote Policy Shift'
+    promote_policy_shift: 'Policy Lobbying'
     patronize_artist: 'Patronize Artist'
     commission_chronicle: 'Commission Chronicle'
     acquire_land: 'Acquire Land'
@@ -131,12 +134,15 @@ detail:
     demand_tax_increase: 'Demand Tax Increase'
     respond_to_pressure: 'Respond to Pressure'
     personal_training: 'Personal Training'
-    movement_campaign: 'Political Campaign'
+    movement_campaign: 'Advancement Campaign'
     request_rank_promotion: 'Rank Promotion Petition'
     request_land_grant: 'Land Grant Petition'
     request_cadet_branch_title_transfer: 'Cadet Branch Founding'
     republic_house_foundation: 'House Founding in Republic'
     consolidate_internal_contracts: 'Domain Consolidation'
+    undermine_influence: 'Undermine Influence'
+    revoke_political_right: 'Revoke Political Right'
+    replace_house_leader: 'Replace Cadet Branch Head'
   activity:
     project_completed: '{{kind}} Completed (Lv.{{level}})'
     project_failed: '{{kind}} Failed (Lv.{{level}})'
@@ -386,6 +392,99 @@ detail:
     stage_secure_budget: 'Securing Budget'
     stage_arrange_patronage: 'Arranging Patronage'
     stage_write_chronicle: 'Writing Chronicle'
+    stage_propose_initial_offer: 'Proposing Offer'
+    stage_build_case: 'Building Case'
+    stage_prepare_petition: 'Preparing Petition'
+    stage_finalize_promotion: 'Finalizing Promotion'
+    stage_finalize_land_grant: 'Finalizing Land Grant'
+    stage_finalize_cadet_branch: 'Finalizing Cadet Branch'
+    stage_register_house: 'Registering House'
+    stage_secure_family_support: 'Securing Family Support'
+    stage_negotiate_title_share: 'Negotiating Title Share'
+    stage_review_internal_contracts: 'Reviewing Contracts'
+    stage_negotiate_internal_terms: 'Negotiating Terms'
+    stage_prepare_foundation: 'Preparing Foundation'
+    stage_finalize_consolidation: 'Finalizing Consolidation'
+
+  # Project detail
+  project:
+    window_title: 'Project: {{name}}'
+    status: 'Status'
+    status_active: 'Active'
+    status_completed: 'Completed'
+    status_failed: 'Failed'
+    status_cancelled: 'Cancelled'
+    progress: 'Progress'
+    stage: 'Stage'
+    owner: 'Owner'
+    creator: 'Initiator'
+    supervisor: 'Supervisor'
+    created: 'Started'
+    deadline: 'Deadline'
+    deadline_pending: 'Takes effect at the final stage'
+    budget: 'Budget'
+    budget_required: 'Required'
+    budget_spent: 'Spent'
+    budget_remaining: 'Remaining'
+    no_projects: 'No active projects'
+    effect_label: 'Effect'
+    effect:
+      develop_holding: 'Builds or upgrades facilities in the target holding, raising its development.'
+      acquire_political_right: "Acquires the target appointment/control right as the supervisor's personal holding (paid to the polity treasury)."
+      promote_policy_shift: "Exerts the house's political influence over the polity's direction (an influence gain, not a concrete policy change)."
+      patronize_artist: "Funds an artist's patronage, raising the house's legacy prestige."
+      commission_chronicle: "Commissions a chronicle, raising the house's legacy prestige."
+      acquire_land: 'Acquires the target holding from another polity through diplomacy (for a price).'
+      sell_land: 'Sells the target holding to another polity through diplomacy (for a price).'
+      improve_contract_terms: "Lowers a land contract's tax rate through diplomacy."
+      demand_tax_increase: "Raises a vassal land contract's tax rate through diplomacy."
+      respond_to_pressure: 'Responds to incoming pressure with a chosen stance (resist/negotiate/concede) via diplomacy.'
+      personal_training: 'The person trains a specific ability, raising that ability score.'
+      movement_campaign: "Funds a sponsored member to raise that person's influence in the target polity."
+      request_rank_promotion: "Petitions to raise the target polity's rank."
+      request_land_grant: 'Petitions for a land grant, founding a new house and domain (a new polity).'
+      request_cadet_branch_title_transfer: 'Petitions the main house for a title, founding a cadet branch.'
+      republic_house_foundation: 'Founds a new house within a republic (without land).'
+      consolidate_internal_contracts: "Consolidates the house's internal land contracts into unified control."
+      undermine_influence: "Undermines the target's influence through conspiracy."
+      revoke_political_right: "Revokes the target's appointment right through conspiracy, returning it to the polity (incumbents keep their posts)."
+      replace_house_leader: "Replaces a cadet branch's head with its highest-prestige member through conspiracy."
+    pressure_source: 'Pressure From'
+    pressure_type: 'Pressure Type'
+    pressure_play: 'Related Play'
+    pressure_kind:
+      diplomatic_land_claim: 'Land Claim'
+      diplomatic_contract_revision: 'Contract Revision Demand'
+    right_target:
+      polity_office_role: 'Office Appointment Right'
+      holding_office_role: 'Bailiff Appointment Right'
+      regiment: 'Regiment Control Right'
+    field:
+      targetHolding: 'Target Holding'
+      targetProvince: 'Target Province'
+      targetPolity: 'Target Polity'
+      targetHouse: 'Target House'
+      targetPerson: 'Target Person'
+      counterpartyPolity: 'Counterparty'
+      rival: 'Target'
+      donorPolity: 'Granted by'
+      sinkPolity: 'Consolidate into'
+      petitioner: 'Petitioner'
+      sponsoredPerson: 'Sponsored'
+      approver: 'Approver'
+      artist: 'Artist'
+      subject: 'Subject'
+      parentHouse: 'Parent House'
+      improvementKind: 'Improvement'
+      targetLevel: 'Target Level'
+      newRank: 'New Rank'
+      trainingAbility: 'Ability'
+      desiredTaxRate: 'Desired Tax Rate'
+      stance: 'Stance'
+      rightTarget: 'Target Right'
+      preparation: 'Preparation'
+      leverage: 'Leverage'
+      commitment: 'Commitment'
 
   # Province detail
   province:

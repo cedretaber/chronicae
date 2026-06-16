@@ -17,7 +17,7 @@ import type { War } from '@/sim/types/war'
 import type { OrganizationRef } from '@/sim/types/office'
 import { getWarPrimaryAttacker, getWarPrimaryDefender } from '@sim/mutations/warMutations'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
-import { formatScore, formatPower, formatPolityRank } from '@/app/utils/format'
+import { formatScore, formatPower, formatPolityRank, formatYearMonthWeek } from '@/app/utils/format'
 import {
   IconCircleNumber1,
   IconCircleNumber2,
@@ -249,8 +249,8 @@ function FactionRow({
         {t('detail.faction.leader')}: {leaderName}
       </div>
       <div className="text-gray-300">
-        {t('detail.faction.members')}: {memberCount} | {t('detail.faction.founded')}: {founded.year}
-        /{founded.month}/{founded.weekOfMonth}
+        {t('detail.faction.members')}: {memberCount} | {t('detail.faction.founded')}:{' '}
+        {formatYearMonthWeek(founded.year, founded.month, founded.weekOfMonth)}
       </div>
     </div>
   )

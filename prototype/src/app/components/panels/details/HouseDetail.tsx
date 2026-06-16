@@ -27,11 +27,17 @@ import {
   ShareholderSection,
   HouseRightsSection,
   EntityChronicleSection,
-  ProjectDetailCard,
-  ProjectListItem,
 } from './shared/widgets'
+import { ProjectCard } from './shared/ProjectCard'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
-import { formatPolityRank, formatScore, formatAmount, formatPower } from '@/app/utils/format'
+import {
+  formatPolityRank,
+  formatScore,
+  formatAmount,
+  formatPower,
+  formatYearWeek,
+  formatAbsoluteWeek,
+} from '@/app/utils/format'
 import {
   getHouseProjectedAnnualIncome,
   getHouseAnnualOfficeSalary,
@@ -454,7 +460,7 @@ export function HouseDetail({
           </div>
           {recentEvents.map((e) => (
             <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
-              [{e.year}/W{e.weekOfYear}] {renderEvent(e)}
+              [{formatYearWeek(e.year, e.weekOfYear)}] {renderEvent(e)}
             </div>
           ))}
         </div>
@@ -508,8 +514,8 @@ export function HouseDetail({
                         {activeAim.targetProgress}
                       </div>
                       <div>
-                        {t('detail.house.aim_deadline')}: {t('detail.common.year')}{' '}
-                        {Math.ceil(activeAim.deadlineWeek / 48)}
+                        {t('detail.house.aim_deadline')}:{' '}
+                        {formatAbsoluteWeek(activeAim.deadlineWeek)}
                       </div>
                     </div>
                   </div>
@@ -523,13 +529,9 @@ export function HouseDetail({
                       )
                     if (activeProjects.length === 0) return null
                     return activeProjects.map((project) => (
-                      <ProjectDetailCard
-                        key={project.id}
-                        project={project}
-                        persons={currentState.persons}
-                        onPersonClick={onPersonClick}
-                        label={t('detail.house.active_project')}
-                      />
+                      <div key={project.id} className="mt-1 ml-2">
+                        <ProjectCard project={project} worldState={currentState} />
+                      </div>
                     ))
                   })()}
                   {activeAim.activeDiplomaticPlayId &&
@@ -579,16 +581,11 @@ export function HouseDetail({
               <div className="text-sm font-semibold text-gray-300">
                 {t('detail.house.projects_section')} ({activeProjects.length})
               </div>
-              <ul className="list-inside text-sm">
+              <div className="flex flex-col gap-1">
                 {activeProjects.map((project) => (
-                  <ProjectListItem
-                    key={project.id}
-                    project={project}
-                    persons={currentState.persons}
-                    onPersonClick={onPersonClick}
-                  />
+                  <ProjectCard key={project.id} project={project} worldState={currentState} />
                 ))}
-              </ul>
+              </div>
             </div>
           )
         })()}

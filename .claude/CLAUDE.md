@@ -75,6 +75,19 @@ Chronicae/
 - SimEvent の `messageParams` にも nameKey や raw enum 値を格納し、翻訳キーへの変換は eventRenderer（`i18n/`）側で行う。
 - `app/` → `sim/` の参照は `@sim/` エイリアス経由で許可。逆方向（`sim/` → `app/`、`sim/` → `i18n/`）は禁止。
 
+### UI の時間表記規約
+
+UI 上で「時点 (timestamp)」を表示する場合は、**必ず「N年M月第W週」形式に統一する**（暦は 1年=48週=12ヶ月×4週）。
+`Year X / Week Y`・`[year/Wweek]`・年だけ、などのアドホックな表記を新たに足さない。
+
+- 共通フォーマッタは `src/app/utils/format.ts` に集約。新規の日付表示は必ずこれを使う:
+  - `formatAbsoluteWeek(absoluteWeek)` — `createdWeek` / `deadlineWeek` / `startedWeek` / `foundingWeek` など絶対週から
+  - `formatYearWeek(year, weekOfYear)` — `ChronicleEntry` / `SimEvent` の year+weekOfYear ペアから
+  - `formatMonthWeek(weekOfYear)` — 年でグルーピング済みの文脈（timeline の年見出し配下など）で年を省く場合
+  - `formatYear(year)` — 週情報を持たない年のみの時点（グルーピング見出しなど）
+- i18n キーは `detail.common.{year_month_week,month_week,year_only}`（ns=ui）。
+- **「期間・年齢」は時点ではない**ので対象外（「X年前」「残りX年」「派閥の年齢」等はそのまま）。
+
 すべての npm コマンドは `prototype/` ディレクトリ内で実行する。
 
 `npx` は使わず、常に `npm run <script>` を使う。
@@ -104,6 +117,14 @@ npm run lint -- src/sim/tick/someFile.ts
 - **UI 表示の確認**: ブラウザ（dev server `npm run dev` 起動後）
 
 ブラウザは起動・操作に時間がかかるため、ロジックのデバッグには使わないこと。
+
+### dev server (`npm run dev`) は Claude から起動しない
+
+UI 表示の確認が必要な場合でも、**dev server の起動はユーザーが行う**。Claude が `npm run dev`（および dev server を立ち上げる同等のコマンド）を起動するのは、**ユーザーから明確に指示された場合に限る**。
+
+- 「ブラウザで確認したい」とユーザーが述べても、それだけでは起動指示とはみなさない。確認が必要なら「`http://localhost:5173/` で確認できます」と案内し、起動はユーザーに委ねる。
+- 静的検証（`npm run check` / `npm run build`）や CLI による確認は従来どおり Claude が実行してよい。
+- 既に Claude が起動してしまった dev server は、不要になった時点で停止する。
 
 ### CLI での config オーバーライド
 

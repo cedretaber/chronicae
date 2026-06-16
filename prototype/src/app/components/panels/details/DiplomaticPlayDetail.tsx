@@ -3,6 +3,7 @@ import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
+import { formatYearMonthWeek } from '@/app/utils/format'
 import type { ProvinceId, HoldingId, PolityId } from '@/sim/types/ids'
 import { PolityLink, PersonLink } from './shared/links'
 
@@ -180,15 +181,11 @@ export function DiplomaticPlayDetail({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.play.started')}:</span>
-          <span>
-            {started.year}/{started.month}/{started.weekOfMonth}
-          </span>
+          <span>{formatYearMonthWeek(started.year, started.month, started.weekOfMonth)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">{t('sidebar.play_deadline')}:</span>
-          <span>
-            {deadline.year}/{deadline.month}/{deadline.weekOfMonth}
-          </span>
+          <span>{formatYearMonthWeek(deadline.year, deadline.month, deadline.weekOfMonth)}</span>
         </div>
 
         <div className="my-1 border-t border-gray-700" />

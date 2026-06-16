@@ -7,6 +7,13 @@ decision:
       expand_power_base: Opportunity to expand political influence
       preserve_power_base: Need to maintain current standing
       cultivate_prestige: Desire to build cultural legacy
+      consolidate_domain: Opportunity to consolidate scattered holdings under unified control
+      pursue_covert_agenda: Discontent seeks an outlet in intrigue
+      house_loyalty: Devotion to the house
+      public_service: A calling to public service
+      personal_advancement: Ambition for personal advancement
+      wealth_building: Drive to accumulate wealth
+      self_cultivation: Pursuit of self-cultivation
     aim:
       consolidate_province_holdings: Control fragmented province
       seize_weak_remote_holdings: Exploit weak neighbors

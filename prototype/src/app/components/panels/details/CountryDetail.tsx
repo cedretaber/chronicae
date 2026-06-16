@@ -22,11 +22,16 @@ import {
   PolityLandContracts,
   PolityRegiments,
   RightHolderLine,
-  ProjectDetailCard,
-  ProjectListItem,
   EntityChronicleSection,
 } from './shared/widgets'
-import { formatPolityRank, formatAmount, formatScore, formatPower } from '@/app/utils/format'
+import { ProjectCard } from './shared/ProjectCard'
+import {
+  formatPolityRank,
+  formatAmount,
+  formatScore,
+  formatPower,
+  formatAbsoluteWeek,
+} from '@/app/utils/format'
 import {
   getPolityLeader,
   getPolityLeaderHouse,
@@ -438,8 +443,8 @@ export function CountryDetail({
                         {activeAim.targetProgress}
                       </div>
                       <div>
-                        {t('detail.polity.aim_deadline')}: {t('detail.common.year')}{' '}
-                        {Math.ceil(activeAim.deadlineWeek / 48)}
+                        {t('detail.polity.aim_deadline')}:{' '}
+                        {formatAbsoluteWeek(activeAim.deadlineWeek)}
                       </div>
                     </div>
                   </div>
@@ -455,13 +460,9 @@ export function CountryDetail({
                         )
                       if (activeProjects.length === 0) return null
                       return activeProjects.map((project) => (
-                        <ProjectDetailCard
-                          key={project.id}
-                          project={project}
-                          persons={worldState.persons}
-                          onPersonClick={onPersonClick}
-                          label={t('detail.polity.active_project')}
-                        />
+                        <div key={project.id} className="mt-1 ml-2">
+                          <ProjectCard project={project} worldState={worldState} />
+                        </div>
                       ))
                     })()}
                   {activeAim.activeDiplomaticPlayId &&
@@ -511,16 +512,11 @@ export function CountryDetail({
               <div className="text-sm font-semibold text-gray-300">
                 {t('detail.polity.projects_section')} ({activeProjects.length})
               </div>
-              <ul className="list-inside text-sm">
+              <div className="flex flex-col gap-1">
                 {activeProjects.map((project) => (
-                  <ProjectListItem
-                    key={project.id}
-                    project={project}
-                    persons={worldState.persons}
-                    onPersonClick={onPersonClick}
-                  />
+                  <ProjectCard key={project.id} project={project} worldState={worldState} />
                 ))}
-              </ul>
+              </div>
             </div>
           )
         })()}

@@ -8,6 +8,7 @@ import type { ClanId } from '@sim/types/ids'
 import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
+import { formatYearWeek, formatMonthWeek, formatYear } from '@/app/utils/format'
 
 type LinkItem = { id: string; type: EntityType; name: string }
 
@@ -219,7 +220,7 @@ function RawLogRow({
   return (
     <div className={`flex flex-wrap items-center gap-2 py-0.5 text-xs ${colorClass}`}>
       <span className="text-gray-500">
-        [{event.year}/{event.weekOfYear}] {getEventIcon(event.type)} {typeLabel}
+        [{formatYearWeek(event.year, event.weekOfYear)}] {getEventIcon(event.type)} {typeLabel}
       </span>
       <span>{renderEvent(event)}</span>
       <EventLinks event={event} />
@@ -246,7 +247,7 @@ function ChronicleRow({
       }`}
     >
       <span className="text-gray-500">
-        [{event.year}/{event.weekOfYear}] {icon}
+        [{formatYearWeek(event.year, event.weekOfYear)}] {icon}
       </span>
       <span>{renderEvent(event)}</span>
       <EventLinks event={event} />
@@ -264,14 +265,14 @@ function TimelineYear({
   return (
     <div className="mb-2">
       <div className="sticky top-0 bg-gray-900 px-2 py-0.5 text-xs font-bold text-gray-400">
-        Year {year}
+        {formatYear(year)}
       </div>
       {events.map((e) => (
         <div
           key={e.id}
           className={`flex flex-wrap items-center gap-2 px-3 py-0.5 text-xs ${getImportanceColor(e.importance)}`}
         >
-          <span className="text-gray-500">[W{e.weekOfYear}] </span>
+          <span className="text-gray-500">[{formatMonthWeek(e.weekOfYear)}] </span>
           <span>{renderEvent(e)}</span>
           <EventLinks event={e} />
         </div>

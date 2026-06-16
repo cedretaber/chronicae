@@ -10,7 +10,7 @@ import {
 } from '@tabler/icons-react'
 import { ConfigPanel } from './ConfigPanel'
 import { useSimulationStore } from '@/app/stores/simulationStore'
-import { getPseudoMonthFromWeek, getWeekOfPseudoMonth } from '@sim/utils/timeUtils'
+import { formatYearWeek } from '@/app/utils/format'
 import type { WorldPresetName } from '@sim/worldgen/worldPresets'
 
 const PRESET_OPTIONS: { value: WorldPresetName; label: string }[] = [
@@ -103,7 +103,7 @@ export function ControlBar() {
 
   const dateDisplay =
     currentYear != null && currentWeekOfYear != null
-      ? `Year ${currentYear} / Month ${getPseudoMonthFromWeek(currentWeekOfYear)} / Week ${getWeekOfPseudoMonth(currentWeekOfYear)}`
+      ? formatYearWeek(currentYear, currentWeekOfYear)
       : '---'
 
   return (

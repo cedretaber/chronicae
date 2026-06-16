@@ -16,7 +16,7 @@ import { PanelHeader, CopyJsonButton } from './shared/widgets'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
 import { PersonLink, HouseLink } from './shared/links'
 import { PersonCard } from './shared/PersonCard'
-import { formatScore } from '@/app/utils/format'
+import { formatScore, formatYearMonthWeek } from '@/app/utils/format'
 
 export function FactionDetail({
   faction,
@@ -96,7 +96,7 @@ export function FactionDetail({
           <span>
             {(() => {
               const f = weekToYearMonthWeek(faction.foundingWeek)
-              return `${f.year}/${f.month}/${f.weekOfMonth}`
+              return formatYearMonthWeek(f.year, f.month, f.weekOfMonth)
             })()}{' '}
             <span className="text-xs text-gray-500">
               {t('detail.faction.years_ago', { years: ageYears })}

@@ -3,9 +3,9 @@ import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { useTranslation } from 'react-i18next'
 import { getImportanceColor } from './helpers'
 import type { ClickHandler } from './helpers'
+import { formatYearWeek } from '@/app/utils/format'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Project } from '@/sim/types/project'
 import type { Person } from '@/sim/types/person'
 import { PersonLink, HouseLink } from './links'
 import type { House } from '@/sim/types/house'
@@ -90,7 +90,7 @@ export function ChronicleEntryLine({ entry }: { entry: ChronicleEntry }) {
       <span className="mr-1 rounded bg-gray-700 px-1 text-[10px] text-gray-400">
         {t(`chronicle.category.${entry.category}`)}
       </span>
-      [{entry.year}/W{entry.weekOfYear}]{' '}
+      [{formatYearWeek(entry.year, entry.weekOfYear)}]{' '}
       {renderEvent({ messageKey: entry.templateKey, messageParams: entry.params })}
     </div>
   )
@@ -185,79 +185,6 @@ export function CopyJsonButton({ payload }: { payload: unknown }) {
     >
       {copied ? `\u2713 ${t('buttons.copied')}` : `\u29c9 ${t('buttons.copy_json')}`}
     </button>
-  )
-}
-
-export function ProjectDetailCard({
-  project,
-  persons,
-  onPersonClick,
-  label,
-}: {
-  project: Project
-  persons: Record<string, Person>
-  onPersonClick: ClickHandler
-  label: string
-}) {
-  const { t } = useTranslation()
-  return (
-    <div style={{ marginLeft: 8, marginTop: 4 }}>
-      <strong>{label}</strong>
-      <div style={{ marginLeft: 8 }}>
-        <div>{t(`detail.project_kind.${project.kind}`)}</div>
-        <div>
-          {t('detail.play.project_stage')}: {t(`detail.play.stage_${project.currentStageKey}`)}
-        </div>
-        <div>
-          {t('detail.polity.project_progress')}: {project.progress} / {project.targetProgress}
-        </div>
-        <div>
-          {t('detail.polity.project_supervisor')}:{' '}
-          <PersonLink
-            personId={project.supervisorPersonId}
-            persons={persons}
-            onClick={onPersonClick}
-          />
-        </div>
-        {project.deadlineWeek && (
-          <div>
-            {t('detail.polity.project_deadline')}: {t('detail.common.year')}{' '}
-            {Math.ceil(project.deadlineWeek / 48)}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-export function ProjectListItem({
-  project,
-  persons,
-  onPersonClick,
-  showSupervisor = true,
-}: {
-  project: Project
-  persons: Record<string, Person>
-  onPersonClick: ClickHandler
-  showSupervisor?: boolean
-}) {
-  const { t } = useTranslation()
-  return (
-    <li className="mb-1 text-gray-400">
-      <span className="text-gray-200">{t(`detail.project_kind.${project.kind}`)}</span> —{' '}
-      {t(`detail.play.stage_${project.currentStageKey}`)} — {project.progress}/
-      {project.targetProgress}
-      {showSupervisor && (
-        <>
-          {' — '}
-          <PersonLink
-            personId={project.supervisorPersonId}
-            persons={persons}
-            onClick={onPersonClick}
-          />
-        </>
-      )}
-    </li>
   )
 }
 
