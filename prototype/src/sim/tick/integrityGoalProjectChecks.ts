@@ -845,6 +845,15 @@ export function checkGoalsAimsProjects(
           })
         }
       }
+      // v0.48.1 §6: disrepair Crisis は targetImprovementId 必須 (構造不変条件)。ただし指す improvement の
+      //   消滅 (dangling) は throw せず許容する (facilityMaintenanceSystem が purge する。transient window
+      //   での誤検知回避, Pressure P1 同型)。
+      if (crisis.kind === 'disrepair' && !crisis.targetImprovementId) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `Crisis ${cidStr}: kind='disrepair' but targetImprovementId is missing (§6)`,
+        })
+      }
     }
 
     // C3: crisisIndex forward 参照の整合

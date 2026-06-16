@@ -755,10 +755,16 @@ function resolveSecureBudget(
   // v0.48 Crisis: handle_crisis の実行 deadline は Crisis.deadlineWeek を単一の真実とする
   //   (Crisis 有効期間内に対処を終える必要があるため。crisisDeadlineWeeksByKind は spawn 時に
   //   Crisis.deadlineWeek へ反映済み)。develop_holding は従来どおり targetProgress 連動。
-  const executionDeadline =
+  // v0.48.1 §4.2: disrepair の修理 Project は deadline を立てない (undefined)。終端は repaired/destroyed
+  //   のみで残存タイマーを断つ (crisisDeadlineWeeksByKind=999 に頼ると ~20年で Project deadline が発火する)。
+  const isDisrepair =
+    project.kind === 'handle_crisis' && ws.crises[project.crisisId]?.kind === 'disrepair'
+  const executionDeadline: number | undefined =
     project.kind === 'handle_crisis'
-      ? (ws.crises[project.crisisId]?.deadlineWeek ??
-        absoluteWeek + config.crisisDeadlineWeeksByKind.famine)
+      ? isDisrepair
+        ? undefined
+        : (ws.crises[project.crisisId]?.deadlineWeek ??
+          absoluteWeek + config.crisisDeadlineWeeksByKind.famine)
       : absoluteWeek + getProjectDeadlineWeeks(config, project.kind, project.targetProgress)
 
   const nextKey = getNextProjectStageKey(project)
@@ -772,7 +778,7 @@ function resolveSecureBudget(
     to: nextKey,
   })
 
-  ws.projects[projectId] = {
+  const updated = {
     ...project,
     budget: {
       ...project.budget,
@@ -780,8 +786,14 @@ function resolveSecureBudget(
       remaining: project.budget.required,
     },
     currentStageKey: nextKey,
-    deadlineWeek: executionDeadline,
   }
+  // exactOptionalPropertyTypes: undefined を直接代入できないため条件分岐で set/delete する。
+  if (executionDeadline !== undefined) {
+    updated.deadlineWeek = executionDeadline
+  } else {
+    delete updated.deadlineWeek
+  }
+  ws.projects[projectId] = updated
   return true
 }
 

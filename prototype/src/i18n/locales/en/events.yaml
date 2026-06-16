@@ -91,6 +91,10 @@ crisis:
   resolved: 'The {{crisisKind}} crisis in {{holding}} has been overcome.'
   expired: 'The {{crisisKind}} crisis in {{holding}} went unresolved.'
 
+# v0.48.1 facility maintenance
+facility:
+  breakdown: 'The {{improvementKind}} in {{holding}} has been {{breakdownOutcome}}.'
+
 pop:
   land_developed: 'The people of {{province}} improved their lands.'
 
@@ -353,6 +357,19 @@ enum:
     drought: 'drought'
     war_damage: 'war devastation'
     unrest: 'unrest'
+    disrepair: 'disrepair'
+  # v0.48.1 facility breakdown event labels
+  improvementKind:
+    storage_infrastructure: 'storage infrastructure'
+    transport_infrastructure: 'transport infrastructure'
+    field_system: 'field system'
+    pastoral_infrastructure: 'pastoral infrastructure'
+    irrigation_infrastructure: 'irrigation works'
+    market_infrastructure: 'market infrastructure'
+    workshop_infrastructure: 'workshop infrastructure'
+  breakdownOutcome:
+    degraded: 'degraded'
+    destroyed: 'destroyed'
   # Display labels for {{kind}} in project events (ProjectKind enum).
   #   Flat table — unlike goal/aim kinds the vocabulary does not split by owner kind.
   projectKind:

@@ -416,7 +416,7 @@ function applyNonDiplomaticEffectMut(
       break
     // v0.48 Crisis: 対処完了 → Crisis 解消 (§3.1【新規必須 2】)
     case 'handle_crisis':
-      applyHandleCrisisMut(ws, project, emitEvent)
+      applyHandleCrisisMut(ws, config, project, emitEvent)
       break
   }
 }
@@ -426,6 +426,7 @@ function applyNonDiplomaticEffectMut(
 //   完了 Project は同 tick で削除されるのと対称, §2.4)。
 function applyHandleCrisisMut(
   ws: WorldState,
+  config: SimulationConfig,
   project: Project,
   emitEvent: (input: CreateSimEventInput) => void,
 ): void {
@@ -436,6 +437,29 @@ function applyHandleCrisisMut(
   //   concession) は ctx ベースの unrestCrisisSystem が同 tick で適用する (Decision 1)。
   if (crisis.kind === 'unrest') {
     setCrisisStatusMut(ws, project.crisisId, 'resolved')
+    return
+  }
+  // v0.48.1 §4.2: disrepair の修理完了 → 対象 improvement の condition を回復してから purge。
+  //   load-bearing: 回復を省くと condition が閾値以下のまま翌サイクルで再 spawn される無限 churn になる。
+  //   improvement が既に消滅 (全壊) していたら回復 no-op で purge のみ。
+  if (crisis.kind === 'disrepair') {
+    const impId = crisis.targetImprovementId
+    const imp = impId ? ws.holdingImprovements[impId] : undefined
+    if (imp) {
+      // per-object spread (Record clone だけでは本体が共有参照のまま → cross-tick 汚染)
+      ws.holdingImprovements[imp.id] = { ...imp, condition: config.facilityRepairConditionRestore }
+    }
+    emitEvent({
+      type: 'CRISIS_RESOLVED',
+      importance: 'normal',
+      messageKey: 'crisis.resolved',
+      messageParams: {
+        crisisKind: crisis.kind,
+        holding: holdingNameParam(ws, crisis.holdingId),
+      },
+      entityRefs: [entityRef('holding', crisis.holdingId, 'holding')],
+    })
+    removeCrisisMut(ws, project.crisisId)
     return
   }
   emitEvent({

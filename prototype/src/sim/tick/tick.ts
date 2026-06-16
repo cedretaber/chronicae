@@ -12,6 +12,7 @@ import { runBailiffAppointmentSystem } from './bailiffAppointmentSystem'
 import { runHarvestSystem } from './harvestSystem'
 import { runCrisisSystem } from './crisisSystem'
 import { runUnrestCrisisSystem } from './unrestCrisisSystem'
+import { runFacilityMaintenanceSystem } from './facilityMaintenanceSystem'
 import { runMortalitySystem } from './mortalitySystem'
 import { runDeadPersonLogPurgeSystem } from './deadPersonLogPurgeSystem'
 import { runPersonReputationCleanupSystem } from './personReputationCleanupSystem'
@@ -390,6 +391,16 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runUnrestCrisisSystem,
+  },
+  {
+    // v0.48.1 設備維持管理: condition 減衰 → 機能不全 (disrepair Crisis) → 破壊 (§2.5)。
+    //   projectOutcomeSystem と同 interval(4)・同 offset(0) にし crisisSystem の後に置く。これにより
+    //   「同サイクルに完了した修理 (projectOutcome) が先に condition を回復 → その後で減衰・破壊判定」が
+    //   毎回保証され、完了直前の improvement の誤破壊を防ぐ (順序の落とし穴 3)。
+    name: 'facilityMaintenanceSystem',
+    intervalWeeks: 4,
+    phaseOffsetWeeks: 0,
+    run: runFacilityMaintenanceSystem,
   },
   {
     name: 'pressureSystem',

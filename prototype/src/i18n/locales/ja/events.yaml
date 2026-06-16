@@ -90,6 +90,10 @@ crisis:
   resolved: '{{holding}}の{{crisisKind}}の危機が乗り越えられた。'
   expired: '{{holding}}の{{crisisKind}}の危機が放置されたままとなった。'
 
+# v0.48.1 設備維持管理
+facility:
+  breakdown: '{{holding}}の{{improvementKind}}が{{breakdownOutcome}}した。'
+
 pop:
   land_developed: '{{province}}の住民が土地を改良した。'
 
@@ -352,6 +356,19 @@ enum:
     drought: '干魃'
     war_damage: '戦災'
     unrest: '騒乱'
+    disrepair: '設備不全'
+  # v0.48.1 設備破壊イベントの設備種別・破壊種別ラベル
+  improvementKind:
+    storage_infrastructure: '貯蔵基盤'
+    transport_infrastructure: '交通基盤'
+    field_system: '農地整備'
+    pastoral_infrastructure: '牧畜基盤'
+    irrigation_infrastructure: '灌漑施設'
+    market_infrastructure: '市場施設'
+    workshop_infrastructure: '工房施設'
+  breakdownOutcome:
+    degraded: '損壊'
+    destroyed: '崩壊'
   # project event の {{kind}} 表示ラベル (ProjectKind enum)。
   #   goal/aim kind と違い owner 種別で語彙が分かれないため flat に持つ。
   projectKind:

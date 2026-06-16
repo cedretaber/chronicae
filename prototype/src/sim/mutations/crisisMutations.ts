@@ -1,6 +1,13 @@
 import type { WorldState } from '../types/world'
 import type { Crisis, CrisisKind, CrisisStatus, RevoltDemand } from '../types/crisis'
-import type { CrisisId, HoldingId, ProjectId, WarId, DecisionReasonId } from '../types/ids'
+import type {
+  CrisisId,
+  HoldingId,
+  HoldingImprovementId,
+  ProjectId,
+  WarId,
+  DecisionReasonId,
+} from '../types/ids'
 import { createCrisisId } from '../types/ids'
 
 export type CreateCrisisInput = {
@@ -13,6 +20,7 @@ export type CreateCrisisInput = {
   reasonIds: DecisionReasonId[]
   sourceWarId?: WarId
   demand?: RevoltDemand
+  targetImprovementId?: HoldingImprovementId // kind === 'disrepair' (v0.48.1)
 }
 
 export function addCrisisToIndexMut(ws: WorldState, crisis: Crisis): void {
@@ -68,6 +76,9 @@ export function createCrisisMut(ws: WorldState, input: CreateCrisisInput): Crisi
     status: input.status,
     ...(input.sourceWarId !== undefined && { sourceWarId: input.sourceWarId }),
     ...(input.demand !== undefined && { demand: input.demand }),
+    ...(input.targetImprovementId !== undefined && {
+      targetImprovementId: input.targetImprovementId,
+    }),
     reasonIds: input.reasonIds,
   }
 

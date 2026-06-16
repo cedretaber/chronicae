@@ -85,7 +85,10 @@ export function createEventRenderer(
             // v0.45: 天才の型
             key === 'geniusType' ||
             // v0.48: Crisis の種別
-            key === 'crisisKind') &&
+            key === 'crisisKind' ||
+            // v0.48.1: 設備破壊イベントの設備種別・破壊種別
+            key === 'improvementKind' ||
+            key === 'breakdownOutcome') &&
           typeof value === 'string'
         ) {
           const translated = i18nInstance.t(`enum.${key}.${value}`, {

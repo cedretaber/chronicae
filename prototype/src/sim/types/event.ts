@@ -36,6 +36,8 @@ export type EventType =
   | 'CRISIS_CREATED'
   | 'CRISIS_RESOLVED'
   | 'CRISIS_EXPIRED'
+  // v0.48.1 設備維持管理: condition 0 到達で設備が破壊 (レベルダウン / 全壊)
+  | 'FACILITY_BREAKDOWN'
   // v0.46 共和国整備: established commonwealth の建国式 / 任期 leader 交代。
   | 'REPUBLIC_FOUNDED'
   | 'REPUBLIC_LEADER_ELECTED'

@@ -8,6 +8,7 @@ import type { HandleCrisisProject } from '../types/project'
 import type {
   ProvinceId,
   HoldingId,
+  HoldingImprovementId,
   PolityId,
   PersonId,
   ProjectId,
@@ -20,6 +21,7 @@ import { createProjectId } from '../types/ids'
 import { randomFloat } from '../rng/rng'
 import type { RngState } from '../rng/rng'
 import { WEEKS_PER_YEAR } from '../utils/timeUtils'
+import { clamp } from '../utils/math'
 import {
   createCrisisMut,
   setCrisisResponseProjectMut,
@@ -412,6 +414,79 @@ function spawnCrisisForHolding(
   return true
 }
 
+// v0.48.1 §2.2: 設備の機能不全 (disrepair) Crisis を ws ベースで spawn する。
+//   facilityMaintenanceSystem が condition 閾値割れ improvement に対し呼ぶ。ctx ベースにしないのは
+//   呼び出し側 (facilityMaintenanceSystem) が同 draft で減衰を書き込んでおり、ctx ベースだと
+//   その書込を lost write するため。owner は呼び出し側で live 解決・active 検証済みを受け取る。
+//   生成したら true を返す。
+export function spawnDisrepairCrisisMut(
+  ws: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  improvementId: HoldingImprovementId,
+  ownerPolityId: PolityId,
+  absoluteWeek: number,
+  emitEvent: (input: CreateSimEventInput) => void,
+): boolean {
+  // dedup: 同 improvement を指す active disrepair Crisis があれば skip (per-improvement 粒度, §0-6)
+  const existing = ws.crisisIndex.byHolding[holdingId as string] ?? []
+  for (const cid of existing) {
+    const c = ws.crises[cid]
+    if (
+      c &&
+      c.kind === 'disrepair' &&
+      c.status === 'active' &&
+      (c.targetImprovementId as string) === (improvementId as string)
+    ) {
+      return false
+    }
+  }
+
+  // severity = 修理工数 (= createHandleCrisisProjectMut が targetProgress に入れる)。表示用 severity
+  //   (threshold − condition) は crisisSystem が毎サイクル上書きする (§4.3)。
+  const severity = config.crisisInitialSeverityByKind.disrepair
+  // disrepair は deadline を使わないが Crisis.deadlineWeek は必須フィールドなので型充足値を入れる。
+  const deadlineWeek = absoluteWeek + config.crisisDeadlineWeeksByKind.disrepair
+
+  const crisis = createCrisisMut(ws, {
+    kind: 'disrepair',
+    holdingId,
+    severity,
+    createdWeek: absoluteWeek,
+    deadlineWeek,
+    status: 'active',
+    reasonIds: [],
+    targetImprovementId: improvementId,
+  })
+
+  // 対処 (= 修理) Project を生成。代官 or 指導者+探索担当者。誰もいなければ Project なし = 真の放置
+  //   → §2.3 で condition 0 到達時にレベルダウン/全壊。
+  const handlers = resolveCrisisHandlers(ws, config, holdingId, ownerPolityId)
+  if (handlers) {
+    createHandleCrisisProjectMut(
+      ws,
+      config,
+      crisis,
+      ownerPolityId,
+      handlers.creatorId,
+      handlers.supervisorId,
+      absoluteWeek,
+    )
+  }
+
+  emitEvent({
+    type: 'CRISIS_CREATED',
+    importance: 'minor',
+    messageKey: 'crisis.created',
+    messageParams: {
+      crisisKind: 'disrepair',
+      holding: holdingNameParam(ws, holdingId),
+    },
+    entityRefs: [entityRef('holding', holdingId, 'holding')],
+  })
+  return true
+}
+
 // 年次の発生ロール (province 規模・人口圧力連動)。当たったら被災 province 内の該当 holding に
 // Crisis を 1 つずつ生成する (§4.1)。RNG はローカルに追跡し最後に書き戻す。
 function runAnnualSpawn(
@@ -509,13 +584,16 @@ function runWeeklyProcessing(
     touched = true
 
     const holdingId = crisis.holdingId
-    // plague は全 class、unrest は反乱 class、それ以外 (famine/drought/war_damage) は peasants。
+    // plague は全 class、unrest は反乱 class、disrepair は全 class (neglect attitude のみ使用)、
+    // それ以外 (famine/drought/war_damage) は peasants。
     const popClass: PopClass | undefined =
       crisis.kind === 'plague'
         ? undefined
         : crisis.kind === 'unrest'
           ? crisis.demand?.claimantPopClass
-          : 'peasants'
+          : crisis.kind === 'disrepair'
+            ? undefined
+            : 'peasants'
 
     // owner を live 解決 (§0-10)。owner inactive/holding terminal 喪失 → expired+purge (EC2/EC5)。
     const ownerPolityId = getHoldingTerminalPolityId(ws, holdingId)
@@ -565,13 +643,25 @@ function runWeeklyProcessing(
     }
 
     let severity = crisis.severity
-    if (effectiveProject) {
+    if (crisis.kind === 'disrepair') {
+      // v0.48.1 §4.3: disrepair は condition 駆動。表示 severity = clamp(0,100, threshold − condition)
+      //   (機能不全の深刻度)。Project 進捗ベースの派生は使わない (使うと severity が修理進捗を反映する
+      //   behavioral bug)。condition は facilityMaintenanceSystem が動かすのでここは読むだけ。
+      const impId = crisis.targetImprovementId
+      const imp = impId ? ws.holdingImprovements[impId] : undefined
+      if (imp) {
+        const displaySeverity = clamp(config.facilityDisrepairThreshold - imp.condition, 0, 100)
+        if (displaySeverity !== crisis.severity)
+          setCrisisSeverityMut(ws, crisis.id, displaySeverity)
+        severity = displaySeverity
+      }
+    } else if (effectiveProject) {
       severity = Math.max(0, effectiveProject.targetProgress - effectiveProject.progress)
       if (severity !== crisis.severity) setCrisisSeverityMut(ws, crisis.id, severity)
     }
 
-    // §4.3 期限処理: deadline 未解決 → expired。
-    if (absoluteWeek >= crisis.deadlineWeek) {
+    // §4.3 期限処理: deadline 未解決 → expired。disrepair は終端 repaired/destroyed のみ (タイマー無し)。
+    if (crisis.kind !== 'disrepair' && absoluteWeek >= crisis.deadlineWeek) {
       applyExpiredAttitude(ws, config, crisis, ownerPolityId, popClass)
       // まだ active な対処 Project を cancel (orphan 防止)。非 unrest は即 purge、unrest は
       //   unrestCrisisSystem が purge するが、いずれも対処 Project はこの時点で終了させてよい
@@ -598,7 +688,9 @@ function runWeeklyProcessing(
     }
 
     // §4.2 週次デバフ (active, severity 比例)。放置 Crisis も severity 据え置きでデバフ継続。
-    if (severity > 0) {
+    // v0.48.1 §4.3: disrepair の実コストは生産 effectiveness 低下 (§3) なので severity 比例の pop
+    //   デバフは適用しない (二重計上回避)。間接連鎖 (生産低下→wealth→unrest) は残る。
+    if (crisis.kind !== 'disrepair' && severity > 0) {
       adjustHoldingPopWealthMut(
         ws,
         holdingId,
