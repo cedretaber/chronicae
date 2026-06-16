@@ -253,7 +253,7 @@ function getAdministrativeEfficiency(state: WorldState, config: SimulationConfig
 `influenceSelectors.ts` — Polity の権力分布 read-model（§6.64）。percent は 0〜100。
 
 ```ts
-// 対象 Polity の influence breakdown（entry 母集合・10 domain〈reputation 含む〉・percent。total 降順）
+// 対象 Polity の influence breakdown（entry 母集合・11 domain〈reputation / standing 含む。standing = InfluenceModifier〉・percent。total 降順）
 function getPolityInfluenceBreakdown(state, config, polityId): PolityInfluenceBreakdown
 
 // actor (house | person) の influence score / percent
@@ -321,6 +321,9 @@ function getRightsByPolity(state, polityId): PoliticalRight[]
 // acquire_political_right の target 選定（kind 優先度 + role 内は slot 若い順 + 近接優先の
 // 決定的簡略化 — §6.64。slot 列挙に effectiveMax が要るため config を取る）
 function findAcquirableRightTarget(state, config, houseId, polityId): PoliticalRightTargetRef | undefined
+// v0.51 陰謀: revoke_political_right の target 選定。conspiring 家以外（自家・自家 member 除外）が
+// holder の active right を返す。person holder 優先、targetKey 昇順で決定的（§6.26）
+function findRevocableRightTarget(state, conspiringHouseId, polityId): PoliticalRightTargetRef | undefined
 ```
 
 acquire の候補 polity 列挙（非 owner 開放 — §6.64）は `goalSelectors.ts` 側:
@@ -487,6 +490,21 @@ function getAppointmentTaskModifier(
 function computeEffectivePriority(state: WorldState, config: SimulationConfig, task: Task): number
 ```
 
+### 4.8a 陰謀 drive セレクター（conspiracySelectors, v0.51）
+
+`prototype/src/sim/selectors/conspiracySelectors.ts` — covert Goal `pursue_covert_agenda` の起案 drive（§6.26）。
+RNG 非消費・on-demand 計算。
+
+```ts
+// 旧 plotTendency をそのまま移植した raw 値（ゲート前。テスト・診断用に分離）。
+// = 当主 ambition×30 + 家格 legacyPrestige×0.2 + 低 houseLoyalty×0.3 + 低 overlord loyalty×20
+//   − caution×15 − adminPower×0.1。primary polity / house leader 不在は 0。
+function computeRawConspiracyDrive(state: WorldState, houseId: HouseId): number
+
+// ゲート済み drive。閾値 conspiracyDriveThreshold 未満 or cooldown（conspiracyCooldownWeeks）中は 0。
+function computeConspiracyDrive(state: WorldState, config: SimulationConfig, houseId: HouseId): number
+```
+
 ### 4.9 Project / Task outcome selector
 
 `prototype/src/sim/selectors/taskSelectors.ts` および `prototype/src/sim/selectors/projectSelectors.ts` に集約。
@@ -498,6 +516,13 @@ function getTaskDefaultRelevantAbility(kind: TaskKind): AbilityKey
 
 // ProjectKind → relevantAbility マッピング（prepare_project / advance_project 用）
 const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey>
+
+// v0.51 陰謀: 陰謀 Project の effortRequired / difficulty を「重い・高難度」に上書き（スパム抑止 — §6.26）。
+// revoke_political_right は target right の holder が家のとき difficulty に家保有ボーナスを加算
+// （家任命権は個人任命権よりずっと取り消しにくい）。陰謀以外は undefined を返し既定値のまま。
+function getConspiracyTaskOverride(
+  state: WorldState, config: SimulationConfig, project: Project,
+): { effortRequired: number; difficulty: number } | undefined
 
 // Task 完了時の outcome 判定
 // effectiveScore = abilityScore + roll*100 vs threshold = difficulty*2

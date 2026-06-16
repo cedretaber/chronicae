@@ -1027,7 +1027,8 @@ old_age の人物は新規登用・指揮官選定で優先度が下がる（引
 旧 PlotSystem の「全家走査 + plotTendency >= plotThreshold」という goal 非依存トリガーを、専用の
 HouseGoalKind `pursue_covert_agenda` で再現する。`goalSelectors.scoreHouseGoalKind` でこの goal の
 スコア = `conspiracySelectors.computeConspiracyDrive`（旧 `plotTendency` 計算を移植: 当主 ambition×30 +
-低 houseLoyalty + 低 overlord loyalty − caution − adminPower）。owned polity の有無に依らず、野心高・
+家格 legacyPrestige×0.2 + 低 houseLoyalty×0.3 + 低 overlord loyalty×20 − caution×15 − adminPower×0.1）。
+owned polity の有無に依らず、野心高・
 低忠誠の不満家がこの goal を採る。閾値 `conspiracyDriveThreshold`（既定 75）未満 or cooldown 中は
 drive を 0 にして抑止する。primary polity / house leader 不在は drive 0（RNG 非消費・on-demand 計算）。
 
@@ -2083,7 +2084,8 @@ Bailiff（HoldingOffice）にも任期があり、`provinceOfficeTermYears.baili
 > 改修で変わっている: ① 9 domain のうち wealth/base/prestige は係数 0 で無効 (受動 soft-power 全廃) /
 > ② commonwealth の House soft-power は廃止 (僭主は構造項+成果項で個人創発) / ③ acquire の holder は
 > person (遂行者個人) に / ④ 役職・person 保有任命権・代官の influence は保有者個人に帰属 /
-> ⑤ 成果項 reputation domain を追加 (§6.64a-(2)。9→10 domain)。
+> ⑤ 成果項 reputation domain を追加 (§6.64a-(2)。9→10 domain) / ⑥ v0.51 陰謀リファインで
+> standing domain を追加 (InfluenceModifier の符号付き delta を加味。10→11 domain。§6.26 参照)。
 > 変わっていない部分 (PoliticalRight entity 構造・slot 化・residual authority・RightConsistency) は本節が正本。
 
 v0.42 で Polity の内部権力構造を「抽象的な Polity share」から「具体的な政治権利 **PoliticalRight** と、
@@ -2119,12 +2121,13 @@ House 内部の Share（HouseShare、§3.7）のみが一次データとして�
 **Polity Influence**（read-model — selector `getPolityInfluenceBreakdown`）:
 - entity ではなく随時計算。entry 母集合 = 土地ベース House（getPolityHouseIds）∪ office holder の House ∪
   right holder ∪ anchor Faction leader の House ∪（ownerHouseId 未定義の polity の）leader Person
-- 9 domain（§6.64a-(2) で reputation を追加し現行は 10 domain）: base（House entry 一律）/ ruler（ownerHouse bonus。**非 ownerHouse 出身 leader の家には
+- 9 domain（§6.64a-(2) で reputation、v0.51 陰謀リファインで standing を追加し現行は 11 domain）: base（House entry 一律）/ ruler（ownerHouse bonus。**非 ownerHouse 出身 leader の家には
   polityInfluenceLeaderHouseBonus** — ownerHouseBonus の 1/3 程度。leader∈ownerHouse なら二重計上しない。
   commonwealth は leader Person entry に ownerHouseBonus 相当）/ office（non-leader holder。overlap bonus は
   office 寄与への乗算相当を加算）/ military（military office holder + active regiment への regiment_control right）/
   land_administration（holding right + 現職 bailiff の House）/ landed_power（**対象 Polity 内限定**の province 数 +
-  military proxy）/ wealth / prestige / faction（anchor Faction leader の House のみ — member 加算は future）
+  military proxy）/ wealth / prestige / faction（anchor Faction leader の House のみ — member 加算は future）/
+  reputation（成果項。§6.64a-(2)）/ standing（InfluenceModifier の符号付き delta 合計。陰謀 undermine で負・恩賞等で正。§6.26）
 - **【§6.64a-(1) で廃止 — 以下は旧 (v0.45.5) 挙動の記録】commonwealth でも House soft-power を付与する（僭主の創発）**:
   `ownerHouseId` 未定義の polity（反乱独立政体・commonwealth）でも House entry に soft-power（base / wealth /
   prestige / landed_power）を一律加算していた。これにより、共和国に office / faction で embed した富豪家が

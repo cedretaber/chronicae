@@ -67,7 +67,7 @@ export function createEventRenderer(
         // v0.35/v0.37: battle event の enum 文字列 (battlefieldKind / result / avoidingSide /
         //   outcomeQuality / breakthroughSide) を events ns の enum.<key>.<value> ラベルへ解決する。
         //   未定義なら raw fallback。
-        //   v0.42: political_right event の rightKind / revokeReason、plot event の plotType も同方式。
+        //   v0.42: political_right event の rightKind / revokeReason も同方式。
         if (
           (key === 'battlefieldKind' ||
             key === 'result' ||
@@ -76,7 +76,6 @@ export function createEventRenderer(
             key === 'breakthroughSide' ||
             key === 'rightKind' ||
             key === 'revokeReason' ||
-            key === 'plotType' ||
             key === 'occupation' ||
             key === 'rebelClass' ||
             // v0.44: 成果成長・評判イベントの enum param

@@ -327,9 +327,6 @@ const EVENT_TEMPLATES: Record<string, string> = {
   'polity.land_developed': '{{polity}} invested in land development in {{province}}.',
   'succession.crisis': 'A succession crisis has erupted in {{house}}!',
   'succession.crisis_split': 'A succession crisis has erupted due to the house split!',
-  'plot.started': '{{person}} began a {{plotType}} plot.',
-  'plot.succeeded': "{{person}}'s {{plotType}} plot succeeded.",
-  'plot.failed': "{{person}}'s {{plotType}} plot failed.",
   'office.assigned_polity': '{{person}} was appointed as {{role}} of {{polity}}.',
   'office.assigned_house': '{{person}} was appointed as {{role}} of {{house}}.',
   'office.revoked':
