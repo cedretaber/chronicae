@@ -348,6 +348,18 @@ function buildProjectFieldsForAim(
         currentStageKey: getInitialProjectStageKey('revoke_political_right'),
       }
     }
+    case 'replace_house_leader': {
+      // v0.51 陰謀リファイン: owner=宗家・target=自家の分家 (house EntityRef)。
+      const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
+      const targetHouseId = aim.target?.kind === 'house' ? aim.target.id : undefined
+      if (!houseId || !targetHouseId) return undefined
+      const cadet = ws.houses[targetHouseId]
+      if (!cadet || !cadet.active) return undefined
+      return {
+        targetHouseId,
+        currentStageKey: getInitialProjectStageKey('replace_house_leader'),
+      }
+    }
     case 'patronize_artist': {
       const houseId = aim.owner.kind === 'house' ? aim.owner.id : undefined
       // 調査 §1.6: 完了時の wealth 不足による silent no-op を防ぐため作成時に afford 判定。

@@ -122,6 +122,10 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
           ? [{ kind: 'holding' as const, id: project.target.holdingId }]
           : []),
       ]
+
+    // v0.51 陰謀リファイン: 対象分家を related に
+    case 'replace_house_leader':
+      return [{ kind: 'house', id: project.targetHouseId }]
   }
 }
 
@@ -150,6 +154,7 @@ export const PROJECT_KIND_ROLE_MAP: Record<ProjectKind, AppliedRoleKey> = {
   // v0.51 陰謀リファイン: 策謀は intrigue
   undermine_influence: 'intrigue',
   revoke_political_right: 'intrigue',
+  replace_house_leader: 'intrigue',
 }
 
 export function getPersonProjectWorkload(

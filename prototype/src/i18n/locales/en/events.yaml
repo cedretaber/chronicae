@@ -134,6 +134,9 @@ political_right:
 influence:
   undermined: '{{source}} schemed to undermine the influence of {{target}} in {{polity}}.'
 
+house_conspiracy:
+  leader_replaced: "{{instigator}} engineered the replacement of {{house}}'s head — {{newHead}} now leads the cadet branch."
+
 revolt:
   negotiation_started: 'A {{rebelClass}} revolt has broken out in {{province}} — negotiations begin.'
   polity_founded: '{{polity}} has been founded by {{person}} through revolt in {{province}}!'

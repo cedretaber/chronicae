@@ -119,6 +119,8 @@ export type HouseAimKind =
   | 'undermine_rival_influence'
   // v0.51 陰謀リファイン: ライバルの PoliticalRight (任命権・連隊保有権) を失効させ国に戻す陰謀
   | 'revoke_rival_right'
+  // v0.51 陰謀リファイン: 自家の分家 (cadet) の当主を交代させる王朝統制陰謀 (旧 replace_house_leader plot)
+  | 'intervene_cadet_succession'
 
 export type PersonAimKind =
   | 'support_organization_aim'

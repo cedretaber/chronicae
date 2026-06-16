@@ -21,7 +21,7 @@ import { isLivingPerson, isLifeStageAtLeast } from '../types/person'
 import type { PersonId } from '../types/ids'
 import { getRoleScore } from './abilitySelectors'
 import { getPersonReputationModifierForCategories } from './personReputationSelectors'
-import { hasActiveHoldingOffice, getHouseDecisionMaker } from './officeSelectors'
+import { hasActiveHoldingOffice, getHouseDecisionMaker, getHouseLeader } from './officeSelectors'
 import { isRoleEligibleBySex } from './roleEligibilitySelectors'
 import { findAcquirableRightTarget, findRevocableRightTarget } from './politicalRightSelectors'
 import { isEstablishedCommonwealthRepublic } from './republicSelectors'
@@ -824,6 +824,22 @@ function pickHouseAim(
             score: 22 * config.conspiracyAimPriorityFactor,
           })
         }
+      }
+
+      // intervene_cadet_succession: 自家の分家 (生存当主を持つ) を対象に当主交代を狙う (§3.4)。
+      //   polityId に依らない王朝統制。旧 pickCadetTarget の候補化を移植 (cadetHouseIds 昇順)。
+      for (const cadetId of [...house.cadetHouseIds].sort()) {
+        const cadet = state.houses[cadetId]
+        if (!cadet || !cadet.active || cadet.kind === 'system') continue
+        const cadetHeadId = getHouseLeader(state, cadetId)
+        if (!cadetHeadId) continue
+        const cadetHead = state.persons[cadetHeadId]
+        if (!cadetHead || !cadetHead.alive) continue
+        candidates.push({
+          kind: 'intervene_cadet_succession',
+          target: { kind: 'house', id: cadetId },
+          score: 24 * config.conspiracyAimPriorityFactor,
+        })
       }
     }
   } else {

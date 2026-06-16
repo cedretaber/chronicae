@@ -133,6 +133,9 @@ political_right:
 influence:
   undermined: '{{source}}が{{polity}}における{{target}}の影響力を削ぐ陰謀を巡らせた。'
 
+house_conspiracy:
+  leader_replaced: '{{instigator}}の画策により{{house}}の当主が挿げ替えられ、{{newHead}}が分家を率いることになった。'
+
 revolt:
   negotiation_started: '{{province}}で{{rebelClass}}の反乱が勃発し、交渉が始まった。'
   polity_founded: '{{person}}の反乱により{{province}}で{{polity}}が建国された！'

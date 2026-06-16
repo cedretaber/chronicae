@@ -182,6 +182,7 @@ export const PROJECT_KIND_ABILITY_MAP: Record<ProjectKind, AbilityKey> = {
   // v0.51 陰謀リファイン: 策謀は洞察 (insight)
   undermine_influence: 'insight',
   revoke_political_right: 'insight',
+  replace_house_leader: 'insight',
 }
 
 // v0.51 陰謀リファイン: 陰謀 Project の advance_project Task は重く・高難度にする (スパム防止)。
@@ -194,6 +195,7 @@ export function getConspiracyTaskOverride(
 ): { effortRequired: number; difficulty: number } | undefined {
   switch (project.kind) {
     case 'undermine_influence':
+    case 'replace_house_leader':
       return {
         effortRequired: config.conspiracyTaskEffortRequired,
         difficulty: config.conspiracyTaskBaseDifficulty,

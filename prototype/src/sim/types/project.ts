@@ -67,6 +67,8 @@ export type ProjectKind =
   | 'undermine_influence'
   // v0.51 陰謀リファイン: 任命権失効陰謀。owner=House、target=ライバル保有の PoliticalRight。
   | 'revoke_political_right'
+  // v0.51 陰謀リファイン: 分家当主交代陰謀。owner=宗家、target=分家 House (旧 replace_house_leader plot)。
+  | 'replace_house_leader'
 
 export type BaseProject = {
   id: ProjectId
@@ -249,6 +251,15 @@ export type RevokePoliticalRightProject = BaseProject & {
   target: PoliticalRightTargetRef
 }
 
+// v0.51 陰謀リファイン: 分家当主交代 Project (旧 replace_house_leader plot の移植)。
+// owner = 宗家 (陰謀を企てる House)、target = 自家の分家 (cadet House)。budget なし。
+// 完了で対象分家の当主を prestige 最上位の生存成人に交代する。成否は Task (担当者能力) が決める。
+export type ReplaceHouseLeaderProject = BaseProject & {
+  kind: 'replace_house_leader'
+  owner: { kind: 'house'; id: HouseId }
+  targetHouseId: HouseId
+}
+
 export type RespondToPressureProject = BaseProject & {
   kind: 'respond_to_pressure'
   pressureId: PressureId
@@ -287,6 +298,7 @@ export type Project =
   | ConsolidateInternalContractsProject
   | UndermineInfluenceProject
   | RevokePoliticalRightProject
+  | ReplaceHouseLeaderProject
 
 export type ProjectIndex = {
   byOwner: Record<string, ProjectId[]>

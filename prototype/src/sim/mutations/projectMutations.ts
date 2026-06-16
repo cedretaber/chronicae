@@ -170,6 +170,8 @@ export function aimKindToProjectKind(aimKind: AimKind): ProjectKind | undefined 
       return 'undermine_influence'
     case 'revoke_rival_right':
       return 'revoke_political_right'
+    case 'intervene_cadet_succession':
+      return 'replace_house_leader'
     default:
       return undefined
   }

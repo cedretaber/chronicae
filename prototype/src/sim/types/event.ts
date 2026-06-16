@@ -155,6 +155,8 @@ export type EventType =
   | 'POLITICAL_RIGHT_TRANSFERRED'
   // v0.51 陰謀リファイン: 影響力毀損陰謀の完遂 (InfluenceModifier 生成)
   | 'INFLUENCE_UNDERMINED'
+  // v0.51 陰謀リファイン: 分家当主交代陰謀の完遂 (旧 PLOT_SUCCEEDED/replace_house_leader 相当)
+  | 'HOUSE_LEADER_REPLACED'
   // v0.44 成果成長・評判 (spec §10)。ability ごと / reputation source 1 件ごとに emit。
   | 'PERSON_ABILITY_GREW'
   | 'PERSON_REPUTATION_GAINED'

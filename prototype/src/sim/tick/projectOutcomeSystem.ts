@@ -9,8 +9,11 @@ import { personReputationOrganizationKey } from '../types/personReputation'
 import type { PersonActivityLog } from '../types/task'
 import type { HoldingImprovementId } from '../types/ids'
 import { createHoldingImprovementId, createPersonActivityLogId } from '../types/ids'
-import { adjustPersonAttitude } from '../mutations/attitudeMutations'
-import { getPolityLeader } from '../selectors/officeSelectors'
+import { adjustPersonAttitude, adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
+import { getPolityLeader, getHouseLeader } from '../selectors/officeSelectors'
+import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
+import { adjustPersonLegacyPrestige } from '../helpers/attitudeHelpers'
+import { isLifeStageAtLeast } from '../types/person'
 import {
   getPolityNameRefForEmit,
   getPolityNameRefForEmitFromPolity,
@@ -395,14 +398,95 @@ function applyNonDiplomaticEffectMut(
     case 'revoke_political_right':
       applyRevokePoliticalRightMut(ws, project, emitEvent)
       break
+    case 'replace_house_leader':
+      applyReplaceHouseLeaderMut(ws, project, emitEvent)
+      break
   }
 }
 
-// v0.51 陰謀リファイン: 陰謀 Project の kind 集合 (cooldown 記録対象)。Phase 4 でここに追加する。
+// v0.51 陰謀リファイン: 陰謀 Project の kind 集合 (cooldown 記録対象)。
 const CONSPIRACY_PROJECT_KINDS: ReadonlySet<Project['kind']> = new Set([
   'undermine_influence',
   'revoke_political_right',
+  'replace_house_leader',
 ])
+
+// v0.51 陰謀リファイン: 分家当主交代完遂の効果 (旧 plotSystem applyPlotSuccess replace_house_leader 移植)。
+// 対象分家の当主を prestige 最上位の生存成人に交代し、役職移譲・respect 調整・首謀者 prestige+5。
+// 成否は Task が判定済み (この handler は completed 前提)。対象分家消滅 / 後継不在なら no-op。
+function applyReplaceHouseLeaderMut(
+  ws: WorldState,
+  project: Project,
+  emitEvent: (input: CreateSimEventInput) => void,
+): void {
+  if (project.kind !== 'replace_house_leader') return
+  if (project.owner.kind !== 'house') return
+  const targetHouse = ws.houses[project.targetHouseId]
+  if (!targetHouse || !targetHouse.active) return
+
+  const currentHeadId = getHouseLeader(ws, targetHouse.id)
+  // 対象分家の生存成人 (現当主以外) から prestige 最上位を後継に選ぶ
+  const newHead = targetHouse.memberIds
+    .map((id) => ws.persons[id])
+    .filter(
+      (p): p is NonNullable<typeof p> =>
+        p !== undefined &&
+        p.alive &&
+        isLifeStageAtLeast(p.lifeStage, 'young_adulthood') &&
+        (p.id as string) !== (currentHeadId ?? ''),
+    )
+    .sort((a, b) => b.legacyPrestige - a.legacyPrestige)[0]
+  if (!newHead) return // 後継候補なし → no-op
+
+  // 役職移譲: leader を revoke してから新当主に付与 (immutable helper → draft 書き戻し)
+  const targetOrgRef: OrganizationRef = { kind: 'house', id: targetHouse.id }
+  let s = revokeOfficesByOrganization(ws, targetOrgRef, 'leader')
+  s = createOfficeAssignment(s, targetOrgRef, 'leader', newHead.id)
+  // adjustHouseMembersAttitude / adjustPersonLegacyPrestige も immutable helper
+  if (currentHeadId) {
+    const r = adjustHouseMembersAttitude(
+      s,
+      targetHouse.id,
+      { kind: 'person', id: currentHeadId },
+      { respect: -10 },
+    )
+    if (r.ok) s = r.value
+  }
+  const r2 = adjustHouseMembersAttitude(
+    s,
+    targetHouse.id,
+    { kind: 'person', id: newHead.id },
+    { respect: 8 },
+  )
+  if (r2.ok) s = r2.value
+  // 首謀者 (supervisor) の prestige +5
+  s = adjustPersonLegacyPrestige(s, project.supervisorPersonId, 5)
+
+  // draft へ全面書き戻し。createOfficeAssignment は nextOfficeAssignmentId も進めるため必ず含める
+  // (落とすと OfficeAssignmentId 衝突 → leader office が別 house を指す等の破損を生む)。
+  ws.persons = s.persons
+  ws.houses = s.houses
+  ws.officeAssignments = s.officeAssignments
+  ws.officeIndex = s.officeIndex
+  ws.nextOfficeAssignmentId = s.nextOfficeAssignmentId
+
+  const instigator = ws.persons[project.supervisorPersonId]
+  emitEvent({
+    type: 'HOUSE_LEADER_REPLACED',
+    importance: 'major',
+    messageKey: 'house_conspiracy.leader_replaced',
+    messageParams: {
+      instigator: nameParam('person', instigator?.nameKey ?? project.supervisorPersonId),
+      house: houseNameParam(targetHouse, targetHouse.id),
+      newHead: nameParam('person', newHead.nameKey),
+    },
+    entityRefs: [
+      entityRef('person', project.supervisorPersonId, 'instigator', instigator?.nameKey),
+      entityRef('house', targetHouse.id, 'target'),
+      entityRef('person', newHead.id, 'new_head', newHead.nameKey),
+    ],
+  })
+}
 
 // 陰謀 Project が terminal 化したとき owner 家に lastConspiracyResolvedWeek を記録する (連発防止 §4.3)。
 function recordConspiracyCooldownMut(ws: WorldState, project: Project): void {

@@ -84,6 +84,7 @@ export const PROJECT_REPUTATION_CATEGORY_MAP: Record<ProjectKind, ReputationCate
     // v0.51 陰謀リファイン: 陰謀は covert ゆえ公的評判を発生させない (supervisor の ability 経験のみ)
     undermine_influence: undefined,
     revoke_political_right: undefined,
+    replace_house_leader: undefined,
   }
 
 export type AwardSourceKind = PersonReputationSource['kind']

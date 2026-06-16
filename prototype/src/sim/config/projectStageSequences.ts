@@ -88,6 +88,7 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
   //   Task 1 本で execute する。effort/difficulty は projectTaskGenerationSystem が陰謀専用値に上書き。
   undermine_influence: [{ key: 'execute_project', type: 'final' }],
   revoke_political_right: [{ key: 'execute_project', type: 'final' }],
+  replace_house_leader: [{ key: 'execute_project', type: 'final' }],
 }
 
 export function getProjectStageSequence(kind: ProjectKind): readonly ProjectStageEntry[] {
