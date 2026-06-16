@@ -298,7 +298,7 @@ type House = {
   wealth: number             // >= 0
   seatProvinceId: ProvinceId
   lastSplitWeek?: number     // 直近の分家発生時の absoluteWeek（cooldown 用）
-  lastPlotResolvedWeek?: number // 直近で策謀が解決した absoluteWeek（plotCooldownWeeks の待機判定用）
+  lastConspiracyResolvedWeek?: number // 直近で陰謀 Project が terminal 化した absoluteWeek（conspiracyCooldownWeeks の待機判定用・v0.51）
   clanId?: ClanId              // 所属 Clan。最大 1 つ
   creationKind?: HouseCreationKind    // 創設種別
   creationReason?: HouseCreationReason  // 創設理由
@@ -544,6 +544,34 @@ politicalRightIndex: {
   byTarget: Record<string, PoliticalRightId[]>   // length <= 1 (1 target 1 active right)
 }
 nextPoliticalRightId: number
+```
+
+**InfluenceModifier**（v0.51 陰謀リファイン）: 影響力（read-model）への符号付き・期限付き修正項。
+Influence は entity でなく selector の戻り値（§6.64）なので、「下げる/上げる」には計算に入る項を足すしかない。
+影響力毀損陰謀（§6.26）が負の delta を生成し、`influenceSelectors` が新ドメイン `standing` として加味する。
+正の delta（恩賞・祭礼）にも使える汎用機構。期限切れ・target 消滅・polity inactive は
+`influenceModifierConsistencySystem`（weekly）が回収。旧 Plot 専用エンティティの置換。
+
+```ts
+type InfluenceModifierTargetRef =
+  | { kind: 'house'; id: HouseId }
+  | { kind: 'person'; id: PersonId }
+type InfluenceModifier = {
+  id: InfluenceModifierId             // prefix 'im-'
+  polityId: PolityId                  // どの Polity の influence breakdown に効くか
+  target: InfluenceModifierTargetRef  // 誰の influence を動かすか
+  delta: number                       // 符号付き（負=毀損 / 正=付与）
+  causeKind: 'conspiracy_undermine' | 'favor'
+  sourcePersonId?: PersonId           // 陰謀の supervisor（年代記表示用）
+  grantedWeek: number
+  expiryWeek?: number                 // undefined = 恒久
+}
+influenceModifiers: Record<InfluenceModifierId, InfluenceModifier>
+influenceModifierIndex: {
+  byPolity: Record<string, InfluenceModifierId[]>
+  byTarget: Record<string, InfluenceModifierId[]>
+}
+nextInfluenceModifierId: number
 ```
 
 **PersonReputation**（v0.44）: 成果（Project / DiplomaticPlay / War）由来の人物評判。型詳細と lifecycle は §6.66。
@@ -1429,6 +1457,11 @@ type BaseProject = {
 - `ContractRevisionProject` (improve_contract_terms / demand_tax_increase): holdingId / landContractId / counterpartyPolityId / desiredTaxRateToGrantor / diplomaticPlayId / preparation / leverage / commitment
 - `RespondToPressureProject`: pressureId / diplomaticPlayId / stance
 - `PersonalTrainingProject`（v0.44）: owner は `{ kind: 'person' }` 固定 / traineePersonId / trainingAbilityKey。owner / creator / supervisor / trainee は全一致（IntegrityCheck 検査）。budget なし
+- （上記に加え movement_campaign / v0.47 petition 系 5 種が存在する）
+- **陰謀 Project（v0.51 陰謀リファイン §6.26、すべて House owned・budget なし・単一 final stage）**:
+  - `UndermineInfluenceProject`: polityId / target (InfluenceModifierTargetRef)。完了で負の InfluenceModifier 生成
+  - `RevokePoliticalRightProject`: polityId / target (PoliticalRightTargetRef)。完了で対象 right を国に返却（difficulty は holder 種別依存）
+  - `ReplaceHouseLeaderProject`: targetHouseId（自家の分家）。完了で分家当主を交代（旧 replace_house_leader plot 移植）
 
 #### ProjectStage 一般化
 

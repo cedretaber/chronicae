@@ -3,11 +3,17 @@
 | 項目 | デフォルト | 説明 |
 |------|-----------|------|
 | debug | false | デバッグモード（イベント行への ID 付記・構造化デバッグログ・非致死的 IntegrityCheck） |
-| basePlotSuccess | 0.35 | 陰謀基本成功率 |
-| rebellionThreshold | 90 | 反乱発動閾値 |
-| plotThreshold | 65 | 陰謀発動閾値 |
-| plotCooldownWeeks | 52 | 策謀解決後、同じ家の当主が次の策謀を開始できるまでの待機週数（連発防止） |
 | rebellionSuccessMode | 'independence' | 反乱成功時の処理 |
+| **陰謀システム（v0.51 陰謀リファイン §6.26）** | | |
+| conspiracyUndermineInfluenceAmount | 30 | 影響力毀損 modifier の絶対値（delta = -この値）|
+| conspiracyUndermineInfluenceDurationWeeks | 156 | 影響力毀損の有効期間（週・3年）|
+| conspiracyAimPriorityFactor | 0.5 | 陰謀 aim 候補スコアの重み（多発抑制）|
+| conspiracyDriveThreshold | 75 | covert goal/aim の発動閾値（旧 plotThreshold 65 から引上げ）|
+| conspiracyTaskEffortRequired | 6 | 陰謀 Task の必要努力値（HEAVY 上限より重い）|
+| conspiracyTaskBaseDifficulty | 60 | 陰謀全般の基本難度 |
+| conspiracyRevokeRightBaseDifficulty | 60 | 任命権失効（person holder）の基本難度 |
+| conspiracyRevokeHouseRightDifficultyBonus | 30 | 家保有任命権の追加難度（→ 実効 90）|
+| conspiracyCooldownWeeks | 52 | 陰謀 Project terminal 後の再立案待機週数（連発防止）|
 | **AppointmentSystem** | | |
 | concurrentOfficePenalty | 8 | 兼任 1 役職ごとのスコアペナルティ |
 | minAppointmentScore | 2 | この閾値未満なら任命しない（空席維持） |

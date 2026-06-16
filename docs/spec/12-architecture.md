@@ -28,7 +28,7 @@
 | `shareMutations.ts` | v0.42c: HouseShare 専用。`createHouseShare` / `updateShareRawPower` / `removeHouseShare` / `transferShareRawPower` / `upsertHouseShare` / `removeSharesByHouse` / `removePersonSharesInHouse` |
 | `politicalRightMutations.ts` | v0.42: `createPoliticalRight`（1-target-1-right 検査）/ `removePoliticalRight` / `removeRightsByHolder` / `removeRightsByPolity` / `removeRightsByTarget`(+Mut) / `transferPoliticalRight` |
 | `attitudeMutations.ts` | `adjustPersonAttitude` / `adjustPopAttitude` / `adjustHouseMembersAttitude`（§12.3 参照）|
-| `plotMutations.ts` | `addPlot` / `removePlot` / `resolvePlot` |
+| `influenceModifierMutations.ts` | v0.51: `addInfluenceModifier` / `removeInfluenceModifier`(+Mut)（陰謀リファイン §6.26。旧 plotMutations を置換）|
 
 mutation 関数はおおむね `StateResult = SimResult<WorldState>` または `CtxResult<T>` を返す。失敗時は `err({code, message})` を返し、tick 側で握りつぶさない。エラーコードは `mutations/errors.ts` で集中管理する。
 

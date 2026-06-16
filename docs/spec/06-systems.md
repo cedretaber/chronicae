@@ -478,7 +478,7 @@ high 帯（上限ダンパー）は v0.45.1 の死亡率 U 字化（§6.7）で�
 
 **Polity ruler succession**: 同 system 内で active Polity に polity:leader Office が無い場合、`getPolityHouseIds` のうち ownerHouse もしくは primaryPolity 一致の active House を候補とし、controlled Province 数が最大の House の leader を polity:leader に立てる（ownerHouse は常に候補に含まれるが、必ずしも ownerHouse leader が立つわけではない）。`polity.kind === 'commonwealth'` の場合は skip し、rebel founder 死亡後も leader 空席のまま polity を存続させる（commonwealth は rebel founder 個人を象徴とする一代政体として扱う）。
 
-**年末 re-pass**: 本 system は週次スケジュール上では他の多くの system より前 (mortalitySystem の直後) に走るが、後続の death-causing system（plotSystem 等）が year-end tick で house:leader を殺すと、その tick では succession が走り終えており House が leaderless のまま年末 integrity check（§6.35 ルール 17）に到達してしまう。通常は翌年 week 1 の succession で自己修復する一過性状態だが、leaderless detector がこれを違反として throw する。これを防ぐため、**`tick.ts` は year-end (week = WEEKS_PER_YEAR) の integrity check 直前に `runSuccessionSystem` を再実行する**。leaderless な House/Polity が無い通常時は no-op（RNG 消費なし）であり、これにより「active 通常 House は年末時点で必ず house:leader を持つ」invariant が構造的に保証される。再実行は通常の succession と同じく、後継者がいれば新家長を任命し、**後継者不在なら `extinctHouseAfterFailedSuccession` で House を断絶させる**（leaderless のまま年末に残さない）。
+**年末 re-pass**: 本 system は週次スケジュール上では他の多くの system より前 (mortalitySystem の直後) に走るが、後続の death-causing system（戦争・処刑等）が year-end tick で house:leader を殺すと、その tick では succession が走り終えており House が leaderless のまま年末 integrity check（§6.35 ルール 17）に到達してしまう。通常は翌年 week 1 の succession で自己修復する一過性状態だが、leaderless detector がこれを違反として throw する。これを防ぐため、**`tick.ts` は year-end (week = WEEKS_PER_YEAR) の integrity check 直前に `runSuccessionSystem` を再実行する**。leaderless な House/Polity が無い通常時は no-op（RNG 消費なし）であり、これにより「active 通常 House は年末時点で必ず house:leader を持つ」invariant が構造的に保証される。再実行は通常の succession と同じく、後継者がいれば新家長を任命し、**後継者不在なら `extinctHouseAfterFailedSuccession` で House を断絶させる**（leaderless のまま年末に残さない）。
 
 ### 6.12 HouseSplitSystem（SuccessionSystem から呼び出し）
 
@@ -924,7 +924,7 @@ newRawPower = houseShareBase
 
 ### 6.24 PersonGrowthSystem（48週ごと = 毎年）
 
-`OfficeCompensationSystem` の直後・`AmbitionSystem` の前に実行。48 週ごと（ScheduledSystem で制御）。
+`OfficeCompensationSystem` の直後に実行。48 週ごと（ScheduledSystem で制御）。
 
 毎年 1 月に全 alive Person の 6 基礎能力それぞれについて、**成長判定** と **衰退判定** を行う。
 
@@ -969,7 +969,7 @@ importance は §6.66 の award 経路と同じ notable=`normal` / 一般=`minor
 | Polity military (general) 在任 | command, learning |
 | House military (marshal) 在任 | command, valor |
 | 戦争 active 期間中（48 週以内に lastWarWeek）の在国 | valor, command |
-| PlotSystem の active リーダー | insight |
+| 進行中の陰謀 Project（undermine/revoke/replace）の supervisor | insight |
 
 ### 6.25 LifeStage システム群（48週ごと = 毎年）
 
@@ -1016,25 +1016,56 @@ old_age の人物は新規登用・指揮官選定で優先度が下がる（引
 - **Appointment / delegate（固定減算）**: `computePolityScoreV017` / `computeHouseScoreV017` の候補スコアに `- oldAgeAppointmentScorePenalty`（5）。これらのスコアは `compatibilityPenalty` 等で負値になりうるため、乗算でなく**固定減算**で単調に不利化する。delegate は office 優先順（advisor→administrator→leader）で選ばれスコアを持たないため、old_age 反映は上流の appointment スコアで実現する（delegate 専用の減算 path は無い）。
 - **commander / captain general（乗算）**: `warManeuverSelectors` の選定スコア（`warCommand` role score ベース＝常に非負）に `* oldAgeCommandScoreMultiplier`（0.8）。候補からの**除外はしない**（指揮官不在を避ける）。選定（候補ソート順）にのみ適用し、battle 内部の `fieldCommandScore`（戦闘効果）には適用しない。
 
-### 6.26 AmbitionSystem（4週ごと）
+### 6.26 陰謀システム（Project 化 — v0.51 陰謀リファイン）
 
-人物・家ごとに野心スコアを計算し、将来の陰謀・反乱の素地を作る。
+**旧 AmbitionSystem / PlotSystem（専用 Plot エンティティ・固定期間待機・一括解決）は廃止し、陰謀を
+すべて既存の Project パイプライン（Goal → Aim → Task → Project → projectOutcomeSystem）に乗せた。**
+担当者 = Project supervisor で、担当者の能力（insight）が Task の進捗速度・成否を決める（他アクションと同じ）。
 
-### 6.27 PlotSystem（4週ごと）
+#### 起案トリガー — covert Goal `pursue_covert_agenda`
 
-`plotTendency` が `plotThreshold` 以上の家当主が陰謀を起こす。plot type は prepare_rebellion / seize_office / replace_house_leader。成功率は `basePlotSuccess` を基点に、首謀者の governance / warCommand role score、plot の power / secrecy、対象の防御力・risk から算出し 0.05〜0.95 にクランプする。
+旧 PlotSystem の「全家走査 + plotTendency >= plotThreshold」という goal 非依存トリガーを、専用の
+HouseGoalKind `pursue_covert_agenda` で再現する。`goalSelectors.scoreHouseGoalKind` でこの goal の
+スコア = `conspiracySelectors.computeConspiracyDrive`（旧 `plotTendency` 計算を移植: 当主 ambition×30 +
+低 houseLoyalty + 低 overlord loyalty − caution − adminPower）。owned polity の有無に依らず、野心高・
+低忠誠の不満家がこの goal を採る。閾値 `conspiracyDriveThreshold`（既定 75）未満 or cooldown 中は
+drive を 0 にして抑止する。primary polity / house leader 不在は drive 0（RNG 非消費・on-demand 計算）。
 
-**妥当な対象を持つ種別だけを候補化する（自国・空回り策謀の排除）**: 陰謀を起こせるのは primary polity（= 自家が所有する polity）を持つ家のみ（`calcAmbitionScores` が primary polity 不在で 0 を返すため）。各種別は「現実に作用する対象」が存在する場合だけ候補に入れ、候補が 1 つも無い家は何もしない（RNG も消費しない）。これにより、主権者が自国に叛乱を企てる・既に掌握した自国の役職を奪う・存在しない rival を狙う、といった不自然な空回りを構造的に排除する。
+`旧 rebellionTendency`（prepare_rebellion 用）は廃止した（民衆反乱は別系統の §6.29 ProvinceRevoltSystem
+が担う）。`computeConspiracyDrive` は `plotTendency` 側のみを移植している。
 
-- **prepare_rebellion** … 対象は自家 primary polity の**直接の宗主（immediate overlord）polity**（`getPolityImmediateOverlordPolityIds` の最小 id。chain を 1 段だけ上り、grand-suzerain ではなく直属の主を狙う）。直属の宗主が無い主権国は対象なし＝候補化されない。成功時の loyalty 失墜（affection −8 / respect −5・家メンバー一括）は**宗主 polity へ向ける**（旧実装は自国へ向けており、主権者が自国へ反感を蓄積していた）。
-- **seize_office** … 対象は宗主 polity の宮廷の空き役職（非 leader 優先）。自国（任命権を既に握る）ではなく、仕えている宗主の宮廷で席を奪う。overlord が無ければ候補化されない。
-- **replace_house_leader** … 対象は**自家の分家（cadetHouseIds）で生存当主を持つもの**（王朝統制）。旧実装は「同じ primary polity の別家」を狙ったが、1 polity = 1 owner のため決して一致せず空回りしていた。
+#### 3 つの陰謀 Project（すべて House owned・budget なし・単一 final stage）
 
-種別選択は候補集合の中から 1 float の重み付き抽選（rebellion = 0.25 + rebelBias / seize_office = 0.35 / replace_house_leader = 0.40）で行う。
+| 陰謀 | HouseAimKind | ProjectKind | target | outcome |
+|---|---|---|---|---|
+| 影響力毀損 | `undermine_rival_influence` | `undermine_influence` | 同 Polity の自家以外 rival（家/人物） | 負の InfluenceModifier を生成（§3.x InfluenceModifier）|
+| 任命権失効 | `revoke_rival_right` | `revoke_political_right` | ライバル保有の PoliticalRight | `removePoliticalRight` で国に返却（現職 OfficeAssignment は不変）|
+| 分家当主交代 | `intervene_cadet_succession` | `replace_house_leader` | 自家の分家（cadet House）| 分家当主を prestige 最上位の生存成人に交代（旧 plot ロジック移植）|
 
-**cooldown（連発防止）**: 策謀が解決した家は `House.lastPlotResolvedWeek` に解決週を記録し、`plotCooldownWeeks`（既定 52 週）経過するまで新規策謀を開始しない。これが無いと当主が解決のたび即座に次を打ち、一生策謀を打ち続ける（観察された Klaus ループの原因）。cooldown は当主個人でなく家に記録するため、cooldown 中に当主が死亡・交代しても残り期間は引き継がれる（「一族の策謀疲れ」として意図的）。
+- **target 候補化（空回り排除）**: `pickHouseAim` の covert 分岐で「妥当な target を持つ陰謀のみ」候補化する。
+  undermine = 同 Polity に自家以外の influence entry がある / revoke = 自家以外の holder が持つ active right が
+  ある（`findRevocableRightTarget`、person holder 優先）/ replace = 生存当主を持つ自家分家がある。
+  候補スコアに `conspiracyAimPriorityFactor`（既定 0.5）を掛けて多発を抑制する。
+- **重さ（スパム防止）**: 陰謀 Task は `projectTaskGenerationSystem` で effortRequired を
+  `conspiracyTaskEffortRequired`（既定 6・HEAVY 上限より重い）に、difficulty を陰謀専用値に上書きする。
+  成否は `ability + roll(0-100) vs difficulty*2 + margin` で判定（担当者能力が効く）。
+- **holder 種別による難度差（任命権失効）**: person holder right は `conspiracyRevokeRightBaseDifficulty`
+  （既定 60）、house holder right は `+ conspiracyRevokeHouseRightDifficultyBonus`（既定 +30 → 実効 90）。
+  **家保有の任命権は個人保有よりずっと取り消しにくい**（高 difficulty で成否確率に表現）。
+- **outcome handler の前提**: `project.status === 'completed'` を前提に副作用のみ適用（失敗・target 消滅時は no-op）。
+  revoke は削除前に holder がまだライバルか再検証する。
+- **insight 経験**: 進行中の陰謀 Project の supervisor は `hadRelevantExperience` で insight 経験ありと判定される
+  （旧 activePlots ループの置換）。
 
-**解決済み plot の扱い**: 期限到達で解決した plot は、PLOT_SUCCEEDED / PLOT_FAILED イベントを emit した上で `activePlots` から削除する。plot の全 reader（PlotSystem の active 判定、`hadRelevantExperience` の insight 経験）は `status === 'active'` で filter するため、解決済み record を残しても読まれず dead weight として累積するだけだった。これを防ぐため解決時に削除する。
+#### cooldown（連発防止）
+
+陰謀 Project が terminal（completed/failed）になると、owner 家に `House.lastConspiracyResolvedWeek` を記録し、
+`conspiracyCooldownWeeks`（既定 52 週）経過するまで `computeConspiracyDrive` が 0 を返す（covert goal/aim を
+抑止）。これが無いと完了直後に同じ家が即再立案する（旧 Klaus ループ）。cooldown は家に記録し、当主交代・死亡で
+引き継ぐ（「一族の策謀疲れ」）。
+
+> v1 では発覚・露見（secrecy）、現職者排除、共謀者、陰謀コスト（budget）は導入しない（将来拡張）。
+> InfluenceModifier は正の delta（恩賞・祭礼で一時的に influence を上げる）にも使える汎用機構。
 
 ### 6.28 TaxRevisionSystem（48週ごと）
 

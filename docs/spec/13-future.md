@@ -89,7 +89,7 @@ War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battl
 
 - 婚姻: 互いに Affection 正の組同士で形成しやすい (現状ランダム + 同 Polity ボーナスのみ)。
 - 派閥リクルート: leader と target の相互 Affection でコスト・成功率が変動 (一部実装済)。
-- Plot: 標的への Affection 強負で発動率上昇。
+- 陰謀（§6.26）: 標的への Affection 強負で `computeConspiracyDrive` / target 選定にバイアス（v0.51 で Project 化済。Affection 反映は将来）。
 - Office 辞退・離反: 大きな負の Affection を持つ組織からの任命を低確率で拒否。
 - 戦争意思決定: 隣接 Polity への Affection で戦争閾値が変動。
 

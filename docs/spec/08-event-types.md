@@ -27,10 +27,8 @@
 | HOUSE_FOUNDED | major | 無家人物による新 House の創設 |
 | CLAN_FOUNDED | major | 氏族の成立。entityRefs: clan, rootHouse, founder（任意） |
 | SUCCESSION_CRISIS | major | 継承危機 |
-| PLOT_STARTED | normal | 陰謀開始 |
-| PLOT_SUCCEEDED | major | 陰謀成功 |
-| PLOT_FAILED | normal | 陰謀失敗 |
-| PLOT_CANCELLED | minor | 陰謀中断（現状未発火。中断した陰謀は PLOT_FAILED で解決される） |
+| INFLUENCE_UNDERMINED | normal | 影響力毀損陰謀の完遂（InfluenceModifier 生成）。v0.51。旧 PLOT_* を置換 |
+| HOUSE_LEADER_REPLACED | major | 分家当主交代陰謀の完遂（旧 PLOT_SUCCEEDED/replace_house_leader 相当）。v0.51 |
 | POLITY_SPLIT | critical | Polity 分裂（旧 COUNTRY_SPLIT を rename） |
 | POLITY_LANDLESS | major | Polity が landless 化（terminal Province 0。polityOwnerConsistencySystem が Province 数 0 到達時に発火し、続けて inactive 化 + POLITY_EXTINCT を出す。§11） |
 | OMEN | normal | 兆し |
@@ -48,7 +46,7 @@
 | WAR_CAPTAIN_GENERAL_CHANGED | major/normal | 総大将の交代/喪失（WarManeuverSystem。messageKey `war.captain_general_changed`。新総大将が undefined（喪失）のとき major、交代は normal。初回任命は発火しない） |
 | REGIMENT_REFORMED | minor | destroyed Regiment が active に再編成された（補充・再編成 RegimentReinforcementSystem。messageKey `regiment.reformed`。params: `owner` / `province`）。**strength の通常補充は organization recovery と同じく silent（イベント無し）**——大量発生する補充をイベント化しない方針 |
 | POLITICAL_RIGHT_GRANTED | normal | v0.42: acquire_political_right project 完了で PoliticalRight が授与された |
-| POLITICAL_RIGHT_REVOKED | normal | v0.42: RightConsistencySystem の drift 回収（regime change 等）で right が失効した |
+| POLITICAL_RIGHT_REVOKED | normal | v0.42: RightConsistencySystem の drift 回収（regime change 等）で right が失効した。v0.51: 任命権失効陰謀（revoke_political_right Project）の完遂でも発火（revokeReason='revoked_by_conspiracy'）|
 | POLITICAL_RIGHT_TRANSFERRED | normal | v0.42: right の holder 付替（通常発火経路なし — 将来の PeaceSettlement / regime change 用） |
 | WAR_ENDED | major | 勝敗が明確でない終結（white_peace timeout / stale 安全終結 / cancelled orphan。messageKey `war.ended`） |
 | WAR_AVERTED | minor | 勝率 × 指導者性格ゲートで開戦を見送った（WarCreationSystem §6.44。escalated play を cancel。messageKey `war.averted`。params: `attacker` / `defender` / `winChance` / `threshold`（整数%）） |

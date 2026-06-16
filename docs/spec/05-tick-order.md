@@ -83,9 +83,9 @@ const WEEKS_PER_SEASON = 12
 | 14e | FactionLifecycleSystem | 48 | 解散判定・新規結成・入れ子形成 (年次のみ) |
 | 14f | FactionRecruitmentSystem | 12 | WI-2: 無役待機トラッカー (idleSinceWeek) を全走査で更新しつつ募集 |
 | 14g | PersonGrowthSystem | 48 | |
-| ~~15~~ | ~~AmbitionSystem~~ | — | tick system は廃止。野心スコア算出ヘルパー `calcAmbitionScores` (selector) のみ残存 |
+| ~~15~~ | ~~AmbitionSystem~~ | — | v0.51 廃止。陰謀傾向は `conspiracySelectors.computeConspiracyDrive` (selector) に移植 |
 | ~~16~~ | ~~PublicSpendingSystem~~ | — | 廃止（実装に存在しない） |
-| 19 | PlotSystem | 4 | |
+| ~~19~~ | ~~PlotSystem~~ | — | v0.51 廃止。陰謀は Project 化（§6.26。covert goal → 3 陰謀 Project）|
 | 19b | PersonGoalMaintenanceSystem | 48 | Person Goal 生成・fulfillment 管理 |
 | 19c | PersonAimMaintenanceSystem | 4 | Person Aim 生成・deadline/waiting 管理 |
 | 20 | GoalMaintenanceSystem | 4 | 生成・レビューは内部 48w ゲート。owner.kind === 'person' はスキップ |
@@ -113,6 +113,7 @@ const WEEKS_PER_SEASON = 12
 | 22d | cancelOrphanedWarsSystem | 1 | **consistency 系の後ろ**。participant 消滅 active War を cancelled 化（理由は下記） |
 | 22d2 | RegimentMaintenanceSystem | 1 | orphan 回収の後。Regiment の home 消失→disband / terminal 変化→owner 付け替え / owner 消滅→disband / stale war→demobilize（順序厳守。§6.49） |
 | 22d2b | RightConsistencySystem | 1 | v0.42。regimentMaintenance の owner 同期の**直後**。PoliticalRight の drift（owner 付替 / terminal 変化）を回収し POLITICAL_RIGHT_REVOKED を発行。年末 invariant のため weekly 必須（§6.65） |
+| 22d2c | InfluenceModifierConsistencySystem | 1 | v0.51。InfluenceModifier の期限切れ・target 消滅・polity inactive を回収。年末 integrity が liveness を検査するため weekly 必須（rightConsistency と同型・§6.26）|
 | 22d3 | RegimentReinforcementSystem | 4 | 補充・再編成。maintenance 直後。active strength の silent 月次補充（平時/戦時/動員中係数・home POP・treasury cap）+ destroyed reform（§6.50） |
 | 23 | AttitudeDecaySystem | 4 | |
 | 24 | GovernanceSystem | 48 | |

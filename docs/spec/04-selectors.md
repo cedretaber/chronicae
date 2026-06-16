@@ -465,7 +465,7 @@ intrigueScore     = insight*0.70 + charisma*0.20 + learning*0.10
 warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
 ```
 
-* 既存システム（successionSelectors / personAbilityEffects / militarySelectors / officeSelectors / publicSpendingSystem / plotSystem 等）は `getRoleScore(state, p.id, role) / 10` で正規化して旧 admin/martial（0..10）相当のスケールに揃える
+* 既存システム（successionSelectors / personAbilityEffects / militarySelectors / officeSelectors 等）は `getRoleScore(state, p.id, role) / 10` で正規化して旧 admin/martial（0..10）相当のスケールに揃える
 * 通常範囲は 0..10、限界突破帯では最大 12
 
 ### 4.8 Task / Goal セレクター
