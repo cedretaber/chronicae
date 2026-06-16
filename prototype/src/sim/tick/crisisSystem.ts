@@ -11,6 +11,7 @@ import type {
   PolityId,
   PersonId,
   ProjectId,
+  CrisisId,
   EventId,
   WarId,
 } from '../types/ids'
@@ -140,6 +141,27 @@ function createHandleCrisisProjectMut(
   ws.projects[projectId] = project
   addProjectToIndexMut(ws, project)
   setCrisisResponseProjectMut(ws, crisis.id, projectId)
+}
+
+// Crisis を purge / 失効する際、まだ active な対処 Project が残っていれば cancel して orphan 化を防ぐ
+//   (放置すると Crisis 消滅後も Project が ~4 週 (projectMaintenance interval) 走り、ghost 完了で
+//   失効した Crisis を「解消成功」扱いしうる)。budget.remaining は projectOutcomeSystem が cancel 時に
+//   owner へ返金する。EC1 の owner mismatch cancel と同型。crisisId から fresh に引き直す
+//   (EC1 で responseProjectId が同 tick 中に張り替わりうるため)。
+function cancelActiveResponseProjectMut(
+  ws: WorldState,
+  crisisId: CrisisId,
+  reason: 'deadline_expired' | 'owner_inactive',
+): void {
+  const fresh = ws.crises[crisisId]
+  const projectId = fresh?.responseProjectId
+  if (!projectId) return
+  const p = ws.projects[projectId]
+  if (!p || p.status !== 'active') return
+  // 既存規約に合わせて status を決める: deadline 到達 = 対処失敗 (failed, 評判ペナルティ対象)、
+  //   owner 消滅 = 外因 (cancelled, 帰責なし)。projectMaintenanceSystem の deadline/owner 処理と同型。
+  const status = reason === 'deadline_expired' ? 'failed' : 'cancelled'
+  ws.projects[projectId] = { ...p, status, terminalReason: reason }
 }
 
 // v0.48 Phase B: 戦災 (war_damage) Crisis を ctx ベースで spawn する。PeaceSettlementSystem が
@@ -482,7 +504,7 @@ function runWeeklyProcessing(
   let touched = false
 
   for (const crisisIdStr of Object.keys(ws.crises).sort()) {
-    const crisis = ws.crises[crisisIdStr as keyof typeof ws.crises]
+    const crisis = ws.crises[crisisIdStr as CrisisId]
     if (!crisis || crisis.status !== 'active') continue
     touched = true
 
@@ -499,6 +521,7 @@ function runWeeklyProcessing(
     const ownerPolityId = getHoldingTerminalPolityId(ws, holdingId)
     const ownerPolity = ownerPolityId ? ws.polities[ownerPolityId] : undefined
     if (!ownerPolityId || !ownerPolity || !ownerPolity.active) {
+      cancelActiveResponseProjectMut(ws, crisis.id, 'owner_inactive')
       removeCrisisMut(ws, crisis.id)
       continue
     }
@@ -550,6 +573,10 @@ function runWeeklyProcessing(
     // §4.3 期限処理: deadline 未解決 → expired。
     if (absoluteWeek >= crisis.deadlineWeek) {
       applyExpiredAttitude(ws, config, crisis, ownerPolityId, popClass)
+      // まだ active な対処 Project を cancel (orphan 防止)。非 unrest は即 purge、unrest は
+      //   unrestCrisisSystem が purge するが、いずれも対処 Project はこの時点で終了させてよい
+      //   (Crisis 有効期間 = Project 実行 deadline で、期限到達 = 対処失敗のため)。
+      cancelActiveResponseProjectMut(ws, crisis.id, 'deadline_expired')
       if (crisis.kind === 'unrest') {
         // §5.3 案 A: unrest は purge せず expired を mark するだけ。武装蜂起 (commonwealth+play
         //   生成→escalation) は ctx ベースの unrestCrisisSystem が同 tick で適用する (Decision 1)。
