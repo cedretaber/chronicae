@@ -20,6 +20,7 @@ import type {
   PopGroupId,
   ProvinceId,
   HoldingOfficeAssignmentId,
+  OfficeAssignmentId,
 } from '../types/ids'
 
 const PROVINCE = 'pr-1' as ProvinceId
@@ -39,6 +40,39 @@ const FORCE_FAMINE = {
   crisisSeverityPressureBonus: 0,
 }
 
+// LEADER を POLITY の leader office に就ける (getPolityLeader が返すように)。
+function withPolityLeaderOffice(s: WorldState): WorldState {
+  const officeId = 'oa-leader' as OfficeAssignmentId
+  const orgKey = 'polity:' + POLITY
+  return {
+    ...s,
+    officeAssignments: {
+      ...s.officeAssignments,
+      [officeId]: {
+        id: officeId,
+        organization: { kind: 'polity', id: POLITY },
+        role: 'leader',
+        holderPersonId: LEADER,
+        active: true,
+        startYear: 1,
+        slotIndex: 0,
+        unpaidCount: 0,
+      },
+    },
+    officeIndex: {
+      byOrganization: {
+        ...s.officeIndex.byOrganization,
+        [orgKey]: [...(s.officeIndex.byOrganization[orgKey] ?? []), officeId],
+      },
+      byHolderPerson: {
+        ...s.officeIndex.byHolderPerson,
+        [LEADER as string]: [...(s.officeIndex.byHolderPerson[LEADER as string] ?? []), officeId],
+      },
+    },
+    nextOfficeAssignmentId: s.nextOfficeAssignmentId + 1,
+  }
+}
+
 function buildWorld(): WorldState {
   let s = makeEmptyV016State()
   s = withProvince(s, PROVINCE)
@@ -46,6 +80,7 @@ function buildWorld(): WorldState {
   s = withHouse(s, HOUSE, { seatProvinceId: PROVINCE })
   s = withPerson(s, LEADER, { houseId: HOUSE })
   s = bindProvinceToHouseViaPolity(s, PROVINCE, POLITY, HOUSE)
+  s = withPolityLeaderOffice(s)
   // peasants/agriculture POP を hl-0 に
   s = {
     ...s,
@@ -78,7 +113,7 @@ function makeCtx(state: WorldState) {
 }
 
 describe('runCrisisSystem spawn (A5)', () => {
-  it('該当 holding に famine Crisis を 1 つ生成する (代官なし → Project なし=放置)', () => {
+  it('該当 holding に famine Crisis を生成し、代官不在でも owner polity の指導者が担当者になる', () => {
     const ctx = makeCtx(buildWorld())
     const next = runCrisisSystem(ctx)
     const crises = Object.values(next.state.crises)
@@ -87,7 +122,30 @@ describe('runCrisisSystem spawn (A5)', () => {
     expect(crises[0]!.holdingId).toBe(HOLDING)
     expect(crises[0]!.status).toBe('active')
     expect(next.state.crisisIndex.byHolding[HOLDING]).toHaveLength(1)
-    // 代官不在なので対処 Project は生成されない
+    // 代官不在でも Pressure 同様、owner polity の指導者を creator に対処 Project を生成する (§3.2)
+    const handleProjects = Object.values(next.state.projects).filter(
+      (p) => p && p.kind === 'handle_crisis',
+    )
+    expect(handleProjects.length).toBe(1)
+    expect(handleProjects[0]!.creatorPersonId).toBe(LEADER)
+    expect(crises[0]!.responseProjectId).toBe(handleProjects[0]!.id)
+  })
+
+  it('代官も指導者もいなければ対処 Project は生成されない (真の放置)', () => {
+    let s = buildWorld()
+    // leader office を無効化して指導者を消す
+    s = {
+      ...s,
+      officeAssignments: {
+        ...s.officeAssignments,
+        ['oa-leader' as OfficeAssignmentId]: {
+          ...s.officeAssignments['oa-leader' as OfficeAssignmentId]!,
+          active: false,
+        },
+      },
+    }
+    const next = runCrisisSystem(makeCtx(s))
+    expect(Object.values(next.state.crises).length).toBe(1)
     const handleProjects = Object.values(next.state.projects).filter(
       (p) => p && p.kind === 'handle_crisis',
     )

@@ -36,6 +36,8 @@ import { adjustHoldingPopAttitudeMut } from '../mutations/attitudeMutations'
 import { getHoldingTerminalPolityId, isPlaceholderPerson } from '../selectors/landContractSelectors'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
 import { getProvincePopulationPressure } from '../selectors/popSelectors'
+import { getPolityLeader } from '../selectors/officeSelectors'
+import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
 import type { SimulationConfig } from '../config/defaultConfig'
 
@@ -65,13 +67,45 @@ function holdingEligibleForKind(ws: WorldState, holdingId: HoldingId, kind: Cris
   return false
 }
 
-// 対処 Project (handle_crisis) を生成する。owner = live 解決した polity、creator/supervisor = 代官。
+// 対処 Project の creator / supervisor を決める (§3.2)。代官 (bailiff) がいれば現地責任者として
+//   creator=supervisor に据え、「有能な代官が災害を凌ぐ」現地ドラマを保つ。代官不在時は Pressure と
+//   同様に owner polity の指導者を creator に立て、selectProjectSupervisor で担当者を探す。指導者すら
+//   いなければ undefined (= 真に放置)。bailiff を selectProjectSupervisor に通さないのは、代官は polity
+//   office ではなく holding office 保有者で officeBonus が付かず別人に displace されてしまうため。
+function resolveCrisisHandlers(
+  ws: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  ownerPolityId: PolityId,
+): { creatorId: PersonId; supervisorId: PersonId } | undefined {
+  const bailiff = getActiveBailiff(ws, holdingId)
+  if (bailiff) return { creatorId: bailiff, supervisorId: bailiff }
+
+  const leaderId = getPolityLeader(ws, ownerPolityId)
+  if (!leaderId) return undefined
+  const leader = ws.persons[leaderId]
+  if (!leader || !leader.alive || leader.kind === 'placeholder') return undefined
+
+  const supervisorId =
+    selectProjectSupervisor(
+      ws,
+      config,
+      { kind: 'polity', id: ownerPolityId },
+      'handle_crisis',
+      leaderId,
+    ) ?? leaderId
+  return { creatorId: leaderId, supervisorId }
+}
+
+// 対処 Project (handle_crisis) を生成する。owner = live 解決した polity。creator/supervisor は
+//   resolveCrisisHandlers が決める (代官 or 指導者+探索担当者)。
 function createHandleCrisisProjectMut(
   ws: WorldState,
   config: SimulationConfig,
   crisis: Crisis,
   ownerPolityId: PolityId,
-  bailiffId: PersonId,
+  creatorId: PersonId,
+  supervisorId: PersonId,
   absoluteWeek: number,
 ): void {
   const projectId: ProjectId = createProjectId(ws.nextProjectId)
@@ -90,8 +124,8 @@ function createHandleCrisisProjectMut(
     kind: 'handle_crisis',
     crisisId: crisis.id,
     holdingId: crisis.holdingId,
-    creatorPersonId: bailiffId,
-    supervisorPersonId: bailiffId,
+    creatorPersonId: creatorId,
+    supervisorPersonId: supervisorId,
     status: 'active',
     progress: 0,
     // §3.4: targetProgress = 初期 severity。progress が積まれて severity が 0 になると resolved。
@@ -169,9 +203,17 @@ export function spawnWarDamageCrisis(
     reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, undefined)
   }
 
-  const bailiff = getActiveBailiff(ws, holdingId)
-  if (bailiff) {
-    createHandleCrisisProjectMut(ws, config, crisis, ownerPolityId, bailiff, absoluteWeek)
+  const handlers = resolveCrisisHandlers(ws, config, holdingId, ownerPolityId)
+  if (handlers) {
+    createHandleCrisisProjectMut(
+      ws,
+      config,
+      crisis,
+      ownerPolityId,
+      handlers.creatorId,
+      handlers.supervisorId,
+      absoluteWeek,
+    )
   }
 
   const { event, ctx: ec } = createSimEvent(
@@ -243,9 +285,17 @@ export function spawnUnrestCrisis(
     demand,
   })
 
-  const bailiff = getActiveBailiff(ws, holdingId)
-  if (bailiff) {
-    createHandleCrisisProjectMut(ws, config, crisis, ownerPolityId, bailiff, absoluteWeek)
+  const handlers = resolveCrisisHandlers(ws, config, holdingId, ownerPolityId)
+  if (handlers) {
+    createHandleCrisisProjectMut(
+      ws,
+      config,
+      crisis,
+      ownerPolityId,
+      handlers.creatorId,
+      handlers.supervisorId,
+      absoluteWeek,
+    )
   }
 
   const { event, ctx: ec } = createSimEvent(
@@ -311,10 +361,19 @@ function spawnCrisisForHolding(
     reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, popClass)
   }
 
-  // 代官がいれば対処 Project を生成 (= 凌ぐ)。いなければ Project なし = 放置 (§3.2/§4.4)。
-  const bailiff = getActiveBailiff(ws, holdingId)
-  if (bailiff) {
-    createHandleCrisisProjectMut(ws, config, crisis, ownerPolityId, bailiff, absoluteWeek)
+  // 対処 Project を生成 (= 凌ぐ)。代官がいれば代官が、いなければ Pressure 同様 owner polity が担当者を
+  //   探す。指導者すら不在なら Project なし = 真の放置 (§3.2/§4.4)。
+  const handlers = resolveCrisisHandlers(ws, config, holdingId, ownerPolityId)
+  if (handlers) {
+    createHandleCrisisProjectMut(
+      ws,
+      config,
+      crisis,
+      ownerPolityId,
+      handlers.creatorId,
+      handlers.supervisorId,
+      absoluteWeek,
+    )
   }
 
   // per-holding CRISIS_CREATED (minor)。chronicle へは登録しない (fan-out 氾濫回避, §4.5)。
@@ -465,11 +524,20 @@ function runWeeklyProcessing(
       }
       setCrisisResponseProjectMut(ws, crisis.id, undefined)
       effectiveProject = undefined
-      // 新 owner に代官がいれば対処 Project を張り直す (次 tick から severity sync が拾う)。
-      const newBailiff = getActiveBailiff(ws, holdingId)
+      // 新 owner で担当者を立て直して対処 Project を張り直す (次 tick から severity sync が拾う)。
+      //   代官 or 指導者+探索担当者。誰もいなければ放置 (responseProject クリアのみ)。
       const fresh = ws.crises[crisis.id]
-      if (newBailiff && fresh) {
-        createHandleCrisisProjectMut(ws, config, fresh, ownerPolityId, newBailiff, absoluteWeek)
+      const newHandlers = resolveCrisisHandlers(ws, config, holdingId, ownerPolityId)
+      if (newHandlers && fresh) {
+        createHandleCrisisProjectMut(
+          ws,
+          config,
+          fresh,
+          ownerPolityId,
+          newHandlers.creatorId,
+          newHandlers.supervisorId,
+          absoluteWeek,
+        )
       }
     }
 
