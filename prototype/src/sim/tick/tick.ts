@@ -36,6 +36,7 @@ import { runWarManeuverSystem } from './warManeuverSystem'
 import { runRegimentRecoverySystem } from './regimentRecoverySystem'
 import { runRegimentMaintenanceSystem } from './regimentMaintenanceSystem'
 import { runRightConsistencySystem } from './rightConsistencySystem'
+import { runInfluenceModifierConsistencySystem } from './influenceModifierConsistencySystem'
 import { runRegimentReinforcementSystem } from './regimentReinforcementSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
@@ -488,6 +489,16 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runRightConsistencySystem,
+  },
+  {
+    // v0.51 陰謀リファイン: InfluenceModifier の期限切れ・target/polity 消滅を回収する。
+    //   weekly (rightConsistency と同型)。年末 integrity tick (absoluteWeek ≡ 47 mod 48) は
+    //   interval 4 系の実行週に当たらないため、target/polity liveness を年末 integrity が
+    //   検査するには weekly で毎 tick 掃除する必要がある (§3.4 と同じ理由)。
+    name: 'influenceModifierConsistencySystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runInfluenceModifierConsistencySystem,
   },
   {
     // v0.36 補充・再編成: maintenance 直後。active strength の月次補充 + destroyed reform。

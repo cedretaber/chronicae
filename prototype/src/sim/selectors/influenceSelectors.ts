@@ -243,6 +243,28 @@ export function getPolityInfluenceBreakdown(
     if (rep !== undefined && rep < 0) entry.byDomain.reputation = 0
   }
 
+  // --- standing domain (v0.51 陰謀リファイン): InfluenceModifier の active な delta 合計 ---
+  // 影響力毀損陰謀 (負) と将来の恩賞 (正) を breakdown に加味する。決定論のため id 昇順で畳む。
+  for (const id of [...(state.influenceModifierIndex.byPolity[polityId] ?? [])].sort()) {
+    const mod = state.influenceModifiers[id]
+    if (!mod) continue
+    // 期限切れは寄与 0 (consistency system が回収するまでの transient を計算で無視する)
+    if (mod.expiryWeek !== undefined && state.absoluteWeek >= mod.expiryWeek) continue
+    const holder: PolityInfluenceHolderRef | undefined =
+      mod.target.kind === 'house'
+        ? state.houses[mod.target.id]?.active
+          ? { kind: 'house', id: mod.target.id }
+          : undefined
+        : livingPersonEntry(mod.target.id)
+    if (!holder) continue
+    // 空 entry ガード: 負の delta を「まだ entry に居ない (= influence 0) holder」へ付けると
+    // 幽霊 entry が生まれ hasHouseInfluenceEntry() / commonwealth surplus 判定を誤反転させる。
+    // 0 はそもそも下げられないので、既存 entry が無い holder への負 delta はスキップする。
+    // (正 delta=恩賞は新規 entry を作ってよい — favor 用途。)
+    if (mod.delta < 0 && !entries.has(polityInfluenceHolderKey(holder))) continue
+    add(holder, 'standing', mod.delta)
+  }
+
   // --- base / landed_power / wealth / prestige: House entry に一律 (§5.4) ---
   // 影響力個人中心化 (§6.64a-(1)): wealth / base / prestige の soft-power factor は 0 にしたため、
   // この経路で House に付くのは landed_power (構造項・対象 Polity 内の province 数ベース) のみ。
@@ -277,8 +299,13 @@ export function getPolityInfluenceBreakdown(
   const built: PolityInfluenceEntry[] = []
   let totalScore = 0
   for (const entry of entries.values()) {
-    let total = 0
-    for (const v of Object.values(entry.byDomain)) total += v ?? 0
+    let raw = 0
+    for (const v of Object.values(entry.byDomain)) raw += v ?? 0
+    // v0.51 陰謀リファイン: standing 負で total が負になりうる。total / percent / totalScore は
+    // Math.max(0, raw) で 0 床にする (「反影響力」を作らず、毀損は最大でも 0 まで)。
+    // byDomain.standing 自体は負のまま保持し breakdown UI で「-N (陰謀)」と表示できる。
+    // modifier 0 件の世界では既存全ドメインが非負ゆえ raw >= 0 となり恒等変換 (リプレイ不変)。
+    const total = Math.max(0, raw)
     built.push({ holder: entry.holder, byDomain: entry.byDomain, total, percent: 0 })
     totalScore += total
   }

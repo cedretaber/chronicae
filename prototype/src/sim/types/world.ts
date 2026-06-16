@@ -31,6 +31,7 @@ import type {
   ChronicleEntryId,
   PoliticalRightId,
   PersonReputationId,
+  InfluenceModifierId,
 } from './ids'
 import type { Province } from './province'
 import type { Polity } from './polity'
@@ -61,6 +62,7 @@ import type { Pressure, PressureIndex } from './pressure'
 import type { ChronicleEntry, ChronicleIndex } from './chronicle'
 import type { PoliticalRight, PoliticalRightIndex } from './politicalRight'
 import type { PersonReputation, PersonReputationIndex } from './personReputation'
+import type { InfluenceModifier, InfluenceModifierIndex } from './influenceModifier'
 import type { StateRegion } from './stateRegion'
 import type { Goal, Aim, DecisionReason, GoalIndex, AimIndex } from './goal'
 import type {
@@ -144,6 +146,10 @@ export type WorldState = {
   personReputations: Record<PersonReputationId, PersonReputation>
   personReputationIndex: PersonReputationIndex
   nextPersonReputationId: number
+  // v0.51 InfluenceModifier (陰謀リファイン): 影響力の符号付き・期限付き修正項
+  influenceModifiers: Record<InfluenceModifierId, InfluenceModifier>
+  influenceModifierIndex: InfluenceModifierIndex
+  nextInfluenceModifierId: number
   // v0.23 Task/ActivityLog
   tasks: Record<TaskId, Task>
   taskIndex: TaskIndex

@@ -686,6 +686,10 @@ export function generateWorld(
     personReputations: {},
     personReputationIndex: { byPerson: {}, byOrganization: {} },
     nextPersonReputationId: 0,
+    // v0.51 InfluenceModifier (陰謀リファイン — worldgen では生成しない)
+    influenceModifiers: {},
+    influenceModifierIndex: { byPolity: {}, byTarget: {} },
+    nextInfluenceModifierId: 0,
     officeAssignments: {},
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
     nextHouseShareId: 0,
@@ -1758,6 +1762,10 @@ export function generateWorld(
     personReputations: {},
     personReputationIndex: { byPerson: {}, byOrganization: {} },
     nextPersonReputationId: 0,
+    // v0.51 InfluenceModifier (陰謀リファイン — worldgen では生成しない)
+    influenceModifiers: {},
+    influenceModifierIndex: { byPolity: {}, byTarget: {} },
+    nextInfluenceModifierId: 0,
     // v0.22 Goal/Aim system
     goals: {},
     aims: {},

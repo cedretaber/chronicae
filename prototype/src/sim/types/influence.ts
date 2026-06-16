@@ -18,6 +18,9 @@ export type PolityInfluenceDomain =
   // 影響力個人中心化 Phase 1a: 成果項 (polity-tag PersonReputation の現在値合計 × factor)。
   // 構造項 (役職/任命権/土地) と並ぶ第二の影響力供給源。person キーで個人帰属。
   | 'reputation'
+  // v0.51 陰謀リファイン: InfluenceModifier の active な delta 合計 (符号付き)。
+  // 影響力毀損陰謀 (負) と将来の恩賞 (正) の双方をカバーする中立な修正項ドメイン。
+  | 'standing'
 
 export type PolityInfluenceHolderRef =
   | { kind: 'house'; id: HouseId }

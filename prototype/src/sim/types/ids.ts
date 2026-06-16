@@ -193,3 +193,11 @@ export type PersonReputationId = Branded<string, 'PersonReputationId'>
 export function createPersonReputationId(n: number): PersonReputationId {
   return ('rep-' + n) as PersonReputationId
 }
+
+// v0.51 InfluenceModifier (陰謀リファイン): 影響力の符号付き・期限付き修正項。
+// prefix は `im-` (PoliticalRight の `prg-` 等と衝突しない単調カウンタ慣習)。
+export type InfluenceModifierId = Branded<string, 'InfluenceModifierId'>
+
+export function createInfluenceModifierId(n: number): InfluenceModifierId {
+  return ('im-' + n) as InfluenceModifierId
+}

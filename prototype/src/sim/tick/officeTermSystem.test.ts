@@ -48,6 +48,9 @@ function makeBaseState(): WorldState {
     personReputations: {},
     personReputationIndex: { byPerson: {}, byOrganization: {} },
     nextPersonReputationId: 0,
+    influenceModifiers: {},
+    influenceModifierIndex: { byPolity: {}, byTarget: {} },
+    nextInfluenceModifierId: 0,
     officeAssignments: {},
     houseShareIndex: { byHouse: {}, byHolderPerson: {} },
     officeIndex: { byOrganization: {}, byHolderPerson: {} },
@@ -647,6 +650,9 @@ describe('expireOfficeTermAssignment', () => {
       personReputations: {},
       personReputationIndex: { byPerson: {}, byOrganization: {} },
       nextPersonReputationId: 0,
+      influenceModifiers: {},
+      influenceModifierIndex: { byPolity: {}, byTarget: {} },
+      nextInfluenceModifierId: 0,
       officeAssignments: {
         [officeId]: {
           id: officeId,

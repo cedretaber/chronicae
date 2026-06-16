@@ -115,6 +115,9 @@ function makeOfficeState(): {
     personReputations: {},
     personReputationIndex: { byPerson: {}, byOrganization: {} },
     nextPersonReputationId: 0,
+    influenceModifiers: {},
+    influenceModifierIndex: { byPolity: {}, byTarget: {} },
+    nextInfluenceModifierId: 0,
     officeAssignments: {
       [officeId]: {
         id: officeId,

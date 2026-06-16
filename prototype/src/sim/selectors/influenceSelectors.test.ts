@@ -19,6 +19,7 @@ import { defaultConfig } from '../config/defaultConfig'
 import { createOfficeAssignment } from '../mutations/officeMutations'
 import { createPoliticalRight } from '../mutations/politicalRightMutations'
 import { addPersonReputationMut } from '../mutations/personReputationMutations'
+import { addInfluenceModifier } from '../mutations/influenceModifierMutations'
 import {
   getPolityInfluenceBreakdown,
   getActorInfluenceInPolity,
@@ -575,5 +576,91 @@ describe('getGroupedPolityInfluence (家グループ化 UI read-model)', () => {
     expect(lonerGroup).toBeDefined()
     expect(lonerGroup!.segments.length).toBe(1)
     expect(lonerGroup!.segments[0]!.holder).toEqual({ kind: 'person', id: loner })
+  })
+})
+
+describe('standing domain (InfluenceModifier — v0.51 陰謀リファイン)', () => {
+  it('negative delta on an existing entry lowers total and records standing', () => {
+    const base = makeBaseState()
+    const before = entryOf(base, `house:${ownerHouseId}`)!
+    const res = addInfluenceModifier(base, {
+      polityId,
+      target: { kind: 'house', id: ownerHouseId },
+      delta: -10,
+      causeKind: 'conspiracy_undermine',
+      grantedWeek: 0,
+    })
+    if (!res.ok) throw new Error('add failed')
+    const after = entryOf(res.value.state, `house:${ownerHouseId}`)!
+    expect(after.byDomain.standing).toBe(-10)
+    expect(after.total).toBeCloseTo(Math.max(0, before.total - 10))
+  })
+
+  it('negative delta on a holder with NO existing entry is skipped (no ghost entry)', () => {
+    const base = makeBaseState()
+    // landlessHouse has no land/office/right → not in breakdown母集合
+    expect(entryOf(base, `house:${landlessHouseId}`)).toBeUndefined()
+    const res = addInfluenceModifier(base, {
+      polityId,
+      target: { kind: 'house', id: landlessHouseId },
+      delta: -10,
+      causeKind: 'conspiracy_undermine',
+      grantedWeek: 0,
+    })
+    if (!res.ok) throw new Error('add failed')
+    expect(entryOf(res.value.state, `house:${landlessHouseId}`)).toBeUndefined()
+  })
+
+  it('positive delta (favor) creates a new entry even for a previously-absent holder', () => {
+    const base = makeBaseState()
+    const res = addInfluenceModifier(base, {
+      polityId,
+      target: { kind: 'house', id: landlessHouseId },
+      delta: 25,
+      causeKind: 'favor',
+      grantedWeek: 0,
+    })
+    if (!res.ok) throw new Error('add failed')
+    const entry = entryOf(res.value.state, `house:${landlessHouseId}`)
+    expect(entry).toBeDefined()
+    expect(entry!.byDomain.standing).toBe(25)
+    expect(entry!.total).toBe(25)
+  })
+
+  it('expired modifier contributes nothing', () => {
+    const base = { ...makeBaseState(), absoluteWeek: 200 }
+    const res = addInfluenceModifier(base, {
+      polityId,
+      target: { kind: 'house', id: ownerHouseId },
+      delta: -10,
+      causeKind: 'conspiracy_undermine',
+      grantedWeek: 0,
+      expiryWeek: 100, // already past at absoluteWeek 200
+    })
+    if (!res.ok) throw new Error('add failed')
+    const before = entryOf(base, `house:${ownerHouseId}`)!
+    const after = entryOf(res.value.state, `house:${ownerHouseId}`)!
+    expect(after.byDomain.standing).toBeUndefined()
+    expect(after.total).toBeCloseTo(before.total)
+  })
+
+  it('floors total at 0 when standing exceeds positive influence (no anti-influence)', () => {
+    const base = makeBaseState()
+    const before = entryOf(base, `house:${ownerHouseId}`)!
+    const res = addInfluenceModifier(base, {
+      polityId,
+      target: { kind: 'house', id: ownerHouseId },
+      delta: -(before.total + 9999),
+      causeKind: 'conspiracy_undermine',
+      grantedWeek: 0,
+    })
+    if (!res.ok) throw new Error('add failed')
+    const breakdown = getPolityInfluenceBreakdown(res.value.state, defaultConfig, polityId)
+    const after = breakdown.entries.find(
+      (e) => polityInfluenceHolderKey(e.holder) === `house:${ownerHouseId}`,
+    )!
+    expect(after.total).toBe(0)
+    // totalScore は他 entry 由来のみで負にならない
+    expect(breakdown.totalScore).toBeGreaterThanOrEqual(0)
   })
 })
