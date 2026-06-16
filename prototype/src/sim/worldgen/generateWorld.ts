@@ -1491,10 +1491,12 @@ export function generateWorld(
       // v0.33 §10.5: capacity を selector と同じ pure helper で計算（base + improvement-derived）。
       // 配置済み improvement（この前段の loop で確定）と Province の terrain/features を引く。
       const seedImpIds = holdingImprovementIndexByHolding[holding.id as string] ?? []
-      const seedImprovements: { kind: HoldingImprovementKind; level: number }[] = []
+      const seedImprovements: { kind: HoldingImprovementKind; level: number; condition: number }[] =
+        []
       for (const impId of seedImpIds) {
         const imp = holdingImprovements[impId]
-        if (imp) seedImprovements.push({ kind: imp.kind, level: imp.level })
+        if (imp)
+          seedImprovements.push({ kind: imp.kind, level: imp.level, condition: imp.condition })
       }
       const agriCap = computeHoldingOccupationCapacity(
         holding.kind,

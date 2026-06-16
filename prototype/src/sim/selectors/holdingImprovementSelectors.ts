@@ -8,6 +8,18 @@ import type { PopOccupation } from '../types/popGroup'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { clamp } from '../utils/math'
 
+// v0.48.1 §3: condition による生産 effectiveness。閾値以上は full (1.0)、未満は線形低下 (下限 minFloor)。
+// bimodal: 健全はフラット稼働 / 機能不全 (閾値割れ) で初めて出力が崖状に落ちる。
+export function conditionEffectiveness(
+  condition: number,
+  threshold: number,
+  minFloor: number,
+): number {
+  if (condition >= threshold) return 1
+  if (threshold <= 0) return 1
+  return Math.max(minFloor, condition / threshold)
+}
+
 export function getHoldingDevelopment(
   state: WorldState,
   config: SimulationConfig,
@@ -22,7 +34,12 @@ export function getHoldingDevelopment(
     if (!imp) continue
     const score = config.holdingImprovementDevelopmentScorePerLevel[imp.kind]
     if (score !== undefined) {
-      development += imp.level * score
+      const eff = conditionEffectiveness(
+        imp.condition,
+        config.facilityDisrepairThreshold,
+        config.facilityDisrepairMinEffectiveness,
+      )
+      development += imp.level * score * eff
     }
   }
   return development
@@ -60,7 +77,9 @@ export function computeHoldingOccupationCapacity(
   landQuality: number,
   terrain: ProvinceTerrain,
   features: readonly ProvinceFeature[],
-  improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number }>,
+  // v0.48.1 §3: condition を必須にし、capacity を組み立てる全 builder に注入を強制する
+  // (optional だと popSelectors.ts の渡し忘れが effectiveness=未注入で静かに死ぬ)。
+  improvements: ReadonlyArray<{ kind: HoldingImprovementKind; level: number; condition: number }>,
   config: SimulationConfig,
   occupation: PopOccupation,
 ): number {
@@ -80,7 +99,13 @@ export function computeHoldingOccupationCapacity(
       featureProduct *= config.holdingImprovementFeatureCapacityMultiplier[imp.kind][f] ?? 1.0
     }
     const featureMult = clamp(featureProduct, 0.75, 1.5)
-    derived += imp.level * perLevel * terrainMult * featureMult
+    // v0.48.1 §3: 機能不全で雇用 capacity も低下 (development と並列の乗数)
+    const eff = conditionEffectiveness(
+      imp.condition,
+      config.facilityDisrepairThreshold,
+      config.facilityDisrepairMinEffectiveness,
+    )
+    derived += imp.level * perLevel * terrainMult * featureMult * eff
   }
 
   return (base + derived) * weight * landQuality

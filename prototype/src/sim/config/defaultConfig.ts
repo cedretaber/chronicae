@@ -298,6 +298,14 @@ export type SimulationConfig = {
   crisisNeglectAffectionDropPerWeekPolity: number
   crisisExpiredAffectionDropBailiff: number
   crisisExpiredAffectionDropPolity: number
+  // v0.48.1 設備維持管理 (§9)。condition 駆動の減衰→機能不全→修理→破壊ライフサイクル。
+  facilityMaintenanceEnabled: boolean // kill-switch
+  facilityConditionDecayPerCyclePerLevel: number // 維持サイクル(4週)ごとの減衰 = これ × level
+  facilityDisrepairThreshold: number // これ未満で機能不全 (生産低下 + disrepair Crisis 発火)
+  facilityDisrepairMinEffectiveness: number // 生産 effectiveness の下限 (condition 0 時)
+  facilityRepairConditionRestore: number // 修理完了 / 部分崩壊後に回復する condition
+  warDamageConditionDrop: number // 戦災 1 回あたりの condition 減少幅
+  facilityConditionSeedJitterMin: number // worldgen seed の condition 下限 (上限 100, 第1波 desync)
   // Military v0.9
   houseManpowerPowerFactor: number
   houseMilitaryWealthReserve: number
@@ -1501,6 +1509,7 @@ export const defaultConfig: SimulationConfig = {
     drought: 25,
     war_damage: 25,
     unrest: 40,
+    disrepair: 30, // = 修理工数 (Project targetProgress)。表示 severity は threshold−condition で毎週上書き (§4.3)
   },
   crisisSeverityPressureBonus: 20,
   crisisInitialShockSizeRateByKind: {
@@ -1509,6 +1518,7 @@ export const defaultConfig: SimulationConfig = {
     drought: 0.03,
     war_damage: 0.02,
     unrest: 0,
+    disrepair: 0, // disrepair は初期 pop ショック無し
   },
   crisisDeadlineWeeksByKind: {
     famine: 24,
@@ -1516,6 +1526,7 @@ export const defaultConfig: SimulationConfig = {
     drought: 32,
     war_damage: 32,
     unrest: 12,
+    disrepair: 999, // 型充足用。disrepair は Crisis/Project とも deadline 不使用 (§4.2/4.3)
   },
   crisisBudgetTreasuryRatio: 0.1,
   crisisBudgetCapByKind: {
@@ -1524,6 +1535,7 @@ export const defaultConfig: SimulationConfig = {
     drought: 50,
     war_damage: 80,
     unrest: 40,
+    disrepair: 60, // 修理予算上限
   },
   crisisWeeklyWealthPenaltyPerSeverity: 0.05,
   crisisWeeklyUnrestPerSeverity: 0.04,
@@ -1531,6 +1543,16 @@ export const defaultConfig: SimulationConfig = {
   crisisNeglectAffectionDropPerWeekPolity: -0.15,
   crisisExpiredAffectionDropBailiff: -5,
   crisisExpiredAffectionDropPolity: -3,
+  // v0.48.1 設備維持管理 (§9)。balance-defer の暫定値 (CLAUDE.md §4)。
+  // 減衰: condition 100 から閾値 50 まで = 50 / (0.9 × level)。L1 で ~56 サイクル = ~4.3 年/閾値到達、
+  // 閾値 50 から 0 まで同程度。維持を放置した L1 設備は ~9 年弱で全壊する目安。
+  facilityMaintenanceEnabled: true,
+  facilityConditionDecayPerCyclePerLevel: 0.9,
+  facilityDisrepairThreshold: 50,
+  facilityDisrepairMinEffectiveness: 0,
+  facilityRepairConditionRestore: 100,
+  warDamageConditionDrop: 40,
+  facilityConditionSeedJitterMin: 70,
   // Military v0.9
   houseManpowerPowerFactor: 1.0,
   houseMilitaryWealthReserve: 100,

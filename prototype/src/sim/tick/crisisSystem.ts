@@ -148,10 +148,10 @@ function createHandleCrisisProjectMut(
 //   失効した Crisis を「解消成功」扱いしうる)。budget.remaining は projectOutcomeSystem が cancel 時に
 //   owner へ返金する。EC1 の owner mismatch cancel と同型。crisisId から fresh に引き直す
 //   (EC1 で responseProjectId が同 tick 中に張り替わりうるため)。
-function cancelActiveResponseProjectMut(
+export function cancelActiveResponseProjectMut(
   ws: WorldState,
   crisisId: CrisisId,
-  reason: 'deadline_expired' | 'owner_inactive',
+  reason: 'deadline_expired' | 'owner_inactive' | 'target_destroyed',
 ): void {
   const fresh = ws.crises[crisisId]
   const projectId = fresh?.responseProjectId
@@ -159,7 +159,7 @@ function cancelActiveResponseProjectMut(
   const p = ws.projects[projectId]
   if (!p || p.status !== 'active') return
   // 既存規約に合わせて status を決める: deadline 到達 = 対処失敗 (failed, 評判ペナルティ対象)、
-  //   owner 消滅 = 外因 (cancelled, 帰責なし)。projectMaintenanceSystem の deadline/owner 処理と同型。
+  //   owner 消滅 / 対象破壊 = 外因 (cancelled, 帰責なし)。projectMaintenanceSystem の deadline/owner 処理と同型。
   const status = reason === 'deadline_expired' ? 'failed' : 'cancelled'
   ws.projects[projectId] = { ...p, status, terminalReason: reason }
 }

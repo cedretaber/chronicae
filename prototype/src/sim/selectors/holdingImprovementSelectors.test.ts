@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   computeHoldingOccupationCapacity,
   canBuildHoldingImprovementPure,
+  conditionEffectiveness,
 } from './holdingImprovementSelectors'
 import { defaultConfig } from '../config/defaultConfig'
 import type { SimulationConfig } from '../config/defaultConfig'
@@ -13,7 +14,7 @@ import type { HoldingImprovementKind } from '../types/holdingImprovement'
 // featureMult major_river=1.1）に基づき手計算したもの。
 
 const cfg = defaultConfig
-type Imp = { kind: HoldingImprovementKind; level: number }
+type Imp = { kind: HoldingImprovementKind; level: number; condition: number }
 const noImp: Imp[] = []
 
 describe('computeHoldingOccupationCapacity', () => {
@@ -38,7 +39,7 @@ describe('computeHoldingOccupationCapacity', () => {
       1.4,
       'plains',
       ['major_river'],
-      [{ kind: 'field_system', level: 3 }],
+      [{ kind: 'field_system', level: 3, condition: 100 }],
       cfg,
       'none',
     )
@@ -53,7 +54,7 @@ describe('computeHoldingOccupationCapacity', () => {
       1,
       'plains',
       [],
-      [{ kind: 'field_system', level: 1 }],
+      [{ kind: 'field_system', level: 1, condition: 100 }],
       cfg,
       'agriculture',
     )
@@ -68,7 +69,7 @@ describe('computeHoldingOccupationCapacity', () => {
       0.5,
       'plains',
       [],
-      [{ kind: 'field_system', level: 1 }],
+      [{ kind: 'field_system', level: 1, condition: 100 }],
       cfg,
       'agriculture',
     )
@@ -83,7 +84,7 @@ describe('computeHoldingOccupationCapacity', () => {
       1,
       'mountains',
       [],
-      [{ kind: 'field_system', level: 1 }],
+      [{ kind: 'field_system', level: 1, condition: 100 }],
       cfg,
       'agriculture',
     )
@@ -98,7 +99,7 @@ describe('computeHoldingOccupationCapacity', () => {
       1,
       'plains',
       ['major_river'],
-      [{ kind: 'field_system', level: 1 }],
+      [{ kind: 'field_system', level: 1, condition: 100 }],
       cfg,
       'agriculture',
     )
@@ -113,7 +114,7 @@ describe('computeHoldingOccupationCapacity', () => {
       1,
       'plains',
       [],
-      [{ kind: 'field_system', level: 3 }],
+      [{ kind: 'field_system', level: 3, condition: 100 }],
       cfg,
       'urban_labor',
     )
@@ -128,7 +129,7 @@ describe('computeHoldingOccupationCapacity', () => {
       1,
       'plains',
       [],
-      [{ kind: 'storage_infrastructure', level: 3 }],
+      [{ kind: 'storage_infrastructure', level: 3, condition: 100 }],
       cfg,
       'agriculture',
     )
@@ -150,7 +151,7 @@ describe('computeHoldingOccupationCapacity', () => {
       1,
       'plains',
       ['coastal'],
-      [{ kind: 'field_system', level: 1 }],
+      [{ kind: 'field_system', level: 1, condition: 100 }],
       customCfg,
       'agriculture',
     )
@@ -172,7 +173,7 @@ describe('computeHoldingOccupationCapacity', () => {
       1,
       'plains',
       ['coastal'],
-      [{ kind: 'field_system', level: 1 }],
+      [{ kind: 'field_system', level: 1, condition: 100 }],
       customCfg,
       'agriculture',
     )
@@ -187,11 +188,63 @@ describe('computeHoldingOccupationCapacity', () => {
       1,
       'plains',
       [],
-      [{ kind: 'workshop_infrastructure', level: 1 }],
+      [{ kind: 'workshop_infrastructure', level: 1, condition: 100 }],
       cfg,
       'urban_labor',
     )
     expect(cap).toBeCloseTo(135)
+  })
+})
+
+describe('conditionEffectiveness (v0.48.1 §3)', () => {
+  it('閾値以上は full (1.0)', () => {
+    expect(conditionEffectiveness(100, 50, 0)).toBe(1)
+    expect(conditionEffectiveness(50, 50, 0)).toBe(1)
+  })
+
+  it('閾値未満は線形低下 (condition / threshold)', () => {
+    expect(conditionEffectiveness(25, 50, 0)).toBeCloseTo(0.5)
+    expect(conditionEffectiveness(10, 50, 0)).toBeCloseTo(0.2)
+  })
+
+  it('minFloor で下限が効く', () => {
+    expect(conditionEffectiveness(5, 50, 0.3)).toBeCloseTo(0.3)
+    expect(conditionEffectiveness(0, 50, 0.3)).toBeCloseTo(0.3)
+  })
+
+  it('condition 0 で minFloor=0 なら 0', () => {
+    expect(conditionEffectiveness(0, 50, 0)).toBe(0)
+  })
+})
+
+describe('computeHoldingOccupationCapacity: 機能不全で derived capacity が低下する (v0.48.1 §3)', () => {
+  it('閾値割れ improvement は derived 寄与が effectiveness 倍になる', () => {
+    // field_system L1 plains: base 80 + 78 * eff。condition 25 (threshold 50) → eff 0.5 → 80 + 39 = 119
+    const cap = computeHoldingOccupationCapacity(
+      'manor',
+      1,
+      1,
+      'plains',
+      [],
+      [{ kind: 'field_system', level: 1, condition: 25 }],
+      cfg,
+      'agriculture',
+    )
+    expect(cap).toBeCloseTo(119)
+  })
+
+  it('condition 0 (minFloor 0) は derived 寄与が消え base のみ', () => {
+    const cap = computeHoldingOccupationCapacity(
+      'manor',
+      1,
+      1,
+      'plains',
+      [],
+      [{ kind: 'field_system', level: 1, condition: 0 }],
+      cfg,
+      'agriculture',
+    )
+    expect(cap).toBeCloseTo(80)
   })
 })
 

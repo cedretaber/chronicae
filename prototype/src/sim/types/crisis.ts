@@ -1,10 +1,19 @@
-import type { CrisisId, HoldingId, ProjectId, WarId, PersonId, DecisionReasonId } from './ids'
+import type {
+  CrisisId,
+  HoldingId,
+  HoldingImprovementId,
+  ProjectId,
+  WarId,
+  PersonId,
+  DecisionReasonId,
+} from './ids'
 import type { PopClass } from './popGroup'
 
 // v0.48 Crisis: 対処を要する局所的事態 (不作・疫病・干魃・戦災・反乱前段) のエンティティ化。
 // Pressure と同じ「ハザード entity + 対処 Project」の二段構成だが相手方を持たない。
 // 被害は severity に保持し (entity 内完結)、active な間だけ週次でデバフを適用する。
-export type CrisisKind = 'famine' | 'plague' | 'drought' | 'war_damage' | 'unrest'
+// v0.48.1: disrepair = 設備の機能不全 (condition 駆動)。修理は handle_crisis を再利用する。
+export type CrisisKind = 'famine' | 'plague' | 'drought' | 'war_damage' | 'unrest' | 'disrepair'
 
 // active = 対処中/放置中。resolved = severity 0 で解消。expired = deadline 未解決で打ち切り。
 export type CrisisStatus = 'active' | 'resolved' | 'expired'
@@ -28,6 +37,7 @@ export type Crisis = {
   // kind 別メタ
   sourceWarId?: WarId // kind === 'war_damage'
   demand?: RevoltDemand // kind === 'unrest'。生成時に decideRevoltDemand で確定 (§5.3)
+  targetImprovementId?: HoldingImprovementId // kind === 'disrepair'。機能不全/修理対象の improvement (v0.48.1)
   reasonIds: DecisionReasonId[]
 }
 

@@ -234,10 +234,11 @@ export function getHoldingOccupationCapacity(
   if (!province) return 0
   // v0.33 §6.3: (base + improvementDerivedCapacity) * weight * landQuality。devMod は使わない。
   const improvementIds = state.holdingImprovementIndex.byHolding[holdingId as string] ?? []
-  const improvements: { kind: HoldingImprovementKind; level: number }[] = []
+  const improvements: { kind: HoldingImprovementKind; level: number; condition: number }[] = []
   for (const impId of improvementIds) {
     const imp = state.holdingImprovements[impId]
-    if (imp) improvements.push({ kind: imp.kind, level: imp.level })
+    // v0.48.1 §3: condition を渡して capacity 側の機能不全 effectiveness を有効化する (★)
+    if (imp) improvements.push({ kind: imp.kind, level: imp.level, condition: imp.condition })
   }
   return computeHoldingOccupationCapacity(
     holding.kind,
