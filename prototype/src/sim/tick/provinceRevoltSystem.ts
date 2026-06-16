@@ -3,15 +3,7 @@ import { createSimEvent } from './context'
 import { nameParam, entityRef } from '../types/event'
 import { clamp } from '../utils/math'
 import { randomFloat } from '../rng/rng'
-import type {
-  ProvinceId,
-  PolityId,
-  HoldingId,
-  LandContractId,
-  DiplomaticPlayId,
-  PersonId,
-  HouseId,
-} from '../types/ids'
+import type { ProvinceId, PolityId, HoldingId, LandContractId, HouseId } from '../types/ids'
 import { createDiplomaticPlayId } from '../types/ids'
 import type { PopClass, PopGroup } from '../types/popGroup'
 import type { WorldState } from '../types/world'
@@ -32,6 +24,9 @@ import {
 import { governanceCompetence } from '../selectors/abilitySelectors'
 import { createNegotiatingCommonwealth } from '../mutations/worldStructureMutations'
 import { defaultTaxRateByRank } from '../helpers/landContractHelpers'
+import type { Crisis, RevoltDemand } from '../types/crisis'
+import { spawnUnrestCrisis } from './crisisSystem'
+import { applyRevoltEscalation } from './diplomaticPlayRevolt'
 
 type HoldingRevoltCandidate = {
   holdingId: HoldingId
@@ -189,17 +184,18 @@ function collectHoldingCandidates(ctx: TickContext): HoldingRevoltCandidate[] {
   const config = ctx.config
   const state = ctx.state
 
-  // Build set of holdings already targeted by active revolt_negotiation
-  const activeRevoltTargetHoldings = new Set<HoldingId>()
-  for (const playId of Object.keys(state.diplomaticPlays) as DiplomaticPlayId[]) {
-    const play = state.diplomaticPlays[playId]
-    if (!play || play.status !== 'active' || play.kind !== 'revolt_negotiation') continue
-    if (
-      play.primaryDemand?.kind === 'popular_tax_relief' ||
-      play.primaryDemand?.kind === 'bailiff_dismissal' ||
-      play.primaryDemand?.kind === 'secession'
-    ) {
-      activeRevoltTargetHoldings.add(play.primaryDemand.holdingId)
+  // §5.3 C2: 二重トリガー抑制。旧実装は active revolt_negotiation play に key していたが、Crisis 化で
+  //   交渉窓が消えたため crisisIndex を引く。同 holding に active な unrest Crisis があれば skip
+  //   (必ず kind 別。famine 等が unrest 検知を抑制しないように)。蜂起後の commonwealth play は
+  //   下の polity.kind === 'commonwealth' guard が引き続き弾く。
+  const activeUnrestHoldings = new Set<HoldingId>()
+  for (const [holdingKey, cids] of Object.entries(state.crisisIndex.byHolding)) {
+    for (const cid of cids ?? []) {
+      const c = state.crises[cid]
+      if (c && c.kind === 'unrest' && c.status === 'active') {
+        activeUnrestHoldings.add(holdingKey as HoldingId)
+        break
+      }
     }
   }
 
@@ -208,7 +204,7 @@ function collectHoldingCandidates(ctx: TickContext): HoldingRevoltCandidate[] {
     const holding = state.holdings[holdingId]
     if (!holding) continue
 
-    if (activeRevoltTargetHoldings.has(holdingId)) continue
+    if (activeUnrestHoldings.has(holdingId)) continue
 
     const terminalPolityId = getHoldingTerminalPolityId(state, holdingId)
     if (!terminalPolityId) continue
@@ -254,24 +250,20 @@ function collectHoldingCandidates(ctx: TickContext): HoldingRevoltCandidate[] {
 //     3. それ以外 → 税率改定 (popular_tax_relief)
 //   POP→house を負に書く配線は applyBailiffDismissalFailure / applyTaxReliefFizzle / 代官排除反乱
 //   の発生時の3箇所 (S2-2)。これが蓄積すると branch 1 (独立) に到達する。
-type RevoltDemandDecision =
-  | { kind: 'secession' }
-  | { kind: 'bailiff_dismissal'; bailiffPersonId: PersonId }
-  | { kind: 'tax_relief' }
-
 function decideRevoltDemand(
   ctx: TickContext,
   candidate: HoldingRevoltCandidate,
   pop: PopGroup,
   ownerHouseId: HouseId | undefined,
-): RevoltDemandDecision {
+): RevoltDemand {
   const { state, config } = ctx
+  const claimantPopClass = candidate.rebelClass
 
   // branch 1 (独立): POP→ownerHouse affection ≤ threshold。
   if (ownerHouseId !== undefined) {
     const houseAtt = getAttitudeOrDefault(state, pop, { kind: 'house', id: ownerHouseId })
     if (houseAtt.affection <= config.revoltIndependenceHouseAffectionThreshold) {
-      return { kind: 'secession' }
+      return { kind: 'secession', claimantPopClass }
     }
   }
 
@@ -285,34 +277,27 @@ function decideRevoltDemand(
         id: assignment.holderPersonId,
       })
       if (bailiffAtt.affection <= config.revoltBailiffDismissalAffectionThreshold) {
-        return { kind: 'bailiff_dismissal', bailiffPersonId: assignment.holderPersonId }
+        return {
+          kind: 'bailiff_dismissal',
+          claimantPopClass,
+          bailiffPersonId: assignment.holderPersonId,
+        }
       }
     }
   }
 
   // branch 3 (税率改定): フォールバック
-  return { kind: 'tax_relief' }
+  return { kind: 'tax_relief', claimantPopClass }
 }
 
 function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidate): TickContext {
-  const {
-    holdingId,
-    provinceId,
-    terminalPolityId,
-    terminalContractId,
-    rebelClass,
-    revoltTendency,
-  } = candidate
+  const { holdingId, provinceId, terminalPolityId, rebelClass, revoltTendency } = candidate
   const config = ctx.config
 
   const holding = ctx.state.holdings[holdingId]
   if (!holding) return ctx
-  const province = ctx.state.provinces[provinceId]
-  if (!province) return ctx
   const polity = ctx.state.polities[terminalPolityId]
   if (!polity || !polity.active) return ctx
-  const contract = ctx.state.landContracts[terminalContractId]
-  if (!contract) return ctx
 
   const REVOLT_CALLS_PER_YEAR = 4
   const revoltChance = clamp(
@@ -328,8 +313,58 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
   const pop = findHoldingPop(ctx.state, holdingId, rebelClass)
   if (!pop) return ctx
 
-  // v0.48: demand 分岐を commonwealth 生成前 (= 元の state) で決定する。
-  const decision = decideRevoltDemand(ctx, candidate, pop, polity.ownerHouseId)
+  // §5.3 案 A: commonwealth/play は生成せず unrest Crisis を spawn する。対処 (鎮静/譲歩) は代官の
+  //   handle_crisis Project。期限内に解決できなければ unrestCrisisSystem が武装蜂起させる。
+  const demand = decideRevoltDemand(ctx, candidate, pop, polity.ownerHouseId)
+
+  let nextCtx = spawnUnrestCrisis(ctx, holdingId, terminalPolityId, demand)
+
+  // 一時的な沈静化 (-50 unrest)。grievance 自体は Crisis が抱え、対処されなければ期限切れで蜂起する。
+  nextCtx = {
+    ...nextCtx,
+    state: adjustProvincePopUnrestByClass(nextCtx.state, provinceId, rebelClass, -50),
+  }
+
+  // S2-2 site①: 代官排除反乱の発生時、領主家への悪感情が芽生える (代理人の悪政＝領主不信)。
+  if (demand.kind === 'bailiff_dismissal') {
+    nextCtx = {
+      ...nextCtx,
+      state: worsenPopAttitudeTowardOwnerHouse(
+        nextCtx.state,
+        holdingId,
+        rebelClass,
+        polity.ownerHouseId,
+        config.revoltBailiffRevoltHouseAffectionPenalty,
+      ),
+    }
+  }
+
+  return nextCtx
+}
+
+// v0.48 Phase C (§5.3 案 A): unrest Crisis 失効時の武装蜂起。commonwealth + vestigial
+//   revolt_negotiation play を生成し、即 applyRevoltEscalation で既存の war 配管を駆動する
+//   (Crisis 期間が交渉窓を兼ねたため negotiation 進行は省略)。unrestCrisisSystem から呼ぶ。
+export function escalateUnrestCrisis(ctx: TickContext, crisis: Crisis): TickContext {
+  const config = ctx.config
+  const demand = crisis.demand
+  if (!demand) return ctx
+  const holdingId = crisis.holdingId
+  const holding = ctx.state.holdings[holdingId]
+  if (!holding) return ctx
+  const provinceId = holding.provinceId
+  const province = ctx.state.provinces[provinceId]
+  if (!province) return ctx
+  const terminalPolityId = getHoldingTerminalPolityId(ctx.state, holdingId)
+  if (!terminalPolityId) return ctx
+  const polity = ctx.state.polities[terminalPolityId]
+  if (!polity || !polity.active) return ctx
+  const chain = ctx.state.landContractIndex.byHolding[holdingId] ?? []
+  const terminalContractId = chain[chain.length - 1]
+  if (!terminalContractId) return ctx
+  const contract = ctx.state.landContracts[terminalContractId]
+  if (!contract) return ctx
+  const rebelClass = demand.claimantPopClass
 
   const createResult = createNegotiatingCommonwealth(ctx, {
     holdingId,
@@ -341,42 +376,21 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
   let nextCtx = createResult.value.ctx
   const { polityId: commonwealthId, personId: leaderPersonId } = createResult.value.value
 
-  // Reduce rebel class unrest by -50 (temporary relief)
-  const unrestReducedState = adjustProvincePopUnrestByClass(
-    nextCtx.state,
-    provinceId,
-    rebelClass,
-    -50,
-  )
-  nextCtx = { ...nextCtx, state: unrestReducedState }
-
-  // v0.48: 決定済み分岐に応じて primaryDemand を構築する。
   let primaryDemand: DiplomaticDemand
-  if (decision.kind === 'secession') {
+  if (demand.kind === 'secession') {
     primaryDemand = {
       kind: 'secession',
       holdingId,
       targetContractId: terminalContractId,
       claimantPopClass: rebelClass,
     }
-  } else if (decision.kind === 'bailiff_dismissal') {
+  } else if (demand.kind === 'bailiff_dismissal') {
     primaryDemand = {
       kind: 'bailiff_dismissal',
       holdingId,
       targetContractId: terminalContractId,
       claimantPopClass: rebelClass,
-      bailiffPersonId: decision.bailiffPersonId,
-    }
-    // S2-2 site①: 代官排除反乱の発生時、領主家への悪感情が芽生える (代理人の悪政＝領主不信)。
-    nextCtx = {
-      ...nextCtx,
-      state: worsenPopAttitudeTowardOwnerHouse(
-        nextCtx.state,
-        holdingId,
-        rebelClass,
-        polity.ownerHouseId,
-        config.revoltBailiffRevoltHouseAffectionPenalty,
-      ),
+      bailiffPersonId: demand.bailiffPersonId,
     }
   } else {
     const currentTaxRate = contract.terms.taxRateToGrantor
@@ -394,7 +408,6 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
     }
   }
 
-  // Create revolt_negotiation DiplomaticPlay
   const playId = createDiplomaticPlayId(nextCtx.state.nextDiplomaticPlayId)
   const deadlineWeek = nextCtx.state.absoluteWeek + config.revoltNegotiationDurationWeeks
   const targetDelegate = getDiplomaticPlayDelegate(nextCtx.state, {
@@ -427,18 +440,13 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
     offerHistoryIds: [],
   }
 
-  // Set revoltState on the commonwealth
   const commonwealth = nextCtx.state.polities[commonwealthId]
   if (!commonwealth) return nextCtx
-
   nextCtx = {
     ...nextCtx,
     state: {
       ...nextCtx.state,
-      diplomaticPlays: {
-        ...nextCtx.state.diplomaticPlays,
-        [playId]: play,
-      },
+      diplomaticPlays: { ...nextCtx.state.diplomaticPlays, [playId]: play },
       nextDiplomaticPlayId: nextCtx.state.nextDiplomaticPlayId + 1,
       polities: {
         ...nextCtx.state.polities,
@@ -465,7 +473,16 @@ function resolveHoldingRevolt(ctx: TickContext, candidate: HoldingRevoltCandidat
       entityRef('province', provinceId, 'province'),
     ],
   })
-  return { ...ctxStart, events: [...ctxStart.events, event] }
+  nextCtx = { ...ctxStart, events: [...ctxStart.events, event] }
+
+  return applyRevoltEscalation(
+    nextCtx,
+    play,
+    primaryDemand,
+    commonwealthId,
+    terminalPolityId,
+    provinceId,
+  )
 }
 
 export function runProvinceRevoltSystem(ctx: TickContext): TickContext {

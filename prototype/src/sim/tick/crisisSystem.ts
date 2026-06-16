@@ -3,7 +3,7 @@ import { createSimEvent } from './context'
 import type { SimEvent } from '../types/event'
 import { nameParam, entityRef } from '../types/event'
 import type { WorldState } from '../types/world'
-import type { Crisis, CrisisKind } from '../types/crisis'
+import type { Crisis, CrisisKind, RevoltDemand } from '../types/crisis'
 import type { HandleCrisisProject } from '../types/project'
 import type {
   ProvinceId,
@@ -23,6 +23,7 @@ import {
   createCrisisMut,
   setCrisisResponseProjectMut,
   setCrisisSeverityMut,
+  setCrisisStatusMut,
   removeCrisisMut,
 } from '../mutations/crisisMutations'
 import { addProjectToIndexMut } from '../mutations/projectMutations'
@@ -180,6 +181,80 @@ export function spawnWarDamageCrisis(
       messageKey: 'crisis.created',
       messageParams: {
         crisisKind: 'war_damage',
+        holding: nameParam('holding', ws.holdings[holdingId]?.nameKey ?? holdingId),
+      },
+      entityRefs: [entityRef('holding', holdingId, 'holding')],
+    },
+  )
+  return { ...ec, events: [...ec.events, event] }
+}
+
+// v0.48 Phase C: 反乱前段の unrest Crisis を ctx ベースで spawn する。provinceRevoltSystem が
+//   ロール成功時に呼ぶ (§5.3)。demand を保持し、代官いれば対処 (= 鎮静/譲歩) Project を生成する。
+//   commonwealth/play は生成しない (案 A: 期限切れ時にまとめて生成し war 化する)。
+export function spawnUnrestCrisis(
+  ctx: TickContext,
+  holdingId: HoldingId,
+  ownerPolityId: PolityId,
+  demand: RevoltDemand,
+): TickContext {
+  const config = ctx.config
+  const absoluteWeek = ctx.state.absoluteWeek
+
+  // dedup: 同 holding に active unrest があれば skip
+  const existing = ctx.state.crisisIndex.byHolding[holdingId as string] ?? []
+  for (const cid of existing) {
+    const c = ctx.state.crises[cid]
+    if (c && c.kind === 'unrest' && c.status === 'active') return ctx
+  }
+  const ownerPolity = ctx.state.polities[ownerPolityId]
+  if (!ownerPolity || !ownerPolity.active) return ctx
+
+  const ws: WorldState = {
+    ...ctx.state,
+    crises: { ...ctx.state.crises },
+    crisisIndex: {
+      byHolding: { ...ctx.state.crisisIndex.byHolding },
+      byProject: { ...ctx.state.crisisIndex.byProject },
+    },
+    projects: { ...ctx.state.projects },
+    projectIndex: {
+      byOwner: { ...ctx.state.projectIndex.byOwner },
+      byAim: { ...ctx.state.projectIndex.byAim },
+      byParentProject: { ...ctx.state.projectIndex.byParentProject },
+      byCreatorPerson: { ...ctx.state.projectIndex.byCreatorPerson },
+      bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
+      byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
+    },
+  }
+
+  const severity = Math.min(100, config.crisisInitialSeverityByKind.unrest)
+  const deadlineWeek = absoluteWeek + config.crisisDeadlineWeeksByKind.unrest
+
+  const crisis = createCrisisMut(ws, {
+    kind: 'unrest',
+    holdingId,
+    severity,
+    createdWeek: absoluteWeek,
+    deadlineWeek,
+    status: 'active',
+    reasonIds: [],
+    demand,
+  })
+
+  const bailiff = getActiveBailiff(ws, holdingId)
+  if (bailiff) {
+    createHandleCrisisProjectMut(ws, config, crisis, ownerPolityId, bailiff, absoluteWeek)
+  }
+
+  const { event, ctx: ec } = createSimEvent(
+    { ...ctx, state: ws },
+    {
+      type: 'CRISIS_CREATED',
+      importance: 'minor',
+      messageKey: 'crisis.created',
+      messageParams: {
+        crisisKind: 'unrest',
         holding: nameParam('holding', ws.holdings[holdingId]?.nameKey ?? holdingId),
       },
       entityRefs: [entityRef('holding', holdingId, 'holding')],
@@ -352,7 +427,13 @@ function runWeeklyProcessing(
     touched = true
 
     const holdingId = crisis.holdingId
-    const popClass: PopClass | undefined = crisis.kind === 'plague' ? undefined : 'peasants'
+    // plague は全 class、unrest は反乱 class、それ以外 (famine/drought/war_damage) は peasants。
+    const popClass: PopClass | undefined =
+      crisis.kind === 'plague'
+        ? undefined
+        : crisis.kind === 'unrest'
+          ? crisis.demand?.claimantPopClass
+          : 'peasants'
 
     // owner を live 解決 (§0-10)。owner inactive/holding terminal 喪失 → expired+purge (EC2/EC5)。
     const ownerPolityId = getHoldingTerminalPolityId(ws, holdingId)
@@ -390,21 +471,26 @@ function runWeeklyProcessing(
       if (severity !== crisis.severity) setCrisisSeverityMut(ws, crisis.id, severity)
     }
 
-    // §4.3 期限処理: deadline 未解決 → expired。追加 affection 低下を確定して purge。
-    //   (Phase C の unrest はここで commonwealth 成立 + 独立戦争へ接続する — §5.3。)
+    // §4.3 期限処理: deadline 未解決 → expired。
     if (absoluteWeek >= crisis.deadlineWeek) {
       applyExpiredAttitude(ws, config, crisis, ownerPolityId)
-      emitEvent({
-        type: 'CRISIS_EXPIRED',
-        importance: 'normal',
-        messageKey: 'crisis.expired',
-        messageParams: {
-          crisisKind: crisis.kind,
-          holding: nameParam('holding', ws.holdings[holdingId]?.nameKey ?? holdingId),
-        },
-        entityRefs: [entityRef('holding', holdingId, 'holding')],
-      })
-      removeCrisisMut(ws, crisis.id)
+      if (crisis.kind === 'unrest') {
+        // §5.3 案 A: unrest は purge せず expired を mark するだけ。武装蜂起 (commonwealth+play
+        //   生成→escalation) は ctx ベースの unrestCrisisSystem が同 tick で適用する (Decision 1)。
+        setCrisisStatusMut(ws, crisis.id, 'expired')
+      } else {
+        emitEvent({
+          type: 'CRISIS_EXPIRED',
+          importance: 'normal',
+          messageKey: 'crisis.expired',
+          messageParams: {
+            crisisKind: crisis.kind,
+            holding: nameParam('holding', ws.holdings[holdingId]?.nameKey ?? holdingId),
+          },
+          entityRefs: [entityRef('holding', holdingId, 'holding')],
+        })
+        removeCrisisMut(ws, crisis.id)
+      }
       continue
     }
 

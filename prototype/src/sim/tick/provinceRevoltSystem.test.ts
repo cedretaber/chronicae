@@ -90,9 +90,9 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
     expect(Object.keys(next.state.diplomaticPlays).length).toBe(0)
   })
 
-  it('high-unrest conditions can generate a revolt_negotiation Play', () => {
-    // High unrest + low polityControl + low treasury → revoltTendency 高
-    // 複数 seed を試して 1 つでも Play が出ることを確認
+  it('high-unrest conditions can generate an unrest Crisis', () => {
+    // v0.48 Phase C: ロール成功時、即 commonwealth+play ではなく unrest Crisis を生成する。
+    //   High unrest + low polityControl + low treasury → revoltTendency 高。複数 seed で 1 つでも出ることを確認。
     let foundPlay = false
     for (const seed of [
       'rev-1',
@@ -132,27 +132,22 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
         provinceRevoltMaxChance: 1.0,
       })
       const next = runProvinceRevoltSystem(ctx)
-      const plays = Object.values(next.state.diplomaticPlays)
-      if (plays.length > 0) {
+      const crises = Object.values(next.state.crises).filter((c) => c && c.kind === 'unrest')
+      if (crises.length > 0) {
         foundPlay = true
-        const play = plays[0]
-        expect(play?.kind).toBe('revolt_negotiation')
-        expect(play?.status).toBe('active')
-        // initiator は新 rebel commonwealth Polity
-        expect(play?.initiator.kind).toBe('polity')
-        // target は元 polity
-        expect(play?.target.kind).toBe('polity')
-        expect(play?.target.id).toBe(polityId)
-        expect(play?.primaryDemand?.kind).toBe('popular_tax_relief')
-        if (play?.primaryDemand?.kind === 'popular_tax_relief') {
-          expect(play.primaryDemand.claimantPopClass).toBeDefined()
-        }
-        // REVOLT_NEGOTIATION_STARTED イベントが発火
-        expect(next.events.some((e) => e.type === 'REVOLT_NEGOTIATION_STARTED')).toBe(true)
-        // 旧 PROVINCE_REVOLT_SUCCEEDED は発火しない
+        const crisis = crises[0]!
+        expect(crisis.kind).toBe('unrest')
+        expect(crisis.status).toBe('active')
+        expect(crisis.demand).toBeDefined()
+        expect(crisis.demand?.claimantPopClass).toBeDefined()
+        // 即時に commonwealth/play は作らない (案 A: 武装蜂起は期限切れ時)
+        expect(Object.keys(next.state.diplomaticPlays).length).toBe(0)
+        // CRISIS_CREATED が発火、旧 PROVINCE_REVOLT_* は発火しない
+        expect(next.events.some((e) => e.type === 'CRISIS_CREATED')).toBe(true)
         expect(next.events.some((e) => e.type === 'PROVINCE_REVOLT_SUCCEEDED')).toBe(false)
-        // 旧 PROVINCE_REVOLT_FAILED も発火しない
         expect(next.events.some((e) => e.type === 'PROVINCE_REVOLT_FAILED')).toBe(false)
+        // owner は元 polity から live 解決できる
+        expect(polityId).toBeDefined()
         break
       }
     }
@@ -169,7 +164,7 @@ describe('runProvinceRevoltSystem (Stage B)', () => {
     })
     const ctx = makeCtx(state)
     const next = runProvinceRevoltSystem(ctx)
-    expect(Object.keys(next.state.diplomaticPlays).length).toBe(0)
-    expect(next.events.some((e) => e.type === 'REVOLT_NEGOTIATION_STARTED')).toBe(false)
+    expect(Object.values(next.state.crises).filter((c) => c && c.kind === 'unrest').length).toBe(0)
+    expect(next.events.some((e) => e.type === 'CRISIS_CREATED')).toBe(false)
   })
 })

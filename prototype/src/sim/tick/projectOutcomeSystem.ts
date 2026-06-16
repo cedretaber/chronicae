@@ -10,7 +10,7 @@ import type { PersonActivityLog } from '../types/task'
 import type { HoldingImprovementId } from '../types/ids'
 import { createHoldingImprovementId, createPersonActivityLogId } from '../types/ids'
 import { adjustPersonAttitude, adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
-import { removeCrisisMut } from '../mutations/crisisMutations'
+import { removeCrisisMut, setCrisisStatusMut } from '../mutations/crisisMutations'
 import { getPolityLeader, getHouseLeader } from '../selectors/officeSelectors'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { adjustPersonLegacyPrestige } from '../helpers/attitudeHelpers'
@@ -431,6 +431,12 @@ function applyHandleCrisisMut(
   if (project.kind !== 'handle_crisis') return
   const crisis = ws.crises[project.crisisId]
   if (!crisis) return
+  // §5.3 案 A: unrest は purge せず resolved を mark するだけ。譲歩/鎮静 (commonwealth/play なしの
+  //   concession) は ctx ベースの unrestCrisisSystem が同 tick で適用する (Decision 1)。
+  if (crisis.kind === 'unrest') {
+    setCrisisStatusMut(ws, project.crisisId, 'resolved')
+    return
+  }
   emitEvent({
     type: 'CRISIS_RESOLVED',
     importance: 'normal',

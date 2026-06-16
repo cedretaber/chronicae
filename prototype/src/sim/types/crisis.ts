@@ -1,4 +1,5 @@
 import type { CrisisId, HoldingId, ProjectId, WarId, PersonId, DecisionReasonId } from './ids'
+import type { PopClass } from './popGroup'
 
 // v0.48 Crisis: 対処を要する局所的事態 (不作・疫病・干魃・戦災・反乱前段) のエンティティ化。
 // Pressure と同じ「ハザード entity + 対処 Project」の二段構成だが相手方を持たない。
@@ -9,11 +10,11 @@ export type CrisisKind = 'famine' | 'plague' | 'drought' | 'war_damage' | 'unres
 export type CrisisStatus = 'active' | 'resolved' | 'expired'
 
 // 反乱 (unrest) の要求。生成時に decideRevoltDemand で確定し Crisis に保持する (§5.3)。
-// Phase A では型のみ用意し、Phase C で provinceRevoltSystem 側を本型に統一する。
+// claimantPopClass = 反乱を起こした POP class (concession/escalation の対象 class)。
 export type RevoltDemand =
-  | { kind: 'secession' }
-  | { kind: 'bailiff_dismissal'; bailiffPersonId: PersonId }
-  | { kind: 'tax_relief' }
+  | { kind: 'secession'; claimantPopClass: PopClass }
+  | { kind: 'bailiff_dismissal'; claimantPopClass: PopClass; bailiffPersonId: PersonId }
+  | { kind: 'tax_relief'; claimantPopClass: PopClass }
 
 export type Crisis = {
   id: CrisisId

@@ -11,6 +11,7 @@ import { runPolitySurplusDistributionSystem } from './politySurplusDistributionS
 import { runBailiffAppointmentSystem } from './bailiffAppointmentSystem'
 import { runHarvestSystem } from './harvestSystem'
 import { runCrisisSystem } from './crisisSystem'
+import { runUnrestCrisisSystem } from './unrestCrisisSystem'
 import { runMortalitySystem } from './mortalitySystem'
 import { runDeadPersonLogPurgeSystem } from './deadPersonLogPurgeSystem'
 import { runPersonReputationCleanupSystem } from './personReputationCleanupSystem'
@@ -381,6 +382,14 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runCrisisSystem,
+  },
+  {
+    // v0.48 Phase C (Decision 1): crisisSystem が mark した unrest Crisis の terminal 処理
+    //   (譲歩/鎮圧/武装蜂起) を ctx ベースで適用。crisisSystem の直後に置く (同 tick で完結)。
+    name: 'unrestCrisisSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runUnrestCrisisSystem,
   },
   {
     name: 'pressureSystem',

@@ -3,6 +3,8 @@ import { createSimEvent } from './context'
 import { clamp } from '../utils/math'
 import type { PolityId, ProvinceId, EventId } from '../types/ids'
 import type { DiplomaticPlay, DiplomaticDemand } from '../types/diplomaticPlay'
+import type { Crisis } from '../types/crisis'
+import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
 import { entityRef, nameParam } from '../types/event'
 import type { SimEvent } from '../types/event'
 import type { WorldState } from '../types/world'
@@ -605,6 +607,153 @@ function applyPopularTaxReliefSettlement(
   return { ...ctxEv, events: [...ctxEv.events, event] }
 }
 
+// v0.48 Phase C: unrest Crisis 解決時の譲歩適用 (commonwealth/play なし版, §5.3 / Decision 1)。
+//   tax_relief → 減税 + terms 保護、bailiff_dismissal → 代官罷免 (staleness ガード付き) + 悪評。
+//   いずれも反乱 class の unrest を下げて grievance を実際に解消する (放置すると無限再発するため)。
+//   secession は譲歩で解消できないため呼び出し側 (unrestCrisisSystem) が鎮静扱いにする (ここには来ない)。
+export function applyUnrestConcession(ctx: TickContext, crisis: Crisis): TickContext {
+  const config = ctx.config
+  let state = ctx.state
+  const demand = crisis.demand
+  if (!demand) return ctx
+  const holdingId = crisis.holdingId
+  const holding = state.holdings[holdingId]
+  if (!holding) return ctx
+  const provinceId = holding.provinceId
+  const targetPolityId = getHoldingTerminalPolityId(state, holdingId)
+  const chain = state.landContractIndex.byHolding[holdingId] ?? []
+  const terminalContractId = chain[chain.length - 1]
+
+  if (demand.kind === 'tax_relief') {
+    if (terminalContractId) {
+      const contract = state.landContracts[terminalContractId]
+      if (contract) {
+        const currentTaxRate = contract.terms.taxRateToGrantor
+        const demandedTaxRate = Math.max(
+          config.minPopularDemandTaxRate,
+          currentTaxRate - config.popularTaxReliefDemandDelta,
+        )
+        state = adjustLandContractTaxRate(state, terminalContractId, demandedTaxRate)
+        const c2 = state.landContracts[terminalContractId]
+        if (c2) {
+          state = {
+            ...state,
+            landContracts: {
+              ...state.landContracts,
+              [terminalContractId]: {
+                ...c2,
+                termsProtectedUntilWeek:
+                  state.absoluteWeek + config.popularTaxReliefTermsProtectionWeeks,
+                lastTaxChangedWeek: state.absoluteWeek,
+                previousTaxRate: currentTaxRate,
+              },
+            },
+          }
+        }
+      }
+    }
+    state = adjustProvincePopUnrestByClass(
+      state,
+      provinceId,
+      demand.claimantPopClass,
+      -config.revoltSettlementMainUnrestReduction,
+    )
+    const h = state.holdings[holdingId]
+    if (h) {
+      state = {
+        ...state,
+        holdings: {
+          ...state.holdings,
+          [holdingId]: { ...h, lastRevoltSettledWeek: state.absoluteWeek },
+        },
+      }
+    }
+    const nextCtx: TickContext = { ...ctx, state }
+    const provinceName = nameParam('province', state.provinces[provinceId]?.nameKey ?? provinceId)
+    const restoreRef = targetPolityId
+      ? getPolityNameRefForEmit(state, targetPolityId)
+      : { category: 'polity', nameKey: '' }
+    const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+      type: 'REVOLT_SETTLED',
+      importance: 'major',
+      messageKey: 'revolt.settled_pardoned',
+      messageParams: {
+        province: provinceName,
+        restorePolity: nameParam(restoreRef.category, restoreRef.nameKey),
+      },
+      entityRefs: [
+        entityRef('province', provinceId, 'province', state.provinces[provinceId]?.nameKey),
+        ...(targetPolityId
+          ? [entityRef('polity', targetPolityId, 'target_polity', restoreRef.nameKey)]
+          : []),
+      ],
+    })
+    return { ...ctxEv, events: [...ctxEv.events, event] }
+  }
+
+  if (demand.kind === 'bailiff_dismissal') {
+    // staleness ガード: 交渉中に代官が交代していたら罷免不要 (恨まれた代官は既に去った)。
+    const assignmentId = state.holdingOfficeIndex.byHolding[holdingId]
+    const assignment = assignmentId ? state.holdingOfficeAssignments[assignmentId] : undefined
+    const currentBailiffId = assignment && assignment.active ? assignment.holderPersonId : undefined
+    const dismissTargetId =
+      currentBailiffId === demand.bailiffPersonId ? demand.bailiffPersonId : undefined
+    if (dismissTargetId) state = vacateHoldingBailiff(state, holdingId)
+    state = adjustProvincePopUnrestByClass(
+      state,
+      provinceId,
+      demand.claimantPopClass,
+      -config.revoltSettlementMainUnrestReduction,
+    )
+    const h = state.holdings[holdingId]
+    if (h) {
+      state = {
+        ...state,
+        holdings: {
+          ...state.holdings,
+          [holdingId]: { ...h, lastRevoltSettledWeek: state.absoluteWeek },
+        },
+      }
+    }
+    let nextCtx: TickContext = { ...ctx, state }
+    if (dismissTargetId) {
+      const bailiff = nextCtx.state.persons[dismissTargetId]
+      const provinceName = nameParam(
+        'province',
+        nextCtx.state.provinces[provinceId]?.nameKey ?? provinceId,
+      )
+      const { event, ctx: ctxEv } = createSimEvent(nextCtx, {
+        type: 'BAILIFF_DISMISSED_BY_REVOLT',
+        importance: 'major',
+        messageKey: 'bailiff.dismissed_by_revolt',
+        messageParams: {
+          person: nameParam('person', bailiff?.nameKey ?? dismissTargetId),
+          province: provinceName,
+        },
+        entityRefs: [
+          entityRef('person', dismissTargetId, 'subject', bailiff?.nameKey),
+          entityRef(
+            'province',
+            provinceId,
+            'province',
+            nextCtx.state.provinces[provinceId]?.nameKey,
+          ),
+        ],
+      })
+      nextCtx = { ...ctxEv, events: [...ctxEv.events, event] }
+      nextCtx = awardReputationViaContext(nextCtx, {
+        personId: dismissTargetId,
+        source: { kind: 'revolt' },
+        category: 'stewardship',
+        baseScore: config.revoltBailiffReputationPenalty,
+      })
+    }
+    return nextCtx
+  }
+
+  return ctx
+}
+
 // v0.48: escalation 経路は popular_tax_relief と bailiff_dismissal の両方から到達する。
 //   両者の共通部分 (holdingId / targetContractId / claimantPopClass) のみ使い、
 //   demandedTaxRate に依存する箇所は kind で guard する。
@@ -613,7 +762,7 @@ type RevoltEscalationDemand = Extract<
   { kind: 'popular_tax_relief' | 'bailiff_dismissal' | 'secession' }
 >
 
-function applyRevoltEscalation(
+export function applyRevoltEscalation(
   ctx: TickContext,
   play: DiplomaticPlay,
   demand: RevoltEscalationDemand,
