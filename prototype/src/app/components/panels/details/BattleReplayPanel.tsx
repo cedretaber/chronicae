@@ -239,35 +239,66 @@ export function BattleReplayPanel({
     empty: 'border-dashed border-gray-700 bg-transparent',
   }
 
-  const renderRow = (cells: Cell[]): ReactNode => (
+  // 配置図は正方形 + 列番号のみ (戦列幅が広くても全体を俯瞰できる)。連隊の素性は下の連隊一覧表に出す。
+  //   状態 (敗走/壊滅/離脱) は背景色、武功は ring。hover で連隊名を tooltip 表示。
+  const renderSquares = (cells: Cell[]): ReactNode => (
     <div className="flex gap-1">
       {cells.map((c, i) => (
         <div
           key={i}
-          className={`flex min-w-[5.5rem] flex-1 flex-col gap-0.5 rounded border px-1 py-1 text-[10px] ${cellStateCls[c.state]} ${
+          title={c.regimentId ? regLabel(c.regimentId) : undefined}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[11px] ${cellStateCls[c.state]} ${
             c.commanderFeat ? 'ring-1 ring-amber-400' : ''
-          }`}
+          } ${c.regimentId ? 'text-gray-100' : 'text-gray-600'}`}
         >
-          <div className="text-gray-500">{i + 1}</div>
-          {c.regimentId ? (
-            <>
-              <div className="truncate text-gray-200">
-                {troopIcon(c.regimentId)} {regLabel(c.regimentId)}
-              </div>
-              <div className="truncate">{commanderOf(c.regimentId)}</div>
-            </>
-          ) : (
-            <div className="text-gray-600">&mdash;</div>
-          )}
-          {c.badges.map((b, bi) => (
-            <span key={bi} className={`rounded px-1 ${b.cls}`}>
-              {b.text}
-            </span>
-          ))}
+          {i + 1}
         </div>
       ))}
     </div>
   )
+
+  // 連隊一覧表: 配置図の列番号 → 連隊 (兵種・本拠地)・指揮官・状態。占有 slot のみ行に出す。
+  const renderRoster = (s: WarSideKey, cells: Cell[]): ReactNode => {
+    const rows = cells.flatMap((c, i) => (c.regimentId ? [{ i, rid: c.regimentId, c }] : []))
+    if (rows.length === 0) return null
+    return (
+      <div className="mt-1">
+        <div className="text-xs font-semibold text-gray-300">{sideLabel(s)}</div>
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="text-left text-gray-500">
+              <th className="pr-2 font-normal">{t('detail.battle.header.column')}</th>
+              <th className="pr-2 font-normal">{t('detail.battle.header.troop')}</th>
+              <th className="pr-2 font-normal">{t('detail.battle.header.regiment')}</th>
+              <th className="pr-2 font-normal">{t('detail.battle.header.commander')}</th>
+              <th className="font-normal">{t('detail.battle.header.state')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ i, rid, c }) => (
+              <tr key={i} className="align-top">
+                <td className="pr-2 text-gray-400">{i + 1}</td>
+                <td className="pr-2 text-gray-300">{troopIcon(rid)}</td>
+                <td className="truncate pr-2 text-gray-200">{regLabel(rid)}</td>
+                <td className="pr-2">
+                  {commanderOf(rid) ?? <span className="text-gray-500">&mdash;</span>}
+                </td>
+                <td>
+                  <span className="flex flex-wrap gap-1">
+                    {c.badges.map((b, bi) => (
+                      <span key={bi} className={`rounded px-1 ${b.cls}`}>
+                        {b.text}
+                      </span>
+                    ))}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
 
   // this-tick イベントのテキスト列。tactic は別行で出すので除外。
   const renderEvents = (tl: BattleTickLog): ReactNode => {
@@ -358,6 +389,8 @@ export function BattleReplayPanel({
   const nTicks = log.tickLogs.length
   const curTick = Math.min(tick, Math.max(0, nTicks - 1))
   const tl = log.tickLogs[curTick]
+  const attackerCells = tl ? buildCells('attacker', tl) : []
+  const defenderCells = tl ? buildCells('defender', tl) : []
 
   return (
     <div className="flex flex-col gap-1 p-3 text-sm">
@@ -422,13 +455,24 @@ export function BattleReplayPanel({
         </div>
       ) : (
         <>
-          {/* 戦場 (slot grid) */}
-          <div className="mt-2 flex flex-col gap-1 rounded bg-gray-900/60 p-2">
-            <div className="text-[10px] text-gray-500">{sideLabel('attacker')}</div>
-            {renderRow(buildCells('attacker', tl))}
-            <div className="my-0.5 border-t border-dashed border-gray-700" />
-            {renderRow(buildCells('defender', tl))}
-            <div className="text-right text-[10px] text-gray-500">{sideLabel('defender')}</div>
+          {/* 戦場 (slot grid): 正方形 + 列番号。幅が広い会戦は横スクロール。攻防は同じ列で整列。 */}
+          <div className="mt-2 rounded bg-gray-900/60 p-2">
+            <div className="overflow-x-auto">
+              <div className="flex flex-col gap-1">
+                <div className="text-[10px] text-gray-500">{sideLabel('attacker')}</div>
+                {renderSquares(attackerCells)}
+                <div className="my-0.5 border-t border-dashed border-gray-700" />
+                {renderSquares(defenderCells)}
+                <div className="text-right text-[10px] text-gray-500">{sideLabel('defender')}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 連隊一覧 (列番号 → 連隊詳細) */}
+          <div className="mt-2">
+            <div className="text-xs text-gray-400">{t('detail.battle.roster')}:</div>
+            {renderRoster('attacker', attackerCells)}
+            {renderRoster('defender', defenderCells)}
           </div>
 
           {/* tick スクラバ */}

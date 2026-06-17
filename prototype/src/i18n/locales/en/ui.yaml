@@ -680,7 +680,14 @@ detail:
     advantage: 'advantage'
     events_this_tick: 'Events this phase'
     column: 'col {{n}}'
+    roster: 'Order of Battle'
     unknown_regiment: 'unknown regiment'
+    header:
+      column: 'Col'
+      troop: 'Type'
+      regiment: 'Regiment'
+      commander: 'Commander'
+      state: 'State'
     infantry_icon: 'Inf'
     cavalry_icon: 'Cav'
     importance:

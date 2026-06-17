@@ -775,7 +775,14 @@ detail:
     advantage: '有利'
     events_this_tick: 'この局面の出来事'
     column: '第{{n}}列'
+    roster: '連隊一覧'
     unknown_regiment: '不明な連隊'
+    header:
+      column: '列'
+      troop: '兵種'
+      regiment: '連隊'
+      commander: '指揮官'
+      state: '状態'
     infantry_icon: '歩'
     cavalry_icon: '騎'
     importance:
