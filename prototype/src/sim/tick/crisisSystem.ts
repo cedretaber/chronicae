@@ -38,6 +38,7 @@ import {
 import { adjustHoldingPopAttitudeMut } from '../mutations/attitudeMutations'
 import { getHoldingTerminalPolityId, isPlaceholderPerson } from '../selectors/landContractSelectors'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
+import { getHoldingImprovementLevel } from '../selectors/holdingImprovementSelectors'
 import { getProvincePopulationPressure } from '../selectors/popSelectors'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
@@ -401,9 +402,20 @@ function spawnCrisisForHolding(
   const ownerPolity = ws.polities[ownerPolityId]
   if (!ownerPolity || !ownerPolity.active) return false
 
+  // v0.48.1: 設備による被害軽減 (灌漑→干魃 / 貯蔵→飢饉)。その holding の当該設備レベルに応じ severity と
+  //   初期ショックを乗算で下げる (決定的・RNG 不撹乱)。未登録 kind は factor 1 (軽減なし)。
+  const mitigation = config.crisisMitigationByKind[kind]
+  let mitigationFactor = 1
+  if (mitigation) {
+    const level = getHoldingImprovementLevel(ws, holdingId, mitigation.improvementKind)
+    mitigationFactor = Math.max(0, 1 - mitigation.reductionPerLevel * level)
+  }
+
   const severity = Math.min(
     100,
-    config.crisisInitialSeverityByKind[kind] + pressureExcess * config.crisisSeverityPressureBonus,
+    (config.crisisInitialSeverityByKind[kind] +
+      pressureExcess * config.crisisSeverityPressureBonus) *
+      mitigationFactor,
   )
   const deadlineWeek = absoluteWeek + config.crisisDeadlineWeeksByKind[kind]
 
@@ -418,7 +430,7 @@ function spawnCrisisForHolding(
   })
 
   // 初期ショック (一回限りの人口減, holding スコープで 1 回。province ラッパーの多重罠を回避, §4.1)
-  const shockRate = config.crisisInitialShockSizeRateByKind[kind]
+  const shockRate = config.crisisInitialShockSizeRateByKind[kind] * mitigationFactor
   if (shockRate > 0) {
     const popClass: PopClass | undefined = kind === 'plague' ? undefined : 'peasants'
     reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, popClass)

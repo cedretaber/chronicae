@@ -21,6 +21,7 @@ import type {
   ProvinceId,
   HoldingOfficeAssignmentId,
   OfficeAssignmentId,
+  HoldingImprovementId,
 } from '../types/ids'
 
 const PROVINCE = 'pr-1' as ProvinceId
@@ -198,5 +199,72 @@ describe('runCrisisSystem spawn (A5)', () => {
     expect(handleProjects[0]!.supervisorPersonId).toBe(bailiff)
     // targetProgress = 初期 severity
     expect(handleProjects[0]!.targetProgress).toBe(crisis.severity)
+  })
+})
+
+describe('設備による Crisis 被害軽減 (v0.48.1 §6.6b)', () => {
+  const IMP = 'hi-mit' as HoldingImprovementId
+
+  function withImprovement(
+    s: WorldState,
+    kind: 'storage_infrastructure' | 'irrigation_infrastructure',
+    level: number,
+  ): WorldState {
+    return {
+      ...s,
+      holdingImprovements: {
+        ...s.holdingImprovements,
+        [IMP]: { id: IMP, holdingId: HOLDING, kind, level, condition: 100, createdWeek: 0 },
+      },
+      holdingImprovementIndex: {
+        byHolding: { ...s.holdingImprovementIndex.byHolding, [HOLDING as string]: [IMP] },
+      },
+    }
+  }
+
+  it('貯蔵設備が飢饉の severity と初期ショックを軽減する', () => {
+    // 設備なし: severity = base (pressureBonus=0 のため)
+    const baseline = runCrisisSystem(makeCtx(buildWorld()))
+    const baseFamine = Object.values(baseline.state.crises).find((c) => c?.kind === 'famine')!
+    expect(baseFamine.severity).toBeCloseTo(defaultConfig.crisisInitialSeverityByKind.famine)
+
+    // 貯蔵 Lv2 → factor 1 - 0.25×2 = 0.5
+    const next = runCrisisSystem(
+      makeCtx(withImprovement(buildWorld(), 'storage_infrastructure', 2)),
+    )
+    const famine = Object.values(next.state.crises).find((c) => c?.kind === 'famine')!
+    expect(famine.severity).toBeCloseTo(defaultConfig.crisisInitialSeverityByKind.famine * 0.5)
+    // POP も軽減ショックで減るが全滅しない (size > 0)
+    expect(next.state.popGroups[POP]!.size).toBeGreaterThan(0)
+  })
+
+  it('灌漑設備が干魃の severity を軽減する', () => {
+    const FORCE_DROUGHT = {
+      famineBaseChancePerYear: 0,
+      plagueBaseChancePerYear: 0,
+      droughtBaseChancePerYear: 1,
+      bountifulHarvestBaseChancePerYear: 0,
+      populationPressureThreshold: 999999,
+      crisisSeverityPressureBonus: 0,
+    }
+    const ctx = (s: WorldState) =>
+      createTickContext({
+        state: s,
+        rng: createRng('drought'),
+        config: { ...defaultConfig, ...FORCE_DROUGHT },
+      })
+
+    // 灌漑 Lv3 → factor 1 - 0.25×3 = 0.25
+    const next = runCrisisSystem(ctx(withImprovement(buildWorld(), 'irrigation_infrastructure', 3)))
+    const drought = Object.values(next.state.crises).find((c) => c?.kind === 'drought')!
+    expect(drought.severity).toBeCloseTo(defaultConfig.crisisInitialSeverityByKind.drought * 0.25)
+  })
+
+  it('登録外の設備種別では軽減されない (灌漑は飢饉に効かない)', () => {
+    const next = runCrisisSystem(
+      makeCtx(withImprovement(buildWorld(), 'irrigation_infrastructure', 3)),
+    )
+    const famine = Object.values(next.state.crises).find((c) => c?.kind === 'famine')!
+    expect(famine.severity).toBeCloseTo(defaultConfig.crisisInitialSeverityByKind.famine)
   })
 })

@@ -306,6 +306,11 @@ export type SimulationConfig = {
   facilityRepairConditionRestore: number // 修理完了 / 部分崩壊後に回復する condition
   warDamageConditionDrop: number // 戦災 1 回あたりの condition 減少幅
   crisisDisrepairNeglectMultiplier: number // disrepair 放置時の neglect affection 低下の倍率 (他 Crisis より穏やかに)
+  // v0.48.1: 設備による Crisis 被害軽減。kind ごとに「軽減する設備種別」と「holding の当該設備レベル
+  //   あたり軽減率」を指定。spawn 時に severity と初期人口ショックを乗算で下げる (未登録 kind は軽減なし)。
+  crisisMitigationByKind: Partial<
+    Record<CrisisKind, { improvementKind: HoldingImprovementKind; reductionPerLevel: number }>
+  >
   facilityConditionSeedJitterMin: number // worldgen seed の condition 下限 (上限 100, 第1波 desync)
   // Military v0.9
   houseManpowerPowerFactor: number
@@ -1555,6 +1560,11 @@ export const defaultConfig: SimulationConfig = {
   warDamageConditionDrop: 40,
   facilityConditionSeedJitterMin: 70,
   crisisDisrepairNeglectMultiplier: 0.4, // disrepair の neglect を他 Crisis の 40% に抑える (deadline 無しで長期蓄積するため)
+  // 灌漑→干魃 / 貯蔵→飢饉 の被害軽減。max level 3 なので reduction 0.25/level = 最大 75% 軽減 (25% 残る)。
+  crisisMitigationByKind: {
+    drought: { improvementKind: 'irrigation_infrastructure', reductionPerLevel: 0.25 },
+    famine: { improvementKind: 'storage_infrastructure', reductionPerLevel: 0.25 },
+  },
 
   // Military v0.9
   houseManpowerPowerFactor: 1.0,
