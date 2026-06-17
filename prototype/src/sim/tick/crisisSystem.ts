@@ -166,9 +166,26 @@ export function cancelActiveResponseProjectMut(
   ws.projects[projectId] = { ...p, status, terminalReason: reason }
 }
 
+// v0.48.1 §5: 戦災で対象 holding の全 improvement の condition を一括減少させる。閾値割れは翌サイクル
+//   以降に facilityMaintenanceSystem が disrepair Crisis として拾う。per-object spread + sort 走査。
+function applyWarDamageToImprovementsMut(ws: WorldState, holdingId: HoldingId, drop: number): void {
+  if (drop <= 0) return
+  const impIds = [...(ws.holdingImprovementIndex.byHolding[holdingId as string] ?? [])].sort()
+  for (const impId of impIds) {
+    const imp = ws.holdingImprovements[impId]
+    if (!imp) continue
+    const newCondition = Math.max(0, imp.condition - drop)
+    if (newCondition !== imp.condition) {
+      ws.holdingImprovements[impId] = { ...imp, condition: newCondition }
+    }
+  }
+}
+
 // v0.48 Phase B: 戦災 (war_damage) Crisis を ctx ベースで spawn する。PeaceSettlementSystem が
-//   land transfer 成功後に呼ぶ (§5.2)。owner = 終戦後の新支配 polity。dedup・初期ショック (全 class)・
+//   land transfer 成功後に呼ぶ (§5.2)。owner = 終戦後の新支配 polity。初期ショック (全 class)・
 //   代官いれば対処 Project 生成は災害と共通。two-slice 書き戻し (Crisis + Project slice) を ctx.state に反映。
+//   v0.48.1 (案 B): 既に active な war_damage Crisis がある holding で再戦災が起きた場合は新規生成せず、
+//   既存 Crisis の deadline をリセット (対処猶予の延長) + 設備 condition を再損傷させる。
 export function spawnWarDamageCrisis(
   ctx: TickContext,
   holdingId: HoldingId,
@@ -177,15 +194,8 @@ export function spawnWarDamageCrisis(
 ): TickContext {
   const config = ctx.config
   const absoluteWeek = ctx.state.absoluteWeek
-
-  // dedup: 同 holding に active war_damage があれば skip
-  const existing = ctx.state.crisisIndex.byHolding[holdingId as string] ?? []
-  for (const cid of existing) {
-    const c = ctx.state.crises[cid]
-    if (c && c.kind === 'war_damage' && c.status === 'active') return ctx
-  }
-  const ownerPolity = ctx.state.polities[ownerPolityId]
-  if (!ownerPolity || !ownerPolity.active) return ctx
+  const deadlineWeek = absoluteWeek + config.crisisDeadlineWeeksByKind.war_damage
+  const drop = config.warDamageConditionDrop
 
   const ws: WorldState = {
     ...ctx.state,
@@ -211,9 +221,31 @@ export function spawnWarDamageCrisis(
     },
   }
 
+  // 案 B (v0.48.1): 同 holding に active war_damage があれば新規生成せず、deadline をリセット (対処猶予の
+  //   延長) + 設備を再損傷させる。対応 Project があれば deadline を同期 (延長が実際に効くように)。event は
+  //   出さない (Crisis は既存)。
+  const existing = [...(ws.crisisIndex.byHolding[holdingId as string] ?? [])]
+  for (const cid of existing) {
+    const c = ws.crises[cid]
+    if (c && c.kind === 'war_damage' && c.status === 'active') {
+      ws.crises[cid] = { ...c, deadlineWeek }
+      const pid = c.responseProjectId
+      if (pid) {
+        const p = ws.projects[pid]
+        if (p && p.status === 'active' && p.deadlineWeek !== undefined) {
+          ws.projects[pid] = { ...p, deadlineWeek }
+        }
+      }
+      applyWarDamageToImprovementsMut(ws, holdingId, drop)
+      return { ...ctx, state: ws }
+    }
+  }
+
+  const ownerPolity = ws.polities[ownerPolityId]
+  if (!ownerPolity || !ownerPolity.active) return ctx
+
   // pressureExcess は無関係 (戦災は人口圧力起点でない) → severity = base のみ
   const severity = Math.min(100, config.crisisInitialSeverityByKind.war_damage)
-  const deadlineWeek = absoluteWeek + config.crisisDeadlineWeeksByKind.war_damage
 
   const crisis = createCrisisMut(ws, {
     kind: 'war_damage',
@@ -232,21 +264,7 @@ export function spawnWarDamageCrisis(
     reduceHoldingPopSizeProportionalMut(ws, holdingId, shockRate, undefined)
   }
 
-  // v0.48.1 §5: 戦災で対象 holding の全 improvement の condition を warDamageConditionDrop 減少させる。
-  //   閾値割れは翌サイクル以降に facilityMaintenanceSystem が disrepair Crisis として拾う (パイプライン
-  //   再利用)。per-object spread + sort 走査 (§2 の規約)。
-  const drop = config.warDamageConditionDrop
-  if (drop > 0) {
-    const impIds = [...(ws.holdingImprovementIndex.byHolding[holdingId as string] ?? [])].sort()
-    for (const impId of impIds) {
-      const imp = ws.holdingImprovements[impId]
-      if (!imp) continue
-      const newCondition = Math.max(0, imp.condition - drop)
-      if (newCondition !== imp.condition) {
-        ws.holdingImprovements[impId] = { ...imp, condition: newCondition }
-      }
-    }
-  }
+  applyWarDamageToImprovementsMut(ws, holdingId, drop)
 
   const handlers = resolveCrisisHandlers(ws, config, holdingId, ownerPolityId)
   if (handlers) {

@@ -358,7 +358,7 @@ CrisisSystem は ProjectOutcomeSystem の **後** に走り（resolved/progress 
 
 **生産への影響（機能不全 = 段階的低下）**: `conditionEffectiveness(condition, threshold, minFloor) = condition ≥ threshold ? 1 : max(minFloor, condition/threshold)`（`holdingImprovementSelectors.ts`）。閾値以上は full(1.0)、未満は線形低下（下限 `facilityDisrepairMinEffectiveness`、通常 0）。bimodal（健全はフラット稼働 / 機能不全で初めて出力が崖状に落ちる）。`getHoldingDevelopment`（development 寄与）と `computeHoldingOccupationCapacity`（雇用 capacity）の improvement level 寄与に乗算。capacity helper の要素型は `condition` を必須にして全 builder に注入を強制する（optional だと渡し忘れが静かに死ぬ）。二重計上ではない（capacity は state 非依存で development を参照しない並列の consumer）。
 
-**戦争連動**: `spawnWarDamageCrisis`（PeaceSettlement の領地移転後）で対象 holding の全 improvement の condition を `warDamageConditionDrop` 減少させる（improvement 2 slice を draft に追加・per-object spread）。閾値割れは翌サイクル以降に本 system が disrepair として拾う（パイプライン再利用）。war_damage Crisis と disrepair Crisis は同 holding に同居しうる（dedup は kind 別）。
+**戦争連動**: `spawnWarDamageCrisis`（PeaceSettlement の領地移転後）で対象 holding の全 improvement の condition を `warDamageConditionDrop` 減少させる（improvement 2 slice を draft に追加・per-object spread）。閾値割れは翌サイクル以降に本 system が disrepair として拾う（パイプライン再利用）。war_damage Crisis と disrepair Crisis は同 holding に同居しうる（dedup は kind 別）。**再戦災（案 B, v0.48.1）**: 同 holding に既に active な war_damage Crisis がある場合は新規生成せず、既存 Crisis の `deadlineWeek` をリセット（対処猶予の延長。active 対処 Project があれば deadline を同期）+ 設備 condition を再損傷させる（CRISIS_CREATED は再 emit しない）。
 
 **worldgen 第1波の desync**: worldgen の improvement は condition を 100 固定でなく決定論 jitter（`facilityConditionSeedJitterMin`..100、improvement id 由来の剰余）で生成する。全 condition 100 出発だと同レベル設備が同週に一斉閾値割れする同期波を時間方向にばらす。新たな RNG draw は引かない（worldgen の draw 順を不変に保つ）。回復はどのみち 100 に戻るので jitter は初期世代のみに効く。
 
@@ -367,8 +367,8 @@ CrisisSystem は ProjectOutcomeSystem の **後** に走り（resolved/progress 
 **develop_holding による condition リセット（v0.48.1 レビュー反映）**: `develop_holding` 完了で**既存** improvement をレベルアップする際、condition を `facilityRepairConditionRestore`(100) にリセットする（新規生成 condition:100 と対称）。disrepair 中の設備を develop した場合は修繕も完了したとみなし、対象の active disrepair Crisis を purge + 修理 Project を `target_repaired` で cancel する（condition だけ戻して Crisis を残すと健全な設備に active disrepair Crisis がぶら下がる不整合になるため）。
 
 **balance-watch（balance フェーズで観察、CLAUDE.md §4）**:
-- 戦災の condition 減少は war_damage Crisis の spawn dedup の後に置かれるため、crisis 有効期間内の再戦災では追加ダメージが入らず deadline もリセットされない（dedup と damage が結合）。再戦災で deadline リセット + 追加ダメージを入れるかは balance フェーズで判断（v0.48.1 時点では現状維持）。
 - 生産・capacity の二経路が閾値未満で同時低下し急峻な崖になる（→ wealth → unrest 連鎖）。同期波（worldgen jitter で緩和）以外では平常時に起動しない設計。
+- 再戦災（案 B）で設備が複数回損傷しうるため、戦争が頻発する holding では設備破壊が加速する。破壊頻度の妥当性は balance フェーズで観察。
 
 ### 6.7 MortalitySystem（4週ごと）
 
