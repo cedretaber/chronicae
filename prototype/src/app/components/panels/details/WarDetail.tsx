@@ -354,7 +354,7 @@ export function WarDetail({
           </div>
         )}
 
-        {/* v0.38 §8: 戦争の記録 (永続 Chronicle)。byWar index が無いため params.warId で抽出。 */}
+        {/* v0.38 §8: 戦争の記録 (永続 Chronicle)。v0.49 §16.2: chronicleIndex.byWar 経由 (全走査解消)。 */}
         <EntityChronicleSection
           title={t('detail.war.chronicle')}
           entries={getChronicleEntriesForWar(worldState, war.id)}

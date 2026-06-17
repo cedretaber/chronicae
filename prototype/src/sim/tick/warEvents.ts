@@ -56,12 +56,19 @@ function emit(
   messageParams: EventMessageParams,
   entityRefs: EventEntityRef[],
 ): TickContext {
+  // v0.49 §16.2: warId を持つ war event は chronicleIndex.byWar 駆動のため war ref を自動付与する。
+  //   既に war ref があれば足さない (index 側でも (kind,id) dedupe される)。War detail が full-scan を回避。
+  const wid = messageParams.warId
+  const refs =
+    typeof wid === 'string' && !entityRefs.some((r) => r.kind === 'war' && r.id === wid)
+      ? [...entityRefs, entityRef('war', wid, 'war')]
+      : entityRefs
   const { event, ctx: nextCtx } = createSimEvent(ctx, {
     type,
     importance,
     messageKey,
     messageParams,
-    entityRefs,
+    entityRefs: refs,
   })
   return { ...nextCtx, events: [...nextCtx.events, event] }
 }
@@ -455,8 +462,7 @@ export function emitBattleOccurred(
   const outnumberedVictory = isVictory && winnerRegimentCount < loserRegimentCount
   const decisiveVictory = input.outcomeQuality === 'rout'
   const refs: EventEntityRef[] = [...attackerDefenderRefs(p)]
-  // v0.49 §16.2: chronicleIndex.byWar 駆動。戦争関連 ChronicleEntry を War detail から full-scan せず引く。
-  refs.push(entityRef('war', war.id, 'war'))
+  // v0.49 §16.2: war ref は emit() が params.warId から自動付与する (chronicleIndex.byWar 駆動)。
   if (input.provinceId) {
     refs.push(entityRef('province', input.provinceId, 'province', provinceNameKey))
   }
