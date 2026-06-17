@@ -700,6 +700,13 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         ...(defCG ? { defenderCaptainGeneralId: defCG } : {}),
         ...(atkCommander ? { attackerCommanderId: atkCommander } : {}),
         ...(defCommander ? { defenderCommanderId: defCommander } : {}),
+        // 実際に連隊を率いた指揮官全員を person ref 用に渡す (本人の年代記に会戦を残す)。
+        attackerCommanderPersonIds: sim.attackerCommanderAssignments.map(
+          (a) => a.commanderPersonId,
+        ),
+        defenderCommanderPersonIds: sim.defenderCommanderAssignments.map(
+          (a) => a.commanderPersonId,
+        ),
         attackerPower: atkPower,
         defenderPower: defPower,
         attackerEffectivePower: atkPower,

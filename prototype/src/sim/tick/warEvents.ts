@@ -416,6 +416,10 @@ export type BattleOccurredInput = {
   defenderCaptainGeneralId?: PersonId
   attackerCommanderId?: PersonId
   defenderCommanderId?: PersonId
+  // 実際に連隊を率いた現場指揮官全員 (本人の年代記に会戦を残すための person ref 用)。
+  //   narrative テキストは上の単一 representative commander を使い、こちらは全員分の ref を積む。
+  attackerCommanderPersonIds?: readonly PersonId[]
+  defenderCommanderPersonIds?: readonly PersonId[]
   attackerPower: number
   defenderPower: number
   attackerEffectivePower: number
@@ -476,11 +480,23 @@ export function emitBattleOccurred(
   for (const [id, role] of [
     [input.attackerCaptainGeneralId, 'attacker_captain_general'],
     [input.defenderCaptainGeneralId, 'defender_captain_general'],
-    [input.attackerCommanderId, 'attacker_commander'],
-    [input.defenderCommanderId, 'defender_commander'],
   ] as const) {
     const r = personRef(state, id, role)
     if (r) refs.push(r)
+  }
+  // 実際に連隊を率いた現場指揮官を全員 person ref に積む (本人の年代記=byPerson に会戦が残る)。
+  //   同一人物が複数連隊を率いる/CG 兼任のケースは dedupe (index 側でも (kind,id) 重複は畳まれる)。
+  const seenCommander = new Set<string>()
+  for (const [ids, role] of [
+    [input.attackerCommanderPersonIds, 'attacker_commander'],
+    [input.defenderCommanderPersonIds, 'defender_commander'],
+  ] as const) {
+    for (const id of ids ?? []) {
+      if (seenCommander.has(id)) continue
+      seenCommander.add(id)
+      const r = personRef(state, id, role)
+      if (r) refs.push(r)
+    }
   }
   const winnerName =
     input.result === 'attacker_victory'
