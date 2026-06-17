@@ -41,6 +41,8 @@ export type ProjectTerminalReason =
   | 'owner_titularized'
   // v0.48.1 §2.3: 修理対象の improvement が破壊 (レベルダウン/全壊) され修理 Project が無意味化
   | 'target_destroyed'
+  // v0.48.1: develop_holding 完了で improvement が再生され disrepair が解消、修理 Project が冗長化
+  | 'target_repaired'
 
 export type ProjectOrigin = { kind: 'aim'; aimId: AimId } | { kind: 'system'; reasonKey: string }
 

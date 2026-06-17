@@ -362,10 +362,12 @@ CrisisSystem は ProjectOutcomeSystem の **後** に走り（resolved/progress 
 
 **worldgen 第1波の desync**: worldgen の improvement は condition を 100 固定でなく決定論 jitter（`facilityConditionSeedJitterMin`..100、improvement id 由来の剰余）で生成する。全 condition 100 出発だと同レベル設備が同週に一斉閾値割れする同期波を時間方向にばらす。新たな RNG draw は引かない（worldgen の draw 順を不変に保つ）。回復はどのみち 100 に戻るので jitter は初期世代のみに効く。
 
+**disrepair の neglect 緩和（v0.48.1 レビュー反映）**: disrepair は唯一 deadline を持たない Crisis 種で、放置時の neglect attitude 低下が他種（12〜32週で失効）と違い破壊までの multi-year（level 1 で ~224週、高 level ほど短い）にわたって蓄積する。neglect 自体は仕様意図（放置中に代官/Polity affection を下げる）だが、長期蓄積が過大にならないよう disrepair の週次 affection 低下を `crisisDisrepairNeglectMultiplier`（既定 0.4 = 他 Crisis の 40%）で穏やかにする（`applyNeglectAttitude`）。
+
+**develop_holding による condition リセット（v0.48.1 レビュー反映）**: `develop_holding` 完了で**既存** improvement をレベルアップする際、condition を `facilityRepairConditionRestore`(100) にリセットする（新規生成 condition:100 と対称）。disrepair 中の設備を develop した場合は修繕も完了したとみなし、対象の active disrepair Crisis を purge + 修理 Project を `target_repaired` で cancel する（condition だけ戻して Crisis を残すと健全な設備に active disrepair Crisis がぶら下がる不整合になるため）。
+
 **balance-watch（balance フェーズで観察、CLAUDE.md §4）**:
-- disrepair は唯一 deadline を持たない Crisis 種なので、**放置時の neglect attitude 低下が他種（12〜32週）と違い破壊までの multi-year（level 1 で ~224週、高 level ほど短い）にわたって有界に蓄積する**。neglect 自体は仕様意図（放置中に代官/Polity affection を下げる）だが、unbounded な蓄積が反乱連鎖を過剰に焚かないか観察対象。
-- `develop_holding` が**既存** improvement をレベルアップする際 condition をリセットしない（新規生成は 100）。disrepair 中の設備を upgrade すると低 condition のまま高 level になり減衰が加速する。「開発完了が condition を refresh すべきか」は未決の設計問題（リセットすると active disrepair Crisis の purge 協調が要るためスコープ外として保留）。
-- 戦災の condition 減少は war_damage Crisis の spawn dedup の後に置かれるため、crisis 有効期間内の再戦災では追加ダメージが入らない（dedup と damage が結合）。
+- 戦災の condition 減少は war_damage Crisis の spawn dedup の後に置かれるため、crisis 有効期間内の再戦災では追加ダメージが入らず deadline もリセットされない（dedup と damage が結合）。再戦災で deadline リセット + 追加ダメージを入れるかは balance フェーズで判断（v0.48.1 時点では現状維持）。
 - 生産・capacity の二経路が閾値未満で同時低下し急峻な崖になる（→ wealth → unrest 連鎖）。同期波（worldgen jitter で緩和）以外では平常時に起動しない設計。
 
 ### 6.7 MortalitySystem（4週ごと）

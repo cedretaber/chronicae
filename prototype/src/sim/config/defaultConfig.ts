@@ -305,6 +305,7 @@ export type SimulationConfig = {
   facilityDisrepairMinEffectiveness: number // 生産 effectiveness の下限 (condition 0 時)
   facilityRepairConditionRestore: number // 修理完了 / 部分崩壊後に回復する condition
   warDamageConditionDrop: number // 戦災 1 回あたりの condition 減少幅
+  crisisDisrepairNeglectMultiplier: number // disrepair 放置時の neglect affection 低下の倍率 (他 Crisis より穏やかに)
   facilityConditionSeedJitterMin: number // worldgen seed の condition 下限 (上限 100, 第1波 desync)
   // Military v0.9
   houseManpowerPowerFactor: number
@@ -1553,6 +1554,8 @@ export const defaultConfig: SimulationConfig = {
   facilityRepairConditionRestore: 100,
   warDamageConditionDrop: 40,
   facilityConditionSeedJitterMin: 70,
+  crisisDisrepairNeglectMultiplier: 0.4, // disrepair の neglect を他 Crisis の 40% に抑える (deadline 無しで長期蓄積するため)
+
   // Military v0.9
   houseManpowerPowerFactor: 1.0,
   houseMilitaryWealthReserve: 100,

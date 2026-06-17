@@ -15,7 +15,7 @@ import { defaultConfig } from '../config/defaultConfig'
 import { createTickContext } from './context'
 import { createCrisisMut, setCrisisResponseProjectMut } from '../mutations/crisisMutations'
 import { addProjectToIndexMut } from '../mutations/projectMutations'
-import type { HandleCrisisProject } from '../types/project'
+import type { HandleCrisisProject, DevelopHoldingProject } from '../types/project'
 import type { HoldingImprovement } from '../types/holdingImprovement'
 import type {
   HoldingId,
@@ -231,5 +231,78 @@ describe('修理完了 → condition 回復 (§4.2, projectOutcomeSystem)', () =
       defaultConfig.facilityRepairConditionRestore,
     )
     expect(next.state.crises[crisis.id]).toBeUndefined()
+  })
+})
+
+describe('develop_holding 完了で condition リセット + disrepair Crisis 解消', () => {
+  it('既存設備の develop 完了 → condition 100 回復 / active disrepair Crisis purge / 修理 Project cancel', () => {
+    const s = makeBoundWorld({ condition: 20, level: 2 })
+    // 機能不全中の設備に disrepair Crisis + 修理 Project がぶら下がっている状況
+    const crisis = createCrisisMut(s, {
+      kind: 'disrepair',
+      holdingId: HOLDING,
+      severity: 30,
+      createdWeek: 0,
+      deadlineWeek: 999,
+      status: 'active',
+      reasonIds: [],
+      targetImprovementId: IMP,
+    })
+    const repairId = 'pr-repair' as ProjectId
+    const repair: HandleCrisisProject = {
+      id: repairId,
+      owner: { kind: 'polity', id: POLITY },
+      origin: { kind: 'system', reasonKey: 'crisis_response' },
+      kind: 'handle_crisis',
+      crisisId: crisis.id,
+      holdingId: HOLDING,
+      creatorPersonId: LEADER,
+      supervisorPersonId: LEADER,
+      status: 'active',
+      progress: 5,
+      targetProgress: 30,
+      currentStageKey: 'mitigate',
+      createdWeek: 0,
+      reasonIds: [],
+      budget: { required: 20, allocated: 20, remaining: 12, spent: 8, source: { kind: 'owner' } },
+    }
+    s.projects[repairId] = repair
+    addProjectToIndexMut(s, repair)
+    setCrisisResponseProjectMut(s, crisis.id, repairId)
+
+    // 同 holding/improvement を対象とする completed develop_holding Project
+    const devId = 'pr-dev' as ProjectId
+    const dev: DevelopHoldingProject = {
+      id: devId,
+      owner: { kind: 'polity', id: POLITY },
+      origin: { kind: 'system', reasonKey: 'test' },
+      kind: 'develop_holding',
+      creatorPersonId: LEADER,
+      supervisorPersonId: LEADER,
+      status: 'completed',
+      terminalReason: 'completed',
+      progress: 100,
+      targetProgress: 100,
+      currentStageKey: 'execute_project',
+      createdWeek: 0,
+      reasonIds: [],
+      holdingId: HOLDING,
+      improvementKind: 'field_system',
+      targetImprovementLevel: 3,
+      budget: { required: 10, allocated: 10, remaining: 10, spent: 0, source: { kind: 'owner' } },
+    }
+    s.projects[devId] = dev
+    addProjectToIndexMut(s, dev)
+
+    const ctx = createTickContext({ state: s, rng: createRng('dev'), config: defaultConfig })
+    const next = runProjectOutcomeSystem(ctx)
+
+    const imp = next.state.holdingImprovements[IMP]
+    expect(imp?.level).toBe(3)
+    expect(imp?.condition).toBe(defaultConfig.facilityRepairConditionRestore)
+    expect(next.state.crises[crisis.id]).toBeUndefined()
+    const p = next.state.projects[repairId]
+    expect(p?.status).toBe('cancelled')
+    expect(p?.terminalReason).toBe('target_repaired')
   })
 })

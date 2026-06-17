@@ -236,6 +236,7 @@
 | facilityRepairConditionRestore | 100 | 修理完了 / 部分崩壊後に回復する condition |
 | warDamageConditionDrop | 40 | 戦災 1 回あたりの全 improvement condition 減少幅（§6.6b 戦争連動） |
 | facilityConditionSeedJitterMin | 70 | worldgen seed の condition 下限（上限 100、第1波 desync。improvement id 由来の決定論 jitter） |
+| crisisDisrepairNeglectMultiplier | 0.4 | disrepair 放置時の neglect affection 低下の倍率（他 Crisis の 40%。deadline 無しで長期蓄積するため穏やかに） |
 | **Public Spending** | | |
 | publicSpendingEnabled | true | 公共支出有効 |
 | publicSpendingYearlyChance | 0.35 | 公共支出年間発動確率 |

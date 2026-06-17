@@ -11,6 +11,7 @@ import type { HoldingImprovementId } from '../types/ids'
 import { createHoldingImprovementId, createPersonActivityLogId } from '../types/ids'
 import { adjustPersonAttitude, adjustHouseMembersAttitude } from '../mutations/attitudeMutations'
 import { removeCrisisMut, setCrisisStatusMut } from '../mutations/crisisMutations'
+import { cancelActiveResponseProjectMut } from './crisisSystem'
 import { getPolityLeader, getHouseLeader } from '../selectors/officeSelectors'
 import { createOfficeAssignment, revokeOfficesByOrganization } from '../mutations/officeMutations'
 import { adjustPersonLegacyPrestige } from '../helpers/attitudeHelpers'
@@ -713,9 +714,26 @@ function applyDevelopHoldingMut(
 
   if (existingImpId) {
     const existing = ws.holdingImprovements[existingImpId]!
+    // v0.48.1: 開発完了で condition をリセット (新規生成 condition:100 と対称)。
+    //   機能不全中の設備を develop すると修繕も完了したとみなし、対象の active disrepair Crisis を
+    //   purge + 修理 Project を cancel する (condition だけ戻して Crisis を残すと健全な設備に
+    //   active disrepair Crisis がぶら下がる不整合になるため)。
     ws.holdingImprovements[existingImpId] = {
       ...existing,
       level: project.targetImprovementLevel,
+      condition: config.facilityRepairConditionRestore,
+    }
+    const crisisIds = [...(ws.crisisIndex.byHolding[holdingId as string] ?? [])]
+    for (const cid of crisisIds) {
+      const c = ws.crises[cid]
+      if (
+        c &&
+        c.kind === 'disrepair' &&
+        (c.targetImprovementId as string) === (existingImpId as string)
+      ) {
+        cancelActiveResponseProjectMut(ws, c.id, 'target_repaired')
+        removeCrisisMut(ws, c.id)
+      }
     }
   } else {
     const newId = createHoldingImprovementId(ws.nextHoldingImprovementId)

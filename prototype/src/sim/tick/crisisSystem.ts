@@ -153,7 +153,7 @@ function createHandleCrisisProjectMut(
 export function cancelActiveResponseProjectMut(
   ws: WorldState,
   crisisId: CrisisId,
-  reason: 'deadline_expired' | 'owner_inactive' | 'target_destroyed',
+  reason: 'deadline_expired' | 'owner_inactive' | 'target_destroyed' | 'target_repaired',
 ): void {
   const fresh = ws.crises[crisisId]
   const projectId = fresh?.responseProjectId
@@ -745,13 +745,16 @@ function applyNeglectAttitude(
   ownerPolityId: PolityId,
   popClass: PopClass | undefined,
 ): void {
+  // v0.48.1: disrepair は唯一 deadline を持たず neglect が破壊までの multi-year にわたって蓄積するため、
+  //   週次 affection 低下を他 Crisis より穏やかにする (crisisDisrepairNeglectMultiplier、通常 < 1)。
+  const mult = crisis.kind === 'disrepair' ? config.crisisDisrepairNeglectMultiplier : 1
   const bailiff = getActiveBailiff(ws, crisis.holdingId)
   if (bailiff) {
     adjustHoldingPopAttitudeMut(
       ws,
       crisis.holdingId,
       { kind: 'person', id: bailiff },
-      { affection: config.crisisNeglectAffectionDropPerWeekBailiff },
+      { affection: config.crisisNeglectAffectionDropPerWeekBailiff * mult },
       popClass,
     )
   }
@@ -759,7 +762,7 @@ function applyNeglectAttitude(
     ws,
     crisis.holdingId,
     { kind: 'polity', id: ownerPolityId },
-    { affection: config.crisisNeglectAffectionDropPerWeekPolity },
+    { affection: config.crisisNeglectAffectionDropPerWeekPolity * mult },
     popClass,
   )
 }
