@@ -15,34 +15,12 @@ import type {
   BattleLogId,
 } from './ids'
 import type { WarSideKey, BattlefieldKind, BattleResult } from './war'
-import type { RegimentTroopKind } from './regiment'
 import type { BattleOutcomeQuality } from './battle'
 
-// §6.1 BattleRegimentState — 戦闘内部の連隊状態 (現行の非 export 内部型 WorkRegiment の改名/拡張)。
-//   strength は snapshot で tick 中は mutate しない (§14.1)。
-export type BattleRegimentState = {
-  regimentId: RegimentId
-  side: WarSideKey
-  troopKind: RegimentTroopKind
-  strength: number
-  organization: number
-  morale: number
-  accumulatedOrgDamage: number
-  routed: boolean
-  retreated: boolean // org <= retreatThreshold で離脱 (rout ではない)
-  wasInitialFrontline: boolean
-  commanderPersonId?: PersonId
-  commanderQ: number // 割当指揮官の quality bonus (§9, max(0, raw))
-  adjacentCommanderQ?: number // 隣接支援由来
-}
-
-// §6.1 BattleSlot — undefined は空き slot。
-export type BattleSlot = BattleRegimentState | undefined
-
-// §6.1 BattleLine — slots.length === effectiveFrontage。
-export type BattleLine = {
-  slots: BattleSlot[]
-}
+// §6.1 BattleRegimentState / BattleSlot / BattleLine は simulateBattle 実行中のみ存在する live 型であり、
+//   永続化されない (BattleTickLog は slot を (RegimentId | null)[] で snapshot する)。実体は
+//   simulateBattle.ts の内部型 WorkRegiment が担い、BattleSlot = WorkRegiment | undefined として
+//   simulateBattle.ts に定義する。ここ (永続層の型) には置かない (v0.49 §6.1 / spec 同期)。
 
 // §10.1 BattleTactic — battle 内部 tick ごとに両軍総大将が選択する戦術 (三すくみ)。
 export type BattleTactic = 'offensive' | 'defensive' | 'disruption'

@@ -128,6 +128,8 @@ export type BattleSimResult = {
 
 // --- 内部 work 構造 ---
 
+// v0.49 §6.1: 戦闘内部の連隊状態 (spec の BattleRegimentState の実体)。strength は input snapshot で
+//   tick 中は mutate しない (§14.1)。master 配列と slot は同一インスタンスを共有する (§6.2)。
 type WorkRegiment = {
   readonly input: BattleSimRegimentInput
   organization: number // mutable (tick 中に削れる)
@@ -135,8 +137,14 @@ type WorkRegiment = {
   accumulatedOrgDamage: number // この battle で受けた org damage の累積 (§9.4 strength 用)
   wasInitialFrontline: boolean
   routed: boolean
+  retreated: boolean // v0.49 §6.1: org <= retreatThreshold で離脱 (rout ではない)。記録用フラグ。
   commanderQ: number // §13.5 指揮官 quality bonus (signed, ∈[-effectMax, effectMax]、隣接は ratio 倍。default 0)
 }
+
+// v0.49 §6.1: frontline を fixed-length slot array として表現する。undefined は空き slot。
+//   slot は master 配列内の WorkRegiment への参照 (ID 参照ではない)。
+type BattleSlot = WorkRegiment | undefined
+type BattleLine = { slots: BattleSlot[] } // slots.length === effectiveFrontage
 
 const BREAKTHROUGH_KINDS: ReadonlySet<BattlefieldKind> = new Set<BattlefieldKind>([
   'open_field',
@@ -152,6 +160,7 @@ function toWork(input: BattleSimRegimentInput): WorkRegiment {
     accumulatedOrgDamage: 0,
     wasInitialFrontline: false,
     routed: false,
+    retreated: false,
     commanderQ: 0,
   }
 }
@@ -175,9 +184,11 @@ function cgRoutResistance(warCommand: number | undefined, cfg: BattleSimConfigSl
   return clamp((warCommand - 50) / 50, 0, 1) * cfg.captainGeneralRoutResistanceEffectMax
 }
 
-// frontline index を中央寄り優先順に並べる (center-out)。例 n=5 → [2,1,3,0,4]。tie は低 index 優先 (deterministic)。
-function centerOutOrder(n: number): number[] {
-  const center = Math.floor((n - 1) / 2)
+// v0.49 §6.3: frontline slot を中央寄り優先順に並べる (center-out、中線対称)。
+//   center = (n-1)/2 (floor しない)。例 n=5 → [2,1,3,0,4]、n=4 → [1,2,0,3]、n=6 → [2,3,1,4,0,5]。
+//   tie は低 index 優先 (deterministic)。deploy / fill / commander assignment で一元的に使う (§21.A)。
+function centerOutSlotOrder(n: number): number[] {
+  const center = (n - 1) / 2
   return Array.from({ length: n }, (_, i) => i).sort((a, b) => {
     const da = Math.abs(a - center)
     const db = Math.abs(b - center)
@@ -186,13 +197,31 @@ function centerOutOrder(n: number): number[] {
   })
 }
 
+// slot 操作ヘルパー (v0.49 §6)。
+function occupiedSlots(line: BattleLine): WorkRegiment[] {
+  return line.slots.filter((s): s is WorkRegiment => s !== undefined)
+}
+
+function occupiedCount(line: BattleLine): number {
+  let c = 0
+  for (const s of line.slots) if (s !== undefined) c++
+  return c
+}
+
+// occupied slot を slot index 昇順で regimentId 化 (initialFrontlineIds 用)。
+function lineRegimentIdsInSlotOrder(line: BattleLine): RegimentId[] {
+  const ids: RegimentId[] = []
+  for (const s of line.slots) if (s !== undefined) ids.push(s.input.regimentId)
+  return ids
+}
+
 // §13.4 指揮官割当 (deploy 後・draw 無し)。pool から target regiment に greedy 割当し、
 //   各 WorkRegiment.commanderQ を設定して BattleCommanderAssignment[] を返す。
 //   target 優先順: frontline infantry(center-out) → frontline cavalry(center-out) → reserve cavalry → reserve infantry。
 //   infantry target は fieldCommandScore 最大、cavalry target は breakthroughScore 最大を選ぶ (§13.4 step4)。tie personId asc。
 //   隣接 frontline 連隊 (自身に割当が無いもの) は、隣の assigned 正 q × ratio を最大で受ける。
 function assignCommanders(
-  frontline: WorkRegiment[],
+  line: BattleLine,
   reserve: WorkRegiment[],
   pool: BattleSimCommanderInput[],
   cfg: BattleSimConfigSlice,
@@ -200,8 +229,11 @@ function assignCommanders(
   if (pool.length === 0) return []
   const remaining = [...pool]
 
-  const order = centerOutOrder(frontline.length)
-  const flOrdered = order.map((i) => frontline[i]!)
+  // v0.49 §9.1: frontline target は centerOutSlotOrder の occupied slot を中央優先で並べる。
+  const order = centerOutSlotOrder(line.slots.length)
+  const flOrdered = order
+    .map((i) => line.slots[i])
+    .filter((w): w is WorkRegiment => w !== undefined)
   const flInfantry = flOrdered.filter((w) => w.input.troopKind === 'infantry')
   const flCavalry = flOrdered.filter((w) => w.input.troopKind !== 'infantry')
   const resCavalry = reserve.filter((w) => w.input.troopKind !== 'infantry')
@@ -233,14 +265,17 @@ function assignCommanders(
     assignments.push({ commanderPersonId: cmd.personId, regimentId: tgt.input.regimentId })
   }
 
-  // 隣接 bonus: 割当を持たない frontline 連隊が、隣接 assigned 連隊の正 q × ratio を受ける (最大採用)。
-  for (let i = 0; i < frontline.length; i++) {
-    const w = frontline[i]!
-    if (assignedQ.has(w.input.regimentId)) continue
+  // v0.49 §9.4: 隣接 bonus は slot index ±1 で判定。割当を持たない frontline 連隊が、隣接 assigned
+  //   連隊の正 q × ratio を受ける (最大採用)。empty slot は支援なし。
+  for (let i = 0; i < line.slots.length; i++) {
+    const w = line.slots[i]
+    if (w === undefined || assignedQ.has(w.input.regimentId)) continue
     let best = 0
     for (const j of [i - 1, i + 1]) {
-      if (j < 0 || j >= frontline.length) continue
-      const nq = assignedQ.get(frontline[j]!.input.regimentId)
+      if (j < 0 || j >= line.slots.length) continue
+      const nb = line.slots[j]
+      if (nb === undefined) continue
+      const nq = assignedQ.get(nb.input.regimentId)
       if (nq !== undefined && nq > 0)
         best = Math.max(best, nq * cfg.commanderAdjacentRegimentEffectRatio)
     }
@@ -260,11 +295,11 @@ function byPowerDescThenId(a: WorkRegiment, b: WorkRegiment): number {
 // §6.2-6.3 deployment。candidate = strength > minFighting && org > retreatThreshold。
 //   infantry frontline 優先、cavalry reserve 優先、frontline に余れば cavalry も前に出る。
 //   reserve は effectivePower 降順で保持 (補充は power 順)。非 candidate は front/reserve どちらにも入らない。
-function deploy(
+function deployToLine(
   side: WorkRegiment[],
   frontage: number,
   cfg: BattleSimConfigSlice,
-): { frontline: WorkRegiment[]; reserve: WorkRegiment[] } {
+): { line: BattleLine; reserve: WorkRegiment[] } {
   const candidates = side.filter(
     (w) =>
       w.input.strength > cfg.minFightingStrengthThreshold &&
@@ -275,17 +310,28 @@ function deploy(
     .sort(byPowerDescThenId)
   const cavalry = candidates.filter((w) => w.input.troopKind !== 'infantry').sort(byPowerDescThenId)
   const ordered = [...infantry, ...cavalry] // infantry 優先
-  const frontline = ordered.slice(0, frontage)
-  const reserve = ordered.slice(frontage).sort(byPowerDescThenId)
-  return { frontline, reserve }
+  // v0.49 §6.4: 強い順に centerOutSlotOrder で配置 (最強が中央)。余りは reserve、不足分は空き slot。
+  const slots: BattleSlot[] = new Array<BattleSlot>(frontage).fill(undefined)
+  const order = centerOutSlotOrder(frontage)
+  const frontCount = Math.min(frontage, ordered.length)
+  for (let k = 0; k < frontCount; k++) slots[order[k]!] = ordered[k]!
+  const reserve = ordered.slice(frontCount).sort(byPowerDescThenId)
+  return { line: { slots }, reserve }
 }
 
-// 両端 (wing) の regimentId。length 1 ならその 1 つ。
-function wingIds(front: WorkRegiment[]): Set<RegimentId> {
+// v0.49: 両端 (wing) の regimentId — occupied slot のうち最小/最大 index。空きを跨いでも端を取る。
+//   flank pressure (wing-based) は Phase 3 で slot-based flanking に統合し退役する。
+function outermostOccupiedIds(line: BattleLine): Set<RegimentId> {
   const ids = new Set<RegimentId>()
-  if (front.length === 0) return ids
-  ids.add(front[0]!.input.regimentId)
-  ids.add(front[front.length - 1]!.input.regimentId)
+  let lo: WorkRegiment | undefined
+  let hi: WorkRegiment | undefined
+  for (const s of line.slots) {
+    if (s === undefined) continue
+    if (lo === undefined) lo = s
+    hi = s
+  }
+  if (lo) ids.add(lo.input.regimentId)
+  if (hi) ids.add(hi.input.regimentId)
   return ids
 }
 
@@ -333,13 +379,11 @@ function applyOrgAndMorale(tgt: WorkRegiment, orgDmg: number, cfg: BattleSimConf
 // §11.1 retreat/rout 判定。frontline の生存者 (org > retreatThreshold かつ not routed) を返す。
 //   routed は flag を立て追加 morale damage (§9.3)。retreat は frontline から外すのみ (flag なし)。
 //   §13.5/§14: commander quality (正のみ) と side の captainGeneral rout 耐性で effRoute を下げ rout しにくくする。
-function classifyFrontline(
-  front: WorkRegiment[],
-  cfg: BattleSimConfigSlice,
-  cgRoutResist: number,
-): WorkRegiment[] {
-  const survivors: WorkRegiment[] = []
-  for (const w of front) {
+// v0.49 §13.1: classify はマークのみ (即時除去しない)。routed フラグを尊重し survivor に戻さない (C2)。
+//   §13.5/§14: commander quality (正のみ) と side の captainGeneral rout 耐性で effRoute を下げる。
+function classifyLine(line: BattleLine, cfg: BattleSimConfigSlice, cgRoutResist: number): void {
+  for (const w of occupiedSlots(line)) {
+    if (w.routed) continue // 既に routed (breakthrough/pursuit 由来。Phase2 では発生しない) は維持
     const routResist = clamp(Math.max(0, w.commanderQ) + cgRoutResist, 0, 0.9)
     const effRoute =
       (cfg.routeOrganizationThreshold +
@@ -349,18 +393,32 @@ function classifyFrontline(
       w.routed = true
       w.morale = clamp(w.morale - cfg.routAdditionalMoraleDamage, 0, w.input.maxMorale)
     } else if (w.organization <= cfg.retreatOrganizationThreshold) {
-      // retreat: frontline から離脱 (routed ではない)。当該 battle では戦闘不能。
-    } else {
-      survivors.push(w)
+      w.retreated = true // retreat: routed ではないが戦列から離脱する
     }
   }
-  return survivors
 }
 
-// 欠員 frontline slot を reserve (power 順) から補充。
-function fillFrontline(front: WorkRegiment[], reserve: WorkRegiment[], frontage: number): void {
-  while (front.length < frontage && reserve.length > 0) {
-    front.push(reserve.shift()!)
+// v0.49 §13.1: 除去述語。pursuit 判定後に slot から外す対象。
+function shouldRemoveFromSlot(w: WorkRegiment, cfg: BattleSimConfigSlice): boolean {
+  return w.routed || w.organization <= cfg.retreatOrganizationThreshold
+}
+
+// v0.49 §13.1: 除去対象連隊を slot から外す (master 配列には残る)。
+function removeRoutedAndRetreatedFromSlots(line: BattleLine, cfg: BattleSimConfigSlice): void {
+  for (let i = 0; i < line.slots.length; i++) {
+    const w = line.slots[i]
+    if (w !== undefined && shouldRemoveFromSlot(w, cfg)) line.slots[i] = undefined
+  }
+}
+
+// v0.49 §13.2: 空き slot を centerOutSlotOrder 順に reserve (power 順) から補充。
+//   補充された連隊はその tick では攻撃しない (combat の後に呼ぶため自然と次 tick から)。
+function fillLine(line: BattleLine, reserve: WorkRegiment[]): void {
+  if (reserve.length === 0) return
+  const order = centerOutSlotOrder(line.slots.length)
+  for (const i of order) {
+    if (reserve.length === 0) break
+    if (line.slots[i] === undefined) line.slots[i] = reserve.shift()!
   }
 }
 
@@ -379,28 +437,28 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
   const atkAll = input.attacker.map(toWork)
   const defAll = input.defender.map(toWork)
 
-  // 初期 deployment
-  const atkDeploy = deploy(atkAll, input.frontage, cfg)
-  const defDeploy = deploy(defAll, input.frontage, cfg)
-  for (const w of atkDeploy.frontline) w.wasInitialFrontline = true
-  for (const w of defDeploy.frontline) w.wasInitialFrontline = true
-  const attackerInitialFrontlineIds = atkDeploy.frontline.map((w) => w.input.regimentId)
-  const defenderInitialFrontlineIds = defDeploy.frontline.map((w) => w.input.regimentId)
+  // v0.49 §6.4: 初期 deployment (slot array)。frontage = effectiveFrontage。
+  const atkDeploy = deployToLine(atkAll, input.frontage, cfg)
+  const defDeploy = deployToLine(defAll, input.frontage, cfg)
+  for (const w of occupiedSlots(atkDeploy.line)) w.wasInitialFrontline = true
+  for (const w of occupiedSlots(defDeploy.line)) w.wasInitialFrontline = true
+  const attackerInitialFrontlineIds = lineRegimentIdsInSlotOrder(atkDeploy.line)
+  const defenderInitialFrontlineIds = lineRegimentIdsInSlotOrder(defDeploy.line)
 
-  let atkFront = atkDeploy.frontline
+  const atkLine = atkDeploy.line
   const atkRes = atkDeploy.reserve
-  let defFront = defDeploy.frontline
+  const defLine = defDeploy.line
   const defRes = defDeploy.reserve
 
   // §13.4: deployment 確定後に指揮官割当 (draw 無し)。WorkRegiment.commanderQ を設定し assignment snapshot を得る。
   const attackerCommanderAssignments = assignCommanders(
-    atkFront,
+    atkLine,
     atkRes,
     input.attackerCommanders,
     cfg,
   )
   const defenderCommanderAssignments = assignCommanders(
-    defFront,
+    defLine,
     defRes,
     input.defenderCommanders,
     cfg,
@@ -419,48 +477,69 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
   let ticksElapsed = 0
   let result: BattleResult | null = null
 
+  const frontage = input.frontage
   for (let tick = 1; tick <= input.maxTicks; tick++) {
     ticksElapsed = tick
 
-    // 1. flank pressure: 短い側 wing に multiplier (§10.2)
+    // 1. flank pressure: 占有数が多い側が、少ない側の wing に multiplier (§10.2)。
+    //    Phase 3 で slot-based flanking に統合し退役する (wing-based は暫定維持)。
     const terrainFlank = cfg.battleFlankTerrainMultiplierByKind[input.battlefieldKind] ?? 1
     const flankMult = clamp(
       1 + cfg.flankPressureBase * terrainFlank,
       1,
       cfg.maxFlankPressureMultiplier,
     )
+    const atkOcc = occupiedCount(atkLine)
+    const defOcc = occupiedCount(defLine)
     let atkWing = new Set<RegimentId>()
     let defWing = new Set<RegimentId>()
-    if (atkFront.length > defFront.length && defFront.length > 0) {
-      defWing = wingIds(defFront)
-    } else if (defFront.length > atkFront.length && atkFront.length > 0) {
-      atkWing = wingIds(atkFront)
+    if (atkOcc > defOcc && defOcc > 0) {
+      defWing = outermostOccupiedIds(defLine)
+    } else if (defOcc > atkOcc && atkOcc > 0) {
+      atkWing = outermostOccupiedIds(atkLine)
     }
 
-    // 2. 双方向 organization damage (matchup pair, §9.2)。draw 順 = index asc → atk damage → def damage。
-    const n = Math.min(atkFront.length, defFront.length)
-    for (let i = 0; i < n; i++) {
-      const A = atkFront[i]!
-      const D = defFront[i]!
+    // 2. 双方向 organization damage (正面 slot pair, §7.1 / §7.3)。tick 開始 snapshot から全 damage を
+    //    計算・累積し同時適用 (§7.3)。draw 順 = §18.2: attacker 側 slot 昇順 → defender 側 slot 昇順。
+    //    正面のみ (Phase 2)。両 slot が占有のときだけ pair が成立し draw を消費する。
+    const incoming = new Map<WorkRegiment, number>()
+    const addDmg = (tgt: WorkRegiment, dmg: number): void => {
+      incoming.set(tgt, (incoming.get(tgt) ?? 0) + dmg)
+    }
+    // attacker → defender
+    for (let i = 0; i < frontage; i++) {
+      const A = atkLine.slots[i]
+      const D = defLine.slots[i]
+      if (A === undefined || D === undefined) continue
       const toD = computeOrgDamage(A, D, defWing, flankMult, input, cfg, cgDmgReductionBySide, rng)
       rng = toD.rng
+      addDmg(D, toD.dmg)
+    }
+    // defender → attacker
+    for (let i = 0; i < frontage; i++) {
+      const A = atkLine.slots[i]
+      const D = defLine.slots[i]
+      if (A === undefined || D === undefined) continue
       const toA = computeOrgDamage(D, A, atkWing, flankMult, input, cfg, cgDmgReductionBySide, rng)
       rng = toA.rng
-      applyOrgAndMorale(D, toD.dmg, cfg)
-      applyOrgAndMorale(A, toA.dmg, cfg)
+      addDmg(A, toA.dmg)
     }
+    // 同時適用
+    for (const [tgt, dmg] of incoming) applyOrgAndMorale(tgt, dmg, cfg)
 
-    // 3. retreat / rout 判定 → frontline 生存者のみ残す
-    atkFront = classifyFrontline(atkFront, cfg, cgRoutResistBySide.attacker)
-    defFront = classifyFrontline(defFront, cfg, cgRoutResistBySide.defender)
+    // 3. retreat / rout 判定 (マーク only。§13.1)
+    classifyLine(atkLine, cfg, cgRoutResistBySide.attacker)
+    classifyLine(defLine, cfg, cgRoutResistBySide.defender)
 
-    // 4. reserve から frontline 補充
-    fillFrontline(atkFront, atkRes, input.frontage)
-    fillFrontline(defFront, defRes, input.frontage)
+    // 4. retreat / rout 連隊を slot から除去 (master には残る) → reserve から補充
+    removeRoutedAndRetreatedFromSlots(atkLine, cfg)
+    removeRoutedAndRetreatedFromSlots(defLine, cfg)
+    fillLine(atkLine, atkRes)
+    fillLine(defLine, defRes)
 
-    // 5. 終了判定 (§8.2)。fighting = frontline + reserve (どちらも org > retreat の健全連隊)。
-    const atkFighting = atkFront.length + atkRes.length
-    const defFighting = defFront.length + defRes.length
+    // 5. 終了判定 (§8.2)。fighting = 占有 slot 数 + reserve (どちらも org > retreat の健全連隊)。
+    const atkFighting = occupiedCount(atkLine) + atkRes.length
+    const defFighting = occupiedCount(defLine) + defRes.length
     if (atkFighting === 0 && defFighting === 0) {
       // 相討ち: 残存 org 合計 tiebreak (§8.2)
       const atkOrg = sumOrg(atkAll)

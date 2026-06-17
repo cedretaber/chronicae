@@ -688,6 +688,9 @@ export type SimulationConfig = {
   battleBreakthroughAbilityGapThreshold: number
   //   destroyed の warScore 反映 (§14.5)
   battleDestroyedWarScoreWeight: number
+  //   交戦 contest (§5.4。片側回避時に両総大将の insight+command で捕捉/離脱を判定)
+  battleEngagementCaptureBaseChance: number
+  battleEngagementCaptureAbilityScale: number
   //   捕捉戦での戦列幅縮小 (§5.2)
   battleCaughtFrontagePenalty: number
   battleMinimumEffectiveFrontage: number
@@ -1979,6 +1982,9 @@ export const defaultConfig: SimulationConfig = {
   battleBreakthroughAbilityGapThreshold: 15,
   //   destroyed の warScore 反映 (控えめ)
   battleDestroyedWarScoreWeight: 0.15,
+  //   交戦 contest (catcher 有利で base 0.5 から ±ability。warAvoidanceWarCommandEffect と同水準の感度)
+  battleEngagementCaptureBaseChance: 0.5,
+  battleEngagementCaptureAbilityScale: 0.5,
   //   捕捉戦での戦列幅縮小
   battleCaughtFrontagePenalty: 1,
   battleMinimumEffectiveFrontage: 1,

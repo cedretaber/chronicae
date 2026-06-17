@@ -112,41 +112,41 @@ function decideEngagement(
   return { avoid: !forcedAccept && avoidDesire > 0, rng: nextRng }
 }
 
-type AvoidanceOpts = {
-  ownPower: number
-  enemyPower: number
-  ownCaptainGeneralId: PersonId | undefined
-  enemyCaptainGeneralId: PersonId | undefined
-  ownAvoidanceCount: number
+type EngagementContestOpts = {
+  catcherCaptainGeneralId: PersonId | undefined
+  evaderCaptainGeneralId: PersonId | undefined
+  evaderAvoidanceCount: number
   terrainAvoidability: number
 }
 
-// §9.2 回避成功判定 (片側のみ avoid のとき)。1 draw 消費。
-function resolveAvoidanceSuccess(
+// v0.49 §5.4 交戦 contest (片側のみ avoid のとき)。1 draw 消費。
+//   旧 resolveAvoidanceSuccess (単側 warCommand base-chance) を置換し、両総大将の insight + command の
+//   contest で捕捉/離脱を判定する。captured=true → battle (avoidance failed)、false → avoided。
+//   CG 未供給 side は insight=command=50 の中立既定。係数は仮値 (§20.1)。
+function resolveEngagementContest(
   state: WorldState,
   config: SimulationConfig,
   rng: RngState,
-  opts: AvoidanceOpts,
-): { success: boolean; rng: RngState } {
-  const ownCgScore =
-    opts.ownCaptainGeneralId !== undefined
-      ? getRoleScore(state, opts.ownCaptainGeneralId, 'warCommand')
-      : 50
-  const enemyCgScore =
-    opts.enemyCaptainGeneralId !== undefined
-      ? getRoleScore(state, opts.enemyCaptainGeneralId, 'warCommand')
-      : 50
-  const forceRatio = opts.ownPower / (opts.ownPower + opts.enemyPower + 1)
-  const forceDisadvantage = Math.max(0, 0.5 - forceRatio)
-  const chance =
-    config.warAvoidanceBaseChance +
-    ((ownCgScore - 50) / 100) * config.warAvoidanceWarCommandEffect +
+  opts: EngagementContestOpts,
+): { captured: boolean; rng: RngState } {
+  // insight + command の合算スコア (0..240)。CG 不在は中立 100 (=50+50)。
+  const duelScore = (id: PersonId | undefined): number => {
+    if (id === undefined) return 100
+    const p = state.persons[id]
+    if (!p) return 100
+    return p.abilities.insight + p.abilities.command
+  }
+  const catcherScore = duelScore(opts.catcherCaptainGeneralId)
+  const evaderScore = duelScore(opts.evaderCaptainGeneralId)
+  // 能力差を [-1,1] に正規化 (max 240)。catcher 有利で捕捉率↑。地形は回避側に有利 (捕捉率↓)。
+  //   回避を重ねた側ほど離脱しにくい (avoidanceCount で捕捉率↑)。
+  const captureChance =
+    config.battleEngagementCaptureBaseChance +
+    ((catcherScore - evaderScore) / 240) * config.battleEngagementCaptureAbilityScale -
     opts.terrainAvoidability +
-    forceDisadvantage -
-    opts.ownAvoidanceCount * config.warAvoidanceCountPenalty -
-    Math.max(0, (enemyCgScore - 50) / 100) * config.warAvoidanceWarCommandEffect
+    opts.evaderAvoidanceCount * config.warAvoidanceCountPenalty
   const { value, rng: nextRng } = randomFloat(rng)
-  return { success: value < clamp(chance, 0, 1), rng: nextRng }
+  return { captured: value < clamp(captureChance, 0, 1), rng: nextRng }
 }
 
 // §15.3 warScoreDelta。result から符号、outcomeQuality / decisiveness / 勝者 preBattle edge から
@@ -472,7 +472,15 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
       // §6-12: internal BattleSimulation を実行。§13: commander pool (warCommand desc 済) を数値化して渡す。
       //   §14: 勝者側 captainGeneralEfficiency は warScore 経路 (computeWarScoreDelta) で別途。ここでは
       //   battle 内 org/rout 補正用に CG の warCommand score を供給する (CG 不在 side は undefined → 効果 0)。
-      const frontage = config.battlefieldFrontageByKind[battlefieldKind] ?? 1
+      // v0.49 §5.2: 捕捉戦 (avoidance_failed) は戦列幅が詰まる。mutual は base のまま。
+      const baseFrontage = config.battlefieldFrontageByKind[battlefieldKind] ?? 1
+      const frontage =
+        initiationKind === 'mutual_engagement'
+          ? baseFrontage
+          : Math.max(
+              config.battleMinimumEffectiveFrontage,
+              baseFrontage - config.battleCaughtFrontagePenalty,
+            )
       const simInput: BattleSimInput = {
         battleId: createBattleId(ws.nextBattleId),
         warId: wid,
@@ -642,19 +650,17 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         })
       }
     } else if (atkDec.avoid !== defDec.avoid) {
-      // 片側のみ avoid → 回避成功判定
+      // 片側のみ avoid → v0.49 §5.4 交戦 contest (両総大将の insight+command で捕捉/離脱を判定)
       const avoider: WarSideKey = atkDec.avoid ? 'attacker' : 'defender'
-      const av = resolveAvoidanceSuccess(ws, config, next.rng, {
-        ownPower: avoider === 'attacker' ? atkPower : defPower,
-        enemyPower: avoider === 'attacker' ? defPower : atkPower,
-        ownCaptainGeneralId: avoider === 'attacker' ? atkCG : defCG,
-        enemyCaptainGeneralId: avoider === 'attacker' ? defCG : atkCG,
-        ownAvoidanceCount: avoider === 'attacker' ? atkAvoid0 : defAvoid0,
+      const contest = resolveEngagementContest(ws, config, next.rng, {
+        catcherCaptainGeneralId: avoider === 'attacker' ? defCG : atkCG,
+        evaderCaptainGeneralId: avoider === 'attacker' ? atkCG : defCG,
+        evaderAvoidanceCount: avoider === 'attacker' ? atkAvoid0 : defAvoid0,
         terrainAvoidability,
       })
-      next = { ...next, rng: av.rng }
+      next = { ...next, rng: contest.rng }
 
-      if (av.success) {
+      if (!contest.captured) {
         // 回避成功: avoider の avoidanceCount +1、warScore penalty、BATTLE_AVOIDED
         if (avoider === 'attacker') {
           updateWarSideMut(ws, wid, 'attacker', { avoidanceCount: atkAvoid0 + 1 })

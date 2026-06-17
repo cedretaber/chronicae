@@ -209,6 +209,52 @@ describe('simulateBattle commander / captainGeneral 効果 (§13.5 / §14, C1)',
   })
 })
 
+describe('simulateBattle slot invariant (v0.49 §21.A)', () => {
+  it('initialFrontline は frontage を超えず重複しない (slot 会計)', () => {
+    // 5 attacker、frontage 3 → ちょうど 3 連隊が初期 frontline、全 unique。
+    const atk = [
+      reg('a1', 'attacker', { effectivePower: 50 }),
+      reg('a2', 'attacker', { effectivePower: 40 }),
+      reg('a3', 'attacker', { effectivePower: 30 }),
+      reg('a4', 'attacker', { effectivePower: 20 }),
+      reg('a5', 'attacker', { effectivePower: 10 }),
+    ]
+    const r = simulateBattle(makeInput(atk, [reg('d1', 'defender')], { frontage: 3 }))
+    expect(r.attackerInitialFrontlineIds).toHaveLength(3)
+    expect(new Set(r.attackerInitialFrontlineIds).size).toBe(3) // 重複なし
+    // 最強 3 連隊が frontline (a1,a2,a3)、a4/a5 は reserve。
+    expect(new Set(r.attackerInitialFrontlineIds)).toEqual(new Set(['a1', 'a2', 'a3']))
+  })
+
+  it('全連隊が rout/retreat しても reserve 補充され連隊は二重在籍/消失しない', () => {
+    // 多数の連隊で rout と補充が起きるシナリオ。regimentResults は全連隊をちょうど 1 回ずつ含む。
+    const atk = Array.from({ length: 6 }, (_, i) =>
+      reg(`a${i}`, 'attacker', { effectivePower: 100 - i }),
+    )
+    const def = Array.from({ length: 6 }, (_, i) =>
+      reg(`d${i}`, 'defender', { effectivePower: 30, organization: 25, morale: 2 }),
+    )
+    const r = simulateBattle(makeInput(atk, def, { frontage: 3, maxTicks: 5 }))
+    const ids = r.regimentResults.map((rr) => rr.regimentId).sort()
+    const expected = [...atk, ...def].map((x) => x.regimentId).sort()
+    expect(ids).toEqual(expected) // 全連隊ちょうど 1 回 (二重計上も消失もない)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('center-out 配置: 偶数 frontage は中線対称 (n=4 で最強が slot1)', () => {
+    // frontage 4、4 連隊。centerOutSlotOrder(4)=[1,2,0,3] なので最強 a1→slot1。
+    // initialFrontline は slot 昇順 = [slot0=a3, slot1=a1, slot2=a2, slot3=a4]。
+    const atk = [
+      reg('a1', 'attacker', { effectivePower: 40 }),
+      reg('a2', 'attacker', { effectivePower: 30 }),
+      reg('a3', 'attacker', { effectivePower: 20 }),
+      reg('a4', 'attacker', { effectivePower: 10 }),
+    ]
+    const r = simulateBattle(makeInput(atk, [reg('d1', 'defender')], { frontage: 4 }))
+    expect(r.attackerInitialFrontlineIds).toEqual(['a3', 'a1', 'a2', 'a4'])
+  })
+})
+
 describe('simulateBattle output 整合', () => {
   it('regimentResults は全入力連隊を含む', () => {
     const r = simulateBattle(
