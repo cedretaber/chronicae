@@ -668,6 +668,31 @@ export type SimulationConfig = {
   battlePreBattleEdgeWeight: number
   battlePreBattleModifierMin: number
   battlePreBattleModifierMax: number
+  // v0.49 会戦強化 — 戦列スロット・戦術・追撃・突破・戦場ログ (docs/drafts/spec-v049-update.md §20)
+  //   いずれも初期実装用の仮値 (§20.1。機能完成後にまとめて調整)。
+  //   戦術三すくみ (§10.2)
+  battleTacticAdvantageDamageMultiplier: number
+  battleTacticInsightReadEffect: number
+  //   無指揮官ペナルティと隣接支援 (§9.3)
+  battleUncommandedDamagePenalty: number
+  battleUncommandedRoutPenalty: number
+  battleUncommandedAdjacentSupportRatio: number
+  //   slot-based flanking (§7.2 / §8)
+  battleFlankingDamageMultiplier: number
+  battleFlankingRoutPenalty: number
+  //   追撃 (§12)
+  battlePursuitBaseChance: number
+  battlePursuitDestroyedChance: number
+  //   突破 (§11)
+  battleBreakthroughBaseChance: number
+  battleBreakthroughAbilityGapThreshold: number
+  //   destroyed の warScore 反映 (§14.5)
+  battleDestroyedWarScoreWeight: number
+  //   捕捉戦での戦列幅縮小 (§5.2)
+  battleCaughtFrontagePenalty: number
+  battleMinimumEffectiveFrontage: number
+  //   BattleLog retention (§15.6。minor は保存しないため minor retention は不要)
+  battleLogNormalRetentionWeeks: number
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: boolean
   acquireLandMinTreasury: number
@@ -1935,6 +1960,30 @@ export const defaultConfig: SimulationConfig = {
   battlePreBattleEdgeWeight: 0.2,
   battlePreBattleModifierMin: 0.8,
   battlePreBattleModifierMax: 1.2,
+  // v0.49 会戦強化 (§20。すべて初期実装用の仮値・観察後に調整。§20.1)
+  //   戦術三すくみ: 有利側 org damage 倍率 / insight が高いほど有利戦術を引きやすい
+  battleTacticAdvantageDamageMultiplier: 1.2,
+  battleTacticInsightReadEffect: 0.01,
+  //   無指揮官ペナルティと隣接支援
+  battleUncommandedDamagePenalty: 0.15,
+  battleUncommandedRoutPenalty: 0.1,
+  battleUncommandedAdjacentSupportRatio: 0.5,
+  //   slot-based flanking (控えめに開始)
+  battleFlankingDamageMultiplier: 1.25,
+  battleFlankingRoutPenalty: 0.1,
+  //   追撃
+  battlePursuitBaseChance: 0.15,
+  battlePursuitDestroyedChance: 0.35,
+  //   突破
+  battleBreakthroughBaseChance: 0.08,
+  battleBreakthroughAbilityGapThreshold: 15,
+  //   destroyed の warScore 反映 (控えめ)
+  battleDestroyedWarScoreWeight: 0.15,
+  //   捕捉戦での戦列幅縮小
+  battleCaughtFrontagePenalty: 1,
+  battleMinimumEffectiveFrontage: 1,
+  //   BattleLog retention (normal は 10 年保持。480 週 = 48 週 × 10 年)
+  battleLogNormalRetentionWeeks: 480,
   // v0.18 Stage D: acquire_land Intent
   acquireLandIntentEnabled: true,
   acquireLandMinTreasury: 200,

@@ -27,6 +27,7 @@ import type {
   ClanId,
   RegimentId,
   BattleId,
+  BattleLogId,
   ChronicleEntryId,
   PoliticalRightId,
   PersonReputationId,
@@ -57,6 +58,7 @@ import type { DiplomaticPlay, DiplomaticOffer } from './diplomaticPlay'
 import type { War, WarIndex } from './war'
 import type { Regiment, RegimentIndex } from './regiment'
 import type { Battle, BattleIndex } from './battle'
+import type { BattleLog, BattleLogIndex } from './battleLog'
 import type { Pressure, PressureIndex } from './pressure'
 import type { Crisis, CrisisIndex } from './crisis'
 import type { ChronicleEntry, ChronicleIndex } from './chronicle'
@@ -130,6 +132,10 @@ export type WorldState = {
   battles: Record<BattleId, Battle>
   battleIndex: BattleIndex
   nextBattleId: number
+  // v0.49 BattleLog (後年参照用の恒久戦場ログ。Battle entity と異なり war cleanup で消えない。§15,§19)
+  battleLogs: Record<BattleLogId, BattleLog>
+  battleLogIndex: BattleLogIndex
+  nextBattleLogId: number
   // v0.29 Pressure
   pressures: Record<PressureId, Pressure>
   pressureIndex: PressureIndex

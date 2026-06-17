@@ -61,4 +61,6 @@ export type ChronicleIndex = {
   byPolity: Record<string, ChronicleEntryId[]>
   byProvince: Record<string, ChronicleEntryId[]>
   byHolding: Record<string, ChronicleEntryId[]>
+  // v0.49: War detail から戦争関連 ChronicleEntry を full-scan せず取得する (§16.2)。entityRefs 駆動。
+  byWar: Record<string, ChronicleEntryId[]>
 }

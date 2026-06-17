@@ -205,6 +205,8 @@ export type EventEntityKind =
   | 'project'
   | 'pressure'
   | 'clan'
+  // v0.49: 戦争・会戦系 ChronicleEntry を chronicleIndex.byWar に振るための ref kind (§16.2)。
+  | 'war'
 
 export type EventEntityRef = {
   kind: EventEntityKind

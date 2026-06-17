@@ -1,4 +1,4 @@
-import type { DiplomaticPlayId, WarId, RegimentId, BattleId } from '../types/ids'
+import type { DiplomaticPlayId, WarId, RegimentId, BattleId, BattleLogId } from '../types/ids'
 import type { OrganizationRef } from '../types/office'
 import { politicalActorKey } from '../selectors/actorSelectors'
 import type { SimError } from '../mutations/errors'
@@ -1092,6 +1092,79 @@ export function checkDiplomacyWarRegiment(
         errors.push({
           code: 'INTEGRITY_VIOLATION',
           message: `battleIndex.byWar[${warIdStr}] entry ${bid as string} has warId=${b.warId as string} (§18.3)`,
+        })
+      }
+    }
+  }
+
+  // ─── v0.49 §21.B: BattleLog persistent invariant ───
+  checkBattleLog(state, errors, config)
+}
+
+// v0.49 §21.B: WorldState に残る BattleLog / battleLogIndex.byWar の整合を検査する。
+//   - id↔key 整合
+//   - battleLogIndex.byWar → record が存在し warId 一致 (forward)
+//   - slot index を持つ log entry はその tick の effectiveFrontage 範囲内
+//   - 期限切れ normal BattleLog は残らない (cleanup 対象)。major は恒久保存で対象外。
+function checkBattleLog(
+  state: WorldState,
+  errors: SimError[],
+  config: SimulationConfig | undefined,
+): void {
+  for (const idStr of Object.keys(state.battleLogs)) {
+    const log = state.battleLogs[idStr as BattleLogId]
+    if (!log) continue
+    if ((log.id as string) !== idStr) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `BattleLog ${idStr}: log.id=${log.id as string} does not match record key (§21.B)`,
+      })
+    }
+    if (log.effectiveFrontage <= 0) {
+      errors.push({
+        code: 'INTEGRITY_VIOLATION',
+        message: `BattleLog ${idStr} effectiveFrontage=${log.effectiveFrontage} must be > 0 (§21.B)`,
+      })
+    }
+    // slot index 範囲検査: log entry の slotIndex / targetSlotIndex は effectiveFrontage 未満。
+    for (const tl of log.tickLogs) {
+      for (const ev of tl.events) {
+        const indices: number[] = []
+        if ('slotIndex' in ev) indices.push(ev.slotIndex)
+        if ('targetSlotIndex' in ev) indices.push(ev.targetSlotIndex)
+        for (const si of indices) {
+          if (si < 0 || si >= log.effectiveFrontage) {
+            errors.push({
+              code: 'INTEGRITY_VIOLATION',
+              message: `BattleLog ${idStr} tick ${tl.tick} ${ev.kind} slot index ${si} out of range [0, ${log.effectiveFrontage}) (§21.B)`,
+            })
+          }
+        }
+      }
+    }
+    // 期限切れ normal は cleanupBattleLogSystem が毎週削除するため year-end に残らない。
+    if (config !== undefined && log.importance === 'normal') {
+      if (log.week + config.battleLogNormalRetentionWeeks < state.absoluteWeek) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `BattleLog ${idStr} normal log past retention not cleaned (week=${log.week}, now=${state.absoluteWeek}) (§21.B)`,
+        })
+      }
+    }
+  }
+  // battleLogIndex.byWar → record forward 整合。
+  for (const [warIdStr, ids] of Object.entries(state.battleLogIndex.byWar)) {
+    for (const blid of ids) {
+      const log = state.battleLogs[blid]
+      if (!log) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `battleLogIndex.byWar[${warIdStr}] references missing BattleLog ${blid as string} (§21.B)`,
+        })
+      } else if ((log.warId as string) !== warIdStr) {
+        errors.push({
+          code: 'INTEGRITY_VIOLATION',
+          message: `battleLogIndex.byWar[${warIdStr}] entry ${blid as string} has warId=${log.warId as string} (§21.B)`,
         })
       }
     }

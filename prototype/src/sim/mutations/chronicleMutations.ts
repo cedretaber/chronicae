@@ -16,7 +16,7 @@ function dedupeByKindAndId(refs: EventEntityRef[]): EventEntityRef[] {
   return result
 }
 
-// index 対象は person/house/polity/province/holding の 5 kind のみ (§5.2)。他 kind は entry に保持されるが index には振らない。
+// index 対象は person/house/polity/province/holding/war の 6 kind (§5.2 + v0.49 §16.2)。他 kind は entry に保持されるが index には振らない。
 function indexBucketForKind(
   index: ChronicleIndex,
   kind: EventEntityRef['kind'],
@@ -32,6 +32,8 @@ function indexBucketForKind(
       return index.byProvince
     case 'holding':
       return index.byHolding
+    case 'war':
+      return index.byWar
     default:
       return undefined
   }

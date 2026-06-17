@@ -43,6 +43,7 @@ import { runRegimentReinforcementSystem } from './regimentReinforcementSystem'
 import { runCancelOrphanedWarsSystem } from './cancelOrphanedWarsSystem'
 import { runPeaceSettlementSystem } from './peaceSettlementSystem'
 import { runCleanupWarSystem } from './cleanupWarSystem'
+import { runCleanupBattleLogSystem } from './cleanupBattleLogSystem'
 import { runAimOutcomeSystem } from './aimOutcomeSystem'
 import { runGoalOutcomeSystem } from './goalOutcomeSystem'
 import { runCleanupTerminalDecisions } from './cleanupTerminalDecisions'
@@ -574,6 +575,13 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 1,
     phaseOffsetWeeks: 0,
     run: runCleanupWarSystem,
+  },
+  {
+    // v0.49 §15.6: war 系 cleanup と同じ後段。期限切れ normal BattleLog を purge (major は恒久)。
+    name: 'cleanupBattleLogSystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runCleanupBattleLogSystem,
   },
   {
     name: 'cleanupTerminalDecisions',

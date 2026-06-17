@@ -173,6 +173,13 @@ export function createBattleId(n: number): BattleId {
   return ('bt-' + n) as BattleId
 }
 
+// v0.49 BattleLog — 後年参照用の恒久戦場ログ。prefix `bl-`。
+export type BattleLogId = Branded<string, 'BattleLogId'>
+
+export function createBattleLogId(n: number): BattleLogId {
+  return ('bl-' + n) as BattleLogId
+}
+
 // v0.38 Chronicle System
 export type ChronicleEntryId = Branded<string, 'ChronicleEntryId'>
 
