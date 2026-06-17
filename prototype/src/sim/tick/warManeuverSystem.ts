@@ -180,10 +180,17 @@ function computeWarScoreDelta(
       ? sim.defenderInitialFrontlineIds.length
       : sim.attackerInitialFrontlineIds.length
   const loserRoutedShare = loserRouted / Math.max(1, loserFrontline)
+  // v0.49 §14.5: destroyed share を decisiveness に控えめ加算。destroyed ⊆ routed なので routedShare とは
+  //   別軸の小さな上乗せ (battleDestroyedWarScoreWeight)。二重計上を避けるため weight は小さく保つ。
+  const loserDestroyed = sim.regimentResults.filter(
+    (rr) => rr.side !== winnerSide && rr.destroyedCause !== undefined,
+  ).length
+  const loserDestroyedShare = loserDestroyed / Math.max(1, loserFrontline)
   const decisiveness = clamp(
     1 +
       config.battleDecisivenessRoutedShareWeight * loserRoutedShare +
-      config.battleDecisivenessSpeedWeight * (1 - sim.ticksElapsed / config.battleMaxTicks),
+      config.battleDecisivenessSpeedWeight * (1 - sim.ticksElapsed / config.battleMaxTicks) +
+      config.battleDestroyedWarScoreWeight * loserDestroyedShare,
     config.battleDecisivenessMin,
     config.battleDecisivenessMax,
   )
