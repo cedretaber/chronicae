@@ -762,6 +762,56 @@ detail:
     recent_events: '最近の出来事'
     chronicle: '戦争の記録'
 
+  # v0.49 会戦再生パネル
+  battle:
+    battles: '会戦'
+    window_title: '会戦: {{place}}（{{kind}}）'
+    realm: '勢力'
+    frontage: '戦場幅'
+    caught: '捕捉により狭隘化'
+    no_resistance: '無抵抗のまま決着した。'
+    tick: '局面'
+    tactic_label: '戦術'
+    advantage: '有利'
+    events_this_tick: 'この局面の出来事'
+    column: '第{{n}}列'
+    unknown_regiment: '不明な連隊'
+    infantry_icon: '歩'
+    cavalry_icon: '騎'
+    importance:
+      minor: '小'
+      normal: '通常'
+      major: '主要'
+    tactic:
+      offensive: '攻勢'
+      defensive: '守勢'
+      disruption: '攪乱'
+    badge:
+      rout: '敗走'
+      retreat: '後退'
+      destroyed: '壊滅'
+      fill: '補充'
+      breakthrough: '突破'
+      pursuit: '追撃'
+      feat: '武功'
+      failure: '失態'
+    cause:
+      ordinary_attrition: '消耗'
+      pursuit: '追撃'
+      breakthrough_pursuit: '突破追撃'
+    event:
+      breakthrough: 'が戦列を突破'
+      feat: '武功'
+      failure: '失態'
+    feat:
+      breakthrough: '突破の戦功'
+      pursuit: '追撃の戦功'
+      decisive: '決定的勝利'
+    failure:
+      regiment_destroyed: '連隊喪失'
+      rout: '敗走'
+      decisive_defeat: '決定的敗北'
+
   # 人物カード (構成員一覧・家族で共有)
   person_card:
     age: '{{age}}歳'

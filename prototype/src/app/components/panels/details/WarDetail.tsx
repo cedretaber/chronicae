@@ -17,9 +17,11 @@ import {
 } from '@sim/mutations/warMutations'
 import type { OrganizationRef } from '@/sim/types/office'
 import { weekToYearMonthWeek } from '@sim/utils/timeUtils'
-import { formatYearMonthWeek } from '@/app/utils/format'
-import { EntityChronicleSection } from './shared/widgets'
+import { formatYearMonthWeek, formatAbsoluteWeek } from '@/app/utils/format'
+import { EntityChronicleSection, CollapsibleSection } from './shared/widgets'
+import { useCollapsedSections } from '@/app/hooks/useCollapsedSections'
 import { getChronicleEntriesForWar } from '@sim/selectors/chronicleSelectors'
+import { getBattleLogsForWar } from '@sim/selectors/battleLogSelectors'
 
 // v0.34 §16: War 詳細。DiplomaticPlayDetail の縮小版 (交渉系の要素は War に存在しないため全て削除)。
 export function WarDetail({
@@ -29,6 +31,7 @@ export function WarDetail({
   onPolityClick,
   onHouseClick,
   onHoldingClick,
+  onBattleLogClick,
 }: {
   war: import('@sim/types/war').War
   session: SimulationSession | null
@@ -36,9 +39,11 @@ export function WarDetail({
   onPolityClick: ClickHandler
   onHouseClick: ClickHandler
   onHoldingClick: (id: string) => void
+  onBattleLogClick: (id: string) => void
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
+  const { isOpen, toggle } = useCollapsedSections()
   const worldState = session?.currentState ?? null
   if (!worldState) return null
 
@@ -353,6 +358,71 @@ export function WarDetail({
             })}
           </div>
         )}
+
+        {/* v0.49 会戦再生: この戦争の恒久 BattleLog 一覧。クリックで会戦再生パネルを開く。 */}
+        {(() => {
+          const battles = getBattleLogsForWar(worldState, war.id)
+          if (battles.length === 0) return null
+          return (
+            <CollapsibleSection
+              title={t('detail.battle.battles')}
+              count={battles.length}
+              open={isOpen('battles')}
+              onToggle={() => toggle('battles')}
+            >
+              <div className="flex flex-col gap-1">
+                {battles.map((log) => {
+                  let bt = 0
+                  let pu = 0
+                  let de = 0
+                  for (const tl of log.tickLogs) {
+                    for (const ev of tl.events) {
+                      if (ev.kind === 'breakthrough') bt++
+                      else if (ev.kind === 'pursuit') pu++
+                      else if (ev.kind === 'regiment_destroyed') de++
+                    }
+                  }
+                  const place = worldState.provinces[log.provinceId]
+                    ? resolveName(
+                        'province',
+                        worldState.provinces[log.provinceId]?.nameKey ?? log.provinceId,
+                        log.provinceId,
+                      )
+                    : (log.provinceId as string)
+                  return (
+                    <button
+                      key={log.id}
+                      className="rounded bg-gray-800 px-2 py-1 text-left text-xs hover:bg-gray-700"
+                      onClick={() => onBattleLogClick(log.id)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-gray-200">
+                          {place} ・ {t(`battlefieldKind.${log.battlefieldKind}`, { ns: 'events' })}
+                        </span>
+                        <span className="shrink-0 text-gray-500">
+                          {formatAbsoluteWeek(log.week)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-gray-400">
+                        <span>
+                          {t(`result.${log.result}`, { ns: 'events' })}
+                          {log.outcomeQuality
+                            ? ` ・ ${t(`outcomeQuality.${log.outcomeQuality}`, { ns: 'events' })}`
+                            : ''}
+                        </span>
+                        <span className="shrink-0 text-gray-500">
+                          {bt > 0 ? `${t('detail.battle.badge.breakthrough')}×${bt} ` : ''}
+                          {pu > 0 ? `${t('detail.battle.badge.pursuit')}×${pu} ` : ''}
+                          {de > 0 ? `${t('detail.battle.badge.destroyed')}×${de}` : ''}
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </CollapsibleSection>
+          )
+        })()}
 
         {/* v0.38 §8: 戦争の記録 (永続 Chronicle)。v0.49 §16.2: chronicleIndex.byWar 経由 (全走査解消)。 */}
         <EntityChronicleSection

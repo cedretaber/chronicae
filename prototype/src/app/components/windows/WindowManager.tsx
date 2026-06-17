@@ -13,6 +13,7 @@ import type {
   ClanId,
   WarId,
   ProjectId,
+  BattleLogId,
 } from '@/sim/types/ids'
 import {
   CountryDetail,
@@ -26,6 +27,7 @@ import {
   ClanDetail,
   WarDetail,
   ProjectDetail,
+  BattleReplayPanel,
 } from '@/app/components/panels/DetailPanel'
 import { FullChroniclePanel } from '@/app/components/panels/details/FullChroniclePanel'
 import type { PolityId, HouseId, PersonId, ProvinceId } from '@/sim/types/ids'
@@ -56,6 +58,7 @@ export function WindowManager() {
   const onDiplomaticPlayClick = (id: string) => openDetailWindow('diplomaticPlay', id)
   const onHoldingClick = (id: string) => openDetailWindow('holding', id)
   const onClanClick = (id: string) => openDetailWindow('clan', id)
+  const onBattleLogClick = (id: string) => openDetailWindow('battleLog', id)
   const onOpenFamilyTree = (id: string) => openFamilyTree(id as HouseId)
   const onOpenFactionTree = (id: FactionId) => openFactionTree(id)
 
@@ -298,6 +301,36 @@ export function WindowManager() {
                 onPolityClick={onPolityClick}
                 onHouseClick={onHouseClick}
                 onHoldingClick={onHoldingClick}
+                onBattleLogClick={onBattleLogClick}
+              />
+            </DraggableWindow>
+          )
+        }
+        if (entityType === 'battleLog') {
+          const log = state.battleLogs[entityId as BattleLogId]
+          if (!log) return null
+          const place = state.provinces[log.provinceId]
+            ? resolveName(
+                'province',
+                state.provinces[log.provinceId]?.nameKey ?? log.provinceId,
+                log.provinceId,
+              )
+            : (log.provinceId as string)
+          return (
+            <DraggableWindow
+              key={win.id}
+              win={win}
+              title={t('detail.battle.window_title', {
+                place,
+                kind: t(`battlefieldKind.${log.battlefieldKind}`, { ns: 'events' }),
+              })}
+            >
+              <BattleReplayPanel
+                log={log}
+                session={session}
+                onPersonClick={onPersonClick}
+                onPolityClick={onPolityClick}
+                onHouseClick={onHouseClick}
               />
             </DraggableWindow>
           )

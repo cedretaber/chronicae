@@ -667,6 +667,56 @@ detail:
     recent_events: 'Recent Events'
     chronicle: 'War Records'
 
+  # v0.49 battle replay panel
+  battle:
+    battles: 'Battles'
+    window_title: 'Battle: {{place}} ({{kind}})'
+    realm: 'Realm'
+    frontage: 'Frontage'
+    caught: 'narrowed by interception'
+    no_resistance: 'Decided without resistance.'
+    tick: 'Phase'
+    tactic_label: 'Tactics'
+    advantage: 'advantage'
+    events_this_tick: 'Events this phase'
+    column: 'col {{n}}'
+    unknown_regiment: 'unknown regiment'
+    infantry_icon: 'Inf'
+    cavalry_icon: 'Cav'
+    importance:
+      minor: 'Minor'
+      normal: 'Normal'
+      major: 'Major'
+    tactic:
+      offensive: 'Offensive'
+      defensive: 'Defensive'
+      disruption: 'Disruption'
+    badge:
+      rout: 'Rout'
+      retreat: 'Retreat'
+      destroyed: 'Destroyed'
+      fill: 'Reinforced'
+      breakthrough: 'Breakthrough'
+      pursuit: 'Pursuit'
+      feat: 'Feat'
+      failure: 'Failure'
+    cause:
+      ordinary_attrition: 'attrition'
+      pursuit: 'pursuit'
+      breakthrough_pursuit: 'breakthrough pursuit'
+    event:
+      breakthrough: 'broke through the line'
+      feat: 'Feat'
+      failure: 'Failure'
+    feat:
+      breakthrough: 'breakthrough feat'
+      pursuit: 'pursuit feat'
+      decisive: 'decisive victory'
+    failure:
+      regiment_destroyed: 'lost a regiment'
+      rout: 'routed'
+      decisive_defeat: 'decisive defeat'
+
   # Person card (shared by member roster / family)
   person_card:
     age: '{{age}} yrs'

@@ -21,6 +21,7 @@ export type EntityType =
   | 'holding'
   | 'clan'
   | 'war'
+  | 'battleLog'
   | 'project'
 export type MapView = 'terminal' | 'root' | 'house' | 'influence' | 'unrest'
 
