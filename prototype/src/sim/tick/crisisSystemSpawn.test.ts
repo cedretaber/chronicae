@@ -209,12 +209,13 @@ describe('設備による Crisis 被害軽減 (v0.48.1 §6.6b)', () => {
     s: WorldState,
     kind: 'storage_infrastructure' | 'irrigation_infrastructure',
     level: number,
+    condition = 100,
   ): WorldState {
     return {
       ...s,
       holdingImprovements: {
         ...s.holdingImprovements,
-        [IMP]: { id: IMP, holdingId: HOLDING, kind, level, condition: 100, createdWeek: 0 },
+        [IMP]: { id: IMP, holdingId: HOLDING, kind, level, condition, createdWeek: 0 },
       },
       holdingImprovementIndex: {
         byHolding: { ...s.holdingImprovementIndex.byHolding, [HOLDING as string]: [IMP] },
@@ -266,5 +267,23 @@ describe('設備による Crisis 被害軽減 (v0.48.1 §6.6b)', () => {
     )
     const famine = Object.values(next.state.crises).find((c) => c?.kind === 'famine')!
     expect(famine.severity).toBeCloseTo(defaultConfig.crisisInitialSeverityByKind.famine)
+  })
+
+  it('機能不全 (condition 0) の貯蔵設備は飢饉を軽減しない (壊れた蔵は守れない)', () => {
+    // condition 0 → conditionEffectiveness 0 → 実効レベル 0 → factor 1 (軽減なし)
+    const next = runCrisisSystem(
+      makeCtx(withImprovement(buildWorld(), 'storage_infrastructure', 2, 0)),
+    )
+    const famine = Object.values(next.state.crises).find((c) => c?.kind === 'famine')!
+    expect(famine.severity).toBeCloseTo(defaultConfig.crisisInitialSeverityByKind.famine)
+  })
+
+  it('機能不全閾値未満の貯蔵設備は軽減効果が比例して下がる', () => {
+    // condition 25 (閾値 50 の半分) → eff 0.5 → 実効レベル 2×0.5=1 → factor 1-0.25×1=0.75
+    const next = runCrisisSystem(
+      makeCtx(withImprovement(buildWorld(), 'storage_infrastructure', 2, 25)),
+    )
+    const famine = Object.values(next.state.crises).find((c) => c?.kind === 'famine')!
+    expect(famine.severity).toBeCloseTo(defaultConfig.crisisInitialSeverityByKind.famine * 0.75)
   })
 })

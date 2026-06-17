@@ -314,7 +314,8 @@ const droughtChance = config.droughtBaseChancePerYear + config.droughtPressureCh
 - **spawn フィルタ**: famine/drought は農業 peasants を持つ holding のみ、plague は POP を持つ holding。
 - **初期 severity** = `crisisInitialSeverityByKind[kind] + pressureExcess * crisisSeverityPressureBonus`（上限 100）。
 - **初期ショック**（一回限りの人口減）= `crisisInitialShockSizeRateByKind[kind]`。famine/drought は peasants、plague/war_damage は全 class。holding スコープで 1 回適用（province ラッパーの多重適用を回避）。
-- **設備による被害軽減（v0.48.1）**: `crisisMitigationByKind[kind]` に「軽減する設備種別 + レベルあたり軽減率」を持つ kind は、その holding の当該設備レベルに応じて severity と初期ショックを乗算で下げる（`factor = max(0, 1 − reductionPerLevel × level)`、決定的で RNG を引かない）。既定は **灌漑設備（irrigation_infrastructure）→ 干魃** / **貯蔵設備（storage_infrastructure）→ 飢饉**（各 0.25/level、max level 3 で最大 75% 軽減＝25% 残る）。「灌漑された農地は干魃に強い / 蔵があれば飢饉を凌げる」という設備の固有性を与える。未登録 kind（plague 等）は軽減なし。設備が disrepair でも現状はレベルのみ参照（condition 連動は将来候補）。
+- **設備による被害軽減（v0.48.1）**: `crisisMitigationByKind[kind]` に「軽減する設備種別 + レベルあたり軽減率」を持つ kind は、その holding の当該設備の**実効レベル**（`level × conditionEffectiveness(condition)`、§6.6b）に応じて severity と初期ショックを乗算で下げる（`factor = max(0, 1 − reductionPerLevel × 実効レベル)`、決定的で RNG を引かない）。既定は **灌漑設備（irrigation_infrastructure）→ 干魃** / **貯蔵設備（storage_infrastructure）→ 飢饉**（各 0.25/level、健全・max level 3 で最大 75% 軽減＝25% 残る）。「灌漑された農地は干魃に強い / 蔵があれば飢饉を凌げる」という設備の固有性を与える。**機能不全（condition < 閾値）の設備は実効レベルが下がり軽減効果も低下、condition 0 で軽減ゼロ**（壊れた蔵/灌漑は守れない＝設備維持管理と連動）。未登録 kind（plague 等）は軽減なし。
+  - 設計メモ: 「機能不全になってから修理する」reactive モデルに対し、本来は普段の保守点検で機能不全を未然に防ぐ proactive な仕組みが自然。**定期保守点検システム**は v0.48.1 完了後の改修候補（恒常的な保守コストで condition 減衰を相殺し、放置すると機能不全に至る設計）。
 - **後方互換**: Province レベルの物語ビートとして旧 `FAMINE` / `PLAGUE` イベントを 1 件だけ残す（drought は新規 kind で legacy event を持たず per-holding `CRISIS_CREATED` のみ）。
 - **kill-switch**: 年次発生ロールは `disasterEnabled`（default true）で抑制できる（旧 DisasterSystem 互換）。war_damage / unrest は別経路で spawn されるため影響しない。
 - war_damage は PeaceSettlementSystem の領地移転後（§6.46）、unrest は ProvinceRevoltSystem（§6.29）から spawn される。

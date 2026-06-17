@@ -38,7 +38,7 @@ import {
 import { adjustHoldingPopAttitudeMut } from '../mutations/attitudeMutations'
 import { getHoldingTerminalPolityId, isPlaceholderPerson } from '../selectors/landContractSelectors'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
-import { getHoldingImprovementLevel } from '../selectors/holdingImprovementSelectors'
+import { getHoldingImprovementEffectiveLevel } from '../selectors/holdingImprovementSelectors'
 import { getProvincePopulationPressure } from '../selectors/popSelectors'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
@@ -402,13 +402,20 @@ function spawnCrisisForHolding(
   const ownerPolity = ws.polities[ownerPolityId]
   if (!ownerPolity || !ownerPolity.active) return false
 
-  // v0.48.1: 設備による被害軽減 (灌漑→干魃 / 貯蔵→飢饉)。その holding の当該設備レベルに応じ severity と
-  //   初期ショックを乗算で下げる (決定的・RNG 不撹乱)。未登録 kind は factor 1 (軽減なし)。
+  // v0.48.1: 設備による被害軽減 (灌漑→干魃 / 貯蔵→飢饉)。その holding の当該設備の「実効レベル」
+  //   (level × conditionEffectiveness) に応じ severity と初期ショックを乗算で下げる (決定的・RNG 不撹乱)。
+  //   機能不全 (condition < 閾値) の設備は軽減効果が下がり、condition 0 で軽減ゼロ (壊れた蔵/灌漑は守れない)。
+  //   未登録 kind は factor 1 (軽減なし)。
   const mitigation = config.crisisMitigationByKind[kind]
   let mitigationFactor = 1
   if (mitigation) {
-    const level = getHoldingImprovementLevel(ws, holdingId, mitigation.improvementKind)
-    mitigationFactor = Math.max(0, 1 - mitigation.reductionPerLevel * level)
+    const effLevel = getHoldingImprovementEffectiveLevel(
+      ws,
+      config,
+      holdingId,
+      mitigation.improvementKind,
+    )
+    mitigationFactor = Math.max(0, 1 - mitigation.reductionPerLevel * effLevel)
   }
 
   const severity = Math.min(

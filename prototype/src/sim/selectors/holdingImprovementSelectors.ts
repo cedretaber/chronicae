@@ -68,6 +68,34 @@ export function getHoldingImprovementLevel(
   return 0
 }
 
+// v0.48.1: condition を加味した実効レベル = level × conditionEffectiveness(condition)。
+//   機能不全 (condition < 閾値) の設備は効果が下がり、condition 0 で実効 0 (= 効果消失)。
+//   設備効果が「健全であってこそ発揮される」べき箇所 (Crisis 被害軽減など) で使う。
+//   1 holding 1 kind は単一 improvement 想定 (integrity の重複検査) なので最初の一致を返す。
+export function getHoldingImprovementEffectiveLevel(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+  kind: HoldingImprovementKind,
+): number {
+  const improvementIds = state.holdingImprovementIndex.byHolding[holdingId as string]
+  if (!improvementIds) return 0
+  for (const impId of improvementIds) {
+    const imp = state.holdingImprovements[impId]
+    if (imp && imp.kind === kind) {
+      return (
+        imp.level *
+        conditionEffectiveness(
+          imp.condition,
+          config.facilityDisrepairThreshold,
+          config.facilityDisrepairMinEffectiveness,
+        )
+      )
+    }
+  }
+  return 0
+}
+
 // v0.33 §10.5: state 非依存の純粋 capacity helper。selector / worldgen seeding 双方から呼ぶ。
 // capacity(holding, occupation) = (base + improvementDerivedCapacity) * weight * landQuality
 // capacity 側では developmentModifier を使わない（§6.3 二重計上回避）。
