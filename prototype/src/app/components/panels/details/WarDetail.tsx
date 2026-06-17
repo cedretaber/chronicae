@@ -397,7 +397,8 @@ export function WarDetail({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate text-gray-200">
-                          {place} ・ {t(`battlefieldKind.${log.battlefieldKind}`, { ns: 'events' })}
+                          {place} ・{' '}
+                          {t(`enum.battlefieldKind.${log.battlefieldKind}`, { ns: 'events' })}
                         </span>
                         <span className="shrink-0 text-gray-500">
                           {formatAbsoluteWeek(log.week)}
@@ -405,9 +406,9 @@ export function WarDetail({
                       </div>
                       <div className="flex items-center justify-between gap-2 text-gray-400">
                         <span>
-                          {t(`result.${log.result}`, { ns: 'events' })}
+                          {t(`enum.result.${log.result}`, { ns: 'events' })}
                           {log.outcomeQuality
-                            ? ` ・ ${t(`outcomeQuality.${log.outcomeQuality}`, { ns: 'events' })}`
+                            ? ` ・ ${t(`enum.outcomeQuality.${log.outcomeQuality}`, { ns: 'events' })}`
                             : ''}
                         </span>
                         <span className="shrink-0 text-gray-500">

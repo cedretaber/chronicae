@@ -322,7 +322,7 @@ export function WindowManager() {
               win={win}
               title={t('detail.battle.window_title', {
                 place,
-                kind: t(`battlefieldKind.${log.battlefieldKind}`, { ns: 'events' }),
+                kind: t(`enum.battlefieldKind.${log.battlefieldKind}`, { ns: 'events' }),
               })}
             >
               <BattleReplayPanel

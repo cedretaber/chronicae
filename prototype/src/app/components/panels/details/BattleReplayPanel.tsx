@@ -53,13 +53,13 @@ export function BattleReplayPanel({
   const sideLabel = (s: WarSideKey): string =>
     s === 'attacker' ? t('detail.war.attacker') : t('detail.war.defender')
   const col = (i: number): string => t('detail.battle.column', { n: i + 1 })
-  const battlefieldName = t(`battlefieldKind.${log.battlefieldKind}`, { ns: 'events' })
+  const battlefieldName = t(`enum.battlefieldKind.${log.battlefieldKind}`, { ns: 'events' })
   const provinceName = provinces[log.provinceId]
     ? resolveName('province', provinces[log.provinceId]?.nameKey ?? log.provinceId, log.provinceId)
     : (log.provinceId as string)
-  const resultText = t(`result.${log.result}`, { ns: 'events' })
+  const resultText = t(`enum.result.${log.result}`, { ns: 'events' })
   const outcomeText = log.outcomeQuality
-    ? t(`outcomeQuality.${log.outcomeQuality}`, { ns: 'events' })
+    ? t(`enum.outcomeQuality.${log.outcomeQuality}`, { ns: 'events' })
     : null
 
   const importanceBg: Record<string, string> = {
@@ -183,10 +183,9 @@ export function BattleReplayPanel({
             c.state = 'destroyed'
             if (!c.regimentId) c.regimentId = ev.targetRegimentId
           }
+          // 壊滅は別途 regiment_destroyed イベントが badge を出すため、ここは「追撃」のみ (二重 badge 回避)。
           c.badges.push({
-            text: ev.destroyed
-              ? `${t('detail.battle.badge.pursuit')}・${t('detail.battle.badge.destroyed')}`
-              : t('detail.battle.badge.pursuit'),
+            text: t('detail.battle.badge.pursuit'),
             cls: 'bg-orange-800 text-orange-100',
           })
           break
@@ -214,6 +213,19 @@ export function BattleReplayPanel({
         }
         case 'tactic':
           break
+      }
+    }
+    // 敗走・戦列離脱は event 化されない (simulateBattle は breakthrough/pursuit/regiment_destroyed のみ emit) ため、
+    //   slotsBefore に居て slotsAfter に居ない連隊を occupancy 差分から「戦列離脱 (敗走)」として導出する。
+    //   これにより「戦列がどう痩せたか」を毎 tick 可視化できる (event 待ちにしない)。
+    const after = s === 'attacker' ? tl.attackerSlotsAfter : tl.defenderSlotsAfter
+    const survivors = new Set<string>()
+    for (const rid of after) if (rid) survivors.add(rid)
+    for (const c of cells) {
+      if (!c.regimentId || c.state !== 'healthy') continue
+      if (!survivors.has(c.regimentId)) {
+        c.state = 'routed'
+        c.badges.push({ text: t('detail.battle.badge.rout'), cls: 'bg-yellow-800 text-yellow-200' })
       }
     }
     return cells
