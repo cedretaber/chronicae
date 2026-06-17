@@ -4,6 +4,7 @@ import type { ClickHandler } from './helpers'
 import { ChronicleAnnal } from './ChronicleAnnal'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { CHROME } from '@/app/theme/chrome'
 import type { Person } from '@/sim/types/person'
 import { PersonLink, HouseLink } from './links'
 import type { House } from '@/sim/types/house'
@@ -74,6 +75,32 @@ export function PanelHeader({
         {badge}
       </div>
       {actions && <div className="flex items-center gap-1.5">{actions}</div>}
+    </div>
+  )
+}
+
+// Detail パネル共通のセクション見出し。密なパネルで節の切れ目を一目で追えるよう、chrome の
+// 冷色アクセント (鋼青) を細い左罫のアンカーにする (= 「計器」面の構造マーカー)。tone='alert'
+// は危機など警告節用に赤系。count を渡すと見出し右に件数を添える。
+//   従来バラついていた `text-sm font-semibold text-gray-300` / `font-medium` などをこれに統一する。
+export function DetailSection({
+  title,
+  count,
+  tone = 'default',
+}: {
+  title: ReactNode
+  count?: number
+  tone?: 'default' | 'alert'
+}) {
+  const accent = tone === 'alert' ? '#b91c1c' : CHROME.accent
+  const textColor = tone === 'alert' ? 'text-red-300' : 'text-gray-300'
+  return (
+    <div
+      className={`mt-2 flex items-baseline gap-2 border-l-2 pl-2 text-sm font-semibold ${textColor}`}
+      style={{ borderColor: accent }}
+    >
+      <span>{title}</span>
+      {count !== undefined && <span className="font-normal text-gray-500">({count})</span>}
     </div>
   )
 }

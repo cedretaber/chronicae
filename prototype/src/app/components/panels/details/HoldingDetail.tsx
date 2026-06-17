@@ -10,6 +10,7 @@ import {
   CopyJsonButton,
   EntityChronicleSection,
   RightHolderLine,
+  DetailSection,
 } from './shared/widgets'
 import { getHoldingOfficeAppointmentRight } from '@sim/selectors/politicalRightSelectors'
 import { getHoldingImage } from '@/app/utils/assetHash'
@@ -140,7 +141,7 @@ export function HoldingDetail({
           if (improvements.length === 0) return null
           return (
             <div className="text-sm">
-              <div className="font-semibold text-gray-300">{t('detail.province.improvements')}</div>
+              <DetailSection title={t('detail.province.improvements')} />
               {improvements.map((imp) => {
                 const nameKey = `detail.province.improvement_name_${imp.kind}_${holding.kind}_${imp.level}`
                 // v0.33 §12.3: flavor → category → kind 文字列 のフォールバック（生キーを出さない）
@@ -204,9 +205,7 @@ export function HoldingDetail({
           const supervisor = currentState.persons[activeProject.supervisorPersonId]
           return (
             <div className="text-sm">
-              <div className="font-semibold text-gray-300">
-                {t('detail.province.active_develop_project')}
-              </div>
+              <DetailSection title={t('detail.province.active_develop_project')} />
               <div className="ml-2">
                 <div className="flex justify-between">
                   <span className="text-gray-400">{t('detail.province.project_stage')}:</span>
@@ -275,7 +274,7 @@ export function HoldingDetail({
           if (activeCrises.length === 0) return null
           return (
             <div className="text-sm">
-              <div className="font-semibold text-red-300">{t('detail.crisis.section_title')}</div>
+              <DetailSection title={t('detail.crisis.section_title')} tone="alert" />
               {activeCrises.map((crisis) => {
                 const project = crisis.responseProjectId
                   ? currentState.projects[crisis.responseProjectId]
@@ -535,7 +534,7 @@ export function HoldingDetail({
       {/* POP breakdown by class */}
       {currentState && (
         <>
-          <div className="text-sm font-semibold text-gray-300">POP</div>
+          <DetailSection title="POP" />
           {(['peasants', 'townsmen', 'nobles'] as const).map((popClass) => {
             const primaryOcc = getPrimaryOccupationForClass(popClass)
             const employed = getHoldingPopSizeByClassAndOccupation(
@@ -588,9 +587,7 @@ export function HoldingDetail({
           if (pops.length === 0) return null
           return (
             <>
-              <div className="text-sm font-semibold text-gray-300">
-                {t('detail.province.pop_groups')}
-              </div>
+              <DetailSection title={t('detail.province.pop_groups')} />
               {pops.map((pop) => (
                 <div key={pop.id} className="rounded bg-gray-700 p-1.5 text-xs">
                   <button

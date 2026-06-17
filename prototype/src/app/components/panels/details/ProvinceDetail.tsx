@@ -40,7 +40,12 @@ import {
 } from '@sim/selectors/landContractSelectors'
 import { getPolityStability } from '@sim/selectors/statusSelectors'
 import { getAttitudeOrDefault, attitudeValueToScore } from '@sim/helpers/attitudeHelpers'
-import { PanelHeader, CopyJsonButton, EntityChronicleSection } from './shared/widgets'
+import {
+  PanelHeader,
+  CopyJsonButton,
+  EntityChronicleSection,
+  DetailSection,
+} from './shared/widgets'
 import { getProvinceImage, getHoldingImage } from '@/app/utils/assetHash'
 import { PolityLink, HouseLink, PersonLink } from './shared/links'
 import { formatScore, formatPower } from '@/app/utils/format'
@@ -265,9 +270,7 @@ export function ProvinceDetail({
         </div>
       </div>
 
-      <div className="text-sm font-semibold text-gray-300">
-        {t('detail.province.holdings')} ({province.holdingIds.length})
-      </div>
+      <DetailSection title={t('detail.province.holdings')} count={province.holdingIds.length} />
       {currentState &&
         getProvinceHoldings(currentState, province.id).map((holding) => {
           const bailiff = getHoldingBailiffPerson(currentState, holding.id)
@@ -416,9 +419,7 @@ export function ProvinceDetail({
           )
         })}
 
-      <div className="text-sm font-semibold text-gray-300">
-        {t('detail.province.population_section')}
-      </div>
+      <DetailSection title={t('detail.province.population_section')} />
       <div className="text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">{t('detail.province.carrying_capacity')}:</span>
@@ -464,9 +465,7 @@ export function ProvinceDetail({
 
       {pops.length > 0 && (
         <>
-          <div className="text-sm font-semibold text-gray-300">
-            {t('detail.province.pop_groups')}
-          </div>
+          <DetailSection title={t('detail.province.pop_groups')} />
           {pops.map((pop) => (
             <div key={pop.id} className="rounded bg-gray-700 p-1.5 text-xs">
               <button
@@ -498,7 +497,7 @@ export function ProvinceDetail({
         </>
       )}
 
-      <div className="text-sm font-semibold text-gray-300">{t('detail.province.revolt_risk')}</div>
+      <DetailSection title={t('detail.province.revolt_risk')} />
       <div className="text-sm">
         {(
           [
@@ -522,9 +521,7 @@ export function ProvinceDetail({
 
       {province.neighbors.length > 0 && (
         <>
-          <div className="text-sm font-semibold text-gray-300">
-            {t('detail.province.neighbors')}
-          </div>
+          <DetailSection title={t('detail.province.neighbors')} />
           <div className="flex flex-col gap-0.5 text-sm">
             {province.neighbors.map((nid) => (
               <button
