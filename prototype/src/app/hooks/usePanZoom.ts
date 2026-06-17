@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { computeFitTransform } from '@/app/utils/panZoomFit'
 
 export type Transform = { x: number; y: number; scale: number }
 
@@ -129,7 +130,40 @@ export function usePanZoom(options?: { minScale?: number }) {
     setTransform({ x: 0, y: 0, scale: 1 })
   }, [cancelAnimation])
 
+  // コンテンツを viewport 全体にフィットさせる (中央寄せ + [MIN_SCALE, 1] にクランプ)。
+  //   家系図/派閥図を「開いた瞬間に全体表示」する用途。animate=false (既定) は初回フィットで
+  //   チラつかせないため即時適用。
+  const fitTo = useCallback(
+    (
+      contentW: number,
+      contentH: number,
+      viewportEl: HTMLElement | null,
+      opts?: { pad?: number; animate?: boolean; animateMs?: number },
+    ) => {
+      if (!viewportEl) return
+      const fitOpts: { pad?: number; minScale: number; maxScale: number } = {
+        minScale: MIN_SCALE,
+        maxScale: 1,
+      }
+      if (opts?.pad !== undefined) fitOpts.pad = opts.pad
+      const target = computeFitTransform(
+        contentW,
+        contentH,
+        viewportEl.clientWidth,
+        viewportEl.clientHeight,
+        fitOpts,
+      )
+      if (opts?.animate) {
+        animateTo(target, opts.animateMs ?? 400)
+      } else {
+        cancelAnimation()
+        setTransform(target)
+      }
+    },
+    [MIN_SCALE, animateTo, cancelAnimation],
+  )
+
   const handlers = { onMouseDown, onMouseMove, onMouseUp, onWheel }
 
-  return { transform, handlers, animateTo, zoomBy, resetZoom }
+  return { transform, handlers, animateTo, zoomBy, resetZoom, fitTo }
 }
