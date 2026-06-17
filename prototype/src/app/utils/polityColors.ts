@@ -1,4 +1,4 @@
-export const POLITY_COLORS = [
+const POLITY_COLORS = [
   '#3b6ea8',
   '#a83b3b',
   '#3ba87a',
@@ -26,7 +26,7 @@ export const POLITY_COLORS = [
   '#20b2aa',
 ]
 
-export const HOUSE_COLORS = [
+const HOUSE_COLORS = [
   '#5d80c4',
   '#c45d5d',
   '#5dc497',

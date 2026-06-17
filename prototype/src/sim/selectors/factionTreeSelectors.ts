@@ -12,7 +12,7 @@ import { getFactionActiveMemberIds } from '@sim/selectors/factionSelectors'
 //   - root leader → null
 // addFactionMembership が単一 active membership を強制するため、各人物は木内に一意に出現する。
 
-export type FactionTreeNode = {
+type FactionTreeNode = {
   personId: PersonId
   // メンバーは所属派閥、leader は率いる派閥の id。
   factionId: FactionId

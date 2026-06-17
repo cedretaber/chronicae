@@ -24,15 +24,9 @@ export function targetRefKey(ref: TaskTargetRef): string {
 }
 
 // --- TaskStatus ---
-export type ActiveTaskStatus = 'active'
-export type TerminalTaskStatus = 'succeeded' | 'failed' | 'cancelled'
-export type TaskStatus = ActiveTaskStatus | TerminalTaskStatus
-
-export const TERMINAL_TASK_STATUSES: ReadonlyArray<TerminalTaskStatus> = [
-  'succeeded',
-  'failed',
-  'cancelled',
-]
+type ActiveTaskStatus = 'active'
+type TerminalTaskStatus = 'succeeded' | 'failed' | 'cancelled'
+type TaskStatus = ActiveTaskStatus | TerminalTaskStatus
 
 // --- TaskOutcomeKind ---
 export type TaskOutcomeKind = 'success' | 'failure' | 'partial'
@@ -116,14 +110,14 @@ type PersonActivityLogBase = {
   importance: number
 }
 
-export type TaskActivityLog = PersonActivityLogBase & {
+type TaskActivityLog = PersonActivityLogBase & {
   kind: TaskActivityKind
   outcome: TaskOutcomeKind
   taskKind: TaskKind
   sourceRef?: TaskTargetRef
 }
 
-export type ProjectActivityLog = PersonActivityLogBase & {
+type ProjectActivityLog = PersonActivityLogBase & {
   kind: 'project_completed' | 'project_failed'
   projectKind: ProjectKind
   sourceRef: { kind: 'project'; id: ProjectId }

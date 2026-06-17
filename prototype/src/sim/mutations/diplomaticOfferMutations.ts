@@ -50,7 +50,7 @@ export function createDiplomaticOfferMut(
   return offerId
 }
 
-export function withdrawCurrentOfferMut(ws: WorldState, play: DiplomaticPlay): void {
+function withdrawCurrentOfferMut(ws: WorldState, play: DiplomaticPlay): void {
   if (!play.currentOfferId) return
   const offer = ws.diplomaticOffers[play.currentOfferId]
   if (offer && offer.status === 'pending') {
@@ -58,21 +58,9 @@ export function withdrawCurrentOfferMut(ws: WorldState, play: DiplomaticPlay): v
   }
 }
 
-export function rejectOfferMut(ws: WorldState, offerId: DiplomaticOfferId): void {
-  const offer = ws.diplomaticOffers[offerId]
-  if (!offer) return
-  ws.diplomaticOffers[offerId] = { ...offer, status: 'rejected' }
-}
-
-export function acceptOfferMut(ws: WorldState, offerId: DiplomaticOfferId): void {
-  const offer = ws.diplomaticOffers[offerId]
-  if (!offer) return
-  ws.diplomaticOffers[offerId] = { ...offer, status: 'accepted' }
-}
-
 // ─── Demand application ───
 
-export function applyDemand(
+function applyDemand(
   ctx: TickContext,
   play: DiplomaticPlay,
   demand: DiplomaticDemand,

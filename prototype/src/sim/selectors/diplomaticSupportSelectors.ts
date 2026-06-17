@@ -54,27 +54,6 @@ export type JoinScoreBreakdown = {
   rebelBacking: number
 }
 
-// --- 宗主-臣下 chain 判定 (§8.1) ---
-
-// polity の**直接の**宗主 (immediate overlord) polity 集合を返す (chain を 1 段だけ上る)。
-//   getPolityOverlordPolityIds が推移閉包 (grand-suzerain まで含む) を返すのに対し、こちらは
-//   直属の宗主のみ。叛乱・宮廷工作の相手は「仕えている直接の主」が自然なため PlotSystem が使う。
-export function getPolityImmediateOverlordPolityIds(
-  state: WorldState,
-  polityId: PolityId,
-): Set<string> {
-  const result = new Set<string>()
-  for (const cid of state.landContractIndex.byGranteePolity[polityId] ?? []) {
-    const contract = state.landContracts[cid]
-    if (!contract || contract.parentContractId === undefined) continue
-    const parent = state.landContracts[contract.parentContractId]
-    if (!parent) continue
-    const grantorId = parent.granteePolityId
-    if (grantorId !== (polityId as string)) result.add(grantorId)
-  }
-  return result
-}
-
 // polity の LandContract chain を上向きに辿り、直接・間接の宗主 polity 集合を返す。
 //   walk 順は結果 (Set) に影響しない。循環は visited で防御。
 export function getPolityOverlordPolityIds(state: WorldState, polityId: PolityId): Set<string> {
@@ -403,7 +382,7 @@ export function computeJoinScore(
 // §9.x (v0.47.2): 募集側 delegate (反乱軍なら首謀者) の説得力ボーナス (0..supportPersuasionScale)。
 //   charisma 主軸 + insight。candidate 非依存 (delegate の固有値) なので最良候補のみ計算すれば
 //   足りるが、breakdown 一貫性のため computeJoinScore 内で都度算出する (delegate 取得は map 参照1回)。
-export function computePersuasionBonus(
+function computePersuasionBonus(
   state: WorldState,
   config: SimulationConfig,
   play: DiplomaticPlay,

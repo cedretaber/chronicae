@@ -9,7 +9,7 @@ import type { OrganizationRef } from './office'
 //   white_peace はデッド enum にせず v0.34 で正式に使う:
 //     - timeout 終結 (§8.2.1)
 //     - WarGoal stale 時の安全終結 (§8.8)
-export type WarStatus = 'active' | 'attacker_won' | 'defender_won' | 'white_peace' | 'cancelled'
+type WarStatus = 'active' | 'attacker_won' | 'defender_won' | 'white_peace' | 'cancelled'
 
 // §4.3 WarSideKey
 export type WarSideKey = 'attacker' | 'defender'
@@ -75,7 +75,7 @@ export type WarGoal =
   | PopularRevoltIndependenceWarGoal
 
 // §4.7.1
-export type TransferLandContractWarGoal = {
+type TransferLandContractWarGoal = {
   kind: 'transfer_land_contract'
   holdingId: HoldingId
   // applyLandContractTransferGoal に渡すための明示的な PolityId (OrganizationRef ではない)。

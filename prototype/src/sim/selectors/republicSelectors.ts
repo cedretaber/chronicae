@@ -97,7 +97,7 @@ const ROLE_TO_APPLIED_ROLE: Record<OfficeRole, AppliedRoleKey> = {
   leader: 'diplomacy',
 }
 
-export function appliedRoleKeyForOfficeRole(role: OfficeRole): AppliedRoleKey {
+function appliedRoleKeyForOfficeRole(role: OfficeRole): AppliedRoleKey {
   return ROLE_TO_APPLIED_ROLE[role]
 }
 

@@ -6,7 +6,6 @@ import {
 } from '@sim/selectors/landContractSelectors'
 import { getHouseAggregateInfluenceInPolity } from '@sim/selectors/influenceSelectors'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
-import { getActiveFactionMembership } from '@sim/selectors/factionSelectors'
 
 export function isHouselessPerson(state: WorldState, personId: PersonId): boolean {
   const person = state.persons[personId]
@@ -50,30 +49,6 @@ export function isRulingHouse(state: WorldState, houseId: HouseId): boolean {
   return false
 }
 
-export function isNonRulingHouse(state: WorldState, houseId: HouseId): boolean {
-  const house = state.houses[houseId]
-  if (!house || !house.active) return false
-  return !isRulingHouse(state, houseId)
-}
-
-export function getRulingHouseIds(state: WorldState): HouseId[] {
-  const result: HouseId[] = []
-  for (const house of Object.values(state.houses)) {
-    if (!house || !house.active) continue
-    if (isRulingHouse(state, house.id)) result.push(house.id)
-  }
-  return result
-}
-
-export function getNonRulingHouseIds(state: WorldState): HouseId[] {
-  const result: HouseId[] = []
-  for (const house of Object.values(state.houses)) {
-    if (!house || !house.active) continue
-    if (!isRulingHouse(state, house.id)) result.push(house.id)
-  }
-  return result
-}
-
 // v0.42 §19.2: share% → influence%。config 名も influentialHousePolityInfluenceThreshold に改名。
 export function isInfluentialHouseInAnyPolity(
   state: WorldState,
@@ -109,54 +84,4 @@ export function isInfluentialHouse(
   if (house.wealth >= config.influentialHouseWealthThreshold) return true
   if (house.legacyPrestige >= config.influentialHouseLegacyPrestigeThreshold) return true
   return false
-}
-
-export function isPoliticallyEngagedPerson(
-  state: WorldState,
-  config: SimulationConfig,
-  personId: PersonId,
-): boolean {
-  const person = state.persons[personId]
-  if (!person) return false
-
-  if (person.houseId) {
-    if (isRulingHouse(state, person.houseId)) return true
-    if (isInfluentialHouseInAnyPolity(state, config, person.houseId)) return true
-  }
-
-  if (getActiveFactionMembership(state, personId) !== undefined) return true
-
-  const officeIds = state.officeIndex.byHolderPerson[personId as string] ?? []
-  for (const oid of officeIds) {
-    const o = state.officeAssignments[oid]
-    if (o && o.active) return true
-  }
-
-  const supervisedIds = state.projectIndex.bySupervisorPerson[`person:${personId}`] ?? []
-  for (const pid of supervisedIds) {
-    const project = state.projects[pid]
-    if (project && project.status === 'active') return true
-  }
-
-  for (const play of Object.values(state.diplomaticPlays)) {
-    if (!play) continue
-    const status = play.status
-    if (status !== 'active' && status !== 'escalated') continue
-    if (play.initiatorDelegatePersonId === personId) return true
-    if (play.targetDelegatePersonId === personId) return true
-  }
-
-  return false
-}
-
-export function isRecruitableOutsiderPerson(
-  state: WorldState,
-  config: SimulationConfig,
-  personId: PersonId,
-): boolean {
-  const person = state.persons[personId]
-  if (!person) return false
-  if (!person.alive) return false
-  if (person.kind === 'placeholder') return false
-  return !isPoliticallyEngagedPerson(state, config, personId)
 }

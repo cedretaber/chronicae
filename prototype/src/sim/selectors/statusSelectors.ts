@@ -1,7 +1,7 @@
 import { clamp, clamp100 } from '@sim/utils/math'
 import type { WorldState } from '@sim/types/world'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
-import type { PolityId, HouseId, PersonId, ProvinceId, PopGroupId } from '@sim/types/ids'
+import type { PolityId, HouseId, PersonId, ProvinceId } from '@sim/types/ids'
 import { getProvinceUnrest } from '@sim/selectors/popSelectors'
 import {
   getEffectiveOfficeStat,
@@ -193,75 +193,6 @@ export function getHouseLoyaltyToPolity(state: WorldState, houseId: HouseId): nu
 
   if (scores.length === 0) return 50
   return clamp100(scores.reduce((sum, s) => sum + s, 0) / scores.length)
-}
-
-// --- getPolityPrestige (spec §7.6) ---
-// prestige = 0.70 * legacyPrestige + 0.30 * averageRespectToTargetScore
-
-export function getPolityPrestige(state: WorldState, countryId: PolityId): number {
-  const country = state.polities[countryId]
-  if (!country) return 0
-
-  const countryTarget = { kind: 'polity' as const, id: countryId }
-  const respectScores: number[] = []
-
-  // Collect respect from all Persons in the world
-  for (const personId of state.livingPersonIds) {
-    const person = state.persons[personId]
-    if (!person) continue
-    const att = getExplicitAttitude(person.attitudes, countryTarget)
-    if (att !== undefined) {
-      respectScores.push(attitudeValueToScore(att.respect))
-    }
-  }
-  // Collect respect from all PopGroups in the world
-  for (const popId of Object.keys(state.popGroups) as PopGroupId[]) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    const att = getExplicitAttitude(pop.attitudes, countryTarget)
-    if (att !== undefined) {
-      respectScores.push(attitudeValueToScore(att.respect))
-    }
-  }
-
-  const averageRespect =
-    respectScores.length > 0
-      ? respectScores.reduce((sum, s) => sum + s, 0) / respectScores.length
-      : country.legacyPrestige // fallback to legacyPrestige
-
-  return clamp100(0.7 * country.legacyPrestige + 0.3 * averageRespect)
-}
-
-export function getHousePrestige(state: WorldState, houseId: HouseId): number {
-  const house = state.houses[houseId]
-  if (!house) return 0
-
-  const houseTarget = { kind: 'house' as const, id: houseId }
-  const respectScores: number[] = []
-
-  for (const personId of state.livingPersonIds) {
-    const person = state.persons[personId]
-    if (!person) continue
-    const att = getExplicitAttitude(person.attitudes, houseTarget)
-    if (att !== undefined) {
-      respectScores.push(attitudeValueToScore(att.respect))
-    }
-  }
-  for (const popId of Object.keys(state.popGroups) as PopGroupId[]) {
-    const pop = state.popGroups[popId]
-    if (!pop) continue
-    const att = getExplicitAttitude(pop.attitudes, houseTarget)
-    if (att !== undefined) {
-      respectScores.push(attitudeValueToScore(att.respect))
-    }
-  }
-
-  const averageRespect =
-    respectScores.length > 0
-      ? respectScores.reduce((sum, s) => sum + s, 0) / respectScores.length
-      : house.legacyPrestige
-
-  return clamp100(0.7 * house.legacyPrestige + 0.3 * averageRespect)
 }
 
 export function getPersonPrestige(state: WorldState, personId: PersonId): number {

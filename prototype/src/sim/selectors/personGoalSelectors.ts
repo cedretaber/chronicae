@@ -9,7 +9,7 @@ import { getAttitudeOrDefault } from '../helpers/attitudeHelpers'
 import { getHousePrimaryPolityId } from './polityRelations'
 import { clamp } from '../utils/math'
 
-export function scorePersonGoalKind(
+function scorePersonGoalKind(
   state: WorldState,
   _config: SimulationConfig,
   personId: PersonId,

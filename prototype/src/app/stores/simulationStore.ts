@@ -22,8 +22,6 @@ export type EntityType =
   | 'clan'
   | 'war'
   | 'project'
-// Backwards-friendly alias retained as named export (some modules import SelectedType)
-export type SelectedType = EntityType
 export type MapView = 'terminal' | 'root' | 'house' | 'influence' | 'unrest'
 
 // view='detail' は通常の詳細パネル、view='chronicle' は対象の全履歴 (年代記) パネル。

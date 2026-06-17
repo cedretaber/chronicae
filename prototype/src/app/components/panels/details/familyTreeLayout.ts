@@ -7,10 +7,10 @@ import type { FamilyTreeGraph } from '@sim/selectors/familyTreeSelectors'
 export const NODE_W = 210
 export const NODE_H = 86
 export const COL_W = NODE_W + 30
-export const ROW_H = NODE_H + 74
-export const PAD = 60
+const ROW_H = NODE_H + 74
+const PAD = 60
 
-export type NodePos = { x: number; y: number }
+type NodePos = { x: number; y: number }
 // entity id = 実在人物の PersonId(文字列) または "不詳" placeholder の合成 id ("ph:...")。
 export type EntityId = string
 

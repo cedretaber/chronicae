@@ -45,7 +45,7 @@ export type BattleSimCommanderInput = {
 }
 
 // helper が読む config 一式 (§21)。SimulationConfig の Pick で同期を保つ。
-export type BattleSimConfigSlice = Pick<
+type BattleSimConfigSlice = Pick<
   SimulationConfig,
   | 'minFightingStrengthThreshold'
   | 'retreatOrganizationThreshold'
@@ -94,7 +94,7 @@ export type BattleSimInput = {
   rng: RngState
 }
 
-export type BattleSimRegimentOutput = {
+type BattleSimRegimentOutput = {
   regimentId: RegimentId
   side: WarSideKey
   strengthBefore: number

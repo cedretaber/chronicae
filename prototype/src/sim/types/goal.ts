@@ -63,9 +63,9 @@ export type PersonGoalKind =
   | 'self_cultivation'
 export type GoalKind = PolityGoalKind | HouseGoalKind | PersonGoalKind
 
-export type ActiveGoalStatus = 'active'
+type ActiveGoalStatus = 'active'
 export type TerminalGoalStatus = 'succeeded' | 'failed' | 'abandoned'
-export type GoalStatus = ActiveGoalStatus | TerminalGoalStatus
+type GoalStatus = ActiveGoalStatus | TerminalGoalStatus
 
 export const TERMINAL_GOAL_STATUSES: ReadonlyArray<TerminalGoalStatus> = [
   'succeeded',
@@ -137,11 +137,11 @@ export type PersonAimKind =
   | 'found_republic_house'
 export type AimKind = PolityAimKind | HouseAimKind | PersonAimKind
 
-export type AimOrigin = 'goal_driven' | 'pressure_response'
+type AimOrigin = 'goal_driven' | 'pressure_response'
 
-export type ActiveAimStatus = 'active'
+type ActiveAimStatus = 'active'
 export type TerminalAimStatus = 'succeeded' | 'failed' | 'abandoned'
-export type AimStatus = ActiveAimStatus | TerminalAimStatus
+type AimStatus = ActiveAimStatus | TerminalAimStatus
 
 export const TERMINAL_AIM_STATUSES: ReadonlyArray<TerminalAimStatus> = [
   'succeeded',

@@ -3,15 +3,10 @@
 // 維持する re-export バレル。
 export { splitHouse } from './worldStructureSplitHouse'
 export { extinctHouse } from './worldStructureExtinction'
-export type { HouseExtinctionInput } from './worldStructureExtinction'
 export {
   selectOrCreateCommonwealthLeader,
   createNegotiatingCommonwealth,
   dissolveNegotiatingCommonwealth,
   establishCommonwealth,
   suppressRevolt,
-} from './worldStructureCommonwealth'
-export type {
-  CreateNegotiatingCommonwealthInput,
-  DissolveCommonwealthInput,
 } from './worldStructureCommonwealth'

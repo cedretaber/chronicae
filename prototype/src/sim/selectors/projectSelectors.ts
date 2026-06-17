@@ -146,7 +146,7 @@ export function getProjectRelatedRefs(project: Project): EntityRef[] {
 // enum の enumNs は意味ドメイン名 (UI キーパスではない) で、app 側が実キーに解決する。
 // ---------------------------------------------------------------------------
 
-export type ProjectFieldRole =
+type ProjectFieldRole =
   | 'targetHolding'
   | 'targetProvince'
   | 'targetPolity'
@@ -178,7 +178,7 @@ export type ProjectInfoField =
   | { kind: 'enum'; role: ProjectFieldRole; enumNs: string; value: string }
   | { kind: 'number'; role: ProjectFieldRole; value: number }
 
-export type ProjectBudgetInfo = {
+type ProjectBudgetInfo = {
   required?: number
   allocated?: number
   remaining?: number

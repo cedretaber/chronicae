@@ -79,7 +79,7 @@ function decideRightInheritance(
 }
 
 // person-held right を継承判定し、家産化分を transfer する (国回収分は放置 → markPersonDead が削除)。
-export function resolveRightInheritanceOnDeath(
+function resolveRightInheritanceOnDeath(
   state: WorldState,
   config: SimulationConfig,
   personId: PersonId,

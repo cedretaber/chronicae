@@ -11,11 +11,11 @@ import type { FactionTreeGraph } from '@sim/selectors/factionTreeSelectors'
 // ノード寸法とレイアウト間隔 (px)。leader ノードは faction link 行が付くため少し高め。
 export const NODE_W = 210
 export const NODE_H = 96
-export const COL_W = NODE_W + 26
-export const ROW_H = NODE_H + 56
-export const PAD = 60
+const COL_W = NODE_W + 26
+const ROW_H = NODE_H + 56
+const PAD = 60
 
-export type NodePos = { x: number; y: number }
+type NodePos = { x: number; y: number }
 
 export type FactionLayout = {
   pos: Map<PersonId, NodePos>

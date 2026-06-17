@@ -20,13 +20,13 @@ import type { InfluenceModifierTargetRef } from './influenceModifier'
 import type { HoldingImprovementKind } from './holdingImprovement'
 import type { PressureResponseStance } from './pressure'
 
-export type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
+type ProjectStatus = 'active' | 'completed' | 'failed' | 'cancelled'
 
 // v0.44 §5.3: Project が terminal になった理由。status を terminal に変更する全サイトで
 // 必ずセットする (セット漏れは IntegrityCheck §12.2 違反。terminal Project は
 // projectOutcomeSystem / flushTerminalEntities が同 tick 〜 4 週内に削除するため、
 // 年末 integrity では検出できない — --integrity-per-system で検証する)。
-export type ProjectTerminalReason =
+type ProjectTerminalReason =
   | 'completed'
   | 'deadline_expired'
   | 'stage_attempts_exceeded'
@@ -44,7 +44,7 @@ export type ProjectTerminalReason =
   // v0.48.1: develop_holding 完了で improvement が再生され disrepair が解消、修理 Project が冗長化
   | 'target_repaired'
 
-export type ProjectOrigin = { kind: 'aim'; aimId: AimId } | { kind: 'system'; reasonKey: string }
+type ProjectOrigin = { kind: 'aim'; aimId: AimId } | { kind: 'system'; reasonKey: string }
 
 export type ProjectKind =
   | 'develop_holding'
@@ -107,7 +107,7 @@ export type ProjectStageEntry = {
   type: ProjectStageType
 }
 
-export type ProjectBudgetSource = { kind: 'owner' }
+type ProjectBudgetSource = { kind: 'owner' }
 
 export type ProjectBudget = {
   required: number
@@ -125,7 +125,7 @@ export type DevelopHoldingProject = BaseProject & {
   budget: ProjectBudget
 }
 
-export type PromotePolicyShiftProject = BaseProject & {
+type PromotePolicyShiftProject = BaseProject & {
   kind: 'promote_policy_shift'
   polityId: PolityId
   houseId: HouseId
@@ -141,7 +141,7 @@ export type AcquirePoliticalRightProject = BaseProject & {
   spentBudget: number
 }
 
-export type PatronizeArtistProject = BaseProject & {
+type PatronizeArtistProject = BaseProject & {
   kind: 'patronize_artist'
   houseId: HouseId
   budget: number
@@ -149,7 +149,7 @@ export type PatronizeArtistProject = BaseProject & {
   artistPersonId?: PersonId
 }
 
-export type CommissionChronicleProject = BaseProject & {
+type CommissionChronicleProject = BaseProject & {
   kind: 'commission_chronicle'
   houseId: HouseId
   budget: number
@@ -241,7 +241,7 @@ export type ConsolidateInternalContractsProject = BaseProject & {
 // v0.51 陰謀リファイン: 影響力毀損 Project。owner = 陰謀を企てる House。
 // target = 同 Polity 内のライバル (家 / 人物)。budget なし (v1 無料)。完了で InfluenceModifier
 // (負 delta) を生成する (§3.2)。supervisor の insight が Task 進捗・成否を決める。
-export type UndermineInfluenceProject = BaseProject & {
+type UndermineInfluenceProject = BaseProject & {
   kind: 'undermine_influence'
   owner: { kind: 'house'; id: HouseId }
   polityId: PolityId
@@ -252,7 +252,7 @@ export type UndermineInfluenceProject = BaseProject & {
 // PoliticalRightTargetRef (acquire_political_right と同形)。完了で対象 right を removePoliticalRight
 // し国 (residual authority) に戻す。現職 OfficeAssignment は不変 (任命権の削除のみ)。budget なし。
 // difficulty は target right の holder 種別で動的に決まる (person < house。§3.3)。
-export type RevokePoliticalRightProject = BaseProject & {
+type RevokePoliticalRightProject = BaseProject & {
   kind: 'revoke_political_right'
   owner: { kind: 'house'; id: HouseId }
   polityId: PolityId
@@ -262,7 +262,7 @@ export type RevokePoliticalRightProject = BaseProject & {
 // v0.51 陰謀リファイン: 分家当主交代 Project (旧 replace_house_leader plot の移植)。
 // owner = 宗家 (陰謀を企てる House)、target = 自家の分家 (cadet House)。budget なし。
 // 完了で対象分家の当主を prestige 最上位の生存成人に交代する。成否は Task (担当者能力) が決める。
-export type ReplaceHouseLeaderProject = BaseProject & {
+type ReplaceHouseLeaderProject = BaseProject & {
   kind: 'replace_house_leader'
   owner: { kind: 'house'; id: HouseId }
   targetHouseId: HouseId

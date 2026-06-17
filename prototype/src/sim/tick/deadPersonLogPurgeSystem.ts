@@ -3,12 +3,12 @@ import type { PersonActivityLog } from '../types/task'
 import type { PersonId } from '../types/ids'
 import { removePersonReputationsByPersonMut } from '../mutations/personReputationMutations'
 
-export type PurgedPersonLogs = {
+type PurgedPersonLogs = {
   personId: PersonId
   logs: PersonActivityLog[]
 }
 
-export function collectDeadPersonLogs(ctx: TickContext): PurgedPersonLogs[] {
+function collectDeadPersonLogs(ctx: TickContext): PurgedPersonLogs[] {
   const collected: PurgedPersonLogs[] = []
   for (const personId of ctx.deathsThisTick) {
     const logIds = ctx.state.personActivityLogIndex.byPerson[personId as string]

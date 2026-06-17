@@ -4,7 +4,7 @@ import type { EventEntityRef } from '../types/event'
 import { createChronicleEntryId } from '../types/ids'
 
 // 同一 entry に同じ (kind,id) が複数回現れても index に重複登録しないため、(kind,id) で一意化する。
-export function dedupeByKindAndId(refs: EventEntityRef[]): EventEntityRef[] {
+function dedupeByKindAndId(refs: EventEntityRef[]): EventEntityRef[] {
   const seen = new Set<string>()
   const result: EventEntityRef[] = []
   for (const ref of refs) {
@@ -40,7 +40,7 @@ function indexBucketForKind(
 // append-only。remove 系は実装しない (v0.38 方針)。
 // perf (v0.47): in-place push。chronicle index の id 配列は append-only かつ書き込み点が
 //   ここ 1 箇所のため、配列再生成 ([...arr, id]) は不要 (entry 蓄積で O(配列長) に劣化する)。
-export function addChronicleToIndexMut(ws: WorldState, entry: ChronicleEntry): void {
+function addChronicleToIndexMut(ws: WorldState, entry: ChronicleEntry): void {
   const uniqueRefs = dedupeByKindAndId(entry.entityRefs)
   for (const ref of uniqueRefs) {
     const bucket = indexBucketForKind(ws.chronicleIndex, ref.kind)

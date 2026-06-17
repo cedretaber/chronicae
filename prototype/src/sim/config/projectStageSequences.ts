@@ -99,10 +99,6 @@ export const PROJECT_STAGE_SEQUENCES: Record<ProjectKind, readonly ProjectStageE
   ],
 }
 
-export function getProjectStageSequence(kind: ProjectKind): readonly ProjectStageEntry[] {
-  return PROJECT_STAGE_SEQUENCES[kind]
-}
-
 export function getInitialProjectStageKey(kind: ProjectKind): ProjectStageKey {
   return PROJECT_STAGE_SEQUENCES[kind][0]!.key
 }
@@ -112,12 +108,6 @@ export function getNextProjectStageKey(project: Project): ProjectStageKey | unde
   const idx = seq.findIndex((e) => e.key === project.currentStageKey)
   if (idx < 0 || idx >= seq.length - 1) return undefined
   return seq[idx + 1]!.key
-}
-
-export function isFinalProjectStage(project: Project): boolean {
-  const seq = PROJECT_STAGE_SEQUENCES[project.kind]
-  const entry = seq.find((e) => e.key === project.currentStageKey)
-  return entry?.type === 'final'
 }
 
 export function isProjectStageValid(project: Project): boolean {

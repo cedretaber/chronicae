@@ -1,4 +1,4 @@
-import type { ProvinceId, HoldingId } from '../types/ids'
+import type { ProvinceId } from '../types/ids'
 import type { WorldState } from '../types/world'
 import type { StateResult } from './result'
 import { ok } from './result'
@@ -9,17 +9,6 @@ export function adjustProvinceDevelopment(
   ...args: [
     state: WorldState,
     provinceId: ProvinceId,
-    delta: number,
-    options?: { min?: number; max?: number },
-  ]
-): StateResult {
-  return ok(args[0])
-}
-
-export function adjustHoldingDevelopment(
-  ...args: [
-    state: WorldState,
-    holdingId: HoldingId,
     delta: number,
     options?: { min?: number; max?: number },
   ]

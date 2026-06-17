@@ -179,7 +179,7 @@ export function getHoldingPops(state: WorldState, holdingId: HoldingId): PopGrou
   return result
 }
 
-export function getHoldingPopsByClass(
+function getHoldingPopsByClass(
   state: WorldState,
   holdingId: HoldingId,
   popClass: PopClass,
@@ -262,33 +262,4 @@ export function getHoldingOccupationRemainingCapacity(
   const capacity = getHoldingOccupationCapacity(state, config, holdingId, popClass, occupation)
   const used = getHoldingPopSizeByClassAndOccupation(state, holdingId, popClass, occupation)
   return Math.max(0, capacity - used)
-}
-
-export function getHoldingLaborShortage(
-  state: WorldState,
-  config: SimulationConfig,
-  holdingId: HoldingId,
-  popClass: PopClass,
-  occupation: PopOccupation,
-): number {
-  return getHoldingOccupationRemainingCapacity(state, config, holdingId, popClass, occupation)
-}
-
-export function getHoldingUnemployedPopSize(
-  state: WorldState,
-  holdingId: HoldingId,
-  popClass: PopClass,
-): number {
-  return getHoldingPopSizeByClassAndOccupation(state, holdingId, popClass, 'none')
-}
-
-export function getHoldingEmploymentRateByClass(
-  state: WorldState,
-  holdingId: HoldingId,
-  popClass: PopClass,
-): number {
-  const total = getHoldingPopSizeByClass(state, holdingId, popClass)
-  if (total <= 0) return 1
-  const unemployed = getHoldingUnemployedPopSize(state, holdingId, popClass)
-  return clamp(1 - unemployed / total, 0, 1)
 }

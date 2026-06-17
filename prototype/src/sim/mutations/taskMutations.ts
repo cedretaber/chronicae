@@ -73,7 +73,7 @@ export function removeTaskFromIndicesMut(ws: WorldState, taskId: TaskId): void {
 
 // --- immutable: worldgen / cleanup 用 (taskSelectors から移設, §3.1 レイヤー違反解消) ---
 
-export function createTask(
+function createTask(
   state: WorldState,
   config: SimulationConfig,
   input: {

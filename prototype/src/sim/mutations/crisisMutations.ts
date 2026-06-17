@@ -23,7 +23,7 @@ export type CreateCrisisInput = {
   targetImprovementId?: HoldingImprovementId // kind === 'disrepair' (v0.48.1)
 }
 
-export function addCrisisToIndexMut(ws: WorldState, crisis: Crisis): void {
+function addCrisisToIndexMut(ws: WorldState, crisis: Crisis): void {
   const holdingKey = crisis.holdingId as string
   ws.crisisIndex.byHolding[holdingKey] = [
     ...(ws.crisisIndex.byHolding[holdingKey] ?? []),
@@ -36,7 +36,7 @@ export function addCrisisToIndexMut(ws: WorldState, crisis: Crisis): void {
   }
 }
 
-export function removeCrisisFromIndexMut(ws: WorldState, crisis: Crisis): void {
+function removeCrisisFromIndexMut(ws: WorldState, crisis: Crisis): void {
   const holdingKey = crisis.holdingId as string
   const holdingArr = ws.crisisIndex.byHolding[holdingKey]
   if (holdingArr) {

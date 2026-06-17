@@ -437,7 +437,7 @@ function createContractRevisionPlayFromProjectMut(
   return { kind: 'created', playId }
 }
 
-export function checkLandPurchaseEligibility(
+function checkLandPurchaseEligibility(
   state: WorldState,
   acquirerPolityId: PolityId,
   targetPolityId: PolityId,
@@ -467,7 +467,7 @@ export function checkLandPurchaseEligibility(
   return false
 }
 
-export function computeLandPurchasePrice(
+function computeLandPurchasePrice(
   state: WorldState,
   provinceId: ProvinceId,
   config?: SimulationConfig,

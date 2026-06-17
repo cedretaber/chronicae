@@ -414,7 +414,7 @@ export function awardWarOutcomeCtx(ctx: TickContext, war: War): TickContext {
 // 家が getPolityHouseIds に入る (領地・支配チェーン) / 当該 polity anchor の active 派閥メンバー
 // (食客 — 個人 influence の coldstart 経路として意図的に含める)。
 // 支援国から従軍しただけの人物はどれにも該当せず false (= tag 無し評判に落ちる)。
-export function isPersonAffiliatedWithPolityForReputation(
+function isPersonAffiliatedWithPolityForReputation(
   state: WorldState,
   personId: PersonId,
   polityId: PolityId,
@@ -440,7 +440,7 @@ export function isPersonAffiliatedWithPolityForReputation(
 // owner = primary participant の actor。actor が house のとき target = その陣営 participants の
 // 最初の polity (organizationKey 昇順で安定) を追加して dual 化する。actor が polity なら
 // target=self なので owner だけ (dedupe で 1 個)。primary 不在なら空 (tag 無し評判)。
-export function collectWarSideReputationOrganizations(side: WarSide): OrganizationRef[] {
+function collectWarSideReputationOrganizations(side: WarSide): OrganizationRef[] {
   const primaryActor = side.participants.find((p) => p.primary)?.actor
   if (!primaryActor) return []
   const orgs: OrganizationRef[] = [primaryActor]

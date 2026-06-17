@@ -17,7 +17,7 @@ import type { WorldState } from '../types/world'
 //   その創設者 (house.founderId) ノードに「どの家から分かれたか」を付与する。創設者は H の
 //   blood (起源) だが、由来の家を辿れるようにする (婚入/婚出が相手家を示すのと対称)。
 
-export type FamilyTreeRelation = 'blood' | 'married_in' | 'married_out'
+type FamilyTreeRelation = 'blood' | 'married_in' | 'married_out'
 
 export type FamilyTreeNode = {
   personId: PersonId
@@ -30,7 +30,7 @@ export type FamilyTreeNode = {
   generation: number
 }
 
-export type FamilyTreeEdge =
+type FamilyTreeEdge =
   | { kind: 'parent_child'; parentId: PersonId; childId: PersonId }
   // spouse は aId < bId で正規化し dedupe 済み。
   | { kind: 'spouse'; aId: PersonId; bId: PersonId }

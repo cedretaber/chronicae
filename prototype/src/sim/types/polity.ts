@@ -15,7 +15,7 @@ export type PolityRank = 1 | 2 | 3 | 4 | 5
 // v0.18-pre: 'commonwealth' は ownerHouseId === undefined を恒常的に許容する状態。
 // 現状は createRebelPolity でのみ生成され、双方向遷移は未実装。
 // undefined は 'normal' と等価扱い (backward compatibility)。
-export type PolityKind = 'normal' | 'commonwealth'
+type PolityKind = 'normal' | 'commonwealth'
 
 // v0.47 §2.1: territorial = 実領を伴う通常状態 (undefined も territorial 扱い)。
 // titular = 称号のみで土地契約 0 (rank 2〜4。rank 5 は titular になれず abolish される)。
@@ -55,14 +55,14 @@ export type PolityOrigin =
       week: number
     }
 
-export type PopularRevoltState =
+type PopularRevoltState =
   | { kind: 'negotiating'; diplomaticPlayId: DiplomaticPlayId }
   | { kind: 'revolting'; warId?: WarId; revoltSeizureContractIds: LandContractId[] }
   | { kind: 'established' }
 
 // v0.41 (§3.2/§3.3): Polity の名前情報。pool 由来は自前の nameKey を持ち、
 // holding 由来は対象 Holding の名前を借りる (解決カテゴリは Holding.kind で決まる)。
-export type PolityNameSource =
+type PolityNameSource =
   | { kind: 'pool'; nameKey: string }
   | { kind: 'holding'; holdingId: HoldingId }
 

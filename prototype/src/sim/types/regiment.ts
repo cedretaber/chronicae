@@ -12,7 +12,7 @@ import type { WarSideKey } from './war'
 //     reform 遅延を経て active に再編成する (v0.36 補充・再編成)。
 //   どちらの非 active record も records / regimentIndex.byOwner には残す
 //   (§10.4 case(d) の「record 在り → 0 power, fallback しない」判定に必要)。
-export type RegimentStatus = 'active' | 'disbanded' | 'destroyed'
+type RegimentStatus = 'active' | 'disbanded' | 'destroyed'
 
 // §4.3 RegimentSourceKind — 編制基盤の由来。mercenary は型予約のみ (v0.36 では生成しない)。
 export type RegimentSourceKind =

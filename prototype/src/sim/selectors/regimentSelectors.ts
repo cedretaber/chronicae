@@ -69,15 +69,6 @@ export function getRegimentPowerForWarSide(
   return total
 }
 
-export function getActorRegimentPower(
-  state: WorldState,
-  _config: SimulationConfig,
-  actor: OrganizationRef,
-): number {
-  const regiments = getRegimentsForActor(state, actor).filter((r) => r.status === 'active')
-  return regiments.reduce((sum, r) => sum + getRegimentEffectivePower(r), 0)
-}
-
 // v0.36 補充・再編成: sourceKind が依拠する POP class。levy→peasants / urban_militia→townsmen /
 //   noble_retinue→nobles。mercenary は v0.36 では非生成だが安全側で peasants を返す。
 function recruitmentPopClassForSource(sourceKind: RegimentSourceKind): PopClass {

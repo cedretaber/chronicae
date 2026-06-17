@@ -26,7 +26,7 @@ export function pickUniqueName(
   return { name, rng: nextRng }
 }
 
-export function pickName(pool: string[], rng: RngState): { name: string; rng: RngState } {
+function pickName(pool: string[], rng: RngState): { name: string; rng: RngState } {
   const { value: idx, rng: nextRng } = randomInt(rng, 0, pool.length - 1)
   return { name: pool[idx]!, rng: nextRng }
 }
@@ -40,12 +40,6 @@ export function pickNameBySex(
 
 export function houseNamePool(): string[] {
   return HOUSE_NAMES
-}
-export function maleNamePool(): string[] {
-  return MALE_NAMES
-}
-export function femaleNamePool(): string[] {
-  return FEMALE_NAMES
 }
 export function provinceNamePool(): string[] {
   return PROVINCE_NAMES
@@ -71,7 +65,4 @@ export function polityName(index: number): string {
 }
 export function houseName(index: number): string {
   return `House-${index}`
-}
-export function personName(index: number): string {
-  return `Person-${index}`
 }

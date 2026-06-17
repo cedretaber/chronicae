@@ -11,7 +11,7 @@ import { addHouseToClan } from './clanMutations'
 // v0.47 §8.2: 分封による rank 5 normal Polity を新設する mut。
 // ID は ws.nextPolityIndex から採番する (呼出側 = runProjectStageSystem が ctx.nextPolityIndex を
 // seed し、終了時に ctx へ書き戻す)。nameSource は holding 借用、origin は land_grant。
-export function createGrantedRank5PolityMut(
+function createGrantedRank5PolityMut(
   ws: WorldState,
   config: SimulationConfig,
   params: {

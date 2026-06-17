@@ -1,4 +1,4 @@
-export type SimErrorCode =
+type SimErrorCode =
   | 'PERSON_NOT_FOUND'
   | 'HOUSE_NOT_FOUND'
   | 'POLITY_NOT_FOUND'

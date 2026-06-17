@@ -139,7 +139,7 @@ export function getActiveAimForOwner(
 
 // --- Polity Goal scoring ---
 
-export function scorePolityGoalKind(
+function scorePolityGoalKind(
   state: WorldState,
   config: SimulationConfig,
   polityId: PolityId,

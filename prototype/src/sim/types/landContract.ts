@@ -74,7 +74,7 @@ export type Holding = {
 
 export type HoldingTerminalPolityCache = Record<HoldingId, PolityId>
 
-export type HoldingOfficeRole = 'bailiff'
+type HoldingOfficeRole = 'bailiff'
 
 export type BailiffPolicy = 'passive' | 'loyal_remittance' | 'profit_seeking' | 'protect_residents'
 

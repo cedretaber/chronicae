@@ -5,7 +5,7 @@ export const MAP_ICON_CONFIG = {
   backgroundOpacity: 0.55,
 }
 
-export const ZOOM_THRESHOLDS = {
+const ZOOM_THRESHOLDS = {
   FAR_TO_MEDIUM: 1.8,
   MEDIUM_TO_NEAR: 3.5,
 } as const

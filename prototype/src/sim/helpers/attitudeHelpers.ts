@@ -108,28 +108,6 @@ export function lerpAttitude(
   }
 }
 
-// --- legacyPrestige adjusters (return new WorldState, immutable) ---
-
-// Adjusts house.legacyPrestige by delta, clamping to 0..100
-export function adjustHouseLegacyPrestige(
-  state: WorldState,
-  id: HouseId,
-  delta: number,
-): WorldState {
-  const house = state.houses[id]
-  if (!house) return state
-  return {
-    ...state,
-    houses: {
-      ...state.houses,
-      [id]: {
-        ...house,
-        legacyPrestige: clamp(house.legacyPrestige + delta, 0, 100),
-      },
-    },
-  }
-}
-
 // Adjusts person.legacyPrestige by delta, clamping to 0..100
 export function adjustPersonLegacyPrestige(
   state: WorldState,

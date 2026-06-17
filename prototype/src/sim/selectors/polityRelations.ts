@@ -55,16 +55,6 @@ export function getPolityProvinceIds(state: WorldState, polityId: PolityId): Pro
   return result
 }
 
-// Polity の terminal Province (chain の最下位 grantee)
-export function getPolityTerminalProvinceIdsSorted(
-  state: WorldState,
-  polityId: PolityId,
-): ProvinceId[] {
-  const result = [...getPolityTerminalProvinceIds(state, polityId)]
-  result.sort((a, b) => a.localeCompare(b))
-  return result
-}
-
 // §8.2 — Polity に関係する active House の一覧。
 // 定義: Polity 自身の ownerHouseId に加え、その Polity が chain 上に出現する各 Holding の
 // terminal owner House (= その Holding を terminal 支配する Polity の ownerHouseId) を含める。

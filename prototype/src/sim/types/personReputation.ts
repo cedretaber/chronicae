@@ -13,7 +13,7 @@ import type { DiplomaticPlayKind } from './diplomaticPlay'
 import type { OrganizationRef } from './office'
 import type { EntityRef } from './goal'
 
-export type ReputationOutcome = 'success' | 'failure'
+type ReputationOutcome = 'success' | 'failure'
 
 export type ReputationCategory =
   | 'administration'

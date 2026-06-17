@@ -14,22 +14,8 @@ import { createBattleId } from '../types/ids'
 
 // --- index ---
 
-export function addBattleToIndexMut(ws: WorldState, battle: Battle): void {
+function addBattleToIndexMut(ws: WorldState, battle: Battle): void {
   ws.battleIndex.byWar[battle.warId] = [...(ws.battleIndex.byWar[battle.warId] ?? []), battle.id]
-}
-
-export function removeBattleFromIndexMut(ws: WorldState, battle: Battle): void {
-  const ids = ws.battleIndex.byWar[battle.warId]
-  if (!ids) {
-    /* nothing */
-  } else {
-    const filtered = ids.filter((id) => (id as string) !== (battle.id as string))
-    if (filtered.length > 0) {
-      ws.battleIndex.byWar[battle.warId] = filtered
-    } else {
-      delete ws.battleIndex.byWar[battle.warId]
-    }
-  }
 }
 
 // --- creation ---

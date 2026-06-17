@@ -14,7 +14,7 @@ export type VoronoiCell = {
   polygon: [number, number][]
 }
 
-export type BorderSegment = [x1: number, y1: number, x2: number, y2: number]
+type BorderSegment = [x1: number, y1: number, x2: number, y2: number]
 
 export type VoronoiResult = {
   cells: VoronoiCell[]

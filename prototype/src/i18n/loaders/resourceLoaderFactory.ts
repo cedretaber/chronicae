@@ -10,7 +10,7 @@ import type {
  *  NOTE: app/hooks/nameCache.ts にも同趣旨のリストがある (web は import.meta.glob 経由)。
  *  カテゴリを増やしたら両方を更新すること — ここから漏れると CLI レンダリングだけ
  *  raw nameKey (例: 'polity_military') が出る。 */
-export const NAME_CATEGORIES: NameCategory[] = [
+const NAME_CATEGORIES: NameCategory[] = [
   'person',
   'house',
   'province',

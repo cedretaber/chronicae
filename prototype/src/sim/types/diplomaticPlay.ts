@@ -29,7 +29,7 @@ export type DiplomaticPlayKind = 'land_claim' | 'contract_tax_revision' | 'revol
 //   'resolved_by_conflict' (terminal) に置換する。maxConflictsResolvedPerTick の
 //   上限で resolve 漏れがあった場合、'escalated' は次 tick に持ち越される (それでも
 //   IntegrityCheck §20 を通る非 terminal 扱い)。
-export type ActiveDiplomaticPlayStatus = 'active' | 'escalated'
+type ActiveDiplomaticPlayStatus = 'active' | 'escalated'
 
 export type TerminalDiplomaticPlayStatus =
   | 'settled'
@@ -106,9 +106,9 @@ export type DiplomaticDemand =
   | { kind: 'status_quo' }
 
 // v0.30: DiplomaticIssue — immutable anchor for diplomatic play
-export type TaxRevisionDirection = 'increase' | 'decrease'
+type TaxRevisionDirection = 'increase' | 'decrease'
 
-export type LandClaimIssue = {
+type LandClaimIssue = {
   kind: 'land_claim'
   holdingId: HoldingId
   provinceId: ProvinceId
@@ -123,10 +123,10 @@ export type ContractTaxRevisionIssue = {
   direction: TaxRevisionDirection
 }
 
-export type DiplomaticIssue = LandClaimIssue | ContractTaxRevisionIssue
+type DiplomaticIssue = LandClaimIssue | ContractTaxRevisionIssue
 
 // v0.30: DiplomaticOffer — mutable proposal for resolving an issue
-export type DiplomaticOfferStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+type DiplomaticOfferStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn'
 
 export type DiplomaticOffer = {
   id: DiplomaticOfferId
@@ -139,7 +139,7 @@ export type DiplomaticOffer = {
 }
 
 // v0.30: Offer validation
-export type OfferInvalidReason =
+type OfferInvalidReason =
   | 'missing_offer'
   | 'offer_not_pending'
   | 'wrong_play'

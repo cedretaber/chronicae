@@ -55,7 +55,7 @@ function resolveEntityName(
 }
 
 // entityType + id のリンクボタン (名前解決込み)。
-export function EntityLink({
+function EntityLink({
   entityType,
   id,
   label,
@@ -96,7 +96,7 @@ export function EntityRefLink({
 
 // ProjectInfoField の「値」部分のみを描画する (ラベルは ProjectFieldRow / カードが付ける)。
 // entity → リンク、enum → namespace 別に i18n 解決、number → role 別に整形。
-export function ProjectFieldValue({
+function ProjectFieldValue({
   field,
   worldState,
   onNavigate,

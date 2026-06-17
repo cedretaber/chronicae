@@ -122,7 +122,7 @@ export function hasActiveHoldingOffice(state: WorldState, personId: PersonId): b
   return false
 }
 
-export function getOfficeHolderPower(state: WorldState, office: OfficeAssignment): number {
+function getOfficeHolderPower(state: WorldState, office: OfficeAssignment): number {
   const person = state.persons[office.holderPersonId]
   if (!person) return 0.01
 
@@ -256,23 +256,6 @@ export function getEffectiveOfficeStat(
     config.officeHouseDiversityPenalty * distinctHouseCount
 
   return clamp(weightedStat - penalty, 0, 10)
-}
-
-export function getAvailableOfficeRoles(
-  state: WorldState,
-  organization: OrganizationRef,
-): OfficeRole[] {
-  const allRoles: OfficeRole[] = ['leader', 'administrator', 'treasurer', 'military', 'advisor']
-  const result: OfficeRole[] = []
-  for (const role of allRoles) {
-    const def = OFFICE_DEFINITIONS[`${organization.kind}:${role}`]
-    if (!def) continue
-    const currentCount = getActiveOfficeHolders(state, organization, role).length
-    if (currentCount < def.maxHolders) {
-      result.push(role)
-    }
-  }
-  return result
 }
 
 export function getAdministrativeCapacity(

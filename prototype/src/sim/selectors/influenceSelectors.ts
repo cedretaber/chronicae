@@ -516,7 +516,7 @@ export function getWeightedOpinionFromInfluenceBreakdown(
 //   - house leader は追加 weight を持つが絶対拒否権は持たない (§11.7)
 //   - 生存 holder が 0 なら 0 (中立)
 //   Project progress / Task outcome 補正は呼出側 (resolveImmediateStage) で加える。
-export function getWeightedOpinionFromHouseShareholders(
+function getWeightedOpinionFromHouseShareholders(
   state: WorldState,
   houseId: HouseId,
   targetPersonId: PersonId,
@@ -592,9 +592,4 @@ export function getTopInfluenceHoldersInPolity(
       })
   }
   return limit !== undefined ? list.slice(0, limit) : list
-}
-
-// 母集合に House entry が 1 つでもあるか (§14.2 — commonwealth surplus 判定などに使う)。
-export function hasHouseInfluenceEntry(breakdown: PolityInfluenceBreakdown): boolean {
-  return breakdown.entries.some((e) => e.holder.kind === 'house')
 }

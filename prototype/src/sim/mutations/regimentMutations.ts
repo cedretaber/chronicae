@@ -11,7 +11,7 @@ import { removeRightsByTargetMut } from './politicalRightMutations'
 
 // --- index ---
 
-export function addRegimentToIndexMut(ws: WorldState, regiment: Regiment): void {
+function addRegimentToIndexMut(ws: WorldState, regiment: Regiment): void {
   const ownerKey = politicalActorKey(regiment.owner)
   ws.regimentIndex.byOwner[ownerKey] = [...(ws.regimentIndex.byOwner[ownerKey] ?? []), regiment.id]
 

@@ -171,7 +171,7 @@ export function adjustLandContractTaxRate(
   }
 }
 
-export function transferLandContractGrantee(
+function transferLandContractGrantee(
   state: WorldState,
   contractId: LandContractId,
   newGranteePolityId: PolityId,
@@ -201,22 +201,9 @@ export function transferLandContractGrantee(
   return recomputeTerminalCacheAndResyncBailiffs(nextState, contract.provinceId)
 }
 
-export function transferAllProvincesToPolity(
-  state: WorldState,
-  fromPolityId: PolityId,
-  toPolityId: PolityId,
-): WorldState {
-  let next = state
-  const contractIds = [...(state.landContractIndex.byGranteePolity[fromPolityId] ?? [])]
-  for (const contractId of contractIds) {
-    next = transferLandContractGrantee(next, contractId, toPolityId)
-  }
-  return next
-}
-
 // v0.16 §16.1 case B: 既存 contract の上に中間 contract (新 grantee) を挿入する。
 // chain の terminal の直前に挿入し、新 contract が terminal の親、新 contract の親が旧 terminal-1 contract になる。
-export function insertIntermediateLandContract(
+function insertIntermediateLandContract(
   state: WorldState,
   params: {
     provinceId: ProvinceId

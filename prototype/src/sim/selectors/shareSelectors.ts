@@ -55,7 +55,3 @@ export function getTopShareholders(
       percent: total > 0 ? (rawPower / total) * 100 : 0,
     }))
 }
-
-export function getDominantHouseMember(state: WorldState, houseId: HouseId): PersonId | undefined {
-  return getTopShareholders(state, houseId, 1)[0]?.holderPersonId
-}

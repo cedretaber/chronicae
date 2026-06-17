@@ -19,7 +19,7 @@ export const SHARE_COLORS = ['#60a5fa', '#f59e0b', '#34d399', '#f87171', '#a78bf
  * Polity 影響力の二重円: 家グループごとの基準色相 (HSL hue)。
  * 外周リング = 家の支配率 (この色相)、内周リング = 家本体 + メンバーの内訳 (同色相の濃淡)。
  */
-export const INFLUENCE_GROUP_HUES = [210, 38, 150, 352, 265, 95] as const
+const INFLUENCE_GROUP_HUES = [210, 38, 150, 352, 265, 95] as const
 
 /** 「その他」グループ / 内訳の残余に使う無彩色。 */
 export const INFLUENCE_OTHERS_COLOR = '#9ca3af'

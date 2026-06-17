@@ -33,7 +33,7 @@ export type LifeStage =
   | 'old_age'
 
 // LifeStage を順序 index 化して比較する（将来段階を増やしても閾値判定が漏れない）
-export const LIFE_STAGE_ORDER: Record<LifeStage, number> = {
+const LIFE_STAGE_ORDER: Record<LifeStage, number> = {
   childhood: 0,
   adolescence: 1,
   young_adulthood: 2,

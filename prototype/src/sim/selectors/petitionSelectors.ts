@@ -29,7 +29,7 @@ import { isEstablishedCommonwealthRepublic } from './republicSelectors'
 // §5.3 補助: 対象 Polity が grantee である全 LandContract について、grantor rank が
 // newRank より上位 (= 数値が小さい。root は rank 0) であることを要求する。
 // LandContract 不変条件 (grantor rank < grantee rank) を陞爵後も保つための事前検査。
-export function allGrantorRanksAreAboveNewRank(
+function allGrantorRanksAreAboveNewRank(
   state: WorldState,
   polityId: PolityId,
   newRank: PolityRank,
@@ -294,7 +294,7 @@ export function selectLandGrantDonorPolity(
 // 周縁・低価値を優先: capital province 外 → development 低 → HoldingId 昇順。
 // special status を持つ holding と、grant 後に donor が最小残存を割る場合は除外
 // (donor が複数 holding を持つ前提なので、対象を 1 個外しても残存数は保たれる)。
-export function selectLandGrantTargetHolding(
+function selectLandGrantTargetHolding(
   state: WorldState,
   config: SimulationConfig,
   donorPolityId: PolityId,
@@ -375,7 +375,7 @@ export function computeLandGrantAcceptScore(
 
 // §11.4 HARD gate (petitioner 本人)。house leader でなく、継承順位上位 N でなく、
 // ambition / office / reputation のいずれかが十分な有家人物。
-export function meetsCadetBranchPetitionerGate(
+function meetsCadetBranchPetitionerGate(
   state: WorldState,
   config: SimulationConfig,
   person: Person,
@@ -412,7 +412,7 @@ export function meetsCadetBranchPetitionerGate(
 
 // §11.6 譲渡対象 Polity。parentHouse が owner の active Polity (primary/sink 除外)。
 // 優先: territorial かつ holding 少ない secondary → territorial 低 rank → titular rank2〜4 → PolityId 昇順。
-export function selectCadetBranchTransferCandidatePolity(
+function selectCadetBranchTransferCandidatePolity(
   state: WorldState,
   config: SimulationConfig,
   houseId: HouseId,

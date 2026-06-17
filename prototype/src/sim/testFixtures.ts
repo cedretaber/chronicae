@@ -633,7 +633,3 @@ export function withAim(
     },
   }
 }
-
-// Convenience: void unused-vars compiler complaint for HoldingOfficeAssignmentId
-// (kept as documented type alias for callers that want strong typing).
-export type _HoldingOfficeAssignmentIdAlias = HoldingOfficeAssignmentId

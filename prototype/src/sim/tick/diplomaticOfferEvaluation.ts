@@ -26,14 +26,14 @@ import {
 
 // ─── Extracted offer parameter types ───
 
-export type LandClaimOfferParams = {
+type LandClaimOfferParams = {
   transferHoldingId?: HoldingId
   toPolityId?: PolityId
   offeredPrice: number
   statusQuo: boolean
 }
 
-export type ContractTaxRevisionOfferParams = {
+type ContractTaxRevisionOfferParams = {
   newTaxRateToGrantor?: number
   paymentAmount: number
   statusQuo: boolean
@@ -102,7 +102,7 @@ export function validateOffer(
   return { valid: true }
 }
 
-export function canApplyDemand(
+function canApplyDemand(
   state: WorldState,
   config: SimulationConfig,
   demand: DiplomaticDemand,
@@ -178,7 +178,7 @@ export function getOfferEvaluator(play: DiplomaticPlay, offer: DiplomaticOffer):
 
 // ─── Parameter extraction ───
 
-export function extractLandClaimOfferParams(offer: DiplomaticOffer): LandClaimOfferParams {
+function extractLandClaimOfferParams(offer: DiplomaticOffer): LandClaimOfferParams {
   const result: LandClaimOfferParams = { offeredPrice: 0, statusQuo: false }
 
   for (const demand of offer.demands) {
@@ -195,7 +195,7 @@ export function extractLandClaimOfferParams(offer: DiplomaticOffer): LandClaimOf
   return result
 }
 
-export function extractContractTaxRevisionOfferParams(
+function extractContractTaxRevisionOfferParams(
   offer: DiplomaticOffer,
 ): ContractTaxRevisionOfferParams {
   const result: ContractTaxRevisionOfferParams = { paymentAmount: 0, statusQuo: false }

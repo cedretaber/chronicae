@@ -15,7 +15,7 @@ export type OfficeChurnAggregate = {
   termEnds: number
 }
 
-export type PolityOfficeStats = {
+type PolityOfficeStats = {
   assignments: number
   uniqueHolders: number
 }

@@ -2,16 +2,11 @@ import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { ProvinceId, HoldingId } from '../types/ids'
 import type { PopGroupId } from '../types/ids'
-import { getProvincePolityControlFromHoldings } from './landContractSelectors'
 import { getHoldingDevelopmentModifier } from './holdingImprovementSelectors'
 
 // POP production formula:
 // production = pop.size * productivityByClass * occupationProductivityMultiplier * (wealth / 100) * developmentModifier * (polityControl / 100)
-export function getPopProduction(
-  state: WorldState,
-  config: SimulationConfig,
-  popId: PopGroupId,
-): number {
+function getPopProduction(state: WorldState, config: SimulationConfig, popId: PopGroupId): number {
   const pop = state.popGroups[popId]
   if (!pop) return 0
   const holding = state.holdings[pop.holdingId]
@@ -61,16 +56,6 @@ export function getProvinceProduction(
     }
   }
   return total
-}
-
-// v0.16: houseControl 廃止により、Province の徴税ベースは polityControl に統一する。
-export function getProvinceTaxBase(
-  state: WorldState,
-  config: SimulationConfig,
-  provinceId: ProvinceId,
-): number {
-  const polityControl = getProvincePolityControlFromHoldings(state, provinceId)
-  return getProvinceProduction(state, config, provinceId) * (polityControl / 100)
 }
 
 // Province country manpower base:

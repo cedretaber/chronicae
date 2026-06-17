@@ -21,10 +21,7 @@ import { defaultConfig } from '@sim/config/defaultConfig'
 export const FALLBACK_COLOR = '#888'
 
 /** color map から id の色を引く。id が無い・未登録ならフォールバック色。 */
-export function resolveColor(
-  colorMap: Record<string, string>,
-  id: string | null | undefined,
-): string {
+function resolveColor(colorMap: Record<string, string>, id: string | null | undefined): string {
   return id ? (colorMap[id] ?? FALLBACK_COLOR) : FALLBACK_COLOR
 }
 

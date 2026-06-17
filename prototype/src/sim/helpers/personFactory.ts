@@ -19,7 +19,7 @@ import { rollGeniusType, applyGeniusAptitudes } from './geniusHelpers'
  * 閾値は config.lifeStageTransitionAges[*].standardAge から取り、二重管理を避ける。
  * age が各遷移先の standardAge 以上に達している最上位の段階を返す。
  */
-export function deriveLifeStageFromAge(age: number, config: SimulationConfig): LifeStage {
+function deriveLifeStageFromAge(age: number, config: SimulationConfig): LifeStage {
   const t = config.lifeStageTransitionAges
   if (age >= t.old_age.standardAge) return 'old_age'
   if (age >= t.mature_adulthood.standardAge) return 'mature_adulthood'

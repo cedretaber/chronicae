@@ -18,7 +18,7 @@ export type CreatePressureInput = {
   reasonIds: DecisionReasonId[]
 }
 
-export function addPressureToIndexMut(ws: WorldState, pressure: Pressure): void {
+function addPressureToIndexMut(ws: WorldState, pressure: Pressure): void {
   const targetKey = decisionSubjectKey(pressure.target)
   ws.pressureIndex.byTarget[targetKey] = [
     ...(ws.pressureIndex.byTarget[targetKey] ?? []),

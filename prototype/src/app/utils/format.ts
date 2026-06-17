@@ -60,17 +60,6 @@ export function formatPower(value: number | undefined | null): string {
   return value.toFixed(1)
 }
 
-export function formatPercent(value: number | undefined | null): string {
-  if (value == null || !Number.isFinite(value)) return dash
-  return `${Math.round(value)}%`
-}
-
-export function formatSigned(value: number | undefined | null): string {
-  if (value == null || !Number.isFinite(value)) return dash
-  const formatted = value.toFixed(1)
-  return value >= 0 ? `+${formatted}` : formatted
-}
-
 const POLITY_RANK_FALLBACK: Record<number, string> = {
   1: 'Empire',
   2: 'Kingdom',

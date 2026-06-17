@@ -17,7 +17,7 @@ export type ChronicleCategory =
   | 'governance'
   | 'disaster'
 
-export type BattleChronicleContext = {
+type BattleChronicleContext = {
   kind: 'battle'
   outnumberedVictory?: boolean
   decisiveVictory?: boolean
@@ -26,7 +26,7 @@ export type BattleChronicleContext = {
   warScoreDelta?: number
 }
 
-export type ChronicleContext = BattleChronicleContext
+type ChronicleContext = BattleChronicleContext
 
 export type ChronicleEntry = {
   id: ChronicleEntryId

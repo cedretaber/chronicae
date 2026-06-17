@@ -1,5 +1,5 @@
 import type { WorldState } from '@sim/types/world'
-import type { PersonId, FactionId, FactionMembershipId, HouseId, PolityId } from '@sim/types/ids'
+import type { PersonId, FactionId, HouseId, PolityId } from '@sim/types/ids'
 import type { Faction, FactionMembership } from '@sim/types/faction'
 import type { Person, PersonBackgroundOccupation } from '@sim/types/person'
 import type { SimulationConfig } from '@sim/config/defaultConfig'
@@ -44,13 +44,6 @@ export function getFactionDepth(state: WorldState, factionId: FactionId): number
     current = parent
   }
   return depth
-}
-
-export function getFactionMembership(
-  state: WorldState,
-  membershipId: FactionMembershipId,
-): FactionMembership | undefined {
-  return state.factionMemberships[membershipId]
 }
 
 // Returns the active Faction this person currently leads, if any.

@@ -26,7 +26,7 @@ export type TickResult = {
   systemTimings?: Record<string, number>
 }
 
-export type DeathRoleInfo = {
+type DeathRoleInfo = {
   readonly wasHouseLeader: boolean
   readonly wasPolityLeader: boolean
 }

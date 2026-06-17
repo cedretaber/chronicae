@@ -18,7 +18,7 @@ import { ROOT_WORLD } from '../types/landContract'
 // canonical な getProvinceDominantTerminalPolityId と同じ「weight 最大の terminal polity」を
 // 支配者とし、その polity が terminal を握る holding のうち weight 最大 (tiebreak holdingId 昇順)
 // を dominant holding とする。
-export function getProvinceDominantHoldingId(
+function getProvinceDominantHoldingId(
   state: WorldState,
   provinceId: ProvinceId,
 ): HoldingId | undefined {
@@ -53,7 +53,7 @@ export function getProvinceLandContractChain(
   return getHoldingLandContractChain(state, holdingId)
 }
 
-export function getProvinceRootContract(
+function getProvinceRootContract(
   state: WorldState,
   provinceId: ProvinceId,
 ): LandContract | undefined {
@@ -79,7 +79,7 @@ export function getProvinceDominantTerminalContract(
   return chain[chain.length - 1]
 }
 
-export function getProvinceDominantTerminalPolityId(
+function getProvinceDominantTerminalPolityId(
   state: WorldState,
   provinceId: ProvinceId,
 ): PolityId | undefined {
@@ -94,7 +94,7 @@ export function getProvinceDominantTerminalPolityId(
   return breakdown[0]!.polityId
 }
 
-export function getProvinceTerminalPolityBreakdown(
+function getProvinceTerminalPolityBreakdown(
   state: WorldState,
   provinceId: ProvinceId,
 ): Array<{ polityId: PolityId; holdingCount: number; weight: number }> {
@@ -291,25 +291,6 @@ export function getHoldingLandContractChain(
     chain.push(contract)
   }
   return chain
-}
-
-export function getProvincePrimaryHolding(
-  state: WorldState,
-  provinceId: ProvinceId,
-): Holding | undefined {
-  const province = state.provinces[provinceId]
-  if (!province) return undefined
-  const holdingId = province.holdingIds[0]
-  if (!holdingId) return undefined
-  return state.holdings[holdingId]
-}
-
-export function getProvinceHoldingsByKind(
-  state: WorldState,
-  provinceId: ProvinceId,
-  kind: 'manor' | 'city',
-): Holding[] {
-  return getProvinceHoldings(state, provinceId).filter((h) => h.kind === kind)
 }
 
 export function getProvinceHoldings(state: WorldState, provinceId: ProvinceId): Holding[] {

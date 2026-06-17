@@ -12,7 +12,7 @@ import type { LandContractConfig } from './landContractConfig'
 import { defaultLandContractConfig } from './landContractConfig'
 
 // v0.40 LifeStage 遷移年齢
-export type LifeStageTransitionAge = {
+type LifeStageTransitionAge = {
   minAge: number
   standardAge: number
   maxAge: number

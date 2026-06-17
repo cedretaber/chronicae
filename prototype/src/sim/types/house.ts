@@ -1,8 +1,8 @@
 import type { HouseId, ProvinceId, PersonId, ClanId } from './ids'
 
-export type HouseKind = 'normal' | 'system'
+type HouseKind = 'normal' | 'system'
 
-export type HouseCreationKind = 'cadet_branch' | 'self_made_foundation'
+type HouseCreationKind = 'cadet_branch' | 'self_made_foundation'
 
 export type HouseCreationReason =
   | 'house_split'
@@ -28,7 +28,7 @@ export type HouseCreationReason =
  *       分封の新設 Polity は常に holding 名、分家で譲渡される Polity が holding 名の場合も該当。
  *     - 'polity': 領国名が pool 由来 (polity.yaml)。分家で譲渡される worldgen 由来 Polity 等。
  */
-export type HouseNameSource =
+type HouseNameSource =
   | 'pool'
   | 'person'
   | { kind: 'polity'; category: 'province' | 'city' | 'polity' }

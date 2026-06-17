@@ -121,7 +121,3 @@ export function getOfficeDefinition(
 ): OfficeDefinition | undefined {
   return OFFICE_DEFINITIONS[`${kind}:${role}`]
 }
-
-export function isValidOfficeRole(kind: OrganizationKind, role: OfficeRole): boolean {
-  return `${kind}:${role}` in OFFICE_DEFINITIONS
-}

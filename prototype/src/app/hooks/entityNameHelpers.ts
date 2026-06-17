@@ -96,19 +96,3 @@ export function getPolityShortName(
       return getHoldingShortName(state, resolveName, polity.nameSource.holdingId)
   }
 }
-
-/** Polity 完全名。pool -> polity category / holding -> Holding 完全名を借りる。 */
-export function getPolityQualifiedName(
-  state: MaybeState,
-  resolveName: ResolveName,
-  polityId: PolityId,
-): string {
-  const polity = state?.polities[polityId]
-  if (!polity) return polityId
-  switch (polity.nameSource.kind) {
-    case 'pool':
-      return resolveName('polity', polity.nameSource.nameKey, polity.nameSource.nameKey)
-    case 'holding':
-      return getHoldingQualifiedName(state, resolveName, polity.nameSource.holdingId)
-  }
-}

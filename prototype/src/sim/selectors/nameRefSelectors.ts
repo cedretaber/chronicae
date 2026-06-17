@@ -69,7 +69,7 @@ export function getHouseNameRefForEmit(state: WorldState, houseId: HouseId): Sim
 }
 
 /** House の (category, nameKey) を nameSource に応じて返す (lookup 済み向け)。 */
-export function houseNameRef(house: House): SimNameRef {
+function houseNameRef(house: House): SimNameRef {
   const ns = house.nameSource
   if (ns === 'person') return { category: 'person', nameKey: house.nameKey }
   if (typeof ns === 'object' && ns.kind === 'polity') {

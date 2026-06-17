@@ -15,13 +15,3 @@ export function ok<T>(value: T): SimResult<T> {
 export function err<T>(error: SimError): SimResult<T> {
   return { ok: false, error }
 }
-
-export function mapResult<T, U>(result: SimResult<T>, fn: (value: T) => U): SimResult<U> {
-  if (!result.ok) return result
-  return ok(fn(result.value))
-}
-
-export function andThen<T, U>(result: SimResult<T>, fn: (value: T) => SimResult<U>): SimResult<U> {
-  if (!result.ok) return result
-  return fn(result.value)
-}
