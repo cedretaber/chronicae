@@ -144,36 +144,40 @@ export function ProjectDetail({
               )
             })()}
 
-          {/* v0.48.1: 設備修理 (disrepair Crisis 対応) の対象設備・修理進捗を展開表示 */}
+          {/* v0.48.1: 危機対応 (handle_crisis) — 対応中の危機の種別を常に表示。担当者探索中でも
+              「何の危機に対応しようとしているか」が分かる。disrepair は加えて対象設備・状態を出す。 */}
           {project.kind === 'handle_crisis' &&
             (() => {
               const crisis = worldState.crises[project.crisisId]
-              if (!crisis || crisis.kind !== 'disrepair') return null
-              const imp = crisis.targetImprovementId
-                ? worldState.holdingImprovements[crisis.targetImprovementId]
-                : undefined
+              if (!crisis) return null
+              const imp =
+                crisis.kind === 'disrepair' && crisis.targetImprovementId
+                  ? worldState.holdingImprovements[crisis.targetImprovementId]
+                  : undefined
               return (
                 <div className="mt-1 flex flex-col gap-1 rounded border border-gray-700 p-2">
                   <div className="flex gap-1">
-                    <span className="text-gray-400">{t('detail.project.repair_target')}:</span>
+                    <span className="text-gray-400">{t('detail.project.crisis_kind')}:</span>
                     <span className="text-gray-300">
-                      {imp
-                        ? t(`detail.province.improvement_${imp.kind}`, { defaultValue: imp.kind })
-                        : t('detail.project.repair_target_lost')}
+                      {t(`detail.crisis.kind.${crisis.kind}`, { defaultValue: crisis.kind })}
                     </span>
                   </div>
+                  {crisis.kind === 'disrepair' && (
+                    <div className="flex gap-1">
+                      <span className="text-gray-400">{t('detail.project.repair_target')}:</span>
+                      <span className="text-gray-300">
+                        {imp
+                          ? t(`detail.province.improvement_${imp.kind}`, { defaultValue: imp.kind })
+                          : t('detail.project.repair_target_lost')}
+                      </span>
+                    </div>
+                  )}
                   {imp && (
                     <div className="flex gap-1">
                       <span className="text-gray-400">{t('detail.facility.condition')}:</span>
                       <span className="text-gray-300">{clamp100(imp.condition).toFixed(0)}</span>
                     </div>
                   )}
-                  <div className="flex gap-1">
-                    <span className="text-gray-400">{t('detail.project.repair_progress')}:</span>
-                    <span className="text-gray-300">
-                      {project.progress}/{project.targetProgress}
-                    </span>
-                  </div>
                 </div>
               )
             })()}

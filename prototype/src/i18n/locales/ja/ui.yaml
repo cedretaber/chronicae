@@ -545,6 +545,7 @@ detail:
     effect_label: '効果'
     effect:
       develop_holding: '対象領地に施設を建設・拡張し、開発度を高める。'
+      handle_crisis: '発生した危機（災害・戦災・設備不全など）に担当者と予算を投じて対処し、被害を収束させる。'
       acquire_political_right: '対象の任命権・統制権を取得し、監督者個人の保有とする（国庫へ対価を支払う）。'
       promote_policy_shift: '対象国の方針に家の政治的影響力を及ぼす（特定政策の変更ではなく、影響力の獲得）。'
       patronize_artist: '資金を投じて芸術家を後援し、家の遺産名声を高める。'
@@ -567,10 +568,10 @@ detail:
     pressure_source: '外圧の出元'
     pressure_type: '外圧の種別'
     pressure_play: '関連外交劇'
-    # v0.48.1 設備修理 (disrepair Crisis 対応)
+    # v0.48.1 危機対応 (handle_crisis)
+    crisis_kind: '対応中の危機'
     repair_target: '修理対象'
     repair_target_lost: '（設備は失われた）'
-    repair_progress: '修理進捗'
     pressure_kind:
       diplomatic_land_claim: '領地の請求'
       diplomatic_contract_revision: '契約条件の改定要求'

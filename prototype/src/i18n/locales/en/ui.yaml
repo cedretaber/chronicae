@@ -450,6 +450,7 @@ detail:
     effect_label: 'Effect'
     effect:
       develop_holding: 'Builds or upgrades facilities in the target holding, raising its development.'
+      handle_crisis: 'Assigns a supervisor and budget to address an active crisis (disaster, war devastation, facility disrepair, etc.) and contain the damage.'
       acquire_political_right: "Acquires the target appointment/control right as the supervisor's personal holding (paid to the polity treasury)."
       promote_policy_shift: "Exerts the house's political influence over the polity's direction (an influence gain, not a concrete policy change)."
       patronize_artist: "Funds an artist's patronage, raising the house's legacy prestige."
@@ -473,9 +474,9 @@ detail:
     pressure_type: 'Pressure Type'
     pressure_play: 'Related Play'
     # v0.48.1 facility repair (disrepair Crisis handling)
+    crisis_kind: 'Crisis'
     repair_target: 'Repair Target'
     repair_target_lost: '(facility lost)'
-    repair_progress: 'Repair Progress'
     pressure_kind:
       diplomatic_land_claim: 'Land Claim'
       diplomatic_contract_revision: 'Contract Revision Demand'
