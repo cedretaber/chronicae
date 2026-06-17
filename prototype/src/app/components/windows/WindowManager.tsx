@@ -93,7 +93,7 @@ export function WindowManager() {
             title = `${prefix}: ${name}`
           }
           return (
-            <DraggableWindow key={win.id} win={win} title={title}>
+            <DraggableWindow key={win.id} win={win} title={title} variant="vellum">
               <FullChroniclePanel entityType={entityType} entityId={entityId} state={state} />
             </DraggableWindow>
           )

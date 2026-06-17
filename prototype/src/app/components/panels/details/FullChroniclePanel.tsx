@@ -12,7 +12,7 @@ import {
   getChronicleEntriesForWar,
 } from '@sim/selectors/chronicleSelectors'
 import type { EntityType } from '@/app/stores/simulationStore'
-import { ChronicleEntryLine } from './shared/widgets'
+import { ChronicleAnnal } from './shared/ChronicleAnnal'
 
 // 一度に描画する件数。300 年級の polity は数千件になり得るため全件を一気に DOM 化せず
 //   「さらに表示」で段階的に伸ばす (将来のページネーションの土台)。
@@ -44,8 +44,9 @@ function selectEntries(
   }
 }
 
-// 対象 entity の全 chronicle を一覧表示する panel。古い順 (最初から) / 新しい順を切替可能。
-//   selector は降順 (新しい順) を返すので、古い順は reverse する。
+// 対象 entity の全 chronicle を「年代記官の台帳」(vellum スキン) として表示する panel。
+//   構造 (時の罫 + 年見出し + 行) は ChronicleAnnal に集約。ここは件数・並び順・ページングだけ持つ。
+//   古い順 (最初から) / 新しい順を切替可能 (selector は降順を返すので古い順は reverse)。
 export function FullChroniclePanel({
   entityType,
   entityId,
@@ -70,30 +71,31 @@ export function FullChroniclePanel({
   const remaining = ordered.length - visible.length
 
   return (
-    <div className="p-3">
+    <div className="px-3 py-3" style={{ color: '#4A4234' }}>
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm text-gray-300">
+        <span
+          className="text-[13px] italic"
+          style={{ fontFamily: "'Spectral', Georgia, serif", color: '#8A7F68' }}
+        >
           {t('detail.full_chronicle.count', { count: ordered.length })}
         </span>
         <button
-          className="rounded bg-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-500"
+          className="rounded-sm border border-[#CBBD9B] bg-[#DCD2B6]/60 px-2 py-0.5 text-[11px] text-[#5A5140] hover:bg-[#D2C7A8] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#9E3B2E]"
           onClick={() => setAscending((v) => !v)}
         >
           {ascending ? t('detail.full_chronicle.order_asc') : t('detail.full_chronicle.order_desc')}
         </button>
       </div>
       {ordered.length === 0 ? (
-        <div className="text-xs text-gray-500">{t('detail.full_chronicle.empty')}</div>
+        <div className="text-xs" style={{ color: '#8A7F68' }}>
+          {t('detail.full_chronicle.empty')}
+        </div>
       ) : (
         <>
-          <div className="flex flex-col gap-0.5">
-            {visible.map((e) => (
-              <ChronicleEntryLine key={e.id} entry={e} />
-            ))}
-          </div>
+          <ChronicleAnnal entries={visible} tone="vellum" />
           {remaining > 0 && (
             <button
-              className="mt-2 w-full rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
+              className="mt-3 w-full rounded-sm border border-[#CBBD9B] bg-[#DCD2B6]/50 px-2 py-1 text-[11px] text-[#5A5140] hover:bg-[#D2C7A8] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#9E3B2E]"
               onClick={() => setShown((n) => n + PAGE_SIZE)}
             >
               {t('detail.full_chronicle.show_more', { count: Math.min(PAGE_SIZE, remaining) })}

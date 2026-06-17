@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
 import type { SimEvent } from '@sim/types/event'
@@ -9,6 +9,12 @@ import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { useEntityName } from '@/app/hooks/useEntityName'
 import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
 import { formatYearWeek, formatMonthWeek, formatYear } from '@/app/utils/format'
+import { CHRONICLE_PALETTES, CHRONICLE_SERIF } from '@/app/theme/chronicle'
+
+// EventLog は「世界の出来事の生の日録」=束ねた年代記 (ChronicleAnnal) の対。host の暗色バーに
+//   馴染む dark トーンの共有トークンで描き、アクセントを鉄丹の朱に一本化する (旧: 青タブ +
+//   赤/黄重要度 + 青リンクの 3 系統を解消)。重要度は本文インクの濃淡 + 種別アイコンの色で示す。
+const P = CHRONICLE_PALETTES.dark
 
 type LinkItem = { id: string; type: EntityType; name: string }
 
@@ -67,7 +73,8 @@ function EventLinks({ event }: { event: SimEvent }) {
       {items.map((it) => (
         <button
           key={`${it.type}:${it.id}`}
-          className="rounded bg-gray-800 px-1 text-[10px] text-blue-300 hover:bg-gray-700 hover:text-blue-200"
+          // 朱アクセントに合わせた静かな参照チップ (旧: 青)。border は dark.rail / hover で朱に。
+          className="rounded-sm border border-[#374151] px-1 text-[10px] text-slate-300 transition-colors hover:border-[#CC7A5C] hover:text-[#CC7A5C]"
           onClick={(e) => {
             e.stopPropagation()
             openDetailWindow(it.type, it.id)
@@ -100,19 +107,6 @@ function isMainLogEvent(e: SimEvent): boolean {
     return true
   }
   return false
-}
-
-function getImportanceColor(importance: SimEvent['importance']): string {
-  switch (importance) {
-    case 'critical':
-      return 'text-red-400'
-    case 'major':
-      return 'text-yellow-400'
-    case 'normal':
-      return 'text-gray-200'
-    case 'minor':
-      return 'text-gray-500'
-  }
 }
 
 const EVENT_ICON: Partial<Record<EventType, string>> = {
@@ -206,6 +200,43 @@ function useEventTypeLabel(): (type: EventType) => string {
   }
 }
 
+// 1 行の出来事。日付 (tabular・二次色) → 種別アイコン (重要度色) → 本文 (重要度でインク濃淡) → 参照。
+//   種別アイコンが「余白の印」を兼ね、重要度を色で運ぶ (旧: 赤/黄の本文色を廃し統一)。
+function EventRow({
+  event,
+  renderEvent,
+  dateLabel,
+  typeLabel,
+  highlighted,
+}: {
+  event: SimEvent
+  renderEvent: (e: SimEvent) => string
+  dateLabel: string
+  typeLabel?: string
+  highlighted?: boolean
+}) {
+  const style: CSSProperties = { color: P.ink[event.importance] }
+  if (highlighted) {
+    style.borderLeft = `2px solid ${P.rubric}`
+    style.paddingLeft = 4
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 py-0.5 text-xs" style={style}>
+      <span className="tabular-nums" style={{ color: P.inkSoft }}>
+        [{dateLabel}]
+      </span>
+      <span style={{ color: P.mark[event.importance].color }}>{getEventIcon(event.type)}</span>
+      {typeLabel && (
+        <span className="text-[10px] tracking-[0.04em]" style={{ color: P.category }}>
+          {typeLabel}
+        </span>
+      )}
+      <span>{renderEvent(event)}</span>
+      <EventLinks event={event} />
+    </div>
+  )
+}
+
 function RawLogRow({
   event,
   renderEvent,
@@ -213,18 +244,14 @@ function RawLogRow({
   event: SimEvent
   renderEvent: (e: SimEvent) => string
 }) {
-  const colorClass = getImportanceColor(event.importance)
   const getTypeLabel = useEventTypeLabel()
-  const typeLabel = getTypeLabel(event.type)
-
   return (
-    <div className={`flex flex-wrap items-center gap-2 py-0.5 text-xs ${colorClass}`}>
-      <span className="text-gray-500">
-        [{formatYearWeek(event.year, event.weekOfYear)}] {getEventIcon(event.type)} {typeLabel}
-      </span>
-      <span>{renderEvent(event)}</span>
-      <EventLinks event={event} />
-    </div>
+    <EventRow
+      event={event}
+      renderEvent={renderEvent}
+      dateLabel={formatYearWeek(event.year, event.weekOfYear)}
+      typeLabel={getTypeLabel(event.type)}
+    />
   )
 }
 
@@ -237,45 +264,49 @@ function ChronicleRow({
   isHighlighted: boolean
   renderEvent: (e: SimEvent) => string
 }) {
-  const colorClass = getImportanceColor(event.importance)
-  const icon = getEventIcon(event.type)
-
   return (
-    <div
-      className={`flex flex-wrap items-center gap-2 py-0.5 text-xs ${colorClass} ${
-        isHighlighted ? 'border-l-2 border-yellow-400 pl-1' : ''
-      }`}
-    >
-      <span className="text-gray-500">
-        [{formatYearWeek(event.year, event.weekOfYear)}] {icon}
-      </span>
-      <span>{renderEvent(event)}</span>
-      <EventLinks event={event} />
-    </div>
+    <EventRow
+      event={event}
+      renderEvent={renderEvent}
+      dateLabel={formatYearWeek(event.year, event.weekOfYear)}
+      highlighted={isHighlighted}
+    />
   )
 }
 
 type YearGroup = { year: number; events: SimEvent[] }
 
+// timeline タブ: 主要イベントの「日録」。年代記パネル (ChronicleAnnal) と双子の、時の罫 +
+//   朱書のセリフ年見出し (sticky) を持つ縦の年譜。
 function TimelineYear({
   year,
   events,
   renderEvent,
 }: YearGroup & { renderEvent: (e: SimEvent) => string }) {
   return (
-    <div className="mb-2">
-      <div className="sticky top-0 bg-gray-900 px-2 py-0.5 text-xs font-bold text-gray-400">
-        {formatYear(year)}
+    <div className="relative mb-1 pl-3">
+      {/* 時の罫: 左マージンを貫く一本の縦罫 */}
+      <div
+        className="pointer-events-none absolute top-0 bottom-0 left-0 w-px"
+        style={{ backgroundColor: P.rail }}
+      />
+      {/* 朱書の年見出し (スクロール時 sticky)。-ml-3 + pl-3 で罫の上まで地色を被せる。 */}
+      <div className="sticky top-0 z-10 mb-1 -ml-3 flex items-baseline gap-2 bg-gray-900 py-0.5 pl-3">
+        <span
+          className={`${P.yearHeadSize} font-semibold`}
+          style={{ fontFamily: CHRONICLE_SERIF, color: P.rubric }}
+        >
+          {formatYear(year)}
+        </span>
+        <span className="h-px flex-1 translate-y-[-3px]" style={{ backgroundColor: P.rail }} />
       </div>
       {events.map((e) => (
-        <div
+        <EventRow
           key={e.id}
-          className={`flex flex-wrap items-center gap-2 px-3 py-0.5 text-xs ${getImportanceColor(e.importance)}`}
-        >
-          <span className="text-gray-500">[{formatMonthWeek(e.weekOfYear)}] </span>
-          <span>{renderEvent(e)}</span>
-          <EventLinks event={e} />
-        </div>
+          event={e}
+          renderEvent={renderEvent}
+          dateLabel={formatMonthWeek(e.weekOfYear)}
+        />
       ))}
     </div>
   )
@@ -307,20 +338,26 @@ export function EventLog() {
 
   return (
     <div className="flex h-40 flex-col overflow-hidden bg-gray-900 text-white">
-      <div className="flex border-b border-gray-700">
-        {TAB_KEYS.map((key) => (
-          <button
-            key={key}
-            className={`flex-1 px-3 py-1 text-xs ${
-              activeTab === key
-                ? 'border-b-2 border-blue-400 bg-gray-800'
-                : 'text-gray-400 hover:bg-gray-800'
-            }`}
-            onClick={() => setActiveTab(key)}
-          >
-            {t(`tabs.${key === 'raw' ? 'raw_log' : key}`)}
-          </button>
-        ))}
+      <div className="flex border-b" style={{ borderColor: P.rail }}>
+        {TAB_KEYS.map((key) => {
+          const active = activeTab === key
+          return (
+            <button
+              key={key}
+              className={`flex-1 px-3 py-1 text-xs transition-colors ${
+                active ? 'bg-gray-800' : 'hover:bg-gray-800'
+              }`}
+              style={
+                active
+                  ? { color: P.rubric, borderBottom: `2px solid ${P.rubric}` }
+                  : { color: P.inkSoft }
+              }
+              onClick={() => setActiveTab(key)}
+            >
+              {t(`tabs.${key === 'raw' ? 'raw_log' : key}`)}
+            </button>
+          )
+        })}
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {activeTab === 'raw' &&

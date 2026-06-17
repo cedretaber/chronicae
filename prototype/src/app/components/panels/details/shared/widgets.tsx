@@ -1,9 +1,7 @@
 import type { ChronicleEntry, ChronicleCategory } from '@sim/types/chronicle'
-import { useRenderEvent } from '@/app/hooks/useRenderEvent'
 import { useTranslation } from 'react-i18next'
-import { getImportanceColor } from './helpers'
 import type { ClickHandler } from './helpers'
-import { formatYearWeek } from '@/app/utils/format'
+import { ChronicleAnnal } from './ChronicleAnnal'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Person } from '@/sim/types/person'
@@ -80,22 +78,6 @@ export function PanelHeader({
   )
 }
 
-// 単一 ChronicleEntry の表示行 (category badge + [year/Wweek] + 翻訳済みテキスト)。
-//   EntityChronicleSection (直近 N 件) と FullChroniclePanel (全件) で共有する。
-export function ChronicleEntryLine({ entry }: { entry: ChronicleEntry }) {
-  const renderEvent = useRenderEvent()
-  const { t } = useTranslation()
-  return (
-    <div className={`text-xs ${getImportanceColor(entry.importance)}`}>
-      <span className="mr-1 rounded bg-gray-700 px-1 text-[10px] text-gray-400">
-        {t(`chronicle.category.${entry.category}`)}
-      </span>
-      [{formatYearWeek(entry.year, entry.weekOfYear)}]{' '}
-      {renderEvent({ messageKey: entry.templateKey, messageParams: entry.params })}
-    </div>
-  )
-}
-
 // v0.38 §8: 対象 entity の永続歴史 (ChronicleEntry) を時系列降順で表示する共通 section。
 //   entries は selector 側で既に降順 sort 済み。category filter を後付けできるよう
 //   showCategories prop を最初から受け取る (未指定なら全カテゴリ表示。§8.2)。
@@ -123,9 +105,9 @@ export function EntityChronicleSection({
   return (
     <div className="mt-2">
       <div className="text-sm font-semibold text-gray-300">{title}:</div>
-      {visible.map((e) => (
-        <ChronicleEntryLine key={e.id} entry={e} />
-      ))}
+      {/* インライン年代記は host の暗色ウィンドウに馴染む dark トーン。構造 (時の罫・年見出し・
+          週·重要度印·カテゴリ·本文) は FullChroniclePanel の vellum 版と ChronicleAnnal で共有。 */}
+      <ChronicleAnnal entries={visible} tone="dark" />
       {entityType && entityId && (
         <button
           className="mt-1 text-xs text-blue-400 hover:text-blue-300"
