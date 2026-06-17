@@ -658,6 +658,9 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
           importance,
           ...(atkCG ? { attackerCaptainGeneralPersonId: atkCG } : {}),
           ...(defCG ? { defenderCaptainGeneralPersonId: defCG } : {}),
+          // 会戦再生 UI 用に現場指揮官割当を恒久化 (Battle entity と同じ算出値。RNG 不消費・digest 不変)。
+          attackerCommanders: sim.attackerCommanderAssignments,
+          defenderCommanders: sim.defenderCommanderAssignments,
           tickLogs: sim.tickLogs,
         })
       }

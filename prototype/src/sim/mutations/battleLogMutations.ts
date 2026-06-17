@@ -17,7 +17,7 @@ import type {
   ChronicleEntryId,
 } from '../types/ids'
 import type { BattlefieldKind, BattleResult, WarSideKey } from '../types/war'
-import type { BattleOutcomeQuality } from '../types/battle'
+import type { BattleOutcomeQuality, BattleCommanderAssignment } from '../types/battle'
 import { createBattleLogId } from '../types/ids'
 
 export type CreateBattleLogInput = {
@@ -34,6 +34,8 @@ export type CreateBattleLogInput = {
   importance: BattleLogImportance
   attackerCaptainGeneralPersonId?: PersonId
   defenderCaptainGeneralPersonId?: PersonId
+  attackerCommanders?: BattleCommanderAssignment[]
+  defenderCommanders?: BattleCommanderAssignment[]
   tickLogs: BattleTickLog[]
   majorChronicleRefs?: ChronicleEntryId[]
 }
@@ -82,6 +84,12 @@ export function createBattleLogMut(ws: WorldState, input: CreateBattleLogInput):
       : {}),
     ...(input.defenderCaptainGeneralPersonId !== undefined
       ? { defenderCaptainGeneralPersonId: input.defenderCaptainGeneralPersonId }
+      : {}),
+    ...(input.attackerCommanders !== undefined
+      ? { attackerCommanders: input.attackerCommanders }
+      : {}),
+    ...(input.defenderCommanders !== undefined
+      ? { defenderCommanders: input.defenderCommanders }
       : {}),
     ...(input.majorChronicleRefs !== undefined
       ? { majorChronicleRefs: input.majorChronicleRefs }

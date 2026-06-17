@@ -15,7 +15,7 @@ import type {
   BattleLogId,
 } from './ids'
 import type { WarSideKey, BattlefieldKind, BattleResult } from './war'
-import type { BattleOutcomeQuality } from './battle'
+import type { BattleOutcomeQuality, BattleCommanderAssignment } from './battle'
 
 // §6.1 BattleRegimentState / BattleSlot / BattleLine は simulateBattle 実行中のみ存在する live 型であり、
 //   永続化されない (BattleTickLog は slot を (RegimentId | null)[] で snapshot する)。実体は
@@ -145,6 +145,10 @@ export type BattleLog = {
   importance: BattleLogImportance
   attackerCaptainGeneralPersonId?: PersonId
   defenderCaptainGeneralPersonId?: PersonId
+  // 会戦再生 UI 用: 現場指揮官 → 連隊の割当 (Battle entity から恒久コピー。Battle は war cleanup で消えるため
+  //   後年参照には BattleLog 側に保持する。slot ラベルに「どの指揮官が率いたか」を表示する素材)。
+  attackerCommanders?: BattleCommanderAssignment[]
+  defenderCommanders?: BattleCommanderAssignment[]
   tickLogs: BattleTickLog[]
   // 恒久な ChronicleEntry を参照 (raw EventId は cap/purge されるため不可。§15.2)
   majorChronicleRefs?: ChronicleEntryId[]
