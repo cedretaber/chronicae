@@ -11,6 +11,7 @@ import {
 import { ConfigPanel } from './ConfigPanel'
 import { useSimulationStore } from '@/app/stores/simulationStore'
 import { formatYearWeek } from '@/app/utils/format'
+import { CHROME, BRAND_SERIF } from '@/app/theme/chrome'
 import type { WorldPresetName } from '@sim/worldgen/worldPresets'
 
 const PRESET_OPTIONS: { value: WorldPresetName; label: string }[] = [
@@ -45,9 +46,10 @@ function IconButton({
         disabled
           ? 'cursor-not-allowed text-gray-600'
           : active
-            ? 'bg-sky-600 text-white hover:bg-sky-500'
+            ? 'text-white'
             : 'text-gray-200 hover:bg-gray-700'
       }`}
+      style={active && !disabled ? { backgroundColor: CHROME.accentFill } : undefined}
     >
       {children}
     </button>
@@ -108,9 +110,13 @@ export function ControlBar() {
 
   return (
     <div className="flex h-12 w-full items-center gap-2 bg-gray-900 px-4 py-2 text-white">
-      <span className="text-lg font-bold">{t('app.title')}</span>
-
-      <span className="min-w-52">{dateDisplay}</span>
+      {/* マストヘッド: ブランドワードマーク (Spectral) + 現在日付の dateline */}
+      <div className="flex items-baseline gap-2.5">
+        <span className="text-xl font-semibold tracking-wide" style={{ fontFamily: BRAND_SERIF }}>
+          {t('app.title')}
+        </span>
+        <span className="min-w-44 text-sm text-gray-400 tabular-nums">{dateDisplay}</span>
+      </div>
 
       <Separator />
 

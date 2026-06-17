@@ -1,4 +1,5 @@
 import { useSimulationStore, type MapView } from '@/app/stores/simulationStore'
+import { CHROME } from '@/app/theme/chrome'
 
 const VIEWS: { key: MapView; label: string; tooltip: string }[] = [
   { key: 'terminal', label: 'T', tooltip: 'Terminal polity (実効領主)' },
@@ -18,9 +19,10 @@ export function MapViewSwitcher() {
         return (
           <button
             key={v.key}
-            className={`flex h-12 items-center justify-center text-sm font-bold ${
-              active ? 'bg-blue-700 text-white' : 'text-gray-300 hover:bg-gray-700'
+            className={`flex h-12 items-center justify-center text-sm font-bold transition-colors ${
+              active ? 'text-white' : 'text-gray-300 hover:bg-gray-700'
             }`}
+            style={active ? { backgroundColor: CHROME.accentFill } : undefined}
             onClick={() => setMapView(v.key)}
             aria-pressed={active}
             title={v.tooltip}

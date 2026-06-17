@@ -6,6 +6,7 @@ import { getPolityLegitimacy, getPolityStability } from '@sim/selectors/statusSe
 import type { SimEvent } from '@sim/types/event'
 import { hasEntityId } from '@sim/types/event'
 import { useSimulationStore } from '@/app/stores/simulationStore'
+import { CHROME } from '@/app/theme/chrome'
 import type { Polity } from '@/sim/types/polity'
 import type { PolityId } from '@/sim/types/ids'
 import type { House } from '@/sim/types/house'
@@ -612,10 +613,17 @@ export function Sidebar() {
             <div key={key} className="border-b border-gray-700">
               <button
                 className="sticky top-0 z-20 flex w-full items-center justify-between bg-gray-900 px-3 py-1.5 text-left text-xs font-bold text-gray-200 hover:bg-gray-700"
+                // 開いているセクションを統一した冷色アクセントの左罫で示す (閉=透明で位置を保つ)。
+                style={{ borderLeft: `3px solid ${isOpen ? CHROME.accent : 'transparent'}` }}
                 onClick={() => toggleSection(key)}
               >
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 text-gray-500">{isOpen ? '▼' : '▶'}</span>
+                  <span
+                    className="inline-block w-3"
+                    style={{ color: isOpen ? CHROME.accent : '#6B7280' }}
+                  >
+                    {isOpen ? '▼' : '▶'}
+                  </span>
                   <span>{t(`sidebar.${key}`)}</span>
                   <span className="font-normal text-gray-500">({sectionCount[key]})</span>
                 </span>
