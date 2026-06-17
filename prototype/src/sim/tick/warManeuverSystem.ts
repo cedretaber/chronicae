@@ -21,6 +21,7 @@ import {
   destroyRegimentMut,
 } from '../mutations/regimentMutations'
 import { createBattle } from '../mutations/battleMutations'
+import { createBattleLogMut, battleLogImportance } from '../mutations/battleLogMutations'
 import { isActorActive } from '../selectors/actorSelectors'
 import { getPolityLeader } from '../selectors/officeSelectors'
 import { getRoleScore } from '../selectors/abilitySelectors'
@@ -372,6 +373,9 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
     },
     battles: { ...ctx.state.battles },
     battleIndex: { byWar: { ...ctx.state.battleIndex.byWar } },
+    // v0.49 §15/§19: BattleLog slice を draft 化 (nextBattleLogId は primitive で ...ctx.state 経由でコピー済)。
+    battleLogs: { ...ctx.state.battleLogs },
+    battleLogIndex: { byWar: { ...ctx.state.battleLogIndex.byWar } },
   }
   let next: TickContext = { ...ctx, state: ws }
 
@@ -584,6 +588,26 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         attackerCommanderAssignments: sim.attackerCommanderAssignments,
         defenderCommanderAssignments: sim.defenderCommanderAssignments,
       })
+
+      // v0.49 §15: 恒久 BattleLog を生成 (minor は作らない。§15.6)。Battle entity と異なり war cleanup で消えない。
+      const importance = battleLogImportance(sim)
+      if (importance !== 'minor') {
+        createBattleLogMut(ws, {
+          warId: wid,
+          battleId: battleEntity.id,
+          week: absoluteWeek,
+          provinceId,
+          battlefieldKind,
+          baseFrontage,
+          effectiveFrontage: frontage,
+          result: sim.result,
+          outcomeQuality: sim.outcomeQuality,
+          importance,
+          ...(atkCG ? { attackerCaptainGeneralPersonId: atkCG } : {}),
+          ...(defCG ? { defenderCaptainGeneralPersonId: defCG } : {}),
+          tickLogs: sim.tickLogs,
+        })
+      }
 
       // §19.1 [DEBUG:BATTLE_SIM] per-battle 観察ログ (debug 時のみ)。
       log.log('BATTLE_SIM', {

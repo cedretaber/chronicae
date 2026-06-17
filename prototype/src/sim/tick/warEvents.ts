@@ -455,6 +455,8 @@ export function emitBattleOccurred(
   const outnumberedVictory = isVictory && winnerRegimentCount < loserRegimentCount
   const decisiveVictory = input.outcomeQuality === 'rout'
   const refs: EventEntityRef[] = [...attackerDefenderRefs(p)]
+  // v0.49 §16.2: chronicleIndex.byWar 駆動。戦争関連 ChronicleEntry を War detail から full-scan せず引く。
+  refs.push(entityRef('war', war.id, 'war'))
   if (input.provinceId) {
     refs.push(entityRef('province', input.provinceId, 'province', provinceNameKey))
   }
