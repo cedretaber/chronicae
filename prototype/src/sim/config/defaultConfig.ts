@@ -1958,9 +1958,9 @@ export const defaultConfig: SimulationConfig = {
   battlePreBattleModifierMin: 0.8,
   battlePreBattleModifierMax: 1.2,
   // v0.49 会戦強化 (§20。すべて初期実装用の仮値・観察後に調整。§20.1)
-  //   戦術三すくみ: 有利側 org damage 倍率 / insight が高いほど有利戦術を引きやすい
+  //   戦術三すくみ: 有利側 org damage 倍率 / insight 差で「相手戦術を読む」確率の感度
   battleTacticAdvantageDamageMultiplier: 1.2,
-  battleTacticInsightReadEffect: 0.01,
+  battleTacticInsightReadEffect: 0.5,
   //   無指揮官ペナルティと隣接支援
   battleUncommandedDamagePenalty: 0.15,
   battleUncommandedRoutPenalty: 0.1,

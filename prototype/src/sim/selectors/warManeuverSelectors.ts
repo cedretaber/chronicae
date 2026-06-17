@@ -12,7 +12,10 @@ import { getPolityPersonIds } from '@sim/selectors/polityRelations'
 import { getFactionActiveMemberIds } from '@sim/selectors/factionSelectors'
 import { isLifeStageAtLeast, isLivingPerson } from '@sim/types/person'
 import { isRoleEligibleBySex } from '@sim/selectors/roleEligibilitySelectors'
-import type { BattleSimCommanderInput } from '@sim/helpers/simulateBattle'
+import type {
+  BattleSimCommanderInput,
+  BattleSimCaptainGeneralInput,
+} from '@sim/helpers/simulateBattle'
 
 // v0.35 Phase A: 「誰が指揮するか / どの province で戦うか」の構造 selector。
 //   pure / config 非依存 / sim 層 (i18n・app 非依存)。WarManeuverSystem (Phase B) が消費する。
@@ -225,9 +228,35 @@ export function buildBattleSimCommanderInputs(
       personId: id,
       fieldCommandScore: getRoleScore(state, id, 'warCommand'),
       breakthroughScore: a.command * 0.5 + a.valor * 0.4 + a.insight * 0.1,
+      // v0.49 §10.3: 追撃適性は command + insight 主・valor 補助。
+      pursuitScore: a.command * 0.5 + a.insight * 0.35 + a.valor * 0.15,
+      command: a.command,
+      insight: a.insight,
+      valor: a.valor,
     })
   }
   return out
+}
+
+// v0.49 §10.3: 総大将 (captain general) person を BattleSimCaptainGeneralInput に変換する。
+//   warCommand role score + 生能力 (insight/command/valor) + traits (ambition/caution)。不在は undefined。
+export function buildBattleSimCaptainGeneralInput(
+  state: WorldState,
+  personId: PersonId | undefined,
+): BattleSimCaptainGeneralInput | undefined {
+  if (personId === undefined) return undefined
+  const p = state.persons[personId]
+  if (!p) return undefined
+  const a = p.abilities
+  return {
+    personId,
+    warCommand: getRoleScore(state, personId, 'warCommand'),
+    command: a.command,
+    insight: a.insight,
+    valor: a.valor,
+    ambition: p.traits.ambition,
+    caution: p.traits.caution,
+  }
 }
 
 // War の係争 province を warGoals[0] から解決する。未解決 (goal / holding 不在) は undefined。

@@ -15,11 +15,12 @@ import type {
   BattleTickUnit,
 } from '../types/battle'
 import type { RegimentTroopKind } from '../types/regiment'
-import type { BattleEngagementArc } from '../types/battleLog'
+import type { BattleEngagementArc, BattleTickLog } from '../types/battleLog'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
 import { clamp } from '../utils/math'
+import { selectTactics } from './battleTactics'
 
 // --- 入出力型 (§7.2 / §7.3) ---
 
@@ -38,11 +39,26 @@ export type BattleSimRegimentInput = {
   effectivePower: number // frozen pre-battle effective power (side 集計とは別、単体)
 }
 
-// side ごと commander 候補プール (WarManeuver が getRoleScore 等で数値化して渡す)。B2a では未使用。
+// side ごと commander 候補プール (WarManeuver が getRoleScore 等で数値化して渡す)。
 export type BattleSimCommanderInput = {
   personId: PersonId
-  fieldCommandScore: number
-  breakthroughScore: number
+  fieldCommandScore: number // 既存。infantry 割当・正面戦闘
+  breakthroughScore: number // 既存 (command*0.5 + valor*0.4 + insight*0.1)。cavalry 割当・突破
+  pursuitScore: number // v0.49 §10.3: 追撃適性 (command + insight 主)
+  command: number // v0.49: 追撃/突破の生能力
+  insight: number
+  valor: number
+}
+
+// v0.49 §10.3: 総大将入力。tactic 選択 (insight) と battle 内 org/rout 補正 (warCommand) に使う。
+export type BattleSimCaptainGeneralInput = {
+  personId?: PersonId
+  warCommand: number
+  command: number
+  insight: number
+  valor: number
+  ambition: number
+  caution: number
 }
 
 // helper が読む config 一式 (§21)。SimulationConfig の Pick で同期を保つ。
@@ -74,6 +90,8 @@ type BattleSimConfigSlice = Pick<
   | 'battleUncommandedDamagePenalty'
   | 'battleUncommandedRoutPenalty'
   | 'battleUncommandedAdjacentSupportRatio'
+  | 'battleTacticAdvantageDamageMultiplier'
+  | 'battleTacticInsightReadEffect'
   | 'commanderAssignedRegimentEffectMax'
   | 'commanderAdjacentRegimentEffectRatio'
   | 'captainGeneralBattleOrganizationDamageEffectMax'
@@ -92,8 +110,8 @@ export type BattleSimInput = {
   defender: BattleSimRegimentInput[]
   attackerCommanders: BattleSimCommanderInput[]
   defenderCommanders: BattleSimCommanderInput[]
-  attackerCaptainGeneralWarCommand?: number
-  defenderCaptainGeneralWarCommand?: number
+  attackerCaptainGeneral?: BattleSimCaptainGeneralInput
+  defenderCaptainGeneral?: BattleSimCaptainGeneralInput
   config: BattleSimConfigSlice
   rng: RngState
 }
@@ -127,6 +145,7 @@ export type BattleSimResult = {
   attackerCommanderAssignments: BattleCommanderAssignment[]
   defenderCommanderAssignments: BattleCommanderAssignment[]
   regimentResults: BattleSimRegimentOutput[]
+  tickLogs: BattleTickLog[] // v0.49 §15.3: 各 tick の戦術・slot 変化・主要イベント (warManeuverSystem が BattleLog 化)
   rng: RngState
 }
 
@@ -179,15 +198,23 @@ function commanderQualityBonus(fieldCommandScore: number, cfg: BattleSimConfigSl
 
 // §14 captainGeneral の被 org damage 軽減 (side-level, [0, captainGeneralBattleOrganizationDamageEffectMax])。
 //   CG は benefit 方向のみ (warCommand<50 でも penalty にはしない。warScore efficiency と二重 penalty を避ける)。
-function cgDamageReduction(warCommand: number | undefined, cfg: BattleSimConfigSlice): number {
-  if (warCommand === undefined) return 0
-  return clamp((warCommand - 50) / 50, 0, 1) * cfg.captainGeneralBattleOrganizationDamageEffectMax
+function cgDamageReduction(
+  cg: BattleSimCaptainGeneralInput | undefined,
+  cfg: BattleSimConfigSlice,
+): number {
+  if (cg === undefined) return 0
+  return (
+    clamp((cg.warCommand - 50) / 50, 0, 1) * cfg.captainGeneralBattleOrganizationDamageEffectMax
+  )
 }
 
 // §14 captainGeneral の rout 耐性 (side-level, [0, captainGeneralRoutResistanceEffectMax])。benefit 方向のみ。
-function cgRoutResistance(warCommand: number | undefined, cfg: BattleSimConfigSlice): number {
-  if (warCommand === undefined) return 0
-  return clamp((warCommand - 50) / 50, 0, 1) * cfg.captainGeneralRoutResistanceEffectMax
+function cgRoutResistance(
+  cg: BattleSimCaptainGeneralInput | undefined,
+  cfg: BattleSimConfigSlice,
+): number {
+  if (cg === undefined) return 0
+  return clamp((cg.warCommand - 50) / 50, 0, 1) * cfg.captainGeneralRoutResistanceEffectMax
 }
 
 // v0.49 §6.3: frontline slot を中央寄り優先順に並べる (center-out、中線対称)。
@@ -502,25 +529,65 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
 
   // §14: captainGeneral side-level 補正 (CG 未供給 side は 0 = 無効)。
   const cgDmgReductionBySide: Record<WarSideKey, number> = {
-    attacker: cgDamageReduction(input.attackerCaptainGeneralWarCommand, cfg),
-    defender: cgDamageReduction(input.defenderCaptainGeneralWarCommand, cfg),
+    attacker: cgDamageReduction(input.attackerCaptainGeneral, cfg),
+    defender: cgDamageReduction(input.defenderCaptainGeneral, cfg),
   }
   const cgRoutResistBySide: Record<WarSideKey, number> = {
-    attacker: cgRoutResistance(input.attackerCaptainGeneralWarCommand, cfg),
-    defender: cgRoutResistance(input.defenderCaptainGeneralWarCommand, cfg),
+    attacker: cgRoutResistance(input.attackerCaptainGeneral, cfg),
+    defender: cgRoutResistance(input.defenderCaptainGeneral, cfg),
   }
+  // v0.49 §10.3: tactic 選択に使う総大将の insight (CG 不在は中立 50)。
+  const atkInsight = input.attackerCaptainGeneral?.insight ?? 50
+  const defInsight = input.defenderCaptainGeneral?.insight ?? 50
+
+  // v0.49 §15.3: slot を (RegimentId | null)[] で snapshot する (battle log 用)。
+  const snapshotSlots = (line: BattleLine): (RegimentId | null)[] =>
+    line.slots.map((s) => (s === undefined ? null : s.input.regimentId))
 
   let ticksElapsed = 0
   let result: BattleResult | null = null
+  const tickLogs: BattleTickLog[] = []
+
+  // §8.2 両端ケース: 片側 (または双方) が fighting force 0 なら戦闘 tick を回さず即決着する。
+  //   tactic 選択を含む draw を一切消費しない (auto-resolve は後続 battle の rng stream を乱さない)。
+  const atkForce0 = occupiedCount(atkLine) + atkRes.length
+  const defForce0 = occupiedCount(defLine) + defRes.length
+  const degenerate = atkForce0 === 0 || defForce0 === 0
+  if (degenerate) {
+    ticksElapsed = 1
+    if (atkForce0 === 0 && defForce0 === 0) {
+      const atkOrg = sumOrg(atkAll)
+      const defOrg = sumOrg(defAll)
+      result =
+        Math.abs(atkOrg - defOrg) <= cfg.battleSimOrganizationTiebreakEpsilon
+          ? 'inconclusive'
+          : atkOrg > defOrg
+            ? 'attacker_victory'
+            : 'defender_victory'
+    } else {
+      result = atkForce0 === 0 ? 'defender_victory' : 'attacker_victory'
+    }
+  }
 
   const frontage = input.frontage
-  for (let tick = 1; tick <= input.maxTicks; tick++) {
+  for (let tick = 1; tick <= input.maxTicks && !degenerate; tick++) {
     ticksElapsed = tick
+
+    // 0. tactic 選択 (§18.2 step1。attacker → defender の draw 順)。
+    const tactics = selectTactics(atkInsight, defInsight, cfg.battleTacticInsightReadEffect, rng)
+    rng = tactics.rng
+    const attackerSlotsBefore = snapshotSlots(atkLine)
+    const defenderSlotsBefore = snapshotSlots(defLine)
 
     // 1. flanking multiplier (§7.2/§8)。slot-based flanking に統一 (wing-based flank pressure は退役)。
     //    地形が flanking の効きをスケールする (battleFlankTerrainMultiplierByKind を転用)。
     const terrainFlank = cfg.battleFlankTerrainMultiplierByKind[input.battlefieldKind] ?? 1
     const flankingMult = 1 + (cfg.battleFlankingDamageMultiplier - 1) * terrainFlank
+    // §10.2: 戦術有利な side は org damage が増える。
+    const tacticMultAtk =
+      tactics.advantageSide === 'attacker' ? cfg.battleTacticAdvantageDamageMultiplier : 1
+    const tacticMultDef =
+      tactics.advantageSide === 'defender' ? cfg.battleTacticAdvantageDamageMultiplier : 1
 
     // 2. 双方向 organization damage (§7.1 attack pair / §7.3 同時適用)。tick 開始 snapshot から全 damage を
     //    計算・累積し同時適用。draw 順 = §18.2: attacker 側 slot 昇順 → defender 側 slot 昇順。
@@ -541,7 +608,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
       const fm = t.arc === 'flanking' ? flankingMult : 1
       const toD = computeOrgDamage(A, D, fm, input, cfg, cgDmgReductionBySide, rng)
       rng = toD.rng
-      addDmg(D, toD.dmg)
+      addDmg(D, toD.dmg * tacticMultAtk)
       if (t.arc === 'flanking') flankedDef.add(D)
     }
     // defender → attacker
@@ -554,7 +621,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
       const fm = t.arc === 'flanking' ? flankingMult : 1
       const toA = computeOrgDamage(D, A, fm, input, cfg, cgDmgReductionBySide, rng)
       rng = toA.rng
-      addDmg(A, toA.dmg)
+      addDmg(A, toA.dmg * tacticMultDef)
       if (t.arc === 'flanking') flankedAtk.add(A)
     }
     // 同時適用
@@ -569,6 +636,21 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
     removeRoutedAndRetreatedFromSlots(defLine, cfg)
     fillLine(atkLine, atkRes)
     fillLine(defLine, defRes)
+
+    // §15.3: この tick の BattleTickLog を記録 (events は Phase 6/7/9 で追加。Phase 5 は戦術 + slot 変化)。
+    tickLogs.push({
+      tick,
+      attackerTactic: tactics.attackerTactic,
+      defenderTactic: tactics.defenderTactic,
+      ...(tactics.advantageSide !== undefined
+        ? { tacticAdvantageSide: tactics.advantageSide }
+        : {}),
+      attackerSlotsBefore,
+      defenderSlotsBefore,
+      attackerSlotsAfter: snapshotSlots(atkLine),
+      defenderSlotsAfter: snapshotSlots(defLine),
+      events: [],
+    })
 
     // 5. 終了判定 (§8.2)。fighting = 占有 slot 数 + reserve (どちらも org > retreat の健全連隊)。
     const atkFighting = occupiedCount(atkLine) + atkRes.length
@@ -732,6 +814,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
     attackerCommanderAssignments,
     defenderCommanderAssignments,
     regimentResults,
+    tickLogs,
     rng,
   }
 }

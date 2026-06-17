@@ -31,6 +31,39 @@ function reg(
   }
 }
 
+// v0.49: BattleSimCommanderInput を簡潔に作る (pursuit/command/insight/valor は fieldCommandScore 基準の既定)。
+function cmd(
+  personId: string,
+  fieldCommandScore: number,
+  breakthroughScore: number,
+): import('./simulateBattle').BattleSimCommanderInput {
+  return {
+    personId: personId as PersonId,
+    fieldCommandScore,
+    breakthroughScore,
+    pursuitScore: 50,
+    command: 50,
+    insight: 50,
+    valor: 50,
+  }
+}
+
+// v0.49: BattleSimCaptainGeneralInput を簡潔に作る (warCommand 指定、能力は中立 50)。
+function cg(
+  warCommand: number,
+  overrides: Partial<import('./simulateBattle').BattleSimCaptainGeneralInput> = {},
+): import('./simulateBattle').BattleSimCaptainGeneralInput {
+  return {
+    warCommand,
+    command: 50,
+    insight: 50,
+    valor: 50,
+    ambition: 0.5,
+    caution: 0.5,
+    ...overrides,
+  }
+}
+
 function makeInput(
   attacker: BattleSimRegimentInput[],
   defender: BattleSimRegimentInput[],
@@ -179,9 +212,7 @@ describe('simulateBattle commander / captainGeneral 効果 (§13.5 / §14, C1)',
     const base = simulateBattle(duel({}))
     const withCmd = simulateBattle(
       duel({
-        attackerCommanders: [
-          { personId: 'p1' as PersonId, fieldCommandScore: 100, breakthroughScore: 50 },
-        ],
+        attackerCommanders: [cmd('p1', 100, 50)],
       }),
     )
     // q = clamp((100-50)/50,-1,1) × commanderAssignedRegimentEffectMax(0.15) = 0.15。
@@ -220,9 +251,7 @@ describe('simulateBattle commander / captainGeneral 効果 (§13.5 / §14, C1)',
         frontage: 3,
         maxTicks: 1,
         config: fixedRng,
-        attackerCommanders: [
-          { personId: 'p1' as PersonId, fieldCommandScore: 100, breakthroughScore: 50 },
-        ],
+        attackerCommanders: [cmd('p1', 100, 50)],
       }),
     )
     const directDmg = orgDmgOf(withCmd, 'd0') // a0 (直接指揮官, slot1) → d0
@@ -238,7 +267,7 @@ describe('simulateBattle commander / captainGeneral 効果 (§13.5 / §14, C1)',
 
   it('(c) 防御側 captainGeneral: 当該 side の被 org damage を最大 10% 軽減 (bounded)', () => {
     const base = simulateBattle(duel({}))
-    const withCG = simulateBattle(duel({ defenderCaptainGeneralWarCommand: 100 }))
+    const withCG = simulateBattle(duel({ defenderCaptainGeneral: cg(100) }))
     // cgReduction = clamp((100-50)/50,0,1) × captainGeneralBattleOrganizationDamageEffectMax(0.10) = 0.10。
     const red = defaultConfig.captainGeneralBattleOrganizationDamageEffectMax
     expect(orgDmgOf(withCG, 'd1') / orgDmgOf(base, 'd1')).toBeCloseTo(1 - red, 5)

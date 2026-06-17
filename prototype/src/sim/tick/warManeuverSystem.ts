@@ -42,6 +42,7 @@ import {
   buildWarSideCommanderCandidates,
   finalizeWarCommanderCandidates,
   buildBattleSimCommanderInputs,
+  buildBattleSimCaptainGeneralInput,
   getWarGoalProvince,
   generateCandidateBattlefield,
   isEligibleWarPerson,
@@ -492,12 +493,14 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         defender: defRegiments.map((r) => toBattleSimRegiment(r, 'defender')),
         attackerCommanders: buildBattleSimCommanderInputs(ws, war3.attacker.commanderPersonIds),
         defenderCommanders: buildBattleSimCommanderInputs(ws, war3.defender.commanderPersonIds),
-        ...(atkCG
-          ? { attackerCaptainGeneralWarCommand: getRoleScore(ws, atkCG, 'warCommand') }
-          : {}),
-        ...(defCG
-          ? { defenderCaptainGeneralWarCommand: getRoleScore(ws, defCG, 'warCommand') }
-          : {}),
+        ...(() => {
+          const cg = buildBattleSimCaptainGeneralInput(ws, atkCG)
+          return cg ? { attackerCaptainGeneral: cg } : {}
+        })(),
+        ...(() => {
+          const cg = buildBattleSimCaptainGeneralInput(ws, defCG)
+          return cg ? { defenderCaptainGeneral: cg } : {}
+        })(),
         config,
         rng: n.rng,
       }
