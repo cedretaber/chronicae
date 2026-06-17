@@ -220,7 +220,7 @@ export function ProjectCard({ project, worldState }: { project: Project; worldSt
       <div className="flex flex-wrap items-center gap-x-1 text-xs text-gray-400">
         <span>{t(`detail.play.stage_${project.currentStageKey}`)}</span>
         <span>
-          · {project.progress}/{project.targetProgress}
+          · {Math.round(project.progress)}/{Math.round(project.targetProgress)}
         </span>
         {supervisor && (
           <span>

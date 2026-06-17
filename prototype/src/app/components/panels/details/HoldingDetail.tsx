@@ -223,7 +223,8 @@ export function HoldingDetail({
                   <div className="flex justify-between">
                     <span className="text-gray-400">{t('detail.house.project_progress')}:</span>
                     <span>
-                      {activeProject.progress}/{activeProject.targetProgress}
+                      {Math.round(activeProject.progress)}/
+                      {Math.round(activeProject.targetProgress)}
                     </span>
                   </div>
                 )}

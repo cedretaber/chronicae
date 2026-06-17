@@ -65,7 +65,7 @@ export function ProjectDetail({
           <div className="flex gap-1">
             <span className="text-gray-400">{t('detail.project.progress')}:</span>
             <span className="text-gray-300">
-              {project.progress} / {project.targetProgress}
+              {Math.round(project.progress)} / {Math.round(project.targetProgress)}
             </span>
           </div>
           <div className="flex gap-1">
