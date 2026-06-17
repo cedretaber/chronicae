@@ -6,6 +6,7 @@ import type { HoldingImprovement } from '../types/holdingImprovement'
 import type { HoldingImprovementId, EventId } from '../types/ids'
 import type { SimulationConfig } from '../config/defaultConfig'
 import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
+import { getActiveBailiff } from '../selectors/bailiffSelectors'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
 import { removeCrisisMut } from '../mutations/crisisMutations'
 import { spawnDisrepairCrisisMut, cancelActiveResponseProjectMut } from './crisisSystem'
@@ -86,12 +87,14 @@ export function runFacilityMaintenanceSystem(ctx: TickContext): TickContext {
   //   condition 書込・破壊は holdingImprovements / holdingImprovementIndex.byHolding を、
   //   disrepair spawn / purge は crises / crisisIndex / projects / projectIndex を触る。
   //   index slice を欠くと in-place delete が共有 index を破壊し cross-tick 汚染になる (§13-B_det)。
+  //   v0.48.2: 定期保守で owner polity の treasury を引くため polities slice も clone (per-object spread)。
   const ws: WorldState = {
     ...ctx.state,
     holdingImprovements: { ...ctx.state.holdingImprovements },
     holdingImprovementIndex: {
       byHolding: { ...ctx.state.holdingImprovementIndex.byHolding },
     },
+    polities: { ...ctx.state.polities },
     crises: { ...ctx.state.crises },
     crisisIndex: {
       byHolding: { ...ctx.state.crisisIndex.byHolding },
@@ -166,6 +169,40 @@ export function runFacilityMaintenanceSystem(ctx: TickContext): TickContext {
             emitEvent,
           )
           if (spawned) mutated = true
+        }
+      }
+    } else if (decayed.condition < config.facilityMaintenanceThreshold) {
+      // §6.6b 3 段モデル: 要保守帯 (disrepairThreshold 以上 maintenanceThreshold 未満)。
+      //   active な代官 + owner polity の財政 (treasury ≥ 費用) が揃えば自動保守し condition を回復。
+      //   どちらか欠ければ何もしない (減衰継続 → 50 割れで disrepair Crisis)。RNG は引かない。
+      const bailiff = getActiveBailiff(ws, decayed.holdingId)
+      if (bailiff) {
+        const ownerPolityId = getHoldingTerminalPolityId(ws, decayed.holdingId)
+        if (ownerPolityId) {
+          const ownerPolity = ws.polities[ownerPolityId]
+          const cost = config.facilityMaintenanceCostPerLevel * decayed.level
+          // treasury は払える時だけ引く (treasury<0 integrity 違反を防ぐ, §C6)。
+          if (ownerPolity && ownerPolity.active && ownerPolity.treasury >= cost) {
+            ws.polities[ownerPolityId] = {
+              ...ownerPolity,
+              treasury: ownerPolity.treasury - cost,
+            }
+            ws.holdingImprovements[impId] = {
+              ...decayed,
+              condition: config.facilityMaintenanceConditionRestore,
+            }
+            emitEvent({
+              type: 'FACILITY_MAINTAINED',
+              importance: 'minor',
+              messageKey: 'facility.maintained',
+              messageParams: {
+                holding: holdingNameParam(ws, decayed.holdingId),
+                improvementKind: decayed.kind,
+              },
+              entityRefs: [entityRef('holding', decayed.holdingId, 'holding')],
+            })
+            mutated = true
+          }
         }
       }
     }

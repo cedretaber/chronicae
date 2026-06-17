@@ -25,6 +25,7 @@ import type {
   ProvinceId,
   ProjectId,
   HoldingImprovementId,
+  HoldingOfficeAssignmentId,
 } from '../types/ids'
 import type { WorldState } from '../types/world'
 
@@ -64,6 +65,107 @@ function makeBoundWorld(impOverrides: Partial<HoldingImprovement> = {}): WorldSt
   }
   return s
 }
+
+// hl-0 に active な bailiff を割り当てる (getActiveBailiff が返すように)。
+function withBailiff(s: WorldState, bailiffId: PersonId = 'p-bailiff' as PersonId): WorldState {
+  let w = withPerson(s, bailiffId, { houseId: HOUSE })
+  const officeId = 'ho-1' as HoldingOfficeAssignmentId
+  w = {
+    ...w,
+    holdingOfficeAssignments: {
+      ...w.holdingOfficeAssignments,
+      [officeId]: {
+        id: officeId,
+        holdingId: HOLDING,
+        role: 'bailiff',
+        holderPersonId: bailiffId,
+        appointingPolityId: POLITY,
+        active: true,
+        startWeek: 0,
+        unpaidCount: 0,
+        contractedRemittanceRate: 0.5,
+        expectedFeeRate: 0.1,
+      },
+    },
+    holdingOfficeIndex: {
+      ...w.holdingOfficeIndex,
+      byHolding: { ...w.holdingOfficeIndex.byHolding, [HOLDING]: officeId },
+    },
+  }
+  return w
+}
+
+describe('facilityMaintenanceSystem 定期保守 (§6.6b 3 段モデル)', () => {
+  it('要保守帯 + 代官 + 財政 → condition 回復 + treasury 減 + FACILITY_MAINTAINED', () => {
+    // condition 70 (50 以上 80 未満)。減衰 1.8 後 68.2 でも保守帯 → 100 に回復。
+    const s = withBailiff(makeBoundWorld({ condition: 70, level: 2 }))
+    const ctx = createTickContext({ state: s, rng: createRng('maint'), config: defaultConfig })
+    const next = runFacilityMaintenanceSystem(ctx)
+
+    expect(next.state.holdingImprovements[IMP]?.condition).toBe(
+      defaultConfig.facilityMaintenanceConditionRestore,
+    )
+    // 費用 = 3 × level(2) = 6。treasury 500 → 494。
+    expect(next.state.polities[POLITY]?.treasury).toBe(
+      500 - defaultConfig.facilityMaintenanceCostPerLevel * 2,
+    )
+    const maintained = next.events.filter((e) => e.type === 'FACILITY_MAINTAINED')
+    expect(maintained).toHaveLength(1)
+    // 保守帯では disrepair Crisis は発火しない
+    expect(Object.values(next.state.crises).filter((c) => c?.kind === 'disrepair')).toHaveLength(0)
+  })
+
+  it('代官不在 → 保守されず減衰のみ進む', () => {
+    const s = makeBoundWorld({ condition: 70, level: 2 })
+    const ctx = createTickContext({ state: s, rng: createRng('nobailiff'), config: defaultConfig })
+    const next = runFacilityMaintenanceSystem(ctx)
+
+    // 減衰後 68.2 のまま。回復しない。
+    expect(next.state.holdingImprovements[IMP]?.condition).toBeCloseTo(68.2)
+    expect(next.state.polities[POLITY]?.treasury).toBe(500)
+    expect(next.events.filter((e) => e.type === 'FACILITY_MAINTAINED')).toHaveLength(0)
+  })
+
+  it('財政難 (treasury < 費用) → 保守されず treasury も減らない', () => {
+    let s = withBailiff(makeBoundWorld({ condition: 70, level: 2 }))
+    // 費用 6 に対し treasury 5。払えない。
+    s = { ...s, polities: { ...s.polities, [POLITY]: { ...s.polities[POLITY]!, treasury: 5 } } }
+    const ctx = createTickContext({ state: s, rng: createRng('poor'), config: defaultConfig })
+    const next = runFacilityMaintenanceSystem(ctx)
+
+    expect(next.state.holdingImprovements[IMP]?.condition).toBeCloseTo(68.2)
+    expect(next.state.polities[POLITY]?.treasury).toBe(5)
+    expect(next.events.filter((e) => e.type === 'FACILITY_MAINTAINED')).toHaveLength(0)
+  })
+
+  it('機能不全帯 (condition < 50) は代官がいても保守されず disrepair Crisis になる', () => {
+    const s = withBailiff(makeBoundWorld({ condition: 40, level: 2 }))
+    const ctx = createTickContext({ state: s, rng: createRng('below'), config: defaultConfig })
+    const next = runFacilityMaintenanceSystem(ctx)
+
+    // 38.2 のまま (保守対象外)。disrepair Crisis が立つ。
+    expect(next.state.holdingImprovements[IMP]?.condition).toBeCloseTo(38.2)
+    expect(next.events.filter((e) => e.type === 'FACILITY_MAINTAINED')).toHaveLength(0)
+    expect(Object.values(next.state.crises).filter((c) => c?.kind === 'disrepair')).toHaveLength(1)
+  })
+
+  it('健全帯 (condition ≥ 80) は保守されない (treasury 不変・減衰のみ)', () => {
+    const s = withBailiff(makeBoundWorld({ condition: 90, level: 2 }))
+    const ctx = createTickContext({ state: s, rng: createRng('healthy'), config: defaultConfig })
+    const next = runFacilityMaintenanceSystem(ctx)
+
+    expect(next.state.holdingImprovements[IMP]?.condition).toBeCloseTo(88.2)
+    expect(next.state.polities[POLITY]?.treasury).toBe(500)
+    expect(next.events.filter((e) => e.type === 'FACILITY_MAINTAINED')).toHaveLength(0)
+  })
+
+  it('元 state の polity は変化しない (per-object spread / cross-tick 非汚染)', () => {
+    const s = withBailiff(makeBoundWorld({ condition: 70, level: 2 }))
+    const ctx = createTickContext({ state: s, rng: createRng('spread'), config: defaultConfig })
+    runFacilityMaintenanceSystem(ctx)
+    expect(s.polities[POLITY]?.treasury).toBe(500)
+  })
+})
 
 describe('facilityMaintenanceSystem 減衰 (§2.1)', () => {
   it('condition が decayPerCyclePerLevel × level だけ減る', () => {

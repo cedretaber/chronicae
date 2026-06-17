@@ -238,6 +238,9 @@
 | facilityConditionSeedJitterMin | 70 | worldgen seed の condition 下限（上限 100、第1波 desync。improvement id 由来の決定論 jitter） |
 | crisisDisrepairNeglectMultiplier | 0.4 | disrepair 放置時の neglect affection 低下の倍率（他 Crisis の 40%。deadline 無しで長期蓄積するため穏やかに） |
 | crisisMitigationByKind | drought→irrigation_infrastructure 0.25/lv / famine→storage_infrastructure 0.25/lv | 設備による Crisis 被害軽減。kind 別に「軽減設備種別＋レベルあたり軽減率」。spawn 時に severity と初期ショックを factor=max(0,1−rate×level) で乗算（max level 3 で最大 75% 軽減）。未登録 kind は軽減なし |
+| facilityMaintenanceThreshold | 80 | 定期保守の上限閾値（§6.6b v0.48.2）。disrepairThreshold 以上 本値 未満が要保守帯。不変条件: disrepairThreshold < 本値 ≤ 100 |
+| facilityMaintenanceConditionRestore | 100 | 定期保守成功時に回復する condition |
+| facilityMaintenanceCostPerLevel | 3 | 定期保守 1 回あたり owner treasury から引く費用 = 本値 × level |
 | **Public Spending** | | |
 | publicSpendingEnabled | true | 公共支出有効 |
 | publicSpendingYearlyChance | 0.35 | 公共支出年間発動確率 |

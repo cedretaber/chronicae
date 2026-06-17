@@ -315,7 +315,7 @@ const droughtChance = config.droughtBaseChancePerYear + config.droughtPressureCh
 - **初期 severity** = `crisisInitialSeverityByKind[kind] + pressureExcess * crisisSeverityPressureBonus`（上限 100）。
 - **初期ショック**（一回限りの人口減）= `crisisInitialShockSizeRateByKind[kind]`。famine/drought は peasants、plague/war_damage は全 class。holding スコープで 1 回適用（province ラッパーの多重適用を回避）。
 - **設備による被害軽減（v0.48.1）**: `crisisMitigationByKind[kind]` に「軽減する設備種別 + レベルあたり軽減率」を持つ kind は、その holding の当該設備の**実効レベル**（`level × conditionEffectiveness(condition)`、§6.6b）に応じて severity と初期ショックを乗算で下げる（`factor = max(0, 1 − reductionPerLevel × 実効レベル)`、決定的で RNG を引かない）。既定は **灌漑設備（irrigation_infrastructure）→ 干魃** / **貯蔵設備（storage_infrastructure）→ 飢饉**（各 0.25/level、健全・max level 3 で最大 75% 軽減＝25% 残る）。「灌漑された農地は干魃に強い / 蔵があれば飢饉を凌げる」という設備の固有性を与える。**機能不全（condition < 閾値）の設備は実効レベルが下がり軽減効果も低下、condition 0 で軽減ゼロ**（壊れた蔵/灌漑は守れない＝設備維持管理と連動）。未登録 kind（plague 等）は軽減なし。
-  - 設計メモ: 「機能不全になってから修理する」reactive モデルに対し、本来は普段の保守点検で機能不全を未然に防ぐ proactive な仕組みが自然。**定期保守点検システム**は v0.48.1 完了後の改修候補（恒常的な保守コストで condition 減衰を相殺し、放置すると機能不全に至る設計）。
+  - **定期保守点検（v0.48.2 で実装）**: 「機能不全になってから修理する」reactive モデルに対し、普段の保守点検で機能不全を未然に防ぐ proactive な仕組みを condition 3 段モデルとして追加した（§6.6b）。要保守帯（50〜80）で代官＋owner 財政により condition を回復し、保守の失敗（代官不在・財政難）だけが機能不全 Crisis の入口になる。
 - **後方互換**: Province レベルの物語ビートとして旧 `FAMINE` / `PLAGUE` イベントを 1 件だけ残す（drought は新規 kind で legacy event を持たず per-holding `CRISIS_CREATED` のみ）。
 - **kill-switch**: 年次発生ロールは `disasterEnabled`（default true）で抑制できる（旧 DisasterSystem 互換）。war_damage / unrest は別経路で spawn されるため影響しない。
 - war_damage は PeaceSettlementSystem の領地移転後（§6.46）、unrest は ProvinceRevoltSystem（§6.29）から spawn される。
@@ -350,9 +350,18 @@ CrisisSystem は ProjectOutcomeSystem の **後** に走り（resolved/progress 
 
 **condition 駆動モデル**: condition が真実の源で、Crisis 中も独立に減衰し 0 で破壊。Crisis の `severity` は表示用に condition から導出するだけ（§6.6 disrepair 分岐）。本 system は ProjectOutcomeSystem と **同 interval(4)・同 offset(0)** で走り登録順で CrisisSystem の後に置く。これにより「同サイクルに完了した修理（ProjectOutcome が condition を回復）が先に処理され → その後で本 system が減衰・破壊判定」が毎回保証され、完了直前の improvement の誤破壊を防ぐ。1 tick 1 draft で `holdingImprovements` / `holdingImprovementIndex.byHolding` / Crisis slice / Project slice を clone し in-place mut する（condition 書込は必ず `{ ...imp, condition }` の per-object spread）。走査は `Object.keys().sort()` で順序固定（採番決定性）。本 system は RNG を引かない。
 
+**condition 3 段モデル（v0.48.2）**: condition を 3 帯に分け、軽い保守と重い Crisis を段階化する。
+- **健全（condition ≥ `facilityMaintenanceThreshold`=80）**: 出力ペナルティなし。何もしない。
+- **要保守（`facilityDisrepairThreshold`=50 ≤ condition < 80）**: 出力ペナルティはまだ無い（`conditionEffectiveness` は閾値以上で 1.0）。**代官による定期保守**の対象帯。
+- **機能不全（condition < 50）**: 出力が崖状に低下し disrepair Crisis（重い機構）が発火。
+- **破壊（condition 0）**: レベルダウン / 全壊。
+
+不変条件: `facilityDisrepairThreshold < facilityMaintenanceThreshold ≤ 100`。減衰は常に進むので、保守が機能する限り condition は要保守帯で 100 に戻り続け、保守が**失敗した結果**（代官不在・財政難）だけが機能不全 Crisis の入口になる。「代官が常駐する領地は地味に維持され、空席・財政難で初めて荒廃が始まる」歴史らしいドラマと、代官という役職への常時の存在価値を与える。
+
 処理（各 improvement を sort 順に）:
 - **減衰**: `condition' = max(0, condition − facilityConditionDecayPerCyclePerLevel × level)`。レベル比例（高レベルほど維持コストが重く、修理が予算・人手をより多く奪う）。修理中も減衰は止めない（間に合わなければ崩壊）。
 - **閾値割れ → disrepair Crisis 発火**: condition < `facilityDisrepairThreshold` で、その improvement を指す active disrepair Crisis が無ければ `spawnDisrepairCrisisMut`（ws ベース。`spawnCrisisForHolding` の鏡像）で生成。dedup は `targetImprovementId` 込み。owner は live 解決（`getHoldingTerminalPolityId`、active owner polity が無ければ生成しない）。担当者は `resolveCrisisHandlers`（代官 or 指導者+`selectProjectSupervisor`）。spawn 時 `severity = crisisInitialSeverityByKind.disrepair`（= 修理工数 = Project の targetProgress）。表示用 severity（threshold−condition）は CrisisSystem が毎サイクル上書きする。
+- **要保守帯 → 代官による定期保守（v0.48.2）**: `facilityDisrepairThreshold` ≤ condition < `facilityMaintenanceThreshold` の improvement について、**active な代官**（`getActiveBailiff`、`bailiffSelectors.ts` 共有。placeholder/死亡/空席は不在扱い）**かつ** owner polity（live 解決・active）の `treasury` が費用（`facilityMaintenanceCostPerLevel × level`）以上なら、treasury から費用を引き（per-object spread。`polities` slice も draft に clone）condition を `facilityMaintenanceConditionRestore`(100) に回復し `FACILITY_MAINTAINED`（minor、messageParams: holding / improvementKind）を emit。代官不在・財政難（treasury < 費用）のどちらかで保守は行われず減衰が継続し、いずれ機能不全（disrepair Crisis）に至る。**treasury は払える時だけ引く**（treasury<0 integrity 違反 §C6 を防ぐ、load-bearing）。1 holding 複数 improvement は各々が個別に費用を払い、treasury が尽きれば sort 順で以降スキップ（決定的）。RNG は引かない。
 - **condition 0 → 破壊**（`degradeHoldingImprovementMut`）: `level − 1`。level ≥ 1 が残れば condition を `facilityRepairConditionRestore`(100) に戻して部分崩壊（lower-level として健全化）、level 0 なら improvement を削除し `holdingImprovementIndex.byHolding` から除去（filter 後に空配列なら key ごと delete）。いずれも対応する active disrepair Crisis を purge（`removeCrisisMut`）+ 進行中の修理 Project を cancel（`cancelActiveResponseProjectMut(..., 'target_destroyed')`）してから `FACILITY_BREAKDOWN`（messageParams: holding / improvementKind / breakdownOutcome ∈ degraded|destroyed）を emit。
 - **防御 sweep**: 対象 improvement が消滅した dangling disrepair Crisis を検出したら purge/tolerate（throw でなく。破壊経路で通常 purge 済みのため belt-and-suspenders）。
 
