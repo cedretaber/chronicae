@@ -648,9 +648,6 @@ export type SimulationConfig = {
   //   randomness
   battleRandomFactorMin: number
   battleRandomFactorMax: number
-  //   flank
-  flankPressureBase: number
-  maxFlankPressureMultiplier: number
   //   commander
   commanderAssignedRegimentEffectMax: number
   commanderAdjacentRegimentEffectRatio: number
@@ -1943,9 +1940,6 @@ export const defaultConfig: SimulationConfig = {
   //   randomness
   battleRandomFactorMin: 0.85,
   battleRandomFactorMax: 1.15,
-  //   flank
-  flankPressureBase: 0.15,
-  maxFlankPressureMultiplier: 1.3,
   //   commander
   commanderAssignedRegimentEffectMax: 0.15,
   commanderAdjacentRegimentEffectRatio: 0.4,

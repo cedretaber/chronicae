@@ -15,6 +15,7 @@ import type {
   BattleTickUnit,
 } from '../types/battle'
 import type { RegimentTroopKind } from '../types/regiment'
+import type { BattleEngagementArc } from '../types/battleLog'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
@@ -68,8 +69,8 @@ type BattleSimConfigSlice = Pick<
   | 'battleFlankTerrainMultiplierByKind'
   | 'battleRandomFactorMin'
   | 'battleRandomFactorMax'
-  | 'flankPressureBase'
-  | 'maxFlankPressureMultiplier'
+  | 'battleFlankingDamageMultiplier'
+  | 'battleFlankingRoutPenalty'
   | 'commanderAssignedRegimentEffectMax'
   | 'commanderAdjacentRegimentEffectRatio'
   | 'captainGeneralBattleOrganizationDamageEffectMax'
@@ -319,20 +320,17 @@ function deployToLine(
   return { line: { slots }, reserve }
 }
 
-// v0.49: 両端 (wing) の regimentId — occupied slot のうち最小/最大 index。空きを跨いでも端を取る。
-//   flank pressure (wing-based) は Phase 3 で slot-based flanking に統合し退役する。
-function outermostOccupiedIds(line: BattleLine): Set<RegimentId> {
-  const ids = new Set<RegimentId>()
-  let lo: WorkRegiment | undefined
-  let hi: WorkRegiment | undefined
-  for (const s of line.slots) {
-    if (s === undefined) continue
-    if (lo === undefined) lo = s
-    hi = s
-  }
-  if (lo) ids.add(lo.input.regimentId)
-  if (hi) ids.add(hi.input.regimentId)
-  return ids
+// v0.49 §7.1: attacker slot i の攻撃対象を敵 slot から探す。候補順 [i, i-1, i+1] (正面優先、左隣接 → 右隣接)。
+//   正面に敵がいれば frontal、空なら左右隣接の敵を flanking で攻撃。範囲外/全空きなら対象なし (攻撃しない)。
+function findTargetSlot(
+  enemy: BattleLine,
+  i: number,
+): { idx: number; arc: BattleEngagementArc } | undefined {
+  if (enemy.slots[i] !== undefined) return { idx: i, arc: 'frontal' }
+  if (i - 1 >= 0 && enemy.slots[i - 1] !== undefined) return { idx: i - 1, arc: 'flanking' }
+  if (i + 1 < enemy.slots.length && enemy.slots[i + 1] !== undefined)
+    return { idx: i + 1, arc: 'flanking' }
+  return undefined
 }
 
 // 1 方向の organization damage (§9.2)。commander/cg modifier は draw 後に乗算 (draw 数・順序不変)。
@@ -341,8 +339,7 @@ function outermostOccupiedIds(line: BattleLine): Set<RegimentId> {
 function computeOrgDamage(
   src: WorkRegiment,
   tgt: WorkRegiment,
-  tgtFlankIds: Set<RegimentId>,
-  flankMult: number,
+  flankMultiplier: number, // v0.49 §7.2: frontal=1、flanking>1 (per-pair で caller が決める)
   input: BattleSimInput,
   cfg: BattleSimConfigSlice,
   cgDmgReductionBySide: Record<WarSideKey, number>,
@@ -351,7 +348,7 @@ function computeOrgDamage(
   const pairPower = clamp(src.input.effectivePower / (tgt.input.effectivePower + 1), 0.75, 1.35)
   const terrainMult =
     cfg.battleTerrainOrganizationDamageMultiplierByKind[input.battlefieldKind] ?? 1
-  const flank = tgtFlankIds.has(tgt.input.regimentId) ? flankMult : 1
+  const flank = flankMultiplier
   const { value, rng: nextRng } = randomFloat(rng)
   const randomFactor =
     cfg.battleRandomFactorMin + value * (cfg.battleRandomFactorMax - cfg.battleRandomFactorMin)
@@ -381,14 +378,22 @@ function applyOrgAndMorale(tgt: WorkRegiment, orgDmg: number, cfg: BattleSimConf
 //   §13.5/§14: commander quality (正のみ) と side の captainGeneral rout 耐性で effRoute を下げ rout しにくくする。
 // v0.49 §13.1: classify はマークのみ (即時除去しない)。routed フラグを尊重し survivor に戻さない (C2)。
 //   §13.5/§14: commander quality (正のみ) と side の captainGeneral rout 耐性で effRoute を下げる。
-function classifyLine(line: BattleLine, cfg: BattleSimConfigSlice, cgRoutResist: number): void {
+function classifyLine(
+  line: BattleLine,
+  cfg: BattleSimConfigSlice,
+  cgRoutResist: number,
+  flanked: ReadonlySet<WorkRegiment>,
+): void {
   for (const w of occupiedSlots(line)) {
     if (w.routed) continue // 既に routed (breakthrough/pursuit 由来。Phase2 では発生しない) は維持
     const routResist = clamp(Math.max(0, w.commanderQ) + cgRoutResist, 0, 0.9)
+    // v0.49 §7.2/§8: この tick に flanking を受けた連隊は rout しやすい (effRoute を引き上げる)。
+    const flankRoutMult = flanked.has(w) ? 1 + cfg.battleFlankingRoutPenalty : 1
     const effRoute =
       (cfg.routeOrganizationThreshold +
         Math.max(0, w.input.baselineMorale - w.morale) * cfg.moraleRouteThresholdFactor) *
-      (1 - routResist)
+      (1 - routResist) *
+      flankRoutMult
     if (w.organization <= effRoute) {
       w.routed = true
       w.morale = clamp(w.morale - cfg.routAdditionalMoraleDamage, 0, w.input.maxMorale)
@@ -481,55 +486,52 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
   for (let tick = 1; tick <= input.maxTicks; tick++) {
     ticksElapsed = tick
 
-    // 1. flank pressure: 占有数が多い側が、少ない側の wing に multiplier (§10.2)。
-    //    Phase 3 で slot-based flanking に統合し退役する (wing-based は暫定維持)。
+    // 1. flanking multiplier (§7.2/§8)。slot-based flanking に統一 (wing-based flank pressure は退役)。
+    //    地形が flanking の効きをスケールする (battleFlankTerrainMultiplierByKind を転用)。
     const terrainFlank = cfg.battleFlankTerrainMultiplierByKind[input.battlefieldKind] ?? 1
-    const flankMult = clamp(
-      1 + cfg.flankPressureBase * terrainFlank,
-      1,
-      cfg.maxFlankPressureMultiplier,
-    )
-    const atkOcc = occupiedCount(atkLine)
-    const defOcc = occupiedCount(defLine)
-    let atkWing = new Set<RegimentId>()
-    let defWing = new Set<RegimentId>()
-    if (atkOcc > defOcc && defOcc > 0) {
-      defWing = outermostOccupiedIds(defLine)
-    } else if (defOcc > atkOcc && atkOcc > 0) {
-      atkWing = outermostOccupiedIds(atkLine)
-    }
+    const flankingMult = 1 + (cfg.battleFlankingDamageMultiplier - 1) * terrainFlank
 
-    // 2. 双方向 organization damage (正面 slot pair, §7.1 / §7.3)。tick 開始 snapshot から全 damage を
-    //    計算・累積し同時適用 (§7.3)。draw 順 = §18.2: attacker 側 slot 昇順 → defender 側 slot 昇順。
-    //    正面のみ (Phase 2)。両 slot が占有のときだけ pair が成立し draw を消費する。
+    // 2. 双方向 organization damage (§7.1 attack pair / §7.3 同時適用)。tick 開始 snapshot から全 damage を
+    //    計算・累積し同時適用。draw 順 = §18.2: attacker 側 slot 昇順 → defender 側 slot 昇順。
+    //    対象は [i, i-1, i+1] (正面優先、空なら隣接 = flanking)。対象ありの slot だけ draw を消費する。
     const incoming = new Map<WorkRegiment, number>()
+    const flankedAtk = new Set<WorkRegiment>()
+    const flankedDef = new Set<WorkRegiment>()
     const addDmg = (tgt: WorkRegiment, dmg: number): void => {
       incoming.set(tgt, (incoming.get(tgt) ?? 0) + dmg)
     }
     // attacker → defender
     for (let i = 0; i < frontage; i++) {
       const A = atkLine.slots[i]
-      const D = defLine.slots[i]
-      if (A === undefined || D === undefined) continue
-      const toD = computeOrgDamage(A, D, defWing, flankMult, input, cfg, cgDmgReductionBySide, rng)
+      if (A === undefined) continue
+      const t = findTargetSlot(defLine, i)
+      if (t === undefined) continue
+      const D = defLine.slots[t.idx]!
+      const fm = t.arc === 'flanking' ? flankingMult : 1
+      const toD = computeOrgDamage(A, D, fm, input, cfg, cgDmgReductionBySide, rng)
       rng = toD.rng
       addDmg(D, toD.dmg)
+      if (t.arc === 'flanking') flankedDef.add(D)
     }
     // defender → attacker
     for (let i = 0; i < frontage; i++) {
-      const A = atkLine.slots[i]
       const D = defLine.slots[i]
-      if (A === undefined || D === undefined) continue
-      const toA = computeOrgDamage(D, A, atkWing, flankMult, input, cfg, cgDmgReductionBySide, rng)
+      if (D === undefined) continue
+      const t = findTargetSlot(atkLine, i)
+      if (t === undefined) continue
+      const A = atkLine.slots[t.idx]!
+      const fm = t.arc === 'flanking' ? flankingMult : 1
+      const toA = computeOrgDamage(D, A, fm, input, cfg, cgDmgReductionBySide, rng)
       rng = toA.rng
       addDmg(A, toA.dmg)
+      if (t.arc === 'flanking') flankedAtk.add(A)
     }
     // 同時適用
     for (const [tgt, dmg] of incoming) applyOrgAndMorale(tgt, dmg, cfg)
 
-    // 3. retreat / rout 判定 (マーク only。§13.1)
-    classifyLine(atkLine, cfg, cgRoutResistBySide.attacker)
-    classifyLine(defLine, cfg, cgRoutResistBySide.defender)
+    // 3. retreat / rout 判定 (マーク only。§13.1)。flanking を受けた連隊は rout しやすい。
+    classifyLine(atkLine, cfg, cgRoutResistBySide.attacker, flankedAtk)
+    classifyLine(defLine, cfg, cgRoutResistBySide.defender, flankedDef)
 
     // 4. retreat / rout 連隊を slot から除去 (master には残る) → reserve から補充
     removeRoutedAndRetreatedFromSlots(atkLine, cfg)

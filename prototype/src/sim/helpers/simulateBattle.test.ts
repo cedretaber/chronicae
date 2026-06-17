@@ -255,6 +255,43 @@ describe('simulateBattle slot invariant (v0.49 §21.A)', () => {
   })
 })
 
+describe('simulateBattle slot-based flanking (v0.49 §7-8)', () => {
+  const orgDmgOf = (r: ReturnType<typeof simulateBattle>, id: string) =>
+    r.regimentResults.find((rr) => rr.regimentId === id)!.organizationDamage
+
+  it('数的不利な側に flanking が集中する (正面 + 左右隣接で複数攻撃)', () => {
+    // frontage 3。defender 1 (slot1 中央) vs attacker 3 (全 slot 占有)。
+    //   def slot1 は atk slot1 から正面、atk slot0/slot2 から flanking を受ける → 3 攻撃集中。
+    const baseInput = makeInput([reg('a1', 'attacker')], [reg('d1', 'defender')], {
+      frontage: 3,
+      maxTicks: 1,
+    })
+    const base = simulateBattle(baseInput)
+    const flanked = simulateBattle(
+      makeInput(
+        [reg('a1', 'attacker'), reg('a2', 'attacker'), reg('a3', 'attacker')],
+        [reg('d1', 'defender')],
+        { frontage: 3, maxTicks: 1 },
+      ),
+    )
+    // 1 攻撃 (正面のみ) に対し、3 攻撃 (正面+flanking×2) を受けるので org damage は大幅増 (>2×)。
+    expect(orgDmgOf(flanked, 'd1')).toBeGreaterThan(orgDmgOf(base, 'd1') * 2)
+  })
+
+  it('正面に敵がいれば flanking せず frontal を選ぶ (両側占有時は frontal)', () => {
+    // frontage 3 で両側 3 連隊 → 全 slot で frontal pair。flanking は発生しない。
+    const atk = [reg('a0', 'attacker'), reg('a1', 'attacker'), reg('a2', 'attacker')]
+    const def = [reg('d0', 'defender'), reg('d1', 'defender'), reg('d2', 'defender')]
+    const r = simulateBattle(makeInput(atk, def, { frontage: 3, maxTicks: 1 }))
+    // 全連隊が同程度の frontal damage を受ける (flanking 集中なし)。中央 slot1 が突出しない。
+    const d0 = orgDmgOf(r, 'd0')
+    const d1 = orgDmgOf(r, 'd1')
+    const d2 = orgDmgOf(r, 'd2')
+    // frontal のみなら各 1 攻撃。flanking 集中があれば中央が突出するが、ここでは無いので近い値。
+    expect(Math.max(d0, d1, d2) / Math.min(d0, d1, d2)).toBeLessThan(1.6) // random factor 範囲内
+  })
+})
+
 describe('simulateBattle output 整合', () => {
   it('regimentResults は全入力連隊を含む', () => {
     const r = simulateBattle(
