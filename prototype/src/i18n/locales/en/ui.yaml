@@ -424,6 +424,7 @@ detail:
     stage_negotiate_internal_terms: 'Negotiating Terms'
     stage_prepare_foundation: 'Preparing Foundation'
     stage_finalize_consolidation: 'Finalizing Consolidation'
+    stage_mitigate: 'Mitigating Crisis'
 
   # Project detail
   project:

@@ -519,6 +519,7 @@ detail:
     stage_negotiate_internal_terms: '内部条件の交渉'
     stage_prepare_foundation: '創設準備'
     stage_finalize_consolidation: '集約手続'
+    stage_mitigate: '危機対処'
 
   # プロジェクト詳細
   project:
