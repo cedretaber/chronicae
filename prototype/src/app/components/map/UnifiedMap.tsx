@@ -244,15 +244,6 @@ export function UnifiedMap() {
 
   return (
     <div className="relative h-full w-full">
-      <div
-        className="pointer-events-none absolute inset-0 z-0"
-        style={{
-          backgroundImage: `url(${stateMapBackground})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          opacity: MAP_ICON_CONFIG.backgroundOpacity,
-        }}
-      />
       <MapLegend />
       {/* Zoom controls */}
       <div className="absolute bottom-3 left-3 z-20 flex flex-col gap-1">
@@ -292,6 +283,20 @@ export function UnifiedMap() {
             transformOrigin: '0 0',
           }}
         >
+          {/* Layer 0: 背景地図。地図座標系 (viewBox) に固定し、pan/zoom と連動させる
+              (旧: ビューポート固定の cover div で、拡大時に背景だけ動かず不自然だった)。
+              slice = CSS の background-size:cover 相当 (アスペクト比を保って box を充填)。 */}
+          <image
+            href={stateMapBackground}
+            x={bx0}
+            y={by0}
+            width={vw}
+            height={vh}
+            preserveAspectRatio="xMidYMid slice"
+            opacity={MAP_ICON_CONFIG.backgroundOpacity}
+            pointerEvents="none"
+          />
+
           {/* Layer 1: Province cells — state-colored (far) */}
           <g
             style={{
