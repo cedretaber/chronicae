@@ -644,8 +644,10 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
 
       // v0.49 §15: 恒久 BattleLog を生成 (minor は作らない。§15.6)。Battle entity と異なり war cleanup で消えない。
       const importance = battleLogImportance(sim)
+      // major 会戦のみ ChronicleEntry に battleLog ref を付け年代記から再生パネルへリンクする (恒久=dangling しない)。
+      let majorBattleLogId: string | undefined
       if (importance !== 'minor') {
-        createBattleLogMut(ws, {
+        const createdLog = createBattleLogMut(ws, {
           warId: wid,
           battleId: battleEntity.id,
           week: absoluteWeek,
@@ -663,6 +665,7 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
           defenderCommanders: sim.defenderCommanderAssignments,
           tickLogs: sim.tickLogs,
         })
+        if (importance === 'major') majorBattleLogId = createdLog.id
       }
 
       // §19.1 [DEBUG:BATTLE_SIM] per-battle 観察ログ (debug 時のみ)。
@@ -717,6 +720,7 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         defenderRoutedCount: sim.defenderRoutedRegimentIds.length,
         ...(sim.breakthroughSide !== undefined ? { breakthroughSide: sim.breakthroughSide } : {}),
         pursuitOccurred: sim.pursuitOccurred,
+        ...(majorBattleLogId ? { battleLogId: majorBattleLogId } : {}),
       })
 
       // v0.49 §16.3: 決定的勝敗 (rout) の総大将に会戦単位 reputation を付与する (突出武功/大失態)。

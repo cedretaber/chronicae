@@ -436,6 +436,9 @@ export type BattleOccurredInput = {
   defenderRoutedCount?: number
   breakthroughSide?: WarSideKey
   pursuitOccurred?: boolean
+  // 会戦再生 UI: major 会戦のみ恒久 BattleLog の id を渡す。ChronicleEntry に battleLog ref を付け
+  //   年代記から会戦再生パネルへリンクする。normal は retention で purge されるため渡さない (dangling 防止)。
+  battleLogId?: string
 }
 
 // §11.1 BATTLE_OCCURRED (normal)。warScore 変化は warScoreDelta / warScoreAfter で表現。
@@ -465,6 +468,10 @@ export function emitBattleOccurred(
   // v0.49 §16.2: war ref は emit() が params.warId から自動付与する (chronicleIndex.byWar 駆動)。
   if (input.provinceId) {
     refs.push(entityRef('province', input.provinceId, 'province', provinceNameKey))
+  }
+  // 会戦再生 UI: major 会戦のみ BattleLog ref を付け、年代記から会戦再生パネルへリンクする。
+  if (input.battleLogId) {
+    refs.push(entityRef('battleLog', input.battleLogId, 'battle'))
   }
   for (const [id, role] of [
     [input.attackerCaptainGeneralId, 'attacker_captain_general'],

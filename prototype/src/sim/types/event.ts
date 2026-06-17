@@ -207,6 +207,9 @@ export type EventEntityKind =
   | 'clan'
   // v0.49: 戦争・会戦系 ChronicleEntry を chronicleIndex.byWar に振るための ref kind (§16.2)。
   | 'war'
+  // 会戦再生 UI: major BATTLE_OCCURRED の ChronicleEntry から恒久 BattleLog へのリンク用 ref kind。
+  //   index bucket は持たない (indexBucketForKind の default で無視) — ナビゲーション専用。
+  | 'battleLog'
 
 export type EventEntityRef = {
   kind: EventEntityKind
