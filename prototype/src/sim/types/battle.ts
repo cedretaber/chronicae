@@ -1,5 +1,6 @@
 import type { BattleId, RegimentId, WarId, ProvinceId, HoldingId, PersonId } from './ids'
 import type { WarSideKey, BattlefieldKind, BattleResult, BattleInitiationKind } from './war'
+import type { BattleDestroyedCause } from './battleLog'
 
 // v0.36: Battle entity の最小導入。battle internal tick / frontline simulation はまだ行わない (v0.37 以降)。
 //   War detail / recent history 用の短期 entity と位置づけ、cleanupWarSystem の terminal War 削除に
@@ -35,6 +36,9 @@ export type BattleRegimentResult = {
   moraleBefore?: number
   moraleAfter?: number
   moraleDamage?: number
+
+  // v0.49 §14.2: destroyed の原因タグ (destroyed = strengthAfter <= threshold の連隊のみ set)。
+  destroyedCause?: BattleDestroyedCause
 }
 
 // §7 Battle

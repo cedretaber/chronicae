@@ -531,6 +531,7 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         moraleBefore: rr.moraleBefore,
         moraleAfter: rr.moraleAfter,
         moraleDamage: rr.moraleDamage,
+        ...(rr.destroyedCause !== undefined ? { destroyedCause: rr.destroyedCause } : {}),
       }))
       for (const rr of sim.regimentResults) {
         updateRegimentMut(ws, rr.regimentId, {

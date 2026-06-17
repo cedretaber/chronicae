@@ -15,7 +15,12 @@ import type {
   BattleTickUnit,
 } from '../types/battle'
 import type { RegimentTroopKind } from '../types/regiment'
-import type { BattleEngagementArc, BattleTickLog, BattleLogEntry } from '../types/battleLog'
+import type {
+  BattleEngagementArc,
+  BattleTickLog,
+  BattleLogEntry,
+  BattleDestroyedCause,
+} from '../types/battleLog'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
@@ -95,6 +100,9 @@ type BattleSimConfigSlice = Pick<
   | 'battleBreakthroughBaseChance'
   | 'battleBreakthroughAbilityGapThreshold'
   | 'battleBreakthroughOrgDamageMultiplier'
+  | 'battlePursuitBaseChance'
+  | 'battlePursuitDestroyedChance'
+  | 'battlePursuitOrgDamageMultiplier'
   | 'commanderAssignedRegimentEffectMax'
   | 'commanderAdjacentRegimentEffectRatio'
   | 'captainGeneralBattleOrganizationDamageEffectMax'
@@ -133,6 +141,7 @@ type BattleSimRegimentOutput = {
   moraleDamage: number
   wasInitialFrontline: boolean
   routed: boolean
+  destroyedCause?: BattleDestroyedCause // v0.49 §14.2: strengthAfter===0 の連隊の原因タグ
 }
 
 export type BattleSimResult = {
@@ -144,7 +153,7 @@ export type BattleSimResult = {
   attackerRoutedRegimentIds: RegimentId[]
   defenderRoutedRegimentIds: RegimentId[]
   breakthroughSide?: WarSideKey
-  pursuitOccurred: false
+  pursuitOccurred: boolean
   attackerCommanderAssignments: BattleCommanderAssignment[]
   defenderCommanderAssignments: BattleCommanderAssignment[]
   regimentResults: BattleSimRegimentOutput[]
@@ -583,6 +592,9 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
   const tickLogs: BattleTickLog[] = []
   // v0.49 §11: 実 breakthrough が発生した side を記録 (Battle entity の breakthroughSide)。
   const breakthroughBySide: Record<WarSideKey, boolean> = { attacker: false, defender: false }
+  // v0.49 §12: 追撃が発生したか + 追撃で致死量まで押し下げた連隊の原因タグ (destroyedCause 用)。
+  let pursuitOccurred = false
+  const pursuitDestroyedCause = new Map<WorkRegiment, BattleDestroyedCause>()
 
   // §8.2 両端ケース: 片側 (または双方) が fighting force 0 なら戦闘 tick を回さず即決着する。
   //   tactic 選択を含む draw を一切消費しない (auto-resolve は後続 battle の rng stream を乱さない)。
@@ -635,6 +647,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
     const atkEngagements: Engagement[] = []
     const defEngagements: Engagement[] = []
     const tickEvents: BattleLogEntry[] = []
+    const brokenTargets = new Set<WorkRegiment>() // §12: この tick に突破された連隊 (pursuit bonus)
     const addDmg = (tgt: WorkRegiment, dmg: number): void => {
       incoming.set(tgt, (incoming.get(tgt) ?? 0) + dmg)
     }
@@ -689,6 +702,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
       e.tgt.organization = Math.min(e.tgt.organization, effRoute)
       e.tgt.accumulatedOrgDamage *= cfg.battleBreakthroughOrgDamageMultiplier
       breakthroughBySide[srcSide] = true
+      brokenTargets.add(e.tgt)
       tickEvents.push({
         kind: 'breakthrough',
         side: srcSide,
@@ -705,6 +719,97 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
     // 3. retreat / rout 判定 (マーク only。§13.1)。flanking を受けた連隊は rout しやすい。
     classifyLine(atkLine, cfg, cgRoutResistBySide.attacker, flankedAtk)
     classifyLine(defLine, cfg, cgRoutResistBySide.defender, flankedDef)
+
+    // 3.5 pursuit (§12: classify 後・除去前。§18.2 step5: attacker 追撃 → defender 追撃、eligible のみ draw)。
+    //   敗走/退却した敵 slot に対し、正面の味方 (なければその敵を flanking 攻撃した味方) が追撃する。
+    const tryPursuit = (
+      enemyLine: BattleLine, // 敗走側 (追撃される側)
+      friendlyLine: BattleLine, // 追撃する側
+      engagements: Engagement[], // 追撃側がこの tick に行った engagement (flanker 特定用)
+      pursuerSide: WarSideKey,
+    ): void => {
+      for (let i = 0; i < frontage; i++) {
+        const enemy = enemyLine.slots[i]
+        if (enemy === undefined || !(enemy.routed || enemy.retreated)) continue
+        // pursuer 確定: ① 正面 slot i の健全な味方、② いなければ enemy を flanking 攻撃した味方 (slot 昇順)。
+        let pursuer: WorkRegiment | undefined
+        const front = friendlyLine.slots[i]
+        if (front !== undefined && !front.routed && !front.retreated) {
+          pursuer = front
+        } else {
+          for (const e of engagements) {
+            if (e.tgt === enemy && e.arc === 'flanking' && !e.src.routed && !e.src.retreated) {
+              pursuer = e.src
+              break // engagements は slot 昇順なので先頭が最小 slot
+            }
+          }
+        }
+        if (pursuer === undefined) continue
+        // pursuit chance: base × 能力 × (cavalry / 戦術有利 / 突破済 / 開地形) bonus。補助係数は helper 固定値 (§20)。
+        const pursuitScore = pursuer.commanderPursuitScore ?? NEUTRAL_COMMANDER_SCORE
+        const abilityMult = 1 + clamp((pursuitScore - NEUTRAL_COMMANDER_SCORE) / 50, -0.5, 1)
+        const cavalryMult = pursuer.input.troopKind === 'cavalry' ? 1.5 : 1
+        const tacticMult = tactics.advantageSide === pursuerSide ? 1.3 : 1
+        const breakthroughMult = brokenTargets.has(enemy) ? 1.3 : 1
+        const terrainMult = BREAKTHROUGH_KINDS.has(input.battlefieldKind) ? 1.2 : 1
+        const chance = clamp(
+          cfg.battlePursuitBaseChance *
+            abilityMult *
+            cavalryMult *
+            tacticMult *
+            breakthroughMult *
+            terrainMult,
+          0,
+          0.95,
+        )
+        const draw = randomFloat(rng)
+        rng = draw.rng
+        if (draw.value >= chance) continue
+        // 追撃成功: routed 強制 + accumulatedOrgDamage / morale 増幅。
+        pursuitOccurred = true
+        enemy.routed = true
+        enemy.accumulatedOrgDamage *= cfg.battlePursuitOrgDamageMultiplier
+        enemy.morale = clamp(
+          enemy.morale - cfg.routAdditionalMoraleDamage,
+          0,
+          enemy.input.maxMorale,
+        )
+        // destroyed 抽選 (§12.4)。成功時は終局式で strengthAfter=0 を保証する致死量まで押し上げる。
+        const destroyDraw = randomFloat(rng)
+        rng = destroyDraw.rng
+        let destroyed = false
+        if (destroyDraw.value < cfg.battlePursuitDestroyedChance) {
+          const lethal =
+            enemy.input.strength /
+            (cfg.battleStrengthDamageRatio * cfg.routedStrengthDamageMultiplier)
+          enemy.accumulatedOrgDamage = Math.max(enemy.accumulatedOrgDamage, lethal)
+          destroyed = true
+          pursuitDestroyedCause.set(
+            enemy,
+            brokenTargets.has(enemy) ? 'breakthrough_pursuit' : 'pursuit',
+          )
+        }
+        tickEvents.push({
+          kind: 'pursuit',
+          side: pursuerSide,
+          pursuerRegimentId: pursuer.input.regimentId,
+          targetRegimentId: enemy.input.regimentId,
+          targetSlotIndex: i,
+          destroyed,
+        })
+        if (destroyed) {
+          tickEvents.push({
+            kind: 'regiment_destroyed',
+            side: pursuerSide === 'attacker' ? 'defender' : 'attacker',
+            regimentId: enemy.input.regimentId,
+            slotIndex: i,
+            cause: brokenTargets.has(enemy) ? 'breakthrough_pursuit' : 'pursuit',
+          })
+        }
+      }
+    }
+    tryPursuit(defLine, atkLine, atkEngagements, 'attacker')
+    tryPursuit(atkLine, defLine, defEngagements, 'defender')
 
     // 4. retreat / rout 連隊を slot から除去 (master には残る) → reserve から補充
     removeRoutedAndRetreatedFromSlots(atkLine, cfg)
@@ -848,6 +953,10 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
         outcomeStrMult *
         powerDisMult
       const strengthAfter = Math.max(0, w.input.strength - strDamage)
+      // v0.49 §14.2: destroyed (strengthAfter===0) のみ原因タグを付す。
+      //   pursuit 致死で押し下げた連隊は pursuit/breakthrough_pursuit、それ以外の壊滅は ordinary_attrition。
+      const destroyedCause: BattleDestroyedCause | undefined =
+        strengthAfter <= 0 ? (pursuitDestroyedCause.get(w) ?? 'ordinary_attrition') : undefined
       regimentResults.push({
         regimentId: w.input.regimentId,
         side: w.input.side,
@@ -862,6 +971,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
         moraleDamage: w.input.morale - w.morale,
         wasInitialFrontline: w.wasInitialFrontline,
         routed: w.routed,
+        ...(destroyedCause !== undefined ? { destroyedCause } : {}),
       })
     }
   }
@@ -875,7 +985,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
     attackerRoutedRegimentIds,
     defenderRoutedRegimentIds,
     ...(breakthroughSide !== undefined ? { breakthroughSide } : {}),
-    pursuitOccurred: false,
+    pursuitOccurred,
     attackerCommanderAssignments,
     defenderCommanderAssignments,
     regimentResults,

@@ -323,6 +323,57 @@ describe('simulateBattle breakthrough (v0.49 §11)', () => {
   })
 })
 
+describe('simulateBattle pursuit (v0.49 §12)', () => {
+  it('追撃成功 + destroyed 抽選で敗走連隊が壊滅 (strengthAfter=0, destroyedCause=pursuit)', () => {
+    // 強力な attacker が劣勢 defender を敗走させ、正面の味方が追撃する。destroyed 抽選を 1.0 に。
+    let found = false
+    for (let i = 0; i < 40 && !found; i++) {
+      const r = simulateBattle(
+        makeInput(
+          [reg('a1', 'attacker', { effectivePower: 120, basePower: 120 })],
+          [reg('d1', 'defender', { effectivePower: 8, organization: 22, morale: 1 })],
+          {
+            frontage: 1,
+            maxTicks: 3,
+            battlefieldKind: 'open_field',
+            config: {
+              ...defaultConfig,
+              battlePursuitBaseChance: 2,
+              battlePursuitDestroyedChance: 1,
+            },
+            attackerCommanders: [cmd('p1', 60, 60)],
+            rng: createRng('pursuit-' + i),
+          },
+        ),
+      )
+      const d1res = r.regimentResults.find((x) => x.regimentId === 'd1')!
+      if (d1res.destroyedCause === 'pursuit') {
+        found = true
+        expect(r.pursuitOccurred).toBe(true)
+        expect(d1res.strengthAfter).toBe(0) // 致死量保証 (threshold=0 でも壊滅)
+        const pl = r.tickLogs.flatMap((t) => t.events).filter((e) => e.kind === 'pursuit')
+        expect(pl.length).toBeGreaterThan(0)
+        const dl = r.tickLogs
+          .flatMap((t) => t.events)
+          .filter((e) => e.kind === 'regiment_destroyed')
+        expect(dl.length).toBeGreaterThan(0)
+      }
+    }
+    expect(found).toBe(true)
+  })
+
+  it('追撃が起きなければ pursuitOccurred=false (base chance 0)', () => {
+    const r = simulateBattle(
+      makeInput([reg('a1', 'attacker')], [reg('d1', 'defender')], {
+        frontage: 1,
+        maxTicks: 3,
+        config: { ...defaultConfig, battlePursuitBaseChance: 0 },
+      }),
+    )
+    expect(r.pursuitOccurred).toBe(false)
+  })
+})
+
 describe('simulateBattle slot invariant (v0.49 §21.A)', () => {
   it('initialFrontline は frontage を超えず重複しない (slot 会計)', () => {
     // 5 attacker、frontage 3 → ちょうど 3 連隊が初期 frontline、全 unique。
