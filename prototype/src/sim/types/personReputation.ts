@@ -7,7 +7,14 @@
 //   現在値の計算・任用補正は baseScore の符号に基づき、outcome は参照しない (§4.1)。
 // - hard-delete (cleanup §4.5: expiry 超過 or 本人死亡のみ。index 不整合は integrity §12.1 の検出対象)。
 
-import type { PersonReputationId, PersonId, ProjectId, DiplomaticPlayId, WarId } from './ids'
+import type {
+  PersonReputationId,
+  PersonId,
+  ProjectId,
+  DiplomaticPlayId,
+  WarId,
+  BattleId,
+} from './ids'
 import type { ProjectKind } from './project'
 import type { DiplomaticPlayKind } from './diplomaticPlay'
 import type { OrganizationRef } from './office'
@@ -37,7 +44,7 @@ export const VALID_REPUTATION_CATEGORIES: ReadonlyArray<ReputationCategory> = [
 export type PersonReputationSource =
   | { kind: 'project'; projectKind: ProjectKind; projectId?: ProjectId }
   | { kind: 'diplomatic_play'; playKind: DiplomaticPlayKind; playId?: DiplomaticPlayId }
-  | { kind: 'war'; warId?: WarId }
+  | { kind: 'war'; warId?: WarId; battleId?: BattleId } // v0.49 §16.3: 会戦単位 reputation で battleId を付す
   // v0.48: 民衆反乱の代官罷免による統治失敗の悪評 (stewardship)。
   | { kind: 'revolt'; playId?: DiplomaticPlayId }
 

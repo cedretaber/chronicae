@@ -1,8 +1,11 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
 import type { WarSide, WarSideKey, BattleInitiationKind } from '../types/war'
-import type { WarId, PersonId, PolityId } from '../types/ids'
+import type { WarId, PersonId, PolityId, BattleId, EventId } from '../types/ids'
 import { createBattleId } from '../types/ids'
+import type { SimEvent } from '../types/event'
+import type { CreateSimEventInput } from './context'
+import { awardPersonReputationMut } from '../helpers/awardHelpers'
 import type { Regiment } from '../types/regiment'
 import type { BattleRegimentResult } from '../types/battle'
 import type { RngState } from '../rng/rng'
@@ -50,6 +53,56 @@ import {
 } from '../selectors/warManeuverSelectors'
 import { emitBattleOccurred, emitBattleAvoided, emitCaptainGeneralChanged } from './warEvents'
 import { createLogger } from '../debug/logger'
+
+// v0.49 §16.3: 会戦単位 reputation。決定的勝敗 (outcomeQuality=rout) の総大将に military reputation を付与する
+//   (突出武功 = winner の +feat、大失態 = loser の -failure)。通常会戦には配らず、既存の戦争終結 award を中心にする。
+//   awardPersonReputationMut は mutable ws + emitEvent を要求するため、TickContext の events に橋渡しする
+//   (diplomaticPlayRevolt.awardReputationViaContext と同パターン)。emitEvent は PERSON_REPUTATION_GAINED/
+//   DAMAGED を生み、これは chronicle (category 'life', byPerson) に projection される = 死後も残る武功記録。
+function awardCaptainGeneralBattleReputations(
+  ctx: TickContext,
+  ws: WorldState,
+  config: SimulationConfig,
+  opts: { warId: WarId; battleId: BattleId; winnerCG?: PersonId; loserCG?: PersonId },
+): TickContext {
+  let eventIndex = ctx.nextEventIndex
+  const newEvents: SimEvent[] = []
+  const emitEvent = (e: CreateSimEventInput): void => {
+    const id = `e-${ws.absoluteWeek}-${eventIndex}` as EventId
+    eventIndex++
+    newEvents.push({
+      id,
+      year: ws.currentYear,
+      weekOfYear: ws.currentWeekOfYear,
+      type: e.type,
+      importance: e.importance,
+      messageKey: e.messageKey,
+      messageParams: e.messageParams,
+      entityRefs: e.entityRefs ?? [],
+      reasons: e.reasons ?? [],
+      effects: e.effects ?? [],
+    })
+  }
+  const award = (personId: PersonId, baseScore: number): void => {
+    awardPersonReputationMut(
+      ws,
+      config,
+      {
+        personId,
+        source: { kind: 'war', warId: opts.warId, battleId: opts.battleId },
+        category: 'military',
+        baseScore,
+      },
+      emitEvent,
+    )
+  }
+  if (opts.winnerCG !== undefined)
+    award(opts.winnerCG, config.battleCaptainGeneralFeatReputationScore)
+  if (opts.loserCG !== undefined)
+    award(opts.loserCG, -config.battleCaptainGeneralFailureReputationScore)
+  if (newEvents.length === 0) return ctx
+  return { ...ctx, events: [...ctx.events, ...newEvents], nextEventIndex: eventIndex }
+}
 
 // v0.35 §7 WarManeuverSystem — 旧 WarProgressSystem を置換する (intervalWeeks 1 / 毎週)。
 //
@@ -662,6 +715,20 @@ export function runWarManeuverSystem(ctx: TickContext): TickContext {
         ...(sim.breakthroughSide !== undefined ? { breakthroughSide: sim.breakthroughSide } : {}),
         pursuitOccurred: sim.pursuitOccurred,
       })
+
+      // v0.49 §16.3: 決定的勝敗 (rout) の総大将に会戦単位 reputation を付与する (突出武功/大失態)。
+      if (sim.outcomeQuality === 'rout') {
+        const winnerCG = sim.result === 'attacker_victory' ? atkCG : defCG
+        const loserCG = sim.result === 'attacker_victory' ? defCG : atkCG
+        if (winnerCG !== undefined || loserCG !== undefined) {
+          nn = awardCaptainGeneralBattleReputations(nn, ws, config, {
+            warId: wid,
+            battleId: battleEntity.id,
+            ...(winnerCG !== undefined ? { winnerCG } : {}),
+            ...(loserCG !== undefined ? { loserCG } : {}),
+          })
+        }
+      }
       return nn
     }
 

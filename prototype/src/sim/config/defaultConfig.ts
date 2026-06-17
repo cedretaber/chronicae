@@ -687,6 +687,9 @@ export type SimulationConfig = {
   battleBreakthroughOrgDamageMultiplier: number
   //   destroyed の warScore 反映 (§14.5)
   battleDestroyedWarScoreWeight: number
+  // 会戦単位 reputation (§16.3。総大将の decisive victory/defeat。突出武功/大失態のみ)
+  battleCaptainGeneralFeatReputationScore: number
+  battleCaptainGeneralFailureReputationScore: number
   //   交戦 contest (§5.4。片側回避時に両総大将の insight+command で捕捉/離脱を判定)
   battleEngagementCaptureBaseChance: number
   battleEngagementCaptureAbilityScale: number
@@ -1980,6 +1983,9 @@ export const defaultConfig: SimulationConfig = {
   battleBreakthroughOrgDamageMultiplier: 1.3,
   //   destroyed の warScore 反映 (控えめ)
   battleDestroyedWarScoreWeight: 0.15,
+  //   会戦単位 reputation (§16.3。総大将の decisive victory/defeat のみ。突出武功/大失態)
+  battleCaptainGeneralFeatReputationScore: 12,
+  battleCaptainGeneralFailureReputationScore: 14,
   //   交戦 contest (catcher 有利で base 0.5 から ±ability。warAvoidanceWarCommandEffect と同水準の感度)
   battleEngagementCaptureBaseChance: 0.5,
   battleEngagementCaptureAbilityScale: 0.5,
