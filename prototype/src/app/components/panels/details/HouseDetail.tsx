@@ -27,7 +27,9 @@ import {
   ShareholderSection,
   HouseRightsSection,
   EntityChronicleSection,
+  CollapsibleSection,
 } from './shared/widgets'
+import { useCollapsedSections } from '@/app/hooks/useCollapsedSections'
 import { ProjectCard } from './shared/ProjectCard'
 import { getHousePrimaryPolityId } from '@sim/selectors/polityRelations'
 import {
@@ -81,6 +83,7 @@ export function HouseDetail({
   void onHouseClick // v0.42c: ShareholderSection の person-only 化で未使用に (props API は維持)
   const { t } = useTranslation()
   const resolveName = useEntityName()
+  const sections = useCollapsedSections()
   const renderEvent = useRenderEvent()
   const isWatching = watchlist.includes(house.id)
   const currentState = session?.currentState
@@ -277,25 +280,30 @@ export function HouseDetail({
         </div>
       </div>
 
-      <div className="mt-1 text-sm font-semibold text-gray-300">{t('detail.house.military')}</div>
-      <div className="text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.house.levy_power')}:</span>
-          <span>{formatPower(levyPower)}</span>
+      <CollapsibleSection
+        title={t('detail.house.military')}
+        open={sections.isOpen('military')}
+        onToggle={() => sections.toggle('military')}
+      >
+        <div className="text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.house.levy_power')}:</span>
+            <span>{formatPower(levyPower)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.house.mercenary_power')}:</span>
+            <span>{formatPower(mercenaryPower)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.house.commander_mod')}:</span>
+            <span>{commanderModifier.toFixed(2)}x</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.house.total_military')}:</span>
+            <span className="font-medium">{formatPower(totalMilitaryPower)}</span>
+          </div>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.house.mercenary_power')}:</span>
-          <span>{formatPower(mercenaryPower)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.house.commander_mod')}:</span>
-          <span>{commanderModifier.toFixed(2)}x</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.house.total_military')}:</span>
-          <span className="font-medium">{formatPower(totalMilitaryPower)}</span>
-        </div>
-      </div>
+      </CollapsibleSection>
 
       <div className="text-sm">
         <div className="flex justify-between">
@@ -454,16 +462,17 @@ export function HouseDetail({
         })()}
 
       {recentEvents.length > 0 && (
-        <div>
-          <div className="text-sm font-semibold text-gray-300">
-            {t('detail.house.recent_events')}:
-          </div>
+        <CollapsibleSection
+          title={t('detail.house.recent_events')}
+          open={sections.isOpen('recent_events')}
+          onToggle={() => sections.toggle('recent_events')}
+        >
           {recentEvents.map((e) => (
             <div key={e.id} className={`text-xs ${getImportanceColor(e.importance)}`}>
               [{formatYearWeek(e.year, e.weekOfYear)}] {renderEvent(e)}
             </div>
           ))}
-        </div>
+        </CollapsibleSection>
       )}
 
       {/* v0.38 §8: 家の記録 (永続 Chronicle) */}

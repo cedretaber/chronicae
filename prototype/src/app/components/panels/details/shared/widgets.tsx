@@ -105,6 +105,44 @@ export function DetailSection({
   )
 }
 
+// 折りたたみ可能なセクション。DetailSection と同じ冷色アクセントの見出しに開閉シェブロンを足し、
+// open のとき children を描く。状態は呼び出し側 (useCollapsedSections) が集約管理する controlled。
+//   情報量の多い詳細パネルで、ユーザーが不要な節を畳めるようにする (既定は開)。
+export function CollapsibleSection({
+  title,
+  count,
+  tone = 'default',
+  open,
+  onToggle,
+  children,
+}: {
+  title: ReactNode
+  count?: number
+  tone?: 'default' | 'alert'
+  open: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
+  const accent = tone === 'alert' ? '#b91c1c' : CHROME.accent
+  const textColor = tone === 'alert' ? 'text-red-300' : 'text-gray-300'
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className={`flex w-full items-baseline gap-1.5 border-l-2 pl-1.5 text-left text-sm font-semibold ${textColor}`}
+        style={{ borderColor: accent }}
+      >
+        <span className="w-3 shrink-0 text-xs text-gray-500">{open ? '▾' : '▸'}</span>
+        <span>{title}</span>
+        {count !== undefined && <span className="font-normal text-gray-500">({count})</span>}
+      </button>
+      {open && <div className="mt-1">{children}</div>}
+    </div>
+  )
+}
+
 // v0.38 §8: 対象 entity の永続歴史 (ChronicleEntry) を時系列降順で表示する共通 section。
 //   entries は selector 側で既に降順 sort 済み。category filter を後付けできるよう
 //   showCategories prop を最初から受け取る (未指定なら全カテゴリ表示。§8.2)。

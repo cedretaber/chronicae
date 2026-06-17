@@ -16,7 +16,9 @@ import {
   AttitudeList,
   EntityChronicleSection,
   PersonRightsSection,
+  CollapsibleSection,
 } from './shared/widgets'
+import { useCollapsedSections } from '@/app/hooks/useCollapsedSections'
 import { HouseLink } from './shared/links'
 import { ProjectCard } from './shared/ProjectCard'
 import { PersonCard } from './shared/PersonCard'
@@ -58,6 +60,7 @@ export function PersonDetail({
 }) {
   const { t } = useTranslation()
   const resolveName = useEntityName()
+  const sections = useCollapsedSections()
   const isWatching = watchlist.includes(person.id)
   const currentState = session?.currentState
   // 他の Detail パネルと同様、データ未ロード時は非表示にする
@@ -316,115 +319,135 @@ export function PersonDetail({
 
       <PersonAbilitiesSection person={person} />
 
-      <div className="text-sm font-semibold text-gray-300">
-        {t('detail.person.derived_scores')}:
-      </div>
-      <div className="text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.person.governance')}:</span>
-          <span>{Math.round((getRoleScore(worldState, person.id, 'governance') / 10) * 10)}</span>
+      <CollapsibleSection
+        title={t('detail.person.derived_scores')}
+        open={sections.isOpen('derived_scores')}
+        onToggle={() => sections.toggle('derived_scores')}
+      >
+        <div className="text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.person.governance')}:</span>
+            <span>{Math.round((getRoleScore(worldState, person.id, 'governance') / 10) * 10)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.person.stewardship')}:</span>
+            <span>
+              {Math.round((getRoleScore(worldState, person.id, 'stewardship') / 10) * 10)}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.person.diplomacy')}:</span>
+            <span>{Math.round((getRoleScore(worldState, person.id, 'diplomacy') / 10) * 10)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.person.intrigue')}:</span>
+            <span>{Math.round((getRoleScore(worldState, person.id, 'intrigue') / 10) * 10)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.person.war_command')}:</span>
+            <span>{Math.round((getRoleScore(worldState, person.id, 'warCommand') / 10) * 10)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.house.prestige')}:</span>
+            <span>{formatScore(person.legacyPrestige)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.house.wealth')}:</span>
+            <span>{formatAmount(person.wealth)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.person.importance')}:</span>
+            <span className="text-yellow-400">{Math.round(importanceScore)}</span>
+          </div>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.person.stewardship')}:</span>
-          <span>{Math.round((getRoleScore(worldState, person.id, 'stewardship') / 10) * 10)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.person.diplomacy')}:</span>
-          <span>{Math.round((getRoleScore(worldState, person.id, 'diplomacy') / 10) * 10)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.person.intrigue')}:</span>
-          <span>{Math.round((getRoleScore(worldState, person.id, 'intrigue') / 10) * 10)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.person.war_command')}:</span>
-          <span>{Math.round((getRoleScore(worldState, person.id, 'warCommand') / 10) * 10)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.house.prestige')}:</span>
-          <span>{formatScore(person.legacyPrestige)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.house.wealth')}:</span>
-          <span>{formatAmount(person.wealth)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.person.importance')}:</span>
-          <span className="text-yellow-400">{Math.round(importanceScore)}</span>
-        </div>
-      </div>
+      </CollapsibleSection>
 
       {/* v0.44 追補: 現在評判 (category 別合算 + クリックで個々の評判を展開) */}
       {person.alive && <PersonReputationSection worldState={worldState} personId={person.id} />}
 
-      <div className="text-sm font-semibold text-gray-300">{t('detail.person.traits')}:</div>
-      <div className="text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.person.ambition')}:</span>
-          <span>{formatScore(person.traits.ambition)}</span>
+      <CollapsibleSection
+        title={t('detail.person.traits')}
+        open={sections.isOpen('traits')}
+        onToggle={() => sections.toggle('traits')}
+      >
+        <div className="text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.person.ambition')}:</span>
+            <span>{formatScore(person.traits.ambition)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.person.caution')}:</span>
+            <span>{formatScore(person.traits.caution)}</span>
+          </div>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">{t('detail.person.caution')}:</span>
-          <span>{formatScore(person.traits.caution)}</span>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title={t('detail.person.family')}
+        open={sections.isOpen('family')}
+        onToggle={() => sections.toggle('family')}
+      >
+        <div className="flex flex-col gap-0.5 text-sm">
+          {person.fatherId !== undefined && (
+            <PersonCard
+              personId={person.fatherId}
+              worldState={worldState}
+              onPersonClick={onPersonClick}
+              onHouseClick={onHouseClick}
+              relationLabel={t('detail.person.father')}
+              showHouse
+            />
+          )}
+          {person.motherId !== undefined && (
+            <PersonCard
+              personId={person.motherId}
+              worldState={worldState}
+              onPersonClick={onPersonClick}
+              onHouseClick={onHouseClick}
+              relationLabel={t('detail.person.mother')}
+              showHouse
+            />
+          )}
+          {person.spouseId !== undefined && (
+            <PersonCard
+              personId={person.spouseId}
+              worldState={worldState}
+              onPersonClick={onPersonClick}
+              onHouseClick={onHouseClick}
+              relationLabel={t('detail.person.spouse')}
+              showHouse
+            />
+          )}
+          {person.childIds.slice(0, 8).map((cid) => (
+            <PersonCard
+              key={cid}
+              personId={cid}
+              worldState={worldState}
+              onPersonClick={onPersonClick}
+              onHouseClick={onHouseClick}
+              relationLabel={t('detail.person_card.child')}
+              showHouse
+            />
+          ))}
+          {person.childIds.length > 8 && (
+            <span className="text-xs text-gray-500">+{person.childIds.length - 8} more</span>
+          )}
         </div>
-      </div>
+      </CollapsibleSection>
 
-      <div className="text-sm font-semibold text-gray-300">{t('detail.person.family')}:</div>
-      <div className="flex flex-col gap-0.5 text-sm">
-        {person.fatherId !== undefined && (
-          <PersonCard
-            personId={person.fatherId}
-            worldState={worldState}
-            onPersonClick={onPersonClick}
-            onHouseClick={onHouseClick}
-            relationLabel={t('detail.person.father')}
-            showHouse
-          />
-        )}
-        {person.motherId !== undefined && (
-          <PersonCard
-            personId={person.motherId}
-            worldState={worldState}
-            onPersonClick={onPersonClick}
-            onHouseClick={onHouseClick}
-            relationLabel={t('detail.person.mother')}
-            showHouse
-          />
-        )}
-        {person.spouseId !== undefined && (
-          <PersonCard
-            personId={person.spouseId}
-            worldState={worldState}
-            onPersonClick={onPersonClick}
-            onHouseClick={onHouseClick}
-            relationLabel={t('detail.person.spouse')}
-            showHouse
-          />
-        )}
-        {person.childIds.slice(0, 8).map((cid) => (
-          <PersonCard
-            key={cid}
-            personId={cid}
-            worldState={worldState}
-            onPersonClick={onPersonClick}
-            onHouseClick={onHouseClick}
-            relationLabel={t('detail.person_card.child')}
-            showHouse
-          />
-        ))}
-        {person.childIds.length > 8 && (
-          <span className="text-xs text-gray-500">+{person.childIds.length - 8} more</span>
-        )}
-      </div>
-
-      <div className="text-sm font-semibold text-gray-300">{t('detail.person.attitudes')}:</div>
-      <AttitudeList
-        attitudes={person.attitudes}
-        worldState={worldState}
-        onPolityClick={onPolityClick}
-        onHouseClick={onHouseClick}
-        onPersonClick={onPersonClick}
-      />
+      <CollapsibleSection
+        title={t('detail.person.attitudes')}
+        open={sections.isOpen('attitudes')}
+        onToggle={() => sections.toggle('attitudes')}
+      >
+        <AttitudeList
+          attitudes={person.attitudes}
+          worldState={worldState}
+          onPolityClick={onPolityClick}
+          onHouseClick={onHouseClick}
+          onPersonClick={onPersonClick}
+        />
+      </CollapsibleSection>
 
       {/* v0.23 Person Goal/Aim */}
       {person.alive &&
