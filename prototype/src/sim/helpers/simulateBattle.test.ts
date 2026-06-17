@@ -277,6 +277,52 @@ describe('simulateBattle commander / captainGeneral 効果 (§13.5 / §14, C1)',
   })
 })
 
+describe('simulateBattle breakthrough (v0.49 §11)', () => {
+  it('能力差が閾値以上 + 突破可能地形なら突破成功で敵が rout + breakthroughSide=attacker', () => {
+    // 突破適性 90 の指揮官 (gap = 90 - 50 = 40 >= 15)、open_field、base chance 1.0。
+    const r = simulateBattle(
+      makeInput([reg('a1', 'attacker')], [reg('d1', 'defender')], {
+        frontage: 1,
+        maxTicks: 1,
+        battlefieldKind: 'open_field',
+        config: { ...defaultConfig, battleBreakthroughBaseChance: 1 },
+        attackerCommanders: [cmd('p1', 50, 90)],
+      }),
+    )
+    expect(r.defenderRoutedRegimentIds).toContain('d1')
+    expect(r.breakthroughSide).toBe('attacker')
+    // tick log に breakthrough イベントが記録される。
+    const bt = r.tickLogs.flatMap((t) => t.events).filter((e) => e.kind === 'breakthrough')
+    expect(bt.length).toBeGreaterThan(0)
+  })
+
+  it('突破不可地形 (mountain_pass) では能力差があっても突破しない', () => {
+    const r = simulateBattle(
+      makeInput([reg('a1', 'attacker')], [reg('d1', 'defender')], {
+        frontage: 1,
+        maxTicks: 1,
+        battlefieldKind: 'mountain_pass',
+        config: { ...defaultConfig, battleBreakthroughBaseChance: 1 },
+        attackerCommanders: [cmd('p1', 50, 90)],
+      }),
+    )
+    expect(r.breakthroughSide).toBeUndefined()
+  })
+
+  it('能力差が閾値未満なら突破しない', () => {
+    const r = simulateBattle(
+      makeInput([reg('a1', 'attacker')], [reg('d1', 'defender')], {
+        frontage: 1,
+        maxTicks: 1,
+        battlefieldKind: 'open_field',
+        config: { ...defaultConfig, battleBreakthroughBaseChance: 1 },
+        attackerCommanders: [cmd('p1', 50, 60)], // gap = 60 - 50 = 10 < 15
+      }),
+    )
+    expect(r.breakthroughSide).toBeUndefined()
+  })
+})
+
 describe('simulateBattle slot invariant (v0.49 §21.A)', () => {
   it('initialFrontline は frontage を超えず重複しない (slot 会計)', () => {
     // 5 attacker、frontage 3 → ちょうど 3 連隊が初期 frontline、全 unique。

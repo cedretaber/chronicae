@@ -680,9 +680,11 @@ export type SimulationConfig = {
   //   追撃 (§12)
   battlePursuitBaseChance: number
   battlePursuitDestroyedChance: number
+  battlePursuitOrgDamageMultiplier: number
   //   突破 (§11)
   battleBreakthroughBaseChance: number
   battleBreakthroughAbilityGapThreshold: number
+  battleBreakthroughOrgDamageMultiplier: number
   //   destroyed の warScore 反映 (§14.5)
   battleDestroyedWarScoreWeight: number
   //   交戦 contest (§5.4。片側回避時に両総大将の insight+command で捕捉/離脱を判定)
@@ -1968,12 +1970,14 @@ export const defaultConfig: SimulationConfig = {
   //   slot-based flanking (控えめに開始)
   battleFlankingDamageMultiplier: 1.25,
   battleFlankingRoutPenalty: 0.1,
-  //   追撃
+  //   追撃 (成功時に accumulatedOrgDamage を増幅、destroyed 抽選なら致死量まで)
   battlePursuitBaseChance: 0.15,
   battlePursuitDestroyedChance: 0.35,
-  //   突破
+  battlePursuitOrgDamageMultiplier: 1.5,
+  //   突破 (routed の 2.5x roleMult があるので org 増幅は控えめ)
   battleBreakthroughBaseChance: 0.08,
   battleBreakthroughAbilityGapThreshold: 15,
+  battleBreakthroughOrgDamageMultiplier: 1.3,
   //   destroyed の warScore 反映 (控えめ)
   battleDestroyedWarScoreWeight: 0.15,
   //   交戦 contest (catcher 有利で base 0.5 から ±ability。warAvoidanceWarCommandEffect と同水準の感度)

@@ -15,7 +15,7 @@ import type {
   BattleTickUnit,
 } from '../types/battle'
 import type { RegimentTroopKind } from '../types/regiment'
-import type { BattleEngagementArc, BattleTickLog } from '../types/battleLog'
+import type { BattleEngagementArc, BattleTickLog, BattleLogEntry } from '../types/battleLog'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { RngState } from '../rng/rng'
 import { randomFloat } from '../rng/rng'
@@ -92,6 +92,9 @@ type BattleSimConfigSlice = Pick<
   | 'battleUncommandedAdjacentSupportRatio'
   | 'battleTacticAdvantageDamageMultiplier'
   | 'battleTacticInsightReadEffect'
+  | 'battleBreakthroughBaseChance'
+  | 'battleBreakthroughAbilityGapThreshold'
+  | 'battleBreakthroughOrgDamageMultiplier'
   | 'commanderAssignedRegimentEffectMax'
   | 'commanderAdjacentRegimentEffectRatio'
   | 'captainGeneralBattleOrganizationDamageEffectMax'
@@ -164,12 +167,25 @@ type WorkRegiment = {
   commanderQ: number // §13.5 指揮官 quality bonus。v0.49 §9.2: 割当連隊は max(0,raw)、隣接は ratio 倍。default 0
   commanderPersonId?: PersonId // v0.49 §9: 直接指揮官あり (= uncommanded penalty なし)
   adjacentCommanderQ?: number // v0.49 §9: 隣接支援あり (= uncommanded penalty 軽減)。direct 不在時のみ set
+  commanderBreakthroughScore?: number // v0.49 §11: 割当指揮官の突破適性 (cmd.breakthroughScore)
+  commanderPursuitScore?: number // v0.49 §12: 割当指揮官の追撃適性 (cmd.pursuitScore)
 }
+
+// v0.49 §11/§12: 無指揮官連隊の breakthrough/pursuit 適性の中立基準 (平均的兵士)。
+const NEUTRAL_COMMANDER_SCORE = 50
 
 // v0.49 §6.1: frontline を fixed-length slot array として表現する。undefined は空き slot。
 //   slot は master 配列内の WorkRegiment への参照 (ID 参照ではない)。
 type BattleSlot = WorkRegiment | undefined
 type BattleLine = { slots: BattleSlot[] } // slots.length === effectiveFrontage
+
+// v0.49 §11/§12: 1 tick の attack engagement (src が tgt を攻撃)。breakthrough/pursuit が参照する。
+type Engagement = {
+  src: WorkRegiment
+  tgt: WorkRegiment
+  srcSlot: number
+  arc: BattleEngagementArc
+}
 
 const BREAKTHROUGH_KINDS: ReadonlySet<BattlefieldKind> = new Set<BattlefieldKind>([
   'open_field',
@@ -296,6 +312,8 @@ function assignCommanders(
     const q = Math.max(0, commanderQualityBonus(cmd.fieldCommandScore, cfg))
     tgt.commanderQ = q
     tgt.commanderPersonId = cmd.personId
+    tgt.commanderBreakthroughScore = cmd.breakthroughScore
+    tgt.commanderPursuitScore = cmd.pursuitScore
     assignedQ.set(tgt.input.regimentId, q)
     assignments.push({ commanderPersonId: cmd.personId, regimentId: tgt.input.regimentId })
   }
@@ -429,11 +447,29 @@ function applyOrgAndMorale(tgt: WorkRegiment, orgDmg: number, cfg: BattleSimConf
   tgt.morale = clamp(tgt.morale - moraleDmg, 0, tgt.input.maxMorale)
 }
 
-// §11.1 retreat/rout 判定。frontline の生存者 (org > retreatThreshold かつ not routed) を返す。
-//   routed は flag を立て追加 morale damage (§9.3)。retreat は frontline から外すのみ (flag なし)。
-//   §13.5/§14: commander quality (正のみ) と side の captainGeneral rout 耐性で effRoute を下げ rout しにくくする。
+// v0.49 §13.1: その連隊・その tick における実効 rout 閾値 (effectiveRouteThreshold)。
+//   base routeThreshold に morale 補正・rout 耐性 (commander/CG)・flanking/uncommanded ペナルティを反映。
+//   classify と breakthrough (org をこの閾値まで押し下げる) で共有する。
+function effectiveRouteThreshold(
+  w: WorkRegiment,
+  cfg: BattleSimConfigSlice,
+  cgRoutResist: number,
+  flanked: ReadonlySet<WorkRegiment>,
+): number {
+  const routResist = clamp(Math.max(0, w.commanderQ) + cgRoutResist, 0, 0.9)
+  // §7.2/§8: flanking を受けた連隊は rout しやすい。§9.3: 無指揮官連隊も rout しやすい。
+  const flankRoutMult = flanked.has(w) ? 1 + cfg.battleFlankingRoutPenalty : 1
+  const uncommandedRoutMult = 1 + uncommandedRoutPenalty(w, cfg)
+  return (
+    (cfg.routeOrganizationThreshold +
+      Math.max(0, w.input.baselineMorale - w.morale) * cfg.moraleRouteThresholdFactor) *
+    (1 - routResist) *
+    flankRoutMult *
+    uncommandedRoutMult
+  )
+}
+
 // v0.49 §13.1: classify はマークのみ (即時除去しない)。routed フラグを尊重し survivor に戻さない (C2)。
-//   §13.5/§14: commander quality (正のみ) と side の captainGeneral rout 耐性で effRoute を下げる。
 function classifyLine(
   line: BattleLine,
   cfg: BattleSimConfigSlice,
@@ -441,17 +477,8 @@ function classifyLine(
   flanked: ReadonlySet<WorkRegiment>,
 ): void {
   for (const w of occupiedSlots(line)) {
-    if (w.routed) continue // 既に routed (breakthrough/pursuit 由来。Phase2 では発生しない) は維持
-    const routResist = clamp(Math.max(0, w.commanderQ) + cgRoutResist, 0, 0.9)
-    // v0.49 §7.2/§8: flanking を受けた連隊は rout しやすい。§9.3: 無指揮官連隊も rout しやすい。
-    const flankRoutMult = flanked.has(w) ? 1 + cfg.battleFlankingRoutPenalty : 1
-    const uncommandedRoutMult = 1 + uncommandedRoutPenalty(w, cfg)
-    const effRoute =
-      (cfg.routeOrganizationThreshold +
-        Math.max(0, w.input.baselineMorale - w.morale) * cfg.moraleRouteThresholdFactor) *
-      (1 - routResist) *
-      flankRoutMult *
-      uncommandedRoutMult
+    if (w.routed) continue // 既に routed (breakthrough/pursuit 由来) は維持
+    const effRoute = effectiveRouteThreshold(w, cfg, cgRoutResist, flanked)
     if (w.organization <= effRoute) {
       w.routed = true
       w.morale = clamp(w.morale - cfg.routAdditionalMoraleDamage, 0, w.input.maxMorale)
@@ -459,6 +486,13 @@ function classifyLine(
       w.retreated = true // retreat: routed ではないが戦列から離脱する
     }
   }
+}
+
+// v0.49 §11: breakthrough 判定 helper。attacker が tgt を突破できるか + 成功時の効果。
+//   eligible: 攻撃側 breakthroughScore - 防御側 breakthroughScore >= threshold かつ地形が突破可能。
+//   成功: tgt を routed 化 (org を effRoute まで押し下げ) + accumulatedOrgDamage を控えめに増幅。
+function breakthroughScoreOf(w: WorkRegiment): number {
+  return w.commanderBreakthroughScore ?? NEUTRAL_COMMANDER_SCORE
 }
 
 // v0.49 §13.1: 除去述語。pursuit 判定後に slot から外す対象。
@@ -547,6 +581,8 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
   let ticksElapsed = 0
   let result: BattleResult | null = null
   const tickLogs: BattleTickLog[] = []
+  // v0.49 §11: 実 breakthrough が発生した side を記録 (Battle entity の breakthroughSide)。
+  const breakthroughBySide: Record<WarSideKey, boolean> = { attacker: false, defender: false }
 
   // §8.2 両端ケース: 片側 (または双方) が fighting force 0 なら戦闘 tick を回さず即決着する。
   //   tactic 選択を含む draw を一切消費しない (auto-resolve は後続 battle の rng stream を乱さない)。
@@ -595,6 +631,10 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
     const incoming = new Map<WorkRegiment, number>()
     const flankedAtk = new Set<WorkRegiment>()
     const flankedDef = new Set<WorkRegiment>()
+    // §11/§12: この tick の engagement (src→tgt)。breakthrough/pursuit が slot 昇順で参照する。
+    const atkEngagements: Engagement[] = []
+    const defEngagements: Engagement[] = []
+    const tickEvents: BattleLogEntry[] = []
     const addDmg = (tgt: WorkRegiment, dmg: number): void => {
       incoming.set(tgt, (incoming.get(tgt) ?? 0) + dmg)
     }
@@ -610,6 +650,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
       rng = toD.rng
       addDmg(D, toD.dmg * tacticMultAtk)
       if (t.arc === 'flanking') flankedDef.add(D)
+      atkEngagements.push({ src: A, tgt: D, srcSlot: i, arc: t.arc })
     }
     // defender → attacker
     for (let i = 0; i < frontage; i++) {
@@ -623,9 +664,43 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
       rng = toA.rng
       addDmg(A, toA.dmg * tacticMultDef)
       if (t.arc === 'flanking') flankedAtk.add(A)
+      defEngagements.push({ src: D, tgt: A, srcSlot: i, arc: t.arc })
     }
     // 同時適用
     for (const [tgt, dmg] of incoming) applyOrgAndMorale(tgt, dmg, cfg)
+
+    // 2.5 breakthrough (§11.2: combat 後・classify 前。§18.2 step3: atk slot 昇順 → def slot 昇順、eligible のみ draw)。
+    const tryBreakthrough = (
+      e: Engagement,
+      srcSide: WarSideKey,
+      tgtFlanked: ReadonlySet<WorkRegiment>,
+      tgtCgRoutResist: number,
+    ): void => {
+      if (e.tgt.routed) return // 既に routed なら判定不要
+      if (!BREAKTHROUGH_KINDS.has(input.battlefieldKind)) return
+      const gap = breakthroughScoreOf(e.src) - breakthroughScoreOf(e.tgt)
+      if (gap < cfg.battleBreakthroughAbilityGapThreshold) return
+      const draw = randomFloat(rng)
+      rng = draw.rng
+      if (draw.value >= cfg.battleBreakthroughBaseChance) return
+      // 成功: routed 化 + org を effRoute まで押し下げ + accumulatedOrgDamage 増幅 (§11.3)。
+      e.tgt.routed = true
+      const effRoute = effectiveRouteThreshold(e.tgt, cfg, tgtCgRoutResist, tgtFlanked)
+      e.tgt.organization = Math.min(e.tgt.organization, effRoute)
+      e.tgt.accumulatedOrgDamage *= cfg.battleBreakthroughOrgDamageMultiplier
+      breakthroughBySide[srcSide] = true
+      tickEvents.push({
+        kind: 'breakthrough',
+        side: srcSide,
+        regimentId: e.src.input.regimentId,
+        targetRegimentId: e.tgt.input.regimentId,
+        slotIndex: e.srcSlot,
+      })
+    }
+    for (const e of atkEngagements)
+      tryBreakthrough(e, 'attacker', flankedDef, cgRoutResistBySide.defender)
+    for (const e of defEngagements)
+      tryBreakthrough(e, 'defender', flankedAtk, cgRoutResistBySide.attacker)
 
     // 3. retreat / rout 判定 (マーク only。§13.1)。flanking を受けた連隊は rout しやすい。
     classifyLine(atkLine, cfg, cgRoutResistBySide.attacker, flankedAtk)
@@ -649,7 +724,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
       defenderSlotsBefore,
       attackerSlotsAfter: snapshotSlots(atkLine),
       defenderSlotsAfter: snapshotSlots(defLine),
-      events: [],
+      events: tickEvents,
     })
 
     // 5. 終了判定 (§8.2)。fighting = 占有 slot 数 + reserve (どちらも org > retreat の健全連隊)。
@@ -723,22 +798,12 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
     }
   }
 
-  // breakthroughSide (§12.1): cosmetic flag。勝者に cavalry reserve 残存 + 敗者に routed + 地形条件。
-  let breakthroughSide: WarSideKey | undefined
-  if (winnerSide && loserSide) {
-    const winnerReserve = winnerSide === 'attacker' ? atkRes : defRes
-    const winnerHasCavReserve = winnerReserve.some((w) => w.input.troopKind === 'cavalry')
-    const loserRoutedCount = (
-      loserSide === 'attacker' ? attackerRoutedRegimentIds : defenderRoutedRegimentIds
-    ).length
-    if (
-      winnerHasCavReserve &&
-      loserRoutedCount > 0 &&
-      BREAKTHROUGH_KINDS.has(input.battlefieldKind)
-    ) {
-      breakthroughSide = winnerSide
-    }
-  }
+  // v0.49 §11: breakthroughSide は実 breakthrough が発生した side。両側発生時は attacker 優先 (Battle entity 表示用)。
+  const breakthroughSide: WarSideKey | undefined = breakthroughBySide.attacker
+    ? 'attacker'
+    : breakthroughBySide.defender
+      ? 'defender'
+      : undefined
 
   // 終了後 strength damage (§9.4): 累積 org damage × role × outcomeQuality × powerDisadvantage。
   const outcomeStrMult =
