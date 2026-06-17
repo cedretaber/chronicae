@@ -186,15 +186,54 @@ describe('simulateBattle commander / captainGeneral 効果 (§13.5 / §14, C1)',
     )
     // q = clamp((100-50)/50,-1,1) × commanderAssignedRegimentEffectMax(0.15) = 0.15。
     const q = defaultConfig.commanderAssignedRegimentEffectMax
+    // v0.49 §9.3: base は a1 無指揮官 (与 damage ×(1-penalty))、withCmd は a1 直接指揮官 (penalty 解消 + ×(1+q))。
+    const pen = defaultConfig.battleUncommandedDamagePenalty
     expect(withCmd.attackerCommanderAssignments).toEqual([
       { commanderPersonId: 'p1', regimentId: 'a1' },
     ])
-    // 与 damage 増: defender (d1) が受ける org damage は ×(1+q)。
-    expect(orgDmgOf(withCmd, 'd1') / orgDmgOf(base, 'd1')).toBeCloseTo(1 + q, 5)
-    // 被 damage 減: attacker (a1) が受ける org damage は ×(1-q)。
+    // 与 damage 増: defender (d1) が受ける org damage は ×(1+q)/(1-penalty) (commander 効果 + uncommanded 解消)。
+    expect(orgDmgOf(withCmd, 'd1') / orgDmgOf(base, 'd1')).toBeCloseTo((1 + q) / (1 - pen), 5)
+    // 被 damage 減: attacker (a1) が受ける org damage は ×(1-q) (d1 は両ケース無指揮官で dealing 不変)。
     expect(orgDmgOf(withCmd, 'a1') / orgDmgOf(base, 'a1')).toBeCloseTo(1 - q, 5)
     // bounded: 効果は effectMax 内。
     expect(q).toBeLessThanOrEqual(0.15)
+  })
+
+  it('(d) 序列 invariant: 直接指揮官 ≥ 隣接支援 ≥ 完全無指揮官 (与 damage、§9.2)', () => {
+    // frontage 3。attacker 3 連隊 (slot0,1,2)、各々が def slot0,1,2 に frontal 攻撃。
+    //   同 power は regimentId 昇順 → a0 が最初に中央 slot1 へ。指揮官 1 人は中央 (a0) に割当 →
+    //   a0=直接、a1(slot0)/a2(slot2)=隣接支援。a0→d0(slot1)、a1→d1(slot0) が frontal pair。
+    //   random factor を固定 (min=max=1) して slot 間で commander 効果のみを比較する。
+    const fixedRng = { ...defaultConfig, battleRandomFactorMin: 1, battleRandomFactorMax: 1 }
+    const mkAtk = () => [
+      reg('a0', 'attacker', { effectivePower: 75 }),
+      reg('a1', 'attacker', { effectivePower: 75 }),
+      reg('a2', 'attacker', { effectivePower: 75 }),
+    ]
+    const mkDef = () => [
+      reg('d0', 'defender', { effectivePower: 75 }),
+      reg('d1', 'defender', { effectivePower: 75 }),
+      reg('d2', 'defender', { effectivePower: 75 }),
+    ]
+    const withCmd = simulateBattle(
+      makeInput(mkAtk(), mkDef(), {
+        frontage: 3,
+        maxTicks: 1,
+        config: fixedRng,
+        attackerCommanders: [
+          { personId: 'p1' as PersonId, fieldCommandScore: 100, breakthroughScore: 50 },
+        ],
+      }),
+    )
+    const directDmg = orgDmgOf(withCmd, 'd0') // a0 (直接指揮官, slot1) → d0
+    const adjacentDmg = orgDmgOf(withCmd, 'd1') // a1 (隣接支援, slot0) → d1
+    const noCmd = simulateBattle(
+      makeInput(mkAtk(), mkDef(), { frontage: 3, maxTicks: 1, config: fixedRng }),
+    )
+    const uncommandedDmg = orgDmgOf(noCmd, 'd1') // 完全無指揮官 → d1
+    // 直接 > 隣接支援 > 無指揮官 (与 damage)。
+    expect(directDmg).toBeGreaterThan(adjacentDmg)
+    expect(adjacentDmg).toBeGreaterThan(uncommandedDmg)
   })
 
   it('(c) 防御側 captainGeneral: 当該 side の被 org damage を最大 10% 軽減 (bounded)', () => {

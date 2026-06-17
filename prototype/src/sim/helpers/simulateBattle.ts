@@ -71,6 +71,9 @@ type BattleSimConfigSlice = Pick<
   | 'battleRandomFactorMax'
   | 'battleFlankingDamageMultiplier'
   | 'battleFlankingRoutPenalty'
+  | 'battleUncommandedDamagePenalty'
+  | 'battleUncommandedRoutPenalty'
+  | 'battleUncommandedAdjacentSupportRatio'
   | 'commanderAssignedRegimentEffectMax'
   | 'commanderAdjacentRegimentEffectRatio'
   | 'captainGeneralBattleOrganizationDamageEffectMax'
@@ -139,7 +142,9 @@ type WorkRegiment = {
   wasInitialFrontline: boolean
   routed: boolean
   retreated: boolean // v0.49 §6.1: org <= retreatThreshold で離脱 (rout ではない)。記録用フラグ。
-  commanderQ: number // §13.5 指揮官 quality bonus (signed, ∈[-effectMax, effectMax]、隣接は ratio 倍。default 0)
+  commanderQ: number // §13.5 指揮官 quality bonus。v0.49 §9.2: 割当連隊は max(0,raw)、隣接は ratio 倍。default 0
+  commanderPersonId?: PersonId // v0.49 §9: 直接指揮官あり (= uncommanded penalty なし)
+  adjacentCommanderQ?: number // v0.49 §9: 隣接支援あり (= uncommanded penalty 軽減)。direct 不在時のみ set
 }
 
 // v0.49 §6.1: frontline を fixed-length slot array として表現する。undefined は空き slot。
@@ -260,29 +265,51 @@ function assignCommanders(
       }
     }
     const cmd = remaining.splice(bestIdx, 1)[0]!
-    const q = commanderQualityBonus(cmd.fieldCommandScore, cfg)
+    // v0.49 §9.2: 割当連隊の commanderQ は負値を取らせない (低能力でも無指揮官より悪くしない)。
+    const q = Math.max(0, commanderQualityBonus(cmd.fieldCommandScore, cfg))
     tgt.commanderQ = q
+    tgt.commanderPersonId = cmd.personId
     assignedQ.set(tgt.input.regimentId, q)
     assignments.push({ commanderPersonId: cmd.personId, regimentId: tgt.input.regimentId })
   }
 
-  // v0.49 §9.4: 隣接 bonus は slot index ±1 で判定。割当を持たない frontline 連隊が、隣接 assigned
-  //   連隊の正 q × ratio を受ける (最大採用)。empty slot は支援なし。
+  // v0.49 §9.4: 隣接支援は slot index ±1 で判定。直接指揮官を持たない連隊が、隣接 assigned 連隊の
+  //   正 q × ratio を受ける (最大採用)。隣に直接指揮官がいれば adjacentCommanderQ を set し (q=0 でも
+  //   「支援あり」として uncommanded penalty を軽減)、empty slot は支援なし。
   for (let i = 0; i < line.slots.length; i++) {
     const w = line.slots[i]
-    if (w === undefined || assignedQ.has(w.input.regimentId)) continue
+    if (w === undefined || w.commanderPersonId !== undefined) continue
     let best = 0
+    let hasAdjacentCommander = false
     for (const j of [i - 1, i + 1]) {
       if (j < 0 || j >= line.slots.length) continue
       const nb = line.slots[j]
-      if (nb === undefined) continue
-      const nq = assignedQ.get(nb.input.regimentId)
-      if (nq !== undefined && nq > 0)
-        best = Math.max(best, nq * cfg.commanderAdjacentRegimentEffectRatio)
+      if (nb === undefined || nb.commanderPersonId === undefined) continue
+      hasAdjacentCommander = true
+      if (nb.commanderQ > 0)
+        best = Math.max(best, nb.commanderQ * cfg.commanderAdjacentRegimentEffectRatio)
     }
-    w.commanderQ = best
+    if (hasAdjacentCommander) {
+      w.commanderQ = best
+      w.adjacentCommanderQ = best
+    }
   }
   return assignments
+}
+
+// v0.49 §9.3: 無指揮官ペナルティ。直接指揮官あり=0、隣接支援あり=軽減、どちらも無し=全適用。
+function uncommandedDamagePenalty(w: WorkRegiment, cfg: BattleSimConfigSlice): number {
+  if (w.commanderPersonId !== undefined) return 0
+  if (w.adjacentCommanderQ !== undefined)
+    return cfg.battleUncommandedDamagePenalty * (1 - cfg.battleUncommandedAdjacentSupportRatio)
+  return cfg.battleUncommandedDamagePenalty
+}
+
+function uncommandedRoutPenalty(w: WorkRegiment, cfg: BattleSimConfigSlice): number {
+  if (w.commanderPersonId !== undefined) return 0
+  if (w.adjacentCommanderQ !== undefined)
+    return cfg.battleUncommandedRoutPenalty * (1 - cfg.battleUncommandedAdjacentSupportRatio)
+  return cfg.battleUncommandedRoutPenalty
 }
 
 // effectivePower 降順, tie regimentId 昇順 (deterministic, draw 無し)。
@@ -352,7 +379,9 @@ function computeOrgDamage(
   const { value, rng: nextRng } = randomFloat(rng)
   const randomFactor =
     cfg.battleRandomFactorMin + value * (cfg.battleRandomFactorMax - cfg.battleRandomFactorMin)
-  const commanderMult = (1 + src.commanderQ) * (1 - tgt.commanderQ)
+  // v0.49 §9.3: src が無指揮官なら与 damage が減る (uncommanded penalty)。
+  const commanderMult =
+    (1 + src.commanderQ) * (1 - tgt.commanderQ) * (1 - uncommandedDamagePenalty(src, cfg))
   const cgMult = 1 - cgDmgReductionBySide[tgt.input.side]
   const dmg =
     cfg.battleBaseOrganizationDamage *
@@ -387,13 +416,15 @@ function classifyLine(
   for (const w of occupiedSlots(line)) {
     if (w.routed) continue // 既に routed (breakthrough/pursuit 由来。Phase2 では発生しない) は維持
     const routResist = clamp(Math.max(0, w.commanderQ) + cgRoutResist, 0, 0.9)
-    // v0.49 §7.2/§8: この tick に flanking を受けた連隊は rout しやすい (effRoute を引き上げる)。
+    // v0.49 §7.2/§8: flanking を受けた連隊は rout しやすい。§9.3: 無指揮官連隊も rout しやすい。
     const flankRoutMult = flanked.has(w) ? 1 + cfg.battleFlankingRoutPenalty : 1
+    const uncommandedRoutMult = 1 + uncommandedRoutPenalty(w, cfg)
     const effRoute =
       (cfg.routeOrganizationThreshold +
         Math.max(0, w.input.baselineMorale - w.morale) * cfg.moraleRouteThresholdFactor) *
       (1 - routResist) *
-      flankRoutMult
+      flankRoutMult *
+      uncommandedRoutMult
     if (w.organization <= effRoute) {
       w.routed = true
       w.morale = clamp(w.morale - cfg.routAdditionalMoraleDamage, 0, w.input.maxMorale)
