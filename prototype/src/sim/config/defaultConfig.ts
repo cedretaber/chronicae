@@ -312,6 +312,12 @@ export type SimulationConfig = {
     Record<CrisisKind, { improvementKind: HoldingImprovementKind; reductionPerLevel: number }>
   >
   facilityConditionSeedJitterMin: number // worldgen seed の condition 下限 (上限 100, 第1波 desync)
+  // v0.48.2 定期保守点検 (§6.6b 3 段モデル)。condition が要保守帯 (disrepairThreshold 以上
+  //   maintenanceThreshold 未満) のとき、active な代官 + owner polity の財政があれば自動で回復する。
+  //   不変条件: facilityDisrepairThreshold < facilityMaintenanceThreshold ≤ 100。
+  facilityMaintenanceThreshold: number // これ未満 (かつ disrepairThreshold 以上) で代官が保守する
+  facilityMaintenanceConditionRestore: number // 保守成功時に回復する condition
+  facilityMaintenanceCostPerLevel: number // 保守 1 回あたり owner treasury から引く費用 = これ × level
   // Military v0.9
   houseManpowerPowerFactor: number
   houseMilitaryWealthReserve: number
@@ -1559,6 +1565,10 @@ export const defaultConfig: SimulationConfig = {
   facilityRepairConditionRestore: 100,
   warDamageConditionDrop: 40,
   facilityConditionSeedJitterMin: 70,
+  // v0.48.2 定期保守: 80 未満で代官が保守 → 100 に回復。費用 = 3 × level。
+  facilityMaintenanceThreshold: 80,
+  facilityMaintenanceConditionRestore: 100,
+  facilityMaintenanceCostPerLevel: 3,
   crisisDisrepairNeglectMultiplier: 0.4, // disrepair の neglect を他 Crisis の 40% に抑える (deadline 無しで長期蓄積するため)
   // 灌漑→干魃 / 貯蔵→飢饉 の被害軽減。max level 3 なので reduction 0.25/level = 最大 75% 軽減 (25% 残る)。
   crisisMitigationByKind: {

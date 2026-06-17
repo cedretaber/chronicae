@@ -36,7 +36,8 @@ import {
   adjustHoldingPopUnrestMut,
 } from '../mutations/popMutations'
 import { adjustHoldingPopAttitudeMut } from '../mutations/attitudeMutations'
-import { getHoldingTerminalPolityId, isPlaceholderPerson } from '../selectors/landContractSelectors'
+import { getHoldingTerminalPolityId } from '../selectors/landContractSelectors'
+import { getActiveBailiff } from '../selectors/bailiffSelectors'
 import { holdingNameParam } from '../selectors/nameRefSelectors'
 import { getHoldingImprovementEffectiveLevel } from '../selectors/holdingImprovementSelectors'
 import { getProvincePopulationPressure } from '../selectors/popSelectors'
@@ -44,18 +45,6 @@ import { getPolityLeader } from '../selectors/officeSelectors'
 import { selectProjectSupervisor } from '../selectors/projectSelectors'
 import { getInitialProjectStageKey } from '../config/projectStageSequences'
 import type { SimulationConfig } from '../config/defaultConfig'
-
-// holding に active・非 placeholder の代官 (bailiff) がいれば返す。
-function getActiveBailiff(ws: WorldState, holdingId: HoldingId): PersonId | undefined {
-  const officeId = ws.holdingOfficeIndex.byHolding[holdingId]
-  if (!officeId) return undefined
-  const a = ws.holdingOfficeAssignments[officeId]
-  if (!a || !a.active) return undefined
-  if (isPlaceholderPerson(ws, a.holderPersonId)) return undefined
-  const holder = ws.persons[a.holderPersonId]
-  if (!holder || !holder.alive) return undefined
-  return a.holderPersonId
-}
 
 // holding が指定 kind の Crisis を負う資格 (該当 POP を持つか) を判定する (§4.1 spawn フィルタ)。
 // famine/drought → peasants(agriculture)、plague → 何らかの POP。

@@ -1,10 +1,28 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { HoldingOfficeAssignmentId, HoldingId } from '../types/ids'
+import type { HoldingOfficeAssignmentId, HoldingId, PersonId } from '../types/ids'
 import type { Person } from '../types/person'
 import type { BailiffPolicy } from '../types/landContract'
 import type { BailiffRevenueTaskStatus } from '../types/task'
 import { clamp } from '../utils/math'
+import { isPlaceholderPerson } from './landContractSelectors'
+
+// --- getActiveBailiff ---
+
+// holding に active・非 placeholder・生存の代官 (bailiff) がいれば返す。
+// crisisSystem (対処担当者解決) と facilityMaintenanceSystem (定期保守) が共有する。
+// provinceOfficeSelectors の getHoldingBailiffPerson は active/placeholder/生存を絞らないため、
+// 「実働している代官が居るか」を厳密に問う用途にはこちらを使う。
+export function getActiveBailiff(state: WorldState, holdingId: HoldingId): PersonId | undefined {
+  const officeId = state.holdingOfficeIndex.byHolding[holdingId]
+  if (!officeId) return undefined
+  const a = state.holdingOfficeAssignments[officeId]
+  if (!a || !a.active) return undefined
+  if (isPlaceholderPerson(state, a.holderPersonId)) return undefined
+  const holder = state.persons[a.holderPersonId]
+  if (!holder || !holder.alive) return undefined
+  return a.holderPersonId
+}
 
 // --- Policy modifiers (spec §4.4) ---
 

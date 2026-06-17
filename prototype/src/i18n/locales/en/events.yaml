@@ -94,6 +94,8 @@ crisis:
 # v0.48.1 facility maintenance
 facility:
   breakdown: 'The {{improvementKind}} in {{holding}} has been {{breakdownOutcome}}.'
+  # v0.48.2 routine maintenance
+  maintained: 'The {{improvementKind}} in {{holding}} was kept up by the bailiff.'
 
 pop:
   land_developed: 'The people of {{province}} improved their lands.'
