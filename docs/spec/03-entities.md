@@ -1040,6 +1040,8 @@ type Regiment = {
 
 **baseline / max の意味**: `organization` / `morale` は battle で baseline 以下へ削れ、平時に RegimentRecoverySystem（§6.48）が baseline へ戻す。worldgen は initial = baseline（org 50 / morale 30）で生成し、100/80 起点の長期過渡を避ける。baseline/max は config 定数由来で worldgen 時に rng draw を増やさない。
 
+**troopKind の worldgen 生成（v0.49 で暫定変更）**: `RegimentTroopKind` の型・battle deployment（§6.45）・補充係数（§6.49 cavalry multiplier）は温存するが、**worldgen が生成する連隊は当面すべて `infantry`**。従来は manor holding の 25%（`noble_retinue` source）を `cavalry` にしていたが、騎兵を「特殊な連隊」として別途設計する方針に伴い、自動生成を一旦停止した。`sourceKind` の `noble_retinue`/`levy` 区別と振り分け sub-rng は維持しており、将来の騎兵改修で `noble_retinue` を再び `cavalry` に紐付けられる。叛乱由来の `local_levy` も従来どおり `infantry`。
+
 **WorldState 追加**:
 
 ```ts

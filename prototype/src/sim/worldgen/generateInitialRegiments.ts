@@ -12,7 +12,10 @@ import { createRng, randomFloat } from '../rng/rng'
 import { calcPolityMilitaryPower } from '../selectors/militarySelectors'
 import { createRegiment } from '../mutations/regimentMutations'
 
-// manor のうちこの割合を noble_retinue / cavalry にする (残りは levy / infantry)。
+// manor のうちこの割合を noble_retinue にする (残りは levy)。
+//   troopKind は当面すべて infantry に固定する (騎兵は将来「特殊な連隊」として別途設計するため、
+//   worldgen の自動騎兵生成を一旦止める)。sourceKind の noble_retinue/levy 区別と sub-rng 消費は
+//   維持し、将来の騎兵改修で noble_retinue を再び cavalry に紐付けられるようにしておく。
 const NOBLE_RETINUE_CHANCE = 0.25
 
 export function generateInitialRegiments(
@@ -61,13 +64,10 @@ export function generateInitialRegiments(
       } else {
         const roll = randomFloat(rng)
         rng = roll.rng
-        if (roll.value < NOBLE_RETINUE_CHANCE) {
-          sourceKind = 'noble_retinue'
-          troopKind = 'cavalry'
-        } else {
-          sourceKind = 'levy'
-          troopKind = 'infantry'
-        }
+        // troopKind は当面すべて infantry (騎兵の特殊化は将来)。roll は sourceKind の振り分けと
+        //   RNG 軌道維持のため残す。
+        troopKind = 'infantry'
+        sourceKind = roll.value < NOBLE_RETINUE_CHANCE ? 'noble_retinue' : 'levy'
       }
 
       createRegiment(state, {
