@@ -14,6 +14,17 @@ type WarStatus = 'active' | 'attacker_won' | 'defender_won' | 'white_peace' | 'c
 // §4.3 WarSideKey
 export type WarSideKey = 'attacker' | 'defender'
 
+// §4.3a Supply Shortage
+export type SupplyShortageBand = 'none' | 'mild' | 'moderate' | 'severe' | 'catastrophic'
+
+export type WarSideSupplyState = {
+  supplyAccess: number
+  supplyPressure: number
+  forageEfficiency: number
+  localHostility: number
+  plunderPressure: number
+}
+
 // §4.5 WarParticipant
 //   v0.43: 各 side は primary 1 件 + supporters 0..N 件 (multi-participant)。
 export type WarParticipant = {
@@ -42,6 +53,11 @@ export type WarSide = {
 
   // v0.35: この side が「戦闘回避を選択した」累積回数。単調増加 (reset しない)。
   avoidanceCount: number
+
+  // === v0.51 兵站・補給 ===
+  strategistPersonId?: PersonId
+  quartermasterPersonId?: PersonId
+  supplyState?: WarSideSupplyState
 }
 
 // §6.1 BattlefieldKind

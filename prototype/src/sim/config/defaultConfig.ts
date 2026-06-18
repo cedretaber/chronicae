@@ -6,7 +6,7 @@ import type { PopOccupation, PopClass } from '../types/popGroup'
 import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import type { CrisisKind } from '../types/crisis'
 import type { ProvinceTerrain, ProvinceFeature } from '../types/province'
-import type { BattlefieldKind } from '../types/war'
+import type { BattlefieldKind, SupplyShortageBand } from '../types/war'
 import type { BattleTickUnit } from '../types/battle'
 import type { LandContractConfig } from './landContractConfig'
 import { defaultLandContractConfig } from './landContractConfig'
@@ -1307,6 +1307,72 @@ export type SimulationConfig = {
   battleMoraleRallyFrontlineRatio: number
   battleMoraleRallySideRatio: number
   battleMoraleShiftLogThreshold: number
+  // === v0.51 兵站・補給・消耗 ===
+  warSupplyEnabled: boolean
+  warSupplyPressureMildThreshold: number
+  warSupplyPressureModerateThreshold: number
+  warSupplyPressureSevereThreshold: number
+  warSupplyPressureCatastrophicThreshold: number
+  warSupplyPressureDecayPerWeek: number
+  warSupplyPressureGainFactor: number
+  warSupplyLocalHostilityToPressureFactor: number
+  warSupplyLocalHostilityDecayPerWeek: number
+  warSupplyPlunderPressureDecayPerWeek: number
+  warSupplyPressureToPlunderFactor: number
+  warSupplyHostilityToPlunderFactor: number
+  warSupplyPressureToHostilityFactor: number
+  warSupplyPopUnrestToHostilityFactor: number
+  warSupplyCommandDisciplineBase: number
+  warSupplyAccessBase: number
+  warSupplyAccessWealthFactor: number
+  warSupplyAccessDevelopmentFactor: number
+  warSupplyAccessControlFactor: number
+  warSupplyAccessHostilityPenaltyFactor: number
+  warSupplyAccessCrisisPenalty: number
+  warSupplyForageBase: number
+  warSupplyQuartermasterForageFactor: number
+  warSupplyStrategistForageFactor: number
+  warSupplyQuartermasterAccessFactor: number
+  warSupplyStrategistAccessFactor: number
+  warSupplyHostilityForagePenalty: number
+  warSupplyOrganizationDamageByBand: Record<SupplyShortageBand, number>
+  warSupplyMoraleDamageByBand: Record<SupplyShortageBand, number>
+  warSupplyStrengthDamageByBand: Record<SupplyShortageBand, number>
+  warSupplyCatastrophicCollapseChanceBase: number
+  warSupplyCatastrophicCollapsePressureFactor: number
+  wartimeRegimentRecoveryMultiplier: number
+  warSupplyRecoveryMultiplierByBand: Record<SupplyShortageBand, number>
+  warSupplyMaxStaffRecoveryMitigation: number
+  warSupplyStaffAbsentScoreMultiplier: number
+  warSupplyQuartermasterMitigationFactor: number
+  warSupplyCaptainGeneralMitigationFactor: number
+  warSupplyStrategistBonusFactor: number
+  cavalrySupplyDemandMultiplier: number
+  cavalryForageEfficiencyBonus: number
+  cavalryPlunderEfficiencyBonus: number
+  cavalrySupplyAttritionMultiplier: number
+  warSupplyHarshRequisitionPressureThreshold: number
+  warSupplyHarshRequisitionChanceFactor: number
+  warSupplyPlunderPressureThreshold: number
+  warSupplyPlunderChanceFactor: number
+  warSupplyHarshRequisitionSupplyRelief: number
+  warSupplyPlunderSupplyRelief: number
+  warSupplyPlunderPressureRelief: number
+  warSupplyHarshRequisitionHostilityGain: number
+  warSupplyPlunderHostilityGain: number
+  warSupplyHarshRequisitionPopWealthDamage: number
+  warSupplyHarshRequisitionPopUnrestGain: number
+  warSupplyPlunderPopWealthDamage: number
+  warSupplyPlunderPopUnrestGain: number
+  supplyForageConditionDrop: number
+  supplyHarshRequisitionConditionDrop: number
+  supplyPlunderConditionDrop: number
+  supplySpilloverDamageMultiplier: number
+  warSupplyHarshRequisitionSpilloverChance: number
+  warSupplyPlunderSpilloverBaseChance: number
+  warSupplyPlunderSpilloverPressureFactor: number
+  warSupplyMaxSpilloverHoldings: number
+  warSupplyAttritionEventStrengthThreshold: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2713,4 +2779,94 @@ export const defaultConfig: SimulationConfig = {
   battleMoraleRallyFrontlineRatio: 0.3,
   battleMoraleRallySideRatio: 0.1,
   battleMoraleShiftLogThreshold: 5,
+  // === v0.51 兵站・補給・消耗 ===
+  warSupplyEnabled: true,
+  warSupplyPressureMildThreshold: 30,
+  warSupplyPressureModerateThreshold: 60,
+  warSupplyPressureSevereThreshold: 85,
+  warSupplyPressureCatastrophicThreshold: 110,
+  warSupplyPressureDecayPerWeek: 5,
+  warSupplyPressureGainFactor: 8.0,
+  warSupplyLocalHostilityToPressureFactor: 0.05,
+  warSupplyLocalHostilityDecayPerWeek: 2,
+  warSupplyPlunderPressureDecayPerWeek: 4,
+  warSupplyPressureToPlunderFactor: 0.08,
+  warSupplyHostilityToPlunderFactor: 0.04,
+  warSupplyPressureToHostilityFactor: 0.05,
+  warSupplyPopUnrestToHostilityFactor: 0.03,
+  warSupplyCommandDisciplineBase: 2.0,
+  warSupplyAccessBase: 30,
+  warSupplyAccessWealthFactor: 0.3,
+  warSupplyAccessDevelopmentFactor: 2.0,
+  warSupplyAccessControlFactor: 0.2,
+  warSupplyAccessHostilityPenaltyFactor: 0.15,
+  warSupplyAccessCrisisPenalty: 5,
+  warSupplyForageBase: 0.5,
+  warSupplyQuartermasterForageFactor: 0.15,
+  warSupplyStrategistForageFactor: 0.05,
+  warSupplyQuartermasterAccessFactor: 10,
+  warSupplyStrategistAccessFactor: 3,
+  warSupplyHostilityForagePenalty: 0.15,
+  warSupplyOrganizationDamageByBand: {
+    none: 0,
+    mild: 0,
+    moderate: 2,
+    severe: 5,
+    catastrophic: 10,
+  },
+  warSupplyMoraleDamageByBand: {
+    none: 0,
+    mild: 0,
+    moderate: 2,
+    severe: 5,
+    catastrophic: 10,
+  },
+  warSupplyStrengthDamageByBand: {
+    none: 0,
+    mild: 0,
+    moderate: 0.5,
+    severe: 2,
+    catastrophic: 3,
+  },
+  warSupplyCatastrophicCollapseChanceBase: 0.05,
+  warSupplyCatastrophicCollapsePressureFactor: 0.002,
+  wartimeRegimentRecoveryMultiplier: 0.5,
+  warSupplyRecoveryMultiplierByBand: {
+    none: 1.0,
+    mild: 0.9,
+    moderate: 0.75,
+    severe: 0.45,
+    catastrophic: 0.15,
+  },
+  warSupplyMaxStaffRecoveryMitigation: 0.35,
+  warSupplyStaffAbsentScoreMultiplier: 0.75,
+  warSupplyQuartermasterMitigationFactor: 0.3,
+  warSupplyCaptainGeneralMitigationFactor: 0.1,
+  warSupplyStrategistBonusFactor: 0.15,
+  cavalrySupplyDemandMultiplier: 1.5,
+  cavalryForageEfficiencyBonus: 0.05,
+  cavalryPlunderEfficiencyBonus: 0.1,
+  cavalrySupplyAttritionMultiplier: 1.25,
+  warSupplyHarshRequisitionPressureThreshold: 40,
+  warSupplyHarshRequisitionChanceFactor: 0.01,
+  warSupplyPlunderPressureThreshold: 50,
+  warSupplyPlunderChanceFactor: 0.015,
+  warSupplyHarshRequisitionSupplyRelief: 8,
+  warSupplyPlunderSupplyRelief: 15,
+  warSupplyPlunderPressureRelief: 20,
+  warSupplyHarshRequisitionHostilityGain: 8,
+  warSupplyPlunderHostilityGain: 15,
+  warSupplyHarshRequisitionPopWealthDamage: 5,
+  warSupplyHarshRequisitionPopUnrestGain: 8,
+  warSupplyPlunderPopWealthDamage: 12,
+  warSupplyPlunderPopUnrestGain: 15,
+  supplyForageConditionDrop: 2,
+  supplyHarshRequisitionConditionDrop: 8,
+  supplyPlunderConditionDrop: 20,
+  supplySpilloverDamageMultiplier: 0.4,
+  warSupplyHarshRequisitionSpilloverChance: 0.15,
+  warSupplyPlunderSpilloverBaseChance: 0.2,
+  warSupplyPlunderSpilloverPressureFactor: 0.003,
+  warSupplyMaxSpilloverHoldings: 2,
+  warSupplyAttritionEventStrengthThreshold: 5,
 }

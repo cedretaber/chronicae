@@ -17,6 +17,7 @@ export const ROLE_WEIGHTS = {
   stewardship: { numeracy: 0.6, learning: 0.2, insight: 0.2 },
   diplomacy: { charisma: 0.5, insight: 0.3, learning: 0.2 },
   intrigue: { insight: 0.7, charisma: 0.2, learning: 0.1 },
+  strategy: { insight: 0.4, learning: 0.3, command: 0.2, numeracy: 0.1 },
   warCommand: { command: 0.6, insight: 0.2, learning: 0.1, valor: 0.1 },
 } as const
 

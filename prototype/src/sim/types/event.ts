@@ -178,6 +178,10 @@ export type EventType =
   | 'CADET_BRANCH_FOUNDED_BY_LAND_GRANT'
   | 'CADET_BRANCH_FOUNDED_BY_TITLE_TRANSFER'
   | 'LAND_CONTRACT_CONSOLIDATED'
+  // v0.51 兵站・補給・消耗
+  | 'SUPPLY_PLUNDER'
+  | 'SUPPLY_HARSH_REQUISITION'
+  | 'SUPPLY_ATTRITION'
 
 export type EventReason = {
   label: string
