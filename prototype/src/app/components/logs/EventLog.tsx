@@ -1,13 +1,10 @@
 import { useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
+import { useSimulationStore } from '@/app/stores/simulationStore'
 import type { SimEvent } from '@sim/types/event'
 import type { EventType } from '@sim/types/event'
-import { getFirstEntityId, hasEntityId } from '@sim/types/event'
-import type { ClanId } from '@sim/types/ids'
-import { useRenderEvent } from '@/app/hooks/useRenderEvent'
-import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName, getHouseDisplayName } from '@/app/hooks/entityNameHelpers'
+import { hasEntityId } from '@sim/types/event'
+import { EventText } from '@/app/components/shared/EventText'
 import { formatYearWeek, formatMonthWeek, formatYear } from '@/app/utils/format'
 import { CHRONICLE_PALETTES, CHRONICLE_SERIF } from '@/app/theme/chronicle'
 
@@ -15,78 +12,6 @@ import { CHRONICLE_PALETTES, CHRONICLE_SERIF } from '@/app/theme/chronicle'
 //   馴染む dark トーンの共有トークンで描き、アクセントを鉄丹の朱に一本化する (旧: 青タブ +
 //   赤/黄重要度 + 青リンクの 3 系統を解消)。重要度は本文インクの濃淡 + 種別アイコンの色で示す。
 const P = CHRONICLE_PALETTES.dark
-
-type LinkItem = { id: string; type: EntityType; name: string }
-
-function EventLinks({ event }: { event: SimEvent }) {
-  const session = useSimulationStore((s) => s.session)
-  const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
-  const resolveName = useEntityName()
-
-  if (!session) return null
-  const state = session.currentState
-
-  const items: LinkItem[] = []
-  const polityId = getFirstEntityId(event, 'polity')
-  if (polityId) {
-    const polity = state.polities[polityId as keyof typeof state.polities]
-    if (polity)
-      items.push({
-        id: polity.id,
-        type: 'polity',
-        name: getPolityShortName(state, resolveName, polity.id),
-      })
-  }
-  const houseId = getFirstEntityId(event, 'house')
-  if (houseId) {
-    const house = state.houses[houseId as keyof typeof state.houses]
-    if (house)
-      items.push({
-        id: house.id,
-        type: 'house',
-        name: getHouseDisplayName(resolveName, house, house.nameKey),
-      })
-  }
-  const actorId = getFirstEntityId(event, 'person')
-  if (actorId) {
-    const person = state.persons[actorId as keyof typeof state.persons]
-    if (person)
-      items.push({
-        id: person.id,
-        type: 'person',
-        name: resolveName('person', person.nameKey, person.nameKey),
-      })
-  }
-  const clanEntityId = getFirstEntityId(event, 'clan')
-  if (clanEntityId) {
-    const clan = state.clans[clanEntityId as ClanId]
-    if (clan) {
-      const nameHouse = state.houses[clan.nameSourceHouseId]
-      const clanName = getHouseDisplayName(resolveName, nameHouse, clanEntityId)
-      items.push({ id: clan.id, type: 'clan', name: clanName })
-    }
-  }
-
-  if (items.length === 0) return null
-  return (
-    <span className="ml-1 inline-flex gap-1">
-      {items.map((it) => (
-        <button
-          key={`${it.type}:${it.id}`}
-          // 朱アクセントに合わせた静かな参照チップ (旧: 青)。border は dark.rail / hover で朱に。
-          className="rounded-sm border border-[#374151] px-1 text-[10px] text-slate-300 transition-colors hover:border-[#CC7A5C] hover:text-[#CC7A5C]"
-          onClick={(e) => {
-            e.stopPropagation()
-            openDetailWindow(it.type, it.id)
-          }}
-          title={`${it.type}: ${it.name}`}
-        >
-          {it.name}
-        </button>
-      ))}
-    </span>
-  )
-}
 
 type TabKey = 'raw' | 'chronicle' | 'timeline'
 
@@ -204,13 +129,11 @@ function useEventTypeLabel(): (type: EventType) => string {
 //   種別アイコンが「余白の印」を兼ね、重要度を色で運ぶ (旧: 赤/黄の本文色を廃し統一)。
 function EventRow({
   event,
-  renderEvent,
   dateLabel,
   typeLabel,
   highlighted,
 }: {
   event: SimEvent
-  renderEvent: (e: SimEvent) => string
   dateLabel: string
   typeLabel?: string
   highlighted?: boolean
@@ -231,43 +154,26 @@ function EventRow({
           {typeLabel}
         </span>
       )}
-      <span>{renderEvent(event)}</span>
-      <EventLinks event={event} />
+      <EventText event={event} tone="dark" />
     </div>
   )
 }
 
-function RawLogRow({
-  event,
-  renderEvent,
-}: {
-  event: SimEvent
-  renderEvent: (e: SimEvent) => string
-}) {
+function RawLogRow({ event }: { event: SimEvent }) {
   const getTypeLabel = useEventTypeLabel()
   return (
     <EventRow
       event={event}
-      renderEvent={renderEvent}
       dateLabel={formatYearWeek(event.year, event.weekOfYear)}
       typeLabel={getTypeLabel(event.type)}
     />
   )
 }
 
-function ChronicleRow({
-  event,
-  isHighlighted,
-  renderEvent,
-}: {
-  event: SimEvent
-  isHighlighted: boolean
-  renderEvent: (e: SimEvent) => string
-}) {
+function ChronicleRow({ event, isHighlighted }: { event: SimEvent; isHighlighted: boolean }) {
   return (
     <EventRow
       event={event}
-      renderEvent={renderEvent}
       dateLabel={formatYearWeek(event.year, event.weekOfYear)}
       highlighted={isHighlighted}
     />
@@ -278,11 +184,7 @@ type YearGroup = { year: number; events: SimEvent[] }
 
 // timeline タブ: 主要イベントの「日録」。年代記パネル (ChronicleAnnal) と双子の、時の罫 +
 //   朱書のセリフ年見出し (sticky) を持つ縦の年譜。
-function TimelineYear({
-  year,
-  events,
-  renderEvent,
-}: YearGroup & { renderEvent: (e: SimEvent) => string }) {
+function TimelineYear({ year, events }: YearGroup) {
   return (
     <div className="relative mb-1 pl-3">
       {/* 時の罫: 左マージンを貫く一本の縦罫 */}
@@ -301,12 +203,7 @@ function TimelineYear({
         <span className="h-px flex-1 translate-y-[-3px]" style={{ backgroundColor: P.rail }} />
       </div>
       {events.map((e) => (
-        <EventRow
-          key={e.id}
-          event={e}
-          renderEvent={renderEvent}
-          dateLabel={formatMonthWeek(e.weekOfYear)}
-        />
+        <EventRow key={e.id} event={e} dateLabel={formatMonthWeek(e.weekOfYear)} />
       ))}
     </div>
   )
@@ -314,7 +211,6 @@ function TimelineYear({
 
 export function EventLog() {
   const { t } = useTranslation()
-  const renderEvent = useRenderEvent()
   const [activeTab, setActiveTab] = useState<TabKey>('raw')
   const eventHistory = useSimulationStore((s) => s.session?.eventHistory ?? [])
   const watchlist = useSimulationStore((s) => s.watchlist)
@@ -361,22 +257,17 @@ export function EventLog() {
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {activeTab === 'raw' &&
-          rawEvents.map((event) => (
-            <RawLogRow key={event.id} event={event} renderEvent={renderEvent} />
-          ))}
+          rawEvents.map((event) => <RawLogRow key={event.id} event={event} />)}
         {activeTab === 'chronicle' &&
           chronicleEvents.map((event) => (
             <ChronicleRow
               key={event.id}
               event={event}
               isHighlighted={isWatchlistRelated(event, watchlist)}
-              renderEvent={renderEvent}
             />
           ))}
         {activeTab === 'timeline' &&
-          sortedGroups.map((group) => (
-            <TimelineYear key={group.year} {...group} renderEvent={renderEvent} />
-          ))}
+          sortedGroups.map((group) => <TimelineYear key={group.year} {...group} />)}
       </div>
     </div>
   )

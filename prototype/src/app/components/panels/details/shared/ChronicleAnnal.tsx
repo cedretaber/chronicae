@@ -1,121 +1,14 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ChronicleEntry } from '@sim/types/chronicle'
-import type { EventEntityRef } from '@sim/types/event'
-import type { WorldState } from '@sim/types/world'
-import { useRenderEvent } from '@/app/hooks/useRenderEvent'
-import { useEntityName } from '@/app/hooks/useEntityName'
-import {
-  getPolityShortName,
-  getHouseDisplayName,
-  getHoldingShortName,
-} from '@/app/hooks/entityNameHelpers'
-import { useSimulationStore, type EntityType } from '@/app/stores/simulationStore'
+import { EventText } from '@/app/components/shared/EventText'
 import { formatYear, formatMonthWeek } from '@/app/utils/format'
 import { CHRONICLE_PALETTES, CHRONICLE_SERIF, type ChronicleTone } from '@/app/theme/chronicle'
-
-// ChronicleEntry.entityRefs を「クリック可能な参照チップ」に解決する。EventLog の EventLinks の
-//   ChronicleEntry 版。EventLog と同じく「種別ごとに先頭 1 件・実在する対象のみ」に絞る (chip 過多回避)。
-//   会戦再生 UI: major BATTLE_OCCURRED が持つ battleLog ref を会戦再生パネルへのリンクにする。
-type ChronicleLinkItem = { id: string; type: EntityType; name: string }
-
-function resolveRefLink(
-  state: WorldState,
-  resolveName: ReturnType<typeof useEntityName>,
-  ref: EventEntityRef,
-): ChronicleLinkItem | null {
-  switch (ref.kind) {
-    case 'person': {
-      const p = state.persons[ref.id as keyof typeof state.persons]
-      return p
-        ? { id: ref.id, type: 'person', name: resolveName('person', p.nameKey, p.nameKey) }
-        : null
-    }
-    case 'house': {
-      const h = state.houses[ref.id as keyof typeof state.houses]
-      return h
-        ? { id: ref.id, type: 'house', name: getHouseDisplayName(resolveName, h, h.nameKey) }
-        : null
-    }
-    case 'polity': {
-      const pl = state.polities[ref.id as keyof typeof state.polities]
-      return pl
-        ? { id: ref.id, type: 'polity', name: getPolityShortName(state, resolveName, pl.id) }
-        : null
-    }
-    case 'province': {
-      const pr = state.provinces[ref.id as keyof typeof state.provinces]
-      return pr
-        ? { id: ref.id, type: 'province', name: resolveName('province', pr.nameKey, ref.id) }
-        : null
-    }
-    case 'holding': {
-      const ho = state.holdings[ref.id as keyof typeof state.holdings]
-      return ho
-        ? { id: ref.id, type: 'holding', name: getHoldingShortName(state, resolveName, ho.id) }
-        : null
-    }
-    case 'clan': {
-      const c = state.clans[ref.id as keyof typeof state.clans]
-      if (!c) return null
-      const nh = state.houses[c.nameSourceHouseId]
-      return { id: ref.id, type: 'clan', name: getHouseDisplayName(resolveName, nh, ref.id) }
-    }
-    case 'battleLog': {
-      const b = state.battleLogs[ref.id as keyof typeof state.battleLogs]
-      if (!b) return null
-      const prov = state.provinces[b.provinceId]
-      const place = prov
-        ? resolveName('province', prov.nameKey, b.provinceId)
-        : (b.provinceId as string)
-      return { id: ref.id, type: 'battleLog', name: `⚔ ${place}` }
-    }
-    default:
-      // war/faction/goal/aim 等は detail window が無い or 終結で消えるためリンク化しない。
-      return null
-  }
-}
-
-function ChronicleLinks({ refs, tone }: { refs: readonly EventEntityRef[]; tone: ChronicleTone }) {
-  const session = useSimulationStore((s) => s.session)
-  const openDetailWindow = useSimulationStore((s) => s.openDetailWindow)
-  const resolveName = useEntityName()
-  if (!session) return null
-  const state = session.currentState
-  const items: ChronicleLinkItem[] = []
-  const seenKinds = new Set<string>()
-  for (const ref of refs) {
-    if (seenKinds.has(ref.kind)) continue
-    const link = resolveRefLink(state, resolveName, ref)
-    if (!link) continue
-    seenKinds.add(ref.kind)
-    items.push(link)
-  }
-  if (items.length === 0) return null
-  const p = CHRONICLE_PALETTES[tone]
-  return (
-    <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
-      {items.map((it) => (
-        <button
-          key={`${it.type}:${it.id}`}
-          className="rounded-sm border px-1 text-[10px] transition-opacity hover:opacity-70"
-          style={{ borderColor: p.rail, color: p.category }}
-          onClick={(e) => {
-            e.stopPropagation()
-            openDetailWindow(it.type, it.id)
-          }}
-          title={`${it.type}: ${it.name}`}
-        >
-          {it.name}
-        </button>
-      ))}
-    </span>
-  )
-}
 
 // 年代記の「視覚言語」を共有する描画コンポーネント。配色トークンは @/app/theme/chronicle に集約し、
 //   FullChroniclePanel (vellum) / EntityChronicleSection (dark) / EventLog (dark) が同じ語彙
 //   (時の罫 + 朱書の年見出し + 週·重要度印·カテゴリ·本文) を tone 差し替えで共有する。
+//   本文中のエンティティ名は EventText がクリック可能なリンクに解決する (entityRefs 経由)。
 
 // 表示順を保ったまま、連続する同年エントリを 1 つの年グループに畳む。
 //   年代記は「年で編まれる」(annal) ので、年をグルーピングの単位にすること自体が情報。
@@ -143,7 +36,6 @@ export function ChronicleAnnal({
   tone: ChronicleTone
 }) {
   const { t } = useTranslation()
-  const renderEvent = useRenderEvent()
   const p = CHRONICLE_PALETTES[tone]
   const groups = useMemo(() => groupByYear(entries), [entries])
 
@@ -186,8 +78,14 @@ export function ChronicleAnnal({
                   >
                     {t(`chronicle.category.${e.category}`)}
                   </span>
-                  {renderEvent({ messageKey: e.templateKey, messageParams: e.params })}
-                  <ChronicleLinks refs={e.entityRefs} tone={tone} />
+                  <EventText
+                    event={{
+                      messageKey: e.templateKey,
+                      messageParams: e.params,
+                      entityRefs: e.entityRefs,
+                    }}
+                    tone={tone}
+                  />
                 </span>
               </div>
             )
