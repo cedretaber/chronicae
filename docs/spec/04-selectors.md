@@ -436,6 +436,7 @@ export type AppliedRoleKey =
   | 'diplomacy'
   | 'intrigue'
   | 'warCommand'
+  | 'strategy'      // v0.51: 参謀・軍師の作戦判断。warSupplySystem staff 選出に使用
 
 // 応用ロールの基礎能力からの重み付き和を返す（0..120 を保証、ABILITY_HARD_CAP でクランプ）
 function getRoleScore(state: WorldState, personId: PersonId, role: AppliedRoleKey): number
@@ -466,6 +467,7 @@ stewardshipScore  = numeracy*0.60 + learning*0.20 + insight*0.20
 diplomacyScore    = charisma*0.50 + insight*0.30 + learning*0.20
 intrigueScore     = insight*0.70 + charisma*0.20 + learning*0.10
 warCommandScore   = command*0.60 + insight*0.20 + learning*0.10 + valor*0.10
+strategyScore     = insight*0.40 + learning*0.30 + command*0.20 + numeracy*0.10
 ```
 
 * 既存システム（successionSelectors / personAbilityEffects / militarySelectors / officeSelectors 等）は `getRoleScore(state, p.id, role) / 10` で正規化して旧 admin/martial（0..10）相当のスケールに揃える

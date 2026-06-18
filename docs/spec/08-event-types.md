@@ -144,6 +144,9 @@
 | CADET_BRANCH_FOUNDED_BY_LAND_GRANT | normal | v0.47 有家人物の分封による分家（§6.69） |
 | CADET_BRANCH_FOUNDED_BY_TITLE_TRANSFER | normal | v0.47 宗家 Polity 譲渡による分家（§6.69） |
 | LAND_CONTRACT_CONSOLIDATED | minor / normal | v0.47 House 一円支配の自家内 contract 集約（§6.69） |
+| SUPPLY_PLUNDER | major | v0.51 補給不足による略奪（§6.43a。improvement condition 大幅低下・POP wealth/unrest 被害・war_damage Crisis。params: warId/side/holding/damagedKinds/conditionDrop/wealthDelta/unrestDelta/supplyPressureReduction） |
+| SUPPLY_HARSH_REQUISITION | normal | v0.51 補給不足による強制徴発（§6.43a。improvement condition 低下・POP wealth/unrest 被害。params: warId/side/holding/conditionDrop/wealthDelta/unrestDelta/supplyPressureReduction） |
+| SUPPLY_ATTRITION | normal / major | v0.51 補給欠乏による連隊消耗（§6.43a。collapsed>0 で major。params: warId/side/supplyPressure/strengthDamage/organizationDamage/moraleDamage/collapsedRegimentCount） |
 
 POP_HARDSHIP / POP_PROSPERITY / POP_UNREST_RISING / POP_DECLINED は EventType 宣言のみ。実際の発火ロジックは将来実装する。
 

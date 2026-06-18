@@ -207,6 +207,75 @@
 | destroyedRegimentReformInitialStrength / Organization / Morale | 20 / 20 / 40 | reform 直後の初期値 |
 | destroyedRegimentReformCost | 8 | reform 1 件あたり owner treasury から支払う費用 |
 | destroyedRegimentReformMinPopFactor | 0.25 | reform に必要な popFactor 下限 |
+| **兵站・補給システム（v0.51 WarSupplySystem §6.43a）** | | |
+| warSupplyEnabled | true | 兵站システム有効（kill-switch） |
+| warSupplyPressureMildThreshold | 30 | supplyPressure → mild band 閾値 |
+| warSupplyPressureModerateThreshold | 60 | supplyPressure → moderate band 閾値 |
+| warSupplyPressureSevereThreshold | 85 | supplyPressure → severe band 閾値 |
+| warSupplyPressureCatastrophicThreshold | 110 | supplyPressure → catastrophic band 閾値 |
+| warSupplyPressureDecayPerWeek | 5 | supplyPressure 週次自然減衰 |
+| warSupplyPressureGainFactor | 8.0 | supplyPressure 蓄積係数 |
+| warSupplyLocalHostilityToPressureFactor | 0.05 | localHostility → supplyPressure 寄与 |
+| warSupplyLocalHostilityDecayPerWeek | 2 | localHostility 週次自然減衰 |
+| warSupplyPlunderPressureDecayPerWeek | 4 | plunderPressure 週次自然減衰 |
+| warSupplyPressureToPlunderFactor | 0.08 | supplyPressure → plunderPressure 蓄積 |
+| warSupplyHostilityToPlunderFactor | 0.04 | localHostility → plunderPressure 蓄積 |
+| warSupplyPressureToHostilityFactor | 0.05 | supplyPressure → localHostility 蓄積 |
+| warSupplyPopUnrestToHostilityFactor | 0.03 | POP unrest → localHostility 蓄積 |
+| warSupplyCommandDisciplineBase | 2.0 | 指揮官不在時の基礎規律値 |
+| warSupplyAccessBase | 30 | 補給アクセス基礎値 |
+| warSupplyAccessWealthFactor | 0.3 | POP wealth → supplyAccess |
+| warSupplyAccessDevelopmentFactor | 2.0 | development → supplyAccess |
+| warSupplyAccessControlFactor | 0.2 | polityControl → supplyAccess |
+| warSupplyAccessHostilityPenaltyFactor | 0.15 | localHostility → supplyAccess 減少 |
+| warSupplyAccessCrisisPenalty | 5 | Crisis 数 → supplyAccess 減算 |
+| warSupplyForageBase | 0.5 | 採餌効率基礎値 |
+| warSupplyQuartermasterForageFactor | 0.15 | 補給官 → forage |
+| warSupplyStrategistForageFactor | 0.05 | 参謀 → forage |
+| warSupplyQuartermasterAccessFactor | 10 | 補給官 → supplyAccess |
+| warSupplyStrategistAccessFactor | 3 | 参謀 → supplyAccess |
+| warSupplyHostilityForagePenalty | 0.15 | localHostility → forage 減少 |
+| warSupplyCaptainGeneralForageFactor | 0.05 | 総大将 → forage |
+| warSupplyCaptainGeneralDisciplineFactor | 3.0 | 総大将の規律寄与（hostility/plunder 抑制） |
+| warSupplyQuartermasterDisciplineFactor | 2.0 | 補給官の規律寄与 |
+| warSupplyOrganizationDamageByBand | none:0 mild:0 moderate:2 severe:5 catastrophic:10 | band 別 org 週次ダメージ |
+| warSupplyMoraleDamageByBand | none:0 mild:0 moderate:2 severe:5 catastrophic:10 | band 別 morale 週次ダメージ |
+| warSupplyStrengthDamageByBand | none:0 mild:0 moderate:0.5 severe:2 catastrophic:3 | band 別 strength 週次ダメージ |
+| warSupplyCatastrophicCollapseChanceBase | 0.05 | catastrophic band での Regiment 壊滅基礎確率 |
+| warSupplyCatastrophicCollapsePressureFactor | 0.002 | supplyPressure による壊滅確率加算 |
+| wartimeRegimentRecoveryMultiplier | 0.5 | 戦時 recovery 速度倍率 |
+| warSupplyRecoveryMultiplierByBand | none:1.0 mild:0.9 moderate:0.75 severe:0.45 catastrophic:0.15 | band 別 recovery 倍率 |
+| warSupplyMaxStaffRecoveryMitigation | 0.35 | staff recovery 軽減上限 |
+| warSupplyStaffAbsentScoreMultiplier | 0.75 | staff 不在時のスコア倍率 |
+| warSupplyQuartermasterMitigationFactor | 0.3 | 補給官の attrition 軽減 |
+| warSupplyCaptainGeneralMitigationFactor | 0.1 | 総大将の attrition 軽減 |
+| warSupplyStrategistBonusFactor | 0.15 | 参謀ボーナス係数 |
+| cavalrySupplyDemandMultiplier | 1.5 | 騎兵の補給需要倍率 |
+| cavalryForageEfficiencyBonus | 0.05 | 騎兵比率の採餌ボーナス |
+| cavalryPlunderEfficiencyBonus | 0.1 | 騎兵比率の略奪効率ボーナス |
+| cavalrySupplyAttritionMultiplier | 1.25 | 騎兵の補給消耗倍率 |
+| warSupplyHarshRequisitionPressureThreshold | 40 | 強制徴発の supplyPressure 閾値 |
+| warSupplyHarshRequisitionChanceFactor | 0.01 | 強制徴発の確率係数 |
+| warSupplyPlunderPressureThreshold | 50 | 略奪の plunderPressure 閾値 |
+| warSupplyPlunderChanceFactor | 0.015 | 略奪の確率係数 |
+| warSupplyHarshRequisitionSupplyRelief | 8 | 強制徴発の supplyPressure 軽減 |
+| warSupplyPlunderSupplyRelief | 15 | 略奪の supplyPressure 軽減 |
+| warSupplyPlunderPressureRelief | 20 | 略奪の plunderPressure 軽減 |
+| warSupplyHarshRequisitionHostilityGain | 8 | 強制徴発の localHostility 増加 |
+| warSupplyPlunderHostilityGain | 15 | 略奪の localHostility 増加 |
+| warSupplyHarshRequisitionPopWealthDamage | 5 | 強制徴発の POP wealth 低下 |
+| warSupplyHarshRequisitionPopUnrestGain | 8 | 強制徴発の POP unrest 上昇 |
+| warSupplyPlunderPopWealthDamage | 12 | 略奪の POP wealth 低下 |
+| warSupplyPlunderPopUnrestGain | 15 | 略奪の POP unrest 上昇 |
+| supplyForageConditionDrop | 2 | 採餌の condition 低下基礎値 |
+| supplyHarshRequisitionConditionDrop | 8 | 強制徴発の condition 低下 |
+| supplyPlunderConditionDrop | 20 | 略奪の condition 低下 |
+| supplySpilloverDamageMultiplier | 0.4 | 隣接波及の damage 倍率 |
+| warSupplyHarshRequisitionSpilloverChance | 0.15 | 強制徴発の隣接波及確率 |
+| warSupplyPlunderSpilloverBaseChance | 0.2 | 略奪の隣接波及基礎確率 |
+| warSupplyPlunderSpilloverPressureFactor | 0.003 | 略奪波及の pressure 加算 |
+| warSupplyMaxSpilloverHoldings | 2 | 1回の波及最大 Holding 数 |
+| warSupplyAttritionEventStrengthThreshold | 5 | SUPPLY_ATTRITION 発火の最小 strength 損耗 |
 | **Disaster / Harvest（発生率・豊作）** | | |
 | disasterEnabled | true | 災害・豊作有効（CrisisSystem の年次発生ロール + HarvestSystem の kill-switch） |
 | famineBaseChancePerYear | 0.08 | 飢饉基礎発生率/年/Province（CrisisSystem が使用） |
