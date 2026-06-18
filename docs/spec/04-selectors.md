@@ -157,7 +157,7 @@ getWarGoalProvince(state, war): ProvinceId?                 // battle 対象 Pro
 generateCandidateBattlefield(province, rng, config): RngResult<BattlefieldKind>  // terrain/features → 戦場。rng を 0-2 回 draw して進める
 getWarSidePrimaryPolityActor(war, sideKey): OrganizationRef?  // war side の主 Polity actor
 getWarSidePolityActors(war, sideKey): PolityId[]            // v0.43: side の全 polity participant（primary 先頭 + supporter 追加順）
-buildBattleSimCommanderInputs(state, commanderPersonIds): BattleSimCommanderInput[]  // commander PersonId[] を fieldCommandScore/breakthroughScore へ変換する battle sim seam
+buildBattleSimCommanderInputs(state, commanderPersonIds): BattleSimCommanderInput[]  // commander PersonId[] を battle sim 入力へ変換。v0.49 で fieldCommandScore/breakthroughScore に加え pursuitScore(=command·0.5+insight·0.35+valor·0.15) と command/insight/valor 個別値を付与（突破/追撃の現場指揮官能力。§6.45）
 ```
 
 戦力は `getActorMilitaryPower`（actorSelectors）を用い、指揮官補正は WarManeuverSystem 内の `commanderModifier` / `captainGeneralEfficiency`（`getRoleScore(person, 'warCommand')`）で乗算する。
@@ -707,8 +707,8 @@ function getChronicleEntriesForPolity(state: WorldState, polityId: PolityId): Ch
 function getChronicleEntriesForProvince(state: WorldState, provinceId: ProvinceId): ChronicleEntry[]
 function getChronicleEntriesForHolding(state: WorldState, holdingId: HoldingId): ChronicleEntry[]
 
-// War は byWar index を持たない（§3.14）ため params.warId 一致で chronicleEntries を全走査する。
-//   WarDetail の「最近の戦闘イベント」と同じ述語。表示専用なので走査コストは許容範囲。
+// v0.49: chronicleIndex.byWar 経由で取得する（旧: byWar 無しで全走査）。war event の entityRef('war')
+//   自動付与（§6.45 / §6.35）により byWar が成立し、全 chronicleEntries 走査を解消した。
 function getChronicleEntriesForWar(state: WorldState, warId: WarId): ChronicleEntry[]
 ```
 

@@ -1596,8 +1596,8 @@ warIndex（双方向。Faction index パターン踏襲）:
 Chronicle（index↔entry の内部整合のみ）:
 
 chronicleIndex ↔ chronicleEntries（§3.14）:
-- forward: `byPerson` / `byHouse` / `byPolity` / `byProvince` / `byHolding` の各 index に載る entry id が `chronicleEntries` に実在し、その entry の entityRefs に対応する `(kind, key)` を含む
-- reverse: 各 entry の 5 index 対象 kind（person / house / polity / province / holding）の ref が、対応 index に entry id として登録済み（faction / clan 等 index 非対象 kind の ref は検査しない）
+- forward: `byPerson` / `byHouse` / `byPolity` / `byProvince` / `byHolding` / `byWar`（v0.49）の各 index に載る entry id が `chronicleEntries` に実在し、その entry の entityRefs に対応する `(kind, key)` を含む
+- reverse: 各 entry の 6 index 対象 kind（person / house / polity / province / holding / war）の ref が、対応 index に entry id として登録済み（faction / clan 等 index 非対象 kind の ref は検査しない）。**v0.49**: `EventEntityKind` に `'war'` を追加し `indexBucketForKind` に `case 'war' → byWar` を足した。warEvents の `emit()` が `params.warId` を持つ war event に `entityRef('war', warId)` を単一チョークポイントで自動付与し、WAR_*/PEACE_SETTLEMENT_APPLIED/BATTLE_OCCURRED を漏れなく byWar 化する
 - **entityRefs の参照先が現在 state に存在するか（active か / 死亡人物か / 断絶家か / 終了 War か）は検査しない。** ChronicleEntry は過去の記録であり、消えた entity への soft reference を保持するのが正しい（warIndex の `originDiplomaticPlayId` 同様、存在検査を意図的に省く）。これは「Chronicle を simulation logic に使わない」原則（§3.14）の integrity 表現であり、存在検査へ「修正」してはならない（長期実行で誤検知を生む）。
 
 ### 6.36 ProjectPreparationSystem（4週ごと）
@@ -1785,23 +1785,35 @@ active War ごとに「誰が指揮し・どの戦場で・戦うか回避する
 6. **戦場生成**: WarGoal 対象 Province から `generateCandidateBattlefield`。major_river feature は確率 `warBattlefieldRiverCrossingChance` で `river_crossing`、coastal feature は `warBattlefieldCoastalBattleChance` で `coastal_battle`、それ以外は `TERRAIN_TO_BATTLEFIELD[terrain]`（terrain 5 種 → open_field/forest_battle/hill_battle/mountain_pass/wetland_battle の 1:1）。対象 Province 未解決なら以降 skip。
 7. **回避判断**（両陣営 `decideEngagement`）: `avoidDesire = 戦力劣勢 + caution・地形回避性 − urgency(負けている側ほど高) − ambition − avoidanceCount ペナルティ + noise`。`avoidanceCount >= maxWarAvoidanceCount` は強制 accept。総大将不在は中立 traits(0.5) で計算。
 8. **戦闘 or 回避の解決**:
+   - **両者交戦** → mutual_engagement で battle（`effectiveFrontage = baseFrontage`）。
    - **両者回避** → warScore 不変、両 `avoidanceCount +1`、`BATTLE_AVOIDED`(minor, avoidingSide='both')。
-   - **片側のみ回避成功** → 回避側 `avoidanceCount +1`、warScore は非回避側へ `warAvoidanceWarScorePenalty`(=1.0) 分だけ動く、`BATTLE_AVOIDED`(回避 side)。
-   - **両者交戦 / 回避失敗** → `simulateBattle`（内部 tick）で result を出し warScore 更新、`BATTLE_OCCURRED`(normal)。**戦闘後に両側の `avoidanceCount` を 0 にリセット**。
+   - **片側のみ回避**（v0.49 engagement contest。旧 `resolveAvoidanceSuccess` の単側確率を置換） → 両総大将の `insight + command`（各 0..240、CG 不在 side は 50/50 の中立 100）で捕捉/離脱を判定する。`captureChance = battleEngagementCaptureBaseChance + (catcherScore − evaderScore)/240 × battleEngagementCaptureAbilityScale − terrainAvoidability + evaderAvoidanceCount × warAvoidanceCountPenalty`（地形は回避側有利・回避を重ねた側ほど捕捉されやすい）。
+     - **捕捉成功** → `*_avoidance_failed` で battle。**`effectiveFrontage` を `max(battleMinimumEffectiveFrontage, baseFrontage − battleCaughtFrontagePenalty)` に縮小**（狭い戦列で寡兵が局所的に支えられる＝戦場幅選好を slot model に接続する唯一のレバー）。
+     - **捕捉失敗** → 回避側 `avoidanceCount +1`、warScore は非回避側へ `warAvoidanceWarScorePenalty`(=1.0)、`BATTLE_AVOIDED`(回避 side)。
+   - battle 成立時（mutual / 捕捉成功）は `simulateBattle` で result を出し warScore 更新、`BATTLE_OCCURRED`(normal)。**戦闘後に両側の `avoidanceCount` を 0 にリセット**。
 
-**battle 解決（`simulateBattle` 内部 tick simulation）**:
+**battle 解決（`simulateBattle` 内部 tick simulation — v0.49 戦列スロットモデル）**:
 
-battle 解決は純粋 helper `simulateBattle`（`src/sim/helpers/simulateBattle.ts`、WorldState 非依存）で行う。WarManeuver は動員 active Regiment の snapshot（effectivePower は `getRegimentEffectivePower` で**戦闘前 1 回 frozen**）と指揮官 pool・総大将 warCommand・地形 frontage を入力し、helper が deployment → 内部 tick loop → result / 損耗 / summary を返す。
+> **v0.49 で会戦内部を「戦場幅を持つ戦列スロットモデル」に再構築した。** frontline を fixed-length slot 配列として扱い、戦術（三すくみ）・隣接側面攻撃・突破・追撃・戦場ログ（恒久 BattleLog、§3.9d）を導入した。War entity ライフサイクル / WarGoal / PeaceSettlement / Regiment 構造 / 「`simulateBattle` は純粋 helper、mutation は WarManeuver 側」の責務分離は維持する。旧バージョンとの bit-identical replay は維持しない（同一 v0.49 内では同一 seed → 同一結果）。設計の元案は git 外 draft `spec-v049-update.md`、本節が統合 spec の正本。
 
-- **deployment**: candidate = `strength > minFightingStrengthThreshold && org > retreatOrganizationThreshold`。infantry を effectivePower 降順で frontline（地形 `battlefieldFrontageByKind` 幅）、残り frontage を cavalry で埋め、余りは reserve。draw 無し。
-- **内部 tick loop（最大 `battleMaxTicks`）**: 各 tick で frontline matchup ごとに**双方向 organization damage**を与える（`battleBaseOrganizationDamage × pairPowerFactor(frozen 比 clamp) × terrain × flank × randomFactor`、damage 方向ごとに 1 draw）。org に比例した morale damage（`battleMoraleDamageRatio`）。org が morale 感応の effRoute（`routeOrganizationThreshold + max(0, baselineMorale−morale) × moraleRouteThresholdFactor`）以下で **rout**（flag + 追加 morale damage）、retreat 閾値以下は frontline 離脱。欠員は reserve から補充。
-- **result 決定**: 片側の fighting 連隊が尽きれば相手勝利。相討ちは残存 org 合計 tiebreak。**maxTicks 到達（双方残存）は残存 org 合計の相対差が `battleMaxTicksDecisiveMarginRatio`(=0.1) 超で優勢側勝利、以下なら inconclusive**（通常規模は 1 戦で全滅させられず常に inconclusive になるのを防ぐ）。
-- **strength damage**: loop 後に累積 org damage × role（winner/loser/routed）× outcomeQuality × powerDisadvantage で 1 回算出（損耗方針: strength は大きく削れない＝destroyed は core では希少）。
-- **指揮官効果**: helper は deployment 後に commander pool（fieldCommandScore 降順、cavalry は breakthroughScore 優先、center-out infantry）を割当て `BattleCommanderAssignment[]` を出力。割当連隊は与 org damage `×(1+q)` / 被 org damage `×(1−q)` / rout 耐性（`q = clamp((fieldCommandScore−50)/50, −1, 1) × commanderAssignedRegimentEffectMax`、隣接は `× commanderAdjacentRegimentEffectRatio`）。
-- **総大将効果**: side-level で被 org damage 軽減（≤`captainGeneralBattleOrganizationDamageEffectMax`=10%）と rout 耐性（≤`captainGeneralRoutResistanceEffectMax`=10%）。benefit 方向のみ（warCommand<50 でも penalty にしない）。
-- 指揮官割当・効果・CG は **draw を消費しない**（modifier は draw 後に乗算）ので RNG 順序は不変。
+battle 解決は純粋 helper `simulateBattle`（`src/sim/helpers/simulateBattle.ts`、WorldState 非依存）で行う。WarManeuver は動員 active Regiment の snapshot（effectivePower は `getRegimentEffectivePower` で**戦闘前 1 回 frozen**）・指揮官 pool・総大将能力・地形 frontage を入力し、helper が deployment → 内部 tick loop → result / 損耗 / `tickLogs`（BattleTickLog[]）/ commander 割当を返す。戦闘内部の連隊状態は live 型 `WorkRegiment`（= `BattleRegimentState` 実体。永続化されない。`input` 参照で immutable params を保持し `organization`/`morale`/`accumulatedOrgDamage`/`routed`/`retreated`/`commanderQ`/`adjacentCommanderQ` を持つ）。**strength は snapshot で tick 中に mutate しない**（終局で 1 回算出）。
 
-**warScoreDelta（result から符号 + bounded magnitude）**: `computeWarScoreDelta` が internal sim の `result` から符号を決め（attacker_victory=+ / defender_victory=− / inconclusive=0）、magnitude を `base(outcomeQuality: rout は `battleRoutVictoryScoreBase`、orderly は `battleOrderlyVictoryScoreBase`) × decisiveness(敗者 routed share + 早期決着) × preBattleModifier(勝者の preBattle edge のみ、控えめ) × 勝者側 captainGeneralEfficiency` で組み、`clamp(0, maxWarScoreDeltaPerBattle)`。`warScoreDelta = sign × magnitude`。post-battle power 比は使わない（rout / org collapse で 0/1 に寄り delta が暴走するため）。符号は result 由来・magnitude≥0 なので **常に result と整合**。Battle entity には **rawDelta** を保存（warScore saturation で applied delta が 0 化しても符号が崩れないように）、`warScoreAfter = clamp(before + rawDelta, −100, 100)`。
+- **frontage（戦場幅）**: `baseFrontage` = 地形 `battlefieldFrontageByKind`。`effectiveFrontage` は交戦の成立形態で変動する（step 8 の捕捉戦は `max(battleMinimumEffectiveFrontage(=1), baseFrontage − battleCaughtFrontagePenalty(=1))` に縮む。mutual_engagement は `= baseFrontage`）。BattleLog は両方を保存する。
+- **centerOutSlotOrder**: deploy / fill / 指揮官割当が共有する唯一の slot 順序。中線対称（frontage=4→`[1,2,0,3]`、=6→`[2,3,1,4,0,5]`。旧 `centerOutOrder` の左寄り `[1,0,2,3]` を統一＝**偶数 frontage の指揮官割当順も変わる意図的挙動変更**）。
+- **deployment**: candidate = `strength > minFightingStrengthThreshold && org > retreatOrganizationThreshold`。infantry を effectivePower 降順で frontline（`centerOutSlotOrder(effectiveFrontage)` の順に着座）、cavalry は基本 reserve・frontage に満たなければ frontline へ。tie は regimentId 昇順。draw 無し。
+- **attack pair（slot 探索）**: 各 frontline 連隊は自 slot `i` を基準に敵 slot を `[i, i−1, i+1]` の順で探す。正面 `i` に敵がいれば `frontal`、正面が空で隣接を撃つ場合 `flanking`（小 bonus `battleFlankingDamageMultiplier` / `battleFlankingRoutPenalty`）。対象なしの連隊は当 tick 攻撃せず draw も消費しない。1 敵が複数連隊に撃たれるのは許容。**damage は tick 開始 slot 状態から全 pair を列挙 → 対象ごとに累積 → 同時適用**（順序依存回避）。旧 wing-based flank pressure は退役し slot-based flanking に統合。
+- **戦術（三すくみ）**: 毎 tick 両総大将が `BattleTactic`（`offensive` 攻勢 / `defensive` 守勢 / `disruption` 攪乱）を選ぶ（高 insight ほど相手に有利な手を選ぶ）。攻勢>攪乱 / 攪乱>守勢 / 守勢>攻勢 で有利側に `battleTacticAdvantageDamageMultiplier`(=1.2)。即勝敗ではなく modifier。
+- **指揮官効果**: 割当連隊は `q = max(0, clamp((fieldCommandScore−50)/50, −1, 1) × commanderAssignedRegimentEffectMax)` で与 org `×(1+q)` / 被 org `×(1−q)` / rout 耐性。**`max(0, ·)` フロアで低能力でも無指揮官より悪くしない**（序列不変条件: 直接指揮官あり ≥ 隣接支援あり ≥ 完全無指揮官）。直接指揮官なしは `battleUncommandedDamagePenalty` / `battleUncommandedRoutPenalty`、隣接 slot(`i±1`)に指揮官がいれば `battleUncommandedAdjacentSupportRatio`(=0.5) 軽減 + 隣接 commanderQ の一部。infantry は fieldCommandScore・cavalry は breakthroughScore で割当（tie personId 昇順）。
+- **総大将効果**: side-level で被 org damage 軽減（≤`captainGeneralBattleOrganizationDamageEffectMax`）と rout 耐性（≤`captainGeneralRoutResistanceEffectMax`）。benefit 方向のみ。
+- **breakthrough（突破）**: combat damage 後 classify 前に per-pair 判定（`battleBreakthroughBaseChance` + 指揮官能力差 `battleBreakthroughAbilityGapThreshold` 超で eligible）。成功で対象に `routed=true` 強制 + `organization = min(org, effectiveRouteThreshold)` 押下げ + `accumulatedOrgDamage ×= battleBreakthroughOrgDamageMultiplier`(=1.3、combat damage とは別ステップ) + 同 tick pursuit chance bonus。
+- **classify / 除去 / fill**: classify はマークのみ（**既に routed なら survivor に戻さない**）。除去述語は `routed || org <= retreatOrganizationThreshold`、pursuit 判定**後**に slot から外す（reserve には戻らない）。空き slot は同 tick 末に reserve から `centerOutSlotOrder` 順で補充（補充連隊は当 tick 攻撃しない）。frontline 全空きでも reserve があれば継続、両者 fighting 0 で敗北。
+- **pursuit（追撃）**: 退却/敗走した敵 slot `i` を、正面味方 slot `i`（健在）→ 不在なら当 tick その敵を flanking した味方（slot index 昇順で一意）が追撃する。pursuer 不在なら判定せず draw も消費しない。chance は pursuer の `pursuitScore`(=command·0.5+insight·0.35+valor·0.15)・valor・cavalry・戦術有利・突破・地形から成る。成功で `accumulatedOrgDamage ×= battlePursuitOrgDamageMultiplier`(=1.5)。さらに destroyed 抽選（`battlePursuitDestroyedChance`）成功時は `accumulatedOrgDamage` を終局式で `strengthAfter=0` に達する致死量へ押し上げる（`regimentDestroyedStrengthThreshold=0` 対応。⚠ 現状この致死量は終局式の outcome/powerDis 係数を含まず、default config では境界値ちょうど 0、係数を弱めると未達になり得る既知の脆弱性）。
+- **内部 tick loop（最大 `battleMaxTicks`）**: combat の双方向 org damage（`battleBaseOrganizationDamage × pairPowerFactor × terrain × tactic × flank × commander × randomFactor`、org 比例 morale damage、effRoute = `routeOrganizationThreshold + max(0, baselineMorale−morale) × moraleRouteThresholdFactor`）。1 tick draw 順は **tactic(atk→def) → engagement damage(slot 昇順・占有かつ対象ありのみ) → breakthrough(eligible のみ) → classify(draw なし) → pursuit(eligible のみ) → fill(draw なし) → log(draw なし)**。
+- **result 決定**: 片側 fighting 連隊が尽きれば相手勝利。maxTicks 到達は残存 org 合計の相対差 `battleMaxTicksDecisiveMarginRatio`(=0.1) 超で優勢側勝利、以下は inconclusive。
+- **strength / destroyed**: loop 後に累積 org damage × role（winner/loser/routed）× outcomeQuality × powerDisadvantage で 1 回算出（**終局で一度だけ**）。destroyed 判定は caller が `strengthAfter <= regimentDestroyedStrengthThreshold` で行う（simulateBattle は mutation しない）。`BattleRegimentResult.destroyedCause`（`ordinary_attrition`/`pursuit`/`breakthrough_pursuit`）は**ログ用の原因タグ**で mutation には不要。
+- **BattleLog 生成**: simulateBattle が返した tickLogs・commander 割当を基に **WarManeuver が** BattleLog entity を作成し importance を付与する（§3.9d / §6.45 末尾）。
+
+**warScoreDelta（result から符号 + bounded magnitude）**: `computeWarScoreDelta` が internal sim の `result` から符号を決め（attacker_victory=+ / defender_victory=− / inconclusive=0）、magnitude を `base(outcomeQuality: rout は `battleRoutVictoryScoreBase`、orderly は `battleOrderlyVictoryScoreBase`) × decisiveness(敗者 routed share + 早期決着 + **v0.49: 敗者 destroyed share × `battleDestroyedWarScoreWeight`(=0.15)**。`[battleDecisivenessMin, battleDecisivenessMax]` clamp) × preBattleModifier(勝者の preBattle edge のみ、控えめ) × 勝者側 captainGeneralEfficiency` で組み、`clamp(0, maxWarScoreDeltaPerBattle)`。destroyed は routed の部分集合だが routed share とは別軸の小 weight 上乗せで二重計上を避ける。`warScoreDelta = sign × magnitude`。post-battle power 比は使わない（rout / org collapse で 0/1 に寄り delta が暴走するため）。符号は result 由来・magnitude≥0 なので **常に result と整合**。Battle entity には **rawDelta** を保存（warScore saturation で applied delta が 0 化しても符号が崩れないように）、`warScoreAfter = clamp(before + rawDelta, −100, 100)`。
 
 **warScore 変化の表現**:
 - per-tick drift は行わない。warScore 変化は `BATTLE_OCCURRED` の `warScoreDelta` / `warScoreAfter` で表現する。
@@ -1810,13 +1822,14 @@ battle 解決は純粋 helper `simulateBattle`（`src/sim/helpers/simulateBattle
 
 **cadence（毎週 maneuver × 4週 settlement）**: WarManeuver は毎週・PeaceSettlement は 4 週ごと。warScore が ±targetWarScore に到達しても settlement が走るまで最大 3 週ある。その間 step 3 が warScore を凍結し、到達済み War が余分な battle で行き過ぎるのを防ぐ。
 
-**バランス**: warScoreDelta は magnitude 式（outcomeQuality base × decisiveness × preBattle × cgEff、clamp `maxWarScoreDeltaPerBattle`=12）で決まり、決着戦闘数は base/target 比に依存する。戦闘は残存 org 合計で決まり**数的優位が支配的**、決着まで中央値 ~7 戦、destroyed は実質発生せず（strength 損耗は小）、rout は実戦で稀。戦闘系のバランス（avgStrength・CG fairness・median 等）は戦場/指揮官/消耗/兵站がひと通り入った後にまとめて調整する（現状は機能の bounded 動作を優先し config 非調整）。
+**バランス**: warScoreDelta は magnitude 式（outcomeQuality base × decisiveness × preBattle × cgEff、clamp `maxWarScoreDeltaPerBattle`=12）で決まり、決着戦闘数は base/target 比に依存する。戦闘は残存 org 合計で決まり**数的優位が支配的**。通常消耗では strength 損耗が小さく destroyed は希少だが、**v0.49 で追撃-壊滅経路（§6.45 pursuit の destroyed 抽選）が加わり、敗走連隊が壊滅し得る**ようになった（頻度は balance 保留）。戦闘系のバランス（avgStrength・CG fairness・median・突破/追撃/壊滅の発生率等）は戦場/指揮官/消耗/兵站がひと通り入った後にまとめて調整する（現状は機能の bounded 動作を優先し config 非調整）。
 
 **Regiment 接続（損耗ループ）**: battle の入力は永続 Regiment（§3.9b）。WarManeuverSystem は warScore 凍結判定（step 3）の後・総大将 refresh の前に **per-war mobilize prologue** を挟む（`mobilizeRegimentsForWar`。各 side の polity participant が所有する active かつ未動員 Regiment を当該 War/side へ動員する。決定的・乱数非消費・冪等）。battle が成立したら（mutual_engagement / 回避失敗）`simulateBattle` を実行し損耗を適用する:
 
 - **損耗は per-regiment**。`simulateBattle` が連隊ごとに organization / morale / strength の after 値を返し、`updateRegimentMut` で反映する。organization は内部 tick で主に削れ（§6.45 battle 解決）、morale も削れる。strength は損耗方針で大きくは削れない。
-- clamp 後 `strength <= regimentDestroyedStrengthThreshold`（既定 0）になった Regiment は `destroyed` 化（byWar から除去・status 遷移。byOwner には残す。§3.9b case(c)）。core では deployment 閾値（strength>10）により全滅前に配置外となり **destroyed は実質発生しない**。
+- clamp 後 `strength <= regimentDestroyedStrengthThreshold`（既定 0）になった Regiment は `destroyed` 化（byWar から除去・status 遷移。byOwner には残す。§3.9b case(c)）。通常消耗では deployment 閾値（strength>10）により全滅前に配置外となり destroyed は希少だが、**v0.49 の追撃-壊滅経路（§6.45）は `accumulatedOrgDamage` を致死量へ押し上げて `strengthAfter=0` に到達させる**ため、敗走連隊が destroyed 化し得る。
 - 1 戦闘につき `Battle` entity（§3.9c）を 1 件記録する（`createBattle`）。summary（outcomeQuality / ticksElapsed / frontage / *InitialFrontlineIds / *RoutedRegimentIds / breakthroughSide / *CommanderAssignments / pursuitOccurred / regimentResults の morale 込み）を保存する。`BATTLE_OCCURRED` event には battleId・連隊数に加え summary（outcomeQuality / ticksElapsed / frontline・routed counts / pursuitOccurred 等）を additive に載せる（§8 event 一覧）。
+- **恒久 BattleLog（v0.49・§3.9d）**: `Battle` entity は War cleanup で消える短期 summary なので、後年参照用に **WarManeuver が恒久 BattleLog を別途生成**する（source of truth は BattleLog、Battle は進行中 UI 用）。`battleLogImportance(sim)` で importance を付与する: `major`（breakthrough / pursuit-destroyed / 決定的勝利 = rout 等）/ `normal`（勝者明確な通常会戦）/ **`minor` は BattleLog を作らず** `BATTLE_OCCURRED` summary のみ。`major` は恒久保存、`normal` は `battleLogNormalRetentionWeeks`(=480) 経過で cleanupBattleLogSystem（§6.51b）が purge。会戦単位 reputation は **総大将の決定的勝敗のみ**（winner CG に `+battleCaptainGeneralFeatReputationScore`(=12) / loser CG に `−battleCaptainGeneralFailureReputationScore`(=14)、source `{kind:'war', warId, battleId}`・category `military`。突破/追撃の per-regiment feat は BattleLog のみで reputation は配らない）。これらの `PERSON_REPUTATION_GAINED/DAMAGED` は chronicle（category `life`・byPerson）に projection され死後も残る武功記録になる。新 SimEvent 型（BATTLE_BREAKTHROUGH 等）は v0.49 では**追加せず**、詳細は BattleLog.tickLogs に保持する（将来課題）。
 - strength の回復は RegimentReinforcementSystem（§6.50 月次）、organization / morale の回復は RegimentRecoverySystem（§6.48 baseline-aware）、destroyed の reform も §6.50。
 - 総大将 / 指揮官は **warScore 経路**（勝者側 `captainGeneralEfficiency`）と **battle 内経路**（指揮官 org/rout 補正 + 総大将 side-level 補正）の両方に効く。`commanderModifier`（power 乗算）は使わず、battle 内 org/rout 補正で表現する。
 
@@ -1909,7 +1922,16 @@ owner が Polity でない / `homeHoldingId` 無しは skip（worldgen は Polit
 
 ### 6.51 cleanupWarSystem（毎週）
 
-terminal War（active 以外）が `endedWeek` から `terminalWarRetentionWeeks` 経過したら `state.wars` および `warIndex`（byParticipant / byOriginDiplomaticPlay）から削除する。履歴は Event ログに残るため長期保持は不要。同じ削除ループで当該 War の `Battle` entity（§3.9c）も piggyback cleanup する（`battleIndex.byWar[warId]` の各 battle を `battles` から削除し、index entry も除去）。Battle は短期 entity なので、対応する War の retention 削除と同時に消える。
+terminal War（active 以外）が `endedWeek` から `terminalWarRetentionWeeks` 経過したら `state.wars` および `warIndex`（byParticipant / byOriginDiplomaticPlay）から削除する。履歴は Event ログに残るため長期保持は不要。同じ削除ループで当該 War の `Battle` entity（§3.9c）も piggyback cleanup する（`battleIndex.byWar[warId]` の各 battle を `battles` から削除し、index entry も除去）。Battle は短期 entity なので、対応する War の retention 削除と同時に消える。**恒久 BattleLog（§3.9d）はここでは消さない**（War 消滅後も後年参照するため。retention は §6.51b が独立に管理）。
+
+### 6.51b cleanupBattleLogSystem（毎週、v0.49）
+
+恒久 BattleLog（§3.9d）の retention purge を行う。cleanupWarSystem の近傍（war 系 cleanup と同じ後段）に置く。
+
+- `importance === 'normal' && week + battleLogNormalRetentionWeeks(=480) < absoluteWeek` の BattleLog を `state.battleLogs` から削除し、`battleLogIndex.byWar[warId]` からも除去する（空になった entry は delete）。
+- `major` BattleLog は削除しない（恒久。Chronicle 同様の長期蓄積項候補だが将来ディスク退避で対処）。
+- `minor` はそもそも生成されない（§6.45）ので対象外。
+- BattleLog は War とは独立に生きるため、cleanupWarSystem で War が消えても BattleLog は残り、本 system の retention のみで消える。
 
 ### 6.52 CleanupTerminalDiplomacy（毎週）
 

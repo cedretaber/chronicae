@@ -165,7 +165,7 @@
 | winner/loser/routedStrengthDamageMultiplier | 0.6 / 1.4 / 2.5 | strength damage の role 係数 |
 | routAdditionalMoraleDamage | 8 | rout 時の追加 morale damage |
 | battleRandomFactorMin / Max | 0.85 / 1.15 | damage 方向ごとの乱数幅 |
-| flankPressureBase / maxFlankPressureMultiplier | 0.15 / 1.3 | flank pressure 基礎 / 上限 |
+| ~~flankPressureBase / maxFlankPressureMultiplier~~ | （削除 v0.49） | 旧 wing-based flank pressure。slot-based flanking（§6.45）へ統合し退役・キー削除。`battleFlankTerrainMultiplierByKind` は slot-based flanking の地形補正に転用 |
 | battleMaxTicksDecisiveMarginRatio | 0.1 | maxTicks 到達時に決着とみなす残存 org 合計の相対差 |
 | battleSimOrganizationTiebreakEpsilon | 0 | 相討ち org 合計 tiebreak の epsilon |
 | routSideRoutedShareThreshold | 0.4 | 敗者 routed share がこの値以上で outcomeQuality=rout |
@@ -181,6 +181,20 @@
 | battleDecisivenessMin / Max | 0.7 / 1.4 | decisiveness clamp |
 | battlePreBattleEdgeWeight | 0.2 | 勝者 preBattle edge の反映係数 |
 | battlePreBattleModifierMin / Max | 0.8 / 1.2 | preBattleModifier clamp |
+| **v0.49 戦列スロットモデル（§6.45。係数は初期仮値。バランスは戦場/指揮官/消耗/兵站が揃ってから）** | | |
+| battleEngagementCaptureBaseChance / battleEngagementCaptureAbilityScale | 0.5 / 0.5 | 片側回避時の捕捉 contest（両総大将 insight+command）の基礎確率 / 能力差スケール |
+| battleCaughtFrontagePenalty / battleMinimumEffectiveFrontage | 1 / 1 | 捕捉戦で effectiveFrontage を縮める幅 / 下限 |
+| battleTacticAdvantageDamageMultiplier / battleTacticInsightReadEffect | 1.2 / 0.5 | 三すくみ有利側の damage 倍率 / 高 insight が有利戦術を選ぶ度合い |
+| battleUncommandedDamagePenalty / battleUncommandedRoutPenalty | 0.15 / 0.1 | 無指揮官連隊の damage / rout penalty |
+| battleUncommandedAdjacentSupportRatio | 0.5 | 隣接 slot に指揮官がいる場合の penalty 軽減率 |
+| battleFlankingDamageMultiplier / battleFlankingRoutPenalty | 1.25 / 0.1 | slot-based 側面攻撃の damage 倍率 / rout penalty |
+| battleBreakthroughBaseChance / battleBreakthroughAbilityGapThreshold | 0.08 / 15 | 突破の基礎確率 / eligible にする指揮官能力差閾値 |
+| battleBreakthroughOrgDamageMultiplier | 1.3 | 突破成功時の対象 accumulatedOrgDamage 倍率（combat damage と別ステップ） |
+| battlePursuitBaseChance / battlePursuitDestroyedChance | 0.15 / 0.35 | 追撃の基礎確率 / 追撃成功時の destroyed 抽選確率 |
+| battlePursuitOrgDamageMultiplier | 1.5 | 追撃成功時の org 増幅 |
+| battleDestroyedWarScoreWeight | 0.15 | warScore decisiveness への敗者 destroyed share 上乗せ重み（routed share と別軸の小 weight） |
+| battleCaptainGeneralFeatReputationScore / battleCaptainGeneralFailureReputationScore | 12 / 14 | 会戦単位 reputation: winner CG 突出武功 +score / loser CG 大失態 −score（決定的勝敗のみ。§6.45） |
+| battleLogNormalRetentionWeeks | 480 | 恒久 BattleLog の `normal` 保持週数（`major` は恒久・`minor` は非生成。§6.51b） |
 | **Regiment 補充・再編成（仮値。CLI harness で balance 調整予定。§6.50）** | | |
 | regimentReinforcementBasePerMonth | 4.0 | active strength の月次補充基礎値（cadence は tick 登録 interval=4 で固定） |
 | regimentReinforcementPeaceMultiplier | 1.0 | 平時の補充速度係数 |

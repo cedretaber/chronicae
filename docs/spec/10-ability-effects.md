@@ -12,9 +12,10 @@
 
 ### 10.0 統一非線形ファクター（v0.49 — 人物中心史観）
 
-> **v0.49 でこう拡張**: 内政成長・国庫税効率・開発コスト・軍戦力推定(外交評価のみ。実戦闘は§10.5 NB 参照で未強化)・代官徴税効率・`getPolityAdminPower`
+> **v0.49 でこう拡張**: 内政成長・国庫税効率・軍戦力推定(外交評価のみ。実戦闘は§10.5 NB 参照で未強化)・代官徴税効率・`getPolityAdminPower`
 > （= 征服/開発/収益ドライバ。`getEffectiveOfficeStat` 経由）・民衆反乱傾向の主要倍率を、50 中立の非線形
-> ファクター `abilityOutputFactor` に統一した。狙いは「優秀な人物がいたから上手くいった」を観賞対象として
+> ファクター `abilityOutputFactor` に統一した。**実配線は 4 経路**（内政成長 §10.3 / 国庫税効率 §10.4 /
+> 軍戦力推定 §10.5 / adminPower §10.0）。**開発コストは設計のみで未実装**（selector 未作成。§10.4 / §10.6 参照）。狙いは「優秀な人物がいたから上手くいった」を観賞対象として
 > 明確に見せること（KOEI 風）。旧 `1 + normalizedStat × 係数`（80↔40 で約 1.1〜1.2x）では能力差が体感できなかった。
 
 ```ts
@@ -83,8 +84,10 @@ taxEfficiency = clamp(
 // 国庫収入 *= taxEfficiency。家収入・POP wealth への影響なし
 ```
 
-**Polity treasurer → Polity土地開発コスト**（`calcTreasurerDevelopmentCostModifier`、現状未参照（将来の活用余地として保持）。v0.49 で非線形化）:
+**Polity treasurer → Polity土地開発コスト**（**未実装＝設計のみ**。selector `calcTreasurerDevelopmentCostModifier` は
+コード上に存在しない。下記は将来配線する際の想定式であり、v0.49 では non-linear 化の対象に**含めなかった**）:
 ```ts
+// ⚠️ 以下は設計案。現状この selector も呼び出し元も存在しない（grep 0 件、2026-06-18 監査確認）。
 costModifier = clamp(2 - abilityOutputFactor(getRoleScore(treasurer, 'stewardship'), config), 0.2, 2)
 effectiveCost = max(1, round(polityLandDevelopmentBaseCost * costModifier))
 // 有能(factor>1)ほどコスト<1。下限 0.2 で過剰割引を防ぐ
@@ -126,7 +129,7 @@ effectiveThreshold = clamp(
 
 ### 10.6 Polity 土地開発への効果
 
-確率試行による公共支出ベースの土地開発は存在しない。Polity の土地開発は Project システム（`develop_holding`）を通じて行う。Polity treasurer の admin による開発コスト割引 (`calcTreasurerDevelopmentCostModifier`)、および Polity administrator の ambition / caution 補正 (`calcChancellorLandDevelopmentScoreBonus`) selector はいずれも定義済みだが現状未参照（将来の活用余地として保持）。
+確率試行による公共支出ベースの土地開発は存在しない。Polity の土地開発は Project システム（`develop_holding`）を通じて行う。Polity treasurer の admin による開発コスト割引 (`calcTreasurerDevelopmentCostModifier`)、および Polity administrator の ambition / caution 補正 (`calcChancellorLandDevelopmentScoreBonus`) selector は**いずれも未実装**（spec 上の設計のみで selector は存在しない。2026-06-18 監査で grep 0 件を確認）。消費するはずの config キー `chancellorAmbitionLandDevelopmentScoreEffect` / `chancellorCautionLandDevelopmentScoreEffect` は defaultConfig に残るが**読み手が無い dead key**。将来配線する際にこれらを実装する。
 
 ### 10.7 Task outcome 判定への能力効果
 

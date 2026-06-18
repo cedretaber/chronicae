@@ -122,7 +122,8 @@ const WEEKS_PER_SEASON = 12
 | 25 | normalizePopSizes | 4 | |
 | 25a | mergeCompatiblePops | 48 | 年末安全弁として同一 merge key の POP を統合 |
 | 25b | CleanupTerminalDiplomacy | 1 | Pressure 同期削除 + 関連 Project cancel |
-| 25b2 | cleanupWarSystem | 1 | terminal War を `terminalWarRetentionWeeks` 経過後に records / warIndex から削除 |
+| 25b2 | cleanupWarSystem | 1 | terminal War を `terminalWarRetentionWeeks` 経過後に records / warIndex から削除（恒久 BattleLog は消さない） |
+| 25b3 | cleanupBattleLogSystem | 1 | v0.49。期限切れ `normal` BattleLog を `battleLogNormalRetentionWeeks` 経過後に削除（byWar index も purge。`major` は恒久・`minor` は非生成。§6.51b） |
 | 25c | CleanupTerminalDecisions | 4 | terminal Goal/Aim/orphan DecisionReason 削除 |
 | 25e | ChronicleProjectionSystem | 1 | **scheduledSystems 末尾**（全 cleanup の後・flush/IntegrityCheck の前）。この tick の event を curated allowlist で `ChronicleEntry` に projection（§6.62）。生成分も同 tick の年末 IntegrityCheck で index↔entry 検査される |
 | 25f | SuccessionSystem (year-end re-pass) | week48 | scheduledSystems 後・flush/IntegrityCheck 前。leaderless House を年末 invariant 成立のため再修復。通常 no-op で bit-identical |

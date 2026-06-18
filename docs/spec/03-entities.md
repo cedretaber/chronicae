@@ -1071,6 +1071,7 @@ type BattleId = Branded<string, 'BattleId'>  // prefix: "bt-"
 type BattleTickUnit = 'day' | 'phase'
 type BattleOutcomeQuality = 'orderly_withdrawal' | 'rout' | 'encirclement'  // encirclement は将来予約
 type BattleCommanderAssignment = { commanderPersonId: PersonId; regimentId: RegimentId }  // Battle 単位の一時割当 snapshot
+type BattleDestroyedCause = 'ordinary_attrition' | 'pursuit' | 'breakthrough_pursuit'  // v0.49: destroyed の原因タグ（ログ用）
 
 type BattleRegimentResult = {                // 1 Battle における 1 Regiment の損耗記録
   regimentId: RegimentId
@@ -1078,6 +1079,7 @@ type BattleRegimentResult = {                // 1 Battle における 1 Regiment
   strengthBefore: number; strengthAfter: number; strengthDamage: number
   organizationBefore: number; organizationAfter: number; organizationDamage: number
   moraleBefore?: number; moraleAfter?: number; moraleDamage?: number
+  destroyedCause?: BattleDestroyedCause     // v0.49: strengthAfter<=0 で destroyed のとき原因（通常消耗 / 追撃 / 突破→追撃）
 }
 
 type Battle = {
@@ -1108,8 +1110,8 @@ type Battle = {
   defenderInitialFrontlineIds?: RegimentId[]
   attackerRoutedRegimentIds?: RegimentId[]
   defenderRoutedRegimentIds?: RegimentId[]
-  breakthroughSide?: WarSideKey              // cosmetic flag（§6.45）
-  pursuitOccurred?: boolean                  // core では false 固定（将来予約）
+  breakthroughSide?: WarSideKey              // v0.49: 突破が発生した side（slot に穴を開ける実機構。§6.45）
+  pursuitOccurred?: boolean                  // v0.49: 追撃が発生したか（敗走連隊への destroyed 機構。§6.45。旧 false 固定を解除）
   attackerCommanderAssignments?: BattleCommanderAssignment[]
   defenderCommanderAssignments?: BattleCommanderAssignment[]
 }
@@ -1125,6 +1127,68 @@ type WorldState = {
   nextBattleId: number
 }
 ```
+
+### 3.9d BattleLog（恒久戦場ログ・v0.49）
+
+`Battle`（§3.9c）は War cleanup で消える短期 summary なので、**会戦内部の推移を後年参照する恒久履歴**として `BattleLog` を別 top-level entity で持つ。source of truth は BattleLog（戦術・slot 変化・突破/追撃/壊滅・指揮官割当）、Battle は進行中 UI 用の直近 summary という役割分担。retention は §6.51b cleanupBattleLogSystem が管理（cleanupWarSystem では消さない）。型は `src/sim/types/battleLog.ts`。`minor` は生成しない（重要イベントが無ければ `BATTLE_OCCURRED` summary で足りる）。
+
+```ts
+type BattleLogId = Branded<string, 'BattleLogId'>
+type BattleLogImportance = 'minor' | 'normal' | 'major'
+
+// 戦場内部の live 型（永続化されない。simulateBattle.ts にローカル定義）:
+//   WorkRegiment = BattleRegimentState 実体、BattleSlot = WorkRegiment | undefined、BattleLine = { slots: BattleSlot[] }。
+//   BattleLog には永続層の型のみを置く。
+
+type BattleTactic = 'offensive' | 'defensive' | 'disruption'      // 攻勢 / 守勢 / 攪乱（三すくみ。§6.45）
+type BattleEngagementArc = 'frontal' | 'flanking'                 // 正面 / 側面（正面が空で隣接 slot を撃つ）
+
+type BattleLogEntry =                                             // 主要イベントには slotIndex / targetSlotIndex を保存
+  | BattleTacticLogEntry | BattleRetreatLogEntry | BattleRoutLogEntry
+  | BattlePursuitLogEntry | BattleBreakthroughLogEntry | BattleRegimentDestroyedLogEntry
+  | BattleFillFrontlineLogEntry | BattleCommanderFeatLogEntry | BattleCommanderFailureLogEntry
+
+type BattleTickLog = {
+  tick: number
+  attackerTactic: BattleTactic; defenderTactic: BattleTactic
+  tacticAdvantageSide?: WarSideKey
+  attackerSlotsBefore: (RegimentId | null)[]; defenderSlotsBefore: (RegimentId | null)[]   // null = 空き slot
+  attackerSlotsAfter: (RegimentId | null)[];  defenderSlotsAfter: (RegimentId | null)[]
+  events: BattleLogEntry[]                                        // per-matchup org damage は恒久化しない
+}
+
+type BattleLog = {
+  id: BattleLogId
+  warId: WarId
+  battleId?: BattleId
+  week: number
+  provinceId: ProvinceId
+  holdingId?: HoldingId
+  battlefieldKind: BattlefieldKind
+  baseFrontage: number; effectiveFrontage: number                // 捕捉戦で effectiveFrontage が縮む（§6.45）
+  result: BattleResult
+  outcomeQuality?: BattleOutcomeQuality
+  importance: BattleLogImportance                                // warManeuver が付与（minor は生成しない）
+  attackerCaptainGeneralPersonId?: PersonId; defenderCaptainGeneralPersonId?: PersonId
+  attackerCommanders?: BattleCommanderAssignment[]               // 現場指揮官→連隊割当（Battle から恒久コピー）
+  defenderCommanders?: BattleCommanderAssignment[]
+  tickLogs: BattleTickLog[]
+  majorChronicleRefs?: ChronicleEntryId[]                        // 恒久 ChronicleEntry を参照（raw EventId は cap/purge されるため不可）
+}
+```
+
+**WorldState 追加**:
+
+```ts
+type WorldState = {
+  ...
+  battleLogs: Record<BattleLogId, BattleLog>
+  battleLogIndex: { byWar: Record<WarId, BattleLogId[]> }        // byPerson/byRegiment/byWeek は持たない（人物参照は ChronicleEntry.byWar/byPerson に寄せる）
+  nextBattleLogId: number                                        // mutable draft 書き戻し時は battleLogs/battleLogIndex と同 slice に含める（next*Id 取りこぼし＝ID 衝突の既知地雷）
+}
+```
+
+persistent invariant（§6.35 / integrityDiplomacyWarChecks で検査）: `battleLogIndex.byWar` → record の前方整合（存在 + warId 一致）、slotIndex / targetSlotIndex が当該 tick の `[0, effectiveFrontage)` 範囲内、`major` は retention purge されない / 期限切れ `normal` は purge 対象。`BattleLine.slots.length === effectiveFrontage`・二重在籍禁止・「strength は tick 中不変」等の **ephemeral 不変条件は simulateBattle 内のみ存在し integrity 非対象**（unit test / runtime assert で担保）。
 
 ### 3.10 目標システム
 
@@ -1726,6 +1790,7 @@ type ChronicleIndex = {  // キーは plain string（entityRef.id が string の
   byPolity: Record<string, ChronicleEntryId[]>
   byProvince: Record<string, ChronicleEntryId[]>
   byHolding: Record<string, ChronicleEntryId[]>
+  byWar: Record<string, ChronicleEntryId[]>     // v0.49: War 関連 ChronicleEntry を全走査せず取得（§6.45 会戦・§6.46 終結）
 }
 ```
 
