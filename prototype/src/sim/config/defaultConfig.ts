@@ -1347,6 +1347,9 @@ export type SimulationConfig = {
   warSupplyQuartermasterMitigationFactor: number
   warSupplyCaptainGeneralMitigationFactor: number
   warSupplyStrategistBonusFactor: number
+  warSupplyCaptainGeneralForageFactor: number
+  warSupplyCaptainGeneralDisciplineFactor: number
+  warSupplyQuartermasterDisciplineFactor: number
   cavalrySupplyDemandMultiplier: number
   cavalryForageEfficiencyBonus: number
   cavalryPlunderEfficiencyBonus: number
@@ -2843,6 +2846,9 @@ export const defaultConfig: SimulationConfig = {
   warSupplyQuartermasterMitigationFactor: 0.3,
   warSupplyCaptainGeneralMitigationFactor: 0.1,
   warSupplyStrategistBonusFactor: 0.15,
+  warSupplyCaptainGeneralForageFactor: 0.05,
+  warSupplyCaptainGeneralDisciplineFactor: 3.0,
+  warSupplyQuartermasterDisciplineFactor: 2.0,
   cavalrySupplyDemandMultiplier: 1.5,
   cavalryForageEfficiencyBonus: 0.05,
   cavalryPlunderEfficiencyBonus: 0.1,
