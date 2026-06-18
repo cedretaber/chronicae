@@ -1,6 +1,6 @@
 import type { TickContext } from './context'
 import type { WorldState } from '../types/world'
-import type { WarId, PolityId, ProvinceId } from '../types/ids'
+import type { WarId, PolityId, ProvinceId, CrisisId } from '../types/ids'
 import type { WarSideKey, WarSideSupplyState, WarSide } from '../types/war'
 import type { Regiment } from '../types/regiment'
 import type { EventEntityRef, EventMessageParams } from '../types/event'
@@ -30,6 +30,28 @@ import {
 import { updateWarSideMut } from '../mutations/warMutations'
 import { destroyRegimentMut, updateRegimentMut } from '../mutations/regimentMutations'
 import { clamp } from '../utils/math'
+import type { HoldingImprovementKind } from '../types/holdingImprovement'
+import { damageHoldingImprovementConditionMut } from '../mutations/holdingImprovementMutations'
+import { adjustHoldingPopWealthMut, adjustHoldingPopUnrestMut } from '../mutations/popMutations'
+import { createCrisisMut, setCrisisSeverityMut } from '../mutations/crisisMutations'
+import type { CreateCrisisInput } from '../mutations/crisisMutations'
+import { resolveCrisisHandlers, createHandleCrisisProjectMut } from './crisisSystem'
+
+const PLUNDER_PRIORITY_BY_HOLDING_KIND: Record<string, readonly HoldingImprovementKind[]> = {
+  manor: [
+    'storage_infrastructure',
+    'field_system',
+    'pastoral_infrastructure',
+    'irrigation_infrastructure',
+    'transport_infrastructure',
+  ],
+  city: [
+    'storage_infrastructure',
+    'market_infrastructure',
+    'workshop_infrastructure',
+    'transport_infrastructure',
+  ],
+}
 
 // Check if province territory is friendly for the side
 function isFriendlyTerritory(
@@ -70,6 +92,28 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
       byWar: { ...ctx.state.regimentIndex.byWar },
       byHomeProvince: { ...ctx.state.regimentIndex.byHomeProvince },
       byHomeHolding: { ...ctx.state.regimentIndex.byHomeHolding },
+    },
+    crises: { ...ctx.state.crises },
+    crisisIndex: {
+      byHolding: { ...ctx.state.crisisIndex.byHolding },
+      byProject: { ...ctx.state.crisisIndex.byProject },
+    },
+    projects: { ...ctx.state.projects },
+    projectIndex: {
+      byOwner: { ...ctx.state.projectIndex.byOwner },
+      byAim: { ...ctx.state.projectIndex.byAim },
+      byParentProject: { ...ctx.state.projectIndex.byParentProject },
+      byCreatorPerson: { ...ctx.state.projectIndex.byCreatorPerson },
+      bySupervisorPerson: { ...ctx.state.projectIndex.bySupervisorPerson },
+      byRelatedEntity: { ...ctx.state.projectIndex.byRelatedEntity },
+    },
+    holdingImprovements: { ...ctx.state.holdingImprovements },
+    holdingImprovementIndex: {
+      byHolding: { ...ctx.state.holdingImprovementIndex.byHolding },
+    },
+    popGroups: { ...ctx.state.popGroups },
+    popIndex: {
+      byHolding: { ...ctx.state.popIndex.byHolding },
     },
   }
   let next: TickContext = { ...ctx, state: ws }
@@ -252,7 +296,7 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
       const pressureGain =
         Math.max(0, supplyDemand - supplyAccess * forageEfficiency) *
         config.warSupplyPressureGainFactor
-      const supplyRelief = 0 // Phase 4 will add plunder/requisition relief
+      let supplyRelief = 0 // Phase 4 will add plunder/requisition relief
       const nextSupplyPressure = Math.max(
         0,
         prevSupplyPressure -
@@ -282,8 +326,8 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
         qmDiscipline -
         cgDiscipline
 
-      const harshRequisitionHostilityGain = 0 // Phase 4
-      const plunderHostilityGain = 0 // Phase 4
+      let harshRequisitionHostilityGain = 0 // Phase 4
+      let plunderHostilityGain = 0 // Phase 4
       const nextLocalHostility = clamp(
         prevLocalHostility -
           config.warSupplyLocalHostilityDecayPerWeek +
@@ -302,7 +346,7 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
           (qmScore / 100) * config.warSupplyQuartermasterDisciplineFactor,
       )
       const enemyTerritoryPlunderGain = friendly ? 0 : 1.0
-      const plunderRelief = 0 // Phase 4
+      let plunderRelief = 0 // Phase 4
       const requisitionRelief = 0 // Phase 4
 
       const nextPlunderPressure = Math.max(
@@ -361,6 +405,242 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
           if (roll < collapseChance) {
             destroyRegimentMut(ws, rid, absoluteWeek)
             collapsedCount++
+          }
+        }
+      }
+
+      // 12.5. Normal foraging condition damage (silent)
+      if (supplyDemand > 0 && provinceId !== undefined) {
+        const province = ws.provinces[provinceId]
+        if (province) {
+          const provinceHoldings = [...province.holdingIds].sort()
+          for (const holdingId of provinceHoldings) {
+            const conditionDrop =
+              config.supplyForageConditionDrop *
+              (nextSupplyPressure / 100) *
+              (supplyDemand / 10) *
+              (1 - qmScore / 200)
+            if (conditionDrop > 0.5) {
+              damageHoldingImprovementConditionMut(ws, holdingId, conditionDrop, [
+                'storage_infrastructure',
+              ])
+            }
+          }
+        }
+      }
+
+      // 12.6. Harsh requisition judgment
+      if (nextSupplyPressure >= config.warSupplyHarshRequisitionPressureThreshold) {
+        const harshChance =
+          (nextSupplyPressure - config.warSupplyHarshRequisitionPressureThreshold) *
+          config.warSupplyHarshRequisitionChanceFactor
+        const { value: harshRoll, rng: harshRng } = randomFloat(next.rng)
+        next = { ...next, rng: harshRng }
+        if (harshRoll < harshChance) {
+          const province = ws.provinces[provinceId]
+          if (province) {
+            const provinceHoldings = [...province.holdingIds].sort()
+            if (provinceHoldings.length > 0) {
+              const targetHoldingId = provinceHoldings[0]!
+              const harshDrop = config.supplyHarshRequisitionConditionDrop
+              damageHoldingImprovementConditionMut(ws, targetHoldingId, harshDrop, [
+                'storage_infrastructure',
+              ])
+              adjustHoldingPopWealthMut(
+                ws,
+                targetHoldingId,
+                -config.warSupplyHarshRequisitionPopWealthDamage,
+              )
+              adjustHoldingPopUnrestMut(
+                ws,
+                targetHoldingId,
+                config.warSupplyHarshRequisitionPopUnrestGain,
+              )
+              /* eslint-disable no-useless-assignment */
+              harshRequisitionHostilityGain = config.warSupplyHarshRequisitionHostilityGain
+              supplyRelief += config.warSupplyHarshRequisitionSupplyRelief
+              /* eslint-enable no-useless-assignment */
+
+              // Spillover
+              const { value: spilloverRoll, rng: spilloverRng } = randomFloat(next.rng)
+              next = { ...next, rng: spilloverRng }
+              if (spilloverRoll < config.warSupplyHarshRequisitionSpilloverChance) {
+                const otherHoldings = provinceHoldings.filter((h) => h !== targetHoldingId)
+                if (otherHoldings.length > 0) {
+                  const spilloverTarget = otherHoldings[0]!
+                  const spilloverDrop = harshDrop * config.supplySpilloverDamageMultiplier
+                  damageHoldingImprovementConditionMut(ws, spilloverTarget, spilloverDrop, [
+                    'storage_infrastructure',
+                  ])
+                  adjustHoldingPopWealthMut(
+                    ws,
+                    spilloverTarget,
+                    -config.warSupplyHarshRequisitionPopWealthDamage,
+                  )
+                  adjustHoldingPopUnrestMut(
+                    ws,
+                    spilloverTarget,
+                    config.warSupplyHarshRequisitionPopUnrestGain,
+                  )
+                }
+              }
+
+              // Emit SUPPLY_HARSH_REQUISITION event
+              const { event: harshEvent, ctx: harshCtx } = createSimEvent(next, {
+                type: 'SUPPLY_HARSH_REQUISITION',
+                importance: 'normal',
+                messageKey: 'supply.harsh_requisition',
+                messageParams: {
+                  side: sideKey,
+                  holding: targetHoldingId,
+                  conditionDrop: harshDrop,
+                  wealthDelta: -config.warSupplyHarshRequisitionPopWealthDamage,
+                  unrestDelta: config.warSupplyHarshRequisitionPopUnrestGain,
+                  supplyPressureReduction: config.warSupplyHarshRequisitionSupplyRelief,
+                },
+                entityRefs: [entityRef('holding', targetHoldingId)],
+              })
+              next = { ...harshCtx, events: [...harshCtx.events, harshEvent] }
+            }
+          }
+        }
+      }
+
+      // 12.7. Plunder judgment
+      if (nextPlunderPressure >= config.warSupplyPlunderPressureThreshold) {
+        const plunderChance =
+          (nextPlunderPressure - config.warSupplyPlunderPressureThreshold) *
+          config.warSupplyPlunderChanceFactor
+        const { value: plunderRoll, rng: plunderRng } = randomFloat(next.rng)
+        next = { ...next, rng: plunderRng }
+        if (plunderRoll < plunderChance) {
+          const province = ws.provinces[provinceId]
+          if (province) {
+            const provinceHoldings = [...province.holdingIds].sort()
+            if (provinceHoldings.length > 0) {
+              const targetHoldingId = provinceHoldings[0]!
+              const targetHolding = ws.holdings[targetHoldingId]
+              const targetKinds = PLUNDER_PRIORITY_BY_HOLDING_KIND[targetHolding?.kind ?? ''] ?? []
+              const plunderDrop = config.supplyPlunderConditionDrop
+              damageHoldingImprovementConditionMut(ws, targetHoldingId, plunderDrop, targetKinds)
+              adjustHoldingPopWealthMut(
+                ws,
+                targetHoldingId,
+                -config.warSupplyPlunderPopWealthDamage,
+              )
+              adjustHoldingPopUnrestMut(ws, targetHoldingId, config.warSupplyPlunderPopUnrestGain)
+              /* eslint-disable no-useless-assignment */
+              plunderHostilityGain = config.warSupplyPlunderHostilityGain
+              supplyRelief += config.warSupplyPlunderSupplyRelief
+              plunderRelief = config.warSupplyPlunderPressureRelief
+              /* eslint-enable no-useless-assignment */
+
+              // Crisis: check existing war_damage, update or create
+              const existingCrisisIds = ws.crisisIndex.byHolding[targetHoldingId as string] ?? []
+              let existingWarDamage: CrisisId | undefined
+              for (const cid of existingCrisisIds) {
+                const c = ws.crises[cid]
+                if (c && c.kind === 'war_damage' && c.status === 'active') {
+                  existingWarDamage = cid
+                  break
+                }
+              }
+              if (existingWarDamage) {
+                setCrisisSeverityMut(ws, existingWarDamage, 10)
+              } else {
+                const ownerPolityId = getHoldingTerminalPolityId(ws, targetHoldingId)
+                if (ownerPolityId) {
+                  const crisisInput: CreateCrisisInput = {
+                    kind: 'war_damage',
+                    holdingId: targetHoldingId,
+                    severity: config.crisisInitialSeverityByKind.war_damage,
+                    createdWeek: absoluteWeek,
+                    deadlineWeek: absoluteWeek + config.crisisDeadlineWeeksByKind.war_damage,
+                    status: 'active',
+                    reasonIds: [],
+                  }
+                  const crisis = createCrisisMut(ws, crisisInput)
+                  const handlers = resolveCrisisHandlers(ws, config, targetHoldingId, ownerPolityId)
+                  if (handlers) {
+                    createHandleCrisisProjectMut(
+                      ws,
+                      config,
+                      crisis,
+                      ownerPolityId,
+                      handlers.creatorId,
+                      handlers.supervisorId,
+                      absoluteWeek,
+                    )
+                  }
+                }
+              }
+
+              // Spillover
+              const spilloverBaseChance =
+                config.warSupplyPlunderSpilloverBaseChance +
+                nextPlunderPressure * config.warSupplyPlunderSpilloverPressureFactor
+              const maxSpillover = config.warSupplyMaxSpilloverHoldings
+              const damagedHoldings = new Set([targetHoldingId])
+              for (let i = 0; i < maxSpillover; i++) {
+                const remaining = provinceHoldings.filter((h) => !damagedHoldings.has(h))
+                if (remaining.length === 0) break
+                const { value: spillRoll, rng: spillRng } = randomFloat(next.rng)
+                next = { ...next, rng: spillRng }
+                if (spillRoll < spilloverBaseChance) {
+                  const spilloverTarget = remaining[0]!
+                  damagedHoldings.add(spilloverTarget)
+                  const spilloverDrop = plunderDrop * config.supplySpilloverDamageMultiplier
+                  damageHoldingImprovementConditionMut(
+                    ws,
+                    spilloverTarget,
+                    spilloverDrop,
+                    targetKinds,
+                  )
+                  adjustHoldingPopWealthMut(
+                    ws,
+                    spilloverTarget,
+                    -config.warSupplyPlunderPopWealthDamage,
+                  )
+                  adjustHoldingPopUnrestMut(
+                    ws,
+                    spilloverTarget,
+                    config.warSupplyPlunderPopUnrestGain,
+                  )
+                }
+              }
+
+              // Collect damaged kinds from target
+              const damagedKinds: string[] = []
+              const targetImpIds = ws.holdingImprovementIndex.byHolding[targetHoldingId]
+              if (targetImpIds) {
+                for (const impId of targetImpIds) {
+                  const imp = ws.holdingImprovements[impId]
+                  if (imp && imp.condition < imp.condition + plunderDrop) {
+                    if (!damagedKinds.includes(imp.kind)) {
+                      damagedKinds.push(imp.kind)
+                    }
+                  }
+                }
+              }
+
+              // Emit SUPPLY_PLUNDER event
+              const { event: plunderEvent, ctx: plunderCtx } = createSimEvent(next, {
+                type: 'SUPPLY_PLUNDER',
+                importance: 'major',
+                messageKey: 'supply.plunder',
+                messageParams: {
+                  side: sideKey,
+                  holding: targetHoldingId,
+                  damagedKinds: damagedKinds.join(', '),
+                  conditionDrop: plunderDrop,
+                  wealthDelta: -config.warSupplyPlunderPopWealthDamage,
+                  unrestDelta: config.warSupplyPlunderPopUnrestGain,
+                  supplyPressureReduction: config.warSupplyPlunderSupplyRelief,
+                },
+                entityRefs: [entityRef('holding', targetHoldingId)],
+              })
+              next = { ...plunderCtx, events: [...plunderCtx.events, plunderEvent] }
+            }
           }
         }
       }

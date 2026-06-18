@@ -45,6 +45,8 @@ export const CHRONICLE_EVENT_TYPE_DEFINITIONS: Partial<
   WAR_PARTICIPANT_JOINED: { category: 'war' },
   PEACE_SETTLEMENT_APPLIED: { category: 'war' },
   SUPPLY_ATTRITION: { category: 'war' },
+  SUPPLY_PLUNDER: { category: 'war' },
+  SUPPLY_HARSH_REQUISITION: { category: 'war' },
   // Diplomacy (v0.43 §17): 支援宣言。宣言と参戦のペア有無で「宣言したが参戦しなかった」を読める。
   DIPLOMATIC_SUPPORT_DECLARED: { category: 'diplomacy' },
   BATTLE_OCCURRED: { category: 'battle', templateKey: selectBattleTemplate },

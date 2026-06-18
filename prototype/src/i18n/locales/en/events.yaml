@@ -125,6 +125,8 @@ war:
 
 supply:
   attrition: 'Supply shortage takes its toll on {{side}} forces (supply pressure: {{supplyPressure}}). Strength loss: {{strengthDamage}}, organization: -{{organizationDamage}}, morale: -{{moraleDamage}}. Regiments collapsed: {{collapsedRegimentCount}}.'
+  plunder: 'Forces on the {{side}} side plundered {{holding}} — damaged {{damagedKinds}} (condition -{{conditionDrop}}). Wealth: {{wealthDelta}}, unrest: +{{unrestDelta}}. Supply pressure reduced by {{supplyPressureReduction}}.'
+  harsh_requisition: 'Forces on the {{side}} side imposed harsh requisition on {{holding}} — damaged storage (condition -{{conditionDrop}}). Wealth: {{wealthDelta}}, unrest: +{{unrestDelta}}. Supply pressure reduced by {{supplyPressureReduction}}.'
 
 # v0.38 Phase 4: chronicle-specific battle narrative. selectBattleTemplate swaps in
 #   these only for distinctive victories (ordinary / non-victory reuse war.battle_occurred).

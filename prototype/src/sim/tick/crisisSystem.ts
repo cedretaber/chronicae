@@ -65,7 +65,7 @@ function holdingEligibleForKind(ws: WorldState, holdingId: HoldingId, kind: Cris
 //   同様に owner polity の指導者を creator に立て、selectProjectSupervisor で担当者を探す。指導者すら
 //   いなければ undefined (= 真に放置)。bailiff を selectProjectSupervisor に通さないのは、代官は polity
 //   office ではなく holding office 保有者で officeBonus が付かず別人に displace されてしまうため。
-function resolveCrisisHandlers(
+export function resolveCrisisHandlers(
   ws: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
@@ -92,7 +92,7 @@ function resolveCrisisHandlers(
 
 // 対処 Project (handle_crisis) を生成する。owner = live 解決した polity。creator/supervisor は
 //   resolveCrisisHandlers が決める (代官 or 指導者+探索担当者)。
-function createHandleCrisisProjectMut(
+export function createHandleCrisisProjectMut(
   ws: WorldState,
   config: SimulationConfig,
   crisis: Crisis,
