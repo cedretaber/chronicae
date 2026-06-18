@@ -328,6 +328,7 @@ const droughtChance = config.droughtBaseChancePerYear + config.droughtPressureCh
 - **severity 比例デバフ**: 対象 class の POP に wealth −（`crisisWeeklyWealthPenaltyPerSeverity * severity`）/ unrest +（`crisisWeeklyUnrestPerSeverity * severity`）。対象 class は plague=全 class、unrest=反乱 class（`demand.claimantPopClass`）、その他=peasants。放置 Crisis も severity 据え置きでデバフ継続。
 - **放置時の attitude 低下**（対処 Project 無し or secure_budget 停滞中）: その holding の POP の **代官 affection ↓ + Polity affection ↓** を毎週わずかに（`crisisNeglectAffectionDropPerWeek*`）。**owner house は対象外**（災害放置では secession を焚き付けない）。
 - **owner live 解決**: owner polity が inactive / holding terminal 喪失なら expired+purge（EC2/EC5）。所有移転で Project.owner がずれたら旧 Project を cancel し、新 owner で `resolveCrisisHandlers` 経由で対処 Project を張り直す（EC1 自己修復。担当者が立たなければ放置）。
+- **放置リトライ（EC6）**: 対処 Project がない active crisis に毎週 `resolveCrisisHandlers` を再試行する。commonwealth 成立直後など人材不足で spawn 時に Project を立てられなかった crisis が、行政官配置後に回復できるようにする。担当者が見つかれば即座に `createHandleCrisisProjectMut` で Project を生成する。
 - **期限処理**: `absoluteWeek >= deadlineWeek` で未解決 → expired。追加 affection 低下（`crisisExpiredAffectionDrop*`）。unrest 以外は `CRISIS_EXPIRED` を emit して即 purge。**unrest は expired を mark するだけで purge せず**、UnrestCrisisSystem（§6.29a）が同 tick で武装蜂起を適用してから purge する。
 
 **完了（resolved）**: handle_crisis Project が completed すると ProjectOutcomeSystem（§6.41）が Crisis を resolved にして即 purge（`flushTerminalEntities` は Project 専用・年末のみなので Crisis を残せない）。`CRISIS_RESOLVED` を emit。**unrest だけは purge せず resolved を mark** し、UnrestCrisisSystem が譲歩/鎮圧を適用してから purge する。

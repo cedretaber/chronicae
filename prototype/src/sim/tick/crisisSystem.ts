@@ -689,6 +689,31 @@ function runWeeklyProcessing(
       }
     }
 
+    // EC6: 放置リトライ — 対処 Project がない active crisis に毎週担当者を探し直す。
+    //   commonwealth 成立直後など人材不足で spawn 時に Project を立てられなかった crisis が、
+    //   行政官配置後に回復できるようにする。
+    if (!effectiveProject) {
+      const fresh = ws.crises[crisis.id]
+      if (fresh && !fresh.responseProjectId) {
+        const retryHandlers = resolveCrisisHandlers(ws, config, holdingId, ownerPolityId)
+        if (retryHandlers) {
+          createHandleCrisisProjectMut(
+            ws,
+            config,
+            fresh,
+            ownerPolityId,
+            retryHandlers.creatorId,
+            retryHandlers.supervisorId,
+            absoluteWeek,
+          )
+          const updated = ws.crises[crisis.id]
+          effectiveProject = updated?.responseProjectId
+            ? (ws.projects[updated.responseProjectId] as HandleCrisisProject | undefined)
+            : undefined
+        }
+      }
+    }
+
     let severity = crisis.severity
     if (crisis.kind === 'disrepair') {
       // v0.48.1 §4.3: disrepair は condition 駆動。表示 severity = clamp(0,100, threshold − condition)
