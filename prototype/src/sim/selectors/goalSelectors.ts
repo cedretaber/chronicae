@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PolityId, HouseId, GoalId, ProvinceId, LandContractId, HoldingId } from '../types/ids'
+import type { PolityId, HouseId, GoalId, ProvinceId, LandContractId } from '../types/ids'
 import type { PolityRank } from '../types/polity'
 import { canPromotePolityRank } from './petitionSelectors'
 import type {
@@ -31,8 +31,7 @@ import {
   getLandContractGrantor,
 } from './landContractSelectors'
 import { getHoldingDevelopment } from './holdingImprovementSelectors'
-import type { PopClass, PopOccupation } from '../types/popGroup'
-import { getHoldingOccupationCapacity, getHoldingPopSizeByClassAndOccupation } from './popSelectors'
+import { hasCapacityPressure } from './popSelectors'
 import { calcPolityMilitaryPower } from './militarySelectors'
 import { getHouseOwnedPolityIds } from './landContractSelectors'
 import { predictPressureResponseStance } from './pressureStanceSelectors'
@@ -303,25 +302,6 @@ export function pickAimForGoal(
     )
   }
   return undefined
-}
-
-function hasCapacityPressure(
-  state: WorldState,
-  config: SimulationConfig,
-  holdingId: HoldingId,
-): boolean {
-  const pairs: [PopClass, PopOccupation][] = [
-    ['peasants', 'agriculture'],
-    ['townsmen', 'urban_labor'],
-    ['nobles', 'elite_service'],
-  ]
-  for (const [pc, occ] of pairs) {
-    const cap = getHoldingOccupationCapacity(state, config, holdingId, pc, occ)
-    if (cap <= 0) continue
-    const employed = getHoldingPopSizeByClassAndOccupation(state, holdingId, pc, occ)
-    if (employed / cap >= config.developRealEstateCapacityPressureThreshold) return true
-  }
-  return false
 }
 
 function pickPolityAim(

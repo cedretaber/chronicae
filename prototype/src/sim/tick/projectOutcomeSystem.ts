@@ -87,6 +87,11 @@ export function runProjectOutcomeSystem(ctx: TickContext): TickContext {
     holdingImprovementIndex: {
       byHolding: { ...ctx.state.holdingImprovementIndex.byHolding },
     },
+    realEstateAssets: { ...ctx.state.realEstateAssets },
+    realEstateAssetIndex: {
+      byHolding: { ...ctx.state.realEstateAssetIndex.byHolding },
+      byOwner: { ...ctx.state.realEstateAssetIndex.byOwner },
+    },
     persons: { ...ctx.state.persons },
     personActivityLogs: { ...ctx.state.personActivityLogs },
     personActivityLogIndex: {

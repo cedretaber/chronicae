@@ -286,3 +286,22 @@ export function getHoldingOccupationRemainingCapacity(
   const used = getHoldingPopSizeByClassAndOccupation(state, holdingId, popClass, occupation)
   return Math.max(0, capacity - used)
 }
+
+export function hasCapacityPressure(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): boolean {
+  const pairs: [PopClass, PopOccupation][] = [
+    ['peasants', 'agriculture'],
+    ['townsmen', 'urban_labor'],
+    ['nobles', 'elite_service'],
+  ]
+  for (const [pc, occ] of pairs) {
+    const cap = getHoldingOccupationCapacity(state, config, holdingId, pc, occ)
+    if (cap <= 0) continue
+    const employed = getHoldingPopSizeByClassAndOccupation(state, holdingId, pc, occ)
+    if (employed / cap >= config.developRealEstateCapacityPressureThreshold) return true
+  }
+  return false
+}

@@ -1388,7 +1388,6 @@ export type SimulationConfig = {
     Partial<Record<ProvinceFeature, number>>
   >
   realEstateInfrastructureModifiers: Record<RealEstateKind, RealEstateInfrastructureModifier[]>
-  realEstateOwnerIncomeRate: number
   developRealEstateCapacityPressureThreshold: number
   minSlotOveruseModifier: number
   realEstateSlotCapacityBase: Record<HoldingKind, number>
@@ -2898,7 +2897,6 @@ export const defaultConfig: SimulationConfig = {
     lord_hall: [],
     town_hall: [],
   },
-  realEstateOwnerIncomeRate: 0.15,
   developRealEstateCapacityPressureThreshold: 0.8,
   minSlotOveruseModifier: 0.5,
   realEstateSlotCapacityBase: { manor: 3, city: 4 },

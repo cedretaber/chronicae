@@ -22,11 +22,7 @@ import {
   getRealEstateAssetLevel,
 } from '../selectors/holdingImprovementSelectors'
 import { getHoldingDevelopment } from '../selectors/holdingImprovementSelectors'
-import {
-  getHoldingOccupationCapacity,
-  getHoldingPopSizeByClassAndOccupation,
-} from '../selectors/popSelectors'
-import type { PopClass, PopOccupation } from '../types/popGroup'
+import { hasCapacityPressure } from '../selectors/popSelectors'
 import type { RealEstateKind } from '../types/realEstateAsset'
 import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
@@ -98,14 +94,10 @@ export function handlePrepareProjectCompletionMut(
           creatorPersonId)
 
   const projectId: ProjectId = createProjectId(ws.nextProjectId)
-  const targetProgress =
+  const baseTargetProgress =
     outcome === 'partial'
       ? config.projectDefaultTargetProgress + config.prepareProjectPartialTargetProgressPenalty
       : config.projectDefaultTargetProgress
-  const deadlineWeeks = getProjectDeadlineWeeks(config, projectKind, targetProgress)
-  const deadlineWeek = aim.deadlineWeek
-    ? Math.min(aim.deadlineWeek, absoluteWeek + deadlineWeeks)
-    : absoluteWeek + deadlineWeeks
 
   const project: Project = {
     id: projectId,
@@ -116,16 +108,26 @@ export function handlePrepareProjectCompletionMut(
     supervisorPersonId: supervisorId,
     status: 'active',
     progress: 0,
-    targetProgress,
+    targetProgress: baseTargetProgress,
     createdWeek: absoluteWeek,
-    deadlineWeek,
+    deadlineWeek: absoluteWeek,
     reasonIds: [...aim.reasonIds],
     ...fields,
   } as Project
 
-  ws.projects[projectId] = project
+  const resolvedDeadlineWeeks = getProjectDeadlineWeeks(
+    config,
+    project.kind,
+    project.targetProgress,
+  )
+  const resolvedDeadlineWeek = aim.deadlineWeek
+    ? Math.min(aim.deadlineWeek, absoluteWeek + resolvedDeadlineWeeks)
+    : absoluteWeek + resolvedDeadlineWeeks
+  const finalProject = { ...project, deadlineWeek: resolvedDeadlineWeek }
+  ws.projects[projectId] = finalProject
+
   ws.nextProjectId++
-  addProjectToIndexMut(ws, project)
+  addProjectToIndexMut(ws, finalProject)
 
   resolveImmediateStages(ws, config, projectId, absoluteWeek)
 
@@ -138,7 +140,7 @@ export function handlePrepareProjectCompletionMut(
     messageKey: 'project.started',
     messageParams: {
       owner: nameParam(getOwnerNameRefForEmit(ws, aim.owner).category, ownerNameKey),
-      kind: projectKind,
+      kind: project.kind,
     },
     entityRefs: [entityRef(aim.owner.kind, aim.owner.id, 'owner', ownerNameKey)],
   })
@@ -170,43 +172,29 @@ function selectImprovementKind(
   return bestKind
 }
 
-function checkCapacityPressure(
+function selectRealEstateKind(
   ws: WorldState,
   config: SimulationConfig,
   holdingId: HoldingId,
-): boolean {
-  const pairs: [PopClass, PopOccupation][] = [
-    ['peasants', 'agriculture'],
-    ['townsmen', 'urban_labor'],
-    ['nobles', 'elite_service'],
-  ]
-  for (const [pc, occ] of pairs) {
-    const cap = getHoldingOccupationCapacity(ws, config, holdingId, pc, occ)
-    if (cap <= 0) continue
-    const employed = getHoldingPopSizeByClassAndOccupation(ws, holdingId, pc, occ)
-    if (employed / cap >= config.developRealEstateCapacityPressureThreshold) return true
-  }
-  return false
-}
-
-function selectRealEstateKind(
-  ws: WorldState,
-  _config: SimulationConfig,
-  holdingId: HoldingId,
 ): RealEstateKind | undefined {
+  const holding = ws.holdings[holdingId]
+  if (!holding) return undefined
+  const province = ws.provinces[holding.provinceId]
+  if (!province) return undefined
   const ALL_KINDS = Object.keys(REAL_ESTATE_DEFINITIONS) as RealEstateKind[]
   let bestKind: RealEstateKind | undefined
-  let bestCapacityGain = 0
+  let bestEffectiveGain = 0
   for (const kind of ALL_KINDS) {
     const def = REAL_ESTATE_DEFINITIONS[kind]
     if (def.fixedInstitution) continue
     if (!canBuildRealEstateAsset(ws, holdingId, kind)) continue
+    const terrainMult = config.realEstateTerrainCapacityMultiplier[kind][province.terrain] ?? 1.0
     let totalGain = 0
     for (const slot of def.employmentSlots) {
-      totalGain += slot.capacityPerLevel
+      totalGain += slot.capacityPerLevel * terrainMult
     }
-    if (totalGain > bestCapacityGain) {
-      bestCapacityGain = totalGain
+    if (totalGain > bestEffectiveGain) {
+      bestEffectiveGain = totalGain
       bestKind = kind
     }
   }
@@ -252,41 +240,44 @@ function buildProjectFieldsForAim(
       if (hasActiveDev) return undefined
 
       const holdingDev = getHoldingDevelopment(ws, config, holdingId)
-      const hasCapPressure = checkCapacityPressure(ws, config, holdingId)
+      const hasCapPressure = hasCapacityPressure(ws, config, holdingId)
 
       if (hasCapPressure) {
         const realEstateKind = selectRealEstateKind(ws, config, holdingId)
-        if (!realEstateKind) return undefined
-        const currentLevel = getRealEstateAssetLevel(ws, holdingId, realEstateKind)
-        const targetLevel = currentLevel + 1
-        const baseCost = config.developRealEstateProjectBaseCost[realEstateKind]
-        const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
-        const required = baseCost * costMult * config.projectBudgetMarginMultiplier
-        const baseProgress = config.developRealEstateProjectBaseProgress[realEstateKind]
-        const progMult = config.improvementLevelProgressMultiplier[targetLevel] ?? 1
-        const existingAssetId = (() => {
-          const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
-          for (const aId of assetIds) {
-            const a = ws.realEstateAssets[aId]
-            if (a && a.realEstateKind === realEstateKind) return aId
+        if (!realEstateKind) {
+          // fallback: all slot-using assets at max level → try infrastructure instead
+        } else {
+          const currentLevel = getRealEstateAssetLevel(ws, holdingId, realEstateKind)
+          const targetLevel = currentLevel + 1
+          const baseCost = config.developRealEstateProjectBaseCost[realEstateKind]
+          const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
+          const required = baseCost * costMult * config.projectBudgetMarginMultiplier
+          const baseProgress = config.developRealEstateProjectBaseProgress[realEstateKind]
+          const progMult = config.improvementLevelProgressMultiplier[targetLevel] ?? 1
+          const existingAssetId = (() => {
+            const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+            for (const aId of assetIds) {
+              const a = ws.realEstateAssets[aId]
+              if (a && a.realEstateKind === realEstateKind) return aId
+            }
+            return undefined
+          })()
+          return {
+            kind: 'develop_real_estate',
+            holdingId,
+            realEstateKind,
+            targetRealEstateAssetId: existingAssetId,
+            targetRealEstateLevel: targetLevel,
+            currentStageKey: getInitialProjectStageKey('develop_real_estate'),
+            budget: {
+              required,
+              allocated: 0,
+              remaining: 0,
+              spent: 0,
+              source: { kind: 'owner' },
+            } satisfies ProjectBudget,
+            targetProgress: baseProgress * progMult,
           }
-          return undefined
-        })()
-        return {
-          kind: 'develop_real_estate',
-          holdingId,
-          realEstateKind,
-          targetRealEstateAssetId: existingAssetId,
-          targetRealEstateLevel: targetLevel,
-          currentStageKey: getInitialProjectStageKey('develop_real_estate'),
-          budget: {
-            required,
-            allocated: 0,
-            remaining: 0,
-            spent: 0,
-            source: { kind: 'owner' },
-          } satisfies ProjectBudget,
-          targetProgress: baseProgress * progMult,
         }
       }
 
