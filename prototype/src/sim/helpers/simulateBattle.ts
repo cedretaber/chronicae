@@ -774,15 +774,13 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
           0,
           enemy.input.maxMorale,
         )
-        // destroyed 抽選 (§12.4)。成功時は終局式で strengthAfter=0 を保証する致死量まで押し上げる。
+        // destroyed 抽選 (§12.4)。成功した連隊は終局で strengthAfter=0 を強制する (終局算出箇所参照)。
+        //   旧実装は accumulatedOrgDamage を「致死量」へ押し上げる間接式だったが、終局式の outcome/powerDis
+        //   係数を含まず default config の境界値でのみ 0 に届く脆弱性があったため、原因タグを単一の真実源にした。
         const destroyDraw = randomFloat(rng)
         rng = destroyDraw.rng
         let destroyed = false
         if (destroyDraw.value < cfg.battlePursuitDestroyedChance) {
-          const lethal =
-            enemy.input.strength /
-            (cfg.battleStrengthDamageRatio * cfg.routedStrengthDamageMultiplier)
-          enemy.accumulatedOrgDamage = Math.max(enemy.accumulatedOrgDamage, lethal)
           destroyed = true
           pursuitDestroyedCause.set(
             enemy,
@@ -952,9 +950,16 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
         roleMult *
         outcomeStrMult *
         powerDisMult
-      const strengthAfter = Math.max(0, w.input.strength - strDamage)
-      // v0.49 §14.2: destroyed (strengthAfter===0) のみ原因タグを付す。
-      //   pursuit 致死で押し下げた連隊は pursuit/breakthrough_pursuit、それ以外の壊滅は ordinary_attrition。
+      // v0.49 §14.2: pursuit 致死で destroyed 判定された連隊は終局式の outcome/powerDis 係数に依らず
+      //   strengthAfter=0 を強制し、tick ログの destroyed と regimentResults を必ず一致させる。
+      //   旧実装は accumulatedOrgDamage を「致死量」へ押し上げる間接式で、終局式が strength×product を
+      //   引いた結果が浮動小数点誤差でわずかに正に残ると destroyedCause=undefined となり「tick ログは
+      //   壊滅だが連隊は生存」する不整合があった (default config でも発火)。原因タグを単一の真実源にして解消。
+      const strengthAfter = pursuitDestroyedCause.has(w)
+        ? 0
+        : Math.max(0, w.input.strength - strDamage)
+      // destroyed (strengthAfter===0) のみ原因タグを付す。pursuit 致死は pursuit/breakthrough_pursuit、
+      //   それ以外 (通常消耗) の壊滅は ordinary_attrition。
       const destroyedCause: BattleDestroyedCause | undefined =
         strengthAfter <= 0 ? (pursuitDestroyedCause.get(w) ?? 'ordinary_attrition') : undefined
       regimentResults.push({

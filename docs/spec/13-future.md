@@ -22,7 +22,6 @@ War / WarScore / PeaceSettlement の配管、Captain General / Commander / Battl
   - **dynamic frontage**: 現状 effectiveFrontage は base or 捕捉縮小のみ。天候・戦術・地形複雑度・作戦による幅変動を追加。
   - **encirclement outcomeQuality**: `BattleOutcomeQuality` の `encirclement` は型予約のみ。包囲殲滅の本格判定を導入。
   - **兵種の拡張（騎兵の特殊連隊化）**: v0.49 段階で worldgen の連隊は当面すべて infantry に揃えた（騎兵自動生成を停止。§3 RegimentTroopKind 注記）。騎兵を「特殊な連隊」として別設計で再導入し、弓兵・砲兵等の兵種追加・formation / stance も検討する。
-  - **追撃-壊滅式の堅牢化**: pursuit destroyed の致死量（`accumulatedOrgDamage` 押し上げ）が終局式の outcome/powerDis 係数を含まず、default config では境界値ちょうど `strengthAfter=0`。係数を弱めると未達になり「tick ログ上 destroyed だが regimentResults 上は生存」の乖離が起き得る既知の脆弱性（§6.45）。終局式と同じ係数を致死量算出に織り込むか、destroyedCause 判定を tick ログ側と一致させる。
   - **戦場ログの外部退避**: BattleLog の major 恒久保存は Chronicle 同様の長期蓄積項。disk / append-only log への退避で minor 含む全ログ保存へ拡張。
 - **開戦 AI の連隊在庫 gate**: 0 連隊での開戦抑止。
 - **厭戦感情ほか**: `HouseWarState` / warWeariness / casualties（POP casualties）/ 強制徴募。
