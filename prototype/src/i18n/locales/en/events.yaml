@@ -123,6 +123,9 @@ war:
     change_tax: 'The peace settlement set the tax of {{holding}} from {{fromRate}}% to {{toRate}}% in favor of {{attacker}}.'
     dissolve_contract: 'The peace settlement dissolved the land contract of {{holding}} in favor of {{attacker}}.'
 
+supply:
+  attrition: 'Supply shortage takes its toll on {{side}} forces (supply pressure: {{supplyPressure}}). Strength loss: {{strengthDamage}}, organization: -{{organizationDamage}}, morale: -{{moraleDamage}}. Regiments collapsed: {{collapsedRegimentCount}}.'
+
 # v0.38 Phase 4: chronicle-specific battle narrative. selectBattleTemplate swaps in
 #   these only for distinctive victories (ordinary / non-victory reuse war.battle_occurred).
 chronicle:

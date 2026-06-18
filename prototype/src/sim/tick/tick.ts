@@ -35,6 +35,7 @@ import { runTaskSystem } from './taskSystem'
 import { runConflictResolutionSystem } from './conflictResolutionSystem'
 import { runWarCreationSystem } from './warCreationSystem'
 import { runWarManeuverSystem } from './warManeuverSystem'
+import { runWarSupplySystem } from './warSupplySystem'
 import { runRegimentRecoverySystem } from './regimentRecoverySystem'
 import { runRegimentMaintenanceSystem } from './regimentMaintenanceSystem'
 import { runCavalryEntitlementSystem } from './cavalryEntitlementSystem'
@@ -445,6 +446,12 @@ const scheduledSystems: ScheduledSystem[] = [
     intervalWeeks: 4,
     phaseOffsetWeeks: 0,
     run: runConflictResolutionSystem,
+  },
+  {
+    name: 'warSupplySystem',
+    intervalWeeks: 1,
+    phaseOffsetWeeks: 0,
+    run: runWarSupplySystem,
   },
   {
     // v0.35: 旧 WarProgressSystem を WarManeuverSystem に置換。intervalWeeks 1 (毎週、§2.4)。

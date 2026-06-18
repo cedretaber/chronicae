@@ -26,7 +26,8 @@ const simDir = fileURLToPath(new URL('../sim', import.meta.url))
 // messageParams を変数で構築しており静的抽出できないが、定義を目視確認済みの messageKey。
 // 追加する際は emit 側の変数定義が当該 key の placeholder をすべて満たすことを必ず確認すること。
 // - regiment.reformed: regimentReinforcementSystem.ts で { owner, province } を構築（placeholder と一致）
-const ALLOW_DYNAMIC_PARAMS = new Set<string>(['regiment.reformed'])
+// - supply.attrition: warSupplySystem.ts で { side, supplyPressure, strengthDamage, organizationDamage, moraleDamage, collapsedRegimentCount } を構築
+const ALLOW_DYNAMIC_PARAMS = new Set<string>(['regiment.reformed', 'supply.attrition'])
 
 function flatten(obj: unknown, prefix: string, out: Record<string, string[]>): void {
   if (!obj || typeof obj !== 'object') return
