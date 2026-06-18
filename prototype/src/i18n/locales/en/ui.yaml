@@ -124,7 +124,8 @@ detail:
     empty: 'No records'
   project_kind:
     acquire_political_right: 'Acquire Political Right'
-    develop_holding: 'Develop Holding'
+    develop_holding: 'Develop Infrastructure'
+    develop_real_estate: 'Develop Real Estate'
     promote_policy_shift: 'Policy Lobbying'
     patronize_artist: 'Patronize Artist'
     commission_chronicle: 'Commission Chronicle'
@@ -590,21 +591,13 @@ detail:
     chronicle: 'Provincial History'
     capacity: 'Capacity'
     employment_rate: 'Employment Rate'
-    improvements: 'Improvements'
-    improvement_field_system: 'Field System'
-    improvement_pastoral_infrastructure: 'Pastoral Infrastructure'
+    improvements: 'Infrastructure'
     improvement_irrigation_infrastructure: 'Irrigation Infrastructure'
     improvement_market_infrastructure: 'Market Infrastructure'
     improvement_workshop_infrastructure: 'Workshop Infrastructure'
     improvement_storage_infrastructure: 'Storage Infrastructure'
     improvement_transport_infrastructure: 'Transport Infrastructure'
     improvement_level: 'Lv.{{level}}'
-    improvement_name_field_system_manor_1: 'Assart'
-    improvement_name_field_system_manor_2: 'Open Field'
-    improvement_name_field_system_manor_3: 'Three-Field Farm'
-    improvement_name_pastoral_infrastructure_manor_1: 'Pasture'
-    improvement_name_pastoral_infrastructure_manor_2: 'Enclosed Paddock'
-    improvement_name_pastoral_infrastructure_manor_3: 'Grazing Estate'
     improvement_name_irrigation_infrastructure_manor_1: 'Irrigation Ditch'
     improvement_name_irrigation_infrastructure_manor_2: 'Canal Network'
     improvement_name_irrigation_infrastructure_manor_3: 'Waterworks'
@@ -634,6 +627,18 @@ detail:
     project_budget_total: 'Budget'
     project_budget_remaining: 'Remaining'
     project_budget_spent: 'Spent'
+
+  # v0.52 RealEstateAsset
+  realEstate:
+    title: 'Real Estate'
+    fixed_badge: 'institutional'
+    kind_field: 'Field'
+    kind_pasture: 'Pasture'
+    kind_workshop: 'Workshop'
+    kind_shop: 'Shop'
+    kind_warehouse: 'Warehouse'
+    kind_lord_hall: "Lord's Hall"
+    kind_town_hall: 'Town Hall'
 
   # Holding detail (v0.38 Chronicle)
   holding:

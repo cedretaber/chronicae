@@ -131,7 +131,39 @@ export function HoldingDetail({
         </div>
       </div>
 
-      {/* Improvements */}
+      {/* RealEstateAssets */}
+      {currentState &&
+        (() => {
+          const assetIds = currentState.realEstateAssetIndex.byHolding[holding.id as string] ?? []
+          const assets = assetIds
+            .map((id) => currentState.realEstateAssets[id])
+            .filter((a): a is NonNullable<typeof a> => a !== undefined)
+          if (assets.length === 0) return null
+          return (
+            <div className="text-sm">
+              <DetailSection title={t('detail.realEstate.title')} />
+              {assets.map((asset) => (
+                <div key={asset.id} className="ml-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-gray-200">
+                      {t(`detail.realEstate.kind_${asset.realEstateKind}`, {
+                        defaultValue: asset.realEstateKind,
+                      })}
+                      {asset.fixedInstitution && (
+                        <span className="ml-1 rounded bg-blue-900 px-1 py-0.5 text-xs text-blue-300">
+                          {t('detail.realEstate.fixed_badge')}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-xs text-gray-500">Lv.{asset.level}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+
+      {/* Infrastructure */}
       {currentState &&
         (() => {
           const impIds = currentState.holdingImprovementIndex.byHolding[holding.id as string] ?? []
@@ -199,9 +231,16 @@ export function HoldingDetail({
             .map((pid) => currentState.projects[pid])
             .find(
               (p): p is NonNullable<typeof p> =>
-                p !== undefined && p.status === 'active' && p.kind === 'develop_holding',
+                p !== undefined &&
+                p.status === 'active' &&
+                (p.kind === 'develop_holding' || p.kind === 'develop_real_estate'),
             )
-          if (!activeProject || activeProject.kind !== 'develop_holding') return null
+          if (!activeProject) return null
+          if (
+            activeProject.kind !== 'develop_holding' &&
+            activeProject.kind !== 'develop_real_estate'
+          )
+            return null
           const supervisor = currentState.persons[activeProject.supervisorPersonId]
           return (
             <div className="text-sm">
@@ -213,11 +252,20 @@ export function HoldingDetail({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">
-                    {t(`detail.province.improvement_${activeProject.improvementKind}`, {
-                      defaultValue: String(activeProject.improvementKind),
-                    })}
+                    {activeProject.kind === 'develop_holding'
+                      ? t(`detail.province.improvement_${activeProject.improvementKind}`, {
+                          defaultValue: String(activeProject.improvementKind),
+                        })
+                      : t(`detail.realEstate.kind_${activeProject.realEstateKind}`, {
+                          defaultValue: String(activeProject.realEstateKind),
+                        })}
                   </span>
-                  <span>&rarr; Lv.{activeProject.targetImprovementLevel}</span>
+                  <span>
+                    &rarr; Lv.
+                    {activeProject.kind === 'develop_holding'
+                      ? activeProject.targetImprovementLevel
+                      : activeProject.targetRealEstateLevel}
+                  </span>
                 </div>
                 {activeProject.currentStageKey === 'execute_project' && (
                   <div className="flex justify-between">
