@@ -119,9 +119,7 @@
 | defaultChangeContractTaxWarScore | 10 | tax goal の requiredWarScore（§6.44） |
 | terminalWarRetentionWeeks | 48 | terminal War 削除までの週数（§6.51） |
 | **War Maneuver（§6.45）** | | |
-| warAvoidanceBaseChance | 0.65 | 回避成功の基礎確率 |
-| warAvoidanceWarCommandEffect | 0.2 | 総大将 warCommand が回避成否に与える係数 |
-| warAvoidanceTerrainModifierByBattlefield | Record<BattlefieldKind, number> | 戦場別の回避しやすさ補正（open_field −0.1 … mountain_pass/wetland_battle +0.15 … siege −0.2） |
+| warAvoidanceTerrainModifierByBattlefield | Record<BattlefieldKind, number> | 戦場別の回避しやすさ補正（open_field −0.1 … mountain_pass/wetland_battle +0.15 … siege −0.2）。v0.49 で回避成否は battleEngagementCaptureBaseChance/Scale の contest に移行し、base/warCommand 係数は廃止 |
 | warAvoidanceCountPenalty | 0.2 | avoidanceCount 1 回ごとの回避欲求/確率ペナルティ |
 | maxWarAvoidanceCount | 4 | この回数以上は強制交戦（accept） |
 | warAvoidanceWarScorePenalty | 1.0 | 片側のみ回避成功時に非回避側へ動く warScore |

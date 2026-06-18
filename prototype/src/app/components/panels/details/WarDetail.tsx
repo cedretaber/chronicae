@@ -2,7 +2,7 @@ import type { SimulationSession } from '@/sim/types/world'
 import type { ClickHandler } from './shared/helpers'
 import { useTranslation } from 'react-i18next'
 import { useEntityName } from '@/app/hooks/useEntityName'
-import { getPolityShortName } from '@/app/hooks/entityNameHelpers'
+import { getPolityShortName, getProvinceShortName } from '@/app/hooks/entityNameHelpers'
 import { PersonLink, PolityLink, HouseLink } from './shared/links'
 import {
   getRegimentsForWarSide,
@@ -21,7 +21,7 @@ import { formatYearMonthWeek, formatAbsoluteWeek } from '@/app/utils/format'
 import { EntityChronicleSection, CollapsibleSection } from './shared/widgets'
 import { useCollapsedSections } from '@/app/hooks/useCollapsedSections'
 import { getChronicleEntriesForWar } from '@sim/selectors/chronicleSelectors'
-import { getBattleLogsForWar } from '@sim/selectors/battleLogSelectors'
+import { getBattleLogsForWar, summarizeBattleEvents } from '@sim/selectors/battleLogSelectors'
 
 // v0.34 §16: War 詳細。DiplomaticPlayDetail の縮小版 (交渉系の要素は War に存在しないため全て削除)。
 export function WarDetail({
@@ -372,23 +372,12 @@ export function WarDetail({
             >
               <div className="flex flex-col gap-1">
                 {battles.map((log) => {
-                  let bt = 0
-                  let pu = 0
-                  let de = 0
-                  for (const tl of log.tickLogs) {
-                    for (const ev of tl.events) {
-                      if (ev.kind === 'breakthrough') bt++
-                      else if (ev.kind === 'pursuit') pu++
-                      else if (ev.kind === 'regiment_destroyed') de++
-                    }
-                  }
-                  const place = worldState.provinces[log.provinceId]
-                    ? resolveName(
-                        'province',
-                        worldState.provinces[log.provinceId]?.nameKey ?? log.provinceId,
-                        log.provinceId,
-                      )
-                    : (log.provinceId as string)
+                  const {
+                    breakthrough: bt,
+                    pursuit: pu,
+                    destroyed: de,
+                  } = summarizeBattleEvents(log)
+                  const place = getProvinceShortName(worldState, resolveName, log.provinceId)
                   return (
                     <button
                       key={log.id}

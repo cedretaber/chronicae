@@ -96,8 +96,8 @@ export function createBattleLogMut(ws: WorldState, input: CreateBattleLogInput):
       : {}),
   }
   ws.battleLogs[id] = log
-  const arr = ws.battleLogIndex.byWar[input.warId]
-  if (arr) arr.push(id)
-  else ws.battleLogIndex.byWar[input.warId] = [id]
+  // byWar 内側配列は前 state と共有されうる (runWarManeuverSystem は byWar マップを浅クローン
+  //   するのみ) ので copy-on-write で追加する。battleMutations.createBattle と同じ規約。
+  ws.battleLogIndex.byWar[input.warId] = [...(ws.battleLogIndex.byWar[input.warId] ?? []), id]
   return log
 }

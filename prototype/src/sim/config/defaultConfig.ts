@@ -534,9 +534,7 @@ export type SimulationConfig = {
   localLevyMorale: number
   terminalWarRetentionWeeks: number
   // v0.35 War Maneuver (§12.1): WarManeuverSystem の総大将判断 / 回避 / 戦闘で warScore を動かす
-  //   avoidance
-  warAvoidanceBaseChance: number
-  warAvoidanceWarCommandEffect: number
+  //   avoidance (v0.49: 回避成否は resolveEngagementContest に移行。base/warCommand 係数は廃止)
   warAvoidanceTerrainModifierByBattlefield: Record<BattlefieldKind, number>
   warAvoidanceCountPenalty: number
   maxWarAvoidanceCount: number
@@ -625,7 +623,7 @@ export type SimulationConfig = {
   //   frontage / terrain
   battlefieldFrontageByKind: Record<BattlefieldKind, number>
   battleTerrainOrganizationDamageMultiplierByKind: Record<BattlefieldKind, number>
-  //   flank 地形補正 (§10.2。flankPressureMultiplier = 1 + flankPressureBase × これ)
+  //   flank 地形補正 (§10.2。slot 側面攻撃ダメージに battleFlankingDamageMultiplier と乗算)
   battleFlankTerrainMultiplierByKind: Record<BattlefieldKind, number>
   //   damage
   battleBaseOrganizationDamage: number
@@ -1803,8 +1801,6 @@ export const defaultConfig: SimulationConfig = {
   localLevyMorale: 30,
   terminalWarRetentionWeeks: 48,
   // v0.35 War Maneuver (§12.2): 初期値案。バランス調整は機能完成後 (.claude/CLAUDE.md §4)。
-  warAvoidanceBaseChance: 0.65,
-  warAvoidanceWarCommandEffect: 0.2,
   warAvoidanceTerrainModifierByBattlefield: {
     open_field: -0.1,
     forest_battle: 0.1,
@@ -1986,7 +1982,7 @@ export const defaultConfig: SimulationConfig = {
   //   会戦単位 reputation (§16.3。総大将の decisive victory/defeat のみ。突出武功/大失態)
   battleCaptainGeneralFeatReputationScore: 12,
   battleCaptainGeneralFailureReputationScore: 14,
-  //   交戦 contest (catcher 有利で base 0.5 から ±ability。warAvoidanceWarCommandEffect と同水準の感度)
+  //   交戦 contest (catcher 有利で base 0.5 から ±ability。回避成否はこの contest のみで決まる)
   battleEngagementCaptureBaseChance: 0.5,
   battleEngagementCaptureAbilityScale: 0.5,
   //   捕捉戦での戦列幅縮小

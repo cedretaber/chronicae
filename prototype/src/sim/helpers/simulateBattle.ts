@@ -594,7 +594,9 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
   const breakthroughBySide: Record<WarSideKey, boolean> = { attacker: false, defender: false }
   // v0.49 §12: 追撃が発生したか + 追撃で致死量まで押し下げた連隊の原因タグ (destroyedCause 用)。
   let pursuitOccurred = false
-  const pursuitDestroyedCause = new Map<WorkRegiment, BattleDestroyedCause>()
+  // 抽選で決まる「強制壊滅」の原因タグ (現状は追撃致死のみ。将来 encirclement 等も同じ Map に集約)。
+  //   ここに入った連隊は終局で strengthAfter=0 を強制する。通常消耗 (emergent) の壊滅はここを通さない。
+  const forcedDestroyedCause = new Map<WorkRegiment, BattleDestroyedCause>()
 
   // §8.2 両端ケース: 片側 (または双方) が fighting force 0 なら戦闘 tick を回さず即決着する。
   //   tactic 選択を含む draw を一切消費しない (auto-resolve は後続 battle の rng stream を乱さない)。
@@ -782,7 +784,7 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
         let destroyed = false
         if (destroyDraw.value < cfg.battlePursuitDestroyedChance) {
           destroyed = true
-          pursuitDestroyedCause.set(
+          forcedDestroyedCause.set(
             enemy,
             brokenTargets.has(enemy) ? 'breakthrough_pursuit' : 'pursuit',
           )
@@ -950,18 +952,18 @@ export function simulateBattle(input: BattleSimInput): BattleSimResult {
         roleMult *
         outcomeStrMult *
         powerDisMult
-      // v0.49 §14.2: pursuit 致死で destroyed 判定された連隊は終局式の outcome/powerDis 係数に依らず
+      // v0.49 §14.2: 強制壊滅 (現状は追撃致死) と判定された連隊は終局式の outcome/powerDis 係数に依らず
       //   strengthAfter=0 を強制し、tick ログの destroyed と regimentResults を必ず一致させる。
       //   旧実装は accumulatedOrgDamage を「致死量」へ押し上げる間接式で、終局式が strength×product を
       //   引いた結果が浮動小数点誤差でわずかに正に残ると destroyedCause=undefined となり「tick ログは
       //   壊滅だが連隊は生存」する不整合があった (default config でも発火)。原因タグを単一の真実源にして解消。
-      const strengthAfter = pursuitDestroyedCause.has(w)
+      const strengthAfter = forcedDestroyedCause.has(w)
         ? 0
         : Math.max(0, w.input.strength - strDamage)
-      // destroyed (strengthAfter===0) のみ原因タグを付す。pursuit 致死は pursuit/breakthrough_pursuit、
-      //   それ以外 (通常消耗) の壊滅は ordinary_attrition。
+      // destroyed (strengthAfter===0) のみ原因タグを付す。強制壊滅は pursuit/breakthrough_pursuit、
+      //   それ以外 (通常消耗 emergent) の壊滅は ordinary_attrition。
       const destroyedCause: BattleDestroyedCause | undefined =
-        strengthAfter <= 0 ? (pursuitDestroyedCause.get(w) ?? 'ordinary_attrition') : undefined
+        strengthAfter <= 0 ? (forcedDestroyedCause.get(w) ?? 'ordinary_attrition') : undefined
       regimentResults.push({
         regimentId: w.input.regimentId,
         side: w.input.side,

@@ -1108,9 +1108,9 @@ export function checkGoalsAimsProjects(
   // ─── Chronicle index ↔ entry 内部整合 (v0.38 §7.1) ───
   //   index↔entry の構造整合のみ検査する。entityRefs の参照先が現在 state に存在するか
   //   (active か / 死亡人物か / 断絶家か / 終了 War か) は検査しない (soft-ref。§7.1)。
-  //   index 対象は person/house/polity/province/holding の 5 kind のみ。
+  //   index 対象は person/house/polity/province/holding/war の 6 kind (v0.49 §16.2 で war 追加)。
   const chronicleIndexAxes: ReadonlyArray<{
-    kind: 'person' | 'house' | 'polity' | 'province' | 'holding'
+    kind: 'person' | 'house' | 'polity' | 'province' | 'holding' | 'war'
     label: string
     index: Record<string, ChronicleEntryId[]>
   }> = [
@@ -1119,6 +1119,7 @@ export function checkGoalsAimsProjects(
     { kind: 'polity', label: 'byPolity', index: state.chronicleIndex.byPolity },
     { kind: 'province', label: 'byProvince', index: state.chronicleIndex.byProvince },
     { kind: 'holding', label: 'byHolding', index: state.chronicleIndex.byHolding },
+    { kind: 'war', label: 'byWar', index: state.chronicleIndex.byWar },
   ]
   // forward: index に載る entry id が実在し、その entityRefs に (kind, key) を含む
   // perf (v0.47): reverse 検査用に forward で観測した全 (kind, key, eid) トリプルを Set 化する。
@@ -1147,9 +1148,16 @@ export function checkGoalsAimsProjects(
       }
     }
   }
-  // reverse: 各 entry の 5 index 対象 kind の ref が、対応 index に entry id として登録済み
+  // reverse: 各 entry の 6 index 対象 kind の ref が、対応 index に entry id として登録済み
   {
-    const indexTargetKinds = new Set<string>(['person', 'house', 'polity', 'province', 'holding'])
+    const indexTargetKinds = new Set<string>([
+      'person',
+      'house',
+      'polity',
+      'province',
+      'holding',
+      'war',
+    ])
     for (const [eidStr, entry] of Object.entries(state.chronicleEntries)) {
       for (const r of entry.entityRefs) {
         if (!indexTargetKinds.has(r.kind)) continue // faction/clan 等 index 非対象 kind は検査しない (§5.2)

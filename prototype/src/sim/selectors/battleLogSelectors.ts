@@ -11,3 +11,22 @@ export function getBattleLogsForWar(state: WorldState, warId: WarId): BattleLog[
     .filter((log): log is BattleLog => log !== undefined)
     .sort((a, b) => b.week - a.week)
 }
+
+// 会戦一覧の一行サマリ用: tickLogs を走査して突破/追撃/壊滅イベント数を数える。
+export interface BattleEventSummary {
+  breakthrough: number
+  pursuit: number
+  destroyed: number
+}
+
+export function summarizeBattleEvents(log: BattleLog): BattleEventSummary {
+  const summary: BattleEventSummary = { breakthrough: 0, pursuit: 0, destroyed: 0 }
+  for (const tl of log.tickLogs) {
+    for (const ev of tl.events) {
+      if (ev.kind === 'breakthrough') summary.breakthrough++
+      else if (ev.kind === 'pursuit') summary.pursuit++
+      else if (ev.kind === 'regiment_destroyed') summary.destroyed++
+    }
+  }
+  return summary
+}

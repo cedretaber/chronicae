@@ -1,5 +1,5 @@
 import type { WorldState } from '@sim/types/world'
-import type { HoldingId, PolityId } from '@sim/types/ids'
+import type { HoldingId, PolityId, ProvinceId } from '@sim/types/ids'
 import type { House } from '@sim/types/house'
 
 /**
@@ -44,6 +44,17 @@ export function getHouseDisplayName(
         ? ns.category
         : 'house'
   return resolveName(category, house.nameKey, house.nameKey)
+}
+
+/** Province 短名。province が無ければ id を返す。 */
+export function getProvinceShortName(
+  state: MaybeState,
+  resolveName: ResolveName,
+  provinceId: ProvinceId,
+): string {
+  const province = state?.provinces[provinceId]
+  if (!province) return provinceId
+  return resolveName('province', province.nameKey, province.nameKey)
 }
 
 /** Holding 短名。manor -> province category / city -> city category。 */

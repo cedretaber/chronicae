@@ -7,6 +7,7 @@ import type { WarSideKey } from '@sim/types/war'
 import type { RegimentId, PersonId } from '@/sim/types/ids'
 import type { ClickHandler } from './shared/helpers'
 import { useEntityName } from '@/app/hooks/useEntityName'
+import { getProvinceShortName } from '@/app/hooks/entityNameHelpers'
 import { PersonLink, PolityLink, HouseLink } from './shared/links'
 import { formatAbsoluteWeek } from '@/app/utils/format'
 
@@ -54,9 +55,7 @@ export function BattleReplayPanel({
     s === 'attacker' ? t('detail.war.attacker') : t('detail.war.defender')
   const col = (i: number): string => t('detail.battle.column', { n: i + 1 })
   const battlefieldName = t(`enum.battlefieldKind.${log.battlefieldKind}`, { ns: 'events' })
-  const provinceName = provinces[log.provinceId]
-    ? resolveName('province', provinces[log.provinceId]?.nameKey ?? log.provinceId, log.provinceId)
-    : (log.provinceId as string)
+  const provinceName = getProvinceShortName(worldState, resolveName, log.provinceId)
   const resultText = t(`enum.result.${log.result}`, { ns: 'events' })
   const outcomeText = log.outcomeQuality
     ? t(`enum.outcomeQuality.${log.outcomeQuality}`, { ns: 'events' })
@@ -72,11 +71,7 @@ export function BattleReplayPanel({
     const r = regiments[regId]
     if (!r) return t('detail.battle.unknown_regiment')
     if (r.homeProvinceId && provinces[r.homeProvinceId]) {
-      return resolveName(
-        'province',
-        provinces[r.homeProvinceId]?.nameKey ?? r.homeProvinceId,
-        r.homeProvinceId,
-      )
+      return getProvinceShortName(worldState, resolveName, r.homeProvinceId)
     }
     return r.homeHoldingId ?? regId
   }

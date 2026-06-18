@@ -201,12 +201,10 @@ describe('WarManeuverSystem engagement 強制分岐 (config override)', () => {
     const { war } = injectWar(world, 100)
     war.warScore = 50 // attacker 優勢 → defender に urgency、attacker に urgency なし
     // terrain +0.6 で両者の avoidDesire を底上げ、urgencyEffect 4 で defender だけ accept に倒す。
-    // baseChance 1.0 + warCommandEffect 0 で回避は必ず成功。
+    // 回避成否は resolveEngagementContest: captureChance = 0.5 - terrain 0.6 = 負 → clamp 0 で必ず回避成功。
     const config = deterministicConfig({
       warAvoidanceTerrainModifierByBattlefield: terrainAll(0.6),
       warEngagementWarScoreUrgencyEffect: 4,
-      warAvoidanceBaseChance: 1.0,
-      warAvoidanceWarCommandEffect: 0,
       warAvoidanceCountPenalty: 0,
       warAvoidanceWarScorePenalty: 1.0,
     })
@@ -227,8 +225,6 @@ describe('WarManeuverSystem engagement 強制分岐 (config override)', () => {
     const config = deterministicConfig({
       warAvoidanceTerrainModifierByBattlefield: terrainAll(0.6),
       warEngagementWarScoreUrgencyEffect: 4,
-      warAvoidanceBaseChance: 1.0,
-      warAvoidanceWarCommandEffect: 0,
       warAvoidanceCountPenalty: 0,
       warAvoidanceWarScorePenalty: 1.0,
     })
