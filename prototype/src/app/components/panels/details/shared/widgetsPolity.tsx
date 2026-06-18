@@ -340,10 +340,15 @@ export function PolityRegiments({
       const province = r.homeProvinceId ? worldState.provinces[r.homeProvinceId] : undefined
       const provinceName = province
         ? resolveName('province', province.nameKey, province.nameKey)
-        : String(r.homeProvinceId ?? r.id)
+        : undefined
+      const regName = provinceName
+        ? `${provinceName} ${t('detail.polity.regiment_suffix')}`
+        : r.troopKind === 'cavalry'
+          ? t('detail.polity.cavalry_regiment')
+          : String(r.id)
       return {
         id: r.id,
-        name: `${provinceName} ${t('detail.polity.regiment_suffix')}`,
+        name: regName,
         organization: Math.round(r.organization),
         baselineOrganization: Math.round(r.baselineOrganization),
         morale: Math.round(r.morale),
