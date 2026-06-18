@@ -37,6 +37,7 @@ import { adjustHoldingPopWealthMut, adjustHoldingPopUnrestMut } from '../mutatio
 import { createCrisisMut, setCrisisSeverityMut } from '../mutations/crisisMutations'
 import type { CreateCrisisInput } from '../mutations/crisisMutations'
 import { resolveCrisisHandlers, createHandleCrisisProjectMut } from './crisisSystem'
+import { holdingNameParam } from '../selectors/nameRefSelectors'
 
 const PLUNDER_PRIORITY_BY_HOLDING_KIND: Record<string, readonly HoldingImprovementKind[]> = {
   manor: [
@@ -394,22 +395,20 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
         }
       }
 
-      // 12.5. Normal foraging condition damage (silent)
+      // 12.5. Normal foraging condition damage (silent, primary holding only per §7.3)
       if (supplyDemand > 0 && provinceId !== undefined) {
         const province = ws.provinces[provinceId]
-        if (province) {
-          const provinceHoldings = [...province.holdingIds].sort()
-          for (const holdingId of provinceHoldings) {
-            const conditionDrop =
-              config.supplyForageConditionDrop *
-              (nextSupplyPressure / 100) *
-              (supplyDemand / 10) *
-              (1 - qmScore / 200)
-            if (conditionDrop > 0.5) {
-              damageHoldingImprovementConditionMut(ws, holdingId, conditionDrop, [
-                'storage_infrastructure',
-              ])
-            }
+        if (province && province.holdingIds.length > 0) {
+          const primaryHoldingId = [...province.holdingIds].sort()[0]!
+          const conditionDrop =
+            config.supplyForageConditionDrop *
+            (nextSupplyPressure / 100) *
+            (supplyDemand / 10) *
+            (1 - qmScore / 200)
+          if (conditionDrop > 0.5) {
+            damageHoldingImprovementConditionMut(ws, primaryHoldingId, conditionDrop, [
+              'storage_infrastructure',
+            ])
           }
         }
       }
@@ -474,6 +473,7 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                 importance: 'normal',
                 messageKey: 'supply.harsh_requisition',
                 messageParams: {
+                  warId: war.id,
                   side: sideKey,
                   holding: targetHoldingId,
                   conditionDrop: harshDrop,
@@ -481,7 +481,11 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                   unrestDelta: config.warSupplyHarshRequisitionPopUnrestGain,
                   supplyPressureReduction: config.warSupplyHarshRequisitionSupplyRelief,
                 },
-                entityRefs: [entityRef('holding', targetHoldingId)],
+                entityRefs: [
+                  entityRef('war', war.id, 'war'),
+                  entityRef('holding', targetHoldingId),
+                  entityRef('polity', primaryPolityId, sideKey),
+                ],
               })
               next = { ...harshCtx, events: [...harshCtx.events, harshEvent] }
             }
@@ -527,11 +531,18 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                 }
               }
               if (existingWarDamage) {
-                setCrisisSeverityMut(
-                  ws,
-                  existingWarDamage,
-                  config.crisisInitialSeverityByKind.war_damage,
-                )
+                const existingCrisis = ws.crises[existingWarDamage]
+                if (existingCrisis) {
+                  const newSeverity = Math.min(
+                    100,
+                    existingCrisis.severity + config.crisisInitialSeverityByKind.war_damage,
+                  )
+                  setCrisisSeverityMut(ws, existingWarDamage, newSeverity)
+                  ws.crises[existingWarDamage] = {
+                    ...ws.crises[existingWarDamage]!,
+                    deadlineWeek: absoluteWeek + config.crisisDeadlineWeeksByKind.war_damage,
+                  }
+                }
               } else {
                 const ownerPolityId = getHoldingTerminalPolityId(ws, targetHoldingId)
                 if (ownerPolityId) {
@@ -557,6 +568,17 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                       absoluteWeek,
                     )
                   }
+                  const { event: crisisEvt, ctx: crisisCtx } = createSimEvent(next, {
+                    type: 'CRISIS_CREATED',
+                    importance: 'minor',
+                    messageKey: 'crisis.created',
+                    messageParams: {
+                      crisisKind: 'war_damage',
+                      holding: holdingNameParam(ws, targetHoldingId),
+                    },
+                    entityRefs: [entityRef('holding', targetHoldingId, 'holding')],
+                  })
+                  next = { ...crisisCtx, events: [...crisisCtx.events, crisisEvt] }
                 }
               }
 
@@ -602,6 +624,7 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                 importance: 'major',
                 messageKey: 'supply.plunder',
                 messageParams: {
+                  warId: war.id,
                   side: sideKey,
                   holding: targetHoldingId,
                   damagedKinds: damagedKinds.join(', '),
@@ -610,7 +633,11 @@ export function runWarSupplySystem(ctx: TickContext): TickContext {
                   unrestDelta: config.warSupplyPlunderPopUnrestGain,
                   supplyPressureReduction: config.warSupplyPlunderSupplyRelief,
                 },
-                entityRefs: [entityRef('holding', targetHoldingId)],
+                entityRefs: [
+                  entityRef('war', war.id, 'war'),
+                  entityRef('holding', targetHoldingId),
+                  entityRef('polity', primaryPolityId, sideKey),
+                ],
               })
               next = { ...plunderCtx, events: [...plunderCtx.events, plunderEvent] }
             }
