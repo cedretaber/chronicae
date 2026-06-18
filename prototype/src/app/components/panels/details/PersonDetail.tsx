@@ -348,6 +348,10 @@ export function PersonDetail({
             <span>{Math.round((getRoleScore(worldState, person.id, 'warCommand') / 10) * 10)}</span>
           </div>
           <div className="flex justify-between">
+            <span className="text-gray-400">{t('detail.person.strategy')}:</span>
+            <span>{Math.round((getRoleScore(worldState, person.id, 'strategy') / 10) * 10)}</span>
+          </div>
+          <div className="flex justify-between">
             <span className="text-gray-400">{t('detail.house.prestige')}:</span>
             <span>{formatScore(person.legacyPrestige)}</span>
           </div>
