@@ -1,6 +1,6 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
-import type { PolityId, HouseId, GoalId, ProvinceId, LandContractId } from '../types/ids'
+import type { PolityId, HouseId, GoalId, ProvinceId, LandContractId, HoldingId } from '../types/ids'
 import type { PolityRank } from '../types/polity'
 import { canPromotePolityRank } from './petitionSelectors'
 import type {
@@ -31,6 +31,8 @@ import {
   getLandContractGrantor,
 } from './landContractSelectors'
 import { getHoldingDevelopment } from './holdingImprovementSelectors'
+import type { PopClass, PopOccupation } from '../types/popGroup'
+import { getHoldingOccupationCapacity, getHoldingPopSizeByClassAndOccupation } from './popSelectors'
 import { calcPolityMilitaryPower } from './militarySelectors'
 import { getHouseOwnedPolityIds } from './landContractSelectors'
 import { predictPressureResponseStance } from './pressureStanceSelectors'
@@ -303,6 +305,25 @@ export function pickAimForGoal(
   return undefined
 }
 
+function hasCapacityPressure(
+  state: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): boolean {
+  const pairs: [PopClass, PopOccupation][] = [
+    ['peasants', 'agriculture'],
+    ['townsmen', 'urban_labor'],
+    ['nobles', 'elite_service'],
+  ]
+  for (const [pc, occ] of pairs) {
+    const cap = getHoldingOccupationCapacity(state, config, holdingId, pc, occ)
+    if (cap <= 0) continue
+    const employed = getHoldingPopSizeByClassAndOccupation(state, holdingId, pc, occ)
+    if (employed / cap >= config.developRealEstateCapacityPressureThreshold) return true
+  }
+  return false
+}
+
 function pickPolityAim(
   state: WorldState,
   config: SimulationConfig,
@@ -491,14 +512,18 @@ function pickPolityAim(
         const tp = state.holdingTerminalPolityCache[h.id]
         if (!tp || (tp as string) !== (polityId as string)) continue
         const holdingDev = getHoldingDevelopment(state, config, h.id)
-        if (holdingDev < config.developHoldingTargetDevelopmentThreshold) {
+        const devDeficit = holdingDev < config.developHoldingTargetDevelopmentThreshold
+        const capacityPressure = hasCapacityPressure(state, config, h.id)
+        if (devDeficit || capacityPressure) {
+          const score = devDeficit
+            ? 20 +
+              (config.developHoldingTargetDevelopmentThreshold - holdingDev) * 0.5 +
+              h.landQuality * 0.3
+            : 15 + h.landQuality * 0.3
           candidates.push({
             kind: 'develop_owned_holding',
             target: { kind: 'holding', id: h.id },
-            score:
-              20 +
-              (config.developHoldingTargetDevelopmentThreshold - holdingDev) * 0.5 +
-              h.landQuality * 0.3,
+            score,
           })
         }
       }

@@ -7,6 +7,7 @@ import { getOwnerNameKey, getOwnerNameRefForEmit } from '../utils/ownerNames'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type {
   DevelopHoldingProject,
+  DevelopRealEstateProject,
   HandleCrisisProject,
   LandClaimProject,
   ContractRevisionProject,
@@ -179,7 +180,11 @@ function resolveImmediateStage(
 
   // v0.48 Crisis: handle_crisis は develop_holding と同じ find_supervisor → secure_budget を共有する。
   //   これを書かないとステージが永久 stall する (§3.1【新規必須 1】)。
-  if (project.kind === 'develop_holding' || project.kind === 'handle_crisis') {
+  if (
+    project.kind === 'develop_holding' ||
+    project.kind === 'develop_real_estate' ||
+    project.kind === 'handle_crisis'
+  ) {
     if (project.currentStageKey === 'find_supervisor') {
       return resolveFindSupervisor(ws, config, project, projectId, absoluteWeek)
     }
@@ -665,7 +670,7 @@ function resolveFinalizeLandGrant(
 function resolveFindSupervisor(
   ws: WorldState,
   config: SimulationConfig,
-  project: DevelopHoldingProject | HandleCrisisProject,
+  project: DevelopHoldingProject | DevelopRealEstateProject | HandleCrisisProject,
   projectId: ProjectId,
   absoluteWeek: number,
 ): boolean {
@@ -725,7 +730,7 @@ function resolveFindSupervisor(
   })
 
   removeProjectFromIndexMut(ws, project)
-  const updated: DevelopHoldingProject | HandleCrisisProject = {
+  const updated: DevelopHoldingProject | DevelopRealEstateProject | HandleCrisisProject = {
     ...project,
     supervisorPersonId: supervisorId,
     currentStageKey: nextKey,
@@ -738,7 +743,7 @@ function resolveFindSupervisor(
 function resolveSecureBudget(
   ws: WorldState,
   config: SimulationConfig,
-  project: DevelopHoldingProject | HandleCrisisProject,
+  project: DevelopHoldingProject | DevelopRealEstateProject | HandleCrisisProject,
   projectId: ProjectId,
   absoluteWeek: number,
 ): boolean {

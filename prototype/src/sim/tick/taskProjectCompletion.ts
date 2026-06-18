@@ -18,7 +18,17 @@ import type { HoldingImprovementKind } from '../types/holdingImprovement'
 import {
   getHoldingImprovementLevel,
   canBuildHoldingImprovement,
+  canBuildRealEstateAsset,
+  getRealEstateAssetLevel,
 } from '../selectors/holdingImprovementSelectors'
+import { getHoldingDevelopment } from '../selectors/holdingImprovementSelectors'
+import {
+  getHoldingOccupationCapacity,
+  getHoldingPopSizeByClassAndOccupation,
+} from '../selectors/popSelectors'
+import type { PopClass, PopOccupation } from '../types/popGroup'
+import type { RealEstateKind } from '../types/realEstateAsset'
+import { REAL_ESTATE_DEFINITIONS } from '../config/realEstateDefinitions'
 import { IMPROVEMENT_DEFINITIONS } from '../config/improvementDefinitions'
 import { createProjectId } from '../types/ids'
 import {
@@ -160,6 +170,49 @@ function selectImprovementKind(
   return bestKind
 }
 
+function checkCapacityPressure(
+  ws: WorldState,
+  config: SimulationConfig,
+  holdingId: HoldingId,
+): boolean {
+  const pairs: [PopClass, PopOccupation][] = [
+    ['peasants', 'agriculture'],
+    ['townsmen', 'urban_labor'],
+    ['nobles', 'elite_service'],
+  ]
+  for (const [pc, occ] of pairs) {
+    const cap = getHoldingOccupationCapacity(ws, config, holdingId, pc, occ)
+    if (cap <= 0) continue
+    const employed = getHoldingPopSizeByClassAndOccupation(ws, holdingId, pc, occ)
+    if (employed / cap >= config.developRealEstateCapacityPressureThreshold) return true
+  }
+  return false
+}
+
+function selectRealEstateKind(
+  ws: WorldState,
+  _config: SimulationConfig,
+  holdingId: HoldingId,
+): RealEstateKind | undefined {
+  const ALL_KINDS = Object.keys(REAL_ESTATE_DEFINITIONS) as RealEstateKind[]
+  let bestKind: RealEstateKind | undefined
+  let bestCapacityGain = 0
+  for (const kind of ALL_KINDS) {
+    const def = REAL_ESTATE_DEFINITIONS[kind]
+    if (def.fixedInstitution) continue
+    if (!canBuildRealEstateAsset(ws, holdingId, kind)) continue
+    let totalGain = 0
+    for (const slot of def.employmentSlots) {
+      totalGain += slot.capacityPerLevel
+    }
+    if (totalGain > bestCapacityGain) {
+      bestCapacityGain = totalGain
+      bestKind = kind
+    }
+  }
+  return bestKind
+}
+
 // 調査 §1.6: 文化系 project (wealth コストを持つ) を作成して良いか。
 // 作成時に house が払えなければ false → project を作らず aim を待機させ、完了時の
 // silent no-op (PROJECT_COMPLETED は出るが効果ゼロ) を未然に防ぐ。
@@ -186,17 +239,58 @@ function buildProjectFieldsForAim(
       const holding = ws.holdings[holdingId]
       if (!holding) return undefined
 
-      // v0.27 §15 / v0.42: 同一 holding の active develop_holding は 1 件まで (§19.4 integrity)。
-      // projectPreparationSystem の同ガードは prepare task 発行時のみで、複数の prepare task が
-      // 並走すると completion 時に 2 件目が生成されるレースがあった (latent — RNG パスに依存)。
-      // creation 側でも同じ判定を行いレースを閉じる。
       const refKey = `holding:${holdingId}`
       const existingPids = ws.projectIndex.byRelatedEntity[refKey] ?? []
       const hasActiveDev = existingPids.some((pid) => {
         const p = ws.projects[pid]
-        return p && p.kind === 'develop_holding' && p.status === 'active'
+        return (
+          p &&
+          (p.kind === 'develop_holding' || p.kind === 'develop_real_estate') &&
+          p.status === 'active'
+        )
       })
       if (hasActiveDev) return undefined
+
+      const holdingDev = getHoldingDevelopment(ws, config, holdingId)
+      const hasCapPressure = checkCapacityPressure(ws, config, holdingId)
+
+      if (hasCapPressure) {
+        const realEstateKind = selectRealEstateKind(ws, config, holdingId)
+        if (!realEstateKind) return undefined
+        const currentLevel = getRealEstateAssetLevel(ws, holdingId, realEstateKind)
+        const targetLevel = currentLevel + 1
+        const baseCost = config.developRealEstateProjectBaseCost[realEstateKind]
+        const costMult = config.improvementLevelCostMultiplier[targetLevel] ?? 1
+        const required = baseCost * costMult * config.projectBudgetMarginMultiplier
+        const baseProgress = config.developRealEstateProjectBaseProgress[realEstateKind]
+        const progMult = config.improvementLevelProgressMultiplier[targetLevel] ?? 1
+        const existingAssetId = (() => {
+          const assetIds = ws.realEstateAssetIndex.byHolding[holdingId as string] ?? []
+          for (const aId of assetIds) {
+            const a = ws.realEstateAssets[aId]
+            if (a && a.realEstateKind === realEstateKind) return aId
+          }
+          return undefined
+        })()
+        return {
+          kind: 'develop_real_estate',
+          holdingId,
+          realEstateKind,
+          targetRealEstateAssetId: existingAssetId,
+          targetRealEstateLevel: targetLevel,
+          currentStageKey: getInitialProjectStageKey('develop_real_estate'),
+          budget: {
+            required,
+            allocated: 0,
+            remaining: 0,
+            spent: 0,
+            source: { kind: 'owner' },
+          } satisfies ProjectBudget,
+          targetProgress: baseProgress * progMult,
+        }
+      }
+
+      if (holdingDev >= config.developHoldingTargetDevelopmentThreshold) return undefined
 
       const improvementKind = selectImprovementKind(ws, config, holdingId)
       if (!improvementKind) return undefined
@@ -584,7 +678,11 @@ export function handleAdvanceProjectCompletionMut(
 
   // v0.48 一般化: budget 持ち holding Project (develop_holding / handle_crisis) は advance task ごとに
   //   予算を消費する。それ以外は progress のみ更新。
-  if (project.kind === 'develop_holding' || project.kind === 'handle_crisis') {
+  if (
+    project.kind === 'develop_holding' ||
+    project.kind === 'develop_real_estate' ||
+    project.kind === 'handle_crisis'
+  ) {
     const expectedTasks = Math.max(
       1,
       Math.ceil(project.targetProgress / config.projectAdvanceProgressSuccess),
