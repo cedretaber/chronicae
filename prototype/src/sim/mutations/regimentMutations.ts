@@ -261,6 +261,7 @@ export function disbandRegimentMut(ws: WorldState, regimentId: RegimentId): void
   delete next.currentWarId
   delete next.currentSide
   delete next.mobilizedByPolityId
+  delete next.destroyedWeek
   ws.regiments[regimentId] = next
 
   // v0.42 §11.4: disbanded は制度的解散 = regiment_control right の即時失効。

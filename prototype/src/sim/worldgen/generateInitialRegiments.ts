@@ -7,6 +7,7 @@
 import type { WorldState } from '../types/world'
 import type { SimulationConfig } from '../config/defaultConfig'
 import type { PolityId, HoldingId } from '../types/ids'
+import { getPolityTerritorialStatus } from '../types/polity'
 import type { RegimentSourceKind, RegimentTroopKind } from '../types/regiment'
 import { createRng, randomFloat } from '../rng/rng'
 import { calcPolityMilitaryPower } from '../selectors/militarySelectors'
@@ -82,6 +83,34 @@ export function generateInitialRegiments(
         maxStrength: config.regimentMaxStrength,
         basePower,
         // §3 (v0.37): baseline / max を config 定数で設定 (RNG draw を増やさない → bit-identical)。
+        baselineOrganization: config.regimentBaselineOrganizationDefault,
+        maxOrganization: config.regimentMaxOrganizationDefault,
+        baselineMorale: config.regimentBaselineMoraleDefault,
+        maxMorale: config.regimentMaxMoraleDefault,
+        createdWeek: state.absoluteWeek,
+      })
+    }
+  }
+
+  // --- Pass 3: create cavalry regiments for rank-eligible polities ---
+  const sortedPolityIds = ([...holdingsByPolity.keys()] as PolityId[]).sort()
+  for (const polityId of sortedPolityIds) {
+    const polity = state.polities[polityId]
+    if (!polity || !polity.active) continue
+    if (getPolityTerritorialStatus(polity) === 'titular') continue
+    const cavEntitlement = config.cavalryEntitlementByRank[polity.rank] ?? 0
+    if (cavEntitlement <= 0) continue
+
+    for (let i = 0; i < cavEntitlement; i++) {
+      createRegiment(state, {
+        owner: { kind: 'polity', id: polityId },
+        sourceKind: 'noble_retinue',
+        troopKind: 'cavalry',
+        strength: config.regimentInitialStrength,
+        organization: config.regimentInitialOrganization,
+        morale: config.regimentInitialMorale,
+        maxStrength: config.regimentMaxStrength,
+        basePower: config.cavalryEntitlementBasePower,
         baselineOrganization: config.regimentBaselineOrganizationDefault,
         maxOrganization: config.regimentMaxOrganizationDefault,
         baselineMorale: config.regimentBaselineMoraleDefault,

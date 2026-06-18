@@ -1273,6 +1273,10 @@ export type SimulationConfig = {
   houseDomainConsolidationMinOwnedPolityCount: number
   houseDomainConsolidationMinBenefit: number
   houseDomainConsolidationRetryCooldownWeeks: number
+  // === v0.50 騎兵連隊 (cavalryEntitlementSystem) ===
+  cavalryEntitlementByRank: Partial<Record<PolityRank, number>>
+  cavalryEntitlementBasePower: number
+  cavalryDestroyedCooldownWeeks: number
 } & LandContractConfig // 調査 §5.3: LandContract 系の値も SimulationConfig に統合し --config で上書き可能に
 
 export const defaultConfig: SimulationConfig = {
@@ -2627,4 +2631,8 @@ export const defaultConfig: SimulationConfig = {
   houseDomainConsolidationMinOwnedPolityCount: 2,
   houseDomainConsolidationMinBenefit: 1,
   houseDomainConsolidationRetryCooldownWeeks: 312,
+  // === v0.50 騎兵連隊 ===
+  cavalryEntitlementByRank: { 1: 0, 2: 2, 3: 1, 4: 0, 5: 0 },
+  cavalryEntitlementBasePower: 10,
+  cavalryDestroyedCooldownWeeks: 24,
 }
