@@ -1304,7 +1304,6 @@ export type SimulationConfig = {
   battleMoraleShockPerDestroyed: number
   battleMoraleRallyCapPerTick: number
   battleMoraleShockCapPerTick: number
-  battleMoraleRallyAdjacentRatio: number
   battleMoraleRallyFrontlineRatio: number
   battleMoraleRallySideRatio: number
   battleMoraleShiftLogThreshold: number
@@ -2711,7 +2710,6 @@ export const defaultConfig: SimulationConfig = {
   battleMoraleShockPerDestroyed: 5,
   battleMoraleRallyCapPerTick: 10,
   battleMoraleShockCapPerTick: 10,
-  battleMoraleRallyAdjacentRatio: 0.5,
   battleMoraleRallyFrontlineRatio: 0.3,
   battleMoraleRallySideRatio: 0.1,
   battleMoraleShiftLogThreshold: 5,

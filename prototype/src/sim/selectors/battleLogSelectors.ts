@@ -23,8 +23,8 @@ export function summarizeBattleEvents(log: BattleLog): BattleEventSummary {
   const summary: BattleEventSummary = { breakthrough: 0, pursuit: 0, destroyed: 0 }
   for (const tl of log.tickLogs) {
     for (const ev of tl.events) {
-      if (ev.kind === 'breakthrough') summary.breakthrough++
-      else if (ev.kind === 'pursuit') summary.pursuit++
+      if (ev.kind === 'breakthrough' || ev.kind === 'cavalry_charge') summary.breakthrough++
+      else if (ev.kind === 'pursuit' || ev.kind === 'cavalry_pursuit') summary.pursuit++
       else if (ev.kind === 'regiment_destroyed') summary.destroyed++
     }
   }

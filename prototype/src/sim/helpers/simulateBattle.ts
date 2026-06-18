@@ -131,7 +131,6 @@ type BattleSimConfigSlice = Pick<
   | 'battleMoraleShockPerDestroyed'
   | 'battleMoraleRallyCapPerTick'
   | 'battleMoraleShockCapPerTick'
-  | 'battleMoraleRallyAdjacentRatio'
   | 'battleMoraleRallyFrontlineRatio'
   | 'battleMoraleRallySideRatio'
   | 'battleMoraleShiftLogThreshold'
