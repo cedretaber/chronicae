@@ -19,6 +19,7 @@ import {
 } from '../selectors/nameRefSelectors'
 import { revokeOfficesByOrganization, createOfficeAssignment } from '../mutations/officeMutations'
 import { removeRightsByPolity } from '../mutations/politicalRightMutations'
+import { eliminateContractFromChain } from '../mutations/landContractMutations'
 import { dissolveFactionsAnchoredToPolity } from '../mutations/factionMutations'
 import { selectOrCreateCommonwealthLeader } from '../mutations/worldStructureMutations'
 import { getProvinceDevelopmentFromHoldings } from '../selectors/landContractSelectors'
@@ -275,6 +276,12 @@ function titularizePolityInline(ctx: TickContext, polityId: PolityId): TickConte
   )
   if (nextGoals) state = { ...state, goals: nextGoals }
 
+  // v0.50 fix: titular Polity は LandContract を持たない (§19.1)。titular 化時に grantee 契約を除去。
+  const granteeContracts = state.landContractIndex.byGranteePolity[polityId] ?? []
+  for (const contractId of [...granteeContracts]) {
+    state = eliminateContractFromChain(state, contractId)
+  }
+
   let next: TickContext = { ...ctx, state }
   // 7. Faction anchor cleanup
   next = dissolveFactionsAnchoredToPolity(next, polityId)
@@ -307,6 +314,19 @@ export function runPolityOwnerConsistencySystem(ctx: TickContext): TickContext {
   for (const polityId of polityIds) {
     const polity = currentCtx.state.polities[polityId]
     if (!polity || !polity.active) continue
+
+    // v0.50 fix: titular Polity に LandContract が残っている場合は除去 (§19.1 安全網)。
+    // peaceSettlement が戦争結果で titular polity に land を移転した場合に発生する。
+    if (getPolityTerritorialStatus(polity) === 'titular') {
+      const granteeContracts = currentCtx.state.landContractIndex.byGranteePolity[polityId] ?? []
+      if (granteeContracts.length > 0) {
+        let state = currentCtx.state
+        for (const contractId of [...granteeContracts]) {
+          state = eliminateContractFromChain(state, contractId)
+        }
+        currentCtx = { ...currentCtx, state }
+      }
+    }
 
     // Step 1: landless 検出。v0.47 §6.1: normal rank 2〜4 → titular 化、rank 5 → 廃止、
     //   commonwealth → 従来の extinct 経路 (titular 化の対象外・§2.1)。

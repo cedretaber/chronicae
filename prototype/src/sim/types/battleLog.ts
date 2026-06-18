@@ -29,7 +29,11 @@ export type BattleTactic = 'offensive' | 'defensive' | 'disruption'
 export type BattleEngagementArc = 'frontal' | 'flanking'
 
 // §14.2 destroyed の原因タグ (ログ用)。
-export type BattleDestroyedCause = 'ordinary_attrition' | 'pursuit' | 'breakthrough_pursuit'
+export type BattleDestroyedCause =
+  | 'ordinary_attrition'
+  | 'pursuit'
+  | 'breakthrough_pursuit'
+  | 'cavalry_charge_pursuit'
 
 // §15.2 BattleLogImportance — retention を決める重要度。
 export type BattleLogImportance = 'minor' | 'normal' | 'major'
@@ -105,6 +109,44 @@ export type BattleCommanderFailureLogEntry = {
   failure: 'regiment_destroyed' | 'rout' | 'decisive_defeat'
 }
 
+// v0.50 cavalry charge
+export type BattleCavalryChargeLogEntry = {
+  kind: 'cavalry_charge'
+  side: WarSideKey
+  cavalryRegimentId: RegimentId
+  commanderPersonId?: PersonId
+  targetRegimentId: RegimentId
+  targetSlotIndex: number
+  result: 'success' | 'failure'
+}
+
+// v0.50 cavalry pursuit (reserve cavalry による追撃)
+export type BattleCavalryPursuitLogEntry = {
+  kind: 'cavalry_pursuit'
+  side: WarSideKey
+  cavalryRegimentId: RegimentId
+  targetRegimentId: RegimentId
+  targetSlotIndex: number
+  destroyed: boolean
+}
+
+// v0.50 cavalry screen
+export type BattleCavalryScreenLogEntry = {
+  kind: 'cavalry_screen'
+  side: WarSideKey
+  cavalryRegimentId: RegimentId
+  screenedRegimentId: RegimentId
+  screenedSlotIndex: number
+}
+
+// v0.50 morale shift
+export type BattleMoraleShiftLogEntry = {
+  kind: 'morale_shift'
+  side: WarSideKey
+  rallyTotal: number
+  shockTotal: number
+}
+
 export type BattleLogEntry =
   | BattleTacticLogEntry
   | BattleRetreatLogEntry
@@ -115,6 +157,10 @@ export type BattleLogEntry =
   | BattleFillFrontlineLogEntry
   | BattleCommanderFeatLogEntry
   | BattleCommanderFailureLogEntry
+  | BattleCavalryChargeLogEntry
+  | BattleCavalryPursuitLogEntry
+  | BattleCavalryScreenLogEntry
+  | BattleMoraleShiftLogEntry
 
 // §15.3 BattleTickLog — null は empty slot。
 export type BattleTickLog = {
